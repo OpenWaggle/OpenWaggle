@@ -117,7 +117,7 @@ describe('desktop app release workflow', () => {
 
   it('separates PR preparation from protected-merge publication', () => {
     expect(WORKFLOW).toContain(
-      `if: "!startsWith(github.event.head_commit.message, 'chore(release):')"`,
+      `if: "github.event_name == 'push' && !startsWith(github.event.head_commit.message, 'chore(release):')"`,
     )
     expect(WORKFLOW).toContain(
       'if [ "$RELEASE_SUBJECT_VERSION" = "$CURRENT_VERSION" ]',
@@ -129,6 +129,41 @@ describe('desktop app release workflow', () => {
     )
     expect(WORKFLOW).toContain('cancel-in-progress: false')
     expect(WORKFLOW).toContain('NEW_VERSION="${BASE_VERSION}-${PRERELEASE_TAG}.$((PRERELEASE_NUM + 1))"')
+    expect(WORKFLOW).toContain("grep -qE 'alpha|beta|rc'")
+    expect(WORKFLOW).toContain("sed 's/.*-\\(alpha\\|beta\\|rc\\)\\..*/\\1/'")
+  })
+
+  it('supports an explicit forward promotion through the same protected release PR', () => {
+    const parsed: unknown = parse(WORKFLOW)
+    assertMatching(
+      {
+        jobs: { version: { steps: P.array(P._) } },
+        on: {
+          workflow_dispatch: {
+            inputs: { target_version: { required: true, type: 'string' } },
+          },
+        },
+      },
+      parsed,
+    )
+    const validationStep = parsed.jobs.version.steps[0]
+    expect(validationStep).toEqual(
+      expect.objectContaining({
+        env: { RELEASE_TARGET_VERSION: '${{ inputs.target_version }}' },
+        if: "github.event_name == 'workflow_dispatch'",
+        name: 'Validate manual release dispatch',
+        run: expect.stringMatching(
+          /test "\$GITHUB_REF" = "refs\/heads\/main"[\s\S]*test -n "\$RELEASE_TARGET_VERSION"/u,
+        ),
+      }),
+    )
+    expect(parsed.jobs.version.steps[1]).toEqual(
+      expect.objectContaining({ uses: expect.stringMatching(/^actions\/checkout@/u) }),
+    )
+    expect(WORKFLOW).toContain('RELEASE_TARGET_VERSION: ${{ inputs.target_version }}')
+    expect(WORKFLOW).toContain('scripts/app-release-state.ts validate-transition')
+    expect(WORKFLOW).toContain('--current "$CURRENT_VERSION"')
+    expect(WORKFLOW).toContain('--target "$RELEASE_TARGET_VERSION"')
   })
 
   it('marks semantic prerelease versions as GitHub prereleases', () => {
@@ -253,5 +288,17 @@ describe('desktop app release workflow', () => {
       expect(nextUploadIndex).toBeGreaterThan(smokeIndex)
     }
     expect(WORKFLOW.match(/run: pnpm packaged-app:smoke/gu)).toHaveLength(3)
+  })
+
+  it('prepares compatible update metadata for every published platform channel', () => {
+    expect(WORKFLOW).toContain(
+      'prepare-update-channel-metadata.ts dist "$OPENWAGGLE_RELEASE_CHANNEL" mac',
+    )
+    expect(WORKFLOW).toContain(
+      'prepare-update-channel-metadata.ts dist "$OPENWAGGLE_RELEASE_CHANNEL" linux',
+    )
+    expect(WORKFLOW).toContain(
+      'prepare-update-channel-metadata.ts dist "$OPENWAGGLE_RELEASE_CHANNEL" windows',
+    )
   })
 })

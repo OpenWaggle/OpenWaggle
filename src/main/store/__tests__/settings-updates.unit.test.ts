@@ -107,6 +107,12 @@ describe('settings store updates', () => {
     expect(getSettings().thinkingLevel).toBe('max')
   })
 
+  it('roundtrips the shared desktop and CLI update channel', async () => {
+    const { getSettings, updateSettings } = await loadSettingsModule()
+    updateSettings({ updateChannel: 'alpha' })
+    expect(getSettings().updateChannel).toBe('alpha')
+  })
+
   it('roundtrips recentProjects through updateSettings', async () => {
     const { getSettings, updateSettings } = await loadSettingsModule()
     updateSettings({ recentProjects: ['/tmp/a', '/tmp/b'] })

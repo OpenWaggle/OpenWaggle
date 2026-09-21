@@ -25,6 +25,7 @@ import {
   LOCAL_SESSION_STEERING_RECEIPT_REVISION,
   LOCAL_SESSION_SUPPORTED_REVISIONS,
   LOCAL_SESSION_TURN_DIFF_FILES_REVISION,
+  LOCAL_SESSION_UPDATE_REVISION,
   LOCAL_SESSION_WAGGLE_REVISION,
   LOCAL_SESSION_WORKSPACE_AUTHORIZATION_REVISION,
 } from '@shared/types/local-session-protocol'
@@ -72,6 +73,7 @@ function minimumHostUiRevision(channel: HostBackedGuiChannel) {
 }
 
 function minimumProtocolRevision(payload: LocalSessionCommandPayload) {
+  if (payload.contract === 'local-update-v1') return LOCAL_SESSION_UPDATE_REVISION
   if (payload.contract === 'desktop-service-v1') return LOCAL_SESSION_DESKTOP_SERVICE_REVISION
   if (
     payload.contract === 'session-control-v2' &&
@@ -96,6 +98,9 @@ function minimumProtocolRevision(payload: LocalSessionCommandPayload) {
 }
 
 function unsupportedRevisionMessage(payload: LocalSessionCommandPayload) {
+  if (payload.contract === 'local-update-v1') {
+    return 'The connected Session Host does not support update channel commands.'
+  }
   if (payload.contract === 'desktop-service-v1')
     return 'The connected Session Host does not support desktop services.'
   if (payload.contract === 'session-control-v2') {

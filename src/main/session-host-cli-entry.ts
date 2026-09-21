@@ -1,6 +1,7 @@
 import { app } from 'electron'
 import { flushCliOutput } from './cli-output-flush'
 import { env } from './env'
+import { applyInstallerUpdateChannelIntent } from './installer-update-channel-intent'
 import { configureAppStoragePaths } from './session-data'
 import { withLegacySessionWriterFence } from './session-host/legacy-session-writer-fence'
 import {
@@ -50,6 +51,9 @@ export function startSessionHostCliIfRequested(argv: readonly string[]) {
         try {
           await runtime.initializeAppRuntime()
           await settings.initializeSettingsStore()
+          await applyInstallerUpdateChannelIntent(app.getPath('userData'), (channel) =>
+            settings.updateSettingsDurably({ updateChannel: channel }),
+          )
           const host = await startAppSessionHost({
             paths,
             externalOwnership: ownership,

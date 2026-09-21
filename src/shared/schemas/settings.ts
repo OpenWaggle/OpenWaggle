@@ -17,6 +17,7 @@ import {
   THINKING_LEVELS,
 } from '@shared/types/settings'
 import { SHORTCUT_COMMANDS, SHORTCUT_RULE_LIMITS } from '@shared/types/shortcuts'
+import { UPDATE_CHANNELS } from '@shared/types/update-channel'
 import { parseProjectActionWhenExpression } from '@shared/utils/project-action-shortcuts'
 
 const shortcutBindingSchema = Schema.Struct({
@@ -48,6 +49,7 @@ export const settingsUpdateSchema = Schema.Struct({
   enabledModels: Schema.optional(Schema.mutable(Schema.Array(Schema.String))),
   projectPath: Schema.optional(Schema.NullOr(Schema.String)),
   thinkingLevel: Schema.optional(Schema.Literal(...THINKING_LEVELS)),
+  updateChannel: Schema.optional(Schema.Literal(...UPDATE_CHANNELS)),
   compactionThresholdPercent: Schema.optional(
     Schema.Number.pipe(Schema.int(), Schema.between(1, PERCENT_BASE)),
   ),

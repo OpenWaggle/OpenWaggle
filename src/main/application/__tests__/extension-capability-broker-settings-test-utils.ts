@@ -14,6 +14,7 @@ function mergeGeneralSettings(current: Settings, partial: Partial<Settings>) {
     enabledModels: nextSetting(current.enabledModels, partial.enabledModels),
     projectPath: nextSetting(current.projectPath, partial.projectPath),
     thinkingLevel: nextSetting(current.thinkingLevel, partial.thinkingLevel),
+    updateChannel: nextSetting(current.updateChannel, partial.updateChannel),
     compactionThresholdPercent: nextSetting(
       current.compactionThresholdPercent,
       partial.compactionThresholdPercent,

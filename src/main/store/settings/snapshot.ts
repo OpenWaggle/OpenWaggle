@@ -29,6 +29,7 @@ import {
   SETTINGS_KEY_SKILL_TOGGLES_BY_PROJECT,
   SETTINGS_KEY_SYNTAX_THEME_SELECTIONS,
   SETTINGS_KEY_THINKING_LEVEL,
+  SETTINGS_KEY_UPDATE_CHANNEL,
 } from './keys'
 import {
   isValidDiffSyntaxTheme,
@@ -61,7 +62,9 @@ import {
   resolveNextSessionHostSettings,
   resolveStoredSessionHostSettings,
 } from './session-host-settings-snapshot'
+import { resolveUpdatedSetting, resolveValidatedSetting } from './setting-resolution'
 import { resolveNextShortcutRules } from './shortcut-settings-snapshot'
+import { resolveUpdateChannel } from './update-channel-settings'
 
 export function createDefaultSettingsSnapshot() {
   return {
@@ -76,6 +79,9 @@ function getStoredValue(storedSettings: Readonly<Record<string, unknown>>, key: 
 export function buildSettingsSnapshot(storedSettings: Readonly<Record<string, unknown>>) {
   const thinkingLevel = resolveThinkingLevel(
     getStoredValue(storedSettings, SETTINGS_KEY_THINKING_LEVEL),
+  )
+  const updateChannel = resolveUpdateChannel(
+    getStoredValue(storedSettings, SETTINGS_KEY_UPDATE_CHANNEL),
   )
   const favoriteModels = resolveFavoriteModels(
     getStoredValue(storedSettings, SETTINGS_KEY_FAVORITE_MODELS),
@@ -148,6 +154,7 @@ export function buildSettingsSnapshot(storedSettings: Readonly<Record<string, un
       enabledModels,
       projectPath: resolveProjectPath(getStoredValue(storedSettings, SETTINGS_KEY_PROJECT_PATH)),
       thinkingLevel,
+      updateChannel,
       recentProjects,
       skillTogglesByProject,
       agentDefinitionTogglesByProject,
@@ -197,24 +204,6 @@ function resolveNextAppearanceSettings(current: Settings, partial: Partial<Setti
   }
 }
 
-function resolveUpdatedSetting<Input, Output>(
-  candidate: Input | undefined,
-  current: Output,
-  resolve: (value: Input) => Output,
-): Output {
-  if (candidate === undefined) return current
-  return resolve(candidate)
-}
-
-function resolveValidatedSetting<Value>(
-  candidate: Value | undefined,
-  current: Value,
-  isValid: (value: Value) => boolean,
-): Value {
-  if (candidate === undefined) return current
-  return isValid(candidate) ? candidate : current
-}
-
 export function buildNextSettingsSnapshot(current: Settings, partial: Partial<Settings>) {
   const coreSettings = resolveNextCoreSettings(current, partial)
   const hostSettings = resolveNextSessionHostSettings(current, partial)
@@ -258,6 +247,11 @@ function resolveNextCoreSettings(current: Settings, partial: Partial<Settings>) 
     current.thinkingLevel,
     isValidThinkingLevel,
   )
+  const updateChannel = resolveUpdatedSetting(
+    partial.updateChannel,
+    current.updateChannel,
+    resolveUpdateChannel,
+  )
   const recentProjects = resolveUpdatedSetting(
     partial.recentProjects,
     current.recentProjects,
@@ -296,6 +290,7 @@ function resolveNextCoreSettings(current: Settings, partial: Partial<Settings>) 
     enabledModels,
     projectPath,
     thinkingLevel,
+    updateChannel,
     recentProjects,
     skillTogglesByProject,
     agentDefinitionTogglesByProject,

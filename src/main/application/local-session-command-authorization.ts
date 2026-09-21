@@ -36,6 +36,7 @@ type AuthorizedLocalSessionCommandPayload = Exclude<
       | 'session-waggle-cancel-v1'
       | 'host-ui-v1'
       | 'desktop-service-v1'
+      | 'local-update-v1'
   }
 >
 
@@ -237,6 +238,7 @@ function classifyLocalSessionPayload(payload: LocalSessionCommandPayload) {
       'local-ui-v1',
       'host-ui-v1',
       'desktop-service-v1',
+      'local-update-v1',
       'local-attachments-v1',
       'local-compaction-v1',
       'local-compaction-cancel-v1',

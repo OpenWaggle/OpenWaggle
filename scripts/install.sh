@@ -6,11 +6,10 @@ set -euo pipefail
 DEFAULT_REPO="OpenWaggle/OpenWaggle"
 REPO="${OPENWAGGLE_INSTALL_REPO:-${DEFAULT_REPO}}"
 RELEASE_TAG="${OPENWAGGLE_RELEASE_TAG:-}"
-DEFAULT_API_URL="https://api.github.com/repos/${REPO}/releases/latest"
-if [ -n "${RELEASE_TAG}" ]; then
-  DEFAULT_API_URL="https://api.github.com/repos/${REPO}/releases/tags/${RELEASE_TAG}"
-fi
-API_URL="${OPENWAGGLE_RELEASE_API_URL:-${DEFAULT_API_URL}}"
+REQUESTED_CHANNEL="${OPENWAGGLE_CHANNEL:-}"
+CHANNEL=""
+RELEASES_API_URL="${OPENWAGGLE_RELEASES_API_URL:-https://api.github.com/repos/${REPO}/releases}"
+RELEASE_API_URL="${OPENWAGGLE_RELEASE_API_URL:-}"
 READY_MESSAGE="Ready to waggle"
 READY_TYPE_DELAY_SECONDS="0.045"
 READY_CURSOR_BLINK_DELAY_SECONDS="0.12"
@@ -18,6 +17,141 @@ READY_CURSOR_BLINK_CYCLES=2
 
 info()  { printf '\033[1;34m==>\033[0m %s\n' "$*"; }
 error() { printf '\033[1;31merror:\033[0m %s\n' "$*" >&2; exit 1; }
+
+# BEGIN TESTABLE RELEASE RESOLUTION
+extract_release_tags() {
+  { printf '%s' "$1" | grep -o '"tag_name"[[:space:]]*:[[:space:]]*"[^"]*"' || true; } | \
+    sed 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/'
+}
+
+release_page_url() {
+  local base_url="$1"
+  local page="$2"
+  case "${base_url}" in
+    *\?*) printf '%s&per_page=100&page=%s\n' "${base_url}" "${page}" ;;
+    *) printf '%s?per_page=100&page=%s\n' "${base_url}" "${page}" ;;
+  esac
+}
+
+fetch_release_pages() {
+  local base_url="$1"
+  local page=1
+  local page_json
+  local tag_count
+  while true; do
+    page_json="$(curl -fsSL "$(release_page_url "${base_url}" "${page}")")" || return 1
+    printf '%s\n' "${page_json}"
+    tag_count="$(extract_release_tags "${page_json}" | wc -l | tr -d '[:space:]')"
+    [ "${tag_count}" -lt 100 ] && return 0
+    page=$((page + 1))
+  done
+}
+
+release_matches_channel() {
+  local tag="$1"
+  local channel="$2"
+  case "${channel}" in
+    stable) printf '%s\n' "${tag}" | grep -Eq '^v?[0-9]+\.[0-9]+\.[0-9]+$' ;;
+    beta) printf '%s\n' "${tag}" | grep -Eq '^v?[0-9]+\.[0-9]+\.[0-9]+(-beta\.[0-9]+)?$' ;;
+    alpha) printf '%s\n' "${tag}" | grep -Eq '^v?[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta)\.[0-9]+)?$' ;;
+    *) return 1 ;;
+  esac
+}
+
+release_tag_is_supported() {
+  printf '%s\n' "$1" | grep -Eq '^v?[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta|rc)\.[0-9]+)?$'
+}
+
+resolve_default_channel() {
+  local releases_json="$1"
+  local tag
+  while IFS= read -r tag; do
+    if release_matches_channel "${tag}" stable; then
+      printf '%s\n' stable
+      return 0
+    fi
+  done < <(extract_release_tags "${releases_json}")
+  printf '%s\n' alpha
+}
+
+release_is_newer() {
+  local candidate="$1"
+  local current="$2"
+  local pattern='^v?([0-9]+)\.([0-9]+)\.([0-9]+)(-(alpha|beta|rc)\.([0-9]+))?$'
+  local candidate_major candidate_minor candidate_patch candidate_channel candidate_sequence
+  local current_major current_minor current_patch current_channel current_sequence
+  [[ "${candidate}" =~ ${pattern} ]] || return 1
+  candidate_major="${BASH_REMATCH[1]}"
+  candidate_minor="${BASH_REMATCH[2]}"
+  candidate_patch="${BASH_REMATCH[3]}"
+  candidate_channel="${BASH_REMATCH[5]:-stable}"
+  candidate_sequence="${BASH_REMATCH[6]:-0}"
+  [[ "${current}" =~ ${pattern} ]] || return 0
+  current_major="${BASH_REMATCH[1]}"
+  current_minor="${BASH_REMATCH[2]}"
+  current_patch="${BASH_REMATCH[3]}"
+  current_channel="${BASH_REMATCH[5]:-stable}"
+  current_sequence="${BASH_REMATCH[6]:-0}"
+
+  [ "${candidate_major}" -gt "${current_major}" ] && return 0
+  [ "${candidate_major}" -lt "${current_major}" ] && return 1
+  [ "${candidate_minor}" -gt "${current_minor}" ] && return 0
+  [ "${candidate_minor}" -lt "${current_minor}" ] && return 1
+  [ "${candidate_patch}" -gt "${current_patch}" ] && return 0
+  [ "${candidate_patch}" -lt "${current_patch}" ] && return 1
+
+  local candidate_rank current_rank
+  case "${candidate_channel}" in stable) candidate_rank=3 ;; rc) candidate_rank=2 ;; beta) candidate_rank=1 ;; *) candidate_rank=0 ;; esac
+  case "${current_channel}" in stable) current_rank=3 ;; rc) current_rank=2 ;; beta) current_rank=1 ;; *) current_rank=0 ;; esac
+  [ "${candidate_rank}" -gt "${current_rank}" ] && return 0
+  [ "${candidate_rank}" -lt "${current_rank}" ] && return 1
+  [ "${candidate_sequence}" -gt "${current_sequence}" ]
+}
+
+resolve_release_tag() {
+  local releases_json="$1"
+  local channel="$2"
+  local tag selected=''
+  while IFS= read -r tag; do
+    if release_matches_channel "${tag}" "${channel}" && \
+      { [ -z "${selected}" ] || release_is_newer "${tag}" "${selected}"; }; then
+      selected="${tag}"
+    fi
+  done < <(extract_release_tags "${releases_json}")
+  [ -n "${selected}" ] || return 1
+  printf '%s\n' "${selected}"
+}
+# END TESTABLE RELEASE RESOLUTION
+
+# BEGIN TESTABLE UPDATE CHANNEL PREFERENCE
+update_channel_intent_path() {
+  local config_root
+  if [ "${PLATFORM}" = "mac" ]; then
+    config_root="${HOME}/Library/Application Support"
+  else
+    config_root="${XDG_CONFIG_HOME:-${HOME}/.config}"
+  fi
+  printf '%s/openwaggle/install-update-channel\n' "${config_root}"
+}
+
+persist_selected_channel() {
+  [ -n "${CHANNEL}" ] || return 0
+  local intent_path intent_directory temporary_path
+  intent_path="$(update_channel_intent_path)"
+  intent_directory="$(dirname "${intent_path}")"
+  mkdir -p "${intent_directory}" || return 1
+  temporary_path="$(mktemp "${intent_directory}/.install-update-channel.XXXXXX")" || return 1
+  if ! chmod 600 "${temporary_path}"; then
+    rm -f "${temporary_path}"
+    return 1
+  fi
+  if ! printf '%s\n' "${CHANNEL}" > "${temporary_path}" || \
+    ! mv -f "${temporary_path}" "${intent_path}"; then
+    rm -f "${temporary_path}"
+    return 1
+  fi
+}
+# END TESTABLE UPDATE CHANNEL PREFERENCE
 
 install_executable_atomically() {
   local source_path="$1"
@@ -207,10 +341,34 @@ case "${ARCH}" in
   *)             error "Unsupported architecture: ${ARCH}" ;;
 esac
 
-# --- Fetch latest release info ---
+# --- Resolve and fetch release info ---
 info "Fetching release metadata…"
-RELEASE_JSON="$(curl -fsSL "${API_URL}")" || error "Failed to fetch release info. Is the repo public?"
+if [ -n "${RELEASE_API_URL}" ]; then
+  RELEASE_JSON="$(curl -fsSL "${RELEASE_API_URL}")" || error "Failed to fetch release info. Is the repo public?"
+elif [ -n "${RELEASE_TAG}" ]; then
+  case "${RELEASE_TAG}" in
+    v*) ;;
+    *) RELEASE_TAG="v${RELEASE_TAG}" ;;
+  esac
+  release_tag_is_supported "${RELEASE_TAG}" || error "Invalid release version: ${RELEASE_TAG}"
+  RELEASE_JSON="$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/tags/${RELEASE_TAG}")" || \
+    error "Failed to fetch release ${RELEASE_TAG}."
+else
+  case "${REQUESTED_CHANNEL}" in
+    ''|stable|beta|alpha) ;;
+    *) error "Invalid channel '${REQUESTED_CHANNEL}'. Use stable, beta, or alpha." ;;
+  esac
+  RELEASES_JSON="$(fetch_release_pages "${RELEASES_API_URL}")" || \
+    error "Failed to list releases. Is the repo public?"
+  CHANNEL="${REQUESTED_CHANNEL:-$(resolve_default_channel "${RELEASES_JSON}")}"
+  RELEASE_TAG="$(resolve_release_tag "${RELEASES_JSON}" "${CHANNEL}")" || \
+    error "No ${CHANNEL} release is available."
+  info "Update channel: ${CHANNEL}"
+  RELEASE_JSON="$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/tags/${RELEASE_TAG}")" || \
+    error "Failed to fetch release ${RELEASE_TAG}."
+fi
 VERSION="$(printf '%s' "${RELEASE_JSON}" | grep '"tag_name"' | head -1 | sed 's/.*"tag_name": *"\([^"]*\)".*/\1/')"
+[ -z "${VERSION:-}" ] && error "Release metadata did not include a version."
 info "Resolved version: ${VERSION}"
 
 # --- Determine asset name ---
@@ -327,5 +485,6 @@ DESKTOP
   fi
 fi
 
+persist_selected_channel || error "Could not save the ${CHANNEL} update channel preference."
 rm -f "${DOWNLOAD_PATH}"
 animate_ready

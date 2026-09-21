@@ -105,6 +105,10 @@ curl -fsSL https://raw.githubusercontent.com/OpenWaggle/OpenWaggle/main/scripts/
 
 Or download the `.dmg` from the [latest release](https://github.com/OpenWaggle/OpenWaggle/releases/latest). Since the app is unsigned, right-click → **Open** on first launch to bypass Gatekeeper.
 
+The installer follows Stable by default. Opt into Beta or Alpha with
+`OPENWAGGLE_CHANNEL=beta` or `OPENWAGGLE_CHANNEL=alpha`, or change the shared app/CLI channel later
+with `openwaggle update --channel beta` or `openwaggle update --channel alpha`.
+
 ### Linux
 
 ```bash

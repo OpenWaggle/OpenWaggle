@@ -47,6 +47,7 @@ describe('settings store loading', () => {
       projectPath: null,
       browserLinkTarget: 'system',
       thinkingLevel: 'medium',
+      updateChannel: 'stable',
     })
   })
 
@@ -73,6 +74,12 @@ describe('settings store loading', () => {
     const { getSettings } = await loadSettingsModule()
 
     expect(() => getSettings()).toThrow(/Saved settings are invalid.*thinkingLevel/u)
+  })
+
+  it('fails closed on an unknown persisted update channel', async () => {
+    await writeRawSetting('updateChannel', 'nightly')
+    const { getSettings } = await loadSettingsModule()
+    expect(() => getSettings()).toThrow(/updateChannel/u)
   })
 
   it('preserves the compaction threshold alongside legacy shortcut migration', async () => {
