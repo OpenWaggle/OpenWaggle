@@ -200,19 +200,8 @@ export async function commitSessionDeletion(id: SessionId): Promise<SessionDelet
         Effect.gen(function* () {
           yield* assertSessionHasNoForks(sql, id)
           yield* assertSessionHasNoWorkers(sql, id)
-          const bindings = yield* sql<{ readonly workspace_id: string }>`
-            SELECT workspace_id FROM session_workspace_bindings WHERE session_id = ${id} LIMIT 1
-          `
           yield* sql`DELETE FROM sessions WHERE id = ${id}`
-          const workspaceId = bindings[EMPTY_INDEX]?.workspace_id
-          if (workspaceId) {
-            yield* sql`
-              DELETE FROM workspace_resources WHERE id = ${workspaceId}
-                AND NOT EXISTS (
-                  SELECT 1 FROM session_workspace_bindings WHERE workspace_id = ${workspaceId}
-                )
-            `
-          }
+          // The unbound Workspace remains discoverable until filesystem cleanup succeeds.
           yield* sql`
             UPDATE session_deletion_operations
             SET phase = ${'durable-delete-complete'}, updated_at = ${Date.now()}

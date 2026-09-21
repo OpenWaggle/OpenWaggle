@@ -84,6 +84,22 @@ describe('runPiAgentKernel', () => {
     await Effect.runPromise(
       runPiAgentKernel(input, {
         runtimeExtensionIsolation: {},
+        projectActions: fromPartial({
+          workspaces: {
+            getBound: () =>
+              Effect.succeed({
+                id: 'workspace-1',
+                projectPath: '/repo',
+                workingPath: '/repo/worktree',
+                kind: 'managed-worktree',
+                worktreeBranch: 'test',
+              }),
+          },
+        }),
+        preparation: fromPartial({
+          environment: () => Effect.succeed({}),
+          requireSetup: () => Effect.void,
+        }),
         terminal: fromPartial({}),
         browserPreviewAutomation: fromPartial({}),
         enableBrowserPreviewAutomation: false,
@@ -158,6 +174,22 @@ describe('runPiAgentKernel', () => {
     await Effect.runPromise(
       runPiAgentKernel(input, {
         runtimeExtensionIsolation: {},
+        projectActions: fromPartial({
+          workspaces: {
+            getBound: () =>
+              Effect.succeed({
+                id: 'workspace-1',
+                projectPath: '/repo',
+                workingPath: '/repo/worktree',
+                kind: 'managed-worktree',
+                worktreeBranch: 'test',
+              }),
+          },
+        }),
+        preparation: fromPartial({
+          environment: () => Effect.succeed({}),
+          requireSetup: () => Effect.void,
+        }),
         terminal: fromPartial({}),
         browserPreviewAutomation: fromPartial({}),
         enableBrowserPreviewAutomation: false,

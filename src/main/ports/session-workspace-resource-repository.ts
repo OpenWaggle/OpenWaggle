@@ -6,6 +6,7 @@ export interface SessionWorkspaceResource {
   readonly projectPath: string
   readonly kind: 'local' | 'managed-worktree'
   readonly workingPath: string
+  readonly pending: boolean
   readonly worktreeBranch: string | null
 }
 
@@ -24,6 +25,11 @@ export type ManagedWorktreeRemovalAdmission =
   | { readonly status: 'unavailable' }
 
 export interface SessionWorkspaceResourceRepositoryShape {
+  readonly getById: (workspaceId: string) => Effect.Effect<SessionWorkspaceResource | null, Error>
+  readonly countActiveBindings: (
+    workspaceId: string,
+    excludingSessionId?: SessionId,
+  ) => Effect.Effect<number, Error>
   readonly getBound: (sessionId: SessionId) => Effect.Effect<SessionWorkspaceResource | null, Error>
   readonly countManagedWorktreeBindings: (input: {
     readonly projectPath: string

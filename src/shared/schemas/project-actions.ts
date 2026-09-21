@@ -132,28 +132,3 @@ export const storedProjectActionsSchema = Schema.mutable(
     ),
   ),
 )
-
-export const t3ProjectActionScriptSchema = Schema.Struct(
-  {
-    name: projectActionEditableFields.name,
-    command: projectActionEditableFields.command,
-    icon: Schema.optional(projectActionIconSchema),
-    runOnWorktreeCreate: Schema.optional(Schema.Boolean),
-    previewUrl: Schema.optional(projectActionPreviewUrlSchema),
-    autoOpenPreview: Schema.optional(Schema.Boolean),
-  },
-  looseRecordSchema,
-)
-
-export const t3ProjectFileSchema = Schema.Struct(
-  {
-    scripts: Schema.optional(
-      Schema.mutable(
-        Schema.Array(t3ProjectActionScriptSchema).pipe(
-          Schema.maxItems(PROJECT_ACTION_LIMITS.ACTIONS_PER_PROJECT),
-        ),
-      ),
-    ),
-  },
-  looseRecordSchema,
-)

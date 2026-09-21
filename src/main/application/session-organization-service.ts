@@ -3,6 +3,7 @@ import { decodeSessionControlMutationRequest } from '@shared/schemas/session-con
 import { SessionId } from '@shared/types/brand'
 import { SESSION_CONTROL_CONTRACT_VERSION } from '@shared/types/session-control'
 import * as Effect from 'effect/Effect'
+import type { ActionRunService } from '../ports/action-run-service'
 import type { DesktopServiceBroker } from '../ports/desktop-service-broker'
 import type { SessionHostRecoveryResult } from '../ports/session-host-recovery-repository'
 import type { SessionOrganizationRequest } from '../ports/session-organization-repository'
@@ -12,7 +13,9 @@ import {
   SessionWorkspaceHandoffPreparationError,
   SessionWorkspaceHandoffService,
 } from '../ports/session-workspace-handoff-service'
+import type { SessionWorkspaceResourceRepository } from '../ports/session-workspace-resource-repository'
 import type { TerminalService } from '../ports/terminal-service'
+import { withSessionActionRelease } from './action-workspace-release'
 import { withSessionDesktopRemoval } from './session-desktop-removal'
 
 const HANDOFF_RECOVERY_RETRY_COUNT = 2
@@ -97,7 +100,13 @@ export function organizeSession(input: {
         repository.execute(input),
       )
     }
-    return yield* organizeSessionWithoutArchive(input)
+    return yield* input.request.command.operation === 'handoff'
+      ? withSessionActionRelease(
+          SessionId(input.request.command.sessionId),
+          organizeSessionWithoutArchive(input),
+          'after',
+        )
+      : organizeSessionWithoutArchive(input)
   })
 }
 
@@ -167,6 +176,8 @@ function recoverPendingHandoff(
   | SessionOrganizationRepository
   | SessionWorkspaceHandoffService
   | TerminalService
+  | ActionRunService
+  | SessionWorkspaceResourceRepository
   | DesktopServiceBroker
 > {
   const recovery = Effect.gen(function* () {

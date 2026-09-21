@@ -64,59 +64,64 @@ described in [Git Integration](/docs/developer-workflow/git-integration).
 
 ## Project actions
 
-Project actions save commands that you run often, such as a development server, tests, lint, or a
-build. Open **Settings > Project actions** to add or edit actions for the open project. Each action
-can have an icon, multiple keyboard bindings, a preview URL, and an option to open that preview
-after the command is accepted.
+Project actions save the commands you run often: development servers, tests, lint, and builds.
+Use **Add action** in the session header to choose a discovered project task or write a custom command.
+Discovery reads package scripts, workspace packages, Hatch environment scripts, and Cargo aliases.
+Choosing a task saves its identity; each launch resolves the current script in that session’s workspace.
+A removed task stays visible as unavailable until you edit the action.
 
-Each binding can run always or use a `when` condition with `!`, `&&`, `||`, and parentheses. The
-available context names are `terminalFocus`, `terminalOpen`, `previewFocus`, `previewOpen`, and
-`modelPickerOpen`. Unknown names evaluate to false. When active bindings overlap, the last binding
-in global configuration order wins. OpenWaggle warns about likely overlaps but preserves them, so
-you can intentionally override a built-in shortcut or use one chord in different contexts.
+Actions are private to this project on your machine by default. Saving one creates no repository file.
+Choose **Share in project** to write the definition to `.openwaggle/actions.json`.
+A personal override replaces the complete shared definition; **Restore shared version** removes it.
+Settings shows where each definition comes from and offers explicit storage and removal controls.
+Worktrees of the same project share private definitions, while unrelated projects remain separate.
 
-The session header shows one primary action plus a menu for every saved action. The primary button
-remembers the last action you ran in that project. Before any action has run, it uses the first
-non-setup action, then the first action if the project contains only setup. Project actions also
-appear in the command palette. Their bindings work throughout the workspace unless their `when`
-condition limits them; the command palette temporarily suspends them while it is open.
+The header remembers the last action you ran in the project. Running and recent actions appear in
+the **Session Hub**. Select a run to open its output in the right sidebar, where you can stop or
+restart it, copy output or its command, and open its preview. **Fix with agent** adds a repair request
+to your composer draft for review; it does not send it or edit the saved action automatically.
+Settings manages definitions and preparation profiles; its running-process link takes you to the session.
 
-An action runs in the current Session Working path. OpenWaggle reuses the focused terminal only
-after it has confirmed that no child process is running. Otherwise it opens another terminal in the
-same bottom or side-panel location, so a development server or editor is never overwritten by a
-second command. The terminal receives these context variables in addition to the inferred user
-shell environment:
+The Session Host owns action processes. Switching sessions or closing and reopening the GUI does
+not launch a second process. By default, starting the same action again opens its active run.
+Finite tasks can explicitly allow concurrent runs; services cannot. Restart validates the current
+command before stopping the old execution. When the last active session releases a workspace,
+OpenWaggle stops its services. Retained output is bounded, and trimmed output is marked.
+If the owning Host itself is lost, the run becomes interrupted and requires an explicit restart.
 
-- `OPENWAGGLE_PROJECT_ROOT` and the T3-compatible `T3CODE_PROJECT_ROOT`
-- `OPENWAGGLE_WORKTREE_PATH` and `T3CODE_WORKTREE_PATH` when the session owns a worktree
+Actions receive `OPENWAGGLE_PROJECT_ROOT` and `OPENWAGGLE_WORKTREE_PATH`, plus the private environment
+exported by successful setup in that workspace. Preview detection recognizes local URLs printed
+by the run, or you can configure a URL. An opted-in preview opens once the endpoint responds.
 
-Supported shells report an authenticated prompt boundary after the action finishes. A command that
-starts and finishes between process samples is released by a fallback only after at least 1.5
-seconds and two reliable idle samples. An unsupported shell has no authenticated prompt marker, so
-that fallback cannot distinguish a long-running shell builtin that creates no child process. Wait
-for such a builtin to finish, or use zsh, Bash, fish, PowerShell, or `cmd`, before running another
-action in the same pane.
+Keyboard bindings use the existing shortcut settings. Each binding may have a `when` expression
+using `!`, `&&`, `||`, and parentheses. Context names include `terminalFocus`, `terminalOpen`,
+`previewFocus`, `previewOpen`, and `modelPickerOpen`. Unknown names evaluate to false.
+Overlapping active bindings use the last binding in configuration order and show a conflict warning.
 
-One action may be the **Setup action**. OpenWaggle starts it in a visible `setup-<action>` terminal
-after it records a new Session worktree, before the agent turn begins. The same pending setup runs
-after OpenWaggle recovers an interrupted worktree creation or you recreate a missing Session
-worktree. OpenWaggle records a durable claim before terminal handoff. A terminal-open or
-command-write failure reported before acceptance releases the claim, appears in the worktree launch
-details, and remains retryable on the next send. Acceptance keeps a durable receipt, so that
-worktree generation never starts setup again.
+### Workspace preparation
 
-If the app stops after recording the claim, OpenWaggle cannot know whether the command reached the
-shell. It will not replay that generation automatically because a setup command may have
-non-idempotent side effects. The worktree launch details report this case. Inspect the visible
-setup terminal, then run the action manually if it did not start. This is at-most-once crash
-behaviour. OpenWaggle cannot make arbitrary shell execution exactly once because its database and
-PTY process do not share a transaction.
+**Settings > Project actions > Workspace preparation** manages separate setup and cleanup commands.
+A project starts with a Default profile and can add named profiles. When several exist, choose one
+in the composer before creating a worktree. Each workspace retains a snapshot of that profile.
+Later edits show **A newer profile version is available**; adopting it is explicit and clears the
+previous prepared environment.
 
-OpenWaggle can discover compatible actions in a root `t3.json`, including JSON with comments. These
-entries are checked-in action candidates, not executable configuration. Choose **Import** for each
-command you trust; discovery alone never saves or runs it. Imports skip an exact duplicate command
-or a case-insensitive duplicate name and preserve the one-Setup-action rule. `t3.json` does not
-store T3 keyboard bindings, so importing or editing bindings never rewrites that file.
+Setup must finish successfully before the first agent turn in a new managed worktree. Failure keeps
+its output and offers **Retry setup** or **Continue anyway** in the Session Hub. Existing checkouts
+run setup only when you choose **Run setup**. Successful shell exports stay private to that workspace
+and are inherited by subsequent actions and agent shell commands.
+
+Shared setup and cleanup require local review and enablement. Execution changes require another
+review. The review dialog shows the previous and current invocation and offers **Enable** or
+**Keep disabled**. A previously reviewed workspace snapshot does not silently adopt upstream edits.
+
+Cleanup runs before actual worktree removal, after its last binding is released and action processes
+have stopped. Failure retains the checkout. In **Settings > Worktrees**, choose **Retry cleanup** or
+explicitly confirm **Delete anyway**. That override can leave external resources behind.
+
+Existing saved actions are converted to private native definitions with their identities, commands,
+shortcuts, and preview preferences preserved. Legacy setup becomes a separate preparation definition
+requiring review. Conversion retains a local recovery copy and runs nothing.
 
 ## Tabs And Split Panes
 

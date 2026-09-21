@@ -12,6 +12,8 @@ import {
   SessionWorkspaceResourceRepository,
   type SessionWorkspaceResourceRepositoryShape,
 } from '../../ports/session-workspace-resource-repository'
+import { NoopActionRunServiceLayer } from './action-run-service-test-layer'
+import { NoopWorkspacePreparationLayer } from './workspace-preparation-test-layer'
 
 const mocks = vi.hoisted(() => ({
   create: vi.fn(),
@@ -41,6 +43,7 @@ function workspaceRepository(input: {
   }[]
 }) {
   return SessionWorkspaceResourceRepository.of({
+    countActiveBindings: () => Effect.succeed(0),
     countManagedWorktreeBindings: () => Effect.succeed(0),
     listManagedWorktreeRemovalCandidates: () => Effect.succeed(input.candidates ?? []),
     admitManagedWorktreeRemoval: (admissionInput) =>
@@ -56,6 +59,7 @@ function workspaceRepository(input: {
       }),
     finalizeManagedWorktreeRemoval: (finalization) =>
       Effect.sync(() => mocks.finalizeRemoval(finalization)),
+    getById: () => Effect.succeed(null),
     getBound: () => Effect.succeed(input.boundWorkspace ?? null),
   })
 }
@@ -63,6 +67,8 @@ function workspaceRepository(input: {
 function operationLayer(repository: SessionWorkspaceResourceRepositoryShape) {
   return Layer.mergeAll(
     NoopTerminalServiceLayer,
+    NoopActionRunServiceLayer,
+    NoopWorkspacePreparationLayer,
     Layer.succeed(
       SessionProjectionRepository,
       fromPartial<SessionProjectionRepository['Type']>({

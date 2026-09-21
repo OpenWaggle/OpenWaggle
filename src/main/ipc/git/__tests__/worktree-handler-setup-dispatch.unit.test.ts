@@ -3,6 +3,7 @@ import { fromPartial } from '@total-typescript/shoehorn'
 import { Layer } from 'effect'
 import * as Effect from 'effect/Effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { NoopWorkspacePreparationLayer } from '../../../application/__tests__/workspace-preparation-test-layer'
 import { SessionProjectionRepositoryError } from '../../../errors'
 import { PINNED_SESSION_REPOSITORY_STUB } from '../../../ports/__tests__/session-projection-pin-stub'
 import { GitWorktreeService } from '../../../ports/git-worktree-service'
@@ -95,6 +96,7 @@ async function invokeCreate(payload: unknown) {
     handler({}, '/repo', payload).pipe(
       Effect.provide(
         Layer.mergeAll(
+          NoopWorkspacePreparationLayer,
           SessionProjectionLayer,
           Layer.succeed(
             SessionWorkspaceResourceRepository,

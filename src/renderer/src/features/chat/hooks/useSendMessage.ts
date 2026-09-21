@@ -12,6 +12,7 @@ import { flushDraftAuthorizationModeToSession } from '@/features/chat/state/draf
 import { withInlineVisualizationContext } from '@/features/chat/state/inline-visualization-state'
 import { useOptimisticUserMessageStore } from '@/features/chat/state/optimistic-user-message-store'
 import { snapshotDraftWorktreePlan } from '@/features/git'
+import { selectDraftWorkspacePreparation } from '@/features/project-actions'
 import { useWaggleStore } from '@/features/waggle/state'
 import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
@@ -85,6 +86,12 @@ export function createSendHandlers(deps: SendMessageDeps): SendMessageHandlers {
       const sessionId = await createSession(projectPath, sessionWorktreePlan(worktreePlan))
       try {
         await flushDraftAuthorizationModeToSession(projectPath, sessionId)
+        if (worktreePlan?.plan.envMode === 'worktree')
+          await selectDraftWorkspacePreparation(
+            projectPath,
+            sessionId,
+            worktreePlan.plan.preparationProfileId,
+          )
       } catch (error) {
         throw firstSendFailure(error, sessionId)
       }
@@ -112,6 +119,12 @@ export function createSendHandlers(deps: SendMessageDeps): SendMessageHandlers {
       const sessionId = await createSession(projectPath, sessionWorktreePlan(worktreePlan))
       try {
         await flushDraftAuthorizationModeToSession(projectPath, sessionId)
+        if (worktreePlan?.plan.envMode === 'worktree')
+          await selectDraftWorkspacePreparation(
+            projectPath,
+            sessionId,
+            worktreePlan.plan.preparationProfileId,
+          )
       } catch (error) {
         throw firstSendFailure(error, sessionId)
       }

@@ -1,26 +1,27 @@
-import type {
-  ProjectAction,
-  ProjectActionInput,
-  ProjectActionUpdate,
-  T3ProjectActionsDiscovery,
-} from '@shared/types/project-actions'
-import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import type { ActionDefinition } from '@shared/types/action-definitions'
+import type { ActionManagementScope } from '@shared/types/action-management'
+import type { ProjectAction, ProjectActionUpdate } from '@shared/types/project-actions'
+import { queryOptions, useQuery } from '@tanstack/react-query'
 import type { OpenWaggleQueryOptions } from '@/queries/query-options'
 import { api } from '@/shared/lib/ipc'
+import { actionInvocationLabel } from '../lib/native-action-display'
+import { useActionScope, useEditActionCatalog, useNativeActions } from './useNativeActions'
 
-const PROJECT_ACTIONS_QUERY = 'project-actions'
-const T3_PROJECT_ACTIONS_QUERY = 't3-project-actions'
-
-export function projectActionsQueryKey(projectPath: string | null) {
-  return [PROJECT_ACTIONS_QUERY, projectPath] as const
+/** Shortcut/command-palette presentation. Execution always uses the native action ID. */
+function shortcutAction(definition: ActionDefinition): ProjectAction {
+  return {
+    ...definition,
+    command: actionInvocationLabel(definition.invocation),
+    runOnWorktreeCreate: false,
+  }
 }
-
-export function t3ProjectActionsQueryKey(projectPath: string | null) {
-  return [T3_PROJECT_ACTIONS_QUERY, projectPath] as const
-}
+const SHORTCUT_REFRESH_MS = 5_000
+const projectActionsQueryKey = (projectPath: string | null, scope?: ActionManagementScope | null) =>
+  ['native-actions', projectPath, scope ?? null, 'shortcut-presentation'] as const
 
 export function projectActionsQueryOptions(
   projectPath: string | null,
+  scope?: ActionManagementScope | null,
 ): OpenWaggleQueryOptions<
   readonly ProjectAction[],
   Error,
@@ -28,77 +29,43 @@ export function projectActionsQueryOptions(
   ReturnType<typeof projectActionsQueryKey>
 > {
   return queryOptions({
-    queryKey: projectActionsQueryKey(projectPath),
-    queryFn: () =>
-      projectPath === null ? Promise.resolve([]) : api.listProjectActions(projectPath),
+    queryKey: projectActionsQueryKey(projectPath, scope),
+    refetchInterval: SHORTCUT_REFRESH_MS,
     enabled: projectPath !== null,
-  })
-}
-
-export function t3ProjectActionsQueryOptions(
-  projectPath: string | null,
-): OpenWaggleQueryOptions<
-  T3ProjectActionsDiscovery,
-  Error,
-  T3ProjectActionsDiscovery,
-  ReturnType<typeof t3ProjectActionsQueryKey>
-> {
-  return queryOptions({
-    queryKey: t3ProjectActionsQueryKey(projectPath),
-    queryFn: () => {
-      if (projectPath === null) {
-        return Promise.resolve<T3ProjectActionsDiscovery>({
-          status: 'missing',
-          scripts: [],
-          candidates: [],
-        })
-      }
-      return api.discoverT3ProjectActions(projectPath)
+    queryFn: async (): Promise<readonly ProjectAction[]> => {
+      if (!projectPath) return []
+      const result = await api.manageProjectActions({
+        scope: scope ?? { projectPath },
+        operation: { type: 'catalog' },
+      })
+      if (result.type !== 'catalog') throw new Error('Unexpected action catalog response.')
+      return result.catalog.actions.map(({ definition }) => shortcutAction(definition))
     },
-    enabled: projectPath !== null,
   })
 }
 
 export function useProjectActions(projectPath: string | null) {
-  return useQuery(projectActionsQueryOptions(projectPath))
-}
-
-export function useT3ProjectActions(projectPath: string | null) {
-  return useQuery(t3ProjectActionsQueryOptions(projectPath))
-}
-
-type ProjectActionMutation =
-  | { readonly type: 'add'; readonly input: ProjectActionInput }
-  | { readonly type: 'update'; readonly actionId: string; readonly update: ProjectActionUpdate }
-  | { readonly type: 'delete'; readonly actionId: string }
-  | { readonly type: 'import'; readonly sourceIndex: number }
-
-async function mutateProjectActions(projectPath: string | null, request: ProjectActionMutation) {
-  if (projectPath === null) throw new Error('Open a project before editing actions.')
-  if (request.type === 'add') return api.addProjectAction(projectPath, request.input)
-  if (request.type === 'update') {
-    return api.updateProjectAction(projectPath, request.actionId, request.update)
-  }
-  if (request.type === 'delete') return api.deleteProjectAction(projectPath, request.actionId)
-  return api.importT3ProjectAction(projectPath, request.sourceIndex)
+  const scope = useActionScope(projectPath)
+  return useQuery(projectActionsQueryOptions(projectPath, scope))
 }
 
 export function useProjectActionMutations(projectPath: string | null) {
-  const queryClient = useQueryClient()
-  const mutation = useMutation<readonly ProjectAction[], Error, ProjectActionMutation>({
-    mutationFn: (request) => mutateProjectActions(projectPath, request),
-    onSuccess: async (actions) => {
-      queryClient.setQueryData(projectActionsQueryKey(projectPath), actions)
-      await queryClient.invalidateQueries({ queryKey: t3ProjectActionsQueryKey(projectPath) })
-    },
-  })
-
+  const scope = useActionScope(projectPath)
+  const catalog = useNativeActions(scope)
+  const mutation = useEditActionCatalog(scope)
   return {
-    add: (input: ProjectActionInput) => mutation.mutateAsync({ type: 'add', input }),
-    update: (actionId: string, update: ProjectActionUpdate) =>
-      mutation.mutateAsync({ type: 'update', actionId, update }),
-    delete: (actionId: string) => mutation.mutateAsync({ type: 'delete', actionId }),
-    importT3: (sourceIndex: number) => mutation.mutateAsync({ type: 'import', sourceIndex }),
     isSaving: mutation.isPending,
+    update: async (actionId: string, update: Pick<ProjectActionUpdate, 'shortcutRules'>) => {
+      const entry = catalog.data?.actions.find(({ definition }) => definition.id === actionId)
+      if (!entry || !catalog.data) throw new Error('Reload actions before editing this shortcut.')
+      return mutation.mutateAsync({
+        revision: catalog.data.revision,
+        edit: {
+          type: 'save-action',
+          storage: 'local',
+          definition: { ...entry.definition, shortcutRules: update.shortcutRules ?? [] },
+        },
+      })
+    },
   }
 }

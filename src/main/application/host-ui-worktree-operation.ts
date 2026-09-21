@@ -1,18 +1,21 @@
-import { randomUUID } from 'node:crypto'
-import { realpath, stat } from 'node:fs/promises'
+import { stat } from 'node:fs/promises'
 import path from 'node:path'
 import { decodeUnknownOrThrow, Schema } from '@shared/schema'
 import { SessionId } from '@shared/types/brand'
 import type { GitWorktreeMutationResult } from '@shared/types/git'
 import * as Effect from 'effect/Effect'
-import * as Exit from 'effect/Exit'
 import { createLogger } from '../logger'
 import { GitWorktreeService } from '../ports/git-worktree-service'
 import { SessionProjectionRepository } from '../ports/session-projection-repository'
-import { SessionWorkspaceResourceRepository } from '../ports/session-workspace-resource-repository'
+import {
+  type SessionWorkspaceResource,
+  SessionWorkspaceResourceRepository,
+} from '../ports/session-workspace-resource-repository'
 import { TerminalService } from '../ports/terminal-service'
+import { WorkspacePreparationService } from '../ports/workspace-preparation-service'
 import { resolveSessionWorktreeBranch } from '../services/git/session-branch-resolution'
 import { invalidateGitStatusCache } from '../services/git-status-cache'
+import { removePreparedWorktree } from './prepared-worktree-removal'
 
 export const worktreeCreatePayloadSchema = Schema.Struct({
   path: Schema.String,
@@ -25,6 +28,7 @@ export const worktreeCreatePayloadSchema = Schema.Struct({
 export const worktreeRemovePayloadSchema = Schema.Struct({
   path: Schema.String.pipe(Schema.minLength(1), Schema.filter(path.isAbsolute)),
   force: Schema.optional(Schema.Boolean),
+  skipCleanup: Schema.optional(Schema.Boolean),
 })
 
 const projectPathSchema = Schema.String.pipe(Schema.minLength(1))
@@ -60,58 +64,19 @@ function removeWorktreeWithTerminals(
   })
 }
 
-async function filesystemIdentity(candidate: string) {
-  try {
-    const canonical = await realpath(path.resolve(candidate))
-    const identity = await stat(canonical)
-    return `${String(identity.dev)}:${String(identity.ino)}`
-  } catch {
-    return null
-  }
-}
-
-async function filesystemPathExists(candidate: string) {
-  try {
-    await stat(candidate)
-    return true
-  } catch (error) {
-    if (typeof error === 'object' && error !== null && 'code' in error && error.code === 'ENOENT') {
-      return false
-    }
-    throw error
-  }
-}
-
-async function findRemovalCandidate(
+function captureWorktreePreparation(
+  workspace: SessionWorkspaceResource | null,
   projectPath: string,
-  workingPath: string,
-  candidates: readonly {
-    readonly id: string
-    readonly projectPath: string
-    readonly workingPath: string
-  }[],
 ) {
-  const lexical = candidates.find(
-    (candidate) => candidate.projectPath === projectPath && candidate.workingPath === workingPath,
-  )
-  if (lexical) return lexical
-  const [projectIdentity, workingIdentity] = await Promise.all([
-    filesystemIdentity(projectPath),
-    filesystemIdentity(workingPath),
-  ])
-  if (!projectIdentity || !workingIdentity) return undefined
-  const matches = await Promise.all(
-    candidates.map(async (candidate) => {
-      const [candidateProject, candidateWorking] = await Promise.all([
-        filesystemIdentity(candidate.projectPath),
-        filesystemIdentity(candidate.workingPath),
-      ])
-      return candidateProject === projectIdentity && candidateWorking === workingIdentity
-        ? candidate
-        : undefined
-    }),
-  )
-  return matches.find((candidate) => candidate !== undefined)
+  return Effect.gen(function* () {
+    if (!workspace) return
+    const preparation = yield* WorkspacePreparationService
+    yield* preparation.capture({
+      workspaceId: workspace.id,
+      projectPath,
+      workspacePath: workspace.workingPath,
+    })
+  })
 }
 
 export function createHostUiWorktree(rawPath: unknown, rawPayload: unknown) {
@@ -144,6 +109,7 @@ export function createHostUiWorktree(rawPath: unknown, rawPayload: unknown) {
         message: 'This Session is bound to a Workspace in a different repository.',
       } satisfies GitWorktreeMutationResult
     }
+    yield* captureWorktreePreparation(workspace, projectPath)
     const path = workspace?.workingPath ?? payload.path
     const branch =
       workspace?.worktreeBranch ??
@@ -171,46 +137,25 @@ export function removeHostUiWorktree(rawPath: unknown, rawPayload: unknown) {
   return Effect.gen(function* () {
     const projectPath = decodeUnknownOrThrow(projectPathSchema, rawPath)
     const payload = decodeUnknownOrThrow(worktreeRemovePayloadSchema, rawPayload)
-    const workspaces = yield* SessionWorkspaceResourceRepository
-    const candidates = yield* workspaces.listManagedWorktreeRemovalCandidates()
-    const candidate = yield* Effect.promise(() =>
-      findRemovalCandidate(projectPath, payload.path, candidates),
+    return yield* removePreparedWorktree(
+      projectPath,
+      payload,
+      removeWorktreeWithTerminals(projectPath, payload),
+      { retryFailed: true },
     )
-    const result = yield* Effect.uninterruptible(
-      Effect.acquireUseRelease(
-        workspaces.admitManagedWorktreeRemoval({
-          ...(candidate ? { resourceId: candidate.id } : {}),
-          reservationId: `worktree-removal:${randomUUID()}`,
-          projectPath: path.resolve(projectPath),
-          workingPath: path.resolve(payload.path),
-        }),
-        (admission) =>
-          admission.status === 'unavailable'
-            ? Effect.succeed({
-                ok: false,
-                code: 'workspace-bound',
-                message:
-                  'This managed worktree is bound to a Session or is changing Workspace state.',
-              } satisfies GitWorktreeMutationResult)
-            : removeWorktreeWithTerminals(projectPath, payload),
-        (admission, exit) => {
-          if (admission.status === 'unavailable') return Effect.void
-          return workspaces
-            .finalizeManagedWorktreeRemoval({
-              resourceId: admission.resourceId,
-              createdReservation: admission.createdReservation,
-              removed: Exit.isSuccess(exit) && (exit.value.ok || exit.value.code === 'not-found'),
-            })
-            .pipe(Effect.orDie)
-        },
-      ),
-    )
-    if (result.ok) {
-      invalidateGitStatusCache(payload.path)
-      invalidateGitStatusCache(projectPath)
-    }
-    return result
   })
+}
+
+async function filesystemPathExists(candidate: string) {
+  try {
+    await stat(candidate)
+    return true
+  } catch (error) {
+    if (typeof error === 'object' && error !== null && 'code' in error && error.code === 'ENOENT') {
+      return false
+    }
+    throw error
+  }
 }
 
 export function recoverPendingManagedWorktreeRemovals(

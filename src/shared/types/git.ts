@@ -1,5 +1,6 @@
 import type { SessionId } from './brand'
 import type { GitOutputRecordingResult } from './vcs'
+import type { WorkspacePreparation } from './workspace-preparation'
 
 export type GitFileStatus =
   | 'modified'
@@ -198,6 +199,7 @@ export const GIT_BRANCH_ERROR_CODES = [
   'branch-not-found',
   'branch-exists',
   'dirty-worktree',
+  'cleanup-failed',
   'invalid-name',
   'upstream-not-found',
   'unknown',
@@ -284,6 +286,8 @@ export interface SessionWorktreeCheck {
 }
 
 export interface GitWorktreeRemovePayload {
+  /** Explicitly bypass a failed or review-blocked cleanup. */
+  readonly skipCleanup?: boolean
   readonly path: string
   /** Only pass true on explicit user request; otherwise git refuses dirty removals. */
   readonly force?: boolean
@@ -302,6 +306,7 @@ export const GIT_WORKTREE_ERROR_CODES = [
   'branch-checked-out-elsewhere',
   'workspace-bound',
   'dirty-worktree',
+  'cleanup-failed',
   'not-found',
   'unknown',
 ] as const
@@ -315,6 +320,7 @@ export interface GitWorktreeMutationSuccess {
 }
 
 export interface GitWorktreeMutationFailure {
+  readonly preparation?: WorkspacePreparation
   readonly ok: false
   readonly code: GitWorktreeErrorCode
   readonly message: string

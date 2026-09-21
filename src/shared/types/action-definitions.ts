@@ -75,6 +75,11 @@ export interface PreparationReview {
 
 export interface ActionCatalog {
   readonly revision: string
+  readonly pendingPublication?: {
+    readonly workspacePath: string
+    readonly projectDraft: ActionManifest
+    readonly localDraft: ActionManifest
+  }
   readonly actions: readonly EffectiveDefinition<ActionDefinition>[]
   readonly profiles: readonly EffectiveDefinition<PreparationProfile>[]
   readonly preparation: readonly (EffectiveDefinition<PreparationDefinition> & {
@@ -84,6 +89,7 @@ export interface ActionCatalog {
 }
 
 export type ActionCatalogEdit =
+  | { readonly type: 'discard-publication' }
   | {
       readonly type: 'move-definition'
       readonly collection: 'actions' | 'profiles' | 'preparation'

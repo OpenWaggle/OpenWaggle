@@ -94,6 +94,7 @@ export const preparationReviewSchema = Schema.Struct({
 })
 const storage = Schema.Literal('local', 'project')
 export const actionCatalogEditSchema = Schema.Union(
+  Schema.Struct({ type: Schema.Literal('discard-publication') }),
   Schema.Struct({
     type: Schema.Literal('move-definition'),
     collection: Schema.Literal('actions', 'profiles', 'preparation'),

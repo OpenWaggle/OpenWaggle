@@ -2,6 +2,7 @@ import type { SessionId } from '@shared/types/brand'
 import * as Effect from 'effect/Effect'
 import { DesktopServiceBroker } from '../ports/desktop-service-broker'
 import { TerminalService } from '../ports/terminal-service'
+import { withSessionActionRelease } from './action-workspace-release'
 import {
   acquireSessionRemovalAdmission,
   cancelSessionRuns,
@@ -50,7 +51,7 @@ export function withSessionDesktopRemoval<A, E, R>(
                     operation: 'deleteOwner',
                     ownerKey: sessionId,
                   })
-                  return yield* operation
+                  return yield* withSessionActionRelease(sessionId, operation)
                 }),
               )
             }),

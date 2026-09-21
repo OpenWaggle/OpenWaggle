@@ -12,6 +12,7 @@ interface WorkspaceRow {
   readonly project_path: string
   readonly kind: SessionWorkspaceResource['kind']
   readonly working_path: string
+  readonly pending: number
   readonly worktree_branch: string | null
 }
 
@@ -142,6 +143,18 @@ export const SqliteSessionWorkspaceResourceRepositoryLive = Layer.effect(
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
     return SessionWorkspaceResourceRepository.of({
+      countActiveBindings: (workspaceId, excludingSessionId) =>
+        Effect.gen(function* () {
+          const rows = yield* sql<{ readonly count: number }>`SELECT COUNT(*) AS count
+          FROM session_workspace_bindings bindings JOIN sessions ON sessions.id = bindings.session_id
+          WHERE bindings.workspace_id = ${workspaceId} AND sessions.archived = 0
+            AND (${excludingSessionId ?? null} IS NULL OR sessions.id != ${excludingSessionId ?? null})`
+          return rows[0]?.count ?? 0
+        }).pipe(
+          Effect.mapError(
+            (cause) => new Error('Failed to inspect active Workspace bindings.', { cause }),
+          ),
+        ),
       listManagedWorktreeRemovalCandidates: () =>
         sql<RemovalCandidateRow>`
           SELECT id, project_path, working_path
@@ -188,11 +201,28 @@ export const SqliteSessionWorkspaceResourceRepositoryLive = Layer.effect(
             (cause) => new Error('Failed to inspect managed worktree bindings.', { cause }),
           ),
         ),
+      getById: (workspaceId) =>
+        Effect.gen(function* () {
+          const rows =
+            yield* sql<WorkspaceRow>`SELECT id, project_path, kind, working_path, worktree_branch,
+              lifecycle_state = 'pending' AS pending FROM workspace_resources WHERE id = ${workspaceId} LIMIT 1`
+          const row = rows[0]
+          return row
+            ? {
+                id: row.id,
+                projectPath: row.project_path,
+                kind: row.kind,
+                workingPath: row.working_path,
+                pending: row.pending === 1,
+                worktreeBranch: row.worktree_branch,
+              }
+            : null
+        }).pipe(Effect.mapError((cause) => new Error('Failed to read Workspace.', { cause }))),
       getBound: (sessionId) =>
         Effect.gen(function* () {
           const rows = yield* sql<WorkspaceRow>`
             SELECT resources.id, resources.project_path, resources.kind,
-              resources.working_path, resources.worktree_branch
+              resources.working_path, resources.worktree_branch, resources.lifecycle_state = 'pending' AS pending
             FROM session_workspace_bindings AS bindings
             JOIN workspace_resources AS resources ON resources.id = bindings.workspace_id
             WHERE bindings.session_id = ${sessionId}
@@ -205,6 +235,7 @@ export const SqliteSessionWorkspaceResourceRepositoryLive = Layer.effect(
                 projectPath: row.project_path,
                 kind: row.kind,
                 workingPath: row.working_path,
+                pending: row.pending === 1,
                 worktreeBranch: row.worktree_branch,
               }
             : null

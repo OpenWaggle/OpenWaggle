@@ -216,12 +216,10 @@ describe('preload api surface contract', () => {
     expect(ipcRenderer.invoke).toHaveBeenCalledWith('shell:reveal-path', '/tmp/image.png')
   })
 
-  it('imports a checked-in project action through its trusted source index', async () => {
-    vi.mocked(ipcRenderer.invoke).mockResolvedValueOnce([])
-
-    await api.importT3ProjectAction('/tmp/repo', 2)
-
-    expect(ipcRenderer.invoke).toHaveBeenCalledWith('project-actions:import-t3', '/tmp/repo', 2)
+  it('sends native project action requests through typed IPC', async () => {
+    const request = { scope: { projectPath: '/tmp/repo' }, operation: { type: 'catalog' as const } }
+    await api.manageProjectActions(request)
+    expect(ipcRenderer.invoke).toHaveBeenCalledWith('project-actions:manage', request)
   })
 
   it('loads the initial global terminal activity snapshot through typed IPC', async () => {

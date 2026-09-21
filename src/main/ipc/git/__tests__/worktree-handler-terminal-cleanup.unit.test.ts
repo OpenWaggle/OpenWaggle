@@ -3,6 +3,8 @@ import { fromPartial } from '@total-typescript/shoehorn'
 import { Layer } from 'effect'
 import * as EffectModule from 'effect/Effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { NoopActionRunServiceLayer } from '../../../application/__tests__/action-run-service-test-layer'
+import { NoopWorkspacePreparationLayer } from '../../../application/__tests__/workspace-preparation-test-layer'
 import { GitWorktreeService } from '../../../ports/git-worktree-service'
 import { SessionWorkspaceResourceRepository } from '../../../ports/session-workspace-resource-repository'
 import { TerminalService } from '../../../ports/terminal-service'
@@ -130,6 +132,8 @@ async function invokeRemove(payload: unknown): Promise<GitWorktreeMutationResult
     EffectModule.provide(
       handler({}, PROJECT_PATH, payload),
       Layer.mergeAll(
+        NoopActionRunServiceLayer,
+        NoopWorkspacePreparationLayer,
         RecordingTerminalServiceLayer,
         Layer.succeed(GitWorktreeService, {
           create: () => EffectModule.dieMessage('not used'),

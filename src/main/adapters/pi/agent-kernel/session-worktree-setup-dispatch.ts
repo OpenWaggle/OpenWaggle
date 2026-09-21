@@ -19,12 +19,14 @@ const logger = createLogger('session-worktree-setup-dispatch')
 
 export interface SessionWorktreeSetupDispatchOptions {
   readonly onProgress?: (progress: WorktreeLaunchProgress) => void
-  /** Resolves after semantic terminal acceptance and rejects only before acceptance. */
+  readonly onBeforeWorktreeCreate?: () => Promise<void>
+  /** Resolves only after successful preparation or an explicit local skip. */
   readonly onSetupPending?: (input: {
     readonly session: SessionDetail
     readonly primaryPath: string
     readonly worktreePath: string
     readonly setupGeneration: string
+    readonly resumingClaim?: boolean
     readonly branch?: string
     readonly baseRef?: string
   }) => Promise<void>
@@ -80,10 +82,7 @@ async function resolvePendingDispatch(
   if (!persisted || persisted.worktreePath !== input.worktreePath) return null
   return matchBy(persisted, 'state')
     .with('pending', (pending) => pending)
-    .with('claimed', (claim) => {
-      reportIndeterminateClaim(input, claim)
-      return null
-    })
+    .with('claimed', () => null)
     .with('accepted', () => null)
     .exhaustive()
 }
@@ -146,12 +145,25 @@ export async function dispatchPendingSessionWorktreeSetup(
   if (!onSetupPending) return
 
   const id = SessionId(sessionId)
+  const persisted = await getSessionWorktreeSetupDispatch(id)
+  if (persisted?.state === 'claimed' && persisted.worktreePath === worktreePath) {
+    await onSetupPending({
+      session,
+      primaryPath,
+      worktreePath,
+      setupGeneration: persisted.generation,
+      resumingClaim: true,
+    })
+    await finalizeAcceptedDispatch(id, input, persisted)
+    return
+  }
   const pending = await resolvePendingDispatch(id, input)
   if (!pending || pending.worktreePath !== worktreePath) return
 
   options.signal?.throwIfAborted()
   const claim = await claimSessionWorktreeSetup(id, pending)
-  if (!claim) return
+  if (!claim)
+    throw new Error('Workspace preparation changed while it was being claimed. Retry the turn.')
 
   try {
     options.signal?.throwIfAborted()
@@ -166,10 +178,10 @@ export async function dispatchPendingSessionWorktreeSetup(
   } catch (error) {
     if (isIndeterminateDesktopOperation(error)) {
       reportIndeterminateClaim(input, claim)
-      return
+      throw error
     }
     await restorePendingAfterFailure(id, input, claim, error)
-    return
+    throw error
   }
 
   await finalizeAcceptedDispatch(id, input, claim)

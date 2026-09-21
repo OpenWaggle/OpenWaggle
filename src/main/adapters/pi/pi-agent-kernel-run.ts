@@ -9,17 +9,19 @@ import type { InlineVisualizationServiceShape } from '../../ports/inline-visuali
 import type { McpConfigServiceShape } from '../../ports/mcp-config-service'
 import type { McpRuntimeServiceShape } from '../../ports/mcp-runtime-service'
 import type { TerminalServiceShape } from '../../ports/terminal-service'
+import type { WorkspacePreparationServiceShape } from '../../ports/workspace-preparation-service'
 import { runPiSession } from './agent-kernel/classic-run'
-import { launchProjectSetupAction } from './agent-kernel/project-setup-action'
-import { reportAcceptedSetupActionProgress } from './agent-kernel/project-setup-action-progress'
 import { restrictMcpSnapshot } from './agent-kernel/restricted-mcp-snapshot'
 import type { PiRuntimeExtensionIsolationInput } from './agent-kernel/runtime-extension-isolation'
-import { requireSessionProjectPath } from './agent-kernel/session-manager'
-import { ensureSessionWorktreeProjectPath } from './agent-kernel/session-worktree-birth'
 import { runPiWaggle } from './agent-kernel/waggle-run'
 import { createBrowserPreviewAutomationExtension } from './browser-preview-automation-extension'
 import { BROWSER_PREVIEW_AUTOMATION_SYSTEM_PROMPT } from './browser-preview-automation-system-prompt'
 import { createMcpGatewayExtension } from './mcp-gateway-extension'
+import { prepareActionWorkspace } from './prepare-action-workspace'
+import {
+  createProjectActionsToolExtension,
+  type ProjectActionToolServices,
+} from './project-actions-tool-extension'
 import { createSessionsToolExtension } from './sessions-tool-extension'
 
 const logger = createLogger('pi-agent-kernel')
@@ -52,63 +54,6 @@ function hasWaggleRunOptions(
   input: AgentKernelRunInput,
 ): input is AgentKernelRunInput & { readonly waggle: AgentKernelWaggleRunOptions } {
   return Boolean(input.waggle)
-}
-
-function resolveMcpTurnPaths(input: AgentKernelRunInput, terminal: TerminalServiceShape) {
-  return Effect.gen(function* () {
-    const projectPath = yield* Effect.try({
-      try: () => requireSessionProjectPath(input.session),
-      catch: toAgentKernelError,
-    })
-    const executionPath = yield* Effect.tryPromise({
-      try: () =>
-        ensureSessionWorktreeProjectPath(input.session, {
-          ...(input.onWorktreeLaunch ? { onProgress: input.onWorktreeLaunch } : {}),
-          onSetupPending: async ({
-            primaryPath,
-            worktreePath,
-            setupGeneration,
-            branch,
-            baseRef,
-          }) => {
-            const result = await launchProjectSetupAction({
-              sessionId: String(input.session.id),
-              primaryPath,
-              worktreePath,
-              setupGeneration,
-              terminal,
-              signal: input.signal,
-              onTerminalOpened: (setupAction) =>
-                input.onWorktreeLaunch?.({
-                  stage: 'worktree-created',
-                  details: [`Opened Setup action terminal for "${setupAction.actionName}"`],
-                  worktreePath,
-                  ...(branch ? { branch } : {}),
-                  ...(baseRef ? { baseRef } : {}),
-                  setupAction,
-                }),
-            })
-            if (result.status === 'started') {
-              reportAcceptedSetupActionProgress({
-                sessionId: String(input.session.id),
-                report: input.onWorktreeLaunch,
-                progress: {
-                  stage: 'worktree-created',
-                  details: [`Started Setup action "${result.setupAction.actionName}"`],
-                  worktreePath,
-                  ...(branch ? { branch } : {}),
-                  ...(baseRef ? { baseRef } : {}),
-                  setupAction: result.setupAction,
-                },
-              })
-            }
-          },
-          signal: input.signal,
-        }),
-      catch: toAgentKernelError,
-    })
-    return { projectPath, executionPath }
-  })
 }
 
 function createRunSessionsExtension(
@@ -202,6 +147,8 @@ function createWorktreeLaunchReporter(input: AgentKernelRunInput) {
 export function runPiAgentKernel(
   input: AgentKernelRunInput,
   dependencies: {
+    readonly preparation: WorkspacePreparationServiceShape
+    readonly projectActions: ProjectActionToolServices
     readonly runtimeExtensionIsolation: PiRuntimeExtensionIsolationInput
     readonly mcpConfig: McpConfigServiceShape
     readonly mcpRuntime: McpRuntimeServiceShape
@@ -213,9 +160,9 @@ export function runPiAgentKernel(
 ) {
   return Effect.gen(function* () {
     const launchReporter = createWorktreeLaunchReporter(input)
-    const { projectPath, executionPath } = yield* resolveMcpTurnPaths(
+    const { projectPath, executionPath, preparedEnvironment } = yield* prepareActionWorkspace(
       launchReporter.runInput,
-      dependencies.terminal,
+      { workspaces: dependencies.projectActions.workspaces, preparation: dependencies.preparation },
     )
     const visualizationDirectory = yield* dependencies.inlineVisualization
       .prepareSession(input.session.id)
@@ -248,6 +195,14 @@ export function runPiAgentKernel(
       workingPath: executionPath,
       service: dependencies.browserPreviewAutomation,
     })
+    const trustedExtensionFactories = [
+      ...browserPreviewResources.trustedExtensionFactories,
+      createProjectActionsToolExtension({
+        ...dependencies.projectActions,
+        sessionId: input.session.id,
+        runId: input.runId,
+      }),
+    ]
     launchReporter.reportTaskStarting(executionPath)
     return yield* Effect.tryPromise({
       try: () =>
@@ -256,19 +211,23 @@ export function runPiAgentKernel(
               ...input,
               ...dependencies.runtimeExtensionIsolation,
               workingPath: executionPath,
+              preparedEnvironment,
               sessionsExtensionFactory,
               ...(visualizationDirectory ? { visualizationDirectory } : {}),
               extensionFactories,
               ...browserPreviewResources,
+              trustedExtensionFactories,
             })
           : runPiSession({
               ...input,
               ...dependencies.runtimeExtensionIsolation,
               workingPath: executionPath,
+              preparedEnvironment,
               sessionsExtensionFactory,
               ...(visualizationDirectory ? { visualizationDirectory } : {}),
               extensionFactories,
               ...browserPreviewResources,
+              trustedExtensionFactories,
             }),
       catch: toAgentKernelError,
     }).pipe(Effect.ensuring(mcpTurn.finish))

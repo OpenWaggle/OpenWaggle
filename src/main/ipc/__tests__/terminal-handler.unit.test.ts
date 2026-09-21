@@ -99,7 +99,7 @@ describe('registerTerminalHandlers', () => {
       ...VALID_OPEN_INPUT,
       env: {
         OPENWAGGLE_PROJECT_ROOT: '/tmp/project',
-        T3CODE_PROJECT_ROOT: '/tmp/project',
+        OPENWAGGLE_WORKTREE_PATH: '/tmp/project',
       },
     }
 

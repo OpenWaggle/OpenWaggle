@@ -47,7 +47,12 @@ export async function readTaskSource(workspace: string, source: string): Promise
     if (metadata.size > ACTION_DEFINITION_LIMITS.FILE_BYTES)
       throw new Error(`${source} exceeds the task discovery size limit.`)
     const buffer = Buffer.alloc(ACTION_DEFINITION_LIMITS.FILE_BYTES + 1)
-    const { bytesRead } = await handle.read(buffer, 0, buffer.length, 0)
+    let bytesRead = 0
+    while (bytesRead < buffer.length) {
+      const chunk = await handle.read(buffer, bytesRead, buffer.length - bytesRead, bytesRead)
+      if (chunk.bytesRead === 0) break
+      bytesRead += chunk.bytesRead
+    }
     if (bytesRead > ACTION_DEFINITION_LIMITS.FILE_BYTES)
       throw new Error(`${source} exceeds the task discovery size limit.`)
     return buffer.subarray(0, bytesRead).toString('utf8')

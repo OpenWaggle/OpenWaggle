@@ -1,88 +1,49 @@
-import type { ProjectAction } from '@shared/types/project-actions'
-import { DEFAULT_SHORTCUT_BINDINGS } from '@shared/types/shortcuts'
+import type { ActionCatalog } from '@shared/types/action-definitions'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useProjectActionStore } from '../../state/project-action-store'
+import { actionCatalog, TEST_ACTION } from './native-action-fixtures'
 
-const mocks = vi.hoisted(() => {
-  const actions: ProjectAction[] = []
-  return {
-    actions,
-    run: vi.fn(),
-    showToast: vi.fn(),
-  }
-})
-
-vi.mock('../../hooks/useProjectActions', () => ({
-  useProjectActions: () => ({ data: mocks.actions }),
-  useT3ProjectActions: () => ({
-    data: { status: 'missing', scripts: [], candidates: [] },
-  }),
-  useProjectActionMutations: () => ({
-    add: vi.fn(),
-    update: vi.fn(),
-    delete: vi.fn(),
-    importT3: vi.fn(),
-    isSaving: false,
-  }),
+const mocks = vi.hoisted(() => ({
+  catalog: ((): ActionCatalog | null => null)(),
+  run: vi.fn(),
+  navigate: vi.fn(),
+}))
+vi.mock('@tanstack/react-router', () => ({ useNavigate: () => mocks.navigate }))
+vi.mock('../../hooks/useNativeActions', () => ({
+  useActionScope: (projectPath: string | null) =>
+    projectPath ? { projectPath, sessionId: 'session' } : null,
+  useNativeActions: () => ({ data: mocks.catalog }),
+  useActionRuns: () => ({ data: [] }),
+  useActionDiscovery: () => ({ data: { tasks: [], diagnostics: [] } }),
 }))
 vi.mock('../../hooks/useRunProjectAction', () => ({ useRunProjectAction: () => mocks.run }))
-vi.mock('@/features/settings/state', () => ({
-  usePreferencesStore: (
-    selector: (state: {
-      settings: { shortcutBindings: typeof DEFAULT_SHORTCUT_BINDINGS }
-    }) => unknown,
-  ) => selector({ settings: { shortcutBindings: DEFAULT_SHORTCUT_BINDINGS } }),
-}))
-vi.mock('@/shell/ui-store', () => ({
-  useUIStore: (selector: (state: { showToast: typeof mocks.showToast }) => unknown) =>
-    selector({ showToast: mocks.showToast }),
-}))
 
 import { ProjectActionsControl } from '../ProjectActionsControl'
-
-const SETUP: ProjectAction = {
-  id: 'setup',
-  name: 'Setup',
-  command: 'pnpm install',
-  icon: 'configure',
-  runOnWorktreeCreate: true,
-}
-const TEST: ProjectAction = {
-  id: 'test',
-  name: 'Test',
-  command: 'pnpm test',
-  icon: 'test',
-  runOnWorktreeCreate: false,
-}
-const LINT: ProjectAction = {
-  id: 'lint',
-  name: 'Lint',
-  command: 'pnpm lint',
-  icon: 'lint',
-  runOnWorktreeCreate: false,
-}
 
 describe('ProjectActionsControl', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.actions = [SETUP, TEST, LINT]
-    useProjectActionStore.setState({ lastInvokedByProject: {} })
+    mocks.catalog = actionCatalog()
+    useProjectActionStore.setState({ lastInvokedByProject: {}, previewOpenedRuns: [] })
   })
-
-  it('promotes the surviving last-invoked action to the header button', () => {
-    useProjectActionStore.getState().rememberInvoked('/repo', 'lint')
+  it('launches the selected native action and remembers selection separately per project', () => {
+    const lint = { ...TEST_ACTION, id: 'lint', name: 'Lint' }
+    mocks.catalog = {
+      ...actionCatalog(),
+      actions: [
+        { definition: TEST_ACTION, source: 'local' },
+        { definition: lint, source: 'local' },
+      ],
+    }
+    useProjectActionStore.getState().rememberInvoked('/repo', lint.id)
     render(<ProjectActionsControl projectPath="/repo" />)
-
-    const run = screen.getByRole('button', { name: 'Run Lint' })
-    fireEvent.click(run)
-    expect(mocks.run).toHaveBeenCalledExactlyOnceWith(LINT)
+    fireEvent.click(screen.getByRole('button', { name: 'Run Lint' }))
+    expect(mocks.run).toHaveBeenCalledExactlyOnceWith(lint)
   })
-
-  it('falls back to the first non-setup action when the remembered action is gone', () => {
+  it('falls back to a surviving action without a special setup action', () => {
     useProjectActionStore.getState().rememberInvoked('/repo', 'removed')
     render(<ProjectActionsControl projectPath="/repo" />)
-
     expect(screen.getByRole('button', { name: 'Run Test' })).toBeInTheDocument()
   })
 })

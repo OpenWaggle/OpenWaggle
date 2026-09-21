@@ -80,7 +80,7 @@ describe('Host UI request dispatcher', () => {
           request: {
             contractVersion: 1,
             requestId: 'external-project-actions',
-            channel: 'project-actions:add',
+            channel: 'project-actions:manage',
             args: [],
           },
         }),

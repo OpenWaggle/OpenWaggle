@@ -803,3 +803,18 @@ distinct active paths, invalidated by a durable generation trigger on Session in
 archive, or path change; SQLite `lower()` is ASCII-only and FTS trigram cannot cover short or
 canonically equivalent composed/decomposed queries. Agent-definition authorization for an older
 project uses an indexed exact-path existence check, not an unbounded Session projection list.
+
+Native Project Actions are specified in ADR 0035. Definitions are project-scoped and private by
+default; only explicit sharing writes `.openwaggle/actions.json`. The detached Session Host owns
+action processes, while the GUI reconnects to durable run IDs and output cursors. Workspace mutation
+admission must serialize launches against final binding release and physical worktree removal.
+Preparation snapshots retain private successful exports and require review for changed shared
+execution. A failed cleanup keeps the worktree and must remain discoverable in Settings after the
+owning Session has been deleted. Pending worktrees can have ordinary future filesystem paths, so
+definition management must use authoritative lifecycle state instead of testing only `pending://`.
+
+The September 2026 native action verification reproduced a SQLite worker teardown abort on pristine
+main with transitive better-sqlite3 12.11.1. Root and Effect SQLite now share 13.0.3, which includes the
+upstream 13.0.2 worker-termination fix. Migration compatibility fixtures must create the historical
+schema with a bounded migration list; creating today's tables and erasing later ledger entries
+causes false duplicate-table failures as new non-idempotent migrations are added.

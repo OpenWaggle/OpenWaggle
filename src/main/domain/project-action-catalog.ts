@@ -75,6 +75,7 @@ export function resolveActionCatalog(
   shared: ActionManifest,
   revision: string,
 ): ActionCatalog {
+  validateSharedProfiles(shared)
   const actions = effective(document.manifest.actions, shared.actions)
   const profiles = effective(document.manifest.profiles, shared.profiles)
   if (!profiles.some(({ definition }) => definition.id === 'default'))
@@ -107,6 +108,30 @@ function upsert<T extends { readonly id: string }>(entries: readonly T[], value:
   return entries.some((entry) => entry.id === value.id)
     ? entries.map((entry) => (entry.id === value.id ? value : entry))
     : [...entries, value]
+}
+
+function validateSharedProfiles(shared: ActionManifest) {
+  for (const definition of shared.preparation) {
+    if (
+      definition.profileId !== 'default' &&
+      !shared.profiles.some((profile) => profile.id === definition.profileId)
+    )
+      throw new Error(
+        'Shared preparation requires a shared profile. Move or remove its setup and cleanup first.',
+      )
+  }
+}
+
+function sharePreparationProfile(
+  document: LocalActionDocument,
+  shared: ActionManifest,
+  profileId: string,
+) {
+  if (profileId === 'default' || shared.profiles.some((profile) => profile.id === profileId))
+    return shared
+  const profile = document.manifest.profiles.find((profile) => profile.id === profileId)
+  if (!profile) throw new Error(`Preparation profile ${profileId} is missing.`)
+  return { ...shared, profiles: [...shared.profiles, profile] }
 }
 
 function moveActionCatalogDefinition(
@@ -149,16 +174,20 @@ function moveActionCatalogDefinition(
     })
     .with('preparation', () => {
       const moved = move(document.manifest.preparation, shared.preparation)
+      let project = { ...shared, preparation: moved.project }
+      for (const definition of moved.project)
+        project = sharePreparationProfile(document, project, definition.profileId)
       return {
         document: {
           ...document,
           manifest: { ...document.manifest, preparation: moved.personal },
         },
-        shared: { ...shared, preparation: moved.project },
+        shared: project,
       }
     })
     .exhaustive()
   resolveActionCatalog(next.document, next.shared, '')
+  validateSharedProfiles(next.shared)
   return next
 }
 
@@ -166,7 +195,7 @@ function moveActionCatalogDefinition(
 export function editActionCatalog(
   document: LocalActionDocument,
   shared: ActionManifest,
-  edit: ActionCatalogEdit,
+  edit: Exclude<ActionCatalogEdit, { readonly type: 'discard-publication' }>,
 ) {
   if (edit.type === 'move-definition') return moveActionCatalogDefinition(document, shared, edit)
   if (edit.type === 'review-preparation') {
@@ -221,7 +250,28 @@ export function editActionCatalog(
     }))
     .exhaustive()
   let nextDocument = edit.storage === 'local' ? { ...document, manifest: next } : document
-  const nextShared = edit.storage === 'project' ? next : shared
+  if (edit.type === 'save-action' && edit.storage === 'project') {
+    nextDocument = {
+      ...nextDocument,
+      manifest: {
+        ...nextDocument.manifest,
+        actions: nextDocument.manifest.actions.filter((entry) => entry.id !== edit.definition.id),
+      },
+    }
+  }
+  let nextShared = edit.storage === 'project' ? next : shared
+  if (edit.type === 'save-preparation' && edit.storage === 'project') {
+    nextShared = sharePreparationProfile(document, nextShared, edit.definition.profileId)
+    nextDocument = {
+      ...nextDocument,
+      manifest: {
+        ...nextDocument.manifest,
+        preparation: nextDocument.manifest.preparation.filter(
+          (entry) => entry.id !== edit.definition.id,
+        ),
+      },
+    }
+  }
   // Saving a personal preparation enables precisely this execution, without trusting later shared edits.
   if (edit.type === 'save-preparation' && edit.storage === 'local') {
     const definition = edit.definition
@@ -239,5 +289,6 @@ export function editActionCatalog(
     }
   }
   resolveActionCatalog(nextDocument, nextShared, '')
+  validateSharedProfiles(nextShared)
   return { document: nextDocument, shared: nextShared }
 }

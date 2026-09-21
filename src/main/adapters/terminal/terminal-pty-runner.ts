@@ -16,7 +16,10 @@ import {
 } from './terminal-pty-contract'
 import { createNativeTtyMemberSignal } from './terminal-pty-native-signal'
 import { existingShells, type TerminalShellCandidate } from './terminal-shell'
-import { prepareTerminalShellLaunch } from './terminal-shell-integration'
+import {
+  type PreparedTerminalShellLaunch,
+  prepareTerminalShellLaunch,
+} from './terminal-shell-integration'
 
 const logger = createLogger('terminal-pty-runner')
 
@@ -31,6 +34,8 @@ export interface PtySpawnRequest {
   readonly env: Readonly<Record<string, string>>
   /** Generation-scoped token required by the shell prompt-readiness marker. */
   readonly readinessNonce: string
+  /** An owned finite command. It bypasses interactive prompt integration and exits with the task. */
+  readonly execution?: { readonly command: string; readonly args: readonly string[] }
 }
 
 export type PtySpawnOutcome =
@@ -161,6 +166,27 @@ function makePtyModuleLoader(options: PtyRunnerOptions) {
   }
 }
 
+function executionCandidates(request: PtySpawnRequest, environment: Record<string, string>) {
+  return request.execution
+    ? [{ ...request.execution, label: request.execution.command }]
+    : existingShells({ environment })
+}
+
+function preparePtyLaunch(
+  request: PtySpawnRequest,
+  candidate: TerminalShellCandidate,
+  environment: Record<string, string>,
+): Promise<PreparedTerminalShellLaunch> {
+  return request.execution
+    ? Promise.resolve({
+        args: candidate.args,
+        environment,
+        integrated: false,
+        cleanup: async () => undefined,
+      })
+    : prepareTerminalShellLaunch(candidate, environment, request.readinessNonce)
+}
+
 export function makePtyRunner(options: PtyRunnerOptions): PtyRunner {
   const loadPtyModule = makePtyModuleLoader(options)
   const spawn = async (request: PtySpawnRequest) => {
@@ -173,7 +199,7 @@ export function makePtyRunner(options: PtyRunnerOptions): PtyRunner {
     const environment = getInteractiveTerminalEnv(options.appVersion, request.env)
     let candidates: readonly TerminalShellCandidate[]
     try {
-      candidates = existingShells({ environment })
+      candidates = executionCandidates(request, environment)
     } catch (error) {
       return { ok: false, error: toError(error) } satisfies PtySpawnOutcome
     }
@@ -182,7 +208,7 @@ export function makePtyRunner(options: PtyRunnerOptions): PtyRunner {
     for (const candidate of candidates) {
       let launch: Awaited<ReturnType<typeof prepareTerminalShellLaunch>>
       try {
-        launch = await prepareTerminalShellLaunch(candidate, environment, request.readinessNonce)
+        launch = await preparePtyLaunch(request, candidate, environment)
       } catch (error) {
         const integrationError = toError(error)
         logger.error('Terminal shell prompt integration failed', {

@@ -197,6 +197,11 @@ export function getInteractiveTerminalEnv(
   setEnvironmentValue(terminalEnv, 'TERM_PROGRAM', TERMINAL_PROGRAM_NAME)
   setEnvironmentValue(terminalEnv, 'TERM_PROGRAM_VERSION', appVersion)
   for (const [name, value] of Object.entries(overrides)) {
+    if (
+      name.toUpperCase() === 'T3CODE_PROJECT_ROOT' ||
+      name.toUpperCase() === 'T3CODE_WORKTREE_PATH'
+    )
+      continue
     setEnvironmentValue(terminalEnv, name, value)
   }
   return terminalEnv

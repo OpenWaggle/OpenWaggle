@@ -6,15 +6,29 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { FirstSendFailed } from '../../lib/message-delivery'
 import { useChatStore } from '../../state/chat-store'
 
-const { flushDraftAuthorizationModeMock, sendMessageMock, snapshotDraftWorktreePlanMock } =
-  vi.hoisted(() => ({
-    flushDraftAuthorizationModeMock: vi.fn(async () => {}),
-    sendMessageMock: vi.fn(async () => ({ outcome: 'delivered' as const })),
-    snapshotDraftWorktreePlanMock: vi.fn(() => ({
-      projectPath: '/repo',
-      plan: { envMode: 'worktree' as const, baseRef: 'main' },
-    })),
-  }))
+const {
+  flushDraftAuthorizationModeMock,
+  selectPreparationMock,
+  sendMessageMock,
+  snapshotDraftWorktreePlanMock,
+} = vi.hoisted(() => ({
+  flushDraftAuthorizationModeMock: vi.fn(async () => {}),
+  selectPreparationMock: vi.fn(async () => {}),
+  sendMessageMock: vi.fn(async () => ({ outcome: 'delivered' as const })),
+  snapshotDraftWorktreePlanMock: vi.fn<
+    () => {
+      projectPath: string
+      plan: { envMode: 'worktree'; baseRef: string; preparationProfileId?: string }
+    }
+  >(() => ({
+    projectPath: '/repo',
+    plan: { envMode: 'worktree' as const, baseRef: 'main' },
+  })),
+}))
+
+vi.mock('@/features/project-actions', () => ({
+  selectDraftWorkspacePreparation: selectPreparationMock,
+}))
 
 vi.mock('@/features/chat/state/draft-authorization-mode-store', () => ({
   flushDraftAuthorizationModeToSession: flushDraftAuthorizationModeMock,
@@ -35,9 +49,40 @@ const PAYLOAD: AgentSendPayload = { text: 'review body', thinkingLevel: 'off', a
 describe("a session's first send", () => {
   beforeEach(() => {
     flushDraftAuthorizationModeMock.mockReset().mockResolvedValue(undefined)
+    selectPreparationMock.mockReset().mockResolvedValue(undefined)
     sendMessageMock.mockClear()
-    snapshotDraftWorktreePlanMock.mockClear()
+    snapshotDraftWorktreePlanMock
+      .mockReset()
+      .mockReturnValue({ projectPath: '/repo', plan: { envMode: 'worktree', baseRef: 'main' } })
     useChatStore.setState({ sessionById: new Map() })
+  })
+
+  it('persists the chosen profile before the first turn and retains the new session on preparation failure', async () => {
+    snapshotDraftWorktreePlanMock.mockReturnValue({
+      projectPath: '/repo',
+      plan: { envMode: 'worktree', baseRef: 'main', preparationProfileId: 'frontend' },
+    })
+    const sendMessageToSession = vi.fn(async () => {})
+    const handlers = createSendHandlers({
+      activeSessionId: null,
+      projectPath: '/repo',
+      thinkingLevel: 'off',
+      createSession: vi.fn(async () => SessionId('created')),
+      sendMessage: vi.fn(async () => {}),
+      sendMessageToSession,
+      startWaggleCollaboration: vi.fn(),
+      sendWaggleMessage: vi.fn(async () => {}),
+    })
+    selectPreparationMock.mockRejectedValueOnce(new Error('Profile was removed'))
+    await expect(handlers.handleSend(PAYLOAD)).rejects.toMatchObject({
+      createdSessionId: 'created',
+    })
+    expect(selectPreparationMock).toHaveBeenCalledWith('/repo', 'created', 'frontend')
+    expect(sendMessageToSession).not.toHaveBeenCalled()
+    await handlers.handleSend(PAYLOAD)
+    expect(selectPreparationMock.mock.invocationCallOrder.at(-1)).toBeLessThan(
+      sendMessageToSession.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY,
+    )
   })
 
   it('persists an explicit draft authorization override before dispatching the turn', async () => {

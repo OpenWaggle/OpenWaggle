@@ -1,12 +1,12 @@
 # Own the Project Actions model in OpenWaggle
 
-Status: accepted domain model and UI direction; implementation pending
+Status: implemented; end-to-end validation and independent review in progress
 
 Date: 2026-09-21
 
 Project Actions currently expose T3-specific configuration and terminology, as described in ADR 0030. The redesign will use OpenWaggle's own configuration and domain language, borrowing useful behavior from Codex, T3, and editors without adding tool-specific importers to this scope. Discovery of ordinary project commands, such as `package.json` scripts, remains compatible with this boundary.
 
-We chose native behavior over a configuration-compatibility layer so the feature can evolve around OpenWaggle's needs without inheriting other tools' schemas. The redesign removes the existing T3 importer, T3-specific product wording, and automatically supplied T3 environment aliases. This document records the agreed design; runtime implementation and data migration have not been performed.
+We chose native behavior over a configuration-compatibility layer so the feature can evolve around OpenWaggle's needs without inheriting other tools' schemas. The redesign removes the existing T3 importer, T3-specific product wording, and automatically supplied T3 environment aliases. The native catalog, managed runs, workspace preparation, migration, and renderer now implement this design. Migration runs when the native catalog is first read and retains the previous configuration as a private recovery copy.
 
 Existing saved actions, including actions previously imported from T3, are preserved as native local definitions for their projects. The redesign stops supplying `T3CODE_PROJECT_ROOT` and `T3CODE_WORKTREE_PATH`; `OPENWAGGLE_PROJECT_ROOT` and `OPENWAGGLE_WORKTREE_PATH` are the native equivalents. Detected references to the removed names are flagged and offered reviewed conversion. Commands or project scripts that depend on those aliases need updating; the migration does not silently rewrite arbitrary project scripts or delete saved actions. No temporary T3 alias compatibility layer is retained.
 

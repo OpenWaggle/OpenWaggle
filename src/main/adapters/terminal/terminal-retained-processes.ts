@@ -29,7 +29,9 @@ export class TerminalRetainedProcesses {
 
   constructor(
     private readonly onRecordInactive: (record: TerminalRecord) => void,
-    private readonly shutdownDetachedProcess = shutdownDetachedTerminal,
+    private readonly shutdownDetachedProcess: (
+      target: RetainedTerminalProcess,
+    ) => Promise<boolean> = shutdownDetachedTerminal,
   ) {}
 
   readonly registerDetachedProcess = (

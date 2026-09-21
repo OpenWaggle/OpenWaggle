@@ -44,6 +44,7 @@ export interface AgentKernelRunControl {
 }
 
 export interface AgentKernelRunInput {
+  readonly preparedEnvironment?: Readonly<Record<string, string>>
   readonly session: SessionDetail
   readonly runId: string
   readonly payload: HydratedAgentSendPayload

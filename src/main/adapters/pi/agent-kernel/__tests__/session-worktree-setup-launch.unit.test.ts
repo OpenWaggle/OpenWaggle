@@ -6,7 +6,6 @@ import type {
   ClaimedSessionWorktreeSetup,
   PendingSessionWorktreeSetup,
 } from '../../../../store/session-details'
-import { reportAcceptedSetupActionProgress } from '../project-setup-action-progress'
 import { setupSession as session } from './session-worktree-birth-test-helpers'
 
 const {
@@ -123,7 +122,7 @@ describe('new-worktree post-persistence launch hook', () => {
     expect(createGitWorktreeMock).not.toHaveBeenCalled()
   })
 
-  it('contains hook failure, records it in progress, and still resolves the worktree', async () => {
+  it('blocks the first turn after setup failure and preserves the worktree for retry', async () => {
     const onProgress = vi.fn()
 
     await expect(
@@ -133,7 +132,7 @@ describe('new-worktree post-persistence launch hook', () => {
           throw new Error('setup queue unavailable')
         },
       }),
-    ).resolves.toContain('/.openwaggle/worktrees/repo/')
+    ).rejects.toThrow('setup queue unavailable')
     expect(onProgress).toHaveBeenCalledWith(
       expect.objectContaining({
         stage: 'worktree-created',
@@ -146,15 +145,17 @@ describe('new-worktree post-persistence launch hook', () => {
 
   it('retains the generation claim when GUI setup dispatch has an uncertain outcome', async () => {
     const onProgress = vi.fn()
-    await ensureSessionWorktreeProjectPath(session(), {
-      onProgress,
-      onSetupPending: async () => {
-        throw new AggregateError(
-          [new DesktopOperationIndeterminateError()],
-          'Desktop transport lost',
-        )
-      },
-    })
+    await expect(
+      ensureSessionWorktreeProjectPath(session(), {
+        onProgress,
+        onSetupPending: async () => {
+          throw new AggregateError(
+            [new DesktopOperationIndeterminateError()],
+            'Desktop transport lost',
+          )
+        },
+      }),
+    ).rejects.toThrow('Desktop transport lost')
     expect(releaseSessionWorktreeSetupClaimMock).not.toHaveBeenCalled()
     expect(completeSessionWorktreeSetupMock).not.toHaveBeenCalled()
     expect(onProgress).toHaveBeenCalledWith(
@@ -188,7 +189,9 @@ describe('new-worktree post-persistence launch hook', () => {
     getSessionWorktreeSetupDispatchMock.mockResolvedValue({ ...pending, state: 'pending' })
 
     const recreated = session({ worktreePath: pending.worktreePath })
-    await ensureSessionWorktreeProjectPath(recreated, { onSetupPending })
+    await expect(ensureSessionWorktreeProjectPath(recreated, { onSetupPending })).rejects.toThrow(
+      'terminal open failed',
+    )
     await ensureSessionWorktreeProjectPath(recreated, { onSetupPending })
 
     expect(onSetupPending).toHaveBeenCalledTimes(2)
@@ -260,7 +263,7 @@ describe('new-worktree post-persistence launch hook', () => {
     expect(completeSessionWorktreeSetupMock).not.toHaveBeenCalled()
   })
 
-  it('does not replay a claim left by an interrupted app process', async () => {
+  it('asks the managed preparation service to reconcile a persisted claim before allowing the turn', async () => {
     const onProgress = vi.fn()
     const onSetupPending = vi.fn(async () => undefined)
     existsSyncMock.mockReturnValue(true)
@@ -277,13 +280,11 @@ describe('new-worktree post-persistence launch hook', () => {
       onSetupPending,
     })
 
-    expect(onSetupPending).not.toHaveBeenCalled()
-    expect(claimSessionWorktreeSetupMock).not.toHaveBeenCalled()
-    expect(onProgress).toHaveBeenCalledWith(
-      expect.objectContaining({
-        details: [expect.stringContaining('was not started again automatically')],
-      }),
+    expect(onSetupPending).toHaveBeenCalledWith(
+      expect.objectContaining({ setupGeneration: 'generation-before-crash', resumingClaim: true }),
     )
+    expect(claimSessionWorktreeSetupMock).not.toHaveBeenCalled()
+    expect(completeSessionWorktreeSetupMock).toHaveBeenCalledOnce()
   })
 
   it('keeps a durable claim when acceptance-receipt finalization fails', async () => {
@@ -300,28 +301,5 @@ describe('new-worktree post-persistence launch hook', () => {
         details: [expect.stringContaining('will not be started again automatically')],
       }),
     )
-  })
-
-  it('finalizes an accepted claim when its later progress listener throws', async () => {
-    const report = vi.fn(() => {
-      throw new Error('progress listener failed')
-    })
-    const onSetupPending = vi.fn(async () => {
-      reportAcceptedSetupActionProgress({
-        sessionId: 'setup-session',
-        report,
-        progress: {
-          stage: 'worktree-created',
-          details: ['Started Setup action "Install dependencies"'],
-          worktreePath: '/worktree',
-        },
-      })
-    })
-
-    await ensureSessionWorktreeProjectPath(session(), { onSetupPending })
-
-    expect(report).toHaveBeenCalledOnce()
-    expect(completeSessionWorktreeSetupMock).toHaveBeenCalledOnce()
-    expect(releaseSessionWorktreeSetupClaimMock).not.toHaveBeenCalled()
   })
 })

@@ -53,6 +53,7 @@ export interface PiRunSessionRuntime {
 }
 
 interface CreatePiRunSessionRuntimeInput extends PiRuntimeExtensionIsolationInput {
+  readonly preparedEnvironment?: Readonly<Record<string, string>>
   readonly session: AgentKernelRunInput['session']
   readonly projectPath: string
   readonly runId: AgentKernelRunInput['runId']
@@ -91,6 +92,7 @@ function resolvePiRuntimeThinkingLevel(model: PiModel, requestedThinkingLevel: T
 }
 
 async function createPiSessionForRun(input: {
+  readonly preparedEnvironment?: Readonly<Record<string, string>>
   readonly services: AgentSessionServices
   readonly model: PiModel
   readonly sessionManager: SessionManager
@@ -99,7 +101,7 @@ async function createPiSessionForRun(input: {
 }) {
   const markAgentRun = (context: { command: string; cwd: string; env: NodeJS.ProcessEnv }) => ({
     ...context,
-    env: { ...context.env, OPENWAGGLE_AGENT_RUN: '1' },
+    env: { ...context.env, ...input.preparedEnvironment, OPENWAGGLE_AGENT_RUN: '1' },
   })
   const customTools: ToolDefinition[] = [
     defineTool(createBashToolDefinition(input.services.cwd, { spawnHook: markAgentRun })),
@@ -183,6 +185,7 @@ export async function createPiRunSessionRuntime(
       sessionManager,
       thinkingLevel,
       openWaggleUi,
+      ...(input.preparedEnvironment ? { preparedEnvironment: input.preparedEnvironment } : {}),
     })
 
     return exposePiRunControl(input, selectedRuntime.runtime.model, session)
@@ -203,6 +206,7 @@ export async function createPiRunSessionRuntime(
       sessionManager,
       thinkingLevel,
       openWaggleUi,
+      ...(input.preparedEnvironment ? { preparedEnvironment: input.preparedEnvironment } : {}),
     })
 
     return exposePiRunControl(input, fallbackRuntime.model, session)

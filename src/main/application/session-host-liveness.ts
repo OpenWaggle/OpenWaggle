@@ -1,6 +1,7 @@
 export const SESSION_HOST_LIVENESS_KINDS = [
   'client',
   'run',
+  'action-run',
   'follow-up-delivery',
   'semantic-preparation',
   'export',

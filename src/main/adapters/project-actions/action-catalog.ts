@@ -29,10 +29,7 @@ export function createActionCatalog(persistence: ActionStatePersistence) {
     const current = await readActionManifest(pending.workspacePath)
     const targetRevision = actionContentRevision(serializeActionManifest(pending.nextShared))
     if (current.revision !== targetRevision) {
-      if (current.revision !== pending.previousSharedRevision)
-        throw new Error(
-          'An interrupted Project Actions save conflicts with an external edit. The original local definitions and pending edit are retained.',
-        )
+      if (current.revision !== pending.previousSharedRevision) return stored // Expose both drafts so the editor can resolve the conflict without data loss.
       await writeActionManifest(
         pending.workspacePath,
         pending.previousSharedRevision,
@@ -73,19 +70,33 @@ export function createActionCatalog(persistence: ActionStatePersistence) {
     scope: ActionCatalogScope,
     operation: (canonical: ActionCatalogScope) => Promise<T>,
   ): Promise<T> {
-    const projectPath = await realpath(scope.projectPath)
-    const workspacePath = await realpath(scope.workspacePath)
+    const [projectPath, workspacePath] = await Promise.all([
+      realpath(scope.projectPath),
+      realpath(scope.workspacePath),
+    ])
     return enqueueProjectConfigWrite(`actions:${projectPath}`, () =>
       operation({ projectPath, workspacePath }),
     )
   }
 
+  async function readCurrent(scope: ActionCatalogScope) {
+    const { stored, shared, revision } = await load(scope)
+    const catalog = resolveActionCatalog(stored.state.document, shared.manifest, revision)
+    const pending = stored.state.pending
+    return pending
+      ? {
+          ...catalog,
+          pendingPublication: {
+            workspacePath: pending.workspacePath,
+            projectDraft: pending.nextShared,
+            localDraft: pending.nextLocal.manifest,
+          },
+        }
+      : catalog
+  }
+
   return {
-    read: (scope: ActionCatalogScope) =>
-      serialized(scope, async (canonical) => {
-        const { stored, shared, revision } = await load(canonical)
-        return resolveActionCatalog(stored.state.document, shared.manifest, revision)
-      }),
+    read: (scope: ActionCatalogScope) => serialized(scope, readCurrent),
     edit: (scope: ActionCatalogScope, expectedRevision: string, rawEdit: ActionCatalogEdit) =>
       serialized(scope, async (canonical) => {
         const edit = decodeUnknownExactOrThrow(actionCatalogEditSchema, rawEdit)
@@ -93,6 +104,17 @@ export function createActionCatalog(persistence: ActionStatePersistence) {
         if (revision !== expectedRevision)
           throw new Error(
             'Project Actions changed since this editor was opened. Your draft has been kept; reload before saving.',
+          )
+        if (edit.type === 'discard-publication') {
+          await persistence.write(canonical.projectPath, stored.revision, {
+            document: stored.state.document,
+            pending: null,
+          })
+          return readCurrent(canonical)
+        }
+        if (stored.state.pending)
+          throw new Error(
+            'An interrupted save conflicts with an external edit. Review the retained drafts before discarding the pending publication.',
           )
         const next = editActionCatalog(stored.state.document, shared.manifest, edit)
         decodeUnknownExactOrThrow(localActionDocumentSchema, next.document)
@@ -115,12 +137,7 @@ export function createActionCatalog(persistence: ActionStatePersistence) {
           const journaled = await persistence.write(canonical.projectPath, stored.revision, pending)
           await recover(canonical.projectPath, journaled)
         }
-        const current = await load(canonical)
-        return resolveActionCatalog(
-          current.stored.state.document,
-          current.shared.manifest,
-          current.revision,
-        )
+        return readCurrent(canonical)
       }),
   }
 }

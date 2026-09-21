@@ -28,6 +28,7 @@ export interface BrowserPreviewTabState {
 }
 
 export type WorkspacePanelSurface =
+  | { readonly kind: 'action'; readonly projectPath: string; readonly runId: string }
   | { readonly kind: 'terminal' }
   | { readonly kind: 'browser'; readonly previewId: string }
   | null

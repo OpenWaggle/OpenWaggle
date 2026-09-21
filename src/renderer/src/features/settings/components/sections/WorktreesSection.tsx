@@ -1,8 +1,10 @@
 import { RepositoryPath } from '@shared/types/brand'
 import type { GitWorktreeInfo } from '@shared/types/git'
 import { SESSION_ENVIRONMENT_MODES } from '@shared/types/git'
+import type { WorkspacePreparation } from '@shared/types/workspace-preparation'
 import { formatWorktreePathForDisplay } from '@shared/utils/worktree'
 import { useCallback, useEffect, useState } from 'react'
+import { WorkspaceCleanupFailure } from '@/features/project-actions'
 import { usePreferencesStore } from '@/features/settings/state/preferences-store'
 import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
@@ -21,8 +23,10 @@ const MODE_DESCRIPTIONS: Record<(typeof SESSION_ENVIRONMENT_MODES)[number], stri
   worktree: 'Each session runs in a dedicated Session worktree isolated from the checkout.',
 }
 
+type PreparedWorktree = GitWorktreeInfo & { readonly preparation?: WorkspacePreparation }
+
 function useProjectWorktrees(repositoryPath: RepositoryPath | null) {
-  const [worktrees, setWorktrees] = useState<readonly GitWorktreeInfo[]>([])
+  const [worktrees, setWorktrees] = useState<readonly PreparedWorktree[]>([])
   const [isLoading, setIsLoading] = useState(false)
 
   const refresh = useCallback(async () => {
@@ -32,8 +36,24 @@ function useProjectWorktrees(repositoryPath: RepositoryPath | null) {
     }
     setIsLoading(true)
     try {
-      const result = await api.listGitWorktrees(repositoryPath)
-      setWorktrees(result.worktrees)
+      const [result, retained] = await Promise.all([
+        api.listGitWorktrees(repositoryPath),
+        api.manageProjectActions({
+          scope: { projectPath: repositoryPath },
+          operation: { type: 'retained-preparation' },
+        }),
+      ])
+      if (retained.type !== 'retained-preparation')
+        throw new Error('Unexpected preparation response.')
+      const preparations = new Map(
+        retained.workspaces.map((workspace) => [workspace.path, workspace.preparation]),
+      )
+      setWorktrees(
+        result.worktrees.map((worktree) => ({
+          ...worktree,
+          preparation: preparations.get(worktree.path),
+        })),
+      )
     } catch (error) {
       logger.warn('Failed to list worktrees', { error: String(error) })
       setWorktrees([])
@@ -51,20 +71,20 @@ function useProjectWorktrees(repositoryPath: RepositoryPath | null) {
 
 export function WorktreesSection() {
   const settings = usePreferencesStore((state) => state.settings)
-  const setDefaultSessionEnvironmentMode = usePreferencesStore(
-    (state) => state.setDefaultSessionEnvironmentMode,
-  )
   const projectPath = settings.projectPath
   const repositoryPath = projectPath === null ? null : RepositoryPath(projectPath)
   const { worktrees, isLoading, refresh } = useProjectWorktrees(repositoryPath)
   const [removingPath, setRemovingPath] = useState<string | null>(null)
   const showToast = useUIStore((state) => state.showToast)
 
-  async function handleRemove(worktreePath: string) {
+  async function handleRemove(worktreePath: string, skipCleanup = false) {
     if (!repositoryPath) return
     setRemovingPath(worktreePath)
     try {
-      const result = await api.removeGitWorktree(repositoryPath, { path: worktreePath })
+      const result = await api.removeGitWorktree(repositoryPath, {
+        path: worktreePath,
+        ...(skipCleanup ? { skipCleanup: true } : {}),
+      })
       if (!result.ok) {
         /*
          * Say why. Removal is deliberately refused for a dirty or locked worktree - the common case
@@ -85,36 +105,7 @@ export function WorktreesSection() {
 
   return (
     <div className="space-y-6">
-      <div className="space-y-3">
-        <h3 className="text-base font-semibold text-text-primary">Session environment mode</h3>
-        <div className="overflow-hidden rounded-lg border border-border bg-bg">
-          {SESSION_ENVIRONMENT_MODES.map((mode) => {
-            const isActive = settings.defaultSessionEnvironmentMode === mode
-            return (
-              <Button
-                variant="unstyled"
-                type="button"
-                key={mode}
-                onClick={() => {
-                  void setDefaultSessionEnvironmentMode(mode)
-                }}
-                aria-pressed={isActive}
-                className="flex w-full items-center justify-between border-b border-border px-5 py-3 text-left last:border-b-0 hover:bg-bg-hover"
-              >
-                <div className="flex flex-col gap-0.5">
-                  <span className="text-xs font-medium text-text-primary">{MODE_LABELS[mode]}</span>
-                  <span className="text-xs text-text-tertiary">{MODE_DESCRIPTIONS[mode]}</span>
-                </div>
-                <div
-                  className={`size-3 shrink-0 rounded-full border ${
-                    isActive ? 'border-accent bg-accent' : 'border-border-light'
-                  }`}
-                />
-              </Button>
-            )
-          })}
-        </div>
-      </div>
+      <WorktreeEnvironmentMode />
 
       <div className="space-y-3">
         <div className="flex items-center justify-between">
@@ -134,7 +125,7 @@ export function WorktreesSection() {
             {worktrees.map((worktree) => (
               <div
                 key={worktree.path}
-                className="flex items-center justify-between border-b border-border px-5 py-3 last:border-b-0"
+                className="flex flex-wrap items-center justify-between border-b border-border px-5 py-3 last:border-b-0"
               >
                 <div className="flex flex-col gap-0.5">
                   <span className="text-xs font-medium text-text-primary">
@@ -155,10 +146,60 @@ export function WorktreesSection() {
                     Remove
                   </Button>
                 )}
+                {projectPath && worktree.preparation ? (
+                  <div className="w-full">
+                    <WorkspaceCleanupFailure
+                      projectPath={projectPath}
+                      initial={worktree.preparation}
+                      busy={removingPath === worktree.path}
+                      onRetry={() => void handleRemove(worktree.path)}
+                      onDeleteAnyway={() => void handleRemove(worktree.path, true)}
+                    />
+                  </div>
+                ) : null}
               </div>
             ))}
           </div>
         )}
+      </div>
+    </div>
+  )
+}
+
+function WorktreeEnvironmentMode() {
+  const settings = usePreferencesStore((state) => state.settings)
+  const setDefaultSessionEnvironmentMode = usePreferencesStore(
+    (state) => state.setDefaultSessionEnvironmentMode,
+  )
+  return (
+    <div className="space-y-3">
+      <h3 className="text-base font-semibold text-text-primary">Session environment mode</h3>
+      <div className="overflow-hidden rounded-lg border border-border bg-bg">
+        {SESSION_ENVIRONMENT_MODES.map((mode) => {
+          const isActive = settings.defaultSessionEnvironmentMode === mode
+          return (
+            <Button
+              variant="unstyled"
+              type="button"
+              key={mode}
+              onClick={() => {
+                void setDefaultSessionEnvironmentMode(mode)
+              }}
+              aria-pressed={isActive}
+              className="flex w-full items-center justify-between border-b border-border px-5 py-3 text-left last:border-b-0 hover:bg-bg-hover"
+            >
+              <div className="flex flex-col gap-0.5">
+                <span className="text-xs font-medium text-text-primary">{MODE_LABELS[mode]}</span>
+                <span className="text-xs text-text-tertiary">{MODE_DESCRIPTIONS[mode]}</span>
+              </div>
+              <div
+                className={`size-3 shrink-0 rounded-full border ${
+                  isActive ? 'border-accent bg-accent' : 'border-border-light'
+                }`}
+              />
+            </Button>
+          )
+        })}
       </div>
     </div>
   )

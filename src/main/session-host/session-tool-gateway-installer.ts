@@ -2,6 +2,7 @@ import * as SqlClient from '@effect/sql/SqlClient'
 import type { LocalSessionCommandResult } from '@shared/types/local-session-protocol'
 import * as Effect from 'effect/Effect'
 import { dispatchNonHostUiLocalSessionCommand } from '../application/local-session-command-dispatcher'
+import type { ActionRunService } from '../ports/action-run-service'
 import type { AgentKernelService } from '../ports/agent-kernel-service'
 import type { AgentRunInterruptionService } from '../ports/agent-run-interruption-service'
 import type { AgentSteeringService } from '../ports/agent-steering-service'
@@ -38,6 +39,7 @@ import type { SessionReportRepository } from '../ports/session-report-repository
 import type { SessionRepository } from '../ports/session-repository'
 import type { SessionWaitService } from '../ports/session-wait-service'
 import type { SessionWorkspaceHandoffService } from '../ports/session-workspace-handoff-service'
+import type { SessionWorkspaceResourceRepository } from '../ports/session-workspace-resource-repository'
 import type { TerminalService } from '../ports/terminal-service'
 import type { SettingsService } from '../services/settings-service'
 import { resolveSessionToolAgentCaller } from './session-tool-agent-caller'
@@ -60,6 +62,8 @@ type SessionToolDependencies =
   | AgentSteeringService
   | DesktopServiceBroker
   | TerminalService
+  | ActionRunService
+  | SessionWorkspaceResourceRepository
   | ExtensionLifecycleRepository
   | ExtensionManagerService
   | ExtensionProjectOverridesRepository
