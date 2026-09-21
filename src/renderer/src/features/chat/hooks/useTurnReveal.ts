@@ -1,5 +1,5 @@
 import type { SessionId } from '@shared/types/brand'
-import { useMemo } from 'react'
+import type { TurnCheckpointSummary } from '@shared/types/turn-diff'
 import { useDiffScopeStore, useSessionTurns } from '@/features/diff-panel'
 
 type TurnRevealNavigate = (options: {
@@ -19,16 +19,31 @@ export function useTurnReveal(
   refreshToken = 0,
 ) {
   const turns = useSessionTurns(activeSessionId, refreshToken)
-  const turnAnchorMessageIds = useMemo(
-    () => new Set(turns.flatMap((turn) => (turn.anchorNodeId ? [turn.anchorNodeId] : []))),
-    [turns],
+  const turnAnchorMessageIds = new Set(
+    turns.flatMap((turn) => (turn.anchorNodeId ? [turn.anchorNodeId] : [])),
   )
+  const turnDurationsByAnchorMessageId = (() => {
+    const durations = new Map<string, number>()
+    for (const turn of turns) {
+      if (!turn.anchorNodeId || turn.startedAt === undefined || turn.startedAt === null) continue
+      const durationMs = turn.createdAt - turn.startedAt
+      if (durationMs > 0) durations.set(turn.anchorNodeId, durationMs)
+    }
+    return durations
+  })()
+  const turnsByAnchorNodeId = (() => {
+    const byAnchor = new Map<string, TurnCheckpointSummary>()
+    for (const turn of turns) {
+      if (turn.anchorNodeId) byAnchor.set(turn.anchorNodeId, turn)
+    }
+    return byAnchor
+  })()
 
-  function handleViewTurnDiff(messageId: string) {
+  function handleViewTurnDiff(messageId: string, filePath?: string) {
     if (!activeSessionId) return
     const turn = turns.find((candidate) => candidate.anchorNodeId === messageId)
     if (!turn) return
-    useDiffScopeStore.getState().selectTurn(String(activeSessionId), turn.turnId)
+    useDiffScopeStore.getState().selectTurn(String(activeSessionId), turn.turnId, filePath)
     void navigate({
       to: '/sessions/$sessionId',
       params: { sessionId: String(activeSessionId) },
@@ -36,5 +51,10 @@ export function useTurnReveal(
     })
   }
 
-  return { turnAnchorMessageIds, handleViewTurnDiff }
+  return {
+    turnAnchorMessageIds,
+    turnDurationsByAnchorMessageId,
+    turnsByAnchorNodeId,
+    handleViewTurnDiff,
+  }
 }

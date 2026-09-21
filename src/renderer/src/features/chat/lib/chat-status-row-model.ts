@@ -26,13 +26,6 @@ export function appendStatusRows(rows: ChatRow[], input: StatusRowInput) {
       elapsedMs: input.phase.totalElapsedMs,
     })
   }
-  if (!input.isLoading && !input.phase.current && input.phase.completed.length > 0) {
-    rows.push({
-      type: 'run-summary',
-      phases: input.phase.completed,
-      totalMs: input.phase.totalElapsedMs,
-    })
-  }
   if (input.error && !input.isLoading) {
     rows.push({
       type: 'error',

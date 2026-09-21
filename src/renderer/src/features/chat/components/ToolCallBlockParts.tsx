@@ -1,6 +1,6 @@
 import type { JsonObject } from '@shared/types/json'
 import { AlertCircle, Clipboard } from 'lucide-react'
-import { lazy, Suspense } from 'react'
+
 import {
   FILE_CONTENT_ARG_KEYS,
   getToolResultText,
@@ -9,21 +9,14 @@ import {
   LONG_ARGUMENT_PREVIEW_CHARS,
   RESULT_MAX_HEIGHT_PX,
   shouldHighlightCode,
-  type UnifiedDiffData,
 } from '@/features/chat/lib/tool-call-block'
-import { usePreferencesStore } from '@/features/settings'
 import { useCopyToClipboard } from '@/shared/hooks/useCopyToClipboard'
-import { useSyntaxTheme } from '@/shared/hooks/useSyntaxTheme'
 import { Button } from '@/shared/ui/Button'
 import { PlainTextBlock } from '@/shared/ui/PlainTextBlock'
 import { SourceView } from '@/shared/ui/SourceView'
 import { StructuredPayload, serializeStructuredPayload } from '@/shared/ui/StructuredPayload'
 import { SyntaxBlock } from '@/shared/ui/SyntaxBlock'
-import { useChatDisplayText, useChatDisplayTextFormatter } from './ChatDisplayPathContext'
-
-const LazyDiffBlock = lazy(() =>
-  import('@/shared/ui/DiffBlock').then(({ DiffBlock }) => ({ default: DiffBlock })),
-)
+import { useChatDisplayText } from './ChatDisplayPathContext'
 
 export function CopyButton({ label, value }: { readonly label: string; readonly value: string }) {
   const { copied, copy } = useCopyToClipboard()
@@ -224,49 +217,5 @@ export function ToolResult({
     <PlainTextBlock reason="prose" className="max-h-75 text-sm">
       {shortenedContent}
     </PlainTextBlock>
-  )
-}
-
-export function UnifiedDiffView({
-  diff,
-  compact = false,
-}: {
-  readonly diff: UnifiedDiffData
-  readonly compact?: boolean
-}) {
-  const formatDisplayText = useChatDisplayTextFormatter()
-  const view = usePreferencesStore((state) => state.settings.diffView)
-  const wrap = usePreferencesStore((state) => state.settings.diffWrapLines)
-  const { shikiTheme } = useSyntaxTheme()
-  const displayPatch = diff.lines
-    .map((line) => (line.type === 'meta' ? formatDisplayText(line.content) : line.content))
-    .join('\n')
-  return (
-    <div className="rounded-md border border-border overflow-hidden text-xs font-mono">
-      <div className="flex items-center justify-between bg-bg-secondary px-3 py-1.5 border-b border-border">
-        <span className="text-text-secondary">Diff</span>
-        <div className="flex items-center gap-2 shrink-0 ml-2">
-          {diff.additions > 0 && <span className="text-success">+{diff.additions}</span>}
-          {diff.deletions > 0 && <span className="text-error">-{diff.deletions}</span>}
-        </div>
-      </div>
-      <Suspense
-        fallback={
-          <div
-            aria-label="Loading diff"
-            className="h-24 animate-pulse bg-bg-secondary/60"
-            role="status"
-          />
-        }
-      >
-        <LazyDiffBlock
-          patch={displayPatch}
-          className={compact ? 'max-h-55 overflow-y-hidden' : undefined}
-          view={view}
-          wrap={wrap}
-          theme={shikiTheme}
-        />
-      </Suspense>
-    </div>
   )
 }

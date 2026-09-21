@@ -35,6 +35,7 @@ type RepoOperation =
   | 'setAuthorizationMode'
   | 'listTurnCheckpoints'
   | 'getTurnDiff'
+  | 'getTurnDiffFiles'
   | 'setTurnCheckpointAnchor'
   | 'listPinnedSessions'
   | 'pinSession'
@@ -153,6 +154,9 @@ export const SqliteSessionProjectionRepositoryLive = Effect.promise(async () => 
 
       getTurnDiff: (id, turnId) =>
         repoOp('getTurnDiff', () => turnCheckpoints.getTurnDiff(id, turnId)),
+
+      getTurnDiffFiles: (id, turnId) =>
+        repoOp('getTurnDiffFiles', () => turnCheckpoints.getTurnDiffFiles(id, turnId)),
 
       setTurnCheckpointAnchor: (id, turnId, anchorNodeId) =>
         repoOp('setTurnCheckpointAnchor', () =>

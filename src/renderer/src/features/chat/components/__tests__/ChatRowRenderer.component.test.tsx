@@ -23,6 +23,10 @@ vi.mock('@/features/waggle/components/TurnDivider', () => ({
   ),
 }))
 
+vi.mock('../ChangedFilesCard', () => ({
+  ChangedFilesCard: () => <div data-testid="changed-files-card" />,
+}))
+
 vi.mock('../MessageBubble', () => ({
   MessageBubble: ({
     message,
@@ -78,6 +82,34 @@ function messageRow(message: UIMessage): MessageChatRow {
 }
 
 describe('ChatRowRenderer', () => {
+  it('keeps a settled changed-files card visible while a later run is active', () => {
+    const row = { ...messageRow(assistantMessage('assistant-1')), isRunActive: true }
+    const turn = {
+      turnId: 'turn-1',
+      turnIndex: 1,
+      createdAt: 1,
+      insertions: 2,
+      deletions: 1,
+      anchorNodeId: 'assistant-1',
+    }
+    const extensions = { registry: null, projectPaths: [] }
+
+    render(
+      <ChatRowRenderer
+        row={row}
+        context={{
+          runtime: { sessionId: SessionId('session-1'), extensions },
+          extensions,
+          turnsByAnchorNodeId: new Map([['assistant-1', turn]]),
+          actions: { onOpenTurnDiff: vi.fn() },
+          onDismissError: vi.fn(),
+        }}
+      />,
+    )
+
+    expect(screen.getByTestId('changed-files-card')).toBeVisible()
+  })
+
   it('shows agent and model once for a grouped waggle turn', () => {
     const row: ChatRow = {
       type: 'waggle-turn',

@@ -106,7 +106,7 @@ describe('buildChatRows tool-call rendering', () => {
       ),
     ]
 
-    const assistantRows = getAssistantMessageRows(messages)
+    const assistantRows = getAssistantMessageRows(messages, {}, new Set(['user-1']))
     expect(assistantRows).toHaveLength(2)
 
     const firstAssistantParts = assistantRows[0].message.parts

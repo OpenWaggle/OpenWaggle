@@ -19,7 +19,7 @@ import type {
   AgentsResolutionResult,
   SkillCatalogResult,
 } from './standards'
-import type { TurnCheckpointSummary, TurnDiff } from './turn-diff'
+import type { TurnCheckpointSummary, TurnDiff, TurnDiffFileSummary } from './turn-diff'
 import type { UpdateStatus } from './updater'
 import type { VoiceTranscriptionRequest, VoiceTranscriptionResult } from './voice'
 import type { WaggleConfig, WagglePreset } from './waggle'
@@ -210,5 +210,9 @@ export interface IpcIntegrationInvokeChannelMap
   'sessions:turn-diff:get': {
     args: [id: SessionId, turnId: string]
     return: TurnDiff | null
+  }
+  'sessions:turn-diff-files:get': {
+    args: [id: SessionId, turnId: string]
+    return: readonly TurnDiffFileSummary[]
   }
 }

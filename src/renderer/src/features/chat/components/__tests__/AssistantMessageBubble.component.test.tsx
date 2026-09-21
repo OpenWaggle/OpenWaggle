@@ -8,29 +8,7 @@ import type {
   UIMessagePart,
 } from '@shared/types/chat-ui'
 import { render, screen } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { UseMessageCollapseResult } from '../../hooks/useMessageCollapse'
-
-// ---------------------------------------------------------------------------
-// Hoisted mock handles
-// ---------------------------------------------------------------------------
-const mockCollapse = vi.hoisted((): { current: UseMessageCollapseResult } => ({
-  current: {
-    canCollapseDetails: false,
-    showDetails: false,
-    toggleDetails: vi.fn(),
-    collapseLabel: '',
-    lastRenderableTextPartIndex: -1,
-    renderAllParts: true,
-  },
-}))
-
-// ---------------------------------------------------------------------------
-// Module mocks
-// ---------------------------------------------------------------------------
-vi.mock('../../hooks/useMessageCollapse', () => ({
-  useMessageCollapse: () => mockCollapse.current,
-}))
+import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/features/session-summary', () => ({ SessionMessageImages: () => null }))
 
@@ -65,16 +43,6 @@ vi.mock('../AgentLabel', () => ({
       </div>
     )
   },
-}))
-
-vi.mock('../CollapsibleDetails', () => ({
-  CollapsibleDetails: ({
-    collapseLabel,
-  }: {
-    collapseLabel: string
-    showDetails: boolean
-    onToggle: () => void
-  }) => <div data-testid="collapsible-details">{collapseLabel}</div>,
 }))
 
 // ---------------------------------------------------------------------------
@@ -117,6 +85,8 @@ interface RenderAssistantOptions {
   readonly waggle?: WaggleInfo
   readonly assistantModel?: SupportedModelId
   readonly hideAgentLabel?: boolean
+  readonly turnFolded?: boolean
+  readonly run?: { readonly isStreaming?: boolean }
   readonly actions?: {
     readonly onBranchFromMessage?: (messageId: string) => void
     readonly onViewTurnDiff?: (messageId: string) => void
@@ -128,6 +98,8 @@ function renderAssistantMessage({
   waggle,
   assistantModel,
   hideAgentLabel,
+  turnFolded,
+  run,
   actions,
 }: RenderAssistantOptions) {
   return render(
@@ -137,37 +109,22 @@ function renderAssistantMessage({
         sessionId: defaultSessionId,
         extensions: { registry: null, projectPaths: [] },
       }}
-      run={assistantModel ? { assistantModel } : undefined}
+      run={run ?? (assistantModel ? { assistantModel } : undefined)}
       waggle={waggle}
-      presentation={hideAgentLabel ? { hideAgentLabel } : undefined}
+      presentation={
+        hideAgentLabel || turnFolded
+          ? { ...(hideAgentLabel ? { hideAgentLabel } : {}), ...(turnFolded ? { turnFolded } : {}) }
+          : undefined
+      }
       actions={actions}
     />,
   )
-}
-
-function setCollapse(overrides: Partial<UseMessageCollapseResult>) {
-  mockCollapse.current = { ...mockCollapse.current, ...overrides }
-}
-
-function resetCollapse() {
-  mockCollapse.current = {
-    canCollapseDetails: false,
-    showDetails: false,
-    toggleDetails: vi.fn(),
-    collapseLabel: '',
-    lastRenderableTextPartIndex: -1,
-    renderAllParts: true,
-  }
 }
 
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 describe('AssistantMessageBubble', () => {
-  beforeEach(() => {
-    resetCollapse()
-  })
-
   it('renders AgentLabel when waggle prop provided', () => {
     const message = createMessage('m1', [textPart('Hello')])
     renderAssistantMessage({
@@ -222,8 +179,7 @@ describe('AssistantMessageBubble', () => {
     expect(screen.queryByTestId('streaming-text')).not.toBeInTheDocument()
   })
 
-  it('renders all parts when canCollapseDetails=false', () => {
-    setCollapse({ canCollapseDetails: false, renderAllParts: true })
+  it('renders every part when the turn is not folded', () => {
     const message = createMessage('m1', [
       textPart('First'),
       toolCallPart('read', 'tc-1'),
@@ -234,37 +190,24 @@ describe('AssistantMessageBubble', () => {
     expect(screen.getByTestId('tool-call-router')).toBeInTheDocument()
   })
 
-  it('renders only lastRenderableTextPartIndex when canCollapseDetails=true and showDetails=false', () => {
-    setCollapse({
-      canCollapseDetails: true,
-      showDetails: false,
-      renderAllParts: false,
-      lastRenderableTextPartIndex: 2,
-      collapseLabel: 'Show 1 tool call',
-    })
+  it('renders only the final text part when the turn is folded (ADR 0034)', () => {
     const message = createMessage('m1', [
       textPart('Earlier text'),
       toolCallPart('read', 'tc-1'),
       textPart('Final answer'),
     ])
-    renderAssistantMessage({ message })
+    renderAssistantMessage({ message, turnFolded: true })
     const texts = screen.getAllByTestId('streaming-text')
     expect(texts).toHaveLength(1)
     expect(texts[0]).toHaveTextContent('Final answer')
     expect(screen.queryByTestId('tool-call-router')).toBeNull()
   })
 
-  it('renders CollapsibleDetails divider when canCollapseDetails=true', () => {
-    setCollapse({
-      canCollapseDetails: true,
-      showDetails: false,
-      renderAllParts: false,
-      lastRenderableTextPartIndex: 1,
-      collapseLabel: 'Show 1 tool call',
-    })
-    const message = createMessage('m1', [toolCallPart('read', 'tc-1'), textPart('Summary')])
-    renderAssistantMessage({ message })
-    expect(screen.getByTestId('collapsible-details')).toHaveTextContent('Show 1 tool call')
+  it('keeps streaming parts visible even inside a folded turn presentation', () => {
+    const message = createMessage('m1', [toolCallPart('read', 'tc-1'), textPart('Answer')])
+    renderAssistantMessage({ message, turnFolded: true, run: { isStreaming: true } })
+    expect(screen.getAllByTestId('streaming-text')).toHaveLength(1)
+    expect(screen.getByTestId('tool-call-router')).toBeInTheDocument()
   })
 
   it('leaves the continuous waggle rail to the turn wrapper', () => {

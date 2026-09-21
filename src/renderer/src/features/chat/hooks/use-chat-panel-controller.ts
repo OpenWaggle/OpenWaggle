@@ -179,11 +179,7 @@ export function useChatPanelSections(): ChatPanelSections {
     showToast,
   })
 
-  const { turnAnchorMessageIds, handleViewTurnDiff } = useTurnReveal(
-    activeSessionId,
-    navigate,
-    messages.length,
-  )
+  const reveal = useTurnReveal(activeSessionId, navigate, messages.length)
 
   const transcript = useTranscriptSection({
     messages,
@@ -209,8 +205,10 @@ export function useChatPanelSections(): ChatPanelSections {
     handleBranchFromMessage,
     handleForkFromMessage: (messageId: string) =>
       void sessionCopy.forkMessageToNewSession(messageId),
-    handleViewTurnDiff,
-    turnAnchorMessageIds,
+    handleViewTurnDiff: reveal.handleViewTurnDiff,
+    turnAnchorMessageIds: reveal.turnAnchorMessageIds,
+    turnsByAnchorNodeId: reveal.turnsByAnchorNodeId,
+    turnDurationsByAnchorMessageId: reveal.turnDurationsByAnchorMessageId,
     userDidSend,
     onUserDidSendConsumed: () => setUserDidSend(false),
     streamSignalVersion,

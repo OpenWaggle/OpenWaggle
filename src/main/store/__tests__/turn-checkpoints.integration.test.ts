@@ -7,6 +7,7 @@ import { createSession } from '../session-details'
 import {
   deleteTurnCheckpointsForSession,
   getTurnDiff,
+  getTurnDiffFiles,
   listTurnCheckpoints,
   pruneTurnCheckpoints,
   recordTurnCheckpoint,
@@ -77,6 +78,22 @@ describe('turn checkpoints store', () => {
     expect(diff?.insertions).toBe(1)
     expect(diff?.deletions).toBe(1)
     expect(diff?.files).toEqual([{ path: 'b.ts', additions: 1, deletions: 1 }])
+  })
+
+  it('round-trips started_at and records checkpoints without file changes', async () => {
+    const sessionId = await makeSession('started-at')
+    await recordTurnCheckpoint({
+      sessionId,
+      turnId: 'turn-1',
+      diff: '',
+      startedAt: 1_700_000_000_000,
+    })
+
+    const [summary] = await listTurnCheckpoints(sessionId)
+    expect(summary?.startedAt).toBe(1_700_000_000_000)
+
+    const diffFiles = await getTurnDiffFiles(sessionId, 'turn-1')
+    expect(diffFiles).toEqual([])
   })
 
   it('lists checkpoints in capture (insertion) order', async () => {

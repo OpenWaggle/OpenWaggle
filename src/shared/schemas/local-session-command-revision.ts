@@ -5,6 +5,7 @@ import {
   HOST_UI_REVISION_10_REQUIRED_CHANNELS,
   HOST_UI_REVISION_11_REQUIRED_CHANNELS,
   HOST_UI_REVISION_12_REQUIRED_CHANNELS,
+  HOST_UI_REVISION_13_REQUIRED_CHANNELS,
   type HostBackedGuiChannel,
 } from '@shared/types/host-ui-protocol'
 import {
@@ -14,10 +15,14 @@ import {
   LOCAL_SESSION_MCP_AUTH_REVISION,
   LOCAL_SESSION_MCP_HOST_UI_REVISION,
   LOCAL_SESSION_PROJECT_CATALOG_REVISION,
+  LOCAL_SESSION_TURN_DIFF_FILES_REVISION,
   LOCAL_SESSION_WORKSPACE_AUTHORIZATION_REVISION,
 } from '@shared/types/local-session-protocol'
 
 export function requiredHostUiRevision(channel: HostBackedGuiChannel) {
+  if (HOST_UI_REVISION_13_REQUIRED_CHANNELS.some((candidate) => candidate === channel)) {
+    return LOCAL_SESSION_TURN_DIFF_FILES_REVISION
+  }
   if (HOST_UI_REVISION_12_REQUIRED_CHANNELS.some((candidate) => candidate === channel)) {
     return LOCAL_SESSION_PROJECT_CATALOG_REVISION
   }

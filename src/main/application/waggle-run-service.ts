@@ -32,6 +32,7 @@ import {
   isDurableAgentLoopEvent,
 } from './agent-run/agent-loop-events'
 import { createWorktreeLaunchEventCollector } from './agent-run/worktree-launch-event'
+import { resolveLatestAssistantNodeId } from './agent-run-service'
 import { listRuntimeEnabledOpenWaggleExtensionPackagePaths } from './extension-runtime-service'
 import { assignSessionTitleFromUserText, hydratePayloadAttachments } from './run-handler-utils'
 import { mapPersistedRunResourceNodes } from './session-resource-node-mapping'
@@ -165,6 +166,7 @@ function runPreparedWaggle(
 ) {
   return Effect.gen(function* () {
     const sessionRepo = yield* SessionRepository
+    const sessionProjectionRepo = yield* SessionProjectionRepository
     const initialTree = yield* sessionRepo.getTree(SessionId(String(input.sessionId)))
     const branchId = resolveWaggleBranchId({ sessionId: input.sessionId, tree: initialTree })
 
@@ -245,6 +247,15 @@ function runPreparedWaggle(
       snapshot: sessionSnapshot,
       waggleConfig: input.config,
     })
+
+    const anchorNodeId = resolveLatestAssistantNodeId(sessionSnapshot.nodes)
+    if (anchorNodeId) {
+      yield* sessionProjectionRepo.setTurnCheckpointAnchor(
+        input.sessionId,
+        input.runId,
+        anchorNodeId,
+      )
+    }
 
     const persistedTree = yield* loadPersistedWaggleResourceProvenanceTree(sessionRepo, input)
     const resources = mapPersistedRunResourceNodes(existingTree, persistedTree)

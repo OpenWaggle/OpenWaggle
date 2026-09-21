@@ -5,7 +5,15 @@ import path from 'node:path'
 import { isMatching, P } from '@diegogbrisa/ts-match'
 import lockfile from 'proper-lockfile'
 
-export const QA_CDP_PORT = 9223
+const DEFAULT_QA_CDP_PORT = 9223
+
+/** Overridable so parallel worktrees on one machine can run their own hidden QA app
+ * while another worktree holds the default port (lease directory keys off this value). */
+export const QA_CDP_PORT =
+  process.env.OPENWAGGLE_QA_CDP_PORT !== undefined &&
+  Number(process.env.OPENWAGGLE_QA_CDP_PORT) > 0
+    ? Number(process.env.OPENWAGGLE_QA_CDP_PORT)
+    : DEFAULT_QA_CDP_PORT
 const QA_PROFILE_PREFIX = 'openwaggle-qa-profile-'
 const QA_ARTIFACT_PREFIX = 'openwaggle-qa-evidence-'
 const QA_LEASE_CANDIDATE_PREFIX = 'openwaggle-qa-lease-candidate-'

@@ -15,7 +15,7 @@ import type {
   SessionSummary,
   SessionWorktreePlan,
 } from '@shared/types/session'
-import type { TurnCheckpointSummary, TurnDiff } from '@shared/types/turn-diff'
+import type { TurnCheckpointSummary, TurnDiff, TurnDiffFileSummary } from '@shared/types/turn-diff'
 import { Context, type Effect } from 'effect'
 import type { SessionProjectionRepositoryError } from '../errors'
 
@@ -72,6 +72,10 @@ export interface SessionProjectionRepositoryShape {
     id: SessionId,
     turnId: string,
   ) => Effect.Effect<TurnDiff | null, SessionProjectionRepositoryError>
+  readonly getTurnDiffFiles: (
+    id: SessionId,
+    turnId: string,
+  ) => Effect.Effect<readonly TurnDiffFileSummary[], SessionProjectionRepositoryError>
   readonly setTurnCheckpointAnchor: (
     id: SessionId,
     turnId: string,

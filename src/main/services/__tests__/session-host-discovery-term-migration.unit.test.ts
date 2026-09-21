@@ -109,7 +109,7 @@ describe('Session discovery native signature migration', () => {
         ])
         expect(yield* sql`SELECT * FROM session_discovery_term_stage`).toEqual([])
         expect(yield* sql`SELECT schema_revision FROM session_host_schema_metadata`).toEqual([
-          { schema_revision: 18 },
+          { schema_revision: 19 },
         ])
         expect(yield* sql`SELECT name FROM _migrations WHERE id = ${MIGRATION_ID}`).toEqual([
           { name: 'session-host-native-discovery-signatures' },

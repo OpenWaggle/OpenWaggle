@@ -18,6 +18,7 @@ import { APP_MIGRATIONS } from '../database-migrations'
  */
 const AUTHORIZATION_MIGRATION_ID = 25
 const BEFORE_AUTHORIZATION_ID = AUTHORIZATION_MIGRATION_ID - 1
+const TURN_CHECKPOINT_STARTED_AT_MIGRATION_ID = 58
 const WORKTREE_SETUP_MIGRATION_ID = 26
 const WORKTREE_SETUP_RECEIPT_MIGRATION_ID = 27
 
@@ -303,5 +304,28 @@ describe('Session worktree Setup dispatch migration', () => {
     )
 
     expect(pending).toEqual([])
+  })
+
+  it('adds a nullable started_at column to turn_checkpoints for fold durations', async () => {
+    const columns = await withDatabase((sql) =>
+      Effect.gen(function* () {
+        yield* applyMigrations(sql, 24)
+        for (const migration of APP_MIGRATIONS) {
+          if (migration.id <= 24 || migration.id >= TURN_CHECKPOINT_STARTED_AT_MIGRATION_ID)
+            continue
+          yield* sql`
+            INSERT INTO _migrations (id, name, applied_at)
+            VALUES (${migration.id}, ${migration.name}, ${new Date().toISOString()})
+          `
+        }
+        yield* applyMigrations(sql, TURN_CHECKPOINT_STARTED_AT_MIGRATION_ID)
+        return yield* sql<{ name: string; notnull: number }>`
+          PRAGMA table_info(turn_checkpoints)
+        `
+      }),
+    )
+
+    const startedAt = columns.find((column) => column.name === 'started_at')
+    expect(startedAt).toMatchObject({ notnull: 0 })
   })
 })

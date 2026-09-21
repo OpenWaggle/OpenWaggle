@@ -44,6 +44,7 @@ const [
   authorizationGrantsCapability,
   desktopServicesCapability,
   projectCatalogCapability,
+  turnDiffFilesCapability,
 ] = LOCAL_SESSION_CAPABILITIES
 
 const supportedRevisionListSchema = Schema.Array(
@@ -69,6 +70,7 @@ const currentCapabilitySchema = Schema.Tuple(
   Schema.Literal(authorizationGrantsCapability),
   Schema.Literal(desktopServicesCapability),
   Schema.Literal(projectCatalogCapability),
+  Schema.Literal(turnDiffFilesCapability),
 )
 
 const previousCapabilitySchema = Schema.Tuple(
@@ -89,6 +91,7 @@ const previousCapabilitySchema = Schema.Tuple(
   Schema.Literal(visualizationSourceCapability),
   Schema.Literal(authorizationGrantsCapability),
   Schema.Literal(desktopServicesCapability),
+  Schema.Literal(projectCatalogCapability),
 )
 
 export const localSessionNegotiationResultSchema: Schema.Schema<LocalSessionNegotiationResult> =

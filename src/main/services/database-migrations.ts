@@ -5,6 +5,11 @@ import { SESSION_RESOURCE_MIGRATIONS } from './database-session-resource-migrati
 import { SESSION_HOST_APP_MIGRATIONS } from './session-host-app-migrations'
 import { SESSION_WORKTREE_SETUP_MIGRATION } from './session-worktree-setup-migration'
 import { SESSION_WORKTREE_SETUP_RECEIPT_MIGRATION } from './session-worktree-setup-receipt-migration'
+import {
+  TURN_CHECKPOINT_ANCHOR_NODE_MIGRATION,
+  TURN_CHECKPOINT_SNAPSHOT_REF_MIGRATION,
+  TURN_CHECKPOINT_STARTED_AT_MIGRATION,
+} from './turn-checkpoint-migrations'
 
 export interface AppMigration extends DatabaseMigrationDefinition {
   /** Skip a migration when an earlier alpha or cutover already installed every listed column. */
@@ -243,11 +248,7 @@ export const APP_MIGRATIONS: readonly AppMigration[] = [
       `,
     ],
   },
-  {
-    id: 21,
-    name: 'turn-checkpoint-snapshot-ref',
-    statements: [`ALTER TABLE turn_checkpoints ADD COLUMN snapshot_ref TEXT`],
-  },
+  TURN_CHECKPOINT_SNAPSHOT_REF_MIGRATION,
   {
     id: 22,
     name: 'session-worktree-birth-plan',
@@ -260,11 +261,7 @@ export const APP_MIGRATIONS: readonly AppMigration[] = [
       `ALTER TABLE sessions ADD COLUMN worktree_start_from_origin INTEGER NOT NULL DEFAULT 0`,
     ],
   },
-  {
-    id: 23,
-    name: 'turn-checkpoint-anchor-node',
-    statements: [`ALTER TABLE turn_checkpoints ADD COLUMN anchor_node_id TEXT`],
-  },
+  TURN_CHECKPOINT_ANCHOR_NODE_MIGRATION,
   {
     id: 24,
     name: 'pinned-sessions',
@@ -297,4 +294,5 @@ export const APP_MIGRATIONS: readonly AppMigration[] = [
   },
   ...SESSION_RESOURCE_MIGRATIONS,
   ...SESSION_HOST_APP_MIGRATIONS,
+  TURN_CHECKPOINT_STARTED_AT_MIGRATION,
 ]

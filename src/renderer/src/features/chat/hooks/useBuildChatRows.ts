@@ -10,6 +10,7 @@ import {
   createCompactionRowAppender,
   createCompactionStatusRows,
 } from '../lib/compaction-chat-row-model'
+import { applyTurnFolds, type TurnFoldInput } from '../lib/turn-fold'
 import type { AgentInteractionEvent, ChatRow, MessageChatRow } from '../lib/types-chat-row'
 import { createWorktreeLaunchRows, isWorktreeCreatedEvent } from '../lib/worktree-launch-row-model'
 import type { AgentCompactionStatus } from './useAgentChat.types'
@@ -217,12 +218,15 @@ interface BuildChatRowsParams {
   interruptedRun?: SessionInterruptedRun
   worktreeLaunch?: WorktreeLaunchSnapshot | null
   compactionStatus?: AgentCompactionStatus | null
+  /** Durable per-turn durations keyed by terminal assistant message id (turn checkpoints). */
+  turnDurationsByAnchorMessageId?: ReadonlyMap<string, number>
+  /** Turn keys the user expanded in this session (fold state is in-memory). */
+  expandedTurnKeys?: ReadonlySet<string>
 }
 
+/** ADR 0034 fold inputs derived from the run's settled/active state. */
 function appendInterruptedRunRow(rows: ChatRow[], params: BuildChatRowsParams) {
-  if (!params.interruptedRun || params.isLoading) {
-    return
-  }
+  if (!params.interruptedRun || params.isLoading) return
   rows.push({
     type: 'interrupted-run',
     runId: params.interruptedRun.runId,
@@ -231,6 +235,18 @@ function appendInterruptedRunRow(rows: ChatRow[], params: BuildChatRowsParams) {
     model: params.interruptedRun.model,
     interruptedAt: params.interruptedRun.interruptedAt,
   })
+}
+
+function toTurnFoldInput(params: BuildChatRowsParams): TurnFoldInput {
+  return {
+    isLoading: params.isLoading,
+    // A reset phase timer (0 on session load) is "unknown", not a zero-second run.
+    settledRunDurationMs:
+      params.isLoading || params.phase.totalElapsedMs <= 0 ? null : params.phase.totalElapsedMs,
+    turnDurationsByAnchorMessageId: params.turnDurationsByAnchorMessageId ?? new Map(),
+    interrupted: !params.isLoading && params.interruptedRun !== undefined,
+    expandedTurnKeys: params.expandedTurnKeys ?? new Set(),
+  }
 }
 
 export function buildChatRows(params: BuildChatRowsParams): ChatRow[] {
@@ -253,8 +269,6 @@ export function buildChatRows(params: BuildChatRowsParams): ChatRow[] {
     rows.push(...launchRows)
     didAppendLaunchRows = true
   }
-  appendInterruptedRunRow(rows, params)
-
   const lastMessage = params.messages[params.messages.length - 1]
   const lastIsStreaming = params.isLoading && lastMessage?.role === 'assistant'
   let previousVisibleWaggleMeta: WaggleMessageMetadata | undefined
@@ -296,5 +310,6 @@ export function buildChatRows(params: BuildChatRowsParams): ChatRow[] {
   )
   appendInteractionEventRows(rows, params.interactionEvents ?? [])
   if (params.compactionStatus?.type !== 'compacting') appendStatusRows(rows, params)
-  return groupWaggleTurnRows(rows)
+  appendInterruptedRunRow(rows, params)
+  return applyTurnFolds(groupWaggleTurnRows(rows), toTurnFoldInput(params))
 }

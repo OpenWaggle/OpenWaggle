@@ -7,7 +7,6 @@ import type {
   AgentTransportInteractionResolvedEvent,
 } from '@shared/types/stream'
 import type { WaggleAgentColor, WaggleMessageMetadata } from '@shared/types/waggle'
-import type { CompletedPhase } from '@/features/chat/hooks/useStreamingPhase'
 
 export type AgentInteractionEvent =
   | AgentTransportInteractionRequestEvent
@@ -44,6 +43,20 @@ export interface MessageChatRow {
   assistantModel?: SupportedModelId
   waggle?: WaggleInfo
   waggleMeta?: WaggleMessageMetadata
+  /** Terminal message of a folded turn: render only its final text part. */
+  turnPresentation?: 'folded'
+}
+
+/** The quiet row standing in for one settled turn's work (ADR 0034). */
+export interface TurnFoldChatRow {
+  type: 'turn-fold'
+  /** Stable within a session: derived from the turn's first row id. */
+  turnKey: string
+  id: string
+  label: string
+  durationMs: number | null
+  interrupted: boolean
+  agentColor?: WaggleAgentColor
 }
 
 export interface WaggleTurnChatRow {
@@ -52,6 +65,10 @@ export interface WaggleTurnChatRow {
   turnDividerProps: TurnDividerProps
   agentColor: WaggleAgentColor
   messages: MessageChatRow[]
+  /** ADR 0034: the whole agent turn collapsed behind `foldRow`. */
+  folded?: boolean
+  /** Rendered inside the section, between the turn pill and the terminal message. */
+  foldRow?: TurnFoldChatRow
 }
 
 // ─── ChatRow Discriminated Union ──────────────────────────
@@ -66,6 +83,7 @@ export type ChatRow =
       interruptedAt: number
     }
   | MessageChatRow
+  | TurnFoldChatRow
   | { type: 'worktree-launch'; id: string; sessionId: string; launch: WorktreeLaunchSnapshot }
   | WaggleTurnChatRow
   | { type: 'agent-loop-custom-message'; event: AgentTransportCustomEvent }
@@ -91,7 +109,6 @@ export type ChatRow =
         | 'legacy-complete'
     }
   | { type: 'phase-indicator'; label: string; elapsedMs: number }
-  | { type: 'run-summary'; phases: readonly CompletedPhase[]; totalMs: number }
   | {
       type: 'error'
       error: Error
