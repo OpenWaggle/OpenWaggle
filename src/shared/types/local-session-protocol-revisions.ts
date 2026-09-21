@@ -77,7 +77,9 @@ export const LOCAL_SESSION_REVISION_12_CAPABILITIES = [
   'host-ui:session-project-catalog-v1',
 ] as const
 
-export const LOCAL_SESSION_CAPABILITIES = [
+export const LOCAL_SESSION_REVISION_13_CAPABILITIES = [
   ...LOCAL_SESSION_REVISION_12_CAPABILITIES,
   'host-ui:turn-diff-files-v1',
 ] as const
+
+export const LOCAL_SESSION_CAPABILITIES = LOCAL_SESSION_REVISION_13_CAPABILITIES

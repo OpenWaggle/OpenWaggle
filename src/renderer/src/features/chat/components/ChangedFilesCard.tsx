@@ -1,7 +1,7 @@
 import type { SessionId } from '@shared/types/brand'
 import type { TurnCheckpointSummary, TurnDiffFileSummary } from '@shared/types/turn-diff'
 import { ChevronRight, FileDiff } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
 import { Button } from '@/shared/ui/Button'
@@ -99,10 +99,7 @@ export function ChangedFilesCard({
   const cardKey = changedFilesCardKey(sessionId, turn.turnId)
   const persistedExpanded = useChangedFilesCardStore((state) => state.expandedByCardKey[cardKey])
   const setExpanded = useChangedFilesCardStore((state) => state.setExpanded)
-  const autoExpand = useMemo(
-    () => shouldAutoExpandChangedFiles(files, isLatestTurn),
-    [files, isLatestTurn],
-  )
+  const autoExpand = shouldAutoExpandChangedFiles(files, isLatestTurn)
   const expanded = persistedExpanded ?? autoExpand
 
   useEffect(() => {

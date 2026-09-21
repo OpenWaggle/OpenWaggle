@@ -1,6 +1,6 @@
 import type { TurnDiffFileSummary } from '@shared/types/turn-diff'
 import { ChevronRight, File, Folder, FolderClosed } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { Button } from '@/shared/ui/Button'
 import { buildTurnDiffTree, type TurnDiffTreeNode } from '../lib/changed-files-presentation'
 import { DiffStatLabel } from './DiffStatLabel'
@@ -61,11 +61,8 @@ export function ChangedFilesTree({
   readonly anchorMessageId: string
   readonly onOpenTurnDiff: (messageId: string, filePath?: string) => void
 }) {
-  const treeNodes = useMemo(() => buildTurnDiffTree(files), [files])
-  const hasDirectoryNodes = useMemo(
-    () => treeNodes.some((node) => node.kind === 'directory'),
-    [treeNodes],
-  )
+  const treeNodes = buildTurnDiffTree(files)
+  const hasDirectoryNodes = treeNodes.some((node) => node.kind === 'directory')
   const [directoryOverrides, setDirectoryOverrides] = useState(EMPTY_DIRECTORY_OVERRIDES)
   const toggleDirectory = (path: string) =>
     setDirectoryOverrides((current) => ({ ...current, [path]: !(current[path] ?? true) }))

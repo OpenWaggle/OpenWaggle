@@ -6,7 +6,7 @@ import type { SessionDetail, SessionWorkspace } from '@shared/types/session'
 import type { AgentTransportCustomEvent } from '@shared/types/stream'
 import type { TurnCheckpointSummary } from '@shared/types/turn-diff'
 import type { WaggleCollaborationStatus } from '@shared/types/waggle'
-import { useCallback, useState } from 'react'
+import { useState } from 'react'
 import type { useStreamingPhase } from '@/features/chat/hooks/useStreamingPhase'
 import { useWaggleMetadataLookup } from '@/features/chat/hooks/useWaggleMetadataLookup'
 import { useBackgroundRunStore } from '@/features/chat/state/background-run-store'
@@ -184,12 +184,9 @@ export function useTranscriptSection(params: TranscriptSectionParams): ChatTrans
     turnDurationsByAnchorMessageId: params.turnDurationsByAnchorMessageId,
   })
 
-  const handleToggleTurnFold = useCallback(
-    (turnKey: string) => {
-      toggleTurnFold(activeSessionId, turnKey)
-    },
-    [activeSessionId, toggleTurnFold],
-  )
+  function handleToggleTurnFold(turnKey: string) {
+    toggleTurnFold(activeSessionId, turnKey)
+  }
 
   // Compute lastUserMessageId for session-restore identity gating, not send anchoring.
   const lastUserMessageId = (() => {
