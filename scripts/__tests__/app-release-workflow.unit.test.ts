@@ -67,6 +67,16 @@ describe('desktop app release workflow', () => {
     expect(WORKFLOW).not.toContain('--follow-tags')
   })
 
+  it('waits for GitHub merge provenance to become consistent', () => {
+    expect(WORKFLOW).toContain('for PR_ASSOCIATION_ATTEMPT in $(seq 1 12)')
+    expect(WORKFLOW).toContain('Waiting for GitHub to expose the merged release PR')
+    expect(WORKFLOW).toContain('More than one merged release PR matched')
+    expect(WORKFLOW).toContain('GitHub did not expose the merged release PR')
+    expect(WORKFLOW).toContain('for RELEASE_CI_ATTEMPT in $(seq 1 12)')
+    expect(WORKFLOW).toContain('Waiting for GitHub to expose successful exact-head CI')
+    expect(WORKFLOW).toContain('GitHub did not expose successful exact-head CI')
+  })
+
   it('resumes compatible durable state and retries stale-base validation', () => {
     expect(WORKFLOW).toContain('gh pr list --state all --head "$RELEASE_BRANCH"')
     expect(WORKFLOW).toContain('scripts/app-release-state.ts filter-prs')
@@ -119,6 +129,12 @@ describe('desktop app release workflow', () => {
     )
     expect(WORKFLOW).toContain('cancel-in-progress: false')
     expect(WORKFLOW).toContain('NEW_VERSION="${BASE_VERSION}-${PRERELEASE_TAG}.$((PRERELEASE_NUM + 1))"')
+  })
+
+  it('marks semantic prerelease versions as GitHub prereleases', () => {
+    expect(WORKFLOW).toContain(
+      "prerelease: ${{ contains(needs.version.outputs.new_version, '-') }}",
+    )
   })
 
   it('pins every referenced action to an immutable commit', () => {

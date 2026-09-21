@@ -180,23 +180,44 @@ jobs:
             MERGE_SHA="$GITHUB_SHA"
             verify_release_commit "$MERGE_SHA"
 
-            ASSOCIATED_PRS=$(gh api \
-              "repos/${GITHUB_REPOSITORY}/commits/${MERGE_SHA}/pulls")
-            MATCHING_PRS=$(jq -c \
-              --arg branch "$RELEASE_BRANCH" \
-              --arg repository "$GITHUB_REPOSITORY" \
-              --arg sha "$MERGE_SHA" \
-              --arg title "chore(release): v${VERSION}" \
-              '[.[] | select(
-                .state == "closed" and
-                .merged_at != null and
-                .merge_commit_sha == $sha and
-                .base.ref == "main" and
-                .head.ref == $branch and
-                .head.repo.full_name == $repository and
-                .title == $title
-              )]' <<<"$ASSOCIATED_PRS")
-            test "$(jq -er 'length' <<<"$MATCHING_PRS")" = "1"
+            MATCHING_PRS='[]'
+            for PR_ASSOCIATION_ATTEMPT in $(seq 1 12); do
+              ASSOCIATED_PRS=""
+              if ASSOCIATED_PRS=$(gh api \
+                "repos/${GITHUB_REPOSITORY}/commits/${MERGE_SHA}/pulls"); then
+                MATCHING_PRS=$(jq -c \
+                  --arg branch "$RELEASE_BRANCH" \
+                  --arg repository "$GITHUB_REPOSITORY" \
+                  --arg sha "$MERGE_SHA" \
+                  --arg title "chore(release): v${VERSION}" \
+                  '[.[] | select(
+                    .state == "closed" and
+                    .merged_at != null and
+                    .merge_commit_sha == $sha and
+                    .base.ref == "main" and
+                    .head.ref == $branch and
+                    .head.repo.full_name == $repository and
+                    .title == $title
+                  )]' <<<"$ASSOCIATED_PRS")
+                MATCHING_PR_COUNT=$(jq -er 'length' <<<"$MATCHING_PRS")
+                if [ "$MATCHING_PR_COUNT" -eq 1 ]; then
+                  break
+                fi
+                if [ "$MATCHING_PR_COUNT" -gt 1 ]; then
+                  echo "More than one merged release PR matched ${MERGE_SHA}." >&2
+                  exit 1
+                fi
+              else
+                echo "GitHub merged release PR query failed (${PR_ASSOCIATION_ATTEMPT}/12)." >&2
+              fi
+
+              if [ "$PR_ASSOCIATION_ATTEMPT" -eq 12 ]; then
+                echo "GitHub did not expose the merged release PR for ${MERGE_SHA} after ${PR_ASSOCIATION_ATTEMPT} attempts." >&2
+                exit 1
+              fi
+              echo "Waiting for GitHub to expose the merged release PR (${PR_ASSOCIATION_ATTEMPT}/12)."
+              sleep 5
+            done
             MATCHING_PR_NUMBER=$(jq -er '.[0].number' <<<"$MATCHING_PRS")
             MATCHING_PR=$(gh api \
               "repos/${GITHUB_REPOSITORY}/pulls/${MATCHING_PR_NUMBER}")
@@ -212,15 +233,32 @@ jobs:
 
             RELEASE_PR_HEAD_SHA=$(jq -er '.head.sha' <<<"$MATCHING_PR")
             [[ "$RELEASE_PR_HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]
-            RELEASE_PR_RUNS=$(gh api \
-              "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs?event=pull_request&branch=${RELEASE_BRANCH}&per_page=20")
-            test "$(jq -er --arg sha "$RELEASE_PR_HEAD_SHA" \
-              '[.workflow_runs[] | select(
-                .head_sha == $sha and
-                .event == "pull_request" and
-                .status == "completed" and
-                .conclusion == "success"
-              )] | length' <<<"$RELEASE_PR_RUNS")" -ge "1"
+            for RELEASE_CI_ATTEMPT in $(seq 1 12); do
+              RELEASE_PR_RUNS=""
+              SUCCESSFUL_RELEASE_CI_COUNT=0
+              if RELEASE_PR_RUNS=$(gh api \
+                "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs?event=pull_request&branch=${RELEASE_BRANCH}&per_page=20"); then
+                SUCCESSFUL_RELEASE_CI_COUNT=$(jq -er --arg sha "$RELEASE_PR_HEAD_SHA" \
+                  '[.workflow_runs[] | select(
+                    .head_sha == $sha and
+                    .event == "pull_request" and
+                    .status == "completed" and
+                    .conclusion == "success"
+                  )] | length' <<<"$RELEASE_PR_RUNS")
+                if [ "$SUCCESSFUL_RELEASE_CI_COUNT" -ge 1 ]; then
+                  break
+                fi
+              else
+                echo "GitHub exact-head CI query failed (${RELEASE_CI_ATTEMPT}/12)." >&2
+              fi
+
+              if [ "$RELEASE_CI_ATTEMPT" -eq 12 ]; then
+                echo "GitHub did not expose successful exact-head CI for ${RELEASE_PR_HEAD_SHA} after ${RELEASE_CI_ATTEMPT} attempts." >&2
+                exit 1
+              fi
+              echo "Waiting for GitHub to expose successful exact-head CI (${RELEASE_CI_ATTEMPT}/12)."
+              sleep 5
+            done
 
             if git ls-remote --exit-code origin "refs/tags/${TAG}" >/dev/null 2>&1; then
               git fetch origin "refs/tags/${TAG}:refs/tags/${TAG}"
@@ -734,5 +772,6 @@ jobs:
           tag_name: ${{ needs.version.outputs.new_tag }}
           name: ${{ needs.version.outputs.new_tag }}
           draft: false
+          prerelease: ${{ contains(needs.version.outputs.new_version, '-') }}
           generate_release_notes: true
           files: release/*
