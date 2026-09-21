@@ -1,6 +1,7 @@
-import { DEFAULT_SETTINGS } from '@shared/types/settings'
-import { isUpdateChannel } from '@shared/types/update-channel'
+import { BUILD_CHANNEL } from '@shared/build-identity-runtime'
+import { defaultUpdateChannelForBuild, isUpdateChannel } from '@shared/types/update-channel'
 
 export function resolveUpdateChannel(raw: unknown) {
-  return isUpdateChannel(raw) ? raw : DEFAULT_SETTINGS.updateChannel
+  if (isUpdateChannel(raw)) return raw
+  return defaultUpdateChannelForBuild(BUILD_CHANNEL)
 }

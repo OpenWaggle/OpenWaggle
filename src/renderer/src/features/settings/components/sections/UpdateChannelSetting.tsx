@@ -1,6 +1,7 @@
 import { isUpdateChannel, type UpdateChannel } from '@shared/types/update-channel'
 import { useState } from 'react'
 import { usePreferencesStore } from '@/features/settings/state'
+import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
 import { Select } from '@/shared/ui/Select'
 
@@ -11,14 +12,25 @@ export function UpdateChannelSetting() {
   const setUpdateChannel = usePreferencesStore((state) => state.setUpdateChannel)
   const [saving, setSaving] = useState(false)
 
-  const choose = (next: UpdateChannel) => {
+  const choose = async (next: UpdateChannel) => {
     if (saving || next === channel) return
     setSaving(true)
-    void setUpdateChannel(next)
-      .catch((error: unknown) => {
-        logger.warn('Failed to update release channel', { error: String(error) })
-      })
-      .finally(() => setSaving(false))
+    try {
+      if (
+        next === 'alpha' &&
+        !(await api.showConfirm(
+          'Switch to Alpha updates?',
+          'Alpha builds are the least tested and may update automatically. You can return to Stable or Beta at any time.',
+        ))
+      ) {
+        return
+      }
+      await setUpdateChannel(next)
+    } catch (error: unknown) {
+      logger.warn('Failed to update release channel', { error: String(error) })
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -38,7 +50,7 @@ export function UpdateChannelSetting() {
         disabled={saving}
         onChange={(event) => {
           const next = event.currentTarget.value
-          if (isUpdateChannel(next)) choose(next)
+          if (isUpdateChannel(next)) void choose(next)
         }}
       >
         <option value="stable">Stable</option>

@@ -12,6 +12,7 @@ const {
   installUpdateMock,
   updateSettingsMock,
   getCliShimStatusMock,
+  showConfirmMock,
 } = vi.hoisted(() => ({
   getAppVersionMock: vi.fn(),
   getUpdateStatusMock: vi.fn(),
@@ -20,6 +21,7 @@ const {
   installUpdateMock: vi.fn(),
   updateSettingsMock: vi.fn(),
   getCliShimStatusMock: vi.fn(),
+  showConfirmMock: vi.fn(),
 }))
 
 vi.mock('@/shared/lib/ipc', () => ({
@@ -31,6 +33,7 @@ vi.mock('@/shared/lib/ipc', () => ({
     installUpdate: installUpdateMock,
     updateSettings: updateSettingsMock,
     getCliShimStatus: getCliShimStatusMock,
+    showConfirm: showConfirmMock,
   },
 }))
 
@@ -60,6 +63,7 @@ describe('GeneralSection', () => {
     installUpdateMock.mockReset()
     updateSettingsMock.mockReset()
     getCliShimStatusMock.mockReset()
+    showConfirmMock.mockReset()
     getCliShimStatusMock.mockResolvedValue({
       management: 'user-shim',
       state: 'installed',
@@ -79,6 +83,7 @@ describe('GeneralSection', () => {
     checkForUpdatesMock.mockResolvedValue(undefined)
     installUpdateMock.mockResolvedValue(undefined)
     updateSettingsMock.mockResolvedValue({ ok: true })
+    showConfirmMock.mockResolvedValue(true)
     usePreferencesStore.setState({ settings: DEFAULT_SETTINGS })
   })
 
@@ -250,9 +255,28 @@ describe('GeneralSection', () => {
     })
 
     await waitFor(() => {
+      expect(showConfirmMock).toHaveBeenCalledWith(
+        'Switch to Alpha updates?',
+        expect.stringContaining('least tested'),
+      )
       expect(updateSettingsMock).toHaveBeenCalledWith({ updateChannel: 'alpha' })
+      expect(checkForUpdatesMock).toHaveBeenCalledWith('alpha')
       expect(screen.getByRole('combobox', { name: 'Update channel' })).toHaveValue('alpha')
     })
+  })
+
+  it('keeps the current update channel when Alpha confirmation is declined', async () => {
+    showConfirmMock.mockResolvedValue(false)
+    render(<GeneralSection />)
+
+    fireEvent.change(screen.getByRole('combobox', { name: 'Update channel' }), {
+      target: { value: 'alpha' },
+    })
+
+    await waitFor(() => expect(showConfirmMock).toHaveBeenCalledOnce())
+    expect(updateSettingsMock).not.toHaveBeenCalled()
+    expect(checkForUpdatesMock).not.toHaveBeenCalled()
+    expect(screen.getByRole('combobox', { name: 'Update channel' })).toHaveValue('stable')
   })
 
   it('shows "Restart to update" button when status is downloaded', async () => {

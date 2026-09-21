@@ -72,8 +72,9 @@ Archived branches are hidden from normal sidebar navigation but remain visible i
 
 **About & Updates** shows the installed version and selects the update channel shared with
 `openwaggle update`. Stable is the default. Beta also accepts Stable releases; Alpha accepts
-Alpha, Beta, and Stable releases. Changing channels never authorizes a downgrade. Use **Check now**
-to query the selected channel immediately.
+Alpha, Beta, and Stable releases. OpenWaggle asks for confirmation whenever you enter Alpha, then
+saves the choice and checks the new channel immediately. Changing channels never authorizes a
+downgrade; **Check now** lets you query the selected channel again later.
 
 ## Appearance
 
