@@ -262,11 +262,9 @@ export function GeneralSection() {
                   size="xs"
                   onClick={() => {
                     if (typeof api.checkForUpdates === 'function') {
-                      api
-                        .checkForUpdates(usePreferencesStore.getState().settings.updateChannel)
-                        .catch((err: unknown) => {
-                          logger.warn('Failed to check for updates', { error: String(err) })
-                        })
+                      api.checkForUpdates().catch((err: unknown) => {
+                        logger.warn('Failed to check for updates', { error: String(err) })
+                      })
                     }
                   }}
                   className="h-7 border-border-light bg-bg-secondary text-text-secondary hover:bg-bg-hover"

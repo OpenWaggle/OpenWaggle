@@ -118,6 +118,73 @@ describe('updater overlapping checks', () => {
     expect(Reflect.get(updaterRef.current ?? {}, 'channel')).toBe('latest')
   })
 
+  it('waits for a cancelled download to settle before checking the replacement channel', async () => {
+    let settleDownload: (() => void) | undefined
+    const cancel = vi.fn()
+    const downloadPromise = new Promise<void>((resolve) => {
+      settleDownload = resolve
+    })
+    checkForUpdatesMock
+      .mockResolvedValueOnce({
+        cancellationToken: { cancel },
+        downloadPromise,
+        isUpdateAvailable: true,
+        updateInfo: { version: '0.5.0-alpha.1' },
+      })
+      .mockResolvedValue(undefined)
+    initAutoUpdater('alpha')
+
+    checkForUpdates('alpha')
+    await Promise.resolve()
+    await Promise.resolve()
+    await Promise.resolve()
+    checkForUpdates('stable')
+
+    expect(cancel).toHaveBeenCalledOnce()
+    expect(checkForUpdatesMock).toHaveBeenCalledOnce()
+
+    settleDownload?.()
+    await Promise.resolve()
+    await Promise.resolve()
+    await Promise.resolve()
+    await Promise.resolve()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(checkForUpdatesMock).toHaveBeenCalledTimes(2)
+    expect(configureUpdaterFeedMock).toHaveBeenLastCalledWith(expect.anything(), 'stable')
+  })
+
+  it('surfaces prerelease feed resolution failures through updater status', async () => {
+    configureUpdaterFeedMock.mockRejectedValueOnce(new Error('release feed unavailable'))
+    initAutoUpdater('alpha')
+
+    checkForUpdates('alpha')
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(checkForUpdatesMock).not.toHaveBeenCalled()
+    expect(broadcastMock).toHaveBeenCalledWith('updater:status-changed', {
+      type: 'error',
+      message: 'release feed unavailable',
+    })
+  })
+
+  it('surfaces authoritative channel read failures through updater status', async () => {
+    const readChannel = vi.fn().mockRejectedValue(new Error('settings unavailable'))
+    initAutoUpdater('alpha', readChannel)
+
+    checkForUpdates()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(checkForUpdatesMock).not.toHaveBeenCalled()
+    expect(broadcastMock).toHaveBeenCalledWith('updater:status-changed', {
+      type: 'error',
+      message: 'settings unavailable',
+    })
+  })
+
   it('keeps macOS downloads out of Squirrel until an eligible Restart action', async () => {
     vi.spyOn(process, 'platform', 'get').mockReturnValue('darwin')
     checkForUpdatesMock.mockResolvedValueOnce({

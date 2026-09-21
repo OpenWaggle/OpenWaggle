@@ -237,13 +237,13 @@ describe('GeneralSection', () => {
     expect(screen.getByRole('button', { name: /check now/i })).toBeInTheDocument()
   })
 
-  it('calls api.checkForUpdates when "Check now" is clicked', async () => {
+  it('delegates manual update channel resolution to the Session Host', async () => {
     render(<GeneralSection />)
 
     fireEvent.click(screen.getByRole('button', { name: /check now/i }))
 
     await waitFor(() => {
-      expect(checkForUpdatesMock).toHaveBeenCalledWith('stable')
+      expect(checkForUpdatesMock).toHaveBeenCalledWith()
     })
   })
 

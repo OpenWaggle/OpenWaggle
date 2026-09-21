@@ -58,39 +58,65 @@ function logUpdateCheckError(error: unknown) {
   })
 }
 
-function runUpdaterCheck(generation: number) {
-  return autoUpdater.checkForUpdates().then((result) => {
-    if (!result?.isUpdateAvailable) return
-    if (generation !== checkGeneration) {
-      result.cancellationToken?.cancel()
-      return
-    }
-    activeUpdateCancellation = result.cancellationToken ?? null
-    void result.downloadPromise?.catch(logUpdateCheckError)
-  })
+function updateCheckErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error)
+}
+
+function reportUpdateCheckError(error: unknown, generation: number) {
+  logUpdateCheckError(error)
+  if (generation !== checkGeneration) return
+  setStatus({ type: 'error', message: updateCheckErrorMessage(error) })
+}
+
+async function waitForDownload(downloadPromise: Promise<unknown> | null | undefined) {
+  try {
+    await downloadPromise
+  } catch (error) {
+    logUpdateCheckError(error)
+  }
+}
+
+async function runUpdaterCheck(generation: number) {
+  const result = await autoUpdater.checkForUpdates()
+  if (!result?.isUpdateAvailable) return
+  if (generation !== checkGeneration) {
+    result.cancellationToken?.cancel()
+    await waitForDownload(result.downloadPromise)
+    return
+  }
+  activeUpdateCancellation = result.cancellationToken ?? null
+  await waitForDownload(result.downloadPromise)
 }
 
 function startUpdaterCheck(channel: UpdateChannel, generation: number) {
-  const configured = configureUpdaterFeed(autoUpdater, channel)
-  const operation = configured
-    ? configured.then(() => {
-        if (generation !== checkGeneration) return
-        acceptUpdaterEvents = true
-        return runUpdaterCheck(generation)
-      })
-    : (() => {
-        acceptUpdaterEvents = true
-        return runUpdaterCheck(generation)
-      })()
-  const tracked = operation.catch(logUpdateCheckError).finally(() => {
-    if (activeCheckPromise !== tracked) return
-    activeCheckPromise = null
-    const queued = queuedUpdateCheck
-    queuedUpdateCheck = null
-    if (queued?.generation === checkGeneration) {
-      startUpdaterCheck(queued.channel, queued.generation)
-    }
-  })
+  let operation: Promise<void>
+  try {
+    const configured = configureUpdaterFeed(autoUpdater, channel)
+    operation = configured
+      ? configured.then(() => {
+          if (generation !== checkGeneration) return
+          acceptUpdaterEvents = true
+          return runUpdaterCheck(generation)
+        })
+      : (() => {
+          acceptUpdaterEvents = true
+          return runUpdaterCheck(generation)
+        })()
+  } catch (error) {
+    reportUpdateCheckError(error, generation)
+    return
+  }
+  const tracked = operation
+    .catch((error: unknown) => reportUpdateCheckError(error, generation))
+    .finally(() => {
+      if (activeCheckPromise !== tracked) return
+      activeCheckPromise = null
+      const queued = queuedUpdateCheck
+      queuedUpdateCheck = null
+      if (queued?.generation === checkGeneration) {
+        startUpdaterCheck(queued.channel, queued.generation)
+      }
+    })
   activeCheckPromise = tracked
 }
 
@@ -134,7 +160,11 @@ export function checkForUpdates(channel?: UpdateChannel): void {
       if (requestGeneration !== updateCheckRequestGeneration) return
       checkConfiguredChannel(authoritativeChannel)
     })
-    .catch(logUpdateCheckError)
+    .catch((error: unknown) => {
+      logUpdateCheckError(error)
+      if (requestGeneration !== updateCheckRequestGeneration) return
+      setStatus({ type: 'error', message: updateCheckErrorMessage(error) })
+    })
 }
 
 export function installUpdate(): void {

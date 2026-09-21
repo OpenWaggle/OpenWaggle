@@ -25,7 +25,7 @@ vi.mock('../../runtime', () => ({
 }))
 
 vi.mock('../../updater', () => ({
-  checkForUpdates: () => mockCheckForUpdates(),
+  checkForUpdates: (channel?: unknown) => mockCheckForUpdates(channel),
   installUpdate: () => mockInstallUpdate(),
   getUpdateStatus: () => mockGetUpdateStatus(),
 }))
@@ -69,8 +69,27 @@ describe('updater-handler', () => {
       const handler = handlers.get('updater:check')
       expect(handler).toBeDefined()
       await handler?.({})
-      expect(mockCheckForUpdates).toHaveBeenCalledOnce()
+      expect(mockCheckForUpdates).toHaveBeenCalledWith(undefined)
     })
+
+    it.each(['stable', 'beta', 'alpha'])('forwards the %s update channel', async (channel) => {
+      registerUpdaterHandlers()
+
+      const handler = handlers.get('updater:check')
+      await handler?.({}, channel)
+      expect(mockCheckForUpdates).toHaveBeenCalledWith(channel)
+    })
+
+    it.each(['https://attacker.example/update', 'latest', 'rc', null, { channel: 'stable' }])(
+      'rejects invalid update channel %j before it reaches the updater',
+      async (channel) => {
+        registerUpdaterHandlers()
+
+        const handler = handlers.get('updater:check')
+        await expect(handler?.({}, channel)).rejects.toThrow('Invalid update channel')
+        expect(mockCheckForUpdates).not.toHaveBeenCalled()
+      },
+    )
   })
 
   describe('updater:install', () => {
