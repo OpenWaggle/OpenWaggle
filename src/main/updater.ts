@@ -27,13 +27,6 @@ let queuedUpdateCheck: { readonly channel: UpdateChannel; readonly generation: n
   null
 let acceptUpdaterEvents = true
 
-function autoInstallOnQuitForPlatform() {
-  // MacUpdater dispatches its public download event before Squirrel.Mac stages the zip.
-  // Keeping this disabled means channel changes can invalidate a downloaded zip before
-  // the explicit Restart action asks Squirrel to stage and install that exact version.
-  return process.platform !== 'darwin'
-}
-
 function configureUpdateChannel(channel: UpdateChannel) {
   currentChannel = channel
   autoUpdater.channel = updaterFeedChannel(channel)
@@ -231,7 +224,9 @@ export function initAutoUpdater(
   readAuthoritativeChannel = readChannel ?? null
   acceptUpdaterEvents = true
   autoUpdater.autoDownload = true
-  autoUpdater.autoInstallOnAppQuit = autoInstallOnQuitForPlatform()
+  // Installation must always pass through installUpdate so the shared Session Host
+  // channel is re-read immediately before quitAndInstall.
+  autoUpdater.autoInstallOnAppQuit = false
   autoUpdater.logger = null // We use our own logger
 
   autoUpdater.on('checking-for-update', () => {
@@ -287,7 +282,7 @@ export function initAutoUpdater(
     }
     activeUpdateCancellation = null
     activeUpdateVersion = null
-    autoUpdater.autoInstallOnAppQuit = autoInstallOnQuitForPlatform()
+    autoUpdater.autoInstallOnAppQuit = false
     logger.info('Update downloaded', { version: info.version })
     setStatus({ type: 'downloaded', version: info.version })
   })

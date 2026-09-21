@@ -259,4 +259,13 @@ describe('updater overlapping checks', () => {
     expect(Reflect.get(updaterRef.current ?? {}, 'autoInstallOnAppQuit')).toBe(false)
     expect(getUpdateStatus()).toEqual({ type: 'not-available' })
   })
+
+  it('keeps automatic install-on-quit disabled on Windows and Linux', () => {
+    vi.spyOn(process, 'platform', 'get').mockReturnValue('linux')
+
+    initAutoUpdater('stable')
+    updaterRef.current?.emit('update-downloaded', { version: '0.4.1' })
+
+    expect(Reflect.get(updaterRef.current ?? {}, 'autoInstallOnAppQuit')).toBe(false)
+  })
 })

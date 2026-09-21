@@ -76,8 +76,8 @@ Alpha, Beta, and Stable releases. OpenWaggle asks for confirmation whenever you 
 saves the choice and checks the new channel immediately. Changing channels never authorizes a
 downgrade; **Check now** lets you query the selected channel again later. Before restarting,
 OpenWaggle re-reads the channel shared with the CLI and discards a downloaded release that is no
-longer eligible. On macOS, a downloaded update is handed to the native installer only when you
-choose **Restart to update**.
+longer eligible. Downloaded updates are installed only when you choose **Restart to update**; a
+normal app exit never bypasses that final channel check.
 
 ## Appearance
 

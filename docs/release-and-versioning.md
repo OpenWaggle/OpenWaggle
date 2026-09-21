@@ -62,10 +62,10 @@ publishes the matching metadata aliases for every eligible automatic channel bec
 electron-builder does not generate the cross-channel aliases for its GitHub provider. The app and
 CLI persist one shared channel and explicitly disable downgrades. The app re-reads that
 authoritative channel before installing a downloaded release and invalidates a release that is no
-longer eligible. The macOS updater does not stage downloads automatically on quit; it stages the
-currently eligible download only through the explicit restart action. The shell installer persists
-its selected policy channel as a one-time Session Host intent instead of inferring future policy
-from the downloaded artifact's version.
+longer eligible. Automatic install on ordinary app quit is disabled on every platform so all
+downloads pass through the explicit, authoritative restart action. The shell installer persists its
+selected policy channel as a one-time Session Host intent instead of inferring future policy from
+the downloaded artifact's version.
 
 ### Protected release recovery
 
