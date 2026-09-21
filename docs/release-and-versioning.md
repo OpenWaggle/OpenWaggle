@@ -47,10 +47,11 @@ retag a prerelease or edit a GitHub release to simulate promotion.
 Prepare an explicit forward transition from `main` with:
 
 ```bash
-gh workflow run release.yml -f target_version=0.4.0
+gh workflow run release.yml --ref main -f target_version=0.4.0
 ```
 
-The workflow rejects equal versions, downgrades, and backwards channel movement, then creates the
+Manual release dispatches are accepted only from `main` and require an explicit target. The
+workflow rejects equal versions, downgrades, and backwards channel movement, then creates the
 normal version-only PR. A maintainer must merge that green PR before its tag and artifacts publish.
 The same path can later open a new prerelease line such as `0.5.0-alpha.1`.
 

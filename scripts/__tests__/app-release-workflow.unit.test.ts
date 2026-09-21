@@ -134,8 +134,32 @@ describe('desktop app release workflow', () => {
   })
 
   it('supports an explicit forward promotion through the same protected release PR', () => {
-    expect(WORKFLOW).toContain('workflow_dispatch:')
-    expect(WORKFLOW).toContain('target_version:')
+    const parsed: unknown = parse(WORKFLOW)
+    assertMatching(
+      {
+        jobs: { version: { steps: P.array(P._) } },
+        on: {
+          workflow_dispatch: {
+            inputs: { target_version: { required: true, type: 'string' } },
+          },
+        },
+      },
+      parsed,
+    )
+    const validationStep = parsed.jobs.version.steps[0]
+    expect(validationStep).toEqual(
+      expect.objectContaining({
+        env: { RELEASE_TARGET_VERSION: '${{ inputs.target_version }}' },
+        if: "github.event_name == 'workflow_dispatch'",
+        name: 'Validate manual release dispatch',
+        run: expect.stringMatching(
+          /test "\$GITHUB_REF" = "refs\/heads\/main"[\s\S]*test -n "\$RELEASE_TARGET_VERSION"/u,
+        ),
+      }),
+    )
+    expect(parsed.jobs.version.steps[1]).toEqual(
+      expect.objectContaining({ uses: expect.stringMatching(/^actions\/checkout@/u) }),
+    )
     expect(WORKFLOW).toContain('RELEASE_TARGET_VERSION: ${{ inputs.target_version }}')
     expect(WORKFLOW).toContain('scripts/app-release-state.ts validate-transition')
     expect(WORKFLOW).toContain('--current "$CURRENT_VERSION"')

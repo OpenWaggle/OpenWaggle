@@ -7,7 +7,7 @@ on:
     inputs:
       target_version:
         description: Exact forward semver to prepare through the protected release PR
-        required: false
+        required: true
         type: string
 
 env:
@@ -34,6 +34,15 @@ jobs:
       new_tag: ${{ steps.release.outputs.new_tag }}
       should_release: ${{ steps.release.outputs.should_release }}
     steps:
+      - name: Validate manual release dispatch
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          RELEASE_TARGET_VERSION: ${{ inputs.target_version }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = "refs/heads/main"
+          test -n "$RELEASE_TARGET_VERSION"
+
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           fetch-depth: 0

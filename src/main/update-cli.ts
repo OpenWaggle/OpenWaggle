@@ -19,7 +19,7 @@ import { getEnvWithOverrides } from './env'
 import { createLocalSessionCliClientInput } from './local-session-cli-client'
 import { hasFlag, option, parseMcpCliArguments } from './mcp-cli-arguments'
 import { executeLocalSessionCommand } from './session-host/local-session-client'
-import { configureUpdaterFeed } from './update-feed'
+import { configureUpdaterFeed, isVersionEligibleForChannel } from './update-feed'
 
 const EXIT = { SUCCESS: 0, FAILURE: 1, USAGE: 2 } as const
 const DOWNLOAD_TIMEOUT_MS = 15 * 60 * 1_000
@@ -203,6 +203,13 @@ async function updateFromChannel(channel: UpdateChannel, checkOnly: boolean) {
     return { exitCode: EXIT.SUCCESS, updaterOwnsExit: false }
   }
   const version = result.updateInfo.version
+  if (!isVersionEligibleForChannel(version, channel)) {
+    downloaded?.cancel()
+    autoUpdater.autoInstallOnAppQuit = false
+    result.cancellationToken?.cancel()
+    void result.downloadPromise?.catch(() => undefined)
+    throw new Error(`OpenWaggle ${version} is not eligible for the ${channel} update channel.`)
+  }
   if (checkOnly) {
     await writeCliStdout(`OpenWaggle ${version} is available on the ${channel} channel.\n`)
     return { exitCode: EXIT.SUCCESS, updaterOwnsExit: false }

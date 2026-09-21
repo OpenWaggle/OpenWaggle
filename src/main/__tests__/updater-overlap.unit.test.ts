@@ -95,6 +95,29 @@ describe('updater overlapping checks', () => {
     expect(configureUpdaterFeedMock).toHaveBeenLastCalledWith(expect.anything(), 'stable')
   })
 
+  it('ignores a stale authoritative channel read after an explicit channel check', async () => {
+    let resolveRead: ((channel: 'alpha') => void) | undefined
+    const readChannel = vi.fn(
+      () =>
+        new Promise<'alpha'>((resolve) => {
+          resolveRead = resolve
+        }),
+    )
+    checkForUpdatesMock.mockResolvedValue(undefined)
+    initAutoUpdater('alpha', readChannel)
+
+    checkForUpdates()
+    checkForUpdates('stable')
+    await Promise.resolve()
+    resolveRead?.('alpha')
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(configureUpdaterFeedMock).toHaveBeenCalledTimes(1)
+    expect(configureUpdaterFeedMock).toHaveBeenLastCalledWith(expect.anything(), 'stable')
+    expect(Reflect.get(updaterRef.current ?? {}, 'channel')).toBe('latest')
+  })
+
   it('keeps macOS downloads out of Squirrel until an eligible Restart action', async () => {
     vi.spyOn(process, 'platform', 'get').mockReturnValue('darwin')
     checkForUpdatesMock.mockResolvedValueOnce({

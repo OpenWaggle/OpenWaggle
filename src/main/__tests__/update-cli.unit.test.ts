@@ -51,7 +51,8 @@ vi.mock('electron-updater', () => ({
 vi.mock('../session-host/local-session-client', () => ({
   executeLocalSessionCommand: executeLocalSessionCommandMock,
 }))
-vi.mock('../update-feed', () => ({
+vi.mock('../update-feed', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../update-feed')>()),
   configureUpdaterFeed: (...args: unknown[]) => configureUpdaterFeedMock(...args),
 }))
 vi.mock('../local-session-cli-client', () => ({
@@ -164,6 +165,45 @@ describe('update CLI', () => {
     })
     expect(writeCliStdoutMock).toHaveBeenCalledWith(
       'OpenWaggle is up to date on the stable channel.\n',
+    )
+  })
+
+  it('rejects an update that is ineligible for the selected channel', async () => {
+    checkForUpdatesMock.mockResolvedValue({
+      isUpdateAvailable: true,
+      updateInfo: { version: '0.5.0-alpha.2' },
+    })
+
+    await expect(runUpdateCli(['--check'])).resolves.toEqual({
+      exitCode: 1,
+      updaterOwnsExit: false,
+    })
+    expect(writeCliStdoutMock).not.toHaveBeenCalledWith(
+      expect.stringContaining('0.5.0-alpha.2 is available'),
+    )
+  })
+
+  it('cancels an ineligible channel download without installing it', async () => {
+    const cancel = vi.fn()
+    checkForUpdatesMock.mockResolvedValue({
+      cancellationToken: { cancel },
+      downloadPromise: Promise.reject(new Error('cancelled')),
+      isUpdateAvailable: true,
+      updateInfo: { version: '0.5.0-alpha.2' },
+    })
+
+    await expect(runUpdateCli([])).resolves.toEqual({
+      exitCode: 1,
+      updaterOwnsExit: false,
+    })
+
+    expect(cancel).toHaveBeenCalledOnce()
+    expect(updater.autoInstallOnAppQuit).toBe(false)
+    expect(updater.off).toHaveBeenCalledWith('update-downloaded', expect.any(Function))
+    expect(updater.off).toHaveBeenCalledWith('error', expect.any(Function))
+    expect(quitAndInstallMock).not.toHaveBeenCalled()
+    expect(writeCliStdoutMock).not.toHaveBeenCalledWith(
+      expect.stringMatching(/Downloading|Installing/u),
     )
   })
 

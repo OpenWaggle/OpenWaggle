@@ -31,7 +31,8 @@ match the shipped updater.
 GitHub's `prerelease` flag is not the channel authority. Version semantics decide eligibility, so
 historical Alpha releases accidentally marked as ordinary GitHub releases cannot enter Stable.
 Use the Release workflow's `target_version` dispatch for a deliberate promotion or a new
-prerelease line. It still produces the ordinary version-only release PR and never bypasses the
+prerelease line. Dispatch it from `main`; manual runs fail closed on any other ref or without an
+explicit target. It still produces the ordinary version-only release PR and never bypasses the
 maintainer merge gate.
 
 Release automation is GitHub-based:

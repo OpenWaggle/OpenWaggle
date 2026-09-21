@@ -18,6 +18,7 @@ let currentStatus: UpdateStatus = { type: 'idle' }
 let checkInterval: ReturnType<typeof setInterval> | null = null
 let currentChannel: UpdateChannel = 'stable'
 let readAuthoritativeChannel: (() => Promise<UpdateChannel>) | null = null
+let updateCheckRequestGeneration = 0
 let checkGeneration = 0
 let activeUpdateCancellation: { cancel: () => void } | null = null
 let activeUpdateVersion: string | null = null
@@ -123,11 +124,17 @@ export function checkForUpdates(channel?: UpdateChannel): void {
     logger.info('Skipping update check', { channel: BUILD_CHANNEL, dev: is.dev })
     return
   }
+  const requestGeneration = ++updateCheckRequestGeneration
   if (channel || !readAuthoritativeChannel) {
     checkConfiguredChannel(channel ?? currentChannel)
     return
   }
-  void readAuthoritativeChannel().then(checkConfiguredChannel).catch(logUpdateCheckError)
+  void readAuthoritativeChannel()
+    .then((authoritativeChannel) => {
+      if (requestGeneration !== updateCheckRequestGeneration) return
+      checkConfiguredChannel(authoritativeChannel)
+    })
+    .catch(logUpdateCheckError)
 }
 
 export function installUpdate(): void {
@@ -233,6 +240,7 @@ export function initAutoUpdater(
 }
 
 export function disposeAutoUpdater(): void {
+  updateCheckRequestGeneration += 1
   checkGeneration += 1
   activeUpdateCancellation?.cancel()
   activeUpdateCancellation = null
