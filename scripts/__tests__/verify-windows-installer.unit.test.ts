@@ -136,7 +136,9 @@ describe('Windows installer verification', () => {
 
     try {
       reportWindowsInstallerVerificationError(error)
-      expect(consoleError).toHaveBeenCalledWith(error)
+      const report = consoleError.mock.calls[0]?.[0]
+      expect(report).toContain('Installed OpenWaggle CLI timed out after 30000ms.')
+      expect(report).toContain('Windows uninstaller left its CLI directory in the user PATH.')
     } finally {
       consoleError.mockRestore()
     }

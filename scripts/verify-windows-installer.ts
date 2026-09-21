@@ -3,6 +3,7 @@ import { access, mkdtemp } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { pathToFileURL } from 'node:url'
+import { inspect } from 'node:util'
 import { verifyInstalledCli } from './verify-installed-cli'
 
 const INSTALLER_ARGUMENT_INDEX = 2
@@ -216,7 +217,7 @@ export async function verifyWindowsInstaller(
 }
 
 export function reportWindowsInstallerVerificationError(error: unknown) {
-  console.error(error)
+  console.error(inspect(error, { depth: null }))
 }
 
 async function main() {
