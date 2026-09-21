@@ -133,9 +133,21 @@ describe('desktop app release workflow', () => {
   })
 
   it('verifies the Windows installer through the typed deterministic verifier', () => {
-    expect(WORKFLOW).toContain('node scripts/verify-windows-installer.ts "$env:INSTALLER_PATH"')
-    expect(WORKFLOW).toContain("INSTALLER_PATH: ${{ runner.temp }}\\release\\windows\\openwaggle-")
-    expect(WORKFLOW).not.toContain('Installed executable not found after silent install')
+    const verifierJob = WORKFLOW.slice(
+      WORKFLOW.indexOf('  verify-installers:'),
+      WORKFLOW.indexOf('  release:'),
+    )
+
+    expect(verifierJob).toContain('uses: pnpm/action-setup@')
+    expect(verifierJob).toContain('pnpm install --frozen-lockfile --ignore-scripts')
+    expect(verifierJob).toContain(
+      'pnpm exec tsx scripts/verify-windows-installer.ts "$env:INSTALLER_PATH"',
+    )
+    expect(verifierJob).toContain(
+      "INSTALLER_PATH: ${{ runner.temp }}\\release\\windows\\openwaggle-",
+    )
+    expect(verifierJob).not.toContain('node scripts/verify-windows-installer.ts')
+    expect(verifierJob).not.toContain('Installed executable not found after silent install')
   })
 
   it('runs the semantic packaged PTY smoke after every platform build', () => {
