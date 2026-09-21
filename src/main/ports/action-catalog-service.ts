@@ -1,0 +1,28 @@
+import type {
+  ActionCatalog,
+  ActionCatalogEdit,
+  ProjectTaskDiscovery,
+} from '@shared/types/action-definitions'
+import { Context } from 'effect'
+import type { Effect } from 'effect/Effect'
+
+/** Project identity is its registered root; workspace selects branch-specific shared definitions. */
+export interface ActionCatalogScope {
+  readonly projectPath: string
+  readonly workspacePath: string
+}
+
+export interface ActionCatalogServiceShape {
+  readonly read: (scope: ActionCatalogScope) => Effect<ActionCatalog, Error>
+  readonly edit: (
+    scope: ActionCatalogScope,
+    revision: string,
+    edit: ActionCatalogEdit,
+  ) => Effect<ActionCatalog, Error>
+  readonly discover: (workspacePath: string) => Effect<ProjectTaskDiscovery, Error>
+}
+
+export class ActionCatalogService extends Context.Tag('@openwaggle/ActionCatalogService')<
+  ActionCatalogService,
+  ActionCatalogServiceShape
+>() {}

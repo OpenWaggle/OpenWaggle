@@ -19,7 +19,7 @@ The prototype supports touch targets and container-based layouts down to 320px. 
 
 No commands execute. Nothing is written to user configuration or project settings. Refresh resets the study. Discovery is a fixed fixture, preview is simulated, and setup/cleanup are limited to illustrating their settings and review placement. It does not implement process supervision, workspace isolation, shared overrides, or backend discovery. Production implementation remains pending.
 
-The maintainer accepted this layout direction on 2026-09-21. ADR 0034 records the decision. Rebuild the accepted interaction with the production design system; this throwaway code is a reference. Implementation and runtime validation remain pending.
+The maintainer accepted this layout direction on 2026-09-21. ADR 0035 records the decision. Rebuild the accepted interaction with the production design system; this throwaway code is a reference. Implementation and runtime validation remain pending.
 
 ## Verification of this revision
 
