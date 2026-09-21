@@ -21,6 +21,7 @@ export const getTreeMock: Mock = vi.fn()
 export const recordActiveRunMock: Mock = vi.fn()
 export const clearActiveRunMock: Mock = vi.fn()
 export const clearInterruptedRunsMock: Mock = vi.fn()
+export const setTurnCheckpointAnchorMock: Mock = vi.fn()
 
 export const sessionId = SessionId('session-1')
 export const projectPath = '/tmp/openwaggle-project'
@@ -79,7 +80,11 @@ const TestSessionProjectionLayer = Layer.succeed(SessionProjectionRepository, {
   setAuthorizationMode: () => Effect.void,
   listTurnCheckpoints: () => Effect.succeed([]),
   getTurnDiff: () => Effect.succeed(null),
-  setTurnCheckpointAnchor: () => Effect.void,
+  getTurnDiffFiles: () => Effect.succeed([]),
+  setTurnCheckpointAnchor: (requestedSessionId, turnId, anchorNodeId) =>
+    Effect.sync(() => {
+      setTurnCheckpointAnchorMock(requestedSessionId, turnId, anchorNodeId)
+    }),
   ...PINNED_SESSION_REPOSITORY_STUB,
 })
 
@@ -264,4 +269,5 @@ export function resetWaggleRunServiceMocks() {
   recordActiveRunMock.mockReset()
   clearActiveRunMock.mockReset()
   clearInterruptedRunsMock.mockReset()
+  setTurnCheckpointAnchorMock.mockReset()
 }

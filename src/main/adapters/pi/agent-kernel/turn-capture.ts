@@ -29,13 +29,14 @@ export async function captureTurnCheckpoint(input: {
   readonly session: SessionDetail
   readonly projectPath: string
   readonly runId: string
+  /** Epoch ms when the run started; persisted for fold duration labels (ADR 0034). */
+  readonly startedAt: number
 }): Promise<void> {
   try {
     const sessionId = SessionId(String(input.session.id))
     const snapshotRef = await createWorktreeSnapshot(input.projectPath)
     const previousRef = await getLatestSnapshotRef(sessionId)
     const diff = await computeIncrementalDiff(input.projectPath, previousRef, snapshotRef)
-    if (!diff.trim()) return
 
     // Anchor the snapshot so the next turn's diff base stays resolvable.
     if (snapshotRef) {
@@ -46,11 +47,15 @@ export async function captureTurnCheckpoint(input: {
       }
     }
 
+    // Recorded even for empty diffs: the row carries started_at so fold durations
+    // stay durable for turns that changed no files (ADR 0034). Empty-diff rows
+    // render no changed-files card.
     await recordTurnCheckpoint({
       sessionId,
       turnId: input.runId,
       diff,
       snapshotRef,
+      startedAt: input.startedAt,
     })
     if (input.session.environmentMode === 'worktree') {
       const files = parseTurnDiffFilesFromUnifiedDiff(diff)

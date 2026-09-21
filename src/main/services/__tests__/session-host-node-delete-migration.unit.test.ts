@@ -137,7 +137,7 @@ describe('Session Host cascade-safe node-delete migration', () => {
         const revision = yield* sql<{ readonly schema_revision: number }>`
           SELECT schema_revision FROM session_host_schema_metadata WHERE singleton = 1
         `
-        expect(revision).toEqual([{ schema_revision: 18 }])
+        expect(revision).toEqual([{ schema_revision: 19 }])
         yield* sql`DELETE FROM sessions WHERE id = ${'cascade-target'}`
         expect(yield* sql`SELECT id FROM sessions WHERE id = ${'cascade-target'}`).toEqual([])
         expect(
@@ -187,7 +187,7 @@ describe('Session Host cascade-safe node-delete migration', () => {
       { id: MIGRATION_ID, name: MIGRATION_NAME, applied_at: expect.any(String) },
     ])
     expect(second).toEqual(first)
-    expect(SESSION_HOST_SCHEMA_REVISION).toBe(18)
+    expect(SESSION_HOST_SCHEMA_REVISION).toBe(19)
     expect(SESSION_HOST_SUPPORTED_MAX_MIGRATION_ID).toBeGreaterThanOrEqual(MIGRATION_ID)
   })
 })

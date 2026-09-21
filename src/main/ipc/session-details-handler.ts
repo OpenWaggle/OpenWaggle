@@ -11,6 +11,9 @@ export function registerSessionDetailsHandlers(): void {
   typedHandle('sessions:turn-diff:get', (_event, ...args) =>
     dispatchHostBackedSessionGuiOperation('sessions:turn-diff:get', args),
   )
+  typedHandle('sessions:turn-diff-files:get', (_event, ...args) =>
+    dispatchHostBackedSessionGuiOperation('sessions:turn-diff-files:get', args),
+  )
   typedHandle('sessions:pins:list', (_event, ...args) =>
     dispatchHostBackedSessionGuiOperation('sessions:pins:list', args),
   )

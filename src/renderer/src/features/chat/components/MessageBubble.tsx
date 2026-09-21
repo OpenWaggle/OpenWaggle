@@ -24,6 +24,8 @@ interface MessageBubbleProps {
   }
   presentation?: {
     readonly hideAgentLabel?: boolean
+    /** Terminal message of a folded turn: render only its final text part. */
+    readonly turnFolded?: boolean
   }
   actions?: {
     readonly onBranchFromMessage?: (messageId: string) => void

@@ -7,6 +7,7 @@ import {
   HOST_UI_REVISION_10_REQUIRED_CHANNELS,
   HOST_UI_REVISION_11_REQUIRED_CHANNELS,
   HOST_UI_REVISION_12_REQUIRED_CHANNELS,
+  HOST_UI_REVISION_13_REQUIRED_CHANNELS,
   type HostBackedGuiChannel,
 } from '@shared/types/host-ui-protocol'
 import type {
@@ -23,6 +24,7 @@ import {
   LOCAL_SESSION_PROJECT_CATALOG_REVISION,
   LOCAL_SESSION_STEERING_RECEIPT_REVISION,
   LOCAL_SESSION_SUPPORTED_REVISIONS,
+  LOCAL_SESSION_TURN_DIFF_FILES_REVISION,
   LOCAL_SESSION_WAGGLE_REVISION,
   LOCAL_SESSION_WORKSPACE_AUTHORIZATION_REVISION,
 } from '@shared/types/local-session-protocol'
@@ -46,6 +48,9 @@ export {
 const LONG_RUNNING_COMMAND_GRACE_MS = 5_000
 
 function minimumHostUiRevision(channel: HostBackedGuiChannel) {
+  if (HOST_UI_REVISION_13_REQUIRED_CHANNELS.some((candidate) => candidate === channel)) {
+    return LOCAL_SESSION_TURN_DIFF_FILES_REVISION
+  }
   if (HOST_UI_REVISION_12_REQUIRED_CHANNELS.some((candidate) => candidate === channel)) {
     return LOCAL_SESSION_PROJECT_CATALOG_REVISION
   }

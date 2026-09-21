@@ -10,6 +10,7 @@ import type { ExtensionContributionRegistryView } from '@shared/types/extensions
 import type { SessionDetail } from '@shared/types/session'
 import type { SkillDiscoveryItem } from '@shared/types/standards'
 import type { AgentTransportCustomEvent } from '@shared/types/stream'
+import type { TurnCheckpointSummary } from '@shared/types/turn-diff'
 import type { WaggleCollaborationStatus, WagglePreset } from '@shared/types/waggle'
 import type { AgentChatStatus, AgentCompactionStatus } from '../hooks/useAgentChat'
 import type { SessionForkTarget } from '../lib/session-fork-targets'
@@ -44,8 +45,11 @@ export interface ChatTranscriptSectionState {
   onDismissInterruptedRun: (runId: string, branchId: SessionBranchId) => void
   onBranchFromMessage: (messageId: string) => void
   onForkFromMessage: (messageId: string) => void
-  onViewTurnDiff: (messageId: string) => void
+  onViewTurnDiff: (messageId: string, filePath?: string) => void
   readonly turnAnchorMessageIds: ReadonlySet<string>
+  /** Turn checkpoints keyed by their anchored terminal assistant message id (ADR 0034). */
+  readonly turnsByAnchorNodeId: ReadonlyMap<string, TurnCheckpointSummary>
+  onToggleTurnFold: (turnKey: string) => void
 }
 
 export interface ChatComposerSectionState {

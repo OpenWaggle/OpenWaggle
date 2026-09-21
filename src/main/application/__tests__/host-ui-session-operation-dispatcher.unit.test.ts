@@ -29,6 +29,7 @@ import {
 } from '../host-ui-session-operation-dispatcher'
 
 const EXPECTED_SESSION_CHANNELS = [
+  'sessions:turn-diff-files:get',
   'sessions:list-projects',
   'sessions:get-detail',
   'sessions:create',

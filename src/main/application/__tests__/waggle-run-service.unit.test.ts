@@ -20,6 +20,7 @@ import {
   selectedModel,
   session,
   sessionId,
+  setTurnCheckpointAnchorMock,
   TestLayer,
   waggleConfig,
 } from './waggle-run-service.test-harness'
@@ -139,10 +140,7 @@ describe('executeWaggleRun', () => {
   })
 
   it('delegates the full collaboration to a single Pi-native Waggle kernel run', async () => {
-    const emitted: Array<{
-      readonly event: AgentTransportEvent
-      readonly meta: WaggleStreamMetadata
-    }> = []
+    const emitted: Array<{ event: AgentTransportEvent; meta: WaggleStreamMetadata }> = []
 
     const result = await Effect.runPromise(
       executeWaggleRun({
@@ -174,12 +172,15 @@ describe('executeWaggleRun', () => {
     })
     expect(emitted[0]?.meta.agentLabel).toBe('Architect')
 
-    if (result.outcome !== 'success') {
-      throw new Error('Expected successful Waggle result')
-    }
+    if (result.outcome !== 'success') throw new Error('Expected successful Waggle result')
     expect(result.newMessages[0]?.role).toBe('user')
     expect(result.newMessages[1]?.role).toBe('assistant')
     expect(persistSnapshotMock).toHaveBeenCalledOnce()
+    expect(setTurnCheckpointAnchorMock).toHaveBeenCalledWith(
+      sessionId,
+      'run-waggle-1',
+      'assistant-node-1',
+    )
     expect(persistSnapshotMock.mock.calls[0]?.[0].nodes[0]?.metadataJson).toContain('Architect')
     expect(clearActiveRunMock).toHaveBeenCalledWith({ sessionId, runId: 'run-waggle-1' })
   })

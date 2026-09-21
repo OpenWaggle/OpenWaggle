@@ -210,33 +210,6 @@ describe('ToolCallBlock', () => {
     expect(screen.queryByText(/fullOutputPath/)).toBeNull()
   })
 
-  it('renders Pi edit diff details inline for small diffs', async () => {
-    render(
-      <ToolCallBlock
-        name="edit"
-        args='{"path":"src/app.ts"}'
-        state="complete"
-        result={{
-          content: {
-            content: [{ type: 'text', text: 'Successfully replaced 1 block(s).' }],
-            details: {
-              diff: '@@ -1 +1 @@\n-old line\n+new line',
-              firstChangedLine: 1,
-            },
-          },
-          state: 'complete',
-        }}
-      />,
-    )
-
-    expect(screen.getByText('Edited src/app.ts')).toBeInTheDocument()
-    expect(screen.getAllByText('+1')).toHaveLength(2)
-    expect(screen.getAllByText('-1')).toHaveLength(2)
-    expect(
-      await screen.findByTestId('diffs-container', undefined, { timeout: 10_000 }),
-    ).toBeInTheDocument()
-  })
-
   it('routes read tool file content through the syntax surface with a safe fallback', async () => {
     const { container } = render(
       <ToolCallBlock

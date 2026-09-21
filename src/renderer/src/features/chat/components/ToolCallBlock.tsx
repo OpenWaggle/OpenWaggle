@@ -8,13 +8,12 @@ import {
   getResultError,
   getStringArg,
   getToolResultText,
-  INLINE_DIFF_LINE_LIMIT,
   type ToolCallResultPayload,
   type UnifiedDiffData,
 } from '@/features/chat/lib/tool-call-block'
 import { resolveActionText } from '@/features/chat/lib/tool-display'
 import { CollapsedToolPreview, ToolCallHeader } from './ToolCallBlockChrome'
-import { CopyButton, ToolArgs, ToolResult, UnifiedDiffView } from './ToolCallBlockParts'
+import { CopyButton, ToolArgs, ToolResult } from './ToolCallBlockParts'
 
 interface ToolCallBlockProps {
   name: string
@@ -42,7 +41,6 @@ export interface ToolCallViewModel {
   readonly diff: UnifiedDiffData | null
   readonly failedOutputPreview: string
   readonly hasConcreteResult: boolean
-  readonly inlineDiffVisible: boolean
   readonly isError: boolean
   readonly isRunning: boolean
   readonly liveOutputPreview: string
@@ -110,7 +108,6 @@ function buildToolCallViewModel({
     diff,
     failedOutputPreview: previewText(!expanded && isError, resultText),
     hasConcreteResult,
-    inlineDiffVisible: diff !== null && diff.lines.length <= INLINE_DIFF_LINE_LIMIT,
     isError,
     isRunning,
     parsedArgs,
@@ -174,7 +171,6 @@ function ExpandedToolDetails({
   return (
     <div className="ml-5 mt-1 rounded-md border border-border bg-bg-secondary/50 overflow-hidden">
       <ExpandedCopyActions args={args} view={view} />
-      <ExpandedDiffSection diff={view.diff} />
       <div className="px-3 py-2">
         <div className="text-sm text-text-tertiary mb-1">Arguments</div>
         <ToolArgs name={name} args={view.parsedArgs} rawArgs={args} path={view.path} />
@@ -202,17 +198,6 @@ function ExpandedCopyActions({
   )
 }
 
-function ExpandedDiffSection({ diff }: { readonly diff: ReturnType<typeof getEditUnifiedDiff> }) {
-  if (!diff) {
-    return null
-  }
-  return (
-    <div className="px-3 py-2">
-      <UnifiedDiffView diff={diff} />
-    </div>
-  )
-}
-
 function ExpandedResultSection({
   name,
   result,
@@ -222,7 +207,7 @@ function ExpandedResultSection({
   readonly result: ToolCallResultPayload | undefined
   readonly view: ToolCallViewModel
 }) {
-  if (!view.hasConcreteResult || !result || view.diff || view.isError) {
+  if (!view.hasConcreteResult || !result || view.isError) {
     return null
   }
   return (

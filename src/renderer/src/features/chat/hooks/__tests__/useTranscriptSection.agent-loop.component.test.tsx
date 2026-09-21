@@ -147,6 +147,7 @@ function workspaceWithPath(nodes: readonly SessionNode[], activeNodeId: SessionN
 
 function transcriptParams(): TranscriptSectionParams {
   return {
+    turnsByAnchorNodeId: new Map(),
     messages: [],
     customMessages: [],
     interactionEvents: [],
@@ -167,9 +168,9 @@ function transcriptParams(): TranscriptSectionParams {
     handleSelectProjectPath: vi.fn(),
     handleSendText: vi.fn(),
     openSettings: vi.fn(),
-    handleDismissInterruptedRun: vi.fn(),
     handleBranchFromMessage: vi.fn(),
     handleForkFromMessage: vi.fn(),
+    handleDismissInterruptedRun: vi.fn(),
     userDidSend: false,
     onUserDidSendConsumed: vi.fn(),
     handleViewTurnDiff: vi.fn(),

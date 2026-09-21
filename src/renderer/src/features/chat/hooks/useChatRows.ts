@@ -24,6 +24,8 @@ export function useChatRows(inputs: {
   interruptedRun?: SessionInterruptedRun
   worktreeLaunch?: WorktreeLaunchSnapshot | null
   compactionStatus?: AgentCompactionStatus | null
+  turnDurationsByAnchorMessageId?: ReadonlyMap<string, number>
+  expandedTurnKeys?: ReadonlySet<string>
 }): ChatRow[] {
   return buildChatRows({
     messages: inputs.messages,
@@ -39,5 +41,7 @@ export function useChatRows(inputs: {
     interruptedRun: inputs.interruptedRun,
     worktreeLaunch: inputs.worktreeLaunch,
     compactionStatus: inputs.compactionStatus,
+    turnDurationsByAnchorMessageId: inputs.turnDurationsByAnchorMessageId,
+    expandedTurnKeys: inputs.expandedTurnKeys,
   })
 }

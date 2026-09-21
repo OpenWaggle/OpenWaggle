@@ -80,6 +80,7 @@ function dispatchSessionOperation(channel: HostBackedSessionGuiChannel, args: re
     .with('sessions:update-tree-ui-state', () => updateSessionTreeUiState(args))
     .with('sessions:turn-checkpoints:list', () => listTurnCheckpoints(args))
     .with('sessions:turn-diff:get', () => getTurnDiff(args))
+    .with('sessions:turn-diff-files:get', () => getTurnDiffFiles(args))
     .with('sessions:pins:list', () => listPinnedSessions(args))
     .with('sessions:pins:pin', 'sessions:pins:unpin', (matchedChannel) =>
       setSessionPinned(matchedChannel, args),
@@ -207,6 +208,15 @@ function getTurnDiff(args: readonly unknown[]) {
     const sessionId = yield* validateSessionId(args[0])
     const turnId = yield* requiredString(args[1], 'Turn ID')
     return yield* (yield* SessionProjectionRepository).getTurnDiff(sessionId, turnId)
+  })
+}
+
+function getTurnDiffFiles(args: readonly unknown[]) {
+  return Effect.gen(function* () {
+    yield* requireArgCount(args, TWO_ARGUMENTS)
+    const sessionId = yield* validateSessionId(args[0])
+    const turnId = yield* requiredString(args[1], 'Turn ID')
+    return [...(yield* (yield* SessionProjectionRepository).getTurnDiffFiles(sessionId, turnId))]
   })
 }
 
