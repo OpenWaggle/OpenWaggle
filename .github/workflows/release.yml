@@ -3,6 +3,12 @@ name: Release
 on:
   push:
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      target_version:
+        description: Exact forward semver to prepare through the protected release PR
+        required: false
+        type: string
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -42,7 +48,7 @@ jobs:
       - run: pnpm install --frozen-lockfile --ignore-scripts
 
       - name: Determine bump from conventional commits
-        if: "!startsWith(github.event.head_commit.message, 'chore(release):')"
+        if: "github.event_name == 'push' && !startsWith(github.event.head_commit.message, 'chore(release):')"
         id: bump
         run: |
           set -euo pipefail
@@ -114,6 +120,7 @@ jobs:
         env:
           BUMP_SHOULD_RELEASE: ${{ steps.bump.outputs.should_release }}
           BUMP_VERSION: ${{ steps.bump.outputs.new_version }}
+          RELEASE_TARGET_VERSION: ${{ inputs.target_version }}
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
@@ -127,7 +134,12 @@ jobs:
             echo "should_release=false" >> "$GITHUB_OUTPUT"
           }
 
-          if [ "$RELEASE_SUBJECT_VERSION" = "$CURRENT_VERSION" ]; then
+          if [ -n "$RELEASE_TARGET_VERSION" ]; then
+            pnpm exec tsx scripts/app-release-state.ts validate-transition \
+              --current "$CURRENT_VERSION" \
+              --target "$RELEASE_TARGET_VERSION"
+            VERSION="$RELEASE_TARGET_VERSION"
+          elif [ "$RELEASE_SUBJECT_VERSION" = "$CURRENT_VERSION" ]; then
             VERSION="$CURRENT_VERSION"
           elif [[ "$HEAD_SUBJECT" == "chore(release):"* ]]; then
             write_no_release_output
@@ -518,6 +530,9 @@ jobs:
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
 
+      - name: Prepare macOS update channels
+        run: pnpm exec tsx scripts/prepare-update-channel-metadata.ts dist "$OPENWAGGLE_RELEASE_CHANNEL" mac
+
       - name: Smoke packaged macOS PTY runtime
         run: pnpm packaged-app:smoke
 
@@ -568,6 +583,9 @@ jobs:
       - name: Build Linux AppImage
         run: pnpm exec electron-builder --linux --publish never
 
+      - name: Prepare Linux update channels
+        run: pnpm exec tsx scripts/prepare-update-channel-metadata.ts dist "$OPENWAGGLE_RELEASE_CHANNEL" linux
+
       - name: Smoke packaged Linux PTY runtime
         run: pnpm packaged-app:smoke
 
@@ -616,6 +634,10 @@ jobs:
 
       - name: Build Windows NSIS installer
         run: pnpm exec electron-builder --win --publish never
+
+      - name: Prepare Windows update channels
+        shell: bash
+        run: pnpm exec tsx scripts/prepare-update-channel-metadata.ts dist "$OPENWAGGLE_RELEASE_CHANNEL" windows
 
       - name: Smoke packaged Windows PTY runtimes
         run: pnpm packaged-app:smoke

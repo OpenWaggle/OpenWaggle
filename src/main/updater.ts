@@ -1,6 +1,7 @@
 import { is } from '@electron-toolkit/utils'
 import { BUILD_CHANNEL } from '@shared/build-identity-runtime'
 import { UPDATER_TIMING } from '@shared/constants/time'
+import { type UpdateChannel, updaterFeedChannel } from '@shared/types/update-channel'
 import type { UpdateStatus } from '@shared/types/updater'
 import { autoUpdater } from 'electron-updater'
 import { createLogger } from './logger'
@@ -8,19 +9,22 @@ import { broadcastToWindows } from './utils/broadcast'
 
 const logger = createLogger('updater')
 
-// Releases are a single published train (the GitHub "latest" feed, latest.yml /
-// latest-mac.yml). The version carries a prerelease id (e.g. 0.3.0-alpha.N), so
-// allowPrerelease is required or electron-updater derives an "alpha" channel and
-// requests alpha-mac.yml, which is never published — the original "Update check
-// failed". Dev builds never auto-update. (docs/adr/0032)
-const UPDATER_FEED_CHANNEL = 'latest'
-
 function updatesDisabled() {
   return is.dev || BUILD_CHANNEL === 'dev'
 }
 
 let currentStatus: UpdateStatus = { type: 'idle' }
 let checkInterval: ReturnType<typeof setInterval> | null = null
+let currentChannel: UpdateChannel = 'stable'
+
+function configureUpdateChannel(channel: UpdateChannel) {
+  currentChannel = channel
+  autoUpdater.channel = updaterFeedChannel(channel)
+  autoUpdater.allowPrerelease = channel !== 'stable'
+  // The channel setter enables downgrade support. OpenWaggle channels may widen
+  // eligibility, but they must never replace a newer installed version with an older one.
+  autoUpdater.allowDowngrade = false
+}
 
 function setStatus(status: UpdateStatus) {
   currentStatus = status
@@ -31,11 +35,12 @@ export function getUpdateStatus(): UpdateStatus {
   return currentStatus
 }
 
-export function checkForUpdates(): void {
+export function checkForUpdates(channel: UpdateChannel = currentChannel): void {
   if (updatesDisabled()) {
     logger.info('Skipping update check', { channel: BUILD_CHANNEL, dev: is.dev })
     return
   }
+  configureUpdateChannel(channel)
   autoUpdater.checkForUpdates().catch((error: unknown) => {
     logger.error('Update check failed', {
       message: error instanceof Error ? error.message : String(error),
@@ -47,14 +52,13 @@ export function installUpdate(): void {
   autoUpdater.quitAndInstall(false, true)
 }
 
-export function initAutoUpdater(): void {
+export function initAutoUpdater(channel: UpdateChannel): void {
   if (updatesDisabled()) {
     logger.info('Auto-updater disabled', { channel: BUILD_CHANNEL, dev: is.dev })
     return
   }
 
-  autoUpdater.channel = UPDATER_FEED_CHANNEL
-  autoUpdater.allowPrerelease = true
+  configureUpdateChannel(channel)
   autoUpdater.autoDownload = true
   autoUpdater.autoInstallOnAppQuit = true
   autoUpdater.logger = null // We use our own logger
@@ -98,7 +102,7 @@ export function initAutoUpdater(): void {
     checkInterval = setInterval(checkForUpdates, UPDATER_TIMING.CHECK_INTERVAL_MS)
   }, UPDATER_TIMING.INITIAL_CHECK_DELAY_MS)
 
-  logger.info('Auto-updater initialized')
+  logger.info('Auto-updater initialized', { channel })
 }
 
 export function disposeAutoUpdater(): void {

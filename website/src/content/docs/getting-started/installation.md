@@ -17,11 +17,33 @@ section: "Getting Started"
 curl -fsSL https://raw.githubusercontent.com/OpenWaggle/OpenWaggle/main/scripts/install.sh | bash
 ```
 
-The script downloads the latest release, verifies the SHA-256 checksum, and installs the app:
+The script follows the **Stable** channel, verifies the SHA-256 checksum, and installs the app. If
+OpenWaggle has not published its first Stable release yet, the same command temporarily follows
+Alpha so a documented install never resolves to an older release.
 
 - **macOS** — copies `OpenWaggle.app` to `/Applications`
 - **Linux** — installs the AppImage under `~/.local/lib/openwaggle`, installs the `openwaggle`
   command in `~/.local/bin`, and creates a `.desktop` entry
+
+To opt into a prerelease channel, use the same installer:
+
+```bash
+# Alpha also receives Beta and Stable releases.
+curl -fsSL https://raw.githubusercontent.com/OpenWaggle/OpenWaggle/main/scripts/install.sh \
+  | OPENWAGGLE_CHANNEL=alpha bash
+
+# Beta also receives Stable releases.
+curl -fsSL https://raw.githubusercontent.com/OpenWaggle/OpenWaggle/main/scripts/install.sh \
+  | OPENWAGGLE_CHANNEL=beta bash
+```
+
+For a one-time exact-version install, set `OPENWAGGLE_RELEASE_TAG` instead. This does not change
+your saved channel:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/OpenWaggle/OpenWaggle/main/scripts/install.sh \
+  | OPENWAGGLE_RELEASE_TAG=v0.4.0 bash
+```
 
 ## Pre-Built Installers
 
@@ -49,6 +71,21 @@ macOS or Linux; make sure `~/.local/bin` is on your shell's `PATH`. An unrelated
 path is never replaced. Windows installers register the command automatically. The CLI lets
 terminals and external coding agents discover and control the same live Sessions shown in the app;
 see [Sessions CLI](/docs/developer-workflow/sessions-cli).
+
+The app and CLI share one saved update channel. Change it from **Settings → General → About &
+Updates**, or from a terminal:
+
+```bash
+openwaggle update --check
+openwaggle update --channel alpha
+openwaggle update --channel beta
+openwaggle update --channel stable
+openwaggle update --version 0.4.0
+```
+
+`--check` reports availability without downloading. Without `--check`, `openwaggle update`
+downloads and installs the newest eligible release. Choosing `--channel` is persistent; choosing
+`--version` is a one-time install. OpenWaggle never downgrades automatically when channels change.
 
 ## System Requirements
 

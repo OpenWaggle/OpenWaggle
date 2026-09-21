@@ -238,7 +238,20 @@ describe('GeneralSection', () => {
     fireEvent.click(screen.getByRole('button', { name: /check now/i }))
 
     await waitFor(() => {
-      expect(checkForUpdatesMock).toHaveBeenCalledOnce()
+      expect(checkForUpdatesMock).toHaveBeenCalledWith('stable')
+    })
+  })
+
+  it('persists the update channel through the shared settings store', async () => {
+    render(<GeneralSection />)
+
+    fireEvent.change(screen.getByRole('combobox', { name: 'Update channel' }), {
+      target: { value: 'alpha' },
+    })
+
+    await waitFor(() => {
+      expect(updateSettingsMock).toHaveBeenCalledWith({ updateChannel: 'alpha' })
+      expect(screen.getByRole('combobox', { name: 'Update channel' })).toHaveValue('alpha')
     })
   })
 

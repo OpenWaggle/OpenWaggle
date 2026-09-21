@@ -10,6 +10,7 @@ import { createRendererLogger } from '@/shared/lib/logger'
 import { Button } from '@/shared/ui/Button'
 import { NumberStepper } from '@/shared/ui/NumberStepper'
 import { CliAvailabilityNotice } from './CliAvailabilityNotice'
+import { UpdateChannelSetting } from './UpdateChannelSetting'
 
 const logger = createRendererLogger('settings')
 
@@ -239,6 +240,8 @@ export function GeneralSection() {
             </div>
           </div>
 
+          <UpdateChannelSetting />
+
           {/* Row 2 — Latest version / status */}
           <div className="flex h-14 items-center justify-between px-5">
             <div className="flex items-center gap-2">
@@ -259,9 +262,11 @@ export function GeneralSection() {
                   size="xs"
                   onClick={() => {
                     if (typeof api.checkForUpdates === 'function') {
-                      api.checkForUpdates().catch((err: unknown) => {
-                        logger.warn('Failed to check for updates', { error: String(err) })
-                      })
+                      api
+                        .checkForUpdates(usePreferencesStore.getState().settings.updateChannel)
+                        .catch((err: unknown) => {
+                          logger.warn('Failed to check for updates', { error: String(err) })
+                        })
                     }
                   }}
                   className="h-7 border-border-light bg-bg-secondary text-text-secondary hover:bg-bg-hover"

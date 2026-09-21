@@ -4,19 +4,17 @@ import { join } from 'node:path'
 import './apply-build-identity'
 import { electronApp, is } from '@electron-toolkit/utils'
 import { app } from 'electron'
-import { startAccessCliIfRequested } from './access-cli-entry'
 import {
   configureDefaultSessionEmbeddingModelForPackagedRuntime,
   SESSION_EMBEDDING_MODEL_RESOURCE_DIRECTORY,
 } from './adapters/multilingual-e5-session-embedding-model'
-import { startAgentsCliIfRequested } from './agents-cli-entry'
+import { startAppCliIfRequested } from './app-cli-entry'
 import { registerAppQuitCleanup } from './app-quit-cleanup'
 import { invokeConfiguredHostUi } from './application/gui-session-command-router'
 import { readInlineVisualizationSource } from './application/inline-visualization-source-service'
 import { openSessionResourceContentStream } from './application/session-resource-content'
 import { applicationCliArguments } from './application-cli-arguments'
 import { registerApplicationProtocols } from './application-protocols'
-import { startDelegationsCliIfRequested } from './delegations-cli-entry'
 import { getAllBrowserWindows, isAutomationMode } from './desktop-ui'
 import { configureDesktopUiAfterReady, prepareDesktopUi } from './desktop-window-policy'
 import { env, installDesktopShellEnvironment } from './env'
@@ -24,8 +22,6 @@ import { describeError } from './error-description'
 import { installInlineVisualizationNavigationGuard } from './inline-visualization-navigation'
 import { createLogger, initFileLogger } from './logger'
 import { createMainWindow, focusExistingWindow } from './main-window'
-import { startMcpCliIfRequested } from './mcp-cli-entry'
-import { startRecoveryCliIfRequested } from './recovery-cli-entry'
 import {
   configureInlineVisualizationProcessIsolation,
   registerRendererScheme,
@@ -36,8 +32,6 @@ import {
   type GuiSessionHostLifecycle,
   prepareGuiSessionHostLifecycle,
 } from './session-host/gui-session-host-lifecycle'
-import { startSessionHostCliIfRequested } from './session-host-cli-entry'
-import { startSessionsCliIfRequested } from './sessions-cli-entry'
 
 const FAILURE_EXIT_CODE = 1
 const STARTUP_TIMINGS_SWITCH = 'openwaggle-startup-timings'
@@ -135,7 +129,8 @@ async function initializeAutoUpdaterAfterWindow() {
   try {
     const { disposeAutoUpdater, initAutoUpdater } = await importUpdaterModule()
     disposeAutoUpdaterOnce = disposeAutoUpdater
-    initAutoUpdater()
+    const { getSettings } = await importSettingsStoreModule()
+    initAutoUpdater(getSettings().updateChannel)
   } catch (error) {
     logger.warn('Failed to initialize auto-updater', describeError(error))
   }
@@ -329,14 +324,6 @@ function startApp() {
 
 const cliArguments = applicationCliArguments(process.argv, { isPackaged: app.isPackaged })
 
-if (
-  !startSessionHostCliIfRequested(cliArguments) &&
-  !startAccessCliIfRequested(cliArguments) &&
-  !startSessionsCliIfRequested(cliArguments) &&
-  !startDelegationsCliIfRequested(cliArguments) &&
-  !startAgentsCliIfRequested(cliArguments) &&
-  !startRecoveryCliIfRequested(cliArguments) &&
-  !startMcpCliIfRequested(cliArguments)
-) {
+if (!startAppCliIfRequested(cliArguments)) {
   startApp()
 }

@@ -1,12 +1,13 @@
+import type { UpdateChannel } from '@shared/types/update-channel'
 import * as Effect from 'effect/Effect'
 import { app } from 'electron'
 import { checkForUpdates, getUpdateStatus, installUpdate } from '../updater'
 import { typedHandle } from './typed-ipc'
 
 export function registerUpdaterHandlers(): void {
-  typedHandle('updater:check', () =>
+  typedHandle('updater:check', (_event, channel?: UpdateChannel) =>
     Effect.sync(() => {
-      checkForUpdates()
+      checkForUpdates(channel)
     }),
   )
 

@@ -117,7 +117,7 @@ describe('desktop app release workflow', () => {
 
   it('separates PR preparation from protected-merge publication', () => {
     expect(WORKFLOW).toContain(
-      `if: "!startsWith(github.event.head_commit.message, 'chore(release):')"`,
+      `if: "github.event_name == 'push' && !startsWith(github.event.head_commit.message, 'chore(release):')"`,
     )
     expect(WORKFLOW).toContain(
       'if [ "$RELEASE_SUBJECT_VERSION" = "$CURRENT_VERSION" ]',
@@ -129,6 +129,15 @@ describe('desktop app release workflow', () => {
     )
     expect(WORKFLOW).toContain('cancel-in-progress: false')
     expect(WORKFLOW).toContain('NEW_VERSION="${BASE_VERSION}-${PRERELEASE_TAG}.$((PRERELEASE_NUM + 1))"')
+  })
+
+  it('supports an explicit forward promotion through the same protected release PR', () => {
+    expect(WORKFLOW).toContain('workflow_dispatch:')
+    expect(WORKFLOW).toContain('target_version:')
+    expect(WORKFLOW).toContain('RELEASE_TARGET_VERSION: ${{ inputs.target_version }}')
+    expect(WORKFLOW).toContain('scripts/app-release-state.ts validate-transition')
+    expect(WORKFLOW).toContain('--current "$CURRENT_VERSION"')
+    expect(WORKFLOW).toContain('--target "$RELEASE_TARGET_VERSION"')
   })
 
   it('marks semantic prerelease versions as GitHub prereleases', () => {
@@ -253,5 +262,17 @@ describe('desktop app release workflow', () => {
       expect(nextUploadIndex).toBeGreaterThan(smokeIndex)
     }
     expect(WORKFLOW.match(/run: pnpm packaged-app:smoke/gu)).toHaveLength(3)
+  })
+
+  it('prepares compatible update metadata for every published platform channel', () => {
+    expect(WORKFLOW).toContain(
+      'prepare-update-channel-metadata.ts dist "$OPENWAGGLE_RELEASE_CHANNEL" mac',
+    )
+    expect(WORKFLOW).toContain(
+      'prepare-update-channel-metadata.ts dist "$OPENWAGGLE_RELEASE_CHANNEL" linux',
+    )
+    expect(WORKFLOW).toContain(
+      'prepare-update-channel-metadata.ts dist "$OPENWAGGLE_RELEASE_CHANNEL" windows',
+    )
   })
 })

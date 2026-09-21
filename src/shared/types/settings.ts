@@ -26,6 +26,7 @@ import {
   shortcutBindingsFromRules,
 } from './shortcuts'
 import { DEFAULT_SYNTAX_THEME_SELECTIONS, type SyntaxThemeSelections } from './syntax'
+import { DEFAULT_UPDATE_CHANNEL, type UpdateChannel } from './update-channel'
 
 export type Provider = string
 export const THINKING_LEVELS = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as const
@@ -70,6 +71,8 @@ export interface Settings {
   readonly enabledModels: readonly SupportedModelId[]
   readonly projectPath: string | null
   readonly thinkingLevel: ThinkingLevel
+  /** Release channel followed by both desktop and CLI update checks. */
+  readonly updateChannel: UpdateChannel
   readonly recentProjects: readonly string[]
   readonly skillTogglesByProject: Readonly<Record<string, Readonly<Record<string, boolean>>>>
   /** Named Agent definitions are enabled by default; false disables that name for one project. */
@@ -135,6 +138,7 @@ export const DEFAULT_SETTINGS: Settings = {
   enabledModels: [],
   projectPath: null,
   thinkingLevel: 'medium',
+  updateChannel: DEFAULT_UPDATE_CHANNEL,
   recentProjects: [],
   skillTogglesByProject: {},
   agentDefinitionTogglesByProject: {},

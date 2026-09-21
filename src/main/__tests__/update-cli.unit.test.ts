@@ -1,0 +1,173 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const {
+  checkForUpdatesMock,
+  executeHostUiMock,
+  quitAndInstallMock,
+  writeCliStdoutMock,
+  createClientMock,
+  updater,
+} = vi.hoisted(() => {
+  const updater: {
+    channel: string | null
+    allowPrerelease: boolean
+    allowDowngrade: boolean
+    autoDownload: boolean
+    autoInstallOnAppQuit: boolean
+    logger: null
+    once: ReturnType<typeof vi.fn>
+    off: ReturnType<typeof vi.fn>
+  } = {
+    channel: null,
+    allowPrerelease: false,
+    allowDowngrade: false,
+    autoDownload: true,
+    autoInstallOnAppQuit: true,
+    logger: null,
+    once: vi.fn(),
+    off: vi.fn(),
+  }
+  return {
+    checkForUpdatesMock: vi.fn(),
+    executeHostUiMock: vi.fn(),
+    quitAndInstallMock: vi.fn(),
+    writeCliStdoutMock: vi.fn(() => Promise.resolve()),
+    createClientMock: vi.fn(() => Promise.resolve({ clientKind: 'cli' })),
+    updater,
+  }
+})
+
+vi.mock('electron', () => ({
+  app: { isPackaged: false, getAppPath: () => '/workspace/OpenWaggle' },
+}))
+vi.mock('electron-updater', () => ({
+  autoUpdater: Object.assign(updater, {
+    checkForUpdates: checkForUpdatesMock,
+    quitAndInstall: quitAndInstallMock,
+  }),
+}))
+vi.mock('../application/configured-host-ui-client', () => ({ executeHostUi: executeHostUiMock }))
+vi.mock('../local-session-cli-client', () => ({
+  createLocalSessionCliClientInput: createClientMock,
+}))
+vi.mock('../cli-stdout', () => ({ writeCliStdout: writeCliStdoutMock }))
+
+import { runUpdateCli } from '../update-cli'
+
+describe('update CLI', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    updater.channel = null
+    updater.allowPrerelease = false
+    updater.allowDowngrade = false
+    updater.autoDownload = true
+    executeHostUiMock.mockImplementation(({ channel }: { readonly channel: string }) => {
+      if (channel === 'settings:get') return Promise.resolve({ updateChannel: 'stable' })
+      return Promise.resolve({ ok: true })
+    })
+    checkForUpdatesMock.mockResolvedValue(null)
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('shows help without starting the Session Host', async () => {
+    await expect(runUpdateCli(['--help'])).resolves.toEqual({
+      exitCode: 0,
+      updaterOwnsExit: false,
+    })
+    expect(createClientMock).not.toHaveBeenCalled()
+    expect(writeCliStdoutMock).toHaveBeenCalledWith(expect.stringContaining('openwaggle update'))
+  })
+
+  it('persists an explicit channel and checks its matching updater feed', async () => {
+    checkForUpdatesMock.mockResolvedValue({
+      isUpdateAvailable: true,
+      updateInfo: { version: '0.5.0-alpha.2' },
+    })
+
+    await expect(runUpdateCli(['--channel', 'alpha', '--check'])).resolves.toEqual({
+      exitCode: 0,
+      updaterOwnsExit: false,
+    })
+
+    expect(executeHostUiMock).toHaveBeenCalledWith(
+      expect.objectContaining({ channel: 'settings:update', args: [{ updateChannel: 'alpha' }] }),
+    )
+    expect(updater.channel).toBe('alpha')
+    expect(updater.allowPrerelease).toBe(true)
+    expect(updater.allowDowngrade).toBe(false)
+    expect(updater.autoDownload).toBe(false)
+    expect(writeCliStdoutMock).toHaveBeenCalledWith(
+      'OpenWaggle 0.5.0-alpha.2 is available on the alpha channel.\n',
+    )
+  })
+
+  it('uses the saved GUI channel when no CLI override is provided', async () => {
+    executeHostUiMock.mockImplementation(({ channel }: { readonly channel: string }) => {
+      if (channel === 'settings:get') return Promise.resolve({ updateChannel: 'beta' })
+      return Promise.resolve({ ok: true })
+    })
+
+    await expect(runUpdateCli(['--check'])).resolves.toEqual({
+      exitCode: 0,
+      updaterOwnsExit: false,
+    })
+
+    expect(updater.channel).toBe('beta')
+    expect(executeHostUiMock).not.toHaveBeenCalledWith(
+      expect.objectContaining({ channel: 'settings:update' }),
+    )
+    expect(writeCliStdoutMock).toHaveBeenCalledWith(
+      'OpenWaggle is up to date on the beta channel.\n',
+    )
+  })
+
+  it('reports no update when the feed metadata describes the installed version', async () => {
+    checkForUpdatesMock.mockResolvedValue({
+      isUpdateAvailable: false,
+      updateInfo: { version: '0.4.0' },
+    })
+
+    await expect(runUpdateCli(['--check'])).resolves.toEqual({
+      exitCode: 0,
+      updaterOwnsExit: false,
+    })
+    expect(writeCliStdoutMock).toHaveBeenCalledWith(
+      'OpenWaggle is up to date on the stable channel.\n',
+    )
+  })
+
+  it('checks an exact version without changing the saved channel', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() =>
+        Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ tag_name: 'v0.4.0', assets: [] }),
+        }),
+      ),
+    )
+
+    await expect(runUpdateCli(['--version', '0.4.0', '--check'])).resolves.toEqual({
+      exitCode: 0,
+      updaterOwnsExit: false,
+    })
+    expect(createClientMock).not.toHaveBeenCalled()
+    expect(writeCliStdoutMock).toHaveBeenCalledWith('OpenWaggle v0.4.0 is available.\n')
+  })
+
+  it('distinguishes invalid arguments from update failures', async () => {
+    await expect(runUpdateCli(['--channel', 'nightly'])).resolves.toEqual({
+      exitCode: 2,
+      updaterOwnsExit: false,
+    })
+
+    checkForUpdatesMock.mockRejectedValueOnce(new Error('feed unavailable'))
+    await expect(runUpdateCli(['--check'])).resolves.toEqual({
+      exitCode: 1,
+      updaterOwnsExit: false,
+    })
+  })
+})

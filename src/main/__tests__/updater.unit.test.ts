@@ -49,6 +49,8 @@ vi.mock('electron-updater', async () => {
   autoUpdaterRef.current = emitter
 
   const autoUpdater = Object.assign(emitter, {
+    allowDowngrade: false,
+    allowPrerelease: false,
     autoDownload: true,
     autoInstallOnAppQuit: true,
     logger: null,
@@ -144,7 +146,7 @@ describe('updater service', () => {
   describe('initAutoUpdater', () => {
     it('is a no-op in dev mode', () => {
       mockIsDev.value = true
-      initAutoUpdater()
+      initAutoUpdater('alpha')
       vi.advanceTimersByTime(10_000)
       expect(mockCheckForUpdatesFn).not.toHaveBeenCalled()
       expect(emitter().listenerCount('checking-for-update')).toBe(0)
@@ -152,7 +154,7 @@ describe('updater service', () => {
 
     it('registers event listeners in prod mode', () => {
       mockIsDev.value = false
-      initAutoUpdater()
+      initAutoUpdater('alpha')
       expect(emitter().listenerCount('checking-for-update')).toBeGreaterThan(0)
       expect(emitter().listenerCount('update-available')).toBeGreaterThan(0)
       expect(emitter().listenerCount('update-not-available')).toBeGreaterThan(0)
@@ -163,7 +165,7 @@ describe('updater service', () => {
 
     it('triggers an initial checkForUpdates after the startup delay', () => {
       mockIsDev.value = false
-      initAutoUpdater()
+      initAutoUpdater('alpha')
       expect(mockCheckForUpdatesFn).not.toHaveBeenCalled()
       vi.advanceTimersByTime(5_001)
       expect(mockCheckForUpdatesFn).toHaveBeenCalledOnce()
@@ -172,25 +174,33 @@ describe('updater service', () => {
     it('does not register listeners for dev channel builds', () => {
       mockIsDev.value = false
       mockBuildChannel.value = 'dev'
-      initAutoUpdater()
+      initAutoUpdater('alpha')
       vi.advanceTimersByTime(10_000)
       expect(mockCheckForUpdatesFn).not.toHaveBeenCalled()
       expect(emitter().listenerCount('checking-for-update')).toBe(0)
     })
 
-    it('uses the published latest feed and allows prereleases', () => {
+    it('uses the Alpha feed, allows prereleases, and still prevents downgrades', () => {
       mockIsDev.value = false
       mockBuildChannel.value = 'alpha'
-      initAutoUpdater()
-      expect(Reflect.get(emitter(), 'channel')).toBe('latest')
+      initAutoUpdater('alpha')
+      expect(Reflect.get(emitter(), 'channel')).toBe('alpha')
       expect(Reflect.get(emitter(), 'allowPrerelease')).toBe(true)
+      expect(Reflect.get(emitter(), 'allowDowngrade')).toBe(false)
+    })
+
+    it('maps the Stable preference to the electron-updater latest feed', () => {
+      initAutoUpdater('stable')
+      expect(Reflect.get(emitter(), 'channel')).toBe('latest')
+      expect(Reflect.get(emitter(), 'allowPrerelease')).toBe(false)
+      expect(Reflect.get(emitter(), 'allowDowngrade')).toBe(false)
     })
   })
 
   describe('status broadcasting via autoUpdater events', () => {
     beforeEach(() => {
       mockIsDev.value = false
-      initAutoUpdater()
+      initAutoUpdater('alpha')
     })
 
     it('broadcasts checking status on checking-for-update event', () => {
@@ -257,7 +267,7 @@ describe('updater service', () => {
   describe('disposeAutoUpdater', () => {
     it('clears the periodic interval so no further checks fire after disposal', () => {
       mockIsDev.value = false
-      initAutoUpdater()
+      initAutoUpdater('alpha')
 
       vi.advanceTimersByTime(5_001)
       expect(mockCheckForUpdatesFn).toHaveBeenCalledOnce()

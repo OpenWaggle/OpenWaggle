@@ -23,6 +23,7 @@ import type {
 } from '@shared/types/settings'
 import type { ShortcutBinding, ShortcutCommand, ShortcutRules } from '@shared/types/shortcuts'
 import type { SyntaxAppearanceVariant, SyntaxThemeId } from '@shared/types/syntax'
+import type { UpdateChannel } from '@shared/types/update-channel'
 
 export interface PreferencesState {
   settings: Settings
@@ -38,6 +39,7 @@ export interface PreferencesState {
   pushRecentProject: (path: string) => Promise<void>
   removeRecentProject: (path: string) => Promise<void>
   setThinkingLevel: (preset: ThinkingLevel) => Promise<void>
+  setUpdateChannel: (channel: UpdateChannel) => Promise<void>
   setDefaultAuthorizationMode: (mode: AgentAuthorizationMode) => Promise<void>
   setDefaultSessionEnvironmentMode: (mode: SessionEnvironmentMode) => Promise<void>
   setMultiAgentEnabled: (enabled: boolean) => Promise<void>

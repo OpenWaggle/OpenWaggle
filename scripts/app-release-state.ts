@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 import { pathToFileURL } from 'node:url'
+import { isMatching, P } from '@diegogbrisa/ts-match'
 import { Schema } from 'effect'
 
 const ARG_VALUE_OFFSET = 1
@@ -7,6 +8,8 @@ const CLI_COMMAND_INDEX = 2
 const JSON_INDENT = 2
 const RELEASE_SUBJECT_PATTERN =
   /^chore\(release\): v([0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?)(?: \(#[0-9]+\))?$/u
+const APP_VERSION_PATTERN = /^(\d+)\.(\d+)\.(\d+)(?:-(alpha|beta|rc)\.(\d+))?$/u
+const CHANNEL_RANK = { alpha: 0, beta: 1, rc: 2, stable: 3 } as const
 
 const pullRequestSchema = Schema.Struct({
   baseRefName: Schema.String,
@@ -54,6 +57,35 @@ export function expectedVersionOnlyManifest(baseManifestJson: string, version: s
 
 export function releaseSubjectVersion(subject: string) {
   return RELEASE_SUBJECT_PATTERN.exec(subject)?.[1] ?? null
+}
+
+function parseAppVersion(version: string) {
+  const match = APP_VERSION_PATTERN.exec(version)
+  if (!match) throw new Error(`Invalid desktop app version: ${version}.`)
+  const [, major, minor, patch, channel, sequence] = match
+  const normalizedChannel = channel ?? 'stable'
+  if (!isMatching(P.union('alpha', 'beta', 'rc', 'stable'), normalizedChannel)) {
+    throw new Error(`Invalid desktop app release channel: ${normalizedChannel}.`)
+  }
+  return {
+    core: [Number(major), Number(minor), Number(patch)] as const,
+    channel: normalizedChannel,
+    sequence: sequence === undefined ? 0 : Number(sequence),
+  }
+}
+
+export function assertForwardAppVersionTransition(current: string, target: string) {
+  const from = parseAppVersion(current)
+  const to = parseAppVersion(target)
+  for (let index = 0; index < from.core.length; index += 1) {
+    const difference = (to.core[index] ?? 0) - (from.core[index] ?? 0)
+    if (difference > 0) return
+    if (difference < 0) throw new Error(`Release target ${target} is older than ${current}.`)
+  }
+  const channelDifference = CHANNEL_RANK[to.channel] - CHANNEL_RANK[from.channel]
+  if (channelDifference > 0) return
+  if (channelDifference === 0 && to.sequence > from.sequence) return
+  throw new Error(`Release target ${target} does not advance ${current}.`)
 }
 
 function argument(name: string) {
@@ -104,6 +136,11 @@ async function runCli() {
       throw new Error('Commit subject is not a release subject.')
     }
     process.stdout.write(version)
+    return
+  }
+
+  if (command === 'validate-transition') {
+    assertForwardAppVersionTransition(argument('--current'), argument('--target'))
     return
   }
 

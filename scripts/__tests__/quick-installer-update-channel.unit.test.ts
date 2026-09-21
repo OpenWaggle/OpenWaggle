@@ -1,0 +1,73 @@
+import { execFile } from 'node:child_process'
+import fs from 'node:fs/promises'
+import { promisify } from 'node:util'
+import { describe, expect, it } from 'vitest'
+
+const execFileAsync = promisify(execFile)
+const RESOLUTION_START = '# BEGIN TESTABLE RELEASE RESOLUTION'
+const RESOLUTION_END = '# END TESTABLE RELEASE RESOLUTION'
+
+function releaseResolution(source: string) {
+  const start = source.indexOf(RESOLUTION_START)
+  const end = source.indexOf(RESOLUTION_END)
+  if (start < 0 || end <= start) throw new Error('Installer release resolution was not found.')
+  return source.slice(start + RESOLUTION_START.length, end)
+}
+
+async function resolveRelease(
+  source: string,
+  operation: 'default-channel' | 'tag',
+  releases: unknown,
+  channel?: 'stable' | 'beta' | 'alpha',
+) {
+  const script = `${releaseResolution(source)}
+case "$1" in
+  default-channel) resolve_default_channel "$2" ;;
+  tag) resolve_release_tag "$2" "$3" ;;
+esac`
+  const result = await execFileAsync('bash', [
+    '-c',
+    script,
+    'installer-release-test',
+    operation,
+    JSON.stringify(releases),
+    channel ?? '',
+  ])
+  return result.stdout.trim()
+}
+
+describe('quick installer update channel', () => {
+  it('defaults to Alpha before the first stable release and Stable afterwards', async () => {
+    const source = await fs.readFile('scripts/install.sh', 'utf8')
+    const prereleases = [
+      { tag_name: 'v0.4.0-alpha.3', prerelease: true },
+      { tag_name: 'v0.3.0-alpha.71', prerelease: false },
+    ]
+    const withStable = [{ tag_name: 'v0.4.0', prerelease: false }, ...prereleases]
+
+    await expect(resolveRelease(source, 'default-channel', prereleases)).resolves.toBe('alpha')
+    await expect(resolveRelease(source, 'default-channel', withStable)).resolves.toBe('stable')
+  })
+
+  it('selects the newest eligible release for each explicit channel', async () => {
+    const source = await fs.readFile('scripts/install.sh', 'utf8')
+    const releases = [
+      { tag_name: 'v0.4.1' },
+      { tag_name: 'v0.4.0' },
+      { tag_name: 'v0.5.0-alpha.2' },
+      { tag_name: 'v0.5.0-beta.1' },
+    ]
+
+    await expect(resolveRelease(source, 'tag', releases, 'stable')).resolves.toBe('v0.4.1')
+    await expect(resolveRelease(source, 'tag', releases, 'beta')).resolves.toBe('v0.5.0-beta.1')
+    await expect(resolveRelease(source, 'tag', releases, 'alpha')).resolves.toBe('v0.5.0-beta.1')
+  })
+
+  it('keeps RC releases out of automatic channels', async () => {
+    const source = await fs.readFile('scripts/install.sh', 'utf8')
+    const releases = [{ tag_name: 'v0.5.0-rc.1' }, { tag_name: 'v0.4.0' }]
+
+    await expect(resolveRelease(source, 'tag', releases, 'beta')).resolves.toBe('v0.4.0')
+    await expect(resolveRelease(source, 'tag', releases, 'alpha')).resolves.toBe('v0.4.0')
+  })
+})

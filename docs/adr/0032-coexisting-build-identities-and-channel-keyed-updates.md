@@ -49,9 +49,14 @@ for the About view and the updater/userData decisions.
   committed assets, shipped both as the packaged bundle icon and as the runtime
   `icon.png` resource (so the runtime dock icon set via `app.dock.setIcon`
   matches the channel).
-- **Updater follows the single published `latest` feed with `allowPrerelease`.**
-  That reads the published `latest-mac.yml` and accepts the prerelease-versioned
-  train, fixing "Update check failed". Dev builds never auto-update.
+- **Updater follows a user-selected release channel.** Stable maps to
+  `latest*.yml`; Beta and Alpha map to their corresponding metadata files.
+  Release packaging creates the cross-channel aliases that electron-builder's
+  GitHub provider omits: Stable is visible to all automatic channels, Beta to
+  Beta and Alpha, and Alpha only to Alpha. RC remains an exact-version channel
+  because electron-updater's GitHub provider treats it as custom. The channel
+  is shared by desktop Settings and `openwaggle update`; changing it never
+  enables downgrades. Dev builds never auto-update.
 
 ## Deferred (explicitly out of scope)
 
@@ -59,17 +64,13 @@ for the About view and the updater/userData decisions.
   side by side). It requires migrating the existing `com.openwaggle.app` install
   base off the canonical identity; without a migration it orphans every current
   user's sessions/settings/credentials.
-- **Per-channel GitHub update feeds** (`alpha.yml` distinct from `latest.yml`).
-  electron-builder's `generateUpdatesFilesForAllChannels` is a no-op for the
-  GitHub provider — a release publishes exactly one channel file — so true
-  per-channel release feeds need a different publish strategy.
 
 ## Consequences
 
 - A build wears a visibly distinct name + icon; the About Version row shows the
   product name, so a running window is self-identifying.
-- Released channels remain one updater train and one data directory, so there is
-  no migration and no risk of a stable build pulling a prerelease (or vice
-  versa) until the deferred work lands.
+- Released channels retain one app identity and data directory, while the saved
+  channel determines update eligibility. Stable cannot pull a prerelease;
+  opting into Beta or Alpha widens eligibility without permitting downgrades.
 - Dev builds authenticate and store data separately from the installed release,
   by design — a dev build touching production credentials was the bug.
