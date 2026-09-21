@@ -1,12 +1,12 @@
-import type { GitStatusSummary } from '@shared/types/git'
 import { activeShortcutRuleForCommand } from '@shared/utils/shortcut-rules'
 import {
-  FileDiff,
+  ChessQueen,
   GitCommitHorizontal,
   Hash,
   LayoutList,
   ListTree,
   PanelLeft,
+  Pickaxe,
   SquareTerminal,
 } from 'lucide-react'
 import { usePreferencesStore } from '@/features/settings/state'
@@ -19,11 +19,17 @@ import {
 } from '@/shared/lib/shortcut-display'
 import { Button } from '@/shared/ui/Button'
 
+export { DiffToggleButton } from './HeaderDiffToggleButton'
+
 interface HeaderLeftProps {
   readonly activeBranchName: string | null
   readonly projectPath: string | null
   readonly sidebarOpen: boolean
   readonly title: string
+  readonly sessionIdentity?: {
+    readonly role?: 'queen' | 'worker'
+    readonly agentDefinitionName?: string
+  }
   readonly onToggleSidebar: () => void
 }
 
@@ -53,23 +59,20 @@ interface SessionSummaryButtonProps {
   readonly onToggle: () => void
 }
 
-interface DiffToggleButtonProps {
-  readonly error: string | null
-  readonly isChatRoute: boolean
-  readonly isLoading: boolean
-  readonly open: boolean
-  readonly projectPath: string | null
-  readonly status: GitStatusSummary | null
-  readonly onToggle: () => void
-}
-
 export function HeaderLeft({
   activeBranchName,
   projectPath,
   sidebarOpen,
   title,
+  sessionIdentity,
   onToggleSidebar,
 }: HeaderLeftProps) {
+  const SessionIdentityIcon =
+    sessionIdentity?.role === 'queen'
+      ? ChessQueen
+      : sessionIdentity?.role === 'worker'
+        ? Pickaxe
+        : undefined
   const currentProjectName = projectName(projectPath)
 
   return (
@@ -91,28 +94,60 @@ export function HeaderLeft({
         </Button>
       )}
 
-      <Hash className="no-drag size-3.5 shrink-0 text-text-tertiary" />
-      <span
-        data-qa="header-session-title"
-        className="no-drag min-w-0 truncate text-sm font-medium text-text-primary"
-        title={title}
-      >
-        {title}
-      </span>
-      {activeBranchName ? (
-        <span
-          className="no-drag min-w-0 max-w-40 shrink truncate text-xs text-text-tertiary @max-[1000px]/header:hidden"
-          title={activeBranchName}
-        >
-          / {activeBranchName}
-        </span>
-      ) : null}
-      <span
-        className="no-drag flex h-5 max-w-36 shrink-0 items-center truncate rounded border border-border bg-bg-tertiary px-2 text-xs text-text-secondary @max-[1000px]/header:hidden"
-        title={currentProjectName}
-      >
-        <span className="truncate">{currentProjectName}</span>
-      </span>
+      <div className="min-w-0 flex-1 overflow-hidden">
+        <div className="flex min-w-0 items-center gap-2" data-qa="header-session-main">
+          <Hash className="no-drag size-3.5 shrink-0 text-text-tertiary" />
+          <span
+            data-qa="header-session-title"
+            className="no-drag min-w-0 truncate text-sm font-medium text-text-primary"
+            title={title}
+          >
+            {title}
+          </span>
+          {activeBranchName ? (
+            <span
+              className="no-drag min-w-0 max-w-40 shrink truncate text-xs text-text-tertiary"
+              title={activeBranchName}
+            >
+              / {activeBranchName}
+            </span>
+          ) : null}
+          <span
+            className="no-drag flex h-5 max-w-36 shrink-0 items-center truncate rounded border border-border bg-bg-tertiary px-2 text-xs text-text-secondary"
+            title={currentProjectName}
+          >
+            <span className="truncate">{currentProjectName}</span>
+          </span>
+        </div>
+        {sessionIdentity ? (
+          <div
+            className="no-drag mt-0.5 ml-5 flex min-h-4 items-center gap-1.5 text-xs text-text-tertiary"
+            data-qa="header-session-identity"
+            title={
+              sessionIdentity.role === 'queen'
+                ? 'Queen Session: coordinates this Hive'
+                : sessionIdentity.role === 'worker'
+                  ? 'Worker Session: reports through its Hive lineage'
+                  : `Agent definition: ${sessionIdentity.agentDefinitionName ?? 'default'}`
+            }
+          >
+            {SessionIdentityIcon ? (
+              <>
+                <SessionIdentityIcon className="size-3 shrink-0 text-accent" />
+                <span className="font-medium text-text-secondary">
+                  {sessionIdentity.role === 'queen' ? 'Queen' : 'Worker'}
+                </span>
+              </>
+            ) : null}
+            {sessionIdentity.agentDefinitionName ? (
+              <>
+                {SessionIdentityIcon ? <span className="text-border-strong">·</span> : null}
+                <span className="truncate">{sessionIdentity.agentDefinitionName}</span>
+              </>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
     </div>
   )
 }
@@ -250,62 +285,6 @@ export function SessionSummaryButton({
       title={title}
     >
       <LayoutList className="size-3.5 text-text-secondary" />
-    </Button>
-  )
-}
-
-function diffStatusText(error: string | null, isLoading: boolean) {
-  if (isLoading) {
-    return 'Loading diff…'
-  }
-
-  return error ? 'Git unavailable' : 'Diff unavailable'
-}
-
-export function DiffToggleButton({
-  error,
-  isChatRoute,
-  isLoading,
-  open,
-  projectPath,
-  status,
-  onToggle,
-}: DiffToggleButtonProps) {
-  const disabled = !projectPath || !isChatRoute
-
-  return (
-    <Button
-      variant="ghost"
-      size="none"
-      aria-label="Toggle diff panel"
-      onClick={onToggle}
-      disabled={disabled}
-      className={cn(
-        'no-drag gap-1 hover:opacity-80 @max-[720px]/header:h-7 @max-[720px]/header:px-2',
-        disabled && 'pointer-events-none opacity-30',
-        open && 'opacity-100',
-      )}
-      title={
-        status
-          ? `Toggle diff panel: +${status.additions} -${status.deletions}`
-          : diffStatusText(error, isLoading)
-      }
-    >
-      <FileDiff aria-hidden="true" className="hidden size-3.5 @max-[720px]/header:block" />
-      {status ? (
-        <>
-          <span className="text-sm font-medium text-success @max-[720px]/header:hidden">
-            +{status.additions}
-          </span>
-          <span className="text-sm font-medium text-error @max-[720px]/header:hidden">
-            -{status.deletions}
-          </span>
-        </>
-      ) : (
-        <span className="text-sm font-medium text-text-tertiary @max-[720px]/header:hidden">
-          {diffStatusText(error, isLoading)}
-        </span>
-      )}
     </Button>
   )
 }

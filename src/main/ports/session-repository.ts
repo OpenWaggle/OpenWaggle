@@ -3,8 +3,11 @@ import type { RunMode } from '@shared/types/background-run'
 import type { SessionBranchId, SessionId } from '@shared/types/brand'
 import type { SupportedModelId } from '@shared/types/llm'
 import type {
+  HiveSessionCatalogPage,
+  SessionCatalogPage,
   SessionNode,
   SessionNodeKind,
+  SessionProjectPage,
   SessionSummary,
   SessionTree,
   SessionTreeUiStatePatch,
@@ -73,6 +76,32 @@ export interface SessionRepositoryShape {
   readonly list: (
     limit?: number,
   ) => Effect.Effect<readonly SessionSummary[], SessionProjectionRepositoryError>
+  readonly listCatalogPage: (
+    archived: boolean,
+    limit: number,
+    cursor?: string,
+  ) => Effect.Effect<SessionCatalogPage, SessionProjectionRepositoryError>
+  readonly listProjectPage: (
+    limit: number,
+    cursor?: string,
+    search?: string,
+    matchingDisplayNamePaths?: readonly string[],
+  ) => Effect.Effect<SessionProjectPage, SessionProjectionRepositoryError>
+  readonly hasActiveProjectPath: (
+    paths: readonly string[],
+  ) => Effect.Effect<boolean, SessionProjectionRepositoryError>
+  readonly listByIds: (
+    sessionIds: readonly SessionId[],
+  ) => Effect.Effect<readonly SessionSummary[], SessionProjectionRepositoryError>
+  readonly listHiveCatalogPage: (
+    sessionId: SessionId,
+    limit: number,
+    cursor?: string,
+  ) => Effect.Effect<HiveSessionCatalogPage, SessionProjectionRepositoryError>
+  readonly listArchivedBranchCatalogPage: (
+    limit: number,
+    cursor?: string,
+  ) => Effect.Effect<SessionCatalogPage, SessionProjectionRepositoryError>
   readonly listArchivedBranches: (
     limit?: number,
   ) => Effect.Effect<readonly SessionSummary[], SessionProjectionRepositoryError>

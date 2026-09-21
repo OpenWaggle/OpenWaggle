@@ -81,6 +81,7 @@ export interface ChatBranchSummaryMetadata {
 export interface UIMessageMetadata {
   /** Persisted Session node identity used by branch-scoped resource provenance. */
   readonly sessionNodeId?: string
+  readonly sessionNodeCreatedOrder?: number
   readonly visualizationSessionId?: SessionId
   readonly branchSummary?: ChatBranchSummaryMetadata
   readonly compactionSummary?: ChatCompactionSummaryMetadata

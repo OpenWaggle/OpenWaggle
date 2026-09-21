@@ -1,5 +1,5 @@
-import type { WorktreeLaunchSnapshot } from '@shared/types/background-run'
-import type { SupportedModelId } from '@shared/types/brand'
+import type { RunMode, WorktreeLaunchSnapshot } from '@shared/types/background-run'
+import type { SessionBranchId, SupportedModelId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
 import type {
   AgentTransportCustomEvent,
@@ -74,6 +74,14 @@ export interface WaggleTurnChatRow {
 // ─── ChatRow Discriminated Union ──────────────────────────
 
 export type ChatRow =
+  | {
+      type: 'interrupted-run'
+      runId: string
+      branchId: SessionBranchId
+      runMode: RunMode
+      model: SupportedModelId
+      interruptedAt: number
+    }
   | MessageChatRow
   | TurnFoldChatRow
   | { type: 'worktree-launch'; id: string; sessionId: string; launch: WorktreeLaunchSnapshot }

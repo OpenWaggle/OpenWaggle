@@ -1,10 +1,10 @@
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import type {
-  ExtensionContributionFamily,
   ExtensionContributionRegistryEntry,
   ExtensionSessionSummaryActionView,
   ExtensionSessionSummaryRowView,
-} from '@shared/types/extensions'
+} from '@shared/types/extension-contribution-registry'
+import type { ExtensionContributionFamily } from '@shared/types/extensions'
 import type { DiscoveredExtensionPackage, ExtensionDiagnostic } from '../extensions/types'
 import { getManifestFamilyContributions } from './extension-contribution-family-model'
 import type { ContributionRegistrationEntry } from './extension-contribution-registration-model'

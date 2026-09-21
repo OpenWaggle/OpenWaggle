@@ -14,6 +14,7 @@ import { ChangedFilesCard } from './ChangedFilesCard'
 import { ChatErrorDisplay } from './ChatErrorDisplay'
 import type { ChatRowRenderContext } from './ChatRowRenderContext'
 import { CompactionTimelineRow } from './CompactionTimelineRow'
+import { InterruptedRunNotice } from './InterruptedRunNotice'
 import { MessageBubble } from './MessageBubble'
 import { TurnFoldRow } from './TurnFoldRow'
 import { WorktreeLaunchRow } from './WorktreeLaunchRow'
@@ -27,6 +28,7 @@ interface ChatRowRendererProps {
   onOpenSettings?: () => void
   onRetry?: (content: string) => void
   onDismissError?: (message: string) => void
+  onDismissInterruptedRun?: ChatRowRenderContext['actions']['onDismissInterruptedRun']
   onBranchFromMessage?: (messageId: string) => void
   onForkFromMessage?: (messageId: string) => void
   onToggleTurnFold?: (turnKey: string) => void
@@ -42,6 +44,7 @@ function fallbackContext(props: ChatRowRendererProps): ChatRowRenderContext {
     extensions,
     turnsByAnchorNodeId: new Map(),
     actions: {
+      onDismissInterruptedRun: props.onDismissInterruptedRun,
       onBranchFromMessage: props.onBranchFromMessage,
       onForkFromMessage: props.onForkFromMessage,
       onToggleTurnFold: props.onToggleTurnFold,
@@ -59,7 +62,7 @@ function MessageRow({
   readonly row: MessageChatRow
   readonly context: ChatRowRenderContext
 }) {
-  const turn = row.isRunActive ? undefined : context.turnsByAnchorNodeId.get(row.message.id)
+  const turn = context.turnsByAnchorNodeId.get(row.message.id)
   return (
     <div className="flex flex-col gap-6">
       {row.showTurnDivider && row.turnDividerProps && (
@@ -163,6 +166,16 @@ function WaggleTurnRow({
 export function ChatRowRenderer(props: ChatRowRendererProps) {
   const context = props.context ?? fallbackContext(props)
   return matchBy(props.row, 'type')
+    .with('interrupted-run', (row) => (
+      <InterruptedRunNotice
+        runId={row.runId}
+        branchId={row.branchId}
+        runMode={row.runMode}
+        model={row.model}
+        interruptedAt={row.interruptedAt}
+        onDismiss={context.actions.onDismissInterruptedRun}
+      />
+    ))
     .with('message', (row) => <MessageRow row={row} context={context} />)
     .with('turn-fold', (row) =>
       context.actions.onToggleTurnFold ? (

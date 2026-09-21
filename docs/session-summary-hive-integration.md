@@ -36,9 +36,9 @@ One workspace-level subscription listens to `onSessionHostEvent`. It batches `se
 
 When the branches are integrated:
 
-1. Preserve the Host's canonical `session_spawn_lineage`, delegation contracts, catalog reader, and Host events. Do not introduce a second orchestration writer or read the Summary's old `session_lineage` table as Host truth.
+1. Preserve the Host's canonical `session_spawn_lineage`, delegation contracts, catalog reader, and Host events. The older `session_lineage` is read only as historical display ancestry where no Host lineage exists; it is never an authorization or delegation source.
 2. Preserve `useSessionHiveInvalidation()` in the workspace lifecycle alongside the Host's other refresh handlers. Preserve title-update invalidation of `queryKeys.sessionHives`.
-3. Remove the transitional legacy reader and its persistence path after the old hosted-task lifecycle is migrated. Do not copy historical lineage blindly into the Host's authorization/delegation model.
+3. Remove the transitional legacy IPC reader and hosted-task writer. Keep persisted historical ancestry visible after cutover, but do not copy it into the Host's authorization/delegation model without a valid parent Run and grant.
 4. Run a combined real-Host scenario: spawn a Worker, change its delegation state, spawn its child, archive/unarchive it, restart the Host, and switch focused Sessions during pending catalog reads. Verify that the Summary shows only the focused Session's immediate relatives and preserves separate resource catalogs.
 
 The combined real-Host scenario remains a merge-integration gate. Current Electron Hive screenshots use explicitly seeded projection data; they do not prove live Host orchestration.

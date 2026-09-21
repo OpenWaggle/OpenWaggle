@@ -6,7 +6,6 @@
  * stream forwarding, persistence) and delegates turn sequencing to Pi-native
  * Waggle package logic through AgentKernelService.
  */
-
 import { safeDecodeUnknown } from '@shared/schema'
 import { waggleConfigSchema } from '@shared/schemas/waggle'
 import type { AgentSendPayload, HydratedAgentSendPayload } from '@shared/types/agent'
@@ -33,17 +32,18 @@ import {
   isDurableAgentLoopEvent,
 } from './agent-run/agent-loop-events'
 import { createWorktreeLaunchEventCollector } from './agent-run/worktree-launch-event'
+import { resolveLatestAssistantNodeId } from './agent-run-service'
 import { listRuntimeEnabledOpenWaggleExtensionPackagePaths } from './extension-runtime-service'
 import { assignSessionTitleFromUserText, hydratePayloadAttachments } from './run-handler-utils'
 import { mapPersistedRunResourceNodes } from './session-resource-node-mapping'
 import { extractFilePath } from './waggle-run/metadata'
 import {
   createWaggleSuccessOutcome,
-  noInheritedModelOutcome,
-  noProjectOutcome,
-  notFoundOutcome,
   recoverWaggleRunFailure,
-  validationErrorOutcome,
+  waggleNoInheritedModelOutcome,
+  waggleNoProjectOutcome,
+  waggleSessionNotFoundOutcome,
+  waggleValidationErrorOutcome,
 } from './waggle-run/outcome'
 import { persistWaggleSnapshot } from './waggle-run/persistence'
 import { loadPersistedWaggleResourceProvenanceTree } from './waggle-run/resource-provenance'
@@ -53,13 +53,18 @@ import {
   resolveWaggleBranchId,
   type WaggleActiveRunIdentity,
 } from './waggle-run/runtime-state'
+import {
+  toWaggleKernelExecutionContext,
+  type WaggleExecutionContext,
+} from './waggle-run-execution-context'
 
 const logger = createLogger('waggle-run-service')
 
-export interface WaggleRunInput {
+export interface WaggleRunInput extends Partial<WaggleExecutionContext> {
   readonly sessionId: SessionId
   readonly runId: string
   readonly payload: AgentSendPayload
+  readonly hydratedAttachments?: HydratedAgentSendPayload['attachments']
   readonly model: SupportedModelId
   readonly config: WaggleConfig
   readonly signal: AbortSignal
@@ -99,25 +104,25 @@ function configRequiresInheritedModel(config: WaggleConfig) {
 function prepareWaggleRun(input: WaggleRunInput) {
   return Effect.gen(function* () {
     if (!safeDecodeUnknown(waggleConfigSchema, input.config).success) {
-      return { ok: false as const, outcome: validationErrorOutcome() }
+      return { ok: false as const, outcome: waggleValidationErrorOutcome() }
     }
     if (configRequiresInheritedModel(input.config) && !input.model.trim()) {
-      return { ok: false as const, outcome: noInheritedModelOutcome() }
+      return { ok: false as const, outcome: waggleNoInheritedModelOutcome() }
     }
 
     const settingsService = yield* SettingsService
     const settings = yield* settingsService.get()
     const sessionProjectionRepo = yield* SessionProjectionRepository
     const session = yield* sessionProjectionRepo.getOptional(input.sessionId)
-    if (!session) return { ok: false as const, outcome: notFoundOutcome() }
-    if (!session.projectPath) return { ok: false as const, outcome: noProjectOutcome() }
+    if (!session) return { ok: false as const, outcome: waggleSessionNotFoundOutcome() }
+    if (!session.projectPath) return { ok: false as const, outcome: waggleNoProjectOutcome() }
 
     const assignedTitle = yield* assignPreparedTitle(input, session)
     const hydratedPayload: HydratedAgentSendPayload = {
       ...input.payload,
-      attachments: yield* Effect.promise(() =>
-        hydratePayloadAttachments(input.payload.attachments),
-      ),
+      attachments:
+        input.hydratedAttachments ??
+        (yield* Effect.promise(() => hydratePayloadAttachments(input.payload.attachments))),
     }
     const enabledOpenWaggleExtensionPackagePaths =
       yield* listRuntimeEnabledOpenWaggleExtensionPackagePaths(session.projectPath)
@@ -161,6 +166,7 @@ function runPreparedWaggle(
 ) {
   return Effect.gen(function* () {
     const sessionRepo = yield* SessionRepository
+    const sessionProjectionRepo = yield* SessionProjectionRepository
     const initialTree = yield* sessionRepo.getTree(SessionId(String(input.sessionId)))
     const branchId = resolveWaggleBranchId({ sessionId: input.sessionId, tree: initialTree })
 
@@ -183,6 +189,7 @@ function runPreparedWaggle(
       runId: input.runId,
       payload: prepared.hydratedPayload,
       model: prepared.runtimeModel,
+      ...toWaggleKernelExecutionContext(input),
       compactionThresholdPercent: prepared.compactionThresholdPercent,
       signal: input.signal,
       ...(input.onControlAvailable ? { onControlAvailable: input.onControlAvailable } : {}),
@@ -240,6 +247,15 @@ function runPreparedWaggle(
       snapshot: sessionSnapshot,
       waggleConfig: input.config,
     })
+
+    const anchorNodeId = resolveLatestAssistantNodeId(sessionSnapshot.nodes)
+    if (anchorNodeId) {
+      yield* sessionProjectionRepo.setTurnCheckpointAnchor(
+        input.sessionId,
+        input.runId,
+        anchorNodeId,
+      )
+    }
 
     const persistedTree = yield* loadPersistedWaggleResourceProvenanceTree(sessionRepo, input)
     const resources = mapPersistedRunResourceNodes(existingTree, persistedTree)
@@ -304,3 +320,5 @@ export function executeWaggleRun(input: WaggleRunInput) {
     Effect.ensuring(clearDurableWaggleActiveRun(() => activeRunIdentity)),
   )
 }
+
+export type WaggleRunResult = Effect.Effect.Success<ReturnType<typeof executeWaggleRun>>

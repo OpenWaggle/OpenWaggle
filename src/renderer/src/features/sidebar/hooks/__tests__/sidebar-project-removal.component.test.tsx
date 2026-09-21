@@ -5,14 +5,18 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createSidebarProjectActions } from '../sidebar-project-actions'
 
 const api = vi.hoisted(() => ({
-  listArchivedSessions: vi.fn(),
-  listSessions: vi.fn(),
+  querySessionControl: vi.fn(),
+  listSessionsByIds: vi.fn(),
+  listActiveRuns: vi.fn(),
+  cancelAgent: vi.fn(),
   deleteSession: vi.fn(),
   showConfirm: vi.fn(),
-  closeBrowserPreview: vi.fn(),
-  unregisterBrowserPreviewOwner: vi.fn(),
 }))
 vi.mock('@/shared/lib/ipc', () => ({ api }))
+vi.mock('@/shell/workspace-panel-cleanup', () => ({
+  deleteWorkspaceOwner: vi.fn(async () => undefined),
+  archiveWorkspaceOwner: vi.fn(async () => undefined),
+}))
 
 function session(id: string): SessionSummary {
   return { id: SessionId(id), title: id, projectPath: '/project', createdAt: 1, updatedAt: 1 }
@@ -31,7 +35,6 @@ function setup() {
     refreshGit: vi.fn(),
     removeProjectReferences: vi.fn(async () => undefined),
     selectFolder: vi.fn(async () => null),
-    sessions: [session('first'), session('second'), session('third')],
     setProjectDisplayName: vi.fn(async () => undefined),
     setProjectPath: vi.fn(async () => undefined),
     showToast: vi.fn(),
@@ -41,20 +44,38 @@ function setup() {
   return { deps, actions: createSidebarProjectActions(deps) }
 }
 
+let listedIds: string[]
+
+function installSessionCatalog() {
+  api.querySessionControl.mockImplementation(
+    async (request: { query: { archived?: boolean } }) => ({
+      outcome: {
+        operation: 'list',
+        sessions: request.query.archived ? [] : listedIds.map((id) => ({ sessionId: id })),
+      },
+    }),
+  )
+  api.listSessionsByIds.mockImplementation(async (ids: readonly SessionId[]) =>
+    ids.map((id) => session(String(id))),
+  )
+}
+
 describe('project removal preflight and failure recovery', () => {
   beforeEach(() => {
     vi.resetAllMocks()
-    api.listArchivedSessions.mockResolvedValue([])
-    api.listSessions.mockResolvedValue([session('first'), session('second'), session('third')])
+    listedIds = ['first', 'second', 'third']
+    installSessionCatalog()
+    api.listActiveRuns.mockResolvedValue([])
     api.deleteSession.mockResolvedValue(undefined)
     api.showConfirm.mockResolvedValue(true)
-    api.closeBrowserPreview.mockResolvedValue(undefined)
-    api.unregisterBrowserPreviewOwner.mockResolvedValue(undefined)
   })
 
   it('requires new confirmation when the project session set changes', async () => {
     const { deps, actions } = setup()
-    api.listSessions.mockResolvedValue([session('first'), session('second'), session('new')])
+    api.showConfirm.mockImplementationOnce(async () => {
+      listedIds = ['first', 'second', 'new']
+      return true
+    })
     actions.remove('/project')
     await vi.waitFor(() =>
       expect(deps.showToast).toHaveBeenCalledWith(
@@ -63,23 +84,24 @@ describe('project removal preflight and failure recovery', () => {
     )
     expect(api.deleteSession).not.toHaveBeenCalled()
     expect(deps.removeProjectReferences).not.toHaveBeenCalled()
-    expect(api.unregisterBrowserPreviewOwner).not.toHaveBeenCalled()
     expect(deps.loadChatSessions).toHaveBeenCalled()
     expect(deps.loadSessionTrees).toHaveBeenCalled()
-    const refreshed = { ...deps, sessions: [session('first'), session('second'), session('new')] }
-    createSidebarProjectActions(refreshed).remove('/project')
+
+    actions.remove('/project')
     await vi.waitFor(() => expect(deps.removeProjectReferences).toHaveBeenCalledWith('/project'))
     expect(api.deleteSession.mock.calls).toEqual([
       [SessionId('first')],
       [SessionId('second')],
       [SessionId('new')],
     ])
-    expect(api.unregisterBrowserPreviewOwner.mock.calls).toEqual([['first'], ['second'], ['new']])
   })
 
   it('does not delete anything when fresh eligibility cannot be read', async () => {
     const { deps, actions } = setup()
-    api.listSessions.mockRejectedValue(new Error('Catalog unavailable'))
+    api.showConfirm.mockImplementationOnce(async () => {
+      api.querySessionControl.mockRejectedValue(new Error('Catalog unavailable'))
+      return true
+    })
     actions.remove('/project')
     await vi.waitFor(() =>
       expect(deps.showToast).toHaveBeenCalledWith(expect.stringContaining('Catalog unavailable')),

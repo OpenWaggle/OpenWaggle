@@ -25,6 +25,7 @@ import {
   type makeProjectOverride,
   PROJECT_PATH,
 } from './extension-contribution-registry-test-utils'
+import { emptySessionCatalogMethods } from './session-repository-test-support'
 
 const DOCS_BUNDLE_PATH = '/tmp/openwaggle-docs'
 const DOCS_GENERATED_AT = '2026-01-01T00:00:00.000Z'
@@ -147,11 +148,9 @@ export function makeBrokerLayer(input: {
       get: () => Effect.sync(() => makeSessionDetail(PROJECT_PATH)),
       getOptional: (id) =>
         Effect.succeed(sessionDetails.find((session) => session.id === id) ?? null),
-      getHiveRelations: () => Effect.succeed({ current: null, parent: null, workers: [] }),
       list: () => Effect.succeed([]),
       listDetails: () => Effect.succeed([]),
       create: ({ projectPath }) => Effect.succeed(makeSessionDetail(projectPath)),
-      getDeletionBlocker: () => Effect.succeed(null),
       delete: () => Effect.void,
       archive: () => Effect.void,
       unarchive: () => Effect.void,
@@ -166,6 +165,7 @@ export function makeBrokerLayer(input: {
       ...PINNED_SESSION_REPOSITORY_STUB,
     }),
     Layer.succeed(SessionRepository, {
+      ...emptySessionCatalogMethods,
       list: () => Effect.succeed([]),
       listArchivedBranches: () => Effect.succeed([]),
       getTree: (sessionId) =>

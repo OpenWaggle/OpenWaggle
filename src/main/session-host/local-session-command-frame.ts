@@ -1,0 +1,114 @@
+import type {
+  LocalSessionClientFrame,
+  LocalSessionServerFrame,
+} from '@shared/types/local-session-protocol'
+import type { SessionHostEventCursor } from '@shared/types/session-host-event'
+import * as Cause from 'effect/Cause'
+import * as Option from 'effect/Option'
+import * as Runtime from 'effect/Runtime'
+import type { LocalSessionCursorResolution } from './local-session-event-cursor-projection'
+import {
+  disconnectLocalSessionProfile,
+  refreshLocalSessionProfileAdmissions,
+} from './local-session-profile-invalidation'
+import type {
+  AuthenticatedLocalSessionCaller,
+  LocalSessionServerDependencies,
+} from './local-session-server'
+import {
+  describeLocalSessionServerError,
+  invalidatedProfileId,
+  refreshedProfileId,
+} from './local-session-server-frame'
+
+const INVALIDATION_RESPONSE_DELIVERY_GRACE_MS = 250
+
+async function settleInvalidationResponse(response: Promise<void>) {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const outcome = await Promise.race([
+    response.then(
+      () => ({ status: 'sent' as const }),
+      (error: unknown) => ({ status: 'failed' as const, error }),
+    ),
+    new Promise<{ readonly status: 'pending' }>((resolve) => {
+      timer = setTimeout(
+        () => resolve({ status: 'pending' }),
+        INVALIDATION_RESPONSE_DELIVERY_GRACE_MS,
+      )
+      timer.unref?.()
+    }),
+  ])
+  if (timer) clearTimeout(timer)
+  return outcome
+}
+
+function commandFailure(error: unknown) {
+  const failure = Runtime.isFiberFailure(error)
+    ? Option.getOrUndefined(Cause.failureOption(error[Runtime.FiberFailureCauseId]))
+    : error
+  if (typeof failure !== 'object' || failure === null) {
+    return { code: 'command_failed', retryable: false }
+  }
+  return {
+    code: 'code' in failure && typeof failure.code === 'string' ? failure.code : 'command_failed',
+    retryable: 'retryable' in failure && failure.retryable === true,
+  }
+}
+
+export async function executeLocalSessionCommandFrame(input: {
+  readonly frame: Extract<LocalSessionClientFrame, { kind: 'command' }>
+  readonly caller: AuthenticatedLocalSessionCaller
+  readonly negotiatedRevision: number
+  readonly dependencies: LocalSessionServerDependencies
+  readonly eventCursor: SessionHostEventCursor
+  readonly resolveEventCursor: (cursor: SessionHostEventCursor) => LocalSessionCursorResolution
+  readonly exposeEventCursor: (cursor: SessionHostEventCursor) => SessionHostEventCursor
+  readonly signal: AbortSignal
+  readonly send: (frame: LocalSessionServerFrame) => Promise<void>
+  readonly releaseAdmissionReader?: () => void
+}) {
+  const releaseOperation = input.dependencies.liveness.acquire('operation')
+  try {
+    let payload: unknown
+    try {
+      payload = await input.dependencies.dispatch({
+        caller: input.caller,
+        negotiatedRevision: input.negotiatedRevision,
+        eventCursor: input.eventCursor,
+        resolveEventCursor: input.resolveEventCursor,
+        exposeEventCursor: input.exposeEventCursor,
+        payload: input.frame.payload,
+        signal: input.signal,
+        releaseAdmissionReader: () => input.releaseAdmissionReader?.(),
+      })
+      input.releaseAdmissionReader?.()
+      const refreshed = refreshedProfileId(payload)
+      if (refreshed) await refreshLocalSessionProfileAdmissions(refreshed)
+    } catch (error) {
+      input.releaseAdmissionReader?.()
+      const failure = commandFailure(error)
+      await input.send({
+        kind: 'error',
+        requestId: input.frame.requestId,
+        code: failure.code,
+        message: describeLocalSessionServerError(error),
+        retryable: failure.retryable,
+      })
+      return
+    }
+
+    const invalidated = invalidatedProfileId(payload)
+    const response = input.send({ kind: 'response', requestId: input.frame.requestId, payload })
+    if (!invalidated) {
+      await response
+      return
+    }
+    const responseOutcome = await settleInvalidationResponse(response)
+    disconnectLocalSessionProfile(invalidated)
+    if (responseOutcome.status === 'failed') throw responseOutcome.error
+    if (responseOutcome.status === 'pending') void response.catch(() => undefined)
+  } finally {
+    input.releaseAdmissionReader?.()
+    releaseOperation()
+  }
+}

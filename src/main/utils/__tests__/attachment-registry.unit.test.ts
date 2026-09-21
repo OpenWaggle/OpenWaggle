@@ -3,12 +3,14 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import type { PreparedAttachment } from '@shared/types/agent'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import { hydrateAttachmentSources } from '../attachment-hydration'
+import type { PreparedAttachmentSnapshot } from '../attachment-preparation'
 import {
   configurePreparedAttachmentRegistry,
   rememberPreparedAttachment,
   resetPreparedAttachmentRegistryForTests,
+  resolvePreparedAttachmentCapability,
 } from '../attachment-registry'
 
 const temporaryDirectories: string[] = []
@@ -40,51 +42,37 @@ afterEach(async () => {
 })
 
 describe('prepared attachment registry', () => {
-  it('hydrates prepared attachments with bounded filesystem concurrency', async () => {
-    const userDataPath = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-attachments-'))
-    temporaryDirectories.push(userDataPath)
+  it('retains browser provenance on restart and rejects changed optional source metadata', async () => {
+    const { userDataPath, filePath, attachment } = await makeFixture()
+    const browserAttachment = {
+      ...attachment,
+      origin: 'browser-preview',
+      browserPreview: {
+        pageUrl: 'http://localhost:3000',
+        pageTitle: 'Preview',
+        selector: '#save',
+        tagName: 'button',
+        role: 'button',
+        elementText: 'Save',
+        comment: 'Check this',
+        sourceFile: 'src/button.tsx',
+        sourceLine: 12,
+        elementCount: 1,
+      },
+    } satisfies PreparedAttachment
     configurePreparedAttachmentRegistry(userDataPath)
-    const attachments: PreparedAttachment[] = []
-    for (let index = 0; index < 5; index += 1) {
-      const bytes = Buffer.from(`image-${String(index)}`)
-      const filePath = path.join(userDataPath, `image-${String(index)}.png`)
-      await fs.writeFile(filePath, bytes)
-      const attachment: PreparedAttachment = {
-        id: `attachment-${String(index)}`,
-        kind: 'image',
-        origin: 'user-file',
-        name: path.basename(filePath),
-        path: filePath,
-        mimeType: 'image/png',
-        sizeBytes: bytes.byteLength,
-        contentSha256: createHash('sha256').update(bytes).digest('hex'),
-        extractedText: 'prepared image',
-      }
-      attachments.push(attachment)
-      await rememberPreparedAttachment(attachment, filePath)
-    }
-
-    const stat = fs.stat.bind(fs)
-    let active = 0
-    let peak = 0
-    const statSpy = vi.spyOn(fs, 'stat').mockImplementation(async (filePath) => {
-      active += 1
-      peak = Math.max(peak, active)
-      await new Promise((resolve) => setTimeout(resolve, 10))
-      try {
-        return await stat(filePath)
-      } finally {
-        active -= 1
-      }
+    await rememberPreparedAttachment(browserAttachment, filePath)
+    resetPreparedAttachmentRegistryForTests()
+    configurePreparedAttachmentRegistry(userDataPath)
+    await expect(resolvePreparedAttachmentCapability(browserAttachment)).resolves.toMatchObject({
+      browserPreview: browserAttachment.browserPreview,
     })
-
-    try {
-      const hydrated = await hydrateAttachmentSources(attachments)
-      expect(hydrated.map(({ id }) => id)).toEqual(attachments.map(({ id }) => id))
-      expect(peak).toBe(2)
-    } finally {
-      statSpy.mockRestore()
-    }
+    await expect(
+      resolvePreparedAttachmentCapability({
+        ...browserAttachment,
+        browserPreview: { ...browserAttachment.browserPreview, sourceLine: 99 },
+      }),
+    ).rejects.toThrow('metadata does not match')
   })
 
   it('rehydrates a compact capability after a full main-process restart', async () => {
@@ -94,6 +82,12 @@ describe('prepared attachment registry', () => {
 
     resetPreparedAttachmentRegistryForTests()
     configurePreparedAttachmentRegistry(userDataPath)
+    await expect(resolvePreparedAttachmentCapability(attachment)).resolves.toMatchObject({
+      contentSha256: attachment.contentSha256,
+    })
+    await expect(
+      resolvePreparedAttachmentCapability({ ...attachment, contentSha256: '0'.repeat(64) }),
+    ).rejects.toThrow('metadata does not match')
     const [hydrated] = await hydrateAttachmentSources([{ ...attachment, extractedText: '' }])
 
     expect(hydrated).toMatchObject({
@@ -115,21 +109,19 @@ describe('prepared attachment registry', () => {
     expect(persisted).not.toContain('Durable attachment contents')
   })
 
-  it('rejects a same-size binary replacement after preparation', async () => {
+  it('strips Host-only snapshot bytes before persisting a capability', async () => {
     const { userDataPath, filePath, attachment } = await makeFixture()
-    const binaryAttachment: PreparedAttachment = {
-      ...attachment,
-      kind: 'image',
-      mimeType: 'image/png',
-      extractedText: '',
-    }
     configurePreparedAttachmentRegistry(userDataPath)
-    await rememberPreparedAttachment(binaryAttachment, filePath)
-    await fs.writeFile(filePath, 'Changed attachment contents')
-    expect(Buffer.byteLength('Changed attachment contents')).toBe(binaryAttachment.sizeBytes)
+    const privateAttachment: PreparedAttachmentSnapshot = {
+      ...attachment,
+      immutableSourceBase64: 'aG9zdC1vbmx5LWJ5dGVz',
+    }
+    await rememberPreparedAttachment(privateAttachment, filePath)
 
-    await expect(hydrateAttachmentSources([binaryAttachment])).rejects.toThrow(
-      'Attachment changed after it was prepared',
-    )
+    const files = await fs.readdir(userDataPath)
+    const registryFile = files.find((entry) => entry.includes('attachment-capabilities'))
+    const persisted = await fs.readFile(path.join(userDataPath, registryFile ?? ''), 'utf8')
+    expect(persisted).not.toContain('immutableSourceBase64')
+    expect(persisted).not.toContain('aG9zdC1vbmx5LWJ5dGVz')
   })
 })

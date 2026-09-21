@@ -10,6 +10,7 @@ import {
   resolveStoredBrowserSettings,
 } from './browser-settings-snapshot'
 import {
+  SETTINGS_KEY_AGENT_DEFINITION_TOGGLES_BY_PROJECT,
   SETTINGS_KEY_APPEARANCE_PREFERENCES,
   SETTINGS_KEY_COMPACTION_THRESHOLD_PERCENT,
   SETTINGS_KEY_DEFAULT_AUTHORIZATION_MODE,
@@ -56,6 +57,11 @@ import {
   sanitizeShortcutRules,
   sanitizeSkillTogglesByProject,
 } from './sanitizers'
+import {
+  resolveNextSessionHostSettings,
+  resolveStoredSessionHostSettings,
+} from './session-host-settings-snapshot'
+import { resolveNextShortcutRules } from './shortcut-settings-snapshot'
 
 export function createDefaultSettingsSnapshot() {
   return {
@@ -79,6 +85,9 @@ export function buildSettingsSnapshot(storedSettings: Readonly<Record<string, un
   )
   const skillTogglesByProject = resolveSkillTogglesByProject(
     getStoredValue(storedSettings, SETTINGS_KEY_SKILL_TOGGLES_BY_PROJECT),
+  )
+  const agentDefinitionTogglesByProject = resolveSkillTogglesByProject(
+    getStoredValue(storedSettings, SETTINGS_KEY_AGENT_DEFINITION_TOGGLES_BY_PROJECT),
   )
   const enabledModels = resolveEnabledModels(
     getStoredValue(storedSettings, SETTINGS_KEY_ENABLED_MODELS),
@@ -123,6 +132,7 @@ export function buildSettingsSnapshot(storedSettings: Readonly<Record<string, un
   const diffWrapLines = resolveDiffWrapLines(
     getStoredValue(storedSettings, SETTINGS_KEY_DIFF_WRAP_LINES),
   )
+  const hostSettings = resolveStoredSessionHostSettings(storedSettings)
   const compactionThresholdPercent = resolveCompactionThresholdPercent(
     getStoredValue(storedSettings, SETTINGS_KEY_COMPACTION_THRESHOLD_PERCENT),
   )
@@ -140,6 +150,7 @@ export function buildSettingsSnapshot(storedSettings: Readonly<Record<string, un
       thinkingLevel,
       recentProjects,
       skillTogglesByProject,
+      agentDefinitionTogglesByProject,
       projectDisplayNames,
       shortcutRules,
       shortcutBindings,
@@ -149,6 +160,7 @@ export function buildSettingsSnapshot(storedSettings: Readonly<Record<string, un
       syntaxThemeSelections,
       diffView,
       diffWrapLines,
+      ...hostSettings,
       compactionThresholdPercent,
       appearancePreferences,
       ...browserSettings,
@@ -203,19 +215,24 @@ function resolveValidatedSetting<Value>(
   return isValid(candidate) ? candidate : current
 }
 
-function resolveNextShortcutRules(current: Settings, partial: Partial<Settings>) {
-  if (partial.shortcutRules !== undefined) {
-    return shortcutRulesWithDefaults(
-      sanitizeShortcutRules(partial.shortcutRules) ?? current.shortcutRules,
-    )
-  }
-  if (partial.shortcutBindings === undefined) return current.shortcutRules
-  return shortcutRulesWithDefaults(
-    shortcutRulesFromBindings(sanitizeShortcutBindings(partial.shortcutBindings)),
-  )
+export function buildNextSettingsSnapshot(current: Settings, partial: Partial<Settings>) {
+  const coreSettings = resolveNextCoreSettings(current, partial)
+  const hostSettings = resolveNextSessionHostSettings(current, partial)
+  return {
+    ...current,
+    ...coreSettings,
+    ...hostSettings,
+    compactionThresholdPercent:
+      partial.compactionThresholdPercent !== undefined
+        ? resolveCompactionThresholdPercent(partial.compactionThresholdPercent)
+        : current.compactionThresholdPercent,
+    ...resolveNextDiffSettings(current, partial),
+    ...resolveNextAppearanceSettings(current, partial),
+    ...resolveNextBrowserSettings(current, partial),
+  } satisfies Settings
 }
 
-export function buildNextSettingsSnapshot(current: Settings, partial: Partial<Settings>) {
+function resolveNextCoreSettings(current: Settings, partial: Partial<Settings>) {
   const enabledModels = resolveUpdatedSetting(
     partial.enabledModels,
     current.enabledModels,
@@ -251,6 +268,11 @@ export function buildNextSettingsSnapshot(current: Settings, partial: Partial<Se
     current.skillTogglesByProject,
     sanitizeSkillTogglesByProject,
   )
+  const agentDefinitionTogglesByProject = resolveUpdatedSetting(
+    partial.agentDefinitionTogglesByProject,
+    current.agentDefinitionTogglesByProject,
+    sanitizeSkillTogglesByProject,
+  )
   const projectDisplayNames = resolveUpdatedSetting(
     partial.projectDisplayNames,
     current.projectDisplayNames,
@@ -268,16 +290,7 @@ export function buildNextSettingsSnapshot(current: Settings, partial: Partial<Se
     current.defaultAuthorizationMode,
     resolveDefaultAuthorizationMode,
   )
-  const diffSettings = resolveNextDiffSettings(current, partial)
-  const compactionThresholdPercent =
-    partial.compactionThresholdPercent !== undefined
-      ? resolveCompactionThresholdPercent(partial.compactionThresholdPercent)
-      : current.compactionThresholdPercent
-  const appearanceSettings = resolveNextAppearanceSettings(current, partial)
-  const browserSettings = resolveNextBrowserSettings(current, partial)
-
   return {
-    ...current,
     selectedModel,
     favoriteModels,
     enabledModels,
@@ -285,14 +298,11 @@ export function buildNextSettingsSnapshot(current: Settings, partial: Partial<Se
     thinkingLevel,
     recentProjects,
     skillTogglesByProject,
+    agentDefinitionTogglesByProject,
     projectDisplayNames,
     shortcutRules,
     shortcutBindings,
     defaultSessionEnvironmentMode,
     defaultAuthorizationMode,
-    ...diffSettings,
-    compactionThresholdPercent,
-    ...appearanceSettings,
-    ...browserSettings,
-  } satisfies Settings
+  }
 }

@@ -1,26 +1,21 @@
-import { SessionId } from '@shared/types/brand'
 import type { WaggleCollaborationStatus } from '@shared/types/waggle'
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useAgentChat } from '@/features/chat/hooks/useAgentChat'
-import { useAutoSendQueue } from '@/features/chat/hooks/useAutoSendQueue'
 import { useSendMessage } from '@/features/chat/hooks/useSendMessage'
+import { useSessionFollowUpQueue } from '@/features/chat/hooks/useSessionFollowUpQueue'
 import { useStreamingPhase } from '@/features/chat/hooks/useStreamingPhase'
 import { useTurnReveal } from '@/features/chat/hooks/useTurnReveal'
-import { createBranchDraftSelection } from '@/features/chat/lib/branch-from-message'
-import { maybeOpenBranchSummaryPrompt } from '@/features/chat/lib/branch-summary-prompt-controller'
-import { useComposerStore } from '@/features/composer/state'
+import { isCompactionRunning } from '@/features/chat/lib/compaction-lifecycle'
 import { useSkills } from '@/features/skills/hooks'
 import { useWaggleChat } from '@/features/waggle/hooks'
 import { useWaggleStore } from '@/features/waggle/state'
 import { extensionContributionsQueryOptions } from '@/queries/extensions'
-import { createRendererLogger } from '@/shared/lib/logger'
-import { isCompactionRunning } from '../lib/compaction-lifecycle'
 import { buildDiffSection } from '../lib/diff-section'
-import { reportAutoSendQueueFailure } from '../lib/queue-failure-feedback'
 import { setComposerSessionAuthorizationMode } from '../lib/session-authorization-mode-action'
 import { sendStarterPrompt } from '../lib/starter-prompt-action'
 import type { ChatPanelSections } from '../model'
+import { useBranchFromMessage } from './useBranchFromMessage'
 import { useBranchSummaryWorkflow } from './useBranchSummaryWorkflow'
 import { useChatPanelEnvironment } from './useChatPanelEnvironment'
 import { useChatSendWorkflow } from './useChatSendWorkflow'
@@ -29,8 +24,6 @@ import { useSessionCopyWorkflow } from './useSessionCopyWorkflow'
 import { useSteerWorkflow } from './useSteerWorkflow'
 import { useTranscriptSection } from './useTranscriptSection'
 import { useVisualizationFollowUpDispatcher } from './useVisualizationFollowUpDispatcher'
-
-const logger = createRendererLogger('chat-panel')
 
 export function useChatPanelSections(): ChatPanelSections {
   const [userDidSend, setUserDidSend] = useState(false)
@@ -49,8 +42,10 @@ export function useChatPanelSections(): ChatPanelSections {
     clearDraftBranchForSession,
     slashCommandMenuOpen,
     draftBranch,
+    handleDismissInterruptedRun,
     handleOpenProject,
     handleSelectProjectPath,
+    handleSelectSession,
     loadSessions,
     model,
     navigate,
@@ -58,7 +53,6 @@ export function useChatPanelSections(): ChatPanelSections {
     projectPath,
     recentProjects,
     refreshSessionWorkspace,
-    setDraftBranch,
     showToast,
     thinkingLevel,
   } = env
@@ -70,7 +64,6 @@ export function useChatPanelSections(): ChatPanelSections {
     isLoading,
     status,
     stop,
-    steer,
     error,
     withDeferredSnapshotRefresh,
     previewSteeredUserTurn,
@@ -81,6 +74,7 @@ export function useChatPanelSections(): ChatPanelSections {
     agentInteractionEvents,
     respondAgentInteraction,
   } = useAgentChat(activeSessionId, activeSession, model, thinkingLevel)
+  const followUpQueue = useSessionFollowUpQueue(activeSessionId)
 
   const { handleSend, handleSendText, handleSendWaggle } = useSendMessage({
     activeSessionId,
@@ -92,7 +86,12 @@ export function useChatPanelSections(): ChatPanelSections {
     sendWaggleMessage,
   })
 
-  useVisualizationFollowUpDispatcher({ sessionId: activeSessionId, status, send: handleSend })
+  useVisualizationFollowUpDispatcher({
+    sessionId: activeSessionId,
+    status,
+    send: handleSend,
+    enqueue: followUpQueue.enqueue,
+  })
 
   useWaggleChat(activeSessionId)
   const phase = useStreamingPhase(activeSessionId)
@@ -161,63 +160,24 @@ export function useChatPanelSections(): ChatPanelSections {
   })
   const { isSteering, handleSteer } = useSteerWorkflow({
     activeSessionId,
-    extensionContributions: extensionRegistry,
+    followUps: followUpQueue.snapshot.items,
     isCompacting: isCompactionRunning(compactionStatus),
-    steer,
     previewSteeredUserTurn,
+    promoteFollowUp: followUpQueue.promote,
     withDeferredSnapshotRefresh,
     showToast,
   })
 
-  useAutoSendQueue({
-    sessionId: activeSessionId,
-    status,
-    sendMessage: sendWorkflow.sendWithWaggle,
-    paused: isSteering,
-    onSendFailure: (payload, sendError) =>
-      reportAutoSendQueueFailure({ logger, showToast }, activeSessionId, payload, sendError),
+  const handleBranchFromMessage = useBranchFromMessage({
+    activeSessionId,
+    activeWorkspace,
+    messages,
+    projectPath,
+    navigate,
+    refreshSessionWorkspace,
+    switchComposerToDraftBranch: branchSummary.switchComposerToDraftBranch,
+    showToast,
   })
-
-  function handleBranchFromMessage(messageId: string) {
-    if (!activeSessionId) return
-    const sessionId = SessionId(String(activeSessionId))
-    const previousComposerText = useComposerStore.getState().input
-    const selection = createBranchDraftSelection({
-      messages,
-      workspace: activeWorkspace,
-      messageId,
-    })
-    const fallbackDraftText = selection.prefillText ?? ''
-    setDraftBranch({ sessionId, sourceNodeId: selection.sourceNodeId })
-    const draftComposerText = branchSummary.switchComposerToDraftBranch({
-      sessionId,
-      sourceNodeId: selection.sourceNodeId,
-      fallbackText: fallbackDraftText,
-    })
-    maybeOpenBranchSummaryPrompt({
-      sessionId,
-      sourceNodeId: selection.sourceNodeId,
-      restoreSelection: {
-        branchId: activeWorkspace?.activeBranchId ?? null,
-        nodeId: activeWorkspace?.activeNodeId ?? null,
-      },
-      previousComposerText,
-      draftComposerText,
-      activeWorkspace,
-      projectPath,
-    })
-    void navigate({
-      to: '/sessions/$sessionId',
-      params: { sessionId: String(sessionId) },
-      search: (previous) => ({
-        ...previous,
-        branch: undefined,
-        node: String(selection.routeNodeId),
-      }),
-    })
-
-    void refreshSessionWorkspace(sessionId, { nodeId: selection.routeNodeId })
-  }
 
   const reveal = useTurnReveal(activeSessionId, navigate, messages.length)
 
@@ -241,10 +201,14 @@ export function useChatPanelSections(): ChatPanelSections {
     handleSelectProjectPath,
     handleSendText: (content) => sendStarterPrompt({ content, model, handleSendText, showToast }),
     openSettings,
+    handleDismissInterruptedRun,
     handleBranchFromMessage,
     handleForkFromMessage: (messageId: string) =>
       void sessionCopy.forkMessageToNewSession(messageId),
-    ...reveal,
+    handleViewTurnDiff: reveal.handleViewTurnDiff,
+    turnAnchorMessageIds: reveal.turnAnchorMessageIds,
+    turnsByAnchorNodeId: reveal.turnsByAnchorNodeId,
+    turnDurationsByAnchorMessageId: reveal.turnDurationsByAnchorMessageId,
     userDidSend,
     onUserDidSendConsumed: () => setUserDidSend(false),
     streamSignalVersion,
@@ -262,7 +226,8 @@ export function useChatPanelSections(): ChatPanelSections {
     projectPath,
     recentProjects,
     session: activeSession,
-    isFirstMessage: messages.length === 0,
+    sessionDetailPending: activeSessionId !== null && activeSession === null,
+    isFirstMessage: activeSessionId === null || (activeSession !== null && messages.length === 0),
     waggleStatus,
     slashCommandMenuOpen,
     slashSkills: catalog?.skills ?? [],
@@ -280,6 +245,7 @@ export function useChatPanelSections(): ChatPanelSections {
     handleCloseForkSelector: sessionCopy.closeForkSelector,
     handleSelectForkTarget: sessionCopy.selectForkTarget,
     handleCloneToNewSession: () => void sessionCopy.cloneCurrentSessionToNewSession(),
+    handleNavigateSession: (sessionId) => void handleSelectSession(sessionId),
     handleOpenProject,
     handleSelectProjectPath,
     handleSetAuthorizationMode: (authorizationMode) =>

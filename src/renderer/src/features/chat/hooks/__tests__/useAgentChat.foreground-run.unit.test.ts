@@ -5,7 +5,7 @@ import { SessionId, SupportedModelId } from '@shared/types/brand'
 import type { SessionDetail } from '@shared/types/session'
 import { act, renderHook } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import { isReportableSendFailure, MessageNotDelivered } from '@/features/chat/lib'
+import { isReportableSendFailure, MessageNotDelivered } from '../../lib/message-delivery'
 import {
   apiMock,
   createDeferred,

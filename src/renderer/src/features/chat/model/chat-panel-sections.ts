@@ -42,6 +42,7 @@ export interface ChatTranscriptSectionState {
   onRetryText: (content: string) => Promise<void>
   onOpenSettings: () => void
   onDismissError: (errorId: string | null) => void
+  onDismissInterruptedRun: (runId: string, branchId: SessionBranchId) => void
   onBranchFromMessage: (messageId: string) => void
   onForkFromMessage: (messageId: string) => void
   onViewTurnDiff: (messageId: string, filePath?: string) => void
@@ -56,6 +57,7 @@ export interface ChatComposerSectionState {
   readonly projectPath?: string | null
   readonly recentProjects: readonly string[]
   readonly session: SessionDetail | null
+  readonly sessionDetailPending: boolean
   readonly isFirstMessage: boolean
   readonly waggleStatus: WaggleCollaborationStatus
   readonly slashCommandMenuOpen: boolean
@@ -80,6 +82,7 @@ export interface ChatComposerSectionState {
   onCloseForkSelector: () => void
   onSelectForkTarget: (target: SessionForkTarget) => void
   onCloneToNewSession: () => void
+  onNavigateSession: (sessionId: SessionId) => void
   onOpenProject: () => Promise<void>
   onSelectProjectPath: (path: string) => void
   onSetAuthorizationMode: (authorizationMode: AgentAuthorizationMode | null) => Promise<void>

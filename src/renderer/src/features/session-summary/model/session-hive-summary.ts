@@ -10,12 +10,18 @@ export function hiveStateNeedsAttention(state: HiveDelegationState | null | unde
 
 function groupHiveWorkers(workers: Iterable<HiveSession>) {
   const activeWorkers: HiveSession[] = []
+  const reviewWorkers: HiveSession[] = []
   const doneWorkers: HiveSession[] = []
+  const historicalWorkers: HiveSession[] = []
   const archivedWorkers: HiveSession[] = []
   let attention = false
   for (const worker of workers) {
     if (worker.archived) {
       archivedWorkers.push(worker)
+      continue
+    }
+    if (worker.lineage?.historical) {
+      historicalWorkers.push(worker)
       continue
     }
     if (
@@ -25,10 +31,21 @@ function groupHiveWorkers(workers: Iterable<HiveSession>) {
       doneWorkers.push(worker)
       continue
     }
+    if (worker.lineage?.delegationState === 'ready_for_review') {
+      reviewWorkers.push(worker)
+      continue
+    }
     activeWorkers.push(worker)
     attention ||= hiveStateNeedsAttention(worker.lineage?.delegationState)
   }
-  return { activeWorkers, doneWorkers, archivedWorkers, attention }
+  return {
+    activeWorkers,
+    reviewWorkers,
+    doneWorkers,
+    historicalWorkers,
+    archivedWorkers,
+    attention,
+  }
 }
 
 export function hiveSummaryModel(pages: readonly HiveRelationsPage[] | undefined) {
@@ -51,6 +68,7 @@ export function hiveSummaryModel(pages: readonly HiveRelationsPage[] | undefined
       groups.attention ||
       lineage.activeDirectWorkerCount > 0 ||
       groups.activeWorkers.length > 0 ||
+      groups.reviewWorkers.length > 0 ||
       lineage.role === 'worker',
   }
 }

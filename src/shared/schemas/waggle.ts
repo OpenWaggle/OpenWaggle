@@ -15,6 +15,11 @@ import {
   type WaggleHandoffRequest,
   type WaggleInvocation,
 } from '@shared/types/waggle'
+import {
+  sessionInputIdSchema,
+  sessionInputItemTextSchema,
+  sessionInputTextSchema,
+} from './session-input'
 
 function validateWaggleModelBinding(value: string) {
   return isWaggleInheritedModel(value) || isProviderQualifiedWaggleModel(value)
@@ -23,23 +28,23 @@ function validateWaggleModelBinding(value: string) {
 }
 
 export const waggleAgentColorSchema = Schema.Literal(...WAGGLE_AGENT_COLORS)
-export const waggleModelBindingSchema = Schema.String.pipe(
+export const waggleModelBindingSchema = sessionInputIdSchema.pipe(
   Schema.filter(validateWaggleModelBinding),
 )
 
 export const waggleMetadataSchema = Schema.Struct({
   agentIndex: Schema.Number,
-  agentLabel: Schema.String,
+  agentLabel: sessionInputItemTextSchema,
   agentColor: waggleAgentColorSchema,
-  agentModel: Schema.optional(Schema.String),
+  agentModel: Schema.optional(sessionInputIdSchema),
   turnNumber: Schema.Number,
-  sessionId: Schema.optional(Schema.String),
+  sessionId: Schema.optional(sessionInputIdSchema),
 })
 
 export const waggleAgentSlotSchema = Schema.Struct({
-  label: Schema.String,
+  label: sessionInputItemTextSchema,
   model: waggleModelBindingSchema,
-  roleDescription: Schema.String,
+  roleDescription: sessionInputItemTextSchema,
   color: waggleAgentColorSchema,
 })
 
@@ -57,8 +62,8 @@ export const waggleConfigSchema = Schema.Struct({
 })
 
 export const waggleInvocationMetadataSchema = Schema.Struct({
-  presetId: Schema.String,
-  presetName: Schema.String,
+  presetId: sessionInputIdSchema,
+  presetName: sessionInputItemTextSchema,
   source: Schema.Literal('user', 'agent'),
 })
 
@@ -70,7 +75,7 @@ export const waggleInvocationSchema = Schema.Struct({
 export const waggleHandoffRequestSchema = Schema.Struct({
   kind: Schema.Literal('waggle-handoff'),
   ...waggleInvocationSchema.fields,
-  prompt: Schema.String,
+  prompt: sessionInputTextSchema,
 })
 
 export function toWaggleConfig(input: SchemaType<typeof waggleConfigSchema>): WaggleConfig {
@@ -96,9 +101,9 @@ export function toWaggleHandoffRequest(
 }
 
 export const wagglePresetSchema = Schema.Struct({
-  id: Schema.String,
-  name: Schema.String,
-  description: Schema.String,
+  id: sessionInputIdSchema,
+  name: sessionInputItemTextSchema,
+  description: sessionInputTextSchema,
   config: waggleConfigSchema,
   isBuiltIn: Schema.Boolean,
   createdAt: Schema.Number,

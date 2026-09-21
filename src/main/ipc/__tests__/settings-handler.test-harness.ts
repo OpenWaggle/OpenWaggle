@@ -45,6 +45,7 @@ export const setTreeFilterModeMock: TestMock = mocks.setTreeFilterModeMock
 export const getBranchSummarySkipPromptMock: TestMock = mocks.getBranchSummarySkipPromptMock
 
 vi.mock('../typed-ipc', () => ({
+  hostHandle: typedHandleMock,
   typedHandle: typedHandleMock,
 }))
 

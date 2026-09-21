@@ -1,4 +1,6 @@
+import type { ExtensionContributionRegistryView } from '@shared/types/extensions'
 import { fireEvent, render, screen } from '@testing-library/react'
+import { fromPartial } from '@total-typescript/shoehorn'
 import { describe, expect, it, vi } from 'vitest'
 import { useTurnFoldStore } from '../../state/turn-fold-store'
 import { TurnFoldRow } from '../TurnFoldRow'
@@ -12,9 +14,10 @@ vi.mock('@/features/extensions', async (importOriginal) => {
     ExtensionAgentLoopSurface: (props: {
       fallback: React.ReactNode
       input: { surface: string; status: { label: string; tone: string } }
+      registry: unknown
     }) => {
       surfaceInputs.push(props.input)
-      return <>{props.fallback}</>
+      return <>{props.registry ? <span>Custom status</span> : props.fallback}</>
     },
   }
 })
@@ -44,7 +47,7 @@ describe('TurnFoldRow', () => {
   it('renders the fold label and toggles on click', () => {
     const onToggleTurnFold = renderRow()
     const fold = screen.getByTestId('turn-fold-row')
-    expect(fold).toHaveTextContent('Worked for 12s')
+    expect(screen.getByText('Worked for 12s')).toBeVisible()
     expect(fold).toHaveAttribute('aria-expanded', 'false')
 
     fireEvent.click(fold)
@@ -80,7 +83,20 @@ describe('TurnFoldRow', () => {
         interrupted: true,
       },
     })
-    expect(screen.getByTestId('turn-fold-row')).toHaveTextContent('You stopped after 3s')
+    expect(screen.getByText('You stopped after 3s')).toBeVisible()
+  })
+
+  it('keeps the host fold toggle when an extension replaces the status content', () => {
+    const onToggleTurnFold = renderRow({
+      extensions: {
+        registry: fromPartial<ExtensionContributionRegistryView>({}),
+        projectPaths: [],
+      },
+    })
+
+    expect(screen.getByText('Custom status')).toBeVisible()
+    fireEvent.click(screen.getByTestId('turn-fold-row'))
+    expect(onToggleTurnFold).toHaveBeenCalledWith('u1')
   })
 
   it('routes settled and interrupted tones through the extension status surface', () => {

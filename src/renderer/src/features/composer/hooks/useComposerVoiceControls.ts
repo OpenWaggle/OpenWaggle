@@ -6,18 +6,21 @@ import { useComposerStore } from '../state/composer-store'
 import { useVoiceCapture } from './useVoiceCapture'
 
 interface UseComposerVoiceControlsInput {
+  readonly disabled?: boolean
   readonly editorRef: RefObject<LexicalEditor | null>
-  readonly sendComposed: (text: string) => boolean
+  readonly sendComposed: (text: string) => boolean | Promise<boolean>
   readonly submitCurrentDraft: () => void
 }
 
 export function useComposerVoiceControls({
+  disabled,
   editorRef,
   sendComposed,
   submitCurrentDraft,
 }: UseComposerVoiceControlsInput) {
   const setInput = useComposerStore((s) => s.setInput)
   const voice = useVoiceCapture({
+    disabled,
     insertText: (text) => insertTextAtEditorOrStore(editorRef.current, text, setInput),
     sendComposed,
   })
@@ -27,6 +30,7 @@ export function useComposerVoiceControls({
   // "only call from Effects in the same component" contract by being passed as
   // a value (react-doctor/rules-of-hooks).
   function handleVoiceEnter() {
+    if (disabled) return
     if (voice.mode === 'transcribing') return
     if (voice.mode === 'recording') {
       voice.stopCapture()
@@ -36,7 +40,7 @@ export function useComposerVoiceControls({
   }
 
   useHotkey('Enter', handleVoiceEnter, {
-    enabled: voice.isActive,
+    enabled: voice.isActive && !disabled,
     preventDefault: true,
     ignoreInputs: false,
     conflictBehavior: 'allow',

@@ -3,14 +3,13 @@ import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { useMessageQueueStore } from '@/features/chat/state'
 import { useBranchSummaryStore } from '@/features/chat/state/branch-summary-store'
 import { useComposerStore } from '@/features/composer/state'
 import { useProviderStore } from '@/features/providers/state'
 import { usePreferencesStore } from '@/features/settings/state'
 import type { ChatPanelSections } from '../../model'
 import { ChatPanel } from '../ChatPanel'
-import { createSections, makeMessage, seedHydratedSessionComposer } from './ChatPanel.test-utils'
+import { createSections, makeMessage, seedComposerWorkspace } from './ChatPanel.test-utils'
 
 const useChatPanelSectionsMock = vi.hoisted(() => vi.fn<() => ChatPanelSections>())
 
@@ -62,8 +61,8 @@ describe('ChatPanel', () => {
   beforeEach(() => {
     localStorage.clear()
     useBranchSummaryStore.setState(useBranchSummaryStore.getInitialState())
-    seedHydratedSessionComposer()
-    useMessageQueueStore.setState({ queues: new Map() })
+    useComposerStore.setState(useComposerStore.getInitialState())
+    seedComposerWorkspace()
     usePreferencesStore.setState({
       ...usePreferencesStore.getInitialState(),
       settings: {
@@ -163,6 +162,7 @@ describe('ChatPanel', () => {
     const onSendWithWaggle = vi.fn().mockResolvedValue(undefined)
     useBranchSummaryStore.getState().openPrompt({
       sessionId: SessionId('session-1'),
+      projectPath: '/test/project',
       sourceNodeId: SessionNodeId('source-node'),
       restoreSelection: { branchId: null, nodeId: null },
       previousComposerText: 'original prompt',
@@ -185,7 +185,6 @@ describe('ChatPanel', () => {
     expect(onSendWithWaggle).toHaveBeenCalledWith(
       expect.objectContaining({ text: 'focus on decisions' }),
     )
-    expect(useMessageQueueStore.getState().queues.get(SessionId('session-1'))).toBeUndefined()
   })
 
   it('renders the composer input area', () => {

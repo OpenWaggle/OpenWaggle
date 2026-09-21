@@ -5,7 +5,7 @@ order: 2
 section: "Using OpenWaggle"
 ---
 
-The Session Summary keeps the opened session's working context and durable resources close to the transcript. It appears in the top-right after the first message has been sent. Before then, the composer setup row owns the project, environment, and run-target choices.
+The Session Summary keeps the opened session's working context and durable resources close to the transcript. It appears in the top-right after the first message has been sent, or immediately for a Queen or Worker Session so Hive navigation is available before the Worker's first message. Before an ordinary Session's first message, the composer setup row owns the project, environment, and run-target choices.
 
 The Summary is always a floating overlay. It never narrows the transcript or moves the composer. OpenWaggle hides it automatically when the chat area is too narrow or a right sidebar is open. Use the **Session Summary** layout-list button in the header to hide it or explicitly reopen it over the chat at any window size.
 
@@ -33,7 +33,7 @@ Sections appear only when their session has relevant data:
 
 - **Environment** shows working-tree changes, the bound local checkout or worktree, the Git branch, **Commit or push**, and the GitHub pull-request or GitLab merge-request action.
 - **Pull requests** or **Merge requests** appears when this session created additional requests. When the current branch already has one, the section is labelled **Other pull requests** or **Other merge requests** and does not duplicate it.
-- **Hive** shows the opened session's immediate parent and direct Workers, grouped as Active, Done, and Archived. It never mixes in another Hive or a Worker's children.
+- **Hive** shows the opened session's immediate parent and direct Workers, grouped as Active, Review, Done, and Archived. Review holds completed submissions awaiting a parent's decision; Done holds accepted or cancelled work. It never mixes in another Hive or a Worker's children.
 - **Outputs** shows the exact count and a bounded, internally scrolling preview of files, images, sites, commits, change requests, and other explicit results created or updated during the session.
 - **Sources** is always available with its add action, even before the session has a Source. Its plus menu can attach files through the native composer picker or insert an `@` project-file reference. The request is bound to the opened session, so a session switch cannot deliver it to another draft. The section previews attachments, links, tools, web searches, and other explicit inputs used by the session. Choose **Show all** for the complete catalog.
 - **Subscriptions** appears for active MCP event subscriptions owned by this session. A failed refresh stays inside the section and can be retried there.
@@ -83,13 +83,13 @@ OpenWaggle does not yet expose Codex's request-repair or add-to-chat shortcuts b
 
 ## Following a Hive
 
-The Hive section appears only for a Queen or Worker. A Queen sees direct Workers, while a Worker sees its immediate parent. Worker rows show states such as Working, Waiting, Needs attention, Ready for review, Revision requested, Accepted, or Cancelled. Archived direct Workers remain available in their own group.
+The Hive section appears only for a Queen or Worker. A Queen sees direct Workers, while a Worker sees its immediate parent. Worker rows show states such as Working, Waiting, Needs attention, Ready for review, Revision requested, Accepted, or Cancelled. Ready for review means the Worker's run finished and its parent has not yet accepted the result or requested revision; it no longer counts as Active. Archived direct Workers remain available in their own group.
 
-Hive opens automatically when a Worker needs attention, while work is active, or when the opened session is itself a Worker. For a Queen, an automatically opened section collapses shortly after all direct work finishes. A manual expansion choice wins and is remembered for that session. Selecting a row opens that session; keyboard focus returns to its Session Summary button after navigation.
+Hive opens automatically when a Worker needs attention, while work is active or awaiting review, or when the opened session is itself a Worker. For a Queen, an automatically opened section collapses shortly after all direct work has been accepted or cancelled. A manual expansion choice wins and is remembered for that session. Selecting a row opens that session; keyboard focus returns to its Session Summary button after navigation.
 
 With the Session Host catalog available, large Hives load direct Workers in pages. **Load more workers** fetches the next page; the header counts still describe the whole direct Hive. A failed page can be retried without losing the Workers already shown. Host state changes refresh the Hive, and Host resynchronization starts again at the first page.
 
-The Hive section displays orchestration state supplied by the installed backend. Its presence does not enable an unfinished orchestration backend or add spawning and delegation commands to the Summary.
+The Hive section reads the Session Host's live lineage and delegation state. Agents use the native Sessions tool to spawn and coordinate Workers; the Summary provides human-readable status and navigation without duplicating those commands.
 
 ## Browsing Sources and Outputs
 
@@ -156,7 +156,7 @@ Extension authors can publish session Sources and Outputs or add Summary section
 
 ## If a Summary action is missing
 
-- Send the session's first message before looking for the Summary. OpenWaggle does not show an empty shell for a draft session.
+- Send an ordinary session's first message before looking for the Summary. Queen and Worker Sessions can open it earlier for Hive navigation; an unsent ordinary draft does not show an empty shell.
 - Close the right sidebar or use the header's **Session Summary** button to reopen the overlay. At narrow widths, an explicit reopen floats over the transcript instead of resizing it.
 - A pull-request or merge-request action appears only when OpenWaggle can identify a supported GitHub or GitLab remote. The composer reports missing or unauthenticated `gh` or `glab` access for that remote's exact host.
 - Create or check out a branch if the repository is on a detached `HEAD`. A new feature branch also needs at least one commit, or local changes selected for **Commit and push local changes**, before a request can be created.

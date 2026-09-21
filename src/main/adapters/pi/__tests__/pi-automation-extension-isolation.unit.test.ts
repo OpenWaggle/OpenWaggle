@@ -12,6 +12,7 @@ vi.mock('../../../env', async (importOriginal) => {
   }
 })
 
+import { env } from '../../../env'
 import { createPiRuntimeServices } from '../pi-provider-catalog'
 import {
   createOpenWaggleGlobalPiResourceLoaderOptions,
@@ -58,4 +59,24 @@ it('retains trusted append-system-prompt guidance during automation', () => {
     appendSystemPrompt: ['Collaborative browser guidance'],
     noExtensions: true,
   })
+})
+
+it('allows host-owned inline extensions without enabling discovered extensions during live QA', async () => {
+  const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-pi-live-qa-'))
+  const providerId = 'automation-live-qa-window-escape-probe'
+  const inlineFactory: ExtensionFactory = vi.fn()
+  await writeProviderExtension(projectPath, providerId)
+  Object.assign(env, { OPENWAGGLE_AUTOMATION_FIRST_PARTY_EXTENSIONS: '1' })
+
+  try {
+    const services = await createPiRuntimeServices(projectPath, {
+      enabledOpenWaggleExtensionPackagePaths: [projectPath],
+      extensionFactories: [inlineFactory],
+    })
+
+    expect(services.modelRuntime.getProvider(providerId)).toBeUndefined()
+    expect(inlineFactory).toHaveBeenCalledOnce()
+  } finally {
+    Reflect.deleteProperty(env, 'OPENWAGGLE_AUTOMATION_FIRST_PARTY_EXTENSIONS')
+  }
 })

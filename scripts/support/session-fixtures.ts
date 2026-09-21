@@ -2,8 +2,9 @@ import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
+import type { SupportedModelId } from '../../src/shared/types/llm'
 
-const DATABASE_FILE_NAME = 'openwaggle.db'
+const DATABASE_FILE_NAME = path.join('session-host', 'session-host.sqlite')
 const DB_WAIT_RETRY_DELAY_MS = 100
 const DB_WAIT_TIMEOUT_MS = 10_000
 const MAIN_BRANCH_NAME = 'main'
@@ -35,6 +36,7 @@ export interface SeedSessionInput {
   readonly updatedAt: number
   readonly messages: readonly unknown[]
   readonly projectPath?: string | null
+  readonly executionModel?: SupportedModelId
   readonly waggleConfig?: unknown
   readonly archived?: boolean
   /**
@@ -54,23 +56,7 @@ export interface SeedSessionInput {
   readonly interruptedRun?: boolean
 }
 
-export interface SeedSessionResourceInput {
-  readonly id: string
-  readonly kind: 'image' | 'file' | 'link' | 'change-request'
-  readonly title: string
-  readonly mimeType?: string | null
-  readonly url?: string
-  readonly dataBase64?: string
-  readonly nodeId: string | null
-  readonly actor: 'user' | 'agent' | 'tool' | 'extension'
-  readonly activity: 'provided' | 'read' | 'created' | 'updated'
-  readonly updatedAt: number
-}
-
-export interface SeedSessionLineageInput {
-  readonly sessionId: string
-  readonly parentSessionId: string
-  readonly agentDefinitionName?: string | null
+export interface SeedHiveWorkerInput extends SeedSessionInput {
   readonly delegationState:
     | 'working'
     | 'waiting'
@@ -79,9 +65,15 @@ export interface SeedSessionLineageInput {
     | 'revision_requested'
     | 'accepted'
     | 'cancelled'
-  readonly updatedAt: number
+  readonly agentDefinitionName?: string
 }
-function getDatabasePath(userDataDir: string): string {
+
+export interface SeedHiveResult {
+  readonly queenSessionId: string
+  readonly workerSessionIds: readonly string[]
+}
+
+export function getDatabasePath(userDataDir: string): string {
   return path.join(userDataDir, DATABASE_FILE_NAME)
 }
 
@@ -121,6 +113,10 @@ async function waitForDatabase(userDataDir: string): Promise<void> {
 
 function mainBranchId(sessionId: string): string {
   return `${sessionId}:${MAIN_BRANCH_NAME}`
+}
+
+function fixtureWorkspaceId(projectPath: string): string {
+  return `e2e-workspace-${crypto.createHash('sha256').update(projectPath).digest('hex').slice(0, 20)}`
 }
 
 function insertSessionRow(database: DatabaseSync): SessionRowFixture {
@@ -215,8 +211,7 @@ function seedSessionRow(
   database.exec('BEGIN')
 
   try {
-    const projectPath =
-      sessionInput.projectPath === undefined ? defaultProjectPath : sessionInput.projectPath
+    const projectPath = sessionInput.projectPath ?? defaultProjectPath
     const waggleConfigJson =
       sessionInput.waggleConfig === undefined || sessionInput.waggleConfig === null
         ? null
@@ -253,6 +248,48 @@ function seedSessionRow(
         row.branchId,
         row.id,
       )
+
+    const workingPath = sessionInput.environmentMode === 'worktree' && sessionInput.worktreePath
+      ? sessionInput.worktreePath
+      : projectPath
+    const workspaceKind = workingPath === projectPath ? 'local' : 'managed-worktree'
+    const workspaceId = fixtureWorkspaceId(workingPath === projectPath ? projectPath : `${projectPath}\0${workingPath}`)
+    database
+      .prepare(
+        `INSERT OR IGNORE INTO workspace_resources (
+           id, project_path, kind, working_path, lifecycle_state, created_at, updated_at
+         ) VALUES (?, ?, ?, ?, 'ready', ?, ?)`,
+      )
+      .run(workspaceId, projectPath, workspaceKind, workingPath, row.createdAt, sessionInput.updatedAt)
+    database
+      .prepare(
+        `INSERT INTO session_workspace_bindings (session_id, workspace_id, bound_at)
+         VALUES (?, ?, ?)`,
+      )
+      .run(row.id, workspaceId, row.createdAt)
+    database
+      .prepare(
+        `INSERT INTO session_execution_profiles (
+           session_id, profile_json, resolved_agent_snapshot_json,
+           authority_origin_caller_id, authorization_ceiling, created_at, updated_at
+         ) VALUES (?, ?, NULL, 'e2e:local-user', 'ask-for-approval', ?, ?)`,
+      )
+      .run(
+        row.id,
+        JSON.stringify({
+          modelId: sessionInput.executionModel ?? 'openai/gpt-5.4',
+          thinkingLevel: 'medium',
+        }),
+        row.createdAt,
+        sessionInput.updatedAt,
+      )
+    database
+      .prepare(
+        `INSERT INTO session_control_states (
+           session_id, state_revision, active_run_id, queue_state, queue_revision, updated_at
+         ) VALUES (?, 0, NULL, 'running', 0, ?)`,
+      )
+      .run(row.id, sessionInput.updatedAt)
 
     database.prepare('DELETE FROM session_nodes WHERE session_id = ?').run(row.id)
 
@@ -385,6 +422,8 @@ function seedSessionRow(
         sessionInput.updatedAt,
       )
 
+    if (sessionInput.interruptedRun === true) seedInterruptedRun(database, row, sessionInput)
+
     database.exec('COMMIT')
   } catch (error) {
     database.exec('ROLLBACK')
@@ -411,134 +450,126 @@ export async function seedSingleSession(
 export async function seedSessions(
   userDataDir: string,
   sessionInputs: readonly SeedSessionInput[],
-): Promise<readonly string[]> {
+): Promise<void> {
   await waitForDatabase(userDataDir)
   const database = openDatabase(userDataDir)
-  const sessionIds: string[] = []
 
   try {
     for (const sessionInput of sessionInputs) {
       const row = insertSessionRow(database)
-      sessionIds.push(row.id)
       seedSessionRow(database, row, sessionInput, userDataDir)
-      if (sessionInput.interruptedRun === true) seedInterruptedRun(database, row, sessionInput)
     }
-    return sessionIds
   } finally {
     database.close()
   }
 }
 
-export async function seedSessionResources(
+/** Seed durable Hive lineage into the post-cutover Session Host database. */
+export async function seedHive(
   userDataDir: string,
-  sessionId: string,
-  resources: readonly SeedSessionResourceInput[],
-): Promise<void> {
+  queenInput: SeedSessionInput,
+  workerInputs: readonly SeedHiveWorkerInput[],
+): Promise<SeedHiveResult> {
   await waitForDatabase(userDataDir)
   const database = openDatabase(userDataDir)
   try {
-    for (const resource of resources) {
-      const managedRoot = path.join(userDataDir, 'session-resources', sessionId)
-      const managedPath = resource.dataBase64
-        ? path.join(managedRoot, `${resource.id}-${resource.title}`)
-        : null
-      if (managedPath) {
-        fs.mkdirSync(managedRoot, { recursive: true })
-        fs.writeFileSync(managedPath, Buffer.from(resource.dataBase64 ?? '', 'base64'))
+    const queen = insertSessionRow(database)
+    seedSessionRow(database, queen, queenInput, userDataDir)
+    const workers = workerInputs.map((workerInput) => {
+      const row = insertSessionRow(database)
+      seedSessionRow(database, row, workerInput, userDataDir)
+      return { row, input: workerInput }
+    })
+    const parentRunId = `e2e-parent-run-${queen.id}`
+    database.exec('BEGIN')
+    try {
+      database
+        .prepare(
+          `INSERT INTO session_runs (id, session_id, status, intent_json, created_at, updated_at)
+           VALUES (?, ?, 'completed', NULL, ?, ?)`,
+        )
+        .run(parentRunId, queen.id, queen.createdAt, queenInput.updatedAt)
+      for (const { row, input } of workers) {
+        const delegationId = `e2e-delegation-${row.id}`
+        database
+          .prepare(
+            `INSERT INTO session_spawn_lineage (
+               child_session_id, parent_session_id, parent_run_id,
+               hive_root_session_id, depth, created_at
+             ) VALUES (?, ?, ?, ?, 1, ?)`,
+          )
+          .run(row.id, queen.id, parentRunId, queen.id, row.createdAt)
+        database
+          .prepare(
+            `INSERT INTO delegation_contracts (
+               id, parent_session_id, child_session_id, state,
+               current_specification_revision, created_at, updated_at
+             ) VALUES (?, ?, ?, ?, 1, ?, ?)`,
+          )
+          .run(
+            delegationId,
+            queen.id,
+            row.id,
+            input.delegationState,
+            row.createdAt,
+            input.updatedAt,
+          )
+        database
+          .prepare(
+            `INSERT INTO delegation_specifications (
+               delegation_id, revision, specification_json, authored_by, created_at
+             ) VALUES (?, 1, ?, 'e2e:local-user', ?)`,
+          )
+          .run(
+            delegationId,
+            JSON.stringify({ objective: input.title, deliverables: [], acceptanceCriteria: [] }),
+            row.createdAt,
+          )
+        if (input.agentDefinitionName) {
+          database
+            .prepare(
+              `UPDATE session_execution_profiles
+               SET profile_json = ?, updated_at = ?
+               WHERE session_id = ?`,
+            )
+            .run(
+              JSON.stringify({
+                modelId: input.executionModel ?? 'openai/gpt-5.4',
+                thinkingLevel: 'medium',
+                agentDefinitionName: input.agentDefinitionName,
+              }),
+              input.updatedAt,
+              row.id,
+            )
+        }
       }
-      const locator = managedPath ? `session-resource://${resource.id}` : (resource.url ?? null)
-      const isSource = resource.activity === 'provided' || resource.activity === 'read'
-      const isOutput = resource.activity === 'created' || resource.activity === 'updated'
-      database
-        .prepare(
-          `
-            INSERT INTO session_resources (
-              id, session_id, canonical_key, kind, title, mime_type, locator,
-              managed_path, available, is_source, is_output, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-          `,
-        )
-        .run(
-          resource.id,
-          sessionId,
-          resource.url ? `url:${resource.url}` : `fixture:${resource.id}`,
-          resource.kind,
-          resource.title,
-          resource.mimeType ?? null,
-          locator,
-          managedPath,
-          SQLITE_TRUE,
-          isSource ? SQLITE_TRUE : SQLITE_FALSE,
-          isOutput ? SQLITE_TRUE : SQLITE_FALSE,
-          resource.updatedAt,
-          resource.updatedAt,
-        )
-      database
-        .prepare(
-          `
-            INSERT INTO session_resource_occurrences (
-              id, resource_id, node_id, branch_id, actor, activity, label, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-          `,
-        )
-        .run(
-          `occurrence:${resource.id}`,
-          resource.id,
-          resource.nodeId,
-          mainBranchId(sessionId),
-          resource.actor,
-          resource.activity,
-          null,
-          resource.updatedAt,
-        )
+      database.exec('COMMIT')
+    } catch (error) {
+      database.exec('ROLLBACK')
+      throw error
+    }
+    return {
+      queenSessionId: queen.id,
+      workerSessionIds: workers.map(({ row }) => row.id),
     }
   } finally {
     database.close()
   }
 }
 
-/** Seeds real persisted Hive parentage so Electron exercises the production Session projection. */
-export async function seedSessionLineage(
-  userDataDir: string,
-  relations: readonly SeedSessionLineageInput[],
-): Promise<void> {
-  await waitForDatabase(userDataDir)
-  const database = openDatabase(userDataDir)
-  try {
-    for (const relation of relations) {
-      database
-        .prepare(
-          `
-            INSERT INTO session_lineage (
-              session_id,
-              parent_session_id,
-              agent_definition_name,
-              delegation_state,
-              created_at,
-              updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?)
-          `,
-        )
-        .run(
-          relation.sessionId,
-          relation.parentSessionId,
-          relation.agentDefinitionName ?? null,
-          relation.delegationState,
-          relation.updatedAt,
-          relation.updatedAt,
-        )
-    }
-  } finally {
-    database.close()
-  }
-}
-
-/** An interrupted run on the session's main branch, which the sidebar reports as Interrupted. */
+/** Seed the Host Run and branch projection together so exact filters agree with sidebar rows. */
 function seedInterruptedRun(
   database: DatabaseSync,
   row: SessionRowFixture,
   sessionInput: SeedSessionInput,
 ) {
+  const runId = `run-${row.id}`
+  database
+    .prepare(
+      `INSERT INTO session_runs (id, session_id, status, created_at, updated_at)
+       VALUES (?, ?, 'interrupted', ?, ?)`,
+    )
+    .run(runId, row.id, row.createdAt, sessionInput.updatedAt)
   database
     .prepare(
       `
@@ -556,7 +587,7 @@ function seedInterruptedRun(
       `,
     )
     .run(
-      `run-${row.id}`,
+      runId,
       row.id,
       row.branchId,
       'classic',

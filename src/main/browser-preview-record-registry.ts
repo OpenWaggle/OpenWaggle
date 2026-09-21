@@ -194,7 +194,9 @@ export class BrowserPreviewRecordRegistry {
   }
 
   remove(record: BrowserPreviewRecord): void {
-    record.owner.previews.delete(record.previewId)
+    if (record.owner.previews.get(record.previewId) === record) {
+      record.owner.previews.delete(record.previewId)
+    }
     if (record.owner.previews.size === 0 && this.retiringOwners.delete(record.owner)) {
       if (this.owners.get(record.owner.sender.id) === record.owner) {
         this.owners.delete(record.owner.sender.id)

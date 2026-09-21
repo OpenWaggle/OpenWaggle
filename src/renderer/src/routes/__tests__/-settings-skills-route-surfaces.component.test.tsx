@@ -1,7 +1,6 @@
 import { render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { SettingsRouteSurface } from '../-settings-route-surface'
-import { SkillsRouteSurface } from '../-skills-route-surface'
 
 type SettingsTab =
   | 'general'
@@ -15,6 +14,8 @@ type SettingsTab =
   | 'worktrees'
   | 'archived'
   | 'connections'
+  | 'skills'
+  | 'agents'
 
 const routeMocks = vi.hoisted(() => ({ pathname: '/settings/general' }))
 
@@ -30,12 +31,17 @@ vi.mock('@/features/settings/components', () => ({
   ),
 }))
 
-vi.mock('@/features/skills/components', () => ({
-  SkillsPanel: () => <section>Skills panel</section>,
-}))
-
 vi.mock('@/shell', () => ({
-  SETTINGS_TABS: ['general', 'waggle', 'extensions', 'mcp', 'archived', 'connections'] as const,
+  SETTINGS_TABS: [
+    'general',
+    'waggle',
+    'extensions',
+    'skills',
+    'agents',
+    'mcp',
+    'archived',
+    'connections',
+  ] as const,
 }))
 
 describe('settings and skills route surfaces', () => {
@@ -55,8 +61,13 @@ describe('settings and skills route surfaces', () => {
     expect(await screen.findByText('Settings tab: waggle')).toBeInTheDocument()
   })
 
-  it('wraps the skills panel', () => {
-    render(<SkillsRouteSurface />)
-    expect(screen.getByText('Skills panel')).toBeInTheDocument()
+  it('recognizes Skills and Agents as settings tabs', async () => {
+    routeMocks.pathname = '/settings/skills'
+    const view = render(<SettingsRouteSurface tab="general" />)
+    expect(await screen.findByText('Settings tab: skills')).toBeInTheDocument()
+    view.unmount()
+    routeMocks.pathname = '/settings/agents'
+    render(<SettingsRouteSurface tab="general" />)
+    expect(await screen.findByText('Settings tab: agents')).toBeInTheDocument()
   })
 })

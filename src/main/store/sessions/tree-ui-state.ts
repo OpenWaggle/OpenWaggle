@@ -13,31 +13,45 @@ export async function updateSessionTreeUiState(
   await runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
-      const existingRows = yield* loadExistingUiState(sql, sessionId)
-      const existing = existingRows[EMPTY_INDEX]
-      const now = Date.now()
+      yield* sql.withTransaction(
+        Effect.gen(function* () {
+          const existingRows = yield* loadExistingUiState(sql, sessionId)
+          const existing = existingRows[EMPTY_INDEX]
+          const now = Date.now()
 
-      yield* sql`
-        INSERT INTO session_tree_ui_state (
-          session_id,
-          expanded_node_ids_json,
-          expanded_node_ids_touched,
-          branches_sidebar_collapsed,
-          updated_at
-        )
-        VALUES (
-          ${sessionId},
-          ${expandedNodeIdsJson(patch, existing)},
-          ${expandedNodeIdsTouched(patch, existing) ? 1 : 0},
-          ${branchesSidebarCollapsed(patch, existing) ? 1 : 0},
-          ${now}
-        )
-        ON CONFLICT(session_id) DO UPDATE SET
-          expanded_node_ids_json = excluded.expanded_node_ids_json,
-          expanded_node_ids_touched = excluded.expanded_node_ids_touched,
-          branches_sidebar_collapsed = excluded.branches_sidebar_collapsed,
-          updated_at = excluded.updated_at
-      `
+          yield* sql`
+            INSERT INTO session_tree_ui_state (
+              session_id,
+              expanded_node_ids_json,
+              expanded_node_ids_touched,
+              branches_sidebar_collapsed,
+              updated_at
+            )
+            VALUES (
+              ${sessionId},
+              ${expandedNodeIdsJson(patch, existing)},
+              ${expandedNodeIdsTouched(patch, existing) ? 1 : 0},
+              ${branchesSidebarCollapsed(patch, existing) ? 1 : 0},
+              ${now}
+            )
+            ON CONFLICT(session_id) DO UPDATE SET
+              expanded_node_ids_json = excluded.expanded_node_ids_json,
+              expanded_node_ids_touched = excluded.expanded_node_ids_touched,
+              branches_sidebar_collapsed = excluded.branches_sidebar_collapsed,
+              updated_at = excluded.updated_at
+          `
+
+          if (patch.lastVisitedAt !== undefined) {
+            yield* sql`
+              INSERT INTO session_visit_receipts (session_id, last_visited_at, updated_at)
+              VALUES (${sessionId}, ${patch.lastVisitedAt}, ${now})
+              ON CONFLICT(session_id) DO UPDATE SET
+                last_visited_at = excluded.last_visited_at,
+                updated_at = excluded.updated_at
+            `
+          }
+        }),
+      )
     }),
   )
 }
@@ -45,13 +59,16 @@ export async function updateSessionTreeUiState(
 function loadExistingUiState(sql: SqlClient.SqlClient, sessionId: SessionId) {
   return sql<SessionTreeUiStateRow>`
     SELECT
-      session_id,
+      session_tree_ui_state.session_id,
       expanded_node_ids_json,
       expanded_node_ids_touched,
       branches_sidebar_collapsed,
-      updated_at
+      session_visit_receipts.last_visited_at,
+      session_tree_ui_state.updated_at
     FROM session_tree_ui_state
-    WHERE session_id = ${sessionId}
+    LEFT JOIN session_visit_receipts
+      ON session_visit_receipts.session_id = session_tree_ui_state.session_id
+    WHERE session_tree_ui_state.session_id = ${sessionId}
     LIMIT 1
   `
 }

@@ -9,6 +9,7 @@ const { typedHandleMock, invokeExtensionCapabilityMock } = vi.hoisted(() => ({
 }))
 
 vi.mock('../typed-ipc', () => ({
+  hostHandle: typedHandleMock,
   typedHandle: typedHandleMock,
 }))
 

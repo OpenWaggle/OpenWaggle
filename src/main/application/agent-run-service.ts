@@ -35,7 +35,9 @@ export type { AgentRunInput, AgentRunResult } from './agent-run/types'
 const logger = createLogger('agent-run-service')
 
 /** The persisted assistant node with the greatest created order (the run's final assistant turn). */
-function resolveLatestAssistantNodeId(nodes: readonly ProjectedSessionNodeInput[]): string | null {
+export function resolveLatestAssistantNodeId(
+  nodes: readonly ProjectedSessionNodeInput[],
+): string | null {
   let latest: ProjectedSessionNodeInput | null = null
   for (const node of nodes) {
     if (node.role === 'assistant' && (latest === null || node.createdOrder > latest.createdOrder)) {
@@ -70,7 +72,7 @@ export function executeAgentRun(input: AgentRunInput) {
     const sessionProjectionRepo = yield* SessionProjectionRepository
     activeRunIdentity = identity
 
-    const hydratedPayload = yield* hydrateAgentRunPayload(input.payload)
+    const hydratedPayload = yield* hydrateAgentRunPayload(input.payload, input.hydratedAttachments)
     const agentResult = yield* runAgentKernel(
       {
         ...input,
@@ -229,5 +231,12 @@ export function reconcileInterruptedAgentRuns() {
 
       yield* sessionRepo.markActiveRunInterrupted(identity)
     }
+  })
+}
+
+export function dismissInterruptedAgentRun(input: ActiveRunIdentity) {
+  return Effect.gen(function* () {
+    const sessionRepo = yield* SessionRepository
+    yield* sessionRepo.clearActiveRun(input)
   })
 }

@@ -139,8 +139,9 @@ const TestTerminalServiceLayer = Layer.succeed(
         ...(identity === undefined ? {} : { identity }),
       })
     },
-    sendInputNow: (ownerKey, terminalId) => {
-      serviceMocks.sendInputNow(ownerKey, terminalId)
+    sendInputNow: (ownerKey, terminalId, incarnation) => {
+      if (incarnation === undefined) serviceMocks.sendInputNow(ownerKey, terminalId)
+      else serviceMocks.sendInputNow(ownerKey, terminalId, incarnation)
       return Effect.succeed({ status: 'released', releasedBytes: 12 })
     },
     acknowledgeOutput: (ownerKey, terminalId, outputGeneration, endOffset) => {

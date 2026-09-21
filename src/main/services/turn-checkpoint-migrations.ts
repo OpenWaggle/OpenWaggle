@@ -1,3 +1,5 @@
+import { SESSION_HOST_TURN_CHECKPOINT_STARTED_AT_MIGRATION_ID } from './session-host-schema-identity'
+
 /** Turn-checkpoint schema migrations (see store/turn-checkpoints.ts). */
 
 export const TURN_CHECKPOINT_SNAPSHOT_REF_MIGRATION = {
@@ -13,8 +15,8 @@ export const TURN_CHECKPOINT_ANCHOR_NODE_MIGRATION = {
 } as const
 
 export const TURN_CHECKPOINT_STARTED_AT_MIGRATION = {
-  id: 49,
+  id: SESSION_HOST_TURN_CHECKPOINT_STARTED_AT_MIGRATION_ID,
   name: 'turn-checkpoint-started-at',
-  skipIfColumn: { table: 'turn_checkpoints', column: 'started_at' },
+  skipIfColumns: { table: 'turn_checkpoints', columns: ['started_at'] },
   statements: [`ALTER TABLE turn_checkpoints ADD COLUMN started_at INTEGER`],
 } as const

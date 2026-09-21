@@ -1,5 +1,6 @@
 import type { AgentSendPayload, AgentSendReport } from '@shared/types/agent'
 import { SessionId, SupportedModelId } from '@shared/types/brand'
+import type { SessionControlMutationRequest } from '@shared/types/session-control'
 import type { WaggleConfig } from '@shared/types/waggle'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useComposerStore } from '@/features/composer/state'
@@ -26,7 +27,20 @@ const { apiMock } = vi.hoisted(() => ({
         _config: WaggleConfig,
       ): Promise<AgentSendReport> => ({ outcome: 'delivered' }),
     ),
-    setSessionWorktreePlan: vi.fn(async () => undefined),
+    mutateSessionControl: vi.fn(async (request: SessionControlMutationRequest) => ({
+      contractVersion: 2 as const,
+      requestId: request.requestId,
+      idempotencyKey: request.idempotencyKey,
+      replayed: false,
+      outcome: {
+        operation: 'handoff' as const,
+        effect: 'session-handed-off' as const,
+        sessionId: request.command.sessionId,
+        workspaceId: 'workspace-local',
+        workspaceMode: 'local' as const,
+        stateRevision: 2,
+      },
+    })),
   },
 }))
 
@@ -112,17 +126,24 @@ describe('worktree launch recovery', () => {
     await retryFirstSend(SESSION_ID, true)
 
     expect(apiMock.cancelAgent).toHaveBeenCalledWith(SESSION_ID)
-    expect(apiMock.setSessionWorktreePlan).toHaveBeenCalledWith(SESSION_ID, {
-      environmentMode: 'local',
-      baseRef: null,
-      startFromOrigin: false,
-    })
+    expect(apiMock.mutateSessionControl).toHaveBeenCalledWith(
+      expect.objectContaining({
+        contractVersion: 2,
+        command: {
+          operation: 'handoff',
+          sessionId: SESSION_ID,
+          workspace: { mode: 'local' },
+        },
+      }),
+    )
     expect(apiMock.sendMessage).toHaveBeenCalledOnce()
     expect(apiMock.sendMessage.mock.calls[0]?.[1]).toEqual(PAYLOAD)
     expect(apiMock.sendMessage.mock.calls[0]?.[2]).toBe(MODEL)
-    expect(useBackgroundRunStore.getState().firstSendRecoveryBySessionId.has(SESSION_ID)).toBe(
-      false,
-    )
+    expect(useBackgroundRunStore.getState().firstSendRecoveryBySessionId.get(SESSION_ID)).toEqual({
+      payload: PAYLOAD,
+      waggleConfig: null,
+      model: MODEL,
+    })
     expect(useBackgroundRunStore.getState().getWorktreeLaunch(SESSION_ID)).toBeNull()
   })
 

@@ -3,11 +3,13 @@ import { useNavigate } from '@tanstack/react-router'
 import { ArrowLeft } from 'lucide-react'
 import { useChat } from '@/features/chat/hooks'
 import { ProjectActionsSettings } from '@/features/project-actions'
+import { SkillsPanel } from '@/features/skills/components'
 import { cn } from '@/shared/lib/cn'
 import { Button } from '@/shared/ui/Button'
 import type { SettingsTab } from '@/shell/ui-store'
 import { useFullscreen } from '@/shell/useFullscreen'
 import { SettingsNav } from './SettingsNav'
+import { AgentsSettingsSection } from './sections/AgentsSettingsSection'
 import { AppearanceSection } from './sections/AppearanceSection'
 import { ArchivedSection } from './sections/ArchivedSection'
 import { BrowserProfilesSection } from './sections/BrowserProfilesSection'
@@ -15,6 +17,7 @@ import { ConnectionsSection } from './sections/ConnectionsSection'
 import { ExtensionsSection } from './sections/ExtensionsSection'
 import { GeneralSection } from './sections/GeneralSection'
 import { McpSection } from './sections/McpSection'
+import { PermissionsSection } from './sections/PermissionsSection'
 import { ShortcutsSection } from './sections/ShortcutsSection'
 import { WaggleSection } from './sections/WaggleSection'
 import { WorktreesSection } from './sections/WorktreesSection'
@@ -66,7 +69,14 @@ export function SettingsPage({ activeTab }: SettingsPageProps) {
         <SettingsNav activeTab={activeTab} />
 
         {/* Content area — fills available width */}
-        <div className="flex-1 overflow-y-auto px-10 py-8">
+        <div
+          className={cn(
+            'min-w-0 flex-1',
+            activeTab === 'skills' || activeTab === 'agents'
+              ? 'overflow-hidden'
+              : 'overflow-y-auto px-10 py-8',
+          )}
+        >
           <SettingsTabContent
             tab={activeTab}
             activeSessionId={activeSessionId ? String(activeSessionId) : null}
@@ -92,6 +102,9 @@ function SettingsTabContent({
     .with('appearance', () => <AppearanceSection />)
     .with('waggle', () => <WaggleSection />)
     .with('extensions', () => <ExtensionsSection />)
+    .with('skills', () => <SkillsPanel />)
+    .with('agents', () => <AgentsSettingsSection />)
+    .with('permissions', () => <PermissionsSection />)
     .with('mcp', () => <McpSection sessionId={activeSessionId} />)
     .with('worktrees', () => <WorktreesSection />)
     .with('connections', () => <ConnectionsSection />)

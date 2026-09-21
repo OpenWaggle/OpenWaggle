@@ -216,6 +216,7 @@ describe('useChatSendWorkflow extension slash commands', () => {
 
     useBranchSummaryStore.getState().openPrompt({
       sessionId: SESSION_ID,
+      projectPath: null,
       sourceNodeId: SessionNodeId('source-node'),
       restoreSelection: { branchId: null, nodeId: null },
       previousComposerText: '',

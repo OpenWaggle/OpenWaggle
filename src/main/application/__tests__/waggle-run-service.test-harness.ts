@@ -13,6 +13,7 @@ import { SessionProjectionRepository } from '../../ports/session-projection-repo
 import { type PersistSessionSnapshotInput, SessionRepository } from '../../ports/session-repository'
 import { SettingsService } from '../../services/settings-service'
 import { EmptyExtensionRuntimeLayer } from './extension-runtime-test-layer'
+import { emptySessionCatalogMethods } from './session-repository-test-support'
 
 export const runMock: Mock = vi.fn()
 export const persistSnapshotMock: Mock = vi.fn()
@@ -20,6 +21,7 @@ export const getTreeMock: Mock = vi.fn()
 export const recordActiveRunMock: Mock = vi.fn()
 export const clearActiveRunMock: Mock = vi.fn()
 export const clearInterruptedRunsMock: Mock = vi.fn()
+export const setTurnCheckpointAnchorMock: Mock = vi.fn()
 
 export const sessionId = SessionId('session-1')
 export const projectPath = '/tmp/openwaggle-project'
@@ -66,11 +68,9 @@ const assistantMessage: Message = {
 const TestSessionProjectionLayer = Layer.succeed(SessionProjectionRepository, {
   get: () => Effect.succeed(session),
   getOptional: () => Effect.succeed(session),
-  getHiveRelations: () => Effect.succeed({ current: null, parent: null, workers: [] }),
   list: () => Effect.succeed([]),
   listDetails: () => Effect.succeed([]),
   create: () => Effect.succeed(session),
-  getDeletionBlocker: () => Effect.succeed(null),
   delete: () => Effect.void,
   archive: () => Effect.void,
   unarchive: () => Effect.void,
@@ -81,7 +81,10 @@ const TestSessionProjectionLayer = Layer.succeed(SessionProjectionRepository, {
   listTurnCheckpoints: () => Effect.succeed([]),
   getTurnDiff: () => Effect.succeed(null),
   getTurnDiffFiles: () => Effect.succeed([]),
-  setTurnCheckpointAnchor: () => Effect.void,
+  setTurnCheckpointAnchor: (requestedSessionId, turnId, anchorNodeId) =>
+    Effect.sync(() => {
+      setTurnCheckpointAnchorMock(requestedSessionId, turnId, anchorNodeId)
+    }),
   ...PINNED_SESSION_REPOSITORY_STUB,
 })
 
@@ -102,6 +105,7 @@ const TestSettingsLayer = Layer.succeed(SettingsService, {
 })
 
 const TestSessionLayer = Layer.succeed(SessionRepository, {
+  ...emptySessionCatalogMethods,
   list: () => Effect.succeed([]),
   listArchivedBranches: () => Effect.succeed([]),
   getTree: (requestedSessionId) =>
@@ -265,4 +269,5 @@ export function resetWaggleRunServiceMocks() {
   recordActiveRunMock.mockReset()
   clearActiveRunMock.mockReset()
   clearInterruptedRunsMock.mockReset()
+  setTurnCheckpointAnchorMock.mockReset()
 }

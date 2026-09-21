@@ -1,5 +1,5 @@
 import type { AgentSendPayload } from '@shared/types/agent'
-import { useMessageQueueStore } from '@/features/chat/state'
+import { useChatStore } from '@/features/chat/state'
 import { useBackgroundRunStore } from '@/features/chat/state/background-run-store'
 import { useBranchSummaryStore } from '@/features/chat/state/branch-summary-store'
 import { Composer } from '@/features/composer/components'
@@ -70,7 +70,7 @@ export function SessionComposerArea({
               activeSessionId: section.activeSessionId,
               activeDraftContextKey: useComposerStore.getState().activeDraftContextKey,
               savedDraftContextKeys: Object.keys(useComposerStore.getState().scopedDrafts),
-              disposedSessions: useMessageQueueStore.getState().disposedSessions,
+              disposedSessions: useChatStore.getState().missingSessionIds,
               hasWorktreeLaunch: (sessionId) =>
                 useBackgroundRunStore.getState().getWorktreeLaunch(sessionId) !== null,
             }),

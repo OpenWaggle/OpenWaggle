@@ -58,7 +58,7 @@ describe('createSendHandlers', () => {
 
       await handleSend(payload)
 
-      expect(deps.createSession).toHaveBeenCalledWith('/test/project')
+      expect(deps.createSession).toHaveBeenCalledWith('/test/project', undefined)
       expect(deps.sendMessageToSession).toHaveBeenCalledWith('new-session', payload, null)
       expect(deps.sendMessage).not.toHaveBeenCalled()
     })
@@ -145,7 +145,7 @@ describe('createSendHandlers', () => {
 
       await handleSendWaggle(payload, config)
 
-      expect(deps.createSession).toHaveBeenCalledWith('/test/project')
+      expect(deps.createSession).toHaveBeenCalledWith('/test/project', undefined)
       expect(deps.sendMessageToSession).toHaveBeenCalledWith('new-session', payload, config)
       expect(deps.startWaggleCollaboration).toHaveBeenCalledWith('new-session', config)
       expect(deps.sendWaggleMessage).not.toHaveBeenCalled()

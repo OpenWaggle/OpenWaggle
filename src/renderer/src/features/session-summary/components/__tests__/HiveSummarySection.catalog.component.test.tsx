@@ -32,6 +32,29 @@ beforeEach(() => {
   listHiveSessionCatalogPage.mockReset()
 })
 
+it('separates historical Workers from active Runs while keeping navigation', async () => {
+  const historical = {
+    ...worker,
+    title: 'Previous MCP Worker',
+    lineage: { ...worker.lineage, historical: true },
+  } as const
+  listHiveSessionCatalogPage.mockResolvedValueOnce({
+    context: [
+      { ...queen, lineage: { ...queen.lineage, directWorkerCount: 1, activeDirectWorkerCount: 0 } },
+    ],
+    workers: [historical],
+  })
+  const navigate = vi.fn()
+  renderWithQueryClient(<HiveSummarySection sessionId="queen" onNavigateSession={navigate} />)
+
+  expect(await screen.findByText('0 active · 1 total')).toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: 'Expand Hive' }))
+  expect(screen.getByRole('group', { name: 'Historical Hive sessions' })).toBeInTheDocument()
+  expect(screen.getByText('Last: Working')).toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: /Previous MCP Worker/ }))
+  expect(navigate).toHaveBeenCalledWith('worker')
+})
+
 it('keeps parent navigation available when the Host omits the focused Worker parent ID', async () => {
   listHiveSessionCatalogPage.mockResolvedValueOnce({ context: [worker, queen], workers: [] })
   const navigate = vi.fn()

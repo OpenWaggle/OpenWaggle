@@ -1,5 +1,7 @@
 import { match } from '@diegogbrisa/ts-match'
+import type { SessionId } from '@shared/types/brand'
 import type { GitCommitSuccess } from '@shared/types/git'
+import type { SessionSummary } from '@shared/types/session'
 import { useLayoutEffect, useState } from 'react'
 import { useChat } from '@/features/chat/hooks'
 import { useDiffRouteNavigation } from '@/features/diff-panel/hooks'
@@ -13,6 +15,7 @@ import {
 } from '@/features/session-summary'
 import { useProject, useSessions } from '@/features/sessions/hooks'
 import { useTerminalCommands } from '@/features/terminal'
+import { cn } from '@/shared/lib/cn'
 import { useUIStore } from '@/shell/ui-store'
 import {
   CommitButton,
@@ -23,6 +26,20 @@ import {
   TerminalButton,
 } from './HeaderControls'
 import { FeedbackButton } from './HeaderFeedbackButton'
+
+function sessionIdentity(sessions: readonly SessionSummary[], activeSessionId: SessionId | null) {
+  const lineage = sessions.find((session) => session.id === activeSessionId)?.lineage
+  if (!lineage) return undefined
+  if (lineage.role === 'independent') {
+    return lineage.agentDefinitionName
+      ? { agentDefinitionName: lineage.agentDefinitionName }
+      : undefined
+  }
+  return {
+    role: lineage.role,
+    ...(lineage.agentDefinitionName ? { agentDefinitionName: lineage.agentDefinitionName } : {}),
+  }
+}
 
 function directCommitToast(result: GitCommitSuccess): {
   readonly message: string
@@ -52,51 +69,22 @@ function useSessionSummaryToggleFocus(
   }, [activeSessionId, clearToggleFocus, panelAvailable, targetSessionId])
 }
 
-export function Header() {
-  const { activeSession } = useChat()
-  const { activeSessionTree } = useSessions()
-  const { projectPath } = useProject()
-
-  const sidebarOpen = useUIStore((s) => s.sidebarOpen)
-
-  const toggleSidebar = useUIStore((s) => s.toggleSidebar)
+function useHeaderGit(activeSessionId: SessionId | null) {
   const bumpDiffRefreshKey = useUIStore((s) => s.bumpDiffRefreshKey)
   const showToast = useUIStore((s) => s.showToast)
-  const openFeedbackModal = useUIStore((s) => s.openFeedbackModal)
-
-  const {
-    status: gitStatus,
-    error: gitError,
-    isLoading: gitLoading,
-    isCommitting: gitCommitting,
-    refreshStatus: refreshGitStatus,
-    refreshBranches: refreshGitBranches,
-    commit: commitGit,
-    workingPath,
-    repositoryPath,
-  } = useGit()
-
+  const git = useGit()
   const [commitOpen, setCommitOpen] = useState(false)
-  const { panelOpen: terminalOpen, toggleTerminal } = useTerminalCommands()
-  const { diffOpen, isChatRoute, sessionTreeOpen, toggleDiff, toggleSessionTree } =
-    useDiffRouteNavigation()
-  const activeSessionId = activeSession ? String(activeSession.id) : null
-  const sessionSummaryPanel = useSessionSummaryUIStore((state) =>
-    activeSessionId ? state.panels[activeSessionId] : undefined,
-  )
-  const toggleSessionSummary = useSessionSummaryUIStore((state) => state.togglePanel)
-  useSessionSummaryToggleFocus(activeSessionId, sessionSummaryPanel)
 
   function handleRefreshGit() {
     // Status follows the session's working tree; the branch list is repository-level.
-    void refreshGitStatus(workingPath)
-    void refreshGitBranches(repositoryPath)
+    void git.refreshStatus(git.workingPath)
+    void git.refreshBranches(git.repositoryPath)
     bumpDiffRefreshKey()
   }
 
   async function handleCommitGit(message: string, amend: boolean, paths: string[]) {
     // Commit into the session tree the user reviewed, never its hidden primary checkout.
-    if (!workingPath) {
+    if (!git.workingPath) {
       return {
         ok: false as const,
         code: 'not-git-repo' as const,
@@ -104,7 +92,14 @@ export function Header() {
       }
     }
     return match
-      .promise(commitGit(workingPath, { sessionId: activeSession?.id, message, amend, paths }))
+      .promise(
+        git.commit(git.workingPath, {
+          sessionId: activeSessionId ?? undefined,
+          message,
+          amend,
+          paths,
+        }),
+      )
       .with({ ok: true }, (result) => {
         bumpDiffRefreshKey()
         const toast = directCommitToast(result)
@@ -115,16 +110,51 @@ export function Header() {
       .exhaustive()
   }
 
+  return { git, commitOpen, setCommitOpen, handleRefreshGit, handleCommitGit }
+}
+
+export function Header() {
+  const { activeSession, activeSessionId } = useChat()
+  const { activeSessionTree, archivedSessions, sessions } = useSessions()
+  const { projectPath } = useProject()
+
+  const sidebarOpen = useUIStore((s) => s.sidebarOpen)
+
+  const toggleSidebar = useUIStore((s) => s.toggleSidebar)
+  const openFeedbackModal = useUIStore((s) => s.openFeedbackModal)
+
+  const { git, commitOpen, setCommitOpen, handleRefreshGit, handleCommitGit } =
+    useHeaderGit(activeSessionId)
+  const { panelOpen: terminalOpen, toggleTerminal } = useTerminalCommands()
+  const { diffOpen, isChatRoute, sessionTreeOpen, toggleDiff, toggleSessionTree } =
+    useDiffRouteNavigation()
+  const activeSessionKey = activeSession ? String(activeSession.id) : null
+  const sessionSummaryPanel = useSessionSummaryUIStore((state) =>
+    activeSessionKey ? state.panels[activeSessionKey] : undefined,
+  )
+  const toggleSessionSummary = useSessionSummaryUIStore((state) => state.togglePanel)
+  useSessionSummaryToggleFocus(activeSessionKey, sessionSummaryPanel)
+
   const title = activeSessionTree?.session.title ?? activeSession?.title ?? 'New session'
+  const currentSessionIdentity = sessionIdentity(
+    [...(activeSessionTree ? [activeSessionTree.session] : []), ...sessions, ...archivedSessions],
+    activeSessionId,
+  )
 
   return (
     <>
-      <header className="@container/header drag-region flex h-12 shrink-0 items-center gap-3 overflow-hidden border-b border-border bg-bg px-5">
+      <header
+        className={cn(
+          '@container/header drag-region flex shrink-0 items-center gap-3 overflow-hidden border-b border-border bg-bg px-5',
+          currentSessionIdentity ? 'h-14' : 'h-12',
+        )}
+      >
         <HeaderLeft
-          activeBranchName={gitStatus?.branch ?? null}
+          activeBranchName={git.status?.branch ?? null}
           projectPath={projectPath}
           sidebarOpen={sidebarOpen}
           title={title}
+          sessionIdentity={currentSessionIdentity}
           onToggleSidebar={toggleSidebar}
         />
 
@@ -135,17 +165,17 @@ export function Header() {
           <ProjectActionsControl projectPath={projectPath} />
           <TerminalButton open={terminalOpen} projectPath={projectPath} onToggle={toggleTerminal} />
           <CommitButton
-            isCommitting={gitCommitting}
+            isCommitting={git.isCommitting}
             projectPath={projectPath}
             onOpen={() => setCommitOpen(true)}
           />
           <FeedbackButton onOpen={openFeedbackModal} />
-          {activeSessionId && isChatRoute && sessionSummaryPanel?.available ? (
+          {activeSessionKey && isChatRoute && sessionSummaryPanel?.available ? (
             <SessionSummaryButton
               open={isSessionSummaryPanelVisible(sessionSummaryPanel)}
-              panelId={`session-summary-${activeSessionId}`}
+              panelId={`session-summary-${activeSessionKey}`}
               suppressed={sessionSummaryPanel.rightSidebarOpen}
-              onToggle={() => toggleSessionSummary(activeSessionId)}
+              onToggle={() => toggleSessionSummary(activeSessionKey)}
             />
           ) : null}
           <div className="w-px h-5 bg-border" />
@@ -156,12 +186,12 @@ export function Header() {
             onToggle={toggleSessionTree}
           />
           <DiffToggleButton
-            error={gitError}
+            error={git.error}
             isChatRoute={isChatRoute}
-            isLoading={gitLoading}
+            isLoading={git.isLoading}
             open={diffOpen}
             projectPath={projectPath}
-            status={gitStatus}
+            status={git.status}
             onToggle={toggleDiff}
           />
         </div>
@@ -170,10 +200,10 @@ export function Header() {
       {commitOpen && (
         <CommitDialog
           projectPath={projectPath}
-          status={gitStatus}
-          statusError={gitError}
-          isRefreshing={gitLoading}
-          isCommitting={gitCommitting}
+          status={git.status}
+          statusError={git.error}
+          isRefreshing={git.isLoading}
+          isCommitting={git.isCommitting}
           onRefresh={handleRefreshGit}
           onCommit={handleCommitGit}
           onClose={() => setCommitOpen(false)}

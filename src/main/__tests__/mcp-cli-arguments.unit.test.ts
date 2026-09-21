@@ -3,6 +3,7 @@ import {
   addDefinition,
   parseMcpCliArguments,
   requireServeScope,
+  serveAuthorizationCeiling,
   target,
   validateMcpCliOptions,
 } from '../mcp-cli-arguments'
@@ -22,6 +23,45 @@ describe('MCP CLI arguments', () => {
     const arguments_ = parseMcpCliArguments(['--stdio', '--origin-session', 'session-1'])
 
     expect(() => validateMcpCliOptions('serve', arguments_)).not.toThrow()
+  })
+
+  it('defaults hosted callers to Ask and requires an explicit reviewed YOLO ceiling', () => {
+    expect(serveAuthorizationCeiling(parseMcpCliArguments(['--stdio']))).toBe('ask-for-approval')
+    expect(
+      serveAuthorizationCeiling(
+        parseMcpCliArguments(['--stdio', '--authorization-ceiling', 'yolo']),
+      ),
+    ).toBe('yolo')
+    expect(() =>
+      validateMcpCliOptions(
+        'serve',
+        parseMcpCliArguments(['--stdio', '--authorization-ceiling', 'unrestricted']),
+      ),
+    ).toThrow('Unsupported MCP authorization ceiling "unrestricted"')
+  })
+
+  it('enforces management positional and passthrough contracts before adapters run', () => {
+    expect(() =>
+      validateMcpCliOptions('remove', parseMcpCliArguments(['server', 'accidental-extra'])),
+    ).toThrow('received unexpected positional arguments')
+    expect(() =>
+      validateMcpCliOptions('list', parseMcpCliArguments(['--', 'accidental-command'])),
+    ).toThrow('does not accept arguments after --')
+    expect(() =>
+      validateMcpCliOptions(
+        'add',
+        parseMcpCliArguments(['server', '--', 'server-command', '--safe-argument']),
+      ),
+    ).not.toThrow()
+    expect(() => validateMcpCliOptions('unknown', parseMcpCliArguments([]))).toThrow(
+      'Unsupported MCP command',
+    )
+  })
+
+  it('rejects values assigned to MCP boolean flags', () => {
+    expect(() => validateMcpCliOptions('import', parseMcpCliArguments(['--apply=false']))).toThrow(
+      '--apply do not accept values',
+    )
   })
 
   it('requires an explicit workspace or session scope for hosted server mode', () => {
@@ -44,7 +84,7 @@ describe('MCP CLI arguments', () => {
     )
   })
 
-  it.each(['workspace', 'session', 'origin-session', 'grant'])(
+  it.each(['workspace', 'session', 'origin-session', 'grant', 'authorization-ceiling'])(
     'rejects serve-only --%s on management commands',
     (name) => {
       const arguments_ = parseMcpCliArguments([`--${name}`, 'value'])

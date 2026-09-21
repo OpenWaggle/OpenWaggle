@@ -225,6 +225,18 @@ interface BuildChatRowsParams {
 }
 
 /** ADR 0034 fold inputs derived from the run's settled/active state. */
+function appendInterruptedRunRow(rows: ChatRow[], params: BuildChatRowsParams) {
+  if (!params.interruptedRun || params.isLoading) return
+  rows.push({
+    type: 'interrupted-run',
+    runId: params.interruptedRun.runId,
+    branchId: params.interruptedRun.branchId,
+    runMode: params.interruptedRun.runMode,
+    model: params.interruptedRun.model,
+    interruptedAt: params.interruptedRun.interruptedAt,
+  })
+}
+
 function toTurnFoldInput(params: BuildChatRowsParams): TurnFoldInput {
   return {
     isLoading: params.isLoading,
@@ -298,5 +310,6 @@ export function buildChatRows(params: BuildChatRowsParams): ChatRow[] {
   )
   appendInteractionEventRows(rows, params.interactionEvents ?? [])
   if (params.compactionStatus?.type !== 'compacting') appendStatusRows(rows, params)
+  appendInterruptedRunRow(rows, params)
   return applyTurnFolds(groupWaggleTurnRows(rows), toTurnFoldInput(params))
 }

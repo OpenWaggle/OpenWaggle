@@ -3,7 +3,6 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { act } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Button } from '@/shared/ui/Button'
-import { useMessageQueueStore } from '../../state/message-queue-store'
 
 const apiMock = vi.hoisted(() => ({
   showConfirm: vi.fn(),
@@ -57,7 +56,6 @@ describe('InlineVisualization', () => {
     apiMock.registerInlineVisualizationFrame.mockReset()
     apiMock.unregisterInlineVisualizationFrame.mockReset()
     apiMock.saveInlineVisualizationDownload.mockReset()
-    useMessageQueueStore.setState({ queues: new Map() })
   })
   it('loads the source in the isolated visualization protocol frame', async () => {
     const sessionId = SessionId('session-visualization-1')

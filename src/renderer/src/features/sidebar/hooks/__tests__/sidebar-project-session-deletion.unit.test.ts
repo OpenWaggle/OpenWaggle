@@ -1,5 +1,6 @@
 import { SessionId } from '@shared/types/brand'
-import type { SessionDelegationState, SessionSummary } from '@shared/types/session'
+import type { SessionSummary } from '@shared/types/session'
+import type { DelegationState } from '@shared/types/session-collaboration'
 import { describe, expect, it, vi } from 'vitest'
 import { deleteProjectSessionsChildrenFirst } from '../sidebar-project-session-deletion'
 
@@ -7,7 +8,7 @@ function session(
   id: string,
   parentSessionId: SessionId | null,
   directWorkerCount: number,
-  delegationState: SessionDelegationState = 'accepted',
+  delegationState: DelegationState = 'accepted',
 ): SessionSummary {
   return {
     id: SessionId(id),
@@ -17,11 +18,10 @@ function session(
     updatedAt: 1,
     lineage: {
       role: parentSessionId ? 'worker' : directWorkerCount > 0 ? 'queen' : 'independent',
-      parentSessionId,
+      ...(parentSessionId ? { parentSessionId } : {}),
       directWorkerCount,
       activeDirectWorkerCount: directWorkerCount,
-      agentDefinitionName: parentSessionId ? 'worker' : null,
-      delegationState: parentSessionId ? delegationState : null,
+      ...(parentSessionId ? { agentDefinitionName: 'worker', delegationState } : {}),
     },
   }
 }
@@ -74,6 +74,21 @@ describe('project Session deletion order', () => {
       expect(deleteSession).not.toHaveBeenCalled()
     },
   )
+
+  it('allows leaf-first removal of a historical Worker last recorded as working', async () => {
+    const queen = session('queen', null, 1)
+    const worker = session('worker', queen.id, 0, 'working')
+    const lineage = worker.lineage
+    if (!lineage) throw new Error('Worker fixture is missing lineage.')
+    const deleteSession = vi.fn(async (_sessionId: SessionId) => undefined)
+
+    await deleteProjectSessionsChildrenFirst(
+      [queen, { ...worker, lineage: { ...lineage, historical: true } }],
+      deleteSession,
+    )
+
+    expect(deleteSession.mock.calls.map(([id]) => id)).toEqual([worker.id, queen.id])
+  })
 
   it('rejects missing project Workers before deleting a sibling', async () => {
     const deleteSession = vi.fn(async () => undefined)

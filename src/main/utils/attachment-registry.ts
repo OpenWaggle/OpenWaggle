@@ -5,6 +5,8 @@ import { Schema, safeDecodeUnknown } from '@shared/schema'
 import { preparedAttachmentSchema } from '@shared/schemas/validation'
 import type { PreparedAttachment } from '@shared/types/agent'
 import { isEnoent } from '@shared/utils/node-error'
+import { toPublicPreparedAttachment } from './attachment-preparation'
+import { browserAttachmentMetadataJson } from './browser-attachment-metadata'
 
 interface PreparedAttachmentCapability {
   readonly attachment: PreparedAttachment
@@ -38,7 +40,7 @@ function normalizeCapabilityPath(filePath: string) {
 }
 
 function compactAttachment(attachment: PreparedAttachment): PreparedAttachment {
-  return { ...attachment, extractedText: '' }
+  return { ...toPublicPreparedAttachment(attachment), extractedText: '' }
 }
 
 function sameOptionalValue(left: string | undefined, right: string | undefined) {
@@ -64,16 +66,7 @@ function sameBrowserPreviewMetadata(
   left: PreparedAttachment['browserPreview'],
   right: PreparedAttachment['browserPreview'],
 ) {
-  if (left === undefined || right === undefined) return left === right
-  return (
-    left.pageUrl === right.pageUrl &&
-    left.pageTitle === right.pageTitle &&
-    left.selector === right.selector &&
-    left.tagName === right.tagName &&
-    left.role === right.role &&
-    left.elementText === right.elementText &&
-    left.comment === right.comment
-  )
+  return browserAttachmentMetadataJson(left) === browserAttachmentMetadataJson(right)
 }
 
 async function loadRegistry(filePath: string) {
@@ -155,15 +148,15 @@ export async function rememberPreparedAttachment(
 ): Promise<void> {
   await ensureRegistryLoaded()
   const normalizedRealPath = normalizeCapabilityPath(await fs.realpath(realPath))
+  const publicAttachment = toPublicPreparedAttachment(attachment)
   preparedAttachments.set(attachment.id, {
-    attachment: { ...attachment, path: normalizedRealPath },
+    attachment: { ...publicAttachment, path: normalizedRealPath },
     realPath: normalizedRealPath,
     savedAt: Date.now(),
   })
   await persistRegistry()
 }
 
-/** Removes an exact prepared-attachment capability before its file is discarded. */
 export async function forgetPreparedAttachment(attachment: PreparedAttachment): Promise<boolean> {
   await ensureRegistryLoaded()
   const capability = preparedAttachments.get(attachment.id)
@@ -183,6 +176,13 @@ export async function forgetPreparedAttachment(attachment: PreparedAttachment): 
     preparedAttachments.set(attachment.id, capability)
     throw cause
   }
+}
+
+export async function findPreparedAttachmentCapability(id: string): Promise<PreparedAttachment> {
+  await ensureRegistryLoaded()
+  const capability = preparedAttachments.get(id)
+  if (!capability) throw new Error(`Attachment was not prepared by this app: ${id}`)
+  return capability.attachment
 }
 
 export async function resolvePreparedAttachmentCapability(

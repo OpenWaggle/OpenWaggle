@@ -1,4 +1,5 @@
 import type { GitBranchListResult } from '@shared/types/git'
+import { subscribeGitStatusInvalidation } from '../../services/git-status-cache'
 import { listGitBranches } from './branch-list'
 import { joinPendingGitRead, type PendingGitRead } from './pending-read'
 
@@ -21,3 +22,5 @@ export function invalidateGitBranchListReads(): void {
   // Linked worktrees share branch refs even when their filesystem paths are unrelated.
   pendingLists.clear()
 }
+
+subscribeGitStatusInvalidation(invalidateGitBranchListReads)

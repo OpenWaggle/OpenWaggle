@@ -1,4 +1,5 @@
 import type { SessionId } from '@shared/types/brand'
+import type { SessionSummary } from '@shared/types/session'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import {
   SessionMessageResourcesProvider,
@@ -9,6 +10,7 @@ import {
   useSessionResourceBackfill,
   useSessionResourceOwnerActivation,
 } from '@/features/session-summary'
+import { useSessionStore } from '@/features/sessions/state'
 import { PanelErrorBoundary } from '@/shared/ui/PanelErrorBoundary'
 import { useSessionFloatingPreviewStatus } from '@/shell'
 import { useChatPanelSections } from '../hooks/use-chat-panel-controller'
@@ -107,6 +109,13 @@ function summaryNeedsTransientOverlay(hasSpace: boolean, floatingPreviewVisible:
   return !hasSpace || floatingPreviewVisible
 }
 
+function matchesHiveSession(candidate: SessionSummary | null | undefined, sessionId: string) {
+  return (
+    candidate?.id === sessionId &&
+    (candidate.lineage?.role === 'queen' || candidate.lineage?.role === 'worker')
+  )
+}
+
 export function ChatPanelContent({
   sections,
   onOpenSessionTree,
@@ -120,6 +129,15 @@ export function ChatPanelContent({
   const activeSessionId = sections.transcript.activeSessionId
     ? String(sections.transcript.activeSessionId)
     : null
+  const hiveAvailable = useSessionStore((state) => {
+    if (!activeSessionId) return false
+    return [
+      state.activeSessionTree?.session,
+      ...state.hiveSessions,
+      ...state.sessions,
+      ...state.archivedSessions,
+    ].some((candidate) => matchesHiveSession(candidate, activeSessionId))
+  })
   useSessionResourceOwnerActivation(sections.transcript.activeSessionId)
   const messageCount = Math.max(
     sections.transcript.messages.length,
@@ -154,6 +172,7 @@ export function ChatPanelContent({
               activeBranchId: sections.transcript.activeBranchId ?? null,
               activePathNodeIds,
               messageCount: summaryMessageCount,
+              hiveAvailable,
               autoHidden: summaryNeedsTransientOverlay(
                 summarySpace.hasSpace,
                 floatingPreviewVisible,

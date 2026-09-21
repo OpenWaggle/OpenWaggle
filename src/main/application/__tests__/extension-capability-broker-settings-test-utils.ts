@@ -23,6 +23,10 @@ function mergeGeneralSettings(current: Settings, partial: Partial<Settings>) {
       current.skillTogglesByProject,
       partial.skillTogglesByProject,
     ),
+    agentDefinitionTogglesByProject: nextSetting(
+      current.agentDefinitionTogglesByProject,
+      partial.agentDefinitionTogglesByProject,
+    ),
     projectDisplayNames: nextSetting(current.projectDisplayNames, partial.projectDisplayNames),
     defaultAuthorizationMode: nextSetting(
       current.defaultAuthorizationMode,
@@ -67,6 +71,22 @@ function mergeGeneralSettings(current: Settings, partial: Partial<Settings>) {
   }
 }
 
+function mergeSessionHostSettings(current: Settings, partial: Partial<Settings>) {
+  return {
+    sessionHostParentConcurrencyLimit:
+      partial.sessionHostParentConcurrencyLimit ?? current.sessionHostParentConcurrencyLimit,
+    sessionHostParentConcurrencyLimitsByProject:
+      partial.sessionHostParentConcurrencyLimitsByProject ??
+      current.sessionHostParentConcurrencyLimitsByProject,
+    sessionHostRunCeiling: partial.sessionHostRunCeiling ?? current.sessionHostRunCeiling,
+    sessionHostIdleGracePeriodMs:
+      partial.sessionHostIdleGracePeriodMs ?? current.sessionHostIdleGracePeriodMs,
+    multiAgentEnabled: partial.multiAgentEnabled ?? current.multiAgentEnabled,
+    multiAgentEnabledByProject:
+      partial.multiAgentEnabledByProject ?? current.multiAgentEnabledByProject,
+  }
+}
+
 function mergeAppearanceSettings(current: Settings, partial: Partial<Settings>) {
   return {
     diffSyntaxTheme: nextSetting(current.diffSyntaxTheme, partial.diffSyntaxTheme),
@@ -86,6 +106,7 @@ function mergeAppearanceSettings(current: Settings, partial: Partial<Settings>) 
 function mergeSettings(current: Settings, partial: Partial<Settings>): Settings {
   return {
     ...mergeGeneralSettings(current, partial),
+    ...mergeSessionHostSettings(current, partial),
     ...mergeAppearanceSettings(current, partial),
   }
 }
@@ -98,12 +119,17 @@ function cloneSettings(settings: Settings): Settings {
     recentProjects: [...settings.recentProjects],
     browserProfiles: settings.browserProfiles.map((profile) => ({ ...profile })),
     skillTogglesByProject: { ...settings.skillTogglesByProject },
+    agentDefinitionTogglesByProject: { ...settings.agentDefinitionTogglesByProject },
     projectDisplayNames: { ...settings.projectDisplayNames },
     shortcutRules: settings.shortcutRules.map((rule) => ({
       ...rule,
       shortcut: { ...rule.shortcut },
     })),
     shortcutBindings: { ...settings.shortcutBindings },
+    sessionHostParentConcurrencyLimitsByProject: {
+      ...settings.sessionHostParentConcurrencyLimitsByProject,
+    },
+    multiAgentEnabledByProject: { ...settings.multiAgentEnabledByProject },
     syntaxThemeSelections: { ...settings.syntaxThemeSelections },
     appearancePreferences: {
       ...settings.appearancePreferences,

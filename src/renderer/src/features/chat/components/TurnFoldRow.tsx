@@ -15,56 +15,37 @@ interface TurnFoldRowProps {
   readonly onToggleTurnFold: (turnKey: string) => void
 }
 
-/** The core fold row shown when no extension contributes the status surface. */
-function CoreFoldRow({
-  row,
-  expanded,
-  onToggleTurnFold,
-}: {
-  readonly row: TurnFoldChatRow
-  readonly expanded: boolean
-  readonly onToggleTurnFold: (turnKey: string) => void
-}) {
+/** The quiet row standing in for one settled turn's work (ADR 0034). */
+export function TurnFoldRow({ row, sessionId, extensions, onToggleTurnFold }: TurnFoldRowProps) {
+  const expandedTurnKeys = useTurnFoldStore(selectExpandedTurnKeys(sessionId))
+  const expanded = expandedTurnKeys.has(row.turnKey)
   const Chevron = expanded ? ChevronDown : ChevronRight
+
   return (
-    <div className="border-b border-border pb-2 pt-1">
+    <div className="flex items-center gap-1 border-b border-border pb-2 pt-1 text-sm text-text-tertiary">
+      <ExtensionAgentLoopSurface
+        fallback={<span className="px-1 leading-relaxed tabular-nums">{row.label}</span>}
+        input={{
+          surface: 'status',
+          status: {
+            label: row.label,
+            tone: row.interrupted ? 'warning' : 'success',
+          },
+        }}
+        projectPaths={extensions.projectPaths}
+        registry={extensions.registry}
+      />
       <Button
         variant="unstyled"
         type="button"
         onClick={() => onToggleTurnFold(row.turnKey)}
         aria-expanded={expanded}
+        aria-label={expanded ? 'Collapse turn details' : 'Expand turn details'}
         data-testid="turn-fold-row"
-        className="flex cursor-pointer select-none items-center gap-1 rounded-md px-1 text-sm leading-relaxed text-text-tertiary tabular-nums transition-colors hover:text-text-primary"
+        className="flex cursor-pointer items-center rounded-md p-1 transition-colors hover:text-text-primary"
       >
-        <span>{row.label}</span>
         <Chevron className="size-3.5" />
       </Button>
     </div>
-  )
-}
-
-/**
- * The quiet row standing in for one settled turn's work (ADR 0034).
- * Clicking re-expands the turn's full activity above the terminal message.
- * Routes through the extension status surface: extensions may replace the
- * settled/interrupted fold presentation with their own.
- */
-export function TurnFoldRow({ row, sessionId, extensions, onToggleTurnFold }: TurnFoldRowProps) {
-  const expandedTurnKeys = useTurnFoldStore(selectExpandedTurnKeys(sessionId))
-  const expanded = expandedTurnKeys.has(row.turnKey)
-
-  return (
-    <ExtensionAgentLoopSurface
-      fallback={<CoreFoldRow row={row} expanded={expanded} onToggleTurnFold={onToggleTurnFold} />}
-      input={{
-        surface: 'status',
-        status: {
-          label: row.label,
-          tone: row.interrupted ? 'warning' : 'success',
-        },
-      }}
-      projectPaths={extensions.projectPaths}
-      registry={extensions.registry}
-    />
   )
 }

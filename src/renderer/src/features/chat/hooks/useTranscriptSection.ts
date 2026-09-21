@@ -1,4 +1,4 @@
-import type { SessionId } from '@shared/types/brand'
+import type { SessionBranchId, SessionId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
 import type { ExtensionContributionRegistryView } from '@shared/types/extensions'
 import type { SupportedModelId } from '@shared/types/llm'
@@ -79,6 +79,7 @@ export interface TranscriptSectionParams {
   readonly handleSelectProjectPath: (path: string) => void
   readonly handleSendText: (content: string) => Promise<void>
   readonly openSettings: () => void
+  readonly handleDismissInterruptedRun: (runId: string, branchId: SessionBranchId) => void
   readonly handleBranchFromMessage: (messageId: string) => void
   readonly handleForkFromMessage: (messageId: string) => void
   readonly handleViewTurnDiff: (messageId: string, filePath?: string) => void
@@ -112,6 +113,7 @@ export function useTranscriptSection(params: TranscriptSectionParams): ChatTrans
     handleSelectProjectPath,
     handleSendText,
     openSettings,
+    handleDismissInterruptedRun,
     handleBranchFromMessage,
     handleForkFromMessage,
     userDidSend,
@@ -214,6 +216,7 @@ export function useTranscriptSection(params: TranscriptSectionParams): ChatTrans
     onRetryText: handleSendText,
     onOpenSettings: openSettings,
     onDismissError: setDismissedError,
+    onDismissInterruptedRun: handleDismissInterruptedRun,
     onBranchFromMessage: handleBranchFromMessage,
     onForkFromMessage: handleForkFromMessage,
     onViewTurnDiff: params.handleViewTurnDiff,

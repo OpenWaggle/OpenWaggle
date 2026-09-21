@@ -5,6 +5,7 @@ import {
 } from '@openwaggle/pi-waggle/protocol'
 import { parseJsonUnknown } from '@shared/schema'
 import type { ProjectedSessionNodeInput } from '../../../ports/session-repository'
+import { OPENWAGGLE_RUN_BOUNDARY_CUSTOM_TYPE } from '../run-attribution-extension'
 import { projectionForPiEntry } from './entry-projections'
 
 interface PiSessionSnapshotSource {
@@ -91,11 +92,53 @@ function mergeMetadataJsonWithWaggle(rawMetadataJson: string, waggle: unknown) {
   return JSON.stringify({ ...metadata, waggle })
 }
 
+function mergeMetadataJsonWithRun(rawMetadataJson: string, runId: string | null) {
+  if (!runId) return rawMetadataJson
+  const parsed = parseJsonUnknown(rawMetadataJson)
+  const metadata = isRecord(parsed) ? parsed : {}
+  const existingOpenWaggle = isRecord(metadata.openWaggle) ? metadata.openWaggle : {}
+  return JSON.stringify({
+    ...metadata,
+    openWaggle: { ...existingOpenWaggle, runId },
+  })
+}
+
+function boundaryRunId(entry: SessionEntry) {
+  if (entry.type !== 'custom' || entry.customType !== OPENWAGGLE_RUN_BOUNDARY_CUSTOM_TYPE) {
+    return null
+  }
+  return isRecord(entry.data) && typeof entry.data.runId === 'string' ? entry.data.runId : null
+}
+
+function runIdForEntry(input: {
+  readonly entryId: string
+  readonly entryById: ReadonlyMap<string, SessionEntry>
+  readonly runIdByEntryId: Map<string, string | null>
+}): string | null {
+  if (input.runIdByEntryId.has(input.entryId)) {
+    return input.runIdByEntryId.get(input.entryId) ?? null
+  }
+  const entry = input.entryById.get(input.entryId)
+  if (!entry) return null
+  const runId =
+    boundaryRunId(entry) ??
+    (entry.parentId
+      ? runIdForEntry({
+          entryId: entry.parentId,
+          entryById: input.entryById,
+          runIdByEntryId: input.runIdByEntryId,
+        })
+      : null)
+  input.runIdByEntryId.set(input.entryId, runId)
+  return runId
+}
+
 function projectPiEntry(input: {
   readonly entry: SessionEntry
   readonly entryById: ReadonlyMap<string, SessionEntry>
   readonly createdOrder: number
   readonly pathDepth: number
+  readonly runId: string | null
 }): ProjectedSessionNodeInput {
   const timestampMs = parsePiEntryTimestamp(input.entry.timestamp)
   const projection = projectionForPiEntry(input.entry)
@@ -111,9 +154,12 @@ function projectPiEntry(input: {
     role: projection.role,
     timestampMs,
     contentJson: projection.contentJson,
-    metadataJson: waggleMetadata
-      ? mergeMetadataJsonWithWaggle(projection.metadataJson, waggleMetadata)
-      : projection.metadataJson,
+    metadataJson: mergeMetadataJsonWithRun(
+      waggleMetadata
+        ? mergeMetadataJsonWithWaggle(projection.metadataJson, waggleMetadata)
+        : projection.metadataJson,
+      input.runId,
+    ),
     pathDepth: input.pathDepth,
     createdOrder: input.createdOrder,
   }
@@ -149,6 +195,7 @@ export function projectPiSessionSnapshot(session: PiSessionSnapshotSource) {
   const entries = session.sessionManager.getEntries()
   const entryById = new Map(entries.map((entry) => [entry.id, entry]))
   const depthById = new Map<string, number>()
+  const runIdByEntryId = new Map<string, string | null>()
 
   return {
     activeNodeId: session.sessionManager.getLeafId(),
@@ -158,6 +205,7 @@ export function projectPiSessionSnapshot(session: PiSessionSnapshotSource) {
         entryById,
         createdOrder: index,
         pathDepth: getPiEntryDepth({ entryId: entry.id, entryById, depthById }),
+        runId: runIdForEntry({ entryId: entry.id, entryById, runIdByEntryId }),
       }),
     ),
   }

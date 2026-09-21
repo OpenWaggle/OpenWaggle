@@ -5,31 +5,41 @@ export {
 export { persistSessionSnapshot } from './session-details/persist-snapshot'
 export { createSession } from './session-details/session-creation'
 export {
-  establishSessionLineage,
-  hasDirectSessionWorkers,
-  setSessionDelegationState,
-} from './session-details/session-lineage'
+  abandonSessionDeletion,
+  commitSessionDeletion,
+  getSessionDeletion,
+  listPendingSessionDeletions,
+  markSessionDeletionExternalCleanupComplete,
+  markSessionPiFileCleanupComplete,
+  prepareSessionCheckpointRefCleanup,
+  prepareSessionDeletion,
+  prepareSessionPiFileCleanup,
+} from './session-details/session-deletion-journal'
+export type { BoundWorkspaceResource } from './session-details/session-mutations'
 export {
   archiveSession,
   clearSessionWorktree,
   deleteSession,
-  getSessionDeletionBlocker,
+  getBoundWorkspaceResource,
   listSessionWorktreeRefs,
   setSessionAuthorizationMode,
-  setSessionWorktree,
   setSessionWorktreePlan,
   unarchiveSession,
   updateSessionRuntime,
   updateSessionTitle,
 } from './session-details/session-mutations'
 export {
+  getSessionAuthorizationBoundary,
+  getSessionCallerAuthorizationBoundary,
   getSessionDetail,
-  getSessionHiveRelations,
   listArchivedSessions,
   listSessionDetails,
   listSessionSummaries,
-  listSessionWorkspaceRoots,
 } from './session-details/session-queries'
+export {
+  setSessionWorktree,
+  validateSessionWorktreeBirthAuthority,
+} from './session-details/session-worktree-authority'
 export type {
   ClaimedSessionWorktreeSetup,
   PendingSessionWorktreeSetup,

@@ -198,6 +198,7 @@ export function executeMcpGateway(
               descriptor: {
                 serverInstanceId: catalogTool.server.instanceId,
                 serverLabel: catalogTool.server.name,
+                serverConfigHash: catalogTool.server.configHash,
                 toolHandle: catalogTool.handle,
                 toolName: catalogTool.tool.name,
                 toolTitle: catalogTool.tool.title ?? catalogTool.tool.name,

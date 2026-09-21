@@ -59,6 +59,37 @@ describe('terminal input and output handlers', () => {
     expect(serviceMocks.write).toHaveBeenCalledWith('session-1', 'main', command, identity, intent)
   })
 
+  it('terminal:write preserves the native record incarnation through decoding and acknowledgment', async () => {
+    registerTerminalHandlers()
+    const handler = getInvokeHandler('terminal:write')
+    const identity = { generation: 'renderer-a', sequence: 0, incarnation: 'native-record-a' }
+
+    await expect(
+      handler?.(fakeEvent, 'session-1', 'main', 'echo hello', identity),
+    ).resolves.toEqual({
+      status: 'queued',
+      acceptedBytes: 10,
+      identity,
+    })
+    expect(serviceMocks.write).toHaveBeenCalledWith('session-1', 'main', 'echo hello', identity)
+  })
+
+  it.each(['', 'x'.repeat(TERMINAL.INPUT_GENERATION_MAX_LENGTH + 1), null, 1])(
+    'terminal:write rejects invalid incarnation %# before invoking the service',
+    async (incarnation) => {
+      registerTerminalHandlers()
+      const handler = getInvokeHandler('terminal:write')
+      await expect(
+        handler?.(fakeEvent, 'session-1', 'main', 'echo hello', {
+          generation: 'renderer-a',
+          sequence: 0,
+          incarnation,
+        }),
+      ).rejects.toThrow()
+      expect(serviceMocks.write).not.toHaveBeenCalled()
+    },
+  )
+
   it('terminal:write requires identity for semantic input and rejects invalid intents', async () => {
     registerTerminalHandlers()
     const handler = getInvokeHandler('terminal:write')
@@ -121,6 +152,19 @@ describe('terminal input and output handlers', () => {
       releasedBytes: 12,
     })
     expect(serviceMocks.sendInputNow).toHaveBeenCalledWith('session-1', 'main')
+  })
+
+  it('preserves and validates the Send now incarnation before dispatch', async () => {
+    registerTerminalHandlers()
+    const handler = getInvokeHandler('terminal:send-input-now')
+    await handler?.(fakeEvent, 'session-1', 'main', 'native-record-a')
+    expect(serviceMocks.sendInputNow).toHaveBeenCalledExactlyOnceWith(
+      'session-1',
+      'main',
+      'native-record-a',
+    )
+    await expect(handler?.(fakeEvent, 'session-1', 'main', '')).rejects.toThrow()
+    expect(serviceMocks.sendInputNow).toHaveBeenCalledOnce()
   })
 
   it('acknowledges an exact output generation and offset', async () => {

@@ -25,9 +25,7 @@ export type {
   ExtensionContributionRegistryView,
   ExtensionContributionTargetView,
   ExtensionListContributionsInput,
-  ExtensionSessionSummaryActionView,
-  ExtensionSessionSummaryRowView,
-  ExtensionSessionSummaryView,
+  ExtensionRuntimeModuleAccessInput,
 } from './extension-contribution-registry'
 export type {
   ExtensionLifecycleMutationTarget,

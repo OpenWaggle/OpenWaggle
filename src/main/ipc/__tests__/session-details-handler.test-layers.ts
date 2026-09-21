@@ -1,11 +1,10 @@
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import { Layer } from 'effect'
 import * as Effect from 'effect/Effect'
-import { withDeletionFence } from '../../adapters/sqlite-session-projection-repository'
 import { EmptyExtensionRuntimeLayer } from '../../application/__tests__/extension-runtime-test-layer'
+import { emptySessionCatalogMethods } from '../../application/__tests__/session-repository-test-support'
 import { NoopTerminalServiceLayer } from '../../application/__tests__/terminal-service-test-layer'
 import { SessionProjectionRepositoryError } from '../../errors'
-import { PINNED_SESSION_REPOSITORY_STUB } from '../../ports/__tests__/session-projection-pin-stub'
 import { AgentKernelService } from '../../ports/agent-kernel-service'
 import { InlineVisualizationService } from '../../ports/inline-visualization-service'
 import { ProviderService } from '../../ports/provider-service'
@@ -20,8 +19,6 @@ import {
   deleteSessionMock,
   deleteVisualizationSessionMock,
   forkRuntimeSessionMock,
-  getDeletionBlockerMock,
-  getHiveRelationsMock,
   getSessionDetailMock,
   listArchivedSessionsMock,
   listPinnedSessionsMock,
@@ -31,33 +28,16 @@ import {
   pinSessionMock,
   rollbackVisualizationSessionDeletionMock,
   setAuthorizationModeMock,
-  stageVisualizationSessionDeletionMock,
   typedHandleMock,
   unarchiveSessionMock,
   unpinSessionMock,
   updateSessionTitleMock,
 } from './session-details-handler.test-harness'
-import * as SessionResourceTest from './session-details-handler-resource-test-layer'
 import { SESSION_DETAILS_HANDLER_SOURCE_TREE } from './session-details-handler-tree-fixture'
 
 const TestSessionProjectionRepoLayer = Layer.succeed(
   SessionProjectionRepository,
   SessionProjectionRepository.of({
-    ...PINNED_SESSION_REPOSITORY_STUB,
-    withDeletionFence,
-    getHiveRelations: (id) =>
-      Effect.tryPromise(async () => getHiveRelationsMock(id)).pipe(
-        Effect.mapError(
-          (cause) => new SessionProjectionRepositoryError({ operation: 'getHiveRelations', cause }),
-        ),
-      ),
-    getDeletionBlocker: (id) =>
-      Effect.tryPromise(async () => getDeletionBlockerMock(id)).pipe(
-        Effect.mapError(
-          (cause) =>
-            new SessionProjectionRepositoryError({ operation: 'getDeletionBlocker', cause }),
-        ),
-      ),
     get: (id) =>
       Effect.tryPromise({
         try: async () => getSessionDetailMock(id),
@@ -182,12 +162,10 @@ const TestAgentKernelLayer = Layer.succeed(
 )
 
 const TestSessionRepoLayer = Layer.succeed(SessionRepository, {
+  ...emptySessionCatalogMethods,
   list: () => Effect.succeed([]),
   listArchivedBranches: () => Effect.succeed([]),
   getTree: () => Effect.succeed(SESSION_DETAILS_HANDLER_SOURCE_TREE),
-  listResourceProjectionPage: () =>
-    Effect.succeed({ nodes: [], throughCreatedOrder: null, hasMore: false }),
-  getResourceProjectionNodes: () => Effect.succeed([]),
   getWorkspace: () => Effect.succeed(null),
   persistSnapshot: (input) =>
     Effect.sync(() => {
@@ -225,19 +203,15 @@ const TestInlineVisualizationLayer = Layer.succeed(
     prepareSession: () => Effect.succeed('/visualizations/session'),
     deleteSession: (sessionId) => Effect.sync(() => deleteVisualizationSessionMock(sessionId)),
     stageSessionDeletion: (sessionId) =>
-      Effect.tryPromise(async () => {
-        await stageVisualizationSessionDeletionMock(sessionId)
-        return {
-          commit: Effect.sync(() => deleteVisualizationSessionMock(sessionId)),
-          rollback: Effect.sync(() => rollbackVisualizationSessionDeletionMock(sessionId)),
-        }
+      Effect.succeed({
+        commit: Effect.sync(() => deleteVisualizationSessionMock(sessionId)),
+        rollback: Effect.sync(() => rollbackVisualizationSessionDeletionMock(sessionId)),
       }),
     readSource: () => Effect.succeed({ status: 'unavailable', reason: 'missing' }),
   }),
 )
 
 const TestRuntimeLayer = Layer.mergeAll(
-  SessionResourceTest.TestSessionResourceLayer,
   TestSessionProjectionRepoLayer,
   TestAgentKernelLayer,
   TestSessionRepoLayer,

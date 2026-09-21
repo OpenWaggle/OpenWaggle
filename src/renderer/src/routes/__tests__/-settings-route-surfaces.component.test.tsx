@@ -1,7 +1,6 @@
 import { render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { SettingsRouteSurface } from '../-settings-route-surface'
-import { SkillsRouteSurface } from '../-skills-route-surface'
 
 interface RouterState {
   readonly location: { readonly pathname: string }
@@ -20,12 +19,17 @@ vi.mock('@/features/settings/components', () => ({
   ),
 }))
 
-vi.mock('@/features/skills/components', () => ({
-  SkillsPanel: () => <section>Skills panel</section>,
-}))
-
 vi.mock('@/shell', () => ({
-  SETTINGS_TABS: ['general', 'waggle', 'extensions', 'mcp', 'archived', 'connections'] as const,
+  SETTINGS_TABS: [
+    'general',
+    'waggle',
+    'extensions',
+    'skills',
+    'agents',
+    'mcp',
+    'archived',
+    'connections',
+  ] as const,
 }))
 
 describe('settings and skills route surfaces', () => {
@@ -49,9 +53,9 @@ describe('settings and skills route surfaces', () => {
     expect(await screen.findByText('Settings tab: waggle')).toBeInTheDocument()
   })
 
-  it('wraps the skills panel', () => {
-    render(<SkillsRouteSurface />)
-
-    expect(screen.getByText('Skills panel')).toBeInTheDocument()
+  it('shows the selected resource settings tab', async () => {
+    routeMocks.pathname = '/settings/skills'
+    render(<SettingsRouteSurface tab="general" />)
+    expect(await screen.findByText('Settings tab: skills')).toBeInTheDocument()
   })
 })

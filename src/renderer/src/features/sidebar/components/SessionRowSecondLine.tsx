@@ -1,7 +1,9 @@
 import type { SessionSummary } from '@shared/types/session'
+import { ChessQueen, Pickaxe } from 'lucide-react'
 import { cn } from '@/shared/lib/cn'
 import { formatCompactRelativeTime } from '@/shared/lib/format'
 import { PINNED_SHORTCUT_LIMIT } from '../lib/pinned-sessions'
+import { sessionLineagePresentation } from '../lib/session-lineage'
 import { SessionProvenanceIndicators } from './SessionProvenanceIndicators'
 import { SessionGitBadge } from './SessionRowGitBadge'
 
@@ -52,6 +54,12 @@ export function SessionRowSecondLine({
             {stateLabel}
           </span>
         )}
+        {session.lineage?.role === 'queen' || session.lineage?.role === 'worker' ? (
+          <>
+            {stateLabel === '' ? null : <Separator />}
+            <SessionLineageIndicator session={session} />
+          </>
+        ) : null}
         {phaseLabel === null ? null : (
           <>
             <Separator />
@@ -88,6 +96,28 @@ export function SessionRowSecondLine({
           {formatCompactRelativeTime(session.updatedAt)}
         </span>
       </span>
+    </span>
+  )
+}
+
+/** Hive lineage is row metadata, so it sits below the title with the other indicators. */
+export function SessionLineageIndicator({ session }: { readonly session: SessionSummary }) {
+  const lineage = sessionLineagePresentation(session)
+  if (lineage === null) return null
+  const LineageIcon = lineage.role === 'queen' ? ChessQueen : Pickaxe
+
+  return (
+    <span
+      data-qa="sidebar-session-lineage"
+      role="img"
+      aria-label={lineage.title}
+      title={lineage.title}
+      className="pointer-events-none inline-flex shrink-0 items-center gap-0.5 text-text-tertiary"
+    >
+      <LineageIcon className="size-3.5" />
+      {lineage.workerCount > 0 ? (
+        <span className="text-xs tabular-nums">{lineage.workerCount}</span>
+      ) : null}
     </span>
   )
 }

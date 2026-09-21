@@ -175,9 +175,23 @@ function buildFoldPlan(
     foldedWaggleByIndex: new Map(),
   }
 
+  let activeStartIndex: number | null = null
+  if (input.isLoading) {
+    for (let index = rows.length - 1; index >= 0; index -= 1) {
+      if (rows[index] && isUserMessageRow(rows[index])) {
+        activeStartIndex = index
+        break
+      }
+    }
+  }
+
   for (const [position, unit] of units.entries()) {
     if (!unit.hasWork) continue
     const isLastUnit = position === units.length - 1
+    const isActiveUnit =
+      input.isLoading &&
+      (activeStartIndex === null ? isLastUnit : unit.foldRowPlacementIndex >= activeStartIndex)
+    if (isActiveUnit) continue
     const expanded = input.expandedTurnKeys.has(unit.turnKey)
     const durationMs =
       input.turnDurationsByAnchorMessageId.get(unit.terminalMessageId) ??
@@ -212,7 +226,6 @@ function buildFoldPlan(
  * Waggle agent turns fold as colored units inside their own section.
  */
 export function applyTurnFolds(rows: readonly ChatRow[], input: TurnFoldInput): ChatRow[] {
-  if (input.isLoading) return [...rows]
   // A reset phase timer (0 on session load) is "unknown", not a zero-second run.
   const normalized: TurnFoldInput = {
     ...input,

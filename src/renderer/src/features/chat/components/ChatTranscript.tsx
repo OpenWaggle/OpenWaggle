@@ -66,6 +66,7 @@ function buildRowContext({
   activeSessionId,
   extensionRegistry,
   extensionProjectPaths,
+  onDismissInterruptedRun,
   onBranchFromMessage,
   onForkFromMessage,
   onViewTurnDiff,
@@ -80,6 +81,7 @@ function buildRowContext({
   | 'activeSessionId'
   | 'extensionRegistry'
   | 'extensionProjectPaths'
+  | 'onDismissInterruptedRun'
   | 'onBranchFromMessage'
   | 'onForkFromMessage'
   | 'onViewTurnDiff'
@@ -96,6 +98,7 @@ function buildRowContext({
     extensions,
     turnsByAnchorNodeId,
     actions: {
+      onDismissInterruptedRun,
       onBranchFromMessage,
       onForkFromMessage,
       onViewTurnDiff,

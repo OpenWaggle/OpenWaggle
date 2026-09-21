@@ -13,6 +13,7 @@ import {
   sessionServiceSettingsLayer,
 } from './agent-session-service.test-utils'
 import { EmptyExtensionRuntimeLayer } from './extension-runtime-test-layer'
+import { emptySessionCatalogMethods } from './session-repository-test-support'
 
 const persistSnapshotMock = vi.fn()
 const compactMock = vi.fn()
@@ -23,11 +24,9 @@ const session = sessionServiceSession
 const TestSessionProjectionLayer = Layer.succeed(SessionProjectionRepository, {
   get: () => Effect.succeed(session),
   getOptional: () => Effect.succeed(session),
-  getHiveRelations: () => Effect.succeed({ current: null, parent: null, workers: [] }),
   list: () => Effect.succeed([]),
   listDetails: () => Effect.succeed([]),
   create: () => Effect.succeed(session),
-  getDeletionBlocker: () => Effect.succeed(null),
   delete: () => Effect.void,
   archive: () => Effect.void,
   unarchive: () => Effect.void,
@@ -43,6 +42,7 @@ const TestSessionProjectionLayer = Layer.succeed(SessionProjectionRepository, {
 })
 
 const TestSessionLayer = Layer.succeed(SessionRepository, {
+  ...emptySessionCatalogMethods,
   list: () => Effect.succeed([]),
   listArchivedBranches: () => Effect.succeed([]),
   getTree: () => Effect.succeed(null),

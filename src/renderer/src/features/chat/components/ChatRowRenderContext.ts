@@ -1,3 +1,4 @@
+import type { SessionBranchId } from '@shared/types/brand'
 import type { ExtensionContributionRegistryView } from '@shared/types/extensions'
 import type { TurnCheckpointSummary } from '@shared/types/turn-diff'
 import type { MessageBubbleRuntime } from './MessageBubble'
@@ -11,6 +12,7 @@ export interface ChatRowRenderContext {
   /** Turn checkpoints keyed by their anchored terminal assistant message id (ADR 0034). */
   readonly turnsByAnchorNodeId: ReadonlyMap<string, TurnCheckpointSummary>
   readonly actions: {
+    readonly onDismissInterruptedRun?: (runId: string, branchId: SessionBranchId) => void
     readonly onBranchFromMessage?: (messageId: string) => void
     readonly onForkFromMessage?: (messageId: string) => void
     readonly onViewTurnDiff?: (messageId: string) => void

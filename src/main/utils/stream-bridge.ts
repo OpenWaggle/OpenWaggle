@@ -14,9 +14,12 @@ import {
 export {
   clearStreamBuffer,
   getStreamBuffer,
+  listStreamBufferSnapshots,
   listStreamBuffers,
+  replaceStreamBufferSnapshots,
   setWorktreeLaunchSnapshot,
   startStreamBuffer,
+  startStreamBufferFromAgentStart,
 } from './stream-buffer'
 
 export function emitRunCompleted(sessionId: SessionId) {
@@ -62,12 +65,16 @@ export function clearWorktreeLaunch(sessionId: SessionId) {
   broadcastToWindows('agent:worktree-launch', { sessionId, launch: null })
 }
 
-export function emitTransportEvent(sessionId: SessionId, event: AgentTransportEvent) {
-  applyEventToStreamBuffer(sessionId, event)
+export function emitTransportEvent(
+  sessionId: SessionId,
+  event: AgentTransportEvent,
+  options: { readonly projectStreamBuffer?: boolean } = {},
+) {
+  if (options.projectStreamBuffer !== false) applyEventToStreamBuffer(sessionId, event)
 
   maybeEmitPhase({
     sessionId,
-    phase: updatePhaseFromTransportEvent(sessionId, event, Date.now()),
+    phase: updatePhaseFromTransportEvent(sessionId, event, event.timestamp),
   })
 
   broadcastToWindows('agent:event', { sessionId, event })

@@ -244,6 +244,7 @@ async function createTransport(input: {
     baseUrl: url,
     allowedDomains: networkDomains,
     allowInsecurePrivateNetwork,
+    maxResponseBytes: MCP_CONFIG.MAX_RESULT_BYTES,
   })
   const options = {
     requestInit: { headers },

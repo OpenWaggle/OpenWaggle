@@ -8,6 +8,7 @@ import {
   resetWaggleRunServiceMocks,
   selectedModel,
   sessionId,
+  setTurnCheckpointAnchorMock,
   TestLayer,
   waggleConfig,
 } from './waggle-run-service.test-harness'
@@ -62,6 +63,11 @@ describe('Waggle resource mapping', () => {
       resourceNodeIds: { 'persisted-assistant-message': 'persisted-assistant-node' },
       resourceBranchIds: { 'persisted-assistant-message': 'session-1:main' },
     })
+    expect(setTurnCheckpointAnchorMock).toHaveBeenCalledWith(
+      sessionId,
+      'run-waggle-resource-mapping',
+      'assistant-node-1',
+    )
   })
 
   it('keeps a persisted Waggle run successful when the provenance refresh fails', async () => {

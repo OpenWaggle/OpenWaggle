@@ -4,6 +4,11 @@ import { isAllowedTerminalEnvironmentName } from '@shared/utils/terminal-environ
 
 const textEncoder = new TextEncoder()
 
+export const terminalInputIncarnationSchema = Schema.String.pipe(
+  Schema.minLength(1),
+  Schema.maxLength(TERMINAL.INPUT_GENERATION_MAX_LENGTH),
+)
+
 const terminalEnvironmentValueSchema = Schema.String.pipe(
   Schema.maxLength(TERMINAL.ENV_VALUE_MAX_LENGTH),
   Schema.filter((value) => !value.includes('\0'), {

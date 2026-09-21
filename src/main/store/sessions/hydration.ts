@@ -22,6 +22,7 @@ import type {
   SessionActiveRunRow,
   SessionBranchRow,
   SessionBranchStateRow,
+  SessionLatestRunRow,
   SessionSummaryRow,
   SessionTreeUiStateRow,
 } from './types'
@@ -80,17 +81,25 @@ export function attachSessionNavigationState(
   branchRows: readonly SessionBranchRow[],
   uiStateRows: readonly SessionTreeUiStateRow[],
   activeRunRows: readonly SessionActiveRunRow[],
+  latestRunRows: readonly SessionLatestRunRow[],
 ) {
   const branchesBySessionId = visibleBranchesBySessionId(branchRows, activeRunRows)
   const uiStateBySessionId = new Map(
     uiStateRows.map((row) => [row.session_id, hydrateUiState(row)]),
   )
+  const latestRunBySessionId = new Map(latestRunRows.map((row) => [row.session_id, row]))
 
-  return sessions.map((session) => ({
-    ...session,
-    branches: branchesBySessionId.get(String(session.id)) ?? [fallbackMainBranch(session)],
-    treeUiState: uiStateBySessionId.get(String(session.id)) ?? null,
-  }))
+  return sessions.map((session) => {
+    const latestRun = latestRunBySessionId.get(String(session.id))
+    return {
+      ...session,
+      branches: branchesBySessionId.get(String(session.id)) ?? [fallbackMainBranch(session)],
+      treeUiState: uiStateBySessionId.get(String(session.id)) ?? null,
+      ...(latestRun
+        ? { latestRun: { status: latestRun.status, updatedAt: latestRun.updated_at } }
+        : {}),
+    }
+  })
 }
 
 export function hydrateBranch(
@@ -128,6 +137,7 @@ export function hydrateUiState(row: SessionTreeUiStateRow) {
     expandedNodeIds: parseExpandedNodeIds(row.expanded_node_ids_json),
     expandedNodeIdsTouched: row.expanded_node_ids_touched === 1,
     branchesSidebarCollapsed: row.branches_sidebar_collapsed === 1,
+    ...(row.last_visited_at === null ? {} : { lastVisitedAt: row.last_visited_at }),
     updatedAt: row.updated_at,
   }
 }
@@ -146,18 +156,6 @@ export function hydrateSessionSummary(row: SessionSummaryRow): SessionSummary {
       : null,
     environmentMode: row.environment_mode === 'worktree' ? 'worktree' : 'local',
     worktreePath: row.worktree_path,
-    ...(row.lineage_present === 1
-      ? {
-          lineage: {
-            role: row.lineage_role,
-            parentSessionId: row.parent_session_id ? SessionId(row.parent_session_id) : null,
-            directWorkerCount: row.direct_worker_count,
-            activeDirectWorkerCount: row.active_direct_worker_count,
-            agentDefinitionName: row.agent_definition_name,
-            delegationState: row.delegation_state,
-          },
-        }
-      : {}),
   }
 }
 
@@ -238,55 +236,7 @@ function parseWaggleConfig(raw: string | null): WaggleConfig | undefined {
  *
  * Lives here rather than in `types.ts` so the type module stays free of a SQL dependency.
  */
-export function sessionSummaryColumns(sql: SqlClient.SqlClient) {
-  const computedColumns: Readonly<Record<string, string>> = {
-    lineage_present: `CASE
-      WHEN EXISTS (
-        SELECT 1 FROM session_lineage own_lineage WHERE own_lineage.session_id = sessions.id
-      ) OR EXISTS (
-        SELECT 1 FROM session_lineage child_lineage
-        WHERE child_lineage.parent_session_id = sessions.id
-      ) THEN 1
-      ELSE 0
-    END AS lineage_present`,
-    lineage_role: `CASE
-      WHEN EXISTS (
-        SELECT 1 FROM session_lineage own_lineage
-        WHERE own_lineage.session_id = sessions.id
-          AND own_lineage.parent_session_id IS NOT NULL
-      ) THEN 'worker'
-      WHEN EXISTS (
-        SELECT 1 FROM session_lineage child_lineage
-        WHERE child_lineage.parent_session_id = sessions.id
-      ) THEN 'queen'
-      ELSE 'independent'
-    END AS lineage_role`,
-    parent_session_id: `(
-      SELECT own_lineage.parent_session_id
-      FROM session_lineage own_lineage
-      WHERE own_lineage.session_id = sessions.id
-    ) AS parent_session_id`,
-    direct_worker_count: `(
-      SELECT COUNT(*) FROM session_lineage child_lineage
-      WHERE child_lineage.parent_session_id = sessions.id
-    ) AS direct_worker_count`,
-    active_direct_worker_count: `(
-      SELECT COUNT(*) FROM session_lineage child_lineage
-      WHERE child_lineage.parent_session_id = sessions.id
-        AND child_lineage.delegation_state NOT IN ('accepted', 'cancelled')
-    ) AS active_direct_worker_count`,
-    agent_definition_name: `(
-      SELECT own_lineage.agent_definition_name
-      FROM session_lineage own_lineage
-      WHERE own_lineage.session_id = sessions.id
-    ) AS agent_definition_name`,
-    delegation_state: `(
-      SELECT own_lineage.delegation_state
-      FROM session_lineage own_lineage
-      WHERE own_lineage.session_id = sessions.id
-    ) AS delegation_state`,
-  }
-  return sql.literal(
-    SESSION_SUMMARY_COLUMN_NAMES.map((name) => computedColumns[name] ?? name).join(', '),
-  )
+export function sessionSummaryColumns(sql: SqlClient.SqlClient, qualifier?: string) {
+  const prefix = qualifier ? `${qualifier}.` : ''
+  return sql.literal(SESSION_SUMMARY_COLUMN_NAMES.map((column) => `${prefix}${column}`).join(', '))
 }

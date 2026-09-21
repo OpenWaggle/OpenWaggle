@@ -14,7 +14,7 @@ interface NumberStepperProps {
   readonly label: string
   readonly value: number
   readonly minimum: number
-  readonly maximum: number
+  readonly maximum?: number
   readonly step?: number
   readonly suffix?: string
   readonly disabled?: boolean
@@ -75,6 +75,7 @@ export function NumberStepper({
   disabled = false,
   onValueChange,
 }: NumberStepperProps) {
+  const upperBound = maximum ?? Number.MAX_SAFE_INTEGER
   const [draft, setDraft] = useNumberStepperDraft(value, disabled)
   const suppressNextBlurRef = useRef(false)
   const parsedDraft = draft.trim() ? Number(draft) : Number.NaN
@@ -82,7 +83,7 @@ export function NumberStepper({
 
   function normalizeValue(nextValue: number) {
     const steppedValue = minimum + Math.round((nextValue - minimum) / step) * step
-    return clamp(steppedValue, minimum, maximum)
+    return clamp(steppedValue, minimum, upperBound)
   }
 
   function setClampedValue(nextValue: number) {
@@ -178,7 +179,7 @@ export function NumberStepper({
       <StepperButton
         label={`Increase ${label}`}
         busy={disabled}
-        boundary={draftValue >= maximum}
+        boundary={draftValue >= upperBound}
         onStep={() => stepDraft(step)}
       >
         <Plus className="size-3.5" />

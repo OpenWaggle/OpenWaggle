@@ -7,6 +7,7 @@ import { ContextMeter } from './ContextMeter'
 import { ThinkingLevelMenu } from './ThinkingLevelMenu'
 
 interface ComposerToolbarProps {
+  readonly disabled?: boolean
   readonly accessControl?: ReactNode
   readonly submission: {
     readonly onSend: () => void
@@ -21,6 +22,7 @@ interface ComposerToolbarProps {
 }
 
 export function ComposerToolbar({
+  disabled,
   accessControl,
   submission,
   onToggleVoice,
@@ -33,7 +35,7 @@ export function ComposerToolbar({
       className="@container/composer-toolbar flex h-11 flex-nowrap items-center gap-2 px-4 py-2 @max-xl/composer-toolbar:px-3"
     >
       <div className="flex shrink-0 items-center gap-1.5">
-        <ComposerAttachButton fileInputRef={fileInputRef} />
+        <ComposerAttachButton fileInputRef={fileInputRef} disabled={disabled} />
         {accessControl}
       </div>
       <div
@@ -48,7 +50,7 @@ export function ComposerToolbar({
         className="flex shrink-0 flex-nowrap items-center gap-2 @max-xl/composer-toolbar:gap-1.5"
         data-testid="composer-toolbar-primary-actions"
       >
-        <ComposerVoiceButton mode={voiceMode} onToggleVoice={onToggleVoice} />
+        <ComposerVoiceButton mode={voiceMode} onToggleVoice={onToggleVoice} disabled={disabled} />
         <ComposerSendControls
           isLoading={submission.isLoading}
           canSend={submission.canSend}

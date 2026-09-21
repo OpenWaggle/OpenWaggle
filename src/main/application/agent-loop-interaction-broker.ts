@@ -1,4 +1,3 @@
-import type { AgentAuthorizationMode } from '@shared/types/agent-authorization'
 import type {
   AgentLoopInteraction,
   AgentLoopInteractionErrorCode,
@@ -16,6 +15,7 @@ interface PendingInteraction {
   readonly onEvent: (event: AgentTransportEvent) => void
   readonly fallback: AgentLoopInteractionResponse
   readonly resolve: (response: AgentLoopInteractionResponse) => void
+  readonly reject: (error: Error) => void
   readonly cleanup: () => void
 }
 
@@ -27,6 +27,10 @@ export interface AgentLoopInteractionRequestInput {
 }
 
 const pendingInteractions = new Map<string, PendingInteraction>()
+const runInteractionDeadlines = new Map<
+  string,
+  { readonly timeoutMs: number; readonly onTimeout: () => void }
+>()
 const notifyAckResponse: AgentLoopInteractionResponse = { kind: 'notify', acknowledged: true }
 
 function pendingKey(input: {
@@ -92,6 +96,37 @@ function settlePending(input: {
   input.pending.resolve(input.response)
 }
 
+function expirePendingInteraction(key: string, pending: PendingInteraction) {
+  pendingInteractions.delete(key)
+  pending.cleanup()
+  const error = new Error('The Run interaction deadline expired.')
+  emitResolved({
+    interaction: pending.interaction,
+    status: 'errored',
+    error: { code: 'interaction-timeout', message: error.message },
+    onEvent: pending.onEvent,
+  })
+  runInteractionDeadlines.get(pending.interaction.runId)?.onTimeout()
+  pending.reject(error)
+}
+
+export function registerAgentLoopInteractionDeadline(input: {
+  readonly runId: string
+  readonly timeoutMs: number
+  readonly onTimeout: () => void
+}) {
+  if (!Number.isSafeInteger(input.timeoutMs) || input.timeoutMs < 0) {
+    throw new Error('Run interaction timeout must be a non-negative safe integer.')
+  }
+  const deadline = { timeoutMs: input.timeoutMs, onTimeout: input.onTimeout }
+  runInteractionDeadlines.set(input.runId, deadline)
+  return () => {
+    if (runInteractionDeadlines.get(input.runId) === deadline) {
+      runInteractionDeadlines.delete(input.runId)
+    }
+  }
+}
+
 function responseMatchesKind(input: {
   readonly kind: AgentLoopInteractionKind
   readonly response: AgentLoopInteractionResponse
@@ -142,7 +177,7 @@ export function requestAgentLoopInteraction(input: AgentLoopInteractionRequestIn
 
   const interaction = input.interaction
 
-  return new Promise<AgentLoopInteractionResponse>((resolve) => {
+  return new Promise<AgentLoopInteractionResponse>((resolve, reject) => {
     const key = pendingKey(interaction)
     const fallback = input.fallback ?? fallbackForKind(interaction.kind)
     let timeout: ReturnType<typeof setTimeout> | null = null
@@ -166,6 +201,7 @@ export function requestAgentLoopInteraction(input: AgentLoopInteractionRequestIn
       onEvent: input.onEvent,
       fallback,
       resolve,
+      reject,
       cleanup,
     })
 
@@ -176,6 +212,17 @@ export function requestAgentLoopInteraction(input: AgentLoopInteractionRequestIn
 
     input.signal?.addEventListener('abort', abort, { once: true })
 
+    const runDeadline = runInteractionDeadlines.get(interaction.runId)
+    if (
+      runDeadline &&
+      (interaction.timeoutMs === undefined || runDeadline.timeoutMs <= interaction.timeoutMs)
+    ) {
+      timeout = setTimeout(() => {
+        const pending = pendingInteractions.get(key)
+        if (pending) expirePendingInteraction(key, pending)
+      }, runDeadline.timeoutMs)
+      return
+    }
     if (input.interaction.timeoutMs !== undefined) {
       timeout = setTimeout(abort, input.interaction.timeoutMs)
     }
@@ -205,6 +252,7 @@ export function failAgentLoopInteraction(input: {
 
 export function submitAgentLoopInteractionResponse(
   input: AgentLoopInteractionResponseInput,
+  channel?: 'approval' | 'response',
 ): AgentLoopInteractionSubmitResult {
   const key = pendingKey(input)
   const pending = pendingInteractions.get(key)
@@ -222,6 +270,16 @@ export function submitAgentLoopInteractionResponse(
     return mismatch('Interaction response kind does not match the pending request.')
   }
 
+  const isAuthorization =
+    pending.interaction.kind === 'confirm' && pending.interaction.purpose === 'authorization'
+  if ((channel === 'approval' && !isAuthorization) || (channel === 'response' && isAuthorization)) {
+    return mismatch(
+      isAuthorization
+        ? 'Authorization requests require sessions:approve authority.'
+        : 'This interaction requires sessions:respond authority.',
+    )
+  }
+
   if (!responseMatchesKind({ kind: input.kind, response: input.response })) {
     return invalidResponse('Interaction response payload kind does not match the request kind.')
   }
@@ -232,6 +290,19 @@ export function submitAgentLoopInteractionResponse(
 
   settlePending({ key, pending, response: input.response })
   return { ok: true, interactionId: input.interactionId, status: interactionStatus(input.response) }
+}
+
+export function listPendingAgentLoopInteractions(sessionId?: SessionId) {
+  const interactions: AgentLoopInteraction[] = []
+  for (const pending of pendingInteractions.values()) {
+    if (sessionId === undefined || pending.interaction.sessionId === sessionId) {
+      interactions.push(pending.interaction)
+    }
+  }
+  return interactions.sort(
+    (left, right) =>
+      left.createdAt - right.createdAt || left.interactionId.localeCompare(right.interactionId),
+  )
 }
 
 export function cancelAgentLoopInteractionsForRun(input: {
@@ -248,66 +319,9 @@ export function cancelAgentLoopInteractionsForRun(input: {
   }
 }
 
-/**
- * Grants every pending authorization request for a session.
- *
- * Called when the session switches to YOLO (Full access), because a mode that promises never to ask
- * must also clear the question it is already asking. Non-authorization requests are left alone:
- * YOLO grants capabilities, it never answers a question addressed to the user.
- */
-export function grantPendingAuthorizationsForSession(input: {
-  readonly sessionId: SessionId
-}): number {
-  let granted = 0
-  for (const [key, pending] of pendingInteractions) {
-    const interaction = pending.interaction
-    if (interaction.sessionId !== input.sessionId) continue
-    if (interaction.kind !== 'confirm' || interaction.purpose !== 'authorization') continue
-
-    settlePending({
-      key,
-      pending,
-      response: { kind: 'confirm', accepted: true },
-    })
-    granted += 1
-  }
-  return granted
-}
-
-/**
- * Grants pending authorization requests for every session that now resolves to full access.
- *
- * The per-session handler covers a session override, but the mode is an inheritance chain: changing a
- * project or the global default can reveal full access for sessions that hold no override of their
- * own. Without this those sessions stay parked on a prompt in a mode that promises never to prompt.
- */
-export async function grantPendingAuthorizationsWhereFullAccess(
-  resolveMode: (sessionId: SessionId) => Promise<AgentAuthorizationMode>,
-): Promise<number> {
-  const sessionIds = new Set<SessionId>()
-  for (const [, pending] of pendingInteractions) {
-    const interaction = pending.interaction
-    if (interaction.kind !== 'confirm' || interaction.purpose !== 'authorization') continue
-    sessionIds.add(interaction.sessionId)
-  }
-
-  // Resolved per session rather than compared against the written value, so clearing an override that
-  // reveals a full-access default counts too. Concurrently, because each resolve reads the database
-  // and the project config, and one parked prompt should not wait on another's I/O.
-  const modes = await Promise.all(
-    [...sessionIds].map(async (sessionId) => ({ mode: await resolveMode(sessionId), sessionId })),
-  )
-
-  let granted = 0
-  for (const { mode, sessionId } of modes) {
-    if (mode !== 'yolo') continue
-    granted += grantPendingAuthorizationsForSession({ sessionId })
-  }
-  return granted
-}
-
 export function clearAgentLoopInteractionBrokerForTests() {
   for (const [key, pending] of pendingInteractions) {
     settlePending({ key, pending, response: pending.fallback, status: 'cancelled' })
   }
+  runInteractionDeadlines.clear()
 }

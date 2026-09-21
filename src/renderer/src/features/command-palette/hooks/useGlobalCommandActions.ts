@@ -128,7 +128,7 @@ export function useGlobalCommandActions() {
       return
     }
     if (target === 'skills') {
-      void navigate({ to: '/skills' })
+      void navigate({ to: '/settings/$tab', params: { tab: 'skills' } })
       return
     }
     void navigate({

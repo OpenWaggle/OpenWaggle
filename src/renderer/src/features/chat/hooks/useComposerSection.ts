@@ -22,6 +22,7 @@ export interface ComposerSectionParams {
   readonly projectPath?: string | null
   readonly recentProjects: readonly string[]
   readonly session: SessionDetail | null
+  readonly sessionDetailPending: boolean
   readonly isFirstMessage: boolean
   readonly waggleStatus: WaggleCollaborationStatus
   readonly slashCommandMenuOpen: boolean
@@ -42,6 +43,7 @@ export interface ComposerSectionParams {
   readonly handleCloseForkSelector: () => void
   readonly handleSelectForkTarget: (target: SessionForkTarget) => void
   readonly handleCloneToNewSession: () => void
+  readonly handleNavigateSession: (sessionId: SessionId) => void
   readonly handleOpenProject: () => Promise<void>
   readonly handleSelectProjectPath: (path: string) => void
   readonly handleSetAuthorizationMode: (
@@ -81,6 +83,7 @@ export function useComposerSection(params: ComposerSectionParams): ChatComposerS
     handleCloseForkSelector,
     handleSelectForkTarget,
     handleCloneToNewSession,
+    handleNavigateSession,
     handleOpenProject,
     handleSelectProjectPath,
     handleSetAuthorizationMode,
@@ -93,6 +96,7 @@ export function useComposerSection(params: ComposerSectionParams): ChatComposerS
     projectPath: params.projectPath ?? params.session?.projectPath ?? null,
     recentProjects,
     session: params.session,
+    sessionDetailPending: params.sessionDetailPending,
     isFirstMessage,
     waggleStatus,
     slashCommandMenuOpen,
@@ -117,6 +121,7 @@ export function useComposerSection(params: ComposerSectionParams): ChatComposerS
     onCloseForkSelector: handleCloseForkSelector,
     onSelectForkTarget: handleSelectForkTarget,
     onCloneToNewSession: handleCloneToNewSession,
+    onNavigateSession: handleNavigateSession,
     onOpenProject: handleOpenProject,
     onSelectProjectPath: handleSelectProjectPath,
     onSetAuthorizationMode: handleSetAuthorizationMode,

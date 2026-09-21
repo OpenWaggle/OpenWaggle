@@ -1,9 +1,11 @@
+import type { SessionBranchId } from '@shared/types/brand'
 import { useNavigate } from '@tanstack/react-router'
 import { useChat } from '@/features/chat/hooks/useChat'
 import { useGit } from '@/features/git/hooks'
 import { useProject, useSessionNav } from '@/features/sessions/hooks'
 import { useSessionStore } from '@/features/sessions/state'
 import { usePreferencesStore } from '@/features/settings/state'
+import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
 import { useUIStore } from '@/shell/ui-store'
 
@@ -24,11 +26,12 @@ export function useChatPanelEnvironment() {
   const slashCommandMenuOpen = useUIStore((s) => s.slashCommandMenuOpen)
   const setActiveView = useUIStore((s) => s.setActiveView)
   const showToast = useUIStore((s) => s.showToast)
-  const model = usePreferencesStore((s) => s.settings.selectedModel)
+  const preferredModel = usePreferencesStore((s) => s.settings.selectedModel)
   const thinkingLevel = usePreferencesStore((s) => s.settings.thinkingLevel)
   const recentProjects = usePreferencesStore((s) => s.settings.recentProjects)
   const project = useProject()
   const chat = useChat()
+  const model = chat.activeSession?.executionModel ?? preferredModel
   const git = useGit()
   const activeWorkspace = useSessionStore((state) => state.activeWorkspace)
   const loadSessions = useSessionStore((state) => state.loadSessions)
@@ -66,14 +69,47 @@ export function useChatPanelEnvironment() {
     }
   }
 
+  async function handleSelectSession(sessionId: Parameters<typeof chat.setActiveSession>[0]) {
+    if (!sessionId) return
+    try {
+      await sessionNav.handleSelectSession(sessionId)
+      void navigate({ to: '/sessions/$sessionId', params: { sessionId: String(sessionId) } })
+    } catch (error) {
+      reportNavigationError('Failed to open Hive Session', error, showToast)
+    }
+  }
+
+  function handleDismissInterruptedRun(runId: string, branchId: SessionBranchId) {
+    const sessionId = chat.activeSessionId
+    if (!sessionId) return
+    if (typeof api.dismissInterruptedSessionRun !== 'function') {
+      showToast('Update OpenWaggle to dismiss interrupted run notices.')
+      return
+    }
+    void api
+      .dismissInterruptedSessionRun(sessionId, runId)
+      .then(() =>
+        Promise.all([
+          loadSessions(),
+          chat.refreshSession(sessionId),
+          refreshSessionWorkspace(sessionId, { branchId }),
+        ]),
+      )
+      .catch((error: unknown) => {
+        showToast(error instanceof Error ? error.message : String(error))
+      })
+  }
+
   return {
     activeWorkspace,
     chat,
     clearDraftBranchForSession,
     slashCommandMenuOpen,
     draftBranch,
+    handleDismissInterruptedRun,
     handleOpenProject,
     handleSelectProjectPath,
+    handleSelectSession,
     loadSessions,
     model,
     navigate,

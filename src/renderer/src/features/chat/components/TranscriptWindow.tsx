@@ -21,6 +21,7 @@ const LOAD_EARLIER_ROW_COUNT = 100
 
 function getChatRowKey(row: ChatRow) {
   return matchBy(row, 'type')
+    .with('interrupted-run', (value) => `interrupted-run:${value.runId}`)
     .with('message', (value) => `message:${value.message.id}`)
     .with('waggle-turn', (value) => value.id)
     .with('turn-fold', (value) => `turn-fold:${value.turnKey}`)

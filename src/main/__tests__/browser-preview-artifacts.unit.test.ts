@@ -10,6 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { BrowserPreviewArtifactStorage } from '../browser-preview-artifact-storage'
 import { BrowserPreviewCaptureTimeoutError } from '../browser-preview-capture'
 import { quarantineBrowserPreviewContents } from '../browser-preview-quarantine'
+import { prepareAttachmentFiles, toPublicPreparedAttachment } from '../utils/attachment-preparation'
 import {
   configurePreparedAttachmentRegistry,
   resetPreparedAttachmentRegistryForTests,
@@ -63,6 +64,11 @@ function image(options: {
 function store() {
   return new BrowserPreviewArtifactStore(
     new BrowserPreviewArtifactStorage(path.join(root, 'artifacts')),
+    async (entry) => {
+      const [prepared] = await prepareAttachmentFiles({ baseDirectory: root, entries: [entry] })
+      if (!prepared) throw new Error('Expected a prepared annotation.')
+      return toPublicPreparedAttachment(prepared)
+    },
   )
 }
 
@@ -274,6 +280,7 @@ describe('BrowserPreviewArtifactStore', () => {
     expect(attachment?.extractedText).toContain('requestedStyleChanges')
     expect(attachment?.extractedText).toContain('1 selected element, 1 marked region, 1 drawing')
     if (attachment === null) throw new Error('Expected a prepared annotation attachment.')
+    expect(attachment.id).not.toBe(screenshot.id)
     const metadata = attachment.browserPreview
     if (metadata === undefined) throw new Error('Expected browser preview attachment metadata.')
     await expect(resolvePreparedAttachmentCapability(attachment)).resolves.toEqual(attachment)
