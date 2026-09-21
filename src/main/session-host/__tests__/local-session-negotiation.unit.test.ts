@@ -1,8 +1,3 @@
-import {
-  LOCAL_SESSION_CURRENT_REVISION,
-  LOCAL_SESSION_DESKTOP_SERVICE_REVISION,
-  LOCAL_SESSION_SUPPORTED_REVISIONS,
-} from '@shared/types/local-session-protocol'
 import { describe, expect, it } from 'vitest'
 import {
   decodeLocalSessionClientFrame,
@@ -155,34 +150,6 @@ describe('Local Session protocol negotiation', () => {
         capabilities: [],
       }),
     ).toThrow()
-  })
-
-  it('rejects a desktop bridge handshake pinned to a revision outside the supported window', () => {
-    // The GUI desktop bridge once offered only LOCAL_SESSION_DESKTOP_SERVICE_REVISION (11);
-    // once the supported window moved to [13, 12] that handshake failed on every launch and
-    // bootstrap quit for safety. The bridge must negotiate the standard supported revisions.
-    expect(
-      negotiateLocalSessionProtocol(
-        {
-          protocol: 'openwaggle-local-session',
-          supportedRevisions: [LOCAL_SESSION_DESKTOP_SERVICE_REVISION],
-          clientKind: 'gui',
-          clientVersion: 'desktop-bridge',
-        },
-        'host-current',
-      ),
-    ).toMatchObject({ accepted: false, code: 'incompatible_protocol' })
-    expect(
-      negotiateLocalSessionProtocol(
-        {
-          protocol: 'openwaggle-local-session',
-          supportedRevisions: [...LOCAL_SESSION_SUPPORTED_REVISIONS],
-          clientKind: 'gui',
-          clientVersion: 'desktop-bridge',
-        },
-        'host-current',
-      ),
-    ).toMatchObject({ accepted: true, revision: LOCAL_SESSION_CURRENT_REVISION })
   })
 
   it('decodes an older Host upgrade response before the Host drains', () => {

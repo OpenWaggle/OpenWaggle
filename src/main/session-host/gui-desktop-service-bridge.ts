@@ -61,9 +61,8 @@ class GuiDesktopServiceBridge implements GuiDesktopServiceLifecycle {
           paths: this.paths,
           clientVersion: input.client.clientVersion,
           clientKind: 'gui',
-          // Negotiate the transport like any other client: the desktop contract itself is
-          // revision-gated per command (>= LOCAL_SESSION_DESKTOP_SERVICE_REVISION), and pinning
-          // the handshake to that revision fails once it leaves the Host's supported window.
+          // Transport negotiation uses the standard supported revisions; the desktop contract is
+          // revision-gated per command, so pinning the handshake to it fails once it leaves the window.
           timeoutMs: REQUEST_TIMEOUT_MS,
           payload: { contract: 'desktop-service-v1', request: message },
         })
