@@ -4,7 +4,6 @@ import {
   type DesktopServiceRequest,
   type DesktopServiceResponse,
 } from '@shared/types/desktop-service'
-import { LOCAL_SESSION_SUPPORTED_REVISIONS } from '@shared/types/local-session-protocol'
 import { createLogger } from '../logger'
 import {
   DESKTOP_BRIDGE_TICK_MS,
