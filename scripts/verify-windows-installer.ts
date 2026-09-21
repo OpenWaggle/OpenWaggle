@@ -1,8 +1,9 @@
 import { spawn } from 'node:child_process'
-import { access, mkdtemp } from 'node:fs/promises'
+import { access, mkdtemp, realpath } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { pathToFileURL } from 'node:url'
+import { inspect } from 'node:util'
 import { verifyInstalledCli } from './verify-installed-cli'
 
 const INSTALLER_ARGUMENT_INDEX = 2
@@ -10,6 +11,8 @@ const INSTALLED_EXECUTABLE = 'OpenWaggle.exe'
 const INSTALLED_CLI_SHIM = 'openwaggle.cmd'
 const INSTALLED_UNINSTALLER = 'Uninstall OpenWaggle.exe'
 const SILENT_INSTALL_ARGUMENT = '/S'
+const UNINSTALL_PATH_POLL_INTERVAL_MS = 100
+const UNINSTALL_PATH_MAX_ATTEMPTS = 150
 
 type VerifyWindowsInstallerInput = {
   readonly installerPath: string
@@ -24,7 +27,9 @@ type VerifyWindowsInstallerDependencies = {
     environmentOverrides: Readonly<Record<string, string>>,
   ) => Promise<void>
   readonly verifyPath?: (filePath: string) => Promise<void>
+  readonly canonicalizePath?: (filePath: string) => Promise<string>
   readonly readUserPath?: () => Promise<string>
+  readonly wait?: (milliseconds: number) => Promise<void>
   readonly resolveCommand?: (
     command: string,
     environment: Readonly<Record<string, string>>,
@@ -92,6 +97,7 @@ async function verifyInstalledState(input: {
     environmentOverrides: Readonly<Record<string, string>>,
   ) => Promise<void>
   readonly verifyPath: (filePath: string) => Promise<void>
+  readonly canonicalizePath: (filePath: string) => Promise<string>
 }) {
   await input.verifyPath(join(input.installDirectory, INSTALLED_EXECUTABLE))
   const cliShimPath = join(input.installDirectory, INSTALLED_CLI_SHIM)
@@ -107,10 +113,31 @@ async function verifyInstalledState(input: {
     PATHEXT: process.env.PATHEXT ?? '.COM;.EXE;.BAT;.CMD',
   }
   const resolvedCommand = await input.findCommand('openwaggle', environmentOverrides)
-  if (normalizedWindowsPath(resolvedCommand) !== normalizedWindowsPath(cliShimPath)) {
+  if (!resolvedCommand) throw new Error('Fresh shell did not resolve openwaggle.')
+  const [canonicalResolvedCommand, canonicalCliShimPath] = await Promise.all([
+    input.canonicalizePath(resolvedCommand),
+    input.canonicalizePath(cliShimPath),
+  ])
+  if (
+    normalizedWindowsPath(canonicalResolvedCommand) !== normalizedWindowsPath(canonicalCliShimPath)
+  ) {
     throw new Error(`Fresh shell resolved openwaggle to ${resolvedCommand || 'nothing'}.`)
   }
   await input.verifyCli('openwaggle', environmentOverrides)
+}
+
+async function waitForUninstalledPath(input: {
+  readonly installDirectory: string
+  readonly getUserPath: () => Promise<string>
+  readonly wait: (milliseconds: number) => Promise<void>
+}) {
+  for (let attempt = 0; attempt < UNINSTALL_PATH_MAX_ATTEMPTS; attempt += 1) {
+    if (!windowsPathContains(await input.getUserPath(), input.installDirectory)) return
+    if (attempt < UNINSTALL_PATH_MAX_ATTEMPTS - 1) {
+      await input.wait(UNINSTALL_PATH_POLL_INTERVAL_MS)
+    }
+  }
+  throw new Error('Windows uninstaller left its CLI directory in the user PATH.')
 }
 
 async function uninstallAndVerify(input: {
@@ -120,13 +147,12 @@ async function uninstallAndVerify(input: {
     uninstallerPath: string,
     args: readonly string[],
   ) => Promise<number | null>
+  readonly wait: (milliseconds: number) => Promise<void>
 }) {
   const uninstallerPath = join(input.installDirectory, INSTALLED_UNINSTALLER)
   const exitCode = await input.executeUninstaller(uninstallerPath, [SILENT_INSTALL_ARGUMENT])
   if (exitCode !== 0) throw new Error(`Windows uninstaller exited with code ${String(exitCode)}.`)
-  if (windowsPathContains(await input.getUserPath(), input.installDirectory)) {
-    throw new Error('Windows uninstaller left its CLI directory in the user PATH.')
-  }
+  await waitForUninstalledPath(input)
 }
 
 function throwVerificationFailures(primaryFailure: unknown, cleanupFailure: unknown) {
@@ -153,6 +179,10 @@ export async function verifyWindowsInstaller(
       verifyInstalledCli(command, 'win32', { environmentOverrides }))
   const getUserPath = dependencies.readUserPath ?? readUserPath
   const findCommand = dependencies.resolveCommand ?? resolveCommand
+  const canonicalizePath = dependencies.canonicalizePath ?? realpath
+  const wait =
+    dependencies.wait ??
+    ((milliseconds) => new Promise<void>((resolve) => setTimeout(resolve, milliseconds)))
   await verifyPath(input.installerPath)
   const initialUserPath = await getUserPath()
   if (windowsPathContains(initialUserPath, input.installDirectory)) {
@@ -172,6 +202,7 @@ export async function verifyWindowsInstaller(
       findCommand,
       verifyCli,
       verifyPath,
+      canonicalizePath,
     })
   } catch (error) {
     primaryFailure = error
@@ -183,11 +214,16 @@ export async function verifyWindowsInstaller(
       installDirectory: input.installDirectory,
       getUserPath,
       executeUninstaller,
+      wait,
     })
   } catch (error) {
     cleanupFailure = error
   }
   throwVerificationFailures(primaryFailure, cleanupFailure)
+}
+
+export function reportWindowsInstallerVerificationError(error: unknown) {
+  console.error(inspect(error, { depth: null }))
 }
 
 async function main() {
@@ -201,7 +237,7 @@ async function main() {
 
 if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {
   void main().catch((error: unknown) => {
-    console.error(error instanceof Error ? error.message : String(error))
+    reportWindowsInstallerVerificationError(error)
     process.exitCode = 1
   })
 }
