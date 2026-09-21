@@ -132,6 +132,7 @@ describe('quick installer update channel', () => {
 ${updateChannelPreference(source)}
 PLATFORM=linux
 HOME="$1"
+unset XDG_CONFIG_HOME
 CHANNEL=alpha
 persist_selected_channel
 update_channel_intent_path`
