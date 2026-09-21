@@ -67,6 +67,7 @@ describe('installed CLI verification', () => {
           OPENWAGGLE_USER_DATA_DIR: '/isolated/profile',
         }),
         platform,
+        { timeoutMs: 30_000 },
       )
       expect(shutdownAndRemoveProfile).toHaveBeenCalledWith('/isolated/profile')
     },
@@ -99,6 +100,26 @@ describe('installed CLI verification', () => {
         PATHEXT: '.COM;.EXE;.BAT;.CMD',
       }),
       'win32',
+      { timeoutMs: 30_000 },
+    )
+  })
+
+  it('lets installer verification extend the packaged CLI startup budget', async () => {
+    const runCli = vi.fn(async () => ({ stdout: VALID_RESPONSE, stderr: '' }))
+
+    await verifyInstalledCli('openwaggle', 'win32', {
+      createProfile: async () => 'D:\\isolated-profile',
+      runCli,
+      shutdownAndRemoveProfile: async () => undefined,
+      timeoutMs: 120_000,
+    })
+
+    expect(runCli).toHaveBeenCalledWith(
+      'openwaggle',
+      expect.any(Array),
+      expect.any(Object),
+      'win32',
+      { timeoutMs: 120_000 },
     )
   })
 

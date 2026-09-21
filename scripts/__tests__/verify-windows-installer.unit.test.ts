@@ -1,7 +1,11 @@
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
-import { verifyWindowsInstaller, windowsPathContains } from '../verify-windows-installer'
+import {
+  reportWindowsInstallerVerificationError,
+  verifyWindowsInstaller,
+  windowsPathContains,
+} from '../verify-windows-installer'
 
 describe('Windows installer verification', () => {
   it('separates the installed CLI arguments from Electron runtime arguments', async () => {
@@ -53,9 +57,13 @@ describe('Windows installer verification', () => {
       PATH: expect.stringContaining('D:\\temp\\openwaggle-install'),
       PATHEXT: expect.stringContaining('.CMD'),
     }))
-    expect(verifyCli).toHaveBeenCalledWith('openwaggle', expect.objectContaining({
-      PATH: expect.stringContaining('D:\\temp\\openwaggle-install'),
-    }))
+    expect(verifyCli).toHaveBeenCalledWith(
+      'openwaggle',
+      expect.objectContaining({
+        PATH: expect.stringContaining('D:\\temp\\openwaggle-install'),
+      }),
+      { timeoutMs: 120_000 },
+    )
     expect(runUninstaller).toHaveBeenCalledWith(
       join('D:\\temp\\openwaggle-install', 'Uninstall OpenWaggle.exe'),
       ['/S'],
@@ -83,5 +91,54 @@ describe('Windows installer verification', () => {
   it('matches Windows PATH entries case-insensitively without prefix collisions', () => {
     expect(windowsPathContains('C:\\Tools;D:\\OpenWaggle\\', 'd:\\openwaggle')).toBe(true)
     expect(windowsPathContains('D:\\OpenWaggle-old', 'D:\\OpenWaggle')).toBe(false)
+  })
+
+  it('waits for the detached NSIS uninstaller to remove its PATH entry', async () => {
+    const wait = vi.fn(async () => undefined)
+    const readUserPath = vi
+      .fn()
+      .mockResolvedValueOnce('C:\\Windows')
+      .mockResolvedValueOnce('C:\\Windows;D:\\temp\\openwaggle-install')
+      .mockResolvedValueOnce('C:\\Windows;D:\\temp\\openwaggle-install')
+      .mockResolvedValueOnce('C:\\Windows')
+
+    await verifyWindowsInstaller(
+      {
+        installerPath: 'D:\\artifacts\\openwaggle.exe',
+        installDirectory: 'D:\\temp\\openwaggle-install',
+      },
+      {
+        readUserPath,
+        resolveCommand: async () => 'D:\\temp\\openwaggle-install\\openwaggle.cmd',
+        runInstaller: async () => 0,
+        runUninstaller: async () => 0,
+        verifyCli: async () => undefined,
+        verifyPath: async () => undefined,
+        wait,
+      },
+    )
+
+    expect(wait).toHaveBeenCalledOnce()
+  })
+
+  it('reports the complete aggregate instead of hiding nested causes', () => {
+    const error = new AggregateError(
+      [
+        new AggregateError(
+          [new Error('Installed OpenWaggle CLI timed out after 30000ms.')],
+          'Installed CLI verification failed.',
+        ),
+        new Error('Windows uninstaller left its CLI directory in the user PATH.'),
+      ],
+      'Windows installer verification and uninstall both failed.',
+    )
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+
+    try {
+      reportWindowsInstallerVerificationError(error)
+      expect(consoleError).toHaveBeenCalledWith(error)
+    } finally {
+      consoleError.mockRestore()
+    }
   })
 })
