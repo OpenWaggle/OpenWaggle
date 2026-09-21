@@ -4,6 +4,7 @@ import type { ActionCatalog, ActionDefinition } from '@shared/types/action-defin
 import { type ActionRun, isActiveActionRun } from '@shared/types/action-runs'
 import { normalizeBrowserPreviewAddress } from '@shared/utils/browser-preview-url'
 import { enqueueProjectConfigWrite } from '../../config/project-config-write-queue'
+import type { PreparedEnvironment } from '../../domain/prepared-environment'
 import type { ActionCatalogScope } from '../../ports/action-catalog-service'
 import type { ActionRunWorkspace, StartManagedActionInput } from '../../ports/action-run-service'
 import { createTerminalHistorySanitizer } from '../terminal/terminal-history-sanitizer'
@@ -29,7 +30,7 @@ export interface ManagedActionDependencies {
   readonly history: TerminalHistoryStore
   readonly runner: ActionProcessRunner
   readonly catalog: (scope: ActionCatalogScope) => Promise<ActionCatalog>
-  readonly environment: (workspace: ActionRunWorkspace) => Promise<Readonly<Record<string, string>>>
+  readonly environment: (workspace: ActionRunWorkspace) => Promise<PreparedEnvironment>
   readonly acquireLiveness: () => () => void
   readonly reportError: (error: unknown) => void
   readonly probePreview?: typeof probeActionPreview
@@ -44,7 +45,6 @@ export class ManagedActionRuns {
   constructor(private readonly deps: ManagedActionDependencies) {
     this.previews = new ActionPreviewReadiness(deps.probePreview)
   }
-
   private watchPreview(run: ActionRun) {
     this.previews.watch(run.id, run.previewUrl, (url) => {
       const entry = this.active.get(run.id)
@@ -149,7 +149,7 @@ export class ManagedActionRuns {
     input: StartManagedActionInput,
     action: ActionDefinition,
     invocation: ActionRun['invocation'],
-    environment: Readonly<Record<string, string>>,
+    environment: PreparedEnvironment,
   ) {
     const release = this.deps.acquireLiveness()
     const configuredPreviewUrl = action.previewUrl

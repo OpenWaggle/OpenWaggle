@@ -830,6 +830,11 @@ Interrupted sharing journals pin the filesystem directory identity and durable W
 Recovery keeps a draft when the checkout is missing, replaced, or releasing; publication must never
 recreate a deleted checkout. Private preparation retains its profile metadata so a teammate removing
 the shared profile cannot invalidate unrelated local configuration.
+Cargo alias discovery accepts both `.cargo/config.toml` and legacy `.cargo/config`, preserving the
+selected source in saved task references and reporting conflicting files rather than guessing.
+Successful setup stores explicit environment removals as private null markers. Apply these after
+inherited environment construction for actions, cleanup and Pi shell tools; otherwise inherited
+Host variables reappear after setup unsets them. Public preparation projections exclude this map.
 
 The September 2026 native action verification reproduced a SQLite worker teardown abort on pristine
 main with transitive better-sqlite3 12.11.1. Root and Effect SQLite now share 13.0.3, which includes the

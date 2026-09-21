@@ -3,6 +3,10 @@ import { mkdir, mkdtemp, open, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { decodeUnknownOrThrow, parseJsonUnknown, Schema } from '@shared/schema'
 import type { ActionInvocation } from '@shared/types/action-definitions'
+import {
+  capturePreparedEnvironment,
+  type PreparedEnvironment,
+} from '../../domain/prepared-environment'
 import { getInteractiveTerminalEnv } from '../../env'
 import type { ActionRunWorkspace } from '../../ports/action-run-service'
 import { type ActionProcess, type ActionProcessRunner, resolveActionShell } from './action-process'
@@ -13,7 +17,6 @@ import { resolveActionInvocation } from './task-discovery'
 const ENVIRONMENT_BYTES = 512 * 1_024
 const PRIVATE_DIRECTORY_MODE = 0o700
 const PRIVATE_FILE_MODE = 0o600
-const transientNames = new Set(['_', 'PWD', 'OLDPWD', 'SHLVL', 'ELECTRON_RUN_AS_NODE'])
 
 async function readCapturedEnvironment(
   path: string,
@@ -57,12 +60,13 @@ export function createPreparationExecutor(
   const execute = async (input: {
     readonly workspace: ActionRunWorkspace
     readonly invocation: ActionInvocation
-    readonly environment: Readonly<Record<string, string>>
+    readonly environment: PreparedEnvironment
     readonly captureEnvironment: boolean
     readonly signal?: AbortSignal
     readonly onOutput: (chunk: string) => void
   }) => {
     if (shuttingDown) throw new Error('The Session Host is stopping.')
+    const baseline = getInteractiveTerminalEnv(appVersion, {})
     const resolved = await resolveActionInvocation(input.workspace.workspacePath, input.invocation)
     const environment = {
       ...input.environment,
@@ -110,11 +114,11 @@ export function createPreparationExecutor(
       input.signal?.throwIfAborted()
       if (exitCode !== 0 || !capture) return { exitCode, environment: input.environment }
       const exported = await readCapturedEnvironment(destination, capture.format)
-      const baseline = getInteractiveTerminalEnv(appVersion, {})
-      const changes = Object.fromEntries(
-        Object.entries(exported).filter(
-          ([name, value]) => !transientNames.has(name) && value !== baseline[name],
-        ),
+      const changes = capturePreparedEnvironment(
+        baseline,
+        input.environment,
+        exported,
+        process.platform === 'win32',
       )
       return { exitCode, environment: changes }
     } finally {

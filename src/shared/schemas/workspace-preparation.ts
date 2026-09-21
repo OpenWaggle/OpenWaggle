@@ -33,5 +33,5 @@ export const storedWorkspacePreparationSchema = Schema.Struct({
   snapshot: workspacePreparationSnapshotSchema,
   setup: preparationExecutionSchema,
   cleanup: preparationExecutionSchema,
-  environment: Schema.Record({ key: Schema.String, value: Schema.String }),
+  environment: Schema.Record({ key: Schema.String, value: Schema.NullOr(Schema.String) }),
 })

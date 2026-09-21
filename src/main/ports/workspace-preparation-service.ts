@@ -1,5 +1,6 @@
 import type { PreparationPhase, WorkspacePreparation } from '@shared/types/workspace-preparation'
 import { Context, type Effect } from 'effect'
+import type { PreparedEnvironment } from '../domain/prepared-environment'
 import type { ActionRunWorkspace } from './action-run-service'
 
 export interface WorkspacePreparationServiceShape {
@@ -47,9 +48,7 @@ export interface WorkspacePreparationServiceShape {
     expectedRevision: number,
   ) => Effect.Effect<WorkspacePreparation, Error>
   readonly requireSetup: (workspace: ActionRunWorkspace) => Effect.Effect<void, Error>
-  readonly environment: (
-    workspaceId: string,
-  ) => Effect.Effect<Readonly<Record<string, string>>, Error>
+  readonly environment: (workspaceId: string) => Effect.Effect<PreparedEnvironment, Error>
   readonly recoverAfterHostLoss: Effect.Effect<void, Error>
 }
 export class WorkspacePreparationService extends Context.Tag(

@@ -3,9 +3,10 @@ import { decodeUnknownExactOrThrow, parseJsonUnknown } from '@shared/schema'
 import { storedWorkspacePreparationSchema } from '@shared/schemas/workspace-preparation'
 import type { WorkspacePreparation } from '@shared/types/workspace-preparation'
 import * as Effect from 'effect/Effect'
+import type { PreparedEnvironment } from '../../domain/prepared-environment'
 
 export interface StoredWorkspacePreparation extends Omit<WorkspacePreparation, 'updateAvailable'> {
-  readonly environment: Readonly<Record<string, string>>
+  readonly environment: PreparedEnvironment
 }
 export interface PreparationPersistence {
   readonly read: (workspaceId: string) => Promise<StoredWorkspacePreparation | null>

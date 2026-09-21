@@ -12,6 +12,7 @@ import type { SessionCapability } from '@shared/types/session-capability'
 import type { AgentTransportEvent } from '@shared/types/stream'
 import type { WaggleConfig, WaggleStreamMetadata, WaggleTurnEvent } from '@shared/types/waggle'
 import { Context, type Effect } from 'effect'
+import type { PreparedEnvironment } from '../domain/prepared-environment'
 import type {
   PendingDelegationSpecificationUpdate,
   PendingSessionOrchestrationUpdate,
@@ -44,7 +45,7 @@ export interface AgentKernelRunControl {
 }
 
 export interface AgentKernelRunInput {
-  readonly preparedEnvironment?: Readonly<Record<string, string>>
+  readonly preparedEnvironment?: PreparedEnvironment
   readonly session: SessionDetail
   readonly runId: string
   readonly payload: HydratedAgentSendPayload

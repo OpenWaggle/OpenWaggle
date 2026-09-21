@@ -5,6 +5,7 @@ import { isInvocableTaskName, type ProjectTaskReader, taskReadError } from './ta
 import { readTaskSource } from './task-source-files'
 
 const SOURCE = '.cargo/config.toml'
+const LEGACY_SOURCE = '.cargo/config'
 const cargoSchema = Schema.Struct({
   alias: Schema.optional(
     Schema.Record({
@@ -52,13 +53,19 @@ const BUILTIN_COMMANDS = new Set([
 ])
 
 async function list(workspace: string): Promise<ProjectTaskDiscovery> {
+  let source = SOURCE
   try {
-    const raw = await readTaskSource(workspace, SOURCE)
-    if (raw === null) return { tasks: [], diagnostics: [] }
-    if ((await readTaskSource(workspace, '.cargo/config')) !== null)
+    let raw = await readTaskSource(workspace, source)
+    if (raw !== null && (await readTaskSource(workspace, LEGACY_SOURCE)) !== null) {
       throw new Error(
         'Cargo prefers .cargo/config when both config files exist. Use a custom command or consolidate into config.toml.',
       )
+    }
+    if (raw === null) {
+      source = LEGACY_SOURCE
+      raw = await readTaskSource(workspace, source)
+    }
+    if (raw === null) return { tasks: [], diagnostics: [] }
     const data: unknown = parse(raw)
     const aliases = decodeUnknownOrThrow(cargoSchema, data).alias ?? {}
     const diagnostics = []
@@ -66,13 +73,13 @@ async function list(workspace: string): Promise<ProjectTaskDiscovery> {
     for (const [task, body] of Object.entries(aliases)) {
       if (!isInvocableTaskName(task) || BUILTIN_COMMANDS.has(task)) {
         diagnostics.push({
-          source: SOURCE,
+          source,
           message: `Cargo cannot invoke this alias name: ${task}`,
         })
         continue
       }
       tasks.push({
-        reference: { provider: 'cargo-alias' as const, source: SOURCE, directory: '.', task },
+        reference: { provider: 'cargo-alias' as const, source, directory: '.', task },
         group: 'Cargo aliases',
         description: typeof body === 'string' ? body : body.join(' '),
         runner: 'cargo',
@@ -80,7 +87,7 @@ async function list(workspace: string): Promise<ProjectTaskDiscovery> {
     }
     return { tasks, diagnostics }
   } catch (error) {
-    return { tasks: [], diagnostics: [taskReadError(SOURCE, error)] }
+    return { tasks: [], diagnostics: [taskReadError(source, error)] }
   }
 }
 

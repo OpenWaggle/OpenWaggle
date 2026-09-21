@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { getSessionHostChildEnv } from '../../../env'
 import { createActionProcessRunner } from '../action-process'
 import { createPreparationExecutor } from '../preparation-process'
@@ -31,7 +31,50 @@ describe.skipIf(process.platform === 'win32')('real preparation environment capt
     directory = await mkdtemp(join(tmpdir(), 'ow-prepare-'))
   })
   afterEach(async () => {
+    vi.unstubAllEnvs()
     await rm(directory, { recursive: true, force: true })
+  })
+  it('keeps inherited variables unset in subsequent actions and cleanup', async () => {
+    vi.stubEnv('HTTPS_PROXY', 'https://inherited.invalid')
+    const runner = createActionProcessRunner('test')
+    const execute = createPreparationExecutor(runner, directory, 'test')
+    const workspace = { workspaceId: 'unset', projectPath: directory, workspacePath: directory }
+    try {
+      const prepared = await execute({
+        workspace,
+        invocation: {
+          type: 'command',
+          command: 'unset HTTPS_PROXY; export OW_READY=yes',
+          directory: '.',
+        },
+        environment: { SHELL: '/bin/bash' },
+        captureEnvironment: true,
+        onOutput: () => {},
+      })
+      expect(prepared.exitCode).toBe(0)
+      expect(prepared.environment.HTTPS_PROXY).toBeNull()
+      const command = `test -z "\${HTTPS_PROXY+x}" && test "$OW_READY" = yes`
+      const action = await runner.start({
+        invocation: { type: 'command', command, cwd: directory },
+        environment: prepared.environment,
+        onOutput: () => {},
+      })
+      try {
+        expect((await action.closed).exitCode).toBe(0)
+      } finally {
+        await action.stop()
+      }
+      const cleanup = await execute({
+        workspace,
+        invocation: { type: 'command', command, directory: '.' },
+        environment: prepared.environment,
+        captureEnvironment: false,
+        onOutput: () => {},
+      })
+      expect(cleanup.exitCode).toBe(0)
+    } finally {
+      await execute.shutdown()
+    }
   })
   it.for(shellCases)(
     'captures setup through the configured $value shell',

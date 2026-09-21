@@ -66,7 +66,8 @@ described in [Git Integration](/docs/developer-workflow/git-integration).
 
 Project actions save the commands you run often: development servers, tests, lint, and builds.
 Use **Add action** in the session header to choose a discovered project task or write a custom command.
-Discovery reads package scripts, workspace packages, Hatch environment scripts, and Cargo aliases.
+Discovery reads package scripts, workspace packages, Hatch environment scripts, and Cargo aliases
+from `.cargo/config.toml` or `.cargo/config`.
 Choosing a task saves its identity; each launch resolves the current script in that session’s workspace.
 A removed task stays visible as unavailable until you edit the action.
 
@@ -90,7 +91,8 @@ OpenWaggle stops its services. Retained output is bounded, and trimmed output is
 If the owning Host itself is lost, the run becomes interrupted and requires an explicit restart.
 
 Actions receive `OPENWAGGLE_PROJECT_ROOT` and `OPENWAGGLE_WORKTREE_PATH`, plus the private environment
-exported by successful setup in that workspace. Preview detection recognizes local URLs printed
+exported by successful setup in that workspace. Variables unset by successful setup stay absent
+from later actions, cleanup, and agent commands. Preview detection recognizes local URLs printed
 by the run, or you can configure a URL. An opted-in preview opens once the endpoint responds.
 
 Keyboard bindings use the existing shortcut settings. Each binding may have a `when` expression

@@ -1,3 +1,5 @@
+import { decodeUnknownExactOrThrow, parseJsonUnknown } from '@shared/schema'
+import { storedWorkspacePreparationSchema } from '@shared/schemas/workspace-preparation'
 import type { ActionCatalog } from '@shared/types/action-definitions'
 import { describe, expect, it, vi } from 'vitest'
 import type { ActionRunWorkspace } from '../../../ports/action-run-service'
@@ -65,6 +67,45 @@ function fixture() {
   }
 }
 describe('Workspace preparation lifecycle', () => {
+  it('persists removals across reload and supplies them to cleanup without exposing private environment', async () => {
+    const test = fixture()
+    test.change({
+      ...test.catalog(),
+      preparation: [
+        ...test.catalog().preparation,
+        {
+          source: 'local',
+          review: 'enabled',
+          definition: {
+            id: 'cleanup',
+            profileId: 'default',
+            phase: 'cleanup',
+            invocation: { type: 'command', command: 'cleanup', directory: '.' },
+          },
+        },
+      ],
+    })
+    const environment = { HTTPS_PROXY: null, TEST_READY: 'yes', EMPTY: '' }
+    test.execute.mockResolvedValueOnce({ exitCode: 0, environment })
+    await test.engine.capture(workspace)
+    const legacy = test.storage.get(workspace.workspaceId)
+    expect(decodeUnknownExactOrThrow(storedWorkspacePreparationSchema, legacy).environment).toEqual(
+      {},
+    )
+    await test.engine.run(workspace, 'setup')
+    const saved = decodeUnknownExactOrThrow(
+      storedWorkspacePreparationSchema,
+      parseJsonUnknown(JSON.stringify(test.storage.get(workspace.workspaceId))),
+    )
+    test.storage.set(workspace.workspaceId, saved)
+    const restarted = new ManagedWorkspacePreparation(test.deps)
+    expect(await restarted.environment(workspace.workspaceId)).toEqual(environment)
+    await restarted.run(workspace, 'cleanup')
+    expect(test.execute).toHaveBeenLastCalledWith(
+      expect.objectContaining({ captureEnvironment: false, environment }),
+    )
+    expect(await restarted.read(workspace)).not.toHaveProperty('environment')
+  })
   it('resets completed execution and private exports for a recreated checkout, keeping its snapshot', async () => {
     const test = fixture()
     const captured = await test.engine.capture(workspace)
@@ -183,7 +224,7 @@ describe('Workspace preparation lifecycle', () => {
     const test = fixture()
     test.execute.mockResolvedValueOnce({
       exitCode: 7,
-      environment: { FAILED_EXPORT: 'do not publish' },
+      environment: { FAILED_EXPORT: 'do not publish', HTTPS_PROXY: null },
     })
     await test.engine.capture(workspace)
     await expect(test.engine.requireSetup(workspace)).rejects.toThrow('failed')

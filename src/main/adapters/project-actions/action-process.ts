@@ -4,6 +4,7 @@ import { basename, delimiter, isAbsolute, join } from 'node:path'
 import type { ResolvedActionInvocation } from '@shared/types/action-definitions'
 import { isEnoent } from '@shared/utils/node-error'
 import { quotePowerShellArgument as quotePowerShell } from '@shared/utils/shell-argument'
+import type { PreparedEnvironment } from '../../domain/prepared-environment'
 import { getInteractiveTerminalEnv } from '../../env'
 import {
   type OwnedTerminalProcessTree,
@@ -23,14 +24,14 @@ export interface ActionProcess {
 
 export interface ActionProcessLaunch {
   readonly invocation: ResolvedActionInvocation
-  readonly environment: Readonly<Record<string, string>>
+  readonly environment: PreparedEnvironment
   readonly onOutput: (chunk: string) => void
 }
 
 export interface ActionProcessRunner {
   readonly validate: (
     invocation: ResolvedActionInvocation,
-    environment: Readonly<Record<string, string>>,
+    environment: PreparedEnvironment,
   ) => Promise<void>
   readonly start: (input: ActionProcessLaunch) => Promise<ActionProcess>
 }

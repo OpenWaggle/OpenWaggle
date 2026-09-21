@@ -18,7 +18,7 @@ import { captureTurnCheckpoint } from './turn-capture'
 
 function runtimeResources(
   input: {
-    readonly preparedEnvironment?: Readonly<Record<string, string>>
+    readonly preparedEnvironment?: AgentKernelRunInput['preparedEnvironment']
     readonly trustedExtensionFactories?: readonly ExtensionFactory[]
     readonly systemPromptAppendices?: readonly string[]
   },
