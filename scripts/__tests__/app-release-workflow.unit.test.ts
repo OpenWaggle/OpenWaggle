@@ -131,6 +131,12 @@ describe('desktop app release workflow', () => {
     expect(WORKFLOW).toContain('NEW_VERSION="${BASE_VERSION}-${PRERELEASE_TAG}.$((PRERELEASE_NUM + 1))"')
   })
 
+  it('marks semantic prerelease versions as GitHub prereleases', () => {
+    expect(WORKFLOW).toContain(
+      "prerelease: ${{ contains(needs.version.outputs.new_version, '-') }}",
+    )
+  })
+
   it('pins every referenced action to an immutable commit', () => {
     const actionReferences = [...WORKFLOW.matchAll(/\buses:\s*([^\s#]+)/gu)].map(
       (match) => match[1],
