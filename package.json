@@ -20,6 +20,7 @@
     "dev:debug:headed": "pnpm docs:generate && pnpm prepare:native:electron && env -u ELECTRON_RUN_AS_NODE ELECTRON_ENABLE_LOGGING=1 electron-vite dev -- --remote-debugging-port=9222",
     "cli:dev": "env -u ELECTRON_RUN_AS_NODE electron .",
     "prototype:composer": "vite prototypes/composer --host 127.0.0.1",
+    "prototype:actions": "node prototypes/project-actions/serve.mts",
     "build": "pnpm docs:generate && pnpm prepare:semantic-model && pnpm prepare:native:electron && electron-vite build && pnpm check:syntax-bundle && tsx scripts/record-build-meta.ts",
     "build:package-dependencies": "pnpm --filter @openwaggle/waggle-core build && pnpm --filter @openwaggle/extension-sdk build",
     "build:packages": "pnpm build:package-dependencies && pnpm --filter @openwaggle/pi-waggle build && pnpm --filter @openwaggle/extension-react build",

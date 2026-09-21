@@ -46,6 +46,7 @@ ADRs live in `docs/adr/`. They explain why major architectural decisions were ma
 - `docs/adr/0031-session-owned-browser-preview.md`
 - `docs/adr/0032-coexisting-build-identities-and-channel-keyed-updates.md`
 - `docs/adr/0033-remove-the-merge-queue.md`
+- `docs/adr/0034-native-project-actions.md`
 
 ## Testing
 
