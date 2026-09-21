@@ -5,7 +5,7 @@ export const PROJECT_ACTION_MIGRATION = {
   name: 'native-project-actions',
   statements: [
     `CREATE TABLE workspace_preparation (
-      workspace_id TEXT PRIMARY KEY,
+      workspace_id TEXT PRIMARY KEY REFERENCES workspace_resources(id) ON DELETE CASCADE,
       revision INTEGER NOT NULL CHECK (revision > 0),
       state_json TEXT NOT NULL CHECK (json_valid(state_json))
     )`,
@@ -17,7 +17,7 @@ export const PROJECT_ACTION_MIGRATION = {
     )`,
     `CREATE TABLE project_action_runs (
       id TEXT PRIMARY KEY,
-      workspace_id TEXT NOT NULL,
+      workspace_id TEXT NOT NULL REFERENCES workspace_resources(id) ON DELETE CASCADE,
       action_id TEXT NOT NULL,
       status TEXT NOT NULL,
       started_at INTEGER NOT NULL,
@@ -31,5 +31,11 @@ export const PROJECT_ACTION_MIGRATION = {
       run_id TEXT NOT NULL REFERENCES project_action_runs(id) ON DELETE CASCADE,
       PRIMARY KEY (workspace_id, action_id, request_id)
     )`,
+    `CREATE TABLE project_action_history_cleanup (workspace_id TEXT PRIMARY KEY)`,
+    `CREATE TRIGGER queue_workspace_action_history_cleanup BEFORE DELETE ON workspace_resources
+      WHEN EXISTS (SELECT 1 FROM project_action_runs WHERE workspace_id = OLD.id)
+      BEGIN
+        INSERT OR IGNORE INTO project_action_history_cleanup (workspace_id) VALUES (OLD.id);
+      END`,
   ],
 } as const

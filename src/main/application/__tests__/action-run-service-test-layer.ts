@@ -12,4 +12,5 @@ export const NoopActionRunServiceLayer = Layer.succeed(ActionRunService, {
   stopWorkspaceServices: () => Effect.void,
   withWorkspaceMutation: (_workspaceId, operation) => operation,
   recoverAfterHostLoss: Effect.void,
+  cleanupDeletedWorkspaces: Effect.void,
 })

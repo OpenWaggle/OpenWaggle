@@ -10,6 +10,7 @@ import { WorkspaceExecutionAdmission } from '../../ports/workspace-execution-adm
 import { WorkspacePreparationService } from '../../ports/workspace-preparation-service'
 import { getSessionHostEventRuntime } from '../../session-host/session-host-events'
 import { makeTerminalHistoryStore } from '../terminal/terminal-history-store'
+import { cleanupDeletedActionHistory } from './action-history-cleanup'
 import { type ActionProcessRunner, createActionProcessRunner } from './action-process'
 import { createManagedActionRuns } from './managed-action-runs'
 import { createSqliteActionRunPersistence } from './sqlite-action-runs'
@@ -29,6 +30,12 @@ export const HostActionRunServiceLive = Layer.scoped(
     const persistence = createSqliteActionRunPersistence(sql)
     const admission = yield* WorkspaceExecutionAdmission
     const history = makeTerminalHistoryStore(join(app.getPath('userData'), 'action-logs'))
+    const cleanupHistory = cleanupDeletedActionHistory(sql, history, (workspaceId, cause) =>
+      logger.warn('Deleted workspace action history cleanup will be retried', {
+        workspaceId,
+        error: runError(cause).message,
+      }),
+    )
     let processRunner: ActionProcessRunner | null = null
     const runner = () => {
       processRunner ??= createActionProcessRunner(app.getVersion())
@@ -69,10 +76,11 @@ export const HostActionRunServiceLive = Layer.scoped(
       stopWorkspaceRuns: (workspaceId) => attempt(() => runs.stopWorkspaceRuns(workspaceId)),
       stopWorkspaceServices: (workspaceId) =>
         attempt(() => runs.stopWorkspaceServices(workspaceId)),
+      cleanupDeletedWorkspaces: cleanupHistory,
       recoverAfterHostLoss: attempt(() => {
         recovery ??= persistence.interruptAfterHostLoss()
         return recovery
-      }),
+      }).pipe(Effect.zipRight(cleanupHistory)),
     }
   }),
 )

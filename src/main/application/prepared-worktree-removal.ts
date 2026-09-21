@@ -98,7 +98,7 @@ export function removePreparedWorktree<E, R>(
               catch: (cause) => (cause instanceof Error ? cause : new Error(String(cause))),
             })
             const blocked = missing
-              ? null
+              ? yield* actions.stopWorkspaceRuns(admission.resourceId).pipe(Effect.as(null))
               : yield* prepareWorkspaceRemoval(
                   {
                     workspaceId: admission.resourceId,
@@ -119,7 +119,7 @@ export function removePreparedWorktree<E, R>(
                   removed:
                     Exit.isSuccess(exit) && (exit.value.ok || exit.value.code === 'not-found'),
                 })
-                .pipe(Effect.orDie),
+                .pipe(Effect.zipRight(actions.cleanupDeletedWorkspaces), Effect.orDie),
       ),
     )
     const result = yield* options.actionFenceHeld

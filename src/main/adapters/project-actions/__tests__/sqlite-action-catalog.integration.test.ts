@@ -34,6 +34,8 @@ it('persists private definitions and migration receipts across reconnect, with t
   await Effect.runPromise(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
+      yield* sql`CREATE TABLE workspace_resources (id TEXT PRIMARY KEY)`
+      yield* sql`INSERT INTO workspace_resources VALUES ('workspace')`
       for (const statement of PROJECT_ACTION_MIGRATION.statements) yield* sql.unsafe(statement)
       const persistence = createSqliteActionStatePersistence(sql)
       yield* Effect.promise(async () => {

@@ -3,6 +3,10 @@ import { mkdir, mkdtemp, open, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { decodeUnknownOrThrow, parseJsonUnknown, Schema } from '@shared/schema'
 import type { ActionInvocation, ResolvedActionInvocation } from '@shared/types/action-definitions'
+import {
+  quotePosixShellArgument as quotePosix,
+  quotePowerShellArgument as quotePowerShell,
+} from '@shared/utils/shell-argument'
 import { getInteractiveTerminalEnv } from '../../env'
 import type { ActionRunWorkspace } from '../../ports/action-run-service'
 import type { ActionProcess, ActionProcessRunner } from './action-process'
@@ -13,8 +17,6 @@ const ENVIRONMENT_BYTES = 512 * 1_024
 const PRIVATE_DIRECTORY_MODE = 0o700
 const PRIVATE_FILE_MODE = 0o600
 const transientNames = new Set(['_', 'PWD', 'OLDPWD', 'SHLVL', 'ELECTRON_RUN_AS_NODE'])
-const quotePosix = (value: string) => `'${value.replaceAll("'", "'\\''")}'`
-const quotePowerShell = (value: string) => `'${value.replaceAll("'", "''")}'`
 
 export function preparationCaptureInvocation(
   invocation: ResolvedActionInvocation,

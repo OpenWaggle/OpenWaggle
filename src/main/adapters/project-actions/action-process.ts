@@ -3,6 +3,7 @@ import { access, stat } from 'node:fs/promises'
 import { basename, delimiter, isAbsolute, join } from 'node:path'
 import type { ResolvedActionInvocation } from '@shared/types/action-definitions'
 import { isEnoent } from '@shared/utils/node-error'
+import { quotePowerShellArgument as quotePowerShell } from '@shared/utils/shell-argument'
 import { getInteractiveTerminalEnv } from '../../env'
 import {
   type OwnedTerminalProcessTree,
@@ -69,10 +70,6 @@ async function executablePath(command: string, environment: Readonly<Record<stri
   throw new Error(
     `Runner unavailable: ${command} was not found on PATH. Install it or choose another action.`,
   )
-}
-
-function quotePowerShell(value: string) {
-  return `'${value.replaceAll("'", "''")}'`
 }
 
 async function processCommand(

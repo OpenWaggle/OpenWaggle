@@ -94,7 +94,7 @@ export function ActionRunControls(props: {
           variant="ghost"
           className="min-h-10"
           disabled={busy || !output}
-          onClick={() => void perform(() => navigator.clipboard.writeText(output))}
+          onClick={() => void perform(() => api.copyToClipboard(output))}
         >
           <Copy className="size-3.5" />
           Copy output
@@ -104,7 +104,7 @@ export function ActionRunControls(props: {
           className="min-h-10"
           disabled={busy}
           onClick={() =>
-            void perform(() => navigator.clipboard.writeText(resolvedActionCommand(run.invocation)))
+            void perform(() => api.copyToClipboard(resolvedActionCommand(run.invocation)))
           }
         >
           Copy command

@@ -1,11 +1,13 @@
 import type { ActionRun } from '@shared/types/action-runs'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useComposerStore } from '@/features/composer/state'
 import { TEST_ACTION } from './native-action-fixtures'
 
 const mocks = vi.hoisted(() => ({ manage: vi.fn(), draft: vi.fn(), open: vi.fn(), copy: vi.fn() }))
-vi.mock('@/shared/lib/ipc', () => ({ api: { manageProjectActions: mocks.manage } }))
+vi.mock('@/shared/lib/ipc', () => ({
+  api: { manageProjectActions: mocks.manage, copyToClipboard: mocks.copy },
+}))
 vi.mock('@/features/chat/lib', () => ({ setComposerTextValue: mocks.draft }))
 vi.mock('@/shell/workspace-panel-actions', () => ({
   openWorkspaceAction: mocks.open,
@@ -36,11 +38,37 @@ const scope = { projectPath: '/repo', sessionId: 'session' }
 describe('Action run controls', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    Object.defineProperty(navigator, 'clipboard', {
-      configurable: true,
-      value: { writeText: mocks.copy },
-    })
   })
+  afterEach(() => vi.restoreAllMocks())
+  it.each([
+    { platform: 'Linux', command: "pnpm run 'test unit; literal'" },
+    { platform: 'Windows', command: "& 'pnpm' 'run' 'test unit; literal'" },
+  ])(
+    'copies literal commands and output through Electron on $platform',
+    async ({ platform, command }) => {
+      vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue(platform)
+      render(
+        <ActionRunControls
+          scope={scope}
+          run={{
+            ...run,
+            invocation: {
+              type: 'executable',
+              executable: 'pnpm',
+              args: ['run', 'test unit; literal'],
+              cwd: '/repo',
+            },
+          }}
+          output="quoted task passed"
+        />,
+      )
+      fireEvent.click(screen.getByRole('button', { name: 'Copy command' }))
+      await waitFor(() => expect(mocks.copy).toHaveBeenCalledWith(command))
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Copy output' })).toBeEnabled())
+      fireEvent.click(screen.getByRole('button', { name: 'Copy output' }))
+      await waitFor(() => expect(mocks.copy).toHaveBeenLastCalledWith('quoted task passed'))
+    },
+  )
   it('allows Stop to be retried after the owning process has not confirmed termination', async () => {
     mocks.manage
       .mockRejectedValueOnce(new Error('Still stopping'))

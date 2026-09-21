@@ -812,6 +812,10 @@ Preparation snapshots retain private successful exports and require review for c
 execution. A failed cleanup keeps the worktree and must remain discoverable in Settings after the
 owning Session has been deleted. Pending worktrees can have ordinary future filesystem paths, so
 definition management must use authoritative lifecycle state instead of testing only `pending://`.
+Workspace deletion cascades preparation secrets and action records, then drains a durable output
+cleanup queue. Disk cleanup failures remain queued and must not block Host startup or other owners.
+Action copy buttons use the existing Electron clipboard bridge; the browser clipboard API is denied
+by the renderer permission policy. Copied task invocations must quote literal arguments for the shell.
 
 The September 2026 native action verification reproduced a SQLite worker teardown abort on pristine
 main with transitive better-sqlite3 12.11.1. Root and Effect SQLite now share 13.0.3, which includes the

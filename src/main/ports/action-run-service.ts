@@ -28,6 +28,7 @@ export interface ActionRunServiceShape {
   readonly stop: (workspaceId: string, runId: string) => Effect<ActionRun, Error>
   readonly stopWorkspaceRuns: (workspaceId: string) => Effect<void, Error>
   readonly stopWorkspaceServices: (workspaceId: string) => Effect<void, Error>
+  readonly cleanupDeletedWorkspaces: Effect<void, Error>
   readonly withWorkspaceMutation: <A, E, R>(
     workspaceId: string,
     operation: Effect<A, E, R>,

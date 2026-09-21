@@ -38,6 +38,8 @@ Agents can discover saved actions, launch them, inspect their status and output,
 
 Long-running actions stop automatically when the last session releases their workspace, including when that final session is archived. Stopping precedes Workspace cleanup and managed worktree removal. Switching the visible session does not stop these processes, nor does releasing one session while others remain bound to the workspace. This keeps process lifetime tied to workspace use without accumulating servers for abandoned workspaces.
 
+Deleting the workspace removes its preparation state, private environment, runs, and request receipts. A transactional cleanup queue retains failed output-file deletions for retry when the Host starts; one failed deletion does not block other cleanup or Host startup.
+
 Long-running action processes survive a full desktop app quit while their workspace remains in use. When OpenWaggle reopens, it automatically reconnects to the existing runs, restores their current status and retained output, and resumes live output and controls. Reconnection must not rerun commands or create replacement processes. This requires background ownership and retained run state beyond the desktop-owned terminal execution described in ADR 0030 (Adopt A Single Local Session Host), so background agent work can continue using these processes.
 
 If an action process has actually stopped, including after a computer restart, OpenWaggle shows its stopped or interrupted state, preserves available output, and offers Restart. It does not automatically relaunch the command when the app returns. Reconnecting to a live run and explicitly starting a replacement run are distinct operations.
