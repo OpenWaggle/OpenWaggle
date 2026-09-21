@@ -27,7 +27,7 @@ interface SubmitBlockInput {
   readonly disabled?: boolean
   readonly requiresText: boolean
   readonly projectPath: string | null
-  readonly selectedModel: string
+  readonly selectedModel: string | undefined
 }
 
 export interface ComposerDraftSnapshot {
@@ -105,7 +105,7 @@ export function getSubmitBlock({
   const attachmentLimit = attachmentLimitReason(payload.attachments)
   if (attachmentLimit) return toastSubmitBlock(attachmentLimitMessage(attachmentLimit))
   if (!projectPath) return toastSubmitBlock('Select a project before sending.')
-  if (!selectedModel.trim()) return toastSubmitBlock('Select a model in Settings before sending.')
+  if (!selectedModel?.trim()) return toastSubmitBlock('Select a model in Settings before sending.')
   return null
 }
 
@@ -119,7 +119,7 @@ interface CanSendInput {
   readonly disabled?: boolean
   readonly hasPreparingTextAttachment: boolean
   readonly projectPath: string | null
-  readonly selectedModel: string
+  readonly selectedModel: string | undefined
   readonly requiresText: boolean
 }
 
@@ -142,6 +142,6 @@ export function canSend({
     !hasPreparingTextAttachment &&
     !attachmentLimitReason(attachments) &&
     Boolean(projectPath) &&
-    selectedModel.trim().length > 0
+    Boolean(selectedModel?.trim())
   )
 }

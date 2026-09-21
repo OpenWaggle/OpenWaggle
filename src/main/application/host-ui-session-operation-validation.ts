@@ -1,5 +1,6 @@
 import { isSessionInputTextWithinLimit, SESSION_INPUT_LIMITS } from '@shared/session-input-limits'
-import { SessionBranchId, SessionId, SessionNodeId } from '@shared/types/brand'
+import { SessionBranchId, SessionId, SessionNodeId, SupportedModelId } from '@shared/types/brand'
+import { parseModelRef } from '@shared/types/llm'
 import type {
   PinnedSessionMove,
   SessionNavigateTreeOptions,
@@ -60,6 +61,17 @@ export function validateSessionNodeId(value: unknown) {
 
 export function validateSessionBranchId(value: unknown) {
   return requiredId(value, 'Session branch ID').pipe(Effect.map(SessionBranchId))
+}
+
+export function validateOptionalModel(value: unknown) {
+  if (value === undefined) return Effect.succeed(undefined)
+  return requiredString(value, 'Session model').pipe(
+    Effect.flatMap((model) =>
+      parseModelRef(model)
+        ? Effect.succeed(SupportedModelId(model))
+        : invalid('Session model must be a canonical provider/model reference.'),
+    ),
+  )
 }
 
 function validateOptionalSessionNodeId(value: unknown) {

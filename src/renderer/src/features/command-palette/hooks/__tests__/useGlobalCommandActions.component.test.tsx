@@ -17,6 +17,7 @@ vi.mock('@/features/chat/hooks', () => ({
   useChat: () => ({
     sessions: [],
     activeSessionId: SessionId('session-1'),
+    activeSession: { executionModel: SupportedModelId('openai/gpt-5') },
     setActiveSession: vi.fn(),
     startDraftSession: vi.fn(),
     refreshSession: mocks.refreshSession,

@@ -151,7 +151,11 @@ export interface OpenWaggleApi
   unpinSession(id: SessionId): Promise<void>
   /** Reposition one pin between the neighbours it should land between. */
   movePinnedSession(move: PinnedSessionMove): Promise<void>
-  createSession(projectPath: string, worktreePlan?: SessionWorktreePlan): Promise<SessionDetail>
+  createSession(
+    projectPath: string,
+    worktreePlan?: SessionWorktreePlan,
+    model?: SupportedModelId,
+  ): Promise<SessionDetail>
   forkSessionToNew(
     sessionId: SessionId,
     model: SupportedModelId,

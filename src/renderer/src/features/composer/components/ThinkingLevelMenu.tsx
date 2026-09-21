@@ -21,8 +21,8 @@ export function ThinkingLevelMenu() {
   const thinkingMenuOpen = useComposerStore((s) => s.thinkingMenuOpen)
   const openMenu = useComposerStore((s) => s.openMenu)
   const composerModel = useComposerModel().model
-  const thinking = useSelectedModelThinkingLevel(composerModel)
-  const hasSelectedModel = composerModel.trim().length > 0
+  const thinking = useSelectedModelThinkingLevel(composerModel ?? null)
+  const hasSelectedModel = Boolean(composerModel?.trim())
   const canOpenThinkingMenu =
     thinking.capabilitiesKnown && thinking.availableThinkingLevels.length > 0
   const selectedModelOnlySupportsOff =

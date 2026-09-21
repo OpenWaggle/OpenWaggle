@@ -9,7 +9,7 @@ interface InterruptedRunNoticeProps {
   readonly runId: string
   readonly branchId: SessionBranchId
   readonly runMode: RunMode
-  readonly model: SupportedModelId
+  readonly model: SupportedModelId | undefined
   readonly interruptedAt: number
   readonly onDismiss?: (runId: string, branchId: SessionBranchId) => void
 }

@@ -8,6 +8,8 @@ import {
   MessageDeliveredRunFailed,
   MessageNotDelivered,
 } from '@/features/chat/lib/message-delivery'
+import { isModelActionable } from '@/features/providers/state'
+import { usePreferencesStore } from '@/features/settings/state'
 import { api } from '@/shared/lib/ipc'
 import { createOptimisticUserMessage } from '../lib/useAgentChat.utils'
 import { createPendingRunWaiter, updateMessagesForSession } from './useAgentChat.message-cache'
@@ -41,7 +43,7 @@ interface AgentRunControlRefs {
 interface AgentRunControlParams {
   readonly sessionId: SessionId | null
   readonly isFirstMessage: boolean
-  readonly model: SupportedModelId
+  readonly model: SupportedModelId | undefined
   readonly refs: AgentRunControlRefs
   readonly setMessagesBySessionId: SetMessagesBySessionId
   readonly setRunRenderMessages: SetRunRenderMessages
@@ -50,7 +52,7 @@ interface AgentRunControlParams {
     recovery: {
       readonly payload: AgentSendPayload
       readonly waggleConfig: WaggleConfig | null
-      readonly model: SupportedModelId
+      readonly model: SupportedModelId | undefined
     } | null,
   ) => void
   readonly setBackgroundStreaming: SetBackgroundStreaming
@@ -152,16 +154,19 @@ export function createAgentRunControls(params: AgentRunControlParams) {
     return promise
   }
 
-  async function dispatchAgentSend(payload: AgentSendPayload, waggleConfig: WaggleConfig | null) {
+  async function dispatchAgentSend(
+    payload: AgentSendPayload,
+    waggleConfig: WaggleConfig | null,
+    model: SupportedModelId,
+  ) {
     if (!sessionId) {
       return
     }
-
     const targetSessionId = sessionId
     const runPromise = startForegroundRun(targetSessionId)
     const sendPromise = waggleConfig
-      ? api.sendWaggleMessage(targetSessionId, payload, params.model, waggleConfig)
-      : api.sendMessage(targetSessionId, payload, params.model)
+      ? api.sendWaggleMessage(targetSessionId, payload, model, waggleConfig)
+      : api.sendMessage(targetSessionId, payload, model)
 
     /*
      * Raised after the try block, never inside it. The catch below tears the run down and puts the session into
@@ -226,6 +231,12 @@ export function createAgentRunControls(params: AgentRunControlParams) {
     if (!sessionId) {
       return
     }
+    // Transcript retries and diff follow-ups bypass the composer gate; validate before the
+    // optimistic turn is appended, so a refused send leaves no phantom message behind.
+    if (!isModelActionable(usePreferencesStore.getState().settings.enabledModels, params.model)) {
+      params.setError(new Error('Select a model before sending.'))
+      return
+    }
 
     const optimisticUserMessage = createOptimisticUserMessage(payload)
     if (params.isFirstMessage) {
@@ -244,7 +255,7 @@ export function createAgentRunControls(params: AgentRunControlParams) {
       (currentMessages) => [...currentMessages, optimisticUserMessage],
       { cacheRunSnapshot: true },
     )
-    await dispatchAgentSend(payload, waggleConfig)
+    await dispatchAgentSend(payload, waggleConfig, params.model)
     if (params.isFirstMessage) {
       params.setFirstSendRecovery(sessionId, null)
     }

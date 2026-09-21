@@ -10,7 +10,9 @@ import type { useNavigate } from '@tanstack/react-router'
 import { useChatStore } from '@/features/chat/state/chat-store'
 import { buildComposerDraftContextKey } from '@/features/composer/lib'
 import { useComposerStore } from '@/features/composer/state'
+import { isModelActionable } from '@/features/providers/state'
 import { useSessionStore } from '@/features/sessions/state'
+import { usePreferencesStore } from '@/features/settings/state'
 import { api } from '@/shared/lib/ipc'
 import { setComposerTextValue } from '../lib/composer-text'
 import { type BranchSummaryPromptState, useBranchSummaryStore } from '../state/branch-summary-store'
@@ -20,7 +22,7 @@ type Navigate = ReturnType<typeof useNavigate>
 interface BranchSummaryWorkflowParams {
   readonly activeSessionId: SessionId | null
   readonly activeWorkspace: SessionWorkspace | null
-  readonly model: SupportedModelId
+  readonly model: SupportedModelId | undefined
   readonly projectPath: string | null
   readonly navigate: Navigate
   readonly loadSessions: () => Promise<void>
@@ -170,6 +172,9 @@ async function navigateWithBranchSummary(
   prompt: BranchSummaryPromptState,
   customInstructions: string | undefined,
 ) {
+  if (!isModelActionable(usePreferencesStore.getState().settings.enabledModels, params.model)) {
+    return { cancelled: true }
+  }
   const trimmedInstructions = customInstructions?.trim()
   return api.navigateSessionTree(prompt.sessionId, params.model, prompt.sourceNodeId, {
     summarize: true,
@@ -239,6 +244,7 @@ export function useBranchSummaryWorkflow(params: BranchSummaryWorkflowParams) {
     ) {
       if (!params.activeSessionId) return true
       if (draftBranch?.sessionId !== params.activeSessionId) return true
+      if (!params.model) return true
 
       const navigation = await api.navigateSessionTree(
         params.activeSessionId,

@@ -68,11 +68,20 @@ export function resolveSelectedModelThinkingLevel(
 }
 
 export function useSelectedModelThinkingLevel(
-  selectedModelOverride?: SupportedModelId,
+  selectedModelOverride?: SupportedModelId | null,
 ): SelectedModelThinkingLevel {
   const preferredModel = usePreferencesStore((state) => state.settings.selectedModel)
   const requestedThinkingLevel = usePreferencesStore((state) => state.settings.thinkingLevel)
   const providerModels = useProviderStore((state) => state.providerModels)
+  if (selectedModelOverride === null) {
+    return {
+      requestedThinkingLevel,
+      effectiveThinkingLevel: requestedThinkingLevel,
+      availableThinkingLevels: [],
+      capabilitiesKnown: false,
+      isAdjustedForModel: false,
+    }
+  }
   const selectedModel = selectedModelOverride ?? preferredModel
 
   return resolveSelectedModelThinkingLevel({

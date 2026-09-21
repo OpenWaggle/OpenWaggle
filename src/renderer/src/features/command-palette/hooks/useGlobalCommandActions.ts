@@ -1,5 +1,6 @@
 import { useNavigate } from '@tanstack/react-router'
 import { useChat } from '@/features/chat/hooks'
+import { isSelectableModel, useProviderStore } from '@/features/providers/state'
 import { useSessionSummaryUIStore } from '@/features/session-summary'
 import { useProject, useSessions } from '@/features/sessions/hooks'
 import { usePreferencesStore } from '@/features/settings/state'
@@ -13,8 +14,14 @@ export function useGlobalCommandActions() {
   const navigate = useNavigate()
   const { projectPath, selectFolder, setProjectPath } = useProject()
   const { refreshSessionWorkspace } = useSessions()
-  const { sessions, activeSessionId, setActiveSession, startDraftSession, refreshSession } =
-    useChat()
+  const {
+    sessions,
+    activeSession,
+    activeSessionId,
+    setActiveSession,
+    startDraftSession,
+    refreshSession,
+  } = useChat()
   const close = useUIStore((state) => state.closeCommandSurface)
   const openCommandSurface = useUIStore((state) => state.openCommandSurface)
   const requestChatCommand = useUIStore((state) => state.requestChatCommand)
@@ -33,6 +40,9 @@ export function useGlobalCommandActions() {
   const showToast = useUIStore((state) => state.showToast)
   const toggleSessionSummaryPanel = useSessionSummaryUIStore((state) => state.togglePanel)
   const settings = usePreferencesStore((state) => state.settings)
+  const sessionModel = activeSession?.executionModel
+  const providerModels = useProviderStore((s) => s.providerModels)
+  const catalogHydrated = useProviderStore((s) => s.catalogHydrated)
   const sessionId = activeSessionId ? String(activeSessionId) : null
 
   function finish(action: () => void) {
@@ -113,8 +123,15 @@ export function useGlobalCommandActions() {
       showToast('Open a session first.', 'error')
       return
     }
+    if (
+      !sessionModel ||
+      !isSelectableModel(providerModels, settings, sessionModel, catalogHydrated)
+    ) {
+      showToast('Select a model before compacting.', 'error')
+      return
+    }
     try {
-      await api.compactSession(activeSessionId, settings.selectedModel)
+      await api.compactSession(activeSessionId, sessionModel)
       await Promise.all([refreshSession(activeSessionId), refreshSessionWorkspace(activeSessionId)])
       showToast('Session compacted.', 'success')
     } catch (error) {
