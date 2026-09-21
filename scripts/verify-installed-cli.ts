@@ -53,6 +53,10 @@ function installedCliProcess(command: string, args: readonly string[], platform:
   return platform === 'win32' ? windowsCommand(command, args) : { command, args }
 }
 
+export function shouldUseWindowsVerbatimArguments(platform: NodeJS.Platform) {
+  return platform === 'win32'
+}
+
 export function runInstalledCli(
   command: string,
   args: readonly string[],
@@ -69,6 +73,9 @@ export function runInstalledCli(
       env: environment,
       stdio: ['ignore', 'pipe', 'pipe'],
       windowsHide: true,
+      // cmd.exe parses the complete tail after /c itself. Node's CRT escaping would otherwise
+      // turn the command token's quotes into literal backslashes before cmd receives them.
+      windowsVerbatimArguments: shouldUseWindowsVerbatimArguments(platform),
     })
     const stdout: Buffer[] = []
     const stderr: Buffer[] = []

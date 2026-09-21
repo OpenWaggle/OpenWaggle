@@ -21,6 +21,8 @@ export interface TurnCheckpointSummary {
   readonly turnId: string
   readonly turnIndex: number
   readonly createdAt: number
+  /** When the turn's run started (epoch ms); enables "Worked for Xs" fold labels (ADR 0034). */
+  readonly startedAt?: number | null
   readonly insertions: number
   readonly deletions: number
   /** Persisted assistant node id this turn's diff is anchored to (transcript reveal). */

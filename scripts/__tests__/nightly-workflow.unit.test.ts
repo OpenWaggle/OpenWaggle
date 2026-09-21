@@ -26,6 +26,14 @@ describe('nightly packaged canary workflow', () => {
     expect(WORKFLOW).toContain('OPENWAGGLE_RELEASE_CHANNEL: stable')
   })
 
+  it('installs, exercises, and uninstalls the Windows artifact before release day', () => {
+    expect(WORKFLOW).toContain('- name: Verify Windows installer')
+    expect(WORKFLOW).toContain("if: matrix.label == 'Windows'")
+    expect(WORKFLOW).toContain(
+      'pnpm exec tsx scripts/verify-windows-installer.ts "$installerPath"',
+    )
+  })
+
   it('pins every third-party action to a commit SHA, like the other workflows', () => {
     const actionUses = [...WORKFLOW.matchAll(/uses:\s*(\S+)/gu)].map((match) => match[1])
     expect(actionUses.length).toBeGreaterThan(0)

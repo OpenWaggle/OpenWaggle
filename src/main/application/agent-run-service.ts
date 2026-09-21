@@ -35,7 +35,9 @@ export type { AgentRunInput, AgentRunResult } from './agent-run/types'
 const logger = createLogger('agent-run-service')
 
 /** The persisted assistant node with the greatest created order (the run's final assistant turn). */
-function resolveLatestAssistantNodeId(nodes: readonly ProjectedSessionNodeInput[]): string | null {
+export function resolveLatestAssistantNodeId(
+  nodes: readonly ProjectedSessionNodeInput[],
+): string | null {
   let latest: ProjectedSessionNodeInput | null = null
   for (const node of nodes) {
     if (node.role === 'assistant' && (latest === null || node.createdOrder > latest.createdOrder)) {

@@ -1,6 +1,6 @@
 import { X } from 'lucide-react'
+import { useComposerModel } from '@/features/composer/hooks'
 import { useFeedback } from '@/features/feedback/hooks/useFeedback'
-import { usePreferencesStore } from '@/features/settings/state'
 import { useEscapeHotkey } from '@/shared/hooks/useEscapeHotkey'
 import { Button } from '@/shared/ui/Button'
 import { ModalDialog } from '@/shared/ui/ModalDialog'
@@ -12,7 +12,7 @@ export function FeedbackModal() {
   const errorContext = useUIStore((s) => s.feedbackErrorContext)
 
   const lastUserMessage: string | null = null
-  const activeModel = usePreferencesStore((s) => s.settings.selectedModel)
+  const activeModel: string | null = useComposerModel().model ?? null
   const activeProvider: string | null = null
 
   const fb = useFeedback(errorContext, lastUserMessage, activeModel, activeProvider)

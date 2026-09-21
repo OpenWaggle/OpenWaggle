@@ -63,7 +63,7 @@ import type {
   AgentsResolutionResult,
   SkillCatalogResult,
 } from './standards'
-import type { TurnCheckpointSummary, TurnDiff } from './turn-diff'
+import type { TurnCheckpointSummary, TurnDiff, TurnDiffFileSummary } from './turn-diff'
 import type { VoiceTranscriptionRequest, VoiceTranscriptionResult } from './voice'
 
 type SessionTitleUpdatedHandler = (payload: IpcEventPayload<'sessions:title-updated'>) => void
@@ -143,7 +143,9 @@ export interface OpenWaggleApi
 
   // Sessions
   getSessionDetail(id: SessionId): Promise<SessionDetail | null>
+  dismissInterruptedSessionRun(sessionId: SessionId, runId: string): Promise<void>
   listTurnCheckpoints(id: SessionId): Promise<TurnCheckpointSummary[]>
+  getTurnDiffFiles(id: SessionId, turnId: string): Promise<readonly TurnDiffFileSummary[]>
   getTurnDiff(id: SessionId, turnId: string): Promise<TurnDiff | null>
   /** Every Pinned session in Manual order, archived ones included (issue #97). */
   listPinnedSessions(): Promise<PinnedSession[]>
@@ -151,7 +153,11 @@ export interface OpenWaggleApi
   unpinSession(id: SessionId): Promise<void>
   /** Reposition one pin between the neighbours it should land between. */
   movePinnedSession(move: PinnedSessionMove): Promise<void>
-  createSession(projectPath: string, worktreePlan?: SessionWorktreePlan): Promise<SessionDetail>
+  createSession(
+    projectPath: string,
+    worktreePlan?: SessionWorktreePlan,
+    model?: SupportedModelId,
+  ): Promise<SessionDetail>
   forkSessionToNew(
     sessionId: SessionId,
     model: SupportedModelId,
@@ -162,7 +168,6 @@ export interface OpenWaggleApi
     model: SupportedModelId,
     targetNodeId: SessionNodeId,
   ): Promise<SessionCopyToNewResult>
-  dismissInterruptedSessionRun(sessionId: SessionId, runId: string): Promise<void>
   deleteSession(id: SessionId): Promise<void>
   archiveSession(id: SessionId): Promise<void>
   unarchiveSession(id: SessionId): Promise<void>

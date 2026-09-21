@@ -1,19 +1,22 @@
 import { matchBy } from '@diegogbrisa/ts-match'
-import type { SessionBranchId, SessionId } from '@shared/types/brand'
+import type { SessionId } from '@shared/types/brand'
 import type { ExtensionContributionRegistryView } from '@shared/types/extensions'
 import { TurnDivider } from '@/features/waggle/components'
 import { AGENT_BORDER_LEFT } from '@/features/waggle/lib'
 import { cn } from '@/shared/lib/cn'
+import { latestTurnIndex } from '../lib/changed-files-presentation'
 import type { ChatRow, MessageChatRow, WaggleTurnChatRow } from '../lib/types-chat-row'
 import { CustomMessageRow } from './AgentLoopCustomMessageRow'
 import { InteractionEventRow } from './AgentLoopInteractionEventRow'
 import { StatusRow } from './AgentLoopStatusRow'
 import { BranchSummaryCard } from './BranchSummaryCard'
+import { ChangedFilesCard } from './ChangedFilesCard'
 import { ChatErrorDisplay } from './ChatErrorDisplay'
 import type { ChatRowRenderContext } from './ChatRowRenderContext'
 import { CompactionTimelineRow } from './CompactionTimelineRow'
 import { InterruptedRunNotice } from './InterruptedRunNotice'
 import { MessageBubble } from './MessageBubble'
+import { TurnFoldRow } from './TurnFoldRow'
 import { WorktreeLaunchRow } from './WorktreeLaunchRow'
 
 interface ChatRowRendererProps {
@@ -25,9 +28,10 @@ interface ChatRowRendererProps {
   onOpenSettings?: () => void
   onRetry?: (content: string) => void
   onDismissError?: (message: string) => void
-  onDismissInterruptedRun?: (runId: string, branchId: SessionBranchId) => void
+  onDismissInterruptedRun?: ChatRowRenderContext['actions']['onDismissInterruptedRun']
   onBranchFromMessage?: (messageId: string) => void
   onForkFromMessage?: (messageId: string) => void
+  onToggleTurnFold?: (turnKey: string) => void
 }
 
 function fallbackContext(props: ChatRowRendererProps): ChatRowRenderContext {
@@ -38,14 +42,16 @@ function fallbackContext(props: ChatRowRendererProps): ChatRowRenderContext {
   return {
     runtime: { sessionId: props.sessionId ?? null, extensions },
     extensions,
+    turnsByAnchorNodeId: new Map(),
     actions: {
+      onDismissInterruptedRun: props.onDismissInterruptedRun,
       onBranchFromMessage: props.onBranchFromMessage,
       onForkFromMessage: props.onForkFromMessage,
+      onToggleTurnFold: props.onToggleTurnFold,
     },
     onOpenSettings: props.onOpenSettings,
     onRetry: props.onRetry,
     onDismissError: props.onDismissError ?? (() => undefined),
-    onDismissInterruptedRun: props.onDismissInterruptedRun,
   }
 }
 
@@ -56,6 +62,7 @@ function MessageRow({
   readonly row: MessageChatRow
   readonly context: ChatRowRenderContext
 }) {
+  const turn = context.turnsByAnchorNodeId.get(row.message.id)
   return (
     <div className="flex flex-col gap-6">
       {row.showTurnDivider && row.turnDividerProps && (
@@ -75,8 +82,18 @@ function MessageRow({
           isRunActive: row.isRunActive,
           assistantModel: row.assistantModel,
         }}
+        presentation={{ turnFolded: row.turnPresentation === 'folded' }}
         actions={context.actions}
       />
+      {turn && context.actions.onOpenTurnDiff ? (
+        <ChangedFilesCard
+          sessionId={context.runtime.sessionId}
+          turn={turn}
+          isLatestTurn={turn.turnIndex === latestTurnIndex(context.turnsByAnchorNodeId)}
+          anchorMessageId={row.message.id}
+          onOpenTurnDiff={context.actions.onOpenTurnDiff}
+        />
+      ) : null}
     </div>
   )
 }
@@ -88,6 +105,12 @@ function WaggleTurnRow({
   readonly row: WaggleTurnChatRow
   readonly context: ChatRowRenderContext
 }) {
+  // ADR 0034: every settled turn with a Turn diff renders a changed-files card,
+  // including waggle agent turns (checkpoint anchors the run's terminal node).
+  const terminalMessageId = row.folded
+    ? row.messages.find((messageRow) => messageRow.turnPresentation === 'folded')?.message.id
+    : undefined
+  const turn = terminalMessageId ? context.turnsByAnchorNodeId.get(terminalMessageId) : undefined
   return (
     <section className="flex flex-col gap-3" data-waggle-turn={row.id}>
       <TurnDivider
@@ -97,7 +120,18 @@ function WaggleTurnRow({
         agentModel={row.turnDividerProps.agentModel}
       />
       <div className={cn('flex flex-col gap-5 border-l-2 pl-4', AGENT_BORDER_LEFT[row.agentColor])}>
-        {row.messages.map((messageRow) => (
+        {row.foldRow && context.actions.onToggleTurnFold ? (
+          <TurnFoldRow
+            row={row.foldRow}
+            sessionId={context.runtime.sessionId}
+            extensions={context.extensions}
+            onToggleTurnFold={context.actions.onToggleTurnFold}
+          />
+        ) : null}
+        {(row.folded
+          ? row.messages.filter((messageRow) => messageRow.turnPresentation === 'folded')
+          : row.messages
+        ).map((messageRow) => (
           <MessageBubble
             key={messageRow.message.id}
             message={messageRow.message}
@@ -108,10 +142,22 @@ function WaggleTurnRow({
               isRunActive: messageRow.isRunActive,
               assistantModel: messageRow.assistantModel,
             }}
-            presentation={{ hideAgentLabel: true }}
+            presentation={{
+              hideAgentLabel: true,
+              turnFolded: messageRow.turnPresentation === 'folded',
+            }}
             actions={context.actions}
           />
         ))}
+        {turn && terminalMessageId && context.actions.onOpenTurnDiff ? (
+          <ChangedFilesCard
+            sessionId={context.runtime.sessionId}
+            turn={turn}
+            isLatestTurn={turn.turnIndex === latestTurnIndex(context.turnsByAnchorNodeId)}
+            anchorMessageId={terminalMessageId}
+            onOpenTurnDiff={context.actions.onOpenTurnDiff}
+          />
+        ) : null}
       </div>
     </section>
   )
@@ -127,10 +173,20 @@ export function ChatRowRenderer(props: ChatRowRendererProps) {
         runMode={row.runMode}
         model={row.model}
         interruptedAt={row.interruptedAt}
-        onDismiss={context.onDismissInterruptedRun}
+        onDismiss={context.actions.onDismissInterruptedRun}
       />
     ))
     .with('message', (row) => <MessageRow row={row} context={context} />)
+    .with('turn-fold', (row) =>
+      context.actions.onToggleTurnFold ? (
+        <TurnFoldRow
+          row={row}
+          sessionId={context.runtime.sessionId}
+          extensions={context.extensions}
+          onToggleTurnFold={context.actions.onToggleTurnFold}
+        />
+      ) : null,
+    )
     .with('worktree-launch', (row) => (
       <WorktreeLaunchRow launch={row.launch} sessionId={row.sessionId} />
     ))
@@ -158,9 +214,7 @@ export function ChatRowRenderer(props: ChatRowRendererProps) {
     .with('agent-loop-custom-message', (row) => (
       <CustomMessageRow row={row} extensions={context.extensions} />
     ))
-    .with('phase-indicator', 'run-summary', (row) => (
-      <StatusRow row={row} extensions={context.extensions} />
-    ))
+    .with('phase-indicator', (row) => <StatusRow row={row} extensions={context.extensions} />)
     .with('agent-loop-interaction', (row) => (
       <InteractionEventRow item={row.item} extensions={context.extensions} />
     ))

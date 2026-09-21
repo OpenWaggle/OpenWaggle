@@ -36,6 +36,7 @@ const REPLAY_SAFE_HOST_UI_CHANNELS = new Set<HostBackedGuiChannel>([
   'sessions:get-workspace',
   'sessions:turn-checkpoints:list',
   'sessions:turn-diff:get',
+  'sessions:turn-diff-files:get',
   'sessions:pins:list',
   'settings:get',
   'extensions:list-packages',

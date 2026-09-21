@@ -32,6 +32,7 @@ describe('registerSessionDetailsHandlers', () => {
       'sessions:get-detail',
       'sessions:turn-checkpoints:list',
       'sessions:turn-diff:get',
+      'sessions:turn-diff-files:get',
       'sessions:pins:list',
       'sessions:pins:pin',
       'sessions:pins:unpin',
@@ -79,6 +80,56 @@ describe('registerSessionDetailsHandlers', () => {
         },
       })
       expect(getSessionDetailMock).toHaveBeenCalledWith(SessionId('session-created'))
+    } finally {
+      await rm(projectPath, { recursive: true, force: true })
+    }
+  })
+
+  it('passes a draft model and worktree plan into the immutable execution profile', async () => {
+    const projectPath = await mkdtemp(path.join(tmpdir(), 'openwaggle-session-test-'))
+    const validatedProjectPath = await realpath(projectPath)
+    try {
+      getSessionDetailMock.mockResolvedValue({
+        id: SessionId('session-created'),
+        title: 'New session',
+        messages: [],
+      })
+      registerSessionDetailsHandlers()
+
+      await getInvokeHandler('sessions:create')?.(
+        {},
+        projectPath,
+        { environmentMode: 'worktree', baseRef: 'main', startFromOrigin: true },
+        SupportedModelId('openai/gpt-5.4'),
+      )
+
+      expect(dispatchLocalSessionCommandMock).toHaveBeenCalledWith({
+        caller: { callerId: 'gui:local-user', workingDirectory: validatedProjectPath },
+        payload: {
+          contract: 'session-lifecycle-v2',
+          request: expect.objectContaining({
+            command: {
+              operation: 'create',
+              projectPath: validatedProjectPath,
+              workspace: { mode: 'new-worktree', baseRef: 'main', startFromOrigin: true },
+              specialization: { modelId: 'openai/gpt-5.4' },
+            },
+          }),
+        },
+      })
+    } finally {
+      await rm(projectPath, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects a non-canonical draft model', async () => {
+    const projectPath = await mkdtemp(path.join(tmpdir(), 'openwaggle-session-test-'))
+    try {
+      registerSessionDetailsHandlers()
+      await expect(
+        getInvokeHandler('sessions:create')?.({}, projectPath, undefined, 'not-a-model'),
+      ).rejects.toThrow('Session model must be a canonical provider/model reference.')
+      expect(dispatchLocalSessionCommandMock).not.toHaveBeenCalled()
     } finally {
       await rm(projectPath, { recursive: true, force: true })
     }

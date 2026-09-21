@@ -172,7 +172,7 @@ export function makeBrokerHarness(input: Omit<BrokerHarnessInput, 'invocation'>)
     },
     runRaw: (invocation: ExtensionInvokeInput) =>
       Effect.runPromise(
-        invokeExtensionCapability(invocation, { now: () => TIMESTAMP }).pipe(Effect.provide(layer)),
+        Effect.provide(invokeExtensionCapability(invocation, { now: () => TIMESTAMP }), layer),
       ),
     storageItems: () => storageItems.map((item) => item),
     reconciledProjectPaths: () => reconciledProjectPaths.map((projectPath) => projectPath),

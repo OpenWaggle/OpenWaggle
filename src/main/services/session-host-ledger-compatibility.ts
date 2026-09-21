@@ -15,6 +15,7 @@ import {
   SESSION_HOST_PROJECT_CATALOG_GENERATION_MIGRATION_ID,
   SESSION_HOST_TRANSCRIPT_TERM_NORMALIZATION_MIGRATION_ID,
   SESSION_HOST_TRANSCRIPT_TERM_NORMALIZATION_MIGRATION_NAME,
+  SESSION_HOST_TURN_CHECKPOINT_STARTED_AT_MIGRATION_ID,
 } from './session-host-schema-identity'
 
 export const SESSION_HOST_ALPHA_BASELINE_ID = 26
@@ -60,6 +61,10 @@ const currentIdentities = [
   {
     id: SESSION_HOST_PROJECT_CATALOG_GENERATION_MIGRATION_ID,
     name: 'session-host-project-catalog-generation',
+  },
+  {
+    id: SESSION_HOST_TURN_CHECKPOINT_STARTED_AT_MIGRATION_ID,
+    name: 'turn-checkpoint-started-at',
   },
 ]
 

@@ -56,6 +56,7 @@ export async function runPiSession(
       readonly systemPromptAppendices?: readonly string[]
     },
 ) {
+  const startedAt = Date.now()
   const projectPath = input.workingPath
   const peerReports = createPeerAgentReportExtension({
     runId: input.runId,
@@ -151,7 +152,12 @@ export async function runPiSession(
   })
 
   // Best-effort per-turn checkpoint (WS7); never affects the run result.
-  await captureTurnCheckpoint({ session: input.session, projectPath, runId: input.runId })
+  await captureTurnCheckpoint({
+    session: input.session,
+    projectPath,
+    runId: input.runId,
+    startedAt,
+  })
 
   return result
 }

@@ -1,3 +1,8 @@
+import {
+  LOCAL_SESSION_CURRENT_REVISION,
+  LOCAL_SESSION_DESKTOP_SERVICE_REVISION,
+  LOCAL_SESSION_SUPPORTED_REVISIONS,
+} from '@shared/types/local-session-protocol'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   DesktopNativeQuarantinedError,
@@ -5,6 +10,7 @@ import {
   startGuiDesktopServiceBridge,
 } from '../gui-desktop-service-bridge'
 import { DESKTOP_SHUTDOWN_DRAIN_MS } from '../gui-desktop-service-lifecycle'
+import { negotiateLocalSessionProtocol } from '../local-session-negotiation'
 import {
   bridgeHarness,
   DESKTOP_TEST_GUI_ID,
@@ -160,5 +166,26 @@ describe('GUI desktop bridge lifecycle', () => {
       instance.state.rejectResume = false
       await stopBridge(lifecycle)
     }
+  })
+
+  it('negotiates the transport within the supported revision window, not the desktop contract revision', () => {
+    // The bridge once pinned the handshake to LOCAL_SESSION_DESKTOP_SERVICE_REVISION (11); once
+    // the window moved to [13, 12] every launch failed before the window. The desktop contract
+    // is revision-gated per command, so the transport handshake must use the standard revisions.
+    const hello = (supportedRevisions: readonly number[]) => ({
+      protocol: 'openwaggle-local-session' as const,
+      supportedRevisions,
+      clientKind: 'gui' as const,
+      clientVersion: 'desktop-bridge',
+    })
+    expect(
+      negotiateLocalSessionProtocol(
+        hello([LOCAL_SESSION_DESKTOP_SERVICE_REVISION]),
+        'host-current',
+      ),
+    ).toMatchObject({ accepted: false, code: 'incompatible_protocol' })
+    expect(
+      negotiateLocalSessionProtocol(hello([...LOCAL_SESSION_SUPPORTED_REVISIONS]), 'host-current'),
+    ).toMatchObject({ accepted: true, revision: LOCAL_SESSION_CURRENT_REVISION })
   })
 })

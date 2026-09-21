@@ -109,6 +109,7 @@ const TestSessionProjectionRepoLayer = Layer.succeed(
       }),
     listTurnCheckpoints: () => Effect.succeed([]),
     getTurnDiff: () => Effect.succeed(null),
+    getTurnDiffFiles: () => Effect.succeed([]),
     setTurnCheckpointAnchor: () => Effect.void,
     listPinnedSessions: () =>
       Effect.tryPromise({

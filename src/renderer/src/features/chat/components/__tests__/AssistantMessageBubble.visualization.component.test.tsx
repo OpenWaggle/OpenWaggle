@@ -12,17 +12,6 @@ vi.mock('@/features/session-summary', () => ({
   SessionMessageImages: () => null,
 }))
 
-vi.mock('../../hooks/useMessageCollapse', () => ({
-  useMessageCollapse: () => ({
-    canCollapseDetails: false,
-    showDetails: false,
-    toggleDetails: vi.fn(),
-    collapseLabel: '',
-    lastRenderableTextPartIndex: -1,
-    renderAllParts: true,
-  }),
-}))
-
 vi.mock('../StreamingText', () => ({
   StreamingText: ({
     text,
@@ -52,7 +41,6 @@ vi.mock('../ToolCallRouter', () => ({
 }))
 
 vi.mock('../AgentLabel', () => ({ AgentLabel: () => null }))
-vi.mock('../CollapsibleDetails', () => ({ CollapsibleDetails: () => null }))
 
 import { AssistantMessageBubble } from '../AssistantMessageBubble'
 

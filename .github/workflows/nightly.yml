@@ -88,6 +88,14 @@ jobs:
       - name: Smoke packaged runtime
         run: pnpm packaged-app:smoke
 
+      - name: Verify Windows installer
+        if: matrix.label == 'Windows'
+        shell: pwsh
+        run: |
+          $version = node -p "require('./package.json').version"
+          $installerPath = Join-Path $PWD "dist/openwaggle-$version-x64.exe"
+          pnpm exec tsx scripts/verify-windows-installer.ts "$installerPath"
+
       - name: Upload build artifacts on failure
         if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

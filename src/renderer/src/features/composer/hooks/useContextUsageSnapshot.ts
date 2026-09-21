@@ -16,7 +16,7 @@ interface ContextUsageRequestState {
 
 interface UseContextUsageSnapshotInput {
   readonly activeSessionId: SessionId | null
-  readonly selectedModel: SupportedModelId
+  readonly selectedModel: SupportedModelId | undefined
   readonly requestKey: string
 }
 
@@ -32,7 +32,7 @@ export function useContextUsageSnapshot({
   })
 
   useEffect(() => {
-    if (!activeSessionId || typeof api.getContextUsage !== 'function') return
+    if (!activeSessionId || !selectedModel || typeof api.getContextUsage !== 'function') return
 
     let cancelled = false
     let receivedLiveUpdate = false

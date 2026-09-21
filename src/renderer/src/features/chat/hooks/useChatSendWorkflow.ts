@@ -33,7 +33,7 @@ interface ChatSendWorkflowParams {
   readonly extensionContributions: ExtensionContributionRegistryView | null
   readonly handleSend: (payload: AgentSendPayload) => Promise<void>
   readonly handleSendWaggle: (payload: AgentSendPayload, config: WaggleConfig) => Promise<void>
-  readonly model: SupportedModelId
+  readonly model: SupportedModelId | undefined
   readonly messages: readonly UIMessage[]
   readonly phase: { readonly reset: () => void }
   readonly projectPath: string | null
@@ -51,6 +51,10 @@ interface ChatSendWorkflowParams {
 async function compactSession(params: ChatSendWorkflowParams, customInstructions?: string) {
   if (!params.activeSessionId) {
     params.showToast('Nothing to compact yet.')
+    return
+  }
+  if (!params.model) {
+    params.showToast('Select a model before compacting.')
     return
   }
 

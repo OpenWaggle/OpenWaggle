@@ -4,11 +4,13 @@ import type { ExtensionContributionRegistryView } from '@shared/types/extensions
 import type { SupportedModelId } from '@shared/types/llm'
 import type { SessionDetail, SessionWorkspace } from '@shared/types/session'
 import type { AgentTransportCustomEvent } from '@shared/types/stream'
+import type { TurnCheckpointSummary } from '@shared/types/turn-diff'
 import type { WaggleCollaborationStatus } from '@shared/types/waggle'
 import { useState } from 'react'
 import type { useStreamingPhase } from '@/features/chat/hooks/useStreamingPhase'
 import { useWaggleMetadataLookup } from '@/features/chat/hooks/useWaggleMetadataLookup'
 import { useBackgroundRunStore } from '@/features/chat/state/background-run-store'
+import { selectExpandedTurnKeys, useTurnFoldStore } from '@/features/chat/state/turn-fold-store'
 import { useSessionStore } from '@/features/sessions/state'
 import {
   mergeCustomMessages,
@@ -68,7 +70,7 @@ export interface TranscriptSectionParams {
   readonly recentProjects: readonly string[]
   readonly activeSessionId: SessionId | null
   readonly activeSession: SessionDetail | null
-  readonly model: SupportedModelId
+  readonly model: SupportedModelId | undefined
   readonly waggleStatus: WaggleCollaborationStatus
   readonly phase: ReturnType<typeof useStreamingPhase>
   readonly extensionRegistry: ExtensionContributionRegistryView | null
@@ -80,8 +82,11 @@ export interface TranscriptSectionParams {
   readonly handleDismissInterruptedRun: (runId: string, branchId: SessionBranchId) => void
   readonly handleBranchFromMessage: (messageId: string) => void
   readonly handleForkFromMessage: (messageId: string) => void
-  readonly handleViewTurnDiff: (messageId: string) => void
+  readonly handleViewTurnDiff: (messageId: string, filePath?: string) => void
   readonly turnAnchorMessageIds: ReadonlySet<string>
+  readonly turnsByAnchorNodeId: ReadonlyMap<string, TurnCheckpointSummary>
+  /** Durable per-turn durations keyed by terminal assistant message id (turn checkpoints). */
+  readonly turnDurationsByAnchorMessageId?: ReadonlyMap<string, number>
   readonly userDidSend: boolean
   readonly onUserDidSendConsumed: () => void
   readonly compactionStatus: AgentCompactionStatus | null
@@ -149,6 +154,8 @@ export function useTranscriptSection(params: TranscriptSectionParams): ChatTrans
     interactionEvents,
   )
   const waggleMetadataLookup = useWaggleMetadataLookup(activeSession, transcriptMessages)
+  const expandedTurnKeys = useTurnFoldStore(selectExpandedTurnKeys(activeSessionId))
+  const toggleTurnFold = useTurnFoldStore((state) => state.toggleTurnFold)
   const displayedSelection = displayedWorkspaceSelection(activeWorkspace, activeSessionId)
 
   const lastUserMessage = resolveLastUserMessage(transcriptMessages)
@@ -173,7 +180,13 @@ export function useTranscriptSection(params: TranscriptSectionParams): ChatTrans
     interruptedRun,
     worktreeLaunch,
     compactionStatus,
+    expandedTurnKeys,
+    turnDurationsByAnchorMessageId: params.turnDurationsByAnchorMessageId,
   })
+
+  function handleToggleTurnFold(turnKey: string) {
+    toggleTurnFold(activeSessionId, turnKey)
+  }
 
   // Compute lastUserMessageId for session-restore identity gating, not send anchoring.
   const lastUserMessageId = (() => {
@@ -205,6 +218,8 @@ export function useTranscriptSection(params: TranscriptSectionParams): ChatTrans
     onForkFromMessage: handleForkFromMessage,
     onViewTurnDiff: params.handleViewTurnDiff,
     turnAnchorMessageIds: params.turnAnchorMessageIds,
+    turnsByAnchorNodeId: params.turnsByAnchorNodeId,
+    onToggleTurnFold: handleToggleTurnFold,
     lastUserMessageId,
     streamSignalVersion,
     userDidSend,

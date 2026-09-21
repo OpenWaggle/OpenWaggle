@@ -6,6 +6,7 @@ import {
   assertInstalledCliResponse,
   InstalledCliProcessTreeExitUnprovenError,
   runInstalledCli,
+  shouldUseWindowsVerbatimArguments,
   verifyInstalledCli,
 } from '../verify-installed-cli'
 import { buildSafeElectronEnvironment } from '../safe-electron-environment'
@@ -18,6 +19,11 @@ const VALID_RESPONSE = JSON.stringify({
 })
 
 describe('installed CLI verification', () => {
+  it('lets cmd.exe parse its /c command tail without Node CRT escaping', () => {
+    expect(shouldUseWindowsVerbatimArguments('win32')).toBe(true)
+    expect(shouldUseWindowsVerbatimArguments('linux')).toBe(false)
+  })
+
   it('bounds a hanging wrapper and its surviving child with process-tree cleanup', async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-cli-tree-'))
     const script = path.join(root, 'hanging-wrapper.cjs')

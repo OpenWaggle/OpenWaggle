@@ -31,7 +31,9 @@ export function useChatPanelEnvironment() {
   const recentProjects = usePreferencesStore((s) => s.settings.recentProjects)
   const project = useProject()
   const chat = useChat()
-  const model = chat.activeSession?.executionModel ?? preferredModel
+  const model = chat.activeSessionId
+    ? chat.activeSession?.executionModel
+    : (chat.draftSession?.selectedModel ?? preferredModel)
   const git = useGit()
   const activeWorkspace = useSessionStore((state) => state.activeWorkspace)
   const loadSessions = useSessionStore((state) => state.loadSessions)

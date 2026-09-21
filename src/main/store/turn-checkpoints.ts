@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import * as SqlClient from '@effect/sql/SqlClient'
 import type { SessionId } from '@shared/types/brand'
-import type { TurnCheckpointSummary, TurnDiff } from '@shared/types/turn-diff'
+import type { TurnCheckpointSummary, TurnDiff, TurnDiffFileSummary } from '@shared/types/turn-diff'
 import {
   parseTurnDiffFilesFromUnifiedDiff,
   sumDeletions,
@@ -14,6 +14,7 @@ interface TurnCheckpointRow {
   readonly turn_id: string
   readonly turn_index: number
   readonly created_at: number
+  readonly started_at: number | null
   readonly diff: string
   readonly insertions: number
   readonly deletions: number
@@ -28,6 +29,8 @@ export interface RecordTurnCheckpointInput {
   readonly diff: string
   /** Snapshot commit (git stash create) of the worktree at this turn, if any. */
   readonly snapshotRef?: string | null
+  /** Epoch ms when the turn's run started; enables fold duration labels (ADR 0034). */
+  readonly startedAt?: number | null
 }
 
 /** Persist a per-turn worktree checkpoint (diff blob) for a session. */
@@ -40,14 +43,15 @@ export async function recordTurnCheckpoint(input: RecordTurnCheckpointInput): Pr
       const sql = yield* SqlClient.SqlClient
       yield* sql`
         INSERT INTO turn_checkpoints (
-          id, session_id, turn_id, turn_index, created_at, diff, insertions, deletions, snapshot_ref
+          id, session_id, turn_id, turn_index, created_at, started_at, diff, insertions, deletions, snapshot_ref
         )
         SELECT
           ${randomUUID()}, ${input.sessionId}, ${input.turnId},
           (SELECT COALESCE(MAX(turn_index), -1) + 1 FROM turn_checkpoints WHERE session_id = ${input.sessionId}),
-          ${Date.now()}, ${input.diff}, ${insertions}, ${deletions}, ${input.snapshotRef ?? null}
+          ${Date.now()}, ${input.startedAt ?? null}, ${input.diff}, ${insertions}, ${deletions}, ${input.snapshotRef ?? null}
         ON CONFLICT(session_id, turn_id) DO UPDATE SET
           created_at = excluded.created_at,
+          started_at = excluded.started_at,
           diff = excluded.diff,
           insertions = excluded.insertions,
           deletions = excluded.deletions,
@@ -98,7 +102,7 @@ export async function listTurnCheckpoints(sessionId: SessionId): Promise<TurnChe
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
       const rows = yield* sql<TurnCheckpointRow>`
-        SELECT turn_id, turn_index, created_at, diff, insertions, deletions, anchor_node_id
+        SELECT turn_id, turn_index, created_at, started_at, diff, insertions, deletions, anchor_node_id
         FROM turn_checkpoints
         WHERE session_id = ${sessionId}
         ORDER BY turn_index ASC
@@ -107,6 +111,7 @@ export async function listTurnCheckpoints(sessionId: SessionId): Promise<TurnChe
         turnId: row.turn_id,
         turnIndex: row.turn_index,
         createdAt: row.created_at,
+        startedAt: row.started_at,
         insertions: row.insertions,
         deletions: row.deletions,
         anchorNodeId: row.anchor_node_id ?? null,
@@ -136,6 +141,25 @@ export async function getTurnDiff(sessionId: SessionId, turnId: string): Promise
         insertions: row.insertions,
         deletions: row.deletions,
       }
+    }),
+  )
+}
+
+/** File summaries for a turn without shipping the whole diff blob across IPC. */
+export async function getTurnDiffFiles(
+  sessionId: SessionId,
+  turnId: string,
+): Promise<readonly TurnDiffFileSummary[]> {
+  return runStoreEffect(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      const rows = yield* sql<Pick<TurnCheckpointRow, 'diff'>>`
+        SELECT diff FROM turn_checkpoints
+        WHERE session_id = ${sessionId} AND turn_id = ${turnId}
+        LIMIT 1
+      `
+      const row = rows[0]
+      return row ? parseTurnDiffFilesFromUnifiedDiff(row.diff) : []
     }),
   )
 }
