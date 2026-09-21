@@ -20,6 +20,7 @@ import { configureDesktopUiAfterReady, prepareDesktopUi } from './desktop-window
 import { env, installDesktopShellEnvironment } from './env'
 import { describeError } from './error-description'
 import { installInlineVisualizationNavigationGuard } from './inline-visualization-navigation'
+import { applyInstallerUpdateChannelIntent } from './installer-update-channel-intent'
 import { createLogger, initFileLogger } from './logger'
 import { createMainWindow, focusExistingWindow } from './main-window'
 import {
@@ -187,6 +188,11 @@ async function bootstrapServicesAndWindow() {
       : null
 
   await sessionHostLifecycleOnce.start()
+
+  await applyInstallerUpdateChannelIntent(app.getPath('userData'), async (channel) => {
+    const update = await invokeConfiguredHostUi('settings:update', [{ updateChannel: channel }])
+    if (!update.handled) throw new Error('Attached GUI lost its Session Host settings route.')
+  })
 
   if (automationProjectPatch) {
     const update = await invokeConfiguredHostUi('settings:update', [automationProjectPatch])

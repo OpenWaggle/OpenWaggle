@@ -220,7 +220,7 @@ describe('updater service', () => {
     it('invalidates an already downloaded Alpha update when switching to Stable', () => {
       initAutoUpdater('alpha')
       emitter().emit('update-downloaded', { version: '0.5.0-alpha.1' })
-      expect(Reflect.get(emitter(), 'autoInstallOnAppQuit')).toBe(true)
+      expect(Reflect.get(emitter(), 'autoInstallOnAppQuit')).toBe(process.platform !== 'darwin')
 
       checkForUpdates('stable')
 

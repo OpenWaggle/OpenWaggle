@@ -7,6 +7,7 @@ DEFAULT_REPO="OpenWaggle/OpenWaggle"
 REPO="${OPENWAGGLE_INSTALL_REPO:-${DEFAULT_REPO}}"
 RELEASE_TAG="${OPENWAGGLE_RELEASE_TAG:-}"
 REQUESTED_CHANNEL="${OPENWAGGLE_CHANNEL:-}"
+CHANNEL=""
 RELEASES_API_URL="${OPENWAGGLE_RELEASES_API_URL:-https://api.github.com/repos/${REPO}/releases}"
 RELEASE_API_URL="${OPENWAGGLE_RELEASE_API_URL:-}"
 READY_MESSAGE="Ready to waggle"
@@ -121,6 +122,36 @@ resolve_release_tag() {
   printf '%s\n' "${selected}"
 }
 # END TESTABLE RELEASE RESOLUTION
+
+# BEGIN TESTABLE UPDATE CHANNEL PREFERENCE
+update_channel_intent_path() {
+  local config_root
+  if [ "${PLATFORM}" = "mac" ]; then
+    config_root="${HOME}/Library/Application Support"
+  else
+    config_root="${XDG_CONFIG_HOME:-${HOME}/.config}"
+  fi
+  printf '%s/openwaggle/install-update-channel\n' "${config_root}"
+}
+
+persist_selected_channel() {
+  [ -n "${CHANNEL}" ] || return 0
+  local intent_path intent_directory temporary_path
+  intent_path="$(update_channel_intent_path)"
+  intent_directory="$(dirname "${intent_path}")"
+  mkdir -p "${intent_directory}" || return 1
+  temporary_path="$(mktemp "${intent_directory}/.install-update-channel.XXXXXX")" || return 1
+  if ! chmod 600 "${temporary_path}"; then
+    rm -f "${temporary_path}"
+    return 1
+  fi
+  if ! printf '%s\n' "${CHANNEL}" > "${temporary_path}" || \
+    ! mv -f "${temporary_path}" "${intent_path}"; then
+    rm -f "${temporary_path}"
+    return 1
+  fi
+}
+# END TESTABLE UPDATE CHANNEL PREFERENCE
 
 install_executable_atomically() {
   local source_path="$1"
@@ -454,5 +485,6 @@ DESKTOP
   fi
 fi
 
+persist_selected_channel || error "Could not save the ${CHANNEL} update channel preference."
 rm -f "${DOWNLOAD_PATH}"
 animate_ready

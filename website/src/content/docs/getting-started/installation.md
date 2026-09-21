@@ -37,6 +37,10 @@ curl -fsSL https://raw.githubusercontent.com/OpenWaggle/OpenWaggle/main/scripts/
   | OPENWAGGLE_CHANNEL=beta bash
 ```
 
+The installer saves the selected policy channel, not merely the channel label on the artifact it
+downloads. For example, an Alpha install remains on Alpha even when the newest eligible artifact
+happens to be a Beta or Stable build.
+
 For a one-time exact-version install, set `OPENWAGGLE_RELEASE_TAG` instead. This does not change
 your saved channel:
 

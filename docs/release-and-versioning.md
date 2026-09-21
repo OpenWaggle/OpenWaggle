@@ -59,7 +59,10 @@ receives Alpha, Beta, and Stable. RC versions remain available through exact-ver
 because electron-updater's GitHub provider treats RC as a custom channel. Release packaging
 publishes the matching metadata aliases for every eligible automatic channel because
 electron-builder does not generate the cross-channel aliases for its GitHub provider. The app and
-CLI persist one shared channel and explicitly disable downgrades.
+CLI persist one shared channel and explicitly disable downgrades. The macOS updater does not stage
+downloads automatically on quit; it stages the currently eligible download only through the
+explicit restart action. The shell installer persists its selected policy channel as a one-time
+Session Host intent instead of inferring future policy from the downloaded artifact's version.
 
 ### Protected release recovery
 

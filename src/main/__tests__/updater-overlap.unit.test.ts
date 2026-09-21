@@ -45,7 +45,13 @@ vi.mock('../logger', () => ({
   createLogger: () => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }),
 }))
 
-import { checkForUpdates, disposeAutoUpdater, initAutoUpdater } from '../updater'
+import {
+  checkForUpdates,
+  disposeAutoUpdater,
+  getUpdateStatus,
+  initAutoUpdater,
+  installUpdate,
+} from '../updater'
 
 describe('updater overlapping checks', () => {
   beforeEach(() => {
@@ -60,6 +66,7 @@ describe('updater overlapping checks', () => {
   afterEach(() => {
     disposeAutoUpdater()
     updaterRef.current?.removeAllListeners()
+    vi.restoreAllMocks()
     vi.useRealTimers()
   })
 
@@ -86,5 +93,31 @@ describe('updater overlapping checks', () => {
 
     expect(checkForUpdatesMock).toHaveBeenCalledTimes(2)
     expect(configureUpdaterFeedMock).toHaveBeenLastCalledWith(expect.anything(), 'stable')
+  })
+
+  it('keeps macOS downloads out of Squirrel until an eligible Restart action', async () => {
+    vi.spyOn(process, 'platform', 'get').mockReturnValue('darwin')
+    checkForUpdatesMock.mockResolvedValueOnce({
+      isUpdateAvailable: true,
+      updateInfo: { version: '0.5.0' },
+      downloadPromise: Promise.resolve([]),
+    })
+    initAutoUpdater('alpha')
+    updaterRef.current?.emit('update-downloaded', { version: '0.5.0-alpha.1' })
+    expect(Reflect.get(updaterRef.current ?? {}, 'autoInstallOnAppQuit')).toBe(false)
+
+    checkForUpdates('stable')
+    await Promise.resolve()
+    updaterRef.current?.emit('update-available', { version: '0.5.0' })
+    updaterRef.current?.emit('update-downloaded', { version: '0.5.0' })
+    await Promise.resolve()
+
+    expect(Reflect.get(updaterRef.current ?? {}, 'autoInstallOnAppQuit')).toBe(false)
+    expect(getUpdateStatus()).toEqual({ type: 'downloaded', version: '0.5.0' })
+    installUpdate()
+    expect(Reflect.get(updaterRef.current ?? {}, 'quitAndInstall')).toHaveBeenCalledWith(
+      false,
+      true,
+    )
   })
 })

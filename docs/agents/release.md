@@ -17,6 +17,13 @@ The desktop app, `openwaggle update`, and `scripts/install.sh` use the same chan
 - `--version` and `OPENWAGGLE_RELEASE_TAG` are exact, one-time selections and do not change the
 persisted channel.
 
+The shell installer writes the selected automatic channel into the canonical released-app
+user-data directory. The authoritative Session Host consumes that one-time intent before serving
+settings, so an Alpha policy remains Alpha even when the selected artifact is Beta or Stable. On
+macOS, automatic staging on quit stays disabled: the renderer's eligible **Restart to update**
+action hands the selected zip to Squirrel.Mac, avoiding a stale staged prerelease after narrowing
+the channel.
+
 RC versions are exact-version releases only. electron-updater's GitHub provider treats RC as a
 custom channel rather than part of Alpha or Beta, so promising automatic RC eligibility would not
 match the shipped updater.

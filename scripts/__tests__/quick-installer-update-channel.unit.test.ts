@@ -1,17 +1,28 @@
 import { execFile } from 'node:child_process'
 import fs from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
 import { promisify } from 'node:util'
 import { describe, expect, it } from 'vitest'
 
 const execFileAsync = promisify(execFile)
 const RESOLUTION_START = '# BEGIN TESTABLE RELEASE RESOLUTION'
 const RESOLUTION_END = '# END TESTABLE RELEASE RESOLUTION'
+const PREFERENCE_START = '# BEGIN TESTABLE UPDATE CHANNEL PREFERENCE'
+const PREFERENCE_END = '# END TESTABLE UPDATE CHANNEL PREFERENCE'
 
 function releaseResolution(source: string) {
   const start = source.indexOf(RESOLUTION_START)
   const end = source.indexOf(RESOLUTION_END)
   if (start < 0 || end <= start) throw new Error('Installer release resolution was not found.')
   return source.slice(start + RESOLUTION_START.length, end)
+}
+
+function updateChannelPreference(source: string) {
+  const start = source.indexOf(PREFERENCE_START)
+  const end = source.indexOf(PREFERENCE_END)
+  if (start < 0 || end <= start) throw new Error('Installer update channel preference was not found.')
+  return source.slice(start + PREFERENCE_START.length, end)
 }
 
 async function resolveRelease(
@@ -111,5 +122,26 @@ describe('quick installer update channel', () => {
     }))
 
     await expect(resolveDefaultAcrossPages(source, [firstPage, []])).resolves.toBe('alpha')
+  })
+
+  it('persists the selected policy channel independently of the resolved artifact channel', async () => {
+    const source = await fs.readFile('scripts/install.sh', 'utf8')
+    const home = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-installer-channel-'))
+    try {
+      const script = `set -euo pipefail
+${updateChannelPreference(source)}
+PLATFORM=linux
+HOME="$1"
+CHANNEL=alpha
+persist_selected_channel
+update_channel_intent_path`
+      const result = await execFileAsync('bash', ['-c', script, 'installer-channel-test', home])
+      const intentPath = result.stdout.trim().split('\n').at(-1)
+
+      expect(intentPath).toBe(path.join(home, '.config', 'openwaggle', 'install-update-channel'))
+      await expect(fs.readFile(intentPath ?? '', 'utf8')).resolves.toBe('alpha\n')
+    } finally {
+      await fs.rm(home, { recursive: true, force: true })
+    }
   })
 })
