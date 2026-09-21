@@ -32,6 +32,7 @@ vi.mock('@/shared/lib/ipc', () => ({
     checkForUpdates: checkForUpdatesMock,
     installUpdate: installUpdateMock,
     updateSettings: updateSettingsMock,
+    getSettings: vi.fn(async () => DEFAULT_SETTINGS),
     getCliShimStatus: getCliShimStatusMock,
     showConfirm: showConfirmMock,
   },

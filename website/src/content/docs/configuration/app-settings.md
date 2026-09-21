@@ -74,10 +74,11 @@ Archived branches are hidden from normal sidebar navigation but remain visible i
 `openwaggle update`. Stable is the default. Beta also accepts Stable releases; Alpha accepts
 Alpha, Beta, and Stable releases. OpenWaggle asks for confirmation whenever you enter Alpha, then
 saves the choice and checks the new channel immediately. Changing channels never authorizes a
-downgrade; **Check now** lets you query the selected channel again later. Before restarting,
-OpenWaggle re-reads the channel shared with the CLI and discards a downloaded release that is no
-longer eligible. Downloaded updates are installed only when you choose **Restart to update**; a
-normal app exit never bypasses that final channel check.
+downgrade; **Check now** lets you query the selected channel again later. If the CLI changes the
+shared channel while Settings is open, the picker refreshes to show the authoritative choice.
+Before restarting, OpenWaggle re-reads the channel shared with the CLI and discards a downloaded
+release that is no longer eligible. Downloaded updates are installed only when you choose
+**Restart to update**; a normal app exit never bypasses that final channel check.
 
 ## Appearance
 
