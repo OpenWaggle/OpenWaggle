@@ -37,7 +37,8 @@ esac`
 }
 
 async function resolveDefaultAcrossPages(source: string, pages: readonly unknown[]) {
-  const script = `${releaseResolution(source)}
+  const script = `set -euo pipefail
+${releaseResolution(source)}
 page_one="$1"
 page_two="$2"
 curl() {
@@ -101,5 +102,14 @@ describe('quick installer update channel', () => {
     const secondPage = [{ tag_name: 'v0.4.0' }]
 
     await expect(resolveDefaultAcrossPages(source, [firstPage, secondPage])).resolves.toBe('stable')
+  })
+
+  it('accepts an empty page after exactly 100 releases', async () => {
+    const source = await fs.readFile('scripts/install.sh', 'utf8')
+    const firstPage = Array.from({ length: 100 }, (_, index) => ({
+      tag_name: `v0.5.0-alpha.${100 - index}`,
+    }))
+
+    await expect(resolveDefaultAcrossPages(source, [firstPage, []])).resolves.toBe('alpha')
   })
 })

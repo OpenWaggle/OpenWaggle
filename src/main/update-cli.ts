@@ -4,6 +4,7 @@ import { writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { decodeUnknownOrThrow, Schema } from '@shared/schema'
+import { LOCAL_SESSION_UPDATE_REVISION } from '@shared/types/local-session-protocol'
 import { LOCAL_UPDATE_CONTRACT_VERSION } from '@shared/types/local-update'
 import {
   UPDATE_CHANNELS,
@@ -217,7 +218,9 @@ async function readAndUpdateChannel(
   parsed: ReturnType<typeof parseMcpCliArguments>,
   requested: UpdateChannel | undefined,
 ) {
-  const client = await createLocalSessionCliClientInput(parsed)
+  const client = await createLocalSessionCliClientInput(parsed, {
+    supportedRevisions: [LOCAL_SESSION_UPDATE_REVISION],
+  })
   const result = await executeLocalSessionCommand({
     ...client,
     payload: requested

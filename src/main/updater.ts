@@ -21,6 +21,10 @@ let readAuthoritativeChannel: (() => Promise<UpdateChannel>) | null = null
 let checkGeneration = 0
 let activeUpdateCancellation: { cancel: () => void } | null = null
 let activeUpdateVersion: string | null = null
+let activeCheckPromise: Promise<void> | null = null
+let queuedUpdateCheck: { readonly channel: UpdateChannel; readonly generation: number } | null =
+  null
+let acceptUpdaterEvents = true
 
 function configureUpdateChannel(channel: UpdateChannel) {
   currentChannel = channel
@@ -47,18 +51,39 @@ function logUpdateCheckError(error: unknown) {
 }
 
 function runUpdaterCheck(generation: number) {
-  void autoUpdater
-    .checkForUpdates()
-    .then((result) => {
-      if (!result?.isUpdateAvailable) return
-      if (generation !== checkGeneration) {
-        result.cancellationToken?.cancel()
-        return
-      }
-      activeUpdateCancellation = result.cancellationToken ?? null
-      void result.downloadPromise?.catch(logUpdateCheckError)
-    })
-    .catch(logUpdateCheckError)
+  return autoUpdater.checkForUpdates().then((result) => {
+    if (!result?.isUpdateAvailable) return
+    if (generation !== checkGeneration) {
+      result.cancellationToken?.cancel()
+      return
+    }
+    activeUpdateCancellation = result.cancellationToken ?? null
+    void result.downloadPromise?.catch(logUpdateCheckError)
+  })
+}
+
+function startUpdaterCheck(channel: UpdateChannel, generation: number) {
+  const configured = configureUpdaterFeed(autoUpdater, channel)
+  const operation = configured
+    ? configured.then(() => {
+        if (generation !== checkGeneration) return
+        acceptUpdaterEvents = true
+        return runUpdaterCheck(generation)
+      })
+    : (() => {
+        acceptUpdaterEvents = true
+        return runUpdaterCheck(generation)
+      })()
+  const tracked = operation.catch(logUpdateCheckError).finally(() => {
+    if (activeCheckPromise !== tracked) return
+    activeCheckPromise = null
+    const queued = queuedUpdateCheck
+    queuedUpdateCheck = null
+    if (queued?.generation === checkGeneration) {
+      startUpdaterCheck(queued.channel, queued.generation)
+    }
+  })
+  activeCheckPromise = tracked
 }
 
 function checkConfiguredChannel(channel: UpdateChannel) {
@@ -67,6 +92,7 @@ function checkConfiguredChannel(channel: UpdateChannel) {
     activeUpdateCancellation?.cancel()
     activeUpdateCancellation = null
     activeUpdateVersion = null
+    acceptUpdaterEvents = false
     autoUpdater.autoInstallOnAppQuit = false
     if (
       currentStatus.type === 'available' ||
@@ -78,16 +104,11 @@ function checkConfiguredChannel(channel: UpdateChannel) {
   }
   configureUpdateChannel(channel)
   const generation = ++checkGeneration
-  const configured = configureUpdaterFeed(autoUpdater, channel)
-  if (!configured) {
-    runUpdaterCheck(generation)
+  if (activeCheckPromise) {
+    queuedUpdateCheck = { channel, generation }
     return
   }
-  void configured
-    .then(() => {
-      if (generation === checkGeneration) runUpdaterCheck(generation)
-    })
-    .catch(logUpdateCheckError)
+  startUpdaterCheck(channel, generation)
 }
 
 export function checkForUpdates(channel?: UpdateChannel): void {
@@ -124,16 +145,19 @@ export function initAutoUpdater(
 
   configureUpdateChannel(channel)
   readAuthoritativeChannel = readChannel ?? null
+  acceptUpdaterEvents = true
   autoUpdater.autoDownload = true
   autoUpdater.autoInstallOnAppQuit = true
   autoUpdater.logger = null // We use our own logger
 
   autoUpdater.on('checking-for-update', () => {
+    if (!acceptUpdaterEvents) return
     logger.info('Checking for update')
     setStatus({ type: 'checking' })
   })
 
   autoUpdater.on('update-available', (info) => {
+    if (!acceptUpdaterEvents) return
     if (!isVersionEligibleForChannel(info.version, currentChannel)) {
       activeUpdateVersion = null
       autoUpdater.autoInstallOnAppQuit = false
@@ -149,12 +173,14 @@ export function initAutoUpdater(
   })
 
   autoUpdater.on('update-not-available', () => {
+    if (!acceptUpdaterEvents) return
     activeUpdateVersion = null
     logger.info('No update available')
     setStatus({ type: 'not-available' })
   })
 
   autoUpdater.on('download-progress', (progress) => {
+    if (!acceptUpdaterEvents) return
     if (!activeUpdateVersion) return
     setStatus({
       type: 'downloading',
@@ -164,6 +190,7 @@ export function initAutoUpdater(
   })
 
   autoUpdater.on('update-downloaded', (info) => {
+    if (!acceptUpdaterEvents) return
     if (!isVersionEligibleForChannel(info.version, currentChannel)) {
       activeUpdateCancellation = null
       activeUpdateVersion = null
@@ -182,6 +209,7 @@ export function initAutoUpdater(
   })
 
   autoUpdater.on('error', (error) => {
+    if (!acceptUpdaterEvents) return
     activeUpdateCancellation = null
     activeUpdateVersion = null
     logger.error('Auto-updater error', { message: error.message })
@@ -202,6 +230,9 @@ export function disposeAutoUpdater(): void {
   activeUpdateCancellation?.cancel()
   activeUpdateCancellation = null
   activeUpdateVersion = null
+  activeCheckPromise = null
+  queuedUpdateCheck = null
+  acceptUpdaterEvents = false
   readAuthoritativeChannel = null
   if (checkInterval) {
     clearInterval(checkInterval)

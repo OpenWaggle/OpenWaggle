@@ -106,6 +106,9 @@ describe('update CLI', () => {
       updaterOwnsExit: false,
     })
 
+    expect(createClientMock).toHaveBeenCalledWith(expect.anything(), {
+      supportedRevisions: [14],
+    })
     expect(executeLocalSessionCommandMock).toHaveBeenCalledWith(
       expect.objectContaining({
         payload: {

@@ -19,7 +19,7 @@ error() { printf '\033[1;31merror:\033[0m %s\n' "$*" >&2; exit 1; }
 
 # BEGIN TESTABLE RELEASE RESOLUTION
 extract_release_tags() {
-  printf '%s' "$1" | grep -o '"tag_name"[[:space:]]*:[[:space:]]*"[^"]*"' | \
+  { printf '%s' "$1" | grep -o '"tag_name"[[:space:]]*:[[:space:]]*"[^"]*"' || true; } | \
     sed 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/'
 }
 
