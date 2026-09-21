@@ -9,7 +9,10 @@ import type { SessionEmbeddingModel } from '../../adapters/multilingual-e5-sessi
 import { SQLITE_PREPARE_CACHE_SIZE } from '../../services/database-constants'
 import { APP_MIGRATIONS } from '../../services/database-migrations'
 import { runAppDatabaseMigrations } from '../../services/database-service'
-import { SESSION_HOST_BASELINE_MIGRATION_ID } from '../../services/session-host-schema-identity'
+import {
+  SESSION_HOST_BASELINE_MIGRATION_ID,
+  SESSION_HOST_BASELINE_MIGRATION_NAME,
+} from '../../services/session-host-schema-identity'
 import { runSessionHostCutover } from '../session-host-cutover'
 
 const fakeEmbeddingModel: SessionEmbeddingModel = {
@@ -197,6 +200,42 @@ describe('Session Host cutover from older legacy revisions', () => {
         { id: 27 },
         { id: SESSION_HOST_BASELINE_MIGRATION_ID },
       ])
+    } finally {
+      target.close()
+    }
+  })
+
+  it('drops stale pre-cutover host-baseline ledger rows before recording Host identities', async () => {
+    const sourceDatabasePath = path.join(temporaryRoot, 'openwaggle-stale-ledger.db')
+    const targetDatabasePath = path.join(temporaryRoot, 'session-host', 'session-host.sqlite')
+    const recoveryDatabasePath = path.join(temporaryRoot, 'pre-cutover-openwaggle.sqlite')
+    seedLegacyDatabase(sourceDatabasePath, 20)
+    const source = new DatabaseSync(sourceDatabasePath)
+    try {
+      // An unreleased build numbered a Host migration into the legacy database; the row must not
+      // collide with the Host baseline identity the cutover records.
+      source
+        .prepare('INSERT INTO _migrations (id, name, applied_at) VALUES (?, ?, ?)')
+        .run(SESSION_HOST_BASELINE_MIGRATION_ID, 'turn-checkpoint-started-at', 'stale-branch')
+    } finally {
+      source.close()
+    }
+
+    await expect(
+      runSessionHostCutover(
+        { sourceDatabasePath, targetDatabasePath, recoveryDatabasePath },
+        1_000,
+        fakeEmbeddingModel,
+      ),
+    ).resolves.toMatchObject({ status: 'migrated' })
+
+    const target = new DatabaseSync(targetDatabasePath, { readOnly: true })
+    try {
+      expect(
+        target
+          .prepare('SELECT name FROM _migrations WHERE id = ?')
+          .get(SESSION_HOST_BASELINE_MIGRATION_ID),
+      ).toEqual({ name: SESSION_HOST_BASELINE_MIGRATION_NAME })
     } finally {
       target.close()
     }

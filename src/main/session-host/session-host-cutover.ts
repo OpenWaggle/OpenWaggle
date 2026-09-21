@@ -19,7 +19,11 @@ import {
   SESSION_HOST_POST_POPULATION_SCHEMA_STATEMENTS,
 } from '../services/session-host-target-schema'
 import { validateSessionHostCompletionSeal } from './session-host-completion-seal'
-import { readCutoverCount, sourceSchemaRevision } from './session-host-cutover-database'
+import {
+  normalizeLegacyMigrationLedger,
+  readCutoverCount,
+  sourceSchemaRevision,
+} from './session-host-cutover-database'
 import {
   normalizeLegacySessionColumns,
   populateSessionHostTarget,
@@ -133,6 +137,7 @@ function prepareStagingDatabase(stagingPath: string, now: number) {
       PRAGMA temp_store = FILE;
       BEGIN IMMEDIATE;
     `)
+    normalizeLegacyMigrationLedger(database)
     const revision = sourceSchemaRevision(database)
     const sourceCounts = {
       sessions: readCutoverCount(database, 'sessions'),
