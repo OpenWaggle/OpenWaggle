@@ -27,14 +27,12 @@ interface RunInstalledCliOptions {
 
 interface VerifyInstalledCliDependencies {
   readonly environmentOverrides?: Readonly<Record<string, string>>
-  readonly timeoutMs?: number
   readonly createProfile?: () => Promise<string>
   readonly runCli?: (
     command: string,
     args: readonly string[],
     environment: Record<string, string>,
     platform: NodeJS.Platform,
-    options: RunInstalledCliOptions,
   ) => Promise<CliResult>
   readonly shutdownAndRemoveProfile?: (userDataRoot: string) => Promise<void>
   readonly shutdownProfile?: (userDataRoot: string) => Promise<void>
@@ -159,10 +157,6 @@ async function defaultShutdownProfile(userDataRoot: string) {
   await shutdownSessionHostForQa(userDataRoot, async () => undefined)
 }
 
-function installedCliTimeout(dependencies: VerifyInstalledCliDependencies) {
-  return dependencies.timeoutMs ?? CLI_TIMEOUT_MS
-}
-
 export async function verifyInstalledCli(
   command: string,
   platform: NodeJS.Platform = process.platform,
@@ -175,7 +169,6 @@ export async function verifyInstalledCli(
   const shutdownAndRemoveProfile =
     dependencies.shutdownAndRemoveProfile ?? defaultShutdownAndRemoveProfile
   const shutdownProfile = dependencies.shutdownProfile ?? defaultShutdownProfile
-  const timeoutMs = installedCliTimeout(dependencies)
   const userDataRoot = await createProfile()
   const environment = {
     ...buildSafeElectronEnvironment({}),
@@ -192,7 +185,6 @@ export async function verifyInstalledCli(
       ['sessions', 'list', '--all', '--limit', '1', '--json'],
       environment,
       platform,
-      { timeoutMs },
     )
     assertInstalledCliResponse(result.stdout, platform)
   } catch (error) {

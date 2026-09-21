@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process'
-import { access, mkdtemp } from 'node:fs/promises'
+import { access, mkdtemp, realpath } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { pathToFileURL } from 'node:url'
@@ -11,7 +11,6 @@ const INSTALLED_EXECUTABLE = 'OpenWaggle.exe'
 const INSTALLED_CLI_SHIM = 'openwaggle.cmd'
 const INSTALLED_UNINSTALLER = 'Uninstall OpenWaggle.exe'
 const SILENT_INSTALL_ARGUMENT = '/S'
-const WINDOWS_INSTALLER_CLI_TIMEOUT_MS = 120_000
 const UNINSTALL_PATH_POLL_INTERVAL_MS = 100
 const UNINSTALL_PATH_MAX_ATTEMPTS = 150
 
@@ -26,9 +25,9 @@ type VerifyWindowsInstallerDependencies = {
   readonly verifyCli?: (
     command: string,
     environmentOverrides: Readonly<Record<string, string>>,
-    options: { readonly timeoutMs: number },
   ) => Promise<void>
   readonly verifyPath?: (filePath: string) => Promise<void>
+  readonly canonicalizePath?: (filePath: string) => Promise<string>
   readonly readUserPath?: () => Promise<string>
   readonly wait?: (milliseconds: number) => Promise<void>
   readonly resolveCommand?: (
@@ -96,9 +95,9 @@ async function verifyInstalledState(input: {
   readonly verifyCli: (
     command: string,
     environmentOverrides: Readonly<Record<string, string>>,
-    options: { readonly timeoutMs: number },
   ) => Promise<void>
   readonly verifyPath: (filePath: string) => Promise<void>
+  readonly canonicalizePath: (filePath: string) => Promise<string>
 }) {
   await input.verifyPath(join(input.installDirectory, INSTALLED_EXECUTABLE))
   const cliShimPath = join(input.installDirectory, INSTALLED_CLI_SHIM)
@@ -114,12 +113,17 @@ async function verifyInstalledState(input: {
     PATHEXT: process.env.PATHEXT ?? '.COM;.EXE;.BAT;.CMD',
   }
   const resolvedCommand = await input.findCommand('openwaggle', environmentOverrides)
-  if (normalizedWindowsPath(resolvedCommand) !== normalizedWindowsPath(cliShimPath)) {
+  if (!resolvedCommand) throw new Error('Fresh shell did not resolve openwaggle.')
+  const [canonicalResolvedCommand, canonicalCliShimPath] = await Promise.all([
+    input.canonicalizePath(resolvedCommand),
+    input.canonicalizePath(cliShimPath),
+  ])
+  if (
+    normalizedWindowsPath(canonicalResolvedCommand) !== normalizedWindowsPath(canonicalCliShimPath)
+  ) {
     throw new Error(`Fresh shell resolved openwaggle to ${resolvedCommand || 'nothing'}.`)
   }
-  await input.verifyCli('openwaggle', environmentOverrides, {
-    timeoutMs: WINDOWS_INSTALLER_CLI_TIMEOUT_MS,
-  })
+  await input.verifyCli('openwaggle', environmentOverrides)
 }
 
 async function waitForUninstalledPath(input: {
@@ -171,10 +175,11 @@ export async function verifyWindowsInstaller(
   const executeUninstaller = dependencies.runUninstaller ?? runInstaller
   const verifyCli =
     dependencies.verifyCli ??
-    ((command, environmentOverrides, options) =>
-      verifyInstalledCli(command, 'win32', { environmentOverrides, ...options }))
+    ((command, environmentOverrides) =>
+      verifyInstalledCli(command, 'win32', { environmentOverrides }))
   const getUserPath = dependencies.readUserPath ?? readUserPath
   const findCommand = dependencies.resolveCommand ?? resolveCommand
+  const canonicalizePath = dependencies.canonicalizePath ?? realpath
   const wait =
     dependencies.wait ??
     ((milliseconds) => new Promise<void>((resolve) => setTimeout(resolve, milliseconds)))
@@ -197,6 +202,7 @@ export async function verifyWindowsInstaller(
       findCommand,
       verifyCli,
       verifyPath,
+      canonicalizePath,
     })
   } catch (error) {
     primaryFailure = error

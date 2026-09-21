@@ -33,7 +33,15 @@ describe('Windows installer verification', () => {
         installerPath: 'D:\\artifacts\\openwaggle.exe',
         installDirectory: 'D:\\temp\\openwaggle-install',
       },
-      { readUserPath, resolveCommand, runInstaller, runUninstaller, verifyCli, verifyPath },
+      {
+        canonicalizePath: async (filePath) => filePath,
+        readUserPath,
+        resolveCommand,
+        runInstaller,
+        runUninstaller,
+        verifyCli,
+        verifyPath,
+      },
     )
 
     expect(runInstaller).toHaveBeenCalledWith('D:\\artifacts\\openwaggle.exe', [
@@ -57,13 +65,9 @@ describe('Windows installer verification', () => {
       PATH: expect.stringContaining('D:\\temp\\openwaggle-install'),
       PATHEXT: expect.stringContaining('.CMD'),
     }))
-    expect(verifyCli).toHaveBeenCalledWith(
-      'openwaggle',
-      expect.objectContaining({
-        PATH: expect.stringContaining('D:\\temp\\openwaggle-install'),
-      }),
-      { timeoutMs: 120_000 },
-    )
+    expect(verifyCli).toHaveBeenCalledWith('openwaggle', expect.objectContaining({
+      PATH: expect.stringContaining('D:\\temp\\openwaggle-install'),
+    }))
     expect(runUninstaller).toHaveBeenCalledWith(
       join('D:\\temp\\openwaggle-install', 'Uninstall OpenWaggle.exe'),
       ['/S'],
@@ -109,6 +113,7 @@ describe('Windows installer verification', () => {
       },
       {
         readUserPath,
+        canonicalizePath: async (filePath) => filePath,
         resolveCommand: async () => 'D:\\temp\\openwaggle-install\\openwaggle.cmd',
         runInstaller: async () => 0,
         runUninstaller: async () => 0,
@@ -119,6 +124,30 @@ describe('Windows installer verification', () => {
     )
 
     expect(wait).toHaveBeenCalledOnce()
+  })
+
+  it('accepts the same shim through Windows short and long path aliases', async () => {
+    const shortInstallDirectory = 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\openwaggle-install'
+    const longShimPath =
+      'C:\\Users\\runneradmin\\AppData\\Local\\Temp\\openwaggle-install\\openwaggle.cmd'
+
+    await verifyWindowsInstaller(
+      { installerPath: 'installer.exe', installDirectory: shortInstallDirectory },
+      {
+        canonicalizePath: async (filePath) =>
+          filePath.endsWith('openwaggle.cmd') ? longShimPath : filePath,
+        readUserPath: vi
+          .fn()
+          .mockResolvedValueOnce('C:\\Windows')
+          .mockResolvedValueOnce(`C:\\Windows;${shortInstallDirectory}`)
+          .mockResolvedValueOnce('C:\\Windows'),
+        resolveCommand: async () => longShimPath,
+        runInstaller: async () => 0,
+        runUninstaller: async () => 0,
+        verifyCli: async () => undefined,
+        verifyPath: async () => undefined,
+      },
+    )
   })
 
   it('reports the complete aggregate instead of hiding nested causes', () => {
