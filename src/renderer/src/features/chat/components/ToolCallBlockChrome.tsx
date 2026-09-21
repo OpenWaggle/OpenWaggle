@@ -5,6 +5,7 @@ import { formatDuration } from '@/shared/lib/format'
 import { Button } from '@/shared/ui/Button'
 import { PlainTextBlock } from '@/shared/ui/PlainTextBlock'
 import { useChatDisplayText } from './ChatDisplayPathContext'
+import { DiffStatLabel } from './DiffStatLabel'
 import type { ToolCallViewModel } from './ToolCallBlock'
 
 interface ToolCallHeaderProps {
@@ -105,9 +106,12 @@ function ToolDiffSummary({ view }: { readonly view: ToolCallViewModel }) {
     return null
   }
   return (
-    <span className="flex items-center gap-1 text-xs shrink-0">
-      <span className="text-success">+{view.diff.additions}</span>
-      <span className="text-error">-{view.diff.deletions}</span>
+    <span className="shrink-0 text-xs">
+      <DiffStatLabel
+        additions={view.diff.additions}
+        deletions={view.diff.deletions}
+        layout="inline"
+      />
     </span>
   )
 }

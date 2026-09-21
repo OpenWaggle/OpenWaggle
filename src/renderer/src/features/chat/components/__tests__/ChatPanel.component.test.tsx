@@ -135,9 +135,7 @@ describe('ChatPanel', () => {
       isLoading: true,
       chatRows: [{ type: 'phase-indicator', label: 'Thinking', elapsedMs: 123 }],
     })
-    const spinner = document.querySelector('[class*="animate-spin"]')
-    expect(spinner).toBeInTheDocument()
-    expect(screen.getByText('Thinking...')).toBeInTheDocument()
+    expect(screen.getByText('Thinking for 0s')).toBeInTheDocument()
   })
 
   it('renders messages when present', () => {
@@ -246,9 +244,7 @@ describe('ChatPanel', () => {
         { type: 'phase-indicator', label: 'Writing', elapsedMs: 456 },
       ],
     })
-    const spinner = document.querySelector('[class*="animate-spin"]')
-    expect(spinner).toBeInTheDocument()
-    expect(screen.getByText('Writing...')).toBeInTheDocument()
+    expect(screen.getByText('Writing for 0s')).toBeInTheDocument()
   })
 
   it('does not show phase indicator when not loading', () => {

@@ -1,5 +1,5 @@
 import type { ExtensionContributionRegistryView } from '@shared/types/extensions'
-import { ChevronRight } from 'lucide-react'
+import { ChevronDown, ChevronRight } from 'lucide-react'
 import { ExtensionAgentLoopSurface } from '@/features/extensions'
 import { Button } from '@/shared/ui/Button'
 import type { TurnFoldChatRow } from '../lib/types-chat-row'
@@ -25,20 +25,21 @@ function CoreFoldRow({
   readonly expanded: boolean
   readonly onToggleTurnFold: (turnKey: string) => void
 }) {
+  const Chevron = expanded ? ChevronDown : ChevronRight
   return (
-    <Button
-      variant="unstyled"
-      type="button"
-      onClick={() => onToggleTurnFold(row.turnKey)}
-      aria-expanded={expanded}
-      data-testid="turn-fold-row"
-      className="group/fold -ml-2 flex w-fit items-center gap-1.5 rounded-md px-2 py-1 text-xs text-text-tertiary transition-colors hover:text-text-secondary"
-    >
-      <ChevronRight
-        className={`size-3.5 shrink-0 transition-transform ${expanded ? 'rotate-90' : ''}`}
-      />
-      <span>{row.label}</span>
-    </Button>
+    <div className="border-b border-border pb-2 pt-1">
+      <Button
+        variant="unstyled"
+        type="button"
+        onClick={() => onToggleTurnFold(row.turnKey)}
+        aria-expanded={expanded}
+        data-testid="turn-fold-row"
+        className="flex cursor-pointer select-none items-center gap-1 rounded-md px-1 text-sm leading-relaxed text-text-tertiary tabular-nums transition-colors hover:text-text-primary"
+      >
+        <span>{row.label}</span>
+        <Chevron className="size-3.5" />
+      </Button>
+    </div>
   )
 }
 

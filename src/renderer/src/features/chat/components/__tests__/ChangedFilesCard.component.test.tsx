@@ -2,6 +2,7 @@ import { SessionId } from '@shared/types/brand'
 import type { TurnCheckpointSummary } from '@shared/types/turn-diff'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { useChangedFilesCardStore } from '../../state/changed-files-card-store'
 import { ChangedFilesCard } from '../ChangedFilesCard'
 
 const mockGetTurnDiffFiles = vi.hoisted(() => vi.fn())
@@ -29,6 +30,7 @@ function turn(overrides: Partial<TurnCheckpointSummary> = {}): TurnCheckpointSum
 
 beforeEach(() => {
   mockGetTurnDiffFiles.mockResolvedValue([{ path: 'src/a.ts', additions: 9, deletions: 1 }])
+  useChangedFilesCardStore.setState({ expandedByCardKey: {} })
 })
 
 function renderCard(overrides: Partial<Parameters<typeof ChangedFilesCard>[0]> = {}) {
@@ -57,6 +59,37 @@ describe('ChangedFilesCard', () => {
     await waitFor(() => expect(screen.getByTestId('changed-files-card')).toBeInTheDocument())
     expect(screen.getByRole('button', { name: /^a\.ts/ })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /^readme\.md/ })).toBeInTheDocument()
+  })
+
+  it('renders the T3-style header with count, total diff stat, and an Open diff action', async () => {
+    mockGetTurnDiffFiles.mockResolvedValue([
+      { path: 'src/a.ts', additions: 30, deletions: 6 },
+      { path: 'docs/readme.md', additions: 30, deletions: 6 },
+    ])
+    const onOpenTurnDiff = renderCard()
+
+    await waitFor(() => expect(screen.getByText('2 changed files')).toBeInTheDocument())
+    expect(screen.getByText('60 additions, 12 deletions')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Open diff' }))
+    expect(onOpenTurnDiff).toHaveBeenCalledWith('anchor-1', 'src/a.ts')
+  })
+
+  it('groups expanded rows under directory rows that toggle their subtree', async () => {
+    mockGetTurnDiffFiles.mockResolvedValue([
+      { path: 'src/a.ts', additions: 30, deletions: 6 },
+      { path: 'src/b.ts', additions: 10, deletions: 2 },
+    ])
+    renderCard({ isLatestTurn: false })
+
+    const header = await screen.findByRole('button', { name: /changed files/ })
+    fireEvent.click(header)
+
+    const srcDir = screen.getByRole('button', { name: /^src/ })
+    expect(screen.getByRole('button', { name: /^a\.ts/ })).toBeInTheDocument()
+    fireEvent.click(srcDir)
+    expect(screen.queryByRole('button', { name: /^a\.ts/ })).not.toBeInTheDocument()
+    fireEvent.click(srcDir)
+    expect(screen.getByRole('button', { name: /^a\.ts/ })).toBeInTheDocument()
   })
 
   it('collapses big latest turns to the scope preview with a Show all button', async () => {

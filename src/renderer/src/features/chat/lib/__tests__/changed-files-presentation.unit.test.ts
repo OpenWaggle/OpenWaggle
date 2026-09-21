@@ -1,12 +1,14 @@
 import type { TurnDiffFileSummary } from '@shared/types/turn-diff'
 import { describe, expect, it } from 'vitest'
 import {
+  buildTurnDiffTree,
   CHANGED_FILES_AUTO_EXPAND_FILE_LIMIT,
   CHANGED_FILES_AUTO_EXPAND_LINE_LIMIT,
   changedFileName,
   selectChangedFilePreview,
   shouldAutoExpandChangedFiles,
   summarizeChangedFileScopes,
+  summarizeTurnDiffStats,
 } from '../changed-files-presentation'
 
 function file(path: string, additions = 10, deletions = 2): TurnDiffFileSummary {
@@ -79,5 +81,39 @@ describe('changed-files-presentation', () => {
     expect(shouldAutoExpandChangedFiles([...atFileLimit, file('src/extra.ts', 1)], true)).toBe(
       false,
     )
+  })
+
+  it('builds a directory tree with per-directory aggregated stats', () => {
+    const tree = buildTurnDiffTree([
+      file('src/app/deep/one.ts', 3, 1),
+      file('src/app/two.ts', 5, 0),
+      file('src/root.ts', 1, 2),
+      file('readme.md', 0, 0),
+    ])
+
+    expect(tree.map((node) => node.name)).toEqual(['src', 'readme.md'])
+    const src = tree[0]
+    expect(src?.kind).toBe('directory')
+    if (src?.kind !== 'directory') return
+    expect(src.stat).toEqual({ additions: 9, deletions: 3 })
+    expect(src.children.map((child) => child.name)).toEqual(['app', 'root.ts'])
+    const app = src.children[0]
+    expect(app?.kind).toBe('directory')
+    if (app?.kind !== 'directory') return
+    expect(app.name).toBe('app')
+    expect(app.stat).toEqual({ additions: 8, deletions: 1 })
+    expect(app.children.map((child) => child.name)).toEqual(['deep', 'two.ts'])
+  })
+
+  it('sorts directories before files with deterministic ordering', () => {
+    const tree = buildTurnDiffTree([file('b/zed.ts'), file('a/yak.ts'), file('m.ts')])
+    expect(tree.map((node) => node.name)).toEqual(['a', 'b', 'm.ts'])
+  })
+
+  it('summarizes total stats across all files', () => {
+    expect(summarizeTurnDiffStats([file('a.ts', 3, 1), file('b.ts', 2, 4)])).toEqual({
+      additions: 5,
+      deletions: 5,
+    })
   })
 })

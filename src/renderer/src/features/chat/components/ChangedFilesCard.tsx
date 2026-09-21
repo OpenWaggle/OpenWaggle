@@ -10,8 +10,11 @@ import {
   selectChangedFilePreview,
   shouldAutoExpandChangedFiles,
   summarizeChangedFileScopes,
+  summarizeTurnDiffStats,
 } from '../lib/changed-files-presentation'
 import { changedFilesCardKey, useChangedFilesCardStore } from '../state/changed-files-card-store'
+import { ChangedFilesTree } from './ChangedFilesTree'
+import { DiffStatLabel, hasNonZeroStat } from './DiffStatLabel'
 
 const EMPTY_FILES: readonly TurnDiffFileSummary[] = []
 const logger = createRendererLogger('changed-files-card')
@@ -41,7 +44,7 @@ function CollapsedPreview({
   const previewFiles = selectChangedFilePreview(files)
 
   return (
-    <div className="mt-1.5">
+    <div className="px-2 pb-1.5 pt-1">
       <p className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-text-tertiary">
         {scopeSummary.map((scope, index) => (
           <span key={scope.label} className="inline-flex items-center gap-1">
@@ -53,7 +56,7 @@ function CollapsedPreview({
           </span>
         ))}
       </p>
-      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+      <div className="mt-2 flex flex-wrap items-center gap-1.5">
         {previewFiles.map((file) => (
           <Button
             key={file.path}
@@ -61,7 +64,7 @@ function CollapsedPreview({
             type="button"
             onClick={() => onOpenTurnDiff(anchorMessageId, file.path)}
             title={file.path}
-            className="inline-flex max-w-48 items-center rounded-md border border-border px-1.5 py-0.5 font-mono text-xs text-text-tertiary transition-colors hover:bg-bg-tertiary hover:text-text-secondary"
+            className="inline-flex max-w-48 items-center rounded-md border border-border bg-bg/45 px-1.5 py-1 font-mono text-xs text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-secondary"
           >
             <span className="truncate">{changedFileName(file.path)}</span>
           </Button>
@@ -70,7 +73,7 @@ function CollapsedPreview({
           variant="unstyled"
           type="button"
           onClick={onExpand}
-          className="rounded px-1.5 py-0.5 text-xs text-text-tertiary transition-colors hover:bg-bg-tertiary hover:text-text-secondary"
+          className="rounded-md px-1.5 py-1 text-xs font-medium text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-secondary"
         >
           Show all {String(files.length)} files
         </Button>
@@ -81,8 +84,9 @@ function CollapsedPreview({
 
 /**
  * Changed files card under a settled turn's terminal message (ADR 0034).
- * Mirrors the T3 Code card: quiet header, compact scope preview when collapsed,
- * one row per file when expanded; rows open the Turn diff view focused on the file.
+ * Mirrors the T3 Code card: quiet header with count + diff stat, compact scope
+ * preview when collapsed, a directory-grouped tree when expanded; rows open the
+ * Turn diff view focused on the file.
  */
 export function ChangedFilesCard({
   sessionId,
@@ -123,73 +127,68 @@ export function ChangedFilesCard({
 
   if (files.length === 0) return null
 
-  const additions = files.reduce((total, file) => total + file.additions, 0)
-  const deletions = files.reduce((total, file) => total + file.deletions, 0)
+  const summaryStat = summarizeTurnDiffStats(files)
 
   return (
     <div
       data-testid="changed-files-card"
-      className="rounded-lg border border-border bg-bg-secondary px-2.5 py-2"
+      className="@container/changed-files rounded-2xl border border-border bg-bg-secondary p-2"
     >
-      <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between gap-2">
         <Button
           variant="unstyled"
           type="button"
           onClick={() => setExpanded(cardKey, !expanded)}
           aria-expanded={expanded}
           aria-controls={`${cardKey}-body`}
-          className="flex min-w-0 flex-1 items-center gap-1.5 text-left text-xs text-text-secondary"
+          className="group flex min-w-0 flex-1 items-center rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-bg-hover"
         >
-          <ChevronRight
-            className={`size-3.5 shrink-0 text-text-tertiary transition-transform ${
-              expanded ? 'rotate-90' : ''
-            }`}
-          />
-          <span>Changed files</span>
-          <span className="text-text-tertiary">
-            · {files.length === 1 ? '1 file' : `${String(files.length)} files`}
-          </span>
-          <span className="ml-auto flex shrink-0 items-center gap-1.5 font-mono text-xs">
-            <span className="text-diff-add-mark">+{String(additions)}</span>
-            <span className="text-diff-remove-text">-{String(deletions)}</span>
+          <span className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
+            <ChevronRight
+              aria-hidden="true"
+              className={`size-3.5 shrink-0 text-text-tertiary transition-transform ${
+                expanded ? 'rotate-90' : ''
+              }`}
+            />
+            <span className="flex shrink-0 items-center gap-1.5 whitespace-nowrap text-xs font-medium leading-4 text-text-primary">
+              <span>
+                {files.length} changed file{files.length === 1 ? '' : 's'}
+              </span>
+              {hasNonZeroStat(summaryStat) ? (
+                <DiffStatLabel
+                  additions={summaryStat.additions}
+                  deletions={summaryStat.deletions}
+                  layout="inline"
+                  className="text-xs leading-4"
+                />
+              ) : null}
+            </span>
+            <span className="ml-1 hidden min-w-0 flex-1 truncate text-xs text-text-tertiary group-hover:text-text-secondary @[24rem]/changed-files:inline">
+              {expanded ? 'Hide files' : 'Show files'}
+            </span>
           </span>
         </Button>
         <Button
-          variant="unstyled"
+          variant="secondary"
+          size="xs"
           type="button"
           onClick={() => onOpenTurnDiff(anchorMessageId, files[0]?.path)}
-          className="flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-xs text-text-tertiary transition-colors hover:text-text-secondary"
-          aria-label="Open turn diff"
+          className="shrink-0"
+          aria-label="Open diff"
         >
           <FileDiff className="size-3" />
-          Turn diff
+          Open diff
         </Button>
       </div>
 
       {expanded ? (
-        <ul id={`${cardKey}-body`} className="mt-1.5 flex flex-col">
-          {files.map((file) => (
-            <li key={file.path}>
-              <Button
-                variant="unstyled"
-                type="button"
-                onClick={() => onOpenTurnDiff(anchorMessageId, file.path)}
-                className="flex w-full items-center gap-2 rounded px-1 py-1 text-left text-xs text-text-secondary transition-colors hover:bg-bg-tertiary"
-                title={file.path}
-              >
-                <span className="truncate font-mono">{changedFileName(file.path)}</span>
-                <span className="ml-auto flex shrink-0 items-center gap-1.5 font-mono text-xs">
-                  {file.additions > 0 ? (
-                    <span className="text-diff-add-mark">+{String(file.additions)}</span>
-                  ) : null}
-                  {file.deletions > 0 ? (
-                    <span className="text-diff-remove-text">-{String(file.deletions)}</span>
-                  ) : null}
-                </span>
-              </Button>
-            </li>
-          ))}
-        </ul>
+        <div id={`${cardKey}-body`} className="mt-1">
+          <ChangedFilesTree
+            files={files}
+            anchorMessageId={anchorMessageId}
+            onOpenTurnDiff={onOpenTurnDiff}
+          />
+        </div>
       ) : isLatestTurn ? (
         <CollapsedPreview
           files={files}
