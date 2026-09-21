@@ -8,41 +8,21 @@ import type { ActionCatalogScope } from '../../ports/action-catalog-service'
 import {
   actionContentRevision,
   readActionManifest,
-  serializeActionManifest,
-  writeActionManifest,
+  readActionWorkspaceIdentity,
 } from './action-manifest-file'
+import { recoverActionPublication } from './action-publication-recovery'
 import { migrateLegacyActionDocument } from './legacy-action-migration'
 import {
   type ActionStatePersistence,
   localActionDocumentSchema,
   localActionStateSchema,
-  type StoredActionState,
 } from './local-action-state'
 
 export function createActionCatalog(persistence: ActionStatePersistence) {
-  async function recover(
-    projectPath: string,
-    stored: StoredActionState,
-  ): Promise<StoredActionState> {
-    const pending = stored.state.pending
-    if (!pending) return stored
-    const current = await readActionManifest(pending.workspacePath)
-    const targetRevision = actionContentRevision(serializeActionManifest(pending.nextShared))
-    if (current.revision !== targetRevision) {
-      if (current.revision !== pending.previousSharedRevision) return stored // Expose both drafts so the editor can resolve the conflict without data loss.
-      await writeActionManifest(
-        pending.workspacePath,
-        pending.previousSharedRevision,
-        pending.nextShared,
-      )
-    }
-    return persistence.write(projectPath, stored.revision, {
-      document: pending.nextLocal,
-      pending: null,
-    })
-  }
-
   async function load(scope: ActionCatalogScope) {
+    const workspaceIdentity = await readActionWorkspaceIdentity(scope.workspacePath)
+    if (!workspaceIdentity)
+      throw new Error('This Project Actions Workspace is no longer available.')
     let stored = await persistence.read(scope.projectPath)
     if (!stored) {
       const document = decodeUnknownExactOrThrow(
@@ -58,12 +38,12 @@ export function createActionCatalog(persistence: ActionStatePersistence) {
         )
       stored = verified
     }
-    stored = await recover(scope.projectPath, stored)
+    stored = await recoverActionPublication(persistence, scope.projectPath, stored)
     const shared = await readActionManifest(scope.workspacePath)
     const revision = actionContentRevision(
-      `${scope.workspacePath}:${stored.revision}:${shared.revision}`,
+      `${scope.workspacePath}:${JSON.stringify(workspaceIdentity)}:${stored.revision}:${shared.revision}`,
     )
-    return { stored, shared, revision }
+    return { stored, shared, revision, workspaceIdentity }
   }
 
   async function serialized<T>(
@@ -100,7 +80,7 @@ export function createActionCatalog(persistence: ActionStatePersistence) {
     edit: (scope: ActionCatalogScope, expectedRevision: string, rawEdit: ActionCatalogEdit) =>
       serialized(scope, async (canonical) => {
         const edit = decodeUnknownExactOrThrow(actionCatalogEditSchema, rawEdit)
-        const { stored, shared, revision } = await load(canonical)
+        const { stored, shared, revision, workspaceIdentity } = await load(canonical)
         if (revision !== expectedRevision)
           throw new Error(
             'Project Actions changed since this editor was opened. Your draft has been kept; reload before saving.',
@@ -125,17 +105,26 @@ export function createActionCatalog(persistence: ActionStatePersistence) {
             pending: null,
           })
         } else {
+          const resource = await persistence.readWorkspace(
+            canonical.projectPath,
+            canonical.workspacePath,
+          )
+          if (resource && !resource.ready)
+            throw new Error(
+              'This Project Actions Workspace is no longer available. Your draft has been kept.',
+            )
           const pending = decodeUnknownExactOrThrow(localActionStateSchema, {
             document: stored.state.document,
             pending: {
               workspacePath: canonical.workspacePath,
+              workspaceIdentity: { ...workspaceIdentity, resourceId: resource?.id ?? null },
               previousSharedRevision: shared.revision,
               nextShared: next.shared,
               nextLocal: next.document,
             },
           })
           const journaled = await persistence.write(canonical.projectPath, stored.revision, pending)
-          await recover(canonical.projectPath, journaled)
+          await recoverActionPublication(persistence, canonical.projectPath, journaled)
         }
         return readCurrent(canonical)
       }),

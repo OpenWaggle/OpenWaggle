@@ -66,22 +66,28 @@ async function runnerFor(workspace: string, directory: string, declared: string 
           unavailableReason: `Unsupported packageManager: ${declared}. Use a custom command.`,
         }
   }
-  const runners = new Set<string>()
-  for (const [file, manager] of LOCKFILES) {
-    // Lockfiles only establish presence; they can legitimately be larger than a task source.
-    try {
-      await access(await resolveActionPath(workspace, posix.join(directory, file)))
-      runners.add(manager)
-    } catch (error) {
-      if (!isEnoent(error)) throw error
+  let searchDirectory = directory
+  while (true) {
+    const runners = new Set<string>()
+    for (const [file, manager] of LOCKFILES) {
+      // Lockfiles only establish presence; they can legitimately be larger than a task source.
+      try {
+        await access(await resolveActionPath(workspace, posix.join(searchDirectory, file)))
+        runners.add(manager)
+      } catch (error) {
+        if (!isEnoent(error)) throw error
+      }
     }
+    if (runners.size > 1)
+      return {
+        runner: null,
+        unavailableReason: 'Conflicting lockfiles. Declare packageManager in package.json.',
+      }
+    const runner = runners.values().next().value
+    if (runner) return { runner }
+    if (searchDirectory === '.') return { runner: 'npm' }
+    searchDirectory = posix.dirname(searchDirectory)
   }
-  if (runners.size > 1)
-    return {
-      runner: null,
-      unavailableReason: 'Conflicting lockfiles. Declare packageManager in package.json.',
-    }
-  return { runner: runners.values().next().value ?? 'npm' }
 }
 
 function safeWorkspacePattern(pattern: string) {
@@ -155,7 +161,11 @@ async function list(workspace: string): Promise<ProjectTaskDiscovery> {
       const manifest = source === 'package.json' ? root : await packageManifest(workspace, source)
       if (manifest === null) continue
       const directory = posix.dirname(source)
-      const runner = await runnerFor(workspace, '.', manifest.packageManager ?? root.packageManager)
+      const runner = await runnerFor(
+        workspace,
+        directory,
+        manifest.packageManager ?? root.packageManager,
+      )
       for (const [task, description] of Object.entries(manifest.scripts ?? {})) {
         if (!isInvocableTaskName(task)) {
           diagnostics.push({ source, message: `Unsupported task name: ${task}` })

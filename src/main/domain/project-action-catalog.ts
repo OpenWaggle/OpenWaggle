@@ -7,6 +7,10 @@ import type {
   PreparationReview,
 } from '@shared/types/action-definitions'
 import { effective, effectivePreparation, upsertPreparation } from './effective-project-definitions'
+import {
+  retainPrivatePreparationProfiles,
+  sharePreparationProfile,
+} from './preparation-profile-context'
 
 export interface LocalActionDocument {
   readonly manifest: ActionManifest
@@ -16,6 +20,13 @@ export interface LocalActionDocument {
 
 export interface PendingActionPublication {
   readonly workspacePath: string
+  /** Older journals without identity remain drafts; they cannot safely resume publication. */
+  readonly workspaceIdentity?: {
+    readonly device: string
+    readonly inode: string
+    readonly birthtime: string
+    readonly resourceId: string | null
+  }
   readonly previousSharedRevision: string
   readonly nextShared: ActionManifest
   readonly nextLocal: LocalActionDocument
@@ -108,18 +119,6 @@ function validateSharedProfiles(shared: ActionManifest) {
   }
 }
 
-function sharePreparationProfile(
-  document: LocalActionDocument,
-  shared: ActionManifest,
-  profileId: string,
-) {
-  if (profileId === 'default' || shared.profiles.some((profile) => profile.id === profileId))
-    return shared
-  const profile = document.manifest.profiles.find((profile) => profile.id === profileId)
-  if (!profile) throw new Error(`Preparation profile ${profileId} is missing.`)
-  return { ...shared, profiles: [...shared.profiles, profile] }
-}
-
 function moveActionCatalogDefinition(
   document: LocalActionDocument,
   shared: ActionManifest,
@@ -163,7 +162,7 @@ function moveActionCatalogDefinition(
       const moved = move(document.manifest.preparation, shared.preparation, upsertPreparation)
       let project = { ...shared, preparation: moved.project }
       for (const definition of moved.project)
-        project = sharePreparationProfile(document, project, definition.profileId)
+        project = sharePreparationProfile(document.manifest, project, definition.profileId)
       return {
         document: {
           ...document,
@@ -173,9 +172,17 @@ function moveActionCatalogDefinition(
       }
     })
     .exhaustive()
-  resolveActionCatalog(next.document, next.shared, '')
+  const retained = {
+    ...next.document,
+    manifest: retainPrivatePreparationProfiles(
+      next.document.manifest,
+      document.manifest.profiles,
+      shared.profiles,
+    ),
+  }
+  resolveActionCatalog(retained, next.shared, '')
   validateSharedProfiles(next.shared)
-  return next
+  return { ...next, document: retained }
 }
 
 /** Edits replace whole definitions; fields from different revisions are never merged. */
@@ -248,7 +255,7 @@ export function editActionCatalog(
   }
   let nextShared = edit.storage === 'project' ? next : shared
   if (edit.type === 'save-preparation' && edit.storage === 'project') {
-    nextShared = sharePreparationProfile(document, nextShared, edit.definition.profileId)
+    nextShared = sharePreparationProfile(document.manifest, nextShared, edit.definition.profileId)
     nextDocument = {
       ...nextDocument,
       manifest: {
@@ -274,6 +281,14 @@ export function editActionCatalog(
         },
       ],
     }
+  }
+  nextDocument = {
+    ...nextDocument,
+    manifest: retainPrivatePreparationProfiles(
+      nextDocument.manifest,
+      document.manifest.profiles,
+      shared.profiles,
+    ),
   }
   resolveActionCatalog(nextDocument, nextShared, '')
   validateSharedProfiles(nextShared)

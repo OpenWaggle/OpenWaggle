@@ -15,6 +15,14 @@ export const localActionStateSchema = Schema.Struct({
   pending: Schema.NullOr(
     Schema.Struct({
       workspacePath: Schema.String,
+      workspaceIdentity: Schema.optional(
+        Schema.Struct({
+          device: Schema.String,
+          inode: Schema.String,
+          birthtime: Schema.String,
+          resourceId: Schema.NullOr(Schema.String),
+        }),
+      ),
       previousSharedRevision: Schema.String,
       nextShared: actionManifestSchema,
       nextLocal: localActionDocumentSchema,
@@ -28,6 +36,10 @@ export interface StoredActionState {
 }
 
 export interface ActionStatePersistence {
+  readonly readWorkspace: (
+    projectPath: string,
+    workspacePath: string,
+  ) => Promise<{ readonly id: string; readonly ready: boolean } | null>
   readonly read: (projectPath: string) => Promise<StoredActionState | null>
   readonly write: (
     projectPath: string,

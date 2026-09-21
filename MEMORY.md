@@ -824,6 +824,12 @@ Fresh local Sessions need Summary availability from configured preparation, befo
 run exists, or users cannot reach explicit setup.
 Native actions use Local Session protocol revision 15. Revision 14 belongs to update channels;
 its capability tuple must stay unchanged when negotiating with the immediate predecessor.
+Package task discovery checks the nearest package lockfiles before walking toward the Workspace
+root when no packageManager is declared; explicit child and root declarations keep precedence.
+Interrupted sharing journals pin the filesystem directory identity and durable Workspace resource.
+Recovery keeps a draft when the checkout is missing, replaced, or releasing; publication must never
+recreate a deleted checkout. Private preparation retains its profile metadata so a teammate removing
+the shared profile cannot invalidate unrelated local configuration.
 
 The September 2026 native action verification reproduced a SQLite worker teardown abort on pristine
 main with transitive better-sqlite3 12.11.1. Root and Effect SQLite now share 13.0.3, which includes the

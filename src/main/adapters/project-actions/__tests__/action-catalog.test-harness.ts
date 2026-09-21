@@ -19,8 +19,11 @@ export let root: string
 export let projectPath: string
 let workspacePath: string
 export const rows = new Map<string, StoredActionState>()
+export const workspaces = new Map<string, { readonly id: string; readonly ready: boolean }>()
 let failNextCompletion = false
+let failNextPublication = false
 export const persistence: ActionStatePersistence = {
+  readWorkspace: async (_project, workspace) => workspaces.get(workspace) ?? null,
   read: async (path) => structuredClone(rows.get(path) ?? null),
   write: async (path, expectedRevision, state) => {
     const existing = rows.get(path)
@@ -34,6 +37,10 @@ export const persistence: ActionStatePersistence = {
       state: decodeLocalActionState(JSON.stringify(state)),
     }
     rows.set(path, next)
+    if (failNextPublication && state.pending) {
+      failNextPublication = false
+      throw new Error('Simulated crash before publishing the file')
+    }
     return structuredClone(next)
   },
 }
@@ -61,7 +68,9 @@ export function installActionCatalogFixture() {
     workspacePath = projectPath
     await mkdir(projectPath)
     rows.clear()
+    workspaces.clear()
     failNextCompletion = false
+    failNextPublication = false
     catalog = createActionCatalog(persistence)
   })
   afterEach(async () => {
@@ -76,4 +85,8 @@ export async function shared(manifest: ActionManifest, path = workspacePath) {
 
 export function failPublicationCompletion() {
   failNextCompletion = true
+}
+
+export function failPublicationBeforeWrite() {
+  failNextPublication = true
 }

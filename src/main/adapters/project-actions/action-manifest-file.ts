@@ -1,16 +1,32 @@
 import { createHash, randomUUID } from 'node:crypto'
-import { lstat, mkdir, open, rename, rm } from 'node:fs/promises'
+import { lstat, mkdir, open, realpath, rename, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { decodeUnknownExactOrThrow, parseJsonUnknown } from '@shared/schema'
 import { actionManifestSchema } from '@shared/schemas/action-definitions'
 import type { ActionManifest } from '@shared/types/action-definitions'
-import { isEnoent } from '@shared/utils/node-error'
+import { isEnoent, isNodeError } from '@shared/utils/node-error'
 import { EMPTY_ACTION_MANIFEST } from '../../domain/project-action-catalog'
 import { readTaskSource } from './task-source-files'
 
 const CONFIG_DIRECTORY = '.openwaggle'
 const MANIFEST_SOURCE = '.openwaggle/actions.json'
 const JSON_INDENT = 2
+
+/** The canonical path and directory instance must both survive an interrupted publication. */
+export async function readActionWorkspaceIdentity(workspace: string) {
+  try {
+    const metadata = await lstat(workspace, { bigint: true })
+    if (!metadata.isDirectory() || (await realpath(workspace)) !== workspace) return null
+    return {
+      device: metadata.dev.toString(),
+      inode: metadata.ino.toString(),
+      birthtime: metadata.birthtimeNs.toString(),
+    }
+  } catch (error) {
+    if (isEnoent(error) || isNodeError(error, 'ENOTDIR') || isNodeError(error, 'ELOOP')) return null
+    throw error
+  }
+}
 
 export function actionContentRevision(content: string | null): string {
   return createHash('sha256')
@@ -62,9 +78,15 @@ export async function writeActionManifest(
   workspace: string,
   expectedRevision: string,
   manifest: ActionManifest,
+  requireWorkspace: () => Promise<void>,
 ): Promise<void> {
   const content = serializeActionManifest(manifest)
-  await mkdir(join(workspace, CONFIG_DIRECTORY), { recursive: true })
+  await requireWorkspace()
+  // Never recreate a removed checkout, even if it disappears after the identity check.
+  await mkdir(join(workspace, CONFIG_DIRECTORY)).catch((error: unknown) => {
+    if (!isNodeError(error, 'EEXIST')) throw error
+  })
+  await requireWorkspace()
   const target = join(workspace, MANIFEST_SOURCE)
   const temporary = `${target}.${randomUUID()}.tmp`
   if ((await readActionManifest(workspace)).revision !== expectedRevision)
@@ -72,6 +94,7 @@ export async function writeActionManifest(
       'Project Actions changed on disk. Your draft has been kept; reload before saving.',
     )
   try {
+    await requireWorkspace()
     const handle = await open(temporary, 'wx')
     try {
       await handle.writeFile(content, 'utf8')
@@ -81,10 +104,12 @@ export async function writeActionManifest(
     }
     if ((await readActionManifest(workspace)).revision !== expectedRevision)
       throw new Error('Project Actions changed on disk while saving. Your draft has been kept.')
+    await requireWorkspace()
     await rename(temporary, target)
     if ((await readActionManifest(workspace)).revision !== actionContentRevision(content))
       throw new Error('Project Actions changed while verifying the saved file.')
   } finally {
-    await rm(temporary, { force: true })
+    // A replaced path no longer names our temporary file.
+    await requireWorkspace().then(() => rm(temporary, { force: true }))
   }
 }

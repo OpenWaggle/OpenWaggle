@@ -59,3 +59,57 @@ it('persists private definitions and migration receipts across reconnect, with t
     }).pipe(Effect.provide(SqliteClient.layer({ filename }))),
   )
 })
+
+it('persists publication identity and detects releasing, deleted, and replaced resources', async () => {
+  const filename = join(root, 'publication.sqlite')
+  const pending = {
+    workspacePath: '/worktree',
+    workspaceIdentity: { device: '1', inode: '2', birthtime: '3', resourceId: 'original' },
+    previousSharedRevision: 'missing',
+    nextShared: EMPTY_ACTION_MANIFEST,
+    nextLocal: state.document,
+  }
+  await Effect.runPromise(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      yield* sql`CREATE TABLE workspace_resources (
+        id TEXT PRIMARY KEY, project_path TEXT, working_path TEXT, lifecycle_state TEXT
+      )`
+      yield* sql`INSERT INTO workspace_resources VALUES ('original', '/project', '/worktree', 'ready')`
+      for (const statement of PROJECT_ACTION_MIGRATION.statements) yield* sql.unsafe(statement)
+      const persistence = createSqliteActionStatePersistence(sql)
+      yield* Effect.promise(async () => {
+        await persistence.write('/project', 0, { ...state, pending })
+        expect(await persistence.readWorkspace('/project', '/worktree')).toEqual({
+          id: 'original',
+          ready: true,
+        })
+        expect(await persistence.readWorkspace('/other-project', '/worktree')).toBeNull()
+      })
+    }).pipe(Effect.provide(SqliteClient.layer({ filename }))),
+  )
+  await Effect.runPromise(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      const persistence = createSqliteActionStatePersistence(sql)
+      expect((yield* Effect.promise(() => persistence.read('/project')))?.state.pending).toEqual(
+        pending,
+      )
+      yield* sql`UPDATE workspace_resources SET lifecycle_state = 'releasing'`
+      expect(
+        yield* Effect.promise(() => persistence.readWorkspace('/project', '/worktree')),
+      ).toEqual({ id: 'original', ready: false })
+      yield* sql`DELETE FROM workspace_resources`
+      expect(
+        yield* Effect.promise(() => persistence.readWorkspace('/project', '/worktree')),
+      ).toBeNull()
+      yield* sql`INSERT INTO workspace_resources VALUES ('replacement', '/project', '/worktree', 'ready')`
+      expect(
+        yield* Effect.promise(() => persistence.readWorkspace('/project', '/worktree')),
+      ).toEqual({ id: 'replacement', ready: true })
+      expect((yield* Effect.promise(() => persistence.read('/project')))?.state.pending).toEqual(
+        pending,
+      )
+    }).pipe(Effect.provide(SqliteClient.layer({ filename }))),
+  )
+})

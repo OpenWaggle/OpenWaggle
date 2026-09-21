@@ -21,6 +21,16 @@ export function createSqliteActionStatePersistence(
   sql: SqlClient.SqlClient,
 ): ActionStatePersistence {
   return {
+    readWorkspace: (projectPath, workspacePath) =>
+      Effect.runPromise(
+        Effect.gen(function* () {
+          const rows = yield* sql<{ readonly id: string; readonly ready: number }>`
+            SELECT id, lifecycle_state = 'ready' AS ready FROM workspace_resources
+            WHERE project_path = ${projectPath} AND working_path = ${workspacePath} LIMIT 1`
+          const row = rows[0]
+          return row ? { id: row.id, ready: row.ready === 1 } : null
+        }),
+      ),
     read: (projectPath) =>
       Effect.runPromise(
         Effect.gen(function* () {

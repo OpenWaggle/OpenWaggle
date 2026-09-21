@@ -97,6 +97,55 @@ describe('project task discovery', () => {
     expect((await discoverProjectTasks(root)).tasks[0]?.runner).toBe('yarn')
   })
 
+  it('uses the nearest package lockfile and inherits a root lockfile when none is local', async () => {
+    await json('package.json', { workspaces: ['packages/*'], scripts: { test: 'root-test' } })
+    await put('pnpm-lock.yaml', '')
+    await json('packages/web/package.json', { scripts: { test: 'web-test' } })
+    await put('packages/web/yarn.lock', '')
+    await json('packages/api/package.json', { scripts: { test: 'api-test' } })
+    const discovery = await discoverProjectTasks(root)
+    expect(discovery.tasks.map((task) => [task.reference.directory, task.runner])).toEqual([
+      ['.', 'pnpm'],
+      ['packages/api', 'pnpm'],
+      ['packages/web', 'yarn'],
+    ])
+    expect(
+      await resolveActionInvocation(root, {
+        type: 'task',
+        task: packageTask('test', 'packages/web'),
+      }),
+    ).toEqual({
+      type: 'executable',
+      executable: 'yarn',
+      args: ['run', 'test'],
+      cwd: join(root, 'packages/web'),
+    })
+    await rm(join(root, 'pnpm-lock.yaml'))
+    expect(
+      await resolveActionInvocation(root, {
+        type: 'task',
+        task: packageTask('test', 'packages/web'),
+      }),
+    ).toMatchObject({ executable: 'yarn' })
+  })
+
+  it('reports conflicting nested lockfiles while preserving declared manager precedence', async () => {
+    await json('package.json', { workspaces: ['packages/*'] })
+    await put('pnpm-lock.yaml', '')
+    await json('packages/web/package.json', { scripts: { test: 'web-test' } })
+    await put('packages/web/yarn.lock', '')
+    await put('packages/web/package-lock.json', '')
+    const invocation = { type: 'task' as const, task: packageTask('test', 'packages/web') }
+    await expect(resolveActionInvocation(root, invocation)).rejects.toThrow('Conflicting lockfiles')
+    await json('package.json', { workspaces: ['packages/*'], packageManager: 'pnpm@11.15.1' })
+    expect(await resolveActionInvocation(root, invocation)).toMatchObject({ executable: 'pnpm' })
+    await json('packages/web/package.json', {
+      packageManager: 'bun@1.3.0',
+      scripts: { test: 'web-test' },
+    })
+    expect(await resolveActionInvocation(root, invocation)).toMatchObject({ executable: 'bun' })
+  })
+
   it('re-resolves task references after edits and refuses removed or moved scripts', async () => {
     await json('package.json', { scripts: { test: 'old-body' } })
     const invocation = { type: 'task' as const, task: packageTask('test') }
