@@ -1,4 +1,4 @@
-import { SessionId } from '@shared/types/brand'
+import { SessionId, SupportedModelId } from '@shared/types/brand'
 import type { SessionDetail } from '@shared/types/session'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useChatStore } from '../chat-store'
@@ -56,6 +56,45 @@ describe('canonical draft Session materialization receipt', () => {
     await expect(useChatStore.getState().createSession('/repo')).rejects.toThrow('Creation failed')
     expect(takeDraftMaterialization('/repo', 'born')).toBe(false)
     expect(useChatStore.getState().draftSession).toEqual({ projectPath: '/repo' })
+  })
+
+  it('keeps an explicit model visible after failure and reuses it on retry', async () => {
+    const model = SupportedModelId('openai/gpt-5.4')
+    useChatStore.getState().startDraftSession('/repo')
+    useChatStore.getState().setDraftSelectedModel(model)
+    api.createSession.mockRejectedValueOnce(new Error('Creation failed'))
+
+    await expect(useChatStore.getState().createSession('/repo')).rejects.toThrow('Creation failed')
+    expect(useChatStore.getState().draftSession).toEqual({
+      projectPath: '/repo',
+      selectedModel: model,
+    })
+
+    api.createSession.mockResolvedValue(session('born'))
+    await useChatStore.getState().createSession('/repo')
+    expect(api.createSession).toHaveBeenLastCalledWith('/repo', undefined, model)
+    expect(useChatStore.getState().draftSession).toBeNull()
+  })
+
+  it('freezes the visible model while materialization is pending', async () => {
+    const firstModel = SupportedModelId('openai/gpt-5.4')
+    const laterModel = SupportedModelId('anthropic/claude-sonnet-4')
+    const deferred = Promise.withResolvers<SessionDetail>()
+    api.createSession.mockReturnValue(deferred.promise)
+    useChatStore.getState().startDraftSession('/repo')
+    useChatStore.getState().setDraftSelectedModel(firstModel)
+
+    const creation = useChatStore.getState().createSession('/repo')
+    useChatStore.getState().setDraftSelectedModel(laterModel)
+    expect(useChatStore.getState().draftSession).toEqual({
+      projectPath: '/repo',
+      selectedModel: firstModel,
+      isMaterializing: true,
+    })
+
+    deferred.resolve({ ...session('born'), executionModel: firstModel })
+    await creation
+    expect(api.createSession).toHaveBeenCalledWith('/repo', undefined, firstModel)
   })
 
   it('revokes an unused receipt on navigation and cannot reuse it after returning to the draft', async () => {

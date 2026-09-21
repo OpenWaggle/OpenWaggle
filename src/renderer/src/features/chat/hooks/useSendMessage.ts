@@ -7,6 +7,7 @@ import type { WaggleConfig } from '@shared/types/waggle'
 import { FirstSendFailed, MessageNotDelivered } from '@/features/chat/lib'
 import { createOptimisticUserMessage } from '@/features/chat/lib/useAgentChat.utils'
 import { useBackgroundRunStore } from '@/features/chat/state/background-run-store'
+import { useChatStore } from '@/features/chat/state/chat-store'
 import { flushDraftAuthorizationModeToSession } from '@/features/chat/state/draft-authorization-mode-store'
 import { withInlineVisualizationContext } from '@/features/chat/state/inline-visualization-state'
 import { useOptimisticUserMessageStore } from '@/features/chat/state/optimistic-user-message-store'
@@ -132,7 +133,7 @@ export function createSendHandlers(deps: SendMessageDeps): SendMessageHandlers {
 
 interface UseSendMessageOptions {
   readonly activeSessionId: SessionId | null
-  readonly model: SupportedModelId
+  readonly model: SupportedModelId | undefined
   readonly projectPath: string | null
   readonly thinkingLevel: ThinkingLevel
   readonly createSession: (
@@ -152,13 +153,21 @@ export function useSendMessage(options: UseSendMessageOptions): SendMessageHandl
     payload: AgentSendPayload,
     config: WaggleConfig | null,
   ) {
+    const executionModel =
+      useChatStore.getState().sessionById.get(sessionId)?.executionModel ?? model
+    if (!executionModel) {
+      throw new FirstSendFailed(
+        new Error('Created Session has no execution model.'),
+        String(sessionId),
+      )
+    }
     const optimisticUserMessage = createOptimisticUserMessage(payload)
     useOptimisticUserMessageStore.getState().add(sessionId, optimisticUserMessage)
     useBackgroundRunStore.getState().setRunRenderMessages(sessionId, [optimisticUserMessage])
     useBackgroundRunStore.getState().setFirstSendRecovery(sessionId, {
       payload,
       waggleConfig: config,
-      model,
+      model: executionModel,
     })
 
     try {
@@ -170,8 +179,8 @@ export function useSendMessage(options: UseSendMessageOptions): SendMessageHandl
        * message was cleared on a failure that looked exactly like success.
        */
       const report = config
-        ? await api.sendWaggleMessage(sessionId, payload, model, config)
-        : await api.sendMessage(sessionId, payload, model)
+        ? await api.sendWaggleMessage(sessionId, payload, executionModel, config)
+        : await api.sendMessage(sessionId, payload, executionModel)
       if (report.outcome === 'delivered') {
         /*
          * Session Host reports command acceptance before its supervised Run performs worktree birth or

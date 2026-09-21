@@ -11,7 +11,7 @@ import { ProviderModelIcon } from './provider-icon'
 import type { FlatModel } from './types'
 
 interface ModelSelectorProps {
-  value: SupportedModelId
+  value: SupportedModelId | undefined
   onChange: (model: SupportedModelId) => void
   settings: Settings
   providerModels: ProviderInfo[]

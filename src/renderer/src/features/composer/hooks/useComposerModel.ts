@@ -8,9 +8,10 @@ import { usePreferencesStore } from '@/features/settings/state'
 export function useComposerModel() {
   const activeSessionId = useChatStore((state) => state.activeSessionId)
   const sessionModel = useChatStore((state) => state.activeSession?.executionModel)
+  const draftModel = useChatStore((state) => state.draftSession?.selectedModel)
   const preferredModel = usePreferencesStore((state) => state.settings.selectedModel)
   return {
-    model: sessionModel ?? preferredModel,
+    model: activeSessionId === null ? (draftModel ?? preferredModel) : sessionModel,
     isSessionModel: activeSessionId !== null,
   }
 }

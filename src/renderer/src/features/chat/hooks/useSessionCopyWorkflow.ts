@@ -5,6 +5,8 @@ import { useState } from 'react'
 import { useChatStore } from '@/features/chat/state'
 import { buildComposerDraftContextKey } from '@/features/composer/lib'
 import { useComposerStore } from '@/features/composer/state'
+import { isSelectableModel, useProviderStore } from '@/features/providers/state'
+import { usePreferencesStore } from '@/features/settings/state'
 import { api } from '@/shared/lib/ipc'
 import { setComposerTextValue } from '../lib/composer-text'
 import { getVisibleForkTargets, type SessionForkTarget } from '../lib/session-fork-targets'
@@ -15,7 +17,7 @@ interface SessionCopyWorkflowParams {
   readonly activeSessionId: SessionId | null
   readonly activeWorkspace: SessionWorkspace | null
   readonly draftBranchSourceNodeId: SessionNodeId | null
-  readonly model: SupportedModelId
+  readonly model: SupportedModelId | undefined
   readonly projectPath: string | null
   readonly navigate: Navigate
   readonly setActiveSession: (sessionId: SessionId | null) => void
@@ -63,6 +65,10 @@ async function activateCopiedSession(
 
 async function forkMessageToNewSessionAction(params: SessionCopyWorkflowParams, messageId: string) {
   if (!params.activeSessionId) return
+  if (!isModelActionable(params.model)) {
+    params.showToast('Select a model before forking.')
+    return
+  }
 
   try {
     const result = await api.forkSessionToNew(
@@ -94,6 +100,10 @@ async function cloneCurrentSessionToNewSessionAction(params: SessionCopyWorkflow
   const targetNodeId = params.draftBranchSourceNodeId ?? params.activeWorkspace?.activeNodeId
   if (!targetNodeId) {
     params.showToast('No session history to clone.')
+    return
+  }
+  if (!isModelActionable(params.model)) {
+    params.showToast('Select a model before cloning.')
     return
   }
 
@@ -146,4 +156,18 @@ export function useSessionCopyWorkflow(params: SessionCopyWorkflowParams) {
       void forkMessageToNewSessionAction(params, String(target.entryId))
     },
   }
+}
+
+/**
+ * The copy actions dispatch with the active session's resolved model; like the composer send
+ * gate, they must refuse models the picker can no longer offer (disabled, pruned, unavailable).
+ */
+function isModelActionable(model: SupportedModelId | undefined): model is SupportedModelId {
+  const { providerModels, catalogHydrated } = useProviderStore.getState()
+  return isSelectableModel(
+    providerModels,
+    usePreferencesStore.getState().settings,
+    model,
+    catalogHydrated,
+  )
 }

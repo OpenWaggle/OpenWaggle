@@ -1,6 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import { assertMatching } from '@diegogbrisa/ts-match'
+import { assertMatching, isMatching, P } from '@diegogbrisa/ts-match'
 import { describe, expect, it } from 'vitest'
 import { parse } from 'yaml'
 
@@ -133,8 +133,86 @@ describe('desktop app release workflow', () => {
   })
 
   it('verifies the Windows installer through the typed deterministic verifier', () => {
-    expect(WORKFLOW).toContain('node scripts/verify-windows-installer.ts "$env:INSTALLER_PATH"')
-    expect(WORKFLOW).toContain("INSTALLER_PATH: ${{ runner.temp }}\\release\\windows\\openwaggle-")
+    const parsed: unknown = parse(WORKFLOW)
+    assertMatching(
+      {
+        jobs: {
+          'verify-installers': {
+            steps: P.array(P._),
+          },
+        },
+      },
+      parsed,
+    )
+    const verifierSteps = parsed.jobs['verify-installers'].steps
+    const windowsGuard = "matrix.platform == 'windows'"
+    const pnpmSetupPattern = {
+      if: windowsGuard,
+      uses: P.regex(/^pnpm\/action-setup@[0-9a-f]{40}$/u),
+    }
+    const nodeSetupPattern = {
+      if: windowsGuard,
+      uses: P.regex(/^actions\/setup-node@[0-9a-f]{40}$/u),
+      with: {
+        cache: 'pnpm',
+        'node-version': '24.14.0',
+      },
+    }
+    const installPattern = {
+      if: windowsGuard,
+      name: 'Install Windows verifier dependencies',
+      run: 'pnpm install --frozen-lockfile --ignore-scripts',
+    }
+    const verifierPattern = {
+      env: {
+        INSTALLER_PATH:
+          '${{ runner.temp }}\\release\\windows\\openwaggle-${{ needs.version.outputs.new_version }}-x64.exe',
+      },
+      if: windowsGuard,
+      name: 'Verify Windows installer',
+      run: 'pnpm exec tsx scripts/verify-windows-installer.ts "$env:INSTALLER_PATH"',
+      shell: 'pwsh',
+    }
+
+    const pnpmSetupSteps = verifierSteps.filter((step) =>
+      isMatching({ uses: P.regex(/^pnpm\/action-setup@/u) }, step),
+    )
+    const nodeSetupSteps = verifierSteps.filter((step) =>
+      isMatching({ uses: P.regex(/^actions\/setup-node@/u) }, step),
+    )
+    const installSteps = verifierSteps.filter((step) =>
+      isMatching({ name: 'Install Windows verifier dependencies' }, step),
+    )
+    const verifierCommandSteps = verifierSteps.filter((step) =>
+      isMatching({ name: 'Verify Windows installer' }, step),
+    )
+
+    expect(pnpmSetupSteps).toHaveLength(1)
+    expect(nodeSetupSteps).toHaveLength(1)
+    expect(installSteps).toHaveLength(1)
+    expect(verifierCommandSteps).toHaveLength(1)
+    expect(isMatching(pnpmSetupPattern, pnpmSetupSteps[0])).toBe(true)
+    expect(isMatching(nodeSetupPattern, nodeSetupSteps[0])).toBe(true)
+    expect(isMatching(installPattern, installSteps[0])).toBe(true)
+    expect(isMatching(verifierPattern, verifierCommandSteps[0])).toBe(true)
+
+    const pnpmSetupIndex = verifierSteps.findIndex((step) =>
+      isMatching(pnpmSetupPattern, step),
+    )
+    const nodeSetupIndex = verifierSteps.findIndex((step) =>
+      isMatching(nodeSetupPattern, step),
+    )
+    const installIndex = verifierSteps.findIndex((step) =>
+      isMatching(installPattern, step),
+    )
+    const verifierIndex = verifierSteps.findIndex((step) =>
+      isMatching(verifierPattern, step),
+    )
+
+    expect(pnpmSetupIndex).toBeLessThan(nodeSetupIndex)
+    expect(nodeSetupIndex).toBeLessThan(installIndex)
+    expect(installIndex).toBeLessThan(verifierIndex)
+    expect(WORKFLOW).not.toContain('node scripts/verify-windows-installer.ts')
     expect(WORKFLOW).not.toContain('Installed executable not found after silent install')
   })
 

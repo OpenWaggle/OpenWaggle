@@ -9,12 +9,14 @@ import {
 import { useBranchSummaryStore } from '@/features/chat/state'
 import { buildComposerDraftContextKey } from '@/features/composer/lib'
 import { useComposerStore } from '@/features/composer/state'
+import { isSelectableModel, useProviderStore } from '@/features/providers/state'
 import { useSessionStore } from '@/features/sessions/state'
+import { usePreferencesStore } from '@/features/settings/state'
 import { api } from '@/shared/lib/ipc'
 
 interface SessionTreeNodeSelectionInput {
   readonly activeWorkspace: SessionWorkspace | null
-  readonly selectedModel: SupportedModelId
+  readonly selectedModel: SupportedModelId | undefined
   readonly showToast: (message: string) => void
   readonly tree: SessionTree | null
 }
@@ -50,6 +52,18 @@ export function useSessionTreeNodeSelection(input: SessionTreeNodeSelectionInput
   ) {
     const tree = input.tree
     if (!tree) {
+      return
+    }
+    const { providerModels, catalogHydrated } = useProviderStore.getState()
+    if (
+      !isSelectableModel(
+        providerModels,
+        usePreferencesStore.getState().settings,
+        input.selectedModel,
+        catalogHydrated,
+      )
+    ) {
+      input.showToast('Select a model before switching branches.')
       return
     }
 

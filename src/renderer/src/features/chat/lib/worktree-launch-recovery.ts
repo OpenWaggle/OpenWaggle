@@ -55,6 +55,9 @@ export async function retryFirstSend(sessionIdValue: string, workLocally = false
   const sessionId = SessionId(sessionIdValue)
   const recovery = recoveryFor(sessionId)
   if (!recovery) return
+  if (!recovery.model) {
+    throw new Error('Select a model before retrying.')
+  }
   const previousLaunch = useBackgroundRunStore.getState().getWorktreeLaunch(sessionId)
 
   if (workLocally) {

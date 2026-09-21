@@ -618,10 +618,18 @@ jobs:
           name: ${{ matrix.artifact_name }}
           path: ${{ runner.temp }}/release/${{ matrix.platform }}
 
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        if: matrix.platform == 'windows'
+
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         if: matrix.platform == 'windows'
         with:
           node-version: 24.14.0
+          cache: pnpm
+
+      - name: Install Windows verifier dependencies
+        if: matrix.platform == 'windows'
+        run: pnpm install --frozen-lockfile --ignore-scripts
 
       - name: Verify Linux installer
         if: matrix.platform == 'linux'
@@ -696,7 +704,7 @@ jobs:
         shell: pwsh
         env:
           INSTALLER_PATH: ${{ runner.temp }}\release\windows\openwaggle-${{ needs.version.outputs.new_version }}-x64.exe
-        run: node scripts/verify-windows-installer.ts "$env:INSTALLER_PATH"
+        run: pnpm exec tsx scripts/verify-windows-installer.ts "$env:INSTALLER_PATH"
 
   release:
     name: Create GitHub Release

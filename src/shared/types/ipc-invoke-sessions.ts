@@ -19,7 +19,7 @@ import type {
 export interface IpcSessionInvokeChannelMap {
   'sessions:get-detail': { args: [id: SessionId]; return: SessionDetail | null }
   'sessions:create': {
-    args: [projectPath: string, worktreePlan?: SessionWorktreePlan]
+    args: [projectPath: string, worktreePlan?: SessionWorktreePlan, model?: SupportedModelId]
     return: SessionDetail
   }
   'sessions:fork-to-new': {

@@ -70,7 +70,7 @@ export interface TranscriptSectionParams {
   readonly recentProjects: readonly string[]
   readonly activeSessionId: SessionId | null
   readonly activeSession: SessionDetail | null
-  readonly model: SupportedModelId
+  readonly model: SupportedModelId | undefined
   readonly waggleStatus: WaggleCollaborationStatus
   readonly phase: ReturnType<typeof useStreamingPhase>
   readonly extensionRegistry: ExtensionContributionRegistryView | null
