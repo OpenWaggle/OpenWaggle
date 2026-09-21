@@ -234,10 +234,9 @@ describe('updater service', () => {
       emitter().emit('update-downloaded', { version: '0.5.0-alpha.1' })
 
       expect(Reflect.get(emitter(), 'autoInstallOnAppQuit')).toBe(false)
-      expect(mockBroadcastToWindows).not.toHaveBeenCalledWith(
-        'updater:status-changed',
-        expect.objectContaining({ type: expect.stringMatching(/available|downloaded/u) }),
-      )
+      const statusTypes = mockBroadcastToWindows.mock.calls.map(([, status]) => status.type)
+      expect(statusTypes).not.toContain('available')
+      expect(statusTypes).not.toContain('downloaded')
     })
 
     it('does not register listeners for dev channel builds', () => {

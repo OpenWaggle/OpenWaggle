@@ -155,6 +155,34 @@ describe('updater overlapping checks', () => {
     expect(configureUpdaterFeedMock).toHaveBeenLastCalledWith(expect.anything(), 'stable')
   })
 
+  it('finishes a Stable check and cancels a mislabelled prerelease download', async () => {
+    let settleDownload: (() => void) | undefined
+    const cancel = vi.fn()
+    const downloadPromise = new Promise<void>((resolve) => {
+      settleDownload = resolve
+    })
+    checkForUpdatesMock.mockResolvedValueOnce({
+      isUpdateAvailable: true,
+      updateInfo: { version: '0.5.0-alpha.1' },
+      cancellationToken: { cancel },
+      downloadPromise,
+    })
+    initAutoUpdater('stable')
+
+    checkForUpdates('stable')
+    updaterRef.current?.emit('checking-for-update')
+    updaterRef.current?.emit('update-available', { version: '0.5.0-alpha.1' })
+    await Promise.resolve()
+    await Promise.resolve()
+    updaterRef.current?.emit('update-downloaded', { version: '0.5.0-alpha.1' })
+
+    expect(cancel).toHaveBeenCalledOnce()
+    expect(getUpdateStatus()).toEqual({ type: 'not-available' })
+
+    settleDownload?.()
+    await Promise.resolve()
+  })
+
   it('surfaces prerelease feed resolution failures through updater status', async () => {
     configureUpdaterFeedMock.mockRejectedValueOnce(new Error('release feed unavailable'))
     initAutoUpdater('alpha')

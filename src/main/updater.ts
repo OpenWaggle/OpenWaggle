@@ -84,6 +84,15 @@ async function runUpdaterCheck(generation: number) {
     await waitForDownload(result.downloadPromise)
     return
   }
+  if (!isVersionEligibleForChannel(result.updateInfo.version, currentChannel)) {
+    result.cancellationToken?.cancel()
+    activeUpdateCancellation = null
+    activeUpdateVersion = null
+    autoUpdater.autoInstallOnAppQuit = false
+    setStatus({ type: 'not-available' })
+    await waitForDownload(result.downloadPromise)
+    return
+  }
   activeUpdateCancellation = result.cancellationToken ?? null
   await waitForDownload(result.downloadPromise)
 }
