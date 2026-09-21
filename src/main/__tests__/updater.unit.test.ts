@@ -9,6 +9,7 @@ const {
   mockBuildChannel,
   mockBroadcastToWindows,
   mockCheckForUpdatesFn,
+  mockConfigureUpdaterFeed,
   mockQuitAndInstall,
   autoUpdaterRef,
 } = vi.hoisted(() => {
@@ -22,6 +23,7 @@ const {
     mockBuildChannel,
     mockBroadcastToWindows: vi.fn(),
     mockCheckForUpdatesFn: vi.fn(() => Promise.resolve()),
+    mockConfigureUpdaterFeed: vi.fn(),
     mockQuitAndInstall: vi.fn(),
     autoUpdaterRef,
   }
@@ -66,6 +68,10 @@ vi.mock('../utils/broadcast', () => ({
   broadcastToWindows: (...args: unknown[]) => mockBroadcastToWindows(...args),
 }))
 
+vi.mock('../update-feed', () => ({
+  configureUpdaterFeed: (...args: unknown[]) => mockConfigureUpdaterFeed(...args),
+}))
+
 vi.mock('../logger', () => ({
   createLogger: () => ({
     debug: vi.fn(),
@@ -96,6 +102,7 @@ describe('updater service', () => {
     mockBuildChannel.value = 'alpha'
     mockBroadcastToWindows.mockReset()
     mockCheckForUpdatesFn.mockReset()
+    mockConfigureUpdaterFeed.mockReset()
     mockQuitAndInstall.mockReset()
     mockCheckForUpdatesFn.mockResolvedValue(undefined)
     emitter().removeAllListeners()
@@ -169,6 +176,20 @@ describe('updater service', () => {
       expect(mockCheckForUpdatesFn).not.toHaveBeenCalled()
       vi.advanceTimersByTime(5_001)
       expect(mockCheckForUpdatesFn).toHaveBeenCalledOnce()
+    })
+
+    it('refreshes the authoritative channel before periodic checks', async () => {
+      let savedChannel: 'alpha' | 'stable' = 'alpha'
+      const readChannel = vi.fn(() => Promise.resolve(savedChannel))
+      initAutoUpdater('alpha', readChannel)
+
+      await vi.advanceTimersByTimeAsync(5_001)
+      expect(mockConfigureUpdaterFeed).toHaveBeenLastCalledWith(expect.anything(), 'alpha')
+
+      savedChannel = 'stable'
+      await vi.advanceTimersByTimeAsync(4 * 60 * 60 * 1_000)
+      expect(mockConfigureUpdaterFeed).toHaveBeenLastCalledWith(expect.anything(), 'stable')
+      expect(readChannel).toHaveBeenCalledTimes(2)
     })
 
     it('does not register listeners for dev channel builds', () => {

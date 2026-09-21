@@ -18,6 +18,7 @@ import { getEnvWithOverrides } from './env'
 import { createLocalSessionCliClientInput } from './local-session-cli-client'
 import { hasFlag, option, parseMcpCliArguments } from './mcp-cli-arguments'
 import { executeLocalSessionCommand } from './session-host/local-session-client'
+import { configureUpdaterFeed } from './update-feed'
 
 const EXIT = { SUCCESS: 0, FAILURE: 1, USAGE: 2 } as const
 const DOWNLOAD_TIMEOUT_MS = 15 * 60 * 1_000
@@ -151,13 +152,14 @@ async function installExactVersion(tag: string, checkOnly: boolean) {
   return { exitCode, updaterOwnsExit: false }
 }
 
-function configureUpdater(channel: UpdateChannel, checkOnly: boolean) {
+async function configureUpdater(channel: UpdateChannel, checkOnly: boolean) {
   autoUpdater.channel = updaterFeedChannel(channel)
   autoUpdater.allowPrerelease = channel !== 'stable'
   autoUpdater.allowDowngrade = false
   autoUpdater.autoDownload = !checkOnly
   autoUpdater.autoInstallOnAppQuit = true
   autoUpdater.logger = null
+  await configureUpdaterFeed(autoUpdater, channel)
 }
 
 function createDownloadWaiter() {
@@ -188,7 +190,7 @@ function createDownloadWaiter() {
 }
 
 async function updateFromChannel(channel: UpdateChannel, checkOnly: boolean) {
-  configureUpdater(channel, checkOnly)
+  await configureUpdater(channel, checkOnly)
   const downloaded = checkOnly ? null : createDownloadWaiter()
   const result = await autoUpdater.checkForUpdates().catch((error: unknown) => {
     downloaded?.cancel()

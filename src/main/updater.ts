@@ -5,6 +5,7 @@ import { type UpdateChannel, updaterFeedChannel } from '@shared/types/update-cha
 import type { UpdateStatus } from '@shared/types/updater'
 import { autoUpdater } from 'electron-updater'
 import { createLogger } from './logger'
+import { configureUpdaterFeed } from './update-feed'
 import { broadcastToWindows } from './utils/broadcast'
 
 const logger = createLogger('updater')
@@ -16,6 +17,7 @@ function updatesDisabled() {
 let currentStatus: UpdateStatus = { type: 'idle' }
 let checkInterval: ReturnType<typeof setInterval> | null = null
 let currentChannel: UpdateChannel = 'stable'
+let readAuthoritativeChannel: (() => Promise<UpdateChannel>) | null = null
 
 function configureUpdateChannel(channel: UpdateChannel) {
   currentChannel = channel
@@ -35,30 +37,49 @@ export function getUpdateStatus(): UpdateStatus {
   return currentStatus
 }
 
-export function checkForUpdates(channel: UpdateChannel = currentChannel): void {
+function logUpdateCheckError(error: unknown) {
+  logger.error('Update check failed', {
+    message: error instanceof Error ? error.message : String(error),
+  })
+}
+
+function checkConfiguredChannel(channel: UpdateChannel) {
+  configureUpdateChannel(channel)
+  const configured = configureUpdaterFeed(autoUpdater, channel)
+  if (configured) {
+    void configured.then(() => autoUpdater.checkForUpdates()).catch(logUpdateCheckError)
+    return
+  }
+  void autoUpdater.checkForUpdates().catch(logUpdateCheckError)
+}
+
+export function checkForUpdates(channel?: UpdateChannel): void {
   if (updatesDisabled()) {
     logger.info('Skipping update check', { channel: BUILD_CHANNEL, dev: is.dev })
     return
   }
-  configureUpdateChannel(channel)
-  autoUpdater.checkForUpdates().catch((error: unknown) => {
-    logger.error('Update check failed', {
-      message: error instanceof Error ? error.message : String(error),
-    })
-  })
+  if (channel || !readAuthoritativeChannel) {
+    checkConfiguredChannel(channel ?? currentChannel)
+    return
+  }
+  void readAuthoritativeChannel().then(checkConfiguredChannel).catch(logUpdateCheckError)
 }
 
 export function installUpdate(): void {
   autoUpdater.quitAndInstall(false, true)
 }
 
-export function initAutoUpdater(channel: UpdateChannel): void {
+export function initAutoUpdater(
+  channel: UpdateChannel,
+  readChannel?: () => Promise<UpdateChannel>,
+): void {
   if (updatesDisabled()) {
     logger.info('Auto-updater disabled', { channel: BUILD_CHANNEL, dev: is.dev })
     return
   }
 
   configureUpdateChannel(channel)
+  readAuthoritativeChannel = readChannel ?? null
   autoUpdater.autoDownload = true
   autoUpdater.autoInstallOnAppQuit = true
   autoUpdater.logger = null // We use our own logger
@@ -106,6 +127,7 @@ export function initAutoUpdater(channel: UpdateChannel): void {
 }
 
 export function disposeAutoUpdater(): void {
+  readAuthoritativeChannel = null
   if (checkInterval) {
     clearInterval(checkInterval)
     checkInterval = null

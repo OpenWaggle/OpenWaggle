@@ -129,6 +129,8 @@ describe('desktop app release workflow', () => {
     )
     expect(WORKFLOW).toContain('cancel-in-progress: false')
     expect(WORKFLOW).toContain('NEW_VERSION="${BASE_VERSION}-${PRERELEASE_TAG}.$((PRERELEASE_NUM + 1))"')
+    expect(WORKFLOW).toContain("grep -qE 'alpha|beta|rc'")
+    expect(WORKFLOW).toContain("sed 's/.*-\\(alpha\\|beta\\|rc\\)\\..*/\\1/'")
   })
 
   it('supports an explicit forward promotion through the same protected release PR', () => {

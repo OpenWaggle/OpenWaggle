@@ -85,10 +85,12 @@ openwaggle update --version 0.4.0
 
 `--check` reports availability without downloading. Without `--check`, `openwaggle update`
 downloads and installs the newest eligible release. Choosing `--channel` is persistent; choosing
-`--version` is a one-time install. On a first launch with no saved preference, an Alpha or Beta
-build starts on its matching channel; Stable remains the default otherwise. The app confirms each
-switch into Alpha and checks a newly selected channel immediately. OpenWaggle never downgrades
-automatically when channels change.
+`--version` is a one-time install and can target an exact Stable or prerelease version. RC builds
+are available only through `--version` or `OPENWAGGLE_RELEASE_TAG`; they are not an automatic
+update channel. On a first launch with no saved preference, an Alpha or Beta build starts on its
+matching channel; Stable remains the default otherwise. The app confirms each switch into Alpha
+and checks a newly selected channel immediately. OpenWaggle never downgrades automatically when
+channels change.
 
 ## System Requirements
 

@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const {
   checkForUpdatesMock,
   executeLocalSessionCommandMock,
+  configureUpdaterFeedMock,
   quitAndInstallMock,
   writeCliStdoutMock,
   createClientMock,
@@ -30,6 +31,7 @@ const {
   return {
     checkForUpdatesMock: vi.fn(),
     executeLocalSessionCommandMock: vi.fn(),
+    configureUpdaterFeedMock: vi.fn(),
     quitAndInstallMock: vi.fn(),
     writeCliStdoutMock: vi.fn(() => Promise.resolve()),
     createClientMock: vi.fn(() => Promise.resolve({ clientKind: 'cli' })),
@@ -48,6 +50,9 @@ vi.mock('electron-updater', () => ({
 }))
 vi.mock('../session-host/local-session-client', () => ({
   executeLocalSessionCommand: executeLocalSessionCommandMock,
+}))
+vi.mock('../update-feed', () => ({
+  configureUpdaterFeed: (...args: unknown[]) => configureUpdaterFeedMock(...args),
 }))
 vi.mock('../local-session-cli-client', () => ({
   createLocalSessionCliClientInput: createClientMock,
@@ -74,6 +79,7 @@ describe('update CLI', () => {
         }),
     )
     checkForUpdatesMock.mockResolvedValue(null)
+    configureUpdaterFeedMock.mockReset()
   })
 
   afterEach(() => {
@@ -129,6 +135,7 @@ describe('update CLI', () => {
     })
 
     expect(updater.channel).toBe('beta')
+    expect(configureUpdaterFeedMock).toHaveBeenCalledWith(updater, 'beta')
     expect(executeLocalSessionCommandMock).toHaveBeenCalledWith(
       expect.objectContaining({
         payload: {

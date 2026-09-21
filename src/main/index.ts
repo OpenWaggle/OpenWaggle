@@ -129,8 +129,13 @@ async function initializeAutoUpdaterAfterWindow() {
   try {
     const { disposeAutoUpdater, initAutoUpdater } = await importUpdaterModule()
     disposeAutoUpdaterOnce = disposeAutoUpdater
-    const { getSettings } = await importSettingsStoreModule()
-    initAutoUpdater(getSettings().updateChannel)
+    const { getSettings, hydrateSettingsStoreFromHost } = await importSettingsStoreModule()
+    initAutoUpdater(getSettings().updateChannel, async () => {
+      const settings = await invokeConfiguredHostUi('settings:get', [])
+      if (!settings.handled) throw new Error('Attached GUI lost its Session Host settings route.')
+      hydrateSettingsStoreFromHost(settings.result)
+      return getSettings().updateChannel
+    })
   } catch (error) {
     logger.warn('Failed to initialize auto-updater', describeError(error))
   }
