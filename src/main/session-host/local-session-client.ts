@@ -8,7 +8,7 @@ import {
   HOST_UI_REVISION_11_REQUIRED_CHANNELS,
   HOST_UI_REVISION_12_REQUIRED_CHANNELS,
   HOST_UI_REVISION_13_REQUIRED_CHANNELS,
-  HOST_UI_REVISION_14_REQUIRED_CHANNELS,
+  HOST_UI_REVISION_15_REQUIRED_CHANNELS,
   type HostBackedGuiChannel,
 } from '@shared/types/host-ui-protocol'
 import type {
@@ -27,6 +27,7 @@ import {
   LOCAL_SESSION_STEERING_RECEIPT_REVISION,
   LOCAL_SESSION_SUPPORTED_REVISIONS,
   LOCAL_SESSION_TURN_DIFF_FILES_REVISION,
+  LOCAL_SESSION_UPDATE_REVISION,
   LOCAL_SESSION_WAGGLE_REVISION,
   LOCAL_SESSION_WORKSPACE_AUTHORIZATION_REVISION,
 } from '@shared/types/local-session-protocol'
@@ -50,7 +51,7 @@ export {
 const LONG_RUNNING_COMMAND_GRACE_MS = 5_000
 
 function minimumHostUiRevision(channel: HostBackedGuiChannel) {
-  if (HOST_UI_REVISION_14_REQUIRED_CHANNELS.some((candidate) => candidate === channel)) {
+  if (HOST_UI_REVISION_15_REQUIRED_CHANNELS.some((candidate) => candidate === channel)) {
     return LOCAL_SESSION_NATIVE_ACTIONS_REVISION
   }
   if (HOST_UI_REVISION_13_REQUIRED_CHANNELS.some((candidate) => candidate === channel)) {
@@ -77,6 +78,7 @@ function minimumHostUiRevision(channel: HostBackedGuiChannel) {
 }
 
 function minimumProtocolRevision(payload: LocalSessionCommandPayload) {
+  if (payload.contract === 'local-update-v1') return LOCAL_SESSION_UPDATE_REVISION
   if (payload.contract === 'desktop-service-v1') return LOCAL_SESSION_DESKTOP_SERVICE_REVISION
   if (
     payload.contract === 'session-control-v2' &&
@@ -101,6 +103,9 @@ function minimumProtocolRevision(payload: LocalSessionCommandPayload) {
 }
 
 function unsupportedRevisionMessage(payload: LocalSessionCommandPayload) {
+  if (payload.contract === 'local-update-v1') {
+    return 'The connected Session Host does not support update channel commands.'
+  }
   if (payload.contract === 'desktop-service-v1')
     return 'The connected Session Host does not support desktop services.'
   if (payload.contract === 'session-control-v2') {

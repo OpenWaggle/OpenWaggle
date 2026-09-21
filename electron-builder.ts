@@ -41,6 +41,8 @@ const config = {
     provider: 'github',
     owner: 'OpenWaggle',
     repo: 'OpenWaggle',
+    // GitHub does not infer this from the package prerelease identifier.
+    channel: identity.channel === 'stable' ? 'latest' : identity.channel,
   },
   // sharp dlopens libvips (libvips-cpp.so on Linux) from its native package; a
   // dlopen cannot read a shared library trapped inside app.asar, so unpack them.
@@ -93,6 +95,7 @@ const config = {
     { from: channelIcon, to: 'icon.png' },
     { from: 'build/openwaggle-docs', to: 'openwaggle-docs' },
     { from: 'build/session-embedding-model', to: 'session-embedding-model' },
+    { from: 'scripts/install.sh', to: 'openwaggle-install.sh' },
   ],
   mac: {
     // Local builds: skip codesigning (no Apple Developer ID).

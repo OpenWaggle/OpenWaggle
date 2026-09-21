@@ -822,6 +822,8 @@ Setup capture must use the ordinary action shell resolver and shell-native exit 
 fish, so configured shell syntax and explicit successful exits preserve exported environment.
 Fresh local Sessions need Summary availability from configured preparation, before a snapshot or
 run exists, or users cannot reach explicit setup.
+Native actions use Local Session protocol revision 15. Revision 14 belongs to update channels;
+its capability tuple must stay unchanged when negotiating with the immediate predecessor.
 
 The September 2026 native action verification reproduced a SQLite worker teardown abort on pristine
 main with transitive better-sqlite3 12.11.1. Root and Effect SQLite now share 13.0.3, which includes the

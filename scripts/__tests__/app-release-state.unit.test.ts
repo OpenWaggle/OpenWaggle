@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  assertForwardAppVersionTransition,
   expectedVersionOnlyManifest,
   releaseSubjectVersion,
   selectOwnedReleasePullRequests,
@@ -26,6 +27,20 @@ function pullRequest(
 }
 
 describe('app release state model', () => {
+  it('accepts protected promotion and next-line prerelease transitions', () => {
+    expect(() => assertForwardAppVersionTransition('0.4.0-alpha.3', '0.4.0')).not.toThrow()
+    expect(() => assertForwardAppVersionTransition('0.4.0', '0.5.0-alpha.1')).not.toThrow()
+    expect(() => assertForwardAppVersionTransition('0.5.0-beta.2', '0.5.0-rc.1')).not.toThrow()
+  })
+
+  it('rejects equal versions, older cores, and less-stable same-line channels', () => {
+    expect(() => assertForwardAppVersionTransition('0.4.0', '0.4.0')).toThrow(/does not advance/u)
+    expect(() => assertForwardAppVersionTransition('0.5.0-alpha.1', '0.4.1')).toThrow(/older/u)
+    expect(() => assertForwardAppVersionTransition('0.5.0-beta.1', '0.5.0-alpha.9')).toThrow(
+      /does not advance/u,
+    )
+  })
+
   it('selects only the same-repository release PR', () => {
     const selected = selectOwnedReleasePullRequests(
       [

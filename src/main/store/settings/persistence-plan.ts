@@ -33,9 +33,9 @@ import {
   SETTINGS_KEY_SHORTCUT_RULES,
   SETTINGS_KEY_SKILL_TOGGLES_BY_PROJECT,
   SETTINGS_KEY_SYNTAX_THEME_SELECTIONS,
-  SETTINGS_KEY_THINKING_LEVEL,
+  SETTINGS_KEY_UPDATE_CHANNEL,
 } from './keys'
-import { isValidThinkingLevel } from './sanitizers'
+import { appendThinkingLevelWrite } from './thinking-level-persistence'
 
 export interface SettingsPatchWrite {
   readonly key: string
@@ -51,22 +51,7 @@ function appendChangedSetting(
   if (changed) writes.push({ key, value })
 }
 
-function appendThinkingLevelWrite(
-  writes: SettingsPatchWrite[],
-  partial: Partial<Settings>,
-  next: Settings,
-) {
-  if (partial.thinkingLevel === undefined || !isValidThinkingLevel(partial.thinkingLevel)) return
-  writes.push({ key: SETTINGS_KEY_THINKING_LEVEL, value: next.thinkingLevel })
-}
-
-export function getInvalidThinkingLevel(partial: Partial<Settings>) {
-  if (partial.thinkingLevel === undefined || isValidThinkingLevel(partial.thinkingLevel)) {
-    return undefined
-  }
-
-  return partial.thinkingLevel
-}
+export { getInvalidThinkingLevel } from './thinking-level-persistence'
 
 function appendBrowserSettingsWrites(
   writes: SettingsPatchWrite[],
@@ -153,6 +138,12 @@ function appendGeneralSettingsWrites(
     next.projectPath,
   )
   appendThinkingLevelWrite(writes, partial, next)
+  appendChangedSetting(
+    writes,
+    partial.updateChannel !== undefined,
+    SETTINGS_KEY_UPDATE_CHANNEL,
+    next.updateChannel,
+  )
   appendChangedSetting(
     writes,
     partial.recentProjects !== undefined,

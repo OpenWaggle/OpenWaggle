@@ -5,7 +5,8 @@ import { isRecord } from '@shared/utils/validation'
 import * as Effect from 'effect/Effect'
 import { SettingsStoreReadError } from '../errors'
 import { createLogger } from '../logger'
-import { CURRENT_SETTINGS_KEYS, SETTINGS_KEY_DEFAULT_MODEL } from './settings/keys'
+import { collectInitialDefaultWrites } from './settings/initial-default-writes'
+import { CURRENT_SETTINGS_KEYS } from './settings/keys'
 import { validatePersistedSettings } from './settings/persisted-validation'
 import {
   collectSettingsPatchWrites,
@@ -153,11 +154,8 @@ export async function initializeSettingsStore(): Promise<void> {
       settingsReadError = null
       settingsReady = true
 
-      if (built.settings.selectedModel !== storedSettings[SETTINGS_KEY_DEFAULT_MODEL]) {
-        void queueStoredSettingWrite(
-          SETTINGS_KEY_DEFAULT_MODEL,
-          built.settings.selectedModel,
-        ).catch(() => undefined)
+      for (const write of collectInitialDefaultWrites(storedSettings, built.settings)) {
+        void queueStoredSettingWrite(write.key, write.value).catch(() => undefined)
       }
     } catch (error) {
       settingsReadError = toSettingsReadError(error)

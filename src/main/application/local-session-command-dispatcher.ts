@@ -29,6 +29,7 @@ import {
   executeLocalUiSessionCommand,
   prepareLocalGuiAttachments,
 } from './local-ui-session-service'
+import { dispatchLocalUpdateCommand } from './local-update-command'
 import {
   preserveOutcomeAfterAttachmentCleanup,
   withSessionAttachmentTransition,
@@ -261,6 +262,9 @@ export function dispatchLocalSessionCommand(input: {
 }) {
   const remote = dispatchConfiguredGuiSessionCommand(input)
   if (remote) return remote
+  if (input.payload.contract === 'local-update-v1') {
+    return dispatchLocalUpdateCommand({ caller: input.caller, payload: input.payload })
+  }
   if (input.payload.contract === 'desktop-service-v1') {
     return dispatchDesktopServiceRequest({
       caller: input.caller,

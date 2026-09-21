@@ -173,7 +173,7 @@ function dispatchHostUiChannel(
       negotiatedRevision < LOCAL_SESSION_NATIVE_ACTIONS_REVISION
     )
       return invalidHostUiInput(
-        'Native Project Actions require Local Session protocol revision 14.',
+        `Native Project Actions require Local Session protocol revision ${LOCAL_SESSION_NATIVE_ACTIONS_REVISION}.`,
       )
     return oneInput(args, manageProjectActions)
   }

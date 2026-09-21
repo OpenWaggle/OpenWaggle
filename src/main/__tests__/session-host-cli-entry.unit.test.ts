@@ -24,6 +24,7 @@ const mocks = vi.hoisted(() => {
     initializeSettings: vi.fn(async () => {
       order.push('initialize-settings')
     }),
+    applyInstallerIntent: vi.fn(async () => null),
     legacyFence: vi.fn((operation: () => Promise<unknown>) => operation()),
     sourceExists: vi.fn(async () => false),
     startHost: vi.fn<() => Promise<TestHost>>(async () => {
@@ -48,6 +49,9 @@ vi.mock('electron', () => ({
 }))
 
 vi.mock('../env', () => ({ env: {} }))
+vi.mock('../installer-update-channel-intent', () => ({
+  applyInstallerUpdateChannelIntent: mocks.applyInstallerIntent,
+}))
 vi.mock('../session-data', () => ({ configureAppStoragePaths: vi.fn() }))
 vi.mock('../session-host/legacy-session-writer-fence', () => ({
   withLegacySessionWriterFence: mocks.legacyFence,
@@ -114,6 +118,7 @@ describe('detached Session Host startup', () => {
     mocks.initializeRuntime.mockClear()
     mocks.disposeRuntime.mockClear()
     mocks.initializeSettings.mockClear()
+    mocks.applyInstallerIntent.mockClear()
     mocks.legacyFence.mockClear()
     mocks.sourceExists.mockReset().mockResolvedValue(false)
     mocks.startHost.mockClear()
@@ -141,6 +146,10 @@ describe('detached Session Host startup', () => {
           targetPath: '/tmp/openwaggle-profile/session-host.sqlite',
         }),
       }),
+    )
+    expect(mocks.applyInstallerIntent).toHaveBeenCalledWith(
+      '/tmp/openwaggle-profile',
+      expect.any(Function),
     )
   })
 

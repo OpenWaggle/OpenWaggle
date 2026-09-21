@@ -8,14 +8,15 @@ const logger = createRendererLogger('updater')
 
 export function useAutoUpdater(): void {
   const showPersistentToast = useUIStore((s) => s.showPersistentToast)
-  const hasShownRef = useRef(false)
+  const clearToast = useUIStore((s) => s.clearToast)
+  const shownVersionRef = useRef<string | null>(null)
 
   useEffect(() => {
     if (typeof api.onUpdateStatus !== 'function') return
 
     const unsubscribe = api.onUpdateStatus((status: UpdateStatus) => {
-      if (status.type === 'downloaded' && !hasShownRef.current) {
-        hasShownRef.current = true
+      if (status.type === 'downloaded' && shownVersionRef.current !== status.version) {
+        shownVersionRef.current = status.version
         showPersistentToast({
           message: `Update v${status.version} ready`,
           variant: 'success',
@@ -31,9 +32,24 @@ export function useAutoUpdater(): void {
             },
           },
         })
+        return
+      }
+      if (
+        shownVersionRef.current &&
+        (status.type === 'idle' || status.type === 'not-available' || status.type === 'error')
+      ) {
+        const updaterMessage = `Update v${shownVersionRef.current} ready`
+        const visibleToast = useUIStore.getState().toastData
+        if (
+          visibleToast?.message === updaterMessage &&
+          visibleToast.action?.label === 'Restart to update'
+        ) {
+          clearToast()
+        }
+        shownVersionRef.current = null
       }
     })
 
     return unsubscribe
-  }, [showPersistentToast])
+  }, [clearToast, showPersistentToast])
 }

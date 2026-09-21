@@ -45,6 +45,7 @@ const [
   desktopServicesCapability,
   projectCatalogCapability,
   turnDiffFilesCapability,
+  updateChannelCapability,
   nativeActionsCapability,
 ] = LOCAL_SESSION_CAPABILITIES
 
@@ -72,6 +73,7 @@ const currentCapabilitySchema = Schema.Tuple(
   Schema.Literal(desktopServicesCapability),
   Schema.Literal(projectCatalogCapability),
   Schema.Literal(turnDiffFilesCapability),
+  Schema.Literal(updateChannelCapability),
   Schema.Literal(nativeActionsCapability),
 )
 
@@ -95,6 +97,7 @@ const previousCapabilitySchema = Schema.Tuple(
   Schema.Literal(desktopServicesCapability),
   Schema.Literal(projectCatalogCapability),
   Schema.Literal(turnDiffFilesCapability),
+  Schema.Literal(updateChannelCapability),
 )
 
 export const localSessionNegotiationResultSchema: Schema.Schema<LocalSessionNegotiationResult> =

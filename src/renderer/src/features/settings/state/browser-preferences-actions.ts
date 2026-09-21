@@ -5,6 +5,7 @@ import type { PreferencesActions, PreferencesSet } from './preferences-store-typ
 type BrowserAndScalarActions = Pick<
   PreferencesActions,
   | 'setDefaultAuthorizationMode'
+  | 'setUpdateChannel'
   | 'setDefaultSessionEnvironmentMode'
   | 'setMultiAgentEnabled'
   | 'setSessionHostParentConcurrencyLimit'
@@ -55,6 +56,10 @@ export function createBrowserAndScalarPreferencesActions(
   set: PreferencesSet,
 ): BrowserAndScalarActions {
   return {
+    setUpdateChannel: async (value) => {
+      await persistSetting('updateChannel', value, set)
+      await api.checkForUpdates(value)
+    },
     setDefaultAuthorizationMode: (value) => persistSetting('defaultAuthorizationMode', value, set),
     setDefaultSessionEnvironmentMode: (value) =>
       persistSetting('defaultSessionEnvironmentMode', value, set),

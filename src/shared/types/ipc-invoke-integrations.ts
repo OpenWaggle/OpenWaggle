@@ -20,6 +20,7 @@ import type {
   SkillCatalogResult,
 } from './standards'
 import type { TurnCheckpointSummary, TurnDiff, TurnDiffFileSummary } from './turn-diff'
+import type { UpdateChannel } from './update-channel'
 import type { UpdateStatus } from './updater'
 import type { VoiceTranscriptionRequest, VoiceTranscriptionResult } from './voice'
 import type { WaggleConfig, WagglePreset } from './waggle'
@@ -188,7 +189,7 @@ export interface IpcIntegrationInvokeChannelMap
   }
   // Auto-updater
   'updater:check': {
-    args: []
+    args: [channel?: UpdateChannel]
     return: undefined
   }
   'updater:install': {

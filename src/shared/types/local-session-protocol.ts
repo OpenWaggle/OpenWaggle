@@ -1,8 +1,8 @@
 import type {
   LOCAL_SESSION_CAPABILITIES,
   LOCAL_SESSION_CURRENT_REVISION,
-  LOCAL_SESSION_REVISION_13_CAPABILITIES,
-  LOCAL_SESSION_TURN_DIFF_FILES_REVISION,
+  LOCAL_SESSION_REVISION_14_CAPABILITIES,
+  LOCAL_SESSION_UPDATE_REVISION,
 } from './local-session-protocol-revisions'
 export const LOCAL_SESSION_PROTOCOL_NAME = 'openwaggle-local-session' as const
 export const LOCAL_SESSION_MAX_CLIENT_VERSION_LENGTH = 128
@@ -111,6 +111,7 @@ export type LocalSessionCommandPayload =
       readonly contract: 'host-ui-v1'
       readonly request: HostUiV1Request
     }
+  | LocalUpdateCommandPayload
   | LocalSessionCompactionCommandPayload
   | LocalSessionWaggleCommandPayload
 
@@ -162,6 +163,7 @@ export type LocalSessionCommandResult =
       readonly contract: 'host-ui-v1'
       readonly response: HostUiV1Result
     }
+  | LocalUpdateCommandResult
   | LocalSessionCompactionCommandResult
   | LocalSessionWaggleCommandResult
 
@@ -244,8 +246,8 @@ export type LocalSessionNegotiationResult =
       typeof LOCAL_SESSION_CAPABILITIES
     >
   | AcceptedLocalSessionNegotiation<
-      typeof LOCAL_SESSION_TURN_DIFF_FILES_REVISION,
-      typeof LOCAL_SESSION_REVISION_13_CAPABILITIES
+      typeof LOCAL_SESSION_UPDATE_REVISION,
+      typeof LOCAL_SESSION_REVISION_14_CAPABILITIES
     >
   | {
       readonly accepted: false
@@ -287,6 +289,7 @@ import type {
   LocalSessionWaggleCommandPayload,
   LocalSessionWaggleCommandResult,
 } from './local-session-waggle'
+import type { LocalUpdateCommandPayload, LocalUpdateCommandResult } from './local-update'
 import type { SessionNavigateTreeOptions } from './session'
 import type {
   SessionControlMutationRequest,

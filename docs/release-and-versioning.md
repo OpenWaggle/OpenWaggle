@@ -31,7 +31,9 @@ The workflow currently publishes unsigned platform artifacts. Public distributio
 
 ## Versioning
 
-OpenWaggle uses semver with prerelease stages. The current release train is `0.4.0-alpha.N`.
+OpenWaggle uses semver with release channels. The current prerelease train is
+`0.4.0-alpha.N`; its Stable promotion is `0.4.0`, not `0.4.1`. New prerelease development after
+that promotion starts on the next intended semver line.
 
 | Stage | Example Version | What Happens On Release |
 |-------|-----------------|-------------------------|
@@ -39,7 +41,31 @@ OpenWaggle uses semver with prerelease stages. The current release train is `0.4
 | Beta | `0.4.0-beta.N` | Increments `beta.N+1` after the project moves to beta. |
 | Stable | `0.4.0` | `fix:` increments patch, `feat:` increments minor, breaking changes increment major. |
 
-To transition stages, manually set the version in `package.json` and commit as `chore(release): <message>`.
+Stage transitions use the same protected, version-only release PR as ordinary releases. Never
+retag a prerelease or edit a GitHub release to simulate promotion.
+
+Prepare an explicit forward transition from `main` with:
+
+```bash
+gh workflow run release.yml --ref main -f target_version=0.4.0
+```
+
+Manual release dispatches are accepted only from `main` and require an explicit target. The
+workflow rejects equal versions, downgrades, and backwards channel movement, then creates the
+normal version-only PR. A maintainer must merge that green PR before its tag and artifacts publish.
+The same path can later open a new prerelease line such as `0.5.0-alpha.1`.
+
+Update eligibility is monotonic: Stable receives Stable; Beta receives Beta and Stable; Alpha
+receives Alpha, Beta, and Stable. RC versions remain available through exact-version installation,
+because electron-updater's GitHub provider treats RC as a custom channel. Release packaging
+publishes the matching metadata aliases for every eligible automatic channel because
+electron-builder does not generate the cross-channel aliases for its GitHub provider. The app and
+CLI persist one shared channel and explicitly disable downgrades. The app re-reads that
+authoritative channel before installing a downloaded release and invalidates a release that is no
+longer eligible. Automatic install on ordinary app quit is disabled on every platform so all
+downloads pass through the explicit, authoritative restart action. The shell installer persists its
+selected policy channel as a one-time Session Host intent instead of inferring future policy from
+the downloaded artifact's version.
 
 ### Protected release recovery
 

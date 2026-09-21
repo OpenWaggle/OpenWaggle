@@ -1,10 +1,39 @@
 # Agent Release Context
 
-Use this file for agent-facing release and update-track decisions. The canonical release reference is `docs/release-and-versioning.md`.
+Use this file for agent-facing release and update-channel decisions. The canonical release reference is `docs/release-and-versioning.md`.
 
 ## Current Release Model
 
-OpenWaggle uses semver prerelease stages. The current release train is `0.3.0-alpha.N`.
+OpenWaggle uses semver release channels. Stable is the default user channel; Beta and Alpha are
+explicit opt-ins. The `0.4.0-alpha.N` train promotes to Stable as `0.4.0`; later prerelease work
+starts a new semver line rather than incrementing the stable patch solely to remove the suffix.
+
+The desktop app, `openwaggle update`, and `scripts/install.sh` use the same channel vocabulary:
+
+- Stable accepts plain semver releases only.
+- Beta accepts Beta and Stable releases.
+- Alpha accepts Alpha, Beta, and Stable releases.
+- Channel changes never authorize an automatic downgrade.
+- `--version` and `OPENWAGGLE_RELEASE_TAG` are exact, one-time selections and do not change the
+persisted channel.
+
+The shell installer writes the selected automatic channel into the canonical released-app
+user-data directory. The authoritative Session Host consumes that one-time intent before serving
+settings, so an Alpha policy remains Alpha even when the selected artifact is Beta or Stable. On
+macOS, automatic staging on quit stays disabled: the renderer's eligible **Restart to update**
+action hands the selected zip to Squirrel.Mac, avoiding a stale staged prerelease after narrowing
+the channel.
+
+RC versions are exact-version releases only. electron-updater's GitHub provider treats RC as a
+custom channel rather than part of Alpha or Beta, so promising automatic RC eligibility would not
+match the shipped updater.
+
+GitHub's `prerelease` flag is not the channel authority. Version semantics decide eligibility, so
+historical Alpha releases accidentally marked as ordinary GitHub releases cannot enter Stable.
+Use the Release workflow's `target_version` dispatch for a deliberate promotion or a new
+prerelease line. Dispatch it from `main`; manual runs fail closed on any other ref or without an
+explicit target. It still produces the ordinary version-only release PR and never bypasses the
+maintainer merge gate.
 
 Release automation is GitHub-based:
 
@@ -25,7 +54,7 @@ Load `.agents/skills/release/SKILL.md` before changing:
 - updater behavior
 - release notes
 - installer packaging
-- alpha/beta/stable track behavior
+- alpha/beta/stable channel behavior
 - signing, notarization, or platform distribution
 
 ## Release Notes

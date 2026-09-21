@@ -3,6 +3,7 @@ import { decodeUnknownExactOrThrow, Schema } from '@shared/schema'
 import { decodeDesktopServiceResponse } from '@shared/schemas/desktop-service'
 import { decodeHostUiV1Result } from '@shared/schemas/host-ui-protocol'
 import { decodeLocalSessionProfileManagementResponse } from '@shared/schemas/local-session-profile-management'
+import { decodeLocalUpdateResponse } from '@shared/schemas/local-update'
 import { decodeSessionControlMutationResponse } from '@shared/schemas/session-control'
 import { decodeSessionLifecycleResponse } from '@shared/schemas/session-lifecycle'
 import { preparedAttachmentSchema } from '@shared/schemas/validation'
@@ -163,6 +164,10 @@ function decodeCommandPayload(payload: Record<string, unknown>): LocalSessionCom
     .with('host-ui-v1', () => ({
       contract: 'host-ui-v1' as const,
       response: decodeHostUiV1Result(payload.response),
+    }))
+    .with('local-update-v1', () => ({
+      contract: 'local-update-v1' as const,
+      response: decodeLocalUpdateResponse(payload.response),
     }))
     .with('session-waggle-v1', () => {
       if (!isSessionWaggleResponse(payload.response)) throw new Error('Invalid Waggle response.')
