@@ -12,6 +12,7 @@ export function manageWorkspacePreparation(
     const service = yield* WorkspacePreparationService
     return yield* match(operation)
       .with({ type: 'preparation' }, () => service.read(workspace))
+      .with({ type: 'stop-setup' }, ({ attemptId }) => service.stopSetup(workspace, attemptId))
       .with({ type: 'select-preparation' }, ({ profileId, expectedRevision }) =>
         service.select(workspace, profileId, expectedRevision),
       )

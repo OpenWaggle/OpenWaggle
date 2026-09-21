@@ -3,10 +3,10 @@ import type {
   ActionCatalog,
   ActionCatalogEdit,
   ActionManifest,
-  EffectiveDefinition,
   PreparationDefinition,
   PreparationReview,
 } from '@shared/types/action-definitions'
+import { effective, effectivePreparation, upsertPreparation } from './effective-project-definitions'
 
 export interface LocalActionDocument {
   readonly manifest: ActionManifest
@@ -52,24 +52,6 @@ export function preparationExecutionKey(definition: PreparationDefinition): stri
   return JSON.stringify({ phase: definition.phase, invocation })
 }
 
-function effective<T extends { readonly id: string }>(
-  local: readonly T[],
-  shared: readonly T[],
-): EffectiveDefinition<T>[] {
-  const personal = new Map(local.map((definition) => [definition.id, definition]))
-  return [
-    ...shared.map(
-      (definition): EffectiveDefinition<T> => ({
-        definition: personal.get(definition.id) ?? definition,
-        source: personal.has(definition.id) ? 'override' : 'project',
-      }),
-    ),
-    ...local
-      .filter((definition) => !shared.some((entry) => entry.id === definition.id))
-      .map((definition): EffectiveDefinition<T> => ({ definition, source: 'local' })),
-  ]
-}
-
 export function resolveActionCatalog(
   document: LocalActionDocument,
   shared: ActionManifest,
@@ -80,16 +62,20 @@ export function resolveActionCatalog(
   const profiles = effective(document.manifest.profiles, shared.profiles)
   if (!profiles.some(({ definition }) => definition.id === 'default'))
     profiles.unshift({ definition: { id: 'default', name: 'Default' }, source: 'local' })
-  const preparation = effective(document.manifest.preparation, shared.preparation).map((entry) => {
-    const previous = document.reviews.find((review) => review.definitionId === entry.definition.id)
-    const sameExecution = previous?.fingerprint === preparationExecutionKey(entry.definition)
-    const review = sameExecution
-      ? previous.enabled
-        ? ('enabled' as const)
-        : ('disabled' as const)
-      : ('required' as const)
-    return { ...entry, review, ...(previous ? { previous } : {}) }
-  })
+  const preparation = effectivePreparation(document.manifest.preparation, shared.preparation).map(
+    (entry) => {
+      const previous = document.reviews.find(
+        (review) => review.definitionId === entry.definition.id,
+      )
+      const sameExecution = previous?.fingerprint === preparationExecutionKey(entry.definition)
+      const review = sameExecution
+        ? previous.enabled
+          ? ('enabled' as const)
+          : ('disabled' as const)
+        : ('required' as const)
+      return { ...entry, review, ...(previous ? { previous } : {}) }
+    },
+  )
   const phases = new Set<string>()
   for (const { definition } of preparation) {
     if (!profiles.some(({ definition: profile }) => profile.id === definition.profileId))
@@ -142,6 +128,7 @@ function moveActionCatalogDefinition(
   const move = <T extends { readonly id: string }>(
     personal: readonly T[],
     project: readonly T[],
+    replace: (entries: readonly T[], definition: T) => readonly T[] = upsert,
   ) => {
     const definition =
       personal.find((entry) => entry.id === edit.id) ??
@@ -149,12 +136,12 @@ function moveActionCatalogDefinition(
     if (!definition) throw new Error('The definition no longer exists.')
     return edit.storage === 'local'
       ? {
-          personal: upsert(personal, definition),
+          personal: replace(personal, definition),
           project: project.filter((entry) => entry.id !== edit.id),
         }
       : {
           personal: personal.filter((entry) => entry.id !== edit.id),
-          project: upsert(project, definition),
+          project: replace(project, definition),
         }
   }
   const next = match(edit.collection)
@@ -173,7 +160,7 @@ function moveActionCatalogDefinition(
       }
     })
     .with('preparation', () => {
-      const moved = move(document.manifest.preparation, shared.preparation)
+      const moved = move(document.manifest.preparation, shared.preparation, upsertPreparation)
       let project = { ...shared, preparation: moved.project }
       for (const definition of moved.project)
         project = sharePreparationProfile(document, project, definition.profileId)
@@ -242,7 +229,7 @@ export function editActionCatalog(
     })
     .with({ type: 'save-preparation' }, ({ definition }) => ({
       ...target,
-      preparation: upsert(target.preparation, definition),
+      preparation: upsertPreparation(target.preparation, definition),
     }))
     .with({ type: 'delete-preparation' }, ({ id }) => ({
       ...target,

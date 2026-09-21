@@ -36,12 +36,13 @@ export function capturePreparationSnapshot(
 }
 export function preparationProjection(
   state: StoredWorkspacePreparation,
-  catalog: ActionCatalog,
+  catalog: ActionCatalog | null,
+  catalogError?: string,
 ): WorkspacePreparation {
-  const current = catalog.profiles.find(
+  const current = catalog?.profiles.find(
     ({ definition }) => definition.id === state.snapshot.profile.id,
   )?.definition
-  const definitions = catalog.preparation
+  const definitions = catalog?.preparation
     .filter(({ definition }) => definition.profileId === state.snapshot.profile.id)
     .map(({ definition }) => definition)
   return {
@@ -51,9 +52,11 @@ export function preparationProjection(
     setup: state.setup,
     cleanup: state.cleanup,
     updateAvailable:
-      JSON.stringify(current) !== JSON.stringify(state.snapshot.profile) ||
-      JSON.stringify(definitions) !==
-        JSON.stringify(state.snapshot.definitions.map(({ definition }) => definition)),
+      catalog !== null &&
+      (JSON.stringify(current) !== JSON.stringify(state.snapshot.profile) ||
+        JSON.stringify(definitions) !==
+          JSON.stringify(state.snapshot.definitions.map(({ definition }) => definition))),
+    ...(catalogError ? { catalogError } : {}),
   }
 }
 export function requirePreparationRevision(

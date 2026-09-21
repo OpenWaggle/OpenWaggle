@@ -106,10 +106,17 @@ in the composer before creating a worktree. Each workspace retains a snapshot of
 Later edits show **A newer profile version is available**; adopting it is explicit and clears the
 previous prepared environment.
 
+If a private setup or cleanup and a shared definition occupy the same profile and phase, the private
+definition wins. Restore shared version removes it. Explicitly storing the private version in the
+project replaces that shared phase with the version you selected.
+
 Setup must finish successfully before the first agent turn in a new managed worktree. Failure keeps
 its output and offers **Retry setup** or **Continue anyway** in the Session Hub. Existing checkouts
 run setup only when you choose **Run setup**. Successful shell exports stay private to that workspace
 and are inherited by subsequent actions and agent shell commands.
+**Stop setup** stops a stuck attempt and then offers Retry or Continue anyway. Recreating a missing
+worktree keeps its profile snapshot but clears old completion and environment values, so setup runs
+again for the replacement checkout.
 
 Shared setup and cleanup require local review and enablement. Execution changes require another
 review. The review dialog shows the previous and current invocation and offers **Enable** or

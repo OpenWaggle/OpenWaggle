@@ -42,3 +42,11 @@ it('shows retained cleanup recovery when Settings reopens without another remova
   expect(await screen.findByRole('button', { name: 'Retry cleanup' })).toBeInTheDocument()
   expect(screen.getByRole('alert')).toHaveTextContent('cleanup exited with code 1.')
 })
+
+it('keeps Git worktrees available when cleanup metadata fails to load', async () => {
+  mocks.manage.mockRejectedValue(new Error('Invalid actions.json'))
+  renderWithQueryClient(<WorktreesSection />)
+  expect(await screen.findByRole('button', { name: 'Remove' })).toBeInTheDocument()
+  expect(screen.getByRole('alert')).toHaveTextContent('Invalid actions.json')
+  expect(screen.queryByText('No worktrees for this repository.')).not.toBeInTheDocument()
+})

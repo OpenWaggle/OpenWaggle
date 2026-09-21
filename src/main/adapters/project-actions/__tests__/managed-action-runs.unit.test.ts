@@ -10,6 +10,19 @@ afterEach(async () => {
 })
 const input = (requestId: string) => ({ workspace: fixture.workspace, actionId: 'test', requestId })
 
+it('normalizes an address-bar preview override before readiness and retains it over detected output', async () => {
+  fixture.edit([{ ...fixture.definition, previewUrl: 'localhost:3000' }])
+  const run = await fixture.runs.start(input('manual-preview'))
+  expect(run.previewUrl).toBe('http://localhost:3000/')
+  fixture.processes[0]?.emit('ready at http://localhost:4321/\n')
+  await expect
+    .poll(async () => (await fixture.runs.list(fixture.workspace.workspaceId))[0]?.ready)
+    .toBe(true)
+  expect((await fixture.runs.list(fixture.workspace.workspaceId))[0]?.previewUrl).toBe(
+    'http://localhost:3000/',
+  )
+})
+
 it('serializes GUI and agent starts into one execution and deduplicates retried requests after completion', async () => {
   const [gui, agent] = await Promise.all([
     fixture.runs.start(input('gui')),

@@ -16,6 +16,7 @@ export async function executeWorkspacePreparation(input: {
   readonly phase: PreparationPhase
   readonly invocation: ActionInvocation
   readonly deps: PreparationDependencies
+  readonly signal?: AbortSignal
   readonly publish: (state: StoredWorkspacePreparation | null) => void
   readonly onStarted?: (state: StoredWorkspacePreparation) => Promise<void>
 }) {
@@ -47,11 +48,13 @@ export async function executeWorkspacePreparation(input: {
   }
   try {
     await input.onStarted?.(state)
+    input.signal?.throwIfAborted()
     const result = await deps.execute({
       workspace,
       invocation,
       environment: state.environment,
       captureEnvironment: phase === 'setup',
+      signal: input.signal,
       onOutput: (chunk) => {
         const output = state[phase].output + stripVTControlCharacters(sanitizer.feed(chunk))
         state = {
@@ -69,6 +72,7 @@ export async function executeWorkspacePreparation(input: {
         }, OUTPUT_CHECKPOINT_MS)
       },
     })
+    input.signal?.throwIfAborted()
     state = {
       ...state,
       environment:

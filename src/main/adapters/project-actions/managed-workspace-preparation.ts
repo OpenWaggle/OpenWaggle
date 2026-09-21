@@ -1,10 +1,16 @@
-import type { ActionCatalog, ActionInvocation } from '@shared/types/action-definitions'
+import type { ActionInvocation } from '@shared/types/action-definitions'
 import type { PreparationPhase, WorkspacePreparation } from '@shared/types/workspace-preparation'
 import { enqueueProjectConfigWrite } from '../../config/project-config-write-queue'
 import { preparationExecutionKey } from '../../domain/project-action-catalog'
 import type { ActionRunWorkspace } from '../../ports/action-run-service'
+import { PreparationCancellation } from './preparation-cancellation'
+import type { PreparationDependencies } from './preparation-dependencies'
+
+export type { PreparationDependencies } from './preparation-dependencies'
+
 import { executeWorkspacePreparation } from './preparation-execution'
-import type { PreparationPersistence, StoredWorkspacePreparation } from './preparation-persistence'
+import type { StoredWorkspacePreparation } from './preparation-persistence'
+import { recoverPreparationAfterHostLoss } from './preparation-recovery'
 import {
   capturePreparationSnapshot,
   EMPTY_PREPARATION_EXECUTION,
@@ -12,23 +18,9 @@ import {
   requirePreparationRevision,
 } from './workspace-preparation-model'
 
-export interface PreparationDependencies {
-  readonly persistence: PreparationPersistence
-  readonly catalog: (workspace: ActionRunWorkspace) => Promise<ActionCatalog>
-  readonly execute: (input: {
-    readonly workspace: ActionRunWorkspace
-    readonly invocation: ActionInvocation
-    readonly environment: Readonly<Record<string, string>>
-    readonly captureEnvironment: boolean
-    readonly onOutput: (chunk: string) => void
-  }) => Promise<{
-    readonly exitCode: number | null
-    readonly environment: Readonly<Record<string, string>>
-  }>
-  readonly acquireLiveness: () => () => void
-}
 export class ManagedWorkspacePreparation {
   private readonly running = new Set<Promise<WorkspacePreparation>>()
+  private readonly cancellation = new PreparationCancellation()
   private readonly live = new Map<string, StoredWorkspacePreparation>()
   constructor(private readonly deps: PreparationDependencies) {}
   private serial<T>(workspaceId: string, operation: () => Promise<T>) {
@@ -38,7 +30,16 @@ export class ManagedWorkspacePreparation {
     return this.live.get(workspaceId) ?? this.deps.persistence.read(workspaceId)
   }
   private async project(workspace: ActionRunWorkspace, state: StoredWorkspacePreparation) {
-    return preparationProjection(state, await this.deps.catalog(workspace))
+    try {
+      return preparationProjection(state, await this.deps.catalog(workspace))
+    } catch (error) {
+      // Current definitions only inform update availability. Execution uses the reviewed snapshot.
+      return preparationProjection(
+        state,
+        null,
+        error instanceof Error ? error.message : 'Could not read current preparation definitions.',
+      )
+    }
   }
   private async save(state: StoredWorkspacePreparation, previousRevision: number) {
     await this.deps.persistence.write(state, previousRevision)
@@ -66,6 +67,31 @@ export class ManagedWorkspacePreparation {
       )
       return this.project(workspace, state)
     })
+  }
+  async prepareBirth(workspace: ActionRunWorkspace) {
+    await this.capture(workspace)
+    return this.serial(workspace.workspaceId, async () => {
+      const state = await this.requireState(workspace.workspaceId)
+      if (state.setup.status === 'idle' && state.cleanup.status === 'idle')
+        return this.project(workspace, state)
+      return this.project(
+        workspace,
+        await this.save(
+          {
+            ...state,
+            revision: state.revision + 1,
+            setup: EMPTY_PREPARATION_EXECUTION,
+            cleanup: EMPTY_PREPARATION_EXECUTION,
+            environment: {},
+          },
+          state.revision,
+        ),
+      )
+    })
+  }
+  async stopSetup(workspace: ActionRunWorkspace, attemptId: string) {
+    await this.cancellation.stopSetup(workspace.workspaceId, attemptId)
+    return this.project(workspace, await this.requireState(workspace.workspaceId))
   }
   select(workspace: ActionRunWorkspace, profileId: string, expectedRevision: number) {
     return this.serial(workspace.workspaceId, async () => {
@@ -134,6 +160,7 @@ export class ManagedWorkspacePreparation {
       )
       if (!entry) throw new Error('This definition is not part of the Workspace snapshot.')
       const definition = entry.definition
+      await this.deps.rememberReview?.(workspace, definition, enabled)
       const definitions = state.snapshot.definitions.map((value) =>
         value === entry
           ? {
@@ -221,19 +248,28 @@ export class ManagedWorkspacePreparation {
     invocation: ActionInvocation,
     onStarted?: (state: WorkspacePreparation) => void,
   ) {
-    const state = await executeWorkspacePreparation({
-      workspace,
-      previous,
-      phase,
-      invocation,
-      deps: this.deps,
-      onStarted: async (state) => onStarted?.(await this.project(workspace, state)),
-      publish: (state) => {
-        if (state) this.live.set(workspace.workspaceId, state)
-        else this.live.delete(workspace.workspaceId)
-      },
-    })
-    return this.project(workspace, state)
+    const cancellation = this.cancellation.begin(workspace.workspaceId, phase)
+    try {
+      const state = await executeWorkspacePreparation({
+        workspace,
+        previous,
+        phase,
+        invocation,
+        deps: this.deps,
+        signal: cancellation.signal,
+        onStarted: async (state) => {
+          cancellation.started(state[phase].attemptId)
+          onStarted?.(await this.project(workspace, state))
+        },
+        publish: (state) => {
+          if (state) this.live.set(workspace.workspaceId, state)
+          else this.live.delete(workspace.workspaceId)
+        },
+      })
+      return this.project(workspace, state)
+    } finally {
+      cancellation.finish()
+    }
   }
   async requireSetup(workspace: ActionRunWorkspace) {
     let state = await this.read(workspace)
@@ -251,28 +287,7 @@ export class ManagedWorkspacePreparation {
   async waitForRuns() {
     await Promise.allSettled([...this.running])
   }
-  async recoverAfterHostLoss() {
-    for (const state of await this.deps.persistence.list()) {
-      if (state.setup.status !== 'running' && state.cleanup.status !== 'running') continue
-      const interrupt = (phase: PreparationPhase) =>
-        state[phase].status === 'running'
-          ? {
-              ...state[phase],
-              status: 'failed' as const,
-              finishedAt: Date.now(),
-              error:
-                'The owning Host stopped during preparation. Retry explicitly after checking retained output.',
-            }
-          : state[phase]
-      await this.save(
-        {
-          ...state,
-          revision: state.revision + 1,
-          setup: interrupt('setup'),
-          cleanup: interrupt('cleanup'),
-        },
-        state.revision,
-      )
-    }
+  recoverAfterHostLoss() {
+    return recoverPreparationAfterHostLoss(this.deps.persistence)
   }
 }

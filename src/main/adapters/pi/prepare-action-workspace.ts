@@ -22,7 +22,7 @@ export function prepareActionWorkspace(
             ? Effect.succeed({
                 workspaceId: workspace.id,
                 projectPath: workspace.projectPath,
-                workspacePath: workspace.workingPath,
+                workspacePath: workspace.pending ? workspace.projectPath : workspace.workingPath,
                 sessionId: String(input.session.id),
               } satisfies ActionRunWorkspace)
             : Effect.fail(new Error('This Session no longer has a Workspace binding.')),
@@ -35,7 +35,7 @@ export function prepareActionWorkspace(
           onBeforeWorktreeCreate: () =>
             Effect.runPromise(
               resolveWorkspace().pipe(
-                Effect.flatMap((workspace) => services.preparation.capture(workspace)),
+                Effect.flatMap((workspace) => services.preparation.prepareBirth(workspace)),
                 Effect.asVoid,
               ),
             ),

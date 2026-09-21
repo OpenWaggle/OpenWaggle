@@ -7,7 +7,7 @@ import type {
 } from '@shared/types/action-definitions'
 import type { ActionManagementScope } from '@shared/types/action-management'
 import { ArrowLeft } from 'lucide-react'
-import { useId, useState } from 'react'
+import { useId, useRef, useState } from 'react'
 import { Button } from '@/shared/ui/Button'
 import { ModalDialog } from '@/shared/ui/ModalDialog'
 import { useEditActionCatalog } from '../hooks/useNativeActions'
@@ -39,7 +39,7 @@ export function NativeActionEditor(props: {
   const [storage, setStorage] = useState<ActionStorage>(
     props.entry?.source === 'project' ? 'project' : 'local',
   )
-  const [revision, setRevision] = useState(props.revision)
+  const revision = useRef(props.revision)
   const [error, setError] = useState<string | null>(null)
   const save = useEditActionCatalog(props.scope)
   async function submit() {
@@ -50,7 +50,7 @@ export function NativeActionEditor(props: {
     }
     try {
       await save.mutateAsync({
-        revision,
+        revision: revision.current,
         edit: { type: 'save-action', definition: decoded.data, storage },
       })
       props.onClose()
@@ -103,7 +103,7 @@ export function NativeActionEditor(props: {
             scope={props.scope}
             error={error}
             onReload={(value) => {
-              setRevision(value)
+              revision.current = value
               setError(null)
             }}
           />

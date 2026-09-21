@@ -75,6 +75,21 @@ describe('Action output and preview reconnect', () => {
       true,
     )
     unmount()
+    const requests = mocks.manage.mock.calls.length
+    await act(() => vi.advanceTimersByTimeAsync(3_000))
+    expect(mocks.manage).toHaveBeenCalledTimes(requests)
+  })
+  it('does not schedule another poll when an in-flight reply arrives after unmount', async () => {
+    const pending = Promise.withResolvers<ReturnType<typeof output>>()
+    mocks.manage.mockReturnValueOnce(pending.promise)
+    const { unmount } = renderHook(() => useActionOutput(scope, run.id))
+    unmount()
+    await act(async () => {
+      pending.resolve(output('late', 0))
+      await pending.promise
+    })
+    await act(() => vi.advanceTimersByTimeAsync(3_000))
+    expect(mocks.manage).toHaveBeenCalledTimes(1)
   })
   it('opens an opted-in preview once after readiness, including after renderer remount', async () => {
     const hook = renderHook(({ ready }) => useActionPreview(scope, [{ ...run, ready }]), {

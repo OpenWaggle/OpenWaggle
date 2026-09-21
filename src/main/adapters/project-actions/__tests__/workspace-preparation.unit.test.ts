@@ -65,6 +65,62 @@ function fixture() {
   }
 }
 describe('Workspace preparation lifecycle', () => {
+  it('resets completed execution and private exports for a recreated checkout, keeping its snapshot', async () => {
+    const test = fixture()
+    const captured = await test.engine.capture(workspace)
+    await test.engine.run(workspace, 'setup', captured.revision)
+    expect(await test.engine.environment(workspace.workspaceId)).toEqual({ TEST_READY: 'yes' })
+    const recreated = await test.engine.prepareBirth(workspace)
+    expect(recreated.snapshot).toEqual(captured.snapshot)
+    expect(recreated.setup.status).toBe('idle')
+    expect(await test.engine.environment(workspace.workspaceId)).toEqual({})
+    await test.engine.requireSetup(workspace)
+    expect(test.execute).toHaveBeenCalledTimes(2)
+  })
+
+  it('stops only the selected setup attempt and retains ownership until execution drains', async () => {
+    const test = fixture()
+    test.execute.mockImplementationOnce(
+      ({ signal }) =>
+        new Promise((resolve) => {
+          signal?.addEventListener(
+            'abort',
+            () => resolve({ exitCode: 0, environment: { PARTIAL: 'no' } }),
+            { once: true },
+          )
+        }),
+    )
+    const captured = await test.engine.capture(workspace)
+    const started = await acknowledgePreparationStart((onStarted) =>
+      test.engine.run(workspace, 'setup', captured.revision, onStarted),
+    )
+    await expect(test.engine.stopSetup(workspace, 'stale-attempt')).rejects.toThrow(
+      'attempt changed',
+    )
+    expect(test.release).not.toHaveBeenCalled()
+    const stopped = await test.engine.stopSetup(workspace, started.setup.attemptId ?? '')
+    expect(stopped.setup.status).toBe('failed')
+    expect(stopped.setup.error).toContain('setup stopped')
+    expect(await test.engine.environment(workspace.workspaceId)).toEqual({})
+    expect(test.release).toHaveBeenCalledOnce()
+  })
+  it('retains pinned recovery when current project configuration becomes invalid', async () => {
+    const test = fixture()
+    const captured = await test.engine.capture(workspace)
+    vi.spyOn(test.deps, 'catalog').mockRejectedValue(new Error('Invalid actions.json'))
+    const read = await test.engine.read(workspace)
+    expect(read?.snapshot).toEqual(captured.snapshot)
+    expect(read?.catalogError).toBe('Invalid actions.json')
+    const completed = await test.engine.run(workspace, 'setup', captured.revision)
+    expect(completed.setup.status).toBe('succeeded')
+    expect(completed.catalogError).toBe('Invalid actions.json')
+    await expect(test.engine.adopt(workspace, completed.revision)).rejects.toThrow(
+      'Invalid actions.json',
+    )
+    expect((await test.engine.skip(workspace, 'cleanup', completed.revision)).cleanup.status).toBe(
+      'skipped',
+    )
+  })
   it('acknowledges durable setup before completion while the first turn waits for the same attempt', async () => {
     const test = fixture()
     const finish = Promise.withResolvers<{ exitCode: number; environment: { READY: string } }>()

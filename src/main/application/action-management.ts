@@ -51,6 +51,7 @@ export function manageProjectActions(rawRequest: unknown) {
     return yield* match(request.operation)
       .with(
         { type: 'preparation' },
+        { type: 'stop-setup' },
         { type: 'select-preparation' },
         { type: 'adopt-preparation' },
         { type: 'review-snapshot' },

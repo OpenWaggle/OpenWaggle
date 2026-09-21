@@ -3,6 +3,13 @@ import { Context, type Effect } from 'effect'
 import type { ActionRunWorkspace } from './action-run-service'
 
 export interface WorkspacePreparationServiceShape {
+  readonly prepareBirth: (
+    workspace: ActionRunWorkspace,
+  ) => Effect.Effect<WorkspacePreparation, Error>
+  readonly stopSetup: (
+    workspace: ActionRunWorkspace,
+    attemptId: string,
+  ) => Effect.Effect<WorkspacePreparation, Error>
   readonly capture: (
     workspace: ActionRunWorkspace,
     profileId?: string,

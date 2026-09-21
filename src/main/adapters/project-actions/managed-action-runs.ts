@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { stripVTControlCharacters } from 'node:util'
 import type { ActionCatalog, ActionDefinition } from '@shared/types/action-definitions'
 import { type ActionRun, isActiveActionRun } from '@shared/types/action-runs'
+import { normalizeBrowserPreviewAddress } from '@shared/utils/browser-preview-url'
 import { enqueueProjectConfigWrite } from '../../config/project-config-write-queue'
 import type { ActionCatalogScope } from '../../ports/action-catalog-service'
 import type { ActionRunWorkspace, StartManagedActionInput } from '../../ports/action-run-service'
@@ -151,6 +152,9 @@ export class ManagedActionRuns {
     environment: Readonly<Record<string, string>>,
   ) {
     const release = this.deps.acquireLiveness()
+    const configuredPreviewUrl = action.previewUrl
+      ? normalizeBrowserPreviewAddress(action.previewUrl)
+      : null
     let run: ActionRun = {
       id: randomUUID(),
       requestId: input.requestId,
@@ -164,7 +168,7 @@ export class ManagedActionRuns {
       finishedAt: null,
       exitCode: null,
       error: null,
-      previewUrl: action.previewUrl ?? null,
+      previewUrl: configuredPreviewUrl,
       ready: false,
       outputBytes: 0,
     }
@@ -186,7 +190,7 @@ export class ManagedActionRuns {
           const current = this.active.get(run.id)
           const previous = current?.run ?? run
           const previewUrl =
-            action.previewUrl ?? previewFromActionOutput(lookbehind) ?? previous.previewUrl
+            configuredPreviewUrl ?? previewFromActionOutput(lookbehind) ?? previous.previewUrl
           run = {
             ...previous,
             outputBytes: previous.outputBytes + Buffer.byteLength(clean),

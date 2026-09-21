@@ -24,6 +24,12 @@ export function WorkspaceCleanupFailure(props: {
   const busy = props.busy || state.mutation.isPending
   return (
     <div className="space-y-3 border-t border-border p-4">
+      {preparation.catalogError ? (
+        <p role="alert" className="text-xs text-error-text">
+          Current project configuration: {preparation.catalogError} Cleanup uses the saved workspace
+          snapshot.
+        </p>
+      ) : null}
       <p role="alert" className="text-xs text-error-text">
         {preparation.cleanup.error ??
           'Workspace cleanup needs attention. The worktree was retained.'}

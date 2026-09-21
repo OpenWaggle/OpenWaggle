@@ -31,8 +31,11 @@ export interface WorkspacePreparation {
   readonly setup: PreparationExecution
   readonly cleanup: PreparationExecution
   readonly updateAvailable: boolean
+  /** The pinned snapshot stays usable when the current catalog cannot be inspected. */
+  readonly catalogError?: string
 }
 export type PreparationOperation =
+  | { readonly type: 'stop-setup'; readonly attemptId: string }
   | { readonly type: 'preparation' }
   | {
       readonly type: 'select-preparation'

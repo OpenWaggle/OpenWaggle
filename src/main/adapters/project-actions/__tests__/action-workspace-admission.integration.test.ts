@@ -6,6 +6,46 @@ import * as Fiber from 'effect/Fiber'
 import { expect, it } from 'vitest'
 import { createActionWorkspaceAdmission } from '../action-workspace-admission'
 
+it('retains an admitted native launch fence after the requesting fiber is interrupted', async () => {
+  await Effect.runPromise(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      const admission = createActionWorkspaceAdmission(sql)
+      const entered = yield* Deferred.make<void>()
+      const nativeLaunch = Promise.withResolvers<void>()
+      const events: string[] = []
+      const start = yield* Effect.fork(
+        admission.withWorkspaceMutation(
+          'workspace',
+          Effect.gen(function* () {
+            yield* Deferred.succeed(entered, undefined)
+            yield* Effect.promise(async () => {
+              await nativeLaunch.promise
+              events.push('process launched')
+            })
+          }),
+        ),
+      )
+      yield* Deferred.await(entered)
+      yield* Fiber.interruptFork(start)
+      const release = yield* Effect.fork(
+        admission.withWorkspaceMutation(
+          'workspace',
+          Effect.sync(() => {
+            events.push('workspace released')
+          }),
+        ),
+      )
+      yield* Effect.sleep('20 millis')
+      expect(events).toEqual([])
+      nativeLaunch.resolve()
+      yield* Fiber.await(start)
+      yield* Fiber.join(release)
+      expect(events).toEqual(['process launched', 'workspace released'])
+    }).pipe(Effect.provide(SqliteClient.layer({ filename: ':memory:' }))),
+  )
+})
+
 it('serializes starts with final release and rejects a start from the released Session', async () => {
   await Effect.runPromise(
     Effect.gen(function* () {

@@ -71,11 +71,14 @@ function captureWorktreePreparation(
   return Effect.gen(function* () {
     if (!workspace) return
     const preparation = yield* WorkspacePreparationService
-    yield* preparation.capture({
+    const scope = {
       workspaceId: workspace.id,
       projectPath,
-      workspacePath: workspace.workingPath,
-    })
+      workspacePath: workspace.pending ? projectPath : workspace.workingPath,
+    }
+    const exists = yield* Effect.promise(() => filesystemPathExists(workspace.workingPath))
+    if (exists) yield* preparation.capture(scope)
+    else yield* preparation.prepareBirth({ ...scope, workspacePath: projectPath })
   })
 }
 

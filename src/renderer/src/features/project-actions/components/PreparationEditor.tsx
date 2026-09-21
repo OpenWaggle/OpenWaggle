@@ -6,7 +6,7 @@ import type {
   PreparationDefinition,
 } from '@shared/types/action-definitions'
 import type { ActionManagementScope } from '@shared/types/action-management'
-import { useId, useState } from 'react'
+import { useId, useRef, useState } from 'react'
 import { Button } from '@/shared/ui/Button'
 import { ModalDialog } from '@/shared/ui/ModalDialog'
 import { useEditActionCatalog } from '../hooks/useNativeActions'
@@ -28,7 +28,7 @@ export function PreparationEditor(props: {
     !props.definition.invocation ||
       (props.definition.invocation.type === 'command' && !props.definition.invocation.command),
   )
-  const [revision, setRevision] = useState(props.catalog.revision)
+  const revision = useRef(props.catalog.revision)
   const [error, setError] = useState<string | null>(null)
   const mutation = useEditActionCatalog(props.scope)
   async function save() {
@@ -39,7 +39,7 @@ export function PreparationEditor(props: {
     }
     try {
       await mutation.mutateAsync({
-        revision,
+        revision: revision.current,
         edit: { type: 'save-preparation', definition: result.data, storage },
       })
       props.onClose()
@@ -106,7 +106,7 @@ export function PreparationEditor(props: {
             scope={props.scope}
             error={error}
             onReload={(value) => {
-              setRevision(value)
+              revision.current = value
               setError(null)
             }}
           />

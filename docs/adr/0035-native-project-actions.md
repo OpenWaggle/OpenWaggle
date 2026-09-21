@@ -1,6 +1,6 @@
 # Own the Project Actions model in OpenWaggle
 
-Status: implemented; end-to-end validation and independent review in progress
+Status: implemented; validated in Electron and independently reviewed
 
 Date: 2026-09-21
 
@@ -19,6 +19,8 @@ Configured setup runs automatically when OpenWaggle creates a new managed worktr
 Successful setup retains its exported environment changes locally for the workspace. Subsequent agent commands and Project action runs inherit that prepared environment, including toolchain path changes or workspace-specific variables. Failed setup does not publish a partial environment as ready. These runtime values do not enter shared project configuration, affect other workspaces, or alter already-running processes.
 
 The redesign includes optional Workspace cleanup, configured separately from on-demand Project Actions. It runs before actual removal of a managed worktree, after the final session binding has been released. Closing or archiving one session does not run cleanup while another session still uses that workspace. This lets projects release worktree-specific resources, such as temporary databases, while the checkout is still available.
+
+Stop setup targets one exact active attempt and waits for its process tree to terminate before releasing workspace admission. A stopped attempt exposes Retry and Continue anyway and does not publish partial environment values. Recreating a missing checkout preserves its preparation snapshot but resets execution state and exported environment for the new checkout.
 
 If cleanup fails to launch or exits unsuccessfully, OpenWaggle retains the worktree and shows the failure, offering Retry cleanup or an explicit Delete anyway. Retaining the checkout preserves scripts and configuration needed for recovery. Delete anyway bypasses the failed cleanup and may leave external resources behind; it does not represent successful cleanup.
 
@@ -56,6 +58,8 @@ Project settings show a persistent Review required indicator beside the affected
 
 Each project has a default Preparation profile and may define additional named profiles, such as Frontend and Full stack. A profile groups optional Workspace setup and Workspace cleanup; Project Actions remain scoped to the project. Users select a profile when creating a worktree, with no extra selection required when only the default exists. The selected profile belongs to that workspace, so sessions sharing it use the same preparation. Profiles remain project-scoped and local by default, and setup and cleanup retain their independent storage choices.
 
+A private setup or cleanup takes precedence over a shared definition occupying the same profile and phase, including when they were created independently with different IDs. The shared definition remains intact until the user explicitly stores their private version in the project; that operation replaces the destination phase. Removing the local override restores the shared definition and its own review requirement.
+
 A worktree retains a Preparation snapshot of the selected profile's setup and cleanup definitions and execution settings from creation. Later profile edits do not silently change that worktree's preparation or cleanup: OpenWaggle shows that an update is available, and the user may explicitly adopt it. This keeps cleanup paired with the preparation chosen for the workspace until the user deliberately changes that pairing. The snapshot does not freeze project scripts called by those commands. Review requirements apply to the execution definition that will actually run; an upstream edit alone does not invalidate an unchanged, previously reviewed snapshot.
 
 Operating-system differences belong to OpenWaggle's execution machinery. Users configure the action or preparation they want without selecting an operating system or maintaining macOS, Windows, and Linux variants. OpenWaggle handles platform-appropriate launching, shell selection, and its own path and environment handling internally, using existing project script and tool entry points where appropriate. The current shell resolver already selects platform-specific shells, but action execution currently passes command text through unchanged; shell selection alone does not make arbitrary custom commands portable.
@@ -72,7 +76,7 @@ Examples of relevant source formats include [npm package scripts](https://docs.n
 
 ## Defaults inferred from existing tools
 
-On 2026-09-21, the maintainer delegated the remaining process, migration, storage, and discovery decisions to established tooling patterns. The decisions below complete the design direction. They are OpenWaggle's application of those patterns, not a claim that all reference tools behave alike. Implementation and runtime validation remain pending.
+On 2026-09-21, the maintainer delegated the remaining process, migration, storage, and discovery decisions to established tooling patterns. The decisions below complete the design direction. They are OpenWaggle's application of those patterns, not a claim that all reference tools behave alike.
 
 **Process ownership.** The existing per-user Session Host owns managed action executions and their control channel. Electron and the right sidebar attach to those executions. Closing a view or quitting Electron releases its attachment without releasing a session's workspace binding. The Host's keep-alive calculation must include action runs. This applies the independent client/server lifetime demonstrated by [tmux](https://man.openbsd.org/tmux.1#DESCRIPTION) to OpenWaggle's existing Host; it does not add a tmux dependency or ask users to manage a separate service. [VS Code distinguishes reconnection from process revival](https://code.visualstudio.com/docs/terminal/advanced#_persistent-sessions): window reload reconnects, while application restart can relaunch a process. OpenWaggle uses reconnection for surviving runs and retains its agreed explicit Restart behavior for stopped runs.
 

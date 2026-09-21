@@ -19,6 +19,7 @@ export const actionManagementRequestSchema: Schema.Schema<ActionManagementReques
     workspaceId: Schema.optional(identifier),
   }).pipe(Schema.filter((scope) => !scope.sessionId || !scope.workspaceId)),
   operation: Schema.Union(
+    Schema.Struct({ type: Schema.Literal('stop-setup'), attemptId: identifier }),
     Schema.Struct({ type: Schema.Literal('preparation') }),
     Schema.Struct({
       type: Schema.Literal('select-preparation'),

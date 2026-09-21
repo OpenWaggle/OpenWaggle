@@ -43,4 +43,32 @@ describe.skipIf(process.platform === 'win32')('real preparation environment capt
     })
     expect(failed).toEqual({ exitCode: 9, environment: {} })
   })
+
+  it('cancels a real preparation process before publishing its exported environment', async () => {
+    const execute = createPreparationExecutor(createActionProcessRunner('test'), directory, 'test')
+    const controller = new AbortController()
+    const started = Promise.withResolvers<void>()
+    const pending = execute({
+      workspace: { workspaceId: 'cancel', projectPath: directory, workspacePath: directory },
+      invocation: {
+        type: 'command',
+        command: 'export PARTIAL_SETUP=no; printf setup-started; sleep 30',
+        directory: '.',
+      },
+      environment: {},
+      captureEnvironment: true,
+      signal: controller.signal,
+      onOutput: (output) => {
+        if (output.includes('setup-started')) started.resolve()
+      },
+    })
+    const stopped = expect(pending).rejects.toThrow('Stopped by user')
+    try {
+      await started.promise
+      controller.abort(new Error('Stopped by user'))
+      await stopped
+    } finally {
+      await execute.shutdown()
+    }
+  })
 })

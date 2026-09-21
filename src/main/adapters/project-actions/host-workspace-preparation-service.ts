@@ -11,6 +11,7 @@ import { createActionProcessRunner } from './action-process'
 import { ManagedWorkspacePreparation } from './managed-workspace-preparation'
 import { createPreparationPersistence } from './preparation-persistence'
 import { createPreparationExecutor } from './preparation-process'
+import { rememberPreparationReview } from './preparation-review'
 import { acknowledgePreparationStart } from './preparation-start-acknowledgement'
 
 function attempt<T>(operation: () => Promise<T>) {
@@ -28,6 +29,8 @@ export const HostWorkspacePreparationServiceLive = Layer.scoped(
     let execute: ReturnType<typeof createPreparationExecutor> | null = null
     const engine = new ManagedWorkspacePreparation({
       persistence: createPreparationPersistence(sql),
+      rememberReview: (workspace, definition, enabled) =>
+        Effect.runPromise(rememberPreparationReview(catalog, workspace, definition, enabled)),
       catalog: (workspace) =>
         Effect.runPromise(
           catalog.read({
@@ -55,6 +58,8 @@ export const HostWorkspacePreparationServiceLive = Layer.scoped(
     )
     let recovery: Promise<void> | null = null
     return {
+      prepareBirth: (workspace) => attempt(() => engine.prepareBirth(workspace)),
+      stopSetup: (workspace, attemptId) => attempt(() => engine.stopSetup(workspace, attemptId)),
       capture: (workspace, profileId) => attempt(() => engine.capture(workspace, profileId)),
       read: (workspace) => attempt(() => engine.read(workspace)),
       select: (workspace, profileId, revision) =>

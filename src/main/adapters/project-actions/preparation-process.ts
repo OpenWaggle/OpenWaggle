@@ -93,6 +93,7 @@ export function createPreparationExecutor(
     readonly invocation: ActionInvocation
     readonly environment: Readonly<Record<string, string>>
     readonly captureEnvironment: boolean
+    readonly signal?: AbortSignal
     readonly onOutput: (chunk: string) => void
   }) => {
     if (shuttingDown) throw new Error('The Session Host is stopping.')
@@ -113,6 +114,7 @@ export function createPreparationExecutor(
         ? preparationCaptureInvocation(resolved, destination)
         : resolved
       if (shuttingDown) throw new Error('The Session Host is stopping.')
+      input.signal?.throwIfAborted()
       const pending = runner.start({ invocation, environment, onOutput: input.onOutput })
       spawning.add(pending)
       let child: ActionProcess
@@ -123,12 +125,18 @@ export function createPreparationExecutor(
         spawning.delete(pending)
       }
       let exitCode: number | null
+      const stop = () => {
+        void ownership.stop(child)
+      }
+      input.signal?.addEventListener('abort', stop, { once: true })
       try {
-        if (shuttingDown) await ownership.stop(child)
+        if (shuttingDown || input.signal?.aborted) await ownership.stop(child)
         exitCode = (await child.closed).exitCode
       } finally {
         await ownership.stop(child)
+        input.signal?.removeEventListener('abort', stop)
       }
+      input.signal?.throwIfAborted()
       if (exitCode !== 0 || !input.captureEnvironment)
         return { exitCode, environment: input.environment }
       const exported = await readCapturedEnvironment(destination)

@@ -8,6 +8,8 @@ import { WorkspacePreparationService } from '../../ports/workspace-preparation-s
 export const NoopWorkspacePreparationLayer = Layer.succeed(
   WorkspacePreparationService,
   fromPartial({
+    prepareBirth: (workspace: ActionRunWorkspace) =>
+      Effect.succeed(fromPartial({ workspaceId: workspace.workspaceId })),
     capture: (workspace: ActionRunWorkspace) =>
       Effect.succeed({
         workspaceId: workspace.workspaceId,

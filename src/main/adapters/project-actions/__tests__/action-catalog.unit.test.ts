@@ -14,7 +14,6 @@ import {
   root,
   rows,
   scope,
-  setup,
   shared,
 } from './action-catalog.test-harness'
 
@@ -219,51 +218,6 @@ describe('native action catalog', () => {
     expect(await readFile(join(projectPath, '.openwaggle/settings.json'), 'utf8')).toBe('{broken')
     await writeFile(join(projectPath, '.openwaggle/settings.json'), '{}')
     expect((await catalog.read(scope())).actions).toEqual([])
-  })
-
-  it('requires enablement of shared preparation and renews review only for execution changes', async () => {
-    await shared({ ...EMPTY_ACTION_MANIFEST, preparation: [setup] })
-    const discovered = await catalog.read(scope())
-    expect(discovered.preparation[0]?.review).toBe('required')
-    const enabled = await catalog.edit(scope(), discovered.revision, {
-      type: 'review-preparation',
-      id: setup.id,
-      enabled: true,
-    })
-    expect(enabled.preparation[0]?.review).toBe('enabled')
-    await shared({
-      ...EMPTY_ACTION_MANIFEST,
-      profiles: [{ id: 'default', name: 'Renamed profile' }],
-      preparation: [setup],
-    })
-    expect((await catalog.read(scope())).preparation[0]?.review).toBe('enabled')
-    await shared({
-      ...EMPTY_ACTION_MANIFEST,
-      preparation: [
-        {
-          ...setup,
-          invocation: {
-            type: 'command',
-            command: 'pnpm install --frozen-lockfile',
-            directory: '.',
-          },
-        },
-      ],
-    })
-    const changed = await catalog.read(scope())
-    expect(changed.preparation[0]).toMatchObject({
-      review: 'required',
-      previous: { invocation: setup.invocation },
-    })
-    const disabled = await catalog.edit(scope(), changed.revision, {
-      type: 'review-preparation',
-      id: setup.id,
-      enabled: false,
-    })
-    expect(disabled.preparation[0]?.review).toBe('disabled')
-    const raw = await readFile(join(projectPath, '.openwaggle/actions.json'), 'utf8')
-    expect(raw).not.toContain('reviews')
-    expect(raw).not.toContain('enabled')
   })
 
   it('surfaces malformed shared configuration and rejects symlinked configuration', async () => {

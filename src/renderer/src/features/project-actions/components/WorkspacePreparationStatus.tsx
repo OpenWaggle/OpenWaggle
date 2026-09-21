@@ -48,6 +48,12 @@ export function WorkspacePreparationStatus({ scope }: { readonly scope: ActionMa
           mutation={preparation.mutation}
         />
       )}
+      {state?.catalogError ? (
+        <p role="alert" className="text-xs text-error-text">
+          Current project configuration: {state.catalogError} The saved workspace snapshot is still
+          in use.
+        </p>
+      ) : null}
       {error ? (
         <p role="alert" className="text-xs text-error-text">
           {error.message}
@@ -114,6 +120,7 @@ function PreparationSnapshotDetails({
     state.setup.status === 'review-required' && closedReviewRevision !== state.revision
   const showReview = required && (manualReview || automaticReview)
   const busy = mutation.isPending || state.setup.status === 'running'
+  const attemptId = state.setup.attemptId
   function apply(operation: Change) {
     mutation.mutate(operation, { onSuccess: () => setManualReview(false) })
   }
@@ -122,6 +129,14 @@ function PreparationSnapshotDetails({
       <p className="text-xs text-text-tertiary">Setup: {state.setup.status.replaceAll('-', ' ')}</p>
       <PreparationOutput execution={state.setup} />
       <div className="flex flex-wrap gap-2">
+        {state.setup.status === 'running' && attemptId ? (
+          <Button
+            disabled={mutation.isPending}
+            onClick={() => apply({ type: 'stop-setup', attemptId })}
+          >
+            Stop setup
+          </Button>
+        ) : null}
         {required ? (
           <Button disabled={busy} onClick={() => setManualReview(true)}>
             Review changes

@@ -13,7 +13,9 @@ export function createActionWorkspaceAdmission(sql: SqlClient.SqlClient) {
         lock = Effect.unsafeMakeSemaphore(1)
         locks.set(id, lock)
       }
-      return lock.withPermits(1)(operation)
+      // Native promises cannot be interrupted. Once admitted, retain the fence until they settle,
+      // even when the requesting desktop disconnects; waiting to enter remains interruptible.
+      return lock.withPermits(1)(Effect.uninterruptible(operation))
     })
   const requireActive = (workspace: ActionRunWorkspace) =>
     Effect.gen(function* () {

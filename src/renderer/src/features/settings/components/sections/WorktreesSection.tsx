@@ -28,6 +28,7 @@ type PreparedWorktree = GitWorktreeInfo & { readonly preparation?: WorkspacePrep
 function useProjectWorktrees(repositoryPath: RepositoryPath | null) {
   const [worktrees, setWorktrees] = useState<readonly PreparedWorktree[]>([])
   const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const refresh = useCallback(async () => {
     if (!repositoryPath) {
@@ -35,27 +36,33 @@ function useProjectWorktrees(repositoryPath: RepositoryPath | null) {
       return
     }
     setIsLoading(true)
+    setError(null)
     try {
-      const [result, retained] = await Promise.all([
+      const [listed, preparationResult] = await Promise.allSettled([
         api.listGitWorktrees(repositoryPath),
         api.manageProjectActions({
           scope: { projectPath: repositoryPath },
           operation: { type: 'retained-preparation' },
         }),
       ])
-      if (retained.type !== 'retained-preparation')
+      if (listed.status === 'rejected') throw listed.reason
+      const retained = preparationResult.status === 'fulfilled' ? preparationResult.value : null
+      if (preparationResult.status === 'rejected')
+        setError(`Could not load cleanup recovery: ${String(preparationResult.reason)}`)
+      if (retained && retained.type !== 'retained-preparation')
         throw new Error('Unexpected preparation response.')
       const preparations = new Map(
-        retained.workspaces.map((workspace) => [workspace.path, workspace.preparation]),
+        retained?.workspaces.map((workspace) => [workspace.path, workspace.preparation]) ?? [],
       )
       setWorktrees(
-        result.worktrees.map((worktree) => ({
+        listed.value.worktrees.map((worktree) => ({
           ...worktree,
           preparation: preparations.get(worktree.path),
         })),
       )
     } catch (error) {
       logger.warn('Failed to list worktrees', { error: String(error) })
+      setError(`Could not list worktrees: ${String(error)}`)
       setWorktrees([])
     } finally {
       setIsLoading(false)
@@ -66,14 +73,14 @@ function useProjectWorktrees(repositoryPath: RepositoryPath | null) {
     void refresh()
   }, [refresh])
 
-  return { worktrees, isLoading, refresh }
+  return { worktrees, isLoading, refresh, error }
 }
 
 export function WorktreesSection() {
   const settings = usePreferencesStore((state) => state.settings)
   const projectPath = settings.projectPath
   const repositoryPath = projectPath === null ? null : RepositoryPath(projectPath)
-  const { worktrees, isLoading, refresh } = useProjectWorktrees(repositoryPath)
+  const { worktrees, isLoading, refresh, error } = useProjectWorktrees(repositoryPath)
   const [removingPath, setRemovingPath] = useState<string | null>(null)
   const showToast = useUIStore((state) => state.showToast)
 
@@ -98,6 +105,7 @@ export function WorktreesSection() {
     } catch (error) {
       logger.warn('Failed to remove worktree', { error: String(error) })
       showToast('Could not remove the worktree.', 'error')
+      await refresh()
     } finally {
       setRemovingPath(null)
     }
@@ -114,6 +122,11 @@ export function WorktreesSection() {
             Refresh
           </Button>
         </div>
+        {error ? (
+          <p role="alert" className="text-xs text-error-text">
+            {error}
+          </p>
+        ) : null}
         {!projectPath ? (
           <p className="text-xs text-text-tertiary">Open a project to manage its worktrees.</p>
         ) : worktrees.length === 0 ? (
