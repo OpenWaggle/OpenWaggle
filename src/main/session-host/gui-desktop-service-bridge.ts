@@ -4,7 +4,7 @@ import {
   type DesktopServiceRequest,
   type DesktopServiceResponse,
 } from '@shared/types/desktop-service'
-import { LOCAL_SESSION_DESKTOP_SERVICE_REVISION } from '@shared/types/local-session-protocol'
+import { LOCAL_SESSION_SUPPORTED_REVISIONS } from '@shared/types/local-session-protocol'
 import { createLogger } from '../logger'
 import {
   DESKTOP_BRIDGE_TICK_MS,
@@ -62,7 +62,9 @@ class GuiDesktopServiceBridge implements GuiDesktopServiceLifecycle {
           paths: this.paths,
           clientVersion: input.client.clientVersion,
           clientKind: 'gui',
-          supportedRevisions: [LOCAL_SESSION_DESKTOP_SERVICE_REVISION],
+          // Negotiate the transport like any other client: the desktop contract itself is
+          // revision-gated per command (>= LOCAL_SESSION_DESKTOP_SERVICE_REVISION), and pinning
+          // the handshake to that revision fails once it leaves the Host's supported window.
           timeoutMs: REQUEST_TIMEOUT_MS,
           payload: { contract: 'desktop-service-v1', request: message },
         })
