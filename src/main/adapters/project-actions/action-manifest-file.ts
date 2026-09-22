@@ -1,5 +1,5 @@
-import { createHash, randomUUID } from 'node:crypto'
-import { lstat, mkdir, open, realpath, rename, rm } from 'node:fs/promises'
+import { createHash } from 'node:crypto'
+import { lstat, realpath } from 'node:fs/promises'
 import { join } from 'node:path'
 import { decodeUnknownExactOrThrow, parseJsonUnknown } from '@shared/schema'
 import { actionManifestSchema } from '@shared/schemas/action-definitions'
@@ -71,45 +71,5 @@ export async function readActionManifest(workspace: string) {
       `Invalid ${MANIFEST_SOURCE}: ${cause instanceof Error ? cause.message : String(cause)}`,
       { cause },
     )
-  }
-}
-
-export async function writeActionManifest(
-  workspace: string,
-  expectedRevision: string,
-  manifest: ActionManifest,
-  requireWorkspace: () => Promise<void>,
-): Promise<void> {
-  const content = serializeActionManifest(manifest)
-  await requireWorkspace()
-  // Never recreate a removed checkout, even if it disappears after the identity check.
-  await mkdir(join(workspace, CONFIG_DIRECTORY)).catch((error: unknown) => {
-    if (!isNodeError(error, 'EEXIST')) throw error
-  })
-  await requireWorkspace()
-  const target = join(workspace, MANIFEST_SOURCE)
-  const temporary = `${target}.${randomUUID()}.tmp`
-  if ((await readActionManifest(workspace)).revision !== expectedRevision)
-    throw new Error(
-      'Project Actions changed on disk. Your draft has been kept; reload before saving.',
-    )
-  try {
-    await requireWorkspace()
-    const handle = await open(temporary, 'wx')
-    try {
-      await handle.writeFile(content, 'utf8')
-      await handle.sync()
-    } finally {
-      await handle.close()
-    }
-    if ((await readActionManifest(workspace)).revision !== expectedRevision)
-      throw new Error('Project Actions changed on disk while saving. Your draft has been kept.')
-    await requireWorkspace()
-    await rename(temporary, target)
-    if ((await readActionManifest(workspace)).revision !== actionContentRevision(content))
-      throw new Error('Project Actions changed while verifying the saved file.')
-  } finally {
-    // A replaced path no longer names our temporary file.
-    await requireWorkspace().then(() => rm(temporary, { force: true }))
   }
 }

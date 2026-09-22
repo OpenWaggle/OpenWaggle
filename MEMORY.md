@@ -835,6 +835,11 @@ Interrupted sharing journals pin the filesystem directory identity and durable W
 Recovery keeps a draft when the checkout is missing, replaced, or releasing; publication must never
 recreate a deleted checkout. Private preparation retains its profile metadata so a teammate removing
 the shared profile cannot invalidate unrelated local configuration.
+Shared publication captures the current inode into a pinned, journaled recovery directory and
+installs the prepared file with an exclusive hard link. Never replace a competing target or infer
+completion from matching bytes alone. Keep both files in Git-ignored `.openwaggle/action-recovery/`
+until manual review: editors holding an old descriptor can finish writing after publication.
+Pending-save details expose the recovery path; missing or replaced recovery identities retain drafts.
 Cargo alias discovery accepts both `.cargo/config.toml` and legacy `.cargo/config`, preserving the
 selected source in saved task references and reporting conflicting files rather than guessing.
 Successful setup stores explicit environment removals as private null markers. Apply these after
@@ -851,6 +856,9 @@ extra-scripts option; parent matrices do not make explicitly named child environ
 Use an ordinary scrolling container around the disabled action-editor fieldset; Chromium fieldset
 overflow can paint over a fixed footer. Keep save errors in a bounded area above that footer so
 revision-conflict recovery stays visible even when the form body is scrolled to the top.
+Action-run polling queries all active runs plus the latest 50 terminal runs through indexed partial
+branches. Additive migration 60 keeps older runs and request IDs available for detail lookup and retry
+deduplication; limiting polling must never truncate the active-run set.
 
 The September 2026 native action verification reproduced a SQLite worker teardown abort on pristine
 main with transitive better-sqlite3 12.11.1. Root and Effect SQLite now share 13.0.3, which includes the

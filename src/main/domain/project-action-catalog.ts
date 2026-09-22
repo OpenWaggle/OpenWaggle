@@ -18,8 +18,17 @@ export interface LocalActionDocument {
   readonly migration: { readonly version: 1; readonly legacySource: string | null }
 }
 
+export interface ActionPublicationIdentity {
+  readonly id: string
+  readonly device: string
+  readonly inode: string
+  readonly birthtime: string
+}
+
 export interface PendingActionPublication {
   readonly workspacePath: string
+  /** Pins the directory retaining the displaced inode and the exclusive-install source. */
+  readonly publication?: ActionPublicationIdentity
   /** Older journals without identity remain drafts; they cannot safely resume publication. */
   readonly workspaceIdentity?: {
     readonly device: string

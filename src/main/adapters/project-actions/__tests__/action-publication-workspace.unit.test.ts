@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { EMPTY_ACTION_MANIFEST } from '../../../domain/project-action-catalog'
 import { createActionCatalog } from '../action-catalog'
-import { actionContentRevision, writeActionManifest } from '../action-manifest-file'
+import { createActionPublication } from '../action-publication-files'
 import {
   action,
   catalog,
@@ -87,10 +87,12 @@ describe('publication workspace identity', () => {
       if (replacement === 'directory') await mkdir(workspacePath)
       else await symlink(moved, workspacePath, 'dir')
       await expectRetainedDraft(workspacePath)
-      await expect(lstat(join(workspacePath, '.openwaggle'))).rejects.toMatchObject({
+      await expect(lstat(join(workspacePath, '.openwaggle/actions.json'))).rejects.toMatchObject({
         code: 'ENOENT',
       })
-      await expect(lstat(join(moved, '.openwaggle'))).rejects.toMatchObject({ code: 'ENOENT' })
+      await expect(lstat(join(moved, '.openwaggle/actions.json'))).rejects.toMatchObject({
+        code: 'ENOENT',
+      })
     },
   )
 
@@ -105,7 +107,7 @@ describe('publication workspace identity', () => {
           ready: state === 'replaced',
         })
       await expectRetainedDraft(workspacePath)
-      await expect(lstat(join(workspacePath, '.openwaggle'))).rejects.toMatchObject({
+      await expect(lstat(join(workspacePath, '.openwaggle/actions.json'))).rejects.toMatchObject({
         code: 'ENOENT',
       })
     },
@@ -126,7 +128,7 @@ describe('publication workspace identity', () => {
     const { workspaceIdentity: _identity, ...pending } = stored.state.pending
     rows.set(projectPath, { ...stored, state: { ...stored.state, pending } })
     await expectRetainedDraft(workspacePath)
-    await expect(lstat(join(workspacePath, '.openwaggle'))).rejects.toMatchObject({
+    await expect(lstat(join(workspacePath, '.openwaggle/actions.json'))).rejects.toMatchObject({
       code: 'ENOENT',
     })
   })
@@ -135,14 +137,9 @@ describe('publication workspace identity', () => {
     const workspacePath = join(root, 'removed-during-save')
     await mkdir(workspacePath)
     await expect(
-      writeActionManifest(
-        workspacePath,
-        actionContentRevision(null),
-        EMPTY_ACTION_MANIFEST,
-        async () => {
-          await rm(workspacePath, { recursive: true, force: true })
-        },
-      ),
+      createActionPublication(workspacePath, async () => {
+        await rm(workspacePath, { recursive: true, force: true })
+      }),
     ).rejects.toMatchObject({ code: 'ENOENT' })
     await expect(lstat(workspacePath)).rejects.toMatchObject({ code: 'ENOENT' })
   })

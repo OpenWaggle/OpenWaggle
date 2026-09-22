@@ -77,6 +77,7 @@ export interface ActionCatalog {
   readonly revision: string
   readonly pendingPublication?: {
     readonly workspacePath: string
+    readonly recoveryPath?: string
     readonly projectDraft: ActionManifest
     readonly localDraft: ActionManifest
   }

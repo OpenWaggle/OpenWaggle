@@ -1,11 +1,6 @@
 import type { PendingActionPublication } from '../../domain/project-action-catalog'
-import {
-  actionContentRevision,
-  readActionManifest,
-  readActionWorkspaceIdentity,
-  serializeActionManifest,
-  writeActionManifest,
-} from './action-manifest-file'
+import { readActionWorkspaceIdentity } from './action-manifest-file'
+import { actionPublicationCurrent, writeActionManifest } from './action-publication-files'
 import type { ActionStatePersistence, StoredActionState } from './local-action-state'
 
 async function publicationWorkspaceCurrent(
@@ -33,28 +28,33 @@ export async function recoverActionPublication(
   stored: StoredActionState,
 ): Promise<StoredActionState> {
   const pending = stored.state.pending
-  if (!pending || !(await publicationWorkspaceCurrent(persistence, projectPath, pending)))
+  if (
+    !pending?.publication ||
+    !(await publicationWorkspaceCurrent(persistence, projectPath, pending)) ||
+    !(await actionPublicationCurrent(pending.workspacePath, pending.publication))
+  )
     return stored
   const requireWorkspace = async () => {
     if (!(await publicationWorkspaceCurrent(persistence, projectPath, pending)))
       throw new Error('The publication Workspace changed. Your draft has been kept.')
   }
   try {
-    const current = await readActionManifest(pending.workspacePath)
-    const targetRevision = actionContentRevision(serializeActionManifest(pending.nextShared))
-    if (current.revision !== targetRevision) {
-      // Expose both drafts so the editor can resolve conflicts without data loss.
-      if (current.revision !== pending.previousSharedRevision) return stored
-      await writeActionManifest(
-        pending.workspacePath,
-        pending.previousSharedRevision,
-        pending.nextShared,
-        requireWorkspace,
-      )
-    }
+    const published = await writeActionManifest(
+      pending.workspacePath,
+      pending.previousSharedRevision,
+      pending.nextShared,
+      pending.publication,
+      requireWorkspace,
+    )
+    // Expose both drafts and the retained inode when another writer wins publication.
+    if (!published) return stored
     await requireWorkspace()
   } catch (error) {
-    if (!(await publicationWorkspaceCurrent(persistence, projectPath, pending))) return stored
+    if (
+      !(await publicationWorkspaceCurrent(persistence, projectPath, pending)) ||
+      !(await actionPublicationCurrent(pending.workspacePath, pending.publication))
+    )
+      return stored
     throw error
   }
   return persistence.write(projectPath, stored.revision, {

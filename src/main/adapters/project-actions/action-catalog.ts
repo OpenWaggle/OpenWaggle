@@ -3,13 +3,18 @@ import { decodeUnknownExactOrThrow } from '@shared/schema'
 import { actionCatalogEditSchema, actionManifestSchema } from '@shared/schemas/action-definitions'
 import type { ActionCatalogEdit } from '@shared/types/action-definitions'
 import { enqueueProjectConfigWrite } from '../../config/project-config-write-queue'
-import { editActionCatalog, resolveActionCatalog } from '../../domain/project-action-catalog'
+import {
+  editActionCatalog,
+  type PendingActionPublication,
+  resolveActionCatalog,
+} from '../../domain/project-action-catalog'
 import type { ActionCatalogScope } from '../../ports/action-catalog-service'
 import {
   actionContentRevision,
   readActionManifest,
   readActionWorkspaceIdentity,
 } from './action-manifest-file'
+import { actionPublicationPath, createActionPublication } from './action-publication-files'
 import { recoverActionPublication } from './action-publication-recovery'
 import { migrateLegacyActionDocument } from './legacy-action-migration'
 import {
@@ -17,6 +22,17 @@ import {
   localActionDocumentSchema,
   localActionStateSchema,
 } from './local-action-state'
+
+function publicationDetails(pending: PendingActionPublication) {
+  return {
+    workspacePath: pending.workspacePath,
+    ...(pending.publication
+      ? { recoveryPath: actionPublicationPath(pending.workspacePath, pending.publication.id) }
+      : {}),
+    projectDraft: pending.nextShared,
+    localDraft: pending.nextLocal.manifest,
+  }
+}
 
 export function createActionCatalog(persistence: ActionStatePersistence) {
   async function load(scope: ActionCatalogScope) {
@@ -63,16 +79,7 @@ export function createActionCatalog(persistence: ActionStatePersistence) {
     const { stored, shared, revision } = await load(scope)
     const catalog = resolveActionCatalog(stored.state.document, shared.manifest, revision)
     const pending = stored.state.pending
-    return pending
-      ? {
-          ...catalog,
-          pendingPublication: {
-            workspacePath: pending.workspacePath,
-            projectDraft: pending.nextShared,
-            localDraft: pending.nextLocal.manifest,
-          },
-        }
-      : catalog
+    return pending ? { ...catalog, pendingPublication: publicationDetails(pending) } : catalog
   }
 
   return {
@@ -113,10 +120,16 @@ export function createActionCatalog(persistence: ActionStatePersistence) {
             throw new Error(
               'This Project Actions Workspace is no longer available. Your draft has been kept.',
             )
+          const publication = await createActionPublication(canonical.workspacePath, async () => {
+            const current = await readActionWorkspaceIdentity(canonical.workspacePath)
+            if (JSON.stringify(current) !== JSON.stringify(workspaceIdentity))
+              throw new Error('The publication Workspace changed. Your draft has been kept.')
+          })
           const pending = decodeUnknownExactOrThrow(localActionStateSchema, {
             document: stored.state.document,
             pending: {
               workspacePath: canonical.workspacePath,
+              publication,
               workspaceIdentity: { ...workspaceIdentity, resourceId: resource?.id ?? null },
               previousSharedRevision: shared.revision,
               nextShared: next.shared,

@@ -77,6 +77,14 @@ A personal override replaces the complete shared definition; **Restore shared ve
 Settings shows where each definition comes from and offers explicit storage and removal controls.
 Worktrees of the same project share private definitions, while unrelated projects remain separate.
 
+If a shared save conflicts with an external edit, Settings retains both pending drafts and shows
+the recovery directory under **Inspect pending drafts**. Each shared save keeps recovery files in
+`.openwaggle/action-recovery/`, which ignores its own contents in Git. `previous.json` preserves the
+file an external editor may still have open; `next.json` contains the prepared save. These files are
+not deleted automatically, because an editor can finish writing after the save. Close external
+editors, resolve any pending save, and compare those files with `.openwaggle/actions.json` before
+manually removing old recovery directories.
+
 The header remembers the last action you ran in the project. Running and recent actions appear in
 the **Session Hub**. Select a run to open its output in the right sidebar, where you can stop or
 restart it, copy output or its command, and open its preview. **Fix with agent** adds a repair request

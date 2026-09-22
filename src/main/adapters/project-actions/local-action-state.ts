@@ -15,6 +15,14 @@ export const localActionStateSchema = Schema.Struct({
   pending: Schema.NullOr(
     Schema.Struct({
       workspacePath: Schema.String,
+      publication: Schema.optional(
+        Schema.Struct({
+          id: Schema.UUID,
+          device: Schema.String,
+          inode: Schema.String,
+          birthtime: Schema.String,
+        }),
+      ),
       workspaceIdentity: Schema.optional(
         Schema.Struct({
           device: Schema.String,
