@@ -860,6 +860,10 @@ revision-conflict recovery stays visible even when the form body is scrolled to 
 Action-run polling queries all active runs plus the latest 50 terminal runs through indexed partial
 branches. Additive migration 60 keeps older runs and request IDs available for detail lookup and retry
 deduplication; limiting polling must never truncate the active-run set.
+On macOS, setup environment capture uses bundled Perl to emit NUL-separated values because `env -0`
+is not a documented cross-version contract; preserve embedded newlines. Resolve task executable paths
+through the action runner's PATH/PATHEXT lookup before embedding them in a PowerShell setup wrapper,
+so Windows selects the same `.cmd` shim as an ordinary action run.
 
 The September 2026 native action verification reproduced a SQLite worker teardown abort on pristine
 main with transitive better-sqlite3 12.11.1. Root and Effect SQLite now share 13.0.3, which includes the

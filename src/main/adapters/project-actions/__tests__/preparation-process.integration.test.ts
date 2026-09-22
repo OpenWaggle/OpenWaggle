@@ -121,13 +121,14 @@ describe.skipIf(process.platform === 'win32')('real preparation environment capt
       ...input,
       invocation: {
         type: 'command',
-        command: "export OW_PREPARATION_VALUE='a value with spaces'; exit 0",
+        command:
+          "export OW_PREPARATION_VALUE='a value with spaces'; export OW_MULTILINE='first\nsecond'; exit 0",
         directory: '.',
       },
     })
     expect(succeeded).toMatchObject({
       exitCode: 0,
-      environment: { OW_PREPARATION_VALUE: 'a value with spaces' },
+      environment: { OW_PREPARATION_VALUE: 'a value with spaces', OW_MULTILINE: 'first\nsecond' },
     })
     const failed = await execute({
       ...input,

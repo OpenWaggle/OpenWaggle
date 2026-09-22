@@ -80,14 +80,13 @@ export function createPreparationExecutor(
     const file = await open(destination, 'wx', PRIVATE_FILE_MODE)
     await file.close()
     try {
+      const effectiveEnvironment = getInteractiveTerminalEnv(appVersion, environment)
       const capture = input.captureEnvironment
-        ? preparationCaptureInvocation(
+        ? await preparationCaptureInvocation(
             resolved,
             destination,
-            await resolveActionShell(
-              getInteractiveTerminalEnv(appVersion, environment),
-              resolved.cwd,
-            ),
+            await resolveActionShell(effectiveEnvironment, resolved.cwd),
+            effectiveEnvironment,
           )
         : null
       const invocation = capture?.invocation ?? resolved

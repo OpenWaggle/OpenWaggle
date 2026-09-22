@@ -49,7 +49,7 @@ function unavailableExecutable(error: unknown) {
   )
 }
 
-async function executablePath(
+export async function resolveActionExecutablePath(
   command: string,
   environment: Readonly<Record<string, string>>,
   cwd: string,
@@ -85,7 +85,7 @@ async function executablePath(
 export async function resolveActionShell(environment: Readonly<Record<string, string>>, cwd = '.') {
   for (const candidate of existingShells({ environment })) {
     try {
-      return await executablePath(candidate.command, environment, cwd)
+      return await resolveActionExecutablePath(candidate.command, environment, cwd)
     } catch (error) {
       if (error instanceof Error && error.message.startsWith('Runner unavailable:')) continue
       throw error
@@ -99,11 +99,15 @@ async function processCommand(
   environment: Readonly<Record<string, string>>,
 ) {
   if (invocation.type === 'executable') {
-    const command = await executablePath(invocation.executable, environment, invocation.cwd)
+    const command = await resolveActionExecutablePath(
+      invocation.executable,
+      environment,
+      invocation.cwd,
+    )
     if (process.platform !== 'win32' || !/\.(cmd|bat)$/i.test(command))
       return { command, args: invocation.args }
     // PowerShell literals preserve arguments, including %, &, and spaces, for Windows script shims.
-    const shell = await executablePath('powershell.exe', environment, invocation.cwd)
+    const shell = await resolveActionExecutablePath('powershell.exe', environment, invocation.cwd)
     return {
       command: shell,
       args: [
