@@ -1,20 +1,39 @@
+import { fromAny } from '@total-typescript/shoehorn'
 import { describe, expect, it } from 'vitest'
 import { sessionsToolSchemaForCapabilities } from '../sessions-tool-capability-schema'
 
+// The schema carries TypeBox symbols; serialize to a plain object to inspect its shape.
 function exposedActions(schema: ReturnType<typeof sessionsToolSchemaForCapabilities>) {
-  return schema.anyOf.flatMap((alternative) => {
-    const action = alternative.properties.action
-    if ('const' in action && typeof action.const === 'string') return [action.const]
-    if ('anyOf' in action && Array.isArray(action.anyOf)) {
-      return action.anyOf.flatMap((candidate) =>
-        'const' in candidate && typeof candidate.const === 'string' ? [candidate.const] : [],
-      )
-    }
-    return []
-  })
+  const plain = fromAny<
+    {
+      properties?: { action?: { const?: unknown; anyOf?: readonly { const?: unknown }[] } }
+    },
+    unknown
+  >(JSON.parse(JSON.stringify(schema)))
+  const action = plain.properties?.action
+  if (typeof action?.const === 'string') return [action.const]
+  return (action?.anyOf ?? []).flatMap((candidate) =>
+    typeof candidate.const === 'string' ? [candidate.const] : [],
+  )
 }
 
 describe('Sessions tool capability schema', () => {
+  it('never exposes a root-level anyOf union (issue #218: providers drop arguments)', () => {
+    const schema = sessionsToolSchemaForCapabilities({
+      capabilities: ['sessions:read', 'sessions:spawn', 'sessions:discover'],
+      modelMultiAgentEnabled: true,
+    })
+
+    const shape = fromAny<
+      { type?: string; anyOf?: unknown[]; properties?: Record<string, unknown> },
+      unknown
+    >(JSON.parse(JSON.stringify(schema)))
+
+    expect(shape.type).toBe('object')
+    expect(shape.anyOf).toBeUndefined()
+    expect(shape.properties?.action).toBeDefined()
+  })
+
   it('removes operations the current Session grant does not carry', () => {
     const actions = exposedActions(
       sessionsToolSchemaForCapabilities({
