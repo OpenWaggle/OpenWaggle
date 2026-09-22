@@ -5,7 +5,12 @@ import { executeSessionToolCommand } from '../../session-host/session-tool-gatew
 import { assertFilesystemWriteScope } from '../../utils/filesystem-write-scope'
 import { getOpenWaggleAuthorize } from './agent-kernel/openwaggle-authorize-channel'
 import { sessionsToolSchemaForCapabilities } from './sessions-tool-capability-schema'
-import { type SessionsToolParameters, sessionsToolParameters } from './sessions-tool-parameters'
+import {
+  assertSessionsToolActionArguments,
+  flattenSessionsToolParameters,
+  sessionsToolParameterVariants,
+} from './sessions-tool-flat-schema'
+import type { SessionsToolParameters } from './sessions-tool-parameters'
 import { buildSessionsToolPayload } from './sessions-tool-payload'
 
 const DEFAULT_AGENT_DEFINITION_RESULTS = 50
@@ -209,6 +214,7 @@ async function executeSessionsTool(
   signal?: AbortSignal,
 ) {
   if (signal?.aborted) throw new Error('aborted')
+  assertSessionsToolActionArguments(params)
   if (isAgentDefinitionAction(params)) {
     return queryAgentDefinitionsForTool(
       params,
@@ -244,7 +250,7 @@ function failedToolResult(error: unknown) {
 
 export function createSessionsToolExtension(input: SessionsToolExtensionInput): ExtensionFactory {
   return (pi) => {
-    pi.registerTool<typeof sessionsToolParameters, unknown>({
+    pi.registerTool<ReturnType<typeof flattenSessionsToolParameters>, unknown>({
       name: 'sessions',
       label: 'Sessions',
       description:
@@ -270,7 +276,7 @@ export function createSessionsToolExtension(input: SessionsToolExtensionInput): 
             capabilities: input.sessionCapabilities,
             modelMultiAgentEnabled: input.modelMultiAgentEnabled ?? true,
           })
-        : sessionsToolParameters,
+        : flattenSessionsToolParameters(sessionsToolParameterVariants),
       executionMode: 'sequential',
       async execute(_toolCallId, params, signal, _onUpdate, ctx) {
         try {
