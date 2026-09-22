@@ -11,6 +11,7 @@ export const PRELOAD_MCP_METHODS = [
   'addMcpServer',
   'previewMcpImports',
   'applyMcpImports',
+  'installMcpCatalogServer',
   'doctorMcp',
   'listMcpSecrets',
   'setMcpSecret',

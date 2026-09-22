@@ -31,6 +31,7 @@ export const FilesystemMcpConfigServiceLive = Layer.effect(
       addServer: (input) => Effect.promise(() => service.addServer(input)),
       previewImports: (input) => Effect.promise(() => service.previewImports(input)),
       applyImports: (input) => Effect.promise(() => service.applyImports(input)),
+      installCatalogServer: (input) => Effect.promise(() => service.installCatalogServer(input)),
       createTurnSnapshot: (input) => Effect.promise(() => service.createTurnSnapshot(input)),
     })
   }),

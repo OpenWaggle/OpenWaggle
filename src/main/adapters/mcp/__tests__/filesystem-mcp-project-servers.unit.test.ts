@@ -27,8 +27,6 @@ async function writeJson(filePath: string, value: unknown) {
   await writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`, 'utf-8')
 }
 
-const TRUST = { readRoots: ['.'], writeRoots: [], allowNetwork: false }
-
 afterEach(async () => {
   turnTracker.clear()
   await Promise.all(
@@ -49,7 +47,7 @@ describe('per-project MCP server overrides', () => {
     const initial = await service.getView({ projectPath })
     const instanceId = initial.servers[0]?.instanceId ?? ''
     await service.setServerEnabled({ instanceId, enabled: true, projectPath })
-    await service.setServerTrust({ instanceId, trusted: true, permissions: TRUST, projectPath })
+    await service.setServerTrust({ instanceId, trusted: true, projectPath })
 
     // Both projects see the shared server as enabled and would run it.
     expect((await service.getView({ projectPath })).servers[0]?.projectEnabled).toBe(true)
@@ -96,12 +94,32 @@ describe('per-project MCP server overrides', () => {
     const initial = await service.getView({ projectPath })
     const instanceId = initial.servers[0]?.instanceId ?? ''
     await service.setServerEnabled({ instanceId, enabled: true, projectPath })
-    await service.setServerTrust({ instanceId, trusted: true, permissions: TRUST, projectPath })
+    await service.setServerTrust({ instanceId, trusted: true, projectPath })
 
     await service.setProjectServerEnabled({ instanceId, enabled: false, projectPath })
 
     // Required servers bypass the per-project mute so ADR guarantees hold.
     const snapshot = await service.createTurnSnapshot({ projectPath, sessionId: 's-req' })
     expect(snapshot?.servers).toHaveLength(1)
+  })
+
+  it('makes the unsandboxed escape hatch reversible via the server summary', async () => {
+    const { projectPath, service } = await createFixture()
+    await writeJson(path.join(projectPath, '.mcp.json'), {
+      mcpServers: { docs: { command: 'docs-mcp' } },
+    })
+    await service.setScopeState({ scope: 'project', state: 'on', projectPath })
+    const initial = await service.getView({ projectPath })
+    const instanceId = initial.servers[0]?.instanceId ?? ''
+    await service.setServerEnabled({ instanceId, enabled: true, projectPath })
+
+    await service.setServerTrust({ instanceId, trusted: true, allowUnsandboxed: true, projectPath })
+    expect((await service.getView({ projectPath })).servers[0]?.allowUnsandboxed).toBe(true)
+
+    // ADR-0035: the hatch must be reversible, not one-way.
+    await service.setServerTrust({ instanceId, trusted: true, projectPath })
+    const view = await service.getView({ projectPath })
+    expect(view.servers[0]?.allowUnsandboxed).toBeUndefined()
+    expect(view.servers[0]?.trusted).toBe('trusted')
   })
 })

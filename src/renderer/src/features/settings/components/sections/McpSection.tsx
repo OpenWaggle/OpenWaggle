@@ -2,6 +2,7 @@ import { useMcpSectionController } from '@/features/settings/hooks/useMcpSection
 import { usePreferences } from '@/features/settings/hooks/useSettings'
 import { projectName } from '@/shared/lib/format'
 import { McpCapabilitiesPanel } from './McpCapabilitiesPanel'
+import { McpCatalogPanel } from './McpCatalogPanel'
 import { McpMigrationPanel } from './McpMigrationPanel'
 import { McpProjectControl } from './McpProjectControl'
 import {
@@ -51,13 +52,19 @@ export function McpSection({ sessionId }: McpSectionProps) {
         projectPath={settings.projectPath}
         settingsBusy={controller.busy}
         onImported={controller.refresh}
+        autoScan={controller.view !== null && servers.length === 0}
+      />
+      <McpCatalogPanel
+        servers={servers}
+        busy={controller.busy}
+        onInstall={(name) => void controller.installCatalogServer(name)}
       />
       <McpServersPanel
         servers={servers}
         busy={controller.busy}
         onToggleServer={(server) => void controller.toggleServer(server)}
-        onTrustServer={(server, trusted, allowUnsandboxed, permissions) =>
-          void controller.setServerTrust(server, trusted, allowUnsandboxed, permissions)
+        onTrustServer={(server, trusted, allowUnsandboxed) =>
+          void controller.setServerTrust(server, trusted, allowUnsandboxed)
         }
         onRemoveServer={(server) => void controller.removeServer(server)}
         onAuthorizeServer={(server) => void controller.authorizeServer(server)}
