@@ -60,10 +60,10 @@ export function NativeActionEditor(props: {
       labelledBy={headingId}
       onClose={props.onClose}
       dismissible={!save.isPending}
-      className="max-w-xl overflow-hidden"
+      className="max-w-xl flex-col overflow-y-hidden open:flex"
     >
       <form
-        className="flex max-h-(--modal-max-height) flex-col"
+        className="flex min-h-0 flex-col"
         onSubmit={(event) => {
           event.preventDefault()
           void submit()
@@ -76,26 +76,30 @@ export function NativeActionEditor(props: {
           busy={save.isPending}
           onClose={props.onClose}
         />
-        <fieldset disabled={save.isPending} className="min-h-0 flex-1 overflow-y-auto">
-          <NativeActionFields
-            scope={props.scope}
-            action={draft}
-            storage={storage}
-            onChange={(patch) => setDraft((current) => ({ ...current, ...patch }))}
-            onStorageChange={setStorage}
-          />
-        </fieldset>
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <fieldset disabled={save.isPending} className="min-w-0">
+            <NativeActionFields
+              scope={props.scope}
+              action={draft}
+              storage={storage}
+              onChange={(patch) => setDraft((current) => ({ ...current, ...patch }))}
+              onStorageChange={setStorage}
+            />
+          </fieldset>
+        </div>
         {error ? (
-          <ActionDraftRecovery
-            scope={props.scope}
-            error={error}
-            onReload={(value) => {
-              revision.current = value
-              setError(null)
-            }}
-          />
+          <div className="max-h-32 shrink-0 overflow-y-auto">
+            <ActionDraftRecovery
+              scope={props.scope}
+              error={error}
+              onReload={(value) => {
+                revision.current = value
+                setError(null)
+              }}
+            />
+          </div>
         ) : null}
-        <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-5 py-4">
+        <footer className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-border px-5 py-4">
           <span className="text-xs text-text-tertiary">Save now. Run when you need it.</span>
           <div className="flex gap-2">
             <Button variant="secondary" disabled={save.isPending} onClick={props.onClose}>

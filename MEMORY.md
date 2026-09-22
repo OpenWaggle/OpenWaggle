@@ -848,6 +848,9 @@ recovers. Agent authorization includes preview URL and automatic opening because
 effects. Resolve relative PATH entries and executable paths from the action directory, including
 setup shell selection. Hatch environments inherit ordinary scripts by name, but replace the entire
 extra-scripts option; parent matrices do not make explicitly named child environments ambiguous.
+Use an ordinary scrolling container around the disabled action-editor fieldset; Chromium fieldset
+overflow can paint over a fixed footer. Keep save errors in a bounded area above that footer so
+revision-conflict recovery stays visible even when the form body is scrolled to the top.
 
 The September 2026 native action verification reproduced a SQLite worker teardown abort on pristine
 main with transitive better-sqlite3 12.11.1. Root and Effect SQLite now share 13.0.3, which includes the

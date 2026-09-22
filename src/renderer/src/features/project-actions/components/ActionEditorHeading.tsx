@@ -9,7 +9,7 @@ export function ActionEditorHeading(props: {
   readonly onClose: () => void
 }) {
   return (
-    <header className="flex items-start justify-between gap-3 border-b border-border px-5 py-4">
+    <header className="flex shrink-0 items-start justify-between gap-3 border-b border-border px-5 py-4">
       <div className="min-w-0">
         <h2 id={props.id} className="text-base font-semibold">
           {props.editing ? 'Edit action' : 'Add action'}
