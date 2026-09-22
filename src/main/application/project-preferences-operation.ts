@@ -4,7 +4,12 @@ import { isAgentAuthorizationMode } from '@shared/types/agent-authorization'
 import { THINKING_LEVELS } from '@shared/types/settings'
 import { includes } from '@shared/utils/validation'
 import * as Effect from 'effect/Effect'
-import { type ProjectPreferencesUpdate, setProjectPreferences } from '../config/project-config'
+import {
+  getProjectPreferencesStrict,
+  type ProjectPreferencesUpdate,
+  setProjectPreferences,
+} from '../config/project-config'
+import { SettingsService } from '../services/settings-service'
 import { validateProjectPath } from '../utils/project-path-validation'
 import { resolveEffectiveAuthorizationMode } from './agent-authorization-mode'
 import { grantPendingAuthorizationsWhereFullAccess } from './agent-loop-authorization-grants'
@@ -49,23 +54,78 @@ function validateProjectPreferences(preferences: unknown) {
     )
   if (failure) return Effect.fail(new Error(failure))
 
-  return Effect.succeed<ProjectPreferencesUpdate>({
-    ...(model !== undefined ? { model } : {}),
-    ...(thinkingLevel !== undefined ? { thinkingLevel } : {}),
-    ...(authorizationMode !== undefined ? { authorizationMode } : {}),
+  return Effect.succeed<{
+    model: string | null | undefined
+    filePreferences: ProjectPreferencesUpdate
+  }>({
+    model,
+    filePreferences: {
+      ...(thinkingLevel !== undefined ? { thinkingLevel } : {}),
+      ...(authorizationMode !== undefined ? { authorizationMode } : {}),
+    },
   })
 }
 
+/**
+ * Reads one project's preference overrides as the wire payload.
+ *
+ * The selected model lives in the app's SQLite settings store, keyed by project path — never in the
+ * repo-local project settings file. A model still present in that file is a legacy value kept as
+ * fallback until the DB has its own entry, which then wins.
+ */
+export function getProjectPreferencesOperation(rawProjectPath: unknown) {
+  return Effect.gen(function* () {
+    const projectPath = yield* validateProjectPath(
+      typeof rawProjectPath === 'string' ? rawProjectPath : null,
+    )
+    if (!projectPath) return null
+    const prefs = yield* Effect.promise(() => getProjectPreferencesStrict(projectPath))
+    const settings = yield* SettingsService
+    const dbModel = (yield* settings.get()).selectedModelsByProject[projectPath]
+    if (!prefs && !dbModel) return null
+    return { ...prefs, ...(dbModel ? { model: dbModel } : {}) }
+  })
+}
+
+/**
+ * Persists one project preference write.
+ *
+ * The selected model never goes into the project settings file: that file lives inside the
+ * repository, so committing a personal model pick would leak machine-specific provider config into
+ * shared source. The model therefore lands in the app's SQLite settings store instead, keyed by
+ * project path; only thinkingLevel and authorizationMode remain repo-local.
+ */
 export function setProjectPreferencesOperation(rawProjectPath: unknown, rawPreferences: unknown) {
   return Effect.gen(function* () {
     const projectPath = yield* validateProjectPath(
       typeof rawProjectPath === 'string' ? rawProjectPath : null,
     )
     if (!projectPath) return yield* Effect.fail(new Error('Project path is required.'))
-    const preferences = yield* validateProjectPreferences(rawPreferences)
-    yield* Effect.promise(() => setProjectPreferences(projectPath, preferences))
+    const { model, filePreferences } = yield* validateProjectPreferences(rawPreferences)
 
-    if (preferences.authorizationMode !== undefined) {
+    if (model !== undefined) {
+      const settings = yield* SettingsService
+      if (settings.setProjectModel) {
+        // Dedicated writer: read-modify-write happens inside the settings write queue, so
+        // concurrent project preference writes cannot lose each other's map entries.
+        yield* settings.setProjectModel(projectPath, model)
+      } else {
+        const current = yield* settings.get()
+        const { [projectPath]: _current, ...rest } = current.selectedModelsByProject
+        yield* settings.update({
+          selectedModelsByProject: model === null ? rest : { ...rest, [projectPath]: model },
+        })
+      }
+    }
+
+    if (
+      filePreferences.thinkingLevel !== undefined ||
+      filePreferences.authorizationMode !== undefined
+    ) {
+      yield* Effect.promise(() => setProjectPreferences(projectPath, filePreferences))
+    }
+
+    if (filePreferences.authorizationMode !== undefined) {
       yield* Effect.promise(() =>
         grantPendingAuthorizationsWhereFullAccess(resolveEffectiveAuthorizationMode),
       )

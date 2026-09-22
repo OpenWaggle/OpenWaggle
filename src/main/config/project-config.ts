@@ -214,7 +214,7 @@ export async function setProjectPreferences(
 ): Promise<void> {
   await updateProjectConfig(projectPath, (current) => {
     const next: Record<string, unknown> = { ...current.preferences }
-    for (const key of ['model', 'thinkingLevel', 'authorizationMode'] as const) {
+    for (const key of ['thinkingLevel', 'authorizationMode'] as const) {
       const value = preferences[key]
       if (value === undefined) continue
       if (value === null) {
@@ -224,7 +224,11 @@ export async function setProjectPreferences(
       next[key] = value
     }
 
-    return { ...current, preferences: next }
+    // The selected model lives in the app DB, never in this repo-local file. Strip any legacy
+    // model override on write so older settings files self-heal instead of keeping it forever.
+    const { model: _legacyModel, ...withoutModel } = next
+    const { preferences: _previous, ...rest } = current
+    return Object.keys(withoutModel).length > 0 ? { ...rest, preferences: withoutModel } : rest
   })
 }
 

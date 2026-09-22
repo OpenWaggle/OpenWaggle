@@ -58,6 +58,7 @@ import {
   sanitizeShortcutRules,
   sanitizeSkillTogglesByProject,
 } from './sanitizers'
+import { resolveNextSelectedModels, resolveStoredSelectedModels } from './selected-models-snapshot'
 import {
   resolveNextSessionHostSettings,
   resolveStoredSessionHostSettings,
@@ -159,6 +160,7 @@ export function buildSettingsSnapshot(storedSettings: Readonly<Record<string, un
       skillTogglesByProject,
       agentDefinitionTogglesByProject,
       projectDisplayNames,
+      ...resolveStoredSelectedModels(storedSettings),
       shortcutRules,
       shortcutBindings,
       defaultSessionEnvironmentMode,
@@ -217,6 +219,7 @@ export function buildNextSettingsSnapshot(current: Settings, partial: Partial<Se
         : current.compactionThresholdPercent,
     ...resolveNextDiffSettings(current, partial),
     ...resolveNextAppearanceSettings(current, partial),
+    ...resolveNextSelectedModels(current, partial),
     ...resolveNextBrowserSettings(current, partial),
   } satisfies Settings
 }

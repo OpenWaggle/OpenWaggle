@@ -29,6 +29,10 @@ function mergeGeneralSettings(current: Settings, partial: Partial<Settings>) {
       partial.agentDefinitionTogglesByProject,
     ),
     projectDisplayNames: nextSetting(current.projectDisplayNames, partial.projectDisplayNames),
+    selectedModelsByProject: nextSetting(
+      current.selectedModelsByProject,
+      partial.selectedModelsByProject,
+    ),
     defaultAuthorizationMode: nextSetting(
       current.defaultAuthorizationMode,
       partial.defaultAuthorizationMode,
@@ -122,6 +126,7 @@ function cloneSettings(settings: Settings): Settings {
     skillTogglesByProject: { ...settings.skillTogglesByProject },
     agentDefinitionTogglesByProject: { ...settings.agentDefinitionTogglesByProject },
     projectDisplayNames: { ...settings.projectDisplayNames },
+    selectedModelsByProject: { ...settings.selectedModelsByProject },
     shortcutRules: settings.shortcutRules.map((rule) => ({
       ...rule,
       shortcut: { ...rule.shortcut },

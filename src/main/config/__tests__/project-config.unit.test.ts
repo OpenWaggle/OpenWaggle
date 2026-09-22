@@ -176,10 +176,10 @@ describe('loadProjectConfig', () => {
       'utf-8',
     )
 
-    await setProjectPreferences(tmpDir, { model: 'openai/gpt-4.1', thinkingLevel: 'high' })
+    await setProjectPreferences(tmpDir, { thinkingLevel: 'high' })
 
     const config = await loadProjectConfig(tmpDir)
-    expect(config.preferences).toEqual({ model: 'openai/gpt-4.1', thinkingLevel: 'high' })
+    expect(config.preferences).toEqual({ thinkingLevel: 'high' })
     expect(config.pi).toEqual({ compaction: { enabled: true } })
   })
 
@@ -194,11 +194,38 @@ describe('loadProjectConfig', () => {
       'utf-8',
     )
 
-    await setProjectPreferences(tmpDir, { model: 'openai/gpt-4.1' })
+    await setProjectPreferences(tmpDir, { thinkingLevel: 'medium' })
 
     const config = await loadProjectConfig(tmpDir)
     expect(config.pi).toEqual({ compaction: { enabled: false } })
-    expect(config.preferences).toEqual({ model: 'openai/gpt-4.1' })
+    expect(config.preferences).toEqual({ thinkingLevel: 'medium' })
+  })
+
+  it('strips legacy model overrides from the file on write', async () => {
+    writeFileSync(
+      getSettingsPath(tmpDir),
+      JSON.stringify({ preferences: { model: 'openai/gpt-4.1', thinkingLevel: 'low' } }),
+      'utf-8',
+    )
+
+    await setProjectPreferences(tmpDir, { thinkingLevel: 'high' })
+
+    const config = await loadProjectConfig(tmpDir)
+    // The selected model is app-DB state; the repo-local file must never keep it.
+    expect(config.preferences).toEqual({ thinkingLevel: 'high' })
+  })
+
+  it('drops the preferences key when a write leaves it empty', async () => {
+    writeFileSync(
+      getSettingsPath(tmpDir),
+      JSON.stringify({ preferences: { model: 'openai/gpt-4.1' } }),
+      'utf-8',
+    )
+
+    await setProjectPreferences(tmpDir, { authorizationMode: 'yolo' })
+
+    const config = await loadProjectConfig(tmpDir)
+    expect(config.preferences).toEqual({ authorizationMode: 'yolo' })
   })
 
   it('fails safely on invalid settings parsing during update and does not overwrite file', async () => {

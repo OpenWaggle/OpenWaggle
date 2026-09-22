@@ -87,21 +87,6 @@ function assertSettingsReady() {
   )
 }
 
-async function writeStoredSettingToDb(key: string, value: unknown) {
-  await runStoreEffect(
-    Effect.gen(function* () {
-      const sql = yield* SqlClient.SqlClient
-      yield* sql`
-        INSERT INTO settings_store (key, value_json, updated_at)
-        VALUES (${key}, ${JSON.stringify(value)}, ${Date.now()})
-        ON CONFLICT(key) DO UPDATE SET
-          value_json = excluded.value_json,
-          updated_at = excluded.updated_at
-      `
-    }),
-  )
-}
-
 async function writeStoredSettingsToDb(writes: readonly SettingsPatchWrite[]) {
   await runStoreEffect(
     Effect.gen(function* () {
@@ -135,7 +120,7 @@ function enqueueSettingsWrite(operation: () => Promise<void>, description: strin
 }
 
 function queueStoredSettingWrite(key: string, value: unknown) {
-  return enqueueSettingsWrite(() => writeStoredSettingToDb(key, value), key)
+  return enqueueSettingsWrite(() => writeStoredSettingsToDb([{ key, value }]), key)
 }
 
 export async function initializeSettingsStore(): Promise<void> {
@@ -297,6 +282,23 @@ export function updateAgentDefinitionToggleDurably(
       }),
     'Agent definition toggle',
   )
+}
+
+/**
+ * Sets or clears one project's selected model inside the write queue, so concurrent writes cannot
+ * lose map entries. The model lives only in the app DB, never in the repo-local settings file.
+ */
+export function updateSelectedModelDurably(
+  projectPath: string,
+  model: string | null,
+): Promise<void> {
+  assertSettingsReady()
+  return enqueueSettingsWrite(() => {
+    const { [projectPath]: _removed, ...rest } = settingsCache.selectedModelsByProject
+    return persistSettingsPatch({
+      selectedModelsByProject: model === null ? rest : { ...rest, [projectPath]: model },
+    })
+  }, 'project model')
 }
 
 /**

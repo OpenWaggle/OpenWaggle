@@ -25,6 +25,7 @@ import {
   SETTINGS_KEY_PROJECT_DISPLAY_NAMES,
   SETTINGS_KEY_PROJECT_PATH,
   SETTINGS_KEY_RECENT_PROJECTS,
+  SETTINGS_KEY_SELECTED_MODELS_BY_PROJECT,
   SETTINGS_KEY_SESSION_HOST_IDLE_GRACE_PERIOD_MS,
   SETTINGS_KEY_SESSION_HOST_PARENT_CONCURRENCY_LIMIT,
   SETTINGS_KEY_SESSION_HOST_PARENT_CONCURRENCY_LIMITS_BY_PROJECT,
@@ -173,6 +174,12 @@ function appendGeneralSettingsWrites(
     partial.projectDisplayNames !== undefined,
     SETTINGS_KEY_PROJECT_DISPLAY_NAMES,
     next.projectDisplayNames,
+  )
+  appendChangedSetting(
+    writes,
+    partial.selectedModelsByProject !== undefined,
+    SETTINGS_KEY_SELECTED_MODELS_BY_PROJECT,
+    next.selectedModelsByProject,
   )
   appendChangedSetting(
     writes,

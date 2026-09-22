@@ -16,6 +16,11 @@ export interface SettingsServiceShape {
     agentName: string,
     enabled: boolean,
   ) => Effect.Effect<void, Error>
+  /** Writes one project's selected model to the app DB; `null` clears it. Never touches the repo-local project settings file. */
+  readonly setProjectModel?: (
+    projectPath: string,
+    model: string | null,
+  ) => Effect.Effect<void, Error>
   readonly initialize: () => Effect.Effect<void, SettingsStoreReadError>
   readonly flushForTests: () => Effect.Effect<void, Error>
 }
@@ -46,6 +51,7 @@ export class SettingsService extends Context.Tag('@openwaggle/SettingsService')<
       updateSettingsDurably,
       updateSkillToggleDurably,
       updateAgentDefinitionToggleDurably,
+      updateSelectedModelDurably,
       initializeSettingsStore,
       refreshSettingsStore,
       hydrateSettingsStoreFromHost,
@@ -87,6 +93,14 @@ export class SettingsService extends Context.Tag('@openwaggle/SettingsService')<
           try: async () => {
             await readSettings()
             await updateAgentDefinitionToggleDurably(projectPath, agentName, enabled)
+          },
+          catch: toError,
+        }),
+      setProjectModel: (projectPath, model) =>
+        Effect.tryPromise({
+          try: async () => {
+            await readSettings()
+            await updateSelectedModelDurably(projectPath, model)
           },
           catch: toError,
         }),
