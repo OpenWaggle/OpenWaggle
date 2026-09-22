@@ -20,7 +20,6 @@ export const MCP_CATALOG_SERVERS: readonly {
     definition: {
       command: 'npx',
       args: ['@playwright/mcp@latest'],
-      directTools: true,
       provenance: { source: 'catalog' },
     },
   },
@@ -31,7 +30,6 @@ export const MCP_CATALOG_SERVERS: readonly {
     definition: {
       command: 'npx',
       args: ['chrome-devtools-mcp@latest'],
-      directTools: true,
       provenance: { source: 'catalog' },
     },
   },

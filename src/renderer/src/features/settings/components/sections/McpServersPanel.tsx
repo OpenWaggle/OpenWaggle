@@ -14,8 +14,22 @@ function UnsandboxedControl({
   readonly busy: boolean
   readonly onTrust: (trusted: boolean, allowUnsandboxed?: boolean) => void
 }) {
-  // Escape hatch for platforms without a usable OS sandbox (ADR-0014/0035).
+  // Escape hatch for platforms without a usable OS sandbox (ADR-0014/0035);
+  // reversible so users can return to sandboxed execution.
   if (server.transport !== 'stdio') return null
+  if (server.allowUnsandboxed) {
+    return (
+      <Button
+        variant="ghost"
+        size="xs"
+        disabled={busy}
+        title="Run this server inside the OS sandbox again"
+        onClick={() => onTrust(true, false)}
+      >
+        Return to sandbox
+      </Button>
+    )
+  }
   return (
     <Button
       variant="ghost"

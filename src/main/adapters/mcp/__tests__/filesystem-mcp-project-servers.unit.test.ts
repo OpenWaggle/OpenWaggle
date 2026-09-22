@@ -102,4 +102,24 @@ describe('per-project MCP server overrides', () => {
     const snapshot = await service.createTurnSnapshot({ projectPath, sessionId: 's-req' })
     expect(snapshot?.servers).toHaveLength(1)
   })
+
+  it('makes the unsandboxed escape hatch reversible via the server summary', async () => {
+    const { projectPath, service } = await createFixture()
+    await writeJson(path.join(projectPath, '.mcp.json'), {
+      mcpServers: { docs: { command: 'docs-mcp' } },
+    })
+    await service.setScopeState({ scope: 'project', state: 'on', projectPath })
+    const initial = await service.getView({ projectPath })
+    const instanceId = initial.servers[0]?.instanceId ?? ''
+    await service.setServerEnabled({ instanceId, enabled: true, projectPath })
+
+    await service.setServerTrust({ instanceId, trusted: true, allowUnsandboxed: true, projectPath })
+    expect((await service.getView({ projectPath })).servers[0]?.allowUnsandboxed).toBe(true)
+
+    // ADR-0035: the hatch must be reversible, not one-way.
+    await service.setServerTrust({ instanceId, trusted: true, projectPath })
+    const view = await service.getView({ projectPath })
+    expect(view.servers[0]?.allowUnsandboxed).toBeUndefined()
+    expect(view.servers[0]?.trusted).toBe('trusted')
+  })
 })

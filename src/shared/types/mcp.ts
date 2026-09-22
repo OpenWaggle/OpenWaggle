@@ -200,6 +200,8 @@ export interface McpServerSummary {
   readonly trusted: McpTrustState
   /** True when the config changed since the stored approval; reconnects with derived grants, shown as a notice (ADR-0035). */
   readonly trustChanged?: boolean
+  /** Escape hatch: process runs outside the OS sandbox (ADR-0014/0035). */
+  readonly allowUnsandboxed?: boolean
   readonly required: boolean
   readonly sourceId: McpConfigSourceId
   readonly sourceLabel: string

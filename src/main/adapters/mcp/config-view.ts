@@ -195,6 +195,7 @@ function buildServerSummary(
     projectEnabled,
     trusted: trustState(server),
     ...(invalidated ? { trustChanged: true as const } : {}),
+    ...(server.state.allowUnsandboxed === true ? { allowUnsandboxed: true as const } : {}),
     required: server.definition.required === true,
     sourceId: server.source.definition.id,
     sourceLabel: server.source.definition.label,
