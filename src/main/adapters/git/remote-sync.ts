@@ -66,3 +66,17 @@ export async function localBranchIsBehindRemote(
   ])
   return result.code === 0
 }
+
+/**
+ * Whether `<branch>` names a local branch, including slash-named ones (`feature/foo`). Used to
+ * distinguish a chosen local branch from an already remote-qualified or namespaced ref.
+ */
+export async function isLocalBranch(projectPath: string, branch: string): Promise<boolean> {
+  const result = await runGit(projectPath, [
+    'rev-parse',
+    '--verify',
+    '--quiet',
+    `refs/heads/${branch}`,
+  ])
+  return result.code === 0
+}

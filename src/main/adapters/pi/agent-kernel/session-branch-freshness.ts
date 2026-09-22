@@ -4,6 +4,7 @@ import type { AgentKernelRunInput } from '../../../ports/agent-kernel-service'
 import type { BoundWorkspaceResource } from '../../../store/session-details'
 import {
   fetchRemoteBranch,
+  isLocalBranch,
   localBranchIsBehindRemote,
   pullCurrentBranchFastForward,
 } from '../../git/remote-sync'
@@ -15,11 +16,11 @@ const logger = createLogger('session-branch-freshness')
  * Branch freshness for a Session's first run, so the agent starts from the selected branch's
  * latest state without the user pulling first:
  *
- * - Worktree birth resolves its base ref here: a plain branch name is fetched from `origin`
- *   and birth moves to `origin/<base>` when that keeps every local commit (the local branch
- *   is an ancestor of or equal to the remote tip). A local branch ahead of or diverged from
- *   the remote keeps its own tip. Network failures degrade to the recorded refs — birth
- *   never blocks on a fetch.
+ * - Worktree birth resolves its base ref here: a chosen local branch (including slash-named
+ *   ones) is fetched from `origin` and birth moves to `origin/<base>` when that keeps every
+ *   local commit (the local branch is an ancestor of or equal to the remote tip). A local
+ *   branch ahead of or diverged from the remote keeps its own tip. Network failures degrade
+ *   to the recorded refs — birth never blocks on a fetch.
  * - Local-mode conversations pull the checkout's branch (`--ff-only`) once, on the first
  *   run; later runs never touch the tree mid-conversation.
  */
@@ -32,7 +33,7 @@ export async function resolveFreshWorktreeBaseRef(
   const chosen = workspace.worktreeBaseRef?.trim()
   const base = chosen && chosen.length > 0 ? chosen : await resolveCurrentBranch(projectPath)
   if (!base) return null
-  if (!base.includes('/')) {
+  if (await isLocalBranch(projectPath, base)) {
     await fetchRemoteBranch(projectPath, base, signal ? { signal } : {})
     if (workspace.worktreeStartFromOrigin || (await localBranchIsBehindRemote(projectPath, base))) {
       return `origin/${base}`

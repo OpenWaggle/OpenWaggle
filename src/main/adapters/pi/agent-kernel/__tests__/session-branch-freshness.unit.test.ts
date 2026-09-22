@@ -7,11 +7,13 @@ import type { AgentKernelRunInput } from '../../../../ports/agent-kernel-service
 
 const {
   fetchRemoteBranchMock,
+  isLocalBranchMock,
   localBranchIsBehindRemoteMock,
   pullCurrentBranchFastForwardMock,
   runGitMock,
 } = vi.hoisted(() => ({
   fetchRemoteBranchMock: vi.fn(async (_projectPath: string, _branch: string) => true),
+  isLocalBranchMock: vi.fn(async (_projectPath: string, _branch: string) => true),
   localBranchIsBehindRemoteMock: vi.fn(async (_projectPath: string, _branch: string) => false),
   pullCurrentBranchFastForwardMock: vi.fn(async () => ({
     ok: true,
@@ -27,6 +29,7 @@ const {
 vi.mock('../../../git/run-git', () => ({ runGit: runGitMock }))
 vi.mock('../../../git/remote-sync', () => ({
   fetchRemoteBranch: fetchRemoteBranchMock,
+  isLocalBranch: isLocalBranchMock,
   localBranchIsBehindRemote: localBranchIsBehindRemoteMock,
   pullCurrentBranchFastForward: pullCurrentBranchFastForwardMock,
 }))
@@ -38,6 +41,7 @@ const { refreshFirstRunBranch, resolveFreshWorktreeBaseRef } = await import(
 describe('resolveFreshWorktreeBaseRef', () => {
   beforeEach(() => {
     fetchRemoteBranchMock.mockReset().mockResolvedValue(true)
+    isLocalBranchMock.mockReset().mockResolvedValue(true)
     localBranchIsBehindRemoteMock.mockReset().mockResolvedValue(false)
     runGitMock.mockReset().mockResolvedValue({ code: 0, stdout: 'main\n', stderr: '' })
   })
@@ -73,7 +77,16 @@ describe('resolveFreshWorktreeBaseRef', () => {
     expect(fetchRemoteBranchMock).toHaveBeenCalledWith('/repo', 'main', expect.anything())
   })
 
+  it('fetches slash-named local branches too and births from origin when behind', async () => {
+    localBranchIsBehindRemoteMock.mockResolvedValue(true)
+    await expect(
+      resolveFreshWorktreeBaseRef({ worktreeBaseRef: 'feature/foo' }, '/repo'),
+    ).resolves.toBe('origin/feature/foo')
+    expect(fetchRemoteBranchMock).toHaveBeenCalledWith('/repo', 'feature/foo', expect.anything())
+  })
+
   it('does not fetch a base ref that already names a remote', async () => {
+    isLocalBranchMock.mockResolvedValue(false)
     await expect(
       resolveFreshWorktreeBaseRef({ worktreeBaseRef: 'origin/feature' }, '/repo'),
     ).resolves.toBe('origin/feature')
