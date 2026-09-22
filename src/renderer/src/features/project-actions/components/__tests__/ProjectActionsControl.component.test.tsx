@@ -27,23 +27,34 @@ describe('ProjectActionsControl', () => {
     mocks.catalog = actionCatalog()
     useProjectActionStore.setState({ lastInvokedByProject: {}, previewOpenedRuns: [] })
   })
-  it('launches the selected native action and remembers selection separately per project', () => {
+  it('keeps + Action as the entry point after saving and running an action', () => {
     const lint = { ...TEST_ACTION, id: 'lint', name: 'Lint' }
-    mocks.catalog = {
-      ...actionCatalog(),
-      actions: [
-        { definition: TEST_ACTION, source: 'local' },
-        { definition: lint, source: 'local' },
-      ],
-    }
+    mocks.catalog = { ...actionCatalog(), actions: [{ definition: lint, source: 'local' }] }
     useProjectActionStore.getState().rememberInvoked('/repo', lint.id)
     render(<ProjectActionsControl projectPath="/repo" />)
-    fireEvent.click(screen.getByRole('button', { name: 'Run Lint' }))
+    const trigger = screen.getByRole('button', { name: 'Project actions' })
+    expect(trigger).toHaveTextContent('Action')
+    fireEvent.click(trigger)
+    expect(mocks.run).not.toHaveBeenCalled()
+    expect(screen.getByRole('menu')).toHaveAttribute('popover', 'manual')
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Run Lint' }))
     expect(mocks.run).toHaveBeenCalledExactlyOnceWith(lint)
+    expect(trigger).toHaveTextContent('Action')
+    expect(trigger).not.toHaveTextContent('Lint')
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument()
   })
-  it('falls back to a surviving action without a special setup action', () => {
-    useProjectActionStore.getState().rememberInvoked('/repo', 'removed')
+  it('uses the same entry point for an empty catalog and exposes Add action', () => {
+    mocks.catalog = { ...actionCatalog(), actions: [] }
     render(<ProjectActionsControl projectPath="/repo" />)
-    expect(screen.getByRole('button', { name: 'Run Test' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Project actions' }))
+    expect(screen.getByText('No saved actions yet.')).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Add action' })).toBeEnabled()
+  })
+  it('shows loading without hiding the entry point or allowing an unsafely stale save', () => {
+    mocks.catalog = null
+    render(<ProjectActionsControl projectPath="/repo" />)
+    fireEvent.click(screen.getByRole('button', { name: 'Project actions' }))
+    expect(screen.getByText('Loading actions…')).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Add action' })).toBeDisabled()
   })
 })

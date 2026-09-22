@@ -6,14 +6,12 @@ import type {
   EffectiveDefinition,
 } from '@shared/types/action-definitions'
 import type { ActionManagementScope } from '@shared/types/action-management'
-import { ArrowLeft } from 'lucide-react'
 import { useId, useRef, useState } from 'react'
 import { Button } from '@/shared/ui/Button'
 import { ModalDialog } from '@/shared/ui/ModalDialog'
 import { useEditActionCatalog } from '../hooks/useNativeActions'
 import { ActionDraftRecovery } from './ActionDraftRecovery'
 import { ActionEditorHeading } from './ActionEditorHeading'
-import { ActionTaskPicker } from './ActionTaskPicker'
 import { NativeActionFields } from './NativeActionFields'
 
 export function NativeActionEditor(props: {
@@ -23,7 +21,6 @@ export function NativeActionEditor(props: {
   readonly onClose: () => void
 }) {
   const headingId = useId()
-  const [step, setStep] = useState<'choose' | 'configure'>(props.entry ? 'configure' : 'choose')
   const [draft, setDraft] = useState<ActionDefinition>(
     () =>
       props.entry?.definition ?? {
@@ -66,7 +63,7 @@ export function NativeActionEditor(props: {
       className="max-w-xl overflow-hidden"
     >
       <form
-        className="flex max-h-dvh flex-col"
+        className="flex max-h-(--modal-max-height) flex-col"
         onSubmit={(event) => {
           event.preventDefault()
           void submit()
@@ -74,30 +71,20 @@ export function NativeActionEditor(props: {
       >
         <ActionEditorHeading
           id={headingId}
-          choosing={step === 'choose'}
+          projectPath={props.scope.projectPath}
           editing={Boolean(props.entry)}
           busy={save.isPending}
           onClose={props.onClose}
         />
-        <div className="min-h-0 flex-1 overflow-y-auto">
-          {step === 'choose' ? (
-            <ActionTaskPicker
-              scope={props.scope}
-              onChoose={(invocation, name) => {
-                setDraft((current) => ({ ...current, invocation, name: current.name || name }))
-                setStep('configure')
-              }}
-            />
-          ) : (
-            <NativeActionFields
-              action={draft}
-              storage={storage}
-              onChange={(patch) => setDraft((current) => ({ ...current, ...patch }))}
-              onStorageChange={setStorage}
-              onChangeTask={() => setStep('choose')}
-            />
-          )}
-        </div>
+        <fieldset disabled={save.isPending} className="min-h-0 flex-1 overflow-y-auto">
+          <NativeActionFields
+            scope={props.scope}
+            action={draft}
+            storage={storage}
+            onChange={(patch) => setDraft((current) => ({ ...current, ...patch }))}
+            onStorageChange={setStorage}
+          />
+        </fieldset>
         {error ? (
           <ActionDraftRecovery
             scope={props.scope}
@@ -108,24 +95,23 @@ export function NativeActionEditor(props: {
             }}
           />
         ) : null}
-        <footer className="flex items-center justify-between gap-3 border-t border-border px-5 py-4">
-          {step === 'configure' ? (
-            <Button variant="ghost" disabled={save.isPending} onClick={() => setStep('choose')}>
-              <ArrowLeft className="size-3.5" />
-              Back
-            </Button>
-          ) : (
-            <span className="text-xs text-text-tertiary">Nothing runs until you start it.</span>
-          )}
+        <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-5 py-4">
+          <span className="text-xs text-text-tertiary">Save now. Run when you need it.</span>
           <div className="flex gap-2">
             <Button variant="secondary" disabled={save.isPending} onClick={props.onClose}>
               Cancel
             </Button>
-            {step === 'configure' ? (
-              <Button type="submit" variant="primary" disabled={save.isPending}>
-                {save.isPending ? 'Saving…' : 'Save action'}
-              </Button>
-            ) : null}
+            <Button
+              type="submit"
+              variant="primary"
+              disabled={
+                save.isPending ||
+                !draft.name.trim() ||
+                (draft.invocation.type === 'command' && !draft.invocation.command.trim())
+              }
+            >
+              {save.isPending ? 'Saving…' : 'Save action'}
+            </Button>
           </div>
         </footer>
       </form>

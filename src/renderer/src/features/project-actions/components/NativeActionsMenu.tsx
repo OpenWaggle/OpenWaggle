@@ -1,6 +1,6 @@
 import type { ActionCatalog, ActionDefinition } from '@shared/types/action-definitions'
 import type { ActionManagementScope } from '@shared/types/action-management'
-import type { ActionRun } from '@shared/types/action-runs'
+import { type ActionRun, isActiveActionRun } from '@shared/types/action-runs'
 import { useNavigate } from '@tanstack/react-router'
 import { Plus, Settings2 } from 'lucide-react'
 import { Button } from '@/shared/ui/Button'
@@ -19,15 +19,26 @@ export function NativeActionsMenu(props: {
   const navigate = useNavigate()
   const availability = useActionAvailability(props.scope, props.actions, props.runs)
   return (
-    <div className="w-64 p-1.5">
+    <div className="w-64 max-w-full p-1.5">
       <p className="px-2 py-1.5 text-xs text-text-tertiary">Run in this session’s workspace</p>
       {props.error ? (
         <p role="alert" className="px-2 py-2 text-xs text-error-text">
           {props.error}
         </p>
       ) : null}
+      {!props.error && props.actions.length === 0 ? (
+        <p className="px-2 py-2 text-xs text-text-tertiary">
+          {props.canAdd ? 'No saved actions yet.' : 'Loading actions…'}
+        </p>
+      ) : null}
       {props.actions.map(({ definition }) => {
         const unavailable = availability(definition)
+        const running = props.runs.some(
+          (run) =>
+            run.action.id === definition.id &&
+            isActiveActionRun(run) &&
+            !run.action.allowConcurrent,
+        )
         return (
           <Button
             key={definition.id}
@@ -36,6 +47,7 @@ export function NativeActionsMenu(props: {
             className="min-h-9 gap-2 px-2"
             disabled={Boolean(unavailable)}
             title={unavailable}
+            aria-label={running ? `Show output for ${definition.name}` : `Run ${definition.name}`}
             onClick={() => {
               props.onClose()
               void props.run(definition)
@@ -48,7 +60,7 @@ export function NativeActionsMenu(props: {
                 <span className="block text-xs text-text-tertiary">{unavailable}</span>
               ) : null}
             </span>
-            <span className="text-xs text-text-tertiary">{definition.kind}</span>
+            <span className="text-xs text-text-tertiary">{running ? 'Show output' : 'Run'}</span>
           </Button>
         )
       })}

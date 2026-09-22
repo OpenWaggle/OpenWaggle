@@ -11,7 +11,7 @@ import { Button } from '@/shared/ui/Button'
 import { ModalDialog } from '@/shared/ui/ModalDialog'
 import { useEditActionCatalog } from '../hooks/useNativeActions'
 import { ActionDraftRecovery } from './ActionDraftRecovery'
-import { ActionInvocationFields } from './ActionInvocationFields'
+import { ActionDirectoryFields, ActionInvocationFields } from './ActionInvocationFields'
 import { ActionTaskPicker } from './ActionTaskPicker'
 
 export function PreparationEditor(props: {
@@ -24,10 +24,6 @@ export function PreparationEditor(props: {
   const title = useId()
   const [draft, setDraft] = useState(props.definition)
   const [storage, setStorage] = useState(props.source)
-  const [choosing, setChoosing] = useState(
-    !props.definition.invocation ||
-      (props.definition.invocation.type === 'command' && !props.definition.invocation.command),
-  )
   const revision = useRef(props.catalog.revision)
   const [error, setError] = useState<string | null>(null)
   const mutation = useEditActionCatalog(props.scope)
@@ -54,7 +50,7 @@ export function PreparationEditor(props: {
       dismissible={!mutation.isPending}
       className="max-w-xl overflow-hidden"
     >
-      <div className="max-h-dvh overflow-y-auto">
+      <div className="max-h-(--modal-max-height) overflow-y-auto">
         <header className="border-b border-border p-5">
           <h2 id={title} className="text-base font-semibold">
             Workspace {draft.phase}
@@ -65,42 +61,40 @@ export function PreparationEditor(props: {
               : 'Runs before the worktree is removed, while its scripts and files are still available.'}
           </p>
         </header>
-        {choosing ? (
+        <fieldset disabled={mutation.isPending} className="space-y-4 p-5">
           <ActionTaskPicker
             scope={props.scope}
-            onChoose={(invocation) => {
-              setDraft({ ...draft, invocation })
-              setChoosing(false)
-            }}
+            onChoose={(invocation) => setDraft({ ...draft, invocation })}
           />
-        ) : (
-          <div className="space-y-4 p-5">
-            <ActionInvocationFields
-              invocation={draft.invocation}
-              onChange={(invocation) => setDraft({ ...draft, invocation })}
-              onChangeTask={() => setChoosing(true)}
-            />
-            <fieldset className="space-y-2">
-              <legend className="mb-2 text-xs text-text-secondary">Store this definition</legend>
-              {(['local', 'project'] as const).map((value) => (
-                <label
-                  key={value}
-                  className="flex min-h-11 items-center gap-3 rounded-lg border border-border px-3 text-sm"
-                >
-                  <input
-                    type="radio"
-                    name={`${title}-storage`}
-                    checked={storage === value}
-                    onChange={() => setStorage(value)}
-                  />
-                  {value === 'local'
-                    ? 'Only on this machine, for this project'
-                    : 'In the project · .openwaggle/actions.json'}
-                </label>
-              ))}
-            </fieldset>
-          </div>
-        )}
+          <ActionInvocationFields
+            scope={props.scope}
+            invocation={draft.invocation}
+            onChange={(invocation) => setDraft({ ...draft, invocation })}
+          />
+          <ActionDirectoryFields
+            invocation={draft.invocation}
+            onChange={(invocation) => setDraft({ ...draft, invocation })}
+          />
+          <fieldset className="space-y-2">
+            <legend className="mb-2 text-xs text-text-secondary">Store this definition</legend>
+            {(['local', 'project'] as const).map((value) => (
+              <label
+                key={value}
+                className="flex min-h-11 items-center gap-3 rounded-lg border border-border px-3 text-sm"
+              >
+                <input
+                  type="radio"
+                  name={`${title}-storage`}
+                  checked={storage === value}
+                  onChange={() => setStorage(value)}
+                />
+                {value === 'local'
+                  ? 'Only on this machine, for this project'
+                  : 'In the project · .openwaggle/actions.json'}
+              </label>
+            ))}
+          </fieldset>
+        </fieldset>
         {error ? (
           <ActionDraftRecovery
             scope={props.scope}
@@ -115,11 +109,9 @@ export function PreparationEditor(props: {
           <Button disabled={mutation.isPending} onClick={props.onClose}>
             Cancel
           </Button>
-          {!choosing ? (
-            <Button variant="primary" disabled={mutation.isPending} onClick={() => void save()}>
-              Save {draft.phase}
-            </Button>
-          ) : null}
+          <Button variant="primary" disabled={mutation.isPending} onClick={() => void save()}>
+            Save {draft.phase}
+          </Button>
         </footer>
       </div>
     </ModalDialog>

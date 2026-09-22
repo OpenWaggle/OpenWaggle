@@ -25,6 +25,11 @@ describe('copied action commands', () => {
       ),
     ).toBe("& 'C:\\my tools\\pnpm.cmd' 'run' 'test''s $(name); next'")
   })
+  it('quotes leading equals signs that zsh otherwise expands into executable paths', () => {
+    expect(resolvedActionCommand({ ...invocation, args: ['run', '=echo'] }, 'MacIntel')).toBe(
+      "pnpm run '=echo'",
+    )
+  })
   it.each(['\u2018', '\u2019', '\u201a', '\u201b'])(
     'keeps PowerShell smart quote %s inside its literal',
     (quote) => {

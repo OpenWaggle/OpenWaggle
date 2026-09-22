@@ -1,25 +1,21 @@
 import { X } from 'lucide-react'
+import { projectName } from '@/shared/lib/format'
 import { Button } from '@/shared/ui/Button'
 export function ActionEditorHeading(props: {
   readonly id: string
-  readonly choosing: boolean
+  readonly projectPath: string
   readonly editing: boolean
   readonly busy: boolean
   readonly onClose: () => void
 }) {
   return (
     <header className="flex items-start justify-between gap-3 border-b border-border px-5 py-4">
-      <div>
-        <p className="mb-1 text-xs text-text-tertiary">
-          {props.choosing ? '1 of 2 · Choose a task' : '2 of 2 · Make it yours'}
-        </p>
+      <div className="min-w-0">
         <h2 id={props.id} className="text-base font-semibold">
-          {props.editing ? 'Edit action' : 'Add project action'}
+          {props.editing ? 'Edit action' : 'Add action'}
         </h2>
-        <p className="mt-1 text-xs text-text-tertiary">
-          {props.choosing
-            ? 'Start with a task your project already defines.'
-            : 'Run it from any session in this project.'}
+        <p className="mt-1 truncate text-xs text-text-tertiary" title={props.projectPath}>
+          {projectName(props.projectPath)}
         </p>
       </div>
       <Button

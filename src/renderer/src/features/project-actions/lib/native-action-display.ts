@@ -25,7 +25,11 @@ export function resolvedActionCommand(
   if (/Windows|Win32|Win64/i.test(platform))
     return `& ${words.map(quotePowerShellArgument).join(' ')}`
   return words
-    .map((word) => (/^[a-zA-Z0-9_./:@%+=,-]+$/.test(word) ? word : quotePosixShellArgument(word)))
+    .map((word) =>
+      /^[a-zA-Z0-9_./:@%+,-][a-zA-Z0-9_./:@%+=,-]*$/.test(word)
+        ? word
+        : quotePosixShellArgument(word),
+    )
     .join(' ')
 }
 export function actionRunLabel(run: ActionRun): string {

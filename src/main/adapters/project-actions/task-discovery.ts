@@ -1,4 +1,3 @@
-import { match } from '@diegogbrisa/ts-match'
 import { decodeUnknownOrThrow } from '@shared/schema'
 import { actionInvocationSchema } from '@shared/schemas/action-definitions'
 import {
@@ -8,6 +7,7 @@ import {
   type ProjectTaskReference,
   type ResolvedActionInvocation,
 } from '@shared/types/action-definitions'
+import { projectTaskArguments } from '@shared/utils/project-task-command'
 import { cargoAliasReader } from './cargo-alias-reader'
 import { hatchScriptReader } from './hatch-script-reader'
 import { packageScriptReader } from './package-script-reader'
@@ -65,15 +65,10 @@ export async function resolveActionInvocation(
     )
   if (task.runner === null)
     throw new Error(task.unavailableReason ?? 'The project task runner could not be determined.')
-  const args = match(reference.provider)
-    .with('package-script', () => ['run', reference.task])
-    .with('hatch-script', () => ['run', `${reference.environment ?? 'default'}:${reference.task}`])
-    .with('cargo-alias', () => [reference.task])
-    .exhaustive()
   return {
     type: 'executable',
     executable: task.runner,
-    args,
+    args: projectTaskArguments(reference),
     cwd: await resolveActionDirectory(workspace, reference.directory),
   }
 }

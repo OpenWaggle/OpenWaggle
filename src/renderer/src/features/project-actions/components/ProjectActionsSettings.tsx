@@ -6,10 +6,11 @@ import type {
 } from '@shared/types/action-definitions'
 import type { ActionManagementScope } from '@shared/types/action-management'
 import { isActiveActionRun } from '@shared/types/action-runs'
-import { Plus } from 'lucide-react'
+import { FolderOpen, Plus } from 'lucide-react'
 import { useState } from 'react'
-import { useProject } from '@/features/sessions/hooks'
+import { useResourceProject } from '@/features/settings'
 import { Button } from '@/shared/ui/Button'
+import { ProjectPicker } from '@/shared/ui/ProjectPicker'
 import { useActionAvailability } from '../hooks/useActionAvailability'
 import {
   useActionRuns,
@@ -23,7 +24,48 @@ import { PreparationSettings } from './PreparationSettings'
 import { RunningActionsLink } from './RunningActionsLink'
 
 export function ProjectActionsSettings() {
-  const { projectPath } = useProject()
+  const project = useResourceProject()
+  return (
+    <div className="w-full min-w-0 space-y-6">
+      <header className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h2 className="text-base font-semibold text-text-primary">Project actions</h2>
+          <p className="mt-2 text-sm text-text-tertiary">Save commands for each project.</p>
+        </div>
+        <ProjectPicker
+          resourceName="actions"
+          projects={project.projects}
+          selectedProject={project.projectPath}
+          displayNames={project.displayNames}
+          onSelect={project.setSelectedProject}
+          onOpenFolder={() => void project.openFolder()}
+          loadProjectsPage={project.loadProjectsPage}
+        />
+      </header>
+      {project.folderError ? (
+        <p role="alert" className="text-sm text-error-text">
+          {project.folderError}
+        </p>
+      ) : null}
+      {project.projectPath ? (
+        <ProjectActionDefinitions key={project.projectPath} projectPath={project.projectPath} />
+      ) : (
+        <section className="space-y-3 rounded-xl border border-border p-6">
+          <h3 className="text-sm font-medium">Choose a project to manage its actions</h3>
+          <p className="text-sm text-text-tertiary">
+            Choose a project above or open a project folder.
+          </p>
+          <Button variant="primary" onClick={() => void project.openFolder()}>
+            <FolderOpen className="size-4" />
+            Open project folder
+          </Button>
+        </section>
+      )}
+    </div>
+  )
+}
+
+function ProjectActionDefinitions({ projectPath }: { readonly projectPath: string }) {
   const scope = useActionScope(projectPath)
   const catalog = useNativeActions(scope)
   const runs = useActionRuns(scope)
@@ -43,23 +85,13 @@ export function ProjectActionsSettings() {
       setError(cause instanceof Error ? cause.message : 'Could not update actions.')
     }
   }
-  if (!scope)
-    return (
-      <div>
-        <h2 className="text-base font-semibold">Project actions</h2>
-        <p className="mt-2 text-sm text-text-tertiary">Open a project to manage its actions.</p>
-      </div>
-    )
+  if (!scope) return null
   return (
-    <div className="max-w-3xl space-y-6">
-      <header className="flex items-start justify-between gap-4">
-        <div>
-          <h2 className="text-base font-semibold text-text-primary">Project actions</h2>
-          <p className="mt-2 max-w-lg text-sm leading-6 text-text-tertiary">
-            Commands for this project, ready to run from any session. Keep them private or choose
-            which ones to share.
-          </p>
-        </div>
+    <div className="space-y-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h3 className="text-sm font-medium text-text-primary">
+          Saved actions {catalog.data ? `(${catalog.data.actions.length})` : ''}
+        </h3>
         <Button
           variant="primary"
           className="min-h-9"
@@ -69,7 +101,7 @@ export function ProjectActionsSettings() {
           <Plus className="size-4" />
           Add action
         </Button>
-      </header>
+      </div>
       <RunningActionsLink scope={scope} runs={running} />
       {catalog.error || error ? (
         <p role="alert" className="text-sm text-error-text">
@@ -125,12 +157,12 @@ function SavedProjectActions({
     <section aria-label="Saved actions" className="overflow-hidden rounded-xl border border-border">
       {loading ? <p className="p-5 text-sm text-text-tertiary">Loading actions…</p> : null}
       {catalog?.actions.length === 0 ? (
-        <div className="space-y-3 p-8 text-center">
+        <div className="space-y-3 p-6">
           <p className="text-sm text-text-secondary">
-            Your project’s everyday commands, one click away.
+            No saved actions yet. Add a command you use in this project.
           </p>
           <Button variant="secondary" onClick={() => onEdit(null)}>
-            Choose a project task
+            Add your first action
           </Button>
         </div>
       ) : null}
@@ -161,7 +193,6 @@ function SettingsActionEditor({
 }) {
   return (
     <>
-      {' '}
       {editor !== undefined && catalog ? (
         <NativeActionEditor
           key={`${scope.projectPath}:${scope.sessionId ?? ''}:${editor?.definition.id ?? 'new'}`}

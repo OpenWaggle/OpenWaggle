@@ -1,3 +1,4 @@
+import { useRouterState } from '@tanstack/react-router'
 import { lazy, type ReactNode, Suspense } from 'react'
 import {
   useBackgroundRunMonitor,
@@ -53,13 +54,16 @@ export function WorkspaceShell({ children }: WorkspaceShellProps) {
   useDesktopNativeAdmissionNotice()
   const feedbackModalOpen = useUIStore((s) => s.feedbackModalOpen)
   const commandSurface = useUIStore((s) => s.commandSurface)
+  const settingsOpen = useRouterState({
+    select: (state) => /^\/settings(?:\/|$)/.test(state.location.pathname),
+  })
 
   return (
     <div className="flex size-full overflow-hidden bg-bg">
       <Sidebar />
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        <Header />
+        {!settingsOpen && <Header />}
         <WorkspaceRightPanel>
           <div className="relative flex size-full min-h-0 min-w-0 flex-col overflow-hidden">
             {children}

@@ -44,7 +44,7 @@ export function SettingsPage({ activeTab }: SettingsPageProps) {
   }
 
   return (
-    <div className="flex size-full flex-col bg-bg">
+    <div className="@container/settings flex size-full flex-col bg-bg">
       {/* Header */}
       <div
         className={cn(
@@ -65,7 +65,7 @@ export function SettingsPage({ activeTab }: SettingsPageProps) {
       </div>
 
       {/* Body: Nav + Content */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden @min-[640px]/settings:flex-row">
         <SettingsNav activeTab={activeTab} />
 
         {/* Content area — fills available width */}
@@ -74,7 +74,7 @@ export function SettingsPage({ activeTab }: SettingsPageProps) {
             'min-w-0 flex-1',
             activeTab === 'skills' || activeTab === 'agents'
               ? 'overflow-hidden'
-              : 'overflow-y-auto px-10 py-8',
+              : 'overflow-y-auto px-4 py-5 @min-[640px]/settings:px-10 @min-[640px]/settings:py-8',
           )}
         >
           <SettingsTabContent
