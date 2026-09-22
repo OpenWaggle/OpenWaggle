@@ -1,6 +1,6 @@
+import { homedir } from 'node:os'
 import path from 'node:path'
 import type {
-  McpRuntimeNotice,
   McpServerDefinition,
   McpServerPermissionGrant,
   McpServerSummary,
@@ -19,6 +19,7 @@ import {
   createMcpServerIdentityKey,
   hashMcpServerDefinition,
 } from './config-identity'
+import { buildNotices } from './config-notices'
 import type {
   LoadedMcpSource,
   McpServerUserState,
@@ -106,14 +107,49 @@ function normalizedRoots(roots: readonly string[]) {
   ].sort()
 }
 
+/** Commands that fetch their real payload from a package registry at launch. */
+const PACKAGE_RUNNER_COMMANDS = new Set(['npx', 'pnpm', 'pnpx', 'yarn', 'bunx', 'uvx', 'uv'])
+const PACKAGE_CACHE_READ_ROOTS = [
+  '~/.npm',
+  '~/Library/Caches/pnpm',
+  '~/.cache/uv',
+  '~/.bun/install/cache',
+]
+const TILDE_PREFIX_LENGTH = 2
+
+export function isCatalogServer(definition: McpServerDefinition) {
+  return definition.provenance?.source === 'catalog'
+}
+
+/**
+ * Grants derived from the definition (ADR-0035). Package runners and remote
+ * endpoints are useless without network, so they derive network and
+ * package-cache access; a plain local command keeps the minimal profile.
+ */
 export function requestedServerPermissions(
   definition: McpServerDefinition,
 ): McpServerPermissionGrant {
-  const readRoots = [definition.cwd ?? '.', ...(definition.security?.readRoots ?? [])]
+  const isRemote = typeof definition.url === 'string' && definition.url.trim().length > 0
+  const command = (definition.command ?? '').toLowerCase()
+  const commandBase = path.basename(command)
+  const isPackageRunner =
+    PACKAGE_RUNNER_COMMANDS.has(command) || PACKAGE_RUNNER_COMMANDS.has(commandBase)
+  const isNetworked = isRemote || isPackageRunner || definition.security?.allowNetwork === true
+  const cacheRoots = isPackageRunner
+    ? PACKAGE_CACHE_READ_ROOTS.map((root) =>
+        root.startsWith('~/') ? path.join(homedir(), root.slice(TILDE_PREFIX_LENGTH)) : root,
+      )
+    : []
   return {
-    readRoots: normalizedRoots(readRoots),
-    writeRoots: normalizedRoots(definition.security?.writeRoots ?? []),
-    allowNetwork: definition.security?.allowNetwork === true,
+    readRoots: normalizedRoots([
+      definition.cwd ?? '.',
+      ...cacheRoots,
+      ...(definition.security?.readRoots ?? []),
+    ]),
+    // Package runners write their download cache on first run; without write
+    // access `npx …@latest` cannot install and the server never starts.
+    writeRoots: normalizedRoots([...cacheRoots, ...(definition.security?.writeRoots ?? [])]),
+    allowNetwork: isNetworked,
   }
 }
 
@@ -127,21 +163,9 @@ export function normalizeServerPermissions(
   }
 }
 
-export function serverPermissionsMatch(
-  left: McpServerPermissionGrant | undefined,
-  right: McpServerPermissionGrant,
-) {
-  if (!left) return false
-  return JSON.stringify(normalizeServerPermissions(left)) === JSON.stringify(right)
-}
-
-function trustState(server: ResolvedMcpServer): McpServerSummary['trusted'] {
-  const requestedPermissions = requestedServerPermissions(server.definition)
-  if (
-    server.state.trustedConfigHash === server.configHash &&
-    serverPermissionsMatch(server.state.permissions, requestedPermissions)
-  )
-    return 'trusted'
+export function trustState(server: ResolvedMcpServer): McpServerSummary['trusted'] {
+  if (isCatalogServer(server.definition)) return 'trusted'
+  if (server.state.trustedConfigHash === server.configHash) return 'trusted'
   return server.state.trustedConfigHash ? 'invalidated' : 'untrusted'
 }
 
@@ -151,8 +175,6 @@ export function blockedReason(
 ): string | undefined {
   if (server.issues.length > 0) return server.issues.join(' ')
   const trust = trustState(server)
-  if (trust === 'invalidated')
-    return 'Trust was invalidated because the server configuration changed.'
   if (!server.state.enabled) return 'Server is disabled.'
   if (trust === 'untrusted') return 'Server has not been trusted.'
   if (effectiveState === 'off') return 'MCP is off for this scope.'
@@ -165,13 +187,15 @@ function buildServerSummary(
   projectEnabled: boolean,
 ): McpServerSummary {
   const blocked = blockedReason(server, effectiveState)
-  const requestedPermissions = requestedServerPermissions(server.definition)
+  const invalidated = trustState(server) === 'invalidated'
   return {
     instanceId: server.state.instanceId,
     name: server.name,
     enabled: server.state.enabled,
     projectEnabled,
     trusted: trustState(server),
+    ...(invalidated ? { trustChanged: true as const } : {}),
+    ...(server.state.allowUnsandboxed === true ? { allowUnsandboxed: true as const } : {}),
     required: server.definition.required === true,
     sourceId: server.source.definition.id,
     sourceLabel: server.source.definition.label,
@@ -183,51 +207,11 @@ function buildServerSummary(
     compatibility: resolveMcpCompatibilityProfile(server.definition),
     directTools: resolveMcpDirectToolsMode(server.definition),
     auth: server.definition.auth?.type === 'oauth' ? 'oauth' : 'none',
-    requestedPermissions,
-    ...(server.state.permissions
-      ? { grantedPermissions: normalizeServerPermissions(server.state.permissions) }
-      : {}),
+    requestedPermissions: requestedServerPermissions(server.definition),
     connectionState: blocked ? 'blocked' : 'disconnected',
     capabilities: [],
     ...(blocked ? { blockedReason: blocked } : {}),
   }
-}
-
-function buildNotices(context: LoadedMcpContext, effectiveState: 'on' | 'off') {
-  const notices: McpRuntimeNotice[] = []
-  for (const source of context.sources) {
-    if (source.parseError) {
-      notices.push({
-        id: `source:${source.definition.id}:parse`,
-        severity: 'error',
-        title: `${source.definition.label} is invalid`,
-        detail: source.parseError,
-        action: 'Fix the JSON before enabling MCP for this scope.',
-      })
-    }
-    if (source.ignoredFields.length > 0) {
-      notices.push({
-        id: `source:${source.definition.id}:ignored`,
-        severity: 'warning',
-        title: `${source.definition.label} contains ignored fields`,
-        detail: source.ignoredFields.join(', '),
-        action: 'Review the fields; OpenWaggle preserves them but does not apply them.',
-      })
-    }
-  }
-  for (const server of context.servers) {
-    const blocked = blockedReason(server, effectiveState)
-    if (!blocked || (!server.state.enabled && !server.definition.required)) continue
-    notices.push({
-      id: `server:${server.state.instanceId}:blocked`,
-      severity: server.definition.required ? 'error' : 'warning',
-      title: `${server.name} cannot start`,
-      detail: blocked,
-      action: 'Review enablement, trust, configuration, credentials, and sandbox grants.',
-      serverInstanceId: server.state.instanceId,
-    })
-  }
-  return notices
 }
 
 export function buildMcpSettingsView(input: {
@@ -244,7 +228,6 @@ export function buildMcpSettingsView(input: {
   const eligible = input.context.servers.filter(
     (server) =>
       server.state.enabled &&
-      trustState(server) === 'trusted' &&
       server.issues.length === 0 &&
       // Match the turn-snapshot gate so a per-project muted server doesn't leave
       // desired/applied revisions diverging (stuck "applying") for that project.

@@ -4,6 +4,7 @@ import {
   applyMcpImportsOperation,
   doctorMcpOperation,
   getMcpSettingsOperation,
+  installCatalogServerOperation,
   listMcpSecretsOperation,
   logoutMcpServerOperation,
   previewMcpImportsOperation,
@@ -42,6 +43,9 @@ function registerMcpDiscoveryHandlers() {
   hostHandle('mcp:add-server', (_event, raw: unknown) => addMcpServerOperation(raw))
   hostHandle('mcp:preview-imports', (_event, raw: unknown) => previewMcpImportsOperation(raw))
   hostHandle('mcp:apply-imports', (_event, raw: unknown) => applyMcpImportsOperation(raw))
+  hostHandle('mcp:install-catalog-server', (_event, raw: unknown) =>
+    installCatalogServerOperation(raw),
+  )
   hostHandle('mcp:doctor', (_event, raw = {}) => doctorMcpOperation(raw))
 }
 

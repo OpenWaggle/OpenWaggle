@@ -167,7 +167,6 @@ async function runNamedServerCommand(
       ...context,
       instanceId: server.instanceId,
       trusted: true,
-      permissions: server.requestedPermissions,
       ...(hasFlag(args, 'allow-unsandboxed') ? { allowUnsandboxed: true } : {}),
     })
   }

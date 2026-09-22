@@ -100,8 +100,9 @@ describe('first-party MCP configuration management', () => {
     ])
     expect(result.view.servers[0]).toMatchObject({
       name: 'docs',
-      enabled: false,
-      trusted: 'untrusted',
+      // ADR-0035: applying an import enables and trusts it in one action.
+      enabled: true,
+      trusted: 'trusted',
     })
     const stored = await readFile(path.join(projectPath, '.openwaggle', 'mcp.json'), 'utf8')
     expect(stored).toContain('DOCS_AUTHORIZATION')
@@ -176,5 +177,54 @@ describe('first-party MCP configuration management', () => {
       await readFile(path.join(projectPath, '.openwaggle', 'mcp.json'), 'utf8'),
     )
     expect(stored.mcpServers.figma.env.FIGMA_API_KEY).toEqual({ secret: 'FIGMA_API_KEY' })
+  })
+
+  it('derives network and package-cache grants for package-runner servers', async () => {
+    const { projectPath, service } = await createFixture()
+    await writeJson(path.join(projectPath, '.mcp.json'), {
+      mcpServers: {
+        browser: { command: 'npx', args: ['@playwright/mcp@latest'] },
+        remote: { url: 'https://mcp.example.com/mcp' },
+        local: { command: 'docs-mcp' },
+      },
+    })
+    await service.setScopeState({ scope: 'project', state: 'on', projectPath })
+    const view = await service.getView({ projectPath })
+    const byName = new Map(view.servers.map((server) => [server.name, server]))
+
+    const browser = byName.get('browser')
+    expect(browser?.requestedPermissions.allowNetwork).toBe(true)
+    expect(browser?.requestedPermissions.readRoots.join(',')).toContain('.npm')
+    expect(browser?.requestedPermissions.writeRoots.join(',')).toContain('.npm')
+
+    expect(byName.get('remote')?.requestedPermissions.allowNetwork).toBe(true)
+    expect(byName.get('local')?.requestedPermissions).toMatchObject({
+      allowNetwork: false,
+    })
+  })
+
+  it('installs a catalog server in one step: definition, enable, trust, activation', async () => {
+    const { projectPath, service } = await createFixture()
+
+    const view = await service.installCatalogServer({ name: 'playwright', projectPath })
+
+    const installed = view.servers.find((server) => server.name === 'playwright')
+    expect(installed).toMatchObject({
+      enabled: true,
+      trusted: 'trusted',
+      sourceId: 'global-openwaggle',
+    })
+    expect(view.integration.desired.effective).toBe('on')
+    const stored = JSON.parse(
+      await readFile(path.join(projectPath, '..', '.openwaggle', 'mcp.json'), 'utf8'),
+    )
+    expect(stored.mcpServers.playwright.provenance.source).toBe('catalog')
+
+    // Installing twice keeps a single definition.
+    const again = await service.installCatalogServer({ name: 'playwright', projectPath })
+    expect(again.servers.filter((server) => server.name === 'playwright')).toHaveLength(1)
+
+    const snapshot = await service.createTurnSnapshot({ projectPath, sessionId: 's-cat' })
+    expect(snapshot?.servers.map((server) => server.name)).toEqual(['playwright'])
   })
 })

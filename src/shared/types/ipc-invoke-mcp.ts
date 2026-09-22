@@ -15,6 +15,7 @@ import type {
   McpImportApplyResult,
   McpImportPreview,
   McpImportPreviewInput,
+  McpInstallCatalogServerInput,
   McpListCapabilitiesInput,
   McpPromptResult,
   McpReadResourceInput,
@@ -70,6 +71,10 @@ export interface IpcMcpInvokeChannelMap {
   'mcp:add-server': { args: [input: McpAddServerInput]; return: McpSettingsView }
   'mcp:preview-imports': { args: [input: McpImportPreviewInput]; return: McpImportPreview }
   'mcp:apply-imports': { args: [input: McpImportApplyInput]; return: McpImportApplyResult }
+  'mcp:install-catalog-server': {
+    args: [input: McpInstallCatalogServerInput]
+    return: McpSettingsView
+  }
   'mcp:doctor': { args: [input?: McpDoctorInput]; return: McpDoctorResult }
   'mcp:list-secrets': { args: []; return: readonly McpSecretSummary[] }
   'mcp:set-secret': { args: [input: McpSetSecretInput]; return: readonly McpSecretSummary[] }

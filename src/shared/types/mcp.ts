@@ -87,7 +87,7 @@ export type McpServerClientCapabilitiesConfig = McpConfigObject & {
 }
 
 export type McpServerProvenance = McpConfigObject & {
-  readonly source: McpImportSource | 'registry' | 'manual'
+  readonly source: McpImportSource | 'registry' | 'manual' | 'catalog'
   readonly sourcePath?: string
   readonly fingerprint?: string
   readonly importedAt?: string
@@ -198,6 +198,10 @@ export interface McpServerSummary {
   /** Whether this server is enabled for the project the view was built for. Default true; false when muted per-project. */
   readonly projectEnabled: boolean
   readonly trusted: McpTrustState
+  /** True when the config changed since the stored approval; reconnects with derived grants, shown as a notice (ADR-0035). */
+  readonly trustChanged?: boolean
+  /** Escape hatch: process runs outside the OS sandbox (ADR-0014/0035). */
+  readonly allowUnsandboxed?: boolean
   readonly required: boolean
   readonly sourceId: McpConfigSourceId
   readonly sourceLabel: string
@@ -211,8 +215,6 @@ export interface McpServerSummary {
   readonly auth: 'none' | 'oauth'
   /** Permissions requested by the current config and shown before trust. */
   readonly requestedPermissions: McpServerPermissionGrant
-  /** Permissions approved for the trusted config hash, if any. */
-  readonly grantedPermissions?: McpServerPermissionGrant
   readonly connectionState: McpServerConnectionState
   readonly negotiatedProtocolVersion?: string
   readonly capabilities: readonly McpCapabilityFamily[]
@@ -264,7 +266,10 @@ export interface McpSetServerTrustInput extends McpGetSettingsInput {
   readonly instanceId: string
   readonly trusted: boolean
   readonly allowUnsandboxed?: boolean
-  readonly permissions?: McpServerPermissionGrant
+}
+
+export interface McpInstallCatalogServerInput extends McpGetSettingsInput {
+  readonly name: string
 }
 
 export interface McpWriteSourceConfigInput {

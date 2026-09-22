@@ -19,6 +19,7 @@ export function createFilesystemMcpConfigService(options: McpFilesystemConfigSer
     addServer: mutations.addServer.bind(mutations),
     previewImports: mutations.previewImports.bind(mutations),
     applyImports: mutations.applyImports.bind(mutations),
+    installCatalogServer: mutations.installCatalogServer.bind(mutations),
   }
 }
 

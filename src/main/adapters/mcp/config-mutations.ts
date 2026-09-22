@@ -1,14 +1,22 @@
+import { MCP_CATALOG_SERVERS } from '@shared/constants/mcp'
 import type {
   McpAddServerInput,
   McpImportApplyInput,
   McpImportApplyResult,
   McpImportPreviewInput,
+  McpInstallCatalogServerInput,
   McpRemoveServerInput,
   McpServerDefinition,
 } from '@shared/types/mcp'
 import { validateMcpServerDefinition } from '../../domain/mcp/server-policy'
 import type { McpConfigContextStore } from './config-context-store'
-import { normalizeProjectPath, serverByInstanceId, withoutServerState } from './config-view'
+import { createMcpServerIdentityKey, hashMcpServerDefinition } from './config-identity'
+import {
+  normalizeProjectPath,
+  serverByInstanceId,
+  updateServerState,
+  withoutServerState,
+} from './config-view'
 import { previewMcpImports } from './import-adapters'
 import { writeJsonFileAtomic } from './json-files'
 import { getMcpSourceDefinition } from './source-definitions'
@@ -89,6 +97,50 @@ export class McpConfigMutations {
         projectPath: target.normalizedProjectPath,
         sessionId: input.sessionId,
       })
+    })
+  }
+
+  /**
+   * One-click catalog install (ADR-0035): writes the curated definition into
+   * the global OpenWaggle config, enables and trusts it, and turns MCP on
+   * globally if it was off — no separate approval steps.
+   */
+  async installCatalogServer(input: McpInstallCatalogServerInput) {
+    return this.store.runSerialized(async () => {
+      const entry = MCP_CATALOG_SERVERS.find((candidate) => candidate.name === input.name)
+      if (!entry) throw new Error(`Unknown catalog server "${input.name}".`)
+      const target = await this.loadTargetConfigUnlocked('global', input.projectPath)
+      const existing = target.config.mcpServers ?? target.config.servers ?? {}
+      if (!existing[input.name]) {
+        await this.writeTargetServers(target, {
+          ...existing,
+          [input.name]: {
+            ...entry.definition,
+            provenance: {
+              source: 'catalog',
+              importedAt: new Date().toISOString(),
+            },
+          },
+        })
+      }
+      const context = await this.store.loadContextUnlocked({
+        projectPath: normalizeProjectPath(input.projectPath),
+      })
+      const server = context.servers.find(
+        (candidate) =>
+          candidate.name === input.name && candidate.source.definition.id === 'global-openwaggle',
+      )
+      let state = context.state
+      if (server) {
+        state = updateServerState(state, server.identityKey, {
+          ...server.state,
+          enabled: true,
+          trustedConfigHash: server.configHash,
+        })
+      }
+      if (state.globalState !== 'on') state = { ...state, globalState: 'on' }
+      await this.store.persistStateUnlocked(state)
+      return this.store.getViewUnlocked(input)
     })
   }
 
@@ -175,7 +227,26 @@ export class McpConfigMutations {
           fingerprint: candidate.fingerprint,
         })
       }
-      if (imported.length > 0) await this.writeTargetServers(target, servers)
+      if (imported.length > 0) {
+        await this.writeTargetServers(target, servers)
+        // Imports apply enabled and trusted (ADR-0035): the user explicitly
+        // selected these definitions, so one action finishes the job.
+        const context = await this.store.loadContextUnlocked({
+          projectPath: target.normalizedProjectPath,
+        })
+        let state = context.state
+        for (const record of imported) {
+          const identityKey = createMcpServerIdentityKey(target.definition.path, record.targetName)
+          const server = context.servers.find((candidate) => candidate.identityKey === identityKey)
+          if (!server) continue
+          state = updateServerState(state, identityKey, {
+            ...server.state,
+            enabled: true,
+            trustedConfigHash: hashMcpServerDefinition(server.definition),
+          })
+        }
+        await this.store.persistStateUnlocked(state)
+      }
       return {
         imported,
         skipped,

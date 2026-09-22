@@ -22,6 +22,7 @@ import {
   applyMcpImportsOperation,
   doctorMcpOperation,
   getMcpSettingsOperation,
+  installCatalogServerOperation,
   listMcpSecretsOperation,
   logoutMcpServerOperation,
   logoutMcpServerRevision6Operation,
@@ -90,6 +91,7 @@ export function dispatchMcpHostUiOperation(
     .with('mcp:add-server', () => oneInput(args, addMcpServerOperation))
     .with('mcp:preview-imports', () => oneInput(args, previewMcpImportsOperation))
     .with('mcp:apply-imports', () => oneInput(args, applyMcpImportsOperation))
+    .with('mcp:install-catalog-server', () => oneInput(args, installCatalogServerOperation))
     .with('mcp:doctor', () => optionalInput(args, doctorMcpOperation))
     .with('mcp:list-secrets', () => noInput(args, listMcpSecretsOperation))
     .with('mcp:set-secret', () => oneInput(args, setMcpSecretOperation))

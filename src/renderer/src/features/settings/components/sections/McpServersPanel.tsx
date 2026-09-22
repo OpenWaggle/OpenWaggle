@@ -1,88 +1,45 @@
-import type { McpServerPermissionGrant, McpServerSummary } from '@shared/types/mcp'
+import type { McpServerSummary } from '@shared/types/mcp'
 import { ShieldAlert, ShieldCheck, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { Button } from '@/shared/ui/Button'
 import { ToggleSwitch } from '@/shared/ui/ToggleSwitch'
 import { formatServerDetail, StatusPill, titleCase } from './McpSectionPanelPrimitives'
 
-function TrustControls({
+function UnsandboxedControl({
   server,
   busy,
   onTrust,
 }: {
   readonly server: McpServerSummary
   readonly busy: boolean
-  readonly onTrust: (
-    trusted: boolean,
-    allowUnsandboxed?: boolean,
-    permissions?: McpServerPermissionGrant,
-  ) => void
+  readonly onTrust: (trusted: boolean, allowUnsandboxed?: boolean) => void
 }) {
-  const [reviewMode, setReviewMode] = useState<'sandboxed' | 'unsandboxed' | null>(null)
-  if (server.trusted === 'trusted') {
+  // Escape hatch for platforms without a usable OS sandbox (ADR-0014/0035);
+  // reversible so users can return to sandboxed execution.
+  if (server.transport !== 'stdio') return null
+  if (server.allowUnsandboxed) {
     return (
-      <Button variant="ghost" size="xs" disabled={busy} onClick={() => onTrust(false)}>
-        Revoke trust
+      <Button
+        variant="ghost"
+        size="xs"
+        disabled={busy}
+        title="Run this server inside the OS sandbox again"
+        onClick={() => onTrust(true, false)}
+      >
+        Return to sandbox
       </Button>
-    )
-  }
-  if (reviewMode) {
-    const { readRoots, writeRoots, allowNetwork } = server.requestedPermissions
-    return (
-      <div className="max-w-xl space-y-2 rounded-md border border-warning/30 bg-warning/5 p-2.5 text-xs text-text-secondary">
-        <p className="font-medium text-warning">
-          Approve these permissions for this exact configuration
-        </p>
-        <dl className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-1">
-          <dt>Read</dt>
-          <dd>{readRoots.length > 0 ? readRoots.join(', ') : 'No project paths'}</dd>
-          <dt>Write</dt>
-          <dd>{writeRoots.length > 0 ? writeRoots.join(', ') : 'Isolated temporary space only'}</dd>
-          <dt>Network</dt>
-          <dd>{allowNetwork ? 'Outbound access requested' : 'Denied'}</dd>
-          <dt>Sandbox</dt>
-          <dd>
-            {reviewMode === 'unsandboxed'
-              ? 'Disabled — the process receives host user authority'
-              : 'Required'}
-          </dd>
-        </dl>
-        <p className="leading-4 text-text-tertiary">
-          Config changes revoke this approval. Server output and MCP content remain untrusted.
-        </p>
-        <div className="flex gap-1.5">
-          <Button
-            variant={reviewMode === 'unsandboxed' ? 'danger' : 'accent'}
-            size="xs"
-            disabled={busy}
-            onClick={() => onTrust(true, reviewMode === 'unsandboxed', server.requestedPermissions)}
-          >
-            Approve permissions and trust
-          </Button>
-          <Button variant="ghost" size="xs" onClick={() => setReviewMode(null)}>
-            Cancel
-          </Button>
-        </div>
-      </div>
     )
   }
   return (
-    <div className="flex items-center gap-1.5">
-      <Button variant="accent" size="xs" disabled={busy} onClick={() => setReviewMode('sandboxed')}>
-        Review & trust
-      </Button>
-      {server.transport === 'stdio' && (
-        <Button
-          variant="secondary"
-          size="xs"
-          disabled={busy}
-          title="Only use when this platform cannot provide process sandboxing"
-          onClick={() => setReviewMode('unsandboxed')}
-        >
-          Trust unsandboxed
-        </Button>
-      )}
-    </div>
+    <Button
+      variant="ghost"
+      size="xs"
+      disabled={busy}
+      title="Only use when this platform cannot provide process sandboxing"
+      onClick={() => onTrust(true, true)}
+    >
+      Run unsandboxed
+    </Button>
   )
 }
 
@@ -109,6 +66,7 @@ function ServerBadges({ server }: { readonly server: McpServerSummary }) {
         {isLegacy ? 'Legacy compatibility' : titleCase(server.compatibility)}
       </StatusPill>
       {server.required && <StatusPill tone="error">Required</StatusPill>}
+      {server.trustChanged && <StatusPill tone="warning">Config changed</StatusPill>}
       {server.auth === 'oauth' && <StatusPill tone="accent">OAuth</StatusPill>}
     </div>
   )
@@ -162,11 +120,7 @@ function ServerRow({
   readonly server: McpServerSummary
   readonly busy: boolean
   readonly onToggle: () => void
-  readonly onTrust: (
-    trusted: boolean,
-    allowUnsandboxed?: boolean,
-    permissions?: McpServerPermissionGrant,
-  ) => void
+  readonly onTrust: (trusted: boolean, allowUnsandboxed?: boolean) => void
   readonly onRemove: () => void
   readonly onAuthorize: () => void
   readonly onLogout: () => void
@@ -201,7 +155,7 @@ function ServerRow({
       </div>
       <div className="mt-3 flex items-center justify-between border-t border-border/70 pt-2.5">
         <div className="flex items-center gap-1.5">
-          <TrustControls server={server} busy={busy} onTrust={onTrust} />
+          <UnsandboxedControl server={server} busy={busy} onTrust={onTrust} />
           {server.auth === 'oauth' && (
             <>
               <Button variant="secondary" size="xs" disabled={busy} onClick={onAuthorize}>
@@ -235,7 +189,6 @@ export function McpServersPanel({
     server: McpServerSummary,
     trusted: boolean,
     allowUnsandboxed?: boolean,
-    permissions?: McpServerPermissionGrant,
   ) => void
   readonly onRemoveServer: (server: McpServerSummary) => void
   readonly onAuthorizeServer: (server: McpServerSummary) => void
@@ -248,8 +201,8 @@ export function McpServersPanel({
           Servers
         </h3>
         <p className="mt-1 text-xs text-text-tertiary">
-          Enablement controls selection. Trust authorizes the exact configuration hash; edits revoke
-          that trust automatically.
+          Enabling a server trusts its current configuration and connects it with derived grants
+          (network for package-runner and remote servers). Config changes reconnect automatically.
         </p>
       </div>
       <div className="overflow-hidden rounded-lg border border-border bg-bg">
@@ -260,8 +213,8 @@ export function McpServersPanel({
               server={server}
               busy={busy}
               onToggle={() => onToggleServer(server)}
-              onTrust={(trusted, allowUnsandboxed, permissions) =>
-                onTrustServer(server, trusted, allowUnsandboxed, permissions)
+              onTrust={(trusted, allowUnsandboxed) =>
+                onTrustServer(server, trusted, allowUnsandboxed)
               }
               onRemove={() => onRemoveServer(server)}
               onAuthorize={() => onAuthorizeServer(server)}

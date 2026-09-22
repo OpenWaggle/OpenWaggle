@@ -26,6 +26,18 @@ const KNOWN_SERVER_FIELDS = new Set([
 
 const SECRET_NAME_PATTERN = /(api[-_]?key|token|secret|password|credential|authorization|cookie)/i
 
+/** Keys whose value is a plaintext string that looks like a credential. */
+function findPlaintextCredentialKeys(
+  values: Readonly<Record<string, string | { readonly secret: string }>> | undefined,
+) {
+  if (!values) return []
+  const credentialKeys: string[] = []
+  for (const [name, value] of Object.entries(values)) {
+    if (typeof value === 'string' && SECRET_NAME_PATTERN.test(name)) credentialKeys.push(name)
+  }
+  return credentialKeys
+}
+
 function isLoopbackHostname(hostname: string) {
   return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1'
 }
@@ -59,15 +71,15 @@ export function resolveMcpDirectToolsMode(definition: McpServerDefinition): McpD
   return 'inherited'
 }
 
-function findPlaintextCredentialKeys(
-  values: Readonly<Record<string, string | { readonly secret: string }>> | undefined,
-) {
-  if (!values) return []
-  const credentialKeys: string[] = []
-  for (const [name, value] of Object.entries(values)) {
-    if (typeof value === 'string' && SECRET_NAME_PATTERN.test(name)) credentialKeys.push(name)
-  }
-  return credentialKeys
+/**
+ * Plaintext secret-like env/header keys. Allowed (ADR-0035) — surfaced as a
+ * notice so users know a vault reference is available, never a blocker.
+ */
+export function plaintextSecretLikeKeys(definition: McpServerDefinition): string[] {
+  return [
+    ...findPlaintextCredentialKeys(definition.env).map((key) => `env.${key}`),
+    ...findPlaintextCredentialKeys(definition.headers).map((key) => `headers.${key}`),
+  ]
 }
 
 /** Keys whose value is a secret reference object (`{ secret: "NAME" }`). */
@@ -141,21 +153,6 @@ function validateProtocolPolicy(definition: McpServerDefinition, issues: string[
   }
 }
 
-function validateCredentialPolicy(definition: McpServerDefinition, issues: string[]) {
-  const plaintextEnv = findPlaintextCredentialKeys(definition.env)
-  if (plaintextEnv.length > 0) {
-    issues.push(
-      `Plaintext secret-like environment values require secret references: ${plaintextEnv.join(', ')}.`,
-    )
-  }
-  const plaintextHeaders = findPlaintextCredentialKeys(definition.headers)
-  if (plaintextHeaders.length > 0) {
-    issues.push(
-      `Plaintext secret-like headers require secret references: ${plaintextHeaders.join(', ')}.`,
-    )
-  }
-}
-
 export function validateMcpServerDefinition(input: {
   readonly definition: McpServerDefinition
   readonly sourceScope: 'global' | 'project'
@@ -172,6 +169,5 @@ export function validateMcpServerDefinition(input: {
   validateRemoteEndpoint(definition, hasUrl, issues)
   validateOAuthPolicy(definition, hasUrl, issues)
   validateProtocolPolicy(definition, issues)
-  validateCredentialPolicy(definition, issues)
   return issues
 }
