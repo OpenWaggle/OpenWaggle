@@ -83,8 +83,8 @@ describe('Pi run orchestration', () => {
         extensionFactories: expect.any(Array),
       }),
     )
-    // One listener projects Pi events; the other tracks durable Follow-up delivery.
-    expect(session.subscribe).toHaveBeenCalledTimes(2)
+    // Event projection, durable Follow-up tracking, and user display projection each subscribe.
+    expect(session.subscribe).toHaveBeenCalledTimes(3)
     expect(session.prompt).toHaveBeenCalledWith('Run tests', undefined)
     expect(session.agent.waitForIdle).toHaveBeenCalled()
     expect(session.agent.hasQueuedMessages).toHaveBeenCalled()
@@ -174,13 +174,12 @@ describe('Pi run orchestration', () => {
       1,
       expect.objectContaining({
         customType: 'pi-waggle.user-request',
-        content: expect.arrayContaining([
-          expect.objectContaining({
-            type: 'text',
-            text: expect.stringContaining('Important notes for every Waggle turn'),
+        content: 'Review attached context',
+        details: expect.objectContaining({
+          userInput: expect.objectContaining({
+            parts: expect.arrayContaining([expect.objectContaining({ type: 'attachment' })]),
           }),
-          expect.objectContaining({ type: 'image', data: 'base64-image', mimeType: 'image/png' }),
-        ]),
+        }),
       }),
       { triggerTurn: false },
     )

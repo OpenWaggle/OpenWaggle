@@ -15,6 +15,7 @@ import {
   mcpGetSettingsSchema,
   mcpImportApplySchema,
   mcpImportPreviewSchema,
+  mcpInstallCatalogServerSchema,
   mcpRemoveSecretSchema,
   mcpRemoveServerSchema,
   mcpSetProjectServerEnabledSchema,
@@ -132,6 +133,23 @@ export function addMcpServerOperation(raw: unknown) {
     return yield* Effect.uninterruptible(
       withMcpManagementWrite(
         service.addServer(input).pipe(Effect.flatMap(reconcileMcpRuntimeSettings)),
+      ),
+    )
+  })
+}
+
+export function installCatalogServerOperation(raw: unknown) {
+  return Effect.gen(function* () {
+    const decoded = yield* decodeMcpOperationInput(
+      mcpInstallCatalogServerSchema,
+      raw,
+      'catalog install',
+    )
+    const input = yield* validateMcpProjectInput(decoded)
+    const service = yield* McpConfigService
+    return yield* Effect.uninterruptible(
+      withMcpManagementWrite(
+        service.installCatalogServer(input).pipe(Effect.flatMap(reconcileMcpRuntimeSettings)),
       ),
     )
   })

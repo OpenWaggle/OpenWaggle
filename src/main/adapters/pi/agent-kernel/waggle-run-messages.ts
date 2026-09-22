@@ -11,6 +11,7 @@ import type { WaggleConfig, WaggleStreamMetadata } from '@shared/types/waggle'
 import type { PiModel } from '../pi-provider-catalog'
 import { buildPiPromptInput, type PiPromptInput } from '../pi-runtime-input'
 import type { PiCustomContent } from './message-parts'
+import { buildUserInputProjection } from './user-input-projection'
 
 function piPromptInputToCustomContent(input: PiPromptInput): PiCustomContent {
   const text = input.text
@@ -86,11 +87,12 @@ export async function sendInitialWaggleMessages(input: {
   await input.session.sendCustomMessage(
     {
       customType: PI_WAGGLE_USER_REQUEST_CUSTOM_TYPE,
-      content: piPromptInputToCustomContent(buildPiPromptInput(input.model, input.payload)),
+      content: input.payload.text,
       display: true,
       details: {
         source: 'openwaggle',
         kind: 'waggle-user-request',
+        userInput: buildUserInputProjection(input.payload),
         ...(input.payload.waggle
           ? {
               waggleInvocation: {

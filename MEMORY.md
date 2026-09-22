@@ -140,6 +140,7 @@ Load `.agents/skills/electron-runtime/SKILL.md` for details.
 - Persisted Session draft keys use the matching workspace's canonical nullable project path, not asynchronously updated global project preferences. Otherwise a late preference update can clear text after the composer is already editable. Branch-summary prompts capture that nullable owner at creation. Keep exact draft/prompt identity through preference reads, summarization, and final workspace refresh before restoring or clearing a draft. Only new-Session drafts follow the global selected project.
 - Branch-from-message must resolve a canonical node in the active Session before creating a draft. User retries use that node's real parent, including hidden nodes; a missing projection is not a root-user node. Reconciled optimistic rows retain their UI IDs, so their canonical `sessionNodeCreatedOrder` metadata can identify the persisted node. Late workspace reads must not replace a different Session, route, or draft selected meanwhile.
 - Prepared attachment metadata must fit the strict renderer transport schema, including any truncation marker. Long-paste previews stay bounded; submission resolves the complete original UTF-8 text from the Host-owned immutable snapshot, never from a renderer-provided preview or a reopened source file.
+- Pi prompt text and image blocks are model input, not the durable display model: persist source-free original user parts beside normal prompts, steering, and visible Waggle requests, then project those parts instead of synthesized `[Attachment: ...]` or `[Image input: ...]` artifacts. Reconciled optimistic rows must acquire the durable Session node id so captured image resources can replace transient blob previews without duplicating the user turn.
 - Session Host authority uses an OS-held exclusive lock in a dedicated persistent `<databasePath>.ownership.sqlite` file. Never delete or replace this file during ownership or recovery. SQLite releases the lock on process death and retains it during synchronous cutovers with no JS heartbeat. An authenticated older Host draining for upgrade must close before replacement.
 - Pre-cutover restore must stage the recovery database copy before installing the legacy source path, then roll back the preserved active database on any copy or cutover failure. Install the source without replacing an occupied path, and remove that path on rollback only when this restore created it. A failed copy after renaming the active database otherwise leaves the canonical path missing.
 - Detached startup's 10-second orphan check applies only before the Host has accepted any authenticated client. Record adoption monotonically in liveness; a later GUI restart gap must follow the configured idle grace, not the startup deadline. A one-time owner-count check killed already-adopted Hosts during otherwise clean GUI restarts. The real CLI regression authenticates once, disconnects for 12 seconds, and checks that the same Host still answers. Never-adopted, ownerless Hosts must still stop at the orphan deadline.
@@ -386,7 +387,7 @@ Recording is a main/renderer protocol, not merely a `desktopCapturer` grant: suc
 - Unit, integration, and component tests belong in nearby `__tests__/`. There is no E2E suite (ADR 0033).
 - Do not suppress Fallow complexity findings; refactor instead.
 - Do not add legacy compatibility for removed pre-Pi surfaces unless explicitly requested.
-- Parallel `test:unit:raw` crashes nondeterministically in better-sqlite3@12.11.1 native teardown (`Statement::~Statement()` → `RemoveEnvironmentCleanupHook` assertion, "Worker forks emitted error") with zero test failures; two versions (12.11.1 + 13.0.1) coexist in the .pnpm store. Serial `--maxWorkers=1` is the reliable evidence run.
+- Node 24 Vitest workers abort in better-sqlite3@12.11.1 teardown (`Statement::~Statement()` → `RemoveEnvironmentCleanupHook`). `@effect/sql-sqlite-node` pulls v12 while the app uses v13; keep the workspace override that makes Effect reuse v13.0.1. This removes the duplicate native addon and lets the full parallel unit suite finish.
 
 ### `fromPartial` hides fixture mismatches as well as expressing them
 
@@ -865,3 +866,12 @@ main with transitive better-sqlite3 12.11.1. Root and Effect SQLite now share 13
 upstream 13.0.2 worker-termination fix. Migration compatibility fixtures must create the historical
 schema with a bounded migration list; creating today's tables and erasing later ledger entries
 causes false duplicate-table failures as new non-idempotent migrations are added.
+
+Providers speaking the OpenAI-completions shape (GLM via OpenRouter confirmed) silently return
+tool-call `arguments: "{}"` for any tool whose parameter schema is a root-level `anyOf`/`oneOf`
+union; flat object schemas work, including nested property unions and `action` literal-union
+discriminators. First-class Pi tools must therefore register flat object schemas and enforce
+per-action required fields and enums at run time (see `sessions-tool-flat-schema.ts`, PR #219 /
+issue #218). When `pi.validateToolArguments` reports `Received arguments: {}`, suspect the
+provider dropping arguments for the schema shape before blaming parsing or permissions; the
+cheapest discriminator is a raw REST probe of the provider with the exact tool JSON.

@@ -169,18 +169,16 @@ describe('McpSection', () => {
       })
     })
 
-    fireEvent.click(screen.getByRole('button', { name: 'Review & trust' }))
-    expect(screen.getByText('No project paths')).toBeInTheDocument()
-    expect(screen.getByText('Isolated temporary space only')).toBeInTheDocument()
-    expect(screen.getByText('Denied')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Approve permissions and trust' }))
+    // ADR-0035: enabling is the one trust action; the only extra control is
+    // the unsandboxed escape hatch.
+    fireEvent.click(screen.getByRole('button', { name: 'Run unsandboxed' }))
     await waitFor(() => {
       expect(apiMocks.setMcpServerTrust).toHaveBeenCalledWith({
         projectPath: PROJECT_PATH,
         sessionId: SESSION_ID,
         instanceId: 'mcp-server-alpha',
         trusted: true,
-        permissions: { readRoots: [], writeRoots: [], allowNetwork: false },
+        allowUnsandboxed: true,
       })
     })
   })

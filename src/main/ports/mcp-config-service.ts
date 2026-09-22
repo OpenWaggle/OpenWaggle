@@ -5,6 +5,7 @@ import type {
   McpImportApplyResult,
   McpImportPreview,
   McpImportPreviewInput,
+  McpInstallCatalogServerInput,
   McpRemoveServerInput,
   McpServerDefinition,
   McpSetProjectServerEnabledInput,
@@ -34,6 +35,9 @@ export interface McpConfigServiceShape {
   readonly addServer: (input: McpAddServerInput) => Effect.Effect<McpSettingsView>
   readonly previewImports: (input: McpImportPreviewInput) => Effect.Effect<McpImportPreview>
   readonly applyImports: (input: McpImportApplyInput) => Effect.Effect<McpImportApplyResult>
+  readonly installCatalogServer: (
+    input: McpInstallCatalogServerInput,
+  ) => Effect.Effect<McpSettingsView>
   readonly createTurnSnapshot: (input: {
     readonly projectPath: string
     readonly executionPath?: string

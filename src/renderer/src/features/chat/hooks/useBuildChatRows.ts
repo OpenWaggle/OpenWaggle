@@ -270,7 +270,10 @@ export function buildChatRows(params: BuildChatRowsParams): ChatRow[] {
     didAppendLaunchRows = true
   }
   const lastMessage = params.messages[params.messages.length - 1]
-  const lastIsStreaming = params.isLoading && lastMessage?.role === 'assistant'
+  const lastIsStreaming =
+    params.isLoading &&
+    params.compactionStatus?.type !== 'retrying' &&
+    lastMessage?.role === 'assistant'
   let previousVisibleWaggleMeta: WaggleMessageMetadata | undefined
 
   for (let index = 0; index < params.messages.length; index += 1) {
@@ -309,7 +312,7 @@ export function buildChatRows(params: BuildChatRowsParams): ChatRow[] {
     (params.customMessages ?? []).filter((event) => !isWorktreeCreatedEvent(event)),
   )
   appendInteractionEventRows(rows, params.interactionEvents ?? [])
-  if (params.compactionStatus?.type !== 'compacting') appendStatusRows(rows, params)
+  appendStatusRows(rows, params)
   appendInterruptedRunRow(rows, params)
   return applyTurnFolds(groupWaggleTurnRows(rows), toTurnFoldInput(params))
 }

@@ -54,9 +54,17 @@ _Avoid_: tool name as authority
 An isolated implementation of deprecated or vendor-specific protocol behavior that cannot weaken modern MCP defaults.
 _Avoid_: silent legacy fallback
 
-**MCP trust record**:
-A fail-closed approval bound to server identity, effective configuration hash, package or endpoint identity, requested capabilities, and security profile.
+**MCP catalog**:
+The curated first-party list of recommended servers offered for one-click install; catalog membership defines the curated end of the **MCP trust tier**.
+_Avoid_: marketplace, plugin store
+
+**MCP trust tier**:
+The provenance class of a server that decides how much approval connecting requires: curated catalog servers connect without an approval step; all other servers require one explicit trust action.
 _Avoid_: trusted server name
+
+**MCP trust record**:
+A fail-closed approval bound to server identity, effective configuration hash, package or endpoint identity, requested capabilities, and security profile. Configured grants apply automatically for curated catalog servers; other servers grant them in the single trust action.
+_Avoid_: trusted server name, per-field permission ceremony
 
 **MCP capability grant**:
 A scoped authorization for one server capability, data class, destination, project/session, and schema/config revision.
@@ -1331,6 +1339,10 @@ _Avoid_: search (it narrows in place rather than producing results), sidebar vie
 
 ## Relationships
 
+- Installing a server from the **MCP catalog** enables and trusts it for every project; scope switches become opt-out controls, not setup steps.
+- Plaintext secret-like values in server definitions are permitted everywhere; a vault secret reference is an opt-in upgrade, never a prerequisite to connect.
+- An **MCP trust record** carries the grants derived from the server definition: package-runner and remote servers derive network and package-cache access; a plain local command derives the minimal profile unless the definition declares more.
+- A server in the curated **MCP trust tier** connects with no approval step; any other server requires exactly one explicit trust action that also sets its grants.
 - The **Codex parity baseline** decides defaults and observable semantics wherever Codex has a defined behavior; OpenWaggle-specific behavior may be additive but cannot silently change that default.
 - A departure from the **Codex parity baseline** requires an explicit documented incompatibility or an explicit user decision, plus a parity-focused acceptance test.
 - Full Codex parity means observable lifecycle, interaction, control, safety, workspace, CLI, and activity behavior; it does not make Codex App Server's evolving wire schema or storage representation OpenWaggle's domain model.

@@ -40,6 +40,7 @@ export const HOST_BACKED_MCP_GUI_CHANNELS_REVISION_6 = [
   'mcp:add-server',
   'mcp:preview-imports',
   'mcp:apply-imports',
+  'mcp:install-catalog-server',
   'mcp:doctor',
   'mcp:list-secrets',
   'mcp:set-secret',

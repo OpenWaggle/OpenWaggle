@@ -3,7 +3,6 @@ import type {
   McpGetSettingsInput,
   McpScope,
   McpScopeState,
-  McpServerPermissionGrant,
   McpServerSummary,
 } from '@shared/types/mcp'
 import { useEffect, useReducer } from 'react'
@@ -113,7 +112,6 @@ export function useMcpSectionController(projectPath: string | null, sessionId: s
     server: McpServerSummary,
     trusted: boolean,
     allowUnsandboxed = false,
-    permissions?: McpServerPermissionGrant,
   ) {
     dispatch({ type: 'save:start' })
     try {
@@ -122,7 +120,6 @@ export function useMcpSectionController(projectPath: string | null, sessionId: s
         instanceId: server.instanceId,
         trusted,
         ...(allowUnsandboxed ? { allowUnsandboxed: true } : {}),
-        ...(permissions ? { permissions } : {}),
       })
       dispatch({ type: 'mutation:success', view: nextView })
       showToast(
@@ -131,6 +128,17 @@ export function useMcpSectionController(projectPath: string | null, sessionId: s
       )
     } catch (trustError) {
       dispatch({ type: 'mutation:error', error: getErrorMessage(trustError) })
+    }
+  }
+
+  async function installCatalogServer(name: string) {
+    dispatch({ type: 'save:start' })
+    try {
+      const nextView = await api.installMcpCatalogServer({ ...context, name })
+      dispatch({ type: 'mutation:success', view: nextView })
+      showToast(`${name} installed and enabled.`, 'success')
+    } catch (installError) {
+      dispatch({ type: 'mutation:error', error: getErrorMessage(installError) })
     }
   }
 
@@ -233,6 +241,7 @@ export function useMcpSectionController(projectPath: string | null, sessionId: s
     setScopeState,
     toggleServer,
     setServerTrust,
+    installCatalogServer,
     removeServer,
     authorizeServer,
     logoutServer,

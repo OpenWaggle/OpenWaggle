@@ -15,6 +15,7 @@ import type {
   McpImportApplyResult,
   McpImportPreview,
   McpImportPreviewInput,
+  McpInstallCatalogServerInput,
   McpListCapabilitiesInput,
   McpPromptResult,
   McpReadResourceInput,
@@ -55,6 +56,7 @@ export interface OpenWaggleMcpApi {
   addMcpServer(input: McpAddServerInput): Promise<McpSettingsView>
   previewMcpImports(input: McpImportPreviewInput): Promise<McpImportPreview>
   applyMcpImports(input: McpImportApplyInput): Promise<McpImportApplyResult>
+  installMcpCatalogServer(input: McpInstallCatalogServerInput): Promise<McpSettingsView>
   doctorMcp(input?: McpDoctorInput): Promise<McpDoctorResult>
   listMcpSecrets(): Promise<readonly McpSecretSummary[]>
   setMcpSecret(input: McpSetSecretInput): Promise<readonly McpSecretSummary[]>

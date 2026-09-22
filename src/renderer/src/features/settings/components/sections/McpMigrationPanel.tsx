@@ -1,6 +1,6 @@
 import type { McpImportCandidate, McpImportPreview } from '@shared/types/mcp'
 import { Download, Search } from 'lucide-react'
-import { useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { formatDisplayPath, formatDisplayPathsInText } from '@/shared/lib/display-path'
 import { api } from '@/shared/lib/ipc'
 import { tildifyPath } from '@/shared/lib/tildify-path'
@@ -10,6 +10,8 @@ interface McpMigrationPanelProps {
   readonly projectPath: string | null
   readonly settingsBusy: boolean
   readonly onImported: () => Promise<void>
+  /** Detect → offer (ADR-0035): scan automatically once when no servers exist. */
+  readonly autoScan?: boolean
 }
 
 function candidatesForTarget(
@@ -67,17 +69,34 @@ function McpMigrationReview({
   )
 }
 
+function MigrationHeader() {
+  return (
+    <div>
+      <h3 id="mcp-migration-heading" className="text-base font-semibold text-text-primary">
+        Migrate existing MCP configuration
+      </h3>
+      <p className="mt-1 max-w-190 text-xs leading-5 text-text-tertiary">
+        The old MCP adapter is no longer loaded. Scan its global and project configuration,
+        including disabled servers, before removing old files. Imports are previewed; applying
+        imports enables and connects them in one step.
+      </p>
+    </div>
+  )
+}
+
 export function McpMigrationPanel({
   projectPath,
   settingsBusy,
   onImported,
+  autoScan = false,
 }: McpMigrationPanelProps) {
   const [preview, setPreview] = useState<McpImportPreview | null>(null)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const autoScanDone = useRef(false)
 
-  async function scan() {
+  const scan = useCallback(async () => {
     setBusy(true)
     setError(null)
     setMessage(null)
@@ -94,7 +113,7 @@ export function McpMigrationPanel({
     } finally {
       setBusy(false)
     }
-  }
+  }, [projectPath])
 
   async function importCandidates() {
     if (!preview || preview.candidates.length === 0) return
@@ -121,7 +140,7 @@ export function McpMigrationPanel({
       const skipped = results.reduce((total, result) => total + result.skipped.length, 0)
       setPreview(null)
       setMessage(
-        `Imported ${String(imported)} legacy MCP server ${imported === 1 ? 'definition' : 'definitions'} as disabled and untrusted.${skipped > 0 ? ` Skipped ${String(skipped)} because an existing definition was kept or the source changed.` : ''}`,
+        `Imported ${String(imported)} legacy MCP server ${imported === 1 ? 'definition' : 'definitions'} — enabled and connected.${skipped > 0 ? ` Skipped ${String(skipped)} because an existing definition was kept or the source changed.` : ''}`,
       )
       await onImported()
     } catch (importError) {
@@ -133,18 +152,17 @@ export function McpMigrationPanel({
 
   const disabled = busy || settingsBusy
   const displayError = formatDisplayPathsInText(error ?? '', [projectPath])
+
+  useEffect(() => {
+    if (autoScan && !autoScanDone.current && !disabled) {
+      autoScanDone.current = true
+      void scan()
+    }
+  }, [autoScan, disabled, scan])
+
   return (
     <section aria-labelledby="mcp-migration-heading" className="space-y-3">
-      <div>
-        <h3 id="mcp-migration-heading" className="text-base font-semibold text-text-primary">
-          Migrate existing MCP configuration
-        </h3>
-        <p className="mt-1 max-w-190 text-xs leading-5 text-text-tertiary">
-          The old MCP adapter is no longer loaded. Scan its global and project configuration,
-          including disabled servers, before removing old files. Imports are previewed and remain
-          disabled and untrusted until you explicitly enable and trust them.
-        </p>
-      </div>
+      <MigrationHeader />
       <div className="rounded-lg border border-border bg-bg p-3">
         <div className="flex items-center justify-between gap-3">
           <p className="text-xs leading-4 text-text-tertiary">

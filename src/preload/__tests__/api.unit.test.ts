@@ -180,14 +180,30 @@ describe('preload api surface contract', () => {
     )
   })
 
-  it('prepares attachments from user-selected File objects via preload path extraction', async () => {
+  it('preserves original File indexes when preload filters and deduplicates paths', async () => {
+    const pathless = new File(['clipboard'], 'clipboard.png')
     const file = new File(['screenshot'], 'screenshot.png')
-    vi.mocked(ipcRenderer.invoke).mockResolvedValueOnce([])
-    vi.mocked(webUtils.getPathForFile).mockReturnValueOnce('/tmp/Desktop/screenshot.png')
+    const duplicate = new File(['screenshot'], 'copy.png')
+    const attachment = {
+      id: 'prepared-image',
+      kind: 'image' as const,
+      origin: 'user-file' as const,
+      name: 'screenshot.png',
+      path: '/tmp/Desktop/screenshot.png',
+      mimeType: 'image/png',
+      sizeBytes: 10,
+      extractedText: '',
+    }
+    vi.mocked(ipcRenderer.invoke).mockResolvedValueOnce([attachment])
+    vi.mocked(webUtils.getPathForFile)
+      .mockReturnValueOnce('')
+      .mockReturnValueOnce('/tmp/Desktop/screenshot.png')
+      .mockReturnValueOnce('/tmp/Desktop/screenshot.png')
 
-    await api.prepareAttachments('/tmp/repo', [file])
+    await expect(api.prepareAttachments('/tmp/repo', [pathless, file, duplicate])).resolves.toEqual(
+      [{ attachment, fileIndex: 1 }],
+    )
 
-    expect(webUtils.getPathForFile).toHaveBeenCalledWith(file)
     expect(ipcRenderer.invoke).toHaveBeenCalledWith('attachments:prepare', '/tmp/repo', [
       '/tmp/Desktop/screenshot.png',
     ])

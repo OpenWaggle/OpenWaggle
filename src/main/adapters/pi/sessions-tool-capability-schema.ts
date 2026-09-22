@@ -1,6 +1,10 @@
 import type { SessionCapability } from '@shared/types/session-capability'
-import { Type } from 'typebox'
-import { sessionsToolParameters } from './sessions-tool-parameters'
+import {
+  actionChoices,
+  flattenSessionsToolParameters,
+  type SessionsToolRuntimeVariant,
+  sessionsToolParameterVariants,
+} from './sessions-tool-flat-schema'
 
 const REQUIRED_CAPABILITIES = new Map<string, readonly SessionCapability[]>([
   ['create', ['sessions:create']],
@@ -60,13 +64,8 @@ const REQUIRED_CAPABILITIES = new Map<string, readonly SessionCapability[]>([
   ['wait', ['sessions:read']],
 ])
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-function actionName(schema: unknown): string | undefined {
-  if (!isRecord(schema)) return undefined
-  return typeof schema.const === 'string' ? schema.const : undefined
+function variantActionName(variant: SessionsToolRuntimeVariant): string | undefined {
+  return actionChoices(variant.properties.action)[0]?.const
 }
 
 function permitsAction(
@@ -79,41 +78,14 @@ function permitsAction(
   return required === undefined || required.every((capability) => capabilities.has(capability))
 }
 
-function filterAlternativeInPlace(
-  schema: unknown,
-  capabilities: ReadonlySet<SessionCapability>,
-  modelMultiAgentEnabled: boolean,
-) {
-  if (!isRecord(schema) || !isRecord(schema.properties)) return false
-  const action = schema.properties.action
-  if (!isRecord(action)) return false
-  const choices = Array.isArray(action.anyOf) ? action.anyOf : [action]
-  const allowed = choices.filter((candidate) => {
-    const name = actionName(candidate)
-    return name !== undefined && permitsAction(name, capabilities, modelMultiAgentEnabled)
-  })
-  if (allowed.length === 0) return false
-  if (allowed.length === choices.length) return true
-  const names = allowed.flatMap((candidate) => {
-    const name = actionName(candidate)
-    return name ? [name] : []
-  })
-  schema.properties.action =
-    names.length === 1
-      ? Type.Literal(names[0] ?? '')
-      : Type.Union(names.map((name) => Type.Literal(name)))
-  return true
-}
-
 export function sessionsToolSchemaForCapabilities(input: {
   readonly capabilities: readonly SessionCapability[]
   readonly modelMultiAgentEnabled: boolean
-}): typeof sessionsToolParameters {
+}) {
   const capabilities = new Set(input.capabilities)
-  const schema = structuredClone(sessionsToolParameters)
-  const alternatives = schema.anyOf.filter((alternative) =>
-    filterAlternativeInPlace(alternative, capabilities, input.modelMultiAgentEnabled),
-  )
-  schema.anyOf.splice(0, schema.anyOf.length, ...alternatives)
-  return schema
+  const variants = sessionsToolParameterVariants.filter((variant) => {
+    const action = variantActionName(variant)
+    return action !== undefined && permitsAction(action, capabilities, input.modelMultiAgentEnabled)
+  })
+  return flattenSessionsToolParameters(variants)
 }

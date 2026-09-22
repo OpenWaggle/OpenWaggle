@@ -8,8 +8,8 @@ import { clearEditor, setEditorDraft } from '../lib/lexical-utils'
 import { consumeSendResult } from '../lib/send-result'
 import {
   discardSessionResourceAttachments,
-  markSessionResourceAttachmentsSubmitted,
-  unmarkSessionResourceAttachmentsSubmitted,
+  markAttachmentsSubmitted,
+  unmarkAttachmentsSubmitted,
 } from '../state/composer-attachment-lifecycle'
 import { useComposerStore } from '../state/composer-store'
 import {
@@ -166,13 +166,13 @@ export function useComposerSubmission({
     const dispatch = dispatchPayload(payload)
     if (dispatch.type === 'blocked') return false
     if (dispatch.type === 'sent') {
-      if (clearOnSubmit) markSessionResourceAttachmentsSubmitted(payload.attachments)
+      if (clearOnSubmit) markAttachmentsSubmitted(payload.attachments)
       finishSuccessfulSubmission(payload)
       if (dispatch.completion) {
         const completion = dispatch.completion.catch((cause: unknown) => {
           const disposition = onSendFailure?.(cause) ?? { kind: 'retain' as const }
           if (clearOnSubmit && disposition.kind === 'restore') {
-            unmarkSessionResourceAttachmentsSubmitted(payload.attachments)
+            unmarkAttachmentsSubmitted(payload.attachments)
             const limitReason = restoreFailedSendDraft(
               payload,
               disposition.contextKey === undefined
@@ -184,7 +184,7 @@ export function useComposerSubmission({
             if (limitReason) onToast?.(attachmentLimitMessage(limitReason))
           }
           if (clearOnSubmit && disposition.kind === 'discard') {
-            unmarkSessionResourceAttachmentsSubmitted(payload.attachments)
+            unmarkAttachmentsSubmitted(payload.attachments)
             discardSessionResourceAttachments(payload.attachments)
           }
           throw cause
@@ -196,7 +196,7 @@ export function useComposerSubmission({
     const result = dispatch.completion.then(
       (accepted) => {
         if (accepted === false) return false
-        if (clearOnSubmit) markSessionResourceAttachmentsSubmitted(payload.attachments)
+        if (clearOnSubmit) markAttachmentsSubmitted(payload.attachments)
         finishSuccessfulSubmission(payload, draftSnapshot)
         return true
       },

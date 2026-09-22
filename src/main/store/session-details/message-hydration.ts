@@ -44,7 +44,9 @@ const messagePartSchema = Schema.Union(
     attachment: Schema.Struct({
       id: Schema.String,
       kind: Schema.Literal('text', 'image', 'pdf'),
-      origin: Schema.optional(Schema.Literal('user-file', 'auto-paste-text', 'session-resource')),
+      origin: Schema.optional(
+        Schema.Literal('user-file', 'auto-paste-text', 'browser-preview', 'session-resource'),
+      ),
       name: Schema.String,
       path: Schema.String,
       mimeType: Schema.String,
@@ -58,6 +60,7 @@ const messagePartSchema = Schema.Union(
 )
 
 const messageMetadataSchema = Schema.Struct({
+  durableTextSha256: Schema.optional(Schema.String.pipe(Schema.pattern(/^[a-f0-9]{64}$/))),
   visualizationSessionId: Schema.optional(Schema.String),
   waggle: Schema.optional(waggleMetadataSchema),
   waggleInvocation: Schema.optional(waggleInvocationMetadataSchema),

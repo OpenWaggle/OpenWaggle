@@ -39,7 +39,12 @@ describe('Pi authoritative steering boundary', () => {
         },
         isStreaming: true,
         model,
-        sessionManager: { getEntries, getLeafId: () => entries.at(-1)?.id ?? null },
+        subscribe: () => () => undefined,
+        sessionManager: {
+          getEntries,
+          getLeafId: () => entries.at(-1)?.id ?? null,
+          appendCustomEntry: vi.fn(),
+        },
         steer: queueSteering,
         prompt: queueSteering,
       })
