@@ -120,6 +120,8 @@ minimumReleaseAgeExclude:
 
 overrides:
   "@hono/node-server": 2.0.11
+  # better-sqlite3 12 aborts during Node 24 worker teardown; reuse the app's v13.
+  "@effect/sql-sqlite-node>better-sqlite3": 13.0.1
   "@earendil-works/pi-coding-agent>undici": 8.10.0
   "@huggingface/transformers>onnxruntime-node": 1.23.2
   adm-zip: 0.6.0

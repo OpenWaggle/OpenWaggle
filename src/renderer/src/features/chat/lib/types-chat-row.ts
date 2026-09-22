@@ -109,6 +109,7 @@ export type ChatRow =
         | 'legacy-complete'
     }
   | { type: 'phase-indicator'; label: string; elapsedMs: number }
+  | { type: 'retry-status'; attempt: number; maxAttempts: number; delayMs: number }
   | {
       type: 'error'
       error: Error

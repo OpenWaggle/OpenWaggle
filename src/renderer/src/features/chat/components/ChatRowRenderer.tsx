@@ -214,7 +214,9 @@ export function ChatRowRenderer(props: ChatRowRendererProps) {
     .with('agent-loop-custom-message', (row) => (
       <CustomMessageRow row={row} extensions={context.extensions} />
     ))
-    .with('phase-indicator', (row) => <StatusRow row={row} extensions={context.extensions} />)
+    .with('phase-indicator', 'retry-status', (row) => (
+      <StatusRow row={row} extensions={context.extensions} />
+    ))
     .with('agent-loop-interaction', (row) => (
       <InteractionEventRow item={row.item} extensions={context.extensions} />
     ))

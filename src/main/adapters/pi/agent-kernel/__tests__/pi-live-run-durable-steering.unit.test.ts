@@ -16,16 +16,16 @@ function userMessage(text: string) {
 }
 
 function sessionEvents() {
-  let listener: Parameters<AgentSession['subscribe']>[0] | undefined
+  const listeners = new Set<Parameters<AgentSession['subscribe']>[0]>()
   return {
     subscribe: (next: Parameters<AgentSession['subscribe']>[0]) => {
-      listener = next
+      listeners.add(next)
       return () => {
-        listener = undefined
+        listeners.delete(next)
       }
     },
     emitMessage: (type: 'message_start' | 'message_end', message: UserMessage) => {
-      listener?.(fromPartial<SessionEvent>({ type, message }))
+      for (const listener of listeners) listener(fromPartial<SessionEvent>({ type, message }))
     },
   }
 }
@@ -49,7 +49,8 @@ describe('Pi durable steering delivery', () => {
     const session = fromPartial<AgentSession>({
       isStreaming: true,
       steer,
-      sessionManager: { getEntries: () => [] },
+      subscribe: () => () => undefined,
+      sessionManager: { getEntries: () => [], appendCustomEntry: vi.fn() },
     })
     const model = fromPartial<PiModel>({ input: ['text'] })
     unregister = registerPiLiveRun({ runId: 'run-undelivered-promotion', session, model })
@@ -75,7 +76,7 @@ describe('Pi durable steering delivery', () => {
       isStreaming: true,
       steer,
       subscribe: events.subscribe,
-      sessionManager: { getEntries: () => entries },
+      sessionManager: { getEntries: () => entries, appendCustomEntry: vi.fn() },
     })
     const model = fromPartial<PiModel>({ input: ['text'] })
     unregister = registerPiLiveRun({ runId: 'run-delivered-promotion', session, model })
@@ -111,7 +112,7 @@ describe('Pi durable steering delivery', () => {
       isStreaming: true,
       steer,
       subscribe: events.subscribe,
-      sessionManager: { getEntries: () => entries },
+      sessionManager: { getEntries: () => entries, appendCustomEntry: vi.fn() },
     })
     const model = fromPartial<PiModel>({ input: ['text'] })
     unregister = registerPiLiveRun({ runId: 'run-transformed-promotion', session, model })
@@ -154,7 +155,7 @@ describe('Pi durable steering delivery', () => {
       isStreaming: true,
       steer,
       subscribe: events.subscribe,
-      sessionManager: { getEntries: () => entries },
+      sessionManager: { getEntries: () => entries, appendCustomEntry: vi.fn() },
     })
     const model = fromPartial<PiModel>({ input: ['text'] })
     unregister = registerPiLiveRun({
@@ -196,7 +197,7 @@ describe('Pi durable steering delivery', () => {
       steer,
       subscribe: events.subscribe,
       getSteeringMessages: () => [text],
-      sessionManager: { getEntries: () => entries },
+      sessionManager: { getEntries: () => entries, appendCustomEntry: vi.fn() },
     })
     const model = fromPartial<PiModel>({ input: ['text'] })
     unregister = registerPiLiveRun({ runId: 'run-identical-promotion', session, model })
@@ -234,7 +235,7 @@ describe('Pi durable steering delivery', () => {
       isStreaming: true,
       steer,
       getSteeringMessages: () => [],
-      sessionManager: { getEntries: () => entries },
+      sessionManager: { getEntries: () => entries, appendCustomEntry: vi.fn() },
       subscribe: events.subscribe,
     })
     const model = fromPartial<PiModel>({ input: ['text'] })
@@ -269,7 +270,8 @@ describe('Pi durable steering delivery', () => {
     const session = fromPartial<AgentSession>({
       isStreaming: true,
       steer,
-      sessionManager: { getEntries: () => entries },
+      subscribe: () => () => undefined,
+      sessionManager: { getEntries: () => entries, appendCustomEntry: vi.fn() },
     })
     const model = fromPartial<PiModel>({ input: ['text'] })
     unregister = registerPiLiveRun({ runId: 'run-promotion-and-steer', session, model })

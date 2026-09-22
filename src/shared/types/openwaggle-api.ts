@@ -68,6 +68,11 @@ import type { VoiceTranscriptionRequest, VoiceTranscriptionResult } from './voic
 
 type SessionTitleUpdatedHandler = (payload: IpcEventPayload<'sessions:title-updated'>) => void
 
+export interface PreparedSelectedAttachment {
+  readonly attachment: PreparedAttachment
+  readonly fileIndex: number
+}
+
 export interface OpenWaggleApi
   extends OpenWaggleAuthorizationGrantApi,
     OpenWaggleDesktopApi,
@@ -198,7 +203,10 @@ export interface OpenWaggleApi
   onFullscreenChanged(callback: (isFullscreen: boolean) => void): () => void
 
   // Attachments
-  prepareAttachments(projectPath: string, files: readonly File[]): Promise<PreparedAttachment[]>
+  prepareAttachments(
+    projectPath: string,
+    files: readonly File[],
+  ): Promise<PreparedSelectedAttachment[]>
   prepareAttachmentFromText(text: string, operationId: string): Promise<PreparedAttachment>
   discardPreparedAttachment(attachment: PreparedAttachment): Promise<void>
   onPrepareAttachmentFromTextProgress(

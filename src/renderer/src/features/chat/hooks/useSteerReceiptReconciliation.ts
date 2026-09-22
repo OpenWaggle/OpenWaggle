@@ -41,16 +41,14 @@ async function receiptMatches(
       const createdOrder = message.metadata?.sessionNodeCreatedOrder
       if (message.role !== 'user' || createdOrder === undefined || createdOrder < minimumOrder)
         return []
+      const durableDigest = message.metadata?.durableTextSha256
       const text = message.parts.find((part) => part.type === 'text')?.content
-      return text === undefined
-        ? []
-        : [
-            messageDigest(message, text).then((digest) => ({
-              id: message.id,
-              createdOrder,
-              digest,
-            })),
-          ]
+      if (!durableDigest && text === undefined) return []
+      return [
+        (durableDigest ? Promise.resolve(durableDigest) : messageDigest(message, text ?? '')).then(
+          (digest) => ({ id: message.id, createdOrder, digest }),
+        ),
+      ]
     }),
   )
   const consumed = new Set(previews.flatMap((preview) => preview.durableMessageCreatedOrder ?? []))

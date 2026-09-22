@@ -88,13 +88,15 @@ function MessageActionButtons({
   onBranchFromMessage,
   onViewTurnDiff,
   className,
+  hidden,
 }: {
   readonly messageId: string
   readonly onBranchFromMessage?: (messageId: string) => void
   readonly onViewTurnDiff?: (messageId: string) => void
   readonly className: string
+  readonly hidden?: boolean
 }) {
-  if (!onBranchFromMessage && !onViewTurnDiff) return null
+  if (hidden || (!onBranchFromMessage && !onViewTurnDiff)) return null
   return (
     <div className={className}>
       {onViewTurnDiff ? (
@@ -193,6 +195,7 @@ export function AssistantMessageBubble({
           onBranchFromMessage={onBranchFromMessage}
           onViewTurnDiff={onViewTurnDiff}
           className="absolute right-0 top-0 flex items-center gap-1"
+          hidden={turnFolded}
         />
       ) : null}
       <div className="flex flex-col gap-2">
@@ -204,6 +207,7 @@ export function AssistantMessageBubble({
               onBranchFromMessage={onBranchFromMessage}
               onViewTurnDiff={onViewTurnDiff}
               className="ml-auto flex items-center gap-1"
+              hidden={turnFolded}
             />
           </div>
         ) : null}

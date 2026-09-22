@@ -1,9 +1,7 @@
 import { matchBy } from '@diegogbrisa/ts-match'
 import type { SessionEntry } from '@earendil-works/pi-coding-agent'
 import { PI_WAGGLE_USER_REQUEST_CUSTOM_TYPE } from '@openwaggle/pi-waggle/protocol'
-import { safeDecodeUnknown } from '@shared/schema'
-import { waggleInvocationMetadataSchema } from '@shared/schemas/waggle'
-import type { MessageRole } from '@shared/types/agent'
+import type { MessagePart, MessageRole } from '@shared/types/agent'
 import { createModelRef } from '@shared/types/llm'
 import type { ProjectedSessionNodeInput } from '../../../ports/session-repository'
 import { toJsonValue } from '../pi-message-mapper'
@@ -14,6 +12,7 @@ import {
   piTextAndImageContentToParts,
   piToolResultContentToPart,
 } from './message-parts'
+import { visibleWaggleUserMessageProjection } from './visible-waggle-user-message-projection'
 
 type PiMessageEntry = Extract<SessionEntry, { type: 'message' }>
 type PiUserMessage = Extract<PiMessageEntry['message'], { role: 'user' }>
@@ -37,11 +36,17 @@ function compactionReason(value: unknown) {
   return reason === 'manual' || reason === 'threshold' || reason === 'overflow' ? reason : null
 }
 
-function userMessageProjection(value: PiUserMessage): PiEntryProjection {
+function userMessageProjection(
+  value: PiUserMessage,
+  displayParts?: readonly MessagePart[],
+): PiEntryProjection {
   return {
     kind: 'user_message',
     role: 'user',
-    contentJson: buildMessageNodeContentJson(piTextAndImageContentToParts(value.content), null),
+    contentJson: buildMessageNodeContentJson(
+      displayParts ?? piTextAndImageContentToParts(value.content),
+      null,
+    ),
     metadataJson: '{}',
   }
 }
@@ -133,9 +138,12 @@ function customMessageRoleProjection(value: PiCustomMessage): PiEntryProjection 
   }
 }
 
-function messageProjectionForEntry(entry: PiMessageEntry): PiEntryProjection {
+function messageProjectionForEntry(
+  entry: PiMessageEntry,
+  userDisplayParts?: readonly MessagePart[],
+): PiEntryProjection {
   return matchBy(entry.message, 'role')
-    .with('user', userMessageProjection)
+    .with('user', (message) => userMessageProjection(message, userDisplayParts))
     .with('assistant', assistantMessageProjection)
     .with('toolResult', toolResultMessageProjection)
     .with('branchSummary', branchSummaryMessageProjection)
@@ -217,30 +225,6 @@ function customEntryProjection(
     metadataJson: '{}',
   }
 }
-function visibleWaggleUserMessageProjection(
-  entry: Extract<SessionEntry, { type: 'custom_message' }>,
-): PiEntryProjection {
-  const details = toJsonValue(entry.details ?? null)
-  const decodedInvocation =
-    typeof details === 'object' && details !== null && !Array.isArray(details)
-      ? safeDecodeUnknown(waggleInvocationMetadataSchema, details.waggleInvocation)
-      : null
-  return {
-    kind: 'user_message',
-    role: 'user',
-    contentJson: buildMessageNodeContentJson(piTextAndImageContentToParts(entry.content), null),
-    metadataJson: buildRawNodeContentJson(
-      decodedInvocation?.success
-        ? { waggleInvocation: decodedInvocation.data }
-        : {
-            customType: entry.customType,
-            display: entry.display,
-            details,
-          },
-    ),
-  }
-}
-
 function hiddenOrCustomMessageProjection(
   entry: Extract<SessionEntry, { type: 'custom_message' }>,
 ): PiEntryProjection {
@@ -294,9 +278,12 @@ function sessionInfoEntryProjection(
   }
 }
 
-export function projectionForPiEntry(entry: SessionEntry): PiEntryProjection {
+export function projectionForPiEntry(
+  entry: SessionEntry,
+  options: { readonly userDisplayParts?: readonly MessagePart[] } = {},
+): PiEntryProjection {
   return matchBy(entry, 'type')
-    .with('message', messageProjectionForEntry)
+    .with('message', (message) => messageProjectionForEntry(message, options.userDisplayParts))
     .with('model_change', modelChangeProjection)
     .with('thinking_level_change', thinkingLevelChangeProjection)
     .with('compaction', compactionEntryProjection)

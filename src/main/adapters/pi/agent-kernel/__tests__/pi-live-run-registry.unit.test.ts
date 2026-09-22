@@ -6,6 +6,9 @@ import type { PiModel } from '../../pi-provider-catalog'
 import { piTextAndImageContentToParts } from '../message-parts'
 import { registerPiLiveRun, steerPiLiveRun } from '../pi-live-run-registry'
 
+type SessionListener = Parameters<AgentSession['subscribe']>[0]
+type SessionEvent = Parameters<SessionListener>[0]
+
 describe('Pi live Run registry', () => {
   let unregister: (() => void) | undefined
 
@@ -16,7 +19,8 @@ describe('Pi live Run registry', () => {
     const session = fromPartial<AgentSession>({
       isStreaming: true,
       steer,
-      sessionManager: { getEntries: () => [] },
+      subscribe: () => () => undefined,
+      sessionManager: { getEntries: () => [], appendCustomEntry: vi.fn() },
     })
     const model = fromPartial<PiModel>({ input: ['text'] })
     unregister = registerPiLiveRun({ runId: 'run-active', session, model })
@@ -48,7 +52,8 @@ describe('Pi live Run registry', () => {
     const session = fromPartial<AgentSession>({
       isStreaming: true,
       steer,
-      sessionManager: { getEntries: () => [] },
+      subscribe: () => () => undefined,
+      sessionManager: { getEntries: () => [], appendCustomEntry: vi.fn() },
     })
     const model = fromPartial<PiModel>({ input: ['text'] })
     unregister = registerPiLiveRun({ runId: 'run-visualization', session, model })
@@ -86,7 +91,8 @@ describe('Pi live Run registry', () => {
       isStreaming: true,
       prompt,
       steer,
-      sessionManager: { getEntries: () => [] },
+      subscribe: () => () => undefined,
+      sessionManager: { getEntries: () => [], appendCustomEntry: vi.fn() },
     })
     const model = fromPartial<PiModel>({ input: ['text'] })
     unregister = registerPiLiveRun({
@@ -111,7 +117,8 @@ describe('Pi live Run registry', () => {
     const session = fromPartial<AgentSession>({
       isStreaming: true,
       prompt,
-      sessionManager: { getEntries: () => [] },
+      subscribe: () => () => undefined,
+      sessionManager: { getEntries: () => [], appendCustomEntry: vi.fn() },
     })
     const model = fromPartial<PiModel>({ input: ['text'] })
     unregister = registerPiLiveRun({
@@ -155,13 +162,28 @@ describe('Pi live Run registry', () => {
   })
 
   it('correlates the first durable text block without projected image placeholders', async () => {
-    const steer = vi.fn(async (text: string) => text)
+    const listeners = new Set<SessionListener>()
+    const steer = vi.fn(async (text: string) => {
+      const message = fromPartial<Extract<SessionEvent, { type: 'message_start' }>['message']>({
+        role: 'user',
+        content: [{ type: 'text', text }],
+      })
+      for (const listener of listeners) {
+        listener(fromPartial<SessionEvent>({ type: 'message_start', message }))
+      }
+      return text
+    })
+    const appendCustomEntry = vi.fn()
     const model = fromPartial<PiModel>({ input: ['text', 'image'] })
     const session = fromPartial<AgentSession>({
       isStreaming: true,
       steer,
       model,
-      sessionManager: { getEntries: () => [] },
+      subscribe: (listener: SessionListener) => {
+        listeners.add(listener)
+        return () => listeners.delete(listener)
+      },
+      sessionManager: { getEntries: () => [], appendCustomEntry },
     })
     unregister = registerPiLiveRun({ runId: 'run-image', session, model })
     const result = await steerPiLiveRun({
@@ -184,11 +206,17 @@ describe('Pi live Run registry', () => {
     const image = { type: 'image', data: 'YWJj', mimeType: 'image/png' }
     const projected = piTextAndImageContentToParts([{ type: 'text', text: durableText }, image])
 
+    expect(appendCustomEntry).toHaveBeenCalledWith(
+      'openwaggle-user-input',
+      expect.objectContaining({
+        parts: expect.arrayContaining([
+          { type: 'text', text: 'Read this image.' },
+          expect.objectContaining({ type: 'attachment' }),
+        ]),
+      }),
+    )
     expect(steer).toHaveBeenCalledWith(durableText, [image])
-    expect(projected).toEqual([
-      { type: 'text', text: durableText },
-      { type: 'text', text: '[Image input: image/png]' },
-    ])
+    expect(projected).toEqual([{ type: 'text', text: durableText }])
     expect(result).toEqual({
       accepted: true,
       receipt: {
@@ -201,7 +229,13 @@ describe('Pi live Run registry', () => {
 
   it('cancels steering waiting behind compaction when its exact Run unregisters', async () => {
     const steer = vi.fn(async (text: string) => text)
-    const session = fromPartial<AgentSession>({ isStreaming: true, isCompacting: true, steer })
+    const session = fromPartial<AgentSession>({
+      isStreaming: true,
+      isCompacting: true,
+      steer,
+      subscribe: () => () => undefined,
+      sessionManager: { appendCustomEntry: vi.fn() },
+    })
     const model = fromPartial<PiModel>({ input: ['text'] })
     unregister = registerPiLiveRun({ runId: 'run-compacting', session, model })
 

@@ -5,11 +5,13 @@ import {
   buildPiPromptInput,
   stripAtomicVisualizationContext,
 } from '../pi-runtime-input'
+import { enqueueUserInputProjection } from './user-input-projection'
 
 const PI_STEER_READY_POLL_MS = 20
 
 interface PiSteeringSession {
-  readonly sessionManager: Pick<AgentSession['sessionManager'], 'getEntries'>
+  readonly sessionManager: Pick<AgentSession['sessionManager'], 'appendCustomEntry' | 'getEntries'>
+  readonly subscribe: AgentSession['subscribe']
   readonly isCompacting: AgentSession['isCompacting']
   readonly isStreaming: AgentSession['isStreaming']
   readonly model:
@@ -64,30 +66,37 @@ export function createPiRunControl(
         : undefined
       const text = promptInput.text
       const images = promptInput.images.length > 0 ? [...promptInput.images] : undefined
-      if (options.routeThroughInputHook) {
-        if (!session.prompt) throw new Error('The active Pi session cannot route steering input.')
-        const minimumCreatedOrder = session.sessionManager.getEntries().length
-        const durableText = await session.prompt(text, {
-          ...(images ? { images } : {}),
-          ...(transformExpandedText ? { transformExpandedText } : {}),
-          streamingBehavior: 'steer',
-        })
-        return durableText === undefined
-          ? { delivery: 'handled' }
-          : {
-              delivery: 'queued',
-              durableText: stripAtomicVisualizationContext(durableText),
-              minimumCreatedOrder,
-            }
-      }
       const minimumCreatedOrder = session.sessionManager.getEntries().length
-      const durableText = transformExpandedText
-        ? await session.steer(text, images, transformExpandedText)
-        : await session.steer(text, images)
-      return {
-        delivery: 'queued',
-        durableText: stripAtomicVisualizationContext(durableText),
-        minimumCreatedOrder,
+      const cancelProjection = enqueueUserInputProjection(session, payload, signal)
+      try {
+        if (options.routeThroughInputHook) {
+          if (!session.prompt) throw new Error('The active Pi session cannot route steering input.')
+          const durableText = await session.prompt(text, {
+            ...(images ? { images } : {}),
+            ...(transformExpandedText ? { transformExpandedText } : {}),
+            streamingBehavior: 'steer',
+          })
+          if (durableText === undefined) {
+            cancelProjection()
+            return { delivery: 'handled' }
+          }
+          return {
+            delivery: 'queued',
+            durableText: stripAtomicVisualizationContext(durableText),
+            minimumCreatedOrder,
+          }
+        }
+        const durableText = transformExpandedText
+          ? await session.steer(text, images, transformExpandedText)
+          : await session.steer(text, images)
+        return {
+          delivery: 'queued',
+          durableText: stripAtomicVisualizationContext(durableText),
+          minimumCreatedOrder,
+        }
+      } catch (cause) {
+        cancelProjection()
+        throw cause
       }
     },
   }

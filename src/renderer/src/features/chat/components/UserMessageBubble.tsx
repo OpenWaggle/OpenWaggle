@@ -10,13 +10,14 @@ import {
   Image,
   Waypoints,
 } from 'lucide-react'
-import { Children, cloneElement, isValidElement, type ReactNode } from 'react'
+import { Children, cloneElement, isValidElement, type ReactNode, useEffect } from 'react'
 import type { Components } from 'react-markdown'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { ATTACHMENT_TEXT_PREFIX } from '@/features/chat/lib/useAgentChat.utils'
 import { SessionMessageImages, useSessionMessageImageResources } from '@/features/session-summary'
 import { useCopyToClipboard } from '@/shared/hooks/useCopyToClipboard'
+import { releaseMessageImagePreviewUrls } from '@/shared/lib/attachment-preview-urls'
 import { cn } from '@/shared/lib/cn'
 import { NonFetchingMarkdownImage } from '@/shared/lib/markdown-link-components'
 import { safeMarkdownRehypePlugins, safeMarkdownUrlTransform } from '@/shared/lib/markdown-safety'
@@ -24,6 +25,7 @@ import { createSyntaxMarkdownComponents } from '@/shared/lib/syntax/markdown-com
 import { Button } from '@/shared/ui/Button'
 import { useChatDisplayTextFormatter } from './ChatDisplayPathContext'
 import { renderTextWithMentions } from './MentionText'
+import { OptimisticMessageImages } from './OptimisticMessageImages'
 
 const USER_REMARK_PLUGINS = [remarkGfm]
 
@@ -71,6 +73,10 @@ const userMarkdownComponents: Components = createSyntaxMarkdownComponents({
 
 function isAttachmentText(content: string) {
   return content.startsWith(ATTACHMENT_TEXT_PREFIX)
+}
+
+function isLegacyImageInputText(content: string) {
+  return /^\[Image input: [^\]]+\]$/u.test(content.trim())
 }
 
 function parseAttachmentName(content: string) {
@@ -205,14 +211,28 @@ export function UserMessageBubble({
   const messageNodeId = message.metadata?.sessionNodeId ?? message.id
   const capturedImages = useSessionMessageImageResources(messageNodeId)
 
+  useEffect(() => {
+    if (capturedImages.length > 0) releaseMessageImagePreviewUrls(message)
+  }, [capturedImages.length, message])
+
   const textParts = message.parts.filter(
     (p): p is Extract<(typeof message.parts)[number], { type: 'text' }> => p.type === 'text',
   )
-  const contentParts = textParts.filter((p) => !isAttachmentText(p.content))
+  const contentParts = textParts.filter(
+    (part) => !isAttachmentText(part.content) && !isLegacyImageInputText(part.content),
+  )
   const attachmentNames = textParts
     .filter((part) => isAttachmentText(part.content))
     .map((part) => parseAttachmentName(part.content))
-  const attachmentParts = visibleAttachmentParts(textParts, capturedImages)
+  const optimisticImages = message.parts.flatMap((part) =>
+    part.type === 'image'
+      ? [{ title: part.name ?? '', attachmentIndex: part.attachmentIndex ?? null }]
+      : [],
+  )
+  const attachmentParts = visibleAttachmentParts(textParts, [
+    ...capturedImages,
+    ...optimisticImages,
+  ])
   const isSteerPreview = message.metadata?.steerDelivery !== undefined
   const isWaitingForCompaction = message.metadata?.steerDelivery === 'waiting-for-compaction'
 
@@ -229,6 +249,7 @@ export function UserMessageBubble({
         )}
       >
         <SessionMessageImages messageId={messageNodeId} attachmentNames={attachmentNames} />
+        {capturedImages.length === 0 ? <OptimisticMessageImages message={message} /> : null}
         {attachmentParts.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-1.5 first:mt-0">
             {attachmentParts.map((p, i) => (

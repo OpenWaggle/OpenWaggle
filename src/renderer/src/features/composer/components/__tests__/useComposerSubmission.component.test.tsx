@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { usePreferencesStore } from '@/features/settings/state'
 import type { SendFailureDisposition } from '../../hooks/useComposerSubmission'
 import { useComposerSubmission } from '../../hooks/useComposerSubmission'
-import { markSessionResourceAttachmentsSubmitted } from '../../state/composer-attachment-lifecycle'
+import { markAttachmentsSubmitted } from '../../state/composer-attachment-lifecycle'
 import { useComposerStore } from '../../state/composer-store'
 
 const discardPreparedAttachment = vi.hoisted(() => vi.fn().mockResolvedValue(undefined))
@@ -50,7 +50,7 @@ function renderSubmission(input: {
 
 describe('composer Session image submission ownership', () => {
   beforeEach(() => {
-    markSessionResourceAttachmentsSubmitted(useComposerStore.getState().attachments)
+    markAttachmentsSubmitted(useComposerStore.getState().attachments)
     useComposerStore.getState().reset()
     discardPreparedAttachment.mockClear()
     usePreferencesStore.setState((state) => ({

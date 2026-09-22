@@ -47,6 +47,7 @@ function messageMetadataToUI(metadata: MessageMetadata | undefined): UIMessageMe
   if (!metadata) return undefined
   if (
     metadata.sessionNodeCreatedOrder === undefined &&
+    !metadata.durableTextSha256 &&
     !metadata.branchSummary &&
     !metadata.compactionSummary &&
     !metadata.waggleInvocation &&
@@ -57,6 +58,7 @@ function messageMetadataToUI(metadata: MessageMetadata | undefined): UIMessageMe
     ...(metadata.sessionNodeCreatedOrder !== undefined
       ? { sessionNodeCreatedOrder: metadata.sessionNodeCreatedOrder }
       : {}),
+    ...(metadata.durableTextSha256 ? { durableTextSha256: metadata.durableTextSha256 } : {}),
     ...(metadata.visualizationSessionId
       ? { visualizationSessionId: metadata.visualizationSessionId }
       : {}),

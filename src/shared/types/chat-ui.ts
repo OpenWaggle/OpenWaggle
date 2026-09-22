@@ -41,6 +41,8 @@ interface ChatBinarySource {
 export interface ChatImagePart {
   readonly type: 'image'
   readonly source: ChatBinarySource
+  readonly name?: string
+  readonly attachmentIndex?: number
 }
 
 export interface ChatAudioPart {
@@ -82,6 +84,7 @@ export interface UIMessageMetadata {
   /** Persisted Session node identity used by branch-scoped resource provenance. */
   readonly sessionNodeId?: string
   readonly sessionNodeCreatedOrder?: number
+  readonly durableTextSha256?: string
   readonly visualizationSessionId?: SessionId
   readonly branchSummary?: ChatBranchSummaryMetadata
   readonly compactionSummary?: ChatCompactionSummaryMetadata

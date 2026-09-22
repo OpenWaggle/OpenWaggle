@@ -21,10 +21,7 @@ describe('Pi message part projection helpers', () => {
         { type: 'text', text: buildAtomicVisualizationPrompt(context, 'inspect the selection') },
         { type: 'image', mimeType: 'image/png', data: 'base64-image' },
       ]),
-    ).toEqual([
-      { type: 'text', text: 'inspect the selection' },
-      { type: 'text', text: '[Image input: image/png]' },
-    ])
+    ).toEqual([{ type: 'text', text: 'inspect the selection' }])
   })
 
   it('keeps delimiter-like ordinary user text intact', () => {
@@ -49,10 +46,7 @@ describe('Pi message part projection helpers', () => {
         { type: 'image', mimeType: 'image/png' },
         { type: 'unknown' },
       ]),
-    ).toEqual([
-      { type: 'text', text: 'caption' },
-      { type: 'text', text: '[Image input: image/png]' },
-    ])
+    ).toEqual([{ type: 'text', text: 'caption' }])
     expect(piTextAndImageContentToParts({ invalid: true })).toEqual([{ type: 'text', text: '' }])
   })
 

@@ -7,12 +7,7 @@ import type { SessionId } from '@shared/types/brand'
 import type { ExtensionContributionRegistryView } from '@shared/types/extensions'
 import { useSessionFollowUpQueue } from '@/features/chat/hooks/useSessionFollowUpQueue'
 import { useBranchSummaryStore } from '@/features/chat/state/branch-summary-store'
-import {
-  BranchSummaryPrompt,
-  CompactionStatusStrip,
-  Composer,
-  QueuedMessages,
-} from '@/features/composer/components'
+import { BranchSummaryPrompt, Composer, QueuedMessages } from '@/features/composer/components'
 import { useScopedComposerDrafts } from '@/features/composer/hooks'
 import { ExtensionAgentLoopStatusWidgets } from '@/features/extensions'
 import { WaggleCollaborationStatus as WaggleCollaborationStatusBanner } from '@/features/waggle/components'
@@ -183,7 +178,6 @@ export function ChatComposerStack({
   const {
     activeSessionId,
     isLoading,
-    compactionStatus,
     onSendWithWaggle,
     onSteer,
     onCancel,
@@ -208,9 +202,6 @@ export function ChatComposerStack({
       <ComposerOverlays section={section} onOpenSessionTree={onOpenSessionTree} />
 
       <div className={`${CHAT_CONTENT_FRAME_CLASS} pb-5`} data-chat-composer-form="true">
-        {compactionStatus?.type === 'retrying' ? (
-          <CompactionStatusStrip state={compactionStatus} onCancel={onCancel} />
-        ) : null}
         <QueuedMessages
           sessionId={activeSessionId}
           onSteer={onSteer}

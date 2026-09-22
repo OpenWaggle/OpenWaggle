@@ -15,19 +15,11 @@ function emptyTextMessagePart(): MessagePart {
   return textMessagePart('')
 }
 
-function imageInputMessagePart(mimeType: string): MessagePart {
-  return textMessagePart(`[Image input: ${mimeType}]`)
-}
-
 function piTextOrImageBlockToPart(block: unknown): MessagePart | null {
   return match(block)
     .with({ type: 'text', text: P.select('text', P.string) }, ({ text }) =>
       textMessagePart(stripAtomicVisualizationContext(text)),
     )
-    .with({ type: 'image', mimeType: P.select('mimeType', P.optional(P.string)) }, ({ mimeType }) =>
-      imageInputMessagePart(mimeType ?? 'image'),
-    )
-    .with({ type: 'image' }, () => imageInputMessagePart('image'))
     .otherwise(() => null)
 }
 

@@ -84,6 +84,44 @@ describe('steering receipts after working-context compaction', () => {
     },
   )
 
+  it('matches a transformed steer by durable digest while keeping authored display text', async () => {
+    const initialMessages = [message('initial', 'user', 'start', 0)]
+    const messagesRef = { current: initialMessages }
+    const { result, rerender } = renderHook(
+      ({ messages }) =>
+        useOptimisticSteeredTurn(
+          messages,
+          SESSION_ID,
+          (payload) => payload.text,
+          messagesRef,
+          false,
+        ),
+      { initialProps: { messages: initialMessages } },
+    )
+    act(() => {
+      result.current.previewSteeredUserTurn(PAYLOAD, 'sending').setReceipt({
+        delivery: 'queued',
+        durableTextSha256: CONTINUE_SHA256,
+        minimumCreatedOrder: 1,
+      })
+    })
+
+    const delivered = [
+      ...initialMessages,
+      {
+        ...message('expanded-steer', 'user', '/review', 1),
+        metadata: {
+          sessionNodeCreatedOrder: 1,
+          durableTextSha256: CONTINUE_SHA256,
+        },
+      },
+    ]
+    messagesRef.current = delivered
+    rerender({ messages: delivered })
+
+    await waitFor(() => expect(result.current.visibleMessages).toEqual(delivered))
+  })
+
   it('matches a new user node below the old insertion index without consuming kept historical text', async () => {
     const keptUser = message('kept-historical-user', 'user', 'continue', 9)
     const initialMessages = [

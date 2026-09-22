@@ -35,16 +35,24 @@ export function on<C extends IpcEventChannel>(
 
 const invokePrepareAttachments = invoke('attachments:prepare')
 
-export function prepareSelectedAttachments(projectPath: string, files: readonly File[]) {
-  const paths: string[] = []
-  for (const file of files) {
-    const filePath = webUtils.getPathForFile(file)
-    if (filePath.length > 0) paths.push(filePath)
-  }
+export async function prepareSelectedAttachments(projectPath: string, files: readonly File[]) {
+  const selectedByPath = new Map<string, { readonly path: string; readonly fileIndex: number }>()
+  files.forEach((file, fileIndex) => {
+    const path = webUtils.getPathForFile(file)
+    if (path.length > 0 && !selectedByPath.has(path)) selectedByPath.set(path, { path, fileIndex })
+  })
+  const selected = [...selectedByPath.values()]
+  if (selected.length === 0) return []
 
-  if (paths.length === 0) {
-    return Promise.resolve([])
+  const attachments = await invokePrepareAttachments(
+    projectPath,
+    selected.map(({ path }) => path),
+  )
+  if (attachments.length !== selected.length) {
+    throw new Error('Attachment preparation returned an unexpected result count.')
   }
-
-  return invokePrepareAttachments(projectPath, paths)
+  return attachments.map((attachment, index) => ({
+    attachment,
+    fileIndex: selected[index]?.fileIndex ?? index,
+  }))
 }

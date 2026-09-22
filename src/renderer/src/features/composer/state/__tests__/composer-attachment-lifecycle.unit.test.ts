@@ -1,6 +1,10 @@
 import type { PreparedAttachment } from '@shared/types/agent'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { markSessionResourceAttachmentsSubmitted } from '../composer-attachment-lifecycle'
+import {
+  registerAttachmentPreviewUrls,
+  takeAttachmentPreviewUrl,
+} from '@/shared/lib/attachment-preview-urls'
+import { markAttachmentsSubmitted } from '../composer-attachment-lifecycle'
 import { useComposerStore } from '../composer-store'
 
 const discardPreparedAttachment = vi.hoisted(() => vi.fn().mockResolvedValue(undefined))
@@ -43,10 +47,31 @@ describe('composer Session resource attachment lifecycle', () => {
 
   it('does not discard a sent image when submission clears the composer', () => {
     useComposerStore.getState().addAttachments([viewerImage])
-    markSessionResourceAttachmentsSubmitted([viewerImage])
+    markAttachmentsSubmitted([viewerImage])
     useComposerStore.getState().reset()
 
     expect(discardPreparedAttachment).not.toHaveBeenCalled()
+  })
+
+  it('keeps a submitted file preview until first-session creation can claim it', () => {
+    const fileImage: PreparedAttachment = {
+      ...viewerImage,
+      id: 'user-image',
+      origin: 'user-file',
+    }
+    const file = new File(['image'], 'viewer.png', { type: 'image/png' })
+    const createObjectUrl = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:user-image')
+    const revokeObjectUrl = vi.spyOn(URL, 'revokeObjectURL')
+    registerAttachmentPreviewUrls([{ attachment: fileImage, fileIndex: 0 }], [file])
+    useComposerStore.getState().addAttachments([fileImage])
+
+    markAttachmentsSubmitted([fileImage])
+    useComposerStore.getState().reset()
+
+    expect(takeAttachmentPreviewUrl(fileImage.id)).toBe('blob:user-image')
+    expect(revokeObjectUrl).not.toHaveBeenCalledWith('blob:user-image')
+    createObjectUrl.mockRestore()
+    revokeObjectUrl.mockRestore()
   })
 
   it('discards abandoned viewer images on replacement but never ordinary user files', () => {
