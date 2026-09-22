@@ -387,7 +387,7 @@ Recording is a main/renderer protocol, not merely a `desktopCapturer` grant: suc
 - Unit, integration, and component tests belong in nearby `__tests__/`. There is no E2E suite (ADR 0033).
 - Do not suppress Fallow complexity findings; refactor instead.
 - Do not add legacy compatibility for removed pre-Pi surfaces unless explicitly requested.
-- Parallel `test:unit:raw` crashes nondeterministically in better-sqlite3@12.11.1 native teardown (`Statement::~Statement()` → `RemoveEnvironmentCleanupHook` assertion, "Worker forks emitted error") with zero test failures; two versions (12.11.1 + 13.0.1) coexist in the .pnpm store. Serial `--maxWorkers=1` is the reliable evidence run.
+- Node 24 Vitest workers abort in better-sqlite3@12.11.1 teardown (`Statement::~Statement()` → `RemoveEnvironmentCleanupHook`). `@effect/sql-sqlite-node` pulls v12 while the app uses v13; keep the workspace override that makes Effect reuse v13.0.1. This removes the duplicate native addon and lets the full parallel unit suite finish.
 
 ### `fromPartial` hides fixture mismatches as well as expressing them
 
