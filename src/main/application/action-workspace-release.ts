@@ -5,6 +5,9 @@ import { ActionRunService } from '../ports/action-run-service'
 import { SessionWorkspaceResourceRepository } from '../ports/session-workspace-resource-repository'
 
 const logger = createLogger('action-workspace-release')
+const SERVICE_RELEASE_RETRY_MS = 1_000
+const SERVICE_RELEASE_BACKOFF_MULTIPLIER = 2
+const SERVICE_RELEASE_MAX_RETRY_MS = 30_000
 
 /** Serialize archive/delete against starts. Other active bindings retain their services. */
 export function withSessionActionRelease<A, E, R>(
@@ -19,6 +22,10 @@ export function withSessionActionRelease<A, E, R>(
       const workspace = yield* workspaces.getBound(sessionId)
       if (!workspace) return yield* operation
       const actions = yield* ActionRunService
+      const stopServicesIfUnbound = Effect.gen(function* () {
+        if ((yield* workspaces.countActiveBindings(workspace.id)) === 0)
+          yield* actions.stopWorkspaceServices(workspace.id)
+      })
       const outcome = yield* actions.withWorkspaceMutation(
         workspace.id,
         Effect.gen(function* () {
@@ -26,10 +33,35 @@ export function withSessionActionRelease<A, E, R>(
           if ((yield* workspaces.getBound(sessionId))?.id !== workspace.id)
             return { status: 'retry' } as const
           if (timing === 'after' || intent === 'archive') {
-            const value = yield* operation
-            if ((yield* workspaces.countActiveBindings(workspace.id)) === 0)
-              yield* actions.stopWorkspaceServices(workspace.id)
-            return { status: 'complete', value } as const
+            return yield* Effect.uninterruptibleMask((restore) =>
+              Effect.gen(function* () {
+                const value = yield* restore(operation)
+                const release = yield* stopServicesIfUnbound.pipe(Effect.either)
+                if (release._tag === 'Left') {
+                  logger.warn('Committed Workspace release; retrying action service shutdown', {
+                    workspaceId: workspace.id,
+                    error: release.left.message,
+                  })
+                  yield* Effect.forkDaemon(
+                    Effect.gen(function* () {
+                      let retryDelay = SERVICE_RELEASE_RETRY_MS
+                      while (true) {
+                        yield* Effect.sleep(retryDelay)
+                        const retry = yield* actions
+                          .withWorkspaceMutation(workspace.id, stopServicesIfUnbound)
+                          .pipe(Effect.either)
+                        if (retry._tag === 'Right') return
+                        retryDelay = Math.min(
+                          retryDelay * SERVICE_RELEASE_BACKOFF_MULTIPLIER,
+                          SERVICE_RELEASE_MAX_RETRY_MS,
+                        )
+                      }
+                    }),
+                  )
+                }
+                return { status: 'complete', value } as const
+              }),
+            )
           }
           const retireLocal =
             intent === 'delete' &&

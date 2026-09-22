@@ -54,3 +54,37 @@ it('applies persisted removals to both Pi shell tools without mutating their amb
     expect(context.env.HTTPS_PROXY).toBe('inherited')
   }
 })
+
+it('keeps current workspace paths authoritative for both Pi shell tools', async () => {
+  await createPiSessionForRun(
+    fromPartial({
+      preparedEnvironment: {
+        OPENWAGGLE_PROJECT_ROOT: '/stale/project',
+        OPENWAGGLE_WORKTREE_PATH: null,
+        READY: 'yes',
+      },
+      services: { cwd: '/current/tree' },
+      sessionManager: { buildSessionContext: () => ({ messages: [] }) },
+      thinkingLevel: 'off',
+    }),
+  )
+  for (const name of ['bash', 'powershell']) {
+    const hook = mocks.hooks.get(name)
+    if (!hook) throw new Error(`Missing ${name} spawn hook`)
+    expect(
+      hook({
+        command: 'pwd',
+        cwd: '/current/tree',
+        env: {
+          OPENWAGGLE_PROJECT_ROOT: '/current/project',
+          OPENWAGGLE_WORKTREE_PATH: '/current/tree',
+        },
+      }).env,
+    ).toEqual({
+      OPENWAGGLE_PROJECT_ROOT: '/current/project',
+      OPENWAGGLE_WORKTREE_PATH: '/current/tree',
+      READY: 'yes',
+      OPENWAGGLE_AGENT_RUN: '1',
+    })
+  }
+})

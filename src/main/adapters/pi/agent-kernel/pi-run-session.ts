@@ -10,6 +10,7 @@ import type { ThinkingLevel } from '@shared/types/settings'
 import {
   applyPreparedEnvironment,
   type PreparedEnvironment,
+  withoutPreparedWorkspaceContext,
 } from '../../../domain/prepared-environment'
 import type { PiModel } from '../pi-provider-catalog'
 import {
@@ -30,7 +31,7 @@ export async function createPiSessionForRun(input: {
     env: {
       ...applyPreparedEnvironment(
         context.env,
-        input.preparedEnvironment ?? {},
+        withoutPreparedWorkspaceContext(input.preparedEnvironment ?? {}),
         process.platform === 'win32',
       ),
       OPENWAGGLE_AGENT_RUN: '1',

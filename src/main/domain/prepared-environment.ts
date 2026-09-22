@@ -2,6 +2,20 @@
 export type PreparedEnvironment = Readonly<Record<string, string | null>>
 
 const TRANSIENT_NAMES = new Set(['_', 'PWD', 'OLDPWD', 'SHLVL', 'ELECTRON_RUN_AS_NODE'])
+const WORKSPACE_CONTEXT_NAMES = new Set([
+  'OPENWAGGLE_PROJECT_ROOT',
+  'OPENWAGGLE_WORKTREE_PATH',
+  'OPENWAGGLE_AGENT_RUN',
+])
+const isWorkspaceContextName = (name: string) => WORKSPACE_CONTEXT_NAMES.has(name.toUpperCase())
+
+export function withoutPreparedWorkspaceContext(
+  prepared: PreparedEnvironment,
+): PreparedEnvironment {
+  return Object.fromEntries(
+    Object.entries(prepared).filter(([name]) => !isWorkspaceContextName(name)),
+  )
+}
 
 export function applyPreparedEnvironment<T extends string | undefined>(
   inherited: Readonly<Record<string, T>>,
@@ -33,12 +47,20 @@ export function capturePreparedEnvironment(
   const captured = new Map(Object.keys(exported).map((name) => [normalize(name), name]))
   const changes = new Map<string, string | null>()
   for (const [name, value] of Object.entries(exported)) {
-    if (!TRANSIENT_NAMES.has(normalize(name)) && value !== inherited.get(normalize(name)))
+    if (
+      !TRANSIENT_NAMES.has(normalize(name)) &&
+      !isWorkspaceContextName(name) &&
+      value !== inherited.get(normalize(name))
+    )
       changes.set(name, value)
   }
   // Keep prior removals even if that variable is absent from the Host on this attempt.
   for (const name of new Set([...Object.keys(baseline), ...Object.keys(previous)])) {
-    if (!TRANSIENT_NAMES.has(normalize(name)) && !captured.has(normalize(name)))
+    if (
+      !TRANSIENT_NAMES.has(normalize(name)) &&
+      !isWorkspaceContextName(name) &&
+      !captured.has(normalize(name))
+    )
       changes.set(name, null)
   }
   return Object.fromEntries(changes)

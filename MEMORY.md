@@ -868,6 +868,11 @@ Reconcile unsent worktree preparation choices against catalog updates even when 
 hidden with only one profile; a deleted profile must not remain in the draft sent to a new Session.
 Within the Workspace mutation fence, archive first, then stop services only after the archive
 commits and removes the last active binding. A failed archive must leave running services alive.
+After a committed archive or handoff, a service-stop failure must not make the mutation appear to
+fail. Retry cleanup under the Workspace fence, checking active bindings again so a rebound Workspace
+keeps its services. Managed runs retain ownership while stop cannot be confirmed.
+Prepared setup exports must not capture or override OpenWaggle's current project root, worktree path,
+or agent-run marker. Pi Bash and PowerShell receive the active run's authoritative Workspace context.
 
 The September 2026 native action verification reproduced a SQLite worker teardown abort on pristine
 main with transitive better-sqlite3 12.11.1. Root and Effect SQLite now share 13.0.3, which includes the

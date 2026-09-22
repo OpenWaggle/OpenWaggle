@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { applyPreparedEnvironment, capturePreparedEnvironment } from '../prepared-environment'
+import {
+  applyPreparedEnvironment,
+  capturePreparedEnvironment,
+  withoutPreparedWorkspaceContext,
+} from '../prepared-environment'
 
 describe('prepared environment changes', () => {
   it('captures removed inherited variables, new and empty values without storing unchanged secrets', () => {
@@ -42,5 +46,34 @@ describe('prepared environment changes', () => {
       NEW: '',
     })
     expect(inherited.HTTPS_PROXY).toBe('remove')
+  })
+
+  it('never captures or applies prepared overrides of the current workspace context', () => {
+    const baseline = {
+      OPENWAGGLE_PROJECT_ROOT: '/old/project',
+      OPENWAGGLE_WORKTREE_PATH: '/old/tree',
+    }
+    expect(
+      capturePreparedEnvironment(
+        baseline,
+        { OPENWAGGLE_AGENT_RUN: 'wrong' },
+        { OPENWAGGLE_PROJECT_ROOT: '/wrong/project', READY: 'yes' },
+      ),
+    ).toEqual({ READY: 'yes' })
+    expect(
+      applyPreparedEnvironment(
+        { OPENWAGGLE_PROJECT_ROOT: '/current/project', OPENWAGGLE_WORKTREE_PATH: '/current/tree' },
+        withoutPreparedWorkspaceContext({
+          openwaggle_project_root: '/wrong/project',
+          OPENWAGGLE_WORKTREE_PATH: null,
+          READY: 'yes',
+        }),
+        true,
+      ),
+    ).toEqual({
+      OPENWAGGLE_PROJECT_ROOT: '/current/project',
+      OPENWAGGLE_WORKTREE_PATH: '/current/tree',
+      READY: 'yes',
+    })
   })
 })
