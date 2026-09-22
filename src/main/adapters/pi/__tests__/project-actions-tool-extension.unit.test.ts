@@ -114,25 +114,35 @@ describe('Pi project_actions shares GUI executions', () => {
     expect(fixture.processes).toHaveLength(0)
   })
 
-  it('rejects edits made while agent execution authorization was pending', async () => {
-    const { tool, authorize, ctx } = registration(true)
-    authorize.mockImplementation(async () => {
-      fixture.edit([
-        {
-          ...fixture.definition,
-          invocation: { type: 'command', command: 'changed', directory: '.' },
-        },
-      ])
-      return true
-    })
-    const result = await tool.execute(
-      'changed',
-      { action: 'start', actionId: 'test' },
-      undefined,
-      undefined,
-      ctx,
-    )
-    expect(result).toMatchObject({ isError: true })
-    expect(fixture.processes).toHaveLength(0)
-  })
+  it.each([
+    {
+      field: 'command',
+      change: { invocation: { type: 'command', command: 'changed', directory: '.' } },
+    },
+    { field: 'preview URL', change: { previewUrl: 'http://localhost:9000/private' } },
+    { field: 'automatic preview', change: { autoOpenPreview: true } },
+  ] as const)(
+    'rejects $field edits while agent execution authorization was pending',
+    async ({ change }) => {
+      const { tool, authorize, ctx } = registration(true)
+      authorize.mockImplementation(async () => {
+        fixture.edit([
+          {
+            ...fixture.definition,
+            ...change,
+          },
+        ])
+        return true
+      })
+      const result = await tool.execute(
+        'changed',
+        { action: 'start', actionId: 'test' },
+        undefined,
+        undefined,
+        ctx,
+      )
+      expect(result).toMatchObject({ isError: true })
+      expect(fixture.processes).toHaveLength(0)
+    },
+  )
 })

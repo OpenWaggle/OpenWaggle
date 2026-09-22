@@ -826,8 +826,9 @@ Setup capture must use the ordinary action shell resolver and shell-native exit 
 fish, so configured shell syntax and explicit successful exits preserve exported environment.
 Fresh local Sessions need Summary availability from configured preparation, before a snapshot or
 run exists, or users cannot reach explicit setup.
-Native actions use Local Session protocol revision 15. Revision 14 belongs to update channels;
-its capability tuple must stay unchanged when negotiating with the immediate predecessor.
+Native actions use Local Session protocol revision 15 and require matching clients/Host for this
+breaking migration. Revision 14 belongs to update channels; its published tuple stays unchanged,
+but removed legacy action channels make revision 14 incompatible. Keep safe Host drain/handoff.
 Package task discovery checks the nearest package lockfiles before walking toward the Workspace
 root when no packageManager is declared; explicit child and root declarations keep precedence.
 Interrupted sharing journals pin the filesystem directory identity and durable Workspace resource.
@@ -839,6 +840,14 @@ selected source in saved task references and reporting conflicting files rather 
 Successful setup stores explicit environment removals as private null markers. Apply these after
 inherited environment construction for actions, cleanup and Pi shell tools; otherwise inherited
 Host variables reappear after setup unsets them. Public preparation projections exclude this map.
+Host recovery must mark interrupted preparation and action runs before replaying pending Session
+deletions or worktree removals, so cleanup cannot execute twice after a crash. Preparation output
+checkpoints retry from the last persisted revision. A failed final save retains a failed live
+snapshot and prior successful environment, keeping Retry and Continue available until persistence
+recovers. Agent authorization includes preview URL and automatic opening because both cause side
+effects. Resolve relative PATH entries and executable paths from the action directory, including
+setup shell selection. Hatch environments inherit ordinary scripts by name, but replace the entire
+extra-scripts option; parent matrices do not make explicitly named child environments ambiguous.
 
 The September 2026 native action verification reproduced a SQLite worker teardown abort on pristine
 main with transitive better-sqlite3 12.11.1. Root and Effect SQLite now share 13.0.3, which includes the

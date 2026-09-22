@@ -35,14 +35,20 @@ export async function executeWorkspacePreparation(input: {
   publish(state)
   const release = deps.acquireLiveness()
   const sanitizer = createTerminalHistorySanitizer()
+  let persistedRevision = state.revision
   let writes = Promise.resolve()
   let timer: ReturnType<typeof setTimeout> | undefined
-  const checkpoint = () => {
-    const expectedRevision = state.revision
-    state = { ...state, revision: expectedRevision + 1 }
-    const snapshot = state
-    publish(state)
-    writes = writes.then(() => deps.persistence.write(snapshot, expectedRevision))
+  const checkpoint = (snapshot: StoredWorkspacePreparation) => {
+    writes = writes
+      .catch(() => {})
+      .then(async () => {
+        // A failed checkpoint must not poison later writes or advance their comparison revision.
+        const revision = persistedRevision + 1
+        await deps.persistence.write({ ...snapshot, revision }, persistedRevision)
+        persistedRevision = revision
+        state = { ...state, revision }
+        if (state[phase].status === 'running') publish(state)
+      })
     // The final await propagates persistence failure; this handler prevents unhandled rejection during execution.
     void writes.catch(() => {})
   }
@@ -68,7 +74,7 @@ export async function executeWorkspacePreparation(input: {
         publish(state)
         timer ??= setTimeout(() => {
           timer = undefined
-          checkpoint()
+          checkpoint(state)
         }, OUTPUT_CHECKPOINT_MS)
       },
     })
@@ -98,15 +104,29 @@ export async function executeWorkspacePreparation(input: {
         error: error instanceof Error ? error.message : String(error),
       },
     }
-  } finally {
-    if (timer) clearTimeout(timer)
-    try {
-      checkpoint()
-      await writes
-    } finally {
-      publish(null)
-      release()
+  }
+  if (timer) clearTimeout(timer)
+  try {
+    checkpoint(state)
+    await writes
+    publish(null)
+  } catch (error) {
+    // Keep recovery controls available even while storage cannot accept the final result.
+    state = {
+      ...state,
+      revision: persistedRevision,
+      environment: previous.environment,
+      [phase]: {
+        ...state[phase],
+        status: 'failed',
+        finishedAt: Date.now(),
+        error: `Could not save the preparation result: ${error instanceof Error ? error.message : String(error)}`,
+      },
     }
+    publish(state)
+    throw error
+  } finally {
+    release()
   }
   return state
 }

@@ -38,46 +38,27 @@ describe('Local Session protocol negotiation', () => {
     })
   })
 
-  it('accepts the immediately previous revision with its exact capability tuple', () => {
-    expect(
-      negotiateLocalSessionProtocol(
-        {
-          protocol: 'openwaggle-local-session',
-          supportedRevisions: [14, 13],
-          clientKind: 'cli',
-          clientVersion: 'previous',
-        },
-        'host-current',
-      ),
-    ).toEqual({
-      accepted: true,
-      protocol: 'openwaggle-local-session',
-      revision: 14,
-      hostInstanceId: 'host-current',
-      capabilities: [
-        'events:subscribe',
-        'events:replay',
-        'sessions:mutate-v2',
-        'sessions:query-v2',
-        'sessions:snapshot',
-        'access:profiles-v1',
-        'ui:mutate-v1',
-        'waggle:run-v1',
-        'waggle:cancel-v1',
-        'ui:compact-v1',
-        'host-ui:invoke-v1',
-        'host-ui:mcp-auth-v2',
-        'sessions:steer-receipt-v1',
-        'host-ui:workspace-authorization-v1',
-        'host-ui:visualization-source-v1',
-        'host-ui:authorization-grants-v1',
-        'desktop:services-v1',
-        'host-ui:session-project-catalog-v1',
-        'host-ui:turn-diff-files-v1',
-        'updates:channel-v1',
-      ],
-    })
-  })
+  it.each(['gui', 'cli', 'mcp', 'internal'] as const)(
+    'rejects a revision-fourteen %s client before its removed action commands can be sent',
+    (clientKind) => {
+      expect(
+        negotiateLocalSessionProtocol(
+          {
+            protocol: 'openwaggle-local-session',
+            supportedRevisions: [14, 13],
+            clientKind,
+            clientVersion: 'previous',
+          },
+          'host-current',
+        ),
+      ).toEqual({
+        accepted: false,
+        protocol: 'openwaggle-local-session',
+        code: 'incompatible_protocol',
+        supportedRevisions: [15],
+      })
+    },
+  )
 
   it('requests an authenticated safe handoff from an incompatible newer client', () => {
     expect(
@@ -128,7 +109,7 @@ describe('Local Session protocol negotiation', () => {
     ).toThrow()
   })
 
-  it('rejects negotiation outside the current and immediately previous revision window', () => {
+  it('rejects negotiation below the native-actions compatibility boundary', () => {
     expect(
       negotiateLocalSessionProtocol(
         {
@@ -143,7 +124,7 @@ describe('Local Session protocol negotiation', () => {
       accepted: false,
       protocol: 'openwaggle-local-session',
       code: 'incompatible_protocol',
-      supportedRevisions: [15, 14],
+      supportedRevisions: [15],
     })
     expect(() =>
       decodeLocalSessionNegotiationResult({

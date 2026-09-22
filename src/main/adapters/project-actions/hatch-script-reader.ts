@@ -32,26 +32,43 @@ const projectSchema = Schema.Struct({
 })
 type Environments = Readonly<Record<string, SchemaType<typeof envSchema>>>
 type Scripts = SchemaType<typeof scriptsSchema>
+interface ScriptConfiguration {
+  readonly scripts: Scripts
+  readonly extraScripts: Scripts
+}
 
-function scriptsFor(
+function scriptConfigurationFor(
   environments: Environments,
   name: string,
   visited = new Set<string>(),
-): Scripts {
+): ScriptConfiguration {
   if (visited.has(name)) throw new Error(`Hatch environment inheritance cycle at ${name}.`)
   const environment = environments[name]
   if (!environment) {
-    if (name === 'default') return {}
+    if (name === 'default') return { scripts: {}, extraScripts: {} }
     throw new Error(`Missing Hatch environment template: ${name}.`)
   }
-  if (environment.matrix !== undefined)
+  visited.add(name)
+  const template = environment.detached ? name : (environment.template ?? 'default')
+  const inherited =
+    template === name
+      ? { scripts: {}, extraScripts: {} }
+      : scriptConfigurationFor(environments, template, visited)
+  return {
+    scripts: { ...inherited.scripts, ...environment.scripts },
+    // Hatch merges scripts by name, but inherits extra-scripts as a whole option.
+    extraScripts: environment['extra-scripts'] ?? inherited.extraScripts,
+  }
+}
+
+function scriptsFor(environments: Environments, name: string): Scripts {
+  // Hatch inherits scripts from templates, but never their matrices.
+  if (environments[name]?.matrix !== undefined)
     throw new Error(
       `Hatch matrix environment ${name} needs a custom command with an explicit selector.`,
     )
-  visited.add(name)
-  const template = environment.detached ? name : (environment.template ?? 'default')
-  const inherited = template === name ? {} : scriptsFor(environments, template, visited)
-  return { ...environment['extra-scripts'], ...inherited, ...environment.scripts }
+  const { scripts, extraScripts } = scriptConfigurationFor(environments, name)
+  return { ...extraScripts, ...scripts }
 }
 
 async function list(workspace: string): Promise<ProjectTaskDiscovery> {

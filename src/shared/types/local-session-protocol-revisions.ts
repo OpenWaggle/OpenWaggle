@@ -12,11 +12,8 @@ export const LOCAL_SESSION_MCP_HOST_UI_REVISION = 6 as const
 export const LOCAL_SESSION_LEGACY_HOST_UI_REVISION = 5 as const
 export const LOCAL_SESSION_COMPACTION_REVISION = 4 as const
 export const LOCAL_SESSION_WAGGLE_REVISION = 3 as const
-/** The Host accepts only the current wire contract and its immediate predecessor. */
-export const LOCAL_SESSION_SUPPORTED_REVISIONS = [
-  LOCAL_SESSION_CURRENT_REVISION,
-  LOCAL_SESSION_UPDATE_REVISION,
-] as const
+/** Revision 15 removes legacy action commands; older clients must upgrade (ADR 0035). */
+export const LOCAL_SESSION_SUPPORTED_REVISIONS = [LOCAL_SESSION_CURRENT_REVISION] as const
 
 export const LOCAL_SESSION_REVISION_2_CAPABILITIES = [
   'events:subscribe',

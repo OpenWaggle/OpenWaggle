@@ -84,7 +84,10 @@ export function createPreparationExecutor(
         ? preparationCaptureInvocation(
             resolved,
             destination,
-            await resolveActionShell(getInteractiveTerminalEnv(appVersion, environment)),
+            await resolveActionShell(
+              getInteractiveTerminalEnv(appVersion, environment),
+              resolved.cwd,
+            ),
           )
         : null
       const invocation = capture?.invocation ?? resolved

@@ -35,13 +35,13 @@ describe('Local Session authorization grant revision', () => {
         },
       })
 
-      expect(supportedRevisionsForCommand(payload)).toEqual([15, 14])
+      expect(supportedRevisionsForCommand(payload)).toEqual([15])
       expect(() => decodeLocalSessionCommandPayloadForRevision(payload, 9)).toThrow(/revision 10/)
       expect(decodeLocalSessionCommandPayloadForRevision(payload, 10)).toEqual(payload)
     },
   )
 
-  it('keeps revision fourteen updates compatible and reserves native actions for revision fifteen', () => {
+  it('preserves published capability tuples while requiring revision fifteen for attachment', () => {
     const hello = {
       protocol: 'openwaggle-local-session',
       supportedRevisions: [14, 13],
@@ -50,11 +50,10 @@ describe('Local Session authorization grant revision', () => {
     } as const
     const current = negotiateLocalSessionProtocol(hello, 'host-current')
     expect(current).toEqual({
-      accepted: true,
+      accepted: false,
       protocol: hello.protocol,
-      revision: 14,
-      hostInstanceId: 'host-current',
-      capabilities: LOCAL_SESSION_REVISION_14_CAPABILITIES,
+      code: 'incompatible_protocol',
+      supportedRevisions: [15],
     })
     expect(LOCAL_SESSION_CAPABILITIES).toContain('host-ui:authorization-grants-v1')
     expect(LOCAL_SESSION_REVISION_10_CAPABILITIES).toContain('host-ui:authorization-grants-v1')

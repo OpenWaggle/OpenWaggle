@@ -10,7 +10,7 @@ import {
   type LocalSessionNegotiationResult,
 } from '@shared/types/local-session-protocol'
 
-const [currentRevision, previousRevision] = LOCAL_SESSION_SUPPORTED_REVISIONS
+const [currentRevision] = LOCAL_SESSION_SUPPORTED_REVISIONS
 const MAX_NEGOTIATION_REVISIONS = 16
 const [
   subscribeCapability,
@@ -77,38 +77,8 @@ const currentCapabilitySchema = Schema.Tuple(
   Schema.Literal(nativeActionsCapability),
 )
 
-const previousCapabilitySchema = Schema.Tuple(
-  Schema.Literal(subscribeCapability),
-  Schema.Literal(replayCapability),
-  Schema.Literal(mutateCapability),
-  Schema.Literal(queryCapability),
-  Schema.Literal(snapshotCapability),
-  Schema.Literal(accessProfilesCapability),
-  Schema.Literal(localUiMutationCapability),
-  Schema.Literal(waggleRunCapability),
-  Schema.Literal(waggleCancelCapability),
-  Schema.Literal(localCompactionCapability),
-  Schema.Literal(hostUiCapability),
-  Schema.Literal(mcpAuthCapability),
-  Schema.Literal(steerReceiptCapability),
-  Schema.Literal(workspaceAuthCapability),
-  Schema.Literal(visualizationSourceCapability),
-  Schema.Literal(authorizationGrantsCapability),
-  Schema.Literal(desktopServicesCapability),
-  Schema.Literal(projectCatalogCapability),
-  Schema.Literal(turnDiffFilesCapability),
-  Schema.Literal(updateChannelCapability),
-)
-
 export const localSessionNegotiationResultSchema: Schema.Schema<LocalSessionNegotiationResult> =
   Schema.Union(
-    Schema.Struct({
-      accepted: Schema.Literal(true),
-      protocol: Schema.Literal(LOCAL_SESSION_PROTOCOL_NAME),
-      revision: Schema.Literal(previousRevision),
-      hostInstanceId: Schema.String,
-      capabilities: previousCapabilitySchema,
-    }),
     Schema.Struct({
       accepted: Schema.Literal(true),
       protocol: Schema.Literal(LOCAL_SESSION_PROTOCOL_NAME),

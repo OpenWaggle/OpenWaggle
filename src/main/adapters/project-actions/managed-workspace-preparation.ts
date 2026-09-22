@@ -43,6 +43,7 @@ export class ManagedWorkspacePreparation {
   }
   private async save(state: StoredWorkspacePreparation, previousRevision: number) {
     await this.deps.persistence.write(state, previousRevision)
+    this.live.delete(state.workspaceId)
     return state
   }
   async read(workspace: ActionRunWorkspace) {

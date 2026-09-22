@@ -1,6 +1,6 @@
 import { constants } from 'node:fs'
 import { access, stat } from 'node:fs/promises'
-import { basename, delimiter, isAbsolute, join } from 'node:path'
+import { basename, delimiter, isAbsolute, resolve } from 'node:path'
 import type { ResolvedActionInvocation } from '@shared/types/action-definitions'
 import { isEnoent } from '@shared/utils/node-error'
 import { quotePowerShellArgument as quotePowerShell } from '@shared/utils/shell-argument'
@@ -49,17 +49,26 @@ function unavailableExecutable(error: unknown) {
   )
 }
 
-async function executablePath(command: string, environment: Readonly<Record<string, string>>) {
+async function executablePath(
+  command: string,
+  environment: Readonly<Record<string, string>>,
+  cwd: string,
+) {
   const extensions =
     process.platform === 'win32'
       ? (environmentValue(environment, 'PATHEXT') ?? '.COM;.EXE;.BAT;.CMD').split(';')
       : ['']
-  const directories = isAbsolute(command)
+  const explicitPath =
+    isAbsolute(command) ||
+    command.includes('/') ||
+    (process.platform === 'win32' && command.includes('\\'))
+  const directories = explicitPath
     ? ['']
-    : (environmentValue(environment, 'PATH') ?? '').split(delimiter).filter(Boolean)
+    : (environmentValue(environment, 'PATH')?.split(delimiter) ?? [])
   for (const directory of directories) {
     for (const extension of ['', ...extensions]) {
-      const path = isAbsolute(command) ? command : join(directory, `${command}${extension}`)
+      // Empty PATH entries also name cwd. Resolve before probing or handing the path to the PTY.
+      const path = resolve(cwd, directory, `${command}${extension}`)
       try {
         await access(path, process.platform === 'win32' ? constants.F_OK : constants.X_OK)
         if ((await stat(path)).isFile()) return path
@@ -73,10 +82,10 @@ async function executablePath(command: string, environment: Readonly<Record<stri
   )
 }
 
-export async function resolveActionShell(environment: Readonly<Record<string, string>>) {
+export async function resolveActionShell(environment: Readonly<Record<string, string>>, cwd = '.') {
   for (const candidate of existingShells({ environment })) {
     try {
-      return await executablePath(candidate.command, environment)
+      return await executablePath(candidate.command, environment, cwd)
     } catch (error) {
       if (error instanceof Error && error.message.startsWith('Runner unavailable:')) continue
       throw error
@@ -90,11 +99,11 @@ async function processCommand(
   environment: Readonly<Record<string, string>>,
 ) {
   if (invocation.type === 'executable') {
-    const command = await executablePath(invocation.executable, environment)
+    const command = await executablePath(invocation.executable, environment, invocation.cwd)
     if (process.platform !== 'win32' || !/\.(cmd|bat)$/i.test(command))
       return { command, args: invocation.args }
     // PowerShell literals preserve arguments, including %, &, and spaces, for Windows script shims.
-    const shell = await executablePath('powershell.exe', environment)
+    const shell = await executablePath('powershell.exe', environment, invocation.cwd)
     return {
       command: shell,
       args: [
@@ -106,7 +115,7 @@ async function processCommand(
       ],
     }
   }
-  const command = await resolveActionShell(environment)
+  const command = await resolveActionShell(environment, invocation.cwd)
   const name = basename(command).toLowerCase()
   if (name === 'cmd.exe') return { command, args: ['/d', '/s', '/c', invocation.command] }
   if (name.includes('powershell') || name === 'pwsh' || name === 'pwsh.exe')
