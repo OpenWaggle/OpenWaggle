@@ -88,9 +88,11 @@ export function assertSessionsToolActionArguments(params: SessionsToolParameters
   const variant = sessionsToolParameterVariants.find(
     (candidate) => variantActionName(candidate) === params.action,
   )
-  const valid: boolean = variant !== undefined && Check(variant, params)
-  if (valid) return
-  if (variant === undefined) return
+  if (variant === undefined) {
+    throw new Error(`Unknown sessions action "${params.action}".`)
+  }
+  const matchesVariant: boolean = Check(variant, params)
+  if (matchesVariant) return
   const details = [...Errors(variant, params)]
     .map((error) => `${error.instancePath || 'arguments'}: ${error.message}`)
     .join('; ')

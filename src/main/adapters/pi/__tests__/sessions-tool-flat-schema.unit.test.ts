@@ -61,4 +61,10 @@ describe('sessions tool flattened schema', () => {
       /Invalid arguments for sessions action "search"/,
     )
   })
+
+  it('rejects unknown actions instead of passing them to the payload builders', () => {
+    expect(() =>
+      assertSessionsToolActionArguments(asParams({ action: '__no_permitted_actions__' })),
+    ).toThrow(/Unknown sessions action/)
+  })
 })
