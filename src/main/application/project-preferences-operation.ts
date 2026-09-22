@@ -9,7 +9,7 @@ import {
   type ProjectPreferencesUpdate,
   setProjectPreferences,
 } from '../config/project-config'
-import { SettingsService } from '../services/settings-service'
+import { SettingsService, type SettingsServiceShape } from '../services/settings-service'
 import { validateProjectPath } from '../utils/project-path-validation'
 import { resolveEffectiveAuthorizationMode } from './agent-authorization-mode'
 import { grantPendingAuthorizationsWhereFullAccess } from './agent-loop-authorization-grants'
@@ -94,6 +94,12 @@ export function getProjectPreferencesOperation(rawProjectPath: unknown) {
  * repository, so committing a personal model pick would leak machine-specific provider config into
  * shared source. The model therefore lands in the app's SQLite settings store instead, keyed by
  * project path; only thinkingLevel and authorizationMode remain repo-local.
+ *
+ * Legacy handling: upgraded projects may still carry a `model` in the settings file. The file
+ * writer strips it on every write, so before any strip this operation first makes the DB own the
+ * value — an explicit write wins, otherwise the legacy value is migrated when the DB has no entry
+ * yet. An explicit `null` clears the DB entry AND forces a file rewrite so the legacy value cannot
+ * resurrect through the read fallback.
  */
 export function setProjectPreferencesOperation(rawProjectPath: unknown, rawPreferences: unknown) {
   return Effect.gen(function* () {
@@ -102,23 +108,25 @@ export function setProjectPreferencesOperation(rawProjectPath: unknown, rawPrefe
     )
     if (!projectPath) return yield* Effect.fail(new Error('Project path is required.'))
     const { model, filePreferences } = yield* validateProjectPreferences(rawPreferences)
+    const filePrefs = yield* Effect.promise(() => getProjectPreferencesStrict(projectPath))
+    const settings = yield* SettingsService
 
     if (model !== undefined) {
-      const settings = yield* SettingsService
-      if (settings.setProjectModel) {
-        // Dedicated writer: read-modify-write happens inside the settings write queue, so
-        // concurrent project preference writes cannot lose each other's map entries.
-        yield* settings.setProjectModel(projectPath, model)
-      } else {
-        const current = yield* settings.get()
-        const { [projectPath]: _current, ...rest } = current.selectedModelsByProject
-        yield* settings.update({
-          selectedModelsByProject: model === null ? rest : { ...rest, [projectPath]: model },
-        })
+      yield* writeProjectModel(settings, projectPath, model)
+    } else {
+      // An unrelated file-backed write strips the legacy model below; migrate it first so the
+      // user's override survives, unless the DB already owns a (newer) value.
+      const legacyModel = filePrefs?.model
+      const dbModel = (yield* settings.get()).selectedModelsByProject[projectPath]
+      if (legacyModel && !dbModel) {
+        yield* writeProjectModel(settings, projectPath, legacyModel)
       }
     }
 
+    // The file writer strips any legacy model, so a rewrite must also happen for an explicit
+    // clear (model === null) even when no other file-backed preference changed.
     if (
+      model === null ||
       filePreferences.thinkingLevel !== undefined ||
       filePreferences.authorizationMode !== undefined
     ) {
@@ -130,5 +138,24 @@ export function setProjectPreferencesOperation(rawProjectPath: unknown, rawPrefe
         grantPendingAuthorizationsWhereFullAccess(resolveEffectiveAuthorizationMode),
       )
     }
+  })
+}
+
+function writeProjectModel(
+  settings: SettingsServiceShape,
+  projectPath: string,
+  model: string | null,
+) {
+  if (settings.setProjectModel) {
+    // Dedicated writer: read-modify-write happens inside the settings write queue, so
+    // concurrent project preference writes cannot lose each other's map entries.
+    return settings.setProjectModel(projectPath, model)
+  }
+  return Effect.gen(function* () {
+    const current = yield* settings.get()
+    const { [projectPath]: _current, ...rest } = current.selectedModelsByProject
+    yield* settings.update({
+      selectedModelsByProject: model === null ? rest : { ...rest, [projectPath]: model },
+    })
   })
 }

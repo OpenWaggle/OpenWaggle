@@ -36,10 +36,20 @@ import {
   setProjectPreferencesOperation,
 } from '../project-preferences-operation'
 
+async function writeLegacyModelFile(projectPath: string) {
+  await fs.mkdir(path.join(projectPath, '.openwaggle'), { recursive: true })
+  await fs.writeFile(
+    path.join(projectPath, '.openwaggle', 'settings.json'),
+    JSON.stringify({ preferences: { model: 'legacy/file' } }),
+    'utf-8',
+  )
+}
+
 describe('Host-backed project preferences', () => {
   let storedModels: Record<string, string>
   let updates: Array<{ selectedModelsByProject?: Record<string, string> }>
   let projectModelWrites: Array<[string, string | null]> | undefined
+  let projectPath: string
 
   function makeService(): SettingsServiceShape {
     return {
@@ -52,9 +62,9 @@ describe('Host-backed project preferences', () => {
         }),
       ...(projectModelWrites
         ? {
-            setProjectModel: (projectPath: string, model: string | null) =>
+            setProjectModel: (writtenPath: string, model: string | null) =>
               Effect.sync(() => {
-                projectModelWrites?.push([projectPath, model])
+                projectModelWrites?.push([writtenPath, model])
               }),
           }
         : {}),
@@ -72,6 +82,13 @@ describe('Host-backed project preferences', () => {
     storedModels = {}
     updates = []
     projectModelWrites = undefined
+    projectPath = '/project'
+  })
+
+  afterEach(async () => {
+    if (projectPath.startsWith(os.tmpdir())) {
+      await fs.rm(projectPath, { recursive: true, force: true })
+    }
   })
 
   it('settles authoritative pending prompts after enabling full access', async () => {
@@ -112,13 +129,36 @@ describe('Host-backed project preferences', () => {
     expect(mocks.setPreferences).toHaveBeenCalledWith('/project', { thinkingLevel: 'high' })
   })
 
-  it('clears the DB model entry when the write passes null', async () => {
+  it('clears the DB model entry and rewrites the file when the write passes null', async () => {
     storedModels = { '/project': 'openai/gpt-4.1' }
 
     await run(setProjectPreferencesOperation('/project', { model: null }))
 
     expect(updates).toEqual([{ selectedModelsByProject: {} }])
-    expect(mocks.setPreferences).not.toHaveBeenCalled()
+    // The rewrite strips any legacy file model so the clear cannot resurrect it.
+    expect(mocks.setPreferences).toHaveBeenCalledWith('/project', {})
+  })
+
+  it('migrates a legacy file model to the DB before an unrelated write strips it', async () => {
+    projectPath = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-legacy-model-'))
+    await writeLegacyModelFile(projectPath)
+
+    await run(setProjectPreferencesOperation(projectPath, { thinkingLevel: 'high' }))
+
+    // The legacy override must survive the strip: it moves into the DB first.
+    expect(updates).toEqual([{ selectedModelsByProject: { [projectPath]: 'legacy/file' } }])
+    expect(mocks.setPreferences).toHaveBeenCalledWith(projectPath, { thinkingLevel: 'high' })
+  })
+
+  it('does not migrate a legacy file model when the DB already owns a newer value', async () => {
+    projectPath = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-legacy-model-'))
+    storedModels = { [projectPath]: 'db/newer' }
+    await writeLegacyModelFile(projectPath)
+
+    await run(setProjectPreferencesOperation(projectPath, { thinkingLevel: 'high' }))
+
+    expect(updates).toEqual([])
+    expect(mocks.setPreferences).toHaveBeenCalledWith(projectPath, { thinkingLevel: 'high' })
   })
 })
 
