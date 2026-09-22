@@ -108,6 +108,7 @@ const mcpProvenanceSchema: Schema.Schema<McpServerProvenance> = Schema.Struct(
       'zed',
       'registry',
       'manual',
+      'catalog',
     ),
     sourcePath: Schema.optional(Schema.String),
     fingerprint: Schema.optional(Schema.String),

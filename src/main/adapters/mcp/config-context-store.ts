@@ -22,7 +22,6 @@ import {
   requestedServerPermissions,
   resolveServers,
   serverByInstanceId,
-  serverPermissionsMatch,
   updateServerState,
 } from './config-view'
 import { parseMcpConfigFile, readMcpUserState, writeJsonFileAtomic } from './json-files'
@@ -110,10 +109,13 @@ export class McpConfigContextStore {
     return this.runSerialized(async () => {
       const context = await this.loadContextUnlocked(input)
       const server = serverByInstanceId(context, input.instanceId)
+      // Enabling is the one trust action (ADR-0035): it binds trust to the
+      // current configuration hash; grants are derived at launch time.
       await this.persistStateUnlocked(
         updateServerState(context.state, server.identityKey, {
           ...server.state,
           enabled: input.enabled,
+          trustedConfigHash: input.enabled ? server.configHash : server.state.trustedConfigHash,
         }),
       )
       return this.getViewUnlocked(input)
@@ -142,21 +144,11 @@ export class McpConfigContextStore {
       if (input.trusted && server.issues.length > 0) {
         throw new Error(`Cannot trust ${server.name}: ${server.issues.join(' ')}`)
       }
-      const requestedPermissions = requestedServerPermissions(server.definition)
-      if (
-        input.trusted &&
-        (!input.permissions || !serverPermissionsMatch(input.permissions, requestedPermissions))
-      ) {
-        throw new Error(
-          `Cannot trust ${server.name}: approve the exact filesystem and network permissions requested by the current configuration.`,
-        )
-      }
       const nextState = input.trusted
         ? {
             ...server.state,
             trustedConfigHash: server.configHash,
             allowUnsandboxed: input.allowUnsandboxed === true,
-            permissions: normalizeServerPermissions(input.permissions ?? requestedPermissions),
           }
         : { instanceId: server.state.instanceId, enabled: server.state.enabled }
       await this.persistStateUnlocked(
@@ -217,11 +209,6 @@ export class McpConfigContextStore {
     const eligible = context.servers.filter(
       (server) =>
         server.state.enabled &&
-        server.state.trustedConfigHash === server.configHash &&
-        serverPermissionsMatch(
-          server.state.permissions,
-          requestedServerPermissions(server.definition),
-        ) &&
         server.issues.length === 0 &&
         // Per-project mute gates non-required servers only; required servers
         // still run so ADR guarantees hold.
@@ -257,9 +244,9 @@ export class McpConfigContextStore {
         sourcePath: server.source.definition.path,
         configHash: server.configHash,
         allowUnsandboxed: server.state.allowUnsandboxed === true,
-        permissions: normalizeServerPermissions(
-          server.state.permissions ?? requestedServerPermissions(server.definition),
-        ),
+        // Grants are always derived from the current definition so a config
+        // edit self-heals instead of reconnecting with stale stored grants.
+        permissions: normalizeServerPermissions(requestedServerPermissions(server.definition)),
         definition: server.definition,
       })),
     }

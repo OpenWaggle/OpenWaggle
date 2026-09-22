@@ -97,7 +97,6 @@ describe('first-party MCP configuration', () => {
     view = await service.setServerTrust({
       instanceId: server?.instanceId ?? '',
       trusted: true,
-      permissions: { readRoots: ['.'], writeRoots: [], allowNetwork: false },
       projectPath,
       sessionId: 'session-1',
     })
@@ -125,7 +124,6 @@ describe('first-party MCP configuration', () => {
     await service.setServerTrust({
       instanceId,
       trusted: true,
-      permissions: { readRoots: ['.'], writeRoots: [], allowNetwork: false },
       projectPath,
     })
 
@@ -142,18 +140,15 @@ describe('first-party MCP configuration', () => {
     })
   })
 
-  it('invalidates trust when the executable configuration changes', async () => {
+  it('reconnects with a notice when the executable configuration changes', async () => {
     const { projectPath, service } = await createFixture()
     const configPath = path.join(projectPath, '.mcp.json')
     await writeJson(configPath, { mcpServers: { docs: { command: 'docs-mcp' } } })
+    await service.setScopeState({ scope: 'project', state: 'on', projectPath })
     let view = await service.getView({ projectPath })
     const instanceId = view.servers[0]?.instanceId ?? ''
-    await service.setServerTrust({
-      instanceId,
-      trusted: true,
-      permissions: { readRoots: ['.'], writeRoots: [], allowNetwork: false },
-      projectPath,
-    })
+    // Enabling is the one trust action (ADR-0035).
+    await service.setServerEnabled({ instanceId, enabled: true, projectPath })
 
     await writeJson(configPath, {
       mcpServers: { docs: { command: 'different-mcp', args: ['--changed'] } },
@@ -162,7 +157,13 @@ describe('first-party MCP configuration', () => {
 
     expect(view.servers[0]?.instanceId).toBe(instanceId)
     expect(view.servers[0]?.trusted).toBe('invalidated')
-    expect(view.servers[0]?.blockedReason).toContain('configuration changed')
+    expect(view.servers[0]?.trustChanged).toBe(true)
+    // ADR-0035: config change is a notice, not a block; the server reconnects.
+    expect(view.servers[0]?.blockedReason).toBeUndefined()
+    expect(view.notices.some((notice) => notice.id.endsWith(':changed'))).toBe(true)
+    const snapshot = await service.createTurnSnapshot({ projectPath, sessionId: 's-change' })
+    expect(snapshot?.servers).toHaveLength(1)
+    expect(snapshot?.servers[0]?.definition).toMatchObject({ command: 'different-mcp' })
   })
 
   it('serializes concurrent user-state mutations without dropping either server update', async () => {
@@ -265,9 +266,9 @@ describe('first-party MCP configuration', () => {
     expect(raw).toContain('futureTransportOption')
   })
 
-  it('blocks plaintext secret-like values and accepts secret references', async () => {
+  it('allows plaintext secret-like values and surfaces a vault notice instead', async () => {
     const { projectPath, service } = await createFixture()
-    const configPath = path.join(projectPath, '.mcp.json')
+    const configPath = path.join(projectPath, '.openwaggle', 'mcp.json')
     await writeJson(configPath, {
       mcpServers: {
         unsafe: { command: 'unsafe-mcp', env: { API_TOKEN: 'plaintext' } },
@@ -275,12 +276,17 @@ describe('first-party MCP configuration', () => {
       },
     })
 
+    // ADR-0035: plaintext values no longer block connection; the OpenWaggle-
+    // owned source carries an informational notice pointing at the vault.
     const view = await service.getView({ projectPath })
-    expect(view.servers.find((server) => server.name === 'unsafe')?.blockedReason).toContain(
-      'Plaintext',
+    expect(view.servers.find((server) => server.name === 'unsafe')?.blockedReason).toBe(
+      'Server is disabled.',
     )
     expect(view.servers.find((server) => server.name === 'safe')?.blockedReason).toBe(
       'Server is disabled.',
     )
+    const notice = view.notices.find((candidate) => candidate.id.endsWith(':plaintext-secrets'))
+    expect(notice?.severity).toBe('info')
+    expect(notice?.detail).toContain('env.API_TOKEN')
   })
 })

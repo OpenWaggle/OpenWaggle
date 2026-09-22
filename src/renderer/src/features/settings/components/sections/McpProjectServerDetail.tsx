@@ -9,7 +9,7 @@ export function isSharedServer(server: McpServerSummary) {
 
 function serverGlobalHint(server: McpServerSummary): string | null {
   if (!server.enabled) return 'Disabled globally'
-  if (server.trusted !== 'trusted') return 'Not trusted globally'
+  if (server.trusted === 'untrusted') return 'Not trusted globally'
   return null
 }
 

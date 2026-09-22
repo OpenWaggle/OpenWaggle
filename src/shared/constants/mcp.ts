@@ -1,4 +1,41 @@
+import type { McpServerDefinition } from '../types/mcp'
+
 export const MCP_LATEST_PROTOCOL_VERSION = '2026-07-28'
+
+/**
+ * Curated first-party catalog (ADR-0035): one-click install, zero approval
+ * steps. Package-runner definitions, so derived grants include network and
+ * package-cache access.
+ */
+export const MCP_CATALOG_SERVERS: readonly {
+  name: string
+  title: string
+  description: string
+  definition: McpServerDefinition
+}[] = [
+  {
+    name: 'playwright',
+    title: 'Playwright MCP',
+    description: 'Browser automation and accessibility-tree inspection by Microsoft.',
+    definition: {
+      command: 'npx',
+      args: ['@playwright/mcp@latest'],
+      directTools: true,
+      provenance: { source: 'catalog' },
+    },
+  },
+  {
+    name: 'chrome-devtools',
+    title: 'Chrome DevTools MCP',
+    description: 'Chrome DevTools debugging, performance traces, and network inspection by Google.',
+    definition: {
+      command: 'npx',
+      args: ['chrome-devtools-mcp@latest'],
+      directTools: true,
+      provenance: { source: 'catalog' },
+    },
+  },
+] as const
 
 export const MCP_MODERN_PROTOCOL_VERSIONS = [MCP_LATEST_PROTOCOL_VERSION] as const
 

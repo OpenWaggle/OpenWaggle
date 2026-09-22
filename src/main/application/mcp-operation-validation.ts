@@ -35,18 +35,16 @@ export const mcpSetProjectServerEnabledSchema = Schema.Struct({
   enabled: Schema.Boolean,
 })
 
-const mcpServerPermissionGrantSchema = Schema.Struct({
-  readRoots: Schema.mutable(Schema.Array(Schema.String)),
-  writeRoots: Schema.mutable(Schema.Array(Schema.String)),
-  allowNetwork: Schema.Boolean,
-})
-
 export const mcpSetServerTrustSchema = Schema.Struct({
   ...mcpProjectAndSessionFields,
   instanceId: Schema.String,
   trusted: Schema.Boolean,
   allowUnsandboxed: Schema.optional(Schema.Boolean),
-  permissions: Schema.optional(mcpServerPermissionGrantSchema),
+})
+
+export const mcpInstallCatalogServerSchema = Schema.Struct({
+  ...mcpProjectAndSessionFields,
+  name: Schema.String,
 })
 
 export const mcpWriteSourceConfigSchema = Schema.Struct({
