@@ -804,3 +804,12 @@ distinct active paths, invalidated by a durable generation trigger on Session in
 archive, or path change; SQLite `lower()` is ASCII-only and FTS trigram cannot cover short or
 canonically equivalent composed/decomposed queries. Agent-definition authorization for an older
 project uses an indexed exact-path existence check, not an unbounded Session projection list.
+
+Providers speaking the OpenAI-completions shape (GLM via OpenRouter confirmed) silently return
+tool-call `arguments: "{}"` for any tool whose parameter schema is a root-level `anyOf`/`oneOf`
+union; flat object schemas work, including nested property unions and `action` literal-union
+discriminators. First-class Pi tools must therefore register flat object schemas and enforce
+per-action required fields and enums at run time (see `sessions-tool-flat-schema.ts`, PR #219 /
+issue #218). When `pi.validateToolArguments` reports `Received arguments: {}`, suspect the
+provider dropping arguments for the schema shape before blaming parsing or permissions; the
+cheapest discriminator is a raw REST probe of the provider with the exact tool JSON.
