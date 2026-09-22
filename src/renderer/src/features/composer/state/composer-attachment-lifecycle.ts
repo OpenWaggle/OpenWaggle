@@ -5,7 +5,7 @@ import { createRendererLogger } from '@/shared/lib/logger'
 import type { ComposerState } from './composer-store-types'
 
 const logger = createRendererLogger('composer-attachments')
-const submittedSessionResourceAttachmentIds = new Set<string>()
+const submittedAttachmentIds = new Set<string>()
 
 function ownedAttachments(state: ComposerState) {
   const attachments = new Map<string, PreparedAttachment>()
@@ -33,25 +33,16 @@ export function abandonedSessionResourceAttachments(
 }
 
 /** The send/queue workflow owns these capabilities after the draft is cleared. */
-export function markSessionResourceAttachmentsSubmitted(
-  attachments: readonly PreparedAttachment[],
-) {
-  for (const attachment of attachments) {
-    if (attachment.origin === 'session-resource') {
-      submittedSessionResourceAttachmentIds.add(attachment.id)
-    }
-  }
+export function markAttachmentsSubmitted(attachments: readonly PreparedAttachment[]) {
+  for (const attachment of attachments) submittedAttachmentIds.add(attachment.id)
 }
 
-export function unmarkSessionResourceAttachmentsSubmitted(
-  attachments: readonly PreparedAttachment[],
-) {
-  for (const attachment of attachments) {
-    submittedSessionResourceAttachmentIds.delete(attachment.id)
-  }
+export function unmarkAttachmentsSubmitted(attachments: readonly PreparedAttachment[]) {
+  for (const attachment of attachments) submittedAttachmentIds.delete(attachment.id)
 }
 
 export function discardSessionResourceAttachments(attachments: readonly PreparedAttachment[]) {
+  releaseAttachmentPreviewUrls(attachments)
   for (const attachment of attachments) {
     if (attachment.origin !== 'session-resource') continue
     void api.discardPreparedAttachment(attachment).catch((cause: unknown) => {
@@ -74,10 +65,9 @@ export function releaseAbandonedSessionResourceAttachments(
     return
   }
   const abandoned = abandonedAttachments(previous, current)
-  releaseAttachmentPreviewUrls(abandoned)
   for (const attachment of abandoned) {
-    if (attachment.origin !== 'session-resource') continue
-    if (submittedSessionResourceAttachmentIds.delete(attachment.id)) continue
-    discardSessionResourceAttachments([attachment])
+    if (submittedAttachmentIds.delete(attachment.id)) continue
+    if (attachment.origin === 'session-resource') discardSessionResourceAttachments([attachment])
+    else releaseAttachmentPreviewUrls([attachment])
   }
 }

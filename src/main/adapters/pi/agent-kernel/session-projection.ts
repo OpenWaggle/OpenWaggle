@@ -9,6 +9,7 @@ import { OPENWAGGLE_RUN_BOUNDARY_CUSTOM_TYPE } from '../run-attribution-extensio
 import { projectionForPiEntry } from './entry-projections'
 import {
   decodeUserInputProjection,
+  decodeUserInputProjectionDigest,
   OPENWAGGLE_USER_INPUT_CUSTOM_TYPE,
 } from './user-input-projection'
 
@@ -96,6 +97,13 @@ function mergeMetadataJsonWithWaggle(rawMetadataJson: string, waggle: unknown) {
   return JSON.stringify({ ...metadata, waggle })
 }
 
+function mergeMetadataJsonWithDurableText(rawMetadataJson: string, digest: string | null) {
+  if (!digest) return rawMetadataJson
+  const parsed = parseJsonUnknown(rawMetadataJson)
+  const metadata = isRecord(parsed) ? parsed : {}
+  return JSON.stringify({ ...metadata, durableTextSha256: digest })
+}
+
 function mergeMetadataJsonWithRun(rawMetadataJson: string, runId: string | null) {
   if (!runId) return rawMetadataJson
   const parsed = parseJsonUnknown(rawMetadataJson)
@@ -137,7 +145,7 @@ function runIdForEntry(input: {
   return runId
 }
 
-function userDisplayParts(entry: SessionEntry, entryById: ReadonlyMap<string, SessionEntry>) {
+function userDisplayProjection(entry: SessionEntry, entryById: ReadonlyMap<string, SessionEntry>) {
   if (!isUserMessageEntry(entry)) return null
 
   let parentId = entry.parentId
@@ -145,7 +153,10 @@ function userDisplayParts(entry: SessionEntry, entryById: ReadonlyMap<string, Se
     const parent = entryById.get(parentId)
     if (!parent || parent.type === 'message') return null
     if (parent.type === 'custom' && parent.customType === OPENWAGGLE_USER_INPUT_CUSTOM_TYPE) {
-      return decodeUserInputProjection(parent.data)
+      const parts = decodeUserInputProjection(parent.data)
+      return parts
+        ? { parts, durableTextSha256: decodeUserInputProjectionDigest(parent.data) }
+        : null
     }
     parentId = parent.parentId
   }
@@ -160,9 +171,9 @@ function projectPiEntry(input: {
   readonly runId: string | null
 }): ProjectedSessionNodeInput {
   const timestampMs = parsePiEntryTimestamp(input.entry.timestamp)
-  const displayParts = userDisplayParts(input.entry, input.entryById)
+  const displayProjection = userDisplayProjection(input.entry, input.entryById)
   const projection = projectionForPiEntry(input.entry, {
-    ...(displayParts ? { userDisplayParts: displayParts } : {}),
+    ...(displayProjection ? { userDisplayParts: displayProjection.parts } : {}),
   })
   const waggleMetadata = isAssistantEntry(input.entry)
     ? currentTurnMetadata({ entry: input.entry, entryById: input.entryById })
@@ -177,9 +188,12 @@ function projectPiEntry(input: {
     timestampMs,
     contentJson: projection.contentJson,
     metadataJson: mergeMetadataJsonWithRun(
-      waggleMetadata
-        ? mergeMetadataJsonWithWaggle(projection.metadataJson, waggleMetadata)
-        : projection.metadataJson,
+      mergeMetadataJsonWithDurableText(
+        waggleMetadata
+          ? mergeMetadataJsonWithWaggle(projection.metadataJson, waggleMetadata)
+          : projection.metadataJson,
+        displayProjection?.durableTextSha256 ?? null,
+      ),
       input.runId,
     ),
     pathDepth: input.pathDepth,

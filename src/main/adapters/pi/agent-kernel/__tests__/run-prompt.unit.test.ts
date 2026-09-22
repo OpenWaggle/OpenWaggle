@@ -1,14 +1,29 @@
+import { createHash } from 'node:crypto'
 import type { AgentSession } from '@earendil-works/pi-coding-agent'
 import { fromPartial } from '@total-typescript/shoehorn'
 import { expect, it, vi } from 'vitest'
 import type { PiModel } from '../../pi-provider-catalog'
 import { promptPiSession } from '../run-prompt'
 
-it('persists clean display parts before prompting Pi with image artifacts', async () => {
+type SessionListener = Parameters<AgentSession['subscribe']>[0]
+
+it('persists clean display parts when Pi starts the image prompt', async () => {
   const appendCustomEntry = vi.fn(() => 'display-entry')
-  const prompt = vi.fn(async () => undefined)
+  let listener: SessionListener | undefined
+  const prompt = vi.fn(async (text: string) => {
+    listener?.({
+      type: 'message_start',
+      message: fromPartial({ role: 'user' as const, content: [{ type: 'text' as const, text }] }),
+    })
+  })
   const session = fromPartial<AgentSession>({
     sessionManager: fromPartial({ appendCustomEntry }),
+    subscribe: (nextListener: SessionListener) => {
+      listener = nextListener
+      return () => {
+        listener = undefined
+      }
+    },
     prompt,
   })
   const model = fromPartial<PiModel>({ input: ['text', 'image'] })
@@ -48,8 +63,28 @@ it('persists clean display parts before prompting Pi with image artifacts', asyn
         },
       },
     ],
+    durableTextSha256: createHash('sha256')
+      .update('Fix this layout\n\n[Attachment: screenshot.png]')
+      .digest('hex'),
   })
   expect(prompt).toHaveBeenCalledWith('Fix this layout\n\n[Attachment: screenshot.png]', {
     images: [{ type: 'image', data: 'base64-image', mimeType: 'image/png' }],
   })
+})
+
+it('does not leave a display projection when Pi handles input without a user message', async () => {
+  const appendCustomEntry = vi.fn(() => 'display-entry')
+  const session = fromPartial<AgentSession>({
+    sessionManager: fromPartial({ appendCustomEntry }),
+    subscribe: () => () => undefined,
+    prompt: vi.fn(async () => undefined),
+  })
+
+  await promptPiSession(session, fromPartial<PiModel>({ input: ['text'] }), {
+    text: '/handled',
+    thinkingLevel: 'medium',
+    attachments: [],
+  })
+
+  expect(appendCustomEntry).not.toHaveBeenCalled()
 })

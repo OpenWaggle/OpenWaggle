@@ -195,7 +195,7 @@ describe('useFileAttachment', () => {
         extractedText: 'content',
       },
     ]
-    prepareAttachmentsMock.mockResolvedValue(prepared)
+    prepareAttachmentsMock.mockResolvedValue([{ attachment: prepared[0], fileIndex: 0 }])
     const file = createFile('test.txt')
     const params = createParams()
     const { result } = renderHook(() => useFileAttachment(params))
@@ -220,7 +220,7 @@ describe('useFileAttachment', () => {
         extractedText: '',
       },
     ]
-    prepareAttachmentsMock.mockResolvedValue(prepared)
+    prepareAttachmentsMock.mockResolvedValue([{ attachment: prepared[0], fileIndex: 0 }])
     const file = createFile('doc.pdf')
     const params = createParams()
     const { result } = renderHook(() => useFileAttachment(params))

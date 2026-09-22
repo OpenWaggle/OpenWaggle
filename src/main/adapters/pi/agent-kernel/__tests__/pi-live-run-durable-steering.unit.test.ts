@@ -16,16 +16,16 @@ function userMessage(text: string) {
 }
 
 function sessionEvents() {
-  let listener: Parameters<AgentSession['subscribe']>[0] | undefined
+  const listeners = new Set<Parameters<AgentSession['subscribe']>[0]>()
   return {
     subscribe: (next: Parameters<AgentSession['subscribe']>[0]) => {
-      listener = next
+      listeners.add(next)
       return () => {
-        listener = undefined
+        listeners.delete(next)
       }
     },
     emitMessage: (type: 'message_start' | 'message_end', message: UserMessage) => {
-      listener?.(fromPartial<SessionEvent>({ type, message }))
+      for (const listener of listeners) listener(fromPartial<SessionEvent>({ type, message }))
     },
   }
 }
@@ -49,6 +49,7 @@ describe('Pi durable steering delivery', () => {
     const session = fromPartial<AgentSession>({
       isStreaming: true,
       steer,
+      subscribe: () => () => undefined,
       sessionManager: { getEntries: () => [], appendCustomEntry: vi.fn() },
     })
     const model = fromPartial<PiModel>({ input: ['text'] })
@@ -269,6 +270,7 @@ describe('Pi durable steering delivery', () => {
     const session = fromPartial<AgentSession>({
       isStreaming: true,
       steer,
+      subscribe: () => () => undefined,
       sessionManager: { getEntries: () => entries, appendCustomEntry: vi.fn() },
     })
     const model = fromPartial<PiModel>({ input: ['text'] })

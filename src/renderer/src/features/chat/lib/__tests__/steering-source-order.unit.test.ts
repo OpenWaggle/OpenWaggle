@@ -65,6 +65,25 @@ describe('steering source order across renderer snapshots', () => {
     expect(current.metadata).toBeUndefined()
   })
 
+  it('preserves an optimistic image while an active reconnect adopts its durable node', () => {
+    const optimistic: UIMessage = {
+      ...userMessage('optimistic-image'),
+      parts: [
+        { type: 'image', source: { value: 'blob:preview' }, name: 'diagram.png' },
+        { type: 'text', content: 'continue' },
+      ],
+    }
+
+    expect(
+      mergeBackgroundReconnectMessages([userMessage('durable-image', 4)], [optimistic]),
+    ).toEqual([
+      {
+        ...optimistic,
+        metadata: { sessionNodeId: 'durable-image', sessionNodeCreatedOrder: 4 },
+      },
+    ])
+  })
+
   it('keeps the durable node identity without inventing an authoritative order', () => {
     const current = userMessage('optimistic-steer')
     expect(reconcileSnapshotUserMessages([userMessage('source-steer')], [current])).toEqual([

@@ -1,16 +1,4 @@
 import type { UIMessage } from '@shared/types/chat-ui'
-import { useEffect } from 'react'
-
-function OptimisticImage({ source, name }: { readonly source: string; readonly name: string }) {
-  useEffect(
-    () => () => {
-      if (source.startsWith('blob:')) URL.revokeObjectURL(source)
-    },
-    [source],
-  )
-
-  return <img src={source} alt={name} className="size-full object-cover" />
-}
 
 export function OptimisticMessageImages({ message }: { readonly message: UIMessage }) {
   const images = message.parts.filter(
@@ -29,9 +17,10 @@ export function OptimisticMessageImages({ message }: { readonly message: UIMessa
           key={`${message.id}-image-${String(index)}`}
           className="aspect-[4/3] min-w-0 overflow-hidden rounded-lg border border-border bg-bg-secondary"
         >
-          <OptimisticImage
-            source={image.source.value}
-            name={image.name ?? `Attached image ${String(index + 1)}`}
+          <img
+            src={image.source.value}
+            alt={image.name ?? `Attached image ${String(index + 1)}`}
+            className="size-full object-cover"
           />
         </div>
       ))}

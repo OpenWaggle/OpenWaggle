@@ -58,7 +58,7 @@ async function prepareAndAttach(
     if (!isCurrentDraft()) return
     if (prepared.length === 0) return
     registerAttachmentPreviewUrls(prepared, files)
-    addAttachments(prepared)
+    addAttachments(prepared.map(({ attachment }) => attachment))
     onToast?.(`Attached ${String(prepared.length)} file${prepared.length === 1 ? '' : 's'}.`)
   } catch (err) {
     if (!isCurrentDraft()) return

@@ -1,7 +1,10 @@
 import { match, matchBy } from '@diegogbrisa/ts-match'
 import { TOOL_STATE_RANK } from '@shared/constants/tool-state'
 import type { UIMessage, UIMessagePart } from '@shared/types/chat-ui'
-import { retainSnapshotMessageOrder } from './chat-message-reconciliation'
+import {
+  reconcileSnapshotUserMessages,
+  retainSnapshotMessageOrder,
+} from './chat-message-reconciliation'
 import {
   consumeUserMessageTextCount,
   countUserMessagesByText,
@@ -146,10 +149,11 @@ export function mergeBackgroundReconnectMessages(
   reconnectMessages: UIMessage[],
   currentMessages: UIMessage[],
 ): UIMessage[] {
+  const reconciledMessages = reconcileSnapshotUserMessages(reconnectMessages, currentMessages)
   const currentMessagesById = new Map(currentMessages.map((message) => [message.id, message]))
-  const reconnectMessageIds = new Set(reconnectMessages.map((message) => message.id))
-  const reconnectUserCountsByText = countUserMessagesByText(reconnectMessages)
-  const mergedMessages = reconnectMessages.map((message) => {
+  const reconnectMessageIds = new Set(reconciledMessages.map((message) => message.id))
+  const reconnectUserCountsByText = countUserMessagesByText(reconciledMessages)
+  const mergedMessages = reconciledMessages.map((message) => {
     const currentMessage = currentMessagesById.get(message.id)
     return match(currentMessage)
       .with(undefined, () => message)

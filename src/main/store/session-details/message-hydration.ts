@@ -60,6 +60,7 @@ const messagePartSchema = Schema.Union(
 )
 
 const messageMetadataSchema = Schema.Struct({
+  durableTextSha256: Schema.optional(Schema.String.pipe(Schema.pattern(/^[a-f0-9]{64}$/))),
   visualizationSessionId: Schema.optional(Schema.String),
   waggle: Schema.optional(waggleMetadataSchema),
   waggleInvocation: Schema.optional(waggleInvocationMetadataSchema),

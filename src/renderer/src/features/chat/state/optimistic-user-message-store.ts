@@ -1,6 +1,7 @@
 import type { SessionId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
 import { create } from 'zustand'
+import { releaseMessageImagePreviewUrls } from '@/shared/lib/attachment-preview-urls'
 
 const EMPTY_MESSAGES: readonly UIMessage[] = []
 
@@ -116,6 +117,9 @@ export const useOptimisticUserMessageStore = create<OptimisticUserMessageState>(
         return state
       }
       const next = new Map(state.messagesBySessionId)
+      for (const message of state.messagesBySessionId.get(sessionId) ?? []) {
+        releaseMessageImagePreviewUrls(message)
+      }
       next.delete(sessionId)
       return { messagesBySessionId: next }
     })

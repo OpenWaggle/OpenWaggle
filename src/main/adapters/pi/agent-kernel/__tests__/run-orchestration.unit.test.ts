@@ -83,8 +83,8 @@ describe('Pi run orchestration', () => {
         extensionFactories: expect.any(Array),
       }),
     )
-    // One listener projects Pi events; the other tracks durable Follow-up delivery.
-    expect(session.subscribe).toHaveBeenCalledTimes(2)
+    // Event projection, durable Follow-up tracking, and user display projection each subscribe.
+    expect(session.subscribe).toHaveBeenCalledTimes(3)
     expect(session.prompt).toHaveBeenCalledWith('Run tests', undefined)
     expect(session.agent.waitForIdle).toHaveBeenCalled()
     expect(session.agent.hasQueuedMessages).toHaveBeenCalled()

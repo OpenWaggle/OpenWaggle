@@ -143,6 +143,8 @@ export interface BranchSummaryMetadata {
 export interface MessageMetadata {
   /** Authoritative append order in the native Session log, not its visible transcript index. */
   readonly sessionNodeCreatedOrder?: number
+  /** Hash of Pi's transformed user text, used to reconcile steering delivery receipts. */
+  readonly durableTextSha256?: string
   readonly visualizationSessionId?: SessionId
   readonly waggle?: WaggleMessageMetadata
   readonly waggleInvocation?: WaggleInvocationMetadata

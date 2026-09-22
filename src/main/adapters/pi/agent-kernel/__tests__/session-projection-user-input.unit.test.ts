@@ -28,6 +28,7 @@ it('projects original attachment display parts instead of Pi prompt artifacts', 
           { type: 'text', text: 'Fix this layout' },
           { type: 'attachment', attachment },
         ],
+        durableTextSha256: 'a'.repeat(64),
       },
     },
     {
@@ -56,6 +57,9 @@ it('projects original attachment display parts instead of Pi prompt artifacts', 
       { type: 'attachment', attachment },
     ],
     model: null,
+  })
+  expect(JSON.parse(snapshot.nodes[1]?.metadataJson ?? '{}')).toEqual({
+    durableTextSha256: 'a'.repeat(64),
   })
   expect(snapshot.nodes[1]?.contentJson).not.toContain('[Attachment:')
   expect(snapshot.nodes[1]?.contentJson).not.toContain('[Image input:')

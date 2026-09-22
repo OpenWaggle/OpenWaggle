@@ -10,13 +10,14 @@ import {
   Image,
   Waypoints,
 } from 'lucide-react'
-import { Children, cloneElement, isValidElement, type ReactNode } from 'react'
+import { Children, cloneElement, isValidElement, type ReactNode, useEffect } from 'react'
 import type { Components } from 'react-markdown'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { ATTACHMENT_TEXT_PREFIX } from '@/features/chat/lib/useAgentChat.utils'
 import { SessionMessageImages, useSessionMessageImageResources } from '@/features/session-summary'
 import { useCopyToClipboard } from '@/shared/hooks/useCopyToClipboard'
+import { releaseMessageImagePreviewUrls } from '@/shared/lib/attachment-preview-urls'
 import { cn } from '@/shared/lib/cn'
 import { NonFetchingMarkdownImage } from '@/shared/lib/markdown-link-components'
 import { safeMarkdownRehypePlugins, safeMarkdownUrlTransform } from '@/shared/lib/markdown-safety'
@@ -209,6 +210,10 @@ export function UserMessageBubble({
   const { copied, copy } = useCopyToClipboard()
   const messageNodeId = message.metadata?.sessionNodeId ?? message.id
   const capturedImages = useSessionMessageImageResources(messageNodeId)
+
+  useEffect(() => {
+    if (capturedImages.length > 0) releaseMessageImagePreviewUrls(message)
+  }, [capturedImages.length, message])
 
   const textParts = message.parts.filter(
     (p): p is Extract<(typeof message.parts)[number], { type: 'text' }> => p.type === 'text',

@@ -98,7 +98,7 @@ describe('appendMissingOptimisticUserMessages', () => {
       extractedText: '',
     }
     registerAttachmentPreviewUrls(
-      [attachment],
+      [{ attachment, fileIndex: 0 }],
       [new File(['test'], attachment.name, { type: attachment.mimeType })],
     )
     const optimistic = createOptimisticUserMessage({
@@ -223,7 +223,13 @@ describe('mergeBackgroundReconnectMessages', () => {
 
     expect(
       mergeBackgroundReconnectMessages([persistedUser], [optimisticUser, cachedAssistant]),
-    ).toEqual([persistedUser, cachedAssistant])
+    ).toEqual([
+      {
+        ...optimisticUser,
+        metadata: { sessionNodeId: persistedUser.id },
+      },
+      cachedAssistant,
+    ])
   })
 })
 
