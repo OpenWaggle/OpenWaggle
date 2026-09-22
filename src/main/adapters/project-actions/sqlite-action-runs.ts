@@ -8,6 +8,7 @@ import type { ActionRunPersistence } from './action-run-persistence'
 interface ActionRunRow {
   readonly record_json: string
 }
+const RECENT_TERMINAL_RUN_LIMIT = 50
 const decodeRun = (row: ActionRunRow): ActionRun =>
   decodeUnknownExactOrThrow(actionRunSchema, parseJsonUnknown(row.record_json))
 
@@ -24,8 +25,16 @@ export function createSqliteActionRunPersistence(sql: SqlClient.SqlClient): Acti
     list: (workspaceId) =>
       Effect.runPromise(
         Effect.gen(function* () {
-          const rows =
-            yield* sql<ActionRunRow>`SELECT record_json FROM project_action_runs WHERE workspace_id = ${workspaceId} ORDER BY started_at DESC, id DESC`
+          const rows = yield* sql<ActionRunRow>`SELECT record_json FROM (
+              SELECT record_json, started_at, id FROM project_action_runs
+              WHERE workspace_id = ${workspaceId} AND status IN ('starting', 'running', 'stopping')
+              UNION ALL
+              SELECT record_json, started_at, id FROM (
+                SELECT record_json, started_at, id FROM project_action_runs
+                WHERE workspace_id = ${workspaceId} AND status NOT IN ('starting', 'running', 'stopping')
+                ORDER BY started_at DESC, id DESC LIMIT ${RECENT_TERMINAL_RUN_LIMIT}
+              )
+            ) ORDER BY started_at DESC, id DESC`
           return rows.map(decodeRun)
         }),
       ),

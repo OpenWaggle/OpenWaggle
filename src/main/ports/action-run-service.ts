@@ -19,6 +19,7 @@ export interface StartManagedActionInput {
 
 export interface ActionRunServiceShape {
   readonly start: (input: StartManagedActionInput) => Effect<ActionRun, Error>
+  /** All active runs plus the latest 50 terminal snapshots; older runs remain readable by ID. */
   readonly list: (workspaceId: string) => Effect<readonly ActionRun[], Error>
   readonly output: (
     workspaceId: string,

@@ -1,4 +1,7 @@
-import { SESSION_HOST_PROJECT_ACTION_MIGRATION_ID } from './session-host-schema-identity'
+import {
+  SESSION_HOST_PROJECT_ACTION_MIGRATION_ID,
+  SESSION_HOST_PROJECT_ACTION_RUN_POLLING_MIGRATION_ID,
+} from './session-host-schema-identity'
 
 export const PROJECT_ACTION_MIGRATION = {
   id: SESSION_HOST_PROJECT_ACTION_MIGRATION_ID,
@@ -39,3 +42,19 @@ export const PROJECT_ACTION_MIGRATION = {
       END`,
   ],
 } as const
+
+export const PROJECT_ACTION_RUN_POLLING_MIGRATION = {
+  id: SESSION_HOST_PROJECT_ACTION_RUN_POLLING_MIGRATION_ID,
+  name: 'project-action-run-polling-indexes',
+  statements: [
+    `CREATE INDEX project_action_runs_active ON project_action_runs (workspace_id, started_at DESC, id DESC)
+      WHERE status IN ('starting', 'running', 'stopping')`,
+    `CREATE INDEX project_action_runs_recent ON project_action_runs (workspace_id, started_at DESC, id DESC)
+      WHERE status NOT IN ('starting', 'running', 'stopping')`,
+  ],
+} as const
+
+export const PROJECT_ACTION_MIGRATIONS = [
+  PROJECT_ACTION_MIGRATION,
+  PROJECT_ACTION_RUN_POLLING_MIGRATION,
+] as const

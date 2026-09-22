@@ -2,7 +2,7 @@ import type { DatabaseMigrationDefinition } from './database-migration-types'
 import * as DatabaseSchema from './database-schema'
 import { CURRENT_SESSION_LINEAGE_SCHEMA_STATEMENTS } from './database-session-lineage-schema'
 import { SESSION_RESOURCE_MIGRATIONS } from './database-session-resource-migrations'
-import { PROJECT_ACTION_MIGRATION } from './project-action-migration'
+import { PROJECT_ACTION_MIGRATIONS } from './project-action-migration'
 import { SESSION_HOST_APP_MIGRATIONS } from './session-host-app-migrations'
 import { SESSION_WORKTREE_SETUP_MIGRATION } from './session-worktree-setup-migration'
 import { SESSION_WORKTREE_SETUP_RECEIPT_MIGRATION } from './session-worktree-setup-receipt-migration'
@@ -296,5 +296,5 @@ export const APP_MIGRATIONS: readonly AppMigration[] = [
   ...SESSION_RESOURCE_MIGRATIONS,
   ...SESSION_HOST_APP_MIGRATIONS,
   TURN_CHECKPOINT_STARTED_AT_MIGRATION,
-  PROJECT_ACTION_MIGRATION,
+  ...PROJECT_ACTION_MIGRATIONS,
 ]

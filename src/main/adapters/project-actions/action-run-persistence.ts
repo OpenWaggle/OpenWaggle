@@ -8,6 +8,7 @@ export interface ActionRunPersistence {
     runId: string,
   ) => Promise<void>
   readonly get: (id: string) => Promise<ActionRun | null>
+  /** All active runs plus the latest 50 terminal snapshots; older runs remain readable by ID. */
   readonly list: (workspaceId: string) => Promise<readonly ActionRun[]>
   readonly findRequest: (
     workspaceId: string,
