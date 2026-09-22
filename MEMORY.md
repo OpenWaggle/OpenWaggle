@@ -808,6 +808,10 @@ Native Project Actions are specified in ADR 0035. Definitions are project-scoped
 default; only explicit sharing writes `.openwaggle/actions.json`. The detached Session Host owns
 action processes, while the GUI reconnects to durable run IDs and output cursors. Workspace mutation
 admission must serialize launches against final binding release and physical worktree removal.
+Output polling stops after the final page of a terminal run. Publish terminal status only after
+process cleanup, output flush and metadata persistence succeed; concurrent Stop joins that pending
+finalization instead of writing a later stopping status over completion. Failed finalization keeps
+the run active and owned so its error remains visible and Stop can retry.
 Preparation snapshots retain private successful exports and require review for changed shared
 execution. A failed cleanup keeps the worktree and must remain discoverable in Settings after the
 owning Session has been deleted. Pending worktrees can have ordinary future filesystem paths, so

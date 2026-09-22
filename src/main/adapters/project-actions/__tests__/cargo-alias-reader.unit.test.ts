@@ -55,3 +55,21 @@ it('attributes invalid legacy configuration and aliases to the legacy source', a
     { source: '.cargo/config', message: 'Cargo cannot invoke this alias name: build' },
   ])
 })
+
+it.each(['config', 'git-checkout', 'rustc', 'rustdoc'])(
+  'excludes the Cargo built-in %s from discovery and saved task resolution',
+  async (task) => {
+    await writeFile(join(root, '.cargo/config.toml'), `[alias]\n${task} = "test"\n`)
+    const discovery = await discoverProjectTasks(root)
+    expect(discovery.tasks).toEqual([])
+    expect(discovery.diagnostics).toEqual([
+      { source: '.cargo/config.toml', message: `Cargo cannot invoke this alias name: ${task}` },
+    ])
+    await expect(
+      resolveActionInvocation(root, {
+        type: 'task',
+        task: { provider: 'cargo-alias', source: '.cargo/config.toml', directory: '.', task },
+      }),
+    ).rejects.toThrow('Task unavailable')
+  },
+)

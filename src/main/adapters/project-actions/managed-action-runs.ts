@@ -90,12 +90,13 @@ export class ManagedActionRuns {
         finishedAt: Date.now(),
         ready: false,
       }
-      entry.run = finished
       const timer = this.timers.get(finished.id)
       if (timer) clearTimeout(timer)
       this.timers.delete(finished.id)
       await this.deps.history.flush()
       await this.persist(finished)
+      // Clients stop polling terminal runs. Publish completion only once it is durable.
+      entry.run = finished
       this.active.delete(finished.id)
       entry.release()
     })().catch(async (error: unknown) => {
@@ -112,6 +113,7 @@ export class ManagedActionRuns {
     return entry.finishing
   }
   private async stopEntry(entry: LiveAction) {
+    if (entry.finishing) return entry.finishing
     this.previews.cancel(entry.run.id)
     entry.run = { ...entry.run, status: 'stopping', ready: false }
     await this.persist(entry.run)

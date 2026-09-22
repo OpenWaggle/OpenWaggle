@@ -1,5 +1,5 @@
 import type { ActionManagementScope } from '@shared/types/action-management'
-import type { ActionRun } from '@shared/types/action-runs'
+import { type ActionRun, isActiveActionRun } from '@shared/types/action-runs'
 import { useEffect, useState } from 'react'
 import { api } from '@/shared/lib/ipc'
 
@@ -22,6 +22,7 @@ export function useActionOutput(scope: ActionManagementScope, runId: string) {
     let timer: ReturnType<typeof setTimeout> | undefined
     const poll = async () => {
       let hasMore = false
+      let shouldPoll = true
       try {
         const result = await api.manageProjectActions({
           scope: { projectPath, ...(sessionId ? { sessionId } : {}) },
@@ -37,6 +38,7 @@ export function useActionOutput(scope: ActionManagementScope, runId: string) {
         truncated ||= page.truncated || output.length === RETAINED_OUTPUT_CHARACTERS
         offset = page.endOffset
         hasMore = page.hasMore
+        shouldPoll = hasMore || isActiveActionRun(page.run)
         setState({ run: page.run, output, truncated, error: null })
       } catch (error) {
         if (disposed) return
@@ -45,7 +47,7 @@ export function useActionOutput(scope: ActionManagementScope, runId: string) {
           error: error instanceof Error ? error.message : 'Connection interrupted.',
         }))
       }
-      if (!disposed)
+      if (!disposed && shouldPoll)
         timer = setTimeout(
           () => {
             void poll()

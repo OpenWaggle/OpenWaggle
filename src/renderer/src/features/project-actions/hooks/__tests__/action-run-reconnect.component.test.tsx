@@ -91,6 +91,34 @@ describe('Action output and preview reconnect', () => {
     await act(() => vi.advanceTimersByTimeAsync(3_000))
     expect(mocks.manage).toHaveBeenCalledTimes(1)
   })
+  it.each(['completed', 'failed', 'stopped', 'interrupted'] as const)(
+    'drains every retained page of a %s run and then stops polling',
+    async (status) => {
+      const first = output('first', 0)
+      const last = output('last', 5)
+      const terminalRun = { ...run, status, finishedAt: 2 }
+      mocks.manage
+        .mockResolvedValueOnce({
+          ...first,
+          output: { ...first.output, run: terminalRun, hasMore: true },
+        })
+        .mockResolvedValue({ ...last, output: { ...last.output, run: terminalRun } })
+      const { result, unmount } = renderHook(() => useActionOutput(scope, run.id))
+      await act(async () => {
+        await Promise.resolve()
+      })
+      await act(() => vi.advanceTimersByTimeAsync(0))
+      expect(result.current.output).toBe('firstlast')
+      expect(result.current.run?.status).toBe(status)
+      expect(mocks.manage).toHaveBeenLastCalledWith({
+        scope,
+        operation: { type: 'output', runId: run.id, afterOffset: 5 },
+      })
+      await act(() => vi.advanceTimersByTimeAsync(3_000))
+      expect(mocks.manage).toHaveBeenCalledTimes(2)
+      unmount()
+    },
+  )
   it('opens an opted-in preview once after readiness, including after renderer remount', async () => {
     const hook = renderHook(({ ready }) => useActionPreview(scope, [{ ...run, ready }]), {
       initialProps: { ready: false },

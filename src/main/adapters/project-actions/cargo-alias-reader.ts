@@ -14,16 +14,20 @@ const cargoSchema = Schema.Struct({
     }),
   ),
 })
+// Cargo dispatches these before configured aliases, including hidden/unstable commands.
+// https://github.com/rust-lang/cargo/blob/master/src/bin/cargo/commands/mod.rs
 const BUILTIN_COMMANDS = new Set([
   'add',
   'bench',
   'build',
   'check',
   'clean',
+  'config',
   'doc',
   'fetch',
   'fix',
   'generate-lockfile',
+  'git-checkout',
   'help',
   'info',
   'init',
@@ -41,6 +45,8 @@ const BUILTIN_COMMANDS = new Set([
   'remove',
   'report',
   'run',
+  'rustc',
+  'rustdoc',
   'search',
   'test',
   'tree',

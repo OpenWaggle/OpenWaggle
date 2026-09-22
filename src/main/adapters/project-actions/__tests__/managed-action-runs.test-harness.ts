@@ -103,6 +103,8 @@ export async function createManagedActionFixture() {
     root,
     runs,
     records,
+    persistence,
+    history,
     processes,
     errors,
     definition,
