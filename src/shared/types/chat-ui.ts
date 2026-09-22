@@ -41,6 +41,8 @@ interface ChatBinarySource {
 export interface ChatImagePart {
   readonly type: 'image'
   readonly source: ChatBinarySource
+  readonly name?: string
+  readonly attachmentIndex?: number
 }
 
 export interface ChatAudioPart {

@@ -7,6 +7,10 @@ import { parseJsonUnknown } from '@shared/schema'
 import type { ProjectedSessionNodeInput } from '../../../ports/session-repository'
 import { OPENWAGGLE_RUN_BOUNDARY_CUSTOM_TYPE } from '../run-attribution-extension'
 import { projectionForPiEntry } from './entry-projections'
+import {
+  decodeUserInputProjection,
+  OPENWAGGLE_USER_INPUT_CUSTOM_TYPE,
+} from './user-input-projection'
 
 interface PiSessionSnapshotSource {
   readonly sessionManager: Pick<AgentSession['sessionManager'], 'getEntries' | 'getLeafId'>
@@ -133,6 +137,21 @@ function runIdForEntry(input: {
   return runId
 }
 
+function userDisplayParts(entry: SessionEntry, entryById: ReadonlyMap<string, SessionEntry>) {
+  if (!isUserMessageEntry(entry)) return null
+
+  let parentId = entry.parentId
+  while (parentId) {
+    const parent = entryById.get(parentId)
+    if (!parent || parent.type === 'message') return null
+    if (parent.type === 'custom' && parent.customType === OPENWAGGLE_USER_INPUT_CUSTOM_TYPE) {
+      return decodeUserInputProjection(parent.data)
+    }
+    parentId = parent.parentId
+  }
+  return null
+}
+
 function projectPiEntry(input: {
   readonly entry: SessionEntry
   readonly entryById: ReadonlyMap<string, SessionEntry>
@@ -141,7 +160,10 @@ function projectPiEntry(input: {
   readonly runId: string | null
 }): ProjectedSessionNodeInput {
   const timestampMs = parsePiEntryTimestamp(input.entry.timestamp)
-  const projection = projectionForPiEntry(input.entry)
+  const displayParts = userDisplayParts(input.entry, input.entryById)
+  const projection = projectionForPiEntry(input.entry, {
+    ...(displayParts ? { userDisplayParts: displayParts } : {}),
+  })
   const waggleMetadata = isAssistantEntry(input.entry)
     ? currentTurnMetadata({ entry: input.entry, entryById: input.entryById })
     : null

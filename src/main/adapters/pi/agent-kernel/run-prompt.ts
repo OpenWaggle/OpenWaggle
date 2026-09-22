@@ -2,6 +2,7 @@ import type { AgentSession } from '@earendil-works/pi-coding-agent'
 import type { HydratedAgentSendPayload } from '@shared/types/agent'
 import type { PiModel } from '../pi-provider-catalog'
 import { buildPiPromptInput, PI_VISUALIZATION_CONTEXT_CUSTOM_TYPE } from '../pi-runtime-input'
+import { appendUserInputProjection } from './user-input-projection'
 
 export async function promptPiSession(
   session: AgentSession,
@@ -9,6 +10,7 @@ export async function promptPiSession(
   payload: HydratedAgentSendPayload,
 ) {
   const promptInput = buildPiPromptInput(model, payload)
+  appendUserInputProjection(session.sessionManager, payload)
   if (promptInput.visualizationContext) {
     await session.sendCustomMessage(
       {

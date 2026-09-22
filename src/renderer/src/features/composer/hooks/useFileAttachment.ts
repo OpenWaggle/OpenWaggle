@@ -1,5 +1,6 @@
 import type { PreparedAttachment } from '@shared/types/agent'
 import { useRef, useState } from 'react'
+import { registerAttachmentPreviewUrls } from '@/shared/lib/attachment-preview-urls'
 import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
 import { useComposerInputGuard } from './useComposerInputGuard'
@@ -56,6 +57,7 @@ async function prepareAndAttach(
     const prepared = await api.prepareAttachments(projectPath, files)
     if (!isCurrentDraft()) return
     if (prepared.length === 0) return
+    registerAttachmentPreviewUrls(prepared, files)
     addAttachments(prepared)
     onToast?.(`Attached ${String(prepared.length)} file${prepared.length === 1 ? '' : 's'}.`)
   } catch (err) {

@@ -1,4 +1,5 @@
 import type { PreparedAttachment } from '@shared/types/agent'
+import { releaseAttachmentPreviewUrls } from '@/shared/lib/attachment-preview-urls'
 import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
 import type { ComposerState } from './composer-store-types'
@@ -15,13 +16,19 @@ function ownedAttachments(state: ComposerState) {
   return attachments
 }
 
+function abandonedAttachments(previous: ComposerState, current: ComposerState) {
+  const retainedIds = new Set(ownedAttachments(current).keys())
+  return [...ownedAttachments(previous).values()].filter(
+    (attachment) => !retainedIds.has(attachment.id),
+  )
+}
+
 export function abandonedSessionResourceAttachments(
   previous: ComposerState,
   current: ComposerState,
 ) {
-  const retainedIds = new Set(ownedAttachments(current).keys())
-  return [...ownedAttachments(previous).values()].filter(
-    (attachment) => attachment.origin === 'session-resource' && !retainedIds.has(attachment.id),
+  return abandonedAttachments(previous, current).filter(
+    (attachment) => attachment.origin === 'session-resource',
   )
 }
 
@@ -66,7 +73,10 @@ export function releaseAbandonedSessionResourceAttachments(
   ) {
     return
   }
-  for (const attachment of abandonedSessionResourceAttachments(previous, current)) {
+  const abandoned = abandonedAttachments(previous, current)
+  releaseAttachmentPreviewUrls(abandoned)
+  for (const attachment of abandoned) {
+    if (attachment.origin !== 'session-resource') continue
     if (submittedSessionResourceAttachmentIds.delete(attachment.id)) continue
     discardSessionResourceAttachments([attachment])
   }

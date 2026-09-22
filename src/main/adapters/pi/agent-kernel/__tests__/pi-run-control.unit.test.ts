@@ -4,7 +4,7 @@ import { modelFromReference, payload } from './run-orchestration.test-utils'
 
 function nativeSteering() {
   return {
-    sessionManager: { getEntries: () => [] },
+    sessionManager: { getEntries: () => [], appendCustomEntry: vi.fn() },
     steer: vi.fn(
       async (
         text: string,
@@ -82,7 +82,7 @@ describe('Pi native run control', () => {
       isCompacting: false,
       isStreaming: true,
       model: modelFromReference('openai/gpt-5.5'),
-      sessionManager: { getEntries: () => [] },
+      sessionManager: { getEntries: () => [], appendCustomEntry: vi.fn() },
       steer: vi.fn(async () => 'Expanded review skill'),
     }
     const control = createPiRunControl(session, new AbortController().signal)
@@ -104,7 +104,7 @@ describe('Pi native run control', () => {
       isStreaming: true,
       model: modelFromReference('openai/gpt-5.5'),
       getSteeringMessages: () => steeringMessages,
-      sessionManager: { getEntries: () => [] },
+      sessionManager: { getEntries: () => [], appendCustomEntry: vi.fn() },
       steer: vi.fn(async () => {
         await Promise.resolve()
         steeringMessages.shift()
@@ -139,6 +139,7 @@ describe('Pi native run control', () => {
 
     await new Promise((resolve) => setTimeout(resolve, 25))
     expect(session.steer).not.toHaveBeenCalled()
+    expect(session.sessionManager.appendCustomEntry).not.toHaveBeenCalled()
     abortController.abort()
 
     await expect(pending).rejects.toMatchObject({ name: 'AbortError' })
@@ -163,6 +164,7 @@ describe('Pi native run control', () => {
     isCompacting = false
     await pending
 
+    expect(session.sessionManager.appendCustomEntry).toHaveBeenCalledOnce()
     expect(session.steer).toHaveBeenCalledOnce()
     expect(session.steer).toHaveBeenCalledWith('Continue after the checkpoint', undefined)
   })

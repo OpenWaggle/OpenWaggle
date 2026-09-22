@@ -129,12 +129,15 @@ describe('ChatPanel', () => {
     expect(screen.getByText('Recent projects')).toBeInTheDocument()
   })
 
-  it('shows thinking phase indicator when loading with no assistant message', () => {
+  it('shows thinking without a separator when loading with no assistant message', () => {
     renderPanel({
       isLoading: true,
-      chatRows: [{ type: 'phase-indicator', label: 'Thinking', elapsedMs: 123 }],
+      chatRows: [{ type: 'phase-indicator', label: 'Thinking', elapsedMs: 7_000 }],
     })
-    expect(screen.getByText('Thinking for 0s')).toBeInTheDocument()
+
+    const thinking = screen.getByText('Thinking for 7s')
+    expect(thinking).toBeInTheDocument()
+    expect(thinking.parentElement?.parentElement).not.toHaveClass('border-b')
   })
 
   it('renders messages when present', () => {

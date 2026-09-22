@@ -2,11 +2,14 @@ import { MessageId, SessionId, ToolCallId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
 import type { SessionDetail } from '@shared/types/session'
 import { describe, expect, it } from 'vitest'
+import { registerAttachmentPreviewUrls } from '@/shared/lib/attachment-preview-urls'
 import {
   appendMissingOptimisticUserMessages,
   appendUnpersistedAssistantTail,
+  createOptimisticUserMessage,
   formatAttachmentPreview,
   mergeBackgroundReconnectMessages,
+  reconcileSnapshotUserMessages,
   sessionToUIMessages,
 } from '../useAgentChat.utils'
 
@@ -81,6 +84,61 @@ describe('appendMissingOptimisticUserMessages', () => {
       ...snapshotMessages,
       optimisticMessages[2],
     ])
+  })
+
+  it('reconciles an image send as one user row while retaining its immediate preview', () => {
+    const attachment = {
+      id: 'image-1',
+      kind: 'image' as const,
+      origin: 'user-file' as const,
+      name: 'screenshot.png',
+      path: '/tmp/screenshot.png',
+      mimeType: 'image/png',
+      sizeBytes: 4,
+      extractedText: '',
+    }
+    registerAttachmentPreviewUrls(
+      [attachment],
+      [new File(['test'], attachment.name, { type: attachment.mimeType })],
+    )
+    const optimistic = createOptimisticUserMessage({
+      text: 'Fix this layout',
+      thinkingLevel: 'medium',
+      attachments: [attachment],
+    })
+    const persisted = sessionToUIMessages({
+      id: SessionId('session-image'),
+      title: 'Image',
+      projectPath: '/repo',
+      createdAt: 1,
+      updatedAt: 2,
+      messages: [
+        {
+          id: MessageId('durable-image-message'),
+          role: 'user',
+          createdAt: 2,
+          parts: [
+            { type: 'text', text: 'Fix this layout' },
+            { type: 'attachment', attachment },
+          ],
+        },
+      ],
+    })
+
+    const snapshot = appendMissingOptimisticUserMessages(persisted, [optimistic])
+    const reconciled = reconcileSnapshotUserMessages(snapshot, [optimistic])
+
+    expect(snapshot).toHaveLength(1)
+    expect(reconciled).toHaveLength(1)
+    expect(reconciled[0]?.id).toBe(optimistic.id)
+    expect(reconciled[0]?.metadata?.sessionNodeId).toBe('durable-image-message')
+    expect(reconciled[0]?.parts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ type: 'image', name: 'screenshot.png' }),
+        { type: 'text', content: 'Fix this layout' },
+        { type: 'text', content: '[Attachment] screenshot.png' },
+      ]),
+    )
   })
 
   it('inserts an older missing optimistic turn before a newer replacement snapshot', () => {

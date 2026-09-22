@@ -1,5 +1,6 @@
 import type { AgentTransportCustomEvent } from '@shared/types/stream'
 import type { StreamingPhaseState } from '../hooks/useStreamingPhase'
+import type { AgentCompactionStatus } from './compaction-lifecycle'
 import type { ChatRow } from './types-chat-row'
 
 interface StatusRowInput {
@@ -9,9 +10,20 @@ interface StatusRowInput {
   readonly lastUserMessage: string | null
   readonly dismissedError: string | null
   readonly sessionId: string | null
+  readonly compactionStatus?: AgentCompactionStatus | null
 }
 
 export function appendStatusRows(rows: ChatRow[], input: StatusRowInput) {
+  if (input.compactionStatus?.type === 'retrying') {
+    rows.push({
+      type: 'retry-status',
+      attempt: input.compactionStatus.attempt,
+      maxAttempts: input.compactionStatus.maxAttempts,
+      delayMs: input.compactionStatus.delayMs,
+    })
+    return
+  }
+  if (input.compactionStatus?.type === 'compacting') return
   if (input.phase.current) {
     rows.push({
       type: 'phase-indicator',

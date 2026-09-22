@@ -210,6 +210,18 @@ describe('AssistantMessageBubble', () => {
     expect(screen.getByTestId('tool-call-router')).toBeInTheDocument()
   })
 
+  it('hides message actions until the turn is expanded', () => {
+    const message = createMessage('m1', [toolCallPart('read', 'tc-1'), textPart('Answer')])
+    renderAssistantMessage({
+      message,
+      turnFolded: true,
+      actions: { onBranchFromMessage: vi.fn(), onViewTurnDiff: vi.fn() },
+    })
+
+    expect(screen.queryByTitle('Branch from message')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'View turn diff' })).not.toBeInTheDocument()
+  })
+
   it('leaves the continuous waggle rail to the turn wrapper', () => {
     const message = createMessage('m1', [textPart('Hello')])
     const { container } = renderAssistantMessage({

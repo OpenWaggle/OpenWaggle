@@ -38,6 +38,7 @@ function getChatRowKey(row: ChatRow) {
     .with('compaction-summary', (value) => `compaction:${value.id}`)
     .with('compaction-status', (value) => `compaction-status:${value.id}`)
     .with('phase-indicator', (value) => `phase:${value.label}`)
+    .with('retry-status', (value) => `retry:${String(value.attempt)}`)
     .with('error', (value) => `error:${value.sessionId ?? 'none'}:${value.error.message}`)
     .exhaustive()
 }

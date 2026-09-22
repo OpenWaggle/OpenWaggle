@@ -59,14 +59,16 @@ describe('steering source order across renderer snapshots', () => {
     const current = userMessage('source-steer')
     const result = mergeBackgroundReconnectMessages([userMessage('source-steer', 4)], [current])
 
-    expect(result).toEqual([{ ...current, metadata: { sessionNodeCreatedOrder: 4 } }])
+    expect(result).toEqual([
+      { ...current, metadata: { sessionNodeId: 'source-steer', sessionNodeCreatedOrder: 4 } },
+    ])
     expect(current.metadata).toBeUndefined()
   })
 
-  it('does not invent an authoritative order for snapshots without one', () => {
+  it('keeps the durable node identity without inventing an authoritative order', () => {
     const current = userMessage('optimistic-steer')
     expect(reconcileSnapshotUserMessages([userMessage('source-steer')], [current])).toEqual([
-      current,
+      { ...current, metadata: { sessionNodeId: 'source-steer' } },
     ])
   })
 })

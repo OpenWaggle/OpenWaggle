@@ -93,12 +93,21 @@ function buildExistingUserQueuesByText(existingMessages: readonly UIMessage[]) {
 
 export function retainSnapshotMessageOrder(current: UIMessage, snapshot: UIMessage): UIMessage {
   const sessionNodeCreatedOrder = snapshot.metadata?.sessionNodeCreatedOrder
+  const sessionNodeId = snapshot.metadata?.sessionNodeId ?? snapshot.id
   if (
-    sessionNodeCreatedOrder === undefined ||
-    current.metadata?.sessionNodeCreatedOrder === sessionNodeCreatedOrder
-  )
+    current.metadata?.sessionNodeCreatedOrder === sessionNodeCreatedOrder &&
+    current.metadata?.sessionNodeId === sessionNodeId
+  ) {
     return current
-  return { ...current, metadata: { ...current.metadata, sessionNodeCreatedOrder } }
+  }
+  return {
+    ...current,
+    metadata: {
+      ...current.metadata,
+      sessionNodeId,
+      ...(sessionNodeCreatedOrder === undefined ? {} : { sessionNodeCreatedOrder }),
+    },
+  }
 }
 
 /**

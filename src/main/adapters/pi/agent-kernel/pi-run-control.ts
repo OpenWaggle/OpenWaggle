@@ -5,11 +5,12 @@ import {
   buildPiPromptInput,
   stripAtomicVisualizationContext,
 } from '../pi-runtime-input'
+import { appendUserInputProjection } from './user-input-projection'
 
 const PI_STEER_READY_POLL_MS = 20
 
 interface PiSteeringSession {
-  readonly sessionManager: Pick<AgentSession['sessionManager'], 'getEntries'>
+  readonly sessionManager: Pick<AgentSession['sessionManager'], 'appendCustomEntry' | 'getEntries'>
   readonly isCompacting: AgentSession['isCompacting']
   readonly isStreaming: AgentSession['isStreaming']
   readonly model:
@@ -56,6 +57,7 @@ export function createPiRunControl(
       if (!session.isStreaming) {
         throw new Error('The active Pi session is not ready for steering.')
       }
+      appendUserInputProjection(session.sessionManager, payload)
       const promptInput = buildPiPromptInput({ input: session.model?.input ?? ['text'] }, payload)
       const visualizationContext = promptInput.visualizationContext
       const transformExpandedText = visualizationContext

@@ -174,13 +174,12 @@ describe('Pi run orchestration', () => {
       1,
       expect.objectContaining({
         customType: 'pi-waggle.user-request',
-        content: expect.arrayContaining([
-          expect.objectContaining({
-            type: 'text',
-            text: expect.stringContaining('Important notes for every Waggle turn'),
+        content: 'Review attached context',
+        details: expect.objectContaining({
+          userInput: expect.objectContaining({
+            parts: expect.arrayContaining([expect.objectContaining({ type: 'attachment' })]),
           }),
-          expect.objectContaining({ type: 'image', data: 'base64-image', mimeType: 'image/png' }),
-        ]),
+        }),
       }),
       { triggerTurn: false },
     )
