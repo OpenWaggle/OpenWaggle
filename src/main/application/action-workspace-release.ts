@@ -25,7 +25,7 @@ export function withSessionActionRelease<A, E, R>(
           // A preceding handoff can replace the binding while this caller waits for admission.
           if ((yield* workspaces.getBound(sessionId))?.id !== workspace.id)
             return { status: 'retry' } as const
-          if (timing === 'after') {
+          if (timing === 'after' || intent === 'archive') {
             const value = yield* operation
             if ((yield* workspaces.countActiveBindings(workspace.id)) === 0)
               yield* actions.stopWorkspaceServices(workspace.id)

@@ -201,7 +201,7 @@ describe('action lifetime follows active Workspace bindings', () => {
   })
 
   it.each([0, 1])(
-    'stops services before final release only (%s other bindings)',
+    'stops services after a committed final archive only (%s other bindings)',
     async (remaining) => {
       const events: string[] = []
       const operation = withSessionActionRelease(
@@ -241,9 +241,10 @@ describe('action lifetime follows active Workspace bindings', () => {
           ),
         ),
       )
-      expect(events).toEqual(remaining === 0 ? ['lock', 'stop', 'archive'] : ['lock', 'archive'])
+      expect(events).toEqual(remaining === 0 ? ['lock', 'archive', 'stop'] : ['lock', 'archive'])
     },
   )
+
   it.each([true, false])(
     'releases services only after a successful handoff (%s)',
     async (succeeds) => {

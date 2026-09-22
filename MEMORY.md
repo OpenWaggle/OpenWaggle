@@ -864,6 +864,10 @@ On macOS, setup environment capture uses bundled Perl to emit NUL-separated valu
 is not a documented cross-version contract; preserve embedded newlines. Resolve task executable paths
 through the action runner's PATH/PATHEXT lookup before embedding them in a PowerShell setup wrapper,
 so Windows selects the same `.cmd` shim as an ordinary action run.
+Reconcile unsent worktree preparation choices against catalog updates even when the chooser becomes
+hidden with only one profile; a deleted profile must not remain in the draft sent to a new Session.
+Within the Workspace mutation fence, archive first, then stop services only after the archive
+commits and removes the last active binding. A failed archive must leave running services alive.
 
 The September 2026 native action verification reproduced a SQLite worker teardown abort on pristine
 main with transitive better-sqlite3 12.11.1. Root and Effect SQLite now share 13.0.3, which includes the

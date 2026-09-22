@@ -1,4 +1,4 @@
-import { useId } from 'react'
+import { useEffect, useId } from 'react'
 import { useDraftPreparationProfile } from '@/features/git'
 import { useActionScope, useNativeActions } from '../hooks/useNativeActions'
 import { useWorkspacePreparation } from '../hooks/useWorkspacePreparation'
@@ -10,6 +10,11 @@ export function WorktreePreparationChoice({ projectPath }: { readonly projectPat
   const catalog = useNativeActions(scope)
   const preparation = useWorkspacePreparation(scope)
   const draft = useDraftPreparationProfile(projectPath)
+  useEffect(() => {
+    if (scope?.sessionId || !catalog.data || !draft.profileId) return
+    if (!catalog.data.profiles.some(({ definition }) => definition.id === draft.profileId))
+      draft.select(undefined)
+  }, [catalog.data, draft.profileId, draft.select, scope?.sessionId])
   const profiles = catalog.data?.profiles ?? []
   if (profiles.length < MULTIPLE_PROFILES) return null
   const state = preparation.data
