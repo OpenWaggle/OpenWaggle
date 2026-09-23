@@ -80,7 +80,7 @@ export interface Settings {
     Record<string, Readonly<Record<string, boolean>>>
   >
   readonly projectDisplayNames: Readonly<Record<string, string>>
-  /** Per-project selected model refs. Stored in the app DB, never in the repo's project settings file. */
+  /** Per-project selected model refs. Stored in the app DB, never in the repo's project settings file. An empty value is a tombstone: the user explicitly cleared the override. */
   readonly selectedModelsByProject: Readonly<Record<string, string>>
   /** Canonical ordered built-in command rules. Later active rules win. */
   readonly shortcutRules: ShortcutRules

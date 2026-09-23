@@ -247,7 +247,9 @@ export function updateAgentDefinitionToggleDurably(
 
 /**
  * Sets or clears one project's selected model inside the write queue, so concurrent writes cannot
- * lose map entries. The model lives only in the app DB, never in the repo-local settings file.
+ * lose map entries. Clearing writes an empty-string tombstone (not a delete) so a later legacy
+ * migration can never resurrect a value the user explicitly cleared. The model lives only in the
+ * app DB, never in the repo-local settings file.
  */
 export function updateSelectedModelDurably(
   projectPath: string,
@@ -255,17 +257,19 @@ export function updateSelectedModelDurably(
 ): Promise<void> {
   assertSettingsReady()
   return enqueueSettingsWrite(() => {
-    const { [projectPath]: _removed, ...rest } = settingsCache.selectedModelsByProject
     return persistSettingsPatch({
-      selectedModelsByProject: model === null ? rest : { ...rest, [projectPath]: model },
+      selectedModelsByProject: {
+        ...settingsCache.selectedModelsByProject,
+        [projectPath]: model === null ? '' : model,
+      },
     })
   }, 'project model')
 }
 
 /**
- * Inserts one project's legacy selected model into the DB only while no entry exists. Runs inside
- * the write queue, so a concurrent explicit model write can never be overwritten by the stale
- * legacy value; returns whether the migration inserted anything.
+ * Inserts one project's legacy selected model into the DB only while no entry exists — including
+ * the empty-string tombstone a queued explicit clear writes, so a stale legacy read can never
+ * resurrect a cleared override. Runs inside the write queue; returns whether it inserted.
  */
 export function migrateSelectedModelDurably(projectPath: string, model: string): Promise<boolean> {
   assertSettingsReady()

@@ -167,9 +167,11 @@ function writeProjectModel(
   }
   return Effect.gen(function* () {
     const current = yield* settings.get()
-    const { [projectPath]: _current, ...rest } = current.selectedModelsByProject
     yield* settings.update({
-      selectedModelsByProject: model === null ? rest : { ...rest, [projectPath]: model },
+      selectedModelsByProject: {
+        ...current.selectedModelsByProject,
+        [projectPath]: model === null ? '' : model,
+      },
     })
   })
 }

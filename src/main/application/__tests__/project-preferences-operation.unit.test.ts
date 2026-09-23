@@ -150,7 +150,8 @@ describe('Host-backed project preferences', () => {
 
     await run(setProjectPreferencesOperation('/project', { model: null }))
 
-    expect(updates).toEqual([{ selectedModelsByProject: {} }])
+    // The clear writes an empty-string tombstone so a stale legacy migration cannot resurrect it.
+    expect(updates).toEqual([{ selectedModelsByProject: { '/project': '' } }])
     // The file holds no legacy model, so the selected model is DB-only and no rewrite is needed.
     expect(mocks.setPreferences).not.toHaveBeenCalled()
   })
@@ -178,6 +179,20 @@ describe('Host-backed project preferences', () => {
     expect(mocks.setPreferences).toHaveBeenCalledWith(projectPath, { thinkingLevel: 'high' })
   })
 
+  it('does not resurrect a cleared override when a stale legacy file read migrates', async () => {
+    projectPath = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-legacy-model-'))
+    await writeLegacyModelFile(projectPath)
+    projectModelMigrations = []
+    // A queued explicit clear already wrote its tombstone when this write's legacy read started.
+    storedModels = { [projectPath]: '' }
+
+    await run(setProjectPreferencesOperation(projectPath, { thinkingLevel: 'high' }))
+
+    // The insert-if-absent writer sees the tombstone and leaves the cleared override cleared.
+    expect(projectModelMigrations).toEqual([[projectPath, 'legacy/file']])
+    expect(storedModels).toEqual({ [projectPath]: '' })
+  })
+
   it('does not overwrite a newer DB value when migrating a legacy file model', async () => {
     projectPath = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-legacy-model-'))
     storedModels = { [projectPath]: 'db/newer' }
@@ -186,7 +201,6 @@ describe('Host-backed project preferences', () => {
 
     await run(setProjectPreferencesOperation(projectPath, { thinkingLevel: 'high' }))
 
-    expect(projectModelMigrations).toEqual([[projectPath, 'legacy/file']])
     expect(storedModels).toEqual({ [projectPath]: 'db/newer' })
     expect(mocks.setPreferences).toHaveBeenCalledWith(projectPath, { thinkingLevel: 'high' })
   })

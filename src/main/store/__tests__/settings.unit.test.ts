@@ -322,10 +322,15 @@ describe('settings store loading', () => {
     expect(await migrateSelectedModelDurably('/tmp/model-a', 'legacy/file')).toBe(false)
     expect(await migrateSelectedModelDurably('/tmp/model-b', 'legacy/file')).toBe(true)
     await updateSelectedModelDurably('/tmp/model-a', null)
+    // The clear tombstones the entry: a stale legacy read must not resurrect it.
+    expect(await migrateSelectedModelDurably('/tmp/model-a', 'legacy/file')).toBe(false)
 
     await resetSettingsStoreForTests()
     await initializeSettingsStore()
 
-    expect(getSettings().selectedModelsByProject).toEqual({ '/tmp/model-b': 'legacy/file' })
+    expect(getSettings().selectedModelsByProject).toEqual({
+      '/tmp/model-a': '',
+      '/tmp/model-b': 'legacy/file',
+    })
   })
 })
