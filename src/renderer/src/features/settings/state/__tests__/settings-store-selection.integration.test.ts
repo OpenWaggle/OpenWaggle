@@ -117,22 +117,23 @@ describe('preferences-store selection integration', () => {
     expect(usePreferencesStore.getState().settings.selectedModel).toBe('openai/gpt-4.1-mini')
   })
 
-  it('mirrors a project model write into the store map and preserves it on removal', async () => {
+  it('mirrors a project model write under the canonical path and preserves it on removal', async () => {
     usePreferencesStore.setState((state) => ({
       settings: {
         ...state.settings,
-        projectPath: '/repo/b',
-        selectedModelsByProject: { '/repo/a': 'openai/gpt-4.1' },
+        // The caller-spelled path is an alias; the backend canonicalizes it on write.
+        projectPath: '/repo/b-alias',
+        selectedModelsByProject: { '/repo/b': 'openai/gpt-4.1' },
       },
     }))
 
     await usePreferencesStore.getState().setSelectedModel(SupportedModelId('openai/gpt-4.1-mini'))
 
-    expect(apiMock.setProjectPreferences).toHaveBeenCalledWith('/repo/b', {
+    expect(apiMock.setProjectPreferences).toHaveBeenCalledWith('/repo/b-alias', {
       model: 'openai/gpt-4.1-mini',
     })
+    // The mirror keys by the canonical path the backend returned — no alias fork.
     expect(usePreferencesStore.getState().settings.selectedModelsByProject).toEqual({
-      '/repo/a': 'openai/gpt-4.1',
       '/repo/b': 'openai/gpt-4.1-mini',
     })
 
