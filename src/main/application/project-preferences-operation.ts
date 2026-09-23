@@ -81,8 +81,16 @@ export function getProjectPreferencesOperation(rawProjectPath: unknown) {
     if (!projectPath) return null
     const prefs = yield* Effect.promise(() => getProjectPreferencesStrict(projectPath))
     const settings = yield* SettingsService
-    const dbModel = (yield* settings.get()).selectedModelsByProject[projectPath]
-    if (!prefs && !dbModel) return null
+    const modelByProject = (yield* settings.get()).selectedModelsByProject
+    // Presence, not truthiness: an empty-string tombstone means the user explicitly cleared this
+    // project's model, and it must suppress a legacy file value rather than fall back to it.
+    const hasDbEntry = Object.hasOwn(modelByProject, projectPath)
+    const dbModel = modelByProject[projectPath]
+    if (!prefs && !hasDbEntry) return null
+    if (hasDbEntry && !dbModel) {
+      const { model: _legacy, ...prefsWithoutModel } = prefs ?? {}
+      return Object.keys(prefsWithoutModel).length > 0 ? prefsWithoutModel : null
+    }
     return { ...prefs, ...(dbModel ? { model: dbModel } : {}) }
   })
 }
@@ -98,9 +106,10 @@ export function getProjectPreferencesOperation(rawProjectPath: unknown) {
  * Legacy handling: upgraded projects may still carry a `model` in the settings file. The file
  * writer strips it on every write, so before any strip this operation first makes the DB own the
  * value — an explicit write wins, otherwise the legacy value is migrated with an atomic
- * insert-if-absent write so it can never overwrite a newer explicit choice. An explicit `null`
- * clears the DB entry and rewrites the file (when it still carries a legacy model) so the value
- * cannot resurrect through the read fallback.
+ * insert-if-absent write so it can never overwrite a newer explicit choice. Any explicit model
+ * write (set or clear) against a file that still carries a legacy value also rewrites the file so
+ * the repo sheds the stale value, and a clear leaves an empty-string tombstone in the DB that
+ * suppresses the legacy fallback on read.
  */
 export function setProjectPreferencesOperation(rawProjectPath: unknown, rawPreferences: unknown) {
   return Effect.gen(function* () {
@@ -122,12 +131,12 @@ export function setProjectPreferencesOperation(rawProjectPath: unknown, rawPrefe
       yield* migrateProjectModel(settings, projectPath, filePrefs.model)
     }
 
-    // The file writer strips any legacy model, so a rewrite must also happen for an explicit
-    // clear (model === null) of a project whose file still carries one — otherwise the read
-    // fallback would resurrect it. Projects without a legacy file model only touch the DB.
-    const clearsLegacyFileModel = model === null && filePrefs?.model !== undefined
+    // The file writer strips any legacy model, so an explicit model write against a file that
+    // still carries one must rewrite it — a model-only set would otherwise leave the stale value
+    // committed in the repo. Projects without a legacy file model only touch the DB.
+    const rewritesLegacyFileModel = model !== undefined && filePrefs?.model !== undefined
     if (
-      clearsLegacyFileModel ||
+      rewritesLegacyFileModel ||
       filePreferences.thinkingLevel !== undefined ||
       filePreferences.authorizationMode !== undefined
     ) {

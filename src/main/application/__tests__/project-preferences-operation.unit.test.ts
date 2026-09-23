@@ -138,6 +138,16 @@ describe('Host-backed project preferences', () => {
     expect(mocks.setPreferences).not.toHaveBeenCalled()
   })
 
+  it('strips a legacy file model when an explicit model replaces it', async () => {
+    projectPath = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-legacy-model-'))
+    await writeLegacyModelFile(projectPath)
+
+    await run(setProjectPreferencesOperation(projectPath, { model: 'openai/gpt-4.1' }))
+
+    // A model-only set must still rewrite the file so the repo sheds the stale legacy value.
+    expect(mocks.setPreferences).toHaveBeenCalledWith(projectPath, {})
+  })
+
   it('still persists thinkingLevel in the project settings file', async () => {
     await run(setProjectPreferencesOperation('/project', { thinkingLevel: 'high' }))
 
@@ -258,6 +268,22 @@ describe('getProjectPreferencesOperation', () => {
     await writeSettingsFile({ model: 'legacy/file' })
 
     await expect(run(projectPath)).resolves.toEqual({ model: 'legacy/file' })
+  })
+
+  it('suppresses the legacy file model when a clear tombstone exists', async () => {
+    storedModels = { [projectPath]: '' }
+    await writeSettingsFile({ model: 'legacy/file', thinkingLevel: 'high' })
+
+    // The tombstone is presence-checked, not truthiness-checked: the cleared override must not
+    // fall back to the legacy file value.
+    await expect(run(projectPath)).resolves.toEqual({ thinkingLevel: 'high' })
+  })
+
+  it('returns null when a tombstone exists and the file carries only a legacy model', async () => {
+    storedModels = { [projectPath]: '' }
+    await writeSettingsFile({ model: 'legacy/file' })
+
+    await expect(run(projectPath)).resolves.toBeNull()
   })
 
   it('returns null when neither the file nor the DB has preferences', async () => {
