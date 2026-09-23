@@ -390,6 +390,11 @@ Recording is a main/renderer protocol, not merely a `desktopCapturer` grant: suc
 - Do not suppress Fallow complexity findings; refactor instead.
 - Do not add legacy compatibility for removed pre-Pi surfaces unless explicitly requested.
 - Node 24 Vitest workers abort in better-sqlite3@12.11.1 teardown (`Statement::~Statement()` → `RemoveEnvironmentCleanupHook`). `@effect/sql-sqlite-node` pulls v12 while the app uses v13; keep the workspace override that makes Effect reuse v13.0.1. This removes the duplicate native addon and lets the full parallel unit suite finish.
+- Dependency-update trap: `packages/*/dist` is gitignored but consumed by root typecheck. A stale dist built mid-bisection caused 185 phantom type errors (`AnyNoContext`/`TypeId` mismatches that looked like effect/typebox breakage). After changing any dependency version, run `pnpm build:package-dependencies` before trusting typecheck results.
+- Root `undici` must stay on 7.x: `secure-fetch.ts` passes an undici `Agent` to Node's **global** fetch, and undici 8 changed the Dispatcher interface, which makes the global (Node-bundled undici 7) fetch fail with `fetch failed`. The `@earendil-works/pi-coding-agent>undici` override can track 8.x independently because Pi never hands that instance to global fetch.
+- TanStack internal overrides (`@tanstack/history`, `router-core`, `router-generator`, `router-utils`) must move in lockstep with `@tanstack/react-router`; a pinned older `router-core` breaks at runtime with `SyntaxError: ... does not provide an export named 'getUrlScheme'` in unit suites, not at typecheck time.
+- `scripts/package-release-validator.ts` pins `release-please` to an exact version for deterministic preflight contracts; a dependency sweep must not bump it (the unit test catches it).
+- TanStack Query ≥5.102: `queryClient.query()` applies `select`, while the deprecated `fetchQuery` did not — a mechanical `fetchQuery`→`query` migration changes what test assertions receive (selected vs raw queryFn data).
 
 ### `fromPartial` hides fixture mismatches as well as expressing them
 

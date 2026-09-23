@@ -10,7 +10,7 @@ import type {
   SyntaxThemeResource,
 } from '@shared/types/syntax-resources'
 import { type ParseError, parse as parseJsonc } from 'jsonc-parser'
-import plist from 'plist'
+import { parse as parsePlist } from 'plist'
 
 export const IMPORT_SIZE_LIMIT_BYTES = 20 * 1024 * 1024
 export const SYNTAX_IMPORT_RESOURCE_KIND_LIMIT = 20
@@ -229,7 +229,7 @@ export function parseTextMatePlist(source: string) {
   if (/<!DOCTYPE|<!ENTITY/iu.test(source)) {
     throw new Error('TextMate plist imports cannot contain document types or entities.')
   }
-  const parsed: unknown = plist.parse(source)
+  const parsed: unknown = parsePlist(source)
   assertSyntaxSourceComplexity(parsed)
   return parsed
 }

@@ -1,4 +1,4 @@
-import { Editor, type EditorChangeEvent, type EditorOptions } from '@pierre/diffs/edit'
+import { Editor, type EditorChange, type EditorOptions, type EditorType } from '@pierre/diffs/edit'
 import {
   EditProvider,
   File,
@@ -15,18 +15,18 @@ import { pierreLanguageId } from '@/shared/lib/syntax/pierre-syntax-runtime'
 const EDITOR_OVERSCROLL_PX = 600
 const EDITOR_OBSERVER_MARGIN_PX = 1_200
 const EDITOR_AST_CACHE_ENTRIES = 24
-const EDITOR_OPTIONS: EditorOptions<undefined> = { persistState: false }
+const EDITOR_OPTIONS: EditorOptions<'file', undefined, undefined> = {}
 
 function createPierreWorker() {
   return new Worker(new URL('@pierre/diffs/worker/worker.js', import.meta.url), { type: 'module' })
 }
 
-function workspaceChanges(event: EditorChangeEvent<undefined>): readonly WorkspaceDocumentChange[] {
-  return event.changes.map((change) => ({
+function toWorkspaceChange(change: EditorChange): WorkspaceDocumentChange {
+  return {
     rangeOffset: change.start,
     rangeLength: change.end - change.start,
     text: change.text,
-  }))
+  }
 }
 
 function FocusedEditorWorkerTheme({ theme }: { readonly theme: string }) {
@@ -71,21 +71,24 @@ export function FocusedSourceEditor({
     targetLineRef.current = targetLine
   }, [targetLine])
   const [createEditor] = useState(
-    () => (options: EditorOptions<undefined>) =>
-      new Editor<undefined>({
-        ...options,
-        clipboard: { readText: () => navigator.clipboard.readText() },
-        onAttach: (editor, fileInstance) => {
-          options.onAttach?.(editor, fileInstance)
-          const lineNumber = targetLineRef.current
-          if (lineNumber) editor.focus({ lineNumber })
-          else editor.focus({ lineNumber: 'first-visible' })
-        },
-        onChange: (file, annotations, event) => {
-          options.onChange?.(file, annotations, event)
-          changeHandler.current(workspaceChanges(event), () => event.file.contents)
-        },
-      }),
+    () =>
+      <EType extends EditorType>(
+        editorType: EType,
+        options: EditorOptions<EType, undefined, undefined>,
+      ) =>
+        new Editor(editorType, {
+          ...options,
+          clipboard: { readText: () => navigator.clipboard.readText() },
+          onAttach: (editor, fileInstance) => {
+            options.onAttach?.(editor, fileInstance)
+            const lineNumber = targetLineRef.current
+            if (lineNumber) editor.focus({ lineNumber })
+            else editor.focus({ lineNumber: 'first-visible' })
+          },
+          onChange: (event) => {
+            changeHandler.current(event.changes.map(toWorkspaceChange), () => event.file.contents)
+          },
+        }),
   )
   function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== 's') return
