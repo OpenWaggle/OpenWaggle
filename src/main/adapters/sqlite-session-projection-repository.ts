@@ -5,7 +5,7 @@ import type { SessionWorkspaceResourceRepositoryShape } from '../ports/session-w
 import { SessionWorkspaceResourceRepository } from '../ports/session-workspace-resource-repository'
 import type { WorkspacePreparationServiceShape } from '../ports/workspace-preparation-service'
 import { WorkspacePreparationService } from '../ports/workspace-preparation-service'
-import { removeGitWorktree } from './git/worktree'
+import { removeGitWorktree, validateGitWorktreeRemoval } from './git/worktree'
 /**
  * SQLite adapter for the SessionProjectionRepository port.
  *
@@ -79,7 +79,11 @@ function createPreparedWorktreeRemover({
           try: () => removeGitWorktree(projectPath, payload),
           catch: (error) => new Error('Worktree removal failed.', { cause: error }),
         }),
-        { retryFailed: !recovering, actionFenceHeld: !recovering },
+        {
+          retryFailed: !recovering,
+          actionFenceHeld: !recovering,
+          validateRemoval: Effect.promise(() => validateGitWorktreeRemoval(projectPath, payload)),
+        },
       ).pipe(
         Effect.provideService(ActionRunService, actions),
         Effect.provideService(WorkspacePreparationService, preparation),

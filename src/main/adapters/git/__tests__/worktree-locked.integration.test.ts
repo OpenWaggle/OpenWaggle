@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
 import { afterEach, expect, it } from 'vitest'
-import { listGitWorktrees, validateGitWorktreeRemoval } from '../worktree'
+import { listGitWorktrees, removeGitWorktree, validateGitWorktreeRemoval } from '../worktree'
 
 const execFileAsync = promisify(execFile)
 let temporaryRoot: string | null = null
@@ -62,4 +62,13 @@ it('rejects a clean Git-locked worktree before removal side effects', async () =
     message: expect.stringContaining('locked'),
   })
   expect(existsSync(worktreePath)).toBe(true)
+  await expect(
+    validateGitWorktreeRemoval(projectPath, { path: worktreePath, force: true }),
+  ).resolves.toMatchObject({ ok: true })
+  await expect(
+    removeGitWorktree(projectPath, { path: worktreePath, force: true }),
+  ).resolves.toMatchObject({
+    ok: true,
+  })
+  expect(existsSync(worktreePath)).toBe(false)
 })

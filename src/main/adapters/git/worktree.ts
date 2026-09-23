@@ -262,7 +262,9 @@ async function removeGitWorktreeUnlocked(
 
   // Rely on git's native refusal for dirty worktrees; only force on explicit request.
   const args = ['worktree', 'remove', worktreePath]
-  if (payload.force) args.push('--force')
+  // Git requires the flag twice for a locked worktree. This path is only used after an
+  // explicit force request; one flag is insufficient for a lock created during Cleanup.
+  if (payload.force) args.push('--force', '--force')
 
   const result = await runGit(projectPath, args)
   if (result.code !== 0) {
@@ -301,7 +303,7 @@ export async function validateGitWorktreeRemoval(
     }
   }
   if (!registered) return worktreeFailure('not-found', 'Worktree not found.')
-  if (registered.locked)
+  if (registered.locked && !payload.force)
     return worktreeFailure('unknown', 'Worktree is locked. Unlock it before removing it.')
   if (payload.force)
     return { ok: true, message: 'Worktree can be force-removed.', path: worktreePath }

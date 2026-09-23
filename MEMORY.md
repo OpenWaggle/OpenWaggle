@@ -819,6 +819,9 @@ Native Project Actions are specified in ADR 0035. Definitions are project-scoped
 default; only explicit sharing writes `.openwaggle/actions.json`. The detached Session Host owns
 action processes, while the GUI reconnects to durable run IDs and output cursors. Workspace mutation
 admission must serialize launches against final binding release and physical worktree removal.
+The native action manifest caps shortcut rules both per action and across all actions in one
+manifest at the shared 256-rule project limit; enforce this on read and edit before Settings builds
+its pairwise shortcut browser rows.
 Keep the Pi-native `project_actions` tool's registered schema flat at the root. Some
 OpenAI-completions providers emit empty arguments for a root `anyOf`; use an `action` literal union
 with optional fields in the provider schema and validate each action's required fields before work.
@@ -834,11 +837,12 @@ Profile moves are execution changes even when setup commands match. Retain the a
 name and ID in local review records so the dialog can show the old and new profiles after deletion;
 older reviews can recover the ID from a validated execution fingerprint.
 Settings worktree removal must validate Git's non-forced dirty-worktree refusal before running
-arbitrary Cleanup. Keep that validation inside the admitted removal operation; force removal may
-accept dirt, and Git still makes the final decision if the checkout changes after validation.
-The same preflight must reject Git-locked worktrees, even when clean, before Cleanup has side
-effects. Parse `locked` records from `git worktree list --porcelain -z`; a single force flag cannot
-remove a locked checkout, so require the user to unlock it first.
+arbitrary Cleanup, then revalidate after Cleanup because the command itself can dirty or lock the
+checkout. Keep both checks inside the admitted removal operation. If Git refuses after Cleanup
+succeeded, retain that completed preparation in Settings and offer Retry removal, Delete anyway,
+and an explicit Force remove decision. Parse `locked` records from `git worktree list --porcelain -z`;
+Git requires two force flags to remove a locked checkout, so never apply them without the user's
+explicit force choice.
 Workspace deletion cascades preparation secrets and action records, then drains a durable output
 cleanup queue. Disk cleanup failures remain queued and must not block Host startup or other owners.
 Action copy buttons use the existing Electron clipboard bridge; the browser clipboard API is denied

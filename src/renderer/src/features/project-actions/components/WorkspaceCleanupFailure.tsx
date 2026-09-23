@@ -5,6 +5,16 @@ import { PlainTextBlock } from '@/shared/ui/PlainTextBlock'
 import { useWorkspacePreparation } from '../hooks/useWorkspacePreparation'
 import { PreparationReviewDialog } from './PreparationReviewDialog'
 
+function cleanupAlertMessage(preparation: WorkspacePreparation, generationMismatch: boolean) {
+  if (generationMismatch)
+    return 'This checkout no longer matches the one that captured its cleanup. Cleanup cannot run here; choose Delete anyway to remove this checkout.'
+  if (preparation.cleanup.status === 'succeeded' || preparation.cleanup.status === 'skipped')
+    return 'Cleanup completed, but the worktree remains. Review changes or locks, then retry removal or explicitly force it.'
+  return (
+    preparation.cleanup.error ?? 'Workspace cleanup needs attention. The worktree was retained.'
+  )
+}
+
 export function WorkspaceCleanupFailure(props: {
   readonly projectPath: string
   readonly initial: WorkspacePreparation
@@ -12,6 +22,7 @@ export function WorkspaceCleanupFailure(props: {
   readonly busy: boolean
   readonly onRetry: () => void
   readonly onDeleteAnyway: () => void
+  readonly onForceRemove: () => void
 }) {
   const [closedReview, setClosedReview] = useState(false)
   const state = useWorkspacePreparation({
@@ -19,6 +30,8 @@ export function WorkspaceCleanupFailure(props: {
     workspaceId: props.initial.workspaceId,
   })
   const preparation = state.data ?? props.initial
+  const cleanupCompleted =
+    preparation.cleanup.status === 'succeeded' || preparation.cleanup.status === 'skipped'
   const required = props.generationMismatch
     ? undefined
     : preparation.snapshot.definitions.find(
@@ -34,10 +47,7 @@ export function WorkspaceCleanupFailure(props: {
         </p>
       ) : null}
       <p role="alert" className="text-xs text-error-text">
-        {props.generationMismatch
-          ? 'This checkout no longer matches the one that captured its cleanup. Cleanup cannot run here; choose Delete anyway to remove this checkout.'
-          : (preparation.cleanup.error ??
-            'Workspace cleanup needs attention. The worktree was retained.')}
+        {cleanupAlertMessage(preparation, props.generationMismatch === true)}
       </p>
       {preparation.cleanup.output ? (
         <details>
@@ -57,7 +67,7 @@ export function WorkspaceCleanupFailure(props: {
           </Button>
         ) : (
           <Button disabled={busy} onClick={props.onRetry}>
-            Retry cleanup
+            {cleanupCompleted ? 'Retry removal' : 'Retry cleanup'}
           </Button>
         )}
         <details>
@@ -67,6 +77,16 @@ export function WorkspaceCleanupFailure(props: {
           </p>
           <Button variant="danger" disabled={busy} onClick={props.onDeleteAnyway}>
             Delete anyway
+          </Button>
+        </details>
+        <details>
+          <summary className="cursor-pointer py-2 text-xs text-error-text">Force remove…</summary>
+          <p className="my-2 text-xs text-text-tertiary">
+            Remove this worktree even if it has uncommitted changes or is locked. This cannot be
+            undone.
+          </p>
+          <Button variant="danger" disabled={busy} onClick={props.onForceRemove}>
+            Force remove
           </Button>
         </details>
       </div>

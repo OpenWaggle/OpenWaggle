@@ -115,7 +115,13 @@ export function removePreparedWorktree<E, R>(
                   },
                   { ...options, ...(payload.skipCleanup ? { skipCleanup: true } : {}) },
                 )
-            return blocked ?? (yield* remove)
+            if (blocked) return blocked
+            // Cleanup can create files or lock the checkout after the first preflight.
+            if (!missing && options.validateRemoval) {
+              const validation = yield* options.validateRemoval
+              if (!validation.ok) return validation
+            }
+            return yield* remove
           }),
         (admission, exit) =>
           admission.status === 'unavailable'

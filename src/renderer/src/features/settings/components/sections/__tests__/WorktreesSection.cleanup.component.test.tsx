@@ -75,6 +75,35 @@ it('keeps Delete anyway available after a replaced checkout with succeeded clean
   )
 })
 
+it('offers explicit force removal after cleanup succeeds but the worktree remains', async () => {
+  const preparation = fromPartial<WorkspacePreparation>({
+    workspaceId: 'workspace',
+    revision: 3,
+    snapshot: { definitions: [] },
+    cleanup: { status: 'succeeded', output: '' },
+  })
+  mocks.manage.mockImplementation(async ({ operation }) =>
+    operation.type === 'retained-preparation'
+      ? { type: 'retained-preparation', workspaces: [{ path: '/worktree', preparation }] }
+      : { type: 'preparation', preparation },
+  )
+  mocks.remove.mockResolvedValue({ ok: true, message: 'Worktree removed.' })
+
+  renderWithQueryClient(<WorktreesSection />)
+  expect(await screen.findByRole('button', { name: 'Retry removal' })).toBeInTheDocument()
+  expect(screen.getByRole('alert')).toHaveTextContent('Cleanup completed')
+  fireEvent.click(screen.getByText('Force remove…'))
+  expect(screen.getByText(/discard uncommitted changes/)).toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: 'Force remove' }))
+  await waitFor(() =>
+    expect(mocks.remove).toHaveBeenCalledWith('/project', {
+      path: '/worktree',
+      skipCleanup: true,
+      force: true,
+    }),
+  )
+})
+
 it('keeps Git worktrees available when cleanup metadata fails to load', async () => {
   mocks.manage.mockRejectedValue(new Error('Invalid actions.json'))
   renderWithQueryClient(<WorktreesSection />)

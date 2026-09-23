@@ -1,5 +1,6 @@
 import { Schema } from '@shared/schema'
 import { ACTION_DEFINITION_LIMITS } from '@shared/types/action-definitions'
+import { PROJECT_ACTION_LIMITS } from '@shared/types/project-actions'
 import { normalizeBrowserPreviewAddress } from '@shared/utils/browser-preview-url'
 import { projectActionIconSchema, projectActionShortcutRuleSchema } from './project-actions'
 
@@ -51,7 +52,11 @@ export const actionDefinitionSchema = Schema.Struct({
       Schema.filter((value) => normalizeBrowserPreviewAddress(value) !== null),
     ),
   ),
-  shortcutRules: Schema.optional(Schema.Array(projectActionShortcutRuleSchema)),
+  shortcutRules: Schema.optional(
+    Schema.Array(projectActionShortcutRuleSchema).pipe(
+      Schema.maxItems(PROJECT_ACTION_LIMITS.SHORTCUT_RULES_PER_PROJECT),
+    ),
+  ),
 }).pipe(Schema.filter((action) => action.kind !== 'service' || !action.allowConcurrent))
 
 export const preparationProfileSchema = Schema.Struct({
@@ -71,6 +76,15 @@ export const actionManifestSchema = Schema.Struct({
   actions: Schema.Array(actionDefinitionSchema).pipe(
     Schema.maxItems(ACTION_DEFINITION_LIMITS.DEFINITIONS),
     Schema.filter(uniqueIds),
+    Schema.filter(
+      (actions) =>
+        actions.reduce((count, action) => count + (action.shortcutRules?.length ?? 0), 0) <=
+        PROJECT_ACTION_LIMITS.SHORTCUT_RULES_PER_PROJECT,
+      {
+        message: () =>
+          `A project may have at most ${String(PROJECT_ACTION_LIMITS.SHORTCUT_RULES_PER_PROJECT)} action shortcut rules.`,
+      },
+    ),
   ),
   profiles: Schema.Array(preparationProfileSchema).pipe(
     Schema.maxItems(ACTION_DEFINITION_LIMITS.PROFILES),

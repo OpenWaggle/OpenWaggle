@@ -111,6 +111,24 @@ describe('native action management authority', () => {
     })
   })
 
+  it('retains a checkout after successful cleanup when Git removal did not finish', async () => {
+    const test = fixture()
+    test.preparationRead.mockReturnValue(
+      Effect.succeed(
+        fromPartial<WorkspacePreparation>({
+          workspaceId: 'retained',
+          cleanup: { status: 'succeeded' },
+        }),
+      ),
+    )
+
+    await expect(
+      test.run({ scope: { projectPath: root }, operation: { type: 'retained-preparation' } }),
+    ).resolves.toMatchObject({
+      workspaces: [{ path: root, preparation: { cleanup: { status: 'succeeded' } } }],
+    })
+  })
+
   it('reads project settings without requiring a Session, but cannot run outside a binding', async () => {
     const test = fixture()
     await expect(

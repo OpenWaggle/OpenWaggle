@@ -291,7 +291,7 @@ export interface GitWorktreeRemovePayload {
   /** Explicitly bypass a failed or review-blocked cleanup. */
   readonly skipCleanup?: boolean
   readonly path: string
-  /** Only pass true on explicit user request; otherwise git refuses dirty removals. */
+  /** Only pass true on explicit user request; this can discard dirty or locked worktrees. */
   readonly force?: boolean
 }
 

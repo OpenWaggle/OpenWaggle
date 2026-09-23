@@ -91,13 +91,14 @@ export function WorktreesSection() {
   const [removingPath, setRemovingPath] = useState<string | null>(null)
   const showToast = useUIStore((state) => state.showToast)
 
-  async function handleRemove(worktreePath: string, skipCleanup = false) {
+  async function handleRemove(worktreePath: string, skipCleanup = false, force = false) {
     if (!repositoryPath) return
     setRemovingPath(worktreePath)
     try {
       const result = await api.removeGitWorktree(repositoryPath, {
         path: worktreePath,
         ...(skipCleanup ? { skipCleanup: true } : {}),
+        ...(force ? { force: true } : {}),
       })
       if (!result.ok) {
         /*
@@ -175,6 +176,7 @@ export function WorktreesSection() {
                       busy={removingPath === worktree.path}
                       onRetry={() => void handleRemove(worktree.path)}
                       onDeleteAnyway={() => void handleRemove(worktree.path, true)}
+                      onForceRemove={() => void handleRemove(worktree.path, true, true)}
                     />
                   </div>
                 ) : null}

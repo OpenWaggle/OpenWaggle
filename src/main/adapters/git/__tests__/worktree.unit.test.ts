@@ -246,9 +246,15 @@ describe('worktree service', () => {
       expect(runGitMock).toHaveBeenCalledWith('/repo', ['worktree', 'remove', '/wt/x'])
     })
 
-    it('passes --force only when explicitly requested', async () => {
+    it('passes two force flags only when explicitly requested so locked worktrees can be removed', async () => {
       await removeGitWorktree('/repo', { path: '/wt/x', force: true })
-      expect(runGitMock).toHaveBeenCalledWith('/repo', ['worktree', 'remove', '/wt/x', '--force'])
+      expect(runGitMock).toHaveBeenCalledWith('/repo', [
+        'worktree',
+        'remove',
+        '/wt/x',
+        '--force',
+        '--force',
+      ])
     })
 
     it('maps git dirty refusal to dirty-worktree', async () => {

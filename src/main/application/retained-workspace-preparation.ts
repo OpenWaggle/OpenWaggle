@@ -37,7 +37,9 @@ export function listRetainedPreparation(projectPath: string) {
           if (
             !generationMismatch &&
             state.cleanup.status !== 'failed' &&
-            state.cleanup.status !== 'review-required'
+            state.cleanup.status !== 'review-required' &&
+            state.cleanup.status !== 'succeeded' &&
+            state.cleanup.status !== 'skipped'
           )
             return null
           return {
