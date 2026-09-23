@@ -99,6 +99,7 @@ export const api: OpenWaggleApi = {
   getProjectPreferences: invoke('project-config:get-preferences'),
   setProjectPreferences: invoke('project-config:set-preferences'),
   manageProjectActions: invoke('project-actions:manage'),
+  removeProjectModel: invoke('project-config:remove-project-model'),
   listAuthorizationGrants: invoke('authorization-grants:list'),
   grantAuthorization: invoke('authorization-grants:grant'),
   revokeAuthorization: invoke('authorization-grants:revoke'),

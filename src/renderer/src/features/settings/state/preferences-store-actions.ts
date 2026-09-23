@@ -36,25 +36,14 @@ function mergeSettings(set: PreferencesSet, patch: Partial<Settings>) {
   set((state) => ({ settings: { ...state.settings, ...patch } }))
 }
 
-async function persistProjectPreference(
+function persistProjectPreference(
   projectPath: string | null,
   prefs: { model?: string; thinkingLevel?: string },
-  set?: PreferencesSet,
-  get?: PreferencesGet,
 ) {
-  if (!projectPath) return
-  try {
-    // The backend canonicalizes the path (realpath); mirrors must key by that canonical path or a
-    // path-aliased project would fork its entry and later map submissions would clobber it.
-    const canonicalPath = await api.setProjectPreferences(projectPath, prefs)
-    if (set && get && prefs.model !== undefined && canonicalPath) {
-      const { selectedModelsByProject } = get().settings
-      mergeSettings(set, {
-        selectedModelsByProject: { ...selectedModelsByProject, [canonicalPath]: prefs.model },
-      })
-    }
-  } catch (err: unknown) {
-    logger.warn('Failed to persist project preferences', { error: String(err) })
+  if (projectPath) {
+    api.setProjectPreferences(projectPath, prefs).catch((err: unknown) => {
+      logger.warn('Failed to persist project preferences', { error: String(err) })
+    })
   }
 }
 
@@ -115,7 +104,7 @@ async function setEnabledModels(models: string[], set: PreferencesSet, get: Pref
   await api.setEnabledModels(enabledModels)
   if (selectedModel !== settings.selectedModel) {
     await api.updateSettings({ selectedModel })
-    await persistProjectPreference(settings.projectPath, { model: selectedModel }, set, get)
+    persistProjectPreference(settings.projectPath, { model: selectedModel })
   }
   mergeSettings(set, { enabledModels, selectedModel })
 }
@@ -222,7 +211,7 @@ export function createPreferencesActions(
       const { settings } = get()
       await api.updateSettings({ selectedModel: model })
       mergeSettings(set, { selectedModel: model })
-      await persistProjectPreference(settings.projectPath, { model }, set, get)
+      persistProjectPreference(settings.projectPath, { model })
     },
     toggleFavoriteModel: async (model) => {
       const trimmed = model.trim()
@@ -258,7 +247,7 @@ export function createPreferencesActions(
       const { settings } = get()
       await api.updateSettings({ thinkingLevel: preset })
       mergeSettings(set, { thinkingLevel: preset })
-      await persistProjectPreference(settings.projectPath, { thinkingLevel: preset })
+      persistProjectPreference(settings.projectPath, { thinkingLevel: preset })
     },
     setEnabledModels: (models) => setEnabledModels(models, set, get),
     setProjectDisplayName: async (path, name) => {
@@ -288,22 +277,23 @@ export function createPreferencesActions(
       const recentProjects = settings.recentProjects.filter((projectPath) => projectPath !== path)
       const { [path]: _displayName, ...projectDisplayNames } = settings.projectDisplayNames
       const { [path]: _skillToggles, ...skillTogglesByProject } = settings.skillTogglesByProject
-      const { [path]: _selectedModel, ...selectedModelsByProject } =
-        settings.selectedModelsByProject
       const projectPath = settings.projectPath === path ? null : settings.projectPath
       await api.updateSettings({
         projectPath,
         recentProjects,
         projectDisplayNames,
         skillTogglesByProject,
-        selectedModelsByProject,
       })
       mergeSettings(set, {
         projectPath,
         recentProjects,
         projectDisplayNames,
         skillTogglesByProject,
-        selectedModelsByProject,
+      })
+      // The stored model entry is deleted by the backend under its canonical path; the renderer
+      // never submits the model map wholesale, so an aliased path cannot fork or clobber it.
+      await api.removeProjectModel(path).catch((err: unknown) => {
+        logger.warn('Failed to remove the stored project model', { error: String(err) })
       })
     },
     loadProjectPreferences: (projectPath) => loadProjectPreferences(projectPath, set),

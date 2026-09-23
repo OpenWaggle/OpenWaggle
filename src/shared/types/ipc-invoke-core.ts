@@ -245,6 +245,10 @@ export interface IpcCoreInvokeChannelMap
     /** Resolves to the canonical (realpath) project path the write was stored under. */
     return: string
   }
+  'project-config:remove-project-model': {
+    args: [projectPath: string]
+    return: string
+  }
   'providers:get-models': {
     args: [projectPath?: string | null]
     return: ProviderInfo[]

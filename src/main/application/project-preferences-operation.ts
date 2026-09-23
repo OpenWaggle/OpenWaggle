@@ -10,7 +10,7 @@ import {
   setProjectPreferences,
 } from '../config/project-config'
 import { SettingsService, type SettingsServiceShape } from '../services/settings-service'
-import { validateProjectPath } from '../utils/project-path-validation'
+import { validateProjectPath, validateRequiredProjectPath } from '../utils/project-path-validation'
 import { resolveEffectiveAuthorizationMode } from './agent-authorization-mode'
 import { grantPendingAuthorizationsWhereFullAccess } from './agent-loop-authorization-grants'
 
@@ -92,6 +92,28 @@ export function getProjectPreferencesOperation(rawProjectPath: unknown) {
       return Object.keys(prefsWithoutModel).length > 0 ? prefsWithoutModel : null
     }
     return { ...prefs, ...(dbModel ? { model: dbModel } : {}) }
+  })
+}
+
+/**
+ * Deletes a removed project's selected model entry. The path is canonicalized here so removal
+ * works regardless of the alias the caller spells, and the queue-safe writer keeps the delete
+ * serialized against model writes.
+ */
+export function removeProjectModelOperation(rawProjectPath: unknown) {
+  return Effect.gen(function* () {
+    const projectPath = yield* validateRequiredProjectPath(
+      typeof rawProjectPath === 'string' ? rawProjectPath : null,
+    )
+    const settings = yield* SettingsService
+    if (settings.removeProjectModel) {
+      yield* settings.removeProjectModel(projectPath)
+      return projectPath
+    }
+    const current = yield* settings.get()
+    const { [projectPath]: _removed, ...rest } = current.selectedModelsByProject
+    yield* settings.update({ selectedModelsByProject: rest })
+    return projectPath
   })
 }
 

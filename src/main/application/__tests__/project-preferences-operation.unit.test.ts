@@ -17,6 +17,8 @@ vi.mock('../../utils/project-path-validation', async () => {
   const EffectModule = await import('effect/Effect')
   return {
     validateProjectPath: (projectPath: string | null) => EffectModule.succeed(projectPath),
+    validateRequiredProjectPath: (projectPath: string | null) =>
+      EffectModule.succeed(projectPath ?? ''),
   }
 })
 
@@ -33,6 +35,7 @@ import * as Effect from 'effect/Effect'
 import { SettingsService, type SettingsServiceShape } from '../../services/settings-service'
 import {
   getProjectPreferencesOperation,
+  removeProjectModelOperation,
   setProjectPreferencesOperation,
 } from '../project-preferences-operation'
 
@@ -213,6 +216,40 @@ describe('Host-backed project preferences', () => {
 
     expect(storedModels).toEqual({ [projectPath]: 'db/newer' })
     expect(mocks.setPreferences).toHaveBeenCalledWith(projectPath, { thinkingLevel: 'high' })
+  })
+})
+
+describe('removeProjectModelOperation', () => {
+  let removals: Array<string> | undefined
+
+  const run = (rawProjectPath: unknown) =>
+    Effect.runPromise(
+      removeProjectModelOperation(rawProjectPath).pipe(
+        Effect.provideService(SettingsService, {
+          get: () => Effect.succeed(DEFAULT_SETTINGS),
+          update: () => Effect.succeed(undefined),
+          ...(removals
+            ? {
+                removeProjectModel: (projectPath: string) =>
+                  Effect.sync(() => {
+                    removals?.push(projectPath)
+                  }),
+              }
+            : {}),
+          initialize: () => Effect.succeed(undefined),
+          flushForTests: () => Effect.succeed(undefined),
+        }),
+      ),
+    )
+
+  beforeEach(() => {
+    removals = []
+  })
+
+  it('deletes the stored model through the queue-safe backend writer', async () => {
+    await run('/project')
+
+    expect(removals).toEqual(['/project'])
   })
 })
 

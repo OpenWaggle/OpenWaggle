@@ -333,4 +333,23 @@ describe('settings store loading', () => {
       '/tmp/model-b': 'legacy/file',
     })
   })
+
+  it('deletes a project model entry durably for removed project references', async () => {
+    const {
+      deleteSelectedModelDurably,
+      getSettings,
+      initializeSettingsStore,
+      resetSettingsStoreForTests,
+      updateSelectedModelDurably,
+    } = await loadSettingsModule()
+
+    await updateSelectedModelDurably('/tmp/gone', 'openai/gpt-4.1')
+    await updateSelectedModelDurably('/tmp/kept', 'openai/gpt-4.1')
+    await deleteSelectedModelDurably('/tmp/gone')
+
+    await resetSettingsStoreForTests()
+    await initializeSettingsStore()
+
+    expect(getSettings().selectedModelsByProject).toEqual({ '/tmp/kept': 'openai/gpt-4.1' })
+  })
 })

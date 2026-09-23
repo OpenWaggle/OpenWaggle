@@ -7,6 +7,7 @@ import {
 } from '../application/project-authorization-grant-operation'
 import {
   getProjectPreferencesOperation,
+  removeProjectModelOperation,
   setProjectPreferencesOperation,
 } from '../application/project-preferences-operation'
 import { browserWindowFromWebContents, showMessageBox, showOpenDialog } from '../desktop-ui'
@@ -41,6 +42,10 @@ export function registerProjectHandlers(): void {
 
   hostHandle('project-config:set-preferences', (_event, projectPath: string, preferences) =>
     setProjectPreferencesOperation(projectPath, preferences),
+  )
+
+  typedHandle('project-config:remove-project-model', (_event, projectPath: string) =>
+    removeProjectModelOperation(projectPath),
   )
 
   typedHandle('authorization-grants:list', (_event, projectPath: string) =>

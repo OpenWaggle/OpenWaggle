@@ -40,6 +40,8 @@ export interface OpenWaggleProjectConfigApi {
     projectPath: string,
     preferences: ProjectPreferencesUpdatePayload,
   ): Promise<string>
+  /** Deletes a removed project's stored model entry; resolves to the canonical path removed. */
+  removeProjectModel(projectPath: string): Promise<string>
   listProjectActions(projectPath: string): Promise<readonly ProjectAction[]>
   addProjectAction(
     projectPath: string,

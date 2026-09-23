@@ -73,6 +73,7 @@ export const PRELOAD_API_METHODS: readonly (keyof OpenWaggleApi)[] = [
   'getProjectPreferences',
   'setProjectPreferences',
   'manageProjectActions',
+  'removeProjectModel',
   'listAuthorizationGrants',
   'grantAuthorization',
   'revokeAuthorization',

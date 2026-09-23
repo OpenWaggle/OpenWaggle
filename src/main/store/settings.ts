@@ -267,6 +267,19 @@ export function updateSelectedModelDurably(
 }
 
 /**
+ * Deletes one project's selected model entry inside the write queue. Used when a project's
+ * references are removed, so re-adding the directory starts fresh and removed projects do not
+ * accumulate rows.
+ */
+export function deleteSelectedModelDurably(projectPath: string): Promise<void> {
+  assertSettingsReady()
+  return enqueueSettingsWrite(() => {
+    const { [projectPath]: _removed, ...rest } = settingsCache.selectedModelsByProject
+    return persistSettingsPatch({ selectedModelsByProject: rest })
+  }, 'project model removal')
+}
+
+/**
  * Inserts one project's legacy selected model into the DB only while no entry exists — including
  * the empty-string tombstone a queued explicit clear writes, so a stale legacy read can never
  * resurrect a cleared override. Runs inside the write queue; returns whether it inserted.

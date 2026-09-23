@@ -11,6 +11,7 @@ const {
   updateAgentDefinitionToggleDurablyMock,
   updateSelectedModelDurablyMock,
   migrateSelectedModelDurablyMock,
+  deleteSelectedModelDurablyMock,
   initializeSettingsStoreMock,
   refreshSettingsStoreMock,
   flushSettingsStoreMock,
@@ -24,6 +25,7 @@ const {
   updateAgentDefinitionToggleDurablyMock: vi.fn(),
   updateSelectedModelDurablyMock: vi.fn(),
   migrateSelectedModelDurablyMock: vi.fn(),
+  deleteSelectedModelDurablyMock: vi.fn(),
   initializeSettingsStoreMock: vi.fn(),
   refreshSettingsStoreMock: vi.fn(),
   flushSettingsStoreMock: vi.fn(),
@@ -47,6 +49,7 @@ vi.mock('../../store/settings', () => ({
   updateAgentDefinitionToggleDurably: updateAgentDefinitionToggleDurablyMock,
   updateSelectedModelDurably: updateSelectedModelDurablyMock,
   migrateSelectedModelDurably: migrateSelectedModelDurablyMock,
+  deleteSelectedModelDurably: deleteSelectedModelDurablyMock,
   initializeSettingsStore: initializeSettingsStoreMock,
   refreshSettingsStore: refreshSettingsStoreMock,
   flushSettingsStoreForTests: flushSettingsStoreMock,
@@ -235,6 +238,20 @@ describe('SettingsService.Live', () => {
       }).pipe(Effect.provide(SettingsService.Live)),
     )
     expect(migrateSelectedModelDurablyMock).toHaveBeenCalledWith('/tmp/project', 'legacy/file')
+    expect(updateSettingsDurablyMock).not.toHaveBeenCalled()
+  })
+
+  it('delegates project model removal to the queue-safe durable delete', async () => {
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const service = yield* SettingsService
+        if (service.removeProjectModel === undefined) {
+          throw new Error('Missing queue-safe project model removal')
+        }
+        yield* service.removeProjectModel('/tmp/project')
+      }).pipe(Effect.provide(SettingsService.Live)),
+    )
+    expect(deleteSelectedModelDurablyMock).toHaveBeenCalledWith('/tmp/project')
     expect(updateSettingsDurablyMock).not.toHaveBeenCalled()
   })
 

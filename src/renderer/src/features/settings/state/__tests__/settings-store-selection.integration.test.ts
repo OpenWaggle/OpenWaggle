@@ -13,6 +13,7 @@ const { apiMock } = vi.hoisted(() => ({
     testApiKey: vi.fn(),
     getProjectPreferences: vi.fn(),
     setProjectPreferences: vi.fn(),
+    removeProjectModel: vi.fn(),
   },
 }))
 
@@ -31,6 +32,7 @@ describe('preferences-store selection integration', () => {
     apiMock.setEnabledModels.mockResolvedValue(undefined)
     apiMock.updateSettings.mockResolvedValue({ ok: true })
     apiMock.setProjectPreferences.mockResolvedValue('/repo/b')
+    apiMock.removeProjectModel.mockResolvedValue('/repo/b')
     usePreferencesStore.setState({
       settings: DEFAULT_SETTINGS,
       persistedAppearancePreferences: DEFAULT_SETTINGS.appearancePreferences,
@@ -117,11 +119,11 @@ describe('preferences-store selection integration', () => {
     expect(usePreferencesStore.getState().settings.selectedModel).toBe('openai/gpt-4.1-mini')
   })
 
-  it('mirrors a project model write under the canonical path and preserves it on removal', async () => {
+  it('mirrors nothing for model writes and removes the stored entry through the backend', async () => {
     usePreferencesStore.setState((state) => ({
       settings: {
         ...state.settings,
-        // The caller-spelled path is an alias; the backend canonicalizes it on write.
+        // The caller-spelled path is an alias; the backend canonicalizes it on write and removal.
         projectPath: '/repo/b-alias',
         selectedModelsByProject: { '/repo/b': 'openai/gpt-4.1' },
       },
@@ -132,17 +134,14 @@ describe('preferences-store selection integration', () => {
     expect(apiMock.setProjectPreferences).toHaveBeenCalledWith('/repo/b-alias', {
       model: 'openai/gpt-4.1-mini',
     })
-    // The mirror keys by the canonical path the backend returned — no alias fork.
-    expect(usePreferencesStore.getState().settings.selectedModelsByProject).toEqual({
-      '/repo/b': 'openai/gpt-4.1-mini',
-    })
+    // The renderer never submits the model map wholesale; the backend owns the entries.
+    expect(apiMock.updateSettings).not.toHaveBeenCalledWith(
+      expect.objectContaining({ selectedModelsByProject: expect.anything() }),
+    )
 
-    await usePreferencesStore.getState().removeProjectReferences('/repo/a')
+    await usePreferencesStore.getState().removeProjectReferences('/repo/b-alias')
 
-    // The removal must submit the current map, not a stale snapshot from the last settings load.
-    expect(usePreferencesStore.getState().settings.selectedModelsByProject).toEqual({
-      '/repo/b': 'openai/gpt-4.1-mini',
-    })
+    expect(apiMock.removeProjectModel).toHaveBeenCalledWith('/repo/b-alias')
   })
 
   it('keeps shortcut state unchanged when main rejects a duplicate binding', async () => {

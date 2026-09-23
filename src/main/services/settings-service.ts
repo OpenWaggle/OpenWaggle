@@ -26,6 +26,8 @@ export interface SettingsServiceShape {
     projectPath: string,
     model: string,
   ) => Effect.Effect<boolean, Error>
+  /** Deletes a project's selected model entry entirely (project references removed). */
+  readonly removeProjectModel?: (projectPath: string) => Effect.Effect<void, Error>
   readonly initialize: () => Effect.Effect<void, SettingsStoreReadError>
   readonly flushForTests: () => Effect.Effect<void, Error>
 }
@@ -58,6 +60,7 @@ export class SettingsService extends Context.Tag('@openwaggle/SettingsService')<
       updateAgentDefinitionToggleDurably,
       updateSelectedModelDurably,
       migrateSelectedModelDurably,
+      deleteSelectedModelDurably,
       initializeSettingsStore,
       refreshSettingsStore,
       hydrateSettingsStoreFromHost,
@@ -121,6 +124,14 @@ export class SettingsService extends Context.Tag('@openwaggle/SettingsService')<
           try: async () => {
             await readSettings()
             return await migrateSelectedModelDurably(projectPath, model)
+          },
+          catch: toError,
+        }),
+      removeProjectModel: (projectPath) =>
+        Effect.tryPromise({
+          try: async () => {
+            await readSettings()
+            await deleteSelectedModelDurably(projectPath)
           },
           catch: toError,
         }),
