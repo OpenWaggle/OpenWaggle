@@ -248,6 +248,9 @@ describe('removeProjectModelOperation', () => {
       ),
     )
 
+  const tempProjectPath = async (prefix: string) =>
+    fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), prefix)))
+
   it('deletes the stored model through the queue-safe backend writer', async () => {
     await run('/project')
 
@@ -255,7 +258,7 @@ describe('removeProjectModelOperation', () => {
   })
 
   it('strips a legacy file model before deleting the entry', async () => {
-    const legacyPath = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-legacy-model-'))
+    const legacyPath = await tempProjectPath('openwaggle-legacy-model-')
     await writeLegacyModelFile(legacyPath)
 
     await run(legacyPath)
@@ -268,13 +271,29 @@ describe('removeProjectModelOperation', () => {
   })
 
   it('does not rewrite the project file when it holds no legacy model', async () => {
-    const plainPath = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-legacy-model-'))
+    const plainPath = await tempProjectPath('openwaggle-legacy-model-')
 
     await run(plainPath)
 
     expect(mocks.setPreferences).not.toHaveBeenCalled()
     expect(removals).toEqual([plainPath])
     await fs.rm(plainPath, { recursive: true, force: true })
+  })
+
+  it('removes the entry when the project directory no longer exists', async () => {
+    const gonePath = await tempProjectPath('openwaggle-legacy-model-')
+    await fs.rm(gonePath, { recursive: true, force: true })
+
+    await run(gonePath)
+
+    expect(mocks.setPreferences).not.toHaveBeenCalled()
+    expect(removals).toEqual([gonePath])
+  })
+
+  it('rejects relative paths without touching stored settings', async () => {
+    await expect(run('relative/path')).rejects.toThrow('Project path is required.')
+    expect(removals).toEqual([])
+    expect(mocks.setPreferences).not.toHaveBeenCalled()
   })
 })
 

@@ -1,3 +1,5 @@
+import fs from 'node:fs/promises'
+import path from 'node:path'
 import { safeDecodeUnknown } from '@shared/schema'
 import { projectPreferencesUpdateSchema } from '@shared/schemas/validation'
 import { isAgentAuthorizationMode } from '@shared/types/agent-authorization'
@@ -10,7 +12,7 @@ import {
   setProjectPreferences,
 } from '../config/project-config'
 import { SettingsService, type SettingsServiceShape } from '../services/settings-service'
-import { validateProjectPath, validateRequiredProjectPath } from '../utils/project-path-validation'
+import { validateProjectPath } from '../utils/project-path-validation'
 import { resolveEffectiveAuthorizationMode } from './agent-authorization-mode'
 import { grantPendingAuthorizationsWhereFullAccess } from './agent-loop-authorization-grants'
 
@@ -100,27 +102,43 @@ export function getProjectPreferencesOperation(rawProjectPath: unknown) {
  * works regardless of the alias the caller spells, and the queue-safe writer keeps the delete
  * serialized against model writes.
  */
+/**
+ * Removes one project's stored model. The project directory may already be gone — moved or deleted
+ * outside OpenWaggle — so canonicalization is best-effort: an existing directory resolves through
+ * realpath (matching the keys persist operations write), a missing one falls back to the given
+ * absolute path, and both candidate keys are cleaned up.
+ */
 export function removeProjectModelOperation(rawProjectPath: unknown) {
   return Effect.gen(function* () {
-    const projectPath = yield* validateRequiredProjectPath(
-      typeof rawProjectPath === 'string' ? rawProjectPath : null,
+    const projectPath = typeof rawProjectPath === 'string' ? rawProjectPath.trim() : ''
+    if (!projectPath || !path.isAbsolute(projectPath)) {
+      return yield* Effect.fail(new Error('Project path is required.'))
+    }
+    const canonicalPath = yield* Effect.promise(() =>
+      fs.realpath(projectPath).catch(() => projectPath),
     )
     const settings = yield* SettingsService
     // A legacy file model must not survive removal: the central write migrates it into the DB and
     // strips it from the file, then the delete discards the entry so re-adding starts fresh.
-    // Projects without a settings file (or without a legacy model) skip the rewrite entirely.
-    const filePrefs = yield* Effect.promise(() => getProjectPreferencesStrict(projectPath))
+    // Projects without a settings file (or without a legacy model) skip the rewrite entirely, and
+    // a missing or unreadable file never blocks the database cleanup.
+    const filePrefs = yield* Effect.promise(() =>
+      getProjectPreferencesStrict(canonicalPath).catch(() => undefined),
+    )
     if (filePrefs?.model !== undefined) {
-      yield* Effect.promise(() => setProjectPreferences(projectPath, {}))
+      yield* Effect.promise(() => setProjectPreferences(canonicalPath, {}))
     }
     if (settings.removeProjectModel) {
-      yield* settings.removeProjectModel(projectPath)
-      return projectPath
+      yield* settings.removeProjectModel(canonicalPath)
+      if (canonicalPath !== projectPath) yield* settings.removeProjectModel(projectPath)
+      return canonicalPath
     }
     const current = yield* settings.get()
-    const { [projectPath]: _removed, ...rest } = current.selectedModelsByProject
+    const rest = { ...current.selectedModelsByProject }
+    delete rest[canonicalPath]
+    delete rest[projectPath]
     yield* settings.update({ selectedModelsByProject: rest })
-    return projectPath
+    return canonicalPath
   })
 }
 
