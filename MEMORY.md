@@ -976,3 +976,11 @@ not merely a project and worktree path. Pin the worktree directory's device, ino
 when the checkout exists; a pre-birth snapshot gets its identity after materialization. If the
 recorded generation is missing or differs at removal, do not execute its pinned cleanup command
 in a replacement checkout. Explicit Delete anyway can still skip that cleanup.
+
+Workspace preparation review writes two durable records: the project catalog's remembered approval
+and the pinned Workspace snapshot. If snapshot persistence fails after a catalog edit, restore the
+exact previous catalog review using the resulting catalog revision; never leave a shared setup
+enabled for later worktrees when the approval request reported failure. For POSIX Setup capture,
+escaped prefixes such as `\command exec` and `\builtin exec` suppress alias expansion just as
+`\exec` does, so normalize those executable forms outside quotes, comments and heredocs before
+evaluating the command.

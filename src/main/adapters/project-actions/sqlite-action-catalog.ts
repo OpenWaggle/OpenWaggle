@@ -73,6 +73,11 @@ export const SqliteActionCatalogServiceLive = Layer.effect(
       read: (scope) => Effect.tryPromise({ try: () => catalog.read(scope), catch: catalogError }),
       edit: (scope, revision, edit) =>
         Effect.tryPromise({ try: () => catalog.edit(scope, revision, edit), catch: catalogError }),
+      restorePreparationReview: (scope, revision, definitionId, previous) =>
+        Effect.tryPromise({
+          try: () => catalog.restorePreparationReview(scope, revision, definitionId, previous),
+          catch: catalogError,
+        }),
       discover: (workspacePath) =>
         Effect.tryPromise({ try: () => discoverProjectTasks(workspacePath), catch: catalogError }),
     }

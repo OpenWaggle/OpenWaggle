@@ -119,6 +119,49 @@ describe('native preparation catalog', () => {
     expect(raw).not.toContain('enabled')
   })
 
+  it('restores the exact prior shared review after a failed workspace snapshot save', async () => {
+    await shared({ ...EMPTY_ACTION_MANIFEST, preparation: [setup] })
+    const discovered = await catalog.read(scope())
+    const initiallyEnabled = await catalog.edit(scope(), discovered.revision, {
+      type: 'review-preparation',
+      id: setup.id,
+      enabled: true,
+    })
+    await shared({
+      ...EMPTY_ACTION_MANIFEST,
+      preparation: [
+        {
+          ...setup,
+          invocation: {
+            type: 'command',
+            command: 'pnpm install --frozen-lockfile',
+            directory: '.',
+          },
+        },
+      ],
+    })
+    const changed = await catalog.read(scope())
+    expect(changed.preparation[0]?.review).toBe('required')
+    const prior = changed.preparation[0]?.previous
+    expect(prior).toBeDefined()
+    const approved = await catalog.edit(scope(), changed.revision, {
+      type: 'review-preparation',
+      id: setup.id,
+      enabled: true,
+    })
+    const restored = await catalog.restorePreparationReview(
+      scope(),
+      approved.revision,
+      setup.id,
+      prior,
+    )
+    expect(restored.preparation[0]).toMatchObject({ review: 'required', previous: prior })
+    await expect(
+      catalog.restorePreparationReview(scope(), approved.revision, setup.id, undefined),
+    ).rejects.toThrow('changed')
+    expect(initiallyEnabled.preparation[0]?.review).toBe('enabled')
+  })
+
   it('renews review when a shared setup moves into the default profile', async () => {
     const optIn = { ...setup, profileId: 'opt-in' }
     const profile = { id: 'opt-in', name: 'Opt in' }

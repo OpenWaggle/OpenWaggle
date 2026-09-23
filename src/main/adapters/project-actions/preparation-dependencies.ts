@@ -12,7 +12,7 @@ export interface PreparationDependencies {
     workspace: ActionRunWorkspace,
     definition: PreparationDefinition,
     enabled: boolean,
-  ) => Promise<void>
+  ) => Promise<(() => Promise<void>) | void>
   readonly persistence: PreparationPersistence
   readonly catalog: (workspace: ActionRunWorkspace) => Promise<ActionCatalog>
   readonly execute: (input: {

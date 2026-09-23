@@ -218,4 +218,74 @@ describe.skipIf(process.platform === 'win32')('setup commands using exec', () =>
       await execute.shutdown()
     }
   })
+
+  it.for(['/bin/bash', '/bin/sh', '/bin/dash'])(
+    'captures exports before escaped command exec in %s',
+    async (shell, context) => {
+      if (!existsSync(shell)) context.skip()
+      const execute = createPreparationExecutor(
+        createActionProcessRunner('test'),
+        directory,
+        'test',
+      )
+      try {
+        const result = await execute({
+          workspace: {
+            workspaceId: 'escaped-command',
+            projectPath: directory,
+            workspacePath: directory,
+          },
+          invocation: {
+            type: 'command',
+            command: 'export OW_ESCAPED_COMMAND=loaded; \\command exec /usr/bin/true',
+            directory: '.',
+          },
+          environment: { SHELL: shell },
+          captureEnvironment: true,
+          onOutput: () => {},
+        })
+        expect(result).toMatchObject({
+          exitCode: 0,
+          environment: { OW_ESCAPED_COMMAND: 'loaded' },
+        })
+      } finally {
+        await execute.shutdown()
+      }
+    },
+  )
+
+  it.for(['/bin/bash', '/bin/zsh'])(
+    'captures exports before escaped builtin exec in %s',
+    async (shell, context) => {
+      if (!existsSync(shell)) context.skip()
+      const execute = createPreparationExecutor(
+        createActionProcessRunner('test'),
+        directory,
+        'test',
+      )
+      try {
+        const result = await execute({
+          workspace: {
+            workspaceId: 'escaped-builtin',
+            projectPath: directory,
+            workspacePath: directory,
+          },
+          invocation: {
+            type: 'command',
+            command: 'export OW_ESCAPED_BUILTIN=loaded; \\builtin exec /usr/bin/true',
+            directory: '.',
+          },
+          environment: { SHELL: shell },
+          captureEnvironment: true,
+          onOutput: () => {},
+        })
+        expect(result).toMatchObject({
+          exitCode: 0,
+          environment: { OW_ESCAPED_BUILTIN: 'loaded' },
+        })
+      } finally {
+        await execute.shutdown()
+      }
+    },
+  )
 })

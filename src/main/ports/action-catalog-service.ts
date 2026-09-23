@@ -1,6 +1,7 @@
 import type {
   ActionCatalog,
   ActionCatalogEdit,
+  PreparationReview,
   ProjectTaskDiscovery,
 } from '@shared/types/action-definitions'
 import { Context } from 'effect'
@@ -18,6 +19,13 @@ export interface ActionCatalogServiceShape {
     scope: ActionCatalogScope,
     revision: string,
     edit: ActionCatalogEdit,
+  ) => Effect<ActionCatalog, Error>
+  /** Host-only compensation for a failed workspace snapshot save. */
+  readonly restorePreparationReview: (
+    scope: ActionCatalogScope,
+    revision: string,
+    definitionId: string,
+    previous: PreparationReview | undefined,
   ) => Effect<ActionCatalog, Error>
   readonly discover: (workspacePath: string) => Effect<ProjectTaskDiscovery, Error>
 }

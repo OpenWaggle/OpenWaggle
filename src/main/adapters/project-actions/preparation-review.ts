@@ -21,10 +21,21 @@ export function rememberPreparationReview(
       preparationExecutionKey(entry.definition) !== preparationExecutionKey(definition)
     )
       return
-    yield* catalog.edit(workspace, current.revision, {
+    if (entry.review === (enabled ? 'enabled' : 'disabled')) return
+    const updated = yield* catalog.edit(workspace, current.revision, {
       type: 'review-preparation',
       id: definition.id,
       enabled,
     })
+    return async () => {
+      await Effect.runPromise(
+        catalog.restorePreparationReview(
+          workspace,
+          updated.revision,
+          definition.id,
+          entry.previous,
+        ),
+      )
+    }
   })
 }

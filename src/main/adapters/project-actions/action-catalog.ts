@@ -1,7 +1,7 @@
 import { realpath } from 'node:fs/promises'
 import { decodeUnknownExactOrThrow } from '@shared/schema'
 import { actionCatalogEditSchema, actionManifestSchema } from '@shared/schemas/action-definitions'
-import type { ActionCatalogEdit } from '@shared/types/action-definitions'
+import type { ActionCatalogEdit, PreparationReview } from '@shared/types/action-definitions'
 import { enqueueProjectConfigWrite } from '../../config/project-config-write-queue'
 import {
   editActionCatalog,
@@ -21,6 +21,7 @@ import {
   type ActionStatePersistence,
   localActionDocumentSchema,
   localActionStateSchema,
+  type StoredActionState,
 } from './local-action-state'
 
 function publicationDetails(pending: PendingActionPublication) {
@@ -32,6 +33,42 @@ function publicationDetails(pending: PendingActionPublication) {
     projectDraft: pending.nextShared,
     localDraft: pending.nextLocal.manifest,
   }
+}
+
+async function restorePreparationReviewState(
+  persistence: ActionStatePersistence,
+  projectPath: string,
+  stored: StoredActionState,
+  revision: string,
+  expectedRevision: string,
+  definitionId: string,
+  previous: PreparationReview | undefined,
+) {
+  if (revision !== expectedRevision || stored.state.pending)
+    throw new Error(
+      'Project Actions changed while undoing a failed preparation review. Reload and review the shared setup.',
+    )
+  const document = decodeUnknownExactOrThrow(localActionDocumentSchema, {
+    ...stored.state.document,
+    reviews: [
+      ...stored.state.document.reviews.filter((review) => review.definitionId !== definitionId),
+      ...(previous ? [previous] : []),
+    ],
+  })
+  await persistence.write(projectPath, stored.revision, { document, pending: null })
+}
+
+async function serializedActionCatalog<T>(
+  scope: ActionCatalogScope,
+  operation: (canonical: ActionCatalogScope) => Promise<T>,
+): Promise<T> {
+  const [projectPath, workspacePath] = await Promise.all([
+    realpath(scope.projectPath),
+    realpath(scope.workspacePath),
+  ])
+  return enqueueProjectConfigWrite(`actions:${projectPath}`, () =>
+    operation({ projectPath, workspacePath }),
+  )
 }
 
 export function createActionCatalog(persistence: ActionStatePersistence) {
@@ -62,19 +99,6 @@ export function createActionCatalog(persistence: ActionStatePersistence) {
     return { stored, shared, revision, workspaceIdentity }
   }
 
-  async function serialized<T>(
-    scope: ActionCatalogScope,
-    operation: (canonical: ActionCatalogScope) => Promise<T>,
-  ): Promise<T> {
-    const [projectPath, workspacePath] = await Promise.all([
-      realpath(scope.projectPath),
-      realpath(scope.workspacePath),
-    ])
-    return enqueueProjectConfigWrite(`actions:${projectPath}`, () =>
-      operation({ projectPath, workspacePath }),
-    )
-  }
-
   async function readCurrent(scope: ActionCatalogScope) {
     const { stored, shared, revision } = await load(scope)
     const catalog = resolveActionCatalog(stored.state.document, shared.manifest, revision)
@@ -83,9 +107,28 @@ export function createActionCatalog(persistence: ActionStatePersistence) {
   }
 
   return {
-    read: (scope: ActionCatalogScope) => serialized(scope, readCurrent),
+    read: (scope: ActionCatalogScope) => serializedActionCatalog(scope, readCurrent),
+    restorePreparationReview: (
+      scope: ActionCatalogScope,
+      expectedRevision: string,
+      definitionId: string,
+      previous: PreparationReview | undefined,
+    ) =>
+      serializedActionCatalog(scope, async (canonical) => {
+        const { stored, revision } = await load(canonical)
+        await restorePreparationReviewState(
+          persistence,
+          canonical.projectPath,
+          stored,
+          revision,
+          expectedRevision,
+          definitionId,
+          previous,
+        )
+        return readCurrent(canonical)
+      }),
     edit: (scope: ActionCatalogScope, expectedRevision: string, rawEdit: ActionCatalogEdit) =>
-      serialized(scope, async (canonical) => {
+      serializedActionCatalog(scope, async (canonical) => {
         const edit = decodeUnknownExactOrThrow(actionCatalogEditSchema, rawEdit)
         const { stored, shared, revision, workspaceIdentity } = await load(canonical)
         if (revision !== expectedRevision)

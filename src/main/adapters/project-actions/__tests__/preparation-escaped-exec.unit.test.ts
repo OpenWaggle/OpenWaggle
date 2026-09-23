@@ -37,4 +37,22 @@ describe('escaped exec capture', () => {
       'cat <<< value\nexec /usr/bin/true',
     )
   })
+
+  it('exposes escaped command prefixes before exec without changing literals or heredocs', () => {
+    const command = [
+      "printf '%s' '\\command exec' \"\\builtin exec\"",
+      '# \\command exec in a comment',
+      "cat <<'SCRIPT'",
+      '\\command exec in heredoc text',
+      'SCRIPT',
+      'export READY=yes; \\command exec /usr/bin/true',
+      'export READY=yes; \\builtin exec /usr/bin/true',
+    ].join('\n')
+
+    expect(enableEscapedExecCapture(command)).toBe(
+      command
+        .replace('export READY=yes; \\command exec', 'export READY=yes; command exec')
+        .replace('export READY=yes; \\builtin exec', 'export READY=yes; builtin exec'),
+    )
+  })
 })

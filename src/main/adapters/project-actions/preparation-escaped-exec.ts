@@ -20,6 +20,11 @@ function isEscapedExec(command: string, index: number) {
   return !/\w/.test(command[index + EXEC_TOKEN_END_OFFSET] ?? '')
 }
 
+function isEscapedExecPrefix(command: string, index: number) {
+  if (command[index] !== '\\' || /[\w\\]/.test(command[index - 1] ?? '')) return false
+  return /^\\(?:command|builtin)(?=\s+\\?exec(?!\w))/.test(command.slice(index))
+}
+
 function isCommentStart(command: string, index: number) {
   return command[index] === '#' && (index === 0 || /[\s;&|(){}]/.test(command[index - 1]))
 }
@@ -87,7 +92,10 @@ function visitCharacter(command: string, index: number, state: ScanState) {
   }
   const heredoc = heredocAt(command, index)
   if (heredoc) state.pendingHeredocs.push(heredoc)
-  if (isEscapedExec(command, index) && !/<<-?\s*$/.test(command.slice(state.lineStart, index)))
+  if (
+    (isEscapedExec(command, index) || isEscapedExecPrefix(command, index)) &&
+    !/<<-?\s*$/.test(command.slice(state.lineStart, index))
+  )
     return index
   state.result += character
   if (character !== '\\' || index + 1 >= command.length) return index

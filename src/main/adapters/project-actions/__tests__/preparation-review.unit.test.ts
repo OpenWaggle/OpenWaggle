@@ -22,13 +22,23 @@ it('remembers snapshot enablement for future workspaces only when current execut
   }
   const read = vi.fn(() => Effect.succeed(catalog))
   const edit = vi.fn(() => Effect.succeed(catalog))
-  const service = fromPartial<ActionCatalogServiceShape>({ read, edit })
-  await Effect.runPromise(rememberPreparationReview(service, workspace, definition, true))
+  const restorePreparationReview = vi.fn(() => Effect.succeed(catalog))
+  const service = fromPartial<ActionCatalogServiceShape>({ read, edit, restorePreparationReview })
+  const undo = await Effect.runPromise(
+    rememberPreparationReview(service, workspace, definition, true),
+  )
   expect(edit).toHaveBeenCalledExactlyOnceWith(workspace, 'one', {
     type: 'review-preparation',
     id: 'setup',
     enabled: true,
   })
+  await undo?.()
+  expect(restorePreparationReview).toHaveBeenCalledExactlyOnceWith(
+    workspace,
+    'one',
+    'setup',
+    undefined,
+  )
   edit.mockClear()
   await Effect.runPromise(
     rememberPreparationReview(

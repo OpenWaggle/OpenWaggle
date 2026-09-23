@@ -11,6 +11,7 @@ export type { PreparationDependencies } from './preparation-dependencies'
 import { executeWorkspacePreparation } from './preparation-execution'
 import type { StoredWorkspacePreparation } from './preparation-persistence'
 import { recoverPreparationAfterHostLoss } from './preparation-recovery'
+import { commitReviewedSnapshot } from './preparation-review-commit'
 import {
   completePreparationBirth,
   isCurrentPreparationGeneration,
@@ -168,24 +169,29 @@ export class ManagedWorkspacePreparation {
         ({ definition }) => definition.id === definitionId,
       )
       if (!entry) throw new Error('This definition is not part of the Workspace snapshot.')
-      const definition = entry.definition
-      await this.deps.rememberReview?.(workspace, definition, enabled)
       const definitions = state.snapshot.definitions.map((value) =>
         value === entry
           ? {
               ...entry,
               review: enabled ? ('enabled' as const) : ('disabled' as const),
-              previous: preparationReview(definition, enabled, state.snapshot.profile.name),
+              previous: preparationReview(entry.definition, enabled, state.snapshot.profile.name),
             }
           : value,
       )
-      return this.project(
-        workspace,
-        await this.save(
-          { ...state, revision: state.revision + 1, snapshot: { ...state.snapshot, definitions } },
-          state.revision,
-        ),
+      const undoReview = await this.deps.rememberReview?.(workspace, entry.definition, enabled)
+      const saved = await commitReviewedSnapshot(
+        () =>
+          this.save(
+            {
+              ...state,
+              revision: state.revision + 1,
+              snapshot: { ...state.snapshot, definitions },
+            },
+            state.revision,
+          ),
+        undoReview,
       )
+      return this.project(workspace, saved)
     })
   }
   skip(workspace: ActionRunWorkspace, phase: PreparationPhase, expectedRevision: number) {
