@@ -82,6 +82,21 @@ function captureWorktreePreparation(
   })
 }
 
+function captureCreatedWorktreePreparation(
+  workspace: SessionWorkspaceResource | null,
+  projectPath: string,
+) {
+  return Effect.gen(function* () {
+    if (!workspace) return
+    const preparation = yield* WorkspacePreparationService
+    yield* preparation.capture({
+      workspaceId: workspace.id,
+      projectPath,
+      workspacePath: workspace.workingPath,
+    })
+  })
+}
+
 export function createHostUiWorktree(rawPath: unknown, rawPayload: unknown) {
   return Effect.gen(function* () {
     const projectPath = decodeUnknownOrThrow(projectPathSchema, rawPath)
@@ -129,6 +144,7 @@ export function createHostUiWorktree(rawPath: unknown, rawPayload: unknown) {
       branch,
     })) satisfies GitWorktreeMutationResult
     if (result.ok) {
+      yield* captureCreatedWorktreePreparation(workspace, projectPath)
       invalidateGitStatusCache(path)
       invalidateGitStatusCache(projectPath)
     }

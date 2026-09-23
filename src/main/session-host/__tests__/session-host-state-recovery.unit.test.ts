@@ -65,6 +65,7 @@ it('interrupts crashed cleanup before resuming a journaled Session deletion', as
   const preparation = WorkspacePreparationService.of(
     fromPartial({
       read: () => Effect.succeed(fromPartial<WorkspacePreparation>(stored)),
+      isCurrentWorkspaceGeneration: () => Effect.succeed(true),
       run,
       recoverAfterHostLoss: Effect.promise(async () => {
         order.push('interrupt-preparation')

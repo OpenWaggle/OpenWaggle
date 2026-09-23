@@ -34,4 +34,8 @@ export const storedWorkspacePreparationSchema = Schema.Struct({
   setup: preparationExecutionSchema,
   cleanup: preparationExecutionSchema,
   environment: Schema.Record({ key: Schema.String, value: Schema.NullOr(Schema.String) }),
+  workspaceIdentity: Schema.optional(
+    Schema.Struct({ device: Schema.String, inode: Schema.String, birthtime: Schema.String }),
+  ),
+  awaitingWorktreeBirth: Schema.optional(Schema.Boolean),
 })

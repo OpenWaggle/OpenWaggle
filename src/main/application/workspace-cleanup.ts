@@ -14,6 +14,19 @@ export function prepareWorkspaceRemoval(
     yield* actions.stopWorkspaceRuns(workspace.workspaceId)
     const state = yield* preparation.read(workspace)
     if (!state) return null
+    if (!(yield* preparation.isCurrentWorkspaceGeneration(workspace))) {
+      if (options.skipCleanup) {
+        yield* preparation.skip(workspace, 'cleanup', state.revision)
+        return null
+      }
+      return {
+        ok: false,
+        code: 'cleanup-failed',
+        preparation: state,
+        message:
+          'This worktree no longer matches the checkout that captured its preparation. Its pinned cleanup cannot run here. Choose Delete anyway to remove this checkout without running that cleanup.',
+      } satisfies GitWorktreeMutationResult
+    }
     const blocked = state.cleanup.status === 'failed' || state.cleanup.status === 'review-required'
     if (options.skipCleanup && blocked) {
       yield* preparation.skip(workspace, 'cleanup', state.revision)

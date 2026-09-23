@@ -11,7 +11,7 @@ const workspace = {
   projectPath: '/repo',
   workspacePath: '/repo/worktree',
 }
-function fixture(status: WorkspacePreparation['cleanup']['status']) {
+function fixture(status: WorkspacePreparation['cleanup']['status'], currentGeneration = true) {
   const state = fromPartial<WorkspacePreparation>({
     workspaceId: workspace.workspaceId,
     revision: 4,
@@ -36,7 +36,12 @@ function fixture(status: WorkspacePreparation['cleanup']['status']) {
         Effect.provideService(ActionRunService, fromPartial({ stopWorkspaceRuns: stop })),
         Effect.provideService(
           WorkspacePreparationService,
-          fromPartial({ read: () => Effect.succeed(state), run, skip }),
+          fromPartial({
+            read: () => Effect.succeed(state),
+            isCurrentWorkspaceGeneration: () => Effect.succeed(currentGeneration),
+            run,
+            skip,
+          }),
         ),
       ),
     )
@@ -67,5 +72,17 @@ describe('workspace cleanup removal boundary', () => {
   it('permits removal after successful cleanup', async () => {
     const test = fixture('succeeded')
     expect(await test.perform({ retryFailed: true })).toBeNull()
+  })
+  it('never runs retained cleanup in a replacement checkout at the same path', async () => {
+    const test = fixture('failed', false)
+    expect(await test.perform({ retryFailed: true })).toMatchObject({
+      ok: false,
+      code: 'cleanup-failed',
+      message: expect.stringContaining('no longer matches'),
+    })
+    expect(test.run).not.toHaveBeenCalled()
+    expect(test.skip).not.toHaveBeenCalled()
+    expect(await test.perform({ retryFailed: true, skipCleanup: true })).toBeNull()
+    expect(test.skip).toHaveBeenCalledWith(workspace, 'cleanup', 4)
   })
 })

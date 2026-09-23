@@ -12,6 +12,13 @@ import { executeWorkspacePreparation } from './preparation-execution'
 import type { StoredWorkspacePreparation } from './preparation-persistence'
 import { recoverPreparationAfterHostLoss } from './preparation-recovery'
 import {
+  completePreparationBirth,
+  isCurrentPreparationGeneration,
+  isPendingPreparationBirth,
+  preparationGenerationFields,
+  resetPreparationForBirth,
+} from './preparation-workspace-generation'
+import {
   capturePreparationSnapshot,
   EMPTY_PREPARATION_EXECUTION,
   preparationProjection,
@@ -50,10 +57,19 @@ export class ManagedWorkspacePreparation {
     const state = await this.state(workspace.workspaceId)
     return state ? this.project(workspace, state) : null
   }
+  async isCurrentWorkspaceGeneration(workspace: ActionRunWorkspace) {
+    return isCurrentPreparationGeneration(workspace, await this.state(workspace.workspaceId))
+  }
   capture(workspace: ActionRunWorkspace, profileId?: string) {
     return this.serial(workspace.workspaceId, async () => {
       const existing = await this.state(workspace.workspaceId)
-      if (existing) return this.project(workspace, existing)
+      if (existing)
+        return this.project(
+          workspace,
+          await completePreparationBirth(workspace, existing, (state, revision) =>
+            this.save(state, revision),
+          ),
+        )
       const snapshot = capturePreparationSnapshot(await this.deps.catalog(workspace), profileId)
       const state = await this.save(
         {
@@ -63,6 +79,7 @@ export class ManagedWorkspacePreparation {
           setup: EMPTY_PREPARATION_EXECUTION,
           cleanup: EMPTY_PREPARATION_EXECUTION,
           environment: {},
+          ...(await preparationGenerationFields(workspace)),
         },
         0,
       )
@@ -73,20 +90,10 @@ export class ManagedWorkspacePreparation {
     await this.capture(workspace)
     return this.serial(workspace.workspaceId, async () => {
       const state = await this.requireState(workspace.workspaceId)
-      if (state.setup.status === 'idle' && state.cleanup.status === 'idle')
-        return this.project(workspace, state)
+      if (isPendingPreparationBirth(state)) return this.project(workspace, state)
       return this.project(
         workspace,
-        await this.save(
-          {
-            ...state,
-            revision: state.revision + 1,
-            setup: EMPTY_PREPARATION_EXECUTION,
-            cleanup: EMPTY_PREPARATION_EXECUTION,
-            environment: {},
-          },
-          state.revision,
-        ),
+        await this.save(resetPreparationForBirth(state), state.revision),
       )
     })
   }
@@ -113,6 +120,7 @@ export class ManagedWorkspacePreparation {
             setup: EMPTY_PREPARATION_EXECUTION,
             cleanup: EMPTY_PREPARATION_EXECUTION,
             environment: {},
+            ...(await preparationGenerationFields(workspace)),
           },
           expectedRevision,
         ),

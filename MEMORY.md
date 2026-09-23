@@ -956,3 +956,9 @@ per-action required fields and enums at run time (see `sessions-tool-flat-schema
 issue #218). When `pi.validateToolArguments` reports `Received arguments: {}`, suspect the
 provider dropping arguments for the schema shape before blaming parsing or permissions; the
 cheapest discriminator is a raw REST probe of the provider with the exact tool JSON.
+
+For managed-worktree cleanup, a retained preparation snapshot belongs to a directory generation,
+not merely a project and worktree path. Pin the worktree directory's device, inode and birth time
+when the checkout exists; a pre-birth snapshot gets its identity after materialization. If the
+recorded generation is missing or differs at removal, do not execute its pinned cleanup command
+in a replacement checkout. Explicit Delete anyway can still skip that cleanup.

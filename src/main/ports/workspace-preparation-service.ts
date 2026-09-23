@@ -18,6 +18,9 @@ export interface WorkspacePreparationServiceShape {
   readonly read: (
     workspace: ActionRunWorkspace,
   ) => Effect.Effect<WorkspacePreparation | null, Error>
+  readonly isCurrentWorkspaceGeneration: (
+    workspace: ActionRunWorkspace,
+  ) => Effect.Effect<boolean, Error>
   readonly select: (
     workspace: ActionRunWorkspace,
     profileId: string,

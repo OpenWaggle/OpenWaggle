@@ -7,6 +7,12 @@ import type { PreparedEnvironment } from '../../domain/prepared-environment'
 
 export interface StoredWorkspacePreparation extends Omit<WorkspacePreparation, 'updateAvailable'> {
   readonly environment: PreparedEnvironment
+  readonly workspaceIdentity?: {
+    readonly device: string
+    readonly inode: string
+    readonly birthtime: string
+  }
+  readonly awaitingWorktreeBirth?: boolean
 }
 export interface PreparationPersistence {
   readonly read: (workspaceId: string) => Promise<StoredWorkspacePreparation | null>
