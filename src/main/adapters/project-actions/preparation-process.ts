@@ -92,7 +92,12 @@ export function createPreparationExecutor(
       const invocation = capture?.invocation ?? resolved
       if (shuttingDown) throw new Error('The Session Host is stopping.')
       input.signal?.throwIfAborted()
-      const pending = runner.start({ invocation, environment, onOutput: input.onOutput })
+      const pending = runner.start({
+        invocation,
+        environment,
+        signal: input.signal,
+        onOutput: input.onOutput,
+      })
       spawning.add(pending)
       let child: ActionProcess
       try {

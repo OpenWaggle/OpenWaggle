@@ -65,7 +65,7 @@ describe('native action settings', () => {
     await waitFor(() =>
       expect(mocks.manage).toHaveBeenCalledWith(
         expect.objectContaining({
-          scope: { projectPath: '/repo', sessionId: 'session' },
+          scope: { projectPath: '/repo' },
           operation: {
             type: 'edit',
             revision: 'catalog-1',
@@ -80,6 +80,24 @@ describe('native action settings', () => {
         }),
       ),
     )
+  })
+  it('keeps settings catalog and discovery in the selected checkout while runs use the active session', async () => {
+    renderWithQueryClient(<ProjectActionsSettings />)
+    await screen.findByText('Test')
+    fireEvent.click(screen.getByRole('button', { name: 'Add action' }))
+    await screen.findByRole('button', { name: /test.*Website.*vitest run/i })
+    expect(mocks.manage).toHaveBeenCalledWith({
+      scope: { projectPath: '/repo' },
+      operation: { type: 'catalog' },
+    })
+    expect(mocks.manage).toHaveBeenCalledWith({
+      scope: { projectPath: '/repo' },
+      operation: { type: 'discover' },
+    })
+    expect(mocks.manage).toHaveBeenCalledWith({
+      scope: { projectPath: '/repo', sessionId: 'session' },
+      operation: { type: 'runs' },
+    })
   })
   it('keeps custom commands available when discovery has no scripts', async () => {
     const original = mocks.manage.getMockImplementation()

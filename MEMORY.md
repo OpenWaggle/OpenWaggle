@@ -878,6 +878,10 @@ or agent-run marker. Pi Bash and PowerShell receive the active run's authoritati
 Persisted `starting` runs must be tracked before native launch. Stop aborts launch promptly and the
 PTY checks cancellation immediately before spawning; any late process remains owned until its tree
 is confirmed stopped, with failed cleanup visible and retryable.
+Preparation launches need the same abort signal passed into the process runner; Stop can arrive
+while native PTY startup is pending, and a process returned after cancellation must still be drained.
+Settings catalog, discovery, and edits use only the independently selected project path. Its active
+Session scope is reserved for the running-actions summary, since that Session may use a worktree.
 
 The September 2026 native action verification reproduced a SQLite worker teardown abort on pristine
 main with transitive better-sqlite3 12.11.1. Root and Effect SQLite now share 13.0.3, which includes the

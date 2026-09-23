@@ -66,9 +66,10 @@ export function ProjectActionsSettings() {
 }
 
 function ProjectActionDefinitions({ projectPath }: { readonly projectPath: string }) {
-  const scope = useActionScope(projectPath)
+  const scope: ActionManagementScope = { projectPath }
+  const runScope = useActionScope(projectPath)
   const catalog = useNativeActions(scope)
-  const runs = useActionRuns(scope)
+  const runs = useActionRuns(runScope)
   const edit = useEditActionCatalog(scope)
   const [editor, setEditor] = useState<EffectiveDefinition<ActionDefinition> | null | undefined>(
     undefined,
@@ -85,7 +86,6 @@ function ProjectActionDefinitions({ projectPath }: { readonly projectPath: strin
       setError(cause instanceof Error ? cause.message : 'Could not update actions.')
     }
   }
-  if (!scope) return null
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -102,7 +102,7 @@ function ProjectActionDefinitions({ projectPath }: { readonly projectPath: strin
           Add action
         </Button>
       </div>
-      <RunningActionsLink scope={scope} runs={running} />
+      {runScope ? <RunningActionsLink scope={runScope} runs={running} /> : null}
       {catalog.error || error ? (
         <p role="alert" className="text-sm text-error-text">
           {error ?? catalog.error?.message}

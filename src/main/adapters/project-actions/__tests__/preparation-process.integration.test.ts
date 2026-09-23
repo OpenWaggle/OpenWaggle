@@ -4,7 +4,11 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { getSessionHostChildEnv } from '../../../env'
-import { createActionProcessRunner } from '../action-process'
+import {
+  type ActionProcess,
+  type ActionProcessRunner,
+  createActionProcessRunner,
+} from '../action-process'
 import { createPreparationExecutor } from '../preparation-process'
 
 const shellCases = [
@@ -236,6 +240,38 @@ describe.skipIf(process.platform === 'win32')('real preparation environment capt
       await started.promise
       controller.abort(new Error('Stopped by user'))
       await stopped
+    } finally {
+      await execute.shutdown()
+    }
+  })
+
+  it('passes cancellation through a pending launch and stops a late process', async () => {
+    const launch = Promise.withResolvers<ActionProcess>()
+    const stop = vi.fn(async () => {})
+    const runner: ActionProcessRunner = {
+      validate: vi.fn(async () => {}),
+      start: vi.fn(() => launch.promise),
+    }
+    const execute = createPreparationExecutor(runner, directory, 'test')
+    const controller = new AbortController()
+    const pending = execute({
+      workspace: { workspaceId: 'pending', projectPath: directory, workspacePath: directory },
+      invocation: { type: 'command', command: 'echo ready', directory: '.' },
+      environment: {},
+      captureEnvironment: false,
+      signal: controller.signal,
+      onOutput: () => {},
+    })
+    const stopped = expect(pending).rejects.toThrow('Stopped by user')
+    try {
+      await vi.waitFor(() => expect(runner.start).toHaveBeenCalledOnce())
+      expect(runner.start).toHaveBeenCalledWith(
+        expect.objectContaining({ signal: controller.signal }),
+      )
+      controller.abort(new Error('Stopped by user'))
+      launch.resolve({ pid: 42, closed: Promise.resolve({ exitCode: null }), stop })
+      await stopped
+      expect(stop).toHaveBeenCalledOnce()
     } finally {
       await execute.shutdown()
     }
