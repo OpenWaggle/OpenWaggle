@@ -126,7 +126,7 @@ export async function preparationCaptureInvocation(
           '-NoLogo',
           '-NonInteractive',
           '-Command',
-          `$global:LASTEXITCODE = 0\n$__ow_exit = 0\ntry {\n${command}\nif ($?) { $__ow_exit = 0 } elseif ($global:LASTEXITCODE -ne 0) { $__ow_exit = $global:LASTEXITCODE }\n} catch {\n$__ow_exit = 1\nthrow\n} finally {\nif ($__ow_exit -eq 0) { $values = @{}; Get-ChildItem Env: | ForEach-Object { $values[$_.Name] = $_.Value }; [System.IO.File]::WriteAllText(${quotePowerShellArgument(destination)}, ($values | ConvertTo-Json -Compress)) }\n}\nexit $__ow_exit`,
+          `$global:LASTEXITCODE = 0\n$__ow_exit = 0\ntry {\n${command}\nif ($?) { $__ow_exit = 0 } elseif ($global:LASTEXITCODE -ne 0) { $__ow_exit = $global:LASTEXITCODE } else { $__ow_exit = 1 }\n} catch {\n$__ow_exit = 1\nthrow\n} finally {\nif ($__ow_exit -eq 0) { $values = @{}; Get-ChildItem Env: | ForEach-Object { $values[$_.Name] = $_.Value }; [System.IO.File]::WriteAllText(${quotePowerShellArgument(destination)}, ($values | ConvertTo-Json -Compress)) }\n}\nexit $__ow_exit`,
         ],
       },
     }

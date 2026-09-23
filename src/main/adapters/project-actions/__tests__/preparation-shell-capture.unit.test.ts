@@ -36,6 +36,7 @@ describe('preparation shell selection', () => {
     expect(script).toContain(
       'elseif ($global:LASTEXITCODE -ne 0) { $__ow_exit = $global:LASTEXITCODE }',
     )
+    expect(script).toContain('else { $__ow_exit = 1 }')
     expect(script).toContain('if ($__ow_exit -eq 0)')
     expect(script).toContain('exit $__ow_exit')
   })
@@ -66,6 +67,30 @@ describe('preparation shell selection', () => {
       await rm(directory, { recursive: true, force: true })
     }
   })
+  it.skipIf(!powerShellAvailable)(
+    'rejects a final non-terminating PowerShell cmdlet failure',
+    async () => {
+      const directory = await mkdtemp(join(tmpdir(), 'ow-powershell-cmdlet-failure-'))
+      const destination = join(directory, 'environment.json')
+      try {
+        const capture = await preparationCaptureInvocation(
+          { type: 'command', cwd: directory, command: "Get-Item -LiteralPath './missing-item'" },
+          destination,
+          powerShell,
+          {},
+        )
+        if (capture.invocation.type !== 'executable') throw new Error('Expected PowerShell wrapper')
+        const result = spawnSync(capture.invocation.executable, capture.invocation.args, {
+          cwd: directory,
+          encoding: 'utf8',
+        })
+        expect(result.status).toBe(1)
+        await expect(readFile(destination, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
+      } finally {
+        await rm(directory, { recursive: true, force: true })
+      }
+    },
+  )
   it.skipIf(!powerShellAvailable)(
     'captures a dot-sourced PowerShell setup that exits zero',
     async () => {
