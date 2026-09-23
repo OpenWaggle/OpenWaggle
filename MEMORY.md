@@ -921,6 +921,12 @@ Race launch against cancellation, check the linked signal before invoking the ru
 process returned late after cancellation without blocking the canceled caller.
 Settings catalog, discovery, and edits use only the independently selected project path. Its active
 Session scope is reserved for the running-actions summary, since that Session may use a worktree.
+Shortcuts Settings reads and writes also use that project-only scope; runtime shortcut presentation
+and the command palette may follow the active Session. A worktree-scoped definition must not become
+a project-wide local override through a Settings edit.
+Preparation approval fingerprints include the profile ID as well as phase and invocation. Moving
+shared setup into another profile changes which workspaces enroll and requires renewed review, even
+when the command itself is unchanged. Older fingerprints without a profile require reapproval.
 If node-pty reports failed native resource drain after process exit, an action's close promise can
 reject permanently. Once detached shutdown confirms the process tree is gone, persist a failed or
 stopped terminal run with the drain error and release Host liveness; repeated Stop cannot repair the

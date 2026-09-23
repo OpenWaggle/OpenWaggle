@@ -69,7 +69,7 @@ export function preparationExecutionKey(definition: PreparationDefinition): stri
       environment: task.environment ?? null,
     }))
     .exhaustive()
-  return JSON.stringify({ phase: definition.phase, invocation })
+  return JSON.stringify({ profileId: definition.profileId, phase: definition.phase, invocation })
 }
 
 export function resolveActionCatalog(

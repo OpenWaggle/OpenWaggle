@@ -44,13 +44,21 @@ export function projectActionsQueryOptions(
   })
 }
 
-export function useProjectActions(projectPath: string | null) {
-  const scope = useActionScope(projectPath)
+export function useProjectActions(
+  projectPath: string | null,
+  scopeOverride?: ActionManagementScope | null,
+) {
+  const activeScope = useActionScope(projectPath)
+  const scope = scopeOverride === undefined ? activeScope : scopeOverride
   return useQuery(projectActionsQueryOptions(projectPath, scope))
 }
 
-export function useProjectActionMutations(projectPath: string | null) {
-  const scope = useActionScope(projectPath)
+export function useProjectActionMutations(
+  projectPath: string | null,
+  scopeOverride?: ActionManagementScope | null,
+) {
+  const activeScope = useActionScope(projectPath)
+  const scope = scopeOverride === undefined ? activeScope : scopeOverride
   const catalog = useNativeActions(scope)
   const mutation = useEditActionCatalog(scope)
   return {

@@ -114,4 +114,32 @@ describe('native preparation catalog', () => {
     expect(raw).not.toContain('reviews')
     expect(raw).not.toContain('enabled')
   })
+
+  it('renews review when a shared setup moves into the default profile', async () => {
+    const optIn = { ...setup, profileId: 'opt-in' }
+    const profile = { id: 'opt-in', name: 'Opt in' }
+    await shared({
+      ...EMPTY_ACTION_MANIFEST,
+      profiles: [profile],
+      preparation: [optIn],
+    })
+    const discovered = await catalog.read(scope())
+    const approved = await catalog.edit(scope(), discovered.revision, {
+      type: 'review-preparation',
+      id: optIn.id,
+      enabled: true,
+    })
+    expect(approved.preparation[0]?.review).toBe('enabled')
+
+    await shared({
+      ...EMPTY_ACTION_MANIFEST,
+      profiles: [profile],
+      preparation: [setup],
+    })
+    const moved = await catalog.read(scope())
+    expect(moved.preparation[0]).toMatchObject({
+      definition: { id: setup.id, profileId: 'default', invocation: setup.invocation },
+      review: 'required',
+    })
+  })
 })
