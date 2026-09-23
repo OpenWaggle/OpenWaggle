@@ -601,6 +601,10 @@ mutations through the Host's validated application operation, require protocol r
 retain GUI-only caller authority. A remote Host failure must not fall back to a local write.
 Deterministic tests hold a real config rename to verify overlapping writes preserve both changes.
 
+Pre-agent worktree progress is Host-owned run state too. Publish it through the Session Host event
+stream, seed the reconnectable stream buffer before `agent_start`, and relay it to renderer windows.
+A GUI-local broadcast is invisible when a detached Host owns the Run and cannot survive reconnects.
+
 Session authority stores canonical project and workspace paths as a durable snapshot, then checks
 the live Run scope again for long-running operations such as exports. Tests for these boundaries
 must use real canonical directories; invented paths exercise rejection rather than the intended

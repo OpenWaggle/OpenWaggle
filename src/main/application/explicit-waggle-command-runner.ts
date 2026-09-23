@@ -4,7 +4,6 @@ import type { HydratedAgentSendPayload } from '@shared/types/agent'
 import type { SessionId, SupportedModelId } from '@shared/types/brand'
 import * as Effect from 'effect/Effect'
 import { publishSessionHostEvent } from '../session-host/session-host-events'
-import { emitWorktreeLaunchFailure, emitWorktreeLaunchProgress } from '../utils/stream-bridge'
 import { publishExplicitWaggleResult } from './explicit-waggle-command-result'
 import {
   toWaggleKernelExecutionContext,
@@ -24,6 +23,7 @@ export function runRegisteredExplicitWaggle(
   } & Partial<WaggleExecutionContext>,
 ) {
   return Effect.gen(function* () {
+    let didReportWorktreeLaunch = false
     const result = yield* executeWaggleRun({
       sessionId: input.sessionId,
       runId: input.runId,
@@ -55,7 +55,16 @@ export function runRegisteredExplicitWaggle(
           sessionId: input.sessionId,
           event,
         }),
-      onWorktreeLaunch: (progress) => emitWorktreeLaunchProgress(input.sessionId, progress),
+      onWorktreeLaunch: (progress) => {
+        didReportWorktreeLaunch = true
+        publishSessionHostEvent({
+          kind: 'session-worktree-launch',
+          sessionId: input.sessionId,
+          model: input.model,
+          mode: 'waggle',
+          event: { type: 'progress', progress },
+        })
+      },
       onTitleAssigned: () =>
         publishSessionHostEvent({
           kind: 'session-list-changed',
@@ -64,7 +73,15 @@ export function runRegisteredExplicitWaggle(
         }),
     })
 
-    if (result.outcome === 'error') emitWorktreeLaunchFailure(input.sessionId, result.message)
+    if (result.outcome === 'error' && didReportWorktreeLaunch) {
+      publishSessionHostEvent({
+        kind: 'session-worktree-launch',
+        sessionId: input.sessionId,
+        model: input.model,
+        mode: 'waggle',
+        event: { type: 'failure', errorMessage: result.message },
+      })
+    }
     publishExplicitWaggleResult(input.sessionId, input.runId, result)
     return result
   })

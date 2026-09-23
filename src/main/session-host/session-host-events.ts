@@ -3,6 +3,11 @@ import type { SessionHostEventPayload } from '@shared/types/session-host-event'
 import type { SessionHostEventHub } from '../application/session-host-event-hub'
 import type { SessionHostLiveness } from '../application/session-host-liveness'
 import {
+  projectWorktreeLaunchFailure,
+  projectWorktreeLaunchProgress,
+  upsertStreamBufferRunIdentity,
+} from '../utils/stream-bridge'
+import {
   applyEventToStreamBuffer,
   clearStreamBuffer,
   startStreamBufferFromAgentStart,
@@ -40,6 +45,16 @@ function projectHostOwnedRunState(payload: SessionHostEventPayload) {
       startStreamBufferFromAgentStart(sessionId, payload.event)
     }
     applyEventToStreamBuffer(sessionId, payload.event)
+    return
+  }
+  if (payload.kind === 'session-worktree-launch') {
+    const sessionId = SessionId(payload.sessionId)
+    upsertStreamBufferRunIdentity(sessionId, payload.model, payload.mode)
+    if (payload.event.type === 'progress') {
+      projectWorktreeLaunchProgress(sessionId, payload.event.progress)
+    } else {
+      projectWorktreeLaunchFailure(sessionId, payload.event.errorMessage)
+    }
     return
   }
   if (payload.kind === 'session-state-changed' && payload.operation === 'run-settled') {

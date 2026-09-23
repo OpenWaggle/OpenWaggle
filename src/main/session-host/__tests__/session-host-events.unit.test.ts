@@ -62,7 +62,43 @@ describe('Session Host semantic discovery events', () => {
     ).toBe(true)
   })
 
+  it('rejects malformed optional worktree progress fields', () => {
+    expect(
+      isSessionHostEventEnvelope({
+        cursor: { hostInstanceId: 'host-1', sequence: 2 },
+        timestamp: 11,
+        payload: {
+          kind: 'session-worktree-launch',
+          sessionId: 'session-1',
+          model: 'provider/model',
+          mode: 'classic',
+          event: {
+            type: 'progress',
+            progress: {
+              stage: 'checking-out-files',
+              details: ['Checking out files'],
+              setupAction: { terminalId: 42 },
+            },
+          },
+        },
+      }),
+    ).toBe(false)
+  })
+
   it.each([
+    {
+      kind: 'session-worktree-launch',
+      sessionId: 'session-1',
+      model: 'provider/model',
+      mode: 'classic',
+      event: {
+        type: 'progress',
+        progress: {
+          stage: 'checking-out-files',
+          details: ['Creating ow/session-1 from feature/source'],
+        },
+      },
+    },
     {
       kind: 'session-waggle-transport',
       sessionId: 'session-1',

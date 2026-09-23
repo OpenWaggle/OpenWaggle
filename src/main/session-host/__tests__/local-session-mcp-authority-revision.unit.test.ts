@@ -19,12 +19,12 @@ function hostUiCommand(channel: 'mcp:get-settings' | 'mcp:logout-server' | 'mcp:
 }
 
 describe('Local Session MCP authority protocol revision', () => {
-  it('preserves the exact immediately previous revision-thirteen capability tuple', () => {
+  it('preserves the exact immediately previous revision-fourteen capability tuple', () => {
     expect(() =>
       decodeLocalSessionNegotiationResult({
         accepted: true,
         protocol: 'openwaggle-local-session',
-        revision: 13,
+        revision: 14,
         hostInstanceId: 'host-mcp-ui',
         capabilities: [
           'events:subscribe',
@@ -46,6 +46,7 @@ describe('Local Session MCP authority protocol revision', () => {
           'desktop:services-v1',
           'host-ui:session-project-catalog-v1',
           'host-ui:turn-diff-files-v1',
+          'updates:channel-v1',
         ],
       }),
     ).not.toThrow()
@@ -62,8 +63,8 @@ describe('Local Session MCP authority protocol revision', () => {
   })
 
   it('forces changed authority commands to upgrade a revision-six Host', () => {
-    expect(supportedRevisionsForCommand(hostUiCommand('mcp:get-settings'))).toEqual([14, 13])
-    expect(supportedRevisionsForCommand(hostUiCommand('mcp:logout-server'))).toEqual([14, 13])
-    expect(supportedRevisionsForCommand(hostUiCommand('mcp:authorize-server'))).toEqual([14, 13])
+    expect(supportedRevisionsForCommand(hostUiCommand('mcp:get-settings'))).toEqual([15, 14])
+    expect(supportedRevisionsForCommand(hostUiCommand('mcp:logout-server'))).toEqual([15, 14])
+    expect(supportedRevisionsForCommand(hostUiCommand('mcp:authorize-server'))).toEqual([15, 14])
   })
 })

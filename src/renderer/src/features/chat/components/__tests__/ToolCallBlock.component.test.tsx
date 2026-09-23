@@ -99,6 +99,20 @@ describe('ToolCallBlock', () => {
     expect(screen.getByText('Failed read missing.ts')).toBeInTheDocument()
   })
 
+  it('treats a terminal empty Pi envelope as completed rather than pending', () => {
+    render(
+      <ToolCallBlock
+        name="bash"
+        args='{"command":"true"}'
+        state="complete"
+        result={{ content: { content: [], details: null }, state: 'complete' }}
+      />,
+    )
+
+    expect(screen.getByText('Ran `true`')).toBeInTheDocument()
+    expect(screen.queryByText('Requested bash `true`')).toBeNull()
+  })
+
   it('renders completed state once a concrete result exists', () => {
     render(
       <ToolCallBlock

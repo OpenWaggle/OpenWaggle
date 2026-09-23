@@ -1,4 +1,4 @@
-import type { WorktreeLaunchProgress } from '@shared/types/background-run'
+import type { WorktreeLaunchProgress, WorktreeLaunchSnapshot } from '@shared/types/background-run'
 import type { SessionId } from '@shared/types/brand'
 import type { AgentPhaseEventPayload } from '@shared/types/phase'
 import type { AgentTransportEvent } from '@shared/types/stream'
@@ -20,6 +20,7 @@ export {
   setWorktreeLaunchSnapshot,
   startStreamBuffer,
   startStreamBufferFromAgentStart,
+  upsertStreamBufferRunIdentity,
 } from './stream-buffer'
 
 export function emitRunCompleted(sessionId: SessionId) {
@@ -30,10 +31,12 @@ function appendLaunchDetails(existing: readonly string[] | undefined, incoming: 
   return [...new Set([...(existing ?? []), ...incoming])]
 }
 
-export function emitWorktreeLaunchProgress(sessionId: SessionId, progress: WorktreeLaunchProgress) {
+function worktreeLaunchProgressSnapshot(
+  existing: WorktreeLaunchSnapshot | undefined,
+  progress: WorktreeLaunchProgress,
+) {
   const now = Date.now()
-  const existing = getStreamBuffer(sessionId)?.worktreeLaunch
-  const launch = {
+  return {
     ...existing,
     ...progress,
     status: progress.stage === 'starting-task' ? ('complete' as const) : ('running' as const),
@@ -42,13 +45,36 @@ export function emitWorktreeLaunchProgress(sessionId: SessionId, progress: Workt
     updatedAt: now,
     details: appendLaunchDetails(existing?.details, progress.details),
   }
+}
+
+export function projectWorktreeLaunchProgress(
+  sessionId: SessionId,
+  progress: WorktreeLaunchProgress,
+) {
+  const launch = worktreeLaunchProgressSnapshot(
+    getStreamBuffer(sessionId)?.worktreeLaunch,
+    progress,
+  )
   setWorktreeLaunchSnapshot(sessionId, launch)
+  return launch
+}
+
+export function emitWorktreeLaunchProgress(
+  sessionId: SessionId,
+  progress: WorktreeLaunchProgress,
+  options: { readonly projectStreamBuffer?: boolean } = {},
+) {
+  const launch =
+    options.projectStreamBuffer === false
+      ? (getStreamBuffer(sessionId)?.worktreeLaunch ??
+        worktreeLaunchProgressSnapshot(undefined, progress))
+      : projectWorktreeLaunchProgress(sessionId, progress)
   broadcastToWindows('agent:worktree-launch', { sessionId, launch })
 }
 
-export function emitWorktreeLaunchFailure(sessionId: SessionId, errorMessage: string) {
+export function projectWorktreeLaunchFailure(sessionId: SessionId, errorMessage: string) {
   const existing = getStreamBuffer(sessionId)?.worktreeLaunch
-  if (!existing || existing.status === 'complete') return
+  if (!existing || existing.status === 'complete') return null
   const launch = {
     ...existing,
     status: 'failed' as const,
@@ -57,7 +83,26 @@ export function emitWorktreeLaunchFailure(sessionId: SessionId, errorMessage: st
     details: appendLaunchDetails(existing.details, [errorMessage]),
   }
   setWorktreeLaunchSnapshot(sessionId, launch)
-  broadcastToWindows('agent:worktree-launch', { sessionId, launch })
+  return launch
+}
+
+export function emitWorktreeLaunchFailure(
+  sessionId: SessionId,
+  errorMessage: string,
+  options: { readonly projectStreamBuffer?: boolean } = {},
+) {
+  const launch =
+    options.projectStreamBuffer === false
+      ? (getStreamBuffer(sessionId)?.worktreeLaunch ?? {
+          status: 'failed' as const,
+          stage: 'preparing-workspace' as const,
+          startedAt: Date.now(),
+          updatedAt: Date.now(),
+          errorMessage,
+          details: [errorMessage],
+        })
+      : projectWorktreeLaunchFailure(sessionId, errorMessage)
+  if (launch) broadcastToWindows('agent:worktree-launch', { sessionId, launch })
 }
 
 export function clearWorktreeLaunch(sessionId: SessionId) {
