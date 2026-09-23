@@ -9,11 +9,11 @@ const WORKSPACE_CONTEXT_NAMES = new Set([
 ])
 const isWorkspaceContextName = (name: string) => WORKSPACE_CONTEXT_NAMES.has(name.toUpperCase())
 
-export function withoutPreparedWorkspaceContext(
-  prepared: PreparedEnvironment,
-): PreparedEnvironment {
+export function withoutWorkspaceContext<T extends string | null | undefined>(
+  environment: Readonly<Record<string, T>>,
+): Record<string, T> {
   return Object.fromEntries(
-    Object.entries(prepared).filter(([name]) => !isWorkspaceContextName(name)),
+    Object.entries(environment).filter(([name]) => !isWorkspaceContextName(name)),
   )
 }
 

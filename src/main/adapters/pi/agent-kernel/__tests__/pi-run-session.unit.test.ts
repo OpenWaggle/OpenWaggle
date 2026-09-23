@@ -34,6 +34,8 @@ it('applies persisted removals to both Pi shell tools without mutating their amb
   await createPiSessionForRun(
     fromPartial({
       preparedEnvironment: { HTTPS_PROXY: null, READY: 'yes', EMPTY: '' },
+      projectRoot: '/project',
+      workspacePath: '/workspace',
       services: { cwd: '/workspace' },
       sessionManager: { buildSessionContext: () => ({ messages: [] }) },
       thinkingLevel: 'off',
@@ -49,7 +51,14 @@ it('applies persisted removals to both Pi shell tools without mutating their amb
     }
     expect(hook(context)).toEqual({
       ...context,
-      env: { KEEP: 'value', READY: 'yes', EMPTY: '', OPENWAGGLE_AGENT_RUN: '1' },
+      env: {
+        KEEP: 'value',
+        READY: 'yes',
+        EMPTY: '',
+        OPENWAGGLE_PROJECT_ROOT: '/project',
+        OPENWAGGLE_WORKTREE_PATH: '/workspace',
+        OPENWAGGLE_AGENT_RUN: '1',
+      },
     })
     expect(context.env.HTTPS_PROXY).toBe('inherited')
   }
@@ -63,6 +72,8 @@ it('keeps current workspace paths authoritative for both Pi shell tools', async 
         OPENWAGGLE_WORKTREE_PATH: null,
         READY: 'yes',
       },
+      projectRoot: '/current/project',
+      workspacePath: '/current/tree',
       services: { cwd: '/current/tree' },
       sessionManager: { buildSessionContext: () => ({ messages: [] }) },
       thinkingLevel: 'off',
@@ -76,8 +87,8 @@ it('keeps current workspace paths authoritative for both Pi shell tools', async 
         command: 'pwd',
         cwd: '/current/tree',
         env: {
-          OPENWAGGLE_PROJECT_ROOT: '/current/project',
-          OPENWAGGLE_WORKTREE_PATH: '/current/tree',
+          OPENWAGGLE_PROJECT_ROOT: '/stale/inherited/project',
+          openwaggle_worktree_path: '/stale/inherited/tree',
         },
       }).env,
     ).toEqual({

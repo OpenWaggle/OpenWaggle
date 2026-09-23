@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   applyPreparedEnvironment,
   capturePreparedEnvironment,
-  withoutPreparedWorkspaceContext,
+  withoutWorkspaceContext,
 } from '../prepared-environment'
 
 describe('prepared environment changes', () => {
@@ -63,7 +63,7 @@ describe('prepared environment changes', () => {
     expect(
       applyPreparedEnvironment(
         { OPENWAGGLE_PROJECT_ROOT: '/current/project', OPENWAGGLE_WORKTREE_PATH: '/current/tree' },
-        withoutPreparedWorkspaceContext({
+        withoutWorkspaceContext({
           openwaggle_project_root: '/wrong/project',
           OPENWAGGLE_WORKTREE_PATH: null,
           READY: 'yes',

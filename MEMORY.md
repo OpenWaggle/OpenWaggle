@@ -890,6 +890,10 @@ selected source in saved task references and reporting conflicting files rather 
 Successful setup stores explicit environment removals as private null markers. Apply these after
 inherited environment construction for actions, cleanup and Pi shell tools; otherwise inherited
 Host variables reappear after setup unsets them. Public preparation projections exclude this map.
+Pi's shell spawn context starts from the detached Host environment, not Session workspace metadata.
+Inject the Session's repository root and run working path into both Bash and PowerShell spawn hooks
+after filtering inherited or prepared values for the reserved names; a test that pre-seeds those
+paths into a mock spawn context misses this defect. Exercise the real Pi Bash tool as well.
 Host recovery must mark interrupted preparation and action runs before replaying pending Session
 deletions or worktree removals, so cleanup cannot execute twice after a crash. Preparation output
 checkpoints retry from the last persisted revision. A failed final save retains a failed live

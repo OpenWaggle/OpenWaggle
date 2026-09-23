@@ -10,7 +10,7 @@ import type { ThinkingLevel } from '@shared/types/settings'
 import {
   applyPreparedEnvironment,
   type PreparedEnvironment,
-  withoutPreparedWorkspaceContext,
+  withoutWorkspaceContext,
 } from '../../../domain/prepared-environment'
 import type { PiModel } from '../pi-provider-catalog'
 import {
@@ -20,6 +20,8 @@ import {
 
 export async function createPiSessionForRun(input: {
   readonly preparedEnvironment?: PreparedEnvironment
+  readonly projectRoot: string
+  readonly workspacePath: string
   readonly services: AgentSessionServices
   readonly model: PiModel
   readonly sessionManager: SessionManager
@@ -30,10 +32,13 @@ export async function createPiSessionForRun(input: {
     ...context,
     env: {
       ...applyPreparedEnvironment(
-        context.env,
-        withoutPreparedWorkspaceContext(input.preparedEnvironment ?? {}),
+        withoutWorkspaceContext(context.env),
+        withoutWorkspaceContext(input.preparedEnvironment ?? {}),
         process.platform === 'win32',
       ),
+      // Pi's spawn context starts from the detached Host environment, not Session metadata.
+      OPENWAGGLE_PROJECT_ROOT: input.projectRoot,
+      OPENWAGGLE_WORKTREE_PATH: input.workspacePath,
       OPENWAGGLE_AGENT_RUN: '1',
     },
   })

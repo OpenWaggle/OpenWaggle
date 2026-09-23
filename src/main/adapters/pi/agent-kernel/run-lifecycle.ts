@@ -28,7 +28,7 @@ import {
   type PiProjectRuntimeIsolationOptions,
   type PiRuntimeExtensionIsolationInput,
 } from './runtime-extension-isolation'
-import { createSessionManagerForSession } from './session-manager'
+import { createSessionManagerForSession, requireSessionProjectPath } from './session-manager'
 import { projectPiSessionSnapshot } from './session-projection'
 
 export { promptPiSession } from './run-prompt'
@@ -125,6 +125,8 @@ export async function createPiRunSessionRuntime(
       input.payload.thinkingLevel,
     )
     const { session } = await createPiSessionForRun({
+      projectRoot: requireSessionProjectPath(input.session),
+      workspacePath: input.projectPath,
       services: selectedRuntime.runtime.services,
       model: selectedRuntime.runtime.model,
       sessionManager,
@@ -146,6 +148,8 @@ export async function createPiRunSessionRuntime(
       input.payload.thinkingLevel,
     )
     const { session } = await createPiSessionForRun({
+      projectRoot: requireSessionProjectPath(input.session),
+      workspacePath: input.projectPath,
       services: fallbackRuntime.services,
       model: fallbackRuntime.model,
       sessionManager,
