@@ -36,6 +36,7 @@ interface PendingBatch {
   parts: string[]
   bytes: number
   lines: number
+  endOffset: number | null
 }
 
 const logMutationFailure = (error: unknown) => {
@@ -66,6 +67,20 @@ class TerminalHistoryStoreImpl implements TerminalHistoryStore {
     }).catch(() => '')
   }
 
+  async readWithCursor(key: TerminalKey) {
+    const pendingBarrier = this.queuePendingBatches()
+    return this.enqueueMutation(async () => {
+      await pendingBarrier
+      const text = await this.readPersisted(key)
+      const rawCursor = await this.files.readIfPresent(this.files.describe(key).cursorFile)
+      if (rawCursor === null) return { text, endOffset: null }
+      const endOffset = Number(rawCursor)
+      if (!Number.isSafeInteger(endOffset) || endOffset < 0)
+        throw new Error('Invalid terminal history cursor.')
+      return { text, endOffset }
+    })
+  }
+
   registerWorkingDirectory(key: TerminalKey, cwd: string) {
     this.workingDirectories.set(key, cwd)
     return this.enqueueMutation(async () => {
@@ -74,13 +89,22 @@ class TerminalHistoryStoreImpl implements TerminalHistoryStore {
     })
   }
 
-  append(key: TerminalKey, chunk: string) {
+  append = (key: TerminalKey, chunk: string) => this.queueAppend(key, chunk, null)
+
+  appendWithCursor(key: TerminalKey, chunk: string, endOffset: number) {
+    if (!Number.isSafeInteger(endOffset) || endOffset < 0)
+      throw new Error('Invalid terminal history cursor.')
+    this.queueAppend(key, chunk, endOffset)
+  }
+
+  private queueAppend(key: TerminalKey, chunk: string, endOffset: number | null) {
     if (chunk.length === 0) return
     const measured = measureTerminalHistoryText(chunk)
-    const batch = this.pending.get(key) ?? { parts: [], bytes: 0, lines: 0 }
+    const batch = this.pending.get(key) ?? { parts: [], bytes: 0, lines: 0, endOffset: null }
     batch.parts.push(chunk)
     batch.bytes += measured.bytes
     batch.lines += measured.lines
+    if (endOffset !== null) batch.endOffset = endOffset
     this.retainPendingBatch(batch)
     this.pending.set(key, batch)
     this.scheduleFlush()
@@ -92,6 +116,7 @@ class TerminalHistoryStoreImpl implements TerminalHistoryStore {
       await this.files.ensureDirectory()
       const files = await this.ensureHistoryFiles(key)
       await this.files.writePrivate(files.logFile, '')
+      await this.files.remove([files.cursorFile])
       this.states.set(key, { bytes: 0, lines: 0 })
     })
   }
@@ -100,7 +125,12 @@ class TerminalHistoryStoreImpl implements TerminalHistoryStore {
     this.pending.delete(key)
     return this.enqueueMutation(async () => {
       const files = this.files.describe(key)
-      await this.files.remove([files.logFile, files.metadataFile, files.workingDirectoryFile])
+      await this.files.remove([
+        files.logFile,
+        files.metadataFile,
+        files.workingDirectoryFile,
+        files.cursorFile,
+      ])
       this.states.delete(key)
       this.workingDirectories.delete(key)
     })
@@ -217,6 +247,8 @@ class TerminalHistoryStoreImpl implements TerminalHistoryStore {
     if (chunk.length === 0) return
     const files = await this.ensureHistoryFiles(key)
     const state = await this.loadState(key)
+    if (batch.endOffset !== null)
+      await this.files.writePrivateAtomically(files.cursorFile, String(batch.endOffset))
     if (
       state.lines + batch.lines <= TERMINAL.MAX_SCROLLBACK_LINES &&
       state.bytes + batch.bytes <= TERMINAL.MAX_SCROLLBACK_BYTES

@@ -11,9 +11,13 @@ export function actionOutputPage(
   run: ActionRun,
   output: string,
   afterOffset: number,
+  retainedEndOffset: number | null = null,
 ): ActionOutputSnapshot {
   const retained = Buffer.from(output)
-  const total = Math.max(run.outputBytes, retained.length)
+  const knownTotal = Math.max(run.outputBytes, retainedEndOffset ?? 0, retained.length)
+  // A crash can also lose an unflushed tail that the renderer already saw.
+  // Keep that cursor stable instead of clearing its still-visible output.
+  const total = Math.max(knownTotal, afterOffset)
   const retainedStart = total - retained.length
   const requested = Math.min(total, Math.max(retainedStart, afterOffset))
   let start = requested - retainedStart
@@ -33,7 +37,7 @@ export function actionOutputPage(
     output: retained.subarray(start, end).toString('utf8'),
     startOffset: retainedStart + start,
     endOffset: retainedStart + end,
-    truncated: afterOffset < retainedStart || afterOffset > total,
+    truncated: afterOffset < retainedStart || afterOffset > knownTotal,
     hasMore: end < retained.length,
   }
 }

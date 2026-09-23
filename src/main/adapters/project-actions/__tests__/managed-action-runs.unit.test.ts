@@ -1,5 +1,9 @@
+import { join } from 'node:path'
+import { TERMINAL } from '@shared/constants/resource-limits'
 import { actionExecutionKey } from '@shared/utils/action-execution-key'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
+import { makeTerminalHistoryStore } from '../../terminal/terminal-history-store'
+import { createManagedActionRuns } from '../managed-action-runs'
 import { createManagedActionFixture } from './managed-action-runs.test-harness'
 
 let fixture: Awaited<ReturnType<typeof createManagedActionFixture>>
@@ -197,6 +201,42 @@ it('reconnects by cursor without another launch and detects preview URLs across 
   expect(reconnected.output).toBe('next line\n')
   expect(fixture.processes).toHaveLength(1)
   expect(fixture.owners()).toBe(1)
+})
+
+it('keeps a later output cursor after Host loss when flushed history exceeds stale metadata', async () => {
+  const run = await fixture.runs.start(input('cursor-recovery'))
+  vi.spyOn(fixture.persistence, 'save').mockResolvedValue(undefined)
+  const beforeCursor = 'x'.repeat(TERMINAL.MAX_SCROLLBACK_BYTES + 32)
+  fixture.processes[0]?.emit(beforeCursor)
+  fixture.processes[0]?.emit('retained-tail')
+  await fixture.history.flush()
+  expect(fixture.records.get(run.id)?.outputBytes).toBe(0)
+  await fixture.persistence.interruptAfterHostLoss()
+
+  const recovered = createManagedActionRuns({
+    persistence: fixture.persistence,
+    history: makeTerminalHistoryStore(join(fixture.root, 'logs')),
+    runner: {
+      validate: async () => undefined,
+      start: async () => {
+        throw new Error('A recovered action must not launch again.')
+      },
+    },
+    catalog: async () => {
+      throw new Error('A recovered action must not resolve a catalog.')
+    },
+    environment: async () => ({}),
+    acquireLiveness: () => () => undefined,
+    reportError: vi.fn(),
+  })
+  try {
+    const page = await recovered.output(fixture.workspace.workspaceId, run.id, beforeCursor.length)
+    expect(page.output).toBe('retained-tail')
+    expect(page.startOffset).toBe(beforeCursor.length)
+    expect(page.endOffset).toBe(beforeCursor.length + Buffer.byteLength('retained-tail'))
+  } finally {
+    await recovered.shutdown()
+  }
 })
 
 it('retains ownership after a failed Stop and permits retry before a replacement launch', async () => {

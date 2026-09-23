@@ -1037,3 +1037,9 @@ enabled for later worktrees when the approval request reported failure. For POSI
 escaped prefixes such as `\command exec` and `\builtin exec` suppress alias expansion just as
 `\exec` does, so normalize those executable forms outside quotes, comments and heredocs before
 evaluating the command.
+
+Action run output cursors cannot be recovered from retained log length after scrollback
+compaction: the Host may flush the log before its throttled SQLite `outputBytes` update. Persist
+the absolute end cursor beside action history before appending each flushed batch, and read that
+cursor with the retained text after Host recovery. If a crash loses an unflushed tail that the
+renderer already displayed, keep the renderer's cursor stable rather than clearing its output.

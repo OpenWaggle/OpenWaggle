@@ -14,8 +14,10 @@ export interface TerminalHistoryCacheSnapshot {
 
 export interface TerminalHistoryStore {
   read(key: TerminalKey): Promise<string>
+  readWithCursor(key: TerminalKey): Promise<{ text: string; endOffset: number | null }>
   registerWorkingDirectory(key: TerminalKey, cwd: string): Promise<void>
   append(key: TerminalKey, chunk: string): void
+  appendWithCursor(key: TerminalKey, chunk: string, endOffset: number): void
   truncate(key: TerminalKey): Promise<void>
   remove(key: TerminalKey): Promise<void>
   removeForOwner(ownerKey: TerminalOwnerKey): Promise<void>

@@ -253,8 +253,9 @@ export class ManagedActionRuns {
       (await this.deps.persistence.get(runId))
     if (!run || run.workspaceId !== workspaceId)
       throw new Error('Action run not found in this workspace.')
-    const output = current?.output.toString() ?? (await this.deps.history.read(historyKey(run)))
-    return actionOutputPage(run, output, afterOffset)
+    if (current) return actionOutputPage(run, current.output.toString(), afterOffset)
+    const retained = await this.deps.history.readWithCursor(historyKey(run))
+    return actionOutputPage(run, retained.text, afterOffset, retained.endOffset)
   }
   async stop(workspaceId: string, runId: string) {
     const entry = this.active.get(runId)

@@ -273,6 +273,22 @@ describe('makeTerminalHistoryStore', () => {
     await expect(store.read(toKey)).resolves.toBe('old new')
   })
 
+  it('moves and removes an absolute output cursor with its retained history', async () => {
+    const store = makeTerminalHistoryStore(logsDir)
+    const fromKey = 'draft:/repo::action'
+    const toKey = 'session-moved::action'
+    store.appendWithCursor(fromKey, 'retained', 10_000)
+    await store.move(fromKey, toKey)
+
+    await expect(store.readWithCursor(fromKey)).resolves.toEqual({ text: '', endOffset: null })
+    await expect(store.readWithCursor(toKey)).resolves.toEqual({
+      text: 'retained',
+      endOffset: 10_000,
+    })
+    await store.remove(toKey)
+    await expect(store.readWithCursor(toKey)).resolves.toEqual({ text: '', endOffset: null })
+  })
+
   it('rejects a move collision without changing either history', async () => {
     const store = makeTerminalHistoryStore(logsDir)
     const fromKey = 'draft:/repo::main'

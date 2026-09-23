@@ -24,6 +24,7 @@ export async function removeTerminalHistoryForPath(
       entry.files.logFile,
       entry.files.metadataFile,
       entry.files.workingDirectoryFile,
+      entry.files.cursorFile,
     ])
   }
 }

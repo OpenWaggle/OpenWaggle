@@ -59,15 +59,16 @@ function outputHandler(
     const clean = stripVTControlCharacters(sanitizer.feed(chunk))
     output.append(clean)
     const run = getRun()
-    context.deps.history.append(historyKey(run), clean)
     lookbehind = (lookbehind + clean).slice(-URL_LOOKBEHIND_CHARACTERS)
     const current = context.active.get(run.id)
     const previous = current?.run ?? run
+    const outputBytes = previous.outputBytes + Buffer.byteLength(clean)
+    context.deps.history.appendWithCursor(historyKey(run), clean, outputBytes)
     const previewUrl =
       configuredPreviewUrl ?? previewFromActionOutput(lookbehind) ?? previous.previewUrl
     const updated = {
       ...previous,
-      outputBytes: previous.outputBytes + Buffer.byteLength(clean),
+      outputBytes,
       previewUrl,
       ready: previewUrl === previous.previewUrl && previous.ready,
     }
