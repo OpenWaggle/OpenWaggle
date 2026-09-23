@@ -3,8 +3,6 @@ import * as Effect from 'effect/Effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  emitWorktreeLaunchFailureMock,
-  emitWorktreeLaunchProgressMock,
   executeWaggleRunMock,
   acquireSessionHostRunLeaseMock,
   isGuiAttachedToRemoteSessionHostMock,
@@ -20,8 +18,6 @@ const {
   typedHandleMock,
   typedOnMock,
 } = vi.hoisted(() => ({
-  emitWorktreeLaunchFailureMock: vi.fn(),
-  emitWorktreeLaunchProgressMock: vi.fn(),
   executeWaggleRunMock: vi.fn(),
   acquireSessionHostRunLeaseMock: vi.fn(),
   isGuiAttachedToRemoteSessionHostMock: vi.fn(() => false),
@@ -55,11 +51,6 @@ vi.mock('../../application/session-external-run-coordinator', () => ({
   activatePreparedExternalSessionRun: activatePreparedExternalSessionRunMock,
   prepareExternalSessionRunReplacement: prepareExternalSessionRunReplacementMock,
   settleExternalSessionRun: settleExternalSessionRunMock,
-}))
-
-vi.mock('../../utils/stream-bridge', () => ({
-  emitWorktreeLaunchFailure: emitWorktreeLaunchFailureMock,
-  emitWorktreeLaunchProgress: emitWorktreeLaunchProgressMock,
 }))
 
 vi.mock('../../application/session-host-run-admission', () => ({
@@ -152,8 +143,6 @@ function sendWaggle(text = 'Review this patch') {
 describe('registerWaggleHandlers', () => {
   beforeEach(() => {
     cancelAllSessionRuns()
-    emitWorktreeLaunchFailureMock.mockReset()
-    emitWorktreeLaunchProgressMock.mockReset()
     executeWaggleRunMock.mockReset()
     acquireSessionHostRunLeaseMock.mockReset().mockReturnValue(Effect.succeed({ release: vi.fn() }))
     isGuiAttachedToRemoteSessionHostMock.mockReset().mockReturnValue(false)
@@ -291,20 +280,29 @@ describe('registerWaggleHandlers', () => {
   })
 
   it('marks an in-progress Waggle worktree launch as failed when setup is refused', async () => {
-    executeWaggleRunMock.mockReturnValue(
-      Effect.succeed({
-        outcome: 'error',
-        message: 'Could not create worktree',
-        code: 'worktree-creation-failed',
+    executeWaggleRunMock.mockImplementation((input) =>
+      Effect.sync(() => {
+        input.onWorktreeLaunch?.({
+          stage: 'preparing-workspace',
+          details: ['Preparing the session worktree'],
+        })
+        return {
+          outcome: 'error',
+          message: 'Could not create worktree',
+          code: 'worktree-creation-failed',
+        }
       }),
     )
 
     registerWaggleHandlers()
     await sendWaggle()
 
-    expect(emitWorktreeLaunchFailureMock).toHaveBeenCalledWith(
-      SESSION_ID,
-      'Could not create worktree',
-    )
+    expect(publishSessionHostEventMock).toHaveBeenCalledWith({
+      kind: 'session-worktree-launch',
+      sessionId: SESSION_ID,
+      model: SELECTED_MODEL,
+      mode: 'waggle',
+      event: { type: 'failure', errorMessage: 'Could not create worktree' },
+    })
   })
 })

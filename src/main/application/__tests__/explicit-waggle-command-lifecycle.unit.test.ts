@@ -10,7 +10,6 @@ const {
   attachmentCleanupMock,
   attachmentResolveMock,
   executeWaggleRunMock,
-  emitWorktreeLaunchProgressMock,
   forkSupervisedMock,
   journalClaimMock,
   journalCompleteMock,
@@ -23,7 +22,6 @@ const {
   attachmentCleanupMock: vi.fn(),
   attachmentResolveMock: vi.fn(),
   executeWaggleRunMock: vi.fn(),
-  emitWorktreeLaunchProgressMock: vi.fn(),
   forkSupervisedMock: vi.fn(),
   journalClaimMock: vi.fn(),
   journalCompleteMock: vi.fn(),
@@ -54,10 +52,6 @@ vi.mock('../../session-host/session-host-events', () => ({
   tryGetSessionHostEventRuntime: vi.fn(() => ({
     liveness: { requestDrain: requestHostDrainMock },
   })),
-}))
-vi.mock('../../utils/stream-bridge', () => ({
-  emitWorktreeLaunchFailure: vi.fn(),
-  emitWorktreeLaunchProgress: emitWorktreeLaunchProgressMock,
 }))
 
 import { ExplicitWaggleOperationJournal } from '../../ports/explicit-waggle-operation-journal'
@@ -151,7 +145,6 @@ describe('explicit Waggle command lifecycle', () => {
     executeWaggleRunMock
       .mockReset()
       .mockReturnValue(Effect.succeed({ outcome: 'success', newMessages: [] }))
-    emitWorktreeLaunchProgressMock.mockReset()
     forkSupervisedMock.mockReset().mockReturnValue(Effect.void)
     journalClaimMock.mockReset().mockReturnValue(Effect.succeed({ status: 'claimed' }))
     journalCompleteMock.mockReset().mockReturnValue(Effect.void)

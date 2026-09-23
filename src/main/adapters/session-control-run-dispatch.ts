@@ -136,6 +136,7 @@ function runClassic(input: RegisteredRunInput, context: RegisteredRunContext) {
         ? { visualizationContext: input.request.intent.visualizationContext }
         : {}),
     }
+    let didReportWorktreeLaunch = false
     const result = yield* executeAgentRun({
       sessionId: input.request.sessionId,
       runId: input.request.runId,
@@ -151,6 +152,16 @@ function runClassic(input: RegisteredRunInput, context: RegisteredRunContext) {
           event,
         })
       },
+      onWorktreeLaunch: (progress) => {
+        didReportWorktreeLaunch = true
+        publishSessionHostEvent({
+          kind: 'session-worktree-launch',
+          sessionId: input.request.sessionId,
+          model: input.execution.model,
+          mode: 'classic',
+          event: { type: 'progress', progress },
+        })
+      },
       onTitleAssigned: () => {
         publishSessionHostEvent({
           kind: 'session-list-changed',
@@ -164,6 +175,15 @@ function runClassic(input: RegisteredRunInput, context: RegisteredRunContext) {
       result.outcome === 'not-found' ||
       result.outcome === 'error'
     ) {
+      if (didReportWorktreeLaunch) {
+        publishSessionHostEvent({
+          kind: 'session-worktree-launch',
+          sessionId: input.request.sessionId,
+          model: input.execution.model,
+          mode: 'classic',
+          event: { type: 'failure', errorMessage: result.message },
+        })
+      }
       publishRunFailure(input.request, result)
     }
     if (result.outcome === 'success') {
