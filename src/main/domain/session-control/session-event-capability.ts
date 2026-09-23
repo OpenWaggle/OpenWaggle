@@ -3,6 +3,7 @@ import type { SessionHostEventPayload } from '@shared/types/session-host-event'
 
 const EVENT_CAPABILITY = {
   'session-transport': 'sessions:read',
+  'session-worktree-launch': 'sessions:read',
   'session-waggle-transport': 'sessions:read',
   'session-waggle-turn': 'sessions:read',
   'session-export-changed': 'sessions:export',

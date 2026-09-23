@@ -51,12 +51,12 @@ function revisionGateArgs(channel: string) {
 }
 
 describe('Host UI request dispatcher', () => {
-  it('rejects native actions from a revision-fourteen GUI before dispatch', async () => {
+  it('rejects native actions from a revision-fifteen GUI before dispatch', async () => {
     await expect(
       runWithoutRequirements(
         dispatchHostUiRequest({
           caller: { callerId: 'gui:local-user' },
-          negotiatedRevision: 14,
+          negotiatedRevision: 15,
           request: {
             contractVersion: 1,
             requestId: 'old-native-actions-client',
@@ -65,7 +65,7 @@ describe('Host UI request dispatcher', () => {
           },
         }),
       ),
-    ).rejects.toThrow('protocol revision 15')
+    ).rejects.toThrow('protocol revision 16')
   })
 
   it.each(HOST_UI_REVISION_11_REQUIRED_CHANNELS)(

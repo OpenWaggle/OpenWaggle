@@ -46,6 +46,7 @@ const [
   projectCatalogCapability,
   turnDiffFilesCapability,
   updateChannelCapability,
+  worktreeLaunchCapability,
   nativeActionsCapability,
 ] = LOCAL_SESSION_CAPABILITIES
 
@@ -74,6 +75,7 @@ const currentCapabilitySchema = Schema.Tuple(
   Schema.Literal(projectCatalogCapability),
   Schema.Literal(turnDiffFilesCapability),
   Schema.Literal(updateChannelCapability),
+  Schema.Literal(worktreeLaunchCapability),
   Schema.Literal(nativeActionsCapability),
 )
 

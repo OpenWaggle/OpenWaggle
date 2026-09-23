@@ -16,6 +16,21 @@ export const worktreeSetupActionTerminalSchema = Schema.Struct({
   cwd: Schema.String,
 })
 
+export const worktreeLaunchProgressSchema = Schema.Struct({
+  stage: Schema.Literal(
+    'preparing-workspace',
+    'checking-out-files',
+    'worktree-created',
+    'starting-task',
+  ),
+  details: Schema.Array(Schema.String),
+  progressPercentage: Schema.optional(Schema.Number),
+  worktreePath: Schema.optional(Schema.String),
+  branch: Schema.optional(Schema.String),
+  baseRef: Schema.optional(Schema.String),
+  setupAction: Schema.optional(worktreeSetupActionTerminalSchema),
+})
+
 export const backgroundRunActivityEventsSchema = Schema.Array(
   Schema.Union(
     Schema.Struct({

@@ -601,6 +601,10 @@ mutations through the Host's validated application operation, require protocol r
 retain GUI-only caller authority. A remote Host failure must not fall back to a local write.
 Deterministic tests hold a real config rename to verify overlapping writes preserve both changes.
 
+Pre-agent worktree progress is Host-owned run state too. Publish it through the Session Host event
+stream, seed the reconnectable stream buffer before `agent_start`, and relay it to renderer windows.
+A GUI-local broadcast is invisible when a detached Host owns the Run and cannot survive reconnects.
+
 Session authority stores canonical project and workspace paths as a durable snapshot, then checks
 the live Run scope again for long-running operations such as exports. Tests for these boundaries
 must use real canonical directories; invented paths exercise rejection rather than the intended
@@ -852,9 +856,10 @@ assignment export behavior in ksh. Run saved EXIT cleanup with the setup's origi
 `$?`, including failed exits under `set -e`; the final process status remains the setup status.
 Fresh local Sessions need Summary availability from configured preparation, before a snapshot or
 run exists, or users cannot reach explicit setup.
-Native actions use Local Session protocol revision 15 and require matching clients/Host for this
-breaking migration. Revision 14 belongs to update channels; its published tuple stays unchanged,
-but removed legacy action channels make revision 14 incompatible. Keep safe Host drain/handoff.
+Native actions use Local Session protocol revision 16 and require matching clients/Host for this
+breaking migration. Revision 15 belongs to worktree launch events and revision 14 to update
+channels; their published tuples stay unchanged, but removed legacy action channels make both
+older revisions incompatible. Keep safe Host drain/handoff.
 Package task discovery checks the nearest package lockfiles before walking toward the Workspace
 root when no packageManager is declared; explicit child and root declarations keep precedence.
 Interrupted sharing journals pin the filesystem directory identity and durable Workspace resource.
