@@ -248,6 +248,8 @@ export interface GitWorktreeInfo {
   readonly head: string
   /** True for the repository's primary (main) worktree. */
   readonly isMain: boolean
+  /** Git refuses normal removal while this checkout is locked. */
+  readonly locked?: boolean
 }
 
 export interface GitWorktreeListResult {

@@ -23,7 +23,10 @@ const MODE_DESCRIPTIONS: Record<(typeof SESSION_ENVIRONMENT_MODES)[number], stri
   worktree: 'Each session runs in a dedicated Session worktree isolated from the checkout.',
 }
 
-type PreparedWorktree = GitWorktreeInfo & { readonly preparation?: WorkspacePreparation }
+type PreparedWorktree = GitWorktreeInfo & {
+  readonly preparation?: WorkspacePreparation
+  readonly generationMismatch?: boolean
+}
 
 function useProjectWorktrees(repositoryPath: RepositoryPath | null) {
   const [worktrees, setWorktrees] = useState<readonly PreparedWorktree[]>([])
@@ -52,13 +55,17 @@ function useProjectWorktrees(repositoryPath: RepositoryPath | null) {
       if (retained && retained.type !== 'retained-preparation')
         throw new Error('Unexpected preparation response.')
       const preparations = new Map(
-        retained?.workspaces.map((workspace) => [workspace.path, workspace.preparation]) ?? [],
+        retained?.workspaces.map((workspace) => [workspace.path, workspace]) ?? [],
       )
       setWorktrees(
-        listed.value.worktrees.map((worktree) => ({
-          ...worktree,
-          preparation: preparations.get(worktree.path),
-        })),
+        listed.value.worktrees.map((worktree) => {
+          const recovery = preparations.get(worktree.path)
+          return {
+            ...worktree,
+            preparation: recovery?.preparation,
+            generationMismatch: recovery?.generationMismatch,
+          }
+        }),
       )
     } catch (error) {
       logger.warn('Failed to list worktrees', { error: String(error) })
@@ -164,6 +171,7 @@ export function WorktreesSection() {
                     <WorkspaceCleanupFailure
                       projectPath={projectPath}
                       initial={worktree.preparation}
+                      generationMismatch={worktree.generationMismatch}
                       busy={removingPath === worktree.path}
                       onRetry={() => void handleRemove(worktree.path)}
                       onDeleteAnyway={() => void handleRemove(worktree.path, true)}

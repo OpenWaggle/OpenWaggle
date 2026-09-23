@@ -85,4 +85,15 @@ describe('workspace cleanup removal boundary', () => {
     expect(await test.perform({ retryFailed: true, skipCleanup: true })).toBeNull()
     expect(test.skip).toHaveBeenCalledWith(workspace, 'cleanup', 4)
   })
+  it('still offers explicit Delete anyway when old cleanup had succeeded', async () => {
+    const test = fixture('succeeded', false)
+    expect(await test.perform({ retryFailed: true })).toMatchObject({
+      ok: false,
+      code: 'cleanup-failed',
+      message: expect.stringContaining('Delete anyway'),
+    })
+    expect(test.run).not.toHaveBeenCalled()
+    expect(await test.perform({ retryFailed: true, skipCleanup: true })).toBeNull()
+    expect(test.skip).toHaveBeenCalledWith(workspace, 'cleanup', 4)
+  })
 })

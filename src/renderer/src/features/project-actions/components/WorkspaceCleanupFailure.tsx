@@ -8,6 +8,7 @@ import { PreparationReviewDialog } from './PreparationReviewDialog'
 export function WorkspaceCleanupFailure(props: {
   readonly projectPath: string
   readonly initial: WorkspacePreparation
+  readonly generationMismatch?: boolean
   readonly busy: boolean
   readonly onRetry: () => void
   readonly onDeleteAnyway: () => void
@@ -18,9 +19,11 @@ export function WorkspaceCleanupFailure(props: {
     workspaceId: props.initial.workspaceId,
   })
   const preparation = state.data ?? props.initial
-  const required = preparation.snapshot.definitions.find(
-    (entry) => entry.definition.phase === 'cleanup' && entry.review === 'required',
-  )
+  const required = props.generationMismatch
+    ? undefined
+    : preparation.snapshot.definitions.find(
+        (entry) => entry.definition.phase === 'cleanup' && entry.review === 'required',
+      )
   const busy = props.busy || state.mutation.isPending
   return (
     <div className="space-y-3 border-t border-border p-4">
@@ -31,8 +34,10 @@ export function WorkspaceCleanupFailure(props: {
         </p>
       ) : null}
       <p role="alert" className="text-xs text-error-text">
-        {preparation.cleanup.error ??
-          'Workspace cleanup needs attention. The worktree was retained.'}
+        {props.generationMismatch
+          ? 'This checkout no longer matches the one that captured its cleanup. Cleanup cannot run here; choose Delete anyway to remove this checkout.'
+          : (preparation.cleanup.error ??
+            'Workspace cleanup needs attention. The worktree was retained.')}
       </p>
       {preparation.cleanup.output ? (
         <details>
@@ -46,7 +51,7 @@ export function WorkspaceCleanupFailure(props: {
         </details>
       ) : null}
       <div className="flex flex-wrap gap-2">
-        {required ? (
+        {props.generationMismatch ? null : required ? (
           <Button disabled={busy} onClick={() => setClosedReview(false)}>
             Review changes
           </Button>
@@ -58,8 +63,7 @@ export function WorkspaceCleanupFailure(props: {
         <details>
           <summary className="cursor-pointer py-2 text-xs text-error-text">Delete anyway…</summary>
           <p className="my-2 text-xs text-text-tertiary">
-            Skip the failed cleanup and remove this worktree. External resources created by setup
-            may remain.
+            Skip cleanup and remove this worktree. External resources created by setup may remain.
           </p>
           <Button variant="danger" disabled={busy} onClick={props.onDeleteAnyway}>
             Delete anyway

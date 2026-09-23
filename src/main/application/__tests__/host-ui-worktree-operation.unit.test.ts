@@ -148,14 +148,17 @@ describe('Host-backed worktree operations', () => {
     })
   })
 
-  it('does not run cleanup or remove a dirty worktree from Settings', async () => {
+  it.each([
+    { condition: 'dirty', code: 'dirty-worktree', message: 'Worktree has uncommitted changes.' },
+    { condition: 'locked', code: 'unknown', message: 'Worktree is locked.' },
+  ])('does not run cleanup or remove a $condition worktree from Settings', async (refusal) => {
     temporaryRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-dirty-worktree-'))
     const worktreePath = path.join(temporaryRoot, 'worktree')
     await fs.mkdir(worktreePath)
     mocks.validateRemoval.mockResolvedValue({
       ok: false,
-      code: 'dirty-worktree',
-      message: 'Worktree has uncommitted changes.',
+      code: refusal.code,
+      message: refusal.message,
     })
     const preparation = Layer.succeed(
       WorkspacePreparationService,
@@ -169,7 +172,7 @@ describe('Host-backed worktree operations', () => {
 
     await expect(Effect.runPromise(effect)).resolves.toMatchObject({
       ok: false,
-      code: 'dirty-worktree',
+      code: refusal.code,
     })
     expect(mocks.validateRemoval).toHaveBeenCalledWith(temporaryRoot, { path: worktreePath })
     expect(mocks.preparationRead).not.toHaveBeenCalled()

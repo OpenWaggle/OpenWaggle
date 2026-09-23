@@ -45,6 +45,7 @@ describe('native action management authority', () => {
         }),
       ),
     )
+    const isCurrentWorkspaceGeneration = vi.fn(() => Effect.succeed(true))
     const listManagedWorktreeRemovalCandidates = () =>
       Effect.succeed([
         { id: 'retained', projectPath: root, workingPath: root },
@@ -64,11 +65,11 @@ describe('native action management authority', () => {
           Effect.provideService(ActionRunService, fromPartial({ start })),
           Effect.provideService(
             WorkspacePreparationService,
-            fromPartial({ read: preparationRead }),
+            fromPartial({ read: preparationRead, isCurrentWorkspaceGeneration }),
           ),
         ),
       )
-    return { run, start, read, getBound, preparationRead }
+    return { run, start, read, getBound, preparationRead, isCurrentWorkspaceGeneration }
   }
 
   it('restores cleanup failures without a Session while isolating other projects', async () => {
@@ -86,6 +87,27 @@ describe('native action management authority', () => {
       workspaceId: 'retained',
       projectPath: root,
       workspacePath: root,
+    })
+  })
+
+  it('retains a replaced checkout for Delete anyway even when cleanup previously succeeded', async () => {
+    const test = fixture()
+    test.preparationRead.mockReturnValue(
+      Effect.succeed(
+        fromPartial<WorkspacePreparation>({
+          workspaceId: 'retained',
+          cleanup: { status: 'succeeded' },
+        }),
+      ),
+    )
+    test.isCurrentWorkspaceGeneration.mockReturnValue(Effect.succeed(false))
+
+    await expect(
+      test.run({ scope: { projectPath: root }, operation: { type: 'retained-preparation' } }),
+    ).resolves.toMatchObject({
+      workspaces: [
+        { path: root, generationMismatch: true, preparation: { cleanup: { status: 'succeeded' } } },
+      ],
     })
   })
 

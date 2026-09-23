@@ -26,17 +26,25 @@ export function listRetainedPreparation(projectPath: string) {
             catch: (cause) => new Error('Could not inspect retained worktree.', { cause }),
           })
           if (!exists) return null
-          const state = yield* preparation.read({
+          const scope = {
             workspaceId: workspace.id,
             projectPath,
             workspacePath: workspace.workingPath,
-          })
+          }
+          const state = yield* preparation.read(scope)
+          if (!state) return null
+          const generationMismatch = !(yield* preparation.isCurrentWorkspaceGeneration(scope))
           if (
-            !state ||
-            (state.cleanup.status !== 'failed' && state.cleanup.status !== 'review-required')
+            !generationMismatch &&
+            state.cleanup.status !== 'failed' &&
+            state.cleanup.status !== 'review-required'
           )
             return null
-          return { path: workspace.workingPath, preparation: state }
+          return {
+            path: workspace.workingPath,
+            preparation: state,
+            ...(generationMismatch ? { generationMismatch: true } : {}),
+          }
         }),
     )
     return {

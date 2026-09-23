@@ -836,6 +836,9 @@ older reviews can recover the ID from a validated execution fingerprint.
 Settings worktree removal must validate Git's non-forced dirty-worktree refusal before running
 arbitrary Cleanup. Keep that validation inside the admitted removal operation; force removal may
 accept dirt, and Git still makes the final decision if the checkout changes after validation.
+The same preflight must reject Git-locked worktrees, even when clean, before Cleanup has side
+effects. Parse `locked` records from `git worktree list --porcelain -z`; a single force flag cannot
+remove a locked checkout, so require the user to unlock it first.
 Workspace deletion cascades preparation secrets and action records, then drains a durable output
 cleanup queue. Disk cleanup failures remain queued and must not block Host startup or other owners.
 Action copy buttons use the existing Electron clipboard bridge; the browser clipboard API is denied
@@ -980,6 +983,9 @@ not merely a project and worktree path. Pin the worktree directory's device, ino
 when the checkout exists; a pre-birth snapshot gets its identity after materialization. If the
 recorded generation is missing or differs at removal, do not execute its pinned cleanup command
 in a replacement checkout. Explicit Delete anyway can still skip that cleanup.
+Retained-preparation listing must include generation mismatches even when cleanup status is idle
+or succeeded. Settings must keep Delete anyway visible for those rows and explain why Retry cannot
+run the pinned cleanup in the replacement directory.
 
 Workspace preparation review writes two durable records: the project catalog's remembered approval
 and the pinned Workspace snapshot. If snapshot persistence fails after a catalog edit, restore the
