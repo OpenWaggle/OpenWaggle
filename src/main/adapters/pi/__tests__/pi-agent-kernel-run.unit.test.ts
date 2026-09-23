@@ -1,3 +1,4 @@
+import type { Message } from '@shared/types/agent'
 import { SessionId, SupportedModelId } from '@shared/types/brand'
 import { fromPartial } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
@@ -18,6 +19,10 @@ const runMocks = vi.hoisted(() => ({
   runPiWaggle: vi.fn(),
   sessionsExtensionFactory: vi.fn(),
   createSessionsToolExtension: vi.fn(),
+  pullCurrentBranchFastForward: vi.fn(async () => ({
+    ok: true,
+    message: 'Pulled latest changes.',
+  })),
 }))
 
 vi.mock('../agent-kernel/classic-run', () => ({ runPiSession: runMocks.runPiSession }))
@@ -31,6 +36,33 @@ vi.mock('../agent-kernel/waggle-run', () => ({ runPiWaggle: runMocks.runPiWaggle
 vi.mock('../sessions-tool-extension', () => ({
   createSessionsToolExtension: runMocks.createSessionsToolExtension,
 }))
+vi.mock('../../git/remote-sync', () => ({
+  pullCurrentBranchFastForward: runMocks.pullCurrentBranchFastForward,
+}))
+
+function actionWorkspaceDependencies(): Pick<
+  Parameters<typeof runPiAgentKernel>[1],
+  'projectActions' | 'preparation'
+> {
+  return {
+    projectActions: fromPartial({
+      workspaces: {
+        getBound: () =>
+          Effect.succeed({
+            id: 'workspace-1',
+            projectPath: '/repo',
+            workingPath: '/repo/worktree',
+            kind: 'managed-worktree',
+            worktreeBranch: 'test',
+          }),
+      },
+    }),
+    preparation: fromPartial({
+      environment: () => Effect.succeed({}),
+      requireSetup: () => Effect.void,
+    }),
+  }
+}
 
 describe('runPiAgentKernel', () => {
   beforeEach(() => {
@@ -58,6 +90,7 @@ describe('runPiAgentKernel', () => {
       session: {
         id: SessionId('session-1'),
         projectPath: '/repo',
+        messages: [],
       },
       runId: 'run-1',
       payload: { text: 'Coordinate workers', thinkingLevel: 'medium', attachments: [] },
@@ -84,22 +117,7 @@ describe('runPiAgentKernel', () => {
     await Effect.runPromise(
       runPiAgentKernel(input, {
         runtimeExtensionIsolation: {},
-        projectActions: fromPartial({
-          workspaces: {
-            getBound: () =>
-              Effect.succeed({
-                id: 'workspace-1',
-                projectPath: '/repo',
-                workingPath: '/repo/worktree',
-                kind: 'managed-worktree',
-                worktreeBranch: 'test',
-              }),
-          },
-        }),
-        preparation: fromPartial({
-          environment: () => Effect.succeed({}),
-          requireSetup: () => Effect.void,
-        }),
+        ...actionWorkspaceDependencies(),
         terminal: fromPartial({}),
         browserPreviewAutomation: fromPartial({}),
         enableBrowserPreviewAutomation: false,
@@ -150,7 +168,7 @@ describe('runPiAgentKernel', () => {
       onTurnEvent: vi.fn(),
     })
     const input = fromPartial<AgentKernelRunInput>({
-      session: { id: SessionId('session-waggle'), projectPath: '/repo' },
+      session: { id: SessionId('session-waggle'), projectPath: '/repo', messages: [] },
       runId: 'run-waggle',
       payload: { text: 'Coordinate workers', thinkingLevel: 'medium', attachments: [] },
       model: SupportedModelId('openai/gpt-5.4'),
@@ -174,22 +192,7 @@ describe('runPiAgentKernel', () => {
     await Effect.runPromise(
       runPiAgentKernel(input, {
         runtimeExtensionIsolation: {},
-        projectActions: fromPartial({
-          workspaces: {
-            getBound: () =>
-              Effect.succeed({
-                id: 'workspace-1',
-                projectPath: '/repo',
-                workingPath: '/repo/worktree',
-                kind: 'managed-worktree',
-                worktreeBranch: 'test',
-              }),
-          },
-        }),
-        preparation: fromPartial({
-          environment: () => Effect.succeed({}),
-          requireSetup: () => Effect.void,
-        }),
+        ...actionWorkspaceDependencies(),
         terminal: fromPartial({}),
         browserPreviewAutomation: fromPartial({}),
         enableBrowserPreviewAutomation: false,
@@ -208,5 +211,106 @@ describe('runPiAgentKernel', () => {
       }),
     )
     expect(runMocks.runPiSession).not.toHaveBeenCalled()
+  })
+
+  it('pulls the checked-out branch before the first run of a local-mode conversation', async () => {
+    runMocks.runPiSession.mockResolvedValue({
+      newMessages: [],
+      piSessionId: 'pi-session',
+      sessionSnapshot: { nodes: [], activeNodeId: null },
+    })
+    const input = fromPartial<AgentKernelRunInput>({
+      session: { id: SessionId('session-local'), projectPath: '/repo', messages: [] },
+      runId: 'run-local',
+      payload: { text: 'Do the work', thinkingLevel: 'medium', attachments: [] },
+      model: SupportedModelId('openai/gpt-5.4'),
+      signal: new AbortController().signal,
+      onEvent: vi.fn(),
+    })
+
+    await Effect.runPromise(
+      runPiAgentKernel(input, {
+        runtimeExtensionIsolation: {},
+        ...actionWorkspaceDependencies(),
+        terminal: fromPartial({}),
+        browserPreviewAutomation: fromPartial({}),
+        enableBrowserPreviewAutomation: false,
+        mcpConfig: fromPartial({ createTurnSnapshot: () => Effect.succeed(null) }),
+        mcpRuntime: fromPartial({
+          prepareTurn: () => Effect.void,
+          completeTurn: () => Effect.void,
+          disposeSession: () => Effect.void,
+        }),
+        inlineVisualization: fromPartial({
+          prepareSession: () => Effect.succeed('/visualizations/session-local'),
+        }),
+      }),
+    )
+
+    expect(runMocks.pullCurrentBranchFastForward).toHaveBeenCalledWith(
+      '/repo/worktree',
+      expect.objectContaining({ signal: input.signal }),
+    )
+  })
+
+  it('does not pull for worktree-mode sessions or later runs', async () => {
+    runMocks.runPiSession.mockResolvedValue({
+      newMessages: [],
+      piSessionId: 'pi-session',
+      sessionSnapshot: { nodes: [], activeNodeId: null },
+    })
+    const baseInput = {
+      runId: 'run-again',
+      payload: { text: 'Continue', thinkingLevel: 'medium' as const, attachments: [] },
+      model: SupportedModelId('openai/gpt-5.4'),
+      signal: new AbortController().signal,
+      onEvent: vi.fn(),
+    }
+    const dependencies: Parameters<typeof runPiAgentKernel>[1] = {
+      runtimeExtensionIsolation: {},
+      ...actionWorkspaceDependencies(),
+      terminal: fromPartial({}),
+      browserPreviewAutomation: fromPartial({}),
+      enableBrowserPreviewAutomation: false,
+      mcpConfig: fromPartial({ createTurnSnapshot: () => Effect.succeed(null) }),
+      mcpRuntime: fromPartial({
+        prepareTurn: () => Effect.void,
+        completeTurn: () => Effect.void,
+        disposeSession: () => Effect.void,
+      }),
+      inlineVisualization: fromPartial({
+        prepareSession: () => Effect.succeed('/visualizations/session'),
+      }),
+    }
+
+    await Effect.runPromise(
+      runPiAgentKernel(
+        fromPartial<AgentKernelRunInput>({
+          ...baseInput,
+          session: {
+            id: SessionId('session-worktree'),
+            projectPath: '/repo',
+            messages: [],
+            environmentMode: 'worktree' as const,
+          },
+        }),
+        dependencies,
+      ),
+    )
+    await Effect.runPromise(
+      runPiAgentKernel(
+        fromPartial<AgentKernelRunInput>({
+          ...baseInput,
+          session: {
+            id: SessionId('session-second'),
+            projectPath: '/repo',
+            messages: [fromPartial<Message>({ id: 'm1' })],
+          },
+        }),
+        dependencies,
+      ),
+    )
+
+    expect(runMocks.pullCurrentBranchFastForward).not.toHaveBeenCalled()
   })
 })

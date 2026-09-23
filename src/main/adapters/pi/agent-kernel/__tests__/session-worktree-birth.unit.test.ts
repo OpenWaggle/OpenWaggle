@@ -14,6 +14,7 @@ const {
   releaseWorkspaceHandoffSeedMock,
   getBoundWorkspaceResourceMock,
   setSessionWorktreeMock,
+  resolveFreshWorktreeBaseRefMock,
 } = vi.hoisted(() => ({
   adoptSessionWorktreeForSetupMock: vi.fn(async () => null),
   resetSessionWorktreeSetupMock: vi.fn(),
@@ -32,10 +33,17 @@ const {
     Promise.resolve(null),
   ),
   setSessionWorktreeMock: vi.fn(async () => {}),
+  resolveFreshWorktreeBaseRefMock: vi.fn(
+    async (workspace: Pick<BoundWorkspaceResource, 'worktreeBaseRef'>): Promise<string | null> =>
+      workspace.worktreeBaseRef ?? 'main',
+  ),
 }))
 
 vi.mock('node:fs', () => ({ existsSync: existsSyncMock }))
 vi.mock('../../../git/run-git', () => ({ runGit: runGitMock }))
+vi.mock('../session-branch-freshness', () => ({
+  resolveFreshWorktreeBaseRef: resolveFreshWorktreeBaseRefMock,
+}))
 vi.mock('../../../git/worktree', () => ({ createGitWorktree: createGitWorktreeMock }))
 vi.mock('../../../../store/session-details', () => ({
   getBoundWorkspaceResource: getBoundWorkspaceResourceMock,
@@ -75,6 +83,12 @@ describe('ensureSessionWorktreeProjectPath', () => {
       generation: 'generation-1',
     }))
     setSessionWorktreeMock.mockReset().mockResolvedValue(undefined)
+    resolveFreshWorktreeBaseRefMock
+      .mockReset()
+      .mockImplementation(
+        async (workspace: Pick<BoundWorkspaceResource, 'worktreeBaseRef'>) =>
+          workspace.worktreeBaseRef ?? 'main',
+      )
   })
 
   it('returns the opened checkout for local-mode sessions without creating a worktree', async () => {
@@ -169,20 +183,6 @@ describe('ensureSessionWorktreeProjectPath', () => {
     expect(createGitWorktreeMock).toHaveBeenCalledTimes(1)
   })
 
-  it('forks from origin/<base> when start-from-origin is set', async () => {
-    await ensureSessionWorktreeProjectPath(
-      session({
-        environmentMode: 'worktree',
-        worktreeBaseRef: 'main',
-        worktreeStartFromOrigin: true,
-      }),
-    )
-    expect(createGitWorktreeMock).toHaveBeenCalledWith(
-      '/repo',
-      expect.objectContaining({ baseRef: 'origin/main' }),
-    )
-  })
-
   it('refuses to run when the recorded worktree has vanished', async () => {
     existsSyncMock.mockReturnValue(false)
 
@@ -204,7 +204,7 @@ describe('ensureSessionWorktreeProjectPath', () => {
   })
 
   it('throws when no base branch is resolvable (detached HEAD)', async () => {
-    runGitMock.mockResolvedValue({ code: 1, stdout: '', stderr: '' })
+    resolveFreshWorktreeBaseRefMock.mockResolvedValue(null)
     await expect(
       ensureSessionWorktreeProjectPath(session({ environmentMode: 'worktree' })),
     ).rejects.toThrow(/no base branch is resolvable/)

@@ -13,6 +13,7 @@ import type { WorkspacePreparationServiceShape } from '../../ports/workspace-pre
 import { runPiSession } from './agent-kernel/classic-run'
 import { restrictMcpSnapshot } from './agent-kernel/restricted-mcp-snapshot'
 import type { PiRuntimeExtensionIsolationInput } from './agent-kernel/runtime-extension-isolation'
+import { refreshFirstRunBranch } from './agent-kernel/session-branch-freshness'
 import { runPiWaggle } from './agent-kernel/waggle-run'
 import { createBrowserPreviewAutomationExtension } from './browser-preview-automation-extension'
 import { BROWSER_PREVIEW_AUTOMATION_SYSTEM_PROMPT } from './browser-preview-automation-system-prompt'
@@ -164,6 +165,7 @@ export function runPiAgentKernel(
       launchReporter.runInput,
       { workspaces: dependencies.projectActions.workspaces, preparation: dependencies.preparation },
     )
+    yield* refreshFirstRunBranch(input, executionPath)
     const visualizationDirectory = yield* dependencies.inlineVisualization
       .prepareSession(input.session.id)
       .pipe(
