@@ -223,6 +223,19 @@ export function startStreamBuffer(sessionId: SessionId, model: SupportedModelId,
   })
 }
 
+export function upsertStreamBufferRunIdentity(
+  sessionId: SessionId,
+  model: SupportedModelId,
+  mode: RunMode,
+) {
+  const existing = activeBuffers.get(sessionId)
+  if (!existing) {
+    startStreamBuffer(sessionId, model, mode)
+    return
+  }
+  activeBuffers.set(sessionId, { ...existing, model, mode })
+}
+
 export function startStreamBufferFromAgentStart(
   sessionId: SessionId,
   event: Extract<AgentTransportEvent, { type: 'agent_start' }>,
@@ -231,7 +244,7 @@ export function startStreamBufferFromAgentStart(
   const model = event.model
     ? SupportedModelId(event.model)
     : (existing?.model ?? SupportedModelId(''))
-  const mode = event.runId.startsWith('waggle-') ? 'waggle' : 'classic'
+  const mode = existing?.mode ?? (event.runId.startsWith('waggle-') ? 'waggle' : 'classic')
   activeBuffers.set(
     sessionId,
     existing

@@ -61,6 +61,40 @@ describe('Session Host renderer bridge', () => {
     },
   )
 
+  it('projects and broadcasts worktree progress before the remote agent starts', () => {
+    relaySessionHostEvent({
+      cursor: { hostInstanceId: 'remote-host', sequence: 1 },
+      timestamp: 1,
+      payload: {
+        kind: 'session-worktree-launch',
+        sessionId: SESSION_ID,
+        model: SupportedModelId('openai/gpt-5.5'),
+        mode: 'waggle',
+        event: {
+          type: 'progress',
+          progress: {
+            stage: 'checking-out-files',
+            details: ['Creating ow/session-a from feature/source'],
+          },
+        },
+      },
+    })
+
+    expect(getStreamBuffer(SESSION_ID)).toMatchObject({
+      model: SupportedModelId('openai/gpt-5.5'),
+      mode: 'waggle',
+      worktreeLaunch: {
+        status: 'running',
+        stage: 'checking-out-files',
+        details: ['Creating ow/session-a from feature/source'],
+      },
+    })
+    expect(broadcastToWindowsMock).toHaveBeenCalledWith(
+      'agent:worktree-launch',
+      expect.objectContaining({ sessionId: SESSION_ID }),
+    )
+  })
+
   it('projects a remote agent start into background-run state and clears it at settlement', () => {
     relaySessionHostEvent({
       cursor: { hostInstanceId: 'remote-host', sequence: 1 },
@@ -116,6 +150,13 @@ describe('Session Host renderer bridge', () => {
         startedAt: 10,
         messageId: 'message-live',
         parts: [{ type: 'text', text: 'work already streamed' }],
+        worktreeLaunch: {
+          status: 'running',
+          stage: 'checking-out-files',
+          startedAt: 5,
+          updatedAt: 8,
+          details: ['Creating ow/session-a from feature/source'],
+        },
       },
     ])
 
@@ -128,6 +169,17 @@ describe('Session Host renderer bridge', () => {
       startedAt: 10,
       messageId: 'message-live',
       parts: [{ type: 'text', text: 'work already streamed' }],
+      worktreeLaunch: {
+        status: 'running',
+        stage: 'checking-out-files',
+        startedAt: 5,
+        updatedAt: 8,
+        details: ['Creating ow/session-a from feature/source'],
+      },
+    })
+    expect(broadcastToWindowsMock).toHaveBeenCalledWith('agent:worktree-launch', {
+      sessionId: SESSION_ID,
+      launch: expect.objectContaining({ stage: 'checking-out-files' }),
     })
     expect(broadcastToWindowsMock).toHaveBeenCalledWith('agent:event', {
       sessionId: SESSION_ID,

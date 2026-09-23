@@ -97,9 +97,14 @@ function textFromResultRecord(parsed: { readonly [key: string]: unknown }) {
     return message
   }
 
-  return match(parsed.error)
+  const error = match(parsed.error)
     .with(P.string, (value) => value)
     .otherwise(() => null)
+  if (error) {
+    return error
+  }
+
+  return Array.isArray(parsed.content) && parsed.content.length === 0 ? '' : null
 }
 
 export function getToolResultText(content: unknown, serialized?: string | null) {

@@ -1,3 +1,5 @@
+import type { RunMode, WorktreeLaunchProgress } from './background-run'
+import type { SupportedModelId } from './brand'
 import type {
   SessionExportOperationStatus,
   SessionExportProgress,
@@ -16,6 +18,15 @@ export type SessionHostEventPayload =
       readonly kind: 'session-transport'
       readonly sessionId: string
       readonly event: AgentTransportEvent
+    }
+  | {
+      readonly kind: 'session-worktree-launch'
+      readonly sessionId: string
+      readonly model: SupportedModelId
+      readonly mode: RunMode
+      readonly event:
+        | { readonly type: 'progress'; readonly progress: WorktreeLaunchProgress }
+        | { readonly type: 'failure'; readonly errorMessage: string }
     }
   | {
       readonly kind: 'session-state-changed'
