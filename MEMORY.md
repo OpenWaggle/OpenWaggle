@@ -1041,7 +1041,8 @@ evaluating the command.
 Action run output cursors cannot be recovered from retained log length after scrollback
 compaction: the Host may flush the log before its throttled SQLite `outputBytes` update. Journal
 the append or replacement text with its absolute end cursor in one private atomic sidecar before
-writing the log; recover an unfinished journal idempotently, then commit the cursor. A failed
-scheduled flush must remain sticky so action finalization cannot silently publish a terminal run
-with missing output. If a crash loses an unflushed tail that the renderer already displayed, keep
-the renderer's cursor stable rather than clearing its output.
+writing the log; recover an unfinished journal idempotently, then commit the cursor. Failed
+cursor-bearing batches must be retried before action finalization; keep errors scoped to their
+history key so an unrelated terminal failure cannot block a healthy action. If a crash loses an
+unflushed tail that the renderer already displayed, keep the renderer's cursor stable rather than
+clearing its output.

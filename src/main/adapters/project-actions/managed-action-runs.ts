@@ -91,7 +91,7 @@ export class ManagedActionRuns {
       const timer = this.timers.get(finished.id)
       if (timer) clearTimeout(timer)
       this.timers.delete(finished.id)
-      await this.deps.history.flush()
+      await this.deps.history.flush(historyKey(finished))
       await this.persist(finished)
       // Clients stop polling terminal runs. Publish completion only once it is durable.
       entry.run = finished

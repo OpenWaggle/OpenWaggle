@@ -26,7 +26,7 @@ export interface TerminalHistoryStore {
   moveOwner(fromOwnerKey: TerminalOwnerKey, toOwnerKey: TerminalOwnerKey): Promise<void>
   /** Release in-memory bookkeeping without deleting durable replay files. */
   release(key: TerminalKey): Promise<void>
-  flush(): Promise<void>
+  flush(key?: TerminalKey): Promise<void>
   /** Test-only cache visibility; this adapter is not part of the app API. */
   cacheSnapshotForTests(): TerminalHistoryCacheSnapshot
 }

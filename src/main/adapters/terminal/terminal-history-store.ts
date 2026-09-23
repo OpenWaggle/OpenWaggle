@@ -11,6 +11,7 @@ import {
   ownerKeyFromTerminalKey,
   type TerminalHistoryFiles,
 } from './terminal-history-files'
+import { type PendingHistoryBatch, persistHistoryBatches } from './terminal-history-flush'
 import { makeTerminalHistoryMover, type TerminalHistoryMover } from './terminal-history-moves'
 import { removeTerminalHistoryForPath } from './terminal-history-path-cleanup'
 import {
@@ -31,13 +32,6 @@ export type { TerminalHistoryCacheSnapshot, TerminalHistoryStore }
 
 const logger = createLogger('terminal-history')
 
-interface PendingBatch {
-  parts: string[]
-  bytes: number
-  lines: number
-  endOffset: number | null
-}
-
 const logMutationFailure = (error: unknown) => {
   logger.warn('Terminal history mutation failed', {
     error: error instanceof Error ? error.message : String(error),
@@ -47,10 +41,11 @@ const logMutationFailure = (error: unknown) => {
 class TerminalHistoryStoreImpl implements TerminalHistoryStore {
   private flushTimer: NodeJS.Timeout | null = null
   private mutationTail: Promise<void> = Promise.resolve()
-  private readonly pending = new Map<TerminalKey, PendingBatch>()
+  private readonly pending = new Map<TerminalKey, PendingHistoryBatch>()
+  private readonly retryBatches: [TerminalKey, PendingHistoryBatch][] = []
+  private readonly failedFlushes = new Map<TerminalKey, unknown>()
   private readonly states = new Map<TerminalKey, TerminalHistoryCounts>()
   private readonly workingDirectories = new Map<TerminalKey, string>()
-  private failedFlush: unknown | null = null
   private readonly files: TerminalHistoryFiles
   private readonly mover: TerminalHistoryMover
 
@@ -108,7 +103,7 @@ class TerminalHistoryStoreImpl implements TerminalHistoryStore {
   }
 
   truncate(key: TerminalKey) {
-    this.pending.delete(key)
+    this.forgetPendingKey(key)
     return this.enqueueMutation(async () => {
       await this.files.ensureDirectory()
       const files = await this.ensureHistoryFiles(key)
@@ -119,7 +114,7 @@ class TerminalHistoryStoreImpl implements TerminalHistoryStore {
   }
 
   remove(key: TerminalKey) {
-    this.pending.delete(key)
+    this.forgetPendingKey(key)
     return this.enqueueMutation(async () => {
       const files = this.files.describe(key)
       await this.files.remove([
@@ -134,9 +129,13 @@ class TerminalHistoryStoreImpl implements TerminalHistoryStore {
   }
 
   removeForOwner(ownerKey: TerminalOwnerKey) {
-    for (const key of this.pending.keys()) {
-      if (ownerKeyFromTerminalKey(key) === ownerKey) this.pending.delete(key)
-    }
+    const keys = new Set([
+      ...this.pending.keys(),
+      ...this.retryBatches.map(([key]) => key),
+      ...this.failedFlushes.keys(),
+    ])
+    for (const key of keys)
+      if (ownerKeyFromTerminalKey(key) === ownerKey) this.forgetPendingKey(key)
     return this.enqueueMutation(async () => {
       await this.files.ensureDirectory()
       const entries = await this.files.listOwnerEntries(ownerKey)
@@ -155,7 +154,7 @@ class TerminalHistoryStoreImpl implements TerminalHistoryStore {
     return this.enqueueMutation(async () => {
       await pendingBarrier
       await removeTerminalHistoryForPath(this.files, directoryPath, (key) => {
-        this.pending.delete(key)
+        this.forgetPendingKey(key)
         this.states.delete(key)
         this.workingDirectories.delete(key)
       })
@@ -181,13 +180,15 @@ class TerminalHistoryStoreImpl implements TerminalHistoryStore {
     })
   }
 
-  async flush() {
+  async flush(key?: TerminalKey) {
     if (this.flushTimer !== null) {
       clearTimeout(this.flushTimer)
       this.flushTimer = null
     }
     await this.queuePendingBatches()
-    if (this.failedFlush !== null) throw this.failedFlush
+    if (key !== undefined && this.failedFlushes.has(key)) throw this.failedFlushes.get(key)
+    if (key === undefined && this.failedFlushes.size > 0)
+      throw this.failedFlushes.values().next().value
   }
 
   cacheSnapshotForTests(): TerminalHistoryCacheSnapshot {
@@ -240,11 +241,13 @@ class TerminalHistoryStoreImpl implements TerminalHistoryStore {
     return retained
   }
 
-  private async appendBatch(key: TerminalKey, batch: PendingBatch) {
+  private async appendBatch(key: TerminalKey, batch: PendingHistoryBatch) {
     const chunk = batch.parts.join('')
     if (chunk.length === 0) return
+    await this.files.ensureDirectory()
     const files = await this.ensureHistoryFiles(key)
-    await this.recoverCursor(key)
+    const committedEnd = await this.recoverCursor(key)
+    if (batch.endOffset !== null && committedEnd === batch.endOffset) return
     const state = await this.loadState(key)
     if (
       state.lines + batch.lines <= TERMINAL.MAX_SCROLLBACK_LINES &&
@@ -277,27 +280,25 @@ class TerminalHistoryStoreImpl implements TerminalHistoryStore {
       : this.files.ensureWorkingDirectory(key, cwd)
   }
 
-  private takePendingBatches() {
-    const batches = [...this.pending.entries()]
-    this.pending.clear()
-    return batches
+  private forgetPendingKey(key: TerminalKey) {
+    this.pending.delete(key)
+    this.failedFlushes.delete(key)
+    for (let index = this.retryBatches.length - 1; index >= 0; index -= 1)
+      if (this.retryBatches[index]?.[0] === key) this.retryBatches.splice(index, 1)
   }
 
   private queuePendingBatches() {
-    const batches = this.takePendingBatches()
-    if (batches.length === 0) return this.mutationTail
-    const result = this.enqueueMutation(async () => {
-      await this.files.ensureDirectory()
-      const writes = await Promise.allSettled(
-        batches.map(([key, batch]) => this.appendBatch(key, batch)),
-      )
-      const failure = writes.find((write) => write.status === 'rejected')
-      if (failure?.status === 'rejected') throw failure.reason
-    })
-    return result.catch((error: unknown) => {
-      this.failedFlush = error
-      throw error
-    })
+    const batches = [...this.pending.entries()]
+    this.pending.clear()
+    if (batches.length === 0 && this.retryBatches.length === 0) return this.mutationTail
+    return this.enqueueMutation(() =>
+      persistHistoryBatches(
+        [...this.retryBatches.splice(0), ...batches],
+        this.retryBatches,
+        this.failedFlushes,
+        (key, batch) => this.appendBatch(key, batch),
+      ),
+    )
   }
 
   private async recoverCursor(key: TerminalKey) {
@@ -318,6 +319,7 @@ class TerminalHistoryStoreImpl implements TerminalHistoryStore {
     const pendingBarrier = this.queuePendingBatches()
     return this.enqueueMutation(async () => {
       await pendingBarrier
+      if (this.failedFlushes.size > 0) throw this.failedFlushes.values().next().value
       await move()
     })
   }
