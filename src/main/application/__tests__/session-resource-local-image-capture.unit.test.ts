@@ -6,7 +6,11 @@ import { describe, expect, it } from 'vitest'
 import type { UpsertSessionResourceInput } from '../../ports/session-resource-repository'
 import { captureProjectedSessionResources } from '../session-resource-backfill'
 import { captureSuccessfulRunResources } from '../session-resource-capture'
-import { localImageCaptureRoots } from '../session-resource-capture-image-preparation'
+import { GENERATED_IMAGE_CAPTURE_LIMITS } from '../session-resource-capture-image-budget'
+import {
+  localImageCaptureRoots,
+  prepareLocalImageForCapture,
+} from '../session-resource-capture-image-preparation'
 import { collectExplicitResources } from '../session-resource-extraction'
 import { sessionResourceTestLayer } from './session-resource-capture.fixtures'
 
@@ -79,6 +83,22 @@ ${LOCAL_IMAGE_MARKDOWN}
     ])
     expect(extracted.links).toEqual([])
     expect(extracted.order).toEqual([{ kind: 'image', index: 0 }])
+  })
+
+  it('reports aggregate byte-budget exhaustion separately from missing files', async () => {
+    const result = await Effect.runPromise(
+      prepareLocalImageForCapture(
+        {
+          attempts: 0,
+          bytes: GENERATED_IMAGE_CAPTURE_LIMITS.maxBytes - 1,
+          count: 0,
+        },
+        { filePath: LOCAL_IMAGE_PATH, mimeType: 'image/png', title: 'QA evidence' },
+        localImageCaptureRoots(null),
+      ).pipe(Effect.provide(sessionResourceTestLayer([], { readSourceFails: true }))),
+    )
+
+    expect(result).toMatchObject({ byteBudgetExceeded: true, image: null })
   })
 
   it('copies new run images into managed Session resources', async () => {

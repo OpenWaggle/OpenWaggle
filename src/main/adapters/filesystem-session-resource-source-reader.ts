@@ -1,3 +1,4 @@
+import { constants as fsConstants } from 'node:fs'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { MAX_CAPTURED_IMAGE_BYTES } from '../domain/session-resource-image'
@@ -22,7 +23,7 @@ export async function readBoundedSessionResourceSource(input: ReadSessionResourc
   const roots = await Promise.all(
     input.allowedRoots.map((root) => fs.realpath(root).catch(() => null)),
   )
-  const handle = await fs.open(input.sourcePath, 'r')
+  const handle = await fs.open(input.sourcePath, fsConstants.O_RDONLY | fsConstants.O_NONBLOCK)
   try {
     const [sourcePath, stats] = await Promise.all([
       fs.realpath(input.sourcePath),

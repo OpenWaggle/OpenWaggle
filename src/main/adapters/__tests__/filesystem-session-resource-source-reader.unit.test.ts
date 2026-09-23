@@ -1,8 +1,12 @@
+import { execFile } from 'node:child_process'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
+import { promisify } from 'node:util'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { readBoundedSessionResourceSource } from '../filesystem-session-resource-source-reader'
+
+const execFileAsync = promisify(execFile)
 
 let tmpRoot = ''
 
@@ -46,6 +50,19 @@ describe('readBoundedSessionResourceSource', () => {
         sourcePath,
         allowedRoots: [allowedRoot],
         maxSizeBytes: 2,
+      }),
+    ).rejects.toThrow('not a bounded regular file')
+  })
+
+  it.runIf(process.platform !== 'win32')('rejects FIFOs without waiting for a writer', async () => {
+    const sourcePath = path.join(tmpRoot, 'image.png')
+    await execFileAsync('mkfifo', [sourcePath])
+
+    await expect(
+      readBoundedSessionResourceSource({
+        sourcePath,
+        allowedRoots: [tmpRoot],
+        maxSizeBytes: 1024,
       }),
     ).rejects.toThrow('not a bounded regular file')
   })

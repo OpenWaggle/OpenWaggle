@@ -55,7 +55,11 @@ export function prepareLocalImageForCapture(
       .readSource({ sourcePath: image.filePath, allowedRoots, maxSizeBytes: remainingBytes })
       .pipe(Effect.option)
     if (source._tag === 'None') {
-      return { budget: attemptedBudget, byteBudgetExceeded: false, image: null }
+      return {
+        budget: attemptedBudget,
+        byteBudgetExceeded: remainingBytes < MAX_CAPTURED_IMAGE_BYTES,
+        image: null,
+      }
     }
     const validator = yield* SessionResourceImageValidator
     const validated = yield* validator.validate(source.value, image.mimeType)
