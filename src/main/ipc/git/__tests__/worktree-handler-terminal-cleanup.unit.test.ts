@@ -139,6 +139,8 @@ async function invokeRemove(payload: unknown): Promise<GitWorktreeMutationResult
           create: () => EffectModule.dieMessage('not used'),
           remove: (projectPath, input) =>
             EffectModule.promise(() => mocks.removeGitWorktree(projectPath, input)),
+          validateRemoval: () =>
+            EffectModule.succeed({ ok: true, message: 'safe', path: WORKTREE_PATH }),
         }),
         Layer.succeed(
           SessionWorkspaceResourceRepository,

@@ -280,6 +280,25 @@ describe('worktree service', () => {
       })
       expect(runGitMock).not.toHaveBeenCalledWith('/repo', ['worktree', 'remove', '/wt/x'])
     })
+
+    it('allows explicit force removal of a dirty registered worktree', async () => {
+      runGitMock.mockResolvedValueOnce(
+        gitResult(
+          0,
+          'worktree /repo\0HEAD abc\0branch refs/heads/main\0\0' +
+            'worktree /wt/x\0HEAD def\0branch refs/heads/feat\0\0',
+        ),
+      )
+
+      await expect(
+        validateGitWorktreeRemoval('/repo', { path: '/wt/x', force: true }),
+      ).resolves.toMatchObject({ ok: true })
+      expect(runGitMock).not.toHaveBeenCalledWith('/wt/x', [
+        'status',
+        '--porcelain=v1',
+        '--untracked-files=all',
+      ])
+    })
   })
 
   describe('parseWorktreeList / listGitWorktrees', () => {

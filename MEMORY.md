@@ -817,6 +817,9 @@ Preparation snapshots retain private successful exports and require review for c
 execution. A failed cleanup keeps the worktree and must remain discoverable in Settings after the
 owning Session has been deleted. Pending worktrees can have ordinary future filesystem paths, so
 definition management must use authoritative lifecycle state instead of testing only `pending://`.
+Settings worktree removal must validate Git's non-forced dirty-worktree refusal before running
+arbitrary Cleanup. Keep that validation inside the admitted removal operation; force removal may
+accept dirt, and Git still makes the final decision if the checkout changes after validation.
 Workspace deletion cascades preparation secrets and action records, then drains a durable output
 cleanup queue. Disk cleanup failures remain queued and must not block Host startup or other owners.
 Action copy buttons use the existing Electron clipboard bridge; the browser clipboard API is denied
@@ -882,6 +885,9 @@ message at setup snapshot capture. PowerShell setup capture must decide success 
 Apply the same final-status rule to ordinary PowerShell custom actions: an earlier handled native
 failure must not mark a successful final command as a failed action. The single `.cmd`/`.bat` shim
 wrapper still uses its direct native process exit code.
+PowerShell Setup capture initializes its wrapper status to success before user code: a dot-sourced
+script can `exit 0` from inside `try` before the post-command assignment. Its `finally` block must
+still write the environment snapshot, while the preparation executor only reads it for exit code 0.
 Within the Workspace mutation fence, archive first, then stop services only after the archive
 commits and removes the last active binding. A failed archive must leave running services alive.
 After a committed archive or handoff, a service-stop failure must not make the mutation appear to

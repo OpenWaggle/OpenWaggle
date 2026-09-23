@@ -12,6 +12,7 @@ import {
   SessionWorkspaceResourceRepository,
   type SessionWorkspaceResourceRepositoryShape,
 } from '../../ports/session-workspace-resource-repository'
+import { WorkspacePreparationService } from '../../ports/workspace-preparation-service'
 import { NoopActionRunServiceLayer } from './action-run-service-test-layer'
 import { NoopWorkspacePreparationLayer } from './workspace-preparation-test-layer'
 
@@ -20,6 +21,8 @@ const mocks = vi.hoisted(() => ({
   admitRemoval: vi.fn(),
   finalizeRemoval: vi.fn(),
   remove: vi.fn(),
+  validateRemoval: vi.fn(),
+  preparationRead: vi.fn(),
 }))
 
 vi.mock('../../services/git-status-cache', () => ({
@@ -65,11 +68,14 @@ function workspaceRepository(input: {
   })
 }
 
-function operationLayer(repository: SessionWorkspaceResourceRepositoryShape) {
+function operationLayer(
+  repository: SessionWorkspaceResourceRepositoryShape,
+  preparation = NoopWorkspacePreparationLayer,
+) {
   return Layer.mergeAll(
     NoopTerminalServiceLayer,
     NoopActionRunServiceLayer,
-    NoopWorkspacePreparationLayer,
+    preparation,
     Layer.succeed(
       SessionProjectionRepository,
       fromPartial<SessionProjectionRepository['Type']>({
@@ -82,6 +88,8 @@ function operationLayer(repository: SessionWorkspaceResourceRepositoryShape) {
       GitWorktreeService.of({
         create: (projectPath, payload) => Effect.promise(() => mocks.create(projectPath, payload)),
         remove: (projectPath, payload) => Effect.promise(() => mocks.remove(projectPath, payload)),
+        validateRemoval: (projectPath, payload) =>
+          Effect.promise(() => mocks.validateRemoval(projectPath, payload)),
       }),
     ),
   )
@@ -100,6 +108,11 @@ describe('Host-backed worktree operations', () => {
       path: '/project/.openwaggle/worktrees/free',
       message: 'Removed worktree.',
     })
+    mocks.validateRemoval.mockReset().mockResolvedValue({
+      ok: true,
+      message: 'Worktree can be removed.',
+    })
+    mocks.preparationRead.mockReset()
   })
 
   afterEach(async () => {
@@ -132,6 +145,39 @@ describe('Host-backed worktree operations', () => {
       resourceId: 'removal-resource',
       createdReservation: true,
       removed: true,
+    })
+  })
+
+  it('does not run cleanup or remove a dirty worktree from Settings', async () => {
+    temporaryRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-dirty-worktree-'))
+    const worktreePath = path.join(temporaryRoot, 'worktree')
+    await fs.mkdir(worktreePath)
+    mocks.validateRemoval.mockResolvedValue({
+      ok: false,
+      code: 'dirty-worktree',
+      message: 'Worktree has uncommitted changes.',
+    })
+    const preparation = Layer.succeed(
+      WorkspacePreparationService,
+      fromPartial<WorkspacePreparationService['Type']>({
+        read: () => Effect.sync(() => mocks.preparationRead()),
+      }),
+    )
+    const effect = removeHostUiWorktree(temporaryRoot, { path: worktreePath }).pipe(
+      Effect.provide(operationLayer(workspaceRepository({ admission: 'reserved' }), preparation)),
+    )
+
+    await expect(Effect.runPromise(effect)).resolves.toMatchObject({
+      ok: false,
+      code: 'dirty-worktree',
+    })
+    expect(mocks.validateRemoval).toHaveBeenCalledWith(temporaryRoot, { path: worktreePath })
+    expect(mocks.preparationRead).not.toHaveBeenCalled()
+    expect(mocks.remove).not.toHaveBeenCalled()
+    expect(mocks.finalizeRemoval).toHaveBeenCalledWith({
+      resourceId: 'removal-resource',
+      createdReservation: true,
+      removed: false,
     })
   })
 

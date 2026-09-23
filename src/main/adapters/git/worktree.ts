@@ -293,6 +293,8 @@ export async function validateGitWorktreeRemoval(
     }
   }
   if (!registered) return worktreeFailure('not-found', 'Worktree not found.')
+  if (payload.force)
+    return { ok: true, message: 'Worktree can be force-removed.', path: worktreePath }
   const status = await runGit(worktreePath, ['status', '--porcelain=v1', '--untracked-files=all'])
   if (status.code !== 0)
     return worktreeFailure('unknown', status.stderr || 'Worktree check failed.')

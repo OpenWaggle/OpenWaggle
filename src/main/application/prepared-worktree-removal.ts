@@ -66,7 +66,11 @@ export function removePreparedWorktree<E, R>(
   projectPath: string,
   payload: GitWorktreeRemovePayload,
   remove: Effect.Effect<GitWorktreeMutationResult, E, R>,
-  options: { readonly retryFailed: boolean; readonly actionFenceHeld?: boolean },
+  options: {
+    readonly retryFailed: boolean
+    readonly actionFenceHeld?: boolean
+    readonly validateRemoval?: Effect.Effect<GitWorktreeMutationResult>
+  },
 ) {
   return Effect.gen(function* () {
     const workspaces = yield* SessionWorkspaceResourceRepository
@@ -97,6 +101,10 @@ export function removePreparedWorktree<E, R>(
               try: () => checkoutMissing(payload.path),
               catch: (cause) => (cause instanceof Error ? cause : new Error(String(cause))),
             })
+            if (!missing && options.validateRemoval) {
+              const validation = yield* options.validateRemoval
+              if (!validation.ok) return validation
+            }
             const blocked = missing
               ? yield* actions.stopWorkspaceRuns(admission.resourceId).pipe(Effect.as(null))
               : yield* prepareWorkspaceRemoval(

@@ -14,6 +14,10 @@ export interface GitWorktreeServiceShape {
     projectPath: string,
     payload: GitWorktreeRemovePayload,
   ) => Effect.Effect<GitWorktreeMutationResult>
+  readonly validateRemoval: (
+    projectPath: string,
+    payload: GitWorktreeRemovePayload,
+  ) => Effect.Effect<GitWorktreeMutationResult>
 }
 
 export class GitWorktreeService extends Context.Tag('@openwaggle/GitWorktreeService')<

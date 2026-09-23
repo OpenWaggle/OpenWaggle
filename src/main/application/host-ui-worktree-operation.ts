@@ -140,11 +140,12 @@ export function removeHostUiWorktree(rawPath: unknown, rawPayload: unknown) {
   return Effect.gen(function* () {
     const projectPath = decodeUnknownOrThrow(projectPathSchema, rawPath)
     const payload = decodeUnknownOrThrow(worktreeRemovePayloadSchema, rawPayload)
+    const gitWorktrees = yield* GitWorktreeService
     return yield* removePreparedWorktree(
       projectPath,
       payload,
       removeWorktreeWithTerminals(projectPath, payload),
-      { retryFailed: true },
+      { retryFailed: true, validateRemoval: gitWorktrees.validateRemoval(projectPath, payload) },
     )
   })
 }
