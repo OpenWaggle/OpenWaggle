@@ -10,12 +10,15 @@ export interface AcceptedAgentSteer {
 }
 
 import { captureGeneratedImage } from './session-resource-capture-image'
-import type { GeneratedImageCaptureBudget } from './session-resource-capture-image-budget'
+import {
+  type GeneratedImageCaptureBudget,
+  prepareGeneratedImageForCapture,
+} from './session-resource-capture-image-budget'
 import {
   capturedImageSourcePath,
   generatedImageInput,
   localImageCaptureRoots,
-  prepareCapturedImageForCapture,
+  prepareLocalImageForCapture,
 } from './session-resource-capture-image-preparation'
 import { captureLink } from './session-resource-capture-link'
 import {
@@ -87,11 +90,14 @@ function captureImages(input: {
     input.context.imageIndex += input.images.length
     for (const [localIndex, image] of input.images.entries()) {
       const index = startIndex + localIndex
-      const prepared = yield* prepareCapturedImageForCapture(
-        input.state.generatedImageBudget,
-        image,
-        input.state.localImageRoots,
-      )
+      const prepared =
+        'data' in image
+          ? prepareGeneratedImageForCapture(input.state.generatedImageBudget, image)
+          : yield* prepareLocalImageForCapture(
+              input.state.generatedImageBudget,
+              image,
+              input.state.localImageRoots,
+            )
       if (!prepared) return
       input.state.generatedImageBudget = prepared.budget
       if (!prepared.image) continue

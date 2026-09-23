@@ -10,11 +10,14 @@ import {
   captureUnavailableGeneratedImage,
   generatedImageOccurrencePrefix,
 } from './session-resource-capture-image'
-import type { GeneratedImageCaptureBudget } from './session-resource-capture-image-budget'
+import {
+  type GeneratedImageCaptureBudget,
+  prepareGeneratedImageForCapture,
+} from './session-resource-capture-image-budget'
 import {
   capturedImageSourcePath,
   generatedImageInput,
-  prepareCapturedImageForCapture,
+  prepareLocalImageForCapture,
 } from './session-resource-capture-image-preparation'
 import { sha256 } from './session-resource-capture-shared'
 import {
@@ -70,11 +73,10 @@ export function attemptBackfilledImage(
   repairResource?: SessionResource,
 ) {
   return Effect.gen(function* () {
-    const prepared = yield* prepareCapturedImageForCapture(
-      state.budget,
-      input.image,
-      state.localImageRoots,
-    )
+    const prepared =
+      'data' in input.image
+        ? prepareGeneratedImageForCapture(state.budget, input.image)
+        : yield* prepareLocalImageForCapture(state.budget, input.image, state.localImageRoots)
     if (!prepared) {
       state.projectionBlocked = true
       return

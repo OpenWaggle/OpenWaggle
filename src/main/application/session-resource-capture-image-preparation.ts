@@ -9,9 +9,12 @@ import {
   beginGeneratedImageCaptureAttempt,
   GENERATED_IMAGE_CAPTURE_LIMITS,
   type GeneratedImageCaptureBudget,
-  prepareGeneratedImageForCapture,
 } from './session-resource-capture-image-budget'
-import type { CapturedGeneratedImage, CapturedImage } from './session-resource-extraction'
+import type {
+  CapturedGeneratedImage,
+  CapturedImage,
+  CapturedLocalImage,
+} from './session-resource-extraction'
 
 const AGENT_IMAGE_TEMP_DIRECTORIES = ['electron-qa-evidence', 'openwaggle-evidence'] as const
 
@@ -35,12 +38,11 @@ export function capturedImageSourcePath(image: CapturedImage) {
   return 'filePath' in image ? image.filePath : undefined
 }
 
-export function prepareCapturedImageForCapture(
+export function prepareLocalImageForCapture(
   current: GeneratedImageCaptureBudget,
-  image: CapturedImage,
+  image: CapturedLocalImage,
   allowedRoots: readonly string[],
 ) {
-  if ('data' in image) return Effect.succeed(prepareGeneratedImageForCapture(current, image))
   const attemptedBudget = beginGeneratedImageCaptureAttempt(current)
   if (!attemptedBudget) return Effect.succeed(null)
   const remainingBytes = Math.min(
