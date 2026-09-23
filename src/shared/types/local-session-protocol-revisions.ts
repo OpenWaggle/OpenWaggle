@@ -1,4 +1,5 @@
-export const LOCAL_SESSION_CURRENT_REVISION = 15 as const
+export const LOCAL_SESSION_CURRENT_REVISION = 16 as const
+export const LOCAL_SESSION_RESOURCE_HOST_UI_REVISION = 16 as const
 export const LOCAL_SESSION_WORKTREE_LAUNCH_REVISION = 15 as const
 export const LOCAL_SESSION_UPDATE_REVISION = 14 as const
 export const LOCAL_SESSION_TURN_DIFF_FILES_REVISION = 13 as const
@@ -15,7 +16,7 @@ export const LOCAL_SESSION_WAGGLE_REVISION = 3 as const
 /** The Host accepts only the current wire contract and its immediate predecessor. */
 export const LOCAL_SESSION_SUPPORTED_REVISIONS = [
   LOCAL_SESSION_CURRENT_REVISION,
-  LOCAL_SESSION_UPDATE_REVISION,
+  LOCAL_SESSION_WORKTREE_LAUNCH_REVISION,
 ] as const
 
 export const LOCAL_SESSION_REVISION_2_CAPABILITIES = [
@@ -94,4 +95,9 @@ export const LOCAL_SESSION_REVISION_15_CAPABILITIES = [
   'events:worktree-launch-v1',
 ] as const
 
-export const LOCAL_SESSION_CAPABILITIES = LOCAL_SESSION_REVISION_15_CAPABILITIES
+export const LOCAL_SESSION_REVISION_16_CAPABILITIES = [
+  ...LOCAL_SESSION_REVISION_15_CAPABILITIES,
+  'host-ui:session-resources-v1',
+] as const
+
+export const LOCAL_SESSION_CAPABILITIES = LOCAL_SESSION_REVISION_16_CAPABILITIES

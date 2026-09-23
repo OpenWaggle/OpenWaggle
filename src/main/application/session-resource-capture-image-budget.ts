@@ -27,6 +27,14 @@ type GeneratedImageValidator = (
   mimeType: string,
 ) => ValidatedSessionResourceImage | null
 
+export function beginGeneratedImageCaptureAttempt(current: GeneratedImageCaptureBudget) {
+  return current.count >= GENERATED_IMAGE_CAPTURE_LIMITS.maxCount ||
+    current.bytes >= GENERATED_IMAGE_CAPTURE_LIMITS.maxBytes ||
+    current.attempts >= GENERATED_IMAGE_CAPTURE_LIMITS.maxAttempts
+    ? null
+    : { ...current, attempts: current.attempts + 1 }
+}
+
 export function advanceGeneratedImageCaptureBudget(
   current: GeneratedImageCaptureBudget,
   byteLength: number,
@@ -60,14 +68,8 @@ export function prepareGeneratedImageForCapture(
   readonly byteBudgetExceeded: boolean
   readonly image: ValidatedSessionResourceImage | null
 } | null {
-  if (
-    current.count >= GENERATED_IMAGE_CAPTURE_LIMITS.maxCount ||
-    current.bytes >= GENERATED_IMAGE_CAPTURE_LIMITS.maxBytes ||
-    current.attempts >= GENERATED_IMAGE_CAPTURE_LIMITS.maxAttempts
-  ) {
-    return null
-  }
-  const attemptedBudget = { ...current, attempts: current.attempts + 1 }
+  const attemptedBudget = beginGeneratedImageCaptureAttempt(current)
+  if (!attemptedBudget) return null
   const decodedByteLength = imageBase64DecodedByteLength(image.data, image.mimeType)
   if (
     decodedByteLength === null ||

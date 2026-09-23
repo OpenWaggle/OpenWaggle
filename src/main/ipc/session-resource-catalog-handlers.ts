@@ -14,7 +14,7 @@ import { SessionId } from '@shared/types/brand'
 import * as Effect from 'effect/Effect'
 import { drainPendingSessionOutputs } from '../application/session-output-retry-drain'
 import { SessionResourceRepository } from '../ports/session-resource-repository'
-import { typedHandle } from './typed-ipc'
+import { hostHandle as typedHandle } from './typed-ipc'
 
 function decodeRouteSelection(rawSelection: unknown) {
   if (rawSelection === undefined || rawSelection === null) return null

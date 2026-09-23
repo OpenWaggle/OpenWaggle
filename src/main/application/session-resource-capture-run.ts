@@ -14,6 +14,12 @@ import {
   type GeneratedImageCaptureBudget,
   prepareGeneratedImageForCapture,
 } from './session-resource-capture-image-budget'
+import {
+  capturedImageSourcePath,
+  generatedImageInput,
+  localImageCaptureRoots,
+  prepareLocalImageForCapture,
+} from './session-resource-capture-image-preparation'
 import { captureLink } from './session-resource-capture-link'
 import {
   captureToolResultMetadata,
@@ -45,6 +51,7 @@ interface AssistantCaptureState {
   generatedImageBudget: GeneratedImageCaptureBudget
   toolCount: number
   readonly links: LinkCaptureState
+  readonly localImageRoots: readonly string[]
 }
 
 interface MessageCaptureContext {
@@ -83,13 +90,20 @@ function captureImages(input: {
     input.context.imageIndex += input.images.length
     for (const [localIndex, image] of input.images.entries()) {
       const index = startIndex + localIndex
-      const prepared = prepareGeneratedImageForCapture(input.state.generatedImageBudget, image)
+      const prepared =
+        'data' in image
+          ? prepareGeneratedImageForCapture(input.state.generatedImageBudget, image)
+          : yield* prepareLocalImageForCapture(
+              input.state.generatedImageBudget,
+              image,
+              input.state.localImageRoots,
+            )
       if (!prepared) return
       input.state.generatedImageBudget = prepared.budget
       if (!prepared.image) continue
       yield* captureGeneratedImage({
         ...input.run,
-        image,
+        image: generatedImageInput(image),
         index,
         nodeId: input.context.nodeId,
         branchId: input.context.branchId,
@@ -98,6 +112,7 @@ function captureImages(input: {
         actor: input.actor,
         label: input.label,
         displayOrder: input.displayOrders[localIndex],
+        sourcePath: capturedImageSourcePath(image),
       }).pipe(Effect.catchAll(() => Effect.void))
     }
   })
@@ -241,6 +256,7 @@ function captureAssistantResources(input: SuccessfulRunResourceInput, links: Lin
       generatedImageBudget: { bytes: 0, count: 0, attempts: 0 },
       toolCount: 0,
       links,
+      localImageRoots: localImageCaptureRoots(workingPath),
     }
     for (const message of input.messages) {
       if (message.role !== 'assistant') continue

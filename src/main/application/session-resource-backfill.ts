@@ -27,6 +27,7 @@ import {
   type BackfillAttachmentState,
   captureBackfilledUserResources,
 } from './session-resource-backfill-user'
+import { localImageCaptureRoots } from './session-resource-capture-image-preparation'
 import { withSessionResourceInvalidation } from './session-resource-invalidation'
 import { withSessionResourceLock } from './session-resource-lock'
 
@@ -61,6 +62,7 @@ function createBackfillCaptureState(
   progress: BackfillProgress,
   knownOccurrenceIds: ReadonlySet<string>,
   retryUnavailableResourceId: string | undefined,
+  workingPath: string | null,
 ): BackfillCaptureState {
   const occurrenceIds = capturedOccurrenceIds(resources)
   for (const id of knownOccurrenceIds) occurrenceIds.add(id)
@@ -79,7 +81,9 @@ function createBackfillCaptureState(
       completedSlots: progress.completedImageSlots,
       knownSlots: progress.knownImageSlots,
       knownResources: progress.knownImageResources,
+      retryUnavailableResourceId: retryUnavailableResourceId ?? null,
       deferred: [],
+      localImageRoots: localImageCaptureRoots(workingPath),
       projectionBlocked: false,
       progressed: false,
     },
@@ -144,7 +148,7 @@ function repairDeferredResources(state: BackfillCaptureState) {
       if (repaired) repairedAttachmentResourceIds.add(deferred.resource.id)
     }
     for (const deferred of state.images.deferred) {
-      yield* attemptBackfilledImage(deferred, state.images)
+      yield* attemptBackfilledImage(deferred.input, state.images, deferred.repairResource)
     }
   })
 }
@@ -205,6 +209,7 @@ export function captureProjectedSessionResources(input: CaptureProjectedSessionR
           progress,
           knownOccurrenceIds,
           input.retryUnavailableResourceId,
+          workingPath,
         )
         yield* captureBackfilledMessages(input, state, workingPath)
         yield* repairDeferredResources(state)

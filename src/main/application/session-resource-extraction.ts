@@ -1,25 +1,22 @@
 import { isRecord } from '@shared/utils/validation'
-import remarkParse from 'remark-parse'
-import { unified } from 'unified'
+import {
+  type CapturedImage,
+  type CapturedLink,
+  type CapturedResourceOrder,
+  type CapturedSite,
+  SESSION_RESOURCE_EXTRACTION_LIMITS,
+} from './session-resource-extraction-types'
+import { collectMarkdownResources } from './session-resource-markdown-extraction'
 
-const HTTP_URL_PATTERN = /^https?:\/\//iu
-const markdownParser = unified().use(remarkParse)
-
-export const SESSION_RESOURCE_EXTRACTION_LIMITS = {
-  maxImages: 128,
-  maxLinks: 128,
-  maxSites: 32,
-  maxTitleCharacters: 512,
-  maxUrlCharacters: 4096,
-  maxTextCharacters: 256 * 1024,
-  maxVisitedNodes: 256,
-} as const
-
-export interface CapturedImage {
-  readonly data: string
-  readonly mimeType: string
-  readonly title: string
-}
+export {
+  type CapturedGeneratedImage,
+  type CapturedImage,
+  type CapturedLink,
+  type CapturedLocalImage,
+  type CapturedResourceOrder,
+  type CapturedSite,
+  SESSION_RESOURCE_EXTRACTION_LIMITS,
+} from './session-resource-extraction-types'
 
 function supportedHttpUrl(value: string) {
   if (value.length > SESSION_RESOURCE_EXTRACTION_LIMITS.maxUrlCharacters) return null
@@ -30,126 +27,6 @@ function supportedHttpUrl(value: string) {
       : null
   } catch {
     return null
-  }
-}
-
-export interface CapturedLink {
-  readonly url: string
-  readonly title: string
-  readonly image: boolean
-}
-
-export interface CapturedSite {
-  readonly url: string
-  readonly title: string
-  readonly activity: 'created' | 'updated'
-}
-
-export type CapturedResourceOrder =
-  | { readonly kind: 'image'; readonly index: number }
-  | { readonly kind: 'link'; readonly index: number }
-
-function enqueueMarkdownChildren(candidate: Readonly<Record<string, unknown>>, pending: unknown[]) {
-  const children = candidate.children
-  if (!Array.isArray(children)) return
-  for (let index = children.length - 1; index >= 0; index -= 1) pending.push(children[index])
-}
-
-function markdownChildren(candidate: Readonly<Record<string, unknown>>): readonly unknown[] {
-  return Array.isArray(candidate.children) ? candidate.children : []
-}
-
-function markdownDefinitions(root: unknown) {
-  const definitions = new Map<string, string>()
-  const pending = [root]
-  while (pending.length > 0) {
-    const candidate = pending.pop()
-    if (!isRecord(candidate)) continue
-    const normalizedUrl =
-      typeof candidate.url === 'string' && HTTP_URL_PATTERN.test(candidate.url)
-        ? supportedHttpUrl(candidate.url)
-        : null
-    if (
-      candidate.type === 'definition' &&
-      typeof candidate.identifier === 'string' &&
-      normalizedUrl
-    ) {
-      definitions.set(candidate.identifier, normalizedUrl)
-    }
-    enqueueMarkdownChildren(candidate, pending)
-  }
-  return definitions
-}
-
-function markdownLinkLabel(candidate: Readonly<Record<string, unknown>>) {
-  const directAlt = typeof candidate.alt === 'string' ? candidate.alt.trim() : ''
-  if (directAlt) {
-    return directAlt.slice(0, SESSION_RESOURCE_EXTRACTION_LIMITS.maxTitleCharacters)
-  }
-
-  const children = markdownChildren(candidate)
-  const pending = [...children].reverse()
-  const fragments: string[] = []
-  let visited = 0
-  let length = 0
-  while (
-    pending.length > 0 &&
-    visited < SESSION_RESOURCE_EXTRACTION_LIMITS.maxVisitedNodes &&
-    length < SESSION_RESOURCE_EXTRACTION_LIMITS.maxTitleCharacters
-  ) {
-    const child = pending.pop()
-    visited += 1
-    if (!isRecord(child)) continue
-    if ((child.type === 'text' || child.type === 'inlineCode') && typeof child.value === 'string') {
-      const fragment = child.value.slice(
-        0,
-        SESSION_RESOURCE_EXTRACTION_LIMITS.maxTitleCharacters - length,
-      )
-      fragments.push(fragment)
-      length += fragment.length
-    }
-    const nested = markdownChildren(child)
-    for (let index = nested.length - 1; index >= 0; index -= 1) pending.push(nested[index])
-  }
-  return fragments.join('').trim()
-}
-
-function capturedMarkdownLink(
-  candidate: Readonly<Record<string, unknown>>,
-  definitions: ReadonlyMap<string, string>,
-): CapturedLink | null {
-  const direct = candidate.type === 'link' || candidate.type === 'image'
-  const reference = candidate.type === 'linkReference' || candidate.type === 'imageReference'
-  const url = direct
-    ? candidate.url
-    : reference && typeof candidate.identifier === 'string'
-      ? definitions.get(candidate.identifier)
-      : null
-  if (typeof url !== 'string' || !HTTP_URL_PATTERN.test(url)) return null
-  const normalizedUrl = supportedHttpUrl(url)
-  if (!normalizedUrl) return null
-  const label = markdownLinkLabel(candidate)
-  return {
-    url: normalizedUrl,
-    title: label || normalizedUrl,
-    image: candidate.type === 'image' || candidate.type === 'imageReference',
-  }
-}
-
-function collectMarkdownLinks(text: string, links: CapturedLink[], order: CapturedResourceOrder[]) {
-  if (links.length >= SESSION_RESOURCE_EXTRACTION_LIMITS.maxLinks) return
-  const root = markdownParser.parse(text)
-  const definitions = markdownDefinitions(root)
-  const pending: unknown[] = [root]
-  while (pending.length > 0 && links.length < SESSION_RESOURCE_EXTRACTION_LIMITS.maxLinks) {
-    const candidate = pending.pop()
-    if (!isRecord(candidate)) continue
-    const link = capturedMarkdownLink(candidate, definitions)
-    if (link) {
-      order.push({ kind: 'link', index: links.length })
-      links.push(link)
-    }
-    enqueueMarkdownChildren(candidate, pending)
   }
 }
 
@@ -292,7 +169,7 @@ export function collectExplicitResources(value: unknown) {
     const candidate = pending.pop()
     if (typeof candidate === 'string') {
       const consumed = Math.min(candidate.length, remainingTextCharacters)
-      if (consumed > 0) collectMarkdownLinks(candidate.slice(0, consumed), links, order)
+      if (consumed > 0) collectMarkdownResources(candidate.slice(0, consumed), images, links, order)
       remainingTextCharacters -= consumed
       continue
     }
