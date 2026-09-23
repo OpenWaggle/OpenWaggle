@@ -930,8 +930,12 @@ select it explicitly; another window may add a profile before the first turn. Au
 only to the durable worktree-birth callback. An idle Setup selected or adopted on an existing checkout
 remains manual until the user chooses Run setup. Bash/zsh Setup trap introspection (`trap -p EXIT`
 and bare `trap`) must report the saved user handler, never the private environment-capture handler:
-a sourced script that saves and later evaluates the private handler recurses at exit. PowerShell
-setup capture must decide success from the
+a sourced script that saves and later evaluates the private handler recurses at exit. POSIX Setup
+capture must snapshot before each runtime `eval` as well as direct `exec`: an escaped
+`\exec` parsed from an eval string bypasses the ordinary exec alias and replaces the shell before
+its EXIT handler can save exports. Action-run headings and repair drafts display the actual
+invocation directory relative to the workspace or project root, including nested package paths.
+PowerShell setup capture must decide success from the
 last command's `$?`, using `$LASTEXITCODE` only for a failed final command. A handled earlier native failure can leave
 `$LASTEXITCODE` nonzero even though the final setup command succeeded and exported its environment.
 When that final command is a failed non-terminating cmdlet, `$?` is false while `$LASTEXITCODE`

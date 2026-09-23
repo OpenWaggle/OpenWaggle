@@ -4,6 +4,7 @@ import { Copy, ExternalLink, RotateCw, Sparkles, Square } from 'lucide-react'
 import { useState } from 'react'
 import { setComposerTextValue } from '@/features/chat/lib'
 import { useComposerStore } from '@/features/composer/state'
+import { formatDisplayPath } from '@/shared/lib/display-path'
 import { api } from '@/shared/lib/ipc'
 import { Button } from '@/shared/ui/Button'
 import { useUIStore } from '@/shell/ui-store'
@@ -47,7 +48,11 @@ export function ActionRunControls(props: {
       openWorkspaceAction(scope.sessionId, scope.projectPath, result.run.id)
   }
   function repairDraft() {
-    const prompt = `Investigate the project action "${run.action.name}" in this workspace and on the current machine. Propose a compatible command for me to review and save. Do not replace the saved action or launch a replacement automatically.\n\nAction ID: ${run.action.id}\nCommand: ${resolvedActionCommand(run.invocation)}\nWorking directory: ${run.invocation.cwd}\nResult: ${run.status}, exit ${run.exitCode ?? 'unknown'}\n${run.error ?? ''}\n\nRetained output:\n${output.slice(-REPAIR_OUTPUT_CHARACTERS)}`
+    const workingDirectory = formatDisplayPath(run.invocation.cwd, [
+      run.workspacePath,
+      run.projectPath,
+    ])
+    const prompt = `Investigate the project action "${run.action.name}" in this workspace and on the current machine. Propose a compatible command for me to review and save. Do not replace the saved action or launch a replacement automatically.\n\nAction ID: ${run.action.id}\nCommand: ${resolvedActionCommand(run.invocation)}\nWorking directory: ${workingDirectory}\nResult: ${run.status}, exit ${run.exitCode ?? 'unknown'}\n${run.error ?? ''}\n\nRetained output:\n${output.slice(-REPAIR_OUTPUT_CHARACTERS)}`
     const current = useComposerStore.getState().input
     setComposerTextValue(current.trim() ? `${current}\n\n${prompt}` : prompt)
     useUIStore

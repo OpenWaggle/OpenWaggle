@@ -187,7 +187,7 @@ export async function preparationCaptureInvocation(
       ].join('\n')
       const command = posixInvocationCommand(resolved)
       const enableAliases = name === 'bash' ? 'shopt -s expand_aliases\n' : ''
-      return `umask 077\n__ow_user_exit_trap=''\n__ow_user_exit_trap_set=0\n${finish}\nbuiltin trap '__ow_finish "$?"' EXIT\n${bashZshUserTraps}\n${posixCaptureBeforeExec(destination)}\n${bashZshPrefixedBuiltins}\n${enableAliases}alias exec='exec $(__ow_capture_exec)'\nalias command='__ow_command $(__ow_capture_exec)'\nalias builtin='__ow_builtin $(__ow_capture_exec)'\neval ${quotePosixShellArgument(command)}\n__ow_finish "$?"`
+      return `umask 077\n__ow_user_exit_trap=''\n__ow_user_exit_trap_set=0\n${finish}\nbuiltin trap '__ow_finish "$?"' EXIT\n${bashZshUserTraps}\n${posixCaptureBeforeExec(destination)}\n${bashZshPrefixedBuiltins}\n${enableAliases}alias exec='exec $(__ow_capture_exec)'\nalias command='__ow_command $(__ow_capture_exec)'\nalias builtin='__ow_builtin $(__ow_capture_exec)'\nalias eval='eval $(__ow_capture_exec)'\neval ${quotePosixShellArgument(command)}\n__ow_finish "$?"`
     })
     .with('sh', 'dash', 'ksh', 'mksh', () => {
       const finish = [
@@ -218,7 +218,7 @@ export async function preparationCaptureInvocation(
         '}',
       ].join('\n')
       const command = posixInvocationCommand(resolved)
-      return `umask 077\n__ow_user_exit_trap=''\n${finish}\ncommand trap '__ow_finish "$?"' EXIT\n${userTraps}\n${posixCaptureBeforeExec(destination)}\n${shPrefixedCommand(name)}\nalias trap=__ow_trap\nalias exec='exec $(__ow_capture_exec)'\nalias command='__ow_command $(__ow_capture_exec)'\neval ${quotePosixShellArgument(command)}\n__ow_finish "$?"`
+      return `umask 077\n__ow_user_exit_trap=''\n${finish}\ncommand trap '__ow_finish "$?"' EXIT\n${userTraps}\n${posixCaptureBeforeExec(destination)}\n${shPrefixedCommand(name)}\nalias trap=__ow_trap\nalias exec='exec $(__ow_capture_exec)'\nalias command='__ow_command $(__ow_capture_exec)'\nalias eval='eval $(__ow_capture_exec)'\neval ${quotePosixShellArgument(command)}\n__ow_finish "$?"`
     })
     .otherwise(() => {
       throw new Error(

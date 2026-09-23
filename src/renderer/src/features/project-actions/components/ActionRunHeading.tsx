@@ -30,7 +30,7 @@ export function ActionRunHeading({
           </code>
           <p className="break-all text-xs text-text-tertiary">
             Working directory:{' '}
-            {formatDisplayPath(run.workspacePath, [run.workspacePath, run.projectPath])}
+            {formatDisplayPath(run.invocation.cwd, [run.workspacePath, run.projectPath])}
           </p>
         </>
       ) : null}

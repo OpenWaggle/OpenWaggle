@@ -101,4 +101,26 @@ describe('Action run controls', () => {
     expect(mocks.draft).toHaveBeenCalledWith(expect.stringContaining('test failure'))
     expect(mocks.manage).not.toHaveBeenCalled()
   })
+
+  it('uses a Session-relative working directory in the repair draft', () => {
+    const workspacePath =
+      '/Users/diego/.openwaggle/worktrees/project/9a9b9c9d-1000-4000-8000-9a9b9c9d9e9f'
+    render(
+      <ActionRunControls
+        scope={scope}
+        run={{
+          ...run,
+          workspacePath,
+          status: 'failed',
+          invocation: { ...run.invocation, cwd: `${workspacePath}/packages/web` },
+        }}
+        output="test failure"
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Fix with agent' }))
+    const draft = vi.mocked(mocks.draft).mock.lastCall?.[0] ?? ''
+    expect(draft).toContain('Working directory: packages/web')
+    expect(draft).not.toContain(workspacePath)
+  })
 })
