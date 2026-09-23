@@ -925,8 +925,11 @@ hidden with only one profile; a deleted profile must not remain in the draft sen
 Before a first worktree send creates a Session, read the live project catalog and require an explicit
 valid profile when more than one exists. This preflight must run for classic and Waggle sends even
 while the chooser's catalog request is still loading; otherwise the new Session can strand the first
-message at setup snapshot capture. PowerShell setup capture must decide success from the last command's
-`$?`, using `$LASTEXITCODE` only for a failed final command. A handled earlier native failure can leave
+message at setup snapshot capture. Carry the preflighted sole profile ID across Session creation and
+select it explicitly; another window may add a profile before the first turn. Automatic Setup belongs
+only to the durable worktree-birth callback. An idle Setup selected or adopted on an existing checkout
+remains manual until the user chooses Run setup. PowerShell setup capture must decide success from the
+last command's `$?`, using `$LASTEXITCODE` only for a failed final command. A handled earlier native failure can leave
 `$LASTEXITCODE` nonzero even though the final setup command succeeded and exported its environment.
 When that final command is a failed non-terminating cmdlet, `$?` is false while `$LASTEXITCODE`
 can still be zero; return a nonzero setup status and do not persist the environment snapshot.

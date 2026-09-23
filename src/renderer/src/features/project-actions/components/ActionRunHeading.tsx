@@ -1,4 +1,5 @@
 import type { ActionRun } from '@shared/types/action-runs'
+import { formatDisplayPath } from '@/shared/lib/display-path'
 import { actionRunLabel, resolvedActionCommand } from '../lib/native-action-display'
 export function ActionRunHeading({
   run,
@@ -27,7 +28,10 @@ export function ActionRunHeading({
           <code className="block overflow-x-auto rounded-md bg-bg-secondary px-3 py-2 text-xs text-text-primary">
             {resolvedActionCommand(run.invocation)}
           </code>
-          <p className="break-all text-xs text-text-tertiary">{run.workspacePath}</p>
+          <p className="break-all text-xs text-text-tertiary">
+            Working directory:{' '}
+            {formatDisplayPath(run.workspacePath, [run.workspacePath, run.projectPath])}
+          </p>
         </>
       ) : null}
     </>

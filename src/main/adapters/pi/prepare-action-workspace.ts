@@ -59,8 +59,6 @@ export function prepareActionWorkspace(
       catch: (error) => (error instanceof Error ? error : new Error(String(error))),
     })
     const workspace = { ...(yield* resolveWorkspace()), workspacePath: executionPath }
-    if (input.session.environmentMode === 'worktree')
-      yield* services.preparation.requireSetup(workspace)
     const preparedEnvironment = yield* services.preparation.environment(workspace.workspaceId)
     return { projectPath, executionPath, preparedEnvironment }
   })

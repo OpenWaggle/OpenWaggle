@@ -16,7 +16,9 @@ const {
 } = vi.hoisted(() => ({
   flushDraftAuthorizationModeMock: vi.fn(async () => {}),
   selectPreparationMock: vi.fn(async () => {}),
-  validatePreparationMock: vi.fn(async () => {}),
+  validatePreparationMock: vi.fn(
+    async (_projectPath: string, profileId: string | undefined) => profileId ?? 'default',
+  ),
   sendMessageMock: vi.fn(async () => ({ outcome: 'delivered' as const })),
   snapshotDraftWorktreePlanMock: vi.fn<
     () => {
@@ -72,7 +74,11 @@ describe("a session's first send", () => {
   beforeEach(() => {
     flushDraftAuthorizationModeMock.mockReset().mockResolvedValue(undefined)
     selectPreparationMock.mockReset().mockResolvedValue(undefined)
-    validatePreparationMock.mockReset().mockResolvedValue(undefined)
+    validatePreparationMock
+      .mockReset()
+      .mockImplementation(
+        async (_projectPath: string, profileId: string | undefined) => profileId ?? 'default',
+      )
     sendMessageMock.mockClear()
     snapshotDraftWorktreePlanMock
       .mockReset()
@@ -141,11 +147,38 @@ describe("a session's first send", () => {
     },
   )
 
+  it.each(['classic', 'waggle'])(
+    'pins the sole preflighted profile across %s Session creation',
+    async (mode) => {
+      const sendMessageToSession = vi.fn(async () => {})
+      const handlers = createSendHandlers({
+        activeSessionId: null,
+        projectPath: '/repo',
+        thinkingLevel: 'off',
+        createSession: vi.fn(async () => SessionId('created')),
+        sendMessage: vi.fn(async () => {}),
+        sendMessageToSession,
+        startWaggleCollaboration: vi.fn(),
+        sendWaggleMessage: vi.fn(async () => {}),
+      })
+      validatePreparationMock.mockResolvedValueOnce('default')
+
+      if (mode === 'classic') await handlers.handleSend(PAYLOAD)
+      else await handlers.handleSendWaggle(PAYLOAD, WAGGLE_CONFIG)
+
+      expect(validatePreparationMock).toHaveBeenCalledWith('/repo', undefined)
+      expect(selectPreparationMock).toHaveBeenCalledWith('/repo', 'created', 'default')
+      expect(selectPreparationMock.mock.invocationCallOrder[0]).toBeLessThan(
+        sendMessageToSession.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY,
+      )
+    },
+  )
+
   it('waits for preparation discovery before creating the first Session', async () => {
     let finishValidation: () => void = () => {}
     validatePreparationMock.mockReturnValueOnce(
-      new Promise<void>((resolve) => {
-        finishValidation = resolve
+      new Promise<string>((resolve) => {
+        finishValidation = () => resolve('default')
       }),
     )
     const createSession = vi.fn(async () => SessionId('created'))

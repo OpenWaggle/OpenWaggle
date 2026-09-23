@@ -19,15 +19,18 @@ export async function validateDraftWorkspacePreparation(
     throw new Error(
       'This Preparation profile is no longer available. Choose another before sending.',
     )
+  const selectedProfileId = profileId ?? profiles[0]?.definition.id
+  if (!selectedProfileId)
+    throw new Error('This project has no Preparation profile. Add one before sending.')
+  return selectedProfileId
 }
 
 /** Called after lazy Session creation, before dispatching its first agent turn. */
 export async function selectDraftWorkspacePreparation(
   projectPath: string,
   sessionId: SessionId,
-  profileId: string | undefined,
+  profileId: string,
 ) {
-  if (!profileId) return
   const result = await api.manageProjectActions({
     scope: { projectPath, sessionId },
     operation: { type: 'select-preparation', profileId, expectedRevision: 0 },

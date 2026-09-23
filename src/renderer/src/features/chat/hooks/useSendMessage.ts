@@ -86,17 +86,18 @@ export function createSendHandlers(deps: SendMessageDeps): SendMessageHandlers {
         throw new Error('Select a project before sending.')
       }
       const worktreePlan = snapshotDraftWorktreePlan(projectPath)
-      if (worktreePlan?.plan.envMode === 'worktree')
-        await validateDraftWorkspacePreparation(projectPath, worktreePlan.plan.preparationProfileId)
+      const preparationProfileId =
+        worktreePlan?.plan.envMode === 'worktree'
+          ? await validateDraftWorkspacePreparation(
+              projectPath,
+              worktreePlan.plan.preparationProfileId,
+            )
+          : null
       const sessionId = await createSession(projectPath, sessionWorktreePlan(worktreePlan))
       try {
         await flushDraftAuthorizationModeToSession(projectPath, sessionId)
-        if (worktreePlan?.plan.envMode === 'worktree')
-          await selectDraftWorkspacePreparation(
-            projectPath,
-            sessionId,
-            worktreePlan.plan.preparationProfileId,
-          )
+        if (preparationProfileId)
+          await selectDraftWorkspacePreparation(projectPath, sessionId, preparationProfileId)
       } catch (error) {
         throw firstSendFailure(error, sessionId)
       }
@@ -121,17 +122,18 @@ export function createSendHandlers(deps: SendMessageDeps): SendMessageHandlers {
         throw new Error('Select a project before sending.')
       }
       const worktreePlan = snapshotDraftWorktreePlan(projectPath)
-      if (worktreePlan?.plan.envMode === 'worktree')
-        await validateDraftWorkspacePreparation(projectPath, worktreePlan.plan.preparationProfileId)
+      const preparationProfileId =
+        worktreePlan?.plan.envMode === 'worktree'
+          ? await validateDraftWorkspacePreparation(
+              projectPath,
+              worktreePlan.plan.preparationProfileId,
+            )
+          : null
       const sessionId = await createSession(projectPath, sessionWorktreePlan(worktreePlan))
       try {
         await flushDraftAuthorizationModeToSession(projectPath, sessionId)
-        if (worktreePlan?.plan.envMode === 'worktree')
-          await selectDraftWorkspacePreparation(
-            projectPath,
-            sessionId,
-            worktreePlan.plan.preparationProfileId,
-          )
+        if (preparationProfileId)
+          await selectDraftWorkspacePreparation(projectPath, sessionId, preparationProfileId)
       } catch (error) {
         throw firstSendFailure(error, sessionId)
       }

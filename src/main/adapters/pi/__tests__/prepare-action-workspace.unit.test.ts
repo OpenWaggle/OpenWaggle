@@ -94,17 +94,52 @@ describe('preparation around worktree birth', () => {
         },
       ),
     )
-    expect(order).toEqual([
-      'captured-before-birth',
-      'created',
-      'captured-existing',
-      'setup-gate',
-      'setup-gate',
-    ])
+    expect(order).toEqual(['captured-before-birth', 'created', 'captured-existing', 'setup-gate'])
     expect(result).toEqual({
       projectPath,
       executionPath: workspacePath,
       preparedEnvironment: { PREPARED: 'yes' },
+    })
+  })
+
+  it('does not start idle Setup after a worktree already exists', async () => {
+    projectPath = await realpath(await mkdtemp(join(tmpdir(), 'action-existing-')))
+    const workspacePath = join(projectPath, 'existing-worktree')
+    await mkdir(workspacePath)
+    mocks.birth.mockResolvedValue(workspacePath)
+    const requireSetup = vi.fn(() => Effect.succeed(fromPartial({})))
+
+    const result = await Effect.runPromise(
+      prepareActionWorkspace(
+        fromPartial<AgentKernelRunInput>({
+          session: { id: SessionId('session'), projectPath, environmentMode: 'worktree' },
+          signal: new AbortController().signal,
+        }),
+        {
+          workspaces: {
+            getBound: () =>
+              Effect.succeed({
+                id: 'workspace',
+                projectPath,
+                workingPath: workspacePath,
+                pending: false,
+                kind: 'managed-worktree',
+                worktreeBranch: 'feature',
+              }),
+          },
+          preparation: fromPartial<WorkspacePreparationServiceShape>({
+            requireSetup,
+            environment: () => Effect.succeed({ PREPARED: 'retained' }),
+          }),
+        },
+      ),
+    )
+
+    expect(requireSetup).not.toHaveBeenCalled()
+    expect(result).toEqual({
+      projectPath,
+      executionPath: workspacePath,
+      preparedEnvironment: { PREPARED: 'retained' },
     })
   })
 })

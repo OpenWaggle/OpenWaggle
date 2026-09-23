@@ -1,9 +1,12 @@
+import { SessionId } from '@shared/types/brand'
 import { describe, expect, it, vi } from 'vitest'
 
 const manageProjectActions = vi.hoisted(() => vi.fn())
 vi.mock('@/shared/lib/ipc', () => ({ api: { manageProjectActions } }))
 
-const { validateDraftWorkspacePreparation } = await import('../prepare-draft-workspace')
+const { selectDraftWorkspacePreparation, validateDraftWorkspacePreparation } = await import(
+  '../prepare-draft-workspace'
+)
 
 const catalog = {
   type: 'catalog',
@@ -37,7 +40,7 @@ describe('draft workspace preparation preflight', () => {
 
   it('accepts a live choice and rejects a removed one', async () => {
     manageProjectActions.mockResolvedValue(catalog)
-    await expect(validateDraftWorkspacePreparation('/repo', 'frontend')).resolves.toBeUndefined()
+    await expect(validateDraftWorkspacePreparation('/repo', 'frontend')).resolves.toBe('frontend')
     await expect(validateDraftWorkspacePreparation('/repo', 'removed')).rejects.toThrow(
       'no longer available',
     )
@@ -48,6 +51,33 @@ describe('draft workspace preparation preflight', () => {
       ...catalog,
       catalog: { ...catalog.catalog, profiles: [catalog.catalog.profiles[0]] },
     })
-    await expect(validateDraftWorkspacePreparation('/repo', undefined)).resolves.toBeUndefined()
+    await expect(validateDraftWorkspacePreparation('/repo', undefined)).resolves.toBe('default')
+  })
+
+  it('selects the preflighted default after the catalog gains another profile', async () => {
+    manageProjectActions
+      .mockResolvedValueOnce({
+        ...catalog,
+        catalog: { ...catalog.catalog, profiles: [catalog.catalog.profiles[0]] },
+      })
+      .mockResolvedValueOnce({ type: 'preparation', preparation: { revision: 1 } })
+
+    const profileId = await validateDraftWorkspacePreparation('/repo', undefined)
+    await selectDraftWorkspacePreparation('/repo', SessionId('created'), profileId)
+
+    expect(manageProjectActions).toHaveBeenLastCalledWith({
+      scope: { projectPath: '/repo', sessionId: 'created' },
+      operation: { type: 'select-preparation', profileId: 'default', expectedRevision: 0 },
+    })
+  })
+
+  it('stops the send when no profile is available', async () => {
+    manageProjectActions.mockResolvedValue({
+      ...catalog,
+      catalog: { ...catalog.catalog, profiles: [] },
+    })
+    await expect(validateDraftWorkspacePreparation('/repo', undefined)).rejects.toThrow(
+      'no Preparation profile',
+    )
   })
 })
