@@ -3,6 +3,7 @@ import { match } from '@diegogbrisa/ts-match'
 import type { ResolvedActionInvocation } from '@shared/types/action-definitions'
 import { quotePosixShellArgument, quotePowerShellArgument } from '@shared/utils/shell-argument'
 import { resolveActionExecutablePath } from './action-process'
+import { enableEscapedExecCapture } from './preparation-escaped-exec'
 
 // macOS env(1) does not promise -0; the bundled Perl keeps embedded newlines intact.
 const POSIX_ENVIRONMENT_DUMP =
@@ -14,6 +15,12 @@ function invocationCommand(invocation: ResolvedActionInvocation, quote: (value: 
   return invocation.type === 'command'
     ? invocation.command
     : [invocation.executable, ...invocation.args].map(quote).join(' ')
+}
+
+function posixInvocationCommand(invocation: ResolvedActionInvocation) {
+  return invocation.type === 'command'
+    ? enableEscapedExecCapture(invocation.command)
+    : invocationCommand(invocation, quotePosixShellArgument)
 }
 
 const posixDumpOnSuccess = (destination: string) =>
@@ -91,7 +98,7 @@ export async function preparationCaptureInvocation(
         'done',
         '}',
       ].join('\n')
-      const command = invocationCommand(resolved, quotePosixShellArgument)
+      const command = posixInvocationCommand(resolved)
       const enableAliases = name === 'bash' ? 'shopt -s expand_aliases\n' : ''
       return `umask 077\n__ow_user_exit_trap=''\n${finish}\nbuiltin trap '__ow_finish "$?"' EXIT\n${userTraps}\n${posixCaptureBeforeExec(destination)}\n${enableAliases}alias exec='exec $(__ow_capture_exec)'\nalias command='command $(__ow_capture_exec)'\nalias builtin='builtin $(__ow_capture_exec)'\neval ${quotePosixShellArgument(command)}\n__ow_finish "$?"`
     })
@@ -121,7 +128,7 @@ export async function preparationCaptureInvocation(
         'done',
         '}',
       ].join('\n')
-      const command = invocationCommand(resolved, quotePosixShellArgument)
+      const command = posixInvocationCommand(resolved)
       return `umask 077\n__ow_user_exit_trap=''\n${finish}\ncommand trap '__ow_finish "$?"' EXIT\n${userTraps}\n${posixCaptureBeforeExec(destination)}\nalias trap=__ow_trap\nalias exec='exec $(__ow_capture_exec)'\nalias command='command $(__ow_capture_exec)'\neval ${quotePosixShellArgument(command)}\n__ow_finish "$?"`
     })
     .otherwise(() => {

@@ -841,6 +841,9 @@ splitting it with `&&` drops temporary assignments such as `FOO=bar exec tool`, 
 function around `exec` breaks redirect-only forms such as `exec >log`.
 The valid `command exec` and `builtin exec` forms suppress the direct `exec` alias. Snapshot when
 their prefixes expand too; retain their command status and temporary-assignment behavior.
+An unquoted escaped `\\exec` suppresses alias expansion while still invoking the shell builtin.
+Normalize that token in a direct POSIX setup command before parsing it for capture, preserving
+quoted literals, comments and heredoc bodies.
 Fresh local Sessions need Summary availability from configured preparation, before a snapshot or
 run exists, or users cannot reach explicit setup.
 Native actions use Local Session protocol revision 15 and require matching clients/Host for this
@@ -896,6 +899,9 @@ script can `exit 0` from inside `try` before the post-command assignment. Its `f
 still write the environment snapshot, while the preparation executor only reads it for exit code 0.
 Within the Workspace mutation fence, archive first, then stop services only after the archive
 commits and removes the last active binding. A failed archive must leave running services alive.
+Managed-worktree Session deletion also validates Git before commit. Inspect the binding after the
+delete operation before stopping action services: a dirty-worktree refusal leaves the Session and
+its services active, while a post-commit cleanup error may still leave an orphan to stop.
 After a committed archive or handoff, a service-stop failure must not make the mutation appear to
 fail. Retry cleanup under the Workspace fence, checking active bindings again so a rebound Workspace
 keeps its services. Managed runs retain ownership while stop cannot be confirmed.

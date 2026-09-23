@@ -1,0 +1,40 @@
+import { describe, expect, it } from 'vitest'
+import { enableEscapedExecCapture } from '../preparation-escaped-exec'
+
+describe('escaped exec capture', () => {
+  it('exposes unquoted exec to the capture alias without changing literals or heredocs', () => {
+    const command = [
+      "printf '%s' '\\exec' \"\\exec\"",
+      '# \\exec in a comment',
+      "cat <<'SCRIPT'",
+      '\\exec in heredoc text',
+      'SCRIPT',
+      'export READY=yes; \\exec /usr/bin/true',
+    ].join('\n')
+
+    expect(enableEscapedExecCapture(command)).toBe(
+      command.replace('export READY=yes; \\exec', 'export READY=yes; exec'),
+    )
+  })
+
+  it('preserves escaped heredoc delimiters and multiple heredoc bodies', () => {
+    const command = [
+      'cat <<\\exec <<NEXT',
+      '\\exec in the first body',
+      'exec',
+      '\\exec in the second body',
+      'NEXT',
+      '\\exec /usr/bin/true',
+    ].join('\n')
+
+    expect(enableEscapedExecCapture(command)).toBe(
+      command.replace('\n\\exec /usr/bin/true', '\nexec /usr/bin/true'),
+    )
+  })
+
+  it('does not mistake a here-string for a heredoc', () => {
+    expect(enableEscapedExecCapture('cat <<< value\n\\exec /usr/bin/true')).toBe(
+      'cat <<< value\nexec /usr/bin/true',
+    )
+  })
+})

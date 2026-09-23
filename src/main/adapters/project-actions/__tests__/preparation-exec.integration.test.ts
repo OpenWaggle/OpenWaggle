@@ -197,4 +197,25 @@ describe.skipIf(process.platform === 'win32')('setup commands using exec', () =>
       }
     },
   )
+
+  it.for(shells)('captures exports before escaped exec in %s', async (shell, context) => {
+    if (!existsSync(shell)) context.skip()
+    const execute = createPreparationExecutor(createActionProcessRunner('test'), directory, 'test')
+    try {
+      const result = await execute({
+        workspace: { workspaceId: 'escaped', projectPath: directory, workspacePath: directory },
+        invocation: {
+          type: 'command',
+          command: 'export OW_ESCAPED_EXEC=loaded; \\exec /usr/bin/true',
+          directory: '.',
+        },
+        environment: { SHELL: shell },
+        captureEnvironment: true,
+        onOutput: () => {},
+      })
+      expect(result).toMatchObject({ exitCode: 0, environment: { OW_ESCAPED_EXEC: 'loaded' } })
+    } finally {
+      await execute.shutdown()
+    }
+  })
 })
