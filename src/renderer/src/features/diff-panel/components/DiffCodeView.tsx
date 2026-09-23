@@ -248,7 +248,7 @@ export function DiffCodeView({
   review,
   fileNavigation = null,
 }: DiffCodeViewProps) {
-  const viewerRef = useRef<CodeViewHandle<ReviewAnnotationMetadata>>(null)
+  const viewerRef = useRef<CodeViewHandle<ReviewAnnotationMetadata, undefined>>(null)
   const patchByPath = useMemo(() => buildPatchByPath(files), [files])
   const [selection, handleSelectionChange] = useDiffCodeSelection(
     patchByPath,
