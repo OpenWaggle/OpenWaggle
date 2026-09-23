@@ -14,6 +14,7 @@ import { launchProjectSetupAction } from './agent-kernel/project-setup-action'
 import { reportAcceptedSetupActionProgress } from './agent-kernel/project-setup-action-progress'
 import { restrictMcpSnapshot } from './agent-kernel/restricted-mcp-snapshot'
 import type { PiRuntimeExtensionIsolationInput } from './agent-kernel/runtime-extension-isolation'
+import { refreshFirstRunBranch } from './agent-kernel/session-branch-freshness'
 import { requireSessionProjectPath } from './agent-kernel/session-manager'
 import { ensureSessionWorktreeProjectPath } from './agent-kernel/session-worktree-birth'
 import { runPiWaggle } from './agent-kernel/waggle-run'
@@ -217,6 +218,7 @@ export function runPiAgentKernel(
       launchReporter.runInput,
       dependencies.terminal,
     )
+    yield* refreshFirstRunBranch(input, executionPath)
     const visualizationDirectory = yield* dependencies.inlineVisualization
       .prepareSession(input.session.id)
       .pipe(
