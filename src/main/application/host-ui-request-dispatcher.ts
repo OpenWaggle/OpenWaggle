@@ -49,7 +49,10 @@ import {
   grantProjectAuthorizationOperation,
   revokeProjectAuthorizationOperation,
 } from './project-authorization-grant-operation'
-import { setProjectPreferencesOperation } from './project-preferences-operation'
+import {
+  removeProjectModelOperation,
+  setProjectPreferencesOperation,
+} from './project-preferences-operation'
 import {
   getSettingsOperation,
   setEnabledModelsOperation,
@@ -225,6 +228,12 @@ function dispatchHostUiChannel(
       Effect.gen(function* () {
         yield* requireHostUiArgCount(args, TWO_ARGUMENTS)
         return yield* setProjectPreferencesOperation(args[0], args[1])
+      }),
+    )
+    .with('project-config:remove-project-model', () =>
+      Effect.gen(function* () {
+        yield* requireHostUiArgCount(args, 1)
+        return yield* removeProjectModelOperation(args[0])
       }),
     )
     .with('authorization-grants:grant', () =>

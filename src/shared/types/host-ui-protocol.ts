@@ -147,6 +147,7 @@ export const HOST_BACKED_GUI_CHANNELS = [
   'extensions:authorize-runtime-module',
   'providers:get-models',
   'project-config:set-preferences',
+  'project-config:remove-project-model',
   'docs:discover',
   'agent-definitions:manage',
   'skills:list',

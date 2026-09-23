@@ -44,7 +44,7 @@ export function registerProjectHandlers(): void {
     setProjectPreferencesOperation(projectPath, preferences),
   )
 
-  typedHandle('project-config:remove-project-model', (_event, projectPath: string) =>
+  hostHandle('project-config:remove-project-model', (_event, projectPath: string) =>
     removeProjectModelOperation(projectPath),
   )
 
