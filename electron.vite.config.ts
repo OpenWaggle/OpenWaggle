@@ -68,6 +68,10 @@ const BUNDLED_DEPS = [
   'jszip',
   'mammoth',
   'unpdf',
+  // plist 5 is ESM-only (no require/default export condition), so it cannot
+  // be externalized into the CJS main bundle; bundle it like the other
+  // ESM-only dependencies above.
+  'plist',
 ]
 
 interface UnknownObject {
