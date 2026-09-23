@@ -16,7 +16,7 @@ export function PastePlugin({ checkAndConvertPaste }: PastePluginProps): null {
   const checkPaste = useEffectEvent(checkAndConvertPaste)
 
   useEffect(() => {
-    return editor.registerCommand<ClipboardEvent>(
+    return editor.registerCommand(
       PASTE_COMMAND,
       (event) => {
         const clipboardData = event instanceof ClipboardEvent ? event.clipboardData : null

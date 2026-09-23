@@ -189,6 +189,7 @@ Load `.agents/skills/electron-runtime/SKILL.md` for details.
 - Extension resource contributions use the approved `openwaggle.resources` broker capability with explicit Session scope. Publish payloads accept only credential-free HTTPS links/images; the host derives actor, occurrence, canonical identity, and Session ownership. List results expose display metadata only—never locators, managed paths, canonical keys, or occurrence history—and invalidation events carry the affected Session id.
 - Session resources retain two distinct locator concepts: the original public locator for provenance/open/reveal and the host-managed path for safe rendering. Raster image status is established from stored bytes, not filenames or declared MIME; SVG remains an ordinary file rather than renderable active content.
 - A remote image read refreshes its Session resource projection only after managed content materializes. Refreshing after a failed read bumps the resource revision and immediately repeats the same failed query; failures remain stable until the user explicitly retries.
+- After Session Host cutover, Session-resource catalog, backfill, and managed-content reads are Host-owned: the GUI `AppDatabase` is client-isolated and cannot see durable Session nodes. Route resource operations through a revisioned Host UI contract, return only bounded validated image bytes for GUI-native clipboard/attachment/protocol actions, and never add a second database writer. Agent-emitted local Markdown images may be copied only from the Session workspace or dedicated `electron-qa-evidence`/`openwaggle-evidence` directories under the platform temp parents; never authorize the whole shared temp tree. Keep the transcript path as provenance while rendering only the managed copy.
 
 ### Session-bound terminals (ADR 0030, September 2026)
 
@@ -389,6 +390,11 @@ Recording is a main/renderer protocol, not merely a `desktopCapturer` grant: suc
 - Do not suppress Fallow complexity findings; refactor instead.
 - Do not add legacy compatibility for removed pre-Pi surfaces unless explicitly requested.
 - Node 24 Vitest workers abort in better-sqlite3@12.11.1 teardown (`Statement::~Statement()` → `RemoveEnvironmentCleanupHook`). `@effect/sql-sqlite-node` pulls v12 while the app uses v13; keep the workspace override that makes Effect reuse v13.0.1. This removes the duplicate native addon and lets the full parallel unit suite finish.
+- Dependency-update trap: `packages/*/dist` is gitignored but consumed by root typecheck. A stale dist built mid-bisection caused 185 phantom type errors (`AnyNoContext`/`TypeId` mismatches that looked like effect/typebox breakage). After changing any dependency version, run `pnpm build:package-dependencies` before trusting typecheck results.
+- Root `undici` must stay on 7.x: `secure-fetch.ts` passes an undici `Agent` to Node's **global** fetch, and undici 8 changed the Dispatcher interface, which makes the global (Node-bundled undici 7) fetch fail with `fetch failed`. The `@earendil-works/pi-coding-agent>undici` override can track 8.x independently because Pi never hands that instance to global fetch.
+- TanStack internal overrides (`@tanstack/history`, `router-core`, `router-generator`, `router-utils`) must move in lockstep with `@tanstack/react-router`; a pinned older `router-core` breaks at runtime with `SyntaxError: ... does not provide an export named 'getUrlScheme'` in unit suites, not at typecheck time.
+- `scripts/package-release-validator.ts` pins `release-please` to an exact version for deterministic preflight contracts; a dependency sweep must not bump it (the unit test catches it).
+- TanStack Query ≥5.102: `queryClient.query()` applies `select`, while the deprecated `fetchQuery` did not — a mechanical `fetchQuery`→`query` migration changes what test assertions receive (selected vs raw queryFn data).
 
 ### `fromPartial` hides fixture mismatches as well as expressing them
 

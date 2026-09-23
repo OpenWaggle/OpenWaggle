@@ -38,7 +38,7 @@ describe('extensionContributionsQueryOptions', () => {
   })
 
   it('omits session context for project-only contribution discovery', async () => {
-    await queryClient().fetchQuery(extensionContributionsQueryOptions([PROJECT_PATH]))
+    await queryClient().query(extensionContributionsQueryOptions([PROJECT_PATH]))
 
     expect(apiMock.listExtensionContributions).toHaveBeenCalledWith({
       projectPaths: [PROJECT_PATH],
@@ -46,7 +46,7 @@ describe('extensionContributionsQueryOptions', () => {
   })
 
   it('includes session context when contribution discovery is session-scoped', async () => {
-    await queryClient().fetchQuery(
+    await queryClient().query(
       extensionContributionsQueryOptions([PROJECT_PATH], { sessionId: 'session-1' }),
     )
 

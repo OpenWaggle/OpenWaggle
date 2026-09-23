@@ -12,6 +12,8 @@ import {
   type StoreSessionResourceBytesInput,
 } from '../ports/session-resource-store'
 import { removeManagedSessionResource } from './filesystem-session-resource-deletion'
+import { copyBoundedSessionResourceFile } from './filesystem-session-resource-file-copy'
+import { readBoundedSessionResourceSource } from './filesystem-session-resource-source-reader'
 import {
   openManagedSessionResourceFile,
   openManagedSessionResourceStream,
@@ -25,7 +27,6 @@ const RESOURCE_DIRECTORY = 'session-resources'
 const MAX_DIRECTORY_ENTRY_BYTES = 255
 const MAX_RESOURCE_ID_BYTES = 64
 const MAX_EXTENSION_BYTES = 32
-const SHA256_PATTERN = /^[a-f0-9]{64}$/u
 
 function storeError(operation: string, cause: unknown) {
   return new SessionResourceStoreError({ operation, cause })
@@ -99,32 +100,6 @@ async function sessionDirectoryFor(root: string, sessionId: string) {
   return realTarget
 }
 
-function validateFileCopyLimits(input: {
-  readonly expectedSizeBytes: number
-  readonly expectedSha256?: string
-  readonly maxSizeBytes: number
-}) {
-  if (
-    !Number.isSafeInteger(input.expectedSizeBytes) ||
-    input.expectedSizeBytes < 0 ||
-    !Number.isSafeInteger(input.maxSizeBytes) ||
-    input.maxSizeBytes <= 0 ||
-    input.expectedSizeBytes > input.maxSizeBytes ||
-    (input.expectedSha256 !== undefined && !SHA256_PATTERN.test(input.expectedSha256))
-  ) {
-    throw new Error('Session resource file copy limits are invalid.')
-  }
-}
-
-async function writeChunk(handle: fs.FileHandle, chunk: Buffer) {
-  let offset = 0
-  while (offset < chunk.byteLength) {
-    const { bytesWritten } = await handle.write(chunk, offset, chunk.byteLength - offset, null)
-    if (bytesWritten <= 0) throw new Error('Session resource file copy made no progress.')
-    offset += bytesWritten
-  }
-}
-
 async function writeBytesAtomically(temporaryPath: string, targetPath: string, bytes: Uint8Array) {
   let handle: fs.FileHandle | null = null
   let ownsTemporary = false
@@ -139,59 +114,6 @@ async function writeBytesAtomically(temporaryPath: string, targetPath: string, b
     await handle?.close().catch(() => {})
     if (ownsTemporary) await fs.rm(temporaryPath, { force: true }).catch(() => {})
     throw cause
-  }
-}
-
-async function copyBoundedFile(input: {
-  readonly sourcePath: string
-  readonly temporaryPath: string
-  readonly expectedSizeBytes: number
-  readonly expectedSha256?: string
-  readonly maxSizeBytes: number
-}) {
-  validateFileCopyLimits(input)
-  const hash = createHash('sha256')
-  const sourceHandle = await fs.open(input.sourcePath, 'r')
-  let sizeBytes = 0
-  try {
-    const stats = await sourceHandle.stat()
-    if (
-      !stats.isFile() ||
-      stats.size !== input.expectedSizeBytes ||
-      stats.size > input.maxSizeBytes
-    ) {
-      throw new Error('Session resource source size changed before it could be copied.')
-    }
-    const targetHandle = await fs.open(input.temporaryPath, 'wx')
-    try {
-      for await (const chunk of sourceHandle.createReadStream({ autoClose: false })) {
-        if (!Buffer.isBuffer(chunk)) throw new Error('Session resource source emitted text data.')
-        if (
-          chunk.byteLength > input.expectedSizeBytes - sizeBytes ||
-          chunk.byteLength > input.maxSizeBytes - sizeBytes
-        ) {
-          throw new Error('Session resource source exceeds its allowed size.')
-        }
-        await writeChunk(targetHandle, chunk)
-        hash.update(chunk)
-        sizeBytes += chunk.byteLength
-      }
-      if (sizeBytes !== input.expectedSizeBytes) {
-        throw new Error('Session resource source size changed before it could be copied.')
-      }
-      const sha256 = hash.digest('hex')
-      if (input.expectedSha256 && sha256 !== input.expectedSha256) {
-        throw new Error('Session resource source contents changed before they could be copied.')
-      }
-      await targetHandle.close()
-      return { sha256, sizeBytes }
-    } catch (cause) {
-      await targetHandle.close().catch(() => {})
-      await fs.rm(input.temporaryPath, { force: true }).catch(() => {})
-      throw cause
-    }
-  } finally {
-    await sourceHandle.close().catch(() => {})
   }
 }
 
@@ -229,7 +151,7 @@ function makeStore(root: string): SessionResourceStoreShape {
             managedFileName(input.resourceId, input.fileName),
           )
           const temporary = await prepareTemporaryPath(sessionDirectory, target)
-          const copied = await copyBoundedFile({
+          const copied = await copyBoundedSessionResourceFile({
             sourcePath: input.sourcePath,
             temporaryPath: temporary,
             expectedSizeBytes: input.expectedSizeBytes,
@@ -245,6 +167,11 @@ function makeStore(root: string): SessionResourceStoreShape {
           return { path: target, ...copied }
         },
         catch: (cause) => storeError('storeFile', cause),
+      }),
+    readSource: (input) =>
+      Effect.tryPromise({
+        try: () => readBoundedSessionResourceSource(input),
+        catch: (cause) => storeError('readSource', cause),
       }),
     inspect: (managedPath) =>
       Effect.tryPromise({

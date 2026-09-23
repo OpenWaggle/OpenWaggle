@@ -92,6 +92,7 @@ export function getSessionResourceHandlerMocks() {
 }
 
 vi.mock('../typed-ipc', () => ({
+  hostHandle: handlerMocks.typedHandle,
   typedHandle: handlerMocks.typedHandle,
   typedOn: handlerMocks.typedOn,
 }))

@@ -13,7 +13,6 @@ import { sessionResourceTestSessionLayer } from './session-resource-capture-test
 
 export const PNG_BASE64 =
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAADUlEQVQImWP4z8DwHwAFAAH/q842iQAAAABJRU5ErkJggg=='
-
 interface SessionResourceTestLayerOptions {
   readonly duplicateLocator?: string
   readonly existingResource?: SessionResource
@@ -28,6 +27,7 @@ interface SessionResourceTestLayerOptions {
   readonly managedReadFails?: boolean
   readonly inspectedManagedPaths?: string[]
   readonly readManagedPaths?: string[]
+  readonly readSourceFails?: boolean
   readonly storeFileFails?: boolean
   readonly listedResources?: readonly SessionResource[]
   readonly hasOccurrence?: boolean
@@ -257,6 +257,10 @@ export function sessionResourceTestLayer(
             sizeBytes: input.bytes.byteLength,
           })
         },
+        readSource: () =>
+          options.readSourceFails
+            ? Effect.fail(new SessionResourceStoreError({ operation: 'readSource' }))
+            : Effect.succeed(Buffer.from(PNG_BASE64, 'base64')),
         inspect: (managedPath) =>
           Effect.sync(() => options.inspectedManagedPaths?.push(managedPath)).pipe(
             Effect.flatMap(() =>

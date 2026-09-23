@@ -9,7 +9,7 @@ export interface DiffFileNavigation {
 
 /** Retains navigation requests until progressive patch preparation reaches the requested file. */
 export function usePreparedDiffFileNavigation(
-  viewerRef: RefObject<CodeViewHandle<ReviewAnnotationMetadata> | null>,
+  viewerRef: RefObject<CodeViewHandle<ReviewAnnotationMetadata, undefined> | null>,
   navigation: DiffFileNavigation | null,
   preparedPaths: ReadonlySet<string>,
 ) {

@@ -23,6 +23,7 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('../typed-ipc', () => ({
+  hostHandle: mocks.typedHandle,
   typedHandle: mocks.typedHandle,
   typedOn: mocks.typedOn,
 }))

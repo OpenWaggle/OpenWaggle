@@ -144,9 +144,10 @@ describe('Session Host migration identity compatibility', () => {
         const sql = yield* SqlClient.SqlClient
         yield* runAppDatabaseMigrations
         yield* sql`INSERT INTO sessions (id, pi_session_id, title, created_at, updated_at) VALUES ('kept', 'pi-kept', 'Pre-Summary worker', 1, 2)`
-        yield* sql`DELETE FROM _migrations WHERE id BETWEEN 28 AND 48`
+        yield* sql`DELETE FROM _migrations WHERE id BETWEEN 28 AND 48 OR id = 59`
         yield* sql`DELETE FROM _migrations WHERE id = ${SESSION_HOST_PROJECT_CATALOG_GENERATION_MIGRATION_ID}`
-        yield* sql`UPDATE _migrations SET id = id - 21, applied_at = 'pre-summary-host' WHERE id >= 49`
+        yield* sql`UPDATE _migrations SET id = id - 21, applied_at = 'pre-summary-host'
+          WHERE id BETWEEN 49 AND 58`
 
         expect(
           yield* sql`SELECT id, name FROM _migrations WHERE id BETWEEN 28 AND 35 ORDER BY id`,

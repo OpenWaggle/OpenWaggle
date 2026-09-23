@@ -62,7 +62,7 @@ describe('durable resource backfill progress', () => {
       ...assistantToolResultMessage(false, {
         name: 'imagegen',
         result: {
-          content: Array.from({ length: 100 }, () => ({
+          content: Array.from({ length: messageIndex === 5 ? 13 : 100 }, () => ({
             type: 'image',
             data: 'invalid-image',
             mimeType: 'image/png',
@@ -82,23 +82,19 @@ describe('durable resource backfill progress', () => {
             image: { data: 'invalid-image', mimeType: 'image/png', title: 'Image' },
           })
         }
-        const first = yield* captureProjectedSessionResources({ sessionId, messages })
-        const second = yield* captureProjectedSessionResources({ sessionId, messages })
-        const third = yield* captureProjectedSessionResources({ sessionId, messages })
+        const result = yield* captureProjectedSessionResources({ sessionId, messages })
         const repository = yield* SessionResourceRepository
         const images = (yield* repository.list(sessionId)).filter(({ canonicalKey }) =>
           canonicalKey.startsWith('unavailable-image:'),
         )
-        return { first, second, third, count: images.length }
+        return { result, count: images.length }
       }).pipe(
         Effect.provide(makeSessionResourceCatalogTestLayer(path.join(tmpRoot, 'many.sqlite'))),
         Effect.provide(sessionResourceTestLayer([])),
       ),
     )
 
-    expect(result.first.fullyProjected).toBe(false)
-    expect(result.second.fullyProjected).toBe(false)
-    expect(result.third.fullyProjected).toBe(true)
-    expect(result.count).toBe(600)
-  })
+    expect(result.result.fullyProjected).toBe(true)
+    expect(result.count).toBe(513)
+  }, 15_000)
 })

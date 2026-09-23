@@ -3,7 +3,7 @@ import type { Socket } from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
 import { SupportedModelId } from '@shared/types/brand'
-import { LOCAL_SESSION_UPDATE_REVISION } from '@shared/types/local-session-protocol'
+import { LOCAL_SESSION_WORKTREE_LAUNCH_REVISION } from '@shared/types/local-session-protocol'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { SessionHostEventHub } from '../../application/session-host-event-hub'
 import { SessionHostLiveness } from '../../application/session-host-liveness'
@@ -22,7 +22,7 @@ describe('Local Session worktree event revision', () => {
     if (temporaryRoot) await fs.rm(temporaryRoot, { recursive: true, force: true })
   })
 
-  it('does not send revision-fifteen worktree events to a revision-fourteen client', async () => {
+  it('sends worktree events to the supported revision-fifteen client', async () => {
     temporaryRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-session-host-'))
     const eventHub = new SessionHostEventHub({ hostInstanceId: 'host-current' })
     const liveness = new SessionHostLiveness({
@@ -42,14 +42,14 @@ describe('Local Session worktree event revision', () => {
     client.write(
       encodeLocalSessionFrame({
         protocol: 'openwaggle-local-session',
-        supportedRevisions: [LOCAL_SESSION_UPDATE_REVISION],
+        supportedRevisions: [LOCAL_SESSION_WORKTREE_LAUNCH_REVISION],
         clientKind: 'cli',
         clientVersion: 'previous',
       }),
     )
     await expect(reader.next()).resolves.toMatchObject({
       accepted: true,
-      revision: LOCAL_SESSION_UPDATE_REVISION,
+      revision: LOCAL_SESSION_WORKTREE_LAUNCH_REVISION,
     })
     client.write(encodeLocalSessionFrame({ kind: 'subscribe', requestId: 'subscribe' }))
     await expect(reader.next()).resolves.toMatchObject({ kind: 'subscribed' })
@@ -71,7 +71,13 @@ describe('Local Session worktree event revision', () => {
       operation: 'message',
     })
 
-    await expect(reader.next()).resolves.toMatchObject({ kind: 'cursor-advanced' })
+    await expect(reader.next()).resolves.toMatchObject({
+      kind: 'event',
+      event: {
+        cursor: expect.any(Object),
+        payload: { kind: 'session-worktree-launch' },
+      },
+    })
     await expect(reader.next()).resolves.toMatchObject({
       kind: 'event',
       event: { ...visible, cursor: expect.any(Object) },
