@@ -9,6 +9,7 @@ const invocation = { type: 'command', cwd: '/repo', command: 'source ./setup' } 
 const powerShell = process.platform === 'win32' ? 'powershell.exe' : 'pwsh'
 const powerShellAvailable =
   spawnSync(powerShell, ['-NoLogo', '-NonInteractive', '-Command', '$null']).status === 0
+const failedNative = process.platform === 'win32' ? '& cmd.exe /c exit 7' : '& /usr/bin/false'
 
 describe('preparation shell selection', () => {
   it.each(['/bin/bash', '/bin/zsh', '/usr/bin/fish'])(
@@ -45,7 +46,7 @@ describe('preparation shell selection', () => {
         {
           type: 'command',
           cwd: directory,
-          command: '$global:LASTEXITCODE = 7; $env:OW_SETUP_HANDLED = "yes"',
+          command: `${failedNative}; $env:OW_SETUP_HANDLED = "yes"`,
         },
         destination,
         powerShell,

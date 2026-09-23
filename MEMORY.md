@@ -879,6 +879,9 @@ while the chooser's catalog request is still loading; otherwise the new Session 
 message at setup snapshot capture. PowerShell setup capture must decide success from the last command's
 `$?`, using `$LASTEXITCODE` only for a failed final command. A handled earlier native failure can leave
 `$LASTEXITCODE` nonzero even though the final setup command succeeded and exported its environment.
+Apply the same final-status rule to ordinary PowerShell custom actions: an earlier handled native
+failure must not mark a successful final command as a failed action. The single `.cmd`/`.bat` shim
+wrapper still uses its direct native process exit code.
 Within the Workspace mutation fence, archive first, then stop services only after the archive
 commits and removes the last active binding. A failed archive must leave running services alive.
 After a committed archive or handoff, a service-stop failure must not make the mutation appear to

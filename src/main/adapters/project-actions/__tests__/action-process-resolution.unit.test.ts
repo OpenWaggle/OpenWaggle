@@ -54,6 +54,39 @@ async function expectResolution(command: string, path: string, expected: string)
 }
 
 describe('action executable resolution', () => {
+  it.skipIf(process.platform === 'win32')(
+    'uses the final PowerShell command status for custom actions',
+    async () => {
+      const shell = join(workspace, 'pwsh')
+      await writeFile(shell, '#!/bin/sh\nexit 0\n', { mode: 0o700 })
+      const invocation = {
+        type: 'command' as const,
+        command: '$global:LASTEXITCODE = 7; Write-Output "handled"',
+        cwd: workspace,
+      }
+      await expect(
+        createActionProcessRunner('test').start({
+          invocation,
+          environment: { SHELL: shell },
+          onOutput: () => {},
+        }),
+      ).rejects.toBe(stoppedBeforeLaunch)
+      expect(spawn).toHaveBeenCalledWith(
+        expect.objectContaining({
+          execution: {
+            command: shell,
+            args: [
+              '-NoLogo',
+              '-NonInteractive',
+              '-Command',
+              `${invocation.command}\nif ($?) { exit 0 }; exit 1`,
+            ],
+          },
+        }),
+      )
+    },
+  )
+
   it('resolves a setup-provided relative PATH entry from the action directory', async () => {
     const expected = await executable(join(workspace, 'bin'))
     await expectResolution(RUNNER_NAME, 'bin', expected)

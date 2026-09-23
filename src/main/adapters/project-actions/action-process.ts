@@ -130,7 +130,7 @@ async function processCommand(
         '-NoLogo',
         '-NonInteractive',
         '-Command',
-        `${invocation.command}\nif (-not $?) { exit 1 }; exit $LASTEXITCODE`,
+        `${invocation.command}\nif ($?) { exit 0 }; exit 1`,
       ],
     }
   return { command, args: ['-c', invocation.command] }

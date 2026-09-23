@@ -1,3 +1,4 @@
+import { spawnSync } from 'node:child_process'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -6,6 +7,10 @@ import { type ActionProcess, createActionProcessRunner } from '../action-process
 
 let root: string
 const live: ActionProcess[] = []
+const powerShell = process.platform === 'win32' ? 'powershell.exe' : 'pwsh'
+const powerShellAvailable =
+  spawnSync(powerShell, ['-NoLogo', '-NonInteractive', '-Command', '$null']).status === 0
+const failedNative = process.platform === 'win32' ? '& cmd.exe /c exit 7' : '& /usr/bin/false'
 beforeEach(async () => {
   root = await mkdtemp(join(tmpdir(), 'openwaggle-action-process-'))
 })
@@ -33,6 +38,28 @@ it('runs a finite command through an owned PTY and retains its actual exit code 
   expect(await child.closed).toEqual({ exitCode: 7 })
   expect(output).toContain('action evidence')
 })
+
+it.skipIf(!powerShellAvailable)(
+  'treats a handled earlier native failure as a successful PowerShell action',
+  async () => {
+    const runner = createActionProcessRunner('test')
+    let output = ''
+    const child = await runner.start({
+      invocation: {
+        type: 'command',
+        command: `${failedNative}; Write-Output "handled"`,
+        cwd: root,
+      },
+      environment: { SHELL: powerShell },
+      onOutput: (chunk) => {
+        output += chunk
+      },
+    })
+    live.push(child)
+    expect(await child.closed).toEqual({ exitCode: 0 })
+    expect(output).toContain('handled')
+  },
+)
 
 it('stops the same owned service process and waits for its process tree to exit', async () => {
   const runner = createActionProcessRunner('test')
