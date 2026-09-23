@@ -40,6 +40,52 @@ it('serializes GUI and agent starts into one execution and deduplicates retried 
   expect((await fixture.runs.start(input('new-request'))).id).not.toBe(gui.id)
 })
 
+it('stops a persisted starting run before its process launch settles', async () => {
+  const launch = fixture.pauseLaunch()
+  const starting = fixture.runs.start(input('slow-start'))
+  await launch.entered
+  const listed = (await fixture.runs.list(fixture.workspace.workspaceId))[0]
+  expect(listed?.status).toBe('starting')
+  const stopping = fixture.runs.stop(fixture.workspace.workspaceId, listed?.id ?? '')
+  expect((await stopping).status).toBe('stopped')
+  expect((await starting).status).toBe('stopped')
+  expect(fixture.processes).toHaveLength(0)
+  launch.resume()
+  await expect.poll(() => fixture.processes[0]?.isStopped()).toBe(true)
+  await expect.poll(() => fixture.owners()).toBe(0)
+})
+
+it('stops a starting service during workspace release', async () => {
+  fixture.edit([{ ...fixture.definition, kind: 'service' }])
+  const launch = fixture.pauseLaunch()
+  const starting = fixture.runs.start(input('slow-service'))
+  await launch.entered
+  const stopping = fixture.runs.stopWorkspaceServices(fixture.workspace.workspaceId)
+  await stopping
+  expect((await starting).status).toBe('stopped')
+  expect(fixture.processes).toHaveLength(0)
+  launch.resume()
+  await expect.poll(() => fixture.processes[0]?.isStopped()).toBe(true)
+  await expect.poll(() => fixture.owners()).toBe(0)
+})
+
+it('keeps a late process owned and Stop retryable if its first cleanup fails', async () => {
+  const launch = fixture.pauseLaunch()
+  const starting = fixture.runs.start(input('late-cleanup'))
+  await launch.entered
+  const runId = (await fixture.runs.list(fixture.workspace.workspaceId))[0]?.id ?? ''
+  await fixture.runs.stop(fixture.workspace.workspaceId, runId)
+  await starting
+  fixture.failStop(new Error('Process exit could not be confirmed'))
+  launch.resume()
+  await expect.poll(() => fixture.errors.length).toBeGreaterThan(0)
+  expect((await fixture.runs.list(fixture.workspace.workspaceId))[0]?.status).toBe('stopping')
+  expect(fixture.owners()).toBe(1)
+  fixture.failStop(null)
+  expect((await fixture.runs.stop(fixture.workspace.workspaceId, runId)).status).toBe('stopped')
+  expect(fixture.owners()).toBe(0)
+})
+
 it('opens an existing execution after definition removal and validates Restart before stopping it', async () => {
   const first = await fixture.runs.start(input('first'))
   fixture.edit([])

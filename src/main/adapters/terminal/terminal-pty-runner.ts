@@ -150,6 +150,10 @@ function preparePtyLaunch(
     : prepareTerminalShellLaunch(candidate, environment, request.readinessNonce)
 }
 
+function assertLaunchNotCanceled(request: PtySpawnRequest) {
+  if (request.signal?.aborted) throw new Error('Action launch canceled.')
+}
+
 export function makePtyRunner(options: PtyRunnerOptions): PtyRunner {
   const loadPtyModule = makePtyModuleLoader(options)
   const spawn = async (request: PtySpawnRequest) => {
@@ -185,6 +189,7 @@ export function makePtyRunner(options: PtyRunnerOptions): PtyRunner {
       let spawned: IPty | null = null
       let closeDescriptor: (() => void) | null = null
       try {
+        assertLaunchNotCanceled(request)
         assertDesktopNativeAdmission()
         spawned = pty.spawn(candidate.command, [...launch.args], {
           name: 'xterm-256color',

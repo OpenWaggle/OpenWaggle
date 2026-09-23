@@ -875,6 +875,9 @@ fail. Retry cleanup under the Workspace fence, checking active bindings again so
 keeps its services. Managed runs retain ownership while stop cannot be confirmed.
 Prepared setup exports must not capture or override OpenWaggle's current project root, worktree path,
 or agent-run marker. Pi Bash and PowerShell receive the active run's authoritative Workspace context.
+Persisted `starting` runs must be tracked before native launch. Stop aborts launch promptly and the
+PTY checks cancellation immediately before spawning; any late process remains owned until its tree
+is confirmed stopped, with failed cleanup visible and retryable.
 
 The September 2026 native action verification reproduced a SQLite worker teardown abort on pristine
 main with transitive better-sqlite3 12.11.1. Root and Effect SQLite now share 13.0.3, which includes the

@@ -25,6 +25,7 @@ export interface ActionProcess {
 export interface ActionProcessLaunch {
   readonly invocation: ResolvedActionInvocation
   readonly environment: PreparedEnvironment
+  readonly signal?: AbortSignal
   readonly onOutput: (chunk: string) => void
 }
 
@@ -143,7 +144,8 @@ export function createActionProcessRunner(appVersion: string): ActionProcessRunn
         throw new Error('The action working directory no longer exists.')
       await processCommand(invocation, getInteractiveTerminalEnv(appVersion, overrides))
     },
-    start: async ({ invocation, environment, onOutput }) => {
+    start: async ({ invocation, environment, signal, onOutput }) => {
+      if (signal?.aborted) throw new Error('Action launch canceled.')
       const execution = await processCommand(
         invocation,
         getInteractiveTerminalEnv(appVersion, environment),
@@ -155,6 +157,7 @@ export function createActionProcessRunner(appVersion: string): ActionProcessRunn
         rows: ACTION_TERMINAL_ROWS,
         readinessNonce: 'action',
         execution,
+        signal,
       })
       if (!outcome.ok) throw outcome.error
       const owned: OwnedTerminalProcessTree = {

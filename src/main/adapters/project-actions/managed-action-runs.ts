@@ -1,30 +1,23 @@
-import { randomUUID } from 'node:crypto'
-import { stripVTControlCharacters } from 'node:util'
 import type { ActionCatalog, ActionDefinition } from '@shared/types/action-definitions'
 import { type ActionRun, isActiveActionRun } from '@shared/types/action-runs'
-import { normalizeBrowserPreviewAddress } from '@shared/utils/browser-preview-url'
 import { enqueueProjectConfigWrite } from '../../config/project-config-write-queue'
 import type { PreparedEnvironment } from '../../domain/prepared-environment'
 import type { ActionCatalogScope } from '../../ports/action-catalog-service'
 import type { ActionRunWorkspace, StartManagedActionInput } from '../../ports/action-run-service'
-import { createTerminalHistorySanitizer } from '../terminal/terminal-history-sanitizer'
 import type { TerminalHistoryStore } from '../terminal/terminal-history-store'
-import { createTerminalScrollback } from '../terminal/terminal-scrollback'
 import { resolveManagedActionLaunch } from './action-launch-preflight'
 import { ActionPreviewReadiness, type probeActionPreview } from './action-preview-readiness'
-import type { ActionProcess, ActionProcessRunner } from './action-process'
-import { actionOutputPage, previewFromActionOutput } from './action-run-output'
+import type { ActionProcessRunner } from './action-process'
+import { actionOutputPage } from './action-run-output'
 import type { ActionRunPersistence } from './action-run-persistence'
+import {
+  historyKey,
+  type LiveAction,
+  launchManagedAction,
+  type StartingAction,
+} from './managed-action-launch'
 
 const METADATA_FLUSH_MS = 1_000
-const URL_LOOKBEHIND_CHARACTERS = 4_096
-interface LiveAction {
-  run: ActionRun
-  readonly process: ActionProcess
-  readonly output: ReturnType<typeof createTerminalScrollback>
-  readonly release: () => void
-  finishing: Promise<void> | null
-}
 export interface ManagedActionDependencies {
   readonly persistence: ActionRunPersistence
   readonly history: TerminalHistoryStore
@@ -35,10 +28,10 @@ export interface ManagedActionDependencies {
   readonly reportError: (error: unknown) => void
   readonly probePreview?: typeof probeActionPreview
 }
-const historyKey = (run: ActionRun) => `action:${run.workspaceId}::${run.id}`
 
 export class ManagedActionRuns {
   private readonly active = new Map<string, LiveAction>()
+  private readonly starting = new Map<string, StartingAction>()
   private readonly metadataWrites = new Map<string, Promise<void>>()
   private readonly timers = new Map<string, ReturnType<typeof setTimeout>>()
   private readonly previews: ActionPreviewReadiness
@@ -121,6 +114,22 @@ export class ManagedActionRuns {
     const outcome = await entry.process.closed
     await this.finish(entry, outcome.exitCode)
   }
+  private stopStarting(entry: StartingAction) {
+    if (entry.stopPromise) return entry.stopPromise
+    entry.cancelRequested = true
+    entry.abort.abort()
+    entry.stopPromise = (async () => {
+      entry.run = { ...entry.run, status: 'stopping', ready: false }
+      await this.persist(entry.run)
+      await entry.settled
+      const live = this.active.get(entry.run.id)
+      if (live) await this.stopEntry(live)
+    })().catch((error: unknown) => {
+      entry.stopPromise = null
+      throw error
+    })
+    return entry.stopPromise
+  }
   private existing(workspaceId: string, actionId: string) {
     return [...this.active.values()].find(
       (entry) => entry.run.workspaceId === workspaceId && entry.run.action.id === actionId,
@@ -147,83 +156,28 @@ export class ManagedActionRuns {
     const target = this.active.get(input.restartRunId)
     if (target) await this.stopEntry(target)
   }
-  private async launch(
+  private launch(
     input: StartManagedActionInput,
     action: ActionDefinition,
     invocation: ActionRun['invocation'],
     environment: PreparedEnvironment,
   ) {
-    const release = this.deps.acquireLiveness()
-    const configuredPreviewUrl = action.previewUrl
-      ? normalizeBrowserPreviewAddress(action.previewUrl)
-      : null
-    let run: ActionRun = {
-      id: randomUUID(),
-      requestId: input.requestId,
-      workspaceId: input.workspace.workspaceId,
-      projectPath: input.workspace.projectPath,
-      workspacePath: input.workspace.workspacePath,
+    return launchManagedAction(
+      {
+        deps: this.deps,
+        active: this.active,
+        starting: this.starting,
+        persist: (run) => this.persist(run),
+        watchPreview: (run) => this.watchPreview(run),
+        finish: (entry, exitCode) => this.finish(entry, exitCode),
+        stopEntry: (entry) => this.stopEntry(entry),
+        scheduleMetadata: (runId) => this.scheduleMetadata(runId),
+      },
+      input,
       action,
       invocation,
-      status: 'starting',
-      startedAt: Date.now(),
-      finishedAt: null,
-      exitCode: null,
-      error: null,
-      previewUrl: configuredPreviewUrl,
-      ready: false,
-      outputBytes: 0,
-    }
-    const output = createTerminalScrollback()
-    const sanitizer = createTerminalHistorySanitizer()
-    let lookbehind = ''
-    try {
-      await this.persist(run)
-      await this.deps.persistence.recordRequest(run.workspaceId, action.id, input.requestId, run.id)
-      await this.deps.history.registerWorkingDirectory(historyKey(run), invocation.cwd)
-      const child = await this.deps.runner.start({
-        invocation,
-        environment,
-        onOutput: (chunk) => {
-          const clean = stripVTControlCharacters(sanitizer.feed(chunk))
-          output.append(clean)
-          this.deps.history.append(historyKey(run), clean)
-          lookbehind = (lookbehind + clean).slice(-URL_LOOKBEHIND_CHARACTERS)
-          const current = this.active.get(run.id)
-          const previous = current?.run ?? run
-          const previewUrl =
-            configuredPreviewUrl ?? previewFromActionOutput(lookbehind) ?? previous.previewUrl
-          run = {
-            ...previous,
-            outputBytes: previous.outputBytes + Buffer.byteLength(clean),
-            previewUrl,
-            ready: previewUrl === previous.previewUrl && previous.ready,
-          }
-          if (current) current.run = run
-          if (current) this.watchPreview(run)
-          this.scheduleMetadata(run.id)
-        },
-      })
-      run = { ...run, status: 'running' }
-      const entry: LiveAction = { run, process: child, output, release, finishing: null }
-      this.active.set(run.id, entry)
-      this.watchPreview(run)
-      void child.closed
-        .then(({ exitCode }) => this.finish(entry, exitCode))
-        .catch(this.deps.reportError)
-      await this.persist(run)
-      return this.active.get(run.id)?.run ?? (await this.deps.persistence.get(run.id)) ?? run
-    } catch (error) {
-      if (this.active.has(run.id)) throw error
-      release()
-      await this.persist({
-        ...run,
-        status: 'failed',
-        error: error instanceof Error ? error.message : String(error),
-        finishedAt: Date.now(),
-      })
-      throw error
-    }
+      environment,
+    )
   }
   start(input: StartManagedActionInput) {
     return enqueueProjectConfigWrite(
@@ -271,17 +225,24 @@ export class ManagedActionRuns {
   }
   async stop(workspaceId: string, runId: string) {
     const entry = this.active.get(runId)
-    const run = entry?.run ?? (await this.deps.persistence.get(runId))
+    const starting = this.starting.get(runId)
+    const run = entry?.run ?? starting?.run ?? (await this.deps.persistence.get(runId))
     if (!run || run.workspaceId !== workspaceId)
       throw new Error('Action run not found in this workspace.')
     if (entry) await this.stopEntry(entry)
+    if (!entry && starting) await this.stopStarting(starting)
     return (await this.deps.persistence.get(runId)) ?? run
   }
   async stopWorkspaceRuns(workspaceId: string) {
+    for (const entry of [...this.starting.values()])
+      if (entry.run.workspaceId === workspaceId) await this.stopStarting(entry)
     for (const entry of [...this.active.values()])
       if (entry.run.workspaceId === workspaceId) await this.stopEntry(entry)
   }
   async stopWorkspaceServices(workspaceId: string) {
+    for (const entry of [...this.starting.values()])
+      if (entry.run.workspaceId === workspaceId && entry.run.action.kind === 'service')
+        await this.stopStarting(entry)
     const services = [...this.active.values()].filter(
       (entry) =>
         entry.run.workspaceId === workspaceId &&
@@ -291,6 +252,7 @@ export class ManagedActionRuns {
     for (const entry of services) await this.stopEntry(entry)
   }
   async shutdown() {
+    for (const entry of [...this.starting.values()]) await this.stopStarting(entry)
     for (const entry of [...this.active.values()]) await this.stopEntry(entry)
     await this.deps.history.flush()
     await Promise.all(this.metadataWrites.values())

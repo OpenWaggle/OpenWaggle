@@ -48,6 +48,8 @@ export async function createManagedActionFixture() {
   }
   let validationError: Error | null = null
   let stopError: Error | null = null
+  let launchGate: { promise: Promise<void>; resolve: () => void } | null = null
+  let launchEntered: { promise: Promise<void>; resolve: () => void } | null = null
   let owners = 0
   const processes: {
     readonly emit: (output: string) => void
@@ -64,6 +66,8 @@ export async function createManagedActionFixture() {
         if (validationError) throw validationError
       },
       start: async ({ onOutput }) => {
+        launchEntered?.resolve()
+        if (launchGate) await launchGate.promise
         const closed = Promise.withResolvers<{ exitCode: number | null }>()
         let stopped = false
         processes.push({
@@ -119,7 +123,13 @@ export async function createManagedActionFixture() {
     failStop: (error: Error | null) => {
       stopError = error
     },
+    pauseLaunch: () => {
+      launchGate = Promise.withResolvers<void>()
+      launchEntered = Promise.withResolvers<void>()
+      return { entered: launchEntered.promise, resume: () => launchGate?.resolve() }
+    },
     dispose: async () => {
+      launchGate?.resolve()
       stopError = null
       await runs.shutdown()
       await rm(root, { recursive: true, force: true })
