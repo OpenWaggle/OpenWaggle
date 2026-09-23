@@ -307,4 +307,25 @@ describe('settings store loading', () => {
       'frontend-design': false,
     })
   })
+
+  it('sets, clears, and migrates project models without losing entries', async () => {
+    const {
+      getSettings,
+      initializeSettingsStore,
+      migrateSelectedModelDurably,
+      resetSettingsStoreForTests,
+      updateSelectedModelDurably,
+    } = await loadSettingsModule()
+
+    await updateSelectedModelDurably('/tmp/model-a', 'openai/gpt-4.1')
+    // Insert-if-absent must not overwrite an explicit choice made after the legacy read.
+    expect(await migrateSelectedModelDurably('/tmp/model-a', 'legacy/file')).toBe(false)
+    expect(await migrateSelectedModelDurably('/tmp/model-b', 'legacy/file')).toBe(true)
+    await updateSelectedModelDurably('/tmp/model-a', null)
+
+    await resetSettingsStoreForTests()
+    await initializeSettingsStore()
+
+    expect(getSettings().selectedModelsByProject).toEqual({ '/tmp/model-b': 'legacy/file' })
+  })
 })

@@ -97,9 +97,10 @@ export function getProjectPreferencesOperation(rawProjectPath: unknown) {
  *
  * Legacy handling: upgraded projects may still carry a `model` in the settings file. The file
  * writer strips it on every write, so before any strip this operation first makes the DB own the
- * value — an explicit write wins, otherwise the legacy value is migrated when the DB has no entry
- * yet. An explicit `null` clears the DB entry AND forces a file rewrite so the legacy value cannot
- * resurrect through the read fallback.
+ * value — an explicit write wins, otherwise the legacy value is migrated with an atomic
+ * insert-if-absent write so it can never overwrite a newer explicit choice. An explicit `null`
+ * clears the DB entry and rewrites the file (when it still carries a legacy model) so the value
+ * cannot resurrect through the read fallback.
  */
 export function setProjectPreferencesOperation(rawProjectPath: unknown, rawPreferences: unknown) {
   return Effect.gen(function* () {
@@ -113,20 +114,19 @@ export function setProjectPreferencesOperation(rawProjectPath: unknown, rawPrefe
 
     if (model !== undefined) {
       yield* writeProjectModel(settings, projectPath, model)
-    } else {
-      // An unrelated file-backed write strips the legacy model below; migrate it first so the
-      // user's override survives, unless the DB already owns a (newer) value.
-      const legacyModel = filePrefs?.model
-      const dbModel = (yield* settings.get()).selectedModelsByProject[projectPath]
-      if (legacyModel && !dbModel) {
-        yield* writeProjectModel(settings, projectPath, legacyModel)
-      }
+    } else if (filePrefs?.model !== undefined) {
+      // An unrelated file-backed write strips the legacy model below. Migrate it first so the
+      // user's override survives; the insert-if-absent writer runs inside the settings write
+      // queue, so it can never overwrite a newer explicit model choice.
+      yield* migrateProjectModel(settings, projectPath, filePrefs.model)
     }
 
     // The file writer strips any legacy model, so a rewrite must also happen for an explicit
-    // clear (model === null) even when no other file-backed preference changed.
+    // clear (model === null) of a project whose file still carries one — otherwise the read
+    // fallback would resurrect it. Projects without a legacy file model only touch the DB.
+    const clearsLegacyFileModel = model === null && filePrefs?.model !== undefined
     if (
-      model === null ||
+      clearsLegacyFileModel ||
       filePreferences.thinkingLevel !== undefined ||
       filePreferences.authorizationMode !== undefined
     ) {
@@ -138,6 +138,19 @@ export function setProjectPreferencesOperation(rawProjectPath: unknown, rawPrefe
         grantPendingAuthorizationsWhereFullAccess(resolveEffectiveAuthorizationMode),
       )
     }
+  })
+}
+
+function migrateProjectModel(settings: SettingsServiceShape, projectPath: string, model: string) {
+  if (settings.migrateProjectModel) {
+    return settings.migrateProjectModel(projectPath, model)
+  }
+  // Fallback for service shapes without the atomic writer (test fakes).
+  return Effect.gen(function* () {
+    const current = yield* settings.get()
+    if (Object.hasOwn(current.selectedModelsByProject, projectPath)) return false
+    yield* writeProjectModel(settings, projectPath, model)
+    return true
   })
 }
 

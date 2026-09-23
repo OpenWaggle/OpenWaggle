@@ -10,6 +10,7 @@ const {
   updateSkillToggleDurablyMock,
   updateAgentDefinitionToggleDurablyMock,
   updateSelectedModelDurablyMock,
+  migrateSelectedModelDurablyMock,
   initializeSettingsStoreMock,
   refreshSettingsStoreMock,
   flushSettingsStoreMock,
@@ -22,6 +23,7 @@ const {
   updateSkillToggleDurablyMock: vi.fn(),
   updateAgentDefinitionToggleDurablyMock: vi.fn(),
   updateSelectedModelDurablyMock: vi.fn(),
+  migrateSelectedModelDurablyMock: vi.fn(),
   initializeSettingsStoreMock: vi.fn(),
   refreshSettingsStoreMock: vi.fn(),
   flushSettingsStoreMock: vi.fn(),
@@ -44,6 +46,7 @@ vi.mock('../../store/settings', () => ({
   updateSkillToggleDurably: updateSkillToggleDurablyMock,
   updateAgentDefinitionToggleDurably: updateAgentDefinitionToggleDurablyMock,
   updateSelectedModelDurably: updateSelectedModelDurablyMock,
+  migrateSelectedModelDurably: migrateSelectedModelDurablyMock,
   initializeSettingsStore: initializeSettingsStoreMock,
   refreshSettingsStore: refreshSettingsStoreMock,
   flushSettingsStoreForTests: flushSettingsStoreMock,
@@ -216,6 +219,22 @@ describe('SettingsService.Live', () => {
       'openai/gpt-4.1',
     )
     expect(updateSelectedModelDurablyMock).toHaveBeenNthCalledWith(2, '/tmp/project', null)
+    expect(updateSettingsDurablyMock).not.toHaveBeenCalled()
+  })
+
+  it('delegates legacy model migration to the queue-safe insert-if-absent operation', async () => {
+    migrateSelectedModelDurablyMock.mockResolvedValue(true)
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const service = yield* SettingsService
+        if (service.migrateProjectModel === undefined) {
+          throw new Error('Missing queue-safe legacy model migration')
+        }
+        const inserted = yield* service.migrateProjectModel('/tmp/project', 'legacy/file')
+        expect(inserted).toBe(true)
+      }).pipe(Effect.provide(SettingsService.Live)),
+    )
+    expect(migrateSelectedModelDurablyMock).toHaveBeenCalledWith('/tmp/project', 'legacy/file')
     expect(updateSettingsDurablyMock).not.toHaveBeenCalled()
   })
 

@@ -49,6 +49,7 @@ describe('Host-backed project preferences', () => {
   let storedModels: Record<string, string>
   let updates: Array<{ selectedModelsByProject?: Record<string, string> }>
   let projectModelWrites: Array<[string, string | null]> | undefined
+  let projectModelMigrations: Array<[string, string]> | undefined
   let projectPath: string
 
   function makeService(): SettingsServiceShape {
@@ -68,6 +69,20 @@ describe('Host-backed project preferences', () => {
               }),
           }
         : {}),
+      ...(projectModelMigrations
+        ? {
+            migrateProjectModel: (migrationPath: string, model: string) =>
+              Effect.sync(() => {
+                projectModelMigrations?.push([migrationPath, model])
+                // Mirrors the queue-safe store writer: insert only while no entry exists.
+                if (!Object.hasOwn(storedModels, migrationPath)) {
+                  storedModels = { ...storedModels, [migrationPath]: model }
+                  return true
+                }
+                return false
+              }),
+          }
+        : {}),
       initialize: () => Effect.succeed(undefined),
       flushForTests: () => Effect.succeed(undefined),
     }
@@ -82,6 +97,7 @@ describe('Host-backed project preferences', () => {
     storedModels = {}
     updates = []
     projectModelWrites = undefined
+    projectModelMigrations = undefined
     projectPath = '/project'
   })
 
@@ -129,35 +145,49 @@ describe('Host-backed project preferences', () => {
     expect(mocks.setPreferences).toHaveBeenCalledWith('/project', { thinkingLevel: 'high' })
   })
 
-  it('clears the DB model entry and rewrites the file when the write passes null', async () => {
+  it('clears the DB model entry without touching the file when no legacy model exists', async () => {
     storedModels = { '/project': 'openai/gpt-4.1' }
 
     await run(setProjectPreferencesOperation('/project', { model: null }))
 
     expect(updates).toEqual([{ selectedModelsByProject: {} }])
-    // The rewrite strips any legacy file model so the clear cannot resurrect it.
-    expect(mocks.setPreferences).toHaveBeenCalledWith('/project', {})
+    // The file holds no legacy model, so the selected model is DB-only and no rewrite is needed.
+    expect(mocks.setPreferences).not.toHaveBeenCalled()
+  })
+
+  it('rewrites the file on an explicit clear when the file still carries a legacy model', async () => {
+    projectPath = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-legacy-model-'))
+    await writeLegacyModelFile(projectPath)
+
+    await run(setProjectPreferencesOperation(projectPath, { model: null }))
+
+    expect(mocks.setPreferences).toHaveBeenCalledWith(projectPath, {})
   })
 
   it('migrates a legacy file model to the DB before an unrelated write strips it', async () => {
     projectPath = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-legacy-model-'))
     await writeLegacyModelFile(projectPath)
+    projectModelMigrations = []
 
     await run(setProjectPreferencesOperation(projectPath, { thinkingLevel: 'high' }))
 
-    // The legacy override must survive the strip: it moves into the DB first.
-    expect(updates).toEqual([{ selectedModelsByProject: { [projectPath]: 'legacy/file' } }])
+    // The legacy override must survive the strip: it moves into the DB via the atomic
+    // insert-if-absent writer, which never overwrites an existing entry.
+    expect(projectModelMigrations).toEqual([[projectPath, 'legacy/file']])
+    expect(storedModels).toEqual({ [projectPath]: 'legacy/file' })
     expect(mocks.setPreferences).toHaveBeenCalledWith(projectPath, { thinkingLevel: 'high' })
   })
 
-  it('does not migrate a legacy file model when the DB already owns a newer value', async () => {
+  it('does not overwrite a newer DB value when migrating a legacy file model', async () => {
     projectPath = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-legacy-model-'))
     storedModels = { [projectPath]: 'db/newer' }
     await writeLegacyModelFile(projectPath)
+    projectModelMigrations = []
 
     await run(setProjectPreferencesOperation(projectPath, { thinkingLevel: 'high' }))
 
-    expect(updates).toEqual([])
+    expect(projectModelMigrations).toEqual([[projectPath, 'legacy/file']])
+    expect(storedModels).toEqual({ [projectPath]: 'db/newer' })
     expect(mocks.setPreferences).toHaveBeenCalledWith(projectPath, { thinkingLevel: 'high' })
   })
 })

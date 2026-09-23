@@ -108,14 +108,17 @@ async function writeStoredSettingsToDb(writes: readonly SettingsPatchWrite[]) {
   )
 }
 
-function enqueueSettingsWrite(operation: () => Promise<void>, description: string) {
+function enqueueSettingsWrite<T>(operation: () => Promise<T>, description: string) {
   const pending = writeQueue.then(operation)
-  writeQueue = pending.catch((error) => {
-    logger.warn('Failed to write setting to SQLite', {
-      setting: description,
-      error: describeError(error),
-    })
-  })
+  writeQueue = pending.then(
+    () => undefined,
+    (error: unknown) => {
+      logger.warn('Failed to write setting to SQLite', {
+        setting: description,
+        error: describeError(error),
+      })
+    },
+  )
   return pending
 }
 
@@ -299,6 +302,22 @@ export function updateSelectedModelDurably(
       selectedModelsByProject: model === null ? rest : { ...rest, [projectPath]: model },
     })
   }, 'project model')
+}
+
+/**
+ * Inserts one project's legacy selected model into the DB only while no entry exists. Runs inside
+ * the write queue, so a concurrent explicit model write can never be overwritten by the stale
+ * legacy value; returns whether the migration inserted anything.
+ */
+export function migrateSelectedModelDurably(projectPath: string, model: string): Promise<boolean> {
+  assertSettingsReady()
+  return enqueueSettingsWrite(async () => {
+    if (Object.hasOwn(settingsCache.selectedModelsByProject, projectPath)) return false
+    await persistSettingsPatch({
+      selectedModelsByProject: { ...settingsCache.selectedModelsByProject, [projectPath]: model },
+    })
+    return true
+  }, 'project model migration')
 }
 
 /**

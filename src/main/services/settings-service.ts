@@ -21,6 +21,11 @@ export interface SettingsServiceShape {
     projectPath: string,
     model: string | null,
   ) => Effect.Effect<void, Error>
+  /** Inserts a project's legacy model into the DB only while no entry exists; returns whether it inserted. */
+  readonly migrateProjectModel?: (
+    projectPath: string,
+    model: string,
+  ) => Effect.Effect<boolean, Error>
   readonly initialize: () => Effect.Effect<void, SettingsStoreReadError>
   readonly flushForTests: () => Effect.Effect<void, Error>
 }
@@ -52,6 +57,7 @@ export class SettingsService extends Context.Tag('@openwaggle/SettingsService')<
       updateSkillToggleDurably,
       updateAgentDefinitionToggleDurably,
       updateSelectedModelDurably,
+      migrateSelectedModelDurably,
       initializeSettingsStore,
       refreshSettingsStore,
       hydrateSettingsStoreFromHost,
@@ -101,6 +107,14 @@ export class SettingsService extends Context.Tag('@openwaggle/SettingsService')<
           try: async () => {
             await readSettings()
             await updateSelectedModelDurably(projectPath, model)
+          },
+          catch: toError,
+        }),
+      migrateProjectModel: (projectPath, model) =>
+        Effect.tryPromise({
+          try: async () => {
+            await readSettings()
+            return await migrateSelectedModelDurably(projectPath, model)
           },
           catch: toError,
         }),

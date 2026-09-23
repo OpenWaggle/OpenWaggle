@@ -35,6 +35,7 @@ vi.mock('../../store/settings', () => ({
   updateSkillToggleDurably: vi.fn(),
   updateAgentDefinitionToggleDurably: vi.fn(),
   updateSelectedModelDurably: vi.fn(),
+  migrateSelectedModelDurably: vi.fn(),
   flushSettingsStoreForTests: vi.fn(),
 }))
 
