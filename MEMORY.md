@@ -821,8 +821,10 @@ default; only explicit sharing writes `.openwaggle/actions.json`. The detached S
 action processes, while the GUI reconnects to durable run IDs and output cursors. Workspace mutation
 admission must serialize launches against final binding release and physical worktree removal.
 The native action manifest caps shortcut rules both per action and across all actions in one
-manifest at the shared 256-rule project limit; enforce this on read and edit before Settings builds
-its pairwise shortcut browser rows.
+manifest at the shared 256-rule project limit. Also count the effective catalog after personal
+overrides merge with shared definitions: independently valid manifests can otherwise exceed the
+project limit. Enforce this on read and edit before Settings builds its pairwise shortcut browser
+rows, counting a hidden shared definition only when it is not overridden.
 Keep the Pi-native `project_actions` tool's registered schema flat at the root. Some
 OpenAI-completions providers emit empty arguments for a root `anyOf`; use an `action` literal union
 with optional fields in the provider schema and validate each action's required fields before work.

@@ -5,6 +5,7 @@ import type {
   ActionManifest,
   PreparationReview,
 } from '@shared/types/action-definitions'
+import { PROJECT_ACTION_LIMITS } from '@shared/types/project-actions'
 import { effective, effectivePreparation, upsertPreparation } from './effective-project-definitions'
 import {
   retainPrivatePreparationProfiles,
@@ -67,6 +68,14 @@ export function resolveActionCatalog(
 ): ActionCatalog {
   validateSharedProfiles(shared)
   const actions = effective(document.manifest.actions, shared.actions)
+  const shortcutRules = actions.reduce(
+    (count, { definition }) => count + (definition.shortcutRules?.length ?? 0),
+    0,
+  )
+  if (shortcutRules > PROJECT_ACTION_LIMITS.SHORTCUT_RULES_PER_PROJECT)
+    throw new Error(
+      `A project may have at most ${String(PROJECT_ACTION_LIMITS.SHORTCUT_RULES_PER_PROJECT)} effective action shortcut rules across personal and shared definitions.`,
+    )
   const profiles = effective(document.manifest.profiles, shared.profiles)
   if (!profiles.some(({ definition }) => definition.id === 'default'))
     profiles.unshift({ definition: { id: 'default', name: 'Default' }, source: 'local' })
