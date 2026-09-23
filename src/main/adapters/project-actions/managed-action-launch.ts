@@ -112,7 +112,12 @@ async function awaitCancellableLaunch(
   } catch (error) {
     if (starting.cancelRequested) {
       ownership.transferred = true
-      void launch.then(onLate, () => release()).catch(reportError)
+      void launch
+        .then(onLate, async () => {
+          await starting.settled
+          release()
+        })
+        .catch(reportError)
     }
     throw error
   } finally {

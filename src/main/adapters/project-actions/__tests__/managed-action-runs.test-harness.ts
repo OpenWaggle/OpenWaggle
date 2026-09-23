@@ -50,6 +50,7 @@ export async function createManagedActionFixture() {
   let stopError: Error | null = null
   let launchGate: { promise: Promise<void>; resolve: () => void } | null = null
   let launchEntered: { promise: Promise<void>; resolve: () => void } | null = null
+  let rejectLaunchOnAbort = false
   let owners = 0
   const processes: {
     readonly emit: (output: string) => void
@@ -65,9 +66,24 @@ export async function createManagedActionFixture() {
       validate: async () => {
         if (validationError) throw validationError
       },
-      start: async ({ onOutput }) => {
+      start: async ({ onOutput, signal }) => {
         launchEntered?.resolve()
-        if (launchGate) await launchGate.promise
+        if (launchGate) {
+          if (rejectLaunchOnAbort && signal)
+            await Promise.race([
+              launchGate.promise,
+              new Promise<never>((_, reject) => {
+                signal.addEventListener(
+                  'abort',
+                  () => reject(new Error('Action launch canceled.')),
+                  {
+                    once: true,
+                  },
+                )
+              }),
+            ])
+          else await launchGate.promise
+        }
         const closed = Promise.withResolvers<{ exitCode: number | null }>()
         let stopped = false
         processes.push({
@@ -123,9 +139,10 @@ export async function createManagedActionFixture() {
     failStop: (error: Error | null) => {
       stopError = error
     },
-    pauseLaunch: () => {
+    pauseLaunch: (rejectOnAbort = false) => {
       launchGate = Promise.withResolvers<void>()
       launchEntered = Promise.withResolvers<void>()
+      rejectLaunchOnAbort = rejectOnAbort
       return { entered: launchEntered.promise, resume: () => launchGate?.resolve() }
     },
     dispose: async () => {

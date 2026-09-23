@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, expect, it } from 'vitest'
+import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { createManagedActionFixture } from './managed-action-runs.test-harness'
 
 let fixture: Awaited<ReturnType<typeof createManagedActionFixture>>
@@ -6,6 +6,7 @@ beforeEach(async () => {
   fixture = await createManagedActionFixture()
 })
 afterEach(async () => {
+  vi.restoreAllMocks()
   await fixture.dispose()
 })
 const input = (requestId: string) => ({ workspace: fixture.workspace, actionId: 'test', requestId })
@@ -84,6 +85,31 @@ it('keeps a late process owned and Stop retryable if its first cleanup fails', a
   fixture.failStop(null)
   expect((await fixture.runs.stop(fixture.workspace.workspaceId, runId)).status).toBe('stopped')
   expect(fixture.owners()).toBe(0)
+})
+
+it('holds Host liveness until a canceled launch has a durable stopped status', async () => {
+  const launch = fixture.pauseLaunch(true)
+  const starting = fixture.runs.start(input('aborted-launch'))
+  await launch.entered
+  const runId = (await fixture.runs.list(fixture.workspace.workspaceId))[0]?.id ?? ''
+  const enteredSave = Promise.withResolvers<void>()
+  const finishSave = Promise.withResolvers<void>()
+  const save = fixture.persistence.save.bind(fixture.persistence)
+  vi.spyOn(fixture.persistence, 'save').mockImplementation(async (run) => {
+    if (run.status === 'stopped') {
+      enteredSave.resolve()
+      await finishSave.promise
+    }
+    await save(run)
+  })
+  const stopping = fixture.runs.stop(fixture.workspace.workspaceId, runId)
+  await enteredSave.promise
+  expect(fixture.owners()).toBe(1)
+  finishSave.resolve()
+  expect((await stopping).status).toBe('stopped')
+  expect((await starting).status).toBe('stopped')
+  await expect.poll(() => fixture.owners()).toBe(0)
+  expect(fixture.processes).toHaveLength(0)
 })
 
 it('opens an existing execution after definition removal and validates Restart before stopping it', async () => {
