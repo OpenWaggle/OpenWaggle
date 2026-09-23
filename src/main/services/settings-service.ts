@@ -63,6 +63,12 @@ export class SettingsService extends Context.Tag('@openwaggle/SettingsService')<
       hydrateSettingsStoreFromHost,
       flushSettingsStoreForTests,
     } = await import('../store/settings')
+    const { installLegacyPreferenceMigrator } = await import('../config/project-config')
+    // The project settings file strips its retired `model` key on every write; route that strip
+    // through the queue-safe insert-if-absent DB writer so the value is never lost.
+    installLegacyPreferenceMigrator((projectPath, model) =>
+      migrateSelectedModelDurably(projectPath, model).then(() => undefined),
+    )
     const readSettings = async () => {
       if (isAppDatabaseClientIsolated()) {
         // Native browser access must observe revocations made by any Host client.

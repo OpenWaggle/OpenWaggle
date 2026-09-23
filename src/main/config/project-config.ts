@@ -139,8 +139,49 @@ export async function ensureProjectSettingsFile(projectPath: string): Promise<st
   return ensureSettingsFile(projectPath, getProjectSettingsPath(projectPath))
 }
 
+/**
+ * Hook the application layer installs at startup: durably captures a retired legacy preference
+ * into its new store before the file write strips it. The config module stays store-free; the
+ * hook keeps "migrate, then strip" lossless for every project-config writer.
+ */
+type LegacyPreferenceMigrator = (projectPath: string, value: string) => Promise<void>
+let legacyPreferenceMigrator: LegacyPreferenceMigrator | null = null
+
+export function installLegacyPreferenceMigrator(migrator: LegacyPreferenceMigrator | null): void {
+  legacyPreferenceMigrator = migrator
+}
+
+async function migrateRetiredLegacyPreference(
+  projectPath: string,
+  value: string,
+): Promise<boolean> {
+  if (!legacyPreferenceMigrator) return true
+  try {
+    await legacyPreferenceMigrator(projectPath, value)
+    return true
+  } catch (error) {
+    logger.warn('Failed to migrate a retired project preference before stripping it', {
+      projectPath,
+      error: error instanceof Error ? error.message : String(error),
+    })
+    return false
+  }
+}
+
+/** Removes retired preference keys whose values now live elsewhere; only after a safe migration. */
+function stripRetiredPreferences(next: ParsedProjectSettingsFile): ParsedProjectSettingsFile {
+  if (next.preferences?.model === undefined) return next
+  const { model: _legacyModel, ...rest } = next.preferences
+  if (Object.keys(rest).length === 0) {
+    const { preferences: _retired, ...withoutPreferences } = next
+    return withoutPreferences
+  }
+  return { ...next, preferences: rest }
+}
+
 async function updateProjectSettingsFile(
   configPath: string,
+  projectPath: string,
   updater: (current: ParsedProjectSettingsFile) => ParsedProjectSettingsFile,
 ) {
   const current =
@@ -148,7 +189,15 @@ async function updateProjectSettingsFile(
       strict: true,
       logLabel: '.openwaggle/settings.json',
     })) ?? decodeUnknownOrThrow(projectSettingsFileSchema, {})
-  const next = decodeUnknownOrThrow(projectSettingsFileSchema, updater(current))
+
+  // The selected model moved to the app DB. Capture a legacy file value before this rewrite
+  // strips it, so no project-config writer can lose the user's override.
+  const legacyModel = current.preferences?.model
+  const migrationSucceeded =
+    legacyModel === undefined || (await migrateRetiredLegacyPreference(projectPath, legacyModel))
+
+  const updated = decodeUnknownOrThrow(projectSettingsFileSchema, updater(current))
+  const next = migrationSucceeded ? stripRetiredPreferences(updated) : updated
 
   const serialized = `${JSON.stringify(next, null, JSON_INDENT_SPACES)}\n`
   const tempPath = getConfigTempPath(configPath)
@@ -171,7 +220,7 @@ export async function updateProjectConfig(
   const configPath = getProjectSettingsPath(projectPath)
   const next = await enqueueProjectConfigWrite(configPath, async () => {
     await ensureSettingsFile(projectPath, configPath)
-    return updateProjectSettingsFile(configPath, updater)
+    return updateProjectSettingsFile(configPath, projectPath, updater)
   })
   return parseProjectConfig(next)
 }
@@ -224,11 +273,8 @@ export async function setProjectPreferences(
       next[key] = value
     }
 
-    // The selected model lives in the app DB, never in this repo-local file. Strip any legacy
-    // model override on write so older settings files self-heal instead of keeping it forever.
-    const { model: _legacyModel, ...withoutModel } = next
     const { preferences: _previous, ...rest } = current
-    return Object.keys(withoutModel).length > 0 ? { ...rest, preferences: withoutModel } : rest
+    return Object.keys(next).length > 0 ? { ...rest, preferences: next } : rest
   })
 }
 
