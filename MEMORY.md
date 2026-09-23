@@ -937,10 +937,12 @@ remains manual until the user chooses Run setup. Bash/zsh Setup trap introspecti
 and bare `trap`) must report the saved user handler, never the private environment-capture handler:
 a sourced script that saves and later evaluates the private handler recurses at exit. POSIX Setup
 capture must snapshot before each runtime `eval` and normalize escaped `exec` inside literal
-eval bodies so the exec alias captures any exports made within the evaluated string. An escaped
-`\exec` otherwise replaces the shell before its EXIT handler can save exports. Action-run headings
-and repair drafts display the actual
-invocation directory relative to the workspace or project root, including nested package paths.
+eval bodies so the exec alias captures any exports made within the evaluated string. Dynamic
+`eval "$code"` needs a runtime rewrite too: the static scanner cannot see its expanded body, and
+an escaped `\exec` would replace the shell before its EXIT handler saves later exports. Preserve
+quoted strings and heredoc bodies while rewriting, and fail Setup if the runtime rewriter fails.
+Action-run headings and repair drafts display the actual invocation directory relative to the
+workspace or project root, including nested package paths.
 PowerShell setup capture must decide success from the
 last command's `$?`, using `$LASTEXITCODE` only for a failed final command. A handled earlier native failure can leave
 `$LASTEXITCODE` nonzero even though the final setup command succeeded and exported its environment.

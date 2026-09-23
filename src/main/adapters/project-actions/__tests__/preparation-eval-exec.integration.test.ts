@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -46,6 +46,81 @@ describe.skipIf(process.platform === 'win32')('setup commands using evaluated ex
         },
       })
       expect(inside).toMatchObject({ exitCode: 0, environment: { OW_EVAL_INSIDE: 'loaded' } })
+
+      const dynamic = await execute({
+        ...input,
+        invocation: {
+          type: 'command',
+          command: String.raw`code='export OW_EVAL_DYNAMIC=loaded; \exec /usr/bin/true'; eval "$code"`,
+          directory: '.',
+        },
+      })
+      expect(dynamic).toMatchObject({ exitCode: 0, environment: { OW_EVAL_DYNAMIC: 'loaded' } })
+
+      if (['/bin/bash', '/bin/sh', '/bin/dash'].includes(shell)) {
+        const commandPrefix = await execute({
+          ...input,
+          invocation: {
+            type: 'command',
+            command: String.raw`code='export OW_EVAL_COMMAND=loaded; \command exec /usr/bin/true'; eval "$code"`,
+            directory: '.',
+          },
+        })
+        expect(commandPrefix).toMatchObject({
+          exitCode: 0,
+          environment: { OW_EVAL_COMMAND: 'loaded' },
+        })
+      }
+      if (['/bin/bash', '/bin/zsh'].includes(shell)) {
+        const builtinPrefix = await execute({
+          ...input,
+          invocation: {
+            type: 'command',
+            command: String.raw`code='export OW_EVAL_BUILTIN=loaded; \builtin exec /usr/bin/true'; eval "$code"`,
+            directory: '.',
+          },
+        })
+        expect(builtinPrefix).toMatchObject({
+          exitCode: 0,
+          environment: { OW_EVAL_BUILTIN: 'loaded' },
+        })
+      }
+
+      const literal = await execute({
+        ...input,
+        invocation: {
+          type: 'command',
+          command: String.raw`code='printf "%s" "\exec" > literal.txt; export OW_EVAL_LITERAL=loaded'; eval "$code"`,
+          directory: '.',
+        },
+      })
+      expect(literal).toMatchObject({ exitCode: 0, environment: { OW_EVAL_LITERAL: 'loaded' } })
+      expect(await readFile(join(directory, 'literal.txt'), 'utf8')).toBe(String.raw`\exec`)
+
+      const heredoc = await execute({
+        ...input,
+        invocation: {
+          type: 'command',
+          command: String.raw`code='cat > heredoc.txt <<EOF
+\exec
+EOF
+export OW_EVAL_HEREDOC=loaded'; eval "$code"`,
+          directory: '.',
+        },
+      })
+      expect(heredoc).toMatchObject({ exitCode: 0, environment: { OW_EVAL_HEREDOC: 'loaded' } })
+      expect(await readFile(join(directory, 'heredoc.txt'), 'utf8')).toBe(`${String.raw`\exec`}\n`)
+
+      const missingRewriter = await execute({
+        ...input,
+        invocation: {
+          type: 'command',
+          command: String.raw`PATH=''; code='export OW_EVAL_MISSING=loaded; \exec /usr/bin/true'; eval "$code"`,
+          directory: '.',
+        },
+      })
+      expect(missingRewriter.exitCode).not.toBe(0)
+      expect(missingRewriter.environment).not.toHaveProperty('OW_EVAL_MISSING')
     } finally {
       await execute.shutdown()
     }
