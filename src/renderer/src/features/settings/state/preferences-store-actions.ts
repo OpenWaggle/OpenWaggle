@@ -277,18 +277,22 @@ export function createPreferencesActions(
       const recentProjects = settings.recentProjects.filter((projectPath) => projectPath !== path)
       const { [path]: _displayName, ...projectDisplayNames } = settings.projectDisplayNames
       const { [path]: _skillToggles, ...skillTogglesByProject } = settings.skillTogglesByProject
+      const { [path]: _selectedModel, ...selectedModelsByProject } =
+        settings.selectedModelsByProject
       const projectPath = settings.projectPath === path ? null : settings.projectPath
       await api.updateSettings({
         projectPath,
         recentProjects,
         projectDisplayNames,
         skillTogglesByProject,
+        selectedModelsByProject,
       })
       mergeSettings(set, {
         projectPath,
         recentProjects,
         projectDisplayNames,
         skillTogglesByProject,
+        selectedModelsByProject,
       })
     },
     loadProjectPreferences: (projectPath) => loadProjectPreferences(projectPath, set),
