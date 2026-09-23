@@ -882,6 +882,10 @@ Preparation launches need the same abort signal passed into the process runner; 
 while native PTY startup is pending, and a process returned after cancellation must still be drained.
 Settings catalog, discovery, and edits use only the independently selected project path. Its active
 Session scope is reserved for the running-actions summary, since that Session may use a worktree.
+If node-pty reports failed native resource drain after process exit, an action's close promise can
+reject permanently. Once detached shutdown confirms the process tree is gone, persist a failed or
+stopped terminal run with the drain error and release Host liveness; repeated Stop cannot repair the
+already-settled drain promise. Keep the lease only when process-tree shutdown itself is unconfirmed.
 
 The September 2026 native action verification reproduced a SQLite worker teardown abort on pristine
 main with transitive better-sqlite3 12.11.1. Root and Effect SQLite now share 13.0.3, which includes the

@@ -48,6 +48,7 @@ export async function createManagedActionFixture() {
   }
   let validationError: Error | null = null
   let stopError: Error | null = null
+  let closeError: Error | null = null
   let launchGate: { promise: Promise<void>; resolve: () => void } | null = null
   let launchEntered: { promise: Promise<void>; resolve: () => void } | null = null
   let rejectLaunchOnAbort = false
@@ -88,7 +89,10 @@ export async function createManagedActionFixture() {
         let stopped = false
         processes.push({
           emit: onOutput,
-          finish: (exitCode) => closed.resolve({ exitCode }),
+          finish: (exitCode) => {
+            if (closeError) closed.reject(closeError)
+            else closed.resolve({ exitCode })
+          },
           isStopped: () => stopped,
         })
         return {
@@ -97,7 +101,8 @@ export async function createManagedActionFixture() {
           stop: async () => {
             if (stopError) throw stopError
             stopped = true
-            closed.resolve({ exitCode: 0 })
+            if (closeError) closed.reject(closeError)
+            else closed.resolve({ exitCode: 0 })
           },
         }
       },
@@ -138,6 +143,9 @@ export async function createManagedActionFixture() {
     },
     failStop: (error: Error | null) => {
       stopError = error
+    },
+    failClose: (error: Error | null) => {
+      closeError = error
     },
     pauseLaunch: (rejectOnAbort = false) => {
       launchGate = Promise.withResolvers<void>()

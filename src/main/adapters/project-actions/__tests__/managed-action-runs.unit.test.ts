@@ -189,6 +189,45 @@ it('retains ownership after a failed Stop and permits retry before a replacement
   expect(fixture.owners()).toBe(1)
 })
 
+it('settles a naturally exited run after native drain failure once its process tree stops', async () => {
+  const run = await fixture.runs.start(input('failed-drain-exit'))
+  fixture.failClose(new Error('The action PTY did not release its native resources.'))
+  fixture.processes[0]?.finish(0)
+  await expect.poll(() => fixture.records.get(run.id)?.status).toBe('failed')
+  expect(fixture.records.get(run.id)?.error).toContain('native resources')
+  expect(fixture.processes[0]?.isStopped()).toBe(true)
+  expect(fixture.owners()).toBe(0)
+  await expect(
+    fixture.runs.stopWorkspaceRuns(fixture.workspace.workspaceId),
+  ).resolves.toBeUndefined()
+})
+
+it('completes Stop when native drain fails after the process tree is confirmed stopped', async () => {
+  fixture.failClose(new Error('The action PTY did not release its native resources.'))
+  const run = await fixture.runs.start(input('failed-drain-stop'))
+  const stopped = await fixture.runs.stop(fixture.workspace.workspaceId, run.id)
+  expect(stopped.status).toBe('stopped')
+  expect(stopped.error).toContain('native resources')
+  expect(fixture.owners()).toBe(0)
+  await expect(
+    fixture.runs.stopWorkspaceRuns(fixture.workspace.workspaceId),
+  ).resolves.toBeUndefined()
+})
+
+it('retains and retries ownership when native drain and process-tree shutdown both fail', async () => {
+  const run = await fixture.runs.start(input('failed-drain-retry'))
+  fixture.failClose(new Error('The action PTY did not release its native resources.'))
+  fixture.failStop(new Error('Process exit could not be confirmed'))
+  fixture.processes[0]?.finish(0)
+  await expect.poll(() => fixture.records.get(run.id)?.status).toBe('stopping')
+  expect(fixture.owners()).toBe(1)
+  fixture.failStop(null)
+  const stopped = await fixture.runs.stop(fixture.workspace.workspaceId, run.id)
+  expect(stopped.status).toBe('stopped')
+  expect(stopped.error).toContain('native resources')
+  expect(fixture.owners()).toBe(0)
+})
+
 it('stops services when their workspace is released while leaving other workspaces alone', async () => {
   fixture.edit([{ ...fixture.definition, kind: 'service' }])
   const first = await fixture.runs.start(input('first'))

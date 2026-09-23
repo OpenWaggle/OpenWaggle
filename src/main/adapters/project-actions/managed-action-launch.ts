@@ -33,7 +33,11 @@ export interface ManagedLaunchContext {
   readonly starting: Map<string, StartingAction>
   readonly persist: (run: ActionRun) => Promise<void>
   readonly watchPreview: (run: ActionRun) => void
-  readonly finish: (entry: LiveAction, exitCode: number | null) => Promise<void>
+  readonly finish: (
+    entry: LiveAction,
+    exitCode: number | null,
+    closeError?: string,
+  ) => Promise<void>
   readonly stopEntry: (entry: LiveAction) => Promise<void>
   readonly scheduleMetadata: (runId: string) => void
 }
@@ -91,7 +95,11 @@ async function handleLateLaunch(
   }
   context.active.set(runId, entry)
   void process.closed
-    .then(({ exitCode }) => context.finish(entry, exitCode))
+    .then(
+      ({ exitCode }) => context.finish(entry, exitCode),
+      (error: unknown) =>
+        context.finish(entry, null, error instanceof Error ? error.message : String(error)),
+    )
     .catch(context.deps.reportError)
   await context.stopEntry(entry)
 }
@@ -212,7 +220,11 @@ export async function launchManagedAction(
     context.active.set(run.id, entry)
     context.watchPreview(run)
     void child.closed
-      .then(({ exitCode }) => context.finish(entry, exitCode))
+      .then(
+        ({ exitCode }) => context.finish(entry, exitCode),
+        (error: unknown) =>
+          context.finish(entry, null, error instanceof Error ? error.message : String(error)),
+      )
       .catch(context.deps.reportError)
     if (starting.cancelRequested) {
       await context.stopEntry(entry)

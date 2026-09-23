@@ -179,10 +179,13 @@ export function createActionProcessRunner(appVersion: string): ActionProcessRunn
         return stopPromise
       }
       const closed = outcome.exit.whenExited.then(async () => {
-        if (!(await outcome.resourceDrain.whenDrained))
-          throw new Error('The action PTY did not release its native resources.')
-        listener.dispose()
-        return { exitCode: outcome.exit.exitCode }
+        try {
+          if (!(await outcome.resourceDrain.whenDrained))
+            throw new Error('The action PTY did not release its native resources.')
+          return { exitCode: outcome.exit.exitCode }
+        } finally {
+          listener.dispose()
+        }
       })
       outcome.resumeOutput()
       owned.live.outputPaused = false

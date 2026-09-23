@@ -69,7 +69,7 @@ export class ManagedActionRuns {
       }, METADATA_FLUSH_MS),
     )
   }
-  private finish(entry: LiveAction, exitCode: number | null): Promise<void> {
+  private finish(entry: LiveAction, exitCode: number | null, closeError?: string): Promise<void> {
     if (entry.finishing) return entry.finishing
     entry.finishing = (async () => {
       // Natural shell exit alone does not prove that all of its children stopped.
@@ -78,10 +78,15 @@ export class ManagedActionRuns {
       const finished: ActionRun = {
         ...entry.run,
         status:
-          entry.run.status === 'stopping' ? 'stopped' : exitCode === 0 ? 'completed' : 'failed',
+          entry.run.status === 'stopping'
+            ? 'stopped'
+            : closeError !== undefined || exitCode !== 0
+              ? 'failed'
+              : 'completed',
         exitCode,
         finishedAt: Date.now(),
         ready: false,
+        error: closeError ?? entry.run.error,
       }
       const timer = this.timers.get(finished.id)
       if (timer) clearTimeout(timer)
@@ -111,8 +116,15 @@ export class ManagedActionRuns {
     entry.run = { ...entry.run, status: 'stopping', ready: false }
     await this.persist(entry.run)
     await entry.process.stop()
-    const outcome = await entry.process.closed
-    await this.finish(entry, outcome.exitCode)
+    // Native drain is a one-shot observation; tree shutdown is the retryable safety gate.
+    let exitCode: number | null = null
+    let closeError: string | undefined
+    try {
+      exitCode = (await entry.process.closed).exitCode
+    } catch (error) {
+      closeError = error instanceof Error ? error.message : String(error)
+    }
+    await this.finish(entry, exitCode, closeError)
   }
   private stopStarting(entry: StartingAction) {
     if (entry.stopPromise) return entry.stopPromise
@@ -169,7 +181,7 @@ export class ManagedActionRuns {
         starting: this.starting,
         persist: (run) => this.persist(run),
         watchPreview: (run) => this.watchPreview(run),
-        finish: (entry, exitCode) => this.finish(entry, exitCode),
+        finish: (entry, exitCode, closeError) => this.finish(entry, exitCode, closeError),
         stopEntry: (entry) => this.stopEntry(entry),
         scheduleMetadata: (runId) => this.scheduleMetadata(runId),
       },
