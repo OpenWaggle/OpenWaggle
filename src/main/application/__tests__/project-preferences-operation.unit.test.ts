@@ -35,7 +35,6 @@ import * as Effect from 'effect/Effect'
 import { SettingsService, type SettingsServiceShape } from '../../services/settings-service'
 import {
   getProjectPreferencesOperation,
-  removeProjectModelOperation,
   setProjectPreferencesOperation,
 } from '../project-preferences-operation'
 
