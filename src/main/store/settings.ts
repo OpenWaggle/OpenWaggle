@@ -8,16 +8,20 @@ import { createLogger } from '../logger'
 import { collectInitialDefaultWrites } from './settings/initial-default-writes'
 import { CURRENT_SETTINGS_KEYS } from './settings/keys'
 import { validatePersistedSettings } from './settings/persisted-validation'
-import {
-  collectSettingsPatchWrites,
-  getInvalidThinkingLevel,
-  type SettingsPatchWrite,
-} from './settings/persistence-plan'
+import { collectSettingsPatchWrites, getInvalidThinkingLevel } from './settings/persistence-plan'
 import {
   buildNextSettingsSnapshot,
   buildSettingsSnapshot,
   createDefaultSettingsSnapshot,
 } from './settings/snapshot'
+import {
+  chainWriteQueue,
+  describeError,
+  enqueueSettingsWrite,
+  flushWriteQueue,
+  queueStoredSettingWrite,
+  writeStoredSettingsToDb,
+} from './settings/write-queue'
 import { runStoreEffect } from './store-runtime'
 
 const logger = createLogger('settings')
@@ -32,11 +36,6 @@ let settingsCache = createDefaultSettingsSnapshot()
 let initializationPromise: Promise<void> | null = null
 let settingsReadError: SettingsStoreReadError | null = null
 let settingsReady = false
-let writeQueue: Promise<void> = Promise.resolve()
-
-function describeError(error: unknown) {
-  return error instanceof Error ? error.message : String(error)
-}
 
 async function listStoredSettings() {
   const rows = await runStoreEffect(
@@ -87,45 +86,6 @@ function assertSettingsReady() {
   )
 }
 
-async function writeStoredSettingsToDb(writes: readonly SettingsPatchWrite[]) {
-  await runStoreEffect(
-    Effect.gen(function* () {
-      const sql = yield* SqlClient.SqlClient
-      yield* sql.withTransaction(
-        Effect.forEach(
-          writes,
-          (write) => sql`
-            INSERT INTO settings_store (key, value_json, updated_at)
-            VALUES (${write.key}, ${JSON.stringify(write.value)}, ${Date.now()})
-            ON CONFLICT(key) DO UPDATE SET
-              value_json = excluded.value_json,
-              updated_at = excluded.updated_at
-          `,
-          { discard: true },
-        ),
-      )
-    }),
-  )
-}
-
-function enqueueSettingsWrite<T>(operation: () => Promise<T>, description: string) {
-  const pending = writeQueue.then(operation)
-  writeQueue = pending.then(
-    () => undefined,
-    (error: unknown) => {
-      logger.warn('Failed to write setting to SQLite', {
-        setting: description,
-        error: describeError(error),
-      })
-    },
-  )
-  return pending
-}
-
-function queueStoredSettingWrite(key: string, value: unknown) {
-  return enqueueSettingsWrite(() => writeStoredSettingsToDb([{ key, value }]), key)
-}
-
 export async function initializeSettingsStore(): Promise<void> {
   if (initializationPromise) {
     return initializationPromise
@@ -167,7 +127,7 @@ export async function initializeSettingsStore(): Promise<void> {
  * processes observe settings written by one another.
  */
 export function refreshSettingsStore(): Promise<void> {
-  const pending = writeQueue.then(async () => {
+  return chainWriteQueue(async () => {
     try {
       const storedSettings = await listStoredSettings()
       validatePersistedSettings(storedSettings)
@@ -181,8 +141,6 @@ export function refreshSettingsStore(): Promise<void> {
       throw settingsReadError
     }
   })
-  writeQueue = pending.catch(() => undefined)
-  return pending
 }
 
 /** Install the authoritative Host snapshot without writing to the attached GUI's isolated DB. */
@@ -205,7 +163,7 @@ export function hydrateSettingsStoreFromHost(snapshot: unknown): void {
 }
 
 export async function flushSettingsStoreForTests(): Promise<void> {
-  await writeQueue
+  await flushWriteQueue()
 }
 
 /**
@@ -218,7 +176,7 @@ export async function flushSettingsStoreForTests(): Promise<void> {
  * that accumulation crashed the addon at teardown (#151).
  */
 export async function resetSettingsStoreForTests(): Promise<void> {
-  await writeQueue
+  await flushWriteQueue()
   initializationPromise = null
   settingsReadError = null
   settingsReady = false

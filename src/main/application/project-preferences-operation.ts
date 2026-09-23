@@ -114,7 +114,8 @@ export function setProjectPreferencesOperation(rawProjectPath: unknown, rawPrefe
 
     if (model !== undefined) {
       yield* writeProjectModel(settings, projectPath, model)
-    } else if (filePrefs?.model !== undefined) {
+    }
+    if (model === undefined && filePrefs?.model !== undefined) {
       // An unrelated file-backed write strips the legacy model below. Migrate it first so the
       // user's override survives; the insert-if-absent writer runs inside the settings write
       // queue, so it can never overwrite a newer explicit model choice.
