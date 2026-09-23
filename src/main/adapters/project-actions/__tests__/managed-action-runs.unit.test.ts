@@ -24,6 +24,18 @@ it('normalizes an address-bar preview override before readiness and retains it o
   )
 })
 
+it('does not publish an output-derived preview for a DNS name beginning with 127', async () => {
+  const run = await fixture.runs.start(input('dns-preview'))
+  fixture.processes[0]?.emit('ready at http://127.attacker.example/\n')
+  expect(
+    (await fixture.runs.output(fixture.workspace.workspaceId, run.id)).run.previewUrl,
+  ).toBeNull()
+  fixture.processes[0]?.emit('ready at http://127.0.0.2:3000/\n')
+  expect((await fixture.runs.output(fixture.workspace.workspaceId, run.id)).run.previewUrl).toBe(
+    'http://127.0.0.2:3000/',
+  )
+})
+
 it('serializes GUI and agent starts into one execution and deduplicates retried requests after completion', async () => {
   const [gui, agent] = await Promise.all([
     fixture.runs.start(input('gui')),

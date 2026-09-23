@@ -828,6 +828,10 @@ Final local Session deletion retires its Workspace resource only after all durab
 including archived Sessions, are gone; stop finite runs as well as services before that cascade.
 Setup capture must use the ordinary action shell resolver and shell-native exit handlers, including
 fish, so configured shell syntax and explicit successful exits preserve exported environment.
+On Windows, resolve PATHEXT shims before extensionless files when an action command has no
+extension. npm/Corepack directories can contain both a POSIX shim and a `.cmd` shim; choosing the
+POSIX file bypasses the PowerShell wrapper and fails in node-pty. Output-derived previews must
+accept complete IPv4 loopback addresses, not DNS names that merely start with `127.`.
 POSIX setup may source scripts that register their own EXIT cleanup; keep the environment capture
 handler authoritative while preserving user cleanup, including explicit successful exits.
 POSIX setup may also replace its shell with `exec`, which skips EXIT capture. Expand an `exec`

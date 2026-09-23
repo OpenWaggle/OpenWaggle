@@ -1,3 +1,4 @@
+import { isIPv4 } from 'node:net'
 import { stripVTControlCharacters } from 'node:util'
 import type { ActionOutputSnapshot, ActionRun } from '@shared/types/action-runs'
 import { normalizeBrowserPreviewAddress } from '@shared/utils/browser-preview-url'
@@ -46,7 +47,11 @@ export function previewFromActionOutput(text: string): string | null {
     if (!normalized) continue
     const url = new URL(normalized)
     if (url.hostname === '0.0.0.0' || url.hostname === '[::]') url.hostname = 'localhost'
-    if (url.hostname === 'localhost' || url.hostname === '[::1]' || /^127\./.test(url.hostname))
+    if (
+      url.hostname === 'localhost' ||
+      url.hostname === '[::1]' ||
+      (isIPv4(url.hostname) && url.hostname.startsWith('127.'))
+    )
       detected = url.href
   }
   return detected

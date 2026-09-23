@@ -12,7 +12,7 @@ vi.mock('../../terminal/terminal-pty-runner', () => ({
   makePtyRunner: () => ({ spawn }),
 }))
 
-const { createActionProcessRunner } = await import('../action-process')
+const { createActionProcessRunner, resolveActionExecutablePath } = await import('../action-process')
 const RUNNER_NAME = 'ow-resolution-runner'
 let workspace: string
 
@@ -54,6 +54,57 @@ async function expectResolution(command: string, path: string, expected: string)
 }
 
 describe('action executable resolution', () => {
+  it('prefers a Windows PATHEXT shim over an extensionless POSIX shim', async () => {
+    const platform = Object.getOwnPropertyDescriptor(process, 'platform')
+    if (!platform) throw new Error('Missing process platform descriptor')
+    const directory = join(workspace, 'bin')
+    await mkdir(directory)
+    await writeFile(join(directory, 'pnpm'), '#!/bin/sh\n')
+    await writeFile(join(directory, 'pnpm.CMD'), '@echo off\r\n')
+    await writeFile(join(directory, 'powershell.exe'), '')
+    try {
+      Object.defineProperty(process, 'platform', { value: 'win32', configurable: true })
+      const environment = { PATH: directory, PATHEXT: '.CMD' }
+      await expect(resolveActionExecutablePath('pnpm', environment, workspace)).resolves.toBe(
+        join(directory, 'pnpm.CMD'),
+      )
+      await expect(resolveActionExecutablePath('pnpm.CMD', environment, workspace)).resolves.toBe(
+        join(directory, 'pnpm.CMD'),
+      )
+      await expect(
+        resolveActionExecutablePath('pnpm', { PATH: directory, PATHEXT: '.EXE' }, workspace),
+      ).resolves.toBe(join(directory, 'pnpm'))
+      await expect(
+        createActionProcessRunner('test').start({
+          invocation: {
+            type: 'executable',
+            executable: 'pnpm',
+            args: ['run', 'build'],
+            cwd: workspace,
+          },
+          environment,
+          onOutput: () => {},
+        }),
+      ).rejects.toBe(stoppedBeforeLaunch)
+      expect(spawn).toHaveBeenCalledWith(
+        expect.objectContaining({
+          execution: {
+            command: join(directory, 'powershell.exe'),
+            args: [
+              '-NoLogo',
+              '-NoProfile',
+              '-NonInteractive',
+              '-Command',
+              expect.stringContaining(join(directory, 'pnpm.CMD')),
+            ],
+          },
+        }),
+      )
+    } finally {
+      Object.defineProperty(process, 'platform', platform)
+    }
+  })
+
   it.skipIf(process.platform === 'win32')(
     'uses the final PowerShell command status for custom actions',
     async () => {

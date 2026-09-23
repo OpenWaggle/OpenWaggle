@@ -1,6 +1,6 @@
 import { constants } from 'node:fs'
 import { access, stat } from 'node:fs/promises'
-import { basename, delimiter, isAbsolute, resolve } from 'node:path'
+import { basename, delimiter, extname, isAbsolute, resolve } from 'node:path'
 import type { ResolvedActionInvocation } from '@shared/types/action-definitions'
 import { isEnoent } from '@shared/utils/node-error'
 import { quotePowerShellArgument as quotePowerShell } from '@shared/utils/shell-argument'
@@ -50,15 +50,21 @@ function unavailableExecutable(error: unknown) {
   )
 }
 
+function executableExtensions(
+  command: string,
+  environment: Readonly<Record<string, string>>,
+): string[] {
+  if (process.platform !== 'win32' || extname(command).length > 0) return ['']
+  const pathExtensions = environmentValue(environment, 'PATHEXT') ?? '.COM;.EXE;.BAT;.CMD'
+  return [...pathExtensions.split(';').filter(Boolean), '']
+}
+
 export async function resolveActionExecutablePath(
   command: string,
   environment: Readonly<Record<string, string>>,
   cwd: string,
 ) {
-  const extensions =
-    process.platform === 'win32'
-      ? (environmentValue(environment, 'PATHEXT') ?? '.COM;.EXE;.BAT;.CMD').split(';')
-      : ['']
+  const extensions = executableExtensions(command, environment)
   const explicitPath =
     isAbsolute(command) ||
     command.includes('/') ||
@@ -67,7 +73,7 @@ export async function resolveActionExecutablePath(
     ? ['']
     : (environmentValue(environment, 'PATH')?.split(delimiter) ?? [])
   for (const directory of directories) {
-    for (const extension of ['', ...extensions]) {
+    for (const extension of extensions) {
       // Empty PATH entries also name cwd. Resolve before probing or handing the path to the PTY.
       const path = resolve(cwd, directory, `${command}${extension}`)
       try {
