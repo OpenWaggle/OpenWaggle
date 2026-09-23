@@ -109,6 +109,78 @@ describe.skipIf(process.platform === 'win32')('real preparation environment capt
       }
     },
   )
+
+  it.for(['/bin/bash', '/bin/zsh'])(
+    'captures exports after a sourced %s script installs EXIT cleanup and setup exits explicitly',
+    async (shell, context) => {
+      if (!existsSync(shell)) context.skip()
+      await writeFile(
+        join(directory, 'setup-env'),
+        `export OW_SOURCED_VALUE=loaded\ntrap ${shell.endsWith('zsh') ? '-- ' : ''}'printf cleaned > cleanup-marker' EXIT\n`,
+      )
+      const execute = createPreparationExecutor(
+        createActionProcessRunner('test'),
+        directory,
+        'test',
+      )
+      try {
+        const result = await execute({
+          workspace: { workspaceId: 'trap', projectPath: directory, workspacePath: directory },
+          invocation: {
+            type: 'command',
+            command: 'source ./setup-env; export OW_TRAP_EXPORT=yes; exit 0',
+            directory: '.',
+          },
+          environment: { SHELL: shell },
+          captureEnvironment: true,
+          onOutput: () => {},
+        })
+        expect(result).toMatchObject({
+          exitCode: 0,
+          environment: { OW_SOURCED_VALUE: 'loaded', OW_TRAP_EXPORT: 'yes' },
+        })
+        expect(existsSync(join(directory, 'cleanup-marker'))).toBe(true)
+      } finally {
+        await execute.shutdown()
+      }
+    },
+  )
+
+  it.for(['/bin/sh', '/bin/dash', '/bin/ksh', '/bin/mksh'])(
+    'captures an explicitly exiting %s setup after its sourced script registers EXIT cleanup',
+    async (shell, context) => {
+      if (!existsSync(shell)) context.skip()
+      await writeFile(
+        join(directory, 'setup-env'),
+        "export OW_SOURCED_VALUE=loaded\ntrap 'printf cleaned > cleanup-marker' EXIT\n",
+      )
+      const execute = createPreparationExecutor(
+        createActionProcessRunner('test'),
+        directory,
+        'test',
+      )
+      try {
+        const result = await execute({
+          workspace: { workspaceId: 'trap', projectPath: directory, workspacePath: directory },
+          invocation: {
+            type: 'command',
+            command: '. ./setup-env; export OW_TRAP_EXPORT=yes; exit 0',
+            directory: '.',
+          },
+          environment: { SHELL: shell },
+          captureEnvironment: true,
+          onOutput: () => {},
+        })
+        expect(result).toMatchObject({
+          exitCode: 0,
+          environment: { OW_SOURCED_VALUE: 'loaded', OW_TRAP_EXPORT: 'yes' },
+        })
+        expect(existsSync(join(directory, 'cleanup-marker'))).toBe(true)
+      } finally {
+        await execute.shutdown()
+      }
+    },
+  )
   it('captures successful shell exports, including an explicit exit, without publishing failed exports', async () => {
     const execute = createPreparationExecutor(createActionProcessRunner('test'), directory, 'test')
     const input = {

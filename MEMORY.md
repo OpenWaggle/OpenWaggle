@@ -825,6 +825,8 @@ Final local Session deletion retires its Workspace resource only after all durab
 including archived Sessions, are gone; stop finite runs as well as services before that cascade.
 Setup capture must use the ordinary action shell resolver and shell-native exit handlers, including
 fish, so configured shell syntax and explicit successful exits preserve exported environment.
+POSIX setup may source scripts that register their own EXIT cleanup; keep the environment capture
+handler authoritative while preserving user cleanup, including explicit successful exits.
 Fresh local Sessions need Summary availability from configured preparation, before a snapshot or
 run exists, or users cannot reach explicit setup.
 Native actions use Local Session protocol revision 15 and require matching clients/Host for this
