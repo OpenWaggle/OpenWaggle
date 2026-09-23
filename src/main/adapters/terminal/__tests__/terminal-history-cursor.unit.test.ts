@@ -119,6 +119,44 @@ describe('terminal history cursor recovery', () => {
     await expect(store.readWithCursor(key)).resolves.toEqual({ text: 'firstsecond', endOffset: 11 })
   })
 
+  it.each(['remove', 'truncate', 'removeForOwner'] as const)(
+    'discards a failed in-flight cursor batch when %s completes',
+    async (operation) => {
+      const key = 'session-delete-race::action'
+      const store = makeTerminalHistoryStore(logsDir)
+      let signalAppendStarted = () => {}
+      const appendStarted = new Promise<void>((resolve) => {
+        signalAppendStarted = resolve
+      })
+      let releaseAppend = () => {}
+      const appendBlocked = new Promise<void>((resolve) => {
+        releaseAppend = resolve
+      })
+      vi.spyOn(fs, 'appendFile').mockImplementationOnce(async () => {
+        signalAppendStarted()
+        await appendBlocked
+        throw new Error('Transient append failure')
+      })
+
+      store.appendWithCursor(key, 'discarded', 9)
+      const flushing = store.flush(key).catch(() => undefined)
+      await appendStarted
+      const cleanup = {
+        remove: () => store.remove(key),
+        truncate: () => store.truncate(key),
+        removeForOwner: () => store.removeForOwner('session-delete-race'),
+      }[operation]()
+      releaseAppend()
+      await Promise.all([flushing, cleanup])
+
+      await expect(store.flush()).resolves.toBeUndefined()
+      await expect(store.readWithCursor(key)).resolves.toEqual({ text: '', endOffset: null })
+      store.appendWithCursor(key, 'fresh', 5)
+      await expect(store.flush(key)).resolves.toBeUndefined()
+      await expect(store.readWithCursor(key)).resolves.toEqual({ text: 'fresh', endOffset: 5 })
+    },
+  )
+
   it('does not let an unrelated terminal failure block a healthy action flush', async () => {
     const badKey = 'session-failed::main'
     const actionKey = 'session-healthy::action'

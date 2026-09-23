@@ -1046,3 +1046,5 @@ cursor-bearing batches must be retried before action finalization; keep errors s
 history key so an unrelated terminal failure cannot block a healthy action. If a crash loses an
 unflushed tail that the renderer already displayed, keep the renderer's cursor stable rather than
 clearing its output.
+When removing or truncating history, discard retry and failure state inside the serialized
+mutation after earlier writes settle; an in-flight flush can otherwise recreate deleted history.

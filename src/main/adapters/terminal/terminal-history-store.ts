@@ -11,7 +11,12 @@ import {
   ownerKeyFromTerminalKey,
   type TerminalHistoryFiles,
 } from './terminal-history-files'
-import { type PendingHistoryBatch, persistHistoryBatches } from './terminal-history-flush'
+import {
+  discardHistoryFailures,
+  discardKeyFailure,
+  type PendingHistoryBatch,
+  persistHistoryBatches,
+} from './terminal-history-flush'
 import { makeTerminalHistoryMover, type TerminalHistoryMover } from './terminal-history-moves'
 import { removeTerminalHistoryForPath } from './terminal-history-path-cleanup'
 import {
@@ -105,6 +110,7 @@ class TerminalHistoryStoreImpl implements TerminalHistoryStore {
   truncate(key: TerminalKey) {
     this.forgetPendingKey(key)
     return this.enqueueMutation(async () => {
+      discardKeyFailure(key, this.retryBatches, this.failedFlushes)
       await this.files.ensureDirectory()
       const files = await this.ensureHistoryFiles(key)
       await this.files.writePrivate(files.logFile, '')
@@ -116,6 +122,7 @@ class TerminalHistoryStoreImpl implements TerminalHistoryStore {
   remove(key: TerminalKey) {
     this.forgetPendingKey(key)
     return this.enqueueMutation(async () => {
+      discardKeyFailure(key, this.retryBatches, this.failedFlushes)
       const files = this.files.describe(key)
       await this.files.remove([
         files.logFile,
@@ -129,14 +136,11 @@ class TerminalHistoryStoreImpl implements TerminalHistoryStore {
   }
 
   removeForOwner(ownerKey: TerminalOwnerKey) {
-    const keys = new Set([
-      ...this.pending.keys(),
-      ...this.retryBatches.map(([key]) => key),
-      ...this.failedFlushes.keys(),
-    ])
-    for (const key of keys)
-      if (ownerKeyFromTerminalKey(key) === ownerKey) this.forgetPendingKey(key)
+    const matches = (key: TerminalKey) => ownerKeyFromTerminalKey(key) === ownerKey
+    for (const key of this.pending.keys()) if (matches(key)) this.pending.delete(key)
+    discardHistoryFailures(matches, this.retryBatches, this.failedFlushes)
     return this.enqueueMutation(async () => {
+      discardHistoryFailures(matches, this.retryBatches, this.failedFlushes)
       await this.files.ensureDirectory()
       const entries = await this.files.listOwnerEntries(ownerKey)
       await this.files.remove(entries.map((entry) => this.files.pathForEntry(entry)))
@@ -233,9 +237,7 @@ class TerminalHistoryStoreImpl implements TerminalHistoryStore {
       TERMINAL.MAX_SCROLLBACK_LINES,
       TERMINAL.MAX_SCROLLBACK_BYTES,
     )
-    if (retained.text !== raw) {
-      await this.files.writePrivate(files.logFile, retained.text)
-    }
+    if (retained.text !== raw) await this.files.writePrivate(files.logFile, retained.text)
     if (retained.text === raw && raw.length > 0) await this.files.makePrivate(files.logFile)
     this.states.set(key, { bytes: retained.bytes, lines: retained.lines })
     return retained
@@ -282,9 +284,7 @@ class TerminalHistoryStoreImpl implements TerminalHistoryStore {
 
   private forgetPendingKey(key: TerminalKey) {
     this.pending.delete(key)
-    this.failedFlushes.delete(key)
-    for (let index = this.retryBatches.length - 1; index >= 0; index -= 1)
-      if (this.retryBatches[index]?.[0] === key) this.retryBatches.splice(index, 1)
+    discardKeyFailure(key, this.retryBatches, this.failedFlushes)
   }
 
   private queuePendingBatches() {
