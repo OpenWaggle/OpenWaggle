@@ -1,9 +1,11 @@
+import { createHash } from 'node:crypto'
 import type {
   ExtensionAPI,
   ExtensionContext,
   ToolDefinition,
 } from '@earendil-works/pi-coding-agent'
 import { SessionId } from '@shared/types/brand'
+import { actionExecutionKey } from '@shared/utils/action-execution-key'
 import { fromAny, fromPartial } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -60,6 +62,8 @@ describe('Pi project_actions shares GUI executions', () => {
           Effect.tryPromise(() => fixture.runs.start(input)),
         output: (workspace: string, id: string, offset: number) =>
           Effect.tryPromise(() => fixture.runs.output(workspace, id, offset)),
+        stop: (workspace: string, id: string) =>
+          Effect.tryPromise(() => fixture.runs.stop(workspace, id)),
       }),
     })(
       fromPartial<ExtensionAPI>({
@@ -158,6 +162,68 @@ describe('Pi project_actions shares GUI executions', () => {
     )
     expect(result).toMatchObject({ isError: true })
     expect(fixture.processes).toHaveLength(0)
+  })
+
+  it('keeps absolute workspace paths out of start, restart and stop approvals', async () => {
+    const { tool, authorize, ctx } = registration(true)
+    const started = await tool.execute(
+      'start-with-approval',
+      { action: 'start', actionId: 'test' },
+      undefined,
+      undefined,
+      ctx,
+    )
+    expect(started).not.toMatchObject({ isError: true })
+    expect(authorize).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: expect.stringContaining('Session workspace: .'),
+      }),
+    )
+    expect(authorize).toHaveBeenCalledWith(
+      expect.objectContaining({ message: expect.not.stringContaining(fixture.root) }),
+    )
+    expect(authorize).toHaveBeenCalledWith(
+      expect.objectContaining({
+        scopeKey: expect.objectContaining({
+          resource: createHash('sha256')
+            .update(`${fixture.root}\n${actionExecutionKey(fixture.definition)}`)
+            .digest('hex'),
+        }),
+      }),
+    )
+    const run = fromAny<{ id: string }, unknown>(started.details)
+    const restarted = await tool.execute(
+      'restart-with-approval',
+      { action: 'start', actionId: 'test', restartRunId: run.id },
+      undefined,
+      undefined,
+      ctx,
+    )
+    expect(restarted).not.toMatchObject({ isError: true })
+    expect(authorize).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        title: 'Allow action restart?',
+        message: expect.not.stringContaining(fixture.root),
+      }),
+    )
+    const restartedRun = fromAny<{ id: string }, unknown>(restarted.details)
+    await tool.execute(
+      'stop-with-approval',
+      { action: 'stop', runId: restartedRun.id },
+      undefined,
+      undefined,
+      ctx,
+    )
+    expect(authorize).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        message: expect.not.stringContaining(fixture.root),
+        scopeKey: expect.objectContaining({
+          resource: createHash('sha256')
+            .update(`${fixture.root}\n${restartedRun.id}`)
+            .digest('hex'),
+        }),
+      }),
+    )
   })
 
   it.each([

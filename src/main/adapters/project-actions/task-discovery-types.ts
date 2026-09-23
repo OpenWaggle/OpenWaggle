@@ -2,11 +2,25 @@ import type {
   DiscoveredProjectTask,
   ProjectTaskDiscovery,
   ProjectTaskProvider,
+  ProjectTaskReference,
 } from '@shared/types/action-definitions'
 
 export interface ProjectTaskReader {
   readonly provider: ProjectTaskProvider
-  readonly list: (workspace: string) => Promise<ProjectTaskDiscovery>
+  readonly list: (
+    workspace: string,
+    reference?: ProjectTaskReference,
+  ) => Promise<ProjectTaskDiscovery>
+}
+
+export function sameTaskReference(left: ProjectTaskReference, right: ProjectTaskReference) {
+  return (
+    left.provider === right.provider &&
+    left.source === right.source &&
+    left.task === right.task &&
+    left.directory === right.directory &&
+    left.environment === right.environment
+  )
 }
 
 export function taskReadError(source: string, error: unknown) {

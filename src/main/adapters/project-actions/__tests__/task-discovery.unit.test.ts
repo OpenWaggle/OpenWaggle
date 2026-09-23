@@ -1,7 +1,10 @@
 import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import type { ProjectTaskReference } from '@shared/types/action-definitions'
+import {
+  ACTION_DEFINITION_LIMITS,
+  type ProjectTaskReference,
+} from '@shared/types/action-definitions'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { discoverProjectTasks, resolveActionInvocation } from '../task-discovery'
 
@@ -55,6 +58,12 @@ describe('project task discovery', () => {
     expect(discovery.tasks.every((task) => task.runner === 'pnpm')).toBe(true)
     await expect(readFile(join(root, 'MUST_NOT_RUN'))).rejects.toThrow()
     await expect(readFile(join(root, 'MUST_NOT_INSTALL'))).rejects.toThrow()
+    await expect(
+      resolveActionInvocation(root, {
+        type: 'task',
+        task: packageTask('test', 'unrelated'),
+      }),
+    ).rejects.toThrow('Task unavailable')
     expect(
       await resolveActionInvocation(root, {
         type: 'task',
@@ -157,6 +166,48 @@ describe('project task discovery', () => {
     })
     await json('package.json', { scripts: { renamed: 'new-body' } })
     await expect(resolveActionInvocation(root, invocation)).rejects.toThrow('Task unavailable')
+  })
+
+  it('resolves a saved package script beyond the discovery page', async () => {
+    const scripts = Object.fromEntries(
+      Array.from({ length: ACTION_DEFINITION_LIMITS.DISCOVERED_TASKS + 1 }, (_, index) => [
+        `task${index}`,
+        'echo ready',
+      ]),
+    )
+    await json('package.json', { scripts })
+    expect((await discoverProjectTasks(root)).tasks).toHaveLength(
+      ACTION_DEFINITION_LIMITS.DISCOVERED_TASKS,
+    )
+    const reference = packageTask(`task${ACTION_DEFINITION_LIMITS.DISCOVERED_TASKS}`)
+    await expect(
+      resolveActionInvocation(root, { type: 'task', task: reference }),
+    ).resolves.toMatchObject({ executable: 'npm', args: ['run', reference.task] })
+    await json('package.json', { scripts: { task0: 'echo ready' } })
+    await expect(resolveActionInvocation(root, { type: 'task', task: reference })).rejects.toThrow(
+      'Task unavailable',
+    )
+  })
+
+  it('resolves a saved Hatch script beyond the discovery page', async () => {
+    const scripts = Array.from(
+      { length: ACTION_DEFINITION_LIMITS.DISCOVERED_TASKS + 1 },
+      (_, index) => `task${index} = "echo ready"`,
+    ).join('\n')
+    await put('hatch.toml', `[envs.default.scripts]\n${scripts}\n`)
+    expect((await discoverProjectTasks(root)).tasks).toHaveLength(
+      ACTION_DEFINITION_LIMITS.DISCOVERED_TASKS,
+    )
+    const reference: ProjectTaskReference = {
+      provider: 'hatch-script',
+      source: 'hatch.toml',
+      directory: '.',
+      environment: 'default',
+      task: `task${ACTION_DEFINITION_LIMITS.DISCOVERED_TASKS}`,
+    }
+    await expect(
+      resolveActionInvocation(root, { type: 'task', task: reference }),
+    ).resolves.toMatchObject({ executable: 'hatch', args: ['run', `default:${reference.task}`] })
   })
 
   it('reports malformed sources instead of treating them as valid empty task lists', async () => {

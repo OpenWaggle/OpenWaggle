@@ -1,7 +1,12 @@
 import { decodeUnknownOrThrow, Schema } from '@shared/schema'
-import type { ProjectTaskDiscovery } from '@shared/types/action-definitions'
+import type { ProjectTaskDiscovery, ProjectTaskReference } from '@shared/types/action-definitions'
 import { parse } from 'smol-toml'
-import { isInvocableTaskName, type ProjectTaskReader, taskReadError } from './task-discovery-types'
+import {
+  isInvocableTaskName,
+  type ProjectTaskReader,
+  sameTaskReference,
+  taskReadError,
+} from './task-discovery-types'
 import { readTaskSource } from './task-source-files'
 
 const SOURCE = '.cargo/config.toml'
@@ -58,7 +63,10 @@ const BUILTIN_COMMANDS = new Set([
   'yank',
 ])
 
-async function list(workspace: string): Promise<ProjectTaskDiscovery> {
+async function list(
+  workspace: string,
+  requested?: ProjectTaskReference,
+): Promise<ProjectTaskDiscovery> {
   let source = SOURCE
   try {
     let raw = await readTaskSource(workspace, source)
@@ -77,6 +85,8 @@ async function list(workspace: string): Promise<ProjectTaskDiscovery> {
     const diagnostics = []
     const tasks = []
     for (const [task, body] of Object.entries(aliases)) {
+      const reference = { provider: 'cargo-alias' as const, source, directory: '.', task }
+      if (requested && !sameTaskReference(reference, requested)) continue
       if (!isInvocableTaskName(task) || BUILTIN_COMMANDS.has(task)) {
         diagnostics.push({
           source,
@@ -85,7 +95,7 @@ async function list(workspace: string): Promise<ProjectTaskDiscovery> {
         continue
       }
       tasks.push({
-        reference: { provider: 'cargo-alias' as const, source, directory: '.', task },
+        reference,
         group: 'Cargo aliases',
         description: typeof body === 'string' ? body : body.join(' '),
         runner: 'cargo',

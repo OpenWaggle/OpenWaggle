@@ -3,12 +3,14 @@ import {
   ACTION_DEFINITION_LIMITS,
   type DiscoveredProjectTask,
   type ProjectTaskDiscovery,
+  type ProjectTaskReference,
 } from '@shared/types/action-definitions'
 import { parse } from 'smol-toml'
 import {
   isInvocableTaskName,
   limitDiscoveredTasks,
   type ProjectTaskReader,
+  sameTaskReference,
   taskReadError,
 } from './task-discovery-types'
 import { readTaskSource } from './task-source-files'
@@ -71,7 +73,45 @@ function scriptsFor(environments: Environments, name: string): Scripts {
   return { ...extraScripts, ...scripts }
 }
 
-async function list(workspace: string): Promise<ProjectTaskDiscovery> {
+function appendHatchEnvironmentTasks(
+  source: string,
+  environment: string,
+  environments: Environments,
+  tasks: DiscoveredProjectTask[],
+  diagnostics: { source: string; message: string }[],
+  requested?: ProjectTaskReference,
+) {
+  try {
+    if (!/^[a-zA-Z0-9_][a-zA-Z0-9_.-]*$/.test(environment))
+      throw new Error(`Unsupported Hatch environment selector: ${environment}`)
+    for (const [task, body] of Object.entries(scriptsFor(environments, environment))) {
+      const reference = {
+        provider: 'hatch-script' as const,
+        source,
+        directory: '.',
+        task,
+        environment,
+      }
+      if (requested && !sameTaskReference(reference, requested)) continue
+      if (!isInvocableTaskName(task) || task.includes(':'))
+        throw new Error(`Unsupported Hatch task name: ${task}`)
+      tasks.push({
+        reference,
+        group: `Hatch · ${environment}`,
+        description: typeof body === 'string' ? body : body.join('\n'),
+        runner: 'hatch',
+      })
+    }
+    if (!requested) limitDiscoveredTasks(tasks, ACTION_DEFINITION_LIMITS.DISCOVERED_TASKS)
+  } catch (error) {
+    diagnostics.push(taskReadError(`${source} · ${environment}`, error))
+  }
+}
+
+async function list(
+  workspace: string,
+  requested?: ProjectTaskReference,
+): Promise<ProjectTaskDiscovery> {
   const tasks: DiscoveredProjectTask[] = []
   const diagnostics: { source: string; message: string }[] = []
   let source = 'hatch.toml'
@@ -87,25 +127,11 @@ async function list(workspace: string): Promise<ProjectTaskDiscovery> {
       source === 'hatch.toml'
         ? decodeUnknownOrThrow(hatchSchema, data)
         : decodeUnknownOrThrow(projectSchema, data).tool?.hatch
+    if (requested && source !== requested.source) return { tasks, diagnostics }
     const environments = config?.envs ?? {}
     for (const environment of Object.keys(environments)) {
-      try {
-        if (!/^[a-zA-Z0-9_][a-zA-Z0-9_.-]*$/.test(environment))
-          throw new Error(`Unsupported Hatch environment selector: ${environment}`)
-        for (const [task, body] of Object.entries(scriptsFor(environments, environment))) {
-          if (!isInvocableTaskName(task) || task.includes(':'))
-            throw new Error(`Unsupported Hatch task name: ${task}`)
-          tasks.push({
-            reference: { provider: 'hatch-script', source, directory: '.', task, environment },
-            group: `Hatch · ${environment}`,
-            description: typeof body === 'string' ? body : body.join('\n'),
-            runner: 'hatch',
-          })
-        }
-        limitDiscoveredTasks(tasks, ACTION_DEFINITION_LIMITS.DISCOVERED_TASKS)
-      } catch (error) {
-        diagnostics.push(taskReadError(`${source} · ${environment}`, error))
-      }
+      if (requested && environment !== requested.environment) continue
+      appendHatchEnvironmentTasks(source, environment, environments, tasks, diagnostics, requested)
     }
   } catch (error) {
     diagnostics.push(taskReadError(source, error))

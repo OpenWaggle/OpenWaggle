@@ -6,6 +6,7 @@ import {
   ACTION_DEFINITION_LIMITS,
   type DiscoveredProjectTask,
   type ProjectTaskDiscovery,
+  type ProjectTaskReference,
 } from '@shared/types/action-definitions'
 import { isEnoent } from '@shared/utils/node-error'
 import glob from 'fast-glob'
@@ -14,6 +15,7 @@ import {
   isInvocableTaskName,
   limitDiscoveredTasks,
   type ProjectTaskReader,
+  sameTaskReference,
   taskReadError,
 } from './task-discovery-types'
 import { readTaskSource, resolveActionPath } from './task-source-files'
@@ -140,7 +142,47 @@ async function packageSources(
   ]
 }
 
-async function list(workspace: string): Promise<ProjectTaskDiscovery> {
+async function appendPackageSourceTasks(
+  workspace: string,
+  source: string,
+  root: NonNullable<Awaited<ReturnType<typeof packageManifest>>>,
+  tasks: DiscoveredProjectTask[],
+  diagnostics: { source: string; message: string }[],
+  requested?: ProjectTaskReference,
+) {
+  try {
+    const manifest = source === 'package.json' ? root : await packageManifest(workspace, source)
+    if (manifest === null) return
+    const directory = posix.dirname(source)
+    const runner = await runnerFor(
+      workspace,
+      directory,
+      manifest.packageManager ?? root.packageManager,
+    )
+    for (const [task, description] of Object.entries(manifest.scripts ?? {})) {
+      const reference = { provider: 'package-script' as const, source, task, directory }
+      if (requested && !sameTaskReference(reference, requested)) continue
+      if (!isInvocableTaskName(task)) {
+        diagnostics.push({ source, message: `Unsupported task name: ${task}` })
+        continue
+      }
+      tasks.push({
+        reference,
+        group: manifest.name ?? directory,
+        description,
+        ...runner,
+      })
+    }
+    if (!requested) limitDiscoveredTasks(tasks, ACTION_DEFINITION_LIMITS.DISCOVERED_TASKS)
+  } catch (error) {
+    diagnostics.push(taskReadError(source, error))
+  }
+}
+
+async function list(
+  workspace: string,
+  requested?: ProjectTaskReference,
+): Promise<ProjectTaskDiscovery> {
   const tasks: DiscoveredProjectTask[] = []
   const diagnostics: { source: string; message: string }[] = []
   let root: Awaited<ReturnType<typeof packageManifest>>
@@ -157,31 +199,8 @@ async function list(workspace: string): Promise<ProjectTaskDiscovery> {
     diagnostics.push(taskReadError('package.json / pnpm-workspace.yaml', error))
   }
   for (const source of sources) {
-    try {
-      const manifest = source === 'package.json' ? root : await packageManifest(workspace, source)
-      if (manifest === null) continue
-      const directory = posix.dirname(source)
-      const runner = await runnerFor(
-        workspace,
-        directory,
-        manifest.packageManager ?? root.packageManager,
-      )
-      for (const [task, description] of Object.entries(manifest.scripts ?? {})) {
-        if (!isInvocableTaskName(task)) {
-          diagnostics.push({ source, message: `Unsupported task name: ${task}` })
-          continue
-        }
-        tasks.push({
-          reference: { provider: 'package-script', source, task, directory },
-          group: manifest.name ?? directory,
-          description,
-          ...runner,
-        })
-      }
-      limitDiscoveredTasks(tasks, ACTION_DEFINITION_LIMITS.DISCOVERED_TASKS)
-    } catch (error) {
-      diagnostics.push(taskReadError(source, error))
-    }
+    if (requested && source !== requested.source) continue
+    await appendPackageSourceTasks(workspace, source, root, tasks, diagnostics, requested)
   }
   return { tasks: tasks.slice(0, ACTION_DEFINITION_LIMITS.DISCOVERED_TASKS), diagnostics }
 }

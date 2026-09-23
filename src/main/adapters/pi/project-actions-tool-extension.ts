@@ -77,12 +77,13 @@ interface ProjectActionToolInput extends ProjectActionToolServices {
 async function authorize(
   ctx: ExtensionContext,
   operation: 'start' | 'restart' | 'stop',
-  execution: string,
+  workspacePath: string,
+  subject: string,
   signal?: AbortSignal,
 ) {
   if (!ctx.hasUI) throw new Error('Action execution requires an OpenWaggle authorization context.')
   const title = `Allow action ${operation}?`
-  const message = execution
+  const message = `Session workspace: .\n${subject}`
   const channel = getOpenWaggleAuthorize(ctx.ui)
   const approved = channel
     ? await channel({
@@ -92,7 +93,7 @@ async function authorize(
           requesterId: 'openwaggle:project-actions',
           requester: 'Project Actions',
           capability: operation === 'stop' ? 'actions.stop' : 'actions.execute',
-          resource: createHash('sha256').update(execution).digest('hex'),
+          resource: createHash('sha256').update(`${workspacePath}\n${subject}`).digest('hex'),
         },
         ...(signal ? { signal } : {}),
       })
@@ -134,7 +135,8 @@ async function startAction(
   await authorize(
     ctx,
     params.restartRunId ? 'restart' : 'start',
-    `${workspace.workspacePath}\n${executionKey}`,
+    workspace.workspacePath,
+    executionKey,
     signal,
   )
   signal?.throwIfAborted()
@@ -179,7 +181,7 @@ async function execute(
       startAction(input, workspace, start, requestId, ctx, signal),
     )
     .with({ action: 'stop' }, async ({ runId }) => {
-      await authorize(ctx, 'stop', `${workspace.workspacePath}\n${runId}`, signal)
+      await authorize(ctx, 'stop', workspace.workspacePath, runId, signal)
       signal?.throwIfAborted()
       return Effect.runPromise(input.runs.stop(workspace.workspaceId, runId))
     })

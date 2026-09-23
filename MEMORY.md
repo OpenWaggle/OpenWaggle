@@ -889,6 +889,9 @@ launch events and revision 14 to update channels; their published tuples stay un
 older revisions incompatible. Keep safe Host drain/handoff.
 Package task discovery checks the nearest package lockfiles before walking toward the Workspace
 root when no packageManager is declared; explicit child and root declarations keep precedence.
+The 1,000-task discovery page is a UI bound, not a validity bound for saved actions. Resolve an exact
+saved package or Hatch reference through its provider and current source even when it lies beyond
+the page, while still checking that the source belongs to the declared workspace and the task exists.
 Interrupted sharing journals pin the filesystem directory identity and durable Workspace resource.
 Recovery keeps a draft when the checkout is missing, replaced, or releasing; publication must never
 recreate a deleted checkout. Private preparation retains its profile metadata so a teammate removing
@@ -918,6 +921,9 @@ Agent authorization includes preview URL and automatic opening because both caus
 effects. Resolve relative PATH entries and executable paths from the action directory, including
 setup shell selection. Hatch environments inherit ordinary scripts by name, but replace the entire
 extra-scripts option; parent matrices do not make explicitly named child environments ambiguous.
+Action approval messages use the current Session workspace as `.`. Keep the absolute workspace path
+only in the hashed authorization scope so separate worktrees cannot share an approval, and never
+render OpenWaggle's worktree-storage path in Start, Restart or Stop prompts.
 Bind renderer Start and Restart requests to the execution key of the displayed definition. The
 Host must refuse a changed action before launching a command that differs from what the user saw.
 Use an ordinary scrolling container around the disabled action-editor fieldset; Chromium fieldset

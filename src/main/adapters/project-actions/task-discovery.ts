@@ -4,14 +4,13 @@ import {
   ACTION_DEFINITION_LIMITS,
   type ActionInvocation,
   type ProjectTaskDiscovery,
-  type ProjectTaskReference,
   type ResolvedActionInvocation,
 } from '@shared/types/action-definitions'
 import { projectTaskArguments } from '@shared/utils/project-task-command'
 import { cargoAliasReader } from './cargo-alias-reader'
 import { hatchScriptReader } from './hatch-script-reader'
 import { packageScriptReader } from './package-script-reader'
-import type { ProjectTaskReader } from './task-discovery-types'
+import { type ProjectTaskReader, sameTaskReference } from './task-discovery-types'
 import { resolveActionDirectory } from './task-source-files'
 
 const READERS: readonly ProjectTaskReader[] = [
@@ -33,16 +32,6 @@ export async function discoverProjectTasks(workspace: string): Promise<ProjectTa
   return { tasks: tasks.slice(0, ACTION_DEFINITION_LIMITS.DISCOVERED_TASKS), diagnostics }
 }
 
-function sameReference(left: ProjectTaskReference, right: ProjectTaskReference) {
-  return (
-    left.provider === right.provider &&
-    left.source === right.source &&
-    left.task === right.task &&
-    left.directory === right.directory &&
-    left.environment === right.environment
-  )
-}
-
 export async function resolveActionInvocation(
   workspace: string,
   input: ActionInvocation,
@@ -57,8 +46,10 @@ export async function resolveActionInvocation(
   const reference = invocation.task
   const reader = READERS.find((candidate) => candidate.provider === reference.provider)
   if (!reader) throw new Error(`Unsupported task provider: ${reference.provider}`)
-  const discovery = await reader.list(workspace)
-  const task = discovery.tasks.find((candidate) => sameReference(candidate.reference, reference))
+  const discovery = await reader.list(workspace, reference)
+  const task = discovery.tasks.find((candidate) =>
+    sameTaskReference(candidate.reference, reference),
+  )
   if (!task)
     throw new Error(
       `Task unavailable: ${reference.source} · ${reference.task}. ${discovery.diagnostics.map((diagnostic) => diagnostic.message).join(' ')}`.trim(),
