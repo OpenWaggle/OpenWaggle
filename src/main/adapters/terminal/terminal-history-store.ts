@@ -2,6 +2,11 @@ import { TERMINAL } from '@shared/constants/resource-limits'
 import type { TerminalKey, TerminalOwnerKey } from '@shared/types/terminal'
 import { createLogger } from '../../logger'
 import {
+  appendWithCursor,
+  recoverHistoryCursor,
+  replaceWithCursor,
+} from './terminal-history-cursor'
+import {
   makeTerminalHistoryFiles,
   ownerKeyFromTerminalKey,
   type TerminalHistoryFiles,
@@ -9,7 +14,10 @@ import {
 import { makeTerminalHistoryMover, type TerminalHistoryMover } from './terminal-history-moves'
 import { removeTerminalHistoryForPath } from './terminal-history-path-cleanup'
 import {
+  HISTORY_COMPACT_TARGET_BYTES,
+  HISTORY_COMPACT_TARGET_LINES,
   measureTerminalHistoryText,
+  retainPendingHistoryBatch,
   retainTerminalHistorySuffix,
   type TerminalHistoryCounts,
 } from './terminal-history-retention'
@@ -22,15 +30,6 @@ import type {
 export type { TerminalHistoryCacheSnapshot, TerminalHistoryStore }
 
 const logger = createLogger('terminal-history')
-
-const HISTORY_COMPACT_TARGET_PERCENT = 80
-const PERCENT_BASE = 100
-const HISTORY_COMPACT_TARGET_LINES = Math.floor(
-  (TERMINAL.MAX_SCROLLBACK_LINES * HISTORY_COMPACT_TARGET_PERCENT) / PERCENT_BASE,
-)
-const HISTORY_COMPACT_TARGET_BYTES = Math.floor(
-  (TERMINAL.MAX_SCROLLBACK_BYTES * HISTORY_COMPACT_TARGET_PERCENT) / PERCENT_BASE,
-)
 
 interface PendingBatch {
   parts: string[]
@@ -51,6 +50,7 @@ class TerminalHistoryStoreImpl implements TerminalHistoryStore {
   private readonly pending = new Map<TerminalKey, PendingBatch>()
   private readonly states = new Map<TerminalKey, TerminalHistoryCounts>()
   private readonly workingDirectories = new Map<TerminalKey, string>()
+  private failedFlush: unknown | null = null
   private readonly files: TerminalHistoryFiles
   private readonly mover: TerminalHistoryMover
 
@@ -63,6 +63,7 @@ class TerminalHistoryStoreImpl implements TerminalHistoryStore {
     const pendingBarrier = this.queuePendingBatches()
     return this.enqueueMutation(async () => {
       await pendingBarrier
+      await this.recoverCursor(key)
       return this.readPersisted(key)
     }).catch(() => '')
   }
@@ -71,12 +72,8 @@ class TerminalHistoryStoreImpl implements TerminalHistoryStore {
     const pendingBarrier = this.queuePendingBatches()
     return this.enqueueMutation(async () => {
       await pendingBarrier
+      const endOffset = await this.recoverCursor(key)
       const text = await this.readPersisted(key)
-      const rawCursor = await this.files.readIfPresent(this.files.describe(key).cursorFile)
-      if (rawCursor === null) return { text, endOffset: null }
-      const endOffset = Number(rawCursor)
-      if (!Number.isSafeInteger(endOffset) || endOffset < 0)
-        throw new Error('Invalid terminal history cursor.')
       return { text, endOffset }
     })
   }
@@ -105,7 +102,7 @@ class TerminalHistoryStoreImpl implements TerminalHistoryStore {
     batch.bytes += measured.bytes
     batch.lines += measured.lines
     if (endOffset !== null) batch.endOffset = endOffset
-    this.retainPendingBatch(batch)
+    retainPendingHistoryBatch(batch)
     this.pending.set(key, batch)
     this.scheduleFlush()
   }
@@ -190,6 +187,7 @@ class TerminalHistoryStoreImpl implements TerminalHistoryStore {
       this.flushTimer = null
     }
     await this.queuePendingBatches()
+    if (this.failedFlush !== null) throw this.failedFlush
   }
 
   cacheSnapshotForTests(): TerminalHistoryCacheSnapshot {
@@ -246,14 +244,14 @@ class TerminalHistoryStoreImpl implements TerminalHistoryStore {
     const chunk = batch.parts.join('')
     if (chunk.length === 0) return
     const files = await this.ensureHistoryFiles(key)
+    await this.recoverCursor(key)
     const state = await this.loadState(key)
-    if (batch.endOffset !== null)
-      await this.files.writePrivateAtomically(files.cursorFile, String(batch.endOffset))
     if (
       state.lines + batch.lines <= TERMINAL.MAX_SCROLLBACK_LINES &&
       state.bytes + batch.bytes <= TERMINAL.MAX_SCROLLBACK_BYTES
     ) {
-      await this.files.appendPrivate(files.logFile, chunk)
+      if (batch.endOffset === null) await this.files.appendPrivate(files.logFile, chunk)
+      else await appendWithCursor(this.files, files, state.bytes, chunk, batch.endOffset)
       this.states.set(key, {
         bytes: state.bytes + batch.bytes,
         lines: state.lines + batch.lines,
@@ -267,25 +265,9 @@ class TerminalHistoryStoreImpl implements TerminalHistoryStore {
       HISTORY_COMPACT_TARGET_LINES,
       HISTORY_COMPACT_TARGET_BYTES,
     )
-    await this.files.writePrivate(files.logFile, retained.text)
+    if (batch.endOffset === null) await this.files.writePrivate(files.logFile, retained.text)
+    else await replaceWithCursor(this.files, files, retained.text, batch.endOffset)
     this.states.set(key, { bytes: retained.bytes, lines: retained.lines })
-  }
-
-  private retainPendingBatch(batch: PendingBatch) {
-    if (
-      batch.lines <= TERMINAL.MAX_SCROLLBACK_LINES &&
-      batch.bytes <= TERMINAL.MAX_SCROLLBACK_BYTES
-    ) {
-      return
-    }
-    const retained = retainTerminalHistorySuffix(
-      batch.parts.join(''),
-      HISTORY_COMPACT_TARGET_LINES,
-      HISTORY_COMPACT_TARGET_BYTES,
-    )
-    batch.parts = [retained.text]
-    batch.bytes = retained.bytes
-    batch.lines = retained.lines
   }
 
   private ensureHistoryFiles(key: TerminalKey) {
@@ -304,10 +286,24 @@ class TerminalHistoryStoreImpl implements TerminalHistoryStore {
   private queuePendingBatches() {
     const batches = this.takePendingBatches()
     if (batches.length === 0) return this.mutationTail
-    return this.enqueueMutation(async () => {
+    const result = this.enqueueMutation(async () => {
       await this.files.ensureDirectory()
-      await Promise.all(batches.map(([key, batch]) => this.appendBatch(key, batch)))
+      const writes = await Promise.allSettled(
+        batches.map(([key, batch]) => this.appendBatch(key, batch)),
+      )
+      const failure = writes.find((write) => write.status === 'rejected')
+      if (failure?.status === 'rejected') throw failure.reason
     })
+    return result.catch((error: unknown) => {
+      this.failedFlush = error
+      throw error
+    })
+  }
+
+  private async recoverCursor(key: TerminalKey) {
+    const result = await recoverHistoryCursor(this.files, this.files.describe(key))
+    if (result.recovered) this.states.delete(key)
+    return result.endOffset
   }
 
   private scheduleFlush() {

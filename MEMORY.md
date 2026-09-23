@@ -1039,7 +1039,9 @@ escaped prefixes such as `\command exec` and `\builtin exec` suppress alias expa
 evaluating the command.
 
 Action run output cursors cannot be recovered from retained log length after scrollback
-compaction: the Host may flush the log before its throttled SQLite `outputBytes` update. Persist
-the absolute end cursor beside action history before appending each flushed batch, and read that
-cursor with the retained text after Host recovery. If a crash loses an unflushed tail that the
-renderer already displayed, keep the renderer's cursor stable rather than clearing its output.
+compaction: the Host may flush the log before its throttled SQLite `outputBytes` update. Journal
+the append or replacement text with its absolute end cursor in one private atomic sidecar before
+writing the log; recover an unfinished journal idempotently, then commit the cursor. A failed
+scheduled flush must remain sticky so action finalization cannot silently publish a terminal run
+with missing output. If a crash loses an unflushed tail that the renderer already displayed, keep
+the renderer's cursor stable rather than clearing its output.

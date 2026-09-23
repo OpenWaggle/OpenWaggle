@@ -1,3 +1,14 @@
+import { TERMINAL } from '@shared/constants/resource-limits'
+
+const HISTORY_COMPACT_TARGET_PERCENT = 80
+const PERCENT_BASE = 100
+export const HISTORY_COMPACT_TARGET_LINES = Math.floor(
+  (TERMINAL.MAX_SCROLLBACK_LINES * HISTORY_COMPACT_TARGET_PERCENT) / PERCENT_BASE,
+)
+export const HISTORY_COMPACT_TARGET_BYTES = Math.floor(
+  (TERMINAL.MAX_SCROLLBACK_BYTES * HISTORY_COMPACT_TARGET_PERCENT) / PERCENT_BASE,
+)
+
 const CHAR_CODE_LINE_FEED = 10
 const CHAR_CODE_HIGH_SURROGATE_MIN = 0xd800
 const CHAR_CODE_HIGH_SURROGATE_MAX = 0xdbff
@@ -18,6 +29,23 @@ export interface TerminalHistoryText {
 }
 
 export type TerminalHistoryCounts = Omit<TerminalHistoryText, 'text'>
+
+export function retainPendingHistoryBatch(batch: {
+  parts: string[]
+  bytes: number
+  lines: number
+}) {
+  if (batch.lines <= TERMINAL.MAX_SCROLLBACK_LINES && batch.bytes <= TERMINAL.MAX_SCROLLBACK_BYTES)
+    return
+  const retained = retainTerminalHistorySuffix(
+    batch.parts.join(''),
+    HISTORY_COMPACT_TARGET_LINES,
+    HISTORY_COMPACT_TARGET_BYTES,
+  )
+  batch.parts = [retained.text]
+  batch.bytes = retained.bytes
+  batch.lines = retained.lines
+}
 
 export function measureTerminalHistoryText(text: string): TerminalHistoryText {
   let lines = 0
