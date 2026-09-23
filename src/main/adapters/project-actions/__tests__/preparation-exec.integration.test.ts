@@ -53,6 +53,20 @@ describe.skipIf(process.platform === 'win32')('setup commands using exec', () =>
         })
         expect(sourced).toMatchObject({ exitCode: 0, environment: { OW_SOURCED_EXEC: 'loaded' } })
 
+        const output: string[] = []
+        const assigned = await execute({
+          ...input,
+          invocation: {
+            type: 'command',
+            command: 'OW_EXEC_TEMP=passed exec /usr/bin/printenv OW_EXEC_TEMP',
+            directory: '.',
+          },
+          onOutput: (chunk) => output.push(chunk),
+        })
+        expect(assigned.exitCode).toBe(0)
+        expect(output.join('')).toContain('passed')
+        expect(assigned.environment.OW_EXEC_TEMP).toBeUndefined()
+
         const failed = await execute({
           ...input,
           invocation: {

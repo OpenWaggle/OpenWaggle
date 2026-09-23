@@ -829,8 +829,9 @@ POSIX setup may source scripts that register their own EXIT cleanup; keep the en
 handler authoritative while preserving user cleanup, including explicit successful exits.
 POSIX setup may also replace its shell with `exec`, which skips EXIT capture. Expand an `exec`
 alias only when parsing user commands so a snapshot is written before replacement, including from
-sourced scripts. Keep the actual `exec` builtin as the second command: a shell function around
-`exec` breaks redirect-only forms such as `exec >log`, whose redirection must persist in the shell.
+sourced scripts. Expand capture through a silent command substitution within the same `exec` command:
+splitting it with `&&` drops temporary assignments such as `FOO=bar exec tool`, while a shell
+function around `exec` breaks redirect-only forms such as `exec >log`.
 Fresh local Sessions need Summary availability from configured preparation, before a snapshot or
 run exists, or users cannot reach explicit setup.
 Native actions use Local Session protocol revision 15 and require matching clients/Host for this
