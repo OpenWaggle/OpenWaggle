@@ -329,6 +329,7 @@ describe('Sidebar project actions', () => {
         recentProjects: [],
         projectDisplayNames: {},
         skillTogglesByProject: {},
+        selectedModelsByProject: {},
       })
       expect(useChatStore.getState().activeSessionId).toBeNull()
       expect(navigateMock).toHaveBeenCalledWith({ to: '/' })
