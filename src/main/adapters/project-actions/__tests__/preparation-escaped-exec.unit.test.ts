@@ -55,4 +55,20 @@ describe('escaped exec capture', () => {
         .replace('export READY=yes; \\builtin exec', 'export READY=yes; builtin exec'),
     )
   })
+
+  it('rewrites a literal eval body at the exec site without changing printed literals', () => {
+    const command = [
+      String.raw`eval 'export READY=yes; \exec /usr/bin/true'`,
+      String.raw`printf eval '\exec'`,
+      String.raw`eval 'printf "%s" "\exec"; \exec /usr/bin/true'`,
+    ].join('\n')
+
+    expect(enableEscapedExecCapture(command)).toBe(
+      [
+        "eval 'export READY=yes; exec /usr/bin/true'",
+        String.raw`printf eval '\exec'`,
+        String.raw`eval 'printf "%s" "\exec"; exec /usr/bin/true'`,
+      ].join('\n'),
+    )
+  })
 })

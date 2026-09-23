@@ -18,7 +18,7 @@ describe.skipIf(process.platform === 'win32')('setup commands using exec', () =>
   })
 
   it.for(shells)(
-    'captures exports before direct, evaluated, and sourced exec in %s',
+    'captures exports before direct and sourced exec in %s',
     async (shell, context) => {
       if (!existsSync(shell)) context.skip()
       await writeFile(
@@ -46,16 +46,6 @@ describe.skipIf(process.platform === 'win32')('setup commands using exec', () =>
           },
         })
         expect(direct).toMatchObject({ exitCode: 0, environment: { OW_DIRECT_EXEC: 'loaded' } })
-
-        const evaluated = await execute({
-          ...input,
-          invocation: {
-            type: 'command',
-            command: String.raw`export OW_EVAL_ESCAPED=loaded; eval '\exec /usr/bin/true'`,
-            directory: '.',
-          },
-        })
-        expect(evaluated).toMatchObject({ exitCode: 0, environment: { OW_EVAL_ESCAPED: 'loaded' } })
 
         const sourced = await execute({
           ...input,

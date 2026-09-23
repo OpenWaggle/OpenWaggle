@@ -69,6 +69,26 @@ function visitQuote(command: string, index: number, state: ScanState) {
   return index
 }
 
+function evaluatedLiteralAt(command: string, index: number, lineStart: number) {
+  if (command[index] !== "'") return undefined
+  const prefix = command.slice(lineStart, index)
+  if (!/(?:^|[;&|({])\s*(?:(?:command|builtin)\s+)?eval\s+$/.test(prefix)) return undefined
+  const end = command.indexOf("'", index + 1)
+  if (end < 0) return undefined
+  return { end, value: enableEscapedExecCapture(command.slice(index + 1, end)) }
+}
+
+function visitOpeningQuote(command: string, index: number, state: ScanState) {
+  const evaluated = evaluatedLiteralAt(command, index, state.lineStart)
+  if (evaluated) {
+    state.result += `'${evaluated.value}'`
+    return evaluated.end
+  }
+  state.quote = command[index] === "'" ? 'single' : 'double'
+  state.result += command[index]
+  return index
+}
+
 function visitCharacter(command: string, index: number, state: ScanState) {
   const character = command[index]
   if (character === '\n') {
@@ -80,11 +100,7 @@ function visitCharacter(command: string, index: number, state: ScanState) {
     return index
   }
   if (state.quote) return visitQuote(command, index, state)
-  if (character === "'" || character === '"') {
-    state.quote = character === "'" ? 'single' : 'double'
-    state.result += character
-    return index
-  }
+  if (character === "'" || character === '"') return visitOpeningQuote(command, index, state)
   if (isCommentStart(command, index)) {
     state.comment = true
     state.result += character
