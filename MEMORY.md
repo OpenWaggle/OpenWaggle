@@ -857,6 +857,9 @@ Route their prefixed forms through capture's saved-trap handler, while retaining
 environment snapshots for prefixed `exec`. Ksh-style function definitions preserve temporary
 assignment export behavior in ksh. Run saved EXIT cleanup with the setup's original status as
 `$?`, including failed exits under `set -e`; the final process status remains the setup status.
+One-argument `trap EXIT` and `trap 0` reset only the saved user cleanup; they must retain the
+environment-capture handler. Select the first available capture-capable shell among the normal
+shell candidates, so an unsupported configured shell does not block setup when a fallback exists.
 Fresh local Sessions need Summary availability from configured preparation, before a snapshot or
 run exists, or users cannot reach explicit setup.
 Native actions use Local Session protocol revision 16 and require matching clients/Host for this

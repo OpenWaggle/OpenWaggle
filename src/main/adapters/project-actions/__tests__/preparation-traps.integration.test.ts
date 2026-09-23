@@ -24,6 +24,18 @@ const prefixedShells = shells.flatMap(({ shell, source }) =>
       ]
     : [{ shell, source, prefix: 'command' }],
 )
+const resetCases = [
+  { shell: '/bin/bash', reset: 'trap EXIT' },
+  { shell: '/bin/bash', reset: 'trap 0' },
+  { shell: '/bin/bash', reset: 'command trap EXIT' },
+  { shell: '/bin/bash', reset: 'builtin trap 0' },
+  { shell: '/bin/zsh', reset: 'trap EXIT' },
+  { shell: '/bin/zsh', reset: 'trap 0' },
+  { shell: '/bin/zsh', reset: 'command trap EXIT' },
+  { shell: '/bin/zsh', reset: 'builtin trap 0' },
+  { shell: '/bin/sh', reset: 'trap 0' },
+  { shell: '/bin/dash', reset: 'command trap 0' },
+]
 
 describe.skipIf(process.platform === 'win32')('real setup EXIT trap capture', () => {
   let directory = ''
@@ -68,6 +80,39 @@ describe.skipIf(process.platform === 'win32')('real setup EXIT trap capture', ()
           environment: { OW_BEFORE_TRAP: 'yes', OW_AFTER_TRAP: 'yes' },
         })
         expect(existsSync(join(directory, 'cleanup-marker'))).toBe(true)
+      } finally {
+        await execute.shutdown()
+      }
+    },
+  )
+
+  it.for(resetCases)(
+    'retains environment capture after $reset in $shell',
+    async ({ shell, reset }, context) => {
+      if (!existsSync(shell)) context.skip()
+      const execute = createPreparationExecutor(
+        createActionProcessRunner('test'),
+        directory,
+        'test',
+      )
+      try {
+        const result = await execute({
+          workspace: {
+            workspaceId: 'trap-reset',
+            projectPath: directory,
+            workspacePath: directory,
+          },
+          invocation: {
+            type: 'command',
+            command: `trap 'printf unexpected > user-cleanup' EXIT; ${reset}; export OW_AFTER_RESET=yes; exit 0`,
+            directory: '.',
+          },
+          environment: { SHELL: shell },
+          captureEnvironment: true,
+          onOutput: () => {},
+        })
+        expect(result).toMatchObject({ exitCode: 0, environment: { OW_AFTER_RESET: 'yes' } })
+        expect(existsSync(join(directory, 'user-cleanup'))).toBe(false)
       } finally {
         await execute.shutdown()
       }

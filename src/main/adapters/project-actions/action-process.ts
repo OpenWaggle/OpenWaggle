@@ -89,8 +89,13 @@ export async function resolveActionExecutablePath(
   )
 }
 
-export async function resolveActionShell(environment: Readonly<Record<string, string>>, cwd = '.') {
+export async function resolveActionShell(
+  environment: Readonly<Record<string, string>>,
+  cwd = '.',
+  accepts: (shell: string) => boolean = () => true,
+) {
   for (const candidate of existingShells({ environment })) {
+    if (!accepts(candidate.command)) continue
     try {
       return await resolveActionExecutablePath(candidate.command, environment, cwd)
     } catch (error) {

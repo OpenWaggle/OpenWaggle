@@ -12,7 +12,10 @@ import type { ActionRunWorkspace } from '../../ports/action-run-service'
 import { type ActionProcessRunner, resolveActionShell } from './action-process'
 import { createPreparationLaunches } from './preparation-launch'
 import { createPreparationProcessOwnership } from './preparation-process-ownership'
-import { preparationCaptureInvocation } from './preparation-shell-capture'
+import {
+  preparationCaptureInvocation,
+  supportsPreparationCaptureShell,
+} from './preparation-shell-capture'
 import { resolveActionInvocation } from './task-discovery'
 
 const ENVIRONMENT_BYTES = 512 * 1_024
@@ -86,7 +89,11 @@ export function createPreparationExecutor(
         ? await preparationCaptureInvocation(
             resolved,
             destination,
-            await resolveActionShell(effectiveEnvironment, resolved.cwd),
+            await resolveActionShell(
+              effectiveEnvironment,
+              resolved.cwd,
+              supportsPreparationCaptureShell,
+            ),
             effectiveEnvironment,
           )
         : null

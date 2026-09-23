@@ -11,6 +11,24 @@ const POSIX_ENVIRONMENT_DUMP =
     ? `/usr/bin/perl -e 'for my $key (keys %ENV) { print "$key=$ENV{$key}\\0" }'`
     : '/usr/bin/env -0'
 
+const CAPTURE_SHELLS = new Set([
+  'pwsh',
+  'pwsh.exe',
+  'powershell',
+  'powershell.exe',
+  'fish',
+  'bash',
+  'zsh',
+  'sh',
+  'dash',
+  'ksh',
+  'mksh',
+])
+
+export function supportsPreparationCaptureShell(shell: string) {
+  return CAPTURE_SHELLS.has(basename(shell).toLowerCase())
+}
+
 function invocationCommand(invocation: ResolvedActionInvocation, quote: (value: string) => string) {
   return invocation.type === 'command'
     ? invocation.command
@@ -134,6 +152,7 @@ export async function preparationCaptureInvocation(
         'trap() {',
         'if [ "$#" -eq 0 ] || [ "$1" = \'-p\' ] || [ "$1" = \'-l\' ]; then builtin trap "$@"; return; fi',
         'if [ "$1" = \'--\' ]; then shift; fi',
+        'if [ "$#" -eq 1 ]; then case "$1" in EXIT|0) __ow_user_exit_trap=\'\'; return ;; *) builtin trap "$@"; return ;; esac; fi',
         'if [ "$#" -lt 2 ]; then builtin trap "$@"; return; fi',
         'local __ow_handler="$1" __ow_signal',
         'shift',
@@ -165,6 +184,7 @@ export async function preparationCaptureInvocation(
         '__ow_trap() {',
         'if [ "$#" -eq 0 ] || [ "$1" = \'-p\' ] || [ "$1" = \'-l\' ]; then command trap "$@"; return; fi',
         'if [ "$1" = \'--\' ]; then shift; fi',
+        'if [ "$#" -eq 1 ]; then case "$1" in EXIT|0) __ow_user_exit_trap=\'\'; return ;; *) command trap "$@"; return ;; esac; fi',
         'if [ "$#" -lt 2 ]; then command trap "$@"; return; fi',
         '__ow_handler="$1"',
         'shift',
