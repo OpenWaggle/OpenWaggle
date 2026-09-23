@@ -87,7 +87,7 @@ async function list(
     for (const [task, body] of Object.entries(aliases)) {
       const reference = { provider: 'cargo-alias' as const, source, directory: '.', task }
       if (requested && !sameTaskReference(reference, requested)) continue
-      if (!isInvocableTaskName(task) || BUILTIN_COMMANDS.has(task)) {
+      if (!isInvocableTaskName(task) || task.startsWith('+') || BUILTIN_COMMANDS.has(task)) {
         diagnostics.push({
           source,
           message: `Cargo cannot invoke this alias name: ${task}`,

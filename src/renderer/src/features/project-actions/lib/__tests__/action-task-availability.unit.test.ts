@@ -13,7 +13,7 @@ describe('saved task availability', () => {
         tasks: [{ ...TEST_TASK, reference: { ...TEST_TASK.reference, directory: 'other' } }],
         diagnostics: [],
       }),
-    ).toContain('unavailable')
+    ).toBeUndefined()
     expect(
       actionTaskUnavailable(invocation, {
         tasks: [{ ...TEST_TASK, unavailableReason: 'Runner missing' }],

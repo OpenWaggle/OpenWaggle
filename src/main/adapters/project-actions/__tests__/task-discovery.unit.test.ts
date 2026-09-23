@@ -295,4 +295,22 @@ describe('project task discovery', () => {
       resolveActionInvocation(root, { type: 'task', task: task.reference }),
     ).rejects.toThrow('Cargo prefers')
   })
+
+  it('rejects Cargo aliases that Cargo parses as toolchain selectors', async () => {
+    await put('.cargo/config.toml', '[alias]\n"+version" = "build"\nfast = "test"\n')
+    const unsafe: ProjectTaskReference = {
+      provider: 'cargo-alias',
+      source: '.cargo/config.toml',
+      directory: '.',
+      task: '+version',
+    }
+    const discovery = await discoverProjectTasks(root)
+    expect(discovery.tasks.map((task) => task.reference.task)).toEqual(['fast'])
+    expect(discovery.diagnostics.map((diagnostic) => diagnostic.message)).toContain(
+      'Cargo cannot invoke this alias name: +version',
+    )
+    await expect(resolveActionInvocation(root, { type: 'task', task: unsafe })).rejects.toThrow(
+      'Task unavailable',
+    )
+  })
 })

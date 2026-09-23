@@ -9,7 +9,8 @@ export function actionTaskUnavailable(
 ): string | undefined {
   if (invocation.type !== 'task' || !discovery) return undefined
   const task = findDiscoveredTask(invocation.task, discovery)
-  return task ? task.unavailableReason : 'Task unavailable · choose another task'
+  // Discovery is capped; absence from its page is not proof that a saved task is gone.
+  return task?.unavailableReason
 }
 
 export function findDiscoveredTask(

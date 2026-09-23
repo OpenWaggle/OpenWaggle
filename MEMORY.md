@@ -892,6 +892,9 @@ root when no packageManager is declared; explicit child and root declarations ke
 The 1,000-task discovery page is a UI bound, not a validity bound for saved actions. Resolve an exact
 saved package or Hatch reference through its provider and current source even when it lies beyond
 the page, while still checking that the source belongs to the declared workspace and the task exists.
+The Actions menu must not disable a saved task merely because its reference is absent from that
+capped page; let backend preflight validate it at launch. Cargo aliases beginning with `+` are
+toolchain selectors in Cargo's CLI, so reject them even though other task names may use `+`.
 Interrupted sharing journals pin the filesystem directory identity and durable Workspace resource.
 Recovery keeps a draft when the checkout is missing, replaced, or releasing; publication must never
 recreate a deleted checkout. Private preparation retains its profile metadata so a teammate removing

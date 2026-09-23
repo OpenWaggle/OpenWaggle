@@ -2,7 +2,7 @@ import type { ActionCatalog } from '@shared/types/action-definitions'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useProjectActionStore } from '../../state/project-action-store'
-import { actionCatalog, TEST_ACTION } from './native-action-fixtures'
+import { actionCatalog, TEST_ACTION, TEST_TASK } from './native-action-fixtures'
 
 const mocks = vi.hoisted(() => ({
   catalog: ((): ActionCatalog | null => null)(),
@@ -49,6 +49,19 @@ describe('ProjectActionsControl', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Project actions' }))
     expect(screen.getByText('No saved actions yet.')).toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: 'Add action' })).toBeEnabled()
+  })
+  it('runs a saved task even when the capped discovery page omits it', () => {
+    const saved = {
+      ...TEST_ACTION,
+      invocation: { type: 'task' as const, task: TEST_TASK.reference },
+    }
+    mocks.catalog = { ...actionCatalog(), actions: [{ definition: saved, source: 'local' }] }
+    render(<ProjectActionsControl projectPath="/repo" />)
+    fireEvent.click(screen.getByRole('button', { name: 'Project actions' }))
+    const run = screen.getByRole('menuitem', { name: 'Run Test' })
+    expect(run).toBeEnabled()
+    fireEvent.click(run)
+    expect(mocks.run).toHaveBeenCalledExactlyOnceWith(saved)
   })
   it('shows loading without hiding the entry point or allowing an unsafely stale save', () => {
     mocks.catalog = null
