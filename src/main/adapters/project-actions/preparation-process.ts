@@ -9,7 +9,8 @@ import {
 } from '../../domain/prepared-environment'
 import { getInteractiveTerminalEnv } from '../../env'
 import type { ActionRunWorkspace } from '../../ports/action-run-service'
-import { type ActionProcess, type ActionProcessRunner, resolveActionShell } from './action-process'
+import { type ActionProcessRunner, resolveActionShell } from './action-process'
+import { createPreparationLaunches } from './preparation-launch'
 import { createPreparationProcessOwnership } from './preparation-process-ownership'
 import { preparationCaptureInvocation } from './preparation-shell-capture'
 import { resolveActionInvocation } from './task-discovery'
@@ -55,7 +56,7 @@ export function createPreparationExecutor(
   appVersion: string,
 ) {
   const ownership = createPreparationProcessOwnership()
-  const spawning = new Set<Promise<ActionProcess>>()
+  const launches = createPreparationLaunches(runner, ownership)
   let shuttingDown = false
   const execute = async (input: {
     readonly workspace: ActionRunWorkspace
@@ -92,20 +93,12 @@ export function createPreparationExecutor(
       const invocation = capture?.invocation ?? resolved
       if (shuttingDown) throw new Error('The Session Host is stopping.')
       input.signal?.throwIfAborted()
-      const pending = runner.start({
+      const child = await launches.start({
         invocation,
         environment,
         signal: input.signal,
         onOutput: input.onOutput,
       })
-      spawning.add(pending)
-      let child: ActionProcess
-      try {
-        child = await pending
-        ownership.add(child, input.onOutput)
-      } finally {
-        spawning.delete(pending)
-      }
       let exitCode: number | null
       const stop = () => {
         void ownership.stop(child)
@@ -135,7 +128,7 @@ export function createPreparationExecutor(
   return Object.assign(execute, {
     shutdown: async () => {
       shuttingDown = true
-      await Promise.allSettled(spawning)
+      await launches.shutdown()
       await ownership.stopAll()
     },
   })

@@ -113,4 +113,88 @@ describe.skipIf(process.platform === 'win32')('setup commands using exec', () =>
       }
     },
   )
+
+  it.for(['/bin/bash', '/bin/sh', '/bin/dash', '/bin/ksh', '/bin/mksh'])(
+    'captures exports before command exec in %s',
+    async (shell, context) => {
+      if (!existsSync(shell)) context.skip()
+      const execute = createPreparationExecutor(
+        createActionProcessRunner('test'),
+        directory,
+        'test',
+      )
+      try {
+        const result = await execute({
+          workspace: {
+            workspaceId: 'command-exec',
+            projectPath: directory,
+            workspacePath: directory,
+          },
+          invocation: {
+            type: 'command',
+            command: 'export OW_COMMAND_EXEC=loaded; command exec /usr/bin/true',
+            directory: '.',
+          },
+          environment: { SHELL: shell },
+          captureEnvironment: true,
+          onOutput: () => {},
+        })
+        expect(result).toMatchObject({ exitCode: 0, environment: { OW_COMMAND_EXEC: 'loaded' } })
+
+        const output: string[] = []
+        const assigned = await execute({
+          workspace: {
+            workspaceId: 'command-exec-assignment',
+            projectPath: directory,
+            workspacePath: directory,
+          },
+          invocation: {
+            type: 'command',
+            command: 'OW_COMMAND_TEMP=passed command exec /usr/bin/printenv OW_COMMAND_TEMP',
+            directory: '.',
+          },
+          environment: { SHELL: shell },
+          captureEnvironment: true,
+          onOutput: (chunk) => output.push(chunk),
+        })
+        expect(assigned.exitCode).toBe(0)
+        expect(output.join('')).toContain('passed')
+        expect(assigned.environment.OW_COMMAND_TEMP).toBeUndefined()
+      } finally {
+        await execute.shutdown()
+      }
+    },
+  )
+
+  it.for(['/bin/bash', '/bin/zsh'])(
+    'captures exports before builtin exec in %s',
+    async (shell, context) => {
+      if (!existsSync(shell)) context.skip()
+      const execute = createPreparationExecutor(
+        createActionProcessRunner('test'),
+        directory,
+        'test',
+      )
+      try {
+        const result = await execute({
+          workspace: {
+            workspaceId: 'builtin-exec',
+            projectPath: directory,
+            workspacePath: directory,
+          },
+          invocation: {
+            type: 'command',
+            command: 'export OW_BUILTIN_EXEC=loaded; builtin exec /usr/bin/true',
+            directory: '.',
+          },
+          environment: { SHELL: shell },
+          captureEnvironment: true,
+          onOutput: () => {},
+        })
+        expect(result).toMatchObject({ exitCode: 0, environment: { OW_BUILTIN_EXEC: 'loaded' } })
+      } finally {
+        await execute.shutdown()
+      }
+    },
+  )
 })

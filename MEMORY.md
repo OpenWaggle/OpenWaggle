@@ -839,6 +839,8 @@ alias only when parsing user commands so a snapshot is written before replacemen
 sourced scripts. Expand capture through a silent command substitution within the same `exec` command:
 splitting it with `&&` drops temporary assignments such as `FOO=bar exec tool`, while a shell
 function around `exec` breaks redirect-only forms such as `exec >log`.
+The valid `command exec` and `builtin exec` forms suppress the direct `exec` alias. Snapshot when
+their prefixes expand too; retain their command status and temporary-assignment behavior.
 Fresh local Sessions need Summary availability from configured preparation, before a snapshot or
 run exists, or users cannot reach explicit setup.
 Native actions use Local Session protocol revision 15 and require matching clients/Host for this
@@ -902,8 +904,10 @@ or agent-run marker. Pi Bash and PowerShell receive the active run's authoritati
 Persisted `starting` runs must be tracked before native launch. Stop aborts launch promptly and the
 PTY checks cancellation immediately before spawning; any late process remains owned until its tree
 is confirmed stopped, with failed cleanup visible and retryable.
-Preparation launches need the same abort signal passed into the process runner; Stop can arrive
-while native PTY startup is pending, and a process returned after cancellation must still be drained.
+Preparation launches need a linked abort signal passed into the process runner. Stop and Host
+shutdown must settle while native PTY module loading is stalled, even if launch never returns.
+Race launch against cancellation, check the linked signal before invoking the runner, and stop a
+process returned late after cancellation without blocking the canceled caller.
 Settings catalog, discovery, and edits use only the independently selected project path. Its active
 Session scope is reserved for the running-actions summary, since that Session may use a worktree.
 If node-pty reports failed native resource drain after process exit, an action's close promise can

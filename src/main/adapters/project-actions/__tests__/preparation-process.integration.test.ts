@@ -262,13 +262,19 @@ describe.skipIf(process.platform === 'win32')('real preparation environment capt
       signal: controller.signal,
       onOutput: () => {},
     })
-    const stopped = expect(pending).rejects.toThrow('Stopped by user')
+    const stopped = pending.then(
+      () => {
+        throw new Error('Expected setup cancellation')
+      },
+      (error: unknown) =>
+        expect(error).toEqual(expect.objectContaining({ message: 'Stopped by user' })),
+    )
     try {
       await vi.waitFor(() => expect(runner.start).toHaveBeenCalledOnce())
-      expect(runner.start).toHaveBeenCalledWith(
-        expect.objectContaining({ signal: controller.signal }),
-      )
+      const passedSignal = vi.mocked(runner.start).mock.calls[0]?.[0].signal
+      expect(passedSignal).toBeInstanceOf(AbortSignal)
       controller.abort(new Error('Stopped by user'))
+      expect(passedSignal?.aborted).toBe(true)
       launch.resolve({ pid: 42, closed: Promise.resolve({ exitCode: null }), stop })
       await stopped
       expect(stop).toHaveBeenCalledOnce()
