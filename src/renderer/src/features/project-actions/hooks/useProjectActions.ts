@@ -1,6 +1,7 @@
 import type { ActionDefinition } from '@shared/types/action-definitions'
 import type { ActionManagementScope } from '@shared/types/action-management'
 import type { ProjectAction, ProjectActionUpdate } from '@shared/types/project-actions'
+import { actionExecutionKey } from '@shared/utils/action-execution-key'
 import { queryOptions, useQuery } from '@tanstack/react-query'
 import type { OpenWaggleQueryOptions } from '@/queries/query-options'
 import { api } from '@/shared/lib/ipc'
@@ -11,6 +12,7 @@ import { useActionScope, useEditActionCatalog, useNativeActions } from './useNat
 function shortcutAction(definition: ActionDefinition): ProjectAction {
   return {
     ...definition,
+    executionKey: actionExecutionKey(definition),
     command: actionInvocationLabel(definition.invocation),
     runOnWorktreeCreate: false,
   }

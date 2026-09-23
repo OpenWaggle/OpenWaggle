@@ -1,5 +1,6 @@
 import type { ActionManagementScope } from '@shared/types/action-management'
 import { type ActionRun, isActiveActionRun } from '@shared/types/action-runs'
+import { actionExecutionKey } from '@shared/utils/action-execution-key'
 import { Copy, ExternalLink, RotateCw, Sparkles, Square } from 'lucide-react'
 import { useState } from 'react'
 import { setComposerTextValue } from '@/features/chat/lib'
@@ -40,6 +41,7 @@ export function ActionRunControls(props: {
           : {
               type: 'start',
               actionId: run.action.id,
+              expectedExecutionKey: actionExecutionKey(run.action),
               requestId: crypto.randomUUID(),
               restartRunId: run.id,
             },

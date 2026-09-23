@@ -854,6 +854,9 @@ Final local Session deletion retires its Workspace resource only after all durab
 including archived Sessions, are gone; stop finite runs as well as services before that cascade.
 Setup capture must use the ordinary action shell resolver and shell-native exit handlers, including
 fish, so configured shell syntax and explicit successful exits preserve exported environment.
+Fish reserves `exec` as syntax, so a function named `exec` cannot intercept process replacement.
+Rewrite direct Fish Setup command-position `exec` to a helper that snapshots exported values before
+the real `exec`; preserve arguments, quoted text, and comments.
 On Windows, resolve PATHEXT shims before extensionless files when an action command has no
 extension. npm/Corepack directories can contain both a POSIX shim and a `.cmd` shim; choosing the
 POSIX file bypasses the PowerShell wrapper and fails in node-pty. Output-derived previews must
@@ -915,6 +918,8 @@ Agent authorization includes preview URL and automatic opening because both caus
 effects. Resolve relative PATH entries and executable paths from the action directory, including
 setup shell selection. Hatch environments inherit ordinary scripts by name, but replace the entire
 extra-scripts option; parent matrices do not make explicitly named child environments ambiguous.
+Bind renderer Start and Restart requests to the execution key of the displayed definition. The
+Host must refuse a changed action before launching a command that differs from what the user saw.
 Use an ordinary scrolling container around the disabled action-editor fieldset; Chromium fieldset
 overflow can paint over a fixed footer. Keep save errors in a bounded area above that footer so
 revision-conflict recovery stays visible even when the form body is scrolled to the top.

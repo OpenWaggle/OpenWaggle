@@ -11,7 +11,10 @@ export async function resolveManagedActionLaunch(
     ({ definition }) => definition.id === input.actionId,
   )?.definition
   if (!definition) throw new Error('This action is no longer available in the workspace.')
-  if (input.expectedExecutionKey && input.expectedExecutionKey !== actionExecutionKey(definition))
+  if (
+    input.expectedExecutionKey !== undefined &&
+    input.expectedExecutionKey !== actionExecutionKey(definition)
+  )
     throw new Error(
       'The action changed during authorization. Review its current execution before starting.',
     )

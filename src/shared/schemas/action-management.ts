@@ -5,6 +5,7 @@ import { actionCatalogEditSchema, actionDefinitionIdSchema } from './action-defi
 
 const expectedRevision = Schema.Number.pipe(Schema.int(), Schema.nonNegative(), Schema.finite())
 const REVISION_LENGTH = 256
+const EXECUTION_KEY_LENGTH = 64 * 1024
 const identifier = Schema.String.pipe(
   Schema.minLength(1),
   Schema.maxLength(ACTION_DEFINITION_LIMITS.ID_LENGTH),
@@ -56,6 +57,9 @@ export const actionManagementRequestSchema: Schema.Schema<ActionManagementReques
       type: Schema.Literal('start'),
       actionId: actionDefinitionIdSchema,
       requestId: identifier,
+      expectedExecutionKey: Schema.optional(
+        Schema.String.pipe(Schema.minLength(1), Schema.maxLength(EXECUTION_KEY_LENGTH)),
+      ),
       restartRunId: Schema.optional(identifier),
     }),
     Schema.Struct({

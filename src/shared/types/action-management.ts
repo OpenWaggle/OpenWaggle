@@ -20,6 +20,7 @@ export type ActionManagementOperation =
       readonly type: 'start'
       readonly actionId: string
       readonly requestId: string
+      readonly expectedExecutionKey?: string
       readonly restartRunId?: string
     }
   | { readonly type: 'output'; readonly runId: string; readonly afterOffset: number }

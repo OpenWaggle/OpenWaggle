@@ -5,6 +5,7 @@ import { quotePosixShellArgument, quotePowerShellArgument } from '@shared/utils/
 import { resolveActionExecutablePath } from './action-process'
 import { enableEscapedExecCapture } from './preparation-escaped-exec'
 import { runtimeEvalRewriter } from './preparation-eval-rewriter'
+import { captureFishExec } from './preparation-fish-exec'
 
 // macOS env(1) does not promise -0; the bundled Perl keeps embedded newlines intact.
 const POSIX_ENVIRONMENT_DUMP =
@@ -193,7 +194,7 @@ export async function preparationCaptureInvocation(
   const script = match(name)
     .with('fish', () => {
       const quote = (value: string) => `'${value.replaceAll('\\', '\\\\').replaceAll("'", "\\'")}'`
-      return `umask 077\nfunction __ow_capture --on-event fish_exit\nset -l __ow_exit $status\nif test $__ow_exit -eq 0\ncommand ${POSIX_ENVIRONMENT_DUMP} > ${quote(destination)}\nend\nend\n${invocationCommand(resolved, quote)}`
+      return `umask 077\nfunction __ow_capture --on-event fish_exit\nset -l __ow_exit $status\nif test $__ow_exit -eq 0\ncommand ${POSIX_ENVIRONMENT_DUMP} > ${quote(destination)}\nend\nend\nfunction __ow_capture_exec\ncommand ${POSIX_ENVIRONMENT_DUMP} > ${quote(destination)}; or return $status\nexec $argv\nend\n${captureFishExec(invocationCommand(resolved, quote))}`
     })
     .with('bash', 'zsh', () => {
       const finish = [

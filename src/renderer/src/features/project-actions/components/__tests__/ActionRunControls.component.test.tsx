@@ -1,4 +1,5 @@
 import type { ActionRun } from '@shared/types/action-runs'
+import { actionExecutionKey } from '@shared/utils/action-execution-key'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useComposerStore } from '@/features/composer/state'
@@ -84,6 +85,23 @@ describe('Action run controls', () => {
       operation: { type: 'stop', runId: 'run-one' },
     })
     expect(screen.getByRole('button', { name: 'Restart' })).toBeDisabled()
+  })
+  it('binds Restart to the action revision shown in the run details', async () => {
+    mocks.manage.mockResolvedValue({ type: 'run', run })
+    render(<ActionRunControls scope={scope} run={{ ...run, status: 'failed' }} output="" />)
+    fireEvent.click(screen.getByRole('button', { name: 'Restart' }))
+    await waitFor(() =>
+      expect(mocks.manage).toHaveBeenCalledWith({
+        scope,
+        operation: {
+          type: 'start',
+          actionId: TEST_ACTION.id,
+          expectedExecutionKey: actionExecutionKey(TEST_ACTION),
+          requestId: expect.any(String),
+          restartRunId: run.id,
+        },
+      }),
+    )
   })
   it('prepares a repair request without sending or discarding the existing composer draft', () => {
     useComposerStore.setState({ input: 'Keep this draft' })

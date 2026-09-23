@@ -1,3 +1,4 @@
+import { actionExecutionKey } from '@shared/utils/action-execution-key'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { createManagedActionFixture } from './managed-action-runs.test-harness'
 
@@ -10,6 +11,17 @@ afterEach(async () => {
   await fixture.dispose()
 })
 const input = (requestId: string) => ({ workspace: fixture.workspace, actionId: 'test', requestId })
+
+it('refuses a launch when its displayed execution changed before the Host resolves it', async () => {
+  const displayedKey = actionExecutionKey(fixture.definition)
+  fixture.edit([
+    { ...fixture.definition, invocation: { type: 'command', command: 'danger', directory: '.' } },
+  ])
+  await expect(
+    fixture.runs.start({ ...input('stale-ui'), expectedExecutionKey: displayedKey }),
+  ).rejects.toThrow('The action changed during authorization.')
+  expect(fixture.processes).toHaveLength(0)
+})
 
 it('normalizes an address-bar preview override before readiness and retains it over detected output', async () => {
   fixture.edit([{ ...fixture.definition, previewUrl: 'localhost:3000' }])

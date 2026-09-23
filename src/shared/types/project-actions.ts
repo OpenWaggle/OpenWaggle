@@ -38,6 +38,8 @@ export interface ProjectAction {
   readonly previewUrl?: string
   readonly autoOpenPreview?: boolean
   readonly shortcutRules?: readonly ProjectActionShortcutRule[]
+  /** Execution fingerprint of the displayed native definition; absent in legacy settings. */
+  readonly executionKey?: string
   /** @deprecated Read-only compatibility for settings written before shortcut rules. */
   readonly shortcut?: ShortcutBinding
 }
