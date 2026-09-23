@@ -39,11 +39,21 @@ function mergeSettings(set: PreferencesSet, patch: Partial<Settings>) {
 function persistProjectPreference(
   projectPath: string | null,
   prefs: { model?: string; thinkingLevel?: string },
+  set?: PreferencesSet,
+  get?: PreferencesGet,
 ) {
   if (projectPath) {
     api.setProjectPreferences(projectPath, prefs).catch((err: unknown) => {
       logger.warn('Failed to persist project preferences', { error: String(err) })
     })
+    // Mirror the project model write into the renderer's settings copy: the map is submitted
+    // wholesale by project-reference cleanup, so a stale copy would clobber other projects' rows.
+    if (set && get && prefs.model !== undefined) {
+      const { selectedModelsByProject } = get().settings
+      mergeSettings(set, {
+        selectedModelsByProject: { ...selectedModelsByProject, [projectPath]: prefs.model },
+      })
+    }
   }
 }
 
@@ -104,7 +114,7 @@ async function setEnabledModels(models: string[], set: PreferencesSet, get: Pref
   await api.setEnabledModels(enabledModels)
   if (selectedModel !== settings.selectedModel) {
     await api.updateSettings({ selectedModel })
-    persistProjectPreference(settings.projectPath, { model: selectedModel })
+    persistProjectPreference(settings.projectPath, { model: selectedModel }, set, get)
   }
   mergeSettings(set, { enabledModels, selectedModel })
 }
@@ -211,7 +221,7 @@ export function createPreferencesActions(
       const { settings } = get()
       await api.updateSettings({ selectedModel: model })
       mergeSettings(set, { selectedModel: model })
-      persistProjectPreference(settings.projectPath, { model })
+      persistProjectPreference(settings.projectPath, { model }, set, get)
     },
     toggleFavoriteModel: async (model) => {
       const trimmed = model.trim()

@@ -30,6 +30,7 @@ describe('preferences-store selection integration', () => {
     apiMock.setProviderApiKey.mockResolvedValue(undefined)
     apiMock.setEnabledModels.mockResolvedValue(undefined)
     apiMock.updateSettings.mockResolvedValue({ ok: true })
+    apiMock.setProjectPreferences.mockResolvedValue(undefined)
     usePreferencesStore.setState({
       settings: DEFAULT_SETTINGS,
       persistedAppearancePreferences: DEFAULT_SETTINGS.appearancePreferences,
@@ -114,6 +115,33 @@ describe('preferences-store selection integration', () => {
 
     expect(apiMock.updateSettings).toHaveBeenCalledWith({ selectedModel: 'openai/gpt-4.1-mini' })
     expect(usePreferencesStore.getState().settings.selectedModel).toBe('openai/gpt-4.1-mini')
+  })
+
+  it('mirrors a project model write into the store map and preserves it on removal', async () => {
+    usePreferencesStore.setState((state) => ({
+      settings: {
+        ...state.settings,
+        projectPath: '/repo/b',
+        selectedModelsByProject: { '/repo/a': 'openai/gpt-4.1' },
+      },
+    }))
+
+    await usePreferencesStore.getState().setSelectedModel(SupportedModelId('openai/gpt-4.1-mini'))
+
+    expect(apiMock.setProjectPreferences).toHaveBeenCalledWith('/repo/b', {
+      model: 'openai/gpt-4.1-mini',
+    })
+    expect(usePreferencesStore.getState().settings.selectedModelsByProject).toEqual({
+      '/repo/a': 'openai/gpt-4.1',
+      '/repo/b': 'openai/gpt-4.1-mini',
+    })
+
+    await usePreferencesStore.getState().removeProjectReferences('/repo/a')
+
+    // The removal must submit the current map, not a stale snapshot from the last settings load.
+    expect(usePreferencesStore.getState().settings.selectedModelsByProject).toEqual({
+      '/repo/b': 'openai/gpt-4.1-mini',
+    })
   })
 
   it('keeps shortcut state unchanged when main rejects a duplicate binding', async () => {
