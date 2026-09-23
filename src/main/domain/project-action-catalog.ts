@@ -8,6 +8,7 @@ import type {
 import { PROJECT_ACTION_LIMITS } from '@shared/types/project-actions'
 import { effective, effectivePreparation, upsertPreparation } from './effective-project-definitions'
 import {
+  assertPreparationProfileCanBeDeleted,
   retainPrivatePreparationProfiles,
   sharePreparationProfile,
 } from './preparation-profile-context'
@@ -229,13 +230,7 @@ export function editActionCatalog(
       profiles: upsert(target.profiles, definition),
     }))
     .with({ type: 'delete-profile' }, ({ id }) => {
-      if (id === 'default') throw new Error('The default preparation profile cannot be deleted.')
-      if (
-        resolveActionCatalog(document, shared, '').preparation.some(
-          ({ definition }) => definition.profileId === id,
-        )
-      )
-        throw new Error('Remove the profile’s setup and cleanup definitions first.')
+      assertPreparationProfileCanBeDeleted(document.manifest, shared, edit.storage, id)
       return { ...target, profiles: target.profiles.filter((definition) => definition.id !== id) }
     })
     .with({ type: 'save-preparation' }, ({ definition }) => ({
@@ -294,6 +289,7 @@ export function editActionCatalog(
       nextDocument.manifest,
       document.manifest.profiles,
       shared.profiles,
+      edit.type === 'delete-profile' && edit.storage === 'local' ? edit.id : undefined,
     ),
   }
   resolveActionCatalog(nextDocument, nextShared, '')

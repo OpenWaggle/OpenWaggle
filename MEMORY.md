@@ -899,6 +899,10 @@ Interrupted sharing journals pin the filesystem directory identity and durable W
 Recovery keeps a draft when the checkout is missing, replaced, or releasing; publication must never
 recreate a deleted checkout. Private preparation retains its profile metadata so a teammate removing
 the shared profile cannot invalidate unrelated local configuration.
+Deleting a local profile override should reveal the same-ID shared profile when one exists, even
+if Setup uses it; explicit deletion must not rehydrate the local copy and mask later shared edits.
+Fish reserves `eval` and `exec`. Rewrite evaluated commands at runtime, but execute `eval` in its
+caller scope so local exported variables survive until Setup's environment capture.
 Shared publication captures the current inode into a pinned, journaled recovery directory and
 installs the prepared file with an exclusive hard link. Never replace a competing target or infer
 completion from matching bytes alone. Keep both files in Git-ignored `.openwaggle/action-recovery/`

@@ -5,6 +5,7 @@ import { quotePosixShellArgument, quotePowerShellArgument } from '@shared/utils/
 import { resolveActionExecutablePath } from './action-process'
 import { enableEscapedExecCapture } from './preparation-escaped-exec'
 import { runtimeEvalRewriter } from './preparation-eval-rewriter'
+import { runtimeFishEvalRewriter } from './preparation-fish-eval-rewriter'
 import { captureFishExec } from './preparation-fish-exec'
 
 // macOS env(1) does not promise -0; the bundled Perl keeps embedded newlines intact.
@@ -155,6 +156,27 @@ function shPrefixedCommand(name: string) {
   ].join('\n')
 }
 
+function fishRuntimeEvalCapture(quote: (value: string) => string) {
+  return [
+    'function __ow_rewrite_eval',
+    'set -l __ow_code (begin',
+    "set -l __ow_sep ''",
+    'for __ow_part in $argv',
+    'printf \'%s%s\' "$__ow_sep" "$__ow_part"',
+    "set __ow_sep ' '",
+    'end',
+    "printf '\\034'",
+    `end | command awk ${quote(runtimeFishEvalRewriter)} | string collect -N)`,
+    'set -l __ow_pipe_status $pipestatus',
+    'if test $__ow_pipe_status[2] -ne 0',
+    "printf 'exit %s' $__ow_pipe_status[2]",
+    'return',
+    'end',
+    'printf \'%s\' "$__ow_code"',
+    'end',
+  ].join('\n')
+}
+
 export async function preparationCaptureInvocation(
   invocation: ResolvedActionInvocation,
   destination: string,
@@ -194,7 +216,7 @@ export async function preparationCaptureInvocation(
   const script = match(name)
     .with('fish', () => {
       const quote = (value: string) => `'${value.replaceAll('\\', '\\\\').replaceAll("'", "\\'")}'`
-      return `umask 077\nfunction __ow_capture --on-event fish_exit\nset -l __ow_exit $status\nif test $__ow_exit -eq 0\ncommand ${POSIX_ENVIRONMENT_DUMP} > ${quote(destination)}\nend\nend\nfunction __ow_capture_exec\ncommand ${POSIX_ENVIRONMENT_DUMP} > ${quote(destination)}; or return $status\nexec $argv\nend\n${captureFishExec(invocationCommand(resolved, quote))}`
+      return `umask 077\nfunction __ow_capture --on-event fish_exit\nset -l __ow_exit $status\nif test $__ow_exit -eq 0\ncommand ${POSIX_ENVIRONMENT_DUMP} > ${quote(destination)}\nend\nend\nfunction __ow_capture_exec\ncommand ${POSIX_ENVIRONMENT_DUMP} > ${quote(destination)}; or return $status\nexec $argv\nend\n${fishRuntimeEvalCapture(quote)}\n${captureFishExec(invocationCommand(resolved, quote))}`
     })
     .with('bash', 'zsh', () => {
       const finish = [

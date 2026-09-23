@@ -98,4 +98,72 @@ describe('private preparation profile context', () => {
     })
     expect(rows.get(projectPath)?.state.document.manifest.profiles).toEqual([])
   })
+
+  it('deletes a local profile override when shared preparation still has the profile', async () => {
+    const initial = await catalog.read(scope())
+    const profiled = await catalog.edit(scope(), initial.revision, {
+      type: 'save-profile',
+      definition: profile,
+      storage: 'local',
+    })
+    const prepared = await catalog.edit(scope(), profiled.revision, {
+      type: 'save-preparation',
+      definition,
+      storage: 'local',
+    })
+    const published = await catalog.edit(scope(), prepared.revision, {
+      type: 'save-preparation',
+      definition,
+      storage: 'project',
+    })
+    expect(published.profiles).toContainEqual({ definition: profile, source: 'override' })
+    await expect(
+      catalog.edit(scope(), published.revision, {
+        type: 'delete-profile',
+        id: profile.id,
+        storage: 'project',
+      }),
+    ).rejects.toThrow('Remove the profile’s setup and cleanup definitions first.')
+
+    const restored = await catalog.edit(scope(), published.revision, {
+      type: 'delete-profile',
+      id: profile.id,
+      storage: 'local',
+    })
+    expect(restored.profiles).toContainEqual({ definition: profile, source: 'project' })
+    expect(rows.get(projectPath)?.state.document.manifest.profiles).toEqual([])
+
+    const updated = { ...profile, name: 'Updated by teammate' }
+    await shared({ ...EMPTY_ACTION_MANIFEST, profiles: [updated], preparation: [definition] })
+    expect((await catalog.read(scope())).profiles).toContainEqual({
+      definition: updated,
+      source: 'project',
+    })
+  })
+
+  it('deletes a shared profile when private preparation retains a local profile', async () => {
+    const initial = await catalog.read(scope())
+    const profiled = await catalog.edit(scope(), initial.revision, {
+      type: 'save-profile',
+      definition: profile,
+      storage: 'local',
+    })
+    const prepared = await catalog.edit(scope(), profiled.revision, {
+      type: 'save-preparation',
+      definition,
+      storage: 'local',
+    })
+    const sharedProfile = await catalog.edit(scope(), prepared.revision, {
+      type: 'save-profile',
+      definition: profile,
+      storage: 'project',
+    })
+    const localOnly = await catalog.edit(scope(), sharedProfile.revision, {
+      type: 'delete-profile',
+      id: profile.id,
+      storage: 'project',
+    })
+    expect(localOnly.profiles).toContainEqual({ definition: profile, source: 'local' })
+    expect(localOnly.preparation[0]).toMatchObject({ definition, source: 'local' })
+  })
 })
