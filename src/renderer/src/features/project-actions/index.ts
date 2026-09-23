@@ -16,7 +16,10 @@ export {
 export { useRunProjectAction } from './hooks/useRunProjectAction'
 export { useWorkspaceActivityAvailable } from './hooks/useWorkspaceActivityAvailable'
 export { actionRunLabel } from './lib/native-action-display'
-export { selectDraftWorkspacePreparation } from './lib/prepare-draft-workspace'
+export {
+  selectDraftWorkspacePreparation,
+  validateDraftWorkspacePreparation,
+} from './lib/prepare-draft-workspace'
 export { createProjectActionCommandItems } from './lib/project-action-command-items'
 export {
   primaryProjectAction,

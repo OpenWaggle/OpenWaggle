@@ -1,10 +1,14 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { spawnSync } from 'node:child_process'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { preparationCaptureInvocation } from '../preparation-shell-capture'
 
 const invocation = { type: 'command', cwd: '/repo', command: 'source ./setup' } as const
+const powerShell = process.platform === 'win32' ? 'powershell.exe' : 'pwsh'
+const powerShellAvailable =
+  spawnSync(powerShell, ['-NoLogo', '-NonInteractive', '-Command', '$null']).status === 0
 
 describe('preparation shell selection', () => {
   it.each(['/bin/bash', '/bin/zsh', '/usr/bin/fish'])(
@@ -19,12 +23,46 @@ describe('preparation shell selection', () => {
     },
   )
   it('uses the selected PowerShell and JSON capture even on a POSIX host', async () => {
-    expect(
-      await preparationCaptureInvocation(invocation, '/private/env', '/opt/pwsh', {}),
-    ).toMatchObject({
+    const capture = await preparationCaptureInvocation(invocation, '/private/env', '/opt/pwsh', {})
+    expect(capture).toMatchObject({
       format: 'json',
       invocation: { executable: '/opt/pwsh' },
     })
+    if (capture.invocation.type !== 'executable') throw new Error('Expected PowerShell wrapper')
+    const script = capture.invocation.args[3]
+    expect(script).toContain('if ($?) { $__ow_exit = 0 }')
+    expect(script).toContain(
+      'elseif ($global:LASTEXITCODE -ne 0) { $__ow_exit = $global:LASTEXITCODE }',
+    )
+    expect(script).toContain('if ($__ow_exit -eq 0)')
+    expect(script).toContain('exit $__ow_exit')
+  })
+  it.skipIf(!powerShellAvailable)('captures handled native failures with PowerShell', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'ow-powershell-capture-'))
+    const destination = join(directory, 'environment.json')
+    try {
+      const capture = await preparationCaptureInvocation(
+        {
+          type: 'command',
+          cwd: directory,
+          command: '$global:LASTEXITCODE = 7; $env:OW_SETUP_HANDLED = "yes"',
+        },
+        destination,
+        powerShell,
+        {},
+      )
+      if (capture.invocation.type !== 'executable') throw new Error('Expected PowerShell wrapper')
+      const result = spawnSync(capture.invocation.executable, capture.invocation.args, {
+        cwd: directory,
+        encoding: 'utf8',
+      })
+      expect(result.status).toBe(0)
+      expect(JSON.parse(await readFile(destination, 'utf8'))).toMatchObject({
+        OW_SETUP_HANDLED: 'yes',
+      })
+    } finally {
+      await rm(directory, { recursive: true, force: true })
+    }
   })
   it('resolves a Windows task shim before constructing the PowerShell wrapper', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'ow-setup-shim-'))

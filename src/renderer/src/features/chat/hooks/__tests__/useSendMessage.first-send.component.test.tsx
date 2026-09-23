@@ -1,6 +1,7 @@
 import type { AgentSendPayload } from '@shared/types/agent'
 import { SessionId, SupportedModelId } from '@shared/types/brand'
 import type { SessionDetail } from '@shared/types/session'
+import type { WaggleConfig } from '@shared/types/waggle'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { FirstSendFailed } from '../../lib/message-delivery'
@@ -9,11 +10,13 @@ import { useChatStore } from '../../state/chat-store'
 const {
   flushDraftAuthorizationModeMock,
   selectPreparationMock,
+  validatePreparationMock,
   sendMessageMock,
   snapshotDraftWorktreePlanMock,
 } = vi.hoisted(() => ({
   flushDraftAuthorizationModeMock: vi.fn(async () => {}),
   selectPreparationMock: vi.fn(async () => {}),
+  validatePreparationMock: vi.fn(async () => {}),
   sendMessageMock: vi.fn(async () => ({ outcome: 'delivered' as const })),
   snapshotDraftWorktreePlanMock: vi.fn<
     () => {
@@ -28,6 +31,7 @@ const {
 
 vi.mock('@/features/project-actions', () => ({
   selectDraftWorkspacePreparation: selectPreparationMock,
+  validateDraftWorkspacePreparation: validatePreparationMock,
 }))
 
 vi.mock('@/features/chat/state/draft-authorization-mode-store', () => ({
@@ -45,11 +49,30 @@ vi.mock('@/shared/lib/ipc', () => ({
 const { createSendHandlers, useSendMessage } = await import('../useSendMessage')
 
 const PAYLOAD: AgentSendPayload = { text: 'review body', thinkingLevel: 'off', attachments: [] }
+const WAGGLE_CONFIG: WaggleConfig = {
+  mode: 'sequential',
+  agents: [
+    {
+      label: 'Planner',
+      model: SupportedModelId('openai/gpt-5.5'),
+      roleDescription: 'Plan the work',
+      color: 'blue',
+    },
+    {
+      label: 'Reviewer',
+      model: SupportedModelId('anthropic/claude-sonnet-4-5'),
+      roleDescription: 'Review the work',
+      color: 'amber',
+    },
+  ],
+  stop: { primary: 'consensus', maxTurnsSafety: 2 },
+}
 
 describe("a session's first send", () => {
   beforeEach(() => {
     flushDraftAuthorizationModeMock.mockReset().mockResolvedValue(undefined)
     selectPreparationMock.mockReset().mockResolvedValue(undefined)
+    validatePreparationMock.mockReset().mockResolvedValue(undefined)
     sendMessageMock.mockClear()
     snapshotDraftWorktreePlanMock
       .mockReset()
@@ -78,11 +101,70 @@ describe("a session's first send", () => {
       createdSessionId: 'created',
     })
     expect(selectPreparationMock).toHaveBeenCalledWith('/repo', 'created', 'frontend')
+    expect(validatePreparationMock).toHaveBeenCalledWith('/repo', 'frontend')
     expect(sendMessageToSession).not.toHaveBeenCalled()
     await handlers.handleSend(PAYLOAD)
     expect(selectPreparationMock.mock.invocationCallOrder.at(-1)).toBeLessThan(
       sendMessageToSession.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY,
     )
+  })
+
+  it.each(['classic', 'waggle'])(
+    'does not create a %s Session until its profile is valid',
+    async (mode) => {
+      const createSession = vi.fn(async () => SessionId('created'))
+      const sendMessageToSession = vi.fn(async () => {})
+      const startWaggleCollaboration = vi.fn()
+      const handlers = createSendHandlers({
+        activeSessionId: null,
+        projectPath: '/repo',
+        thinkingLevel: 'off',
+        createSession,
+        sendMessage: vi.fn(async () => {}),
+        sendMessageToSession,
+        startWaggleCollaboration,
+        sendWaggleMessage: vi.fn(async () => {}),
+      })
+      validatePreparationMock.mockRejectedValueOnce(
+        new Error('Choose a Preparation profile for this worktree before sending.'),
+      )
+
+      const send = () =>
+        mode === 'classic'
+          ? handlers.handleSend(PAYLOAD)
+          : handlers.handleSendWaggle(PAYLOAD, WAGGLE_CONFIG)
+      await expect(send()).rejects.toThrow('Choose a Preparation profile')
+      expect(createSession).not.toHaveBeenCalled()
+      expect(sendMessageToSession).not.toHaveBeenCalled()
+      expect(startWaggleCollaboration).not.toHaveBeenCalled()
+      expect(validatePreparationMock).toHaveBeenCalledWith('/repo', undefined)
+    },
+  )
+
+  it('waits for preparation discovery before creating the first Session', async () => {
+    let finishValidation: () => void = () => {}
+    validatePreparationMock.mockReturnValueOnce(
+      new Promise<void>((resolve) => {
+        finishValidation = resolve
+      }),
+    )
+    const createSession = vi.fn(async () => SessionId('created'))
+    const handlers = createSendHandlers({
+      activeSessionId: null,
+      projectPath: '/repo',
+      thinkingLevel: 'off',
+      createSession,
+      sendMessage: vi.fn(async () => {}),
+      sendMessageToSession: vi.fn(async () => {}),
+      startWaggleCollaboration: vi.fn(),
+      sendWaggleMessage: vi.fn(async () => {}),
+    })
+
+    const sending = handlers.handleSend(PAYLOAD)
+    expect(createSession).not.toHaveBeenCalled()
+    finishValidation()
+    await sending
+    expect(createSession).toHaveBeenCalledOnce()
   })
 
   it('persists an explicit draft authorization override before dispatching the turn', async () => {
