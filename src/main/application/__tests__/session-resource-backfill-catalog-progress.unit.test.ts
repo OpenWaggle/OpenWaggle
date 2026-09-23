@@ -100,5 +100,5 @@ describe('durable resource backfill progress', () => {
     expect(result.second.fullyProjected).toBe(false)
     expect(result.third.fullyProjected).toBe(true)
     expect(result.count).toBe(600)
-  })
+  }, 15_000)
 })

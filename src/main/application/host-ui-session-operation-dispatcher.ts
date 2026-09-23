@@ -5,8 +5,14 @@ import type { IpcInvokeArgs, IpcInvokeReturn } from '@shared/types/ipc'
 import * as Effect from 'effect/Effect'
 import type { DesktopServiceBroker } from '../ports/desktop-service-broker'
 import type { InlineVisualizationService } from '../ports/inline-visualization-service'
+import type { SessionOutputRetryRepository } from '../ports/session-output-retry-repository'
 import { SessionProjectionRepository } from '../ports/session-projection-repository'
 import { SessionRepository } from '../ports/session-repository'
+import type { SessionResourceImageFetcher } from '../ports/session-resource-image-fetcher'
+import type { SessionResourceImageValidator } from '../ports/session-resource-image-validator'
+import type { SessionResourceRepository } from '../ports/session-resource-repository'
+import type { SessionResourceStore } from '../ports/session-resource-store'
+import type { SessionResourceThumbnailer } from '../ports/session-resource-thumbnailer'
 import type { TerminalService } from '../ports/terminal-service'
 import type { SettingsService } from '../services/settings-service'
 import {
@@ -38,6 +44,11 @@ import {
   validateTreeUiStatePatch,
   validateWorkspaceSelection,
 } from './host-ui-session-operation-validation'
+import {
+  dispatchHostUiSessionResourceOperation,
+  type HostUiSessionResourceChannel,
+  isHostUiSessionResourceChannel,
+} from './host-ui-session-resource-operation-dispatcher'
 
 const TWO_ARGUMENTS = 2
 const THREE_ARGUMENTS = 3
@@ -53,7 +64,24 @@ type SessionOperationServices =
   | TerminalService
   | DesktopServiceBroker
 
+type SessionResourceOperationServices =
+  | SessionRepository
+  | SessionOutputRetryRepository
+  | SessionResourceImageFetcher
+  | SessionResourceImageValidator
+  | SessionResourceRepository
+  | SessionResourceStore
+  | SessionResourceThumbnailer
+
+type NonResourceSessionGuiChannel = Exclude<
+  HostBackedSessionGuiChannel,
+  HostUiSessionResourceChannel
+>
+
 function dispatchSessionOperation(channel: HostBackedSessionGuiChannel, args: readonly unknown[]) {
+  if (isHostUiSessionResourceChannel(channel)) {
+    return dispatchHostUiSessionResourceOperation(channel, args)
+  }
   return match(channel)
     .with('sessions:get-detail', () => getSessionDetail(args))
     .with('sessions:create', () => createSession(args))
@@ -255,14 +283,18 @@ export function isHostBackedSessionGuiChannel(
   return channel.startsWith('sessions:')
 }
 
-export function dispatchHostBackedSessionGuiOperation<C extends HostBackedSessionGuiChannel>(
+export function dispatchHostBackedSessionGuiOperation<C extends HostUiSessionResourceChannel>(
+  channel: C,
+  args: IpcInvokeArgs<C>,
+): Effect.Effect<IpcInvokeReturn<C>, unknown, SessionResourceOperationServices>
+export function dispatchHostBackedSessionGuiOperation<C extends NonResourceSessionGuiChannel>(
   channel: C,
   args: IpcInvokeArgs<C>,
 ): Effect.Effect<IpcInvokeReturn<C>, unknown, SessionOperationServices>
 export function dispatchHostBackedSessionGuiOperation(
   channel: HostBackedSessionGuiChannel,
   args: readonly unknown[],
-): Effect.Effect<unknown, unknown, SessionOperationServices>
+): Effect.Effect<unknown, unknown, SessionOperationServices | SessionResourceOperationServices>
 export function dispatchHostBackedSessionGuiOperation(
   channel: HostBackedSessionGuiChannel,
   args: readonly unknown[],

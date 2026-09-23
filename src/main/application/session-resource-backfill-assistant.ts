@@ -2,6 +2,7 @@ import type { SessionId } from '@shared/types/brand'
 import type { SessionResource, SessionResourceActor } from '@shared/types/session-resource'
 import type { ToolCallResult } from '@shared/types/tools'
 import * as Effect from 'effect/Effect'
+import { SessionResourceRepository } from '../ports/session-resource-repository'
 import { type BackfillLinkState, captureBackfilledLinks } from './session-resource-backfill-link'
 import type { ProjectedResourceMessage } from './session-resource-backfill-messages'
 import {
@@ -9,10 +10,13 @@ import {
   captureUnavailableGeneratedImage,
   generatedImageOccurrencePrefix,
 } from './session-resource-capture-image'
+import type { GeneratedImageCaptureBudget } from './session-resource-capture-image-budget'
 import {
-  type GeneratedImageCaptureBudget,
-  prepareGeneratedImageForCapture,
-} from './session-resource-capture-image-budget'
+  capturedImageSourcePath,
+  generatedImageInput,
+  prepareCapturedImageForCapture,
+} from './session-resource-capture-image-preparation'
+import { sha256 } from './session-resource-capture-shared'
 import {
   captureToolResultMetadata,
   SESSION_TOOL_CAPTURE_LIMIT,
@@ -36,12 +40,19 @@ export interface BackfillImageInput {
   readonly displayOrder?: number | null
 }
 
+interface DeferredBackfillImage {
+  readonly input: BackfillImageInput
+  readonly repairResource?: SessionResource
+}
+
 export interface BackfillImageState {
   budget: GeneratedImageCaptureBudget
   readonly completedSlots: Set<string>
   readonly knownSlots: Set<string>
   readonly knownResources: ReadonlyMap<string, SessionResource>
-  readonly deferred: BackfillImageInput[]
+  readonly retryUnavailableResourceId: string | null
+  readonly deferred: DeferredBackfillImage[]
+  readonly localImageRoots: readonly string[]
   projectionBlocked: boolean
   progressed: boolean
 }
@@ -53,9 +64,17 @@ export interface BackfillToolState {
   progressed: boolean
 }
 
-export function attemptBackfilledImage(input: BackfillImageInput, state: BackfillImageState) {
+export function attemptBackfilledImage(
+  input: BackfillImageInput,
+  state: BackfillImageState,
+  repairResource?: SessionResource,
+) {
   return Effect.gen(function* () {
-    const prepared = prepareGeneratedImageForCapture(state.budget, input.image)
+    const prepared = yield* prepareCapturedImageForCapture(
+      state.budget,
+      input.image,
+      state.localImageRoots,
+    )
     if (!prepared) {
       state.projectionBlocked = true
       return
@@ -72,7 +91,21 @@ export function attemptBackfilledImage(input: BackfillImageInput, state: Backfil
       state.progressed = true
       return
     }
-    yield* captureGeneratedImage({ ...input, validatedImage: prepared.image })
+    yield* captureGeneratedImage({
+      ...input,
+      image: generatedImageInput(input.image),
+      validatedImage: prepared.image,
+      sourcePath: capturedImageSourcePath(input.image),
+    })
+    if (repairResource) {
+      const repository = yield* SessionResourceRepository
+      yield* repository.rekey({
+        sessionId: input.sessionId,
+        resourceId: repairResource.id,
+        canonicalKey: `sha256:${sha256(prepared.image.bytes)}`,
+        updatedAt: input.createdAt,
+      })
+    }
     state.completedSlots.add(slot)
     state.knownSlots.add(slot)
     state.progressed = true
@@ -84,8 +117,14 @@ function captureOrDeferBackfilledImage(input: BackfillImageInput, state: Backfil
     const slot = generatedImageOccurrencePrefix(input)
     if (state.completedSlots.has(slot)) return
     if (state.knownSlots.has(slot)) {
-      if (state.knownResources.get(slot)?.available === false) return
-      state.deferred.push(input)
+      const knownResource = state.knownResources.get(slot)
+      if (knownResource?.available === false) {
+        if (knownResource.id === state.retryUnavailableResourceId) {
+          state.deferred.push({ input, repairResource: knownResource })
+        }
+        return
+      }
+      state.deferred.push({ input })
       return
     }
     yield* attemptBackfilledImage(input, state)
