@@ -31,6 +31,52 @@ const posixDumpOnSuccess = (destination: string) =>
 const posixCaptureBeforeExec = (destination: string) =>
   `__ow_capture_exec() {\n${POSIX_ENVIRONMENT_DUMP} > ${quotePosixShellArgument(destination)} || return $?\n}`
 
+// Evaluate a saved trap immediately after a command with the setup's original status.
+// The nonzero branch uses an OR-list so errexit cannot skip the user's cleanup.
+const posixRunUserExitTrap = [
+  'if [ -n "$__ow_user_exit_trap" ]; then',
+  'if [ "$__ow_setup_exit" -eq 0 ]; then',
+  'eval "$__ow_user_exit_trap"',
+  'else',
+  '(exit "$__ow_setup_exit") || eval "$__ow_user_exit_trap"',
+  'fi',
+  'fi',
+].join('\n')
+
+// Prefixed trap must reach the saved-trap handler. The aliases snapshot before
+// temporary command assignments, preserving prefixed exec's environment semantics.
+const bashZshPrefixedBuiltins = [
+  '__ow_command() {',
+  'case "$1" in',
+  'trap) shift; trap "$@" ;;',
+  'exec) shift; command exec "$@" ;;',
+  '*) command "$@" ;;',
+  'esac',
+  '}',
+  '__ow_builtin() {',
+  'case "$1" in',
+  'trap) shift; trap "$@" ;;',
+  'exec) shift; builtin exec "$@" ;;',
+  '*) builtin "$@" ;;',
+  'esac',
+  '}',
+].join('\n')
+
+function shPrefixedCommand(name: string) {
+  // Ksh-style functions preserve temporary assignment export behavior in ksh.
+  const functionStart =
+    name === 'ksh' || name === 'mksh' ? 'function __ow_command {' : '__ow_command() {'
+  return [
+    functionStart,
+    'case "$1" in',
+    'trap) shift; __ow_trap "$@" ;;',
+    'exec) shift; command exec "$@" ;;',
+    '*) command "$@" ;;',
+    'esac',
+    '}',
+  ].join('\n')
+}
+
 export async function preparationCaptureInvocation(
   invocation: ResolvedActionInvocation,
   destination: string,
@@ -76,9 +122,10 @@ export async function preparationCaptureInvocation(
       const finish = [
         '__ow_finish() {',
         '__ow_exit=$1',
+        '__ow_setup_exit=$1',
         'builtin trap - EXIT',
         posixDumpOnSuccess(destination),
-        'if [ -n "$__ow_user_exit_trap" ]; then eval "$__ow_user_exit_trap"; fi',
+        posixRunUserExitTrap,
         'exit "$__ow_exit"',
         '}',
       ].join('\n')
@@ -100,15 +147,16 @@ export async function preparationCaptureInvocation(
       ].join('\n')
       const command = posixInvocationCommand(resolved)
       const enableAliases = name === 'bash' ? 'shopt -s expand_aliases\n' : ''
-      return `umask 077\n__ow_user_exit_trap=''\n${finish}\nbuiltin trap '__ow_finish "$?"' EXIT\n${userTraps}\n${posixCaptureBeforeExec(destination)}\n${enableAliases}alias exec='exec $(__ow_capture_exec)'\nalias command='command $(__ow_capture_exec)'\nalias builtin='builtin $(__ow_capture_exec)'\neval ${quotePosixShellArgument(command)}\n__ow_finish "$?"`
+      return `umask 077\n__ow_user_exit_trap=''\n${finish}\nbuiltin trap '__ow_finish "$?"' EXIT\n${userTraps}\n${posixCaptureBeforeExec(destination)}\n${bashZshPrefixedBuiltins}\n${enableAliases}alias exec='exec $(__ow_capture_exec)'\nalias command='__ow_command $(__ow_capture_exec)'\nalias builtin='__ow_builtin $(__ow_capture_exec)'\neval ${quotePosixShellArgument(command)}\n__ow_finish "$?"`
     })
     .with('sh', 'dash', 'ksh', 'mksh', () => {
       const finish = [
         '__ow_finish() {',
         '__ow_exit=$1',
+        '__ow_setup_exit=$1',
         'command trap - EXIT',
         posixDumpOnSuccess(destination),
-        'if [ -n "$__ow_user_exit_trap" ]; then eval "$__ow_user_exit_trap"; fi',
+        posixRunUserExitTrap,
         'exit "$__ow_exit"',
         '}',
       ].join('\n')
@@ -129,7 +177,7 @@ export async function preparationCaptureInvocation(
         '}',
       ].join('\n')
       const command = posixInvocationCommand(resolved)
-      return `umask 077\n__ow_user_exit_trap=''\n${finish}\ncommand trap '__ow_finish "$?"' EXIT\n${userTraps}\n${posixCaptureBeforeExec(destination)}\nalias trap=__ow_trap\nalias exec='exec $(__ow_capture_exec)'\nalias command='command $(__ow_capture_exec)'\neval ${quotePosixShellArgument(command)}\n__ow_finish "$?"`
+      return `umask 077\n__ow_user_exit_trap=''\n${finish}\ncommand trap '__ow_finish "$?"' EXIT\n${userTraps}\n${posixCaptureBeforeExec(destination)}\n${shPrefixedCommand(name)}\nalias trap=__ow_trap\nalias exec='exec $(__ow_capture_exec)'\nalias command='__ow_command $(__ow_capture_exec)'\neval ${quotePosixShellArgument(command)}\n__ow_finish "$?"`
     })
     .otherwise(() => {
       throw new Error(

@@ -845,6 +845,11 @@ their prefixes expand too; retain their command status and temporary-assignment 
 An unquoted escaped `\\exec` suppresses alias expansion while still invoking the shell builtin.
 Normalize that token in a direct POSIX setup command before parsing it for capture, preserving
 quoted literals, comments and heredoc bodies.
+`command trap` and `builtin trap` can bypass a `trap` function or alias in sourced setup scripts.
+Route their prefixed forms through capture's saved-trap handler, while retaining pre-assignment
+environment snapshots for prefixed `exec`. Ksh-style function definitions preserve temporary
+assignment export behavior in ksh. Run saved EXIT cleanup with the setup's original status as
+`$?`, including failed exits under `set -e`; the final process status remains the setup status.
 Fresh local Sessions need Summary availability from configured preparation, before a snapshot or
 run exists, or users cannot reach explicit setup.
 Native actions use Local Session protocol revision 15 and require matching clients/Host for this
