@@ -910,6 +910,10 @@ or agent-run marker. Pi Bash and PowerShell receive the active run's authoritati
 Persisted `starting` runs must be tracked before native launch. Stop aborts launch promptly and the
 PTY checks cancellation immediately before spawning; any late process remains owned until its tree
 is confirmed stopped, with failed cleanup visible and retryable.
+If a launch fails after its initial `starting` save and persisting the terminal failure also fails,
+retain the failed run in memory for polling and Stop. A concurrent Stop can write `stopping` after
+the launch's terminal save, so Stop must persist the terminal result again before releasing the
+starting entry. Only a durable terminal state may disappear from in-memory recovery.
 Preparation launches need a linked abort signal passed into the process runner. Stop and Host
 shutdown must settle while native PTY module loading is stalled, even if launch never returns.
 Race launch against cancellation, check the linked signal before invoking the runner, and stop a

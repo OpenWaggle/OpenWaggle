@@ -21,6 +21,8 @@ export interface LiveAction {
 }
 export interface StartingAction {
   run: ActionRun
+  terminalRun: ActionRun | null
+  terminalPersisted: boolean
   cancelRequested: boolean
   readonly abort: AbortController
   readonly settled: Promise<void>
@@ -142,6 +144,35 @@ function failedLaunchRun(run: ActionRun, starting: StartingAction, error: unknow
   }
 }
 
+async function persistFailedLaunch(
+  context: ManagedLaunchContext,
+  run: ActionRun,
+  starting: StartingAction,
+  error: unknown,
+) {
+  const terminalRun = failedLaunchRun(run, starting, error)
+  starting.run = terminalRun
+  starting.terminalRun = terminalRun
+  await context.persist(terminalRun)
+  starting.terminalPersisted = true
+}
+
+function forgetSettledLaunch(
+  context: ManagedLaunchContext,
+  starting: StartingAction,
+  initiallyPersisted: boolean,
+) {
+  // A failed terminal write leaves the durable row active. Keep it reachable
+  // for polling and Stop, including while a concurrent Stop is still writing.
+  if (
+    (!initiallyPersisted && !starting.stopPromise) ||
+    !starting.terminalRun ||
+    (starting.terminalPersisted && !starting.stopPromise)
+  )
+    context.starting.delete(starting.run.id)
+  starting.resolveSettled()
+}
+
 export async function launchManagedAction(
   context: ManagedLaunchContext,
   input: StartManagedActionInput,
@@ -173,6 +204,8 @@ export async function launchManagedAction(
   const settled = Promise.withResolvers<void>()
   const starting: StartingAction = {
     run,
+    terminalRun: null,
+    terminalPersisted: false,
     cancelRequested: false,
     abort: new AbortController(),
     settled: settled.promise,
@@ -182,8 +215,10 @@ export async function launchManagedAction(
   context.starting.set(run.id, starting)
   const output = createTerminalScrollback()
   const ownership = { transferred: false }
+  let startingPersisted = false
   try {
     await context.persist(run)
+    startingPersisted = true
     await context.deps.persistence.recordRequest(
       run.workspaceId,
       action.id,
@@ -235,11 +270,10 @@ export async function launchManagedAction(
   } catch (error) {
     if (context.active.has(run.id)) throw error
     if (!ownership.transferred) release()
-    await context.persist(failedLaunchRun(run, starting, error))
+    await persistFailedLaunch(context, run, starting, error)
     if (!starting.cancelRequested) throw error
     return (await context.deps.persistence.get(run.id)) ?? run
   } finally {
-    context.starting.delete(run.id)
-    starting.resolveSettled()
+    forgetSettledLaunch(context, starting, startingPersisted)
   }
 }

@@ -126,16 +126,34 @@ export class ManagedActionRuns {
     }
     await this.finish(entry, exitCode, closeError)
   }
+  private async persistTerminalStarting(entry: StartingAction) {
+    if (!entry.terminalRun) return
+    await this.persist(entry.terminalRun)
+    entry.terminalPersisted = true
+    this.starting.delete(entry.run.id)
+  }
   private stopStarting(entry: StartingAction) {
     if (entry.stopPromise) return entry.stopPromise
     entry.cancelRequested = true
     entry.abort.abort()
     entry.stopPromise = (async () => {
+      if (entry.terminalRun) {
+        await this.persistTerminalStarting(entry)
+        return
+      }
       entry.run = { ...entry.run, status: 'stopping', ready: false }
       await this.persist(entry.run)
       await entry.settled
       const live = this.active.get(entry.run.id)
-      if (live) await this.stopEntry(live)
+      if (live) {
+        await this.stopEntry(live)
+        return
+      }
+      if (entry.terminalRun) {
+        // A concurrent Stop may have written `stopping` after launch persisted
+        // its terminal result, or the launch's terminal write may have failed.
+        await this.persistTerminalStarting(entry)
+      }
     })().catch((error: unknown) => {
       entry.stopPromise = null
       throw error
@@ -222,14 +240,17 @@ export class ManagedActionRuns {
   }
   async list(workspaceId: string) {
     return (await this.deps.persistence.list(workspaceId)).map(
-      (run) => this.active.get(run.id)?.run ?? run,
+      (run) => this.active.get(run.id)?.run ?? this.starting.get(run.id)?.terminalRun ?? run,
     )
   }
   async output(workspaceId: string, runId: string, afterOffset = 0) {
     if (!Number.isSafeInteger(afterOffset) || afterOffset < 0)
       throw new Error('Invalid action output cursor.')
     const current = this.active.get(runId)
-    const run = current?.run ?? (await this.deps.persistence.get(runId))
+    const run =
+      current?.run ??
+      this.starting.get(runId)?.terminalRun ??
+      (await this.deps.persistence.get(runId))
     if (!run || run.workspaceId !== workspaceId)
       throw new Error('Action run not found in this workspace.')
     const output = current?.output.toString() ?? (await this.deps.history.read(historyKey(run)))
@@ -243,7 +264,7 @@ export class ManagedActionRuns {
       throw new Error('Action run not found in this workspace.')
     if (entry) await this.stopEntry(entry)
     if (!entry && starting) await this.stopStarting(starting)
-    return (await this.deps.persistence.get(runId)) ?? run
+    return starting?.terminalRun ?? (await this.deps.persistence.get(runId)) ?? run
   }
   async stopWorkspaceRuns(workspaceId: string) {
     for (const entry of [...this.starting.values()])
