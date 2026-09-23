@@ -36,6 +36,19 @@ const resetCases = [
   { shell: '/bin/sh', reset: 'trap 0' },
   { shell: '/bin/dash', reset: 'command trap 0' },
 ]
+const saveQueries = ['/bin/bash', '/bin/zsh'].flatMap((shell) =>
+  [
+    'trap -p EXIT',
+    'trap -p',
+    'trap',
+    'trap --',
+    'command trap -p EXIT',
+    'builtin trap -p EXIT',
+  ].map((query) => ({
+    shell,
+    query,
+  })),
+)
 
 describe.skipIf(process.platform === 'win32')('real setup EXIT trap capture', () => {
   let directory = ''
@@ -116,6 +129,72 @@ describe.skipIf(process.platform === 'win32')('real setup EXIT trap capture', ()
       } finally {
         await execute.shutdown()
       }
+    },
+  )
+
+  it.for(saveQueries)(
+    'restores the logical EXIT trap saved with $query by a sourced script in $shell',
+    async ({ shell, query }, context) => {
+      if (!existsSync(shell)) context.skip()
+      await writeFile(
+        join(directory, 'setup-env'),
+        [
+          "trap 'printf saved > cleanup-marker' EXIT",
+          `saved=$(${query})`,
+          "trap 'printf replaced > cleanup-marker' EXIT",
+          'eval "$saved"',
+        ].join('\n'),
+      )
+      const destination = join(directory, 'environment.nul')
+      const capture = await preparationCaptureInvocation(
+        {
+          type: 'command',
+          command: 'source ./setup-env; export OW_AFTER_RESTORE=yes; exit 0',
+          cwd: directory,
+        },
+        destination,
+        shell,
+        {},
+      )
+      if (capture.invocation.type !== 'executable') throw new Error('Expected a shell invocation')
+
+      const result = spawnSync(capture.invocation.executable, capture.invocation.args, {
+        cwd: capture.invocation.cwd,
+        encoding: 'utf8',
+        timeout: 5_000,
+      })
+      expect(result.status, result.stderr).toBe(0)
+      expect(await readFile(join(directory, 'cleanup-marker'), 'utf8')).toBe('saved')
+      expect(await readFile(destination, 'utf8')).toContain('OW_AFTER_RESTORE=yes\0')
+    },
+  )
+
+  it.for(['/bin/bash', '/bin/zsh'])(
+    'does not expose the private EXIT trap before or after a user reset in %s',
+    async (shell, context) => {
+      if (!existsSync(shell)) context.skip()
+      const destination = join(directory, 'environment.nul')
+      const capture = await preparationCaptureInvocation(
+        {
+          type: 'command',
+          command:
+            'if [ -n "$(trap -p EXIT)" ]; then exit 33; fi; trap "printf unexpected > cleanup-marker" EXIT; trap - EXIT; if [ -n "$(trap -p EXIT)" ]; then exit 34; fi; export OW_AFTER_RESET=yes; exit 0',
+          cwd: directory,
+        },
+        destination,
+        shell,
+        {},
+      )
+      if (capture.invocation.type !== 'executable') throw new Error('Expected a shell invocation')
+
+      const result = spawnSync(capture.invocation.executable, capture.invocation.args, {
+        cwd: capture.invocation.cwd,
+        encoding: 'utf8',
+        timeout: 5_000,
+      })
+      expect(result.status, result.stderr).toBe(0)
+      expect(existsSync(join(directory, 'cleanup-marker'))).toBe(false)
+      expect(await readFile(destination, 'utf8')).toContain('OW_AFTER_RESET=yes\0')
     },
   )
 

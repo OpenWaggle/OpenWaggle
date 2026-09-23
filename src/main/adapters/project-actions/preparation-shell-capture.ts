@@ -80,6 +80,44 @@ const bashZshPrefixedBuiltins = [
   '}',
 ].join('\n')
 
+// Keep the capture EXIT trap private while sourced scripts inspect or replace their own cleanup.
+const bashZshUserTraps = [
+  '__ow_print_user_exit_trap() {',
+  'if [ "$__ow_user_exit_trap_set" -eq 1 ]; then builtin printf \'trap -- %q EXIT\\n\' "$__ow_user_exit_trap"; fi',
+  '}',
+  '__ow_print_user_traps() {',
+  'if [ "$#" -eq 0 ]; then',
+  '(builtin trap - EXIT; builtin trap)',
+  '__ow_print_user_exit_trap',
+  'return',
+  'fi',
+  'local __ow_signal',
+  'for __ow_signal in "$@"; do',
+  'case "$__ow_signal" in',
+  'EXIT|0) __ow_print_user_exit_trap ;;',
+  '*) builtin trap -p "$__ow_signal" ;;',
+  'esac',
+  'done',
+  '}',
+  'trap() {',
+  'if [ "$#" -eq 0 ]; then __ow_print_user_traps; return; fi',
+  'if [ "$1" = \'-p\' ]; then shift; __ow_print_user_traps "$@"; return; fi',
+  'if [ "$1" = \'-l\' ]; then builtin trap "$@"; return; fi',
+  'if [ "$1" = \'--\' ]; then shift; fi',
+  'if [ "$#" -eq 0 ]; then __ow_print_user_traps; return; fi',
+  'if [ "$#" -eq 1 ]; then case "$1" in EXIT|0) __ow_user_exit_trap=\'\'; __ow_user_exit_trap_set=0; return ;; *) builtin trap "$@"; return ;; esac; fi',
+  'if [ "$#" -lt 2 ]; then builtin trap "$@"; return; fi',
+  'local __ow_handler="$1" __ow_signal',
+  'shift',
+  'for __ow_signal in "$@"; do',
+  'case "$__ow_signal" in',
+  'EXIT|0) if [ "$__ow_handler" = \'-\' ]; then __ow_user_exit_trap=\'\'; __ow_user_exit_trap_set=0; else __ow_user_exit_trap="$__ow_handler"; __ow_user_exit_trap_set=1; fi ;;',
+  '*) builtin trap "$__ow_handler" "$__ow_signal" ;;',
+  'esac',
+  'done',
+  '}',
+].join('\n')
+
 function shPrefixedCommand(name: string) {
   // Ksh-style functions preserve temporary assignment export behavior in ksh.
   const functionStart =
@@ -147,26 +185,9 @@ export async function preparationCaptureInvocation(
         'exit "$__ow_exit"',
         '}',
       ].join('\n')
-      // Preserve the capture trap when a sourced setup script registers its own EXIT cleanup.
-      const userTraps = [
-        'trap() {',
-        'if [ "$#" -eq 0 ] || [ "$1" = \'-p\' ] || [ "$1" = \'-l\' ]; then builtin trap "$@"; return; fi',
-        'if [ "$1" = \'--\' ]; then shift; fi',
-        'if [ "$#" -eq 1 ]; then case "$1" in EXIT|0) __ow_user_exit_trap=\'\'; return ;; *) builtin trap "$@"; return ;; esac; fi',
-        'if [ "$#" -lt 2 ]; then builtin trap "$@"; return; fi',
-        'local __ow_handler="$1" __ow_signal',
-        'shift',
-        'for __ow_signal in "$@"; do',
-        'case "$__ow_signal" in',
-        'EXIT|0) if [ "$__ow_handler" = \'-\' ]; then __ow_user_exit_trap=\'\'; else __ow_user_exit_trap="$__ow_handler"; fi ;;',
-        '*) builtin trap "$__ow_handler" "$__ow_signal" ;;',
-        'esac',
-        'done',
-        '}',
-      ].join('\n')
       const command = posixInvocationCommand(resolved)
       const enableAliases = name === 'bash' ? 'shopt -s expand_aliases\n' : ''
-      return `umask 077\n__ow_user_exit_trap=''\n${finish}\nbuiltin trap '__ow_finish "$?"' EXIT\n${userTraps}\n${posixCaptureBeforeExec(destination)}\n${bashZshPrefixedBuiltins}\n${enableAliases}alias exec='exec $(__ow_capture_exec)'\nalias command='__ow_command $(__ow_capture_exec)'\nalias builtin='__ow_builtin $(__ow_capture_exec)'\neval ${quotePosixShellArgument(command)}\n__ow_finish "$?"`
+      return `umask 077\n__ow_user_exit_trap=''\n__ow_user_exit_trap_set=0\n${finish}\nbuiltin trap '__ow_finish "$?"' EXIT\n${bashZshUserTraps}\n${posixCaptureBeforeExec(destination)}\n${bashZshPrefixedBuiltins}\n${enableAliases}alias exec='exec $(__ow_capture_exec)'\nalias command='__ow_command $(__ow_capture_exec)'\nalias builtin='__ow_builtin $(__ow_capture_exec)'\neval ${quotePosixShellArgument(command)}\n__ow_finish "$?"`
     })
     .with('sh', 'dash', 'ksh', 'mksh', () => {
       const finish = [
