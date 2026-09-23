@@ -7,13 +7,14 @@ import { SessionId } from '@shared/types/brand'
 import { actionExecutionKey } from '@shared/utils/action-execution-key'
 import * as Effect from 'effect/Effect'
 import { type Static, Type } from 'typebox'
+import { Check, Errors } from 'typebox/value'
 import type { ActionCatalogServiceShape } from '../../ports/action-catalog-service'
 import type { ActionRunServiceShape, ActionRunWorkspace } from '../../ports/action-run-service'
 import type { SessionWorkspaceResourceRepositoryShape } from '../../ports/session-workspace-resource-repository'
 import { getOpenWaggleAuthorize } from './agent-kernel/openwaggle-authorize-channel'
 
 const identifier = Type.String({ minLength: 1, maxLength: ACTION_DEFINITION_LIMITS.ID_LENGTH })
-const parameters = Type.Union([
+const parameterVariants = [
   Type.Object({ action: Type.Literal('list') }),
   Type.Object({ action: Type.Literal('discover') }),
   Type.Object({ action: Type.Literal('runs') }),
@@ -28,7 +29,41 @@ const parameters = Type.Union([
     afterOffset: Type.Optional(Type.Integer({ minimum: 0 })),
   }),
   Type.Object({ action: Type.Literal('stop'), runId: identifier }),
-])
+] as const
+type ProjectActionParameters = Static<(typeof parameterVariants)[number]>
+
+// Providers that emit `{}` for a root-level anyOf can accept a single object with
+// action alternatives. Required fields for each action are checked before execution.
+const parameters = Type.Unsafe<ProjectActionParameters>({
+  type: 'object',
+  properties: {
+    action: Type.Union(parameterVariants.map((variant) => variant.properties.action)),
+    actionId: Type.Optional(identifier),
+    restartRunId: Type.Optional(identifier),
+    runId: Type.Optional(identifier),
+    afterOffset: Type.Optional(Type.Integer({ minimum: 0 })),
+  },
+  required: ['action'],
+})
+
+function assertProjectActionArguments(params: unknown): asserts params is ProjectActionParameters {
+  if (!Check(parameters, params)) {
+    const details = [...Errors(parameters, params)]
+      .map((error) => `${error.instancePath || 'arguments'}: ${error.message}`)
+      .join('; ')
+    throw new Error(`Invalid project_actions arguments: ${details}`)
+  }
+  const action = params.action
+  const variant = parameterVariants.find(
+    (candidate) => candidate.properties.action.const === action,
+  )
+  if (variant === undefined) throw new Error(`Unknown project_actions action "${action}".`)
+  if (Check(variant, params)) return
+  const details = [...Errors(variant, params)]
+    .map((error) => `${error.instancePath || 'arguments'}: ${error.message}`)
+    .join('; ')
+  throw new Error(`Invalid project_actions arguments for "${action}": ${details}`)
+}
 export interface ProjectActionToolServices {
   readonly catalog: ActionCatalogServiceShape
   readonly runs: ActionRunServiceShape
@@ -122,6 +157,7 @@ async function execute(
   signal?: AbortSignal,
 ): Promise<unknown> {
   signal?.throwIfAborted()
+  assertProjectActionArguments(params)
   const bound = await Effect.runPromise(input.workspaces.getBound(SessionId(input.sessionId)))
   if (!bound) throw new Error('The Session no longer has an active Workspace.')
   const workspace = {

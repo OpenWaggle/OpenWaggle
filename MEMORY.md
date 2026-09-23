@@ -819,6 +819,9 @@ Native Project Actions are specified in ADR 0035. Definitions are project-scoped
 default; only explicit sharing writes `.openwaggle/actions.json`. The detached Session Host owns
 action processes, while the GUI reconnects to durable run IDs and output cursors. Workspace mutation
 admission must serialize launches against final binding release and physical worktree removal.
+Keep the Pi-native `project_actions` tool's registered schema flat at the root. Some
+OpenAI-completions providers emit empty arguments for a root `anyOf`; use an `action` literal union
+with optional fields in the provider schema and validate each action's required fields before work.
 Output polling stops after the final page of a terminal run. Publish terminal status only after
 process cleanup, output flush and metadata persistence succeed; concurrent Stop joins that pending
 finalization instead of writing a later stopping status over completion. Failed finalization keeps

@@ -4,7 +4,7 @@ import type {
   ToolDefinition,
 } from '@earendil-works/pi-coding-agent'
 import { SessionId } from '@shared/types/brand'
-import { fromPartial } from '@total-typescript/shoehorn'
+import { fromAny, fromPartial } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type {
@@ -71,6 +71,52 @@ describe('Pi project_actions shares GUI executions', () => {
     if (!tool) throw new Error('Tool was not registered')
     return { tool, authorize, ctx }
   }
+
+  it('registers a flat provider-facing object schema with action-specific fields', () => {
+    const { tool } = registration(true)
+    const shape = fromAny<
+      {
+        type?: string
+        anyOf?: unknown[]
+        required?: string[]
+        properties?: Record<string, unknown>
+      },
+      unknown
+    >(JSON.parse(JSON.stringify(tool.parameters)))
+
+    expect(shape.type).toBe('object')
+    expect(shape.anyOf).toBeUndefined()
+    expect(shape.required).toEqual(['action'])
+    expect(shape.properties?.action).toBeDefined()
+    expect(shape.properties?.actionId).toBeDefined()
+    expect(shape.properties?.restartRunId).toBeDefined()
+    expect(shape.properties?.runId).toBeDefined()
+    expect(shape.properties?.afterOffset).toBeDefined()
+  })
+
+  it.each([
+    { label: 'missing action', params: {} },
+    { label: 'unknown action', params: { action: 'unknown' } },
+    { label: 'start without actionId', params: { action: 'start' } },
+    { label: 'output without runId', params: { action: 'output' } },
+    { label: 'stop without runId', params: { action: 'stop' } },
+    {
+      label: 'negative output offset',
+      params: { action: 'output', runId: 'run', afterOffset: -1 },
+    },
+  ])('rejects $label before executing a project action', async ({ params }) => {
+    const { tool, authorize, ctx } = registration(true)
+    const result = await tool.execute('invalid', params, undefined, undefined, ctx)
+
+    expect(result).toMatchObject({ isError: true })
+    expect(result.content).toEqual([
+      expect.objectContaining({
+        text: expect.stringContaining('Invalid project_actions arguments'),
+      }),
+    ])
+    expect(authorize).not.toHaveBeenCalled()
+    expect(fixture.processes).toHaveLength(0)
+  })
 
   it('agent and GUI start requests reuse one live service; output reads do not launch', async () => {
     const gui = await fixture.runs.start({
