@@ -10,7 +10,7 @@ const {
   attachmentCleanupMock,
   attachmentResolveMock,
   executeWaggleRunMock,
-  emitWorktreeLaunchProgressMock,
+  publishSessionHostEventMock,
   forkSupervisedMock,
   journalClaimMock,
   journalCompleteMock,
@@ -23,7 +23,7 @@ const {
   attachmentCleanupMock: vi.fn(),
   attachmentResolveMock: vi.fn(),
   executeWaggleRunMock: vi.fn(),
-  emitWorktreeLaunchProgressMock: vi.fn(),
+  publishSessionHostEventMock: vi.fn(),
   forkSupervisedMock: vi.fn(),
   journalClaimMock: vi.fn(),
   journalCompleteMock: vi.fn(),
@@ -46,14 +46,10 @@ vi.mock('../session-run-coordinator-supervision', () => ({
   forkSupervisedSessionRuns: forkSupervisedMock,
 }))
 vi.mock('../../session-host/session-host-events', () => ({
-  publishSessionHostEvent: vi.fn(),
+  publishSessionHostEvent: publishSessionHostEventMock,
   tryGetSessionHostEventRuntime: vi.fn(() => ({
     liveness: { requestDrain: requestHostDrainMock },
   })),
-}))
-vi.mock('../../utils/stream-bridge', () => ({
-  emitWorktreeLaunchFailure: vi.fn(),
-  emitWorktreeLaunchProgress: emitWorktreeLaunchProgressMock,
 }))
 
 import { ExplicitWaggleOperationJournal } from '../../ports/explicit-waggle-operation-journal'
@@ -143,7 +139,7 @@ describe('explicit Waggle command cleanup and admission races', () => {
     executeWaggleRunMock
       .mockReset()
       .mockReturnValue(Effect.succeed({ outcome: 'success', newMessages: [] }))
-    emitWorktreeLaunchProgressMock.mockReset()
+    publishSessionHostEventMock.mockReset()
     forkSupervisedMock.mockReset().mockReturnValue(Effect.void)
     journalClaimMock.mockReset().mockReturnValue(Effect.succeed({ status: 'claimed' }))
     journalCompleteMock.mockReset().mockReturnValue(Effect.void)
@@ -187,7 +183,13 @@ describe('explicit Waggle command cleanup and admission races', () => {
       }),
     )
     await runWaggleCommand()
-    expect(emitWorktreeLaunchProgressMock).toHaveBeenCalledWith(SESSION_ID, progress)
+    expect(publishSessionHostEventMock).toHaveBeenCalledWith({
+      kind: 'session-worktree-launch',
+      sessionId: SESSION_ID,
+      model: SupportedModelId('openai/gpt-5.4'),
+      mode: 'waggle',
+      event: { type: 'progress', progress },
+    })
   })
 
   it('interrupts a pending replacement and supervises its queued Follow-up', async () => {

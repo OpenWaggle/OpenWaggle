@@ -21,6 +21,7 @@ interface LocalSessionConnectionSubscriptionsInput {
   readonly admission: LocalSessionAdmissionGate
   readonly cursorProjection: LocalSessionEventCursorProjection
   readonly caller: () => AuthenticatedLocalSessionCaller | null
+  readonly negotiatedRevision: () => number | null
   readonly closed: () => boolean
   readonly send: (frame: LocalSessionServerFrame | unknown) => Promise<void>
   readonly connectionFailed: () => void
@@ -93,6 +94,7 @@ export class LocalSessionConnectionSubscriptions {
         createLocalSessionEventAdmissionFilter(
           () => (this.input.admission.isFenced() ? null : this.input.caller()),
           sessionIds,
+          this.input.negotiatedRevision() ?? undefined,
         ),
         { advanceFilteredCursor: true },
       )

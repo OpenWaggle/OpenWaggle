@@ -1,3 +1,5 @@
+import { decodeUnknownExactOrThrow, Schema } from '@shared/schema'
+import { worktreeLaunchProgressSchema } from '@shared/schemas/background-run'
 import type { SessionHostEventEnvelope } from '@shared/types/session-host-event'
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -9,11 +11,30 @@ function isEventCursor(value: Record<string, unknown>) {
 }
 
 const SESSION_LIST_CHANGES = new Set(['created', 'updated', 'archived', 'unarchived', 'deleted'])
+const RUN_MODES = new Set(['classic', 'waggle'])
+const worktreeLaunchEventSchema = Schema.Union(
+  Schema.Struct({ type: Schema.Literal('progress'), progress: worktreeLaunchProgressSchema }),
+  Schema.Struct({ type: Schema.Literal('failure'), errorMessage: Schema.String }),
+)
+
+function isWorktreeLaunchEvent(value: unknown) {
+  try {
+    decodeUnknownExactOrThrow(worktreeLaunchEventSchema, value)
+    return true
+  } catch {
+    return false
+  }
+}
 
 const sessionEventValidators: Readonly<
   Record<string, (value: Record<string, unknown>) => boolean>
 > = {
   'session-transport': (value) => isRecord(value.event),
+  'session-worktree-launch': (value) =>
+    typeof value.model === 'string' &&
+    typeof value.mode === 'string' &&
+    RUN_MODES.has(value.mode) &&
+    isWorktreeLaunchEvent(value.event),
   'session-waggle-transport': (value) => isRecord(value.event) && isRecord(value.meta),
   'session-waggle-turn': (value) => isRecord(value.event),
   'session-export-changed': (value) =>

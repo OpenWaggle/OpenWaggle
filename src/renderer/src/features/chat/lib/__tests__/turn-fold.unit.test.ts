@@ -158,24 +158,30 @@ describe('applyTurnFolds', () => {
   })
 
   it('keeps carve-out rows visible while the turn folds around them', () => {
-    const errorRow: ChatRow = {
-      type: 'error',
-      error: new Error('tool failed'),
-      lastUserMessage: null,
-      dismissedError: null,
-      sessionId: null,
+    const worktreeRow: ChatRow = {
+      type: 'worktree-launch',
+      id: 'worktree-launch:u1',
+      sessionId: 'session-1',
+      launch: {
+        status: 'complete',
+        stage: 'starting-task',
+        startedAt: 1,
+        updatedAt: 2,
+        details: ['Created ow/session-1 from feature/source'],
+      },
     }
     const rows: ChatRow[] = [
       messageRow(userMessage('u1')),
+      worktreeRow,
       messageRow(assistantMessage('a1', [toolCallPart('t1')])),
-      errorRow,
-      messageRow(assistantMessage('a2', [textPart('Recovered and done.')])),
+      messageRow(assistantMessage('a2', [textPart('Done.')])),
     ]
 
     const result = applyTurnFolds(rows, settledInput())
 
     expect(result).toHaveLength(4)
-    expect(result[2]).toBe(errorRow)
+    expect(result[1]).toMatchObject({ type: 'turn-fold' })
+    expect(result[2]).toBe(worktreeRow)
   })
 
   it('folds a settled Waggle turn as one agent-colored unit inside its section', () => {

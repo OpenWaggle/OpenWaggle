@@ -1,4 +1,5 @@
 import { match, P } from '@diegogbrisa/ts-match'
+import { isRecord } from './validation'
 
 export function parseSerializedToolPayload(value: unknown): unknown {
   if (typeof value !== 'string') {
@@ -24,5 +25,12 @@ export function normalizeToolResultPayload(value: unknown): unknown {
 }
 
 export function hasConcreteToolOutput(value: unknown): boolean {
-  return value !== undefined
+  const normalized = normalizeToolResultPayload(value)
+  return !(
+    normalized === undefined ||
+    (isRecord(normalized) &&
+      Array.isArray(normalized.content) &&
+      normalized.content.length === 0 &&
+      'details' in normalized)
+  )
 }

@@ -87,6 +87,18 @@ describe('stream-buffer', () => {
     })
   })
 
+  it('preserves a pre-agent Waggle mode when the durable Run id has no Waggle prefix', () => {
+    startStreamBuffer(SESSION_ID, MODEL, 'waggle')
+    startStreamBufferFromAgentStart(SESSION_ID, {
+      type: 'agent_start',
+      runId: 'run-from-session-host',
+      timestamp: 100,
+      model: MODEL,
+    })
+
+    expect(getStreamBuffer(SESSION_ID)?.mode).toBe('waggle')
+  })
+
   it('keeps worktree launch progress in the reconnectable run snapshot', () => {
     startStreamBuffer(SESSION_ID, MODEL, 'classic')
 

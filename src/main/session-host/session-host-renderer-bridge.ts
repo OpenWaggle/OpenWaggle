@@ -10,8 +10,11 @@ import {
   emitTransportEvent,
   emitWaggleTransportEvent,
   emitWaggleTurnEvent,
+  emitWorktreeLaunchFailure,
+  emitWorktreeLaunchProgress,
   replaceStreamBufferSnapshots,
   startStreamBufferFromAgentStart,
+  upsertStreamBufferRunIdentity,
 } from '../utils/stream-bridge'
 import { watchLocalSessionEvents } from './local-session-client'
 import { ensureLocalSessionHost } from './local-session-host-launcher'
@@ -37,6 +40,10 @@ export function reconcileRemoteRunSnapshots(snapshots: readonly BackgroundRunSna
   }
   const previousSet = new Set(previous)
   for (const snapshot of snapshots) {
+    broadcastToWindows('agent:worktree-launch', {
+      sessionId: snapshot.sessionId,
+      launch: snapshot.worktreeLaunch ?? null,
+    })
     if (previousSet.has(snapshot.sessionId)) continue
     emitTransportEvent(snapshot.sessionId, {
       type: 'agent_start',
@@ -51,6 +58,21 @@ export function relaySessionHostEvent(
   delivery: SessionHostEventEnvelope,
   options: { readonly streamBufferAlreadyProjected?: boolean } = {},
 ) {
+  if (delivery.payload.kind === 'session-worktree-launch') {
+    const sessionId = SessionId(delivery.payload.sessionId)
+    upsertStreamBufferRunIdentity(sessionId, delivery.payload.model, delivery.payload.mode)
+    const event = delivery.payload.event
+    if (event.type === 'progress') {
+      emitWorktreeLaunchProgress(sessionId, event.progress, {
+        projectStreamBuffer: !options.streamBufferAlreadyProjected,
+      })
+    } else {
+      emitWorktreeLaunchFailure(sessionId, event.errorMessage, {
+        projectStreamBuffer: !options.streamBufferAlreadyProjected,
+      })
+    }
+    return
+  }
   if (delivery.payload.kind === 'session-transport') {
     const sessionId = SessionId(delivery.payload.sessionId)
     if (!options.streamBufferAlreadyProjected && delivery.payload.event.type === 'agent_start') {
