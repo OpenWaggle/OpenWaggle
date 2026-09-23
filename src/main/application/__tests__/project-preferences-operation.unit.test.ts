@@ -222,6 +222,12 @@ describe('Host-backed project preferences', () => {
 describe('removeProjectModelOperation', () => {
   let removals: Array<string> | undefined
 
+  beforeEach(() => {
+    mocks.grantPending.mockReset().mockResolvedValue(undefined)
+    mocks.setPreferences.mockReset().mockResolvedValue(undefined)
+    removals = []
+  })
+
   const run = (rawProjectPath: unknown) =>
     Effect.runPromise(
       removeProjectModelOperation(rawProjectPath).pipe(
@@ -242,14 +248,33 @@ describe('removeProjectModelOperation', () => {
       ),
     )
 
-  beforeEach(() => {
-    removals = []
-  })
-
   it('deletes the stored model through the queue-safe backend writer', async () => {
     await run('/project')
 
     expect(removals).toEqual(['/project'])
+  })
+
+  it('strips a legacy file model before deleting the entry', async () => {
+    const legacyPath = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-legacy-model-'))
+    await writeLegacyModelFile(legacyPath)
+
+    await run(legacyPath)
+
+    // The file rewrite strips the legacy value (the central write migrates it first), then the
+    // DB entry is deleted, so re-adding the project starts fresh instead of resurrecting it.
+    expect(mocks.setPreferences).toHaveBeenCalledWith(legacyPath, {})
+    expect(removals).toEqual([legacyPath])
+    await fs.rm(legacyPath, { recursive: true, force: true })
+  })
+
+  it('does not rewrite the project file when it holds no legacy model', async () => {
+    const plainPath = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-legacy-model-'))
+
+    await run(plainPath)
+
+    expect(mocks.setPreferences).not.toHaveBeenCalled()
+    expect(removals).toEqual([plainPath])
+    await fs.rm(plainPath, { recursive: true, force: true })
   })
 })
 

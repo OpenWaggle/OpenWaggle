@@ -106,6 +106,13 @@ export function removeProjectModelOperation(rawProjectPath: unknown) {
       typeof rawProjectPath === 'string' ? rawProjectPath : null,
     )
     const settings = yield* SettingsService
+    // A legacy file model must not survive removal: the central write migrates it into the DB and
+    // strips it from the file, then the delete discards the entry so re-adding starts fresh.
+    // Projects without a settings file (or without a legacy model) skip the rewrite entirely.
+    const filePrefs = yield* Effect.promise(() => getProjectPreferencesStrict(projectPath))
+    if (filePrefs?.model !== undefined) {
+      yield* Effect.promise(() => setProjectPreferences(projectPath, {}))
+    }
     if (settings.removeProjectModel) {
       yield* settings.removeProjectModel(projectPath)
       return projectPath
