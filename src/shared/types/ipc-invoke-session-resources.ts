@@ -8,6 +8,7 @@ import type {
   SessionResourceCatalogPageRequest,
   SessionResourceCatalogView,
   SessionResourceContent,
+  SessionResourceHostContent,
   SessionResourceImageLocation,
   SessionResourceKind,
   SessionResourceList,
@@ -62,6 +63,11 @@ export interface SessionResourceIpcInvokeChannels {
   'sessions:resources:read': {
     args: [sessionId: SessionId, resourceId: string, preferredFileName?: string]
     return: SessionResourceContent | null
+  }
+  /** Internal Host UI transport channel; not exposed through the preload API. */
+  'sessions:resources:host-content': {
+    args: [sessionId: SessionId, resourceId: string]
+    return: SessionResourceHostContent | null
   }
   'sessions:resources:thumbnail': {
     args: [sessionId: SessionId, resourceId: string]

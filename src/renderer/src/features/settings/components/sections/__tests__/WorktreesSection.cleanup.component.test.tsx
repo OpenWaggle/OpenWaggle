@@ -93,7 +93,7 @@ it('offers explicit force removal after cleanup succeeds but the worktree remain
   expect(await screen.findByRole('button', { name: 'Retry removal' })).toBeInTheDocument()
   expect(screen.getByRole('alert')).toHaveTextContent('Cleanup completed')
   fireEvent.click(screen.getByText('Force remove…'))
-  expect(screen.getByText(/discard uncommitted changes/)).toBeInTheDocument()
+  expect(screen.getByText(/uncommitted changes or is locked/)).toBeInTheDocument()
   fireEvent.click(screen.getByRole('button', { name: 'Force remove' }))
   await waitFor(() =>
     expect(mocks.remove).toHaveBeenCalledWith('/project', {

@@ -116,6 +116,14 @@ export interface SessionResourceContent {
   readonly downloadUrl: string
 }
 
+/** Bounded image payload used only across the local GUI-to-Session-Host boundary. */
+export interface SessionResourceHostContent {
+  readonly resourceId: string
+  readonly fileName: string
+  readonly mimeType: string
+  readonly dataBase64: string
+}
+
 /** A bounded renderer preview. Full Session resource bytes never cross IPC. */
 export interface SessionResourceThumbnailPreview {
   readonly resourceId: string

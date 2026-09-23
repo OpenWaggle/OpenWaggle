@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest'
 import { supportedRevisionsForCommand } from '../local-session-client'
 
 describe('native actions wire contract', () => {
-  it('requires revision 16 on both the client and Host', () => {
+  it('requires revision 17 on both the client and Host', () => {
     const payload = decodeLocalSessionCommandPayload({
       contract: 'host-ui-v1',
       request: {
@@ -21,8 +21,8 @@ describe('native actions wire contract', () => {
         ],
       },
     })
-    expect(supportedRevisionsForCommand(payload)).toEqual([16])
-    expect(() => decodeLocalSessionCommandPayloadForRevision(payload, 15)).toThrow(/revision 16/)
-    expect(decodeLocalSessionCommandPayloadForRevision(payload, 16)).toEqual(payload)
+    expect(supportedRevisionsForCommand(payload)).toEqual([17])
+    expect(() => decodeLocalSessionCommandPayloadForRevision(payload, 16)).toThrow(/revision 17/)
+    expect(decodeLocalSessionCommandPayloadForRevision(payload, 17)).toEqual(payload)
   })
 })

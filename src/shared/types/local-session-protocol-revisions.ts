@@ -1,5 +1,6 @@
-export const LOCAL_SESSION_CURRENT_REVISION = 16 as const
-export const LOCAL_SESSION_NATIVE_ACTIONS_REVISION = 16 as const
+export const LOCAL_SESSION_CURRENT_REVISION = 17 as const
+export const LOCAL_SESSION_NATIVE_ACTIONS_REVISION = 17 as const
+export const LOCAL_SESSION_RESOURCE_HOST_UI_REVISION = 16 as const
 export const LOCAL_SESSION_WORKTREE_LAUNCH_REVISION = 15 as const
 export const LOCAL_SESSION_UPDATE_REVISION = 14 as const
 export const LOCAL_SESSION_TURN_DIFF_FILES_REVISION = 13 as const
@@ -13,7 +14,7 @@ export const LOCAL_SESSION_MCP_HOST_UI_REVISION = 6 as const
 export const LOCAL_SESSION_LEGACY_HOST_UI_REVISION = 5 as const
 export const LOCAL_SESSION_COMPACTION_REVISION = 4 as const
 export const LOCAL_SESSION_WAGGLE_REVISION = 3 as const
-/** Revision 16 removes legacy action commands; older clients must upgrade (ADR 0035). */
+/** Revision 17 removes legacy action commands; older clients must upgrade (ADR 0035). */
 export const LOCAL_SESSION_SUPPORTED_REVISIONS = [LOCAL_SESSION_CURRENT_REVISION] as const
 
 export const LOCAL_SESSION_REVISION_2_CAPABILITIES = [
@@ -94,7 +95,12 @@ export const LOCAL_SESSION_REVISION_15_CAPABILITIES = [
 
 export const LOCAL_SESSION_REVISION_16_CAPABILITIES = [
   ...LOCAL_SESSION_REVISION_15_CAPABILITIES,
+  'host-ui:session-resources-v1',
+] as const
+
+export const LOCAL_SESSION_REVISION_17_CAPABILITIES = [
+  ...LOCAL_SESSION_REVISION_16_CAPABILITIES,
   'host-ui:native-actions-v1',
 ] as const
 
-export const LOCAL_SESSION_CAPABILITIES = LOCAL_SESSION_REVISION_16_CAPABILITIES
+export const LOCAL_SESSION_CAPABILITIES = LOCAL_SESSION_REVISION_17_CAPABILITIES

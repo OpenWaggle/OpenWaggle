@@ -6,7 +6,8 @@ import {
   HOST_UI_REVISION_11_REQUIRED_CHANNELS,
   HOST_UI_REVISION_12_REQUIRED_CHANNELS,
   HOST_UI_REVISION_13_REQUIRED_CHANNELS,
-  HOST_UI_REVISION_15_REQUIRED_CHANNELS,
+  HOST_UI_REVISION_16_REQUIRED_CHANNELS,
+  HOST_UI_REVISION_17_REQUIRED_CHANNELS,
   type HostBackedGuiChannel,
 } from '@shared/types/host-ui-protocol'
 import {
@@ -18,6 +19,7 @@ import {
   LOCAL_SESSION_MCP_HOST_UI_REVISION,
   LOCAL_SESSION_NATIVE_ACTIONS_REVISION,
   LOCAL_SESSION_PROJECT_CATALOG_REVISION,
+  LOCAL_SESSION_RESOURCE_HOST_UI_REVISION,
   LOCAL_SESSION_STEERING_RECEIPT_REVISION,
   LOCAL_SESSION_TURN_DIFF_FILES_REVISION,
   LOCAL_SESSION_UPDATE_REVISION,
@@ -27,8 +29,11 @@ import {
 } from '@shared/types/local-session-protocol'
 
 export function requiredHostUiRevision(channel: HostBackedGuiChannel) {
-  if (HOST_UI_REVISION_15_REQUIRED_CHANNELS.some((candidate) => candidate === channel)) {
+  if (HOST_UI_REVISION_17_REQUIRED_CHANNELS.some((candidate) => candidate === channel)) {
     return LOCAL_SESSION_NATIVE_ACTIONS_REVISION
+  }
+  if (HOST_UI_REVISION_16_REQUIRED_CHANNELS.some((candidate) => candidate === channel)) {
+    return LOCAL_SESSION_RESOURCE_HOST_UI_REVISION
   }
   if (HOST_UI_REVISION_13_REQUIRED_CHANNELS.some((candidate) => candidate === channel)) {
     return LOCAL_SESSION_TURN_DIFF_FILES_REVISION

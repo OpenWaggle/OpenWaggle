@@ -189,6 +189,7 @@ Load `.agents/skills/electron-runtime/SKILL.md` for details.
 - Extension resource contributions use the approved `openwaggle.resources` broker capability with explicit Session scope. Publish payloads accept only credential-free HTTPS links/images; the host derives actor, occurrence, canonical identity, and Session ownership. List results expose display metadata only—never locators, managed paths, canonical keys, or occurrence history—and invalidation events carry the affected Session id.
 - Session resources retain two distinct locator concepts: the original public locator for provenance/open/reveal and the host-managed path for safe rendering. Raster image status is established from stored bytes, not filenames or declared MIME; SVG remains an ordinary file rather than renderable active content.
 - A remote image read refreshes its Session resource projection only after managed content materializes. Refreshing after a failed read bumps the resource revision and immediately repeats the same failed query; failures remain stable until the user explicitly retries.
+- After Session Host cutover, Session-resource catalog, backfill, and managed-content reads are Host-owned: the GUI `AppDatabase` is client-isolated and cannot see durable Session nodes. Route resource operations through a revisioned Host UI contract, return only bounded validated image bytes for GUI-native clipboard/attachment/protocol actions, and never add a second database writer. Agent-emitted local Markdown images may be copied only from the Session workspace or dedicated `electron-qa-evidence`/`openwaggle-evidence` directories under the platform temp parents; never authorize the whole shared temp tree. Keep the transcript path as provenance while rendering only the managed copy.
 
 ### Session-bound terminals (ADR 0030, September 2026)
 
@@ -877,9 +878,9 @@ environment-capture handler. Select the first available capture-capable shell am
 shell candidates, so an unsupported configured shell does not block setup when a fallback exists.
 Fresh local Sessions need Summary availability from configured preparation, before a snapshot or
 run exists, or users cannot reach explicit setup.
-Native actions use Local Session protocol revision 16 and require matching clients/Host for this
-breaking migration. Revision 15 belongs to worktree launch events and revision 14 to update
-channels; their published tuples stay unchanged, but removed legacy action channels make both
+Native actions use Local Session protocol revision 17 and require matching clients/Host for this
+breaking migration. Revision 16 belongs to Host-owned Session resources, revision 15 to worktree
+launch events and revision 14 to update channels; their published tuples stay unchanged, but removed legacy action channels make all three
 older revisions incompatible. Keep safe Host drain/handoff.
 Package task discovery checks the nearest package lockfiles before walking toward the Workspace
 root when no packageManager is declared; explicit child and root declarations keep precedence.
@@ -913,7 +914,7 @@ Use an ordinary scrolling container around the disabled action-editor fieldset; 
 overflow can paint over a fixed footer. Keep save errors in a bounded area above that footer so
 revision-conflict recovery stays visible even when the form body is scrolled to the top.
 Action-run polling queries all active runs plus the latest 50 terminal runs through indexed partial
-branches. Additive migration 60 keeps older runs and request IDs available for detail lookup and retry
+branches. Additive migration 61 keeps older runs and request IDs available for detail lookup and retry
 deduplication; limiting polling must never truncate the active-run set.
 On macOS, setup environment capture uses bundled Perl to emit NUL-separated values because `env -0`
 is not a documented cross-version contract; preserve embedded newlines. Resolve task executable paths

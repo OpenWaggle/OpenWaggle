@@ -5,6 +5,10 @@ import { fromAny } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { SessionRepository } from '../../ports/session-repository'
+import {
+  SessionResourceRepository,
+  type SessionResourceRepositoryShape,
+} from '../../ports/session-resource-repository'
 import { SettingsService } from '../../services/settings-service'
 import { emptySessionCatalogMethods } from './session-repository-test-support'
 
@@ -29,6 +33,17 @@ import {
 } from '../host-ui-session-operation-dispatcher'
 
 const EXPECTED_SESSION_CHANNELS = [
+  'sessions:resources:list',
+  'sessions:resources:page',
+  'sessions:resources:get',
+  'sessions:resources:locate-image',
+  'sessions:resources:node-page',
+  'sessions:resources:list-by-node-ids',
+  'sessions:resources:backfill',
+  'sessions:resources:host-content',
+  'sessions:resources:thumbnail',
+  'sessions:resources:retry',
+  'sessions:resources:record-change-request',
   'sessions:turn-diff-files:get',
   'sessions:list-projects',
   'sessions:get-detail',
@@ -123,6 +138,23 @@ describe('Host-backed Session GUI operation dispatcher', () => {
     expect(HOST_BACKED_GUI_CHANNELS.filter(isHostBackedSessionGuiChannel)).toEqual(
       EXPECTED_SESSION_CHANNELS,
     )
+  })
+
+  it('dispatches Session resource reads through the Host repository', async () => {
+    const findById = vi.fn(() => Effect.succeed(null))
+    const partialRepository = { findById }
+    const repository = SessionResourceRepository.of(
+      fromAny<SessionResourceRepositoryShape, typeof partialRepository>(partialRepository),
+    )
+    const effect = dispatchHostBackedSessionGuiOperation('sessions:resources:get', [
+      SessionId('session-1'),
+      'resource-1',
+      'images',
+      null,
+    ]).pipe(Effect.provideService(SessionResourceRepository, repository))
+
+    await expect(runWithoutRequirements(effect)).resolves.toBeNull()
+    expect(findById).toHaveBeenCalledWith(SessionId('session-1'), 'resource-1', 'images', null)
   })
 
   it('validates and dispatches a bounded project catalog page', async () => {

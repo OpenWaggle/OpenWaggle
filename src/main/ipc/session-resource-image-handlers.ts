@@ -7,12 +7,15 @@ import { SessionId } from '@shared/types/brand'
 import * as Effect from 'effect/Effect'
 import { clipboard, nativeImage } from 'electron'
 import {
+  readHostSessionResourceContent,
+  readHostSessionResourceThumbnail,
+} from '../application/host-ui-session-resource-content-client'
+import {
   prepareSessionResourceContent,
   readSessionResourceContentBytes,
   readSessionResourceThumbnail,
 } from '../application/session-resource-content'
 import { SessionResourceRepository } from '../ports/session-resource-repository'
-import { SessionResourceStore } from '../ports/session-resource-store'
 import { preferredSessionResourceFileName } from '../session-resource-content-disposition'
 import {
   activateSessionResourceContentOwner,
@@ -36,6 +39,17 @@ function requireAvailableImage(sessionId: SessionId, resourceId: string) {
       return yield* Effect.fail(new Error('The requested Session image is unavailable.'))
     }
     return resource
+  })
+}
+
+function readAvailableImageContent(sessionId: SessionId, resourceId: string) {
+  return Effect.gen(function* () {
+    const remote = yield* Effect.tryPromise(() =>
+      readHostSessionResourceContent(sessionId, resourceId),
+    )
+    if (remote.handled) return remote.content
+    yield* requireAvailableImage(sessionId, resourceId)
+    return yield* readSessionResourceContentBytes(sessionId, resourceId)
   })
 }
 
@@ -68,12 +82,19 @@ export function registerSessionResourceImageHandlers() {
         const { sessionId, resourceId } = decodeResourceTarget(rawSessionId, rawResourceId)
         const request = beginSessionResourceContentRequest(event.sender, sessionId)
         if (!request.isCurrent()) return null
-        const location = yield* prepareSessionResourceContent(sessionId, resourceId)
-        if (!location || !request.isCurrent()) return null
+        const remote = yield* Effect.tryPromise(() =>
+          readHostSessionResourceContent(sessionId, resourceId),
+        )
+        const content = remote.handled
+          ? remote.content
+          : yield* prepareSessionResourceContent(sessionId, resourceId)
+        if (!content || !request.isCurrent()) return null
         return registerSessionResourceContentReference(
           {
-            ...location,
-            fileName: preferredSessionResourceFileName(rawPreferredFileName) ?? location.fileName,
+            sessionId,
+            resourceId: content.resourceId,
+            mimeType: content.mimeType,
+            fileName: preferredSessionResourceFileName(rawPreferredFileName) ?? content.fileName,
           },
           event.sender.id,
         )
@@ -87,7 +108,12 @@ export function registerSessionResourceImageHandlers() {
         const { sessionId, resourceId } = decodeResourceTarget(rawSessionId, rawResourceId)
         const request = beginSessionResourceContentRequest(event.sender, sessionId)
         if (!request.isCurrent()) return null
-        const thumbnail = yield* readSessionResourceThumbnail(sessionId, resourceId)
+        const remote = yield* Effect.tryPromise(() =>
+          readHostSessionResourceThumbnail(sessionId, resourceId),
+        )
+        const thumbnail = remote.handled
+          ? remote.thumbnail
+          : yield* readSessionResourceThumbnail(sessionId, resourceId)
         return request.isCurrent() ? thumbnail : null
       }),
   )
@@ -99,8 +125,7 @@ export function registerSessionResourceImageHandlers() {
         const { sessionId, resourceId } = decodeResourceTarget(rawSessionId, rawResourceId)
         const request = beginSessionResourceContentRequest(event.sender, sessionId)
         if (!request.isCurrent()) return yield* Effect.fail(inactiveSessionResourceError())
-        yield* requireAvailableImage(sessionId, resourceId)
-        const content = yield* readSessionResourceContentBytes(sessionId, resourceId)
+        const content = yield* readAvailableImageContent(sessionId, resourceId)
         if (!content?.mimeType.toLowerCase().startsWith('image/')) {
           return yield* Effect.fail(new Error('The requested Session image could not be read.'))
         }
@@ -120,25 +145,18 @@ export function registerSessionResourceImageHandlers() {
         const { sessionId, resourceId } = decodeResourceTarget(rawSessionId, rawResourceId)
         const request = beginSessionResourceContentRequest(event.sender, sessionId)
         if (!request.isCurrent()) return yield* Effect.fail(inactiveSessionResourceError())
-        yield* requireAvailableImage(sessionId, resourceId)
-        const repository = yield* SessionResourceRepository
-        let location = yield* repository.getContentLocation(sessionId, resourceId)
-        if (!location) {
-          location = yield* prepareSessionResourceContent(sessionId, resourceId)
-        }
-        if (!location) {
+        const content = yield* readAvailableImageContent(sessionId, resourceId)
+        if (!content) {
           return yield* Effect.fail(
             new Error('The requested Session image has no managed attachment copy.'),
           )
         }
-        const store = yield* SessionResourceStore
-        const bytes = yield* store.read(location.managedPath)
         if (!request.isCurrent()) return yield* Effect.fail(inactiveSessionResourceError())
         const prepared = yield* Effect.promise(() =>
           prepareRegisteredImageAttachmentFromBytes({
-            bytes,
-            fileName: preferredSessionResourceFileName(rawPreferredFileName) ?? location.fileName,
-            mimeType: location.mimeType,
+            bytes: content.bytes,
+            fileName: preferredSessionResourceFileName(rawPreferredFileName) ?? content.fileName,
+            mimeType: content.mimeType,
           }),
         )
         if (request.isCurrent()) return prepared
