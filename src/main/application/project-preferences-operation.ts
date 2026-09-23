@@ -148,6 +148,10 @@ export function setProjectPreferencesOperation(rawProjectPath: unknown, rawPrefe
         grantPendingAuthorizationsWhereFullAccess(resolveEffectiveAuthorizationMode),
       )
     }
+
+    // Renderer mirrors (e.g. the per-project model map) must key by the canonical path this write
+    // was stored under, not the caller-spelled alias, or later full-map writes would clobber it.
+    return projectPath
   })
 }
 

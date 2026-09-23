@@ -30,7 +30,7 @@ describe('preferences-store selection integration', () => {
     apiMock.setProviderApiKey.mockResolvedValue(undefined)
     apiMock.setEnabledModels.mockResolvedValue(undefined)
     apiMock.updateSettings.mockResolvedValue({ ok: true })
-    apiMock.setProjectPreferences.mockResolvedValue(undefined)
+    apiMock.setProjectPreferences.mockResolvedValue('/repo/b')
     usePreferencesStore.setState({
       settings: DEFAULT_SETTINGS,
       persistedAppearancePreferences: DEFAULT_SETTINGS.appearancePreferences,

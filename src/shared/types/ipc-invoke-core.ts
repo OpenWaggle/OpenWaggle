@@ -242,7 +242,8 @@ export interface IpcCoreInvokeChannelMap
   }
   'project-config:set-preferences': {
     args: [projectPath: string, preferences: ProjectPreferencesUpdatePayload]
-    return: undefined
+    /** Resolves to the canonical (realpath) project path the write was stored under. */
+    return: string
   }
   'providers:get-models': {
     args: [projectPath?: string | null]

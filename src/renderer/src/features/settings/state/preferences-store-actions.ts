@@ -114,7 +114,7 @@ async function setEnabledModels(models: string[], set: PreferencesSet, get: Pref
   await api.setEnabledModels(enabledModels)
   if (selectedModel !== settings.selectedModel) {
     await api.updateSettings({ selectedModel })
-    persistProjectPreference(settings.projectPath, { model: selectedModel }, set, get)
+    await persistProjectPreference(settings.projectPath, { model: selectedModel }, set, get)
   }
   mergeSettings(set, { enabledModels, selectedModel })
 }
@@ -221,7 +221,7 @@ export function createPreferencesActions(
       const { settings } = get()
       await api.updateSettings({ selectedModel: model })
       mergeSettings(set, { selectedModel: model })
-      persistProjectPreference(settings.projectPath, { model }, set, get)
+      await persistProjectPreference(settings.projectPath, { model }, set, get)
     },
     toggleFavoriteModel: async (model) => {
       const trimmed = model.trim()
@@ -257,7 +257,7 @@ export function createPreferencesActions(
       const { settings } = get()
       await api.updateSettings({ thinkingLevel: preset })
       mergeSettings(set, { thinkingLevel: preset })
-      persistProjectPreference(settings.projectPath, { thinkingLevel: preset })
+      await persistProjectPreference(settings.projectPath, { thinkingLevel: preset })
     },
     setEnabledModels: (models) => setEnabledModels(models, set, get),
     setProjectDisplayName: async (path, name) => {
