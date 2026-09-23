@@ -1,7 +1,11 @@
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { EMPTY_ACTION_MANIFEST } from '../../../domain/project-action-catalog'
+import {
+  EMPTY_ACTION_MANIFEST,
+  preparationExecutionKey,
+  resolveActionCatalog,
+} from '../../../domain/project-action-catalog'
 import {
   catalog,
   installActionCatalogFixture,
@@ -133,13 +137,41 @@ describe('native preparation catalog', () => {
 
     await shared({
       ...EMPTY_ACTION_MANIFEST,
-      profiles: [profile],
       preparation: [setup],
     })
     const moved = await catalog.read(scope())
     expect(moved.preparation[0]).toMatchObject({
       definition: { id: setup.id, profileId: 'default', invocation: setup.invocation },
       review: 'required',
+      previous: { profileId: 'opt-in', profileName: 'Opt in', invocation: setup.invocation },
+    })
+  })
+
+  it('recovers the old profile from a review saved before profile context was stored', () => {
+    const optIn = { ...setup, profileId: 'opt-in' }
+    const catalog = resolveActionCatalog(
+      {
+        manifest: EMPTY_ACTION_MANIFEST,
+        reviews: [
+          {
+            definitionId: setup.id,
+            fingerprint: preparationExecutionKey(optIn),
+            invocation: setup.invocation,
+            enabled: true,
+          },
+        ],
+        migration: { version: 1, legacySource: null },
+      },
+      {
+        ...EMPTY_ACTION_MANIFEST,
+        profiles: [{ id: 'opt-in', name: 'Opt in' }],
+        preparation: [setup],
+      },
+      'legacy',
+    )
+    expect(catalog.preparation[0]).toMatchObject({
+      review: 'required',
+      previous: { profileId: 'opt-in', profileName: 'Opt in' },
     })
   })
 })

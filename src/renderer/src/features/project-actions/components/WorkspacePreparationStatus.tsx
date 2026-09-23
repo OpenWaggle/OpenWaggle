@@ -179,6 +179,7 @@ function PreparationSnapshotDetails({
       {showReview ? (
         <PreparationReviewDialog
           entry={required}
+          currentProfileName={state.snapshot.profile.name}
           busy={busy}
           error={mutation.error?.message}
           onClose={() => {

@@ -1,7 +1,7 @@
 import type { ActionInvocation } from '@shared/types/action-definitions'
 import type { PreparationPhase, WorkspacePreparation } from '@shared/types/workspace-preparation'
 import { enqueueProjectConfigWrite } from '../../config/project-config-write-queue'
-import { preparationExecutionKey } from '../../domain/project-action-catalog'
+import { preparationReview } from '../../domain/preparation-review-context'
 import type { ActionRunWorkspace } from '../../ports/action-run-service'
 import { PreparationCancellation } from './preparation-cancellation'
 import type { PreparationDependencies } from './preparation-dependencies'
@@ -175,12 +175,7 @@ export class ManagedWorkspacePreparation {
           ? {
               ...entry,
               review: enabled ? ('enabled' as const) : ('disabled' as const),
-              previous: {
-                definitionId,
-                enabled,
-                invocation: definition.invocation,
-                fingerprint: preparationExecutionKey(definition),
-              },
+              previous: preparationReview(definition, enabled, state.snapshot.profile.name),
             }
           : value,
       )

@@ -45,6 +45,8 @@ export async function migrateLegacyActionDocument(
       fingerprint: preparationExecutionKey(definition),
       invocation: definition.invocation,
       enabled: true,
+      profileId: 'default',
+      profileName: 'Default',
     })),
     migration: { version: 1, legacySource },
   }

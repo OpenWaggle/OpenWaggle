@@ -91,6 +91,8 @@ export const preparationReviewSchema = Schema.Struct({
   fingerprint: Schema.String,
   invocation: actionInvocationSchema,
   enabled: Schema.Boolean,
+  profileId: Schema.optional(actionDefinitionIdSchema),
+  profileName: Schema.optional(Schema.String),
 })
 const storage = Schema.Literal('local', 'project')
 export const actionCatalogEditSchema = Schema.Union(

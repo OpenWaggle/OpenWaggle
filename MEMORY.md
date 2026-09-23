@@ -822,6 +822,9 @@ Preparation snapshots retain private successful exports and require review for c
 execution. A failed cleanup keeps the worktree and must remain discoverable in Settings after the
 owning Session has been deleted. Pending worktrees can have ordinary future filesystem paths, so
 definition management must use authoritative lifecycle state instead of testing only `pending://`.
+Profile moves are execution changes even when setup commands match. Retain the approved profile's
+name and ID in local review records so the dialog can show the old and new profiles after deletion;
+older reviews can recover the ID from a validated execution fingerprint.
 Settings worktree removal must validate Git's non-forced dirty-worktree refusal before running
 arbitrary Cleanup. Keep that validation inside the admitted removal operation; force removal may
 accept dirt, and Git still makes the final decision if the checkout changes after validation.

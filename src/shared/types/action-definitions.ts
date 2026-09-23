@@ -71,6 +71,9 @@ export interface PreparationReview {
   readonly fingerprint: string
   readonly invocation: ActionInvocation
   readonly enabled: boolean
+  /** Optional for reviews stored before profile context was recorded. */
+  readonly profileId?: string
+  readonly profileName?: string
 }
 
 export interface ActionCatalog {

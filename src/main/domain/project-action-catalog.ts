@@ -3,7 +3,6 @@ import type {
   ActionCatalog,
   ActionCatalogEdit,
   ActionManifest,
-  PreparationDefinition,
   PreparationReview,
 } from '@shared/types/action-definitions'
 import { effective, effectivePreparation, upsertPreparation } from './effective-project-definitions'
@@ -11,6 +10,14 @@ import {
   retainPrivatePreparationProfiles,
   sharePreparationProfile,
 } from './preparation-profile-context'
+import {
+  preparationExecutionKey,
+  preparationReview,
+  reviewedProfile,
+  reviewProfileContext,
+} from './preparation-review-context'
+
+export { preparationExecutionKey } from './preparation-review-context'
 
 export interface LocalActionDocument {
   readonly manifest: ActionManifest
@@ -53,25 +60,6 @@ export const EMPTY_ACTION_MANIFEST: ActionManifest = {
   preparation: [],
 }
 
-export function preparationExecutionKey(definition: PreparationDefinition): string {
-  const invocation = match(definition.invocation)
-    .with({ type: 'command' }, ({ command, directory }) => ({
-      type: 'command',
-      command,
-      directory,
-    }))
-    .with({ type: 'task' }, ({ task }) => ({
-      type: 'task',
-      provider: task.provider,
-      source: task.source,
-      directory: task.directory,
-      task: task.task,
-      environment: task.environment ?? null,
-    }))
-    .exhaustive()
-  return JSON.stringify({ profileId: definition.profileId, phase: definition.phase, invocation })
-}
-
 export function resolveActionCatalog(
   document: LocalActionDocument,
   shared: ActionManifest,
@@ -84,9 +72,8 @@ export function resolveActionCatalog(
     profiles.unshift({ definition: { id: 'default', name: 'Default' }, source: 'local' })
   const preparation = effectivePreparation(document.manifest.preparation, shared.preparation).map(
     (entry) => {
-      const previous = document.reviews.find(
-        (review) => review.definitionId === entry.definition.id,
-      )
+      const stored = document.reviews.find((review) => review.definitionId === entry.definition.id)
+      const previous = stored ? reviewedProfile(stored, profiles) : undefined
       const sameExecution = previous?.fingerprint === preparationExecutionKey(entry.definition)
       const review = sameExecution
         ? previous.enabled
@@ -205,12 +192,11 @@ export function editActionCatalog(
     const catalog = resolveActionCatalog(document, shared, '')
     const entry = catalog.preparation.find(({ definition }) => definition.id === edit.id)
     if (!entry) throw new Error('The preparation definition no longer exists.')
-    const review: PreparationReview = {
-      definitionId: edit.id,
-      fingerprint: preparationExecutionKey(entry.definition),
-      invocation: entry.definition.invocation,
-      enabled: edit.enabled,
-    }
+    const context = reviewProfileContext(
+      entry.definition.profileId,
+      catalog.profiles.map(({ definition }) => definition),
+    )
+    const review = preparationReview(entry.definition, edit.enabled, context.profileName)
     return {
       document: {
         ...document,
@@ -282,12 +268,14 @@ export function editActionCatalog(
       ...nextDocument,
       reviews: [
         ...nextDocument.reviews.filter((review) => review.definitionId !== definition.id),
-        {
-          definitionId: definition.id,
-          fingerprint: preparationExecutionKey(definition),
-          invocation: definition.invocation,
-          enabled: true,
-        },
+        preparationReview(
+          definition,
+          true,
+          reviewProfileContext(definition.profileId, [
+            ...nextDocument.manifest.profiles,
+            ...nextShared.profiles,
+          ]).profileName,
+        ),
       ],
     }
   }

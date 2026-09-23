@@ -69,6 +69,7 @@ export function WorkspaceCleanupFailure(props: {
       {required && !closedReview ? (
         <PreparationReviewDialog
           entry={required}
+          currentProfileName={preparation.snapshot.profile.name}
           busy={busy}
           error={state.mutation.error?.message}
           onClose={() => setClosedReview(true)}

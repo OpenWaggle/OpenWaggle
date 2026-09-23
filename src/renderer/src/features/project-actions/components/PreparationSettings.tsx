@@ -106,6 +106,11 @@ export function PreparationSettings(props: {
       {review ? (
         <PreparationReviewDialog
           entry={review}
+          currentProfileName={
+            props.catalog.profiles.find(
+              ({ definition }) => definition.id === review.definition.profileId,
+            )?.definition.name ?? review.definition.profileId
+          }
           busy={mutation.isPending}
           error={error}
           onClose={() => setReviewId(null)}

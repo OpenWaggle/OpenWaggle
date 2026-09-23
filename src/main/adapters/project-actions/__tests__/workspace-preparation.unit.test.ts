@@ -266,6 +266,10 @@ describe('Workspace preparation lifecycle', () => {
       'changed',
     )
     await test.engine.review(workspace, 'setup', false, state.revision)
+    expect((await test.engine.read(workspace))?.snapshot.definitions[0]?.previous).toMatchObject({
+      profileId: 'default',
+      profileName: 'Default',
+    })
     await test.engine.requireSetup(workspace)
     expect(test.execute).not.toHaveBeenCalled()
     expect(await test.engine.read(workspace)).toMatchObject({ setup: { status: 'skipped' } })
