@@ -906,7 +906,10 @@ Host recovery must mark interrupted preparation and action runs before replaying
 deletions or worktree removals, so cleanup cannot execute twice after a crash. Preparation output
 checkpoints retry from the last persisted revision. A failed final save retains a failed live
 snapshot and prior successful environment, keeping Retry and Continue available until persistence
-recovers. Agent authorization includes preview URL and automatic opening because both cause side
+recovers. After an action process spawns, a failed write of its `running` status must return the live
+run instead of reporting launch failure while leaving the process active. Keep Stop, output and
+request replay available from the active map, and retry the durable status write for quiet services.
+Agent authorization includes preview URL and automatic opening because both cause side
 effects. Resolve relative PATH entries and executable paths from the action directory, including
 setup shell selection. Hatch environments inherit ordinary scripts by name, but replace the entire
 extra-scripts option; parent matrices do not make explicitly named child environments ambiguous.

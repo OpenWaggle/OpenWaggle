@@ -11,6 +11,38 @@ afterEach(async () => {
 })
 const input = (requestId: string) => ({ workspace: fixture.workspace, actionId: 'test', requestId })
 
+it('keeps a spawned action reachable when saving its running status fails', async () => {
+  const save = fixture.persistence.save.bind(fixture.persistence)
+  const failure = new Error('Running status save failed')
+  let failRunning = true
+  vi.spyOn(fixture.persistence, 'save').mockImplementation(async (run) => {
+    if (run.status === 'running' && failRunning) {
+      failRunning = false
+      throw failure
+    }
+    await save(run)
+  })
+
+  const started = await fixture.runs.start(input('running-save'))
+  expect(started.status).toBe('running')
+  expect(fixture.records.get(started.id)?.status).toBe('starting')
+  expect(fixture.processes).toHaveLength(1)
+  expect(fixture.processes[0]?.isStopped()).toBe(false)
+  expect(fixture.owners()).toBe(1)
+  expect(fixture.errors).toContain(failure)
+  expect((await fixture.runs.list(fixture.workspace.workspaceId))[0]?.status).toBe('running')
+  expect((await fixture.runs.output(fixture.workspace.workspaceId, started.id)).run).toEqual(
+    started,
+  )
+  expect(await fixture.runs.start(input('running-save'))).toEqual(started)
+  await expect.poll(() => fixture.records.get(started.id)?.status).toBe('running')
+
+  await fixture.runs.stop(fixture.workspace.workspaceId, started.id)
+  expect(fixture.processes[0]?.isStopped()).toBe(true)
+  expect(fixture.records.get(started.id)?.status).toBe('stopped')
+  expect(fixture.owners()).toBe(0)
+})
+
 it('keeps a failed launch visible and Stop retryable when its terminal save fails', async () => {
   vi.spyOn(fixture.persistence, 'recordRequest').mockRejectedValue(new Error('Request save failed'))
   const save = fixture.persistence.save.bind(fixture.persistence)

@@ -173,6 +173,22 @@ function forgetSettledLaunch(
   starting.resolveSettled()
 }
 
+async function persistRunningLaunch(
+  context: ManagedLaunchContext,
+  run: ActionRun,
+  entry: LiveAction,
+) {
+  try {
+    await context.persist(run)
+  } catch {
+    // The child is live and the durable starting row still identifies it. Keep
+    // the launch reachable, then retry the running write for quiet services.
+    context.scheduleMetadata(run.id)
+    return context.active.get(run.id)?.run ?? entry.run
+  }
+  return context.active.get(run.id)?.run ?? (await context.deps.persistence.get(run.id)) ?? run
+}
+
 export async function launchManagedAction(
   context: ManagedLaunchContext,
   input: StartManagedActionInput,
@@ -265,8 +281,7 @@ export async function launchManagedAction(
       await context.stopEntry(entry)
       return (await context.deps.persistence.get(run.id)) ?? entry.run
     }
-    await context.persist(run)
-    return context.active.get(run.id)?.run ?? (await context.deps.persistence.get(run.id)) ?? run
+    return await persistRunningLaunch(context, run, entry)
   } catch (error) {
     if (context.active.has(run.id)) throw error
     if (!ownership.transferred) release()
