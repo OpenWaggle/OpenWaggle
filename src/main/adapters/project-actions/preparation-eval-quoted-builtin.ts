@@ -38,11 +38,15 @@ function quotedBuiltinWordLength(code, start, name,    cursor, character, follow
         cursor += ansiConsumed - 1
       } else word = word character
     } else if (quote != "") {
-      if (character == quote) quote = ""
-      else if (quote == "\"" && character == "\\") return 0
+      if (character == quote || (quote == "locale" && character == "\"")) quote = ""
+      else if ((quote == "\"" || quote == "locale") && character == "\\") return 0
       else word = word character
-    } else if (character == "$" && substr(code, cursor + 1, 1) == "'") {
+    } else if (allowAnsi && character == "$" && substr(code, cursor + 1, 1) == "'") {
       quote = "ansi"
+      quoted = 1
+      cursor++
+    } else if (allowLocale && character == "$" && substr(code, cursor + 1, 1) == "\"") {
+      quote = "locale"
       quoted = 1
       cursor++
     } else if (character == "'" || character == "\"") {

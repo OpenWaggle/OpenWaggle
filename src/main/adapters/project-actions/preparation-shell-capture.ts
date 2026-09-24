@@ -9,6 +9,8 @@ import { enableEscapedExecCapture } from './preparation-escaped-exec'
 import { runtimeEvalRewriter } from './preparation-eval-rewriter'
 import { runtimeFishEvalRewriter } from './preparation-fish-eval-rewriter'
 import { captureFishExec } from './preparation-fish-exec'
+import type { QuotedBuiltinSyntax } from './preparation-quoted-builtin'
+import { quotedBuiltinSyntaxForShell } from './preparation-quoted-builtin-syntax'
 
 // macOS env(1) does not promise -0; the bundled Perl keeps embedded newlines intact.
 const POSIX_ENVIRONMENT_DUMP =
@@ -42,9 +44,9 @@ function invocationCommand(invocation: ResolvedActionInvocation, quote: (value: 
     : [invocation.executable, ...invocation.args].map(quote).join(' ')
 }
 
-function posixInvocationCommand(invocation: ResolvedActionInvocation) {
+function posixInvocationCommand(invocation: ResolvedActionInvocation, syntax: QuotedBuiltinSyntax) {
   return invocation.type === 'command'
-    ? enableEscapedExecCapture(invocation.command)
+    ? enableEscapedExecCapture(invocation.command, syntax)
     : invocationCommand(invocation, quotePosixShellArgument)
 }
 
@@ -56,7 +58,7 @@ const posixDumpOnSuccess = (destination: string) =>
 const posixCaptureBeforeExec = (destination: string) =>
   `__ow_capture_exec() {\n${POSIX_ENVIRONMENT_DUMP} > ${quotePosixShellArgument(destination)} || return $?\n}`
 
-function posixRuntimeEvalCapture(evalBuiltin: 'builtin' | 'command') {
+function posixRuntimeEvalCapture(evalBuiltin: 'builtin' | 'command', syntax: QuotedBuiltinSyntax) {
   return [
     '__ow_eval() {',
     'case "$*" in',
@@ -65,6 +67,7 @@ function posixRuntimeEvalCapture(evalBuiltin: 'builtin' | 'command') {
     'esac',
     '__ow_eval_code=$(',
     "{ __ow_sep=''; for __ow_part do printf '%s%s' \"$__ow_sep\" \"$__ow_part\"; __ow_sep=' '; done; printf '\\034'; } | awk " +
+      `-v allowAnsi=${syntax.ansi ? 1 : 0} -v allowLocale=${syntax.locale ? 1 : 0} ` +
       quotePosixShellArgument(runtimeEvalRewriter),
     '__ow_rewrite_status=$?',
     'if [ "$__ow_rewrite_status" -ne 0 ]; then exit "$__ow_rewrite_status"; fi',
@@ -207,6 +210,7 @@ export async function preparationCaptureInvocation(
         }
       : invocation
   const name = basename(shell).toLowerCase()
+  const quotedBuiltinSyntax = await quotedBuiltinSyntaxForShell(shell)
   if (['pwsh', 'pwsh.exe', 'powershell', 'powershell.exe'].includes(name)) {
     const command = `${resolved.type === 'executable' ? '& ' : ''}${invocationCommand(resolved, quotePowerShellArgument)}`
     const lastUserLine = command.split(/\r\n|\r|\n/u).length + POWERSHELL_SETUP_HEADER_LINES
@@ -246,9 +250,9 @@ export async function preparationCaptureInvocation(
         'exit "$__ow_exit"',
         '}',
       ].join('\n')
-      const command = posixInvocationCommand(resolved)
+      const command = posixInvocationCommand(resolved, quotedBuiltinSyntax)
       const enableAliases = name === 'bash' ? 'shopt -s expand_aliases\n' : ''
-      return `umask 077\n__ow_user_exit_trap=''\n__ow_user_exit_trap_set=0\n${finish}\nbuiltin trap '__ow_finish "$?"' EXIT\n${bashZshUserTraps}\n${posixCaptureBeforeExec(destination)}\n${posixRuntimeEvalCapture('builtin')}\n${bashZshPrefixedBuiltins}\n${enableAliases}alias exec='exec $(__ow_capture_exec)'\nalias command='__ow_command $(__ow_capture_exec)'\nalias builtin='__ow_builtin $(__ow_capture_exec)'\nalias eval='__ow_eval $(__ow_capture_exec)'\neval ${quotePosixShellArgument(command)}\n__ow_finish "$?"`
+      return `umask 077\n__ow_user_exit_trap=''\n__ow_user_exit_trap_set=0\n${finish}\nbuiltin trap '__ow_finish "$?"' EXIT\n${bashZshUserTraps}\n${posixCaptureBeforeExec(destination)}\n${posixRuntimeEvalCapture('builtin', quotedBuiltinSyntax)}\n${bashZshPrefixedBuiltins}\n${enableAliases}alias exec='exec $(__ow_capture_exec)'\nalias command='__ow_command $(__ow_capture_exec)'\nalias builtin='__ow_builtin $(__ow_capture_exec)'\nalias eval='__ow_eval $(__ow_capture_exec)'\neval ${quotePosixShellArgument(command)}\n__ow_finish "$?"`
     })
     .with('sh', 'dash', 'ksh', 'mksh', () => {
       const finish = [
@@ -278,8 +282,8 @@ export async function preparationCaptureInvocation(
         'done',
         '}',
       ].join('\n')
-      const command = posixInvocationCommand(resolved)
-      return `umask 077\n__ow_user_exit_trap=''\n${finish}\ncommand trap '__ow_finish "$?"' EXIT\n${userTraps}\n${posixCaptureBeforeExec(destination)}\n${posixRuntimeEvalCapture('command')}\n${shPrefixedCommand(name)}\nalias trap=__ow_trap\nalias exec='exec $(__ow_capture_exec)'\nalias command='__ow_command $(__ow_capture_exec)'\nalias eval='__ow_eval $(__ow_capture_exec)'\neval ${quotePosixShellArgument(command)}\n__ow_finish "$?"`
+      const command = posixInvocationCommand(resolved, quotedBuiltinSyntax)
+      return `umask 077\n__ow_user_exit_trap=''\n${finish}\ncommand trap '__ow_finish "$?"' EXIT\n${userTraps}\n${posixCaptureBeforeExec(destination)}\n${posixRuntimeEvalCapture('command', quotedBuiltinSyntax)}\n${shPrefixedCommand(name)}\nalias trap=__ow_trap\nalias exec='exec $(__ow_capture_exec)'\nalias command='__ow_command $(__ow_capture_exec)'\nalias eval='__ow_eval $(__ow_capture_exec)'\neval ${quotePosixShellArgument(command)}\n__ow_finish "$?"`
     })
     .otherwise(() => {
       throw new Error(

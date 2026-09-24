@@ -4,9 +4,16 @@ const OCTAL_RADIX = 8
 const HEX_RADIX = 16
 const ASCII_MAX = 0x7f
 
+export interface QuotedBuiltinSyntax {
+  ansi: boolean
+  locale: boolean
+}
+
+const EXTENDED_QUOTE_SYNTAX: QuotedBuiltinSyntax = { ansi: true, locale: true }
+
 interface WordState {
   word: string
-  quote: "'" | '"' | 'ansi' | undefined
+  quote: "'" | '"' | 'ansi' | 'locale' | undefined
   quoted: boolean
   invalid: boolean
   cursor: number
@@ -48,20 +55,29 @@ function consumeAnsiCharacter(command: string, state: WordState) {
 
 function consumeQuotedCharacter(character: string, state: WordState) {
   state.cursor += 1
-  if (character === state.quote) {
+  if (character === (state.quote === 'locale' ? '"' : state.quote)) {
     state.quote = undefined
     return
   }
-  if (state.quote === '"' && character === '\\') {
+  if ((state.quote === '"' || state.quote === 'locale') && character === '\\') {
     state.invalid = true
     return
   }
   state.word += character
 }
 
-function consumeUnquotedCharacter(command: string, character: string, state: WordState) {
-  if (character === '$' && command[state.cursor + 1] === "'") {
-    state.quote = 'ansi'
+function consumeUnquotedCharacter(
+  command: string,
+  character: string,
+  state: WordState,
+  syntax: QuotedBuiltinSyntax,
+) {
+  if (
+    character === '$' &&
+    ((syntax.ansi && command[state.cursor + 1] === "'") ||
+      (syntax.locale && command[state.cursor + 1] === '"'))
+  ) {
+    state.quote = command[state.cursor + 1] === "'" ? 'ansi' : 'locale'
     state.quoted = true
     state.cursor += ANSI_QUOTE_PREFIX_LENGTH
     return true
@@ -87,7 +103,12 @@ function consumeUnquotedCharacter(command: string, character: string, state: Wor
 }
 
 /** Return the length of a shell word whose quote removal changes it to a captured builtin. */
-export function quotedBuiltinWordLength(command: string, index: number, name: 'exec' | 'eval') {
+export function quotedBuiltinWordLength(
+  command: string,
+  index: number,
+  name: 'exec' | 'eval',
+  syntax: QuotedBuiltinSyntax = EXTENDED_QUOTE_SYNTAX,
+) {
   if (!/[e$\\'"]/.test(command[index] ?? '')) return 0
   const state: WordState = {
     word: '',
@@ -107,7 +128,7 @@ export function quotedBuiltinWordLength(command: string, index: number, name: 'e
       consumeQuotedCharacter(character, state)
       continue
     }
-    if (!consumeUnquotedCharacter(command, character, state)) break
+    if (!consumeUnquotedCharacter(command, character, state, syntax)) break
   }
   return !state.quote && !state.invalid && state.quoted && state.word === name
     ? state.cursor - index

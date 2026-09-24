@@ -32,6 +32,26 @@ describe('escaped exec capture', () => {
         .replace(String.raw`e$'\u76'al "$code"`, '__ow_eval "$code"'),
     )
   })
+  it('captures locale-quoted builtins only at command position', () => {
+    const command = [
+      `$"eval" "$code"`,
+      `e$"va"l "$code"`,
+      `ex$"e"c /usr/bin/true`,
+      `printf '%s' e$"va"l ex$"e"c`,
+    ].join('\n')
+    expect(enableEscapedExecCapture(command)).toBe(
+      command
+        .replace(`$"eval" "$code"`, '__ow_eval "$code"')
+        .replace(`e$"va"l "$code"`, '__ow_eval "$code"')
+        .replace(`ex$"e"c /usr/bin/true`, 'exec /usr/bin/true'),
+    )
+  })
+  it('keeps dollar-quoted commands literal when a shell does not support the form', () => {
+    const ansi = `e$'va'l "$code"`
+    const locale = `$"eval" "$code"`
+    expect(enableEscapedExecCapture(ansi, { ansi: false, locale: false })).toBe(ansi)
+    expect(enableEscapedExecCapture(locale, { ansi: true, locale: false })).toBe(locale)
+  })
   it('exposes partially escaped exec only in command position', () => {
     const command = [
       String.raw`export READY=yes; ex\ec /usr/bin/true`,

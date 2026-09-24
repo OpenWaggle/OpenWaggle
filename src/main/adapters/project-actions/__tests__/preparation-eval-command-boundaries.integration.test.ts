@@ -8,6 +8,7 @@ import { createPreparationExecutor } from '../preparation-process'
 
 const shells = ['/bin/bash', '/bin/zsh', '/bin/sh', '/bin/dash', '/bin/ksh', '/bin/mksh']
 const arithmeticShells = ['/bin/bash', '/bin/zsh', '/bin/ksh', '/bin/mksh']
+const localeQuoteShells = ['/bin/bash', '/bin/sh', '/bin/ksh', '/bin/mksh']
 
 const cases: {
   variable: string
@@ -106,6 +107,26 @@ ex\ec /usr/bin/true'; eval "$code"`,
     variable: 'OW_DYNAMIC_ANSI_NUMERIC_EXEC',
     supportedShells: ['/bin/bash'],
     command: String.raw`code="export OW_DYNAMIC_ANSI_NUMERIC_EXEC=loaded; ex\$'\u65'c /usr/bin/true"; eval "$code"`,
+  },
+  {
+    variable: 'OW_LOCALE_QUOTED_EVAL',
+    supportedShells: localeQuoteShells,
+    command: String.raw`code='export OW_LOCALE_QUOTED_EVAL=loaded; \exec /usr/bin/true'; $"ev"al "$code"`,
+  },
+  {
+    variable: 'OW_DYNAMIC_LOCALE_QUOTED_EVAL',
+    supportedShells: localeQuoteShells,
+    command: String.raw`code='export OW_DYNAMIC_LOCALE_QUOTED_EVAL=loaded; \exec /usr/bin/true'; wrapper='$"ev"al "$code"'; eval "$wrapper"`,
+  },
+  {
+    variable: 'OW_LOCALE_QUOTED_EXEC',
+    supportedShells: localeQuoteShells,
+    command: `export OW_LOCALE_QUOTED_EXEC=loaded; ex$"e"c /usr/bin/true`,
+  },
+  {
+    variable: 'OW_DYNAMIC_LOCALE_QUOTED_EXEC',
+    supportedShells: localeQuoteShells,
+    command: `code='export OW_DYNAMIC_LOCALE_QUOTED_EXEC=loaded; ex$"e"c /usr/bin/true'; eval "$code"`,
   },
   {
     variable: 'OW_COMMAND_DASH_DASH_EVAL',

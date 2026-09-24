@@ -981,6 +981,13 @@ quoted strings and heredoc bodies while rewriting, and fail Setup if the runtime
 ANSI-C-quoted Bash builtin names such as `e$'va'l` and `ex$'e'c` also suppress alias
 expansion. Normalize those command words in both the static and runtime Setup scanners,
 including numeric ANSI-C escapes, before an evaluated `exec` can skip environment capture.
+Bash locale-quoted words such as `$"ev"al` and `ex$"e"c` suppress aliases in the
+same way. Recognize their literal command names in both scanners without rewriting
+ordinary arguments.
+Gate dollar-quote parsing by the selected shell: dash lacks both ANSI-C and locale
+quotes, while zsh accepts ANSI-C quotes but treats Bash locale quotes as literal `$`.
+Resolve `sh` symlinks before choosing the parser mode, so Linux dash-backed `sh` and
+macOS Bash-backed `sh` retain their own command behavior.
 Action-run headings and repair drafts display the actual invocation directory relative to the
 workspace or project root, including nested package paths.
 PowerShell setup capture must decide success from the
