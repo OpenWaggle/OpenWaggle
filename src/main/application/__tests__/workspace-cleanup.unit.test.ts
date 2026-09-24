@@ -69,6 +69,13 @@ describe('workspace cleanup removal boundary', () => {
     expect(test.skip).toHaveBeenCalledWith(workspace, 'cleanup', 4)
     expect(test.run).not.toHaveBeenCalled()
   })
+  it('does not run idle cleanup when Force remove explicitly skips it', async () => {
+    const test = fixture('idle')
+    expect(await test.perform({ retryFailed: true, skipCleanup: true })).toBeNull()
+    expect(test.skip).toHaveBeenCalledWith(workspace, 'cleanup', 4)
+    expect(test.run).not.toHaveBeenCalled()
+    expect(test.order).toEqual(['stop'])
+  })
   it('permits removal after successful cleanup', async () => {
     const test = fixture('succeeded')
     expect(await test.perform({ retryFailed: true })).toBeNull()

@@ -120,3 +120,98 @@ it('retains a worktree when Cleanup creates an untracked file after Git prefligh
     { resourceId: workspaceId, createdReservation: false, removed: false },
   ])
 })
+
+it('force removes an idle-preparation worktree without executing Cleanup', async () => {
+  temporaryRoot = await realpath(await mkdtemp(join(tmpdir(), 'openwaggle-skipcleanup-')))
+  const projectPath = join(temporaryRoot, 'project')
+  const worktreePath = join(temporaryRoot, 'worktree')
+  const marker = join(temporaryRoot, 'cleanup-ran')
+  await execFileAsync('git', ['init', '-q', projectPath])
+  await writeFile(join(projectPath, 'README.md'), 'initial\n')
+  await execFileAsync('git', ['-C', projectPath, 'add', 'README.md'])
+  await execFileAsync('git', [
+    '-C',
+    projectPath,
+    '-c',
+    'user.name=OpenWaggle Test',
+    '-c',
+    'user.email=test@openwaggle.invalid',
+    'commit',
+    '-qm',
+    'initial',
+  ])
+  await execFileAsync('git', [
+    '-C',
+    projectPath,
+    'worktree',
+    'add',
+    '-qb',
+    'skipcleanup-test',
+    worktreePath,
+  ])
+
+  const workspaceId = 'skipcleanup-workspace'
+  const state = fromPartial<WorkspacePreparation>({
+    workspaceId,
+    revision: 1,
+    cleanup: { status: 'idle' },
+  })
+  const run = vi.fn(() =>
+    Effect.promise(async () => {
+      await writeFile(marker, 'Cleanup ran despite Force remove\n')
+      return state
+    }),
+  )
+  const skip = vi.fn(() => Effect.succeed(state))
+  const result = await Effect.runPromise(
+    removePreparedWorktree(
+      projectPath,
+      { path: worktreePath, force: true, skipCleanup: true },
+      Effect.promise(() => removeGitWorktree(projectPath, { path: worktreePath, force: true })),
+      {
+        retryFailed: true,
+        validateRemoval: Effect.promise(() =>
+          validateGitWorktreeRemoval(projectPath, { path: worktreePath, force: true }),
+        ),
+      },
+    ).pipe(
+      Effect.provide(
+        Layer.mergeAll(
+          NoopActionRunServiceLayer,
+          Layer.succeed(
+            SessionWorkspaceResourceRepository,
+            fromPartial<SessionWorkspaceResourceRepository['Type']>({
+              listManagedWorktreeRemovalCandidates: () =>
+                Effect.succeed([{ id: workspaceId, projectPath, workingPath: worktreePath }]),
+              admitManagedWorktreeRemoval: () =>
+                Effect.succeed({
+                  status: 'reserved',
+                  resourceId: workspaceId,
+                  createdReservation: false,
+                }),
+              finalizeManagedWorktreeRemoval: () => Effect.void,
+            }),
+          ),
+          Layer.succeed(
+            WorkspacePreparationService,
+            fromPartial<WorkspacePreparationService['Type']>({
+              read: () => Effect.succeed(state),
+              isCurrentWorkspaceGeneration: () => Effect.succeed(true),
+              run,
+              skip,
+            }),
+          ),
+        ),
+      ),
+    ),
+  )
+
+  expect(result).toMatchObject({ ok: true })
+  expect(skip).toHaveBeenCalledWith(
+    { workspaceId, projectPath, workspacePath: worktreePath },
+    'cleanup',
+    1,
+  )
+  expect(run).not.toHaveBeenCalled()
+  await expect(readFile(marker, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
+})

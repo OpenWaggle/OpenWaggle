@@ -14,11 +14,11 @@ export function prepareWorkspaceRemoval(
     yield* actions.stopWorkspaceRuns(workspace.workspaceId)
     const state = yield* preparation.read(workspace)
     if (!state) return null
+    if (options.skipCleanup) {
+      yield* preparation.skip(workspace, 'cleanup', state.revision)
+      return null
+    }
     if (!(yield* preparation.isCurrentWorkspaceGeneration(workspace))) {
-      if (options.skipCleanup) {
-        yield* preparation.skip(workspace, 'cleanup', state.revision)
-        return null
-      }
       return {
         ok: false,
         code: 'cleanup-failed',
@@ -28,10 +28,6 @@ export function prepareWorkspaceRemoval(
       } satisfies GitWorktreeMutationResult
     }
     const blocked = state.cleanup.status === 'failed' || state.cleanup.status === 'review-required'
-    if (options.skipCleanup && blocked) {
-      yield* preparation.skip(workspace, 'cleanup', state.revision)
-      return null
-    }
     const current =
       blocked && !options.retryFailed ? state : yield* preparation.run(workspace, 'cleanup')
     if (current.cleanup.status === 'succeeded' || current.cleanup.status === 'skipped') return null

@@ -1049,6 +1049,8 @@ missing sources. Match exact Workspace globs with fast-glob's micromatch semanti
 Normalize discovered sources and test exact exclusions against each ancestor. PowerShell keeps a
 native `$LASTEXITCODE` across later cmdlet failures, so use the
 final user command's kind before applying that code to an action's final status.
+Force removal with `skipCleanup` must skip Cleanup for every persisted status, including `idle`;
+otherwise an arbitrary cleanup command can run despite the user's explicit skip confirmation.
 The pinned Workspace snapshot owns Setup review decisions independently of the latest project
 catalog. A disabled shared Setup is still reviewable in the Session UI; keep Run setup gated until
 the user enables that snapshot version. When recreating a missing managed checkout, hold the same
