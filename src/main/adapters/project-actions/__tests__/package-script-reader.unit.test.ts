@@ -95,6 +95,46 @@ it('honors pnpm workspace exclusions and ignores generated/dependency packages',
   )
 })
 
+it.each(['package.json', 'pnpm-workspace.yaml'] as const)(
+  'discovers and resolves leading-dot workspace globs from %s',
+  async (workspaceSource) => {
+    await json('package.json', {
+      scripts: {},
+      ...(workspaceSource === 'package.json' ? { workspaces: ['./packages/*'] } : {}),
+    })
+    if (workspaceSource === 'pnpm-workspace.yaml') {
+      await put('pnpm-workspace.yaml', "packages:\n  - './packages/*'\n")
+    }
+    await json('packages/app/package.json', { scripts: { test: 'echo app' } })
+
+    const discovery = await discoverProjectTasks(root)
+    expect(discovery.diagnostics).toEqual([])
+    expect(discovery.tasks.map((task) => task.reference.directory)).toEqual(['packages/app'])
+    await expect(resolveActionInvocation(root, invocation('packages/app'))).resolves.toMatchObject({
+      cwd: join(root, 'packages/app'),
+    })
+  },
+)
+
+it('rejects exact task references inside a globstar-excluded workspace subtree', async () => {
+  await json('package.json', { scripts: {} })
+  await put('pnpm-workspace.yaml', "packages:\n  - 'packages/**'\n  - '!packages/excluded/**'\n")
+  await json('packages/included/package.json', { scripts: { test: 'echo included' } })
+  await json('packages/excluded/package.json', { scripts: { test: 'echo excluded' } })
+
+  expect((await discoverProjectTasks(root)).tasks.map((task) => task.reference.directory)).toEqual([
+    'packages/included',
+  ])
+  await expect(
+    resolveActionInvocation(root, invocation('packages/included')),
+  ).resolves.toMatchObject({
+    cwd: join(root, 'packages/included'),
+  })
+  await expect(resolveActionInvocation(root, invocation('packages/excluded'))).rejects.toThrow(
+    'Task unavailable',
+  )
+})
+
 it('does not resolve symlinked workspace packages', async () => {
   await json('package.json', { workspaces: ['packages/*'], scripts: {} })
   await json('outside/package.json', { scripts: { test: 'echo outside' } })

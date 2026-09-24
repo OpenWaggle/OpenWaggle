@@ -10,6 +10,7 @@ import {
 } from '@shared/types/action-definitions'
 import { isEnoent } from '@shared/utils/node-error'
 import glob from 'fast-glob'
+import micromatch from 'micromatch'
 import { parseDocument } from 'yaml'
 import {
   isInvocableTaskName,
@@ -52,6 +53,14 @@ const EXCLUDED_DIRECTORIES = [
   '.next',
 ]
 const WORKSPACE_GLOB_DEPTH = 16
+const WORKSPACE_MATCH_OPTIONS = { dot: false, matchBase: false, posix: true, strictSlashes: false }
+
+function matchesWorkspaceDirectory(directory: string, pattern: string) {
+  return (
+    micromatch.isMatch(directory, pattern, WORKSPACE_MATCH_OPTIONS) ||
+    micromatch.isMatch(`${directory}/`, pattern, WORKSPACE_MATCH_OPTIONS)
+  )
+}
 
 async function packageManifest(workspace: string, source: string) {
   const raw = await readTaskSource(workspace, source)
@@ -145,7 +154,7 @@ async function packageSources(
   return [
     ...new Set([
       'package.json',
-      ...matches.sort().map((directory) => posix.join(directory, 'package.json')),
+      ...matches.sort().map((directory) => posix.join(posix.normalize(directory), 'package.json')),
     ]),
   ]
 }
@@ -171,12 +180,12 @@ async function requestedPackageSource(
   const ancestors = segments.map((_, index) => segments.slice(0, index + 1).join('/'))
   if (
     !patterns.some(
-      (pattern) => !pattern.startsWith('!') && posix.matchesGlob(directory, pattern),
+      (pattern) => !pattern.startsWith('!') && matchesWorkspaceDirectory(directory, pattern),
     ) ||
     patterns.some(
       (pattern) =>
         pattern.startsWith('!') &&
-        ancestors.some((ancestor) => posix.matchesGlob(ancestor, pattern.slice(1))),
+        ancestors.some((ancestor) => matchesWorkspaceDirectory(ancestor, pattern.slice(1))),
     )
   )
     return []

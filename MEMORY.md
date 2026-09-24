@@ -1044,7 +1044,10 @@ collapsing every final failure to exit 1; cmdlet-only failures still use 1. Pend
 details shown in Settings must omit canonical Workspace paths and use a relative recovery path.
 An exact saved package task must be matched directly against declared Workspace patterns instead
 of enumerating the 250-package discovery page; still reject excluded, generated, symlinked, and
-missing sources. PowerShell keeps a native `$LASTEXITCODE` across later cmdlet failures, so use the
+missing sources. Match exact Workspace globs with fast-glob's micromatch semantics: Node
+`path.matchesGlob` misses leading `./` patterns and directories named by `/**` exclusions.
+Normalize discovered sources and test exact exclusions against each ancestor. PowerShell keeps a
+native `$LASTEXITCODE` across later cmdlet failures, so use the
 final user command's kind before applying that code to an action's final status.
 The pinned Workspace snapshot owns Setup review decisions independently of the latest project
 catalog. A disabled shared Setup is still reviewable in the Session UI; keep Run setup gated until
