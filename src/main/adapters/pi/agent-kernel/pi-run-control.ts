@@ -69,26 +69,23 @@ export function createPiRunControl(
       const minimumCreatedOrder = session.sessionManager.getEntries().length
       const cancelProjection = enqueueUserInputProjection(session, payload, signal)
       try {
+        let durableText: string | undefined
         if (options.routeThroughInputHook) {
           if (!session.prompt) throw new Error('The active Pi session cannot route steering input.')
-          const durableText = await session.prompt(text, {
+          durableText = await session.prompt(text, {
             ...(images ? { images } : {}),
             ...(transformExpandedText ? { transformExpandedText } : {}),
             streamingBehavior: 'steer',
           })
-          if (durableText === undefined) {
-            cancelProjection()
-            return { delivery: 'handled' }
-          }
-          return {
-            delivery: 'queued',
-            durableText: stripAtomicVisualizationContext(durableText),
-            minimumCreatedOrder,
-          }
+        } else {
+          durableText = transformExpandedText
+            ? await session.steer(text, images, transformExpandedText)
+            : await session.steer(text, images)
         }
-        const durableText = transformExpandedText
-          ? await session.steer(text, images, transformExpandedText)
-          : await session.steer(text, images)
+        if (durableText === undefined) {
+          cancelProjection()
+          return { delivery: 'handled' }
+        }
         return {
           delivery: 'queued',
           durableText: stripAtomicVisualizationContext(durableText),

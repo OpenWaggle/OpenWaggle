@@ -75,6 +75,7 @@ describe('Pi compaction visualization context', () => {
       const nativeRequests: string[] = []
       const portableRequests: string[] = []
       const retryRequests: string[] = []
+      const contextEventCounter = { value: 0 }
       const visualizationContext = [
         '[OpenWaggle inline visualization context]',
         'overflow retry selection',
@@ -108,6 +109,7 @@ describe('Pi compaction visualization context', () => {
         directory,
         compactionEvents: [],
         responses,
+        contextEventCounter,
         contextTransform: (messages) =>
           messages.map((message) => {
             if (message.role !== 'user') return message
@@ -135,6 +137,7 @@ describe('Pi compaction visualization context', () => {
         expect(retryRequests).toHaveLength(1)
         expect(retryRequests[0]).toContain('overflow retry selection')
       }
+      expect(contextEventCounter.value).toBe(fallback ? 5 : 3)
     },
   )
 
