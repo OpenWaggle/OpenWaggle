@@ -126,21 +126,18 @@ function clearProjectModelEntry(
 }
 
 /**
- * Reads one candidate's legacy file state and retires a legacy model through the central write.
- * Returns whether the candidate must be suppressed with a tombstone instead of a plain delete:
- * the file was unreadable (state unknown) or the strip rewrite failed (the file keeps the value).
+ * Reads the candidate's legacy file state and retires a legacy model through the central write.
+ * Returns whether the entry must be suppressed with a tombstone instead of a plain delete: the
+ * file was unreadable (state unknown) or the strip rewrite failed (the file keeps the value).
  */
-function retireLegacyFileModel(
-  candidate: string,
-  isPrimaryIdentity: boolean,
-): Effect.Effect<boolean, never> {
+function retireLegacyFileModel(candidate: string): Effect.Effect<boolean, never> {
   return Effect.gen(function* () {
     const fileRead = yield* Effect.promise(() =>
       getProjectPreferencesStrict(candidate)
         .then((prefs) => ({ readable: true as const, model: prefs?.model }))
         .catch(() => ({ readable: false as const, model: undefined })),
     )
-    if (!fileRead.readable) return isPrimaryIdentity
+    if (!fileRead.readable) return true
     if (fileRead.model === undefined) return false
     const stripped = yield* Effect.promise(() =>
       setProjectPreferences(candidate, {}).then(
@@ -159,29 +156,20 @@ export function removeProjectModelOperation(rawProjectPath: unknown) {
       return yield* Effect.fail(new Error('Project path is required.'))
     }
     const settings = yield* SettingsService
-    const canonicalPath = yield* Effect.promise(() =>
-      fs.realpath(projectPath).catch(() => projectPath),
-    )
-    // When the directory is gone, realpath can no longer recover the identity persist operations
-    // keyed; the recorded alias map retained it while the directory still existed.
-    const candidates = new Set<string>([canonicalPath])
-    if (settings.resolveProjectPathAlias) {
-      const recorded = yield* settings.resolveProjectPathAlias(projectPath)
-      if (recorded) candidates.add(recorded)
-    }
+    // The recorded alias identity is authoritative for a saved reference: it is the canonical key
+    // the project's reads and writes actually used. realpath is only consulted when nothing was
+    // recorded, so a retargeted symlink can never make removal mutate an unrelated project, and a
+    // deleted directory still resolves through the map instead of the raw alias.
+    const recordedCanonical = settings.resolveProjectPathAlias
+      ? yield* settings.resolveProjectPathAlias(projectPath)
+      : undefined
+    const canonicalPath =
+      recordedCanonical ??
+      (yield* Effect.promise(() => fs.realpath(projectPath).catch(() => projectPath)))
     // A legacy file model must not survive removal: unreadable or non-rewritable files suppress
     // with a tombstone so the legacy fallback can never restore the removed model.
-    let tombstone = false
-    for (const candidate of candidates) {
-      const candidateTombstone = yield* retireLegacyFileModel(
-        candidate,
-        candidate === canonicalPath,
-      )
-      tombstone = tombstone || candidateTombstone
-    }
-    for (const candidate of candidates) {
-      yield* clearProjectModelEntry(settings, candidate, tombstone)
-    }
+    const tombstone = yield* retireLegacyFileModel(canonicalPath)
+    yield* clearProjectModelEntry(settings, canonicalPath, tombstone)
     if (settings.removeProjectPathAlias) {
       yield* settings.removeProjectPathAlias(projectPath)
     }

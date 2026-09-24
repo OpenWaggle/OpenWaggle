@@ -105,10 +105,27 @@ describe('project preference operations retain canonical identities for aliases'
 
     await run((p) => removeProjectModelOperation(p))(aliasPath)
 
-    // Both candidate identities are cleaned: the alias fallback and the recorded canonical.
-    expect(removals).toEqual([aliasPath, canonicalPath])
+    // The recorded canonical identity is authoritative: exactly that entry is removed.
+    expect(removals).toEqual([canonicalPath])
     expect(aliasRemovals).toEqual([aliasPath])
 
     await fs.rm(canonicalPath, { recursive: true, force: true })
+  })
+
+  it('does not touch an unrelated project when a recorded alias was retargeted', async () => {
+    const recordedTarget = await tempProjectPath('openwaggle-alias-old-')
+    const newTarget = await tempProjectPath('openwaggle-alias-new-')
+    const aliasPath = path.join(path.dirname(newTarget), `${path.basename(newTarget)}-link`)
+    await fs.symlink(newTarget, aliasPath)
+    aliasRecords.push([aliasPath, recordedTarget])
+
+    await run((p) => removeProjectModelOperation(p))(aliasPath)
+
+    // The recorded identity is authoritative: the retargeted symlink's project is untouched.
+    expect(removals).toEqual([recordedTarget])
+
+    await fs.rm(recordedTarget, { recursive: true, force: true })
+    await fs.rm(newTarget, { recursive: true, force: true })
+    await fs.rm(aliasPath, { force: true })
   })
 })
