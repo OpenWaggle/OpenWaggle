@@ -42,6 +42,26 @@ it.skipIf(!powerShellAvailable)(
 )
 
 it.skipIf(!powerShellAvailable)(
+  'preserves the exit code of an inline-array native action',
+  async () => {
+    const runner = createActionProcessRunner('test')
+    for (const target of [
+      `@('${native}')[0]`,
+      `@('missing', '${native}')[1]`,
+      `@('missing'; '${native}')[1]`,
+    ]) {
+      const child = await runner.start({
+        invocation: { type: 'command', command: `& ${target} ${args}`, cwd: root },
+        environment: { SHELL: powerShell },
+        onOutput: () => {},
+      })
+      live.push(child)
+      expect(await child.closed).toEqual({ exitCode: 7 })
+    }
+  },
+)
+
+it.skipIf(!powerShellAvailable)(
   'preserves native exits for inert interpolated command targets',
   async () => {
     const runner = createActionProcessRunner('test')
@@ -108,6 +128,57 @@ it.skipIf(!powerShellAvailable)(
 )
 
 it.skipIf(!powerShellAvailable)(
+  'preserves the native exit code of an inline-array Setup command',
+  async () => {
+    const destination = join(root, 'array-environment.json')
+    const capture = await preparationCaptureInvocation(
+      {
+        type: 'command',
+        cwd: root,
+        command: `$env:OW_ARRAY_SETUP = 'loaded'; & @('${native}')[0] ${args}`,
+      },
+      destination,
+      powerShell,
+      {},
+    )
+    if (capture.invocation.type !== 'executable') throw new Error('Expected PowerShell wrapper')
+    const result = spawnSync(capture.invocation.executable, capture.invocation.args, {
+      cwd: root,
+      encoding: 'utf8',
+    })
+    expect(result.status).toBe(7)
+    await expect(readFile(destination, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
+  },
+)
+
+it.skipIf(!powerShellAvailable)(
+  'exports the environment after a successful inline-array Setup command',
+  async () => {
+    const destination = join(root, 'successful-array-environment.json')
+    const successArgs = process.platform === 'win32' ? '/c exit 0' : "-c 'exit 0'"
+    const capture = await preparationCaptureInvocation(
+      {
+        type: 'command',
+        cwd: root,
+        command: `$env:OW_ARRAY_SETUP = 'loaded'; & @('${native}')[0] ${successArgs}`,
+      },
+      destination,
+      powerShell,
+      {},
+    )
+    if (capture.invocation.type !== 'executable') throw new Error('Expected PowerShell wrapper')
+    const result = spawnSync(capture.invocation.executable, capture.invocation.args, {
+      cwd: root,
+      encoding: 'utf8',
+    })
+    expect(result.status).toBe(0)
+    expect(JSON.parse(await readFile(destination, 'utf8'))).toMatchObject({
+      OW_ARRAY_SETUP: 'loaded',
+    })
+  },
+)
+
+it.skipIf(!powerShellAvailable)(
   'preserves the native exit code of an interpolated Setup command',
   async () => {
     const destination = join(root, 'interpolated-environment.json')
@@ -164,6 +235,26 @@ it.skipIf(!powerShellAvailable)(
       invocation: {
         type: 'command',
         command: `& ($(Add-Content -LiteralPath '${marker}' -Value called; '${native}')) ${args}`,
+        cwd: root,
+      },
+      environment: { SHELL: powerShell },
+      onOutput: () => {},
+    })
+    live.push(child)
+    expect(await child.closed).toEqual({ exitCode: 1 })
+    expect((await readFile(marker, 'utf8')).trim()).toBe('called')
+  },
+)
+
+it.skipIf(!powerShellAvailable)(
+  'does not reevaluate a side-effecting inline-array element while classifying failure',
+  async () => {
+    const marker = join(root, 'array-calls.txt')
+    const runner = createActionProcessRunner('test')
+    const child = await runner.start({
+      invocation: {
+        type: 'command',
+        command: `& @($(Add-Content -LiteralPath '${marker}' -Value called; '${native}'))[0] ${args}`,
         cwd: root,
       },
       environment: { SHELL: powerShell },
