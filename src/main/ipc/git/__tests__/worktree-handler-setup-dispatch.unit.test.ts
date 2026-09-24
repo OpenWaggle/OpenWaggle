@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { NoopWorkspacePreparationLayer } from '../../../application/__tests__/workspace-preparation-test-layer'
 import { SessionProjectionRepositoryError } from '../../../errors'
 import { PINNED_SESSION_REPOSITORY_STUB } from '../../../ports/__tests__/session-projection-pin-stub'
+import { ActionRunService } from '../../../ports/action-run-service'
 import { GitWorktreeService } from '../../../ports/git-worktree-service'
 import {
   SessionProjectionRepository,
@@ -23,7 +24,10 @@ type WorktreeCreateHandler = (
 ) => Effect.Effect<
   GitWorktreeMutationResult,
   unknown,
-  SessionProjectionRepository | SessionWorkspaceResourceRepository | GitWorktreeService
+  | ActionRunService
+  | SessionProjectionRepository
+  | SessionWorkspaceResourceRepository
+  | GitWorktreeService
 >
 
 const handlers = new Map<string, WorktreeCreateHandler>()
@@ -99,6 +103,19 @@ async function invokeCreate(payload: unknown) {
           NoopWorkspacePreparationLayer,
           SessionProjectionLayer,
           Layer.succeed(
+            ActionRunService,
+            fromPartial<ActionRunService['Type']>({
+              stopWorkspaceRuns: () =>
+                Effect.sync(() => {
+                  operationOrder.push('stop-actions')
+                }),
+              withWorkspaceMutation: <A, E, R>(
+                _workspaceId: string,
+                operation: Effect.Effect<A, E, R>,
+              ) => operation,
+            }),
+          ),
+          Layer.succeed(
             SessionWorkspaceResourceRepository,
             fromPartial<SessionWorkspaceResourceRepositoryShape>({
               getBound: () =>
@@ -153,7 +170,7 @@ describe('git:worktrees:create Setup dispatch durability', () => {
     ).resolves.toMatchObject({ ok: true })
 
     expect(resetWorktreeSetupMock).toHaveBeenCalledWith('session-1', '/worktree')
-    expect(operationOrder).toEqual(['setup-pending', 'git-create'])
+    expect(operationOrder).toEqual(['stop-actions', 'setup-pending', 'git-create'])
     expect(mocks.createGitWorktree).toHaveBeenCalledWith('/repo', {
       path: '/worktree',
       branch: 'ow/session-session-1',
