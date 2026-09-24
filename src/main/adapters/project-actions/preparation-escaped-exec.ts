@@ -1,4 +1,4 @@
-import { quotedExecWordLength } from './preparation-exec-word'
+import { quotedBuiltinWordLength } from './preparation-quoted-builtin'
 
 const HEREDOC_START_END_OFFSET = 2
 const HEREDOC_QUOTED_GROUP = 2
@@ -14,13 +14,6 @@ interface ScanState {
   pendingHeredocs: { delimiter: string; stripTabs: boolean }[]
   heredoc: { delimiter: string; stripTabs: boolean } | undefined
   lineStart: number
-}
-
-function isEscapedBuiltin(command: string, index: number, name: 'exec' | 'eval') {
-  if (command[index] !== '\\') return false
-  if (command.slice(index + 1, index + 1 + name.length) !== name) return false
-  if (/[\w\\]/.test(command[index - 1] ?? '')) return false
-  return !/\w/.test(command[index + 1 + name.length] ?? '')
 }
 
 function keepsCommandPosition(word: string) {
@@ -158,12 +151,6 @@ function isEvalCommandPosition(command: string, index: number, lineStart: number
   return state.word === '' && state.commandPosition && !state.redirectionTarget
 }
 
-function isEscapedEvalInvocation(command: string, index: number, lineStart: number) {
-  return (
-    isEscapedBuiltin(command, index, 'eval') && isEvalCommandPosition(command, index, lineStart)
-  )
-}
-
 function isEscapedExecPrefix(command: string, index: number) {
   if (command[index] !== '\\' || /[\w\\]/.test(command[index - 1] ?? '')) return false
   return /^\\(?:command|builtin)(?=\s+\\?exec(?!\w))/.test(command.slice(index))
@@ -235,14 +222,11 @@ function visitOpeningQuote(command: string, index: number, state: ScanState) {
 
 function visitCommandWord(command: string, index: number, state: ScanState) {
   if (/<<-?\s*$/.test(command.slice(state.lineStart, index))) return undefined
-  if (isEscapedEvalInvocation(command, index, state.lineStart)) {
-    state.result += '__ow_'
-    return index
-  }
-  const execLength = quotedExecWordLength(command, index)
-  if (execLength && isEvalCommandPosition(command, index, state.lineStart)) {
-    state.result += 'exec'
-    return index + execLength - 1
+  const evalLength = quotedBuiltinWordLength(command, index, 'eval')
+  const execLength = quotedBuiltinWordLength(command, index, 'exec')
+  if ((evalLength || execLength) && isEvalCommandPosition(command, index, state.lineStart)) {
+    state.result += evalLength ? '__ow_eval' : 'exec'
+    return index + (evalLength || execLength) - 1
   }
   if (isEscapedExecPrefix(command, index) && isEvalCommandPosition(command, index, state.lineStart))
     return index

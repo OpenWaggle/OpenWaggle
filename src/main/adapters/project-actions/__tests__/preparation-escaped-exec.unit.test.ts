@@ -2,6 +2,18 @@ import { describe, expect, it } from 'vitest'
 import { enableEscapedExecCapture } from '../preparation-escaped-exec'
 
 describe('escaped exec capture', () => {
+  it('captures quote-suppressed eval only at command position', () => {
+    const command = [
+      String.raw`code='export READY=yes; \exec /usr/bin/true'; e"va"l "$code"`,
+      String.raw`code='export READY=yes; \exec /usr/bin/true'; ev\al "$code"`,
+      `printf '%s' e"va"l`,
+    ].join('\n')
+    expect(enableEscapedExecCapture(command)).toBe(
+      command
+        .replace('e"va"l "$code"', '__ow_eval "$code"')
+        .replace(String.raw`ev\al "$code"`, '__ow_eval "$code"'),
+    )
+  })
   it('exposes partially escaped exec only in command position', () => {
     const command = [
       String.raw`export READY=yes; ex\ec /usr/bin/true`,

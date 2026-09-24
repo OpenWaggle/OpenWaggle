@@ -10,6 +10,14 @@ const shells = ['/bin/bash', '/bin/zsh', '/bin/sh', '/bin/dash', '/bin/ksh', '/b
 
 const cases: { variable: string; command: string; expected?: string }[] = [
   {
+    variable: 'OW_QUOTED_EVAL',
+    command: String.raw`code='export OW_QUOTED_EVAL=loaded; \exec /usr/bin/true'; e"va"l "$code"`,
+  },
+  {
+    variable: 'OW_DYNAMIC_QUOTED_EVAL',
+    command: String.raw`code='export OW_DYNAMIC_QUOTED_EVAL=loaded; \exec /usr/bin/true'; wrapper='e"va"l "$code"'; eval "$wrapper"`,
+  },
+  {
     variable: 'OW_PARTIAL_EXEC',
     command: String.raw`export OW_PARTIAL_EXEC=loaded; ex\ec /usr/bin/true`,
   },
