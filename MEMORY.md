@@ -1037,6 +1037,11 @@ enabled for later worktrees when the approval request reported failure. For POSI
 escaped prefixes such as `\command exec` and `\builtin exec` suppress alias expansion just as
 `\exec` does, so normalize those executable forms outside quotes, comments and heredocs before
 evaluating the command.
+Prefixed `builtin eval` and `command eval` must pass through the same runtime rewrite as plain
+`eval`; otherwise an escaped `exec` can replace Setup before its new exports are captured.
+For custom PowerShell actions, preserve a failed native command's `$LASTEXITCODE` instead of
+collapsing every final failure to exit 1; cmdlet-only failures still use 1. Pending-publication
+details shown in Settings must omit canonical Workspace paths and use a relative recovery path.
 
 Action run output cursors cannot be recovered from retained log length after scrollback
 compaction: the Host may flush the log before its throttled SQLite `outputBytes` update. Journal

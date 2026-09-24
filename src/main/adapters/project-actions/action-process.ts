@@ -141,7 +141,7 @@ async function processCommand(
         '-NoLogo',
         '-NonInteractive',
         '-Command',
-        `${invocation.command}\nif ($?) { exit 0 }; exit 1`,
+        `$global:LASTEXITCODE = 0\n${invocation.command}\nif ($?) { exit 0 }; if ($global:LASTEXITCODE -ne 0) { exit $global:LASTEXITCODE }; exit 1`,
       ],
     }
   return { command, args: ['-c', invocation.command] }

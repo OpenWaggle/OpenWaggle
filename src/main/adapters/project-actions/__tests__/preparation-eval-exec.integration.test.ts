@@ -58,6 +58,19 @@ describe.skipIf(process.platform === 'win32')('setup commands using evaluated ex
       expect(dynamic).toMatchObject({ exitCode: 0, environment: { OW_EVAL_DYNAMIC: 'loaded' } })
 
       if (['/bin/bash', '/bin/sh', '/bin/dash'].includes(shell)) {
+        const prefixedEval = await execute({
+          ...input,
+          invocation: {
+            type: 'command',
+            command: String.raw`code='export OW_EVAL_COMMAND_PREFIX=loaded; \exec /usr/bin/true'; command eval "$code"`,
+            directory: '.',
+          },
+        })
+        expect(prefixedEval).toMatchObject({
+          exitCode: 0,
+          environment: { OW_EVAL_COMMAND_PREFIX: 'loaded' },
+        })
+
         const commandPrefix = await execute({
           ...input,
           invocation: {
@@ -72,6 +85,19 @@ describe.skipIf(process.platform === 'win32')('setup commands using evaluated ex
         })
       }
       if (['/bin/bash', '/bin/zsh'].includes(shell)) {
+        const prefixedEval = await execute({
+          ...input,
+          invocation: {
+            type: 'command',
+            command: String.raw`code='export OW_EVAL_PREFIXED=loaded; \exec /usr/bin/true'; builtin eval "$code"`,
+            directory: '.',
+          },
+        })
+        expect(prefixedEval).toMatchObject({
+          exitCode: 0,
+          environment: { OW_EVAL_PREFIXED: 'loaded' },
+        })
+
         const builtinPrefix = await execute({
           ...input,
           invocation: {

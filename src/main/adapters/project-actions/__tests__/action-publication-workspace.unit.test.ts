@@ -49,10 +49,14 @@ async function expectRetainedDraft(workspacePath: string) {
   expect(rows.get(projectPath)).toEqual(before)
   expect(recovered.actions).toEqual([{ source: 'local', definition: action }])
   expect(recovered.pendingPublication).toMatchObject({
-    workspacePath,
     projectDraft: { actions: [action] },
     localDraft: { actions: [] },
   })
+  expect(recovered.pendingPublication).not.toHaveProperty('workspacePath')
+  expect(recovered.pendingPublication?.recoveryPath).toMatch(
+    /^\.openwaggle[\\/]action-recovery[\\/]/,
+  )
+  expect(recovered.pendingPublication?.recoveryPath).not.toContain(workspacePath)
   return recovered
 }
 

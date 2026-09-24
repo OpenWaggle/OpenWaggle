@@ -11,6 +11,8 @@ const powerShell = process.platform === 'win32' ? 'powershell.exe' : 'pwsh'
 const powerShellAvailable =
   spawnSync(powerShell, ['-NoLogo', '-NonInteractive', '-Command', '$null']).status === 0
 const failedNative = process.platform === 'win32' ? '& cmd.exe /c exit 7' : '& /usr/bin/false'
+const nativeExitSeven =
+  process.platform === 'win32' ? '& cmd.exe /c exit 7' : "& /bin/sh -c 'exit 7'"
 beforeEach(async () => {
   root = await mkdtemp(join(tmpdir(), 'openwaggle-action-process-'))
 })
@@ -58,6 +60,31 @@ it.skipIf(!powerShellAvailable)(
     live.push(child)
     expect(await child.closed).toEqual({ exitCode: 0 })
     expect(output).toContain('handled')
+  },
+)
+
+it.skipIf(!powerShellAvailable)('retains a final native PowerShell exit code', async () => {
+  const runner = createActionProcessRunner('test')
+  const child = await runner.start({
+    invocation: { type: 'command', command: nativeExitSeven, cwd: root },
+    environment: { SHELL: powerShell },
+    onOutput: () => {},
+  })
+  live.push(child)
+  expect(await child.closed).toEqual({ exitCode: 7 })
+})
+
+it.skipIf(!powerShellAvailable)(
+  'uses exit code one for a final PowerShell cmdlet failure',
+  async () => {
+    const runner = createActionProcessRunner('test')
+    const child = await runner.start({
+      invocation: { type: 'command', command: "Write-Error 'failed'", cwd: root },
+      environment: { SHELL: powerShell },
+      onOutput: () => {},
+    })
+    live.push(child)
+    expect(await child.closed).toEqual({ exitCode: 1 })
   },
 )
 

@@ -26,8 +26,10 @@ workspace filesystem so capture and exclusive installation cannot cross devices.
 ignores its own contents in Git; it is local recovery data, not shared configuration.
 `
 
+export const actionPublicationRelativePath = (id: string) => join(RECOVERY_DIRECTORY, id)
+
 export const actionPublicationPath = (workspace: string, id: string) =>
-  join(workspace, RECOVERY_DIRECTORY, id)
+  join(workspace, actionPublicationRelativePath(id))
 
 export async function actionPublicationCurrent(
   workspace: string,

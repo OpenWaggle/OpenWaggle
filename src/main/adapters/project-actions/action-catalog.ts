@@ -14,7 +14,7 @@ import {
   readActionManifest,
   readActionWorkspaceIdentity,
 } from './action-manifest-file'
-import { actionPublicationPath, createActionPublication } from './action-publication-files'
+import { actionPublicationRelativePath, createActionPublication } from './action-publication-files'
 import { recoverActionPublication } from './action-publication-recovery'
 import { migrateLegacyActionDocument } from './legacy-action-migration'
 import {
@@ -26,9 +26,8 @@ import {
 
 function publicationDetails(pending: PendingActionPublication) {
   return {
-    workspacePath: pending.workspacePath,
     ...(pending.publication
-      ? { recoveryPath: actionPublicationPath(pending.workspacePath, pending.publication.id) }
+      ? { recoveryPath: actionPublicationRelativePath(pending.publication.id) }
       : {}),
     projectDraft: pending.nextShared,
     localDraft: pending.nextLocal.manifest,
