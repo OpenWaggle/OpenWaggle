@@ -1121,6 +1121,10 @@ PowerShell call-operator targets can be member expressions
 such as `& $commands.main`; resolve only inert variable, constant, index, and note-property
 AST shapes when classifying the final command, without reevaluating user code or borrowing an
 earlier native exit for a final cmdlet failure.
+PowerShell's `& ($commands[0])` wraps the indexed target in a `ParenExpressionAst` containing
+one `PipelineAst` and one `CommandExpressionAst`. Unwrap only that inert shape recursively;
+leave pipelines and expressions with command calls unresolved so failure classification never
+reruns user code.
 
 Action run output cursors cannot be recovered from retained log length after scrollback
 compaction: the Host may flush the log before its throttled SQLite `outputBytes` update. Journal
