@@ -15,6 +15,9 @@ describe('settings store project path aliases', () => {
     await recordProjectPathAliasDurably('/tmp/same', '/tmp/same')
     expect(await lookupProjectPathAlias('/tmp/alias-link')).toBe('/tmp/alias-target')
     expect(await lookupProjectPathAlias('/tmp/same')).toBeUndefined()
+    // A retargeted symlink must not silently re-point a saved reference's identity.
+    await recordProjectPathAliasDurably('/tmp/alias-link', '/tmp/other-target')
+    expect(await lookupProjectPathAlias('/tmp/alias-link')).toBe('/tmp/alias-target')
 
     await resetSettingsStoreForTests()
     await initializeSettingsStore()

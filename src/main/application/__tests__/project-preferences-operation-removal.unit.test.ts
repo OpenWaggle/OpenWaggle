@@ -12,6 +12,25 @@ vi.mock('../../config/project-config', async (importOriginal) => {
   return { ...actual, setProjectPreferences: mocks.setPreferences }
 })
 
+/**
+ * Fakes the central write's observable outcome — a stripped settings file — because the
+ * strip-confirmation re-read inspects the file rather than trusting the write's resolution.
+ */
+async function fakeStripWrite(projectPath: string): Promise<void> {
+  const configPath = path.join(projectPath, '.openwaggle', 'settings.json')
+  try {
+    const raw = await fs.readFile(configPath, 'utf-8')
+    const parsed: { preferences?: Record<string, unknown> } = JSON.parse(raw)
+    if (parsed.preferences && 'model' in parsed.preferences) {
+      delete parsed.preferences.model
+      if (Object.keys(parsed.preferences).length === 0) delete parsed.preferences
+      await fs.writeFile(configPath, JSON.stringify(parsed, null, 2), 'utf-8')
+    }
+  } catch {
+    // No settings file: nothing to strip.
+  }
+}
+
 vi.mock('../../utils/project-path-validation', async () => {
   const EffectModule = await import('effect/Effect')
   return {
@@ -32,7 +51,7 @@ vi.mock('../agent-authorization-mode', () => ({
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import * as Effect from 'effect/Effect'
 import { SettingsService } from '../../services/settings-service'
-import { removeProjectModelOperation } from '../project-preferences-operation'
+import { removeProjectModelOperation } from '../project-model-removal-operation'
 
 async function writeLegacyModelFile(projectPath: string) {
   await fs.mkdir(path.join(projectPath, '.openwaggle'), { recursive: true })
@@ -48,7 +67,7 @@ describe('removeProjectModelOperation', () => {
   let modelWrites: Array<[string, string | null]> | undefined
 
   beforeEach(() => {
-    mocks.setPreferences.mockReset().mockResolvedValue(undefined)
+    mocks.setPreferences.mockReset().mockImplementation(fakeStripWrite)
     removals = []
     modelWrites = []
   })

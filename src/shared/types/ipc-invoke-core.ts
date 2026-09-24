@@ -246,7 +246,7 @@ export interface IpcCoreInvokeChannelMap
     return: string
   }
   'project-config:remove-project-model': {
-    args: [projectPath: string]
+    args: [projectPath: string, remainingProjectPaths?: readonly string[]]
     return: string
   }
   'providers:get-models': {

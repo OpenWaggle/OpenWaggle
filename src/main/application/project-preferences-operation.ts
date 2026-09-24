@@ -1,5 +1,3 @@
-import fs from 'node:fs/promises'
-import path from 'node:path'
 import { safeDecodeUnknown } from '@shared/schema'
 import { projectPreferencesUpdateSchema } from '@shared/schemas/validation'
 import { isAgentAuthorizationMode } from '@shared/types/agent-authorization'
@@ -97,83 +95,6 @@ export function getProjectPreferencesOperation(rawProjectPath: unknown) {
       return Object.keys(prefsWithoutModel).length > 0 ? prefsWithoutModel : null
     }
     return { ...prefs, ...(dbModel ? { model: dbModel } : {}) }
-  })
-}
-
-/**
- * Removes one project's stored model. The project directory may already be gone — moved or deleted
- * outside OpenWaggle — so canonicalization is best-effort: an existing directory resolves through
- * realpath (matching the keys persist operations write), a missing one falls back to the given
- * absolute path, and both candidate keys are cleaned up.
- */
-function clearProjectModelEntry(
-  settings: SettingsServiceShape,
-  projectPath: string,
-  tombstone: boolean,
-) {
-  if (tombstone && settings.setProjectModel) return settings.setProjectModel(projectPath, null)
-  if (!tombstone && settings.removeProjectModel) return settings.removeProjectModel(projectPath)
-  return Effect.gen(function* () {
-    const current = yield* settings.get()
-    const rest = { ...current.selectedModelsByProject }
-    if (tombstone) {
-      rest[projectPath] = ''
-    } else {
-      delete rest[projectPath]
-    }
-    yield* settings.update({ selectedModelsByProject: rest })
-  })
-}
-
-/**
- * Reads the candidate's legacy file state and retires a legacy model through the central write.
- * Returns whether the entry must be suppressed with a tombstone instead of a plain delete: the
- * file was unreadable (state unknown) or the strip rewrite failed (the file keeps the value).
- */
-function retireLegacyFileModel(candidate: string): Effect.Effect<boolean, never> {
-  return Effect.gen(function* () {
-    const fileRead = yield* Effect.promise(() =>
-      getProjectPreferencesStrict(candidate)
-        .then((prefs) => ({ readable: true as const, model: prefs?.model }))
-        .catch(() => ({ readable: false as const, model: undefined })),
-    )
-    if (!fileRead.readable) return true
-    if (fileRead.model === undefined) return false
-    const stripped = yield* Effect.promise(() =>
-      setProjectPreferences(candidate, {}).then(
-        () => true,
-        () => false,
-      ),
-    )
-    return !stripped
-  })
-}
-
-export function removeProjectModelOperation(rawProjectPath: unknown) {
-  return Effect.gen(function* () {
-    const projectPath = typeof rawProjectPath === 'string' ? rawProjectPath.trim() : ''
-    if (!projectPath || !path.isAbsolute(projectPath)) {
-      return yield* Effect.fail(new Error('Project path is required.'))
-    }
-    const settings = yield* SettingsService
-    // The recorded alias identity is authoritative for a saved reference: it is the canonical key
-    // the project's reads and writes actually used. realpath is only consulted when nothing was
-    // recorded, so a retargeted symlink can never make removal mutate an unrelated project, and a
-    // deleted directory still resolves through the map instead of the raw alias.
-    const recordedCanonical = settings.resolveProjectPathAlias
-      ? yield* settings.resolveProjectPathAlias(projectPath)
-      : undefined
-    const canonicalPath =
-      recordedCanonical ??
-      (yield* Effect.promise(() => fs.realpath(projectPath).catch(() => projectPath)))
-    // A legacy file model must not survive removal: unreadable or non-rewritable files suppress
-    // with a tombstone so the legacy fallback can never restore the removed model.
-    const tombstone = yield* retireLegacyFileModel(canonicalPath)
-    yield* clearProjectModelEntry(settings, canonicalPath, tombstone)
-    if (settings.removeProjectPathAlias) {
-      yield* settings.removeProjectPathAlias(projectPath)
-    }
-    return canonicalPath
   })
 }
 

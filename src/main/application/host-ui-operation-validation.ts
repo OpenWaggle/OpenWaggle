@@ -35,3 +35,35 @@ export function optionalHostUiProjectPath(value: unknown) {
     ? Effect.succeed(value)
     : invalidHostUiInput('Project path must be a string, null, or omitted.')
 }
+
+export function oneInput<A, E, R>(
+  args: readonly unknown[],
+  operation: (input: unknown) => Effect.Effect<A, E, R>,
+) {
+  return Effect.gen(function* () {
+    yield* requireHostUiArgCount(args, 1)
+    return yield* operation(args[0])
+  })
+}
+
+export function twoInputs<A, E, R>(
+  args: readonly unknown[],
+  operation: (first: unknown, second: unknown) => Effect.Effect<A, E, R>,
+) {
+  return Effect.gen(function* () {
+    yield* requireHostUiArgCount(args, TWO_ARGUMENTS)
+    return yield* operation(args[0], args[1])
+  })
+}
+
+export function oneOrTwoInputs<A, E, R>(
+  args: readonly unknown[],
+  operation: (first: unknown, second?: unknown) => Effect.Effect<A, E, R>,
+) {
+  return Effect.gen(function* () {
+    yield* requireHostUiArgCount(args, 1, TWO_ARGUMENTS)
+    return yield* operation(args[0], args[1])
+  })
+}
+
+export const TWO_ARGUMENTS = 2

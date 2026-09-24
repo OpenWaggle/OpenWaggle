@@ -6,14 +6,18 @@ import {
 } from '../settings'
 import { enqueueSettingsWrite } from './write-queue'
 
-/** Records an aliased project path's canonical identity in the write queue for later removals. */
+/**
+ * Records an aliased project path's canonical identity in the write queue for later removals. An
+ * existing mapping is preserved — the saved reference's identity is stable until that reference is
+ * explicitly removed, so a retargeted symlink cannot silently re-point the record.
+ */
 export function recordProjectPathAliasDurably(alias: string, canonicalPath: string): Promise<void> {
   assertSettingsReady()
   if (alias === canonicalPath) return Promise.resolve()
-  return enqueueSettingsWrite(() => {
-    if (getSettings().projectPathAliases[alias] === canonicalPath) return Promise.resolve()
+  return enqueueSettingsWrite(async () => {
+    if (Object.hasOwn(getSettings().projectPathAliases, alias)) return
     const projectPathAliases = { ...getSettings().projectPathAliases, [alias]: canonicalPath }
-    return persistSettingsPatch({ projectPathAliases })
+    await persistSettingsPatch({ projectPathAliases })
   }, 'project path alias')
 }
 

@@ -14,9 +14,9 @@ vi.mock('../agent-authorization-mode', () => ({
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import * as Effect from 'effect/Effect'
 import { SettingsService } from '../../services/settings-service'
+import { removeProjectModelOperation } from '../project-model-removal-operation'
 import {
   getProjectPreferencesOperation,
-  removeProjectModelOperation,
   setProjectPreferencesOperation,
 } from '../project-preferences-operation'
 

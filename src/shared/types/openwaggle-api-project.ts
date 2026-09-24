@@ -36,8 +36,18 @@ export interface OpenWaggleProjectConfigApi {
     projectPath: string,
     preferences: ProjectPreferencesUpdatePayload,
   ): Promise<string>
+<<<<<<< HEAD
   /** Deletes a removed project's stored model entry; resolves to the canonical path removed. The surviving project references let the backend keep the entry while an equivalent reference exists. */
   removeProjectModel(
+=======
+  /** Deletes a removed project's stored model entry; resolves to the canonical path removed. The remaining project references let the backend keep the entry while an equivalent reference survives. */
+  removeProjectModel(
+    projectPath: string,
+    remainingProjectPaths?: readonly string[],
+  ): Promise<string>
+  listProjectActions(projectPath: string): Promise<readonly ProjectAction[]>
+  addProjectAction(
+>>>>>>> d17cfe2f (fix(settings): stable alias identities, confirmed strips, and shared-reference removal)
     projectPath: string,
     remainingProjectPaths?: readonly string[],
   ): Promise<string>
