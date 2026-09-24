@@ -25,7 +25,22 @@ const PRIVATE_FILE_MODE = 0o600
 async function readCapturedEnvironment(
   path: string,
   format: 'json' | 'nul',
+  verifiedPath?: string,
 ): Promise<Readonly<Record<string, string>>> {
+  if (verifiedPath) {
+    try {
+      const verification = await open(verifiedPath, constants.O_RDONLY | constants.O_NOFOLLOW)
+      try {
+        if (!(await verification.stat()).isFile()) throw new Error('Invalid verification file')
+      } finally {
+        await verification.close()
+      }
+    } catch {
+      throw new Error(
+        'Setup completed without a verified environment export. Review its exit behavior and retry.',
+      )
+    }
+  }
   const handle = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW)
   try {
     const identity = await handle.stat()
@@ -120,7 +135,11 @@ export function createPreparationExecutor(
       }
       input.signal?.throwIfAborted()
       if (exitCode !== 0 || !capture) return { exitCode, environment: input.environment }
-      const exported = await readCapturedEnvironment(destination, capture.format)
+      const exported = await readCapturedEnvironment(
+        destination,
+        capture.format,
+        capture.verifiedPath,
+      )
       const changes = capturePreparedEnvironment(
         baseline,
         input.environment,

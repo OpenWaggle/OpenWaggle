@@ -1104,6 +1104,12 @@ Arithmetic left shifts inside `$((...))` expansions and `((...))` commands are n
 both static and runtime Setup scanners must skip those operators so a later escaped exec
 remains capturable. Inline `name() {` and `function name {` bodies also begin a new command
 list: an escaped eval immediately inside the brace must be captured at command position.
+POSIX Setup capture can write an early snapshot while intercepting `eval`, `command`, or
+`builtin`. A later command name expanded from a variable can become `exec` without alias
+expansion and replace the shell before its success handler runs. Treat such snapshots as
+provisional: accept an environment export only after the handler completes or a known
+literal exec path marks the export verified. Reject a successful process exit with only
+the provisional snapshot rather than silently persisting stale preparation values.
 PowerShell call-operator targets can be member expressions
 such as `& $commands.main`; resolve only inert variable, constant, index, and note-property
 AST shapes when classifying the final command, without reevaluating user code or borrowing an
