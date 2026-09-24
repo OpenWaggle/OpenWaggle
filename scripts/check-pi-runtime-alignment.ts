@@ -176,10 +176,11 @@ export function collectPiRuntimeAlignmentProblems(input: PiRuntimeAlignmentInput
   )
   const expectedAgeEntries = PI_PACKAGES.map((packageName) => `${packageRef(packageName)}@${version}`)
   if (
-    ageEntries.length !== expectedAgeEntries.length ||
-    expectedAgeEntries.some((entry) => !ageEntries.includes(entry))
+    ageEntries.length > 0 &&
+    (ageEntries.length !== expectedAgeEntries.length ||
+      expectedAgeEntries.some((entry) => !ageEntries.includes(entry)))
   ) {
-    problems.push(`minimumReleaseAgeExclude must contain the seven matched Pi packages at ${version}.`)
+    problems.push(`minimumReleaseAgeExclude must be empty or contain the seven matched Pi packages at ${version}.`)
   }
 
   for (const packageName of PI_PACKAGES) {

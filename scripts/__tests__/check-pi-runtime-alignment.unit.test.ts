@@ -55,6 +55,15 @@ describe('Pi runtime alignment', () => {
     expect(collectPiRuntimeAlignmentProblems(alignedInput())).toEqual([])
   })
 
+  it('accepts all release-age exclusions being removed after they expire', () => {
+    const input = alignedInput()
+    const workspace = input.workspace.replace(
+      packages.map((name) => `  - @earendil-works/${name}@${version}`).join('\n'),
+      '',
+    )
+    expect(collectPiRuntimeAlignmentProblems({ ...input, workspace })).toEqual([])
+  })
+
   it.each([
     {
       drift: 'catalog',
@@ -78,7 +87,7 @@ describe('Pi runtime alignment', () => {
         ...input,
         workspace: input.workspace.replace(`  - @earendil-works/pi-tui@${version}\n`, ''),
       }),
-      expected: 'minimumReleaseAgeExclude must contain the seven matched Pi packages',
+      expected: 'minimumReleaseAgeExclude must be empty or contain the seven matched Pi packages',
     },
     {
       drift: 'lockfile version',
