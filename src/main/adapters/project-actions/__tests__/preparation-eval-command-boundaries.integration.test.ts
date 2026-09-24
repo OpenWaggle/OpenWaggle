@@ -10,6 +10,19 @@ const shells = ['/bin/bash', '/bin/zsh', '/bin/sh', '/bin/dash', '/bin/ksh', '/b
 
 const cases: { variable: string; command: string; expected?: string }[] = [
   {
+    variable: 'OW_QUOTED_NEWLINE',
+    command: `printf '%s' "foo\nbar"; export OW_QUOTED_NEWLINE=loaded; ex\\ec /usr/bin/true`,
+  },
+  {
+    variable: 'OW_DYNAMIC_QUOTED_NEWLINE',
+    command: `code='printf "%s" "foo\nbar"; export OW_DYNAMIC_QUOTED_NEWLINE=loaded; ex\\ec /usr/bin/true'; eval "$code"`,
+  },
+  ...(["'EOF'", '"EOF"', String.raw`\EOF`] as const).map((delimiter) => ({
+    variable: 'OW_HEREDOC_LITERAL',
+    command: `code=$(cat <<'SCRIPT'\ncat <<${delimiter} > literal.txt\nex\\ec\nEOF\nSCRIPT\n); eval "$code"; export OW_HEREDOC_LITERAL=$(cat literal.txt); \\exec /usr/bin/true`,
+    expected: String.raw`ex\ec`,
+  })),
+  {
     variable: 'OW_QUOTED_EVAL',
     command: String.raw`code='export OW_QUOTED_EVAL=loaded; \exec /usr/bin/true'; e"va"l "$code"`,
   },

@@ -189,4 +189,11 @@ esac`,
   \\eval`
     expect(enableEscapedExecCapture(argument)).toBe(argument)
   })
+
+  it('keeps quoted newlines inside a word before a later escaped exec', () => {
+    const command = `printf '%s' "foo\nbar"; export READY=yes; ex\\ec /usr/bin/true`
+    expect(enableEscapedExecCapture(command)).toBe(
+      command.replace(String.raw`ex\ec /usr/bin/true`, 'exec /usr/bin/true'),
+    )
+  })
 })

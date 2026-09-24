@@ -235,6 +235,7 @@ function visitCommandWord(command: string, index: number, state: ScanState) {
 
 function visitCharacter(command: string, index: number, state: ScanState) {
   const character = command[index]
+  if (state.quote) return visitQuote(command, index, state)
   if (character === '\n') {
     visitNewline(command, index, state)
     return index
@@ -243,7 +244,6 @@ function visitCharacter(command: string, index: number, state: ScanState) {
     state.result += character
     return index
   }
-  if (state.quote) return visitQuote(command, index, state)
   if (isCommentStart(command, index)) {
     state.comment = true
     state.result += character

@@ -130,6 +130,27 @@ function quotedBuiltinWordLength(code, start, name,    cursor, character, follow
   }
   return quote == "" && quoted && word == name ? cursor - start : 0
 }
+function heredocAt(code, start,    rest, prefix, body, quote, delimiter) {
+  if (substr(code, start, 2) != "<<" || substr(code, start - 1, 1) == "<" ||
+      substr(code, start, 3) == "<<<") return ""
+  rest = substr(code, start)
+  if (!match(rest, /^<<-?[ \t]*/)) return ""
+  prefix = substr(rest, 1, RLENGTH)
+  body = substr(rest, RLENGTH + 1)
+  quote = substr(body, 1, 1)
+  if (quote == "'" || quote == "\"") {
+    body = substr(body, 2)
+    if (!match(body, /^[[:alnum:]_-]+/)) return ""
+    delimiter = substr(body, 1, RLENGTH)
+    if (substr(body, RLENGTH + 1, 1) != quote) return ""
+  } else {
+    if (quote == "\\") body = substr(body, 2)
+    if (!match(body, /^[[:alnum:]_-]+/)) return ""
+    delimiter = substr(body, 1, RLENGTH)
+  }
+  pendingStripTabs = substr(prefix, 3, 1) == "-"
+  return delimiter
+}
 BEGIN { RS = sprintf("%c", 28) }
 {
   code = $0
@@ -142,6 +163,19 @@ BEGIN { RS = sprintf("%c", 28) }
   for (i = 1; i <= length(code); i++) {
     character = substr(code, i, 1)
     following = substr(code, i + 1, 1)
+    if (quote == "single") {
+      printf "%s", character
+      if (character == "'") quote = ""
+      previous = character
+      continue
+    }
+    if (quote == "double") {
+      printf "%s", character
+      if (character == "\\" && following != "") { printf "%s", following; i++; previous = following; continue }
+      if (character == "\"") quote = ""
+      previous = character
+      continue
+    }
     if (character == "\n") {
       if (heredoc != "") {
         line = substr(code, lineStart, i - lineStart)
@@ -161,19 +195,6 @@ BEGIN { RS = sprintf("%c", 28) }
     }
     if (heredoc != "") { printf "%s", character; previous = character; continue }
     if (comment) { printf "%s", character; previous = character; continue }
-    if (quote == "single") {
-      printf "%s", character
-      if (character == "'") quote = ""
-      previous = character
-      continue
-    }
-    if (quote == "double") {
-      printf "%s", character
-      if (character == "\\" && following != "") { printf "%s", following; i++; previous = following; continue }
-      if (character == "\"") quote = ""
-      previous = character
-      continue
-    }
     evalLength = quotedBuiltinWordLength(code, i, "eval")
     execLength = quotedBuiltinWordLength(code, i, "exec")
     if ((evalLength > 0 || execLength > 0) &&
@@ -188,12 +209,8 @@ BEGIN { RS = sprintf("%c", 28) }
     else if (character == "\"") quote = "double"
     else if (character == "#" && (i == 1 || previous ~ /[[:space:];&|(){}]/)) comment = 1
     else if (character == "<" && following == "<") {
-      rest = substr(code, i)
-      if (match(rest, /^<<-?[ \t]*[[:alnum:]_-]+/)) {
-        pendingHeredoc = substr(rest, 1, RLENGTH)
-        pendingStripTabs = substr(pendingHeredoc, 3, 1) == "-"
-        sub(/^<<-?[ \t]*/, "", pendingHeredoc)
-      }
+      delimiter = heredocAt(code, i)
+      if (delimiter != "") pendingHeredoc = delimiter
     }
     else if (character == "\\" && (i == 1 || previous !~ /[[:alnum:]_\\]/)) {
       rest = substr(code, i + 1)
