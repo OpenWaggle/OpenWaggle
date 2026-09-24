@@ -1,3 +1,5 @@
+import { runtimeEvalCaseSyntax } from './preparation-eval-case-syntax'
+import { runtimeEvalCommandPosition } from './preparation-eval-command-position'
 import { runtimeQuotedBuiltinWord } from './preparation-eval-quoted-builtin'
 
 // eval reparses expanded text after the static scanner has run. Rewrite escaped
@@ -26,112 +28,8 @@ function redirectionOperatorLength(code, cursor,    triple, double, character) {
   character = substr(code, cursor, 1)
   return character == ">" || character == "<" ? 1 : 0
 }
-function isEvalCommandPosition(prefix,    cursor, character, following, quote, word, expected, depth, redirectionTarget, redirectLength, prefixCommand, option) {
-  if (prefix ~ /(^|[^[:alnum:]_])(function[[:space:]]+[[:alpha:]_][[:alnum:]_]*([(][)])?|[[:alpha:]_][[:alnum:]_]*[(][)])[[:space:]]*[{][[:space:]]*$/) return 1
-  quote = ""
-  word = ""
-  expected = 1
-  redirectionTarget = 0
-  prefixCommand = ""
-  depth = 0
-  for (cursor = 1; cursor <= length(prefix); cursor++) {
-    character = substr(prefix, cursor, 1)
-    following = substr(prefix, cursor + 1, 1)
-    if (quote != "") {
-      word = word character
-      if (character == quote) quote = ""
-      else if (quote == "\"" && character == "\\" && following != "") {
-        word = word following
-        cursor++
-      }
-      continue
-    }
-    if (character == "\\" && following != "") {
-      if (following == "\n") { cursor++; continue }
-      word = word character following
-      cursor++
-      continue
-    }
-    if (character == "'" || character == "\"") {
-      quote = character
-      word = word character
-      continue
-    }
-    if (character == " " || character == "\t") {
-      if (word != "") {
-        if (redirectionTarget) redirectionTarget = 0
-        else {
-          option = supportedPrefixOption(prefixCommand, word)
-          expected = expected && (option || keepsCommandPosition(word))
-          if (option && word == "--") prefixCommand = prefixCommand "-end-options"
-          else if (!option) prefixCommand = commandPrefix(word)
-        }
-      }
-      word = ""
-      continue
-    }
-    redirectLength = redirectionOperatorLength(prefix, cursor)
-    if (redirectLength > 0) {
-      if (word != "") {
-        if (redirectionTarget) redirectionTarget = 0
-        else if (word !~ /^[0-9]+$/) {
-          option = supportedPrefixOption(prefixCommand, word)
-          expected = expected && (option || keepsCommandPosition(word))
-          if (option && word == "--") prefixCommand = prefixCommand "-end-options"
-          else if (!option) prefixCommand = commandPrefix(word)
-        }
-      }
-      word = ""
-      redirectionTarget = 1
-      cursor += redirectLength - 1
-      continue
-    }
-    if (character == "(") {
-      depth++
-      savedExpected[depth] = expected
-      savedRedirectionTarget[depth] = redirectionTarget
-      savedWord[depth] = word "("
-      savedPrefixCommand[depth] = prefixCommand
-      expected = 1
-      redirectionTarget = 0
-      prefixCommand = ""
-      word = ""
-      continue
-    }
-    if (character == ")") {
-      if (depth > 0) {
-        if (savedWord[depth] == "(" && !savedRedirectionTarget[depth]) {
-          expected = 1
-          redirectionTarget = 0
-          prefixCommand = ""
-          word = ""
-        } else {
-          expected = savedExpected[depth]
-          redirectionTarget = savedRedirectionTarget[depth]
-          prefixCommand = savedPrefixCommand[depth]
-          word = savedWord[depth] ")"
-        }
-        depth--
-      } else {
-        # An unmatched ')' closes a case arm pattern and starts its command list.
-        expected = 1
-        redirectionTarget = 0
-        prefixCommand = ""
-        word = ""
-      }
-      continue
-    }
-    if (character ~ /[;&|]/) {
-      expected = 1
-      redirectionTarget = 0
-      prefixCommand = ""
-      word = ""
-      continue
-    }
-    word = word character
-  }
-  return expected && word == "" && !redirectionTarget
-}
+${runtimeEvalCommandPosition}
+${runtimeEvalCaseSyntax}
 ${runtimeQuotedBuiltinWord}
 function heredocAt(code, start,    rest, prefix, cursor, character, following, quote, delimiter, sawWord) {
   foundHeredoc = 0
@@ -190,6 +88,7 @@ BEGIN { RS = sprintf("%c", 28) }
   commandStart = 1
   substitutionDepth = 0
   for (depth in substitutionStart) delete substitutionStart[depth]
+  caseLevel = 0
   for (i = 1; i <= length(code); i++) {
     character = substr(code, i, 1)
     following = substr(code, i + 1, 1)
@@ -251,6 +150,7 @@ BEGIN { RS = sprintf("%c", 28) }
       previous = "("
       continue
     }
+    observeCaseSyntax(code, i, commandStart, substitutionDepth)
     evalLength = quotedBuiltinWordLength(code, i, "eval")
     execLength = quotedBuiltinWordLength(code, i, "exec")
     if ((evalLength > 0 || execLength > 0) &&
@@ -261,8 +161,20 @@ BEGIN { RS = sprintf("%c", 28) }
       previous = substr(replacement, length(replacement), 1)
       continue
     }
-    if (character == "(" && substitutionDepth > 0) substitutionDepth++
+    if (character == "(" && substitutionDepth > 0) {
+      if (caseLevel == 0 || caseDepth[caseLevel] != substitutionDepth ||
+          casePhase[caseLevel] != "pattern" ||
+          substr(code, casePatternStart[caseLevel], i - casePatternStart[caseLevel]) !~ /^[[:space:]]*$/)
+        substitutionDepth++
+    }
     else if (character == ")" && substitutionDepth > 0) {
+      if (caseLevel > 0 && caseDepth[caseLevel] == substitutionDepth &&
+          casePhase[caseLevel] == "pattern") {
+        casePhase[caseLevel] = "body"
+        printf ")"
+        previous = ")"
+        continue
+      }
       if (substitutionStart[substitutionDepth]) {
         commandStart = substitutionStart[substitutionDepth]
         delete substitutionStart[substitutionDepth]

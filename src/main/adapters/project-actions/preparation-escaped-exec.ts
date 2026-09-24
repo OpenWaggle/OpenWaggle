@@ -4,6 +4,7 @@ import { type QuotedBuiltinSyntax, quotedBuiltinWordLength } from './preparation
 
 const ARITHMETIC_START_LENGTH = 3
 const ARITHMETIC_OPEN_DEPTH = 2
+const CASE_ARM_TERMINATOR_LENGTH = 2
 
 interface ScanState {
   result: string
@@ -16,7 +17,40 @@ interface ScanState {
   commandStart: number
   substitutionDepth: number
   substitutionStarts: { depth: number; commandStart: number }[]
+  caseArms: { depth: number; phase: 'subject' | 'pattern' | 'body'; patternStart: number }[]
   quotedBuiltinSyntax: QuotedBuiltinSyntax
+}
+
+function wordAt(command: string, index: number, word: string) {
+  return (
+    command.startsWith(word, index) &&
+    !/[\w\\]/.test(command[index - 1] ?? '') &&
+    !/\w/.test(command[index + word.length] ?? '')
+  )
+}
+
+function observeCaseSyntax(command: string, index: number, state: ScanState) {
+  if (state.substitutionDepth === 0) return
+  const atCommandPosition = () => isEvalCommandPosition(command, index, state.commandStart)
+  if (wordAt(command, index, 'case') && atCommandPosition()) {
+    state.caseArms.push({ depth: state.substitutionDepth, phase: 'subject', patternStart: index })
+    return
+  }
+  const arm = state.caseArms.at(-1)
+  if (!arm || arm.depth !== state.substitutionDepth) return
+  if (arm.phase === 'subject' && wordAt(command, index, 'in')) {
+    arm.phase = 'pattern'
+    arm.patternStart = index + CASE_ARM_TERMINATOR_LENGTH
+    return
+  }
+  if (wordAt(command, index, 'esac') && (arm.phase === 'pattern' || atCommandPosition())) {
+    state.caseArms.pop()
+    return
+  }
+  if (arm.phase === 'body' && /^(?:;;|;&)/.test(command.slice(index))) {
+    arm.phase = 'pattern'
+    arm.patternStart = index + CASE_ARM_TERMINATOR_LENGTH
+  }
 }
 
 function isEscapedExecPrefix(command: string, index: number) {
@@ -121,6 +155,15 @@ function visitArithmetic(command: string, index: number, state: ScanState) {
   return index + (expansion ? ARITHMETIC_START_LENGTH : ARITHMETIC_OPEN_DEPTH) - 1
 }
 
+function isCasePatternOpening(command: string, index: number, state: ScanState) {
+  const arm = state.caseArms.at(-1)
+  return (
+    arm?.depth === state.substitutionDepth &&
+    arm.phase === 'pattern' &&
+    command.slice(arm.patternStart, index).trim() === ''
+  )
+}
+
 function visitSubstitutionBoundary(command: string, index: number, state: ScanState) {
   const character = command[index]
   if (command.startsWith('$(', index) && !command.startsWith('$((', index)) {
@@ -132,8 +175,19 @@ function visitSubstitutionBoundary(command: string, index: number, state: ScanSt
     state.result += '$('
     return index + 1
   }
-  if (character === '(' && state.substitutionDepth > 0) state.substitutionDepth += 1
+  const arm = state.caseArms.at(-1)
+  if (
+    character === '(' &&
+    state.substitutionDepth > 0 &&
+    !isCasePatternOpening(command, index, state)
+  )
+    state.substitutionDepth += 1
   if (character !== ')' || state.substitutionDepth === 0) return undefined
+  if (arm?.depth === state.substitutionDepth && arm.phase === 'pattern') {
+    arm.phase = 'body'
+    state.result += ')'
+    return index
+  }
   const current = state.substitutionStarts.at(-1)
   if (current?.depth === state.substitutionDepth) {
     state.commandStart = current.commandStart
@@ -164,6 +218,7 @@ function visitCharacter(command: string, index: number, state: ScanState) {
   }
   const heredoc = heredocAt(command, index)
   if (heredoc) state.pendingHeredocs.push(heredoc)
+  observeCaseSyntax(command, index, state)
   const rewritten = visitCommandWord(command, index, state)
   if (rewritten !== undefined) return rewritten
   const substitution = visitSubstitutionBoundary(command, index, state)
@@ -191,6 +246,7 @@ export function enableEscapedExecCapture(
     commandStart: 0,
     substitutionDepth: 0,
     substitutionStarts: [],
+    caseArms: [],
     quotedBuiltinSyntax,
   }
   for (let index = 0; index < command.length; index += 1)
