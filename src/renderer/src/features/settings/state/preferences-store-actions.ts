@@ -26,10 +26,7 @@ import {
 import { createBrowserAndScalarPreferencesActions } from './browser-preferences-actions'
 import type { PreferencesActions, PreferencesGet, PreferencesSet } from './preferences-store-types'
 import { createProjectHivePreferencesActions } from './project-hive-preferences-actions'
-import {
-  awaitPendingProjectPreferenceWrites,
-  persistProjectPreference,
-} from './project-preference-writes'
+import { persistProjectPreference, removeProjectModelTracked } from './project-preference-writes'
 
 const MAX_FAVORITE_MODELS = 100
 const MAX_RECENT_PROJECTS = 10
@@ -280,7 +277,6 @@ export function createPreferencesActions(
       // overtaken by it and resurrected afterwards. The deletion itself runs BEFORE the project
       // disappears from the renderer state: if it fails, the entry stays visible and retryable
       // instead of silently abandoning the stored model.
-      await awaitPendingProjectPreferenceWrites(path)
       const { settings } = get()
       const recentProjects = settings.recentProjects.filter((projectPath) => projectPath !== path)
       const { [path]: _displayName, ...projectDisplayNames } = settings.projectDisplayNames
@@ -288,7 +284,7 @@ export function createPreferencesActions(
       const projectPath = settings.projectPath === path ? null : settings.projectPath
       // Surviving references that resolve to the same identity keep the stored model alive.
       const remainingReferences = [...recentProjects, ...(projectPath ? [projectPath] : [])]
-      await api.removeProjectModel(path, remainingReferences)
+      await removeProjectModelTracked(path, () => api.removeProjectModel(path, remainingReferences))
       await api.updateSettings({
         projectPath,
         recentProjects,

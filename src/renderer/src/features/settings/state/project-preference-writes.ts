@@ -5,6 +5,8 @@ import type { PreferencesGet, PreferencesSet } from './preferences-store-types'
 
 /** In-flight project preference writes per path; removals await them so a delete cannot be overtaken. */
 const pendingProjectPreferenceWrites = new Map<string, Promise<void>>()
+/** Projects with a removal in flight: new preference writes are suppressed so they cannot recreate the deleted entry. */
+const removingProjectPaths = new Set<string>()
 
 function mergeSettings(set: PreferencesSet, patch: Partial<Settings>) {
   set((state) => ({ settings: { ...state.settings, ...patch } }))
@@ -89,6 +91,10 @@ export function persistProjectPreference(
   get?: PreferencesGet,
 ): Promise<void> {
   if (!projectPath) return Promise.resolve()
+  if (removingProjectPaths.has(projectPath)) {
+    // The project is being removed; a new write would recreate the supposedly deleted entry.
+    return Promise.resolve()
+  }
   const previous = pendingProjectPreferenceWrites.get(projectPath)
   const tracked = (previous ?? Promise.resolve())
     .catch(() => undefined)
@@ -123,6 +129,24 @@ export function persistProjectPreference(
     })
   pendingProjectPreferenceWrites.set(projectPath, tracked)
   return tracked
+}
+
+/**
+ * Runs the backend deletion after every in-flight preference write for the path has settled, and
+ * suppresses writes that start while the deletion is in flight so they cannot recreate the entry.
+ */
+export function removeProjectModelTracked(
+  projectPath: string,
+  perform: () => Promise<string>,
+): Promise<string> {
+  removingProjectPaths.add(projectPath)
+  const pending = pendingProjectPreferenceWrites.get(projectPath) ?? Promise.resolve()
+  return pending
+    .catch(() => undefined)
+    .then(perform)
+    .finally(() => {
+      removingProjectPaths.delete(projectPath)
+    })
 }
 
 /** Resolves once every in-flight preference write for the given project path has settled. A failed write persisted nothing, so its rejection does not block removal. */

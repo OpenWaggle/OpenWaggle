@@ -331,7 +331,7 @@ describe('Sidebar project actions', () => {
         projectDisplayNames: {},
         skillTogglesByProject: {},
       })
-      expect(apiMock.removeProjectModel).toHaveBeenCalledWith(PROJECT_PATH)
+      expect(apiMock.removeProjectModel).toHaveBeenCalledWith(PROJECT_PATH, [])
       expect(useChatStore.getState().activeSessionId).toBeNull()
       expect(navigateMock).toHaveBeenCalledWith({ to: '/' })
     })
