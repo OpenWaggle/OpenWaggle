@@ -1,7 +1,7 @@
 import { lookup } from 'node:dns/promises'
 import { BlockList, isIP, type LookupFunction } from 'node:net'
 import type { FetchLike } from '@modelcontextprotocol/client'
-import { Agent } from 'undici'
+import { Agent, Dispatcher1Wrapper } from 'undici'
 import { limitMcpResponseBytes } from './response-byte-limit'
 import { assertResolvedLoopbackAllowed, isLoopbackAddress } from './secure-fetch-loopback'
 
@@ -31,7 +31,7 @@ type PinnedFetch = (
 ) => Promise<Response>
 
 interface DispatcherRequestInit extends RequestInit {
-  readonly dispatcher: Agent
+  readonly dispatcher: Dispatcher1Wrapper
 }
 
 const resolveHostname: HostnameResolver = (hostname, options) => lookup(hostname, options)
@@ -193,16 +193,22 @@ export function createPinnedMcpLookup(target: ValidatedMcpNetworkTarget): Lookup
   }
 }
 
-function dispatcherFor(target: ValidatedMcpNetworkTarget, dispatchers: Map<string, Agent>) {
+function dispatcherFor(
+  target: ValidatedMcpNetworkTarget,
+  dispatchers: Map<string, Dispatcher1Wrapper>,
+) {
   const key = `${target.hostname.toLowerCase()}\0${target.address}\0${String(target.family)}`
   const existing = dispatchers.get(key)
   if (existing) return existing
-  const dispatcher = new Agent({
-    connect: {
-      lookup: createPinnedMcpLookup(target),
-      ...(isIP(target.hostname) === 0 ? { servername: target.hostname } : {}),
-    },
-  })
+  const dispatcher = new Dispatcher1Wrapper(
+    new Agent({
+      allowH2: false,
+      connect: {
+        lookup: createPinnedMcpLookup(target),
+        ...(isIP(target.hostname) === 0 ? { servername: target.hostname } : {}),
+      },
+    }),
+  )
   dispatchers.set(key, dispatcher)
   return dispatcher
 }
@@ -256,7 +262,7 @@ export function createSecureMcpFetch(input: {
     input.baseUrl.hostname,
     ...(input.allowedDomains ?? []),
   ])
-  const dispatchers = new Map<string, Agent>()
+  const dispatchers = new Map<string, Dispatcher1Wrapper>()
   const pinnedFetch: PinnedFetch = async (url, init, target) => {
     const requestInit: DispatcherRequestInit = {
       ...init,
