@@ -71,10 +71,10 @@ describe.runIf(process.platform !== 'win32')('terminal PTY environment integrati
       })
       if (!outcome.ok) throw outcome.error
       spawnedPty = outcome
-      const expected = `${actionMarker}${temporaryHome}|unset|${temporaryHome}|unset`
+      const expected = `${actionMarker}unset|unset|${temporaryHome}|unset`
       const output = await captureCommandOutput(
         outcome.pty,
-        `printf '${actionMarker}%s|%s|%s|%s\n' "$T3CODE_PROJECT_ROOT" "\${T3CODE_WORKTREE_PATH-unset}" "$OPENWAGGLE_PROJECT_ROOT" "\${OPENWAGGLE_WORKTREE_PATH-unset}"\r`,
+        `printf '${actionMarker}%s|%s|%s|%s\n' "\${T3CODE_PROJECT_ROOT-unset}" "\${T3CODE_WORKTREE_PATH-unset}" "$OPENWAGGLE_PROJECT_ROOT" "\${OPENWAGGLE_WORKTREE_PATH-unset}"\r`,
         expected,
       )
 

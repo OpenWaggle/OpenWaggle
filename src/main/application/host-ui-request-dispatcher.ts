@@ -3,7 +3,9 @@ import { toHostUiJsonValue } from '@shared/host-ui-json'
 import type { HostBackedGuiChannel, HostUiV1Request } from '@shared/types/host-ui-protocol'
 import type { LocalSessionCallerIdentity } from '@shared/types/local-session-profile'
 import type { LocalSessionCommandResult } from '@shared/types/local-session-protocol'
+import { LOCAL_SESSION_NATIVE_ACTIONS_REVISION } from '@shared/types/local-session-protocol-revisions'
 import * as Effect from 'effect/Effect'
+import { manageProjectActions } from './action-management'
 import {
   dispatchHostUiAgentDefinitionOperation,
   isHostUiAgentDefinitionChannel,
@@ -34,10 +36,6 @@ import {
   requiredHostUiString,
   requireHostUiArgCount,
 } from './host-ui-operation-validation'
-import {
-  dispatchHostUiProjectActionOperation,
-  isHostUiProjectActionChannel,
-} from './host-ui-project-action-operations'
 import { getHostUiProviderModels } from './host-ui-provider-operation'
 import { raceHostUiRequestWithSignal } from './host-ui-request-cancellation'
 import {
@@ -169,6 +167,16 @@ function dispatchHostUiChannel(
   args: readonly unknown[],
   negotiatedRevision?: number,
 ) {
+  if (channel === 'project-actions:manage') {
+    if (
+      negotiatedRevision !== undefined &&
+      negotiatedRevision < LOCAL_SESSION_NATIVE_ACTIONS_REVISION
+    )
+      return invalidHostUiInput(
+        `Native Project Actions require Local Session protocol revision ${LOCAL_SESSION_NATIVE_ACTIONS_REVISION}.`,
+      )
+    return oneInput(args, manageProjectActions)
+  }
   if (isHostBackedSessionGuiChannel(channel))
     return dispatchHostBackedSessionGuiOperation(channel, args)
   if (McpHostUi.isMcpHostUiChannel(channel))
@@ -187,12 +195,6 @@ function dispatchHostUiChannel(
       return invalidHostUiInput('Agent definitions require Local Session protocol revision 11.')
     }
     return dispatchHostUiAgentDefinitionOperation(channel, args)
-  }
-  if (isHostUiProjectActionChannel(channel)) {
-    if (negotiatedRevision !== undefined && negotiatedRevision < HOST_UI_REVISION_11) {
-      return invalidHostUiInput('Project actions require Local Session protocol revision 11.')
-    }
-    return dispatchHostUiProjectActionOperation(channel, args)
   }
   return match(channel)
     .with('workspace-files:authorize-project', () =>

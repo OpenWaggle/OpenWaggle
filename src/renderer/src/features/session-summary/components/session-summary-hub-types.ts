@@ -10,6 +10,7 @@ export interface SessionSummaryHubInput {
   readonly messageCount: number
   /** A newly spawned Worker can need Hive navigation before its first message. */
   readonly hiveAvailable?: boolean
+  readonly workspaceActivityAvailable?: boolean
   readonly autoHidden: boolean
   readonly rightSidebarOpen: boolean
   readonly onOpenDiff: () => void
@@ -19,4 +20,12 @@ export interface SessionSummaryHubInput {
   readonly onOpenExtensionSidePanel?: (target: SessionSummaryExtensionSidePanelTarget) => void
   readonly extensionRegistry: ExtensionContributionRegistryView | null
   readonly extensionProjectPaths: readonly string[]
+}
+
+export function hasSummaryContent(input: SessionSummaryHubInput) {
+  return (
+    input.messageCount > 0 ||
+    input.hiveAvailable === true ||
+    input.workspaceActivityAvailable === true
+  )
 }

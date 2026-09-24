@@ -3,7 +3,10 @@ import type { Socket } from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
 import { SupportedModelId } from '@shared/types/brand'
-import { LOCAL_SESSION_WORKTREE_LAUNCH_REVISION } from '@shared/types/local-session-protocol'
+import {
+  LOCAL_SESSION_CURRENT_REVISION,
+  LOCAL_SESSION_WORKTREE_LAUNCH_REVISION,
+} from '@shared/types/local-session-protocol'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { SessionHostEventHub } from '../../application/session-host-event-hub'
 import { SessionHostLiveness } from '../../application/session-host-liveness'
@@ -22,7 +25,7 @@ describe('Local Session worktree event revision', () => {
     if (temporaryRoot) await fs.rm(temporaryRoot, { recursive: true, force: true })
   })
 
-  it('sends worktree events to the supported revision-fifteen client', async () => {
+  it('sends worktree events to the current client', async () => {
     temporaryRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-session-host-'))
     const eventHub = new SessionHostEventHub({ hostInstanceId: 'host-current' })
     const liveness = new SessionHostLiveness({
@@ -42,14 +45,14 @@ describe('Local Session worktree event revision', () => {
     client.write(
       encodeLocalSessionFrame({
         protocol: 'openwaggle-local-session',
-        supportedRevisions: [LOCAL_SESSION_WORKTREE_LAUNCH_REVISION],
+        supportedRevisions: [LOCAL_SESSION_CURRENT_REVISION],
         clientKind: 'cli',
-        clientVersion: 'previous',
+        clientVersion: 'current',
       }),
     )
     await expect(reader.next()).resolves.toMatchObject({
       accepted: true,
-      revision: LOCAL_SESSION_WORKTREE_LAUNCH_REVISION,
+      revision: LOCAL_SESSION_CURRENT_REVISION,
     })
     client.write(encodeLocalSessionFrame({ kind: 'subscribe', requestId: 'subscribe' }))
     await expect(reader.next()).resolves.toMatchObject({ kind: 'subscribed' })
@@ -81,6 +84,38 @@ describe('Local Session worktree event revision', () => {
     await expect(reader.next()).resolves.toMatchObject({
       kind: 'event',
       event: { ...visible, cursor: expect.any(Object) },
+    })
+  })
+
+  it('rejects a revision-fifteen client before the native-actions migration', async () => {
+    temporaryRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-session-host-'))
+    const eventHub = new SessionHostEventHub({ hostInstanceId: 'host-current' })
+    const liveness = new SessionHostLiveness({
+      idleGracePeriodMs: 60_000,
+      requestShutdown: vi.fn(),
+    })
+    handle = await listenLocalSessionServer(path.join(temporaryRoot, 'host.sock'), {
+      hostInstanceId: 'host-current',
+      eventHub,
+      liveness,
+      authenticate: async () => ({ callerId: 'local-user:test' }),
+      authorizeEvent: async () => true,
+      dispatch: async () => ({ accepted: true }),
+    })
+    client = await connectLocalSessionTestClient(handle.endpoint)
+    const reader = new TestFrameReader(client)
+    client.write(
+      encodeLocalSessionFrame({
+        protocol: 'openwaggle-local-session',
+        supportedRevisions: [LOCAL_SESSION_WORKTREE_LAUNCH_REVISION],
+        clientKind: 'cli',
+        clientVersion: 'previous',
+      }),
+    )
+    await expect(reader.next()).resolves.toMatchObject({
+      accepted: false,
+      code: 'incompatible_protocol',
+      supportedRevisions: [LOCAL_SESSION_CURRENT_REVISION],
     })
   })
 })

@@ -34,6 +34,10 @@ import {
 const logger = createLogger('terminal-process-shutdown')
 
 type RefreshedExit = Awaited<ReturnType<typeof refreshAndConfirmExit>>
+export type OwnedTerminalProcessTree = Pick<
+  RetainedTerminalProcess,
+  'live' | 'processPids' | 'processIdentities'
+>
 
 interface PendingDetachedGracefulShutdown {
   readonly finished: false
@@ -104,7 +108,7 @@ function forceRemainingIdentities(input: {
 }
 
 async function attemptDetachedGracefulShutdown(
-  target: RetainedTerminalProcess,
+  target: OwnedTerminalProcessTree,
   state: TerminalProcessExitObservation,
 ): Promise<{ readonly finished: true } | PendingDetachedGracefulShutdown> {
   const { live } = target
@@ -169,7 +173,7 @@ function retainedShutdownIsComplete(
   return refreshed.confirmed && (process.platform !== 'win32' || state.exitCode !== null)
 }
 
-function retainRefresh(target: RetainedTerminalProcess, refreshed: RefreshedExit) {
+function retainRefresh(target: OwnedTerminalProcessTree, refreshed: RefreshedExit) {
   const observedPids = mergeProcessPids(refreshed.processPids, refreshed.unverifiedProcessPids, [
     target.live.pid,
   ])
@@ -183,7 +187,7 @@ function retainRefresh(target: RetainedTerminalProcess, refreshed: RefreshedExit
 }
 
 /** Confirm disposal of a PTY retained after a natural exit or spawn race. */
-export async function shutdownDetachedTerminal(target: RetainedTerminalProcess): Promise<boolean> {
+export async function shutdownDetachedTerminal(target: OwnedTerminalProcessTree): Promise<boolean> {
   const { live } = target
   const observation = live.processTreeExit
   const wasPaused = pauseOutputForShutdown(live)

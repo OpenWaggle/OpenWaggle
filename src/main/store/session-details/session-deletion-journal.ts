@@ -207,12 +207,14 @@ export async function commitSessionDeletion(id: SessionId): Promise<SessionDelet
           const workspaceId = bindings[EMPTY_INDEX]?.workspace_id
           if (workspaceId) {
             yield* sql`
-              DELETE FROM workspace_resources WHERE id = ${workspaceId}
+              DELETE FROM workspace_resources
+              WHERE id = ${workspaceId} AND kind = ${'local'}
                 AND NOT EXISTS (
                   SELECT 1 FROM session_workspace_bindings WHERE workspace_id = ${workspaceId}
                 )
             `
           }
+          // Managed Workspaces remain discoverable until filesystem cleanup succeeds.
           yield* sql`
             UPDATE session_deletion_operations
             SET phase = ${'durable-delete-complete'}, updated_at = ${Date.now()}

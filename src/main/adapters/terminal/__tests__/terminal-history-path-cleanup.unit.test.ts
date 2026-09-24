@@ -26,17 +26,25 @@ describe('terminal history working-path cleanup', () => {
       first.registerWorkingDirectory(nestedKey, path.join(worktreePath, 'packages', 'app')),
       first.registerWorkingDirectory(outsideKey, path.join(logsDir, 'other-worktree')),
     ])
-    first.append(insideKey, 'inside')
+    first.appendWithCursor(insideKey, 'inside', 10_006)
     first.append(nestedKey, 'nested')
-    first.append(outsideKey, 'outside')
+    first.appendWithCursor(outsideKey, 'outside', 10_007)
     await first.flush()
 
     const restarted = makeTerminalHistoryStore(logsDir)
     await restarted.removeForPath(worktreePath)
 
     await expect(restarted.read(insideKey)).resolves.toBe('')
+    await expect(restarted.readWithCursor(insideKey)).resolves.toEqual({
+      text: '',
+      endOffset: null,
+    })
     await expect(restarted.read(nestedKey)).resolves.toBe('')
     await expect(restarted.read(outsideKey)).resolves.toBe('outside')
+    await expect(restarted.readWithCursor(outsideKey)).resolves.toEqual({
+      text: 'outside',
+      endOffset: 10_007,
+    })
   })
 
   it('moves persisted working-path metadata with a draft owner', async () => {

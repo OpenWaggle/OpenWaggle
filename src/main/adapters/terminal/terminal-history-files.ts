@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
 import {
@@ -13,12 +13,14 @@ const HISTORY_FILE_MODE = 0o600
 export const TERMINAL_HISTORY_LOG_EXTENSION = '.log'
 export const TERMINAL_HISTORY_METADATA_EXTENSION = '.meta'
 export const TERMINAL_HISTORY_WORKING_DIRECTORY_EXTENSION = '.cwd'
+export const TERMINAL_HISTORY_CURSOR_EXTENSION = '.cursor'
 
 export interface HistoryFiles {
   readonly baseName: string
   readonly logFile: string
   readonly metadataFile: string
   readonly workingDirectoryFile: string
+  readonly cursorFile: string
 }
 
 export interface TerminalHistoryWorkingDirectoryEntry {
@@ -43,6 +45,7 @@ export interface TerminalHistoryFiles {
   remove(files: readonly string[]): Promise<void>
   rename(from: string, to: string): Promise<void>
   writePrivate(file: string, content: string): Promise<void>
+  writePrivateAtomically(file: string, content: string): Promise<void>
 }
 
 const digest = (value: string) => createHash('sha256').update(value, 'utf8').digest('base64url')
@@ -91,6 +94,20 @@ async function writePrivate(file: string, content: string) {
   await chmodPrivate(file)
 }
 
+async function writePrivateAtomically(file: string, content: string) {
+  const temporary = `${file}.${randomUUID()}.tmp`
+  try {
+    await fs.writeFile(temporary, content, {
+      encoding: 'utf8',
+      flag: 'wx',
+      mode: HISTORY_FILE_MODE,
+    })
+    await fs.rename(temporary, file)
+  } finally {
+    await fs.rm(temporary, { force: true })
+  }
+}
+
 async function appendPrivate(file: string, content: string) {
   await fs.appendFile(file, content, { encoding: 'utf8', mode: HISTORY_FILE_MODE })
   await chmodPrivate(file)
@@ -109,6 +126,7 @@ export function makeTerminalHistoryFiles(logsDir: string): TerminalHistoryFiles 
         logsDir,
         `${baseName}${TERMINAL_HISTORY_WORKING_DIRECTORY_EXTENSION}`,
       ),
+      cursorFile: path.join(logsDir, `${baseName}${TERMINAL_HISTORY_CURSOR_EXTENSION}`),
     }
   }
 
@@ -207,5 +225,6 @@ export function makeTerminalHistoryFiles(logsDir: string): TerminalHistoryFiles 
     },
     rename: (from, to) => fs.rename(from, to),
     writePrivate,
+    writePrivateAtomically,
   }
 }

@@ -73,6 +73,7 @@ export function parseWorktreeList(stdout: string): GitWorktreeInfo[] {
     let head = ''
     let branch: string | null = null
     let detached = false
+    let locked = false
     for (const field of fields) {
       if (field.startsWith('worktree ')) {
         path = field.slice('worktree '.length)
@@ -87,9 +88,16 @@ export function parseWorktreeList(stdout: string): GitWorktreeInfo[] {
         continue
       }
       if (field === 'detached') detached = true
+      if (field === 'locked' || field.startsWith('locked ')) locked = true
     }
     if (!path) continue
-    worktrees.push({ path, head, branch: detached ? null : branch, isMain: isFirst })
+    worktrees.push({
+      path,
+      head,
+      branch: detached ? null : branch,
+      isMain: isFirst,
+      ...(locked ? { locked: true } : {}),
+    })
     isFirst = false
   }
 
@@ -254,7 +262,9 @@ async function removeGitWorktreeUnlocked(
 
   // Rely on git's native refusal for dirty worktrees; only force on explicit request.
   const args = ['worktree', 'remove', worktreePath]
-  if (payload.force) args.push('--force')
+  // Git requires the flag twice for a locked worktree. This path is only used after an
+  // explicit force request; one flag is insufficient for a lock created during Cleanup.
+  if (payload.force) args.push('--force', '--force')
 
   const result = await runGit(projectPath, args)
   if (result.code !== 0) {
@@ -285,14 +295,18 @@ export async function validateGitWorktreeRemoval(
   const worktreePath = payload.path.trim()
   if (!worktreePath) return worktreeFailure('not-found', 'A worktree path is required.')
   const listed = await listGitWorktrees(projectPath)
-  let registered = false
+  let registered: GitWorktreeInfo | undefined
   for (const worktree of listed.worktrees) {
     if (await isSamePath(worktree.path, worktreePath)) {
-      registered = true
+      registered = worktree
       break
     }
   }
   if (!registered) return worktreeFailure('not-found', 'Worktree not found.')
+  if (registered.locked && !payload.force)
+    return worktreeFailure('unknown', 'Worktree is locked. Unlock it before removing it.')
+  if (payload.force)
+    return { ok: true, message: 'Worktree can be force-removed.', path: worktreePath }
   const status = await runGit(worktreePath, ['status', '--porcelain=v1', '--untracked-files=all'])
   if (status.code !== 0)
     return worktreeFailure('unknown', status.stderr || 'Worktree check failed.')

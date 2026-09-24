@@ -19,7 +19,7 @@ function hostUiCommand(channel: 'mcp:get-settings' | 'mcp:logout-server' | 'mcp:
 }
 
 describe('Local Session MCP authority protocol revision', () => {
-  it('preserves the exact immediately previous revision-fifteen capability tuple', () => {
+  it('rejects a revision-fifteen success reply despite its published capability tuple', () => {
     expect(() =>
       decodeLocalSessionNegotiationResult({
         accepted: true,
@@ -50,7 +50,7 @@ describe('Local Session MCP authority protocol revision', () => {
           'events:worktree-launch-v1',
         ],
       }),
-    ).not.toThrow()
+    ).toThrow()
   })
 
   it('accepts legacy logout while rejecting the authorization command added in revision seven', () => {
@@ -64,8 +64,8 @@ describe('Local Session MCP authority protocol revision', () => {
   })
 
   it('forces changed authority commands to upgrade a revision-six Host', () => {
-    expect(supportedRevisionsForCommand(hostUiCommand('mcp:get-settings'))).toEqual([16, 15])
-    expect(supportedRevisionsForCommand(hostUiCommand('mcp:logout-server'))).toEqual([16, 15])
-    expect(supportedRevisionsForCommand(hostUiCommand('mcp:authorize-server'))).toEqual([16, 15])
+    expect(supportedRevisionsForCommand(hostUiCommand('mcp:get-settings'))).toEqual([17])
+    expect(supportedRevisionsForCommand(hostUiCommand('mcp:logout-server'))).toEqual([17])
+    expect(supportedRevisionsForCommand(hostUiCommand('mcp:authorize-server'))).toEqual([17])
   })
 })

@@ -38,6 +38,8 @@ describe('SessionSummaryHub', () => {
     expect(sessionSummarySectionOrder()).toEqual([
       'subscriptions',
       'environment',
+      'actions',
+      'preparation',
       'change-requests',
       'extensions-context',
       'hive',

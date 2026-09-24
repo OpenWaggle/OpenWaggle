@@ -9,6 +9,7 @@ import {
 const logger = createLogger('session-worktree-prune')
 
 export interface PruneSessionWorktreeDeps {
+  readonly removeWorktree?: typeof removeGitWorktree
   readonly listWorktreeRefs: () => Promise<readonly SessionWorktreeRef[]>
   readonly clearWorktree: (sessionId: string) => Promise<void>
 }
@@ -87,6 +88,7 @@ export async function pruneSessionWorktree(
           orphaned,
           input.allowMissingWorktree === true,
           input.validateOnly === true,
+          deps.removeWorktree ?? removeGitWorktree,
         )
       : false
     if (removalFailed) {
@@ -112,11 +114,11 @@ async function removalFailedFor(
   worktreePath: string,
   allowMissingWorktree: boolean,
   validateOnly: boolean,
+  removeWorktree: typeof removeGitWorktree,
 ): Promise<boolean> {
-  const result = await (validateOnly ? validateGitWorktreeRemoval : removeGitWorktree)(
-    projectPath,
-    { path: worktreePath },
-  )
+  const result = await (validateOnly ? validateGitWorktreeRemoval : removeWorktree)(projectPath, {
+    path: worktreePath,
+  })
   if (result.ok) return false
   if (allowMissingWorktree && result.code === 'not-found') return false
 

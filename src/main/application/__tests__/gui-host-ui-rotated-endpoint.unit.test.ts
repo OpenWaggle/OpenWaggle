@@ -151,7 +151,10 @@ describe('GUI Host UI endpoint refresh', () => {
     ['mcp:list-events', [{ sessionId: 'session-1' }]],
     ['mcp:list-event-subscriptions', [{ sessionId: 'session-1' }]],
     ['mcp:preview-imports', [{ projectPath: '/project', sources: ['codex'] }]],
-    ['project-actions:discover-t3', ['/project']],
+    [
+      'project-actions:manage',
+      [{ scope: { projectPath: '/project' }, operation: { type: 'discover' } }],
+    ],
     [
       'agent-definitions:manage',
       [{ command: { operation: 'list', projectPath: '/project' }, selectedSourcePaths: [] }],

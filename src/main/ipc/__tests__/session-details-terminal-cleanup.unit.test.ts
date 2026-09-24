@@ -3,6 +3,7 @@ import { fromAny, fromPartial } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { UnboundWorkspaceTestLayer } from '../../application/__tests__/unbound-workspace-test-layer'
 import { SessionProjectionRepositoryError } from '../../errors'
 import { DesktopServiceBroker } from '../../ports/desktop-service-broker'
 import { InlineVisualizationService } from '../../ports/inline-visualization-service'
@@ -41,6 +42,7 @@ const rollbackVisualization = vi.fn()
 
 function testLayer() {
   return Layer.mergeAll(
+    UnboundWorkspaceTestLayer,
     Layer.succeed(
       TerminalService,
       fromPartial<TerminalService['Type']>({

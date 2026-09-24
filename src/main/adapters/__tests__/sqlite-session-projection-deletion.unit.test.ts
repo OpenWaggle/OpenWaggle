@@ -1,6 +1,10 @@
 import { SessionId } from '@shared/types/brand'
+import { fromPartial } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { NoopActionRunServiceLayer } from '../../application/__tests__/action-run-service-test-layer'
+import { NoopWorkspacePreparationLayer } from '../../application/__tests__/workspace-preparation-test-layer'
+import { SessionWorkspaceResourceRepository } from '../../ports/session-workspace-resource-repository'
 import type { SessionDeletionRecord } from '../../store/session-details/session-deletion-journal'
 import type { CheckpointRefSnapshot } from '../git/turn-checkpoint-refs'
 
@@ -114,7 +118,12 @@ function deleteManagedSession() {
     Effect.gen(function* () {
       const repository = yield* SessionProjectionRepository
       yield* repository.delete(SessionId('session-managed'))
-    }).pipe(Effect.provide(SqliteSessionProjectionRepositoryLive)),
+    }).pipe(
+      Effect.provide(SqliteSessionProjectionRepositoryLive),
+      Effect.provide(NoopActionRunServiceLayer),
+      Effect.provide(NoopWorkspacePreparationLayer),
+      Effect.provideService(SessionWorkspaceResourceRepository, fromPartial({})),
+    ),
   )
 }
 
@@ -123,7 +132,12 @@ function recoverPendingDeletions() {
     Effect.gen(function* () {
       const repository = yield* SessionProjectionRepository
       yield* repository.recoverPendingDeletions?.() ?? Effect.void
-    }).pipe(Effect.provide(SqliteSessionProjectionRepositoryLive)),
+    }).pipe(
+      Effect.provide(SqliteSessionProjectionRepositoryLive),
+      Effect.provide(NoopActionRunServiceLayer),
+      Effect.provide(NoopWorkspacePreparationLayer),
+      Effect.provideService(SessionWorkspaceResourceRepository, fromPartial({})),
+    ),
   )
 }
 

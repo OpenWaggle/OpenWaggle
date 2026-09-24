@@ -19,6 +19,7 @@ import type {
   SessionInteractionResponseMutationRequest,
 } from '@shared/types/session-control'
 import type * as Effect from 'effect/Effect'
+import type { ActionRunService } from '../ports/action-run-service'
 import type { AgentRunInterruptionService } from '../ports/agent-run-interruption-service'
 import type { AgentSteeringService } from '../ports/agent-steering-service'
 import type { DesktopServiceBroker } from '../ports/desktop-service-broker'
@@ -40,6 +41,7 @@ import type { SessionQueryRepository } from '../ports/session-query-repository'
 import type { SessionReportDeliveryService } from '../ports/session-report-delivery-service'
 import type { SessionReportRepository } from '../ports/session-report-repository'
 import type { SessionWorkspaceHandoffService } from '../ports/session-workspace-handoff-service'
+import type { SessionWorkspaceResourceRepository } from '../ports/session-workspace-resource-repository'
 import type { TerminalService } from '../ports/terminal-service'
 import { setSessionAuthorization } from './session-authorization-service'
 import {
@@ -88,6 +90,8 @@ export type SessionControlCommandDependencies =
   | SessionOrganizationRepository
   | SessionWorkspaceHandoffService
   | TerminalService
+  | ActionRunService
+  | SessionWorkspaceResourceRepository
   | DesktopServiceBroker
 
 type Command = SessionControlMutationRequest['command']

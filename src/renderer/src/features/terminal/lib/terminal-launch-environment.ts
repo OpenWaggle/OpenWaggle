@@ -21,7 +21,7 @@ export function projectActionEnvironmentForWorktree(
   worktreePath: string,
 ) {
   if (launchEnv === undefined) return undefined
-  const projectRoot = launchEnv.OPENWAGGLE_PROJECT_ROOT ?? launchEnv.T3CODE_PROJECT_ROOT
+  const projectRoot = launchEnv.OPENWAGGLE_PROJECT_ROOT
   if (projectRoot === undefined || projectRoot.length === 0) return undefined
   return createProjectActionTerminalEnvironment({
     projectRoot,

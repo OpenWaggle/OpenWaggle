@@ -1,3 +1,5 @@
+import { safeDecodeUnknown } from '@shared/schema'
+import { actionManagementRequestSchema } from '@shared/schemas/action-management'
 import type { HostBackedGuiChannel } from '@shared/types/host-ui-protocol'
 import type { IpcInvokeArgs } from '@shared/types/ipc'
 import type { LocalSessionCallerIdentity } from '@shared/types/local-session-profile'
@@ -52,8 +54,6 @@ const REPLAY_SAFE_HOST_UI_CHANNELS = new Set<HostBackedGuiChannel>([
   'mcp:list-event-subscriptions',
   'mcp:preview-imports',
   'providers:get-models',
-  'project-actions:list',
-  'project-actions:discover-t3',
   'docs:discover',
   'skills:list',
   'skills:get-preview',
@@ -76,6 +76,16 @@ function isReplaySafeMcpSettingsInvocation(args: readonly unknown[]) {
 }
 
 function isReplaySafeHostUiInvocation(channel: HostBackedGuiChannel, args: readonly unknown[]) {
+  if (channel === 'project-actions:manage') {
+    if (args.length !== 1) return false
+    const decoded = safeDecodeUnknown(actionManagementRequestSchema, args[0])
+    return (
+      decoded.success &&
+      ['catalog', 'discover', 'runs', 'output', 'preparation', 'retained-preparation'].includes(
+        decoded.data.operation.type,
+      )
+    )
+  }
   if (channel === 'agent-definitions:manage') return isReplaySafeAgentDefinitionInvocation(args)
   if (channel === 'mcp:get-settings') return isReplaySafeMcpSettingsInvocation(args)
   return REPLAY_SAFE_HOST_UI_CHANNELS.has(channel)

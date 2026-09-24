@@ -150,7 +150,6 @@ async function migrateOwner(
   const movedRecords: TerminalRecord[] = []
   let historyMoved = false
   context.runtime.flushOutputs()
-  await context.runtime.history.flush()
 
   try {
     await context.runtime.history.moveOwner(fromOwnerKey, toOwnerKey)

@@ -101,7 +101,7 @@ export function closeTerminalAction(
           } else {
             await closeRecord(context, current, deleteHistory)
           }
-          if (deleteHistory) await context.runtime.history.flush()
+          if (deleteHistory) await context.runtime.history.flush(currentKey)
         },
         record?.cwd,
       )
@@ -138,7 +138,6 @@ export function closeOwnerTerminalsAction(
         pruneTerminalAliasesForOwner(context.terminalKeyAliases, ownerKey)
         if (deleteHistory) {
           await runtime.history.removeForOwner(ownerKey)
-          await runtime.history.flush()
         }
       })
     } finally {
@@ -176,7 +175,6 @@ export function closeTerminalsUnderPathAction(
         for (const record of pathRecords) await finalizeClosedRecord(context, record, deleteHistory)
         if (deleteHistory) {
           await runtime.history.removeForPath(directoryPath)
-          await runtime.history.flush()
         }
       })
     } finally {

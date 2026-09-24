@@ -1,4 +1,5 @@
 import { lazy, Suspense } from 'react'
+import { ActionRunPanel } from '@/features/project-actions'
 import type { TerminalOwnerContext } from '@/features/terminal'
 import { PanelErrorBoundary } from '@/shared/ui/PanelErrorBoundary'
 import { useUIStore } from './ui-store'
@@ -31,6 +32,14 @@ interface WorkspacePanelContentProps {
 export function WorkspacePanelContent(props: WorkspacePanelContentProps) {
   const updateBrowser = useWorkspacePanelStore((state) => state.updateBrowser)
   const showToast = useUIStore((state) => state.showToast)
+  if (props.activeSurface?.kind === 'action')
+    return (
+      <ActionRunPanel
+        key={`${props.owner.ownerKey}:${props.activeSurface.runId}`}
+        scope={{ projectPath: props.activeSurface.projectPath, sessionId: props.owner.ownerKey }}
+        runId={props.activeSurface.runId}
+      />
+    )
   if (props.activeSurface?.kind === 'terminal') {
     return (
       <div className="min-h-0 flex-1">

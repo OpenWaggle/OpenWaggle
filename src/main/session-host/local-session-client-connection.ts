@@ -134,7 +134,7 @@ export interface LocalSessionClientConnectionInput {
   readonly profileCredential?: string
   readonly timeoutMs?: number
   readonly signal?: AbortSignal
-  /** Test and forward-compatibility hook; ordinary clients advertise current and previous. */
+  /** Test and forward-compatibility hook; ordinary clients advertise supported revisions. */
   readonly supportedRevisions?: readonly number[]
 }
 

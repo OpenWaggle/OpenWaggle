@@ -178,7 +178,7 @@ export function clampReplay(history: string) {
 
 export async function resetPersistedHistory(runtime: TerminalRuntime, key: TerminalKey) {
   await Promise.resolve(runtime.history.truncate(key))
-  await runtime.history.flush()
+  await runtime.history.flush(key)
 }
 
 function reuseLiveTerminal(

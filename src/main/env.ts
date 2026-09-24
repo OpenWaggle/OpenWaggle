@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs'
 import { homedir, userInfo } from 'node:os'
 import { decodeUnknownOrThrow, Schema, type SchemaType } from '@shared/schema'
 import { installDesktopShellEnvironment as hydrateDesktopShellEnvironment } from './desktop-shell-environment'
+import { applyPreparedEnvironment, type PreparedEnvironment } from './domain/prepared-environment'
 import {
   buildNpmCompatiblePath,
   readEnvironmentValue,
@@ -178,7 +179,7 @@ export function getBrowserImportPathEnv(): {
  */
 export function getInteractiveTerminalEnv(
   appVersion: string,
-  overrides: Readonly<Record<string, string>> = {},
+  overrides: PreparedEnvironment = {},
 ): Record<string, string> {
   const inherited: Record<string, string> = {}
   for (const [key, value] of Object.entries(process.env)) {
@@ -196,10 +197,12 @@ export function getInteractiveTerminalEnv(
   setEnvironmentValue(terminalEnv, 'COLORTERM', TERMINAL_COLOR_TYPE)
   setEnvironmentValue(terminalEnv, 'TERM_PROGRAM', TERMINAL_PROGRAM_NAME)
   setEnvironmentValue(terminalEnv, 'TERM_PROGRAM_VERSION', appVersion)
-  for (const [name, value] of Object.entries(overrides)) {
-    setEnvironmentValue(terminalEnv, name, value)
-  }
-  return terminalEnv
+  const allowed = Object.fromEntries(
+    Object.entries(overrides).filter(
+      ([name]) => !['T3CODE_PROJECT_ROOT', 'T3CODE_WORKTREE_PATH'].includes(name.toUpperCase()),
+    ),
+  )
+  return applyPreparedEnvironment(terminalEnv, allowed, process.platform === 'win32')
 }
 
 /**

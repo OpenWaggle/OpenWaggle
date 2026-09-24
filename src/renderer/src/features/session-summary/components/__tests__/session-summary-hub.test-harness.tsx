@@ -1,3 +1,4 @@
+import type { ActionRun } from '@shared/types/action-runs'
 import { RepositoryPath, SessionId, WorkingPath } from '@shared/types/brand'
 import type { OpenWaggleApi } from '@shared/types/openwaggle-api'
 import type { SessionDetail } from '@shared/types/session'
@@ -20,6 +21,7 @@ import { SessionSummaryHub } from '../SessionSummaryHub'
 import { SESSION_SUMMARY_SECTION_ORDER } from '../SessionSummaryPanelSections'
 
 const mocks = vi.hoisted(() => ({
+  actionRuns: ((): ActionRun[] => [])(),
   toggleTerminal: vi.fn(),
   listSessionResources: vi.fn<OpenWaggleApi['listSessionResources']>(),
   listArchivedSessions: vi.fn(),
@@ -32,6 +34,9 @@ const mocks = vi.hoisted(() => ({
 
 export const listSessionResources: Mock<OpenWaggleApi['listSessionResources']> =
   mocks.listSessionResources
+export function setActionRuns(runs: ActionRun[]) {
+  mocks.actionRuns = runs
+}
 export const useStackedGitActions: Mock<typeof useStackedGitActionsHook> =
   mocks.useStackedGitActions
 export const useCombinedVcsStatus: Mock<typeof useCombinedVcsStatusHook> =
@@ -46,6 +51,14 @@ vi.mock('@/features/terminal', () => ({
 
 vi.mock('@/shared/lib/ipc', () => ({
   api: {
+    manageProjectActions: vi.fn<OpenWaggleApi['manageProjectActions']>(async ({ operation }) => {
+      if (operation.type === 'runs') return { type: 'runs', runs: mocks.actionRuns }
+      if (operation.type === 'preparation') return { type: 'preparation', preparation: null }
+      return {
+        type: 'catalog',
+        catalog: { revision: 'test', actions: [], profiles: [], preparation: [] },
+      }
+    }),
     listSessionResources: mocks.listSessionResources,
     listArchivedSessions: mocks.listArchivedSessions,
     listMcpEventSubscriptions: mocks.listMcpEventSubscriptions,
@@ -190,6 +203,7 @@ export function sessionSummarySectionOrder() {
 }
 
 export function setupSessionSummaryHubHarness() {
+  mocks.actionRuns = []
   localStorage.clear()
   useSessionSummaryUIStore.setState({ panels: {} })
   useUIStore.setState({ resourceViewer: null })

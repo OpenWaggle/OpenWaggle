@@ -1,15 +1,19 @@
 import { SessionSummaryExpandedPanel } from './SessionSummaryExpandedPanel'
 import { SessionSummaryHubDialogs } from './SessionSummaryHubDialogs'
 import { createSessionSummaryPanelSections } from './SessionSummaryPanelSections'
-import type { SessionSummaryHubInput } from './session-summary-hub-types'
+import { hasSummaryContent, type SessionSummaryHubInput } from './session-summary-hub-types'
 import { useSessionSummaryHubController } from './use-session-summary-hub-controller'
 
 export type { SessionSummaryHubInput } from './session-summary-hub-types'
 
 export function SessionSummaryHub({ input }: { readonly input: SessionSummaryHubInput }) {
-  const { session, messageCount, hiveAvailable } = input
-  if (!session || (messageCount === 0 && !hiveAvailable)) return null
-  return <AvailableSessionSummaryHub input={input} />
+  const { session } = input
+  const workspaceActivityAvailable = useWorkspaceActivityAvailable(
+    session?.projectPath ? { projectPath: session.projectPath, sessionId: session.id } : null,
+  )
+  const availableInput = { ...input, workspaceActivityAvailable }
+  if (!session || !hasSummaryContent(availableInput)) return null
+  return <AvailableSessionSummaryHub input={availableInput} />
 }
 
 function AvailableSessionSummaryHub({ input }: { readonly input: SessionSummaryHubInput }) {
@@ -34,3 +38,5 @@ function AvailableSessionSummaryHub({ input }: { readonly input: SessionSummaryH
     </>
   )
 }
+
+import { useWorkspaceActivityAvailable } from '@/features/project-actions'

@@ -135,12 +135,13 @@ describe('makeTerminalHistoryStore', () => {
     await store.flush()
 
     const entries = await fs.readdir(logsDir)
-    expect(entries).toHaveLength(2)
-    expect(entries.every((entry) => entry.length <= 92)).toBe(true)
+    expect(entries).toHaveLength(3)
+    expect(entries.every((entry) => entry.length <= 94)).toBe(true)
     expect(entries).toEqual(
       expect.arrayContaining([
         expect.stringMatching(/^[A-Za-z0-9_-]{43}\.[A-Za-z0-9_-]{43}\.log$/),
         expect.stringMatching(/^[A-Za-z0-9_-]{43}\.[A-Za-z0-9_-]{43}\.meta$/),
+        expect.stringMatching(/^[A-Za-z0-9_-]{43}\.[A-Za-z0-9_-]{43}\.cursor$/),
       ]),
     )
     await expect(store.read(key)).resolves.toBe('history')
@@ -271,6 +272,35 @@ describe('makeTerminalHistoryStore', () => {
 
     await expect(store.read(fromKey)).resolves.toBe('')
     await expect(store.read(toKey)).resolves.toBe('old new')
+  })
+
+  it('moves and removes an absolute output cursor with its retained history', async () => {
+    const store = makeTerminalHistoryStore(logsDir)
+    const fromKey = 'draft:/repo::action'
+    const toKey = 'session-moved::action'
+    store.appendWithCursor(fromKey, 'retained', 10_000)
+    await store.move(fromKey, toKey)
+
+    await expect(store.readWithCursor(fromKey)).resolves.toEqual({ text: '', endOffset: null })
+    await expect(store.readWithCursor(toKey)).resolves.toEqual({
+      text: 'retained',
+      endOffset: 10_000,
+    })
+    await store.remove(toKey)
+    await expect(store.readWithCursor(toKey)).resolves.toEqual({ text: '', endOffset: null })
+  })
+
+  it('preserves cursor-counted control bytes while keeping terminal replay scrubbed', async () => {
+    const store = makeTerminalHistoryStore(logsDir)
+    const key = 'session-action::output'
+    const output = 'before\b\u0007\u0000after'
+    store.appendWithCursor(key, output, Buffer.byteLength(output))
+
+    await expect(store.readWithCursor(key)).resolves.toEqual({
+      text: output,
+      endOffset: Buffer.byteLength(output),
+    })
+    await expect(store.read(key)).resolves.toBe('beforeafter')
   })
 
   it('rejects a move collision without changing either history', async () => {

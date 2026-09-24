@@ -5,6 +5,8 @@ import {
   SESSION_RESOURCE_LOCAL_IMAGE_BACKFILL_MIGRATION,
   SESSION_RESOURCE_MIGRATIONS,
 } from './database-session-resource-migrations'
+import { PINNED_SESSIONS_MIGRATION } from './pinned-sessions-migration'
+import { PROJECT_ACTION_MIGRATIONS } from './project-action-migration'
 import { SESSION_HOST_APP_MIGRATIONS } from './session-host-app-migrations'
 import { SESSION_WORKTREE_SETUP_MIGRATION } from './session-worktree-setup-migration'
 import { SESSION_WORKTREE_SETUP_RECEIPT_MIGRATION } from './session-worktree-setup-receipt-migration'
@@ -265,23 +267,7 @@ export const APP_MIGRATIONS: readonly AppMigration[] = [
     ],
   },
   TURN_CHECKPOINT_ANCHOR_NODE_MIGRATION,
-  {
-    id: 24,
-    name: 'pinned-sessions',
-    statements: [
-      `
-      CREATE TABLE IF NOT EXISTS pinned_sessions (
-        session_id TEXT PRIMARY KEY REFERENCES sessions(id) ON DELETE CASCADE,
-        pinned_at INTEGER NOT NULL,
-        sort_key TEXT NOT NULL
-      )
-      `,
-      `
-      CREATE INDEX IF NOT EXISTS idx_pinned_sessions_sort_key
-      ON pinned_sessions (sort_key ASC)
-      `,
-    ],
-  },
+  PINNED_SESSIONS_MIGRATION,
   {
     id: 25,
     name: 'session-authorization-mode-override',
@@ -299,4 +285,5 @@ export const APP_MIGRATIONS: readonly AppMigration[] = [
   ...SESSION_HOST_APP_MIGRATIONS,
   TURN_CHECKPOINT_STARTED_AT_MIGRATION,
   SESSION_RESOURCE_LOCAL_IMAGE_BACKFILL_MIGRATION,
+  ...PROJECT_ACTION_MIGRATIONS,
 ]

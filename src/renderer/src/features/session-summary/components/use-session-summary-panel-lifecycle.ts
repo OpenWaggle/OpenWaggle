@@ -5,7 +5,7 @@ import {
   type SessionSummaryPanelState,
   useSessionSummaryUIStore,
 } from '../state/session-summary-ui-store'
-import type { SessionSummaryHubInput } from './session-summary-hub-types'
+import { hasSummaryContent, type SessionSummaryHubInput } from './session-summary-hub-types'
 
 const SUMMARY_STORAGE_PREFIX = 'openwaggle:session-summary'
 
@@ -33,15 +33,16 @@ export function usePersistedSummaryDisclosure(sessionId: string, key: string, fa
 
 function useSyncSessionSummaryPanel(input: SessionSummaryHubInput, sessionId: string) {
   const syncPanel = useSessionSummaryUIStore((state) => state.syncPanel)
-  const { session, messageCount, hiveAvailable, autoHidden, rightSidebarOpen } = input
+  const { session, autoHidden, rightSidebarOpen } = input
+  const available = hasSummaryContent(input)
   useEffect(() => {
     if (!session) return
     syncPanel(sessionId, {
-      available: messageCount > 0 || hiveAvailable === true,
+      available,
       autoHidden,
       rightSidebarOpen,
     })
-  }, [autoHidden, hiveAvailable, messageCount, rightSidebarOpen, session, sessionId, syncPanel])
+  }, [autoHidden, available, rightSidebarOpen, session, sessionId, syncPanel])
 }
 
 function resolvePanelVisibility(
@@ -51,14 +52,14 @@ function resolvePanelVisibility(
 ) {
   if (!panel) {
     return (
-      (input.messageCount > 0 || input.hiveAvailable === true) &&
+      hasSummaryContent(input) &&
       readExpanded(sessionId, 'panel', true) &&
       !input.autoHidden &&
       !input.rightSidebarOpen
     )
   }
   return isSessionSummaryPanelVisible(panel, {
-    available: input.messageCount > 0 || input.hiveAvailable === true,
+    available: hasSummaryContent(input),
     autoHidden: input.autoHidden,
     rightSidebarOpen: input.rightSidebarOpen,
   })

@@ -2,6 +2,7 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import * as SqlClient from '@effect/sql/SqlClient'
+import { SessionId } from '@shared/types/brand'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -27,6 +28,28 @@ describe('SQLite Session Workspace removal admission', () => {
 
   afterEach(async () => {
     await fs.rm(temporaryRoot, { recursive: true, force: true })
+  })
+
+  it('counts archived members as durable bindings while excluding the departing Session', async () => {
+    const layer = makeLayer(path.join(temporaryRoot, 'durable-bindings.sqlite'))
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        const repository = yield* SessionWorkspaceResourceRepository
+        const members = yield* sql<{ readonly session_id: string }>`
+          SELECT session_id FROM session_workspace_bindings WHERE workspace_id = 'workspace-parent'
+        `
+        expect(members).toHaveLength(1)
+        const member = members[0]
+        if (!member) throw new Error('Fixture has no workspace member')
+        yield* sql`UPDATE sessions SET archived = 1 WHERE id = ${member.session_id}`
+        expect(yield* repository.countBindings('workspace-parent')).toBe(1)
+        expect(yield* repository.countActiveBindings('workspace-parent')).toBe(0)
+        expect(
+          yield* repository.countBindings('workspace-parent', SessionId(member.session_id)),
+        ).toBe(0)
+      }).pipe(Effect.provide(layer)),
+    )
   })
 
   it('atomically reserves only a ready unbound managed worktree', async () => {

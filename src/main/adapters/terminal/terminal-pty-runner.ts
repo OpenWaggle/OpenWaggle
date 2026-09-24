@@ -5,7 +5,6 @@ import { assertDesktopNativeAdmission } from '../../desktop-native-admission'
 import { getInteractiveTerminalEnv } from '../../env'
 import { createLogger } from '../../logger'
 import { observeTerminalProcessLifecycle } from './terminal-process-exit-observation'
-import type { TerminalProcessMetadata } from './terminal-process-identity'
 import { installTerminalProcessKernelApi } from './terminal-process-kernel-api'
 import { readProcessMetadata } from './terminal-process-probes'
 import {
@@ -15,61 +14,30 @@ import {
   closeRejectedSpawn,
 } from './terminal-pty-contract'
 import { createNativeTtyMemberSignal } from './terminal-pty-native-signal'
+import type {
+  PtyRunner,
+  PtyRunnerOptions,
+  PtySpawnOutcome,
+  PtySpawnRequest,
+} from './terminal-pty-types'
 import { existingShells, type TerminalShellCandidate } from './terminal-shell'
-import { prepareTerminalShellLaunch } from './terminal-shell-integration'
+import {
+  type PreparedTerminalShellLaunch,
+  prepareTerminalShellLaunch,
+} from './terminal-shell-integration'
+
+export type {
+  PtyRunner,
+  PtyRunnerOptions,
+  PtySpawnOutcome,
+  PtySpawnRequest,
+} from './terminal-pty-types'
 
 const logger = createLogger('terminal-pty-runner')
 
 const MIN_SPAWN_COLS = TERMINAL.MIN_COLS
 const MIN_SPAWN_ROWS = TERMINAL.MIN_ROWS
 export const SPAWN_FAILURE_EXIT_CODE = -1
-
-export interface PtySpawnRequest {
-  readonly cwd: string
-  readonly cols: number
-  readonly rows: number
-  readonly env: Readonly<Record<string, string>>
-  /** Generation-scoped token required by the shell prompt-readiness marker. */
-  readonly readinessNonce: string
-}
-
-export type PtySpawnOutcome =
-  | {
-      readonly ok: true
-      readonly pty: IPty
-      readonly pid: number
-      readonly shell: string
-      readonly tty: string | null
-      /** Root identity captured synchronously by native code before its waiter can reap. */
-      readonly processIdentity: { readonly pid: number; readonly startedAt: string } | null
-      /** Exact slave device derived from the PTY master, independent of path text. */
-      readonly ttyIdentity: string | null
-      /** Already-running targeted spawn probe; bounded to 25 ms. */
-      readonly processMetadata: Promise<TerminalProcessMetadata | null>
-      /** Installed synchronously after spawn and shared by every cleanup path. */
-      readonly exit: ReturnType<typeof observeTerminalProcessLifecycle>['exit']
-      readonly processTreeExit: ReturnType<
-        typeof observeTerminalProcessLifecycle
-      >['processTreeExit']
-      readonly resourceDrain: ReturnType<typeof observeTerminalProcessLifecycle>['resourceDrain']
-      readonly pauseOutput: () => void
-      readonly resumeOutput: () => void
-      /** Descriptor-bound native PTY membership signal on supported POSIX hosts. */
-      readonly signalTtyMembers?: (force: boolean) => number | null
-    }
-  | { readonly ok: false; readonly error: Error }
-
-export interface PtyRunner {
-  /** Spawn a shell in cwd, retrying down the shell fallback chain (ADR 0030). */
-  readonly spawn: (request: PtySpawnRequest) => Promise<PtySpawnOutcome>
-  /** Resolve the node-pty module lazily (native module, loaded on first use). */
-  readonly load: () => Promise<typeof NodePtyModule>
-}
-
-export interface PtyRunnerOptions {
-  readonly appVersion: string
-  readonly loadPty?: () => Promise<typeof NodePtyModule>
-}
 
 /**
  * node-pty 1.1.0 creates the master-side tty.ReadStream without resuming it.
@@ -161,6 +129,31 @@ function makePtyModuleLoader(options: PtyRunnerOptions) {
   }
 }
 
+function executionCandidates(request: PtySpawnRequest, environment: Record<string, string>) {
+  return request.execution
+    ? [{ ...request.execution, label: request.execution.command }]
+    : existingShells({ environment })
+}
+
+function preparePtyLaunch(
+  request: PtySpawnRequest,
+  candidate: TerminalShellCandidate,
+  environment: Record<string, string>,
+): Promise<PreparedTerminalShellLaunch> {
+  return request.execution
+    ? Promise.resolve({
+        args: candidate.args,
+        environment,
+        integrated: false,
+        cleanup: async () => undefined,
+      })
+    : prepareTerminalShellLaunch(candidate, environment, request.readinessNonce)
+}
+
+function assertLaunchNotCanceled(request: PtySpawnRequest) {
+  if (request.signal?.aborted) throw new Error('Action launch canceled.')
+}
+
 export function makePtyRunner(options: PtyRunnerOptions): PtyRunner {
   const loadPtyModule = makePtyModuleLoader(options)
   const spawn = async (request: PtySpawnRequest) => {
@@ -173,7 +166,7 @@ export function makePtyRunner(options: PtyRunnerOptions): PtyRunner {
     const environment = getInteractiveTerminalEnv(options.appVersion, request.env)
     let candidates: readonly TerminalShellCandidate[]
     try {
-      candidates = existingShells({ environment })
+      candidates = executionCandidates(request, environment)
     } catch (error) {
       return { ok: false, error: toError(error) } satisfies PtySpawnOutcome
     }
@@ -182,7 +175,7 @@ export function makePtyRunner(options: PtyRunnerOptions): PtyRunner {
     for (const candidate of candidates) {
       let launch: Awaited<ReturnType<typeof prepareTerminalShellLaunch>>
       try {
-        launch = await prepareTerminalShellLaunch(candidate, environment, request.readinessNonce)
+        launch = await preparePtyLaunch(request, candidate, environment)
       } catch (error) {
         const integrationError = toError(error)
         logger.error('Terminal shell prompt integration failed', {
@@ -196,6 +189,7 @@ export function makePtyRunner(options: PtyRunnerOptions): PtyRunner {
       let spawned: IPty | null = null
       let closeDescriptor: (() => void) | null = null
       try {
+        assertLaunchNotCanceled(request)
         assertDesktopNativeAdmission()
         spawned = pty.spawn(candidate.command, [...launch.args], {
           name: 'xterm-256color',

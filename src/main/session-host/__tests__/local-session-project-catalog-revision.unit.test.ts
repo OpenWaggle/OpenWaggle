@@ -17,7 +17,7 @@ describe('Local Session project catalog revision', () => {
       },
     })
 
-    expect(supportedRevisionsForCommand(payload)).toEqual([16, 15])
+    expect(supportedRevisionsForCommand(payload)).toEqual([17])
     expect(() => decodeLocalSessionCommandPayloadForRevision(payload, 11)).toThrow(/revision 12/)
     expect(decodeLocalSessionCommandPayloadForRevision(payload, 12)).toEqual(payload)
   })
@@ -36,7 +36,7 @@ describe('Local Session project catalog revision', () => {
       },
     })
 
-    expect(supportedRevisionsForCommand(payload)).toEqual([16, 15])
+    expect(supportedRevisionsForCommand(payload)).toEqual([17])
     expect(() => decodeLocalSessionCommandPayloadForRevision(payload, 12)).toThrow(/revision 13/)
     expect(decodeLocalSessionCommandPayloadForRevision(payload, 13)).toEqual(payload)
   })
@@ -55,7 +55,7 @@ describe('Local Session project catalog revision', () => {
       },
     })
 
-    expect(supportedRevisionsForCommand(payload)).toEqual([16])
+    expect(supportedRevisionsForCommand(payload)).toEqual([17])
     expect(() => decodeLocalSessionCommandPayloadForRevision(payload, 15)).toThrow(/revision 16/)
     expect(decodeLocalSessionCommandPayloadForRevision(payload, 16)).toEqual(payload)
   })
