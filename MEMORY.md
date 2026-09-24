@@ -381,6 +381,7 @@ Recording is a main/renderer protocol, not merely a `desktopCapturer` grant: suc
 ## Tooling Memory
 
 - Package manager: `pnpm`.
+- Release branch synchronization must use fetched Git ancestry, not only GitHub's `mergeStateStatus == BEHIND`: `UNKNOWN` or `BLOCKED` can conceal a stale branch immediately after a main push. Validate a stale candidate's version-only change against its unique merge base before syncing, then validate against pinned current main and recheck ancestry after CI. Otherwise legitimate main manifest changes fail the release guard before synchronization.
 - GitHub can return a generic GraphQL error from `gh pr create` after a release branch has already been pushed. Release preparation must retry the mutation and re-query the exact same-repository release branch after every failure so it can adopt an ambiguously created PR instead of stranding the release or creating conflicting state.
 - TypeScript-first tooling is preferred; do not add JavaScript configs when `.ts` is practical.
 - No TypeScript `baseUrl`; preserve aliases through explicit `paths` entries.
