@@ -58,7 +58,12 @@ import {
   sanitizeShortcutRules,
   sanitizeSkillTogglesByProject,
 } from './sanitizers'
-import { resolveNextSelectedModels, resolveStoredSelectedModels } from './selected-models-snapshot'
+import {
+  resolveNextProjectPathAliases,
+  resolveNextSelectedModels,
+  resolveStoredProjectPathAliases,
+  resolveStoredSelectedModels,
+} from './selected-models-snapshot'
 import {
   resolveNextSessionHostSettings,
   resolveStoredSessionHostSettings,
@@ -161,6 +166,7 @@ export function buildSettingsSnapshot(storedSettings: Readonly<Record<string, un
       agentDefinitionTogglesByProject,
       projectDisplayNames,
       ...resolveStoredSelectedModels(storedSettings),
+      ...resolveStoredProjectPathAliases(storedSettings),
       shortcutRules,
       shortcutBindings,
       defaultSessionEnvironmentMode,
@@ -177,8 +183,8 @@ export function buildSettingsSnapshot(storedSettings: Readonly<Record<string, un
   }
 }
 
-/** Diff view preferences, split out to keep buildNextSettingsSnapshot within complexity limits. */
-function resolveNextDiffSettings(current: Settings, partial: Partial<Settings>) {
+/** Diff and appearance preferences, split out to keep buildNextSettingsSnapshot within complexity limits. */
+function resolveNextDiffAndAppearanceSettings(current: Settings, partial: Partial<Settings>) {
   return {
     diffSyntaxTheme:
       partial.diffSyntaxTheme !== undefined && isValidDiffSyntaxTheme(partial.diffSyntaxTheme)
@@ -194,11 +200,6 @@ function resolveNextDiffSettings(current: Settings, partial: Partial<Settings>) 
         : current.diffView,
     diffWrapLines:
       typeof partial.diffWrapLines === 'boolean' ? partial.diffWrapLines : current.diffWrapLines,
-  }
-}
-
-function resolveNextAppearanceSettings(current: Settings, partial: Partial<Settings>) {
-  return {
     appearancePreferences:
       partial.appearancePreferences !== undefined
         ? resolveAppearancePreferences(partial.appearancePreferences)
@@ -217,9 +218,9 @@ export function buildNextSettingsSnapshot(current: Settings, partial: Partial<Se
       partial.compactionThresholdPercent !== undefined
         ? resolveCompactionThresholdPercent(partial.compactionThresholdPercent)
         : current.compactionThresholdPercent,
-    ...resolveNextDiffSettings(current, partial),
-    ...resolveNextAppearanceSettings(current, partial),
+    ...resolveNextDiffAndAppearanceSettings(current, partial),
     ...resolveNextSelectedModels(current, partial),
+    ...resolveNextProjectPathAliases(current, partial),
     ...resolveNextBrowserSettings(current, partial),
   } satisfies Settings
 }

@@ -28,8 +28,52 @@ export interface SettingsServiceShape {
   ) => Effect.Effect<boolean, Error>
   /** Deletes a project's selected model entry entirely (project references removed). */
   readonly removeProjectModel?: (projectPath: string) => Effect.Effect<void, Error>
+  /** Records an aliased project path's canonical identity so removals can resolve it later. */
+  readonly recordProjectPathAlias?: (
+    alias: string,
+    canonicalPath: string,
+  ) => Effect.Effect<void, Error>
+  /** Resolves an aliased project path through the recorded alias map. */
+  readonly resolveProjectPathAlias?: (alias: string) => Effect.Effect<string | undefined, Error>
+  /** Drops one aliased project path's recorded identity after its references are removed. */
+  readonly removeProjectPathAlias?: (alias: string) => Effect.Effect<void, Error>
   readonly initialize: () => Effect.Effect<void, SettingsStoreReadError>
   readonly flushForTests: () => Effect.Effect<void, Error>
+}
+
+/**
+ * Alias-map effects read through the same cache-refresh gate as the rest of the service; kept
+ * separate so the Live constructor stays within function-size limits.
+ */
+async function createProjectAliasEffects(readSettings: () => Promise<unknown>) {
+  const { lookupProjectPathAlias, recordProjectPathAliasDurably, deleteProjectPathAliasDurably } =
+    await import('../store/settings/project-path-alias-writers')
+  return {
+    recordProjectPathAlias: (alias: string, canonicalPath: string) =>
+      Effect.tryPromise({
+        try: async () => {
+          await readSettings()
+          await recordProjectPathAliasDurably(alias, canonicalPath)
+        },
+        catch: toError,
+      }),
+    resolveProjectPathAlias: (alias: string) =>
+      Effect.tryPromise({
+        try: async () => {
+          await readSettings()
+          return await lookupProjectPathAlias(alias)
+        },
+        catch: toError,
+      }),
+    removeProjectPathAlias: (alias: string) =>
+      Effect.tryPromise({
+        try: async () => {
+          await readSettings()
+          await deleteProjectPathAliasDurably(alias)
+        },
+        catch: toError,
+      }),
+  }
 }
 
 function toSettingsReadError(cause: unknown) {
@@ -135,6 +179,7 @@ export class SettingsService extends Context.Tag('@openwaggle/SettingsService')<
           },
           catch: toError,
         }),
+      ...(await createProjectAliasEffects(readSettings)),
       initialize: () =>
         Effect.tryPromise({
           try: async () => {

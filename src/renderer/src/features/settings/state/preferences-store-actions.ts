@@ -16,7 +16,6 @@ import { includes } from '@shared/utils/validation'
 import { useProviderStore } from '@/features/providers/state'
 import { setRuntimeAppearancePreferences } from '@/shared/lib/appearance-preferences-runtime'
 import { api } from '@/shared/lib/ipc'
-import { createRendererLogger } from '@/shared/lib/logger'
 import { setRuntimeSyntaxThemeSelections } from '@/shared/lib/syntax/syntax-theme-runtime'
 import {
   persistAppearanceMotion,
@@ -26,77 +25,17 @@ import {
 import { createBrowserAndScalarPreferencesActions } from './browser-preferences-actions'
 import type { PreferencesActions, PreferencesGet, PreferencesSet } from './preferences-store-types'
 import { createProjectHivePreferencesActions } from './project-hive-preferences-actions'
+import {
+  awaitPendingProjectPreferenceWrites,
+  persistProjectPreference,
+} from './project-preference-writes'
 
-const logger = createRendererLogger('preferences')
 const MAX_FAVORITE_MODELS = 100
 const MAX_RECENT_PROJECTS = 10
 let syntaxThemeWriteQueue = Promise.resolve()
-const pendingProjectPreferenceWrites = new Map<string, Promise<void>>()
 
 function mergeSettings(set: PreferencesSet, patch: Partial<Settings>) {
   set((state) => ({ settings: { ...state.settings, ...patch } }))
-}
-
-/**
- * Re-keys the renderer's per-project state from an aliased path to the canonical identity the
- * backend reports, so later reads, writes, and removals all address the same entry.
- */
-async function reconcileProjectIdentity(
-  requestedPath: string,
-  canonicalPath: string,
-  set: PreferencesSet,
-  get: PreferencesGet,
-) {
-  const { settings } = get()
-  const remapPath = (path: string) => (path === requestedPath ? canonicalPath : path)
-  const projectDisplayNames = { ...settings.projectDisplayNames }
-  if (requestedPath in projectDisplayNames) {
-    projectDisplayNames[canonicalPath] = projectDisplayNames[requestedPath]
-    delete projectDisplayNames[requestedPath]
-  }
-  const skillTogglesByProject = { ...settings.skillTogglesByProject }
-  if (requestedPath in skillTogglesByProject) {
-    skillTogglesByProject[canonicalPath] = skillTogglesByProject[requestedPath]
-    delete skillTogglesByProject[requestedPath]
-  }
-  const patch: Partial<Settings> = {
-    recentProjects: settings.recentProjects.map(remapPath),
-    projectDisplayNames,
-    skillTogglesByProject,
-    ...(settings.projectPath === requestedPath ? { projectPath: canonicalPath } : {}),
-  }
-  const result = await api.updateSettings(patch)
-  if (!result.ok) throw new Error(result.error)
-  mergeSettings(set, patch)
-}
-
-function persistProjectPreference(
-  projectPath: string | null,
-  prefs: { model?: string; thinkingLevel?: string },
-  set: PreferencesSet,
-  get: PreferencesGet,
-) {
-  if (!projectPath) return
-  // Writes for one project are chained so a removal that awaits the latest tracked promise also
-  // waits for every earlier in-flight write; each Host-backed invocation uses a separate
-  // connection, so ordering is not guaranteed without this.
-  const previous = pendingProjectPreferenceWrites.get(projectPath)
-  const tracked = (previous ?? Promise.resolve())
-    .then(() => api.setProjectPreferences(projectPath, prefs))
-    .then(async (canonicalPath) => {
-      if (canonicalPath && canonicalPath !== projectPath) {
-        await reconcileProjectIdentity(projectPath, canonicalPath, set, get)
-      }
-    })
-    .catch((err: unknown) => {
-      logger.warn('Failed to persist project preferences', { error: String(err) })
-    })
-    .finally(() => {
-      if (pendingProjectPreferenceWrites.get(projectPath) === tracked) {
-        pendingProjectPreferenceWrites.delete(projectPath)
-      }
-    })
-  pendingProjectPreferenceWrites.set(projectPath, tracked)
 }
 
 function appendRecentProject(paths: readonly string[], path: string) {
@@ -329,7 +268,7 @@ export function createPreferencesActions(
       // overtaken by it and resurrected afterwards. The deletion itself runs BEFORE the project
       // disappears from the renderer state: if it fails, the entry stays visible and retryable
       // instead of silently abandoning the stored model.
-      await pendingProjectPreferenceWrites.get(path)
+      await awaitPendingProjectPreferenceWrites(path)
       await api.removeProjectModel(path)
       const { settings } = get()
       const recentProjects = settings.recentProjects.filter((projectPath) => projectPath !== path)

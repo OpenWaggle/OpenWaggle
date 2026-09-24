@@ -8,6 +8,7 @@ import { includes } from '@shared/utils/validation'
 import * as Effect from 'effect/Effect'
 import {
   getProjectPreferencesStrict,
+  type ProjectPreferences,
   type ProjectPreferencesUpdate,
   setProjectPreferences,
 } from '../config/project-config'
@@ -77,12 +78,14 @@ function validateProjectPreferences(preferences: unknown) {
  */
 export function getProjectPreferencesOperation(rawProjectPath: unknown) {
   return Effect.gen(function* () {
-    const projectPath = yield* validateProjectPath(
-      typeof rawProjectPath === 'string' ? rawProjectPath : null,
-    )
+    const requestedPath = typeof rawProjectPath === 'string' ? rawProjectPath.trim() : null
+    const projectPath = yield* validateProjectPath(requestedPath)
     if (!projectPath) return null
-    const prefs = yield* Effect.promise(() => getProjectPreferencesStrict(projectPath))
     const settings = yield* SettingsService
+    if (requestedPath && requestedPath !== projectPath && settings.recordProjectPathAlias) {
+      yield* settings.recordProjectPathAlias(requestedPath, projectPath)
+    }
+    const prefs = yield* Effect.promise(() => getProjectPreferencesStrict(projectPath))
     const modelByProject = (yield* settings.get()).selectedModelsByProject
     // Presence, not truthiness: an empty-string tombstone means the user explicitly cleared this
     // project's model, and it must suppress a legacy file value rather than fall back to it.
@@ -122,39 +125,65 @@ function clearProjectModelEntry(
   })
 }
 
+/**
+ * Reads one candidate's legacy file state and retires a legacy model through the central write.
+ * Returns whether the candidate must be suppressed with a tombstone instead of a plain delete:
+ * the file was unreadable (state unknown) or the strip rewrite failed (the file keeps the value).
+ */
+function retireLegacyFileModel(
+  candidate: string,
+  isPrimaryIdentity: boolean,
+): Effect.Effect<boolean, never> {
+  return Effect.gen(function* () {
+    const fileRead = yield* Effect.promise(() =>
+      getProjectPreferencesStrict(candidate)
+        .then((prefs) => ({ readable: true as const, model: prefs?.model }))
+        .catch(() => ({ readable: false as const, model: undefined })),
+    )
+    if (!fileRead.readable) return isPrimaryIdentity
+    if (fileRead.model === undefined) return false
+    const stripped = yield* Effect.promise(() =>
+      setProjectPreferences(candidate, {}).then(
+        () => true,
+        () => false,
+      ),
+    )
+    return !stripped
+  })
+}
+
 export function removeProjectModelOperation(rawProjectPath: unknown) {
   return Effect.gen(function* () {
     const projectPath = typeof rawProjectPath === 'string' ? rawProjectPath.trim() : ''
     if (!projectPath || !path.isAbsolute(projectPath)) {
       return yield* Effect.fail(new Error('Project path is required.'))
     }
+    const settings = yield* SettingsService
     const canonicalPath = yield* Effect.promise(() =>
       fs.realpath(projectPath).catch(() => projectPath),
     )
-    const settings = yield* SettingsService
-    // A legacy file model must not survive removal. While the settings file is readable the central
-    // write migrates the legacy value into the DB and strips it from the file; afterwards a plain
-    // delete is enough. When the file cannot be proven clean — unreadable, or readable but not
-    // rewritable — a tombstone suppresses the legacy fallback and any migrated value instead, so
-    // re-adding the project cannot restore the removed model.
-    const fileRead = yield* Effect.promise(() =>
-      getProjectPreferencesStrict(canonicalPath)
-        .then((prefs) => ({ readable: true as const, model: prefs?.model }))
-        .catch(() => ({ readable: false as const, model: undefined })),
-    )
-    let tombstone = !fileRead.readable
-    if (fileRead.readable && fileRead.model !== undefined) {
-      const stripped = yield* Effect.promise(() =>
-        setProjectPreferences(canonicalPath, {}).then(
-          () => true,
-          () => false,
-        ),
-      )
-      tombstone = !stripped
+    // When the directory is gone, realpath can no longer recover the identity persist operations
+    // keyed; the recorded alias map retained it while the directory still existed.
+    const candidates = new Set<string>([canonicalPath])
+    if (settings.resolveProjectPathAlias) {
+      const recorded = yield* settings.resolveProjectPathAlias(projectPath)
+      if (recorded) candidates.add(recorded)
     }
-    yield* clearProjectModelEntry(settings, canonicalPath, tombstone)
-    if (projectPath !== canonicalPath) {
-      yield* clearProjectModelEntry(settings, projectPath, false)
+    // A legacy file model must not survive removal: unreadable or non-rewritable files suppress
+    // with a tombstone so the legacy fallback can never restore the removed model.
+    let tombstone = false
+    for (const candidate of candidates) {
+      const candidateTombstone = yield* retireLegacyFileModel(
+        candidate,
+        candidate === canonicalPath,
+      )
+      tombstone = tombstone || candidateTombstone
+    }
+    for (const candidate of candidates) {
+      yield* clearProjectModelEntry(settings, candidate, tombstone)
+    }
+    if (settings.removeProjectPathAlias) {
+      yield* settings.removeProjectPathAlias(projectPath)
     }
     return canonicalPath
   })
@@ -178,23 +207,16 @@ export function removeProjectModelOperation(rawProjectPath: unknown) {
  */
 export function setProjectPreferencesOperation(rawProjectPath: unknown, rawPreferences: unknown) {
   return Effect.gen(function* () {
-    const projectPath = yield* validateProjectPath(
-      typeof rawProjectPath === 'string' ? rawProjectPath : null,
-    )
+    const requestedPath = typeof rawProjectPath === 'string' ? rawProjectPath.trim() : null
+    const projectPath = yield* validateProjectPath(requestedPath)
     if (!projectPath) return yield* Effect.fail(new Error('Project path is required.'))
     const { model, filePreferences } = yield* validateProjectPreferences(rawPreferences)
-    const filePrefs = yield* Effect.promise(() => getProjectPreferencesStrict(projectPath))
     const settings = yield* SettingsService
-
-    if (model !== undefined) {
-      yield* writeProjectModel(settings, projectPath, model)
+    if (requestedPath && requestedPath !== projectPath && settings.recordProjectPathAlias) {
+      yield* settings.recordProjectPathAlias(requestedPath, projectPath)
     }
-    if (model === undefined && filePrefs?.model !== undefined) {
-      // An unrelated file-backed write strips the legacy model below. Migrate it first so the
-      // user's override survives; the insert-if-absent writer runs inside the settings write
-      // queue, so it can never overwrite a newer explicit model choice.
-      yield* migrateProjectModel(settings, projectPath, filePrefs.model)
-    }
+    const filePrefs = yield* Effect.promise(() => getProjectPreferencesStrict(projectPath))
+    yield* persistModelWithLegacyMigration(settings, projectPath, model, filePrefs)
 
     // The file writer strips any legacy model, so an explicit model write against a file that
     // still carries one must rewrite it — a model-only set would otherwise leave the stale value
@@ -217,6 +239,28 @@ export function setProjectPreferencesOperation(rawProjectPath: unknown, rawPrefe
     // Renderer mirrors (e.g. the per-project model map) must key by the canonical path this write
     // was stored under, not the caller-spelled alias, or later full-map writes would clobber it.
     return projectPath
+  })
+}
+
+/**
+ * An explicit model write lands in the DB; a non-model write migrates a legacy file model first so
+ * the strip below never loses the user's override. The insert-if-absent writer runs inside the
+ * settings write queue, so it can never overwrite a newer explicit model choice.
+ */
+function persistModelWithLegacyMigration(
+  settings: SettingsServiceShape,
+  projectPath: string,
+  model: string | null | undefined,
+  filePrefs: ProjectPreferences | undefined,
+) {
+  return Effect.gen(function* () {
+    if (model !== undefined) {
+      yield* writeProjectModel(settings, projectPath, model)
+      return
+    }
+    if (filePrefs?.model !== undefined) {
+      yield* migrateProjectModel(settings, projectPath, filePrefs.model)
+    }
   })
 }
 

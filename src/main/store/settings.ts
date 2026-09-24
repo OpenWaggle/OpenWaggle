@@ -75,7 +75,7 @@ function toSettingsReadError(error: unknown) {
       })
 }
 
-function assertSettingsReady() {
+export function assertSettingsReady() {
   if (settingsReady) return
   throw (
     settingsReadError ??
@@ -87,10 +87,7 @@ function assertSettingsReady() {
 }
 
 export async function initializeSettingsStore(): Promise<void> {
-  if (initializationPromise) {
-    return initializationPromise
-  }
-
+  if (initializationPromise) return initializationPromise
   if (settingsReady) return
 
   const attempt = (async () => {
@@ -108,10 +105,11 @@ export async function initializeSettingsStore(): Promise<void> {
     } catch (error) {
       settingsReadError = toSettingsReadError(error)
       settingsReady = false
+      const { operation, key, message } = settingsReadError
       logger.error('Failed to initialize settings cache from SQLite', {
-        operation: settingsReadError.operation,
-        key: settingsReadError.key,
-        error: settingsReadError.message,
+        operation,
+        key,
+        error: message,
         cause: describeError(settingsReadError.cause),
       })
     }
@@ -122,10 +120,7 @@ export async function initializeSettingsStore(): Promise<void> {
   if (!settingsReady && initializationPromise === attempt) initializationPromise = null
 }
 
-/**
- * Reload the durable snapshot so long-lived GUI and detached Session Host
- * processes observe settings written by one another.
- */
+/** Reload the durable snapshot so long-lived GUI and detached Host processes see each other's writes. */
 export function refreshSettingsStore(): Promise<void> {
   return chainWriteQueue(async () => {
     try {
@@ -203,24 +198,37 @@ export function updateSettings(partial: Partial<Settings>): void {
   }
 }
 
+function updateProjectToggleMapDurably(
+  label: string,
+  mapKey: 'skillTogglesByProject' | 'agentDefinitionTogglesByProject',
+  projectPath: string,
+  entryId: string,
+  enabled: boolean,
+): Promise<void> {
+  assertSettingsReady()
+  return enqueueSettingsWrite(() => {
+    const currentMap = settingsCache[mapKey]
+    const nextMap = {
+      ...currentMap,
+      [projectPath]: { ...(currentMap[projectPath] ?? {}), [entryId]: enabled },
+    }
+    return mapKey === 'skillTogglesByProject'
+      ? persistSettingsPatch({ skillTogglesByProject: nextMap })
+      : persistSettingsPatch({ agentDefinitionTogglesByProject: nextMap })
+  }, label)
+}
+
 export function updateSkillToggleDurably(
   projectPath: string,
   skillId: string,
   enabled: boolean,
 ): Promise<void> {
-  assertSettingsReady()
-  return enqueueSettingsWrite(
-    () =>
-      persistSettingsPatch({
-        skillTogglesByProject: {
-          ...settingsCache.skillTogglesByProject,
-          [projectPath]: {
-            ...(settingsCache.skillTogglesByProject[projectPath] ?? {}),
-            [skillId]: enabled,
-          },
-        },
-      }),
+  return updateProjectToggleMapDurably(
     'skill toggle',
+    'skillTogglesByProject',
+    projectPath,
+    skillId,
+    enabled,
   )
 }
 
@@ -229,48 +237,38 @@ export function updateAgentDefinitionToggleDurably(
   agentName: string,
   enabled: boolean,
 ): Promise<void> {
-  assertSettingsReady()
-  return enqueueSettingsWrite(
-    () =>
-      persistSettingsPatch({
-        agentDefinitionTogglesByProject: {
-          ...settingsCache.agentDefinitionTogglesByProject,
-          [projectPath]: {
-            ...(settingsCache.agentDefinitionTogglesByProject[projectPath] ?? {}),
-            [agentName]: enabled,
-          },
-        },
-      }),
+  return updateProjectToggleMapDurably(
     'Agent definition toggle',
+    'agentDefinitionTogglesByProject',
+    projectPath,
+    agentName,
+    enabled,
   )
 }
 
 /**
- * Sets or clears one project's selected model inside the write queue, so concurrent writes cannot
- * lose map entries. Clearing writes an empty-string tombstone (not a delete) so a later legacy
- * migration can never resurrect a value the user explicitly cleared. The model lives only in the
- * app DB, never in the repo-local settings file.
+ * Sets or clears one project's selected model inside the write queue. Clearing writes an
+ * empty-string tombstone so a later legacy migration can never resurrect a cleared value. The
+ * model lives only in the app DB, never in the repo-local settings file.
  */
 export function updateSelectedModelDurably(
   projectPath: string,
   model: string | null,
 ): Promise<void> {
   assertSettingsReady()
-  return enqueueSettingsWrite(() => {
-    return persistSettingsPatch({
-      selectedModelsByProject: {
-        ...settingsCache.selectedModelsByProject,
-        [projectPath]: model === null ? '' : model,
-      },
-    })
-  }, 'project model')
+  return enqueueSettingsWrite(
+    () =>
+      persistSettingsPatch({
+        selectedModelsByProject: {
+          ...settingsCache.selectedModelsByProject,
+          [projectPath]: model === null ? '' : model,
+        },
+      }),
+    'project model',
+  )
 }
 
-/**
- * Deletes one project's selected model entry inside the write queue. Used when a project's
- * references are removed, so re-adding the directory starts fresh and removed projects do not
- * accumulate rows.
- */
+/** Deletes one project's selected model entry in the write queue, so re-adding starts fresh. */
 export function deleteSelectedModelDurably(projectPath: string): Promise<void> {
   assertSettingsReady()
   return enqueueSettingsWrite(() => {
@@ -281,8 +279,8 @@ export function deleteSelectedModelDurably(projectPath: string): Promise<void> {
 
 /**
  * Inserts one project's legacy selected model into the DB only while no entry exists — including
- * the empty-string tombstone a queued explicit clear writes, so a stale legacy read can never
- * resurrect a cleared override. Runs inside the write queue; returns whether it inserted.
+ * the tombstone a queued clear writes, so a stale legacy read cannot resurrect it. Returns whether
+ * it inserted.
  */
 export function migrateSelectedModelDurably(projectPath: string, model: string): Promise<boolean> {
   assertSettingsReady()
@@ -296,16 +294,15 @@ export function migrateSelectedModelDurably(projectPath: string, model: string):
 }
 
 /**
- * Persists one settings patch in queue order before publishing it to readers.
- * Reserved for workflows whose rollback depends on knowing the new identity is
- * durable, such as publishing a browser profile after its cookies are written.
+ * Persists one settings patch in queue order before publishing it to readers. Reserved for
+ * workflows whose rollback depends on knowing the new identity is durable.
  */
 export function updateSettingsDurably(partial: Partial<Settings>): Promise<void> {
   assertSettingsReady()
   return enqueueSettingsWrite(() => persistSettingsPatch(partial), 'durable settings patch')
 }
 
-async function persistSettingsPatch(partial: Partial<Settings>): Promise<void> {
+export async function persistSettingsPatch(partial: Partial<Settings>): Promise<void> {
   assertSettingsReady()
   const nextSettings = buildNextSettingsSnapshot(settingsCache, partial)
   const writes = collectSettingsPatchWrites(partial, nextSettings)
