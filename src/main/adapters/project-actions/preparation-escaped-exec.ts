@@ -1,4 +1,3 @@
-const EXEC_TOKEN_END_OFFSET = 5
 const HEREDOC_START_END_OFFSET = 2
 const HEREDOC_QUOTED_GROUP = 2
 const HEREDOC_ESCAPED_GROUP = 3
@@ -13,11 +12,11 @@ interface ScanState {
   lineStart: number
 }
 
-function isEscapedExec(command: string, index: number) {
+function isEscapedBuiltin(command: string, index: number, name: 'exec' | 'eval') {
   if (command[index] !== '\\') return false
-  if (command.slice(index + 1, index + EXEC_TOKEN_END_OFFSET) !== 'exec') return false
+  if (command.slice(index + 1, index + 1 + name.length) !== name) return false
   if (/[\w\\]/.test(command[index - 1] ?? '')) return false
-  return !/\w/.test(command[index + EXEC_TOKEN_END_OFFSET] ?? '')
+  return !/\w/.test(command[index + 1 + name.length] ?? '')
 }
 
 function isEscapedExecPrefix(command: string, index: number) {
@@ -108,11 +107,14 @@ function visitCharacter(command: string, index: number, state: ScanState) {
   }
   const heredoc = heredocAt(command, index)
   if (heredoc) state.pendingHeredocs.push(heredoc)
-  if (
-    (isEscapedExec(command, index) || isEscapedExecPrefix(command, index)) &&
-    !/<<-?\s*$/.test(command.slice(state.lineStart, index))
-  )
-    return index
+  if (!/<<-?\s*$/.test(command.slice(state.lineStart, index))) {
+    if (isEscapedBuiltin(command, index, 'eval')) {
+      state.result += '__ow_'
+      return index
+    }
+    if (isEscapedBuiltin(command, index, 'exec') || isEscapedExecPrefix(command, index))
+      return index
+  }
   state.result += character
   if (character !== '\\' || index + 1 >= command.length) return index
   state.result += command[index + 1]

@@ -57,7 +57,46 @@ describe.skipIf(process.platform === 'win32')('setup commands using evaluated ex
       })
       expect(dynamic).toMatchObject({ exitCode: 0, environment: { OW_EVAL_DYNAMIC: 'loaded' } })
 
+      const escapedEval = await execute({
+        ...input,
+        invocation: {
+          type: 'command',
+          command: String.raw`code='export OW_ESCAPED_EVAL=loaded; \exec /usr/bin/true'; \eval "$code"`,
+          directory: '.',
+        },
+      })
+      expect(escapedEval).toMatchObject({
+        exitCode: 0,
+        environment: { OW_ESCAPED_EVAL: 'loaded' },
+      })
+
+      const nestedEscapedEval = await execute({
+        ...input,
+        invocation: {
+          type: 'command',
+          command: String.raw`code='export OW_NESTED_ESCAPED_EVAL=loaded; \exec /usr/bin/true'; wrapper='\eval "$code"'; eval "$wrapper"`,
+          directory: '.',
+        },
+      })
+      expect(nestedEscapedEval).toMatchObject({
+        exitCode: 0,
+        environment: { OW_NESTED_ESCAPED_EVAL: 'loaded' },
+      })
+
       if (['/bin/bash', '/bin/sh', '/bin/dash'].includes(shell)) {
+        const escapedPrefixedEval = await execute({
+          ...input,
+          invocation: {
+            type: 'command',
+            command: String.raw`code='export OW_ESCAPED_PREFIXED_EVAL=loaded; \exec /usr/bin/true'; command \eval "$code"`,
+            directory: '.',
+          },
+        })
+        expect(escapedPrefixedEval).toMatchObject({
+          exitCode: 0,
+          environment: { OW_ESCAPED_PREFIXED_EVAL: 'loaded' },
+        })
+
         const prefixedEval = await execute({
           ...input,
           invocation: {
@@ -85,6 +124,19 @@ describe.skipIf(process.platform === 'win32')('setup commands using evaluated ex
         })
       }
       if (['/bin/bash', '/bin/zsh'].includes(shell)) {
+        const escapedBuiltinEval = await execute({
+          ...input,
+          invocation: {
+            type: 'command',
+            command: String.raw`code='export OW_ESCAPED_BUILTIN_EVAL=loaded; \exec /usr/bin/true'; builtin \eval "$code"`,
+            directory: '.',
+          },
+        })
+        expect(escapedBuiltinEval).toMatchObject({
+          exitCode: 0,
+          environment: { OW_ESCAPED_BUILTIN_EVAL: 'loaded' },
+        })
+
         const prefixedEval = await execute({
           ...input,
           invocation: {

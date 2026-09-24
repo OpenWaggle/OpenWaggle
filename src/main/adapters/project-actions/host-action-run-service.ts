@@ -12,6 +12,7 @@ import { getSessionHostEventRuntime } from '../../session-host/session-host-even
 import { makeTerminalHistoryStore } from '../terminal/terminal-history-store'
 import { cleanupDeletedActionHistory } from './action-history-cleanup'
 import { type ActionProcessRunner, createActionProcessRunner } from './action-process'
+import { readActionWorkspaceEnvironment } from './action-workspace-environment'
 import { createManagedActionRuns } from './managed-action-runs'
 import { createSqliteActionRunPersistence } from './sqlite-action-runs'
 
@@ -49,11 +50,7 @@ export const HostActionRunServiceLive = Layer.scoped(
         start: (input) => runner().start(input),
       },
       catalog: (scope) => Effect.runPromise(catalog.read(scope)),
-      environment: async (workspace) => ({
-        ...(await Effect.runPromise(preparation.environment(workspace.workspaceId))),
-        OPENWAGGLE_PROJECT_ROOT: workspace.projectPath,
-        OPENWAGGLE_WORKTREE_PATH: workspace.workspacePath,
-      }),
+      environment: (workspace) => readActionWorkspaceEnvironment(preparation, workspace),
       acquireLiveness: () => getSessionHostEventRuntime().liveness.acquire('action-run'),
       reportError: (error) =>
         logger.error('Managed action operation failed', { error: runError(error).message }),

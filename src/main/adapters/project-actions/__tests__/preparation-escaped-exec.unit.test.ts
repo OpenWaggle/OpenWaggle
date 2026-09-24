@@ -71,4 +71,18 @@ describe('escaped exec capture', () => {
       ].join('\n'),
     )
   })
+
+  it('exposes escaped eval to the capture alias without changing quoted or heredoc text', () => {
+    const command = [
+      String.raw`printf '%s' '\eval' "\eval"`,
+      String.raw`# \eval in a comment`,
+      "cat <<'SCRIPT'",
+      String.raw`\eval in heredoc text`,
+      'SCRIPT',
+      String.raw`code='export READY=yes; \exec /usr/bin/true'; \eval "$code"`,
+    ].join('\n')
+    expect(enableEscapedExecCapture(command)).toBe(
+      command.replace(String.raw`; \eval "$code"`, '; __ow_eval "$code"'),
+    )
+  })
 })

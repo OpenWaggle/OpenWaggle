@@ -58,6 +58,7 @@ BEGIN { RS = sprintf("%c", 28) }
     }
     else if (character == "\\" && (i == 1 || previous !~ /[[:alnum:]_\\]/)) {
       rest = substr(code, i + 1)
+      if (rest ~ /^eval([^[:alnum:]_]|$)/) { printf "__ow_"; continue }
       if (rest ~ /^exec([^[:alnum:]_]|$)/ ||
           rest ~ /^(command|builtin)[[:space:]]+exec([^[:alnum:]_]|$)/ ||
           rest ~ /^(command|builtin)[[:space:]]+\\exec([^[:alnum:]_]|$)/) continue
