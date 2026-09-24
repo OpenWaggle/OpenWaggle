@@ -2,6 +2,8 @@ const HEREDOC_START_END_OFFSET = 2
 const HEREDOC_QUOTED_GROUP = 2
 const HEREDOC_ESCAPED_GROUP = 3
 const HEREDOC_PLAIN_GROUP = 4
+const REDIRECTION_DOUBLE_LENGTH = 2
+const REDIRECTION_TRIPLE_LENGTH = 3
 
 interface ScanState {
   result: string
@@ -28,9 +30,10 @@ function keepsCommandPosition(word: string) {
 
 interface EvalPrefixState {
   commandPosition: boolean
+  redirectionTarget: boolean
   word: string
   quote: "'" | '"' | undefined
-  groups: { commandPosition: boolean; word: string }[]
+  groups: { commandPosition: boolean; redirectionTarget: boolean; word: string }[]
 }
 
 function visitEvalPrefixQuote(
@@ -53,16 +56,37 @@ function visitEvalPrefixQuote(
 }
 
 function finishEvalPrefixWord(state: EvalPrefixState) {
-  if (state.word) state.commandPosition = state.commandPosition && keepsCommandPosition(state.word)
+  if (state.word) {
+    if (state.redirectionTarget) state.redirectionTarget = false
+    else state.commandPosition = state.commandPosition && keepsCommandPosition(state.word)
+  }
   state.word = ''
+}
+
+function redirectionOperatorLength(command: string, cursor: number) {
+  const triple = command.slice(cursor, cursor + REDIRECTION_TRIPLE_LENGTH)
+  if (['&>>', '<<<', '<<-'].includes(triple)) return REDIRECTION_TRIPLE_LENGTH
+  const double = command.slice(cursor, cursor + REDIRECTION_DOUBLE_LENGTH)
+  if (['&>', '>>', '>|', '>&', '<<', '<&', '<>'].includes(double)) return REDIRECTION_DOUBLE_LENGTH
+  return command[cursor] === '>' || command[cursor] === '<' ? 1 : 0
+}
+
+function visitEvalPrefixRedirection(command: string, cursor: number, state: EvalPrefixState) {
+  const length = redirectionOperatorLength(command, cursor)
+  if (!length) return undefined
+  if (state.word && !/^\d+$/.test(state.word)) finishEvalPrefixWord(state)
+  state.word = ''
+  state.redirectionTarget = true
+  return cursor + length - 1
 }
 
 function closeEvalPrefixGroup(state: EvalPrefixState) {
   const group = state.groups.pop()
   // A case arm may start with '('; its ')' still begins the command list.
-  const casePattern = !group || (group.word === '(' && !group.commandPosition)
+  const casePattern = !group || (group.word === '(' && !group.redirectionTarget)
   state.commandPosition = casePattern || (group?.commandPosition ?? false)
   state.word = casePattern ? '' : `${group?.word ?? ''})`
+  state.redirectionTarget = casePattern ? false : (group?.redirectionTarget ?? false)
 }
 
 function visitEvalPrefixUnquoted(
@@ -85,9 +109,16 @@ function visitEvalPrefixUnquoted(
     finishEvalPrefixWord(state)
     return cursor
   }
+  const redirected = visitEvalPrefixRedirection(command, cursor, state)
+  if (redirected !== undefined) return redirected
   if (character === '(') {
-    state.groups.push({ commandPosition: state.commandPosition, word: `${state.word}(` })
+    state.groups.push({
+      commandPosition: state.commandPosition,
+      redirectionTarget: state.redirectionTarget,
+      word: `${state.word}(`,
+    })
     state.commandPosition = true
+    state.redirectionTarget = false
     state.word = ''
     return cursor
   }
@@ -97,6 +128,7 @@ function visitEvalPrefixUnquoted(
   }
   if (/[;&|{}]/.test(character)) {
     state.commandPosition = true
+    state.redirectionTarget = false
     state.word = ''
     return cursor
   }
@@ -105,7 +137,13 @@ function visitEvalPrefixUnquoted(
 }
 
 function isEvalCommandPosition(command: string, index: number, lineStart: number) {
-  const state: EvalPrefixState = { commandPosition: true, word: '', quote: undefined, groups: [] }
+  const state: EvalPrefixState = {
+    commandPosition: true,
+    redirectionTarget: false,
+    word: '',
+    quote: undefined,
+    groups: [],
+  }
   for (let cursor = lineStart; cursor < index; cursor += 1) {
     if (state.quote) {
       cursor = visitEvalPrefixQuote(command, cursor, index, state)
@@ -113,7 +151,7 @@ function isEvalCommandPosition(command: string, index: number, lineStart: number
     }
     cursor = visitEvalPrefixUnquoted(command, cursor, index, state)
   }
-  return state.word === '' && state.commandPosition
+  return state.word === '' && state.commandPosition && !state.redirectionTarget
 }
 
 function isEscapedEvalInvocation(command: string, index: number, lineStart: number) {

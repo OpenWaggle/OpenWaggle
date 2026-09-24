@@ -5,10 +5,20 @@ function keepsCommandPosition(word) {
   return word ~ /^[[:alpha:]_][[:alnum:]_]*=/ ||
     word ~ /^(\\?(command|builtin)|if|then|else|elif|do|while|until|time|!)$/
 }
-function isEvalCommandPosition(prefix,    cursor, character, following, quote, word, expected, depth) {
+function redirectionOperatorLength(code, cursor,    triple, double, character) {
+  triple = substr(code, cursor, 3)
+  if (triple == "&>>" || triple == "<<<" || triple == "<<-") return 3
+  double = substr(code, cursor, 2)
+  if (double == "&>" || double == ">>" || double == ">|" || double == ">&" ||
+      double == "<<" || double == "<&" || double == "<>") return 2
+  character = substr(code, cursor, 1)
+  return character == ">" || character == "<" ? 1 : 0
+}
+function isEvalCommandPosition(prefix,    cursor, character, following, quote, word, expected, depth, redirectionTarget, redirectLength) {
   quote = ""
   word = ""
   expected = 1
+  redirectionTarget = 0
   depth = 0
   for (cursor = 1; cursor <= length(prefix); cursor++) {
     character = substr(prefix, cursor, 1)
@@ -33,43 +43,63 @@ function isEvalCommandPosition(prefix,    cursor, character, following, quote, w
       continue
     }
     if (character == " " || character == "\t") {
-      if (word != "") expected = expected && keepsCommandPosition(word)
+      if (word != "") {
+        if (redirectionTarget) redirectionTarget = 0
+        else expected = expected && keepsCommandPosition(word)
+      }
       word = ""
+      continue
+    }
+    redirectLength = redirectionOperatorLength(prefix, cursor)
+    if (redirectLength > 0) {
+      if (word != "") {
+        if (redirectionTarget) redirectionTarget = 0
+        else if (word !~ /^[0-9]+$/) expected = expected && keepsCommandPosition(word)
+      }
+      word = ""
+      redirectionTarget = 1
+      cursor += redirectLength - 1
       continue
     }
     if (character == "(") {
       depth++
       savedExpected[depth] = expected
+      savedRedirectionTarget[depth] = redirectionTarget
       savedWord[depth] = word "("
       expected = 1
+      redirectionTarget = 0
       word = ""
       continue
     }
     if (character == ")") {
       if (depth > 0) {
-        if (savedWord[depth] == "(" && !savedExpected[depth]) {
+        if (savedWord[depth] == "(" && !savedRedirectionTarget[depth]) {
           expected = 1
+          redirectionTarget = 0
           word = ""
         } else {
           expected = savedExpected[depth]
+          redirectionTarget = savedRedirectionTarget[depth]
           word = savedWord[depth] ")"
         }
         depth--
       } else {
         # An unmatched ')' closes a case arm pattern and starts its command list.
         expected = 1
+        redirectionTarget = 0
         word = ""
       }
       continue
     }
     if (character ~ /[;&|{}]/) {
       expected = 1
+      redirectionTarget = 0
       word = ""
       continue
     }
     word = word character
   }
-  return expected && word == ""
+  return expected && word == "" && !redirectionTarget
 }
 BEGIN { RS = sprintf("%c", 28) }
 {

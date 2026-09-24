@@ -115,9 +115,30 @@ describe('escaped exec capture', () => {
     const command = [
       String.raw`case x in x) \eval "$code";; esac`,
       String.raw`case x in (x) \eval "$code";; esac`,
+      String.raw`case x in
+  (x) \eval "$code";;
+esac`,
     ].join('\n')
     expect(enableEscapedExecCapture(command)).toBe(
       command.replaceAll(String.raw`\eval`, '__ow_eval'),
+    )
+  })
+
+  it('keeps command position across leading redirections and their targets', () => {
+    const command = [
+      String.raw`>/dev/null \eval "$code"`,
+      String.raw`> /dev/null \eval "$code"`,
+      String.raw`2>&1 \eval "$code"`,
+      String.raw`> 'output with space' \eval "$code"`,
+      String.raw`command>/dev/null \eval "$code"`,
+      String.raw`printf >/dev/null \eval`,
+    ].join('\n')
+    expect(enableEscapedExecCapture(command)).toBe(
+      command.replaceAll(String.raw`\eval "$code"`, '__ow_eval "$code"'),
+    )
+    expect(enableEscapedExecCapture(String.raw`> \eval`)).toBe(String.raw`> \eval`)
+    expect(enableEscapedExecCapture(String.raw`printf > /dev/null \eval "$code"`)).toBe(
+      String.raw`printf > /dev/null \eval "$code"`,
     )
   })
 })
