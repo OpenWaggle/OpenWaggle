@@ -21,6 +21,10 @@ const indexedNativeExitSeven =
   process.platform === 'win32'
     ? "$commands = @('cmd.exe'); & $commands[0] /c exit 7"
     : "$commands = @('/bin/sh'); & $commands[0] -c 'exit 7'"
+const memberNativeExitSeven =
+  process.platform === 'win32'
+    ? "$commands = [pscustomobject]@{ main = 'cmd.exe' }; & $commands.main /c exit 7"
+    : "$commands = [pscustomobject]@{ main = '/bin/sh' }; & $commands.main -c 'exit 7'"
 beforeEach(async () => {
   root = await mkdtemp(join(tmpdir(), 'openwaggle-action-process-'))
 })
@@ -129,6 +133,20 @@ it.skipIf(!powerShellAvailable)(
 )
 
 it.skipIf(!powerShellAvailable)(
+  'retains a member-selected native PowerShell exit code',
+  async () => {
+    const runner = createActionProcessRunner('test')
+    const child = await runner.start({
+      invocation: { type: 'command', command: memberNativeExitSeven, cwd: root },
+      environment: { SHELL: powerShell },
+      onOutput: () => {},
+    })
+    live.push(child)
+    expect(await child.closed).toEqual({ exitCode: 7 })
+  },
+)
+
+it.skipIf(!powerShellAvailable)(
   'uses exit code one for a final PowerShell cmdlet failure',
   async () => {
     const runner = createActionProcessRunner('test')
@@ -186,6 +204,24 @@ it.skipIf(!powerShellAvailable)(
       invocation: {
         type: 'command',
         command: `${nativeExitSeven}; $commands = @('Write-Error'); & $commands[0] 'failed'`,
+        cwd: root,
+      },
+      environment: { SHELL: powerShell },
+      onOutput: () => {},
+    })
+    live.push(child)
+    expect(await child.closed).toEqual({ exitCode: 1 })
+  },
+)
+
+it.skipIf(!powerShellAvailable)(
+  'does not reuse an earlier native exit code for a member-selected cmdlet',
+  async () => {
+    const runner = createActionProcessRunner('test')
+    const child = await runner.start({
+      invocation: {
+        type: 'command',
+        command: `${nativeExitSeven}; $commands = [pscustomobject]@{ main = 'Write-Error' }; & $commands.main 'failed'`,
         cwd: root,
       },
       environment: { SHELL: powerShell },

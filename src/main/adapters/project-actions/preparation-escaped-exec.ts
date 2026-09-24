@@ -21,12 +21,32 @@ function keepsCommandPosition(word: string) {
   )
 }
 
+type CommandPrefix = 'command' | 'time'
+
+function commandPrefix(word: string): CommandPrefix | undefined {
+  if (word === 'command' || word === '\\command') return 'command'
+  return word === 'time' ? 'time' : undefined
+}
+
+function isSupportedPrefixOption(prefix: CommandPrefix | undefined, word: string) {
+  return (
+    (prefix === 'command' && (word === '--' || word === '-p')) ||
+    (prefix === 'time' && word === '-p')
+  )
+}
+
 interface EvalPrefixState {
   commandPosition: boolean
   redirectionTarget: boolean
   word: string
   quote: "'" | '"' | undefined
-  groups: { commandPosition: boolean; redirectionTarget: boolean; word: string }[]
+  prefix: CommandPrefix | undefined
+  groups: {
+    commandPosition: boolean
+    redirectionTarget: boolean
+    word: string
+    prefix: CommandPrefix | undefined
+  }[]
 }
 
 function visitEvalPrefixQuote(
@@ -51,7 +71,11 @@ function visitEvalPrefixQuote(
 function finishEvalPrefixWord(state: EvalPrefixState) {
   if (state.word) {
     if (state.redirectionTarget) state.redirectionTarget = false
-    else state.commandPosition = state.commandPosition && keepsCommandPosition(state.word)
+    else {
+      const option = isSupportedPrefixOption(state.prefix, state.word)
+      state.commandPosition = state.commandPosition && (option || keepsCommandPosition(state.word))
+      if (!option) state.prefix = commandPrefix(state.word)
+    }
   }
   state.word = ''
 }
@@ -80,6 +104,7 @@ function closeEvalPrefixGroup(state: EvalPrefixState) {
   state.commandPosition = casePattern || (group?.commandPosition ?? false)
   state.word = casePattern ? '' : `${group?.word ?? ''})`
   state.redirectionTarget = casePattern ? false : (group?.redirectionTarget ?? false)
+  state.prefix = casePattern ? undefined : group?.prefix
 }
 
 function visitEvalPrefixUnquoted(
@@ -110,9 +135,11 @@ function visitEvalPrefixUnquoted(
       commandPosition: state.commandPosition,
       redirectionTarget: state.redirectionTarget,
       word: `${state.word}(`,
+      prefix: state.prefix,
     })
     state.commandPosition = true
     state.redirectionTarget = false
+    state.prefix = undefined
     state.word = ''
     return cursor
   }
@@ -123,6 +150,7 @@ function visitEvalPrefixUnquoted(
   if (/[;&|]/.test(character)) {
     state.commandPosition = true
     state.redirectionTarget = false
+    state.prefix = undefined
     state.word = ''
     return cursor
   }
@@ -136,6 +164,7 @@ function isEvalCommandPosition(command: string, index: number, lineStart: number
     redirectionTarget: false,
     word: '',
     quote: undefined,
+    prefix: undefined,
     groups: [],
   }
   for (let cursor = lineStart; cursor < index; cursor += 1) {

@@ -182,6 +182,22 @@ esac`,
     )
   })
 
+  it('keeps command position across supported prefix options only', () => {
+    const command = [
+      String.raw`command -- \eval "$code"`,
+      String.raw`command -p \eval "$code"`,
+      String.raw`time -p \eval "$code"`,
+      String.raw`printf -- \eval "$code"`,
+      String.raw`command -v \eval "$code"`,
+    ].join('\n')
+    expect(enableEscapedExecCapture(command)).toBe(
+      command
+        .replaceAll(String.raw`command -- \eval`, 'command -- __ow_eval')
+        .replaceAll(String.raw`command -p \eval`, 'command -p __ow_eval')
+        .replaceAll(String.raw`time -p \eval`, 'time -p __ow_eval'),
+    )
+  })
+
   it('keeps escaped eval arguments after parameter and brace expansions', () => {
     const command = [
       `printf '%s %s' \${VALUE} \\eval`,

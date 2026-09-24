@@ -37,6 +37,18 @@ const cases: { variable: string; command: string; expected?: string }[] = [
     command: String.raw`code='export OW_QUOTED_EVAL=loaded; \exec /usr/bin/true'; e"va"l "$code"`,
   },
   {
+    variable: 'OW_COMMAND_DASH_DASH_EVAL',
+    command: String.raw`code='export OW_COMMAND_DASH_DASH_EVAL=loaded; \exec /usr/bin/true'; command -- \eval "$code"`,
+  },
+  {
+    variable: 'OW_DYNAMIC_COMMAND_DASH_DASH_EVAL',
+    command: String.raw`code='export OW_DYNAMIC_COMMAND_DASH_DASH_EVAL=loaded; \exec /usr/bin/true'; wrapper='command -- \eval "$code"'; eval "$wrapper"`,
+  },
+  {
+    variable: 'OW_COMMAND_DEFAULT_PATH_EVAL',
+    command: String.raw`code='export OW_COMMAND_DEFAULT_PATH_EVAL=loaded; \exec /usr/bin/true'; command -p \eval "$code"`,
+  },
+  {
     variable: 'OW_DYNAMIC_QUOTED_EVAL',
     command: String.raw`code='export OW_DYNAMIC_QUOTED_EVAL=loaded; \exec /usr/bin/true'; wrapper='e"va"l "$code"'; eval "$wrapper"`,
   },
@@ -142,4 +154,36 @@ describe.skipIf(process.platform === 'win32')('evaluated setup command boundarie
       }
     },
   )
+
+  it.skipIf(!existsSync('/bin/bash'))('captures an escaped eval after Bash time -p', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'ow-prepare-time-prefix-'))
+    try {
+      const execute = createPreparationExecutor(
+        createActionProcessRunner('test'),
+        directory,
+        'test',
+      )
+      const result = await execute({
+        workspace: {
+          workspaceId: 'time-prefix',
+          projectPath: directory,
+          workspacePath: directory,
+        },
+        environment: { SHELL: '/bin/bash' },
+        captureEnvironment: true,
+        onOutput: () => {},
+        invocation: {
+          type: 'command',
+          command: String.raw`code='export OW_TIME_PREFIX_EVAL=loaded; \exec /usr/bin/true'; time -p \eval "$code"`,
+          directory: '.',
+        },
+      })
+      expect(result).toMatchObject({
+        exitCode: 0,
+        environment: { OW_TIME_PREFIX_EVAL: 'loaded' },
+      })
+    } finally {
+      await rm(directory, { recursive: true, force: true })
+    }
+  })
 })

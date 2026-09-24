@@ -5,6 +5,14 @@ function keepsCommandPosition(word) {
   return word == "{" || word ~ /^[[:alpha:]_][[:alnum:]_]*=/ ||
     word ~ /^(\\?(command|builtin)|if|then|else|elif|do|while|until|time|!)$/
 }
+function commandPrefix(word) {
+  if (word == "command" || word == "\\command") return "command"
+  return word == "time" ? "time" : ""
+}
+function supportedPrefixOption(prefix, word) {
+  return (prefix == "command" && (word == "--" || word == "-p")) ||
+    (prefix == "time" && word == "-p")
+}
 function redirectionOperatorLength(code, cursor,    triple, double, character) {
   triple = substr(code, cursor, 3)
   if (triple == "&>>" || triple == "<<<" || triple == "<<-") return 3
@@ -14,11 +22,12 @@ function redirectionOperatorLength(code, cursor,    triple, double, character) {
   character = substr(code, cursor, 1)
   return character == ">" || character == "<" ? 1 : 0
 }
-function isEvalCommandPosition(prefix,    cursor, character, following, quote, word, expected, depth, redirectionTarget, redirectLength) {
+function isEvalCommandPosition(prefix,    cursor, character, following, quote, word, expected, depth, redirectionTarget, redirectLength, prefixCommand, option) {
   quote = ""
   word = ""
   expected = 1
   redirectionTarget = 0
+  prefixCommand = ""
   depth = 0
   for (cursor = 1; cursor <= length(prefix); cursor++) {
     character = substr(prefix, cursor, 1)
@@ -46,7 +55,11 @@ function isEvalCommandPosition(prefix,    cursor, character, following, quote, w
     if (character == " " || character == "\t") {
       if (word != "") {
         if (redirectionTarget) redirectionTarget = 0
-        else expected = expected && keepsCommandPosition(word)
+        else {
+          option = supportedPrefixOption(prefixCommand, word)
+          expected = expected && (option || keepsCommandPosition(word))
+          if (!option) prefixCommand = commandPrefix(word)
+        }
       }
       word = ""
       continue
@@ -55,7 +68,11 @@ function isEvalCommandPosition(prefix,    cursor, character, following, quote, w
     if (redirectLength > 0) {
       if (word != "") {
         if (redirectionTarget) redirectionTarget = 0
-        else if (word !~ /^[0-9]+$/) expected = expected && keepsCommandPosition(word)
+        else if (word !~ /^[0-9]+$/) {
+          option = supportedPrefixOption(prefixCommand, word)
+          expected = expected && (option || keepsCommandPosition(word))
+          if (!option) prefixCommand = commandPrefix(word)
+        }
       }
       word = ""
       redirectionTarget = 1
@@ -67,8 +84,10 @@ function isEvalCommandPosition(prefix,    cursor, character, following, quote, w
       savedExpected[depth] = expected
       savedRedirectionTarget[depth] = redirectionTarget
       savedWord[depth] = word "("
+      savedPrefixCommand[depth] = prefixCommand
       expected = 1
       redirectionTarget = 0
+      prefixCommand = ""
       word = ""
       continue
     }
@@ -77,10 +96,12 @@ function isEvalCommandPosition(prefix,    cursor, character, following, quote, w
         if (savedWord[depth] == "(" && !savedRedirectionTarget[depth]) {
           expected = 1
           redirectionTarget = 0
+          prefixCommand = ""
           word = ""
         } else {
           expected = savedExpected[depth]
           redirectionTarget = savedRedirectionTarget[depth]
+          prefixCommand = savedPrefixCommand[depth]
           word = savedWord[depth] ")"
         }
         depth--
@@ -88,6 +109,7 @@ function isEvalCommandPosition(prefix,    cursor, character, following, quote, w
         # An unmatched ')' closes a case arm pattern and starts its command list.
         expected = 1
         redirectionTarget = 0
+        prefixCommand = ""
         word = ""
       }
       continue
@@ -95,6 +117,7 @@ function isEvalCommandPosition(prefix,    cursor, character, following, quote, w
     if (character ~ /[;&|]/) {
       expected = 1
       redirectionTarget = 0
+      prefixCommand = ""
       word = ""
       continue
     }

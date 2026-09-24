@@ -1085,6 +1085,13 @@ The call operator can also target an indexed command name such as `& $commands[0
 selected command before using `$LASTEXITCODE`. POSIX heredoc delimiters are shell words, not
 identifier tokens: strip their quotes and escapes in both the static and evaluated-command scanners,
 including punctuation such as `<<'END.JSON'`, and queue multiple pending heredocs.
+POSIX command-position scanners must keep valid `command --`, `command -p`, and Bash
+`time -p` prefixes while finding escaped eval/exec; the Setup command alias must also dispatch
+the option-prefixed eval through its capture wrapper, since the shell builtin `command`
+cannot invoke the wrapper function. PowerShell call-operator targets can be member expressions
+such as `& $commands.main`; resolve only inert variable, constant, index, and note-property
+AST shapes when classifying the final command, without reevaluating user code or borrowing an
+earlier native exit for a final cmdlet failure.
 
 Action run output cursors cannot be recovered from retained log length after scrollback
 compaction: the Host may flush the log before its throttled SQLite `outputBytes` update. Journal
