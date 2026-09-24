@@ -1042,6 +1042,10 @@ Prefixed `builtin eval` and `command eval` must pass through the same runtime re
 For custom PowerShell actions, preserve a failed native command's `$LASTEXITCODE` instead of
 collapsing every final failure to exit 1; cmdlet-only failures still use 1. Pending-publication
 details shown in Settings must omit canonical Workspace paths and use a relative recovery path.
+An exact saved package task must be matched directly against declared Workspace patterns instead
+of enumerating the 250-package discovery page; still reject excluded, generated, symlinked, and
+missing sources. PowerShell keeps a native `$LASTEXITCODE` across later cmdlet failures, so use the
+final user command's kind before applying that code to an action's final status.
 
 Action run output cursors cannot be recovered from retained log length after scrollback
 compaction: the Host may flush the log before its throttled SQLite `outputBytes` update. Journal

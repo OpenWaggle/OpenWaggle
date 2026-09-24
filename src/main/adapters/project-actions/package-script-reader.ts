@@ -1,5 +1,5 @@
-import { access } from 'node:fs/promises'
-import { posix } from 'node:path'
+import { access, lstat } from 'node:fs/promises'
+import { posix, resolve } from 'node:path'
 import { match, P } from '@diegogbrisa/ts-match'
 import { decodeUnknownOrThrow, parseJsonUnknown, Schema } from '@shared/schema'
 import {
@@ -106,7 +106,7 @@ function safeWorkspacePattern(pattern: string) {
   return pattern
 }
 
-async function packageSources(
+async function workspacePatterns(
   workspace: string,
   manifest: NonNullable<Awaited<ReturnType<typeof packageManifest>>>,
 ) {
@@ -123,8 +123,16 @@ async function packageSources(
     const value: unknown = yaml.toJS({ maxAliasCount: 0 })
     patterns.push(...(decodeUnknownOrThrow(workspaceSchema, value).packages ?? []))
   }
+  return patterns.map(safeWorkspacePattern)
+}
+
+async function packageSources(
+  workspace: string,
+  manifest: NonNullable<Awaited<ReturnType<typeof packageManifest>>>,
+) {
+  const patterns = await workspacePatterns(workspace, manifest)
   if (patterns.length === 0) return ['package.json']
-  const matches = await glob(patterns.map(safeWorkspacePattern), {
+  const matches = await glob(patterns, {
     cwd: workspace,
     onlyDirectories: true,
     followSymbolicLinks: false,
@@ -140,6 +148,49 @@ async function packageSources(
       ...matches.sort().map((directory) => posix.join(directory, 'package.json')),
     ]),
   ]
+}
+
+async function requestedPackageSource(
+  workspace: string,
+  manifest: NonNullable<Awaited<ReturnType<typeof packageManifest>>>,
+  reference: ProjectTaskReference,
+): Promise<string[]> {
+  const directory = reference.directory
+  if (reference.source !== posix.join(directory, 'package.json')) return []
+  if (directory === '.') return ['package.json']
+  const segments = directory.split('/')
+  if (
+    segments.length > WORKSPACE_GLOB_DEPTH ||
+    segments.some(
+      (segment) =>
+        !segment || segment === '.' || segment === '..' || EXCLUDED_DIRECTORIES.includes(segment),
+    )
+  )
+    return []
+  const patterns = await workspacePatterns(workspace, manifest)
+  const ancestors = segments.map((_, index) => segments.slice(0, index + 1).join('/'))
+  if (
+    !patterns.some(
+      (pattern) => !pattern.startsWith('!') && posix.matchesGlob(directory, pattern),
+    ) ||
+    patterns.some(
+      (pattern) =>
+        pattern.startsWith('!') &&
+        ancestors.some((ancestor) => posix.matchesGlob(ancestor, pattern.slice(1))),
+    )
+  )
+    return []
+  for (let depth = 1; depth <= segments.length; depth += 1) {
+    const path = resolve(workspace, ...segments.slice(0, depth))
+    try {
+      const metadata = await lstat(path)
+      if (metadata.isSymbolicLink() || !metadata.isDirectory()) return []
+    } catch (error) {
+      if (isEnoent(error)) return []
+      throw error
+    }
+  }
+  return [reference.source]
 }
 
 async function appendPackageSourceTasks(
@@ -194,7 +245,9 @@ async function list(
   if (root === null) return { tasks, diagnostics }
   let sources = ['package.json']
   try {
-    sources = await packageSources(workspace, root)
+    sources = requested
+      ? await requestedPackageSource(workspace, root, requested)
+      : await packageSources(workspace, root)
   } catch (error) {
     diagnostics.push(taskReadError('package.json / pnpm-workspace.yaml', error))
   }

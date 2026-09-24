@@ -88,6 +88,42 @@ it.skipIf(!powerShellAvailable)(
   },
 )
 
+it.skipIf(!powerShellAvailable)(
+  'does not reuse an earlier native exit code for a final PowerShell cmdlet failure',
+  async () => {
+    const runner = createActionProcessRunner('test')
+    const child = await runner.start({
+      invocation: {
+        type: 'command',
+        command: `${nativeExitSeven}; Write-Error 'failed'`,
+        cwd: root,
+      },
+      environment: { SHELL: powerShell },
+      onOutput: () => {},
+    })
+    live.push(child)
+    expect(await child.closed).toEqual({ exitCode: 1 })
+  },
+)
+
+it.skipIf(!powerShellAvailable)(
+  'retains a final native exit code after an earlier PowerShell cmdlet failure',
+  async () => {
+    const runner = createActionProcessRunner('test')
+    const child = await runner.start({
+      invocation: {
+        type: 'command',
+        command: `Write-Error 'failed'\n${nativeExitSeven}`,
+        cwd: root,
+      },
+      environment: { SHELL: powerShell },
+      onOutput: () => {},
+    })
+    live.push(child)
+    expect(await child.closed).toEqual({ exitCode: 7 })
+  },
+)
+
 it('stops the same owned service process and waits for its process tree to exit', async () => {
   const runner = createActionProcessRunner('test')
   const ready = Promise.withResolvers<void>()

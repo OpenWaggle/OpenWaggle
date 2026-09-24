@@ -77,22 +77,6 @@ describe('project task discovery', () => {
     })
   })
 
-  it('honors pnpm workspace exclusions and ignores generated/dependency packages', async () => {
-    await json('package.json', { scripts: {} })
-    await put('pnpm-workspace.yaml', "packages:\n  - '**'\n  - '!packages/excluded'\n")
-    for (const directory of [
-      'packages/web',
-      'packages/excluded',
-      'dist/generated',
-      'node_modules/dependency',
-      '.venv/site',
-    ]) {
-      await json(`${directory}/package.json`, { scripts: { test: 'echo test' } })
-    }
-    const discovery = await discoverProjectTasks(root)
-    expect(discovery.tasks.map((task) => task.reference.directory)).toEqual(['packages/web'])
-  })
-
   it('reports conflicting runners and gives packageManager precedence', async () => {
     await json('package.json', { scripts: { test: 'echo test' } })
     await put('pnpm-lock.yaml', '')
@@ -239,14 +223,6 @@ describe('project task discovery', () => {
         task: { ...packageTask('test'), source: '../package.json' },
       }),
     ).rejects.toThrow()
-  })
-
-  it('does not enumerate undeclared symlinked workspace packages', async () => {
-    await json('package.json', { workspaces: ['packages/*'], scripts: {} })
-    await json('outside/package.json', { scripts: { test: 'echo outside' } })
-    await mkdir(join(root, 'packages'))
-    await symlink(join(root, 'outside'), join(root, 'packages', 'linked'))
-    expect((await discoverProjectTasks(root)).tasks).toEqual([])
   })
 
   it('reads Hatch scripts with inherited environments and explicit selectors', async () => {

@@ -130,7 +130,9 @@ describe('action executable resolution', () => {
               '-NoLogo',
               '-NonInteractive',
               '-Command',
-              `$global:LASTEXITCODE = 0\n${invocation.command}\nif ($?) { exit 0 }; if ($global:LASTEXITCODE -ne 0) { exit $global:LASTEXITCODE }; exit 1`,
+              expect.stringContaining(
+                `$global:LASTEXITCODE = 0\n${invocation.command}\n$__ow_succeeded = $?\n$__ow_nativeExit = $global:LASTEXITCODE`,
+              ),
             ],
           },
         }),

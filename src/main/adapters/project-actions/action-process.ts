@@ -106,6 +106,31 @@ export async function resolveActionShell(
   throw new Error('No supported shell is available for this action.')
 }
 
+function powerShellActionCommand(command: string) {
+  const lastUserLine = command.split(/\r\n|\r|\n/u).length + 1
+  return [
+    '$global:LASTEXITCODE = 0',
+    command,
+    '$__ow_succeeded = $?',
+    '$__ow_nativeExit = $global:LASTEXITCODE',
+    'if ($__ow_succeeded) { exit 0 }',
+    // The command's final statement determines whether LASTEXITCODE belongs to that failure.
+    `$__ow_statement = $MyInvocation.MyCommand.ScriptBlock.Ast.EndBlock.Statements | Where-Object { $_.Extent.EndLineNumber -le ${lastUserLine} } | Select-Object -Last 1`,
+    'if ($__ow_statement -is [System.Management.Automation.Language.PipelineAst]) {',
+    '  $__ow_last = $__ow_statement.PipelineElements[-1]',
+    '  if ($__ow_last -is [System.Management.Automation.Language.CommandAst]) {',
+    '    $__ow_name = $__ow_last.GetCommandName()',
+    '    if ($__ow_name) {',
+    '      $__ow_info = Get-Command -Name $__ow_name -ErrorAction SilentlyContinue | Select-Object -First 1',
+    '      while ($__ow_info -is [System.Management.Automation.AliasInfo]) { $__ow_info = $__ow_info.ResolvedCommand }',
+    '      if ($__ow_info.CommandType -eq [System.Management.Automation.CommandTypes]::Application -and $__ow_nativeExit -ne 0) { exit $__ow_nativeExit }',
+    '    }',
+    '  }',
+    '}',
+    'exit 1',
+  ].join('\n')
+}
+
 async function processCommand(
   invocation: ResolvedActionInvocation,
   environment: Readonly<Record<string, string>>,
@@ -137,12 +162,7 @@ async function processCommand(
   if (name.includes('powershell') || name === 'pwsh' || name === 'pwsh.exe')
     return {
       command,
-      args: [
-        '-NoLogo',
-        '-NonInteractive',
-        '-Command',
-        `$global:LASTEXITCODE = 0\n${invocation.command}\nif ($?) { exit 0 }; if ($global:LASTEXITCODE -ne 0) { exit $global:LASTEXITCODE }; exit 1`,
-      ],
+      args: ['-NoLogo', '-NonInteractive', '-Command', powerShellActionCommand(invocation.command)],
     }
   return { command, args: ['-c', invocation.command] }
 }
