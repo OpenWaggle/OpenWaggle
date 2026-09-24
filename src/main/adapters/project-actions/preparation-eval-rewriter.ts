@@ -9,10 +9,12 @@ function keepsCommandPosition(word) {
 }
 function commandPrefix(word) {
   if (word == "command" || word == "\\command") return "command"
+  if (word == "builtin" || word == "\\builtin") return "builtin"
   return word == "time" ? "time" : ""
 }
 function supportedPrefixOption(prefix, word) {
   return (prefix == "command" && (word == "--" || word == "-p")) ||
+    (prefix == "builtin" && word == "--") ||
     (prefix == "time" && word == "-p")
 }
 function redirectionOperatorLength(code, cursor,    triple, double, character) {
@@ -61,7 +63,7 @@ function isEvalCommandPosition(prefix,    cursor, character, following, quote, w
         else {
           option = supportedPrefixOption(prefixCommand, word)
           expected = expected && (option || keepsCommandPosition(word))
-          if (option && word == "--") prefixCommand = "command-end-options"
+          if (option && word == "--") prefixCommand = prefixCommand "-end-options"
           else if (!option) prefixCommand = commandPrefix(word)
         }
       }
@@ -75,7 +77,7 @@ function isEvalCommandPosition(prefix,    cursor, character, following, quote, w
         else if (word !~ /^[0-9]+$/) {
           option = supportedPrefixOption(prefixCommand, word)
           expected = expected && (option || keepsCommandPosition(word))
-          if (option && word == "--") prefixCommand = "command-end-options"
+          if (option && word == "--") prefixCommand = prefixCommand "-end-options"
           else if (!option) prefixCommand = commandPrefix(word)
         }
       }

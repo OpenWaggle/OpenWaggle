@@ -11,16 +11,18 @@ function keepsCommandPosition(word: string) {
   )
 }
 
-type CommandPrefix = 'command' | 'command-end-options' | 'time'
+type CommandPrefix = 'builtin' | 'builtin-end-options' | 'command' | 'command-end-options' | 'time'
 
 function commandPrefix(word: string): CommandPrefix | undefined {
   if (word === 'command' || word === '\\command') return 'command'
+  if (word === 'builtin' || word === '\\builtin') return 'builtin'
   return word === 'time' ? 'time' : undefined
 }
 
 function isSupportedPrefixOption(prefix: CommandPrefix | undefined, word: string) {
   return (
     (prefix === 'command' && (word === '--' || word === '-p')) ||
+    (prefix === 'builtin' && word === '--') ||
     (prefix === 'time' && word === '-p')
   )
 }
@@ -64,7 +66,8 @@ function finishEvalPrefixWord(state: EvalPrefixState) {
     else {
       const option = isSupportedPrefixOption(state.prefix, state.word)
       state.commandPosition = state.commandPosition && (option || keepsCommandPosition(state.word))
-      if (option && state.word === '--') state.prefix = 'command-end-options'
+      if (option && state.word === '--')
+        state.prefix = state.prefix === 'builtin' ? 'builtin-end-options' : 'command-end-options'
       if (!option) state.prefix = commandPrefix(state.word)
     }
   }
