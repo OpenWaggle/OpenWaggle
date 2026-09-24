@@ -98,16 +98,30 @@ export function getProjectPreferencesOperation(rawProjectPath: unknown) {
 }
 
 /**
- * Deletes a removed project's selected model entry. The path is canonicalized here so removal
- * works regardless of the alias the caller spells, and the queue-safe writer keeps the delete
- * serialized against model writes.
- */
-/**
  * Removes one project's stored model. The project directory may already be gone — moved or deleted
  * outside OpenWaggle — so canonicalization is best-effort: an existing directory resolves through
  * realpath (matching the keys persist operations write), a missing one falls back to the given
  * absolute path, and both candidate keys are cleaned up.
  */
+function clearProjectModelEntry(
+  settings: SettingsServiceShape,
+  projectPath: string,
+  tombstone: boolean,
+) {
+  if (tombstone && settings.setProjectModel) return settings.setProjectModel(projectPath, null)
+  if (!tombstone && settings.removeProjectModel) return settings.removeProjectModel(projectPath)
+  return Effect.gen(function* () {
+    const current = yield* settings.get()
+    const rest = { ...current.selectedModelsByProject }
+    if (tombstone) {
+      rest[projectPath] = ''
+    } else {
+      delete rest[projectPath]
+    }
+    yield* settings.update({ selectedModelsByProject: rest })
+  })
+}
+
 export function removeProjectModelOperation(rawProjectPath: unknown) {
   return Effect.gen(function* () {
     const projectPath = typeof rawProjectPath === 'string' ? rawProjectPath.trim() : ''
@@ -118,26 +132,30 @@ export function removeProjectModelOperation(rawProjectPath: unknown) {
       fs.realpath(projectPath).catch(() => projectPath),
     )
     const settings = yield* SettingsService
-    // A legacy file model must not survive removal: the central write migrates it into the DB and
-    // strips it from the file, then the delete discards the entry so re-adding starts fresh.
-    // Projects without a settings file (or without a legacy model) skip the rewrite entirely, and
-    // a missing or unreadable file never blocks the database cleanup.
-    const filePrefs = yield* Effect.promise(() =>
-      getProjectPreferencesStrict(canonicalPath).catch(() => undefined),
+    // A legacy file model must not survive removal. While the settings file is readable the central
+    // write migrates the legacy value into the DB and strips it from the file; afterwards a plain
+    // delete is enough. When the file cannot be proven clean — unreadable, or readable but not
+    // rewritable — a tombstone suppresses the legacy fallback and any migrated value instead, so
+    // re-adding the project cannot restore the removed model.
+    const fileRead = yield* Effect.promise(() =>
+      getProjectPreferencesStrict(canonicalPath)
+        .then((prefs) => ({ readable: true as const, model: prefs?.model }))
+        .catch(() => ({ readable: false as const, model: undefined })),
     )
-    if (filePrefs?.model !== undefined) {
-      yield* Effect.promise(() => setProjectPreferences(canonicalPath, {}))
+    let tombstone = !fileRead.readable
+    if (fileRead.readable && fileRead.model !== undefined) {
+      const stripped = yield* Effect.promise(() =>
+        setProjectPreferences(canonicalPath, {}).then(
+          () => true,
+          () => false,
+        ),
+      )
+      tombstone = !stripped
     }
-    if (settings.removeProjectModel) {
-      yield* settings.removeProjectModel(canonicalPath)
-      if (canonicalPath !== projectPath) yield* settings.removeProjectModel(projectPath)
-      return canonicalPath
+    yield* clearProjectModelEntry(settings, canonicalPath, tombstone)
+    if (projectPath !== canonicalPath) {
+      yield* clearProjectModelEntry(settings, projectPath, false)
     }
-    const current = yield* settings.get()
-    const rest = { ...current.selectedModelsByProject }
-    delete rest[canonicalPath]
-    delete rest[projectPath]
-    yield* settings.update({ selectedModelsByProject: rest })
     return canonicalPath
   })
 }

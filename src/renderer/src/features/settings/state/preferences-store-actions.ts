@@ -31,6 +31,7 @@ const logger = createRendererLogger('preferences')
 const MAX_FAVORITE_MODELS = 100
 const MAX_RECENT_PROJECTS = 10
 let syntaxThemeWriteQueue = Promise.resolve()
+const pendingProjectPreferenceWrites = new Map<string, Promise<void>>()
 
 function mergeSettings(set: PreferencesSet, patch: Partial<Settings>) {
   set((state) => ({ settings: { ...state.settings, ...patch } }))
@@ -40,11 +41,21 @@ function persistProjectPreference(
   projectPath: string | null,
   prefs: { model?: string; thinkingLevel?: string },
 ) {
-  if (projectPath) {
-    api.setProjectPreferences(projectPath, prefs).catch((err: unknown) => {
+  if (!projectPath) return
+  const write = api
+    .setProjectPreferences(projectPath, prefs)
+    .then(() => undefined)
+    .catch((err: unknown) => {
       logger.warn('Failed to persist project preferences', { error: String(err) })
     })
-  }
+  // Removals await this promise so a deletion cannot overtake an in-flight model write and get
+  // resurrected by it afterwards.
+  const tracked = write.finally(() => {
+    if (pendingProjectPreferenceWrites.get(projectPath) === tracked) {
+      pendingProjectPreferenceWrites.delete(projectPath)
+    }
+  })
+  pendingProjectPreferenceWrites.set(projectPath, tracked)
 }
 
 function appendRecentProject(paths: readonly string[], path: string) {
@@ -292,6 +303,9 @@ export function createPreferencesActions(
       })
       // The stored model entry is deleted by the backend under its canonical path; the renderer
       // never submits the model map wholesale, so an aliased path cannot fork or clobber it.
+      // Any in-flight model write for this project is awaited first so the deletion cannot be
+      // overtaken by it and resurrected afterwards.
+      await pendingProjectPreferenceWrites.get(path)
       await api.removeProjectModel(path).catch((err: unknown) => {
         logger.warn('Failed to remove the stored project model', { error: String(err) })
       })

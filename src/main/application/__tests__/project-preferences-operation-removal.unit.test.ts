@@ -45,28 +45,31 @@ async function writeLegacyModelFile(projectPath: string) {
 
 describe('removeProjectModelOperation', () => {
   let removals: Array<string> | undefined
+  let modelWrites: Array<[string, string | null]> | undefined
 
   beforeEach(() => {
     mocks.setPreferences.mockReset().mockResolvedValue(undefined)
     removals = []
+    modelWrites = []
   })
 
-  const run = (rawProjectPath: unknown) =>
+  const run = (rawProjectPath: unknown, serviceOverrides: Record<string, unknown> = {}) =>
     Effect.runPromise(
       removeProjectModelOperation(rawProjectPath).pipe(
         Effect.provideService(SettingsService, {
           get: () => Effect.succeed(DEFAULT_SETTINGS),
           update: () => Effect.succeed(undefined),
-          ...(removals
-            ? {
-                removeProjectModel: (projectPath: string) =>
-                  Effect.sync(() => {
-                    removals?.push(projectPath)
-                  }),
-              }
-            : {}),
+          setProjectModel: (projectPath: string, model: string | null) =>
+            Effect.sync(() => {
+              modelWrites?.push([projectPath, model])
+            }),
+          removeProjectModel: (projectPath: string) =>
+            Effect.sync(() => {
+              removals?.push(projectPath)
+            }),
           initialize: () => Effect.succeed(undefined),
           flushForTests: () => Effect.succeed(undefined),
+          ...serviceOverrides,
         }),
       ),
     )
@@ -111,6 +114,54 @@ describe('removeProjectModelOperation', () => {
 
     expect(mocks.setPreferences).not.toHaveBeenCalled()
     expect(removals).toEqual([gonePath])
+  })
+
+  it('tombstones the entry when the settings file is unreadable', async () => {
+    const lockedPath = await tempProjectPath('openwaggle-legacy-model-')
+    await writeLegacyModelFile(lockedPath)
+    await fs.chmod(path.join(lockedPath, '.openwaggle', 'settings.json'), 0o000)
+
+    await run(lockedPath)
+
+    // The legacy value cannot be proven absent, so the tombstone must suppress the file fallback
+    // until the file can be retired.
+    expect(modelWrites).toEqual([[lockedPath, null]])
+    expect(removals).toEqual([])
+    await fs.chmod(path.join(lockedPath, '.openwaggle', 'settings.json'), 0o644)
+    await fs.rm(lockedPath, { recursive: true, force: true })
+  })
+
+  it('tombstones the entry when the legacy rewrite fails', async () => {
+    const legacyPath = await tempProjectPath('openwaggle-legacy-model-')
+    await writeLegacyModelFile(legacyPath)
+    mocks.setPreferences.mockRejectedValue(new Error('read-only media'))
+
+    await run(legacyPath)
+
+    // The failed rewrite may have migrated the legacy value into the DB and the file still holds
+    // it, so the tombstone must suppress both instead of a plain delete.
+    expect(modelWrites).toEqual([[legacyPath, null]])
+    expect(removals).toEqual([])
+    await fs.rm(legacyPath, { recursive: true, force: true })
+  })
+
+  it('falls back to direct map updates without the queue-safe writers', async () => {
+    const gonePath = await tempProjectPath('openwaggle-legacy-model-')
+    await fs.rm(gonePath, { recursive: true, force: true })
+    const updates: Array<Record<string, unknown>> = []
+
+    await run(gonePath, {
+      setProjectModel: undefined,
+      removeProjectModel: undefined,
+      update: (patch: Record<string, unknown>) =>
+        Effect.sync(() => {
+          updates.push(patch)
+        }),
+    })
+
+    expect(updates).toEqual([{ selectedModelsByProject: {} }])
+    expect(modelWrites).toEqual([])
+    expect(removals).toEqual([])
   })
 
   it('rejects relative paths without touching stored settings', async () => {

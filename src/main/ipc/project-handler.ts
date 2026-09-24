@@ -1,3 +1,4 @@
+import fs from 'node:fs/promises'
 import * as Effect from 'effect/Effect'
 import type { OpenDialogOptions } from 'electron'
 import { listGrantsForProject } from '../application/agent-authorization-grants'
@@ -32,7 +33,11 @@ export function registerProjectHandlers(): void {
         return null
       }
 
-      return result.filePaths[0] ?? null
+      const pickedPath = result.filePaths[0] ?? null
+      if (!pickedPath) return null
+      // Store the canonical path so later project-model reads, writes, and removals all key the
+      // same identity even when the user picked the folder through a symlink.
+      return yield* Effect.promise(() => fs.realpath(pickedPath).catch(() => pickedPath))
     }),
   )
 

@@ -6,12 +6,7 @@
  * writing them where `null` clears a key.
  */
 import type { AgentAuthorizationMode } from './agent-authorization'
-import type {
-  ProjectAction,
-  ProjectActionInput,
-  ProjectActionUpdate,
-  T3ProjectActionsDiscovery,
-} from './project-actions'
+import type { ActionManagementRequest, ActionManagementResult } from './action-management'
 
 /** Wire shape of the per-project agent overrides carried over IPC. */
 export interface ProjectPreferencesPayload {
@@ -33,6 +28,7 @@ export interface ProjectPreferencesUpdatePayload {
 }
 
 export interface OpenWaggleProjectConfigApi {
+  manageProjectActions(request: ActionManagementRequest): Promise<ActionManagementResult>
   selectProjectFolder(): Promise<string | null>
   getProjectPreferences(projectPath: string): Promise<ProjectPreferencesPayload | null>
   /** Resolves to the canonical (realpath) project path the write was stored under. */
@@ -40,19 +36,9 @@ export interface OpenWaggleProjectConfigApi {
     projectPath: string,
     preferences: ProjectPreferencesUpdatePayload,
   ): Promise<string>
-  /** Deletes a removed project's stored model entry; resolves to the canonical path removed. */
-  removeProjectModel(projectPath: string): Promise<string>
-  listProjectActions(projectPath: string): Promise<readonly ProjectAction[]>
-  addProjectAction(
+  /** Deletes a removed project's stored model entry; resolves to the canonical path removed. The surviving project references let the backend keep the entry while an equivalent reference exists. */
+  removeProjectModel(
     projectPath: string,
-    input: ProjectActionInput,
-  ): Promise<readonly ProjectAction[]>
-  updateProjectAction(
-    projectPath: string,
-    actionId: string,
-    update: ProjectActionUpdate,
-  ): Promise<readonly ProjectAction[]>
-  deleteProjectAction(projectPath: string, actionId: string): Promise<readonly ProjectAction[]>
-  discoverT3ProjectActions(projectPath: string): Promise<T3ProjectActionsDiscovery>
-  importT3ProjectAction(projectPath: string, sourceIndex: number): Promise<readonly ProjectAction[]>
+    remainingProjectPaths?: readonly string[],
+  ): Promise<string>
 }

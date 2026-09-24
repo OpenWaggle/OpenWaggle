@@ -110,6 +110,24 @@ describe('registerProjectHandlers', () => {
     expect(result).toBe('/tmp/project')
   })
 
+  it('canonicalizes the picked folder through symlinks', async () => {
+    const parent = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-pick-'))
+    const realDir = path.join(parent, 'real')
+    const aliasPath = path.join(parent, 'alias')
+    await fs.mkdir(realDir)
+    await fs.symlink(realDir, aliasPath)
+    fromWebContentsMock.mockReturnValue(null)
+    showOpenDialogMock.mockResolvedValue({ canceled: false, filePaths: [aliasPath] })
+
+    registerProjectHandlers()
+
+    const handler = getRegisteredHandler('project:select-folder')
+    const result = await handler?.({ sender: { id: 11 } })
+
+    expect(result).toBe(await fs.realpath(realDir))
+    await fs.rm(parent, { recursive: true, force: true })
+  })
+
   it('returns null when the dialog is cancelled', async () => {
     const sender = { id: 9 }
     fromWebContentsMock.mockReturnValue(null)
