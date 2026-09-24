@@ -281,12 +281,14 @@ export function createPreferencesActions(
       // disappears from the renderer state: if it fails, the entry stays visible and retryable
       // instead of silently abandoning the stored model.
       await awaitPendingProjectPreferenceWrites(path)
-      await api.removeProjectModel(path)
       const { settings } = get()
       const recentProjects = settings.recentProjects.filter((projectPath) => projectPath !== path)
       const { [path]: _displayName, ...projectDisplayNames } = settings.projectDisplayNames
       const { [path]: _skillToggles, ...skillTogglesByProject } = settings.skillTogglesByProject
       const projectPath = settings.projectPath === path ? null : settings.projectPath
+      // Surviving references that resolve to the same identity keep the stored model alive.
+      const remainingReferences = [...recentProjects, ...(projectPath ? [projectPath] : [])]
+      await api.removeProjectModel(path, remainingReferences)
       await api.updateSettings({
         projectPath,
         recentProjects,

@@ -52,7 +52,9 @@ function retireLegacyFileModel(candidate: string): Effect.Effect<boolean, never>
         .then((prefs) => ({ readable: true as const, model: prefs?.model }))
         .catch(() => ({ readable: false as const, model: undefined })),
     )
-    return after.readable && after.model !== undefined
+    // An unreadable confirmation means absence was not proven — keep the tombstone.
+    if (!after.readable) return true
+    return after.model !== undefined
   })
 }
 

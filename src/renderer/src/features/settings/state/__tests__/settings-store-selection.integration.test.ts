@@ -144,7 +144,8 @@ describe('preferences-store selection integration', () => {
     await awaitPendingProjectPreferenceWrites('/repo/b-alias')
     await usePreferencesStore.getState().removeProjectReferences('/repo/b-alias')
 
-    expect(apiMock.removeProjectModel).toHaveBeenCalledWith('/repo/b-alias')
+    // The canonical reference survives the alias removal, so the backend keeps the shared entry.
+    expect(apiMock.removeProjectModel).toHaveBeenCalledWith('/repo/b-alias', ['/repo/b'])
   })
 
   it('keeps shortcut state unchanged when main rejects a duplicate binding', async () => {
