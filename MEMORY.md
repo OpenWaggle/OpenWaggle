@@ -912,6 +912,8 @@ also preserve the next command position; consuming a redirection target must not
 escaped `eval` argument of a preceding command look like a new command.
 Treat a standalone `{` as a shell command prefix, but keep braces embedded in parameter and
 brace expansion words; those expansions must not turn an escaped `eval` argument into a command.
+An unquoted backslash-newline pair is removed before shell tokenization; prefix scanners must
+skip it without adding a word, whether `\eval` is the next command or an ordinary argument.
 Interrupted sharing journals pin the filesystem directory identity and durable Workspace resource.
 Recovery keeps a draft when the checkout is missing, replaced, or releasing; publication must never
 recreate a deleted checkout. Private preparation retains its profile metadata so a teammate removing

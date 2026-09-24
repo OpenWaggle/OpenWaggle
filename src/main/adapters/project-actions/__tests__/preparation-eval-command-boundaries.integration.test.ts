@@ -38,6 +38,22 @@ esac'; eval "$wrapper"`,
     variable: 'OW_BRACE_GROUP',
     command: String.raw`code='export OW_BRACE_GROUP=loaded; \exec /usr/bin/true'; wrapper='{ \eval "$code"; }'; eval "$wrapper"`,
   },
+  {
+    variable: 'OW_CONTINUED_EVAL',
+    command: `code='export OW_CONTINUED_EVAL=loaded; \\exec /usr/bin/true'; \\
+  \\eval "$code"`,
+  },
+  {
+    variable: 'OW_DYNAMIC_CONTINUED_EVAL',
+    command: `code='export OW_DYNAMIC_CONTINUED_EVAL=loaded; \\exec /usr/bin/true'; wrapper='\\
+  \\eval "$code"'; eval "$wrapper"`,
+  },
+  {
+    variable: 'OW_CONTINUED_ARGUMENT',
+    command: `code='export OW_CONTINUED_ARGUMENT=$(printf "%s" \\
+  \\eval); \\exec /usr/bin/true'; eval "$code"`,
+    expected: 'eval',
+  },
 ]
 
 describe.skipIf(process.platform === 'win32')('evaluated setup command boundaries', () => {

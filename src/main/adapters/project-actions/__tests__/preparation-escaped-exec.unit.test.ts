@@ -152,4 +152,13 @@ esac`,
       command.replace(String.raw`{ \eval "$code"; }`, '{ __ow_eval "$code"; }'),
     )
   })
+
+  it('recognizes escaped eval after a continued newline', () => {
+    const command = `code='export READY=yes; \\exec /usr/bin/true'; \\
+  \\eval "$code"`
+    expect(enableEscapedExecCapture(command)).toBe(command.replace(String.raw`\eval`, '__ow_eval'))
+    const argument = `printf '%s' \\
+  \\eval`
+    expect(enableEscapedExecCapture(argument)).toBe(argument)
+  })
 })

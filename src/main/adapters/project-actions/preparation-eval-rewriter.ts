@@ -33,6 +33,7 @@ function isEvalCommandPosition(prefix,    cursor, character, following, quote, w
       continue
     }
     if (character == "\\" && following != "") {
+      if (following == "\n") { cursor++; continue }
       word = word character following
       cursor++
       continue
