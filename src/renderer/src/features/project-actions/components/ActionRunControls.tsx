@@ -13,6 +13,24 @@ import { openWorkspaceAction, openWorkspacePreview } from '@/shell/workspace-pan
 import { resolvedActionCommand } from '../lib/native-action-display'
 
 const REPAIR_OUTPUT_CHARACTERS = 12_000
+
+async function restartCurrentAction(scope: ActionManagementScope, run: ActionRun) {
+  const catalog = await api.manageProjectActions({ scope, operation: { type: 'catalog' } })
+  if (catalog.type !== 'catalog') throw new Error('Could not load the current action.')
+  const current = catalog.catalog.actions.find(({ definition }) => definition.id === run.action.id)
+  if (!current) throw new Error('This action is no longer available.')
+  return api.manageProjectActions({
+    scope,
+    operation: {
+      type: 'start',
+      actionId: current.definition.id,
+      expectedExecutionKey: actionExecutionKey(current.definition),
+      requestId: crypto.randomUUID(),
+      restartRunId: run.id,
+    },
+  })
+}
+
 export function ActionRunControls(props: {
   readonly scope: ActionManagementScope
   readonly run: ActionRun
@@ -33,19 +51,10 @@ export function ActionRunControls(props: {
     }
   }
   async function operate(operation: 'stop' | 'restart') {
-    const result = await api.manageProjectActions({
-      scope,
-      operation:
-        operation === 'stop'
-          ? { type: 'stop', runId: run.id }
-          : {
-              type: 'start',
-              actionId: run.action.id,
-              expectedExecutionKey: actionExecutionKey(run.action),
-              requestId: crypto.randomUUID(),
-              restartRunId: run.id,
-            },
-    })
+    const result =
+      operation === 'restart'
+        ? await restartCurrentAction(scope, run)
+        : await api.manageProjectActions({ scope, operation: { type: 'stop', runId: run.id } })
     if (result.type === 'run' && scope.sessionId)
       openWorkspaceAction(scope.sessionId, scope.projectPath, result.run.id)
   }

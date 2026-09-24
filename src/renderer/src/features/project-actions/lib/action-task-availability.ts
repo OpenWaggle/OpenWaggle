@@ -3,14 +3,21 @@ import type {
   ProjectTaskDiscovery,
   ProjectTaskReference,
 } from '@shared/types/action-definitions'
+import { ACTION_DEFINITION_LIMITS } from '@shared/types/action-definitions'
 export function actionTaskUnavailable(
   invocation: ActionInvocation,
   discovery: ProjectTaskDiscovery | undefined,
 ): string | undefined {
   if (invocation.type !== 'task' || !discovery) return undefined
   const task = findDiscoveredTask(invocation.task, discovery)
-  // Discovery is capped; absence from its page is not proof that a saved task is gone.
-  return task?.unavailableReason
+  if (task) return task.unavailableReason
+  // A capped or diagnostic-bearing result cannot prove that the saved task was removed.
+  if (
+    discovery.tasks.length >= ACTION_DEFINITION_LIMITS.DISCOVERED_TASKS ||
+    discovery.diagnostics.length
+  )
+    return undefined
+  return 'This saved task is no longer available in the workspace.'
 }
 
 export function findDiscoveredTask(

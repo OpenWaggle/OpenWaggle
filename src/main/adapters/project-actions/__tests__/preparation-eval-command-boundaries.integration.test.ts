@@ -1,3 +1,4 @@
+import { spawnSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -8,7 +9,9 @@ import { createPreparationExecutor } from '../preparation-process'
 
 const shells = ['/bin/bash', '/bin/zsh', '/bin/sh', '/bin/dash', '/bin/ksh', '/bin/mksh']
 const arithmeticShells = ['/bin/bash', '/bin/zsh', '/bin/ksh', '/bin/mksh']
-const localeQuoteShells = ['/bin/bash', '/bin/sh', '/bin/ksh', '/bin/mksh']
+const localeQuoteShells = ['/bin/bash', '/bin/sh', '/bin/ksh', '/bin/mksh'].filter(
+  (shell) => existsSync(shell) && spawnSync(shell, ['-c', '$"ev"al "exit 42"']).status === 42,
+)
 
 const cases: {
   variable: string

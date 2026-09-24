@@ -1110,6 +1110,13 @@ expansion and replace the shell before its success handler runs. Treat such snap
 provisional: accept an environment export only after the handler completes or a known
 literal exec path marks the export verified. Reject a successful process exit with only
 the provisional snapshot rather than silently persisting stale preparation values.
+Shell feature tests must probe the actual shell executable. `/bin/sh` supports Bash
+locale-quoted words on macOS but is dash on Ubuntu CI, where the same syntax exits 127.
+Restart uses the current catalog action, since a retained run stores its historical
+definition; submit the current execution key and let Host preflight catch edits that race
+the restart. A saved task missing from a complete discovery result is unavailable in the
+menu. Missing tasks in capped or diagnostic-bearing discovery remain undecided until a
+direct launch resolves the reference.
 PowerShell call-operator targets can be member expressions
 such as `& $commands.main`; resolve only inert variable, constant, index, and note-property
 AST shapes when classifying the final command, without reevaluating user code or borrowing an

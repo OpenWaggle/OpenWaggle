@@ -3,7 +3,7 @@ import { actionExecutionKey } from '@shared/utils/action-execution-key'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useComposerStore } from '@/features/composer/state'
-import { TEST_ACTION } from './native-action-fixtures'
+import { actionCatalog, TEST_ACTION } from './native-action-fixtures'
 
 const mocks = vi.hoisted(() => ({ manage: vi.fn(), draft: vi.fn(), open: vi.fn(), copy: vi.fn() }))
 vi.mock('@/shared/lib/ipc', () => ({
@@ -86,8 +86,18 @@ describe('Action run controls', () => {
     })
     expect(screen.getByRole('button', { name: 'Restart' })).toBeDisabled()
   })
-  it('binds Restart to the action revision shown in the run details', async () => {
-    mocks.manage.mockResolvedValue({ type: 'run', run })
+  it('restarts the current action definition after the saved action changes', async () => {
+    const edited = {
+      ...TEST_ACTION,
+      invocation: { type: 'command' as const, command: 'pnpm check', directory: '.' },
+    }
+    const catalog = actionCatalog()
+    mocks.manage
+      .mockResolvedValueOnce({
+        type: 'catalog',
+        catalog: { ...catalog, actions: [{ source: 'local', definition: edited }] },
+      })
+      .mockResolvedValueOnce({ type: 'run', run })
     render(<ActionRunControls scope={scope} run={{ ...run, status: 'failed' }} output="" />)
     fireEvent.click(screen.getByRole('button', { name: 'Restart' }))
     await waitFor(() =>
@@ -96,12 +106,24 @@ describe('Action run controls', () => {
         operation: {
           type: 'start',
           actionId: TEST_ACTION.id,
-          expectedExecutionKey: actionExecutionKey(TEST_ACTION),
+          expectedExecutionKey: actionExecutionKey(edited),
           requestId: expect.any(String),
           restartRunId: run.id,
         },
       }),
     )
+    expect(mocks.manage).toHaveBeenNthCalledWith(1, { scope, operation: { type: 'catalog' } })
+    expect(mocks.open).toHaveBeenCalledWith('session', '/repo', 'run-one')
+  })
+  it('does not restart a deleted action', async () => {
+    mocks.manage.mockResolvedValue({
+      type: 'catalog',
+      catalog: { ...actionCatalog(), actions: [] },
+    })
+    render(<ActionRunControls scope={scope} run={{ ...run, status: 'failed' }} output="" />)
+    fireEvent.click(screen.getByRole('button', { name: 'Restart' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('no longer available')
+    expect(mocks.manage).toHaveBeenCalledTimes(1)
   })
   it('prepares a repair request without sending or discarding the existing composer draft', () => {
     useComposerStore.setState({ input: 'Keep this draft' })
