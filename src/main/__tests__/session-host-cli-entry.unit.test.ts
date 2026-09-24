@@ -107,11 +107,7 @@ vi.mock('../store/settings', () => ({
   initializeSettingsStore: mocks.initializeSettings,
 }))
 
-import {
-  startSessionHostCliIfRequested,
-  UNADOPTABLE_HOST_SWEEP_INTERVAL_MS,
-  watchUnadoptableSessionHostEndpoint,
-} from '../session-host-cli-entry'
+import { startSessionHostCliIfRequested } from '../session-host-cli-entry'
 
 describe('detached Session Host startup', () => {
   afterEach(() => {
