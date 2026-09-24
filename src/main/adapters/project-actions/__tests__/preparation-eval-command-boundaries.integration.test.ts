@@ -22,6 +22,16 @@ const cases: { variable: string; command: string; expected?: string }[] = [
     command: `code=$(cat <<'SCRIPT'\ncat <<${delimiter} > literal.txt\nex\\ec\nEOF\nSCRIPT\n); eval "$code"; export OW_HEREDOC_LITERAL=$(cat literal.txt); \\exec /usr/bin/true`,
     expected: String.raw`ex\ec`,
   })),
+  ...(["'END.JSON'", '"END.JSON"', String.raw`\END.JSON`] as const).map((delimiter) => ({
+    variable: 'OW_PUNCTUATED_HEREDOC',
+    command: `code=$(cat <<'SCRIPT'\ncat <<${delimiter} > literal.txt\nex\\ec literal\nEND.JSON\nSCRIPT\n); eval "$code"; export OW_PUNCTUATED_HEREDOC=$(cat literal.txt); \\exec /usr/bin/true`,
+    expected: String.raw`ex\ec literal`,
+  })),
+  {
+    variable: 'OW_MULTIPLE_PUNCTUATED_HEREDOCS',
+    command: `code=$(cat <<'SCRIPT'\ncat <<'ONE.JSON' > ignored.txt; cat <<'TWO.JSON' > literal.txt\nex\\ec ignored\nONE.JSON\nex\\ec literal\nTWO.JSON\nSCRIPT\n); eval "$code"; export OW_MULTIPLE_PUNCTUATED_HEREDOCS=$(cat literal.txt); \\exec /usr/bin/true`,
+    expected: String.raw`ex\ec literal`,
+  },
   {
     variable: 'OW_QUOTED_EVAL',
     command: String.raw`code='export OW_QUOTED_EVAL=loaded; \exec /usr/bin/true'; e"va"l "$code"`,

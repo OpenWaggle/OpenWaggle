@@ -130,25 +130,46 @@ function quotedBuiltinWordLength(code, start, name,    cursor, character, follow
   }
   return quote == "" && quoted && word == name ? cursor - start : 0
 }
-function heredocAt(code, start,    rest, prefix, body, quote, delimiter) {
+function heredocAt(code, start,    rest, prefix, cursor, character, following, quote, delimiter, sawWord) {
+  foundHeredoc = 0
   if (substr(code, start, 2) != "<<" || substr(code, start - 1, 1) == "<" ||
       substr(code, start, 3) == "<<<") return ""
   rest = substr(code, start)
   if (!match(rest, /^<<-?[ \t]*/)) return ""
   prefix = substr(rest, 1, RLENGTH)
-  body = substr(rest, RLENGTH + 1)
-  quote = substr(body, 1, 1)
-  if (quote == "'" || quote == "\"") {
-    body = substr(body, 2)
-    if (!match(body, /^[[:alnum:]_-]+/)) return ""
-    delimiter = substr(body, 1, RLENGTH)
-    if (substr(body, RLENGTH + 1, 1) != quote) return ""
-  } else {
-    if (quote == "\\") body = substr(body, 2)
-    if (!match(body, /^[[:alnum:]_-]+/)) return ""
-    delimiter = substr(body, 1, RLENGTH)
+  cursor = RLENGTH + 1
+  quote = ""
+  delimiter = ""
+  sawWord = 0
+  for (; cursor <= length(rest); cursor++) {
+    character = substr(rest, cursor, 1)
+    following = substr(rest, cursor + 1, 1)
+    if (quote == "'") {
+      if (character == "'") quote = ""
+      else delimiter = delimiter character
+      continue
+    }
+    if (quote == "\"") {
+      if (character == "\"") quote = ""
+      else if (character == "\\" && following != "" &&
+          (following == "$" || following == "\"" || following == "\\" ||
+           following == sprintf("%c", 96) || following == "\n")) {
+        if (following != "\n") delimiter = delimiter following
+        cursor++
+      } else delimiter = delimiter character
+      continue
+    }
+    if (character ~ /[[:space:];&|<>()]/) break
+    sawWord = 1
+    if (character == "'" || character == "\"") quote = character
+    else if (character == "\\" && following != "") {
+      if (following != "\n") delimiter = delimiter following
+      cursor++
+    } else delimiter = delimiter character
   }
+  if (!sawWord || quote != "") return ""
   pendingStripTabs = substr(prefix, 3, 1) == "-"
+  foundHeredoc = 1
   return delimiter
 }
 BEGIN { RS = sprintf("%c", 28) }
@@ -158,7 +179,9 @@ BEGIN { RS = sprintf("%c", 28) }
   comment = 0
   previous = ""
   heredoc = ""
-  pendingHeredoc = ""
+  heredocActive = 0
+  pendingCount = 0
+  pendingHead = 1
   lineStart = 1
   for (i = 1; i <= length(code); i++) {
     character = substr(code, i, 1)
@@ -177,15 +200,16 @@ BEGIN { RS = sprintf("%c", 28) }
       continue
     }
     if (character == "\n") {
-      if (heredoc != "") {
+      if (heredocActive) {
         line = substr(code, lineStart, i - lineStart)
         if (stripTabs) sub(/^\t+/, "", line)
-        if (line == heredoc) heredoc = ""
+        if (line == heredoc) heredocActive = 0
       }
-      if (heredoc == "" && pendingHeredoc != "") {
-        heredoc = pendingHeredoc
-        stripTabs = pendingStripTabs
-        pendingHeredoc = ""
+      if (!heredocActive && pendingHead <= pendingCount) {
+        heredoc = pendingDelimiters[pendingHead]
+        stripTabs = pendingTabs[pendingHead]
+        heredocActive = 1
+        pendingHead++
       }
       lineStart = i + 1
       comment = 0
@@ -193,7 +217,7 @@ BEGIN { RS = sprintf("%c", 28) }
       previous = character
       continue
     }
-    if (heredoc != "") { printf "%s", character; previous = character; continue }
+    if (heredocActive) { printf "%s", character; previous = character; continue }
     if (comment) { printf "%s", character; previous = character; continue }
     evalLength = quotedBuiltinWordLength(code, i, "eval")
     execLength = quotedBuiltinWordLength(code, i, "exec")
@@ -210,7 +234,11 @@ BEGIN { RS = sprintf("%c", 28) }
     else if (character == "#" && (i == 1 || previous ~ /[[:space:];&|(){}]/)) comment = 1
     else if (character == "<" && following == "<") {
       delimiter = heredocAt(code, i)
-      if (delimiter != "") pendingHeredoc = delimiter
+      if (foundHeredoc) {
+        pendingCount++
+        pendingDelimiters[pendingCount] = delimiter
+        pendingTabs[pendingCount] = pendingStripTabs
+      }
     }
     else if (character == "\\" && (i == 1 || previous !~ /[[:alnum:]_\\]/)) {
       rest = substr(code, i + 1)

@@ -60,6 +60,18 @@ describe('escaped exec capture', () => {
     )
   })
 
+  it('preserves command-looking text under punctuated quoted heredoc delimiters', () => {
+    const command = [
+      "cat <<'END.JSON'",
+      String.raw`ex\ec literal`,
+      'END.JSON',
+      String.raw`export READY=yes; ex\ec /usr/bin/true`,
+    ].join('\n')
+    expect(enableEscapedExecCapture(command)).toBe(
+      command.replace(String.raw`ex\ec /usr/bin/true`, 'exec /usr/bin/true'),
+    )
+  })
+
   it('does not mistake a here-string for a heredoc', () => {
     expect(enableEscapedExecCapture('cat <<< value\n\\exec /usr/bin/true')).toBe(
       'cat <<< value\nexec /usr/bin/true',

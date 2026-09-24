@@ -1,9 +1,6 @@
+import { heredocAt } from './preparation-heredoc'
 import { quotedBuiltinWordLength } from './preparation-quoted-builtin'
 
-const HEREDOC_START_END_OFFSET = 2
-const HEREDOC_QUOTED_GROUP = 2
-const HEREDOC_ESCAPED_GROUP = 3
-const HEREDOC_PLAIN_GROUP = 4
 const REDIRECTION_DOUBLE_LENGTH = 2
 const REDIRECTION_TRIPLE_LENGTH = 3
 
@@ -158,19 +155,6 @@ function isEscapedExecPrefix(command: string, index: number) {
 
 function isCommentStart(command: string, index: number) {
   return command[index] === '#' && (index === 0 || /[\s;&|(){}]/.test(command[index - 1]))
-}
-
-function heredocAt(command: string, index: number) {
-  if (command[index] !== '<' || command[index + 1] !== '<') return undefined
-  if (command[index - 1] === '<' || command[index + HEREDOC_START_END_OFFSET] === '<')
-    return undefined
-  const match = /^<<(-?)\s*(?:['"]([\w-]+)['"]|\\([\w-]+)|([\w-]+))/.exec(command.slice(index))
-  if (!match) return undefined
-  return {
-    delimiter:
-      match[HEREDOC_QUOTED_GROUP] ?? match[HEREDOC_ESCAPED_GROUP] ?? match[HEREDOC_PLAIN_GROUP],
-    stripTabs: match[1] === '-',
-  }
 }
 
 function visitNewline(command: string, index: number, state: ScanState) {

@@ -1081,6 +1081,10 @@ PowerShell `CommandAst.GetCommandName()` is empty for a final `& $exe` invocatio
 variable command name from the current script scope before deciding whether its failure owns
 `$LASTEXITCODE`. Setup capture needs the same final-statement distinction as custom actions so a
 later failing cmdlet cannot inherit an earlier native exit code.
+The call operator can also target an indexed command name such as `& $commands[0]`; classify the
+selected command before using `$LASTEXITCODE`. POSIX heredoc delimiters are shell words, not
+identifier tokens: strip their quotes and escapes in both the static and evaluated-command scanners,
+including punctuation such as `<<'END.JSON'`, and queue multiple pending heredocs.
 
 Action run output cursors cannot be recovered from retained log length after scrollback
 compaction: the Host may flush the log before its throttled SQLite `outputBytes` update. Journal
