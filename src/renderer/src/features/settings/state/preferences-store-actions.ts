@@ -37,24 +37,65 @@ function mergeSettings(set: PreferencesSet, patch: Partial<Settings>) {
   set((state) => ({ settings: { ...state.settings, ...patch } }))
 }
 
+/**
+ * Re-keys the renderer's per-project state from an aliased path to the canonical identity the
+ * backend reports, so later reads, writes, and removals all address the same entry.
+ */
+async function reconcileProjectIdentity(
+  requestedPath: string,
+  canonicalPath: string,
+  set: PreferencesSet,
+  get: PreferencesGet,
+) {
+  const { settings } = get()
+  const remapPath = (path: string) => (path === requestedPath ? canonicalPath : path)
+  const projectDisplayNames = { ...settings.projectDisplayNames }
+  if (requestedPath in projectDisplayNames) {
+    projectDisplayNames[canonicalPath] = projectDisplayNames[requestedPath]
+    delete projectDisplayNames[requestedPath]
+  }
+  const skillTogglesByProject = { ...settings.skillTogglesByProject }
+  if (requestedPath in skillTogglesByProject) {
+    skillTogglesByProject[canonicalPath] = skillTogglesByProject[requestedPath]
+    delete skillTogglesByProject[requestedPath]
+  }
+  const patch: Partial<Settings> = {
+    recentProjects: settings.recentProjects.map(remapPath),
+    projectDisplayNames,
+    skillTogglesByProject,
+    ...(settings.projectPath === requestedPath ? { projectPath: canonicalPath } : {}),
+  }
+  const result = await api.updateSettings(patch)
+  if (!result.ok) throw new Error(result.error)
+  mergeSettings(set, patch)
+}
+
 function persistProjectPreference(
   projectPath: string | null,
   prefs: { model?: string; thinkingLevel?: string },
+  set: PreferencesSet,
+  get: PreferencesGet,
 ) {
   if (!projectPath) return
-  const write = api
-    .setProjectPreferences(projectPath, prefs)
-    .then(() => undefined)
+  // Writes for one project are chained so a removal that awaits the latest tracked promise also
+  // waits for every earlier in-flight write; each Host-backed invocation uses a separate
+  // connection, so ordering is not guaranteed without this.
+  const previous = pendingProjectPreferenceWrites.get(projectPath)
+  const tracked = (previous ?? Promise.resolve())
+    .then(() => api.setProjectPreferences(projectPath, prefs))
+    .then(async (canonicalPath) => {
+      if (canonicalPath && canonicalPath !== projectPath) {
+        await reconcileProjectIdentity(projectPath, canonicalPath, set, get)
+      }
+    })
     .catch((err: unknown) => {
       logger.warn('Failed to persist project preferences', { error: String(err) })
     })
-  // Removals await this promise so a deletion cannot overtake an in-flight model write and get
-  // resurrected by it afterwards.
-  const tracked = write.finally(() => {
-    if (pendingProjectPreferenceWrites.get(projectPath) === tracked) {
-      pendingProjectPreferenceWrites.delete(projectPath)
-    }
-  })
+    .finally(() => {
+      if (pendingProjectPreferenceWrites.get(projectPath) === tracked) {
+        pendingProjectPreferenceWrites.delete(projectPath)
+      }
+    })
   pendingProjectPreferenceWrites.set(projectPath, tracked)
 }
 
@@ -115,7 +156,7 @@ async function setEnabledModels(models: string[], set: PreferencesSet, get: Pref
   await api.setEnabledModels(enabledModels)
   if (selectedModel !== settings.selectedModel) {
     await api.updateSettings({ selectedModel })
-    persistProjectPreference(settings.projectPath, { model: selectedModel })
+    persistProjectPreference(settings.projectPath, { model: selectedModel }, set, get)
   }
   mergeSettings(set, { enabledModels, selectedModel })
 }
@@ -222,7 +263,7 @@ export function createPreferencesActions(
       const { settings } = get()
       await api.updateSettings({ selectedModel: model })
       mergeSettings(set, { selectedModel: model })
-      persistProjectPreference(settings.projectPath, { model })
+      persistProjectPreference(settings.projectPath, { model }, set, get)
     },
     toggleFavoriteModel: async (model) => {
       const trimmed = model.trim()
@@ -258,7 +299,7 @@ export function createPreferencesActions(
       const { settings } = get()
       await api.updateSettings({ thinkingLevel: preset })
       mergeSettings(set, { thinkingLevel: preset })
-      persistProjectPreference(settings.projectPath, { thinkingLevel: preset })
+      persistProjectPreference(settings.projectPath, { thinkingLevel: preset }, set, get)
     },
     setEnabledModels: (models) => setEnabledModels(models, set, get),
     setProjectDisplayName: async (path, name) => {
@@ -284,6 +325,12 @@ export function createPreferencesActions(
       mergeSettings(set, { projectDisplayNames })
     },
     removeProjectReferences: async (path) => {
+      // Any in-flight model write for this project is awaited first so the deletion cannot be
+      // overtaken by it and resurrected afterwards. The deletion itself runs BEFORE the project
+      // disappears from the renderer state: if it fails, the entry stays visible and retryable
+      // instead of silently abandoning the stored model.
+      await pendingProjectPreferenceWrites.get(path)
+      await api.removeProjectModel(path)
       const { settings } = get()
       const recentProjects = settings.recentProjects.filter((projectPath) => projectPath !== path)
       const { [path]: _displayName, ...projectDisplayNames } = settings.projectDisplayNames
@@ -300,14 +347,6 @@ export function createPreferencesActions(
         recentProjects,
         projectDisplayNames,
         skillTogglesByProject,
-      })
-      // The stored model entry is deleted by the backend under its canonical path; the renderer
-      // never submits the model map wholesale, so an aliased path cannot fork or clobber it.
-      // Any in-flight model write for this project is awaited first so the deletion cannot be
-      // overtaken by it and resurrected afterwards.
-      await pendingProjectPreferenceWrites.get(path)
-      await api.removeProjectModel(path).catch((err: unknown) => {
-        logger.warn('Failed to remove the stored project model', { error: String(err) })
       })
     },
     loadProjectPreferences: (projectPath) => loadProjectPreferences(projectPath, set),
