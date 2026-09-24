@@ -58,7 +58,8 @@ function isEvalCommandPosition(prefix,    cursor, character, following, quote, w
         else {
           option = supportedPrefixOption(prefixCommand, word)
           expected = expected && (option || keepsCommandPosition(word))
-          if (!option) prefixCommand = commandPrefix(word)
+          if (option && word == "--") prefixCommand = "command-end-options"
+          else if (!option) prefixCommand = commandPrefix(word)
         }
       }
       word = ""
@@ -71,7 +72,8 @@ function isEvalCommandPosition(prefix,    cursor, character, following, quote, w
         else if (word !~ /^[0-9]+$/) {
           option = supportedPrefixOption(prefixCommand, word)
           expected = expected && (option || keepsCommandPosition(word))
-          if (!option) prefixCommand = commandPrefix(word)
+          if (option && word == "--") prefixCommand = "command-end-options"
+          else if (!option) prefixCommand = commandPrefix(word)
         }
       }
       word = ""
@@ -201,6 +203,7 @@ BEGIN { RS = sprintf("%c", 28) }
   quote = ""
   comment = 0
   previous = ""
+  arithmeticDepth = 0
   heredoc = ""
   heredocActive = 0
   pendingCount = 0
@@ -242,6 +245,23 @@ BEGIN { RS = sprintf("%c", 28) }
     }
     if (heredocActive) { printf "%s", character; previous = character; continue }
     if (comment) { printf "%s", character; previous = character; continue }
+    if (arithmeticDepth > 0) {
+      printf "%s", character
+      if (character == "\\" && following != "") {
+        printf "%s", following; i++; previous = following; continue
+      }
+      if (character == "(") arithmeticDepth++
+      else if (character == ")") arithmeticDepth--
+      previous = character
+      continue
+    }
+    if (substr(code, i, 3) == "$((") {
+      arithmeticDepth = 2
+      printf "$(("
+      i += 2
+      previous = "("
+      continue
+    }
     evalLength = quotedBuiltinWordLength(code, i, "eval")
     execLength = quotedBuiltinWordLength(code, i, "exec")
     if ((evalLength > 0 || execLength > 0) &&

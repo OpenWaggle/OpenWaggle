@@ -33,6 +33,16 @@ const cases: { variable: string; command: string; expected?: string }[] = [
     expected: String.raw`ex\ec literal`,
   },
   {
+    variable: 'OW_ARITHMETIC_SHIFT',
+    command: String.raw`export OW_ARITHMETIC_SHIFT=loaded; : $((1 << 2))
+ex\ec /usr/bin/true`,
+  },
+  {
+    variable: 'OW_DYNAMIC_ARITHMETIC_SHIFT',
+    command: String.raw`code='export OW_DYNAMIC_ARITHMETIC_SHIFT=loaded; : $((1 << 2))
+ex\ec /usr/bin/true'; eval "$code"`,
+  },
+  {
     variable: 'OW_QUOTED_EVAL',
     command: String.raw`code='export OW_QUOTED_EVAL=loaded; \exec /usr/bin/true'; e"va"l "$code"`,
   },
@@ -47,6 +57,14 @@ const cases: { variable: string; command: string; expected?: string }[] = [
   {
     variable: 'OW_COMMAND_DEFAULT_PATH_EVAL',
     command: String.raw`code='export OW_COMMAND_DEFAULT_PATH_EVAL=loaded; \exec /usr/bin/true'; command -p \eval "$code"`,
+  },
+  {
+    variable: 'OW_COMMAND_OPTIONS_COMBINED_EVAL',
+    command: String.raw`code='export OW_COMMAND_OPTIONS_COMBINED_EVAL=loaded; \exec /usr/bin/true'; command -p -- \eval "$code"`,
+  },
+  {
+    variable: 'OW_DYNAMIC_COMMAND_OPTIONS_COMBINED_EVAL',
+    command: String.raw`code='export OW_DYNAMIC_COMMAND_OPTIONS_COMBINED_EVAL=loaded; \exec /usr/bin/true'; wrapper='command -p -- \eval "$code"'; eval "$wrapper"`,
   },
   {
     variable: 'OW_DYNAMIC_QUOTED_EVAL',

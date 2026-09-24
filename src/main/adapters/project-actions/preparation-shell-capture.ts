@@ -4,6 +4,7 @@ import type { ResolvedActionInvocation } from '@shared/types/action-definitions'
 import { quotePosixShellArgument, quotePowerShellArgument } from '@shared/utils/shell-argument'
 import { resolveActionExecutablePath } from './action-process'
 import { powerShellFailureExitCode } from './powershell-failure-exit'
+import { commandOptionCases } from './preparation-command-option-cases'
 import { enableEscapedExecCapture } from './preparation-escaped-exec'
 import { runtimeEvalRewriter } from './preparation-eval-rewriter'
 import { runtimeFishEvalRewriter } from './preparation-fish-eval-rewriter'
@@ -92,12 +93,7 @@ const posixRunUserExitTrap = [
 const bashZshPrefixedBuiltins = [
   '__ow_command() {',
   'case "$1" in',
-  '--|-p) case "$2" in',
-  'trap) shift 2; trap "$@" ;;',
-  'exec) shift 2; command exec "$@" ;;',
-  'eval|__ow_eval) shift 2; __ow_eval "$@" ;;',
-  '*) command "$@" ;;',
-  'esac ;;',
+  ...commandOptionCases('trap'),
   'trap) shift; trap "$@" ;;',
   'exec) shift; command exec "$@" ;;',
   'eval) shift; __ow_eval "$@" ;;',
@@ -161,12 +157,7 @@ function shPrefixedCommand(name: string) {
   return [
     functionStart,
     'case "$1" in',
-    '--|-p) case "$2" in',
-    'trap) shift 2; __ow_trap "$@" ;;',
-    'exec) shift 2; command exec "$@" ;;',
-    'eval|__ow_eval) shift 2; __ow_eval "$@" ;;',
-    '*) command "$@" ;;',
-    'esac ;;',
+    ...commandOptionCases('__ow_trap'),
     'trap) shift; __ow_trap "$@" ;;',
     'exec) shift; command exec "$@" ;;',
     'eval) shift; __ow_eval "$@" ;;',

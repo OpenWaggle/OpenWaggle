@@ -72,6 +72,14 @@ describe('escaped exec capture', () => {
     )
   })
 
+  it('does not mistake an arithmetic left shift for a heredoc', () => {
+    const command = String.raw`export READY=yes; : $((1 << 2))
+ex\ec /usr/bin/true`
+    expect(enableEscapedExecCapture(command)).toBe(
+      command.replace(String.raw`ex\ec /usr/bin/true`, 'exec /usr/bin/true'),
+    )
+  })
+
   it('does not mistake a here-string for a heredoc', () => {
     expect(enableEscapedExecCapture('cat <<< value\n\\exec /usr/bin/true')).toBe(
       'cat <<< value\nexec /usr/bin/true',
@@ -186,14 +194,17 @@ esac`,
     const command = [
       String.raw`command -- \eval "$code"`,
       String.raw`command -p \eval "$code"`,
+      String.raw`command -p -- \eval "$code"`,
       String.raw`time -p \eval "$code"`,
       String.raw`printf -- \eval "$code"`,
       String.raw`command -v \eval "$code"`,
+      String.raw`command -- -p \eval "$code"`,
     ].join('\n')
     expect(enableEscapedExecCapture(command)).toBe(
       command
         .replaceAll(String.raw`command -- \eval`, 'command -- __ow_eval')
         .replaceAll(String.raw`command -p \eval`, 'command -p __ow_eval')
+        .replaceAll(String.raw`command -p -- \eval`, 'command -p -- __ow_eval')
         .replaceAll(String.raw`time -p \eval`, 'time -p __ow_eval'),
     )
   })

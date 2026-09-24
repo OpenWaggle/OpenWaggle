@@ -3,11 +3,14 @@ import { quotedBuiltinWordLength } from './preparation-quoted-builtin'
 
 const REDIRECTION_DOUBLE_LENGTH = 2
 const REDIRECTION_TRIPLE_LENGTH = 3
+const ARITHMETIC_START_LENGTH = 3
+const ARITHMETIC_OPEN_DEPTH = 2
 
 interface ScanState {
   result: string
   quote: 'single' | 'double' | undefined
   comment: boolean
+  arithmeticDepth: number
   pendingHeredocs: { delimiter: string; stripTabs: boolean }[]
   heredoc: { delimiter: string; stripTabs: boolean } | undefined
   lineStart: number
@@ -21,7 +24,7 @@ function keepsCommandPosition(word: string) {
   )
 }
 
-type CommandPrefix = 'command' | 'time'
+type CommandPrefix = 'command' | 'command-end-options' | 'time'
 
 function commandPrefix(word: string): CommandPrefix | undefined {
   if (word === 'command' || word === '\\command') return 'command'
@@ -74,6 +77,7 @@ function finishEvalPrefixWord(state: EvalPrefixState) {
     else {
       const option = isSupportedPrefixOption(state.prefix, state.word)
       state.commandPosition = state.commandPosition && (option || keepsCommandPosition(state.word))
+      if (option && state.word === '--') state.prefix = 'command-end-options'
       if (!option) state.prefix = commandPrefix(state.word)
     }
   }
@@ -246,6 +250,24 @@ function visitCommandWord(command: string, index: number, state: ScanState) {
   return undefined
 }
 
+function visitArithmetic(command: string, index: number, state: ScanState) {
+  const character = command[index]
+  if (state.arithmeticDepth > 0) {
+    state.result += character
+    if (character === '\\' && index + 1 < command.length) {
+      state.result += command[index + 1]
+      return index + 1
+    }
+    if (character === '(') state.arithmeticDepth += 1
+    if (character === ')') state.arithmeticDepth -= 1
+    return index
+  }
+  if (!command.startsWith('$((', index)) return undefined
+  state.arithmeticDepth = ARITHMETIC_OPEN_DEPTH
+  state.result += '$(('
+  return index + ARITHMETIC_START_LENGTH - 1
+}
+
 function visitCharacter(command: string, index: number, state: ScanState) {
   const character = command[index]
   if (state.quote) return visitQuote(command, index, state)
@@ -257,6 +279,8 @@ function visitCharacter(command: string, index: number, state: ScanState) {
     state.result += character
     return index
   }
+  const arithmetic = visitArithmetic(command, index, state)
+  if (arithmetic !== undefined) return arithmetic
   if (isCommentStart(command, index)) {
     state.comment = true
     state.result += character
@@ -279,6 +303,7 @@ export function enableEscapedExecCapture(command: string): string {
     result: '',
     quote: undefined,
     comment: false,
+    arithmeticDepth: 0,
     pendingHeredocs: [],
     heredoc: undefined,
     lineStart: 0,
