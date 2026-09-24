@@ -23,8 +23,7 @@ export interface ActionCatalogServiceShape {
   /** Host-only compensation for a failed workspace snapshot save. */
   readonly restorePreparationReview: (
     scope: ActionCatalogScope,
-    revision: string,
-    definitionId: string,
+    granted: PreparationReview,
     previous: PreparationReview | undefined,
   ) => Effect<ActionCatalog, Error>
   readonly discover: (workspacePath: string) => Effect<ProjectTaskDiscovery, Error>

@@ -2,6 +2,22 @@ import { describe, expect, it } from 'vitest'
 import { enableEscapedExecCapture } from '../preparation-escaped-exec'
 
 describe('escaped exec capture', () => {
+  it('exposes partially escaped exec only in command position', () => {
+    const command = [
+      String.raw`export READY=yes; ex\ec /usr/bin/true`,
+      String.raw`command e\xec /usr/bin/true`,
+      'ex"e"c /usr/bin/true',
+      String.raw`printf '%s' ex\ec`,
+      String.raw`# ex\ec in a comment`,
+      String.raw`printf '%s' 'ex\ec'`,
+    ].join('\n')
+    expect(enableEscapedExecCapture(command)).toBe(
+      command
+        .replace(String.raw`ex\ec /usr/bin/true`, 'exec /usr/bin/true')
+        .replace(String.raw`e\xec /usr/bin/true`, 'exec /usr/bin/true')
+        .replace('ex"e"c /usr/bin/true', 'exec /usr/bin/true'),
+    )
+  })
   it('exposes unquoted exec to the capture alias without changing literals or heredocs', () => {
     const command = [
       "printf '%s' '\\exec' \"\\exec\"",

@@ -102,6 +102,34 @@ function isEvalCommandPosition(prefix,    cursor, character, following, quote, w
   }
   return expected && word == "" && !redirectionTarget
 }
+function quotedExecWordLength(code, start,    cursor, character, following, quote, word, quoted) {
+  character = substr(code, start, 1)
+  if (character != "e" && character != "\\" && character != "'" && character != "\"") return 0
+  cursor = start
+  quote = ""
+  word = ""
+  quoted = 0
+  while (cursor <= length(code) && length(word) <= 4) {
+    character = substr(code, cursor, 1)
+    if (quote != "") {
+      if (character == quote) quote = ""
+      else if (quote == "\"" && character == "\\") return 0
+      else word = word character
+    } else if (character == "'" || character == "\"") {
+      quote = character
+      quoted = 1
+    } else if (character == "\\") {
+      following = substr(code, cursor + 1, 1)
+      if (following == "" || following == "\n") return 0
+      word = word following
+      quoted = 1
+      cursor++
+    } else if (character ~ /[[:space:]]/ || index(";&|()<>{}", character) > 0) break
+    else word = word character
+    cursor++
+  }
+  return quote == "" && quoted && word == "exec" ? cursor - start : 0
+}
 BEGIN { RS = sprintf("%c", 28) }
 {
   code = $0
@@ -146,6 +174,13 @@ BEGIN { RS = sprintf("%c", 28) }
       previous = character
       continue
     }
+    if ((execLength = quotedExecWordLength(code, i)) > 0 &&
+        isEvalCommandPosition(substr(code, lineStart, i - lineStart))) {
+      printf "exec"
+      i += execLength - 1
+      previous = "c"
+      continue
+    }
     if (character == "'") quote = "single"
     else if (character == "\"") quote = "double"
     else if (character == "#" && (i == 1 || previous ~ /[[:space:];&|(){}]/)) comment = 1
@@ -164,8 +199,7 @@ BEGIN { RS = sprintf("%c", 28) }
         printf "__ow_"
         continue
       }
-      if (rest ~ /^exec([^[:alnum:]_]|$)/ ||
-          rest ~ /^(command|builtin)[[:space:]]+exec([^[:alnum:]_]|$)/ ||
+      if (rest ~ /^(command|builtin)[[:space:]]+exec([^[:alnum:]_]|$)/ ||
           rest ~ /^(command|builtin)[[:space:]]+\\exec([^[:alnum:]_]|$)/) continue
     }
     printf "%s", character

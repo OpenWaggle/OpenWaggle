@@ -59,7 +59,7 @@ function posixRuntimeEvalCapture(evalBuiltin: 'builtin' | 'command') {
   return [
     '__ow_eval() {',
     'case "$*" in',
-    "*'\\exec'*|*'\\eval'*|*'\\command '*|*'\\builtin '*) ;;",
+    "*'\\'*|*'\"'*|*\"'\"*) ;;",
     `*) ${evalBuiltin} eval "$@"; return $? ;;`,
     'esac',
     '__ow_eval_code=$(',

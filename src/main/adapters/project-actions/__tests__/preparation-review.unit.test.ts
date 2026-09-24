@@ -2,6 +2,7 @@ import type { ActionCatalog, PreparationDefinition } from '@shared/types/action-
 import { fromPartial } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
 import { expect, it, vi } from 'vitest'
+import { preparationReview } from '../../../domain/preparation-review-context'
 import type { ActionCatalogServiceShape } from '../../../ports/action-catalog-service'
 import { rememberPreparationReview } from '../preparation-review'
 
@@ -21,7 +22,13 @@ it('remembers snapshot enablement for future workspaces only when current execut
     preparation: [{ definition, source: 'project', review: 'required' }],
   }
   const read = vi.fn(() => Effect.succeed(catalog))
-  const edit = vi.fn(() => Effect.succeed(catalog))
+  const granted = preparationReview(definition, true, 'Default')
+  const edit = vi.fn(() =>
+    Effect.succeed({
+      ...catalog,
+      preparation: [{ ...catalog.preparation[0], review: 'enabled' as const, previous: granted }],
+    }),
+  )
   const restorePreparationReview = vi.fn(() => Effect.succeed(catalog))
   const service = fromPartial<ActionCatalogServiceShape>({ read, edit, restorePreparationReview })
   const undo = await Effect.runPromise(
@@ -33,12 +40,7 @@ it('remembers snapshot enablement for future workspaces only when current execut
     enabled: true,
   })
   await undo?.()
-  expect(restorePreparationReview).toHaveBeenCalledExactlyOnceWith(
-    workspace,
-    'one',
-    'setup',
-    undefined,
-  )
+  expect(restorePreparationReview).toHaveBeenCalledExactlyOnceWith(workspace, granted, undefined)
   edit.mockClear()
   await Effect.runPromise(
     rememberPreparationReview(

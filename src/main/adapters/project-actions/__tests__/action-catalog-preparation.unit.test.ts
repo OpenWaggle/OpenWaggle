@@ -149,17 +149,66 @@ describe('native preparation catalog', () => {
       id: setup.id,
       enabled: true,
     })
-    const restored = await catalog.restorePreparationReview(
-      scope(),
-      approved.revision,
-      setup.id,
-      prior,
-    )
+    const granted = approved.preparation[0]?.previous
+    expect(granted).toBeDefined()
+    if (!granted) throw new Error('Missing approval under test')
+    const restored = await catalog.restorePreparationReview(scope(), granted, prior)
     expect(restored.preparation[0]).toMatchObject({ review: 'required', previous: prior })
-    await expect(
-      catalog.restorePreparationReview(scope(), approved.revision, setup.id, undefined),
-    ).rejects.toThrow('changed')
+    await expect(catalog.restorePreparationReview(scope(), granted, undefined)).rejects.toThrow(
+      'changed',
+    )
     expect(initiallyEnabled.preparation[0]?.review).toBe('enabled')
+  })
+
+  it('undoes a failed snapshot approval while retaining an unrelated catalog edit', async () => {
+    await shared({ ...EMPTY_ACTION_MANIFEST, preparation: [setup] })
+    const initial = await catalog.read(scope())
+    const approved = await catalog.edit(scope(), initial.revision, {
+      type: 'review-preparation',
+      id: setup.id,
+      enabled: true,
+    })
+    const granted = approved.preparation[0]?.previous
+    expect(granted).toBeDefined()
+    if (!granted) throw new Error('Missing approval under test')
+    const edited = await catalog.edit(scope(), approved.revision, {
+      type: 'save-action',
+      definition: {
+        id: 'unrelated',
+        name: 'Unrelated',
+        icon: 'test',
+        kind: 'task',
+        allowConcurrent: false,
+        autoOpenPreview: false,
+        invocation: { type: 'command', command: 'echo unrelated', directory: '.' },
+      },
+      storage: 'local',
+    })
+    const restored = await catalog.restorePreparationReview(scope(), granted, undefined)
+    expect(restored.preparation[0]?.review).toBe('required')
+    expect(restored.actions).toEqual(edited.actions)
+  })
+
+  it('does not undo a newer review of the same preparation definition', async () => {
+    await shared({ ...EMPTY_ACTION_MANIFEST, preparation: [setup] })
+    const initial = await catalog.read(scope())
+    const approved = await catalog.edit(scope(), initial.revision, {
+      type: 'review-preparation',
+      id: setup.id,
+      enabled: true,
+    })
+    const granted = approved.preparation[0]?.previous
+    expect(granted).toBeDefined()
+    if (!granted) throw new Error('Missing approval under test')
+    const newer = await catalog.edit(scope(), approved.revision, {
+      type: 'review-preparation',
+      id: setup.id,
+      enabled: false,
+    })
+    await expect(catalog.restorePreparationReview(scope(), granted, undefined)).rejects.toThrow(
+      'changed',
+    )
+    expect((await catalog.read(scope())).preparation).toEqual(newer.preparation)
   })
 
   it('renews review when a shared setup moves into the default profile', async () => {

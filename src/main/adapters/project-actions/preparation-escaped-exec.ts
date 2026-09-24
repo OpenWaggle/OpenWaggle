@@ -1,3 +1,5 @@
+import { quotedExecWordLength } from './preparation-exec-word'
+
 const HEREDOC_START_END_OFFSET = 2
 const HEREDOC_QUOTED_GROUP = 2
 const HEREDOC_ESCAPED_GROUP = 3
@@ -231,6 +233,22 @@ function visitOpeningQuote(command: string, index: number, state: ScanState) {
   return index
 }
 
+function visitCommandWord(command: string, index: number, state: ScanState) {
+  if (/<<-?\s*$/.test(command.slice(state.lineStart, index))) return undefined
+  if (isEscapedEvalInvocation(command, index, state.lineStart)) {
+    state.result += '__ow_'
+    return index
+  }
+  const execLength = quotedExecWordLength(command, index)
+  if (execLength && isEvalCommandPosition(command, index, state.lineStart)) {
+    state.result += 'exec'
+    return index + execLength - 1
+  }
+  if (isEscapedExecPrefix(command, index) && isEvalCommandPosition(command, index, state.lineStart))
+    return index
+  return undefined
+}
+
 function visitCharacter(command: string, index: number, state: ScanState) {
   const character = command[index]
   if (character === '\n') {
@@ -242,7 +260,6 @@ function visitCharacter(command: string, index: number, state: ScanState) {
     return index
   }
   if (state.quote) return visitQuote(command, index, state)
-  if (character === "'" || character === '"') return visitOpeningQuote(command, index, state)
   if (isCommentStart(command, index)) {
     state.comment = true
     state.result += character
@@ -250,14 +267,9 @@ function visitCharacter(command: string, index: number, state: ScanState) {
   }
   const heredoc = heredocAt(command, index)
   if (heredoc) state.pendingHeredocs.push(heredoc)
-  if (!/<<-?\s*$/.test(command.slice(state.lineStart, index))) {
-    if (isEscapedEvalInvocation(command, index, state.lineStart)) {
-      state.result += '__ow_'
-      return index
-    }
-    if (isEscapedBuiltin(command, index, 'exec') || isEscapedExecPrefix(command, index))
-      return index
-  }
+  const rewritten = visitCommandWord(command, index, state)
+  if (rewritten !== undefined) return rewritten
+  if (character === "'" || character === '"') return visitOpeningQuote(command, index, state)
   state.result += character
   if (character !== '\\' || index + 1 >= command.length) return index
   state.result += command[index + 1]

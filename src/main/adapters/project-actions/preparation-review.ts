@@ -1,5 +1,6 @@
 import type { PreparationDefinition } from '@shared/types/action-definitions'
 import * as Effect from 'effect/Effect'
+import { preparationReview, reviewProfileContext } from '../../domain/preparation-review-context'
 import { preparationExecutionKey } from '../../domain/project-action-catalog'
 import type { ActionCatalogServiceShape } from '../../ports/action-catalog-service'
 import type { ActionRunWorkspace } from '../../ports/action-run-service'
@@ -22,20 +23,21 @@ export function rememberPreparationReview(
     )
       return
     if (entry.review === (enabled ? 'enabled' : 'disabled')) return
-    const updated = yield* catalog.edit(workspace, current.revision, {
+    const granted = preparationReview(
+      definition,
+      enabled,
+      reviewProfileContext(
+        definition.profileId,
+        current.profiles.map(({ definition: profile }) => profile),
+      ).profileName,
+    )
+    yield* catalog.edit(workspace, current.revision, {
       type: 'review-preparation',
       id: definition.id,
       enabled,
     })
     return async () => {
-      await Effect.runPromise(
-        catalog.restorePreparationReview(
-          workspace,
-          updated.revision,
-          definition.id,
-          entry.previous,
-        ),
-      )
+      await Effect.runPromise(catalog.restorePreparationReview(workspace, granted, entry.previous))
     }
   })
 }

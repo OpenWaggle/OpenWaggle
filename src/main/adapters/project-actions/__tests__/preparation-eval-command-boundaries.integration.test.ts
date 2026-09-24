@@ -10,6 +10,27 @@ const shells = ['/bin/bash', '/bin/zsh', '/bin/sh', '/bin/dash', '/bin/ksh', '/b
 
 const cases: { variable: string; command: string; expected?: string }[] = [
   {
+    variable: 'OW_PARTIAL_EXEC',
+    command: String.raw`export OW_PARTIAL_EXEC=loaded; ex\ec /usr/bin/true`,
+  },
+  {
+    variable: 'OW_DYNAMIC_PARTIAL_EXEC',
+    command: String.raw`code='export OW_DYNAMIC_PARTIAL_EXEC=loaded; ex\ec /usr/bin/true'; eval "$code"`,
+  },
+  {
+    variable: 'OW_QUOTED_EXEC',
+    command: 'export OW_QUOTED_EXEC=loaded; ex"e"c /usr/bin/true',
+  },
+  {
+    variable: 'OW_DYNAMIC_QUOTED_EXEC',
+    command: 'code=\'export OW_DYNAMIC_QUOTED_EXEC=loaded; ex"e"c /usr/bin/true\'; eval "$code"',
+  },
+  {
+    variable: 'OW_PARTIAL_EXEC_ARGUMENT',
+    command: String.raw`code='export OW_PARTIAL_EXEC_ARGUMENT=$(printf "%s" ex\ec); \exec /usr/bin/true'; eval "$code"`,
+    expected: 'exec',
+  },
+  {
     variable: 'OW_MULTILINE_PAREN_CASE_ARM',
     command: String.raw`code='export OW_MULTILINE_PAREN_CASE_ARM=loaded; \exec /usr/bin/true'; case x in
   (x) \eval "$code";;

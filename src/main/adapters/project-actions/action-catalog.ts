@@ -1,4 +1,5 @@
 import { realpath } from 'node:fs/promises'
+import { isDeepStrictEqual } from 'node:util'
 import { decodeUnknownExactOrThrow } from '@shared/schema'
 import { actionCatalogEditSchema, actionManifestSchema } from '@shared/schemas/action-definitions'
 import type { ActionCatalogEdit, PreparationReview } from '@shared/types/action-definitions'
@@ -38,19 +39,22 @@ async function restorePreparationReviewState(
   persistence: ActionStatePersistence,
   projectPath: string,
   stored: StoredActionState,
-  revision: string,
-  expectedRevision: string,
-  definitionId: string,
+  granted: PreparationReview,
   previous: PreparationReview | undefined,
 ) {
-  if (revision !== expectedRevision || stored.state.pending)
+  const current = stored.state.document.reviews.find(
+    (review) => review.definitionId === granted.definitionId,
+  )
+  if (stored.state.pending || !isDeepStrictEqual(current, granted))
     throw new Error(
       'Project Actions changed while undoing a failed preparation review. Reload and review the shared setup.',
     )
   const document = decodeUnknownExactOrThrow(localActionDocumentSchema, {
     ...stored.state.document,
     reviews: [
-      ...stored.state.document.reviews.filter((review) => review.definitionId !== definitionId),
+      ...stored.state.document.reviews.filter(
+        (review) => review.definitionId !== granted.definitionId,
+      ),
       ...(previous ? [previous] : []),
     ],
   })
@@ -109,19 +113,16 @@ export function createActionCatalog(persistence: ActionStatePersistence) {
     read: (scope: ActionCatalogScope) => serializedActionCatalog(scope, readCurrent),
     restorePreparationReview: (
       scope: ActionCatalogScope,
-      expectedRevision: string,
-      definitionId: string,
+      granted: PreparationReview,
       previous: PreparationReview | undefined,
     ) =>
       serializedActionCatalog(scope, async (canonical) => {
-        const { stored, revision } = await load(canonical)
+        const { stored } = await load(canonical)
         await restorePreparationReviewState(
           persistence,
           canonical.projectPath,
           stored,
-          revision,
-          expectedRevision,
-          definitionId,
+          granted,
           previous,
         )
         return readCurrent(canonical)
