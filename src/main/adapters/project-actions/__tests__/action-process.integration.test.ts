@@ -13,6 +13,10 @@ const powerShellAvailable =
 const failedNative = process.platform === 'win32' ? '& cmd.exe /c exit 7' : '& /usr/bin/false'
 const nativeExitSeven =
   process.platform === 'win32' ? '& cmd.exe /c exit 7' : "& /bin/sh -c 'exit 7'"
+const dynamicNativeExitSeven =
+  process.platform === 'win32'
+    ? "$exe = 'cmd.exe'; & $exe /c exit 7"
+    : "$exe = '/bin/sh'; & $exe -c 'exit 7'"
 beforeEach(async () => {
   root = await mkdtemp(join(tmpdir(), 'openwaggle-action-process-'))
 })
@@ -75,6 +79,20 @@ it.skipIf(!powerShellAvailable)('retains a final native PowerShell exit code', a
 })
 
 it.skipIf(!powerShellAvailable)(
+  'retains a dynamically invoked native PowerShell exit code',
+  async () => {
+    const runner = createActionProcessRunner('test')
+    const child = await runner.start({
+      invocation: { type: 'command', command: dynamicNativeExitSeven, cwd: root },
+      environment: { SHELL: powerShell },
+      onOutput: () => {},
+    })
+    live.push(child)
+    expect(await child.closed).toEqual({ exitCode: 7 })
+  },
+)
+
+it.skipIf(!powerShellAvailable)(
   'uses exit code one for a final PowerShell cmdlet failure',
   async () => {
     const runner = createActionProcessRunner('test')
@@ -96,6 +114,24 @@ it.skipIf(!powerShellAvailable)(
       invocation: {
         type: 'command',
         command: `${nativeExitSeven}; Write-Error 'failed'`,
+        cwd: root,
+      },
+      environment: { SHELL: powerShell },
+      onOutput: () => {},
+    })
+    live.push(child)
+    expect(await child.closed).toEqual({ exitCode: 1 })
+  },
+)
+
+it.skipIf(!powerShellAvailable)(
+  'does not reuse an earlier native exit code for a dynamically invoked cmdlet',
+  async () => {
+    const runner = createActionProcessRunner('test')
+    const child = await runner.start({
+      invocation: {
+        type: 'command',
+        command: `${nativeExitSeven}; $cmdlet = 'Write-Error'; & $cmdlet 'failed'`,
         cwd: root,
       },
       environment: { SHELL: powerShell },

@@ -179,6 +179,23 @@ export function WorktreesSection() {
                       onForceRemove={() => void handleRemove(worktree.path, true, true)}
                     />
                   </div>
+                ) : !worktree.isMain ? (
+                  <details className="w-full border-t border-border pt-2">
+                    <summary className="cursor-pointer text-xs text-error-text">
+                      Force remove…
+                    </summary>
+                    <p className="my-2 text-xs text-text-tertiary">
+                      Skip workspace cleanup and remove this worktree even if it has uncommitted
+                      changes or is locked. This cannot be undone.
+                    </p>
+                    <Button
+                      variant="danger"
+                      disabled={removingPath === worktree.path}
+                      onClick={() => void handleRemove(worktree.path, true, true)}
+                    >
+                      Force remove
+                    </Button>
+                  </details>
                 ) : null}
               </div>
             ))}

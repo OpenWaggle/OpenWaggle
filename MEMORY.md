@@ -1051,6 +1051,12 @@ catalog. A disabled shared Setup is still reviewable in the Session UI; keep Run
 the user enables that snapshot version. When recreating a missing managed checkout, hold the same
 Workspace action mutation fence as starts and removals, stop runs from the old directory generation,
 then reset preparation and create Git state so a new launch cannot reuse the old process.
+Git may refuse a dirty or locked worktree before Cleanup changes its idle state, so Settings must
+offer an explicit Force remove path on a non-main worktree row even without retained preparation.
+PowerShell `CommandAst.GetCommandName()` is empty for a final `& $exe` invocation; resolve a
+variable command name from the current script scope before deciding whether its failure owns
+`$LASTEXITCODE`. Setup capture needs the same final-statement distinction as custom actions so a
+later failing cmdlet cannot inherit an earlier native exit code.
 
 Action run output cursors cannot be recovered from retained log length after scrollback
 compaction: the Host may flush the log before its throttled SQLite `outputBytes` update. Journal

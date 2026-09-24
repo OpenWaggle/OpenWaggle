@@ -104,6 +104,27 @@ it('offers explicit force removal after cleanup succeeds but the worktree remain
   )
 })
 
+it('offers force removal when Git refuses a dirty worktree before cleanup starts', async () => {
+  mocks.manage.mockResolvedValue({ type: 'retained-preparation', workspaces: [] })
+  mocks.remove
+    .mockReset()
+    .mockResolvedValueOnce({ ok: false, code: 'dirty-worktree', message: 'Worktree is dirty.' })
+    .mockResolvedValueOnce({ ok: true, message: 'Worktree removed.' })
+
+  renderWithQueryClient(<WorktreesSection />)
+  fireEvent.click(await screen.findByRole('button', { name: 'Remove' }))
+  await waitFor(() => expect(mocks.remove).toHaveBeenCalledTimes(1))
+  fireEvent.click(screen.getByText('Force remove…'))
+  fireEvent.click(screen.getByRole('button', { name: 'Force remove' }))
+  await waitFor(() =>
+    expect(mocks.remove).toHaveBeenLastCalledWith('/project', {
+      path: '/worktree',
+      skipCleanup: true,
+      force: true,
+    }),
+  )
+})
+
 it('keeps Git worktrees available when cleanup metadata fails to load', async () => {
   mocks.manage.mockRejectedValue(new Error('Invalid actions.json'))
   renderWithQueryClient(<WorktreesSection />)

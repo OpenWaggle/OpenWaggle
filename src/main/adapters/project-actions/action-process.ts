@@ -12,6 +12,7 @@ import {
 } from '../terminal/terminal-detached-process-shutdown'
 import { makePtyRunner } from '../terminal/terminal-pty-runner'
 import { existingShells } from '../terminal/terminal-shell'
+import { powerShellFailureExitCode } from './powershell-failure-exit'
 
 const ACTION_TERMINAL_COLS = 120
 const ACTION_TERMINAL_ROWS = 30
@@ -115,19 +116,10 @@ function powerShellActionCommand(command: string) {
     '$__ow_nativeExit = $global:LASTEXITCODE',
     'if ($__ow_succeeded) { exit 0 }',
     // The command's final statement determines whether LASTEXITCODE belongs to that failure.
-    `$__ow_statement = $MyInvocation.MyCommand.ScriptBlock.Ast.EndBlock.Statements | Where-Object { $_.Extent.EndLineNumber -le ${lastUserLine} } | Select-Object -Last 1`,
-    'if ($__ow_statement -is [System.Management.Automation.Language.PipelineAst]) {',
-    '  $__ow_last = $__ow_statement.PipelineElements[-1]',
-    '  if ($__ow_last -is [System.Management.Automation.Language.CommandAst]) {',
-    '    $__ow_name = $__ow_last.GetCommandName()',
-    '    if ($__ow_name) {',
-    '      $__ow_info = Get-Command -Name $__ow_name -ErrorAction SilentlyContinue | Select-Object -First 1',
-    '      while ($__ow_info -is [System.Management.Automation.AliasInfo]) { $__ow_info = $__ow_info.ResolvedCommand }',
-    '      if ($__ow_info.CommandType -eq [System.Management.Automation.CommandTypes]::Application -and $__ow_nativeExit -ne 0) { exit $__ow_nativeExit }',
-    '    }',
-    '  }',
-    '}',
-    'exit 1',
+    powerShellFailureExitCode([
+      `$__ow_statement = $MyInvocation.MyCommand.ScriptBlock.Ast.EndBlock.Statements | Where-Object { $_.Extent.EndLineNumber -le ${lastUserLine} } | Select-Object -Last 1`,
+    ]),
+    'exit $__ow_exit',
   ].join('\n')
 }
 

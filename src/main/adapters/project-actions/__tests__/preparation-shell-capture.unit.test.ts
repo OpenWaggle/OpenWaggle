@@ -10,6 +10,8 @@ const powerShell = process.platform === 'win32' ? 'powershell.exe' : 'pwsh'
 const powerShellAvailable =
   spawnSync(powerShell, ['-NoLogo', '-NonInteractive', '-Command', '$null']).status === 0
 const failedNative = process.platform === 'win32' ? '& cmd.exe /c exit 7' : '& /usr/bin/false'
+const nativeExitSeven =
+  process.platform === 'win32' ? '& cmd.exe /c exit 7' : "& /bin/sh -c 'exit 7'"
 
 describe('preparation shell selection', () => {
   it.each(['/bin/bash', '/bin/zsh', '/usr/bin/fish'])(
@@ -32,11 +34,9 @@ describe('preparation shell selection', () => {
     if (capture.invocation.type !== 'executable') throw new Error('Expected PowerShell wrapper')
     const script = capture.invocation.args[3]
     expect(script).toContain('$__ow_exit = 0\ntry {')
-    expect(script).toContain('if ($?) { $__ow_exit = 0 }')
-    expect(script).toContain(
-      'elseif ($global:LASTEXITCODE -ne 0) { $__ow_exit = $global:LASTEXITCODE }',
-    )
-    expect(script).toContain('else { $__ow_exit = 1 }')
+    expect(script).toContain('$__ow_succeeded = $?')
+    expect(script).toContain('if ($__ow_succeeded) { $__ow_exit = 0 }')
+    expect(script).toContain('GetCommandName()')
     expect(script).toContain('if ($__ow_exit -eq 0)')
     expect(script).toContain('exit $__ow_exit')
   })
@@ -75,6 +75,34 @@ describe('preparation shell selection', () => {
       try {
         const capture = await preparationCaptureInvocation(
           { type: 'command', cwd: directory, command: "Get-Item -LiteralPath './missing-item'" },
+          destination,
+          powerShell,
+          {},
+        )
+        if (capture.invocation.type !== 'executable') throw new Error('Expected PowerShell wrapper')
+        const result = spawnSync(capture.invocation.executable, capture.invocation.args, {
+          cwd: directory,
+          encoding: 'utf8',
+        })
+        expect(result.status).toBe(1)
+        await expect(readFile(destination, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
+      } finally {
+        await rm(directory, { recursive: true, force: true })
+      }
+    },
+  )
+  it.skipIf(!powerShellAvailable)(
+    'does not reuse an earlier native exit code for a final Setup cmdlet failure',
+    async () => {
+      const directory = await mkdtemp(join(tmpdir(), 'ow-powershell-setup-stale-native-'))
+      const destination = join(directory, 'environment.json')
+      try {
+        const capture = await preparationCaptureInvocation(
+          {
+            type: 'command',
+            cwd: directory,
+            command: `${nativeExitSeven}; Write-Error 'failed'`,
+          },
           destination,
           powerShell,
           {},

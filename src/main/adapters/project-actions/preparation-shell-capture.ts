@@ -3,6 +3,7 @@ import { match } from '@diegogbrisa/ts-match'
 import type { ResolvedActionInvocation } from '@shared/types/action-definitions'
 import { quotePosixShellArgument, quotePowerShellArgument } from '@shared/utils/shell-argument'
 import { resolveActionExecutablePath } from './action-process'
+import { powerShellFailureExitCode } from './powershell-failure-exit'
 import { enableEscapedExecCapture } from './preparation-escaped-exec'
 import { runtimeEvalRewriter } from './preparation-eval-rewriter'
 import { runtimeFishEvalRewriter } from './preparation-fish-eval-rewriter'
@@ -13,6 +14,8 @@ const POSIX_ENVIRONMENT_DUMP =
   process.platform === 'darwin'
     ? `/usr/bin/perl -e 'for my $key (keys %ENV) { print "$key=$ENV{$key}\\0" }'`
     : '/usr/bin/env -0'
+
+const POWERSHELL_SETUP_HEADER_LINES = 3
 
 const CAPTURE_SHELLS = new Set([
   'pwsh',
@@ -200,6 +203,11 @@ export async function preparationCaptureInvocation(
   const name = basename(shell).toLowerCase()
   if (['pwsh', 'pwsh.exe', 'powershell', 'powershell.exe'].includes(name)) {
     const command = `${resolved.type === 'executable' ? '& ' : ''}${invocationCommand(resolved, quotePowerShellArgument)}`
+    const lastUserLine = command.split(/\r\n|\r|\n/u).length + POWERSHELL_SETUP_HEADER_LINES
+    const failedExitCode = powerShellFailureExitCode([
+      '$__ow_try = $MyInvocation.MyCommand.ScriptBlock.Ast.EndBlock.Statements | Where-Object { $_ -is [System.Management.Automation.Language.TryStatementAst] } | Select-Object -Last 1',
+      `$__ow_statement = $__ow_try.Body.Statements | Where-Object { $_.Extent.EndLineNumber -le ${lastUserLine} } | Select-Object -Last 1`,
+    ])
     // An explicit exit 0 skips the post-command assignment but still runs finally.
     return {
       format: 'json',
@@ -211,7 +219,7 @@ export async function preparationCaptureInvocation(
           '-NoLogo',
           '-NonInteractive',
           '-Command',
-          `$global:LASTEXITCODE = 0\n$__ow_exit = 0\ntry {\n${command}\nif ($?) { $__ow_exit = 0 } elseif ($global:LASTEXITCODE -ne 0) { $__ow_exit = $global:LASTEXITCODE } else { $__ow_exit = 1 }\n} catch {\n$__ow_exit = 1\nthrow\n} finally {\nif ($__ow_exit -eq 0) { $values = @{}; Get-ChildItem Env: | ForEach-Object { $values[$_.Name] = $_.Value }; [System.IO.File]::WriteAllText(${quotePowerShellArgument(destination)}, ($values | ConvertTo-Json -Compress)) }\n}\nexit $__ow_exit`,
+          `$global:LASTEXITCODE = 0\n$__ow_exit = 0\ntry {\n${command}\n$__ow_succeeded = $?\n$__ow_nativeExit = $global:LASTEXITCODE\nif ($__ow_succeeded) { $__ow_exit = 0 } else {\n${failedExitCode}\n}\n} catch {\n$__ow_exit = 1\nthrow\n} finally {\nif ($__ow_exit -eq 0) { $values = @{}; Get-ChildItem Env: | ForEach-Object { $values[$_.Name] = $_.Value }; [System.IO.File]::WriteAllText(${quotePowerShellArgument(destination)}, ($values | ConvertTo-Json -Compress)) }\n}\nexit $__ow_exit`,
         ],
       },
     }
