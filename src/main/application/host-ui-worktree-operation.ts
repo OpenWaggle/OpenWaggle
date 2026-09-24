@@ -5,6 +5,7 @@ import { SessionId } from '@shared/types/brand'
 import type { GitWorktreeMutationResult } from '@shared/types/git'
 import * as Effect from 'effect/Effect'
 import { createLogger } from '../logger'
+import { ActionRunService } from '../ports/action-run-service'
 import { GitWorktreeService } from '../ports/git-worktree-service'
 import { SessionProjectionRepository } from '../ports/session-projection-repository'
 import {
@@ -67,6 +68,7 @@ function removeWorktreeWithTerminals(
 function captureWorktreePreparation(
   workspace: SessionWorkspaceResource | null,
   projectPath: string,
+  checkoutExists: boolean,
 ) {
   return Effect.gen(function* () {
     if (!workspace) return
@@ -76,8 +78,7 @@ function captureWorktreePreparation(
       projectPath,
       workspacePath: workspace.pending ? projectPath : workspace.workingPath,
     }
-    const exists = yield* Effect.promise(() => filesystemPathExists(workspace.workingPath))
-    if (exists) yield* preparation.capture(scope)
+    if (checkoutExists) yield* preparation.capture(scope)
     else yield* preparation.prepareBirth({ ...scope, workspacePath: projectPath })
   })
 }
@@ -127,28 +128,40 @@ export function createHostUiWorktree(rawPath: unknown, rawPayload: unknown) {
         message: 'This Session is bound to a Workspace in a different repository.',
       } satisfies GitWorktreeMutationResult
     }
-    yield* captureWorktreePreparation(workspace, projectPath)
-    const path = workspace?.workingPath ?? payload.path
-    const branch =
-      workspace?.worktreeBranch ??
-      (sessionId === undefined
-        ? payload.branch
-        : yield* Effect.promise(() => resolveSessionWorktreeBranch(projectPath, sessionId)))
-    if (sessionId !== undefined) {
-      const sessions = yield* SessionProjectionRepository
-      yield* sessions.resetWorktreeSetup(SessionId(sessionId), path)
-    }
-    const result = (yield* gitWorktrees.create(projectPath, {
-      ...payload,
-      path,
-      branch,
-    })) satisfies GitWorktreeMutationResult
-    if (result.ok) {
-      yield* captureCreatedWorktreePreparation(workspace, projectPath)
-      invalidateGitStatusCache(path)
-      invalidateGitStatusCache(projectPath)
-    }
-    return result
+    const create = Effect.gen(function* () {
+      const checkoutExists = workspace
+        ? yield* Effect.promise(() => filesystemPathExists(workspace.workingPath))
+        : true
+      if (workspace && !checkoutExists) {
+        const actions = yield* ActionRunService
+        yield* actions.stopWorkspaceRuns(workspace.id)
+      }
+      yield* captureWorktreePreparation(workspace, projectPath, checkoutExists)
+      const path = workspace?.workingPath ?? payload.path
+      const branch =
+        workspace?.worktreeBranch ??
+        (sessionId === undefined
+          ? payload.branch
+          : yield* Effect.promise(() => resolveSessionWorktreeBranch(projectPath, sessionId)))
+      if (sessionId !== undefined) {
+        const sessions = yield* SessionProjectionRepository
+        yield* sessions.resetWorktreeSetup(SessionId(sessionId), path)
+      }
+      const result = (yield* gitWorktrees.create(projectPath, {
+        ...payload,
+        path,
+        branch,
+      })) satisfies GitWorktreeMutationResult
+      if (result.ok) {
+        yield* captureCreatedWorktreePreparation(workspace, projectPath)
+        invalidateGitStatusCache(path)
+        invalidateGitStatusCache(projectPath)
+      }
+      return result
+    })
+    if (!workspace) return yield* create
+    const actions = yield* ActionRunService
+    return yield* actions.withWorkspaceMutation(workspace.id, create)
   })
 }
 

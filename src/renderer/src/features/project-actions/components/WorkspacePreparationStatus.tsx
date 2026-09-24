@@ -112,13 +112,13 @@ function PreparationSnapshotDetails({
 }) {
   const [closedReviewRevision, setClosedReviewRevision] = useState<number | null>(null)
   const [manualReview, setManualReview] = useState(false)
-  const required = state.snapshot.definitions.find(
-    (entry) => entry.definition.phase === 'setup' && entry.review === 'required',
+  const reviewable = state.snapshot.definitions.find(
+    (entry) => entry.definition.phase === 'setup' && entry.review !== 'enabled',
   )
   const blocked = state.setup.status === 'failed' || state.setup.status === 'review-required'
   const automaticReview =
     state.setup.status === 'review-required' && closedReviewRevision !== state.revision
-  const showReview = required && (manualReview || automaticReview)
+  const showReview = reviewable && (manualReview || automaticReview)
   const busy = mutation.isPending || state.setup.status === 'running'
   const attemptId = state.setup.attemptId
   function apply(operation: Change) {
@@ -137,13 +137,13 @@ function PreparationSnapshotDetails({
             Stop setup
           </Button>
         ) : null}
-        {required ? (
+        {reviewable ? (
           <Button disabled={busy} onClick={() => setManualReview(true)}>
             Review changes
           </Button>
         ) : null}
         <Button
-          disabled={busy || Boolean(required)}
+          disabled={busy || Boolean(reviewable)}
           onClick={() =>
             apply({ type: 'run-preparation', phase: 'setup', expectedRevision: state.revision })
           }
@@ -178,7 +178,7 @@ function PreparationSnapshotDetails({
       ) : null}
       {showReview ? (
         <PreparationReviewDialog
-          entry={required}
+          entry={reviewable}
           currentProfileName={state.snapshot.profile.name}
           busy={busy}
           error={mutation.error?.message}
@@ -189,7 +189,7 @@ function PreparationSnapshotDetails({
           onDecide={(enabled) =>
             apply({
               type: 'review-snapshot',
-              definitionId: required.definition.id,
+              definitionId: reviewable.definition.id,
               enabled,
               expectedRevision: state.revision,
             })

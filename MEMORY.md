@@ -1046,6 +1046,11 @@ An exact saved package task must be matched directly against declared Workspace 
 of enumerating the 250-package discovery page; still reject excluded, generated, symlinked, and
 missing sources. PowerShell keeps a native `$LASTEXITCODE` across later cmdlet failures, so use the
 final user command's kind before applying that code to an action's final status.
+The pinned Workspace snapshot owns Setup review decisions independently of the latest project
+catalog. A disabled shared Setup is still reviewable in the Session UI; keep Run setup gated until
+the user enables that snapshot version. When recreating a missing managed checkout, hold the same
+Workspace action mutation fence as starts and removals, stop runs from the old directory generation,
+then reset preparation and create Git state so a new launch cannot reuse the old process.
 
 Action run output cursors cannot be recovered from retained log length after scrollback
 compaction: the Host may flush the log before its throttled SQLite `outputBytes` update. Journal
