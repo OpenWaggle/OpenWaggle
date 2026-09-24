@@ -14,7 +14,9 @@ function mergeSettings(set: PreferencesSet, patch: Partial<Settings>) {
 
 /**
  * Re-keys the renderer's per-project state from an aliased path to the canonical identity the
- * backend reports, so later reads, writes, and removals all address the same entry.
+ * backend reports, so later reads, writes, and removals all address the same entry. Every
+ * project-keyed settings map must move together or Session Host policy lookups by the canonical
+ * path would silently lose overrides stored under the alias.
  */
 async function reconcileProjectIdentity(
   requestedPath: string,
@@ -24,20 +26,21 @@ async function reconcileProjectIdentity(
 ) {
   const { settings } = get()
   const remapPath = (path: string) => (path === requestedPath ? canonicalPath : path)
-  const projectDisplayNames = { ...settings.projectDisplayNames }
-  if (requestedPath in projectDisplayNames) {
-    projectDisplayNames[canonicalPath] = projectDisplayNames[requestedPath]
-    delete projectDisplayNames[requestedPath]
-  }
-  const skillTogglesByProject = { ...settings.skillTogglesByProject }
-  if (requestedPath in skillTogglesByProject) {
-    skillTogglesByProject[canonicalPath] = skillTogglesByProject[requestedPath]
-    delete skillTogglesByProject[requestedPath]
+  function rekeyRecord<V>(record: Record<string, V>): Record<string, V> {
+    if (!(requestedPath in record)) return record
+    const next = { ...record, [canonicalPath]: record[requestedPath] }
+    delete next[requestedPath]
+    return next
   }
   const patch: Partial<Settings> = {
     recentProjects: settings.recentProjects.map(remapPath),
-    projectDisplayNames,
-    skillTogglesByProject,
+    projectDisplayNames: rekeyRecord({ ...settings.projectDisplayNames }),
+    skillTogglesByProject: rekeyRecord({ ...settings.skillTogglesByProject }),
+    agentDefinitionTogglesByProject: rekeyRecord({ ...settings.agentDefinitionTogglesByProject }),
+    multiAgentEnabledByProject: rekeyRecord({ ...settings.multiAgentEnabledByProject }),
+    sessionHostParentConcurrencyLimitsByProject: rekeyRecord({
+      ...settings.sessionHostParentConcurrencyLimitsByProject,
+    }),
     ...(settings.projectPath === requestedPath ? { projectPath: canonicalPath } : {}),
   }
   const result = await api.updateSettings(patch)

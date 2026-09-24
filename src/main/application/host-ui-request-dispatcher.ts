@@ -50,6 +50,7 @@ import {
   revokeProjectAuthorizationOperation,
 } from './project-authorization-grant-operation'
 import {
+  getProjectPreferencesOperation,
   removeProjectModelOperation,
   setProjectPreferencesOperation,
 } from './project-preferences-operation'
@@ -72,6 +73,16 @@ function oneInput<A, E, R>(
   return Effect.gen(function* () {
     yield* requireHostUiArgCount(args, 1)
     return yield* operation(args[0])
+  })
+}
+
+function twoInputs<A, E, R>(
+  args: readonly unknown[],
+  operation: (first: unknown, second: unknown) => Effect.Effect<A, E, R>,
+) {
+  return Effect.gen(function* () {
+    yield* requireHostUiArgCount(args, TWO_ARGUMENTS)
+    return yield* operation(args[0], args[1])
   })
 }
 
@@ -224,18 +235,9 @@ function dispatchHostUiChannel(
         return yield* getHostUiProviderModels(yield* optionalHostUiProjectPath(args[0]))
       }),
     )
-    .with('project-config:set-preferences', () =>
-      Effect.gen(function* () {
-        yield* requireHostUiArgCount(args, TWO_ARGUMENTS)
-        return yield* setProjectPreferencesOperation(args[0], args[1])
-      }),
-    )
-    .with('project-config:remove-project-model', () =>
-      Effect.gen(function* () {
-        yield* requireHostUiArgCount(args, 1)
-        return yield* removeProjectModelOperation(args[0])
-      }),
-    )
+    .with('project-config:set-preferences', () => twoInputs(args, setProjectPreferencesOperation))
+    .with('project-config:remove-project-model', () => oneInput(args, removeProjectModelOperation))
+    .with('project-config:get-preferences', () => oneInput(args, getProjectPreferencesOperation))
     .with('authorization-grants:grant', () =>
       Effect.gen(function* () {
         yield* requireHostUiArgCount(args, TWO_ARGUMENTS)

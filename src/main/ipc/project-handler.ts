@@ -41,7 +41,7 @@ export function registerProjectHandlers(): void {
     }),
   )
 
-  typedHandle('project-config:get-preferences', (_event, projectPath: string) =>
+  hostHandle('project-config:get-preferences', (_event, projectPath: string) =>
     getProjectPreferencesOperation(projectPath),
   )
 
