@@ -13,6 +13,7 @@ import {
   assertBrowserBundleContent,
   findPackageDependencyVersion,
   isPackageSmokeDevDependency,
+  resolvePackageSmokeCatalogVersion,
   supportsPackageSmokeNodeVersion,
 } from './package-smoke-runtime-assertions'
 import { runPackageBrowserSmoke } from './package-browser-smoke'
@@ -125,7 +126,11 @@ function packedPackageVersions(packedPackages: readonly PackedPackage[]) {
   })
 }
 
-async function smokeDependencyVersion(projectRoot: string, dependencyName: string) {
+async function smokeDependencyVersion(
+  projectRoot: string,
+  dependencyName: string,
+  workspaceConfig: string,
+) {
   const manifests = [
     await readJsonFile(path.join(projectRoot, 'package.json')),
     await readJsonFile(path.join(projectRoot, 'packages/pi-waggle/package.json')),
@@ -133,7 +138,7 @@ async function smokeDependencyVersion(projectRoot: string, dependencyName: strin
 
   for (const manifest of manifests) {
     const version = findPackageDependencyVersion(manifest, dependencyName)
-    if (version) return version
+    if (version) return resolvePackageSmokeCatalogVersion(version, dependencyName, workspaceConfig)
   }
 
   throw new Error(`Cannot find smoke dependency version for ${dependencyName}.`)
@@ -184,10 +189,11 @@ async function writeSmokePackageJson(
   smokeProjectRoot: string,
   packedPackages: readonly PackedPackage[],
 ) {
+  const workspaceConfig = await fs.readFile(path.join(projectRoot, 'pnpm-workspace.yaml'), 'utf8')
   const smokeDependencyVersions = await Promise.all(
     SMOKE_REGISTRY_DEPENDENCIES.map(async (name) => ({
       name,
-      version: await smokeDependencyVersion(projectRoot, name),
+      version: await smokeDependencyVersion(projectRoot, name, workspaceConfig),
     })),
   )
   const packageJson = createSmokePackageJson(packedPackages, smokeDependencyVersions)
