@@ -7,7 +7,7 @@ type PreparationEnvironmentReader = Pick<
   'read' | 'isCurrentWorkspaceGeneration' | 'environment'
 >
 
-export async function readActionWorkspaceEnvironment(
+export async function readPreparedWorkspaceEnvironment(
   preparation: PreparationEnvironmentReader,
   workspace: ActionRunWorkspace,
 ) {
@@ -15,12 +15,19 @@ export async function readActionWorkspaceEnvironment(
     const state = await Effect.runPromise(preparation.read(workspace))
     if (state && !(await Effect.runPromise(preparation.isCurrentWorkspaceGeneration(workspace)))) {
       throw new Error(
-        'This worktree no longer matches its saved preparation. Recreate the worktree or reset preparation before running actions.',
+        'This worktree no longer matches its saved preparation. Recreate the worktree or reset preparation before continuing.',
       )
     }
   }
+  return Effect.runPromise(preparation.environment(workspace.workspaceId))
+}
+
+export async function readActionWorkspaceEnvironment(
+  preparation: PreparationEnvironmentReader,
+  workspace: ActionRunWorkspace,
+) {
   return {
-    ...(await Effect.runPromise(preparation.environment(workspace.workspaceId))),
+    ...(await readPreparedWorkspaceEnvironment(preparation, workspace)),
     OPENWAGGLE_PROJECT_ROOT: workspace.projectPath,
     OPENWAGGLE_WORKTREE_PATH: workspace.workspacePath,
   }

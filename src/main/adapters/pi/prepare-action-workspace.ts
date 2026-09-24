@@ -3,6 +3,7 @@ import type { ActionRunWorkspace } from '../../ports/action-run-service'
 import type { AgentKernelRunInput } from '../../ports/agent-kernel-service'
 import type { SessionWorkspaceResourceRepositoryShape } from '../../ports/session-workspace-resource-repository'
 import type { WorkspacePreparationServiceShape } from '../../ports/workspace-preparation-service'
+import { readPreparedWorkspaceEnvironment } from '../project-actions/action-workspace-environment'
 import { requireSessionProjectPath } from './agent-kernel/session-manager'
 import { ensureSessionWorktreeProjectPath } from './agent-kernel/session-worktree-birth'
 
@@ -59,7 +60,10 @@ export function prepareActionWorkspace(
       catch: (error) => (error instanceof Error ? error : new Error(String(error))),
     })
     const workspace = { ...(yield* resolveWorkspace()), workspacePath: executionPath }
-    const preparedEnvironment = yield* services.preparation.environment(workspace.workspaceId)
+    const preparedEnvironment = yield* Effect.tryPromise({
+      try: () => readPreparedWorkspaceEnvironment(services.preparation, workspace),
+      catch: (error) => (error instanceof Error ? error : new Error(String(error))),
+    })
     return { projectPath, executionPath, preparedEnvironment }
   })
 }

@@ -58,6 +58,7 @@ function actionWorkspaceDependencies(): Pick<
       },
     }),
     preparation: fromPartial({
+      read: () => Effect.succeed(null),
       environment: () => Effect.succeed({}),
       requireSetup: () => Effect.void,
     }),
