@@ -104,11 +104,15 @@ export function persistProjectPreference(
       if (set && get) {
         await reconcileProjectIdentity(projectPath, canonicalPath, set, get)
         // Renderer state now names the canonical path, so the whole chain moves with it and a
-        // removal addressed by the canonical path keeps waiting for it.
+        // removal addressed by the canonical path keeps waiting for it. An in-flight removal
+        // marker moves too, or writes via the new identity would bypass the removal guard.
         const stillPending = pendingProjectPreferenceWrites.get(projectPath)
         if (stillPending) {
           pendingProjectPreferenceWrites.delete(projectPath)
           pendingProjectPreferenceWrites.set(canonicalPath, stillPending)
+        }
+        if (removingProjectPaths.has(projectPath)) {
+          removingProjectPaths.add(canonicalPath)
         }
       } else {
         // Renderer state still names the alias (this caller does not reconcile), so the chain is
@@ -144,8 +148,17 @@ export function removeProjectModelTracked(
   return pending
     .catch(() => undefined)
     .then(perform)
-    .finally(() => {
+    .then((canonicalPath) => {
+      // The re-key may have copied the removal marker onto the canonical identity.
       removingProjectPaths.delete(projectPath)
+      if (canonicalPath) removingProjectPaths.delete(canonicalPath)
+      return canonicalPath
+    })
+    .catch((err: unknown) => {
+      // A failed removal leaves the project visible and retryable; clear the alias marker and
+      // any canonical copy so writes resume.
+      removingProjectPaths.delete(projectPath)
+      throw err
     })
 }
 
