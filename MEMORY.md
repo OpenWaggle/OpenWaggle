@@ -1042,8 +1042,9 @@ Action run output cursors cannot be recovered from retained log length after scr
 compaction: the Host may flush the log before its throttled SQLite `outputBytes` update. Journal
 the append or replacement text with its absolute end cursor in one private atomic sidecar before
 writing the log; recover an unfinished journal idempotently, then commit the cursor. Failed
-cursor-bearing batches must be retried before action finalization; keep errors scoped to their
-history key so an unrelated terminal failure cannot block a healthy action. If a crash loses an
+history batches, including ordinary PTY output, must be retried with the same journal before
+later writes for that key; keep errors scoped to their history key so an unrelated terminal
+failure cannot block a healthy action. If a crash loses an
 unflushed tail that the renderer already displayed, keep the renderer's cursor stable rather than
 clearing its output.
 When removing or truncating history, discard retry and failure state inside the serialized

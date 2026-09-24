@@ -59,7 +59,7 @@ it('cascades workspace secrets and run receipts, then durably retries only its h
         expect(yield* Effect.promise(() => history.read('action:retained::run'))).toBe(
           'private output for retained',
         )
-        expect(yield* Effect.promise(() => readdir(logs))).toHaveLength(2)
+        expect(yield* Effect.promise(() => readdir(logs))).toHaveLength(3)
       }).pipe(Effect.provide(SqliteClient.layer({ filename: join(root, 'test.sqlite') }))),
     )
   } finally {

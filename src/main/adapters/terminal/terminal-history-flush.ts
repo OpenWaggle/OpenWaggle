@@ -41,10 +41,10 @@ export async function persistHistoryBatches(
     }
     try {
       await append(key, batch)
-      if (batch.endOffset !== null) failures.delete(key)
+      failures.delete(key)
     } catch (error) {
       failures.set(key, error)
-      if (batch.endOffset !== null) retry.push([key, batch])
+      retry.push([key, batch])
       blocked.add(key)
     }
   }

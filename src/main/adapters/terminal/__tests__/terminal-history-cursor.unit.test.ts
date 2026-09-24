@@ -74,6 +74,37 @@ describe('terminal history cursor recovery', () => {
     })
   })
 
+  it('retries an ordinary terminal batch after a transient scheduled failure', async () => {
+    const occupiedPath = path.join(logsDir, 'occupied-ordinary')
+    await fs.writeFile(occupiedPath, 'not a directory')
+    const key = 'session-ordinary::main'
+    const store = makeTerminalHistoryStore(path.join(occupiedPath, 'logs'))
+    vi.useFakeTimers()
+    store.append(key, 'retained')
+    await vi.advanceTimersByTimeAsync(TERMINAL.HISTORY_FLUSH_MS)
+    await expect(store.flush()).rejects.toThrow()
+    await fs.rm(occupiedPath)
+    await fs.mkdir(occupiedPath)
+
+    await expect(store.flush()).resolves.toBeUndefined()
+    await expect(store.read(key)).resolves.toBe('retained')
+  })
+
+  it('recovers an ordinary append that landed before the write reported failure', async () => {
+    const key = 'session-ordinary-append::main'
+    const store = makeTerminalHistoryStore(logsDir)
+    const appendFile = fs.appendFile.bind(fs)
+    vi.spyOn(fs, 'appendFile').mockImplementationOnce(async (...args) => {
+      await appendFile(...args)
+      throw new Error('Append failed after writing')
+    })
+    store.append(key, 'written once')
+    await expect(store.flush()).rejects.toThrow()
+    await expect(makeTerminalHistoryStore(logsDir).read(key)).resolves.toBe('written once')
+    await expect(store.flush()).resolves.toBeUndefined()
+    await expect(store.read(key)).resolves.toBe('written once')
+  })
+
   it('retries a batch whose journal landed before its log append failed', async () => {
     const key = 'session-journal-retry::action'
     const store = makeTerminalHistoryStore(logsDir)
@@ -171,5 +202,8 @@ describe('terminal history cursor recovery', () => {
       text: 'healthy',
       endOffset: 7,
     })
+    await fs.rm(metadataFile, { recursive: true })
+    await expect(store.flush()).resolves.toBeUndefined()
+    await expect(store.read(badKey)).resolves.toBe('unwritten')
   })
 })

@@ -135,12 +135,13 @@ describe('makeTerminalHistoryStore', () => {
     await store.flush()
 
     const entries = await fs.readdir(logsDir)
-    expect(entries).toHaveLength(2)
-    expect(entries.every((entry) => entry.length <= 92)).toBe(true)
+    expect(entries).toHaveLength(3)
+    expect(entries.every((entry) => entry.length <= 94)).toBe(true)
     expect(entries).toEqual(
       expect.arrayContaining([
         expect.stringMatching(/^[A-Za-z0-9_-]{43}\.[A-Za-z0-9_-]{43}\.log$/),
         expect.stringMatching(/^[A-Za-z0-9_-]{43}\.[A-Za-z0-9_-]{43}\.meta$/),
+        expect.stringMatching(/^[A-Za-z0-9_-]{43}\.[A-Za-z0-9_-]{43}\.cursor$/),
       ]),
     )
     await expect(store.read(key)).resolves.toBe('history')

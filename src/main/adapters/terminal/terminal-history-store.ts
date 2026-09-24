@@ -251,12 +251,12 @@ class TerminalHistoryStoreImpl implements TerminalHistoryStore {
     const committedEnd = await this.recoverCursor(key)
     if (batch.endOffset !== null && committedEnd === batch.endOffset) return
     const state = await this.loadState(key)
+    batch.endOffset ??= (committedEnd ?? state.bytes) + batch.bytes
     if (
       state.lines + batch.lines <= TERMINAL.MAX_SCROLLBACK_LINES &&
       state.bytes + batch.bytes <= TERMINAL.MAX_SCROLLBACK_BYTES
     ) {
-      if (batch.endOffset === null) await this.files.appendPrivate(files.logFile, chunk)
-      else await appendWithCursor(this.files, files, state.bytes, chunk, batch.endOffset)
+      await appendWithCursor(this.files, files, state.bytes, chunk, batch.endOffset)
       this.states.set(key, {
         bytes: state.bytes + batch.bytes,
         lines: state.lines + batch.lines,
@@ -270,8 +270,7 @@ class TerminalHistoryStoreImpl implements TerminalHistoryStore {
       HISTORY_COMPACT_TARGET_LINES,
       HISTORY_COMPACT_TARGET_BYTES,
     )
-    if (batch.endOffset === null) await this.files.writePrivate(files.logFile, retained.text)
-    else await replaceWithCursor(this.files, files, retained.text, batch.endOffset)
+    await replaceWithCursor(this.files, files, retained.text, batch.endOffset)
     this.states.set(key, { bytes: retained.bytes, lines: retained.lines })
   }
 
