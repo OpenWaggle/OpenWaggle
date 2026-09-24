@@ -1,5 +1,7 @@
 import type { SessionDetail } from '@shared/types/session'
 import type { ReactNode } from 'react'
+import { WorkspacePreparationStatus } from '@/features/project-actions'
+import { ActionRunsSummarySection } from './ActionRunsSummarySection'
 import { ExtensionSessionSummarySections } from './ExtensionSessionSummarySections'
 import { HiveSummarySection } from './HiveSummarySection'
 import { SessionResourcesCatalogFailure } from './SessionResourcesCatalogFailure'
@@ -16,6 +18,8 @@ import type { SessionSummaryHubController } from './use-session-summary-hub-cont
 const SESSION_SUMMARY_SECTION_IDENTITIES = [
   { id: 'subscriptions', label: 'Subscriptions' },
   { id: 'environment', label: 'Environment' },
+  { id: 'actions', label: 'Actions' },
+  { id: 'preparation', label: 'Workspace preparation' },
   { id: 'change-requests', label: 'Change requests' },
   { id: 'extensions-context', label: 'Extension context' },
   { id: 'hive', label: 'Hive' },
@@ -79,6 +83,13 @@ export function createSessionSummaryPanelSections(context: SessionSummarySection
         onExpandedChange={disclosures.subscriptions.setExpanded}
       />
     ),
+    preparation: session.projectPath ? (
+      <WorkspacePreparationStatus
+        key={session.id}
+        scope={{ projectPath: session.projectPath, sessionId: session.id }}
+      />
+    ) : null,
+    actions: <ActionRunsSummarySection sessionId={session.id} projectPath={session.projectPath} />,
     environment: (
       <EnvironmentSummarySection
         input={{

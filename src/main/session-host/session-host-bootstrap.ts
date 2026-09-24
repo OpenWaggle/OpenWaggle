@@ -1,7 +1,5 @@
 import { decodeLocalSessionCommandPayloadForRevision } from '@shared/schemas/local-session-protocol'
 import * as Effect from 'effect/Effect'
-import { reconcileInterruptedAgentRuns } from '../application/agent-run-service'
-import { recoverPendingManagedWorktreeRemovals } from '../application/host-ui-worktree-operation'
 import {
   authorizeLocalSessionActiveRun,
   authorizeLocalSessionEvent,
@@ -9,13 +7,7 @@ import {
 } from '../application/local-session-command-dispatcher'
 import { refreshNamedProfileCaller } from '../application/local-session-derived-authority'
 import { authenticateLocalSessionProfile } from '../application/local-session-profile-authentication'
-import { recoverSessionExportsAfterHostLoss } from '../application/session-export-recovery'
-import { recoverPendingSessionHandoffs } from '../application/session-organization-service'
-import { createLogger } from '../logger'
 import { LocalSessionProfileRepository } from '../ports/local-session-profile-repository'
-import { SessionHostRecoveryRepository } from '../ports/session-host-recovery-repository'
-import { SessionLifecyclePreparationService } from '../ports/session-lifecycle-preparation-service'
-import { SessionProjectionRepository } from '../ports/session-projection-repository'
 import type { AppServices } from '../runtime'
 import { SettingsService } from '../services/settings-service'
 import { listStreamBufferSnapshots } from '../utils/stream-buffer'
@@ -30,43 +22,10 @@ import type { LocalSessionHostPaths } from './local-session-paths'
 import { createLocalSessionServerAuthenticator } from './local-session-server-authentication'
 import { ensureLocalUserCredential } from './local-user-credential'
 import type { SessionHostOwnership } from './session-host-ownership'
+import { recoverHostState } from './session-host-state-recovery'
 import { readSessionHostUpgradeBlockers } from './session-host-upgrade-blockers'
 
 type AppEffectRunner = <A, E>(effect: Effect.Effect<A, E, AppServices>) => Promise<A>
-
-const logger = createLogger('session-host/bootstrap')
-
-function recoverHostState() {
-  return Effect.gen(function* () {
-    const repository = yield* SessionHostRecoveryRepository
-    const projection = yield* SessionProjectionRepository
-    const lifecyclePreparation = yield* SessionLifecyclePreparationService
-    const recovery = yield* repository.recoverAfterHostLoss(Date.now())
-    const removalRecovery = yield* recoverPendingManagedWorktreeRemovals(
-      recovery.pendingWorktreeRemovals,
-    )
-    for (const result of removalRecovery) {
-      if (result.outcome._tag === 'Left') {
-        logger.error('Pending managed worktree removal recovery failed closed.', {
-          resourceId: result.resourceId,
-          error: result.outcome.left.message,
-        })
-      }
-    }
-    yield* projection.recoverPendingDeletions?.() ?? Effect.void
-    yield* lifecyclePreparation.recoverPending
-    const handoffRecovery = yield* recoverPendingSessionHandoffs(recovery.pendingHandoffs)
-    for (const result of handoffRecovery) {
-      if (result._tag === 'Left') {
-        logger.error('Pending Workspace handoff recovery exhausted retries.', {
-          error: result.left instanceof Error ? result.left.message : String(result.left),
-        })
-      }
-    }
-    yield* recoverSessionExportsAfterHostLoss()
-    yield* reconcileInterruptedAgentRuns()
-  })
-}
 
 export async function startAppSessionHost(input: {
   readonly paths: LocalSessionHostPaths

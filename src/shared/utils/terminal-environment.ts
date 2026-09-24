@@ -1,4 +1,6 @@
 const BLOCKED_TERMINAL_ENVIRONMENT_NAMES = new Set([
+  'T3CODE_PROJECT_ROOT',
+  'T3CODE_WORKTREE_PATH',
   'ELECTRON_ENABLE_LOGGING',
   'ELECTRON_ENABLE_STACK_DUMPING',
   'ELECTRON_FORCE_IS_PACKAGED',
@@ -73,10 +75,8 @@ export function createProjectActionTerminalEnvironment(input: {
       environment[name] = value
     }
   }
-  environment.T3CODE_PROJECT_ROOT = input.projectRoot
   environment.OPENWAGGLE_PROJECT_ROOT = input.projectRoot
   if (input.worktreePath !== undefined) {
-    environment.T3CODE_WORKTREE_PATH = input.worktreePath
     environment.OPENWAGGLE_WORKTREE_PATH = input.worktreePath
   }
   return normalizeTerminalEnvironment(environment)

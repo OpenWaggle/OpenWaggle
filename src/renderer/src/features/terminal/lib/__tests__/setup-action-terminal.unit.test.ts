@@ -34,8 +34,6 @@ describe('setup action terminal reconciliation', () => {
           launchEnv: {
             OPENWAGGLE_PROJECT_ROOT: '/repo',
             OPENWAGGLE_WORKTREE_PATH: '/repo/.openwaggle/session-inactive',
-            T3CODE_PROJECT_ROOT: '/repo',
-            T3CODE_WORKTREE_PATH: '/repo/.openwaggle/session-inactive',
           },
         },
       ],

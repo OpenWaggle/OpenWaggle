@@ -2,6 +2,7 @@ import * as SqlClient from '@effect/sql/SqlClient'
 import { SqliteClient } from '@effect/sql-sqlite-node'
 import { Effect } from 'effect'
 import { describe, expect, it } from 'vitest'
+import { runMigrations } from '../database-migration-runner'
 import { APP_MIGRATIONS } from '../database-migrations'
 import { runAppDatabaseMigrations } from '../database-service'
 import { planSessionHostLedgerUpgrade } from '../session-host-ledger-compatibility'
@@ -101,7 +102,11 @@ describe('Session Host migration identity compatibility', () => {
     await withDatabase(
       Effect.gen(function* () {
         const sql = yield* SqlClient.SqlClient
-        yield* runAppDatabaseMigrations
+        yield* runMigrations(
+          APP_MIGRATIONS.filter(
+            ({ id }) => id <= SESSION_HOST_PROJECT_CATALOG_GENERATION_MIGRATION_ID,
+          ),
+        )
         yield* sql`INSERT INTO sessions (id, pi_session_id, title, created_at, updated_at) VALUES ('kept', 'pi-kept', 'Retained hive 🐝', 1, 2)`
         yield* sql`DELETE FROM _migrations WHERE id >= 26`
         yield* sql.unsafe('DROP TABLE session_worktree_setup')
@@ -142,9 +147,9 @@ describe('Session Host migration identity compatibility', () => {
     await withDatabase(
       Effect.gen(function* () {
         const sql = yield* SqlClient.SqlClient
-        yield* runAppDatabaseMigrations
+        yield* runMigrations(APP_MIGRATIONS.filter(({ id }) => id <= 58))
         yield* sql`INSERT INTO sessions (id, pi_session_id, title, created_at, updated_at) VALUES ('kept', 'pi-kept', 'Pre-Summary worker', 1, 2)`
-        yield* sql`DELETE FROM _migrations WHERE id BETWEEN 28 AND 48 OR id = 59`
+        yield* sql`DELETE FROM _migrations WHERE id BETWEEN 28 AND 48`
         yield* sql`DELETE FROM _migrations WHERE id = ${SESSION_HOST_PROJECT_CATALOG_GENERATION_MIGRATION_ID}`
         yield* sql`UPDATE _migrations SET id = id - 21, applied_at = 'pre-summary-host'
           WHERE id BETWEEN 49 AND 58`

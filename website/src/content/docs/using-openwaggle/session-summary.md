@@ -41,6 +41,13 @@ Sections appear only when their session has relevant data:
 
 OpenWaggle does not turn ordinary URL-like prose into a Source, and it does not treat every modified working-tree file as an Output. Working-tree changes belong under Environment until the agent or a producing tool explicitly identifies a result.
 
+## Project actions and preparation
+
+Running and recent project actions appear in **Actions**. Select a row to inspect output and controls
+in the right sidebar. The Hub remains available for workspace activity even before a session’s first
+message. Workspace preparation shows setup progress, retained output, review decisions, and recovery
+controls. See [Project actions](/docs/developer-workflow/built-in-terminal#project-actions).
+
 ## Environment and Git actions
 
 Choose **Changes** to open the Diff sidebar. The environment row identifies the checkout that this session already uses; it cannot be changed after the first message because doing so would move an existing conversation to a different working tree.

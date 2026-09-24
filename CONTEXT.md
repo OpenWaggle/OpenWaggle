@@ -1896,12 +1896,49 @@ _Avoid_: search (it narrows in place rather than producing results), sidebar vie
 - When worktree creation completes, **Worktree launch progress** collapses its bordered steps to `Worktree created` while `Starting a task` remains active. When Pi agent activity begins, the active setup component becomes a durable **Worktree launch trace** rather than disappearing.
 - A **Worktree launch trace** is app-owned transcript activity, not an assistant message or **Agent phase**. It remains after reload and exposes the real retained setup output through a compact disclosure.
 - Optional setup activity produces an additional durable trace only when OpenWaggle actually performed that setup; absent operations leave no synthetic history.
-- A project owns zero or more **Project actions** and at most one **Setup action**.
+- A project owns zero or more **Project actions**, one default **Preparation profile**, and optional additional named profiles.
+- A **Project action** saved through an earlier import remains a native definition owned by its project; its origin does not require an ongoing importer or vendor-specific execution context.
+- A **Preparation profile** groups optional **Workspace setup** and **Workspace cleanup**; their storage choices remain independent.
+- A new managed **Session worktree** uses the selected **Preparation profile**; sessions sharing that **Workspace resource** share its preparation.
+- A **Session worktree** retains its **Preparation snapshot** until the user explicitly adopts a profile update; later profile edits are shown as available updates.
+- **Workspace automation enablement** applies to the execution definition that will run, including a retained **Preparation snapshot**; an upstream edit does not by itself change that snapshot.
+- **Project configuration storage** defaults to private local storage for the selected project's **Project actions**, **Workspace setup**, and **Workspace cleanup**; those definitions do not apply to unrelated projects.
+- Storing a definition in the project's files is an explicit sharing choice and does not change which project owns it.
+- Each **Project action**, **Workspace setup**, and **Workspace cleanup** independently chooses its **Project configuration storage**.
+- **Project actions**, **Workspace setup**, and **Workspace cleanup** rely on OpenWaggle to handle the execution platform; users do not configure operating-system variants.
+- An incompatible command can receive a **Command repair proposal** through the user-invoked Fix with agent flow; the configured definition changes only after the user reviews and saves the proposal.
+- A **Local definition override** takes precedence over its shared definition within the same project without modifying that definition in project files.
+- An overridden definition appears once as the effective definition, labelled Locally overridden; removing the override restores the shared version.
+- Shared **Workspace setup** and **Workspace cleanup** require explicit **Workspace automation enablement** before automatic execution; discovering their definitions does not enable them.
+- **Workspace automation enablement** covers the reviewed execution definition; changes to its command or execution settings require renewed review, while cosmetic changes do not.
+- Pending automation review visibly explains why workspace preparation or removal is paused and exposes the changed definition for review.
+- Automation review opens automatically when a changed definition blocks workspace preparation or removal; dismissing it does not enable that definition.
 - A **Project action** owns zero or more **Project action bindings**; a project resolves them as one ordered stack.
+- A **Project action run** executes one **Project action** in a specific **Workspace resource**.
+- A **Project action** defaults to one active **Project action run** per **Workspace resource**; finite tasks may explicitly allow concurrent runs, each with its own status and output.
+- Launching an active **Project action** with concurrency disabled opens its existing run; Restart explicitly replaces it after termination, and a launch after completion starts a new run.
+- A **Long-running action** has at most one active **Project action run** per **Workspace resource**; launching it again opens that run's output, with explicit Stop and Restart controls.
+- **Long-running actions** start on an explicit user or agent request and are separate from **Workspace setup**.
+- Users and agents operate on the same **Project action runs** within their **Workspace resource**; agent discovery, launch, inspection, and stopping obey existing authorization rules.
+- Active **Long-running actions** stop when their **Workspace resource** loses its final **Workspace binding**, before **Workspace cleanup** or worktree removal; changing the visible session does not stop them.
+- **Long-running actions** survive quitting the desktop app while their workspace remains in use; reopening reconnects automatically to the existing **Project action runs**, their status, retained output, and controls.
+- Reconnecting to a **Project action run** observes the existing execution and does not launch the command again.
+- A stopped or interrupted **Project action run** preserves its available output and offers explicit Restart; reopening the app does not automatically relaunch its command.
+- A development-server **Project action run** supplies an **Action preview target** through output detection or a manual URL override; automatic opening respects the action's preference and waits for readiness.
 - A **Project action binding** may intentionally override another active binding, while a **Shortcut registry** entry remains conflict-free.
-- A **Checked-in action candidate** becomes a **Project action** only after explicit import; discovery never grants command-execution authority.
-- A **Setup action** belongs to one newly created **Session worktree** generation. Adoption may deliver that generation while its durable dispatch remains pending. Recovery never replays a claimed, accepted, or legacy generation.
-- A **Setup action** runs in a Session terminal before the first agent turn starts. Launch failure is reported in **Worktree launch progress** but does not block that turn.
+- A **Project action candidate** becomes a **Project action** only after the user explicitly saves it; discovery never grants command-execution authority.
+- A **Project action candidate** comes from task definitions in the selected project's files and retains its source, task name, runner, and working directory.
+- **Project action candidates** include root and workspace-package tasks, grouped by package; their working directories resolve within the **Workspace resource** where they run.
+- Saving a **Project action candidate** creates a **Project task reference** that follows the named task's definition in the current workspace; a missing task makes the action unavailable.
+- A **Project action** may instead hold a custom command maintained independently of discovered task definitions.
+- Automatic **Workspace setup** belongs to a newly created **Session worktree** generation; recovering an already prepared worktree does not repeat setup.
+- **Workspace setup** must finish successfully before the first agent turn starts in a new **Session worktree**; a failure pauses that turn until the user retries setup or explicitly chooses to continue anyway.
+- Successful **Workspace setup** establishes the **Prepared workspace environment** for subsequent agent commands and **Project action runs** in the same workspace; failed setup does not apply partial environment changes.
+- The **Prepared workspace environment** remains local to its **Workspace resource** and does not affect other workspaces or already-running processes.
+- **Workspace setup** is configured independently of **Project actions**; both can invoke the project's existing scripts.
+- An existing local checkout offers explicit **Workspace setup**; opening it or starting its first agent turn does not run setup automatically.
+- Configured **Workspace cleanup** runs before removal of a managed **Session worktree**, only after its final **Workspace binding** has been released.
+- Failed **Workspace cleanup** retains the worktree until cleanup succeeds or the user explicitly chooses to delete it anyway.
 - A launch that uses **Work-locally fallback** or is cancelled leaves no `Worktree created` trace, because no successful worktree creation occurred.
 - A **Failed worktree launch** keeps the submitted user message visible and presents `Retry`, `Work locally`, `Cancel`, and `More details`. Retry and Work locally continue the retained turn exactly once; Cancel removes it and restores its exact pre-send draft.
 - A **Failed worktree launch** does not also restore the retained message into the composer, because representing the same intent as both a transcript turn and a draft invites a duplicate send.
@@ -2111,11 +2148,68 @@ _Avoid_: search (it narrows in place rather than producing results), sidebar vie
 > **Dev:** "Should an agent hardcode the packaged docs path?"
 > **Domain expert:** "No — use the **Docs discovery capability** to resolve documentation topics to local paths."
 
-> **Dev:** "Should finding a setup command in `t3.json` run it during first send?"
-> **Domain expert:** "No. It is a **Checked-in action candidate** until the user imports it and chooses it as the **Setup action**."
+> **Dev:** "Should discovering a project's install command run it during first send?"
+> **Domain expert:** "No. Discovery does not configure **Workspace setup**; the user must explicitly choose the preparation commands."
 
-> **Dev:** "Should recovering an existing Session worktree run its Setup action again?"
-> **Domain expert:** "No. A **Setup action** belongs to first creation, so recovery only restores the existing worktree."
+> **Dev:** "Do I need to retype a test script already declared by my project?"
+> **Domain expert:** "No. OpenWaggle discovers supported project task definitions so you can select and save the command as a local Project action."
+
+> **Dev:** "Both the root and website package declare test. Which one does the picker offer?"
+> **Domain expert:** "Both, grouped by package; the selected task runs from its package directory in the current workspace."
+
+> **Dev:** "The project changed its test script after I saved it as an action. Does my action keep the old command?"
+> **Domain expert:** "No. Its Project task reference invokes the current task definition; if that task disappears, the action becomes unavailable."
+
+> **Dev:** "Should recovering an already prepared Session worktree run setup again?"
+> **Domain expert:** "No. Automatic **Workspace setup** belongs to worktree creation, so recovery only restores that worktree."
+
+> **Dev:** "Can the agent start testing while Workspace setup is still installing dependencies?"
+> **Domain expert:** "No. Setup must succeed first; after a failure, the user can retry it or explicitly continue anyway."
+
+> **Dev:** "Does opening my existing local checkout run Workspace setup?"
+> **Domain expert:** "No. Use Run setup explicitly; automatic setup applies when OpenWaggle creates a new managed worktree."
+
+> **Dev:** "Two sessions share a worktree. Does archiving one run Workspace cleanup?"
+> **Domain expert:** "No. Cleanup runs before actual worktree removal, after the last session releases it."
+
+> **Dev:** "Cleanup could not remove the temporary database. Is the worktree deleted anyway?"
+> **Domain expert:** "No. Keep it available for Retry cleanup; only an explicit Delete anyway bypasses that failure."
+
+> **Dev:** "I click Start dev server twice in the same workspace. Do I get two servers?"
+> **Domain expert:** "No. A second launch opens the active Project action run's output; Restart explicitly replaces that run."
+
+> **Dev:** "I start Test, then an agent launches that same action in this workspace. Are two test suites running?"
+> **Domain expert:** "By default, both see the same active Project action run. A finite task can explicitly allow concurrent runs, but Test and Build do not overlap with themselves just because they are finite."
+
+> **Dev:** "Does switching to another session stop my development server?"
+> **Domain expert:** "No. It stops automatically when the last session releases its workspace, before cleanup or removal."
+
+> **Dev:** "I quit and reopen OpenWaggle while my development server is running. Does it launch another server?"
+> **Domain expert:** "No. The existing action keeps running; OpenWaggle reconnects automatically to its status, output, and controls."
+
+> **Dev:** "The computer restarted and the server process is gone. Will opening OpenWaggle relaunch it?"
+> **Domain expert:** "No. Show the stopped or interrupted run and its available output, then let the user choose Restart."
+
+> **Dev:** "Can one project prepare frontend-only worktrees and full-stack worktrees differently?"
+> **Domain expert:** "Yes. Choose a Preparation profile when creating each worktree; a project with only its default profile needs no extra selection."
+
+> **Dev:** "I edited the Full stack profile. Does an existing worktree immediately use its new cleanup command?"
+> **Domain expert:** "No. It retains its Preparation snapshot and shows the profile update as available; applying that update is an explicit choice."
+
+> **Dev:** "I saved a local action for project A. Will it appear in project B or create shared repository configuration?"
+> **Domain expert:** "Neither. Local definitions belong to the selected project; storing them in project files for sharing is an explicit choice."
+
+> **Dev:** "Does sharing Test also share my debugging action, setup, and cleanup?"
+> **Domain expert:** "No. Each definition has its own storage choice."
+
+> **Dev:** "Can I change a shared Test command just for my machine?"
+> **Domain expert:** "Yes. A Local definition override supplies your personal version without changing the repository; restoring the shared version removes that override."
+
+> **Dev:** "A teammate added shared Workspace setup. Does creating my next worktree run it immediately?"
+> **Domain expert:** "No. Review and enable it for this project first; that choice is remembered locally."
+
+> **Dev:** "A pull changes the enabled setup command. Why has preparation stopped?"
+> **Domain expert:** "The changed definition needs review. OpenWaggle shows the pending state and opens the review automatically when it blocks preparation."
 
 > **Dev:** "Is docs discovery only for extensions?"
 > **Domain expert:** "No — it also belongs in the **Self-modifying agent context** so agents can inspect installed OpenWaggle contracts."
@@ -2268,20 +2362,68 @@ The persisted user preference that routes recognized HTTP(S) links to the system
 _Avoid_: link trust setting, browser permission
 
 **Project action**:
-A named, project-scoped shell command that the user saves for repeated launch from OpenWaggle.
+A named, project-scoped command, defined by a Project task reference or custom command text, saved for explicit launch by a user or agent.
 _Avoid_: task (an agent run), script (the command need not be a script file), terminal command (too broad)
+
+**Project task reference**:
+A link to a named task in a specific project source location, invoked through its project runner in the current workspace.
+_Avoid_: copied script (the reference follows the source definition), action name (display names do not identify source tasks)
+
+**Project configuration storage**:
+The per-definition choice between private local storage for a project's command and storage in that project's files for sharing.
+_Avoid_: global actions (local definitions still belong to one project), Session environment mode (storage does not select where commands execute)
+
+**Local definition override**:
+A private, project-scoped customization that takes precedence over an existing shared command definition.
+_Avoid_: duplicate action (it remains one effective definition), shared edit (the project's file remains unchanged)
+
+**Workspace automation enablement**:
+The user's locally remembered choice to allow a reviewed shared Workspace setup or Workspace cleanup execution definition to run automatically for one project.
+_Avoid_: shared permission (the choice is private), discovery (finding a definition does not activate it)
+
+**Project action run**:
+One execution of a Project action in a particular Workspace resource.
+_Avoid_: Run (an agent execution), terminal (the output surface is not the execution itself)
+
+**Long-running action**:
+A Project action intended to provide an ongoing process, such as a development server, within a Workspace resource.
+_Avoid_: setup action (preparation must finish), background task (ambiguous with agent work)
+
+**Action preview target**:
+The detected or explicitly configured URL associated with a development-server Project action run for opening a Browser preview.
+_Avoid_: project URL (different workspaces and runs may use different addresses), command acceptance (dispatch does not establish readiness)
 
 **Project action binding**:
 An ordered, optionally conditional keyboard mapping that launches a Project action. Multiple bindings may overlap deliberately; the last active matching binding owns the chord.
 _Avoid_: Shortcut registry entry (that registry is conflict-free), action shortcut (does not name ordering or conditions)
 
-**Setup action**:
-The sole Project action, if any, selected for one at-most-once dispatch per Session worktree generation. First creation, interrupted-creation adoption, and explicit missing-tree recreation persist pending intent. Main commits a claim before terminal handoff and records acceptance afterward. A claim left by an app crash is indeterminate and never replays automatically because the command may already have reached the shell.
-_Avoid_: initialization hook (it is a visible user command), setup script (the command need not be a script file)
+**Workspace setup**:
+The optional preparation in a Preparation profile that establishes workspace readiness before agent work begins.
+_Avoid_: setup action (conflates preparation with on-demand Project actions), setup script (preparation need not be a script file)
 
-**Checked-in action candidate**:
-An untrusted Project action definition discovered in the project's root `t3.json` but not saved or runnable by OpenWaggle until the user imports it.
-_Avoid_: project action (it is only a candidate), auto-imported script
+**Prepared workspace environment**:
+The locally retained exported environment changes from successful Workspace setup, inherited by subsequent processes in that workspace.
+_Avoid_: global environment (values do not apply to other workspaces), Session environment mode (that selects local or worktree placement)
+
+**Workspace cleanup**:
+The optional commands in a Preparation profile that release a managed worktree's resources before its removal.
+_Avoid_: session cleanup (several sessions may share the worktree), worktree deletion (cleanup precedes removal)
+
+**Preparation profile**:
+A named, project-scoped combination of optional Workspace setup and Workspace cleanup selected for a workspace.
+_Avoid_: Session environment mode (that selects local or worktree placement), agent profile (preparation does not select an agent)
+
+**Preparation snapshot**:
+The copy of a selected Preparation profile's setup and cleanup definitions and execution settings retained by a worktree until explicitly updated.
+_Avoid_: repository snapshot (it does not freeze source files), current profile (the saved definitions can differ)
+
+**Project action candidate**:
+A declared task discovered in the selected project's supported task-definition files that the user has not yet saved as a Project action.
+_Avoid_: project action (it is only a candidate), auto-imported script, checked-in action candidate (discovery does not imply version-control status)
+
+**Command repair proposal**:
+An agent-produced replacement for an incompatible configured command that the user can review and save.
+_Avoid_: automatic repair (the replacement needs review and saving), action run (a proposal does not execute the command)
 
 ### Build identity
 

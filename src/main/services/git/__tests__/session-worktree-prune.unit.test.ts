@@ -67,6 +67,7 @@ describe('pruneSessionWorktree', () => {
 
   it('validates deletion safety without changing Git or SQLite state', async () => {
     const d = deps([{ sessionId: 's1', worktreePath: '/wt/x' }])
+    const preparedRemover = vi.fn()
 
     await expect(
       pruneSessionWorktree(
@@ -77,14 +78,40 @@ describe('pruneSessionWorktree', () => {
           reason: 'delete',
           validateOnly: true,
         },
-        d,
+        { ...d, removeWorktree: preparedRemover },
       ),
     ).resolves.toEqual({ status: 'ready-for-deletion' })
 
     expect(validateGitWorktreeRemovalMock).toHaveBeenCalledWith('/repo', { path: '/wt/x' })
     expect(removeGitWorktreeMock).not.toHaveBeenCalled()
+    expect(preparedRemover).not.toHaveBeenCalled()
     expect(d.clearWorktree).not.toHaveBeenCalled()
   })
+
+  it.each(['dirty-worktree', 'not-found'] as const)(
+    'does not call an injected cleanup remover when validation reports %s',
+    async (code) => {
+      validateGitWorktreeRemovalMock.mockResolvedValue({ ok: false, code, message: code })
+      const d = deps([{ sessionId: 's1', worktreePath: '/wt/x' }])
+      const preparedRemover = vi.fn()
+      await expect(
+        pruneSessionWorktree(
+          {
+            sessionId: 's1',
+            projectPath: '/repo',
+            worktreePath: '/wt/x',
+            reason: 'delete',
+            validateOnly: true,
+          },
+          { ...d, removeWorktree: preparedRemover },
+        ),
+      ).resolves.toEqual({ status: 'retained', reason: 'worktree-removal-refused' })
+      expect(validateGitWorktreeRemovalMock).toHaveBeenCalledWith('/repo', { path: '/wt/x' })
+      expect(preparedRemover).not.toHaveBeenCalled()
+      expect(removeGitWorktreeMock).not.toHaveBeenCalled()
+      expect(d.clearWorktree).not.toHaveBeenCalled()
+    },
+  )
 
   it('does not mutate worktree state when the session has no worktree', async () => {
     const d = deps([])

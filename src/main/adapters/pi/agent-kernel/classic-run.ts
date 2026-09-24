@@ -18,12 +18,14 @@ import { captureTurnCheckpoint } from './turn-capture'
 
 function runtimeResources(
   input: {
+    readonly preparedEnvironment?: AgentKernelRunInput['preparedEnvironment']
     readonly trustedExtensionFactories?: readonly ExtensionFactory[]
     readonly systemPromptAppendices?: readonly string[]
   },
   extensionFactories: readonly ExtensionFactory[],
 ) {
   return {
+    ...(input.preparedEnvironment ? { preparedEnvironment: input.preparedEnvironment } : {}),
     extensionFactories: [...extensionFactories],
     ...(input.trustedExtensionFactories
       ? { trustedExtensionFactories: [...input.trustedExtensionFactories] }

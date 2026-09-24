@@ -10,7 +10,7 @@ const apiMock = vi.hoisted(() => ({
 }))
 const projectMocks = vi.hoisted(() => {
   const actions: ProjectAction[] = []
-  return { actions, update: vi.fn() }
+  return { actions, update: vi.fn(), readScope: vi.fn(), editScope: vi.fn() }
 })
 
 vi.mock('@/shared/lib/ipc', () => ({ api: apiMock }))
@@ -18,11 +18,14 @@ vi.mock('@/features/project-actions', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/features/project-actions')>()
   return {
     ...actual,
-    useProjectActions: () => ({ data: projectMocks.actions, isError: false }),
-    useProjectActionMutations: () => ({
-      update: projectMocks.update,
-      isSaving: false,
-    }),
+    useProjectActions: (...args: Parameters<typeof actual.useProjectActions>) => {
+      projectMocks.readScope(...args)
+      return { data: projectMocks.actions, isError: false }
+    },
+    useProjectActionMutations: (...args: Parameters<typeof actual.useProjectActionMutations>) => {
+      projectMocks.editScope(...args)
+      return { update: projectMocks.update, isSaving: false }
+    },
   }
 })
 
@@ -76,6 +79,12 @@ describe('ShortcutsSection', () => {
     expect(screen.getAllByText('Run tests')).toHaveLength(2)
     expect(screen.queryByText('Toggle sidebar')).not.toBeInTheDocument()
     expect(screen.getByText('0 built-in · 2 project')).toBeInTheDocument()
+  })
+
+  it('scopes shortcut reads and edits to the selected project', () => {
+    render(<ShortcutsSection />)
+    expect(projectMocks.readScope).toHaveBeenCalledWith('/repo', { projectPath: '/repo' })
+    expect(projectMocks.editScope).toHaveBeenCalledWith('/repo', { projectPath: '/repo' })
   })
 
   it('adds another conditional built-in rule instead of replacing the command', async () => {

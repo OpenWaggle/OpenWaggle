@@ -223,13 +223,13 @@ describe('main process environment helpers', () => {
 
     expect(terminalEnv).toMatchObject({
       SHELL: '/bin/zsh',
-      T3CODE_PROJECT_ROOT: '/current/project',
       OPENWAGGLE_PROJECT_ROOT: '/current/project',
     })
+    expect(terminalEnv.T3CODE_PROJECT_ROOT).toBeUndefined()
     expect(pathEntries(terminalEnv.PATH)).toContain('/usr/bin')
   })
 
-  it('replaces stale parent T3 context and keeps worktree variables out of Local actions', () => {
+  it('removes legacy vendor aliases and keeps worktree variables out of Local actions', () => {
     vi.stubEnv('T3CODE_PROJECT_ROOT', '/stale/project')
     vi.stubEnv('T3CODE_WORKTREE_PATH', '/stale/worktree')
 
@@ -241,7 +241,7 @@ describe('main process environment helpers', () => {
 
     expect(normalTerminalEnv.T3CODE_PROJECT_ROOT).toBeUndefined()
     expect(normalTerminalEnv.T3CODE_WORKTREE_PATH).toBeUndefined()
-    expect(terminalEnv.T3CODE_PROJECT_ROOT).toBe('/current/project')
+    expect(terminalEnv.T3CODE_PROJECT_ROOT).toBeUndefined()
     expect(terminalEnv.OPENWAGGLE_PROJECT_ROOT).toBe('/current/project')
     expect(terminalEnv.T3CODE_WORKTREE_PATH).toBeUndefined()
     expect(terminalEnv.OPENWAGGLE_WORKTREE_PATH).toBeUndefined()

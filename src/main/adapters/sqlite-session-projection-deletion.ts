@@ -22,6 +22,7 @@ import type {
 import { completeJournaledSessionFileDeletion } from '../store/session-details/file-deletion'
 import type { SessionDeletionRecord } from '../store/session-details/session-deletion-journal'
 import type { CheckpointRefSnapshot } from './git/turn-checkpoint-refs'
+import type { removeGitWorktree } from './git/worktree'
 
 interface SessionDeletionStore {
   readonly abandonSessionDeletion: typeof abandonSessionDeletion
@@ -42,6 +43,11 @@ interface SessionDeletionStore {
 const logger = createLogger('sqlite-session-projection/deletion')
 
 interface DeletionDependencies {
+  readonly removeWorktree?: (
+    projectPath: string,
+    payload: Parameters<typeof removeGitWorktree>[1],
+    recovering: boolean,
+  ) => ReturnType<typeof removeGitWorktree>
   readonly store: SessionDeletionStore
   readonly pruneSessionWorktree: typeof pruneSessionWorktree
   readonly deleteCheckpointRefs: (
@@ -62,6 +68,7 @@ async function pruneWorktreeForSession(
   reason: 'delete' | 'archive',
   allowMissingWorktree = false,
   validateOnly = false,
+  recovering = false,
 ) {
   return input.pruneSessionWorktree(
     {
@@ -74,6 +81,17 @@ async function pruneWorktreeForSession(
       validateOnly,
     },
     {
+      ...(input.removeWorktree
+        ? {
+            removeWorktree: (
+              projectPath: string,
+              payload: Parameters<typeof removeGitWorktree>[1],
+            ) =>
+              input.removeWorktree
+                ? input.removeWorktree(projectPath, payload, recovering)
+                : Promise.reject(new Error('Worktree removal service disappeared.')),
+          }
+        : {}),
       listWorktreeRefs: () => input.store.listSessionWorktreeRefs(),
       clearWorktree: (sessionId) => input.store.clearSessionWorktree(SessionId(sessionId)),
     },
@@ -97,7 +115,11 @@ async function commitPreparedSessionDeletion(
   }
 }
 
-async function deleteSessionDurably(input: DeletionDependencies, id: SessionId) {
+async function deleteSessionDurably(
+  input: DeletionDependencies,
+  id: SessionId,
+  recovering = false,
+) {
   const session = await input.store.getSessionDetail(id)
   let deletion = session
     ? await input.store.prepareSessionDeletion(id)
@@ -125,7 +147,15 @@ async function deleteSessionDurably(input: DeletionDependencies, id: SessionId) 
         await input.deleteCheckpointRefs(deletion.projectPath, String(id))
         removed = true
       }
-      const pruning = await pruneWorktreeForSession(input, deletion, id, 'delete', true)
+      const pruning = await pruneWorktreeForSession(
+        input,
+        deletion,
+        id,
+        'delete',
+        true,
+        false,
+        recovering,
+      )
       if (pruning.status === 'retained') {
         throw new Error(`Session cleanup could not remove its Workspace (${pruning.reason}).`)
       }
@@ -150,7 +180,7 @@ function recoverPendingDeletions(input: DeletionDependencies) {
   return Effect.promise(async () => {
     for (const id of await input.store.listPendingSessionDeletions()) {
       try {
-        await deleteSessionDurably(input, id)
+        await deleteSessionDurably(input, id, true)
       } catch (error) {
         logger.error('Pending Session deletion recovery failed; Session remains visible.', {
           error: String(error),

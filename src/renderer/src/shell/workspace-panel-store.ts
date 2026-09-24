@@ -142,6 +142,15 @@ function createWorkspacePanelState(
     closeBrowser: (ownerKey, previewId) => closeBrowsers(set, get, ownerKey, [previewId]),
     closeBrowsers: (ownerKey, previewIds) => closeBrowsers(set, get, ownerKey, previewIds),
     showBrowser: (ownerKey, previewId) => showBrowser(set, get, ownerKey, previewId),
+    showAction: (ownerKey, projectPath, runId) => {
+      if (!ownerKey) return
+      setWorkspacePanelGroup(set, get, ownerKey, {
+        ...(get().groups[ownerKey] ?? EMPTY_WORKSPACE_PANEL_GROUP),
+        activeSurface: { kind: 'action', projectPath, runId },
+        panelOpen: true,
+      })
+      useRightSidebarCoordinator.getState().claimWorkspace(ownerKey)
+    },
     showTerminal: (ownerKey) => showTerminal(set, get, ownerKey),
     hideTerminal: (ownerKey) => hideTerminal(set, get, ownerKey),
     hidePanel: (ownerKey) => hidePanel(set, get, ownerKey),

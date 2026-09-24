@@ -14,8 +14,10 @@ export interface TerminalHistoryCacheSnapshot {
 
 export interface TerminalHistoryStore {
   read(key: TerminalKey): Promise<string>
+  readWithCursor(key: TerminalKey): Promise<{ text: string; endOffset: number | null }>
   registerWorkingDirectory(key: TerminalKey, cwd: string): Promise<void>
   append(key: TerminalKey, chunk: string): void
+  appendWithCursor(key: TerminalKey, chunk: string, endOffset: number): void
   truncate(key: TerminalKey): Promise<void>
   remove(key: TerminalKey): Promise<void>
   removeForOwner(ownerKey: TerminalOwnerKey): Promise<void>
@@ -24,7 +26,7 @@ export interface TerminalHistoryStore {
   moveOwner(fromOwnerKey: TerminalOwnerKey, toOwnerKey: TerminalOwnerKey): Promise<void>
   /** Release in-memory bookkeeping without deleting durable replay files. */
   release(key: TerminalKey): Promise<void>
-  flush(): Promise<void>
+  flush(key?: TerminalKey): Promise<void>
   /** Test-only cache visibility; this adapter is not part of the app API. */
   cacheSnapshotForTests(): TerminalHistoryCacheSnapshot
 }

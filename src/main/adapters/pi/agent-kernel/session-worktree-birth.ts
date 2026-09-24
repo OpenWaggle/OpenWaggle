@@ -184,6 +184,7 @@ async function createSessionWorktree(input: {
   readonly workspace: BoundWorkspaceResource
   readonly options: SessionWorktreeBirthOptions
 }) {
+  await input.options.onBeforeWorktreeCreate?.()
   const baseRef = await resolveFreshWorktreeBaseRef(
     input.workspace,
     input.primaryPath,

@@ -24,8 +24,9 @@ export function ShortcutsSection() {
   const shortcutRules = usePreferencesStore((state) => state.settings.shortcutRules)
   const setShortcutRules = usePreferencesStore((state) => state.setShortcutRules)
   const showToast = useUIStore((state) => state.showToast)
-  const actionsQuery = useProjectActions(projectPath)
-  const mutations = useProjectActionMutations(projectPath)
+  const projectScope = projectPath ? { projectPath } : null
+  const actionsQuery = useProjectActions(projectPath, projectScope)
+  const mutations = useProjectActionMutations(projectPath, projectScope)
   const actions = actionsQuery.data ?? []
   const [query, setQuery] = useState('')
   const [adding, setAdding] = useState(false)

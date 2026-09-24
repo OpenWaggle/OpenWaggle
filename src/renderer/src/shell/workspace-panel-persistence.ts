@@ -104,6 +104,13 @@ function sanitizeActiveSurface(
   browserTabs: readonly BrowserPreviewTabState[],
 ): WorkspacePanelSurface {
   if (isUnknownRecord(value)) {
+    if (
+      value.kind === 'action' &&
+      typeof value.projectPath === 'string' &&
+      typeof value.runId === 'string' &&
+      value.runId.length > 0
+    )
+      return { kind: 'action', projectPath: value.projectPath, runId: value.runId }
     if (value.kind === 'terminal') return { kind: 'terminal' }
     const activeBrowser = browserSurface(value, browserTabs)
     if (activeBrowser !== null) return activeBrowser
@@ -115,7 +122,7 @@ function sanitizeGroup(value: unknown, ownerKey: string): WorkspacePanelGroupSta
   if (!isUnknownRecord(value)) return null
   const browserTabs = sanitizeTabs(value.browserTabs, ownerKey)
   const activeSurface = sanitizeActiveSurface(value.activeSurface, browserTabs)
-  if (browserTabs.length === 0 && activeSurface?.kind !== 'terminal') return null
+  if (browserTabs.length === 0 && activeSurface === null) return null
   const rawPanelOpen = value.panelOpen
   return {
     browserTabs,
