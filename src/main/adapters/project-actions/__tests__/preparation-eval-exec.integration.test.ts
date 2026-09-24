@@ -122,6 +122,42 @@ describe.skipIf(process.platform === 'win32')('setup commands using evaluated ex
         environment: { OW_DYNAMIC_ASSIGNMENT: 'loaded' },
       })
 
+      const caseArm = await execute({
+        ...input,
+        invocation: {
+          type: 'command',
+          command: String.raw`code='export OW_CASE_ARM=loaded; \exec /usr/bin/true'; case x in x) \eval "$code";; esac`,
+          directory: '.',
+        },
+      })
+      expect(caseArm).toMatchObject({ exitCode: 0, environment: { OW_CASE_ARM: 'loaded' } })
+
+      const dynamicCaseArm = await execute({
+        ...input,
+        invocation: {
+          type: 'command',
+          command: String.raw`code='export OW_DYNAMIC_CASE_ARM=loaded; \exec /usr/bin/true'; wrapper='case x in x) \eval "$code";; esac'; eval "$wrapper"`,
+          directory: '.',
+        },
+      })
+      expect(dynamicCaseArm).toMatchObject({
+        exitCode: 0,
+        environment: { OW_DYNAMIC_CASE_ARM: 'loaded' },
+      })
+
+      const parenthesizedCaseArm = await execute({
+        ...input,
+        invocation: {
+          type: 'command',
+          command: String.raw`code='export OW_PAREN_CASE_ARM=loaded; \exec /usr/bin/true'; case x in (x) \eval "$code";; esac`,
+          directory: '.',
+        },
+      })
+      expect(parenthesizedCaseArm).toMatchObject({
+        exitCode: 0,
+        environment: { OW_PAREN_CASE_ARM: 'loaded' },
+      })
+
       const nestedEscapedEval = await execute({
         ...input,
         invocation: {

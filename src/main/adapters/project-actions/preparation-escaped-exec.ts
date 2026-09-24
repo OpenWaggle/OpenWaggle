@@ -57,6 +57,14 @@ function finishEvalPrefixWord(state: EvalPrefixState) {
   state.word = ''
 }
 
+function closeEvalPrefixGroup(state: EvalPrefixState) {
+  const group = state.groups.pop()
+  // A case arm may start with '('; its ')' still begins the command list.
+  const casePattern = !group || (group.word === '(' && !group.commandPosition)
+  state.commandPosition = casePattern || (group?.commandPosition ?? false)
+  state.word = casePattern ? '' : `${group?.word ?? ''})`
+}
+
 function visitEvalPrefixUnquoted(
   command: string,
   cursor: number,
@@ -84,9 +92,7 @@ function visitEvalPrefixUnquoted(
     return cursor
   }
   if (character === ')') {
-    const group = state.groups.pop()
-    state.commandPosition = group?.commandPosition ?? false
-    state.word = `${group?.word ?? ''})`
+    closeEvalPrefixGroup(state)
     return cursor
   }
   if (/[;&|{}]/.test(character)) {

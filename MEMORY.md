@@ -904,6 +904,9 @@ keywords), not when it is an unquoted argument. Apply the same rule to code repa
 Determine command position by scanning shell words: quoted or escaped whitespace and separators
 may belong to an assignment prefix before `\eval`, so a whitespace-only prefix regex can miss
 the command and let a following escaped `exec` bypass capture.
+A `)` after a `case` pattern starts the arm's command list, including when an optional `(`
+opens that pattern; treat the closer as a command boundary in both static and runtime scanners
+while retaining nested group state for other parentheses.
 Interrupted sharing journals pin the filesystem directory identity and durable Workspace resource.
 Recovery keeps a draft when the checkout is missing, replaced, or releasing; publication must never
 recreate a deleted checkout. Private preparation retains its profile metadata so a teammate removing

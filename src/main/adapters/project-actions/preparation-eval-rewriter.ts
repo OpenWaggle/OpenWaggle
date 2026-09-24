@@ -47,12 +47,18 @@ function isEvalCommandPosition(prefix,    cursor, character, following, quote, w
     }
     if (character == ")") {
       if (depth > 0) {
-        expected = savedExpected[depth]
-        word = savedWord[depth] ")"
+        if (savedWord[depth] == "(" && !savedExpected[depth]) {
+          expected = 1
+          word = ""
+        } else {
+          expected = savedExpected[depth]
+          word = savedWord[depth] ")"
+        }
         depth--
       } else {
-        expected = 0
-        word = ")"
+        # An unmatched ')' closes a case arm pattern and starts its command list.
+        expected = 1
+        word = ""
       }
       continue
     }

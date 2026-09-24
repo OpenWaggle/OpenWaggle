@@ -110,4 +110,14 @@ describe('escaped exec capture', () => {
       command.replaceAll(String.raw`\eval`, '__ow_eval'),
     )
   })
+
+  it('treats a case-arm pattern closer as an escaped eval command boundary', () => {
+    const command = [
+      String.raw`case x in x) \eval "$code";; esac`,
+      String.raw`case x in (x) \eval "$code";; esac`,
+    ].join('\n')
+    expect(enableEscapedExecCapture(command)).toBe(
+      command.replaceAll(String.raw`\eval`, '__ow_eval'),
+    )
+  })
 })
