@@ -241,7 +241,7 @@ function registerAppLifecycle() {
     .whenReady()
     .then(() => {
       electronApp.setAppUserModelId('com.openwaggle.app')
-      configureDesktopUiAfterReady(app)
+      configureDesktopUiAfterReady(app, appIconPath)
 
       // Initialize file logger now that app paths are available
       void initFileLogger(app.getPath('logs'))

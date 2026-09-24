@@ -15,8 +15,12 @@ export function prepareDesktopUi(app: App) {
 }
 
 // Packaged apps take their Dock icon from the bundle's Info.plist; calling app.dock.setIcon
-// at runtime makes macOS LaunchServices register a second Dock tile on every launch.
-export function configureDesktopUiAfterReady(app: App) {
+// at runtime makes macOS LaunchServices register a second Dock tile on every launch. Dev
+// builds keep the runtime override so they stay visually distinct (ADR 0032).
+export function configureDesktopUiAfterReady(app: App, appIconPath: string) {
+  if (!isAutomationMode() && !app.isPackaged && process.platform === 'darwin') {
+    app.dock?.setIcon(appIconPath)
+  }
   if (!isAutomationMode()) {
     app.on('browser-window-created', (_, window) => optimizer.watchWindowShortcuts(window))
   }

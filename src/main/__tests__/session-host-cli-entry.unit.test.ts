@@ -247,8 +247,7 @@ describe('detached Session Host startup', () => {
       expect(startSessionHostCliIfRequested(['session-host-internal'])).toBe(true)
       await vi.advanceTimersByTimeAsync(9_999)
       expect(stop).not.toHaveBeenCalled()
-      await vi.advanceTimersByTimeAsync(600_000)
-      console.log('DEBUG exit calls:', mocks.exit.mock.calls)
+      await vi.advanceTimersByTimeAsync(1)
       expect(stop).toHaveBeenCalledOnce()
       expect(mocks.exit).toHaveBeenCalledWith(0)
     } finally {
@@ -282,8 +281,7 @@ describe('detached Session Host startup', () => {
       releaseWork()
       await vi.advanceTimersByTimeAsync(299_999)
       expect(stop).not.toHaveBeenCalled()
-      await vi.advanceTimersByTimeAsync(600_000)
-      console.log('DEBUG exit calls:', mocks.exit.mock.calls)
+      await vi.advanceTimersByTimeAsync(1)
       expect(stop).toHaveBeenCalledOnce()
       expect(mocks.exit).toHaveBeenCalledWith(0)
     } finally {
