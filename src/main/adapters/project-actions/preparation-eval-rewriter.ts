@@ -142,10 +142,10 @@ BEGIN { RS = sprintf("%c", 28) }
       i += expansion ? 2 : 1
       continue
     }
-    if (character == "$" && following == "(") {
+    if ((character == "$" || character == "<" || character == ">") && following == "(") {
       substitutionDepth++
       substitutionStart[substitutionDepth] = commandStart
-      printf "$("
+      printf "%s(", character
       i++
       previous = "("
       continue

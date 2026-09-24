@@ -19,6 +19,9 @@ const cases = [
   { shell: '/bin/dash', pattern: 'x)' },
   { shell: '/bin/dash', pattern: '(x)' },
 ]
+const processExpression = String.raw`printf "<%s><%s>\n" <(
+printf x
+) \eval`
 
 describe.skipIf(process.platform === 'win32')('case arm inside command substitution', () => {
   it.each(cases)(
@@ -68,4 +71,38 @@ export OW_CASE_SUBSTITUTION=loaded; \\exec /usr/bin/true`
       }
     },
   )
+
+  it('keeps an escaped eval argument after a multiline Bash process substitution', async () => {
+    if (!existsSync('/bin/bash')) return
+    expect(enableEscapedExecCapture(processExpression)).toBe(processExpression)
+    const directory = await mkdtemp(join(tmpdir(), 'ow-process-substitution-'))
+    const execute = createPreparationExecutor(createActionProcessRunner('test'), directory, 'test')
+    try {
+      for (const dynamic of [false, true]) {
+        const body = `${processExpression}
+export OW_PROCESS_SUBSTITUTION=loaded; \\exec /usr/bin/true`
+        const command = dynamic ? `code='${body}'; eval "$code"` : body
+        const output: string[] = []
+        const result = await execute({
+          workspace: {
+            workspaceId: 'process-substitution',
+            projectPath: directory,
+            workspacePath: directory,
+          },
+          invocation: { type: 'command', command, directory: '.' },
+          environment: { SHELL: '/bin/bash' },
+          captureEnvironment: true,
+          onOutput: (chunk) => output.push(chunk),
+        })
+        expect(result, `dynamic=${dynamic}`).toMatchObject({
+          exitCode: 0,
+          environment: { OW_PROCESS_SUBSTITUTION: 'loaded' },
+        })
+        expect(output.join(''), `dynamic=${dynamic}`).toContain('><eval>')
+      }
+    } finally {
+      await execute.shutdown()
+      await rm(directory, { recursive: true, force: true })
+    }
+  })
 })

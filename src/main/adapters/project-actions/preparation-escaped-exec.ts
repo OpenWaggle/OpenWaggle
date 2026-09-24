@@ -166,13 +166,15 @@ function isCasePatternOpening(command: string, index: number, state: ScanState) 
 
 function visitSubstitutionBoundary(command: string, index: number, state: ScanState) {
   const character = command[index]
-  if (command.startsWith('$(', index) && !command.startsWith('$((', index)) {
+  const commandSubstitution = command.startsWith('$(', index) && !command.startsWith('$((', index)
+  const processSubstitution = command.startsWith('<(', index) || command.startsWith('>(', index)
+  if (commandSubstitution || processSubstitution) {
     state.substitutionDepth += 1
     state.substitutionStarts.push({
       depth: state.substitutionDepth,
       commandStart: state.commandStart,
     })
-    state.result += '$('
+    state.result += command.slice(index, index + CASE_ARM_TERMINATOR_LENGTH)
     return index + 1
   }
   const arm = state.caseArms.at(-1)
