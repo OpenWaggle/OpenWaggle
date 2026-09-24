@@ -182,12 +182,16 @@ export function bindVisualizationContextFilter(session: AgentSession) {
     referenceMessages,
     options,
     signal,
-  ) =>
-    filterConsumedVisualizationContext(
-      await transformBaseContext(messages, signal),
-      referenceMessages,
+  ) => {
+    const transformedMessages = await transformBaseContext(messages, signal)
+    return filterConsumedVisualizationContext(
+      transformedMessages,
+      referenceMessages === messages
+        ? transformedMessages
+        : await transformBaseContext(referenceMessages, signal),
       options,
     )
+  }
   Reflect.set(session.agent, 'transformCompactionContext', transformCompactionContext)
 }
 

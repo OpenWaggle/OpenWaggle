@@ -1,21 +1,8 @@
-diff --git a/dist/core/agent-session-runtime.js b/dist/core/agent-session-runtime.js
-index 2f53b55e0a9979403af4288f6d89c4e53ca1f749..cc3b45b94f8ff61464a2a4103c1d18872875aedd 100644
---- a/dist/core/agent-session-runtime.js
-+++ b/dist/core/agent-session-runtime.js
-@@ -166,7 +166,7 @@ export class AgentSessionRuntime {
-         }));
-         if (options?.setup) {
-             await options.setup(this.session.sessionManager);
--            this.session.agent.state.messages = this.session.sessionManager.buildSessionContext().messages;
-+            this.session.agent.state.messages = this.session.sessionManager.buildSessionContext(this.session.model).messages;
-         }
-         await this.finishSessionReplacement(options?.withSession);
-         return { cancelled: false };
 diff --git a/dist/core/agent-session.d.ts b/dist/core/agent-session.d.ts
-index 8c7cfec6fc0ec004f17c08c52a58c354b28b3978..73363e587d01109185408de13e19eace230ff981 100644
+index 5620ac326bd3885819f4dbca401522c3058a640b..0111dd45a8771ae83c25d48b1bf1f3347643b490 100644
 --- a/dist/core/agent-session.d.ts
 +++ b/dist/core/agent-session.d.ts
-@@ -108,6 +108,10 @@ export type AgentSessionEvent = Exclude<AgentEvent, {
+@@ -104,6 +104,10 @@ export type AgentSessionEvent = Exclude<AgentEvent, {
  export type AgentSessionEventListener = (event: AgentSessionEvent) => void;
  export interface AgentSessionConfig {
      agent: Agent;
@@ -26,7 +13,7 @@ index 8c7cfec6fc0ec004f17c08c52a58c354b28b3978..73363e587d01109185408de13e19eace
      sessionManager: SessionManager;
      settingsManager: SettingsManager;
      cwd: string;
-@@ -160,6 +164,8 @@ export interface PromptOptions {
+@@ -158,6 +162,8 @@ export interface PromptOptions {
      streamingBehavior?: "steer" | "followUp";
      /** Source of input for extension input event handlers. Defaults to "interactive". */
      source?: InputSource;
@@ -35,15 +22,42 @@ index 8c7cfec6fc0ec004f17c08c52a58c354b28b3978..73363e587d01109185408de13e19eace
      /** Internal hook used by RPC mode to observe prompt preflight acceptance or rejection. */
      preflightResult?: (success: boolean) => void;
  }
-@@ -351,6 +357,7 @@ export declare class AgentSession {
-     private _normalizePromptGuidelines;
-     private _rebuildSystemPrompt;
+@@ -200,6 +206,8 @@ export declare class AgentSession {
+     private _unsubscribeAgent?;
+     private _eventListeners;
+     private _isAgentRunActive;
++    private _requestRequiresReconstructionFit;
++    private _agentRunAbortRequested;
+     private _agentRunAbortRequested;
+     private _idleWaitPromise;
+     private _resolveIdleWait;
+@@ -248,6 +256,8 @@ export declare class AgentSession {
+     private _extensionErrorListener?;
+     private _extensionErrorUnsubscriber?;
+     private _modelRuntime;
++    private _selectedModel;
++    private _usesModelRuntimeStream;
+     private _cacheWarmer?;
+     private _toolRegistry;
+     private _toolDefinitions;
+@@ -260,6 +270,8 @@ export declare class AgentSession {
+     get modelRuntime(): ModelRuntime;
+     private _getRequiredRequestAuth;
+     private _getSummarizationRequestAuth;
++    private _refreshRequestModelContext;
++    private _prepareCompactionRequestAuth;
+     /**
+      * Install tool hooks once on the Agent instance.
+      *
+@@ -401,6 +413,7 @@ export declare class AgentSession {
+     /** Restore the active tool loadout declared by the session transcript, if it declares one. */
+     private _restoreToolsFromTranscript;
      private _runAgentPrompt;
 +    private _prepareNewTurn;
      private _handlePostAgentRun;
-     /**
-      * Send a prompt to the agent.
-@@ -361,7 +368,7 @@ export declare class AgentSession {
+     private _runBeforeSettleBoundary;
+     private _runInputHandlers;
+@@ -414,7 +427,7 @@ export declare class AgentSession {
       * @throws Error if streaming and no streamingBehavior specified
       * @throws Error if no model selected or no API key available (when not streaming)
       */
@@ -52,40 +66,43 @@ index 8c7cfec6fc0ec004f17c08c52a58c354b28b3978..73363e587d01109185408de13e19eace
      private _tryExecuteExtensionCommand;
      /**
       * Expand skill commands (/skill:name args) to their full content.
-@@ -377,7 +384,7 @@ export declare class AgentSession {
-      * @param images Optional image attachments to include with the message
+@@ -432,9 +445,7 @@ export declare class AgentSession {
+      * @param options Input source; defaults to interactive
       * @throws Error if text is an extension command
       */
--    steer(text: string, images?: ImageContent[]): Promise<void>;
+-    steer(text: string, images?: ImageContent[], options?: {
+-        source?: InputSource;
+-    }): Promise<void>;
 +    steer(text: string, images?: ImageContent[], transformExpandedText?: (text: string) => string): Promise<string>;
      /**
       * Queue a follow-up message to be processed after the agent finishes.
       * Delivered only when agent has no more tool calls or steering messages.
 diff --git a/dist/core/agent-session.js b/dist/core/agent-session.js
-index fd82b71cf332715f185d07459429f04ed7491ce9..d156f489402706d806c63029572037286d552ea5 100644
+index 36fdb31c121d1121cebc51c6f0d61d09cf07bae0..e56d3dd0d9389198da4c98e5fab8fcd7ee6ba022 100644
 --- a/dist/core/agent-session.js
 +++ b/dist/core/agent-session.js
-@@ -22,16 +22,17 @@ import { sleep } from "../utils/sleep.js";
- import { normalizeToolResultImages } from "../utils/tool-result-images.js";
+@@ -24,7 +24,7 @@ import { normalizeToolResultImages } from "../utils/tool-result-images.js";
  import { formatNoApiKeyFoundMessage, formatNoModelSelectedMessage } from "./auth-guidance.js";
  import { executeBashWithOperations } from "./bash-executor.js";
--import { calculateContextTokens, collectEntriesForBranchSummary, compact, estimateContextTokens, estimateTokens, generateBranchSummary, prepareCompaction, shouldCompact, } from "./compaction/index.js";
-+import { calculateContextTokens, collectEntriesForBranchSummary, compact, estimateContextTokens, estimatePortableCompactionRequestOverheadTokens, estimateTokens, generateBranchSummary, prepareCompaction, selectCompactionMechanism, shouldCompact, } from "./compaction/index.js";
+ import { generateBugReportSummary } from "./bug-report.js";
+-import { calculateContextTokens, collectEntriesForBranchSummary, compact, estimateContextTokens, estimateProjectedContextTokens, estimateTokens, generateBranchSummary, prepareCompaction, shouldCompact, } from "./compaction/index.js";
++import { calculateContextTokens, collectEntriesForBranchSummary, compact, estimateContextTokens, estimatePortableCompactionRequestOverheadTokens, estimateProjectedContextTokens, estimateTokens, generateBranchSummary, prepareCompaction, selectCompactionMechanism, shouldCompact } from "./compaction/index.js";
  import { DEFAULT_THINKING_LEVEL, THINKING_LEVEL_OPTIONS } from "./defaults.js";
  import { exportSessionToHtml } from "./export-html/index.js";
  import { createToolHtmlRenderer } from "./export-html/tool-renderer.js";
- import { ExtensionRunner, wrapRegisteredTools, } from "./extensions/index.js";
+@@ -32,9 +32,10 @@ import { ExtensionRunner, wrapRegisteredTools, } from "./extensions/index.js";
  import { emitSessionShutdownEvent } from "./extensions/runner.js";
+ import { convertToLlm } from "./messages.js";
  import { ModelRegistry } from "./model-registry.js";
 +import { mergeProviderAttributionHeaders } from "./provider-attribution.js";
  import { expandPromptTemplate } from "./prompt-templates.js";
  import { exportSessionToJsonl } from "./session-export.js";
--import { getLatestCompactionEntry } from "./session-manager.js";
-+import { estimateReconstructionMessageTokens, getLatestCompactionEntry, getNativeCredentialFingerprint, withNativeCredentialFingerprint, withPreparedProviderHeaders, } from "./session-manager.js";
+-import { getLatestCompactionEntry, SessionManager, } from "./session-manager.js";
++import { estimateReconstructionMessageTokens, getLatestCompactionEntry, getNativeCredentialFingerprint, SessionManager, withNativeCredentialFingerprint, withPreparedProviderHeaders } from "./session-manager.js";
  import { createSyntheticSourceInfo } from "./source-info.js";
- import { buildSystemPrompt } from "./system-prompt.js";
+ import { buildSystemPrompt, buildSystemPromptSections, diffSystemPromptSections, normalizeBuildSystemPromptOptions, } from "./system-prompt.js";
  import { createLocalBashOperations } from "./tools/bash.js";
-@@ -68,6 +69,45 @@ function estimateMessagesTokens(messages) {
+@@ -71,6 +72,45 @@ function estimateMessagesTokens(messages) {
      }
      return tokens;
  }
@@ -129,35 +146,40 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..d156f489402706d806c6302957203728
 +    return units.flat();
 +}
  // ============================================================================
- // Constants
+ // AgentSession Class
  // ============================================================================
 @@ -83,6 +123,7 @@ export class AgentSession {
      _unsubscribeAgent;
      _eventListeners = [];
      _isAgentRunActive = false;
 +    _requestRequiresReconstructionFit = false;
+     _agentRunAbortRequested = false;
      _idleWaitPromise;
      _resolveIdleWait;
-     /** Tracks pending steering messages for UI display. Removed when delivered. */
-@@ -126,6 +167,8 @@ export class AgentSession {
+@@ -136,6 +177,8 @@ export class AgentSession {
      _extensionErrorListener;
      _extensionErrorUnsubscriber;
      _modelRuntime;
 +    _selectedModel;
 +    _usesModelRuntimeStream;
+     _cacheWarmer;
      // Tool registry for extension getTools/setTools
      _toolRegistry = new Map();
-     _toolDefinitions = new Map();
-@@ -144,6 +187,8 @@ export class AgentSession {
+@@ -154,10 +197,11 @@ export class AgentSession {
          this._customTools = config.customTools ?? [];
          this._cwd = config.cwd;
          this._modelRuntime = config.modelRuntime;
 +        this._selectedModel = config.selectedModel ?? config.agent.state.model;
 +        this._usesModelRuntimeStream = config.usesModelRuntimeStream === true;
+         this._cacheWarmer = config.cacheWarmer;
+-        if (this._cacheWarmer) {
++        if (this._cacheWarmer)
+             this._cacheWarmer.onWarmed = (entry) => this._emit({ type: "entry_appended", entry });
+-        }
          this._extensionRunnerRef = config.extensionRunnerRef;
          this._initialActiveToolNames = config.initialActiveToolNames;
          this._allowedToolNames = config.allowedToolNames ? new Set(config.allowedToolNames) : undefined;
-@@ -176,11 +221,13 @@ export class AgentSession {
+@@ -195,11 +239,13 @@ export class AgentSession {
              throw error;
          }
          if (result && (result.auth.apiKey || result.auth.headers)) {
@@ -173,15 +195,15 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..d156f489402706d806c6302957203728
                  env: result.env,
              };
          }
-@@ -197,21 +244,91 @@ export class AgentSession {
-             return this._getRequiredRequestAuth(model);
+@@ -216,15 +262,13 @@ export class AgentSession {
+             return this._getRequiredRequestAuth(model, signal);
          }
          try {
--            const result = await this._modelRuntime.getAuth(model);
+-            const result = await this._modelRuntime.getAuth(model, { signal });
 -            if (!result)
 -                return { model };
 -            const requestModel = result.auth.baseUrl ? { ...model, baseUrl: result.auth.baseUrl } : model;
-+            const { model: requestModel, resolution } = await this._modelRuntime.prepareModelRequest(model);
++            const { model: requestModel, resolution } = await this._modelRuntime.prepareModelRequest(model, { signal });
 +            const headers = withoutDeletedHeaders(resolution.auth.headers);
              return {
 -                model: requestModel,
@@ -194,7 +216,8 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..d156f489402706d806c6302957203728
 +                env: resolution.env,
              };
          }
-         catch {
+         catch (error) {
+@@ -233,6 +277,78 @@ export class AgentSession {
              return { model };
          }
      }
@@ -251,15 +274,15 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..d156f489402706d806c6302957203728
 +            getNativeCredentialFingerprint(currentModel) !==
 +                getNativeCredentialFingerprint(requestModel);
 +        this.agent.state.model = requestModel;
-+        const projectedContext = this.sessionManager.buildSessionContext(requestModel);
++        const projectedContext = this.sessionManager.buildSessionProjection(requestModel);
 +        this._requestRequiresReconstructionFit = projectedContext.reconstruction !== undefined;
 +        if (identityChanged) {
 +            this.agent.state.messages = projectedContext.messages;
 +        }
 +        return identityChanged;
 +    }
-+    async _prepareCompactionRequestAuth(model) {
-+        const requestAuth = await this._getSummarizationRequestAuth(model);
++    async _prepareCompactionRequestAuth(model, signal) {
++        const requestAuth = await this._getSummarizationRequestAuth(model, signal);
 +        let nativeRequestHeaders;
 +        if (selectCompactionMechanism(requestAuth.model) === "native") {
 +            nativeRequestHeaders = mergeProviderAttributionHeaders(requestAuth.model, this.settingsManager, this.sessionManager.getSessionId(), requestAuth.headers);
@@ -273,21 +296,39 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..d156f489402706d806c6302957203728
      /**
       * Install tool hooks once on the Agent instance.
       *
-@@ -274,24 +387,32 @@ export class AgentSession {
+@@ -294,24 +410,26 @@ export class AgentSession {
+             };
+         };
+     }
 -    async _compactBeforeNextAssistantResponse(context) {
 +    async _compactBeforeNextAssistantResponse(context, preparedCompactionAuth) {
          const model = this.model;
-         const settings = this.settingsManager.getCompactionSettings();
+         const settings = this.settingsManager.getCompactionSettings(model);
+-        const projection = this.sessionManager.buildSessionProjection();
++        const projection = this.sessionManager.buildSessionProjection(this.model);
          if (!model ||
              model.contextWindow <= 0 ||
-             !shouldCompact(estimateContextTokens(context.messages).tokens, model.contextWindow, settings)) {
-             return context;
+             !shouldCompact(estimateProjectedContextTokens(projection, this.sessionManager.getBranch()).tokens, model.contextWindow, settings)) {
+             return { ...context, messages: projection.messages };
          }
 -        await this._runAutoCompaction("threshold", false);
+-        return { ...context, messages: this.sessionManager.buildSessionProjection().messages };
 +        await this._runAutoCompaction("threshold", false, preparedCompactionAuth, true);
-         return {
-             ...context,
-             messages: this.agent.state.messages.slice(),
++        return { ...context, messages: this.sessionManager.buildSessionProjection(this.model).messages };
+     }
+     _installAgentRequestProjection() {
+         const previousPrepareRequest = this.agent.prepareRequest;
+         this.agent.prepareRequest = async (request, signal) => {
+             const canonicalContext = {
+                 ...request.context,
+-                messages: this.sessionManager.buildSessionProjection().messages,
++                // Agent state starts from the canonical projection; retain this request snapshot
++                // so user and queued messages that have not settled into the session tree are not lost.
++                messages: request.context.messages,
+                 // Messages declare the provider-visible loadout; context.tools keeps executable implementations.
+                 tools: this.agent.state.tools.slice(),
+             };
+@@ -377,15 +495,18 @@ export class AgentSession {
          };
      }
      _installAgentNextTurnRefresh() {
@@ -297,72 +338,113 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..d156f489402706d806c6302957203728
                  ? async (_turn, signal) => await this.agent.prepareNextTurn?.(signal)
                  : undefined);
          this.agent.prepareNextTurnWithContext = async (turn, signal) => {
--            const context = await this._compactBeforeNextAssistantResponse(turn.context);
 +            let preparedCompactionAuth;
-+            const identityChanged = await this._refreshRequestModelContext((prepared) => {
-+                preparedCompactionAuth = prepared;
-+            });
-+            const requestContext = identityChanged
-+                ? { ...turn.context, messages: this.agent.state.messages.slice() }
-+                : turn.context;
-+            const context = await this._compactBeforeNextAssistantResponse(requestContext, preparedCompactionAuth);
++            await this._refreshRequestModelContext((prepared) => { preparedCompactionAuth = prepared; });
+             const context = await this._compactBeforeNextAssistantResponse({
+                 ...turn.context,
+-                messages: this.sessionManager.buildSessionProjection().messages,
+-            });
++                messages: this.sessionManager.buildSessionProjection(this.model).messages,
++            }, preparedCompactionAuth);
              const previousSnapshot = await previousPrepareNextTurnWithContext?.({ ...turn, context }, signal);
              const nextContext = previousSnapshot?.context ?? context;
-             return {
-@@ -305,6 +423,12 @@ export class AgentSession {
+             const runOptions = this._runSystemPromptOptions ?? this._baseSystemPromptOptions;
+@@ -411,12 +532,18 @@ export class AgentSession {
                  thinkingLevel: this.agent.state.thinkingLevel,
              };
          };
 +        this.agent.transformContext = async (messages, signal) => {
 +            const transformed = previousTransformContext ? await previousTransformContext(messages, signal) : messages;
 +            return this._requestRequiresReconstructionFit
-+                ? fitMessagesToRequestBudget(transformed, this.model, this.agent.state.systemPrompt, this.agent.state.tools)
++                ? fitMessagesToRequestBudget(transformed, this.model, this.systemPrompt, this.agent.state.tools)
 +                : transformed;
 +        };
      }
      // =========================================================================
      // Event Subscription
-@@ -772,6 +896,10 @@ export class AgentSession {
-     async _runAgentPrompt(messages) {
+     // =========================================================================
+-    _refreshFinalizedContext() {
+-        const projection = this.sessionManager.buildSessionProjection();
++    _refreshFinalizedContext(targetModel = this.model) {
++        const projection = this.sessionManager.buildSessionProjection(targetModel);
+         for (const entry of projection.entries) {
+             for (const message of entry.messages)
+                 this._entryIdsByMessage.set(message, entry.sourceEntry.id);
+@@ -438,7 +565,7 @@ export class AgentSession {
+                     entryId = manager.appendContextEdit(draft.targetId, draft.replacement);
+                     break;
+                 case "compaction": {
+-                    const tokensBefore = estimateProjectedContextTokens(manager.buildSessionProjection(), manager.getBranch()).tokens;
++                    const tokensBefore = estimateProjectedContextTokens(manager.buildSessionProjection(this.model), manager.getBranch()).tokens;
+                     entryId = manager.appendCompaction(draft.summary, draft.firstKeptEntryId, tokensBefore, draft.details, true, draft.usage);
+                     break;
+                 }
+@@ -461,7 +588,7 @@ export class AgentSession {
+         return [...this.agent.peekQueuedMessages(), ...this._pendingCustomMessages];
+     }
+     _buildBoundaryContext(drafts, boundary) {
+-        const projection = this._createBoundaryPreviewManager(drafts).buildSessionProjection();
++        const projection = this._createBoundaryPreviewManager(drafts).buildSessionProjection(this.model);
+         const pendingMessages = this._getPendingBoundaryMessages();
+         const llmMessages = convertToLlm(projection.messages);
+         const finalRole = llmMessages[llmMessages.length - 1]?.role;
+@@ -651,7 +778,7 @@ export class AgentSession {
+         const messageIndex = this.agent.state.messages.indexOf(message);
+         if (messageIndex < 0)
+             return undefined;
+-        const projection = this.sessionManager.buildSessionProjection();
++        const projection = this.sessionManager.buildSessionProjection(this.model);
+         let projectedIndex = 0;
+         for (const entry of projection.entries) {
+             for (let i = 0; i < entry.messages.length; i++) {
+@@ -1060,7 +1187,7 @@ export class AgentSession {
+     }
+     /** Restore the active tool loadout declared by the session transcript, if it declares one. */
+     _restoreToolsFromTranscript() {
+-        const current = getCurrentSystemMessage(this.sessionManager.buildSessionContext().messages);
++        const current = getCurrentSystemMessage(this.sessionManager.buildSessionProjection(this.model).messages);
+         if (!current)
+             return;
+         const toolNames = (current.toolsAdded ?? [])
+@@ -1079,6 +1206,10 @@ export class AgentSession {
+         this._agentRunAbortRequested = false;
          this._isAgentRunActive = true;
          try {
-+            const requestOverheadTokens = estimateRequestOverheadTokens(this.agent.state.systemPrompt, this.agent.state.tools, messages);
-+            const projectedContext = this.sessionManager.buildSessionContext(this.model, { requestOverheadTokens });
++            const requestOverheadTokens = estimateRequestOverheadTokens(this.systemPrompt, this.agent.state.tools, messages);
++            const projectedContext = this.sessionManager.buildSessionProjection(this.model, { requestOverheadTokens });
 +            this._requestRequiresReconstructionFit = projectedContext.reconstruction !== undefined;
 +            this.agent.state.messages = projectedContext.messages;
              await this.agent.prompt(messages);
-             while (await this._handlePostAgentRun()) {
-                 await this.agent.continue();
-@@ -784,6 +912,18 @@ export class AgentSession {
+             while (!this._agentRunAbortRequested) {
+                 if (await this._handlePostAgentRun()) {
+@@ -1103,6 +1234,16 @@ export class AgentSession {
              await this._emitAgentSettled();
          }
      }
 +    async _prepareNewTurn() {
-+        this._systemPromptOverride = undefined;
-+        this.agent.state.systemPrompt = this._baseSystemPrompt;
 +        let preparedCompactionAuth;
 +        await this._refreshRequestModelContext((prepared) => {
 +            preparedCompactionAuth = prepared;
 +        });
 +        const lastAssistant = this._findLastAssistantMessage();
 +        if (lastAssistant) {
-+            await this._checkCompaction(lastAssistant, false, true, preparedCompactionAuth);
++            await this._checkCompaction(lastAssistant, false, [], true, preparedCompactionAuth);
 +        }
 +    }
      async _handlePostAgentRun() {
-         const msg = this._lastAssistantMessage;
-         this._lastAssistantMessage = undefined;
-@@ -802,7 +940,8 @@ export class AgentSession {
+         const message = this._lastAssistantMessage;
+         const toolResults = this._lastAssistantToolResults;
+@@ -1132,7 +1273,8 @@ export class AgentSession {
              });
              this._retryAttempt = 0;
          }
--        if (await this._checkCompaction(msg)) {
+-        if (await this._checkCompaction(message, true, toolResults)) {
 +        const hasQueuedMessages = this.agent.hasQueuedMessages();
-+        if (await this._checkCompaction(msg, true, hasQueuedMessages)) {
-             return true;
++        if (await this._checkCompaction(message, true, toolResults, hasQueuedMessages)) {
+             return !this._agentRunAbortRequested;
          }
-         // The agent loop drains both queues before emitting agent_end. Any messages
-@@ -823,20 +962,7 @@ export class AgentSession {
+         // The low-level loop drains both queues before agent_end. Messages queued by
+@@ -1213,32 +1355,31 @@ export class AgentSession {
          const preflightResult = options?.preflightResult;
          let messages;
          try {
@@ -370,36 +452,32 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..d156f489402706d806c6302957203728
 -            // Extension commands manage their own LLM interaction via pi.sendMessage()
 -            if (expandPromptTemplates && text.startsWith("/")) {
 -                const handled = await this._tryExecuteExtensionCommand(text);
--                if (handled) {
--                    // Extension command executed, no prompt to send
--                    preflightResult?.(true);
--                    return;
--                }
--            }
--            if (this._compactionAbortController !== undefined) {
--                throw new Error("Cannot submit a prompt while compaction is in progress. Wait for compaction to finish and retry.");
--            }
--            // Emit input event for extension interception (before skill/template expansion)
-+            // Emit input before command dispatch so extensions can stop or transform active work.
-             let currentText = text;
-             let currentImages = options?.images;
-             if (this._extensionRunner.hasHandlers("input")) {
-@@ -850,12 +976,27 @@ export class AgentSession {
-                     currentImages = inputResult.images ?? currentImages;
-                 }
-             }
-+            // Extension commands still execute immediately, even during streaming.
-+            // Commands manage their own LLM interaction via pi.sendMessage().
++            const processedInput = await this._runInputHandlers(text, options?.images, options?.source ?? "interactive", this.isStreaming ? options?.streamingBehavior : undefined);
++            if (!processedInput) {
++                preflightResult?.(true);
++                return;
++            }
++            let { text: currentText, images: currentImages } = processedInput;
++            // Transformed input decides command dispatch so extensions can stop or rewrite active work.
 +            if (expandPromptTemplates && currentText.startsWith("/")) {
 +                const handled = await this._tryExecuteExtensionCommand(currentText);
-+                if (handled) {
-+                    preflightResult?.(true);
-+                    return;
-+                }
-+            }
-+            if (this._compactionAbortController !== undefined) {
-+                throw new Error("Cannot submit a prompt while compaction is in progress. Wait for compaction to finish and retry.");
-+            }
+                 if (handled) {
+-                    // Extension command executed, no prompt to send
+                     preflightResult?.(true);
+                     return;
+                 }
+             }
+-            if (this._compactionAbortController !== undefined) {
++            if (this._compactionAbortController !== undefined)
+                 throw new Error("Cannot submit a prompt while compaction is in progress. Wait for compaction to finish and retry.");
+-            }
+-            // Emit input event for extension interception (before skill/template expansion)
+-            const processedInput = await this._runInputHandlers(text, options?.images, options?.source ?? "interactive", this.isStreaming ? options?.streamingBehavior : undefined);
+-            if (!processedInput) {
+-                preflightResult?.(true);
+-                return;
+-            }
+-            const { text: currentText, images: currentImages } = processedInput;
              // Expand skill commands (/skill:name args) and prompt templates (/template args)
              let expandedText = currentText;
              if (expandPromptTemplates) {
@@ -412,7 +490,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..d156f489402706d806c6302957203728
              // If streaming, queue via steer() or followUp() based on option
              if (this.isStreaming) {
                  if (!options?.streamingBehavior) {
-@@ -868,7 +1009,7 @@ export class AgentSession {
+@@ -1251,7 +1392,7 @@ export class AgentSession {
                      await this._queueSteer(expandedText, currentImages);
                  }
                  preflightResult?.(true);
@@ -421,7 +499,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..d156f489402706d806c6302957203728
              }
              // Flush any pending bash and custom messages before the new prompt
              this._flushPendingBashMessages();
-@@ -888,12 +1029,9 @@ export class AgentSession {
+@@ -1271,13 +1412,7 @@ export class AgentSession {
                  }
                  throw new Error(formatNoApiKeyFoundMessage(this.model.provider));
              }
@@ -431,42 +509,74 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..d156f489402706d806c6302957203728
 -            if (lastAssistant) {
 -                await this._checkCompaction(lastAssistant, false);
 -            }
-+            // Use the same endpoint refresh and pre-turn compaction boundary as
-+            // trigger-turn custom messages before appending the new request.
+-            // Emit before_agent_start before normalizing images so extension-driven model
++            // Emit before_agent_start before preparing the request so extension-driven model
+             // selection determines the resize profile used for the request and history.
+             const selectedToolsBefore = this._baseSystemPromptOptions.selectedTools;
+             const result = await this._extensionRunner.emitBeforeAgentStart(expandedText, currentImages, this._baseSystemPromptOptions);
+@@ -1288,6 +1423,7 @@ export class AgentSession {
+                 result.systemPromptOptions.selectedTools.some((name, index) => name !== selectedToolsBefore[index]);
+             if (!handlerEditedTools)
+                 result.systemPromptOptions.selectedTools = this.getActiveToolNames();
 +            await this._prepareNewTurn();
-             // Build messages array (custom message if any, then user message)
-             messages = [];
-             // Add user message
-@@ -1013,7 +1151,7 @@ export class AgentSession {
-      * @param images Optional image attachments to include with the message
-      * @throws Error if text is an extension command
-      */
--    async steer(text, images) {
-+    async steer(text, images, transformExpandedText) {
-         // Check for extension commands (cannot be queued)
+             const normalized = await this._normalizePromptImages(currentImages);
+             const userText = normalized.hints.length > 0 ? `${expandedText}\n\n${normalized.hints.join("\n")}` : expandedText;
+             // Build messages only after hooks and image normalization have completed.
+@@ -1387,7 +1523,7 @@ export class AgentSession {
+             return text; // Return original on error
+         }
+     }
+-    async _queueUserInput(text, images, behavior, source) {
++    async _queueUserInput(text, images, behavior, source, transformExpandedText) {
          if (text.startsWith("/")) {
              this._throwIfExtensionCommand(text);
-@@ -1021,7 +1159,11 @@ export class AgentSession {
-         // Expand skill commands and prompt templates
-         let expandedText = this._expandSkillCommand(text);
+         }
+@@ -1396,12 +1532,15 @@ export class AgentSession {
+             return;
+         let expandedText = this._expandSkillCommand(processedInput.text);
          expandedText = expandPromptTemplate(expandedText, [...this.promptTemplates]);
-+        if (transformExpandedText) {
++        if (transformExpandedText)
 +            expandedText = transformExpandedText(expandedText);
-+        }
-         await this._queueSteer(expandedText, images);
+         if (behavior === "steer") {
+             await this._queueSteer(expandedText, processedInput.images);
+         }
+         else {
+             await this._queueFollowUp(expandedText, processedInput.images);
+         }
 +        return expandedText;
      }
      /**
+      * Queue a steering message while the agent is running.
+@@ -1413,7 +1552,8 @@ export class AgentSession {
+      * @throws Error if text is an extension command
+      */
+     async steer(text, images, options) {
+-        await this._queueUserInput(text, images, "steer", options?.source ?? "interactive");
++        const normalizedOptions = typeof options === "function" ? { transformExpandedText: options } : options;
++        return this._queueUserInput(text, images, "steer", normalizedOptions?.source ?? "interactive", normalizedOptions?.transformExpandedText);
+     }
+     /**
       * Queue a follow-up message to be processed after the agent finishes.
-@@ -1118,6 +1260,7 @@ export class AgentSession {
+@@ -1500,11 +1640,16 @@ export class AgentSession {
              }
          }
          else if (options?.triggerTurn) {
-+            await this._prepareNewTurn();
-             await this._runAgentPrompt(appMessage);
++            const run = async () => {
++                await this._prepareNewTurn();
++                await this._runAgentPrompt(appMessage);
++            };
+             if (this._isEmittingAgentSettled) {
+-                this._deferredSettledActions.push(async () => await this._runAgentPrompt(appMessage));
++                this._deferredSettledActions.push(run);
+                 return;
+             }
+-            await this._runAgentPrompt(appMessage);
++            await run();
++            return;
          }
          else if (this.isStreaming) {
-@@ -1250,13 +1393,13 @@ export class AgentSession {
+             // Appending now would put the message between an assistant tool call and its
+@@ -1643,13 +1788,13 @@ export class AgentSession {
       * @throws Error if no auth is configured for the model
       */
      async setModel(model, options = {}) {
@@ -480,11 +590,11 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..d156f489402706d806c6302957203728
 +        this._selectedModel = model;
 +        this.agent.state.model = requestModel;
          this.sessionManager.appendModelChange(model.provider, model.id);
-+        this.agent.state.messages = this.sessionManager.buildSessionContext(requestModel).messages;
++        this._refreshFinalizedContext(requestModel);
          if (options.persist) {
              this.settingsManager.setDefaultModelAndProvider(model.provider, model.id);
              this._addPersistedDefaultToNonEmptyScope(model);
-@@ -1265,7 +1408,7 @@ export class AgentSession {
+@@ -1658,7 +1803,7 @@ export class AgentSession {
          // Per-model thinking level overrides take priority over the global default.
          // Model persistence does not implicitly rewrite the global thinking default.
          this.setThinkingLevel(thinkingLevel);
@@ -493,7 +603,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..d156f489402706d806c6302957203728
      }
      _addPersistedDefaultToNonEmptyScope(model) {
          if (this._scopedModels.length === 0)
-@@ -1305,10 +1448,13 @@ export class AgentSession {
+@@ -1698,10 +1843,13 @@ export class AgentSession {
          const len = scopedModels.length;
          const nextIndex = direction === "forward" ? (currentIndex + 1) % len : (currentIndex - 1 + len) % len;
          const next = scopedModels[nextIndex];
@@ -504,11 +614,11 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..d156f489402706d806c6302957203728
 +        this._selectedModel = next.model;
 +        this.agent.state.model = requestModel;
          this.sessionManager.appendModelChange(next.model.provider, next.model.id);
-+        this.agent.state.messages = this.sessionManager.buildSessionContext(requestModel).messages;
++        this._refreshFinalizedContext(requestModel);
          if (options.persist) {
              this.settingsManager.setDefaultModelAndProvider(next.model.provider, next.model.id);
              this._addPersistedDefaultToNonEmptyScope(next.model);
-@@ -1319,8 +1465,8 @@ export class AgentSession {
+@@ -1712,8 +1860,8 @@ export class AgentSession {
          // setThinkingLevel clamps to model capabilities.
          // Model persistence does not implicitly rewrite the global thinking default.
          this.setThinkingLevel(thinkingLevel);
@@ -519,7 +629,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..d156f489402706d806c6302957203728
      }
      async _cycleAvailableModel(direction, options) {
          const availableModels = this._modelRuntime.getAvailableSnapshot();
-@@ -1333,9 +1479,12 @@ export class AgentSession {
+@@ -1726,9 +1874,12 @@ export class AgentSession {
          const len = availableModels.length;
          const nextIndex = direction === "forward" ? (currentIndex + 1) % len : (currentIndex - 1 + len) % len;
          const nextModel = availableModels[nextIndex];
@@ -529,11 +639,11 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..d156f489402706d806c6302957203728
 +        this._selectedModel = nextModel;
 +        this.agent.state.model = requestModel;
          this.sessionManager.appendModelChange(nextModel.provider, nextModel.id);
-+        this.agent.state.messages = this.sessionManager.buildSessionContext(requestModel).messages;
++        this._refreshFinalizedContext(requestModel);
          if (options.persist) {
              this.settingsManager.setDefaultModelAndProvider(nextModel.provider, nextModel.id);
              this._addPersistedDefaultToNonEmptyScope(nextModel);
-@@ -1343,8 +1492,8 @@ export class AgentSession {
+@@ -1736,8 +1887,8 @@ export class AgentSession {
          // Apply thinking level for the new model.
          // Model persistence does not implicitly rewrite the global thinking default.
          this.setThinkingLevel(thinkingLevel);
@@ -544,7 +654,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..d156f489402706d806c6302957203728
      }
      // =========================================================================
      // Thinking Level Management
-@@ -1447,8 +1596,35 @@ export class AgentSession {
+@@ -1840,8 +1991,38 @@ export class AgentSession {
      // Compaction
      // =========================================================================
      /** Generate Pi's built-in compaction summary for manual and automatic compaction. */
@@ -553,9 +663,12 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..d156f489402706d806c6302957203728
 +    async _runDefaultCompaction(preparation, requestModel, apiKey, headers, customInstructions, signal, env, reason, willRetry, nativeRequestHeaders) {
 +        const transformPreparation = this.agent.transformCompactionContext || this.agent.transformContext
 +            ? async (candidate, mechanism) => {
++                const referenceMessages = willRetry
++                    ? (this._compactionReferenceMessages ?? this.agent.state.messages)
++                    : candidate.messagesForNativeCompaction;
 +                const transformMessages = (messages) => messages.length === 0 || (mechanism !== "native" && !this.agent.transformCompactionContext)
 +                    ? messages
-+                    : this.agent.transformCompactionContext ? this.agent.transformCompactionContext(messages, candidate.messagesForNativeCompaction, { willRetry }, signal) : this.agent.transformContext(messages, signal);
++                    : this.agent.transformCompactionContext ? this.agent.transformCompactionContext(messages, referenceMessages, { willRetry }, signal) : this.agent.transformContext(messages, signal);
 +                return mechanism === "native"
 +                    ? {
 +                        ...candidate,
@@ -578,30 +691,31 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..d156f489402706d806c6302957203728
 +                onResponse: this.agent.onResponse, convertMessages: async (messages) => this.agent.convertToLlm(messages),
 +            };
 +        }
-+        return compact(preparation, requestModel, apiKey, headers, customInstructions, signal, this.thinkingLevel, this.agent.streamFunction, env, this.settingsManager.getRetrySettings(), this._summarizationRetryCallbacks({ source: "compaction", reason }), this.sessionManager.getSessionId(), this.agent.state.systemPrompt, transformPreparation, nativeRequestOptions);
++        return compact(preparation, requestModel, apiKey, headers, customInstructions, signal, this.thinkingLevel, this.agent.streamFunction, env, this.settingsManager.getRetrySettings(), this._summarizationRetryCallbacks({ source: "compaction", reason }), this.sessionManager.getSessionId(), this.systemPrompt, transformPreparation, nativeRequestOptions);
      }
-     /**
-      * Manually compact the session context.
-@@ -1474,10 +1648,24 @@ export class AgentSession {
-             if (!this.model) {
+     _clearManualCompactionState() {
+         this._compactionAbortController = undefined;
+@@ -1873,10 +2054,24 @@ export class AgentSession {
+             if (!model) {
                  throw new Error(formatNoModelSelectedMessage());
              }
--            const { model: requestModel, apiKey, headers, env } = await this._getSummarizationRequestAuth(this.model);
-+            const { model: requestModel, apiKey, headers, env, nativeRequestHeaders } = await this._prepareCompactionRequestAuth(this._selectedModel ?? this.model);
+-            const settings = this.settingsManager.getCompactionSettings(model);
+-            const { model: requestModel, apiKey, headers, env, } = await this._getSummarizationRequestAuth(model, this._compactionAbortController.signal);
++            const { model: requestModel, apiKey, headers, env, nativeRequestHeaders } = await this._prepareCompactionRequestAuth(this._selectedModel ?? model, this._compactionAbortController.signal);
 +            this.agent.state.model = requestModel;
 +            const nativeInstructions = customInstructions?.trim()
-+                ? `${this.agent.state.systemPrompt}\n\nAdditional compaction instructions:\n${customInstructions.trim()}`
-+                : this.agent.state.systemPrompt;
++                ? `${this.systemPrompt}\n\nAdditional compaction instructions:\n${customInstructions.trim()}`
++                : this.systemPrompt;
 +            const nativeRequestOverheadTokens = estimateRequestOverheadTokens(nativeInstructions, [], []);
 +            const requestOverheadTokens = selectCompactionMechanism(requestModel) === "native"
 +                ? nativeRequestOverheadTokens
 +                : estimatePortableCompactionRequestOverheadTokens(customInstructions);
-+            const projectedContext = this.sessionManager.buildSessionContext(requestModel, { requestOverheadTokens });
-+            this.agent.state.messages = projectedContext.messages;
-+            this._requestRequiresReconstructionFit = projectedContext.reconstruction !== undefined;
++            const projection = this.sessionManager.buildSessionProjection(requestModel, { requestOverheadTokens });
++            this.agent.state.messages = projection.messages;
++            this._requestRequiresReconstructionFit = projection.reconstruction !== undefined;
              const pathEntries = this.sessionManager.getBranch();
-             const settings = this.settingsManager.getCompactionSettings();
 -            const preparation = prepareCompaction(pathEntries, settings);
++            const settings = this.settingsManager.getCompactionSettings(requestModel);
 +            const preparation = prepareCompaction(pathEntries, settings, requestModel, {
 +                nativeRequestOverheadTokens,
 +                portableCustomInstructions: customInstructions,
@@ -609,7 +723,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..d156f489402706d806c6302957203728
              if (!preparation) {
                  // Check why we can't compact
                  const lastEntry = pathEntries[pathEntries.length - 1];
-@@ -1520,7 +1708,7 @@ export class AgentSession {
+@@ -1920,7 +2115,7 @@ export class AgentSession {
              }
              else {
                  // Shared default summary generator, also used by automatic compaction.
@@ -618,24 +732,24 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..d156f489402706d806c6302957203728
                  summary = result.summary;
                  firstKeptEntryId = result.firstKeptEntryId;
                  tokensBefore = result.tokensBefore;
-@@ -1530,13 +1718,12 @@ export class AgentSession {
+@@ -1930,12 +2125,11 @@ export class AgentSession {
              if (this._compactionAbortController.signal.aborted) {
                  throw new Error("Compaction cancelled");
              }
 -            this.sessionManager.appendCompaction(summary, firstKeptEntryId, tokensBefore, details, fromExtension, usage);
 -            const newEntries = this.sessionManager.getEntries();
--            const sessionContext = this.sessionManager.buildSessionContext();
+-            this._refreshFinalizedContext();
+-            const estimatedTokensAfter = estimateMessagesTokens(this.sessionManager.buildSessionProjection().messages);
 +            const savedCompactionEntryId = this.sessionManager.appendCompaction(summary, firstKeptEntryId, tokensBefore, details, fromExtension, usage, "manual");
-+            const sessionContext = this.sessionManager.buildSessionContext(requestModel);
-             this.agent.state.messages = sessionContext.messages;
-             const estimatedTokensAfter = estimateMessagesTokens(sessionContext.messages);
++            this._refreshFinalizedContext(requestModel);
++            const estimatedTokensAfter = estimateMessagesTokens(this.sessionManager.buildSessionProjection(requestModel).messages);
              // Get the saved compaction entry for the extension event
 -            const savedCompactionEntry = newEntries.find((e) => e.type === "compaction" && e.summary === summary);
 +            const savedCompactionEntry = this.sessionManager.getEntry(savedCompactionEntryId);
              if (this._extensionRunner && savedCompactionEntry) {
                  await this._extensionRunner.emit({
                      type: "session_compact",
-@@ -1547,6 +1734,7 @@ export class AgentSession {
+@@ -1946,6 +2140,7 @@ export class AgentSession {
                  });
              }
              const compactionResult = {
@@ -643,16 +757,25 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..d156f489402706d806c6302957203728
                  summary,
                  firstKeptEntryId,
                  tokensBefore,
-@@ -1625,7 +1813,7 @@ export class AgentSession {
+@@ -2024,7 +2219,7 @@ export class AgentSession {
       * @param skipAbortedCheck If false, include aborted messages (for pre-prompt check). Default: true
       * @returns Whether the post-run loop should call `agent.continue()` for overflow recovery or queued messages
       */
--    async _checkCompaction(assistantMessage, skipAbortedCheck = true) {
-+    async _checkCompaction(assistantMessage, skipAbortedCheck = true, hasFollowUpCall = true, preparedCompactionAuth) {
-         const settings = this.settingsManager.getCompactionSettings();
+-    async _checkCompaction(assistantMessage, skipAbortedCheck = true, toolResults = []) {
++    async _checkCompaction(assistantMessage, skipAbortedCheck = true, toolResults = [], hasFollowUpCall = true, preparedCompactionAuth) {
+         const settings = this.settingsManager.getCompactionSettings(this.model);
          if (!settings.enabled)
              return false;
-@@ -1656,7 +1844,10 @@ export class AgentSession {
+@@ -2048,7 +2243,7 @@ export class AgentSession {
+         // Automatic cases 1 and 2: context overflow.
+         // A length stop is recoverable when output ended below the model's original desired limit,
+         // independent of the configured context size or any context-clamped provider request limit.
+-        const currentProjection = this.sessionManager.buildSessionProjection();
++        const currentProjection = this.sessionManager.buildSessionProjection(this.model);
+         const assistantEntryId = this._findPersistedMessageEntryId(assistantMessage);
+         const assistantIsProjected = assistantEntryId === undefined ||
+             currentProjection.entries.some((entry) => entry.sourceEntry.id === assistantEntryId &&
+@@ -2074,7 +2269,10 @@ export class AgentSession {
              // Case 2: the response completed successfully. Compact, but do not retry because
              // agent.continue() cannot continue from a completed assistant response.
              if (!willRetry) {
@@ -664,16 +787,18 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..d156f489402706d806c6302957203728
              }
              if (this._overflowRecoveryAttempted) {
                  const errorMessage = contextOverflow
-@@ -1686,7 +1877,7 @@ export class AgentSession {
-             if (messages.length > 0 && messages[messages.length - 1].role === "assistant") {
-                 this.agent.state.messages = messages.slice(0, -1);
+@@ -2099,8 +2297,9 @@ export class AgentSession {
              }
+             // Persistently omit the selected final attempt before post-run recovery compaction.
+             this._overflowRecoveryAttempted = true;
++            this._compactionReferenceMessages = this.agent.state.messages.slice();
+             this._omitRecoveryAttempt(assistantMessage, toolResults);
 -            return await this._runAutoCompaction("overflow", willRetry);
 +            return await this._runAutoCompaction("overflow", willRetry, preparedCompactionAuth);
          }
          // Case 3: threshold compaction without retry.
          // For error messages or all-zero usage messages, estimate from the last valid response.
-@@ -1715,8 +1906,8 @@ export class AgentSession {
+@@ -2134,8 +2333,8 @@ export class AgentSession {
          else {
              contextTokens = directContextTokens;
          }
@@ -684,71 +809,84 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..d156f489402706d806c6302957203728
          }
          return false;
      }
-@@ -1730,17 +1921,33 @@ export class AgentSession {
+@@ -2149,29 +2348,39 @@ export class AgentSession {
       * @param willRetry Whether to continue the interrupted turn after overflow compaction
       * @returns Whether the post-run loop should call `agent.continue()`
       */
 -    async _runAutoCompaction(reason, willRetry) {
 +    async _runAutoCompaction(reason, willRetry, preparedCompactionAuth, preservePreparedAuth = false) {
-         const settings = this.settingsManager.getCompactionSettings();
+         const model = this.model;
+-        const settings = this.settingsManager.getCompactionSettings(model);
+         let abortController;
          let started = false;
          let fromExtension = false;
-+        let completedWillRetry = false;
+         let cancelledByExtension = false;
 +        let preserveCompactionAuth = preservePreparedAuth;
 +        let completedWithNativeCheckpoint = false;
          try {
-             if (!this.model) {
+             if (!model) {
                  return false;
              }
--            const { model: requestModel, apiKey, headers, env } = await this._getSummarizationRequestAuth(this.model);
-+            const { model: requestModel, apiKey, headers, env, nativeRequestHeaders } = preparedCompactionAuth ??
-+                (await this._prepareCompactionRequestAuth(this._selectedModel ?? this.model));
-+            preserveCompactionAuth ||= selectCompactionMechanism(requestModel) === "native" &&
-+                this._extensionRunner.hasHandlers("before_provider_headers");
-+            this.agent.state.model = requestModel;
-+            const nativeRequestOverheadTokens = estimateRequestOverheadTokens(this.agent.state.systemPrompt, [], []);
-+            const requestOverheadTokens = selectCompactionMechanism(requestModel) === "native"
-+                ? nativeRequestOverheadTokens
-+                : estimatePortableCompactionRequestOverheadTokens();
-+            const projectedContext = this.sessionManager.buildSessionContext(requestModel, { requestOverheadTokens });
-+            this.agent.state.messages = projectedContext.messages;
-+            this._requestRequiresReconstructionFit = projectedContext.reconstruction !== undefined;
-             const pathEntries = this.sessionManager.getBranch();
+-            const pathEntries = this.sessionManager.getBranch();
 -            const preparation = prepareCompaction(pathEntries, settings);
+-            if (!preparation) {
+-                return false;
+-            }
+             abortController = new AbortController();
+             this._autoCompactionAbortController = abortController;
++            const { model: requestModel, apiKey, headers, env, nativeRequestHeaders } = preparedCompactionAuth ??
++                (await this._prepareCompactionRequestAuth(this._selectedModel ?? model, abortController.signal));
++            abortController.signal.throwIfAborted();
++            preserveCompactionAuth ||= selectCompactionMechanism(requestModel) === "native" && this._extensionRunner.hasHandlers("before_provider_headers");
++            this.agent.state.model = requestModel;
++            const nativeRequestOverheadTokens = estimateRequestOverheadTokens(this.systemPrompt, [], []);
++            const requestOverheadTokens = selectCompactionMechanism(requestModel) === "native" ? nativeRequestOverheadTokens : estimatePortableCompactionRequestOverheadTokens();
++            const projection = this.sessionManager.buildSessionProjection(requestModel, { requestOverheadTokens });
++            this.agent.state.messages = projection.messages;
++            this._requestRequiresReconstructionFit = projection.reconstruction !== undefined;
++            const pathEntries = this.sessionManager.getBranch();
++            const settings = this.settingsManager.getCompactionSettings(requestModel);
 +            const preparation = prepareCompaction(pathEntries, settings, requestModel, {
 +                nativeRequestOverheadTokens,
 +            });
-             if (!preparation) {
-                 return false;
-             }
-@@ -1794,7 +1997,7 @@ export class AgentSession {
++            if (!preparation)
++                return false;
+             started = true;
+             this._emit({ type: "compaction_start", reason });
+-            abortController.signal.throwIfAborted();
+-            const { model: requestModel, apiKey, headers, env, } = await this._getSummarizationRequestAuth(model, abortController.signal);
+-            abortController.signal.throwIfAborted();
+             let extensionCompaction;
+             if (this._extensionRunner.hasHandlers("session_before_compact")) {
+                 const extensionResult = (await this._extensionRunner.emit({
+@@ -2208,7 +2417,7 @@ export class AgentSession {
              }
              else {
                  // Shared default summary generator, also used by manual compaction.
--                const compactResult = await this._runDefaultCompaction(preparation, requestModel, apiKey, headers, undefined, this._autoCompactionAbortController.signal, env, reason);
-+                const compactResult = await this._runDefaultCompaction(preparation, requestModel, apiKey, headers, undefined, this._autoCompactionAbortController.signal, env, reason, willRetry, nativeRequestHeaders);
+-                const compactResult = await this._runDefaultCompaction(preparation, requestModel, apiKey, headers, undefined, abortController.signal, env, reason);
++                const compactResult = await this._runDefaultCompaction(preparation, requestModel, apiKey, headers, undefined, abortController.signal, env, reason, willRetry, nativeRequestHeaders);
                  summary = compactResult.summary;
                  firstKeptEntryId = compactResult.firstKeptEntryId;
                  tokensBefore = compactResult.tokensBefore;
-@@ -1817,13 +2020,13 @@ export class AgentSession {
-                 });
-                 return false;
+@@ -2216,12 +2425,12 @@ export class AgentSession {
+                 details = compactResult.details;
              }
+             abortController.signal.throwIfAborted();
 -            this.sessionManager.appendCompaction(summary, firstKeptEntryId, tokensBefore, details, fromExtension, usage);
 -            const newEntries = this.sessionManager.getEntries();
--            const sessionContext = this.sessionManager.buildSessionContext();
+-            this._refreshFinalizedContext();
+-            const estimatedTokensAfter = estimateMessagesTokens(this.sessionManager.buildSessionProjection().messages);
 +            completedWithNativeCheckpoint = details?.schemaVersion === 1 && details?.mechanism === "native";
 +            const savedCompactionEntryId = this.sessionManager.appendCompaction(summary, firstKeptEntryId, tokensBefore, details, fromExtension, usage, reason);
-+            const sessionContext = this.sessionManager.buildSessionContext(requestModel);
-             this.agent.state.messages = sessionContext.messages;
-             const estimatedTokensAfter = estimateMessagesTokens(sessionContext.messages);
++            this._refreshFinalizedContext(requestModel);
++            const estimatedTokensAfter = estimateMessagesTokens(this.sessionManager.buildSessionProjection(requestModel).messages);
              // Get the saved compaction entry for the extension event
 -            const savedCompactionEntry = newEntries.find((e) => e.type === "compaction" && e.summary === summary);
 +            const savedCompactionEntry = this.sessionManager.getEntry(savedCompactionEntryId);
              if (this._extensionRunner && savedCompactionEntry) {
                  await this._extensionRunner.emit({
                      type: "session_compact",
-@@ -1834,6 +2036,7 @@ export class AgentSession {
+@@ -2232,6 +2441,7 @@ export class AgentSession {
                  });
              }
              const result = {
@@ -756,43 +894,27 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..d156f489402706d806c6302957203728
                  summary,
                  firstKeptEntryId,
                  tokensBefore,
-@@ -1843,15 +2046,7 @@ export class AgentSession {
-             };
-             this._emit({ type: "compaction_end", reason, result, aborted: false, willRetry });
-             if (willRetry) {
--                const messages = this.agent.state.messages;
--                const lastMsg = messages[messages.length - 1];
--                // The overflow response was persisted on message_end before _checkCompaction() removed it
--                // from agent state. Rebuilding state from the new compaction can restore that kept entry,
--                // leaving an assistant as the final message. agent.continue() rejects that state, so remove
--                // the retriable error or truncated-length response again before continuing the interrupted turn.
--                if (lastMsg?.role === "assistant" && (lastMsg.stopReason === "error" || lastMsg.stopReason === "length")) {
--                    this.agent.state.messages = messages.slice(0, -1);
--                }
-+                completedWillRetry = true;
-                 return true;
-             }
-             // Auto-compaction can complete while follow-up/steering/custom messages are waiting.
-@@ -1884,6 +2079,18 @@ export class AgentSession {
+@@ -2274,10 +2484,16 @@ export class AgentSession {
+             return false;
          }
          finally {
-             this._autoCompactionAbortController = undefined;
-+            if (this.model && !preserveCompactionAuth) {
-+                await this._refreshRequestModelContext(undefined, completedWithNativeCheckpoint);
+-            if (this._autoCompactionAbortController === abortController) {
+-                this._autoCompactionAbortController = undefined;
++            try {
++                if (this.model && !preserveCompactionAuth)
++                    await this._refreshRequestModelContext(undefined, completedWithNativeCheckpoint);
 +            }
-+            if (completedWillRetry) {
-+                const messages = this.agent.state.messages;
-+                const lastMsg = messages[messages.length - 1];
-+                // Endpoint refresh can reconstruct the persisted overflow response. Remove it only
-+                // after the final projection so agent.continue() always receives a user-final context.
-+                if (lastMsg?.role === "assistant" && (lastMsg.stopReason === "error" || lastMsg.stopReason === "length")) {
-+                    this.agent.state.messages = messages.slice(0, -1);
-+                }
-+            }
++            finally {
++                if (this._autoCompactionAbortController === abortController)
++                    this._autoCompactionAbortController = undefined;
++                this._compactionReferenceMessages = undefined;
++                this._resolveIdleWaitIfIdle();
+             }
+-            this._resolveIdleWaitIfIdle();
          }
      }
      /**
-@@ -1976,7 +2183,7 @@ export class AgentSession {
+@@ -2369,7 +2585,7 @@ export class AgentSession {
          if (!refreshedModel || refreshedModel === currentModel) {
              return;
          }
@@ -801,7 +923,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..d156f489402706d806c6302957203728
      }
      _bindExtensionCore(runner) {
          const getCommands = () => {
-@@ -2529,7 +2736,7 @@ export class AgentSession {
+@@ -2923,7 +3139,7 @@ export class AgentSession {
              let summaryDetails;
              let summaryUsage;
              if (options.summarize && entriesToSummarize.length > 0 && !extensionSummary) {
@@ -810,19 +932,28 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..d156f489402706d806c6302957203728
                  const { model: requestModel, apiKey, headers, env } = await this._getSummarizationRequestAuth(model);
                  const branchSummarySettings = this.settingsManager.getBranchSummarySettings();
                  const result = await generateBranchSummary(entriesToSummarize, {
-@@ -2605,7 +2812,7 @@ export class AgentSession {
-                 this.sessionManager.appendLabelChange(targetId, label);
-             }
-             // Update agent state
--            const sessionContext = this.sessionManager.buildSessionContext();
-+            const sessionContext = this.sessionManager.buildSessionContext(this.model);
-             this.agent.state.messages = sessionContext.messages;
-             // Emit session_tree event
-             await this._extensionRunner.emit({
+@@ -3105,7 +3321,7 @@ export class AgentSession {
+         // After compaction, the last assistant usage reflects pre-compaction context size.
+         // We can only trust usage from an assistant that responded after the latest compaction.
+         // If no such assistant exists, context token count is unknown until the next LLM response.
+-        const projection = this.sessionManager.buildSessionProjection();
++        const projection = this.sessionManager.buildSessionProjection(this.model);
+         const branch = this.sessionManager.getBranch();
+         const latestCompaction = getLatestCompactionEntry(branch);
+         if (latestCompaction) {
 diff --git a/dist/core/compaction/compaction.d.ts b/dist/core/compaction/compaction.d.ts
-index 6f867f98bac5a371ca2bfbe0a9db6344e1a42b3f..6ec418afc25eaf0128ba08ef625864e7226ffa78 100644
+index 04416da43184fce4dc2fc33afeb920e2edddedc9..b90908774b8ba2116736f3ef76a1f9bb086abce4 100644
 --- a/dist/core/compaction/compaction.d.ts
 +++ b/dist/core/compaction/compaction.d.ts
+@@ -6,7 +6,7 @@
+  */
+ import type { AgentMessage, StreamFn, ThinkingLevel } from "@earendil-works/pi-agent-core";
+ import { type RetryCallbacks, type RetryPolicy } from "@earendil-works/pi-ai";
+-import type { AssistantMessage, Model, SimpleStreamOptions, TranscriptContext, Usage } from "@earendil-works/pi-ai/compat";
++import type { AssistantMessage, Message, Model, SimpleStreamOptions, TranscriptContext, Usage } from "@earendil-works/pi-ai/compat";
+ import { type SessionEntry, type SessionProjection } from "../session-manager.ts";
+ import { type FileOperations } from "./utils.ts";
+ /** Details stored in CompactionEntry.details for file tracking */
 @@ -16,6 +16,8 @@ export interface CompactionDetails {
  }
  /** Result from compact() - SessionManager adds uuid/parentUuid when saving */
@@ -845,7 +976,7 @@ index 6f867f98bac5a371ca2bfbe0a9db6344e1a42b3f..6ec418afc25eaf0128ba08ef625864e7
  }
  export declare const DEFAULT_COMPACTION_SETTINGS: CompactionSettings;
  /**
-@@ -55,6 +59,7 @@ export declare function estimateContextTokens(messages: AgentMessage[]): Context
+@@ -57,6 +61,7 @@ export declare function estimateProjectedContextTokens(projection: SessionProjec
   * Check if compaction should trigger based on context usage.
   */
  export declare function shouldCompact(contextTokens: number, contextWindow: number, settings: CompactionSettings): boolean;
@@ -853,7 +984,7 @@ index 6f867f98bac5a371ca2bfbe0a9db6344e1a42b3f..6ec418afc25eaf0128ba08ef625864e7
  /**
   * Estimate token count for a message using chars/4 heuristic.
   * This is conservative (overestimates tokens).
-@@ -118,6 +123,8 @@ export interface CompactionPreparation {
+@@ -120,6 +125,8 @@ export interface CompactionPreparation {
      firstKeptEntryId: string;
      /** Messages that will be summarized and discarded */
      messagesToSummarize: AgentMessage[];
@@ -862,7 +993,7 @@ index 6f867f98bac5a371ca2bfbe0a9db6344e1a42b3f..6ec418afc25eaf0128ba08ef625864e7
      /** Messages that will be turned into turn prefix summary (if splitting) */
      turnPrefixMessages: AgentMessage[];
      /** Whether this is a split turn (cut point in middle of turn) */
-@@ -129,8 +136,16 @@ export interface CompactionPreparation {
+@@ -131,8 +138,16 @@ export interface CompactionPreparation {
      fileOps: FileOperations;
      /** Compaction settions from settings.jsonl	*/
      settings: CompactionSettings;
@@ -880,7 +1011,7 @@ index 6f867f98bac5a371ca2bfbe0a9db6344e1a42b3f..6ec418afc25eaf0128ba08ef625864e7
  /**
   * Generate summaries for compaction using prepared data.
   * Returns CompactionResult - SessionManager adds uuid/parentUuid when saving.
-@@ -139,5 +154,5 @@ export declare function prepareCompaction(pathEntries: SessionEntry[], settings:
+@@ -141,5 +156,5 @@ export declare function prepareCompaction(pathEntries: SessionEntry[], settings:
   * @param customInstructions - Optional custom focus for the summary
   * @param sessionId - Optional routing session ID forwarded without enabling prompt caching
   */
@@ -889,20 +1020,20 @@ index 6f867f98bac5a371ca2bfbe0a9db6344e1a42b3f..6ec418afc25eaf0128ba08ef625864e7
  //# sourceMappingURL=compaction.d.ts.map
 \ No newline at end of file
 diff --git a/dist/core/compaction/compaction.js b/dist/core/compaction/compaction.js
-index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..f860b3053b6cde92593bf691ff0d27e6c73618dd 100644
+index 202e45d4d595a50b10d639c32dcc685ef5b34d69..9df5aff99396c286453d06cb8e62c6f6605d54f7 100644
 --- a/dist/core/compaction/compaction.js
 +++ b/dist/core/compaction/compaction.js
 @@ -4,10 +4,11 @@
   * Pure functions for compaction logic. The session manager handles I/O,
   * and after compaction the session is reloaded.
   */
--import { contentText, retryAssistantCall, uuidv7 } from "@earendil-works/pi-ai";
-+import { calculateCost, contentText, retryAssistantCall, uuidv7 } from "@earendil-works/pi-ai";
+-import { contentText, getCurrentSystemMessage, normalizeContext, retryAssistantCall, uuidv7, } from "@earendil-works/pi-ai";
++import { calculateCost, contentText, getCurrentSystemMessage, normalizeContext, retryAssistantCall, uuidv7 } from "@earendil-works/pi-ai";
 +import { compactResponses } from "@earendil-works/pi-ai/api/openai-responses";
  import { completeSimple } from "@earendil-works/pi-ai/compat";
  import { convertToLlm } from "../messages.js";
--import { buildSessionContext, sessionEntryToContextMessages, } from "../session-manager.js";
-+import { buildSessionContext, estimateReconstructionMessageTokens, getNativeCredentialFingerprint, nativeCredentialFingerprint, sessionEntryToContextMessages, } from "../session-manager.js";
+-import { buildSessionProjection, sessionEntryToContextMessages, } from "../session-manager.js";
++import { buildSessionProjection, estimateReconstructionMessageTokens, getNativeCredentialFingerprint, nativeCredentialFingerprint, sessionEntryToContextMessages } from "../session-manager.js";
  import { computeFileLists, createFileOps, extractFileOpsFromMessage, formatFileOperations, SUMMARIZATION_SYSTEM_PROMPT, serializeConversation, } from "./utils.js";
  /**
   * Extract file operations from messages and previous compaction entries.
@@ -914,7 +1045,7 @@ index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..f860b3053b6cde92593bf691ff0d27e6
  };
  // ============================================================================
  // Token calculation
-@@ -160,7 +162,53 @@ export function estimateContextTokens(messages) {
+@@ -194,7 +196,53 @@ export function estimateProjectedContextTokens(projection, branchEntries) {
  export function shouldCompact(contextTokens, contextWindow, settings) {
      if (!settings.enabled)
          return false;
@@ -969,28 +1100,7 @@ index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..f860b3053b6cde92593bf691ff0d27e6
  }
  // ============================================================================
  // Cut point detection
-@@ -322,12 +370,20 @@ export function findCutPoint(entries, startIndex, endIndex, keepRecentTokens) {
-         // Check if we've exceeded the budget
-         if (accumulatedTokens >= keepRecentTokens) {
-             // Find the closest valid cut point at or after this entry
-+            let foundCutPoint = false;
-             for (let c = 0; c < cutPoints.length; c++) {
-                 if (cutPoints[c] >= i) {
-                     cutIndex = cutPoints[c];
-+                    foundCutPoint = true;
-                     break;
-                 }
-             }
-+            // A tool result has no valid cut point after it. Retain its preceding
-+            // assistant tool call as the newest indivisible unit instead of
-+            // falling back to the oldest turn in the session.
-+            if (!foundCutPoint) {
-+                cutIndex = cutPoints[cutPoints.length - 1];
-+            }
-             break;
-         }
-     }
-@@ -353,76 +409,21 @@ export function findCutPoint(entries, startIndex, endIndex, keepRecentTokens) {
+@@ -397,76 +445,21 @@ export function findCutPoint(entries, startIndex, endIndex, keepRecentTokens) {
  // ============================================================================
  // Summarization
  // ============================================================================
@@ -1081,9 +1191,9 @@ index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..f860b3053b6cde92593bf691ff0d27e6
  ${UPDATE_SUMMARIZATION_INSTRUCTIONS}`;
  /**
   * Returns an error message when a summarization response cannot safely be persisted.
-@@ -484,24 +485,22 @@ function buildSummarizationContext(promptText) {
+@@ -528,24 +521,22 @@ function buildSummarizationContext(promptText) {
          ],
-     };
+     });
  }
 -/** Generate or update a conversation summary and return its provider usage. */
 -export async function generateSummaryWithUsage(currentMessages, model, reserveTokens, apiKey, headers, signal, customInstructions, previousSummary, thinkingLevel, streamFn, env, retry, callbacks, sessionId) {
@@ -1114,108 +1224,132 @@ index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..f860b3053b6cde92593bf691ff0d27e6
      const completionOptions = createSummarizationOptions(model, maxTokens, apiKey, headers, env, signal, thinkingLevel, sessionId);
      const response = await completeSummarization(model, buildSummarizationContext(promptText), completionOptions, streamFn, retry, callbacks);
      const failure = getSummarizationFailure(response, "Summarization");
-@@ -514,7 +513,7 @@ export async function generateSummaryWithUsage(currentMessages, model, reserveTo
-     const textContent = contentText(response.content);
-     return { text: textContent, usage: response.usage };
- }
--export function prepareCompaction(pathEntries, settings) {
-+function prepareCompactionProjection(pathEntries, settings, model, allowNativeProjection, requestOptions) {
-     if (pathEntries.length > 0 && pathEntries[pathEntries.length - 1].type === "compaction") {
-         return undefined;
+@@ -577,9 +568,8 @@ function findProjectedCutPoint(entries, startIndex, endIndex, keepRecentTokens)
+         if (entry.sourceEntry.type !== "compaction" && entry.messages.some(isCutPointMessage))
+             cutPoints.push(i);
      }
-@@ -525,17 +524,61 @@ export function prepareCompaction(pathEntries, settings) {
+-    if (cutPoints.length === 0) {
++    if (cutPoints.length === 0)
+         return { firstKeptEntryIndex: startIndex, turnStartIndex: -1, isSplitTurn: false };
+-    }
+     let accumulatedTokens = 0;
+     let exceededBudget = false;
+     let cutIndex = cutPoints[0];
+@@ -594,9 +584,6 @@ function findProjectedCutPoint(entries, startIndex, endIndex, keepRecentTokens)
              break;
          }
      }
-+    const projectionModel = !allowNativeProjection && model
-+        ? {
-+            ...model,
-+            compat: { ...(model.compat ?? {}), supportsCompaction: false },
-+        }
-+        : model;
-     let previousSummary;
-     let boundaryStart = 0;
-     if (prevCompactionIndex >= 0) {
-         const prevCompaction = pathEntries[prevCompactionIndex];
--        previousSummary = prevCompaction.summary;
--        const firstKeptEntryIndex = pathEntries.findIndex((entry) => entry.id === prevCompaction.firstKeptEntryId);
--        boundaryStart = firstKeptEntryIndex >= 0 ? firstKeptEntryIndex : prevCompactionIndex + 1;
-+        if (!isCompatibleNativeDetails(prevCompaction.details, projectionModel)) {
-+            // The source checkpoint cannot seed a target projection. Start from
-+            // the append-only raw branch and let only the target model compact it.
-+            prevCompactionIndex = -1;
-+        }
-+        else {
-+            previousSummary = prevCompaction.summary;
-+            const firstKeptEntryIndex = pathEntries.findIndex((entry) => entry.id === prevCompaction.firstKeptEntryId);
-+            boundaryStart = firstKeptEntryIndex >= 0 ? firstKeptEntryIndex : prevCompactionIndex + 1;
-+        }
+-    // A recovery attempt and its omission edits are context-invisible after the last
+-    // visible input. Advance only for a closed suffix containing an omitted assistant
+-    // attempt; arbitrary metadata must not move the cut past unsent input.
+     const suffix = entries.slice(cutIndex + 1, endIndex);
+     const isIntrinsicallyVisible = (entry) => entry.sourceEntry.type !== "context_edit" && sessionEntryToContextMessages(entry.sourceEntry).length > 0;
+     const isOmitted = (entry) => isIntrinsicallyVisible(entry) && entry.messages.length === 0;
+@@ -618,58 +605,62 @@ function findProjectedCutPoint(entries, startIndex, endIndex, keepRecentTokens)
      }
-     const boundaryEnd = pathEntries.length;
--    const tokensBefore = estimateContextTokens(buildSessionContext(pathEntries).messages).tokens;
--    const cutPoint = findCutPoint(pathEntries, boundaryStart, boundaryEnd, settings.keepRecentTokens);
+     const startsTurn = isProjectedTurnStart(entries[cutIndex]);
+     const turnStartIndex = startsTurn ? -1 : findProjectedTurnStartIndex(entries, cutIndex, startIndex);
+-    return {
+-        firstKeptEntryIndex: cutIndex,
+-        turnStartIndex,
+-        isSplitTurn: !startsTurn && turnStartIndex !== -1,
+-    };
++    return { firstKeptEntryIndex: cutIndex, turnStartIndex, isSplitTurn: !startsTurn && turnStartIndex !== -1 };
+ }
+-export function prepareCompaction(pathEntries, settings) {
+-    if (pathEntries.length > 0 && pathEntries[pathEntries.length - 1].type === "compaction") {
++function prepareCompactionProjection(pathEntries, settings, model, allowNativeProjection, requestOptions) {
++    if (pathEntries.length > 0 && pathEntries[pathEntries.length - 1].type === "compaction")
+         return undefined;
++    const projectionModel = !allowNativeProjection && model
++        ? { ...model, compat: { ...(model.compat ?? {}), supportsCompaction: false } }
++        : model;
 +    const nativeCompaction = allowNativeProjection && model && selectCompactionMechanism(model) === "native";
 +    let requestOverheadTokens = nativeCompaction
 +        ? requestOptions.nativeRequestOverheadTokens
-+        : estimatePortableCompactionRequestOverheadTokens(requestOptions.portableCustomInstructions, previousSummary);
-+    let targetContext = buildSessionContext(pathEntries, undefined, undefined, projectionModel, {
-+        requestOverheadTokens,
-+    });
++        : estimatePortableCompactionRequestOverheadTokens(requestOptions.portableCustomInstructions);
++    let projection = buildSessionProjection(pathEntries, undefined, undefined, projectionModel, { requestOverheadTokens });
++    let previousSummary = projection.entries.find((entry) => entry.sourceEntry.type === "compaction" && entry.messages.length > 0)?.sourceEntry.summary;
 +    if (!nativeCompaction) {
-+        const maxPortableRefits = targetContext.messages.length + 1;
++        const maxPortableRefits = projection.messages.length + 1;
 +        for (let attempt = 0; attempt < maxPortableRefits; attempt++) {
-+            const serializedRequestOverheadTokens = estimatePortableCompactionRequestOverheadTokens(requestOptions.portableCustomInstructions, previousSummary, targetContext.messages);
-+            if (serializedRequestOverheadTokens <= requestOverheadTokens) {
++            const serializedOverhead = estimatePortableCompactionRequestOverheadTokens(requestOptions.portableCustomInstructions, previousSummary, projection.messages.filter((message) => message.role !== "system"));
++            if (serializedOverhead <= requestOverheadTokens)
 +                break;
-+            }
-+            requestOverheadTokens = serializedRequestOverheadTokens;
-+            targetContext = buildSessionContext(pathEntries, undefined, undefined, projectionModel, {
-+                requestOverheadTokens,
-+            });
++            requestOverheadTokens = serializedOverhead;
++            projection = buildSessionProjection(pathEntries, undefined, undefined, projectionModel, { requestOverheadTokens });
++            previousSummary = projection.entries.find((entry) => entry.sourceEntry.type === "compaction" && entry.messages.length > 0)?.sourceEntry.summary;
 +        }
-+    }
-+    const messagesForNativeCompaction = targetContext.messages;
-+    const tokensBefore = estimateContextTokens(messagesForNativeCompaction).tokens;
-+    if (prevCompactionIndex < 0 && targetContext.reconstruction) {
-+        const firstKeptEntryIndex = targetContext.reconstruction.firstKeptEntryId
-+            ? pathEntries.findIndex((entry) => entry.id === targetContext.reconstruction.firstKeptEntryId)
-+            : boundaryEnd;
-+        boundaryStart = firstKeptEntryIndex >= 0 ? firstKeptEntryIndex : boundaryEnd;
-+    }
+     }
+-    const projection = buildSessionProjection(pathEntries);
+     const projectedEntries = projection.entries;
+     const sourceEntries = projectedEntries.map((entry) => entry.sourceEntry);
+-    // The newest compaction is projected first. Older compaction entries can still
+-    // occur in its retained raw range, but their projected contribution is empty.
+     const prevCompactionIndex = projectedEntries.findIndex((entry) => entry.sourceEntry.type === "compaction" && entry.messages.length > 0);
+-    let previousSummary;
+     let boundaryStart = 0;
+     if (prevCompactionIndex >= 0) {
+         previousSummary = projectedEntries[prevCompactionIndex].sourceEntry.summary;
+-        // The canonical projection has already selected the previous compaction's retained tail.
+         boundaryStart = prevCompactionIndex + 1;
+     }
+     const boundaryEnd = projectedEntries.length;
+     const tokensBefore = estimateProjectedContextTokens(projection, pathEntries).tokens;
+-    const cutPoint = findProjectedCutPoint(projectedEntries, boundaryStart, boundaryEnd, settings.keepRecentTokens);
 +    const hardTailAllowance = model && Number.isFinite(model.contextWindow) && model.contextWindow > 0
 +        ? Math.max(0, model.contextWindow - Math.min(settings.reserveTokens, model.contextWindow))
 +        : settings.keepRecentTokens;
-+    const keepRecentTokens = Math.min(settings.keepRecentTokens, hardTailAllowance);
-+    const cutPoint = findCutPoint(pathEntries, boundaryStart, boundaryEnd, keepRecentTokens);
-     // Get UUID of first kept entry
-     const firstKeptEntry = pathEntries[cutPoint.firstKeptEntryIndex];
-     if (!firstKeptEntry?.id) {
-@@ -559,7 +602,7 @@ export function prepareCompaction(pathEntries, settings) {
-                 turnPrefixMessages.push(msg);
-         }
-     }
--    if (messagesToSummarize.length === 0 && turnPrefixMessages.length === 0) {
-+    if (messagesToSummarize.length === 0 && turnPrefixMessages.length === 0 && !nativeCompaction) {
++    const cutPoint = findProjectedCutPoint(projectedEntries, boundaryStart, boundaryEnd, Math.min(settings.keepRecentTokens, hardTailAllowance));
+     const firstKeptEntry = projectedEntries[cutPoint.firstKeptEntryIndex]?.sourceEntry;
+     if (!firstKeptEntry?.id)
          return undefined;
-     }
-     // Extract file operations from messages and previous compaction
-@@ -573,6 +616,7 @@ export function prepareCompaction(pathEntries, settings) {
+-    const firstKeptEntryId = firstKeptEntry.id;
+     const historyEnd = cutPoint.isSplitTurn ? cutPoint.turnStartIndex : cutPoint.firstKeptEntryIndex;
+-    const messagesToSummarize = projectedEntries
+-        .slice(boundaryStart, historyEnd)
+-        .flatMap(getMessagesFromProjectedEntryForCompaction);
++    const messagesToSummarize = projectedEntries.slice(boundaryStart, historyEnd).flatMap(getMessagesFromProjectedEntryForCompaction);
+     const turnPrefixMessages = cutPoint.isSplitTurn
+-        ? projectedEntries
+-            .slice(cutPoint.turnStartIndex, cutPoint.firstKeptEntryIndex)
+-            .flatMap(getMessagesFromProjectedEntryForCompaction)
++        ? projectedEntries.slice(cutPoint.turnStartIndex, cutPoint.firstKeptEntryIndex).flatMap(getMessagesFromProjectedEntryForCompaction)
+         : [];
+-    if (messagesToSummarize.length === 0 && turnPrefixMessages.length === 0)
++    if (messagesToSummarize.length === 0 && turnPrefixMessages.length === 0 && !nativeCompaction)
+         return undefined;
+-    // Extract file operations from edited model-visible messages and the previous compaction.
+     const fileOps = extractFileOperations(messagesToSummarize, sourceEntries, prevCompactionIndex);
+-    // Also extract file ops from turn prefix if splitting
+-    if (cutPoint.isSplitTurn) {
+-        for (const msg of turnPrefixMessages) {
+-            extractFileOpsFromMessage(msg, fileOps);
+-        }
+-    }
++    for (const message of turnPrefixMessages)
++        extractFileOpsFromMessage(message, fileOps);
      return {
-         firstKeptEntryId,
+-        firstKeptEntryId,
++        firstKeptEntryId: firstKeptEntry.id,
          messagesToSummarize,
-+        messagesForNativeCompaction,
++        messagesForNativeCompaction: projection.messages,
          turnPrefixMessages,
          isSplitTurn: cutPoint.isSplitTurn,
          tokensBefore,
-@@ -581,6 +625,26 @@ export function prepareCompaction(pathEntries, settings) {
+@@ -678,6 +669,26 @@ export function prepareCompaction(pathEntries, settings) {
          settings,
      };
  }
 +export function estimatePortableCompactionRequestOverheadTokens(customInstructions, previousSummary, messages = []) {
 +    const summaryPrompt = buildSummaryPrompt(messages, customInstructions, previousSummary);
 +    const conversationText = serializeConversation(convertToLlm(messages));
-+    const turnPrefixPrompt = `<conversation>\n${conversationText}\n</conversation>\n\n${TURN_PREFIX_SUMMARIZATION_PROMPT}`;
-+    const estimateTextTokens = (text) => Math.max(text.length, Math.ceil(new TextEncoder().encode(text).length / 2));
++    const turnPrefixPrompt = `<conversation>
++${conversationText}
++</conversation>
++
++${TURN_PREFIX_SUMMARIZATION_PROMPT}`;
++    const estimateTextTokens = (text) => Math.ceil(Math.max(text.length, new TextEncoder().encode(text).length) / 4);
 +    const serializedRequestTokens = estimateTextTokens(SUMMARIZATION_SYSTEM_PROMPT) +
 +        Math.max(estimateTextTokens(summaryPrompt), estimateTextTokens(turnPrefixPrompt));
 +    const reconstructionTokens = messages.reduce((total, message) => total + estimateReconstructionMessageTokens(message), 0);
@@ -1223,21 +1357,19 @@ index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..f860b3053b6cde92593bf691ff0d27e6
 +}
 +export function prepareCompaction(pathEntries, settings, model, requestOptions = {}) {
 +    const preparation = prepareCompactionProjection(pathEntries, settings, model, true, requestOptions);
-+    if (!preparation || !model || selectCompactionMechanism(model) !== "native") {
++    if (!preparation || !model || selectCompactionMechanism(model) !== "native")
 +        return preparation;
-+    }
-+    return {
-+        ...preparation,
-+        portableFallback: prepareCompactionProjection(pathEntries, settings, model, false, requestOptions),
-+    };
++    return { ...preparation, portableFallback: prepareCompactionProjection(pathEntries, settings, model, false, requestOptions) };
 +}
  // ============================================================================
  // Main compaction function
  // ============================================================================
-@@ -598,6 +661,109 @@ Summarize the prefix to provide context for the retained suffix:
- - [Information needed to understand the retained recent work]
- 
- Be concise. Focus on what's needed to understand the kept suffix.`;
+@@ -694,7 +705,110 @@ Create a concise checkpoint of the user's request and the progress shown above.
+ ## Context Needed to Continue
+ - [Information from these messages needed to understand the later work]
+
+-Only summarize information explicitly present above. Do not infer or recreate later messages.`;
++Only summarize information explicitly present above. Do not infer or recreate later messages. Be concise. Focus on what's needed to understand the kept suffix.`;
 +const NATIVE_REPLACEMENT_IMAGE_DETAILS = new Set(["low", "high", "auto", "original"]);
 +const NATIVE_REPLACEMENT_FILE_DETAILS = new Set(["low", "high"]);
 +const NATIVE_REPLACEMENT_STATUSES = new Set(["in_progress", "completed", "incomplete"]);
@@ -1344,7 +1476,7 @@ index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..f860b3053b6cde92593bf691ff0d27e6
  /**
   * Generate summaries for compaction using prepared data.
   * Returns CompactionResult - SessionManager adds uuid/parentUuid when saving.
-@@ -606,8 +772,65 @@ Be concise. Focus on what's needed to understand the kept suffix.`;
+@@ -703,8 +817,72 @@ Only summarize information explicitly present above. Do not infer or recreate la
   * @param customInstructions - Optional custom focus for the summary
   * @param sessionId - Optional routing session ID forwarded without enabling prompt caching
   */
@@ -1357,13 +1489,20 @@ index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..f860b3053b6cde92593bf691ff0d27e6
 +            ? await transformPreparation(preparation, "native")
 +            : preparation;
 +        try {
-+            const nativeInstructions = customInstructions?.trim()
-+                ? `${systemPrompt}\n\nAdditional compaction instructions:\n${customInstructions.trim()}`
-+                : systemPrompt;
-+            const response = await compactResponses(model, {
-+                systemPrompt: nativeInstructions,
-+                messages: nativeRequestOptions?.convertMessages ? await nativeRequestOptions.convertMessages(nativePreparation.messagesForNativeCompaction) : convertToLlm(nativePreparation.messagesForNativeCompaction),
-+            }, {
++            const nativeMessages = nativeRequestOptions?.convertMessages
++                ? await nativeRequestOptions.convertMessages(nativePreparation.messagesForNativeCompaction)
++                : convertToLlm(nativePreparation.messagesForNativeCompaction);
++            const existingSystem = getCurrentSystemMessage(nativeMessages);
++            const nativeInstructions = [
++                existingSystem ? undefined : systemPrompt,
++                customInstructions?.trim()
++                    ? `Additional compaction instructions:\n${customInstructions.trim()}`
++                    : undefined,
++            ].filter(Boolean).join("\n\n");
++            const response = await compactResponses(model, normalizeContext({
++                systemPrompt: nativeInstructions || undefined,
++                messages: nativeMessages,
++            }), {
 +                onPayload: nativeRequestOptions?.onPayload, onResponse: nativeRequestOptions?.onResponse, timeoutMs: nativeRequestOptions?.timeoutMs,
 +                apiKey,
 +                headers: nativeRequestOptions?.headers ?? headers,
@@ -1412,7 +1551,7 @@ index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..f860b3053b6cde92593bf691ff0d27e6
      // Generate summaries and merge into one
      let summary;
      let summaryUsage;
-@@ -641,7 +864,13 @@ export async function compact(preparation, model, apiKey, headers, customInstruc
+@@ -738,7 +916,13 @@ export async function compact(preparation, model, apiKey, headers, customInstruc
          firstKeptEntryId,
          tokensBefore,
          usage: summaryUsage,
@@ -1428,7 +1567,7 @@ index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..f860b3053b6cde92593bf691ff0d27e6
  }
  /**
 diff --git a/dist/core/messages.d.ts b/dist/core/messages.d.ts
-index a38bc241173d0e8885a9f64724ad8cd7e9e9d239..1c1b4301d1d97d91eb1dd9fedc9e785dff434569 100644
+index 9cdda75154578d3460d6507715ae59b2c7704873..2f06a8ba569081ca949dd695cd3ba6b0b051c312 100644
 --- a/dist/core/messages.d.ts
 +++ b/dist/core/messages.d.ts
 @@ -47,6 +47,8 @@ export interface CompactionSummaryMessage {
@@ -1450,7 +1589,7 @@ index a38bc241173d0e8885a9f64724ad8cd7e9e9d239..1c1b4301d1d97d91eb1dd9fedc9e785d
  export declare function createCustomMessage(customType: string, content: string | (TextContent | ImageContent)[], display: boolean, details: unknown | undefined, timestamp: string): CustomMessage;
  /**
 diff --git a/dist/core/messages.js b/dist/core/messages.js
-index 69923d6ba8d48ab2508c49d14fa054f28d5b4a2e..14355e6e7cb20235b96c5ae358002eb48cf0d839 100644
+index bcaeaae631aa9992e07cfc43baca2edbe4d6ab30..c136d2007445beb13113807b903c7682f1b04fb6 100644
 --- a/dist/core/messages.js
 +++ b/dist/core/messages.js
 @@ -45,11 +45,13 @@ export function createBranchSummaryMessage(summary, fromId, timestamp) {
@@ -1501,7 +1640,7 @@ index 69923d6ba8d48ab2508c49d14fa054f28d5b4a2e..14355e6e7cb20235b96c5ae358002eb4
                      role: "user",
                      content: [
 diff --git a/dist/core/model-runtime.d.ts b/dist/core/model-runtime.d.ts
-index 4f7c936537d96c377d567c0f5c84d772c0a6ee9e..404b6caf419e7d48e875429ed08194893dc4069d 100644
+index e6fbba53dad4459e7bde9294e3bd103b8cc7572e..3fa56f12c17101d837abe0902f2bd51de77b5d6e 100644
 --- a/dist/core/model-runtime.d.ts
 +++ b/dist/core/model-runtime.d.ts
 @@ -49,6 +49,7 @@ export declare class ModelRuntime implements Models {
@@ -1524,7 +1663,7 @@ index 4f7c936537d96c377d567c0f5c84d772c0a6ee9e..404b6caf419e7d48e875429ed0819489
      stream<TApi extends Api>(model: Model<TApi>, context: Context, options?: ModelsApiStreamOptions<TApi>): AssistantMessageEventStream;
      complete<TApi extends Api>(model: Model<TApi>, context: Context, options?: ModelsApiStreamOptions<TApi>): Promise<AssistantMessage>;
 diff --git a/dist/core/model-runtime.js b/dist/core/model-runtime.js
-index 7d93ba62bdb5d47e129751e8075cbb34620322ad..bf8c71bce72ebaea987ea5ac954a177a2890a08a 100644
+index 81bf752b39ee55ff08015bca5e78770bf74409fa..16a87b433e3d614bc9ecddadfa18c41410eb8318 100644
 --- a/dist/core/model-runtime.js
 +++ b/dist/core/model-runtime.js
 @@ -60,6 +60,7 @@ export class ModelRuntime {
@@ -1572,10 +1711,10 @@ index 7d93ba62bdb5d47e129751e8075cbb34620322ad..bf8c71bce72ebaea987ea5ac954a177a
              throw new ModelsError("auth", `Provider is not configured: ${model.provider}`);
          const { transformHeaders, ...rawProviderOptions } = options ?? {};
 diff --git a/dist/core/sdk.js b/dist/core/sdk.js
-index 8bb4595a64ca83f4ffd72d46dd65f1a75c283021..bf27f93162857f143b97747f109495281a7eb022 100644
+index cb6d649d7db18dca9b86c1248d232b54298f3ffb..ee6d9578ac39d68de83832c72b85442fbff30f14 100644
 --- a/dist/core/sdk.js
 +++ b/dist/core/sdk.js
-@@ -11,7 +11,7 @@ import { findInitialModel } from "./model-resolver.js";
+@@ -12,7 +12,7 @@ import { findInitialModel } from "./model-resolver.js";
  import { ModelRuntime } from "./model-runtime.js";
  import { mergeProviderAttributionHeaders } from "./provider-attribution.js";
  import { DefaultResourceLoader } from "./resource-loader.js";
@@ -1584,20 +1723,22 @@ index 8bb4595a64ca83f4ffd72d46dd65f1a75c283021..bf27f93162857f143b97747f10949528
  import { SettingsManager } from "./settings-manager.js";
  import { time } from "./timings.js";
  import { createBashTool, createCodingTools, createEditTool, createFindTool, createGrepTool, createLsTool, createPowerShellTool, createReadOnlyTools, createReadTool, createWriteTool, withFileMutationQueue, } from "./tools/index.js";
-@@ -78,7 +78,9 @@ export async function createAgentSession(options = {}) {
+@@ -79,9 +79,11 @@ export async function createAgentSession(options = {}) {
          time("resourceLoader.reload");
      }
      // Check if session has existing data to restore
 -    const existingSession = sessionManager.buildSessionContext();
+-    const hasExistingSession = existingSession.messages.length > 0;
+-    const hasThinkingEntry = sessionManager.getBranch().some((entry) => entry.type === "thinking_level_change");
 +    const branchEntries = sessionManager.getBranch();
 +    const projectSession = (targetModel, forceNativeReconstruction = false) => buildSessionContext(branchEntries, sessionManager.getLeafId(), undefined, targetModel, { forceNativeReconstruction });
 +    const existingSession = projectSession(options.model);
--    const hasExistingSession = existingSession.messages.length > 0;
--    const hasThinkingEntry = sessionManager.getBranch().some((entry) => entry.type === "thinking_level_change");
 +    const hasExistingSession = branchEntries.length > 0;
 +    const hasThinkingEntry = branchEntries.some((entry) => entry.type === "thinking_level_change");
      let model = options.model;
-@@ -136,6 +137,40 @@ export async function createAgentSession(options = {}) {
+     let modelFallbackMessage;
+     // If session has data, try to restore model from it
+@@ -137,6 +139,40 @@ export async function createAgentSession(options = {}) {
      else {
          thinkingLevel = clampThinkingLevel(model, thinkingLevel);
      }
@@ -1638,26 +1779,26 @@ index 8bb4595a64ca83f4ffd72d46dd65f1a75c283021..bf27f93162857f143b97747f10949528
      const defaultActiveToolNames = ["read", "bash", "edit", "write"];
      const configuredDefaultToolNames = settingsManager.getDefaultTools();
      const allowedToolNames = options.tools ?? (options.noTools === "all" ? [] : undefined);
-@@ -198,6 +233,9 @@ export async function createAgentSession(options = {}) {
-                 maxRetries: options?.maxRetries ?? providerRetrySettings.maxRetries,
-                 maxRetryDelayMs: options?.maxRetryDelayMs ?? providerRetrySettings.maxRetryDelayMs,
-                 transformHeaders: async (requestHeaders) => {
-+                    const preparedHeaders = takePreparedProviderHeaders(model);
-+                    if (preparedHeaders)
-+                        return preparedHeaders;
-                     const headers = mergeProviderAttributionHeaders(model, settingsManager, options?.sessionId, requestHeaders);
-                     return headerRunner?.hasHandlers("before_provider_headers")
-                         ? headerRunner.emitBeforeProviderHeaders(headers ?? {})
-@@ -238,7 +276,7 @@ export async function createAgentSession(options = {}) {
-     });
-     // Restore messages if session has existing data
-     if (hasExistingSession) {
--        agent.state.messages = existingSession.messages;
-+        agent.state.messages = resolvedExistingSession.messages;
-         if (!hasThinkingEntry) {
-             sessionManager.appendThinkingLevelChange(thinkingLevel);
-         }
-@@ -252,6 +290,8 @@ export async function createAgentSession(options = {}) {
+@@ -187,6 +223,9 @@ export async function createAgentSession(options = {}) {
+             maxRetries: options.maxRetries ?? providerRetrySettings.maxRetries,
+             maxRetryDelayMs: options.maxRetryDelayMs ?? providerRetrySettings.maxRetryDelayMs,
+             transformHeaders: async (requestHeaders) => {
++                const preparedHeaders = takePreparedProviderHeaders(requestModel);
++                if (preparedHeaders)
++                    return preparedHeaders;
+                 const headers = mergeProviderAttributionHeaders(requestModel, settingsManager, options.sessionId, requestHeaders);
+                 return headerRunner?.hasHandlers("before_provider_headers")
+                     ? headerRunner.emitBeforeProviderHeaders(headers ?? {})
+@@ -227,7 +266,7 @@ export async function createAgentSession(options = {}) {
+             model,
+             thinkingLevel,
+             tools: [],
+-            messages: existingSession.messages,
++            messages: resolvedExistingSession.messages,
+         },
+         convertToLlm: convertToLlmWithBlockImages,
+         streamFn: async (model, context, options) => {
+@@ -272,6 +311,8 @@ export async function createAgentSession(options = {}) {
      }
      const session = new AgentSession({
          agent,
@@ -1667,26 +1808,34 @@ index 8bb4595a64ca83f4ffd72d46dd65f1a75c283021..bf27f93162857f143b97747f10949528
          settingsManager,
          cwd,
 diff --git a/dist/core/session-manager.d.ts b/dist/core/session-manager.d.ts
-index 8cdfbdec42f696b8cd6b762a92180a81ec142433..270c20ef5da90a1cd1ab1a2cf47e81f0e4124cc8 100644
+index 76c53813b3c8de823afe3a34b4447da983450c26..7b6c4f89e1d55d99f72600061529f798aa52110d 100644
 --- a/dist/core/session-manager.d.ts
 +++ b/dist/core/session-manager.d.ts
 @@ -1,5 +1,5 @@
  import type { AgentMessage } from "@earendil-works/pi-agent-core";
--import { type ImageContent, type Message, type TextContent, type Usage } from "@earendil-works/pi-ai";
-+import { type ImageContent, type Message, type Model, type TextContent, type Usage } from "@earendil-works/pi-ai";
+-import { type AssistantMessage, type ImageContent, type Message, type SystemMessage, type TextContent, type ToolResultMessage, type Usage, type UserMessage } from "@earendil-works/pi-ai";
++import { type AssistantMessage, type ImageContent, type Message, type Model, type SystemMessage, type TextContent, type ToolResultMessage, type Usage, type UserMessage } from "@earendil-works/pi-ai";
  import { type BashExecutionMessage, type CustomMessage } from "./messages.ts";
  export declare const CURRENT_SESSION_VERSION = 3;
  export interface SessionHeader {
-@@ -44,6 +44,8 @@ export interface CompactionEntry<T = unknown> extends SessionEntryBase {
+@@ -54,6 +54,8 @@ export interface CompactionEntry<T = unknown> extends SessionEntryBase {
      usage?: Usage;
      /** True if generated by an extension, undefined/false if pi-generated (backward compatible) */
      fromHook?: boolean;
 +    /** Why compaction ran. Missing on sessions created before reason tracking. */
 +    reason?: "manual" | "threshold" | "overflow";
+     /** Complete prompt and tool state at this compaction boundary. */
+     systemMessage?: SystemMessage;
  }
- export interface BranchSummaryEntry<T = unknown> extends SessionEntryBase {
-     type: "branch_summary";
-@@ -121,7 +123,30 @@ export interface SessionContext {
+@@ -151,6 +153,7 @@ export interface SessionProjection {
+         provider: string;
+         modelId: string;
+     } | null;
++    reconstruction?: SessionContext["reconstruction"];
+ }
+ export interface SessionContext {
+     messages: AgentMessage[];
+@@ -159,7 +162,30 @@ export interface SessionContext {
          provider: string;
          modelId: string;
      } | null;
@@ -1717,7 +1866,7 @@ index 8cdfbdec42f696b8cd6b762a92180a81ec142433..270c20ef5da90a1cd1ab1a2cf47e81f0
  export interface SessionInfo {
      path: string;
      id: string;
-@@ -157,13 +182,15 @@ export declare function sessionEntryToContextMessages(entry: SessionEntry): Agen
+@@ -195,11 +221,13 @@ export declare function sessionEntryToContextMessages(entry: SessionEntry): Agen
   * by the kept entries starting at firstKeptEntryId and all entries after the
   * compaction entry. Older summarized entries are omitted.
   */
@@ -1725,26 +1874,25 @@ index 8cdfbdec42f696b8cd6b762a92180a81ec142433..270c20ef5da90a1cd1ab1a2cf47e81f0
 +export declare function buildContextEntries(entries: SessionEntry[], leafId?: string | null, byId?: Map<string, SessionEntry>, targetModel?: Model<any>): SessionEntry[];
 +/** Conservative model-facing token estimate used while fitting reconstructed history. */
 +export declare function estimateReconstructionMessageTokens(message: AgentMessage): number;
- /**
-  * Build the session context from entries using tree traversal.
-  * If leafId is provided, walks from that entry to root.
-  * Handles compaction and branch summaries along the path.
-  */
+ /** Build provenance-preserving, compaction-aware model context. */
+-export declare function buildSessionProjection(entries: SessionEntry[], leafId?: string | null, byId?: Map<string, SessionEntry>): SessionProjection;
++export declare function buildSessionProjection(entries: SessionEntry[], leafId?: string | null, byId?: Map<string, SessionEntry>, targetModel?: Model<any>, options?: BuildSessionContextOptions): SessionProjection;
+ /** Build the finalized model context from the canonical session projection. */
 -export declare function buildSessionContext(entries: SessionEntry[], leafId?: string | null, byId?: Map<string, SessionEntry>): SessionContext;
 +export declare function buildSessionContext(entries: SessionEntry[], leafId?: string | null, byId?: Map<string, SessionEntry>, targetModel?: Model<any>, options?: BuildSessionContextOptions): SessionContext;
  export declare function getDefaultSessionDir(cwd: string, agentDir?: string): string;
  /** Exported for testing */
  export declare function loadEntriesFromFile(filePath: string): FileEntry[];
-@@ -220,7 +247,7 @@ export declare class SessionManager {
-     /** Append a model change as child of current leaf, then advance leaf. Returns entry id. */
-     appendModelChange(provider: string, modelId: string): string;
+@@ -261,7 +289,7 @@ export declare class SessionManager {
+     /** Append model-attributed usage that does not participate in LLM context. Returns the appended entry. */
+     appendUsage(kind: string, provider: string, model: string, usage: Usage, note?: string): UsageEntry;
      /** Append a compaction summary as child of current leaf, then advance leaf. Returns entry id. */
--    appendCompaction<T = unknown>(summary: string, firstKeptEntryId: string, tokensBefore: number, details?: T, fromHook?: boolean, usage?: Usage): string;
-+    appendCompaction<T = unknown>(summary: string, firstKeptEntryId: string, tokensBefore: number, details?: T, fromHook?: boolean, usage?: Usage, reason?: "manual" | "threshold" | "overflow"): string;
+-    appendCompaction<T = unknown>(summary: string, firstKeptEntryId: string | null, tokensBefore: number, details?: T, fromHook?: boolean, usage?: Usage): string;
++    appendCompaction<T = unknown>(summary: string, firstKeptEntryId: string | null, tokensBefore: number, details?: T, fromHook?: boolean, usage?: Usage, reason?: "manual" | "threshold" | "overflow"): string;
      /** Append a custom entry (for extensions) as child of current leaf, then advance leaf. Returns entry id. */
      appendCustomEntry(customType: string, data?: unknown): string;
      /** Append a session info entry (e.g., display name). Returns entry id. */
-@@ -263,12 +290,12 @@ export declare class SessionManager {
+@@ -306,13 +334,13 @@ export declare class SessionManager {
       * Build the active, compaction-aware entry list for context/rendering.
       * Uses tree traversal from current leaf.
       */
@@ -1754,22 +1902,25 @@ index 8cdfbdec42f696b8cd6b762a92180a81ec142433..270c20ef5da90a1cd1ab1a2cf47e81f0
       * Build the session context (what gets sent to the LLM).
       * Uses tree traversal from current leaf.
       */
+-    buildSessionProjection(): SessionProjection;
 -    buildSessionContext(): SessionContext;
++    buildSessionProjection(targetModel?: Model<any>, options?: BuildSessionContextOptions): SessionProjection;
 +    buildSessionContext(targetModel?: Model<any>, options?: BuildSessionContextOptions): SessionContext;
      /**
       * Get session header.
       */
 diff --git a/dist/core/session-manager.js b/dist/core/session-manager.js
-index f887c04976596f8956bc04c16ca59c4030e09f92..685bc986dc0e47462a742bc3d32df20404b66408 100644
+index 0ddbb9cccaa7355ca44d4bbc768eaab8af57bac8..2145a54515741dca73722ecde19415984f99cc82 100644
 --- a/dist/core/session-manager.js
 +++ b/dist/core/session-manager.js
 @@ -1,5 +1,5 @@
- import { uuidv7 } from "@earendil-works/pi-ai";
+-import { getCurrentSystemMessage, uuidv7, } from "@earendil-works/pi-ai";
 -import { randomUUID } from "crypto";
++import { getCurrentSystemMessage, uuidv7 } from "@earendil-works/pi-ai";
 +import { createHash, randomUUID } from "crypto";
  import { appendFileSync, closeSync, createReadStream, existsSync, mkdirSync, openSync, readdirSync, readSync, statSync, writeFileSync, } from "fs";
  import { readdir, stat } from "fs/promises";
- import { join, resolve } from "path";
+ import { basename, join, resolve } from "path";
 @@ -9,6 +9,71 @@ import { APP_NAME, getAgentDir as getDefaultAgentDir, getSessionsDir } from "../
  import { normalizePath, resolvePath } from "../utils/paths.js";
  import { createBranchSummaryMessage, createCompactionSummaryMessage, createCustomMessage, } from "./messages.js";
@@ -1842,16 +1993,16 @@ index f887c04976596f8956bc04c16ca59c4030e09f92..685bc986dc0e47462a742bc3d32df204
  function createSessionId() {
      return uuidv7();
  }
-@@ -183,7 +248,7 @@ export function sessionEntryToContextMessages(entry) {
+@@ -185,7 +250,7 @@ export function sessionEntryToContextMessages(entry) {
          return [createBranchSummaryMessage(entry.summary, entry.fromId, entry.timestamp)];
      }
      if (entry.type === "compaction") {
--        return [createCompactionSummaryMessage(entry.summary, entry.tokensBefore, entry.timestamp)];
-+        return [createCompactionSummaryMessage(entry.summary, entry.tokensBefore, entry.timestamp, entry.details, entry.reason)];
+-        const summary = createCompactionSummaryMessage(entry.summary, entry.tokensBefore, entry.timestamp);
++        const summary = createCompactionSummaryMessage(entry.summary, entry.tokensBefore, entry.timestamp, entry.details, entry.reason);
+         return entry.systemMessage ? [entry.systemMessage, summary] : [summary];
      }
      return [];
- }
-@@ -195,7 +260,27 @@ export function sessionEntryToContextMessages(entry) {
+@@ -198,7 +263,27 @@ export function sessionEntryToContextMessages(entry) {
   * by the kept entries starting at firstKeptEntryId and all entries after the
   * compaction entry. Older summarized entries are omitted.
   */
@@ -1880,7 +2031,7 @@ index f887c04976596f8956bc04c16ca59c4030e09f92..685bc986dc0e47462a742bc3d32df204
      const path = buildSessionPath(entries, leafId, byId);
      let compaction = null;
      for (const entry of path) {
-@@ -206,6 +291,9 @@ export function buildContextEntries(entries, leafId, byId) {
+@@ -209,6 +294,9 @@ export function buildContextEntries(entries, leafId, byId) {
      if (!compaction) {
          return path;
      }
@@ -1890,7 +2041,7 @@ index f887c04976596f8956bc04c16ca59c4030e09f92..685bc986dc0e47462a742bc3d32df204
      const compactionIdx = path.findIndex((entry) => entry.id === compaction.id);
      if (compactionIdx < 0) {
          return path;
-@@ -224,15 +312,127 @@ export function buildContextEntries(entries, leafId, byId) {
+@@ -227,6 +315,110 @@ export function buildContextEntries(entries, leafId, byId) {
      contextEntries.push(...path.slice(compactionIdx + 1));
      return contextEntries;
  }
@@ -1955,14 +2106,14 @@ index f887c04976596f8956bc04c16ca59c4030e09f92..685bc986dc0e47462a742bc3d32df204
 +function fitNativeReconstruction(entries, sourceCompaction, targetModel, requestOverheadTokens = 0) {
 +    const units = [];
 +    let currentUnit = [];
-+    for (const entry of entries) {
-+        const messages = sessionEntryToContextMessages(entry);
++    for (const projectedEntry of entries) {
++        const { sourceEntry: entry, messages } = projectedEntry;
 +        const startsTurn = startsReconstructionUnit(messages, currentUnit);
 +        if (startsTurn && currentUnit.some((item) => item.messages.length > 0)) {
 +            units.push(currentUnit);
 +            currentUnit = [];
 +        }
-+        currentUnit.push({ entry, messages });
++        currentUnit.push({ entry, messages, projectedEntry });
 +    }
 +    if (currentUnit.length > 0)
 +        units.push(currentUnit);
@@ -1982,10 +2133,12 @@ index f887c04976596f8956bc04c16ca59c4030e09f92..685bc986dc0e47462a742bc3d32df204
 +    }
 +    const keptItems = units.slice(firstKeptUnit).flat();
 +    const messages = keptItems.flatMap((item) => item.messages);
++    const keptEntries = keptItems.map((item) => item.projectedEntry);
 +    const droppedItems = units.slice(0, firstKeptUnit).flat();
 +    const firstKeptEntry = keptItems.find((item) => item.messages.length > 0)?.entry;
 +    const droppedThroughEntry = [...droppedItems].reverse().find((item) => item.messages.length > 0)?.entry;
 +    return {
++        entries: keptEntries,
 +        messages,
 +        reconstruction: {
 +            schemaVersion: 1,
@@ -1999,45 +2152,79 @@ index f887c04976596f8956bc04c16ca59c4030e09f92..685bc986dc0e47462a742bc3d32df204
  /**
   * Build the session context from entries using tree traversal.
   * If leafId is provided, walks from that entry to root.
-  * Handles compaction and branch summaries along the path.
-  */
--export function buildSessionContext(entries, leafId, byId) {
-+export function buildSessionContext(entries, leafId, byId, targetModel, options = {}) {
+@@ -253,16 +445,20 @@ function projectContextEntry(entry, edit) {
+     });
+ }
+ /** Build provenance-preserving, compaction-aware model context. */
+-export function buildSessionProjection(entries, leafId, byId) {
++export function buildSessionProjection(entries, leafId, byId, targetModel, options = {}) {
      const path = buildSessionPath(entries, leafId, byId);
      const { thinkingLevel, model } = getSessionContextSettings(path);
--    const messages = buildContextEntries(entries, leafId, byId).flatMap(sessionEntryToContextMessages);
+-    const contextEntries = buildContextEntries(entries, leafId, byId);
++    const sourceCompaction = [...path].reverse().find((entry) => entry.type === "compaction");
 +    const forceNativeReconstruction = options.forceNativeReconstruction === true;
 +    const contextEntries = forceNativeReconstruction
 +        ? path.filter((entry) => entry.type !== "compaction")
 +        : buildContextEntries(entries, leafId, byId, targetModel);
-+    const sourceCompaction = [...path].reverse().find((entry) => entry.type === "compaction");
+     const edits = new Map();
+     for (const entry of contextEntries) {
+         if (entry.type === "context_edit")
+             edits.set(entry.targetId, entry);
+     }
+-    const projectedEntries = contextEntries.map((sourceEntry, index) => ({
++    let projectedEntries = contextEntries.map((sourceEntry, index) => ({
+         sourceEntry,
+         // buildContextEntries() may retain an older compaction entry because its
+         // raw ID lies inside the newest retained range. Only the newest compaction
+@@ -271,6 +467,18 @@ export function buildSessionProjection(entries, leafId, byId) {
+             ? []
+             : projectContextEntry(sourceEntry, edits.get(sourceEntry.id)),
+     }));
 +    if (targetModel && sourceCompaction &&
 +        (forceNativeReconstruction || !isCompatibleNativeCompaction(sourceCompaction, targetModel))) {
-+        const fitted = fitNativeReconstruction(contextEntries, sourceCompaction, targetModel, options.requestOverheadTokens);
-+        return { ...fitted, thinkingLevel, model };
++        const fitted = fitNativeReconstruction(projectedEntries, sourceCompaction, targetModel, options.requestOverheadTokens);
++        projectedEntries = fitted.entries;
++        return {
++            entries: projectedEntries,
++            messages: fitted.messages,
++            thinkingLevel,
++            model,
++            reconstruction: fitted.reconstruction,
++        };
 +    }
-+    const messages = contextEntries.flatMap(sessionEntryToContextMessages);
+     return {
+         entries: projectedEntries,
+         messages: projectedEntries.flatMap((entry) => entry.messages),
+@@ -279,8 +487,9 @@ export function buildSessionProjection(entries, leafId, byId) {
+     };
+ }
+ /** Build the finalized model context from the canonical session projection. */
+-export function buildSessionContext(entries, leafId, byId) {
+-    const { messages, thinkingLevel, model } = buildSessionProjection(entries, leafId, byId);
++export function buildSessionContext(entries, leafId, byId, targetModel, options = {}) {
++    const { messages, thinkingLevel, model, reconstruction } = buildSessionProjection(entries, leafId, byId, targetModel, options);
++    return { messages, thinkingLevel, model, ...(reconstruction ? { reconstruction } : {}) };
      return { messages, thinkingLevel, model };
  }
  /**
-@@ -802,7 +1002,7 @@ export class SessionManager {
-         return entry.id;
+@@ -877,7 +1086,7 @@ export class SessionManager {
+         return entry;
      }
      /** Append a compaction summary as child of current leaf, then advance leaf. Returns entry id. */
 -    appendCompaction(summary, firstKeptEntryId, tokensBefore, details, fromHook, usage) {
 +    appendCompaction(summary, firstKeptEntryId, tokensBefore, details, fromHook, usage, reason) {
-         const entry = {
-             type: "compaction",
-             id: generateId(this.byId),
-@@ -814,6 +1014,7 @@ export class SessionManager {
+         const timestamp = new Date().toISOString();
+         const systemMessage = getCurrentSystemMessage(this.buildSessionProjection().messages);
+         const id = generateId(this.byId);
+@@ -892,6 +1101,7 @@ export class SessionManager {
              details,
              usage,
              fromHook,
 +            reason,
+             ...(systemMessage ? { systemMessage: { ...systemMessage, timestamp: new Date(timestamp).getTime() } } : {}),
          };
          this._appendEntry(entry);
-         return entry.id;
-@@ -957,15 +1158,36 @@ export class SessionManager {
+@@ -1074,19 +1284,37 @@ export class SessionManager {
       * Build the active, compaction-aware entry list for context/rendering.
       * Uses tree traversal from current leaf.
       */
@@ -2050,11 +2237,15 @@ index f887c04976596f8956bc04c16ca59c4030e09f92..685bc986dc0e47462a742bc3d32df204
       * Build the session context (what gets sent to the LLM).
       * Uses tree traversal from current leaf.
       */
+-    buildSessionProjection() {
+-        return buildSessionProjection(this.getEntries(), this.leafId, this.byId);
+-    }
 -    buildSessionContext() {
--        return buildSessionContext(this.getEntries(), this.leafId, this.byId);
-+    buildSessionContext(targetModel, options) {
-+        const context = buildSessionContext(this.getEntries(), this.leafId, this.byId, targetModel, options);
-+        const reconstruction = context.reconstruction;
+-        const { messages, thinkingLevel, model } = this.buildSessionProjection();
+-        return { messages, thinkingLevel, model };
++    buildSessionProjection(targetModel, options) {
++        const projection = buildSessionProjection(this.getEntries(), this.leafId, this.byId, targetModel, options);
++        const reconstruction = projection.reconstruction;
 +        if (reconstruction) {
 +            const alreadyRecorded = this.getBranch().some((entry) => entry.type === "custom" &&
 +                entry.customType === "pi.compaction_reconstruction" &&
@@ -2065,37 +2256,39 @@ index f887c04976596f8956bc04c16ca59c4030e09f92..685bc986dc0e47462a742bc3d32df204
 +                entry.data?.targetIdentity?.api === reconstruction.targetIdentity.api &&
 +                entry.data?.targetIdentity?.provider === reconstruction.targetIdentity.provider &&
 +                entry.data?.targetIdentity?.baseUrl === reconstruction.targetIdentity.baseUrl &&
-+                entry.data?.targetIdentity?.compactionBaseUrl ===
-+                    reconstruction.targetIdentity.compactionBaseUrl &&
++                entry.data?.targetIdentity?.compactionBaseUrl === reconstruction.targetIdentity.compactionBaseUrl &&
 +                entry.data?.targetIdentity?.modelId === reconstruction.targetIdentity.modelId &&
-+                entry.data?.targetIdentity?.credentialFingerprint ===
-+                    reconstruction.targetIdentity.credentialFingerprint);
-+            if (!alreadyRecorded) {
++                entry.data?.targetIdentity?.credentialFingerprint === reconstruction.targetIdentity.credentialFingerprint);
++            if (!alreadyRecorded)
 +                this.appendCustomEntry("pi.compaction_reconstruction", reconstruction);
-+            }
 +        }
-+        return context;
++        return projection;
++    }
++    buildSessionContext(targetModel, options) {
++        const { messages, thinkingLevel, model, reconstruction } = this.buildSessionProjection(targetModel, options);
++        return { messages, thinkingLevel, model, ...(reconstruction ? { reconstruction } : {}) };
      }
      /**
       * Get session header.
 diff --git a/dist/core/settings-manager.d.ts b/dist/core/settings-manager.d.ts
-index f93ac1aa9f8f45977863021c4ea3a486ecb489ab..68546e7cacc51a5b3273b7c1795d78a63ce917e6 100644
+index 53d2865e9765524087976e9887b2e8e6b200ebd5..ac8696f159b6ef090697057a3022159f914a9a06 100644
 --- a/dist/core/settings-manager.d.ts
 +++ b/dist/core/settings-manager.d.ts
-@@ -5,6 +5,7 @@ export interface CompactionSettings {
+@@ -9,6 +9,7 @@ export interface CompactionSettings {
      enabled?: boolean;
      reserveTokens?: number;
      keepRecentTokens?: number;
 +    thresholdPercent?: number;
+     modelOverrides?: Record<string, CompactionModelOverride>;
  }
  export interface BranchSummarySettings {
-     reserveTokens?: number;
-@@ -220,10 +221,12 @@ export declare class SettingsManager {
-     setCompactionEnabled(enabled: boolean): void;
-     getCompactionReserveTokens(): number;
-     getCompactionKeepRecentTokens(): number;
+@@ -231,11 +232,13 @@ export declare class SettingsManager {
+     private getCompactionTokenSetting;
+     getCompactionReserveTokens(model?: Pick<Model<string>, "provider" | "id">): number;
+     getCompactionKeepRecentTokens(model?: Pick<Model<string>, "provider" | "id">): number;
 +    getCompactionThresholdPercent(): number;
-     getCompactionSettings(): {
+     /** Resolve each token setting through model override, ordinary setting, then built-in default. */
+     getCompactionSettings(model?: Pick<Model<string>, "provider" | "id">): {
          enabled: boolean;
          reserveTokens: number;
          keepRecentTokens: number;
@@ -2104,49 +2297,52 @@ index f93ac1aa9f8f45977863021c4ea3a486ecb489ab..68546e7cacc51a5b3273b7c1795d78a6
      getBranchSummarySettings(): {
          reserveTokens: number;
 diff --git a/dist/core/settings-manager.js b/dist/core/settings-manager.js
-index f0f936eb01afe5d158f1834c5e40421e36af0d24..21e6273e14519b83313f3162c37abb24f336cfc9 100644
+index ed9d8d264da6f3315874bc909edeea0daef28b5a..f264f7dd1760b5012986badfa7340084a72fed66 100644
 --- a/dist/core/settings-manager.js
 +++ b/dist/core/settings-manager.js
-@@ -562,11 +562,15 @@ export class SettingsManager {
-     getCompactionKeepRecentTokens() {
-         return this.settings.compaction?.keepRecentTokens ?? 20000;
+@@ -586,12 +586,16 @@ export class SettingsManager {
+     getCompactionKeepRecentTokens(model) {
+         return this.getCompactionTokenSetting("keepRecentTokens", model);
      }
 +    getCompactionThresholdPercent() {
 +        return this.settings.compaction?.thresholdPercent ?? 80;
 +    }
-     getCompactionSettings() {
+     /** Resolve each token setting through model override, ordinary setting, then built-in default. */
+     getCompactionSettings(model) {
          return {
              enabled: this.getCompactionEnabled(),
-             reserveTokens: this.getCompactionReserveTokens(),
-             keepRecentTokens: this.getCompactionKeepRecentTokens(),
+             reserveTokens: this.getCompactionReserveTokens(model),
+             keepRecentTokens: this.getCompactionKeepRecentTokens(model),
 +            thresholdPercent: this.getCompactionThresholdPercent(),
          };
      }
      getBranchSummarySettings() {
 diff --git a/dist/index.d.ts b/dist/index.d.ts
-index 3e9241dc237322f9ba64aac399f4eda31ac4715c..f03d0312bdfbc252d491a3f49752f44e5620e5a3 100644
+index 52dcaafdf0fac5b42a733039103edb68a7538de3..25ac1b53f1b00b8e171798f16684f8338a828ffa 100644
 --- a/dist/index.d.ts
 +++ b/dist/index.d.ts
-@@ -2,7 +2,7 @@ export { type Args, parseArgs } from "./cli/args.ts";
- export { CONFIG_DIR_NAME, getAgentDir, getDocsPath, getExamplesPath, getPackageDir, getReadmePath, VERSION, } from "./config.ts";
+@@ -3,7 +3,7 @@ export { CONFIG_DIR_NAME, getAgentDir, getDocsPath, getExamplesPath, getPackageD
  export { AgentSession, type AgentSessionConfig, type AgentSessionEvent, type AgentSessionEventListener, type ModelCycleResult, type ParsedSkillBlock, type PromptOptions, parseSkillBlock, type SessionStats, } from "./core/agent-session.ts";
  export { readStoredCredential } from "./core/auth-storage.ts";
+ export type { CacheWarmingDecision, CacheWarmingStatus } from "./core/cache-warmer.ts";
 -export { type BranchPreparation, type BranchSummaryResult, type CollectEntriesResult, type CompactionResult, type CutPointResult, calculateContextTokens, collectEntriesForBranchSummary, compact, DEFAULT_COMPACTION_SETTINGS, estimateTokens, type FileOperations, findCutPoint, findTurnStartIndex, type GenerateBranchSummaryOptions, generateBranchSummary, generateSummary, generateSummaryWithUsage, getLastAssistantUsage, prepareBranchEntries, serializeConversation, shouldCompact, } from "./core/compaction/index.ts";
-+export { type BranchPreparation, type BranchSummaryResult, type CollectEntriesResult, type CompactionResult, type CutPointResult, calculateContextTokens, collectEntriesForBranchSummary, compact, DEFAULT_COMPACTION_SETTINGS, estimatePortableCompactionRequestOverheadTokens, estimateTokens, type FileOperations, findCutPoint, findTurnStartIndex, type GenerateBranchSummaryOptions, generateBranchSummary, generateSummary, generateSummaryWithUsage, getLastAssistantUsage, prepareBranchEntries, prepareCompaction, selectCompactionMechanism, serializeConversation, shouldCompact, } from "./core/compaction/index.ts";
++export { type BranchPreparation, type BranchSummaryResult, type CollectEntriesResult, type CompactionResult, type CutPointResult, calculateContextTokens, collectEntriesForBranchSummary, compact, DEFAULT_COMPACTION_SETTINGS, estimatePortableCompactionRequestOverheadTokens, estimateTokens, type FileOperations, findCutPoint, findTurnStartIndex, type GenerateBranchSummaryOptions, generateBranchSummary, generateSummary, generateSummaryWithUsage, getLastAssistantUsage, prepareBranchEntries, prepareCompaction, selectCompactionMechanism, serializeConversation, shouldCompact } from "./core/compaction/index.ts";
  export { createEventBus, type EventBus, type EventBusController } from "./core/event-bus.ts";
- export type { AgentEndEvent, AgentSettledEvent, AgentStartEvent, AgentToolResult, AgentToolUpdateCallback, AppKeybinding, AutocompleteProviderFactory, BashToolCallEvent, BeforeAgentStartEvent, BeforeAgentStartEventResult, BeforeProviderHeadersEvent, BeforeProviderRequestEvent, BeforeProviderRequestEventResult, BuildSystemPromptOptions, CompactOptions, ContextEvent, ContextUsage, CustomToolCallEvent, EditToolCallEvent, EntryRenderer, EntryRenderOptions, ExecOptions, ExecResult, Extension, ExtensionActions, ExtensionAPI, ExtensionCommandContext, ExtensionCommandContextActions, ExtensionContext, ExtensionContextActions, ExtensionError, ExtensionEvent, ExtensionFactory, ExtensionFlag, ExtensionHandler, ExtensionRuntime, ExtensionShortcut, ExtensionUIContext, ExtensionUIDialogOptions, ExtensionWidgetOptions, FindToolCallEvent, GrepToolCallEvent, InlineExtension, InputEvent, InputEventResult, InputSource, KeybindingsManager, LoadExtensionsResult, LsToolCallEvent, MarkdownTransformContext, MarkdownTransformer, MessageEndEvent, MessageRenderer, MessageRenderOptions, MessageStartEvent, MessageUpdateEvent, PowerShellToolCallEvent, ProjectTrustContext, ProjectTrustEvent, ProjectTrustEventDecision, ProjectTrustEventResult, ProjectTrustHandler, ProviderConfig, ProviderModelConfig, ReadToolCallEvent, RegisteredCommand, RegisteredTool, ResolvedCommand, SessionBeforeCompactEvent, SessionBeforeForkEvent, SessionBeforeSwitchEvent, SessionBeforeTreeEvent, SessionCompactEvent, SessionInfoChangedEvent, SessionShutdownEvent, SessionStartEvent, SessionTreeEvent, SlashCommandInfo, SlashCommandSource, SourceInfo, TerminalInputHandler, ToolCallEvent, ToolCallEventResult, ToolDefinition, ToolExecutionEndEvent, ToolExecutionMode, ToolExecutionStartEvent, ToolExecutionUpdateEvent, ToolInfo, ToolRenderResultOptions, ToolResultEvent, TurnEndEvent, TurnStartEvent, UIPromptEndEvent, UIPromptKind, UIPromptStartEvent, UserBashEvent, UserBashEventResult, WidgetPlacement, WorkingIndicatorOptions, WriteToolCallEvent, } from "./core/extensions/index.ts";
+ export type { AfterProviderResponseEvent, AgentActivityOutcome, AgentBeforeSettleEvent, AgentBeforeSettleEventResult, AgentEndEvent, AgentSettledEvent, AgentStartEvent, AgentToolResult, AgentToolUpdateCallback, AppKeybinding, AutocompleteProviderFactory, BashToolCallEvent, BeforeAgentStartEvent, BeforeAgentStartEventResult, BeforeProviderHeadersEvent, BeforeProviderRequestEvent, BeforeProviderRequestEventResult, BoundaryContextPreview, BoundaryResult, BoundaryState, BuildSystemPromptOptions, CacheWarmingDecisionEvent, CacheWarmingDecisionEventResult, CompactionEntryDraft, CompactOptions, ContextEditEntryDraft, ContextEvent, ContextEventResult, ContextUsage, ContextWithSystemEvent, CustomEntryDraft, CustomMessageEntryDraft, CustomToolCallEvent, EditToolCallEvent, EntryRenderer, EntryRenderOptions, ExecOptions, ExecResult, Extension, ExtensionActions, ExtensionAPI, ExtensionCommandContext, ExtensionCommandContextActions, ExtensionContext, ExtensionContextActions, ExtensionError, ExtensionEvent, ExtensionFactory, ExtensionFlag, ExtensionHandler, ExtensionRuntime, ExtensionShortcut, ExtensionUIContext, ExtensionUIDialogOptions, ExtensionWidgetOptions, FindToolCallEvent, GrepToolCallEvent, InlineExtension, InputEvent, InputEventResult, InputSource, KeybindingsManager, LoadExtensionsResult, LsToolCallEvent, MarkdownTransformContext, MarkdownTransformer, MessageEndEvent, MessageEndEventResult, MessageRenderer, MessageRenderOptions, MessageStartEvent, MessageUpdateEvent, ModelSelectEvent, ModelSelectSource, NormalizedBuildSystemPromptOptions, PowerShellToolCallEvent, ProjectTrustContext, ProjectTrustEvent, ProjectTrustEventDecision, ProjectTrustEventResult, ProjectTrustHandler, ProviderConfig, ProviderModelConfig, ReadToolCallEvent, RegisteredCommand, RegisteredTool, ResolvedCommand, ResourcesDiscoverEvent, ResourcesDiscoverResult, SessionBeforeCompactEvent, SessionBeforeCompactResult, SessionBeforeForkEvent, SessionBeforeForkResult, SessionBeforeSwitchEvent, SessionBeforeSwitchResult, SessionBeforeTreeEvent, SessionBeforeTreeResult, SessionBoundaryDraft, SessionCompactEvent, SessionCompactFailedEvent, SessionInfoChangedEvent, SessionShutdownEvent, SessionStartEvent, SessionTreeEvent, SlashCommandInfo, SlashCommandSource, SourceInfo, TerminalInputHandler, ThinkingLevelSelectEvent, ToolCallEvent, ToolCallEventResult, ToolDefinition, ToolExecutionEndEvent, ToolExecutionMode, ToolExecutionStartEvent, ToolExecutionUpdateEvent, ToolInfo, ToolRenderResultOptions, ToolResultEvent, ToolResultEventResult, TurnEndEvent, TurnEndEventResult, TurnStartEvent, UIPromptEndEvent, UIPromptKind, UIPromptStartEvent, UserBashEvent, UserBashEventResult, WidgetPlacement, WorkingIndicatorOptions, WriteToolCallEvent, } from "./core/extensions/index.ts";
  export { createExtensionRuntime, defineTool, discoverAndLoadExtensions, ExtensionRunner, isBashToolResult, isEditToolResult, isFindToolResult, isGrepToolResult, isLsToolResult, isPowerShellToolResult, isReadToolResult, isToolCallEventType, isWriteToolResult, wrapRegisteredTool, wrapRegisteredTools, } from "./core/extensions/index.ts";
-@@ -16,7 +16,7 @@ export { DefaultPackageManager } from "./core/package-manager.ts";
+@@ -17,8 +17,8 @@ export { DefaultPackageManager } from "./core/package-manager.ts";
  export type { ResourceCollision, ResourceDiagnostic, ResourceLoader } from "./core/resource-loader.ts";
  export { DefaultResourceLoader, loadProjectContextFiles } from "./core/resource-loader.ts";
  export { AgentSessionRuntime, type AgentSessionRuntimeDiagnostic, type AgentSessionServices, type CreateAgentSessionFromServicesOptions, type CreateAgentSessionOptions, type CreateAgentSessionResult, type CreateAgentSessionRuntimeFactory, type CreateAgentSessionRuntimeResult, type CreateAgentSessionServicesOptions, createAgentSession, createAgentSessionFromServices, createAgentSessionRuntime, createAgentSessionServices, createBashTool, createCodingTools, createEditTool, createFindTool, createGrepTool, createLsTool, createPowerShellTool, createReadOnlyTools, createReadTool, createWriteTool, type PromptTemplate, } from "./core/sdk.ts";
--export { type BranchSummaryEntry, buildContextEntries, buildSessionContext, type CompactionEntry, CURRENT_SESSION_VERSION, type CustomEntry, type CustomMessageEntry, type FileEntry, getLatestCompactionEntry, type ModelChangeEntry, migrateSessionEntries, type NewSessionOptions, parseSessionEntries, type SessionContext, type SessionEntry, type SessionEntryBase, type SessionHeader, type SessionInfo, type SessionInfoEntry, SessionManager, type SessionMessageEntry, type SessionTreeNode, sessionEntryToContextMessages, type ThinkingLevelChangeEntry, } from "./core/session-manager.ts";
-+export { type BranchSummaryEntry, buildContextEntries, buildSessionContext, type CompactionEntry, CURRENT_SESSION_VERSION, type CustomEntry, type CustomMessageEntry, estimateReconstructionMessageTokens, type FileEntry, getLatestCompactionEntry, type ModelChangeEntry, migrateSessionEntries, type NewSessionOptions, parseSessionEntries, type SessionContext, type SessionEntry, type SessionEntryBase, type SessionHeader, type SessionInfo, type SessionInfoEntry, SessionManager, type SessionMessageEntry, type SessionTreeNode, sessionEntryToContextMessages, type ThinkingLevelChangeEntry, } from "./core/session-manager.ts";
- export { type CompactionSettings, type DefaultProjectTrust, type FullscreenExitOutput, type ImageSettings, type PackageSource, type RetrySettings, SettingsManager, type SettingsManagerCreateOptions, type TuiMode, } from "./core/settings-manager.ts";
+-export { type BranchSummaryEntry, buildContextEntries, buildSessionContext, buildSessionProjection, type CompactionEntry, type ContextEditableContent, type ContextEditEntry, CURRENT_SESSION_VERSION, type CustomEntry, type CustomMessageEntry, type FileEntry, getLatestCompactionEntry, type ModelChangeEntry, migrateSessionEntries, type NewSessionOptions, type ProjectedSessionEntry, parseSessionEntries, type SessionContext, type SessionEntry, type SessionEntryBase, type SessionHeader, type SessionInfo, type SessionInfoEntry, SessionManager, type SessionMessageEntry, type SessionProjection, type SessionTreeNode, sessionEntryToContextMessages, type ThinkingLevelChangeEntry, } from "./core/session-manager.ts";
+-export { type CacheWarmingMode, type CompactionModelOverride, type CompactionSettings, type DefaultProjectTrust, type FullscreenExitOutput, type ImageSettings, type PackageSource, type RetrySettings, SettingsManager, type SettingsManagerCreateOptions, type TuiMode, } from "./core/settings-manager.ts";
++export { type BranchSummaryEntry, buildContextEntries, buildSessionContext, buildSessionProjection, type CompactionEntry, type ContextEditableContent, type ContextEditEntry, CURRENT_SESSION_VERSION, type CustomEntry, type CustomMessageEntry, estimateReconstructionMessageTokens, type FileEntry, getLatestCompactionEntry, type ModelChangeEntry, migrateSessionEntries, type NewSessionOptions, type ProjectedSessionEntry, parseSessionEntries, type SessionContext, type SessionEntry, type SessionEntryBase, type SessionHeader, type SessionInfo, type SessionInfoEntry, SessionManager, type SessionMessageEntry, type SessionProjection, type SessionTreeNode, sessionEntryToContextMessages, type ThinkingLevelChangeEntry } from "./core/session-manager.ts";
++export { type CacheWarmingMode, type CompactionModelOverride, type CompactionSettings, type DefaultProjectTrust, type FullscreenExitOutput, type ImageSettings, type PackageSource, type RetrySettings, SettingsManager, type SettingsManagerCreateOptions, type TuiMode } from "./core/settings-manager.ts";
  export { formatSkillsForPrompt, type LoadSkillsFromDirOptions, type LoadSkillsResult, loadSkills, loadSkillsFromDir, type Skill, type SkillFrontmatter, } from "./core/skills.ts";
  export { createSyntheticSourceInfo } from "./core/source-info.ts";
+ export { type EditDiffResult, generateDiffString, generateUnifiedPatch } from "./core/tools/edit-diff.ts";
 diff --git a/dist/index.js b/dist/index.js
-index 01017cdbf6a26b3d36e236c7f9e835fbf0fa5c3a..220a877171eb2000ac504f55ef6b4f1735769f5d 100644
+index d8339661293e51358d0165680bad4334ff78f92e..44c3aba2462193b94d1ae787467c2159696ba02e 100644
 --- a/dist/index.js
 +++ b/dist/index.js
 @@ -5,7 +5,7 @@ export { CONFIG_DIR_NAME, getAgentDir, getDocsPath, getExamplesPath, getPackageD
@@ -2158,16 +2354,12 @@ index 01017cdbf6a26b3d36e236c7f9e835fbf0fa5c3a..220a877171eb2000ac504f55ef6b4f17
  export { createEventBus } from "./core/event-bus.js";
  export { createExtensionRuntime, defineTool, discoverAndLoadExtensions, ExtensionRunner, isBashToolResult, isEditToolResult, isFindToolResult, isGrepToolResult, isLsToolResult, isPowerShellToolResult, isReadToolResult, isToolCallEventType, isWriteToolResult, wrapRegisteredTool, wrapRegisteredTools, } from "./core/extensions/index.js";
  export { convertToLlm } from "./core/messages.js";
-@@ -17,10 +17,10 @@ export { DefaultResourceLoader, loadProjectContextFiles } from "./core/resource-
- // SDK for programmatic usage
- export { AgentSessionRuntime,
- // Factory
--createAgentSession, createAgentSessionFromServices, createAgentSessionRuntime, createAgentSessionServices, createBashTool,
-+createAgentSession, createAgentSessionFromServices, createAgentSessionRuntime, createAgentSessionServices, createBashTool,
+@@ -20,7 +20,7 @@ export { AgentSessionRuntime,
+ createAgentSession, createAgentSessionFromServices, createAgentSessionRuntime, createAgentSessionServices, createBashTool,
  // Tool factories (for custom cwd)
  createCodingTools, createEditTool, createFindTool, createGrepTool, createLsTool, createPowerShellTool, createReadOnlyTools, createReadTool, createWriteTool, } from "./core/sdk.js";
--export { buildContextEntries, buildSessionContext, CURRENT_SESSION_VERSION, getLatestCompactionEntry, migrateSessionEntries, parseSessionEntries, SessionManager, sessionEntryToContextMessages, } from "./core/session-manager.js";
-+export { buildContextEntries, buildSessionContext, CURRENT_SESSION_VERSION, estimateReconstructionMessageTokens, getLatestCompactionEntry, migrateSessionEntries, parseSessionEntries, SessionManager, sessionEntryToContextMessages, } from "./core/session-manager.js";
+-export { buildContextEntries, buildSessionContext, buildSessionProjection, CURRENT_SESSION_VERSION, getLatestCompactionEntry, migrateSessionEntries, parseSessionEntries, SessionManager, sessionEntryToContextMessages, } from "./core/session-manager.js";
++export { buildContextEntries, buildSessionContext, buildSessionProjection, CURRENT_SESSION_VERSION, estimateReconstructionMessageTokens, getLatestCompactionEntry, migrateSessionEntries, parseSessionEntries, SessionManager, sessionEntryToContextMessages } from "./core/session-manager.js";
  export { SettingsManager, } from "./core/settings-manager.js";
  // Skills
  export { formatSkillsForPrompt, loadSkills, loadSkillsFromDir, } from "./core/skills.js";

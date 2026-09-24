@@ -1,8 +1,8 @@
 diff --git a/dist/api/openai-responses-shared.js b/dist/api/openai-responses-shared.js
-index c35771dcc9b2173d0b459d13c6d86e622de45e9a..3f55a72bbae51f21de7e26fe11b2728bfd4c3e2e 100644
+index 53597d2c3becdd2c03d4fd265c213a36b403f26b..512a56fde3ebca765145950d6273e7ffd96bde04 100644
 --- a/dist/api/openai-responses-shared.js
 +++ b/dist/api/openai-responses-shared.js
-@@ -137,7 +137,9 @@ export function convertResponsesMessages(model, context, allowedToolCallProvider
+@@ -177,7 +177,9 @@ export function convertResponsesMessages(model, context, allowedToolCallProvider
                  if (block.type === "thinking") {
                      if (block.thinkingSignature) {
                          const reasoningItem = JSON.parse(block.thinkingSignature);
@@ -38,10 +38,18 @@ index 41267bd50904069aa0879cc8634ea94bc1045236..7b431baee4581266a093653615b4f651
  //# sourceMappingURL=openai-responses.d.ts.map
 \ No newline at end of file
 diff --git a/dist/api/openai-responses.js b/dist/api/openai-responses.js
-index 0fb7e8b26f323f2b44a5a4b760bccedc4c3abdd0..9fb6bcbc0c6540b25f81af7cb2d40ddaebc641d8 100644
+index 1396c8d57ffb0e300382281a026d878e6a96b43a..23f2163075b01783ce73ece5ee4b70a165a14b99 100644
 --- a/dist/api/openai-responses.js
 +++ b/dist/api/openai-responses.js
-@@ -13,6 +13,8 @@ import { clampOpenAIPromptCacheKey } from "./openai-prompt-cache.js";
+@@ -6,13 +6,15 @@ import { headersToRecord } from "../utils/headers.js";
+ import { getPiUserAgent } from "../utils/pi-user-agent.js";
+ import { getProviderEnvValue } from "../utils/provider-env.js";
+ import { retryProviderRequest } from "../utils/provider-retry.js";
+-import { getDeclaredTools, resolveTranscript, resolveTranscriptTools } from "../utils/transcript.js";
++import { getCurrentSystemPrompt, getDeclaredTools, normalizeContext, resolveTranscript, resolveTranscriptTools } from "../utils/transcript.js";
+ import { createGrammarToolInputProperties } from "./constrained-sampling.js";
+ import { buildCopilotDynamicHeaders, hasCopilotVisionInput } from "./github-copilot-headers.js";
+ import { clampOpenAIPromptCacheKey } from "./openai-prompt-cache.js";
  import { convertResponsesMessages, convertResponsesTools, processResponsesStream } from "./openai-responses-shared.js";
  import { buildBaseOptions } from "./simple-options.js";
  const OPENAI_TOOL_CALL_PROVIDERS = new Set(["openai", "openai-codex", "opencode"]);
@@ -81,9 +89,9 @@ index 0fb7e8b26f323f2b44a5a4b760bccedc4c3abdd0..9fb6bcbc0c6540b25f81af7cb2d40dda
      return {
 +        compactionBaseUrl: model.compat?.compactionBaseUrl,
          supportsDeveloperRole: model.compat?.supportsDeveloperRole ?? true,
+         supportsMidConvoSystemMessages: model.compat?.supportsMidConvoSystemMessages ?? false,
          sessionAffinityFormat: model.compat?.sessionAffinityFormat ?? detectSessionAffinityFormat(model),
-         supportsLongCacheRetention: model.compat?.supportsLongCacheRetention ?? true,
-@@ -160,7 +181,50 @@ export const streamSimple = (model, context, options) => {
+@@ -171,7 +192,51 @@ export const streamSimple = (model, context, options) => {
          reasoningEffort,
      });
  };
@@ -93,11 +101,12 @@ index 0fb7e8b26f323f2b44a5a4b760bccedc4c3abdd0..9fb6bcbc0c6540b25f81af7cb2d40dda
 +        throw new Error(`Responses compaction is not supported by ${model.provider}/${model.id}`);
 +    }
 +    const apiKey = getClientApiKey(model.provider, options?.apiKey, options?.headers);
++    const transcript = normalizeContext(context);
 +    const cacheRetention = resolveCacheRetention(options?.cacheRetention, options?.env);
 +    const cacheSessionId = cacheRetention === "none" ? undefined : options?.sessionId;
 +    const compat = getCompat(model);
-+    const client = createClient(model, context, apiKey, options?.headers, options?.fetch, cacheSessionId, compat.compactionBaseUrl);
-+    const input = convertResponsesMessages(model, context, OPENAI_TOOL_CALL_PROVIDERS, {
++    const client = createClient(model, transcript, apiKey, options?.headers, options?.fetch, cacheSessionId, compat.compactionBaseUrl);
++    const input = convertResponsesMessages(model, transcript, OPENAI_TOOL_CALL_PROVIDERS, {
 +        includeSystemPrompt: false,
 +        toolOptions: {
 +            supportsStrictMode: compat.supportsStrictMode,
@@ -107,7 +116,7 @@ index 0fb7e8b26f323f2b44a5a4b760bccedc4c3abdd0..9fb6bcbc0c6540b25f81af7cb2d40dda
 +    let params = {
 +        model: model.id,
 +        input,
-+        instructions: context.systemPrompt || undefined,
++        instructions: getCurrentSystemPrompt(transcript.messages) || undefined,
 +        prompt_cache_key: cacheRetention === "none" ? undefined : clampOpenAIPromptCacheKey(options?.sessionId),
 +        prompt_cache_retention: getPromptCacheRetention(compat, cacheRetention),
 +    };
@@ -135,7 +144,7 @@ index 0fb7e8b26f323f2b44a5a4b760bccedc4c3abdd0..9fb6bcbc0c6540b25f81af7cb2d40dda
      const compat = getCompat(model);
      const headers = { "User-Agent": getPiUserAgent(), ...model.headers };
      if (model.provider === "github-copilot") {
-@@ -186,9 +250,21 @@ function createClient(model, context, apiKey, optionsHeaders, fetch, sessionId)
+@@ -197,9 +262,21 @@ function createClient(model, context, apiKey, optionsHeaders, fetch, sessionId)
      if (optionsHeaders) {
          Object.assign(headers, optionsHeaders);
      }
@@ -209,10 +218,10 @@ index b64f4cd6014db2429b22dec1923d80460b4cee49..a32c2d65828101b145d8961eff7ae500
  //# sourceMappingURL=openai.models.js.map
 \ No newline at end of file
 diff --git a/dist/types.d.ts b/dist/types.d.ts
-index 2bb23658ee692343e4561ac461bd0e8d9328c5a1..20b4414661ef01060c7a2f013b4eef40dcb3abad 100644
+index 5915ca64b161bc7bcebdb14d2ad1a2c18cde942e..8c92cbbfe94788aea88109058e10eb251a2ccb76 100644
 --- a/dist/types.d.ts
 +++ b/dist/types.d.ts
-@@ -515,6 +515,10 @@ export interface OpenAICompletionsCompat {
+@@ -594,6 +594,10 @@ export interface OpenAICompletionsCompat {
  }
  /** Compatibility settings for OpenAI Responses APIs. */
  export interface OpenAIResponsesCompat {
@@ -222,9 +231,9 @@ index 2bb23658ee692343e4561ac461bd0e8d9328c5a1..20b4414661ef01060c7a2f013b4eef40
 +    compactionBaseUrl?: string;
      /** Whether the provider supports the `developer` role (vs `system`). Default: true. */
      supportsDeveloperRole?: boolean;
-     /** Session-affinity header format: `openai` sends `session_id` and `x-client-request-id`; `openai-nosession` sends `x-client-request-id`; `openrouter` sends `x-session-id`. Does not affect the `prompt_cache_key` body param, which is governed by cache retention. Default: auto-detected. */
+     /** Whether the exact model accepts developer or system messages after the conversation has started. When false, later system messages are folded into the leading system message. Default: false; the generated model catalog enables it for verified models. */
 diff --git a/dist/utils/provider-retry.d.ts b/dist/utils/provider-retry.d.ts
-index 1872cd204eba7d413f452ccc747fa28a920b3ac7..5eb5ab09056a53e45cc37cc2aa69387bdfd141dc 100644
+index 1872cd204eba7d413f452ccc747fa28a920b3ac7..4fab69c6db737275bfc951b974b0b1fbb00bedc6 100644
 --- a/dist/utils/provider-retry.d.ts
 +++ b/dist/utils/provider-retry.d.ts
 @@ -1,7 +1,11 @@
@@ -240,7 +249,7 @@ index 1872cd204eba7d413f452ccc747fa28a920b3ac7..5eb5ab09056a53e45cc37cc2aa69387b
  /**
   * Reproduce the retry behavior used by the OpenAI and Anthropic SDKs while making
 diff --git a/dist/utils/provider-retry.js b/dist/utils/provider-retry.js
-index a08fefd7e254f494f838ffa95affd6bf279973db..4cbbebf120a380bb941b7a388f0512dcc81f4825 100644
+index a08fefd7e254f494f838ffa95affd6bf279973db..250a1453ee44588eaf7de999121ec6c90b288287 100644
 --- a/dist/utils/provider-retry.js
 +++ b/dist/utils/provider-retry.js
 @@ -1,3 +1,4 @@
@@ -305,10 +314,10 @@ index a08fefd7e254f494f838ffa95affd6bf279973db..4cbbebf120a380bb941b7a388f0512dc
      }
  }
 diff --git a/dist/utils/retry.d.ts b/dist/utils/retry.d.ts
-index 19a199b4bfbe6956d9ec47a3943bbb4845759d36..2a93f55ff11b1912597aa3678966b26d467f79a1 100644
+index f59c2eca472e81072afe7eddf87c5823cffe50eb..35d05a8678dfffc4a2c0b8df366070cd15427666 100644
 --- a/dist/utils/retry.d.ts
 +++ b/dist/utils/retry.d.ts
-@@ -50,4 +50,8 @@ export declare function retryAssistantCall(produce: () => Promise<AssistantMessa
+@@ -55,4 +55,8 @@ export declare function retryAssistantCall(produce: () => Promise<AssistantMessa
   * before restarting the assistant turn.
   */
  export declare function isRetryableAssistantError(message: AssistantMessage): boolean;
@@ -319,10 +328,10 @@ index 19a199b4bfbe6956d9ec47a3943bbb4845759d36..2a93f55ff11b1912597aa3678966b26d
  //# sourceMappingURL=retry.d.ts.map
 \ No newline at end of file
 diff --git a/dist/utils/retry.js b/dist/utils/retry.js
-index 65c7c9efd7667445b711fcd43549062ee3eb5ecf..ab631ba7a861eedcabfc1d2e749023489235696b 100644
+index 6538c63c99f75a4f232ebd413adf80571a0f39b4..fd6676fa5dc072ee448f2a54b667ec680930b825 100644
 --- a/dist/utils/retry.js
 +++ b/dist/utils/retry.js
-@@ -166,8 +166,13 @@ export async function retryAssistantCall(produce, policy, signal, callbacks) {
+@@ -175,8 +175,13 @@ export async function retryAssistantCall(produce, policy, signal, callbacks) {
  export function isRetryableAssistantError(message) {
      if (message.stopReason !== "error" || !message.errorMessage)
          return false;
