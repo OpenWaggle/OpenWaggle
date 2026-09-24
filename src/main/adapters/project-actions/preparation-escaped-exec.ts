@@ -19,19 +19,101 @@ function isEscapedBuiltin(command: string, index: number, name: 'exec' | 'eval')
   return !/\w/.test(command[index + 1 + name.length] ?? '')
 }
 
-function isEvalCommandPosition(command: string, index: number) {
-  const prefix = command.slice(0, index)
-  const separator = Math.max(
-    ...['\n', ';', '&', '|', '(', '{'].map((character) => prefix.lastIndexOf(character)),
-  )
-  const segment = prefix.slice(separator + 1)
-  return /^\s*(?:(?:[A-Za-z_]\w*=\S+)\s+)*(?:(?:\\?command|\\?builtin|if|then|else|elif|do|while|until|time|!)\s+)*$/.test(
-    segment,
+function keepsCommandPosition(word: string) {
+  return (
+    /^[A-Za-z_]\w*=/.test(word) ||
+    /^(?:\\?(?:command|builtin)|if|then|else|elif|do|while|until|time|!)$/.test(word)
   )
 }
 
-function isEscapedEvalInvocation(command: string, index: number) {
-  return isEscapedBuiltin(command, index, 'eval') && isEvalCommandPosition(command, index)
+interface EvalPrefixState {
+  commandPosition: boolean
+  word: string
+  quote: "'" | '"' | undefined
+  groups: { commandPosition: boolean; word: string }[]
+}
+
+function visitEvalPrefixQuote(
+  command: string,
+  cursor: number,
+  index: number,
+  state: EvalPrefixState,
+) {
+  const character = command[cursor]
+  state.word += character
+  if (character === state.quote) {
+    state.quote = undefined
+    return cursor
+  }
+  if (state.quote === '"' && character === '\\' && cursor + 1 < index) {
+    state.word += command[cursor + 1]
+    return cursor + 1
+  }
+  return cursor
+}
+
+function finishEvalPrefixWord(state: EvalPrefixState) {
+  if (state.word) state.commandPosition = state.commandPosition && keepsCommandPosition(state.word)
+  state.word = ''
+}
+
+function visitEvalPrefixUnquoted(
+  command: string,
+  cursor: number,
+  index: number,
+  state: EvalPrefixState,
+) {
+  const character = command[cursor]
+  if (character === '\\' && cursor + 1 < index) {
+    state.word += character + command[cursor + 1]
+    return cursor + 1
+  }
+  if (character === "'" || character === '"') {
+    state.quote = character
+    state.word += character
+    return cursor
+  }
+  if (character === ' ' || character === '\t') {
+    finishEvalPrefixWord(state)
+    return cursor
+  }
+  if (character === '(') {
+    state.groups.push({ commandPosition: state.commandPosition, word: `${state.word}(` })
+    state.commandPosition = true
+    state.word = ''
+    return cursor
+  }
+  if (character === ')') {
+    const group = state.groups.pop()
+    state.commandPosition = group?.commandPosition ?? false
+    state.word = `${group?.word ?? ''})`
+    return cursor
+  }
+  if (/[;&|{}]/.test(character)) {
+    state.commandPosition = true
+    state.word = ''
+    return cursor
+  }
+  state.word += character
+  return cursor
+}
+
+function isEvalCommandPosition(command: string, index: number, lineStart: number) {
+  const state: EvalPrefixState = { commandPosition: true, word: '', quote: undefined, groups: [] }
+  for (let cursor = lineStart; cursor < index; cursor += 1) {
+    if (state.quote) {
+      cursor = visitEvalPrefixQuote(command, cursor, index, state)
+      continue
+    }
+    cursor = visitEvalPrefixUnquoted(command, cursor, index, state)
+  }
+  return state.word === '' && state.commandPosition
+}
+
+function isEscapedEvalInvocation(command: string, index: number, lineStart: number) {
+  return (
+    isEscapedBuiltin(command, index, 'eval') && isEvalCommandPosition(command, index, lineStart)
+  )
 }
 
 function isEscapedExecPrefix(command: string, index: number) {
@@ -123,7 +205,7 @@ function visitCharacter(command: string, index: number, state: ScanState) {
   const heredoc = heredocAt(command, index)
   if (heredoc) state.pendingHeredocs.push(heredoc)
   if (!/<<-?\s*$/.test(command.slice(state.lineStart, index))) {
-    if (isEscapedEvalInvocation(command, index)) {
+    if (isEscapedEvalInvocation(command, index, state.lineStart)) {
       state.result += '__ow_'
       return index
     }

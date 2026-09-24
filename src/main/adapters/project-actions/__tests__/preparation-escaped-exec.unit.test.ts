@@ -99,4 +99,15 @@ describe('escaped exec capture', () => {
         .replace(String.raw`then \eval`, 'then __ow_eval'),
     )
   })
+
+  it('recognizes quoted and escaped assignment words before an escaped eval command', () => {
+    const command = [
+      String.raw`LABEL='hello world' \eval 'export READY=yes'`,
+      String.raw`LABEL='hello; world' \eval 'export READY=yes'`,
+      String.raw`LABEL=hello\ world \eval 'export READY=yes'`,
+    ].join('\n')
+    expect(enableEscapedExecCapture(command)).toBe(
+      command.replaceAll(String.raw`\eval`, '__ow_eval'),
+    )
+  })
 })

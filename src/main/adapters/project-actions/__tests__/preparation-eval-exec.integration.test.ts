@@ -96,6 +96,32 @@ describe.skipIf(process.platform === 'win32')('setup commands using evaluated ex
         environment: { OW_CONDITIONAL_EVAL: 'loaded' },
       })
 
+      const quotedAssignment = await execute({
+        ...input,
+        invocation: {
+          type: 'command',
+          command: String.raw`code='export OW_QUOTED_ASSIGNMENT=loaded; \exec /usr/bin/true'; LABEL='hello world' \eval "$code"`,
+          directory: '.',
+        },
+      })
+      expect(quotedAssignment).toMatchObject({
+        exitCode: 0,
+        environment: { OW_QUOTED_ASSIGNMENT: 'loaded' },
+      })
+
+      const dynamicAssignment = await execute({
+        ...input,
+        invocation: {
+          type: 'command',
+          command: String.raw`code='export OW_DYNAMIC_ASSIGNMENT=loaded; \exec /usr/bin/true'; wrapper='LABEL="hello world" \eval "$code"'; eval "$wrapper"`,
+          directory: '.',
+        },
+      })
+      expect(dynamicAssignment).toMatchObject({
+        exitCode: 0,
+        environment: { OW_DYNAMIC_ASSIGNMENT: 'loaded' },
+      })
+
       const nestedEscapedEval = await execute({
         ...input,
         invocation: {

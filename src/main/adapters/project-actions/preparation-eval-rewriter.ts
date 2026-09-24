@@ -1,6 +1,70 @@
 // eval reparses expanded text after the static scanner has run. Rewrite escaped
 // exec tokens in that text so the exec alias captures exports made inside eval.
 export const runtimeEvalRewriter = String.raw`
+function keepsCommandPosition(word) {
+  return word ~ /^[[:alpha:]_][[:alnum:]_]*=/ ||
+    word ~ /^(\\?(command|builtin)|if|then|else|elif|do|while|until|time|!)$/
+}
+function isEvalCommandPosition(prefix,    cursor, character, following, quote, word, expected, depth) {
+  quote = ""
+  word = ""
+  expected = 1
+  depth = 0
+  for (cursor = 1; cursor <= length(prefix); cursor++) {
+    character = substr(prefix, cursor, 1)
+    following = substr(prefix, cursor + 1, 1)
+    if (quote != "") {
+      word = word character
+      if (character == quote) quote = ""
+      else if (quote == "\"" && character == "\\" && following != "") {
+        word = word following
+        cursor++
+      }
+      continue
+    }
+    if (character == "\\" && following != "") {
+      word = word character following
+      cursor++
+      continue
+    }
+    if (character == "'" || character == "\"") {
+      quote = character
+      word = word character
+      continue
+    }
+    if (character == " " || character == "\t") {
+      if (word != "") expected = expected && keepsCommandPosition(word)
+      word = ""
+      continue
+    }
+    if (character == "(") {
+      depth++
+      savedExpected[depth] = expected
+      savedWord[depth] = word "("
+      expected = 1
+      word = ""
+      continue
+    }
+    if (character == ")") {
+      if (depth > 0) {
+        expected = savedExpected[depth]
+        word = savedWord[depth] ")"
+        depth--
+      } else {
+        expected = 0
+        word = ")"
+      }
+      continue
+    }
+    if (character ~ /[;&|{}]/) {
+      expected = 1
+      word = ""
+      continue
+    }
+    word = word character
+  }
+  return expected && word == ""
+}
 BEGIN { RS = sprintf("%c", 28) }
 {
   code = $0
@@ -58,10 +122,8 @@ BEGIN { RS = sprintf("%c", 28) }
     }
     else if (character == "\\" && (i == 1 || previous !~ /[[:alnum:]_\\]/)) {
       rest = substr(code, i + 1)
-      prefix = substr(code, lineStart, i - lineStart)
-      sub(/^.*[;&|({]/, "", prefix)
       if (rest ~ /^eval([^[:alnum:]_]|$)/ &&
-          prefix ~ /^[ \t]*([[:alpha:]_][[:alnum:]_]*=[^ \t;&|(){}]+[ \t]+)*((\\?(command|builtin)|if|then|else|elif|do|while|until|time|!)[ \t]+)*$/) {
+          isEvalCommandPosition(substr(code, lineStart, i - lineStart))) {
         printf "__ow_"
         continue
       }
