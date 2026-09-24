@@ -213,6 +213,7 @@ function makeRecordingSink() {
 type Service = ReturnType<typeof makeNodePtyTerminalService>
 
 let logsDir: string
+export const terminalHistoryLogsDir = () => logsDir
 let holdSpawns = false
 export let workDirA: string
 export let workDirB: string

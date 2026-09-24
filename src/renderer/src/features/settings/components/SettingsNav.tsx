@@ -17,6 +17,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/shared/lib/cn'
 import { Button } from '@/shared/ui/Button'
+import { Select } from '@/shared/ui/Select'
 import type { SettingsTab } from '@/shell/ui-store'
 
 interface NavItem {
@@ -59,24 +60,46 @@ export function SettingsNav({ activeTab }: SettingsNavProps) {
   }
 
   return (
-    <nav className="flex w-50 shrink-0 flex-col gap-0.5 border-r border-border p-2">
-      {NAV_ITEMS.map((item) => {
-        const isActive = activeTab === item.id
-        return (
-          <Button
-            variant={isActive ? 'accent' : 'row'}
-            size="md"
-            align="start"
-            fullWidth
-            key={item.id}
-            onClick={() => navigateToTab(item.id)}
-            className={cn('gap-2.5', isActive ? 'bg-accent/10 font-medium' : 'text-text-tertiary')}
-          >
-            <item.icon className="size-4 shrink-0" />
-            <span>{item.label}</span>
-          </Button>
-        )
-      })}
-    </nav>
+    <>
+      <div className="border-b border-border px-4 py-2 @min-[640px]/settings:hidden">
+        <Select
+          aria-label="Settings section"
+          value={activeTab}
+          className="w-full"
+          onChange={(event) => {
+            const tab = NAV_ITEMS.find((item) => item.id === event.target.value)
+            if (tab) navigateToTab(tab.id)
+          }}
+        >
+          {NAV_ITEMS.map((item) => (
+            <option key={item.id} value={item.id}>
+              {item.label}
+            </option>
+          ))}
+        </Select>
+      </div>
+      <nav className="hidden w-50 @min-[640px]/settings:flex shrink-0 flex-col gap-0.5 border-r border-border p-2">
+        {NAV_ITEMS.map((item) => {
+          const isActive = activeTab === item.id
+          return (
+            <Button
+              variant={isActive ? 'accent' : 'row'}
+              size="md"
+              align="start"
+              fullWidth
+              key={item.id}
+              onClick={() => navigateToTab(item.id)}
+              className={cn(
+                'gap-2.5',
+                isActive ? 'bg-accent/10 font-medium' : 'text-text-tertiary',
+              )}
+            >
+              <item.icon className="size-4 shrink-0" />
+              <span>{item.label}</span>
+            </Button>
+          )
+        })}
+      </nav>
+    </>
   )
 }

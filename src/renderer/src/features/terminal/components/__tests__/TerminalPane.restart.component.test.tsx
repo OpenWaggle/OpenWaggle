@@ -143,7 +143,6 @@ describe('TerminalPane attach and restart lifecycle', () => {
     useTerminalStore.getState().ensureTerminal(OWNER, TERMINAL_ID, '/tmp/project', {
       launchEnv: {
         OPENWAGGLE_PROJECT_ROOT: '/tmp/project',
-        T3CODE_PROJECT_ROOT: '/tmp/project',
       },
     })
     renderPane({
@@ -151,7 +150,6 @@ describe('TerminalPane attach and restart lifecycle', () => {
       defaultCwd: '/tmp/project/.openwaggle/session-1',
       launchEnv: {
         OPENWAGGLE_PROJECT_ROOT: '/tmp/project',
-        T3CODE_PROJECT_ROOT: '/tmp/project',
       },
     })
     fireEvent.click(await screen.findByRole('button', { name: 'Restart in worktree' }))
@@ -159,8 +157,6 @@ describe('TerminalPane attach and restart lifecycle', () => {
     const expectedEnv = {
       OPENWAGGLE_PROJECT_ROOT: '/tmp/project',
       OPENWAGGLE_WORKTREE_PATH: '/tmp/project/.openwaggle/session-1',
-      T3CODE_PROJECT_ROOT: '/tmp/project',
-      T3CODE_WORKTREE_PATH: '/tmp/project/.openwaggle/session-1',
     }
     await waitFor(() =>
       expect(mocks.restartTerminal).toHaveBeenCalledWith(

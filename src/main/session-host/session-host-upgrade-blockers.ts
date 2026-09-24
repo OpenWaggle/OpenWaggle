@@ -79,12 +79,46 @@ export function readSessionHostUpgradeBlockers(databasePath: string) {
         )
         .all(),
     )
+    const actionsTable: unknown = database
+      .prepare(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'project_action_runs'",
+      )
+      .get()
+    const actionOperations = actionsTable
+      ? decodeOperationRows(
+          database
+            .prepare(
+              `SELECT id AS operation_id, 'project-action' AS operation, workspace_id AS target_scope
+       FROM project_action_runs WHERE status IN ('starting', 'running', 'stopping') ORDER BY started_at, id`,
+            )
+            .all(),
+        )
+      : []
+    const preparationTable: unknown = database
+      .prepare(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'workspace_preparation'",
+      )
+      .get()
+    const preparationOperations = preparationTable
+      ? decodeOperationRows(
+          database
+            .prepare(
+              `SELECT workspace_id AS operation_id, 'workspace-preparation' AS operation, workspace_id AS target_scope FROM workspace_preparation WHERE json_extract(state_json, '$.setup.status') = 'running' OR json_extract(state_json, '$.cleanup.status') = 'running'`,
+            )
+            .all(),
+        )
+      : []
     return {
       blockingRuns: blockingRuns.map((row) => ({
         sessionId: row.session_id,
         runId: row.run_id,
       })),
-      blockingOperations: [...controlOperations, ...exportOperations].map((row) => ({
+      blockingOperations: [
+        ...controlOperations,
+        ...exportOperations,
+        ...actionOperations,
+        ...preparationOperations,
+      ].map((row) => ({
         operationId: String(row.operation_id),
         operation: row.operation,
         targetScope: row.target_scope,

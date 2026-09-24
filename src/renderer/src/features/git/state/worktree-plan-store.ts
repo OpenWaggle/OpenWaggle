@@ -6,6 +6,7 @@ export interface WorktreePlanOverride {
   readonly envMode?: SessionEnvironmentMode
   readonly baseRef?: string | null
   readonly startFromOrigin?: boolean
+  readonly preparationProfileId?: string
 }
 
 interface WorktreePlanState {

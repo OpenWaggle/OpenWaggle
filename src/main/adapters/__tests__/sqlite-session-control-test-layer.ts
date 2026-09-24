@@ -3,6 +3,7 @@ import { SqliteClient } from '@effect/sql-sqlite-node'
 import { FollowUpId, ReportCorrelationId, ReportId, RunId } from '@shared/types/brand'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
+import { NoopActionRunServiceLayer } from '../../application/__tests__/action-run-service-test-layer'
 import { NoopSessionDesktopLayer } from '../../application/__tests__/desktop-service-test-layer'
 import { SessionControlIdentityService } from '../../ports/session-control-identity-service'
 import {
@@ -17,6 +18,7 @@ import { SqliteSessionControlOperationJournalLive } from '../sqlite-session-cont
 import { SqliteSessionControlRepositoryLive } from '../sqlite-session-control-repository'
 import { SqliteSessionControlRunLifecycleRepositoryLive } from '../sqlite-session-control-run-lifecycle-repository'
 import { SqliteSessionOrganizationRepositoryLive } from '../sqlite-session-organization-repository'
+import { SqliteSessionWorkspaceResourceRepositoryLive } from '../sqlite-session-workspace-resource-repository'
 
 export function makeSessionControlTestLayer(
   databasePath: string,
@@ -98,6 +100,8 @@ export function makeSessionControlTestLayer(
   )
   return Layer.mergeAll(
     NoopSessionDesktopLayer,
+    NoopActionRunServiceLayer,
+    SqliteSessionWorkspaceResourceRepositoryLive.pipe(Layer.provide(sqliteLayer)),
     sqliteLayer,
     schemaLayer,
     repositoryLayer,

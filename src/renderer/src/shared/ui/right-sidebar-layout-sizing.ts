@@ -4,7 +4,7 @@ export const RESIZE_MOVE_THRESHOLD_PX = 2
 export const RESIZE_RAIL_HALF_WIDTH_PX = 8
 export const RESIZE_BODY_CLASS = 'right-sidebar-resizing'
 export const SHEET_MAX_WIDTH_PX = 820
-export const SHEET_VIEWPORT_WIDTH = '88vw'
+export const SHEET_VIEWPORT_WIDTH = '100vw'
 const ZERO_WIDTH_PX = 0
 const STORAGE_RADIX = 10
 

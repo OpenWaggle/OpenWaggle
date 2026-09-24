@@ -243,6 +243,7 @@ function resolveActiveSurface(
     readonly hasTerminal: boolean
   },
 ): WorkspacePanelSurface {
+  if (requested?.kind === 'action') return requested
   if (requested?.kind === 'terminal' && available.hasTerminal) return requested
   if (
     requested?.kind === 'browser' &&

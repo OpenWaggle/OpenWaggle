@@ -31,11 +31,10 @@ describe('terminal environment launch context', () => {
     ).toEqual({
       CUSTOM_ACTION_VALUE: 'kept',
       OPENWAGGLE_PROJECT_ROOT: '/current/project',
-      T3CODE_PROJECT_ROOT: '/current/project',
     })
   })
 
-  it('sets T3-compatible and OpenWaggle worktree variables together', () => {
+  it('sets native OpenWaggle worktree variables', () => {
     expect(
       createProjectActionTerminalEnvironment({
         projectRoot: '/project',
@@ -44,8 +43,6 @@ describe('terminal environment launch context', () => {
     ).toEqual({
       OPENWAGGLE_PROJECT_ROOT: '/project',
       OPENWAGGLE_WORKTREE_PATH: '/worktree',
-      T3CODE_PROJECT_ROOT: '/project',
-      T3CODE_WORKTREE_PATH: '/worktree',
     })
   })
 })
@@ -54,7 +51,6 @@ describe('terminalEnvironmentSchema', () => {
   it('accepts bounded environment overrides', () => {
     expect(
       safeDecodeUnknown(terminalEnvironmentSchema, {
-        T3CODE_PROJECT_ROOT: '/project',
         EMPTY_VALUE: '',
       }).success,
     ).toBe(true)
@@ -63,6 +59,7 @@ describe('terminalEnvironmentSchema', () => {
   it.each([
     { 'INVALID-NAME': 'value' },
     { 'BAD=NAME': 'value' },
+    { T3CODE_PROJECT_ROOT: '/legacy' },
     { NODE_OPTIONS: '--require /tmp/injected.cjs' },
     { VALID_NAME: 'value\0tail' },
   ])('rejects unsafe names and values: %j', (environment) => {

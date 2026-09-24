@@ -3,6 +3,7 @@ import { terminalKeyOf } from '@shared/types/terminal'
 import { createLogger } from '../../logger'
 import {
   type HistoryFiles,
+  TERMINAL_HISTORY_CURSOR_EXTENSION,
   TERMINAL_HISTORY_LOG_EXTENSION,
   TERMINAL_HISTORY_METADATA_EXTENSION,
   TERMINAL_HISTORY_WORKING_DIRECTORY_EXTENSION,
@@ -20,6 +21,7 @@ interface HistoryMove {
   readonly to: HistoryFiles
   readonly logExists: boolean
   readonly workingDirectoryExists: boolean
+  readonly cursorExists: boolean
 }
 
 export interface TerminalHistoryMover {
@@ -57,7 +59,9 @@ class TerminalHistoryMoverImpl implements TerminalHistoryMover {
     const sourceMetadata = await this.files.readIfPresent(from.metadataFile)
     const logExists = await this.files.exists(from.logFile)
     const workingDirectoryExists = await this.files.exists(from.workingDirectoryFile)
-    if (sourceMetadata === null && !logExists && !workingDirectoryExists) return null
+    const cursorExists = await this.files.exists(from.cursorFile)
+    if (sourceMetadata === null && !logExists && !workingDirectoryExists && !cursorExists)
+      return null
     if (sourceMetadata !== fromKey) {
       throw new Error('Terminal history source metadata is missing')
     }
@@ -68,6 +72,7 @@ class TerminalHistoryMoverImpl implements TerminalHistoryMover {
       to,
       logExists,
       workingDirectoryExists,
+      cursorExists,
     } satisfies HistoryMove
   }
 
@@ -78,6 +83,9 @@ class TerminalHistoryMoverImpl implements TerminalHistoryMover {
     )
     const sourceWorkingDirectories = new Set(
       entries.filter((entry) => entry.endsWith(TERMINAL_HISTORY_WORKING_DIRECTORY_EXTENSION)),
+    )
+    const sourceCursors = new Set(
+      entries.filter((entry) => entry.endsWith(TERMINAL_HISTORY_CURSOR_EXTENSION)),
     )
     const metadataEntries = entries.filter((entry) =>
       entry.endsWith(TERMINAL_HISTORY_METADATA_EXTENSION),
@@ -96,8 +104,11 @@ class TerminalHistoryMoverImpl implements TerminalHistoryMover {
       sourceWorkingDirectories.delete(
         `${metadataEntry.slice(0, -TERMINAL_HISTORY_METADATA_EXTENSION.length)}${TERMINAL_HISTORY_WORKING_DIRECTORY_EXTENSION}`,
       )
+      sourceCursors.delete(
+        `${metadataEntry.slice(0, -TERMINAL_HISTORY_METADATA_EXTENSION.length)}${TERMINAL_HISTORY_CURSOR_EXTENSION}`,
+      )
     }
-    if (sourceLogs.size > 0 || sourceWorkingDirectories.size > 0) {
+    if (sourceLogs.size > 0 || sourceWorkingDirectories.size > 0 || sourceCursors.size > 0) {
       throw new Error('Terminal history source metadata is missing')
     }
     return moves
@@ -111,7 +122,8 @@ class TerminalHistoryMoverImpl implements TerminalHistoryMover {
       if (
         (await this.files.exists(move.to.logFile)) ||
         (await this.files.exists(move.to.metadataFile)) ||
-        (await this.files.exists(move.to.workingDirectoryFile))
+        (await this.files.exists(move.to.workingDirectoryFile)) ||
+        (await this.files.exists(move.to.cursorFile))
       ) {
         throw historyMoveConflict()
       }
@@ -146,9 +158,20 @@ class TerminalHistoryMoverImpl implements TerminalHistoryMover {
         throw error
       }
     }
+    if (move.cursorExists) {
+      try {
+        await this.files.rename(move.from.cursorFile, move.to.cursorFile)
+      } catch (error) {
+        if (move.workingDirectoryExists)
+          await this.files.rename(move.to.workingDirectoryFile, move.from.workingDirectoryFile)
+        if (move.logExists) await this.files.rename(move.to.logFile, move.from.logFile)
+        throw error
+      }
+    }
     try {
       await this.files.rename(move.from.metadataFile, move.to.metadataFile)
     } catch (error) {
+      if (move.cursorExists) await this.files.rename(move.to.cursorFile, move.from.cursorFile)
       if (move.workingDirectoryExists) {
         await this.files.rename(move.to.workingDirectoryFile, move.from.workingDirectoryFile)
       }
@@ -178,6 +201,9 @@ class TerminalHistoryMoverImpl implements TerminalHistoryMover {
     }
     if (move.workingDirectoryExists && (await this.files.exists(move.to.workingDirectoryFile))) {
       await this.files.rename(move.to.workingDirectoryFile, move.from.workingDirectoryFile)
+    }
+    if (move.cursorExists && (await this.files.exists(move.to.cursorFile))) {
+      await this.files.rename(move.to.cursorFile, move.from.cursorFile)
     }
     if (move.logExists && (await this.files.exists(move.to.logFile))) {
       await this.files.rename(move.to.logFile, move.from.logFile)

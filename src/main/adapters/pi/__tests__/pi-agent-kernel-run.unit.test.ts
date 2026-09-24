@@ -40,6 +40,31 @@ vi.mock('../../git/remote-sync', () => ({
   pullCurrentBranchFastForward: runMocks.pullCurrentBranchFastForward,
 }))
 
+function actionWorkspaceDependencies(): Pick<
+  Parameters<typeof runPiAgentKernel>[1],
+  'projectActions' | 'preparation'
+> {
+  return {
+    projectActions: fromPartial({
+      workspaces: {
+        getBound: () =>
+          Effect.succeed({
+            id: 'workspace-1',
+            projectPath: '/repo',
+            workingPath: '/repo/worktree',
+            kind: 'managed-worktree',
+            worktreeBranch: 'test',
+          }),
+      },
+    }),
+    preparation: fromPartial({
+      read: () => Effect.succeed(null),
+      environment: () => Effect.succeed({}),
+      requireSetup: () => Effect.void,
+    }),
+  }
+}
+
 describe('runPiAgentKernel', () => {
   beforeEach(() => {
     for (const mock of Object.values(runMocks)) mock.mockReset()
@@ -93,6 +118,7 @@ describe('runPiAgentKernel', () => {
     await Effect.runPromise(
       runPiAgentKernel(input, {
         runtimeExtensionIsolation: {},
+        ...actionWorkspaceDependencies(),
         terminal: fromPartial({}),
         browserPreviewAutomation: fromPartial({}),
         enableBrowserPreviewAutomation: false,
@@ -167,6 +193,7 @@ describe('runPiAgentKernel', () => {
     await Effect.runPromise(
       runPiAgentKernel(input, {
         runtimeExtensionIsolation: {},
+        ...actionWorkspaceDependencies(),
         terminal: fromPartial({}),
         browserPreviewAutomation: fromPartial({}),
         enableBrowserPreviewAutomation: false,
@@ -205,6 +232,7 @@ describe('runPiAgentKernel', () => {
     await Effect.runPromise(
       runPiAgentKernel(input, {
         runtimeExtensionIsolation: {},
+        ...actionWorkspaceDependencies(),
         terminal: fromPartial({}),
         browserPreviewAutomation: fromPartial({}),
         enableBrowserPreviewAutomation: false,
@@ -241,6 +269,7 @@ describe('runPiAgentKernel', () => {
     }
     const dependencies: Parameters<typeof runPiAgentKernel>[1] = {
       runtimeExtensionIsolation: {},
+      ...actionWorkspaceDependencies(),
       terminal: fromPartial({}),
       browserPreviewAutomation: fromPartial({}),
       enableBrowserPreviewAutomation: false,

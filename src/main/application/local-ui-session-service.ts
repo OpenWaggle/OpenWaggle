@@ -112,9 +112,11 @@ function executeLocalUiMutation(command: LocalUiPayload['request']['command']) {
         updateTreeUiState(sessionRepository, sessionId, update),
       )
       .with('delete', () =>
-        withSessionDesktopRemoval(sessionId, deleteSessionWithVisualizations(sessionId)).pipe(
-          Effect.as({ effect: 'session-deleted' as const }),
-        ),
+        withSessionDesktopRemoval(
+          sessionId,
+          deleteSessionWithVisualizations(sessionId),
+          'delete',
+        ).pipe(Effect.as({ effect: 'session-deleted' as const })),
       )
       .exhaustive()
   })

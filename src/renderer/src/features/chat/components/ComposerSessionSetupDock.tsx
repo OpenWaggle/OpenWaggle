@@ -1,5 +1,6 @@
 import { ComposerBranchRow, ComposerDock } from '@/features/composer/components'
 import { SessionContextRow, type SessionContextRowState } from '@/features/git'
+import { WorktreePreparationChoice } from '@/features/project-actions'
 import { cn } from '@/shared/lib/cn'
 import type { ChatComposerSectionState } from '../model'
 import { ComposerProjectMenu } from './ComposerProjectMenu'
@@ -49,6 +50,9 @@ export function ComposerSessionSetupDock({ section, strip }: ComposerSessionSetu
               <ComposerBranchRow strip={strip} onToast={section.onToast} />
             </div>
           </div>
+          {visible && strip.editable && strip.envMode === 'worktree' && section.projectPath ? (
+            <WorktreePreparationChoice projectPath={section.projectPath} />
+          ) : null}
         </ComposerDock>
       </div>
     </fieldset>

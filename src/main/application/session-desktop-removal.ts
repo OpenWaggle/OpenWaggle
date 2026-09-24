@@ -2,6 +2,7 @@ import type { SessionId } from '@shared/types/brand'
 import * as Effect from 'effect/Effect'
 import { DesktopServiceBroker } from '../ports/desktop-service-broker'
 import { TerminalService } from '../ports/terminal-service'
+import { withSessionActionRelease } from './action-workspace-release'
 import {
   acquireSessionRemovalAdmission,
   cancelSessionRuns,
@@ -18,6 +19,7 @@ function toError(error: unknown) {
 export function withSessionDesktopRemoval<A, E, R>(
   sessionId: SessionId,
   operation: Effect.Effect<A, E, R>,
+  intent: 'archive' | 'delete' = 'archive',
 ) {
   return Effect.acquireUseRelease(
     Effect.try({ try: () => acquireSessionRemovalAdmission(sessionId), catch: toError }),
@@ -50,7 +52,7 @@ export function withSessionDesktopRemoval<A, E, R>(
                     operation: 'deleteOwner',
                     ownerKey: sessionId,
                   })
-                  return yield* operation
+                  return yield* withSessionActionRelease(sessionId, operation, 'before', intent)
                 }),
               )
             }),

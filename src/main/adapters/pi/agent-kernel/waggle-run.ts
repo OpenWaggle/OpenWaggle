@@ -193,6 +193,7 @@ export async function runPiWaggle(input: PiWaggleKernelRunInput) {
   const extensions = createWaggleRunExtensions(input, waggleExtension.factory)
 
   const { model, session } = await createPiRunSessionRuntime({
+    ...(input.preparedEnvironment ? { preparedEnvironment: input.preparedEnvironment } : {}),
     session: input.session,
     projectPath,
     runId: input.runId,

@@ -1,15 +1,4 @@
-import type {
-  AgentSession,
-  AgentSessionServices,
-  ExtensionFactory,
-  SessionManager,
-} from '@earendil-works/pi-coding-agent'
-import {
-  createBashToolDefinition,
-  createPowerShellToolDefinition,
-  defineTool,
-  type ToolDefinition,
-} from '@earendil-works/pi-coding-agent'
+import type { AgentSession, ExtensionFactory } from '@earendil-works/pi-coding-agent'
 import type { HydratedAgentSendPayload, Message } from '@shared/types/agent'
 import type { ThinkingLevel } from '@shared/types/settings'
 import { clampThinkingLevel } from '@shared/utils/thinking-levels'
@@ -21,13 +10,10 @@ import {
   extractPiAssistantTerminalError,
   getPiAssistantStopReason,
 } from '../pi-run-result'
-import {
-  createOpenWaggleAgentSessionFromServices,
-  disposeOpenWagglePiSession,
-  type OpenWaggleAgentSessionOptions,
-} from '../pi-session-lifecycle'
+import { disposeOpenWagglePiSession } from '../pi-session-lifecycle'
 import { logger } from './constants'
 import { createPiRunControl } from './pi-run-control'
+import { createPiSessionForRun } from './pi-run-session'
 import {
   buildFailedRunAfterSettlement,
   buildFailedSubscribedRunResult,
@@ -42,7 +28,7 @@ import {
   type PiProjectRuntimeIsolationOptions,
   type PiRuntimeExtensionIsolationInput,
 } from './runtime-extension-isolation'
-import { createSessionManagerForSession } from './session-manager'
+import { createSessionManagerForSession, requireSessionProjectPath } from './session-manager'
 import { projectPiSessionSnapshot } from './session-projection'
 
 export { promptPiSession } from './run-prompt'
@@ -53,6 +39,7 @@ export interface PiRunSessionRuntime {
 }
 
 interface CreatePiRunSessionRuntimeInput extends PiRuntimeExtensionIsolationInput {
+  readonly preparedEnvironment?: AgentKernelRunInput['preparedEnvironment']
   readonly session: AgentKernelRunInput['session']
   readonly projectPath: string
   readonly runId: AgentKernelRunInput['runId']
@@ -88,46 +75,6 @@ function exposePiRunControl(
 
 function resolvePiRuntimeThinkingLevel(model: PiModel, requestedThinkingLevel: ThinkingLevel) {
   return clampThinkingLevel(requestedThinkingLevel, getPiModelAvailableThinkingLevels(model))
-}
-
-async function createPiSessionForRun(input: {
-  readonly services: AgentSessionServices
-  readonly model: PiModel
-  readonly sessionManager: SessionManager
-  readonly thinkingLevel: ThinkingLevel
-  readonly openWaggleUi: OpenWaggleAgentSessionOptions['openWaggleUi']
-}) {
-  const markAgentRun = (context: { command: string; cwd: string; env: NodeJS.ProcessEnv }) => ({
-    ...context,
-    env: { ...context.env, OPENWAGGLE_AGENT_RUN: '1' },
-  })
-  const customTools: ToolDefinition[] = [
-    defineTool(createBashToolDefinition(input.services.cwd, { spawnHook: markAgentRun })),
-    defineTool(createPowerShellToolDefinition(input.services.cwd, { spawnHook: markAgentRun })),
-  ]
-  const hasExistingMessages = input.sessionManager.buildSessionContext().messages.length > 0
-  const result = hasExistingMessages
-    ? await createOpenWaggleAgentSessionFromServices({
-        services: input.services,
-        model: input.model,
-        sessionManager: input.sessionManager,
-        openWaggleUi: input.openWaggleUi,
-        customTools,
-      })
-    : await createOpenWaggleAgentSessionFromServices({
-        services: input.services,
-        model: input.model,
-        thinkingLevel: input.thinkingLevel,
-        sessionManager: input.sessionManager,
-        openWaggleUi: input.openWaggleUi,
-        customTools,
-      })
-
-  if (hasExistingMessages) {
-    result.session.setThinkingLevel(input.thinkingLevel)
-  }
-
-  return result
 }
 
 export async function createPiRunSessionRuntime(
@@ -178,11 +125,14 @@ export async function createPiRunSessionRuntime(
       input.payload.thinkingLevel,
     )
     const { session } = await createPiSessionForRun({
+      projectRoot: requireSessionProjectPath(input.session),
+      workspacePath: input.projectPath,
       services: selectedRuntime.runtime.services,
       model: selectedRuntime.runtime.model,
       sessionManager,
       thinkingLevel,
       openWaggleUi,
+      ...(input.preparedEnvironment ? { preparedEnvironment: input.preparedEnvironment } : {}),
     })
 
     return exposePiRunControl(input, selectedRuntime.runtime.model, session)
@@ -198,11 +148,14 @@ export async function createPiRunSessionRuntime(
       input.payload.thinkingLevel,
     )
     const { session } = await createPiSessionForRun({
+      projectRoot: requireSessionProjectPath(input.session),
+      workspacePath: input.projectPath,
       services: fallbackRuntime.services,
       model: fallbackRuntime.model,
       sessionManager,
       thinkingLevel,
       openWaggleUi,
+      ...(input.preparedEnvironment ? { preparedEnvironment: input.preparedEnvironment } : {}),
     })
 
     return exposePiRunControl(input, fallbackRuntime.model, session)

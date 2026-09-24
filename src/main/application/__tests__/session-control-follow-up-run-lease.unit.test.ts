@@ -30,16 +30,20 @@ import { SessionQueryRepository } from '../../ports/session-query-repository'
 import { SessionReportDeliveryService } from '../../ports/session-report-delivery-service'
 import { SessionReportRepository } from '../../ports/session-report-repository'
 import { SessionWorkspaceHandoffService } from '../../ports/session-workspace-handoff-service'
+import { SessionWorkspaceResourceRepository } from '../../ports/session-workspace-resource-repository'
 import { installSessionHostEventRuntime } from '../../session-host/session-host-events'
 import { activeRuns } from '../active-session-runs'
 import { executeSessionControlMutation } from '../session-control-command-service'
 import { SessionHostEventHub } from '../session-host-event-hub'
 import { SessionHostLiveness } from '../session-host-liveness'
+import { NoopActionRunServiceLayer } from './action-run-service-test-layer'
 import { NoopSessionDesktopLayer } from './desktop-service-test-layer'
 
 function unusedCommandDependencies() {
   return Layer.mergeAll(
     NoopSessionDesktopLayer,
+    NoopActionRunServiceLayer,
+    Layer.succeed(SessionWorkspaceResourceRepository, fromPartial({})),
     Layer.succeed(AgentRunInterruptionService, fromPartial({})),
     Layer.succeed(AgentSteeringService, fromPartial({})),
     Layer.succeed(SessionAuthorizationTargetRepository, fromPartial({})),

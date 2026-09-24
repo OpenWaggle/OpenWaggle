@@ -1,6 +1,8 @@
 import { Layer } from 'effect'
 import * as Effect from 'effect/Effect'
 import { createLogger } from '../../logger'
+import { ActionCatalogService } from '../../ports/action-catalog-service'
+import { ActionRunService } from '../../ports/action-run-service'
 import {
   type AgentKernelRunInput,
   AgentKernelService,
@@ -16,7 +18,9 @@ import { ExtensionProjectOverridesRepository } from '../../ports/extension-proje
 import { InlineVisualizationService } from '../../ports/inline-visualization-service'
 import { McpConfigService } from '../../ports/mcp-config-service'
 import { McpRuntimeService } from '../../ports/mcp-runtime-service'
+import { SessionWorkspaceResourceRepository } from '../../ports/session-workspace-resource-repository'
 import { TerminalService } from '../../ports/terminal-service'
+import { WorkspacePreparationService } from '../../ports/workspace-preparation-service'
 import { SettingsService } from '../../services/settings-service'
 import type { PiRuntimeExtensionIsolationInput } from './agent-kernel/runtime-extension-isolation'
 import {
@@ -107,6 +111,12 @@ export const PiAgentKernelLive = Layer.effect(
     const mcpConfigService = yield* McpConfigService
     const mcpRuntimeService = yield* McpRuntimeService
     const inlineVisualizationService = yield* InlineVisualizationService
+    const projectActions = {
+      catalog: yield* ActionCatalogService,
+      runs: yield* ActionRunService,
+      workspaces: yield* SessionWorkspaceResourceRepository,
+    }
+    const preparation = yield* WorkspacePreparationService
     const terminalService = yield* TerminalService
     const browserPreviewAutomationService = yield* BrowserPreviewAutomationService
     const settingsService = yield* SettingsService
@@ -128,6 +138,8 @@ export const PiAgentKernelLive = Layer.effect(
             yield* readBrowserPreviewAutomationEnabled(settingsService)
           return yield* runPiAgentKernel(input, {
             runtimeExtensionIsolation,
+            projectActions,
+            preparation,
             mcpConfig: mcpConfigService,
             mcpRuntime: mcpRuntimeService,
             inlineVisualization: inlineVisualizationService,

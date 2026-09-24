@@ -9,6 +9,8 @@ import * as Effect from 'effect/Effect'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { validateSessionHostCompletionSeal } from '../../session-host/session-host-completion-seal'
 import { SQLITE_PREPARE_CACHE_SIZE } from '../database-constants'
+import { runMigrations } from '../database-migration-runner'
+import { APP_MIGRATIONS } from '../database-migrations'
 import { runAppDatabaseMigrations } from '../database-service'
 import {
   SESSION_HOST_NODE_DELETE_MIGRATION_ID,
@@ -91,7 +93,7 @@ function seedSession(sql: SqlClient.SqlClient, id: string) {
 
 function installPreviousRevision(sql: SqlClient.SqlClient) {
   return Effect.gen(function* () {
-    yield* runAppDatabaseMigrations
+    yield* runMigrations(APP_MIGRATIONS.filter(({ id }) => id <= MIGRATION_ID))
     yield* sql.unsafe('DROP TRIGGER session_node_search_delete')
     yield* sql.unsafe(LEGACY_DELETE_TRIGGER)
     yield* sql`DELETE FROM _migrations WHERE id >= ${MIGRATION_ID}`

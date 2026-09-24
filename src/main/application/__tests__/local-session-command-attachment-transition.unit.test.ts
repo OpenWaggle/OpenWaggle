@@ -21,8 +21,10 @@ import { SessionQueryRepository } from '../../ports/session-query-repository'
 import { SessionReportDeliveryService } from '../../ports/session-report-delivery-service'
 import { SessionReportRepository } from '../../ports/session-report-repository'
 import { SessionWorkspaceHandoffService } from '../../ports/session-workspace-handoff-service'
+import { SessionWorkspaceResourceRepository } from '../../ports/session-workspace-resource-repository'
 import { interruptExactSessionRun, reserveActiveSessionRun } from '../active-session-runs'
 import { dispatchAdmittedSessionControlCommand } from '../local-session-command-dispatcher'
+import { NoopActionRunServiceLayer } from './action-run-service-test-layer'
 import { NoopSessionDesktopLayer } from './desktop-service-test-layer'
 import {
   controlPayload,
@@ -34,6 +36,8 @@ import { makePromotionReplacementLayer } from './session-control-promotion-repla
 function unusedDispatcherCommandDependencies() {
   return Layer.mergeAll(
     NoopSessionDesktopLayer,
+    NoopActionRunServiceLayer,
+    Layer.succeed(SessionWorkspaceResourceRepository, fromPartial({})),
     Layer.succeed(SessionAuthorizationTargetRepository, fromPartial({})),
     Layer.succeed(SessionControlRepository, fromPartial({})),
     Layer.succeed(SessionControlRunExecutor, fromPartial({})),

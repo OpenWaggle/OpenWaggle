@@ -14,6 +14,7 @@ import { WorkspaceTerminal } from '../WorkspaceTerminal'
 import { useWorkspacePanelStore } from '../workspace-panel-store'
 
 type FullscreenHandler = (isFullscreen: boolean) => void
+type LocationSelection = (state: { location: { pathname: string } }) => unknown
 
 const shellMocks = vi.hoisted(() => {
   let fullscreenHandler: FullscreenHandler | null = null
@@ -38,6 +39,7 @@ const shellMocks = vi.hoisted(() => {
     ),
     onTerminalActivitySnapshot: vi.fn(() => unsubscribeTerminalActivity),
     projectPath: '/repo',
+    pathname: '/',
     registerBrowserPreviewOwner: vi.fn(async () => undefined),
     setCurrentBrowserPreview: vi.fn(async () => undefined),
     unregisterBrowserPreviewOwner: vi.fn(async () => undefined),
@@ -53,6 +55,11 @@ const shellMocks = vi.hoisted(() => {
     }),
   }
 })
+
+vi.mock('@tanstack/react-router', () => ({
+  useRouterState: ({ select }: { select: LocationSelection }) =>
+    select({ location: { pathname: shellMocks.pathname } }),
+}))
 
 vi.mock('@/features/chat/hooks/useBackgroundRunMonitor', () => ({
   useBackgroundRunMonitor: () => shellMocks.backgroundRunMonitor(),
@@ -113,6 +120,7 @@ vi.mock('../useWorkspaceLifecycle', () => ({
 describe('shell surfaces', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    shellMocks.pathname = '/'
     Object.defineProperty(window, 'matchMedia', {
       configurable: true,
       value: vi.fn(() => ({
@@ -140,26 +148,30 @@ describe('shell surfaces', () => {
     expect(onOpen).toHaveBeenCalledWith()
   })
 
-  it('mounts workspace chrome, lifecycle hooks, terminal, and feedback modal from store state', async () => {
-    useUIStore.setState({ feedbackModalOpen: true })
-    useTerminalStore.getState().createTerminal('draft:/repo', '/repo')
-    useTerminalStore.getState().setPanelOpen('draft:/repo', true)
+  it.each(['/', '/settings', '/settings/actions'])(
+    'mounts route-appropriate chrome and shared workspace controls at %s',
+    async (pathname) => {
+      shellMocks.pathname = pathname
+      useUIStore.setState({ feedbackModalOpen: true, activeView: 'chat' })
+      useTerminalStore.getState().createTerminal('draft:/repo', '/repo')
+      useTerminalStore.getState().setPanelOpen('draft:/repo', true)
 
-    render(
-      <WorkspaceShell>
-        <main>Route content</main>
-      </WorkspaceShell>,
-    )
+      render(
+        <WorkspaceShell>
+          <main>Route content</main>
+        </WorkspaceShell>,
+      )
 
-    expect(screen.getByText('Sidebar')).toBeInTheDocument()
-    expect(screen.getByText('Header')).toBeInTheDocument()
-    expect(screen.getByText('Route content')).toBeInTheDocument()
-    expect(await screen.findByText('Terminal panel')).toBeInTheDocument()
-    expect(await screen.findByText('Feedback modal')).toBeInTheDocument()
-    expect(shellMocks.workspaceLifecycle).toHaveBeenCalledOnce()
-    expect(shellMocks.backgroundRunMonitor).toHaveBeenCalledOnce()
-    expect(shellMocks.autoUpdater).toHaveBeenCalledOnce()
-  })
+      expect(screen.getByText('Sidebar')).toBeInTheDocument()
+      expect(screen.queryByText('Header') !== null).toBe(pathname === '/')
+      expect(screen.getByText('Route content')).toBeInTheDocument()
+      expect(await screen.findByText('Terminal panel')).toBeInTheDocument()
+      expect(await screen.findByText('Feedback modal')).toBeInTheDocument()
+      expect(shellMocks.workspaceLifecycle).toHaveBeenCalledOnce()
+      expect(shellMocks.backgroundRunMonitor).toHaveBeenCalledOnce()
+      expect(shellMocks.autoUpdater).toHaveBeenCalledOnce()
+    },
+  )
 
   it('closes the workspace terminal through the terminal panel close action', async () => {
     useTerminalStore.getState().createTerminal('draft:/repo', '/repo')

@@ -157,7 +157,7 @@ describe('Local Session server', () => {
     expect(liveness.ownerCount()).toBe(0)
   })
 
-  it('runs the command contract over the immediately previous transport revision', async () => {
+  it('rejects revision 14 before authentication or command dispatch', async () => {
     const endpoint = path.join(temporaryRoot, 'host-previous.sock')
     const eventHub = new SessionHostEventHub({ hostInstanceId: 'host-current' })
     const liveness = new SessionHostLiveness({
@@ -165,11 +165,12 @@ describe('Local Session server', () => {
       requestShutdown: vi.fn(),
     })
     const dispatch = vi.fn(async () => ({ compatible: true }))
+    const authenticate = vi.fn(async () => ({ callerId: 'local-user' }))
     handle = await listenLocalSessionServer(endpoint, {
       hostInstanceId: 'host-current',
       eventHub,
       liveness,
-      authenticate: async () => ({ callerId: 'local-user' }),
+      authenticate,
       dispatch,
     })
     client = await connectLocalSessionTestClient(endpoint)
@@ -177,26 +178,19 @@ describe('Local Session server', () => {
     client.write(
       encodeLocalSessionFrame({
         protocol: 'openwaggle-local-session',
-        supportedRevisions: [LOCAL_SESSION_CURRENT_REVISION],
+        supportedRevisions: [14],
         clientKind: 'cli',
         clientVersion: 'previous',
       }),
     )
     await expect(reader.next()).resolves.toMatchObject({
-      accepted: true,
-      revision: LOCAL_SESSION_CURRENT_REVISION,
+      accepted: false,
+      code: 'incompatible_protocol',
+      supportedRevisions: [LOCAL_SESSION_CURRENT_REVISION],
     })
-    client.write(
-      encodeLocalSessionFrame({ kind: 'command', requestId: 'previous-command', payload: {} }),
-    )
-    await expect(reader.next()).resolves.toMatchObject({
-      kind: 'response',
-      requestId: 'previous-command',
-      payload: { compatible: true },
-    })
-    expect(dispatch).toHaveBeenCalledWith(
-      expect.objectContaining({ negotiatedRevision: LOCAL_SESSION_CURRENT_REVISION }),
-    )
+    expect(authenticate).not.toHaveBeenCalled()
+    expect(dispatch).not.toHaveBeenCalled()
+    expect(liveness.ownerCount()).toBe(0)
   })
 
   it('authenticates a newer client, reports blockers, and requests a safe drain', async () => {

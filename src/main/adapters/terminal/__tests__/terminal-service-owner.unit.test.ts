@@ -1,5 +1,7 @@
+import { promises as fs } from 'node:fs'
 import * as Effect from 'effect/Effect'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { makeTerminalHistoryFiles } from '../terminal-history-files'
 import {
   events,
   failNextMove,
@@ -14,6 +16,7 @@ import {
   spawn,
   TERMINAL_ID,
   teardownTerminalServiceActionsTest,
+  terminalHistoryLogsDir,
   workDirA,
 } from './terminal-service-actions-test-harness'
 
@@ -41,6 +44,34 @@ describe('makeNodePtyTerminalService ownership and close', () => {
     await expect(service.history.read(draftKey)).resolves.toBe('')
     await expect(service.history.read(sessionKey)).resolves.toBe('draft output')
     expect(ptys[0]?.kill).not.toHaveBeenCalled()
+  })
+
+  it('migrates a draft terminal while another owner has a persistent history failure', async () => {
+    const draftOwner = 'draft:/healthy'
+    const sessionOwner = 'session-born'
+    const badKey = 'session-broken::main'
+    const { metadataFile } = makeTerminalHistoryFiles(terminalHistoryLogsDir()).describe(badKey)
+    await fs.mkdir(metadataFile)
+    try {
+      service.history.append(badKey, 'retry later')
+      await expect(service.history.flush()).rejects.toThrow()
+
+      await Effect.runPromise(service.open({ ...openInput(workDirA), ownerKey: draftOwner }))
+      await settle()
+      ptys[0]?.dataListeners[0]?.('draft output')
+
+      await expect(
+        Effect.runPromise(service.migrateOwner(draftOwner, sessionOwner)),
+      ).resolves.toEqual({ terminalIds: [TERMINAL_ID] })
+      await expect(service.history.read(`${sessionOwner}::${TERMINAL_ID}`)).resolves.toBe(
+        'draft output',
+      )
+      expect(service.records.has(`${draftOwner}::${TERMINAL_ID}`)).toBe(false)
+    } finally {
+      await fs.rm(metadataFile, { recursive: true, force: true })
+      await service.history.flush()
+    }
+    await expect(service.history.read(badKey)).resolves.toBe('retry later')
   })
 
   it('rejects owner migration collisions before mutating either terminal', async () => {

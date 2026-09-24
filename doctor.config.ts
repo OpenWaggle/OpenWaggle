@@ -37,6 +37,13 @@ const config: DoctorConfig = {
     rules: [],
     overrides: [
       {
+        // The effect clears its recursive timeout and marks in-flight replies disposed.
+        // action-run-reconnect.component.test verifies both queued and in-flight teardown.
+        // The analyzer misses the timer assignment inside the async poll callback.
+        files: ['src/renderer/src/features/project-actions/hooks/useActionOutput.ts'],
+        rules: ['react-doctor/effect-needs-cleanup'],
+      },
+      {
         // closeMenuThen calls its callback once from a menu event after closing
         // the menu. It never passes that callback to a React state setter.
         files: ['src/renderer/src/features/project-actions/components/ProjectActionsControl.tsx'],

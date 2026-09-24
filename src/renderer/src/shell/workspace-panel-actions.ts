@@ -1,3 +1,4 @@
+import { match } from '@diegogbrisa/ts-match'
 import {
   clearBrowserPreviewExternalFallback,
   normalizeBrowserPreviewUrl,
@@ -98,8 +99,13 @@ export function toggleWorkspaceRightPanel(ownerKey: string) {
     store.hidePanel(ownerKey)
     return true
   }
-  if (group.activeSurface.kind === 'terminal') store.showTerminal(ownerKey)
-  else store.showBrowser(ownerKey, group.activeSurface.previewId)
+  match(group.activeSurface)
+    .with({ kind: 'terminal' }, () => store.showTerminal(ownerKey))
+    .with({ kind: 'action' }, ({ projectPath, runId }) =>
+      store.showAction(ownerKey, projectPath, runId),
+    )
+    .with({ kind: 'browser' }, ({ previewId }) => store.showBrowser(ownerKey, previewId))
+    .exhaustive()
   return true
 }
 
@@ -153,4 +159,8 @@ export function useWorkspaceSideTerminalVisible(ownerKey: string) {
     const group = state.groups[ownerKey]
     return group?.panelOpen === true && group.activeSurface?.kind === 'terminal'
   })
+}
+
+export function openWorkspaceAction(ownerKey: string, projectPath: string, runId: string) {
+  useWorkspacePanelStore.getState().showAction(ownerKey, projectPath, runId)
 }

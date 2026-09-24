@@ -38,7 +38,6 @@ import { SessionControlIdentityServiceLive } from './adapters/session-control-id
 import { SessionControlRunExecutorLive } from './adapters/session-control-run-executor'
 import { SessionLifecycleIdentityServiceLive } from './adapters/session-lifecycle-identity-service'
 import { SessionLifecyclePreparationServiceLive } from './adapters/session-lifecycle-preparation-service'
-import { runSessionSemanticDiscoveryBackground } from './adapters/session-semantic-discovery-background'
 import { SettingsWagglePresetsRepositoryLive } from './adapters/settings-waggle-presets-repository'
 import { SharpSessionResourceImageValidatorLive } from './adapters/sharp-session-resource-image-validator'
 import { SharpSessionResourceThumbnailerLive } from './adapters/sharp-session-resource-thumbnailer'
@@ -60,7 +59,6 @@ import { SqliteSessionLifecycleRepositoryLive } from './adapters/sqlite-session-
 import { SqliteSessionOrchestrationUpdateRepositoryLive } from './adapters/sqlite-session-orchestration-update-repository'
 import { SqliteSessionOrganizationRepositoryLive } from './adapters/sqlite-session-organization-repository'
 import { SqliteSessionOutputRetryRepositoryLive } from './adapters/sqlite-session-output-retry-repository'
-import { SqliteSessionProjectionRepositoryLive } from './adapters/sqlite-session-projection-repository'
 import { SqliteSessionQueryRepositoryLive } from './adapters/sqlite-session-query-repository'
 import { SqliteSessionReportRepositoryLive } from './adapters/sqlite-session-report-repository'
 import { SqliteSessionRepositoryLive } from './adapters/sqlite-session-repository'
@@ -70,15 +68,18 @@ import { SqliteSessionWorkspaceResourceRepositoryLive } from './adapters/sqlite-
 import { FilesystemStandardsLive } from './adapters/standards-adapter'
 import { WorkspaceProjectAuthorizationLive } from './adapters/workspace-project-authorization'
 import { ActiveProjectChangeServiceLive } from './application/active-project-change-service'
-import { activateTrustedMainExtensionsForActiveProjectSafely } from './application/extension-trusted-main-activation-service'
-import { runSessionExportRecoveryBackground } from './application/session-export-recovery'
 import { SessionWaitServiceLive } from './application/session-wait-service'
 import { OperationAdapterLive } from './operation-adapter-layer'
+import {
+  ActionKernelServicesLive,
+  ActionServicesLive,
+  SessionProjectionWithActionsLive as SqliteSessionProjectionRepositoryLive,
+} from './runtime-action-services'
 import { DesktopServicesLive } from './runtime-desktop-services'
+import { startHostBackgroundServices } from './runtime-host-services'
 import { AppDatabaseLive } from './services/database-service'
 import { AppLogger } from './services/logger-service'
 import { SettingsService } from './services/settings-service'
-import { installAppSessionToolGateway } from './session-host/session-tool-gateway-installer'
 import { setStoreEffectRunner } from './store/store-runtime'
 
 const ExtensionLifecycleRepositoryLive = SqliteExtensionLifecycleRepositoryLive.pipe(
@@ -122,6 +123,7 @@ const PiAgentKernelWithExtensionSelectionLive = PiAgentKernelLive.pipe(
     Layer.mergeAll(
       ExtensionRuntimeSelectionLive,
       McpServicesLive,
+      ActionKernelServicesLive,
       FilesystemInlineVisualizationLive,
       DesktopServicesLive,
       SettingsService.Live,
@@ -236,6 +238,7 @@ const SessionControlServicesLive = Layer.mergeAll(
 registerPiBundledOAuthFlows()
 
 const AppLayer = Layer.mergeAll(
+  ActionServicesLive,
   NodeContext.layer,
   AppLogger.Live,
   AppDatabaseLive,
@@ -304,10 +307,7 @@ export async function startSessionHostOwnedServices(): Promise<void> {
   const fiber = getAppRuntime().runFork(
     Effect.scoped(
       Effect.gen(function* () {
-        yield* installAppSessionToolGateway
-        yield* runSessionExportRecoveryBackground
-        yield* runSessionSemanticDiscoveryBackground
-        yield* activateTrustedMainExtensionsForActiveProjectSafely()
+        yield* startHostBackgroundServices
         yield* Effect.sync(() => {
           didStart = true
           started.resolve()

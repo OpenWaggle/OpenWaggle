@@ -16,7 +16,6 @@ export const PROJECT_ACTION_LIMITS = {
   SHORTCUT_RULES_PER_PROJECT: 256,
   SHORTCUT_WHEN_DEPTH: 64,
   SHORTCUT_WHEN_LENGTH: 256,
-  T3_FILE_BYTES: 256 * 1_024,
 } as const
 
 export interface ProjectActionShortcutRule {
@@ -39,6 +38,8 @@ export interface ProjectAction {
   readonly previewUrl?: string
   readonly autoOpenPreview?: boolean
   readonly shortcutRules?: readonly ProjectActionShortcutRule[]
+  /** Execution fingerprint of the displayed native definition; absent in legacy settings. */
+  readonly executionKey?: string
   /** @deprecated Read-only compatibility for settings written before shortcut rules. */
   readonly shortcut?: ShortcutBinding
 }
@@ -68,39 +69,3 @@ export interface ProjectActionUpdate {
   /** @deprecated Use `shortcutRules`. */
   readonly shortcut?: ShortcutBinding | null
 }
-
-/** A normalized script discovered in the checked-in root `t3.json`. */
-export interface T3ProjectActionScript {
-  readonly sourceIndex: number
-  readonly name: string
-  readonly command: string
-  readonly icon: ProjectActionIcon
-  readonly runOnWorktreeCreate: boolean
-  readonly previewUrl?: string
-  readonly autoOpenPreview?: boolean
-}
-
-interface T3ProjectActionsMissing {
-  readonly status: 'missing'
-  readonly scripts: readonly []
-  readonly candidates: readonly []
-}
-
-interface T3ProjectActionsInvalid {
-  readonly status: 'invalid'
-  readonly scripts: readonly []
-  readonly candidates: readonly []
-  readonly error: string
-}
-
-interface T3ProjectActionsValid {
-  readonly status: 'valid'
-  readonly scripts: readonly T3ProjectActionScript[]
-  /** Scripts not already represented by exact command or case-insensitive name. */
-  readonly candidates: readonly T3ProjectActionScript[]
-}
-
-export type T3ProjectActionsDiscovery =
-  | T3ProjectActionsMissing
-  | T3ProjectActionsInvalid
-  | T3ProjectActionsValid

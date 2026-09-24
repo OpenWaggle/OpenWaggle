@@ -25,6 +25,7 @@ export interface WorkspacePanelState {
   closeBrowser: (ownerKey: string, previewId: string) => void
   closeBrowsers: (ownerKey: string, previewIds: readonly string[]) => void
   showBrowser: (ownerKey: string, previewId: string) => void
+  showAction: (ownerKey: string, projectPath: string, runId: string) => void
   showTerminal: (ownerKey: string) => void
   hideTerminal: (ownerKey: string) => void
   hidePanel: (ownerKey: string) => void

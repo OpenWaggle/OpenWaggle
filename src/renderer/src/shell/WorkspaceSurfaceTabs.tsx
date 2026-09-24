@@ -1,4 +1,4 @@
-import { Globe2, Maximize2, Minimize2, SquareTerminal, X } from 'lucide-react'
+import { Activity, Globe2, Maximize2, Minimize2, SquareTerminal, X } from 'lucide-react'
 import { useState } from 'react'
 import { cn } from '@/shared/lib/cn'
 import { Button } from '@/shared/ui/Button'
@@ -42,6 +42,18 @@ export function WorkspaceSurfaceTabs(props: WorkspaceSurfaceTabsProps) {
         aria-label="Side panel surfaces"
         className="flex min-w-0 flex-1 gap-1 overflow-x-auto"
       >
+        {model.activeSurface?.kind === 'action' ? (
+          <Button
+            role="tab"
+            aria-selected
+            size="xs"
+            variant="ghost"
+            className="h-7 shrink-0 gap-1.5 bg-bg-hover px-2 text-text-primary"
+          >
+            <Activity className="size-3.5" />
+            Action
+          </Button>
+        ) : null}
         {model.hasTerminal && (
           <Button
             role="tab"
@@ -76,6 +88,34 @@ export function WorkspaceSurfaceTabs(props: WorkspaceSurfaceTabsProps) {
           )
         })}
       </div>
+      <WorkspacePanelToolbar {...props} />
+      {contextMenu !== null ? (
+        <WorkspaceBrowserTabContextMenu
+          model={{
+            open: true,
+            position: { x: contextMenu.x, y: contextMenu.y },
+            tabIds: model.browserTabs.map((tab) => tab.id),
+            targetId: contextMenu.tabId,
+            targetAudioMuted:
+              model.browserTabs.find((tab) => tab.id === contextMenu.tabId)?.audioMuted ?? false,
+            targetMaterialized:
+              model.browserTabs.find((tab) => tab.id === contextMenu.tabId)?.kind === 'preview',
+          }}
+          actions={{
+            close: () => setContextMenu(null),
+            closeTabs: actions.closeBrowsers,
+            setAudioMuted: actions.setBrowserAudioMuted,
+          }}
+        />
+      ) : null}
+    </div>
+  )
+}
+
+function WorkspacePanelToolbar({ model, actions }: WorkspaceSurfaceTabsProps) {
+  return (
+    <>
+      {' '}
       <Button
         size="icon-sm"
         variant="ghost"
@@ -124,25 +164,6 @@ export function WorkspaceSurfaceTabs(props: WorkspaceSurfaceTabsProps) {
       >
         <X className="size-3.5" />
       </Button>
-      {contextMenu !== null ? (
-        <WorkspaceBrowserTabContextMenu
-          model={{
-            open: true,
-            position: { x: contextMenu.x, y: contextMenu.y },
-            tabIds: model.browserTabs.map((tab) => tab.id),
-            targetId: contextMenu.tabId,
-            targetAudioMuted:
-              model.browserTabs.find((tab) => tab.id === contextMenu.tabId)?.audioMuted ?? false,
-            targetMaterialized:
-              model.browserTabs.find((tab) => tab.id === contextMenu.tabId)?.kind === 'preview',
-          }}
-          actions={{
-            close: () => setContextMenu(null),
-            closeTabs: actions.closeBrowsers,
-            setAudioMuted: actions.setBrowserAudioMuted,
-          }}
-        />
-      ) : null}
-    </div>
+    </>
   )
 }

@@ -20,6 +20,7 @@ import { dispatchHostBackedSessionGuiOperation } from '../host-ui-session-operat
 import { prepareInlineVisualizationSourceOwner } from '../inline-visualization-source-owner'
 import { NoopSessionDesktopLayer } from './desktop-service-test-layer'
 import { settingsLayer } from './local-session-command-dispatcher.test-support'
+import { UnboundWorkspaceTestLayer } from './unbound-workspace-test-layer'
 
 let temporaryRoot = ''
 afterEach(async () => {
@@ -37,6 +38,7 @@ async function prepareDeletion(
   await fs.writeFile(sourcePath, '<main>Session data</main>')
   let ownerExists = true
   const layer = Layer.mergeAll(
+    UnboundWorkspaceTestLayer,
     NoopSessionDesktopLayer,
     settingsLayer,
     Layer.succeed(InlineVisualizationService, visualizations),
