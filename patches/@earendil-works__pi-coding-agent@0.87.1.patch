@@ -1,5 +1,5 @@
 diff --git a/dist/core/agent-session.d.ts b/dist/core/agent-session.d.ts
-index 5620ac326bd3885819f4dbca401522c3058a640b..0111dd45a8771ae83c25d48b1bf1f3347643b490 100644
+index 5620ac326bd3885819f4dbca401522c3058a640b..e73b7e0f3a962943447a3a1d0a51c973ec5891b8 100644
 --- a/dist/core/agent-session.d.ts
 +++ b/dist/core/agent-session.d.ts
 @@ -104,6 +104,10 @@ export type AgentSessionEvent = Exclude<AgentEvent, {
@@ -73,7 +73,7 @@ index 5620ac326bd3885819f4dbca401522c3058a640b..0111dd45a8771ae83c25d48b1bf1f334
 -    steer(text: string, images?: ImageContent[], options?: {
 -        source?: InputSource;
 -    }): Promise<void>;
-+    steer(text: string, images?: ImageContent[], transformExpandedText?: (text: string) => string): Promise<string>;
++    steer(text: string, images?: ImageContent[], transformExpandedText?: (text: string) => string): Promise<string | undefined>;
      /**
       * Queue a follow-up message to be processed after the agent finishes.
       * Delivered only when agent has no more tool calls or steering messages.

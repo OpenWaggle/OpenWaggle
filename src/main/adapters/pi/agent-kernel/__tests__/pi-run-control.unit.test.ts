@@ -94,6 +94,22 @@ describe('Pi native run control', () => {
     expect(result).toEqual({ delivery: 'handled' })
   })
 
+  it('preserves ordinary steering consumed before it reaches the queue', async () => {
+    const session = {
+      isCompacting: false,
+      isStreaming: true,
+      model: modelFromReference('openai/gpt-5.5'),
+      ...nativeSteering(),
+      steer: vi.fn(async () => undefined),
+    }
+    const control = createPiRunControl(session, new AbortController().signal)
+
+    const result = await control.steer(payload('handled by input hook'))
+
+    expect(result).toEqual({ delivery: 'handled' })
+    expect(session.sessionManager.appendCustomEntry).not.toHaveBeenCalled()
+  })
+
   it('expands queued slash commands before delivering steering', async () => {
     const session = {
       isCompacting: false,

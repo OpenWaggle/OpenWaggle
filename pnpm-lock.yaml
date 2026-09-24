@@ -46,7 +46,7 @@ overrides:
 
 patchedDependencies:
   '@earendil-works/pi-ai@0.87.1': 3e2a8d56f9782c68a09337cf5f00e6a8cf0a188c7a12fa30e03a77671e528b26
-  '@earendil-works/pi-coding-agent@0.87.1': 420ef456e82e1e90eef7b6cfaebe4efb22e66251bc719de01ef2f8ee64d233a1
+  '@earendil-works/pi-coding-agent@0.87.1': 40aa7e6a546b3dfcf51374cf843cfebe46d6e0fde7e9cfe0f684f9e321018b0e
   node-pty@1.1.0: 74077b861173245cdcb2d2f92715b7a5a2195e447f964a73b65f6f7292b7d0fe
 
 importers:
@@ -61,7 +61,7 @@ importers:
         version: 0.87.1(patch_hash=3e2a8d56f9782c68a09337cf5f00e6a8cf0a188c7a12fa30e03a77671e528b26)(@modelcontextprotocol/sdk@1.30.0(supports-color@7.2.0)(zod@4.6.5))(supports-color@7.2.0)(ws@8.21.3)(zod@4.6.5)
       '@earendil-works/pi-coding-agent':
         specifier: catalog:pi-runtime
-        version: 0.87.1(patch_hash=420ef456e82e1e90eef7b6cfaebe4efb22e66251bc719de01ef2f8ee64d233a1)(@modelcontextprotocol/sdk@1.30.0(supports-color@7.2.0)(zod@4.6.5))(supports-color@7.2.0)(ws@8.21.3)(zod@4.6.5)
+        version: 0.87.1(patch_hash=40aa7e6a546b3dfcf51374cf843cfebe46d6e0fde7e9cfe0f684f9e321018b0e)(@modelcontextprotocol/sdk@1.30.0(supports-color@7.2.0)(zod@4.6.5))(supports-color@7.2.0)(ws@8.21.3)(zod@4.6.5)
       '@headless-tree/core':
         specifier: 1.7.0
         version: 1.7.0
@@ -512,7 +512,7 @@ importers:
     devDependencies:
       '@earendil-works/pi-coding-agent':
         specifier: catalog:pi-runtime
-        version: 0.87.1(patch_hash=420ef456e82e1e90eef7b6cfaebe4efb22e66251bc719de01ef2f8ee64d233a1)(@modelcontextprotocol/sdk@1.30.0(supports-color@7.2.0)(zod@4.6.5))(supports-color@7.2.0)(ws@8.21.3)(zod@4.6.5)
+        version: 0.87.1(patch_hash=40aa7e6a546b3dfcf51374cf843cfebe46d6e0fde7e9cfe0f684f9e321018b0e)(@modelcontextprotocol/sdk@1.30.0(supports-color@7.2.0)(zod@4.6.5))(supports-color@7.2.0)(ws@8.21.3)(zod@4.6.5)
       '@earendil-works/pi-tui':
         specifier: catalog:pi-runtime
         version: 0.87.1
@@ -7442,11 +7442,11 @@ packages:
     resolution: {integrity: sha512-faYHw0anBbc/kWF3zFTEnxSFOAGUX9GFbOBthvDdLsIlEoWOFOtS0zgCiQYwIskL9iGXZL3kAXD8OoZ4GmMATA==}
     engines: {node: '>= 18'}
 
-  typebox@1.3.32:
-    resolution: {integrity: sha512-iOdeK75dQ3OSdYviLGldHC9jFSo4exAjr5pN0XcLnYkI8bfz7G9v2q55cz+AyWhE9i8oVrHbcvOMCssgfD10Cg==}
-
   typebox@1.3.27:
     resolution: {integrity: sha512-zu+jc1pcy4UiNThxikUr36f0Rybk9PEeCg/NE6adeWr/SKsdNO4EzZHYRDlv2YCVAfj3Odq3dESSo/jNyoBXzA==}
+
+  typebox@1.3.32:
+    resolution: {integrity: sha512-iOdeK75dQ3OSdYviLGldHC9jFSo4exAjr5pN0XcLnYkI8bfz7G9v2q55cz+AyWhE9i8oVrHbcvOMCssgfD10Cg==}
 
   typed-array-buffer@1.0.3:
     resolution: {integrity: sha512-nAYYwfY3qnzX30IkA6AQZjVbtK6duGontcQm1WSG1MD94YLqK0515GNApXkoxKOWMusVssAHWLh9SeaoefYFGw==}
@@ -8810,7 +8810,7 @@ snapshots:
       - ws
       - zod
 
-  '@earendil-works/pi-coding-agent@0.87.1(patch_hash=420ef456e82e1e90eef7b6cfaebe4efb22e66251bc719de01ef2f8ee64d233a1)(@modelcontextprotocol/sdk@1.30.0(supports-color@7.2.0)(zod@4.6.5))(supports-color@7.2.0)(ws@8.21.3)(zod@4.6.5)':
+  '@earendil-works/pi-coding-agent@0.87.1(patch_hash=40aa7e6a546b3dfcf51374cf843cfebe46d6e0fde7e9cfe0f684f9e321018b0e)(@modelcontextprotocol/sdk@1.30.0(supports-color@7.2.0)(zod@4.6.5))(supports-color@7.2.0)(ws@8.21.3)(zod@4.6.5)':
     dependencies:
       '@earendil-works/chord': 0.87.1
       '@earendil-works/pi-agent-core': 0.87.1(@modelcontextprotocol/sdk@1.30.0(supports-color@7.2.0)(zod@4.6.5))(supports-color@7.2.0)(ws@8.21.3)(zod@4.6.5)
@@ -15678,9 +15678,9 @@ snapshots:
       media-typer: 1.1.1
       mime-types: 3.0.2
 
-  typebox@1.3.32: {}
-
   typebox@1.3.27: {}
+
+  typebox@1.3.32: {}
 
   typed-array-buffer@1.0.3:
     dependencies:
