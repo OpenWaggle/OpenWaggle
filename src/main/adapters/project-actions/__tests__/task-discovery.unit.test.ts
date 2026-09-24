@@ -173,6 +173,22 @@ describe('project task discovery', () => {
     )
   })
 
+  it('uses a project-relative source for the aggregate discovery limit', async () => {
+    const scripts = Object.fromEntries(
+      Array.from({ length: ACTION_DEFINITION_LIMITS.DISCOVERED_TASKS }, (_, index) => [
+        `task${index}`,
+        'echo ready',
+      ]),
+    )
+    await json('package.json', { scripts })
+    await put('hatch.toml', '[envs.default.scripts]\nextra = "echo ready"\n')
+    const discovery = await discoverProjectTasks(root)
+    expect(discovery.diagnostics).toContainEqual({
+      source: '.',
+      message: 'Task discovery reached its size limit. Narrow the workspace package patterns.',
+    })
+  })
+
   it('resolves a saved Hatch script beyond the discovery page', async () => {
     const scripts = Array.from(
       { length: ACTION_DEFINITION_LIMITS.DISCOVERED_TASKS + 1 },

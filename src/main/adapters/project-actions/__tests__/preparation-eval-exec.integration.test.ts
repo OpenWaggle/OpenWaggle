@@ -70,6 +70,32 @@ describe.skipIf(process.platform === 'win32')('setup commands using evaluated ex
         environment: { OW_ESCAPED_EVAL: 'loaded' },
       })
 
+      const argument = await execute({
+        ...input,
+        invocation: {
+          type: 'command',
+          command: String.raw`code='export OW_ESCAPED_ARGUMENT=loaded; export OW_ESCAPED_LITERAL=$(printf '%s' \eval)'; eval "$code"`,
+          directory: '.',
+        },
+      })
+      expect(argument).toMatchObject({
+        exitCode: 0,
+        environment: { OW_ESCAPED_ARGUMENT: 'loaded', OW_ESCAPED_LITERAL: 'eval' },
+      })
+
+      const conditionalEval = await execute({
+        ...input,
+        invocation: {
+          type: 'command',
+          command: String.raw`code='if true; then \eval "export OW_CONDITIONAL_EVAL=loaded; \exec /usr/bin/true"; fi'; eval "$code"`,
+          directory: '.',
+        },
+      })
+      expect(conditionalEval).toMatchObject({
+        exitCode: 0,
+        environment: { OW_CONDITIONAL_EVAL: 'loaded' },
+      })
+
       const nestedEscapedEval = await execute({
         ...input,
         invocation: {

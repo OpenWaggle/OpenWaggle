@@ -19,6 +19,21 @@ function isEscapedBuiltin(command: string, index: number, name: 'exec' | 'eval')
   return !/\w/.test(command[index + 1 + name.length] ?? '')
 }
 
+function isEvalCommandPosition(command: string, index: number) {
+  const prefix = command.slice(0, index)
+  const separator = Math.max(
+    ...['\n', ';', '&', '|', '(', '{'].map((character) => prefix.lastIndexOf(character)),
+  )
+  const segment = prefix.slice(separator + 1)
+  return /^\s*(?:(?:[A-Za-z_]\w*=\S+)\s+)*(?:(?:\\?command|\\?builtin|if|then|else|elif|do|while|until|time|!)\s+)*$/.test(
+    segment,
+  )
+}
+
+function isEscapedEvalInvocation(command: string, index: number) {
+  return isEscapedBuiltin(command, index, 'eval') && isEvalCommandPosition(command, index)
+}
+
 function isEscapedExecPrefix(command: string, index: number) {
   if (command[index] !== '\\' || /[\w\\]/.test(command[index - 1] ?? '')) return false
   return /^\\(?:command|builtin)(?=\s+\\?exec(?!\w))/.test(command.slice(index))
@@ -108,7 +123,7 @@ function visitCharacter(command: string, index: number, state: ScanState) {
   const heredoc = heredocAt(command, index)
   if (heredoc) state.pendingHeredocs.push(heredoc)
   if (!/<<-?\s*$/.test(command.slice(state.lineStart, index))) {
-    if (isEscapedBuiltin(command, index, 'eval')) {
+    if (isEscapedEvalInvocation(command, index)) {
       state.result += '__ow_'
       return index
     }

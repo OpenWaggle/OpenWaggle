@@ -897,6 +897,10 @@ the page, while still checking that the source belongs to the declared workspace
 The Actions menu must not disable a saved task merely because its reference is absent from that
 capped page; let backend preflight validate it at launch. Cargo aliases beginning with `+` are
 toolchain selectors in Cargo's CLI, so reject them even though other task names may use `+`.
+Keep aggregate task-limit diagnostics project-relative; their `source` is rendered in the editor.
+In Setup shell capture, rewrite escaped `eval` only when it is a command (including after shell
+keywords), not when it is an unquoted argument. Apply the same rule to code reparsed by runtime
+`eval`, or preparation can change captured environment values such as `printf '%s' \eval`.
 Interrupted sharing journals pin the filesystem directory identity and durable Workspace resource.
 Recovery keeps a draft when the checkout is missing, replaced, or releasing; publication must never
 recreate a deleted checkout. Private preparation retains its profile metadata so a teammate removing

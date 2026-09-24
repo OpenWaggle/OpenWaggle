@@ -85,4 +85,18 @@ describe('escaped exec capture', () => {
       command.replace(String.raw`; \eval "$code"`, '; __ow_eval "$code"'),
     )
   })
+
+  it('leaves escaped eval arguments alone while rewriting command-position invocations', () => {
+    const command = [
+      String.raw`export LABEL=$(printf '%s' \eval)`,
+      String.raw`printf '%s' \eval > literal.txt`,
+      String.raw`command \eval 'export READY=yes'`,
+      String.raw`if true; then \eval 'export CONDITIONAL=yes'; fi`,
+    ].join('\n')
+    expect(enableEscapedExecCapture(command)).toBe(
+      command
+        .replace(String.raw`command \eval`, 'command __ow_eval')
+        .replace(String.raw`then \eval`, 'then __ow_eval'),
+    )
+  })
 })

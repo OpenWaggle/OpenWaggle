@@ -26,7 +26,7 @@ export async function discoverProjectTasks(workspace: string): Promise<ProjectTa
   const diagnostics = discoveries.flatMap((discovery) => discovery.diagnostics)
   if (tasks.length > ACTION_DEFINITION_LIMITS.DISCOVERED_TASKS)
     diagnostics.push({
-      source: workspace,
+      source: '.',
       message: 'Task discovery reached its size limit. Narrow the workspace package patterns.',
     })
   return { tasks: tasks.slice(0, ACTION_DEFINITION_LIMITS.DISCOVERED_TASKS), diagnostics }
