@@ -1131,6 +1131,10 @@ later writes for that key; keep errors scoped to their history key so an unrelat
 failure cannot block a healthy action. If a crash loses an
 unflushed tail that the renderer already displayed, keep the renderer's cursor stable rather than
 clearing its output.
+Action `readWithCursor` must return the retained bytes counted by that cursor. Ordinary terminal
+replay scrubbing removes C0 controls such as backspace, BEL, and NUL, so applying it before action
+pagination shifts the apparent retained start and can repeat output or falsely report truncation.
+Keep replay scrubbing on the plain terminal `read` path.
 Draft-terminal owner migration must use the move operation's pending-write barrier and check
 failures only for source and destination owners. A global history flush can block first send in a
 healthy project when an unrelated terminal has a persistent history-write failure.

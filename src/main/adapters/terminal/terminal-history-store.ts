@@ -63,7 +63,7 @@ class TerminalHistoryStoreImpl implements TerminalHistoryStore {
     return this.enqueueMutation(async () => {
       await pendingBarrier
       await this.recoverCursor(key)
-      return this.readPersisted(key)
+      return stripTerminalReplaySequences(await this.readPersistedRaw(key))
     }).catch(() => '')
   }
 
@@ -72,7 +72,9 @@ class TerminalHistoryStoreImpl implements TerminalHistoryStore {
     return this.enqueueMutation(async () => {
       await pendingBarrier
       const endOffset = await this.recoverCursor(key)
-      const text = await this.readPersisted(key)
+      // Action cursors count the persisted bytes, including C0 controls that
+      // replay scrubbing would remove from the ordinary terminal read path.
+      const text = await this.readPersistedRaw(key)
       return { text, endOffset }
     })
   }
@@ -211,7 +213,7 @@ class TerminalHistoryStoreImpl implements TerminalHistoryStore {
     return result
   }
 
-  private async readPersisted(key: TerminalKey) {
+  private async readPersistedRaw(key: TerminalKey) {
     await this.files.ensureDirectory()
     const files = this.files.describe(key)
     const metadata = await this.files.readIfPresent(files.metadataFile)
@@ -225,7 +227,7 @@ class TerminalHistoryStoreImpl implements TerminalHistoryStore {
     )
     if (retained.text !== raw) await this.files.writePrivate(files.logFile, retained.text)
     this.states.set(key, { bytes: retained.bytes, lines: retained.lines })
-    return stripTerminalReplaySequences(retained.text)
+    return retained.text
   }
 
   private async loadState(key: TerminalKey) {

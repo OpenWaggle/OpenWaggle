@@ -290,6 +290,19 @@ describe('makeTerminalHistoryStore', () => {
     await expect(store.readWithCursor(toKey)).resolves.toEqual({ text: '', endOffset: null })
   })
 
+  it('preserves cursor-counted control bytes while keeping terminal replay scrubbed', async () => {
+    const store = makeTerminalHistoryStore(logsDir)
+    const key = 'session-action::output'
+    const output = 'before\b\u0007\u0000after'
+    store.appendWithCursor(key, output, Buffer.byteLength(output))
+
+    await expect(store.readWithCursor(key)).resolves.toEqual({
+      text: output,
+      endOffset: Buffer.byteLength(output),
+    })
+    await expect(store.read(key)).resolves.toBe('beforeafter')
+  })
+
   it('rejects a move collision without changing either history', async () => {
     const store = makeTerminalHistoryStore(logsDir)
     const fromKey = 'draft:/repo::main'
