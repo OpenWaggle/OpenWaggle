@@ -141,4 +141,15 @@ esac`,
       String.raw`printf > /dev/null \eval "$code"`,
     )
   })
+
+  it('keeps escaped eval arguments after parameter and brace expansions', () => {
+    const command = [
+      `printf '%s %s' \${VALUE} \\eval`,
+      String.raw`printf '%s %s' {left,right} \eval`,
+      String.raw`{ \eval "$code"; }`,
+    ].join('\n')
+    expect(enableEscapedExecCapture(command)).toBe(
+      command.replace(String.raw`{ \eval "$code"; }`, '{ __ow_eval "$code"; }'),
+    )
+  })
 })

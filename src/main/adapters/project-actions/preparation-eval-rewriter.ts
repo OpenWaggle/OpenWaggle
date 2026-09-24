@@ -2,7 +2,7 @@
 // exec tokens in that text so the exec alias captures exports made inside eval.
 export const runtimeEvalRewriter = String.raw`
 function keepsCommandPosition(word) {
-  return word ~ /^[[:alpha:]_][[:alnum:]_]*=/ ||
+  return word == "{" || word ~ /^[[:alpha:]_][[:alnum:]_]*=/ ||
     word ~ /^(\\?(command|builtin)|if|then|else|elif|do|while|until|time|!)$/
 }
 function redirectionOperatorLength(code, cursor,    triple, double, character) {
@@ -91,7 +91,7 @@ function isEvalCommandPosition(prefix,    cursor, character, following, quote, w
       }
       continue
     }
-    if (character ~ /[;&|{}]/) {
+    if (character ~ /[;&|]/) {
       expected = 1
       redirectionTarget = 0
       word = ""

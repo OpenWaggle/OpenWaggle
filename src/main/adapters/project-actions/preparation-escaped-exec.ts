@@ -23,6 +23,7 @@ function isEscapedBuiltin(command: string, index: number, name: 'exec' | 'eval')
 
 function keepsCommandPosition(word: string) {
   return (
+    word === '{' ||
     /^[A-Za-z_]\w*=/.test(word) ||
     /^(?:\\?(?:command|builtin)|if|then|else|elif|do|while|until|time|!)$/.test(word)
   )
@@ -126,7 +127,7 @@ function visitEvalPrefixUnquoted(
     closeEvalPrefixGroup(state)
     return cursor
   }
-  if (/[;&|{}]/.test(character)) {
+  if (/[;&|]/.test(character)) {
     state.commandPosition = true
     state.redirectionTarget = false
     state.word = ''

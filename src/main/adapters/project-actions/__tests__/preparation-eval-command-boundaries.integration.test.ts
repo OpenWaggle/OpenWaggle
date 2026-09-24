@@ -8,7 +8,7 @@ import { createPreparationExecutor } from '../preparation-process'
 
 const shells = ['/bin/bash', '/bin/zsh', '/bin/sh', '/bin/dash', '/bin/ksh', '/bin/mksh']
 
-const cases = [
+const cases: { variable: string; command: string; expected?: string }[] = [
   {
     variable: 'OW_MULTILINE_PAREN_CASE_ARM',
     command: String.raw`code='export OW_MULTILINE_PAREN_CASE_ARM=loaded; \exec /usr/bin/true'; case x in
@@ -29,6 +29,15 @@ esac'; eval "$wrapper"`,
     variable: 'OW_DYNAMIC_REDIRECTION',
     command: String.raw`code='export OW_DYNAMIC_REDIRECTION=loaded; \exec /usr/bin/true'; wrapper='2>&1 \eval "$code"'; eval "$wrapper"`,
   },
+  {
+    variable: 'OW_PARAMETER_LITERAL',
+    command: `VALUE=prefix; code='export OW_PARAMETER_LITERAL=$(printf "%s %s" \${VALUE} \\eval); \\exec /usr/bin/true'; eval "$code"`,
+    expected: 'prefix eval',
+  },
+  {
+    variable: 'OW_BRACE_GROUP',
+    command: String.raw`code='export OW_BRACE_GROUP=loaded; \exec /usr/bin/true'; wrapper='{ \eval "$code"; }'; eval "$wrapper"`,
+  },
 ]
 
 describe.skipIf(process.platform === 'win32')('evaluated setup command boundaries', () => {
@@ -43,7 +52,7 @@ describe.skipIf(process.platform === 'win32')('evaluated setup command boundarie
           directory,
           'test',
         )
-        for (const { variable, command } of cases) {
+        for (const { variable, command, expected } of cases) {
           const result = await execute({
             workspace: {
               workspaceId: 'eval-boundaries',
@@ -55,7 +64,10 @@ describe.skipIf(process.platform === 'win32')('evaluated setup command boundarie
             onOutput: () => {},
             invocation: { type: 'command', command, directory: '.' },
           })
-          expect(result).toMatchObject({ exitCode: 0, environment: { [variable]: 'loaded' } })
+          expect(result).toMatchObject({
+            exitCode: 0,
+            environment: { [variable]: expected ?? 'loaded' },
+          })
         }
       } finally {
         await rm(directory, { recursive: true, force: true })
