@@ -1,4 +1,7 @@
-import { SESSION_RESOURCE_MIGRATIONS } from './database-session-resource-migrations'
+import {
+  SESSION_RESOURCE_LOCAL_IMAGE_BACKFILL_MIGRATION,
+  SESSION_RESOURCE_MIGRATIONS,
+} from './database-session-resource-migrations'
 import {
   SESSION_HOST_BASELINE_MIGRATION_ID,
   SESSION_HOST_BASELINE_MIGRATION_NAME,
@@ -66,6 +69,10 @@ const currentIdentities = [
     id: SESSION_HOST_TURN_CHECKPOINT_STARTED_AT_MIGRATION_ID,
     name: 'turn-checkpoint-started-at',
   },
+  {
+    id: SESSION_RESOURCE_LOCAL_IMAGE_BACKFILL_MIGRATION.id,
+    name: SESSION_RESOURCE_LOCAL_IMAGE_BACKFILL_MIGRATION.name,
+  },
 ]
 
 export interface MigrationIdentity {
@@ -86,7 +93,11 @@ export function planSessionHostLedgerUpgrade(rows: readonly MigrationIdentity[])
       row.name === SESSION_HOST_BASELINE_MIGRATION_NAME,
   )
   const preSummaryIdentities = currentIdentities
-    .filter((row) => row.id >= SESSION_HOST_BASELINE_MIGRATION_ID)
+    .filter(
+      (row) =>
+        row.id >= SESSION_HOST_BASELINE_MIGRATION_ID &&
+        row.id <= SESSION_HOST_TURN_CHECKPOINT_STARTED_AT_MIGRATION_ID,
+    )
     .map((row) => ({ ...row, id: row.id - PRE_SUMMARY_HOST_MIGRATION_OFFSET }))
   const known = alpha
     ? hiveIdentities.map((row) => ({ ...row, id: row.id - ALPHA_MIGRATION_OFFSET }))

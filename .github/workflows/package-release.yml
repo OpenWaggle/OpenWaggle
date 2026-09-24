@@ -35,7 +35,7 @@ jobs:
     steps:
       - name: Create or update the coordinated package release PR
         id: release
-        uses: googleapis/release-please-action@1afbd760e855a7181e737350c3fe3fe085acd177 # v5
+        uses: googleapis/release-please-action@0b6b3fc0186a2f7118bfd88fab9ea481e1839504 # v5
         with:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json

@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { pullCurrentBranchFastForward } from '../../adapters/git/remote-sync'
 import { networkGitOptions } from '../../adapters/git/run-git'
 import { runWithGitNetworkLock } from '../../services/git/mutation-lock'
 import { resolvePrimaryRemoteResult } from './primary-remote'
@@ -285,13 +286,8 @@ export async function pushCurrentBranch(
 
 /** Pull the current branch. */
 export async function pullCurrentBranch(projectPath: string): Promise<GitPullResult> {
-  if (!(await isGitRepository(projectPath))) {
-    return { ok: false, code: 'not-git-repo', message: 'Selected folder is not a Git repository.' }
-  }
-  const result = await runWithGitNetworkLock(projectPath, () =>
-    runGit(projectPath, ['pull', '--ff-only'], networkGitOptions(PUSH_TIMEOUT_MS)),
-  )
-  return result.code === 0
-    ? { ok: true, code: 'ok', message: 'Pulled latest changes.' }
-    : { ok: false, code: 'pull-failed', message: result.stderr.trim() || 'Failed to pull.' }
+  const result = await pullCurrentBranchFastForward(projectPath)
+  return result.ok
+    ? { ok: true, code: 'ok', message: result.message }
+    : { ok: false, code: 'pull-failed', message: result.message }
 }

@@ -17,12 +17,12 @@ import {
   removeReplacedCopy,
   sha256,
 } from './session-resource-capture-shared'
-import type { CapturedImage } from './session-resource-extraction'
+import type { CapturedGeneratedImage, CapturedImage } from './session-resource-extraction'
 
 export function captureGeneratedImage(input: {
   readonly sessionId: SessionId
   readonly runId: string
-  readonly image: CapturedImage
+  readonly image: CapturedGeneratedImage
   readonly index: number
   readonly nodeId: string
   readonly createdAt: number
@@ -31,6 +31,7 @@ export function captureGeneratedImage(input: {
   readonly actor?: SessionResourceActor
   readonly label?: string | null
   readonly displayOrder?: number | null
+  readonly sourcePath?: string
 }) {
   return Effect.gen(function* () {
     const validated =
@@ -67,6 +68,7 @@ export function captureGeneratedImage(input: {
           actor: input.actor ?? 'agent',
           activity: 'created',
           label: input.label,
+          locator: input.sourcePath,
           displayName: fileName,
           displayOrder: input.displayOrder,
           createdAt: input.createdAt,
@@ -102,6 +104,7 @@ export function captureGeneratedImage(input: {
           actor: input.actor ?? 'agent',
           activity: 'created',
           label: input.label,
+          locator: input.sourcePath,
           displayName: fileName,
           displayOrder: input.displayOrder,
           createdAt: input.createdAt,
@@ -161,6 +164,7 @@ export function captureUnavailableGeneratedImage(input: {
         actor: input.actor ?? 'agent',
         activity: 'created',
         label: input.label,
+        locator: 'filePath' in input.image ? input.image.filePath : null,
         displayName: input.image.title,
         displayOrder: input.displayOrder,
         createdAt: input.createdAt,

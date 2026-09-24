@@ -1,3 +1,4 @@
+import { parse } from 'yaml'
 import { isObject } from './package-smoke-assertions'
 
 const MINIMUM_PACKAGE_SMOKE_NODE_MAJOR = 22
@@ -65,6 +66,23 @@ export function assertBrowserRuntimeResult(input: {
   if (issues.length > 0) {
     throw new Error(`Browser package smoke failed: ${issues.join('; ')}.`)
   }
+}
+
+export function resolvePackageSmokeCatalogVersion(
+  specifier: string,
+  dependencyName: string,
+  workspaceConfig: string,
+) {
+  if (!specifier.startsWith('catalog:')) return specifier
+  const workspace: unknown = parse(workspaceConfig)
+  const catalogName = specifier.slice('catalog:'.length)
+  const catalogs = isObject(workspace) && isObject(workspace.catalogs) ? workspace.catalogs : undefined
+  const catalog = catalogs && isObject(catalogs[catalogName]) ? catalogs[catalogName] : undefined
+  const version = catalog?.[dependencyName]
+  if (typeof version !== 'string') {
+    throw new Error(`Cannot resolve ${dependencyName} from catalog:${catalogName}.`)
+  }
+  return version
 }
 
 export function findPackageDependencyVersion(manifest: unknown, dependencyName: string) {

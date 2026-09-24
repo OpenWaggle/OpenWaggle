@@ -102,6 +102,17 @@ function assistantFingerprint(message: PiContextMessage | undefined) {
     : null
 }
 
+function samePromptIdentity(left: PiContextMessage, right: PiContextMessage) {
+  if (left.role !== right.role || left.timestamp !== right.timestamp) return false
+  if (left.role === 'user') return true
+  return (
+    left.role === 'custom' &&
+    right.role === 'custom' &&
+    left.customType === PI_WAGGLE_TURN_CUSTOM_TYPE &&
+    right.customType === PI_WAGGLE_TURN_CUSTOM_TYPE
+  )
+}
+
 /**
  * Keeps visualization state visible to the provider only for the turn that supplied it.
  * Pi persists input messages for replay, so consumed asides and older Waggle snapshots must be
@@ -173,21 +184,52 @@ export function bindVisualizationContextFilter(session: AgentSession) {
   const previousTransform = session.agent.transformContext?.bind(session.agent)
   const transformBaseContext = async (messages: PiContextMessage[], signal?: AbortSignal) =>
     previousTransform ? await previousTransform(messages, signal) : messages
+  let latestRequestContext:
+    | {
+        source: PiContextMessage[]
+        transformed: PiContextMessage[]
+        latestPromptRetained: boolean
+      }
+    | undefined
+  const capturedReferenceContext = (messages: PiContextMessage[]) => {
+    const captured = latestRequestContext
+    if (
+      !captured?.latestPromptRetained ||
+      captured.source.length > messages.length ||
+      !captured.source.every((message, index) => message === messages[index])
+    ) {
+      return messages
+    }
+    return [...captured.transformed, ...messages.slice(captured.source.length)]
+  }
   session.agent.transformContext = async (messages, signal) => {
     const transformed = await transformBaseContext(messages, signal)
-    return filterConsumedVisualizationContext(transformed)
+    const providerContext = await filterConsumedVisualizationContext(transformed)
+    const latestPrompt = messages.findLast((message) => promptFingerprint(message) !== null)
+    latestRequestContext = {
+      source: messages,
+      transformed: providerContext,
+      latestPromptRetained:
+        latestPrompt === undefined ||
+        providerContext.some((message) => samePromptIdentity(latestPrompt, message)),
+    }
+    return providerContext
   }
   const transformCompactionContext: PiCompactionContextTransform = async (
     messages,
     referenceMessages,
     options,
     signal,
-  ) =>
-    filterConsumedVisualizationContext(
-      await transformBaseContext(messages, signal),
-      referenceMessages,
+  ) => {
+    const transformedMessages = await transformBaseContext(messages, signal)
+    return filterConsumedVisualizationContext(
+      transformedMessages,
+      referenceMessages === messages
+        ? transformedMessages
+        : capturedReferenceContext(referenceMessages),
       options,
     )
+  }
   Reflect.set(session.agent, 'transformCompactionContext', transformCompactionContext)
 }
 

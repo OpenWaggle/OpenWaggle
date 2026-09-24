@@ -9,11 +9,9 @@ import {
 } from '../package-smoke-assertions'
 import {
   assertBrowserBundleContent,
+  resolvePackageSmokeCatalogVersion,
 } from '../package-smoke-runtime-assertions'
-import {
-  createSmokePackageJson,
-  packageManagerInstallArgs,
-} from '../package-smoke'
+import { createSmokePackageJson, packageManagerInstallArgs } from '../package-smoke'
 import {
   assertRequiredPackageManagers,
   availablePackageManagers,
@@ -72,6 +70,17 @@ describe('package smoke tarball assertions', () => {
       typescript: '6.0.0',
       vite: '7.0.0',
     })
+  })
+
+  it('resolves named catalog versions for external package consumers', () => {
+    const workspace = `catalogs:\n  pi-runtime:\n    "@earendil-works/pi-tui": 0.87.1\n`
+    expect(
+      resolvePackageSmokeCatalogVersion(
+        'catalog:pi-runtime',
+        '@earendil-works/pi-tui',
+        workspace,
+      ),
+    ).toBe('0.87.1')
   })
 
   it('uses portable install arguments for each package manager', () => {

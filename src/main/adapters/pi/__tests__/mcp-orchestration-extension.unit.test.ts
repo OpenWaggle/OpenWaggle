@@ -4,7 +4,7 @@ import type {
   ToolDefinition,
 } from '@earendil-works/pi-coding-agent'
 import type { McpGatewayInput, McpGatewayResult } from '@shared/types/mcp'
-import { fromPartial } from '@total-typescript/shoehorn'
+import { fromAny, fromPartial } from '@total-typescript/shoehorn'
 import { describe, expect, it, vi } from 'vitest'
 import { registerMcpOrchestrationTool } from '../mcp-orchestration-extension'
 
@@ -185,5 +185,27 @@ describe('Pi MCP orchestration extension', () => {
     expect(confirm).toHaveBeenCalledTimes(10)
     expect(peak).toBe(8)
     expect(outputJson(result)).toMatchObject({ summary: { completed: 10 } })
+  })
+
+  it('registers a flat object schema without a root-level anyOf union (issue #218)', () => {
+    const tool = register(vi.fn())
+    const shape = fromAny<
+      { type?: string; anyOf?: unknown[]; properties?: Record<string, unknown> },
+      unknown
+    >(JSON.parse(JSON.stringify(tool.parameters)))
+
+    expect(shape.type).toBe('object')
+    expect(shape.anyOf).toBeUndefined()
+    expect(shape.properties?.code).toBeDefined()
+    expect(shape.properties?.mode).toBeDefined()
+    expect(shape.properties?.calls).toBeDefined()
+  })
+
+  it('rejects arguments with neither code nor a legacy plan', async () => {
+    const tool = register(vi.fn())
+
+    await expect(tool.execute('run-1', {}, undefined, undefined, context(vi.fn()))).rejects.toThrow(
+      'MCP run requires code or a legacy plan.',
+    )
   })
 })

@@ -25,6 +25,12 @@ export interface StoreSessionResourceFileInput {
   readonly maxSizeBytes: number
 }
 
+export interface ReadSessionResourceSourceInput {
+  readonly sourcePath: string
+  readonly allowedRoots: readonly string[]
+  readonly maxSizeBytes: number
+}
+
 export interface SessionResourceStoreShape {
   readonly storeBytes: (
     input: StoreSessionResourceBytesInput,
@@ -32,6 +38,10 @@ export interface SessionResourceStoreShape {
   readonly storeFile: (
     input: StoreSessionResourceFileInput,
   ) => Effect.Effect<StoredSessionResourceFile, SessionResourceStoreError>
+  /** Reads a bounded source file after resolving it inside one of the authorized roots. */
+  readonly readSource: (
+    input: ReadSessionResourceSourceInput,
+  ) => Effect.Effect<Uint8Array, SessionResourceStoreError>
   /** Verifies that a managed path is a readable regular file without loading its payload. */
   readonly inspect: (managedPath: string) => Effect.Effect<void, SessionResourceStoreError>
   /** Opens a confined managed file for incremental protocol delivery. */

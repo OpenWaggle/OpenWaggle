@@ -221,10 +221,25 @@ async function defaultReadContent(input: {
   readonly sessionId: SessionId
   readonly resourceId: string
 }): Promise<SessionResourceProtocolContent | null> {
-  const [{ openSessionResourceContentStream }, { runAppEffect }] = await Promise.all([
+  const [
+    { readHostSessionResourceContent },
+    { openSessionResourceContentStream },
+    { runAppEffect },
+  ] = await Promise.all([
+    import('./application/host-ui-session-resource-content-client'),
     import('./application/session-resource-content'),
     import('./runtime'),
   ])
+  const remote = await readHostSessionResourceContent(input.sessionId, input.resourceId)
+  if (remote.handled) {
+    return remote.content
+      ? {
+          fileName: remote.content.fileName,
+          mimeType: remote.content.mimeType,
+          body: new Blob([Buffer.from(remote.content.bytes)]).stream(),
+        }
+      : null
+  }
   return runAppEffect(openSessionResourceContentStream(input.sessionId, input.resourceId))
 }
 

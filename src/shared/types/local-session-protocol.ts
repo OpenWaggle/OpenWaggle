@@ -1,8 +1,8 @@
 import type {
   LOCAL_SESSION_CAPABILITIES,
   LOCAL_SESSION_CURRENT_REVISION,
-  LOCAL_SESSION_REVISION_13_CAPABILITIES,
-  LOCAL_SESSION_TURN_DIFF_FILES_REVISION,
+  LOCAL_SESSION_REVISION_15_CAPABILITIES,
+  LOCAL_SESSION_WORKTREE_LAUNCH_REVISION,
 } from './local-session-protocol-revisions'
 export const LOCAL_SESSION_PROTOCOL_NAME = 'openwaggle-local-session' as const
 export const LOCAL_SESSION_MAX_CLIENT_VERSION_LENGTH = 128
@@ -246,8 +246,8 @@ export type LocalSessionNegotiationResult =
       typeof LOCAL_SESSION_CAPABILITIES
     >
   | AcceptedLocalSessionNegotiation<
-      typeof LOCAL_SESSION_TURN_DIFF_FILES_REVISION,
-      typeof LOCAL_SESSION_REVISION_13_CAPABILITIES
+      typeof LOCAL_SESSION_WORKTREE_LAUNCH_REVISION,
+      typeof LOCAL_SESSION_REVISION_15_CAPABILITIES
     >
   | {
       readonly accepted: false

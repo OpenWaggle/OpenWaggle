@@ -9,6 +9,7 @@ import {
   LOCAL_SESSION_REVISION_11_CAPABILITIES,
   LOCAL_SESSION_REVISION_12_CAPABILITIES,
   LOCAL_SESSION_REVISION_13_CAPABILITIES,
+  LOCAL_SESSION_REVISION_15_CAPABILITIES,
 } from '@shared/types/local-session-protocol'
 import { describe, expect, it } from 'vitest'
 import { supportedRevisionsForCommand } from '../local-session-client'
@@ -34,16 +35,16 @@ describe('Local Session authorization grant revision', () => {
         },
       })
 
-      expect(supportedRevisionsForCommand(payload)).toEqual([14, 13])
+      expect(supportedRevisionsForCommand(payload)).toEqual([16, 15])
       expect(() => decodeLocalSessionCommandPayloadForRevision(payload, 9)).toThrow(/revision 10/)
       expect(decodeLocalSessionCommandPayloadForRevision(payload, 10)).toEqual(payload)
     },
   )
 
-  it('keeps revision thirteen compatible and reserves update channels for revision fourteen', () => {
+  it('keeps revision fifteen compatible and reserves Session resources for revision sixteen', () => {
     const hello = {
       protocol: 'openwaggle-local-session',
-      supportedRevisions: [13, 12],
+      supportedRevisions: [15, 14],
       clientKind: 'gui',
       clientVersion: 'test',
     } as const
@@ -51,9 +52,9 @@ describe('Local Session authorization grant revision', () => {
     expect(current).toEqual({
       accepted: true,
       protocol: hello.protocol,
-      revision: 13,
+      revision: 15,
       hostInstanceId: 'host-current',
-      capabilities: LOCAL_SESSION_REVISION_13_CAPABILITIES,
+      capabilities: LOCAL_SESSION_REVISION_15_CAPABILITIES,
     })
     expect(LOCAL_SESSION_CAPABILITIES).toContain('host-ui:authorization-grants-v1')
     expect(LOCAL_SESSION_REVISION_10_CAPABILITIES).toContain('host-ui:authorization-grants-v1')
@@ -69,22 +70,24 @@ describe('Local Session authorization grant revision', () => {
     expect(decodeLocalSessionNegotiationResult(current)).toEqual(current)
 
     const latest = negotiateLocalSessionProtocol(
-      { ...hello, supportedRevisions: [14, 13] },
+      { ...hello, supportedRevisions: [16, 15] },
       'latest',
     )
-    if (!latest.accepted) throw new Error('Expected revision-fourteen negotiation.')
-    expect(latest.revision).toBe(14)
+    if (!latest.accepted) throw new Error('Expected revision-sixteen negotiation.')
+    expect(latest.revision).toBe(16)
     expect(latest.capabilities).toEqual(LOCAL_SESSION_CAPABILITIES)
     expect(latest.capabilities).toContain('desktop:services-v1')
     expect(latest.capabilities).toContain('host-ui:session-project-catalog-v1')
     expect(latest.capabilities).toContain('host-ui:turn-diff-files-v1')
     expect(latest.capabilities).toContain('updates:channel-v1')
+    expect(latest.capabilities).toContain('events:worktree-launch-v1')
+    expect(latest.capabilities).toContain('host-ui:session-resources-v1')
     expect(decodeLocalSessionNegotiationResult(latest)).toEqual(latest)
     expect(
       negotiateLocalSessionProtocol({ ...hello, supportedRevisions: [9] }, 'old').accepted,
     ).toBe(false)
-    expect(() => decodeLocalSessionNegotiationResult({ ...current, revision: 12 })).toThrow()
     expect(() => decodeLocalSessionNegotiationResult({ ...current, revision: 14 })).toThrow()
-    expect(() => decodeLocalSessionNegotiationResult({ ...latest, revision: 12 })).toThrow()
+    expect(() => decodeLocalSessionNegotiationResult({ ...current, revision: 16 })).toThrow()
+    expect(() => decodeLocalSessionNegotiationResult({ ...latest, revision: 15 })).toThrow()
   })
 })

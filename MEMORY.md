@@ -151,6 +151,7 @@ Load `.agents/skills/electron-runtime/SKILL.md` for details.
 - Selected-path export checkpoints use revisioned, resumable repair with bounded source reads and checkpoint writes per transaction. Yield between batches and preserve cancellation; never expose a partly rebuilt revision. Semantic scope reuse and refresh must be atomic, including policy shrink and expired-lease eviction.
 - Compaction integration must preserve Session Control as the owner of durable Follow-ups and steering. Carry compaction/retry activity snapshots through the Local Session transport so an attached GUI restores the same activity as the Host.
 - Pi steering acceptance is not transcript delivery. Session Control carries a bounded queued/handled receipt with the first eligible native entry order captured after compaction, before queueing, and a hash of the projected first user text block after Pi transformations. Visible transcript indexes shrink during compaction and optimistic user IDs change on reconnect; neither is an authoritative delivery boundary. Preserve canonical node order through UI conversion and React row-identity reconciliation. Keep previews through long tools and consult session-scoped activity before clearing on idle during navigation. Historical journal successes without receipts remain explicit unavailable receipts, never re-executed mutations.
+- Worktree birth fetches the chosen base branch from `origin` first (`src/main/adapters/git/remote-sync.ts`, `session-branch-freshness.ts`) and births from `origin/<base>` when the local branch is an ancestor of or equal to the remote tip; a local branch ahead of or diverged from the remote keeps its own tip, and fetch failures degrade to the recorded refs. Local-mode sessions run one best-effort `pull --ff-only` in `runPiAgentKernel` before their first run (`session.messages` empty), never on later turns. Birth tests mock `./session-branch-freshness`; its policy has its own unit tests.
 - Sidebar Git refresh effects must depend on the semantic working-path set, not the identity of a rebuilt Session array. Concurrent Git status reads share a pending request only within the same invalidation generation; loading-state publication must not trigger another refresh. A real Electron diff fixture exposed thousands of Git processes from this feedback loop despite completed-result caching.
 - Sidebar stabilization and status deduplication do not stop a route-level read-receipt loop. Persisting a visit broadcasts a Host Session update, which replaces the renderer detail object. Mark visits on navigation, not detail identity, and refresh route Git data only when its working or repository path changes. A bounded replay previously produced six receipt writes and six branch-list reads from five echoed receipts; it now produces one of each.
 - Renderer state that represents chat transcripts or active runs must be keyed by concrete `SessionId`, not only the active route.
@@ -189,6 +190,7 @@ Load `.agents/skills/electron-runtime/SKILL.md` for details.
 - Extension resource contributions use the approved `openwaggle.resources` broker capability with explicit Session scope. Publish payloads accept only credential-free HTTPS links/images; the host derives actor, occurrence, canonical identity, and Session ownership. List results expose display metadata only—never locators, managed paths, canonical keys, or occurrence history—and invalidation events carry the affected Session id.
 - Session resources retain two distinct locator concepts: the original public locator for provenance/open/reveal and the host-managed path for safe rendering. Raster image status is established from stored bytes, not filenames or declared MIME; SVG remains an ordinary file rather than renderable active content.
 - A remote image read refreshes its Session resource projection only after managed content materializes. Refreshing after a failed read bumps the resource revision and immediately repeats the same failed query; failures remain stable until the user explicitly retries.
+- After Session Host cutover, Session-resource catalog, backfill, and managed-content reads are Host-owned: the GUI `AppDatabase` is client-isolated and cannot see durable Session nodes. Route resource operations through a revisioned Host UI contract, return only bounded validated image bytes for GUI-native clipboard/attachment/protocol actions, and never add a second database writer. Agent-emitted local Markdown images may be copied only from the Session workspace or dedicated `electron-qa-evidence`/`openwaggle-evidence` directories under the platform temp parents; never authorize the whole shared temp tree. Keep the transcript path as provenance while rendering only the managed copy.
 
 ### Session-bound terminals (ADR 0030, September 2026)
 
@@ -389,6 +391,11 @@ Recording is a main/renderer protocol, not merely a `desktopCapturer` grant: suc
 - Do not suppress Fallow complexity findings; refactor instead.
 - Do not add legacy compatibility for removed pre-Pi surfaces unless explicitly requested.
 - Node 24 Vitest workers abort in better-sqlite3@12.11.1 teardown (`Statement::~Statement()` → `RemoveEnvironmentCleanupHook`). `@effect/sql-sqlite-node` pulls v12 while the app uses v13; keep the workspace override that makes Effect reuse v13.0.1. This removes the duplicate native addon and lets the full parallel unit suite finish.
+- Dependency-update trap: `packages/*/dist` is gitignored but consumed by root typecheck. A stale dist built mid-bisection caused 185 phantom type errors (`AnyNoContext`/`TypeId` mismatches that looked like effect/typebox breakage). After changing any dependency version, run `pnpm build:package-dependencies` before trusting typecheck results.
+- Root `undici` is 8.x. `secure-fetch.ts` must wrap each DNS-pinned `Agent` in Undici's `Dispatcher1Wrapper` before passing it to Node's **global** fetch, whose bundled Undici uses the legacy dispatcher protocol. Keep `allowH2: false` on those Agents to preserve HTTP/1.1 behavior. The `@earendil-works/pi-coding-agent>undici` override remains independent.
+- TanStack internal overrides (`@tanstack/history`, `router-core`, `router-generator`, `router-utils`) must move in lockstep with `@tanstack/react-router`; a pinned older `router-core` breaks at runtime with `SyntaxError: ... does not provide an export named 'getUrlScheme'` in unit suites, not at typecheck time.
+- `scripts/package-release-validator.ts` pins `release-please` to an exact version for deterministic preflight contracts; a dependency sweep must not bump it (the unit test catches it).
+- TanStack Query ≥5.102: `queryClient.query()` applies `select`, while the deprecated `fetchQuery` did not — a mechanical `fetchQuery`→`query` migration changes what test assertions receive (selected vs raw queryFn data).
 
 ### `fromPartial` hides fixture mismatches as well as expressing them
 
@@ -601,6 +608,10 @@ mutations through the Host's validated application operation, require protocol r
 retain GUI-only caller authority. A remote Host failure must not fall back to a local write.
 Deterministic tests hold a real config rename to verify overlapping writes preserve both changes.
 
+Pre-agent worktree progress is Host-owned run state too. Publish it through the Session Host event
+stream, seed the reconnectable stream buffer before `agent_start`, and relay it to renderer windows.
+A GUI-local broadcast is invisible when a detached Host owns the Run and cannot survive reconnects.
+
 Session authority stores canonical project and workspace paths as a durable snapshot, then checks
 the live Run scope again for long-running operations such as exports. Tests for these boundaries
 must use real canonical directories; invented paths exercise rejection rather than the intended
@@ -805,3 +816,12 @@ distinct active paths, invalidated by a durable generation trigger on Session in
 archive, or path change; SQLite `lower()` is ASCII-only and FTS trigram cannot cover short or
 canonically equivalent composed/decomposed queries. Agent-definition authorization for an older
 project uses an indexed exact-path existence check, not an unbounded Session projection list.
+
+Providers speaking the OpenAI-completions shape (GLM via OpenRouter confirmed) silently return
+tool-call `arguments: "{}"` for any tool whose parameter schema is a root-level `anyOf`/`oneOf`
+union; flat object schemas work, including nested property unions and `action` literal-union
+discriminators. First-class Pi tools must therefore register flat object schemas and enforce
+per-action required fields and enums at run time (see `sessions-tool-flat-schema.ts`, PR #219 /
+issue #218). When `pi.validateToolArguments` reports `Received arguments: {}`, suspect the
+provider dropping arguments for the schema shape before blaming parsing or permissions; the
+cheapest discriminator is a raw REST probe of the provider with the exact tool JSON.

@@ -8,6 +8,7 @@ import {
   runSessionResourceIdentityIsolationMigration,
   SESSION_RESOURCE_IDENTITY_ISOLATION_MIGRATION_STATEMENTS,
 } from './database-session-resource-identity-migration'
+import { SESSION_RESOURCE_LOCAL_IMAGE_BACKFILL_MIGRATION_ID } from './session-host-schema-identity'
 
 export const SESSION_RESOURCE_MIGRATIONS = [
   {
@@ -227,3 +228,31 @@ export const SESSION_RESOURCE_MIGRATIONS = [
     ],
   },
 ] as const
+
+export const SESSION_RESOURCE_LOCAL_IMAGE_BACKFILL_MIGRATION = {
+  id: SESSION_RESOURCE_LOCAL_IMAGE_BACKFILL_MIGRATION_ID,
+  name: 'session-resource-local-markdown-image-backfill',
+  statements: [
+    `DELETE FROM session_resource_occurrences
+     WHERE EXISTS (
+       SELECT 1
+       FROM session_resources resource
+       INNER JOIN session_nodes node
+         ON node.id = session_resource_occurrences.node_id
+        AND node.session_id = resource.session_id
+       WHERE resource.id = session_resource_occurrences.resource_id
+         AND resource.kind = 'image'
+         AND node.role = 'assistant'
+         AND node.content_json LIKE '%![%'
+         AND node.content_json LIKE '%file://%'
+     )`,
+    `DELETE FROM session_resource_backfill_state
+     WHERE EXISTS (
+       SELECT 1 FROM session_nodes node
+       WHERE node.session_id = session_resource_backfill_state.session_id
+         AND node.role = 'assistant'
+         AND node.content_json LIKE '%![%'
+         AND node.content_json LIKE '%file://%'
+     )`,
+  ],
+} as const

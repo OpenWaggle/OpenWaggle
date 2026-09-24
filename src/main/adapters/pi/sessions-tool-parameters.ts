@@ -47,6 +47,7 @@ const rootSpecialization = {
   thinking: Type.Optional(Type.String()),
 }
 
+// Flattened for registration: root-level anyOf unions break argument emission (#218).
 export const sessionsToolParameters = Type.Union([
   Type.Object({
     action: Type.Literal('create'),

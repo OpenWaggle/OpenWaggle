@@ -1,3 +1,4 @@
+import { SupportedModelId } from '@shared/types/brand'
 import type { SessionHostEventEnvelope } from '@shared/types/session-host-event'
 import { describe, expect, it } from 'vitest'
 import { createLocalSessionEventAdmissionFilter } from '../local-session-event-admission'
@@ -12,7 +13,30 @@ const TRANSPORT_EVENT: SessionHostEventEnvelope = {
   },
 }
 
+const WORKTREE_EVENT: SessionHostEventEnvelope = {
+  cursor: { hostInstanceId: 'host', sequence: 2 },
+  timestamp: 2,
+  payload: {
+    kind: 'session-worktree-launch',
+    sessionId: 'worker-session',
+    model: SupportedModelId('provider/model'),
+    mode: 'classic',
+    event: {
+      type: 'progress',
+      progress: { stage: 'checking-out-files', details: ['Checking out files'] },
+    },
+  },
+}
+
 describe('Local Session event admission', () => {
+  it('filters worktree events from the previous protocol revision', () => {
+    const caller = () => ({ callerId: 'local-user:test', eventAdmissionSessionIds: [] })
+
+    expect(createLocalSessionEventAdmissionFilter(caller, undefined, 14)(WORKTREE_EVENT)).toBe(
+      false,
+    )
+    expect(createLocalSessionEventAdmissionFilter(caller, undefined, 15)(WORKTREE_EVENT)).toBe(true)
+  })
   it('intersects a requested Session filter before buffering authorized events', () => {
     const admit = createLocalSessionEventAdmissionFilter(
       () => ({

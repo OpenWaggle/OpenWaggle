@@ -41,6 +41,12 @@ const {
 
 vi.mock('node:fs', () => ({ existsSync: existsSyncMock }))
 vi.mock('../../../git/run-git', () => ({ runGit: runGitMock }))
+vi.mock('../session-branch-freshness', () => ({
+  resolveFreshWorktreeBaseRef: vi.fn(
+    async (workspace: { readonly worktreeBaseRef?: string | null }): Promise<string | null> =>
+      workspace.worktreeBaseRef ?? 'main',
+  ),
+}))
 vi.mock('../../../git/worktree', () => ({ createGitWorktree: createGitWorktreeMock }))
 vi.mock('../../../../store/session-details', () => ({
   getBoundWorkspaceResource: vi.fn(async () => null),

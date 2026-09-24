@@ -91,7 +91,9 @@ function buildToolCallViewModel({
   isStreaming,
   expanded,
 }: ToolCallViewModelInput): ToolCallViewModel {
-  const hasConcreteResult = result ? hasConcreteToolOutput(result.content) : false
+  const hasConcreteResult = result
+    ? result.state !== 'partial' || hasConcreteToolOutput(result.content)
+    : false
   const resultError = getResultError(result)
   const isError = resultError !== null
   const isRunning = isToolRunning(state, result, isStreaming)

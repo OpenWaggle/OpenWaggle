@@ -26,6 +26,12 @@ describe('tool call block view helpers', () => {
         ],
       }),
     ).toBe('first\nsecond')
+    expect(getToolResultText({ content: [], details: 'undefined' })).toBe('')
+    expect(getToolResultText({ content: [], message: 'done' })).toBe('done')
+    expect(getToolResultText({ content: [], error: 'failed' })).toBe('failed')
+    expect(
+      getToolResultText({ content: [{ type: 'image', mimeType: 'image/png', data: 'abc' }] }),
+    ).toContain('"type": "image"')
   })
 
   it('extracts explicit and structured error messages', () => {

@@ -258,18 +258,15 @@ describe('useSessionResources', () => {
 
   it('stops a no-progress backfill loop with a retryable query error', async () => {
     resourceMocks.list.mockResolvedValue({ resources: [], backfillComplete: false })
-    resourceMocks.advanceBackfill.mockResolvedValue({
-      backfillComplete: false,
-      progressed: false,
-    })
+    resourceMocks.advanceBackfill.mockResolvedValue({ backfillComplete: false, progressed: false })
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     const options = sessionResourcesQueryOptions('session-one')
 
-    await client.fetchQuery(options)
+    await client.query(options)
     for (let attempt = 0; attempt < 4; attempt += 1) {
-      await client.fetchQuery(options)
+      await client.query(options)
     }
-    await expect(client.fetchQuery(options)).rejects.toThrow(
+    await expect(client.query(options)).rejects.toThrow(
       'Historical session resource indexing stalled',
     )
     expect(resourceMocks.advanceBackfill).toHaveBeenCalledTimes(5)
@@ -319,10 +316,11 @@ describe('useSessionResources', () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     const options = sessionResourcesQueryOptions('session-one')
 
-    await client.fetchQuery(options)
-    for (let pass = 0; pass < 6; pass += 1) await client.fetchQuery(options)
+    await client.query(options)
+    for (let pass = 0; pass < 6; pass += 1) await client.query(options)
 
-    await expect(client.fetchQuery(options)).resolves.toMatchObject({ resources: [RESOURCE] })
+    // queryClient.query applies `select`: resolves the selected resources.
+    await expect(client.query(options)).resolves.toMatchObject([RESOURCE])
     expect(resourceMocks.advanceBackfill).toHaveBeenCalledTimes(7)
   })
 })

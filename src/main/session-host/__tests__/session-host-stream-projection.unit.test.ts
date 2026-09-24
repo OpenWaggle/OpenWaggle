@@ -16,7 +16,7 @@ const SESSION_ID = SessionId('detached-host-session')
 describe('Session Host-owned stream projection', () => {
   afterEach(() => clearStreamBuffer(SESSION_ID))
 
-  it('buffers detached Host transport and clears it when the Run settles', () => {
+  it('buffers pre-agent worktree progress and detached Host transport until the Run settles', () => {
     const eventHub = new SessionHostEventHub()
     const liveness = new SessionHostLiveness({
       idleGracePeriodMs: 60_000,
@@ -24,6 +24,24 @@ describe('Session Host-owned stream projection', () => {
     })
     const release = installSessionHostEventRuntime({ eventHub, liveness })
     try {
+      publishSessionHostEvent({
+        kind: 'session-worktree-launch',
+        sessionId: SESSION_ID,
+        model: SupportedModelId('openai/gpt-5.5'),
+        mode: 'classic',
+        event: {
+          type: 'progress',
+          progress: {
+            stage: 'checking-out-files',
+            details: ['Creating ow/session-1 from feature/source'],
+          },
+        },
+      })
+      expect(getStreamBuffer(SESSION_ID)?.worktreeLaunch).toMatchObject({
+        status: 'running',
+        stage: 'checking-out-files',
+      })
+
       publishSessionHostEvent({
         kind: 'session-transport',
         sessionId: SESSION_ID,

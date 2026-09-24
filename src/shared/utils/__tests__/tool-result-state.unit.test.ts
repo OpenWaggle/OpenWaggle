@@ -13,8 +13,9 @@ describe('tool-result-state', () => {
     })
   })
 
-  it('treats undefined as the only missing tool output state', () => {
+  it("treats undefined and Pi's empty initial update as missing tool output", () => {
     expect(hasConcreteToolOutput(undefined)).toBe(false)
+    expect(hasConcreteToolOutput({ content: [], details: undefined })).toBe(false)
     expect(hasConcreteToolOutput('')).toBe(true)
     expect(hasConcreteToolOutput({ kind: 'json', data: null })).toBe(true)
   })

@@ -11,13 +11,21 @@ OpenWaggle has a first-party Model Context Protocol client and an optional OpenW
 
 MCP starts globally off. **Settings → MCP → Activation** exposes three switches:
 
-- **Global** is the master switch. When it is off, nothing connects or enters agent context anywhere, regardless of any project or server setting.
+- **Global** is the master switch. When it is off, nothing connects or enters agent context anywhere, regardless of any project or server setting. Installing a Recommended server turns Global on as part of the install, with a visible confirmation.
 - **Per project** turns MCP on or off for one project. A project follows Global until you turn it off, which disables MCP for that project only and never affects other projects. The Activation panel lists your known projects so you can toggle any of them.
 - **Per server, per project** enables or disables each individual server for the selected project — including servers inherited from your global config. Disabling a server for one project leaves it running in every other project; the override is stored per project (keyed by project path) and cannot leak between projects. Required servers always run and cannot be disabled this way.
 
 Effective state still resolves session → project → global underneath, so a session can override a project and a project can override global; the Activation UI presents this as plain on/off.
 
 Off means no server connection, local process, MCP tool, server instruction, subscription, or MCP-derived context for that scope. Changes made during a running turn are shown as pending and apply at the next safe turn boundary. Disabling a server stops local interaction but cannot prove that remote work stopped; durable remote Tasks stay visible and say when re-enabling is required to request cancellation.
+
+## Recommended servers and one-step trust
+
+**Settings → MCP → Recommended servers** lists OpenWaggle's curated catalog (Playwright MCP and Chrome DevTools MCP). One click writes the definition, enables it, and connects it — no extra approvals. Catalog servers always run with current derived grants.
+
+For every other server, enabling it is the one trust action: the enable toggle trusts the current configuration hash and connects the server. Permissions are derived from the definition instead of being hand-picked: package-runner commands (`npx`, `pnpm`, `uvx`, `bunx`) and remote endpoints derive outbound network plus package-cache access, because they cannot work without it; a plain local command keeps the minimal sandbox profile. "Run unsandboxed" remains available as an escape hatch for platforms without a usable OS sandbox.
+
+A configuration edit no longer blocks a server. The server reconnects with fresh derived grants and the change is shown as a notice. Plaintext secret-like env values (for example an `API_TOKEN`) are allowed; OpenWaggle shows an informational notice pointing at the encrypted vault for safer storage. Secret references such as `{ "secret": "GITHUB_TOKEN" }` remain supported and never go into the shared `.mcp.json` (see below).
 
 ## Configuration files
 
@@ -27,7 +35,7 @@ OpenWaggle merges these sources by server name, with later project sources winni
 - `<project>/.mcp.json`
 - `<project>/.openwaggle/mcp.json`
 
-Project config may request a server but cannot enable or trust it. User-owned state is stored separately under `~/.openwaggle/mcp/`. Credentials use vault references such as `{ "secret": "GITHUB_TOKEN" }`; never put secret values in JSON.
+Project config may request a server but cannot enable or trust it. User-owned state is stored separately under `~/.openwaggle/mcp/`. Plaintext secret-like values are allowed and surfaced as a notice; vault references such as `{ "secret": "GITHUB_TOKEN" }` are an opt-in upgrade for safer storage.
 
 Keep secret references in an OpenWaggle-owned file — `~/.openwaggle/mcp.json` or `<project>/.openwaggle/mcp.json` — not in the shared `<project>/.mcp.json`. The standard `.mcp.json` is also read by other MCP tools (for example Pi's own MCP adapter) that expect plain string values and crash on a `{ "secret": … }` object, so OpenWaggle refuses to save a secret reference into `.mcp.json` and points you to `.openwaggle/mcp.json` instead. Because project sources merge by name with `.openwaggle/mcp.json` winning, you can leave a plain, secret-free (or `${VAR}`) entry in `.mcp.json` for other tools and override it with the secret-bearing definition in `.openwaggle/mcp.json`.
 
@@ -67,7 +75,7 @@ Open **Settings → MCP → Migrate existing MCP configuration** and choose **Sc
 - `<project>/.openwaggle/agent/mcp.json`
 - disabled definitions under `openwaggle.disabledMcpServers` in `<project>/.mcp.json`
 
-Review warnings before importing. OpenWaggle preserves source-path provenance, does not copy plaintext credentials, and imports every selected definition disabled and untrusted. Existing target definitions win instead of being overwritten. The standard active definitions in `<project>/.mcp.json` already remain available directly and are not duplicated by migration.
+Review warnings before importing. OpenWaggle preserves source-path provenance, does not copy plaintext credentials, and imports every selected definition enabled and connected in the same action. When no servers are configured yet, OpenWaggle scans automatically and offers the import instead of waiting for you to find the button. Existing target definitions win instead of being overwritten. The standard active definitions in `<project>/.mcp.json` already remain available directly and are not duplicated by migration.
 
 The migration removes only the exact OpenWaggle-owned `extensions/pi-mcp-adapter` entry from Pi settings. A user-managed `pi-mcp-adapter` npm package remains installed and configured for standalone Pi and other projects, but OpenWaggle does not load it because the desktop app now owns MCP directly. OpenWaggle does not delete unrelated packages or legacy configuration files, so the scan can be rerun while you verify the new definitions.
 
@@ -205,4 +213,4 @@ Successful calls return the canonical local result in both MCP forms: JSON text 
 
 ## When something fails
 
-OpenWaggle reports the affected server, impact, cause, responsible side, next action, and whether work may still be running remotely. Use Refresh after correcting config, `openwaggle mcp doctor` for static checks, and the Event Inbox or durable Task card for state that needs inspection. Trust is invalidated when the executable, endpoint, package fingerprint, requested capabilities, security profile, or effective config changes.
+OpenWaggle reports the affected server, impact, cause, responsible side, next action, and whether work may still be running remotely. Use Refresh after correcting config, `openwaggle mcp doctor` for static checks, and the Event Inbox or durable Task card for state that needs inspection. A configuration change is shown as a notice and the server reconnects with freshly derived grants on the next turn.

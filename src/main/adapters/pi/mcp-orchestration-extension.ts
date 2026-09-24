@@ -17,21 +17,24 @@ const orchestrationCall = Type.Object({
   arguments: Type.Optional(Type.Record(Type.String(), Type.Unknown())),
 })
 
-const orchestrationParameters = Type.Union([
-  Type.Object({
-    code: Type.String({
+// Flat registration schema: root-level anyOf unions make some providers (GLM via
+// OpenRouter) emit `{}` arguments (#218). programFromParameters enforces the
+// code-or-plan contract at run time.
+const orchestrationToolParameters = Type.Object({
+  code: Type.Optional(
+    Type.String({
       maxLength: MCP_CONFIG.MAX_ORCHESTRATION_SOURCE_BYTES,
       description: 'Restricted JavaScript-like orchestration source. See the mcp_run grammar.',
     }),
-  }),
-  Type.Object({
-    mode: Type.Union([Type.Literal('sequential'), Type.Literal('parallel')]),
-    calls: Type.Array(orchestrationCall, {
+  ),
+  mode: Type.Optional(Type.Union([Type.Literal('sequential'), Type.Literal('parallel')])),
+  calls: Type.Optional(
+    Type.Array(orchestrationCall, {
       minItems: 1,
       maxItems: MCP_CONFIG.MAX_ORCHESTRATION_CALLS,
     }),
-  }),
-])
+  ),
+})
 
 type McpCallReview = Awaited<ReturnType<typeof reviewMcpCall>>
 
@@ -203,7 +206,7 @@ export function registerMcpOrchestrationTool(pi: ExtensionAPI, executeGateway: E
     label: 'MCP run',
     description:
       'Run restricted JavaScript-like MCP orchestration with variables, conditions, and bounded parallel calls. No eval, runtime, filesystem, process, module, timer, or ambient network authority. Every child call is approved and attributed separately. The legacy JSON plan remains accepted for compatibility.',
-    parameters: orchestrationParameters,
+    parameters: orchestrationToolParameters,
     executionMode: 'sequential',
     async execute(_toolCallId, params, signal, onUpdate, ctx) {
       const progress = new Map<string, McpOrchestrationChildResult>()

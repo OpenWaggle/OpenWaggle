@@ -71,6 +71,7 @@ export class LocalSessionConnection {
       admission: this.admission,
       cursorProjection,
       caller: () => this.caller,
+      negotiatedRevision: () => this.negotiatedRevision,
       closed: () => this.closed,
       send: (frame) => this.send(frame),
       connectionFailed: () => this.socket.destroy(),

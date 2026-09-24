@@ -2,6 +2,16 @@ packages:
   - "packages/*"
   - "website"
 
+catalogs:
+  pi-runtime:
+    "@earendil-works/pi-agent-core": 0.87.1
+    "@earendil-works/pi-ai": 0.87.1
+    "@earendil-works/pi-client": 0.87.1
+    "@earendil-works/pi-coding-agent": 0.87.1
+    "@earendil-works/pi-protocol": 0.87.1
+    "@earendil-works/pi-telemetry": 0.87.1
+    "@earendil-works/pi-tui": 0.87.1
+
 # Supply-chain hardening: delay installs until a release has had time to be
 # vetted, and never accept weakening trust signals (provenance/signatures).
 minimumReleaseAge: 10080
@@ -40,7 +50,7 @@ trustPolicyExclude:
 
 minimumReleaseAgeExclude:
   - "@diegogbrisa/*"
-  - hono@4.12.34
+  - hono@4.13.7
   - undici@8.10.0
   - "@aws-sdk/client-bedrock-runtime@3.1092.0"
   - "@aws-sdk/core@3.976.0"
@@ -56,14 +66,15 @@ minimumReleaseAgeExclude:
   - "@aws-sdk/nested-clients@3.997.34"
   - "@aws-sdk/token-providers@3.1092.0"
   # Pi publishes its runtime packages as a matched set. Keep these exact while
-  # 0.84.4 completes the normal seven-day minimum-release-age window.
-  - "@earendil-works/pi-agent-core@0.84.4"
-  - "@earendil-works/pi-ai@0.84.4"
-  - "@earendil-works/pi-client@0.84.4"
-  - "@earendil-works/pi-coding-agent@0.84.4"
-  - "@earendil-works/pi-protocol@0.84.4"
-  - "@earendil-works/pi-telemetry@0.84.4"
-  - "@earendil-works/pi-tui@0.84.4"
+  # 0.87.1 completes the normal seven-day minimum-release-age window.
+  - "@earendil-works/chord@0.87.1"
+  - "@earendil-works/pi-agent-core@0.87.1"
+  - "@earendil-works/pi-ai@0.87.1"
+  - "@earendil-works/pi-client@0.87.1"
+  - "@earendil-works/pi-coding-agent@0.87.1"
+  - "@earendil-works/pi-protocol@0.87.1"
+  - "@earendil-works/pi-telemetry@0.87.1"
+  - "@earendil-works/pi-tui@0.87.1"
   - "@hono/node-server@2.0.11"
   - "@huggingface/transformers@4.2.0"
   - adm-zip@0.6.0
@@ -98,10 +109,10 @@ minimumReleaseAgeExclude:
   - "@smithy/fetch-http-handler@5.6.9"
   - "@smithy/node-http-handler@4.9.9"
   - "@smithy/signature-v4@5.6.8"
-  - "@tanstack/eslint-plugin-query@5.101.4"
-  - "@tanstack/query-core@5.101.4"
-  - "@tanstack/react-query@5.101.4"
-  - "@vitejs/plugin-react@6.0.4"
+  - "@tanstack/eslint-plugin-query@5.102.8"
+  - "@tanstack/query-core@5.102.8"
+  - "@tanstack/react-query@5.102.8"
+  - "@vitejs/plugin-react@6.1.1"
   - bare-url@2.4.6
   - baseline-browser-mapping@2.11.0
   - browserslist@4.28.7
@@ -112,37 +123,45 @@ minimumReleaseAgeExclude:
   - oxlint-tsgolint@7.0.2001
   - oxlint@1.75.0
   - postcss@8.5.22
-  - react-dom@19.2.8
-  - react@19.2.8
+  - react-dom@19.3.0
+  - react@19.3.0
   - release-please@17.10.4
   - tar@7.5.21
-  - sharp@0.35.3
+  - sharp@0.35.4
 
 overrides:
   "@hono/node-server": 2.0.11
   # better-sqlite3 12 aborts during Node 24 worker teardown; reuse the app's v13.
-  "@effect/sql-sqlite-node>better-sqlite3": 13.0.1
+  "@effect/sql-sqlite-node>better-sqlite3": 13.0.3
   "@earendil-works/pi-coding-agent>undici": 8.10.0
   "@huggingface/transformers>onnxruntime-node": 1.23.2
-  adm-zip: 0.6.0
-  electron-vite>vite: 8.1.5
-  hono: 4.12.34
+  # Vulnerability floors (GHSA advisories, 2026-09 audit).
+  adm-zip: 0.6.1
+  "js-yaml@^4": ^4.3.2
+  "@xmldom/xmldom@<0.8.15": 0.8.15
+  "devalue@<5.9.1": ^5.9.1
+  "svgo@^4": ^4.1.0
+  "smol-toml@<1.8": ^1.8.0
+  fast-uri: ^3.1.6
+  qs: ^6.16.0
+  electron-vite>vite: 8.3.0
+  hono: 4.13.7
   protobufjs: 8.7.1
-  sharp: 0.35.3
-  "@tanstack/history": 1.162.0
-  "@tanstack/query-core": 5.101.4
+  sharp: 0.35.4
+  "@tanstack/history": 1.162.4
+  "@tanstack/query-core": 5.102.8
   "@tanstack/react-hotkeys": 0.10.0
-  "@tanstack/react-query": 5.101.4
-  "@tanstack/react-router": 1.170.18
-  "@tanstack/router-core": 1.171.15
-  "@tanstack/router-generator": 1.167.21
-  "@tanstack/router-plugin": 1.168.23
-  "@tanstack/router-utils": 1.162.2
+  "@tanstack/react-query": 5.102.8
+  "@tanstack/react-router": 1.170.36
+  "@tanstack/router-core": 1.171.30
+  "@tanstack/router-generator": 1.167.36
+  "@tanstack/router-plugin": 1.168.38
+  "@tanstack/router-utils": 1.162.3
   "@tanstack/virtual-file-routes": 1.162.0
 
 peerDependencyRules:
   allowedVersions:
-    eslint-plugin-import>eslint: 10.7.0
+    eslint-plugin-import>eslint: 10.10.0
     "@tanstack/eslint-plugin-query>typescript": 7.0.2
     "@typescript-eslint/project-service>typescript": 7.0.2
     "@typescript-eslint/tsconfig-utils>typescript": 7.0.2
@@ -165,6 +184,6 @@ allowBuilds:
   unrs-resolver: false
 
 patchedDependencies:
+  '@earendil-works/pi-ai@0.87.1': patches/@earendil-works__pi-ai@0.87.1.patch
+  '@earendil-works/pi-coding-agent@0.87.1': patches/@earendil-works__pi-coding-agent@0.87.1.patch
   node-pty@1.1.0: patches/node-pty@1.1.0.patch
-  '@earendil-works/pi-ai@0.84.4': patches/@earendil-works__pi-ai@0.84.4.patch
-  '@earendil-works/pi-coding-agent@0.84.4': patches/@earendil-works__pi-coding-agent@0.84.4.patch
