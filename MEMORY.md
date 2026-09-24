@@ -1125,6 +1125,9 @@ PowerShell's `& ($commands[0])` wraps the indexed target in a `ParenExpressionAs
 one `PipelineAst` and one `CommandExpressionAst`. Unwrap only that inert shape recursively;
 leave pipelines and expressions with command calls unresolved so failure classification never
 reruns user code.
+Interpolated call-operator targets such as `& "$exe"` use `ExpandableStringExpressionAst`.
+Reconstruct only literal segments without PowerShell escapes and nested inert string expressions;
+reject command-bearing subexpressions so inspecting a failed native command never repeats effects.
 
 Action run output cursors cannot be recovered from retained log length after scrollback
 compaction: the Host may flush the log before its throttled SQLite `outputBytes` update. Journal

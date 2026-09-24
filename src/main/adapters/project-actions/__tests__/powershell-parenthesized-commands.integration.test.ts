@@ -42,6 +42,28 @@ it.skipIf(!powerShellAvailable)(
 )
 
 it.skipIf(!powerShellAvailable)(
+  'preserves native exits for inert interpolated command targets',
+  async () => {
+    const runner = createActionProcessRunner('test')
+    const stem = process.platform === 'win32' ? 'cmd' : 'sh'
+    const prefixed = process.platform === 'win32' ? '"$stem.exe"' : '"/bin/$stem"'
+    for (const command of [
+      `$exe = '${native}'; & "$exe" ${args}`,
+      `$stem = '${stem}'; & ${prefixed} ${args}`,
+      `$commands = @('${native}'); & "$($commands[0])" ${args}`,
+    ]) {
+      const child = await runner.start({
+        invocation: { type: 'command', command, cwd: root },
+        environment: { SHELL: powerShell },
+        onOutput: () => {},
+      })
+      live.push(child)
+      expect(await child.closed).toEqual({ exitCode: 7 })
+    }
+  },
+)
+
+it.skipIf(!powerShellAvailable)(
   'preserves the native exit code of a parenthesized indexed Setup command',
   async () => {
     const destination = join(root, 'environment.json')
@@ -66,6 +88,30 @@ it.skipIf(!powerShellAvailable)(
 )
 
 it.skipIf(!powerShellAvailable)(
+  'preserves the native exit code of an interpolated Setup command',
+  async () => {
+    const destination = join(root, 'interpolated-environment.json')
+    const capture = await preparationCaptureInvocation(
+      {
+        type: 'command',
+        cwd: root,
+        command: `$env:OW_INTERPOLATED_SETUP = 'loaded'; $exe = '${native}'; & "$exe" ${args}`,
+      },
+      destination,
+      powerShell,
+      {},
+    )
+    if (capture.invocation.type !== 'executable') throw new Error('Expected PowerShell wrapper')
+    const result = spawnSync(capture.invocation.executable, capture.invocation.args, {
+      cwd: root,
+      encoding: 'utf8',
+    })
+    expect(result.status).toBe(7)
+    await expect(readFile(destination, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
+  },
+)
+
+it.skipIf(!powerShellAvailable)(
   'does not reevaluate a side-effecting parenthesized command while classifying failure',
   async () => {
     const marker = join(root, 'calls.txt')
@@ -74,6 +120,26 @@ it.skipIf(!powerShellAvailable)(
       invocation: {
         type: 'command',
         command: `& ($(Add-Content -LiteralPath '${marker}' -Value called; '${native}')) ${args}`,
+        cwd: root,
+      },
+      environment: { SHELL: powerShell },
+      onOutput: () => {},
+    })
+    live.push(child)
+    expect(await child.closed).toEqual({ exitCode: 1 })
+    expect((await readFile(marker, 'utf8')).trim()).toBe('called')
+  },
+)
+
+it.skipIf(!powerShellAvailable)(
+  'does not reevaluate a side-effecting interpolation while classifying failure',
+  async () => {
+    const marker = join(root, 'interpolation-calls.txt')
+    const runner = createActionProcessRunner('test')
+    const child = await runner.start({
+      invocation: {
+        type: 'command',
+        command: `& "$(Add-Content -LiteralPath '${marker}' -Value called; '${native}')" ${args}`,
         cwd: root,
       },
       environment: { SHELL: powerShell },
