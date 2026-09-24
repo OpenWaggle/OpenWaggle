@@ -23,6 +23,7 @@ function redirectionOperatorLength(code, cursor,    triple, double, character) {
   return character == ">" || character == "<" ? 1 : 0
 }
 function isEvalCommandPosition(prefix,    cursor, character, following, quote, word, expected, depth, redirectionTarget, redirectLength, prefixCommand, option) {
+  if (prefix ~ /(^|[^[:alnum:]_])(function[[:space:]]+[[:alpha:]_][[:alnum:]_]*([(][)])?|[[:alpha:]_][[:alnum:]_]*[(][)])[[:space:]]*[{][[:space:]]*$/) return 1
   quote = ""
   word = ""
   expected = 1
@@ -255,11 +256,10 @@ BEGIN { RS = sprintf("%c", 28) }
       previous = character
       continue
     }
-    if (substr(code, i, 3) == "$((") {
-      arithmeticDepth = 2
-      printf "$(("
-      i += 2
-      previous = "("
+    if (substr(code, i, 3) == "$((" || substr(code, i, 2) == "((") {
+      arithmeticDepth = 2; previous = "("; expansion = substr(code, i, 3) == "$(("
+      printf "%s", expansion ? "$((" : "(("
+      i += expansion ? 2 : 1
       continue
     }
     evalLength = quotedBuiltinWordLength(code, i, "eval")

@@ -1090,8 +1090,10 @@ POSIX command-position scanners must keep valid `command --`, `command -p`, and 
 the option-prefixed eval through its capture wrapper, since the shell builtin `command`
 cannot invoke the wrapper function. `command -p --` is a valid combined prefix, while
 `command -- -p` is an end-of-options command operand and must not be rewritten.
-Arithmetic left shifts inside `$((...))` are not heredocs; both static and runtime Setup
-scanners must skip those operators so a later escaped exec remains capturable.
+Arithmetic left shifts inside `$((...))` expansions and `((...))` commands are not heredocs;
+both static and runtime Setup scanners must skip those operators so a later escaped exec
+remains capturable. Inline `name() {` and `function name {` bodies also begin a new command
+list: an escaped eval immediately inside the brace must be captured at command position.
 PowerShell call-operator targets can be member expressions
 such as `& $commands.main`; resolve only inert variable, constant, index, and note-property
 AST shapes when classifying the final command, without reevaluating user code or borrowing an

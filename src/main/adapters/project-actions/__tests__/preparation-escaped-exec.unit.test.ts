@@ -80,6 +80,14 @@ ex\ec /usr/bin/true`
     )
   })
 
+  it('does not mistake an arithmetic command left shift for a heredoc', () => {
+    const command = String.raw`export READY=yes; ((1 << 2))
+ex\ec /usr/bin/true`
+    expect(enableEscapedExecCapture(command)).toBe(
+      command.replace(String.raw`ex\ec /usr/bin/true`, 'exec /usr/bin/true'),
+    )
+  })
+
   it('does not mistake a here-string for a heredoc', () => {
     expect(enableEscapedExecCapture('cat <<< value\n\\exec /usr/bin/true')).toBe(
       'cat <<< value\nexec /usr/bin/true',
@@ -169,6 +177,17 @@ esac`,
     ].join('\n')
     expect(enableEscapedExecCapture(command)).toBe(
       command.replaceAll(String.raw`\eval`, '__ow_eval'),
+    )
+  })
+
+  it('captures escaped eval at the start of inline function bodies', () => {
+    const command = [
+      String.raw`f() { \eval "$code"; }; f`,
+      String.raw`function g { \eval "$code"; }; g`,
+      String.raw`printf '%s' \eval`,
+    ].join('\n')
+    expect(enableEscapedExecCapture(command)).toBe(
+      command.replaceAll(String.raw`{ \eval "$code"`, '{ __ow_eval "$code"'),
     )
   })
 

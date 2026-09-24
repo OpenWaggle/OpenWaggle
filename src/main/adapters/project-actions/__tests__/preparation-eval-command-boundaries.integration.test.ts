@@ -7,8 +7,14 @@ import { createActionProcessRunner } from '../action-process'
 import { createPreparationExecutor } from '../preparation-process'
 
 const shells = ['/bin/bash', '/bin/zsh', '/bin/sh', '/bin/dash', '/bin/ksh', '/bin/mksh']
+const arithmeticShells = ['/bin/bash', '/bin/zsh', '/bin/ksh', '/bin/mksh']
 
-const cases: { variable: string; command: string; expected?: string }[] = [
+const cases: {
+  variable: string
+  command: string
+  expected?: string
+  supportedShells?: string[]
+}[] = [
   {
     variable: 'OW_QUOTED_NEWLINE',
     command: `printf '%s' "foo\nbar"; export OW_QUOTED_NEWLINE=loaded; ex\\ec /usr/bin/true`,
@@ -41,6 +47,36 @@ ex\ec /usr/bin/true`,
     variable: 'OW_DYNAMIC_ARITHMETIC_SHIFT',
     command: String.raw`code='export OW_DYNAMIC_ARITHMETIC_SHIFT=loaded; : $((1 << 2))
 ex\ec /usr/bin/true'; eval "$code"`,
+  },
+  {
+    variable: 'OW_ARITHMETIC_COMMAND_SHIFT',
+    supportedShells: arithmeticShells,
+    command: String.raw`export OW_ARITHMETIC_COMMAND_SHIFT=loaded; ((1 << 2))
+ex\ec /usr/bin/true`,
+  },
+  {
+    variable: 'OW_DYNAMIC_ARITHMETIC_COMMAND_SHIFT',
+    supportedShells: arithmeticShells,
+    command: String.raw`code='export OW_DYNAMIC_ARITHMETIC_COMMAND_SHIFT=loaded; ((1 << 2))
+ex\ec /usr/bin/true'; eval "$code"`,
+  },
+  {
+    variable: 'OW_INLINE_FUNCTION_EVAL',
+    command: String.raw`code='export OW_INLINE_FUNCTION_EVAL=loaded; \exec /usr/bin/true'; f() { \eval "$code"; }; f`,
+  },
+  {
+    variable: 'OW_DYNAMIC_INLINE_FUNCTION_EVAL',
+    command: String.raw`code='export OW_DYNAMIC_INLINE_FUNCTION_EVAL=loaded; \exec /usr/bin/true'; wrapper='f() { \eval "$code"; }; f'; eval "$wrapper"`,
+  },
+  {
+    variable: 'OW_FUNCTION_KEYWORD_EVAL',
+    supportedShells: arithmeticShells,
+    command: String.raw`code='export OW_FUNCTION_KEYWORD_EVAL=loaded; \exec /usr/bin/true'; function g { \eval "$code"; }; g`,
+  },
+  {
+    variable: 'OW_DYNAMIC_FUNCTION_KEYWORD_EVAL',
+    supportedShells: arithmeticShells,
+    command: String.raw`code='export OW_DYNAMIC_FUNCTION_KEYWORD_EVAL=loaded; \exec /usr/bin/true'; wrapper='function g { \eval "$code"; }; g'; eval "$wrapper"`,
   },
   {
     variable: 'OW_QUOTED_EVAL',
@@ -150,7 +186,8 @@ describe.skipIf(process.platform === 'win32')('evaluated setup command boundarie
           directory,
           'test',
         )
-        for (const { variable, command, expected } of cases) {
+        for (const { variable, command, expected, supportedShells } of cases) {
+          if (supportedShells && !supportedShells.includes(shell)) continue
           const result = await execute({
             workspace: {
               workspaceId: 'eval-boundaries',

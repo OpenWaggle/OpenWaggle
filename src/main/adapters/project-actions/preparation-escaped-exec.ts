@@ -5,6 +5,8 @@ const REDIRECTION_DOUBLE_LENGTH = 2
 const REDIRECTION_TRIPLE_LENGTH = 3
 const ARITHMETIC_START_LENGTH = 3
 const ARITHMETIC_OPEN_DEPTH = 2
+const INLINE_FUNCTION_BODY =
+  /(?:^|[^\w])(?:function\s+[A-Za-z_]\w*(?:\(\))?|[A-Za-z_]\w*\(\))\s*\{\s*$/
 
 interface ScanState {
   result: string
@@ -163,6 +165,7 @@ function visitEvalPrefixUnquoted(
 }
 
 function isEvalCommandPosition(command: string, index: number, lineStart: number) {
+  if (INLINE_FUNCTION_BODY.test(command.slice(lineStart, index))) return true
   const state: EvalPrefixState = {
     commandPosition: true,
     redirectionTarget: false,
@@ -262,10 +265,11 @@ function visitArithmetic(command: string, index: number, state: ScanState) {
     if (character === ')') state.arithmeticDepth -= 1
     return index
   }
-  if (!command.startsWith('$((', index)) return undefined
+  const expansion = command.startsWith('$((', index)
+  if (!expansion && !command.startsWith('((', index)) return undefined
   state.arithmeticDepth = ARITHMETIC_OPEN_DEPTH
-  state.result += '$(('
-  return index + ARITHMETIC_START_LENGTH - 1
+  state.result += expansion ? '$((' : '(('
+  return index + (expansion ? ARITHMETIC_START_LENGTH : ARITHMETIC_OPEN_DEPTH) - 1
 }
 
 function visitCharacter(command: string, index: number, state: ScanState) {
