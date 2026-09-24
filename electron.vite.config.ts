@@ -20,19 +20,6 @@ const BUILD_DEFINE = {
 }
 
 const ALWAYS_EXTERNAL = ['electron', 'bufferutil', 'utf-8-validate', 'node-pty']
-const PI_EXTENSION_LOADER_PATH = '@earendil-works/pi-coding-agent/dist/core/extensions/loader.js'
-const PI_EXTENSION_IMPORT_META_RESOLVE_LINE =
-  'return fileURLToPath(import.meta.resolve(specifier));'
-const PI_EXTENSION_BUNDLED_RESOLVE_LINE = 'return specifier;'
-const PI_EXTENSION_NODE_ALIAS_BRANCH = [
-  '...(isBunBinary || isNodeSeaBinary || isBundledNode',
-  '            ? { virtualModules: VIRTUAL_MODULES, tryNative: false }',
-  '            : isTypeScriptSourceRuntime',
-  '                ? { virtualModules: VIRTUAL_MODULES, tsconfigPaths: true }',
-  '                : { alias: getAliases() }),',
-].join('\n')
-const PI_EXTENSION_VIRTUAL_MODULE_BRANCH =
-  '...{ virtualModules: VIRTUAL_MODULES, tryNative: false },'
 const UNPDF_DIST_PATH = 'unpdf/dist/index.mjs'
 const UNPDF_IMPORT_META_RESOLVE_LINE = 'import.meta.resolve("pdfjs-dist/package.json")'
 const UNPDF_CJS_RESOLVE_LINE = 'require.resolve("pdfjs-dist/package.json")'
@@ -126,36 +113,6 @@ function rolldownExternalFixPlugin(): Plugin {
 }
 
 /**
- * OpenWaggle bundles Pi into the Electron main process. Pi's extension loader
- * normally uses filesystem aliases in Node and virtual modules in bundled Bun
- * binaries. In our bundled CJS output, the Node alias branch would erase
- * `import.meta.resolve` to `{}` and crash when extensions load, so use Pi's
- * bundled virtual-module path for this environment.
- */
-function piExtensionLoaderBundlePlugin(): Plugin {
-  return {
-    name: 'openwaggle:pi-extension-loader-bundle',
-    enforce: 'pre',
-    transform(code, id) {
-      if (!id.includes(PI_EXTENSION_LOADER_PATH)) {
-        return null
-      }
-
-      if (
-        !code.includes(PI_EXTENSION_IMPORT_META_RESOLVE_LINE) ||
-        !code.includes(PI_EXTENSION_NODE_ALIAS_BRANCH)
-      ) {
-        throw new Error('Pi extension loader shape changed; update OpenWaggle bundler transform.')
-      }
-
-      return code
-        .replace(PI_EXTENSION_IMPORT_META_RESOLVE_LINE, PI_EXTENSION_BUNDLED_RESOLVE_LINE)
-        .replace(PI_EXTENSION_NODE_ALIAS_BRANCH, PI_EXTENSION_VIRTUAL_MODULE_BRANCH)
-    },
-  }
-}
-
-/**
  * `unpdf` is bundled into the Electron main CJS output. Its Node defaults use
  * `import.meta.resolve`, which Rolldown correctly warns about for non-ESM
  * output and would otherwise erase to `{}`. Keep the transform scoped to the
@@ -205,8 +162,11 @@ function disablePluginTimingWarningsPlugin(): Plugin {
 
 export default defineConfig({
   main: {
-    define: BUILD_DEFINE,
-    plugins: [piExtensionLoaderBundlePlugin(), unpdfCjsResolvePlugin(), rolldownExternalFixPlugin()],
+    define: {
+      ...BUILD_DEFINE,
+      PI_BUNDLED_NODE: 'true',
+    },
+    plugins: [unpdfCjsResolvePlugin(), rolldownExternalFixPlugin()],
     build: {
       minify: false,
       externalizeDeps: {

@@ -39,7 +39,7 @@ function assistantMessage(input: {
 }): AgentEndEvent['messages'][number] {
   const content: Array<
     | { type: 'text'; text: string }
-    | { type: 'toolCall'; id: string; name: string; arguments: Record<string, unknown> }
+    | { type: 'toolCall'; id: string; name: string; arguments: Record<string, never> }
   > = []
   if (input.text) content.push({ type: 'text', text: input.text })
   if (input.toolCallId && input.toolCallName) {

@@ -1,6 +1,7 @@
 import {
   type AssistantMessage,
   createAssistantMessageEventStream,
+  type Message,
   type Model,
 } from '@earendil-works/pi-ai'
 import {
@@ -43,7 +44,8 @@ describe('Pi Portable compaction', () => {
       timestamp: 2,
     }
     const streamFn: NonNullable<Parameters<typeof compact>[7]> = vi.fn((_model, context) => {
-      const prompt = context.messages[0]
+      expect(context.messages[0]?.role).toBe('system')
+      const prompt = context.messages.find((message: Message) => message.role === 'user')
       expect(prompt?.role).toBe('user')
       const text = prompt?.role === 'user' ? JSON.stringify(prompt.content) : undefined
       expect(text).toContain('Current progress and key decisions made')

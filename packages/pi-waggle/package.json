@@ -102,8 +102,8 @@
     "typebox": "1.3.32"
   },
   "devDependencies": {
-    "@earendil-works/pi-coding-agent": "0.84.4",
-    "@earendil-works/pi-tui": "0.84.4",
+    "@earendil-works/pi-coding-agent": "catalog:pi-runtime",
+    "@earendil-works/pi-tui": "catalog:pi-runtime",
     "@total-typescript/shoehorn": "0.1.2"
   },
   "peerDependencies": {

@@ -227,12 +227,9 @@ describe('Pi automatic compaction endpoint boundaries', () => {
       systemPrompt: 'Native-only project instruction. '.repeat(120),
       responses: Array.from({ length: 2 }, () => (context, options) => {
         portablePrompts.push(JSON.stringify(context))
-        const serializedRequest = [
-          `system:${context.systemPrompt}`,
-          ...context.messages.map(
-            (message) => `${message.role}:${contentText(message.content, '')}`,
-          ),
-        ].join('\n\n')
+        const serializedRequest = context.messages
+          .map((message) => `${message.role}:${contentText(message.content, '')}`)
+          .join('\n\n')
         portableRequestTokens.push(
           Math.ceil(serializedRequest.length / 4) + (options?.maxTokens ?? 0),
         )
