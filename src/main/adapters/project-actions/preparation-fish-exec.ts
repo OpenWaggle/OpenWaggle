@@ -9,6 +9,7 @@ interface FishExecScan {
   quote: "'" | '"' | null
   comment: boolean
   parenDepth: number
+  enclosingCommandStarts: boolean[]
   evalWrappers: number[]
 }
 
@@ -88,10 +89,17 @@ function visitWord(scan: FishExecScan) {
 
 function visitBoundary(scan: FishExecScan, character: string) {
   if (character === ')' || character === '\n' || /[;|&<>]/.test(character)) closeEvalWrappers(scan)
-  if (character === '(') scan.parenDepth += 1
-  if (character === ')') scan.parenDepth = Math.max(0, scan.parenDepth - 1)
-  if (character === '\n' || /[;|&()]/.test(character)) {
+  if (character === '(') {
+    scan.enclosingCommandStarts.push(scan.commandStart)
+    scan.parenDepth += 1
     scan.commandStart = true
+  }
+  if (character === ')') {
+    scan.parenDepth = Math.max(0, scan.parenDepth - 1)
+    scan.commandStart = scan.enclosingCommandStarts.pop() ?? true
+  }
+  if (character === '\n' || /[;|&()]/.test(character)) {
+    if (character !== '(' && character !== ')') scan.commandStart = true
     scan.output += character
     scan.index += 1
     return true
@@ -148,6 +156,7 @@ export function captureFishExec(code: string): string {
     quote: null,
     comment: false,
     parenDepth: 0,
+    enclosingCommandStarts: [],
     evalWrappers: [],
   }
   while (scan.index < code.length) {

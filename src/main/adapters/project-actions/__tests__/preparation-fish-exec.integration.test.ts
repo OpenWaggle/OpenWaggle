@@ -1,3 +1,4 @@
+import { spawnSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -6,8 +7,37 @@ import { expect, it } from 'vitest'
 import { getSessionHostChildEnv } from '../../../env'
 import { createActionProcessRunner } from '../action-process'
 import { createPreparationExecutor } from '../preparation-process'
+import { preparationCaptureInvocation } from '../preparation-shell-capture'
 
 const fish = getSessionHostChildEnv().OPENWAGGLE_QA_FISH ?? '/usr/bin/fish'
+
+it.skipIf(process.platform === 'win32')(
+  'preserves Fish arguments after a command substitution in Setup',
+  async (context) => {
+    if (!existsSync(fish)) context.skip()
+    const directory = await mkdtemp(join(tmpdir(), 'ow-prepare-fish-argument-'))
+    const command = 'printf "<%s>\\n" (printf x) \\eval one two'
+    try {
+      const baseline = spawnSync(fish, ['-c', command], { cwd: directory, encoding: 'utf8' })
+      expect(baseline.status).toBe(0)
+      const capture = await preparationCaptureInvocation(
+        { type: 'command', command, cwd: directory },
+        join(directory, 'environment'),
+        fish,
+        {},
+      )
+      if (capture.invocation.type !== 'executable') throw new Error('Expected Fish wrapper')
+      const result = spawnSync(capture.invocation.executable, capture.invocation.args, {
+        cwd: directory,
+        encoding: 'utf8',
+      })
+      expect(result.status).toBe(0)
+      expect(result.stdout).toBe(baseline.stdout)
+    } finally {
+      await rm(directory, { recursive: true, force: true })
+    }
+  },
+)
 
 it.skipIf(process.platform === 'win32')(
   'captures Fish exports before direct exec',

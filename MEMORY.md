@@ -922,6 +922,11 @@ Deleting a local profile override should reveal the same-ID shared profile when 
 if Setup uses it; explicit deletion must not rehydrate the local copy and mask later shared edits.
 Fish reserves `eval` and `exec`. Rewrite evaluated commands at runtime, but execute `eval` in its
 caller scope so local exported variables survive until Setup's environment capture.
+Fish command substitutions start a nested command position. Their closing `)` restores the
+enclosing command's argument position in both the static and runtime scanners; otherwise an
+escaped `eval` argument after the substitution can be rewritten as a command.
+PowerShell native-exit classification may resolve inert string concatenation in a command target,
+but must not reevaluate a subexpression that can run user code.
 Shared publication captures the current inode into a pinned, journaled recovery directory and
 installs the prepared file with an exclusive hard link. Never replace a competing target or infer
 completion from matching bytes alone. Keep both files in Git-ignored `.openwaggle/action-recovery/`

@@ -18,6 +18,19 @@ it('leaves Fish arguments, quoted text, and comments unchanged', () => {
   expect(captureFishExec(code)).toBe(code)
 })
 
+it('keeps the enclosing argument position after Fish command substitutions', () => {
+  const code = "printf '<%s>\\n' (printf x) \\eval one two\n"
+  expect(captureFishExec(code)).toBe(code)
+  if (process.platform !== 'win32') {
+    expect(
+      execFileSync('awk', [runtimeFishEvalRewriter], {
+        input: `${code}\x1c`,
+        encoding: 'utf8',
+      }),
+    ).toBe(code)
+  }
+})
+
 it('routes command-position eval through runtime capture without changing quoted code', () => {
   expect(captureFishExec("eval 'set -gx READY yes; exec /usr/bin/true'; builtin eval $code")).toBe(
     "eval (__ow_rewrite_eval 'set -gx READY yes; exec /usr/bin/true' | string collect -N); eval (__ow_rewrite_eval $code | string collect -N)",

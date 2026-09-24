@@ -50,10 +50,19 @@ function wrapEval() {
       continue
     }
     if (character == ")" || character == "\n" || character ~ /[;|&<>]/) closeEval()
-    if (character == "(") parenDepth++
-    if (character == ")") parenDepth--
-    if (character == "\n" || character ~ /[;|&()]/) {
+    if (character == "(") {
+      enclosingCommandStart[++parenDepth] = commandStart
       commandStart = 1
+    }
+    if (character == ")") {
+      if (parenDepth > 0) {
+        commandStart = enclosingCommandStart[parenDepth]
+        delete enclosingCommandStart[parenDepth]
+        parenDepth--
+      } else commandStart = 1
+    }
+    if (character == "\n" || character ~ /[;|&()]/) {
+      if (character != "(" && character != ")") commandStart = 1
       printf "%s", character
       i++
       continue
