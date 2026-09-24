@@ -22,6 +22,7 @@ vi.mock('@/shared/lib/ipc', () => ({
 }))
 
 import { usePreferencesStore } from '../preferences-store'
+import { awaitPendingProjectPreferenceWrites } from '../project-preference-writes'
 
 describe('preferences-store selection integration', () => {
   beforeEach(() => {
@@ -130,6 +131,7 @@ describe('preferences-store selection integration', () => {
     }))
 
     await usePreferencesStore.getState().setSelectedModel(SupportedModelId('openai/gpt-4.1-mini'))
+    await awaitPendingProjectPreferenceWrites('/repo/b-alias')
 
     expect(apiMock.setProjectPreferences).toHaveBeenCalledWith('/repo/b-alias', {
       model: 'openai/gpt-4.1-mini',
@@ -139,6 +141,7 @@ describe('preferences-store selection integration', () => {
       expect.objectContaining({ selectedModelsByProject: expect.anything() }),
     )
 
+    await awaitPendingProjectPreferenceWrites('/repo/b-alias')
     await usePreferencesStore.getState().removeProjectReferences('/repo/b-alias')
 
     expect(apiMock.removeProjectModel).toHaveBeenCalledWith('/repo/b-alias')

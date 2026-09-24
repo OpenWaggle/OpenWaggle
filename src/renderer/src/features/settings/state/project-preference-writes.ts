@@ -36,16 +36,23 @@ async function reconcileProjectIdentity(
     record: Record<string, Readonly<Record<string, boolean>>>,
   ): Record<string, Record<string, boolean>> {
     if (!(requestedPath in record)) return record
-    const merged = {
-      ...(record[canonicalPath] ?? {}),
-      ...record[requestedPath],
-    }
+    const merged = { ...(record[canonicalPath] ?? {}), ...record[requestedPath] }
     const next = { ...record, [canonicalPath]: merged }
     delete next[requestedPath]
     return next
   }
+  // Both the alias and its canonical path may already be listed; keep one unique ordered entry.
+  const seen = new Set<string>()
+  const recentProjects: string[] = []
+  for (const entry of settings.recentProjects) {
+    const mapped = remapPath(entry)
+    if (!seen.has(mapped)) {
+      seen.add(mapped)
+      recentProjects.push(mapped)
+    }
+  }
   const patch: Partial<Settings> = {
-    recentProjects: settings.recentProjects.map(remapPath),
+    recentProjects,
     projectDisplayNames: rekeyFlat({ ...settings.projectDisplayNames }),
     skillTogglesByProject: rekeyNested({ ...settings.skillTogglesByProject }),
     agentDefinitionTogglesByProject: rekeyNested({ ...settings.agentDefinitionTogglesByProject }),
@@ -63,9 +70,13 @@ async function reconcileProjectIdentity(
 /**
  * Chains a project preference write onto any in-flight write for the same path — each Host-backed
  * invocation uses a separate Local Session connection, so ordering is not guaranteed without this.
+ * A failed earlier write does not block the next one; each request's own failure still propagates
+ * to its caller.
+ *
  * When the backend reports a canonical path that differs from the requested one, the renderer's
  * per-project state and the pending-write tracking are re-keyed onto that identity, covering
- * aliases stored before folder-picker canonicalization.
+ * aliases stored before folder-picker canonicalization. Callers that pass no store access do not
+ * reconcile, so the chain stays tracked under both identities until cleanup.
  */
 export function persistProjectPreference(
   projectPath: string | null,
@@ -80,16 +91,26 @@ export function persistProjectPreference(
   if (!projectPath) return Promise.resolve()
   const previous = pendingProjectPreferenceWrites.get(projectPath)
   const tracked = (previous ?? Promise.resolve())
+    .catch(() => undefined)
     .then(() => api.setProjectPreferences(projectPath, prefs))
     .then(async (canonicalPath) => {
       if (!canonicalPath || canonicalPath === projectPath) return
-      if (set && get) await reconcileProjectIdentity(projectPath, canonicalPath, set, get)
-      // Whatever is still queued under the aliased key moves with the identity, so a removal
-      // addressed by the canonical path keeps waiting for it.
-      const stillPending = pendingProjectPreferenceWrites.get(projectPath)
-      if (stillPending) {
-        pendingProjectPreferenceWrites.delete(projectPath)
-        pendingProjectPreferenceWrites.set(canonicalPath, stillPending)
+      if (set && get) {
+        await reconcileProjectIdentity(projectPath, canonicalPath, set, get)
+        // Renderer state now names the canonical path, so the whole chain moves with it and a
+        // removal addressed by the canonical path keeps waiting for it.
+        const stillPending = pendingProjectPreferenceWrites.get(projectPath)
+        if (stillPending) {
+          pendingProjectPreferenceWrites.delete(projectPath)
+          pendingProjectPreferenceWrites.set(canonicalPath, stillPending)
+        }
+      } else {
+        // Renderer state still names the alias (this caller does not reconcile), so the chain is
+        // tracked under both identities and a removal addressed by either one waits for it.
+        pendingProjectPreferenceWrites.set(
+          canonicalPath,
+          pendingProjectPreferenceWrites.get(projectPath) ?? tracked,
+        )
       }
     })
     // Failures propagate: fire-and-forget callers log them, callers that expose save state show
