@@ -16,6 +16,7 @@ import { includes } from '@shared/utils/validation'
 import { useProviderStore } from '@/features/providers/state'
 import { setRuntimeAppearancePreferences } from '@/shared/lib/appearance-preferences-runtime'
 import { api } from '@/shared/lib/ipc'
+import { createRendererLogger } from '@/shared/lib/logger'
 import { setRuntimeSyntaxThemeSelections } from '@/shared/lib/syntax/syntax-theme-runtime'
 import {
   persistAppearanceMotion,
@@ -32,6 +33,7 @@ import {
 
 const MAX_FAVORITE_MODELS = 100
 const MAX_RECENT_PROJECTS = 10
+const logger = createRendererLogger('preferences')
 let syntaxThemeWriteQueue = Promise.resolve()
 
 function mergeSettings(set: PreferencesSet, patch: Partial<Settings>) {
@@ -95,7 +97,11 @@ async function setEnabledModels(models: string[], set: PreferencesSet, get: Pref
   await api.setEnabledModels(enabledModels)
   if (selectedModel !== settings.selectedModel) {
     await api.updateSettings({ selectedModel })
-    persistProjectPreference(settings.projectPath, { model: selectedModel }, set, get)
+    persistProjectPreference(settings.projectPath, { model: selectedModel }, set, get).catch(
+      (err: unknown) => {
+        logger.warn('Failed to persist project preferences', { error: String(err) })
+      },
+    )
   }
   mergeSettings(set, { enabledModels, selectedModel })
 }
@@ -202,7 +208,9 @@ export function createPreferencesActions(
       const { settings } = get()
       await api.updateSettings({ selectedModel: model })
       mergeSettings(set, { selectedModel: model })
-      persistProjectPreference(settings.projectPath, { model }, set, get)
+      persistProjectPreference(settings.projectPath, { model }, set, get).catch((err: unknown) => {
+        logger.warn('Failed to persist project preferences', { error: String(err) })
+      })
     },
     toggleFavoriteModel: async (model) => {
       const trimmed = model.trim()
@@ -238,7 +246,11 @@ export function createPreferencesActions(
       const { settings } = get()
       await api.updateSettings({ thinkingLevel: preset })
       mergeSettings(set, { thinkingLevel: preset })
-      persistProjectPreference(settings.projectPath, { thinkingLevel: preset }, set, get)
+      persistProjectPreference(settings.projectPath, { thinkingLevel: preset }, set, get).catch(
+        (err: unknown) => {
+          logger.warn('Failed to persist project preferences', { error: String(err) })
+        },
+      )
     },
     setEnabledModels: (models) => setEnabledModels(models, set, get),
     setProjectDisplayName: async (path, name) => {

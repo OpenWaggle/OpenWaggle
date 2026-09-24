@@ -1,10 +1,7 @@
 import type { AgentAuthorizationMode } from '@shared/types/agent-authorization'
 import type { Settings } from '@shared/types/settings'
 import { api } from '@/shared/lib/ipc'
-import { createRendererLogger } from '@/shared/lib/logger'
 import type { PreferencesGet, PreferencesSet } from './preferences-store-types'
-
-const logger = createRendererLogger('preferences')
 
 /** In-flight project preference writes per path; removals await them so a delete cannot be overtaken. */
 const pendingProjectPreferenceWrites = new Map<string, Promise<void>>()
@@ -95,9 +92,8 @@ export function persistProjectPreference(
         pendingProjectPreferenceWrites.set(canonicalPath, stillPending)
       }
     })
-    .catch((err: unknown) => {
-      logger.warn('Failed to persist project preferences', { error: String(err) })
-    })
+    // Failures propagate: fire-and-forget callers log them, callers that expose save state show
+    // the failure instead of claiming success while the old value remains on disk.
     // Cleanup matches by promise identity, not key, because the entry may have been re-keyed.
     .finally(() => {
       for (const [key, pending] of pendingProjectPreferenceWrites) {
@@ -108,7 +104,8 @@ export function persistProjectPreference(
   return tracked
 }
 
-/** Resolves once every in-flight preference write for the given project path has settled. */
+/** Resolves once every in-flight preference write for the given project path has settled. A failed write persisted nothing, so its rejection does not block removal. */
 export function awaitPendingProjectPreferenceWrites(projectPath: string): Promise<void> {
-  return pendingProjectPreferenceWrites.get(projectPath) ?? Promise.resolve()
+  const pending = pendingProjectPreferenceWrites.get(projectPath) ?? Promise.resolve()
+  return pending.catch(() => undefined)
 }
