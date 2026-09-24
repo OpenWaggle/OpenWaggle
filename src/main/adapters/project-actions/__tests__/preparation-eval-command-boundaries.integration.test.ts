@@ -83,6 +83,31 @@ ex\ec /usr/bin/true'; eval "$code"`,
     command: String.raw`code='export OW_QUOTED_EVAL=loaded; \exec /usr/bin/true'; e"va"l "$code"`,
   },
   {
+    variable: 'OW_ANSI_QUOTED_EVAL',
+    supportedShells: arithmeticShells,
+    command: String.raw`code='export OW_ANSI_QUOTED_EVAL=loaded; \exec /usr/bin/true'; e$'va'l "$code"`,
+  },
+  {
+    variable: 'OW_DYNAMIC_ANSI_QUOTED_EVAL',
+    supportedShells: arithmeticShells,
+    command: String.raw`code='export OW_DYNAMIC_ANSI_QUOTED_EVAL=loaded; \exec /usr/bin/true'; wrapper="e\$'va'l \"\$code\""; eval "$wrapper"`,
+  },
+  {
+    variable: 'OW_ANSI_QUOTED_EXEC',
+    supportedShells: arithmeticShells,
+    command: `export OW_ANSI_QUOTED_EXEC=loaded; ex$'e'c /usr/bin/true`,
+  },
+  {
+    variable: 'OW_DYNAMIC_ANSI_QUOTED_EXEC',
+    supportedShells: arithmeticShells,
+    command: String.raw`code="export OW_DYNAMIC_ANSI_QUOTED_EXEC=loaded; ex\$'e'c /usr/bin/true"; eval "$code"`,
+  },
+  {
+    variable: 'OW_DYNAMIC_ANSI_NUMERIC_EXEC',
+    supportedShells: ['/bin/bash'],
+    command: String.raw`code="export OW_DYNAMIC_ANSI_NUMERIC_EXEC=loaded; ex\$'\u65'c /usr/bin/true"; eval "$code"`,
+  },
+  {
     variable: 'OW_COMMAND_DASH_DASH_EVAL',
     command: String.raw`code='export OW_COMMAND_DASH_DASH_EVAL=loaded; \exec /usr/bin/true'; command -- \eval "$code"`,
   },

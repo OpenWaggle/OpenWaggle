@@ -1,11 +1,49 @@
 const ESCAPED_CHARACTER_LENGTH = 2
+const ANSI_QUOTE_PREFIX_LENGTH = 2
+const OCTAL_RADIX = 8
+const HEX_RADIX = 16
+const ASCII_MAX = 0x7f
 
 interface WordState {
   word: string
-  quote: "'" | '"' | undefined
+  quote: "'" | '"' | 'ansi' | undefined
   quoted: boolean
   invalid: boolean
   cursor: number
+}
+
+function ansiCharacter(command: string, cursor: number) {
+  const remainder = command.slice(cursor + 1)
+  const numeric = /^(?:x([\da-fA-F]{1,2})|u([\da-fA-F]{1,4})|U([\da-fA-F]{1,8})|([0-7]{1,3}))/.exec(
+    remainder,
+  )
+  if (!numeric) return undefined
+  const [, hex, shortUnicode, longUnicode, octal] = numeric
+  const digits = hex ?? shortUnicode ?? longUnicode ?? octal
+  const value = Number.parseInt(digits, octal ? OCTAL_RADIX : HEX_RADIX)
+  if (value > ASCII_MAX) return undefined
+  return { character: String.fromCharCode(value), length: numeric[0].length + 1 }
+}
+
+function consumeAnsiCharacter(command: string, state: WordState) {
+  const character = command[state.cursor]
+  if (character === "'") {
+    state.quote = undefined
+    state.cursor += 1
+    return
+  }
+  if (character === '\\') {
+    const decoded = ansiCharacter(command, state.cursor)
+    if (!decoded) {
+      state.invalid = true
+      return
+    }
+    state.word += decoded.character
+    state.cursor += decoded.length
+    return
+  }
+  state.word += character
+  state.cursor += 1
 }
 
 function consumeQuotedCharacter(character: string, state: WordState) {
@@ -22,6 +60,12 @@ function consumeQuotedCharacter(character: string, state: WordState) {
 }
 
 function consumeUnquotedCharacter(command: string, character: string, state: WordState) {
+  if (character === '$' && command[state.cursor + 1] === "'") {
+    state.quote = 'ansi'
+    state.quoted = true
+    state.cursor += ANSI_QUOTE_PREFIX_LENGTH
+    return true
+  }
   if (character === "'" || character === '"') {
     state.quote = character
     state.quoted = true
@@ -44,7 +88,7 @@ function consumeUnquotedCharacter(command: string, character: string, state: Wor
 
 /** Return the length of a shell word whose quote removal changes it to a captured builtin. */
 export function quotedBuiltinWordLength(command: string, index: number, name: 'exec' | 'eval') {
-  if (!/[e\\'"]/.test(command[index] ?? '')) return 0
+  if (!/[e$\\'"]/.test(command[index] ?? '')) return 0
   const state: WordState = {
     word: '',
     quote: undefined,
@@ -55,6 +99,10 @@ export function quotedBuiltinWordLength(command: string, index: number, name: 'e
   while (state.cursor < command.length && state.word.length <= name.length && !state.invalid) {
     const character = command[state.cursor]
     if (!character) break
+    if (state.quote === 'ansi') {
+      consumeAnsiCharacter(command, state)
+      continue
+    }
     if (state.quote) {
       consumeQuotedCharacter(character, state)
       continue

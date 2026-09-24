@@ -978,6 +978,9 @@ eval bodies so the exec alias captures any exports made within the evaluated str
 `eval "$code"` needs a runtime rewrite too: the static scanner cannot see its expanded body, and
 an escaped `\exec` would replace the shell before its EXIT handler saves later exports. Preserve
 quoted strings and heredoc bodies while rewriting, and fail Setup if the runtime rewriter fails.
+ANSI-C-quoted Bash builtin names such as `e$'va'l` and `ex$'e'c` also suppress alias
+expansion. Normalize those command words in both the static and runtime Setup scanners,
+including numeric ANSI-C escapes, before an evaluated `exec` can skip environment capture.
 Action-run headings and repair drafts display the actual invocation directory relative to the
 workspace or project root, including nested package paths.
 PowerShell setup capture must decide success from the

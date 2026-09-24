@@ -1,3 +1,5 @@
+import { runtimeQuotedBuiltinWord } from './preparation-eval-quoted-builtin'
+
 // eval reparses expanded text after the static scanner has run. Rewrite escaped
 // exec tokens in that text so the exec alias captures exports made inside eval.
 export const runtimeEvalRewriter = String.raw`
@@ -128,34 +130,7 @@ function isEvalCommandPosition(prefix,    cursor, character, following, quote, w
   }
   return expected && word == "" && !redirectionTarget
 }
-function quotedBuiltinWordLength(code, start, name,    cursor, character, following, quote, word, quoted) {
-  character = substr(code, start, 1)
-  if (character != "e" && character != "\\" && character != "'" && character != "\"") return 0
-  cursor = start
-  quote = ""
-  word = ""
-  quoted = 0
-  while (cursor <= length(code) && length(word) <= length(name)) {
-    character = substr(code, cursor, 1)
-    if (quote != "") {
-      if (character == quote) quote = ""
-      else if (quote == "\"" && character == "\\") return 0
-      else word = word character
-    } else if (character == "'" || character == "\"") {
-      quote = character
-      quoted = 1
-    } else if (character == "\\") {
-      following = substr(code, cursor + 1, 1)
-      if (following == "" || following == "\n") return 0
-      word = word following
-      quoted = 1
-      cursor++
-    } else if (character ~ /[[:space:]]/ || index(";&|()<>{}", character) > 0) break
-    else word = word character
-    cursor++
-  }
-  return quote == "" && quoted && word == name ? cursor - start : 0
-}
+${runtimeQuotedBuiltinWord}
 function heredocAt(code, start,    rest, prefix, cursor, character, following, quote, delimiter, sawWord) {
   foundHeredoc = 0
   if (substr(code, start, 2) != "<<" || substr(code, start - 1, 1) == "<" ||
