@@ -37,11 +37,10 @@ export type { TerminalHistoryCacheSnapshot, TerminalHistoryStore }
 
 const logger = createLogger('terminal-history')
 
-const logMutationFailure = (error: unknown) => {
+const logMutationFailure = (error: unknown) =>
   logger.warn('Terminal history mutation failed', {
     error: error instanceof Error ? error.message : String(error),
   })
-}
 
 class TerminalHistoryStoreImpl implements TerminalHistoryStore {
   private flushTimer: NodeJS.Timeout | null = null
@@ -167,12 +166,18 @@ class TerminalHistoryStoreImpl implements TerminalHistoryStore {
 
   move(fromKey: TerminalKey, toKey: TerminalKey) {
     if (fromKey === toKey) return Promise.resolve()
-    return this.moveKeys(() => this.mover.move(fromKey, toKey))
+    return this.moveKeys(
+      (key) => key === fromKey || key === toKey,
+      () => this.mover.move(fromKey, toKey),
+    )
   }
 
   moveOwner(fromOwnerKey: TerminalOwnerKey, toOwnerKey: TerminalOwnerKey) {
     if (fromOwnerKey === toOwnerKey) return Promise.resolve()
-    return this.moveKeys(() => this.mover.moveOwner(fromOwnerKey, toOwnerKey))
+    return this.moveKeys(
+      (key) => [fromOwnerKey, toOwnerKey].includes(ownerKeyFromTerminalKey(key)),
+      () => this.mover.moveOwner(fromOwnerKey, toOwnerKey),
+    )
   }
 
   release(key: TerminalKey) {
@@ -185,22 +190,18 @@ class TerminalHistoryStoreImpl implements TerminalHistoryStore {
   }
 
   async flush(key?: TerminalKey) {
-    if (this.flushTimer !== null) {
-      clearTimeout(this.flushTimer)
-      this.flushTimer = null
-    }
+    if (this.flushTimer !== null) clearTimeout(this.flushTimer)
+    this.flushTimer = null
     await this.queuePendingBatches()
     if (key !== undefined && this.failedFlushes.has(key)) throw this.failedFlushes.get(key)
     if (key === undefined && this.failedFlushes.size > 0)
       throw this.failedFlushes.values().next().value
   }
 
-  cacheSnapshotForTests(): TerminalHistoryCacheSnapshot {
-    return {
-      states: [...this.states].map(([key, state]) => ({ key, ...state })),
-      workingDirectories: [...this.workingDirectories].map(([key, cwd]) => ({ key, cwd })),
-    }
-  }
+  cacheSnapshotForTests = (): TerminalHistoryCacheSnapshot => ({
+    states: [...this.states].map(([key, state]) => ({ key, ...state })),
+    workingDirectories: [...this.workingDirectories].map(([key, cwd]) => ({ key, cwd })),
+  })
   private enqueueMutation<Result>(mutation: () => Promise<Result>): Promise<Result> {
     const result = this.mutationTail.then(mutation)
     this.mutationTail = result.then(
@@ -314,16 +315,15 @@ class TerminalHistoryStoreImpl implements TerminalHistoryStore {
     }, TERMINAL.HISTORY_FLUSH_MS)
   }
 
-  private moveKeys(move: () => Promise<void>) {
+  private moveKeys(matches: (key: TerminalKey) => boolean, move: () => Promise<void>) {
     const pendingBarrier = this.queuePendingBatches()
     return this.enqueueMutation(async () => {
       await pendingBarrier
-      if (this.failedFlushes.size > 0) throw this.failedFlushes.values().next().value
+      for (const [key, error] of this.failedFlushes) if (matches(key)) throw error
       await move()
     })
   }
 }
 
-export function makeTerminalHistoryStore(logsDir: string): TerminalHistoryStore {
-  return new TerminalHistoryStoreImpl(logsDir)
-}
+export const makeTerminalHistoryStore = (logsDir: string): TerminalHistoryStore =>
+  new TerminalHistoryStoreImpl(logsDir)
