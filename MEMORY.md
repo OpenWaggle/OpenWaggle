@@ -1131,6 +1131,14 @@ reject command-bearing subexpressions so inspecting a failed native command neve
 An `Env:` command target is also a `VariableExpressionAst`, but `Get-Variable` cannot read the
 environment provider. Resolve only `Env:` drive-qualified paths through the process environment;
 leave other provider drives unresolved rather than invoking arbitrary provider behavior.
+Static and runtime escaped-eval scanners must preserve the enclosing command prefix while an
+unquoted `$()` spans physical lines. Keep physical line starts for heredocs, but save and restore
+command starts at matching substitution parentheses; otherwise `) \eval` as an ordinary
+argument can be mistaken for a case-arm command boundary.
+Terminal history removal methods already await their queued mutations and discard failures for
+the removed keys. A global `flush()` afterward can report an unrelated terminal write failure
+after a successful close; use a key-scoped flush for one terminal, and rely on completed owner
+or path removal without a global failure check. Preserve global flush on all-terminal shutdown.
 
 Action run output cursors cannot be recovered from retained log length after scrollback
 compaction: the Host may flush the log before its throttled SQLite `outputBytes` update. Journal

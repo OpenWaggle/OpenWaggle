@@ -185,6 +185,9 @@ BEGIN { RS = sprintf("%c", 28) }
   pendingCount = 0
   pendingHead = 1
   lineStart = 1
+  commandStart = 1
+  substitutionDepth = 0
+  for (depth in substitutionStart) delete substitutionStart[depth]
   for (i = 1; i <= length(code); i++) {
     character = substr(code, i, 1)
     following = substr(code, i + 1, 1)
@@ -214,6 +217,7 @@ BEGIN { RS = sprintf("%c", 28) }
         pendingHead++
       }
       lineStart = i + 1
+      commandStart = i + 1
       comment = 0
       printf "%s", character
       previous = character
@@ -237,15 +241,31 @@ BEGIN { RS = sprintf("%c", 28) }
       i += expansion ? 2 : 1
       continue
     }
+    if (character == "$" && following == "(") {
+      substitutionDepth++
+      substitutionStart[substitutionDepth] = commandStart
+      printf "$("
+      i++
+      previous = "("
+      continue
+    }
     evalLength = quotedBuiltinWordLength(code, i, "eval")
     execLength = quotedBuiltinWordLength(code, i, "exec")
     if ((evalLength > 0 || execLength > 0) &&
-        isEvalCommandPosition(substr(code, lineStart, i - lineStart))) {
+        isEvalCommandPosition(substr(code, commandStart, i - commandStart))) {
       replacement = evalLength > 0 ? "__ow_eval" : "exec"
       printf "%s", replacement
       i += (evalLength > 0 ? evalLength : execLength) - 1
       previous = substr(replacement, length(replacement), 1)
       continue
+    }
+    if (character == "(" && substitutionDepth > 0) substitutionDepth++
+    else if (character == ")" && substitutionDepth > 0) {
+      if (substitutionStart[substitutionDepth]) {
+        commandStart = substitutionStart[substitutionDepth]
+        delete substitutionStart[substitutionDepth]
+      }
+      substitutionDepth--
     }
     if (character == "'") quote = "single"
     else if (character == "\"") quote = "double"
@@ -261,7 +281,7 @@ BEGIN { RS = sprintf("%c", 28) }
     else if (character == "\\" && (i == 1 || previous !~ /[[:alnum:]_\\]/)) {
       rest = substr(code, i + 1)
       if (rest ~ /^eval([^[:alnum:]_]|$)/ &&
-          isEvalCommandPosition(substr(code, lineStart, i - lineStart))) {
+          isEvalCommandPosition(substr(code, commandStart, i - commandStart))) {
         printf "__ow_"
         continue
       }

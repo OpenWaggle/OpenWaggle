@@ -286,6 +286,15 @@ esac`,
     expect(enableEscapedExecCapture(argument)).toBe(argument)
   })
 
+  it('keeps an escaped eval argument after a multiline command substitution', () => {
+    const command = String.raw`printf '%s %s' $(printf x
+) \eval
+code='export READY=yes; \exec /usr/bin/true'; \eval "$code"`
+    expect(enableEscapedExecCapture(command)).toBe(
+      command.replace(String.raw`; \eval "$code"`, '; __ow_eval "$code"'),
+    )
+  })
+
   it('keeps quoted newlines inside a word before a later escaped exec', () => {
     const command = `printf '%s' "foo\nbar"; export READY=yes; ex\\ec /usr/bin/true`
     expect(enableEscapedExecCapture(command)).toBe(

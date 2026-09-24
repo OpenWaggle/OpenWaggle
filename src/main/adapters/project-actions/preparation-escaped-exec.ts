@@ -13,6 +13,9 @@ interface ScanState {
   pendingHeredocs: { delimiter: string; stripTabs: boolean }[]
   heredoc: { delimiter: string; stripTabs: boolean } | undefined
   lineStart: number
+  commandStart: number
+  substitutionDepth: number
+  substitutionStarts: { depth: number; commandStart: number }[]
   quotedBuiltinSyntax: QuotedBuiltinSyntax
 }
 
@@ -35,6 +38,7 @@ function visitNewline(command: string, index: number, state: ScanState) {
   }
   if (!state.heredoc) state.heredoc = state.pendingHeredocs.shift()
   state.lineStart = index + 1
+  state.commandStart = index + 1
 }
 
 function visitQuote(command: string, index: number, state: ScanState) {
@@ -67,7 +71,12 @@ function evaluatedLiteralAt(
 }
 
 function visitOpeningQuote(command: string, index: number, state: ScanState) {
-  const evaluated = evaluatedLiteralAt(command, index, state.lineStart, state.quotedBuiltinSyntax)
+  const evaluated = evaluatedLiteralAt(
+    command,
+    index,
+    state.commandStart,
+    state.quotedBuiltinSyntax,
+  )
   if (evaluated) {
     state.result += `'${evaluated.value}'`
     return evaluated.end
@@ -81,11 +90,14 @@ function visitCommandWord(command: string, index: number, state: ScanState) {
   if (/<<-?\s*$/.test(command.slice(state.lineStart, index))) return undefined
   const evalLength = quotedBuiltinWordLength(command, index, 'eval', state.quotedBuiltinSyntax)
   const execLength = quotedBuiltinWordLength(command, index, 'exec', state.quotedBuiltinSyntax)
-  if ((evalLength || execLength) && isEvalCommandPosition(command, index, state.lineStart)) {
+  if ((evalLength || execLength) && isEvalCommandPosition(command, index, state.commandStart)) {
     state.result += evalLength ? '__ow_eval' : 'exec'
     return index + (evalLength || execLength) - 1
   }
-  if (isEscapedExecPrefix(command, index) && isEvalCommandPosition(command, index, state.lineStart))
+  if (
+    isEscapedExecPrefix(command, index) &&
+    isEvalCommandPosition(command, index, state.commandStart)
+  )
     return index
   return undefined
 }
@@ -107,6 +119,29 @@ function visitArithmetic(command: string, index: number, state: ScanState) {
   state.arithmeticDepth = ARITHMETIC_OPEN_DEPTH
   state.result += expansion ? '$((' : '(('
   return index + (expansion ? ARITHMETIC_START_LENGTH : ARITHMETIC_OPEN_DEPTH) - 1
+}
+
+function visitSubstitutionBoundary(command: string, index: number, state: ScanState) {
+  const character = command[index]
+  if (command.startsWith('$(', index) && !command.startsWith('$((', index)) {
+    state.substitutionDepth += 1
+    state.substitutionStarts.push({
+      depth: state.substitutionDepth,
+      commandStart: state.commandStart,
+    })
+    state.result += '$('
+    return index + 1
+  }
+  if (character === '(' && state.substitutionDepth > 0) state.substitutionDepth += 1
+  if (character !== ')' || state.substitutionDepth === 0) return undefined
+  const current = state.substitutionStarts.at(-1)
+  if (current?.depth === state.substitutionDepth) {
+    state.commandStart = current.commandStart
+    state.substitutionStarts.pop()
+  }
+  state.substitutionDepth -= 1
+  state.result += ')'
+  return index
 }
 
 function visitCharacter(command: string, index: number, state: ScanState) {
@@ -131,6 +166,8 @@ function visitCharacter(command: string, index: number, state: ScanState) {
   if (heredoc) state.pendingHeredocs.push(heredoc)
   const rewritten = visitCommandWord(command, index, state)
   if (rewritten !== undefined) return rewritten
+  const substitution = visitSubstitutionBoundary(command, index, state)
+  if (substitution !== undefined) return substitution
   if (character === "'" || character === '"') return visitOpeningQuote(command, index, state)
   state.result += character
   if (character !== '\\' || index + 1 >= command.length) return index
@@ -151,6 +188,9 @@ export function enableEscapedExecCapture(
     pendingHeredocs: [],
     heredoc: undefined,
     lineStart: 0,
+    commandStart: 0,
+    substitutionDepth: 0,
+    substitutionStarts: [],
     quotedBuiltinSyntax,
   }
   for (let index = 0; index < command.length; index += 1)

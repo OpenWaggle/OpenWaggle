@@ -221,6 +221,12 @@ esac'; eval "$wrapper"`,
   \\eval); \\exec /usr/bin/true'; eval "$code"`,
     expected: 'eval',
   },
+  {
+    variable: 'OW_DYNAMIC_MULTILINE_SUBSTITUTION_ARGUMENT',
+    command: String.raw`code='export OW_DYNAMIC_MULTILINE_SUBSTITUTION_ARGUMENT=$(printf "%s %s" $(printf x
+) \eval); \exec /usr/bin/true'; eval "$code"`,
+    expected: 'x eval',
+  },
 ]
 
 describe.skipIf(process.platform === 'win32')('evaluated setup command boundaries', () => {
