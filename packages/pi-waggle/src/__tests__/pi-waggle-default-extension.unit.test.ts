@@ -81,12 +81,12 @@ function turnEndEvent(input: {
   readonly message: AgentEndEvent['messages'][number]
   readonly toolResults?: TurnEndEvent['toolResults']
 }): TurnEndEvent {
-  return {
+  return fromPartial<TurnEndEvent>({
     type: 'turn_end',
     turnIndex: 0,
     message: input.message,
     toolResults: [...(input.toolResults ?? [])],
-  }
+  })
 }
 
 function inputImage(): NonNullable<InputEvent['images']>[number] {

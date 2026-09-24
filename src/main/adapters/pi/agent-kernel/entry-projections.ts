@@ -2,6 +2,7 @@ import { matchBy } from '@diegogbrisa/ts-match'
 import type { SessionEntry } from '@earendil-works/pi-coding-agent'
 import { PI_WAGGLE_USER_REQUEST_CUSTOM_TYPE } from '@openwaggle/pi-waggle/protocol'
 import type { MessagePart, MessageRole } from '@shared/types/agent'
+import type { JsonValue } from '@shared/types/json'
 import { createModelRef } from '@shared/types/llm'
 import type { ProjectedSessionNodeInput } from '../../../ports/session-repository'
 import { toJsonValue } from '../pi-message-mapper'
@@ -34,6 +35,25 @@ function compactionReason(value: unknown) {
   if (typeof value !== 'object' || value === null || !('reason' in value)) return null
   const reason = value.reason
   return reason === 'manual' || reason === 'threshold' || reason === 'overflow' ? reason : null
+}
+
+function rawProjection(value: JsonValue): PiEntryProjection {
+  return {
+    kind: 'custom',
+    role: null,
+    contentJson: buildRawNodeContentJson(value),
+    metadataJson: '{}',
+  }
+}
+
+function systemMessageProjection(
+  value: Extract<PiMessageEntry['message'], { role: 'system' }>,
+): PiEntryProjection {
+  return rawProjection({
+    role: value.role,
+    content: toJsonValue(value.content),
+    toolsAdded: toJsonValue(value.toolsAdded ?? []),
+  })
 }
 
 function userMessageProjection(
@@ -143,6 +163,7 @@ function messageProjectionForEntry(
   userDisplayParts?: readonly MessagePart[],
 ): PiEntryProjection {
   return matchBy(entry.message, 'role')
+    .with('system', systemMessageProjection)
     .with('user', (message) => userMessageProjection(message, userDisplayParts))
     .with('assistant', assistantMessageProjection)
     .with('toolResult', toolResultMessageProjection)
@@ -267,6 +288,12 @@ function labelEntryProjection(entry: Extract<SessionEntry, { type: 'label' }>): 
   }
 }
 
+function stateEntryProjection(
+  entry: Extract<SessionEntry, { type: 'context_edit' | 'usage' }>,
+): PiEntryProjection {
+  return rawProjection({ type: entry.type, entry: toJsonValue(entry) })
+}
+
 function sessionInfoEntryProjection(
   entry: Extract<SessionEntry, { type: 'session_info' }>,
 ): PiEntryProjection {
@@ -290,6 +317,7 @@ export function projectionForPiEntry(
     .with('branch_summary', branchSummaryEntryProjection)
     .with('custom', customEntryProjection)
     .with('custom_message', customMessageProjection)
+    .with('context_edit', 'usage', stateEntryProjection)
     .with('label', labelEntryProjection)
     .with('session_info', sessionInfoEntryProjection)
     .exhaustive()

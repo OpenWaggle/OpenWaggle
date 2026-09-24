@@ -1,4 +1,4 @@
-import type { Model } from '@earendil-works/pi-ai'
+import { type Model, normalizeContext } from '@earendil-works/pi-ai'
 import { convertResponsesMessages } from '@earendil-works/pi-ai/api/openai-responses-shared'
 import { buildSessionContext, convertToLlm, SessionManager } from '@earendil-works/pi-coding-agent'
 import { describe, expect, it } from 'vitest'
@@ -48,7 +48,7 @@ describe('Pi native compaction replay', () => {
     expect(
       convertResponsesMessages(
         compatibleModel,
-        { systemPrompt: '', messages: replay },
+        normalizeContext({ systemPrompt: '', messages: replay }),
         new Set(['native-provider']),
       ),
     ).toEqual([{ type: 'compaction', id: 'cmp_1', encrypted_content: 'opaque-checkpoint' }])
