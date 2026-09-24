@@ -81,7 +81,7 @@ describe('desktop app release workflow', () => {
     expect(WORKFLOW).toContain('gh pr list --state all --head "$RELEASE_BRANCH"')
     expect(WORKFLOW).toContain('scripts/app-release-state.ts filter-prs')
     expect(WORKFLOW).toContain('if [ "$PR_STATE" = "MERGED" ]')
-    expect(WORKFLOW).toContain('if [ "$MERGE_STATE" = "BEHIND" ]')
+    expect(WORKFLOW).toContain('git merge-base --is-ancestor "$MAIN_SHA" "$HEAD_SHA"')
     expect(WORKFLOW).toContain('/update-branch')
     expect(WORKFLOW).toContain('for VALIDATION_ATTEMPT in $(seq 1 3)')
     expect(WORKFLOW).toContain('test "$(git rev-list -n 1 "$TAG")" = "$MERGE_SHA"')
@@ -111,7 +111,7 @@ describe('desktop app release workflow', () => {
     )
     expect(WORKFLOW).toContain('verify_version_only_tree "$parent_sha" "$commit_sha"')
     expect(WORKFLOW).toContain(
-      'verify_version_only_tree "origin/main" "origin/${RELEASE_BRANCH}"',
+      'verify_version_only_tree "$MAIN_SHA" "$HEAD_SHA"',
     )
   })
 

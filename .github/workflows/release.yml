@@ -176,6 +176,15 @@ jobs:
             cmp "$RUNNER_TEMP/expected-package.json" "$RUNNER_TEMP/candidate-package.json"
           }
 
+          verify_release_branch_base() {
+            local base_ref="$1"
+            local candidate_ref="$2"
+            local common_base
+            common_base=$(git merge-base --all "$base_ref" "$candidate_ref")
+            [[ "$common_base" =~ ^[0-9a-f]{40}$ ]]
+            verify_version_only_tree "$common_base" "$candidate_ref"
+          }
+
           verify_release_commit() {
             local commit_sha="$1"
             [[ "$commit_sha" =~ ^[0-9a-f]{40}$ ]]
@@ -351,7 +360,7 @@ jobs:
             git fetch origin \
               "+refs/heads/main:refs/remotes/origin/main" \
               "+refs/heads/${RELEASE_BRANCH}:refs/remotes/origin/${RELEASE_BRANCH}"
-            verify_version_only_tree "origin/main" "origin/${RELEASE_BRANCH}"
+            verify_release_branch_base "origin/main" "origin/${RELEASE_BRANCH}"
             PR_CREATE_ERROR="$RUNNER_TEMP/release-pr-create-error.log"
             for PR_CREATE_ATTEMPT in $(seq 1 4); do
               if PR_URL=$(gh pr create \
@@ -404,7 +413,7 @@ jobs:
             PR_NUMBER=$(gh pr view "$PR_URL" --json number --jq '.number')
             for VALIDATION_ATTEMPT in $(seq 1 3); do
               PR_DETAILS=$(gh pr view "$PR_URL" \
-                --json baseRefName,headRefName,headRefOid,mergeStateStatus,state,title)
+                --json baseRefName,headRefName,headRefOid,state,title)
               CURRENT_PR_STATE=$(jq -er '.state' <<<"$PR_DETAILS")
               if [ "$CURRENT_PR_STATE" = "MERGED" ]; then
                 echo "Release PR merged after validation; its protected-merge run owns publication."
@@ -416,10 +425,16 @@ jobs:
               test "$(jq -er '.headRefName' <<<"$PR_DETAILS")" = "$RELEASE_BRANCH"
               test "$(jq -er '.title' <<<"$PR_DETAILS")" = "chore(release): v${VERSION}"
               HEAD_SHA=$(jq -er '.headRefOid' <<<"$PR_DETAILS")
-              MERGE_STATE=$(jq -er '.mergeStateStatus' <<<"$PR_DETAILS")
               [[ "$HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]
 
-              if [ "$MERGE_STATE" = "BEHIND" ]; then
+              git fetch origin \
+                "+refs/heads/main:refs/remotes/origin/main" \
+                "+refs/heads/${RELEASE_BRANCH}:refs/remotes/origin/${RELEASE_BRANCH}"
+              test "$(git rev-parse "origin/${RELEASE_BRANCH}")" = "$HEAD_SHA"
+              MAIN_SHA=$(git rev-parse origin/main)
+              verify_release_branch_base "$MAIN_SHA" "$HEAD_SHA"
+
+              if ! git merge-base --is-ancestor "$MAIN_SHA" "$HEAD_SHA"; then
                 gh api --method PUT \
                   "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/update-branch" \
                   -f "expected_head_sha=${HEAD_SHA}" >/dev/null
@@ -439,7 +454,16 @@ jobs:
                 "+refs/heads/main:refs/remotes/origin/main" \
                 "+refs/heads/${RELEASE_BRANCH}:refs/remotes/origin/${RELEASE_BRANCH}"
               test "$(git rev-parse "origin/${RELEASE_BRANCH}")" = "$HEAD_SHA"
-              verify_version_only_tree "origin/main" "origin/${RELEASE_BRANCH}"
+              MAIN_SHA=$(git rev-parse origin/main)
+              if ! git merge-base --is-ancestor "$MAIN_SHA" "$HEAD_SHA"; then
+                if [ "$VALIDATION_ATTEMPT" -eq 3 ]; then
+                  echo "Release PR remained behind main after branch update retries."
+                  exit 1
+                fi
+                echo "Main advanced during release branch synchronization; retrying."
+                continue
+              fi
+              verify_version_only_tree "$MAIN_SHA" "$HEAD_SHA"
 
               RUN_ID=""
               for RUN_ATTEMPT in $(seq 1 60); do
@@ -477,7 +501,7 @@ jobs:
               gh run watch "$RUN_ID" --exit-status
 
               AFTER_VALIDATION=$(gh pr view "$PR_URL" \
-                --json headRefOid,mergeStateStatus,state)
+                --json headRefOid,state)
               test "$(jq -er '.headRefOid' <<<"$AFTER_VALIDATION")" = "$HEAD_SHA"
               AFTER_VALIDATION_STATE=$(jq -er '.state' <<<"$AFTER_VALIDATION")
               if [ "$AFTER_VALIDATION_STATE" = "MERGED" ]; then
@@ -486,7 +510,9 @@ jobs:
                 exit 0
               fi
               test "$AFTER_VALIDATION_STATE" = "OPEN"
-              if [ "$(jq -er '.mergeStateStatus' <<<"$AFTER_VALIDATION")" != "BEHIND" ]; then
+              git fetch origin "+refs/heads/main:refs/remotes/origin/main"
+              MAIN_SHA=$(git rev-parse origin/main)
+              if git merge-base --is-ancestor "$MAIN_SHA" "$HEAD_SHA"; then
                 break
               fi
               if [ "$VALIDATION_ATTEMPT" -eq 3 ]; then
