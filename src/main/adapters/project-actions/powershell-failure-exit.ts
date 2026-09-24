@@ -5,6 +5,11 @@ export function powerShellFailureExitCode(statementDiscovery: readonly string[])
     // Resolve only inert AST shapes. Evaluating the command expression again could rerun user code.
     'function __ow_resolve_command_expression($ast) {',
     '  if ($ast -is [System.Management.Automation.Language.VariableExpressionAst]) {',
+    '    if ($ast.VariablePath.IsDriveQualified) {',
+    '      if ($ast.VariablePath.DriveName -ine "Env") { return $null }',
+    '      $__ow_envName = $ast.VariablePath.UserPath.Substring($ast.VariablePath.DriveName.Length + 1)',
+    '      return ,[System.Environment]::GetEnvironmentVariable($__ow_envName)',
+    '    }',
     '    $__ow_variable = Get-Variable -Name $ast.VariablePath.UserPath -ErrorAction SilentlyContinue',
     '    if ($__ow_variable) { return ,$__ow_variable.Value }',
     '    return $null',

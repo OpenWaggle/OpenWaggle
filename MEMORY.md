@@ -1128,6 +1128,9 @@ reruns user code.
 Interpolated call-operator targets such as `& "$exe"` use `ExpandableStringExpressionAst`.
 Reconstruct only literal segments without PowerShell escapes and nested inert string expressions;
 reject command-bearing subexpressions so inspecting a failed native command never repeats effects.
+An `Env:` command target is also a `VariableExpressionAst`, but `Get-Variable` cannot read the
+environment provider. Resolve only `Env:` drive-qualified paths through the process environment;
+leave other provider drives unresolved rather than invoking arbitrary provider behavior.
 
 Action run output cursors cannot be recovered from retained log length after scrollback
 compaction: the Host may flush the log before its throttled SQLite `outputBytes` update. Journal

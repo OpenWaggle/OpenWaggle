@@ -64,6 +64,26 @@ it.skipIf(!powerShellAvailable)(
 )
 
 it.skipIf(!powerShellAvailable)(
+  'preserves native exits for environment-provider command targets',
+  async () => {
+    const runner = createActionProcessRunner('test')
+    for (const target of ['$env:OW_NATIVE_EXE', '"$env:OW_NATIVE_EXE"']) {
+      const child = await runner.start({
+        invocation: {
+          type: 'command',
+          command: `$env:OW_NATIVE_EXE = '${native}'; & ${target} ${args}`,
+          cwd: root,
+        },
+        environment: { SHELL: powerShell },
+        onOutput: () => {},
+      })
+      live.push(child)
+      expect(await child.closed).toEqual({ exitCode: 7 })
+    }
+  },
+)
+
+it.skipIf(!powerShellAvailable)(
   'preserves the native exit code of a parenthesized indexed Setup command',
   async () => {
     const destination = join(root, 'environment.json')
@@ -96,6 +116,30 @@ it.skipIf(!powerShellAvailable)(
         type: 'command',
         cwd: root,
         command: `$env:OW_INTERPOLATED_SETUP = 'loaded'; $exe = '${native}'; & "$exe" ${args}`,
+      },
+      destination,
+      powerShell,
+      {},
+    )
+    if (capture.invocation.type !== 'executable') throw new Error('Expected PowerShell wrapper')
+    const result = spawnSync(capture.invocation.executable, capture.invocation.args, {
+      cwd: root,
+      encoding: 'utf8',
+    })
+    expect(result.status).toBe(7)
+    await expect(readFile(destination, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
+  },
+)
+
+it.skipIf(!powerShellAvailable)(
+  'preserves the native exit code of an environment-provider Setup command',
+  async () => {
+    const destination = join(root, 'provider-environment.json')
+    const capture = await preparationCaptureInvocation(
+      {
+        type: 'command',
+        cwd: root,
+        command: `$env:OW_PROVIDER_SETUP = 'loaded'; $env:OW_NATIVE_EXE = '${native}'; & $env:OW_NATIVE_EXE ${args}`,
       },
       destination,
       powerShell,
