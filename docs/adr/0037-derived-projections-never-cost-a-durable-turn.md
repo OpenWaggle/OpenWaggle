@@ -1,6 +1,6 @@
 # Derived Projections Never Cost a Durable Turn
 
-Status: proposed
+Status: accepted
 
 ## Context
 
@@ -17,16 +17,18 @@ Drift validation (`validateTranscriptTermCounts`) runs only during the one-time 
 
 ## Decision
 
-**A turn's durable persistence never depends on a derived projection succeeding.**
+**A turn's durable persistence never depends on, or waits for, a derived projection.**
 
-- The incremental term projection inside `persistSessionSnapshot` runs in a savepoint. If it fails, the savepoint is rolled back, and the Session's term index is rebuilt exactly with `refreshSessionTranscriptTerms` in the same transaction. The turn then commits.
-- If the rebuild also fails, the turn still commits. The failure is logged with its full cause, and the Session is queued for a background rebuild. Discovery results for that Session may be stale until the rebuild lands.
-- A failure to persist the turn itself is reported as "This response couldn't be saved", with the failed operation and cause chain in its details. It is never reported as the generic unknown error.
+- The incremental term projection inside a snapshot runs in savepoints and checks the document count against its inverted index. On any failure only the projection savepoint rolls back, and the Session's term index is marked stale by removing its rows. Removal is bounded by the Session's vocabulary; an exact rebuild would tokenize every node inside the turn's transaction.
+- "Nodes but no term document" is the durable stale marker. It survives restarts, covers every snapshot path including fork, and disappears with the Session.
+- A Host background service (`runTranscriptTermRepairBackground`) rebuilds stale Sessions outside any turn. It works in a bounded batch per pass, one transaction per Session, with per-Session exponential backoff, and is woken early when a snapshot marks a Session stale. Discovery results for that Session are missing until the repair lands.
+- Run failures are classified from the original error. Only a failed snapshot write (`persistSessionSnapshot`) after the agent answered is reported as "This response couldn't be saved"; a later projection write, such as the turn-checkpoint anchor, fails after the turn is already durable. The classic and Waggle paths share this classification.
+- Detail published beyond the Host log (renderer, CLI, feedback reports) is redacted, abbreviates the home directory, and is bounded. The full cause stays in the Host log.
 
-**The detached Session Host writes its own log file** (`openwaggle-host-YYYY-MM-DD.log`) in the application logs directory, beside the GUI log. "Open Logs" opens that directory.
+**The detached Session Host writes its own log file** (`openwaggle-host-YYYY-MM-DD.log`) in the application logs directory, beside the GUI log. It awaits the file before startup work so early diagnostics are kept. "Open Logs" opens that directory, and feedback reports include the Host log.
 
 **Error formatting preserves tagged errors.** Logs and error details include the error tag, repository operation, and cause chain. An empty `message` never produces an empty log field.
 
 ## Consequences
 
-Search and discovery ranking can briefly disagree with the transcript after a projection failure, and they are repaired without user action. The upstream cause of drift remains unknown. The new Host log records the Session and operation the next time it happens, which makes it diagnosable rather than silent.
+Search and discovery can briefly miss a Session after a projection failure; it is repaired without user action. The repair checks aggregate consistency, not term-level content, so corruption that preserves the totals is not detected; that needs a projection revision tied to canonical content and is left to follow-up work. The upstream cause of drift remains unknown. The new Host log records the Session and operation the next time it happens, which makes it diagnosable rather than silent.
