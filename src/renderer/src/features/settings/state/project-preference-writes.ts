@@ -217,8 +217,11 @@ export async function removeModelAndReferences(
   ]
   // Captured after the in-flight write chain settles, so compensation sees the last saved model.
   const previousPrefs = await api.getProjectPreferences(path)
-  const canonicalPath = await api.removeProjectModel(path, remainingReferences)
   try {
+    // The Host removal itself is several separately persisted steps (legacy-file strip, model
+    // entry, alias records), so it can reject after the model is already gone; the rollback
+    // scope must cover it, not just the reference update.
+    const canonicalPath = await api.removeProjectModel(path, remainingReferences)
     const result = await api.updateSettings({
       projectPath: snapshot.projectPath,
       recentProjects: snapshot.recentProjects,
@@ -226,11 +229,11 @@ export async function removeModelAndReferences(
       skillTogglesByProject: snapshot.skillTogglesByProject,
     })
     if (!result.ok) throw new Error(result.error)
+    return canonicalPath
   } catch (err) {
     if (previousPrefs?.model !== undefined) {
       await api.setProjectPreferences(path, { model: previousPrefs.model }).catch(() => undefined)
     }
     throw err
   }
-  return canonicalPath
 }
