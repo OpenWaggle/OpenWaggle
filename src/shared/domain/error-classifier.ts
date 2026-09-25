@@ -105,6 +105,15 @@ function containsAny(message: string, patterns: readonly string[]) {
   return patterns.some((pattern) => message.includes(pattern))
 }
 
+/**
+ * An HTTP status as a standalone token. A bare substring match classified
+ * `connect ECONNREFUSED 127.0.0.1:5000` as a provider 500, and matched ports, ids, and counts
+ * generally. A status must not be part of a longer number.
+ */
+function containsStatus(message: string, statuses: readonly string[]) {
+  return statuses.some((status) => new RegExp(`(?<![\\d.])${status}(?!\\d)`).test(message))
+}
+
 function isInsufficientCreditsError(lower: string) {
   return (
     containsAny(lower, [
@@ -124,15 +133,16 @@ function isInsufficientCreditsError(lower: string) {
 }
 
 function isAuthError(lower: string) {
-  return containsAny(lower, [
-    '401',
-    '403',
-    'unauthorized',
-    'authentication',
-    'api key',
-    'invalid_api_key',
-    'incorrect api key',
-  ])
+  return (
+    containsStatus(lower, ['401', '403']) ||
+    containsAny(lower, [
+      'unauthorized',
+      'authentication',
+      'api key',
+      'invalid_api_key',
+      'incorrect api key',
+    ])
+  )
 }
 
 function isRuntimePackageManagerError(lower: string) {
@@ -140,20 +150,19 @@ function isRuntimePackageManagerError(lower: string) {
 }
 
 function isRateLimitedError(lower: string) {
-  return containsAny(lower, ['429', 'rate limit', 'too many requests'])
+  return containsStatus(lower, ['429']) || containsAny(lower, ['rate limit', 'too many requests'])
 }
 
 function isProviderDownError(lower: string) {
-  return containsAny(lower, [
-    '500',
-    '502',
-    '503',
-    '529',
-    'overloaded',
-    'internal server error',
-    'service unavailable',
-    'bad gateway',
-  ])
+  return (
+    containsStatus(lower, ['500', '502', '503', '529']) ||
+    containsAny(lower, [
+      'overloaded',
+      'internal server error',
+      'service unavailable',
+      'bad gateway',
+    ])
+  )
 }
 
 function isContextOverflowError(lower: string) {

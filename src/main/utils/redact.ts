@@ -30,9 +30,14 @@ const SECRET_REDACTION_PATTERNS = [
     replacement: '[REDACTED_ACCESS_KEY]',
   },
   {
-    // Labelled credentials: `x-api-key: ...`, `api_key=...`, `"token": "..."`, `password=...`.
+    /*
+     * Labelled credentials: `x-api-key: ...`, `api_key=...`, `"token": "..."`, `password=...`,
+     * whole environment-variable names such as `ANTHROPIC_API_KEY=...`, `AWS_SECRET_ACCESS_KEY=...`
+     * or `NPM_TOKEN=...`, and prose such as `API key: ...`. The label must end with the credential
+     * word, so `token_count=483` is left alone.
+     */
     pattern:
-      /\b((?:x-)?api[_-]?key|access[_-]?token|refresh[_-]?token|auth[_-]?token|client[_-]?secret|secret|password|token)(["']?\s*[:=]\s*["']?)(?!\[REDACTED)[^\s"',;&]{6,}/gi,
+      /\b([A-Za-z0-9_-]*?(?:api[_ -]?key|access[_-]?token|refresh[_-]?token|auth[_-]?token|client[_-]?secret|secret[_-]?access[_-]?key|secret[_-]?key|secret|password|passwd|token))(["']?\s*[:=]\s*["']?)(?!\[REDACTED)[^\s"',;&]{6,}/gi,
     replacement: '$1$2[REDACTED]',
   },
 ] as const

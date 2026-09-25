@@ -29,6 +29,9 @@ export function loadSeedTranscriptTerm(
       FROM json_each(${termsJson}) AS query_terms
       ORDER BY (
         SELECT COUNT(*) FROM session_transcript_terms AS candidate_terms
+        -- Terms of a stale Session (no document, ADR 0037) are unreachable; do not count them.
+        JOIN session_transcript_term_documents AS candidate_documents
+          ON candidate_documents.session_id = candidate_terms.session_id
         WHERE candidate_terms.term = CAST(query_terms.value AS TEXT)
       ), CAST(query_terms.value AS TEXT)
       LIMIT 1

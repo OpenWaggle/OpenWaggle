@@ -48,6 +48,25 @@ describe('redactSensitiveText', () => {
     }
   })
 
+  it('redacts credentials named by environment variables and prose labels', () => {
+    const input = [
+      'ANTHROPIC_API_KEY=abcdef1234567890',
+      'AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMIK7MDENG',
+      'NPM_TOKEN=npm_abcdefghij123456',
+      'API key: xyz9876543210',
+    ].join('\n')
+    const output = redactSensitiveText(input)
+    for (const secret of [
+      'abcdef1234567890',
+      'wJalrXUtnFEMIK7MDENG',
+      'npm_abcdefghij123456',
+      'xyz9876543210',
+    ]) {
+      expect(output).not.toContain(secret)
+    }
+    expect(output).toContain('ANTHROPIC_API_KEY=[REDACTED]')
+  })
+
   it('does not redact ordinary words that resemble credential labels', () => {
     const input = 'token_count=483 and tokens used: 1024'
     expect(redactSensitiveText(input)).toBe(input)

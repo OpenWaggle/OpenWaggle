@@ -186,7 +186,7 @@ it('keeps a Session stale across later snapshots until the exact repair runs', a
   await runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
-      yield* sql`DELETE FROM session_transcript_terms WHERE session_id = ${sessionId}`
+      // markStale removes only the document row; the retained terms are unreachable until repair.
       yield* sql`DELETE FROM session_transcript_term_documents WHERE session_id = ${sessionId}`
     }),
   )
@@ -206,4 +206,66 @@ it('keeps a Session stale across later snapshots until the exact repair runs', a
   const repaired = await readIndexState(sessionId)
   expect(repaired?.token_count).toBe(10)
   expect(repaired?.token_count).toBe(repaired?.occurrences)
+})
+
+it('never loses a turn when reading the derived index state fails', async () => {
+  const { sessionId, first, second } = await seedSessionWithDriftedIndex()
+  await runStoreEffect(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      // Review finding: an uncaught derived read rolled back the snapshot and lost the turn.
+      yield* sql.unsafe('ALTER TABLE session_transcript_term_documents RENAME TO documents_moved')
+    }),
+  )
+  const third = transcriptNode('drift-c', 'drift-b', 2, 'gamma extra', 'run-c')
+
+  await expect(
+    persistSessionSnapshot({
+      sessionId,
+      piSessionId: PI_SESSION_ID,
+      activeNodeId: third.id,
+      nodes: [first, second, third],
+    }),
+  ).resolves.toBeUndefined()
+
+  const nodes = await runStoreEffect(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      yield* sql.unsafe('ALTER TABLE documents_moved RENAME TO session_transcript_term_documents')
+      return yield* sql<{ readonly count: number }>`
+        SELECT COUNT(*) AS count FROM session_nodes WHERE session_id = ${sessionId}
+      `
+    }),
+  )
+  expect(nodes[0]?.count).toBe(3)
+})
+
+it('backs a failing repair off from the time it failed, then retries it', async () => {
+  const { sessionId } = await seedSessionWithDriftedIndex()
+  await runStoreEffect(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      yield* sql`DELETE FROM session_transcript_term_documents WHERE session_id = ${sessionId}`
+      yield* sql.unsafe(`CREATE TRIGGER fail_repair BEFORE INSERT ON session_transcript_term_documents
+        BEGIN SELECT RAISE(ABORT, 'repair blocked'); END`)
+    }),
+  )
+  const repairAt = (now: number) =>
+    runStoreEffect(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        return yield* repairStaleTranscriptTermProjections(sql, { now })
+      }),
+    )
+
+  expect(await repairAt(1_000)).toEqual({ selected: 1, repaired: 0 })
+  // Inside the first backoff window the Session is not selected again.
+  expect(await repairAt(2_000)).toEqual({ selected: 0, repaired: 0 })
+  await runStoreEffect(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      yield* sql.unsafe('DROP TRIGGER fail_repair')
+    }),
+  )
+  expect(await repairAt(1_000 + 60_000)).toEqual({ selected: 1, repaired: 1 })
 })

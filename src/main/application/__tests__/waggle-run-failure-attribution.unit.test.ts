@@ -44,16 +44,20 @@ describe('attributing a failed Waggle run', () => {
     expect(outcome).toMatchObject({ outcome: 'error', transportEmitted: true })
   })
 
-  it('classifies a cause wrapped in a generic error, as the classic path does', async () => {
+  it.each([
+    ['429 Too Many Requests', 'rate-limited'],
+    ['terminated', 'provider-unavailable'],
+    ['connect ECONNREFUSED 127.0.0.1:5000', 'provider-unavailable'],
+  ])('classifies a wrapped cause as the classic path does (%s)', async (cause, code) => {
     const outcome = await Effect.runPromise(
       recoverWaggleRunFailure({
-        error: new Error('request failed', { cause: new Error('429 Too Many Requests') }),
+        error: new Error('request failed', { cause: new Error(cause) }),
         input: INPUT,
         reachedAgent: () => true,
       }),
     )
 
-    expect(outcome).toMatchObject({ outcome: 'error', code: 'rate-limited' })
+    expect(outcome).toMatchObject({ outcome: 'error', code })
   })
 
   // ADR 0037 applies to Waggle as well as classic runs.

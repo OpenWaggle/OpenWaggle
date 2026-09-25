@@ -200,6 +200,8 @@ describe('recoverAgentRunFailure', () => {
     ['401 Unauthorized', 'api-key-invalid'],
     ['429 Too Many Requests', 'rate-limited'],
     ['503 Service Unavailable', 'provider-down'],
+    ['terminated', 'provider-unavailable'],
+    ['connect ECONNREFUSED 127.0.0.1:5000', 'provider-unavailable'],
   ])('classifies a cause wrapped in a generic error (%s)', async (cause, code) => {
     const error = new Error('request failed', { cause: new Error(cause) })
 

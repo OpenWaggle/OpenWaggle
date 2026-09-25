@@ -37,7 +37,12 @@ function describeOne(error: unknown) {
  */
 export function describeError(error: unknown): string {
   if (error === undefined || error === null) return String(error)
-  const parts: string[] = []
+  return errorCauseChain(error).map(describeOne).join(' <- ')
+}
+
+/** The error and each of its causes, outermost first, unwrapping Effect `FiberFailure`s. */
+export function errorCauseChain(error: unknown): unknown[] {
+  const chain: unknown[] = []
   const seen = new Set<unknown>()
   let current: unknown = error
   for (
@@ -48,13 +53,13 @@ export function describeError(error: unknown): string {
     const unwrapped = unwrapFiberFailure(current)
     if (seen.has(unwrapped)) break
     seen.add(unwrapped)
-    parts.push(describeOne(unwrapped))
+    chain.push(unwrapped)
     current =
       typeof unwrapped === 'object' && unwrapped !== null
         ? Reflect.get(unwrapped, 'cause')
         : undefined
   }
-  return parts.join(' <- ')
+  return chain
 }
 
 const MAX_USER_FACING_DETAIL_LENGTH = 600

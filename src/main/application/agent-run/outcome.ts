@@ -5,7 +5,7 @@ import * as Effect from 'effect/Effect'
 import { classifyAgentError, makeErrorInfo } from '../../agent/error-classifier'
 import { SessionProjectionRepositoryError } from '../../errors'
 import { createLogger } from '../../logger'
-import { describeError, userFacingErrorDetail } from '../../utils/describe-error'
+import { describeError, errorCauseChain, userFacingErrorDetail } from '../../utils/describe-error'
 import { isRunCancellation } from '../run-cancellation'
 import type { PersistedRunResourceNodes } from '../session-resource-node-mapping'
 import type { AgentRunResult } from './types'
@@ -114,10 +114,19 @@ export function classifyRunFailure(error: unknown, reachedAgent: boolean) {
   if (isSnapshotPersistenceFailure(error, reachedAgent)) {
     return { classified: makeErrorInfo('persist-failed', detail), detail }
   }
-  // Exact message first; a generic wrapper ("request failed") falls back to its described causes.
+  /*
+   * Each error in the chain is classified on its own message, outermost first. A generic wrapper
+   * ("request failed") defers to its causes, and exact rules such as `terminated` still apply to a
+   * wrapped cause; classifying one concatenated string let unrelated text collide.
+   */
   const direct = classifyAgentError(error)
-  const classified = direct.code === 'unknown' ? classifyAgentError(new Error(detail)) : direct
-  return { classified, detail }
+  if (direct.code !== 'unknown') return { classified: direct, detail }
+  for (const cause of errorCauseChain(error).slice(1)) {
+    const candidate = classifyAgentError(cause)
+    if (candidate.code !== 'unknown')
+      return { classified: { ...candidate, message: detail }, detail }
+  }
+  return { classified: { ...direct, message: detail }, detail }
 }
 
 export function recoverAgentRunFailure({

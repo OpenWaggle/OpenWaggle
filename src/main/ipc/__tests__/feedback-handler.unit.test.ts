@@ -176,7 +176,8 @@ describe('feedback-handler', () => {
             includeModelInfo: false,
             lastErrorContext: {
               code: 'unknown',
-              message: 'upstream said: Authorization: Bearer abcdef0123456789secret',
+              message:
+                'upstream said: Authorization: Bearer abcdef0123456789secret ANTHROPIC_API_KEY=abcdef1234567890 API key: xyz9876543210',
               userMessage: 'Something went wrong',
               retryable: true,
             },
@@ -186,6 +187,8 @@ describe('feedback-handler', () => {
 
       expect(result).not.toContain('abcdef0123456789secret')
       expect(result).toContain('Bearer [REDACTED_TOKEN]')
+      expect(result).not.toContain('abcdef1234567890')
+      expect(result).not.toContain('xyz9876543210')
     })
 
     it('includes model info when provided', async () => {

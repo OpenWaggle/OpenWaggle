@@ -20,6 +20,7 @@ const REPAIR_BACKOFF_BASE_MS = 5_000
 const REPAIR_BACKOFF_MAX_MS = 10 * 60_000
 const REPAIR_BACKOFF_MAX_EXPONENT = 8
 const REPAIR_BACKOFF_FACTOR = 2
+const BACKOFF_PRUNE_BATCH_SIZE = 16
 
 class TranscriptTermDriftError extends Data.TaggedError('TranscriptTermDriftError')<{
   readonly tokenCount: number
@@ -127,8 +128,15 @@ export function reconcileWithTranscriptTermProjection<E, R>(input: {
      * An incremental delta over a stale Session would build a partial index for only the changed
      * nodes, which the aggregate check accepts and the repair never selects again.
      */
-    if (yield* isAlreadyStale(sql, sessionId)) {
+    // The check reads derived state too, so its failure is a projection failure, never the turn's.
+    const staleCheck: { readonly stale: boolean; readonly failure?: unknown } =
+      yield* isAlreadyStale(sql, sessionId).pipe(
+        Effect.map((stale) => ({ stale })),
+        Effect.catchAll((failure) => Effect.succeed({ stale: false, failure })),
+      )
+    if (staleCheck.stale || 'failure' in staleCheck) {
       yield* input.reconcile
+      if ('failure' in staleCheck) yield* markStale(sql, sessionId, staleCheck.failure)
       wakeTranscriptTermRepair()
       return
     }
@@ -162,7 +170,8 @@ const failureBackoff = new Map<string, { readonly failures: number; readonly ret
 function pruneBackoff(sql: SqlClient.SqlClient) {
   return Effect.gen(function* () {
     if (failureBackoff.size === 0) return
-    const tracked = JSON.stringify([...failureBackoff.keys()])
+    // Bounded like a repair batch: a systemic failure cannot make housekeeping itself grow.
+    const tracked = JSON.stringify([...failureBackoff.keys()].slice(0, BACKOFF_PRUNE_BATCH_SIZE))
     const rows = yield* sql<{ readonly id: string }>`
       SELECT sessions.id FROM sessions
       WHERE sessions.id IN (SELECT CAST(value AS TEXT) FROM json_each(${tracked}))
@@ -172,7 +181,13 @@ function pruneBackoff(sql: SqlClient.SqlClient) {
         )
     `
     const stillStale = new Set(rows.map((row) => row.id))
-    for (const id of [...failureBackoff.keys()]) if (!stillStale.has(id)) failureBackoff.delete(id)
+    const checked = [...failureBackoff.keys()].slice(0, BACKOFF_PRUNE_BATCH_SIZE)
+    for (const id of checked) {
+      const entry = failureBackoff.get(id)
+      failureBackoff.delete(id)
+      // Re-inserted at the end, so the next pass checks the next slice.
+      if (entry && stillStale.has(id)) failureBackoff.set(id, entry)
+    }
   })
 }
 
