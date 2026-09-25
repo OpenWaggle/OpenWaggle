@@ -1,6 +1,6 @@
 import type { SessionId } from '@shared/types/brand'
 import type { SessionResource, SessionResourceOccurrence } from '@shared/types/session-resource'
-import { createContext, type ReactNode, useContext } from 'react'
+import { createContext, type ReactNode, useContext, useState } from 'react'
 import { Button } from '@/shared/ui/Button'
 import { useUIStore } from '@/shell/ui-store'
 import { useSessionImageResourcesByNodeIds } from '../hooks/useSessionResources'
@@ -79,6 +79,24 @@ function indexMessageImages(sessionId: string, resources: readonly SessionResour
   return result
 }
 
+const EMPTY_RESOURCES: readonly SessionResource[] = []
+
+function resourceSignature(resources: readonly SessionResource[]) {
+  return resources
+    .map(
+      (resource) =>
+        `${resource.id}:${String(resource.updatedAt)}:${resource.occurrences.map((occurrence) => occurrence.id).join(',')}`,
+    )
+    .join(';')
+}
+
+function buildResourceIndex(
+  id: string | null,
+  resources: readonly SessionResource[],
+): SessionMessageResourceIndex | null {
+  return id ? { sessionId: id, imagesByMessageId: indexMessageImages(id, resources) } : null
+}
+
 export function SessionMessageResourcesProvider({
   sessionId,
   nodeIds,
@@ -90,9 +108,21 @@ export function SessionMessageResourcesProvider({
 }) {
   const id = sessionId ? String(sessionId) : null
   const resources = useSessionImageResourcesByNodeIds(id, nodeIds)
-  const value: SessionMessageResourceIndex | null = id
-    ? { sessionId: id, imagesByMessageId: indexMessageImages(id, resources.data ?? []) }
-    : null
+  const data = resources.data ?? EMPTY_RESOURCES
+  /*
+   * Held until its contents change. A new index on every render re-rendered every consumer, one or
+   * two per mounted message, on every streamed token (ADR 0036).
+   */
+  const signature = `${id ?? ''}|${resourceSignature(data)}`
+  const [held, setHeld] = useState<{
+    signature: string
+    value: SessionMessageResourceIndex | null
+  }>(() => ({ signature, value: buildResourceIndex(id, data) }))
+  let value = held.value
+  if (held.signature !== signature) {
+    value = buildResourceIndex(id, data)
+    setHeld({ signature, value })
+  }
   return (
     <SessionMessageResourcesContext.Provider value={value}>
       {children}
