@@ -88,7 +88,7 @@ If the provider creates the request but OpenWaggle cannot record it under Output
 
 A Hive is a group of related sessions working on one task. The parent, called the Queen, can delegate work to Worker sessions. The Summary shows only the opened session's immediate parent and direct Workers, not every descendant.
 
-Workers are grouped as **Active**, **Review**, **Done**, and **Archived**. **Ready for review** means the Worker submitted a result that its parent has not accepted or sent back for revision. It is no longer running. Accepted or cancelled work appears under Done.
+Workers are grouped as **Active**, **Review**, **Done**, and **Archived**. **Ready for review** means the Worker submitted a result that its parent has not accepted or sent back for revision. This does not mean its Run has stopped. Open the Worker session to check whether it is still running. Accepted or cancelled work appears under Done.
 
 Select a row to open that session. The section opens automatically while work is active, needs attention, or awaits review. For a Queen, it collapses shortly after all direct work is accepted or cancelled unless you have chosen to keep it expanded. Your manual choice is remembered.
 

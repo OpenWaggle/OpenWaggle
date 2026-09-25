@@ -72,7 +72,7 @@ The floating mini-player stays inside OpenWaggle. **Open picture-in-picture** in
 A browser profile keeps a set of cookies and site data. Use different profiles to test separate accounts without signing out each time.
 
 - **Default** and named profiles keep cookies and site data between app launches.
-- **Incognito** keeps data only in memory and discards it when its pages close.
+- **Incognito** keeps data only in memory. It is cleared when OpenWaggle quits, not when you close its tabs.
 - Changing a tab's profile reloads the same URL using that profile's data. Unsaved page state is lost.
 
 Open **Settings > Browser** to choose the default, create or rename named profiles, clear their
