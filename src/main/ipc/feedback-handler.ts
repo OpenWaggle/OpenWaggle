@@ -1,13 +1,14 @@
 import { execFile } from 'node:child_process'
 import { readFile } from 'node:fs/promises'
 import os from 'node:os'
+import path from 'node:path'
 import { BASE_TEN } from '@shared/constants/math'
 import { BYTES_PER_KIBIBYTE, FEEDBACK } from '@shared/constants/resource-limits'
 import type { DiagnosticsInfo, FeedbackPayload, FeedbackSubmitResult } from '@shared/types/feedback'
 import * as Effect from 'effect/Effect'
 import { app } from 'electron'
 import { getSourceControlCliEnv } from '../env'
-import { createLogger, getLogFilePath } from '../logger'
+import { createLogger, getLogFilePath, sessionHostLogPathFor } from '../logger'
 import { redactSensitiveText } from '../utils/redact'
 import { typedHandle } from './typed-ipc'
 
@@ -57,18 +58,29 @@ function collectDiagnostics(): DiagnosticsInfo {
   }
 }
 
+async function readLogTail(filePath: string, lineCount: number) {
+  try {
+    const content = await readFile(filePath, 'utf8')
+    return content.split('\n').slice(-lineCount).join('\n')
+  } catch {
+    return ''
+  }
+}
+
+/** Recent GUI and Session Host log lines; run failures are recorded by the Host (ADR 0037). */
 async function readRecentLogs(lineCount: number) {
   const logPath = getLogFilePath()
   if (!logPath) return ''
 
-  try {
-    const content = await readFile(logPath, 'utf8')
-    const lines = content.split('\n')
-    const recent = lines.slice(-lineCount).join('\n')
-    return redactSensitiveText(recent)
-  } catch {
-    return ''
-  }
+  const hostLogPath = sessionHostLogPathFor(logPath)
+  const [guiLines, hostLines] = await Promise.all([
+    readLogTail(logPath, lineCount),
+    hostLogPath === logPath ? Promise.resolve('') : readLogTail(hostLogPath, lineCount),
+  ])
+  const combined = hostLines
+    ? `${guiLines}\n--- Session Host (${path.basename(hostLogPath)}) ---\n${hostLines}`
+    : guiLines
+  return redactSensitiveText(combined)
 }
 
 function buildDescriptionSection(payload: FeedbackPayload) {

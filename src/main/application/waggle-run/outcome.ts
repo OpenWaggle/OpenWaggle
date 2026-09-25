@@ -19,7 +19,7 @@ export function waggleSessionNotFoundOutcome() {
   const errorInfo = makeErrorInfo('session-not-found', 'Session not found')
   return {
     outcome: 'not-found' as const,
-    message: errorInfo.userMessage,
+    message: errorInfo.message,
     code: errorInfo.code,
   }
 }
@@ -85,7 +85,7 @@ export function recoverWaggleRunFailure(
     })
     return {
       outcome: 'error' as const,
-      message: classified.userMessage,
+      message: classified.message,
       code: classified.code,
       ...(reachedAgent ? { transportEmitted: true } : {}),
     }

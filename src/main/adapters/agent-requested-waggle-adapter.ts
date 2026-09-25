@@ -161,7 +161,7 @@ export function runRequestedWaggleWith(
         if (assistantCount === 0 && value.lastError) {
           const classified = classifyAgentError(new Error(value.lastError))
           publishEnd(input.sessionId, runId, 'error', {
-            message: classified.userMessage,
+            message: classified.message,
             code: classified.code,
           })
           return
@@ -175,7 +175,7 @@ export function runRequestedWaggleWith(
       Effect.sync(() => {
         const classified = classifyAgentError(error)
         publishEnd(input.sessionId, `waggle-${input.sessionId}`, 'error', {
-          message: classified.userMessage,
+          message: classified.message,
           code: classified.code,
         })
       }),

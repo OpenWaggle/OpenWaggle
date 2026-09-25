@@ -3,6 +3,7 @@ import { app } from 'electron'
 import { flushCliOutput } from './cli-output-flush'
 import { env } from './env'
 import { applyInstallerUpdateChannelIntent } from './installer-update-channel-intent'
+import { initFileLogger, SESSION_HOST_LOG_FILE_STEM } from './logger'
 import { configureAppStoragePaths } from './session-data'
 import { withLegacySessionWriterFence } from './session-host/legacy-session-writer-fence'
 import {
@@ -49,6 +50,9 @@ export function startSessionHostCliIfRequested(argv: readonly string[]) {
   void app
     .whenReady()
     .then(async () => {
+      // The detached Host's console is not attached to anything, so without its own file every
+      // failure it recovers from, including a turn that could not be saved, is lost (ADR 0037).
+      void initFileLogger(app.getPath('logs'), SESSION_HOST_LOG_FILE_STEM)
       const preparedPaths = await prepareLocalSessionHostPaths(
         resolveLocalSessionHostPaths({ userDataRoot: app.getPath('userData') }),
       )

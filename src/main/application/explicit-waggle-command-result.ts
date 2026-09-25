@@ -99,7 +99,7 @@ export function publishExplicitWaggleResult(
 function publishWaggleSuccess(sessionId: SessionId, runId: string, result: WaggleSuccessResult) {
   if (result.newMessages.every((message) => message.role !== 'assistant') && result.lastError) {
     const classified = classifyAgentError(new Error(result.lastError))
-    publishWaggleError(sessionId, runId, classified.userMessage, classified.code)
+    publishWaggleError(sessionId, runId, classified.message, classified.code)
     return
   }
   publishWaggleEnd(sessionId, runId, 'stop')

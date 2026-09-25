@@ -58,6 +58,14 @@ describe('file logger', () => {
     expect(files.filter((f) => f.startsWith('openwaggle-'))).toHaveLength(0)
   })
 
+  it('writes to a separate file stem for the detached Session Host', async () => {
+    await initFileLogger(mockLogsDir, 'openwaggle-host')
+    createLogger('host').info('host line')
+
+    const dateStr = new Date().toISOString().slice(0, 10)
+    expect(getLogFilePath()).toBe(path.join(mockLogsDir, `openwaggle-host-${dateStr}.log`))
+  })
+
   it('getLogFilePath returns correct date-based path', async () => {
     await initFileLogger(mockLogsDir)
     createLogger('init').info('init')

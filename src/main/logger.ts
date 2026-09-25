@@ -77,17 +77,23 @@ function reportFileLoggerFailure(message: string, error: unknown) {
 
 import { LOG_RETENTION } from '@shared/constants/time'
 
+const DEFAULT_LOG_FILE_STEM = 'openwaggle'
+/** The detached Session Host's log file stem, beside the GUI's `openwaggle-YYYY-MM-DD.log`. */
+export const SESSION_HOST_LOG_FILE_STEM = 'openwaggle-host'
+
 class FileWriter {
   private logsDir: string | null = null
+  private fileStem = DEFAULT_LOG_FILE_STEM
   private currentDate: string | null = null
   private currentPath: string | null = null
   private buffer: LogEntry[] = []
   private flushScheduled = false
 
-  async init(logsDir: string) {
+  async init(logsDir: string, fileStem = DEFAULT_LOG_FILE_STEM) {
     try {
       await mkdir(logsDir, { recursive: true })
       this.logsDir = logsDir
+      this.fileStem = fileStem
       this.currentDate = null
       this.currentPath = null
       this.ensureDatePath()
@@ -114,7 +120,7 @@ class FileWriter {
     const dateStr = new Date().toISOString().slice(0, SLICE_ARG_2_VALUE_10) // YYYY-MM-DD
     if (dateStr === this.currentDate) return
     this.currentDate = dateStr
-    this.currentPath = path.join(this.logsDir ?? '', `openwaggle-${dateStr}.log`)
+    this.currentPath = path.join(this.logsDir ?? '', `${this.fileStem}-${dateStr}.log`)
   }
 
   private flush() {
@@ -144,7 +150,7 @@ class FileWriter {
           TIME_UNIT.MILLISECONDS_PER_SECOND
       const entries = await readdir(logsDir)
       const deletions = entries.flatMap((entry) =>
-        entry.startsWith('openwaggle-') && entry.endsWith('.log')
+        entry.startsWith(`${this.fileStem}-`) && entry.endsWith('.log')
           ? [unlinkIfOlderThan(path.join(logsDir, entry), cutoff)]
           : [],
       )
@@ -169,8 +175,17 @@ const fileWriter = new FileWriter()
  * Returns a promise that resolves when directory creation and log pruning complete.
  * Callers may ignore the return value for fire-and-forget initialization.
  */
-export function initFileLogger(logsDir: string): Promise<void> {
-  return fileWriter.init(logsDir)
+export function initFileLogger(logsDir: string, fileStem?: string): Promise<void> {
+  return fileWriter.init(logsDir, fileStem)
+}
+
+/** The Session Host log written on the same day, beside a GUI log file. */
+export function sessionHostLogPathFor(guiLogPath: string): string {
+  const name = path.basename(guiLogPath)
+  return path.join(
+    path.dirname(guiLogPath),
+    name.replace(`${DEFAULT_LOG_FILE_STEM}-`, `${SESSION_HOST_LOG_FILE_STEM}-`),
+  )
 }
 
 export function getLogFilePath(): string {

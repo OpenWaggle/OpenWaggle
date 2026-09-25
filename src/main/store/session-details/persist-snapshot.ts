@@ -5,6 +5,7 @@ import { runStoreEffect } from '../store-runtime'
 import { deriveBranchHints, deriveSessionBranchesForSnapshot } from './branch-derivation'
 import { replaceSnapshotProjection } from './persist-snapshot-projection'
 import { loadSnapshotPersistenceState } from './snapshot-persistence-state'
+import { drainPendingTranscriptTermRebuilds } from './snapshot-transcript-term-projection'
 import { preserveVisualizationOwnership } from './visualization-ownership-projection'
 
 export function persistSessionSnapshotWithSql(
@@ -57,6 +58,7 @@ export async function persistSessionSnapshot(input: PersistSessionSnapshotInput)
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
       yield* sql.withTransaction(persistSessionSnapshotWithSql(sql, input, now))
+      yield* drainPendingTranscriptTermRebuilds(sql)
     }),
   )
 }

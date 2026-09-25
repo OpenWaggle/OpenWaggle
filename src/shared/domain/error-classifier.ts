@@ -61,9 +61,10 @@ export const ERROR_CODE_META: Record<AgentErrorCode, ErrorCodeMeta> = {
     retryable: false,
   },
   'persist-failed': {
-    userMessage: 'Failed to save session',
-    suggestion: 'Check disk space and file permissions.',
-    retryable: false,
+    userMessage: "This response couldn't be saved",
+    suggestion:
+      'The reply finished but was not written to the session, so it will not be there after a reload. Open the logs for details.',
+    retryable: true,
   },
   'context-overflow': {
     userMessage: 'Context window exceeded',

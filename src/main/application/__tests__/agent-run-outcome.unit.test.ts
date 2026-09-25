@@ -17,6 +17,7 @@ vi.mock('../../logger', () => ({
 }))
 
 const { buildAgentRunOutcome, recoverAgentRunFailure } = await import('../agent-run/outcome')
+const { SessionProjectionRepositoryError } = await import('../../errors')
 
 const context = {
   sessionId: SessionId('session-1'),
@@ -150,6 +151,52 @@ describe('recoverAgentRunFailure', () => {
         outcome: 'error',
         code: expect.any(String),
         message: expect.any(String),
+      }),
+    )
+  })
+
+  /*
+   * ADR 0037. A tagged repository error has an empty `message`, so this used to report the unknown
+   * code, send "Something went wrong" as the detail, and log `error: ""`.
+   */
+  it('reports a repository failure after the agent answered as a turn that could not be saved', async () => {
+    loggerErrorMock.mockClear()
+    const error = new SessionProjectionRepositoryError({
+      operation: 'persistSessionSnapshot',
+      cause: new Error('CHECK constraint failed: token_count >= 0'),
+    })
+
+    const result = await Effect.runPromise(
+      recoverAgentRunFailure({ ...context, error, reachedAgent: true }),
+    )
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        outcome: 'error',
+        code: 'persist-failed',
+        message:
+          'SessionProjectionRepositoryError (persistSessionSnapshot) <- Error: CHECK constraint failed: token_count >= 0',
+        transportEmitted: true,
+      }),
+    )
+    expect(loggerErrorMock).toHaveBeenCalledWith(
+      'Agent run failed before terminal transport event',
+      expect.objectContaining({
+        error: expect.stringContaining('CHECK constraint failed'),
+      }),
+    )
+  })
+
+  it('keeps the detail of a failure raised before the agent saw the message', async () => {
+    const error = new SessionProjectionRepositoryError({ operation: 'getSessionDetail' })
+
+    const result = await Effect.runPromise(recoverAgentRunFailure({ ...context, error }))
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        outcome: 'error',
+        code: 'unknown',
+        message: 'SessionProjectionRepositoryError (getSessionDetail)',
       }),
     )
   })

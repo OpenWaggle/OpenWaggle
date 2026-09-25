@@ -1,10 +1,11 @@
 import type { Message } from '@shared/types/agent'
 import type { SessionId } from '@shared/types/brand'
 import type { SupportedModelId } from '@shared/types/llm'
-import { formatErrorMessage } from '@shared/utils/node-error'
 import * as Effect from 'effect/Effect'
-import { classifyAgentError } from '../../agent/error-classifier'
+import { classifyAgentError, makeErrorInfo } from '../../agent/error-classifier'
+import { SessionProjectionRepositoryError } from '../../errors'
 import { createLogger } from '../../logger'
+import { describeError } from '../../utils/describe-error'
 import { isRunCancellation } from '../run-cancellation'
 import type { PersistedRunResourceNodes } from '../session-resource-node-mapping'
 import type { AgentRunResult } from './types'
@@ -86,6 +87,10 @@ export function buildAgentRunOutcome({
   }
 }
 
+function isPersistenceFailure(error: unknown) {
+  return error instanceof SessionProjectionRepositoryError
+}
+
 export function recoverAgentRunFailure({
   error,
   signal,
@@ -103,18 +108,28 @@ export function recoverAgentRunFailure({
       ...(assignedTitle ? { assignedTitle } : {}),
     })
   }
-  const classified = classifyAgentError(error)
+  const detail = describeError(error)
+  /*
+   * A repository failure after the agent answered is a turn that could not be saved, not an unknown
+   * run failure. Tagged repository errors carry an empty `message`, so classifying `error.message`
+   * reported "Something went wrong" with no detail, and the log line read `error: ""` (ADR 0037).
+   */
+  const classified =
+    reachedAgent && isPersistenceFailure(error)
+      ? makeErrorInfo('persist-failed', detail)
+      : classifyAgentError(new Error(detail))
   logger.error('Agent run failed before terminal transport event', {
     sessionId,
     runId,
     model,
     code: classified.code,
-    error: formatErrorMessage(error),
+    error: detail,
     ...(error instanceof Error && error.stack ? { stack: error.stack } : {}),
   })
   return Effect.succeed({
     outcome: 'error' as const,
-    message: classified.userMessage,
+    // The renderer derives the headline from `code`; the message is the detail it shows under it.
+    message: classified.message,
     code: classified.code,
     /*
      * Marked when the agent already had the message, so a caller is not told a delivered message was refused.
@@ -148,7 +163,7 @@ function terminalErrorOutcome(
   })
   return {
     outcome: 'error',
-    message: classified.userMessage,
+    message: classified.message,
     code: classified.code,
     transportEmitted: true,
     ...(context.resources.resourceMessages.length > 0 ? context.resources : {}),
