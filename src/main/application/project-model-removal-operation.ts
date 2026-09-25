@@ -75,6 +75,30 @@ function resolveReferenceIdentity(
   })
 }
 
+/**
+ * Deletes alias records pointing at a fully removed canonical: alias recording is
+ * insert-if-absent, so stale entries would pin the dead identity forever. The removed reference's
+ * own record is already gone by the time this runs.
+ */
+function removeStaleAliasRecords(
+  settings: SettingsServiceShape,
+  canonicalPath: string,
+  removedPath: string,
+): Effect.Effect<void, Error> {
+  return Effect.gen(function* () {
+    const current = yield* settings.get()
+    const aliases = { ...current.projectPathAliases }
+    let stale = false
+    for (const [alias, target] of Object.entries(aliases)) {
+      if (target === canonicalPath && alias !== removedPath) {
+        delete aliases[alias]
+        stale = true
+      }
+    }
+    if (stale) yield* settings.update({ projectPathAliases: aliases })
+  })
+}
+
 export function removeProjectModelOperation(rawProjectPath: unknown, rawRemainingPaths?: unknown) {
   return Effect.gen(function* () {
     const projectPath = typeof rawProjectPath === 'string' ? rawProjectPath.trim() : ''
@@ -118,6 +142,9 @@ export function removeProjectModelOperation(rawProjectPath: unknown, rawRemainin
     if (settings.removeProjectPathAlias) {
       yield* settings.removeProjectPathAlias(projectPath)
     }
+    // No surviving reference resolves to this identity (the loop above returned otherwise), so
+    // every alias record still targeting the removed canonical is stale.
+    yield* removeStaleAliasRecords(settings, canonicalPath, projectPath)
     return canonicalPath
   })
 }

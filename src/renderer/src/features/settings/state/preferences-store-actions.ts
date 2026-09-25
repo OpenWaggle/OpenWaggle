@@ -26,7 +26,11 @@ import {
 import { createBrowserAndScalarPreferencesActions } from './browser-preferences-actions'
 import type { PreferencesActions, PreferencesGet, PreferencesSet } from './preferences-store-types'
 import { createProjectHivePreferencesActions } from './project-hive-preferences-actions'
-import { persistProjectPreference, removeProjectModelTracked } from './project-preference-writes'
+import {
+  persistProjectPreference,
+  removeModelAndReferences,
+  removeProjectModelTracked,
+} from './project-preference-writes'
 
 const MAX_FAVORITE_MODELS = 100
 const MAX_RECENT_PROJECTS = 10
@@ -282,15 +286,14 @@ export function createPreferencesActions(
       const { [path]: _displayName, ...projectDisplayNames } = settings.projectDisplayNames
       const { [path]: _skillToggles, ...skillTogglesByProject } = settings.skillTogglesByProject
       const projectPath = settings.projectPath === path ? null : settings.projectPath
-      // Surviving references that resolve to the same identity keep the stored model alive.
-      const remainingReferences = [...recentProjects, ...(projectPath ? [projectPath] : [])]
-      await removeProjectModelTracked(path, () => api.removeProjectModel(path, remainingReferences))
-      await api.updateSettings({
-        projectPath,
-        recentProjects,
-        projectDisplayNames,
-        skillTogglesByProject,
-      })
+      await removeProjectModelTracked(path, () =>
+        removeModelAndReferences(path, {
+          projectPath,
+          recentProjects,
+          projectDisplayNames,
+          skillTogglesByProject,
+        }),
+      )
       mergeSettings(set, {
         projectPath,
         recentProjects,
