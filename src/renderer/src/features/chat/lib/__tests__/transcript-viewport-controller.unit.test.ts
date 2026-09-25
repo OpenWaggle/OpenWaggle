@@ -283,8 +283,29 @@ describe('TranscriptViewportController', () => {
     controller.handleScroll()
     controller.applyLayout()
     expect(controller.isFollowing).toBe(false)
+    // Saved as a reading position, not "following": reopening must not skip the history between.
+    expect(controller.readingPosition()).not.toBeNull()
     controller.restore({ key: 'row-8', top: 18 })
     expect(controller.isFollowing).toBe(false)
+  })
+
+  it('keeps the anchor when the final page of newer rows mounts at the window bottom', () => {
+    const viewport = fakeViewport(rows(10))
+    const controller = new TranscriptViewportController(viewport.geometry)
+    controller.setWindowHasLater(true)
+    viewport.userScrollTo(100)
+    controller.handleScroll()
+    viewport.userScrollTo(500)
+    controller.handleScroll()
+    const anchored = controller.readingPosition()
+
+    viewport.setRows([...rows(10), ...rows(5, 100, 'later')])
+    controller.setWindowHasLater(false)
+    controller.applyLayout()
+
+    // Review finding: a stale "resting at the end" turned this into following, skipping the page.
+    expect(controller.isFollowing).toBe(false)
+    expect(controller.readingPosition()).toEqual(anchored)
   })
 
   it('moves the anchor to the next visible row when its row leaves the DOM', () => {

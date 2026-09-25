@@ -58,6 +58,9 @@ export class TranscriptViewportController {
   private windowHasLater = false
 
   setWindowHasLater(hasLater: boolean) {
+    // When the final page mounts, resting at the old bottom is not resting at the new end: keep
+    // the anchor for this commit, and follow only once the reader reaches the updated bottom.
+    if (this.windowHasLater && !hasLater) this.restingAtEnd = false
     this.windowHasLater = hasLater
   }
   private endSpace = 0
@@ -74,10 +77,9 @@ export class TranscriptViewportController {
 
   /** The reading position worth saving: `null` while following the live end. */
   readingPosition(): ReadingPosition | null {
-    if (
-      this.currentMode.kind === 'anchored' &&
-      this.distanceToBottom() > SCROLL_ECHO_TOLERANCE_PX
-    ) {
+    // The bottom of a capped window is not the live end: that reader is still in history.
+    const atLiveEnd = !this.windowHasLater && this.distanceToBottom() <= SCROLL_ECHO_TOLERANCE_PX
+    if (this.currentMode.kind === 'anchored' && !atLiveEnd) {
       return { key: this.currentMode.key, top: this.currentMode.top }
     }
     return null
