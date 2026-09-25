@@ -41,4 +41,30 @@ describe('useTranscriptWindowRange', () => {
     expect(result.current.start).toBe(start)
     expect(result.current.hasLater).toBe(true)
   })
+
+  it('rejoins the live end when the reader follows again', () => {
+    let rows = rowsOf(400)
+    let keys = rows.map((r) => (r.type === 'message' ? `message:${r.message.id}` : ''))
+    let following = false
+    const { result, rerender } = renderHook(() =>
+      useTranscriptWindowRange({
+        rows,
+        keys,
+        anchorKey: null,
+        isFollowing: () => following,
+        following,
+      }),
+    )
+    rows = rowsOf(1_400)
+    keys = rows.map((r) => (r.type === 'message' ? `message:${r.message.id}` : ''))
+    act(() => rerender())
+    expect(result.current.hasLater).toBe(true)
+
+    // Review finding: returning to following left the capped slice with `hasLater` still set.
+    following = true
+    act(() => rerender())
+    expect(result.current.hasLater).toBe(false)
+    expect(result.current.end).toBe(1_400)
+    expect(result.current.end - result.current.start).toBeLessThanOrEqual(160)
+  })
 })

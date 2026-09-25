@@ -73,9 +73,16 @@ function createSection(): ChatTranscriptSectionState {
   }
 }
 
+/** jsdom has no layout; a tall scroller makes a restored row sit mid-history, not at the end. */
+function stubTallScroller() {
+  vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockReturnValue(100_000)
+  vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(500)
+}
+
 describe('reading-position restore', () => {
   beforeEach(() => {
     vi.useFakeTimers()
+    stubTallScroller()
   })
 
   afterEach(() => {

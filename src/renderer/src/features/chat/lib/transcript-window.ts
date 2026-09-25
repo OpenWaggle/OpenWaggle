@@ -234,3 +234,15 @@ export function rangeIncludes(range: TranscriptWindowRange, keys: readonly strin
   const index = keys.indexOf(key)
   return resolved !== null && index >= resolved.start && index < resolved.end
 }
+
+/**
+ * Reattaches a bounded window to the live end once the reader follows it again, keeping its start.
+ *
+ * A window capped while anchored keeps a fixed end; without this, a handoff back to following
+ * (a sent turn outgrowing the viewport, say) showed a stale slice until later rows paged in.
+ */
+export function reattachLiveEnd(range: TranscriptWindowRange, keys: readonly string[]) {
+  const resolved = resolveRange(range, keys)
+  if (!resolved || range.endKey === null) return range
+  return rangeFromIndexes(keys, resolved.start, keys.length)
+}

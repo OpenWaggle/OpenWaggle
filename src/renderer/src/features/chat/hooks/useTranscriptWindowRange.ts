@@ -7,6 +7,7 @@ import {
   newestRange,
   rangeAround,
   rangeIncludes,
+  reattachLiveEnd,
   reconcileRange,
   resolveRange,
   TRANSCRIPT_WINDOW_LIMITS,
@@ -41,9 +42,12 @@ function boundLive(
   range: TranscriptWindowRange | null,
   keys: readonly string[],
   following: boolean,
+  restoring: boolean,
 ) {
   if (!range) return range
-  return following ? trimLiveWindow(range, keys) : capAnchoredLiveWindow(range, keys)
+  if (!following) return capAnchoredLiveWindow(range, keys)
+  // A window built around a pending restore stays put until the restore lands.
+  return trimLiveWindow(restoring ? range : reattachLiveEnd(range, keys), keys)
 }
 
 function currentRange(
@@ -63,7 +67,7 @@ function currentRange(
   if (reconciled && anchorArrived && !rangeIncludes(reconciled, keys, anchorKey)) {
     return rangeAround(keys, anchorKey)
   }
-  return boundLive(reconciled, keys, following)
+  return boundLive(reconciled, keys, following, anchorKey !== null)
 }
 
 interface UseTranscriptWindowRangeInput {
