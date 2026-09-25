@@ -238,6 +238,9 @@ it('never loses a turn when reading the derived index state fails', async () => 
     }),
   )
   expect(nodes[0]?.count).toBe(3)
+  // Known deferred state (#238): marking stale failed too, so the stale document row remains and
+  // the aggregate check cannot see the gap until a content-tied revision exists.
+  expect(await repairStale()).toEqual({ selected: 0, repaired: 0 })
 })
 
 it('backs a failing repair off from the time it failed, then retries it', async () => {
@@ -268,4 +271,52 @@ it('backs a failing repair off from the time it failed, then retries it', async 
     }),
   )
   expect(await repairAt(1_000 + 60_000)).toEqual({ selected: 1, repaired: 1 })
+})
+
+it('bounds each repair pass while many stale Sessions keep failing', async () => {
+  const ids: SessionId[] = []
+  for (let index = 0; index < 20; index += 1) {
+    const session = await createSession({
+      projectPath: `/tmp/term-bulk-${String(index)}`,
+      piSessionId: `pi-b${String(index)}`,
+    })
+    const id = SessionId(String(session.id))
+    const node = transcriptNode(`bulk-${String(index)}`, null, 0, 'bulk words here', 'run-b')
+    await persistSessionSnapshot({
+      sessionId: id,
+      piSessionId: `pi-b${String(index)}`,
+      activeNodeId: node.id,
+      nodes: [node],
+    })
+    ids.push(id)
+  }
+  await runStoreEffect(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      yield* sql`DELETE FROM session_transcript_term_documents`
+      yield* sql.unsafe(`CREATE TRIGGER fail_bulk_repair BEFORE INSERT ON session_transcript_term_documents
+        BEGIN SELECT RAISE(ABORT, 'repair blocked'); END`)
+    }),
+  )
+  const repairAt = (now: number) =>
+    runStoreEffect(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        return yield* repairStaleTranscriptTermProjections(sql, { now, limit: 4 })
+      }),
+    )
+
+  // Every pass attempts at most one batch, and the cursor moves on past failed Sessions.
+  const passes = [await repairAt(1_000), await repairAt(1_000), await repairAt(1_000)]
+  expect(passes.map((pass) => pass.selected)).toEqual([4, 4, 4])
+  expect(passes.every((pass) => pass.repaired === 0)).toBe(true)
+  await runStoreEffect(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      yield* sql.unsafe('DROP TRIGGER fail_bulk_repair')
+    }),
+  )
+  let repaired = 0
+  for (let pass = 0; pass < 10; pass += 1) repaired += (await repairAt(1_000 + 60_000)).repaired
+  expect(repaired).toBe(ids.length)
 })

@@ -15,6 +15,8 @@ const logger = createLogger('session-transcript-terms')
 
 /** Stale Sessions repaired per background pass; each is its own transaction. */
 const REPAIR_BATCH_SIZE = 4
+/** Candidates read per pass, relative to the batch, to see past Sessions that are backing off. */
+const REPAIR_CANDIDATE_FACTOR = 4
 const REPAIR_IDLE_INTERVAL = Duration.seconds(30)
 const REPAIR_BACKOFF_BASE_MS = 5_000
 const REPAIR_BACKOFF_MAX_MS = 10 * 60_000
@@ -165,6 +167,8 @@ export function reconcileWithTranscriptTermProjection<E, R>(input: {
 }
 
 const failureBackoff = new Map<string, { readonly failures: number; readonly retryAt: number }>()
+/** Where the next repair pass resumes, so no stale Session starves behind backed-off ones. */
+let repairCursor = ''
 
 /** Forgets backoff for Sessions that were deleted or repaired by another path. */
 function pruneBackoff(sql: SqlClient.SqlClient) {
@@ -212,17 +216,26 @@ export function repairStaleTranscriptTermProjections(
   return Effect.gen(function* () {
     const now = options.now ?? Date.now()
     const limit = options.limit ?? REPAIR_BATCH_SIZE
-    const skipped = [...failureBackoff].filter(([, entry]) => entry.retryAt > now).map(([id]) => id)
-    const rows = yield* sql<{ readonly id: string }>`
+    /*
+     * One bounded page of stale candidates per pass, after a rotating cursor, filtered by backoff
+     * in memory. Excluding every backed-off Session in SQL grew each pass with the failure set.
+     */
+    const candidates = yield* sql<{ readonly id: string }>`
       SELECT sessions.id FROM sessions
-      WHERE NOT EXISTS (
+      WHERE sessions.id > ${repairCursor}
+        AND NOT EXISTS (
           SELECT 1 FROM session_transcript_term_documents AS documents
           WHERE documents.session_id = sessions.id
         )
         AND EXISTS (SELECT 1 FROM session_nodes AS nodes WHERE nodes.session_id = sessions.id)
-        AND sessions.id NOT IN (SELECT CAST(value AS TEXT) FROM json_each(${JSON.stringify(skipped)}))
-      LIMIT ${limit}
+      ORDER BY sessions.id
+      LIMIT ${limit * REPAIR_CANDIDATE_FACTOR}
     `
+    repairCursor =
+      candidates.length < limit * REPAIR_CANDIDATE_FACTOR ? '' : (candidates.at(-1)?.id ?? '')
+    const rows = candidates
+      .filter(({ id }) => (failureBackoff.get(id)?.retryAt ?? 0) <= now)
+      .slice(0, limit)
     yield* pruneBackoff(sql)
     let repaired = 0
     for (const { id } of rows) {
@@ -254,6 +267,7 @@ export function repairStaleTranscriptTermProjections(
 /** Test-only: forget backoff state between cases. */
 export function resetTranscriptTermRepairBackoff() {
   failureBackoff.clear()
+  repairCursor = ''
 }
 
 /** Host-owned background repair of stale transcript term indexes (ADR 0037). */
@@ -270,8 +284,9 @@ export const runTranscriptTermRepairBackground = Effect.gen(function* () {
         }),
       ),
     )
-    // A full batch may have more behind it; otherwise wait for a wake or the idle interval.
-    if (result.selected < REPAIR_BATCH_SIZE) {
+    // Only a batch that made full progress may have more behind it; otherwise wait for a wake or
+    // the idle interval, so a systemic failure cannot spin the loop.
+    if (result.repaired < REPAIR_BATCH_SIZE) {
       yield* Effect.race(Deferred.await(wake), Effect.sleep(REPAIR_IDLE_INTERVAL))
     }
   })
