@@ -10,11 +10,11 @@ import {
 } from '../../services/session-transcript-term-incremental-projection'
 import { refreshSessionTranscriptTerms } from '../../services/session-transcript-term-projection'
 import { describeError } from '../../utils/describe-error'
+import { continuesImmediately, firstKeys, REPAIR_BATCH_SIZE } from './transcript-term-repair-policy'
 
 const logger = createLogger('session-transcript-terms')
 
 /** Stale Sessions repaired per background pass; each is its own transaction. */
-const REPAIR_BATCH_SIZE = 4
 /** Candidates read per pass, relative to the batch, to see past Sessions that are backing off. */
 const REPAIR_CANDIDATE_FACTOR = 4
 const REPAIR_IDLE_INTERVAL = Duration.seconds(30)
@@ -174,18 +174,17 @@ let repairCursor = ''
 function pruneBackoff(sql: SqlClient.SqlClient) {
   return Effect.gen(function* () {
     if (failureBackoff.size === 0) return
-    // Bounded like a repair batch: a systemic failure cannot make housekeeping itself grow.
-    const tracked = JSON.stringify([...failureBackoff.keys()].slice(0, BACKOFF_PRUNE_BATCH_SIZE))
+    // Bounded like a repair batch, without materializing the whole failure set.
+    const checked = firstKeys(failureBackoff, BACKOFF_PRUNE_BATCH_SIZE)
     const rows = yield* sql<{ readonly id: string }>`
       SELECT sessions.id FROM sessions
-      WHERE sessions.id IN (SELECT CAST(value AS TEXT) FROM json_each(${tracked}))
+      WHERE sessions.id IN (SELECT CAST(value AS TEXT) FROM json_each(${JSON.stringify(checked)}))
         AND NOT EXISTS (
           SELECT 1 FROM session_transcript_term_documents AS documents
           WHERE documents.session_id = sessions.id
         )
     `
     const stillStale = new Set(rows.map((row) => row.id))
-    const checked = [...failureBackoff.keys()].slice(0, BACKOFF_PRUNE_BATCH_SIZE)
     for (const id of checked) {
       const entry = failureBackoff.get(id)
       failureBackoff.delete(id)
@@ -284,9 +283,7 @@ export const runTranscriptTermRepairBackground = Effect.gen(function* () {
         }),
       ),
     )
-    // Only a batch that made full progress may have more behind it; otherwise wait for a wake or
-    // the idle interval, so a systemic failure cannot spin the loop.
-    if (result.repaired < REPAIR_BATCH_SIZE) {
+    if (!continuesImmediately(result)) {
       yield* Effect.race(Deferred.await(wake), Effect.sleep(REPAIR_IDLE_INTERVAL))
     }
   })
