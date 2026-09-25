@@ -270,6 +270,23 @@ describe('TranscriptViewportController', () => {
     expect(viewport.scrollTop).toBe(viewport.maxScrollTop())
   })
 
+  it('does not treat the bottom of a window with newer unmounted rows as the live end', () => {
+    const viewport = fakeViewport(rows(10))
+    const controller = new TranscriptViewportController(viewport.geometry)
+    controller.setWindowHasLater(true)
+    viewport.userScrollTo(100)
+    controller.handleScroll()
+
+    // Review finding: reaching the bottom of a capped slice marked the reader following, and the
+    // window jumped to the newest rows past all the history in between.
+    viewport.userScrollTo(500)
+    controller.handleScroll()
+    controller.applyLayout()
+    expect(controller.isFollowing).toBe(false)
+    controller.restore({ key: 'row-8', top: 18 })
+    expect(controller.isFollowing).toBe(false)
+  })
+
   it('moves the anchor to the next visible row when its row leaves the DOM', () => {
     const viewport = fakeViewport(rows(10))
     const controller = new TranscriptViewportController(viewport.geometry)

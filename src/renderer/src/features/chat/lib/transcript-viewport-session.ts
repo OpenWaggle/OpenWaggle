@@ -138,6 +138,11 @@ export class TranscriptViewportSession {
     this.skipNextLayout = true
   }
 
+  /** Tells the controller whether newer rows exist beyond the mounted window. */
+  setWindowHasLater(hasLater: boolean) {
+    this.controller.setWindowHasLater(hasLater)
+  }
+
   /** Re-applies the viewport mode. Called before paint after every commit and resize. */
   layout() {
     if (this.skipNextLayout) {

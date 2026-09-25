@@ -50,6 +50,16 @@ export class TranscriptViewportController {
   private restingAtEnd = true
   /** An explicit disclosure hold, which must not turn into following at the end. */
   private holding = false
+  /*
+   * Whether newer rows exist beyond the mounted window. The bottom of the DOM is then not the live
+   * end: resting there must not count as following, or the window would jump past unmounted
+   * history instead of loading the next batch.
+   */
+  private windowHasLater = false
+
+  setWindowHasLater(hasLater: boolean) {
+    this.windowHasLater = hasLater
+  }
   private endSpace = 0
 
   constructor(private readonly geometry: ViewportGeometry) {}
@@ -92,7 +102,7 @@ export class TranscriptViewportController {
     this.currentMode = { kind: 'anchored', key: position.key, top: position.top }
     this.applyLayout()
     // A position that lands exactly at the end is a reader who left following it.
-    if (this.distanceToBottom() <= SCROLL_ECHO_TOLERANCE_PX) this.follow()
+    if (!this.windowHasLater && this.distanceToBottom() <= SCROLL_ECHO_TOLERANCE_PX) this.follow()
   }
 
   anchorNewTurn(key: string) {
@@ -109,7 +119,11 @@ export class TranscriptViewportController {
   /** Ends a disclosure hold; a reader left at the live end resumes following it. */
   releaseHold() {
     this.holding = false
-    if (this.currentMode.kind === 'anchored' && this.distanceToBottom() <= NEAR_BOTTOM_PX) {
+    if (
+      this.currentMode.kind === 'anchored' &&
+      !this.windowHasLater &&
+      this.distanceToBottom() <= NEAR_BOTTOM_PX
+    ) {
       this.follow()
     }
   }
@@ -150,7 +164,7 @@ export class TranscriptViewportController {
     this.restingAtEnd = atEnd
     // A sent turn sits at the end of its reserved space; a clamp there is not the reader leaving.
     if (atEnd && this.currentMode.kind === 'new-turn') return
-    if (atEnd || (!movingUp && distance <= NEAR_BOTTOM_PX)) {
+    if (!this.windowHasLater && (atEnd || (!movingUp && distance <= NEAR_BOTTOM_PX))) {
       this.currentMode = { kind: 'following' }
       return
     }
@@ -161,7 +175,12 @@ export class TranscriptViewportController {
   applyLayout() {
     // A reader resting exactly at the end is following it, however they got there (a restored
     // position, an anchor that moved), so a shrinking viewport keeps the newest content in view.
-    if (this.currentMode.kind === 'anchored' && this.restingAtEnd && !this.holding) {
+    if (
+      this.currentMode.kind === 'anchored' &&
+      this.restingAtEnd &&
+      !this.holding &&
+      !this.windowHasLater
+    ) {
       this.currentMode = { kind: 'following' }
     }
     this.applyMode()

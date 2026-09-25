@@ -23,6 +23,7 @@ interface UseTranscriptCommitLayoutInput {
 export function useTranscriptCommitLayout(input: UseTranscriptCommitLayoutInput) {
   const { session, sentKey } = input
   useLayoutEffect(() => {
+    session.setWindowHasLater(input.hasLater)
     const mode = session.controller.mode
     const sentRowPresent = sentKey !== null && input.keys.includes(sentKey)
     if (input.userDidSend && sentRowPresent) {
