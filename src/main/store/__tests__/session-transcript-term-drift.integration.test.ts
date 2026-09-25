@@ -179,3 +179,31 @@ it('repairs a bounded number of stale Sessions per pass and never selects delete
   const repaired = await readIndexState(drifted.sessionId)
   expect(repaired?.token_count).toBe(repaired?.occurrences)
 })
+
+it('keeps a Session stale across later snapshots until the exact repair runs', async () => {
+  const { sessionId, first, second } = await seedSessionWithDriftedIndex()
+  // Stale: nodes but no term document (a failed projection, or a repair that has not run yet).
+  await runStoreEffect(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      yield* sql`DELETE FROM session_transcript_terms WHERE session_id = ${sessionId}`
+      yield* sql`DELETE FROM session_transcript_term_documents WHERE session_id = ${sessionId}`
+    }),
+  )
+  const third = transcriptNode('drift-c', 'drift-b', 2, 'gamma extra', 'run-c')
+
+  await persistSessionSnapshot({
+    sessionId,
+    piSessionId: PI_SESSION_ID,
+    activeNodeId: third.id,
+    nodes: [first, second, third],
+  })
+
+  // Review finding: the incremental delta rebuilt a partial index for only the new node, and the
+  // Session was never selected for repair again.
+  expect((await readIndexState(sessionId))?.token_count).toBeNull()
+  expect(await repairStale()).toEqual({ selected: 1, repaired: 1 })
+  const repaired = await readIndexState(sessionId)
+  expect(repaired?.token_count).toBe(10)
+  expect(repaired?.token_count).toBe(repaired?.occurrences)
+})

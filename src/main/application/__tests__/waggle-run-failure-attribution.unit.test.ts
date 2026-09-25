@@ -44,6 +44,18 @@ describe('attributing a failed Waggle run', () => {
     expect(outcome).toMatchObject({ outcome: 'error', transportEmitted: true })
   })
 
+  it('classifies a cause wrapped in a generic error, as the classic path does', async () => {
+    const outcome = await Effect.runPromise(
+      recoverWaggleRunFailure({
+        error: new Error('request failed', { cause: new Error('429 Too Many Requests') }),
+        input: INPUT,
+        reachedAgent: () => true,
+      }),
+    )
+
+    expect(outcome).toMatchObject({ outcome: 'error', code: 'rate-limited' })
+  })
+
   // ADR 0037 applies to Waggle as well as classic runs.
   it('reports a Waggle snapshot that could not be saved as a persistence failure', async () => {
     const outcome = await Effect.runPromise(

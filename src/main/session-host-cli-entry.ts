@@ -3,7 +3,7 @@ import { app } from 'electron'
 import { flushCliOutput } from './cli-output-flush'
 import { env } from './env'
 import { applyInstallerUpdateChannelIntent } from './installer-update-channel-intent'
-import { initFileLogger, SESSION_HOST_LOG_FILE_STEM } from './logger'
+import { createLogger, drainFileLogger, initFileLogger, SESSION_HOST_LOG_FILE_STEM } from './logger'
 import { configureAppStoragePaths } from './session-data'
 import { withLegacySessionWriterFence } from './session-host/legacy-session-writer-fence'
 import {
@@ -18,8 +18,10 @@ import {
   sessionHostTargetExists,
 } from './session-host/session-host-cutover'
 import { acquireSessionHostOwnership } from './session-host/session-host-ownership'
+import { describeError } from './utils/describe-error'
 
 const FAILURE_EXIT_CODE = 1
+const logger = createLogger('session-host-cli')
 const ORPHAN_HOST_GRACE_MS = 10_000
 export const UNADOPTABLE_HOST_SWEEP_INTERVAL_MS = 60_000
 
@@ -112,11 +114,17 @@ export function startSessionHostCliIfRequested(argv: readonly string[]) {
       } finally {
         await ownership.release()
       }
+      await drainFileLogger()
       await flushCliOutput()
       app.exit(0)
     })
     .catch(async (error: unknown) => {
+      // The detached Host's stderr reaches nothing; the Host log is where this can be found.
+      logger.error('Session Host stopped on an unrecoverable error', {
+        error: describeError(error),
+      })
       process.stderr.write(`error: ${error instanceof Error ? error.message : String(error)}\n`)
+      await drainFileLogger().catch(() => undefined)
       await flushCliOutput().catch(() => undefined)
       app.exit(FAILURE_EXIT_CODE)
     })

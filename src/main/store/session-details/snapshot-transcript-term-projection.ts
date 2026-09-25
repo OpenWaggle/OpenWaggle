@@ -55,20 +55,17 @@ function wakeTranscriptTermRepair() {
 }
 
 /**
- * Marks a Session's derived term index stale by removing it.
+ * Marks a Session's derived term index stale by removing its document row.
  *
- * A Session with nodes and no term document is the durable stale marker: it survives restarts,
- * disappears with the Session, and is repaired by `repairStaleTranscriptTermProjections` outside
- * any turn's transaction. Removing the rows is bounded by the Session's vocabulary, unlike an
- * exact rebuild, which tokenizes every node and would hold the turn open.
+ * "Nodes but no term document" is the durable stale marker: it survives restarts, disappears with
+ * the Session, and is repaired by `repairStaleTranscriptTermProjections` outside any turn's
+ * transaction. Only the one document row is removed here; search joins every term to its
+ * document, so the Session's remaining term rows are unreachable until the repair replaces them.
  */
 function markStale(sql: SqlClient.SqlClient, sessionId: string, reason: unknown) {
   return sql
     .withTransaction(
-      Effect.gen(function* () {
-        yield* sql`DELETE FROM session_transcript_terms WHERE session_id = ${sessionId}`
-        yield* sql`DELETE FROM session_transcript_term_documents WHERE session_id = ${sessionId}`
-      }),
+      sql`DELETE FROM session_transcript_term_documents WHERE session_id = ${sessionId}`,
     )
     .pipe(
       Effect.tap(() =>
@@ -92,6 +89,19 @@ function markStale(sql: SqlClient.SqlClient, sessionId: string, reason: unknown)
     )
 }
 
+/** Whether a Session already awaits exact repair: it has nodes but no term document. */
+function isAlreadyStale(sql: SqlClient.SqlClient, sessionId: string) {
+  return Effect.map(
+    sql<{ readonly stale: number }>`
+      SELECT (
+        NOT EXISTS (SELECT 1 FROM session_transcript_term_documents WHERE session_id = ${sessionId})
+        AND EXISTS (SELECT 1 FROM session_nodes WHERE session_id = ${sessionId})
+      ) AS stale
+    `,
+    (rows) => rows[0]?.stale === 1,
+  )
+}
+
 /**
  * Runs a snapshot's node reconciliation with its incremental transcript-term projection, without
  * letting the derived index fail or delay the snapshot (ADR 0037).
@@ -111,6 +121,15 @@ export function reconcileWithTranscriptTermProjection<E, R>(input: {
   return Effect.gen(function* () {
     if (nodeIds.length === 0) {
       yield* input.reconcile
+      return
+    }
+    /*
+     * An incremental delta over a stale Session would build a partial index for only the changed
+     * nodes, which the aggregate check accepts and the repair never selects again.
+     */
+    if (yield* isAlreadyStale(sql, sessionId)) {
+      yield* input.reconcile
+      wakeTranscriptTermRepair()
       return
     }
     const prepareFailure = yield* sql
@@ -138,6 +157,24 @@ export function reconcileWithTranscriptTermProjection<E, R>(input: {
 }
 
 const failureBackoff = new Map<string, { readonly failures: number; readonly retryAt: number }>()
+
+/** Forgets backoff for Sessions that were deleted or repaired by another path. */
+function pruneBackoff(sql: SqlClient.SqlClient) {
+  return Effect.gen(function* () {
+    if (failureBackoff.size === 0) return
+    const tracked = JSON.stringify([...failureBackoff.keys()])
+    const rows = yield* sql<{ readonly id: string }>`
+      SELECT sessions.id FROM sessions
+      WHERE sessions.id IN (SELECT CAST(value AS TEXT) FROM json_each(${tracked}))
+        AND NOT EXISTS (
+          SELECT 1 FROM session_transcript_term_documents AS documents
+          WHERE documents.session_id = sessions.id
+        )
+    `
+    const stillStale = new Set(rows.map((row) => row.id))
+    for (const id of [...failureBackoff.keys()]) if (!stillStale.has(id)) failureBackoff.delete(id)
+  })
+}
 
 function backoffDelay(failures: number) {
   return Math.min(
@@ -171,6 +208,7 @@ export function repairStaleTranscriptTermProjections(
         AND sessions.id NOT IN (SELECT CAST(value AS TEXT) FROM json_each(${JSON.stringify(skipped)}))
       LIMIT ${limit}
     `
+    yield* pruneBackoff(sql)
     let repaired = 0
     for (const { id } of rows) {
       const ok = yield* sql.withTransaction(refreshSessionTranscriptTerms(sql, [id])).pipe(
@@ -178,7 +216,9 @@ export function repairStaleTranscriptTermProjections(
         Effect.catchAll((error) =>
           Effect.sync(() => {
             const failures = (failureBackoff.get(id)?.failures ?? 0) + 1
-            failureBackoff.set(id, { failures, retryAt: now + backoffDelay(failures) })
+            // Measured from the failure, not the pass start, so a slow batch cannot re-select it.
+            const failedAt = options.now ?? Date.now()
+            failureBackoff.set(id, { failures, retryAt: failedAt + backoffDelay(failures) })
             logger.error('Transcript term repair failed; backing off', {
               sessionId: id,
               failures,

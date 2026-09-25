@@ -196,6 +196,18 @@ describe('recoverAgentRunFailure', () => {
     expect(result).toMatchObject({ outcome: 'error', code: 'provider-unavailable' })
   })
 
+  it.each([
+    ['401 Unauthorized', 'api-key-invalid'],
+    ['429 Too Many Requests', 'rate-limited'],
+    ['503 Service Unavailable', 'provider-down'],
+  ])('classifies a cause wrapped in a generic error (%s)', async (cause, code) => {
+    const error = new Error('request failed', { cause: new Error(cause) })
+
+    const result = await Effect.runPromise(recoverAgentRunFailure({ ...context, error }))
+
+    expect(result).toMatchObject({ outcome: 'error', code })
+  })
+
   it('does not report a turn as unsaved when a later projection write fails', async () => {
     // The snapshot committed; only anchoring the turn checkpoint failed afterwards.
     const error = new SessionProjectionRepositoryError({ operation: 'setTurnCheckpointAnchor' })

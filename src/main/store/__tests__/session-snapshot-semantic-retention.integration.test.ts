@@ -265,6 +265,9 @@ describe('Session snapshot semantic retention', () => {
               ${1}, ${NODE_COUNT - 1}, ${1}
             )
           `
+        // A real Session has a term index; without one it is stale (ADR 0037) and the snapshot
+        // would leave indexing to the background repair instead of the incremental path.
+        yield* sql.withTransaction(refreshSessionTranscriptTerms(sql, [sessionId]))
       }),
     )
 

@@ -125,18 +125,32 @@ class FileWriter {
     this.currentPath = path.join(this.logsDir ?? '', `${this.fileStem}-${dateStr}.log`)
   }
 
+  private pendingWrite: Promise<void> = Promise.resolve()
+
   private flush() {
     this.flushScheduled = false
     if (this.buffer.length === 0) return
     this.ensureDatePath()
-    if (!this.currentPath) return
+    const target = this.currentPath
+    if (!target) return
     const batchEntries = this.buffer.splice(0)
     const batch = `${batchEntries.map((entry) => formatLine(entry)).join('\n')}\n`
-    fs.appendFile(this.currentPath, batch, (error) => {
-      if (error) {
-        reportFileLoggerFailure('failed to append log batch', error)
-      }
-    })
+    // Chained so a drain awaits every batch written so far, in order.
+    this.pendingWrite = this.pendingWrite.then(
+      () =>
+        new Promise<void>((resolve) => {
+          fs.appendFile(target, batch, (error) => {
+            if (error) reportFileLoggerFailure('failed to append log batch', error)
+            resolve()
+          })
+        }),
+    )
+  }
+
+  /** Writes everything buffered so far; awaited before a process exits (ADR 0037). */
+  async drain() {
+    this.flush()
+    await this.pendingWrite
   }
 
   private async pruneOldLogs() {
@@ -188,6 +202,11 @@ export function sessionHostLogPathFor(guiLogPath: string): string {
     path.dirname(guiLogPath),
     name.replace(`${DEFAULT_LOG_FILE_STEM}-`, `${SESSION_HOST_LOG_FILE_STEM}-`),
   )
+}
+
+/** Flushes buffered log lines to the file before a process exits. */
+export function drainFileLogger(): Promise<void> {
+  return fileWriter.drain()
 }
 
 export function getLogFilePath(): string {

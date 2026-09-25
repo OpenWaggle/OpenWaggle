@@ -26,9 +26,9 @@ const mocks = vi.hoisted(() => {
       order.push('initialize-settings')
     }),
     applyInstallerIntent: vi.fn(async () => null),
-    initFileLogger: vi.fn(async () => {
-      order.push('init-logger')
-    }),
+    initFileLogger: vi.fn(async () => void order.push('init-logger')),
+    drainFileLogger: vi.fn(async () => void order.push('drain-logger')),
+    hostLogError: vi.fn(),
     legacyFence: vi.fn((operation: () => Promise<unknown>) => operation()),
     sourceExists: vi.fn(async () => false),
     startHost: vi.fn<() => Promise<TestHost>>(async () => {
@@ -60,10 +60,15 @@ vi.mock('../installer-update-channel-intent', () => ({
   applyInstallerUpdateChannelIntent: mocks.applyInstallerIntent,
 }))
 vi.mock('../session-data', () => ({ configureAppStoragePaths: vi.fn() }))
-vi.mock('../logger', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../logger')>()),
-  initFileLogger: mocks.initFileLogger,
-}))
+vi.mock('../logger', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../logger')>()
+  const createLogger = (name: string) =>
+    name === 'session-host-cli'
+      ? { ...original.createLogger(name), error: mocks.hostLogError }
+      : original.createLogger(name)
+  const { initFileLogger, drainFileLogger } = mocks
+  return { ...original, initFileLogger, drainFileLogger, createLogger }
+})
 vi.mock('../session-host/legacy-session-writer-fence', () => ({
   withLegacySessionWriterFence: mocks.legacyFence,
 }))
@@ -161,6 +166,7 @@ describe('detached Session Host startup', () => {
       'host-stopped',
       'dispose-runtime',
       'release-ownership',
+      'drain-logger',
     ])
     expect(mocks.startHost).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -192,7 +198,14 @@ describe('detached Session Host startup', () => {
       'initialize-runtime',
       'dispose-runtime',
       'release-ownership',
+      'drain-logger',
     ])
+    // Review finding: this failure only reached the detached Host's ignored stderr.
+    const fatal = { error: 'Error: migration failed' }
+    expect(mocks.hostLogError).toHaveBeenCalledWith(
+      'Session Host stopped on an unrecoverable error',
+      fatal,
+    )
   })
 
   it('initializes a fresh profile without acquiring the legacy desktop writer fence', async () => {

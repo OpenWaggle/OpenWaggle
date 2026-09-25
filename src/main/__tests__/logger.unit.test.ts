@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 let createLogger: typeof import('../logger').createLogger
 let getLogFilePath: typeof import('../logger').getLogFilePath
 let initFileLogger: typeof import('../logger').initFileLogger
+let drainFileLogger: typeof import('../logger').drainFileLogger
 
 const mockLogsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'openwaggle-log-test-'))
 
@@ -22,6 +23,7 @@ describe('file logger', () => {
     createLogger = mod.createLogger
     getLogFilePath = mod.getLogFilePath
     initFileLogger = mod.initFileLogger
+    drainFileLogger = mod.drainFileLogger
   })
 
   afterEach(() => {
@@ -78,6 +80,15 @@ describe('file logger', () => {
     await initFileLogger(mockLogsDir)
 
     expect(fs.existsSync(oldHostLog)).toBe(false)
+  })
+
+  it('drains buffered lines to the file before a process exits', async () => {
+    await initFileLogger(mockLogsDir, 'openwaggle-host')
+    createLogger('host').error('fatal before exit')
+
+    await drainFileLogger()
+
+    expect(fs.readFileSync(getLogFilePath(), 'utf8')).toContain('fatal before exit')
   })
 
   it('names the current day even when nothing was logged since midnight', async () => {

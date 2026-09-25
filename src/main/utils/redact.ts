@@ -15,6 +15,26 @@ const SECRET_REDACTION_PATTERNS = [
     pattern: /\b(github_pat_[A-Za-z0-9_]{20,}|ghp_[A-Za-z0-9]{20,})\b/g,
     replacement: '[REDACTED_GITHUB_TOKEN]',
   },
+  {
+    pattern: /\bBasic\s+[A-Za-z0-9+/]{8,}=*/gi,
+    replacement: 'Basic [REDACTED_CREDENTIALS]',
+  },
+  {
+    // Google API keys.
+    pattern: /\bAIza[0-9A-Za-z_-]{30,}\b/g,
+    replacement: '[REDACTED_API_KEY]',
+  },
+  {
+    // AWS access key ids.
+    pattern: /\b(AKIA|ASIA)[0-9A-Z]{16}\b/g,
+    replacement: '[REDACTED_ACCESS_KEY]',
+  },
+  {
+    // Labelled credentials: `x-api-key: ...`, `api_key=...`, `"token": "..."`, `password=...`.
+    pattern:
+      /\b((?:x-)?api[_-]?key|access[_-]?token|refresh[_-]?token|auth[_-]?token|client[_-]?secret|secret|password|token)(["']?\s*[:=]\s*["']?)(?!\[REDACTED)[^\s"',;&]{6,}/gi,
+    replacement: '$1$2[REDACTED]',
+  },
 ] as const
 
 export function redactSensitiveText(value: string): string {

@@ -111,9 +111,12 @@ function isSnapshotPersistenceFailure(error: unknown, reachedAgent: boolean) {
  */
 export function classifyRunFailure(error: unknown, reachedAgent: boolean) {
   const detail = describeError(error)
-  const classified = isSnapshotPersistenceFailure(error, reachedAgent)
-    ? makeErrorInfo('persist-failed', detail)
-    : classifyAgentError(error)
+  if (isSnapshotPersistenceFailure(error, reachedAgent)) {
+    return { classified: makeErrorInfo('persist-failed', detail), detail }
+  }
+  // Exact message first; a generic wrapper ("request failed") falls back to its described causes.
+  const direct = classifyAgentError(error)
+  const classified = direct.code === 'unknown' ? classifyAgentError(new Error(detail)) : direct
   return { classified, detail }
 }
 
