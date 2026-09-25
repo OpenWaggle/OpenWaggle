@@ -143,7 +143,20 @@ it('waits after a failed batch and inspects a bounded slice of backoff per pass'
   const backoff = new Map(
     Array.from({ length: 1_000 }, (_, index) => [`s-${String(index)}`, index]),
   )
+  // Count iterator pulls: copying the whole key set first would pull all 1,000.
+  let pulled = 0
+  const keys = backoff.keys.bind(backoff)
+  vi.spyOn(backoff, 'keys').mockImplementation(() => {
+    const iterator = keys()
+    const next = iterator.next.bind(iterator)
+    iterator.next = () => {
+      pulled += 1
+      return next()
+    }
+    return iterator
+  })
   expect(firstKeys(backoff, 16)).toEqual(
     Array.from({ length: 16 }, (_, index) => `s-${String(index)}`),
   )
+  expect(pulled).toBeLessThanOrEqual(17)
 })
