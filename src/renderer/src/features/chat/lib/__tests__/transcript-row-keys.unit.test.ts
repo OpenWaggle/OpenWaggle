@@ -4,7 +4,7 @@ import type { ChatRow } from '../types-chat-row'
 
 const custom = (timestamp: number, name: string): ChatRow => ({
   type: 'agent-loop-custom-message',
-  event: { type: 'custom', name, timestamp, data: null },
+  event: { type: 'custom', name, timestamp },
 })
 
 describe('chatRowKeys', () => {
