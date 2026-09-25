@@ -18,6 +18,8 @@ For a first setup, connect one provider and enable one model. You can add more l
 
 The model list in Settings can include models your account cannot use. The message-box selector shows only enabled models that Pi currently reports as available. Enabling a model does not buy access or change your provider's permissions.
 
+For models that support reasoning, use the thinking-level control beside the message box. See [Thinking levels](/docs/configuration/thinking-levels) for choosing a level and understanding its effect on usage.
+
 ## API key auth
 
 An API key is a secret issued by a provider for applications to use its service. A chat subscription does not necessarily include API access or API credits.

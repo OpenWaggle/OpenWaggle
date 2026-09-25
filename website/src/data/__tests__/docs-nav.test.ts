@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { developerDocsNav, docsNav, flatNavItems, getPrevNext, isDeveloperDoc } from '../docs-nav';
 import { packageDocumentation } from '../package-docs';
@@ -29,6 +29,26 @@ describe('documentation navigation', () => {
     expect(docsNav.map((section) => section.title)).toEqual([
       'Getting started', 'Using OpenWaggle', 'Customize', 'Multiple agents', 'Help',
     ]);
+  });
+
+  it('ships the same walkthrough redirect in Astro and Cloudflare Pages', () => {
+    const destination = '/docs/getting-started/first-run';
+    const redirects = readFileSync(new URL('../../../public/_redirects', import.meta.url), 'utf8');
+    const docsRedirect = redirects.split(/\r?\n/).find((line) => line.startsWith('/docs '));
+    expect(docsRedirect?.trim().split(/\s+/)).toEqual(['/docs', destination, '301']);
+
+    const config = readFileSync(new URL('../../../astro.config.ts', import.meta.url), 'utf8');
+    expect(config).toContain(`'/docs': '${destination}'`);
+  });
+
+  it.each([
+    { source: 'configuration/app-settings', target: 'configuration/per-project-config' },
+    { source: 'providers/overview', target: 'configuration/thinking-levels' },
+  ])('keeps $target discoverable from $source', ({ source, target }) => {
+    expect(userItems.some((item) => item.slug === source)).toBe(true);
+    const page = readFileSync(new URL(`../../content/docs/${source}.md`, import.meta.url), 'utf8');
+    expect(page).toContain(`](/docs/${target})`);
+    expect(existsSync(new URL(`../../content/docs/${target}.md`, import.meta.url))).toBe(true);
   });
 
   it('keeps technical references separate without duplicate destinations', () => {
