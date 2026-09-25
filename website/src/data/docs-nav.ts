@@ -8,57 +8,75 @@ export interface NavSection {
   items: NavItem[];
 }
 
+// Navigation labels describe tasks. Slugs stay stable so existing links keep working.
 export const docsNav: NavSection[] = [
   {
-    title: 'Getting Started',
+    title: 'Getting started',
     items: [
+      { title: 'Get started', slug: 'getting-started/first-run' },
       { title: 'Installation', slug: 'getting-started/installation' },
-      { title: 'First Run', slug: 'getting-started/first-run' },
-      { title: 'Keyboard Shortcuts', slug: 'getting-started/keyboard-shortcuts' },
     ],
   },
   {
     title: 'Using OpenWaggle',
     items: [
-      { title: 'Chat & Tools', slug: 'using-openwaggle/chat-and-tools' },
-      { title: 'Hives & Sessions', slug: 'using-openwaggle/hives-and-sessions' },
-      { title: 'Waggle Mode', slug: 'using-openwaggle/waggle-mode' },
-      { title: 'Attachments & Voice', slug: 'using-openwaggle/attachments-voice' },
-      { title: 'Context Management', slug: 'using-openwaggle/context-management' },
-      { title: 'Token Benchmarks', slug: 'using-openwaggle/token-benchmarks' },
+      { title: 'Conversations and context', slug: 'using-openwaggle/chat-and-tools' },
+      { title: 'Files, images, and voice', slug: 'using-openwaggle/attachments-voice' },
+      { title: 'Reviewing changes and Git', slug: 'developer-workflow/git-integration' },
+      { title: 'Browser preview', slug: 'developer-workflow/browser-preview' },
+      { title: 'Terminal', slug: 'developer-workflow/built-in-terminal' },
+      { title: 'Sessions and branches', slug: 'using-openwaggle/session-tree' },
+      { title: 'Session summary', slug: 'using-openwaggle/session-summary' },
+      { title: 'Projects and worktrees', slug: 'developer-workflow/projects-and-worktrees' },
     ],
   },
   {
-    title: 'Providers',
+    title: 'Customize',
     items: [
-      { title: 'Overview', slug: 'providers/overview' },
-      { title: 'API Key Auth', slug: 'providers/api-key-auth' },
-      { title: 'OAuth Auth', slug: 'providers/oauth-auth' },
-      { title: 'Custom Providers', slug: 'providers/custom-providers' },
+      { title: 'Providers and models', slug: 'providers/overview' },
+      { title: 'Approvals and permissions', slug: 'configuration/approvals-permissions' },
+      { title: 'Project instructions', slug: 'extending/agents-md' },
+      { title: 'Skills', slug: 'extending/skills-system' },
+      { title: 'MCP connections', slug: 'configuration/mcp' },
+      { title: 'Extensions', slug: 'extending/plugins' },
+      { title: 'Project actions', slug: 'configuration/project-actions' },
+      { title: 'Settings', slug: 'configuration/app-settings' },
+      { title: 'Keyboard shortcuts', slug: 'getting-started/keyboard-shortcuts' },
     ],
   },
   {
-    title: 'Developer Workflow',
+    title: 'Multiple agents',
     items: [
-      { title: 'Git Integration', slug: 'developer-workflow/git-integration' },
-      { title: 'Built-in Terminal', slug: 'developer-workflow/built-in-terminal' },
+      { title: 'Hives', slug: 'using-openwaggle/hives-and-sessions' },
+      { title: 'Waggle', slug: 'using-openwaggle/waggle-mode' },
+      { title: 'Agent definitions', slug: 'extending/agent-definitions' },
+    ],
+  },
+  {
+    title: 'Help',
+    items: [
+      { title: 'Troubleshooting and recovery', slug: 'configuration/session-recovery' },
+      { title: 'Privacy and data', slug: 'configuration/security-privacy' },
+    ],
+  },
+];
+
+export const developerDocsNav: NavSection[] = [
+  {
+    title: 'Developer docs',
+    items: [
+      { title: 'Build from source', slug: 'developer-guide/building-from-source' },
+      { title: 'Contributing', slug: 'developer-guide/contributing' },
+      { title: 'Architecture', slug: 'developer-guide/architecture' },
+      { title: 'Pi runtime', slug: 'developer-workflow/pi-runtime' },
       { title: 'Sessions CLI', slug: 'developer-workflow/sessions-cli' },
-      { title: 'Pi Runtime', slug: 'developer-workflow/pi-runtime' },
+      { title: 'Token benchmarks', slug: 'using-openwaggle/token-benchmarks' },
+      { title: 'Build an extension', slug: 'extending/openwaggle-extensions' },
+      { title: 'Pi extensions', slug: 'extending/pi-extensions' },
     ],
   },
   {
-    title: 'Extending',
-    items: [
-      { title: 'Skills System', slug: 'extending/skills-system' },
-      { title: 'Agent Definitions', slug: 'extending/agent-definitions' },
-      { title: 'AGENTS.md', slug: 'extending/agents-md' },
-      { title: 'Pi Extensions', slug: 'extending/pi-extensions' },
-      { title: 'OpenWaggle Extensions', slug: 'extending/openwaggle-extensions' },
-      { title: 'Plugins', slug: 'extending/plugins' },
-    ],
-  },
-  {
-    title: 'Packages',
+    title: 'Package reference',
     items: [
       { title: 'Overview', slug: 'packages/overview' },
       { title: 'Extension SDK', slug: 'packages/extension-sdk' },
@@ -67,35 +85,24 @@ export const docsNav: NavSection[] = [
       { title: 'Pi Waggle', slug: 'packages/pi-waggle' },
     ],
   },
-  {
-    title: 'Configuration',
-    items: [
-      { title: 'App Settings', slug: 'configuration/app-settings' },
-      { title: 'Per-Project Config', slug: 'configuration/per-project-config' },
-      { title: 'Thinking Levels', slug: 'configuration/thinking-levels' },
-      { title: 'Security & Privacy', slug: 'configuration/security-privacy' },
-      { title: 'Session Recovery', slug: 'configuration/session-recovery' },
-    ],
-  },
-  {
-    title: 'Developer Guide',
-    items: [
-      { title: 'Architecture', slug: 'developer-guide/architecture' },
-      { title: 'Contributing', slug: 'developer-guide/contributing' },
-      { title: 'Building from Source', slug: 'developer-guide/building-from-source' },
-    ],
-  },
 ];
 
+export function isDeveloperDoc(slug: string): boolean {
+  return developerDocsNav.some((section) =>
+    section.items.some((item) => slug === item.slug || slug.startsWith(`${item.slug}/`)),
+  );
+}
+
 export function flatNavItems(): NavItem[] {
-  return docsNav.flatMap((section) => section.items);
+  return [...docsNav, ...developerDocsNav].flatMap((section) => section.items);
 }
 
 export function getPrevNext(currentSlug: string) {
-  const flat = flatNavItems();
+  const sections = isDeveloperDoc(currentSlug) ? developerDocsNav : docsNav;
+  const flat = sections.flatMap((section) => section.items);
   const index = flat.findIndex((item) => item.slug === currentSlug);
   return {
     prev: index > 0 ? flat[index - 1] : null,
-    next: index < flat.length - 1 ? flat[index + 1] : null,
+    next: index >= 0 && index < flat.length - 1 ? flat[index + 1] : null,
   };
 }

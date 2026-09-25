@@ -1,138 +1,149 @@
 ---
-title: "App Settings"
-description: "Configure providers, Hive controls, agent definitions, permissions, MCP, and worktrees."
-order: 1
-section: "Configuration"
+title: "App settings"
+description: "Find settings for models, permissions, appearance, browser previews, and project tools."
+order: 8
+section: "Customize"
 ---
 
-Open Settings from the sidebar gear icon.
+Click the gear icon in the sidebar to open Settings. For a first setup, connect a model in **Connections**, choose an access mode in **Permissions**, and leave the other settings alone until you need them.
 
-Some sidebar preferences are not in Settings because they belong to the sidebar itself. Remembered
-between launches: the session sort order, which projects you have collapsed, and the Pinned
-section's own sort. Which sessions are pinned, and the order you dragged them into, are stored with
-the app's data rather than as a preference. Not remembered: state chips and the text filter, since a
-filter that hides sessions should not outlive the reason you applied it.
+Most settings apply across the app. Sections with a project picker let you inspect a particular project without switching your current conversation. Check the selected project before changing an override.
 
-## Active Sections
+## Active sections
 
-| Section | Description |
-|---------|-------------|
-| **General** | Link handling, automatic context compaction, version information, and the update channel. |
-| **Agents** | Hive controls and project-aware, read-only Markdown agent definitions with enable/disable switches. |
-| **Skills** | Browse skills for a selected project. |
-| **Permissions** | Default and selected-project access modes, plus saved approvals. |
-| **Appearance** | Diff view (unified or split), wrap long lines, and the diff syntax theme, with a live preview. |
-| **Waggle Mode** | Multi-agent Waggle configuration and presets. |
-| **Extensions** | Manage OpenWaggle and Pi extensions. |
-| **MCP** | First-party MCP server configuration, scope, trust, capabilities, and diagnostics. |
-| **Worktrees** | Default session environment mode, and the Git worktrees of the opened repository. |
-| **Archived items** | Restore archived sessions and non-main session branches, or permanently delete archived sessions. |
-| **Connections** | Pi-backed API-key and OAuth provider authentication, plus enabled model selection. |
+| Section | Use it to |
+|---------|-----------|
+| General | Choose where links open, adjust automatic context compaction, and check for updates. |
+| Browser | Manage browser profiles, agent browser access, cookie imports, and preview defaults. |
+| Project actions | Save project tasks and services, choose local or shared storage, and configure workspace setup and cleanup. |
+| Shortcuts | View and customize keyboard bindings. |
+| Appearance | Choose syntax colors, terminal colors, fonts, diff layout, and reduced motion. |
+| Waggle Mode | Configure multi-agent collaboration and presets. |
+| Extensions | Manage OpenWaggle and Pi extensions. |
+| Skills | Browse skills for a selected project. |
+| Agents | Configure agent-created Workers and browse Markdown agent definitions. |
+| Permissions | Set default and project access modes, and revoke saved approvals. |
+| MCP | Connect external tools and services, review their access, and diagnose connection problems. |
+| Worktrees | Choose the default checkout mode and manage Git worktrees. |
+| Archived items | Restore archived sessions or conversation branches, and permanently delete archived sessions. |
+| Connections | Connect provider accounts and choose which models appear beside the message box. |
 
-Every section listed above is active; Settings has no placeholder or disabled areas.
+## Agents and permissions
 
-## Agents and Permissions
+Start with **Settings > Permissions > Default access mode > Ask for Approval** if you want to review protected actions. This is not a read-only mode. See [Approvals and permissions](/docs/configuration/approvals-permissions) before granting wider access.
 
-Settings > Agents puts the Hive controls first. **Agent-created Workers** enables native launch and
-spawn for hosted agents. **Workers per parent** defaults to `4` active direct Worker Runs;
-**Active agent runs** defaults to `16` across every independent Session and Hive. Both numbers can
-be raised without a fixed product cap, but higher values may strain your machine or model provider.
-When either capacity is reached, a new Run receives a retryable rejection rather than entering a
-hidden queue. Saved Sessions, Follow-ups, searches, waits, and exports do not consume Run slots.
-Project configuration files can supersede these defaults. If an older version saved project-specific
-Hive overrides, a collapsed **Saved project overrides** list appears below the controls so you can
-inspect and clear those saved values. A project configuration file still takes precedence; clearing
-a saved preference uses the global value only when no project-file override exists.
+**Selected project** sets a project-specific mode. **Use default** removes that override. **Saved approvals** lists permissions you kept for the selected project; **Revoke** stops their future use but does not undo completed work.
 
-Below the controls, choose a project to inspect its agent Markdown definitions, read a file, or
-enable/disable a definition for new Sessions. There are no bundled roles and no definition editor:
-create or change the Markdown file in the project's agent directory. See
-[Agent Definitions](/docs/extending/agent-definitions) for the schema and discovery locations.
-Settings > Skills has its own project picker and browser.
+In **Settings > Agents**, **Agent-created Workers** allows agents to create other sessions to share a task. A Worker is another conversation with its own work and tool activity. See [Hives and sessions](/docs/using-openwaggle/hives-and-sessions) before enabling parallel work.
 
-Settings > Permissions controls the default access mode and the selected project's override.
-Its project picker names the exact project being inspected without changing the active Session.
-**Use default** removes an override. The same page lists saved approvals for that project and lets
-you revoke them; revocation prevents future use but does not undo previous work.
+- **Workers per parent** defaults to `4` active direct Worker runs per parent session.
+- **Active agent runs** defaults to `16` across independent sessions and Hives.
 
-The CLI is part of the installed app, not a second product to enable in Settings. Packaged macOS
-and Linux launches install or refresh the managed `~/.local/bin/openwaggle` command automatically;
-the Windows installer provides the command. OpenWaggle never replaces an unrelated file at that
-path. If the path is occupied, resolve the conflict explicitly. Ensure `~/.local/bin` is on your
-shell's `PATH`. Settings > General shows a read-only warning if the command is missing, outdated,
-conflicts with another file, or is not on `PATH`; it has no CLI installation controls. An exact
-legacy macOS link to the app remains usable, but re-run the installer if you move the app. From
-source, use `pnpm cli:dev -- <command>`.
+A run is one period of agent work, not a saved conversation. Saved sessions, queued follow-ups, searches, waits, and exports do not consume these run slots. Reaching a limit rejects a new run with a retryable error rather than hiding it in a queue. You can raise the limits, but more simultaneous runs may strain your machine or provider quota.
 
-Archived branches are hidden from normal sidebar navigation but remain visible in the full Session Tree with archived state. Branch deletion is not exposed until Pi supports native branch deletion.
+Project configuration can override the project-specific controls. If an older version saved project overrides, **Saved project overrides** lets you inspect and clear them. Clearing a saved value does not remove an override in a project file.
+
+Below the controls, select a project to read its agent definitions or enable and disable them for new sessions. There are no bundled roles or built-in definition editor. Edit the Markdown files in your project; see [Agent definitions](/docs/extending/agent-definitions). **Skills** has its own project picker and browser.
 
 ## General
 
-**Context compaction** sets the percentage of the active model's context window at which Pi compacts before another model request. It defaults to **80%** and is one app-global preference for every model, project, and session. Provider capability decides whether Pi uses Native Responses Compaction or the Portable fallback; there is no provider-specific setting.
+**Open web links in** chooses whether links open in OpenWaggle or your external browser.
 
-**About & Updates** shows the installed version and selects the update channel shared with
-`openwaggle update`. Stable is the default. Beta also accepts Stable releases; Alpha accepts
-Alpha, Beta, and Stable releases. OpenWaggle asks for confirmation whenever you enter Alpha, then
-saves the choice and checks the new channel immediately. Changing channels never authorizes a
-downgrade; **Check now** lets you query the selected channel again later. If the CLI changes the
-shared channel while Settings is open, the picker refreshes to show the authoritative choice.
-Before restarting, OpenWaggle re-reads the channel shared with the CLI and discards a downloaded
-release that is no longer eligible. Downloaded updates are installed only when you choose
-**Restart to update**; a normal app exit never bypasses that final channel check.
+**Context compaction** controls when OpenWaggle reduces the older context sent to a model so a long conversation can continue. **Automatic compaction threshold** defaults to **80%** of the model's context capacity. It applies across models, projects, and sessions. The model's capabilities determine whether this uses native compaction or a portable summary; there is no provider-specific switch.
+
+**About & Updates** shows your installed version and update channel. Stable is the default. Beta also accepts Stable releases; Alpha accepts Alpha, Beta, and Stable releases. Entering Alpha requires confirmation. Changing the channel saves it and immediately checks for an eligible update, but never authorizes a downgrade.
+
+Use **Check now** to check again. A downloaded update installs only when you choose **Restart to update**. OpenWaggle rechecks that it is still eligible for your channel before restarting; ordinary app exit does not install it. The app and `openwaggle update` share the channel setting.
+
+### Command-line availability
+
+The CLI ships with the app. Packaged macOS and Linux launches install or refresh `~/.local/bin/openwaggle`; the Windows installer provides the command. Ensure the install directory is on your shell's `PATH`.
+
+General shows a read-only warning if the command is missing, outdated, blocked by another file, or not on `PATH`. There are no CLI installation controls here. OpenWaggle does not replace an unrelated file at the command path; resolve that conflict yourself. An exact legacy macOS link to the app still works, but rerun the installer if you move the app. From source, use `pnpm cli:dev -- <command>`.
 
 ## Appearance
 
-Settings > Appearance controls how diffs are rendered:
+Use **Settings > Appearance** to adjust readability without changing your code:
 
-- **Diff view** — Unified or Split. This is not merely a default: it is the same setting the diff panel's own toggle writes, so changing it in either place changes both.
-- **Wrap long lines** — Soft-wrap long lines in the diff. Also shared with the panel's toggle.
-- **Syntax theme** — Five options with a live preview: **Default**, **Soft**, **Vibrant**, **Protanopia / deuteranopia safe**, and **Tritanopia safe**. The last two avoid red/green and blue/yellow pairings respectively, for colour-vision deficiency.
+- Choose syntax themes and accessibility profiles using the preview.
+- Adjust terminal colors and typography.
+- Set **Diff layout** to **Unified** or **Side by side**.
+- Enable **Wrap long lines** to avoid horizontal scrolling in diffs.
+- Enable **Reduce motion** to minimize animation instead of following the operating system's preference.
 
-These are app-global preferences stored in the Session Host database
-(`session-host/session-host.sqlite` under OpenWaggle's application-data directory), not per-project
-settings.
+Diff layout and line wrapping are shared with the diff panel's own controls. These appearance choices apply across projects, not through a project settings file.
+
+## Browser
+
+In **Settings > Browser**, use **Let agents open and drive the preview browser** to control agent access. Turning this off withholds browser tools from the agent. It is separate from where links open.
+
+**New preview tabs use** selects a browser profile. Persistent profiles keep cookies and site data; Incognito uses memory only. Review what an imported login allows before giving an agent access to that profile.
+
+Preview defaults include **Viewport**, **Zoom**, **Appearance**, **Recording**, and **Show agent-opened previews**. See [Browser preview](/docs/developer-workflow/browser-preview) for using a preview during development and [Security and privacy](/docs/configuration/security-privacy) for its limits.
+
+## Project actions and shortcuts
+
+Use **Settings > Project actions** to save tasks such as tests and builds, or services such as a dev server. Choose a discovered project script or enter a custom command. New definitions default to **Only on this device** for that project; **In the project** saves a shareable `.openwaggle/actions.json` file.
+
+Launch actions from **+ Action** in the session header. They run in that session's workspace, which may be a separate worktree. Inspect output, stop or restart a run, and open its ready preview from Session Summary. Choosing an already-running action normally opens its output rather than starting another copy.
+
+The separate **Workspace preparation** section configures setup and cleanup for preparation profiles. Enabled setup must finish before the first agent turn in a new managed worktree. Existing checkouts only run it when you choose **Run setup**. Shared preparation commands need local review and enablement. See [Project actions](/docs/configuration/project-actions) for the full workflow.
+
+Use **Settings > Shortcuts** for both app keyboard bindings and Project Action bindings. **Add binding** lets you choose either kind of command. Review overlap warnings when assigning a shortcut already used elsewhere.
 
 ## Worktrees
 
-Settings > Worktrees has two parts:
+**Session environment mode** sets the default for new sessions:
 
-- **Session environment mode** — the default for new sessions: **Current checkout** (sessions edit the opened checkout directly) or **New worktree** (each session runs in a dedicated worktree isolated from the checkout). The shipped default is Current checkout. Each session can override it before its first message; see [Git Integration](/docs/developer-workflow/git-integration).
-- **Worktrees** — every Git worktree of the opened repository, including the main checkout (marked `(main)`), whether or not OpenWaggle created it. Each linked worktree offers **Remove**; the main checkout cannot be removed. **Refresh** re-reads the list. Removing a worktree with uncommitted changes fails and reports that you must commit, push, or force-remove to discard them.
+- **Current checkout** edits the project folder you opened. This is the shipped default.
+- **New worktree** creates a separate Git checkout for the session.
 
-Like Appearance, the default mode is an app-global preference in the Session Host database.
+You can choose a different mode before a session's first message. See [Git integration](/docs/developer-workflow/git-integration).
+
+The **Worktrees** list includes every worktree of the opened repository, even ones created outside OpenWaggle. The main checkout is marked `(main)` and cannot be removed here. Use **Refresh** to reload the list or **Remove** on a linked worktree. Normal removal refuses uncommitted changes or locks.
+
+If configured cleanup fails, the worktree stays in the list with its output and **Retry cleanup** controls. **Delete anyway** skips cleanup, which may leave external resources behind. **Force remove** also permits removal of dirty or locked worktrees and can discard uncommitted work. Preserve anything you need before using it.
 
 ## Connections
 
-Connections is grouped by authentication method:
+Expand **API Key Providers** to save a key or **OAuth Providers** to sign in through a browser. Under **Available Models**, enable the models you want beside the message box. The selector shows models that are both enabled and available through their provider.
 
-- **API key providers** — providers OpenWaggle can configure through Pi auth storage, environment, or custom provider support.
-- **OAuth providers** — providers reported by Pi OAuth metadata.
-- **Available models** — all models Pi reports, grouped by provider. Enable models here to keep the composer dropdown focused.
-
-The composer only shows enabled models.
+See [Providers and models](/docs/providers/overview) for the full setup.
 
 ## MCP
 
-Settings > MCP controls OpenWaggle's first-party MCP runtime. MCP is globally off by default, and effective state resolves from session to project to global. Turning MCP off for one session means that session receives no MCP servers, tools, instructions, subscriptions, or derived context. A change made during a turn is shown as pending and applies at the next safe turn boundary.
+MCP connects the agent to tools and services outside its built-in file and command tools. It starts globally off. In **Settings > MCP**, review each server's definition and requested access before trusting or enabling it.
 
-OpenWaggle reads `~/.openwaggle/mcp.json`, `<project>/.mcp.json`, and `<project>/.openwaggle/mcp.json`. Server enablement, trust, grants, and scope state are user-owned state, so a checked-in project file can request a server but cannot silently run or trust it. Per-server toggles do not rewrite or delete the server definition.
+Activation can differ by session and project. Changes during agent work may remain pending until the turn finishes. Turning a server off does not prove a job already submitted to a remote service has stopped. See [Model Context Protocol](/docs/configuration/mcp) for setup, credentials, and cancellation limits.
 
-The Capabilities area connects lazily. Prompts create editable drafts; resources remain attributed; server instructions are never injected automatically; remote Tasks remain visible when a server is disabled; and MCP Apps use an isolated `ui://` host. Experimental remote Skills require `clientCapabilities.remoteSkills: true` for that server, are digest/frontmatter checked where possible, and never execute remote scripts or grant `allowed-tools` automatically.
+## Archived items
 
-## Data Storage
+Restore archived sessions and conversation branches here, or permanently delete an archived session. Archived branches are hidden from normal sidebar navigation but remain marked in the full Session Tree. Deleting individual branches is not currently available.
 
-OpenWaggle stores app-owned settings and legacy state under Electron's user-data directory. The
-Session Host owns canonical Session state in `session-host/session-host.sqlite` beneath that
-directory. After the one-time cutover, a pre-cutover copy remains available only through the
-explicit [Session Recovery](/docs/configuration/session-recovery) commands. Waggle presets are
-stored by Pi: user-scope presets live in `~/.pi/agent/waggle-presets.json`, and project-scope presets
-in `<project>/.pi/waggle-presets.json`.
+## Data storage
 
-Session worktrees are created outside your project, at `~/.openwaggle/worktrees/<repository>/<sessionId>`, each on a branch named `ow/session-<sessionId>` — the same id as the directory. Settings > Worktrees lists and removes them.
+For repository-specific resources and advanced runtime options, see [Per-project configuration](/docs/configuration/per-project-config).
 
-Provider credentials are resolved by Pi auth storage, environment variables, or project/custom Pi provider configuration. Pi's default auth storage path is `~/.pi/agent/auth.json`.
+OpenWaggle stores app settings and session records under its application-data directory. The active session database is `session-host/session-host.sqlite`. If an older database was migrated, use the explicit [Session recovery](/docs/configuration/session-recovery) commands to inspect or restore its recovery copy.
 
-MCP server config stays in the files above. User-owned MCP state, encrypted secret references, OAuth state, and durable remote Task records live under `~/.openwaggle/mcp/` and are not model-visible.
+Other files have separate locations:
+
+| Data | Default location |
+|------|------------------|
+| Private Project Actions, overrides, and preparation state | Local application storage, scoped to the project and workspace |
+| Shared Project Actions and preparation definitions | `<project>/.openwaggle/actions.json` |
+| User Waggle presets | `~/.pi/agent/waggle-presets.json` |
+| Project Waggle presets | `<project>/.pi/waggle-presets.json` |
+| Provider credentials saved through Pi | `~/.pi/agent/auth.json` |
+| Global MCP definitions | `~/.openwaggle/mcp.json` |
+| Project MCP definitions | `<project>/.mcp.json` and `<project>/.openwaggle/mcp.json` |
+| User-owned MCP trust, secret references, OAuth state, and remote task records | `~/.openwaggle/mcp/` |
+
+Credentials may also come from environment variables or custom provider configuration. Do not treat the session database as a complete backup of credentials or project files.
+
+Managed worktrees live outside your project at `~/.openwaggle/worktrees/<repository>/<workspaceId>`. New workspace branches use `ow/session-<workspaceId>`; sessions that share a workspace use the same checkout. Existing worktrees retain their recorded names. Check **Session Summary > Environment** for the actual path and branch rather than deriving them from a session ID.
+
+Sidebar sort order, collapsed projects, and the Pinned section's sort are remembered between launches. Pinned sessions and their dragged order are stored with app data. Text filters and state chips are not remembered, so an old filter does not keep hiding sessions.
 
 ## Logs
 
@@ -142,4 +153,4 @@ MCP server config stays in the files above. User-owned MCP state, encrypted secr
 | Windows | `%APPDATA%\OpenWaggle\logs\` |
 | Linux | `~/.config/OpenWaggle/logs/` |
 
-The error display can open the logs directory when a run fails.
+The error display can open the logs directory when agent work fails. Review logs for secrets and private project details before sharing them.

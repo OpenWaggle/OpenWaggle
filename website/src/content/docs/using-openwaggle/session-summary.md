@@ -1,174 +1,174 @@
 ---
-title: "Session Summary & Resources"
-description: "Use the floating Session Summary, browse session Sources and Outputs, and inspect shared images."
-order: 2
+title: "Session Summary and resources"
+description: "Check a session's working directory, review changes, and find files and images shared during the conversation."
+order: 7
 section: "Using OpenWaggle"
 ---
 
-The Session Summary keeps the opened session's working context and durable resources close to the transcript. It appears in the top-right after the first message has been sent, or immediately for a Queen or Worker Session so Hive navigation is available before the Worker's first message. Before an ordinary Session's first message, the composer setup row owns the project, environment, and run-target choices.
+Session Summary brings together the current session's working directory, Git actions, shared files, and results. Use it to find something from the conversation without scrolling back through every message.
 
-The Summary is always a floating overlay. It never narrows the transcript or moves the composer. OpenWaggle hides it automatically when the chat area is too narrow or a right sidebar is open. Use the **Session Summary** layout-list button in the header to hide it or explicitly reopen it over the chat at any window size.
+1. Open a session where you have sent at least one message.
+2. Click **Open Session Summary** in the header. If a right sidebar is open, close it first.
+3. Choose **Changes** to review file edits, or **Show all** under **Sources** or **Outputs** to browse resources.
 
-Resizing between wide and narrow layouts keeps your unsent text, selected command chips, and interactive visualization state intact.
-
-When the header is compact, the session title stays visible and action labels become icons with accessible names and hover tooltips. The Diff control's tooltip retains the changed-line totals. Branch and project labels return when there is room. The Summary toggle remains in the header.
-
-At narrow widths, an explicit reopen is temporary. Press `Escape` or click outside the Summary to dismiss it without changing the saved wide-layout preference. A right sidebar always takes precedence. The header button remains visible but disabled until the sidebar closes. At wider widths, OpenWaggle remembers whether the Summary is open and which sections are expanded for each session.
-
-Authorization mode and context usage stay in the composer. They are not duplicated in the Summary.
-
-A floating browser preview also takes precedence over automatic Summary display. Explicitly opening the Summary hides that session's preview without closing its tab. Resources and other session inspectors keep the preview hidden while they are open. Closing an inspector restores the Summary if it was open before; hiding the Summary then restores the same preview. These choices never expose another session's preview.
-
-Before the first message, opening Diff or a file inspector also hides the current draft's floating preview. Closing the inspector restores that preview without creating a Session Summary for the unsent draft.
-
-Switching from an unsent draft to an existing session keeps each one's terminal and browser tabs separate. Only creating a session from that draft moves its tabs into the new session. While that handoff finishes, tab creation and moves are temporarily unavailable; unrelated sessions remain usable.
-
-If browser tabs cannot be moved safely, OpenWaggle keeps them in the project draft and reports the failure. Use the project's **New session** action to return to that draft. Terminal tabs that already moved remain in the new session; OpenWaggle does not undo their completed handoff.
-
-Closing a browser tab waits for its native page to close. If that fails, the tab remains available and OpenWaggle shows the error so you can retry. Closing several tabs removes only those that closed successfully. A close that finishes after you switch sessions does not take over the new session's sidebar.
+The Summary floats over the conversation rather than narrowing it. It may open automatically when there is enough room. Use the header button to hide it again. Sessions in a [Hive](/docs/using-openwaggle/hives-and-sessions), or with workspace action or preparation activity, can show it before their first message.
 
 ## What the Summary shows
 
-Sections appear only when their session has relevant data:
+| Section | Use it to |
+|---------|-----------|
+| Environment | Check the working directory and Git branch, open changes, commit or push, and open a pull or merge request. |
+| Sources | Find attachments, project references, links, searches, and other recorded inputs the agent used. Use the plus menu to attach a file or add an `@` project-file reference. |
+| Outputs | Find files, images, sites, commits, and review requests explicitly recorded as results of the session. |
+| Actions | Inspect running and recent managed project commands, including development servers. |
+| Workspace preparation | Review setup progress and output, retry a failed setup, or adopt a newer preparation profile. |
+| Hive | Open the parent or direct Worker sessions and check their progress. |
+| Pull requests or Merge requests | Open additional requests created by this session. The label starts with Other when the current branch's request is already shown under Environment. |
+| Subscriptions | Check this session's active MCP event subscriptions and retry a failed refresh. |
 
-- **Environment** shows working-tree changes, the bound local checkout or worktree, the Git branch, **Commit or push**, and the GitHub pull-request or GitLab merge-request action.
-- **Pull requests** or **Merge requests** appears when this session created additional requests. When the current branch already has one, the section is labelled **Other pull requests** or **Other merge requests** and does not duplicate it.
-- **Hive** shows the opened session's immediate parent and direct Workers, grouped as Active, Review, Done, and Archived. Review holds completed submissions awaiting a parent's decision; Done holds accepted or cancelled work. It never mixes in another Hive or a Worker's children.
-- **Outputs** shows the exact count and a bounded, internally scrolling preview of files, images, sites, commits, change requests, and other explicit results created or updated during the session.
-- **Sources** is always available with its add action, even before the session has a Source. Its plus menu can attach files through the native composer picker or insert an `@` project-file reference. The request is bound to the opened session, so a session switch cannot deliver it to another draft. The section previews attachments, links, tools, web searches, and other explicit inputs used by the session. Choose **Show all** for the complete catalog.
-- **Subscriptions** appears for active MCP event subscriptions owned by this session. A failed refresh stays inside the section and can be retried there.
-- Extensions can add named, declarative sections for session-scoped information or actions. A failing extension section is isolated from the rest of the Summary.
+Sections appear when relevant, except Sources, which keeps its add action available even when empty. Extensions can add sections of their own. An error in one extension section does not prevent the others from working.
 
-OpenWaggle does not turn ordinary URL-like prose into a Source, and it does not treat every modified working-tree file as an Output. Working-tree changes belong under Environment until the agent or a producing tool explicitly identifies a result.
+A URL mentioned in ordinary prose is not automatically a Source. A modified file is not automatically an Output either. All working-tree changes are available under **Environment > Changes**, including changes the session did not record as a result.
+
+Agent access and context usage remain beside the message box, not in the Summary.
 
 ## Project actions and preparation
 
 Running and recent project actions appear in **Actions**. Select a row to inspect output and controls
-in the right sidebar. The Hub remains available for workspace activity even before a session’s first
-message. Workspace preparation shows setup progress, retained output, review decisions, and recovery
-controls. See [Project actions](/docs/developer-workflow/built-in-terminal#project-actions).
+in the right sidebar. Starting the same action normally opens its existing active run rather than
+launching another copy. Use **Restart** deliberately when you want to replace it. These managed runs
+are separate from interactive terminal tabs.
+
+**Workspace preparation** shows setup progress, retained output, review decisions, and recovery
+controls. Configured setup must succeed before the first agent turn in a new managed worktree.
+If it fails, inspect **Setup output**, then choose **Retry setup** or deliberately **Continue anyway**.
+**Stop setup** stops an active attempt. Existing local checkouts run setup only when you choose
+**Run setup**. See [Project actions](/docs/developer-workflow/built-in-terminal#project-actions).
 
 ## Environment and Git actions
 
-Choose **Changes** to open the Diff sidebar. The environment row identifies the checkout that this session already uses; it cannot be changed after the first message because doing so would move an existing conversation to a different working tree.
+Check the environment row before running Git commands. It identifies the current checkout or worktree used by this session. The original environment choice is fixed after the first message.
 
-The branch row opens a searchable picker. You can check out an existing branch, create one from an unmatched search, or copy the branch name. Branch mutations use the same guarded Git path as the rest of OpenWaggle.
+- Choose **Changes** to open the diff panel.
+- Click the branch row to search and check out a branch, create one from an unmatched search, or copy its name.
+- Use the Environment plus menu to open the working folder, copy its path, or toggle the terminal.
+- Choose **Commit or push** to open the commit and push panel.
 
-**Commit or push** opens one command panel for committing on the current branch or a validated new branch. It reports staged and unstaged totals separately, and **Include unstaged changes** controls whether OpenWaggle stages working-tree content or commits only the existing index. The available **Commit**, **Commit & push**, and **Push** actions adapt to the repository and remote state; unavailable actions explain what is missing. `Cmd+Enter` on macOS or `Ctrl+Enter` on Windows and Linux runs the first available action. Pull-request and merge-request creation remains a separate, explicit action.
+In **Commit or push**, check the staged and unstaged totals, the target branch, and **Include unstaged changes**. With that option off, a commit uses only the existing Git index. With it on, OpenWaggle also stages working-tree content. You can use the current branch or enter a validated new branch.
 
-Enter the commit message before a commit-bearing action. OpenWaggle does not have a commit-message generation service yet, so the field starts blank and never claims that an empty value will be generated.
+Enter a commit message before choosing **Commit** or **Commit & push**. OpenWaggle does not generate one for this panel. **Push** is also available when the repository state allows it. Disabled actions explain what is missing. `Cmd+Enter` on macOS or `Ctrl+Enter` on Windows and Linux runs the first available action.
 
-The panel can stop a multi-step action between Git steps. It does not interrupt a commit or network push that is already running; **Stop after current step** waits for that step to finish and prevents the next one from starting.
+**Stop after current step** prevents the next step of a multi-step action. It does not cancel a commit or network push already in progress. Creating a pull or merge request is a separate action.
 
-The Environment plus menu can open the working folder, copy its path, or toggle the built-in terminal.
+For the full diff and commit controls, see [Git integration](/docs/developer-workflow/git-integration).
 
 ## Creating a pull or merge request
 
-For a GitHub remote, choose **Create PR**. For GitLab, choose **Create MR**. The composer shows:
+1. Choose **Create PR** for GitHub or **Create MR** for GitLab.
+2. Check the source and target branches. If you are on the default branch, review the proposed feature-branch name.
+3. Edit the title and description. The title starts with the session title.
+4. If local changes need to be included, review **Commit and push local changes**.
+5. Choose the draft or ready-for-review action. `Cmd+Enter` or `Ctrl+Enter` runs the primary action.
 
-- source and target refs;
-- an editable new-branch name when one is required;
-- title and description fields;
-- **Commit and push local changes** when the working tree is dirty;
-- draft and ready-for-review creation actions;
-- **Open PR/MR in browser** as a fallback;
-- `Cmd+Enter` on macOS or `Ctrl+Enter` on Windows and Linux for the primary action.
+Creation inside OpenWaggle needs an installed and authenticated provider CLI: `gh` for GitHub or `glab` for GitLab. OpenWaggle checks access to the remote's exact host before creating a branch, committing, or pushing. When access is unavailable, it explains why and disables those actions.
 
-Native creation checks the command-line client for the exact remote host before it creates a branch, commits, or pushes. GitHub requires an installed, authenticated `gh`; GitLab requires an installed, authenticated `glab`. When native creation is unavailable, the composer explains why, disables the native draft and ready actions, and keeps the browser workflow available when the remote can provide one.
+**Open PR/MR in browser** is a separate fallback where the remote supports it. It carries the branch, target, title, and description to the provider's page. It does not commit, push, or create the request inside OpenWaggle.
 
-When the session is still on the default branch, the composer proposes a validated feature branch. The session title supplies the initial request title. Leaving the description empty creates a short Summary and, when local changes will be committed, includes the changed-file totals. The browser fallback carries the current branch, target, title, and description to the provider page. It does not commit, push, or create the request inside OpenWaggle.
+Leaving the description blank creates a short Summary and includes changed-file totals if local changes will be committed. After successful creation, **View PR** or **View MR** replaces the create action and opens the request in OpenWaggle's right sidebar.
 
-After a request is created, the Summary replaces the create row with **View PR** or **View MR**. This opens the request inside OpenWaggle's right sidebar; it does not launch a browser.
+### Inspect and merge a request
 
-The request inspector is bound to the opened session's working tree and to an exact request in that repository. It supports switching between additional requests recorded as Outputs by that session, even when many unrelated Outputs exist, manual refresh, title and provider URL, base/head refs, open/draft/merged state, changed-file totals and a branch-diff entry, checks, review and mergeability state, and comment/review-thread counts when the provider CLI supplies them. The retained sidebar does not query while closed, and a request route from one session is discarded when another session opens.
+The request inspector shows the title, provider link, base and head refs, open/draft/merged state, changed-file totals, and a branch-diff link. It also shows checks, reviews, mergeability, and comment counts when the provider CLI supplies them. Refresh manually when you need an update, or switch to another request recorded by the same session.
 
-**Open in browser** is a separate explicit action. When the provider says a request is safe to merge, choose merge, squash, or rebase in the inspector. OpenWaggle confirms in the main process, then rechecks the session, repository, request identity, merge state, and exact head commit before invoking `gh` or `glab`. A disabled merge action explains whether checks, reviews, conflicts, draft state, provider rules, or missing metadata block it.
+Choose **Open in browser** to use the provider's site. When the provider reports that merging is available, the inspector offers merge, squash, or rebase. OpenWaggle asks for confirmation and checks the request and exact head commit again before invoking the provider CLI. Disabled actions explain blockers such as checks, reviews, conflicts, draft status, provider rules, or missing information.
 
-Request creation and session recording are separate guarded steps. If the provider creates the request but OpenWaggle cannot add it to Outputs, the composer keeps the provider URL and, when it retained safe retry authority, offers **Retry adding PR/MR to Outputs**. That retry records the existing request. It never creates a duplicate.
-
-OpenWaggle does not yet expose Codex's request-repair or add-to-chat shortcuts because there is no existing safe task/composer API that can attach provider feedback without inventing a second message path.
+If the provider creates the request but OpenWaggle cannot record it under Outputs, keep the creation panel open. Use **Retry adding PR/MR to Outputs** when offered. That retries recording the existing request, not creating another one. Closing the panel leaves the provider request valid, but it may remain absent from this session's Outputs.
 
 ## Following a Hive
 
-The Hive section appears only for a Queen or Worker. A Queen sees direct Workers, while a Worker sees its immediate parent. Worker rows show states such as Working, Waiting, Needs attention, Ready for review, Revision requested, Accepted, or Cancelled. Ready for review means the Worker's run finished and its parent has not yet accepted the result or requested revision; it no longer counts as Active. Archived direct Workers remain available in their own group.
+A Hive is a group of related sessions working on one task. The parent, called the Queen, can delegate work to Worker sessions. The Summary shows only the opened session's immediate parent and direct Workers, not every descendant.
 
-Hive opens automatically when a Worker needs attention, while work is active or awaiting review, or when the opened session is itself a Worker. For a Queen, an automatically opened section collapses shortly after all direct work has been accepted or cancelled. A manual expansion choice wins and is remembered for that session. Selecting a row opens that session; keyboard focus returns to its Session Summary button after navigation.
+Workers are grouped as **Active**, **Review**, **Done**, and **Archived**. **Ready for review** means the Worker submitted a result that its parent has not accepted or sent back for revision. This does not mean its Run has stopped. Open the Worker session to check whether it is still running. Accepted or cancelled work appears under Done.
 
-With the Session Host catalog available, large Hives load direct Workers in pages. **Load more workers** fetches the next page; the header counts still describe the whole direct Hive. A failed page can be retried without losing the Workers already shown. Host state changes refresh the Hive, and Host resynchronization starts again at the first page.
+Select a row to open that session. The section opens automatically while work is active, needs attention, or awaits review. For a Queen, it collapses shortly after all direct work is accepted or cancelled unless you have chosen to keep it expanded. Your manual choice is remembered.
 
-The Hive section reads the Session Host's live lineage and delegation state. Agents use the native Sessions tool to spawn and coordinate Workers; the Summary provides human-readable status and navigation without duplicating those commands.
+Large Hives have **Load more workers**. Counts still cover the whole direct Hive, and a failed page can be retried without losing rows already shown. Live updates refresh the list; a reconnect may restart it at the first page.
+
+See [Hives and sessions](/docs/using-openwaggle/hives-and-sessions) for delegating and reviewing work.
 
 ## Browsing Sources and Outputs
 
-Resources produced by a background session refresh that session's catalog even while you are viewing another session or Settings. Switching sessions never mixes their resources. Rapid switching also keeps resource loading bounded while earlier requests finish.
+Select **Show all** under Sources or Outputs to open the Resource Browser on the right. It groups resources by kind and shows who provided, read, created, or updated each item, along with its conversation branch.
 
-Stopping an agent or Waggle run lets it finish saving and indexing any partial outputs before reporting completion. Those persisted outputs remain available in the session's catalog.
+Selecting a non-image item in the Summary opens the browser with that item selected. Selecting an image opens the image viewer. The browser replaces the floating Summary; closing it restores the Summary when it was previously open.
 
-The Resource Browser shares the right sidebar with Diff, Session Tree, and other inspectors. It has separate **Sources** and **Outputs** views, groups related resource kinds, and shows provenance such as who provided, read, created, or updated an item and on which session branch it occurred.
+Use **Show more** for the next page of a large catalog. The total counts all items, not just the loaded page. If the catalog changes while you browse, it restarts from the first page to avoid skipped or duplicated items. A direct resource link opens its item without loading every earlier page.
 
-Large catalogs load in stable, bounded pages while retaining an exact total. **Show more** requests the next page; opening an exact resource link does not load all earlier rows. If the catalog changes between pages, OpenWaggle restarts at the first page so an item cannot be silently skipped or duplicated.
+File and link actions depend on the resource:
 
-Selecting a non-image Summary item opens its owning Resource Browser view with that item selected. **Show all** opens the complete Sources or Outputs catalog without expanding the Summary preview. Opening the browser hides the floating Summary; closing the browser restores the Summary when that session's saved state says it should be open.
+- A local non-image file can open in its normal desktop app.
+- **Open original** and **Reveal original** use the recorded file path when available.
+- A managed non-image file downloads a copy.
+- Links and sites open in the system browser.
+- Missing saved content shows its unavailable state and offers **Retry** when recovery is possible.
 
-The browser always rebinds to the currently opened session as one operation. Selection from the previous session is cleared before the new session's resources render, so content cannot flash or leak between sessions.
+If a resource appeared at several paths or URLs, its row uses the occurrence on the visible conversation path, or the latest matching occurrence if none is on that path.
 
-When the same resource was shared from different paths or URLs, its row shows the occurrence on the visible transcript path. **Open original** and **Reveal original** use that occurrence's locator; if it is not on the visible path, the latest matching occurrence is used.
-
-Choose a non-image local file to open it with its normal desktop handler, or use the row actions to open or reveal the original path. Links and sites open in the system browser. A managed non-image file downloads a copy. If OpenWaggle knows about a resource but its managed content is missing, the row shows that state and offers **Retry** when recovery is possible.
+Resources from background sessions keep updating without mixing into the session you are viewing. Stopping an agent or Waggle run allows partial results to finish saving before completion is reported. Those saved results remain available.
 
 ## Viewing images
 
-Images shared by either the user or the agent appear on that person's side of the chat. Multiple images in one message form a compact two-column grid, which stacks into one column when the message becomes too narrow. Open a chat image to move through that message's images with the previous and next buttons or arrow keys; navigation wraps from the last image to the first. Images opened from the Summary or Resource Browser use the broader session gallery instead. That gallery contains only the opened session's images, with every image on the active transcript path—including shared ancestors—before images exclusive to other branches. A deep link opens immediately with its true position and correct previous/next images, without loading every earlier page.
+Click an image in chat to browse that message's images. Open an image from the Summary or Resource Browser to browse all images in the session. The session gallery lists images on the active conversation path first, including shared history, then images exclusive to other branches.
 
 The viewer supports:
 
-- previous and next buttons plus `ArrowLeft` and `ArrowRight`;
+- previous and next buttons, or `ArrowLeft` and `ArrowRight`, with wraparound;
 - fit-to-window and 25, 50, 100, 150, or 200 percent zoom;
-- dedicated zoom-out, fit, and zoom-in buttons;
-- `Cmd`/`Ctrl` + mouse wheel or Chromium-supported trackpad pinch zoom;
-- centered zoom and drag-to-pan;
-- `Escape` to close;
-- copy the decoded image through the system clipboard;
-- add the image to the current composer through the same size-limited, registered attachment pipeline as the file picker;
-- download;
-- open or reveal for a resolvable local original;
-- Source/Output and branch provenance;
-- retry when managed content cannot be read.
+- zoom buttons, `Cmd`/`Ctrl` + mouse wheel, and supported trackpad pinch zoom;
+- drag-to-pan;
+- copying the image, adding it to the current message draft, or downloading it;
+- opening or revealing an available local original;
+- Source/Output and branch details;
+- `Escape` to close.
 
-When OpenWaggle validates image bytes, it stores them in session-owned managed storage. Full image bytes do not cross the renderer IPC boundary as base64. Thumbnails are bounded and loaded on demand. Chat Markdown does not mount remote image URLs in Chromium, so merely viewing a message cannot trigger a direct or local-network request. A remote Markdown image is cataloged without fetching it; opening the viewer is the explicit action that authorizes a bounded HTTPS fetch with redirect, size, content, and local-network checks. The validated copy is then cached for that session.
+Copy, add-to-chat, and download become available after the image loads. Adding to chat creates an attachment with the same size limits as the file picker. Use **Retry image** if content is unavailable or cannot be decoded.
 
-Adding a gallery image to the composer reads it through that managed-store boundary and creates a private registered attachment copy. A stored resource path is never handed to the renderer as reusable file authority.
+Local PNG, JPEG, GIF, and WebP images embedded in an agent's Markdown with `file:` URLs can be copied into the session's Outputs. The source must be inside the session's working directory or a supported temporary evidence folder, such as `electron-qa-evidence` or `openwaggle-evidence` under the system temporary directory. OpenWaggle validates the file and keeps its saved copy, so deleting the temporary original does not remove an image already captured. Other local paths are not automatically authorized. Older messages can recover these images while their originals are still available; otherwise the item remains unavailable and can be retried.
 
-Copy, add-to-chat, and download become available after the current image loads. If the image becomes unavailable or cannot be decoded, use **Retry image** to request a fresh copy. A failed remote fetch remains visible as an error and does not silently open the remote URL. Switching sessions while an action is running cancels its result for the old viewer or draft.
+Remote Markdown images are not fetched merely because you read a message or see a catalog entry. Opening the viewer authorizes an HTTPS fetch with redirect, size, content, and local-network checks. OpenWaggle validates and saves a copy for that session. Failed fetches show an error rather than silently opening the URL in a browser.
 
-The viewer closes when you change sessions. Its short-lived image and download links are revoked at the same transition, even if the next session never opens the Summary or Resource Browser.
-
-OpenWaggle does not display nonfunctional Codex-only image actions. Edit, Canvas, Share, and app-connector actions remain absent until OpenWaggle has a secure native capability for each one.
+The viewer closes when you switch sessions. Pending actions cannot add an image to a different session's draft, and temporary image and download links are revoked.
 
 ## Session ownership and persistence
 
-Each resource belongs to exactly one session, including resources produced on alternate transcript branches. Parent sessions and Workers keep separate catalogs. Archiving retains the catalog; permanently deleting the session also removes its catalog and managed files.
+Every resource belongs to one session, including resources from its alternate conversation branches. Parents and Workers have separate catalogs. Archiving retains resources; permanently deleting a session removes its catalog and managed files.
 
-A Queen session cannot be permanently deleted while it still has direct Workers, including completed or archived Workers. Delete those Workers first. Removing an entire project handles this automatically by deleting each Hive from its leaves toward its Queen. This keeps surviving Worker sessions from losing their visible parent relationship.
+A Queen cannot be permanently deleted while it still has direct Workers, including completed or archived Workers. Delete the Workers first. An active Worker must be stopped before deletion. If either condition blocks deletion, OpenWaggle leaves the session intact and explains what to do.
 
-If deletion is blocked, the app explains that the Workers must be deleted first and keeps the Queen open. This is a safety check, not a failed Hive connection.
+Removing a project checks the whole Hive before deleting from Workers toward their Queen. Active work, a missing descendant, or an invalid parent relationship blocks removal without deleting siblings. If the session list changed while confirmation was open, review it and confirm again. A later deletion error stops further deletion and refreshes the sidebar while keeping project references available.
 
-An active Worker must be stopped before its session can be deleted, including during project removal. Attempting to delete a Working or Waiting Worker leaves its run and session intact and explains what to do next.
+Older sessions can recover their resources in batches while the Summary and browser remain usable. Extension authors can add Sources, Outputs, and Summary sections through [OpenWaggle extensions](/docs/extending/openwaggle-extensions).
 
-Project removal refreshes the session list after confirmation and checks the whole Hive before deleting anything. An active Worker, missing descendant, or invalid lineage blocks removal without deleting siblings. If the session list changed while the confirmation was open, review it and confirm again. A later deletion error stops further deletions and refreshes the sidebar; project references remain available.
+### Panel and tab behavior
 
-Recoverable resources from older sessions are backfilled lazily in bounded batches. The Summary and Resource Browser remain usable while that work completes.
+At wide widths, OpenWaggle remembers whether the Summary is open and which sections you expanded for each session. At narrow widths, opening it is temporary. Press `Escape` or click outside to dismiss it without changing the saved wide-layout preference. Resizing does not clear your draft, command chips, or interactive visualizations.
 
-Extension authors can publish session Sources and Outputs or add Summary sections through the brokered extension SDK. See [OpenWaggle Extensions](/docs/extending/openwaggle-extensions).
+A right sidebar takes precedence over the Summary. Its header button stays visible but is disabled until that sidebar closes. A floating browser preview also takes precedence over automatic Summary display. Explicitly opening the Summary hides that session's preview without closing the tab. Resource and other inspectors keep it hidden; closing an inspector restores the Summary if previously open, and hiding the Summary restores the preview.
+
+Before the first message, Diff and file inspectors hide an unsent draft's floating preview. Closing the inspector restores the preview without creating an empty Summary.
+
+Draft and existing-session terminal and browser tabs stay separate. Only sending the draft's first message moves its tabs into the new session. Tab creation and moves pause during that transfer. If browser tabs cannot move safely, they stay in the project draft and an error explains the failure. Use that project's **New session** action to return to them. Terminals already moved remain in the new session.
+
+A browser tab stays visible if its page fails to close, so you can retry. Closing several tabs removes only those that closed successfully. Switching sessions during a close does not open a sidebar in the new session.
 
 ## If a Summary action is missing
 
-- Send an ordinary session's first message before looking for the Summary. Queen and Worker Sessions can open it earlier for Hive navigation; an unsent ordinary draft does not show an empty shell.
-- Close the right sidebar or use the header's **Session Summary** button to reopen the overlay. At narrow widths, an explicit reopen floats over the transcript instead of resizing it.
-- A pull-request or merge-request action appears only when OpenWaggle can identify a supported GitHub or GitLab remote. The composer reports missing or unauthenticated `gh` or `glab` access for that remote's exact host.
-- Create or check out a branch if the repository is on a detached `HEAD`. A new feature branch also needs at least one commit, or local changes selected for **Commit and push local changes**, before a request can be created.
-- If the request exists on GitHub or GitLab but is missing from Outputs, keep the composer open and use its record-only retry when offered. If you close the composer before recording succeeds, the request remains valid at the provider but may stay absent from this session's Outputs.
-- Sources and Outputs are based on explicit evidence. A URL mentioned as ordinary prose and an otherwise unclassified modified file intentionally stay out of the catalog.
-- If a catalog or subscription load fails, use the local **Retry** action. If managed image content is unavailable, use the viewer's retry action. Remote images are not fetched merely because a transcript, Summary, or thumbnail is visible.
+- Send an ordinary session's first message. Existing Hive sessions and sessions with workspace activity can open the Summary earlier; an ordinary empty draft cannot. Running a Project action also requires an existing session.
+- Close the right sidebar, then click **Open Session Summary** in the header.
+- For pull and merge requests, check for a supported GitHub or GitLab remote and authenticated `gh` or `glab` access to that host.
+- Create or check out a branch if the repository is on a detached `HEAD`. A new feature branch also needs at least one commit, or local changes selected for **Commit and push local changes**, before request creation.
+- If a request exists at the provider but is missing from Outputs, use the record-only retry in the creation panel when offered.
+- Check **Environment > Changes** for modified files that were not explicitly recorded as Outputs. Ordinary URL text is not automatically a Source.
+- Use the section's **Retry** for catalog or subscription failures, or **Retry image** in the viewer for missing image content.
 
-When switching sessions, OpenWaggle closes the image viewer and atomically rebinds an open Resource Browser before showing data. If content from the previous session ever remains visible, treat that as a privacy bug and report it with the two session titles and the navigation sequence that reproduced it.
+An open Resource Browser clears its old selection when you switch sessions. If it ever shows the previous session's content after a switch, report it with the two session titles and the steps that reproduced it.

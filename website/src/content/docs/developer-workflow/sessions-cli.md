@@ -1,23 +1,32 @@
 ---
 title: "Sessions CLI"
 description: "Discover, control, watch, and export OpenWaggle Sessions from a terminal or another agent."
-order: 3
-section: "Developer Workflow"
+order: 5
+section: "Developer docs"
 ---
 
-The `openwaggle` CLI is a client of the same local Session Host as the desktop app. It does not open the Session database directly. Commands can start the Host on demand, accepted Runs continue when the GUI closes, and Host events keep an open GUI synchronized with CLI activity.
+Use `openwaggle sessions` to find conversations, start work, send follow-ups, or export a transcript from a terminal. The commands operate on the same sessions you see in the desktop app.
+
+The CLI talks to the local Session Host, the process that owns saved sessions and agent execution. It does not open the database directly. Commands can start the Host when needed, and accepted runs continue when the GUI closes.
 
 An agent hosted by OpenWaggle should use its native `sessions` tool. The CLI is for people in a terminal and agents running in other tools. Both paths create the same durable Sessions; a CLI-spawned Worker appears in the desktop sidebar and Session Summary.
 
-On Windows, starting a detached Host uses the built-in Windows PowerShell helper to prevent it from retaining the launching client's pipes. This lets a CLI command finish while the Host continues running. If the helper cannot run, startup fails with an error instead of falling back to a launch that can leave the CLI hanging.
-
 The installed app includes the CLI. On macOS and Linux, packaged app startup installs or refreshes its managed command at `~/.local/bin/openwaggle`; make sure `~/.local/bin` is on your shell's `PATH`. OpenWaggle never overwrites an unrelated file at that path, so resolve a path conflict explicitly if the command is unavailable. The Windows installer manages the command. From a source checkout, use `pnpm cli:dev -- <command>`.
 
-The Windows command adds Electron's `--` argument separator automatically; use `openwaggle access profiles create ...` normally. If you invoke the executable directly, include the separator: `OpenWaggle.exe -- access profiles create ...`. For a development executable, put it after the app path: `electron . -- access profiles create ...`. Without it, Electron can reject capability names such as `sessions:read` or URL arguments before OpenWaggle starts.
+## Start with an existing session
 
-The current Local Session protocol revision is 11; the Host also accepts revision 10. Revision 11 adds the GUI's native terminal/browser control bridge. Saving and revoking project approvals from the GUI requires revision 10 or later. The owning Host serializes those changes with project preferences, including when a CLI command started the Host before the GUI opened. Desktop registration and these approval controls remain available only to the local GUI, not to external agent profiles.
+From your repository directory:
 
-Host-authorized workspace access and visualization source preparation require revision 9 or later. This covers file search, project syntax themes, and recovery of saved visualizations after a crash. Older Hosts must complete the authenticated upgrade handoff before serving requests they do not support. The GUI does not fall back to its own Session database, save approvals locally, or grant access when the Host is unavailable. Steering receipts require revision 8 or later; the MCP authorization command was introduced in revision 7.
+```sh
+openwaggle sessions list
+openwaggle sessions read <session-id>
+openwaggle sessions status <session-id>
+openwaggle sessions follow-up <session-id> --text "Summarize the remaining work. Do not edit files."
+```
+
+Replace `<session-id>` with an ID returned by `list`. The first three commands inspect state. The last sends a new task: it starts when the session is idle or waits behind its active run. Inspect the target before sending messages, since they can cause the agent to use tools.
+
+Use [Create and communicate](#create-and-communicate) to start a new session. For independent Workers and shared-workspace risks, read [Hives and sessions](/docs/using-openwaggle/hives-and-sessions).
 
 ## Discover and read
 
@@ -39,7 +48,7 @@ Lexical multiword searches match all tokens anywhere in one Session. Wrap the co
 
 Single-response commands with `--json` use a schema-versioned `type: "response"` envelope on stdout and place the command result in `result`. This includes a structured rejected outcome returned by the Host; the response remains available on stdout while the process uses its matching nonzero exit class. Command streams such as `read --full`, `watch`, and `export watch` use `--jsonl`; every stdout line has `type: "record"` and places the stream value in `record`.
 
-A failure that aborts before a structured command result is available—such as usage validation, authentication or authorization protocol failure, transport failure, or an internal error—uses a schema-versioned `type: "error"` envelope on stderr. This is different from a structured rejected response on stdout.
+A failure that aborts before a structured command result is available produces a schema-versioned `type: "error"` envelope on stderr. This covers usage validation, authentication or authorization protocol failures, transport failures, and internal errors. This is different from a structured rejected response on stdout.
 
 ```json
 {"schemaVersion":1,"type":"response","command":"list","result":{"contract":"session-query-v2","response":{"contractVersion":2,"requestId":"request-1","outcome":{"operation":"list","sessions":[]}}}}
@@ -66,13 +75,13 @@ openwaggle sessions replace <session-id> --expected-run <run-id> \
   --text "Stop and use the revised design"
 ```
 
-Use exactly one of `--text`, `--stdin`, `--input-file`, or `--request-json` for message input. Attach files with repeatable `--attach`. Lifecycle commands accept `--agent`, `--model`, `--thinking`, explicit Workspace options, and `--yolo` when the resolved authorization ceiling permits it.
+Use exactly one of `--text`, `--stdin`, `--input-file`, or `--request-json` for message input. Attach files with repeatable `--attach`. `create`, `launch`, and `spawn` accept `--agent`, `--model`, and `--thinking`. `launch` and `spawn` also accept `--yolo` when the resolved authorization ceiling permits it. Workspace flags depend on the operation; use `sessions help` for the accepted choices.
 
 Use `message` when adaptive start-or-queue behavior is wanted. Use `follow-up` when the message must become a separate next Run, or `steer` when it must enter the current Run. A Follow-up remains queued while a Run is active; if that Run settles just before admission, the Host starts the Follow-up as the next Run instead of stranding it. Run-targeted mutations require `--expected-run`; stale callers fail instead of steering or interrupting the wrong Run.
 
 Profiles that use `replace` need both `sessions:message` and `sessions:interrupt`. A `sessions:start` grant does not substitute for message authority during Run replacement.
 
-Successful `steer` and `promote` responses include a delivery `receipt`. `delivery: "queued"` means Pi accepted the input for the active Run, not that it has reached the transcript yet. Its `durableTextSha256` is the lowercase SHA-256 of the exact projected first text block encoded as UTF-8, after Pi input transformations. Image-placeholder text parts are not included. `minimumCreatedOrder` is the earliest eligible native Session node order, captured after compaction and before queueing, so an older identical prompt cannot acknowledge the steer. This is not an index into the visible, compacted transcript. `delivery: "handled"` means an extension consumed the command without queueing a user message. Replayed successes saved by an older Host report `delivery: "unavailable"` when no receipt was recorded; they are never executed again to reconstruct it. These commands require Local Session protocol revision 8. Use `watch` or `read` to observe subsequent delivery.
+Successful `steer` and `promote` responses include a delivery `receipt`. `delivery: "queued"` means Pi accepted the input for the active Run, not that it has reached the transcript yet. Its `durableTextSha256` is the lowercase SHA-256 of the exact projected first text block encoded as UTF-8, after Pi input transformations. Image-placeholder text parts are not included. `minimumCreatedOrder` is the earliest eligible native Session node order, captured after compaction and before queueing, so an older identical prompt cannot acknowledge the steer. This is not an index into the visible, compacted transcript. `delivery: "handled"` means an extension consumed the command without queueing a user message. Replayed successes saved by an older Host report `delivery: "unavailable"` when no receipt was recorded; they are never executed again to reconstruct it. Steering receipts were introduced in Local Session protocol revision 8; current clients must use the revision accepted by the installed Host. Use `watch` or `read` to observe subsequent delivery.
 
 ### Coordinate a Worker from another tool
 
@@ -178,5 +187,15 @@ Credential recovery or cleanup failures are an exception: the CLI reports an err
 If a profile-creation or credential-rotation response is lost, the Host may already have committed the change. OpenWaggle retains the protected credential and reports the unknown outcome, operation reference, and recovery path without displaying the secret. A later rejected retry also preserves an earlier pending credential. Keep the error details and protected file until the Host outcome is confirmed and the credential recovered; do not delete the file just because a retry was rejected. Repeat the same CLI command with the same operation key and caller identity to reconcile an unknown outcome. An accepted creation whose local credential installation fails is reported separately as created, with its recovery path.
 
 For an existing, non-revoked profile, a new `openwaggle access profiles rotate <name> --credential-store` operation can explicitly rotate the credential. When one compatible pending store credential exists, the accepted rotation installs it. This is a new operation, not a replay; old clients disconnect and must reconnect using the stored credential. The earlier protected artifact remains available for its original operation's exact-key retry or manual recovery, but a later new rotation will not adopt those already-installed bytes again; it generates a fresh credential. A revoked profile, multiple eligible pending artifacts, or corrupt credential data prevents the recovery path. Keep unresolved artifacts and their reported locations instead of deleting them or retrying blindly.
+
+## Platform and protocol details
+
+On Windows, starting a detached Host uses the built-in Windows PowerShell helper so it does not retain the launching client's pipes. The CLI command can then finish while the Host keeps running. If the helper cannot run, startup fails rather than falling back to a launch that can leave the CLI hanging.
+
+The installed Windows command adds Electron's `--` argument separator automatically. If you invoke the executable directly, include it: `OpenWaggle.exe -- access profiles create ...`. For a development executable, put it after the app path: `electron . -- access profiles create ...`. Without it, Electron can reject capability names such as `sessions:read` or URL arguments before OpenWaggle starts.
+
+The current Local Session protocol revision is **17**, and the Host accepts **only revision 17**. Revision 17 adds native managed Actions and removes legacy action commands. Revision 16 added Session resource Host-UI operations; revision 15 added worktree-launch events. Revision 14 added update commands, revision 13 added turn-diff file reads, and revision 12 added project catalog commands. Revision 11 introduced the GUI's native terminal/browser bridge. Saving and revoking project approvals was introduced in revision 10. Desktop registration and these approval controls are available only to the local GUI, not external agent profiles.
+
+Workspace authorization and visualization source preparation were introduced in revision 9, steering receipts in revision 8, and MCP authorization in revision 7. These minimum operation revisions do not mean the current Host accepts all old wire revisions. Older Hosts must complete the authenticated upgrade handoff before serving requests they do not support. The GUI does not fall back to its own database, save approvals locally, or grant access when the Host is unavailable.
 
 Run `openwaggle sessions help`, `openwaggle access profiles help`, or `openwaggle agents help` for the complete operation and flag list.

@@ -1,7 +1,12 @@
 ---
-import { docsNav } from '@/data/docs-nav';
+import { developerDocsNav, docsNav, isDeveloperDoc } from '@/data/docs-nav';
 
 const currentPath = Astro.url.pathname.replace(/\/$/, '');
+const developerArea = isDeveloperDoc(currentPath.replace(/^\/docs\//, ''));
+const sections = developerArea ? developerDocsNav : docsNav;
+const otherArea = developerArea
+  ? { title: 'User guide', href: '/docs/getting-started/first-run' }
+  : { title: 'Developer docs', href: '/docs/developer-guide/building-from-source' };
 ---
 
 {/* Shared nav fragment rendered once, used in both desktop and mobile */}
@@ -9,7 +14,8 @@ const currentPath = Astro.url.pathname.replace(/\/$/, '');
   {/* Desktop sidebar */}
   <aside class="docs-sidebar w-64 shrink-0 overflow-y-auto border-r border-border py-8 pr-6 hidden lg:block sticky top-16 h-[calc(100vh-4rem)]">
     <nav aria-label="Documentation">
-      {docsNav.map((section) => (
+      <a href={otherArea.href} class="mb-6 block rounded-md border border-border-light px-3 py-2 text-sm text-accent hover:bg-bg-hover">{otherArea.title} <span aria-hidden="true">↗</span></a>
+      {sections.map((section) => (
         <div class="mb-6">
           <h3 class="mb-2 text-xs font-semibold uppercase tracking-wider text-text-tertiary">
             {section.title}
@@ -45,7 +51,8 @@ const currentPath = Astro.url.pathname.replace(/\/$/, '');
   <div id="mobile-sidebar-overlay" class="fixed inset-0 z-40 hidden bg-black/50 lg:hidden"></div>
   <aside id="mobile-sidebar" class="fixed left-0 top-16 z-50 hidden h-[calc(100vh-4rem)] w-72 overflow-y-auto border-r border-border bg-bg p-6 lg:hidden" role="dialog" aria-label="Documentation navigation">
     <nav aria-label="Documentation">
-      {docsNav.map((section) => (
+      <a href={otherArea.href} class="mb-6 block rounded-md border border-border-light px-3 py-2 text-sm text-accent hover:bg-bg-hover">{otherArea.title} <span aria-hidden="true">↗</span></a>
+      {sections.map((section) => (
         <div class="mb-6">
           <h3 class="mb-2 text-xs font-semibold uppercase tracking-wider text-text-tertiary">
             {section.title}

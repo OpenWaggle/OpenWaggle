@@ -1,6 +1,7 @@
 ---
 import { getCollection, render } from 'astro:content';
 import DocsLayout from '@/layouts/DocsLayout.astro';
+import PackageAliasRedirect from '@/components/docs/PackageAliasRedirect.astro';
 import { packageDocumentation } from '@/data/package-docs';
 
 export async function getStaticPaths() {
@@ -32,9 +33,18 @@ export async function getStaticPaths() {
 }
 
 const { entry, routeSlug } = Astro.props;
+const canonicalSlug = entry.id.replace(/\/index$/u, '');
 const { Content } = await render(entry);
 ---
 
-<DocsLayout title={entry.data.title} description={entry.data.description} slug={routeSlug}>
-  <Content />
-</DocsLayout>
+{/* Static Astro 302 redirects add a two-second delay. Keep latest aliases immediate. */}
+{routeSlug !== canonicalSlug ? (
+  <PackageAliasRedirect
+    destination={new URL(`/docs/${canonicalSlug}/`, Astro.site)}
+    title={entry.data.title}
+  />
+) : (
+  <DocsLayout title={entry.data.title} description={entry.data.description} slug={routeSlug}>
+    <Content />
+  </DocsLayout>
+)}

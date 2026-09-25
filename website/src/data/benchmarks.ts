@@ -34,22 +34,22 @@ const ENTRY_COPY: Record<string, EntryCopy> = {
     version: '',
     routing: 'Bundled Pi SDK, native OpenRouter provider, fresh agent dir',
     notes: [
-      'Measured through the same bundled Pi SDK and provider path the app ships with (scripts/benchmark-first-turn-tokens.ts --live).',
-      'The pi CLI at the same version, routed as a raw openai-completions endpoint, measures lower. The difference is Pi provider serialization, not extra context.',
+      'Historical bundled-SDK probe using scripts/benchmark-first-turn-tokens.ts --live, not a fully configured GUI session.',
+      'Measured separately from the container rows. The archived container logs do not include its raw run output.',
     ],
   },
   pi: {
     name: 'Pi CLI',
     version: '0.84.4',
     routing: 'Raw openai-completions endpoint via proxy',
-    notes: ["Pi's discipline is inherited by OpenWaggle: same runtime, same lean baseline."],
+    notes: ['Historical Pi 0.84.4 CLI result. Its provider route differs from the OpenWaggle SDK probe.'],
   },
   aider: {
     name: 'Aider',
     version: '0.86.2',
     routing: 'OpenAI-compatible endpoint via proxy',
     notes: [
-      "Aider's famously compact prompt. In an empty project there is no repository map; on a real repo aider adds its map on top, within a documented token budget.",
+      'Measured in an empty project. Repository context can increase input size in a real project.',
     ],
   },
   dsh: {
@@ -57,8 +57,7 @@ const ENTRY_COPY: Record<string, EntryCopy> = {
     version: '0.1.2a3 (sdk-minimal profile)',
     routing: 'DeepSeek-compatible endpoint via proxy',
     notes: [
-      "DeepSeek's first-party harness, run through its documented headless SDK profile: bash plus a file editor, built for benchmarking models in a minimal environment.",
-      'The standard profile ships the full toolset and needs the Web UI; there is no headless path for it yet.',
+      'Measured using the headless sdk-minimal profile, not the full interactive toolset.',
     ],
   },
   reasonix: {
@@ -66,7 +65,7 @@ const ENTRY_COPY: Record<string, EntryCopy> = {
     version: '1.35.0',
     routing: 'Raw openai-completions endpoint via proxy',
     notes: [
-      'Its CLI reports double because it re-sends the conversation to a completion validator; the wire shows one call. We report the wire.',
+      'The CLI reported 10,558 input tokens; the archive records one model call with 5,279. The chart uses API usage, without attributing the discrepancy to an unverified cause.',
     ],
   },
   opencode: {
@@ -74,7 +73,7 @@ const ENTRY_COPY: Record<string, EntryCopy> = {
     version: '1.18.26',
     routing: 'Raw openai-completions endpoint via proxy',
     notes: [
-      'Some configurations add a separate ~532-token session-title side call on a fresh conversation; it did not trigger in the pristine run.',
+      'The archived run contains one model call. Other configurations can add calls or context.',
     ],
   },
   codex: {
@@ -82,7 +81,7 @@ const ENTRY_COPY: Record<string, EntryCopy> = {
     version: '0.150.1',
     routing: 'Responses endpoint via proxy, model_reasoning_effort set',
     notes: [
-      'OpenRouter rejects a bare reasoning.summary on its Responses endpoint; effort must be set explicitly.',
+      'The measured container configuration explicitly set model_reasoning_effort.',
     ],
   },
   'claude-code': {
@@ -90,8 +89,7 @@ const ENTRY_COPY: Record<string, EntryCopy> = {
     version: '2.1.247',
     routing: 'Anthropic-compatible endpoint via proxy',
     notes: [
-      "A run against the user's real home directory measured 22,260. Installed plugins alone added ~4,650 tokens, so the pristine-container number is the fair baseline.",
-      'A native Bedrock run (claude-opus-5, eu-west-1) measured 16,911.',
+      'Measured in a pristine container. Plugins and configuration on a developer machine can change input size.',
     ],
   },
 }
@@ -116,11 +114,11 @@ const MEASURED_ENTRIES: BenchmarkEntry[] = results.entries.map((result) => {
 export const benchmarkRun: BenchmarkRun = {
   measuredAt: results.measuredAt,
   model: results.model,
-  routing: 'OpenRouter, through a local logging proxy that records per-call prompt tokens',
+  routing: 'OpenRouter: seven container rows through a logging proxy; OpenWaggle measured separately through the bundled Pi SDK provider',
   probePrompt: 'Reply with exactly OK and nothing else.',
   scriptPath: 'scripts/benchmark-first-turn-tokens.ts',
   environment:
-    'Each agent ran in a pristine Docker container pinned to an exact version, with a fresh home directory, an empty project, and no AGENTS.md, skills, plugins, extensions, or MCP servers to discover. The harness ships in the repository.',
+    'The seven non-OpenWaggle rows used pinned Docker containers with fresh homes and empty projects. The OpenWaggle row used a separate SDK probe with temporary project and agent directories. These are historical first-call measurements, not current-release task costs.',
   entry: MEASURED_ENTRIES,
 }
 

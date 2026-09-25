@@ -1,59 +1,59 @@
 ---
-title: "Providers Overview"
-description: "How OpenWaggle surfaces Pi providers, models, API keys, and OAuth authentication."
+title: "Providers and models"
+description: "Connect a provider account, enable models, and choose a model for your conversation."
 order: 1
-section: "Providers"
+section: "Customize"
 ---
 
-OpenWaggle does not maintain a fixed provider catalog. Provider and model metadata comes from Pi.
+A provider gives OpenWaggle access to AI models. You bring your own account, and the provider's charges and usage limits still apply. Connecting an account and choosing a model are separate steps.
 
-OpenWaggle focuses on the Settings and composer workflow. Pi owns the provider/model catalog, credential resolution, and runtime routing details.
+For a first setup, connect one provider and enable one model. You can add more later.
 
-Primary Pi references:
+## Settings flow
 
-- [Pi providers](https://pi.dev/docs/latest/providers)
-- [Pi custom models](https://pi.dev/docs/latest/models)
-- [Pi custom providers](https://pi.dev/docs/latest/custom-provider)
+1. Click the sidebar gear icon and open **Connections**.
+2. Expand **API Key Providers** to enter a key, or **OAuth Providers** to sign in through your browser. Use the method supported by your account.
+3. Under **Available Models**, enable the models you want to use.
+4. Return to your conversation and select an enabled model beside the message box.
 
-## Provider-Qualified Models
+The model list in Settings can include models your account cannot use. The message-box selector shows only enabled models that Pi currently reports as available. Enabling a model does not buy access or change your provider's permissions.
 
-Models are identified as:
+For models that support reasoning, use the thinking-level control beside the message box. See [Thinking levels](/docs/configuration/thinking-levels) for choosing a level and understanding its effect on usage.
+
+## API key auth
+
+An API key is a secret issued by a provider for applications to use its service. A chat subscription does not necessarily include API access or API credits.
+
+See [API key authentication](/docs/providers/api-key-auth) for saving, testing, and clearing a key.
+
+## OAuth auth
+
+OAuth lets you sign in on the provider's website rather than paste an API key into OpenWaggle. Subscription support depends on the provider and your account.
+
+See [Browser sign-in](/docs/providers/oauth-auth) for connecting and disconnecting.
+
+## Provider-qualified models
+
+A model's full identifier includes its provider:
 
 ```text
 provider/modelId
 ```
 
-This is intentional. The same underlying model can be hosted by multiple providers, and those are distinct runtime choices with different credentials, routing, pricing, and entitlements.
+The same model may appear through several providers. Choose the provider you connected. Each route can have different credentials, prices, usage limits, and model access.
 
-## Settings Flow
+## Custom providers
 
-1. Open **Settings > Connections**.
-2. Authenticate providers through the relevant method group:
-   - **API key providers**
-   - **OAuth providers**
-3. Enable the models you want to show in the composer.
-4. Select one of the enabled provider-qualified models from the composer dropdown.
-
-All available Pi models are visible in Settings. The composer only shows models you pre-select, which keeps the normal chat UI quiet.
-
-## API Key Auth
-
-API-key providers are shown separately from OAuth providers. OpenWaggle saves keys through Pi auth storage and lets Pi resolve credentials during runtime model construction.
-
-See [API Key Auth](/docs/providers/api-key-auth).
-
-## OAuth Auth
-
-OAuth providers come directly from Pi `ModelRuntime` provider metadata. OpenWaggle starts the same browser-based login flow through a nicer settings UI.
-
-See [OAuth Auth](/docs/providers/oauth-auth).
-
-## Custom Providers
-
-Project-scoped Pi provider configuration can add provider/model entries that are not part of the built-in registry.
-
-See [Custom Providers](/docs/providers/custom-providers).
+Use a custom provider for a private endpoint, local model server, or gateway that is not already listed. See [Custom providers](/docs/providers/custom-providers).
 
 ## Availability
 
-The Settings page distinguishes between models Pi knows about and models Pi reports as available with your current credentials. If a provider is authenticated but a specific model still fails, the upstream account may lack entitlement or the provider may reject that model.
+If a model is missing from the message box, check that it is enabled under **Available Models** and that its provider has usable credentials in the selected project. If a connected model fails, read the error before changing settings. Authentication, account access, billing, rate limits, and network failures need different fixes.
+
+Your conversation history is stored locally, but requests to a hosted model leave your machine. Those requests can include messages, file contents, and tool output. See [Security and privacy](/docs/configuration/security-privacy).
+
+OpenWaggle uses Pi, the agent engine included with the app, for its provider and model catalog. The available providers can change with app updates or custom configuration. For provider-specific setup and supported authentication methods, use these references:
+
+- [Pi providers](https://pi.dev/docs/latest/providers)
+- [Pi custom models](https://pi.dev/docs/latest/models)
+- [Pi custom providers](https://pi.dev/docs/latest/custom-provider)

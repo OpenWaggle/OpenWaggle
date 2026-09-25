@@ -1,22 +1,20 @@
 ---
-title: "Per-Project Configuration"
-description: "Project-local OpenWaggle settings and nested Pi runtime settings."
-order: 2
-section: "Configuration"
+title: "Per-project configuration"
+description: "Configure project resources, shared actions, and advanced options without changing every project."
+order: 13
+section: "Customize"
 ---
 
-OpenWaggle reads project-local, per-user configuration from `.openwaggle/settings.json` in the project root. Keep real settings files gitignored; if shared defaults are needed, commit an explicit non-secret template/default file instead.
+Use Settings for ordinary changes such as connecting a model, choosing an access mode, or changing fonts. Use a project configuration file when you need settings that apply only to one repository.
 
-## Settings File
+OpenWaggle reads `.openwaggle/settings.json` in the project root. Keep your real settings file gitignored. If your team needs shared examples, commit a separate non-secret template rather than a file containing personal preferences or credentials.
 
-Top-level keys belong to OpenWaggle. Pi runtime settings live under `pi` and use Pi's JSON setting names.
+## Settings file
+
+Use `.openwaggle/settings.json` for advanced project options, such as Worker limits and runtime configuration. Include only the values you need. Top-level keys belong to OpenWaggle; the nested `pi` object configures Pi, the agent engine included with the app:
 
 ```json
 {
-  "preferences": {
-    "model": "openai-codex/gpt-5.5",
-    "thinkingLevel": "medium"
-  },
   "sessionHost": {
     "multiAgentEnabled": true,
     "parentConcurrencyLimit": 8
@@ -35,80 +33,89 @@ Top-level keys belong to OpenWaggle. Pi runtime settings live under `pi` and use
 }
 ```
 
-The Pi adapter passes only the nested `pi` object to Pi's `SettingsManager`. Pi's project-local `.pi/settings.json` can also be read by the Pi settings loader, but both real settings files are local runtime configuration and should stay untracked. `.openwaggle/settings.json` is the primary OpenWaggle-facing configuration file.
+`sessionHost.multiAgentEnabled` lets agents create sessions to share work in this project. `sessionHost.parentConcurrencyLimit` is a positive integer limiting simultaneous direct Worker runs under one parent session, not the number of saved conversations. See [Hives and sessions](/docs/using-openwaggle/hives-and-sessions).
 
-`sessionHost.multiAgentEnabled` controls whether hosted agents may launch or spawn Sessions in this project. `sessionHost.parentConcurrencyLimit` is a positive integer that limits active direct Worker Runs beneath one parent; it does not limit saved Sessions. Project-file values take precedence over any previously saved per-project user overrides, which take precedence over app-global defaults. Settings > Agents exposes the app-global Hive controls; if saved project overrides exist, its collapsed recovery list lets you inspect and clear them, but not create new ones. Host idle grace remains an internal global runtime setting.
+For these project controls, values in the file take precedence over older saved project overrides, then app-wide defaults. **Settings > Agents** changes the defaults. Its **Saved project overrides** list can clear older overrides but does not edit your project file.
 
-The automatic compaction percentage is intentionally not project-scoped. OpenWaggle injects the app-global value from **Settings > General** after Pi merges project settings, so a project `pi.compaction.thresholdPercent` value does not override it. The other Pi compaction fields shown above remain low-level runtime settings.
+Pi may also read `.pi/settings.json`. Keep that real settings file untracked too. Prefer `.openwaggle/settings.json` for OpenWaggle configuration, and do not put Pi settings at its top level.
 
-## Resource Precedence
+## Resource precedence
 
-OpenWaggle injects project resource roots into Pi in this order:
+Skills, extensions, prompts, and themes can live in these project folders. When the same resource name exists in several locations, OpenWaggle prefers them in this order:
 
 ```text
 .openwaggle > .pi > .agents
 ```
 
-That precedence applies to project skills, extensions, prompts, and themes. When the same resource name exists in multiple project locations, `.openwaggle` wins, then `.pi`, then `.agents`.
+For example, `.openwaggle/skills/review/SKILL.md` takes precedence over a same-name skill in `.agents/skills`. This is useful when you need an OpenWaggle-specific version without changing files used by other tools.
 
-Real settings remain per-user runtime configuration. OpenWaggle strips its implicit resource roots when Pi persists project settings so `.openwaggle/settings.json` does not accumulate adapter-added defaults.
-
-Common project folders are:
+A project might contain:
 
 ```text
 your-project/
   .openwaggle/
     settings.json
+    actions.json
+    mcp.json
     skills/
     extensions/
     prompts/
     themes/
-    agent/
-      mcp.json
   .pi/
     settings.json
+    waggle-presets.json
     skills/
     extensions/
     prompts/
     themes/
-    mcp.json
-    waggle-presets.json
   .agents/
     skills/
     extensions/
     prompts/
     themes/
-    mcp.json
+  .mcp.json
 ```
 
-## MCP Config Precedence
+You do not need to create every folder. Keep personal settings untracked. Shared resources and `.openwaggle/actions.json` can follow your team's version-control policy. OpenWaggle does not save its automatically added resource paths back into your project settings.
 
-OpenWaggle reads MCP config from standard MCP files, Pi-owned files, `.agents`, and the OpenWaggle-owned project file. Effective precedence is:
+## Project actions and workspace preparation
+
+Manage these in **Settings > Project actions**, which has its own project picker. Actions and preparation definitions are local to the selected project by default. Saving a private definition does not create a repository file or make it available to unrelated projects.
+
+Choose **In the project** for an action, or project storage for setup or cleanup, to save that definition in `.openwaggle/actions.json`. This file is separate from `.openwaggle/settings.json` and is intended for sharing through version control. It contains definitions, not authorization grants, prepared environment values, or run history. Keep secrets out of commands and do not ignore the entire `.openwaggle/` folder if you intend to share resources from it.
+
+Each action, setup, and cleanup has its own storage choice. A private override can customize a shared definition without changing the repository copy. **Restore shared version** removes that override.
+
+Discovering shared setup or cleanup does not enable it. Review and enable the definition locally before automatic execution. Worktrees retain their selected preparation profile's snapshot until you explicitly adopt an update. See [Project actions](/docs/configuration/project-actions) for creating tasks, running services, and preparing workspaces.
+
+## MCP config precedence
+
+MCP server definitions have their own files. OpenWaggle merges them by server name in this order, with later sources winning:
 
 ```text
-~/.config/mcp/mcp.json
-~/.pi/agent/mcp.json
+~/.openwaggle/mcp.json
 <project>/.mcp.json
-<project>/.agents/mcp.json
-<project>/.pi/mcp.json
-<project>/.openwaggle/agent/mcp.json
+<project>/.openwaggle/mcp.json
 ```
 
-Later files override earlier files by server name and adapter setting key. Settings > MCP writes only the selected source file, and disabled servers are preserved under `openwaggle.disabledMcpServers`.
+A project file can define a server but cannot silently enable it. Enabling a server in Settings also records trust; OpenWaggle keeps those choices outside the project configuration. Turning off a server does not delete its definition.
 
-## Thinking Level
+Older Pi, `.agents`, and `.openwaggle/agent/mcp.json` files are migration sources, not the current active precedence chain. Use **Settings > MCP > Migrate existing MCP configuration** to inspect and import them. See [MCP configuration](/docs/configuration/mcp#configuration-files) for examples and secret handling.
 
-The composer thinking level uses Pi-native values: `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, and `max`. OpenWaggle stores the selected level and passes it to Pi for each run.
+## Thinking level
 
-## Runtime Settings
+Choose the thinking level with the control beside the message box. Available levels depend on the selected model. See [Thinking levels](/docs/configuration/thinking-levels) for using this control.
 
-Pi runtime settings belong under the nested `pi` object and follow Pi's JSON setting names.
+## Runtime settings
 
-Current Pi-backed UI preferences include:
+The nested `pi` object is for advanced configuration. Use Pi's JSON setting names:
 
-- `treeFilterMode` — selected Session Tree filter mode.
-- `branchSummary.skipPrompt` — whether to skip the branch-summary choice when navigating from an earlier session-tree node.
+- `treeFilterMode` remembers a Session Tree filter.
+- `branchSummary.skipPrompt` skips the summary choice when navigating from an earlier conversation-tree point.
+- `compaction.reserveTokens` and `compaction.keepRecentTokens` affect how much space compaction reserves and how much recent context it keeps.
 
-Not every OpenWaggle preference is project-scoped. The Appearance settings (diff view, wrap long
-lines, syntax theme) and the default session environment mode are **app-global**, stored in the
-Session Host database rather than in a project file, so they cannot be set per project.
+The automatic compaction percentage is app-wide. Set it in **Settings > General > Context compaction**. A project `pi.compaction.thresholdPercent` does not override it.
+
+Appearance preferences and the default **Session environment mode** are also app-wide, not project-file overrides. The background session service's idle grace period is an internal global setting, not a project option.
+
+The old `actions` key is a migration source only. Create and edit new actions through **Settings > Project actions**, using private storage or the dedicated `.openwaggle/actions.json` sharing file.

@@ -1,13 +1,14 @@
 ---
 interface Props {
   variant?: 'primary' | 'secondary' | 'ghost';
-  size?: 'default' | 'large' | 'icon';
+  size?: 'default' | 'large' | 'small' | 'icon';
   href?: string;
   type?: 'button' | 'submit' | 'reset';
   class?: string;
   id?: string;
   'aria-label'?: string;
   'aria-expanded'?: string | boolean;
+  'aria-pressed'?: string | boolean;
 }
 
 const {
@@ -25,6 +26,7 @@ const baseClasses =
 const sizeClasses = {
   default: 'px-7 py-3.5 text-[15px]',
   large: 'px-8 py-4 text-base',
+  small: 'min-h-11 px-2 py-2 text-xs',
   icon: 'h-8 w-8 p-0',
 };
 

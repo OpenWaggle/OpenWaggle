@@ -1,0 +1,55 @@
+---
+const views = [
+  {
+    id: 'conversation',
+    label: 'Conversation',
+    image: '/screenshots/feature-coding-agent.png',
+    alt: 'OpenWaggle conversation with agent responses and tool activity',
+    description: 'Ask the agent to work on your project. Follow its edits and tool calls in the conversation.',
+  },
+  {
+    id: 'changes',
+    label: 'Changes',
+    image: '/screenshots/feature-git-workflow.png',
+    alt: 'OpenWaggle Git workflow and code diff panel',
+    description: 'Review the diff, leave comments, and send feedback to the agent before committing.',
+  },
+  {
+    id: 'browser',
+    label: 'Browser',
+    image: '/screenshots/feature-browser-preview.png',
+    alt: 'OpenWaggle with its built-in browser preview open',
+    description: 'Inspect your running app in the same browser as the agent. Your input takes priority.',
+  },
+];
+---
+
+<div class="product-demo">
+  {views.map(({ id, image, alt, description }) => (
+    <figure id={`demo-${id}`} class={`${id}-view`}>
+      <div class="demo-frame overflow-hidden rounded-xl border border-accent/20 bg-bg-secondary shadow-2xl shadow-black/20">
+        <img src={image} alt={alt} class="aspect-[16/10] w-full object-contain" width="1600" height="1000" fetchpriority={id === 'conversation' ? 'high' : undefined} loading={id === 'conversation' ? 'eager' : 'lazy'} />
+      </div>
+      <figcaption class="mx-auto mt-5 max-w-3xl px-2 text-center text-sm leading-relaxed text-text-secondary">
+        {description}
+      </figcaption>
+    </figure>
+  ))}
+  <fieldset class="mt-4 flex flex-wrap justify-center gap-2">
+    <legend class="sr-only">Explore OpenWaggle</legend>
+    {views.map(({ id, label }) => (
+      <label class="cursor-pointer">
+        <input class="peer sr-only" type="radio" name="product-view" id={`view-${id}`} aria-controls={`demo-${id}`} value={id} checked={id === 'conversation'} />
+        <span class="block min-h-11 border-b-2 border-transparent px-2 py-3 text-xs text-text-tertiary sm:px-4 sm:text-sm peer-checked:border-accent peer-checked:text-accent peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-accent">{label}</span>
+      </label>
+    ))}
+  </fieldset>
+</div>
+
+<style>
+  .changes-view, .browser-view { display: none; }
+  .product-demo:has(#view-changes:checked) .conversation-view,
+  .product-demo:has(#view-browser:checked) .conversation-view { display: none; }
+  .product-demo:has(#view-changes:checked) .changes-view,
+  .product-demo:has(#view-browser:checked) .browser-view { display: block; }
+</style>
