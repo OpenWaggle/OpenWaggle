@@ -22,7 +22,7 @@ Compare this screenshot with the checkout page in our app.
 List the differences before making any changes.
 ```
 
-You can attach up to 5 files per message, up to 8 MiB each. Attaching a file does not send it until you send the message. When you use a hosted model, the attachment content included in the request goes to that provider.
+You can attach up to 5 files per message, up to 8 MiB each and 20 MiB in total. Attaching a file does not send it until you send the message. When you use a hosted model, the attachment content included in the request goes to that provider.
 
 The **+** menu also includes:
 
