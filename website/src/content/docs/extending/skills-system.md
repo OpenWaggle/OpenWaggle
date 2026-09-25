@@ -1,64 +1,67 @@
 ---
-title: "Skills System"
-description: "Current skill discovery surfaces and Pi-native runtime loading."
-order: 1
-section: "Extending"
+title: "Skills"
+description: "Give the agent a reusable workflow with a SKILL.md file, then select it in a conversation."
+order: 4
+section: "Customize"
 ---
 
-Skills are instruction packages with a `SKILL.md` file.
+A skill is a set of instructions for a particular task, such as reviewing a change or writing a migration. It lives in a `SKILL.md` file. Skills do not install new tools or grant permissions.
 
-Pi references: [coding-agent customization](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/README.md#customization) and [extensions](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/docs/extensions.md).
+Use [project instructions](/docs/extending/agents-md) for rules that apply throughout the project. Use a skill for a workflow you want the agent to load when needed.
 
-## Runtime Source Of Truth
+## Recommended runtime folder
 
-Pi's runtime resource loader is the source of truth for skills that affect agent runs. Current Pi discovery includes project `.pi/skills/` and `.agents/skills/` locations, plus user/global Pi resource locations.
-
-OpenWaggle injects project resource roots into Pi in this order:
+Create a directory in your project for the skill:
 
 ```text
-.openwaggle > .pi > .agents
+.openwaggle/skills/review-change/SKILL.md
 ```
 
-For same-name project skills, `.openwaggle/skills/` wins, then `.pi/skills/`, then `.agents/skills/`. The Skills panel scans `.openwaggle/skills/` and `.agents/skills/`, shows metadata, previews instructions, and persists per-project enable/disable toggles for the OpenWaggle catalog.
+You can commit this file with the project so other developers can use the same workflow.
 
-Catalog toggles are applied to `.openwaggle/skills/` and root `.agents/skills/` before Pi builds runtime context. An explicit stored toggle also filters a same-named Pi global/user skill for that project, which lets automated profiles suppress an incompatible global workflow without changing other projects. `.pi/skills/` and ancestor `.agents/skills/` remain governed by Pi-native project discovery.
+## SKILL.md format
 
-## Skills Panel
-
-Open **Settings → Skills**. Use the project picker in its header to browse recent projects or projects with Sessions, or open another project folder. Browsing does not change the active project in the composer. The panel shows:
-
-- Root `AGENTS.md` status.
-- Cataloged skills.
-- Enable/disable toggles.
-- A preview pane for the selected `SKILL.md`.
-
-## Slash References
-
-Type `/` in the composer to open the slash command menu and insert a skill reference into the message.
-
-Slash references stay visible in the message text. Pi also registers loaded skills as `/skill:name` commands according to its own resource-loader behavior.
-
-## Recommended Runtime Folder
-
-For skills that should be loaded by Pi today, use one of these project locations:
-
-```text
-.openwaggle/skills/my-skill/SKILL.md
-.pi/skills/my-skill/SKILL.md
-.agents/skills/my-skill/SKILL.md
-```
-
-## SKILL.md Format
+Start with a name, a description of when to use it, and concrete instructions:
 
 ```markdown
 ---
-name: My Custom Skill
-description: A brief description of what this skill does
+name: review-change
+description: Review a Git diff for bugs, regressions, and missing tests.
 ---
 
-# My Custom Skill
+# Review a change
 
-## Instructions
-
-Describe the workflow, constraints, or patterns the agent should use.
+Read the diff and the affected callers before drawing conclusions.
+Report concrete defects with file and line references.
+Do not edit files unless asked. State which checks you ran and which you did not.
 ```
+
+Keep the description specific. It helps the agent decide when the skill applies.
+
+## Skills panel
+
+Open **Settings > Skills** and choose the project in the header. Select a skill to preview its instructions, then enable or disable it for that project. The panel also shows the root `AGENTS.md` status.
+
+The project picker can browse recent projects, projects with sessions, or another folder. Browsing does not change the project selected beside the message box.
+
+## Slash references
+
+Type `/` in the message box and select a skill from the menu. Add the task you want it to perform, then send the message. The skill reference remains visible in your message.
+
+Pi, the agent runtime used by OpenWaggle, also registers loaded skills as `/skill:name` commands according to its resource-loading behavior.
+
+## Runtime source of truth
+
+OpenWaggle loads project resources in this order. For skills with the same name, the first location wins:
+
+```text
+.openwaggle/skills/
+.pi/skills/
+.agents/skills/
+```
+
+Enabled OpenWaggle extension packages can add skill resource roots between `.openwaggle/skills/` and `.pi/skills/`. Pi also discovers user/global skills. The Settings catalog scans `.openwaggle/skills/` and root `.agents/skills/`, so it is not a complete inventory of every skill Pi can load.
+
+Catalog toggles filter loaded skills before Pi builds the agent's context. For the two catalog roots, the toggle key is the normalized skill directory name. For other Pi-loaded skills, including global/user, `.pi/skills/`, and ancestor `.agents/skills/` resources, it is the normalized skill name. An explicit disabled toggle therefore also excludes a matching skill from those sources in that project without changing other projects. Pi still controls discovery outside the catalog.
+
+For resource configuration beyond the Settings catalog, see Pi's [customization reference](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/README.md#customization).

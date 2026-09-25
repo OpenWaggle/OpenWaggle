@@ -40,7 +40,7 @@ Use semantic tones only for their stated meaning. Do not use danger or warning m
 
 ## Forms
 
-`Field` associates a label, description, and error with form content. `Input`, `Textarea`, `Select`, and `Checkbox` preserve native attributes and refs.
+`Field` groups a label, description, error, and control. Set its `htmlFor` to the control's `id` to connect the label. Description and error IDs, `aria-describedby`, and `aria-invalid` are the caller's responsibility. `Input`, `Textarea`, `Select`, and `Checkbox` preserve native attributes and refs.
 
 ```tsx
 <Field

@@ -1,60 +1,41 @@
 ---
-import SectionHeader from '@/components/SectionHeader.astro';
-import ProductScreenshot from '@/components/landing/ProductScreenshot.astro';
-
-interface Feature {
-  title: string;
-  desc: string;
-  screenshotSrc: string;
-  screenshotAlt: string;
-  imageRight: boolean;
-}
-
-const features: Feature[] = [
+const features = [
   {
-    title: 'Full coding agent',
-    desc: "Read, write, and edit files. Run shell commands and search the project through Pi's native coding-agent tools. OpenWaggle renders the runtime events as part of the live session timeline.",
-    screenshotSrc: '/screenshots/feature-coding-agent.png',
-    screenshotAlt: 'Chat and tool calls view',
-    imageRight: true,
+    title: 'Review code changes',
+    description: 'Read the diff, comment on individual lines, or send a batch of feedback to the agent. Stage and commit changes in the app.',
+    href: '/docs/developer-workflow/git-integration',
+    link: 'Git and diff review',
   },
   {
-    title: 'Git-native workflow',
-    desc: "Live diff stats in the header. Branch management from the picker. Stage, commit, and review changes in a side-by-side diff panel — all without leaving the session.",
-    screenshotSrc: '/screenshots/feature-git-workflow.png',
-    screenshotAlt: 'Git integration and diff panel',
-    imageRight: false,
+    title: 'Show the agent what you mean',
+    description: 'Use the built-in browser to check your app. Attach an element, a region, or a drawing to your next message.',
+    href: '/docs/developer-workflow/browser-preview',
+    link: 'Browser preview',
   },
   {
-    title: 'Pi-native extensions',
-    desc: "Pi-native skills and AGENTS.md files add project guidance. OpenWaggle adds a catalog UI while future runtime extensions stay behind Pi adapter ports.",
-    screenshotSrc: '/screenshots/feature-extensible.png',
-    screenshotAlt: 'Skills and project instructions view',
-    imageRight: true,
+    title: 'Try a different approach',
+    description: 'Branch a conversation from an earlier message without deleting the original thread. Conversation branches are separate from Git branches.',
+    href: '/docs/using-openwaggle/session-tree',
+    link: 'Conversation branches',
+  },
+  {
+    title: 'Add your own tools and instructions',
+    description: 'Give the agent project instructions, load reusable skills, and connect external tools through MCP.',
+    href: '/docs/extending/agents-md',
+    link: 'Project instructions',
   },
 ];
 ---
 
-<section class="w-full">
-  <div class="mx-auto max-w-[1440px] px-6 py-20 md:px-20">
-    <div class="flex flex-col items-center gap-16">
-      <SectionHeader
-        label="CORE FEATURES"
-        title="Everything a coding agent needs"
-      />
-
-      {features.map((feat) => (
-        <div class={`flex w-full flex-col items-center gap-8 md:gap-12 ${feat.imageRight ? 'md:flex-row' : 'md:flex-row-reverse'}`}>
-          <div class="flex w-full flex-col gap-4 md:w-1/2">
-            <h3 class="font-display text-2xl font-semibold text-text-primary md:text-[28px]">{feat.title}</h3>
-            <p class="text-base leading-[1.6] text-text-tertiary">{feat.desc}</p>
-          </div>
-          <div class="w-full md:w-1/2">
-            <ProductScreenshot
-              src={feat.screenshotSrc}
-              alt={feat.screenshotAlt}
-            />
-          </div>
+<section class="mx-auto max-w-6xl px-6 md:px-12" aria-labelledby="workflow-heading">
+  <div class="border-t border-border-light py-12">
+    <h2 id="workflow-heading" class="font-display text-3xl font-semibold tracking-tight">Beyond the conversation</h2>
+    <div class="mt-8 grid gap-x-16 gap-y-10 md:grid-cols-2">
+      {features.map(({ title, description, href, link }) => (
+        <div>
+          <h3 class="font-display text-xl font-semibold">{title}</h3>
+          <p class="mt-3 text-base leading-relaxed text-text-tertiary">{description}</p>
+          <a href={href} class="mt-4 inline-block text-sm text-accent underline-offset-4 hover:underline">{link} <span aria-hidden="true">→</span></a>
         </div>
       ))}
     </div>

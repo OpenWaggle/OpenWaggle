@@ -7,6 +7,8 @@ Durable OpenWaggle project memory. Keep this compact and technical. Do not add p
 - The working tree may contain another agent's active refactor. Treat dirty files as intended future shape unless there is clear evidence otherwise.
 - Legacy vendor-specific agent configuration has been removed; keep this repository centered on `AGENTS.md` and `.agents/`.
 - Legacy agent memory files were removed. Add durable OpenWaggle memory here or to focused skills.
+- MCP activation wording needs an app-side follow-up: `McpProjectControl.tsx` calls Global MCP a master switch, but `src/main/domain/mcp/scope-policy.ts` resolves explicit session > project > global overrides. User docs describe the implemented precedence; global off alone is not a universal stop for explicit overrides.
+- The historical Docker token benchmark is not a validated rerun workflow. `inside.sh` uses `os.environ` without importing `os` in its DSH probe; `proxy.py` forwards streamed chunks and then writes the collected response again, and binds its credential-injecting listener to `0.0.0.0`. Fix and test those paths before recommending credentialed reruns. The seven comparison rows have archived proxy usage; OpenWaggle's row came from a separate bundled-SDK probe, not a configured GUI session. Earlier reproduction and equal-routing claims below are superseded by this audit.
 - `docs/agents/` is reserved for the adapted `/setup-matt-pocock-skills` workflow. Do not manually scaffold it during unrelated work.
 
 ## Current Architecture Direction
@@ -1165,3 +1167,13 @@ failures only for source and destination owners. A global history flush can bloc
 healthy project when an unrelated terminal has a persistent history-write failure.
 When removing or truncating history, discard retry and failure state inside the serialized
 mutation after earlier writes settle; an in-flight flush can otherwise recreate deleted history.
+
+## Website documentation routing
+
+The user guide starts at `/docs/getting-started/first-run` with the label **Get started**; `/docs` redirects there. `website/src/data/docs-nav.ts` separates user navigation from developer/package references without moving existing content URLs. Page frontmatter still supplies section/order to the installed-docs generator, independently of the website sidebar.
+
+Unversioned package documentation URLs redirect temporarily to their current versioned pages. Rendering a versioned guide at its unversioned alias breaks relative links such as `./api-reference` and `./components`; keep the redirect when changing package versions. Verify built-page links, including fragment IDs, after navigation or heading changes.
+
+Before a broad documentation refresh, fetch the agreed source branch and record its commit. Trace each workflow to current UI labels and runtime behavior rather than treating old docs as authority. If the maintainer cites an unmerged implementation, record that separate source revision and do not claim it already ships on main. Model storage in the global app database can still be keyed by project; storage location and selection scope are different.
+
+Published package API pages can intentionally lag unreleased source when `website/src/content/package-docs-next/<package>/` exists. `package-docs:check` preserves that release boundary; `api:snapshot:check` checks current exports. Correct authored prose and regenerate package READMEs with `package-docs:update`, but do not hand-backport unreleased symbols into frozen API inventories.

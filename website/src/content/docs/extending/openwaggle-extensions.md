@@ -1,15 +1,17 @@
 ---
-title: "OpenWaggle Extensions"
-description: "Author OpenWaggle extension packages that add desktop surfaces and Pi-native runtime behavior."
-order: 4
-section: "Extending"
+title: "Develop extensions"
+description: "Build a local extension package that adds desktop UI, commands, or agent tools."
+order: 7
+section: "Developer docs"
 ---
 
-OpenWaggle extensions are local packages that can add OpenWaggle desktop contributions and optionally include Pi runtime resources.
+Build an OpenWaggle extension when you need to add desktop UI, commands, or agent tools. An extension is a local package with a manifest and declared code files. For reusable instructions without new code, use a [skill](/docs/extending/skills-system) instead.
 
-This page is the source of truth for the current extension author contract. Use it when a user or agent needs to create, build, install, trust, update, disable, or remove an extension package. If an extension needs a host capability that is not documented here, the user must update OpenWaggle before the extension can rely on that capability.
+If you only want to use an existing package, start with [Install extensions](/docs/extending/plugins). This page is the developer reference for the manifest, `mount(context)` entry point, SDK permissions, and package lifecycle.
 
-## Basic Extension How-To
+Start with the example below, then follow the lifecycle checklist to load it locally. Later sections cover additional contribution types and runtime behavior. An extension cannot add an unsupported host capability by declaring it; that requires an OpenWaggle update.
+
+## Basic extension how-to
 
 A basic extension is a directory with an `openwaggle.extension.json` manifest and one or more declared runtime files.
 
@@ -114,7 +116,7 @@ export async function mount(context) {
 }
 ```
 
-## Lifecycle Checklist
+## Lifecycle checklist
 
 Use this checklist for a basic package:
 
@@ -164,7 +166,7 @@ Composer-adjacent contributions are compact actions, slash commands, or launcher
 
 Extensions add to or augment OpenWaggle-owned surfaces. They cannot replace the core shell layout, replace global navigation, or install app-wide OpenWaggle themes. Use `context.theme` and scoped extension styles for mounted content only.
 
-## Contribution Surfaces At A Glance
+## Contribution surfaces at a glance
 
 Choose the surface by the job the extension is doing, not by the framework used to render it.
 
@@ -178,13 +180,13 @@ Choose the surface by the job the extension is doing, not by the framework used 
 - `customMessageRenderers` render Pi custom message records while preserving the Pi-native custom message type as the binding identity.
 - `interactionRenderers` collect feedback for pending Pi interactions such as `confirm`, `select`, `input`, `editor`, `notify`, or typed custom interactions, then return the typed response through the SDK.
 - `statusWidgets` are compact status surfaces for live progress, connection state, or extension-owned indicators.
-- `sessionSummarySections` augment the opened session's floating Summary with host-rendered declarative rows. They appear only after that session has transcript content and disappear with the Summary while the right sidebar is open. Rows can display a value, badge, count, or session resource, and can reference a separately declared command, dialog, or side panel from the same extension package. They must not display authorization controls, infer another session, or replace host-owned Environment, Hive, Outputs, or Sources sections.
+- `sessionSummarySections` augment the opened session's floating Summary with host-rendered declarative rows. They appear in the opened Summary when their package and session scope are eligible, and disappear with the Summary while the right sidebar is open. Rows can display a value, badge, count, or session resource, and can reference a separately declared command, dialog, or side panel from the same extension package. They must not display authorization controls, infer another session, or replace host-owned Environment, Hive, Outputs, or Sources sections.
 
 The same extension can contribute to multiple surfaces. Shared package state can coordinate those live surfaces, while the transcript remains the durable audit trail for agent-loop activity.
 
 ## Session Summary sections and resources
 
-`sessionSummarySections` are declarative. OpenWaggle renders their title, state, disclosure, rows, resource links, and actions so the floating layout, keyboard behavior, and failure isolation stay consistent with core sections. Read [Session Summary and Resources](/docs/using-openwaggle/session-summary) before choosing this surface. The Summary does not render until the opened session has at least one message, and it never reserves chat width.
+`sessionSummarySections` are declarative. OpenWaggle renders their title, state, disclosure, rows, resource links, and actions so the floating layout, keyboard behavior, and failure isolation stay consistent with core sections. Read [Session Summary and Resources](/docs/using-openwaggle/session-summary) before choosing this surface. The Summary is available when the opened session has messages, Hive relationships, or workspace activity such as managed Actions or preparation. It never reserves chat width.
 
 A section can declare:
 
@@ -193,7 +195,7 @@ A section can declare:
 - `disclosure`: the initial expanded state, whether the section is collapsible, and an optional auto-collapse delay from 1,000 to 300,000 milliseconds;
 - rows with a value, badge, count, resource id, or action targeting a command, dialog, or side panel from the same package. A row can target one resource or one action, but not both; use separate rows when both destinations matter.
 
-Choose placement by the information's relationship to the session. `context` sections appear after Environment and change-request information but before Hive. `coordination` sections follow Hive. `details`, the default, appear after Sources. OpenWaggle controls the order inside each placement and does not let extensions move or replace core sections.
+Choose placement by the information's relationship to the session. `context` sections appear after Environment, Actions, Workspace preparation, and change-request information but before Hive. `coordination` sections follow Hive. `details`, the default, appear after Sources. OpenWaggle controls the order inside each placement and does not let extensions move or replace core sections.
 
 The host hides an empty `ready` section. A `loading`, `live`, or `failure` state remains visible without rows so the user can understand what the extension is doing. Expansion is remembered per session and installed package content. Transient dialogs and pending actions reset when the opened session changes, and one extension failure does not affect the rest of the Summary.
 
@@ -290,9 +292,9 @@ For changing status, register a runtime `sessionSummarySections` contribution in
 
 Resource publishing does not fetch an image just because the extension lists it or the Summary becomes visible. The user authorizes the guarded HTTPS fetch by opening the image. If the fetch or managed copy fails, OpenWaggle presents a retry state in its own resource UI. Extensions should keep the same stable key and locator for a retry rather than publishing duplicates.
 
-## Visual Runtimes, SDK Context, And Theme
+## Visual runtimes, SDK context, and theme
 
-Some early design notes called the visual path a "module-federation lane." The default public author contract is the `federated-module` runtime. OpenWaggle may implement that runtime with module federation, import maps, versioned runtime URLs, or another loader, but extension authors target the same framework-neutral `mount(context)` entry point.
+Use the `federated-module` runtime for visual contributions. OpenWaggle may implement that runtime with module federation, import maps, versioned runtime URLs, or another loader, but extension authors target the same framework-neutral `mount(context)` entry point.
 
 OpenWaggle can represent `trusted.renderer` as privileged manifest metadata. `runtime: "trusted-renderer"` visual contributions are mounted through OpenWaggle's sandboxed extension frame boundary, not imported into the app renderer global, so they use the same brokered SDK/context path as `federated-module` contributions instead of direct renderer globals, writable stores, Electron IPC helpers, or Pi SDK internals.
 
@@ -308,7 +310,7 @@ Use theme tokens from `context.theme` instead of importing OpenWaggle CSS intern
 
 The SDK/context boundary is also the safety boundary. A renderer module can request brokered actions through `context.sdk`, but it must not import writable OpenWaggle stores, renderer feature files, Electron IPC helpers, or Pi SDK internals.
 
-## Optional Shared Author Modules
+## Optional shared author modules
 
 The required runtime contract is still `mount(context)`. OpenWaggle also exposes framework-neutral shared author modules for extensions that want typed helpers:
 
@@ -328,7 +330,7 @@ Plain DOM example:
 import {
   createOpenWaggleExtensionUiStylesheet,
   OPENWAGGLE_EXTENSION_UI_CLASS_NAMES as ui,
-} from 'openwaggle/extension-ui'
+} from '@openwaggle/extension-sdk/ui'
 
 export async function mount(context) {
   const style = document.createElement('style')
@@ -357,13 +359,11 @@ export async function mount(context) {
 }
 ```
 
-The import specifier shown above names the public helper module conceptually. First-party fixtures in this repository resolve the same helpers from `@shared/extension-ui`. Distributed extensions should either bundle the compatible helper code or resolve the versioned helper module supplied by the installed OpenWaggle SDK. The stable part for runtime compatibility is the mount context and brokered SDK capability contract.
+The example uses the published `@openwaggle/extension-sdk/ui` export. Install a compatible SDK version and bundle the helper code into your extension artifact. First-party fixtures in this repository use the internal `@shared/extension-ui` alias; distributed extensions must not depend on that checkout alias. Runtime compatibility still depends on the mount context and brokered SDK capability contract.
 
-## How An Extension Appears On Screen
+## How an extension appears on screen
 
-Think of an extension like a toy that needs a safe play table.
-
-OpenWaggle owns the table: where the extension appears, how big the container is, when it can run, and which APIs it can call. The extension owns the toy: the UI and behavior inside that container.
+OpenWaggle decides where the extension appears, sizes its container, and checks which APIs it can call. The extension renders its own UI inside that container.
 
 ```mermaid
 flowchart TD
@@ -389,7 +389,7 @@ The important split is:
 - The extension decides what to render inside `mount(context)`.
 - The extension can render immediately or show its own skeleton while it does async work.
 
-## Readiness And Loading
+## Readiness and loading
 
 An extension contribution is ready to be rendered only after all lifecycle checks pass:
 
@@ -412,7 +412,7 @@ Mount readiness is separate from registry readiness:
 
 OpenWaggle shows a generic mounting state only until `mount(context)` resolves. If an extension needs to fetch data, call storage, or wait for a network API, it should render a lightweight shell or skeleton first and continue the async work after the initial render.
 
-## Local Builds
+## Local builds
 
 Most extensions can ship already-built JavaScript in `builtArtifacts`. Those extensions do not compile at render time.
 
@@ -442,7 +442,7 @@ Local builds are intentionally explicit:
 
 Build time is whatever the extension's build command takes. Runtime rendering does not run that build again.
 
-## Trust And Capabilities
+## Trust and capabilities
 
 OpenWaggle extensions are trusted local software after explicit user approval. Trust is not implied by package discovery.
 
@@ -467,7 +467,7 @@ Current v1 enforcement is capability-specific:
 - Trusted main-process code receives only the public broker SDK for OpenWaggle integration. Direct `fetch`, `node:http`, `node:https`, `electron.net`, raw `node:net`, raw `node:tls`, UDP sockets, direct DNS resolution, `node:http2`, child processes, cluster forks, and worker threads are guarded while the trusted main module activates and cleans up. Only exact HTTPS origins declared in `network.origins` are allowed; redirects are not followed through the guard, unresolved targets fail closed, custom fetch agents/dispatchers, custom Node HTTP agents/connection factories/DNS lookup functions, Unix socket paths, raw sockets, and process/isolate escape hatches are rejected.
 - Trusted renderer code is frame-mounted by the current host runtime. Direct app-renderer imports are not supported; extension code must use the brokered SDK/context boundary.
 
-## Agent-Created And Agent-Updated Packages
+## Agent-created and agent-updated packages
 
 Agents may help author project-local or global extension packages, but package writes are not an extension SDK capability. Extension code cannot directly modify another extension package through OpenWaggle. The supported path is an OpenWaggle-owned workflow:
 
@@ -485,7 +485,7 @@ An approved update replaces the package directory as a full package. Stale files
 
 An approved remove tears down the runtime path before returning the new Extension Manager view. Registered contributions disappear from the contribution registry, sandboxed module access is denied, and Pi runtime package selection no longer includes the removed package.
 
-## State And Actions
+## State and actions
 
 Extensions must not import writable OpenWaggle stores, renderer feature internals, Pi SDK internals, or Electron app internals. They use the public SDK and brokered capabilities.
 
@@ -503,7 +503,7 @@ The state model is:
 
 Use package state when settings, side panels, transcript renderers, tool renderers, interaction renderers, and status widgets from the same extension need to coordinate. Use instance state for temporary UI state such as focused tabs, expanded rows, or an in-progress form in one mounted surface.
 
-## Safe Startup And Failure Isolation
+## Safe startup and failure isolation
 
 Extension failures must not prevent OpenWaggle from starting.
 
@@ -517,9 +517,9 @@ Expected failure behavior:
 - Disable, untrust, project-disable, approve update, approve build, and reload controls remain OpenWaggle-owned recovery paths.
 - Extensions should mount a lightweight shell quickly, then perform slower work such as storage reads or network requests after initial render.
 
-## What Can Make Loading Feel Slow
+## What can make loading feel slow
 
-The fastest path is a prebuilt local module that renders immediately from cached state. That should usually feel near-instant.
+A prebuilt module that renders from cached state avoids a local build and a network request during mounting.
 
 Loading can take longer when:
 
@@ -534,7 +534,7 @@ Loading can take longer when:
 
 The extension author controls the experience after `mount(context)` starts. If the extension has slow work, it should render a useful initial state first, then update when the async work finishes.
 
-## Pi Runtime Parity
+## Pi runtime parity
 
 Runtime behavior stays Pi-native.
 
@@ -549,7 +549,7 @@ Common Pi APIs used by extensions include:
 
 OpenWaggle desktop renderers bind to Pi-native identifiers such as tool names, custom message types, standard interaction kinds, and custom interaction types. This keeps Pi TUI and OpenWaggle desktop rendering aligned to the same runtime event.
 
-## Agent-Loop Contributions
+## Agent-loop contributions
 
 Agent-loop contributions render or collect feedback during an active Pi agent loop.
 
@@ -598,7 +598,7 @@ flowchart LR
 
 The feedback path is intentionally one-way through OpenWaggle-owned surface actions. Extension UI collects the user's response through `context.sdk.surface.respondInteraction(response)`, then OpenWaggle validates that response against the pending interaction before returning it to Pi. Renderer modules do not mutate Pi sessions or OpenWaggle internal stores directly.
 
-## Interaction Primitives
+## Interaction primitives
 
 OpenWaggle supports Pi interaction primitives as public typed request/response schemas.
 
@@ -619,7 +619,7 @@ Interaction renderer matching uses:
 
 Renderer modules return responses by calling `sdk.surface.respondInteraction(response)`. For standard primitives, `response` must match the public interaction response schema, for example `{ "kind": "confirm", "accepted": true }`. For custom interactions, the response value is passed back as the custom interaction result.
 
-## Public Data Boundary
+## Public data boundary
 
 Extension renderer modules receive OpenWaggle public DTOs, not Pi package types or OpenWaggle renderer internals.
 
@@ -645,7 +645,7 @@ Extension package state can coordinate live surfaces from the same package. Cont
 
 Historical transcript entries must be reconstructable from the mount context and Pi session data after remount, route change, or app restart.
 
-## What Requires An OpenWaggle App Update
+## What requires an OpenWaggle app update
 
 Extension authors can ship independently when they stay inside the existing public contract:
 
@@ -672,9 +672,9 @@ An OpenWaggle app update is required when the extension needs a new host contrac
 
 If the installed app reports `sdk.openwaggle` as incompatible, the extension cannot fix that by changing runtime code alone. Either the extension must target the installed SDK range or the user must update OpenWaggle.
 
-## Development Fixture
+## Development fixture
 
-The development-only GitHub Issues Overview fixture is the proving extension for the vertical slice.
+The development-only GitHub Issues Overview fixture exercises the extension lifecycle and SDK.
 
 It should demonstrate:
 
@@ -688,18 +688,17 @@ Development fixtures live under `fixtures/extensions/`. They are for tests, demo
 
 Use `pnpm extension:qa:install` to copy fixture packages into the current checkout's project-local `.openwaggle/extensions/` directory for QA. That command is a development helper, not a production packaging step.
 
-## Extension Host QA Proof
+## Extension host QA proof
 
-The repeatable automated proof is the extension-host unit/integration coverage
-(the E2E spec that formerly drove this was removed with the E2E suite — ADR 0033):
+Run extension-host service and Settings component coverage from an OpenWaggle checkout:
 
 ```bash
-pnpm test:unit && pnpm test:integration
+pnpm test:unit && pnpm test:integration && pnpm test:component
 ```
 
-These cover extension trust, enable, reload, iframe render, SDK-backed
-configuration save, disable, and package removal from discovery through the
-extension runtime and Settings component tests.
+These suites cover discovery, trust, enablement, reload, brokered storage, teardown, and Settings
+controls. Component tests do not prove that a packaged Electron iframe loads and renders; verify
+that separately in real-Electron QA.
 
 Human-driven real-Electron QA uses the explicitly visible debug path. Agents must not run this command without the maintainer's approval for that exact run:
 
@@ -714,7 +713,7 @@ Human-driven real-Electron QA uses the explicitly visible debug path. Agents mus
 9. Remove the extension with the Settings > Extensions Remove action and confirm the package card, contribution registry entry, and sandbox frame disappear. Extension-owned storage is retained unless a separate data deletion flow is explicitly offered.
 10. Check console errors through the Electron QA DevTools path before signing off.
 
-## Agent-Discoverable Installed Docs
+## Agent-discoverable installed docs
 
 This page is the repository source of truth for OpenWaggle extension authoring. Packaged builds should derive Pi-style package-local docs from the full user-facing documentation set so self-modifying agents can inspect installed OpenWaggle product, extension, and runtime contracts without relying on a source checkout.
 
@@ -760,7 +759,7 @@ First-party topics should be closed and typed so generated indexes and SDK calls
 }
 ```
 
-## Local Pi Reference
+## Local Pi reference
 
 Agents and developers can inspect the installed Pi docs in a checkout for exact Pi runtime semantics:
 

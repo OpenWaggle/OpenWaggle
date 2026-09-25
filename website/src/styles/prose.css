@@ -3,6 +3,7 @@
     color: var(--color-text-primary);
     line-height: 1.7;
     font-size: 15px;
+    overflow-wrap: anywhere;
   }
 
   .prose-docs p {

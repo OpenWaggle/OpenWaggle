@@ -1,0 +1,49 @@
+---
+const views = [
+  { id: 'conversation', label: 'Conversation' },
+  { id: 'changes', label: 'Changes' },
+  { id: 'browser', label: 'Browser' },
+];
+---
+
+<div class="product-demo">
+  <div class="overflow-hidden rounded-xl border border-accent/20 bg-bg-secondary shadow-2xl shadow-black/20">
+    <figure id="demo-conversation" class="conversation-view">
+      <img src="/screenshots/feature-coding-agent.png" alt="OpenWaggle conversation with agent responses and tool activity" class="aspect-[16/10] w-full object-contain" width="1600" height="1000" fetchpriority="high" />
+      <figcaption class="border-t border-border-light px-6 py-4 text-sm leading-relaxed text-text-secondary">
+        Ask the agent to work on your project. Follow its edits and tool calls in the conversation.
+      </figcaption>
+    </figure>
+    <figure id="demo-changes" class="changes-view">
+      <img src="/screenshots/feature-git-workflow.png" alt="OpenWaggle Git workflow and code diff panel" class="aspect-[16/10] w-full object-contain" width="1600" height="1000" loading="lazy" />
+      <figcaption class="border-t border-border-light px-6 py-4 text-sm leading-relaxed text-text-secondary">
+        Review the diff, leave comments, and send feedback to the agent before committing.
+      </figcaption>
+    </figure>
+    <div id="demo-browser" class="browser-view">
+      <div class="grid aspect-[16/10] place-content-center gap-4 p-6 text-center">
+        <p class="font-display text-xl text-text-primary">Browser capture pending</p>
+        <p class="mx-auto max-w-sm text-sm leading-relaxed text-text-tertiary">A new capture will show the built-in browser. In the app, you can attach an element, a region, or a drawing to your next message.</p>
+        <a class="text-sm text-accent underline underline-offset-4" href="/docs/developer-workflow/browser-preview">Read the browser guide</a>
+      </div>
+      <p class="border-t border-border-light px-6 py-4 text-sm leading-relaxed text-text-secondary">Inspect your running app in the same browser as the agent. Your input takes priority.</p>
+    </div>
+  </div>
+  <fieldset class="mt-4 flex flex-wrap justify-center gap-2">
+    <legend class="sr-only">Explore OpenWaggle</legend>
+    {views.map(({ id, label }) => (
+      <label class="cursor-pointer">
+        <input class="peer sr-only" type="radio" name="product-view" id={`view-${id}`} aria-controls={`demo-${id}`} value={id} checked={id === 'conversation'} />
+        <span class="block min-h-11 border-b-2 border-transparent px-2 py-3 text-xs text-text-tertiary sm:px-4 sm:text-sm peer-checked:border-accent peer-checked:text-accent peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-accent">{label}</span>
+      </label>
+    ))}
+  </fieldset>
+</div>
+
+<style>
+  .changes-view, .browser-view { display: none; }
+  .product-demo:has(#view-changes:checked) .conversation-view,
+  .product-demo:has(#view-browser:checked) .conversation-view { display: none; }
+  .product-demo:has(#view-changes:checked) .changes-view,
+  .product-demo:has(#view-browser:checked) .browser-view { display: block; }
+</style>

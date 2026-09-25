@@ -8,6 +8,7 @@ import rehypeExternalLinks from 'rehype-external-links';
 export default defineConfig({
   site: 'https://openwaggle.ai',
   output: 'static',
+  redirects: { '/docs': '/docs/getting-started/first-run' },
   integrations: [mdx(), sitemap()],
   markdown: {
     processor: unified({

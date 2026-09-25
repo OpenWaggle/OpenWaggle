@@ -32,6 +32,11 @@ export async function getStaticPaths() {
 }
 
 const { entry, routeSlug } = Astro.props;
+const canonicalSlug = entry.id.replace(/\/index$/u, '');
+// Package aliases must land on the versioned page so its relative links resolve.
+if (routeSlug !== canonicalSlug) {
+  return Astro.redirect(`/docs/${canonicalSlug}/`, 302);
+}
 const { Content } = await render(entry);
 ---
 

@@ -114,7 +114,7 @@ Do not import OpenWaggle renderer components to fill gaps. If a primitive is mis
 
 **Components render without OpenWaggle styling.** Import `@openwaggle/extension-react/styles.css` once in the extension bundle.
 
-**React is installed twice.** Keep React and React DOM in the extension project and resolve them as shared peer dependencies. Do not bundle a second incompatible React runtime.
+**React is installed twice.** Keep compatible React and React DOM versions in your extension project and deduplicate them in its build. The host does not supply React through the extension mount context; your bundler must produce a browser-loadable artifact.
 
 **A non-React extension needs the same visual language.** Use the framework-neutral classes and stylesheet helpers from `@openwaggle/extension-sdk` instead.
 
