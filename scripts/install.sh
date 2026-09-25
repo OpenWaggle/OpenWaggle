@@ -19,6 +19,16 @@ info()  { printf '\033[1;34m==>\033[0m %s\n' "$*"; }
 error() { printf '\033[1;31merror:\033[0m %s\n' "$*" >&2; exit 1; }
 
 # BEGIN TESTABLE RELEASE RESOLUTION
+# GitHub's API and release-asset storage occasionally answer with a transient
+# 5xx. curl's --retry covers timeouts and HTTP 408/429/5xx with exponential
+# backoff (1s, 2s, 4s, 8s, 16s), so one bad response no longer aborts the
+# install. Permanent errors such as 404 still fail on the first response.
+CURL_RETRY_ATTEMPTS=5
+
+curl_with_retry() {
+  curl --retry "${CURL_RETRY_ATTEMPTS}" "$@"
+}
+
 extract_release_tags() {
   { printf '%s' "$1" | grep -o '"tag_name"[[:space:]]*:[[:space:]]*"[^"]*"' || true; } | \
     sed 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/'
@@ -39,7 +49,7 @@ fetch_release_pages() {
   local page_json
   local tag_count
   while true; do
-    page_json="$(curl -fsSL "$(release_page_url "${base_url}" "${page}")")" || return 1
+    page_json="$(curl_with_retry -fsSL "$(release_page_url "${base_url}" "${page}")")" || return 1
     printf '%s\n' "${page_json}"
     tag_count="$(extract_release_tags "${page_json}" | wc -l | tr -d '[:space:]')"
     [ "${tag_count}" -lt 100 ] && return 0
@@ -344,14 +354,14 @@ esac
 # --- Resolve and fetch release info ---
 info "Fetching release metadata…"
 if [ -n "${RELEASE_API_URL}" ]; then
-  RELEASE_JSON="$(curl -fsSL "${RELEASE_API_URL}")" || error "Failed to fetch release info. Is the repo public?"
+  RELEASE_JSON="$(curl_with_retry -fsSL "${RELEASE_API_URL}")" || error "Failed to fetch release info. Is the repo public?"
 elif [ -n "${RELEASE_TAG}" ]; then
   case "${RELEASE_TAG}" in
     v*) ;;
     *) RELEASE_TAG="v${RELEASE_TAG}" ;;
   esac
   release_tag_is_supported "${RELEASE_TAG}" || error "Invalid release version: ${RELEASE_TAG}"
-  RELEASE_JSON="$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/tags/${RELEASE_TAG}")" || \
+  RELEASE_JSON="$(curl_with_retry -fsSL "https://api.github.com/repos/${REPO}/releases/tags/${RELEASE_TAG}")" || \
     error "Failed to fetch release ${RELEASE_TAG}."
 else
   case "${REQUESTED_CHANNEL}" in
@@ -364,7 +374,7 @@ else
   RELEASE_TAG="$(resolve_release_tag "${RELEASES_JSON}" "${CHANNEL}")" || \
     error "No ${CHANNEL} release is available."
   info "Update channel: ${CHANNEL}"
-  RELEASE_JSON="$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/tags/${RELEASE_TAG}")" || \
+  RELEASE_JSON="$(curl_with_retry -fsSL "https://api.github.com/repos/${REPO}/releases/tags/${RELEASE_TAG}")" || \
     error "Failed to fetch release ${RELEASE_TAG}."
 fi
 VERSION="$(printf '%s' "${RELEASE_JSON}" | grep '"tag_name"' | head -1 | sed 's/.*"tag_name": *"\([^"]*\)".*/\1/')"
@@ -387,14 +397,14 @@ FILENAME="$(basename "${ASSET_URL}")"
 TMPDIR="${TMPDIR:-/tmp}"
 DOWNLOAD_PATH="${TMPDIR}/${FILENAME}"
 info "Downloading ${FILENAME}…"
-curl -fSL --progress-bar -o "${DOWNLOAD_PATH}" "${ASSET_URL}"
+curl_with_retry -fSL --progress-bar -o "${DOWNLOAD_PATH}" "${ASSET_URL}"
 
 # --- Verify SHA256 if checksum file exists ---
 SHA_URL="$(printf '%s' "${RELEASE_JSON}" | grep '"browser_download_url"' | sed -n "s/.*\"browser_download_url\": *\"\([^\"]*\\)\".*/\1/p" | grep "SHA256SUMS" | head -1)"
 if [ -n "${SHA_URL:-}" ]; then
   info "Verifying checksum…"
   SHA_FILE="${TMPDIR}/SHA256SUMS.txt"
-  curl -fsSL -o "${SHA_FILE}" "${SHA_URL}"
+  curl_with_retry -fsSL -o "${SHA_FILE}" "${SHA_URL}"
   EXPECTED="$(grep "${FILENAME}" "${SHA_FILE}" | awk '{print $1}')"
   if [ -n "${EXPECTED}" ]; then
     if command -v sha256sum >/dev/null 2>&1; then
