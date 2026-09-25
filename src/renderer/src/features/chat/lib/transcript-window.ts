@@ -210,3 +210,27 @@ export function trimLiveWindow(
   if (!resolved || range.endKey !== null || resolved.end - resolved.start <= maxRows) return range
   return rangeFromIndexes(keys, resolved.end - maxRows, resolved.end)
 }
+
+/**
+ * Stops a live window from growing without bound while the reader is away from the live end.
+ *
+ * Rows that arrive while a reader is anchored in older history would otherwise all mount: 40 rows
+ * plus a 1,000-row run is 1,040 mounted rows. The window keeps its start (so the reader's row does
+ * not move) and releases the rows beyond the bound, which load back as the reader scrolls down.
+ */
+export function capAnchoredLiveWindow(
+  range: TranscriptWindowRange,
+  keys: readonly string[],
+  maxRows: number = TRANSCRIPT_WINDOW_LIMITS.maxRows,
+): TranscriptWindowRange {
+  const resolved = resolveRange(range, keys)
+  if (!resolved || range.endKey !== null || resolved.end - resolved.start <= maxRows) return range
+  return rangeFromIndexes(keys, resolved.start, resolved.start + maxRows)
+}
+
+/** Whether a mounted window contains the row with this key. */
+export function rangeIncludes(range: TranscriptWindowRange, keys: readonly string[], key: string) {
+  const resolved = resolveRange(range, keys)
+  const index = keys.indexOf(key)
+  return resolved !== null && index >= resolved.start && index < resolved.end
+}

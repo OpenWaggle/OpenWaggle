@@ -11,7 +11,7 @@ interface UseTranscriptCommitLayoutInput {
   readonly latestTurnHasToolActivity: boolean
   readonly hasLater: boolean
   readonly showNewest: () => void
-  readonly trimForLiveEnd: () => void
+  readonly boundLiveWindow: () => void
 }
 
 /**
@@ -42,7 +42,7 @@ export function useTranscriptCommitLayout(input: UseTranscriptCommitLayoutInput)
     // The optimistic message was replaced by its persisted copy under a new id.
     if (!input.userDidSend && sentReplaced) session.anchorNewTurn(sentKey)
     if (input.latestTurnHasToolActivity) session.releaseNewTurn()
-    input.trimForLiveEnd()
+    input.boundLiveWindow()
     session.layout()
   })
 }

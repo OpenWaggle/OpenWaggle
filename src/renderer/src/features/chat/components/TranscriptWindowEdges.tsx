@@ -14,11 +14,18 @@ export function TranscriptLoadEdge({
   label,
   sentinelRef,
   onLoad,
+  focusOnMount = false,
 }: {
   readonly label: string
   readonly sentinelRef: Ref<HTMLDivElement>
   readonly onLoad: () => void
+  /** Keeps keyboard focus on the edge that replaces a pressed one after each batch. */
+  readonly focusOnMount?: boolean
 }) {
+  const buttonRef = useRef<HTMLButtonElement | null>(null)
+  useLayoutEffect(() => {
+    if (focusOnMount) buttonRef.current?.focus({ preventScroll: true })
+  }, [focusOnMount])
   return (
     <div
       ref={sentinelRef}
@@ -26,6 +33,7 @@ export function TranscriptLoadEdge({
       data-chat-content-frame="transcript-edge"
     >
       <Button
+        ref={buttonRef}
         variant="unstyled"
         type="button"
         onClick={onLoad}
@@ -93,8 +101,9 @@ export function TranscriptTopEdge({
     return (
       <TranscriptLoadEdge
         key={`earlier:${String(rangeStart)}`}
-        label="Loading earlier messages…"
+        label="Load earlier messages"
         sentinelRef={sentinelRef}
+        focusOnMount={pressed}
         onLoad={() => {
           setPressed(true)
           onLoad()

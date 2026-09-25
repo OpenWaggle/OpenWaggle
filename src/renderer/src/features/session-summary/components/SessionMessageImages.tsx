@@ -81,13 +81,27 @@ function indexMessageImages(sessionId: string, resources: readonly SessionResour
 
 const EMPTY_RESOURCES: readonly SessionResource[] = []
 
+/*
+ * Everything `indexMessageImages` reads. Backfill enriches occurrence display metadata without
+ * touching the resource's `updatedAt`, so the occurrence fields must be part of the signature.
+ */
 function resourceSignature(resources: readonly SessionResource[]) {
-  return resources
-    .map(
-      (resource) =>
-        `${resource.id}:${String(resource.updatedAt)}:${resource.occurrences.map((occurrence) => occurrence.id).join(',')}`,
-    )
-    .join(';')
+  return JSON.stringify(
+    resources.map((resource) => [
+      resource.id,
+      resource.updatedAt,
+      resource.title,
+      resource.occurrences.map((occurrence) => [
+        occurrence.id,
+        occurrence.nodeId,
+        occurrence.displayName,
+        occurrence.displayOrder,
+        occurrence.label,
+        occurrence.actor,
+        occurrence.activity,
+      ]),
+    ]),
+  )
 }
 
 function buildResourceIndex(

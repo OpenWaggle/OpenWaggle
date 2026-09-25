@@ -46,6 +46,10 @@ export class TranscriptViewportController {
   private currentMode: ViewportMode = { kind: 'following' }
   private expectedScrollTop: number | null = null
   private lastObservedScrollTop = 0
+  /** Whether the view rested exactly at the end after the last layout or scroll. */
+  private restingAtEnd = true
+  /** An explicit disclosure hold, which must not turn into following at the end. */
+  private holding = false
   private endSpace = 0
 
   constructor(private readonly geometry: ViewportGeometry) {}
@@ -60,13 +64,17 @@ export class TranscriptViewportController {
 
   /** The reading position worth saving: `null` while following the live end. */
   readingPosition(): ReadingPosition | null {
-    if (this.currentMode.kind === 'anchored') {
+    if (
+      this.currentMode.kind === 'anchored' &&
+      this.distanceToBottom() > SCROLL_ECHO_TOLERANCE_PX
+    ) {
       return { key: this.currentMode.key, top: this.currentMode.top }
     }
     return null
   }
 
   follow() {
+    this.holding = false
     this.currentMode = { kind: 'following' }
     this.applyLayout()
   }
@@ -75,12 +83,16 @@ export class TranscriptViewportController {
   hold(key: string) {
     const top = this.geometry.getRowTop(key)
     if (top === null) return
+    this.holding = true
     this.currentMode = { kind: 'anchored', key, top }
   }
 
   restore(position: ReadingPosition) {
+    this.restingAtEnd = false
     this.currentMode = { kind: 'anchored', key: position.key, top: position.top }
     this.applyLayout()
+    // A position that lands exactly at the end is a reader who left following it.
+    if (this.distanceToBottom() <= SCROLL_ECHO_TOLERANCE_PX) this.follow()
   }
 
   anchorNewTurn(key: string) {
@@ -96,6 +108,7 @@ export class TranscriptViewportController {
 
   /** Ends a disclosure hold; a reader left at the live end resumes following it. */
   releaseHold() {
+    this.holding = false
     if (this.currentMode.kind === 'anchored' && this.distanceToBottom() <= NEAR_BOTTOM_PX) {
       this.follow()
     }
@@ -103,6 +116,8 @@ export class TranscriptViewportController {
 
   /** A reader's explicit upward intent (wheel, touch, scrollbar drag) leaves the live end at once. */
   leaveLiveEnd() {
+    // The intent wins over resting at the end until the scroll it causes arrives.
+    this.restingAtEnd = false
     if (this.currentMode.kind === 'anchored') return
     this.captureReadingPosition()
   }
@@ -122,6 +137,7 @@ export class TranscriptViewportController {
       return
     }
     this.expectedScrollTop = null
+    this.holding = false
     /*
      * Resting exactly at the end always rejoins it: shrinking content makes the browser clamp the
      * scroll position there, which is not the reader scrolling up. Within the rest of the
@@ -131,6 +147,7 @@ export class TranscriptViewportController {
     const distance = this.distanceToBottom()
     const movingUp = scrollTop < previous - SCROLL_ECHO_TOLERANCE_PX
     const atEnd = distance <= SCROLL_ECHO_TOLERANCE_PX
+    this.restingAtEnd = atEnd
     // A sent turn sits at the end of its reserved space; a clamp there is not the reader leaving.
     if (atEnd && this.currentMode.kind === 'new-turn') return
     if (atEnd || (!movingUp && distance <= NEAR_BOTTOM_PX)) {
@@ -142,6 +159,16 @@ export class TranscriptViewportController {
 
   /** Re-applies the mode after content, viewport, or row changes. Runs before paint. */
   applyLayout() {
+    // A reader resting exactly at the end is following it, however they got there (a restored
+    // position, an anchor that moved), so a shrinking viewport keeps the newest content in view.
+    if (this.currentMode.kind === 'anchored' && this.restingAtEnd && !this.holding) {
+      this.currentMode = { kind: 'following' }
+    }
+    this.applyMode()
+    this.restingAtEnd = this.distanceToBottom() <= SCROLL_ECHO_TOLERANCE_PX
+  }
+
+  private applyMode() {
     const mode = this.currentMode
     if (mode.kind === 'new-turn') {
       this.applyNewTurn(mode)

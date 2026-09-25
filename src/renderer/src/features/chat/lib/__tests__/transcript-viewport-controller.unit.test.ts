@@ -247,6 +247,29 @@ describe('TranscriptViewportController', () => {
     expect(controller.readingPosition()).toEqual({ key: 'row-2', top: 30 })
   })
 
+  it('treats a reading position at the very end as following, when saving and restoring', () => {
+    const viewport = fakeViewport(rows(10))
+    const controller = new TranscriptViewportController(viewport.geometry)
+    controller.restore({ key: 'row-8', top: 18 })
+
+    // Found in Electron QA: restored anchored at the end, a growing composer then hid 156px.
+    expect(controller.isFollowing).toBe(true)
+    expect(controller.readingPosition()).toBeNull()
+  })
+
+  it('keeps the newest content in view when an anchored reader rests exactly at the end', () => {
+    const viewport = fakeViewport(rows(10))
+    const controller = new TranscriptViewportController(viewport.geometry)
+    // An anchor that lands at the end without a restore, as a lost anchor re-captured there does.
+    controller.applyLayout()
+    controller.hold('row-9')
+    controller.releaseHold()
+    viewport.setClientHeight(344)
+    controller.applyLayout()
+
+    expect(viewport.scrollTop).toBe(viewport.maxScrollTop())
+  })
+
   it('moves the anchor to the next visible row when its row leaves the DOM', () => {
     const viewport = fakeViewport(rows(10))
     const controller = new TranscriptViewportController(viewport.geometry)

@@ -43,19 +43,21 @@ export function TranscriptViewport({
 }) {
   const { rows, isLoading, lastUserMessageId, userDidSend, onUserDidSendConsumed } = input
   const keys = chatRowKeys(rows)
-  const { session, showScrollToBottom, showScrollbar } = useTranscriptViewport(
+  const { session, showScrollToBottom, showScrollbar, pendingRestoreKey } = useTranscriptViewport(
     positionKey,
     keys.length > 0,
   )
   const transcriptWindow = useTranscriptWindowRange({
     rows,
     keys,
-    anchorKey: session.savedPosition?.key ?? null,
+    anchorKey: pendingRestoreKey,
     isFollowing: () => session.controller.isFollowing,
   })
   const { exiting, clearExiting } = useTurnSettlePresentation({
     rows,
     keys,
+    start: transcriptWindow.start,
+    end: transcriptWindow.end,
     isLoading,
     viewport: session,
     onToggleTurnFold: input.onToggleTurnFold,
@@ -75,7 +77,7 @@ export function TranscriptViewport({
     latestTurnHasToolActivity: latestTurnHasToolActivity(rows),
     hasLater: transcriptWindow.hasLater,
     showNewest: transcriptWindow.showNewest,
-    trimForLiveEnd: transcriptWindow.trimForLiveEnd,
+    boundLiveWindow: transcriptWindow.boundLiveWindow,
   })
 
   const visibleRows = rows.slice(transcriptWindow.start, transcriptWindow.end)
@@ -125,7 +127,7 @@ export function TranscriptViewport({
           {transcriptWindow.hasLater ? (
             <TranscriptLoadEdge
               key={`later:${String(transcriptWindow.end)}`}
-              label="Loading newer messages…"
+              label="Load newer messages"
               sentinelRef={edges.laterRef}
               onLoad={transcriptWindow.loadLater}
             />

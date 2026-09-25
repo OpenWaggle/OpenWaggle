@@ -113,4 +113,20 @@ describe('reading-position restore', () => {
     expect(getByText('msg-80')).toBeInTheDocument()
     expect(queryByText('msg-399')).not.toBeInTheDocument()
   })
+
+  it('builds the window around a saved row that only arrives with a later hydration commit', async () => {
+    localStorage.setItem(
+      POSITIONS_KEY,
+      JSON.stringify([[`${SESSION}:main`, { key: 'message:msg-100', top: 12 }]]),
+    )
+    vi.resetModules()
+    const { ChatTranscript } = await import('../ChatTranscript')
+    const phase: ChatRow = { type: 'phase-indicator', label: 'Thinking', elapsedMs: 0 }
+    const partial = { ...createSection(), chatRows: [phase], messages: [] }
+    const { rerender, getByText } = render(<ChatTranscript section={partial} />)
+    rerender(<ChatTranscript section={createSection()} />)
+
+    // Review finding: the first window opened at the newest rows and never reached the saved row.
+    expect(getByText('msg-100')).toBeInTheDocument()
+  })
 })

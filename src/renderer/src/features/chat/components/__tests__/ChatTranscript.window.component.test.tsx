@@ -83,7 +83,7 @@ function createSection(
 
 const mountedRows = () =>
   document.querySelectorAll('[data-chat-content-frame="transcript-row"]').length
-const loadEarlier = () => screen.queryByRole('button', { name: /loading earlier messages/i })
+const loadEarlier = () => screen.queryByRole('button', { name: /load earlier messages/i })
 
 describe('ChatTranscript windowing', () => {
   afterEach(() => localStorage.clear())
@@ -142,6 +142,20 @@ describe('ChatTranscript windowing', () => {
 
     expect(loadEarlier()).not.toBeInTheDocument()
     expect(screen.getByText(/^Start of session/).parentElement).toHaveFocus()
+  })
+
+  it('keeps keyboard focus on the earlier-rows edge across batches', () => {
+    render(<ChatTranscript section={createSection(rowsOf(400))} />)
+
+    const first = loadEarlier()
+    if (!first) throw new Error('expected the earlier-rows edge')
+    first.focus()
+    fireEvent.click(first)
+
+    // Review finding: the pressed edge remounted and focus fell to the body mid-history.
+    const next = loadEarlier()
+    expect(next).not.toBe(first)
+    expect(next).toHaveFocus()
   })
 
   it('opens at the newest rows once history arrives after an empty first render', () => {

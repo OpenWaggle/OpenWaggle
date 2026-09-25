@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
+  capAnchoredLiveWindow,
   extendEarlier,
   extendLater,
   newestRange,
   rangeAround,
+  rangeIncludes,
   reconcileRange,
   resolveRange,
   trimLiveWindow,
@@ -122,5 +124,24 @@ describe('transcript window', () => {
     })
     const bounded = { startKey: 'row-300', endKey: null, members: [] }
     expect(trimLiveWindow(bounded, rows, 160)).toBe(bounded)
+  })
+
+  it('caps a live window at its bound while the reader is anchored, keeping its start', () => {
+    // Review finding: 40 rows plus a 1,000-row run mounted 1,040 rows under an anchored reader.
+    const rows = keys(1_400)
+    const anchored = { startKey: 'row-360', endKey: null, members: rows.slice(360, 400) }
+    const capped = capAnchoredLiveWindow(anchored, rows, 160)
+
+    expect(capped).toMatchObject({ startKey: 'row-360', endKey: 'row-519' })
+    expect(resolveRange(capped, rows)?.hasLater).toBe(true)
+    const small = { startKey: 'row-1300', endKey: null, members: [] }
+    expect(capAnchoredLiveWindow(small, rows, 160)).toBe(small)
+  })
+
+  it('tells whether a mounted window contains a row', () => {
+    const rows = keys(400)
+    const range = { startKey: 'row-360', endKey: null, members: [] }
+    expect(rangeIncludes(range, rows, 'row-399')).toBe(true)
+    expect(rangeIncludes(range, rows, 'row-100')).toBe(false)
   })
 })

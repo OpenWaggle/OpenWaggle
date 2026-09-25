@@ -17,6 +17,11 @@ const SCROLLBAR_HIDE_DELAY_MS = 800
 /** How long a saved position may wait for hydration to mount its row. */
 const RESTORE_GRACE_MS = 1500
 const UPWARD_KEYS = new Set(['ArrowUp', 'PageUp', 'Home'])
+const TOUCH_INTENT_PX = 1
+
+interface TouchPositionEvent {
+  readonly touches: ArrayLike<{ readonly clientY: number }>
+}
 const DISCLOSURE_SELECTOR = 'button, summary, [role="button"], [aria-expanded]'
 
 let sharedPositions: Map<string, SavedReadingPosition> | null = null
@@ -25,9 +30,16 @@ function readingPositions() {
   return sharedPositions
 }
 
+/** The saved reading position for a Session branch, read before the viewport mounts. */
+export function savedReadingPosition(positionKey: string) {
+  return readingPositions().get(positionKey) ?? null
+}
+
 export interface TranscriptViewportView {
   readonly setShowScrollToBottom: (visible: boolean) => void
   readonly setShowScrollbar: (visible: boolean) => void
+  /** The row a pending restore is waiting for, so the window can be built around it. */
+  readonly setPendingRestoreKey: (key: string | null) => void
 }
 
 type Timer = ReturnType<typeof setTimeout>
@@ -48,6 +60,12 @@ export class TranscriptViewportSession {
   private pendingRestore: { position: SavedReadingPosition; deadline: number } | null = null
   private restoreArmed = false
   private skipNextLayout = false
+  /*
+   * The position to save, captured while the DOM is live. Reading it at unmount measured a
+   * detached scroller as resting at the end and saved every position as "following".
+   */
+  private lastPosition: SavedReadingPosition = null
+  private lastTouchY: number | null = null
   private holdTimer: Timer | null = null
   private saveTimer: Timer | null = null
   private scrollbarTimer: Timer | null = null
@@ -56,7 +74,8 @@ export class TranscriptViewportSession {
     private readonly positionKey: string,
     private readonly view: TranscriptViewportView,
   ) {
-    this.savedPosition = readingPositions().get(positionKey) ?? null
+    this.savedPosition = savedReadingPosition(positionKey)
+    this.lastPosition = this.savedPosition
     this.controller = new TranscriptViewportController(
       createDomViewportGeometry({
         scroller: () => this.scroller,
@@ -74,7 +93,9 @@ export class TranscriptViewportSession {
   readonly scrollerHandlers = {
     onScroll: () => this.scrolled(),
     onWheel: (event: { readonly deltaY: number }) => this.wheel(event.deltaY),
-    onTouchMove: () => this.touched(),
+    onTouchStart: (event: TouchPositionEvent) => this.touchStarted(event.touches[0]?.clientY),
+    onTouchMove: (event: TouchPositionEvent) => this.touchMoved(event.touches[0]?.clientY),
+    onTouchEnd: () => this.touchStarted(undefined),
     onPointerDown: (event: { readonly target: EventTarget; readonly currentTarget: EventTarget }) =>
       this.pointerDown(event.target, event.currentTarget),
     onKeyDown: (event: { readonly key: string }) => this.keyDown(event.key),
@@ -102,6 +123,7 @@ export class TranscriptViewportSession {
     if (this.restoreArmed) return
     this.restoreArmed = true
     this.pendingRestore = { position: this.savedPosition, deadline: Date.now() + RESTORE_GRACE_MS }
+    this.view.setPendingRestoreKey(this.savedPosition?.key ?? null)
   }
 
   /**
@@ -122,7 +144,14 @@ export class TranscriptViewportSession {
     }
     this.tryRestore()
     this.controller.applyLayout()
+    this.capturePosition()
     this.syncButton()
+  }
+
+  private capturePosition() {
+    // Until a pending restore lands, the saved position is still the reader's position.
+    if (this.pendingRestore !== null || !this.scroller?.isConnected) return
+    this.lastPosition = this.controller.readingPosition()
   }
 
   resized() {
@@ -132,6 +161,7 @@ export class TranscriptViewportSession {
 
   scrolled() {
     this.controller.handleScroll()
+    this.capturePosition()
     this.syncButton()
     this.persistSoon()
     this.view.setShowScrollbar(true)
@@ -147,8 +177,20 @@ export class TranscriptViewportSession {
     else this.interrupt()
   }
 
-  touched() {
+  touchStarted(clientY: number | undefined) {
+    this.lastTouchY = clientY ?? null
+  }
+
+  /**
+   * A finger moving down scrolls the transcript up: leave the live end before the next layout,
+   * or a stream's next token could snap the view back between the touch and its scroll event.
+   */
+  touchMoved(clientY: number | undefined) {
     this.interrupt()
+    if (clientY === undefined) return
+    const previous = this.lastTouchY
+    this.lastTouchY = clientY
+    if (previous !== null && clientY > previous + TOUCH_INTENT_PX) this.leaveLiveEnd()
   }
 
   pointerDown(target: EventTarget, currentTarget: EventTarget) {
@@ -204,18 +246,24 @@ export class TranscriptViewportSession {
 
   /** Any reader action supersedes a restore still waiting for its row. */
   private interrupt() {
+    this.settleRestore()
+  }
+
+  private settleRestore() {
+    if (this.pendingRestore === null) return
     this.pendingRestore = null
+    this.view.setPendingRestoreKey(null)
   }
 
   private tryRestore() {
     const pending = this.pendingRestore
     if (!pending) return
     if (pending.position === null || Date.now() > pending.deadline) {
-      this.pendingRestore = null
+      this.settleRestore()
       return
     }
     if (this.controller.hasMountedRow(pending.position.key)) {
-      this.pendingRestore = null
+      this.settleRestore()
       this.controller.restore(pending.position)
     }
   }
@@ -242,7 +290,7 @@ export class TranscriptViewportSession {
   }
 
   private persist() {
-    rememberReadingPosition(readingPositions(), this.positionKey, this.controller.readingPosition())
+    rememberReadingPosition(readingPositions(), this.positionKey, this.lastPosition)
     saveReadingPositions(readingPositions())
   }
 

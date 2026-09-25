@@ -12,7 +12,8 @@ export interface ExitingRows {
 }
 
 interface CommittedTranscript {
-  readonly keys: readonly string[]
+  /** Only the rows that were mounted: nothing outside the window is ever animated. */
+  readonly mountedKeys: readonly string[]
   readonly rowsByKey: ReadonlyMap<string, ChatRow>
   readonly isLoading: boolean
   /** Rows the reader could see when this was committed. */
@@ -25,10 +26,19 @@ function prefersReducedMotion() {
     : false
 }
 
+function mapRows(rows: readonly ChatRow[], keys: readonly string[]) {
+  const byKey = new Map<string, ChatRow>()
+  keys.forEach((key, index) => {
+    const row = rows[index]
+    if (row) byKey.set(key, row)
+  })
+  return byKey
+}
+
 function removedBlock(previous: CommittedTranscript, present: ReadonlySet<string>) {
   const removed: ChatRow[] = []
   let beforeKey: string | null = null
-  for (const key of previous.keys) {
+  for (const key of previous.mountedKeys) {
     const row = previous.rowsByKey.get(key)
     if (!present.has(key)) {
       if (row) removed.push(row)
@@ -48,9 +58,29 @@ function newestFoldKey(keys: readonly string[], previousKeys: ReadonlySet<string
   return null
 }
 
+/**
+ * A Waggle turn folds in place under the same row key, so no row disappears: find the visible
+ * Waggle row that just folded and return its fold's turn key.
+ */
+function foldedVisibleWaggleTurn(
+  previous: CommittedTranscript,
+  current: ReadonlyMap<string, ChatRow>,
+) {
+  for (const key of previous.visible) {
+    const before = previous.rowsByKey.get(key)
+    const after = current.get(key)
+    if (before?.type !== 'waggle-turn' || after?.type !== 'waggle-turn') continue
+    if (!before.folded && after.folded && after.foldRow) return after.foldRow.turnKey
+  }
+  return null
+}
+
 interface UseTurnSettlePresentationInput {
   readonly rows: readonly ChatRow[]
   readonly keys: readonly string[]
+  /** Window bounds; only these rows were mounted. */
+  readonly start: number
+  readonly end: number
   readonly isLoading: boolean
   readonly viewport: TranscriptViewportSession
   readonly onToggleTurnFold: (turnKey: string) => void
@@ -66,6 +96,8 @@ interface UseTurnSettlePresentationInput {
 export function useTurnSettlePresentation({
   rows,
   keys,
+  start,
+  end,
   isLoading,
   viewport,
   onToggleTurnFold,
@@ -75,34 +107,33 @@ export function useTurnSettlePresentation({
 
   useLayoutEffect(() => {
     const previous = committedRef.current
-    const rowsByKey = new Map<string, ChatRow>()
-    keys.forEach((key, index) => {
-      const row = rows[index]
-      if (row) rowsByKey.set(key, row)
-    })
-    const visible = viewport.visibleRowKeys()
-    committedRef.current = { keys, rowsByKey, isLoading, visible }
+    const mountedKeys = keys.slice(start, end)
+    const rowsByKey = mapRows(rows.slice(start, end), mountedKeys)
+    committedRef.current = { mountedKeys, rowsByKey, isLoading, visible: viewport.visibleRowKeys() }
     if (!previous?.isLoading || isLoading) return
 
+    const controller = viewport.controller
     const present = new Set(keys)
     const { removed, beforeKey } = removedBlock(previous, present)
-    if (removed.length === 0) return
-    const controller = viewport.controller
-    const previousKeys = new Set(previous.keys)
-    const foldKey = newestFoldKey(keys, previousKeys)
+    const foldKey = newestFoldKey(keys, new Set(previous.mountedKeys))
     // The reader was looking at rows this fold removes: keep the turn open under them.
     const readingInsideTurn =
       !controller.isFollowing &&
-      previous.keys.some((key) => !present.has(key) && previous.visible.has(key))
-    if (readingInsideTurn && foldKey) {
+      previous.mountedKeys.some((key) => !present.has(key) && previous.visible.has(key))
+    const waggleTurnKey = controller.isFollowing
+      ? null
+      : foldedVisibleWaggleTurn(previous, rowsByKey)
+    const reopenKey =
+      readingInsideTurn && foldKey ? foldKey.slice(TURN_FOLD_KEY_PREFIX.length) : waggleTurnKey
+    if (reopenKey) {
       viewport.skipLayoutForThisCommit()
-      onToggleTurnFold(foldKey.slice(TURN_FOLD_KEY_PREFIX.length))
+      onToggleTurnFold(reopenKey)
       return
     }
-    if (controller.isFollowing && !prefersReducedMotion()) {
+    if (removed.length > 0 && controller.isFollowing && !prefersReducedMotion()) {
       setExiting({ id: Date.now(), rows: removed, beforeKey })
     }
-  }, [rows, keys, isLoading, viewport, onToggleTurnFold])
+  }, [rows, keys, start, end, isLoading, viewport, onToggleTurnFold])
 
   return { exiting, clearExiting: () => setExiting(null) }
 }

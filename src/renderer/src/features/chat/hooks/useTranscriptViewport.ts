@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useState } from 'react'
-import { TranscriptViewportSession } from '../lib/transcript-viewport-session'
+import { savedReadingPosition, TranscriptViewportSession } from '../lib/transcript-viewport-session'
 
 /**
  * Connects one transcript viewport to React (ADR 0036).
@@ -10,8 +10,16 @@ import { TranscriptViewportSession } from '../lib/transcript-viewport-session'
 export function useTranscriptViewport(positionKey: string, hasRows: boolean) {
   const [showScrollToBottom, setShowScrollToBottom] = useState(false)
   const [showScrollbar, setShowScrollbar] = useState(false)
+  const [pendingRestoreKey, setPendingRestoreKey] = useState(
+    () => savedReadingPosition(positionKey)?.key ?? null,
+  )
   const [session] = useState(
-    () => new TranscriptViewportSession(positionKey, { setShowScrollToBottom, setShowScrollbar }),
+    () =>
+      new TranscriptViewportSession(positionKey, {
+        setShowScrollToBottom,
+        setShowScrollbar,
+        setPendingRestoreKey,
+      }),
   )
 
   useLayoutEffect(() => {
@@ -29,5 +37,5 @@ export function useTranscriptViewport(positionKey: string, hasRows: boolean) {
 
   useEffect(() => () => session.dispose(), [session])
 
-  return { session, showScrollToBottom, showScrollbar }
+  return { session, showScrollToBottom, showScrollbar, pendingRestoreKey }
 }
