@@ -23,7 +23,6 @@ export const KNOWN_DUPLICATE_EXPORTED_TYPES: readonly string[] = [
   'ExtensionReloadStatus',
   'ExtensionStorageKind',
   'ExtensionStorageScope',
-  'MutableValueRef',
   'SessionActiveRunRow',
   'SessionBranchRow',
   'SessionBranchStateRow',

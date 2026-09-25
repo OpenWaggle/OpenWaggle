@@ -6,18 +6,16 @@ import type { ChatRow } from '../../lib/types-chat-row'
 import type { ChatTranscriptSectionState } from '../../model'
 
 /**
- * A saved scroll offset the transcript can no longer reach must not retry forever.
+ * Reading positions restore by row, and one whose row never arrives must not linger.
  *
- * The restore retries while the content grows toward a remembered offset. Once the transcript
- * renders a capped window, an offset saved from a taller transcript is permanently unreachable, and
- * the retry rearmed every 96ms for the life of the session: each pass rewrote scrollTop and cleared
- * the auto-scroll flag, so the view snapped back within 96ms of any attempt to scroll and the app
- * read as frozen. Growth is the only evidence that waiting is worthwhile.
+ * The previous pixel restore retried toward an offset a capped window could never reach; the
+ * retry rearmed for the life of the Session and snapped the view back within 96ms of any scroll,
+ * so the app read as frozen. Positions are now row anchors (ADR 0036): a missing row is simply not
+ * restored, and nothing is left running.
  */
 
-const SCROLL_CACHE_KEY = 'openwaggle:scroll-positions:v1'
-const RETRY_MS = 96
-const UNREACHABLE_OFFSET = 12_000
+const POSITIONS_KEY = 'openwaggle:transcript-reading-positions:v2'
+const GRACE_MS = 2000
 const ROW_COUNT = 400
 const SESSION = 'session-restore-1'
 
@@ -75,9 +73,8 @@ function createSection(): ChatTranscriptSectionState {
   }
 }
 
-describe('scroll restore against a capped transcript window', () => {
+describe('reading-position restore', () => {
   beforeEach(() => {
-    localStorage.setItem(SCROLL_CACHE_KEY, JSON.stringify([[SESSION, UNREACHABLE_OFFSET]]))
     vi.useFakeTimers()
   })
 
@@ -87,17 +84,33 @@ describe('scroll restore against a capped transcript window', () => {
     vi.restoreAllMocks()
   })
 
-  it('stops retrying once the content stops growing', async () => {
+  it('leaves nothing running when the saved row never arrives', async () => {
+    localStorage.setItem(
+      POSITIONS_KEY,
+      JSON.stringify([[`${SESSION}:main`, { key: 'message:gone', top: 12 }]]),
+    )
     const { ChatTranscript } = await import('../ChatTranscript')
     render(<ChatTranscript section={createSection()} />)
 
-    // Let the restore run and rearm as far as it will.
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(RETRY_MS * 40)
+      await vi.advanceTimersByTimeAsync(GRACE_MS)
     })
 
-    // The offset is unreachable in this environment, so the restore must have given up rather
-    // than left a timer behind. A pending timer here is the frozen-transcript bug.
     expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('builds the first window around a saved row deep in older history', async () => {
+    localStorage.setItem(
+      POSITIONS_KEY,
+      JSON.stringify([[`${SESSION}:main`, { key: 'message:msg-100', top: 12 }]]),
+    )
+    vi.resetModules()
+    const { ChatTranscript } = await import('../ChatTranscript')
+    const { getByText, queryByText } = render(<ChatTranscript section={createSection()} />)
+
+    // The pixel restore reopened at the newest 40 rows and landed on a different message.
+    expect(getByText('msg-100')).toBeInTheDocument()
+    expect(getByText('msg-80')).toBeInTheDocument()
+    expect(queryByText('msg-399')).not.toBeInTheDocument()
   })
 })
