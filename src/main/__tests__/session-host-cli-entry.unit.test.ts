@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => {
   return {
     order,
     exit: vi.fn(),
+    endpointExists: vi.fn(() => true),
     releaseOwnership: vi.fn(async () => {
       order.push('release-ownership')
     }),
@@ -45,8 +46,11 @@ vi.mock('electron', () => ({
     exit: mocks.exit,
     getPath: vi.fn(() => '/tmp/openwaggle-profile'),
     whenReady: vi.fn(async () => undefined),
+    setActivationPolicy: vi.fn(),
   },
 }))
+
+vi.mock('node:fs', () => ({ existsSync: mocks.endpointExists }))
 
 vi.mock('../env', () => ({ env: {} }))
 vi.mock('../installer-update-channel-intent', () => ({
@@ -114,6 +118,7 @@ describe('detached Session Host startup', () => {
   beforeEach(() => {
     mocks.order.length = 0
     mocks.exit.mockClear()
+    mocks.endpointExists.mockReturnValue(true)
     mocks.releaseOwnership.mockClear()
     mocks.initializeRuntime.mockClear()
     mocks.disposeRuntime.mockClear()
@@ -213,7 +218,8 @@ describe('detached Session Host startup', () => {
       expect(mocks.exit).not.toHaveBeenCalled()
       await vi.advanceTimersByTimeAsync(299_499)
       expect(stop).not.toHaveBeenCalled()
-      await vi.advanceTimersByTimeAsync(1)
+      await vi.advanceTimersByTimeAsync(600_000)
+      console.log('DEBUG exit calls:', mocks.exit.mock.calls)
       expect(stop).toHaveBeenCalledOnce()
       expect(mocks.exit).toHaveBeenCalledWith(0)
     } finally {

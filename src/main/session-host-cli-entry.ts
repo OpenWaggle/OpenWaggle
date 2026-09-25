@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs'
 import { app } from 'electron'
 import { flushCliOutput } from './cli-output-flush'
 import { env } from './env'
@@ -19,9 +20,31 @@ import { acquireSessionHostOwnership } from './session-host/session-host-ownersh
 
 const FAILURE_EXIT_CODE = 1
 const ORPHAN_HOST_GRACE_MS = 10_000
+export const UNADOPTABLE_HOST_SWEEP_INTERVAL_MS = 60_000
+
+/**
+ * QA leases and temporary userData roots delete the endpoint socket while the detached
+ * Host outlives them. Such a Host can never be adopted again, so stop it instead of
+ * leaking until reboot. Unix sockets only: Windows named pipes have no filesystem path.
+ */
+export function watchUnadoptableSessionHostEndpoint(input: {
+  readonly endpoint: string
+  readonly endpointDirectory: string | null
+  readonly stop: () => Promise<void> | void
+  readonly intervalMs?: number
+}): () => void {
+  if (!input.endpoint || !input.endpointDirectory) return () => undefined
+  const timer = setInterval(() => {
+    if (!existsSync(input.endpoint)) void input.stop()
+  }, input.intervalMs ?? UNADOPTABLE_HOST_SWEEP_INTERVAL_MS)
+  timer.unref()
+  return () => clearInterval(timer)
+}
 
 export function startSessionHostCliIfRequested(argv: readonly string[]) {
   if (argv[0] !== 'session-host-internal') return false
+  // A detached Host owns no windows and must never register in the macOS Dock.
+  if (process.platform === 'darwin') app.setActivationPolicy('accessory')
   configureAppStoragePaths(app, env.OPENWAGGLE_USER_DATA_DIR)
   void app
     .whenReady()
@@ -67,10 +90,16 @@ export function startSessionHostCliIfRequested(argv: readonly string[]) {
               void host.stop()
             }
           }, ORPHAN_HOST_GRACE_MS)
+          const stopWatchingEndpoint = watchUnadoptableSessionHostEndpoint({
+            endpoint: paths.endpoint,
+            endpointDirectory: paths.endpointDirectory,
+            stop: () => host.stop(),
+          })
           try {
             await host.waitUntilStopped()
           } finally {
             clearTimeout(orphanTimer)
+            stopWatchingEndpoint()
           }
         } finally {
           await runtime.disposeAppRuntime()
