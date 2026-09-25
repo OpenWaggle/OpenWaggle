@@ -17,19 +17,27 @@ describe('useTranscriptWindowRange', () => {
   it('stays bounded while rows arrive under an anchored reader', () => {
     let rows = rowsOf(400)
     let keys = rows.map((r) => (r.type === 'message' ? `message:${r.message.id}` : ''))
-    const { result, rerender } = renderHook(() =>
-      useTranscriptWindowRange({ rows, keys, anchorKey: null, isFollowing: () => false }),
-    )
+    const sizes: number[] = []
+    const { result, rerender } = renderHook(() => {
+      const range = useTranscriptWindowRange({
+        rows,
+        keys,
+        anchorKey: null,
+        isFollowing: () => false,
+        following: false,
+      })
+      sizes.push(range.end - range.start)
+      return range
+    })
     const start = result.current.start
 
     // A long run appends 1,000 rows while the reader is up in history.
     rows = rowsOf(1_400)
     keys = rows.map((r) => (r.type === 'message' ? `message:${r.message.id}` : ''))
-    rerender()
-    act(() => result.current.boundLiveWindow())
+    act(() => rerender())
 
-    // Review finding: the live window grew to 1,040 mounted rows.
-    expect(result.current.end - result.current.start).toBeLessThanOrEqual(160)
+    // Review finding: the live window rendered 1,040 rows once before it was trimmed after commit.
+    expect(Math.max(...sizes)).toBeLessThanOrEqual(160)
     expect(result.current.start).toBe(start)
     expect(result.current.hasLater).toBe(true)
   })

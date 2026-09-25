@@ -31,10 +31,26 @@ function initialRange(keys: readonly string[], anchorKey: string | null) {
   return (anchorKey ? rangeAround(keys, anchorKey) : null) ?? newestRange(keys)
 }
 
+/**
+ * Bounds a live window during render, before any of its rows are built: a follower sheds the
+ * oldest rows, an anchored reader keeps them and sheds the newest, which load back on scroll.
+ * Bounding after commit still built every appended row once (40 + 1,000 appended rows committed
+ * 1,040 rows before trimming).
+ */
+function boundLive(
+  range: TranscriptWindowRange | null,
+  keys: readonly string[],
+  following: boolean,
+) {
+  if (!range) return range
+  return following ? trimLiveWindow(range, keys) : capAnchoredLiveWindow(range, keys)
+}
+
 function currentRange(
   range: TranscriptWindowRange | null,
   keys: readonly string[],
   anchorKey: string | null,
+  following: boolean,
 ) {
   const reconciled = isRangeCurrent(range, keys)
     ? range
@@ -47,7 +63,7 @@ function currentRange(
   if (reconciled && anchorArrived && !rangeIncludes(reconciled, keys, anchorKey)) {
     return rangeAround(keys, anchorKey)
   }
-  return reconciled
+  return boundLive(reconciled, keys, following)
 }
 
 interface UseTranscriptWindowRangeInput {
@@ -59,6 +75,8 @@ interface UseTranscriptWindowRangeInput {
    */
   readonly anchorKey: string | null
   readonly isFollowing: () => boolean
+  /** The same as `isFollowing()`, as state, for bounding the window during render. */
+  readonly following: boolean
 }
 
 /**
@@ -73,11 +91,12 @@ export function useTranscriptWindowRange({
   keys,
   anchorKey,
   isFollowing,
+  following,
 }: UseTranscriptWindowRangeInput) {
   const [range, setRange] = useState<TranscriptWindowRange | null>(null)
   const [announcement, setAnnouncement] = useState('')
 
-  const current = currentRange(range, keys, anchorKey)
+  const current = currentRange(range, keys, anchorKey, following)
   if (current !== range) setRange(current)
   const resolved = current ? resolveRange(current, keys) : null
 
@@ -100,18 +119,6 @@ export function useTranscriptWindowRange({
     setRange(newestRange(keys))
   }
 
-  /**
-   * Keeps a live window within its bound as rows arrive: a reader following the end sheds the
-   * oldest rows; an anchored reader keeps them and sheds the newest, which load back on scroll.
-   */
-  function boundLiveWindow() {
-    if (!current) return
-    const bounded = isFollowing()
-      ? trimLiveWindow(current, keys)
-      : capAnchoredLiveWindow(current, keys)
-    if (bounded !== current) setRange(bounded)
-  }
-
   return {
     start: resolved?.start ?? 0,
     end: resolved?.end ?? 0,
@@ -121,6 +128,5 @@ export function useTranscriptWindowRange({
     loadEarlier,
     loadLater,
     showNewest,
-    boundLiveWindow,
   }
 }

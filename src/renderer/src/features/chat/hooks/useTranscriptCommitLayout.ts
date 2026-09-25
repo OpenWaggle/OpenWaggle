@@ -11,14 +11,13 @@ interface UseTranscriptCommitLayoutInput {
   readonly latestTurnHasToolActivity: boolean
   readonly hasLater: boolean
   readonly showNewest: () => void
-  readonly boundLiveWindow: () => void
 }
 
 /**
  * Applies the viewport after every commit, before paint (ADR 0036).
  *
- * A send anchors the new turn near the top; tool activity hands it over to live following; a live
- * window sheds rows beyond its bound; and the controller re-applies its mode to the new layout.
+ * A send anchors the new turn near the top; tool activity hands it over to live following; and the
+ * controller re-applies its mode to the new layout.
  * Must be declared after the settle presentation hook so a fold is seen before the anchor moves.
  */
 export function useTranscriptCommitLayout(input: UseTranscriptCommitLayoutInput) {
@@ -42,7 +41,6 @@ export function useTranscriptCommitLayout(input: UseTranscriptCommitLayoutInput)
     // The optimistic message was replaced by its persisted copy under a new id.
     if (!input.userDidSend && sentReplaced) session.anchorNewTurn(sentKey)
     if (input.latestTurnHasToolActivity) session.releaseNewTurn()
-    input.boundLiveWindow()
     session.layout()
   })
 }

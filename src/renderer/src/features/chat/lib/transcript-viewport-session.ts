@@ -40,6 +40,8 @@ export interface TranscriptViewportView {
   readonly setShowScrollbar: (visible: boolean) => void
   /** The row a pending restore is waiting for, so the window can be built around it. */
   readonly setPendingRestoreKey: (key: string | null) => void
+  /** Whether the reader follows the live end, so the window can be bounded during render. */
+  readonly setFollowing: (following: boolean) => void
 }
 
 type Timer = ReturnType<typeof setTimeout>
@@ -269,6 +271,7 @@ export class TranscriptViewportSession {
   }
 
   private syncButton() {
+    this.view.setFollowing(this.controller.isFollowing)
     // Mirrors the mode for tests and diagnosis; written directly, so it costs no render.
     const mode = this.controller.mode
     if (this.scroller) {

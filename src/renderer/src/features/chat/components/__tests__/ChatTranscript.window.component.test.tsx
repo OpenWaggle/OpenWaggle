@@ -216,6 +216,49 @@ describe('ChatTranscript windowing', () => {
   })
 })
 
+describe('ChatTranscript settle presentation', () => {
+  it("collapses a settling turn's work in place while following, never beyond the window", () => {
+    const user = row('u1')
+    const work: ChatRow = {
+      type: 'message',
+      message: { id: 'work-1', role: 'assistant', parts: [{ type: 'text', content: 'work' }] },
+      isStreaming: false,
+      isRunActive: true,
+      showTurnDivider: false,
+    }
+    const answer: ChatRow = {
+      type: 'message',
+      message: { id: 'answer-1', role: 'assistant', parts: [{ type: 'text', content: 'answer' }] },
+      isStreaming: true,
+      isRunActive: true,
+      showTurnDivider: false,
+    }
+    const fold: ChatRow = {
+      type: 'turn-fold',
+      id: 'turn-fold:u1',
+      turnKey: 'u1',
+      label: 'Worked',
+      durationMs: null,
+      interrupted: false,
+    }
+    const { rerender, container } = render(
+      <ChatTranscript
+        section={createSection([...rowsOf(300), user, work, answer], { isLoading: true })}
+      />,
+    )
+    rerender(<ChatTranscript section={createSection([...rowsOf(300), user, fold, answer])} />)
+
+    // The folded work row collapses in place (inert, not addressable) instead of vanishing.
+    const exiting = container.querySelector('[inert]')
+    expect(exiting?.textContent).toContain('work-1')
+    // Only rows that were mounted are animated: the 300 older rows stay unmounted.
+    expect(
+      container.querySelectorAll('[inert] [data-chat-content-frame="transcript-row"]'),
+    ).toHaveLength(1)
+    expect(screen.queryByText('msg-0')).not.toBeInTheDocument()
+  })
+})
+
 describe('ChatTranscript Session states', () => {
   it('shows a loading state, never the Welcome screen, while a Session hydrates', () => {
     render(<ChatTranscript section={createSection([], { transcriptState: 'loading' })} />)

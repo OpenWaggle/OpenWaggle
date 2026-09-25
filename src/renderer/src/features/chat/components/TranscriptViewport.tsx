@@ -43,15 +43,14 @@ export function TranscriptViewport({
 }) {
   const { rows, isLoading, lastUserMessageId, userDidSend, onUserDidSendConsumed } = input
   const keys = chatRowKeys(rows)
-  const { session, showScrollToBottom, showScrollbar, pendingRestoreKey } = useTranscriptViewport(
-    positionKey,
-    keys.length > 0,
-  )
+  const { session, showScrollToBottom, showScrollbar, pendingRestoreKey, following } =
+    useTranscriptViewport(positionKey, keys.length > 0)
   const transcriptWindow = useTranscriptWindowRange({
     rows,
     keys,
     anchorKey: pendingRestoreKey,
     isFollowing: () => session.controller.isFollowing,
+    following,
   })
   const { exiting, clearExiting } = useTurnSettlePresentation({
     rows,
@@ -77,7 +76,6 @@ export function TranscriptViewport({
     latestTurnHasToolActivity: latestTurnHasToolActivity(rows),
     hasLater: transcriptWindow.hasLater,
     showNewest: transcriptWindow.showNewest,
-    boundLiveWindow: transcriptWindow.boundLiveWindow,
   })
 
   const visibleRows = rows.slice(transcriptWindow.start, transcriptWindow.end)
