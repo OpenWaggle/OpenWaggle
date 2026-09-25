@@ -1,5 +1,6 @@
 import * as Effect from 'effect/Effect'
 import { describe, expect, it } from 'vitest'
+import { SessionProjectionRepositoryError } from '../../errors'
 import { recoverWaggleRunFailure } from '../waggle-run/outcome'
 
 const INPUT = {
@@ -41,5 +42,26 @@ describe('attributing a failed Waggle run', () => {
     )
 
     expect(outcome).toMatchObject({ outcome: 'error', transportEmitted: true })
+  })
+
+  // ADR 0037 applies to Waggle as well as classic runs.
+  it('reports a Waggle snapshot that could not be saved as a persistence failure', async () => {
+    const outcome = await Effect.runPromise(
+      recoverWaggleRunFailure({
+        error: new SessionProjectionRepositoryError({
+          operation: 'persistSessionSnapshot',
+          cause: new Error('disk I/O error'),
+        }),
+        input: INPUT,
+        reachedAgent: () => true,
+      }),
+    )
+
+    expect(outcome).toMatchObject({
+      outcome: 'error',
+      code: 'persist-failed',
+      message: 'SessionProjectionRepositoryError (persistSessionSnapshot) <- Error: disk I/O error',
+      transportEmitted: true,
+    })
   })
 })

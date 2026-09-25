@@ -66,6 +66,30 @@ describe('file logger', () => {
     expect(getLogFilePath()).toBe(path.join(mockLogsDir, `openwaggle-host-${dateStr}.log`))
   })
 
+  it('prunes old Session Host logs with the GUI logs, under one retention policy', async () => {
+    const oldDate = new Date(Date.now() - 4 * 24 * 60 * 60 * 1000)
+    const oldHostLog = path.join(
+      mockLogsDir,
+      `openwaggle-host-${oldDate.toISOString().slice(0, 10)}.log`,
+    )
+    fs.writeFileSync(oldHostLog, 'old host log')
+    fs.utimesSync(oldHostLog, oldDate, oldDate)
+
+    await initFileLogger(mockLogsDir)
+
+    expect(fs.existsSync(oldHostLog)).toBe(false)
+  })
+
+  it('names the current day even when nothing was logged since midnight', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-09-25T23:59:00Z'))
+    await initFileLogger(mockLogsDir)
+    vi.setSystemTime(new Date('2026-09-26T00:01:00Z'))
+
+    expect(getLogFilePath()).toBe(path.join(mockLogsDir, 'openwaggle-2026-09-26.log'))
+    vi.useRealTimers()
+  })
+
   it('getLogFilePath returns correct date-based path', async () => {
     await initFileLogger(mockLogsDir)
     createLogger('init').info('init')

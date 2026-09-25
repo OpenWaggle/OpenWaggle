@@ -52,7 +52,8 @@ export function startSessionHostCliIfRequested(argv: readonly string[]) {
     .then(async () => {
       // The detached Host's console is not attached to anything, so without its own file every
       // failure it recovers from, including a turn that could not be saved, is lost (ADR 0037).
-      void initFileLogger(app.getPath('logs'), SESSION_HOST_LOG_FILE_STEM)
+      // Awaited so startup diagnostics are written; initialization failures are reported, not thrown.
+      await initFileLogger(app.getPath('logs'), SESSION_HOST_LOG_FILE_STEM)
       const preparedPaths = await prepareLocalSessionHostPaths(
         resolveLocalSessionHostPaths({ userDataRoot: app.getPath('userData') }),
       )

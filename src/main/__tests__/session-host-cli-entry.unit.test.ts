@@ -26,7 +26,9 @@ const mocks = vi.hoisted(() => {
       order.push('initialize-settings')
     }),
     applyInstallerIntent: vi.fn(async () => null),
-    initFileLogger: vi.fn(async () => undefined),
+    initFileLogger: vi.fn(async () => {
+      order.push('init-logger')
+    }),
     legacyFence: vi.fn((operation: () => Promise<unknown>) => operation()),
     sourceExists: vi.fn(async () => false),
     startHost: vi.fn<() => Promise<TestHost>>(async () => {
@@ -149,6 +151,7 @@ describe('detached Session Host startup', () => {
     await vi.waitFor(() => expect(mocks.exit).toHaveBeenCalledWith(0))
 
     expect(mocks.order).toEqual([
+      'init-logger',
       'acquire-ownership',
       'inspect-database',
       'prepare-database',
@@ -182,6 +185,7 @@ describe('detached Session Host startup', () => {
     await vi.waitFor(() => expect(mocks.exit).toHaveBeenCalledWith(1))
 
     expect(mocks.order).toEqual([
+      'init-logger',
       'acquire-ownership',
       'inspect-database',
       'prepare-database',

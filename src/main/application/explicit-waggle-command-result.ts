@@ -3,6 +3,7 @@ import { type AgentSendReport, getMessageText, type Message } from '@shared/type
 import type { SessionId } from '@shared/types/brand'
 import { classifyAgentError } from '../agent/error-classifier'
 import { publishSessionHostEvent } from '../session-host/session-host-events'
+import { userFacingErrorDetail } from '../utils/describe-error'
 
 interface WaggleValidationErrorResult {
   readonly outcome: 'validation-error'
@@ -99,7 +100,7 @@ export function publishExplicitWaggleResult(
 function publishWaggleSuccess(sessionId: SessionId, runId: string, result: WaggleSuccessResult) {
   if (result.newMessages.every((message) => message.role !== 'assistant') && result.lastError) {
     const classified = classifyAgentError(new Error(result.lastError))
-    publishWaggleError(sessionId, runId, classified.message, classified.code)
+    publishWaggleError(sessionId, runId, userFacingErrorDetail(classified.message), classified.code)
     return
   }
   publishWaggleEnd(sessionId, runId, 'stop')

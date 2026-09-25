@@ -5,7 +5,7 @@ import * as Effect from 'effect/Effect'
 import { classifyAgentError, makeErrorInfo } from '../../agent/error-classifier'
 import { SessionProjectionRepositoryError } from '../../errors'
 import { createLogger } from '../../logger'
-import { describeError } from '../../utils/describe-error'
+import { describeError, userFacingErrorDetail } from '../../utils/describe-error'
 import { isRunCancellation } from '../run-cancellation'
 import type { PersistedRunResourceNodes } from '../session-resource-node-mapping'
 import type { AgentRunResult } from './types'
@@ -87,8 +87,34 @@ export function buildAgentRunOutcome({
   }
 }
 
-function isPersistenceFailure(error: unknown) {
-  return error instanceof SessionProjectionRepositoryError
+/*
+ * A turn that could not be saved, as opposed to any other failure after the agent answered.
+ *
+ * Only the snapshot write itself qualifies: a later projection write, such as anchoring the turn
+ * checkpoint, fails after the turn is already durable, and reporting that as "couldn't be saved"
+ * would offer a retry for a reply that survives a reload.
+ */
+function isSnapshotPersistenceFailure(error: unknown, reachedAgent: boolean) {
+  return (
+    reachedAgent &&
+    error instanceof SessionProjectionRepositoryError &&
+    error.operation === 'persistSessionSnapshot'
+  )
+}
+
+/**
+ * Classifies a failed classic or Waggle run from its original error (ADR 0037).
+ *
+ * Tagged repository errors carry an empty `message`; `classifyAgentError` describes those by tag,
+ * operation, and cause, while plain errors keep their exact message so patterns such as
+ * `terminated` still classify.
+ */
+export function classifyRunFailure(error: unknown, reachedAgent: boolean) {
+  const detail = describeError(error)
+  const classified = isSnapshotPersistenceFailure(error, reachedAgent)
+    ? makeErrorInfo('persist-failed', detail)
+    : classifyAgentError(error)
+  return { classified, detail }
 }
 
 export function recoverAgentRunFailure({
@@ -108,16 +134,7 @@ export function recoverAgentRunFailure({
       ...(assignedTitle ? { assignedTitle } : {}),
     })
   }
-  const detail = describeError(error)
-  /*
-   * A repository failure after the agent answered is a turn that could not be saved, not an unknown
-   * run failure. Tagged repository errors carry an empty `message`, so classifying `error.message`
-   * reported "Something went wrong" with no detail, and the log line read `error: ""` (ADR 0037).
-   */
-  const classified =
-    reachedAgent && isPersistenceFailure(error)
-      ? makeErrorInfo('persist-failed', detail)
-      : classifyAgentError(new Error(detail))
+  const { classified, detail } = classifyRunFailure(error, reachedAgent)
   logger.error('Agent run failed before terminal transport event', {
     sessionId,
     runId,
@@ -129,7 +146,7 @@ export function recoverAgentRunFailure({
   return Effect.succeed({
     outcome: 'error' as const,
     // The renderer derives the headline from `code`; the message is the detail it shows under it.
-    message: classified.message,
+    message: userFacingErrorDetail(classified.message),
     code: classified.code,
     /*
      * Marked when the agent already had the message, so a caller is not told a delivered message was refused.
@@ -163,7 +180,7 @@ function terminalErrorOutcome(
   })
   return {
     outcome: 'error',
-    message: classified.message,
+    message: userFacingErrorDetail(classified.message),
     code: classified.code,
     transportEmitted: true,
     ...(context.resources.resourceMessages.length > 0 ? context.resources : {}),

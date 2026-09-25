@@ -1,5 +1,7 @@
+import os from 'node:os'
 import * as Cause from 'effect/Cause'
 import * as Runtime from 'effect/Runtime'
+import { redactSensitiveText } from './redact'
 
 const MAX_CAUSE_DEPTH = 6
 
@@ -53,4 +55,21 @@ export function describeError(error: unknown): string {
         : undefined
   }
   return parts.join(' <- ')
+}
+
+const MAX_USER_FACING_DETAIL_LENGTH = 600
+
+/**
+ * Error detail that is safe to publish beyond the Host log: to the renderer, the CLI, and
+ * feedback reports.
+ *
+ * Secrets are redacted, the home directory is abbreviated, and the text is bounded. The full,
+ * unredacted cause stays in the Host log only.
+ */
+export function userFacingErrorDetail(detail: string) {
+  const home = os.homedir()
+  const redacted = redactSensitiveText(home ? detail.split(home).join('~') : detail)
+  return redacted.length > MAX_USER_FACING_DETAIL_LENGTH
+    ? `${redacted.slice(0, MAX_USER_FACING_DETAIL_LENGTH)}…`
+    : redacted
 }

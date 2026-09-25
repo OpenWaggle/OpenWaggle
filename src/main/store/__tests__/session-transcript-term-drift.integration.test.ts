@@ -6,6 +6,10 @@ import { SessionId } from '@shared/types/brand'
 import * as Effect from 'effect/Effect'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { createSession, persistSessionSnapshot } from '../session-details'
+import {
+  repairStaleTranscriptTermProjections,
+  resetTranscriptTermRepairBackoff,
+} from '../session-details/snapshot-transcript-term-projection'
 import { runStoreEffect } from '../store-runtime'
 import { transcriptNode } from './session-snapshot-semantic-retention.test-support'
 
@@ -36,6 +40,7 @@ vi.mock('electron', () => ({
 const PI_SESSION_ID = 'pi-term-drift'
 
 beforeEach(async () => {
+  resetTranscriptTermRepairBackoff()
   state.userDataDir = await fs.mkdtemp(path.join(os.tmpdir(), 'ow-term-drift-'))
   const { resetAppRuntimeForTests } = await import('../../runtime')
   await resetAppRuntimeForTests()
@@ -74,6 +79,15 @@ async function seedSessionWithDriftedIndex() {
   return { sessionId, first, second }
 }
 
+function repairStale(limit?: number) {
+  return runStoreEffect(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      return yield* repairStaleTranscriptTermProjections(sql, limit === undefined ? {} : { limit })
+    }),
+  )
+}
+
 function readIndexState(sessionId: SessionId) {
   return runStoreEffect(
     Effect.gen(function* () {
@@ -109,11 +123,16 @@ it('persists a turn whose snapshot removes nodes from a drifted term index, and 
     }),
   ).resolves.toBeUndefined()
 
-  const indexState = await readIndexState(sessionId)
-  expect(indexState?.nodes).toBe(2)
-  // Rebuilt exactly: the document count agrees with its inverted index again.
-  expect(indexState?.token_count).toBe(indexState?.occurrences)
-  expect(indexState?.token_count).toBe(7)
+  // The turn committed; the derived index was marked stale instead of failing it.
+  const stale = await readIndexState(sessionId)
+  expect(stale?.nodes).toBe(2)
+  expect(stale?.token_count).toBeNull()
+
+  // Repaired afterwards, outside the turn's transaction, and exact.
+  expect(await repairStale()).toEqual({ selected: 1, repaired: 1 })
+  const repaired = await readIndexState(sessionId)
+  expect(repaired?.token_count).toBe(repaired?.occurrences)
+  expect(repaired?.token_count).toBe(7)
 })
 
 it('persists a turn that changes an existing node under a drifted term index', async () => {
@@ -129,7 +148,34 @@ it('persists a turn that changes an existing node under a drifted term index', a
     }),
   ).resolves.toBeUndefined()
 
+  expect((await readIndexState(sessionId))?.nodes).toBe(2)
+  await repairStale()
   const indexState = await readIndexState(sessionId)
-  expect(indexState?.nodes).toBe(2)
   expect(indexState?.token_count).toBe(indexState?.occurrences)
+})
+
+it('repairs a bounded number of stale Sessions per pass and never selects deleted ones', async () => {
+  const drifted = await seedSessionWithDriftedIndex()
+  const other = await createSession({ projectPath: '/tmp/term-drift-2', piSessionId: 'pi-2' })
+  const otherId = SessionId(String(other.id))
+  const node = transcriptNode('other-a', null, 0, 'other words', 'run-o')
+  await persistSessionSnapshot({
+    sessionId: otherId,
+    piSessionId: 'pi-2',
+    activeNodeId: node.id,
+    nodes: [node],
+  })
+  // Both Sessions lose their index (the durable stale marker), then one is deleted.
+  await runStoreEffect(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      yield* sql`DELETE FROM session_transcript_term_documents`
+      yield* sql`DELETE FROM sessions WHERE id = ${otherId}`
+    }),
+  )
+
+  expect(await repairStale(1)).toEqual({ selected: 1, repaired: 1 })
+  expect(await repairStale(1)).toEqual({ selected: 0, repaired: 0 })
+  const repaired = await readIndexState(drifted.sessionId)
+  expect(repaired?.token_count).toBe(repaired?.occurrences)
 })

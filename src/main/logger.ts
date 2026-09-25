@@ -113,6 +113,8 @@ class FileWriter {
   }
 
   getLogFilePath() {
+    // A writer that has not logged since midnight would otherwise name yesterday's file.
+    if (this.logsDir) this.ensureDatePath()
     return this.currentPath ?? ''
   }
 

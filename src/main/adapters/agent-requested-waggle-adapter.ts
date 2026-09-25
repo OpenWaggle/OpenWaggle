@@ -27,6 +27,7 @@ import type { SessionResourceRepository } from '../ports/session-resource-reposi
 import type { SessionResourceStore } from '../ports/session-resource-store'
 import type { SettingsService } from '../services/settings-service'
 import { publishSessionHostEvent } from '../session-host/session-host-events'
+import { userFacingErrorDetail } from '../utils/describe-error'
 import { startStreamBuffer } from '../utils/stream-bridge'
 
 function invocation(handoff: WaggleHandoffRequest): WaggleInvocation {
@@ -161,7 +162,7 @@ export function runRequestedWaggleWith(
         if (assistantCount === 0 && value.lastError) {
           const classified = classifyAgentError(new Error(value.lastError))
           publishEnd(input.sessionId, runId, 'error', {
-            message: classified.message,
+            message: userFacingErrorDetail(classified.message),
             code: classified.code,
           })
           return
@@ -175,7 +176,7 @@ export function runRequestedWaggleWith(
       Effect.sync(() => {
         const classified = classifyAgentError(error)
         publishEnd(input.sessionId, `waggle-${input.sessionId}`, 'error', {
-          message: classified.message,
+          message: userFacingErrorDetail(classified.message),
           code: classified.code,
         })
       }),

@@ -1,5 +1,7 @@
-import type * as SqlClient from '@effect/sql/SqlClient'
+import * as SqlClient from '@effect/sql/SqlClient'
 import * as Data from 'effect/Data'
+import * as Deferred from 'effect/Deferred'
+import * as Duration from 'effect/Duration'
 import * as Effect from 'effect/Effect'
 import { createLogger } from '../../logger'
 import {
@@ -11,18 +13,18 @@ import { describeError } from '../../utils/describe-error'
 
 const logger = createLogger('session-transcript-terms')
 
+/** Stale Sessions repaired per background pass; each is its own transaction. */
+const REPAIR_BATCH_SIZE = 4
+const REPAIR_IDLE_INTERVAL = Duration.seconds(30)
+const REPAIR_BACKOFF_BASE_MS = 5_000
+const REPAIR_BACKOFF_MAX_MS = 10 * 60_000
+const REPAIR_BACKOFF_MAX_EXPONENT = 8
+const REPAIR_BACKOFF_FACTOR = 2
+
 class TranscriptTermDriftError extends Data.TaggedError('TranscriptTermDriftError')<{
   readonly tokenCount: number
   readonly occurrences: number
 }> {}
-
-/**
- * Sessions whose index could not be repaired inside their snapshot transaction.
- *
- * Retried after the snapshot commits, in a transaction of their own, so a turn never waits on or
- * fails because of derived data (ADR 0037).
- */
-const pendingTermRebuilds = new Set<string>()
 
 function verifyDocumentCount(sql: SqlClient.SqlClient, sessionId: string) {
   return Effect.gen(function* () {
@@ -43,29 +45,61 @@ function verifyDocumentCount(sql: SqlClient.SqlClient, sessionId: string) {
   })
 }
 
-function rebuildInSavepoint(sql: SqlClient.SqlClient, sessionId: string) {
-  return sql.withTransaction(refreshSessionTranscriptTerms(sql, [sessionId])).pipe(
-    Effect.catchAll((error) => {
-      pendingTermRebuilds.add(sessionId)
-      return Effect.sync(() =>
-        logger.error('Transcript term rebuild failed; retrying after the snapshot commits', {
-          sessionId,
-          error: describeError(error),
+/*
+ * Wakes the background repair early. Process-local: the Session Host is the only writer, and a
+ * missed wake only delays repair until the next idle pass.
+ */
+let repairWake: Deferred.Deferred<void> | null = null
+function wakeTranscriptTermRepair() {
+  if (repairWake) Effect.runSync(Deferred.succeed(repairWake, undefined))
+}
+
+/**
+ * Marks a Session's derived term index stale by removing it.
+ *
+ * A Session with nodes and no term document is the durable stale marker: it survives restarts,
+ * disappears with the Session, and is repaired by `repairStaleTranscriptTermProjections` outside
+ * any turn's transaction. Removing the rows is bounded by the Session's vocabulary, unlike an
+ * exact rebuild, which tokenizes every node and would hold the turn open.
+ */
+function markStale(sql: SqlClient.SqlClient, sessionId: string, reason: unknown) {
+  return sql
+    .withTransaction(
+      Effect.gen(function* () {
+        yield* sql`DELETE FROM session_transcript_terms WHERE session_id = ${sessionId}`
+        yield* sql`DELETE FROM session_transcript_term_documents WHERE session_id = ${sessionId}`
+      }),
+    )
+    .pipe(
+      Effect.tap(() =>
+        Effect.sync(() => {
+          logger.warn('Transcript term index is stale; repairing it after the snapshot commits', {
+            sessionId,
+            error: describeError(reason),
+          })
+          wakeTranscriptTermRepair()
         }),
-      )
-    }),
-  )
+      ),
+      Effect.catchAll((error) =>
+        Effect.sync(() =>
+          logger.error('Could not mark the transcript term index stale', {
+            sessionId,
+            error: describeError(error),
+            reason: describeError(reason),
+          }),
+        ),
+      ),
+    )
 }
 
 /**
  * Runs a snapshot's node reconciliation with its incremental transcript-term projection, without
- * letting the derived index fail the snapshot.
+ * letting the derived index fail or delay the snapshot (ADR 0037).
  *
  * The incremental path captures the changed nodes' terms before reconciliation and applies the
- * delta after it, each inside a savepoint. A failed step, or a document count that disagrees with
- * its inverted index afterwards, rolls back only that savepoint and rebuilds the Session's index
- * exactly. Reproduced: a drifted count made the delta negative, `CHECK (token_count >= 0)` failed,
- * and the whole turn was lost.
+ * delta after it, each in a savepoint, then checks the document count against its inverted index.
+ * Reproduced: a drifted count made the delta negative, `CHECK (token_count >= 0)` failed, and the
+ * whole turn was lost. Any failure now rolls back only the projection and marks it stale.
  */
 export function reconcileWithTranscriptTermProjection<E, R>(input: {
   readonly sql: SqlClient.SqlClient
@@ -79,62 +113,112 @@ export function reconcileWithTranscriptTermProjection<E, R>(input: {
       yield* input.reconcile
       return
     }
-    const prepared = yield* sql
+    const prepareFailure = yield* sql
       .withTransaction(prepareIncrementalSessionTranscriptTerms(sql, sessionId, nodeIds))
       .pipe(
+        Effect.as(null),
+        Effect.catchAll((error) => Effect.succeed<unknown>(error)),
+      )
+    yield* input.reconcile
+    const applyFailure =
+      prepareFailure ??
+      (yield* sql
+        .withTransaction(
+          Effect.zipRight(
+            applyIncrementalSessionTranscriptTerms(sql, sessionId, nodeIds),
+            verifyDocumentCount(sql, sessionId),
+          ),
+        )
+        .pipe(
+          Effect.as(null),
+          Effect.catchAll((error) => Effect.succeed<unknown>(error)),
+        ))
+    if (applyFailure !== null) yield* markStale(sql, sessionId, applyFailure)
+  })
+}
+
+const failureBackoff = new Map<string, { readonly failures: number; readonly retryAt: number }>()
+
+function backoffDelay(failures: number) {
+  return Math.min(
+    REPAIR_BACKOFF_MAX_MS,
+    REPAIR_BACKOFF_BASE_MS *
+      REPAIR_BACKOFF_FACTOR ** Math.min(failures, REPAIR_BACKOFF_MAX_EXPONENT),
+  )
+}
+
+/**
+ * Rebuilds up to `limit` stale Session term indexes, each in its own transaction.
+ *
+ * Deleted Sessions are never selected. A failing Session backs off exponentially, so one bad
+ * Session cannot starve the others or retry on every pass.
+ */
+export function repairStaleTranscriptTermProjections(
+  sql: SqlClient.SqlClient,
+  options: { readonly limit?: number; readonly now?: number } = {},
+) {
+  return Effect.gen(function* () {
+    const now = options.now ?? Date.now()
+    const limit = options.limit ?? REPAIR_BATCH_SIZE
+    const skipped = [...failureBackoff].filter(([, entry]) => entry.retryAt > now).map(([id]) => id)
+    const rows = yield* sql<{ readonly id: string }>`
+      SELECT sessions.id FROM sessions
+      WHERE NOT EXISTS (
+          SELECT 1 FROM session_transcript_term_documents AS documents
+          WHERE documents.session_id = sessions.id
+        )
+        AND EXISTS (SELECT 1 FROM session_nodes AS nodes WHERE nodes.session_id = sessions.id)
+        AND sessions.id NOT IN (SELECT CAST(value AS TEXT) FROM json_each(${JSON.stringify(skipped)}))
+      LIMIT ${limit}
+    `
+    let repaired = 0
+    for (const { id } of rows) {
+      const ok = yield* sql.withTransaction(refreshSessionTranscriptTerms(sql, [id])).pipe(
         Effect.as(true),
         Effect.catchAll((error) =>
           Effect.sync(() => {
-            logger.warn('Transcript term capture failed; rebuilding the Session index', {
-              sessionId,
+            const failures = (failureBackoff.get(id)?.failures ?? 0) + 1
+            failureBackoff.set(id, { failures, retryAt: now + backoffDelay(failures) })
+            logger.error('Transcript term repair failed; backing off', {
+              sessionId: id,
+              failures,
               error: describeError(error),
             })
             return false
           }),
         ),
       )
-    yield* input.reconcile
-    const applied = prepared
-      ? yield* sql
-          .withTransaction(
-            Effect.zipRight(
-              applyIncrementalSessionTranscriptTerms(sql, sessionId, nodeIds),
-              verifyDocumentCount(sql, sessionId),
-            ),
-          )
-          .pipe(
-            Effect.as(true),
-            Effect.catchAll((error) =>
-              Effect.sync(() => {
-                logger.warn('Transcript term index drifted; rebuilding the Session index', {
-                  sessionId,
-                  error: describeError(error),
-                })
-                return false
-              }),
-            ),
-          )
-      : false
-    if (!applied) yield* rebuildInSavepoint(sql, sessionId)
+      if (!ok) continue
+      failureBackoff.delete(id)
+      repaired += 1
+    }
+    return { selected: rows.length, repaired }
   })
 }
 
-/** Retries index rebuilds that could not complete inside their snapshot transaction. */
-export function drainPendingTranscriptTermRebuilds(sql: SqlClient.SqlClient) {
-  return Effect.gen(function* () {
-    for (const sessionId of [...pendingTermRebuilds]) {
-      pendingTermRebuilds.delete(sessionId)
-      yield* sql.withTransaction(refreshSessionTranscriptTerms(sql, [sessionId])).pipe(
-        Effect.catchAll((error) => {
-          pendingTermRebuilds.add(sessionId)
-          return Effect.sync(() =>
-            logger.error('Deferred transcript term rebuild failed', {
-              sessionId,
-              error: describeError(error),
-            }),
-          )
+/** Test-only: forget backoff state between cases. */
+export function resetTranscriptTermRepairBackoff() {
+  failureBackoff.clear()
+}
+
+/** Host-owned background repair of stale transcript term indexes (ADR 0037). */
+export const runTranscriptTermRepairBackground = Effect.gen(function* () {
+  const sql = yield* SqlClient.SqlClient
+  const loop = Effect.gen(function* () {
+    const wake = yield* Deferred.make<void>()
+    repairWake = wake
+    const result = yield* repairStaleTranscriptTermProjections(sql).pipe(
+      Effect.catchAll((error) =>
+        Effect.sync(() => {
+          logger.error('Transcript term repair pass failed', { error: describeError(error) })
+          return { selected: 0, repaired: 0 }
         }),
-      )
+      ),
+    )
+    // A full batch may have more behind it; otherwise wait for a wake or the idle interval.
+    if (result.selected < REPAIR_BATCH_SIZE) {
+      yield* Effect.race(Deferred.await(wake), Effect.sleep(REPAIR_IDLE_INTERVAL))
     }
   })
-}
+  yield* Effect.forkScoped(Effect.forever(loop))
+})

@@ -9,6 +9,7 @@ import * as Effect from 'effect/Effect'
 import { app } from 'electron'
 import { getSourceControlCliEnv } from '../env'
 import { createLogger, getLogFilePath, sessionHostLogPathFor } from '../logger'
+import { userFacingErrorDetail } from '../utils/describe-error'
 import { redactSensitiveText } from '../utils/redact'
 import { typedHandle } from './typed-ipc'
 
@@ -131,7 +132,8 @@ function buildErrorContextSection(payload: FeedbackPayload) {
     '<details><summary>Raw error</summary>',
     '',
     '```',
-    ctx.message,
+    // The detail can carry provider output or paths; it is redacted again at the submission boundary.
+    userFacingErrorDetail(ctx.message),
     '```',
     '',
     '</details>',

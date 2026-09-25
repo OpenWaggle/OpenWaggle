@@ -1,3 +1,4 @@
+import os from 'node:os'
 import type { Message } from '@shared/types/agent'
 import { MessageId, SessionId, SupportedModelId } from '@shared/types/brand'
 import * as Effect from 'effect/Effect'
@@ -184,6 +185,44 @@ describe('recoverAgentRunFailure', () => {
       expect.objectContaining({
         error: expect.stringContaining('CHECK constraint failed'),
       }),
+    )
+  })
+
+  it('classifies a provider termination exactly, as before tagged-error handling', async () => {
+    const result = await Effect.runPromise(
+      recoverAgentRunFailure({ ...context, error: new Error('terminated'), reachedAgent: true }),
+    )
+
+    expect(result).toMatchObject({ outcome: 'error', code: 'provider-unavailable' })
+  })
+
+  it('does not report a turn as unsaved when a later projection write fails', async () => {
+    // The snapshot committed; only anchoring the turn checkpoint failed afterwards.
+    const error = new SessionProjectionRepositoryError({ operation: 'setTurnCheckpointAnchor' })
+
+    const result = await Effect.runPromise(
+      recoverAgentRunFailure({ ...context, error, reachedAgent: true }),
+    )
+
+    expect(result).toMatchObject({ outcome: 'error', code: 'unknown' })
+  })
+
+  it('redacts credentials and abbreviates the home directory in published detail', async () => {
+    loggerErrorMock.mockClear()
+    const home = os.homedir()
+    const error = new Error(`request to ${home}/project failed: Bearer abcdef0123456789secret`)
+
+    const result = await Effect.runPromise(recoverAgentRunFailure({ ...context, error }))
+
+    expect(result).toMatchObject({ outcome: 'error' })
+    if (result.outcome !== 'error') throw new Error('Expected an error outcome')
+    expect(result.message).not.toContain('abcdef0123456789secret')
+    expect(result.message).not.toContain(home)
+    expect(result.message).toContain('~/project')
+    // The Host log keeps the full detail for diagnosis.
+    expect(loggerErrorMock).toHaveBeenCalledWith(
+      'Agent run failed before terminal transport event',
+      expect.objectContaining({ error: expect.stringContaining('abcdef0123456789secret') }),
     )
   })
 
