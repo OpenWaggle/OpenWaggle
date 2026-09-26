@@ -739,8 +739,22 @@
     }
   }
 
+  @keyframes transcript-skeleton-enter {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
   .session-tree-row-enter {
     animation: session-tree-row-enter 140ms ease-out both;
+  }
+
+  /* A slow Session load fades its skeleton in rather than popping it (ADR 0036). */
+  .transcript-skeleton-enter {
+    animation: transcript-skeleton-enter 200ms ease-out both;
   }
 
   .session-summary-panel-enter {

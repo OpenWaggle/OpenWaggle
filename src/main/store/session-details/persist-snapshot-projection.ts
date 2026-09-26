@@ -4,10 +4,6 @@ import type {
   PersistSessionSnapshotInput,
   ProjectedSessionNodeInput,
 } from '../../ports/session-repository'
-import {
-  applyIncrementalSessionTranscriptTerms,
-  prepareIncrementalSessionTranscriptTerms,
-} from '../../services/session-transcript-term-incremental-projection'
 import { getBranchStateValue } from './branch-state'
 import {
   EXPANDED_NODE_IDS_DEFAULT_JSON,
@@ -20,6 +16,7 @@ import {
   searchProjectionChanged,
   transcriptTermProjectionNodeIds,
 } from './snapshot-transcript-term-changes'
+import { reconcileWithTranscriptTermProjection } from './snapshot-transcript-term-projection'
 import type {
   DerivedSessionBranch,
   SessionActiveRunRow,
@@ -277,18 +274,15 @@ export function replaceSnapshotProjection(input: SnapshotProjectionInput) {
       existingNodes: input.existingNodes,
       nodes: input.nodes,
     })
-    yield* prepareIncrementalSessionTranscriptTerms(
-      input.sql,
-      input.input.sessionId,
-      termProjectionNodeIds,
-    )
-    yield* deleteSnapshotBranchProjection(input.sql, input.input.sessionId)
-    yield* reconcileSnapshotNodes(input)
-    yield* applyIncrementalSessionTranscriptTerms(
-      input.sql,
-      input.input.sessionId,
-      termProjectionNodeIds,
-    )
+    yield* reconcileWithTranscriptTermProjection({
+      sql: input.sql,
+      sessionId: input.input.sessionId,
+      nodeIds: termProjectionNodeIds,
+      reconcile: Effect.zipRight(
+        deleteSnapshotBranchProjection(input.sql, input.input.sessionId),
+        reconcileSnapshotNodes(input),
+      ),
+    })
     for (const branch of input.branches) {
       yield* insertSnapshotBranch({
         sql: input.sql,

@@ -113,6 +113,28 @@ function useHeaderGit(activeSessionId: SessionId | null) {
   return { git, commitOpen, setCommitOpen, handleRefreshGit, handleCommitGit }
 }
 
+/**
+ * The selected Session's title, never another Session's.
+ *
+ * The Session tree and detail both refresh asynchronously after a switch, and reading the stale
+ * tree first showed the previous Session's title over the new transcript. The sidebar catalog
+ * already holds the selected Session's title at the moment of the switch (ADR 0036).
+ */
+function headerTitle(input: {
+  readonly activeSessionId: SessionId | null
+  readonly activeSession: { readonly id: SessionId; readonly title: string } | null
+  readonly activeSessionTree: { readonly session: SessionSummary } | null
+  readonly sessions: readonly SessionSummary[]
+}) {
+  const { activeSessionId } = input
+  if (!activeSessionId) return 'New session'
+  if (input.activeSessionTree?.session.id === activeSessionId) {
+    return input.activeSessionTree.session.title
+  }
+  if (input.activeSession?.id === activeSessionId) return input.activeSession.title
+  return input.sessions.find((session) => session.id === activeSessionId)?.title ?? 'New session'
+}
+
 export function Header() {
   const { activeSession, activeSessionId } = useChat()
   const { activeSessionTree, archivedSessions, sessions } = useSessions()
@@ -135,7 +157,7 @@ export function Header() {
   const toggleSessionSummary = useSessionSummaryUIStore((state) => state.togglePanel)
   useSessionSummaryToggleFocus(activeSessionKey, sessionSummaryPanel)
 
-  const title = activeSessionTree?.session.title ?? activeSession?.title ?? 'New session'
+  const title = headerTitle({ activeSessionId, activeSession, activeSessionTree, sessions })
   const currentSessionIdentity = sessionIdentity(
     [...(activeSessionTree ? [activeSessionTree.session] : []), ...sessions, ...archivedSessions],
     activeSessionId,

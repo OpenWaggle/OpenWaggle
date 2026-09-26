@@ -1,7 +1,10 @@
 import * as Effect from 'effect/Effect'
-import { classifyAgentError, makeErrorInfo } from '../../agent/error-classifier'
+import type { classifyAgentError } from '../../agent/error-classifier'
+import { makeErrorInfo } from '../../agent/error-classifier'
 import { createLogger } from '../../logger'
 import type { AgentKernelRunResult } from '../../ports/agent-kernel-service'
+import { userFacingErrorDetail } from '../../utils/describe-error'
+import { classifyRunFailure } from '../agent-run/outcome'
 import { isRunCancellation } from '../run-cancellation'
 import type { PersistedRunResourceNodes } from '../session-resource-node-mapping'
 
@@ -19,7 +22,7 @@ export function waggleSessionNotFoundOutcome() {
   const errorInfo = makeErrorInfo('session-not-found', 'Session not found')
   return {
     outcome: 'not-found' as const,
-    message: errorInfo.userMessage,
+    message: errorInfo.message,
     code: errorInfo.code,
   }
 }
@@ -75,17 +78,18 @@ export function recoverWaggleRunFailure(
     if (isRunCancellation(failure.error, failure.input.signal)) {
       return { outcome: 'aborted' }
     }
-    const classified = classifyAgentError(failure.error)
     const reachedAgent = failure.reachedAgent()
+    const { classified, detail } = classifyRunFailure(failure.error, reachedAgent)
     logger.error('Waggle run failed', {
       sessionId: String(failure.input.sessionId),
       runId: failure.input.runId,
       code: classified.code,
       reachedAgent,
+      error: detail,
     })
     return {
       outcome: 'error' as const,
-      message: classified.userMessage,
+      message: userFacingErrorDetail(classified.message),
       code: classified.code,
       ...(reachedAgent ? { transportEmitted: true } : {}),
     }
