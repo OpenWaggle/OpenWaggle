@@ -24,7 +24,9 @@ import {
   SETTINGS_KEY_MULTI_AGENT_ENABLED_BY_PROJECT,
   SETTINGS_KEY_PROJECT_DISPLAY_NAMES,
   SETTINGS_KEY_PROJECT_PATH,
+  SETTINGS_KEY_PROJECT_PATH_ALIASES,
   SETTINGS_KEY_RECENT_PROJECTS,
+  SETTINGS_KEY_SELECTED_MODELS_BY_PROJECT,
   SETTINGS_KEY_SESSION_HOST_IDLE_GRACE_PERIOD_MS,
   SETTINGS_KEY_SESSION_HOST_PARENT_CONCURRENCY_LIMIT,
   SETTINGS_KEY_SESSION_HOST_PARENT_CONCURRENCY_LIMITS_BY_PROJECT,
@@ -37,10 +39,7 @@ import {
 } from './keys'
 import { appendThinkingLevelWrite } from './thinking-level-persistence'
 
-export interface SettingsPatchWrite {
-  readonly key: string
-  readonly value: unknown
-}
+export type SettingsPatchWrite = { readonly key: string; readonly value: unknown }
 
 function appendChangedSetting(
   writes: SettingsPatchWrite[],
@@ -176,6 +175,18 @@ function appendGeneralSettingsWrites(
   )
   appendChangedSetting(
     writes,
+    partial.selectedModelsByProject !== undefined,
+    SETTINGS_KEY_SELECTED_MODELS_BY_PROJECT,
+    next.selectedModelsByProject,
+  )
+  appendChangedSetting(
+    writes,
+    partial.projectPathAliases !== undefined,
+    SETTINGS_KEY_PROJECT_PATH_ALIASES,
+    next.projectPathAliases,
+  )
+  appendChangedSetting(
+    writes,
     partial.shortcutBindings !== undefined || partial.shortcutRules !== undefined,
     SETTINGS_KEY_SHORTCUT_BINDINGS,
     next.shortcutBindings,
@@ -197,6 +208,18 @@ function appendGeneralSettingsWrites(
     partial.defaultAuthorizationMode !== undefined,
     SETTINGS_KEY_DEFAULT_AUTHORIZATION_MODE,
     next.defaultAuthorizationMode,
+  )
+  appendChangedSetting(
+    writes,
+    partial.compactionThresholdPercent !== undefined,
+    SETTINGS_KEY_COMPACTION_THRESHOLD_PERCENT,
+    next.compactionThresholdPercent,
+  )
+  appendChangedSetting(
+    writes,
+    partial.appearancePreferences !== undefined,
+    SETTINGS_KEY_APPEARANCE_PREFERENCES,
+    next.appearancePreferences,
   )
 }
 
@@ -280,18 +303,6 @@ export function collectSettingsPatchWrites(partial: Partial<Settings>, next: Set
   appendGeneralSettingsWrites(writes, partial, next)
   appendDiffSettingsWrites(writes, partial, next)
   appendSessionHostSettingsWrites(writes, partial, next)
-  appendChangedSetting(
-    writes,
-    partial.compactionThresholdPercent !== undefined,
-    SETTINGS_KEY_COMPACTION_THRESHOLD_PERCENT,
-    next.compactionThresholdPercent,
-  )
-  appendChangedSetting(
-    writes,
-    partial.appearancePreferences !== undefined,
-    SETTINGS_KEY_APPEARANCE_PREFERENCES,
-    next.appearancePreferences,
-  )
   appendBrowserSettingsWrites(writes, partial, next)
 
   return writes

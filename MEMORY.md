@@ -390,6 +390,11 @@ Recording is a main/renderer protocol, not merely a `desktopCapturer` grant: suc
 - Do not rely on the browser repainting `<option>` text before a native select popup opens. The popup
   is drawn outside the DOM, so neither jsdom nor Playwright can observe what it shows, and a lost race
   can render two options with identical text. Use one label vocabulary instead.
+- The selected model is app-DB state, never repo state. `.openwaggle/settings.json` lives inside the
+  user's repository, so a personal model pick committed there leaks machine-specific provider config;
+  it is stored as `selectedModelsByProject` in the SQLite `settings_store` instead, and the project
+  file writer strips any legacy `preferences.model` on write. `thinkingLevel` and `authorizationMode`
+  stay repo-local by design.
 
 ## Tooling Memory
 

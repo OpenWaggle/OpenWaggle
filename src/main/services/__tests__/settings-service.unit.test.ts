@@ -9,6 +9,9 @@ const {
   updateSettingsDurablyMock,
   updateSkillToggleDurablyMock,
   updateAgentDefinitionToggleDurablyMock,
+  updateSelectedModelDurablyMock,
+  migrateSelectedModelDurablyMock,
+  deleteSelectedModelDurablyMock,
   initializeSettingsStoreMock,
   refreshSettingsStoreMock,
   flushSettingsStoreMock,
@@ -20,6 +23,9 @@ const {
   updateSettingsDurablyMock: vi.fn(),
   updateSkillToggleDurablyMock: vi.fn(),
   updateAgentDefinitionToggleDurablyMock: vi.fn(),
+  updateSelectedModelDurablyMock: vi.fn(),
+  migrateSelectedModelDurablyMock: vi.fn(),
+  deleteSelectedModelDurablyMock: vi.fn(),
   initializeSettingsStoreMock: vi.fn(),
   refreshSettingsStoreMock: vi.fn(),
   flushSettingsStoreMock: vi.fn(),
@@ -41,6 +47,9 @@ vi.mock('../../store/settings', () => ({
   updateSettingsDurably: updateSettingsDurablyMock,
   updateSkillToggleDurably: updateSkillToggleDurablyMock,
   updateAgentDefinitionToggleDurably: updateAgentDefinitionToggleDurablyMock,
+  updateSelectedModelDurably: updateSelectedModelDurablyMock,
+  migrateSelectedModelDurably: migrateSelectedModelDurablyMock,
+  deleteSelectedModelDurably: deleteSelectedModelDurablyMock,
   initializeSettingsStore: initializeSettingsStoreMock,
   refreshSettingsStore: refreshSettingsStoreMock,
   flushSettingsStoreForTests: flushSettingsStoreMock,
@@ -193,6 +202,56 @@ describe('SettingsService.Live', () => {
       'reviewer',
       false,
     )
+    expect(updateSettingsDurablyMock).not.toHaveBeenCalled()
+  })
+
+  it('delegates project model writes to the queue-safe durable model operation', async () => {
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const service = yield* SettingsService
+        if (service.setProjectModel === undefined) {
+          throw new Error('Missing queue-safe project model updates')
+        }
+        yield* service.setProjectModel('/tmp/project', 'openai/gpt-4.1')
+        yield* service.setProjectModel('/tmp/project', null)
+      }).pipe(Effect.provide(SettingsService.Live)),
+    )
+    expect(updateSelectedModelDurablyMock).toHaveBeenNthCalledWith(
+      1,
+      '/tmp/project',
+      'openai/gpt-4.1',
+    )
+    expect(updateSelectedModelDurablyMock).toHaveBeenNthCalledWith(2, '/tmp/project', null)
+    expect(updateSettingsDurablyMock).not.toHaveBeenCalled()
+  })
+
+  it('delegates legacy model migration to the queue-safe insert-if-absent operation', async () => {
+    migrateSelectedModelDurablyMock.mockResolvedValue(true)
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const service = yield* SettingsService
+        if (service.migrateProjectModel === undefined) {
+          throw new Error('Missing queue-safe legacy model migration')
+        }
+        const inserted = yield* service.migrateProjectModel('/tmp/project', 'legacy/file')
+        expect(inserted).toBe(true)
+      }).pipe(Effect.provide(SettingsService.Live)),
+    )
+    expect(migrateSelectedModelDurablyMock).toHaveBeenCalledWith('/tmp/project', 'legacy/file')
+    expect(updateSettingsDurablyMock).not.toHaveBeenCalled()
+  })
+
+  it('delegates project model removal to the queue-safe durable delete', async () => {
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const service = yield* SettingsService
+        if (service.removeProjectModel === undefined) {
+          throw new Error('Missing queue-safe project model removal')
+        }
+        yield* service.removeProjectModel('/tmp/project')
+      }).pipe(Effect.provide(SettingsService.Live)),
+    )
+    expect(deleteSelectedModelDurablyMock).toHaveBeenCalledWith('/tmp/project')
     expect(updateSettingsDurablyMock).not.toHaveBeenCalled()
   })
 

@@ -45,10 +45,10 @@ describe('project config integration', () => {
       'utf-8',
     )
 
-    await setProjectPreferences(projectPath, { model: 'openai/gpt-4.1' })
+    await setProjectPreferences(projectPath, { thinkingLevel: 'high' })
 
     const config = await loadProjectConfig(projectPath)
-    expect(config.preferences).toEqual({ model: 'openai/gpt-4.1' })
+    expect(config.preferences).toEqual({ thinkingLevel: 'high' })
     expect(config.pi).toEqual({ compaction: { enabled: false } })
   })
 })

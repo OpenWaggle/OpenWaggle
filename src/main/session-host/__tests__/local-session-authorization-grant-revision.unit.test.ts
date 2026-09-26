@@ -19,7 +19,7 @@ import { negotiateLocalSessionProtocol } from '../local-session-negotiation'
 
 describe('Local Session authorization grant revision', () => {
   it.each(['authorization-grants:grant', 'authorization-grants:revoke'])(
-    'requires revision ten for %s on both client and Host',
+    'requires a revision-seventeen Host for %s on both client and Host',
     (channel) => {
       const payload = decodeLocalSessionCommandPayload({
         contract: 'host-ui-v1',
@@ -38,8 +38,8 @@ describe('Local Session authorization grant revision', () => {
       })
 
       expect(supportedRevisionsForCommand(payload)).toEqual([17])
-      expect(() => decodeLocalSessionCommandPayloadForRevision(payload, 9)).toThrow(/revision 10/)
-      expect(decodeLocalSessionCommandPayloadForRevision(payload, 10)).toEqual(payload)
+      expect(() => decodeLocalSessionCommandPayloadForRevision(payload, 16)).toThrow(/revision 17/)
+      expect(decodeLocalSessionCommandPayloadForRevision(payload, 17)).toEqual(payload)
     },
   )
 

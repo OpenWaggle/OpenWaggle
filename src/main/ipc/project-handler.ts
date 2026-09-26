@@ -1,3 +1,4 @@
+import fs from 'node:fs/promises'
 import * as Effect from 'effect/Effect'
 import type { OpenDialogOptions } from 'electron'
 import { listGrantsForProject } from '../application/agent-authorization-grants'
@@ -5,8 +6,11 @@ import {
   grantProjectAuthorizationOperation,
   revokeProjectAuthorizationOperation,
 } from '../application/project-authorization-grant-operation'
-import { setProjectPreferencesOperation } from '../application/project-preferences-operation'
-import { getProjectPreferencesStrict } from '../config/project-config'
+import { removeProjectModelOperation } from '../application/project-model-removal-operation'
+import {
+  getProjectPreferencesOperation,
+  setProjectPreferencesOperation,
+} from '../application/project-preferences-operation'
 import { browserWindowFromWebContents, showMessageBox, showOpenDialog } from '../desktop-ui'
 import { validateProjectPath } from './project-path-validation'
 import { hostHandle, typedHandle } from './typed-ipc'
@@ -29,23 +33,26 @@ export function registerProjectHandlers(): void {
         return null
       }
 
-      return result.filePaths[0] ?? null
+      const pickedPath = result.filePaths[0] ?? null
+      if (!pickedPath) return null
+      // Store the canonical path so later project-model reads, writes, and removals all key the
+      // same identity even when the user picked the folder through a symlink.
+      return yield* Effect.promise(() => fs.realpath(pickedPath).catch(() => pickedPath))
     }),
   )
 
-  typedHandle('project-config:get-preferences', (_event, projectPath: string) =>
-    Effect.gen(function* () {
-      const validatedProjectPath = yield* validateProjectPath(projectPath)
-      if (!validatedProjectPath) {
-        return null
-      }
-      const prefs = yield* Effect.promise(() => getProjectPreferencesStrict(validatedProjectPath))
-      return prefs ?? null
-    }),
+  hostHandle('project-config:get-preferences', (_event, projectPath: string) =>
+    getProjectPreferencesOperation(projectPath),
   )
 
   hostHandle('project-config:set-preferences', (_event, projectPath: string, preferences) =>
     setProjectPreferencesOperation(projectPath, preferences),
+  )
+
+  hostHandle(
+    'project-config:remove-project-model',
+    (_event, projectPath: string, remainingProjectPaths?: readonly string[]) =>
+      removeProjectModelOperation(projectPath, remainingProjectPaths),
   )
 
   typedHandle('authorization-grants:list', (_event, projectPath: string) =>

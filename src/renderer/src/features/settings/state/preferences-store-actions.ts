@@ -26,25 +26,19 @@ import {
 import { createBrowserAndScalarPreferencesActions } from './browser-preferences-actions'
 import type { PreferencesActions, PreferencesGet, PreferencesSet } from './preferences-store-types'
 import { createProjectHivePreferencesActions } from './project-hive-preferences-actions'
+import {
+  persistProjectPreference,
+  removeModelAndReferences,
+  removeProjectModelTracked,
+} from './project-preference-writes'
 
-const logger = createRendererLogger('preferences')
 const MAX_FAVORITE_MODELS = 100
 const MAX_RECENT_PROJECTS = 10
+const logger = createRendererLogger('preferences')
 let syntaxThemeWriteQueue = Promise.resolve()
 
 function mergeSettings(set: PreferencesSet, patch: Partial<Settings>) {
   set((state) => ({ settings: { ...state.settings, ...patch } }))
-}
-
-function persistProjectPreference(
-  projectPath: string | null,
-  prefs: { model?: string; thinkingLevel?: string },
-) {
-  if (projectPath) {
-    api.setProjectPreferences(projectPath, prefs).catch((err: unknown) => {
-      logger.warn('Failed to persist project preferences', { error: String(err) })
-    })
-  }
 }
 
 function appendRecentProject(paths: readonly string[], path: string) {
@@ -104,7 +98,11 @@ async function setEnabledModels(models: string[], set: PreferencesSet, get: Pref
   await api.setEnabledModels(enabledModels)
   if (selectedModel !== settings.selectedModel) {
     await api.updateSettings({ selectedModel })
-    persistProjectPreference(settings.projectPath, { model: selectedModel })
+    persistProjectPreference(settings.projectPath, { model: selectedModel }, set, get).catch(
+      (err: unknown) => {
+        logger.warn('Failed to persist project preferences', { error: String(err) })
+      },
+    )
   }
   mergeSettings(set, { enabledModels, selectedModel })
 }
@@ -211,7 +209,9 @@ export function createPreferencesActions(
       const { settings } = get()
       await api.updateSettings({ selectedModel: model })
       mergeSettings(set, { selectedModel: model })
-      persistProjectPreference(settings.projectPath, { model })
+      persistProjectPreference(settings.projectPath, { model }, set, get).catch((err: unknown) => {
+        logger.warn('Failed to persist project preferences', { error: String(err) })
+      })
     },
     toggleFavoriteModel: async (model) => {
       const trimmed = model.trim()
@@ -247,7 +247,11 @@ export function createPreferencesActions(
       const { settings } = get()
       await api.updateSettings({ thinkingLevel: preset })
       mergeSettings(set, { thinkingLevel: preset })
-      persistProjectPreference(settings.projectPath, { thinkingLevel: preset })
+      persistProjectPreference(settings.projectPath, { thinkingLevel: preset }, set, get).catch(
+        (err: unknown) => {
+          logger.warn('Failed to persist project preferences', { error: String(err) })
+        },
+      )
     },
     setEnabledModels: (models) => setEnabledModels(models, set, get),
     setProjectDisplayName: async (path, name) => {
@@ -273,17 +277,23 @@ export function createPreferencesActions(
       mergeSettings(set, { projectDisplayNames })
     },
     removeProjectReferences: async (path) => {
+      // Any in-flight model write for this project is awaited first so the deletion cannot be
+      // overtaken by it and resurrected afterwards. The deletion itself runs BEFORE the project
+      // disappears from the renderer state: if it fails, the entry stays visible and retryable
+      // instead of silently abandoning the stored model.
       const { settings } = get()
       const recentProjects = settings.recentProjects.filter((projectPath) => projectPath !== path)
       const { [path]: _displayName, ...projectDisplayNames } = settings.projectDisplayNames
       const { [path]: _skillToggles, ...skillTogglesByProject } = settings.skillTogglesByProject
       const projectPath = settings.projectPath === path ? null : settings.projectPath
-      await api.updateSettings({
-        projectPath,
-        recentProjects,
-        projectDisplayNames,
-        skillTogglesByProject,
-      })
+      await removeProjectModelTracked(path, () =>
+        removeModelAndReferences(path, {
+          projectPath,
+          recentProjects,
+          projectDisplayNames,
+          skillTogglesByProject,
+        }),
+      )
       mergeSettings(set, {
         projectPath,
         recentProjects,

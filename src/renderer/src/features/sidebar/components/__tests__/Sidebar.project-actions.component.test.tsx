@@ -22,6 +22,7 @@ const { apiMock, navigateMock, routerState } = vi.hoisted(() => ({
     getGitStatus: vi.fn(),
     getProjectPreferences: vi.fn(),
     getProviderModels: vi.fn(),
+    removeProjectModel: vi.fn().mockResolvedValue('/repo/openwaggle'),
     listActiveRuns: vi.fn(),
     listGitBranches: vi.fn(),
     listSessionsByIds: vi.fn(),
@@ -330,6 +331,7 @@ describe('Sidebar project actions', () => {
         projectDisplayNames: {},
         skillTogglesByProject: {},
       })
+      expect(apiMock.removeProjectModel).toHaveBeenCalledWith(PROJECT_PATH, [])
       expect(useChatStore.getState().activeSessionId).toBeNull()
       expect(navigateMock).toHaveBeenCalledWith({ to: '/' })
     })
