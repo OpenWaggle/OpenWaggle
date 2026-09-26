@@ -26,6 +26,9 @@ const mocks = vi.hoisted(() => {
       order.push('initialize-settings')
     }),
     applyInstallerIntent: vi.fn(async () => null),
+    initFileLogger: vi.fn(async () => void order.push('init-logger')),
+    drainFileLogger: vi.fn(async () => void order.push('drain-logger')),
+    hostLogError: vi.fn(),
     legacyFence: vi.fn((operation: () => Promise<unknown>) => operation()),
     sourceExists: vi.fn(async () => false),
     startHost: vi.fn<() => Promise<TestHost>>(async () => {
@@ -57,6 +60,15 @@ vi.mock('../installer-update-channel-intent', () => ({
   applyInstallerUpdateChannelIntent: mocks.applyInstallerIntent,
 }))
 vi.mock('../session-data', () => ({ configureAppStoragePaths: vi.fn() }))
+vi.mock('../logger', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../logger')>()
+  const createLogger = (name: string) =>
+    name === 'session-host-cli'
+      ? { ...original.createLogger(name), error: mocks.hostLogError }
+      : original.createLogger(name)
+  const { initFileLogger, drainFileLogger } = mocks
+  return { ...original, initFileLogger, drainFileLogger, createLogger }
+})
 vi.mock('../session-host/legacy-session-writer-fence', () => ({
   withLegacySessionWriterFence: mocks.legacyFence,
 }))
@@ -127,6 +139,15 @@ describe('detached Session Host startup', () => {
     mocks.legacyFence.mockClear()
     mocks.sourceExists.mockReset().mockResolvedValue(false)
     mocks.startHost.mockClear()
+    mocks.initFileLogger.mockClear()
+  })
+
+  // ADR 0037: the detached Host's console reaches nothing, so its failures need a file of their own.
+  it('writes its logs to a Session Host log file in the app logs directory', async () => {
+    expect(startSessionHostCliIfRequested(['session-host-internal'])).toBe(true)
+    await vi.waitFor(() => expect(mocks.exit).toHaveBeenCalledWith(0))
+
+    expect(mocks.initFileLogger).toHaveBeenCalledWith('/tmp/openwaggle-profile', 'openwaggle-host')
   })
 
   it('owns the canonical store before inspecting it or initializing persistence', async () => {
@@ -135,6 +156,7 @@ describe('detached Session Host startup', () => {
     await vi.waitFor(() => expect(mocks.exit).toHaveBeenCalledWith(0))
 
     expect(mocks.order).toEqual([
+      'init-logger',
       'acquire-ownership',
       'inspect-database',
       'prepare-database',
@@ -144,6 +166,7 @@ describe('detached Session Host startup', () => {
       'host-stopped',
       'dispose-runtime',
       'release-ownership',
+      'drain-logger',
     ])
     expect(mocks.startHost).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -168,13 +191,21 @@ describe('detached Session Host startup', () => {
     await vi.waitFor(() => expect(mocks.exit).toHaveBeenCalledWith(1))
 
     expect(mocks.order).toEqual([
+      'init-logger',
       'acquire-ownership',
       'inspect-database',
       'prepare-database',
       'initialize-runtime',
       'dispose-runtime',
       'release-ownership',
+      'drain-logger',
     ])
+    // Review finding: this failure only reached the detached Host's ignored stderr.
+    const fatal = { error: 'Error: migration failed' }
+    expect(mocks.hostLogError).toHaveBeenCalledWith(
+      'Session Host stopped on an unrecoverable error',
+      fatal,
+    )
   })
 
   it('initializes a fresh profile without acquiring the legacy desktop writer fence', async () => {

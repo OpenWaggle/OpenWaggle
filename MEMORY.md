@@ -141,6 +141,14 @@ Load `.agents/skills/electron-runtime/SKILL.md` for details.
 
 ## Renderer And Session Memory
 
+- The transcript window is addressed by row key, never by a count of hidden rows (ADR 0036, superseding ADR 0022). A count set at mount sliced unrelated lists: a branch switch from 400 to 60 messages showed one row, and a window mounted before hydration built every row. Reconcile the window during render so a changed list never paints a frame of the old window, and key the viewport by Session and branch.
+- All transcript scroll rules live in `transcript-viewport-controller.ts` behind a geometry interface; test rules there, not in jsdom. A browser clamp from shrinking content fires a scroll event that must not read as the reader scrolling up; resting exactly at the end always rejoins the live end.
+- Reading positions are saved per (Session, branch) as a row key plus viewport offset (`openwaggle:transcript-reading-positions:v2`). Pixel offsets landed on different messages once the window reopened at its newest rows.
+- A just-completed turn's optimistic user message is replaced by its persisted node under a new id, so anything keyed by user message id (fold expansion) must alias the pair; `turn-fold-aliases.ts` does this from the live list's `metadata.sessionNodeId`. Assistant messages from the stream also change id on the snapshot refresh, which remounts that turn's rows once.
+- Keep row-level props identity-stable across streamed tokens: rebuild derived messages only when their source changes, and keep the row render context and context-provider values stable by content. A context value rebuilt per render re-renders every consumer in every mounted row on every token.
+- Judge renderer performance on a production build (`electron-vite build` then `electron-vite preview`). Dev builds made 140-row streaming look janky (p95 frame 117ms) while production stayed at 9-10ms.
+- When counting re-rendered components from `onCommitFiberRoot`, skip subtrees whose `child` equals `alternate.child`: React reused them, and their `PerformedWork` flags are stale. Counting them overstated per-token renders by about 5x.
+
 - Composer editing must wait until the selected Session workspace and its scoped draft context are applied. Session detail can arrive earlier; accepting input in that gap lets workspace hydration replace a new draft. A new-session composer does not require a workspace.
 - Persisted Session draft keys use the matching workspace's canonical nullable project path, not asynchronously updated global project preferences. Otherwise a late preference update can clear text after the composer is already editable. Branch-summary prompts capture that nullable owner at creation. Keep exact draft/prompt identity through preference reads, summarization, and final workspace refresh before restoring or clearing a draft. Only new-Session drafts follow the global selected project.
 - Branch-from-message must resolve a canonical node in the active Session before creating a draft. User retries use that node's real parent, including hidden nodes; a missing projection is not a root-user node. Reconciled optimistic rows retain their UI IDs, so their canonical `sessionNodeCreatedOrder` metadata can identify the persisted node. Late workspace reads must not replace a different Session, route, or draft selected meanwhile.
@@ -384,6 +392,9 @@ Recording is a main/renderer protocol, not merely a `desktopCapturer` grant: suc
   can render two options with identical text. Use one label vocabulary instead.
 
 ## Tooling Memory
+
+- The detached Session Host (ADR 0030) runs agents with its console on `/dev/null`; it writes `openwaggle-host-YYYY-MM-DD.log` beside the GUI log (ADR 0037). Look there for run and persistence failures, not in the GUI log. Tagged Effect errors such as `SessionProjectionRepositoryError` have an empty `message`; format them with `describeError`, which follows `cause` through `FiberFailure`.
+- Seeded QA sessions written straight to SQLite have no Pi session file. A run in one persists Pi's snapshot, which does not contain the seeded nodes and replaces them. Seed fresh fixtures for each run that sends a message, or use app-created Sessions.
 
 - Package manager: `pnpm`.
 - Release branch synchronization must use fetched Git ancestry, not only GitHub's `mergeStateStatus == BEHIND`: `UNKNOWN` or `BLOCKED` can conceal a stale branch immediately after a main push. Validate a stale candidate's version-only change against its unique merge base before syncing, then validate against pinned current main and recheck ancestry after CI. Otherwise legitimate main manifest changes fail the release guard before synchronization.

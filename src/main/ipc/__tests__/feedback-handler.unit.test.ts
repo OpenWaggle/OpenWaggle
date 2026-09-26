@@ -29,10 +29,6 @@ vi.mock('../../logger', () => ({
   getLogFilePath: () => '',
 }))
 
-vi.mock('../../utils/redact', () => ({
-  redactSensitiveText: (v: string) => v,
-}))
-
 import { registerFeedbackHandlers } from '../feedback-handler'
 
 describe('feedback-handler', () => {
@@ -159,6 +155,40 @@ describe('feedback-handler', () => {
       expect(result).toContain('## Error Context')
       expect(result).toContain('rate-limited')
       expect(result).toContain('Too many requests')
+    })
+
+    // Raw error detail can carry provider output; it is redacted before it can reach an issue.
+    it('redacts credentials in the raw error before it reaches the report', async () => {
+      registerFeedbackHandlers()
+      const handler = handlers.get('feedback:generate-markdown')
+
+      const result = fromAny<string, unknown>(
+        await handler?.(
+          {},
+          {
+            title: 'Error report',
+            description: '',
+            category: 'bug',
+            includeSystemInfo: false,
+            includeLogs: false,
+            includeErrorContext: true,
+            includeLastMessage: false,
+            includeModelInfo: false,
+            lastErrorContext: {
+              code: 'unknown',
+              message:
+                'upstream said: Authorization: Bearer abcdef0123456789secret ANTHROPIC_API_KEY=abcdef1234567890 API key: xyz9876543210',
+              userMessage: 'Something went wrong',
+              retryable: true,
+            },
+          },
+        ),
+      )
+
+      expect(result).not.toContain('abcdef0123456789secret')
+      expect(result).toContain('Bearer [REDACTED_TOKEN]')
+      expect(result).not.toContain('abcdef1234567890')
+      expect(result).not.toContain('xyz9876543210')
     })
 
     it('includes model info when provided', async () => {

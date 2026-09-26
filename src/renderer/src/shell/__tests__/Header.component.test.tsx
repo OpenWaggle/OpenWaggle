@@ -38,6 +38,7 @@ const headerMocks = vi.hoisted(() => {
     useArchivedSession: false,
     useIndependentSession: false,
     useWorkerSession: false,
+    staleTreeFromPreviousSession: false,
   }
 })
 
@@ -146,8 +147,10 @@ vi.mock('@/features/sessions/hooks', () => ({
         headerMocks.useArchivedSession && !headerMocks.omitSessionFromCatalog ? [session] : [],
       activeSessionTree: {
         session: {
-          id: SessionId('session-1'),
-          title: 'Session title',
+          id: SessionId(
+            headerMocks.staleTreeFromPreviousSession ? 'session-previous' : 'session-1',
+          ),
+          title: headerMocks.staleTreeFromPreviousSession ? 'Previous session' : 'Session title',
           projectPath: headerMocks.projectPath,
           createdAt: 1,
           updatedAt: 2,
@@ -200,6 +203,17 @@ describe('Header', () => {
     headerMocks.useIndependentSession = false
     headerMocks.useWorkerSession = false
     headerMocks.omitSessionFromCatalog = false
+    headerMocks.staleTreeFromPreviousSession = false
+  })
+
+  // ADR 0036: the tree refreshes after a switch, and reading it first titled the new transcript
+  // with the previous Session's name.
+  it('never shows the previous Session title while the new Session tree loads', () => {
+    headerMocks.staleTreeFromPreviousSession = true
+    render(<Header />)
+
+    expect(screen.queryByText('Previous session')).not.toBeInTheDocument()
+    expect(screen.getByText('Fallback title')).toBeInTheDocument()
   })
 
   it('renders session/project context and wires app-level controls', async () => {

@@ -1,6 +1,6 @@
 # A Transcript Opens From Its Newest End
 
-Status: accepted (performance)
+Status: superseded by ADR 0036 (bounded sliding transcript window)
 
 A session's transcript renders its newest 40 rows, with a control that reaches further back 100 rows at a time. The window resets to the newest rows whenever the open session changes.
 

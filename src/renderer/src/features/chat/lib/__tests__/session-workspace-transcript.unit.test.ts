@@ -104,6 +104,26 @@ function activeNodeIdCreatedOrder(nodes: readonly SessionNode[], activeNodeId: S
 }
 
 describe('resolveTranscriptMessages', () => {
+  /*
+   * Every render used to rebuild every message, so each streamed token re-rendered every mounted
+   * message bubble. An unchanged message must keep its identity across renders.
+   */
+  it('keeps unchanged messages identical across renders so their rows can bail out', () => {
+    const first = sessionNode('node-a', null, 'user', 'Question', 0)
+    const second = sessionNode('node-b', 'node-a', 'assistant', 'Answer', 1)
+    const workspace = workspaceWithPath([first, second], second.id, second.id)
+    const live = uiMessage('node-a', 'user', 'Question')
+    const input = { activeSessionId: SESSION_DETAIL_ID, activeWorkspace: workspace }
+
+    const before = resolveTranscriptMessages({ ...input, messages: [live] })
+    const after = resolveTranscriptMessages({ ...input, messages: [live] })
+
+    expect(after[0]).toBe(before[0])
+    expect(after[1]).toBe(before[1])
+    const edited = uiMessage('node-a', 'user', 'Edited question')
+    expect(resolveTranscriptMessages({ ...input, messages: [edited] })[0]).not.toBe(before[0])
+  })
+
   it('carries the persisted node identity when it differs from the message id', () => {
     const node = sessionNode('persisted-node', null, 'user', 'Reference', 0, {
       messageId: 'pi-message',

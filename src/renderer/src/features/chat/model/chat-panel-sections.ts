@@ -16,7 +16,16 @@ import type { AgentChatStatus, AgentCompactionStatus } from '../hooks/useAgentCh
 import type { SessionForkTarget } from '../lib/session-fork-targets'
 import type { AgentInteractionEvent, ChatRow } from '../lib/types-chat-row'
 
+/**
+ * `loading` while the selected Session's detail or transcript has not hydrated yet, which must never
+ * render the Welcome screen (ADR 0036).
+ */
+export type ChatTranscriptState = 'no-session' | 'loading' | 'ready'
+
 export interface ChatTranscriptSectionState {
+  readonly transcriptState?: ChatTranscriptState
+  /** When the Session was created, for the transcript's start marker. */
+  readonly sessionCreatedAt?: number | null
   readonly messages: UIMessage[]
   readonly isLoading: boolean
   readonly projectPath: string | null

@@ -1,10 +1,11 @@
 import type { Message } from '@shared/types/agent'
 import type { SessionId } from '@shared/types/brand'
 import type { SupportedModelId } from '@shared/types/llm'
-import { formatErrorMessage } from '@shared/utils/node-error'
 import * as Effect from 'effect/Effect'
-import { classifyAgentError } from '../../agent/error-classifier'
+import { classifyAgentError, makeErrorInfo } from '../../agent/error-classifier'
+import { SessionProjectionRepositoryError } from '../../errors'
 import { createLogger } from '../../logger'
+import { describeError, errorCauseChain, userFacingErrorDetail } from '../../utils/describe-error'
 import { isRunCancellation } from '../run-cancellation'
 import type { PersistedRunResourceNodes } from '../session-resource-node-mapping'
 import type { AgentRunResult } from './types'
@@ -86,6 +87,48 @@ export function buildAgentRunOutcome({
   }
 }
 
+/*
+ * A turn that could not be saved, as opposed to any other failure after the agent answered.
+ *
+ * Only the snapshot write itself qualifies: a later projection write, such as anchoring the turn
+ * checkpoint, fails after the turn is already durable, and reporting that as "couldn't be saved"
+ * would offer a retry for a reply that survives a reload.
+ */
+function isSnapshotPersistenceFailure(error: unknown, reachedAgent: boolean) {
+  return (
+    reachedAgent &&
+    error instanceof SessionProjectionRepositoryError &&
+    error.operation === 'persistSessionSnapshot'
+  )
+}
+
+/**
+ * Classifies a failed classic or Waggle run from its original error (ADR 0037).
+ *
+ * Tagged repository errors carry an empty `message`; `classifyAgentError` describes those by tag,
+ * operation, and cause, while plain errors keep their exact message so patterns such as
+ * `terminated` still classify.
+ */
+export function classifyRunFailure(error: unknown, reachedAgent: boolean) {
+  const detail = describeError(error)
+  if (isSnapshotPersistenceFailure(error, reachedAgent)) {
+    return { classified: makeErrorInfo('persist-failed', detail), detail }
+  }
+  /*
+   * Each error in the chain is classified on its own message, outermost first. A generic wrapper
+   * ("request failed") defers to its causes, and exact rules such as `terminated` still apply to a
+   * wrapped cause; classifying one concatenated string let unrelated text collide.
+   */
+  const direct = classifyAgentError(error)
+  if (direct.code !== 'unknown') return { classified: direct, detail }
+  for (const cause of errorCauseChain(error).slice(1)) {
+    const candidate = classifyAgentError(cause)
+    if (candidate.code !== 'unknown')
+      return { classified: { ...candidate, message: detail }, detail }
+  }
+  return { classified: { ...direct, message: detail }, detail }
+}
+
 export function recoverAgentRunFailure({
   error,
   signal,
@@ -103,18 +146,19 @@ export function recoverAgentRunFailure({
       ...(assignedTitle ? { assignedTitle } : {}),
     })
   }
-  const classified = classifyAgentError(error)
+  const { classified, detail } = classifyRunFailure(error, reachedAgent)
   logger.error('Agent run failed before terminal transport event', {
     sessionId,
     runId,
     model,
     code: classified.code,
-    error: formatErrorMessage(error),
+    error: detail,
     ...(error instanceof Error && error.stack ? { stack: error.stack } : {}),
   })
   return Effect.succeed({
     outcome: 'error' as const,
-    message: classified.userMessage,
+    // The renderer derives the headline from `code`; the message is the detail it shows under it.
+    message: userFacingErrorDetail(classified.message),
     code: classified.code,
     /*
      * Marked when the agent already had the message, so a caller is not told a delivered message was refused.
@@ -148,7 +192,7 @@ function terminalErrorOutcome(
   })
   return {
     outcome: 'error',
-    message: classified.userMessage,
+    message: userFacingErrorDetail(classified.message),
     code: classified.code,
     transportEmitted: true,
     ...(context.resources.resourceMessages.length > 0 ? context.resources : {}),

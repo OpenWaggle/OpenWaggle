@@ -1,23 +1,22 @@
-import { SessionId } from '@shared/types/brand'
+import { SessionBranchId, SessionId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
 import { fireEvent, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { ChatRow } from '../../lib/types-chat-row'
 import type { ChatTranscriptSectionState } from '../../model'
 import { ChatTranscript } from '../ChatTranscript'
 
 /**
- * The transcript renders the newest slice of a session, not all of it.
+ * The transcript renders a bounded window of its rows, identified by row key (ADR 0036).
  *
- * Opening a 400 message session used to mount every row, which built 7,200 DOM nodes across
- * 50,216px of content in a 580px viewport and pushed click-to-rendered past 1.2 seconds. These
- * tests hold the window in place: how much is built, that the rest is reachable, and that the
- * window returns to the newest rows when the session changes.
+ * The previous window recorded a count of hidden rows once, at mount. Real-Electron QA showed that
+ * count slicing unrelated lists: a branch switch from 400 to 60 messages left one row visible, and
+ * a window mounted before hydration built all 400 rows.
  */
 
-const INITIAL_ROW_WINDOW = 40
-const LOAD_EARLIER_ROW_COUNT = 100
+const INITIAL_ROWS = 40
+const BATCH_ROWS = 40
 const PROJECT_PATH = '/repo'
 
 vi.mock('../ChatRowRenderer', () => ({
@@ -25,12 +24,9 @@ vi.mock('../ChatRowRenderer', () => ({
     <div>{row.type === 'message' ? row.message.id : row.type}</div>
   ),
 }))
-
 vi.mock('../WelcomeScreen', () => ({ WelcomeScreen: () => <div>welcome</div> }))
 vi.mock('@/shared/lib/ipc', () => ({ api: {} }))
-vi.mock('@/features/extensions', () => ({
-  ExtensionAgentLoopSurface: () => null,
-}))
+vi.mock('@/features/extensions', () => ({ ExtensionAgentLoopSurface: () => null }))
 
 function message(id: string): UIMessage {
   return { id, role: 'user', parts: [{ type: 'text', content: id }] }
@@ -46,22 +42,29 @@ function row(id: string): ChatRow {
   }
 }
 
-function createSection(rowCount: number, sessionId = 'session-1'): ChatTranscriptSectionState {
-  const rows = Array.from({ length: rowCount }, (_, index) => row(`msg-${index}`))
+const rowsOf = (count: number, prefix = 'msg') =>
+  Array.from({ length: count }, (_, index) => row(`${prefix}-${String(index)}`))
+
+function createSection(
+  rows: ChatRow[],
+  overrides: Partial<ChatTranscriptSectionState> = {},
+): ChatTranscriptSectionState {
   return {
-    messages: rows.map((r) => (r.type === 'message' ? r.message : message('x'))),
+    transcriptState: 'ready',
+    messages: rows.flatMap((r) => (r.type === 'message' ? [r.message] : [])),
     isLoading: false,
     projectPath: PROJECT_PATH,
     worktreePath: null,
     recentProjects: [],
-    activeSessionId: SessionId(sessionId),
+    activeSessionId: SessionId('session-1'),
+    activeBranchId: SessionBranchId('session-1:main'),
     turnsByAnchorNodeId: new Map(),
     onToggleTurnFold: () => {},
     onDismissInterruptedRun: () => {},
     chatRows: rows,
     extensionRegistry: null,
     extensionProjectPaths: [PROJECT_PATH],
-    lastUserMessageId: `msg-${rowCount - 1}`,
+    lastUserMessageId: null,
     streamSignalVersion: 0,
     userDidSend: false,
     onUserDidSendConsumed: vi.fn(),
@@ -74,128 +77,206 @@ function createSection(rowCount: number, sessionId = 'session-1'): ChatTranscrip
     onForkFromMessage: vi.fn(),
     onViewTurnDiff: vi.fn(),
     turnAnchorMessageIds: new Set<string>(),
+    ...overrides,
   }
 }
 
+const mountedRows = () =>
+  document.querySelectorAll('[data-chat-content-frame="transcript-row"]').length
+const loadEarlier = () => screen.queryByRole('button', { name: /load earlier messages/i })
+
 describe('ChatTranscript windowing', () => {
-  it('renders every row when the session is shorter than the window', () => {
-    render(<ChatTranscript section={createSection(5)} />)
+  afterEach(() => localStorage.clear())
 
-    expect(screen.getByText('msg-0')).toBeInTheDocument()
-    expect(screen.getByText('msg-4')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /load earlier/i })).not.toBeInTheDocument()
+  it('renders a short Session whole, under a start-of-session marker', () => {
+    render(<ChatTranscript section={createSection(rowsOf(5), { sessionCreatedAt: 0 })} />)
+
+    expect(mountedRows()).toBe(5)
+    expect(loadEarlier()).not.toBeInTheDocument()
+    expect(screen.getByText(/^Start of session/)).toBeInTheDocument()
   })
 
-  it('builds only the newest rows for a long session', () => {
-    const total = 400
-    render(<ChatTranscript section={createSection(total)} />)
+  it('builds only the newest rows of a long Session', () => {
+    render(<ChatTranscript section={createSection(rowsOf(400))} />)
 
-    // The newest row is present and the oldest is not built at all.
-    expect(screen.getByText(`msg-${total - 1}`)).toBeInTheDocument()
-    expect(screen.queryByText('msg-0')).not.toBeInTheDocument()
-
-    // The boundary: the first row inside the window, and the last one outside it.
-    expect(screen.getByText(`msg-${total - INITIAL_ROW_WINDOW}`)).toBeInTheDocument()
-    expect(screen.queryByText(`msg-${total - INITIAL_ROW_WINDOW - 1}`)).not.toBeInTheDocument()
+    expect(mountedRows()).toBe(INITIAL_ROWS)
+    expect(screen.getByText('msg-399')).toBeInTheDocument()
+    expect(screen.queryByText('msg-359')).not.toBeInTheDocument()
+    expect(loadEarlier()).toBeInTheDocument()
+    // The old control counted rows as messages ("427 above" on a 400-message Session).
+    expect(screen.queryByText(/above\)/)).not.toBeInTheDocument()
   })
 
-  it('bounds initial image-resource discovery to the visible window in a 100k-message Session', () => {
+  it('bounds image-resource discovery to the mounted rows of a 100k-row Session', () => {
     const renderVisibleMessageRows = vi.fn((_nodeIds: readonly string[], rows: ReactNode) => rows)
-
     render(
       <ChatTranscript
-        section={createSection(100_000)}
+        section={createSection(rowsOf(100_000))}
         renderVisibleMessageRows={renderVisibleMessageRows}
       />,
     )
 
     const nodeIds = renderVisibleMessageRows.mock.calls.at(-1)?.[0]
-    expect(nodeIds).toHaveLength(INITIAL_ROW_WINDOW)
+    expect(nodeIds).toHaveLength(INITIAL_ROWS)
     expect(nodeIds?.[0]).toBe('msg-99960')
-    expect(nodeIds?.at(-1)).toBe('msg-99999')
   })
 
-  it('says how much history is out of view', () => {
-    const total = 400
-    render(<ChatTranscript section={createSection(total)} />)
+  it('loads earlier rows in batches and announces them as messages', () => {
+    render(<ChatTranscript section={createSection(rowsOf(400))} />)
 
-    expect(
-      screen.getByRole('button', {
-        name: `Load earlier messages (${total - INITIAL_ROW_WINDOW} above)`,
-      }),
-    ).toBeInTheDocument()
+    const control = loadEarlier()
+    if (!control) throw new Error('expected the earlier-rows edge')
+    fireEvent.click(control)
+
+    expect(mountedRows()).toBe(INITIAL_ROWS + BATCH_ROWS)
+    expect(screen.getByText('msg-320')).toBeInTheDocument()
+    expect(screen.getByText(`${String(BATCH_ROWS)} earlier messages loaded`)).toBeInTheDocument()
   })
 
-  it('reaches further back a page at a time', () => {
-    const total = 400
-    render(<ChatTranscript section={createSection(total)} />)
+  it('moves focus to the start marker when the last earlier rows load from the keyboard', () => {
+    render(<ChatTranscript section={createSection(rowsOf(INITIAL_ROWS + 10))} />)
 
-    fireEvent.click(screen.getByRole('button', { name: /load earlier/i }))
+    const control = loadEarlier()
+    if (!control) throw new Error('expected the earlier-rows edge')
+    fireEvent.click(control)
 
-    const shown = INITIAL_ROW_WINDOW + LOAD_EARLIER_ROW_COUNT
-    expect(screen.getByText(`msg-${total - shown}`)).toBeInTheDocument()
-    expect(screen.queryByText(`msg-${total - shown - 1}`)).not.toBeInTheDocument()
-    // Still more to go, so the control stays with an updated count.
-    expect(
-      screen.getByRole('button', { name: `Load earlier messages (${total - shown} above)` }),
-    ).toBeInTheDocument()
+    expect(loadEarlier()).not.toBeInTheDocument()
+    expect(screen.getByText(/^Start of session/).parentElement).toHaveFocus()
   })
 
-  it('drops the control once the whole session is built', () => {
-    // One page of "load earlier" is enough to reach the start.
-    render(<ChatTranscript section={createSection(INITIAL_ROW_WINDOW + 10)} />)
+  it('keeps keyboard focus on the earlier-rows edge across batches', () => {
+    render(<ChatTranscript section={createSection(rowsOf(400))} />)
 
-    fireEvent.click(screen.getByRole('button', { name: /load earlier/i }))
+    const first = loadEarlier()
+    if (!first) throw new Error('expected the earlier-rows edge')
+    first.focus()
+    fireEvent.click(first)
 
-    expect(screen.getByText('msg-0')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /load earlier/i })).not.toBeInTheDocument()
+    // Review finding: the pressed edge remounted and focus fell to the body mid-history.
+    const next = loadEarlier()
+    expect(next).not.toBe(first)
+    expect(next).toHaveFocus()
   })
 
-  /*
-   * A window that remembered its size instead of its start unmounted the topmost row on every
-   * arrival. With [overflow-anchor:none] on the scroller that moved the view under a reader who had
-   * scrolled up, and it grew a "Load earlier" control on a session read from its first message.
-   */
-  it('keeps the same first row as new rows arrive', () => {
-    const { rerender } = render(<ChatTranscript section={createSection(30)} />)
+  it('opens at the newest rows once history arrives after an empty first render', () => {
+    const phase: ChatRow = { type: 'phase-indicator', label: 'Thinking', elapsedMs: 0 }
+    const { rerender } = render(
+      <ChatTranscript section={createSection([phase], { isLoading: true })} />,
+    )
+    rerender(
+      <ChatTranscript section={createSection([...rowsOf(400), phase], { isLoading: true })} />,
+    )
 
-    // A short session shows everything and offers no control.
-    expect(screen.getByText('msg-0')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /load earlier/i })).not.toBeInTheDocument()
+    // Mounted with one status row, the old window computed nothing hidden and built all 400.
+    expect(mountedRows()).toBe(INITIAL_ROWS)
+  })
 
-    // Growing past the window size must not start hiding the beginning.
-    rerender(<ChatTranscript section={createSection(60)} />)
+  it('shows the newest rows of a branch, never a slice of the previous branch', () => {
+    const { rerender } = render(<ChatTranscript section={createSection(rowsOf(400))} />)
+    rerender(
+      <ChatTranscript
+        section={createSection(rowsOf(60, 'alt'), {
+          activeBranchId: SessionBranchId('session-1:alt'),
+        })}
+      />,
+    )
+
+    // The reproduced bug: one row under "Load earlier messages (99 above)".
+    expect(mountedRows()).toBe(INITIAL_ROWS)
+    expect(screen.getByText('alt-59')).toBeInTheDocument()
+  })
+
+  it('reopens at the newest rows when compaction replaces the transcript', () => {
+    const { rerender } = render(<ChatTranscript section={createSection(rowsOf(400))} />)
+    rerender(<ChatTranscript section={createSection(rowsOf(3, 'compacted'))} />)
+
+    expect(mountedRows()).toBe(3)
+  })
+
+  it('keeps its first row as new rows arrive', () => {
+    const { rerender } = render(<ChatTranscript section={createSection(rowsOf(30))} />)
+    rerender(<ChatTranscript section={createSection(rowsOf(60))} />)
 
     expect(screen.getByText('msg-0')).toBeInTheDocument()
     expect(screen.getByText('msg-59')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /load earlier/i })).not.toBeInTheDocument()
   })
 
-  it('never slices a shrinking transcript down to nothing', () => {
-    const { rerender } = render(<ChatTranscript section={createSection(400)} />)
-    expect(screen.getByRole('button', { name: /load earlier/i })).toBeInTheDocument()
+  it('returns to the newest rows when the Session changes', () => {
+    const { rerender } = render(<ChatTranscript section={createSection(rowsOf(400))} />)
+    const control = loadEarlier()
+    if (!control) throw new Error('expected the earlier-rows edge')
+    fireEvent.click(control)
+    rerender(
+      <ChatTranscript
+        section={createSection(rowsOf(400), { activeSessionId: SessionId('session-2') })}
+      />,
+    )
 
-    // Compaction replaces a long transcript with a short summary.
-    rerender(<ChatTranscript section={createSection(3)} />)
+    expect(mountedRows()).toBe(INITIAL_ROWS)
+  })
+})
 
-    expect(screen.getByText('msg-2')).toBeInTheDocument()
+describe('ChatTranscript settle presentation', () => {
+  it("collapses a settling turn's work in place while following, never beyond the window", () => {
+    const user = row('u1')
+    const work: ChatRow = {
+      type: 'message',
+      message: { id: 'work-1', role: 'assistant', parts: [{ type: 'text', content: 'work' }] },
+      isStreaming: false,
+      isRunActive: true,
+      showTurnDivider: false,
+    }
+    const answer: ChatRow = {
+      type: 'message',
+      message: { id: 'answer-1', role: 'assistant', parts: [{ type: 'text', content: 'answer' }] },
+      isStreaming: true,
+      isRunActive: true,
+      showTurnDivider: false,
+    }
+    const fold: ChatRow = {
+      type: 'turn-fold',
+      id: 'turn-fold:u1',
+      turnKey: 'u1',
+      label: 'Worked',
+      durationMs: null,
+      interrupted: false,
+    }
+    const { rerender, container } = render(
+      <ChatTranscript
+        section={createSection([...rowsOf(300), user, work, answer], { isLoading: true })}
+      />,
+    )
+    rerender(<ChatTranscript section={createSection([...rowsOf(300), user, fold, answer])} />)
+
+    // The folded work row collapses in place (inert, not addressable) instead of vanishing.
+    const exiting = container.querySelector('[inert]')
+    expect(exiting?.textContent).toContain('work-1')
+    // Only rows that were mounted are animated: the 300 older rows stay unmounted.
+    expect(
+      container.querySelectorAll('[inert] [data-chat-content-frame="transcript-row"]'),
+    ).toHaveLength(1)
+    expect(screen.queryByText('msg-0')).not.toBeInTheDocument()
+  })
+})
+
+describe('ChatTranscript Session states', () => {
+  it('shows a loading state, never the Welcome screen, while a Session hydrates', () => {
+    render(<ChatTranscript section={createSection([], { transcriptState: 'loading' })} />)
+
+    expect(screen.queryByText('welcome')).not.toBeInTheDocument()
+    expect(screen.getByRole('status', { name: 'Loading session' })).toBeInTheDocument()
   })
 
-  it('returns to the newest rows when the session changes', () => {
-    const total = 400
-    const { rerender } = render(<ChatTranscript section={createSection(total, 'session-1')} />)
+  it('shows the Welcome screen for a loaded Session with no messages', () => {
+    render(<ChatTranscript section={createSection([], { transcriptState: 'ready' })} />)
 
-    fireEvent.click(screen.getByRole('button', { name: /load earlier/i }))
-    expect(
-      screen.getByText(`msg-${total - INITIAL_ROW_WINDOW - LOAD_EARLIER_ROW_COUNT}`),
-    ).toBeInTheDocument()
+    expect(screen.getByText('welcome')).toBeInTheDocument()
+  })
 
-    // A different session must not inherit the previous session's expanded window.
-    rerender(<ChatTranscript section={createSection(total, 'session-2')} />)
+  it('keeps a hidden scroll-to-bottom control out of input and the accessibility tree', () => {
+    render(<ChatTranscript section={createSection(rowsOf(5))} />)
 
-    expect(screen.getByText(`msg-${total - 1}`)).toBeInTheDocument()
-    expect(
-      screen.queryByText(`msg-${total - INITIAL_ROW_WINDOW - LOAD_EARLIER_ROW_COUNT}`),
-    ).not.toBeInTheDocument()
+    // It used to stay clickable while invisible, over the bottom of the transcript.
+    expect(screen.queryByRole('button', { name: 'Scroll to bottom' })).not.toBeInTheDocument()
   })
 })
