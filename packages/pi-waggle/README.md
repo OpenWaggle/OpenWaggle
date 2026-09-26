@@ -17,7 +17,7 @@ Waggle mode gives the same task to two configurable agents and lets them alterna
 
 For example, one agent can implement a change while another reviews it, an attacker can probe a design while a defender hardens it, or an advocate and critic can test competing approaches. Use Waggle mode when a task benefits from iteration and opposing viewpoints. Standard Pi mode is usually faster and cheaper for simple questions or one-step edits.
 
-The package includes `@openwaggle/waggle-core`, registers `/waggle` and `/standard`, renders each turn with Pi-native UI, and persists mode state as Pi custom messages.
+The package includes `@openwaggle/waggle-core`, registers `/waggle` and `/standard`, renders each turn with Pi-native UI, and persists mode state as Pi custom entries.
 
 ## Install In Pi
 
@@ -106,7 +106,7 @@ const intent = parsePiWaggleCommandArgs('code-review review this diff')
 
 ## Runtime State And Messages
 
-Pi Waggle uses Pi custom message types under the `pi-waggle.*` namespace:
+Pi Waggle persists branch mode state in a `pi-waggle.mode-state` custom entry. Turn and user-request content use custom messages. Both use identifiers under the `pi-waggle.*` namespace:
 
 ```ts
 import {
@@ -143,7 +143,9 @@ export function createCustomWaggle(config: WaggleConfig) {
 }
 ```
 
-Most users should start with the default extension export. Reach for loop helpers only when you are embedding Waggle into a custom Pi package.
+The helper returns a controller. Register its `factory` as a Pi extension factory and await `done` for loop completion. The default turn-model resolver requires an explicit provider-qualified model. To handle `$inherit`, provide your own `resolveTurnModel` callback.
+
+Most users should start with the default extension export, which handles inherited model selection. Use loop helpers when embedding Waggle into a custom Pi package.
 
 ## Boundary Rules
 
@@ -156,10 +158,12 @@ For runtime-neutral policy, use [`@openwaggle/waggle-core`](https://openwaggle.a
 | Requirement | Supported line |
 |-------------|----------------|
 | Node.js | 22.19 and newer |
-| Pi coding agent | Host-provided peer; tested with `0.81.x` |
-| Pi TUI | Host-provided peer; tested with `0.81.x` |
+| Pi coding agent | Host-provided peer; match your host's SDK version |
+| Pi TUI | Host-provided peer; match your host's TUI version |
 | Module format | ESM and CommonJS |
 | Pi Waggle documentation | 0.1 |
+
+The peer declarations accept any version, but that is not a guarantee of compatibility with every Pi release. The [repository dependency catalog](https://github.com/OpenWaggle/OpenWaggle/blob/main/pnpm-workspace.yaml) records the versions used by the current source integration.
 
 ## Reference And Support
 
@@ -172,9 +176,9 @@ For runtime-neutral policy, use [`@openwaggle/waggle-core`](https://openwaggle.a
 
 **Pi does not discover the extension.** Install the package in the Pi package environment and confirm the package manifest exposes `./dist/extension.js` through its `pi.extensions` entry.
 
-**Commands render but state does not persist.** Preserve the `pi-waggle.*` custom messages in Pi session data and avoid a parallel host-owned state tree.
+**Commands render but state does not persist.** Preserve `pi-waggle.mode-state` custom entries as well as turn and user-request custom messages in Pi session data. Saving only messages loses the persisted mode state.
 
-**Peer dependency warnings appear.** Install Pi coding-agent and TUI versions compatible with the exact peer ranges in the package manifest.
+**Peer dependency warnings appear.** Install the Pi coding-agent and TUI versions used by your host. The package's wildcard peer declarations do not select those versions for you.
 
 There are no migrations within the `0.1` documentation line. Future incompatible changes will receive a new versioned documentation line and migration guide.
 

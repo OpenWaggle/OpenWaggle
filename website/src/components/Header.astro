@@ -12,13 +12,13 @@ const isDocsPage = currentPath.startsWith('/docs');
     </a>
     <nav class="hidden items-center gap-4 md:flex md:gap-8">
       <a
-        href="/docs/getting-started/installation"
+        href="/docs/getting-started/first-run"
         class:list={[
           'text-sm font-medium transition-colors hover:text-text-primary',
           isDocsPage ? 'text-text-primary' : 'text-text-tertiary',
         ]}
       >Docs</a>
-      <a href="/docs/getting-started/installation" class="text-sm font-medium text-text-tertiary transition-colors hover:text-text-primary">Install</a>
+      <a href="https://github.com/OpenWaggle/OpenWaggle/releases" class="text-sm font-medium text-accent transition-colors hover:text-text-primary">Download</a>
       <a href="https://github.com/OpenWaggle/OpenWaggle" target="_blank" rel="noopener noreferrer" class="text-sm font-medium text-text-tertiary transition-colors hover:text-text-primary">GitHub</a>
     </nav>
     <!-- Mobile hamburger -->
@@ -38,8 +38,8 @@ const isDocsPage = currentPath.startsWith('/docs');
   <!-- Mobile nav -->
   <div id="mobile-menu" class="hidden border-t border-border bg-bg px-6 py-4 md:hidden">
     <nav class="flex flex-col gap-4">
-      <a href="/docs/getting-started/installation" class="text-sm font-medium text-text-tertiary">Docs</a>
-      <a href="/docs/getting-started/installation" class="text-sm font-medium text-text-tertiary">Install</a>
+      <a href="/docs/getting-started/first-run" class="text-sm font-medium text-text-tertiary">Docs</a>
+      <a href="https://github.com/OpenWaggle/OpenWaggle/releases" class="text-sm font-medium text-accent">Download</a>
       <a href="https://github.com/OpenWaggle/OpenWaggle" target="_blank" rel="noopener noreferrer" class="text-sm font-medium text-text-tertiary">GitHub</a>
     </nav>
   </div>

@@ -2,14 +2,13 @@ import type { SessionId } from '@shared/types/brand'
 import type { ExtensionContributionRegistryView } from '@shared/types/extensions'
 import type { ReactNode } from 'react'
 import { ExtensionAgentLoopSurface } from '@/features/extensions'
-import { cn } from '@/shared/lib/cn'
-import { useChatScrollBehaviour } from '../hooks/useChatScrollBehaviour'
+import { useStableRowContext } from '../hooks/useStableRowContext'
 import { CHAT_CONTENT_FRAME_CLASS } from '../lib/chat-content-layout'
+import { readingPositionKey } from '../lib/transcript-reading-positions'
 import type { ChatTranscriptSectionState } from '../model'
-import type { ChatRowRenderContext } from './ChatRowRenderContext'
 import { compactionTimelineLabel } from './CompactionTimelineRow'
-import { ScrollToBottomButton } from './ScrollToBottomButton'
-import { TranscriptWindow } from './TranscriptWindow'
+import { TranscriptLoadingState } from './TranscriptLoadingState'
+import { TranscriptViewport } from './TranscriptViewport'
 import { WelcomeScreen } from './WelcomeScreen'
 
 interface ChatTranscriptProps {
@@ -61,104 +60,37 @@ function TranscriptExtensionCards({
   )
 }
 
-/** The per-row render context, assembled outside the component to keep it readable. */
-function buildRowContext({
-  activeSessionId,
-  extensionRegistry,
-  extensionProjectPaths,
-  onDismissInterruptedRun,
-  onBranchFromMessage,
-  onForkFromMessage,
-  onViewTurnDiff,
-  turnAnchorMessageIds,
-  onToggleTurnFold,
-  turnsByAnchorNodeId,
-  onOpenSettings,
-  onRetryText,
-  onDismissError,
-}: Pick<
-  ChatTranscriptSectionState,
-  | 'activeSessionId'
-  | 'extensionRegistry'
-  | 'extensionProjectPaths'
-  | 'onDismissInterruptedRun'
-  | 'onBranchFromMessage'
-  | 'onForkFromMessage'
-  | 'onViewTurnDiff'
-  | 'turnAnchorMessageIds'
-  | 'onToggleTurnFold'
-  | 'turnsByAnchorNodeId'
-  | 'onOpenSettings'
-  | 'onRetryText'
-  | 'onDismissError'
->): ChatRowRenderContext {
-  const extensions = { registry: extensionRegistry, projectPaths: extensionProjectPaths }
-  return {
-    runtime: { sessionId: activeSessionId, extensions },
-    extensions,
-    turnsByAnchorNodeId,
-    actions: {
-      onDismissInterruptedRun,
-      onBranchFromMessage,
-      onForkFromMessage,
-      onViewTurnDiff,
-      turnAnchorMessageIds,
-      onToggleTurnFold,
-      onOpenTurnDiff: onViewTurnDiff,
-    },
-    onOpenSettings,
-    onRetry: (content) => {
-      void onRetryText(content)
-    },
-    onDismissError,
+/**
+ * Whether the transcript area shows the Welcome screen, a hydrating Session, or its rows.
+ *
+ * "Not loaded yet" is never "empty": rendering the Welcome screen while a Session hydrated flashed
+ * "Let's build" under the previous Session's title on every first visit (ADR 0036).
+ */
+function transcriptSurface(section: ChatTranscriptSectionState) {
+  if (section.transcriptState === 'loading') return 'loading'
+  if (section.messages.length === 0 && section.chatRows.length === 0 && !section.isLoading) {
+    return 'welcome'
   }
+  return 'rows'
 }
 
 export function ChatTranscript({ section, renderVisibleMessageRows }: ChatTranscriptProps) {
   const {
-    messages,
     isLoading,
     projectPath,
     recentProjects,
     activeSessionId,
+    activeBranchId,
     chatRows: rows,
     onOpenProject,
     onSelectProjectPath,
-    lastUserMessageId,
-    streamSignalVersion,
-    userDidSend,
-    onUserDidSendConsumed,
     extensionRegistry,
     extensionProjectPaths,
   } = section
+  const surface = transcriptSurface(section)
+  const rowContext = useStableRowContext(section)
 
-  const {
-    scrollerRef,
-    contentRef,
-    showScrollbar,
-    showScrollToBottom,
-    scrollToBottom,
-    handleScroll,
-    handleWheel,
-    handlePointerDown,
-    handlePointerUp,
-    handlePointerCancel,
-    handleTouchStart,
-    handleTouchMove,
-    handleTouchEnd,
-  } = useChatScrollBehaviour({
-    activeSessionId: activeSessionId ?? null,
-    lastUserMessageId,
-    rowsLength: rows.length,
-    streamVersion: streamSignalVersion,
-    isLoading,
-    userDidSend,
-    onUserDidSendConsumed,
-  })
-
-  const rowContext = buildRowContext(section)
-
-  if (messages.length === 0 && rows.length === 0 && !isLoading) {
+  if (surface === 'welcome') {
     return (
       <div className="flex flex-1 overflow-y-auto chat-scroll">
         <WelcomeScreen
@@ -174,56 +106,45 @@ export function ChatTranscript({ section, renderVisibleMessageRows }: ChatTransc
     )
   }
 
-  const scrollerProps = {
-    role: 'log',
-    'aria-label': 'Chat messages',
-    'aria-busy': isLoading,
-    className: cn(
-      'flex flex-1 flex-col overflow-y-auto chat-scroll [overflow-anchor:none]',
-      showScrollbar && 'is-scrolling',
-    ),
-    onScroll: handleScroll,
-    onWheel: handleWheel,
-    onPointerDown: handlePointerDown,
-    onPointerUp: handlePointerUp,
-    onPointerCancel: handlePointerCancel,
-    onTouchStart: handleTouchStart,
-    onTouchMove: handleTouchMove,
-    onTouchEnd: handleTouchEnd,
-    onTouchCancel: handleTouchEnd,
-  }
+  if (surface === 'loading') return <TranscriptLoadingState />
+
+  const positionKey = readingPositionKey(
+    activeSessionId ? String(activeSessionId) : 'draft',
+    activeBranchId ? String(activeBranchId) : null,
+  )
 
   return (
-    <div className="relative flex flex-1 flex-col overflow-hidden">
+    <>
       <div aria-atomic="true" aria-live="polite" className="sr-only">
         {latestCompactionAnnouncement(rows)}
       </div>
-      <div ref={scrollerRef} {...scrollerProps}>
-        <div
-          ref={contentRef}
-          data-chat-transcript-container
-          className="@container/transcript flex min-h-full flex-col"
-        >
-          {/*
-           * Keyed by session so the window resets to the newest rows on a switch. The scroller
-           * above keeps its identity, because its scroll position and refs must survive.
-           */}
-          <TranscriptWindow
-            key={activeSessionId ? String(activeSessionId) : 'none'}
-            rows={rows}
-            context={rowContext}
-            renderVisibleMessageRows={renderVisibleMessageRows}
-          />
+      {/*
+       * Keyed by Session and branch: each gets a fresh window built around its own saved reading
+       * position, so a branch switch never slices the previous branch's rows.
+       */}
+      <TranscriptViewport
+        key={positionKey}
+        positionKey={positionKey}
+        input={{
+          rows,
+          context: rowContext,
+          isLoading,
+          lastUserMessageId: section.lastUserMessageId,
+          userDidSend: section.userDidSend,
+          onUserDidSendConsumed: section.onUserDidSendConsumed,
+          onToggleTurnFold: section.onToggleTurnFold,
+          sessionCreatedAt: section.sessionCreatedAt ?? null,
+        }}
+        trailing={
           <TranscriptExtensionCards
             activeSessionId={activeSessionId}
             extensionRegistry={extensionRegistry}
             extensionProjectPaths={extensionProjectPaths}
             rowsLength={rows.length}
           />
-        </div>
-      </div>
-
-      <ScrollToBottomButton visible={showScrollToBottom} onClick={scrollToBottom} />
-    </div>
+        }
+        renderVisibleMessageRows={renderVisibleMessageRows}
+      />
+    </>
   )
 }

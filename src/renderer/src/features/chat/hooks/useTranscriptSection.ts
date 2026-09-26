@@ -18,6 +18,7 @@ import {
   readAgentLoopEventsFromWorkspace,
 } from '../lib/agent-loop-transcript-events'
 import { resolveTranscriptMessages } from '../lib/session-workspace-transcript'
+import { expandedTurnKeysWithAliases, persistedUserMessageAliases } from '../lib/turn-fold-aliases'
 import type { AgentInteractionEvent } from '../lib/types-chat-row'
 import type { ChatTranscriptSectionState } from '../model'
 import type { AgentCompactionStatus } from './useAgentChat.types'
@@ -43,6 +44,21 @@ function resolveLastUserMessage(messages: UIMessage[]) {
   const content = textParts.join('\n')
 
   return content || null
+}
+
+/**
+ * A selected Session is loading until its detail arrived and, when it has messages, until they
+ * reached the transcript: hydration runs in an effect one render after the detail lands.
+ */
+function resolveTranscriptState(
+  sessionId: SessionId | null,
+  session: SessionDetail | null,
+  transcriptMessages: readonly UIMessage[],
+) {
+  if (!sessionId) return 'no-session' as const
+  if (!session || String(session.id) !== String(sessionId)) return 'loading' as const
+  if (session.messages.length > 0 && transcriptMessages.length === 0) return 'loading' as const
+  return 'ready' as const
 }
 
 function displayedWorkspaceSelection(
@@ -154,7 +170,12 @@ export function useTranscriptSection(params: TranscriptSectionParams): ChatTrans
     interactionEvents,
   )
   const waggleMetadataLookup = useWaggleMetadataLookup(activeSession, transcriptMessages)
-  const expandedTurnKeys = useTurnFoldStore(selectExpandedTurnKeys(activeSessionId))
+  const storedExpandedTurnKeys = useTurnFoldStore(selectExpandedTurnKeys(activeSessionId))
+  // A completed turn's optimistic user id is replaced by its persisted one; keep its fold state.
+  const expandedTurnKeys = expandedTurnKeysWithAliases(
+    storedExpandedTurnKeys,
+    persistedUserMessageAliases(messages, transcriptMessages),
+  )
   const toggleTurnFold = useTurnFoldStore((state) => state.toggleTurnFold)
   const displayedSelection = displayedWorkspaceSelection(activeWorkspace, activeSessionId)
 
@@ -197,6 +218,8 @@ export function useTranscriptSection(params: TranscriptSectionParams): ChatTrans
   })()
 
   return {
+    transcriptState: resolveTranscriptState(activeSessionId, activeSession, transcriptMessages),
+    sessionCreatedAt: activeSession?.createdAt ?? null,
     messages: transcriptMessages,
     isLoading: transcriptLoading,
     projectPath,

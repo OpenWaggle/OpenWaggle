@@ -1,98 +1,98 @@
 ---
-title: "Session Tree & Branches"
-description: "Navigate Pi session branches, draft branches, and the right-side Session Tree."
-order: 2
+title: "Session tree and branches"
+description: "Return to an earlier message, try another approach, or copy a conversation into a new session."
+order: 6
 section: "Using OpenWaggle"
 ---
 
-OpenWaggle sessions are Pi session graphs. A single session can contain multiple Pi session branches and nodes, while your repository can also have separate Git branches. Session branches are Pi runtime branches; Git branches are version-control branches.
+Use the Session tree when you want to return to an earlier point in a conversation and try a different approach. A conversation branch keeps the original path available while you continue along another.
 
-![OpenWaggle Session Tree showing a checkout refactor session with alternate Pi session branches](/screenshots/session-tree-panel.png)
+Conversation branches are not Git branches. Changing the selected conversation path does not undo file edits or switch your repository's Git branch. Use [Git controls](/docs/developer-workflow/git-integration) to manage files and commits.
 
-_The Session Tree keeps the selected transcript path and alternate Pi session branches visible together, so you can compare work without confusing them with Git branches._
+![OpenWaggle Session tree showing a checkout refactor conversation with alternate branches](/screenshots/session-tree-panel.png)
 
-## Opening The Session Tree
+## Opening the Session tree
 
-Open the right-side Session Tree from:
+Click the tree icon in the header. You can also press `Cmd+K` on macOS or `Ctrl+K` on Windows and Linux, then choose **Open session tree**.
 
-- The tree icon in the header.
-- The slash command menu action **Open Session Tree**.
+The tree opens in the right sidebar. It shares that space with Diff and other inspectors, so opening it replaces the current panel.
 
-The Session Tree shares the right-side panel slot with Diff. Opening one closes the other instead of stacking sidebars.
+To try a different approach:
 
-## What The Tree Shows
+1. Find the earlier message where you want to continue.
+2. Select its row. The conversation now shows the path up to that point.
+3. If prompted, decide whether to bring a summary of the later work with you.
+4. Check the draft in the message box, write or edit your next instruction, and send it.
 
-The Session Tree is the full on-demand graph view for the active session:
+For example, return to the message before a proposed refactor and ask the agent to compare a smaller change instead. Check your working tree first: files changed by the earlier approach are still on disk.
 
-- Node dots and connector rails show the Pi session graph.
-- Active-path rows show the currently selected transcript path.
-- Branch badges mark materialized branch heads.
-- Draft state marks a transient branch target before a new message materializes it.
-- Archived branch state remains visible in the full tree even when archived branches are hidden from normal sidebar navigation.
+## What the tree shows
 
-The left sidebar stays navigation-first. It shows sessions, useful materialized branch rows, and temporary draft branch rows, but it does not render the full node graph. A session with more than one conversation branch shows a list-tree icon and a count on its second line; open the Session Tree for the graph itself.
+Each row is a point in the saved conversation history, such as a message or tool event. Dots and connecting lines show how those points relate.
 
-## Filters And Search
+- The active path is the conversation currently shown in chat.
+- Branch badges identify the latest point of a saved branch.
+- A draft marks an earlier point you selected but have not yet continued from.
+- Archived branches remain in the full tree even when hidden from normal sidebar navigation.
 
-The filter menu mirrors Pi tree filters:
+The left sidebar shows sessions and saved conversation branches, not every history row. A list-tree icon with a count indicates that a session has more than one branch.
 
-| Filter | What It Shows |
+## Filters and search
+
+Use the filter menu to reduce the detail shown:
+
+| Filter | What it shows |
 |--------|---------------|
-| Default | The normal tree view for session navigation. |
-| No tools | Session nodes without tool-only detail. |
-| User only | User-message nodes. |
-| Labeled | Labeled nodes and branches. |
-| All | Every projected session node, including structural/tool detail. |
+| Default | Messages and tool results, without bookkeeping entries such as model changes. |
+| No tools | The default view without tool-result entries. |
+| User only | Your messages. |
+| Labeled | Label entries in the conversation history. |
+| All | Every history entry, including tool and structural detail. |
 
-The selected filter persists through Pi's `treeFilterMode` project setting.
+OpenWaggle remembers the selected filter in your Pi settings. A project can override that default. Search checks the entries included by that filter, using message content, metadata, and branch identifiers. Matches beneath collapsed rows appear temporarily without changing which rows you had expanded. Choose **All** if a narrower filter hides the entry you need.
 
-Search checks the persisted session-node read model, including message content, metadata, and branch ids. When a match is under collapsed ancestors, search temporarily reveals the result path without changing the saved expanded/collapsed state.
+## Navigation behavior
 
-## Navigation Behavior
+Selecting the latest point of a saved branch returns you to that branch and clears any draft branch selection.
 
-Selecting a materialized branch head navigates to that branch's current head and clears any draft state.
+Selecting an earlier point prepares a draft branch. It does not immediately add a new saved branch. Selecting a user message can also put its text in the message box for you to retry or edit. The new branch is saved when you send, or earlier if you explicitly choose a branch-summary action that creates it.
 
-Selecting a non-head node creates a transient draft branch context:
+To copy history into a separate session, open the command palette and use:
 
-- The transcript refreshes to the selected path.
-- OpenWaggle does not mutate the Pi session immediately.
-- If the selected node is a user message, the composer can prefill retry text.
-- The draft becomes durable only after the next send, unless you explicitly choose a branch-summary action that materializes the branch first.
+- **Fork to new session** to choose a previous user message and start a new session with that message ready to edit and resend.
+- **Clone current session** to copy the selected conversation path into a new session with a blank message box.
 
-Route search can preserve `branch`, `node`, and `panel=session-tree` so links can reopen the same session-tree context. Draft branches are transient UI state and are not restored from a copied URL.
+Both leave the original conversation intact. They copy conversation history, not a backup of your working files.
 
-You can also copy work into a separate session:
+For saved links, the app can retain `branch`, `node`, and `panel=session-tree` in the route. An unsent draft branch is temporary and is not restored from a copied URL.
 
-- **Fork to new session** starts from a selected previous user turn and pre-fills the composer with that turn for retry/edit.
-- **Clone to new session** copies the current selected node path into a separate session with a blank composer.
+## Branch summary prompt
 
-Both actions use Pi session state as the source and keep the original session unchanged.
+Returning to an earlier message leaves later messages outside your selected path. The summary prompt asks whether to bring some of that later context along:
 
-## Branch Summary Prompt
+- **No summary** continues without a summary of the later work.
+- **Summarize** asks the model to summarize that work.
+- **Custom** lets you write summary instructions in the message box and press Send.
+- **Cancel** returns to your previous selection.
 
-When selecting an earlier node would abandon downstream context, OpenWaggle can ask how to summarize that downstream work before continuing:
+This changes the context the agent sees, not the files on disk. See [Context management](/docs/using-openwaggle/context-management#branch-summaries) for the difference between branch summaries and compaction.
 
-- **No summary** — continue from the selected node without adding a summary.
-- **Summarize** — ask Pi to summarize the abandoned branch.
-- **Summarize with custom prompt** — use the composer input as custom summary instructions.
-- **Cancel** — return to the previous selection.
+For advanced configuration, Pi's `branchSummary.skipPrompt` setting skips this prompt. The tree filter is stored as `treeFilterMode` in Pi settings; a project's Pi configuration can override it.
 
-If Pi `branchSummary.skipPrompt` is enabled, OpenWaggle skips the prompt and follows the configured no-prompt behavior.
+## Branch lifecycle
 
-## Branch Lifecycle
+You can rename saved branch rows inline in the sidebar. Archive a non-main branch to hide it from normal navigation, then restore it through Settings when needed. Archived branches remain visible in the full tree.
 
-Materialized branch rows can be renamed inline from the sidebar. Non-main branches can be archived and restored; branch deletion is not exposed until Pi supports native branch deletion. Archiving the main branch archives the full session.
+Archiving the main conversation branch archives the entire session. Deleting individual conversation branches is not available.
 
-Archived branches are hidden from normal sidebar navigation, remain represented in the full Session Tree, and are managed from Settings with other archived items.
+## Keyboard navigation
 
-## Keyboard Navigation
-
-When focus is in the Session Tree:
+When focus is in the Session tree:
 
 | Action | Shortcut |
 |--------|----------|
 | Move focus | `ArrowUp` / `ArrowDown` |
-| Expand focused node or move to first child | `ArrowRight` |
-| Collapse focused node or move to parent | `ArrowLeft` |
-| Select focused node | `Enter` |
-| Close Session Tree | `Escape` |
+| Expand a row or move to its first child | `ArrowRight` |
+| Collapse a row or move to its parent | `ArrowLeft` |
+| Select the focused row | `Enter` |
+| Close the tree | `Escape` |

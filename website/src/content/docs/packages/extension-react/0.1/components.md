@@ -86,7 +86,7 @@ import { Button, Field, Input, Panel, Stack } from '@openwaggle/extension-react'
 
 ## Input, Textarea, Select, Checkbox, and Field
 
-`Field` associates a label, optional description, control, and error. Inputs forward their native React props, so browser validation and accessible attributes remain available.
+`Field` groups a label, optional description, control, and error. Set its `htmlFor` to the control's `id` to connect the label. It does not assign IDs or connect descriptions and errors automatically. Add `aria-describedby` and `aria-invalid` to the control when needed, and give the referenced description or error element an ID. Inputs forward native React props.
 
 <div class="ow-extension-root ow-extension-panel">
   <div class="ow-extension-stack">
@@ -117,4 +117,4 @@ import { Button, Field, Input, Panel, Stack } from '@openwaggle/extension-react'
 
 `Stack` owns vertical spacing and accepts any CSS `gap`. `Panel` creates the bounded host-aligned surface. Use them together for extension-owned composition rather than importing private OpenWaggle renderer layouts.
 
-See the [API reference](../api-reference) for complete props and exported types.
+See the [API reference](../api-reference) for the exported components and prop type names.

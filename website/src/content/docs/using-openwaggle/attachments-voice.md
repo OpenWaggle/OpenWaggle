@@ -1,59 +1,72 @@
 ---
-title: "Attachments & Voice Input"
-description: "How to attach files to messages and use local speech-to-text voice input in OpenWaggle."
-order: 4
+title: "Attachments and voice input"
+description: "Share a file or screenshot with the agent, or dictate a message and review it before sending."
+order: 2
 section: "Using OpenWaggle"
 ---
 
+Attach a file when the agent needs something outside the project, such as a screenshot, sample data, or a document. Use a project-file reference when the file is already in your repository.
+
 ## Attachments
 
-Attach files to your messages for the agent to analyze.
+### How to attach
 
-### Supported Formats
+1. Click **+** beside the message box and choose **Attach files**, or drag files onto the message box.
+2. Check the filename chips above your draft. Click a chip's X to remove a file.
+3. Write what you want the agent to do with the files, then send the message.
 
-- **Text files** — Content extracted directly (including `.txt`, `.csv`, `.json`, `.xml`, `.html`, `.docx`, `.rtf`, `.odt`).
-- **PDFs** — Text extracted with page structure preserved.
-- **Images** — Sent as image content when the selected Pi model reports image input support. OCR text is also included in the prompt summary.
+For example:
 
-### How to Attach
+```text
+Compare this screenshot with the checkout page in our app.
+List the differences before making any changes.
+```
 
-- Click the **+** button in the composer toolbar, then choose **Attach files**.
-- Or drag and drop files onto the composer.
+You can attach up to 5 files per message, up to 8 MiB each and 20 MiB in total. Attaching a file does not send it until you send the message. When you use a hosted model, the attachment content included in the request goes to that provider.
 
-The same menu collects the composer's existing context actions:
+The **+** menu also includes:
 
-- **Reference project file** opens the project file picker. Typing `@` still opens it directly.
-- **Use a skill** opens enabled project skills. Typing `/` still opens the combined command menu.
-- **Start Waggle** opens saved multi-agent collaboration presets.
+- **Reference project file** to pick a file from your project. You can also type `@` in the message box.
+- **Use a skill** to select task instructions. Typing `/` opens the combined command menu.
+- **Start Waggle** to choose a saved multi-agent review preset.
 
-These entries route through the same draft and picker behavior as their keyboard shortcuts. The plus menu does not create a second attachment or skill system.
+### Supported formats
 
-Up to **5 files** can be attached per message. Attachment chips appear above the text input showing filenames. Click the X on any chip to remove it.
+| File type | What the agent receives |
+|-----------|-------------------------|
+| Text and documents | Extracted text, including `.txt`, `.csv`, `.json`, `.xml`, `.html`, `.docx`, `.rtf`, and `.odt`. |
+| PDF | Extracted text with page structure, rather than the original PDF as a native model input. |
+| Image | The image when the model supports image input, plus extracted text from optical character recognition when available. |
 
-Attachments are persisted in the session as metadata and extracted text. Image/PDF binary data is hydrated by the main process only when needed for a run.
+Attachments are saved with the conversation's metadata and extracted text. Image and PDF data is loaded when needed for a request.
 
-Images shared by you or the agent appear in their chat messages and join the session-owned image gallery. Multiple images in one message appear in a two-column grid. Click a chat image to zoom, pan, and move between that message's images. Open an image from the [Session Summary and Resource Browser](/docs/using-openwaggle/session-summary) to browse the whole session's images. The viewer also lets you download a managed copy or open a resolvable local original.
+Images shared by you or the agent also appear in the conversation. Click one to zoom, pan, or move through that message's images. To browse images across the whole session, open one from [Session Summary and resources](/docs/using-openwaggle/session-summary). The viewer can download a copy or open an available local original.
 
-### Attachment Support by Model
+Supported local images embedded in an agent's Markdown reply can be saved as session Outputs too. This includes PNG, JPEG, GIF, and WebP images referenced with a `file:` URL from the session's working directory or supported temporary evidence folders. OpenWaggle validates and copies the image rather than relying on a temporary file to remain there. Arbitrary paths and unsupported or oversized images are not guaranteed to become saved resources.
 
-OpenWaggle follows Pi model metadata. If a selected model supports image input, image attachments are sent as image content. Otherwise, the extracted text summary is still included. PDFs are currently text-extracted before sending rather than passed as native PDF payloads.
+### Attachment support by model
 
-## Voice Input
+Not every model can inspect images. OpenWaggle uses the selected model's declared capabilities. If it does not support image input, only the extracted text summary is included. That is not a substitute for visual inspection of layout, colors, or diagrams. Choose an image-capable model for those tasks.
 
-OpenWaggle includes local speech-to-text powered by Whisper, running entirely on your machine.
+## Voice input
 
-### How to Use
+You can dictate into the message box instead of typing. OpenWaggle transcribes speech locally using Whisper.
 
-1. Click the **microphone** button in the composer toolbar.
-2. Speak your message. You'll see a live audio waveform and duration timer.
-3. Press the **stop** button (square icon) or press **Enter** to end recording and transcribe into the composer input.
-4. Press the **send** button while recording to stop, transcribe, and send immediately in one step.
-5. If you stop instead of sending, you can edit the transcribed text before sending it normally.
+### How to use
+
+1. Click the microphone button beside the message box.
+2. Speak while the waveform and timer show that recording is active.
+3. Click the square stop button or press `Enter` to stop and transcribe.
+4. Review the text, correct names or code terms, and send it normally.
+
+If you want to skip reviewing the text, click the send button while recording. It stops recording, transcribes, and sends in one action.
 
 ### Privacy
 
-All audio processing happens locally using Whisper. The composer now prefers the higher-accuracy local base model with automatic language detection. No audio data is sent to any external service. Models are cached in your app data directory and idle models are unloaded automatically after several minutes.
+Audio processing happens on your machine. OpenWaggle uses the local Whisper base model with automatic language detection and does not send the audio to an external service. First use needs an internet connection to download the model. It is then cached in your app data directory and unloaded after several idle minutes.
+
+The resulting text is an ordinary message. When you send it to a hosted model, that provider receives the text.
 
 ### Errors
 
-If local transcription fails or no speech is detected, the composer shows an inline message above the input. You can dismiss that message with the close button or start a new recording to clear it.
+If transcription fails or no speech is detected, an inline message appears above the input. Dismiss it with the close button or start a new recording to clear it.

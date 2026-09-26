@@ -15,46 +15,62 @@ function workspaceBelongsToSession(workspace: SessionWorkspace, sessionId: Sessi
   return String(workspace.tree.session.id) === String(sessionId)
 }
 
+/*
+ * Derived messages are cached by the identity of what they were derived from.
+ *
+ * Every render rebuilt every message with a fresh object, so each streamed token re-rendered every
+ * mounted message bubble (about 1,000 re-rendered components per commit with 40 rows, 2,600 with
+ * 140). A message that did not change now keeps its identity and its bubble bails out.
+ */
+const liveMessageWithNode = new WeakMap<UIMessage, { nodeId: string; message: UIMessage }>()
+const persistedMessage = new WeakMap<object, { nodeId: string; message: UIMessage }>()
+
+function withSessionNodeId(message: UIMessage, nodeId: string) {
+  const cached = liveMessageWithNode.get(message)
+  if (cached?.nodeId === nodeId) return cached.message
+  const next = { ...message, metadata: { ...message.metadata, sessionNodeId: nodeId } }
+  liveMessageWithNode.set(message, { nodeId, message: next })
+  return next
+}
+
+function fromWorkspaceNode(
+  message: NonNullable<SessionWorkspace['transcriptPath'][number]['node']['message']>,
+  nodeId: string,
+) {
+  const cached = persistedMessage.get(message)
+  if (cached?.nodeId === nodeId) return cached.message
+  // Read once per message instead of re-walking message.metadata.* per branch.
+  const branchSummary = message.metadata?.branchSummary
+  const compactionSummary = message.metadata?.compactionSummary
+  const next: UIMessage = {
+    id: String(message.id),
+    role: message.role,
+    parts: message.parts.flatMap(messagePartToUIParts),
+    createdAt: new Date(message.createdAt),
+    metadata: {
+      sessionNodeId: nodeId,
+      ...(branchSummary ? { branchSummary } : {}),
+      ...(compactionSummary ? { compactionSummary } : {}),
+    },
+  }
+  persistedMessage.set(message, { nodeId, message: next })
+  return next
+}
+
 function workspacePathToMessages(workspace: SessionWorkspace, messages: UIMessage[]) {
   const messagesById = new Map(messages.map((message) => [message.id, message]))
   const workspaceMessages: UIMessage[] = []
 
   for (const entry of workspace.transcriptPath) {
     const message = entry.node.message
-    if (!message) {
-      continue
-    }
-
-    const messageId = String(message.id)
+    if (!message) continue
     const nodeId = String(entry.node.id)
-    const existingMessage = messagesById.get(messageId)
-    if (existingMessage) {
-      workspaceMessages.push({
-        ...existingMessage,
-        metadata: { ...existingMessage.metadata, sessionNodeId: nodeId },
-      })
-      continue
-    }
-
-    // Read once per message instead of re-walking message.metadata.* per branch.
-    const branchSummary = message.metadata?.branchSummary
-    const compactionSummary = message.metadata?.compactionSummary
-
-    workspaceMessages.push({
-      id: messageId,
-      role: message.role,
-      parts: message.parts.flatMap(messagePartToUIParts),
-      createdAt: new Date(message.createdAt),
-      ...(branchSummary || compactionSummary
-        ? {
-            metadata: {
-              sessionNodeId: nodeId,
-              ...(branchSummary ? { branchSummary } : {}),
-              ...(compactionSummary ? { compactionSummary } : {}),
-            },
-          }
-        : { metadata: { sessionNodeId: nodeId } }),
-    })
+    const existingMessage = messagesById.get(String(message.id))
+    workspaceMessages.push(
+      existingMessage
+        ? withSessionNodeId(existingMessage, nodeId)
+        : fromWorkspaceNode(message, nodeId),
+    )
   }
 
   return workspaceMessages

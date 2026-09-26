@@ -1,15 +1,22 @@
 ---
-title: "Agent Definitions"
-description: "Create optional, reusable Agent roles without changing Hive lineage or granting authority."
-order: 2
-section: "Extending"
+title: "Agent definitions"
+description: "Create a reusable role for new sessions, with instructions and optional model or tool defaults."
+order: 3
+section: "Multiple agents"
 ---
 
-Agent definitions are optional Markdown files that specialize a newly created Session. They can supply instructions and defaults for a model, reasoning level, tools, skills, MCP servers, Session capabilities, authorization mode, and Workspace placement. OpenWaggle does not ship required `implementer`, `explorer`, or `reviewer` roles: the absence of a selected definition is the normal default.
+An agent definition gives a new session a reusable role, such as a code reviewer. It is an optional Markdown file with instructions and defaults. You do not need one to use OpenWaggle or create [Workers in a Hive](/docs/using-openwaggle/hives-and-sessions).
 
-An Agent definition is not a Queen or Worker type. Queen and Worker describe durable Hive lineage; an Agent definition describes an optional role. A Queen or Worker can use any definition, or none.
+## Create a role
 
-Create or edit the Markdown file directly in your project. OpenWaggle does not have a form editor for Agent definitions. **Settings → Agents** lets you read the file and enable or disable a definition for new Sessions. A Queen or Worker can discover enabled definitions and select one when creating a Session.
+1. Create `.openwaggle/agents/code-reviewer.md` in your project.
+2. Add the [Pi-style example below](#pi-style-format), adjusting the instructions for your project.
+3. Open **Settings > Agents**, choose the project, and preview the file. Keep the definition enabled if you want agents to select it for new sessions.
+4. Ask your agent to use the `code-reviewer` definition when creating a Worker. Include the task and file references the Worker needs.
+
+Edit the Markdown file directly; Settings does not have a form editor. Changes apply to later sessions, not to a session already using the definition.
+
+A role is separate from Hive lineage. Queen and Worker describe which session started which. Either can use any available definition, or none. A definition can restrict existing permissions but cannot grant new ones.
 
 ## Locations and precedence
 
@@ -31,7 +38,6 @@ OpenWaggle accepts either its versioned v1 frontmatter or the smaller Pi-style f
 ---
 name: code-reviewer
 description: Reviews code for concrete defects
-model: openai/gpt-5.6
 tools: read, grep
 ---
 
@@ -48,7 +54,6 @@ $schema: https://openwaggle.ai/schemas/agent-definition-v1.schema.json
 schemaVersion: 1
 name: security-reviewer
 description: Reviews authorization and trust boundaries
-model: openai/gpt-5.6
 reasoning: high
 tools: [read, grep]
 skills: [code-review]
@@ -61,7 +66,9 @@ workspace: new-worktree
 Review the requested change. Report concrete findings with file and line references.
 ```
 
-The non-empty Markdown body is the Agent instruction text. The complete frontmatter schema is published by the documentation site at `/schemas/agent-definition-v1.schema.json`.
+Add `model: provider/model` if you want a preferred model. Use an identifier available in your project's model catalog, and choose a reasoning level that model supports.
+
+The non-empty Markdown body is the agent instruction text. The complete frontmatter schema is published by the documentation site at `/schemas/agent-definition-v1.schema.json`.
 
 | Field | Required | Meaning |
 |---|---:|---|
@@ -87,7 +94,7 @@ Open **Settings → Agents** to see the effective definitions for a project. Use
 
 ## Inheritance and authority
 
-Explicit launch or spawn options win over definition defaults. Omitted values inherit from the initiating Session or normal app/project defaults. Tool, skill, MCP, and Session-capability lists are allowlists: they intersect with the caller's existing surface. An empty list means none; omission inherits. A definition cannot grant a capability, credential, YOLO access, filesystem access, or network access that the caller does not already possess.
+Explicit launch or spawn options win over definition defaults. Omitted values inherit from the initiating Session or normal app/project defaults. Tool, skill, MCP, and Session-capability lists are allowlists. They can only select capabilities the caller already has. An empty list means none; omission inherits. A definition cannot grant a capability, credential, YOLO access, filesystem access, or network access that the caller does not already possess.
 
 The selected definition is resolved and snapshotted when the Session is created. Editing its Markdown file affects later Sessions, not a Run already using a snapshot. A Worker cannot modify its own active snapshot to escalate itself, though normal filesystem permissions may allow it to author definitions for future Sessions.
 
