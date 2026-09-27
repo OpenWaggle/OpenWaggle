@@ -91,9 +91,10 @@ export function nodesToPark(input: {
 }
 
 /**
- * Moves nodes to distinct negative orders, which no snapshot claims, in one statement. The
- * `created_order >= 0` guard keeps `-1 - created_order` injective even if a caller ever passed a
- * negative order; it also means `session_nodes` can never carry a `CHECK (created_order >= 0)`.
+ * Moves nodes to distinct negative orders, which no snapshot claims, in one statement. `-1 -
+ * created_order` is an involution, so it is injective on its own; the `created_order >= 0` guard is
+ * what keeps a parked row off a positive slot a live row still holds. It also means `session_nodes`
+ * can never carry a `CHECK (created_order >= 0)`.
  */
 function parkNodeOrders(sql: SqlClient.SqlClient, nodeIds: readonly string[]) {
   if (nodeIds.length === 0) return Effect.void
@@ -104,8 +105,8 @@ function parkNodeOrders(sql: SqlClient.SqlClient, nodeIds: readonly string[]) {
   `
 }
 
-/** Names the first snapshot order that would break parking, or null when the snapshot is valid. */
-function unparkableOrder(nodes: readonly ProjectedSessionNodeInput[]) {
+/** Describes the first snapshot order that would break parking, or null when the snapshot is valid. */
+function describeUnparkableOrder(nodes: readonly ProjectedSessionNodeInput[]) {
   const seen = new Set<number>()
   for (const node of nodes) {
     if (node.createdOrder < 0) return `node ${node.id} has a negative created_order`
@@ -115,13 +116,22 @@ function unparkableOrder(nodes: readonly ProjectedSessionNodeInput[]) {
   return null
 }
 
+/**
+ * Rewrites a Session's node rows to match a snapshot, in phase order: park moving rows, update,
+ * delete, insert. See {@link NodeReconciliationInput} for why that order matters. Callers that do
+ * not go through `repositoryOperation` (the fork lifecycle path) see the invalid-order guard below
+ * as a defect rather than a typed `SessionProjectionRepositoryError`; the transaction still rolls
+ * back and the request still fails, and Pi's append-only projection never produces such a snapshot.
+ */
 export function reconcileSnapshotNodes(input: NodeReconciliationInput) {
   return Effect.gen(function* () {
     const existingById = new Map(input.existingNodes.map((node) => [node.id, node]))
     const retainedIds = new Set(input.nodes.map((node) => node.id))
     // A duplicate or negative order would corrupt orders rather than fail loudly; name the node.
-    const orderProblem = unparkableOrder(input.nodes)
-    if (orderProblem) yield* Effect.dieMessage(`reconcileSnapshotNodes: ${orderProblem}`)
+    const orderProblem = describeUnparkableOrder(input.nodes)
+    if (orderProblem) {
+      yield* Effect.dieMessage(`reconcileSnapshotNodes (${input.sessionId}): ${orderProblem}`)
+    }
 
     const parkedIds = nodesToPark(input)
     const parked = new Set(parkedIds)

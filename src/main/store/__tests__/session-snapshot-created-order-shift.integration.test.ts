@@ -156,12 +156,12 @@ it('saves a turn that adds fewer Pi entries than the Session has agent-loop node
   )
   expect(after.slice(0, 34).every((row) => row.id.startsWith('pi-'))).toBe(true)
   // The carried agent-loop nodes keep their relative order after the Pi entries: readers see that.
-  expect(after.slice(34).map((row) => row.id.includes(':agent-loop:'))).toEqual([
-    true,
-    true,
-    true,
-    true,
-    true,
+  expect(after.slice(34).map((row) => row.id)).toEqual([
+    'run-0:agent-loop:0',
+    'run-1:agent-loop:0',
+    'run-2:agent-loop:0',
+    'run-3:agent-loop:0',
+    'run-short:agent-loop:0',
   ])
   // The search-row projection, which the park rewrites via trigger, tracked the move exactly.
   const searchOrders = await readSearchRowOrders(sessionId)
@@ -195,6 +195,7 @@ it('saves a snapshot that renumbers a run of nodes to lower orders', async () =>
   const shifted = kept.map((node, index) => ({
     ...node,
     parentId: index === 0 ? null : `pi-${String([0, 3, 4, 5][index - 1])}`,
+    pathDepth: index,
     createdOrder: index,
   }))
   await persistSessionSnapshot({

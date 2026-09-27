@@ -1,6 +1,10 @@
+import type * as SqlClient from '@effect/sql/SqlClient'
+import { SessionId } from '@shared/types/brand'
+import { fromAny } from '@total-typescript/shoehorn'
+import * as Effect from 'effect/Effect'
 import { describe, expect, it } from 'vitest'
 import type { ProjectedSessionNodeInput } from '../../../ports/session-repository'
-import { nodesToPark } from '../snapshot-node-reconciliation'
+import { nodesToPark, reconcileSnapshotNodes } from '../snapshot-node-reconciliation'
 import type { SessionNodeRow } from '../types'
 
 /**
@@ -73,5 +77,33 @@ describe('nodesToPark', () => {
     // a->1, b->2, c->0 (a 3-cycle): every node moves.
     const nodes = [next('c', 0), next('a', 1), next('b', 2)]
     expect(new Set(nodesToPark({ existingNodes, nodes }))).toEqual(new Set(['a', 'b', 'c']))
+  })
+})
+
+describe('reconcileSnapshotNodes', () => {
+  it('writes a parked row through the full update even when only its order changed', async () => {
+    // The park restores created_order only via the full update; this pins that belt independently
+    // of searchProjectionChanged happening to compare created_order today.
+    const statements: string[] = []
+    const record = (strings: TemplateStringsArray) => {
+      statements.push(strings.join('?').replace(/\s+/g, ' ').trim())
+      return Effect.void
+    }
+    const sql = fromAny<SqlClient.SqlClient, typeof record>(record)
+
+    await Effect.runPromise(
+      reconcileSnapshotNodes({
+        sql,
+        sessionId: SessionId('session-x'),
+        branchHintByNodeId: new Map(),
+        existingNodes: [existing('a', 0), existing('b', 1)],
+        // `b` only moves: content, role, kind and parent are unchanged; a new node lands ahead.
+        nodes: [next('p', 0), next('a', 1), next('b', 2)],
+      }),
+    )
+
+    const updates = statements.filter((s) => s.startsWith('UPDATE session_nodes SET parent_id'))
+    expect(updates).toHaveLength(2)
+    expect(updates.every((s) => s.includes('created_order = ?'))).toBe(true)
   })
 })
