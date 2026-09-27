@@ -7,12 +7,23 @@ import type {
 import { nodeProjectionChanged, searchProjectionChanged } from './snapshot-transcript-term-changes'
 import type { SessionNodeRow } from './types'
 
-/** Rewrites a Session's node rows to match a snapshot: update, park, delete and insert. */
+/**
+ * Rewrites a Session's node rows to match a snapshot. The order of work is the point of this
+ * module: park moving rows, update, delete, then insert.
+ *
+ * `created_order` is unique per Session, and SQLite checks that index row by row, so rows cannot be
+ * shifted in place. Snapshots renumber durable agent-loop nodes after the Pi entries on every
+ * turn, and a Pi compaction can shrink the entry count, so runs of rows move together. Deletes run
+ * after updates because `parent_id` is `ON DELETE CASCADE`: deleting first would take a retained
+ * child that is only re-parented below. Inserts run last, so a snapshot that re-parents a retained
+ * node onto a node it also inserts still fails with a foreign-key error; Pi's append-only
+ * projection never produces that shape.
+ */
 export interface NodeReconciliationInput {
   readonly branchHintByNodeId: ReadonlyMap<string, string>
   readonly existingNodes: readonly SessionNodeRow[]
-  readonly input: Pick<PersistSessionSnapshotInput, 'sessionId'>
   readonly nodes: readonly ProjectedSessionNodeInput[]
+  readonly sessionId: PersistSessionSnapshotInput['sessionId']
   readonly sql: SqlClient.SqlClient
 }
 
@@ -60,13 +71,13 @@ function updateSnapshotNode(input: {
 
 /**
  * Existing nodes that must leave their `created_order` slot before any row is rewritten: retained
- * nodes that move, and removed nodes whose slot a snapshot node claims.
- *
- * SQLite checks `UNIQUE (session_id, created_order)` row by row, so shifting a run of nodes in
- * place collides with a node that has not moved yet. Durable agent-loop nodes are renumbered after
- * the Pi entries on every snapshot, which shifts them whenever a turn adds entries.
+ * nodes that move, and removed nodes whose slot a snapshot node claims. A parked node is always
+ * written back through the full update below, so its final `created_order` is restored.
  */
-function nodesToPark(input: NodeReconciliationInput) {
+export function nodesToPark(input: {
+  readonly existingNodes: readonly SessionNodeRow[]
+  readonly nodes: readonly ProjectedSessionNodeInput[]
+}) {
   const nextOrderById = new Map(input.nodes.map((node) => [node.id, node.createdOrder]))
   const claimedOrders = new Set(input.nodes.map((node) => node.createdOrder))
   return input.existingNodes
@@ -79,32 +90,55 @@ function nodesToPark(input: NodeReconciliationInput) {
     .map((existing) => existing.id)
 }
 
-/** Moves nodes to distinct negative orders, which no snapshot claims, in one statement. */
+/**
+ * Moves nodes to distinct negative orders, which no snapshot claims, in one statement. The
+ * `created_order >= 0` guard keeps `-1 - created_order` injective even if a caller ever passed a
+ * negative order; it also means `session_nodes` can never carry a `CHECK (created_order >= 0)`.
+ */
 function parkNodeOrders(sql: SqlClient.SqlClient, nodeIds: readonly string[]) {
   if (nodeIds.length === 0) return Effect.void
   return sql`
     UPDATE session_nodes SET created_order = -1 - created_order
-    WHERE id IN (SELECT CAST(value AS TEXT) FROM json_each(${JSON.stringify(nodeIds)}))
+    WHERE created_order >= 0
+      AND id IN (SELECT CAST(value AS TEXT) FROM json_each(${JSON.stringify(nodeIds)}))
   `
+}
+
+/** Names the first snapshot order that would break parking, or null when the snapshot is valid. */
+function unparkableOrder(nodes: readonly ProjectedSessionNodeInput[]) {
+  const seen = new Set<number>()
+  for (const node of nodes) {
+    if (node.createdOrder < 0) return `node ${node.id} has a negative created_order`
+    if (seen.has(node.createdOrder)) return `duplicate created_order at node ${node.id}`
+    seen.add(node.createdOrder)
+  }
+  return null
 }
 
 export function reconcileSnapshotNodes(input: NodeReconciliationInput) {
   return Effect.gen(function* () {
     const existingById = new Map(input.existingNodes.map((node) => [node.id, node]))
     const retainedIds = new Set(input.nodes.map((node) => node.id))
+    // A duplicate or negative order would corrupt orders rather than fail loudly; name the node.
+    const orderProblem = unparkableOrder(input.nodes)
+    if (orderProblem) yield* Effect.dieMessage(`reconcileSnapshotNodes: ${orderProblem}`)
 
-    // Parked, not deleted first: deleting cascades to children that are only re-parented below.
-    yield* parkNodeOrders(input.sql, nodesToPark(input))
+    const parkedIds = nodesToPark(input)
+    const parked = new Set(parkedIds)
+    yield* parkNodeOrders(input.sql, parkedIds)
     for (const node of input.nodes) {
       const existing = existingById.get(node.id)
       if (!existing) continue
       const next = projectedNode(input, node)
-      if (!nodeProjectionChanged(existing, next)) continue
+      // A parked row must be written back with its final created_order, which only the full update
+      // includes; force it rather than trusting searchProjectionChanged to compare created_order.
+      const restoreParkedOrder = parked.has(node.id)
+      if (!restoreParkedOrder && !nodeProjectionChanged(existing, next)) continue
       yield* updateSnapshotNode({
         sql: input.sql,
         nodeId: node.id,
         next,
-        updateSearchProjection: searchProjectionChanged(existing, next),
+        updateSearchProjection: restoreParkedOrder || searchProjectionChanged(existing, next),
       })
     }
     for (const existing of input.existingNodes) {
@@ -116,7 +150,7 @@ export function reconcileSnapshotNodes(input: NodeReconciliationInput) {
       if (existingById.has(node.id)) continue
       yield* insertSnapshotNode({
         sql: input.sql,
-        sessionId: input.input.sessionId,
+        sessionId: input.sessionId,
         branchHintByNodeId: input.branchHintByNodeId,
         node,
       })

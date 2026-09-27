@@ -117,6 +117,18 @@ function readTermIndexConsistency(sessionId: SessionId) {
   )
 }
 
+function readSearchRowOrders(sessionId: SessionId) {
+  return runStoreEffect(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      return yield* sql<{ readonly node_id: string; readonly created_order: number }>`
+        SELECT node_id, created_order FROM session_node_search_rows
+        WHERE session_id = ${sessionId} ORDER BY created_order
+      `
+    }),
+  )
+}
+
 it('saves a turn that adds fewer Pi entries than the Session has agent-loop nodes', async () => {
   const session = await createSession({
     projectPath: '/tmp/created-order',
@@ -143,7 +155,66 @@ it('saves a turn that adds fewer Pi entries than the Session has agent-loop node
     Array.from({ length: 39 }, (_, index) => index),
   )
   expect(after.slice(0, 34).every((row) => row.id.startsWith('pi-'))).toBe(true)
+  // The carried agent-loop nodes keep their relative order after the Pi entries: readers see that.
+  expect(after.slice(34).map((row) => row.id.includes(':agent-loop:'))).toEqual([
+    true,
+    true,
+    true,
+    true,
+    true,
+  ])
+  // The search-row projection, which the park rewrites via trigger, tracked the move exactly.
+  const searchOrders = await readSearchRowOrders(sessionId)
+  expect(
+    searchOrders.map((row) => ({ id: row.node_id, created_order: row.created_order })),
+  ).toEqual(after)
   // The derived term index followed the move instead of being marked stale for repair.
+  expect(await readTermIndexConsistency(sessionId)).toEqual({ documents: 1, consistent: 1 })
+})
+
+it('saves a snapshot that renumbers a run of nodes to lower orders', async () => {
+  const session = await createSession({
+    projectPath: '/tmp/created-order-shrink',
+    piSessionId: PI_SESSION_ID,
+  })
+  const sessionId = SessionId(String(session.id))
+
+  // A linear chain of six nodes, each parented to the one before it.
+  const grown = piEntries(6)
+  await persistSessionSnapshot({
+    sessionId,
+    piSessionId: PI_SESSION_ID,
+    activeNodeId: 'pi-5',
+    nodes: grown,
+  })
+
+  // Remove two nodes near the front; the tail shifts down onto slots the removed nodes held.
+  const kept = [grown[0], grown[3], grown[4], grown[5]].filter(
+    (node): node is (typeof grown)[number] => node !== undefined,
+  )
+  const shifted = kept.map((node, index) => ({
+    ...node,
+    parentId: index === 0 ? null : `pi-${String([0, 3, 4, 5][index - 1])}`,
+    createdOrder: index,
+  }))
+  await persistSessionSnapshot({
+    sessionId,
+    piSessionId: PI_SESSION_ID,
+    activeNodeId: 'pi-5',
+    nodes: shifted,
+  })
+
+  const after = await readOrders(sessionId)
+  expect(after).toEqual([
+    { id: 'pi-0', created_order: 0 },
+    { id: 'pi-3', created_order: 1 },
+    { id: 'pi-4', created_order: 2 },
+    { id: 'pi-5', created_order: 3 },
+  ])
+  const searchOrders = await readSearchRowOrders(sessionId)
+  expect(
+    searchOrders.map((row) => ({ id: row.node_id, created_order: row.created_order })),
+  ).toEqual(after)
   expect(await readTermIndexConsistency(sessionId)).toEqual({ documents: 1, consistent: 1 })
 })
 

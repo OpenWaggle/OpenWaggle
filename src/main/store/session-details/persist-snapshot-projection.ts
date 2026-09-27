@@ -181,7 +181,13 @@ export function replaceSnapshotProjection(input: SnapshotProjectionInput) {
       nodeIds: termProjectionNodeIds,
       reconcile: Effect.zipRight(
         deleteSnapshotBranchProjection(input.sql, input.input.sessionId),
-        reconcileSnapshotNodes(input),
+        reconcileSnapshotNodes({
+          sql: input.sql,
+          sessionId: input.input.sessionId,
+          existingNodes: input.existingNodes,
+          nodes: input.nodes,
+          branchHintByNodeId: input.branchHintByNodeId,
+        }),
       ),
     })
     for (const branch of input.branches) {
