@@ -2,10 +2,17 @@ import type * as SqlClient from '@effect/sql/SqlClient'
 import { SessionId } from '@shared/types/brand'
 import { fromAny } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { ProjectedSessionNodeInput } from '../../../ports/session-repository'
 import { nodesToPark, reconcileSnapshotNodes } from '../snapshot-node-reconciliation'
 import type { SessionNodeRow } from '../types'
+
+// Force the search predicate off so the ONLY thing that can restore a parked row's order is the
+// belt in reconcileSnapshotNodes, not searchProjectionChanged happening to compare created_order.
+vi.mock('../snapshot-transcript-term-changes', () => ({
+  nodeProjectionChanged: () => true,
+  searchProjectionChanged: () => false,
+}))
 
 /**
  * `nodesToPark` is the heart of the fix: it decides which rows must vacate their `created_order`
@@ -82,8 +89,8 @@ describe('nodesToPark', () => {
 
 describe('reconcileSnapshotNodes', () => {
   it('writes a parked row through the full update even when only its order changed', async () => {
-    // The park restores created_order only via the full update; this pins that belt independently
-    // of searchProjectionChanged happening to compare created_order today.
+    // With searchProjectionChanged mocked to false (above), a reverted belt would take the cheap
+    // update and leave created_order unwritten; this fails then and passes with the belt intact.
     const statements: string[] = []
     const record = (strings: TemplateStringsArray) => {
       statements.push(strings.join('?').replace(/\s+/g, ' ').trim())
@@ -97,11 +104,13 @@ describe('reconcileSnapshotNodes', () => {
         sessionId: SessionId('session-x'),
         branchHintByNodeId: new Map(),
         existingNodes: [existing('a', 0), existing('b', 1)],
-        // `b` only moves: content, role, kind and parent are unchanged; a new node lands ahead.
+        // `a` and `b` only move: content, role, kind and parent are unchanged; a new node leads.
         nodes: [next('p', 0), next('a', 1), next('b', 2)],
       }),
     )
 
+    // Parking runs first, before any row is rewritten.
+    expect(statements[0]).toContain('created_order = -1 - created_order')
     const updates = statements.filter((s) => s.startsWith('UPDATE session_nodes SET parent_id'))
     expect(updates).toHaveLength(2)
     expect(updates.every((s) => s.includes('created_order = ?'))).toBe(true)
