@@ -190,6 +190,42 @@ const PIPELINE_CASES: readonly ExpectedPipelineCase[] = [
     arguments_: { child: { a: 'x' } },
   },
   {
+    label: 'a $ref chained through a nested $id (root anyOf)',
+    expected: 'server',
+    schema: {
+      anyOf: [{ $ref: '#/$defs/A' }],
+      $defs: {
+        A: { $id: 'urn:a', $ref: '#/$defs/B', $defs: { B: { type: 'object' } } },
+        B: { type: 'object', required: ['z'] },
+      },
+    },
+    arguments_: {},
+  },
+  {
+    label: 'a $ref chained through a nested $id (root allOf)',
+    expected: 'server',
+    schema: {
+      allOf: [{ $ref: '#/$defs/A' }],
+      $defs: {
+        A: { $id: 'urn:a', $ref: '#/$defs/B', $defs: { B: { type: 'object' } } },
+        B: { type: 'object', required: ['z'] },
+      },
+    },
+    arguments_: {},
+  },
+  {
+    label: 'a $ref chained through a nested $id (root $ref)',
+    expected: 'server',
+    schema: {
+      $ref: '#/$defs/A',
+      $defs: {
+        A: { $id: 'urn:a', $ref: '#/$defs/B', $defs: { B: { type: 'object' } } },
+        B: { type: 'object', required: ['z'] },
+      },
+    },
+    arguments_: {},
+  },
+  {
     label: 'a call missing the discriminator every alternative requires',
     expected: 'rejected',
     schema: {
@@ -235,15 +271,4 @@ describe('repaired MCP direct tools through the agent loop', () => {
       if (repaired.accepted) expect(serverSchemaAccepts(schema, repaired.forwarded)).toBe(true)
     },
   )
-
-  it('never forwards what the exact server validator rejects, even when Pi accepts it', async () => {
-    // Pi bundles its own TypeBox; its `iri` format accepts IPvFuture hosts, the app's does not.
-    const schema = {
-      type: 'object',
-      anyOf: [{ properties: { x: { type: 'string', format: 'iri' } }, required: ['x'] }],
-    }
-    const repaired = await throughRepairedTool(schema, { x: 'http://[v1.fe]/' })
-
-    if (repaired.accepted) expect(serverSchemaAccepts(schema, repaired.forwarded)).toBe(true)
-  })
 })

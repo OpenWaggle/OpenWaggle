@@ -16,3 +16,7 @@ export function requiredOf(schema: JsonSchemaObject): string[] {
     ? schema.required.filter((key): key is string => typeof key === 'string')
     : []
 }
+
+export function schemaArray(value: unknown): JsonSchemaObject[] | undefined {
+  return Array.isArray(value) ? value.filter(isJsonSchemaObject) : undefined
+}

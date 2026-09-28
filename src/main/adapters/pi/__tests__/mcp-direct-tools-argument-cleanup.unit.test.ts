@@ -79,4 +79,19 @@ describe('repaired MCP direct tools at call time', () => {
     expect(parameters.required).toEqual(['a'])
     expect(() => validateToolArguments(definition, toolCall({}))).toThrow(/a/)
   })
+
+  it('keeps property types for Pi when the repair only dropped a root keyword', () => {
+    // Dropping a root `not` only loosens the schema, so Pi can coerce through the real types.
+    const { definition } = register({
+      type: 'object',
+      properties: { n: { type: 'number' } },
+      not: { required: ['z'] },
+    })
+
+    expect(JSON.parse(JSON.stringify(definition.parameters))).toEqual({
+      type: 'object',
+      properties: { n: { type: 'number' } },
+    })
+    expect(validateToolArguments(definition, toolCall({ n: '5' }))).toEqual({ n: 5 })
+  })
 })

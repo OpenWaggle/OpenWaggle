@@ -7,7 +7,7 @@ import {
   mcpDirectToolCallArguments,
 } from './mcp-direct-tool-call-validation'
 import { type ExecuteGateway, executeApprovedCall, textResult } from './mcp-tool-execution'
-import { relaxForPreCallValidation } from './provider-tool-parameter-relaxation'
+import { needsRelaxation, relaxForPreCallValidation } from './provider-tool-parameter-relaxation'
 import { isJsonSchemaObject, providerToolParameters } from './provider-tool-parameter-schema'
 import { compileToolArgumentsValidator } from './tool-arguments-validator'
 
@@ -29,9 +29,9 @@ interface PreparedParameters {
  * object schema and keep the server's schema to validate the real arguments at call time.
  *
  * Pi validates each call against the provider-facing schema before `execute`, so when the server
- * schema can be enforced at call time the repaired schema is relaxed to never reject an argument
- * the server schema accepts. When it cannot be compiled, the flattened repair stays the only
- * pre-approval check and the server validates the rest.
+ * schema can be enforced at call time and the repair restructured it, the repaired schema is
+ * relaxed to never reject an argument the server schema accepts. When it cannot be compiled, the
+ * flattened repair stays the only pre-approval check and the server validates the rest.
  */
 function prepareParameters(tool: McpDirectToolDescriptor): PreparedParameters {
   const normalized = providerToolParameters(tool.inputSchema)
@@ -50,9 +50,11 @@ function prepareParameters(tool: McpDirectToolDescriptor): PreparedParameters {
     }
   }
   const repairs = [...normalized.repairs]
-  const relaxed = relaxForPreCallValidation({ ...normalized.schema }, repairs)
+  const registered = needsRelaxation(tool.inputSchema)
+    ? relaxForPreCallValidation({ ...normalized.schema }, repairs)
+    : normalized.schema
   return {
-    parameters: Type.Unsafe<Record<string, unknown>>(relaxed),
+    parameters: Type.Unsafe<Record<string, unknown>>(registered),
     callValidation: {
       server: Type.Unsafe<Record<string, unknown>>(tool.inputSchema),
       flattened: Type.Unsafe<Record<string, unknown>>(normalized.schema),

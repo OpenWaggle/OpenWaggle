@@ -4,6 +4,7 @@ import {
   type MutableJsonSchema,
   propertiesOf,
   requiredOf,
+  schemaArray,
 } from './json-schema-object'
 
 export { isJsonSchemaObject } from './json-schema-object'
@@ -57,10 +58,6 @@ export interface ProviderToolParameters {
   readonly repairs: readonly string[]
 }
 
-function schemaArray(value: unknown): JsonSchemaObject[] | undefined {
-  return Array.isArray(value) ? value.filter(isJsonSchemaObject) : undefined
-}
-
 function resolvePointer(
   document: JsonSchemaObject,
   reference: string,
@@ -86,13 +83,18 @@ function inlineReference(
   const reference = node.$ref
   if (typeof reference !== 'string') return node
   const { $ref: _reference, ...siblings } = node
-  const target = depth < MAX_REFERENCE_DEPTH ? resolvePointer(document, reference) : undefined
+  // A nested `$id` rebases local references to that resource; document-root resolution misreads them.
+  const rebased = node !== document && typeof node.$id === 'string'
+  const target =
+    !rebased && depth < MAX_REFERENCE_DEPTH ? resolvePointer(document, reference) : undefined
   if (!target) {
     repairs.push(`dropped unresolvable root $ref ${reference}`)
     return siblings
   }
   repairs.push(`inlined root $ref ${reference}`)
-  return { ...inlineReference(target, document, repairs, depth + 1), ...siblings }
+  // The inlined resource's `$id` must not become the base of the flattened root.
+  const { $id: _id, ...inlined } = inlineReference(target, document, repairs, depth + 1)
+  return { ...inlined, ...siblings }
 }
 
 function isObjectShaped(schema: JsonSchemaObject) {

@@ -113,3 +113,14 @@ export function serverSchemaAccepts(schema: McpJsonValue, arguments_: unknown) {
   if (!('validate' in compiled)) throw new Error(compiled.error)
   return compiled.validate(arguments_).length === 0
 }
+
+/** Follows a local JSON pointer such as `#/properties/a/anyOf/0` through parsed JSON. */
+export function resolveLocalPointer(document: unknown, pointer: string): unknown {
+  let current = document
+  for (const segment of pointer.replace(/^#\//u, '').split('/')) {
+    const key = segment.replaceAll('~1', '/').replaceAll('~0', '~')
+    if (!Array.isArray(current) && !isJsonSchemaObject(current)) return undefined
+    current = Array.isArray(current) ? current[Number(key)] : current[key]
+  }
+  return current
+}

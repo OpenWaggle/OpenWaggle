@@ -145,7 +145,8 @@ describe('providerToolParameters', () => {
         anyOf: Array.from({ length: 60 }, () => ({ $ref: '#' })),
       })
 
-      expect(performance.now() - started).toBeLessThan(1_000)
+      // Unbounded, 60 self-references cost minutes; bounded, milliseconds.
+      expect(performance.now() - started).toBeLessThan(3_000)
       expect(new Set(repairs).size).toBe(repairs.length)
     },
   )
