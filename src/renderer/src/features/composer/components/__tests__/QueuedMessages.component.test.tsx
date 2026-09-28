@@ -26,8 +26,14 @@ interface QueuedMessageFixture {
 const queueMock = vi.hoisted(() => {
   const items: QueuedMessageFixture[] = []
   const error: Error | null = null
+  const snapshot: {
+    state: 'running' | 'paused'
+    revision: number
+    activeRunId: string | null
+    items: QueuedMessageFixture[]
+  } = { state: 'running', revision: 0, activeRunId: 'run-1', items }
   return {
-    snapshot: { state: 'running', revision: 0, activeRunId: 'run-1', items },
+    snapshot,
     error,
     refresh: vi.fn().mockResolvedValue(undefined),
     withdraw: vi.fn().mockResolvedValue(undefined),
@@ -73,6 +79,7 @@ describe('QueuedMessages', () => {
   beforeEach(() => {
     queue()
     queueMock.snapshot.state = 'running'
+    queueMock.snapshot.activeRunId = 'run-1'
     queueMock.error = null
     queueMock.refresh.mockReset().mockResolvedValue(undefined)
     noOpSteer.mockClear()
@@ -197,6 +204,40 @@ describe('QueuedMessages', () => {
     expect(screen.getByText('Queue paused')).toBeVisible()
     fireEvent.click(screen.getByRole('button', { name: 'Resume' }))
     expect(queueMock.setPaused).toHaveBeenCalledWith(false)
+  })
+
+  // After a failed Run the Session is idle and every new message joins the paused queue. Without a
+  // reason on screen that reads as the app ignoring the message.
+  it('says why an idle Session queues messages while its queue is paused', () => {
+    queue({ id: 'follow-up-1', text: 'try again' })
+    queueMock.snapshot.state = 'paused'
+    queueMock.snapshot.activeRunId = null
+    const { rerender } = render(
+      <QueuedMessages
+        sessionId={CONV_A}
+        onSteer={noOpSteer}
+        isStreaming={false}
+        onToast={noOpToast}
+      />,
+    )
+
+    expect(
+      screen.getByText(
+        'A failed or stopped Run pauses the queue. New messages wait here until you resume.',
+      ),
+    ).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Resume' })).toBeVisible()
+
+    queueMock.snapshot.activeRunId = 'run-1'
+    rerender(
+      <QueuedMessages
+        sessionId={CONV_A}
+        onSteer={noOpSteer}
+        isStreaming={false}
+        onToast={noOpToast}
+      />,
+    )
+    expect(screen.queryByText(/A failed or stopped Run pauses the queue/)).toBeNull()
   })
 
   it('explains blocked delivery and disables steering until attention is resolved', () => {

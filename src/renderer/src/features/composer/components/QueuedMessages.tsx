@@ -31,7 +31,45 @@ function attentionCopy(item: SessionFollowUpQueueItem) {
     : 'This Follow-up cannot be delivered. Review Session access or dismiss it.'
 }
 
+/*
+ * Said while nothing is running, because that is when a paused queue looks broken: a failed or
+ * stopped Run pauses it, and every message sent to the Session afterwards joins it instead of running.
+ */
+const PAUSED_IDLE_QUEUE_COPY =
+  'A failed or stopped Run pauses the queue. New messages wait here until you resume.'
+
 function QueueHeader({
+  count,
+  headNeedsAttention,
+  isResuming,
+  queueState,
+  hasActiveRun,
+  onResume,
+}: {
+  readonly count: number
+  readonly headNeedsAttention: boolean
+  readonly isResuming: boolean
+  readonly queueState: 'running' | 'paused'
+  readonly hasActiveRun: boolean
+  readonly onResume: () => void
+}) {
+  return (
+    <div className="flex flex-col gap-0.5 px-1">
+      <QueueHeaderRow
+        count={count}
+        headNeedsAttention={headNeedsAttention}
+        isResuming={isResuming}
+        queueState={queueState}
+        onResume={onResume}
+      />
+      {queueState === 'paused' && !hasActiveRun ? (
+        <p className="text-xs leading-normal text-text-tertiary">{PAUSED_IDLE_QUEUE_COPY}</p>
+      ) : null}
+    </div>
+  )
+}
+
+function QueueHeaderRow({
   count,
   headNeedsAttention,
   isResuming,
@@ -45,7 +83,7 @@ function QueueHeader({
   readonly onResume: () => void
 }) {
   return (
-    <div className="flex items-center gap-1.5 px-1">
+    <div className="flex items-center gap-1.5">
       <Timer className="size-3 text-text-tertiary" />
       <span className="text-xs font-semibold text-text-tertiary">
         {queueState === 'paused' ? 'Queue paused' : 'Queued'}
@@ -237,6 +275,7 @@ export function QueuedMessages({ sessionId, onSteer, isStreaming, onToast }: Que
                 headNeedsAttention={queue[0]?.deliveryState === 'needs_attention'}
                 isResuming={isResuming}
                 queueState={snapshot.state}
+                hasActiveRun={snapshot.activeRunId !== null}
                 onResume={() => void resumeQueue()}
               />
 
