@@ -144,6 +144,10 @@ The selected model must support the tool-calling format used by Pi, OpenWaggle's
 
 If a custom provider rejects tool requests, use a compatible model or correct its provider configuration. You can still inspect resources, use prompts, open Apps, and manage servers in Settings.
 
+### Images and binary results
+
+When an MCP tool returns images, such as a browser screenshot, OpenWaggle passes them to the model as images, up to 8 per tool result. It never adds the encoded image data to the tool's text. A model without image input receives a short note in place of each image. Audio and binary resource data are also left out of the model's text and replaced by a marker showing their size. The complete result stays available to MCP Apps and the conversation view.
+
 ## Bounded `mcp_run` orchestration
 
 This section is an advanced reference for tool authors and automation. You do not need to write this code to use an MCP server in a conversation.
