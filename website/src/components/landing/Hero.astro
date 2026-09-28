@@ -7,33 +7,51 @@ import ProductDemo from '@/components/landing/ProductDemo.astro';
 <section class="relative isolate overflow-hidden">
   <div class="pointer-events-none absolute inset-0 -z-10" aria-hidden="true" style="background: radial-gradient(ellipse 68% 45% at 50% 8%, #f5a62330, #b874100e 62%, transparent)"></div>
   <HoneycombBackground />
-  <div class="relative mx-auto max-w-6xl px-6 pb-12 pt-14 md:px-12 md:pt-20">
-    <div class="mx-auto max-w-2xl text-center">
-      <p class="mb-5 text-xs font-medium uppercase tracking-widest text-accent">OpenWaggle</p>
-      <h1 class="text-balance font-display text-4xl font-semibold leading-tight tracking-tight md:text-6xl">
-        A desktop app for coding with AI.
-      </h1>
-      <p class="mx-auto mt-6 max-w-lg text-pretty text-lg leading-relaxed text-text-secondary">
-        Work in your project, review code changes, and check the result in a built-in browser.
+  <Button
+    id="honeycomb-motion"
+    variant="ghost"
+    size="icon"
+    class="honeycomb-motion absolute right-4 top-4 z-10 hidden border border-border-light bg-bg/60 opacity-60 hover:opacity-100 focus-visible:opacity-100"
+    aria-pressed="false"
+    aria-label="Pause background animation"
+    title="Pause background animation"
+  >
+    <svg class="motion-pause h-3 w-3" viewBox="0 0 12 12" fill="currentColor" aria-hidden="true"><rect x="2" y="1" width="3" height="10" rx="1" /><rect x="7" y="1" width="3" height="10" rx="1" /></svg>
+    <svg class="motion-play h-3 w-3" viewBox="0 0 12 12" fill="currentColor" aria-hidden="true"><path d="M3 1.5v9l7.5-4.5z" /></svg>
+  </Button>
+  <div class="relative mx-auto max-w-6xl px-6 pb-12 pt-14 md:px-12 md:pt-16">
+    <div class="mx-auto flex max-w-3xl flex-col items-center text-center">
+      <div class="mb-6 flex flex-col items-center gap-1.5">
+        <img src="/logo-mark.svg" alt="" aria-hidden="true" class="h-24 w-24 drop-shadow-[0_12px_40px_#f5a62340] md:h-32 md:w-32" width="128" height="128" loading="eager" />
+        <img src="/logo-wordmark.svg" alt="OpenWaggle" class="h-11 w-auto md:h-[60px]" width="287" height="60" loading="eager" />
+      </div>
+      <p class="inline-flex items-center gap-2 rounded-full border border-border-light bg-bg-secondary px-4 py-1.5 text-xs font-medium text-text-secondary">
+        <span class="h-2 w-2 rounded-full bg-success" aria-hidden="true"></span>
+        Desktop coding agent
+        <span class="rounded-full bg-accent/15 px-2 py-0.5 text-[10px] font-bold tracking-wide text-accent">ALPHA</span>
       </p>
-      <div class="mt-7">
-        <Button href="https://github.com/OpenWaggle/OpenWaggle/releases">Download OpenWaggle</Button>
+      <h1 class="mt-7 text-balance font-display text-4xl font-bold leading-[1.05] tracking-tight md:text-[64px]">
+        One agent codes.
+        <span class="block text-accent">A hive ships.</span>
+      </h1>
+      <p class="mt-6 max-w-xl text-balance text-lg leading-relaxed text-text-secondary">
+        Pair two agents in a Waggle to pick apart each other's work, or hand the job to a Hive of Workers that keeps going after you move on. Missing something? Ask OpenWaggle to build it.
+      </p>
+      <div class="mt-8">
+        <Button href="/docs/getting-started/installation/">Download OpenWaggle</Button>
       </div>
-      <p class="mt-4 text-xs text-text-tertiary">macOS · Windows · Linux</p>
+      <p class="mt-4 text-xs text-text-tertiary">Free for macOS, Windows, and Linux · <a href="https://github.com/OpenWaggle/OpenWaggle" target="_blank" rel="noopener noreferrer" class="underline underline-offset-4 hover:text-text-primary">Source on GitHub</a></p>
     </div>
-    <div class="mt-10">
-      <div class="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs text-text-tertiary">
-        <span>Inside OpenWaggle</span>
-        <Button id="honeycomb-motion" variant="ghost" size="small" class="honeycomb-motion hidden" aria-pressed="false">
-          Pause background animation
-        </Button>
-      </div>
+    <div class="mt-12">
       <ProductDemo />
     </div>
   </div>
 </section>
 
 <style>
+  .motion-play { display: none; }
+  .honeycomb-motion[aria-pressed='true'] .motion-pause { display: none; }
+  .honeycomb-motion[aria-pressed='true'] .motion-play { display: block; }
   @media (prefers-reduced-motion: reduce) {
     .honeycomb-motion { display: none; }
   }

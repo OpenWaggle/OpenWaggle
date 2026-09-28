@@ -64,8 +64,10 @@ const outline = CENTRES.map(([x, y]) =>
     background.setAttribute('data-ready', '');
     control.addEventListener('click', () => {
       const paused = background.toggleAttribute('data-paused');
+      const label = paused ? 'Resume background animation' : 'Pause background animation';
       control.setAttribute('aria-pressed', String(paused));
-      control.textContent = paused ? 'Resume background animation' : 'Pause background animation';
+      control.setAttribute('aria-label', label);
+      control.setAttribute('title', label);
     });
     let onScreen = true;
     const syncVisibility = () => background.toggleAttribute('data-offscreen', !onScreen || document.hidden);

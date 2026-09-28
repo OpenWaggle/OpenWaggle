@@ -1,55 +1,97 @@
 ---
-const views = [
+const groups = [
   {
-    id: 'conversation',
-    label: 'Conversation',
-    image: '/screenshots/feature-coding-agent.png',
-    alt: 'OpenWaggle conversation with agent responses and tool activity',
-    description: 'Ask the agent to work on your project. Follow its edits and tool calls in the conversation.',
+    id: 'agents',
+    label: 'Multiple agents',
+    views: [
+      {
+        id: 'hive',
+        label: 'Hive',
+        image: '/screenshots/hive-sessions.png',
+        alt: 'A Queen session coordinating three Worker sessions, with their status in the Session Summary',
+        description: 'Split a job across Worker sessions. Each one keeps its own transcript, can use its own worktree, and keeps running while you work elsewhere.',
+      },
+      {
+        id: 'waggle',
+        label: 'Waggle',
+        image: '/screenshots/session-tree-panel.png',
+        alt: 'A Waggle conversation where two agents review a fix in turns, with the Session tree open',
+        description: 'Pair two agents on one task, each with its own model and role. They take turns until they agree, you stop them, or they reach the turn limit.',
+      },
+    ],
   },
   {
-    id: 'changes',
-    label: 'Changes',
-    image: '/screenshots/feature-git-workflow.png',
-    alt: 'OpenWaggle Git workflow and code diff panel',
-    description: 'Review the diff, leave comments, and send feedback to the agent before committing.',
-  },
-  {
-    id: 'browser',
-    label: 'Browser',
-    image: '/screenshots/feature-browser-preview.png',
-    alt: 'OpenWaggle with its built-in browser preview open',
-    description: 'Inspect your running app in the same browser as the agent. Your input takes priority.',
+    id: 'session',
+    label: 'Every session',
+    views: [
+      {
+        id: 'conversation',
+        label: 'Conversation',
+        image: '/screenshots/feature-coding-agent.png',
+        alt: 'OpenWaggle conversation with agent responses and tool activity',
+        description: 'Ask the agent to work on your project. Follow its edits and tool calls in the conversation.',
+      },
+      {
+        id: 'changes',
+        label: 'Changes',
+        image: '/screenshots/feature-git-workflow.png',
+        alt: 'OpenWaggle Git workflow and code diff panel',
+        description: 'Review the diff, comment on a line, and send the feedback to the agent before you commit.',
+      },
+      {
+        id: 'browser',
+        label: 'Browser',
+        image: '/screenshots/feature-browser-preview.png',
+        alt: 'OpenWaggle with its built-in browser preview open',
+        description: 'Check your running app in the same browser the agent uses. Point at an element and attach it to your next message.',
+      },
+    ],
   },
 ];
+const views = groups.flatMap((group) => group.views);
+const defaultView = views[0]?.id;
+// The default figure shows without :has() support; the other figures appear when their radio is checked.
+// Generated so adding a view never needs hand-written CSS.
+const visibility = [
+  `.product-demo:has(input:checked:not(#view-${defaultView})) #demo-${defaultView} { display: none; }`,
+  ...views
+    .filter(({ id }) => id !== defaultView)
+    .map(({ id }) => `.product-demo:has(#view-${id}:checked) #demo-${id} { display: block; }`),
+].join('\n');
 ---
 
 <div class="product-demo">
   {views.map(({ id, image, alt, description }) => (
-    <figure id={`demo-${id}`} class={`${id}-view`}>
+    <figure id={`demo-${id}`} class:list={['demo-view', id === defaultView && 'demo-default']}>
       <div class="demo-frame overflow-hidden rounded-xl border border-accent/20 bg-bg-secondary shadow-2xl shadow-black/20">
-        <img src={image} alt={alt} class="aspect-[16/10] w-full object-contain" width="1600" height="1000" fetchpriority={id === 'conversation' ? 'high' : undefined} loading={id === 'conversation' ? 'eager' : 'lazy'} />
+        <img src={image} alt={alt} class="aspect-[16/10] w-full object-contain" width="1600" height="1000" fetchpriority={id === defaultView ? 'high' : undefined} loading={id === defaultView ? 'eager' : 'lazy'} />
       </div>
       <figcaption class="mx-auto mt-5 max-w-3xl px-2 text-center text-sm leading-relaxed text-text-secondary">
         {description}
       </figcaption>
     </figure>
   ))}
-  <fieldset class="mt-4 flex flex-wrap justify-center gap-2">
+  <fieldset class="mt-4 flex flex-wrap items-center justify-center gap-x-6 gap-y-2">
     <legend class="sr-only">Explore OpenWaggle</legend>
-    {views.map(({ id, label }) => (
-      <label class="cursor-pointer">
-        <input class="peer sr-only" type="radio" name="product-view" id={`view-${id}`} aria-controls={`demo-${id}`} value={id} checked={id === 'conversation'} />
-        <span class="block min-h-11 border-b-2 border-transparent px-2 py-3 text-xs text-text-tertiary sm:px-4 sm:text-sm peer-checked:border-accent peer-checked:text-accent peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-accent">{label}</span>
-      </label>
+    {groups.map(({ id: groupId, label: groupLabel, views: groupViews }, index) => (
+      <div role="group" aria-labelledby={`demo-group-${groupId}`} class:list={['flex flex-wrap items-center justify-center gap-1', index > 0 && 'md:border-l md:border-border-light md:pl-6']}>
+        <span id={`demo-group-${groupId}`} class="mr-1 hidden text-[11px] uppercase tracking-widest text-text-tertiary md:inline">{groupLabel}</span>
+        {groupViews.map(({ id, label }) => (
+          <label class="cursor-pointer">
+            <input class="peer sr-only" type="radio" name="product-view" id={`view-${id}`} aria-controls={`demo-${id}`} value={id} checked={id === defaultView} />
+            <span class="block min-h-11 border-b-2 border-transparent px-2 py-3 text-xs text-text-tertiary sm:px-4 sm:text-sm peer-checked:border-accent peer-checked:text-accent peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-accent">{label}</span>
+          </label>
+        ))}
+      </div>
     ))}
   </fieldset>
 </div>
 
 <style>
-  .changes-view, .browser-view { display: none; }
-  .product-demo:has(#view-changes:checked) .conversation-view,
-  .product-demo:has(#view-browser:checked) .conversation-view { display: none; }
-  .product-demo:has(#view-changes:checked) .changes-view,
-  .product-demo:has(#view-browser:checked) .browser-view { display: block; }
+  .demo-view:not(.demo-default) { display: none; }
+  /* Without :has() the tabs cannot switch figures, so show only the default view. */
+  @supports not selector(:has(*)) {
+    fieldset { display: none; }
+  }
 </style>
+<style is:inline set:html={visibility}></style>

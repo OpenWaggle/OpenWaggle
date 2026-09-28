@@ -2,27 +2,18 @@
 import BaseLayout from '@/layouts/BaseLayout.astro';
 import Hero from '@/components/landing/Hero.astro';
 import MultipleAgents from '@/components/landing/MultipleAgents.astro';
+import MakeItYours from '@/components/landing/MakeItYours.astro';
 import CoreFeatures from '@/components/landing/CoreFeatures.astro';
 import GettingStarted from '@/components/landing/GettingStarted.astro';
 import CommonQuestions from '@/components/landing/CommonQuestions.astro';
+import { organizationJsonLd, softwareApplicationJsonLd, websiteJsonLd } from '@/lib/seo';
 ---
 
-<BaseLayout>
+<BaseLayout jsonLd={[organizationJsonLd(), websiteJsonLd(), softwareApplicationJsonLd()]}>
   <Hero />
+  <MakeItYours />
   <CoreFeatures />
   <GettingStarted />
   <MultipleAgents />
   <CommonQuestions />
-
-  <!-- JSON-LD -->
-  <script type="application/ld+json" set:html={JSON.stringify({
-    "@context": "https://schema.org",
-    "@type": "SoftwareApplication",
-    "name": "OpenWaggle",
-    "applicationCategory": "DeveloperApplication",
-    "operatingSystem": "macOS, Windows, Linux",
-    "description": "A desktop app for working on code with AI agents, reviewing diffs, and checking the result in a built-in browser.",
-    "url": "https://openwaggle.ai",
-    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
-  })} />
 </BaseLayout>
