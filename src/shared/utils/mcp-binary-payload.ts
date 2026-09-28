@@ -27,11 +27,12 @@ const BASE64URL_PAYLOAD_PATTERN = /^[A-Za-z0-9_-]+={0,2}$/
 const BASE64_WHITESPACE_PATTERN = /\s+/g
 const BASE64_LINE_BREAK_PATTERN = /\r?\n/g
 /**
- * Data URIs in text are single-line. The payload stops at the first character outside the base64
- * and base64url alphabets, so the prose around it, including the next line, survives.
+ * The payload stops at the first character outside the base64 and base64url alphabets, so prose
+ * after a URI survives. A wrapped payload continues only onto lines that are entirely base64 and
+ * at least 16 characters long, so a following line of prose is kept too.
  */
 const DATA_URI_PATTERN =
-  /data:([a-z]+\/[a-z0-9.+-]+)(?:;[a-z0-9=.-]+)*;base64,[A-Za-z0-9+/_-]+={0,2}/gi
+  /data:([a-z]+\/[a-z0-9.+-]+)(?:;[a-z0-9=.-]+)*;base64,[A-Za-z0-9+/_-]+(?:\r?\n[A-Za-z0-9+/_-]{16,}(?=={0,2}(?:\r?\n|$)))*={0,2}/gi
 const DATA_URI_MARKER_PATTERN = /;base64,/i
 const IMAGE_DATA_URI_PREFIX_PATTERN = /^data:([a-z]+\/[a-z0-9.+-]+)(?:;[a-z0-9=.-]+)*;base64,/i
 const BASE64_QUANTUM = 4

@@ -90,6 +90,16 @@ describe('replaceMcpBinaryPayloads', () => {
     )
   })
 
+  it('removes a line-wrapped data URI completely and keeps the prose after it', () => {
+    const lines = Array.from({ length: 40 }, () => 'aB3+'.repeat(19))
+    const dataUri = `data:image/png;base64,${lines.join('\n')}==`
+    const sanitized = replaceMcpBinaryPayloads(`Shot: ${dataUri}\nDone with the capture`)
+
+    expect(sanitized).toBe(
+      `Shot: [image/png data URI omitted: ${String(dataUri.length)} characters]\nDone with the capture`,
+    )
+  })
+
   it('treats unpadded base64url blobs as binary', () => {
     const unpadded = `${'aB3_-9Zz'.repeat(600)}aB`
     expect(unpadded.length % 4).toBe(2)
