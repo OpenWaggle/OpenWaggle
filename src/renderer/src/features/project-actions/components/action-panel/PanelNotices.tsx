@@ -18,6 +18,8 @@ function ChangeList({ changes }: { readonly changes: readonly DefinitionChange[]
 /** The saved action changed after this draft began: say what changed, never overwrite silently. */
 export function ChangedSinceNotice(props: {
   readonly name: string
+  /** Replaces the default heading, such as when someone filled an empty slot meanwhile. */
+  readonly heading?: string
   readonly changes: readonly DefinitionChange[]
   readonly onKeepMine: () => void
   readonly onUseNew: () => void
@@ -28,7 +30,7 @@ export function ChangedSinceNotice(props: {
       className="grid gap-3 rounded-xl border border-warning/40 bg-warning/5 px-4 py-3.5"
     >
       <p role="status" className="text-sm font-medium text-text-primary">
-        {props.name} was changed since you started editing
+        {props.heading ?? `${props.name} was changed since you started editing`}
       </p>
       <ChangeList changes={props.changes} />
       <div className="flex flex-wrap gap-2">

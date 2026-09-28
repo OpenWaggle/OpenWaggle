@@ -2,7 +2,7 @@ import { safeDecodeUnknown } from '@shared/schema'
 import { actionDefinitionSchema } from '@shared/schemas/action-definitions'
 import type { ActionDefinition, EffectiveDefinition } from '@shared/types/action-definitions'
 import type { ActionManagementScope } from '@shared/types/action-management'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useChatStore } from '@/features/chat/state'
 import { useUIStore } from '@/shell/ui-store'
 import { actionDraftProblem } from '../lib/action-draft-problems'
@@ -46,6 +46,7 @@ export function useSaveActionDraft(input: {
   const run = useRunProjectAction(input.scope.projectPath)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  const inFlight = useRef(false)
   const store = useActionPanelStore.getState
 
   /** Run now only in the session it was saved from: the toast can outlive a session switch. */
@@ -77,7 +78,8 @@ export function useSaveActionDraft(input: {
    * returns the plain message to show, or null once it has finished.
    */
   async function exclusive(work: () => Promise<string | null>) {
-    if (saving) return
+    if (inFlight.current) return
+    inFlight.current = true
     setSaving(true)
     setError(null)
     let message: string | null
@@ -86,6 +88,7 @@ export function useSaveActionDraft(input: {
     } catch (cause) {
       message = saveError(cause)
     } finally {
+      inFlight.current = false
       setSaving(false)
     }
     setError(message)
@@ -95,7 +98,7 @@ export function useSaveActionDraft(input: {
     exclusive(async () => {
       const decoded = finalDefinition(draft)
       if (!decoded.success) {
-        return actionDraftProblem(draft.definition)
+        return actionDraftProblem(draft.definition, decoded.issues)
       }
       const latest = (await catalog.refetch()).data
       if (!latest) throw new Error('Could not read the saved actions. Try again.')

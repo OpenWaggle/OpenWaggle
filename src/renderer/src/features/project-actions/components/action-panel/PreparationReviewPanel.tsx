@@ -28,7 +28,7 @@ function reviewTitle(
   noun: string,
   changed: boolean,
 ) {
-  if (source === 'local') return `Turn your worktree ${noun} on or off`
+  if (source !== 'project') return `Turn your worktree ${noun} on or off`
   return changed ? `A shared ${noun} changed` : `Check this shared ${noun}`
 }
 
@@ -92,9 +92,9 @@ export function PreparationReviewPanel({ request }: { readonly request: ReviewRe
       onClose={closePanel}
       description={
         <>
-          {entry.source === 'local'
-            ? `This is your own ${noun}. Turning it off stops it running for new worktrees; closing leaves it as it is.`
-            : 'Check it before it runs on your computer. Your choice stays on this computer, and closing leaves it off.'}
+          {entry.source === 'project'
+            ? 'Check it before it runs on your computer. Your choice stays on this computer, and closing leaves it off.'
+            : `This is your own ${noun}. ${entry.review === 'required' ? 'It stays off until you choose.' : 'Closing leaves it as it is.'}`}
           {waitingNote(automatic, definition.phase)}
         </>
       }

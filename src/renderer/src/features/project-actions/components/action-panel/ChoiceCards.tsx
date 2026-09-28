@@ -1,4 +1,4 @@
-import type { KeyboardEvent, ReactNode } from 'react'
+import { type KeyboardEvent, type ReactNode, useRef } from 'react'
 import { cn } from '@/shared/lib/cn'
 import { Button } from '@/shared/ui/Button'
 
@@ -27,21 +27,26 @@ export function ChoiceCards<T extends string>(props: {
     0,
     props.choices.findIndex((choice) => choice.value === props.value),
   )
-  function handleKeyDown(event: KeyboardEvent<HTMLButtonElement>, index: number) {
-    const step = NEXT_KEYS.has(event.key) ? 1 : PREVIOUS_KEYS.has(event.key) ? -1 : 0
-    if (step === 0) return
-    event.preventDefault()
+  const groupRef = useRef<HTMLDivElement>(null)
+  function targetIndex(key: string, index: number) {
     const count = props.choices.length
-    const nextIndex = (index + step + count) % count
-    const next = props.choices[nextIndex]
-    if (!next) return
+    if (key === 'Home') return 0
+    if (key === 'End') return count - 1
+    if (NEXT_KEYS.has(key)) return (index + 1) % count
+    if (PREVIOUS_KEYS.has(key)) return (index - 1 + count) % count
+    return null
+  }
+  function handleKeyDown(event: KeyboardEvent<HTMLButtonElement>, index: number) {
+    const nextIndex = targetIndex(event.key, index)
+    const next = nextIndex === null ? undefined : props.choices[nextIndex]
+    if (nextIndex === null || !next) return
+    event.preventDefault()
     props.onChange(next.value)
-    const radios =
-      event.currentTarget.parentElement?.querySelectorAll<HTMLElement>('[role="radio"]')
-    radios?.[nextIndex]?.focus()
+    groupRef.current?.querySelectorAll<HTMLElement>('[role="radio"]')[nextIndex]?.focus()
   }
   return (
     <div
+      ref={groupRef}
       role="radiogroup"
       aria-label={props.label}
       className="grid grid-cols-1 gap-2.5 @2xl:grid-cols-2"

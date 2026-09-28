@@ -94,4 +94,25 @@ describe('guided action panel catalog rules (ADR 0038)', () => {
     const changed = await catalog.read(scope())
     expect(changed.preparation[0]?.review).toBe('required')
   })
+
+  it('does not turn on a teammate’s pending change when it is saved again unchanged', async () => {
+    await shared({ ...EMPTY_ACTION_MANIFEST, preparation: [setup] })
+    const discovered = await catalog.read(scope())
+    expect(discovered.preparation[0]?.review).toBe('required')
+    const resaved = await catalog.edit(scope(), discovered.revision, {
+      type: 'save-preparation',
+      definition: setup,
+      storage: 'project',
+    })
+    expect(resaved.preparation[0]?.review).toBe('required')
+    const edited = await catalog.edit(scope(), resaved.revision, {
+      type: 'save-preparation',
+      definition: {
+        ...setup,
+        invocation: { type: 'command', command: 'pnpm install --prefer-offline', directory: '.' },
+      },
+      storage: 'project',
+    })
+    expect(edited.preparation[0]?.review).toBe('enabled')
+  })
 })

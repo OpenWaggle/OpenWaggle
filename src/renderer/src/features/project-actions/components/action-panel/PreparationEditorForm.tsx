@@ -157,6 +157,7 @@ function PreparationBaseNotice(props: PreparationEditorFormProps & { readonly no
     return (
       <ChangedSinceNotice
         name={`The ${props.noun}`}
+        heading={`Someone set up this ${props.noun} while you were writing yours. Here is how theirs differs:`}
         changes={preparationChanges(draft.definition, entry.definition)}
         onKeepMine={() => onChange({ ...draft, base: entry.definition })}
         onUseNew={() => onChange(editPreparationDraft(entry))}
@@ -189,7 +190,8 @@ function PreparationBaseNotice(props: PreparationEditorFormProps & { readonly no
  */
 function PendingReviewNotice(props: { readonly entry: Entry | undefined; readonly noun: string }) {
   const { entry } = props
-  if (entry?.review !== 'required') return null
+  // Only a shared definition can carry someone else's change; private ones say so in Review.
+  if (entry?.review !== 'required' || entry.source !== 'project') return null
   const changes = entry.previous
     ? preparationChanges(
         { ...entry.definition, invocation: entry.previous.invocation },

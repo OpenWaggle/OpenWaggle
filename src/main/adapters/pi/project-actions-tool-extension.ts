@@ -1,19 +1,10 @@
 import { createHash } from 'node:crypto'
 import { match } from '@diegogbrisa/ts-match'
 import type { ExtensionContext, ExtensionFactory } from '@earendil-works/pi-coding-agent'
-import { safeDecodeUnknown } from '@shared/schema'
-import { commandRepairProposalSchema } from '@shared/schemas/action-definitions'
-import {
-  ACTION_DEFINITION_LIMITS,
-  type ActionDefinition,
-  COMMAND_REPAIR_PROPOSAL_TYPE,
-  type CommandRepairProposal,
-  type ProjectTaskDiscovery,
-} from '@shared/types/action-definitions'
+import { ACTION_DEFINITION_LIMITS } from '@shared/types/action-definitions'
 import { isActiveActionRun } from '@shared/types/action-runs'
 import { SessionId } from '@shared/types/brand'
 import { actionExecutionKey } from '@shared/utils/action-execution-key'
-import { projectTaskArguments } from '@shared/utils/project-task-command'
 import * as Effect from 'effect/Effect'
 import { type Static, Type } from 'typebox'
 import { Check, Errors } from 'typebox/value'
@@ -21,6 +12,7 @@ import type { ActionCatalogServiceShape } from '../../ports/action-catalog-servi
 import type { ActionRunServiceShape, ActionRunWorkspace } from '../../ports/action-run-service'
 import type { SessionWorkspaceResourceRepositoryShape } from '../../ports/session-workspace-resource-repository'
 import { getOpenWaggleAuthorize } from './agent-kernel/openwaggle-authorize-channel'
+import { proposeRepair } from './project-actions-repair-proposal'
 
 const identifier = Type.String({ minLength: 1, maxLength: ACTION_DEFINITION_LIMITS.ID_LENGTH })
 /** Proposal text must contain something other than whitespace. */
@@ -186,59 +178,6 @@ async function startAction(
   )
 }
 
-function currentCommand(definition: ActionDefinition, discovery: ProjectTaskDiscovery) {
-  const invocation = definition.invocation
-  if (invocation.type === 'command')
-    return { command: invocation.command, directory: invocation.directory }
-  const task = discovery.tasks.find(
-    ({ reference }) =>
-      reference.provider === invocation.task.provider &&
-      reference.source === invocation.task.source &&
-      reference.task === invocation.task.task &&
-      reference.directory === invocation.task.directory,
-  )
-  // Never invent a command the action did not run: an unresolved script is named, not guessed.
-  const command = task?.runner
-    ? [task.runner, ...projectTaskArguments(invocation.task)].join(' ')
-    : `${invocation.task.task} · ${invocation.task.source}`
-  return { command, directory: invocation.task.directory }
-}
-
-/** Only data: the user reviews and saves the proposal in the action panel (ADR 0038). */
-async function proposeRepair(
-  input: ProjectActionToolInput,
-  workspace: ActionRunWorkspace,
-  params: Extract<Static<typeof parameters>, { action: 'propose' }>,
-): Promise<CommandRepairProposal> {
-  const catalog = await Effect.runPromise(input.catalog.read(workspace))
-  const definition = catalog.actions.find(
-    (entry) => entry.definition.id === params.actionId,
-  )?.definition
-  if (!definition) throw new Error('Saved action not found. Use list to inspect available actions.')
-  const discovery =
-    definition.invocation.type === 'task'
-      ? await Effect.runPromise(input.catalog.discover(workspace.workspacePath))
-      : { tasks: [], diagnostics: [] }
-  const current = currentCommand(definition, discovery)
-  const decoded = safeDecodeUnknown(commandRepairProposalSchema, {
-    type: COMMAND_REPAIR_PROPOSAL_TYPE,
-    actionId: definition.id,
-    actionName: definition.name,
-    current,
-    proposed: { command: params.command.trim(), directory: params.directory ?? current.directory },
-    reason: params.reason.trim(),
-  })
-  if (!decoded.success) {
-    const directoryHint = decoded.issues.some((issue) => issue.includes('directory'))
-      ? ' The directory must be relative to the project, such as "." or "packages/app".'
-      : ''
-    throw new Error(
-      `Invalid project_actions arguments for "propose": ${decoded.issues.join('; ')}.${directoryHint}`,
-    )
-  }
-  return decoded.data
-}
-
 async function execute(
   input: ProjectActionToolInput,
   params: Static<typeof parameters>,
@@ -268,7 +207,9 @@ async function execute(
     .with({ action: 'start' }, (start) =>
       startAction(input, workspace, start, requestId, ctx, signal),
     )
-    .with({ action: 'propose' }, (propose) => proposeRepair(input, workspace, propose))
+    .with({ action: 'propose' }, (propose) =>
+      proposeRepair({ catalog: input.catalog, workspace, proposal: propose }),
+    )
     .with({ action: 'stop' }, async ({ runId }) => {
       await authorize(ctx, 'stop', workspace.workspacePath, runId, signal)
       signal?.throwIfAborted()

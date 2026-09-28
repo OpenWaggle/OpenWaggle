@@ -1,7 +1,8 @@
-import type {
-  ActionCatalog,
-  ActionDefinition,
-  EffectiveDefinition,
+import {
+  ACTION_DEFINITION_LIMITS,
+  type ActionCatalog,
+  type ActionDefinition,
+  type EffectiveDefinition,
 } from '@shared/types/action-definitions'
 import { useId } from 'react'
 import { TextInput } from '@/shared/ui/TextInput'
@@ -14,7 +15,7 @@ import {
   actionSummarySentence,
 } from '../../lib/action-panel-changes'
 import { type ActionDraft, isDraftDirty } from '../../lib/action-panel-drafts'
-import type { ActionPanelRequest } from '../../state/action-panel-store'
+import { type ActionPanelRequest, useActionPanelStore } from '../../state/action-panel-store'
 import { ActionRemoval, BaseStateNotice } from './ActionEditorParts'
 import { ActionOptionalRows } from './ActionOptionalRows'
 import { ActionPanelChrome, type ActionPanelChromeFrame, PanelQuestion } from './ActionPanelChrome'
@@ -84,6 +85,16 @@ export function ActionEditorForm(props: ActionEditorFormProps) {
         catalog={catalog}
         onChange={onChange}
         onDiscard={props.onDiscard}
+        onSaveAsNew={(next) => {
+          // The draft now composes a new action, so the panel must edit "new", not the removed id.
+          onChange(next)
+          useActionPanelStore.getState().openPanel({
+            kind: 'action',
+            scope: request.scope,
+            actionId: null,
+            origin: request.origin,
+          })
+        }}
       />
       {draft.proposalReason !== null && draft.base ? (
         <ProposalNotice
@@ -138,6 +149,7 @@ function NameQuestion(props: {
       </label>
       <TextInput
         id={id}
+        maxLength={ACTION_DEFINITION_LIMITS.NAME_LENGTH}
         className="py-2.5 text-base"
         aria-invalid={props.taken ? true : undefined}
         aria-describedby={props.taken ? `${id}-taken` : undefined}

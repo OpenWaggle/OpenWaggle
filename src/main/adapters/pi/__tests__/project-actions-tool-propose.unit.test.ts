@@ -101,7 +101,7 @@ describe('project_actions repair proposals', () => {
       type: 'command-repair-proposal',
       actionId: 'test',
       actionName: 'Test',
-      current: { command: 'pnpm test', directory: '.' },
+      current: { command: 'pnpm test', directory: '.', resolved: true },
       proposed: { command: 'pnpm dev --host', directory: '.' },
       reason: 'Bind all hosts.',
     })
@@ -161,7 +161,7 @@ describe('project_actions repair proposals', () => {
       ctx,
     )
     expect(result.details).toMatchObject({
-      current: { command: 'dev · package.json', directory: '.' },
+      current: { command: 'the dev script in package.json', directory: '.', resolved: false },
     })
   })
 })

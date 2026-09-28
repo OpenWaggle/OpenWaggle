@@ -44,6 +44,8 @@ export function BaseStateNotice(props: {
   readonly catalog: ActionCatalog
   readonly onChange: (draft: ActionDraft) => void
   readonly onDiscard: () => void
+  /** Keeps the user's work as a new action and points the panel at it (ADR 0038). */
+  readonly onSaveAsNew: (draft: ActionDraft) => void
 }) {
   const { draft } = props
   const state = draftBaseState(draft, props.catalog)
@@ -55,7 +57,7 @@ export function BaseStateNotice(props: {
         kind="action"
         onDiscard={props.onDiscard}
         onSaveAsNew={() =>
-          props.onChange({
+          props.onSaveAsNew({
             ...draft,
             actionId: null,
             base: null,

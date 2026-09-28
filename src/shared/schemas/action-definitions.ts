@@ -70,7 +70,7 @@ export const commandRepairProposalSchema = Schema.Struct({
   type: Schema.Literal(COMMAND_REPAIR_PROPOSAL_TYPE),
   actionId: actionDefinitionIdSchema,
   actionName: text(ACTION_DEFINITION_LIMITS.NAME_LENGTH),
-  current: repairCommand,
+  current: Schema.Struct({ ...repairCommand.fields, resolved: Schema.optional(Schema.Boolean) }),
   proposed: repairCommand,
   reason: text(ACTION_DEFINITION_LIMITS.REPAIR_REASON_LENGTH),
 })

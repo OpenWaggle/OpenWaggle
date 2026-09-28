@@ -44,8 +44,12 @@ export function CommandRepairProposalCard({
       </p>
       <p className="text-sm leading-6 text-text-secondary">{proposal.reason}</p>
       <p className="break-words text-sm leading-6 text-text-tertiary">
-        <code className="font-mono">{proposal.current.command}</code> →{' '}
-        <code className="font-mono text-text-primary">{proposal.proposed.command}</code>
+        {proposal.current.resolved === false ? (
+          <span>{proposal.current.command}</span>
+        ) : (
+          <code className="font-mono">{proposal.current.command}</code>
+        )}{' '}
+        → <code className="font-mono text-text-primary">{proposal.proposed.command}</code>
       </p>
       <Button
         variant="secondary"

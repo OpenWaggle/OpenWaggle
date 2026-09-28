@@ -3,8 +3,11 @@ import type {
   ActionManagementRequest,
   ActionManagementResult,
 } from '@shared/types/action-management'
-import { fireEvent, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
+import { fromPartial } from '@total-typescript/shoehorn'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { useChatStore } from '@/features/chat/state'
+import { useUIStore } from '@/shell/ui-store'
 import { renderWithQueryClient } from '@/test-utils/query-test-utils'
 import { taskReferenceKey } from '../../../lib/action-panel-scripts'
 import { useActionPanelStore } from '../../../state/action-panel-store'
@@ -64,6 +67,10 @@ describe('guided action editor', () => {
     discovery = { tasks: [TEST_TASK], diagnostics: [] }
     useActionPanelStore.setState({ request: null, drafts: {}, recentlySaved: null })
     useScriptCommandMemory.setState({ commands: {} })
+    useChatStore.setState({
+      activeSession: fromPartial({ id: 'session', projectPath: '/repo' }),
+      activeSessionId: fromPartial('session'),
+    })
     serve(actionCatalog())
   })
 
@@ -95,7 +102,7 @@ describe('guided action editor', () => {
     const panel = await openEditor(null)
     const name = panel.getByLabelText('Name')
     fireEvent.change(name, { target: { value: 'Half done' } })
-    name.focus()
+    act(() => name.focus())
     fireEvent.keyDown(name, { key: 'Escape' })
     await waitFor(() => expect(useActionPanelStore.getState().request).toBeNull())
     expect(useActionPanelStore.getState().drafts['/repo']).toBeDefined()
@@ -112,6 +119,7 @@ describe('guided action editor', () => {
     const panel = await openEditor(TEST_ACTION.id)
     expect(await panel.findByText(/script isn’t in this workspace’s/)).toBeInTheDocument()
     expect(panel.getByRole('button', { name: 'Keep it linked' })).toBeEnabled()
+    expect(panel.queryByRole('button', { name: 'Pick another script' })).toBeNull()
     fireEvent.click(panel.getByRole('button', { name: 'Use the last known command instead' }))
     expect(panel.getByLabelText('Command')).toHaveValue('pnpm run test')
   })
@@ -147,6 +155,61 @@ describe('guided action editor', () => {
     fireEvent.click(panel.getByRole('button', { name: 'Restore shared version' }))
     await waitFor(() =>
       expect(edits()).toEqual([{ type: 'delete-action', id: TEST_ACTION.id, storage: 'local' }]),
+    )
+  })
+
+  it('focuses the script list from Pick another script when other scripts exist', async () => {
+    const other = { ...TEST_TASK, reference: { ...TEST_TASK.reference, task: 'lint' } }
+    discovery = { tasks: [other], diagnostics: [] }
+    serve({ ...actionCatalog(), actions: [{ source: 'local', definition: linkedTest }] })
+    const panel = await openEditor(TEST_ACTION.id)
+    fireEvent.click(await panel.findByRole('button', { name: 'Pick another script' }))
+    expect(panel.getByRole('button', { name: /lint/ })).toHaveFocus()
+    fireEvent.click(panel.getByRole('button', { name: 'Keep it linked' }))
+    expect(panel.queryByText(/script isn’t in this workspace’s/)).toBeNull()
+  })
+
+  it('keeps edits as a new action when the saved one disappears meanwhile', async () => {
+    const panel = await openEditor(TEST_ACTION.id)
+    fireEvent.change(panel.getByLabelText('Name'), { target: { value: 'Tests, mine' } })
+    serve({ ...actionCatalog(), revision: 'catalog-2', actions: [] })
+    fireEvent.click(panel.getByRole('button', { name: 'Save changes' }))
+    fireEvent.click(await panel.findByRole('button', { name: 'Save mine as a new action' }))
+    await waitFor(() =>
+      expect(useActionPanelStore.getState().request).toMatchObject({ actionId: null }),
+    )
+    const renewed = within(await screen.findByTestId('action-panel'))
+    expect(await renewed.findByLabelText('Name')).toHaveValue('Tests, mine')
+    expect(renewed.queryByText('You have something unfinished')).toBeNull()
+  })
+
+  it('names the project it saves to when the current session is elsewhere', async () => {
+    useChatStore.setState({ activeSession: fromPartial({ id: 'other', projectPath: '/other' }) })
+    const panel = await openEditor(null)
+    expect(
+      panel.getByText('This is for repo, not the project of your current session (other).'),
+    ).toBeInTheDocument()
+  })
+
+  it('refuses Run now after switching to another session', async () => {
+    useActionPanelStore.getState().openPanel({
+      kind: 'action',
+      scope: { projectPath: '/repo', sessionId: 'session' },
+      actionId: null,
+      origin: 'session',
+    })
+    renderWithQueryClient(<PanelHost />)
+    const panel = within(await screen.findByTestId('action-panel'))
+    fireEvent.click(await panel.findByRole('button', { name: /test.*vitest run/i }))
+    fireEvent.click(panel.getByRole('button', { name: 'Save action' }))
+    await waitFor(() => expect(useUIStore.getState().toastData?.action?.label).toBe('Run now'))
+    useChatStore.setState({ activeSessionId: fromPartial('elsewhere') })
+    useUIStore.getState().toastData?.action?.onClick?.()
+    expect(useUIStore.getState().toastData?.message).toBe(
+      'Open the session you saved it from, or run it from + Action.',
+    )
+    expect(mocks.manage.mock.calls.some(([request]) => request.operation.type === 'start')).toBe(
+      false,
     )
   })
 })

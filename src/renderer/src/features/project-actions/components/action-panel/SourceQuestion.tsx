@@ -107,9 +107,9 @@ function ScriptSource(
     if (linkedKey && linkedCommand) remember(linkedKey, linkedCommand)
   }, [linkedCommand, linkedKey, remember])
   function focusPicker() {
-    const picker = pickerRef.current
-    picker?.scrollIntoView({ block: 'nearest' })
-    picker?.querySelector<HTMLElement>('input, [aria-pressed]')?.focus()
+    const target = pickerRef.current?.querySelector<HTMLElement>('input, [aria-pressed]')
+    // Focusing scrolls the list into view; nothing else is needed.
+    target?.focus()
   }
   return (
     <>
@@ -122,7 +122,11 @@ function ScriptSource(
         onRetry={() => void discovery.refetch()}
       />
       {invocation.type === 'task' && linkedScriptMissing(invocation, discovery.data) ? (
-        <MissingScriptNotice {...props} invocation={invocation} onPickAnother={focusPicker} />
+        <MissingScriptNotice
+          {...props}
+          invocation={invocation}
+          {...((discovery.data?.tasks.length ?? 0) > 0 ? { onPickAnother: focusPicker } : {})}
+        />
       ) : null}
       {invocation.type === 'task' && linked ? (
         <LinkedScriptNote
@@ -170,7 +174,8 @@ function LinkedScriptNote(props: {
 function MissingScriptNotice(
   props: SourceQuestionProps & {
     readonly invocation: Extract<ActionInvocation, { type: 'task' }>
-    readonly onPickAnother: () => void
+    /** Absent when the workspace has no scripts to pick from. */
+    readonly onPickAnother?: () => void
   },
 ) {
   const { task } = props.invocation
@@ -198,9 +203,11 @@ function MissingScriptNotice(
         <Button variant="secondary" onClick={() => setDismissed(true)}>
           Keep it linked
         </Button>
-        <Button variant="secondary" onClick={props.onPickAnother}>
-          Pick another script
-        </Button>
+        {props.onPickAnother ? (
+          <Button variant="secondary" onClick={props.onPickAnother}>
+            Pick another script
+          </Button>
+        ) : null}
         {lastKnown ? (
           <Button
             variant="secondary"
@@ -241,6 +248,7 @@ function CommandField(props: {
         id={id}
         variant="mono"
         rows={COMMAND_ROWS}
+        maxLength={ACTION_DEFINITION_LIMITS.COMMAND_LENGTH}
         className="text-sm"
         value={command}
         placeholder="For example: pnpm dev"

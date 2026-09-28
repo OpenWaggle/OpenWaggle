@@ -59,7 +59,7 @@ Use **Stop** to end the selected run. **Restart** stops that run, waits for it t
 
 Switching sessions or closing the output view does not stop a run. Managed runs can survive quitting the desktop app while the background session service remains alive. Reopening reconnects without launching another copy. If the process was lost, for example after a computer restart, OpenWaggle retains available output and offers **Restart** rather than silently relaunching it.
 
-Actions that keep running stop when the last session releases their workspace, including when that final session is archived. Releasing one session does not stop one another session still uses. They stop before workspace cleanup and removal.
+Actions that keep running stop when the last session releases their workspace, including when that final session is archived. Releasing one session does not stop an action another session still uses. They stop before workspace cleanup and removal.
 
 ## Open a dev-server preview
 

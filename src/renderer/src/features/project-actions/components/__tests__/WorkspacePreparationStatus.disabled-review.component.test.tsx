@@ -7,7 +7,7 @@ import type {
   PreparationExecution,
   WorkspacePreparation,
 } from '@shared/types/workspace-preparation'
-import { fireEvent, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { renderWithQueryClient } from '@/test-utils/query-test-utils'
 import { useActionPanelStore } from '../../state/action-panel-store'
@@ -157,7 +157,14 @@ describe('Workspace preparation with a disabled shared setup', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Keep it off' }))
     await waitFor(() => expect(useActionPanelStore.getState().request).toBeNull())
     await waitFor(() => expect(state.revision).toBe(8))
-    await new Promise((resolve) => setTimeout(resolve, 50))
+    // The refetched, declined state renders without the panel coming back.
+    await waitFor(() =>
+      expect(
+        mocks.manage.mock.calls.filter(([request]) => request.operation.type === 'preparation')
+          .length,
+      ).toBeGreaterThan(1),
+    )
+    await act(async () => {})
     expect(useActionPanelStore.getState().request).toBeNull()
     expect(screen.queryByText('Check this shared setup')).not.toBeInTheDocument()
   })

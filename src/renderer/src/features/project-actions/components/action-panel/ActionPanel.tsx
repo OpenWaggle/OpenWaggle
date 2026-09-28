@@ -1,5 +1,5 @@
 import { match } from '@diegogbrisa/ts-match'
-import { useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useEscapeHotkey } from '@/shared/hooks/useEscapeHotkey'
 import { proposalKey } from '../../lib/action-panel-drafts'
 import { type ActionPanelRequest, useActionPanelStore } from '../../state/action-panel-store'
@@ -27,13 +27,26 @@ function requestKey(request: ActionPanelRequest) {
 
 /**
  * The guided action panel's content. Escape closes it and keeps anything unfinished, through the
- * app's Escape stack so an inner popover or confirmation is dismissed first.
+ * app's Escape stack. It is enabled only while focus is inside the docked panel, so Escape keeps
+ * working for every other surface (an enabled entry that declined would block the stack).
  */
 export function ActionPanel({ request }: { readonly request: ActionPanelRequest }) {
   const rootRef = useRef<HTMLDivElement>(null)
-  useEscapeHotkey(() => useActionPanelStore.getState().closePanel(), {
-    shouldHandle: () => rootRef.current?.contains(document.activeElement) ?? false,
-  })
+  const [focusWithin, setFocusWithin] = useState(false)
+  useEscapeHotkey(() => useActionPanelStore.getState().closePanel(), { enabled: focusWithin })
+  useEffect(() => {
+    const root = rootRef.current
+    if (!root) return
+    const focusIn = () => setFocusWithin(true)
+    const focusOut = (event: FocusEvent) =>
+      setFocusWithin(event.relatedTarget instanceof Node && root.contains(event.relatedTarget))
+    root.addEventListener('focusin', focusIn)
+    root.addEventListener('focusout', focusOut)
+    return () => {
+      root.removeEventListener('focusin', focusIn)
+      root.removeEventListener('focusout', focusOut)
+    }
+  }, [])
   return (
     <div ref={rootRef} className="flex size-full min-h-0 flex-col" data-testid="action-panel">
       {match(request)

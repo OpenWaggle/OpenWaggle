@@ -130,7 +130,12 @@ export interface CommandRepairProposal {
   readonly type: typeof COMMAND_REPAIR_PROPOSAL_TYPE
   readonly actionId: string
   readonly actionName: string
-  readonly current: { readonly command: string; readonly directory: string }
+  /** `resolved: false` means the linked script could not be resolved; `command` then names it. */
+  readonly current: {
+    readonly command: string
+    readonly directory: string
+    readonly resolved?: boolean
+  }
   readonly proposed: { readonly command: string; readonly directory: string }
   readonly reason: string
 }

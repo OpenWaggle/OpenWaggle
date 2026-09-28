@@ -18,6 +18,7 @@ import {
   reviewedProfile,
   reviewProfileContext,
 } from './preparation-review-context'
+import { withSaverEnablement } from './preparation-saver-enablement'
 import { assertUniqueActionName } from './project-action-names'
 
 export { preparationExecutionKey } from './preparation-review-context'
@@ -267,25 +268,13 @@ export function editActionCatalog(
       },
     }
   }
-  // Saving a preparation counts as the saver's review of precisely this execution (ADR 0038), in
-  // either storage. It never trusts later edits, and other users still review shared definitions.
-  if (edit.type === 'save-preparation') {
-    const definition = edit.definition
-    nextDocument = {
-      ...nextDocument,
-      reviews: [
-        ...nextDocument.reviews.filter((review) => review.definitionId !== definition.id),
-        preparationReview(
-          definition,
-          true,
-          reviewProfileContext(definition.profileId, [
-            ...nextDocument.manifest.profiles,
-            ...nextShared.profiles,
-          ]).profileName,
-        ),
-      ],
-    }
-  }
+  if (edit.type === 'save-preparation')
+    nextDocument = withSaverEnablement({
+      before: resolveActionCatalog(document, shared, ''),
+      document: nextDocument,
+      shared: nextShared,
+      definition: edit.definition,
+    })
   nextDocument = {
     ...nextDocument,
     manifest: retainPrivatePreparationProfiles(

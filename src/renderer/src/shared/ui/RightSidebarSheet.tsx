@@ -50,8 +50,9 @@ export function RightSidebarSheet({
         return
       }
       if (event.key !== 'Tab') return
+      // An initial-focus target with tabindex="-1" (such as a panel title) is not a Tab stop.
       const focusable = Array.from(aside.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter(
-        (element) => element.getClientRects().length > 0,
+        (element) => element.getClientRects().length > 0 && element.tabIndex >= 0,
       )
       if (focusable.length === 0) {
         event.preventDefault()

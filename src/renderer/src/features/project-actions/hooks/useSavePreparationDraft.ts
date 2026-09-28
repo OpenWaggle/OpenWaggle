@@ -2,7 +2,7 @@ import { safeDecodeUnknown } from '@shared/schema'
 import { preparationDefinitionSchema } from '@shared/schemas/action-definitions'
 import type { EffectiveDefinition, PreparationDefinition } from '@shared/types/action-definitions'
 import type { ActionManagementScope } from '@shared/types/action-management'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useUIStore } from '@/shell/ui-store'
 import { preparationDraftProblem } from '../lib/action-draft-problems'
 import { draftBaseState, type PreparationDraft } from '../lib/action-panel-drafts'
@@ -26,6 +26,7 @@ export function useSavePreparationDraft(scope: ActionManagementScope) {
   const edit = useEditActionCatalog(scope)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  const inFlight = useRef(false)
 
   function finish(message: string) {
     const store = useActionPanelStore.getState()
@@ -45,7 +46,8 @@ export function useSavePreparationDraft(scope: ActionManagementScope) {
    * returns the plain message to show, or null once it has finished.
    */
   async function exclusive(work: () => Promise<string | null>) {
-    if (saving) return
+    if (inFlight.current) return
+    inFlight.current = true
     setSaving(true)
     setError(null)
     let message: string | null
@@ -54,6 +56,7 @@ export function useSavePreparationDraft(scope: ActionManagementScope) {
     } catch (cause) {
       message = saveError(cause)
     } finally {
+      inFlight.current = false
       setSaving(false)
     }
     setError(message)
@@ -70,7 +73,7 @@ export function useSavePreparationDraft(scope: ActionManagementScope) {
             : invocation,
       })
       if (!decoded.success) {
-        return preparationDraftProblem(draft.definition)
+        return preparationDraftProblem(draft.definition, decoded.issues)
       }
       const latest = await latestCatalog()
       if (draftBaseState(draft, latest).kind !== 'current') {
