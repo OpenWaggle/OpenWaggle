@@ -26,9 +26,12 @@ const BASE64_PAYLOAD_PATTERN = /^[A-Za-z0-9+/]+={0,2}$/
 const BASE64URL_PAYLOAD_PATTERN = /^[A-Za-z0-9_-]+={0,2}$/
 const BASE64_WHITESPACE_PATTERN = /\s+/g
 const BASE64_LINE_BREAK_PATTERN = /\r?\n/g
-/** The payload may wrap across lines, but stops at the first space so following prose survives. */
+/**
+ * Data URIs in text are single-line. The payload stops at the first character outside the base64
+ * and base64url alphabets, so the prose around it, including the next line, survives.
+ */
 const DATA_URI_PATTERN =
-  /data:([a-z]+\/[a-z0-9.+-]+)(?:;[a-z0-9=.-]+)*;base64,[A-Za-z0-9+/]+(?:\r?\n[A-Za-z0-9+/]+)*={0,2}/gi
+  /data:([a-z]+\/[a-z0-9.+-]+)(?:;[a-z0-9=.-]+)*;base64,[A-Za-z0-9+/_-]+={0,2}/gi
 const DATA_URI_MARKER_PATTERN = /;base64,/i
 const IMAGE_DATA_URI_PREFIX_PATTERN = /^data:([a-z]+\/[a-z0-9.+-]+)(?:;[a-z0-9=.-]+)*;base64,/i
 const BASE64_QUANTUM = 4
@@ -36,8 +39,9 @@ const UPPERCASE_PATTERN = /[A-Z]/
 const LOWERCASE_PATTERN = /[a-z]/
 const DIGIT_PATTERN = /[0-9]/
 /**
- * A string this long that decodes as base64 is binary data, not prose or an identifier. Mixed case
- * plus digits keeps long single-case sequences (DNA, hex dumps) from being mistaken for base64.
+ * A string this long made only of base64 characters, with a length base64 can produce, is binary
+ * data rather than prose or an identifier. Requiring mixed case plus digits keeps long single-case
+ * sequences (DNA, hex dumps) from being mistaken for base64.
  */
 const MIN_OPAQUE_BASE64_CHARACTERS = 4_096
 
@@ -57,7 +61,8 @@ function isOpaqueBase64(value: string) {
   if (value.length < MIN_OPAQUE_BASE64_CHARACTERS) return false
   const payload = value.replace(BASE64_LINE_BREAK_PATTERN, '')
   return (
-    payload.length % BASE64_QUANTUM === 0 &&
+    // Padding is often stripped, but no base64 encoding ends one character into a quantum.
+    payload.length % BASE64_QUANTUM !== 1 &&
     (BASE64_PAYLOAD_PATTERN.test(payload) || BASE64URL_PAYLOAD_PATTERN.test(payload)) &&
     UPPERCASE_PATTERN.test(payload) &&
     LOWERCASE_PATTERN.test(payload) &&
@@ -117,7 +122,12 @@ function replacePayloads(value: unknown, state: ImageState): unknown {
   if (!isRecord(value)) return value
 
   if (value.type === 'image' && typeof value.data === 'string') {
-    return { ...value, data: imageMarker(value.data, value.mimeType, state) }
+    const { mimeType } = imagePayload(value.data, value.mimeType)
+    return {
+      ...value,
+      data: imageMarker(value.data, value.mimeType, state),
+      ...(mimeType ? { mimeType } : {}),
+    }
   }
   if (value.type === 'audio' && typeof value.data === 'string') {
     return { ...value, data: omittedMarker('audio', value.data.length) }

@@ -68,7 +68,7 @@ describe('replaceMcpBinaryPayloads', () => {
 
     expect(attached).toEqual([`image/webp:${PNG}`])
     expect(sanitized).toEqual([
-      { type: 'image', data: '[image #1: image/webp]', mimeType: 'image/png' },
+      { type: 'image', data: '[image #1: image/webp]', mimeType: 'image/webp' },
       { type: 'image', data: '[image data omitted: 29 characters]', mimeType: 'image/png' },
     ])
   })
@@ -80,6 +80,21 @@ describe('replaceMcpBinaryPayloads', () => {
     )
     expect(replaceMcpBinaryPayloads(blob)).toBe(
       `[base64 data omitted: ${String(blob.length)} base64 characters]`,
+    )
+  })
+
+  it('keeps the next line after an unpadded data URI', () => {
+    const dataUri = 'data:image/png;base64,iVBORw0KGgoAAAA'
+    expect(replaceMcpBinaryPayloads(`Shot: ${dataUri}\nNext line here`)).toBe(
+      `Shot: [image/png data URI omitted: ${String(dataUri.length)} characters]\nNext line here`,
+    )
+  })
+
+  it('treats unpadded base64url blobs as binary', () => {
+    const unpadded = `${'aB3_-9Zz'.repeat(600)}aB`
+    expect(unpadded.length % 4).toBe(2)
+    expect(replaceMcpBinaryPayloads(unpadded)).toBe(
+      `[base64 data omitted: ${String(unpadded.length)} base64 characters]`,
     )
   })
 })
