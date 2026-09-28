@@ -118,7 +118,7 @@ export function serverSchemaAccepts(schema: McpJsonValue, arguments_: unknown) {
 export function resolveLocalPointer(document: unknown, pointer: string): unknown {
   let current = document
   for (const segment of pointer.replace(/^#\//u, '').split('/')) {
-    const key = segment.replaceAll('~1', '/').replaceAll('~0', '~')
+    const key = decodeURIComponent(segment).replaceAll('~1', '/').replaceAll('~0', '~')
     if (!Array.isArray(current) && !isJsonSchemaObject(current)) return undefined
     current = Array.isArray(current) ? current[Number(key)] : current[key]
   }

@@ -74,6 +74,7 @@ describe('repaired MCP direct tools at the edges', () => {
     const c = resolveLocalPointer(parameters, '#/properties/c/anyOf/1')
     if (!isJsonSchemaObject(c) || typeof c.$ref !== 'string') throw new Error('c was not wrapped')
 
+    expect(c.$ref).toBe('#/properties/a%20b/anyOf/0/properties/x')
     expect(resolveLocalPointer(parameters, c.$ref)).toEqual({ enum: ['p'] })
     expect(resolveLocalPointer(parameters, '#/properties/d/anyOf/1/properties/r')).toEqual({
       $ref: '#/properties/p',

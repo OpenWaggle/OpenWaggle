@@ -35,8 +35,12 @@ function hasNestedResource(value: unknown, root = true): boolean {
   return Object.values(value).some((entry) => hasNestedResource(entry, false))
 }
 
+/** RFC 6901 escaping, then URI fragment encoding (`$` stays readable, as in `$defs`). */
 function encodePointerSegment(segment: string) {
-  return segment.replaceAll('~', '~0').replaceAll('/', '~1').replaceAll('%', '%25')
+  return encodeURIComponent(segment.replaceAll('~', '~0').replaceAll('/', '~1')).replaceAll(
+    '%24',
+    '$',
+  )
 }
 
 const LOCAL_POINTER_PREFIX = '#/'
@@ -160,8 +164,11 @@ export function relaxForPreCallValidation(
   }
   const properties = isJsonSchemaObject(schema.properties) ? schema.properties : {}
   if (Object.keys(properties).length === 0) return relaxed
-  const guided = Object.entries(properties).map(
-    ([key, definition]) => [key, guidanceOnlyProperty(key, definition)] as const,
+  const guided = Object.entries(properties).map(([key, definition]) =>
+    // `true` and `{}` already accept any value; wrapping them would only add noise.
+    definition === true || (isJsonSchemaObject(definition) && Object.keys(definition).length === 0)
+      ? ([key, { wrapper: definition, moves: [] }] as const)
+      : ([key, guidanceOnlyProperty(key, definition)] as const),
   )
   relaxed.properties = Object.fromEntries(guided.map(([key, { wrapper }]) => [key, wrapper]))
   repairs.push(

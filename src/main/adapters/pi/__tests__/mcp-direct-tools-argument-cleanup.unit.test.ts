@@ -83,6 +83,8 @@ describe('repaired MCP direct tools at call time', () => {
 
     expect(parameters.properties).toEqual({ a: { type: 'string' } })
     expect(parameters.required).toEqual(['a'])
-    expect(() => validateToolArguments(definition, toolCall({}))).toThrow(/a/)
+    expect(() => validateToolArguments(definition, toolCall({}))).toThrow(
+      /- a: must have required propert/,
+    )
   })
 })

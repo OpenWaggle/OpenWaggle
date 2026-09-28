@@ -170,6 +170,17 @@ const REFERENCE_CASES: readonly ExpectedPipelineCase[] = [
     },
     arguments_: { c: 1 },
   },
+  {
+    label: 'a call missing the root required field of a schema with a nested $id',
+    expected: 'rejected',
+    schema: {
+      type: 'object',
+      required: ['id'],
+      anyOf: [{ $ref: '#/$defs/B' }],
+      $defs: { B: { $id: 'urn:b', type: 'object' } },
+    },
+    arguments_: {},
+  },
 ]
 
 describe('repaired MCP direct tools with schema references', () => {
