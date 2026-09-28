@@ -13,6 +13,7 @@ import * as Effect from 'effect/Effect'
 import { SessionControlOperationPendingError } from '../errors'
 import { ExplicitWaggleOperationJournal } from '../ports/explicit-waggle-operation-journal'
 import { SessionControlAttachmentService } from '../ports/session-control-attachment-service'
+import { SessionProjectionRepository } from '../ports/session-projection-repository'
 import { tryGetSessionHostEventRuntime } from '../session-host/session-host-events'
 import {
   activeWaggleRuns,
@@ -100,6 +101,18 @@ function reservePendingWaggleWhenAvailable(
   })
 }
 
+/**
+ * A Waggle Run, like a classic Run, uses the Session's durable model as it stands when the Run
+ * starts, so a model switched while an earlier Run streamed takes effect here and both Run kinds
+ * share one rule. The requested model is only the fallback for a Session without a profile.
+ */
+function resolveRunStartModel(sessionId: SessionId, requested: SupportedModelId) {
+  return Effect.gen(function* () {
+    const session = yield* (yield* SessionProjectionRepository).getOptional(sessionId)
+    return session?.executionModel ?? requested
+  })
+}
+
 function executeClaimedExplicitWaggle(input: {
   readonly sessionId: SessionId
   readonly runId: RunId
@@ -149,12 +162,13 @@ function executeClaimedExplicitWaggle(input: {
       abortController: input.abortController,
       lease: transition.lease,
     })
+    const model = yield* resolveRunStartModel(input.sessionId, input.model)
     return yield* executePreparedExplicitWaggle({
       sessionId: input.sessionId,
       runId: input.runId,
       payload: input.payload,
       hydratedAttachments: transition.hydratedAttachments,
-      model: input.model,
+      model,
       config: input.config,
       abortController: input.abortController,
       ...prepared,

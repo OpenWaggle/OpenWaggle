@@ -178,6 +178,8 @@ export interface OpenWaggleApi
   unarchiveSession(id: SessionId): Promise<void>
   updateSessionTitle(id: SessionId, title: string): Promise<void>
   setSessionAuthorizationMode(id: SessionId, mode: AgentAuthorizationMode | null): Promise<void>
+  /** Switch the model the Session's next Run uses; a running Run keeps its model. */
+  setSessionModel(id: SessionId, model: SupportedModelId): Promise<void>
   listArchivedSessionBranches(limit: number, cursor?: string): Promise<SessionCatalogPage>
   getSessionTree(sessionId: SessionId): Promise<SessionTree | null>
   getSessionWorkspace(

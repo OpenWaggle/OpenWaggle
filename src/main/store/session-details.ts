@@ -23,6 +23,7 @@ export {
   getBoundWorkspaceResource,
   listSessionWorktreeRefs,
   setSessionAuthorizationMode,
+  setSessionExecutionModel,
   setSessionWorktreePlan,
   unarchiveSession,
   updateSessionRuntime,

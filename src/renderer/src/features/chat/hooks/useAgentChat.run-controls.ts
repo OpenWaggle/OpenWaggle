@@ -12,6 +12,7 @@ import { isModelActionable } from '@/features/providers/state'
 import { usePreferencesStore } from '@/features/settings/state'
 import { api } from '@/shared/lib/ipc'
 import { createOptimisticUserMessage } from '../lib/useAgentChat.utils'
+import { settledSessionModelWrites } from '../state/session-model-writes'
 import { createPendingRunWaiter, updateMessagesForSession } from './useAgentChat.message-cache'
 import type {
   AgentChatStatus,
@@ -164,6 +165,9 @@ export function createAgentRunControls(params: AgentRunControlParams) {
     }
     const targetSessionId = sessionId
     const runPromise = startForegroundRun(targetSessionId)
+    // The Host resolves the Run's model from the Session when the Run starts, so a model the user
+    // just picked must be stored before the prompt that should use it is dispatched.
+    await settledSessionModelWrites(targetSessionId)
     const sendPromise = waggleConfig
       ? api.sendWaggleMessage(targetSessionId, payload, model, waggleConfig)
       : api.sendMessage(targetSessionId, payload, model)

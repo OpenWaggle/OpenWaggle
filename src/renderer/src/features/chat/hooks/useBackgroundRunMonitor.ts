@@ -1,3 +1,4 @@
+import { SupportedModelId } from '@shared/types/brand'
 import { useEffect, useLayoutEffect } from 'react'
 import { isTerminalTransportEvent } from '@/features/chat/lib/agent-stream-utils'
 import { useAgentLoopEventStore } from '@/features/chat/state/agent-loop-event-store'
@@ -35,7 +36,8 @@ export function useBackgroundRunMonitor(): void {
       applyAgentLoopEvent(payload.sessionId, payload.event)
       if (payload.event.type === 'agent_start') {
         compactionOnlySessionIds.delete(payload.sessionId)
-        addActiveRun(payload.sessionId)
+        const runModel = payload.event.model?.trim()
+        addActiveRun(payload.sessionId, runModel ? SupportedModelId(runModel) : undefined)
       }
       if (payload.event.type === 'compaction_start' && !hasActiveRun(payload.sessionId)) {
         if (payload.event.reason === 'manual') {

@@ -55,6 +55,7 @@ function makeSessionLayers() {
       updateTitle: () => Effect.void,
       setWorktreePlan: () => Effect.void,
       setAuthorizationMode: () => Effect.void,
+      setExecutionModel: () => Effect.succeed(true),
       listTurnCheckpoints: () => Effect.succeed([]),
       getTurnDiff: () => Effect.succeed(null),
       getTurnDiffFiles: () => Effect.succeed([]),

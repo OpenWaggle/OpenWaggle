@@ -8,6 +8,7 @@ export const HOST_UI_REVISION_17_REQUIRED_CHANNELS = [
   'project-config:remove-project-model',
   'authorization-grants:grant',
   'authorization-grants:revoke',
+  'sessions:set-model',
 ] as const satisfies readonly IpcInvokeChannel[]
 export const HOST_UI_REVISION_16_REQUIRED_CHANNELS = [
   'sessions:resources:list',

@@ -43,6 +43,8 @@ export interface IpcSessionInvokeChannelMap {
     args: [id: SessionId, mode: AgentAuthorizationMode | null]
     return: undefined
   }
+  /** Switch the model the Session's next Run uses; a running Run keeps its model. */
+  'sessions:set-model': { args: [id: SessionId, model: SupportedModelId]; return: undefined }
   'sessions:list-by-ids': { args: [sessionIds: SessionId[]]; return: SessionSummary[] }
   'sessions:list-page': {
     args: [archived: boolean, limit: number, cursor?: string]

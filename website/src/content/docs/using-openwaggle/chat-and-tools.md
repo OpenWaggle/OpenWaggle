@@ -21,6 +21,12 @@ Find where this app validates email addresses. Explain the current behavior
 and suggest a test for an address with surrounding spaces. Don't edit files yet.
 ```
 
+### Changing the model
+
+You can switch an open session to another model at any time with the model selector beside the message box. The session keeps the new model, including after you restart OpenWaggle. The choice belongs to that session only: other sessions keep their models, and new sessions still start with the project's default.
+
+If the agent is working when you switch, the current turn finishes on the model it started with. The selector shows **Next message** until your next message, or a message you queued, starts on the new model.
+
 Keep related work in the same session. Start another session for an unrelated task. Multiple sessions using **Current checkout** can edit the same files, so a new conversation alone does not isolate their changes.
 
 ## Reading the sidebar

@@ -121,6 +121,7 @@ export const PRELOAD_API_METHODS: readonly (keyof OpenWaggleApi)[] = [
   'unarchiveSession',
   'updateSessionTitle',
   'setSessionAuthorizationMode',
+  'setSessionModel',
   'listArchivedSessionBranches',
   'getSessionTree',
   'getSessionWorkspace',

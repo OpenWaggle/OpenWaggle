@@ -30,7 +30,9 @@ function displayModelForAgent(
 }
 
 export function WaggleCollaborationStatus({ currentSessionId, onStop }: CollaborationStatusProps) {
-  const selectedModel = useComposerModel().model
+  const composerModel = useComposerModel()
+  // Inherited agents run with the model the Waggle Run started with, not a later mid-turn pick.
+  const selectedModel = composerModel.runningModel ?? composerModel.model
   const status = useWaggleStore((s) => s.status)
   const config = useWaggleStore((s) => s.activeConfig)
   const activeCollaborationId = useWaggleStore((s) => s.activeCollaborationId)
