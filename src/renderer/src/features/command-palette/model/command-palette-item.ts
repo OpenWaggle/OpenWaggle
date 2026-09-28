@@ -18,6 +18,8 @@ export interface CommandPaletteItem {
   readonly trailing?: string
   readonly trailingBadge?: string
   readonly disabled?: boolean
+  /** Leave Enter to the composer so the typed command text is submitted as-is. */
+  readonly submitsOnEnter?: boolean
   readonly action: () => void
 }
 
@@ -30,5 +32,4 @@ export interface CommandPaletteActionHandlers {
   readonly forkToNewSession?: () => void
   readonly cloneToNewSession?: () => void
   readonly openWorktrees?: () => void
-  readonly insertCompactCommand: () => void
 }

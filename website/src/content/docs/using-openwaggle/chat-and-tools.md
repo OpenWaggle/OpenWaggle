@@ -102,7 +102,9 @@ Turning the setting off removes preview access from later turns and rejects furt
 
 Type `/` at the start of a word in the message box. Keep typing to filter, then use the arrow keys and `Enter` to choose an item.
 
-The menu includes skills, saved Waggle presets, and commands added by enabled extensions. A skill supplies instructions for a particular task. A Waggle preset sets up a multi-agent review.
+The menu lists the built-in commands `/compact`, `/fork`, and `/clone` first, followed by skills, saved Waggle presets, and commands added by enabled extensions. A skill supplies instructions for a particular task. A Waggle preset sets up a multi-agent review.
+
+Press `Enter` on a fully typed built-in command, such as `/compact`, to run it. On a partial match, `Enter`, `Tab`, or a click completes the command so you can add text after it, such as compaction instructions.
 
 Selecting a skill or preset replaces only the slash token, keeping the rest of your draft. The selection appears as a chip before you send. A Waggle preset applies to that message, not every later message.
 

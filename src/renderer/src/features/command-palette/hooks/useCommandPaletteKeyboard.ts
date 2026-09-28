@@ -45,7 +45,7 @@ export function useCommandPaletteKeyboard({
       })
       .with('Enter', () => {
         const selectedItem = items[highlightIndex]
-        if (!selectedItem || selectedItem.disabled) return
+        if (!selectedItem || selectedItem.disabled || selectedItem.submitsOnEnter) return
         event.preventDefault()
         selectedItem.action()
       })

@@ -16,6 +16,7 @@ import {
 import { discardSessionResourceAttachments } from '@/features/composer/state'
 import { invokeBoundExtension } from '@/features/extensions'
 import { api } from '@/shared/lib/ipc'
+import { ipcErrorMessage } from '@/shared/lib/ipc-error-message'
 import { createRendererLogger } from '@/shared/lib/logger'
 import { MessageNotDelivered } from '../lib/message-delivery'
 import type { useBranchSummaryWorkflow } from './useBranchSummaryWorkflow'
@@ -66,7 +67,7 @@ async function compactSession(params: ChatSendWorkflowParams, customInstructions
       params.refreshSessionWorkspace(params.activeSessionId),
     ])
   } catch (error) {
-    params.showToast(error instanceof Error ? error.message : String(error))
+    params.showToast(ipcErrorMessage(error))
   }
 }
 

@@ -1,11 +1,10 @@
 import type { SessionId } from '@shared/types/brand'
 import type { SessionSummary } from '@shared/types/session'
 import { useComposerStore } from '@/features/composer/state'
+import { ipcErrorMessage } from '@/shared/lib/ipc-error-message'
 
 export function errorMessage(error: unknown) {
-  const message = error instanceof Error ? error.message : String(error)
-  // Electron adds transport context to rejected invokes. Keep the actionable reason in toasts.
-  return message.replace(/^Error invoking remote method '[^']+': (?:Error: )?/u, '')
+  return ipcErrorMessage(error)
 }
 
 export function clearComposerDraftsForSessions(sessions: readonly Pick<SessionSummary, 'id'>[]) {

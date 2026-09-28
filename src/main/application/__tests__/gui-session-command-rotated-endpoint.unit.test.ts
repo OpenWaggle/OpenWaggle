@@ -166,4 +166,23 @@ describe('GUI command endpoint recovery', () => {
     expect(execute).toHaveBeenCalledOnce()
     expect(refreshPaths).toHaveBeenCalledOnce()
   })
+
+  it('surfaces the Host rejection reason instead of a generic unknown error', async () => {
+    configureGuiSessionCommandClient({ paths, clientVersion: 'test' })
+    const rejection = new Error('Nothing to compact (session too small)')
+    const execute = vi.fn().mockRejectedValue(rejection)
+    const command = dispatchConfiguredGuiSessionCommand(statusCommand('too-small'), {
+      execute,
+      ensure: vi.fn(async () => undefined),
+      refreshPaths: vi.fn(async (candidate: LocalSessionHostPaths) => candidate),
+    })
+    if (!command) throw new Error('Expected a remote GUI command.')
+
+    const failure = await Effect.runPromise(Effect.flip(command))
+    expect(failure).toBeInstanceOf(Error)
+    expect(failure).toMatchObject({
+      message: 'Nothing to compact (session too small)',
+      cause: rejection,
+    })
+  })
 })

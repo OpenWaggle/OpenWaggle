@@ -223,46 +223,61 @@ export function dispatchConfiguredGuiSessionCommand(
     return Effect.fail(new GuiSessionHostRetiredForUpgradeError())
   }
   const expectedEpoch = guiSessionCommandRouteEpoch
-  return Effect.tryPromise(async () => {
-    const configuredGuiClient = requireActiveGuiSessionCommandRoute(expectedEpoch).client
-    let paths: GuiSessionClientInput['paths']
-    try {
-      paths = await dependencies.refreshPaths(configuredGuiClient.paths)
-    } catch (error) {
-      if (!isLocalSessionHostUnavailable(error)) throw error
-      requireActiveGuiSessionCommandRoute(expectedEpoch)
-      await dependencies.ensure({ ...configuredGuiClient, clientKind: 'gui' })
-      requireActiveGuiSessionCommandRoute(expectedEpoch)
-      paths = await dependencies.refreshPaths(configuredGuiClient.paths)
-    }
-    const activeRoute = requireActiveGuiSessionCommandRoute(expectedEpoch)
-    guiSessionCommandRoute = { mode: 'remote', client: { ...activeRoute.client, paths } }
-    const commandInput = {
-      ...configuredGuiClient,
-      paths,
-      clientKind: 'gui' as const,
-      ...(input.caller.workingDirectory ? { workingDirectory: input.caller.workingDirectory } : {}),
-      payload: input.payload,
-    }
-    try {
-      return await dependencies.execute(commandInput)
-    } catch (error) {
-      if (
-        !isLocalSessionHostUnavailable(error) ||
-        !canRetryAfterAmbiguousTransportFailure(input.payload)
-      ) {
-        throw error
-      }
-      requireActiveGuiSessionCommandRoute(expectedEpoch)
-      await dependencies.ensure({ ...configuredGuiClient, paths, clientKind: 'gui' })
-      const currentRoute = requireActiveGuiSessionCommandRoute(expectedEpoch)
-      const recoveredPaths = await dependencies.refreshPaths(currentRoute.client.paths)
-      const recoveredRoute = requireActiveGuiSessionCommandRoute(expectedEpoch)
-      guiSessionCommandRoute = {
-        mode: 'remote',
-        client: { ...recoveredRoute.client, paths: recoveredPaths },
-      }
-      return dependencies.execute({ ...commandInput, paths: recoveredPaths })
-    }
+  return Effect.tryPromise({
+    try: () => executeConfiguredGuiSessionCommand(input, dependencies, expectedEpoch),
+    // Surface the Host's reason (for example "Nothing to compact (session too small)") instead of
+    // Effect's generic UnknownException message, while keeping the original error as the cause.
+    catch: (error) =>
+      new Error(error instanceof Error ? error.message : String(error), { cause: error }),
   })
+}
+
+async function executeConfiguredGuiSessionCommand(
+  input: {
+    readonly caller: LocalSessionCallerIdentity
+    readonly payload: LocalSessionCommandPayload
+  },
+  dependencies: GuiSessionCommandDependencies,
+  expectedEpoch: number,
+) {
+  const configuredGuiClient = requireActiveGuiSessionCommandRoute(expectedEpoch).client
+  let paths: GuiSessionClientInput['paths']
+  try {
+    paths = await dependencies.refreshPaths(configuredGuiClient.paths)
+  } catch (error) {
+    if (!isLocalSessionHostUnavailable(error)) throw error
+    requireActiveGuiSessionCommandRoute(expectedEpoch)
+    await dependencies.ensure({ ...configuredGuiClient, clientKind: 'gui' })
+    requireActiveGuiSessionCommandRoute(expectedEpoch)
+    paths = await dependencies.refreshPaths(configuredGuiClient.paths)
+  }
+  const activeRoute = requireActiveGuiSessionCommandRoute(expectedEpoch)
+  guiSessionCommandRoute = { mode: 'remote', client: { ...activeRoute.client, paths } }
+  const commandInput = {
+    ...configuredGuiClient,
+    paths,
+    clientKind: 'gui' as const,
+    ...(input.caller.workingDirectory ? { workingDirectory: input.caller.workingDirectory } : {}),
+    payload: input.payload,
+  }
+  try {
+    return await dependencies.execute(commandInput)
+  } catch (error) {
+    if (
+      !isLocalSessionHostUnavailable(error) ||
+      !canRetryAfterAmbiguousTransportFailure(input.payload)
+    ) {
+      throw error
+    }
+    requireActiveGuiSessionCommandRoute(expectedEpoch)
+    await dependencies.ensure({ ...configuredGuiClient, paths, clientKind: 'gui' })
+    const currentRoute = requireActiveGuiSessionCommandRoute(expectedEpoch)
+    const recoveredPaths = await dependencies.refreshPaths(currentRoute.client.paths)
+    const recoveredRoute = requireActiveGuiSessionCommandRoute(expectedEpoch)
+    guiSessionCommandRoute = {
+      mode: 'remote',
+      client: { ...recoveredRoute.client, paths: recoveredPaths },
+    }
+    return dependencies.execute({ ...commandInput, paths: recoveredPaths })
+  }
 }
