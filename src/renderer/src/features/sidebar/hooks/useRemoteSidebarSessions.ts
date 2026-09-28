@@ -19,7 +19,7 @@ import {
   sidebarSessionMatchesText,
 } from './remote-sidebar-session-results'
 import { pruneHydratedTerminalIds, sidebarRemoteStatusIds } from './remote-sidebar-terminal-status'
-import { useDropRemovedRemoteSessions } from './useDropRemovedRemoteSessions'
+import { useRemovedRemoteSessions } from './useRemovedRemoteSessions'
 import { useSidebarTerminalCounts } from './useSidebarTerminalCounts'
 
 const REMOTE_SIDEBAR_SEARCH_MINIMUM_LENGTH = 3
@@ -72,14 +72,13 @@ export function useRemoteSidebarSessions(input: {
   const generation = useRef(0)
   const inFlightGeneration = useRef<number | null>(null)
   const projectDisplayNames = useRef(input.projectDisplayNames)
-  const requestKey = `${input.filterState ?? ''}\u0001${normalizedQuery}\u0001${statusIdsKey}\u0001${matchingProjectPathsKey}`
+  const removal = useRemovedRemoteSessions()
+  const requestKey = `${input.filterState ?? ''}\u0001${normalizedQuery}\u0001${statusIdsKey}\u0001${matchingProjectPathsKey}\u0001${String(removal.resyncToken)}`
   const activeRequestKey = useRef('')
 
   useEffect(() => {
     projectDisplayNames.current = input.projectDisplayNames
   }, [input.projectDisplayNames])
-
-  useDropRemovedRemoteSessions(setSessions)
 
   const settleFailure = useCallback((requestGeneration: number) => {
     if (generation.current !== requestGeneration) return
@@ -157,7 +156,7 @@ export function useRemoteSidebarSessions(input: {
           }
           // A fetched ID may already have been in the key before this Host page. Advance
           // the active key alongside its removal so only genuinely new live IDs restart it.
-          activeRequestKey.current = `${state}\u0001${normalizedQuery}\u0001${[...requestTerminalIds.current].sort().join('\u0000')}\u0001${matchingProjectPathsKey}`
+          activeRequestKey.current = `${state}\u0001${normalizedQuery}\u0001${[...requestTerminalIds.current].sort().join('\u0000')}\u0001${matchingProjectPathsKey}\u0001${String(removal.resyncToken)}`
         })
       ).filter(
         (session) =>
@@ -174,7 +173,7 @@ export function useRemoteSidebarSessions(input: {
         : { kind: 'none' }
       setHasMore(page.nextCursor !== undefined)
     },
-    [matchingProjectPathsKey, normalizedQuery, setTerminalCounts],
+    [matchingProjectPathsKey, normalizedQuery, removal.resyncToken, setTerminalCounts],
   )
 
   const publishInterruptedPage = useCallback(
@@ -287,7 +286,7 @@ export function useRemoteSidebarSessions(input: {
   const visibleSessions = useMemo(() => {
     return mergeVisibleSidebarSessions({
       loadedSessions: input.loadedSessions,
-      remoteSessions: sessions,
+      remoteSessions: sessions.filter((session) => !removal.removed.has(String(session.id))),
       filterState: input.filterState,
       stateBySessionId: input.stateBySessionId,
       normalizedQuery,
@@ -299,6 +298,7 @@ export function useRemoteSidebarSessions(input: {
     input.projectDisplayNames,
     input.stateBySessionId,
     normalizedQuery,
+    removal.removed,
     sessions,
   ])
 

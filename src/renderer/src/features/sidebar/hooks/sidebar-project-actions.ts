@@ -94,6 +94,8 @@ export interface SidebarProjectActionDeps {
   readonly startDraftSession: (projectPath: string | null) => void
   /** Leave every session without creating a new draft session. */
   readonly clearActiveSession: () => void
+  /** The live active session, read after the confirmation and the archives settle. */
+  readonly getActiveSessionId: () => string | null
   readonly clearTransientDraftContext: () => void
 }
 
@@ -179,9 +181,11 @@ async function archiveProjectSessions(deps: SidebarProjectActionDeps, path: stri
     refreshArchivedSessions(deps.queryClient),
   ])
 
+  // Read live: the user may have opened another session while the archives ran.
+  const activeSessionId = deps.getActiveSessionId()
   const archivedActiveSession =
-    deps.activeSessionId !== null &&
-    projectSessions.some((session) => String(session.id) === deps.activeSessionId)
+    activeSessionId !== null &&
+    projectSessions.some((session) => String(session.id) === activeSessionId)
   // Archiving is not a request for a new session: return to the empty home without a draft.
   if (archivedActiveSession) {
     deps.clearTransientDraftContext()

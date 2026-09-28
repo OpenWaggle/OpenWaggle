@@ -34,14 +34,21 @@ function createDomainActions(
 ) {
   const session = createSidebarSessionActions({
     activeSessionId: state.activeSessionId,
-    getActiveSessionId: () => useChatStore.getState().activeSessionId,
-    getVisibleSessionIds: () => visibleSectionSessionIds(state),
-    selectSession(id: SessionId) {
-      clearTransientDraftContext()
-      useChatStore.getState().setActiveSession(id)
-      void state.navigate({ to: '/sessions/$sessionId', params: { sessionId: String(id) } })
+    removalNavigation: {
+      getActiveSessionId: () => useChatStore.getState().activeSessionId,
+      hasDraftSession: () => useChatStore.getState().draftSession !== null,
+      getVisibleSessionIds: () => visibleSectionSessionIds(state),
+      isSessionListed: (id: SessionId) =>
+        useChatStore
+          .getState()
+          .sessions.some((session) => String(session.id) === String(id) && !session.archived),
+      selectSession(id: SessionId) {
+        clearTransientDraftContext()
+        useChatStore.getState().setActiveSession(id)
+        void state.navigate({ to: '/sessions/$sessionId', params: { sessionId: String(id) } })
+      },
+      clearActiveSession: () => useChatStore.getState().setActiveSession(null),
     },
-    clearActiveSession: () => useChatStore.getState().setActiveSession(null),
     clearTransientDraftContext,
     deleteSession: state.chat.deleteSession,
     loadChatSessions: state.chat.loadSessions,
@@ -92,6 +99,10 @@ function createDomainActions(
     showToast: state.showToast,
     startDraftSession: state.chat.startDraftSession,
     clearActiveSession: () => useChatStore.getState().setActiveSession(null),
+    getActiveSessionId: () => {
+      const active = useChatStore.getState().activeSessionId
+      return active === null ? null : String(active)
+    },
   })
 
   return { branch, project, session }

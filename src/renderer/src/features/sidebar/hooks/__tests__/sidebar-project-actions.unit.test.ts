@@ -1,5 +1,6 @@
 import { SessionId, SupportedModelId } from '@shared/types/brand'
 import type { SessionSummary } from '@shared/types/session'
+import { QueryClient } from '@tanstack/react-query'
 import { fromPartial } from '@total-typescript/shoehorn'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
@@ -53,6 +54,7 @@ function deps() {
     showToast: vi.fn(),
     startDraftSession: vi.fn(),
     clearActiveSession: vi.fn(),
+    getActiveSessionId: () => null,
   })
 }
 
@@ -244,5 +246,66 @@ describe('sidebar project actions over paged catalogs', () => {
     expect(ordered).toHaveLength(depth)
     expect(ordered[0]?.id).toBe(SessionId(`deep-${depth - 1}`))
     expect(ordered.at(-1)?.id).toBe(SessionId('deep-0'))
+  })
+})
+
+describe('bulk archive and the open session', () => {
+  function pageOf(ids: readonly SessionId[]) {
+    apiMocks.querySessionControl.mockImplementation(
+      async (request: { query: { archived?: boolean } }) => ({
+        contractVersion: 2,
+        requestId: 'bulk-archive',
+        outcome: {
+          operation: 'list',
+          sessions: request.query.archived
+            ? []
+            : ids.map((id) => ({
+                sessionId: id,
+                title: String(id),
+                projectPath: PROJECT_PATH,
+                archived: false,
+                createdAt: 1,
+                updatedAt: 1,
+                lineageRole: 'independent' as const,
+                directWorkerCount: 0,
+              })),
+        },
+      }),
+    )
+    apiMocks.listSessionsByIds.mockImplementation(async (pageIds: readonly SessionId[]) =>
+      pageIds.map((id) => summary(id)),
+    )
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    apiMocks.archiveSession.mockResolvedValue(undefined)
+    apiMocks.unregisterBrowserPreviewOwner.mockResolvedValue(undefined)
+    apiMocks.showConfirm.mockResolvedValue(true)
+  })
+
+  it.each([
+    ['still open in the archived project', 'bulk-a', true],
+    ['opened elsewhere while the archives ran', 'elsewhere', false],
+  ])('checks the live open session: %s', async (_case, liveActive, leaves) => {
+    pageOf([SessionId('bulk-a'), SessionId('bulk-b')])
+    const showToast = vi.fn()
+    const projectDeps = {
+      ...deps(),
+      showToast,
+      activeSessionId: 'bulk-a',
+      getActiveSessionId: () => liveActive,
+      queryClient: new QueryClient(),
+    }
+    const actions = createSidebarProjectActions(projectDeps)
+
+    actions.archiveSessions(PROJECT_PATH, [])
+
+    await vi.waitFor(() => expect(apiMocks.archiveSession).toHaveBeenCalledTimes(2))
+    await vi.waitFor(() => expect(projectDeps.navigate).toHaveBeenCalledTimes(leaves ? 1 : 0))
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(projectDeps.clearActiveSession).toHaveBeenCalledTimes(leaves ? 1 : 0)
+    expect(showToast.mock.calls).toEqual([])
+    expect(projectDeps.startDraftSession).not.toHaveBeenCalled()
   })
 })

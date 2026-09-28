@@ -28,10 +28,7 @@ it('shows the deletion reason without transport details and does not navigate aw
   const navigate = vi.fn()
   const actions = createSidebarSessionActions({
     activeSessionId: sessionId,
-    getActiveSessionId: () => sessionId,
-    getVisibleSessionIds: () => [sessionId],
-    selectSession: vi.fn(),
-    clearActiveSession: vi.fn(),
+    removalNavigation: navigation({ activeSessionId: sessionId, visibleSessionIds: [sessionId] }),
     matchingActiveSessionTree: null,
     matchingActiveWorkspace: null,
     navigate,
@@ -70,10 +67,7 @@ it('refreshes a committed archive after cleanup fails and preserves that error i
   const showToast = vi.fn()
   const actions = createSidebarSessionActions({
     activeSessionId: null,
-    getActiveSessionId: () => null,
-    getVisibleSessionIds: () => [id],
-    selectSession: vi.fn(),
-    clearActiveSession: vi.fn(),
+    removalNavigation: navigation({ activeSessionId: null, visibleSessionIds: [id] }),
     matchingActiveSessionTree: null,
     matchingActiveWorkspace: null,
     navigate: vi.fn(),
@@ -105,20 +99,33 @@ it('refreshes a committed archive after cleanup fails and preserves that error i
   queryClient.clear()
 })
 
-function archiveActions(input: {
+function navigation(input: {
   readonly activeSessionId: SessionId | null
   readonly visibleSessionIds: readonly SessionId[]
+  readonly listed?: (id: SessionId) => boolean
+  readonly draftOpen?: () => boolean
 }) {
+  return {
+    getActiveSessionId: vi.fn(() => input.activeSessionId),
+    hasDraftSession: () => input.draftOpen?.() ?? false,
+    getVisibleSessionIds: () => input.visibleSessionIds,
+    isSessionListed: input.listed ?? (() => true),
+    selectSession: vi.fn(),
+    clearActiveSession: vi.fn(),
+  }
+}
+
+function archiveActions(
+  input: Parameters<typeof navigation>[0] & {
+    readonly deleteSession?: (id: SessionId) => Promise<void>
+  },
+) {
   const navigate = vi.fn()
-  const selectSession = vi.fn()
-  const clearActiveSession = vi.fn()
   const showToast = vi.fn()
+  const removalNavigation = navigation(input)
   const actions = createSidebarSessionActions({
     activeSessionId: input.activeSessionId,
-    getActiveSessionId: () => input.activeSessionId,
-    getVisibleSessionIds: () => input.visibleSessionIds,
-    selectSession,
-    clearActiveSession,
+    removalNavigation,
     matchingActiveSessionTree: null,
     matchingActiveWorkspace: null,
     navigate,
@@ -127,13 +134,20 @@ function archiveActions(input: {
     selectedModel: SupportedModelId('openai/gpt-5'),
     showToast,
     clearTransientDraftContext: vi.fn(),
-    deleteSession: vi.fn(async () => undefined),
+    deleteSession: input.deleteSession ?? vi.fn(async () => undefined),
     loadChatSessions: async () => {},
     loadSessionTrees: async () => {},
     refreshSessionWorkspace: async () => {},
     togglePin: vi.fn(),
   })
-  return { actions, navigate, selectSession, clearActiveSession, showToast }
+  return {
+    actions,
+    navigate,
+    showToast,
+    removalNavigation,
+    selectSession: removalNavigation.selectSession,
+    clearActiveSession: removalNavigation.clearActiveSession,
+  }
 }
 
 it('archives without asking for confirmation, which is reserved for deletion', async () => {
@@ -200,4 +214,58 @@ it('keeps the current session open when a different session is archived', async 
   expect(selectSession).not.toHaveBeenCalled()
   expect(clearActiveSession).not.toHaveBeenCalled()
   expect(navigate).not.toHaveBeenCalled()
+})
+
+it('opens the neighbour after deleting the open session, although deletion clears it first', async () => {
+  const [a, b] = [SessionId('a'), SessionId('b')]
+  let active: SessionId | null = a
+  const harness = archiveActions({
+    activeSessionId: a,
+    visibleSessionIds: [a, b],
+    deleteSession: async () => {
+      // The real chat store drops the active session before the IPC resolves.
+      active = null
+    },
+  })
+  harness.removalNavigation.getActiveSessionId.mockImplementation(() => active)
+
+  harness.actions.delete(a)
+
+  await vi.waitFor(() => expect(harness.selectSession).toHaveBeenCalledWith(b))
+})
+
+it('skips a neighbour that was archived while the removal ran', async () => {
+  const [a, b, c] = [SessionId('a'), SessionId('b'), SessionId('c')]
+  const { actions, selectSession } = archiveActions({
+    activeSessionId: a,
+    visibleSessionIds: [a, b, c],
+    listed: (id) => String(id) !== 'b',
+  })
+
+  actions.archive(a)
+
+  await vi.waitFor(() => expect(selectSession).toHaveBeenCalledWith(c))
+})
+
+it('leaves a user who opened a new session during the removal where they are', async () => {
+  const [a, b] = [SessionId('a'), SessionId('b')]
+  let active: SessionId | null = a
+  let draftOpen = false
+  const harness = archiveActions({
+    activeSessionId: a,
+    visibleSessionIds: [a, b],
+    draftOpen: () => draftOpen,
+  })
+  harness.removalNavigation.getActiveSessionId.mockImplementation(() => active)
+  mocks.archiveSession.mockImplementation(async () => {
+    active = null
+    draftOpen = true
+  })
+
+  harness.actions.archive(a)
+
+  await vi.waitFor(() => expect(mocks.archiveSession).toHaveBeenCalled())
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  expect(harness.selectSession).not.toHaveBeenCalled()
+  expect(harness.clearActiveSession).not.toHaveBeenCalled()
 })

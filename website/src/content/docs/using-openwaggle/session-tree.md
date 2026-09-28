@@ -83,7 +83,7 @@ For advanced configuration, Pi's `branchSummary.skipPrompt` setting skips this p
 
 You can rename saved branch rows inline in the sidebar. Archive a non-main branch to hide it from normal navigation, then restore it through Settings when needed. Archived branches remain visible in the full tree.
 
-Archiving the main conversation branch archives the entire session. Archiving does not ask for confirmation, because it can be undone from **Settings > Archived items**. If the archived session was open, OpenWaggle opens the next session in the same sidebar section instead, or the empty home screen when none is left. Deleting individual conversation branches is not available.
+Archiving the main conversation branch archives the entire session. Archiving does not ask for confirmation, because it can be undone from **Settings > Archived items**. If you archive the session you have open, OpenWaggle opens the next session in the same sidebar section, or the empty home screen when none is left. A session archived elsewhere while you have it open, for example by Hive cleanup, stays on screen with a notice and a **Restore** action. Deleting individual conversation branches is not available.
 
 ## Keyboard navigation
 

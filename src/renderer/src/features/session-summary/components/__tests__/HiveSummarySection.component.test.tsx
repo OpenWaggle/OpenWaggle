@@ -190,10 +190,14 @@ describe('HiveSummarySection', () => {
 
     const actions = createSidebarSessionActions({
       activeSessionId: null,
-      getActiveSessionId: () => null,
-      getVisibleSessionIds: () => [liveWorker.id],
-      selectSession: vi.fn(),
-      clearActiveSession: vi.fn(),
+      removalNavigation: {
+        getActiveSessionId: () => null,
+        hasDraftSession: () => false,
+        getVisibleSessionIds: () => [liveWorker.id],
+        isSessionListed: () => true,
+        selectSession: vi.fn(),
+        clearActiveSession: vi.fn(),
+      },
       matchingActiveSessionTree: null,
       matchingActiveWorkspace: null,
       navigate,
