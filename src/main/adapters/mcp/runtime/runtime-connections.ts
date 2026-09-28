@@ -1,5 +1,5 @@
 import type { McpTurnSnapshot, McpTurnSnapshotServer } from '@shared/types/mcp'
-import { Effect, SynchronizedRef } from 'effect'
+import { Duration, Effect, SynchronizedRef } from 'effect'
 import type { McpRuntimeFailure } from '../../../ports/mcp-errors'
 import type { McpRuntimeConnectionStatus } from '../../../ports/mcp-runtime-service'
 import { closeIdle, closeKey, closeKeys, matchingKeys } from './runtime-connection-close'
@@ -10,6 +10,9 @@ import type { McpClientConnection, McpConnectionFactory } from './types'
 
 export type { ConnectionAttempt } from './runtime-connection-slots'
 
+/** Longer than the SDK's stdio escalation (EOF, then SIGTERM after 2 s, then SIGKILL after 2 s). */
+const SHUTDOWN_TEARDOWN_DEADLINE_MS = 5_000
+
 export interface McpRuntimeConnectionsService {
   key(snapshot: McpTurnSnapshot, server: McpTurnSnapshotServer): string
   get(
@@ -19,8 +22,8 @@ export interface McpRuntimeConnectionsService {
   /** Starts the connection without waiting for it; see `startConnection`. */
   start(snapshot: McpTurnSnapshot, server: McpTurnSnapshotServer): Effect.Effect<ConnectionAttempt>
   isCurrent(key: string, connection: McpClientConnection): Effect.Effect<boolean>
-  /** The keys of every slot, or of one server's slots. */
-  keys(serverInstanceId?: string): Effect.Effect<readonly string[]>
+  /** The retirement signals of every slot's connection attempt, or of one server's. */
+  attempts(serverInstanceId?: string): Effect.Effect<readonly AbortSignal[]>
   closeSuperseded(runtimeNamespace: string, snapshotRevision: string): Effect.Effect<void>
   closeKey(key: string): Effect.Effect<void>
   closeIfCurrent(key: string, connection: McpClientConnection): Effect.Effect<void>
@@ -46,11 +49,16 @@ export function makeMcpRuntimeConnections(input: {
       get: (snapshot, server) => getConnection(ctx, snapshot, server),
       start: (snapshot, server) => startConnection(ctx, snapshot, server),
       isCurrent: (key, connection) => isCurrentConnection(ctx, key, connection),
-      keys: (serverInstanceId) =>
-        matchingKeys(
-          ctx,
-          (status) =>
-            serverInstanceId === undefined || status.serverInstanceId === serverInstanceId,
+      attempts: (serverInstanceId) =>
+        SynchronizedRef.get(cells).pipe(
+          Effect.map((current) =>
+            [...current.values()].flatMap((slot) =>
+              serverInstanceId === undefined ||
+              slot.cell.status.serverInstanceId === serverInstanceId
+                ? [slot.cell.abort.signal]
+                : [],
+            ),
+          ),
         ),
       closeSuperseded: (runtimeNamespace, snapshotRevision) =>
         matchingKeys(
@@ -60,15 +68,21 @@ export function makeMcpRuntimeConnections(input: {
             status.snapshotRevision !== snapshotRevision,
         ).pipe(Effect.flatMap((keys) => closeKeys(ctx, keys))),
       closeKey: (key) => closeKey(ctx, key),
-      closeIfCurrent: (key, connection) => closeKey(ctx, key, connection),
+      closeIfCurrent: (key, connection) => closeKey(ctx, key, { expectedConnection: connection }),
       closeRuntimeNamespace: (runtimeNamespace) =>
         matchingKeys(ctx, (status) => status.runtimeNamespace === runtimeNamespace).pipe(
           Effect.flatMap((keys) => closeKeys(ctx, keys)),
         ),
       closeIdle: (isActive, additionalNamespaces) => closeIdle(ctx, isActive, additionalNamespaces),
+      // Shutdown: wait for every server to be gone, but not forever.
       closeAll: () =>
         SynchronizedRef.get(cells).pipe(
-          Effect.flatMap((current) => closeKeys(ctx, [...current.keys()])),
+          Effect.flatMap((current) =>
+            closeKeys(ctx, [...current.keys()], { settle: true }).pipe(
+              Effect.timeoutOption(Duration.millis(SHUTDOWN_TEARDOWN_DEADLINE_MS)),
+              Effect.asVoid,
+            ),
+          ),
         ),
       getStatuses: () =>
         SynchronizedRef.get(cells).pipe(

@@ -90,8 +90,8 @@ export interface McpEventInboxState {
 export interface RuntimeStateContext {
   readonly catalogs: Ref.Ref<Map<string, CatalogCacheEntry>>
   readonly listings: SynchronizedRef.SynchronizedRef<Map<string, ServerListing>>
-  /** Connection keys whose listings must not be remembered; see `forgetToolCatalog`. */
-  readonly forgottenConnections: Ref.Ref<ReadonlySet<string>>
+  /** Connection attempts whose listings must not be remembered; see `forgetToolCatalog`. */
+  readonly forgottenAttempts: WeakSet<AbortSignal>
   /** Config hash each server last failed to connect with, per Session; see `recordConnectFailure`. */
   readonly connectFailures: Ref.Ref<ReadonlyMap<string, string>>
   readonly handles: Ref.Ref<Map<string, CatalogTool>>

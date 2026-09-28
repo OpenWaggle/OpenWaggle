@@ -62,18 +62,26 @@ export function settle() {
  * A connection factory that honours the connect's abort signal, like the SDK factory: an abort
  * rejects the pending connect at once.
  */
-export function abortableConnect(result: () => McpClientConnection = () => connection()) {
+export function abortableConnect(
+  result: () => McpClientConnection = () => connection(),
+  /** How long the connect takes to settle once aborted, like a server process shutting down. */
+  teardownMs = 0,
+) {
   const gate = gatedConnect(result)
   const aborted: AbortSignal[] = []
+  let settled = 0
   const connect = vi.fn(
     (input: { readonly signal?: AbortSignal }) =>
       new Promise<McpClientConnection>((resolve, reject) => {
         input.signal?.addEventListener('abort', () => {
           aborted.push(input.signal ?? new AbortController().signal)
-          reject(new Error('MCP connection was cancelled while it started.'))
+          setTimeout(() => {
+            settled += 1
+            reject(new Error('MCP connection was cancelled while it started.'))
+          }, teardownMs)
         })
         void gate.connect().then(resolve, reject)
       }),
   )
-  return { connect, release: gate.release, aborted }
+  return { connect, release: gate.release, aborted, settledCount: () => settled }
 }

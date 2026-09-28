@@ -3,11 +3,17 @@ import type { McpRuntimeConnectionStatus } from '../../../ports/mcp-runtime-serv
 import type { ConnectionCell, ConnectionSlot, ConnectionsCtx } from './runtime-connection-slots'
 import type { McpClientConnection } from './types'
 
+/**
+ * Closes one slot. A lifecycle writer does not wait for an aborted connect to settle; a shutdown
+ * passes `settle` and waits until the server's process is gone, or the app would exit while a
+ * server that was still starting runs on.
+ */
 export function closeKey(
   ctx: ConnectionsCtx,
   key: string,
-  expectedConnection?: McpClientConnection,
+  options: { readonly expectedConnection?: McpClientConnection; readonly settle?: boolean } = {},
 ) {
+  const { expectedConnection, settle = false } = options
   return Effect.uninterruptibleMask((restore) =>
     Effect.gen(function* () {
       type CloseDecision =
@@ -56,7 +62,9 @@ export function closeKey(
       if (decision.type === 'missing') return
       if (decision.type === 'waiting') {
         // Another close owns the tombstone; one still connecting is not worth waiting out.
-        return decision.connecting ? undefined : yield* restore(Deferred.await(decision.done))
+        return decision.connecting && !settle
+          ? undefined
+          : yield* restore(Deferred.await(decision.done))
       }
       // A connect still in progress is cancelled. The caller waits only for the slot's state to be
       // released, not for the cancelled connect to settle: lifecycle writers hold the Host-wide
@@ -89,7 +97,7 @@ export function closeKey(
       // Keep the tombstone until cleanup settles, even if its caller is cancelled. A new connect
       // for the same key still waits for it, so two processes never serve one slot.
       yield* Effect.forkDaemon(cleanup)
-      yield* restore(Deferred.await(connecting ? released : decision.done))
+      yield* restore(Deferred.await(connecting && !settle ? released : decision.done))
     }),
   )
 }
@@ -107,8 +115,12 @@ export function matchingKeys(
   )
 }
 
-export function closeKeys(ctx: ConnectionsCtx, keys: readonly string[]) {
-  return Effect.forEach(keys, (key) => closeKey(ctx, key), { discard: true })
+export function closeKeys(
+  ctx: ConnectionsCtx,
+  keys: readonly string[],
+  options: { readonly settle?: boolean } = {},
+) {
+  return Effect.forEach(keys, (key) => closeKey(ctx, key, options), { discard: true })
 }
 
 export function closeIdle(

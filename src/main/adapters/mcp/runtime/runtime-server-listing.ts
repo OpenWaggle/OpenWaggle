@@ -89,21 +89,21 @@ function rememberToolList(
   snapshot: McpTurnSnapshot,
   server: McpTurnSnapshotServer,
   tools: readonly McpRuntimeTool[],
+  attempt: AbortSignal,
 ) {
-  return Effect.gen(function* () {
-    if (!serverRequestsDirectTools(server) || server.definition.required) return
-    const key = ctx.connections.key(snapshot, server)
-    if ((yield* Ref.get(ctx.forgottenConnections)).has(key)) return
-    const identity = mcpToolCatalogIdentity(snapshot, server)
-    const definitions = tools
-      .filter((tool) => serverOffersToolDirectly(server, tool.name))
-      .map(cachedToolDefinition)
-    yield* Effect.forkDaemon(
-      Effect.promise(() =>
-        ctx.toolCatalogCache.write(identity, definitions).catch(() => undefined),
-      ),
-    )
-  })
+  if (!serverRequestsDirectTools(server) || server.definition.required) return Effect.void
+  const identity = mcpToolCatalogIdentity(snapshot, server)
+  const definitions = tools
+    .filter((tool) => serverOffersToolDirectly(server, tool.name))
+    .map(cachedToolDefinition)
+  return Effect.forkDaemon(
+    Effect.promise(() => {
+      // Checked in the same tick as the write starts, so a forget cannot slip in between. A
+      // closing slot's listing is not remembered either: its reply may be the old credentials'.
+      if (attempt.aborted || ctx.forgottenAttempts.has(attempt)) return Promise.resolve()
+      return ctx.toolCatalogCache.write(identity, definitions).catch(() => undefined)
+    }),
+  ).pipe(Effect.asVoid)
 }
 
 /**
@@ -119,6 +119,7 @@ export function listServerTools(
   snapshot: McpTurnSnapshot,
   server: McpTurnSnapshotServer,
   connection: McpClientConnection,
+  attempt: AbortSignal,
 ) {
   return Effect.gen(function* () {
     const key = ctx.connections.key(snapshot, server)
@@ -126,7 +127,7 @@ export function listServerTools(
       try: (signal) => connection.listTools(signal),
       catch: (error) => toMcpRuntimeError('listTools', error),
     })
-    yield* rememberToolList(ctx, snapshot, server, listedTools)
+    yield* rememberToolList(ctx, snapshot, server, listedTools, attempt)
     const tools = toCatalogTools(ctx, snapshot, server, listedTools, 'live')
     if (!(yield* ctx.connections.isCurrent(key, connection))) return tools
     const nowMs = yield* Clock.currentTimeMillis
@@ -201,7 +202,9 @@ export function startServerListing(
         const listing: ServerListing = { result, retired: attempt.retired }
         yield* Effect.forkDaemon(
           attempt.connection.pipe(
-            Effect.flatMap((connection) => listServerTools(ctx, snapshot, server, connection)),
+            Effect.flatMap((connection) =>
+              listServerTools(ctx, snapshot, server, connection, attempt.retired),
+            ),
             Effect.exit,
             Effect.flatMap((exit) => Deferred.done(result, exit)),
             Effect.ensuring(forgetListing(ctx, key, listing)),

@@ -128,6 +128,17 @@ describe('encrypted MCP tool catalog cache', () => {
     await expect(cache().read(otherIdentity)).resolves.toEqual([TOOL])
   })
 
+  it('keeps a list forgotten while a read of the old file was under way', async () => {
+    await cache().write(identity, [TOOL])
+    const fresh = cache()
+
+    const reading = fresh.read(identity)
+    await fresh.forgetServer('server-1')
+    await reading
+
+    await expect(fresh.read(identity)).resolves.toBeUndefined()
+  })
+
   it('does not open a sealed list moved under another key', async () => {
     await cache().write(identity, [TOOL])
     const file = await readJson(filePath)

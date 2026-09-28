@@ -1,4 +1,4 @@
-import type { McpTurnSnapshot, McpTurnSnapshotServer } from '@shared/types/mcp'
+import type { McpRuntimeNotice, McpTurnSnapshot, McpTurnSnapshotServer } from '@shared/types/mcp'
 import { Deferred, Duration, Effect, Either, Exit, Fiber, Option, Ref } from 'effect'
 import { serverRequestsDirectTools } from '../../../domain/mcp/direct-tool-servers'
 import { resolveMcpRuntimeNamespace } from '../../../domain/mcp/runtime-namespace'
@@ -12,7 +12,7 @@ import {
   addNotice,
   connectNoticeId,
   failRequiredServer,
-  removeInfoNotice,
+  removeExactNotice,
   removeNotice,
   reportServerUnavailable,
 } from './runtime-notices'
@@ -28,10 +28,27 @@ import { mcpToolCatalogIdentity } from './tool-catalog-cache'
 
 type ListingOutcome = Either.Either<readonly CatalogTool[], McpRuntimeFailure>
 
-/** A listing the turn watches from a background fiber, and whether its slot was retired. */
+/**
+ * A listing the turn watches from a background fiber, whether its slot was retired, and the
+ * "still connecting" notice the turn posted for it, which only this listing may clear.
+ */
 interface WatchedListing {
   readonly fiber: Fiber.RuntimeFiber<ListingOutcome>
   readonly listing: ServerListing
+  readonly posted: Ref.Ref<McpRuntimeNotice | undefined>
+}
+
+/** Clears the notice this listing's turn posted, and no later listing's. */
+function clearPostedNotice(
+  ctx: RuntimeStateContext,
+  runtimeNamespace: string,
+  posted: WatchedListing['posted'],
+) {
+  return Ref.get(posted).pipe(
+    Effect.flatMap((notice) =>
+      notice ? removeExactNotice(ctx, runtimeNamespace, notice) : Effect.void,
+    ),
+  )
 }
 
 /** The tools one server gave the turn, and how its wait ended when the turn waited for it. */
@@ -65,19 +82,19 @@ function namespaceIsLive(ctx: RuntimeStateContext, runtimeNamespace: string) {
 /**
  * Reports a failed background listing, unless the failure is only its slot being closed (a new
  * snapshot revision, a reconcile, a dispose) or the Session is gone. A retired listing clears the
- * "still connecting" notice it may have left, because nothing is connecting any more.
+ * "still connecting" notice its turn posted, because nothing is connecting any more.
  */
 function reportBackgroundFailure(
   ctx: RuntimeStateContext,
   snapshot: McpTurnSnapshot,
   server: McpTurnSnapshotServer,
-  listing: ServerListing,
+  watched: Pick<WatchedListing, 'listing' | 'posted'>,
   error: McpRuntimeFailure,
 ) {
   return Effect.gen(function* () {
     const runtimeNamespace = resolveMcpRuntimeNamespace(snapshot)
-    if (listing.retired.aborted) {
-      return yield* removeInfoNotice(ctx, runtimeNamespace, connectNoticeId(server))
+    if (watched.listing.retired.aborted) {
+      return yield* clearPostedNotice(ctx, runtimeNamespace, watched.posted)
     }
     if (!(yield* namespaceIsLive(ctx, runtimeNamespace))) return
     yield* recordConnectFailure(ctx, snapshot, server)
@@ -100,15 +117,22 @@ function listInBackground(
 ) {
   return Effect.gen(function* () {
     const listing = yield* startServerListing(ctx, snapshot, server)
+    const posted = yield* Ref.make<McpRuntimeNotice | undefined>(undefined)
     const runtimeNamespace = resolveMcpRuntimeNamespace(snapshot)
     const fiber = yield* Effect.forkDaemon(
       Deferred.await(listing.result).pipe(
-        Effect.tap(() => removeNotice(ctx, runtimeNamespace, connectNoticeId(server))),
-        Effect.tapError((error) => reportBackgroundFailure(ctx, snapshot, server, listing, error)),
+        Effect.tap(() =>
+          listing.retired.aborted
+            ? clearPostedNotice(ctx, runtimeNamespace, posted)
+            : removeNotice(ctx, runtimeNamespace, connectNoticeId(server)),
+        ),
+        Effect.tapError((error) =>
+          reportBackgroundFailure(ctx, snapshot, server, { listing, posted }, error),
+        ),
         Effect.either,
       ),
     )
-    return { fiber, listing } satisfies WatchedListing
+    return { fiber, listing, posted } satisfies WatchedListing
   })
 }
 
@@ -167,29 +191,25 @@ function noteStillConnecting(
 ) {
   return Effect.gen(function* () {
     const runtimeNamespace = resolveMcpRuntimeNamespace(snapshot)
-    yield* addNotice(ctx, runtimeNamespace, {
+    const notice: McpRuntimeNotice = {
       id: connectNoticeId(server),
       severity: 'info',
       title: `${server.name} MCP server is still connecting`,
       detail: 'This turn started without its direct tools. The next turn includes them.',
       action: 'Wait for the server to connect, or use the mcp tool to reach it sooner.',
       serverInstanceId: server.instanceId,
-    })
+    }
+    yield* addNotice(ctx, runtimeNamespace, notice)
+    yield* Ref.set(watched.posted, notice)
     // The listing may have settled between the timeout and the notice, which would replace its
     // own report; restore the outcome it had.
     const settled = yield* Fiber.poll(watched.fiber)
     if (Option.isNone(settled)) return
     const outcome = settled.value
     if (Exit.isSuccess(outcome) && Either.isLeft(outcome.value)) {
-      return yield* reportBackgroundFailure(
-        ctx,
-        snapshot,
-        server,
-        watched.listing,
-        outcome.value.left,
-      )
+      return yield* reportBackgroundFailure(ctx, snapshot, server, watched, outcome.value.left)
     }
-    yield* removeNotice(ctx, runtimeNamespace, connectNoticeId(server))
+    yield* clearPostedNotice(ctx, runtimeNamespace, watched.posted)
   })
 }
 

@@ -77,8 +77,11 @@ export function createEncryptedMcpToolCatalogCache(input: {
   }
 
   async function readPersisted(identity: McpToolCatalogIdentity) {
+    const generation = generationOf(identity.serverInstanceId)
     const entry = (await readCacheFile(input.filePath)).entries[identity.key]
     if (!entry || now() - entry.updatedAt > MCP_CONFIG.TOOL_CATALOG_RETENTION_MS) return undefined
+    // A forget during the read means the file it read is already out of date.
+    if (generationOf(identity.serverInstanceId) !== generation) return undefined
     const tools = unseal(entry, identity.key)
     if (!tools) return undefined
     memory.set(identity, tools, entry.updatedAt)

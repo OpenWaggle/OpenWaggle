@@ -47,13 +47,17 @@ export function forgetConnectFailures(ctx: RuntimeStateContext, runtimeNamespace
  * Forgets remembered tool lists after a server's credentials changed or it was removed.
  *
  * The connections open now still speak for the old credentials until they close, so listings
- * over them (in flight, or later in a running turn) are marked not to be remembered either.
+ * over them (in flight, or later in a running turn) are marked not to be remembered either. The
+ * mark is on the connection attempt, not its slot key, so a new connection on the same key starts
+ * clean.
  */
 export function forgetToolCatalog(ctx: RuntimeStateContext, scope: McpToolCatalogScope) {
   return Effect.gen(function* () {
     const serverInstanceId = scope === 'all-servers' ? undefined : scope.serverInstanceId
-    const keys = yield* ctx.connections.keys(serverInstanceId)
-    yield* Ref.update(ctx.forgottenConnections, (current) => new Set([...current, ...keys]))
+    const attempts = yield* ctx.connections.attempts(serverInstanceId)
+    yield* Effect.sync(() => {
+      for (const attempt of attempts) ctx.forgottenAttempts.add(attempt)
+    })
     yield* Effect.promise(() =>
       serverInstanceId === undefined
         ? ctx.toolCatalogCache.forgetAll()

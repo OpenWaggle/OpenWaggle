@@ -202,14 +202,12 @@ export function makeMcpRuntimeState(input: {
     })
     const events = yield* Ref.make(emptyMcpEventInboxState())
 
-    const forgottenConnections = yield* Ref.make<ReadonlySet<string>>(new Set())
     const connectFailures = yield* Ref.make<ReadonlyMap<string, string>>(new Map())
     // The connection pool's teardown/connect callbacks touch state Refs directly
     // (the connection key doubles as the subscription/catalog key).
     const connections = yield* makeMcpRuntimeConnections({
       connect: input.connect,
-      onClose: (key) =>
-        connectionClosed({ eventSubscriptionCells, catalogs, forgottenConnections }, key),
+      onClose: (key) => connectionClosed({ eventSubscriptionCells, catalogs }, key),
       onConnected: (runtimeNamespace, serverInstanceId) =>
         connectionOpened({ notices, connectFailures }, runtimeNamespace, serverInstanceId),
     })
@@ -217,7 +215,7 @@ export function makeMcpRuntimeState(input: {
     const ctx: RuntimeStateContext = {
       catalogs,
       listings,
-      forgottenConnections,
+      forgottenAttempts: new WeakSet(),
       connectFailures,
       handles,
       notices,

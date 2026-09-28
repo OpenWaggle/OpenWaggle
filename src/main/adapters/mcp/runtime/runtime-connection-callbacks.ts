@@ -3,16 +3,11 @@ import { Effect, Ref } from 'effect'
 import type { CatalogCacheEntry, EventSubscriptionCell } from './runtime-state-types'
 import { connectFailureKey } from './runtime-tool-catalog-state'
 
-/**
- * Releases what a closed connection slot held: its event subscription, its fresh catalog, and
- * the mark that its listings may not be remembered (the slot's key can be reused by a new
- * connection, which starts with current credentials).
- */
+/** Releases what a closed connection slot held: its event subscription and its fresh catalog. */
 export function connectionClosed(
   refs: {
     readonly eventSubscriptionCells: Ref.Ref<Map<string, EventSubscriptionCell>>
     readonly catalogs: Ref.Ref<Map<string, CatalogCacheEntry>>
-    readonly forgottenConnections: Ref.Ref<ReadonlySet<string>>
   },
   key: string,
 ) {
@@ -34,12 +29,6 @@ export function connectionClosed(
     if (subscription) yield* Effect.promise(() => subscription.close().catch(() => undefined))
     yield* Ref.update(refs.catalogs, (current) => {
       const next = new Map(current)
-      next.delete(key)
-      return next
-    })
-    yield* Ref.update(refs.forgottenConnections, (current) => {
-      if (!current.has(key)) return current
-      const next = new Set(current)
       next.delete(key)
       return next
     })

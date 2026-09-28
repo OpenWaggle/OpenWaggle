@@ -80,12 +80,15 @@ export function reportServerUnavailable(
   })
 }
 
-/** Removes a notice only while it is informational, so a real failure is never cleared. */
-export function removeInfoNotice(ctx: RuntimeStateContext, sessionId: string, noticeId: string) {
+/** Removes one notice object, so a later notice with the same id is never cleared by mistake. */
+export function removeExactNotice(
+  ctx: RuntimeStateContext,
+  sessionId: string,
+  notice: McpRuntimeNotice,
+) {
   return Ref.update(ctx.notices, (current) => {
     const existing = current.get(sessionId)
-    const notice = existing?.find((entry) => entry.id === noticeId)
-    if (!existing || notice?.severity !== 'info') return current
+    if (!existing?.includes(notice)) return current
     const next = new Map(current)
     const filtered = existing.filter((entry) => entry !== notice)
     if (filtered.length === 0) next.delete(sessionId)

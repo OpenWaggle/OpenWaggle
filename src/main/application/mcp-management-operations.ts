@@ -263,11 +263,11 @@ export function logoutMcpServerOperation(raw: unknown) {
             vaultMutationAttempted = true
             yield* oauth.revoke(server.instanceId)
           }
-          yield* runtime.forgetToolCatalog({ serverInstanceId: server.instanceId })
           for (const name of partition.removable) {
             vaultMutationAttempted = true
             yield* vault.remove({ name })
           }
+          yield* runtime.forgetToolCatalog({ serverInstanceId: server.instanceId })
           return {
             removedSecrets: partition.removable,
             retainedSharedSecrets: partition.retained,
