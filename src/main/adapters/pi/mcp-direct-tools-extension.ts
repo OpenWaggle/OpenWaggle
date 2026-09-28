@@ -8,11 +8,8 @@ import {
 } from './mcp-direct-tool-call-validation'
 import { type ExecuteGateway, executeApprovedCall, textResult } from './mcp-tool-execution'
 import { relaxForPreCallValidation } from './provider-tool-parameter-relaxation'
-import {
-  compileToolArgumentsValidator,
-  isJsonSchemaObject,
-  providerToolParameters,
-} from './provider-tool-parameter-schema'
+import { isJsonSchemaObject, providerToolParameters } from './provider-tool-parameter-schema'
+import { compileToolArgumentsValidator } from './tool-arguments-validator'
 
 const logger = createLogger('mcp-direct-tools')
 

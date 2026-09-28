@@ -3,7 +3,8 @@ import { validateToolArguments } from '@earendil-works/pi-ai/utils/validation'
 import type { McpDirectToolDescriptor } from '@shared/types/mcp'
 import type { TUnsafe } from 'typebox'
 import { toJsonObject } from './pi-message-mapper'
-import { isJsonSchemaObject, type ToolArgumentsValidator } from './provider-tool-parameter-schema'
+import { isJsonSchemaObject } from './provider-tool-parameter-schema'
+import type { ToolArgumentsValidator } from './tool-arguments-validator'
 
 type ToolParameters = TUnsafe<Record<string, unknown>>
 
@@ -17,56 +18,54 @@ export interface McpDirectToolCallValidation {
   readonly validate: ToolArgumentsValidator
 }
 
-type PiValidation =
-  | { readonly ok: true; readonly arguments: Record<string, unknown> }
-  | { readonly ok: false; readonly details: string }
-
-const PI_VALIDATION_DETAIL = /^\s+- (.+)$/u
-
-function piValidation(
+/** The arguments Pi would hand `execute` for `parameters`, or `undefined` when Pi rejects them. */
+function piCleanedArguments(
   tool: McpDirectToolDescriptor,
   parameters: ToolParameters,
   arguments_: Record<string, unknown>,
-): PiValidation {
+) {
   const toolCall: ToolCall = {
     type: 'toolCall',
     id: 'mcp-call-time-validation',
     name: tool.modelName,
-    // Tool-call arguments arrive as parsed JSON, so this conversion is lossless.
+    // Tool-call arguments are parsed JSON, so the JSON conversion keeps every value.
     arguments: toJsonObject(arguments_),
   }
+  let validated: unknown
   try {
-    const validated: unknown = validateToolArguments(
+    validated = validateToolArguments(
       { name: tool.modelName, description: tool.title, parameters },
       toolCall,
     )
-    return { ok: true, arguments: isJsonSchemaObject(validated) ? { ...validated } : arguments_ }
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
-    const details = message.split('\n').flatMap((line) => {
-      const detail = PI_VALIDATION_DETAIL.exec(line)?.[1]
-      return detail === undefined ? [] : [detail]
-    })
-    return { ok: false, details: details.length > 0 ? details.join('; ') : message }
+  } catch {
+    return undefined
   }
+  if (!isJsonSchemaObject(validated)) {
+    throw new Error(`Pi returned non-object arguments for MCP tool ${tool.title}.`)
+  }
+  return { ...validated }
 }
 
 /**
  * Returns the arguments to forward for a repaired direct tool, or throws a model-readable error.
  *
  * The provider-facing schema is relaxed, so Pi's own clean-up (dropping optional `null`s,
- * coercing `'5'` to `5`) has not happened yet. Accept what Pi accepts against the server's
- * schema, forwarding its cleaned arguments; otherwise accept what Pi's coercion through the
- * flattened repair turns into arguments the server's schema accepts exactly.
+ * coercing `'5'` to `5`) has not happened yet. In order, forward:
+ * 1. what Pi accepts against the server's schema, as Pi cleaned it;
+ * 2. what Pi's coercion through the flattened repair turns into arguments the server's
+ *    schema accepts exactly;
+ * 3. the arguments as sent, when the server's schema accepts them exactly.
  */
 export function mcpDirectToolCallArguments(
   tool: McpDirectToolDescriptor,
   validation: McpDirectToolCallValidation,
   arguments_: Record<string, unknown>,
 ): Record<string, unknown> {
-  const server = piValidation(tool, validation.server, arguments_)
-  if (server.ok) return server.arguments
-  const coerced = piValidation(tool, validation.flattened, arguments_)
-  if (coerced.ok && validation.validate(coerced.arguments).length === 0) return coerced.arguments
-  throw new Error(`Invalid arguments for MCP tool ${tool.title}: ${server.details}`)
+  const cleaned = piCleanedArguments(tool, validation.server, arguments_)
+  if (cleaned) return cleaned
+  const coerced = piCleanedArguments(tool, validation.flattened, arguments_)
+  if (coerced && validation.validate(coerced).length === 0) return coerced
+  const invalid = validation.validate(arguments_)
+  if (invalid.length === 0) return arguments_
+  throw new Error(`Invalid arguments for MCP tool ${tool.title}: ${invalid.join('; ')}`)
 }

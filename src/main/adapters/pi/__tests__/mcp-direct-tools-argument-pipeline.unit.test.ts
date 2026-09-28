@@ -9,9 +9,19 @@ import {
 // Every schema here needs repair before Bedrock or OpenAI accept it. Each case is one a
 // flattened repair used as constraints mishandled: it rejected a valid call, dropped Pi's
 // null clean-up or type coercion, or recursed forever.
-const PIPELINE_CASES: readonly PipelineCase[] = [
+interface ExpectedPipelineCase extends PipelineCase {
+  /**
+   * `server`: Pi accepts it against the server schema, and the repaired tool forwards the same.
+   * `coerced`: only Pi's coercion through the flattened repair makes it valid for the server.
+   * `rejected`: neither accepts it.
+   */
+  readonly expected: 'server' | 'coerced' | 'rejected'
+}
+
+const PIPELINE_CASES: readonly ExpectedPipelineCase[] = [
   {
     label: 'a field a closed alternative admits through patternProperties',
+    expected: 'server',
     schema: {
       type: 'object',
       anyOf: [
@@ -23,6 +33,7 @@ const PIPELINE_CASES: readonly PipelineCase[] = [
   },
   {
     label: 'a pattern field when every alternative is closed',
+    expected: 'server',
     schema: {
       type: 'object',
       anyOf: [
@@ -34,6 +45,7 @@ const PIPELINE_CASES: readonly PipelineCase[] = [
   },
   {
     label: 'a field evaluated only by a removed combinator',
+    expected: 'server',
     schema: {
       type: 'object',
       allOf: [{ patternProperties: { '^x-': { type: 'string' } } }],
@@ -43,6 +55,7 @@ const PIPELINE_CASES: readonly PipelineCase[] = [
   },
   {
     label: 'additionalProperties referencing into a removed combinator',
+    expected: 'server',
     schema: {
       type: 'object',
       additionalProperties: { $ref: '#/allOf/0/properties/a' },
@@ -52,6 +65,7 @@ const PIPELINE_CASES: readonly PipelineCase[] = [
   },
   {
     label: 'a $defs entry referencing into a removed combinator',
+    expected: 'server',
     schema: {
       type: 'object',
       $defs: { Item: { $ref: '#/anyOf/0/properties/a' } },
@@ -62,6 +76,7 @@ const PIPELINE_CASES: readonly PipelineCase[] = [
   },
   {
     label: 'a hoisted field referencing into a removed combinator',
+    expected: 'server',
     schema: {
       type: 'object',
       anyOf: [{ properties: { a: { type: 'string' }, b: { $ref: '#/anyOf/0/properties/a' } } }],
@@ -70,6 +85,7 @@ const PIPELINE_CASES: readonly PipelineCase[] = [
   },
   {
     label: 'a value only root additionalProperties coerces',
+    expected: 'server',
     schema: {
       type: 'object',
       additionalProperties: { type: 'number' },
@@ -79,6 +95,7 @@ const PIPELINE_CASES: readonly PipelineCase[] = [
   },
   {
     label: 'an object missing a field only the constrained alternative requires',
+    expected: 'server',
     schema: {
       type: 'object',
       anyOf: [true, { properties: { a: { type: 'string' } }, required: ['a'] }],
@@ -87,6 +104,7 @@ const PIPELINE_CASES: readonly PipelineCase[] = [
   },
   {
     label: 'an optional null in an untyped root',
+    expected: 'server',
     schema: {
       properties: { q: { type: 'string' }, n: { type: 'number' } },
       required: ['q'],
@@ -95,16 +113,19 @@ const PIPELINE_CASES: readonly PipelineCase[] = [
   },
   {
     label: 'a stringified number in an untyped root',
+    expected: 'coerced',
     schema: { properties: { n: { type: 'number' } } },
     arguments_: { n: '5' },
   },
   {
     label: 'a stringified boolean beside a root not',
+    expected: 'server',
     schema: { type: 'object', properties: { r: { type: 'boolean' } }, not: { required: ['z'] } },
     arguments_: { r: 'true' },
   },
   {
     label: 'a stringified integer in a discriminated oneOf',
+    expected: 'coerced',
     schema: {
       type: 'object',
       oneOf: [
@@ -116,6 +137,7 @@ const PIPELINE_CASES: readonly PipelineCase[] = [
   },
   {
     label: 'the second branch of a discriminated oneOf',
+    expected: 'server',
     schema: {
       type: 'object',
       oneOf: [
@@ -127,6 +149,7 @@ const PIPELINE_CASES: readonly PipelineCase[] = [
   },
   {
     label: 'a nested stringified number under a root allOf',
+    expected: 'server',
     schema: {
       allOf: [
         {
@@ -139,6 +162,7 @@ const PIPELINE_CASES: readonly PipelineCase[] = [
   },
   {
     label: 'a field referencing the root of a recursive schema',
+    expected: 'server',
     schema: {
       type: 'object',
       anyOf: [{ properties: { a: { type: 'string' }, child: { $ref: '#' } } }],
@@ -146,7 +170,28 @@ const PIPELINE_CASES: readonly PipelineCase[] = [
     arguments_: { child: { a: 'x' } },
   },
   {
+    label: 'a field with a draft 2020-12 $dynamicRef to the root',
+    expected: 'server',
+    schema: {
+      type: 'object',
+      not: { required: ['zz'] },
+      properties: { a: { type: 'string' }, child: { $dynamicRef: '#' } },
+    },
+    arguments_: { child: { a: 'x' } },
+  },
+  {
+    label: 'a field with a draft 2019-09 $recursiveRef to the root',
+    expected: 'server',
+    schema: {
+      type: 'object',
+      $recursiveAnchor: true,
+      anyOf: [{ properties: { a: { type: 'string' }, child: { $recursiveRef: '#' } } }],
+    },
+    arguments_: { child: { a: 'x' } },
+  },
+  {
     label: 'a call missing the discriminator every alternative requires',
+    expected: 'rejected',
     schema: {
       type: 'object',
       oneOf: [
@@ -158,6 +203,7 @@ const PIPELINE_CASES: readonly PipelineCase[] = [
   },
   {
     label: 'a call that matches no alternative',
+    expected: 'rejected',
     schema: {
       anyOf: [
         {
@@ -178,18 +224,15 @@ const PIPELINE_CASES: readonly PipelineCase[] = [
 
 describe('repaired MCP direct tools through the agent loop', () => {
   it.each(PIPELINE_CASES)(
-    'accept $label whenever Pi accepts it against the server schema',
-    async ({ schema, arguments_ }) => {
+    'handle $label as Pi handles the server schema ($expected)',
+    async ({ schema, arguments_, expected }) => {
       const onServerSchema = piOnServerSchema(schema, arguments_)
       const repaired = await throughRepairedTool(schema, arguments_)
 
-      if (onServerSchema.accepted) {
-        expect(repaired).toEqual(onServerSchema)
-        return
-      }
-      if (!repaired.accepted) return
-      // Accepted only through coercion, into arguments the server schema accepts exactly.
-      expect(serverSchemaAccepts(schema, repaired.forwarded)).toBe(true)
+      expect(onServerSchema.accepted).toBe(expected === 'server')
+      expect(repaired.accepted).toBe(expected !== 'rejected')
+      if (expected === 'server') expect(repaired).toEqual(onServerSchema)
+      if (repaired.accepted) expect(serverSchemaAccepts(schema, repaired.forwarded)).toBe(true)
     },
   )
 })

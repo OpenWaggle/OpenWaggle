@@ -10,10 +10,8 @@ import { fromAny, fromPartial } from '@total-typescript/shoehorn'
 import { Type } from 'typebox'
 import { expect, type Mock, vi } from 'vitest'
 import { registerMcpDirectTools } from '../mcp-direct-tools-extension'
-import {
-  compileToolArgumentsValidator,
-  isJsonSchemaObject,
-} from '../provider-tool-parameter-schema'
+import { isJsonSchemaObject } from '../provider-tool-parameter-schema'
+import { compileToolArgumentsValidator } from '../tool-arguments-validator'
 
 export type Outcome =
   | { readonly accepted: true; readonly forwarded: unknown }

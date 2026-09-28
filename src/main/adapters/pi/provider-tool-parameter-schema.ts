@@ -24,8 +24,9 @@ const ROOT_FORBIDDEN_KEYWORDS = [
 const ROOT_DROPPED_KEYWORDS = ['not', 'enum', 'const', 'if', 'then', 'else'] as const
 const ALTERNATIVE_KEYWORDS = ['anyOf', 'oneOf'] as const
 const MAX_REFERENCE_DEPTH = 16
-/** Nested root combinators flattened; bounds `{ anyOf: [{ $ref: '#' }, ...] }` recursion. */
+/** Bounds flattening `{ anyOf: [{ $ref: '#' }, ...] }`, which otherwise recurses without end. */
 const MAX_FLATTEN_DEPTH = 4
+const MAX_FLATTENED_SCHEMAS = 256
 const LOCAL_POINTER_PREFIX = '#/'
 
 export function isJsonSchemaObject(value: unknown): value is JsonSchemaObject {
@@ -142,14 +143,21 @@ interface FlatRoot {
   readonly required: Set<string>
 }
 
+interface FlattenLimits {
+  readonly depth: number
+  /** Schemas left to flatten across the whole call, shared by every level. */
+  readonly budget: { remaining: number }
+}
+
 function flattenMembers(
   members: readonly JsonSchemaObject[],
   document: JsonSchemaObject,
   repairs: string[],
-  depth: number,
+  limits: FlattenLimits,
 ) {
+  const nested = { depth: limits.depth + 1, budget: limits.budget }
   return members.map((member) =>
-    flattenRoot(inlineReference(member, document, repairs), document, repairs, depth + 1),
+    flattenRoot(inlineReference(member, document, repairs), document, repairs, nested),
   )
 }
 
@@ -216,12 +224,13 @@ function flattenRoot(
   node: JsonSchemaObject,
   document: JsonSchemaObject,
   repairs: string[],
-  depth = 0,
+  limits: FlattenLimits = { depth: 0, budget: { remaining: MAX_FLATTENED_SCHEMAS } },
 ): MutableJsonSchema {
   const { anyOf: _anyOf, oneOf: _oneOf, allOf, ...rest } = node
   // A member referencing an ancestor (`{ anyOf: [{ $ref: '#' }] }`) would recurse forever.
   // Dropping the combinators there only loosens the schema; call-time validation is exact.
-  if (depth >= MAX_FLATTEN_DEPTH) {
+  limits.budget.remaining -= 1
+  if (limits.depth >= MAX_FLATTEN_DEPTH || limits.budget.remaining < 0) {
     repairs.push('stopped flattening recursive root combinators')
     return { ...rest }
   }
@@ -232,7 +241,7 @@ function flattenRoot(
   }
   const conjunction = schemaArray(allOf)
   if (conjunction) {
-    mergeConjunction(root, flattenMembers(conjunction, document, repairs, depth))
+    mergeConjunction(root, flattenMembers(conjunction, document, repairs, limits))
     repairs.push(`merged root allOf of ${String(conjunction.length)} schemas`)
   }
   for (const keyword of ALTERNATIVE_KEYWORDS) {
@@ -242,7 +251,7 @@ function flattenRoot(
     const hasUnconstrainedAlternative = Array.isArray(raw) && raw.includes(true)
     mergeAlternatives(
       root,
-      flattenMembers(members, document, repairs, depth).filter(isObjectShaped),
+      flattenMembers(members, document, repairs, limits).filter(isObjectShaped),
       hasUnconstrainedAlternative,
     )
     const count = Array.isArray(raw) ? raw.length : members.length
@@ -259,8 +268,10 @@ function flattenRoot(
 
 /**
  * Turns any JSON Schema into tool parameters every provider accepts, keeping as much of its
- * meaning as an object root can carry. The result is a superset of what `schema` accepts, so
- * callers that repaired a schema must still validate arguments against the original.
+ * meaning as an object root can carry. Callers that repaired a schema must still validate
+ * arguments against the original. The result can also reject some arguments the original
+ * accepts, so callers that let Pi validate calls against it relax it first
+ * (`provider-tool-parameter-relaxation.ts`).
  */
 export function providerToolParameters(schema: unknown): ProviderToolParameters {
   if (isJsonSchemaObject(schema) && providerToolSchemaViolations(schema).length === 0) {
@@ -304,10 +315,5 @@ export function providerToolParameters(schema: unknown): ProviderToolParameters 
     repairs.push(`set root type ${JSON.stringify(type) ?? 'missing'} to "object"`)
     flattened.type = 'object'
   }
-  return { schema: flattened, repairs }
+  return { schema: flattened, repairs: [...new Set(repairs)] }
 }
-
-export {
-  compileToolArgumentsValidator,
-  type ToolArgumentsValidator,
-} from './tool-arguments-validator'

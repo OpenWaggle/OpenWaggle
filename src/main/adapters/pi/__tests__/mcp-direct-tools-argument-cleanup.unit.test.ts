@@ -1,4 +1,5 @@
 import type { ToolCall } from '@earendil-works/pi-ai/compat'
+import { validateToolArguments } from '@earendil-works/pi-ai/utils/validation'
 import type { ExtensionContext } from '@earendil-works/pi-coding-agent'
 import { fromPartial } from '@total-typescript/shoehorn'
 import { describe, expect, it, vi } from 'vitest'
@@ -6,6 +7,7 @@ import {
   type PipelineCase,
   register,
   throughRepairedTool,
+  toolCall,
 } from './mcp-direct-tools-pipeline.test-utils'
 
 interface CleanUpCase extends PipelineCase {
@@ -59,8 +61,22 @@ describe('repaired MCP direct tools at call time', () => {
 
     await expect(
       definition.execute('call-1', { n: 'many' }, undefined, undefined, ctx),
-    ).rejects.toThrow(/Invalid arguments for MCP tool probe: n: must be number/)
+    ).rejects.toThrow(/Invalid arguments for MCP tool probe: \/n: must be number/)
     expect(confirm).not.toHaveBeenCalled()
     expect(executeGateway).not.toHaveBeenCalled()
+  })
+
+  it('keeps the flattened repair as the pre-approval check when the server schema cannot compile', async () => {
+    // The invalid pattern sits in a root keyword the repair drops, so only the server schema fails.
+    const { definition } = register({
+      type: 'object',
+      not: { properties: { a: { type: 'string', pattern: '(?i)x' } } },
+      anyOf: [{ properties: { a: { type: 'string' } }, required: ['a'] }],
+    })
+    const parameters = JSON.parse(JSON.stringify(definition.parameters))
+
+    expect(parameters.properties).toEqual({ a: { type: 'string' } })
+    expect(parameters.required).toEqual(['a'])
+    expect(() => validateToolArguments(definition, toolCall({}))).toThrow(/a/)
   })
 })

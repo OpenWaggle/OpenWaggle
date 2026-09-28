@@ -24,6 +24,15 @@ const RELAXED_ROOT_KEYWORDS = new Set([
   'writeOnly',
 ])
 
+const REFERENCE_KEYWORD = /"\$(?:ref|dynamicRef|recursiveRef)"/u
+
+/** The description moves to the wrapping property, so providers receive it once. */
+function withoutDescription(definition: unknown, moved: string | undefined): unknown {
+  if (!isJsonSchemaObject(definition) || definition.description !== moved) return definition
+  const { description: _description, ...rest } = definition
+  return rest
+}
+
 /** Shows the model a property's definitions next to a `{}` alternative that accepts any value. */
 function guidanceOnlyProperty(definition: unknown) {
   const description =
@@ -36,11 +45,12 @@ function guidanceOnlyProperty(definition: unknown) {
     Array.isArray(union) &&
     isJsonSchemaObject(definition) &&
     Object.keys(definition).every((key) => key === 'anyOf' || key === 'description')
-  const alternatives: readonly unknown[] =
-    isBareUnion && Array.isArray(union) ? union : [definition]
-  // Validators compile and check union members in order. A member with a `$ref` compiled on its
-  // own can refer to itself (`{ $ref: '#' }`) and recurse forever, so let `{}` match first there.
-  const permissiveFirst = JSON.stringify(alternatives).includes('"$ref"')
+  const alternatives = (isBareUnion && Array.isArray(union) ? union : [definition]).map(
+    (alternative) => withoutDescription(alternative, description),
+  )
+  // Validators compile and check union members in order. A member with a reference compiled on
+  // its own can refer to itself (`{ $ref: '#' }`) and recurse forever, so let `{}` match first.
+  const permissiveFirst = REFERENCE_KEYWORD.test(JSON.stringify(alternatives))
   return {
     ...(description === undefined ? {} : { description }),
     anyOf: permissiveFirst ? [{}, ...alternatives] : [...alternatives, {}],

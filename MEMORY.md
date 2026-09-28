@@ -1121,12 +1121,15 @@ alternative all made Pi block valid calls before call-time validation ran. So wh
 schema compiles, direct tools register a relaxed repair (`provider-tool-parameter-relaxation.ts`:
 object root, `required` only for fields every accepted argument carries, annotations, and each
 property as `{anyOf: [...definitions, {}]}`, with `{}` first when a definition holds a `$ref`,
-because Pi compiles union members standalone and `{$ref:'#'}` then recurses forever). A
-permissive schema also disables Pi's clean-up, so `execute` redoes it
-(`mcp-direct-tool-call-validation.ts`): accept what Pi accepts against the server schema and
-forward its output, else what Pi's coercion through the unrelaxed flattened repair turns into
-arguments the server schema accepts exactly. Sampling tools and uncompilable server schemas keep
-the unrelaxed repair, since nothing else checks them before the server.
+`$dynamicRef` or `$recursiveRef`, because Pi compiles union members standalone and a reference
+to `'#'` then recurses forever). A permissive schema also disables Pi's clean-up, so `execute`
+redoes it (`mcp-direct-tool-call-validation.ts`): forward what Pi accepts against the server
+schema as Pi cleaned it, else what Pi's coercion through the unrelaxed flattened repair turns
+into arguments the server schema accepts exactly, else the raw arguments if the server schema
+accepts them exactly. Direct tools whose server schema does not compile keep the unrelaxed
+repair, because it is then the only check before approval. Sampling tools keep it too: Pi does
+not validate their calls, so relaxing would only cost guidance. Flattening is bounded in depth
+and total schemas, since `{anyOf: [{$ref:'#'}, ...]}` otherwise recurses or explodes.
 
 For managed-worktree cleanup, a retained preparation snapshot belongs to a directory generation,
 not merely a project and worktree path. Pin the worktree directory's device, inode and birth time

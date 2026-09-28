@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
-  compileToolArgumentsValidator,
   providerToolParameters,
   providerToolSchemaViolations,
 } from '../provider-tool-parameter-schema'
+import { compileToolArgumentsValidator } from '../tool-arguments-validator'
 
 describe('providerToolParameters', () => {
   it('returns a conforming schema as is, without repairs', () => {
@@ -134,5 +134,16 @@ describe('providerToolParameters', () => {
 
     expect(schema).toMatchObject({ type: 'object', properties: { a: { type: 'string' } } })
     expect(repairs).toContain('stopped flattening recursive root combinators')
+  })
+
+  it('bounds the work a wide self-referencing combinator costs and reports each repair once', () => {
+    const started = performance.now()
+    const { repairs } = providerToolParameters({
+      type: 'object',
+      anyOf: Array.from({ length: 60 }, () => ({ $ref: '#' })),
+    })
+
+    expect(performance.now() - started).toBeLessThan(1_000)
+    expect(new Set(repairs).size).toBe(repairs.length)
   })
 })
