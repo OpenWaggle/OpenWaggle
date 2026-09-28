@@ -128,4 +128,59 @@ describe('project preference operations retain canonical identities for aliases'
     await fs.rm(newTarget, { recursive: true, force: true })
     await fs.rm(aliasPath, { force: true })
   })
+
+  it('restores the recorded identity model when a later removal step fails', async () => {
+    const recordedTarget = await tempProjectPath('openwaggle-alias-old-')
+    const newTarget = await tempProjectPath('openwaggle-alias-new-')
+    const aliasPath = path.join(path.dirname(newTarget), `${path.basename(newTarget)}-link`)
+    await fs.symlink(newTarget, aliasPath)
+    const selectedModelsByProject = {
+      [recordedTarget]: 'provider/recorded',
+      [newTarget]: 'provider/retargeted',
+    }
+    const service = {
+      get: () =>
+        Effect.succeed({
+          ...DEFAULT_SETTINGS,
+          selectedModelsByProject,
+          projectPathAliases: { [aliasPath]: recordedTarget },
+        }),
+      update: () => Effect.succeed(undefined),
+      setProjectModel: (projectPath: string, model: string | null) =>
+        Effect.sync(() => {
+          modelWrites.push([projectPath, model])
+        }),
+      removeProjectModel: (projectPath: string) =>
+        Effect.sync(() => {
+          removals.push(projectPath)
+        }),
+      recordProjectPathAlias: (alias: string, canonicalPath: string) =>
+        Effect.sync(() => {
+          aliasRecords.push([alias, canonicalPath])
+        }),
+      resolveProjectPathAlias: (alias: string) =>
+        Effect.succeed(alias === aliasPath ? recordedTarget : undefined),
+      removeProjectPathAlias: () => Effect.fail(new Error('alias write failed')),
+      initialize: () => Effect.succeed(undefined),
+      flushForTests: () => Effect.succeed(undefined),
+    }
+
+    await expect(
+      Effect.runPromise(
+        removeProjectModelOperation(aliasPath).pipe(
+          Effect.provideService(SettingsService, service),
+        ),
+      ),
+    ).rejects.toThrow('alias write failed')
+
+    // The model was deleted before the alias step failed. Compensation restores it under the
+    // recorded identity the deletion used, never under the symlink's current realpath.
+    expect(removals).toEqual([recordedTarget])
+    expect(modelWrites).toEqual([[recordedTarget, 'provider/recorded']])
+    expect(aliasRecords).toEqual([[aliasPath, recordedTarget]])
+
+    await fs.rm(recordedTarget, { recursive: true, force: true })
+    await fs.rm(newTarget, { recursive: true, force: true })
+    await fs.rm(aliasPath, { force: true })
+  })
 })

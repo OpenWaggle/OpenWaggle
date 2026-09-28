@@ -30,19 +30,23 @@ function clearProjectModelEntry(
 
 /**
  * Reads the candidate's legacy file state and retires a legacy model through the central write.
- * Returns whether the entry must be suppressed with a tombstone instead of a plain delete: the
- * file was unreadable (state unknown), the strip rewrite failed, or the strip was skipped because
- * the legacy migration failed (absence could not be confirmed).
+ * `tombstone` says whether the entry must be suppressed with a tombstone instead of a plain delete:
+ * the file was unreadable (state unknown), the strip rewrite failed, or the strip was skipped
+ * because the legacy migration failed (absence could not be confirmed). `legacyModel` is the value
+ * the file held before the strip, so a failed removal can restore it.
  */
-function retireLegacyFileModel(candidate: string): Effect.Effect<boolean, never> {
+function retireLegacyFileModel(
+  candidate: string,
+): Effect.Effect<{ tombstone: boolean; legacyModel: string | undefined }, never> {
   return Effect.gen(function* () {
     const fileRead = yield* Effect.promise(() =>
       getProjectPreferencesStrict(candidate)
         .then((prefs) => ({ readable: true as const, model: prefs?.model }))
         .catch(() => ({ readable: false as const, model: undefined })),
     )
-    if (!fileRead.readable) return true
-    if (fileRead.model === undefined) return false
+    if (!fileRead.readable) return { tombstone: true, legacyModel: undefined }
+    const legacyModel = fileRead.model
+    if (legacyModel === undefined) return { tombstone: false, legacyModel }
     // A rejected rewrite is not fatal: the re-read below decides whether absence was achieved.
     yield* Effect.promise(() => setProjectPreferences(candidate, {}).catch(() => undefined))
     // The central write resolves even when the legacy migration failed and the file kept the
@@ -53,8 +57,38 @@ function retireLegacyFileModel(candidate: string): Effect.Effect<boolean, never>
         .catch(() => ({ readable: false as const, model: undefined })),
     )
     // An unreadable confirmation means absence was not proven — keep the tombstone.
-    if (!after.readable) return true
-    return after.model !== undefined
+    if (!after.readable) return { tombstone: true, legacyModel }
+    return { tombstone: after.model !== undefined, legacyModel }
+  })
+}
+
+/**
+ * Puts one identity's model entry back to what it was before a removal started: the prior DB
+ * entry (a model or an empty-string tombstone) when there was one, otherwise the legacy file
+ * model the removal stripped, otherwise no entry at all.
+ */
+function restoreProjectModelEntry(
+  settings: SettingsServiceShape,
+  canonicalPath: string,
+  priorEntry: string | undefined,
+  legacyModel: string | undefined,
+): Effect.Effect<void, Error> {
+  const restored = priorEntry ?? legacyModel
+  if (restored !== undefined && settings.setProjectModel) {
+    return settings.setProjectModel(canonicalPath, restored === '' ? null : restored)
+  }
+  if (restored === undefined && settings.removeProjectModel) {
+    return settings.removeProjectModel(canonicalPath)
+  }
+  return Effect.gen(function* () {
+    const current = yield* settings.get()
+    const next = { ...current.selectedModelsByProject }
+    if (restored === undefined) {
+      delete next[canonicalPath]
+    } else {
+      next[canonicalPath] = restored
+    }
+    yield* settings.update({ selectedModelsByProject: next })
   })
 }
 
@@ -135,16 +169,36 @@ export function removeProjectModelOperation(rawProjectPath: unknown, rawRemainin
         return canonicalPath
       }
     }
-    // A legacy file model must not survive removal: unreadable or non-rewritable files suppress
-    // with a tombstone so the legacy fallback can never restore the removed model.
-    const tombstone = yield* retireLegacyFileModel(canonicalPath)
-    yield* clearProjectModelEntry(settings, canonicalPath, tombstone)
-    if (settings.removeProjectPathAlias) {
-      yield* settings.removeProjectPathAlias(projectPath)
-    }
-    // No surviving reference resolves to this identity (the loop above returned otherwise), so
-    // every alias record still targeting the removed canonical is stale.
-    yield* removeStaleAliasRecords(settings, canonicalPath, projectPath)
+    const current = yield* settings.get()
+    const priorEntry = Object.hasOwn(current.selectedModelsByProject, canonicalPath)
+      ? current.selectedModelsByProject[canonicalPath]
+      : undefined
+    let legacyModel: string | undefined
+    yield* Effect.gen(function* () {
+      // A legacy file model must not survive removal: unreadable or non-rewritable files suppress
+      // with a tombstone so the legacy fallback can never restore the removed model.
+      const retired = yield* retireLegacyFileModel(canonicalPath)
+      legacyModel = retired.legacyModel
+      yield* clearProjectModelEntry(settings, canonicalPath, retired.tombstone)
+      if (settings.removeProjectPathAlias) {
+        yield* settings.removeProjectPathAlias(projectPath)
+      }
+      // No surviving reference resolves to this identity (the loop above returned otherwise), so
+      // every alias record still targeting the removed canonical is stale.
+      yield* removeStaleAliasRecords(settings, canonicalPath, projectPath)
+    }).pipe(
+      // These are separately persisted steps, so a later one can fail after the model is gone.
+      // The caller keeps the project visible on failure, so its model and alias record are put
+      // back under the same recorded identity the deletion used before the error propagates.
+      Effect.tapError(() =>
+        Effect.gen(function* () {
+          yield* restoreProjectModelEntry(settings, canonicalPath, priorEntry, legacyModel)
+          if (recordedCanonical !== undefined && settings.recordProjectPathAlias) {
+            yield* settings.recordProjectPathAlias(projectPath, recordedCanonical)
+          }
+        }).pipe(Effect.catchAll(() => Effect.void)),
+      ),
+    )
     return canonicalPath
   })
 }
