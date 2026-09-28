@@ -1,5 +1,9 @@
 import { Schema } from '@shared/schema'
-import type { ActionCatalog, DiscoveredProjectTask } from '@shared/types/action-definitions'
+import type {
+  ActionCatalog,
+  ActionDefinition,
+  DiscoveredProjectTask,
+} from '@shared/types/action-definitions'
 import { describe, expect, it } from 'vitest'
 import { applyActionSource, applyScriptPick, displayedCommand } from '../action-draft-edits'
 import { duplicateActionNames, duplicateNameHint } from '../action-names'
@@ -34,7 +38,7 @@ function script(task: string, directory = '.', description = `run ${task}`): Dis
   }
 }
 
-const saved = {
+const saved: ActionDefinition = {
   id: 'dev',
   name: 'Start dev server',
   icon: 'play',
@@ -42,7 +46,7 @@ const saved = {
   kind: 'service',
   allowConcurrent: false,
   autoOpenPreview: true,
-} as const
+}
 
 function catalogWith(definition = saved): ActionCatalog {
   return {
@@ -101,7 +105,8 @@ describe('action panel drafts', () => {
 
   it('treats an unchanged edit as pristine regardless of key order', () => {
     const draft = editActionDraft({ source: 'local', definition: saved })
-    const reordered = { ...draft, definition: { autoOpenPreview: true, ...draft.definition } }
+    const { autoOpenPreview, ...rest } = draft.definition
+    const reordered = { ...draft, definition: { ...rest, autoOpenPreview } }
     expect(isDraftDirty(reordered)).toBe(false)
     expect(sameDefinition({ a: 1, b: undefined }, { a: 1 })).toBe(true)
     expect(continueDraftLabel(draft)).toBe('Continue editing Start dev server')
