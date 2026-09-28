@@ -10,20 +10,20 @@ import {
   ProjectActionConditionBuilder,
   projectActionUnknownWhenVariables,
 } from '@/features/project-actions'
-import { Button } from '@/shared/ui/Button'
 import {
   type ProjectShortcutBrowserRow,
   type ShortcutBrowserRow,
   shortcutBrowserConflictLabels,
-} from '../../lib/shortcut-browser-model'
-import type { UpdateProjectShortcutRules } from './AddShortcutBinding'
+} from '@/shared/lib/shortcut-browser-model'
+import { Button } from '@/shared/ui/Button'
 import {
   isShortcutModifierKey,
   ShortcutBindingButton,
   ShortcutConflictNotice,
-  ShortcutSourceBadge,
   shortcutBindingFromEvent,
-} from './ShortcutRowParts'
+} from '@/shared/ui/ShortcutRecorder'
+import type { UpdateProjectShortcutRules } from './AddShortcutBinding'
+import { ShortcutSourceBadge } from './ShortcutRowParts'
 
 export type { UpdateProjectShortcutRules } from './AddShortcutBinding'
 export { AddShortcutBinding } from './AddShortcutBinding'

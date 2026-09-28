@@ -1,10 +1,10 @@
 import type { ProjectAction, ProjectActionShortcutRule } from '@shared/types/project-actions'
 import { type ShortcutRule, shortcutBindingKey } from '@shared/types/shortcuts'
 import { Plus, RotateCcw, Search } from 'lucide-react'
+import type { ShortcutBrowserRow } from '@/shared/lib/shortcut-browser-model'
 import { usesAppleShortcuts } from '@/shared/lib/shortcut-display'
 import { Button } from '@/shared/ui/Button'
 import { TextInput } from '@/shared/ui/TextInput'
-import type { ShortcutBrowserRow } from '../../lib/shortcut-browser-model'
 import { BuiltInShortcutRow } from '../shortcuts/BuiltInShortcutRow'
 import { AddShortcutBinding, ProjectShortcutRow } from '../shortcuts/ProjectShortcutRows'
 

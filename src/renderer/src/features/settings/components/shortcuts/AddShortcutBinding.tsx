@@ -11,18 +11,18 @@ import {
 import { X } from 'lucide-react'
 import { type KeyboardEvent, useState } from 'react'
 import { ProjectActionConditionBuilder } from '@/features/project-actions'
-import { Button } from '@/shared/ui/Button'
-import { Select } from '@/shared/ui/Select'
 import {
   type ShortcutBrowserRow,
   shortcutBrowserConflictLabels,
-} from '../../lib/shortcut-browser-model'
+} from '@/shared/lib/shortcut-browser-model'
+import { Button } from '@/shared/ui/Button'
+import { Select } from '@/shared/ui/Select'
 import {
   isShortcutModifierKey,
   ShortcutBindingButton,
   ShortcutConflictNotice,
   shortcutBindingFromEvent,
-} from './ShortcutRowParts'
+} from '@/shared/ui/ShortcutRecorder'
 
 export type UpdateProjectShortcutRules = (
   actionId: string,
