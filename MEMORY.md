@@ -1108,6 +1108,15 @@ server in the user's config already served object roots. Every tool parameter ro
 OpenAI-completions request builders (`onPayload` throws before the network) and checks that rule.
 Third-party MCP schemas are repaired at the Pi adapter (`providerToolParameters`), and the server's
 original schema still validates arguments before approval.
+Pi also validates every call against the repaired provider-facing schema (`validateToolArguments`)
+before `execute`, so the repair must never be stricter than the original or Pi blocks valid calls
+before call-time validation runs. Flattened definitions kept as constraints were stricter in
+practice: `patternProperties` in closed alternatives, hoisted `$ref`s into removed combinators
+(also from `$defs`/`additionalProperties`), `unevaluatedProperties`, lost root
+`additionalProperties` coercion, and requirements hoisted past a `true` alternative. Repaired
+schemas are therefore relaxed (`provider-tool-parameter-relaxation.ts`): root `type`,
+`properties`, `required` (only what every accepted argument carries) and annotations stay, and
+each property becomes `{anyOf: [...its definitions, {}]}` as guidance.
 
 For managed-worktree cleanup, a retained preparation snapshot belongs to a directory generation,
 not merely a project and worktree path. Pin the worktree directory's device, inode and birth time

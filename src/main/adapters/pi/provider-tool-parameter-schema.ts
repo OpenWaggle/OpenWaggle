@@ -1,5 +1,6 @@
 import { isMatching, P } from '@diegogbrisa/ts-match'
 import { Compile } from 'typebox/schema'
+import { relaxForPreCallValidation } from './provider-tool-parameter-relaxation'
 
 type JsonSchemaObject = { readonly [key: string]: unknown }
 type MutableJsonSchema = { [key: string]: unknown }
@@ -165,7 +166,11 @@ function mergeConjunction(root: FlatRoot, members: readonly MutableJsonSchema[])
   }
 }
 
-function mergeAlternatives(root: FlatRoot, alternatives: readonly MutableJsonSchema[]) {
+function mergeAlternatives(
+  root: FlatRoot,
+  alternatives: readonly MutableJsonSchema[],
+  hasUnconstrainedAlternative: boolean,
+) {
   const occurrences = new Map<string, unknown[]>()
   for (const alternative of alternatives) {
     for (const [key, property] of Object.entries(propertiesOf(alternative))) {
@@ -177,8 +182,9 @@ function mergeAlternatives(root: FlatRoot, alternatives: readonly MutableJsonSch
     const distinct = withoutDuplicates(schemas)
     root.properties[key] = distinct.length === 1 ? distinct[0] : { anyOf: distinct }
   }
-  // Only what every alternative requires can be required once they share one object.
-  const [first, ...others] = alternatives
+  // Only what every alternative requires can be required once they share one object. A `true`
+  // alternative accepts any object, so then nothing is required by every alternative.
+  const [first, ...others] = hasUnconstrainedAlternative ? [] : alternatives
   for (const key of first ? requiredOf(first) : []) {
     if (others.every((alternative) => requiredOf(alternative).includes(key))) root.required.add(key)
   }
@@ -215,7 +221,13 @@ function flattenRoot(
   for (const keyword of ALTERNATIVE_KEYWORDS) {
     const members = schemaArray(node[keyword])
     if (!members) continue
-    mergeAlternatives(root, flattenMembers(members, document, repairs).filter(isObjectShaped))
+    const raw = node[keyword]
+    const hasUnconstrainedAlternative = Array.isArray(raw) && raw.includes(true)
+    mergeAlternatives(
+      root,
+      flattenMembers(members, document, repairs).filter(isObjectShaped),
+      hasUnconstrainedAlternative,
+    )
     repairs.push(`flattened root ${keyword} of ${String(members.length)} schemas`)
   }
   const { result, properties, required } = root
@@ -274,7 +286,7 @@ export function providerToolParameters(schema: unknown): ProviderToolParameters 
     repairs.push(`set root type ${JSON.stringify(type) ?? 'missing'} to "object"`)
     flattened.type = 'object'
   }
-  return { schema: flattened, repairs }
+  return { schema: relaxForPreCallValidation(flattened, repairs), repairs }
 }
 
 export type ToolArgumentsValidator = (arguments_: unknown) => readonly string[]
