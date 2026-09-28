@@ -1,3 +1,6 @@
+import type { Message } from '@shared/types/agent'
+import { MessageId } from '@shared/types/brand'
+import { fromPartial } from '@total-typescript/shoehorn'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { BoundWorkspaceResource } from '../../../../store/session-details'
 import { session } from './session-worktree-birth-test-helpers'
@@ -92,10 +95,25 @@ describe('worktree birth progress', () => {
     ])
   })
 
-  it('reports nothing for a later turn that reuses its recorded worktree', async () => {
+  it('reports a recorded worktree on a retried first run, so its creation is recorded', async () => {
     const onProgress = vi.fn()
     await ensureSessionWorktreeProjectPath(
       session({ environmentMode: 'worktree', worktreePath: '/wt/existing' }),
+      { onProgress },
+    )
+    expect(onProgress.mock.calls.map(([progress]) => progress.stage)).toEqual([
+      'preparing-workspace',
+      'worktree-created',
+    ])
+  })
+
+  it('reports nothing for a later turn that reuses its recorded worktree', async () => {
+    const onProgress = vi.fn()
+    await ensureSessionWorktreeProjectPath(
+      {
+        ...session({ environmentMode: 'worktree', worktreePath: '/wt/existing' }),
+        messages: [fromPartial<Message>({ id: MessageId('m-1') })],
+      },
       { onProgress },
     )
     // A launch card on every turn flashed the transcript and the sidebar status.

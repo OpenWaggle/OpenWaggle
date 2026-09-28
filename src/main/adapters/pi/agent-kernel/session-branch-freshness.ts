@@ -72,9 +72,16 @@ export function refreshFirstRunBranch(
     return Effect.void
   }
   return Effect.tryPromise({
-    try: async () => {
+    /*
+     * The pull runs beside the MCP connections, so a failed connection interrupts this fiber. The
+     * interruption signal must stop the pull too: an orphaned pull kept running after the launch had
+     * failed, then reported its step done and revived a failed launch as a running one.
+     */
+    try: async (interruption) => {
+      const signal = AbortSignal.any([interruption, input.signal])
       const tracked = await resolveTrackedBranch(executionPath)
       if (!tracked) return { ok: true, skipped: true, message: 'No upstream to pull from.' }
+      if (signal.aborted) return { ok: false, skipped: true, message: 'Launch stopped.' }
       onProgress?.({
         stage: 'syncing-branch',
         environment: 'local',
@@ -82,10 +89,8 @@ export function refreshFirstRunBranch(
         label: `Pulling latest changes for ${tracked.branch}`,
         details: [`Pulling ${tracked.upstream} into ${tracked.branch}`],
       })
-      try {
-        const pulled = await pullCurrentBranchFastForward(executionPath, { signal: input.signal })
-        return { ...pulled, skipped: false }
-      } finally {
+      const pulled = await pullCurrentBranchFastForward(executionPath, { signal })
+      if (!signal.aborted) {
         onProgress?.({
           stage: 'syncing-branch',
           environment: 'local',
@@ -93,6 +98,7 @@ export function refreshFirstRunBranch(
           details: [],
         })
       }
+      return { ...pulled, skipped: false }
     },
     catch: (error: unknown) => (error instanceof Error ? error : new Error(String(error))),
   }).pipe(

@@ -22,10 +22,12 @@ const {
   fetchRemoteBranchMock: vi.fn(async (_projectPath: string, _branch: string) => true),
   isLocalBranchMock: vi.fn(async (_projectPath: string, _branch: string) => true),
   localBranchIsBehindRemoteMock: vi.fn(async (_projectPath: string, _branch: string) => false),
-  pullCurrentBranchFastForwardMock: vi.fn(async () => ({
-    ok: true,
-    message: 'Pulled latest changes.',
-  })),
+  pullCurrentBranchFastForwardMock: vi.fn(
+    async (_path: string, _options?: { readonly signal?: AbortSignal }) => ({
+      ok: true,
+      message: 'Pulled latest changes.',
+    }),
+  ),
   runGitMock: vi.fn(async (_cwd: string, _args: readonly string[]) => ({
     code: 0,
     stdout: 'main\n',
@@ -172,6 +174,25 @@ describe('refreshFirstRunBranch', () => {
     })
   })
 
+  it('stops the pull when the run is cancelled, and does not report it finished', async () => {
+    const controller = new AbortController()
+    const onProgress = vi.fn()
+    pullCurrentBranchFastForwardMock.mockImplementation(
+      async (_path: string, options?: { readonly signal?: AbortSignal }) => {
+        controller.abort()
+        expect(options?.signal?.aborted).toBe(true)
+        return { ok: false, message: 'aborted' }
+      },
+    )
+    const input = fromPartial<AgentKernelRunInput>({
+      ...kernelInput({}),
+      signal: controller.signal,
+    })
+    await Effect.runPromise(refreshFirstRunBranch(input, '/repo', onProgress))
+    expect(onProgress).toHaveBeenCalledTimes(1)
+    expect(onProgress).not.toHaveBeenCalledWith(expect.objectContaining({ completesStep: true }))
+  })
+
   it('skips the pull, and reports nothing, when the branch tracks no upstream', async () => {
     resolveTrackedBranchMock.mockResolvedValue(null)
     const onProgress = vi.fn()
@@ -185,7 +206,7 @@ describe('refreshFirstRunBranch', () => {
     await Effect.runPromise(refreshFirstRunBranch(input, '/repo'))
     expect(pullCurrentBranchFastForwardMock).toHaveBeenCalledWith(
       '/repo',
-      expect.objectContaining({ signal: input.signal }),
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
     )
   })
 

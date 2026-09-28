@@ -5,6 +5,7 @@ vi.mock('../broadcast', () => ({ broadcastToWindows: vi.fn() }))
 
 import {
   clearStreamBuffer,
+  projectWorktreeLaunchFailure,
   projectWorktreeLaunchProgress,
   startStreamBuffer,
 } from '../stream-bridge'
@@ -79,5 +80,29 @@ describe('launch steps', () => {
     })
     expect(launch.stage).toBe('connecting-tools')
     expect(launch.status).toBe('running')
+  })
+})
+
+describe('launch status after a failure', () => {
+  beforeEach(() => {
+    clearStreamBuffer(SESSION_ID)
+    startStreamBuffer(SESSION_ID, SupportedModelId('openai/gpt-5.5'), 'classic')
+  })
+
+  it('keeps a failed launch failed when a late step completion arrives', () => {
+    projectWorktreeLaunchProgress(SESSION_ID, {
+      stage: 'syncing-branch',
+      label: 'Pulling',
+      parallel: true,
+      details: [],
+    })
+    projectWorktreeLaunchFailure(SESSION_ID, 'MCP server unavailable')
+    const launch = projectWorktreeLaunchProgress(SESSION_ID, {
+      stage: 'syncing-branch',
+      completesStep: true,
+      details: [],
+    })
+    expect(launch.status).toBe('failed')
+    expect(launch.errorMessage).toBe('MCP server unavailable')
   })
 })

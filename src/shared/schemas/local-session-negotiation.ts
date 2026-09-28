@@ -49,6 +49,7 @@ const [
   worktreeLaunchCapability,
   sessionResourcesCapability,
   nativeActionsCapability,
+  launchStepsCapability,
 ] = LOCAL_SESSION_CAPABILITIES
 
 const supportedRevisionListSchema = Schema.Array(
@@ -79,6 +80,7 @@ const currentCapabilitySchema = Schema.Tuple(
   Schema.Literal(worktreeLaunchCapability),
   Schema.Literal(sessionResourcesCapability),
   Schema.Literal(nativeActionsCapability),
+  Schema.Literal(launchStepsCapability),
 )
 
 export const localSessionNegotiationResultSchema: Schema.Schema<LocalSessionNegotiationResult> =

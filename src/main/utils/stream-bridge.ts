@@ -80,7 +80,13 @@ function worktreeLaunchProgressSnapshot(
   return {
     ...existing,
     ...fields,
-    status: progress.stage === 'starting-task' ? ('complete' as const) : ('running' as const),
+    // Closing a step never reopens a launch that already failed or finished.
+    status:
+      completesStep && existing
+        ? existing.status
+        : progress.stage === 'starting-task'
+          ? ('complete' as const)
+          : ('running' as const),
     // Closing a parallel step reports its stage without making it the launch's latest stage.
     stage: completesStep && existing ? existing.stage : progress.stage,
     startedAt: existing?.startedAt ?? now,

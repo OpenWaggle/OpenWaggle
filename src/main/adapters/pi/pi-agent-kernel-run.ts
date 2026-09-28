@@ -1,10 +1,6 @@
-import type {
-  WorktreeLaunchEnvironment,
-  WorktreeLaunchProgress,
-} from '@shared/types/background-run'
 import * as Effect from 'effect/Effect'
+import * as Exit from 'effect/Exit'
 import { serversConnectedBeforeTurn } from '../../domain/mcp/direct-tool-servers'
-import { createLogger } from '../../logger'
 import type {
   AgentKernelRunInput,
   AgentKernelWaggleRunOptions,
@@ -23,14 +19,16 @@ import { runPiWaggle } from './agent-kernel/waggle-run'
 import { createBrowserPreviewAutomationExtension } from './browser-preview-automation-extension'
 import { BROWSER_PREVIEW_AUTOMATION_SYSTEM_PROMPT } from './browser-preview-automation-system-prompt'
 import { createMcpGatewayExtension } from './mcp-gateway-extension'
+import {
+  createWorktreeLaunchReporter,
+  prepareVisualizationDirectory,
+} from './pi-agent-kernel-launch'
 import { prepareActionWorkspace } from './prepare-action-workspace'
 import {
   createProjectActionsToolExtension,
   type ProjectActionToolServices,
 } from './project-actions-tool-extension'
 import { createSessionsToolExtension } from './sessions-tool-extension'
-
-const logger = createLogger('pi-agent-kernel')
 
 export function createBrowserPreviewRuntimeResources(input: {
   readonly enabled: boolean
@@ -91,7 +89,7 @@ export function prepareMcpTurn(input: {
   readonly serverAllowlist?: readonly string[]
   /** Called with the servers the turn connects before Pi starts, when there are any. */
   readonly onConnecting?: (serverNames: readonly string[]) => void
-  /** Called once those servers answered, or failed to. */
+  /** Called once those servers answered. A failure leaves the step open so the error lands on it. */
   readonly onConnected?: () => void
 }) {
   return Effect.gen(function* () {
@@ -107,7 +105,7 @@ export function prepareMcpTurn(input: {
         ? yield* input.runtime
             .listDirectTools(snapshot)
             .pipe(
-              Effect.ensuring(
+              Effect.tap(() =>
                 Effect.sync(() => (connectedFirst.length > 0 ? input.onConnected?.() : undefined)),
               ),
             )
@@ -143,74 +141,6 @@ export function prepareMcpTurn(input: {
   })
 }
 
-/**
- * Reports what a run does before Pi starts, so a first send is never silent.
- *
- * Steps are reported for a Session's first run, and for any later run that had to prepare its
- * worktree. An ordinary later turn reports nothing: its transcript already shows the run, and a
- * launch card on every turn flashed the transcript and the sidebar status.
- */
-function createWorktreeLaunchReporter(input: AgentKernelRunInput) {
-  let didReport = false
-  const environment: WorktreeLaunchEnvironment =
-    input.session.environmentMode === 'worktree' ? 'worktree' : 'local'
-  const firstRun = input.session.messages.length === 0
-  let reportedTools = false
-  const onWorktreeLaunch = input.onWorktreeLaunch
-    ? (progress: WorktreeLaunchProgress) => {
-        didReport = true
-        input.onWorktreeLaunch?.({ ...progress, environment: progress.environment ?? environment })
-      }
-    : undefined
-  return {
-    runInput: onWorktreeLaunch ? { ...input, onWorktreeLaunch } : input,
-    report: onWorktreeLaunch,
-    reportConnectingTools(serverNames: readonly string[]) {
-      if (!firstRun && !didReport) return
-      reportedTools = true
-      onWorktreeLaunch?.({
-        stage: 'connecting-tools',
-        parallel: true,
-        label: `Connecting MCP servers: ${serverNames.join(', ')}`,
-        details: [`Connecting ${serverNames.join(', ')}`],
-      })
-    },
-    reportToolsConnected() {
-      if (!reportedTools) return
-      onWorktreeLaunch?.({ stage: 'connecting-tools', completesStep: true, details: [] })
-    },
-    reportTaskStarting(executionPath: string) {
-      if (!didReport) return
-      onWorktreeLaunch?.({
-        stage: 'starting-task',
-        details: [
-          environment === 'worktree'
-            ? 'Starting the task in the new worktree'
-            : 'Starting the task',
-        ],
-        ...(environment === 'worktree' ? { worktreePath: executionPath } : {}),
-      })
-    },
-  }
-}
-
-function prepareVisualizationDirectory(
-  service: InlineVisualizationServiceShape,
-  sessionId: AgentKernelRunInput['session']['id'],
-) {
-  return service.prepareSession(sessionId).pipe(
-    Effect.catchAll((error) =>
-      Effect.sync(() => {
-        logger.warn('Failed to prepare the session visualization directory', {
-          sessionId,
-          error: error.message,
-        })
-        return undefined
-      }),
-    ),
-  )
-}
-
 export function runPiAgentKernel(
   input: AgentKernelRunInput,
   dependencies: {
@@ -232,10 +162,13 @@ export function runPiAgentKernel(
       { workspaces: dependencies.projectActions.workspaces, preparation: dependencies.preparation },
     )
     /*
-     * The first-run branch sync and MCP connections are independent network waits: the pull only
-     * moves the checkout forward, and MCP servers are spawned in, not read from, that checkout.
-     * Running them one after another made a first send wait for both, silently.
+     * The first-run branch sync and the MCP connections are both network waits, and running them
+     * one after another made a first send wait for both. They are not fully independent: project
+     * MCP config is read from the checkout being pulled, and stdio servers start in it. A first turn
+     * can therefore use the pre-pull MCP config; the turn's `finish` re-reads it, so the next turn
+     * reconnects with whatever the pull brought in.
      */
+    let preparedMcpTurn: Effect.Effect.Success<ReturnType<typeof prepareMcpTurn>> | undefined
     const [, visualizationDirectory, mcpTurn] = yield* Effect.all(
       [
         refreshFirstRunBranch(input, executionPath, launchReporter.report),
@@ -251,9 +184,25 @@ export function runPiAgentKernel(
             : {}),
           onConnecting: launchReporter.reportConnectingTools,
           onConnected: launchReporter.reportToolsConnected,
-        }),
+        }).pipe(
+          Effect.tap((turn) =>
+            Effect.sync(() => {
+              preparedMcpTurn = turn
+            }),
+          ),
+        ),
       ],
       { concurrency: 'unbounded' },
+    ).pipe(
+      // A sibling can fail after MCP connected; release that turn, and drop late launch reports.
+      Effect.onExit((exit) =>
+        Exit.isSuccess(exit)
+          ? Effect.void
+          : Effect.suspend(() => {
+              launchReporter.close()
+              return preparedMcpTurn?.finish ?? Effect.void
+            }),
+      ),
     )
     const sessionsExtensionFactory = createRunSessionsExtension(input, executionPath, projectPath)
     const extensionFactories = mcpTurn.extensionFactory ? [mcpTurn.extensionFactory] : []

@@ -13,10 +13,12 @@ const runMocks = vi.hoisted(() => ({
   runPiWaggle: vi.fn(),
   sessionsExtensionFactory: vi.fn(),
   createSessionsToolExtension: vi.fn(),
-  pullCurrentBranchFastForward: vi.fn(async () => ({
-    ok: true,
-    message: 'Pulled latest changes.',
-  })),
+  pullCurrentBranchFastForward: vi.fn(
+    async (_path: string, _options?: { readonly signal?: AbortSignal }) => ({
+      ok: true,
+      message: 'Pulled latest changes.',
+    }),
+  ),
   resolveTrackedBranch: vi.fn(async () => ({ branch: 'main', upstream: 'origin/main' })),
 }))
 
@@ -109,7 +111,7 @@ describe('runPiAgentKernel launch steps', () => {
 
     expect(runMocks.pullCurrentBranchFastForward).toHaveBeenCalledWith(
       '/repo/worktree',
-      expect.objectContaining({ signal: input.signal }),
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
     )
   })
 
@@ -242,5 +244,59 @@ describe('runPiAgentKernel launch steps', () => {
       ),
     )
     expect(onWorktreeLaunch).not.toHaveBeenCalled()
+  })
+
+  it('stops the pull, releases MCP, and reports nothing late when MCP fails mid-launch', async () => {
+    const pull = Promise.withResolvers<{ ok: boolean; message: string }>()
+    let pullSignal: AbortSignal | undefined
+    runMocks.pullCurrentBranchFastForward.mockImplementation(
+      (_path: string, options?: { readonly signal?: AbortSignal }) => {
+        pullSignal = options?.signal
+        return pull.promise
+      },
+    )
+    const onWorktreeLaunch = vi.fn()
+    const disposeSession = vi.fn(() => Effect.void)
+    const turn = snapshot({
+      servers: [server({ name: 'atlassian', definition: { command: 'a', directTools: true } })],
+    })
+    const exit = await Effect.runPromiseExit(
+      runPiAgentKernel(
+        fromPartial<AgentKernelRunInput>({
+          session: { id: SessionId('session-local'), projectPath: '/repo', messages: [] },
+          runId: 'run-failing',
+          payload: { text: 'Do the work', thinkingLevel: 'medium', attachments: [] },
+          model: SupportedModelId('openai/gpt-5.4'),
+          signal: new AbortController().signal,
+          onEvent: vi.fn(),
+          onWorktreeLaunch,
+        }),
+        {
+          runtimeExtensionIsolation: {},
+          ...actionWorkspaceDependencies(),
+          terminal: fromPartial({}),
+          browserPreviewAutomation: fromPartial({}),
+          enableBrowserPreviewAutomation: false,
+          mcpConfig: fromPartial({ createTurnSnapshot: () => Effect.succeed(turn) }),
+          mcpRuntime: fromPartial({
+            prepareTurn: () => Effect.void,
+            listDirectTools: () => Effect.fail(new Error('atlassian is unavailable')),
+            completeTurn: () => Effect.void,
+            disposeSession,
+          }),
+          inlineVisualization: fromPartial({ prepareSession: () => Effect.succeed(undefined) }),
+        },
+      ),
+    )
+
+    expect(exit._tag).toBe('Failure')
+    expect(pullSignal?.aborted).toBe(true)
+    expect(disposeSession).toHaveBeenCalled()
+    pull.resolve({ ok: false, message: 'aborted' })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    const reported = onWorktreeLaunch.mock.calls.map(([progress]) => progress)
+    // The failed MCP step stays open so the failure lands on it; nothing completes afterwards.
+    expect(reported.filter((progress) => progress.completesStep)).toEqual([])
+    expect(runMocks.runPiSession).not.toHaveBeenCalled()
   })
 })

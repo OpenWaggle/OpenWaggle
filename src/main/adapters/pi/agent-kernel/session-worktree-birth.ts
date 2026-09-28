@@ -77,8 +77,9 @@ async function recoverRecordedWorktree(input: {
 }) {
   if (!input.existing) return undefined
   if (existsSync(input.existing) && (await isWorktreeOf(input.primaryPath, input.existing))) {
-    // Every later turn passes here with nothing to do; reporting it flashed a launch card per turn.
-    const reportsRecovery = input.workspace.handoffSeedState === 'pending'
+    // Later turns pass here idle (reporting flashed a card per turn); a retried first send reports.
+    const reportsRecovery =
+      input.workspace.handoffSeedState === 'pending' || input.session.messages.length === 0
     if (reportsRecovery) {
       input.options.onProgress?.({
         stage: 'preparing-workspace',
