@@ -401,8 +401,9 @@ Recording is a main/renderer protocol, not merely a `desktopCapturer` grant: suc
   and changes only through the Host-owned `sessions:set-model` channel. Classic and Waggle Runs read it
   once at Run start, so a mid-turn switch reaches only the next Run, including queued follow-ups. The
   renderer records each Run's model from `agent_start.model` (`runModelBySessionId`) to explain the pending
-  pick above the composer and keep the context meter on the running model. That map is cleared on
-  `agent_end`, so during an auto-retry wait the notice is absent even though the Run keeps its model. Sends and enqueues await
+  pick above the composer and keep the context meter on the running model. That map survives an
+  `agent_end` with `willRetry` (the Run continues on the same model through the auto-retry wait) and is
+  cleared on a terminal `agent_end`, a failed or cancelled `auto_retry_end`, or run completion. Sends and enqueues await
   `settledSessionModelWrites` first, because the Host, not the send payload, picks the model. A Session
   pick never rewrites the project's preferred model for new Sessions.
 
