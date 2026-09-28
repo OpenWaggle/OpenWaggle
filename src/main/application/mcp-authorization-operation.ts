@@ -33,21 +33,28 @@ export function authorizeMcpServerOperation(raw: unknown) {
     return yield* withMcpManagementWrite(
       Effect.gen(function* () {
         const server = yield* config.getServerDefinition(input)
+        // A new sign-in may be another account, whose tools the remembered list does not
+        // describe. It is forgotten again once the sign-in ends, because Sessions can list the
+        // server with the old credentials while the browser flow runs.
+        const forget = () => runtime.forgetToolCatalog({ serverInstanceId: server.instanceId })
+        yield* forget()
         return yield* oauth.authorize(server).pipe(
           Effect.onExit((authorizationExit) =>
-            runtime.reconcileIdleConnections().pipe(
-              Effect.exit,
-              Effect.flatMap((reconciliationExit) => {
-                if (Exit.isSuccess(reconciliationExit)) return Effect.void
-                if (Exit.isSuccess(authorizationExit)) {
-                  return Effect.failCause(reconciliationExit.cause)
-                }
-                logger.error('MCP reconciliation failed after OAuth authorization ended.', {
-                  error: Cause.pretty(reconciliationExit.cause),
-                })
-                return Effect.void
-              }),
-            ),
+            forget()
+              .pipe(Effect.zipRight(runtime.reconcileIdleConnections()))
+              .pipe(
+                Effect.exit,
+                Effect.flatMap((reconciliationExit) => {
+                  if (Exit.isSuccess(reconciliationExit)) return Effect.void
+                  if (Exit.isSuccess(authorizationExit)) {
+                    return Effect.failCause(reconciliationExit.cause)
+                  }
+                  logger.error('MCP reconciliation failed after OAuth authorization ended.', {
+                    error: Cause.pretty(reconciliationExit.cause),
+                  })
+                  return Effect.void
+                }),
+              ),
           ),
         )
       }),

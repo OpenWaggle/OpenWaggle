@@ -1,33 +1,12 @@
-import { createHmac } from 'node:crypto'
-import { MCP_CONFIG } from '@shared/constants/mcp'
 import type { McpJsonValue, McpTurnSnapshot, McpTurnSnapshotServer } from '@shared/types/mcp'
 import { Clock, Effect, Ref } from 'effect'
 import { resolveMcpRuntimeNamespace } from '../../../domain/mcp/runtime-namespace'
-import {
-  McpRequiredServerUnavailable,
-  McpServerNotEnabled,
-  McpStaleToolHandle,
-  toMcpRuntimeError,
-} from '../../../ports/mcp-errors'
+import { McpServerNotEnabled, McpStaleToolHandle } from '../../../ports/mcp-errors'
 import { createRemoteTaskRecords } from './remote-task-records'
-import { addNotice } from './runtime-notices'
+import { reportServerUnavailable } from './runtime-notices'
+import { loadServerCatalog } from './runtime-server-listing'
 import type { CatalogTool, RuntimeStateContext } from './runtime-state-types'
 import type { McpClientConnection } from './types'
-
-const HANDLE_LENGTH = 24
-
-export function makeHandle(
-  ctx: RuntimeStateContext,
-  snapshot: McpTurnSnapshot,
-  server: McpTurnSnapshotServer,
-  toolName: string,
-) {
-  const runtimeNamespace = resolveMcpRuntimeNamespace(snapshot)
-  return `mcp_${createHmac('sha256', ctx.handleKey)
-    .update(`${runtimeNamespace}\0${snapshot.revision}\0${server.instanceId}\0${toolName}`)
-    .digest('base64url')
-    .slice(0, HANDLE_LENGTH)}`
-}
 
 export function discardSupersededSessionConnections(
   ctx: RuntimeStateContext,
@@ -80,44 +59,6 @@ export function getConnectionForServer(
   })
 }
 
-function loadServerCatalog(
-  ctx: RuntimeStateContext,
-  snapshot: McpTurnSnapshot,
-  server: McpTurnSnapshotServer,
-) {
-  return Effect.gen(function* () {
-    const key = ctx.connections.key(snapshot, server)
-    const nowMs = yield* Clock.currentTimeMillis
-    const cached = (yield* Ref.get(ctx.catalogs)).get(key)
-    if (cached && cached.expiresAt > nowMs) return cached.tools
-    const connection = yield* ctx.connections.get(snapshot, server)
-    const listedTools = yield* Effect.tryPromise({
-      try: (signal) => connection.listTools(signal),
-      catch: (error) => toMcpRuntimeError('listTools', error),
-    })
-    const runtimeNamespace = resolveMcpRuntimeNamespace(snapshot)
-    const tools = listedTools.map(
-      (tool): CatalogTool => ({
-        handle: makeHandle(ctx, snapshot, server, tool.name),
-        server,
-        connection,
-        tool,
-        snapshotRevision: snapshot.revision,
-        runtimeNamespace,
-      }),
-    )
-    yield* Ref.update(ctx.handles, (current) => {
-      const next = new Map(current)
-      for (const tool of tools) next.set(tool.handle, tool)
-      return next
-    })
-    yield* Ref.update(ctx.catalogs, (current) =>
-      new Map(current).set(key, { expiresAt: nowMs + MCP_CONFIG.CATALOG_CACHE_TTL_MS, tools }),
-    )
-    return tools
-  })
-}
-
 export function loadCatalog(
   ctx: RuntimeStateContext,
   snapshot: McpTurnSnapshot,
@@ -131,34 +72,12 @@ export function loadCatalog(
       (server) => Effect.either(loadServerCatalog(ctx, snapshot, server)),
       { concurrency: 'unbounded' },
     )
-    const namespace = resolveMcpRuntimeNamespace(snapshot)
     const tools: CatalogTool[] = []
     for (const [index, result] of results.entries()) {
       const server = selectedServers[index]
       if (!server) continue
-      if (result._tag === 'Right') {
-        tools.push(...result.right)
-        continue
-      }
-      const detail = result.left.message
-      yield* addNotice(ctx, namespace, {
-        id: `runtime:${server.instanceId}:connect`,
-        severity: server.definition.required ? 'error' : 'warning',
-        title: `${server.name} MCP server could not connect`,
-        detail,
-        action: 'Run MCP doctor, review the server configuration, then retry the turn.',
-        serverInstanceId: server.instanceId,
-      })
-      if (server.definition.required) {
-        return yield* Effect.fail(
-          new McpRequiredServerUnavailable({
-            serverInstanceId: server.instanceId,
-            serverLabel: server.name,
-            detail,
-            message: `Required MCP server ${server.name} could not connect: ${detail}`,
-          }),
-        )
-      }
+      if (result._tag === 'Right') tools.push(...result.right)
+      else yield* reportServerUnavailable(ctx, snapshot, server, result.left.message)
     }
     return tools
   })

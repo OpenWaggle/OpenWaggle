@@ -58,6 +58,7 @@ describe('MCP management operation gate', () => {
     const runtime = fromPartial<McpRuntimeServiceShape>({
       browseCapabilities,
       reconcileIdleConnections,
+      forgetToolCatalog: () => Effect.void,
     })
     const vault = fromPartial<McpSecretVaultServiceShape>({ set: setSecret })
     const layer = Layer.mergeAll(
@@ -216,7 +217,10 @@ describe('MCP management operation gate', () => {
         }),
       getView: () => Effect.succeed(view),
     })
-    const runtime = fromPartial<McpRuntimeServiceShape>({ reconcileIdleConnections })
+    const runtime = fromPartial<McpRuntimeServiceShape>({
+      reconcileIdleConnections,
+      forgetToolCatalog: () => Effect.void,
+    })
     const vault = fromPartial<McpSecretVaultServiceShape>({ remove })
     const layer = Layer.mergeAll(
       Layer.succeed(McpConfigService, config),

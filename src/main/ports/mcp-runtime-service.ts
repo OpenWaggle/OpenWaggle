@@ -69,6 +69,24 @@ export interface McpRuntimeConnectionStatus {
   readonly capabilities: readonly McpCapabilityFamily[]
 }
 
+/** Whose remembered tool lists to forget: one server's, or every server's after a secret changed. */
+export type McpToolCatalogScope = { readonly serverInstanceId: string } | 'all-servers'
+
+/** How the servers a turn waited for ended up once it stopped waiting. */
+export interface McpDirectToolWaitOutcome {
+  readonly connected: readonly string[]
+  /** Optional servers whose grace ended first; they keep connecting for the next turn. */
+  readonly stillConnecting: readonly string[]
+  readonly unavailable: readonly string[]
+}
+
+export interface McpDirectToolListOptions {
+  /** Called with the servers the turn is about to wait for, only when it waits for any. */
+  readonly onWaiting?: (serverNames: readonly string[]) => void
+  /** Called once that wait is over, only when there was one and the turn goes ahead. */
+  readonly onWaitSettled?: (outcome: McpDirectToolWaitOutcome) => void
+}
+
 export interface McpRuntimeServiceShape {
   readonly prepareTurn: (input: {
     readonly sessionId: string
@@ -84,9 +102,16 @@ export interface McpRuntimeServiceShape {
     readonly signal?: AbortSignal
     readonly interactions?: McpRuntimeInteractions
   }) => Effect.Effect<McpGatewayResult, McpRuntimeFailure>
+  /**
+   * The direct tools a turn registers with Pi. Optional servers do not hold the turn back: a
+   * cached tool list stands in while they connect, and with nothing cached they get a short grace.
+   */
   readonly listDirectTools: (
     snapshot: McpTurnSnapshot,
+    options?: McpDirectToolListOptions,
   ) => Effect.Effect<readonly McpDirectToolDescriptor[], McpRuntimeFailure>
+  /** Forgets remembered tool lists after credentials changed or a server was removed. */
+  readonly forgetToolCatalog: (scope: McpToolCatalogScope) => Effect.Effect<void>
   readonly browseCapabilities: (input: {
     readonly snapshot: McpTurnSnapshot
     readonly serverInstanceId?: string

@@ -29,9 +29,13 @@ export function callMcpAppTool(input: {
           message: 'The MCP App requested a tool that its server did not advertise.',
         }),
       )
+    const { connection } = yield* input.state.getConnectionForServer(
+      input.snapshot,
+      tool.server.instanceId,
+    )
     const result = yield* Effect.tryPromise({
       try: () =>
-        tool.connection.callTool({
+        connection.callTool({
           name: tool.tool.name,
           arguments: input.arguments,
           signal: input.signal,

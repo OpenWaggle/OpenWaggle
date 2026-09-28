@@ -27,6 +27,8 @@ This command is non-disruptive and keeps the Electron window hidden. Never run `
 
 The managed hidden profile selects the current worktree but contains no fabricated sessions. Seed only the deterministic fixture required by the feature under test.
 
+Automation disables executable Pi extensions, which also hides OpenWaggle's first-party tools (the `mcp` gateway, MCP direct tools, `sessions`) from the model. To QA those tools, start the app with `OPENWAGGLE_AUTOMATION_FIRST_PARTY_EXTENSIONS=1 pnpm dev:debug`.
+
 Verify CDP is reachable:
 
 ```bash

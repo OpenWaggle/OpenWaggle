@@ -6,8 +6,26 @@ import * as Effect from 'effect/Effect'
 import { createLogger } from '../../logger'
 import type { AgentKernelRunInput } from '../../ports/agent-kernel-service'
 import type { InlineVisualizationServiceShape } from '../../ports/inline-visualization-service'
+import type { McpDirectToolWaitOutcome } from '../../ports/mcp-runtime-service'
 
 const logger = createLogger('pi-agent-kernel')
+
+/**
+ * The finished MCP step's label when not every server it waited for connected. The turn goes ahead
+ * without those servers' direct tools, and a check mark beside "Connecting MCP servers: figma"
+ * would claim a connection that never happened.
+ */
+function settledToolsLabel(outcome: McpDirectToolWaitOutcome) {
+  const parts = [
+    ...(outcome.connected.length > 0 ? [`${outcome.connected.join(', ')} connected`] : []),
+    ...(outcome.stillConnecting.length > 0
+      ? [`${outcome.stillConnecting.join(', ')} still connecting`]
+      : []),
+    ...(outcome.unavailable.length > 0 ? [`${outcome.unavailable.join(', ')} unavailable`] : []),
+  ]
+  const incomplete = outcome.stillConnecting.length > 0 || outcome.unavailable.length > 0
+  return incomplete ? `MCP servers: ${parts.join('; ')}` : undefined
+}
 
 /**
  * Reports what a run does before Pi starts, so a first send is never silent.
@@ -47,9 +65,15 @@ export function createWorktreeLaunchReporter(input: AgentKernelRunInput) {
         details: [`Connecting ${serverNames.join(', ')}`],
       })
     },
-    reportToolsConnected() {
+    reportToolsConnected(outcome: McpDirectToolWaitOutcome) {
       if (!reportedTools) return
-      onWorktreeLaunch?.({ stage: 'connecting-tools', completesStep: true, details: [] })
+      const label = settledToolsLabel(outcome)
+      onWorktreeLaunch?.({
+        stage: 'connecting-tools',
+        completesStep: true,
+        ...(label ? { label } : {}),
+        details: label ? [label] : [],
+      })
     },
     reportTaskStarting(executionPath: string) {
       if (!didReport) return

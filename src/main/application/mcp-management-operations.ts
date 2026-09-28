@@ -117,9 +117,14 @@ export function removeMcpServerOperation(raw: unknown) {
     const decoded = yield* decodeMcpOperationInput(mcpRemoveServerSchema, raw, 'server removal')
     const input = yield* validateMcpProjectInput(decoded)
     const service = yield* McpConfigService
+    const runtime = yield* McpRuntimeService
     return yield* Effect.uninterruptible(
       withMcpManagementWrite(
-        service.removeServer(input).pipe(Effect.flatMap(reconcileMcpRuntimeSettings)),
+        Effect.gen(function* () {
+          const view = yield* service.removeServer(input)
+          yield* runtime.forgetToolCatalog({ serverInstanceId: input.instanceId })
+          return yield* reconcileMcpRuntimeSettings(view)
+        }),
       ),
     )
   })
@@ -203,6 +208,8 @@ export function setMcpSecretOperation(raw: unknown) {
       withMcpManagementWrite(
         Effect.gen(function* () {
           const summaries = yield* vault.set(input)
+          // Any server may use the secret, and lists made with the old value describe its account.
+          yield* runtime.forgetToolCatalog('all-servers')
           yield* runtime.reconcileIdleConnections()
           return summaries
         }),
@@ -220,6 +227,7 @@ export function removeMcpSecretOperation(raw: unknown) {
       withMcpManagementWrite(
         Effect.gen(function* () {
           const summaries = yield* vault.remove(input)
+          yield* runtime.forgetToolCatalog('all-servers')
           yield* runtime.reconcileIdleConnections()
           return summaries
         }),
@@ -259,6 +267,7 @@ export function logoutMcpServerOperation(raw: unknown) {
             vaultMutationAttempted = true
             yield* vault.remove({ name })
           }
+          yield* runtime.forgetToolCatalog({ serverInstanceId: server.instanceId })
           return {
             removedSecrets: partition.removable,
             retainedSharedSecrets: partition.retained,
@@ -293,6 +302,7 @@ export function logoutMcpServerRevision6Operation(raw: unknown) {
           const server = yield* config.getServerDefinition(input)
           vaultMutationAttempted = true
           yield* oauth.revoke(server.instanceId)
+          yield* runtime.forgetToolCatalog({ serverInstanceId: server.instanceId })
           return { loggedOut: true as const }
         }).pipe(
           Effect.ensuring(

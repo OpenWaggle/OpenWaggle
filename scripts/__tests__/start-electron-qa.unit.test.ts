@@ -15,6 +15,7 @@ import {
 } from '../electron-qa-shutdown'
 import {
   assertQaPortAvailable,
+  electronEnvironment,
   isOwnedQaTemporaryPath,
   parseQaLeaseMetadata,
   QA_CDP_PORT,
@@ -23,6 +24,27 @@ import {
 } from '../start-electron-qa'
 
 describe('managed Electron QA launcher', () => {
+  it('keeps first-party Pi extension tools only when the caller asks for them', () => {
+    const lease = {
+      automationIdentity: 'identity',
+      metadata: {
+        version: 1 as const,
+        launcherPid: 1,
+        port: QA_CDP_PORT,
+        profilePath: '/tmp/profile',
+        artifactsPath: '/tmp/evidence',
+        projectPath: '/project',
+      },
+    }
+
+    expect(electronEnvironment(lease, {})).not.toHaveProperty(
+      'OPENWAGGLE_AUTOMATION_FIRST_PARTY_EXTENSIONS',
+    )
+    expect(
+      electronEnvironment(lease, { OPENWAGGLE_AUTOMATION_FIRST_PARTY_EXTENSIONS: '1' }),
+    ).toMatchObject({ OPENWAGGLE_AUTOMATION: '1', OPENWAGGLE_AUTOMATION_FIRST_PARTY_EXTENSIONS: '1' })
+  })
+
   it('validates lease metadata before trusting cleanup paths', () => {
     const profilePath = path.join(os.tmpdir(), 'openwaggle-qa-profile-safe')
     const artifactsPath = path.join(os.tmpdir(), 'openwaggle-qa-evidence-safe')

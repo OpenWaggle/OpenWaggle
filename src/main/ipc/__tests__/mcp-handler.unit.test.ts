@@ -126,6 +126,7 @@ function makeTestLayer(input?: { readonly clearStatusesOnReconcile?: boolean }) 
   const runtime = fromPartial<McpRuntimeServiceShape>({
     browseCapabilities,
     reconcileIdleConnections,
+    forgetToolCatalog: () => Effect.void,
     getConnectionStatuses: () => Effect.sync(() => statuses),
     getNotices: () =>
       Effect.succeed([

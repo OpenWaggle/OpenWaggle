@@ -4,7 +4,7 @@ import { fromPartial } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AgentKernelRunInput } from '../../../ports/agent-kernel-service'
-import { server, snapshot } from '../../mcp/__tests__/mcp-runtime-test-utils'
+import { server, snapshot, waitingFor } from '../../mcp/__tests__/mcp-runtime-test-utils'
 import { runPiAgentKernel } from '../pi-agent-kernel-run'
 
 const runMocks = vi.hoisted(() => ({
@@ -155,7 +155,7 @@ describe('runPiAgentKernel launch steps', () => {
         mcpConfig: fromPartial({ createTurnSnapshot: () => Effect.succeed(turn) }),
         mcpRuntime: fromPartial({
           prepareTurn,
-          listDirectTools: () => Effect.succeed([]),
+          listDirectTools: waitingFor(['atlassian'], Effect.succeed([])),
           completeTurn: () => Effect.void,
           disposeSession: () => Effect.void,
         }),
@@ -280,7 +280,10 @@ describe('runPiAgentKernel launch steps', () => {
           mcpConfig: fromPartial({ createTurnSnapshot: () => Effect.succeed(turn) }),
           mcpRuntime: fromPartial({
             prepareTurn: () => Effect.void,
-            listDirectTools: () => Effect.fail(new Error('atlassian is unavailable')),
+            listDirectTools: waitingFor(
+              ['atlassian'],
+              Effect.fail(new Error('atlassian is unavailable')),
+            ),
             completeTurn: () => Effect.void,
             disposeSession,
           }),

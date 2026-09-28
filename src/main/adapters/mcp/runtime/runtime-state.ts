@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto'
+import { MCP_CONFIG } from '@shared/constants/mcp'
 import type { McpRuntimeNotice } from '@shared/types/mcp'
-import { Effect, Ref } from 'effect'
+import { Effect, Ref, SynchronizedRef } from 'effect'
 import { resolveMcpRuntimeNamespace } from '../../../domain/mcp/runtime-namespace'
 import { InMemoryMcpRemoteTaskStore, type McpRemoteTaskStore } from './remote-task-store'
 import {
@@ -11,7 +12,9 @@ import {
   loadCatalog,
   recordRemoteTasks,
 } from './runtime-catalog'
+import { connectionClosed, connectionOpened } from './runtime-connection-callbacks'
 import { makeMcpRuntimeConnections } from './runtime-connections'
+import { loadDirectToolCatalog } from './runtime-direct-catalog'
 import { clearSessionEvents, emptyMcpEventInboxState } from './runtime-event-inbox'
 import { getEventSubscriptions, getEvents, setEventSubscription } from './runtime-events'
 import { addNotice, getNotices, removeNotice } from './runtime-notices'
@@ -23,7 +26,11 @@ import type {
   EventSubscriptionLifecycleState,
   McpRuntimeStateService,
   RuntimeStateContext,
+  ServerListing,
 } from './runtime-state-types'
+import { forgetConnectFailures, forgetToolCatalog } from './runtime-tool-catalog-state'
+import { resolveToolHandle } from './runtime-tool-handles'
+import { InMemoryMcpToolCatalogCache, type McpToolCatalogCache } from './tool-catalog-cache'
 import type { McpConnectionFactory } from './types'
 
 export type { CatalogTool, McpRuntimeStateService } from './runtime-state-types'
@@ -124,6 +131,7 @@ function disposeSession(ctx: RuntimeStateContext, sessionId: string) {
     )
     yield* closeEventSubscriptions(subscriptions)
     yield* invalidateSessionConnections(ctx, sessionId)
+    yield* forgetConnectFailures(ctx, sessionId)
     yield* clearSessionEvents(ctx, sessionId)
     yield* Effect.promise(() => ctx.remoteTasks.setDisabled({ sessionId, disabled: true }))
   })
@@ -179,9 +187,12 @@ export function makeMcpRuntimeState(input: {
   readonly connect: McpConnectionFactory
   readonly createHandleKey?: () => Buffer
   readonly remoteTaskStore?: McpRemoteTaskStore
+  readonly toolCatalogCache?: McpToolCatalogCache
+  readonly optionalStartupGraceMs?: number
 }): Effect.Effect<McpRuntimeStateService> {
   return Effect.gen(function* () {
     const catalogs = yield* Ref.make(new Map<string, CatalogCacheEntry>())
+    const listings = yield* SynchronizedRef.make(new Map<string, ServerListing>())
     const handles = yield* Ref.make(new Map<string, CatalogTool>())
     const notices = yield* Ref.make(new Map<string, McpRuntimeNotice[]>())
     const eventSubscriptionCells = yield* Ref.make(new Map<string, EventSubscriptionCell>())
@@ -191,49 +202,21 @@ export function makeMcpRuntimeState(input: {
     })
     const events = yield* Ref.make(emptyMcpEventInboxState())
 
+    const connectFailures = yield* Ref.make<ReadonlyMap<string, string>>(new Map())
     // The connection pool's teardown/connect callbacks touch state Refs directly
     // (the connection key doubles as the subscription/catalog key).
     const connections = yield* makeMcpRuntimeConnections({
       connect: input.connect,
-      onClose: (key) =>
-        Effect.gen(function* () {
-          const subscription = yield* Ref.modify(eventSubscriptionCells, (current) => {
-            const existing = current.get(key)
-            if (!existing) return [undefined, current] as const
-            const next = new Map(current)
-            if (existing.users === 0) next.delete(key)
-            else {
-              next.set(key, {
-                ...existing,
-                generation: existing.generation + 1,
-                active: undefined,
-              })
-            }
-            return [existing.active, next] as const
-          })
-          if (subscription) yield* Effect.promise(() => subscription.close().catch(() => undefined))
-          yield* Ref.update(catalogs, (current) => {
-            const next = new Map(current)
-            next.delete(key)
-            return next
-          })
-        }),
+      onClose: (key) => connectionClosed({ eventSubscriptionCells, catalogs }, key),
       onConnected: (runtimeNamespace, serverInstanceId) =>
-        Ref.update(notices, (current) => {
-          const existing = current.get(runtimeNamespace)
-          if (!existing) return current
-          const next = new Map(current)
-          const filtered = existing.filter(
-            (entry) => entry.id !== `runtime:${serverInstanceId}:connect`,
-          )
-          if (filtered.length === 0) next.delete(runtimeNamespace)
-          else next.set(runtimeNamespace, filtered)
-          return next
-        }),
+        connectionOpened({ notices, connectFailures }, runtimeNamespace, serverInstanceId),
     })
 
     const ctx: RuntimeStateContext = {
       catalogs,
+      listings,
+      forgottenAttempts: new WeakSet(),
+      connectFailures,
       handles,
       notices,
       eventSubscriptionCells,
@@ -241,6 +224,8 @@ export function makeMcpRuntimeState(input: {
       events,
       connections,
       remoteTasks: input.remoteTaskStore ?? new InMemoryMcpRemoteTaskStore(),
+      toolCatalogCache: input.toolCatalogCache ?? new InMemoryMcpToolCatalogCache(),
+      optionalStartupGraceMs: input.optionalStartupGraceMs ?? MCP_CONFIG.OPTIONAL_STARTUP_GRACE_MS,
       handleKey: input.createHandleKey?.() ?? randomBytes(HANDLE_KEY_BYTES),
     }
 
@@ -254,12 +239,15 @@ export function makeMcpRuntimeState(input: {
       getConnectionForServer: (snapshot, serverInstanceId) =>
         getConnectionForServer(ctx, snapshot, serverInstanceId),
       loadCatalog: (snapshot, selectServer) => loadCatalog(ctx, snapshot, selectServer),
+      loadDirectToolCatalog: (snapshot, options) => loadDirectToolCatalog(ctx, snapshot, options),
       findHandle: (snapshot, handle) => findHandle(ctx, snapshot, handle),
+      resolveHandle: (snapshot, handle) => resolveToolHandle(ctx, snapshot, handle),
       recordRemoteTasks: (recordInput) => recordRemoteTasks(ctx, recordInput),
       listRemoteTasks: (listInput) => listRemoteTasks(ctx, listInput),
       setEventSubscription: (subscriptionInput) => setEventSubscription(ctx, subscriptionInput),
       getEvents: (sessionId) => getEvents(ctx, sessionId),
       getEventSubscriptions: (sessionId) => getEventSubscriptions(ctx, sessionId),
+      forgetToolCatalog: (scope) => forgetToolCatalog(ctx, scope),
       invalidateSessionConnections: (sessionId) => invalidateSessionConnections(ctx, sessionId),
       disposeSession: (sessionId) => disposeSession(ctx, sessionId),
       reconcileIdleConnections: (isActive) => reconcileIdleConnections(ctx, isActive),
