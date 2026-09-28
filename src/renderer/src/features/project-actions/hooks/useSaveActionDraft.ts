@@ -3,7 +3,9 @@ import { actionDefinitionSchema } from '@shared/schemas/action-definitions'
 import type { ActionDefinition, EffectiveDefinition } from '@shared/types/action-definitions'
 import type { ActionManagementScope } from '@shared/types/action-management'
 import { useState } from 'react'
+import { useChatStore } from '@/features/chat/state'
 import { useUIStore } from '@/shell/ui-store'
+import { actionDraftProblem } from '../lib/action-draft-problems'
 import { type ActionDraft, draftBaseState } from '../lib/action-panel-drafts'
 import { useActionPanelStore } from '../state/action-panel-store'
 import { useEditActionCatalog, useNativeActions } from './useNativeActions'
@@ -43,7 +45,19 @@ export function useSaveActionDraft(input: {
   const edit = useEditActionCatalog(input.scope)
   const run = useRunProjectAction(input.scope.projectPath)
   const [error, setError] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
   const store = useActionPanelStore.getState
+
+  /** Run now only in the session it was saved from: the toast can outlive a session switch. */
+  function runSaved(saved: ActionDefinition) {
+    if (useChatStore.getState().activeSessionId !== input.scope.sessionId) {
+      useUIStore
+        .getState()
+        .showToast('Open the session you saved it from, or run it from + Action.', 'neutral')
+      return
+    }
+    void run(saved)
+  }
 
   function finish(saved: ActionDefinition | null, message: string) {
     store().discardDraft(input.scope.projectPath)
@@ -53,38 +67,51 @@ export function useSaveActionDraft(input: {
       message,
       variant: 'success',
       ...(saved && input.canRun
-        ? { action: { label: 'Run now', onClick: () => void run(saved) } }
+        ? { action: { label: 'Run now', onClick: () => runSaved(saved) } }
         : {}),
     })
   }
 
-  async function save(draft: ActionDraft) {
+  /**
+   * Busy from the pre-save re-read onward, so a double click cannot start two saves. The work
+   * returns the plain message to show, or null once it has finished.
+   */
+  async function exclusive(work: () => Promise<string | null>) {
+    if (saving) return
+    setSaving(true)
     setError(null)
-    const decoded = finalDefinition(draft)
-    if (!decoded.success) {
-      setError(`Some details need a look: ${decoded.issues.join('; ')}`)
-      return
-    }
+    let message: string | null
     try {
+      message = await work()
+    } catch (cause) {
+      message = saveError(cause)
+    } finally {
+      setSaving(false)
+    }
+    setError(message)
+  }
+
+  const save = (draft: ActionDraft) =>
+    exclusive(async () => {
+      const decoded = finalDefinition(draft)
+      if (!decoded.success) {
+        return actionDraftProblem(draft.definition)
+      }
       const latest = (await catalog.refetch()).data
       if (!latest) throw new Error('Could not read the saved actions. Try again.')
       if (draftBaseState(draft, latest).kind !== 'current') {
-        setError(CHANGED_WHILE_SAVING)
-        return
+        return CHANGED_WHILE_SAVING
       }
       await edit.mutateAsync({
         revision: latest.revision,
         edit: { type: 'save-action', definition: decoded.data, storage: draft.storage },
       })
       finish(decoded.data, `Saved “${decoded.data.name}”.`)
-    } catch (cause) {
-      setError(saveError(cause))
-    }
-  }
+      return null
+    })
 
-  async function remove(entry: EffectiveDefinition<ActionDefinition>) {
-    setError(null)
-    try {
+  const remove = (entry: EffectiveDefinition<ActionDefinition>) =>
+    exclusive(async () => {
       const latest = (await catalog.refetch()).data
       if (!latest) throw new Error('Could not read the saved actions. Try again.')
       await edit.mutateAsync({
@@ -101,10 +128,8 @@ export function useSaveActionDraft(input: {
           ? `Restored the shared “${entry.definition.name}”.`
           : `Removed “${entry.definition.name}”.`,
       )
-    } catch (cause) {
-      setError(saveError(cause))
-    }
-  }
+      return null
+    })
 
-  return { save, remove, error, busy: edit.isPending }
+  return { save, remove, error, busy: saving || edit.isPending }
 }

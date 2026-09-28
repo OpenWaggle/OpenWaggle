@@ -2,6 +2,7 @@ import type { WorkspacePreparation } from '@shared/types/workspace-preparation'
 import { useEffect, useEffectEvent, useRef } from 'react'
 import { Button } from '@/shared/ui/Button'
 import { PlainTextBlock } from '@/shared/ui/PlainTextBlock'
+import { useNativeActions } from '../hooks/useNativeActions'
 import { useWorkspacePreparation } from '../hooks/useWorkspacePreparation'
 import { useActionPanelStore } from '../state/action-panel-store'
 
@@ -25,6 +26,7 @@ export function WorkspaceCleanupFailure(props: {
   readonly onForceRemove: () => void
 }) {
   const openedReview = useRef(false)
+  const catalog = useNativeActions({ projectPath: props.projectPath })
   const state = useWorkspacePreparation({
     projectPath: props.projectPath,
     workspaceId: props.initial.workspaceId,
@@ -47,7 +49,7 @@ export function WorkspaceCleanupFailure(props: {
       review: {
         entry: required,
         profileName: preparation.snapshot.profile.name,
-        showProfile: preparation.snapshot.profile.id !== 'default',
+        showProfile: (catalog.data?.profiles.length ?? 0) > 1,
         automatic,
         decide: (enabled) =>
           state.mutation.mutateAsync({

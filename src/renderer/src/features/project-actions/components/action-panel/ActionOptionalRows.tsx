@@ -55,6 +55,8 @@ export function ActionOptionalRows(props: ActionOptionalRowsProps) {
               kind,
               allowConcurrent: false,
               autoOpenPreview: kind === 'service' && definition.autoOpenPreview,
+              // The preview row only exists for actions that keep running; don't keep a hidden URL.
+              previewUrl: kind === 'service' ? definition.previewUrl : undefined,
             })
           }
           choices={(['task', 'service'] as const).map((value) => ({

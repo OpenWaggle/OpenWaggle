@@ -25,11 +25,17 @@ interface ActionPanelChromeProps extends ActionPanelChromeFrame {
  */
 export function ActionPanelChrome(props: ActionPanelChromeProps) {
   return (
-    <div className="@container flex size-full min-h-0 flex-col bg-bg-secondary">
+    <section
+      aria-labelledby={props.titleId}
+      className="@container flex size-full min-h-0 flex-col bg-bg-secondary"
+    >
       <header className="flex shrink-0 items-start justify-between gap-4 px-8 pb-5 pt-6 @max-md:px-5 @max-md:pt-5 @2xl:px-10">
         <div className="min-w-0">
+          {/* Opening the panel lands on its title, not on Close (see RightSidebarLayout). */}
           <h2
             id={props.titleId}
+            tabIndex={-1}
+            data-right-sidebar-focus-target="true"
             className="text-xl font-semibold tracking-tight text-text-primary @max-md:text-lg"
           >
             {props.title}
@@ -70,7 +76,7 @@ export function ActionPanelChrome(props: ActionPanelChromeProps) {
           {props.footer}
         </footer>
       ) : null}
-    </div>
+    </section>
   )
 }
 

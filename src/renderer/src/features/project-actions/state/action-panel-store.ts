@@ -6,13 +6,13 @@ import type {
 } from '@shared/types/action-definitions'
 import type { ActionManagementScope } from '@shared/types/action-management'
 import { create } from 'zustand'
-import { createJSONStorage, persist, type StateStorage } from 'zustand/middleware'
+import { createJSONStorage, persist } from 'zustand/middleware'
 import { createRendererLogger } from '@/shared/lib/logger'
 import { useRightSidebarCoordinator } from '@/shared/lib/right-sidebar-coordinator'
 import { type ActionPanelDraft, actionPanelDraftSchema } from '../lib/action-panel-drafts'
+import { resolveActionPanelStorage } from './action-panel-storage'
 
 export const ACTION_PANEL_STORAGE_KEY = 'openwaggle:action-panel:v1'
-const MAX_REMEMBERED_SCRIPT_COMMANDS = 500
 const RECENTLY_SAVED_MS = 2_500
 const logger = createRendererLogger('action-panel')
 
@@ -58,8 +58,6 @@ interface ActionPanelState {
   readonly request: ActionPanelRequest | null
   /** One Project action draft per project path. */
   readonly drafts: Readonly<Record<string, ActionPanelDraft>>
-  /** The last command seen for each linked script, for "Use the last known command instead". */
-  readonly lastSeenScriptCommands: Readonly<Record<string, string>>
   /** Briefly highlights what was just saved from Settings, so the user sees where it went. */
   readonly recentlySaved: { readonly projectPath: string; readonly id: string } | null
   markSaved: (projectPath: string, id: string) => void
@@ -70,21 +68,6 @@ interface ActionPanelState {
   forgetRequest: () => void
   setDraft: (projectPath: string, draft: ActionPanelDraft) => void
   discardDraft: (projectPath: string) => void
-  rememberScriptCommand: (scriptKey: string, command: string) => void
-}
-
-const memoryStorage = new Map<string, string>()
-function resolveStorage(): StateStorage {
-  if (typeof window !== 'undefined' && window.localStorage) return window.localStorage
-  return {
-    getItem: (key) => memoryStorage.get(key) ?? null,
-    setItem: (key, value) => {
-      memoryStorage.set(key, value)
-    },
-    removeItem: (key) => {
-      memoryStorage.delete(key)
-    },
-  }
 }
 
 function sanitizeDrafts(value: unknown): Record<string, ActionPanelDraft> {
@@ -98,21 +81,11 @@ function sanitizeDrafts(value: unknown): Record<string, ActionPanelDraft> {
   return drafts
 }
 
-function sanitizeScriptCommands(value: unknown): Record<string, string> {
-  if (value === null || typeof value !== 'object' || Array.isArray(value)) return {}
-  return Object.fromEntries(
-    Object.entries(value)
-      .filter((entry): entry is [string, string] => typeof entry[1] === 'string')
-      .slice(-MAX_REMEMBERED_SCRIPT_COMMANDS),
-  )
-}
-
 export const useActionPanelStore = create<ActionPanelState>()(
   persist(
     (set, get) => ({
       request: null,
       drafts: {},
-      lastSeenScriptCommands: {},
       recentlySaved: null,
       markSaved: (projectPath, id) => {
         set({ recentlySaved: { projectPath, id } })
@@ -135,29 +108,16 @@ export const useActionPanelStore = create<ActionPanelState>()(
         delete drafts[projectPath]
         set({ drafts })
       },
-      rememberScriptCommand: (scriptKey, command) => {
-        if (!command || get().lastSeenScriptCommands[scriptKey] === command) return
-        const next = { ...get().lastSeenScriptCommands, [scriptKey]: command }
-        set({ lastSeenScriptCommands: sanitizeScriptCommands(next) })
-      },
     }),
     {
       name: ACTION_PANEL_STORAGE_KEY,
-      storage: createJSONStorage(resolveStorage),
-      partialize: (state) => ({
-        drafts: state.drafts,
-        lastSeenScriptCommands: state.lastSeenScriptCommands,
-      }),
+      storage: createJSONStorage(resolveActionPanelStorage),
+      partialize: (state) => ({ drafts: state.drafts }),
       merge: (persisted, current) => ({
         ...current,
         drafts: sanitizeDrafts(
           persisted !== null && typeof persisted === 'object'
             ? Reflect.get(persisted, 'drafts')
-            : undefined,
-        ),
-        lastSeenScriptCommands: sanitizeScriptCommands(
-          persisted !== null && typeof persisted === 'object'
-            ? Reflect.get(persisted, 'lastSeenScriptCommands')
             : undefined,
         ),
       }),

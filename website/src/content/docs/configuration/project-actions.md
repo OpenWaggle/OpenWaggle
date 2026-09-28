@@ -1,6 +1,6 @@
 ---
 title: "Project actions"
-description: "Save project commands, manage running tasks and services, and prepare new worktrees."
+description: "Save project commands, manage their runs, and prepare new worktrees."
 order: 7
 section: "Customize"
 ---
@@ -14,7 +14,7 @@ Actions run in the selected session's workspace. For a worktree session, that me
 1. Open **+ Action > Add action**, or **Settings > Project actions > Add action**. A panel opens on the right. It names the project it saves to; Settings has its own project picker, and the panel says so when that project differs from your current session's.
 2. Answer **What should it run?** Choose **A script from this project** and pick one, or choose **A command I type myself** and type it, such as `pnpm test`.
 3. Answer **What should it be called?** Picking a script suggests a readable name, such as **Run tests**. Each name must be different from the project's other actions, ignoring letter case.
-4. Click **Save action**. Saving does not run the command. The confirmation offers **Run now** when a session in that project is open.
+4. Click **Save action**. Saving does not run the command. When you saved from **+ Action** in a session, the confirmation offers **Run now** for that session. Saving from Settings instead highlights the new action in the list.
 
 Everything under **Optional settings** already has a sensible default, shown in plain words next to each question. Click **Change** only when the default is wrong. The line above **Save action** summarises what will happen; click it to read the full sentence.
 
@@ -38,11 +38,11 @@ OpenWaggle reads these task sources without running project code or installing d
 
 Suggestions include the package or group and source file, so two packages' `test` tasks remain distinguishable. JavaScript tasks use the declared package manager or lockfile evidence; conflicting lockfiles produce a diagnostic rather than a guessed runner.
 
-A selected script stays linked to its task definition. Future launches use the task in the session's workspace and its package-relative directory. Editing the script in the repository therefore affects the next launch. If the task disappears on another branch, the saved action becomes unavailable instead of running a stale copy. Editing such an action explains which script is missing and lets you keep the link, pick another script, or use the command it last ran.
+A selected script stays linked to its task definition. Future launches use the task in the session's workspace and its package-relative directory. Editing the script in the repository therefore affects the next launch. If the task disappears on another branch, the saved action becomes unavailable instead of running a stale copy. Editing such an action explains which script is missing and lets you keep the link or pick another script. If OpenWaggle saw the command that script ran on this computer, it also offers to use that command instead.
 
 **Copy it as my own command instead** replaces that link with command text you maintain yourself, in the same folder. The script list rereads the project by itself; if reading fails, choose **Try again** or type a command. Other task formats, including `justfile` recipes, currently need a custom command.
 
-## Tasks, services, and background work
+## Actions that finish and actions that keep running
 
 Under **Optional settings > Does it stop on its own?**, choose:
 
@@ -59,7 +59,7 @@ Use **Stop** to end the selected run. **Restart** stops that run, waits for it t
 
 Switching sessions or closing the output view does not stop a run. Managed runs can survive quitting the desktop app while the background session service remains alive. Reopening reconnects without launching another copy. If the process was lost, for example after a computer restart, OpenWaggle retains available output and offers **Restart** rather than silently relaunching it.
 
-Services stop when the last session releases their workspace, including when that final session is archived. Releasing one session does not stop a service another session still uses. Service shutdown happens before workspace cleanup and removal.
+Actions that keep running stop when the last session releases their workspace, including when that final session is archived. Releasing one session does not stop one another session still uses. They stop before workspace cleanup and removal.
 
 ## Open a dev-server preview
 
@@ -97,7 +97,7 @@ When creating a new managed worktree, choose its profile if the project has more
 
 Existing checkouts do not run setup merely because you open them or send a message. In Session Summary's **Workspace preparation** section, select a profile if needed, then choose **Run setup**.
 
-Successful setup retains exported environment changes privately for that workspace. Later agent commands and action runs inherit them; already-running processes do not. Failed setup does not publish a partially prepared environment. Keep development servers as Service actions, not setup commands that never finish.
+Successful setup retains exported environment changes privately for that workspace. Later agent commands and action runs inherit them; already-running processes do not. Failed setup does not publish a partially prepared environment. Keep development servers as actions that keep running, not setup commands that never finish.
 
 ### Profile updates and cleanup
 

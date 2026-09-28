@@ -2,7 +2,6 @@ import { Schema } from '@shared/schema'
 import {
   ACTION_DEFINITION_LIMITS,
   COMMAND_REPAIR_PROPOSAL_TYPE,
-  COMMAND_REPAIR_REASON_LENGTH,
 } from '@shared/types/action-definitions'
 import { PROJECT_ACTION_LIMITS } from '@shared/types/project-actions'
 import { normalizeBrowserPreviewAddress } from '@shared/utils/browser-preview-url'
@@ -73,7 +72,7 @@ export const commandRepairProposalSchema = Schema.Struct({
   actionName: text(ACTION_DEFINITION_LIMITS.NAME_LENGTH),
   current: repairCommand,
   proposed: repairCommand,
-  reason: text(COMMAND_REPAIR_REASON_LENGTH),
+  reason: text(ACTION_DEFINITION_LIMITS.REPAIR_REASON_LENGTH),
 })
 
 export const preparationProfileSchema = Schema.Struct({

@@ -23,6 +23,15 @@ function RunsLine({ invocation }: { readonly invocation: ActionInvocation }) {
   )
 }
 
+function reviewTitle(
+  source: ReviewRequest['review']['entry']['source'],
+  noun: string,
+  changed: boolean,
+) {
+  if (source === 'local') return `Turn your worktree ${noun} on or off`
+  return changed ? `A shared ${noun} changed` : `Check this shared ${noun}`
+}
+
 function waitingNote(automatic: boolean, phase: 'setup' | 'cleanup') {
   if (!automatic) return ''
   return phase === 'setup'
@@ -77,14 +86,15 @@ export function PreparationReviewPanel({ request }: { readonly request: ReviewRe
   return (
     <ActionPanelChrome
       titleId={titleId}
-      title={previous ? `A shared ${noun} changed` : `Check this shared ${noun}`}
+      title={reviewTitle(entry.source, noun, previous !== undefined)}
       projectPath={request.projectPath}
       otherSessionProject={null}
       onClose={closePanel}
       description={
         <>
-          Check it before it runs on your computer. Your choice stays on this computer, and closing
-          leaves it off.
+          {entry.source === 'local'
+            ? `This is your own ${noun}. Turning it off stops it running for new worktrees; closing leaves it as it is.`
+            : 'Check it before it runs on your computer. Your choice stays on this computer, and closing leaves it off.'}
           {waitingNote(automatic, definition.phase)}
         </>
       }

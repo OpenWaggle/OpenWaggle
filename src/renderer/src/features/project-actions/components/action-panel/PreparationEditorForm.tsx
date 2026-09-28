@@ -1,8 +1,4 @@
-import type {
-  ActionCatalog,
-  EffectiveDefinition,
-  PreparationDefinition,
-} from '@shared/types/action-definitions'
+import type { ActionCatalog } from '@shared/types/action-definitions'
 import { useState } from 'react'
 import { useActionDiscovery } from '../../hooks/useNativeActions'
 import { useSavePreparationDraft } from '../../hooks/useSavePreparationDraft'
@@ -39,7 +35,7 @@ import { RemovalSection } from './RemovalSection'
 import { SourceQuestion } from './SourceQuestion'
 
 type PreparationRequest = Extract<ActionPanelRequest, { kind: 'preparation' }>
-type Entry = EffectiveDefinition<PreparationDefinition>
+type Entry = ActionCatalog['preparation'][number]
 
 export interface PreparationEditorFormProps {
   readonly chrome: ActionPanelChromeFrame & { readonly title: string }
@@ -98,7 +94,7 @@ export function PreparationEditorForm(props: PreparationEditorFormProps) {
           summary={
             hasSource ? (
               <PanelSummary
-                line={{ command, after: ` · ${storageShort.toLowerCase()}` }}
+                line={{ before: 'Runs ', command, after: ` · ${storageShort.toLowerCase()}` }}
                 sentence={summary}
               />
             ) : null
@@ -106,7 +102,11 @@ export function PreparationEditorForm(props: PreparationEditorFormProps) {
           note={draft.storage === 'project' ? SHARED_PREPARATION_SAVE_NOTE : null}
           error={saver.error}
           saveLabel={`Save ${noun}`}
-          canSave={hasSource && draftBaseState(draft, props.catalog).kind === 'current'}
+          canSave={
+            hasSource &&
+            isDraftDirty(draft) &&
+            draftBaseState(draft, props.catalog).kind === 'current'
+          }
           busy={saver.busy}
           dirty={isDraftDirty(draft)}
           actions={{ onSave: () => void saver.save(draft), onDiscard: props.onDiscard }}
@@ -114,6 +114,7 @@ export function PreparationEditorForm(props: PreparationEditorFormProps) {
       }
     >
       <PreparationBaseNotice {...props} noun={noun} />
+      <PendingReviewNotice entry={entry} noun={noun} />
       <PanelQuestion number={1} title="What should it run?">
         <SourceQuestion
           scope={request.scope}
@@ -149,7 +150,19 @@ export function PreparationEditorForm(props: PreparationEditorFormProps) {
 function PreparationBaseNotice(props: PreparationEditorFormProps & { readonly noun: string }) {
   const { draft, onChange, entry } = props
   const state = draftBaseState(draft, props.catalog)
-  if (!draft.base || state.kind === 'current') return null
+  if (state.kind === 'current') return null
+  if (!draft.base) {
+    // Someone set this up while this new one was being written.
+    if (state.kind !== 'changed' || !entry) return null
+    return (
+      <ChangedSinceNotice
+        name={`The ${props.noun}`}
+        changes={preparationChanges(draft.definition, entry.definition)}
+        onKeepMine={() => onChange({ ...draft, base: entry.definition })}
+        onUseNew={() => onChange(editPreparationDraft(entry))}
+      />
+    )
+  }
   if (state.kind === 'removed')
     return (
       <RemovedSinceNotice
@@ -167,6 +180,46 @@ function PreparationBaseNotice(props: PreparationEditorFormProps & { readonly no
       onKeepMine={() => onChange({ ...draft, base: entry.definition })}
       onUseNew={() => onChange(editPreparationDraft(entry))}
     />
+  )
+}
+
+/**
+ * Saving a shared setup turns it on for the saver (ADR 0038), so a pending change made by
+ * someone else is shown before Save, just as the review would show it.
+ */
+function PendingReviewNotice(props: { readonly entry: Entry | undefined; readonly noun: string }) {
+  const { entry } = props
+  if (entry?.review !== 'required') return null
+  const changes = entry.previous
+    ? preparationChanges(
+        { ...entry.definition, invocation: entry.previous.invocation },
+        entry.definition,
+      )
+    : []
+  return (
+    <section
+      aria-label="Changed by someone else"
+      className="grid gap-2.5 rounded-xl border border-warning/40 bg-warning/5 px-4 py-3.5"
+    >
+      <p role="status" className="text-sm font-medium text-text-primary">
+        This shared {props.noun} changed and is off for you until you check it
+      </p>
+      {changes.length > 0 ? (
+        <ul className="grid gap-1.5 text-sm leading-6">
+          {changes.map((change) => (
+            <li key={change.label} className="break-words text-text-secondary">
+              <span className="text-text-tertiary">{change.label}:</span>{' '}
+              <code className="font-mono">{change.before}</code> →{' '}
+              <code className="font-mono text-text-primary">{change.after}</code>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      <p className="text-sm leading-6 text-text-tertiary">
+        Saving your own changes turns your version on for you. To turn this version on without
+        changing it, use Check it in Settings.
+      </p>
+    </section>
   )
 }
 

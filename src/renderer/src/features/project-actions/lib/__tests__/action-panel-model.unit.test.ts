@@ -13,8 +13,11 @@ import {
   continueDraftLabel,
   draftBaseState,
   editActionDraft,
+  editPreparationDraft,
   isDraftDirty,
   newActionDraft,
+  newPreparationDraft,
+  proposalKey,
   sameDefinition,
 } from '../action-panel-drafts'
 import {
@@ -123,6 +126,46 @@ describe('action panel drafts', () => {
     expect(draftBaseState(draft, { ...catalogWith(), actions: [] })).toEqual({ kind: 'removed' })
   })
 
+  it('finds a preparation draft’s saved setup by its profile and phase, not its id', () => {
+    const setup = {
+      id: 'mine',
+      profileId: 'default',
+      phase: 'setup' as const,
+      invocation: { type: 'command' as const, command: 'pnpm install', directory: '.' },
+    }
+    const draft = editPreparationDraft({ source: 'project', definition: setup })
+    const replaced = {
+      ...setup,
+      id: 'teammate',
+      invocation: { ...setup.invocation, command: 'pnpm i' },
+    }
+    const catalog: ActionCatalog = {
+      ...catalogWith(),
+      preparation: [{ source: 'project', review: 'required', definition: replaced }],
+    }
+    expect(draftBaseState(draft, catalog)).toEqual({ kind: 'changed', current: replaced })
+    const fresh = newPreparationDraft('setup', 'default', false)
+    expect(draftBaseState(fresh, catalog)).toEqual({ kind: 'changed', current: replaced })
+    expect(draftBaseState(fresh, { ...catalog, preparation: [] })).toEqual({ kind: 'current' })
+  })
+
+  it('tells two proposals with the same reason but a different command apart', () => {
+    const proposal = {
+      type: 'command-repair-proposal' as const,
+      actionId: 'dev',
+      actionName: 'Start dev server',
+      current: { command: 'pnpm dev', directory: '.' },
+      proposed: { command: 'pnpm dev --host', directory: '.' },
+      reason: 'Bind all hosts.',
+    }
+    expect(proposalKey(proposal)).not.toBe(
+      proposalKey({
+        ...proposal,
+        proposed: { ...proposal.proposed, command: 'pnpm dev -H 0.0.0.0' },
+      }),
+    )
+  })
+
   it('persists incomplete drafts but rejects unreadable ones', () => {
     const decode = Schema.decodeUnknownEither(actionPanelDraftSchema)
     expect(decode(newActionDraft(false))._tag).toBe('Right')
@@ -197,14 +240,15 @@ describe('action panel wording', () => {
       sharedEdit: false,
     }
     expect(actionSummaryLine(input)).toEqual({
+      before: 'Runs ',
       command: 'pnpm run dev',
-      tail: ' · keeps running · only you',
+      after: ' · keeps running · only you',
     })
     const sentence = actionSummarySentence(input)
     expect(`${sentence.before}${sentence.command}${sentence.after}`).toBe(
       'Clicking “Start dev server” in + Action runs pnpm run dev in the project folder. It keeps running until you stop it and opens the browser preview when it is ready. Only you will have it. Saving does not run anything.',
     )
-    expect(actionSummaryLine({ ...input, sharedEdit: true }).tail).toBe(
+    expect(actionSummaryLine({ ...input, sharedEdit: true }).after).toBe(
       ' · keeps running · only you get these changes',
     )
   })

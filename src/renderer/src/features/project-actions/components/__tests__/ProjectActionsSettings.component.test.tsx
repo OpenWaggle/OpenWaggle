@@ -78,7 +78,6 @@ describe('native action settings with the guided action panel', () => {
     useActionPanelStore.setState({
       request: null,
       drafts: {},
-      lastSeenScriptCommands: {},
       recentlySaved: null,
     })
     serve(actionCatalog())

@@ -19,7 +19,7 @@ export function OptionalSettingRow(props: {
       <Button
         variant="unstyled"
         aria-expanded={props.open}
-        aria-controls={bodyId}
+        aria-controls={props.open ? bodyId : undefined}
         className="group flex w-full items-center gap-3 px-1 py-4 text-left"
         onClick={props.onToggle}
       >

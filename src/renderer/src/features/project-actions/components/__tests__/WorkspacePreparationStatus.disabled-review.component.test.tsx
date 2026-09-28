@@ -112,4 +112,53 @@ describe('Workspace preparation with a disabled shared setup', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: 'Run setup' })).toBeEnabled())
     expect(useActionPanelStore.getState().request).toBeNull()
   })
+
+  it('opens a required review by itself once and never again after Keep it off', async () => {
+    let state: WorkspacePreparation = {
+      workspaceId: 'workspace',
+      revision: 7,
+      snapshot: {
+        profile: { id: 'default', name: 'Default' },
+        capturedAt: 1,
+        definitions: [{ source: 'project', review: 'required', definition }],
+      },
+      setup: { ...execution, status: 'review-required' },
+      cleanup: execution,
+      updateAvailable: false,
+    }
+    mocks.manage.mockImplementation(async ({ operation }) => {
+      if (operation.type === 'catalog') return { type: 'catalog', catalog }
+      if (operation.type === 'preparation') return { type: 'preparation', preparation: state }
+      if (operation.type === 'review-snapshot') {
+        state = {
+          ...state,
+          revision: state.revision + 1,
+          snapshot: {
+            ...state.snapshot,
+            definitions: state.snapshot.definitions.map((entry) => ({
+              ...entry,
+              review: 'disabled',
+            })),
+          },
+        }
+        return { type: 'preparation', preparation: state }
+      }
+      throw new Error(`Unexpected operation ${operation.type}`)
+    })
+    useActionPanelStore.setState({ request: null, drafts: {} })
+    renderWithQueryClient(
+      <>
+        <WorkspacePreparationStatus scope={{ projectPath: '/repo', sessionId: 'session' }} />
+        <PanelHost />
+      </>,
+    )
+    expect(await screen.findByText('Check this shared setup')).toBeInTheDocument()
+    expect(screen.getByText(/The new worktree is waiting for your choice/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Keep it off' }))
+    await waitFor(() => expect(useActionPanelStore.getState().request).toBeNull())
+    await waitFor(() => expect(state.revision).toBe(8))
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    expect(useActionPanelStore.getState().request).toBeNull()
+    expect(screen.queryByText('Check this shared setup')).not.toBeInTheDocument()
+  })
 })

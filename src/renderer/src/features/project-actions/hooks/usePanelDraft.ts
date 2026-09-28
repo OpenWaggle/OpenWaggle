@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useEffectEvent } from 'react'
 import { type ActionPanelDraft, draftTarget, isDraftDirty } from '../lib/action-panel-drafts'
 import { useActionPanelStore } from '../state/action-panel-store'
 
@@ -17,8 +17,10 @@ interface PanelDraftInput<T extends ActionPanelDraft> {
   readonly projectPath: string
   /** The saved thing the request is for, as produced by draftTarget. */
   readonly target: string
-  /** Builds a fresh draft; null until the data it needs has loaded. */
-  readonly create: () => T | null
+  /** Whether the data a fresh draft needs has loaded. */
+  readonly ready: boolean
+  /** Builds a fresh draft. Called from an effect, never during render. */
+  readonly create: () => T
   /** A stored draft for the same target is resumed only when it still matches the request. */
   readonly matches: (draft: ActionPanelDraft) => draft is T
 }
@@ -36,11 +38,12 @@ export function usePanelDraft<T extends ActionPanelDraft>(
   const resumable =
     stored !== undefined && input.matches(stored) && draftTarget(stored) === input.target
   const blocking = stored !== undefined && !resumable && isDraftDirty(stored)
-  const fresh = resumable || blocking ? null : input.create()
+  const needsFresh = input.ready && !resumable && !blocking
   const { projectPath } = input
+  const createDraft = useEffectEvent(() => input.create())
   useEffect(() => {
-    if (fresh) setDraft(projectPath, fresh)
-  }, [fresh, projectPath, setDraft])
+    if (needsFresh) setDraft(projectPath, createDraft())
+  }, [needsFresh, projectPath, setDraft])
   if (resumable && stored && input.matches(stored))
     return {
       status: 'ready',

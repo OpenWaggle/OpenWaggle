@@ -4,6 +4,7 @@ import type { EffectiveDefinition, PreparationDefinition } from '@shared/types/a
 import type { ActionManagementScope } from '@shared/types/action-management'
 import { useState } from 'react'
 import { useUIStore } from '@/shell/ui-store'
+import { preparationDraftProblem } from '../lib/action-draft-problems'
 import { draftBaseState, type PreparationDraft } from '../lib/action-panel-drafts'
 import { useActionPanelStore } from '../state/action-panel-store'
 import { useEditActionCatalog, useNativeActions } from './useNativeActions'
@@ -24,6 +25,7 @@ export function useSavePreparationDraft(scope: ActionManagementScope) {
   const catalog = useNativeActions(scope)
   const edit = useEditActionCatalog(scope)
   const [error, setError] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
 
   function finish(message: string) {
     const store = useActionPanelStore.getState()
@@ -38,39 +40,52 @@ export function useSavePreparationDraft(scope: ActionManagementScope) {
     return latest
   }
 
-  async function save(draft: PreparationDraft) {
+  /**
+   * Busy from the pre-save re-read onward, so a double click cannot start two saves. The work
+   * returns the plain message to show, or null once it has finished.
+   */
+  async function exclusive(work: () => Promise<string | null>) {
+    if (saving) return
+    setSaving(true)
     setError(null)
-    const invocation = draft.definition.invocation
-    const decoded = safeDecodeUnknown(preparationDefinitionSchema, {
-      ...draft.definition,
-      invocation:
-        invocation.type === 'command'
-          ? { ...invocation, command: invocation.command.trim() }
-          : invocation,
-    })
-    if (!decoded.success) {
-      setError(`Some details need a look: ${decoded.issues.join('; ')}`)
-      return
-    }
+    let message: string | null
     try {
+      message = await work()
+    } catch (cause) {
+      message = saveError(cause)
+    } finally {
+      setSaving(false)
+    }
+    setError(message)
+  }
+
+  const save = (draft: PreparationDraft) =>
+    exclusive(async () => {
+      const invocation = draft.definition.invocation
+      const decoded = safeDecodeUnknown(preparationDefinitionSchema, {
+        ...draft.definition,
+        invocation:
+          invocation.type === 'command'
+            ? { ...invocation, command: invocation.command.trim() }
+            : invocation,
+      })
+      if (!decoded.success) {
+        return preparationDraftProblem(draft.definition)
+      }
       const latest = await latestCatalog()
       if (draftBaseState(draft, latest).kind !== 'current') {
-        setError(CHANGED_WHILE_SAVING)
-        return
+        return CHANGED_WHILE_SAVING
       }
       await edit.mutateAsync({
         revision: latest.revision,
         edit: { type: 'save-preparation', definition: decoded.data, storage: draft.storage },
       })
       finish(`Saved your ${phaseNoun(decoded.data.phase)}.`)
-    } catch (cause) {
-      setError(saveError(cause))
-    }
-  }
+      return null
+    })
 
-  async function remove(entry: EffectiveDefinition<PreparationDefinition>) {
-    setError(null)
-    try {
+  const remove = (entry: EffectiveDefinition<PreparationDefinition>) =>
+    exclusive(async () => {
       const latest = await latestCatalog()
       await edit.mutateAsync({
         revision: latest.revision,
@@ -85,10 +100,8 @@ export function useSavePreparationDraft(scope: ActionManagementScope) {
           ? `Restored the shared ${phaseNoun(entry.definition.phase)}.`
           : `Removed your ${phaseNoun(entry.definition.phase)}.`,
       )
-    } catch (cause) {
-      setError(saveError(cause))
-    }
-  }
+      return null
+    })
 
-  return { save, remove, error, busy: edit.isPending }
+  return { save, remove, error, busy: saving || edit.isPending }
 }

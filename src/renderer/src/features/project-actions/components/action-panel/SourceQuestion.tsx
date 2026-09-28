@@ -6,14 +6,17 @@ import type {
 import { ACTION_DEFINITION_LIMITS } from '@shared/types/action-definitions'
 import type { ActionManagementScope } from '@shared/types/action-management'
 import { Link2 } from 'lucide-react'
-import { useEffect, useId } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { Button } from '@/shared/ui/Button'
 import { Textarea } from '@/shared/ui/Textarea'
 import { useActionDiscovery } from '../../hooks/useNativeActions'
 import type { ActionPanelSource, DraftActionDefinition } from '../../lib/action-panel-drafts'
 import { rankScripts, scriptCommand, taskReferenceKey } from '../../lib/action-panel-scripts'
 import { findDiscoveredTask } from '../../lib/action-task-availability'
-import { useActionPanelStore } from '../../state/action-panel-store'
+import {
+  scriptCommandMemoryKey,
+  useScriptCommandMemory,
+} from '../../state/script-command-memory-store'
 import { ChoiceCards } from './ChoiceCards'
 import { ScriptPicker } from './ScriptPicker'
 
@@ -93,15 +96,25 @@ function ScriptSource(
   const { discovery, invocation } = props
   const linked =
     invocation.type === 'task' ? findDiscoveredTask(invocation.task, discovery.data) : undefined
-  const rememberScriptCommand = useActionPanelStore((state) => state.rememberScriptCommand)
+  const remember = useScriptCommandMemory((state) => state.remember)
+  const pickerRef = useRef<HTMLDivElement>(null)
   const linkedCommand = linked ? scriptCommand(linked) : ''
-  const linkedKey = invocation.type === 'task' ? taskReferenceKey(invocation.task) : null
+  const linkedKey =
+    invocation.type === 'task'
+      ? scriptCommandMemoryKey(props.scope.projectPath, taskReferenceKey(invocation.task))
+      : null
   useEffect(() => {
-    if (linkedKey && linkedCommand) rememberScriptCommand(linkedKey, linkedCommand)
-  }, [linkedCommand, linkedKey, rememberScriptCommand])
+    if (linkedKey && linkedCommand) remember(linkedKey, linkedCommand)
+  }, [linkedCommand, linkedKey, remember])
+  function focusPicker() {
+    const picker = pickerRef.current
+    picker?.scrollIntoView({ block: 'nearest' })
+    picker?.querySelector<HTMLElement>('input, [aria-pressed]')?.focus()
+  }
   return (
     <>
       <ScriptPicker
+        rootRef={pickerRef}
         tasks={discovery.data?.tasks ?? []}
         selected={invocation.type === 'task' ? invocation.task : null}
         status={discoveryStatus(discovery)}
@@ -109,7 +122,7 @@ function ScriptSource(
         onRetry={() => void discovery.refetch()}
       />
       {invocation.type === 'task' && linkedScriptMissing(invocation, discovery.data) ? (
-        <MissingScriptNotice {...props} invocation={invocation} />
+        <MissingScriptNotice {...props} invocation={invocation} onPickAnother={focusPicker} />
       ) : null}
       {invocation.type === 'task' && linked ? (
         <LinkedScriptNote
@@ -155,41 +168,54 @@ function LinkedScriptNote(props: {
 }
 
 function MissingScriptNotice(
-  props: SourceQuestionProps & { readonly invocation: Extract<ActionInvocation, { type: 'task' }> },
+  props: SourceQuestionProps & {
+    readonly invocation: Extract<ActionInvocation, { type: 'task' }>
+    readonly onPickAnother: () => void
+  },
 ) {
   const { task } = props.invocation
-  const lastKnown = useActionPanelStore(
-    (state) => state.lastSeenScriptCommands[taskReferenceKey(task)] ?? null,
+  const [dismissed, setDismissed] = useState(false)
+  const lastKnown = useScriptCommandMemory(
+    (state) =>
+      state.commands[scriptCommandMemoryKey(props.scope.projectPath, taskReferenceKey(task))] ??
+      null,
   )
+  if (dismissed) return null
   return (
-    <div
-      role="status"
-      className="grid gap-3 rounded-xl border border-border-light bg-bg px-4 py-3.5"
-    >
-      <p className="text-sm leading-6 text-text-secondary">
+    <div className="grid gap-3 rounded-xl border border-border-light bg-bg px-4 py-3.5">
+      <p role="status" className="text-sm leading-6 text-text-secondary">
         The <code className="font-mono">{task.task}</code> script isn’t in this workspace’s{' '}
         <code className="font-mono">{task.source}</code>, so this action can’t run here. It still
         works where the script exists. Nothing changes unless you choose.
       </p>
-      <p className="text-sm text-text-tertiary">
-        Keeping it linked is fine. You can also pick another script above
-        {lastKnown ? ', or use the command it last ran:' : '.'}
-      </p>
-      {lastKnown ? (
-        <Button
-          variant="secondary"
-          className="justify-self-start"
-          onClick={() =>
-            props.onSourceChange('command', {
-              type: 'command',
-              command: lastKnown,
-              directory: task.directory,
-            })
-          }
-        >
-          Use the last known command instead
+      {lastKnown ? null : (
+        <p className="text-sm leading-6 text-text-tertiary">
+          OpenWaggle hasn’t seen the command this script ran on this computer, so it can’t offer it
+          as your own command.
+        </p>
+      )}
+      <div className="flex flex-wrap gap-2">
+        <Button variant="secondary" onClick={() => setDismissed(true)}>
+          Keep it linked
         </Button>
-      ) : null}
+        <Button variant="secondary" onClick={props.onPickAnother}>
+          Pick another script
+        </Button>
+        {lastKnown ? (
+          <Button
+            variant="secondary"
+            onClick={() =>
+              props.onSourceChange('command', {
+                type: 'command',
+                command: lastKnown,
+                directory: task.directory,
+              })
+            }
+          >
+            Use the last known command instead
+          </Button>
+        ) : null}
+      </div>
     </div>
   )
 }

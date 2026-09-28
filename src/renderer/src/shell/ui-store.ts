@@ -3,7 +3,7 @@ import { create, type StoreApi } from 'zustand'
 
 const DELAY_MS = 3500
 /** Long enough to reach a toast's button, such as Run now after saving an action. */
-const ACTION_TOAST_DELAY_MS = 8000
+const ACTION_TOAST_DELAY_MS = 8_000
 const FEEDBACK_COOLDOWN_MS = 60_000
 
 export const DIFF_PANEL_MIN = 360

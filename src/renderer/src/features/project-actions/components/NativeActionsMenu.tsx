@@ -58,7 +58,7 @@ export function NativeActionsMenu(props: {
             className="min-h-9 gap-2 px-2"
             disabled={Boolean(unavailable)}
             title={unavailable}
-            aria-label={running ? `Show output for ${definition.name}` : `Run ${definition.name}`}
+            aria-label={`${running ? 'Show output for' : 'Run'} ${definition.name}${hint ? ` (${hint})` : ''}`}
             onClick={() => {
               props.onClose()
               void props.run(definition)

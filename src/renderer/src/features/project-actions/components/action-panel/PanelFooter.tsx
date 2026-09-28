@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
-import { useState } from 'react'
 import { Button } from '@/shared/ui/Button'
+import { useInlineConfirm } from './useInlineConfirm'
 
 interface PanelFooterProps {
   readonly summary?: ReactNode
@@ -15,7 +15,7 @@ interface PanelFooterProps {
 }
 
 export function PanelFooter(props: PanelFooterProps) {
-  const [confirming, setConfirming] = useState(false)
+  const confirm = useInlineConfirm()
   return (
     <div className="grid gap-3 @2xl:grid-cols-[minmax(0,1fr)_auto] @2xl:items-end @2xl:gap-6">
       <div className="grid min-w-0 gap-2">
@@ -27,11 +27,18 @@ export function PanelFooter(props: PanelFooterProps) {
           </p>
         ) : null}
       </div>
-      {confirming ? (
-        <div role="alert" className="grid gap-2 @2xl:justify-items-end">
-          <p className="text-sm text-text-secondary">Discard what you have so far?</p>
+      {confirm.confirming ? (
+        <div className="grid gap-2 @2xl:justify-items-end">
+          <p role="alert" className="text-sm text-text-secondary">
+            Discard what you have so far?
+          </p>
           <div className="grid grid-cols-2 gap-2 @2xl:flex">
-            <Button variant="secondary" size="md" onClick={() => setConfirming(false)}>
+            <Button
+              ref={confirm.safeChoiceRef}
+              variant="secondary"
+              size="md"
+              onClick={confirm.backOut}
+            >
               Keep editing
             </Button>
             <Button variant="danger" size="md" onClick={props.actions.onDiscard}>
@@ -42,11 +49,12 @@ export function PanelFooter(props: PanelFooterProps) {
       ) : (
         <div className="flex justify-end gap-2 @max-md:grid @max-md:grid-cols-2">
           <Button
+            ref={confirm.triggerRef}
             variant="secondary"
             size="md"
             align="center"
             disabled={props.busy}
-            onClick={() => (props.dirty ? setConfirming(true) : props.actions.onDiscard())}
+            onClick={() => (props.dirty ? confirm.ask() : props.actions.onDiscard())}
           >
             Cancel
           </Button>

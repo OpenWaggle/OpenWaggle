@@ -108,8 +108,9 @@ function audience(storage: ActionStorage, sharedEdit: boolean) {
 export function actionSummaryLine(input: ActionSummaryInput) {
   const behaviour = input.kind === 'service' ? 'keeps running' : 'stops when done'
   return {
+    before: 'Runs ',
     command: input.command,
-    tail: ` · ${behaviour} · ${audience(input.storage, input.sharedEdit)}`,
+    after: ` · ${behaviour} · ${audience(input.storage, input.sharedEdit)}`,
   }
 }
 

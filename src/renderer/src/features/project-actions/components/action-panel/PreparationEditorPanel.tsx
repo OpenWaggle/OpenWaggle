@@ -1,6 +1,7 @@
 import type { ActionCatalog } from '@shared/types/action-definitions'
 import { useId } from 'react'
 import { useActionDiscovery, useNativeActions } from '../../hooks/useNativeActions'
+import { useOtherSessionProject } from '../../hooks/useOtherSessionProject'
 import { usePanelDraft } from '../../hooks/usePanelDraft'
 import { PREPARATION_COPY } from '../../lib/action-panel-copy'
 import {
@@ -10,7 +11,6 @@ import {
   type PreparationDraft,
 } from '../../lib/action-panel-drafts'
 import { type ActionPanelRequest, useActionPanelStore } from '../../state/action-panel-store'
-import { useOtherSessionProject } from './ActionEditorPanel'
 import { ActionPanelChrome } from './ActionPanelChrome'
 import { DraftSwitchPrompt } from './PanelNotices'
 import { PreparationEditorForm } from './PreparationEditorForm'
@@ -42,8 +42,8 @@ export function PreparationEditorPanel({ request }: { readonly request: Preparat
     projectPath: request.scope.projectPath,
     target: `preparation:${request.profileId}:${request.phase}`,
     matches: (draft): draft is PreparationDraft => draft.kind === 'preparation',
+    ready: Boolean(catalog.data) && !discovery.isPending,
     create: () => {
-      if (!catalog.data || discovery.isPending) return null
       return entry
         ? editPreparationDraft(entry)
         : newPreparationDraft(

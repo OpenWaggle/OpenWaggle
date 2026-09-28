@@ -7,11 +7,6 @@ import { parseProjectActionWhenExpression } from '@shared/utils/project-action-s
 import { RotateCcw, Trash2, X } from 'lucide-react'
 import { type KeyboardEvent, useState } from 'react'
 import { ProjectActionConditionBuilder } from '@/features/project-actions'
-import {
-  type BuiltInShortcutBrowserRow,
-  type ShortcutBrowserRow,
-  shortcutBrowserConflictLabels,
-} from '@/shared/lib/shortcut-browser-model'
 import { Button } from '@/shared/ui/Button'
 import {
   isShortcutModifierKey,
@@ -19,6 +14,11 @@ import {
   ShortcutConflictNotice,
   shortcutBindingFromEvent,
 } from '@/shared/ui/ShortcutRecorder'
+import {
+  type BuiltInShortcutBrowserRow,
+  type ShortcutBrowserRow,
+  shortcutBrowserConflictLabels,
+} from '../../lib/shortcut-browser-model'
 import { ShortcutSourceBadge } from './ShortcutRowParts'
 
 interface BuiltInShortcutRowProps {

@@ -78,7 +78,6 @@ describe('worktree setup in the guided action panel', () => {
     useActionPanelStore.setState({
       request: null,
       drafts: {},
-      lastSeenScriptCommands: {},
       recentlySaved: null,
     })
     serve(actionCatalog())
@@ -142,5 +141,45 @@ describe('worktree setup in the guided action panel', () => {
         },
       }),
     )
+  })
+
+  it('shows a teammate’s pending change and never grants it through an unchanged save', async () => {
+    const shared = {
+      id: 'setup',
+      profileId: 'default',
+      phase: 'setup' as const,
+      invocation: {
+        type: 'command' as const,
+        command: 'pnpm install --frozen-lockfile',
+        directory: '.',
+      },
+    }
+    serve({
+      ...actionCatalog(),
+      preparation: [
+        {
+          source: 'project',
+          review: 'required',
+          definition: shared,
+          previous: {
+            definitionId: 'setup',
+            fingerprint: 'old',
+            invocation: { type: 'command', command: 'pnpm install', directory: '.' },
+            enabled: true,
+          },
+        },
+      ],
+    })
+    renderSettings()
+    const preparation = within(await screen.findByRole('region', { name: 'Workspace preparation' }))
+    fireEvent.click(await preparation.findByRole('button', { name: 'Edit' }))
+    const view = within(await panel())
+    expect(
+      await view.findByText('This shared setup changed and is off for you until you check it'),
+    ).toBeInTheDocument()
+    expect(view.getByRole('region', { name: 'Changed by someone else' })).toHaveTextContent(
+      'Command: pnpm install → pnpm install --frozen-lockfile',
+    )
+    expect(view.getByRole('button', { name: 'Save setup' })).toBeDisabled()
   })
 })

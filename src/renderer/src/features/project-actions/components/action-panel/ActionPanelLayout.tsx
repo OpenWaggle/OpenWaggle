@@ -1,18 +1,15 @@
 import { type ReactNode, useEffect } from 'react'
 import { useRightSidebarCoordinator } from '@/shared/lib/right-sidebar-coordinator'
 import { RightSidebarLayout } from '@/shared/ui/RightSidebarLayout'
+import { WORKSPACE_SIDE_PANEL_SIZING } from '@/shared/ui/right-sidebar-sizing-presets'
 import { useActionPanelStore } from '../../state/action-panel-store'
 import { ActionPanel } from './ActionPanel'
 
-/** Mirrors the workspace side panel's sizing so every right sidebar behaves alike (ADR 0038). */
+/** The workspace side panel's sizing, so every right sidebar behaves alike (ADR 0038). */
 const ACTION_PANEL_SIZING = {
-  defaultWidth: 520,
-  minWidth: 320,
-  maxWidth: 900,
-  mainMinWidth: 420,
-  sheetBreakpointPx: 980,
+  ...WORKSPACE_SIDE_PANEL_SIZING,
   storageKey: 'openwaggle:action-panel-width',
-} as const
+}
 
 /**
  * Docks the guided action panel in the single right-sidebar slot. Opening it replaces the

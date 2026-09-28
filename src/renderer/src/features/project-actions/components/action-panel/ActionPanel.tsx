@@ -1,5 +1,7 @@
 import { match } from '@diegogbrisa/ts-match'
-import type { KeyboardEvent } from 'react'
+import { useRef } from 'react'
+import { useEscapeHotkey } from '@/shared/hooks/useEscapeHotkey'
+import { proposalKey } from '../../lib/action-panel-drafts'
 import { type ActionPanelRequest, useActionPanelStore } from '../../state/action-panel-store'
 import { ActionEditorPanel } from './ActionEditorPanel'
 import { PreparationEditorPanel } from './PreparationEditorPanel'
@@ -10,7 +12,7 @@ function requestKey(request: ActionPanelRequest) {
     .with(
       { kind: 'action' },
       (value) =>
-        `action:${value.scope.projectPath}:${value.actionId ?? 'new'}:${value.proposal?.reason ?? ''}`,
+        `action:${value.scope.projectPath}:${value.actionId ?? 'new'}:${value.proposal ? proposalKey(value.proposal) : ''}`,
     )
     .with(
       { kind: 'preparation' },
@@ -23,20 +25,17 @@ function requestKey(request: ActionPanelRequest) {
     .exhaustive()
 }
 
-/** The guided action panel's content; Escape closes it and keeps anything unfinished. */
+/**
+ * The guided action panel's content. Escape closes it and keeps anything unfinished, through the
+ * app's Escape stack so an inner popover or confirmation is dismissed first.
+ */
 export function ActionPanel({ request }: { readonly request: ActionPanelRequest }) {
-  function handleKeyDown(event: KeyboardEvent<HTMLElement>) {
-    if (event.key !== 'Escape' || event.defaultPrevented) return
-    event.preventDefault()
-    useActionPanelStore.getState().closePanel()
-  }
+  const rootRef = useRef<HTMLDivElement>(null)
+  useEscapeHotkey(() => useActionPanelStore.getState().closePanel(), {
+    shouldHandle: () => rootRef.current?.contains(document.activeElement) ?? false,
+  })
   return (
-    <section
-      aria-label="Action panel"
-      className="flex size-full min-h-0 flex-col"
-      data-testid="action-panel"
-      onKeyDown={handleKeyDown}
-    >
+    <div ref={rootRef} className="flex size-full min-h-0 flex-col" data-testid="action-panel">
       {match(request)
         .with({ kind: 'action' }, (value) => (
           <ActionEditorPanel key={requestKey(value)} request={value} />
@@ -48,6 +47,6 @@ export function ActionPanel({ request }: { readonly request: ActionPanelRequest 
           <PreparationReviewPanel key={requestKey(value)} request={value} />
         ))
         .exhaustive()}
-    </section>
+    </div>
   )
 }

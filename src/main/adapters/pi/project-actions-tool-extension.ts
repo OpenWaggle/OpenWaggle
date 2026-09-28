@@ -7,7 +7,6 @@ import {
   ACTION_DEFINITION_LIMITS,
   type ActionDefinition,
   COMMAND_REPAIR_PROPOSAL_TYPE,
-  COMMAND_REPAIR_REASON_LENGTH,
   type CommandRepairProposal,
   type ProjectTaskDiscovery,
 } from '@shared/types/action-definitions'
@@ -24,15 +23,22 @@ import type { SessionWorkspaceResourceRepositoryShape } from '../../ports/sessio
 import { getOpenWaggleAuthorize } from './agent-kernel/openwaggle-authorize-channel'
 
 const identifier = Type.String({ minLength: 1, maxLength: ACTION_DEFINITION_LIMITS.ID_LENGTH })
+/** Proposal text must contain something other than whitespace. */
+const NON_BLANK = '\\S'
 const proposedCommand = Type.String({
   minLength: 1,
   maxLength: ACTION_DEFINITION_LIMITS.COMMAND_LENGTH,
+  pattern: NON_BLANK,
 })
 const relativeDirectory = Type.String({
   minLength: 1,
   maxLength: ACTION_DEFINITION_LIMITS.PATH_LENGTH,
 })
-const proposalReason = Type.String({ minLength: 1, maxLength: COMMAND_REPAIR_REASON_LENGTH })
+const proposalReason = Type.String({
+  minLength: 1,
+  maxLength: ACTION_DEFINITION_LIMITS.REPAIR_REASON_LENGTH,
+  pattern: NON_BLANK,
+})
 const parameterVariants = [
   Type.Object({ action: Type.Literal('list') }),
   Type.Object({ action: Type.Literal('discover') }),
@@ -191,8 +197,11 @@ function currentCommand(definition: ActionDefinition, discovery: ProjectTaskDisc
       reference.task === invocation.task.task &&
       reference.directory === invocation.task.directory,
   )
-  const words = [task?.runner ?? '', ...projectTaskArguments(invocation.task)].filter(Boolean)
-  return { command: words.join(' '), directory: invocation.task.directory }
+  // Never invent a command the action did not run: an unresolved script is named, not guessed.
+  const command = task?.runner
+    ? [task.runner, ...projectTaskArguments(invocation.task)].join(' ')
+    : `${invocation.task.task} · ${invocation.task.source}`
+  return { command, directory: invocation.task.directory }
 }
 
 /** Only data: the user reviews and saves the proposal in the action panel (ADR 0038). */
@@ -219,10 +228,14 @@ async function proposeRepair(
     proposed: { command: params.command.trim(), directory: params.directory ?? current.directory },
     reason: params.reason.trim(),
   })
-  if (!decoded.success)
+  if (!decoded.success) {
+    const directoryHint = decoded.issues.some((issue) => issue.includes('directory'))
+      ? ' The directory must be relative to the project, such as "." or "packages/app".'
+      : ''
     throw new Error(
-      `Invalid project_actions arguments for "propose": ${decoded.issues.join('; ')}. The directory must be relative to the project, such as "." or "packages/app".`,
+      `Invalid project_actions arguments for "propose": ${decoded.issues.join('; ')}.${directoryHint}`,
     )
+  }
   return decoded.data
 }
 

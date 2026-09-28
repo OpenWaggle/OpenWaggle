@@ -12,11 +12,11 @@ import { removeShortcutRule, upsertShortcutRule } from '@shared/utils/shortcut-r
 import { useState } from 'react'
 import { useProjectActionMutations, useProjectActions } from '@/features/project-actions'
 import { usePreferencesStore } from '@/features/settings/state'
+import { useUIStore } from '@/shell/ui-store'
 import {
   buildShortcutBrowserRows,
   projectActionBindingCount,
-} from '@/shared/lib/shortcut-browser-model'
-import { useUIStore } from '@/shell/ui-store'
+} from '../../lib/shortcut-browser-model'
 import { ShortcutsSectionContent } from './ShortcutsSectionContent'
 
 export function ShortcutsSection() {

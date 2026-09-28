@@ -11,10 +11,6 @@ import {
 import { X } from 'lucide-react'
 import { type KeyboardEvent, useState } from 'react'
 import { ProjectActionConditionBuilder } from '@/features/project-actions'
-import {
-  type ShortcutBrowserRow,
-  shortcutBrowserConflictLabels,
-} from '@/shared/lib/shortcut-browser-model'
 import { Button } from '@/shared/ui/Button'
 import { Select } from '@/shared/ui/Select'
 import {
@@ -23,6 +19,10 @@ import {
   ShortcutConflictNotice,
   shortcutBindingFromEvent,
 } from '@/shared/ui/ShortcutRecorder'
+import {
+  type ShortcutBrowserRow,
+  shortcutBrowserConflictLabels,
+} from '../../lib/shortcut-browser-model'
 
 export type UpdateProjectShortcutRules = (
   actionId: string,

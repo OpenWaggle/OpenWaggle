@@ -1,6 +1,6 @@
 import { useId } from 'react'
-import { useChat } from '@/features/chat/hooks'
 import { useActionDiscovery, useNativeActions } from '../../hooks/useNativeActions'
+import { useOtherSessionProject } from '../../hooks/useOtherSessionProject'
 import { usePanelDraft } from '../../hooks/usePanelDraft'
 import {
   type ActionDraft,
@@ -9,6 +9,7 @@ import {
   editActionDraft,
   newActionDraft,
   proposalActionDraft,
+  proposalKey,
 } from '../../lib/action-panel-drafts'
 import { type ActionPanelRequest, useActionPanelStore } from '../../state/action-panel-store'
 import { ActionEditorForm } from './ActionEditorForm'
@@ -17,12 +18,6 @@ import { DraftSwitchPrompt } from './PanelNotices'
 import { requestForDraft } from './panel-requests'
 
 type ActionRequest = Extract<ActionPanelRequest, { kind: 'action' }>
-
-export function useOtherSessionProject(projectPath: string) {
-  const { activeSession } = useChat()
-  const other = activeSession?.projectPath
-  return other && other !== projectPath ? other : null
-}
 
 /** Adds or edits a Project action, resuming this project's draft when there is one. */
 export function ActionEditorPanel({ request }: { readonly request: ActionRequest }) {
@@ -34,13 +29,14 @@ export function ActionEditorPanel({ request }: { readonly request: ActionRequest
     ? catalog.data?.actions.find(({ definition }) => definition.id === request.actionId)
     : undefined
   const { proposal } = request
+  const wantedProposal = proposal ? proposalKey(proposal) : null
   const state = usePanelDraft<ActionDraft>({
     projectPath: request.scope.projectPath,
     target: `action:${request.actionId ?? 'new'}`,
     matches: (draft): draft is ActionDraft =>
-      draft.kind === 'action' && (!proposal || draft.proposalReason === proposal.reason),
+      draft.kind === 'action' && (wantedProposal === null || draft.proposalKey === wantedProposal),
+    ready: Boolean(catalog.data) && !discovery.isPending && (!request.actionId || Boolean(entry)),
     create: () => {
-      if (!catalog.data || (request.actionId && !entry) || discovery.isPending) return null
       if (entry && proposal) return proposalActionDraft(entry, proposal)
       if (entry) return editActionDraft(entry)
       return newActionDraft((discovery.data?.tasks.length ?? 0) > 0)

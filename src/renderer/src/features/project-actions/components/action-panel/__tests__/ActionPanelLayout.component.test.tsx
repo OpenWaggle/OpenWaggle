@@ -4,7 +4,9 @@ import type {
   ActionManagementResult,
 } from '@shared/types/action-management'
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
+import { fromPartial } from '@total-typescript/shoehorn'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { useChatStore } from '@/features/chat/state'
 import { useRightSidebarCoordinator } from '@/shared/lib/right-sidebar-coordinator'
 import { installMatchMedia } from '@/shared/ui/__tests__/right-sidebar-layout.test-harness'
 import { renderWithQueryClient } from '@/test-utils/query-test-utils'
@@ -49,12 +51,7 @@ describe('guided action panel in the right-sidebar slot', () => {
     vi.clearAllMocks()
     installMatchMedia(false)
     useRightSidebarCoordinator.setState({ activeClaim: null })
-    useActionPanelStore.setState({
-      request: null,
-      drafts: {},
-      lastSeenScriptCommands: {},
-      recentlySaved: null,
-    })
+    useActionPanelStore.setState({ request: null, drafts: {}, recentlySaved: null })
     serve()
   })
 
@@ -105,9 +102,12 @@ describe('guided action panel in the right-sidebar slot', () => {
       proposed: { command: 'pnpm test -- --run', directory: '.' },
       reason: 'Watch mode never exits here.',
     }
+    useChatStore.setState({
+      activeSession: fromPartial({ id: 'session', projectPath: '/repo' }),
+    })
     renderWithQueryClient(
       <>
-        <CommandRepairProposalCard content={{ content: [], details: proposal }} />
+        <CommandRepairProposalCard proposal={proposal} />
         <ActionPanelHost />
       </>,
     )

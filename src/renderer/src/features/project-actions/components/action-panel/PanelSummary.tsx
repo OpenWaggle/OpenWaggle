@@ -30,14 +30,14 @@ export function PanelSummary(props: {
     <Button
       variant="unstyled"
       aria-expanded={expanded}
-      aria-label={expanded ? 'Summary, shown in full. Show one line.' : 'Summary. Show it in full.'}
       className="flex w-full items-start gap-2 rounded-lg bg-bg-tertiary px-3.5 py-2.5 text-left text-sm leading-6 text-text-secondary"
       onClick={() => setExpanded(!expanded)}
     >
       <span className={cn('min-w-0 flex-1', !expanded && 'truncate')}>
-        {text.before ?? (expanded ? '' : 'Runs ')}
+        {text.before}
         <code className="font-mono text-text-primary">{text.command}</code>
         {text.after}
+        <span className="sr-only">{expanded ? ' Show one line.' : ' Show the full summary.'}</span>
       </span>
       <ChevronDown
         aria-hidden

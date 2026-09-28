@@ -10,11 +10,6 @@ import {
   ProjectActionConditionBuilder,
   projectActionUnknownWhenVariables,
 } from '@/features/project-actions'
-import {
-  type ProjectShortcutBrowserRow,
-  type ShortcutBrowserRow,
-  shortcutBrowserConflictLabels,
-} from '@/shared/lib/shortcut-browser-model'
 import { Button } from '@/shared/ui/Button'
 import {
   isShortcutModifierKey,
@@ -22,6 +17,11 @@ import {
   ShortcutConflictNotice,
   shortcutBindingFromEvent,
 } from '@/shared/ui/ShortcutRecorder'
+import {
+  type ProjectShortcutBrowserRow,
+  type ShortcutBrowserRow,
+  shortcutBrowserConflictLabels,
+} from '../../lib/shortcut-browser-model'
 import type { UpdateProjectShortcutRules } from './AddShortcutBinding'
 import { ShortcutSourceBadge } from './ShortcutRowParts'
 

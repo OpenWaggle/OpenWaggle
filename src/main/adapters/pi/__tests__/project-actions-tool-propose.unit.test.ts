@@ -24,6 +24,10 @@ const definition: ActionDefinition = {
 
 /** Proposals are data only (ADR 0038): no authorization, save or launch. */
 function registration() {
+  return registrationWith(definition)
+}
+
+function registrationWith(saved: ActionDefinition) {
   let tool: ToolDefinition | undefined
   const authorize = vi.fn(async () => true)
   const start = vi.fn()
@@ -46,10 +50,11 @@ function registration() {
         }),
     },
     catalog: fromPartial({
+      discover: () => Effect.succeed({ tasks: [], diagnostics: [] }),
       read: () =>
         Effect.succeed({
           revision: 'one',
-          actions: [{ source: 'local', definition }],
+          actions: [{ source: 'local', definition: saved }],
           profiles: [],
           preparation: [],
         }),
@@ -111,6 +116,11 @@ describe('project_actions repair proposals', () => {
       error: 'must be relative to the project',
     },
     {
+      label: 'a blank reason',
+      params: { reason: '   ' },
+      error: 'Invalid project_actions arguments',
+    },
+    {
       label: 'a missing command',
       params: { command: undefined },
       error: 'Invalid project_actions arguments',
@@ -128,5 +138,30 @@ describe('project_actions repair proposals', () => {
     expect(result.content).toEqual([
       expect.objectContaining({ text: expect.stringContaining(error) }),
     ])
+  })
+
+  it('names an unresolved script instead of inventing the command it ran', async () => {
+    const { tool, ctx } = registrationWith({
+      ...definition,
+      invocation: {
+        type: 'task',
+        task: { provider: 'package-script', source: 'package.json', task: 'dev', directory: '.' },
+      },
+    })
+    const result = await tool.execute(
+      'propose-script',
+      {
+        action: 'propose',
+        actionId: 'test',
+        command: 'pnpm dev --host',
+        reason: 'Bind all hosts.',
+      },
+      undefined,
+      undefined,
+      ctx,
+    )
+    expect(result.details).toMatchObject({
+      current: { command: 'dev · package.json', directory: '.' },
+    })
   })
 })

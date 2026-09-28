@@ -65,6 +65,8 @@ export const actionDraftSchema = Schema.Struct({
   suggestedName: Schema.NullOr(Schema.String),
   /** Why an agent proposed this change, when the draft came from a Command repair proposal. */
   proposalReason: Schema.NullOr(Schema.String),
+  /** Identifies the exact proposal (command, folder and reason) this draft was made from. */
+  proposalKey: Schema.optionalWith(Schema.NullOr(Schema.String), { default: () => null }),
 })
 export const preparationDraftSchema = Schema.Struct({
   kind: Schema.Literal('preparation'),
@@ -107,6 +109,7 @@ export function newActionDraft(hasScripts: boolean): ActionDraft {
     source: hasScripts ? 'script' : 'command',
     suggestedName: null,
     proposalReason: null,
+    proposalKey: null,
   }
 }
 
@@ -121,7 +124,13 @@ export function editActionDraft(entry: EffectiveDefinition<ActionDefinition>): A
     source: sourceFor(entry.definition),
     suggestedName: null,
     proposalReason: null,
+    proposalKey: null,
   }
+}
+
+/** Two proposals with the same reason but a different command are different proposals. */
+export function proposalKey(proposal: CommandRepairProposal) {
+  return stableJson({ proposed: proposal.proposed, reason: proposal.reason })
 }
 
 /** The agent's proposal becomes the draft; nothing is applied until the user saves. */
@@ -141,6 +150,7 @@ export function proposalActionDraft(
     },
     source: 'command',
     proposalReason: proposal.reason,
+    proposalKey: proposalKey(proposal),
   }
 }
 
@@ -236,14 +246,33 @@ export type DraftBaseState =
   | { readonly kind: 'changed'; readonly current: ActionDefinition | PreparationDefinition }
   | { readonly kind: 'removed' }
 
-/** Whether the saved definition a draft edits still matches what the draft started from. */
+/**
+ * Whether the saved definition a draft edits still matches what the draft started from. An action
+ * is found by id; preparation by its profile/phase slot, because peers may create independent ids
+ * for the same slot and a save replaces the slot.
+ */
 export function draftBaseState(draft: ActionPanelDraft, catalog: ActionCatalog): DraftBaseState {
-  if (draft.base === null) return { kind: 'current' }
-  const baseId = draft.base.id
-  const current =
-    draft.kind === 'action'
-      ? catalog.actions.find(({ definition }) => definition.id === baseId)?.definition
-      : catalog.preparation.find(({ definition }) => definition.id === baseId)?.definition
+  if (draft.kind === 'action') {
+    if (draft.base === null) return { kind: 'current' }
+    const baseId = draft.base.id
+    return compareBase(
+      draft.base,
+      catalog.actions.find(({ definition }) => definition.id === baseId)?.definition,
+    )
+  }
+  const slot = draft.base ?? draft.definition
+  const current = catalog.preparation.find(
+    ({ definition }) => definition.profileId === slot.profileId && definition.phase === slot.phase,
+  )?.definition
+  // A new setup only conflicts when someone filled the slot meanwhile.
+  if (draft.base === null) return current ? { kind: 'changed', current } : { kind: 'current' }
+  return compareBase(draft.base, current)
+}
+
+function compareBase(
+  base: ActionDefinition | PreparationDefinition,
+  current: ActionDefinition | PreparationDefinition | undefined,
+): DraftBaseState {
   if (!current) return { kind: 'removed' }
-  return sameDefinition(current, draft.base) ? { kind: 'current' } : { kind: 'changed', current }
+  return sameDefinition(current, base) ? { kind: 'current' } : { kind: 'changed', current }
 }

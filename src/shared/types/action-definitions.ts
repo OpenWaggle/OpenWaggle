@@ -10,6 +10,7 @@ export const ACTION_DEFINITION_LIMITS = {
   FILE_BYTES: 1_024 * 1_024,
   DISCOVERED_TASKS: 1_000,
   WORKSPACE_PACKAGES: 250,
+  REPAIR_REASON_LENGTH: 2_000,
 } as const
 
 export type ActionStorage = 'local' | 'project'
@@ -120,7 +121,6 @@ export type ActionCatalogEdit =
   | { readonly type: 'review-preparation'; readonly id: string; readonly enabled: boolean }
 
 export const COMMAND_REPAIR_PROPOSAL_TYPE = 'command-repair-proposal'
-export const COMMAND_REPAIR_REASON_LENGTH = 2_000
 
 /**
  * An agent-produced replacement command for a saved Project action (a Command repair proposal).

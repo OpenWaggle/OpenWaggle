@@ -24,11 +24,10 @@ export function ChangedSinceNotice(props: {
 }) {
   return (
     <section
-      role="status"
       aria-label="Changed since you started"
       className="grid gap-3 rounded-xl border border-warning/40 bg-warning/5 px-4 py-3.5"
     >
-      <p className="text-sm font-medium text-text-primary">
+      <p role="status" className="text-sm font-medium text-text-primary">
         {props.name} was changed since you started editing
       </p>
       <ChangeList changes={props.changes} />
@@ -52,11 +51,10 @@ export function RemovedSinceNotice(props: {
 }) {
   return (
     <section
-      role="status"
       aria-label="Removed since you started"
       className="grid gap-3 rounded-xl border border-warning/40 bg-warning/5 px-4 py-3.5"
     >
-      <p className="text-sm leading-6 text-text-primary">
+      <p role="status" className="text-sm leading-6 text-text-primary">
         {props.name} was removed while you were editing it.
       </p>
       <div className="flex flex-wrap gap-2">

@@ -1,6 +1,6 @@
 import type { DiscoveredProjectTask, ProjectTaskReference } from '@shared/types/action-definitions'
 import { Check, Search } from 'lucide-react'
-import { useState } from 'react'
+import { type Ref, useState } from 'react'
 import { cn } from '@/shared/lib/cn'
 import { Button } from '@/shared/ui/Button'
 import { TextInput } from '@/shared/ui/TextInput'
@@ -15,6 +15,7 @@ import {
 const COLLAPSED_SCRIPT_COUNT = 6
 
 interface ScriptPickerProps {
+  readonly rootRef?: Ref<HTMLDivElement>
   readonly tasks: readonly DiscoveredProjectTask[]
   readonly selected: ProjectTaskReference | null
   readonly status: 'loading' | 'error' | 'ready'
@@ -54,7 +55,7 @@ export function ScriptPicker(props: ScriptPickerProps) {
       </p>
     )
   return (
-    <div className="grid min-w-0 grid-cols-1 gap-2.5">
+    <div ref={props.rootRef} className="grid min-w-0 grid-cols-1 gap-2.5">
       {ranked.length > COLLAPSED_SCRIPT_COUNT ? (
         <div className="relative">
           <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-text-tertiary" />

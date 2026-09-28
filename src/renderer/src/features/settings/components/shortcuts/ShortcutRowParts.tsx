@@ -1,5 +1,5 @@
 import { cn } from '@/shared/lib/cn'
-import type { ShortcutBrowserSource } from '@/shared/lib/shortcut-browser-model'
+import type { ShortcutBrowserSource } from '../../lib/shortcut-browser-model'
 
 export function ShortcutSourceBadge({ source }: { readonly source: ShortcutBrowserSource }) {
   return (

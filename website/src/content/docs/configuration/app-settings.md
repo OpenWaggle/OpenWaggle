@@ -83,7 +83,7 @@ Preview defaults include **Viewport**, **Zoom**, **Appearance**, **Recording**, 
 
 ## Project actions and shortcuts
 
-Use **Settings > Project actions** to save tasks such as tests and builds, or services such as a dev server. Choose a discovered project script or enter a custom command. New definitions are saved for **Just me** in that project by default; **Everyone working on this project** saves a shareable `.openwaggle/actions.json` file.
+Use **Settings > Project actions** to save commands such as tests and builds, or a dev server that keeps running. Choose a discovered project script or enter a custom command. New definitions are saved for **Just me** in that project by default; **Everyone working on this project** saves a shareable `.openwaggle/actions.json` file.
 
 Launch actions from **+ Action** in the session header. They run in that session's workspace, which may be a separate worktree. Inspect output, stop or restart a run, and open its ready preview from Session Summary. Choosing an already-running action normally opens its output rather than starting another copy.
 

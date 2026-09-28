@@ -1,17 +1,20 @@
 import { safeDecodeUnknown } from '@shared/schema'
 import { commandRepairProposalSchema } from '@shared/schemas/action-definitions'
+import type { CommandRepairProposal } from '@shared/types/action-definitions'
+import { normalizeToolResultPayload } from '@shared/utils/tool-result-state'
 import { Wrench } from 'lucide-react'
-import { useChat } from '@/features/chat/hooks'
+import { useChatStore } from '@/features/chat/state'
 import { Button } from '@/shared/ui/Button'
 import { useActionPanelStore } from '../../state/action-panel-store'
 
-/** A tool result's structured details, whether live or projected from history. */
-function proposalFrom(content: unknown) {
-  const candidates = [
-    content,
-    content !== null && typeof content === 'object' ? Reflect.get(content, 'details') : undefined,
-  ]
-  for (const candidate of candidates) {
+/** The Command repair proposal in a project_actions tool result, live or projected, if any. */
+export function commandRepairProposalFrom(content: unknown): CommandRepairProposal | null {
+  const payload = normalizeToolResultPayload(content)
+  const details =
+    payload !== null && typeof payload === 'object' && 'details' in payload
+      ? payload.details
+      : undefined
+  for (const candidate of [details, payload]) {
     const decoded = safeDecodeUnknown(commandRepairProposalSchema, candidate)
     if (decoded.success) return decoded.data
   }
@@ -22,11 +25,14 @@ function proposalFrom(content: unknown) {
  * An agent's Command repair proposal in the transcript. It is only a suggestion: Review and save
  * opens the action panel with it as the draft; nothing changes until the user saves (ADR 0038).
  */
-export function CommandRepairProposalCard({ content }: { readonly content: unknown }) {
-  const { activeSession } = useChat()
-  const proposal = proposalFrom(content)
-  if (!proposal || !activeSession?.projectPath) return null
-  const { projectPath } = activeSession
+export function CommandRepairProposalCard({
+  proposal,
+}: {
+  readonly proposal: CommandRepairProposal
+}) {
+  const session = useChatStore((state) => state.activeSession)
+  if (!session?.projectPath) return null
+  const { projectPath, id: sessionId } = session
   return (
     <section
       aria-label={`Proposed fix for ${proposal.actionName}`}
@@ -47,7 +53,7 @@ export function CommandRepairProposalCard({ content }: { readonly content: unkno
         onClick={() =>
           useActionPanelStore.getState().openPanel({
             kind: 'action',
-            scope: { projectPath, sessionId: activeSession.id },
+            scope: { projectPath, sessionId },
             actionId: proposal.actionId,
             origin: 'session',
             proposal,

@@ -4,7 +4,7 @@ import type { ExtensionContributionRegistryView } from '@shared/types/extensions
 import { parseToolArgs } from '@/features/chat/lib/tool-args'
 import { ExtensionAgentLoopSurface } from '@/features/extensions'
 import { getMcpAppLaunch, McpAppHost } from '@/features/mcp'
-import { CommandRepairProposalCard } from '@/features/project-actions'
+import { CommandRepairProposalCard, commandRepairProposalFrom } from '@/features/project-actions'
 import { ToolCallBlock } from './ToolCallBlock'
 
 const JSON_STRINGIFY_INDENT = 2
@@ -41,7 +41,8 @@ function repairProposalFor(
   result: { readonly content: unknown; readonly state: string } | undefined,
 ) {
   if (toolName !== 'project_actions' || !result || result.state === 'error') return null
-  return <CommandRepairProposalCard content={result.content} />
+  const proposal = commandRepairProposalFrom(result.content)
+  return proposal ? <CommandRepairProposalCard proposal={proposal} /> : null
 }
 
 export function ToolCallRouter({

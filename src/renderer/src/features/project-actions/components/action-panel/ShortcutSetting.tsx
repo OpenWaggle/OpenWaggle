@@ -2,11 +2,11 @@ import type { ProjectActionShortcutRule } from '@shared/types/project-actions'
 import type { ShortcutBinding } from '@shared/types/shortcuts'
 import { useNavigate } from '@tanstack/react-router'
 import { type KeyboardEvent, useState } from 'react'
-import { usePreferencesStore } from '@/features/settings'
 import {
   buildShortcutBrowserRows,
   shortcutBrowserConflictLabels,
-} from '@/shared/lib/shortcut-browser-model'
+  usePreferencesStore,
+} from '@/features/settings'
 import { formatShortcutBinding } from '@/shared/lib/shortcut-display'
 import { Button } from '@/shared/ui/Button'
 import {

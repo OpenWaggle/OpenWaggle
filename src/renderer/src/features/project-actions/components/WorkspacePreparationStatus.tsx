@@ -43,6 +43,7 @@ export function WorkspacePreparationStatus({ scope }: { readonly scope: ActionMa
       {state ? (
         <PreparationSnapshotDetails
           projectPath={scope.projectPath}
+          multipleProfiles={(catalog.data?.profiles.length ?? 0) > 1}
           state={state}
           mutation={preparation.mutation}
         />
@@ -109,10 +110,13 @@ function WorkspaceProfilePicker({
 }
 function PreparationSnapshotDetails({
   projectPath,
+  multipleProfiles,
   state,
   mutation,
 }: {
   readonly projectPath: string
+  /** Profiles are named only once a project has more than one (ADR 0038). */
+  readonly multipleProfiles: boolean
   readonly state: WorkspacePreparation
   readonly mutation: Mutation
 }) {
@@ -121,7 +125,10 @@ function PreparationSnapshotDetails({
     (entry) => entry.definition.phase === 'setup' && entry.review !== 'enabled',
   )
   const blocked = state.setup.status === 'failed' || state.setup.status === 'review-required'
-  const automaticReview = reviewable !== undefined && state.setup.status === 'review-required'
+  // Only a change that still needs review opens the panel by itself; after "Keep it off" the
+  // entry is disabled, not required, so declining never reopens it.
+  const automaticReview =
+    reviewable?.review === 'required' && state.setup.status === 'review-required'
   const busy = mutation.isPending || state.setup.status === 'running'
   const attemptId = state.setup.attemptId
   function apply(operation: Change) {
@@ -136,7 +143,7 @@ function PreparationSnapshotDetails({
       review: {
         entry: reviewable,
         profileName: state.snapshot.profile.name,
-        showProfile: state.snapshot.profile.id !== 'default',
+        showProfile: multipleProfiles,
         automatic,
         decide: (enabled) =>
           mutation.mutateAsync({
