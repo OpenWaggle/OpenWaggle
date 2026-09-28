@@ -3,12 +3,14 @@ import type { ProviderInfo } from '@shared/types/llm'
 import type { SessionDetail } from '@shared/types/session'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fromPartial } from '@total-typescript/shoehorn'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useBackgroundRunStore, useChatStore } from '@/features/chat/state'
 import { useProviderStore } from '@/features/providers/state'
 import { usePreferencesStore } from '@/features/settings/state'
 import { api } from '@/shared/lib/ipc'
 import { useUIStore } from '@/shell/ui-store'
+import { ComposerHeader } from '../ComposerHeader'
 import { ComposerModelPicker } from '../ComposerModelPicker'
 
 vi.mock('@/shared/lib/ipc', () => ({
@@ -87,6 +89,26 @@ function openSession(id: SessionId, storedAfterRefresh: SupportedModelId) {
   })
 }
 
+const NEXT_MESSAGE_NOTICE =
+  'Claude Sonnet applies to your next message. This turn keeps using GPT 5.'
+
+function renderComposerModelControls() {
+  return render(
+    <>
+      <ComposerHeader
+        attachments={fromPartial({
+          attachments: [],
+          pendingTextAttachmentChips: [],
+          attachmentError: null,
+        })}
+        voiceError={null}
+        onClearVoiceError={vi.fn()}
+      />
+      <ComposerModelPicker />
+    </>,
+  )
+}
+
 function pickNextModel() {
   fireEvent.click(screen.getByRole('button', { name: 'GPT 5' }))
   fireEvent.click(screen.getByRole('option', { name: 'Claude Sonnet' }))
@@ -115,7 +137,7 @@ describe('ComposerModelPicker for an existing Session', () => {
   it('switches the model of an idle Session without changing the default for new Sessions', async () => {
     const sessionId = SessionId('session-switch-model')
     openSession(sessionId, NEXT_MODEL)
-    render(<ComposerModelPicker />)
+    renderComposerModelControls()
 
     expect(screen.getByRole('button', { name: 'GPT 5' })).toBeEnabled()
     pickNextModel()
@@ -124,7 +146,7 @@ describe('ComposerModelPicker for an existing Session', () => {
     expect(useChatStore.getState().sessionById.get(sessionId)?.executionModel).toBe(NEXT_MODEL)
     await waitFor(() => expect(api.setSessionModel).toHaveBeenCalledWith(sessionId, NEXT_MODEL))
     expect(await screen.findByRole('button', { name: 'Claude Sonnet' })).toBeInTheDocument()
-    expect(screen.queryByText('Next message')).not.toBeInTheDocument()
+    expect(screen.queryByText(NEXT_MESSAGE_NOTICE)).not.toBeInTheDocument()
     expect(usePreferencesStore.getState().settings.selectedModel).toBe(CURRENT_MODEL)
   })
 
@@ -132,29 +154,29 @@ describe('ComposerModelPicker for an existing Session', () => {
     const sessionId = SessionId('session-mid-turn-model')
     openSession(sessionId, NEXT_MODEL)
     useBackgroundRunStore.getState().addActiveRun(sessionId, CURRENT_MODEL)
-    render(<ComposerModelPicker />)
+    renderComposerModelControls()
 
-    expect(screen.queryByText('Next message')).not.toBeInTheDocument()
+    expect(screen.queryByText(NEXT_MESSAGE_NOTICE)).not.toBeInTheDocument()
     pickNextModel()
 
     await waitFor(() => expect(api.setSessionModel).toHaveBeenCalledWith(sessionId, NEXT_MODEL))
     const trigger = await screen.findByRole('button', { name: 'Claude Sonnet' })
     expect(trigger).toHaveAttribute('title', expect.stringContaining('next message'))
     expect(trigger).toHaveAttribute('title', expect.stringContaining('keeps using GPT 5'))
-    expect(screen.getByText('Next message')).toBeInTheDocument()
+    expect(screen.getByText(NEXT_MESSAGE_NOTICE)).toBeInTheDocument()
     expect(useBackgroundRunStore.getState().runModelBySessionId.get(sessionId)).toBe(CURRENT_MODEL)
 
     // The next Run starts with the new model, so the pick is no longer pending.
     useBackgroundRunStore.getState().removeActiveRun(sessionId)
     useBackgroundRunStore.getState().addActiveRun(sessionId, NEXT_MODEL)
-    await waitFor(() => expect(screen.queryByText('Next message')).not.toBeInTheDocument())
+    await waitFor(() => expect(screen.queryByText(NEXT_MESSAGE_NOTICE)).not.toBeInTheDocument())
   })
 
   it('rolls the pick back and says so when the Session Host rejects it', async () => {
     const sessionId = SessionId('session-rejected-model')
     openSession(sessionId, CURRENT_MODEL)
     vi.mocked(api.setSessionModel).mockRejectedValueOnce(new Error('Host unavailable'))
-    render(<ComposerModelPicker />)
+    renderComposerModelControls()
 
     pickNextModel()
 
