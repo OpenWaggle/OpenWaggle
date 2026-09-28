@@ -19,7 +19,7 @@ import {
   reserveActiveSessionRun,
   reservePendingClassicSessionRun,
 } from './active-session-runs'
-import { restoreHiveWorkerAfterUserCommand } from './hive-worker-cleanup-request'
+import { restoreHiveWorkerAfterCommand } from './hive-worker-cleanup-request'
 import { withSessionCommandSerialization } from './session-command-serialization'
 import {
   executeUnserializedSessionControlCommand,
@@ -185,7 +185,7 @@ export function executeSessionControlMutation(input: {
       sessionId,
       executeUnserializedSessionControlCommand(input).pipe(
         Effect.tap((response) =>
-          restoreHiveWorkerAfterUserCommand({
+          restoreHiveWorkerAfterCommand({
             callerId: input.callerId,
             request: input.request,
             response,

@@ -8,20 +8,21 @@ export interface HiveWorkerCleanupShape {
    */
   readonly requestReconciliation: (sessionId: SessionId) => Effect.Effect<void>
   /**
-   * A user command addressed `sessionId`. If Hive cleanup archived it, unarchive it now,
-   * attributed to `callerId`, and publish the change. Runs inline, inside the command's own
-   * Session serialization (so it must not take that serialization again), and never fails.
+   * A user or agent command resumed work on `sessionId`. If Hive cleanup archived it, unarchive
+   * it now, attributed to `callerId`, and publish the change. Explicit archives stay. Runs
+   * inline; the caller must already hold `sessionId`'s command serialization (so this must not
+   * take it again). Never fails.
    */
-  readonly restoreForUserCommand: (input: {
+  readonly restoreForCommand: (input: {
     readonly callerId: string
     readonly sessionId: SessionId
-    /** The user command's idempotency key; the restore derives its own key from it. */
+    /** The resuming command's idempotency key; the restore derives its own key from it. */
     readonly idempotencyKey: string
   }) => Effect.Effect<void>
 }
 
 /**
- * Optional Session Host collaborator. Run settlement, delegation review, and user commands look
+ * Optional Session Host collaborator. Run settlement, delegation review, and resuming commands look
  * it up with `Effect.serviceOption`, so runtimes and tests that do not provide it keep their
  * behavior.
  */

@@ -8,7 +8,10 @@ import { isHiveAgentCaller } from '../ports/hive-worker-cleanup-repository'
 import { SessionControlIdentityService } from '../ports/session-control-identity-service'
 import { SessionDelegationRepository } from '../ports/session-delegation-repository'
 import { SessionOrchestrationUpdateDeliveryService } from '../ports/session-orchestration-update-delivery-service'
-import { requestHiveWorkerCleanup } from './hive-worker-cleanup-request'
+import {
+  requestHiveWorkerCleanup,
+  restoreHiveWorkerAfterDelegationReview,
+} from './hive-worker-cleanup-request'
 
 function specificationUpdateWorker(response: SessionControlMutationResponse) {
   const outcome = response.outcome
@@ -58,6 +61,12 @@ export function executeSessionDelegationMutation(input: {
         .deliverPendingSpecificationsToActiveRun({ workerSessionId })
         .pipe(Effect.catchAll(() => Effect.succeed(false)))
     }
+    // A reopen or revision request sends a cleanup-archived Worker back to work: show it again.
+    yield* restoreHiveWorkerAfterDelegationReview({
+      callerId: input.callerId,
+      request: input.request,
+      response,
+    })
     const parentSessionId = cleanupParentForTerminalDelegation(input.callerId, response)
     if (parentSessionId) {
       // Hive cleanup trigger: the parent agent accepted or cancelled a Worker's Delegation. A

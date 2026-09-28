@@ -266,7 +266,7 @@ export function createSessionsToolExtension(input: SessionsToolExtensionInput): 
         'authorization_set changes a persistent Session boundary and requires its stronger dedicated grant.',
         'Use report for provenance-labelled peer context that must not start, steer, or reopen a Run.',
         'Workers submit immutable Delegation results; parents request revision or accept an exact submission revision.',
-        'Cleanup is automatic: once you accept or cancel a Worker and it is idle with nothing queued or parked, the Host archives it on your behalf unless the user ever interacted with it. Archived Workers still accept start and follow_up; use unarchive to show one again.',
+        'Cleanup is automatic: once you accept or cancel a Worker and it is idle with nothing queued or parked, the Host archives it on your behalf unless the user ever interacted with it. Sending start, follow_up, steer, or replace to a Worker that cleanup archived, or reopening or requesting revision of its Delegation, restores it. A Worker archived explicitly stays archived; use unarchive to show it again.',
         'Search before reading broad history, and page transcript items deliberately.',
         'When export returns nextCreatedOrder, continue with afterCreatedOrder and the exact first-page snapshotManifest; never reconstruct or edit that manifest.',
         'Use export_create for a durable file or bundle export, then exports_wait or exports_read to inspect completion. Export destinations stay inside the current workspace.',

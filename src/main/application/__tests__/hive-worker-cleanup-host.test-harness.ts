@@ -3,7 +3,10 @@ import os from 'node:os'
 import path from 'node:path'
 import type * as SqlClient from '@effect/sql/SqlClient'
 import { FollowUpId, ReportCorrelationId, ReportId, RunId, SessionId } from '@shared/types/brand'
-import { SESSION_CONTROL_CONTRACT_VERSION } from '@shared/types/session-control'
+import {
+  SESSION_CONTROL_CONTRACT_VERSION,
+  type SessionControlMutationRequest,
+} from '@shared/types/session-control'
 import type { SessionHostEventPayload } from '@shared/types/session-host-event'
 import { fromPartial } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
@@ -30,6 +33,7 @@ import { SessionReportRepository } from '../../ports/session-report-repository'
 import { installSessionHostEventPublisher } from '../../session-host/session-host-events'
 import { activeRuns, hasAnyActiveRun } from '../active-session-runs'
 import { makeHiveWorkerCleanupLayer } from '../hive-worker-cleanup-service'
+import { executeSessionControlMutation } from '../session-control-command-service'
 import { startSessionRun } from '../session-control-service'
 import { executeSessionDelegationMutation } from '../session-delegation-service'
 
@@ -105,6 +109,23 @@ export function delegationCommand(
         command.operation === 'delegation-accept'
           ? { ...command, submissionRevision: 1 }
           : { ...command, submissionRevision: 1, feedback: 'Cover the error path too.' },
+    },
+  })
+}
+
+/** Runs `command` through the full Session Control command path, as the `sessions` tool does. */
+export function controlCommandAs(
+  callerId: string,
+  key: string,
+  command: SessionControlMutationRequest['command'],
+) {
+  return executeSessionControlMutation({
+    callerId,
+    request: {
+      contractVersion: SESSION_CONTROL_CONTRACT_VERSION,
+      requestId: key,
+      idempotencyKey: key,
+      command,
     },
   })
 }

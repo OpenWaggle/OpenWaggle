@@ -16,17 +16,20 @@ import { organizeSession } from '../session-organization-service'
 import {
   archived,
   archiveStateJournal,
+  commandHostLayer,
+  controlCommandAs,
   delegationCommand,
   hiveHostLayer,
   seedQueenAuthority,
   startAs,
   useHiveHostTestContext,
+  waitForSessionIdle,
 } from './hive-worker-cleanup-host.test-harness'
 
 describe('Hive cleanup phase against the real SQLite Session Host store', () => {
   const host = useHiveHostTestContext('openwaggle-hive-cleanup-flow-')
 
-  it('archives a Worker when its parent accepts it, and the Queen can still start it', async () => {
+  it('archives a Worker when its parent accepts it, and restores it when the Queen restarts it', async () => {
     const result = await Effect.runPromise(
       Effect.gen(function* () {
         const sql = yield* SqlClient.SqlClient
@@ -51,15 +54,23 @@ describe('Hive cleanup phase against the real SQLite Session Host store', () => 
           SELECT caller_id FROM session_operations
           WHERE operation = ${'archive'} AND target_scope = ${'worker'}
         `
-        const restarted = yield* startAs(QUEEN_CALLER_ID, 'worker', 'queen-restart')
+        const restarted = yield* controlCommandAs(QUEEN_CALLER_ID, 'queen-restart', {
+          operation: 'start',
+          sessionId: 'worker',
+          input: { text: 'Check one more thing.', attachmentIds: [] },
+        })
+        const archivedAfterRestart = yield* archived(sql, 'worker')
+        yield* waitForSessionIdle('worker')
         return {
           accepted: accepted.outcome,
           archivedAfterAccept,
           attribution,
           restarted: restarted.outcome,
-          archivedAfterRestart: yield* archived(sql, 'worker'),
+          archivedAfterRestart,
+          archivedAfterRestartedRun: yield* archived(sql, 'worker'),
+          journal: yield* archiveStateJournal(sql, 'worker'),
         }
-      }).pipe(Effect.provide(hiveHostLayer(path.join(host.temporaryRoot, 'accept.sqlite')))),
+      }).pipe(Effect.provide(commandHostLayer(path.join(host.temporaryRoot, 'accept.sqlite')))),
     )
 
     expect(result.accepted).toMatchObject({
@@ -69,11 +80,22 @@ describe('Hive cleanup phase against the real SQLite Session Host store', () => 
     expect(result.archivedAfterAccept).toBe(true)
     expect(result.attribution).toEqual([{ caller_id: QUEEN_CALLER_ID }])
     expect(result.restarted).toMatchObject({ effect: 'started-run', sessionId: 'worker' })
-    expect(result.archivedAfterRestart).toBe(true)
+    expect(result.archivedAfterRestart).toBe(false)
+    // The cleanup archive key names the accept that archived it, so the settled Run replays it.
+    expect(result.archivedAfterRestartedRun).toBe(false)
+    expect(result.journal).toEqual([
+      { caller_id: QUEEN_CALLER_ID, operation: 'archive' },
+      { caller_id: QUEEN_CALLER_ID, operation: 'unarchive' },
+    ])
     expect(host.events).toContainEqual({
       kind: 'session-list-changed',
       sessionId: 'worker',
       change: 'archived',
+    })
+    expect(host.events).toContainEqual({
+      kind: 'session-list-changed',
+      sessionId: 'worker',
+      change: 'unarchived',
     })
   })
 

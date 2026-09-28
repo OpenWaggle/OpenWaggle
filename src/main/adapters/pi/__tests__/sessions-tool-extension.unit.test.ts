@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { buildSessionsToolPayload, createSessionsToolExtension } from '../sessions-tool-extension'
 
 describe('Pi-native Sessions tool', () => {
-  it('tells the Queen that finished untouched Workers are archived and can be restored', async () => {
+  it('tells the Queen that finished untouched Workers are archived and come back with new work', async () => {
     const registerTool = vi.fn()
     await createSessionsToolExtension({
       sessionId: 'session-queen',
@@ -19,7 +19,16 @@ describe('Pi-native Sessions tool', () => {
       ]),
     )
     expect(guidelines).toEqual(
-      expect.arrayContaining([expect.stringMatching(/use unarchive to show one again/)]),
+      expect.arrayContaining([
+        expect.stringMatching(
+          /start, follow_up, steer, or replace to a Worker that cleanup archived, or reopening or requesting revision of its Delegation, restores it/,
+        ),
+      ]),
+    )
+    expect(guidelines).toEqual(
+      expect.arrayContaining([
+        expect.stringMatching(/archived explicitly stays archived; use unarchive to show it again/),
+      ]),
     )
   })
 

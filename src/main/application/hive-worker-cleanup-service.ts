@@ -213,10 +213,12 @@ export function reconcileHiveWorkerCleanup(sessionId: SessionId) {
 }
 
 /**
- * A user talked to a Worker that Hive cleanup archived: bring it back in the same command. The
- * caller already holds the Worker's command serialization.
+ * A user or agent resumed work on a Worker that Hive cleanup archived: bring it back in the same
+ * command, attributed to that caller. The caller already holds the Worker's command
+ * serialization. The restored Worker stays visible until its Delegation reaches a new terminal
+ * transition: the cleanup archive key replays for the transition that archived it.
  */
-export function restoreHiveWorkerForUserCommand(input: {
+export function restoreHiveWorkerForCommand(input: {
   readonly callerId: string
   readonly sessionId: SessionId
   readonly idempotencyKey: string
@@ -240,12 +242,12 @@ export function restoreHiveWorkerForUserCommand(input: {
 
 type HiveWorkerCleanupDependencies =
   | Effect.Effect.Context<ReturnType<typeof reconcileHiveWorkerCleanup>>
-  | Effect.Effect.Context<ReturnType<typeof restoreHiveWorkerForUserCommand>>
+  | Effect.Effect.Context<ReturnType<typeof restoreHiveWorkerForCommand>>
 
 /**
  * `background` (the Host default) forks each pass so Run settlement and Delegation review never
  * wait on archive teardown. `inline` completes the pass before returning, for deterministic tests.
- * Restoration for a user command always runs inline: it is part of that command.
+ * Restoration for a resuming command always runs inline: it is part of that command.
  */
 export function makeHiveWorkerCleanupLayer(strategy: 'background' | 'inline' = 'background') {
   return Layer.effect(
@@ -268,15 +270,18 @@ export function makeHiveWorkerCleanupLayer(strategy: 'background' | 'inline' = '
           )
           return strategy === 'inline' ? pass : pass.pipe(Effect.forkDaemon, Effect.asVoid)
         },
-        restoreForUserCommand: (input) =>
-          restoreHiveWorkerForUserCommand(input).pipe(
+        restoreForCommand: (input) =>
+          restoreHiveWorkerForCommand(input).pipe(
             Effect.provide(context),
             Effect.catchAllCause((cause) =>
               Effect.sync(() => {
-                logger.warn('Could not restore a Hive cleanup-archived Worker for a user command', {
-                  sessionId: input.sessionId,
-                  cause: Cause.pretty(cause),
-                })
+                logger.warn(
+                  'Could not restore a Hive cleanup-archived Worker for a resuming command',
+                  {
+                    sessionId: input.sessionId,
+                    cause: Cause.pretty(cause),
+                  },
+                )
               }),
             ),
             Effect.asVoid,
