@@ -11,11 +11,8 @@ import {
   TREE_SIDEBAR_EXPANDED,
 } from './constants'
 import { latestModeStateForActiveNode, latestModeStateForBranch } from './mode-state-projection'
-import {
-  nodeProjectionChanged,
-  searchProjectionChanged,
-  transcriptTermProjectionNodeIds,
-} from './snapshot-transcript-term-changes'
+import { reconcileSnapshotNodes } from './snapshot-node-reconciliation'
+import { transcriptTermProjectionNodeIds } from './snapshot-transcript-term-changes'
 import { reconcileWithTranscriptTermProjection } from './snapshot-transcript-term-projection'
 import type {
   DerivedSessionBranch,
@@ -51,102 +48,6 @@ function deleteSnapshotBranchProjection(
     `
     yield* sql`DELETE FROM session_branches WHERE session_id = ${sessionId}`
   })
-}
-
-function projectedNode(input: SnapshotProjectionInput, node: ProjectedSessionNodeInput) {
-  return {
-    parentId: node.parentId,
-    piEntryType: node.piEntryType,
-    kind: node.kind,
-    role: node.role,
-    timestampMs: node.timestampMs,
-    contentJson: node.contentJson,
-    metadataJson: node.metadataJson,
-    branchHintId: input.branchHintByNodeId.get(node.id) ?? null,
-    pathDepth: node.pathDepth,
-    createdOrder: node.createdOrder,
-  }
-}
-
-function updateSnapshotNode(input: {
-  readonly sql: SqlClient.SqlClient
-  readonly nodeId: string
-  readonly next: ReturnType<typeof projectedNode>
-  readonly updateSearchProjection: boolean
-}) {
-  if (!input.updateSearchProjection) {
-    return input.sql`
-      UPDATE session_nodes SET
-        parent_id = ${input.next.parentId}, pi_entry_type = ${input.next.piEntryType},
-        timestamp_ms = ${input.next.timestampMs},
-        metadata_json = ${input.next.metadataJson}, branch_hint_id = ${input.next.branchHintId},
-        path_depth = ${input.next.pathDepth}
-      WHERE id = ${input.nodeId}
-    `
-  }
-  return input.sql`
-    UPDATE session_nodes SET
-      parent_id = ${input.next.parentId}, pi_entry_type = ${input.next.piEntryType},
-      kind = ${input.next.kind}, role = ${input.next.role},
-      timestamp_ms = ${input.next.timestampMs}, content_json = ${input.next.contentJson},
-      metadata_json = ${input.next.metadataJson}, branch_hint_id = ${input.next.branchHintId},
-      path_depth = ${input.next.pathDepth}, created_order = ${input.next.createdOrder}
-    WHERE id = ${input.nodeId}
-  `
-}
-
-function reconcileSnapshotNodes(input: SnapshotProjectionInput) {
-  return Effect.gen(function* () {
-    const existingById = new Map(input.existingNodes.map((node) => [node.id, node]))
-    const retainedIds = new Set(input.nodes.map((node) => node.id))
-
-    for (const node of input.nodes) {
-      const existing = existingById.get(node.id)
-      if (!existing) continue
-      const next = projectedNode(input, node)
-      if (!nodeProjectionChanged(existing, next)) continue
-      yield* updateSnapshotNode({
-        sql: input.sql,
-        nodeId: node.id,
-        next,
-        updateSearchProjection: searchProjectionChanged(existing, next),
-      })
-    }
-    for (const existing of input.existingNodes) {
-      if (!retainedIds.has(existing.id)) {
-        yield* input.sql`DELETE FROM session_nodes WHERE id = ${existing.id}`
-      }
-    }
-    for (const node of input.nodes) {
-      if (existingById.has(node.id)) continue
-      yield* insertSnapshotNode({
-        sql: input.sql,
-        sessionId: input.input.sessionId,
-        branchHintByNodeId: input.branchHintByNodeId,
-        node,
-      })
-    }
-  })
-}
-
-function insertSnapshotNode(input: {
-  readonly sql: SqlClient.SqlClient
-  readonly sessionId: PersistSessionSnapshotInput['sessionId']
-  readonly branchHintByNodeId: ReadonlyMap<string, string>
-  readonly node: ProjectedSessionNodeInput
-}) {
-  return input.sql`
-    INSERT INTO session_nodes (
-      id, session_id, parent_id, pi_entry_type, kind, role, timestamp_ms, content_json,
-      metadata_json, branch_hint_id, path_depth, created_order
-    )
-    VALUES (
-      ${input.node.id}, ${input.sessionId}, ${input.node.parentId}, ${input.node.piEntryType},
-      ${input.node.kind}, ${input.node.role}, ${input.node.timestampMs}, ${input.node.contentJson},
-      ${input.node.metadataJson}, ${input.branchHintByNodeId.get(input.node.id) ?? null},
-      ${input.node.pathDepth}, ${input.node.createdOrder}
-    )
-  `
 }
 
 function insertSnapshotBranch(input: {
@@ -280,7 +181,13 @@ export function replaceSnapshotProjection(input: SnapshotProjectionInput) {
       nodeIds: termProjectionNodeIds,
       reconcile: Effect.zipRight(
         deleteSnapshotBranchProjection(input.sql, input.input.sessionId),
-        reconcileSnapshotNodes(input),
+        reconcileSnapshotNodes({
+          sql: input.sql,
+          sessionId: input.input.sessionId,
+          existingNodes: input.existingNodes,
+          nodes: input.nodes,
+          branchHintByNodeId: input.branchHintByNodeId,
+        }),
       ),
     })
     for (const branch of input.branches) {
