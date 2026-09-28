@@ -235,4 +235,15 @@ describe('repaired MCP direct tools through the agent loop', () => {
       if (repaired.accepted) expect(serverSchemaAccepts(schema, repaired.forwarded)).toBe(true)
     },
   )
+
+  it('never forwards what the exact server validator rejects, even when Pi accepts it', async () => {
+    // Pi bundles its own TypeBox; its `iri` format accepts IPvFuture hosts, the app's does not.
+    const schema = {
+      type: 'object',
+      anyOf: [{ properties: { x: { type: 'string', format: 'iri' } }, required: ['x'] }],
+    }
+    const repaired = await throughRepairedTool(schema, { x: 'http://[v1.fe]/' })
+
+    if (repaired.accepted) expect(serverSchemaAccepts(schema, repaired.forwarded)).toBe(true)
+  })
 })

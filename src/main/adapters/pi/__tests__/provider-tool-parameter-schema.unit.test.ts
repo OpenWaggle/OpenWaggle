@@ -136,14 +136,26 @@ describe('providerToolParameters', () => {
     expect(repairs).toContain('stopped flattening recursive root combinators')
   })
 
-  it('bounds the work a wide self-referencing combinator costs and reports each repair once', () => {
-    const started = performance.now()
-    const { repairs } = providerToolParameters({
+  it.each(['object', 'string'])(
+    'bounds the work a wide self-referencing combinator costs, reporting each repair once (%s root)',
+    (type) => {
+      const started = performance.now()
+      const { repairs } = providerToolParameters({
+        type,
+        anyOf: Array.from({ length: 60 }, () => ({ $ref: '#' })),
+      })
+
+      expect(performance.now() - started).toBeLessThan(1_000)
+      expect(new Set(repairs).size).toBe(repairs.length)
+    },
+  )
+
+  it('does not close the flattened root when a true alternative accepts any object', () => {
+    const { schema } = providerToolParameters({
       type: 'object',
-      anyOf: Array.from({ length: 60 }, () => ({ $ref: '#' })),
+      anyOf: [true, { properties: { a: { type: 'string' } }, additionalProperties: false }],
     })
 
-    expect(performance.now() - started).toBeLessThan(1_000)
-    expect(new Set(repairs).size).toBe(repairs.length)
+    expect(schema).not.toHaveProperty('additionalProperties')
   })
 })

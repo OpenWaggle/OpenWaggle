@@ -1,7 +1,12 @@
-import { isMatching, P } from '@diegogbrisa/ts-match'
+import {
+  isJsonSchemaObject,
+  type JsonSchemaObject,
+  type MutableJsonSchema,
+  propertiesOf,
+  requiredOf,
+} from './json-schema-object'
 
-type JsonSchemaObject = { readonly [key: string]: unknown }
-type MutableJsonSchema = { [key: string]: unknown }
+export { isJsonSchemaObject } from './json-schema-object'
 
 /**
  * Root keywords at least one supported provider rejects. Bedrock (and Anthropic) require
@@ -28,10 +33,6 @@ const MAX_REFERENCE_DEPTH = 16
 const MAX_FLATTEN_DEPTH = 4
 const MAX_FLATTENED_SCHEMAS = 256
 const LOCAL_POINTER_PREFIX = '#/'
-
-export function isJsonSchemaObject(value: unknown): value is JsonSchemaObject {
-  return isMatching(P.record(P.string, P._), value) && !Array.isArray(value)
-}
 
 /** Why a provider would reject `schema` as a tool's parameters; empty when every provider accepts it. */
 export function providerToolSchemaViolations(schema: unknown): string[] {
@@ -101,16 +102,6 @@ function isObjectShaped(schema: JsonSchemaObject) {
   return Array.isArray(type) && type.includes('object')
 }
 
-function propertiesOf(schema: JsonSchemaObject): JsonSchemaObject {
-  return isJsonSchemaObject(schema.properties) ? schema.properties : {}
-}
-
-function requiredOf(schema: JsonSchemaObject): string[] {
-  return Array.isArray(schema.required)
-    ? schema.required.filter((key): key is string => typeof key === 'string')
-    : []
-}
-
 function withoutDuplicates(schemas: readonly unknown[]) {
   const seen = new Set<string>()
   return schemas.filter((schema) => {
@@ -174,6 +165,14 @@ function mergeConjunction(root: FlatRoot, members: readonly MutableJsonSchema[])
   }
 }
 
+/** Only what every alternative requires can be required once they share one object. */
+function requiredByEvery(alternatives: readonly MutableJsonSchema[]) {
+  const [first, ...others] = alternatives
+  return (first ? requiredOf(first) : []).filter((key) =>
+    others.every((alternative) => requiredOf(alternative).includes(key)),
+  )
+}
+
 function mergeAlternatives(
   root: FlatRoot,
   alternatives: readonly MutableJsonSchema[],
@@ -190,15 +189,12 @@ function mergeAlternatives(
     const distinct = withoutDuplicates(schemas)
     root.properties[key] = distinct.length === 1 ? distinct[0] : { anyOf: distinct }
   }
-  // Only what every alternative requires can be required once they share one object. A `true`
-  // alternative accepts any object, so then nothing is required by every alternative.
-  const [first, ...others] = hasUnconstrainedAlternative ? [] : alternatives
-  for (const key of first ? requiredOf(first) : []) {
-    if (others.every((alternative) => requiredOf(alternative).includes(key))) root.required.add(key)
-  }
+  // A `true` alternative accepts any object: nothing is then required or closed by every one.
+  const constrained = hasUnconstrainedAlternative ? [] : alternatives
+  for (const key of requiredByEvery(constrained)) root.required.add(key)
   const allClosed =
-    alternatives.length > 0 &&
-    alternatives.every((alternative) => alternative.additionalProperties === false)
+    constrained.length > 0 &&
+    constrained.every((alternative) => alternative.additionalProperties === false)
   if (root.result.additionalProperties === undefined && allClosed) {
     root.result.additionalProperties = false
   }
@@ -309,7 +305,7 @@ export function providerToolParameters(schema: unknown): ProviderToolParameters 
           ...(title === undefined ? {} : { title }),
           ...($schema === undefined ? {} : { $schema }),
         },
-        repairs,
+        repairs: [...new Set(repairs)],
       }
     }
     repairs.push(`set root type ${JSON.stringify(type) ?? 'missing'} to "object"`)

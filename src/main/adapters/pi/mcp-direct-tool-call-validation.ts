@@ -2,8 +2,8 @@ import type { ToolCall } from '@earendil-works/pi-ai/compat'
 import { validateToolArguments } from '@earendil-works/pi-ai/utils/validation'
 import type { McpDirectToolDescriptor } from '@shared/types/mcp'
 import type { TUnsafe } from 'typebox'
+import { isJsonSchemaObject } from './json-schema-object'
 import { toJsonObject } from './pi-message-mapper'
-import { isJsonSchemaObject } from './provider-tool-parameter-schema'
 import type { ToolArgumentsValidator } from './tool-arguments-validator'
 
 type ToolParameters = TUnsafe<Record<string, unknown>>
@@ -50,19 +50,21 @@ function piCleanedArguments(
  * Returns the arguments to forward for a repaired direct tool, or throws a model-readable error.
  *
  * The provider-facing schema is relaxed, so Pi's own clean-up (dropping optional `null`s,
- * coercing `'5'` to `5`) has not happened yet. In order, forward:
+ * coercing `'5'` to `5`) has not happened yet. Forward the first of these the server's schema
+ * accepts exactly:
  * 1. what Pi accepts against the server's schema, as Pi cleaned it;
- * 2. what Pi's coercion through the flattened repair turns into arguments the server's
- *    schema accepts exactly;
- * 3. the arguments as sent, when the server's schema accepts them exactly.
+ * 2. what Pi's coercion through the flattened repair makes of them;
+ * 3. the arguments as sent.
  */
 export function mcpDirectToolCallArguments(
   tool: McpDirectToolDescriptor,
   validation: McpDirectToolCallValidation,
   arguments_: Record<string, unknown>,
 ): Record<string, unknown> {
+  // Pi bundles its own TypeBox, which can disagree with the app's on edge cases (formats), so even
+  // Pi's own verdict is confirmed exactly: nothing the server schema rejects is ever forwarded.
   const cleaned = piCleanedArguments(tool, validation.server, arguments_)
-  if (cleaned) return cleaned
+  if (cleaned && validation.validate(cleaned).length === 0) return cleaned
   const coerced = piCleanedArguments(tool, validation.flattened, arguments_)
   if (coerced && validation.validate(coerced).length === 0) return coerced
   const invalid = validation.validate(arguments_)

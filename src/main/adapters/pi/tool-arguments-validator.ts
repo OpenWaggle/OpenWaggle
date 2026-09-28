@@ -1,6 +1,5 @@
 import { Compile } from 'typebox/schema'
-
-type JsonSchemaObject = { readonly [key: string]: unknown }
+import type { JsonSchemaObject } from './json-schema-object'
 
 const MAX_VALIDATION_DETAILS = 8
 

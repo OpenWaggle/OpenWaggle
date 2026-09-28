@@ -1,6 +1,4 @@
-import { isJsonSchemaObject } from './provider-tool-parameter-schema'
-
-type MutableJsonSchema = { [key: string]: unknown }
+import { isJsonSchemaObject, type MutableJsonSchema } from './json-schema-object'
 
 /**
  * Root keywords a repaired schema keeps: its object shape, what every accepted argument must

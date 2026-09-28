@@ -1123,10 +1123,11 @@ object root, `required` only for fields every accepted argument carries, annotat
 property as `{anyOf: [...definitions, {}]}`, with `{}` first when a definition holds a `$ref`,
 `$dynamicRef` or `$recursiveRef`, because Pi compiles union members standalone and a reference
 to `'#'` then recurses forever). A permissive schema also disables Pi's clean-up, so `execute`
-redoes it (`mcp-direct-tool-call-validation.ts`): forward what Pi accepts against the server
-schema as Pi cleaned it, else what Pi's coercion through the unrelaxed flattened repair turns
-into arguments the server schema accepts exactly, else the raw arguments if the server schema
-accepts them exactly. Direct tools whose server schema does not compile keep the unrelaxed
+redoes it (`mcp-direct-tool-call-validation.ts`): forward the first candidate the exact server
+validator accepts, trying Pi's cleaned output against the server schema, then Pi's coercion
+through the unrelaxed flattened repair, then the raw arguments. Pi's verdict is confirmed
+exactly because Pi bundles its own TypeBox (1.3.27 vs the app's 1.3.32), and the copies
+disagree on edge cases such as the `iri` format. Direct tools whose server schema does not compile keep the unrelaxed
 repair, because it is then the only check before approval. Sampling tools keep it too: Pi does
 not validate their calls, so relaxing would only cost guidance. Flattening is bounded in depth
 and total schemas, since `{anyOf: [{$ref:'#'}, ...]}` otherwise recurses or explodes.
