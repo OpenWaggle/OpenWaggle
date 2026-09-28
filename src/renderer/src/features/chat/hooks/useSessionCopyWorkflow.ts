@@ -28,10 +28,6 @@ interface SessionCopyWorkflowParams {
   readonly showToast: (message: string) => void
 }
 
-function copyErrorMessage(error: unknown) {
-  return ipcErrorMessage(error)
-}
-
 function routeToCopiedSession(params: SessionCopyWorkflowParams, sessionId: SessionId) {
   void params.navigate({
     to: '/sessions/$sessionId',
@@ -88,7 +84,7 @@ async function forkMessageToNewSessionAction(params: SessionCopyWorkflowParams, 
     useChatStore.getState().upsertSession(result.session)
     await activateCopiedSession(params, result.session.id, result.editorText ?? '')
   } catch (error) {
-    params.showToast(`Failed to fork session: ${copyErrorMessage(error)}`)
+    params.showToast(`Failed to fork session: ${ipcErrorMessage(error)}`)
   }
 }
 
@@ -125,7 +121,7 @@ async function cloneCurrentSessionToNewSessionAction(params: SessionCopyWorkflow
     useChatStore.getState().upsertSession(result.session)
     await activateCopiedSession(params, result.session.id, '')
   } catch (error) {
-    params.showToast(`Failed to clone session: ${copyErrorMessage(error)}`)
+    params.showToast(`Failed to clone session: ${ipcErrorMessage(error)}`)
   }
 }
 

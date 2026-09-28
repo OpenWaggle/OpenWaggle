@@ -187,4 +187,15 @@ describe('composer built-in slash commands', () => {
     expect(await screen.findByRole('menuitem', { name: /handoff/i })).toBeInTheDocument()
     expect(screen.queryByRole('menuitem', { name: /compact session/i })).not.toBeInTheDocument()
   })
+
+  it('keeps built-in commands out of the Waggle-only chooser', async () => {
+    const { editorRef } = renderComposer()
+    await typeIntoComposer(editorRef, '/')
+    await screen.findByRole('menuitem', { name: /compact session/i })
+    act(() => useComposerStore.getState().setSlashMenuFilter('waggle'))
+
+    await waitFor(() =>
+      expect(screen.queryByRole('menuitem', { name: /compact session/i })).not.toBeInTheDocument(),
+    )
+  })
 })
