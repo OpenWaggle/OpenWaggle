@@ -18,6 +18,7 @@ import { CHAT_CONTENT_MAX_WIDTH_PX } from '../lib/chat-content-layout'
 import type { ChatPanelSections } from '../model'
 import { useAgentLoopEventStore } from '../state/agent-loop-event-store'
 import { AgentNotificationStack } from './AgentNotificationStack'
+import { ArchivedSessionNotice } from './ArchivedSessionNotice'
 import { ChatComposerStack } from './ChatComposerStack'
 import { ChatDisplayPathProvider } from './ChatDisplayPathContext'
 import { ChatTranscript } from './ChatTranscript'
@@ -221,6 +222,7 @@ export function ChatPanelContent({
             />
           </PanelErrorBoundary>
 
+          <ArchivedSessionNotice />
           <PanelErrorBoundary name="Composer">
             <ChatComposerStack
               agentInteractions={sections.agentInteractions}

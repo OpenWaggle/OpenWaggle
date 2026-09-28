@@ -10,6 +10,7 @@ import { useState } from 'react'
 import type { useStreamingPhase } from '@/features/chat/hooks/useStreamingPhase'
 import { useWaggleMetadataLookup } from '@/features/chat/hooks/useWaggleMetadataLookup'
 import { useBackgroundRunStore } from '@/features/chat/state/background-run-store'
+import { useFirstSendPendingStore } from '@/features/chat/state/first-send-pending-store'
 import { selectExpandedTurnKeys, useTurnFoldStore } from '@/features/chat/state/turn-fold-store'
 import { useSessionStore } from '@/features/sessions/state'
 import {
@@ -142,8 +143,8 @@ export function useTranscriptSection(params: TranscriptSectionParams): ChatTrans
   const worktreeLaunch = useBackgroundRunStore((state) =>
     activeSessionId ? (state.worktreeLaunchBySessionId.get(activeSessionId) ?? null) : null,
   )
-  const firstSendPending = useBackgroundRunStore((state) =>
-    activeSessionId ? state.firstSendRecoveryBySessionId.has(activeSessionId) : false,
+  const firstSendPending = useFirstSendPendingStore((state) =>
+    activeSessionId ? state.ids.has(activeSessionId) : false,
   )
   const draftBranch = useSessionStore((state) => state.draftBranch)
   const draftBranchSourceNodeId =

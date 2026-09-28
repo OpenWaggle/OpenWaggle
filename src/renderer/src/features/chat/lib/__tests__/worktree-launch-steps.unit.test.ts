@@ -80,6 +80,21 @@ describe('launchStepViews', () => {
     expect(launchStepViews(launch({ steps: undefined }))).toBeNull()
   })
 
+  it('announces every step running in parallel', () => {
+    const parallel = launchStepViews(
+      launch({
+        stage: 'connecting-tools',
+        steps: [
+          { stage: 'syncing-branch', label: 'Pulling', startedAt: 1 },
+          { stage: 'connecting-tools', label: 'Connecting', startedAt: 1 },
+        ],
+      }),
+    )
+    expect(launchStepAnnouncement(parallel ?? [], 'Session setup failed', '')).toBe(
+      'Pulling, Connecting',
+    )
+  })
+
   it('announces the active step, or the failure with its reason', () => {
     const running = launchStepViews(launch({})) ?? []
     expect(launchStepAnnouncement(running, 'Worktree setup failed', '')).toBe(

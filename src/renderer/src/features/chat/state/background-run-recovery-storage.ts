@@ -10,7 +10,15 @@ import type { WorktreeLaunchSnapshot } from '@shared/types/background-run'
 import { SessionId, SupportedModelId } from '@shared/types/brand'
 import type { FirstSendRecovery } from './background-run-store'
 
-export const BACKGROUND_RUN_RECOVERY_STORAGE_KEY = 'openwaggle:background-run-recovery:v1'
+/**
+ * Version 2 carries launch stages and steps that a version-1 renderer cannot decode. Writing them
+ * under the old key made an older renderer (after an update-track downgrade) discard the whole
+ * blob, including other Sessions' first-send payloads. The old key is still read once, to migrate.
+ */
+export const BACKGROUND_RUN_RECOVERY_STORAGE_KEY = 'openwaggle:background-run-recovery:v2'
+const LEGACY_BACKGROUND_RUN_RECOVERY_STORAGE_KEY = 'openwaggle:background-run-recovery:v1'
+const LEGACY_RECOVERY_STORAGE_VERSION = 1
+const RECOVERY_STORAGE_VERSION = 2
 
 const setupActionSchema = Schema.Struct({
   terminalId: Schema.String,
@@ -36,27 +44,31 @@ const worktreeLaunchSchema = Schema.Struct({
   errorMessage: Schema.optional(Schema.String),
 })
 
-const persistedRecoverySchema = Schema.Struct({
-  version: Schema.Literal(1),
-  launches: Schema.mutable(
-    Schema.Array(
-      Schema.Struct({
-        sessionId: Schema.String,
-        launch: worktreeLaunchSchema,
-      }),
-    ),
-  ),
-  recoveries: Schema.mutable(
-    Schema.Array(
-      Schema.Struct({
-        sessionId: Schema.String,
-        payload: agentSendPayloadSchema,
-        waggleConfig: Schema.NullOr(waggleConfigSchema),
-        model: Schema.String,
-      }),
-    ),
-  ),
+const persistedLaunchSchema = Schema.Struct({
+  sessionId: Schema.String,
+  launch: worktreeLaunchSchema,
 })
+
+const persistedFirstSendSchema = Schema.Struct({
+  sessionId: Schema.String,
+  payload: agentSendPayloadSchema,
+  waggleConfig: Schema.NullOr(waggleConfigSchema),
+  model: Schema.String,
+})
+
+/** Entries decode one by one, so one entry this renderer cannot read never costs the others. */
+const persistedRecoverySchema = Schema.Struct({
+  version: Schema.Literal(LEGACY_RECOVERY_STORAGE_VERSION, RECOVERY_STORAGE_VERSION),
+  launches: Schema.Array(Schema.Unknown),
+  recoveries: Schema.Array(Schema.Unknown),
+})
+
+function decodeEach<A, I>(entries: readonly unknown[], schema: Schema.Schema<A, I>) {
+  return entries.flatMap((entry) => {
+    const decoded = safeDecodeUnknown(schema, entry)
+    return decoded.success ? [decoded.data] : []
+  })
+}
 
 interface RecoverableBackgroundRuns {
   readonly launches: Map<SessionId, WorktreeLaunchSnapshot>
@@ -94,31 +106,39 @@ export function loadRecoverableBackgroundRuns(): RecoverableBackgroundRuns {
   const target = storage()
   if (!target) return empty
 
+  const key = target.getItem(BACKGROUND_RUN_RECOVERY_STORAGE_KEY)
+    ? BACKGROUND_RUN_RECOVERY_STORAGE_KEY
+    : LEGACY_BACKGROUND_RUN_RECOVERY_STORAGE_KEY
   try {
-    const raw = target.getItem(BACKGROUND_RUN_RECOVERY_STORAGE_KEY)
+    const raw = target.getItem(key)
     if (!raw) return empty
     const decoded = safeDecodeUnknown(persistedRecoverySchema, JSON.parse(raw))
     if (!decoded.success) {
-      target.removeItem(BACKGROUND_RUN_RECOVERY_STORAGE_KEY)
+      target.removeItem(key)
       return empty
     }
     return {
       launches: new Map(
-        decoded.data.launches.map(({ sessionId, launch }) => [SessionId(sessionId), launch]),
+        decodeEach(decoded.data.launches, persistedLaunchSchema).map(({ sessionId, launch }) => [
+          SessionId(sessionId),
+          launch,
+        ]),
       ),
       recoveries: new Map(
-        decoded.data.recoveries.map(({ sessionId, payload, waggleConfig, model }) => [
-          SessionId(sessionId),
-          {
-            payload: toAgentSendPayload(payload),
-            waggleConfig: waggleConfig ? toWaggleConfig(waggleConfig) : null,
-            model: SupportedModelId(model),
-          },
-        ]),
+        decodeEach(decoded.data.recoveries, persistedFirstSendSchema).map(
+          ({ sessionId, payload, waggleConfig, model }) => [
+            SessionId(sessionId),
+            {
+              payload: toAgentSendPayload(payload),
+              waggleConfig: waggleConfig ? toWaggleConfig(waggleConfig) : null,
+              model: SupportedModelId(model),
+            },
+          ],
+        ),
       ),
     }
   } catch {
-    target.removeItem(BACKGROUND_RUN_RECOVERY_STORAGE_KEY)
+    target.removeItem(key)
     return empty
   }
 }
@@ -126,6 +146,8 @@ export function loadRecoverableBackgroundRuns(): RecoverableBackgroundRuns {
 export function persistRecoverableBackgroundRuns(input: RecoverableBackgroundRuns) {
   const target = storage()
   if (!target) return
+  // The legacy copy has been migrated into memory; leaving it would resurrect stale recoveries.
+  target.removeItem(LEGACY_BACKGROUND_RUN_RECOVERY_STORAGE_KEY)
   if (input.launches.size === 0 && input.recoveries.size === 0) {
     target.removeItem(BACKGROUND_RUN_RECOVERY_STORAGE_KEY)
     return
@@ -135,7 +157,7 @@ export function persistRecoverableBackgroundRuns(input: RecoverableBackgroundRun
     target.setItem(
       BACKGROUND_RUN_RECOVERY_STORAGE_KEY,
       JSON.stringify({
-        version: 1,
+        version: RECOVERY_STORAGE_VERSION,
         launches: [...input.launches].map(([sessionId, launch]) => ({ sessionId, launch })),
         recoveries: [...input.recoveries].map(([sessionId, recovery]) => ({
           sessionId,

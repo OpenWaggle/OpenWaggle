@@ -1,4 +1,5 @@
 import type { WorktreeLaunchSnapshot } from '@shared/types/background-run'
+import { SessionBranchId, SessionId, SupportedModelId } from '@shared/types/brand'
 import { describe, expect, it } from 'vitest'
 import { buildChatRows, createUserMessage } from './useBuildChatRows.test-utils'
 
@@ -10,6 +11,7 @@ function rowsFor(input: {
   readonly error?: Error
   readonly worktreeLaunch?: WorktreeLaunchSnapshot | null
   readonly withAssistant?: boolean
+  readonly interrupted?: boolean
 }) {
   return buildChatRows({
     messages: [
@@ -32,6 +34,18 @@ function rowsFor(input: {
     waggleMetadataLookup: {},
     phase: IDLE_PHASE,
     firstSendPending: input.firstSendPending,
+    ...(input.interrupted
+      ? {
+          interruptedRun: {
+            runId: 'run-1',
+            sessionId: SessionId('session-a'),
+            branchId: SessionBranchId('main'),
+            runMode: 'classic' as const,
+            model: SupportedModelId('openai/gpt-5'),
+            interruptedAt: 1,
+          },
+        }
+      : {}),
     worktreeLaunch: input.worktreeLaunch,
   })
 }
@@ -76,6 +90,10 @@ describe('buildChatRows first-send status', () => {
     })
     expect(rows.some((row) => row.type === 'worktree-launch')).toBe(false)
     expect(phaseLabels(rows)).toEqual(['Starting session'])
+  })
+
+  it('does not claim the session is starting next to an interrupted first run', () => {
+    expect(phaseLabels(rowsFor({ firstSendPending: true, interrupted: true }))).toEqual([])
   })
 
   it('shows nothing extra for an ordinary session without a pending first send', () => {

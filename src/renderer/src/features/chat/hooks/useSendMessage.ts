@@ -9,6 +9,7 @@ import { createOptimisticUserMessage } from '@/features/chat/lib/useAgentChat.ut
 import { useBackgroundRunStore } from '@/features/chat/state/background-run-store'
 import { useChatStore } from '@/features/chat/state/chat-store'
 import { flushDraftAuthorizationModeToSession } from '@/features/chat/state/draft-authorization-mode-store'
+import { useFirstSendPendingStore } from '@/features/chat/state/first-send-pending-store'
 import { withInlineVisualizationContext } from '@/features/chat/state/inline-visualization-state'
 import { useOptimisticUserMessageStore } from '@/features/chat/state/optimistic-user-message-store'
 import { snapshotDraftWorktreePlan } from '@/features/git'
@@ -186,6 +187,7 @@ export function useSendMessage(options: UseSendMessageOptions): SendMessageHandl
     const optimisticUserMessage = createOptimisticUserMessage(payload)
     useOptimisticUserMessageStore.getState().add(sessionId, optimisticUserMessage)
     useBackgroundRunStore.getState().setRunRenderMessages(sessionId, [optimisticUserMessage])
+    useFirstSendPendingStore.getState().mark(sessionId)
     useBackgroundRunStore.getState().setFirstSendRecovery(sessionId, {
       payload,
       waggleConfig: config,
@@ -217,6 +219,7 @@ export function useSendMessage(options: UseSendMessageOptions): SendMessageHandl
        */
       throw new MessageNotDelivered(report.outcome, report.message)
     } catch (error) {
+      useFirstSendPendingStore.getState().clear(sessionId)
       if (config) useWaggleStore.getState().stopCollaboration(sessionId)
       if (error instanceof MessageNotDelivered && error.outcome === 'cancelled') {
         useBackgroundRunStore.getState().clearRunRenderSnapshot(sessionId)

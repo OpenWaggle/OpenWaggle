@@ -41,6 +41,7 @@ async function loadLocalStatus(
   input: LoadGuard & {
     readonly setLocal: (status: LocalVcsStatus | null) => void
     readonly loadedPath: MutableRef<WorkingPath | null>
+    readonly loadedRef: MutableRef<string | null>
   },
 ): Promise<LocalLoadOutcome> {
   const { workingPath, requestedPath, requestId, thisRequest } = input
@@ -57,6 +58,7 @@ async function loadLocalStatus(
     }
     input.setLocal(result.status)
     input.loadedPath.current = workingPath
+    input.loadedRef.current = refIdentity(result.status)
     return 'loaded'
   } catch (error) {
     logger.warn('Failed to load local VCS status', { error: String(error) })
@@ -74,6 +76,7 @@ async function loadLocalStatusWithRetry(
   input: LoadGuard & {
     readonly setLocal: (status: LocalVcsStatus | null) => void
     readonly loadedPath: MutableRef<WorkingPath | null>
+    readonly loadedRef: MutableRef<string | null>
   },
 ) {
   let outcome = await loadLocalStatus(input)
@@ -124,6 +127,28 @@ async function loadRemoteStatus(
 }
 
 /**
+ * The branch a status belongs to. Remote status (pull request, upstream, ahead/behind) is per branch,
+ * so a checkout inside the same working tree must not keep the previous branch's remote answer.
+ */
+function refIdentity(status: LocalVcsStatus) {
+  return `${status.refName ?? ''}\u0000${status.pushTargetRef ?? ''}`
+}
+
+/** A refresh of the tree whose status is already on screen, as opposed to a first load. */
+function isRevalidation(
+  workingPath: WorkingPath | null,
+  previousPath: WorkingPath | null,
+  loadedPath: WorkingPath | null,
+) {
+  return workingPath !== null && workingPath === previousPath && workingPath === loadedPath
+}
+
+function localStateFor(outcome: Exclude<LocalLoadOutcome, 'stale'>): LocalVcsLoadState {
+  if (outcome === 'loaded') return 'loaded'
+  return outcome === 'settled-failure' ? 'unavailable' : 'error'
+}
+
+/**
  * Keeps the previous object when a revalidation returns the same status, so a routine refresh
  * (every turn boundary) re-renders nothing downstream.
  */
@@ -163,6 +188,8 @@ export function useCombinedVcsStatus(
   const requestedPath = useRef(workingPath)
   /** The path the values currently in state were actually loaded from. */
   const loadedPath = useRef<WorkingPath | null>(null)
+  /** The branch identity of the local status currently in state. */
+  const loadedRef = useRef<string | null>(null)
   /**
    * Which load is current.
    *
@@ -190,8 +217,7 @@ export function useCombinedVcsStatus(
      * flipping to "Checking Git status" / "Checking PR status" on each of them made the Session
      * Summary flash every turn although nothing had changed.
      */
-    const revalidating =
-      workingPath !== null && workingPath === previousPath && workingPath === loadedPath.current
+    const revalidating = isRevalidation(workingPath, previousPath, loadedPath.current)
     if (!revalidating) {
       setLocal(null)
       setLocalState(workingPath ? 'loading' : 'unavailable')
@@ -204,6 +230,7 @@ export function useCombinedVcsStatus(
     }
     // Capability checks do not depend on any response, so they are settled before the first await.
     const canReadRemote = typeof api.getRemoteVcsStatus === 'function'
+    const previousRef = loadedRef.current
     const localOutcome = await loadLocalStatusWithRetry({
       revalidating,
       workingPath,
@@ -212,15 +239,16 @@ export function useCombinedVcsStatus(
       thisRequest,
       setLocal,
       loadedPath,
+      loadedRef,
     })
     if (localOutcome === 'stale') return
-    setLocalState(
-      localOutcome === 'loaded'
-        ? 'loaded'
-        : localOutcome === 'settled-failure'
-          ? 'unavailable'
-          : 'error',
-    )
+    // Same tree, different branch: the remote half on screen belongs to the previous branch.
+    const remoteRevalidating = revalidating && loadedRef.current === previousRef
+    if (revalidating && !remoteRevalidating) {
+      setRemote(null)
+      setRemoteState('loading')
+    }
+    setLocalState(localStateFor(localOutcome))
     if (localOutcome !== 'loaded') {
       setRemoteState(localOutcome === 'settled-failure' ? 'unavailable' : 'error')
       return
@@ -230,7 +258,7 @@ export function useCombinedVcsStatus(
       return
     }
     await loadRemoteStatus({
-      revalidating,
+      revalidating: remoteRevalidating,
       workingPath,
       requestedPath,
       requestId,

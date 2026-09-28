@@ -29,23 +29,28 @@ export function mergeLatestLaunches(
   return launches
 }
 
-const INTERRUPTED_FIRST_SEND_MESSAGE =
+const INTERRUPTED_WORKTREE_LAUNCH_MESSAGE =
   'The worktree launch was interrupted before the task was delivered. Retry, work locally, or cancel to restore the draft.'
+// A local launch has no worktree to abandon, and its card offers no Work locally action.
+const INTERRUPTED_LOCAL_LAUNCH_MESSAGE =
+  'Starting the session was interrupted before the task was delivered. Retry, or cancel to restore the draft.'
 
 export function interruptedFirstSendLaunch(
   launch: WorktreeLaunchSnapshot | undefined,
 ): WorktreeLaunchSnapshot {
   if (launch?.status === 'failed') return launch
   const now = Date.now()
+  const message =
+    launch?.environment === 'local'
+      ? INTERRUPTED_LOCAL_LAUNCH_MESSAGE
+      : INTERRUPTED_WORKTREE_LAUNCH_MESSAGE
   return {
     ...launch,
     status: 'failed',
     stage: launch?.stage ?? 'preparing-workspace',
     startedAt: launch?.startedAt ?? now,
     updatedAt: now,
-    details: launch
-      ? [...launch.details, INTERRUPTED_FIRST_SEND_MESSAGE]
-      : [INTERRUPTED_FIRST_SEND_MESSAGE],
-    errorMessage: INTERRUPTED_FIRST_SEND_MESSAGE,
+    details: launch ? [...launch.details, message] : [message],
+    errorMessage: message,
   }
 }

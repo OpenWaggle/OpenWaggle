@@ -225,6 +225,48 @@ describe('useCombinedVcsStatus', () => {
     expect(result.current.status?.aheadCount).toBe(2)
   })
 
+  it('drops the previous branch remote status when the same tree checks out another branch', async () => {
+    const nextRemote = Promise.withResolvers<{
+      readonly ok: false
+      readonly code: string
+      readonly message: string
+    }>()
+    const feature = { ...LOCAL_STATUS, refName: 'feature/next', isDefaultRef: false }
+    getLocalVcsStatus
+      .mockResolvedValueOnce({ ok: true, status: LOCAL_STATUS })
+      .mockResolvedValueOnce({ ok: true, status: feature })
+    getRemoteVcsStatus
+      .mockResolvedValueOnce({
+        ok: true,
+        status: { ...REMOTE_STATUS, changeRequest: { number: 7 } },
+      })
+      .mockReturnValueOnce(nextRemote.promise)
+    const { result, rerender } = renderHook(
+      ({ refreshToken }: { readonly refreshToken: number }) =>
+        useCombinedVcsStatus(WorkingPath('/project'), refreshToken),
+      { initialProps: { refreshToken: 0 } },
+    )
+    await act(async () => {
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(result.current.remote?.changeRequest).toEqual({ number: 7 })
+
+    rerender({ refreshToken: 1 })
+    await act(async () => {
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(result.current.local?.refName).toBe('feature/next')
+    expect(result.current.remote).toBeNull()
+    expect(result.current.remoteState).toBe('loading')
+
+    nextRemote.resolve({ ok: false, code: 'remote-unreachable', message: 'offline' })
+    await act(async () => Promise.resolve())
+    // A failure for the new branch is reported, not papered over with the old branch's answer.
+    expect(result.current.remoteState).toBe('error')
+  })
+
   it('keeps the same status object when a revalidation returns identical data', async () => {
     getLocalVcsStatus.mockImplementation(async () => ({ ok: true, status: { ...LOCAL_STATUS } }))
     getRemoteVcsStatus.mockImplementation(async () => ({ ok: true, status: { ...REMOTE_STATUS } }))

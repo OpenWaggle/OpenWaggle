@@ -3,6 +3,7 @@ import { isTerminalTransportEvent } from '@/features/chat/lib/agent-stream-utils
 import { useAgentLoopEventStore } from '@/features/chat/state/agent-loop-event-store'
 import { useBackgroundRunStore } from '@/features/chat/state/background-run-store'
 import { useChatStore } from '@/features/chat/state/chat-store'
+import { useFirstSendPendingStore } from '@/features/chat/state/first-send-pending-store'
 import { api } from '@/shared/lib/ipc'
 
 /**
@@ -35,6 +36,7 @@ export function useBackgroundRunMonitor(): void {
       applyAgentLoopEvent(payload.sessionId, payload.event)
       if (payload.event.type === 'agent_start') {
         compactionOnlySessionIds.delete(payload.sessionId)
+        useFirstSendPendingStore.getState().clear(payload.sessionId)
         addActiveRun(payload.sessionId)
       }
       if (payload.event.type === 'compaction_start' && !hasActiveRun(payload.sessionId)) {
@@ -51,11 +53,13 @@ export function useBackgroundRunMonitor(): void {
         removeActiveRun(payload.sessionId)
       }
       if (isTerminalTransportEvent(payload.event)) {
+        useFirstSendPendingStore.getState().clear(payload.sessionId)
         removeActiveRun(payload.sessionId)
       }
     })
 
     const unsubCompleted = api.onRunCompleted((payload) => {
+      useFirstSendPendingStore.getState().clear(payload.sessionId)
       removeActiveRun(payload.sessionId)
       void refreshSession(payload.sessionId).finally(() => {
         clearRunRenderSnapshot(payload.sessionId)

@@ -230,6 +230,7 @@ interface BuildChatRowsParams {
 function isAwaitingFirstRun(params: BuildChatRowsParams, launchRows: readonly ChatRow[]) {
   return (
     params.firstSendPending === true &&
+    params.interruptedRun === undefined &&
     launchRows.length === 0 &&
     !params.messages.some((message) => message.role === 'assistant')
   )

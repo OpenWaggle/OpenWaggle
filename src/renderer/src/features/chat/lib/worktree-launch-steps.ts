@@ -49,5 +49,7 @@ export function launchStepAnnouncement(
 ) {
   const failed = steps.find((step) => step.state === 'failed')
   if (failed) return `${failureLabel}${displayErrorMessage ? `: ${displayErrorMessage}` : ''}`
-  return steps.find((step) => step.state === 'active')?.label ?? FINAL_STEP_LABEL
+  // Parallel steps run together, so every one in progress is announced, not just the first.
+  const active = steps.filter((step) => step.state === 'active').map((step) => step.label)
+  return active.length > 0 ? active.join(', ') : FINAL_STEP_LABEL
 }
