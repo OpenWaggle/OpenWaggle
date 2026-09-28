@@ -7,6 +7,7 @@ import type {
 } from '@shared/types/mcp'
 import { Effect } from 'effect'
 import type {
+  McpDirectToolListOptions,
   McpRuntimeInteractions,
   McpRuntimeServiceShape,
 } from '../../../ports/mcp-runtime-service'
@@ -48,7 +49,8 @@ export function createMcpRuntimeServiceForTests(
           ...(interactions ? { interactions } : {}),
         }),
       ),
-    listDirectTools: (snapshot: McpTurnSnapshot) => run(service.listDirectTools(snapshot)),
+    listDirectTools: (snapshot: McpTurnSnapshot, options?: McpDirectToolListOptions) =>
+      run(service.listDirectTools(snapshot, options)),
     browseCapabilities: (snapshot: McpTurnSnapshot, serverInstanceId?: string) =>
       run(
         service.browseCapabilities({

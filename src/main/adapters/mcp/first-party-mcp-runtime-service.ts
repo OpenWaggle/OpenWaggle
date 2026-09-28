@@ -2,12 +2,13 @@ import { homedir } from 'node:os'
 import path from 'node:path'
 import { MCP_CONFIG } from '@shared/constants/mcp'
 import { Effect, Layer } from 'effect'
-import { app } from 'electron'
+import { app, safeStorage } from 'electron'
 import { McpRuntimeService } from '../../ports/mcp-runtime-service'
 import { McpSecretVaultService } from '../../ports/mcp-secret-vault-service'
 import { McpTurnStateService } from '../../ports/mcp-turn-state-service'
 import { createOpenWaggleRuntimeAuthProvider } from './oauth-provider'
 import { mcpOAuthVaultAuthority } from './oauth-vault-authority'
+import { createEncryptedMcpToolCatalogCache } from './runtime/encrypted-tool-catalog-cache'
 import { FileMcpRemoteTaskStore } from './runtime/remote-task-store'
 import { makeMcpRuntimeService } from './runtime/runtime-service-factory'
 import { createFirstPartyMcpConnectionFactory } from './runtime/sdk-client-connection'
@@ -29,6 +30,14 @@ export const FirstPartyMcpRuntimeServiceLive = Layer.scoped(
         remoteTaskStore: new FileMcpRemoteTaskStore(
           path.join(homedir(), ...MCP_CONFIG.GLOBAL_STATE_DIR, MCP_CONFIG.GLOBAL_TASK_FILE_NAME),
         ),
+        toolCatalogCache: createEncryptedMcpToolCatalogCache({
+          filePath: path.join(
+            homedir(),
+            ...MCP_CONFIG.GLOBAL_STATE_DIR,
+            MCP_CONFIG.GLOBAL_TOOL_CATALOG_FILE_NAME,
+          ),
+          encryption: safeStorage,
+        }),
         connect: createFirstPartyMcpConnectionFactory({
           clientVersion: typeof app.getVersion === 'function' ? app.getVersion() : '0.0.0-test',
           resolveSecret: (name) => Effect.runPromise(vault.resolve(name)),

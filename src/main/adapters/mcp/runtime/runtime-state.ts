@@ -1,4 +1,5 @@
 import { randomBytes } from 'node:crypto'
+import { MCP_CONFIG } from '@shared/constants/mcp'
 import type { McpRuntimeNotice } from '@shared/types/mcp'
 import { Effect, Ref } from 'effect'
 import { resolveMcpRuntimeNamespace } from '../../../domain/mcp/runtime-namespace'
@@ -12,6 +13,7 @@ import {
   recordRemoteTasks,
 } from './runtime-catalog'
 import { makeMcpRuntimeConnections } from './runtime-connections'
+import { loadDirectToolCatalog, resolveToolHandle } from './runtime-direct-catalog'
 import { clearSessionEvents, emptyMcpEventInboxState } from './runtime-event-inbox'
 import { getEventSubscriptions, getEvents, setEventSubscription } from './runtime-events'
 import { addNotice, getNotices, removeNotice } from './runtime-notices'
@@ -24,6 +26,7 @@ import type {
   McpRuntimeStateService,
   RuntimeStateContext,
 } from './runtime-state-types'
+import { InMemoryMcpToolCatalogCache, type McpToolCatalogCache } from './tool-catalog-cache'
 import type { McpConnectionFactory } from './types'
 
 export type { CatalogTool, McpRuntimeStateService } from './runtime-state-types'
@@ -179,6 +182,8 @@ export function makeMcpRuntimeState(input: {
   readonly connect: McpConnectionFactory
   readonly createHandleKey?: () => Buffer
   readonly remoteTaskStore?: McpRemoteTaskStore
+  readonly toolCatalogCache?: McpToolCatalogCache
+  readonly optionalStartupGraceMs?: number
 }): Effect.Effect<McpRuntimeStateService> {
   return Effect.gen(function* () {
     const catalogs = yield* Ref.make(new Map<string, CatalogCacheEntry>())
@@ -241,6 +246,8 @@ export function makeMcpRuntimeState(input: {
       events,
       connections,
       remoteTasks: input.remoteTaskStore ?? new InMemoryMcpRemoteTaskStore(),
+      toolCatalogCache: input.toolCatalogCache ?? new InMemoryMcpToolCatalogCache(),
+      optionalStartupGraceMs: input.optionalStartupGraceMs ?? MCP_CONFIG.OPTIONAL_STARTUP_GRACE_MS,
       handleKey: input.createHandleKey?.() ?? randomBytes(HANDLE_KEY_BYTES),
     }
 
@@ -254,7 +261,9 @@ export function makeMcpRuntimeState(input: {
       getConnectionForServer: (snapshot, serverInstanceId) =>
         getConnectionForServer(ctx, snapshot, serverInstanceId),
       loadCatalog: (snapshot, selectServer) => loadCatalog(ctx, snapshot, selectServer),
+      loadDirectToolCatalog: (snapshot, options) => loadDirectToolCatalog(ctx, snapshot, options),
       findHandle: (snapshot, handle) => findHandle(ctx, snapshot, handle),
+      resolveHandle: (snapshot, handle) => resolveToolHandle(ctx, snapshot, handle),
       recordRemoteTasks: (recordInput) => recordRemoteTasks(ctx, recordInput),
       listRemoteTasks: (listInput) => listRemoteTasks(ctx, listInput),
       setEventSubscription: (subscriptionInput) => setEventSubscription(ctx, subscriptionInput),

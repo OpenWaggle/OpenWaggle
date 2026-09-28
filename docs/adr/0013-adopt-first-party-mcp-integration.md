@@ -21,7 +21,7 @@ The product is called the **OpenWaggle MCP integration**. The per-session client
 ## Model-Facing Surface
 
 - The default surface is a compact, catalog-free `mcp` gateway with `list`, `search`, `describe`, and `call` operations. Initial context contains no server names, tool schemas, server instructions, or cached catalog entries.
-- Search runs over the active turn's in-memory catalog and does not transmit the user's search query to an MCP server. No catalog persistence is required; any future persistent catalog cache must be encrypted. Connecting to a server remains lazy and requires effective enablement, trust, and policy.
+- Search runs over the active turn's in-memory catalog and does not transmit the user's search query to an MCP server. Connecting to a server remains lazy and requires effective enablement, trust, and policy. Direct tools may be registered from the encrypted tool list cache while their server connects; see the amendment below.
 - Discovery returns opaque, revision-bound handles tied to server identity, negotiated protocol, catalog revision, schema hash, session, and turn snapshot. Aliases are mutable display names and are not identity.
 - Direct model-visible MCP tools are an explicit per-server or per-tool opt-in. They never become the compatibility fallback for a model that cannot use the gateway.
 - `mcp_run` provides provider-independent MCP orchestration through an ordinary JSON-schema tool. Its preferred `code` input runs a parsed, restricted JavaScript-like language over only literal opaque MCP handles. The prior `{ mode, calls }` JSON plan remains a deliberate compatibility input, not the primary runtime.
@@ -117,7 +117,7 @@ The initial hard limits are 64,000 source bytes, 120,000 ms wall time, 10,000 in
 - MCP results included in a task become visible attributed transcript content. Disabling MCP prevents future use but does not rewrite history.
 - Compaction preserves MCP attribution and sensitivity. A user may exclude prior MCP-derived content from future model context without deleting the visible transcript.
 - No MCP result becomes cross-task memory by default. Forks inherit visible content but not live connections, session approvals, pending elicitation, or ephemeral grants.
-- Catalog metadata is held in memory for the immutable turn and discarded with its connection. Any future persistent cache must be encrypted and must exclude credentials, result bodies, App state, and sensitive payloads. Enabled sessions refresh lazily; disabled sessions may display only separately persisted management/Task metadata and mark it stale or disabled.
+- Catalog metadata is held in memory for the immutable turn and discarded with its connection. The one persistent catalog store is the encrypted tool list cache described in the amendment below; it excludes credentials, result bodies, App state, and sensitive payloads. Enabled sessions refresh lazily; disabled sessions may display only separately persisted management/Task metadata and mark it stale or disabled.
 - Export supports provenance and redaction. Explicit MCP data removal is separate from disabling a server and reports what was removed.
 - Observability is metadata-only by default. Server stderr and logs are untrusted and bounded. Payload tracing is explicit, temporary, locally stored, redacted, and never uploaded without a separate user action.
 
@@ -161,3 +161,14 @@ The initial hard limits are 64,000 source bytes, 120,000 ms wall time, 10,000 in
 - The compatibility matrix is executable: official MCP conformance fixtures, negotiated-version fixtures, reference servers, malformed peers, transport interruption, OAuth, sandbox, App, Task, and orchestration tests are release gates.
 - Renderer, preload, IPC, Pi, child-process, and packaged-app behavior require real Electron verification in addition to unit and integration tests.
 - User-facing documentation must cover enablement scope, server management, permissions, Tasks, Apps, imports, CLI, server mode, session delegation, troubleshooting, data retention, and recovery.
+
+## Amendment: Direct Tools Do Not Wait For Optional Servers
+
+Connections stay per Session. Each Session still starts its own server processes, holds its own approvals, roots and elicitation, and disposes them with the Session. What changes is that a turn no longer waits for every direct-tool server to connect before Pi starts, which made a first send wait for the slowest server (10–15 s for common stdio and OAuth servers).
+
+- **Tool list cache.** The Host keeps the tool definitions each server last listed, keyed by project, server instance, configuration hash, sandbox and permission grant, so a changed definition is a different entry. Entries are sealed one by one with OS encryption under an opaque key, retained for seven days, bounded in count and size, and hold only tool definitions. Without OS encryption the cache lives in memory for the Host's lifetime only.
+- **Optional servers.** When a turn needs a server's direct tools and the Session has not listed them yet, the Session's connection starts in the background and the turn registers the cached tools at once. With nothing cached the turn waits a short grace (1.5 s), then starts without that server's direct tools; the server stays reachable through the `mcp` gateway and its tools join the next turn. The runtime notice says the server is still connecting and clears when it connects.
+- **Required servers** are never stood in for by the cache. The turn waits for them and fails when they cannot connect, as before.
+- **Handle validation.** A handle registered from the cache is bound to the same Session, snapshot revision, server and tool name as a live one. Describing or calling it waits for the server's live listing and is refused, before anything is dispatched, when the server no longer offers the tool or its input schema changed. This is how a changed schema invalidates an undispatched handle for cached tools.
+- Shared connections across Sessions and a Session-creation prewarm were considered and rejected. Sharing would give up per-Session isolation for stateful servers such as browser automation. A Session is created by its first send, so a creation prewarm would start no earlier than the turn does.
+

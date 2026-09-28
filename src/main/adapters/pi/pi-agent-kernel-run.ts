@@ -1,6 +1,5 @@
 import * as Effect from 'effect/Effect'
 import * as Exit from 'effect/Exit'
-import { serversConnectedBeforeTurn } from '../../domain/mcp/direct-tool-servers'
 import type {
   AgentKernelRunInput,
   AgentKernelWaggleRunOptions,
@@ -87,9 +86,12 @@ export function prepareMcpTurn(input: {
   readonly config: McpConfigServiceShape
   readonly runtime: McpRuntimeServiceShape
   readonly serverAllowlist?: readonly string[]
-  /** Called with the servers the turn connects before Pi starts, when there are any. */
+  /**
+   * Called with the servers the turn waits for before Pi starts, when it waits for any: required
+   * servers, and optional ones with no cached tool list during their short grace.
+   */
   readonly onConnecting?: (serverNames: readonly string[]) => void
-  /** Called once those servers answered. A failure leaves the step open so the error lands on it. */
+  /** Called once that wait is over. A failure leaves the step open so the error lands on it. */
   readonly onConnected?: () => void
 }) {
   return Effect.gen(function* () {
@@ -97,18 +99,18 @@ export function prepareMcpTurn(input: {
       yield* input.config.createTurnSnapshot(input),
       input.serverAllowlist,
     )
-    const connectedFirst = serversConnectedBeforeTurn(snapshot).map((server) => server.name)
-    if (connectedFirst.length > 0) input.onConnecting?.(connectedFirst)
     yield* input.runtime.prepareTurn({ sessionId: input.sessionId, snapshot })
     return yield* Effect.gen(function* () {
+      let waited = false
       const directTools = snapshot
         ? yield* input.runtime
-            .listDirectTools(snapshot)
-            .pipe(
-              Effect.tap(() =>
-                Effect.sync(() => (connectedFirst.length > 0 ? input.onConnected?.() : undefined)),
-              ),
-            )
+            .listDirectTools(snapshot, {
+              onWaiting: (serverNames) => {
+                waited = true
+                input.onConnecting?.(serverNames)
+              },
+            })
+            .pipe(Effect.tap(() => Effect.sync(() => (waited ? input.onConnected?.() : undefined))))
         : []
       const extensionFactory = snapshot
         ? createMcpGatewayExtension({

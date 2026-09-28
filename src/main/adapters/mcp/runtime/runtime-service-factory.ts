@@ -13,6 +13,7 @@ import type { McpRemoteTaskStore } from './remote-task-store'
 import { runMcpRuntimeDoctor } from './runtime-doctor'
 import { makeMcpRuntimeSnapshotAuthority } from './runtime-snapshot-authority'
 import { makeMcpRuntimeState } from './runtime-state'
+import type { McpToolCatalogCache } from './tool-catalog-cache'
 import type { McpConnectionFactory } from './types'
 
 function clearPendingInvalidation(pending: Ref.Ref<Set<string>>, sessionId: string) {
@@ -37,6 +38,8 @@ interface McpRuntimeServiceInput {
   readonly connect: McpConnectionFactory
   readonly createHandleKey?: () => Buffer
   readonly remoteTaskStore?: McpRemoteTaskStore
+  readonly toolCatalogCache?: McpToolCatalogCache
+  readonly optionalStartupGraceMs?: number
   readonly turnState?: McpTurnStateServiceShape
 }
 
@@ -112,8 +115,8 @@ export function makeMcpRuntimeService(
             input2.interactions,
           ),
         ),
-      listDirectTools: (snapshot) =>
-        withAuthoritativeSnapshot(snapshot, listMcpDirectTools(state, snapshot)),
+      listDirectTools: (snapshot, options) =>
+        withAuthoritativeSnapshot(snapshot, listMcpDirectTools(state, snapshot, options)),
       browseCapabilities: (input2) =>
         withAuthoritativeSnapshot(
           input2.snapshot,

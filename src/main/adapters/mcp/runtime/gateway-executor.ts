@@ -140,8 +140,7 @@ export function executeMcpGateway(
           message: `MCP ${request.operation} requires a tool handle.`,
         }),
       )
-    yield* state.loadCatalog(snapshot)
-    const catalogTool = yield* state.findHandle(snapshot, request.handle)
+    const catalogTool = yield* state.resolveHandle(snapshot, request.handle)
     if (request.operation === 'describe') {
       return {
         operation: 'describe',
@@ -163,9 +162,13 @@ export function executeMcpGateway(
       )
     }
     const callArguments = request.arguments
+    const { connection } = yield* state.getConnectionForServer(
+      snapshot,
+      catalogTool.server.instanceId,
+    )
     const result = yield* Effect.tryPromise({
       try: () =>
-        catalogTool.connection.callTool({
+        connection.callTool({
           name: catalogTool.tool.name,
           arguments: callArguments,
           signal,

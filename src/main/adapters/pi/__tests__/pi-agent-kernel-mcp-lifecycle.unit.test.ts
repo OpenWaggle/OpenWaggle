@@ -2,7 +2,10 @@ import { fromPartial } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
 import { describe, expect, it, vi } from 'vitest'
 import type { McpConfigServiceShape } from '../../../ports/mcp-config-service'
-import type { McpRuntimeServiceShape } from '../../../ports/mcp-runtime-service'
+import type {
+  McpDirectToolListOptions,
+  McpRuntimeServiceShape,
+} from '../../../ports/mcp-runtime-service'
 import { server, snapshot } from '../../mcp/__tests__/mcp-runtime-test-utils'
 import { prepareMcpTurn } from '../pi-agent-kernel-adapter'
 
@@ -70,6 +73,7 @@ describe('Pi MCP turn preparation lifecycle', () => {
     })
     expect(listDirectTools).toHaveBeenCalledWith(
       expect.objectContaining({ servers: [expect.objectContaining({ name: 'github' })] }),
+      expect.anything(),
     )
     await Effect.runPromise(prepared.finish)
   })
@@ -98,6 +102,43 @@ describe('Pi MCP turn preparation lifecycle', () => {
     )
     expect(prepareTurn).toHaveBeenCalledWith({ sessionId: turn.sessionId, snapshot: null })
     expect(prepared.extensionFactory).toBeUndefined()
+    await Effect.runPromise(prepared.finish)
+  })
+
+  it.each([
+    { waitsFor: [], reported: [] },
+    { waitsFor: ['atlassian'], reported: ['connecting:atlassian', 'connected'] },
+  ])('reports a connecting step only when the turn waits for servers: $waitsFor', async (c) => {
+    const turn = snapshot({
+      servers: [server({ name: 'atlassian', definition: { command: 'a', directTools: true } })],
+    })
+    const reported: string[] = []
+    const runtime = fromPartial<McpRuntimeServiceShape>({
+      prepareTurn: () => Effect.void,
+      listDirectTools: (_snapshot: unknown, options?: McpDirectToolListOptions) =>
+        Effect.sync(() => {
+          if (c.waitsFor.length > 0) options?.onWaiting?.(c.waitsFor)
+          return []
+        }),
+      completeTurn: () => Effect.void,
+      disposeSession: () => Effect.void,
+    })
+
+    const prepared = await Effect.runPromise(
+      prepareMcpTurn({
+        projectPath: turn.projectPath,
+        executionPath: turn.projectPath,
+        sessionId: turn.sessionId,
+        config: fromPartial<McpConfigServiceShape>({
+          createTurnSnapshot: () => Effect.succeed(turn),
+        }),
+        runtime,
+        onConnecting: (names) => reported.push(`connecting:${names.join(',')}`),
+        onConnected: () => reported.push('connected'),
+      }),
+    )
+
+    expect(reported).toEqual(c.reported)
     await Effect.runPromise(prepared.finish)
   })
 })

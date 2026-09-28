@@ -13,19 +13,29 @@ import type {
   McpServerNotEnabled,
   McpStaleToolHandle,
 } from '../../../ports/mcp-errors'
-import type { McpRuntimeConnectionStatus } from '../../../ports/mcp-runtime-service'
+import type {
+  McpDirectToolListOptions,
+  McpRuntimeConnectionStatus,
+} from '../../../ports/mcp-runtime-service'
 import type { McpRemoteTaskStore } from './remote-task-store'
 import type { McpRuntimeConnectionsService } from './runtime-connections'
+import type { McpToolCatalogCache } from './tool-catalog-cache'
 import type { McpClientConnection, McpRuntimeTool } from './types'
 
-/** A tool resolved from a server catalog, addressable by an opaque handle. */
+/**
+ * A tool resolved from a server catalog, addressable by an opaque handle.
+ *
+ * `live` tools were listed by the Session's own connection. `cached` tools came from the tool
+ * list cache while that connection was still starting; using one waits for the connection and
+ * checks the live tool still matches (see `resolveToolHandle`).
+ */
 export interface CatalogTool {
   readonly handle: string
   readonly server: McpTurnSnapshotServer
-  readonly connection: McpClientConnection
   readonly tool: McpRuntimeTool
   readonly snapshotRevision: string
   readonly runtimeNamespace: string
+  readonly source: 'live' | 'cached'
 }
 
 export interface CatalogCacheEntry {
@@ -78,6 +88,8 @@ export interface RuntimeStateContext {
   readonly events: Ref.Ref<McpEventInboxState>
   readonly connections: McpRuntimeConnectionsService
   readonly remoteTasks: McpRemoteTaskStore
+  readonly toolCatalogCache: McpToolCatalogCache
+  readonly optionalStartupGraceMs: number
   readonly handleKey: Buffer
 }
 
@@ -96,10 +108,20 @@ export interface McpRuntimeStateService {
     snapshot: McpTurnSnapshot,
     selectServer?: (server: McpTurnSnapshotServer) => boolean,
   ): Effect.Effect<readonly CatalogTool[], McpRuntimeFailure>
+  /** The direct tools a turn registers with Pi; see `loadDirectToolCatalog`. */
+  loadDirectToolCatalog(
+    snapshot: McpTurnSnapshot,
+    options?: McpDirectToolListOptions,
+  ): Effect.Effect<readonly CatalogTool[], McpRuntimeFailure>
   findHandle(
     snapshot: McpTurnSnapshot,
     handle: string,
   ): Effect.Effect<CatalogTool, McpStaleToolHandle>
+  /** A handle's live tool, waiting for its server when the handle came from the cache. */
+  resolveHandle(
+    snapshot: McpTurnSnapshot,
+    handle: string,
+  ): Effect.Effect<CatalogTool, McpRuntimeFailure>
   recordRemoteTasks(input: {
     readonly snapshot: McpTurnSnapshot
     readonly server: McpTurnSnapshotServer

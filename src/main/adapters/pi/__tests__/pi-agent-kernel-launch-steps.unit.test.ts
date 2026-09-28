@@ -4,6 +4,7 @@ import { fromPartial } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AgentKernelRunInput } from '../../../ports/agent-kernel-service'
+import type { McpDirectToolListOptions } from '../../../ports/mcp-runtime-service'
 import { server, snapshot } from '../../mcp/__tests__/mcp-runtime-test-utils'
 import { runPiAgentKernel } from '../pi-agent-kernel-run'
 
@@ -37,6 +38,12 @@ vi.mock('../../git/remote-sync', () => ({
   pullCurrentBranchFastForward: runMocks.pullCurrentBranchFastForward,
   resolveTrackedBranch: runMocks.resolveTrackedBranch,
 }))
+
+/** A `listDirectTools` that waits for the given servers, as a cold first turn does. */
+function waitingFor<A, E>(names: readonly string[], result: Effect.Effect<A, E>) {
+  return (_: unknown, options?: McpDirectToolListOptions) =>
+    Effect.sync(() => options?.onWaiting?.(names)).pipe(Effect.zipRight(result))
+}
 
 function actionWorkspaceDependencies(): Pick<
   Parameters<typeof runPiAgentKernel>[1],
@@ -155,7 +162,7 @@ describe('runPiAgentKernel launch steps', () => {
         mcpConfig: fromPartial({ createTurnSnapshot: () => Effect.succeed(turn) }),
         mcpRuntime: fromPartial({
           prepareTurn,
-          listDirectTools: () => Effect.succeed([]),
+          listDirectTools: waitingFor(['atlassian'], Effect.succeed([])),
           completeTurn: () => Effect.void,
           disposeSession: () => Effect.void,
         }),
@@ -280,7 +287,10 @@ describe('runPiAgentKernel launch steps', () => {
           mcpConfig: fromPartial({ createTurnSnapshot: () => Effect.succeed(turn) }),
           mcpRuntime: fromPartial({
             prepareTurn: () => Effect.void,
-            listDirectTools: () => Effect.fail(new Error('atlassian is unavailable')),
+            listDirectTools: waitingFor(
+              ['atlassian'],
+              Effect.fail(new Error('atlassian is unavailable')),
+            ),
             completeTurn: () => Effect.void,
             disposeSession,
           }),

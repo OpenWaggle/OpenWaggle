@@ -69,6 +69,11 @@ export interface McpRuntimeConnectionStatus {
   readonly capabilities: readonly McpCapabilityFamily[]
 }
 
+export interface McpDirectToolListOptions {
+  /** Called with the servers the turn is about to wait for, only when it waits for any. */
+  readonly onWaiting?: (serverNames: readonly string[]) => void
+}
+
 export interface McpRuntimeServiceShape {
   readonly prepareTurn: (input: {
     readonly sessionId: string
@@ -84,8 +89,13 @@ export interface McpRuntimeServiceShape {
     readonly signal?: AbortSignal
     readonly interactions?: McpRuntimeInteractions
   }) => Effect.Effect<McpGatewayResult, McpRuntimeFailure>
+  /**
+   * The direct tools a turn registers with Pi. Optional servers do not hold the turn back: a
+   * cached tool list stands in while they connect, and with nothing cached they get a short grace.
+   */
   readonly listDirectTools: (
     snapshot: McpTurnSnapshot,
+    options?: McpDirectToolListOptions,
   ) => Effect.Effect<readonly McpDirectToolDescriptor[], McpRuntimeFailure>
   readonly browseCapabilities: (input: {
     readonly snapshot: McpTurnSnapshot
