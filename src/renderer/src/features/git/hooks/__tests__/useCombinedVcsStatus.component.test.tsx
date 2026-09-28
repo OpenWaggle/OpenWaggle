@@ -178,6 +178,76 @@ describe('useCombinedVcsStatus', () => {
     expect(result.current.remote).toBeNull()
   })
 
+  it('revalidates the same working tree without replacing loaded status by loading states', async () => {
+    const nextLocal = Promise.withResolvers<{
+      readonly ok: true
+      readonly status: LocalVcsStatus
+    }>()
+    const nextRemote = Promise.withResolvers<{
+      readonly ok: true
+      readonly status: RemoteVcsStatus
+    }>()
+    const changed = { ...LOCAL_STATUS, hasWorkingTreeChanges: false }
+    getLocalVcsStatus
+      .mockResolvedValueOnce({ ok: true, status: LOCAL_STATUS })
+      .mockReturnValueOnce(nextLocal.promise)
+    getRemoteVcsStatus
+      .mockResolvedValueOnce({ ok: true, status: REMOTE_STATUS })
+      .mockReturnValueOnce(nextRemote.promise)
+
+    const { result, rerender } = renderHook(
+      ({ refreshToken }: { readonly refreshToken: number }) =>
+        useCombinedVcsStatus(WorkingPath('/project'), refreshToken),
+      { initialProps: { refreshToken: 0 } },
+    )
+    await act(async () => {
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(result.current.localState).toBe('loaded')
+    expect(result.current.remoteState).toBe('loaded')
+
+    rerender({ refreshToken: 1 })
+    await act(async () => Promise.resolve())
+
+    // A turn boundary refresh must not flash "Checking Git status" / "Checking PR status".
+    expect(result.current.localState).toBe('loaded')
+    expect(result.current.remoteState).toBe('loaded')
+    expect(result.current.status).toEqual({ ...LOCAL_STATUS, ...REMOTE_STATUS })
+
+    nextLocal.resolve({ ok: true, status: changed })
+    await act(async () => Promise.resolve())
+    expect(result.current.local).toEqual(changed)
+    expect(result.current.remoteState).toBe('loaded')
+
+    nextRemote.resolve({ ok: true, status: { ...REMOTE_STATUS, aheadCount: 2 } })
+    await act(async () => Promise.resolve())
+    expect(result.current.status?.aheadCount).toBe(2)
+  })
+
+  it('keeps the same status object when a revalidation returns identical data', async () => {
+    getLocalVcsStatus.mockImplementation(async () => ({ ok: true, status: { ...LOCAL_STATUS } }))
+    getRemoteVcsStatus.mockImplementation(async () => ({ ok: true, status: { ...REMOTE_STATUS } }))
+    const { result, rerender } = renderHook(
+      ({ refreshToken }: { readonly refreshToken: number }) =>
+        useCombinedVcsStatus(WorkingPath('/project'), refreshToken),
+      { initialProps: { refreshToken: 0 } },
+    )
+    await act(async () => {
+      await vi.runAllTimersAsync()
+    })
+    const firstLocal = result.current.local
+    const firstRemote = result.current.remote
+
+    rerender({ refreshToken: 1 })
+    await act(async () => {
+      await vi.runAllTimersAsync()
+    })
+
+    expect(result.current.local).toBe(firstLocal)
+    expect(result.current.remote).toBe(firstRemote)
+  })
+
   it('retires an in-flight snapshot when the shared Git refresh token advances', async () => {
     const stale = Promise.withResolvers<{
       readonly ok: true
