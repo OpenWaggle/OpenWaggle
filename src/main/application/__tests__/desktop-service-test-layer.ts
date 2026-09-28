@@ -11,10 +11,17 @@ export const NoopSessionDesktopLayer = Layer.mergeAll(
   Layer.succeed(
     DesktopServiceBroker,
     fromPartial<DesktopServiceBroker['Type']>({
-      execute: (command: DesktopServiceCommand) =>
-        command.service === 'browser' && command.operation === 'deleteOwner'
-          ? Effect.succeed({ service: 'browser', operation: 'deleteOwner', value: null })
-          : Effect.dieMessage('Unexpected desktop command in Session lifecycle test'),
+      execute: (command: DesktopServiceCommand) => {
+        if (command.service === 'browser' && command.operation === 'deleteOwner')
+          return Effect.succeed({ service: 'browser', operation: 'deleteOwner', value: null })
+        if (command.service === 'browser' && command.operation === 'inspectOwner')
+          return Effect.succeed({
+            service: 'browser',
+            operation: 'inspectOwner',
+            value: { registered: false, previews: 0 },
+          })
+        return Effect.dieMessage('Unexpected desktop command in Session lifecycle test')
+      },
     }),
   ),
 )

@@ -31,7 +31,7 @@ export const desktopServiceCommandSchema = Schema.Union(
   }),
   Schema.Struct({
     service: Schema.Literal('browser'),
-    operation: Schema.Literal('deleteOwner'),
+    operation: Schema.Literal('deleteOwner', 'inspectOwner'),
     ownerKey,
   }),
 )
@@ -48,6 +48,14 @@ export const desktopServiceResultSchema = Schema.Union(
     service: Schema.Literal('browser'),
     operation: Schema.Literal('deleteOwner'),
     value: Schema.Null,
+  }),
+  Schema.Struct({
+    service: Schema.Literal('browser'),
+    operation: Schema.Literal('inspectOwner'),
+    value: Schema.Struct({
+      registered: Schema.Boolean,
+      previews: Schema.Number.pipe(Schema.int(), Schema.nonNegative()),
+    }),
   }),
 )
 

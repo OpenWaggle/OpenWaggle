@@ -1,7 +1,8 @@
 import { IDLE_ROW_COLOR_VAR, resolveSessionStatusPill } from '@shared/types/session-status'
-import { ChessQueen, ChevronDown, ChevronRight, Pickaxe } from 'lucide-react'
+import { ChessQueen, ChevronDown, ChevronRight, Pickaxe, RotateCcw } from 'lucide-react'
 import { useState } from 'react'
-import { useSessionStatusStore } from '@/features/sessions/state'
+import { useSessionStatusStore, useSessionStore } from '@/features/sessions/state'
+import { useUnarchiveSessionMutation } from '@/queries/archived-sessions'
 import { HIVE_DELEGATION_LABELS, type HiveSession } from '@/queries/session-hive-contract'
 import { Button } from '@/shared/ui/Button'
 import { hiveStateNeedsAttention } from '../model/session-hive-summary'
@@ -29,12 +30,68 @@ export function HiveArchivedWorkers({
         Archived · {workers.length}
       </Button>
       {expanded ? (
-        <HiveWorkerGroup
-          label="Archived"
-          workers={workers}
-          rowLabel="Archived"
-          onNavigateSession={onNavigateSession}
-        />
+        <fieldset aria-label="Archived Hive sessions" className="m-0 min-w-0 border-0 p-0">
+          <div className="px-2 pb-0.5 pt-1 text-xs font-medium uppercase tracking-wide text-text-muted">
+            Archived
+          </div>
+          <SessionSummaryPaginatedList
+            items={workers}
+            getKey={(worker) => worker.id}
+            renderItem={(worker) => (
+              <HiveArchivedWorkerRow worker={worker} onNavigateSession={onNavigateSession} />
+            )}
+          />
+        </fieldset>
+      ) : null}
+    </div>
+  )
+}
+
+/** Archived Workers stay navigable and can be restored to talk to them again. */
+function HiveArchivedWorkerRow({
+  worker,
+  onNavigateSession,
+}: {
+  readonly worker: HiveSession
+  readonly onNavigateSession: (sessionId: string) => void
+}) {
+  const unarchive = useUnarchiveSessionMutation()
+  const loadSessions = useSessionStore((state) => state.loadSessions)
+  const [failed, setFailed] = useState(false)
+
+  function restore() {
+    setFailed(false)
+    void unarchive
+      .mutateAsync(worker.id)
+      .then(() => loadSessions())
+      .catch(() => setFailed(true))
+  }
+
+  return (
+    <div>
+      <div className="flex items-center gap-1">
+        <div className="min-w-0 flex-1">
+          <HiveSessionRow
+            label="Archived"
+            session={worker}
+            onClick={() => onNavigateSession(String(worker.id))}
+          />
+        </div>
+        <Button
+          variant="unstyled"
+          className="flex size-7 shrink-0 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-bg-hover hover:text-text-secondary"
+          aria-label={`Restore Worker Session: ${worker.title}`}
+          title="Restore to the sidebar"
+          disabled={unarchive.isPending}
+          onClick={restore}
+        >
+          <RotateCcw aria-hidden="true" className="size-3.5" />
+        </Button>
+      </div>
+      {failed ? (
+        <p role="alert" className="px-2 text-xs text-warning">
+          Unable to restore {worker.title}.
+        </p>
       ) : null}
     </div>
   )

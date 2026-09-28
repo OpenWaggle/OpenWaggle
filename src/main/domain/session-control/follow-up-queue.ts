@@ -1,6 +1,9 @@
 import { matchBy } from '@diegogbrisa/ts-match'
 import type { FollowUpId } from '@shared/types/brand'
-import { MAX_FOLLOW_UP_QUEUE_ITEMS } from '@shared/types/session-control-queue'
+import {
+  type FollowUpQueuePauseReason,
+  MAX_FOLLOW_UP_QUEUE_ITEMS,
+} from '@shared/types/session-control-queue'
 
 export { MAX_FOLLOW_UP_QUEUE_ITEMS } from '@shared/types/session-control-queue'
 
@@ -17,6 +20,8 @@ interface SizedFollowUpQueueItem extends FollowUpQueueItem {
 
 export interface FollowUpQueue<TItem extends FollowUpQueueItem> {
   readonly state: 'running' | 'paused'
+  /** Set while paused: what paused it. A queue paused before this was recorded has none. */
+  readonly pauseReason?: FollowUpQueuePauseReason
   readonly revision: number
   readonly items: readonly TItem[]
 }
@@ -40,6 +45,8 @@ export interface ReorderFollowUps {
 export interface PauseFollowUpQueue {
   readonly type: 'pause'
   readonly expectedRevision: number
+  /** Defaults to `requested`: a caller asked for the pause. */
+  readonly reason?: FollowUpQueuePauseReason
 }
 
 export interface ResumeFollowUpQueue {
@@ -198,6 +205,7 @@ export function mutateFollowUpQueue<TItem extends FollowUpQueueItem>(
         queue: {
           ...queue,
           state: 'paused',
+          pauseReason: pause.reason ?? 'requested',
           revision: queue.revision + REVISION_INCREMENT,
         },
       }
@@ -212,10 +220,11 @@ export function mutateFollowUpQueue<TItem extends FollowUpQueueItem>(
           currentRevision: queue.revision,
         }
       }
+      const { pauseReason: _pauseReason, ...runningQueue } = queue
       return {
         accepted: true,
         queue: {
-          ...queue,
+          ...runningQueue,
           state: 'running',
           revision: queue.revision + REVISION_INCREMENT,
         },

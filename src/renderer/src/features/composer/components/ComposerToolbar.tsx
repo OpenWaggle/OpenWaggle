@@ -13,6 +13,7 @@ interface ComposerToolbarProps {
     readonly onSend: () => void
     readonly onCancel: () => void
     readonly isLoading: boolean
+    readonly isFinishing?: boolean
     readonly canSend: boolean
     readonly sendTitle?: string
   }
@@ -53,6 +54,7 @@ export function ComposerToolbar({
         <ComposerVoiceButton mode={voiceMode} onToggleVoice={onToggleVoice} disabled={disabled} />
         <ComposerSendControls
           isLoading={submission.isLoading}
+          isFinishing={submission.isFinishing}
           canSend={submission.canSend}
           sendTitle={submission.sendTitle}
           onSend={submission.onSend}

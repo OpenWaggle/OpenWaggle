@@ -1,6 +1,7 @@
 import { Effect } from 'effect'
 import { makeGuiDesktopCleanup } from './application/gui-desktop-cleanup'
 import { browserPreviewManager } from './browser-preview'
+import { browserPreviewOwnerRegistry } from './browser-preview-owner-registry'
 import { quarantineDesktopNativeAdmission } from './desktop-native-admission'
 import { BrowserPreviewAutomationService } from './ports/browser-preview-automation-service'
 import { TerminalService } from './ports/terminal-service'
@@ -28,6 +29,10 @@ export async function startAppGuiDesktopServices(input: {
   const executor = makeGuiDesktopServiceExecutor({
     ...services,
     deleteBrowserOwner: (ownerKey) => browserPreviewManager.closeForOwner(ownerKey),
+    inspectBrowserOwner: (ownerKey) => ({
+      registered: browserPreviewOwnerRegistry.isRegistered(ownerKey),
+      previews: browserPreviewManager.listOwnedPreviews(ownerKey).length,
+    }),
     acquireBrowserMutationFence: (scope) => browserPreviewManager.acquireMutationFence(scope),
   })
   let bridge: Awaited<ReturnType<typeof startGuiDesktopServiceBridge>> | undefined

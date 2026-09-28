@@ -15,13 +15,27 @@ import type {
   BrowserPreviewRecordingRequest,
 } from './browser-preview-recording-request'
 import type { AgentPhaseEventPayload } from './phase'
-import type { SessionHostEventEnvelope } from './session-host-event'
+import type { SessionHostEventEnvelope, SessionRunTerminalStatus } from './session-host-event'
 import type { AgentTransportEvent } from './stream'
 import type { TerminalActivitySnapshot, TerminalEventPayload } from './terminal'
 import type { UpdateStatus } from './updater'
 import type { GitActionProgressEvent } from './vcs'
 import type { WaggleStreamMetadata, WaggleTurnEvent } from './waggle'
 import type { WorkspaceFilesChangedEvent } from './workspace-files'
+
+/**
+ * A Run settled on the Host. `runId` names it when known, so a client credits the completion to
+ * the send that started that Run. `continues` means the Session went straight on to a queued
+ * Follow-up: this Run is done, the Session is not idle.
+ */
+export interface AgentRunCompletedPayload {
+  readonly sessionId: SessionId
+  readonly runId?: string
+  readonly terminalStatus?: SessionRunTerminalStatus
+  /** The Run failed after it had reported a clean end, e.g. it could not be saved. */
+  readonly failureCode?: string
+  readonly continues?: true
+}
 
 export interface IpcSendChannelMap {
   'sessions:resources:activate-owner': {
@@ -78,7 +92,7 @@ export interface IpcEventChannelMap {
     payload: AgentPhaseEventPayload
   }
   'agent:run-completed': {
-    payload: { sessionId: SessionId }
+    payload: AgentRunCompletedPayload
   }
   'sessions:resources-invalidated': {
     payload: { sessionId: SessionId }

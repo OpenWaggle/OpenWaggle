@@ -68,6 +68,7 @@ function pauseRemainingPendingQueues(sql: SqlClient.SqlClient, now: number) {
     UPDATE session_control_states
     SET
       queue_state = ${'paused'},
+      queue_pause_reason = ${'host-lost'},
       state_revision = state_revision + 1,
       queue_revision = queue_revision + 1,
       updated_at = ${now}
@@ -106,6 +107,10 @@ function recoverAfterHostLoss(sql: SqlClient.SqlClient, now: number) {
             UPDATE session_control_states
             SET
               active_run_id = NULL,
+              queue_pause_reason = CASE
+                WHEN queue_state = 'paused' THEN queue_pause_reason
+                ELSE 'host-lost'
+              END,
               queue_state = 'paused',
               state_revision = state_revision + 1,
               queue_revision = queue_revision + 1,

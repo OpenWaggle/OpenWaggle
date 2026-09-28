@@ -56,12 +56,8 @@ export function useUnarchiveSessionMutation() {
 
   return useMutation({
     mutationFn: (sessionId: SessionId) => api.unarchiveSession(sessionId),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({
-        queryKey: queryKeys.archivedSessionBranches,
-        exact: true,
-      })
-    },
+    // A restored Worker leaves the Hive "Archived" group; its branches may reappear too.
+    onSuccess: () => refreshArchivedSessions(queryClient),
   })
 }
 

@@ -196,6 +196,7 @@ export const SESSION_CONTROL_TARGET_SCHEMA_STATEMENTS = [
     active_run_id TEXT REFERENCES session_runs(id),
     queue_state TEXT NOT NULL CHECK (queue_state IN ('running', 'paused')),
     queue_revision INTEGER NOT NULL CHECK (queue_revision >= 0),
+    queue_pause_reason TEXT,
     node_mutation_revision INTEGER NOT NULL DEFAULT 0 CHECK (node_mutation_revision >= 0),
     updated_at INTEGER NOT NULL
   )

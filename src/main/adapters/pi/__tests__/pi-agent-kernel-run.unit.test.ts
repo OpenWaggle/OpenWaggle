@@ -23,6 +23,7 @@ const runMocks = vi.hoisted(() => ({
     ok: true,
     message: 'Pulled latest changes.',
   })),
+  resolveTrackedBranch: vi.fn(async () => ({ branch: 'main', upstream: 'origin/main' })),
 }))
 
 vi.mock('../agent-kernel/classic-run', () => ({ runPiSession: runMocks.runPiSession }))
@@ -38,6 +39,7 @@ vi.mock('../sessions-tool-extension', () => ({
 }))
 vi.mock('../../git/remote-sync', () => ({
   pullCurrentBranchFastForward: runMocks.pullCurrentBranchFastForward,
+  resolveTrackedBranch: runMocks.resolveTrackedBranch,
 }))
 
 function actionWorkspaceDependencies(): Pick<
@@ -70,6 +72,11 @@ describe('runPiAgentKernel', () => {
     for (const mock of Object.values(runMocks)) mock.mockReset()
     runMocks.ensureSessionWorktreeProjectPath.mockResolvedValue('/repo/worktree')
     runMocks.createSessionsToolExtension.mockReturnValue(runMocks.sessionsExtensionFactory)
+    runMocks.resolveTrackedBranch.mockResolvedValue({ branch: 'main', upstream: 'origin/main' })
+    runMocks.pullCurrentBranchFastForward.mockResolvedValue({
+      ok: true,
+      message: 'Pulled latest changes.',
+    })
   })
 
   it('injects the scoped Sessions extension and preserves MCP and visualization restrictions', async () => {
@@ -212,46 +219,6 @@ describe('runPiAgentKernel', () => {
       }),
     )
     expect(runMocks.runPiSession).not.toHaveBeenCalled()
-  })
-
-  it('pulls the checked-out branch before the first run of a local-mode conversation', async () => {
-    runMocks.runPiSession.mockResolvedValue({
-      newMessages: [],
-      piSessionId: 'pi-session',
-      sessionSnapshot: { nodes: [], activeNodeId: null },
-    })
-    const input = fromPartial<AgentKernelRunInput>({
-      session: { id: SessionId('session-local'), projectPath: '/repo', messages: [] },
-      runId: 'run-local',
-      payload: { text: 'Do the work', thinkingLevel: 'medium', attachments: [] },
-      model: SupportedModelId('openai/gpt-5.4'),
-      signal: new AbortController().signal,
-      onEvent: vi.fn(),
-    })
-
-    await Effect.runPromise(
-      runPiAgentKernel(input, {
-        runtimeExtensionIsolation: {},
-        ...actionWorkspaceDependencies(),
-        terminal: fromPartial({}),
-        browserPreviewAutomation: fromPartial({}),
-        enableBrowserPreviewAutomation: false,
-        mcpConfig: fromPartial({ createTurnSnapshot: () => Effect.succeed(null) }),
-        mcpRuntime: fromPartial({
-          prepareTurn: () => Effect.void,
-          completeTurn: () => Effect.void,
-          disposeSession: () => Effect.void,
-        }),
-        inlineVisualization: fromPartial({
-          prepareSession: () => Effect.succeed('/visualizations/session-local'),
-        }),
-      }),
-    )
-
-    expect(runMocks.pullCurrentBranchFastForward).toHaveBeenCalledWith(
-      '/repo/worktree',
-      expect.objectContaining({ signal: input.signal }),
-    )
   })
 
   it('does not pull for worktree-mode sessions or later runs', async () => {

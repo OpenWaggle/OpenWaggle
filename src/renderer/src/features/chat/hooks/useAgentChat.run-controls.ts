@@ -13,12 +13,18 @@ import { usePreferencesStore } from '@/features/settings/state'
 import { api } from '@/shared/lib/ipc'
 import { createOptimisticUserMessage } from '../lib/useAgentChat.utils'
 import { settledSessionModelWrites } from '../state/session-model-writes'
-import { createPendingRunWaiter, updateMessagesForSession } from './useAgentChat.message-cache'
+import {
+  beginForegroundRun,
+  forgetQueuedSend,
+  offerRunCompletion,
+} from './useAgentChat.foreground-run'
+import { updateMessagesForSession } from './useAgentChat.message-cache'
 import type {
   AgentChatStatus,
   AgentRunActions,
   MutableValueRef,
   PendingRunWaiter,
+  RunCompletionRouting,
   SetAgentChatError,
   SetAgentChatStatus,
   SetBackgroundStreaming,
@@ -45,6 +51,8 @@ interface AgentRunControlParams {
   readonly sessionId: SessionId | null
   readonly isFirstMessage: boolean
   readonly model: SupportedModelId | undefined
+  /** The error on screen when this render's controls were created; a queued send restores it. */
+  readonly error: Error | undefined
   readonly refs: AgentRunControlRefs
   readonly setMessagesBySessionId: SetMessagesBySessionId
   readonly setRunRenderMessages: SetRunRenderMessages
@@ -61,6 +69,7 @@ interface AgentRunControlParams {
   readonly setStatus: SetAgentChatStatus
   readonly setCompactionStatus: SetCompactionStatus
   readonly addOptimisticUserMessage: (sessionId: SessionId, message: UIMessage) => void
+  readonly removeOptimisticUserMessage: (sessionId: SessionId, messageId: UIMessage['id']) => void
   readonly upsertSession: (session: SessionDetail) => void
 }
 
@@ -92,17 +101,26 @@ function shouldDeferSnapshotRefresh(refs: AgentRunControlRefs) {
   )
 }
 
-function settlePendingRun(refs: AgentRunControlRefs, nextError?: Error) {
+/**
+ * Hand a completion to the send being followed. It stays followed unless the completion was its
+ * own: a completion of an earlier Run is passed back to that Run's send, and one that arrives
+ * before the send knows its Run is held until it does.
+ */
+function settlePendingRun(
+  refs: AgentRunControlRefs,
+  nextError?: Error,
+  runId?: string,
+): RunCompletionRouting {
   const pending = refs.pendingRunWaiterRef.current
-  refs.pendingRunWaiterRef.current = null
-  if (!pending) {
-    return
+  if (!pending) return 'settled'
+  const routing = offerRunCompletion(pending, {
+    ...(runId === undefined ? {} : { runId }),
+    ...(nextError ? { error: nextError } : {}),
+  })
+  if (routing === 'settled' && refs.pendingRunWaiterRef.current === pending) {
+    refs.pendingRunWaiterRef.current = null
   }
-  if (nextError) {
-    pending.reject(nextError)
-    return
-  }
-  pending.resolve()
+  return routing
 }
 
 export function createAgentRunControls(params: AgentRunControlParams) {
@@ -143,28 +161,18 @@ export function createAgentRunControls(params: AgentRunControlParams) {
     }
   }
 
-  function startForegroundRun(targetSessionId: SessionId) {
-    const { promise, waiter } = createPendingRunWaiter()
-    refs.pendingRunWaiterRef.current = waiter
-    refs.foregroundStreamActiveRef.current = true
-    refs.foregroundSessionIdRef.current = targetSessionId
-    refs.terminalRunErrorRef.current = undefined
-    params.setBackgroundStreaming(false)
-    params.setError(undefined)
-    params.setStatus('submitted')
-    return promise
-  }
-
   async function dispatchAgentSend(
     payload: AgentSendPayload,
     waggleConfig: WaggleConfig | null,
     model: SupportedModelId,
+    optimisticMessageId: UIMessage['id'],
   ) {
     if (!sessionId) {
       return
     }
     const targetSessionId = sessionId
-    const runPromise = startForegroundRun(targetSessionId)
+    const run = beginForegroundRun(refs, params, targetSessionId)
+    const runPromise = run.promise
     // The Host resolves the Run's model from the Session when the Run starts, so a model the user
     // just picked must be stored before the prompt that should use it is dispatched.
     await settledSessionModelWrites(targetSessionId)
@@ -179,6 +187,7 @@ export function createAgentRunControls(params: AgentRunControlParams) {
      * begins immediately, and the superseded send's reply arrives after that replacement has started.
      */
     let notDelivered: MessageNotDelivered | null = null
+    let queued: boolean
     let delivered = false
     try {
       /*
@@ -190,19 +199,27 @@ export function createAgentRunControls(params: AgentRunControlParams) {
       const report = await sendPromise
       if (report.outcome === 'delivered') {
         delivered = true
+        run.bind(report.runId)
         await runPromise
-      } else {
-        // Nothing is waiting on the run any more, but its rejection must not surface unhandled.
-        void runPromise.catch(() => undefined)
+        return
+      }
+      // Nothing is waiting on the run any more, but its rejection must not surface unhandled.
+      void runPromise.catch(() => undefined)
+      queued = report.outcome === 'queued'
+      if (report.outcome !== 'queued') {
         notDelivered = new MessageNotDelivered(report.outcome, report.message)
       }
     } catch (runError) {
       const normalizedError = normalizeError(runError)
-      if (refs.foregroundSessionIdRef.current === targetSessionId) {
+      // A later send may already own the foreground: this Run's completion was passed back to it
+      // after that send began. Its state is not this send's to clear or to mark failed.
+      const ownsForeground =
+        refs.pendingRunWaiterRef.current === null || refs.pendingRunWaiterRef.current === run.waiter
+      if (ownsForeground && refs.foregroundSessionIdRef.current === targetSessionId) {
         refs.pendingRunWaiterRef.current = null
         clearRunPointers(refs)
       }
-      if (refs.currentSessionIdRef.current === targetSessionId) {
+      if (ownsForeground && refs.currentSessionIdRef.current === targetSessionId) {
         params.setError(normalizedError)
         params.setStatus('error')
         refs.terminalRunErrorRef.current = normalizedError
@@ -223,6 +240,10 @@ export function createAgentRunControls(params: AgentRunControlParams) {
        * destroyed the work a caller was holding for exactly this case.
        */
       throw delivered ? new MessageDeliveredRunFailed(normalizedError) : normalizedError
+    }
+    if (queued) {
+      forgetQueuedSend({ refs, setters: params, targetSessionId, run, optimisticMessageId })
+      return
     }
     /*
      * The caller is told, so work it submitted is not lost - a review is restored - but the session is left
@@ -259,7 +280,7 @@ export function createAgentRunControls(params: AgentRunControlParams) {
       (currentMessages) => [...currentMessages, optimisticUserMessage],
       { cacheRunSnapshot: true },
     )
-    await dispatchAgentSend(payload, waggleConfig, params.model)
+    await dispatchAgentSend(payload, waggleConfig, params.model, optimisticUserMessage.id)
     if (params.isFirstMessage) {
       params.setFirstSendRecovery(sessionId, null)
     }
@@ -281,7 +302,8 @@ export function createAgentRunControls(params: AgentRunControlParams) {
   return {
     runActions: {
       flushDeferredSessionSnapshot,
-      settlePendingRun: (nextError?: Error) => settlePendingRun(refs, nextError),
+      settlePendingRun: (nextError?: Error, runId?: string) =>
+        settlePendingRun(refs, nextError, runId),
     } satisfies AgentRunActions,
     withDeferredSnapshotRefresh,
     sendUserPayload,

@@ -2,7 +2,6 @@ import { isMatching, P } from '@diegogbrisa/ts-match'
 import { type TProperties, type TSchema, type TUnsafe, Type } from 'typebox'
 import { Check, Errors } from 'typebox/value'
 import { type SessionsToolParameters, sessionsToolParameters } from './sessions-tool-parameters'
-import { formatTypeBoxErrors } from './typebox-errors'
 
 /** Loose structural view of a union member for run-time schema surgery. */
 export interface SessionsToolRuntimeVariant {
@@ -94,6 +93,8 @@ export function assertSessionsToolActionArguments(params: SessionsToolParameters
   }
   const matchesVariant: boolean = Check(variant, params)
   if (matchesVariant) return
-  const details = formatTypeBoxErrors(Errors(variant, params))
+  const details = [...Errors(variant, params)]
+    .map((error) => `${error.instancePath || 'arguments'}: ${error.message}`)
+    .join('; ')
   throw new Error(`Invalid arguments for sessions action "${params.action}": ${details}`)
 }

@@ -5,6 +5,8 @@ import { isTerminalTransportEvent } from '@/features/chat/lib/agent-stream-utils
 import { useAgentLoopEventStore } from '@/features/chat/state/agent-loop-event-store'
 import { useBackgroundRunStore } from '@/features/chat/state/background-run-store'
 import { useChatStore } from '@/features/chat/state/chat-store'
+import { useFirstSendPendingStore } from '@/features/chat/state/first-send-pending-store'
+import { trackRunFinishing, useRunFinishingStore } from '@/features/chat/state/run-finishing-store'
 import { api } from '@/shared/lib/ipc'
 
 /**
@@ -44,8 +46,10 @@ export function useBackgroundRunMonitor(): void {
     const compactionOnlySessionIds = new Set<string>()
     const unsubEvent = api.onAgentEvent((payload) => {
       applyAgentLoopEvent(payload.sessionId, payload.event)
+      trackRunFinishing(payload.sessionId, payload.event)
       if (payload.event.type === 'agent_start') {
         compactionOnlySessionIds.delete(payload.sessionId)
+        useFirstSendPendingStore.getState().clear(payload.sessionId)
         const runModel = payload.event.model?.trim()
         addActiveRun(payload.sessionId, runModel ? SupportedModelId(runModel) : undefined)
       }
@@ -63,15 +67,21 @@ export function useBackgroundRunMonitor(): void {
         removeActiveRun(payload.sessionId)
       }
       if (isTerminalTransportEvent(payload.event) && !isRetryingAttemptEnd(payload.event)) {
+        useFirstSendPendingStore.getState().clear(payload.sessionId)
         removeActiveRun(payload.sessionId)
       }
       // A stopped retry delay ends the Run without another agent_end.
       if (payload.event.type === 'auto_retry_end' && !payload.event.success) {
+        useFirstSendPendingStore.getState().clear(payload.sessionId)
         removeActiveRun(payload.sessionId)
       }
     })
 
     const unsubCompleted = api.onRunCompleted((payload) => {
+      // The Session went straight on to a queued Follow-up; it is still running.
+      if (payload.continues) return
+      useRunFinishingStore.getState().clear(payload.sessionId)
+      useFirstSendPendingStore.getState().clear(payload.sessionId)
       removeActiveRun(payload.sessionId)
       void refreshSession(payload.sessionId).finally(() => {
         clearRunRenderSnapshot(payload.sessionId)

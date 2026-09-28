@@ -46,6 +46,7 @@ export function executorHarness(
     readonly acquireGate?: Effect.Effect<void, Error>
     readonly browser?: Partial<BrowserPreviewAutomationServiceShape>
     readonly releaseBrowser?: () => void
+    readonly registeredOwnerKey?: string
   } = {},
 ) {
   const nativeActive = new Set<string>()
@@ -71,11 +72,24 @@ export function executorHarness(
   const status = vi.fn(() => Effect.succeed(browserStatus))
   const browser: BrowserPreviewAutomationServiceShape = fromPartial({ status, ...options.browser })
   const deleteBrowserOwner = vi.fn(async () => undefined)
+  const inspectBrowserOwner = vi.fn((ownerKey: string) => ({
+    registered: ownerKey === options.registeredOwnerKey,
+    previews: 0,
+  }))
   const executor = makeGuiDesktopServiceExecutor({
     terminal: fromPartial({ runWithMutationFence }),
     browser,
     deleteBrowserOwner,
+    inspectBrowserOwner,
     acquireBrowserMutationFence: async () => options.releaseBrowser ?? (() => undefined),
   })
-  return { executor, nativeActive, nativeEvents, browser, status, deleteBrowserOwner }
+  return {
+    executor,
+    nativeActive,
+    nativeEvents,
+    browser,
+    status,
+    deleteBrowserOwner,
+    inspectBrowserOwner,
+  }
 }

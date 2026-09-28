@@ -15,11 +15,16 @@ function toError(error: unknown) {
   return error instanceof Error ? error : new Error(String(error))
 }
 
-/** Hold both Host writer admission and the GUI's native-owner fence until mutation settles. */
-export function withSessionDesktopRemoval<A, E, R>(
+/**
+ * Hold both Host writer admission and the GUI's native-owner fence until mutation settles.
+ * `admit` runs inside the fence, before any terminal, browser, or service teardown, so it can
+ * refuse (by failing) on desktop state that no new admission can add while it is checked.
+ */
+export function withSessionDesktopRemoval<A, E, R, AE = never, AR = never>(
   sessionId: SessionId,
   operation: Effect.Effect<A, E, R>,
   intent: 'archive' | 'delete' = 'archive',
+  admit: Effect.Effect<void, AE, AR> = Effect.void,
 ) {
   return Effect.acquireUseRelease(
     Effect.try({ try: () => acquireSessionRemovalAdmission(sessionId), catch: toError }),
@@ -46,6 +51,7 @@ export function withSessionDesktopRemoval<A, E, R>(
               return yield* terminals.runWithMutationFence(
                 { kind: 'owner', ownerKey: sessionId },
                 Effect.gen(function* () {
+                  yield* admit
                   yield* terminals.closeAllForOwner(sessionId, false)
                   yield* desktop.execute({
                     service: 'browser',

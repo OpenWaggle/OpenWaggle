@@ -8,6 +8,7 @@ const EMPTY_MESSAGES: readonly UIMessage[] = []
 interface OptimisticUserMessageState {
   readonly messagesBySessionId: Map<SessionId, readonly UIMessage[]>
   readonly add: (sessionId: SessionId, message: UIMessage) => void
+  readonly remove: (sessionId: SessionId, messageId: UIMessage['id']) => void
   readonly removeMatched: (sessionId: SessionId, persistedMessages: readonly UIMessage[]) => void
   readonly clear: (sessionId: SessionId) => void
 }
@@ -85,6 +86,25 @@ export const useOptimisticUserMessageStore = create<OptimisticUserMessageState>(
 
       const next = new Map(state.messagesBySessionId)
       next.set(sessionId, [...existing, message])
+      return { messagesBySessionId: next }
+    })
+  },
+
+  remove(sessionId, messageId) {
+    set((state) => {
+      const existing = state.messagesBySessionId.get(sessionId)
+      const removed = existing?.find((message) => message.id === messageId)
+      if (!existing || !removed) {
+        return state
+      }
+      releaseMessageImagePreviewUrls(removed)
+      const remaining = existing.filter((message) => message !== removed)
+      const next = new Map(state.messagesBySessionId)
+      if (remaining.length === 0) {
+        next.delete(sessionId)
+      } else {
+        next.set(sessionId, remaining)
+      }
       return { messagesBySessionId: next }
     })
   },

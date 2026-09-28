@@ -7,7 +7,8 @@ import { makeTerminalHistoryStore } from './terminal/terminal-history-store'
 /**
  * The broker must first prove a never-adopted or cleanly closed desktop owner and
  * hold its durable offline fence. No live resources may exist under that proof.
- * This adapter only removes cold history; it never constructs Electron or a PTY.
+ * This adapter only removes cold history and answers presence inspections with
+ * "nothing native exists"; it never constructs Electron or a PTY.
  */
 export function makeOfflineDesktopCleanupExecutor(logsDir: string) {
   if (!path.isAbsolute(logsDir)) throw new Error('Terminal history directory must be absolute.')
@@ -17,6 +18,20 @@ export function makeOfflineDesktopCleanupExecutor(logsDir: string) {
     if (command.service === 'browser' && command.operation === 'deleteOwner') {
       if (!command.ownerKey.trim()) return Effect.fail(new Error('A Session owner is required.'))
       return Effect.succeed({ service: 'browser', operation: 'deleteOwner', value: null })
+    }
+    if (command.service === 'browser' && command.operation === 'inspectOwner') {
+      return Effect.succeed({
+        service: 'browser',
+        operation: 'inspectOwner',
+        value: { registered: false, previews: 0 },
+      })
+    }
+    if (command.service === 'terminal' && command.operation === 'getActivitySnapshot') {
+      return Effect.succeed({
+        service: 'terminal',
+        operation: 'getActivitySnapshot',
+        value: { revision: 0, summaries: [], truncated: false },
+      })
     }
     if (command.service === 'terminal' && command.operation === 'closeAllForOwner') {
       if (!command.input.ownerKey.trim())

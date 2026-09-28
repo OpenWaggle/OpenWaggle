@@ -4,13 +4,11 @@ import type {
   BrowserPreviewAutomationServiceShape,
 } from '../../ports/browser-preview-automation-service'
 import {
-  previewResizeParameters,
-  toPreviewResizeInput,
-} from './browser-preview-automation-resize-parameters'
-import {
+  browserPreviewResizeInput,
   previewAppearanceParameters,
   previewNavigateParameters,
   previewOpenParameters,
+  previewResizeParameters,
 } from './browser-preview-automation-schemas-core'
 import {
   authorizeBrowserPreviewTool,
@@ -82,15 +80,14 @@ export function registerBrowserPreviewNavigationTools(input: RegistrationInput) 
     parameters: previewResizeParameters,
     executionMode: 'sequential',
     execute: async (_id, params, signal, _update, ctx) => {
-      // Enforce the per-mode contract before asking the user to authorize the call.
-      const resizeInput = toPreviewResizeInput(params)
+      // Reject a mode with missing fields before asking the user to approve it.
+      const resize = browserPreviewResizeInput(params)
       return approved({
         operation: 'resize browser preview',
-        params: resizeInput,
+        params: resize,
         signal,
         ctx,
-        execute: () =>
-          runBrowserPreviewEffect(input.service.resize(input.scope, resizeInput), signal),
+        execute: () => runBrowserPreviewEffect(input.service.resize(input.scope, resize), signal),
       })
     },
   })

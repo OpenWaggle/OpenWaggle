@@ -39,6 +39,8 @@ function setup() {
     setProjectPath: vi.fn(async () => undefined),
     showToast: vi.fn(),
     startDraftSession: vi.fn(),
+    clearActiveSession: vi.fn(),
+    getActiveSessionId: () => null,
     clearTransientDraftContext: vi.fn(),
   } satisfies Parameters<typeof createSidebarProjectActions>[0]
   return { deps, actions: createSidebarProjectActions(deps) }

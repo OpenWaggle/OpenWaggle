@@ -14,6 +14,7 @@ import {
   selectOptimisticUserMessages,
   useOptimisticUserMessageStore,
 } from '@/features/chat/state/optimistic-user-message-store'
+import { useIsRunFinishing } from '@/features/chat/state/run-finishing-store'
 import { buildClientUserMessage } from '../lib/useAgentChat.utils'
 import {
   type RunCompletionEffectContext,
@@ -41,6 +42,19 @@ const EMPTY_AGENT_INTERACTIONS: readonly AgentLoopInteraction[] = []
 const EMPTY_AGENT_CUSTOM_MESSAGES: AgentChatReturn['agentCustomMessages'] = []
 const EMPTY_AGENT_INTERACTION_EVENTS: AgentChatReturn['agentInteractionEvents'] = []
 
+function isRunStatusActive(status: AgentChatStatus, backgroundStreaming: boolean) {
+  return backgroundStreaming || (status !== 'ready' && status !== 'error')
+}
+
+/** A finishing Run outranks the stream state: the agent is done and the Host is settling it. */
+function visibleRunStatus(
+  status: AgentChatStatus,
+  flags: { readonly isFinishing: boolean; readonly backgroundStreaming: boolean },
+): AgentChatStatus {
+  if (flags.isFinishing) return 'finishing'
+  return flags.backgroundStreaming ? 'streaming' : status
+}
+
 export function useAgentChat(
   sessionId: SessionId | null,
   session: SessionDetail | null,
@@ -63,6 +77,7 @@ export function useAgentChat(
     selectOptimisticUserMessages(sessionId),
   )
   const addOptimisticUserMessage = useOptimisticUserMessageStore((state) => state.add)
+  const removeOptimisticUserMessage = useOptimisticUserMessageStore((state) => state.remove)
   const removeMatchedOptimisticUserMessages = useOptimisticUserMessageStore(
     (state) => state.removeMatched,
   )
@@ -81,7 +96,8 @@ export function useAgentChat(
   const agentCustomMessages = agentLoopSessionState?.customMessages ?? EMPTY_AGENT_CUSTOM_MESSAGES
   const agentInteractionEvents =
     agentLoopSessionState?.interactionEvents ?? EMPTY_AGENT_INTERACTION_EVENTS
-  const isLoading = backgroundStreaming || (status !== 'ready' && status !== 'error')
+  const isFinishing = useIsRunFinishing(sessionId)
+  const isLoading = isFinishing || isRunStatusActive(status, backgroundStreaming)
   const isSessionIdle = !isLoading
 
   const currentSessionIdRef = useRef(sessionId)
@@ -146,6 +162,7 @@ export function useAgentChat(
     sessionId,
     isFirstMessage: session?.messages.length === 0,
     model,
+    error,
     refs,
     setMessagesBySessionId,
     setRunRenderMessages,
@@ -155,6 +172,7 @@ export function useAgentChat(
     setStatus,
     setCompactionStatus: updateCompactionStatus,
     addOptimisticUserMessage,
+    removeOptimisticUserMessage,
     upsertSession,
   })
   useLayoutEffect(() => {
@@ -217,6 +235,7 @@ export function useAgentChat(
     setBackgroundStreaming,
     setCompactionStatus: updateCompactionStatus,
     setStatus,
+    setError,
     agentRunActionsRef,
   }))
 
@@ -247,7 +266,7 @@ export function useAgentChat(
         await runControls.sendUserPayload(payload, config)
       }),
     isLoading,
-    status: backgroundStreaming ? 'streaming' : status,
+    status: visibleRunStatus(status, { isFinishing, backgroundStreaming }),
     stop: runControls.stop,
     error,
     withDeferredSnapshotRefresh: runControls.withDeferredSnapshotRefresh,

@@ -75,7 +75,7 @@ A tool is an action the agent can take outside its reply, such as reading a file
 
 Expand a tool row to inspect its arguments and output. Shell output can appear while the command is still running; a live excerpt is progress, not a success result. Failed commands keep their available output for inspection. Use **Copy command** or **Copy output** when those controls are available.
 
-A new worktree also reports checkout progress in the conversation. **Worktree created** confirms the checkout exists, not that project setup or the task has finished. A configured setup command must complete before the first agent turn. See [First-send worktree feedback](/docs/developer-workflow/git-integration#first-send-worktree-feedback).
+A first message reports each setup step in the conversation, such as pulling the branch, creating a worktree, or connecting MCP servers. **Worktree created** confirms the checkout exists, not that project setup or the task has finished. A configured setup command must complete before the first agent turn. See [First-send worktree feedback](/docs/developer-workflow/git-integration#first-send-worktree-feedback).
 
 If an approval request appears, check the proposed action and its target. Choose **Allow once** to proceed or **Continue without** to skip it and give different instructions. **Ask for approval** does not ask before every file read or guarantee that files cannot be edited.
 

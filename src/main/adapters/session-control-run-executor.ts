@@ -191,9 +191,15 @@ function executeRunAfterAttachmentAdmission(input: SessionControlRunExecutionInp
       registered.payload,
       registered.resourceResult,
     )
+    const ending = {
+      ...(registered.terminalEventAt === undefined
+        ? {}
+        : { terminalEventAt: registered.terminalEventAt }),
+      ...('failure' in registered && registered.failure ? { failure: registered.failure } : {}),
+    }
     return registered.mode === 'waggle'
-      ? registered.result
-      : terminalRunResult(registered.result, interactionTimedOut)
+      ? { ...registered.result, ...ending }
+      : { ...terminalRunResult(registered.result, interactionTimedOut), ...ending }
   })
 }
 

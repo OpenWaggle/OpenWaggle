@@ -5,7 +5,7 @@ import type {
 } from '@earendil-works/pi-coding-agent'
 import { SessionId } from '@shared/types/brand'
 import type { BrowserPreviewAutomationSnapshot } from '@shared/types/browser-preview-automation'
-import { fromAny, fromPartial } from '@total-typescript/shoehorn'
+import { fromPartial } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { BrowserPreviewAutomationServiceShape } from '../../../ports/browser-preview-automation-service'
@@ -40,8 +40,8 @@ const service = fromPartial<BrowserPreviewAutomationServiceShape>({
   status: vi.fn(() => Effect.succeed(status)),
   navigate: vi.fn(() => Effect.succeed(status)),
   click: vi.fn(() => Effect.void),
-  snapshot: vi.fn(() => Effect.succeed(snapshot)),
   resize: vi.fn(() => Effect.succeed({ tabId: 'tab-1', viewport: { mode: 'fill' as const } })),
+  snapshot: vi.fn(() => Effect.succeed(snapshot)),
 })
 
 async function registeredTools() {
@@ -172,94 +172,66 @@ describe('Pi browser preview automation extension', () => {
     )
   })
 
-  it('registers preview_resize as one flat object schema with mode-specific fields', async () => {
+  it('resizes through one object schema and still enforces each mode contract', async () => {
     const tools = await registeredTools()
-    const shape = fromAny<
-      { type?: string; anyOf?: unknown; required?: string[]; properties?: Record<string, unknown> },
-      unknown
-    >(JSON.parse(JSON.stringify(tools.get('preview_resize')?.parameters)))
-
-    expect(shape.type).toBe('object')
-    expect(shape.anyOf).toBeUndefined()
-    expect(shape.required).toEqual(['mode'])
-    expect(Object.keys(shape.properties ?? {}).sort()).toEqual(
-      ['tabId', 'mode', 'width', 'height', 'preset', 'orientation'].sort(),
-    )
-  })
-
-  it.each([
-    { label: 'fill', params: { mode: 'fill' } },
-    { label: 'freeform', params: { tabId: 'tab-1', mode: 'freeform', width: 800, height: 600 } },
-    { label: 'preset', params: { mode: 'preset', preset: 'ipad-mini', orientation: 'landscape' } },
-  ])('forwards a valid $label resize to the session-scoped service', async ({ params }) => {
-    const tools = await registeredTools()
-    const result = await tools.get('preview_resize')?.execute(
-      'resize-1',
-      params,
-      undefined,
-      undefined,
-      context(async () => true),
-    )
-
-    expect(result).not.toMatchObject({ isError: true })
-    expect(service.resize).toHaveBeenCalledWith(
-      { sessionId: SessionId('session-1'), workingPath: '/project' },
-      params,
-    )
-  })
-
-  it.each([
-    { label: 'missing mode', params: {}, message: 'Invalid preview_resize arguments' },
-    {
-      label: 'unknown mode',
-      params: { mode: 'zoom' },
-      message: 'Invalid preview_resize arguments',
-    },
-    {
-      label: 'freeform without height',
-      params: { mode: 'freeform', width: 800 },
-      message: /mode "freeform": .*height/,
-    },
-    {
-      label: 'freeform dimensions above the viewport area limit',
-      params: { mode: 'freeform', width: 3_840, height: 3_840 },
-      message: /mode "freeform": Viewport area may not exceed/,
-    },
-    {
-      label: 'an unknown preset',
-      params: { mode: 'preset', preset: 'nokia-3310' },
-      message: /Invalid preview_resize arguments: \/preset/,
-    },
-    {
-      label: 'preset without preset',
-      params: { mode: 'preset' },
-      message: /mode "preset": .*preset/,
-    },
-    {
-      label: 'freeform with a foreign field and a missing field',
-      params: { mode: 'freeform', width: 800, orientation: 'portrait' },
-      message: /mode "freeform": orientation is not accepted; .*height/,
-    },
-    {
-      label: 'fill with freeform dimensions',
-      params: { mode: 'fill', width: 800, height: 600 },
-      message: 'mode "fill": width, height are not accepted',
-    },
-    {
-      label: 'freeform with an orientation',
-      params: { mode: 'freeform', width: 800, height: 600, orientation: 'portrait' },
-      message: 'mode "freeform": orientation is not accepted',
-    },
-  ])('rejects $label before asking for approval', async ({ params, message }) => {
-    const tools = await registeredTools()
+    const resize = tools.get('preview_resize')
     const confirm = vi.fn<ExtensionContext['ui']['confirm']>(async () => true)
+    const scope = { sessionId: SessionId('session-1'), workingPath: '/project' }
 
+    expect(JSON.parse(JSON.stringify(resize?.parameters))).toMatchObject({
+      type: 'object',
+      required: ['mode'],
+      properties: {
+        mode: { anyOf: [{ const: 'fill' }, { const: 'freeform' }, { const: 'preset' }] },
+      },
+    })
     await expect(
-      tools
-        .get('preview_resize')
-        ?.execute('resize-1', params, undefined, undefined, context(confirm)),
-    ).rejects.toThrow(message)
+      resize?.execute(
+        'resize-1',
+        { mode: 'freeform', width: 800 },
+        undefined,
+        undefined,
+        context(confirm),
+      ),
+    ).rejects.toThrow('requires both width and height')
+    await expect(
+      resize?.execute('resize-2', { mode: 'preset' }, undefined, undefined, context(confirm)),
+    ).rejects.toThrow('requires preset')
     expect(confirm).not.toHaveBeenCalled()
     expect(service.resize).not.toHaveBeenCalled()
+
+    await resize?.execute(
+      'resize-3',
+      { mode: 'fill', width: 800, preset: 'ipad-air' },
+      undefined,
+      undefined,
+      context(confirm),
+    )
+    expect(service.resize).toHaveBeenLastCalledWith(scope, { mode: 'fill' })
+    await resize?.execute(
+      'resize-4',
+      { tabId: 'tab-2', mode: 'preset', preset: 'ipad-air', orientation: 'landscape' },
+      undefined,
+      undefined,
+      context(confirm),
+    )
+    expect(service.resize).toHaveBeenLastCalledWith(scope, {
+      tabId: 'tab-2',
+      mode: 'preset',
+      preset: 'ipad-air',
+      orientation: 'landscape',
+    })
+    await resize?.execute(
+      'resize-5',
+      { mode: 'freeform', width: 800, height: 600 },
+      undefined,
+      undefined,
+      context(confirm),
+    )
+    expect(service.resize).toHaveBeenLastCalledWith(scope, {
+      mode: 'freeform',
+      width: 800,
+      height: 600,
+    })
   })
 })

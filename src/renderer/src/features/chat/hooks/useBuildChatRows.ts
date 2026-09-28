@@ -209,6 +209,7 @@ interface BuildChatRowsParams {
   customMessages?: readonly AgentTransportCustomEvent[]
   interactionEvents?: readonly AgentInteractionEvent[]
   isLoading: boolean
+  isFinishing?: boolean
   error: Error | undefined
   lastUserMessage: string | null
   dismissedError: string | null
@@ -217,11 +218,23 @@ interface BuildChatRowsParams {
   phase: StreamingPhaseState
   interruptedRun?: SessionInterruptedRun
   worktreeLaunch?: WorktreeLaunchSnapshot | null
+  /** A first send is on its way to a Session that has not started running yet. */
+  firstSendPending?: boolean
   compactionStatus?: AgentCompactionStatus | null
   /** Durable per-turn durations keyed by terminal assistant message id (turn checkpoints). */
   turnDurationsByAnchorMessageId?: ReadonlyMap<string, number>
   /** Turn keys the user expanded in this session (fold state is in-memory). */
   expandedTurnKeys?: ReadonlySet<string>
+}
+
+/** A first send that nothing (no launch step, no run, no reply) has answered yet. */
+function isAwaitingFirstRun(params: BuildChatRowsParams, launchRows: readonly ChatRow[]) {
+  return (
+    params.firstSendPending === true &&
+    params.interruptedRun === undefined &&
+    launchRows.length === 0 &&
+    !params.messages.some((message) => message.role === 'assistant')
+  )
 }
 
 /** ADR 0034 fold inputs derived from the run's settled/active state. */
@@ -312,7 +325,7 @@ export function buildChatRows(params: BuildChatRowsParams): ChatRow[] {
     (params.customMessages ?? []).filter((event) => !isWorktreeCreatedEvent(event)),
   )
   appendInteractionEventRows(rows, params.interactionEvents ?? [])
-  appendStatusRows(rows, params)
+  appendStatusRows(rows, { ...params, awaitingFirstRun: isAwaitingFirstRun(params, launchRows) })
   appendInterruptedRunRow(rows, params)
   return applyTurnFolds(groupWaggleTurnRows(rows), toTurnFoldInput(params))
 }

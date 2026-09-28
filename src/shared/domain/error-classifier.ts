@@ -126,6 +126,7 @@ function isInsufficientCreditsError(lower: string) {
       'purchase credits',
       'spending limit',
       'out of credits',
+      'requires more credits',
     ]) ||
     (lower.includes('payment required') && !lower.includes('subscription')) ||
     (lower.includes('billing') && !lower.includes('billing address'))
