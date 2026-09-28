@@ -117,9 +117,15 @@ export function removeMcpServerOperation(raw: unknown) {
     const decoded = yield* decodeMcpOperationInput(mcpRemoveServerSchema, raw, 'server removal')
     const input = yield* validateMcpProjectInput(decoded)
     const service = yield* McpConfigService
+    const runtime = yield* McpRuntimeService
     return yield* Effect.uninterruptible(
       withMcpManagementWrite(
-        service.removeServer(input).pipe(Effect.flatMap(reconcileMcpRuntimeSettings)),
+        Effect.gen(function* () {
+          const { instanceId } = yield* service.getServerDefinition(input)
+          const view = yield* service.removeServer(input)
+          yield* runtime.forgetToolCatalog(instanceId)
+          return yield* reconcileMcpRuntimeSettings(view)
+        }),
       ),
     )
   })
@@ -255,6 +261,8 @@ export function logoutMcpServerOperation(raw: unknown) {
             vaultMutationAttempted = true
             yield* oauth.revoke(server.instanceId)
           }
+          // Its tool list described the signed-out account.
+          yield* runtime.forgetToolCatalog(server.instanceId)
           for (const name of partition.removable) {
             vaultMutationAttempted = true
             yield* vault.remove({ name })
@@ -293,6 +301,7 @@ export function logoutMcpServerRevision6Operation(raw: unknown) {
           const server = yield* config.getServerDefinition(input)
           vaultMutationAttempted = true
           yield* oauth.revoke(server.instanceId)
+          yield* runtime.forgetToolCatalog(server.instanceId)
           return { loggedOut: true as const }
         }).pipe(
           Effect.ensuring(

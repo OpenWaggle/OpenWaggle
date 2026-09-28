@@ -6,6 +6,12 @@ import type { McpRuntimeTool } from './types'
 
 const CACHE_KEY_VERSION = 1
 
+/** Which server a cached tool list belongs to: its cache key and the instance to forget it by. */
+export interface McpToolCatalogIdentity {
+  readonly key: string
+  readonly serverInstanceId: string
+}
+
 /**
  * The tool lists servers last reported, kept across Sessions and Host restarts.
  *
@@ -15,8 +21,10 @@ const CACHE_KEY_VERSION = 1
  * when the live tool is gone or its input schema changed.
  */
 export interface McpToolCatalogCache {
-  read(key: string): Promise<readonly McpRuntimeTool[] | undefined>
-  write(key: string, tools: readonly McpRuntimeTool[]): Promise<void>
+  read(identity: McpToolCatalogIdentity): Promise<readonly McpRuntimeTool[] | undefined>
+  write(identity: McpToolCatalogIdentity, tools: readonly McpRuntimeTool[]): Promise<void>
+  /** Drops every list of a server, after its credentials changed or it was removed. */
+  forgetServer(serverInstanceId: string): Promise<void>
 }
 
 /**
@@ -24,8 +32,11 @@ export interface McpToolCatalogCache {
  * Session or the worktree it runs in: every Session of a project starts the same server the same
  * way, and a changed definition, sandbox or permission grant is a different server.
  */
-export function mcpToolCatalogCacheKey(snapshot: McpTurnSnapshot, server: McpTurnSnapshotServer) {
-  return createHash('sha256')
+export function mcpToolCatalogIdentity(
+  snapshot: McpTurnSnapshot,
+  server: McpTurnSnapshotServer,
+): McpToolCatalogIdentity {
+  const key = createHash('sha256')
     .update(
       canonicalJson({
         version: CACHE_KEY_VERSION,
@@ -37,6 +48,7 @@ export function mcpToolCatalogCacheKey(snapshot: McpTurnSnapshot, server: McpTur
       }),
     )
     .digest('hex')
+  return { key, serverInstanceId: server.instanceId }
 }
 
 /** A stable fingerprint of a tool list, to tell an unchanged list from a changed one. */
@@ -45,6 +57,7 @@ export function toolCatalogFingerprint(tools: readonly McpRuntimeTool[]) {
 }
 
 interface MemoryEntry {
+  readonly serverInstanceId: string
   readonly tools: readonly McpRuntimeTool[]
   readonly fingerprint: string
   readonly storedAt: number
@@ -56,12 +69,16 @@ export class InMemoryMcpToolCatalogCache implements McpToolCatalogCache {
 
   constructor(private readonly now: () => number = Date.now) {}
 
-  async read(key: string) {
-    return this.get(key)?.tools
+  async read(identity: McpToolCatalogIdentity) {
+    return this.get(identity.key)?.tools
   }
 
-  async write(key: string, tools: readonly McpRuntimeTool[]) {
-    this.set(key, tools)
+  async write(identity: McpToolCatalogIdentity, tools: readonly McpRuntimeTool[]) {
+    this.set(identity, tools)
+  }
+
+  async forgetServer(serverInstanceId: string) {
+    this.forget(serverInstanceId)
   }
 
   /** The live entry for a key, or undefined once it has aged out. */
@@ -76,16 +93,27 @@ export class InMemoryMcpToolCatalogCache implements McpToolCatalogCache {
   }
 
   /** Stores a list and reports whether it differs from what was already held. */
-  set(key: string, tools: readonly McpRuntimeTool[], storedAt = this.now()) {
+  set(identity: McpToolCatalogIdentity, tools: readonly McpRuntimeTool[], storedAt = this.now()) {
     const fingerprint = toolCatalogFingerprint(tools)
-    const changed = this.entries.get(key)?.fingerprint !== fingerprint
-    this.entries.delete(key)
-    this.entries.set(key, { tools, fingerprint, storedAt })
+    const changed = this.entries.get(identity.key)?.fingerprint !== fingerprint
+    this.entries.delete(identity.key)
+    this.entries.set(identity.key, {
+      serverInstanceId: identity.serverInstanceId,
+      tools,
+      fingerprint,
+      storedAt,
+    })
     while (this.entries.size > MCP_CONFIG.TOOL_CATALOG_MAX_ENTRIES) {
       const oldest = this.entries.keys().next()
       if (oldest.done) break
       this.entries.delete(oldest.value)
     }
     return changed
+  }
+
+  forget(serverInstanceId: string) {
+    for (const [key, entry] of this.entries) {
+      if (entry.serverInstanceId === serverInstanceId) this.entries.delete(key)
+    }
   }
 }

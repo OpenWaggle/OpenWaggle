@@ -7,7 +7,7 @@ import type {
   McpTurnSnapshot,
   McpTurnSnapshotServer,
 } from '@shared/types/mcp'
-import type { Effect, Ref } from 'effect'
+import type { Deferred, Effect, Ref, SynchronizedRef } from 'effect'
 import type {
   McpRuntimeFailure,
   McpServerNotEnabled,
@@ -36,6 +36,13 @@ export interface CatalogTool {
   readonly snapshotRevision: string
   readonly runtimeNamespace: string
   readonly source: 'live' | 'cached'
+}
+
+/** A listing of one server's tools in flight for a Session, shared by everyone who needs it. */
+export interface ServerListing {
+  readonly result: Deferred.Deferred<readonly CatalogTool[], McpRuntimeFailure>
+  /** Fires when the listing's connection slot was closed, so its failure is not a real one. */
+  readonly retired: AbortSignal
 }
 
 export interface CatalogCacheEntry {
@@ -81,6 +88,7 @@ export interface McpEventInboxState {
  */
 export interface RuntimeStateContext {
   readonly catalogs: Ref.Ref<Map<string, CatalogCacheEntry>>
+  readonly listings: SynchronizedRef.SynchronizedRef<Map<string, ServerListing>>
   readonly handles: Ref.Ref<Map<string, CatalogTool>>
   readonly notices: Ref.Ref<Map<string, McpRuntimeNotice[]>>
   readonly eventSubscriptionCells: Ref.Ref<Map<string, EventSubscriptionCell>>
@@ -141,6 +149,7 @@ export interface McpRuntimeStateService {
   getEventSubscriptions(
     sessionId?: string | null,
   ): Effect.Effect<readonly McpEventSubscriptionState[]>
+  forgetToolCatalog(serverInstanceId: string): Effect.Effect<void>
   invalidateSessionConnections(sessionId: string): Effect.Effect<void>
   disposeSession(sessionId: string): Effect.Effect<void>
   reconcileIdleConnections(isActive: (runtimeNamespace: string) => boolean): Effect.Effect<void>

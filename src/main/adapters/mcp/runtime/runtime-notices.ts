@@ -1,5 +1,7 @@
-import type { McpRuntimeNotice } from '@shared/types/mcp'
+import type { McpRuntimeNotice, McpTurnSnapshot, McpTurnSnapshotServer } from '@shared/types/mcp'
 import { Effect, Ref } from 'effect'
+import { resolveMcpRuntimeNamespace } from '../../../domain/mcp/runtime-namespace'
+import { McpRequiredServerUnavailable } from '../../../ports/mcp-errors'
 import type { RuntimeStateContext } from './runtime-state-types'
 
 export function addNotice(ctx: RuntimeStateContext, sessionId: string, notice: McpRuntimeNotice) {
@@ -30,4 +32,37 @@ export function getNotices(ctx: RuntimeStateContext, sessionId?: string | null) 
       sessionId ? (current.get(sessionId) ?? []) : [...current.values()].flat(),
     ),
   )
+}
+
+/** Records that a server could not connect, failing the turn when the server is required. */
+export function reportServerUnavailable(
+  ctx: RuntimeStateContext,
+  snapshot: McpTurnSnapshot,
+  server: McpTurnSnapshotServer,
+  detail: string,
+) {
+  return Effect.gen(function* () {
+    yield* addNotice(ctx, resolveMcpRuntimeNamespace(snapshot), {
+      id: connectNoticeId(server),
+      severity: server.definition.required ? 'error' : 'warning',
+      title: `${server.name} MCP server could not connect`,
+      detail,
+      action: 'Run MCP doctor, review the server configuration, then retry the turn.',
+      serverInstanceId: server.instanceId,
+    })
+    if (!server.definition.required) return
+    return yield* Effect.fail(
+      new McpRequiredServerUnavailable({
+        serverInstanceId: server.instanceId,
+        serverLabel: server.name,
+        detail,
+        message: `Required MCP server ${server.name} could not connect: ${detail}`,
+      }),
+    )
+  })
+}
+
+/** The notice about a server's connection; a successful connect clears it. */
+export function connectNoticeId(server: McpTurnSnapshotServer) {
+  return `runtime:${server.instanceId}:connect`
 }

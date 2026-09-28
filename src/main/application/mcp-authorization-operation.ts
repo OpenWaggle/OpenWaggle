@@ -33,6 +33,8 @@ export function authorizeMcpServerOperation(raw: unknown) {
     return yield* withMcpManagementWrite(
       Effect.gen(function* () {
         const server = yield* config.getServerDefinition(input)
+        // A new sign-in may be another account, whose tools the remembered list does not describe.
+        yield* runtime.forgetToolCatalog(server.instanceId)
         return yield* oauth.authorize(server).pipe(
           Effect.onExit((authorizationExit) =>
             runtime.reconcileIdleConnections().pipe(

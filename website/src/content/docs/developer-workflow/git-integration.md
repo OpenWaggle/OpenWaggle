@@ -83,7 +83,7 @@ When the first message creates a worktree, OpenWaggle lists each step in the con
 2. **Pulling latest `<branch>` from origin** fetches a local base branch, when there is one to fetch.
 3. **Creating worktree `<branch>` from `<base>`** runs the Git worktree operation.
 4. **Running project setup** appears only when a Setup action will run.
-5. **Connecting MCP servers** appears only while the turn waits for a server that exposes tools directly to the model: a required server, or one OpenWaggle has no remembered tool list for, which it waits for up to 1.5 seconds. See [Direct tools and slow servers](/docs/configuration/mcp#direct-tools-and-slow-servers).
+5. **Connecting MCP servers** appears only while the turn waits for a server that exposes tools directly to the model: a required server, or one OpenWaggle has no remembered tool list for, which it waits for up to 1.5 seconds. When a server is not ready by then, the finished step names it, as in **MCP servers: figma still connecting**. See [Direct tools and slow servers](/docs/configuration/mcp#direct-tools-and-slow-servers).
 6. **Starting task** sends your submitted message to the agent.
 
 A finished step shows a check mark and the running one a spinner. While setup runs, the transcript shows a **Creating a worktree** card with **More details**, **Work locally**, and **Cancel**. **Work locally** stops the in-flight setup, changes that session to Current checkout, and retries the same submitted turn once. **Cancel** removes the optimistic turn and restores its text, attachments, skill reference, and Waggle preset to the composer.

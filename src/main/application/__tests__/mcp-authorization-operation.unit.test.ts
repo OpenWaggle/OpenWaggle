@@ -43,6 +43,7 @@ describe('MCP authorization identity lease', () => {
     })
     const runtime = fromPartial<McpRuntimeServiceShape>({
       reconcileIdleConnections: () => Effect.void,
+      forgetToolCatalog: () => Effect.void,
     })
     const vault = fromPartial<McpSecretVaultServiceShape>({
       resolve: () => Effect.succeed('token'),
@@ -101,7 +102,10 @@ describe('MCP authorization identity lease', () => {
         }),
     })
     const reconcileIdleConnections = vi.fn(() => Effect.void)
-    const runtime = fromPartial<McpRuntimeServiceShape>({ reconcileIdleConnections })
+    const runtime = fromPartial<McpRuntimeServiceShape>({
+      reconcileIdleConnections,
+      forgetToolCatalog: () => Effect.void,
+    })
     const vault = fromPartial<McpSecretVaultServiceShape>({
       resolve: () => Effect.fail(new Error('secret was not found')),
       set: setSecret,
@@ -144,7 +148,10 @@ describe('MCP authorization identity lease', () => {
           definition: { url: 'https://docs.example.com/mcp', auth: { type: 'oauth' } },
         }),
     })
-    const runtime = fromPartial<McpRuntimeServiceShape>({ reconcileIdleConnections })
+    const runtime = fromPartial<McpRuntimeServiceShape>({
+      reconcileIdleConnections,
+      forgetToolCatalog: () => Effect.void,
+    })
     const vault = fromPartial<McpSecretVaultServiceShape>({
       resolve: () => Effect.succeed('old-token'),
       set: () => Effect.succeed([]),

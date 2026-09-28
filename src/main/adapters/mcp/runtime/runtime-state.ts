@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto'
 import { MCP_CONFIG } from '@shared/constants/mcp'
 import type { McpRuntimeNotice } from '@shared/types/mcp'
-import { Effect, Ref } from 'effect'
+import { Effect, Ref, SynchronizedRef } from 'effect'
 import { resolveMcpRuntimeNamespace } from '../../../domain/mcp/runtime-namespace'
 import { InMemoryMcpRemoteTaskStore, type McpRemoteTaskStore } from './remote-task-store'
 import {
@@ -13,7 +13,7 @@ import {
   recordRemoteTasks,
 } from './runtime-catalog'
 import { makeMcpRuntimeConnections } from './runtime-connections'
-import { loadDirectToolCatalog, resolveToolHandle } from './runtime-direct-catalog'
+import { loadDirectToolCatalog } from './runtime-direct-catalog'
 import { clearSessionEvents, emptyMcpEventInboxState } from './runtime-event-inbox'
 import { getEventSubscriptions, getEvents, setEventSubscription } from './runtime-events'
 import { addNotice, getNotices, removeNotice } from './runtime-notices'
@@ -25,7 +25,9 @@ import type {
   EventSubscriptionLifecycleState,
   McpRuntimeStateService,
   RuntimeStateContext,
+  ServerListing,
 } from './runtime-state-types'
+import { resolveToolHandle } from './runtime-tool-handles'
 import { InMemoryMcpToolCatalogCache, type McpToolCatalogCache } from './tool-catalog-cache'
 import type { McpConnectionFactory } from './types'
 
@@ -187,6 +189,7 @@ export function makeMcpRuntimeState(input: {
 }): Effect.Effect<McpRuntimeStateService> {
   return Effect.gen(function* () {
     const catalogs = yield* Ref.make(new Map<string, CatalogCacheEntry>())
+    const listings = yield* SynchronizedRef.make(new Map<string, ServerListing>())
     const handles = yield* Ref.make(new Map<string, CatalogTool>())
     const notices = yield* Ref.make(new Map<string, McpRuntimeNotice[]>())
     const eventSubscriptionCells = yield* Ref.make(new Map<string, EventSubscriptionCell>())
@@ -239,6 +242,7 @@ export function makeMcpRuntimeState(input: {
 
     const ctx: RuntimeStateContext = {
       catalogs,
+      listings,
       handles,
       notices,
       eventSubscriptionCells,
@@ -269,6 +273,8 @@ export function makeMcpRuntimeState(input: {
       setEventSubscription: (subscriptionInput) => setEventSubscription(ctx, subscriptionInput),
       getEvents: (sessionId) => getEvents(ctx, sessionId),
       getEventSubscriptions: (sessionId) => getEventSubscriptions(ctx, sessionId),
+      forgetToolCatalog: (serverInstanceId) =>
+        Effect.promise(() => ctx.toolCatalogCache.forgetServer(serverInstanceId)),
       invalidateSessionConnections: (sessionId) => invalidateSessionConnections(ctx, sessionId),
       disposeSession: (sessionId) => disposeSession(ctx, sessionId),
       reconcileIdleConnections: (isActive) => reconcileIdleConnections(ctx, isActive),

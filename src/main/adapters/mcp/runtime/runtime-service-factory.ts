@@ -80,8 +80,7 @@ export function makeMcpRuntimeService(
             if (!snapshot) return yield* state.disposeSession(sessionId)
             yield* state.discardSupersededSessionConnections(snapshot)
           }).pipe(
-            // If turn preparation fails/dies/interrupts, settle the turn and dispose
-            // the session so no stale "pending" turn or connection is left behind.
+            // A failed or interrupted preparation settles the turn and disposes the session.
             Effect.onError(() =>
               snapshotAuthority.tombstone(sessionId).pipe(
                 Effect.zipRight(turnState.complete(sessionId)),
@@ -115,6 +114,7 @@ export function makeMcpRuntimeService(
             input2.interactions,
           ),
         ),
+      forgetToolCatalog: (serverInstanceId) => state.forgetToolCatalog(serverInstanceId),
       listDirectTools: (snapshot, options) =>
         withAuthoritativeSnapshot(snapshot, listMcpDirectTools(state, snapshot, options)),
       browseCapabilities: (input2) =>

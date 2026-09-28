@@ -1,41 +1,55 @@
-import { canonicalJson } from '@shared/canonical-json'
 import type { McpTurnSnapshot, McpTurnSnapshotServer } from '@shared/types/mcp'
-import { Duration, Effect, Either, Exit, Fiber, Option, Ref } from 'effect'
+import { Deferred, Duration, Effect, Either, Exit, Fiber, Option, Ref } from 'effect'
 import { serverRequestsDirectTools } from '../../../domain/mcp/direct-tool-servers'
 import { resolveMcpRuntimeNamespace } from '../../../domain/mcp/runtime-namespace'
-import { type McpRuntimeFailure, McpStaleToolHandle } from '../../../ports/mcp-errors'
+import type { McpRuntimeFailure } from '../../../ports/mcp-errors'
 import type {
   McpDirectToolListOptions,
   McpDirectToolWaitOutcome,
 } from '../../../ports/mcp-runtime-service'
+import { discardSupersededSessionConnections } from './runtime-catalog'
 import {
+  addNotice,
   connectNoticeId,
-  discardSupersededSessionConnections,
-  findHandle,
-  freshServerCatalog,
-  listServerTools,
-  loadCatalog,
-  loadServerCatalog,
+  getNotices,
+  removeNotice,
   reportServerUnavailable,
+} from './runtime-notices'
+import {
+  freshServerCatalog,
+  loadServerCatalog,
+  startServerListing,
   toCatalogTools,
-} from './runtime-catalog'
-import { addNotice, removeNotice } from './runtime-notices'
-import type { CatalogTool, RuntimeStateContext } from './runtime-state-types'
-import { mcpToolCatalogCacheKey } from './tool-catalog-cache'
+} from './runtime-server-listing'
+import type { CatalogTool, RuntimeStateContext, ServerListing } from './runtime-state-types'
+import { mcpToolCatalogIdentity } from './tool-catalog-cache'
 
-type BackgroundListing = Fiber.RuntimeFiber<
-  Either.Either<readonly CatalogTool[], McpRuntimeFailure>
->
+type ListingOutcome = Either.Either<readonly CatalogTool[], McpRuntimeFailure>
 
-/** How a turn gets one server's direct tools. */
-type ServerPlan =
-  | { readonly type: 'ready'; readonly tools: readonly CatalogTool[] }
-  | { readonly type: 'required'; readonly server: McpTurnSnapshotServer }
-  | {
-      readonly type: 'grace'
-      readonly server: McpTurnSnapshotServer
-      readonly listing: BackgroundListing
-    }
+/** A listing the turn watches from a background fiber, and whether its slot was retired. */
+interface WatchedListing {
+  readonly fiber: Fiber.RuntimeFiber<ListingOutcome>
+  readonly listing: ServerListing
+}
+
+/** The tools one server gave the turn, and how its wait ended when the turn waited for it. */
+interface PlanResult {
+  readonly tools: readonly CatalogTool[]
+  readonly waited?: { readonly server: string; readonly state: keyof McpDirectToolWaitOutcome }
+}
+
+/**
+ * How a turn gets one server's direct tools: the server the turn waits for, if it waits at all,
+ * and the effect that produces the tools.
+ */
+interface ServerPlan {
+  readonly waitsFor?: string
+  readonly resolve: Effect.Effect<PlanResult, McpRuntimeFailure>
+}
+
+function ready(tools: readonly CatalogTool[]): ServerPlan {
+  return { resolve: Effect.succeed({ tools }) }
+}
 
 function namespaceIsLive(ctx: RuntimeStateContext, runtimeNamespace: string) {
   return Ref.get(ctx.eventSubscriptionLifecycle).pipe(
@@ -47,11 +61,30 @@ function namespaceIsLive(ctx: RuntimeStateContext, runtimeNamespace: string) {
 }
 
 /**
+ * Reports a failed background listing, unless the failure is only its slot being closed (a new
+ * snapshot revision, a reconcile, a dispose) or the Session is gone.
+ */
+function reportBackgroundFailure(
+  ctx: RuntimeStateContext,
+  snapshot: McpTurnSnapshot,
+  server: McpTurnSnapshotServer,
+  listing: ServerListing,
+  error: McpRuntimeFailure,
+) {
+  return Effect.gen(function* () {
+    if (listing.retired.aborted) return
+    if (!(yield* namespaceIsLive(ctx, resolveMcpRuntimeNamespace(snapshot)))) return
+    yield* reportServerUnavailable(ctx, snapshot, server, error.message).pipe(
+      Effect.catchAll(() => Effect.void),
+    )
+  })
+}
+
+/**
  * Lists a server's tools on a background fiber that outlives the turn's wait for it.
  *
  * The connection is started before the fiber is forked, while the caller still holds the runtime
- * lifecycle lock, so a dispose that follows finds and retires it. A failure is reported as a
- * notice unless the Session is gone by then.
+ * lifecycle lock, so a dispose that follows finds and retires it.
  */
 function listInBackground(
   ctx: RuntimeStateContext,
@@ -59,25 +92,16 @@ function listInBackground(
   server: McpTurnSnapshotServer,
 ) {
   return Effect.gen(function* () {
-    const awaitConnection = yield* ctx.connections.start(snapshot, server)
+    const listing = yield* startServerListing(ctx, snapshot, server)
     const runtimeNamespace = resolveMcpRuntimeNamespace(snapshot)
-    const listing = awaitConnection.pipe(
-      Effect.flatMap((connection) => listServerTools(ctx, snapshot, server, connection)),
-      Effect.tap(() => removeNotice(ctx, runtimeNamespace, connectNoticeId(server))),
-      Effect.tapError((error) =>
-        namespaceIsLive(ctx, runtimeNamespace).pipe(
-          Effect.flatMap((live) =>
-            live
-              ? reportServerUnavailable(ctx, snapshot, server, error.message).pipe(
-                  Effect.catchAll(() => Effect.void),
-                )
-              : Effect.void,
-          ),
-        ),
+    const fiber = yield* Effect.forkDaemon(
+      Deferred.await(listing.result).pipe(
+        Effect.tap(() => removeNotice(ctx, runtimeNamespace, connectNoticeId(server))),
+        Effect.tapError((error) => reportBackgroundFailure(ctx, snapshot, server, listing, error)),
+        Effect.either,
       ),
-      Effect.either,
     )
-    return yield* Effect.forkDaemon(listing)
+    return { fiber, listing } satisfies WatchedListing
   })
 }
 
@@ -92,6 +116,29 @@ function registerCachedTools(ctx: RuntimeStateContext, tools: readonly CatalogTo
   })
 }
 
+/** Whether this Session's last attempt to reach the server failed, which the cache cannot fix. */
+function lastConnectFailed(
+  ctx: RuntimeStateContext,
+  snapshot: McpTurnSnapshot,
+  server: McpTurnSnapshotServer,
+) {
+  return getNotices(ctx, resolveMcpRuntimeNamespace(snapshot)).pipe(
+    Effect.map((notices) =>
+      notices.some((notice) => notice.id === connectNoticeId(server) && notice.severity !== 'info'),
+    ),
+  )
+}
+
+function readCachedTools(
+  ctx: RuntimeStateContext,
+  snapshot: McpTurnSnapshot,
+  server: McpTurnSnapshotServer,
+) {
+  return Effect.promise(() =>
+    ctx.toolCatalogCache.read(mcpToolCatalogIdentity(snapshot, server)).catch(() => undefined),
+  )
+}
+
 function planServer(
   ctx: RuntimeStateContext,
   snapshot: McpTurnSnapshot,
@@ -99,24 +146,57 @@ function planServer(
 ) {
   return Effect.gen(function* () {
     const fresh = yield* freshServerCatalog(ctx, snapshot, server)
-    if (fresh) return { type: 'ready', tools: fresh } satisfies ServerPlan
+    if (fresh) return ready(fresh)
     // A required server gates the turn (ADR 0013), so it is never stood in for by the cache.
-    if (server.definition.required) return { type: 'required', server } satisfies ServerPlan
-    const listing = yield* listInBackground(ctx, snapshot, server)
-    const cachedTools = yield* Effect.promise(() =>
-      ctx.toolCatalogCache.read(mcpToolCatalogCacheKey(snapshot, server)).catch(() => undefined),
-    )
-    if (!cachedTools) return { type: 'grace', server, listing } satisfies ServerPlan
+    if (server.definition.required) {
+      return { waitsFor: server.name, resolve: awaitRequired(ctx, snapshot, server) }
+    }
+    // Offering cached tools of a server that just failed would only fail each call, late.
+    const failedBefore = yield* lastConnectFailed(ctx, snapshot, server)
+    const watched = yield* listInBackground(ctx, snapshot, server)
+    const cachedTools = failedBefore ? undefined : yield* readCachedTools(ctx, snapshot, server)
+    if (!cachedTools) {
+      return { waitsFor: server.name, resolve: awaitWithinGrace(ctx, snapshot, server, watched) }
+    }
     const tools = toCatalogTools(ctx, snapshot, server, cachedTools, 'cached')
     yield* registerCachedTools(ctx, tools)
-    return { type: 'ready', tools } satisfies ServerPlan
+    return ready(tools)
   })
 }
 
-/** The tools one server gave the turn, and how its wait ended when the turn waited for it. */
-interface PlanResult {
-  readonly tools: readonly CatalogTool[]
-  readonly waited?: { readonly server: string; readonly state: keyof McpDirectToolWaitOutcome }
+/** Shows that the turn went ahead while the server keeps connecting, without hiding a failure. */
+function noteStillConnecting(
+  ctx: RuntimeStateContext,
+  snapshot: McpTurnSnapshot,
+  server: McpTurnSnapshotServer,
+  watched: WatchedListing,
+) {
+  return Effect.gen(function* () {
+    const runtimeNamespace = resolveMcpRuntimeNamespace(snapshot)
+    yield* addNotice(ctx, runtimeNamespace, {
+      id: connectNoticeId(server),
+      severity: 'info',
+      title: `${server.name} MCP server is still connecting`,
+      detail: 'This turn started without its direct tools. The next turn includes them.',
+      action: 'Wait for the server to connect, or use the mcp tool to reach it sooner.',
+      serverInstanceId: server.instanceId,
+    })
+    // The listing may have settled between the timeout and the notice, which would replace its
+    // own report; restore the outcome it had.
+    const settled = yield* Fiber.poll(watched.fiber)
+    if (Option.isNone(settled)) return
+    const outcome = settled.value
+    if (Exit.isSuccess(outcome) && Either.isLeft(outcome.value)) {
+      return yield* reportBackgroundFailure(
+        ctx,
+        snapshot,
+        server,
+        watched.listing,
+        outcome.value.left,
+      )
+    }
+    yield* removeNotice(ctx, runtimeNamespace, connectNoticeId(server))
+  })
 }
 
 /**
@@ -129,11 +209,12 @@ interface PlanResult {
 function awaitWithinGrace(
   ctx: RuntimeStateContext,
   snapshot: McpTurnSnapshot,
-  plan: Extract<ServerPlan, { readonly type: 'grace' }>,
+  target: McpTurnSnapshotServer,
+  watched: WatchedListing,
 ) {
   return Effect.gen(function* () {
-    const server = plan.server.name
-    const outcome = yield* Fiber.await(plan.listing).pipe(
+    const server = target.name
+    const outcome = yield* Fiber.await(watched.fiber).pipe(
       Effect.timeoutOption(Duration.millis(ctx.optionalStartupGraceMs)),
       Effect.interruptible,
     )
@@ -143,37 +224,23 @@ function awaitWithinGrace(
         ? ({ tools: exit.value.right, waited: { server, state: 'connected' } } satisfies PlanResult)
         : ({ tools: [], waited: { server, state: 'unavailable' } } satisfies PlanResult)
     }
-    const runtimeNamespace = resolveMcpRuntimeNamespace(snapshot)
-    yield* addNotice(ctx, runtimeNamespace, {
-      id: connectNoticeId(plan.server),
-      severity: 'info',
-      title: `${server} MCP server is still connecting`,
-      detail: 'This turn started without its direct tools. The next turn includes them.',
-      action: 'Wait for the server to connect, or use the mcp tool to reach it sooner.',
-      serverInstanceId: plan.server.instanceId,
-    })
-    // The listing may have finished between the timeout and the notice.
-    const settled = yield* Fiber.poll(plan.listing)
-    if (Option.isSome(settled)) {
-      yield* removeNotice(ctx, runtimeNamespace, connectNoticeId(plan.server))
-    }
+    yield* noteStillConnecting(ctx, snapshot, target, watched)
     return { tools: [], waited: { server, state: 'stillConnecting' } } satisfies PlanResult
   })
 }
 
-function resolvePlan(
+function awaitRequired(
   ctx: RuntimeStateContext,
   snapshot: McpTurnSnapshot,
-  plan: ServerPlan,
-): Effect.Effect<PlanResult, McpRuntimeFailure> {
-  if (plan.type === 'ready') return Effect.succeed({ tools: plan.tools })
-  if (plan.type === 'grace') return awaitWithinGrace(ctx, snapshot, plan)
-  const server = plan.server.name
-  return loadServerCatalog(ctx, snapshot, plan.server).pipe(
-    Effect.map((tools): PlanResult => ({ tools, waited: { server, state: 'connected' } })),
+  server: McpTurnSnapshotServer,
+) {
+  return loadServerCatalog(ctx, snapshot, server).pipe(
+    Effect.map(
+      (tools): PlanResult => ({ tools, waited: { server: server.name, state: 'connected' } }),
+    ),
     Effect.catchAll((error) =>
-      reportServerUnavailable(ctx, snapshot, plan.server, error.message).pipe(
-        Effect.as<PlanResult>({ tools: [], waited: { server, state: 'unavailable' } }),
+      reportServerUnavailable(ctx, snapshot, server, error.message).pipe(
+        Effect.as<PlanResult>({ tools: [], waited: { server: server.name, state: 'unavailable' } }),
       ),
     ),
   )
@@ -207,56 +274,12 @@ export function loadDirectToolCatalog(
     const plans = yield* Effect.forEach(servers, (server) => planServer(ctx, snapshot, server), {
       concurrency: 'unbounded',
     })
-    const waitingFor = plans.flatMap((plan) => (plan.type === 'ready' ? [] : [plan.server.name]))
+    const waitingFor = plans.flatMap((plan) => (plan.waitsFor ? [plan.waitsFor] : []))
     if (waitingFor.length > 0) options.onWaiting?.(waitingFor)
-    const results = yield* Effect.forEach(plans, (plan) => resolvePlan(ctx, snapshot, plan), {
+    const results = yield* Effect.forEach(plans, (plan) => plan.resolve, {
       concurrency: 'unbounded',
     })
     if (waitingFor.length > 0) options.onWaitSettled?.(waitOutcome(results))
     return results.flatMap((result) => result.tools)
-  })
-}
-
-function inputSchemaFingerprint(tool: CatalogTool) {
-  return canonicalJson(tool.tool.inputSchema ?? null)
-}
-
-/**
- * The live tool behind a handle.
- *
- * A handle a live listing produced is used directly. A handle that came from the tool list cache
- * waits for its server's live listing and is refused when the server no longer offers the tool
- * or its input schema changed, because the model built its arguments from the cached schema.
- */
-export function resolveToolHandle(
-  ctx: RuntimeStateContext,
-  snapshot: McpTurnSnapshot,
-  handle: string,
-): Effect.Effect<CatalogTool, McpRuntimeFailure> {
-  return Effect.gen(function* () {
-    const known = yield* findHandle(ctx, snapshot, handle).pipe(Effect.option)
-    if (Option.isSome(known) && known.value.source === 'live') return known.value
-    if (Option.isNone(known)) {
-      yield* loadCatalog(ctx, snapshot)
-      return yield* findHandle(ctx, snapshot, handle)
-    }
-    const cached = known.value
-    const liveTools = yield* loadServerCatalog(ctx, snapshot, cached.server)
-    const live = liveTools.find((tool) => tool.handle === handle)
-    if (!live) {
-      return yield* Effect.fail(
-        new McpStaleToolHandle({
-          message: `${cached.server.name} no longer offers the MCP tool ${cached.tool.name}. Search or list tools again.`,
-        }),
-      )
-    }
-    if (inputSchemaFingerprint(live) !== inputSchemaFingerprint(cached)) {
-      return yield* Effect.fail(
-        new McpStaleToolHandle({
-          message: `The MCP tool ${cached.tool.name} on ${cached.server.name} changed its input schema since this turn started. Describe it again for the current schema.`,
-        }),
-      )
-    }
-    return live
   })
 }

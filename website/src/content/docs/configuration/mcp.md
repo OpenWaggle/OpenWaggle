@@ -51,7 +51,7 @@ OpenWaggle merges these sources by server name, with later project sources winni
 - `<project>/.mcp.json`
 - `<project>/.openwaggle/mcp.json`
 
-Adding a definition alone does not enable it. OpenWaggle stores enablement and trust choices separately under `~/.openwaggle/mcp/`, alongside the encrypted [tool list cache](#direct-tools-and-slow-servers). Plaintext secret-like environment and header values are accepted with a notice, but encrypted vault references are safer.
+Adding a definition alone does not enable it. OpenWaggle stores enablement and trust choices separately under `~/.openwaggle/mcp/`. Plaintext secret-like environment and header values are accepted with a notice, but encrypted vault references are safer.
 
 Use secret references such as `{ "secret": "GITHUB_TOKEN" }` instead of putting credential values in JSON. Add the actual value through the secret controls in Settings. The reference names a stored secret; it is not the secret itself.
 
@@ -125,15 +125,15 @@ Legacy server-initiated sampling is off unless `clientCapabilities.sampling` is 
 
 ## Capabilities and context
 
-The agent initially receives only a compact `mcp` gateway; server names, tool schemas, server instructions, and cached catalog entries are not injected. Direct MCP tools are a per-server or per-tool opt-in.
+The agent initially receives only a compact `mcp` gateway; server names, tool schemas, server instructions, and cached catalog entries are not injected. Direct MCP tools are a per-server or per-tool opt-in, and their definitions are in the agent's context from the start.
 
 ### Direct tools and slow servers
 
 A turn does not wait for every direct-tool server to start. Each session still starts its own server processes, but the first turn begins with the tool list the server reported last time, while the session's connection starts in the background. A call to one of those tools waits for the server to finish connecting. If the server no longer offers the tool, or its input schema changed, the call is refused before it runs and the agent is told to look the tool up again.
 
-When a server has never been listed in the project, the first turn waits up to 1.5 seconds for it, then starts without its direct tools. **Settings > MCP** shows the server as still connecting until it is ready. The agent can still reach it through the `mcp` gateway, and the next turn includes its tools. Required servers are always waited for: the turn fails if one cannot connect.
+When OpenWaggle has no remembered tool list for the server's current configuration, or the session's last attempt to reach it failed, the first turn waits up to 1.5 seconds for it, then starts without its direct tools. The launch step then reads, for example, **MCP servers: figma still connecting** or **figma unavailable**. The agent can still reach the server through the `mcp` gateway, and the next turn includes its tools. Required servers are always waited for: the turn fails if one cannot connect.
 
-The remembered tool lists are stored in `~/.openwaggle/mcp/tool-catalogs.json`. Each entry is encrypted with your operating system's secure storage under an opaque name. It holds tool definitions only, never credentials or results, and is dropped after seven days without use. A changed server definition gets a new entry. Without operating-system encryption, the lists are kept in memory only.
+The remembered lists are stored in OpenWaggle's app data folder, under `mcp/tool-catalogs.json`, so each OpenWaggle channel keeps its own. Each entry is encrypted with your operating system's secure storage under an opaque name and holds only tool names, titles, descriptions and input schemas: never credentials, results, or other data the server attaches. An entry is dropped after seven days without use, and a changed server definition gets a new entry. Signing out of a server, authorizing it again, or removing it forgets its lists. Without operating-system encryption, the lists are kept in memory only.
 
 **Settings > MCP > Capabilities** connects when needed:
 

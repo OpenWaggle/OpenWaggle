@@ -147,6 +147,7 @@ describe('MCP Host authority', () => {
           }
         }),
       reconcileIdleConnections: () => Effect.void,
+      forgetToolCatalog: () => Effect.void,
     })
     const vault = fromPartial<McpSecretVaultServiceShape>({
       set: (input: Parameters<McpSecretVaultServiceShape['set']>[0]) =>
@@ -220,7 +221,10 @@ describe('MCP Host authority', () => {
           definition: { url: 'https://docs.example.com/mcp', auth: { type: 'oauth' } },
         }),
     })
-    const mcpRuntime = fromPartial<McpRuntimeServiceShape>({ reconcileIdleConnections })
+    const mcpRuntime = fromPartial<McpRuntimeServiceShape>({
+      reconcileIdleConnections,
+      forgetToolCatalog: () => Effect.void,
+    })
     const vault = fromPartial<McpSecretVaultServiceShape>({ remove })
     const vaultLayer = Layer.succeed(McpSecretVaultService, vault)
     const result = await Effect.runPromise(

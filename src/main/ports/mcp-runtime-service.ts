@@ -103,6 +103,8 @@ export interface McpRuntimeServiceShape {
    * The direct tools a turn registers with Pi. Optional servers do not hold the turn back: a
    * cached tool list stands in while they connect, and with nothing cached they get a short grace.
    */
+  /** Forgets a server's remembered tool lists, after its credentials changed or it was removed. */
+  readonly forgetToolCatalog: (serverInstanceId: string) => Effect.Effect<void>
   readonly listDirectTools: (
     snapshot: McpTurnSnapshot,
     options?: McpDirectToolListOptions,

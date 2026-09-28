@@ -1,64 +1,18 @@
-import type { McpTurnSnapshotServer } from '@shared/types/mcp'
 import { describe, expect, it, vi } from 'vitest'
-import { InMemoryMcpToolCatalogCache, mcpToolCatalogCacheKey } from '../runtime/tool-catalog-cache'
-import type { McpClientConnection, McpRuntimeTool } from '../runtime/types'
+import { InMemoryMcpToolCatalogCache, mcpToolCatalogIdentity } from '../runtime/tool-catalog-cache'
+import type { McpRuntimeTool } from '../runtime/types'
+import {
+  directSnapshot,
+  GRACE_MS,
+  gatedConnect,
+  SEARCH_TOOL,
+  seededCache,
+  settle,
+} from './mcp-direct-tool-test-utils'
 import {
   connection,
   createMcpRuntimeServiceForTests as createMcpRuntimeService,
-  server,
-  snapshot,
 } from './mcp-runtime-test-utils'
-
-const GRACE_MS = 25
-const SETTLE_MS = 5
-
-const SEARCH_TOOL: McpRuntimeTool = {
-  name: 'search_private_docs',
-  title: 'Search documentation',
-  description: 'Find a passage in project documentation.',
-  inputSchema: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'] },
-}
-
-function directServer(overrides: Partial<McpTurnSnapshotServer> = {}) {
-  return server({ definition: { command: 'docs-mcp', directTools: true }, ...overrides })
-}
-
-function directSnapshot(overrides: Partial<McpTurnSnapshotServer> = {}, sessionId = 'session-1') {
-  return snapshot({ sessionId, servers: [directServer(overrides)] })
-}
-
-/** A connection factory whose connects stay pending until the test releases them. */
-function gatedConnect(result: () => McpClientConnection = () => connection()) {
-  const releases: (() => void)[] = []
-  let open = false
-  const connect = vi.fn(
-    () =>
-      new Promise<McpClientConnection>((resolve) => {
-        if (open) resolve(result())
-        else releases.push(() => resolve(result()))
-      }),
-  )
-  return {
-    connect,
-    /** Settles pending connects, and lets later ones through at once. */
-    release() {
-      open = true
-      for (const release of releases.splice(0)) release()
-    },
-  }
-}
-
-async function seededCache(tools: readonly McpRuntimeTool[], target = directSnapshot()) {
-  const cache = new InMemoryMcpToolCatalogCache()
-  const [firstServer] = target.servers
-  if (!firstServer) throw new Error('The snapshot has no server.')
-  await cache.write(mcpToolCatalogCacheKey(target, firstServer), tools)
-  return cache
-}
-
-function settle() {
-  return new Promise((resolve) => setTimeout(resolve, SETTLE_MS))
-}
 
 describe('non-blocking MCP direct tools', () => {
   it('offers cached direct tools without waiting for the server to connect', async () => {
@@ -180,9 +134,8 @@ describe('non-blocking MCP direct tools', () => {
     ])
 
     gate.release()
-    await settle()
     // The background connection finished: the notice clears and the next turn has the tools.
-    expect(await service.getNotices('session-1')).toEqual([])
+    await vi.waitFor(async () => expect(await service.getNotices('session-1')).toEqual([]))
     await expect(service.listDirectTools(target)).resolves.toEqual([
       expect.objectContaining({ title: 'Search documentation' }),
     ])
@@ -204,9 +157,12 @@ describe('non-blocking MCP direct tools', () => {
     ])
     const [firstServer] = target.servers
     if (!firstServer) throw new Error('The snapshot has no server.')
-    await expect(cache.read(mcpToolCatalogCacheKey(target, firstServer))).resolves.toEqual([
-      SEARCH_TOOL,
-    ])
+    // The cache keeps only what a direct-tool descriptor is built from, written off the turn.
+    await vi.waitFor(() =>
+      expect(cache.read(mcpToolCatalogIdentity(target, firstServer))).resolves.toEqual([
+        SEARCH_TOOL,
+      ]),
+    )
   })
 
   it('shares the catalog a first session listed with the next session in the project', async () => {

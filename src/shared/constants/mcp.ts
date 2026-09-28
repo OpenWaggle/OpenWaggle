@@ -61,7 +61,8 @@ export const MCP_CONFIG = {
   GLOBAL_STATE_FILE_NAME: 'state.json',
   GLOBAL_VAULT_FILE_NAME: 'vault.json',
   GLOBAL_TASK_FILE_NAME: 'tasks.json',
-  GLOBAL_TOOL_CATALOG_FILE_NAME: 'tool-catalogs.json',
+  /** Under the app's user data directory, so each OpenWaggle channel keeps its own. */
+  TOOL_CATALOG_FILE_PATH: ['mcp', 'tool-catalogs.json'],
   PROJECT_STANDARD_CONFIG_FILE_NAME: '.mcp.json',
   PROJECT_OPENWAGGLE_CONFIG_DIR: ['.openwaggle'],
   PROJECT_OPENWAGGLE_CONFIG_FILE_NAME: 'mcp.json',

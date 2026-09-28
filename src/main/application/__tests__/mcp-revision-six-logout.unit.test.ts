@@ -17,6 +17,7 @@ function operationLayer(input: {
   readonly getServerDefinition: McpConfigServiceShape['getServerDefinition']
   readonly reconcileIdleConnections: McpRuntimeServiceShape['reconcileIdleConnections']
   readonly remove: McpSecretVaultServiceShape['remove']
+  readonly forgetToolCatalog?: McpRuntimeServiceShape['forgetToolCatalog']
 }) {
   const vaultLayer = Layer.succeed(
     McpSecretVaultService,
@@ -31,6 +32,7 @@ function operationLayer(input: {
       McpRuntimeService,
       fromPartial<McpRuntimeServiceShape>({
         reconcileIdleConnections: input.reconcileIdleConnections,
+        forgetToolCatalog: input.forgetToolCatalog ?? (() => Effect.void),
       }),
     ),
     vaultLayer,
@@ -48,6 +50,24 @@ function logout(layer: ReturnType<typeof operationLayer>, instanceId: string) {
 }
 
 describe('revision-six MCP logout', () => {
+  it('forgets the remembered tool list of the signed-out server', async () => {
+    const forgetToolCatalog = vi.fn(() => Effect.void)
+    const layer = operationLayer({
+      getServerDefinition: () =>
+        Effect.succeed({
+          instanceId: 'server-signed-out',
+          definition: { url: 'https://docs.example.com/mcp', auth: { type: 'oauth' as const } },
+        }),
+      reconcileIdleConnections: () => Effect.void,
+      remove: () => Effect.succeed([]),
+      forgetToolCatalog,
+    })
+
+    await logout(layer, 'server-signed-out')
+
+    expect(forgetToolCatalog).toHaveBeenCalledWith('server-signed-out')
+  })
+
   it('reconciles runtime clients when OAuth vault removal fails', async () => {
     const reconcileIdleConnections = vi.fn(() => Effect.void)
     const remove = vi.fn<McpSecretVaultServiceShape['remove']>(() =>
@@ -96,6 +116,7 @@ describe('revision-six MCP logout', () => {
     const layer = operationLayer({
       getServerDefinition,
       reconcileIdleConnections: () => Effect.void,
+      forgetToolCatalog: () => Effect.void,
       remove: () => Effect.succeed([]),
     })
     const pendingLogout = logout(layer, 'server-revision-six-serialized')
