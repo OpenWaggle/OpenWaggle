@@ -6,6 +6,7 @@ import type { McpGatewayInput, McpGatewayResult, McpJsonValue } from '@shared/ty
 import type { McpRuntimeInteractions } from '../../ports/mcp-runtime-service'
 import { getOpenWaggleAuthorize } from './agent-kernel/openwaggle-authorize-channel'
 import { createPiMcpRuntimeInteractions } from './mcp-client-interactions'
+import { mcpModelFacingContent } from './mcp-tool-result-content'
 
 export type ExecuteGateway = (
   request: McpGatewayInput,
@@ -21,7 +22,7 @@ function toJsonValue(value: unknown): McpJsonValue {
 
 export function textResult(result: McpGatewayResult) {
   return {
-    content: [{ type: 'text' as const, text: JSON.stringify(result) }],
+    ...mcpModelFacingContent(result),
     details: { kind: 'gateway' as const, result },
     ...(result.isError ? { isError: true as const } : {}),
   }

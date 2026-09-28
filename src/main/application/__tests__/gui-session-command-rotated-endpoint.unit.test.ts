@@ -1,3 +1,5 @@
+import os from 'node:os'
+import path from 'node:path'
 import * as Effect from 'effect/Effect'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
@@ -165,5 +167,59 @@ describe('GUI command endpoint recovery', () => {
     })
     expect(execute).toHaveBeenCalledOnce()
     expect(refreshPaths).toHaveBeenCalledOnce()
+  })
+
+  it('surfaces the Host rejection reason instead of a generic unknown error', async () => {
+    configureGuiSessionCommandClient({ paths, clientVersion: 'test' })
+    const rejection = new Error('Nothing to compact (session too small)')
+    const execute = vi.fn().mockRejectedValue(rejection)
+    const command = dispatchConfiguredGuiSessionCommand(statusCommand('too-small'), {
+      execute,
+      ensure: vi.fn(async () => undefined),
+      refreshPaths: vi.fn(async (candidate: LocalSessionHostPaths) => candidate),
+    })
+    if (!command) throw new Error('Expected a remote GUI command.')
+
+    const failure = await Effect.runPromise(Effect.flip(command))
+    expect(failure).toBeInstanceOf(Error)
+    expect(failure).toMatchObject({
+      message: 'Nothing to compact (session too small)',
+      cause: rejection,
+    })
+  })
+
+  it('redacts and bounds the surfaced Host reason while keeping the raw cause', async () => {
+    configureGuiSessionCommandClient({ paths, clientVersion: 'test' })
+    const home = os.homedir()
+    const rejection = new Error(
+      `Provider rejected sk-${'a'.repeat(24)} while reading ${path.join(home, 'secret-project')}`,
+    )
+    const command = dispatchConfiguredGuiSessionCommand(statusCommand('redacted'), {
+      execute: vi.fn().mockRejectedValue(rejection),
+      ensure: vi.fn(async () => undefined),
+      refreshPaths: vi.fn(async (candidate: LocalSessionHostPaths) => candidate),
+    })
+    if (!command) throw new Error('Expected a remote GUI command.')
+
+    const failure = await Effect.runPromise(Effect.flip(command))
+    expect(failure.message).toBe(
+      `Provider rejected [REDACTED_API_KEY] while reading ${path.join('~', 'secret-project')}`,
+    )
+    expect(failure).toMatchObject({ cause: rejection })
+  })
+
+  it('surfaces a non-Error rejection as readable text', async () => {
+    configureGuiSessionCommandClient({ paths, clientVersion: 'test' })
+    const command = dispatchConfiguredGuiSessionCommand(statusCommand('string'), {
+      execute: vi.fn().mockRejectedValue('Host refused the command'),
+      ensure: vi.fn(async () => undefined),
+      refreshPaths: vi.fn(async (candidate: LocalSessionHostPaths) => candidate),
+    })
+    if (!command) throw new Error('Expected a remote GUI command.')
+
+    await expect(Effect.runPromise(Effect.flip(command))).resolves.toMatchObject({
+      message: 'Host refused the command',
+      cause: 'Host refused the command',
+    })
   })
 })

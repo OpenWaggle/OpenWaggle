@@ -263,6 +263,21 @@ describe('chat orchestration hooks', () => {
     )
   })
 
+  it('shows the Host reason when a /compact command is refused', async () => {
+    apiMock.compactSession.mockRejectedValue(
+      new Error(
+        "Error invoking remote method 'agent:compact-session': Error: Nothing to compact (session too small)",
+      ),
+    )
+    const params = sendWorkflowParams()
+    const { result } = renderHook(() => useChatSendWorkflow(params))
+
+    await act(() => result.current.sendWithWaggle(payload('/compact')))
+
+    expect(params.showToast).toHaveBeenCalledWith('Nothing to compact (session too small)')
+    expect(params.handleSend).not.toHaveBeenCalled()
+  })
+
   it('sends through Waggle when the one-shot payload includes a preset', async () => {
     const config = waggleConfig()
     const params = sendWorkflowParams()

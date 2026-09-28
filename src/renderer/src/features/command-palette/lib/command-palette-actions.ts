@@ -1,4 +1,3 @@
-import { compactCommandText } from '@/features/composer/commands'
 import {
   consumeActiveSlashCommand,
   insertSlashCommandTextAtActiveSlash,
@@ -15,10 +14,6 @@ export function createOptionalCommandPaletteAction(
     closeSlashCommandMenu()
     action()
   }
-}
-
-export function insertCompactCommand() {
-  insertComposerCommandText(compactCommandText())
 }
 
 export function insertComposerCommandText(command: string) {

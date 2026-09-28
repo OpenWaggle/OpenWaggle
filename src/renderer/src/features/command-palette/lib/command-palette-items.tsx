@@ -3,13 +3,17 @@ import type { WagglePreset } from '@shared/types/waggle'
 import {
   Archive,
   ChartNoAxesCombined,
+  Copy,
+  GitFork,
   GitPullRequest,
+  type LucideIcon,
   Settings,
   Shield,
   ShieldAlert,
   Swords,
   User,
 } from 'lucide-react'
+import { BUILT_IN_COMPOSER_SLASH_COMMAND } from '@/features/composer/commands'
 import { COMMAND_PALETTE } from '../constants/command-palette'
 import type {
   CommandPaletteActionHandlers,
@@ -17,16 +21,62 @@ import type {
 } from '../model/command-palette-item'
 import { truncateCommandDescription } from './command-palette-text'
 
-export function createBaseCommands(actions: CommandPaletteActionHandlers) {
-  return [
-    {
-      id: 'compact',
-      label: 'Compact session',
-      description: 'Run /compact with optional instructions',
-      icon: <Archive className="size-3.5" />,
-      action: actions.insertCompactCommand,
-    },
-  ]
+interface BuiltInComposerCommand {
+  readonly command: string
+  readonly label: string
+  readonly description: string
+  readonly Icon: LucideIcon
+}
+
+/**
+ * GUI-only built-in text commands, mirroring Pi's slash-command set. They are listed in the
+ * composer chooser so they are discoverable and so a fuzzy skill match (for example a skill whose
+ * description mentions "compact") can never capture Enter on a fully typed built-in command.
+ */
+const BUILT_IN_COMPOSER_COMMANDS: readonly BuiltInComposerCommand[] = [
+  {
+    command: BUILT_IN_COMPOSER_SLASH_COMMAND.COMPACT,
+    label: 'Compact session',
+    description: 'Manually compact the session context',
+    Icon: Archive,
+  },
+  {
+    command: BUILT_IN_COMPOSER_SLASH_COMMAND.FORK,
+    label: 'Fork session',
+    description: 'Create a new fork from a previous user message',
+    Icon: GitFork,
+  },
+  {
+    command: BUILT_IN_COMPOSER_SLASH_COMMAND.CLONE,
+    label: 'Clone session',
+    description: 'Duplicate the current session',
+    Icon: Copy,
+  },
+]
+
+/** Like Pi's TUI, built-ins match by command name so short queries still reach skills. */
+function builtInCommandMatchesQuery(entry: BuiltInComposerCommand, lowerQuery: string) {
+  return entry.command.slice(1).startsWith(lowerQuery)
+}
+
+export function createBuiltInCommandItems(
+  lowerQuery: string,
+  insertCommand: (command: string) => void,
+): CommandPaletteItem[] {
+  return BUILT_IN_COMPOSER_COMMANDS.filter((entry) =>
+    builtInCommandMatchesQuery(entry, lowerQuery),
+  ).map((entry) => ({
+    id: `command-${entry.command.slice(1)}`,
+    label: entry.label,
+    description: entry.description,
+    icon: <entry.Icon className="size-3.5" />,
+    section: 'Commands',
+    trailing: entry.command,
+    // A fully typed command that is the whole draft submits on Enter, like Pi's TUI; Tab or a
+    // click completes it so arguments such as /compact instructions can be added.
+    submitsOnEnter: entry.command.slice(1) === lowerQuery,
+    action: () => insertCommand(entry.command),
+  }))
 }
 
 export function createSkillItems(

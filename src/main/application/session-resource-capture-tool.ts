@@ -4,6 +4,7 @@ import type { SessionId } from '@shared/types/brand'
 import type { ToolCallResult } from '@shared/types/tools'
 import { isRecord } from '@shared/utils/validation'
 import * as Effect from 'effect/Effect'
+import { capturedToolOutput } from './session-resource-capture-gateway'
 import { captureMetadataResource } from './session-resource-capture-metadata'
 import { occurrenceId, sha256 } from './session-resource-capture-shared'
 import {
@@ -115,7 +116,7 @@ export function toolResultOutputGroups(
   const children = capturedOrchestrationTools(toolResult)
   if (children.length > 0) return children
   const label = toolResultResourceLabel(toolResult)
-  return label ? [{ label, result: toolResult.result }] : []
+  return label ? [{ label, result: capturedToolOutput(toolResult) }] : []
 }
 
 export function toolResultOccurrenceId(input: {

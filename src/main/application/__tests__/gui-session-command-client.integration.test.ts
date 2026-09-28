@@ -229,7 +229,7 @@ describe('GUI Session Host command client', () => {
     )
     if (!remote) throw new Error('Expected the configured GUI Session client.')
 
-    await expect(Effect.runPromise(remote)).rejects.toThrow()
+    await expect(Effect.runPromise(remote)).rejects.toThrow('connection reset')
     expect(execute).toHaveBeenCalledOnce()
     expect(ensure).not.toHaveBeenCalled()
   })
@@ -258,7 +258,7 @@ describe('GUI Session Host command client', () => {
     )
     if (!remote) throw new Error('Expected the configured GUI Session client.')
 
-    await expect(Effect.runPromise(remote)).rejects.toThrow()
+    await expect(Effect.runPromise(remote)).rejects.toThrow('connection reset')
     expect(execute).toHaveBeenCalledOnce()
     expect(ensure).not.toHaveBeenCalled()
   })
@@ -286,7 +286,7 @@ describe('GUI Session Host command client', () => {
     )
     if (!remote) throw new Error('Expected the configured GUI Session client.')
 
-    await expect(Effect.runPromise(remote)).rejects.toThrow()
+    await expect(Effect.runPromise(remote)).rejects.toThrow('connection reset')
     expect(execute).toHaveBeenCalledOnce()
     expect(ensure).not.toHaveBeenCalled()
   })

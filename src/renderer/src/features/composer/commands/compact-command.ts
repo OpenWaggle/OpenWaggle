@@ -18,8 +18,3 @@ export function parseCompactCommand(text: string): CompactCommand | null {
   const customInstructions = trimmed.slice(COMPACT_COMMAND.length).trim()
   return customInstructions ? { customInstructions } : {}
 }
-
-export function compactCommandText(customInstructions?: string): string {
-  const trimmed = customInstructions?.trim()
-  return trimmed ? `${COMPACT_COMMAND} ${trimmed}` : COMPACT_COMMAND
-}

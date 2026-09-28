@@ -18,6 +18,8 @@ export interface CommandPaletteItem {
   readonly trailing?: string
   readonly trailingBadge?: string
   readonly disabled?: boolean
+  /** When the typed command is the whole draft, leave Enter to the composer to submit it. */
+  readonly submitsOnEnter?: boolean
   readonly action: () => void
 }
 
@@ -26,9 +28,4 @@ export interface CommandPaletteActionHandlers {
   readonly configureWaggle: () => void
   readonly selectPreset: (preset: WagglePreset) => void
   readonly selectSkill: (skillId: string, skillName?: string) => void
-  readonly openSessionTree?: () => void
-  readonly forkToNewSession?: () => void
-  readonly cloneToNewSession?: () => void
-  readonly openWorktrees?: () => void
-  readonly insertCompactCommand: () => void
 }
