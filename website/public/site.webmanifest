@@ -1,7 +1,7 @@
 {
   "name": "OpenWaggle",
   "short_name": "OpenWaggle",
-  "description": "Open source desktop coding agent with multi-model waggle mode",
+  "description": "Free desktop coding agent. Pair two AI agents in a Waggle or delegate work to a Hive.",
   "start_url": "/",
   "display": "browser",
   "background_color": "#141619",
