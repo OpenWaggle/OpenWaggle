@@ -98,7 +98,11 @@ function toSamplingTools(request: JsonObject): Tool[] | undefined {
     if (!isObject(value)) continue
     const name = stringValue(value.name)
     if (!name) continue
-    const schema = isObject(value.inputSchema) ? value.inputSchema : { type: 'object' }
+    // Keep the provider-facing root an object; Amazon Bedrock rejects any other root type.
+    const schema =
+      isObject(value.inputSchema) && value.inputSchema.type === 'object'
+        ? value.inputSchema
+        : { type: 'object' }
     tools.push({
       name,
       description: stringValue(value.description) ?? '',

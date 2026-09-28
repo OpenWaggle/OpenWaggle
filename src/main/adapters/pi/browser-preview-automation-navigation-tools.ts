@@ -4,10 +4,13 @@ import type {
   BrowserPreviewAutomationServiceShape,
 } from '../../ports/browser-preview-automation-service'
 import {
+  previewResizeParameters,
+  toPreviewResizeInput,
+} from './browser-preview-automation-resize-parameters'
+import {
   previewAppearanceParameters,
   previewNavigateParameters,
   previewOpenParameters,
-  previewResizeParameters,
 } from './browser-preview-automation-schemas-core'
 import {
   authorizeBrowserPreviewTool,
@@ -78,14 +81,18 @@ export function registerBrowserPreviewNavigationTools(input: RegistrationInput) 
       'Set fill-panel sizing, exact freeform dimensions, or a named responsive device preset.',
     parameters: previewResizeParameters,
     executionMode: 'sequential',
-    execute: (_id, params, signal, _update, ctx) =>
-      approved({
+    execute: async (_id, params, signal, _update, ctx) => {
+      // Enforce the per-mode contract before asking the user to authorize the call.
+      const resizeInput = toPreviewResizeInput(params)
+      return approved({
         operation: 'resize browser preview',
-        params,
+        params: resizeInput,
         signal,
         ctx,
-        execute: () => runBrowserPreviewEffect(input.service.resize(input.scope, params), signal),
-      }),
+        execute: () =>
+          runBrowserPreviewEffect(input.service.resize(input.scope, resizeInput), signal),
+      })
+    },
   })
 
   input.pi.registerTool({

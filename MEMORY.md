@@ -1088,6 +1088,14 @@ per-action required fields and enums at run time (see `sessions-tool-flat-schema
 issue #218). When `pi.validateToolArguments` reports `Received arguments: {}`, suspect the
 provider dropping arguments for the schema shape before blaming parsing or permissions; the
 cheapest discriminator is a raw REST probe of the provider with the exact tool JSON.
+Amazon Bedrock is stricter: Pi's Bedrock Converse serializer forwards `tool.parameters`
+unchanged, and Bedrock rejects the whole request when any tool's root lacks `type: "object"`
+(`toolConfig.tools.N.toolSpec.inputSchema.json.type must be one of the following: object`), so
+one root-union tool breaks every Bedrock turn. Pi's Anthropic serializer instead rewrites the
+root to `{type:'object', properties: schema.properties ?? {}}`, silently hiding a root union's
+fields from the model. `preview_resize` shipped a root `anyOf` until it was flattened;
+`first-party-tool-parameter-schemas.unit.test.ts` now asserts every first-party and direct MCP
+tool registers an object root with no root combinators, so add new tool factories to it.
 
 For managed-worktree cleanup, a retained preparation snapshot belongs to a directory generation,
 not merely a project and worktree path. Pin the worktree directory's device, inode and birth time

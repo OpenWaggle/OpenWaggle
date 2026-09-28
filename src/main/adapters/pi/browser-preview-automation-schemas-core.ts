@@ -1,8 +1,3 @@
-import {
-  BROWSER_PREVIEW_VIEWPORT_MAX_AREA,
-  BROWSER_PREVIEW_VIEWPORT_MAX_DIMENSION,
-  BROWSER_PREVIEW_VIEWPORT_MIN_DIMENSION,
-} from '@shared/browser-preview-viewports'
 import { BROWSER_PREVIEW_LIMITS } from '@shared/types/browser-preview'
 import { BROWSER_PREVIEW_AUTOMATION_LIMITS } from '@shared/types/browser-preview-automation'
 import { Type } from 'typebox'
@@ -62,52 +57,6 @@ export const previewNavigateParameters = Type.Object({
   ),
   timeoutMs: timeout,
 })
-
-const viewportDimension = Type.Integer({
-  minimum: BROWSER_PREVIEW_VIEWPORT_MIN_DIMENSION,
-  maximum: BROWSER_PREVIEW_VIEWPORT_MAX_DIMENSION,
-})
-
-const preset = Type.Union([
-  Type.Literal('iphone-se'),
-  Type.Literal('iphone-xr'),
-  Type.Literal('iphone-12-pro'),
-  Type.Literal('iphone-14-pro-max'),
-  Type.Literal('pixel-7'),
-  Type.Literal('samsung-galaxy-s8-plus'),
-  Type.Literal('samsung-galaxy-s20-ultra'),
-  Type.Literal('ipad-mini'),
-  Type.Literal('ipad-air'),
-  Type.Literal('ipad-pro'),
-  Type.Literal('surface-pro-7'),
-  Type.Literal('surface-duo'),
-  Type.Literal('galaxy-z-fold-5'),
-  Type.Literal('asus-zenbook-fold'),
-  Type.Literal('samsung-galaxy-a51-71'),
-  Type.Literal('nest-hub'),
-  Type.Literal('nest-hub-max'),
-])
-
-export const previewResizeParameters = Type.Union(
-  [
-    Type.Object({ ...previewTabTargetParameters.properties, mode: Type.Literal('fill') }),
-    Type.Object({
-      ...previewTabTargetParameters.properties,
-      mode: Type.Literal('freeform'),
-      width: viewportDimension,
-      height: viewportDimension,
-    }),
-    Type.Object({
-      ...previewTabTargetParameters.properties,
-      mode: Type.Literal('preset'),
-      preset,
-      orientation: Type.Optional(Type.Union([Type.Literal('portrait'), Type.Literal('landscape')])),
-    }),
-  ],
-  {
-    description: `Viewport area may not exceed ${String(BROWSER_PREVIEW_VIEWPORT_MAX_AREA)} pixels.`,
-  },
-)
 
 export const previewAppearanceParameters = Type.Object({
   ...previewTabTargetParameters.properties,

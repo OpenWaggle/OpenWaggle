@@ -5,7 +5,7 @@ import type {
 } from '@earendil-works/pi-coding-agent'
 import { SessionId } from '@shared/types/brand'
 import type { BrowserPreviewAutomationSnapshot } from '@shared/types/browser-preview-automation'
-import { fromPartial } from '@total-typescript/shoehorn'
+import { fromAny, fromPartial } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { BrowserPreviewAutomationServiceShape } from '../../../ports/browser-preview-automation-service'
@@ -41,6 +41,7 @@ const service = fromPartial<BrowserPreviewAutomationServiceShape>({
   navigate: vi.fn(() => Effect.succeed(status)),
   click: vi.fn(() => Effect.void),
   snapshot: vi.fn(() => Effect.succeed(snapshot)),
+  resize: vi.fn(() => Effect.succeed({ tabId: 'tab-1', viewport: { mode: 'fill' as const } })),
 })
 
 async function registeredTools() {
@@ -169,5 +170,82 @@ describe('Pi browser preview automation extension', () => {
       { sessionId: SessionId('session-1'), workingPath: '/project' },
       { target: { kind: 'environment-port', port: 5173 } },
     )
+  })
+
+  it('registers preview_resize as one flat object schema with mode-specific fields', async () => {
+    const tools = await registeredTools()
+    const shape = fromAny<
+      { type?: string; anyOf?: unknown; required?: string[]; properties?: Record<string, unknown> },
+      unknown
+    >(JSON.parse(JSON.stringify(tools.get('preview_resize')?.parameters)))
+
+    expect(shape.type).toBe('object')
+    expect(shape.anyOf).toBeUndefined()
+    expect(shape.required).toEqual(['mode'])
+    expect(Object.keys(shape.properties ?? {})).toEqual([
+      'tabId',
+      'mode',
+      'width',
+      'height',
+      'preset',
+      'orientation',
+    ])
+  })
+
+  it.each([
+    { label: 'fill', params: { mode: 'fill' } },
+    { label: 'freeform', params: { tabId: 'tab-1', mode: 'freeform', width: 800, height: 600 } },
+    { label: 'preset', params: { mode: 'preset', preset: 'ipad-mini', orientation: 'landscape' } },
+  ])('forwards a valid $label resize to the session-scoped service', async ({ params }) => {
+    const tools = await registeredTools()
+    const result = await tools.get('preview_resize')?.execute(
+      'resize-1',
+      params,
+      undefined,
+      undefined,
+      context(async () => true),
+    )
+
+    expect(result).not.toMatchObject({ isError: true })
+    expect(service.resize).toHaveBeenCalledWith(
+      { sessionId: SessionId('session-1'), workingPath: '/project' },
+      params,
+    )
+  })
+
+  it.each([
+    { label: 'missing mode', params: {}, message: 'Invalid preview_resize arguments' },
+    {
+      label: 'unknown mode',
+      params: { mode: 'zoom' },
+      message: 'Invalid preview_resize arguments',
+    },
+    {
+      label: 'freeform without height',
+      params: { mode: 'freeform', width: 800 },
+      message: 'mode "freeform"',
+    },
+    { label: 'preset without preset', params: { mode: 'preset' }, message: 'mode "preset"' },
+    {
+      label: 'fill with freeform dimensions',
+      params: { mode: 'fill', width: 800, height: 600 },
+      message: 'mode "fill"',
+    },
+    {
+      label: 'freeform with an orientation',
+      params: { mode: 'freeform', width: 800, height: 600, orientation: 'portrait' },
+      message: 'mode "freeform"',
+    },
+  ])('rejects $label before asking for approval', async ({ params, message }) => {
+    const tools = await registeredTools()
+    const confirm = vi.fn<ExtensionContext['ui']['confirm']>(async () => true)
+
+    await expect(
+      tools
+        .get('preview_resize')
+        ?.execute('resize-1', params, undefined, undefined, context(confirm)),
+    ).rejects.toThrow(message)
+    expect(confirm).not.toHaveBeenCalled()
+    expect(service.resize).not.toHaveBeenCalled()
   })
 })

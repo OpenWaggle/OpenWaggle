@@ -3,12 +3,19 @@ import type { McpDirectToolDescriptor, McpJsonValue } from '@shared/types/mcp'
 import { Type } from 'typebox'
 import { type ExecuteGateway, executeApprovedCall, textResult } from './mcp-tool-execution'
 
-function isSchemaObject(value: McpJsonValue | undefined): value is Record<string, McpJsonValue> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
+function isObjectRootSchema(
+  value: McpJsonValue | undefined,
+): value is Record<string, McpJsonValue> & { readonly type: 'object' } {
+  return (
+    typeof value === 'object' && value !== null && !Array.isArray(value) && value.type === 'object'
+  )
 }
 
+// Providers require a JSON-object root: Amazon Bedrock rejects any other root `type`.
+// The MCP SDK already enforces `type: "object"` on listed tools; this keeps a descriptor
+// from any other source from breaking every request that carries the tool.
 function parameters(tool: McpDirectToolDescriptor) {
-  return isSchemaObject(tool.inputSchema)
+  return isObjectRootSchema(tool.inputSchema)
     ? Type.Unsafe<Record<string, unknown>>(tool.inputSchema)
     : Type.Record(Type.String(), Type.Unknown())
 }
