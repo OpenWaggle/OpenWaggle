@@ -195,6 +195,15 @@ describe('Pi browser preview automation extension', () => {
       ),
     ).rejects.toThrow('requires both width and height')
     await expect(
+      resize?.execute(
+        'resize-1b',
+        { mode: 'freeform', width: 3_840, height: 3_840 },
+        undefined,
+        undefined,
+        context(confirm),
+      ),
+    ).rejects.toThrow('exceeds the viewport limit')
+    await expect(
       resize?.execute('resize-2', { mode: 'preset' }, undefined, undefined, context(confirm)),
     ).rejects.toThrow('requires preset')
     expect(confirm).not.toHaveBeenCalled()
