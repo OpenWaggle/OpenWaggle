@@ -221,6 +221,11 @@ describe('Pi browser preview automation extension', () => {
       message: /mode "freeform": .*height/,
     },
     {
+      label: 'freeform dimensions above the viewport area limit',
+      params: { mode: 'freeform', width: 3_840, height: 3_840 },
+      message: /mode "freeform": Viewport area may not exceed/,
+    },
+    {
       label: 'an unknown preset',
       params: { mode: 'preset', preset: 'nokia-3310' },
       message: /Invalid preview_resize arguments: \/preset/,

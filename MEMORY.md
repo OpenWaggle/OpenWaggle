@@ -1100,9 +1100,14 @@ Anthropic serializer instead rewrites the root to `{type:'object', properties, r
 a root union's fields from the model and dropping root descriptions, so put limits on properties.
 `preview_resize` shipped a root `anyOf` until it was flattened. External MCP direct and sampling
 schemas go through `toProviderToolParameters` (`provider-tool-parameters.ts`): it keeps an object
-root, strips those root keywords, hoists combinator members' `properties` (root wins; only
-`allOf` members add `required`) and drops `unevaluatedProperties`, which would otherwise make
-Pi's `validateToolArguments` reject arguments the removed combinators used to evaluate.
+root, strips those root keywords, and hoists combinator members' `properties` so the result
+never rejects an argument the original accepted. Pi's `validateToolArguments` checks calls
+against these parameters before execute, so a stricter result blocks valid calls before the
+MCP server sees them. Root and `allOf` definitions win (only `allOf` adds `required`);
+properties from `anyOf`/`oneOf` alternatives become a nested `anyOf` of what each alternative
+allows (`{}` when an open alternative leaves the property unconstrained), so discriminators
+like `kind: {const:'a'}` vs `{const:'b'}` keep every branch valid. It also drops
+`unevaluatedProperties` and any hoisted `$ref` into a removed keyword.
 `first-party-tool-parameter-schemas.unit.test.ts` pins the exact list of app tool registrations
 (browser preview, MCP gateway/direct/`mcp_run`, `project_actions`, `sessions`) and asserts the
 object-root contract, so add new app tool factories to it; `packages/pi-waggle` tools and

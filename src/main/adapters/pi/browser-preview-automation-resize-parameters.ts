@@ -2,6 +2,7 @@ import {
   BROWSER_PREVIEW_VIEWPORT_MAX_AREA,
   BROWSER_PREVIEW_VIEWPORT_MAX_DIMENSION,
   BROWSER_PREVIEW_VIEWPORT_MIN_DIMENSION,
+  isValidBrowserPreviewViewportSize,
 } from '@shared/browser-preview-viewports'
 import type { BrowserPreviewAutomationResizeInput } from '@shared/types/browser-preview-automation'
 import {
@@ -122,7 +123,13 @@ export function toPreviewResizeInput(params: unknown): BrowserPreviewAutomationR
     )
   }
   if (Check(fillVariant, params)) return params
-  if (Check(freeformVariant, params)) return params
+  if (Check(freeformVariant, params)) {
+    // Checked here too so the user is never asked to approve a size the service rejects.
+    if (!isValidBrowserPreviewViewportSize(params.width, params.height)) {
+      throw new Error(`Invalid preview_resize arguments for mode "freeform": ${VIEWPORT_LIMITS}`)
+    }
+    return params
+  }
   if (Check(presetVariant, params)) return params
   throw new Error(
     `Invalid preview_resize arguments for mode "${params.mode}": ${describeModeErrors(params.mode, params)}`,

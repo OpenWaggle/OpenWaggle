@@ -44,31 +44,52 @@ const ROOT_KEYWORD_CASES: readonly RootKeywordCase[] = [
   { keyword: 'const', value: { a: 'x' } },
 ]
 
+const DISCRIMINATED_SCHEMA = {
+  type: 'object',
+  oneOf: [
+    { properties: { kind: { const: 'a' }, value: { type: 'string' } }, required: ['kind'] },
+    { properties: { kind: { const: 'b' }, value: { type: 'number' } }, required: ['kind'] },
+  ],
+} satisfies McpJsonValue
+
+const DISCRIMINATED_CASES: readonly {
+  readonly label: string
+  readonly arguments_: ToolCall['arguments']
+}[] = [
+  { label: 'first', arguments_: { kind: 'a', value: 'x' } },
+  { label: 'second', arguments_: { kind: 'b', value: 5 } },
+]
+
 interface UnevaluatedCase {
   readonly label: string
   readonly schema: McpJsonValue
   readonly arguments_: ToolCall['arguments']
 }
 
+// Each argument is only evaluated by a removed combinator (patternProperties is not
+// hoisted), so keeping `unevaluatedProperties: false` would reject it.
 const UNEVALUATED_CASES: readonly UnevaluatedCase[] = [
   {
     label: 'allOf',
     schema: {
       type: 'object',
-      allOf: [{ properties: { a: { type: 'string' } } }],
+      allOf: [{ patternProperties: { '^x-': { type: 'string' } } }],
       unevaluatedProperties: false,
     },
-    arguments_: { a: 'x' },
+    arguments_: { 'x-a': 'x' },
   },
   {
     label: 'anyOf',
     schema: {
       type: 'object',
       properties: { kind: { type: 'string' } },
-      anyOf: [{ properties: { a: { type: 'string' } } }, { properties: { b: { type: 'string' } } }],
+      anyOf: [
+        { patternProperties: { '^x-': { type: 'string' } } },
+        { properties: { b: { type: 'string' } } },
+      ],
       unevaluatedProperties: false,
     },
-    arguments_: { kind: 'k', a: 'x' },
+    arguments_: { kind: 'k', 'x-a': 'x' },
   },
 ]
 
@@ -115,15 +136,36 @@ describe('provider tool parameters for external MCP schemas', () => {
     expect(plain(toProviderToolParameters(schema))).toEqual(schema)
   })
 
-  it('hoists combinator member properties, with allOf members contributing required fields', () => {
+  it('hoists allOf member properties and required fields; the root definition wins', () => {
     const root = plain(
       toProviderToolParameters({
         type: 'object',
         properties: { kind: { type: 'string' }, a: { type: 'number' } },
         allOf: [{ properties: { a: { type: 'string' }, c: { type: 'string' } }, required: ['c'] }],
-        anyOf: [
-          { properties: { d: { type: 'string' } }, required: ['d'] },
-          { properties: { e: { type: 'string' } }, required: ['e'] },
+      }),
+    )
+
+    expect(root).toEqual({
+      type: 'object',
+      properties: { kind: { type: 'string' }, a: { type: 'number' }, c: { type: 'string' } },
+      required: ['c'],
+    })
+  })
+
+  it('hoists what each anyOf/oneOf alternative allows without hoisting their required fields', () => {
+    const root = plain(
+      toProviderToolParameters({
+        type: 'object',
+        oneOf: [
+          {
+            properties: { kind: { const: 'search' }, query: { type: 'string' } },
+            required: ['kind', 'query'],
+          },
+          {
+            properties: { kind: { const: 'fetch' }, url: { type: 'string' } },
+            required: ['kind', 'url'],
+            additionalProperties: false,
+          },
         ],
       }),
     )
@@ -131,15 +173,41 @@ describe('provider tool parameters for external MCP schemas', () => {
     expect(root).toEqual({
       type: 'object',
       properties: {
-        kind: { type: 'string' },
-        // The root definition wins over a member's.
-        a: { type: 'number' },
-        c: { type: 'string' },
-        d: { type: 'string' },
-        e: { type: 'string' },
+        kind: { anyOf: [{ const: 'search' }, { const: 'fetch' }] },
+        // The search alternative leaves url unconstrained; the closed fetch one forbids query.
+        query: { type: 'string' },
+        url: { anyOf: [{}, { type: 'string' }] },
       },
-      required: ['c'],
     })
+  })
+
+  it.each(DISCRIMINATED_CASES)(
+    "accepts every $label alternative through Pi's argument validation, unchanged",
+    ({ arguments_ }) => {
+      expect(validate(DISCRIMINATED_SCHEMA, arguments_)).toEqual(arguments_)
+    },
+  )
+
+  it('does not hoist a reference into a removed root keyword', () => {
+    const root = plain(
+      toProviderToolParameters({
+        type: 'object',
+        properties: { p: { $ref: '#/anyOf/0/$defs/P', description: 'kept' } },
+        anyOf: [{ $defs: { P: { type: 'string' } } }],
+      }),
+    )
+
+    expect(root.properties).toEqual({ p: { description: 'kept' } })
+    expect(
+      validate(
+        {
+          type: 'object',
+          properties: { p: { $ref: '#/anyOf/0/$defs/P' } },
+          anyOf: [{ $defs: { P: { type: 'string' } } }],
+        },
+        { p: 'x' },
+      ),
+    ).toEqual({ p: 'x' })
   })
 
   it.each(UNEVALUATED_CASES)(
