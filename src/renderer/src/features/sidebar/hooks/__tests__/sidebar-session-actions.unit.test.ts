@@ -26,9 +26,12 @@ it('shows the deletion reason without transport details and does not navigate aw
   const reason = "Delete this session's Workers before deleting their Queen session."
   const showToast = vi.fn()
   const navigate = vi.fn()
-  const startDraftSession = vi.fn()
   const actions = createSidebarSessionActions({
     activeSessionId: sessionId,
+    getActiveSessionId: () => sessionId,
+    getVisibleSessionIds: () => [sessionId],
+    selectSession: vi.fn(),
+    clearActiveSession: vi.fn(),
     matchingActiveSessionTree: null,
     matchingActiveWorkspace: null,
     navigate,
@@ -36,7 +39,6 @@ it('shows the deletion reason without transport details and does not navigate aw
     queryClient: new QueryClient(),
     selectedModel: SupportedModelId('openai/gpt-5'),
     showToast,
-    startDraftSession,
     clearTransientDraftContext: vi.fn(),
     deleteSession: async () => {
       throw new Error(`Error invoking remote method 'sessions:delete': Error: ${reason}`)
@@ -53,7 +55,6 @@ it('shows the deletion reason without transport details and does not navigate aw
     expect(showToast).toHaveBeenCalledWith(`Failed to delete session: ${reason}`)
   })
   expect(navigate).not.toHaveBeenCalled()
-  expect(startDraftSession).not.toHaveBeenCalled()
 })
 
 it('refreshes a committed archive after cleanup fails and preserves that error if reload also fails', async () => {
@@ -69,6 +70,10 @@ it('refreshes a committed archive after cleanup fails and preserves that error i
   const showToast = vi.fn()
   const actions = createSidebarSessionActions({
     activeSessionId: null,
+    getActiveSessionId: () => null,
+    getVisibleSessionIds: () => [id],
+    selectSession: vi.fn(),
+    clearActiveSession: vi.fn(),
     matchingActiveSessionTree: null,
     matchingActiveWorkspace: null,
     navigate: vi.fn(),
@@ -76,7 +81,6 @@ it('refreshes a committed archive after cleanup fails and preserves that error i
     queryClient,
     selectedModel: SupportedModelId('openai/gpt-5'),
     showToast,
-    startDraftSession: vi.fn(),
     clearTransientDraftContext: vi.fn(),
     deleteSession: vi.fn(),
     loadChatSessions,
@@ -99,4 +103,101 @@ it('refreshes a committed archive after cleanup fails and preserves that error i
   expect(queryClient.getQueryState(queryKeys.archivedSessions)?.isInvalidated).toBe(true)
   expect(queryClient.getQueryState(queryKeys.sessionHive(id))?.isInvalidated).toBe(true)
   queryClient.clear()
+})
+
+function archiveActions(input: {
+  readonly activeSessionId: SessionId | null
+  readonly visibleSessionIds: readonly SessionId[]
+}) {
+  const navigate = vi.fn()
+  const selectSession = vi.fn()
+  const clearActiveSession = vi.fn()
+  const showToast = vi.fn()
+  const actions = createSidebarSessionActions({
+    activeSessionId: input.activeSessionId,
+    getActiveSessionId: () => input.activeSessionId,
+    getVisibleSessionIds: () => input.visibleSessionIds,
+    selectSession,
+    clearActiveSession,
+    matchingActiveSessionTree: null,
+    matchingActiveWorkspace: null,
+    navigate,
+    projectPath: '/project',
+    queryClient: new QueryClient(),
+    selectedModel: SupportedModelId('openai/gpt-5'),
+    showToast,
+    clearTransientDraftContext: vi.fn(),
+    deleteSession: vi.fn(async () => undefined),
+    loadChatSessions: async () => {},
+    loadSessionTrees: async () => {},
+    refreshSessionWorkspace: async () => {},
+    togglePin: vi.fn(),
+  })
+  return { actions, navigate, selectSession, clearActiveSession, showToast }
+}
+
+it('archives without asking for confirmation, which is reserved for deletion', async () => {
+  const id = SessionId('b')
+  const { actions } = archiveActions({ activeSessionId: null, visibleSessionIds: [id] })
+
+  actions.archive(id)
+
+  await vi.waitFor(() => expect(mocks.archiveSession).toHaveBeenCalledWith(id))
+  expect(mocks.showConfirm).not.toHaveBeenCalled()
+})
+
+it('opens the next visible session instead of starting a new one when the active session is archived', async () => {
+  const [a, b, c] = [SessionId('a'), SessionId('b'), SessionId('c')]
+  const { actions, selectSession, navigate } = archiveActions({
+    activeSessionId: b,
+    visibleSessionIds: [a, b, c],
+  })
+
+  actions.archive(b)
+
+  await vi.waitFor(() => expect(selectSession).toHaveBeenCalledWith(c))
+  expect(navigate).not.toHaveBeenCalledWith({ to: '/' })
+})
+
+it('falls back to the previous visible session when the archived session was last', async () => {
+  const [a, b] = [SessionId('a'), SessionId('b')]
+  const { actions, selectSession, navigate } = archiveActions({
+    activeSessionId: b,
+    visibleSessionIds: [a, b],
+  })
+
+  actions.archive(b)
+
+  await vi.waitFor(() => expect(selectSession).toHaveBeenCalledWith(a))
+  expect(navigate).not.toHaveBeenCalledWith({ to: '/' })
+})
+
+it('returns to the empty home without a draft session when no other session remains', async () => {
+  const only = SessionId('only')
+  const { actions, clearActiveSession, navigate, selectSession } = archiveActions({
+    activeSessionId: only,
+    visibleSessionIds: [only],
+  })
+
+  actions.archive(only)
+
+  await vi.waitFor(() => expect(clearActiveSession).toHaveBeenCalledOnce())
+  expect(navigate).toHaveBeenCalledWith({ to: '/' })
+  expect(selectSession).not.toHaveBeenCalled()
+})
+
+it('keeps the current session open when a different session is archived', async () => {
+  const [a, b] = [SessionId('a'), SessionId('b')]
+  const { actions, clearActiveSession, navigate, selectSession } = archiveActions({
+    activeSessionId: a,
+    visibleSessionIds: [a, b],
+  })
+
+  actions.archive(b)
+
+  await vi.waitFor(() => expect(mocks.archiveSession).toHaveBeenCalledWith(b))
+  await Promise.resolve()
+  expect(selectSession).not.toHaveBeenCalled()
+  expect(clearActiveSession).not.toHaveBeenCalled()
+  expect(navigate).not.toHaveBeenCalled()
 })

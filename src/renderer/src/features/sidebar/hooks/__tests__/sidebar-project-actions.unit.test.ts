@@ -52,6 +52,7 @@ function deps() {
     setProjectPath: vi.fn(),
     showToast: vi.fn(),
     startDraftSession: vi.fn(),
+    clearActiveSession: vi.fn(),
   })
 }
 

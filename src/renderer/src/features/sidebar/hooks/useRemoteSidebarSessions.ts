@@ -19,6 +19,7 @@ import {
   sidebarSessionMatchesText,
 } from './remote-sidebar-session-results'
 import { pruneHydratedTerminalIds, sidebarRemoteStatusIds } from './remote-sidebar-terminal-status'
+import { useDropRemovedRemoteSessions } from './useDropRemovedRemoteSessions'
 import { useSidebarTerminalCounts } from './useSidebarTerminalCounts'
 
 const REMOTE_SIDEBAR_SEARCH_MINIMUM_LENGTH = 3
@@ -77,6 +78,8 @@ export function useRemoteSidebarSessions(input: {
   useEffect(() => {
     projectDisplayNames.current = input.projectDisplayNames
   }, [input.projectDisplayNames])
+
+  useDropRemovedRemoteSessions(setSessions)
 
   const settleFailure = useCallback((requestGeneration: number) => {
     if (generation.current !== requestGeneration) return

@@ -190,6 +190,10 @@ describe('HiveSummarySection', () => {
 
     const actions = createSidebarSessionActions({
       activeSessionId: null,
+      getActiveSessionId: () => null,
+      getVisibleSessionIds: () => [liveWorker.id],
+      selectSession: vi.fn(),
+      clearActiveSession: vi.fn(),
       matchingActiveSessionTree: null,
       matchingActiveWorkspace: null,
       navigate,
@@ -197,7 +201,6 @@ describe('HiveSummarySection', () => {
       queryClient: view.client,
       selectedModel: SupportedModelId('openai/gpt-5'),
       showToast,
-      startDraftSession: vi.fn(),
       clearTransientDraftContext: vi.fn(),
       deleteSession: vi.fn().mockResolvedValue(undefined),
       loadChatSessions: vi.fn().mockResolvedValue(undefined),

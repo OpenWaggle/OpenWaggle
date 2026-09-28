@@ -92,6 +92,8 @@ export interface SidebarProjectActionDeps {
   readonly setProjectPath: (path: string) => Promise<void>
   readonly showToast: (message: string) => void
   readonly startDraftSession: (projectPath: string | null) => void
+  /** Leave every session without creating a new draft session. */
+  readonly clearActiveSession: () => void
   readonly clearTransientDraftContext: () => void
 }
 
@@ -180,7 +182,12 @@ async function archiveProjectSessions(deps: SidebarProjectActionDeps, path: stri
   const archivedActiveSession =
     deps.activeSessionId !== null &&
     projectSessions.some((session) => String(session.id) === deps.activeSessionId)
-  if (archivedActiveSession) resetToDraftForProject(deps, deps.projectPath)
+  // Archiving is not a request for a new session: return to the empty home without a draft.
+  if (archivedActiveSession) {
+    deps.clearTransientDraftContext()
+    deps.clearActiveSession()
+    void deps.navigate({ to: '/' })
+  }
 }
 
 async function removeProject(deps: SidebarProjectActionDeps, path: string) {
