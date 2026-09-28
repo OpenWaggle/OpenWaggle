@@ -1,6 +1,7 @@
 import { match } from '@diegogbrisa/ts-match'
-import { COMMAND_PRIORITY_HIGH, KEY_DOWN_COMMAND, type LexicalEditor } from 'lexical'
+import { $getRoot, COMMAND_PRIORITY_HIGH, KEY_DOWN_COMMAND, type LexicalEditor } from 'lexical'
 import { type RefObject, useEffectEvent, useLayoutEffect } from 'react'
+import { isGuiOnlyComposerCommand } from '@/features/composer/commands'
 import type { CommandPaletteItem } from '../model'
 
 interface UseCommandPaletteKeyboardInput {
@@ -27,6 +28,15 @@ export function useCommandPaletteKeyboard({
     })
   }
 
+  /**
+   * A built-in command submits on Enter only when it is the whole draft; otherwise the draft would
+   * be sent to the model as an ordinary prompt that merely mentions the command.
+   */
+  function submitsDraftAsCommand(item: CommandPaletteItem) {
+    if (!item.submitsOnEnter || !editor) return false
+    return isGuiOnlyComposerCommand(editor.getEditorState().read(() => $getRoot().getTextContent()))
+  }
+
   function moveHighlight(delta: 1 | -1) {
     if (items.length === 0) return
     setHighlightIndex(nextEnabledHighlightIndex(items, highlightIndex, delta))
@@ -45,7 +55,7 @@ export function useCommandPaletteKeyboard({
       })
       .with('Enter', () => {
         const selectedItem = items[highlightIndex]
-        if (!selectedItem || selectedItem.disabled || selectedItem.submitsOnEnter) return
+        if (!selectedItem || selectedItem.disabled || submitsDraftAsCommand(selectedItem)) return
         event.preventDefault()
         selectedItem.action()
       })

@@ -15,6 +15,7 @@ import {
   isLocalSessionHostUnavailable,
 } from '../session-host/local-session-host-launcher'
 import { refreshLocalSessionHostEndpoint } from '../session-host/local-session-paths'
+import { userFacingErrorDetail } from '../utils/describe-error'
 import { executeConfiguredHostUi } from './configured-host-ui-client'
 import { reconcileMcpOwnerRuntime } from './mcp-owner-runtime-reconciliation'
 
@@ -226,9 +227,12 @@ export function dispatchConfiguredGuiSessionCommand(
   return Effect.tryPromise({
     try: () => executeConfiguredGuiSessionCommand(input, dependencies, expectedEpoch),
     // Surface the Host's reason (for example "Nothing to compact (session too small)") instead of
-    // Effect's generic UnknownException message, while keeping the original error as the cause.
+    // Effect's generic UnknownException message. The text reaches the renderer, so it is redacted
+    // and bounded; the original error stays available as the cause for logs and classification.
     catch: (error) =>
-      new Error(error instanceof Error ? error.message : String(error), { cause: error }),
+      new Error(userFacingErrorDetail(error instanceof Error ? error.message : String(error)), {
+        cause: error,
+      }),
   })
 }
 

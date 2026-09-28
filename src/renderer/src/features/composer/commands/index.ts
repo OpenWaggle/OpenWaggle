@@ -2,7 +2,7 @@ export {
   BUILT_IN_COMPOSER_SLASH_COMMAND,
   BUILT_IN_COMPOSER_SLASH_COMMANDS,
 } from './built-in-slash-commands'
-export { compactCommandText, parseCompactCommand } from './compact-command'
+export { parseCompactCommand } from './compact-command'
 export {
   type ExtensionSlashCommand,
   type ExtensionSlashCommandPayload,

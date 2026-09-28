@@ -54,12 +54,9 @@ const BUILT_IN_COMPOSER_COMMANDS: readonly BuiltInComposerCommand[] = [
   },
 ]
 
+/** Like Pi's TUI, built-ins match by command name so short queries still reach skills. */
 function builtInCommandMatchesQuery(entry: BuiltInComposerCommand, lowerQuery: string) {
-  return (
-    !lowerQuery ||
-    entry.command.slice(1).startsWith(lowerQuery) ||
-    entry.label.toLowerCase().includes(lowerQuery)
-  )
+  return entry.command.slice(1).startsWith(lowerQuery)
 }
 
 export function createBuiltInCommandItems(
@@ -75,8 +72,8 @@ export function createBuiltInCommandItems(
     icon: <entry.Icon className="size-3.5" />,
     section: 'Commands',
     trailing: entry.command,
-    // A fully typed command submits on Enter, like Pi's TUI; Tab or a click completes it so
-    // arguments such as /compact instructions can be added.
+    // A fully typed command that is the whole draft submits on Enter, like Pi's TUI; Tab or a
+    // click completes it so arguments such as /compact instructions can be added.
     submitsOnEnter: entry.command.slice(1) === lowerQuery,
     action: () => insertCommand(entry.command),
   }))

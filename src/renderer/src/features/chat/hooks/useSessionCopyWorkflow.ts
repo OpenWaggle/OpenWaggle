@@ -8,6 +8,7 @@ import { useComposerStore } from '@/features/composer/state'
 import { isSelectableModel, useProviderStore } from '@/features/providers/state'
 import { usePreferencesStore } from '@/features/settings/state'
 import { api } from '@/shared/lib/ipc'
+import { ipcErrorMessage } from '@/shared/lib/ipc-error-message'
 import { setComposerTextValue } from '../lib/composer-text'
 import { getVisibleForkTargets, type SessionForkTarget } from '../lib/session-fork-targets'
 
@@ -28,7 +29,7 @@ interface SessionCopyWorkflowParams {
 }
 
 function copyErrorMessage(error: unknown) {
-  return error instanceof Error ? error.message : String(error)
+  return ipcErrorMessage(error)
 }
 
 function routeToCopiedSession(params: SessionCopyWorkflowParams, sessionId: SessionId) {

@@ -1,8 +1,8 @@
 import type { SkillDiscoveryItem } from '@shared/types/standards'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { LexicalEditor } from 'lexical'
-import { act, createRef, type RefObject } from 'react'
+import { createRef, type RefObject } from 'react'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { CommandPalette } from '@/features/command-palette/components'
 import { setEditorText } from '@/features/composer/lib'
@@ -38,7 +38,9 @@ function requireEditor(editorRef: RefObject<LexicalEditor | null>) {
   return editorRef.current
 }
 
-function SlashMenu(props: { readonly onSelectSkill: (skillId: string) => void }) {
+function SlashMenu(props: {
+  readonly onSelectSkill: (skillId: string, skillName?: string) => void
+}) {
   const open = useUIStore((state) => state.slashCommandMenuOpen)
   if (!open) return null
   return (
@@ -127,5 +129,62 @@ describe('composer built-in slash commands', () => {
 
     expect(onSelectSkill).toHaveBeenCalledWith('handoff', 'handoff')
     expect(onSubmit).not.toHaveBeenCalled()
+  })
+
+  it('does not submit a draft that only mentions /compact after other text', async () => {
+    const { editorRef, onSubmit } = renderComposer()
+    await typeIntoComposer(editorRef, 'please summarize then /compact')
+    await screen.findByRole('menuitem', { name: /compact session/i })
+
+    pressKey('Enter')
+
+    expect(onSubmit).not.toHaveBeenCalled()
+    await waitFor(() =>
+      expect(useComposerStore.getState().input).toBe('please summarize then /compact '),
+    )
+  })
+
+  it('completes a differently cased command instead of sending it to the model', async () => {
+    const { editorRef, onSubmit } = renderComposer()
+    await typeIntoComposer(editorRef, '/Compact')
+    await screen.findByRole('menuitem', { name: /compact session/i })
+
+    pressKey('Enter')
+
+    expect(onSubmit).not.toHaveBeenCalled()
+    await waitFor(() => expect(useComposerStore.getState().input).toBe('/compact '))
+  })
+
+  it('completes a fully typed /compact on Tab so instructions can follow', async () => {
+    const { editorRef, onSubmit } = renderComposer()
+    await typeIntoComposer(editorRef, '/compact')
+    await screen.findByRole('menuitem', { name: /compact session/i })
+
+    pressKey('Tab')
+
+    expect(onSubmit).not.toHaveBeenCalled()
+    await waitFor(() => expect(useComposerStore.getState().input).toBe('/compact '))
+  })
+
+  it('submits a fully typed /fork or /clone on Enter', async () => {
+    const { editorRef, onSubmit } = renderComposer()
+    await typeIntoComposer(editorRef, '/fork')
+    await screen.findByRole('menuitem', { name: /fork session/i })
+    pressKey('Enter')
+    expect(onSubmit).toHaveBeenLastCalledWith('/fork')
+
+    await typeIntoComposer(editorRef, '/clone')
+    await screen.findByRole('menuitem', { name: /clone session/i })
+    pressKey('Enter')
+    expect(onSubmit).toHaveBeenLastCalledWith('/clone')
+  })
+
+  it('keeps built-in commands out of the skills-only chooser', async () => {
+    const { editorRef } = renderComposer()
+    await typeIntoComposer(editorRef, '/compact')
+    act(() => useComposerStore.getState().setSlashMenuFilter('skills'))
+
+    expect(await screen.findByRole('menuitem', { name: /handoff/i })).toBeInTheDocument()
+    expect(screen.queryByRole('menuitem', { name: /compact session/i })).not.toBeInTheDocument()
   })
 })

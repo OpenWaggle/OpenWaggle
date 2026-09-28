@@ -108,8 +108,13 @@ describe('createBuiltInCommandItems', () => {
     expect(items[0]).toMatchObject({ id: 'command-compact', submitsOnEnter: true })
   })
 
-  it('omits commands that do not match the query', () => {
+  it('matches command names only, so short queries still reach skills', () => {
     expect(createBuiltInCommandItems('visualize', vi.fn())).toEqual([])
+    expect(createBuiltInCommandItems('se', vi.fn())).toEqual([])
+    expect(createBuiltInCommandItems('c', vi.fn()).map((command) => command.trailing)).toEqual([
+      '/compact',
+      '/clone',
+    ])
   })
 })
 
