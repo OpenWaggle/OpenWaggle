@@ -2,7 +2,7 @@ import type { WorkspacePreparation } from '@shared/types/workspace-preparation'
 import { useEffect, useEffectEvent, useRef } from 'react'
 import { Button } from '@/shared/ui/Button'
 import { PlainTextBlock } from '@/shared/ui/PlainTextBlock'
-import { useNativeActions } from '../hooks/useNativeActions'
+import { useActionScope, useNativeActions } from '../hooks/useNativeActions'
 import { useWorkspacePreparation } from '../hooks/useWorkspacePreparation'
 import { useActionPanelStore } from '../state/action-panel-store'
 
@@ -26,7 +26,8 @@ export function WorkspaceCleanupFailure(props: {
   readonly onForceRemove: () => void
 }) {
   const openedReview = useRef(false)
-  const catalog = useNativeActions({ projectPath: props.projectPath })
+  // Shares the session-scoped catalog query instead of polling a second key for the same data.
+  const catalog = useNativeActions(useActionScope(props.projectPath))
   const state = useWorkspacePreparation({
     projectPath: props.projectPath,
     workspaceId: props.initial.workspaceId,

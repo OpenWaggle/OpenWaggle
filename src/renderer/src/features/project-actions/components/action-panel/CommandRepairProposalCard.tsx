@@ -1,6 +1,9 @@
 import { safeDecodeUnknown } from '@shared/schema'
 import { commandRepairProposalSchema } from '@shared/schemas/action-definitions'
-import type { CommandRepairProposal } from '@shared/types/action-definitions'
+import {
+  COMMAND_REPAIR_PROPOSAL_TYPE,
+  type CommandRepairProposal,
+} from '@shared/types/action-definitions'
 import { normalizeToolResultPayload } from '@shared/utils/tool-result-state'
 import { Wrench } from 'lucide-react'
 import { useChatStore } from '@/features/chat/state'
@@ -15,6 +18,14 @@ export function commandRepairProposalFrom(content: unknown): CommandRepairPropos
       ? payload.details
       : undefined
   for (const candidate of [details, payload]) {
+    // Most project_actions results (list, output, runs) are not proposals; skip decoding them.
+    if (
+      candidate === null ||
+      typeof candidate !== 'object' ||
+      !('type' in candidate) ||
+      candidate.type !== COMMAND_REPAIR_PROPOSAL_TYPE
+    )
+      continue
     const decoded = safeDecodeUnknown(commandRepairProposalSchema, candidate)
     if (decoded.success) return decoded.data
   }

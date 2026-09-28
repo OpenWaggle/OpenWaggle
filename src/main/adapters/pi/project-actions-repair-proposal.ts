@@ -70,9 +70,11 @@ export async function proposeRepair(input: {
     reason: params.reason.trim(),
   })
   if (!decoded.success) {
-    const directoryHint = decoded.issues.some((issue) => issue.includes('directory'))
-      ? ' The directory must be relative to the project, such as "." or "packages/app".'
-      : ''
+    // The only field the agent chooses that can fail beyond blank text is the directory.
+    const directoryHint =
+      params.directory !== undefined
+        ? ' The directory must be relative to the project, such as "." or "packages/app".'
+        : ''
     throw new Error(
       `Invalid project_actions arguments for "propose": ${decoded.issues.join('; ')}.${directoryHint}`,
     )
