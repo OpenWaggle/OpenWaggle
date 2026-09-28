@@ -307,4 +307,49 @@ describe('settings store loading', () => {
       'frontend-design': false,
     })
   })
+
+  it('sets, clears, and migrates project models without losing entries', async () => {
+    const {
+      getSettings,
+      initializeSettingsStore,
+      migrateSelectedModelDurably,
+      resetSettingsStoreForTests,
+      updateSelectedModelDurably,
+    } = await loadSettingsModule()
+
+    await updateSelectedModelDurably('/tmp/model-a', 'openai/gpt-4.1')
+    // Insert-if-absent must not overwrite an explicit choice made after the legacy read.
+    expect(await migrateSelectedModelDurably('/tmp/model-a', 'legacy/file')).toBe(false)
+    expect(await migrateSelectedModelDurably('/tmp/model-b', 'legacy/file')).toBe(true)
+    await updateSelectedModelDurably('/tmp/model-a', null)
+    // The clear tombstones the entry: a stale legacy read must not resurrect it.
+    expect(await migrateSelectedModelDurably('/tmp/model-a', 'legacy/file')).toBe(false)
+
+    await resetSettingsStoreForTests()
+    await initializeSettingsStore()
+
+    expect(getSettings().selectedModelsByProject).toEqual({
+      '/tmp/model-a': '',
+      '/tmp/model-b': 'legacy/file',
+    })
+  })
+
+  it('deletes a project model entry durably for removed project references', async () => {
+    const {
+      deleteSelectedModelDurably,
+      getSettings,
+      initializeSettingsStore,
+      resetSettingsStoreForTests,
+      updateSelectedModelDurably,
+    } = await loadSettingsModule()
+
+    await updateSelectedModelDurably('/tmp/gone', 'openai/gpt-4.1')
+    await updateSelectedModelDurably('/tmp/kept', 'openai/gpt-4.1')
+    await deleteSelectedModelDurably('/tmp/gone')
+
+    await resetSettingsStoreForTests()
+    await initializeSettingsStore()
+
+    expect(getSettings().selectedModelsByProject).toEqual({ '/tmp/kept': 'openai/gpt-4.1' })
+  })
 })

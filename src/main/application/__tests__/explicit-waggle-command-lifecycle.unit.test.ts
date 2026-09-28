@@ -1,6 +1,6 @@
 import { SessionId, SupportedModelId } from '@shared/types/brand'
 import type { LocalSessionCommandPayload } from '@shared/types/local-session-protocol'
-import { fromAny } from '@total-typescript/shoehorn'
+import { fromAny, fromPartial } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -16,7 +16,9 @@ const {
   prepareMock,
   requestHostDrainMock,
   settleMock,
+  sessionDetailMock,
 } = vi.hoisted(() => ({
+  sessionDetailMock: vi.fn(),
   acquireLeaseMock: vi.fn(),
   activateMock: vi.fn(),
   attachmentCleanupMock: vi.fn(),
@@ -56,6 +58,7 @@ vi.mock('../../session-host/session-host-events', () => ({
 
 import { ExplicitWaggleOperationJournal } from '../../ports/explicit-waggle-operation-journal'
 import { SessionControlAttachmentService } from '../../ports/session-control-attachment-service'
+import { SessionProjectionRepository } from '../../ports/session-projection-repository'
 import {
   activeWaggleRuns,
   cancelAllSessionRuns,
@@ -74,6 +77,9 @@ const attachmentService = SessionControlAttachmentService.of({
   resolve: attachmentResolveMock,
   release: () => Effect.die('unused'),
 })
+const sessionProjection = SessionProjectionRepository.of(
+  fromPartial({ getOptional: (id: SessionId) => sessionDetailMock(id) }),
+)
 const operationJournal = ExplicitWaggleOperationJournal.of({
   claim: journalClaimMock,
   complete: journalCompleteMock,
@@ -122,6 +128,7 @@ function waggleCommand(withAttachment = false, hostRunCeiling?: number, operatio
   }).pipe(
     Effect.provideService(SessionControlAttachmentService, attachmentService),
     Effect.provideService(ExplicitWaggleOperationJournal, operationJournal),
+    Effect.provideService(SessionProjectionRepository, sessionProjection),
   )
 }
 
@@ -152,6 +159,7 @@ describe('explicit Waggle command lifecycle', () => {
       .mockReset()
       .mockReturnValue(Effect.succeed({ accepted: true, stateRevision: 2, intent: {} }))
     requestHostDrainMock.mockReset()
+    sessionDetailMock.mockReset().mockReturnValue(Effect.succeed(null))
     settleMock.mockReset().mockReturnValue(Effect.succeed({ accepted: true, stateRevision: 4 }))
   })
 
@@ -178,6 +186,22 @@ describe('explicit Waggle command lifecycle', () => {
     expect(releaseLease).toHaveBeenCalledOnce()
   })
 
+  it('runs with the Session model durable at Run start, like a classic Run', async () => {
+    const switchedModel = SupportedModelId('anthropic/claude-sonnet-4-5')
+    const classic = reserveActiveSessionRun(SESSION_ID, 'classic-run')
+    sessionDetailMock.mockReturnValue(Effect.succeed({ executionModel: switchedModel }))
+    const running = runWaggleCommand()
+    await vi.waitFor(() => expect(classic.controller.signal.aborted).toBe(true))
+    expect(sessionDetailMock).not.toHaveBeenCalled()
+
+    classic.release()
+    await expect(running).resolves.toMatchObject({ contract: 'session-waggle-v1' })
+    expect(sessionDetailMock).toHaveBeenCalledWith(SESSION_ID)
+    expect(executeWaggleRunMock).toHaveBeenCalledWith(
+      expect.objectContaining({ model: switchedModel }),
+    )
+  })
+
   it('waits for an interrupted classic writer before running explicit Waggle', async () => {
     const classic = reserveActiveSessionRun(SESSION_ID, 'classic-run')
     const running = runWaggleCommand()
@@ -187,6 +211,9 @@ describe('explicit Waggle command lifecycle', () => {
     classic.release()
     await expect(running).resolves.toMatchObject({ contract: 'session-waggle-v1' })
     expect(executeWaggleRunMock).toHaveBeenCalledOnce()
+    expect(executeWaggleRunMock).toHaveBeenCalledWith(
+      expect.objectContaining({ model: SupportedModelId('openai/gpt-5.4') }),
+    )
   })
 
   it('replays a completed command without allocating or replacing another Run', async () => {

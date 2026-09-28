@@ -53,4 +53,7 @@ export function registerSessionDetailsHandlers(): void {
   typedHandle('sessions:set-authorization-mode', (_event, ...args) =>
     dispatchHostBackedSessionGuiOperation('sessions:set-authorization-mode', args),
   )
+  typedHandle('sessions:set-model', (_event, ...args) =>
+    dispatchHostBackedSessionGuiOperation('sessions:set-model', args),
+  )
 }

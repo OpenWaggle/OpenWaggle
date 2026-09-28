@@ -80,6 +80,10 @@ export interface Settings {
     Record<string, Readonly<Record<string, boolean>>>
   >
   readonly projectDisplayNames: Readonly<Record<string, string>>
+  /** Per-project selected model refs. Stored in the app DB, never in the repo's project settings file. An empty value is a tombstone: the user explicitly cleared the override. */
+  readonly selectedModelsByProject: Readonly<Record<string, string>>
+  /** Aliased project paths recorded before canonicalization: alias -> canonical target. Lets removals resolve identities after the aliased path stops existing. */
+  readonly projectPathAliases: Readonly<Record<string, string>>
   /** Canonical ordered built-in command rules. Later active rules win. */
   readonly shortcutRules: ShortcutRules
   /** Derived compatibility view for surfaces that display one representative binding. */
@@ -143,6 +147,8 @@ export const DEFAULT_SETTINGS: Settings = {
   skillTogglesByProject: {},
   agentDefinitionTogglesByProject: {},
   projectDisplayNames: {},
+  selectedModelsByProject: {},
+  projectPathAliases: {},
   shortcutRules: DEFAULT_SHORTCUT_RULES,
   shortcutBindings: shortcutBindingsFromRules(DEFAULT_SHORTCUT_RULES),
   defaultSessionEnvironmentMode: 'local',

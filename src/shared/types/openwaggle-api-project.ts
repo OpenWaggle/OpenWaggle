@@ -5,6 +5,7 @@
  * and the two calls that use them only make sense together: reading a project's overrides, and
  * writing them where `null` clears a key.
  */
+
 import type { ActionManagementRequest, ActionManagementResult } from './action-management'
 import type { AgentAuthorizationMode } from './agent-authorization'
 
@@ -31,8 +32,14 @@ export interface OpenWaggleProjectConfigApi {
   manageProjectActions(request: ActionManagementRequest): Promise<ActionManagementResult>
   selectProjectFolder(): Promise<string | null>
   getProjectPreferences(projectPath: string): Promise<ProjectPreferencesPayload | null>
+  /** Resolves to the canonical (realpath) project path the write was stored under. */
   setProjectPreferences(
     projectPath: string,
     preferences: ProjectPreferencesUpdatePayload,
-  ): Promise<void>
+  ): Promise<string>
+  /** Deletes a removed project's stored model entry; resolves to the canonical path removed. The remaining project references let the backend keep the entry while an equivalent reference survives. */
+  removeProjectModel(
+    projectPath: string,
+    remainingProjectPaths?: readonly string[],
+  ): Promise<string>
 }

@@ -1,4 +1,5 @@
 import { SessionId, SupportedModelId } from '@shared/types/brand'
+import { fromPartial } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -82,6 +83,7 @@ import { executeExplicitWaggleCancellation } from '../../application/explicit-wa
 import { executeExplicitWaggleCommand } from '../../application/explicit-waggle-command-service'
 import { ExplicitWaggleOperationJournal } from '../../ports/explicit-waggle-operation-journal'
 import { SessionControlAttachmentService } from '../../ports/session-control-attachment-service'
+import { SessionProjectionRepository } from '../../ports/session-projection-repository'
 import { registerWaggleHandlers } from '../waggle-handler'
 import { inheritedFirstAgentConfig } from './waggle-handler.test-fixtures'
 
@@ -94,6 +96,9 @@ const attachmentService = SessionControlAttachmentService.of({
   resolve: attachmentResolveMock,
   release: () => Effect.die('unused'),
 })
+const sessionProjection = SessionProjectionRepository.of(
+  fromPartial({ getOptional: () => Effect.succeed(null) }),
+)
 const operationJournal = ExplicitWaggleOperationJournal.of({
   claim: journalClaimMock,
   complete: journalCompleteMock,
@@ -103,6 +108,7 @@ function provideExplicitWaggleServices<A, E, R>(effect: Effect.Effect<A, E, R>) 
   return effect.pipe(
     Effect.provideService(SessionControlAttachmentService, attachmentService),
     Effect.provideService(ExplicitWaggleOperationJournal, operationJournal),
+    Effect.provideService(SessionProjectionRepository, sessionProjection),
   )
 }
 

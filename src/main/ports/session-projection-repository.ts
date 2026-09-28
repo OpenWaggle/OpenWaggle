@@ -6,7 +6,7 @@
  */
 
 import type { AgentAuthorizationMode } from '@shared/types/agent-authorization'
-import type { SessionId } from '@shared/types/brand'
+import type { SessionId, SupportedModelId } from '@shared/types/brand'
 import type { SessionEnvironmentMode } from '@shared/types/git'
 import type {
   PinnedSession,
@@ -65,6 +65,14 @@ export interface SessionProjectionRepositoryShape {
     id: SessionId,
     mode: AgentAuthorizationMode | null,
   ) => Effect.Effect<void, SessionProjectionRepositoryError>
+  /**
+   * Switch the model the Session's next Run resolves. A running Run keeps the model it started with.
+   * Resolves `false` when the Session has no execution profile to switch.
+   */
+  readonly setExecutionModel: (
+    id: SessionId,
+    model: SupportedModelId,
+  ) => Effect.Effect<boolean, SessionProjectionRepositoryError>
   readonly listTurnCheckpoints: (
     id: SessionId,
   ) => Effect.Effect<readonly TurnCheckpointSummary[], SessionProjectionRepositoryError>
