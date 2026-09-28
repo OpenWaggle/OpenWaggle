@@ -78,6 +78,64 @@ describe('turn checkpoint worktree snapshot', () => {
     expect(staged.trim()).toBe('')
   })
 
+  it('snapshots the working tree over staged changes', async () => {
+    const repo = await createRepository()
+    await writeFile(path.join(repo, 'tracked.txt'), 'staged\n')
+    await writeFile(path.join(repo, 'staged-then-removed.txt'), 'gone\n')
+    await git(['add', '--all'])
+    await rm(path.join(repo, 'staged-then-removed.txt'))
+    await writeFile(path.join(repo, 'tracked.txt'), 'working tree\n')
+
+    const snapshot = await captureWorktreeSnapshotForTests(repo)
+
+    const tracked = await git(['show', `${String(snapshot)}:tracked.txt`])
+    expect(tracked).toBe('working tree\n')
+    const files = await git(['ls-tree', '--name-only', String(snapshot)])
+    expect(files).not.toContain('staged-then-removed.txt')
+    // The real index still holds what the user staged.
+    const staged = await git(['show', ':tracked.txt'])
+    expect(staged).toBe('staged\n')
+  })
+
+  /*
+   * The snapshot index is seeded from the real one. Building it from `read-tree HEAD` instead threw
+   * away every cached stat, so `git add -A` re-hashed the whole worktree after every turn: about
+   * 2.6 s of a 2.8 s settle gap in this repository. Starting from the real index also snapshots the
+   * files the user tracks, as `git status` reports them, including one staged over `.gitignore`.
+   */
+  it('starts from the real index, so a force-added ignored file is snapshotted', async () => {
+    const repo = await createRepository()
+    await writeFile(path.join(repo, 'ignored.log'), 'kept on purpose\n')
+    await git(['add', '--force', 'ignored.log'])
+
+    const snapshot = await captureWorktreeSnapshotForTests(repo)
+
+    const diff = await git(['diff', '--name-status', 'HEAD', String(snapshot)])
+    expect(diff.trim()).toBe('A\tignored.log')
+  })
+
+  it('snapshots a linked worktree without touching its index', async () => {
+    const repo = await createRepository()
+    const linked = `${repo}-linked`
+    await git(['worktree', 'add', '-b', 'linked', linked])
+    try {
+      await writeFile(path.join(linked, 'tracked.txt'), 'linked\n')
+      await writeFile(path.join(linked, 'new.txt'), 'new\n')
+
+      const snapshot = await captureWorktreeSnapshotForTests(linked)
+
+      const diff = await execFileAsync('git', ['diff', '--name-status', 'HEAD', String(snapshot)], {
+        cwd: linked,
+      })
+      const output = typeof diff === 'string' ? diff : (diff.stdout ?? '')
+      expect(output.trim().split('\n').sort()).toEqual(['A\tnew.txt', 'M\ttracked.txt'])
+      const status = await execFileAsync('git', ['status', '--porcelain=v1'], { cwd: linked })
+      expect(typeof status === 'string' ? status : status.stdout).toContain('?? new.txt')
+    } finally {
+      await git(['worktree', 'remove', '--force', linked])
+    }
+  })
+
   it('returns null when the worktree matches HEAD', async () => {
     const repo = await createRepository()
     await expect(captureWorktreeSnapshotForTests(repo)).resolves.toBeNull()
