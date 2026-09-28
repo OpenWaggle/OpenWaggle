@@ -87,4 +87,24 @@ describe('repaired MCP direct tools at the edges', () => {
 
     expect(JSON.parse(JSON.stringify(definition.parameters))).toMatchObject({ type: 'object' })
   })
+
+  it('rebases $refs in schemas under keyword-like names but leaves instance data alone', () => {
+    const { definition } = register({
+      type: 'object',
+      properties: {
+        a: { type: 'object', properties: { x: { type: 'string' } } },
+        enum: { $ref: '#/properties/a/properties/x' },
+        b: { type: 'object', const: { $ref: '#/properties/a' } },
+      },
+      anyOf: [{ required: ['a'] }],
+    })
+    const parameters: unknown = JSON.parse(JSON.stringify(definition.parameters))
+
+    expect(resolveLocalPointer(parameters, '#/properties/enum/anyOf/1')).toEqual({
+      $ref: '#/properties/a/anyOf/0/properties/x',
+    })
+    expect(resolveLocalPointer(parameters, '#/properties/b/anyOf/1/const')).toEqual({
+      $ref: '#/properties/a',
+    })
+  })
 })

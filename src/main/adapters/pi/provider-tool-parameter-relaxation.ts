@@ -27,17 +27,26 @@ const REFERENCE_KEYWORD = /"\$(?:ref|dynamicRef|recursiveRef)"/u
 /** A local JSON pointer's decoded segments whose target moved, and where it moved to. */
 type PointerMove = readonly [from: readonly string[], to: readonly string[]]
 
-/** Keywords whose values are instance data, not subschemas. */
+/** Schema keywords whose values are instance data, not subschemas. */
 const DATA_KEYWORDS = new Set(['const', 'enum', 'default', 'examples'])
+/** Schema keywords whose values map names (which can be any string) to subschemas. */
+const SCHEMA_MAP_KEYWORDS = new Set([
+  'properties',
+  'patternProperties',
+  '$defs',
+  'definitions',
+  'dependentSchemas',
+])
 
-/** Whether any subschema below the root declares `$id`, which rebases its local references. */
+/**
+ * Whether anything below the root declares a string `$id`, which rebases its local references.
+ * Data values are searched too: a false positive only drops hoisted `required` guidance.
+ */
 function hasNestedResource(value: unknown, root = true): boolean {
   if (Array.isArray(value)) return value.some((item) => hasNestedResource(item, false))
   if (!isJsonSchemaObject(value)) return false
   if (!root && typeof value.$id === 'string') return true
-  return Object.entries(value).some(
-    ([keyword, entry]) => !DATA_KEYWORDS.has(keyword) && hasNestedResource(entry, false),
-  )
+  return Object.values(value).some((entry) => hasNestedResource(entry, false))
 }
 
 /** RFC 6901 escaping, then URI fragment encoding (`$` stays readable, as in `$defs`). */
@@ -116,21 +125,35 @@ function movedReference(reference: string, moves: readonly PointerMove[]) {
 }
 
 /**
- * Rewrites local `$ref`s that pointed into a definition the relaxation moved. A subschema with
- * its own `$id` resolves `#` against itself, so its references are left alone.
+ * Rewrites local `$ref`s that pointed into a definition the relaxation moved. Instance data
+ * (`const`, `enum`, ...) is left alone, and a subschema with its own `$id` resolves `#` against
+ * itself, so its references are left alone too. `position` tells a schema from a name map.
  */
-function followMoves(value: unknown, moves: readonly PointerMove[], root = true): unknown {
-  if (Array.isArray(value)) return value.map((item) => followMoves(item, moves, false))
+function followMoves(
+  value: unknown,
+  moves: readonly PointerMove[],
+  position: 'root' | 'schema' | 'map' = 'root',
+): unknown {
+  if (Array.isArray(value)) return value.map((item) => followMoves(item, moves, 'schema'))
   if (!isJsonSchemaObject(value)) return value
-  if (!root && typeof value.$id === 'string') return value
+  if (position === 'map') {
+    return Object.fromEntries(
+      Object.entries(value).map(([name, entry]) => [name, followMoves(entry, moves, 'schema')]),
+    )
+  }
+  if (position === 'schema' && typeof value.$id === 'string') return value
   return Object.fromEntries(
     Object.entries(value).map(([keyword, entry]) => [
       keyword,
-      keyword === '$ref' && typeof entry === 'string'
-        ? movedReference(entry, moves)
-        : followMoves(entry, moves, false),
+      followKeyword(keyword, entry, moves),
     ]),
   )
+}
+
+function followKeyword(keyword: string, entry: unknown, moves: readonly PointerMove[]) {
+  if (keyword === '$ref' && typeof entry === 'string') return movedReference(entry, moves)
+  if (DATA_KEYWORDS.has(keyword)) return entry
+  return followMoves(entry, moves, SCHEMA_MAP_KEYWORDS.has(keyword) ? 'map' : 'schema')
 }
 
 /**

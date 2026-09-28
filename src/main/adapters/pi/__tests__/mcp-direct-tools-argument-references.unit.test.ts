@@ -190,6 +190,19 @@ const REFERENCE_CASES: readonly ExpectedPipelineCase[] = [
     },
     arguments_: {},
   },
+  {
+    label: 'a nested $id resource under a $defs name that is also a keyword',
+    expected: 'server',
+    schema: {
+      type: 'object',
+      $defs: {
+        B: { required: ['z'] },
+        default: { $id: 'urn:r', $defs: { B: {} }, anyOf: [{ $ref: '#/$defs/B' }] },
+      },
+      anyOf: [{ $ref: '#/$defs/default' }],
+    },
+    arguments_: {},
+  },
 ]
 
 describe('repaired MCP direct tools with schema references', () => {
