@@ -43,6 +43,14 @@ describe('classifyErrorMessage', () => {
       )
     })
 
+    it('keeps the HTTP status and error type of a JSON provider error for classification', () => {
+      const openRouter402 =
+        '402 {"type":"error","error":{"type":"billing_error","message":"This request requires more credits, or fewer max_tokens. You requested up to 64000 tokens, but can only afford 45715."}}'
+      const result = classifyErrorMessage(openRouter402)
+      expect(result.code).toBe('insufficient-credits')
+      expect(result.message).toMatch(/^This request requires more credits/)
+    })
+
     it('classifies unknown errors as unknown', () => {
       expect(classifyErrorMessage('Something completely unexpected').code).toBe('unknown')
     })
