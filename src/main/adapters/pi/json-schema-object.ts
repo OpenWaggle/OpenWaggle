@@ -21,7 +21,23 @@ export function schemaArray(value: unknown): JsonSchemaObject[] | undefined {
   return Array.isArray(value) ? value.filter(isJsonSchemaObject) : undefined
 }
 
-const LOCAL_POINTER_PREFIX = '#/'
+export const LOCAL_POINTER_PREFIX = '#/'
+
+/**
+ * The reference tokens of a local JSON pointer (`#/...`), or `undefined` for other references
+ * and malformed escapes. RFC 6901 §6: percent-decode the fragment first, then split, then
+ * unescape `~1` and `~0`, so `%2F` is a separator and a literal `/` must be written `~1`.
+ */
+export function decodePointerSegments(reference: string): string[] | undefined {
+  if (!reference.startsWith(LOCAL_POINTER_PREFIX)) return undefined
+  try {
+    return decodeURIComponent(reference.slice(LOCAL_POINTER_PREFIX.length))
+      .split('/')
+      .map((segment) => segment.replaceAll('~1', '/').replaceAll('~0', '~'))
+  } catch {
+    return undefined
+  }
+}
 
 /** Resolves a local JSON pointer (`#/...`) in `document`, or `undefined` when it does not. */
 export function resolvePointer(
@@ -29,17 +45,10 @@ export function resolvePointer(
   reference: string,
 ): JsonSchemaObject | undefined {
   if (reference === '#') return document
-  if (!reference.startsWith(LOCAL_POINTER_PREFIX)) return undefined
+  const segments = decodePointerSegments(reference)
+  if (!segments) return undefined
   let current: unknown = document
-  // RFC 6901 §6: percent-decode the fragment first, then split, then unescape `~1` and `~0`.
-  let pointer: string
-  try {
-    pointer = decodeURIComponent(reference.slice(LOCAL_POINTER_PREFIX.length))
-  } catch {
-    return undefined
-  }
-  for (const rawSegment of pointer.split('/')) {
-    const segment = rawSegment.replaceAll('~1', '/').replaceAll('~0', '~')
+  for (const segment of segments) {
     if (!isJsonSchemaObject(current)) return undefined
     current = current[segment]
   }

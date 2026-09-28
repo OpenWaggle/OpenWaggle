@@ -16,11 +16,18 @@ export function compileToolArgumentsValidator(
     const validator = Compile(schema)
     return {
       validate: (arguments_) => {
-        if (validator.Check(arguments_)) return []
-        const [, errors] = validator.Errors(arguments_)
-        return errors
-          .slice(0, MAX_VALIDATION_DETAILS)
-          .map((error) => `${error.instancePath || 'arguments'}: ${error.message}`)
+        try {
+          if (validator.Check(arguments_)) return []
+          const [, errors] = validator.Errors(arguments_)
+          return errors
+            .slice(0, MAX_VALIDATION_DETAILS)
+            .map((error) => `${error.instancePath || 'arguments'}: ${error.message}`)
+        } catch (error) {
+          // A schema that recurses without end (`{ anyOf: [{ $ref: '#' }] }`) overflows the stack.
+          return [
+            `the server schema could not be evaluated: ${error instanceof Error ? error.message : String(error)}`,
+          ]
+        }
       },
     }
   } catch (error) {

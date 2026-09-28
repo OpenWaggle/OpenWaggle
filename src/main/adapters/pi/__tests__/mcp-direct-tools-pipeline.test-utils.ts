@@ -9,8 +9,8 @@ import type { McpGatewayInput, McpGatewayResult, McpJsonValue } from '@shared/ty
 import { fromAny, fromPartial } from '@total-typescript/shoehorn'
 import { Type } from 'typebox'
 import { expect, type Mock, vi } from 'vitest'
+import { decodePointerSegments, isJsonSchemaObject } from '../json-schema-object'
 import { registerMcpDirectTools } from '../mcp-direct-tools-extension'
-import { isJsonSchemaObject } from '../provider-tool-parameter-schema'
 import { compileToolArgumentsValidator } from '../tool-arguments-validator'
 
 export type Outcome =
@@ -117,8 +117,7 @@ export function serverSchemaAccepts(schema: McpJsonValue, arguments_: unknown) {
 /** Follows a local JSON pointer such as `#/properties/a/anyOf/0` through parsed JSON. */
 export function resolveLocalPointer(document: unknown, pointer: string): unknown {
   let current = document
-  for (const segment of pointer.replace(/^#\//u, '').split('/')) {
-    const key = decodeURIComponent(segment).replaceAll('~1', '/').replaceAll('~0', '~')
+  for (const key of decodePointerSegments(pointer) ?? []) {
     if (!Array.isArray(current) && !isJsonSchemaObject(current)) return undefined
     current = Array.isArray(current) ? current[Number(key)] : current[key]
   }

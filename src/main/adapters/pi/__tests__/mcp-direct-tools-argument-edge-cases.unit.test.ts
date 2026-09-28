@@ -1,3 +1,5 @@
+import type { ExtensionContext } from '@earendil-works/pi-coding-agent'
+import { fromPartial } from '@total-typescript/shoehorn'
 import { describe, expect, it } from 'vitest'
 import { isJsonSchemaObject } from '../json-schema-object'
 import {
@@ -106,5 +108,31 @@ describe('repaired MCP direct tools at the edges', () => {
     expect(resolveLocalPointer(parameters, '#/properties/b/anyOf/1/const')).toEqual({
       $ref: '#/properties/a',
     })
+  })
+
+  it('tells the model a closed root is closed once the relaxation drops additionalProperties', () => {
+    const { definition } = register({
+      type: 'object',
+      properties: { a: { type: 'string' } },
+      additionalProperties: false,
+      anyOf: [{ required: ['a'] }],
+    })
+    const parameters = JSON.parse(JSON.stringify(definition.parameters))
+
+    expect(parameters.additionalProperties).toBeUndefined()
+    expect(parameters.description).toMatch(/Only the listed properties are accepted\./)
+  })
+
+  it('rejects with a readable error when the server schema recurses without end', async () => {
+    const { definition, executeGateway } = register({
+      type: 'object',
+      anyOf: [{ $ref: '#' }, { properties: { a: { type: 'string' } } }],
+    })
+    const ctx = fromPartial<ExtensionContext>({ hasUI: true, ui: { confirm: async () => true } })
+
+    await expect(
+      definition.execute('call-1', { a: 'x' }, undefined, undefined, ctx),
+    ).rejects.toThrow(/server schema could not be evaluated/)
+    expect(executeGateway).not.toHaveBeenCalled()
   })
 })

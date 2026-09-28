@@ -1,4 +1,9 @@
-import { isJsonSchemaObject, type MutableJsonSchema } from './json-schema-object'
+import {
+  decodePointerSegments,
+  isJsonSchemaObject,
+  LOCAL_POINTER_PREFIX,
+  type MutableJsonSchema,
+} from './json-schema-object'
 
 /**
  * Root keywords a relaxed schema keeps: its object shape, what every accepted argument must
@@ -57,20 +62,6 @@ function encodePointerSegment(segment: string) {
   )
 }
 
-const LOCAL_POINTER_PREFIX = '#/'
-
-/** RFC 6901 §6: percent-decode the fragment first, then split, then unescape `~1` and `~0`. */
-function decodedPointer(reference: string) {
-  if (!reference.startsWith(LOCAL_POINTER_PREFIX)) return undefined
-  try {
-    return decodeURIComponent(reference.slice(LOCAL_POINTER_PREFIX.length))
-      .split('/')
-      .map((segment) => segment.replaceAll('~1', '/').replaceAll('~0', '~'))
-  } catch {
-    return undefined
-  }
-}
-
 /** The description moves to the wrapping property, so providers receive it once. */
 function withoutDescription(definition: unknown, moved: string | undefined): unknown {
   if (!isJsonSchemaObject(definition) || definition.description !== moved) return definition
@@ -114,7 +105,7 @@ function guidanceOnlyProperty(key: string, definition: unknown) {
 }
 
 function movedReference(reference: string, moves: readonly PointerMove[]) {
-  const segments = decodedPointer(reference)
+  const segments = decodePointerSegments(reference)
   if (!segments) return reference
   for (const [from, to] of moves) {
     if (from.every((segment, index) => segments[index] === segment)) {
@@ -178,6 +169,12 @@ export function relaxForPreCallValidation(
   for (const [keyword, value] of Object.entries(schema)) {
     if (RELAXED_ROOT_KEYWORDS.has(keyword)) relaxed[keyword] = value
     else repairs.push(`relaxed root ${keyword}; enforced by the server schema when the tool runs`)
+  }
+  // The model no longer sees the closed root, so say it in words.
+  if (schema.additionalProperties === false) {
+    const note = 'Only the listed properties are accepted.'
+    const description = relaxed.description
+    relaxed.description = typeof description === 'string' ? `${description}\n\n${note}` : note
   }
   // Flattening resolves every local `$ref` against the document root, which misreads references
   // inside a nested `$id` resource, so only the server root's own `required` is certain then.
