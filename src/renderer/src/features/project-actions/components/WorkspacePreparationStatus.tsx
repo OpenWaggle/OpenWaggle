@@ -5,12 +5,12 @@ import type {
   PreparationOperation,
   WorkspacePreparation,
 } from '@shared/types/workspace-preparation'
-import { useId, useState } from 'react'
+import { useEffect, useEffectEvent, useId, useRef, useState } from 'react'
 import { Button } from '@/shared/ui/Button'
 import { PlainTextBlock } from '@/shared/ui/PlainTextBlock'
 import { useNativeActions } from '../hooks/useNativeActions'
 import { useWorkspacePreparation } from '../hooks/useWorkspacePreparation'
-import { PreparationReviewDialog } from './PreparationReviewDialog'
+import { useActionPanelStore } from '../state/action-panel-store'
 
 type Mutation = ReturnType<typeof useWorkspacePreparation>['mutation']
 type Change = Exclude<PreparationOperation, { type: 'preparation' }>
@@ -41,7 +41,11 @@ export function WorkspacePreparationStatus({ scope }: { readonly scope: ActionMa
         </span>
       </div>
       {state ? (
-        <PreparationSnapshotDetails state={state} mutation={preparation.mutation} />
+        <PreparationSnapshotDetails
+          projectPath={scope.projectPath}
+          state={state}
+          mutation={preparation.mutation}
+        />
       ) : (
         <WorkspaceProfilePicker
           profiles={catalog.data?.profiles ?? []}
@@ -104,26 +108,53 @@ function WorkspaceProfilePicker({
   )
 }
 function PreparationSnapshotDetails({
+  projectPath,
   state,
   mutation,
 }: {
+  readonly projectPath: string
   readonly state: WorkspacePreparation
   readonly mutation: Mutation
 }) {
-  const [closedReviewRevision, setClosedReviewRevision] = useState<number | null>(null)
-  const [manualReview, setManualReview] = useState(false)
+  const openedReviewRevision = useRef<number | null>(null)
   const reviewable = state.snapshot.definitions.find(
     (entry) => entry.definition.phase === 'setup' && entry.review !== 'enabled',
   )
   const blocked = state.setup.status === 'failed' || state.setup.status === 'review-required'
-  const automaticReview =
-    state.setup.status === 'review-required' && closedReviewRevision !== state.revision
-  const showReview = reviewable && (manualReview || automaticReview)
+  const automaticReview = reviewable !== undefined && state.setup.status === 'review-required'
   const busy = mutation.isPending || state.setup.status === 'running'
   const attemptId = state.setup.attemptId
   function apply(operation: Change) {
-    mutation.mutate(operation, { onSuccess: () => setManualReview(false) })
+    mutation.mutate(operation)
   }
+  function openReview(automatic: boolean) {
+    if (!reviewable) return
+    const definitionId = reviewable.definition.id
+    useActionPanelStore.getState().openPanel({
+      kind: 'review',
+      projectPath,
+      review: {
+        entry: reviewable,
+        profileName: state.snapshot.profile.name,
+        showProfile: state.snapshot.profile.id !== 'default',
+        automatic,
+        decide: (enabled) =>
+          mutation.mutateAsync({
+            type: 'review-snapshot',
+            definitionId,
+            enabled,
+            expectedRevision: state.revision,
+          }),
+      },
+    })
+  }
+  // A blocked worktree opens the review by itself, once per revision (ADR 0038).
+  const openAutomaticReview = useEffectEvent(() => openReview(true))
+  useEffect(() => {
+    if (!automaticReview || openedReviewRevision.current === state.revision) return
+    openedReviewRevision.current = state.revision
+    openAutomaticReview()
+  }, [automaticReview, state.revision])
   return (
     <>
       <p className="text-xs text-text-tertiary">Setup: {state.setup.status.replaceAll('-', ' ')}</p>
@@ -138,8 +169,8 @@ function PreparationSnapshotDetails({
           </Button>
         ) : null}
         {reviewable ? (
-          <Button disabled={busy} onClick={() => setManualReview(true)}>
-            Review changes
+          <Button disabled={busy} onClick={() => openReview(false)}>
+            Check the setup
           </Button>
         ) : null}
         <Button
@@ -175,26 +206,6 @@ function PreparationSnapshotDetails({
             Adopt updated profile
           </Button>
         </details>
-      ) : null}
-      {showReview ? (
-        <PreparationReviewDialog
-          entry={reviewable}
-          currentProfileName={state.snapshot.profile.name}
-          busy={busy}
-          error={mutation.error?.message}
-          onClose={() => {
-            setClosedReviewRevision(state.revision)
-            setManualReview(false)
-          }}
-          onDecide={(enabled) =>
-            apply({
-              type: 'review-snapshot',
-              definitionId: reviewable.definition.id,
-              enabled,
-              expectedRevision: state.revision,
-            })
-          }
-        />
       ) : null}
     </>
   )

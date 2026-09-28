@@ -4,6 +4,7 @@ import type { ExtensionContributionRegistryView } from '@shared/types/extensions
 import { parseToolArgs } from '@/features/chat/lib/tool-args'
 import { ExtensionAgentLoopSurface } from '@/features/extensions'
 import { getMcpAppLaunch, McpAppHost } from '@/features/mcp'
+import { CommandRepairProposalCard } from '@/features/project-actions'
 import { ToolCallBlock } from './ToolCallBlock'
 
 const JSON_STRINGIFY_INDENT = 2
@@ -32,6 +33,15 @@ function stringifyToolResultContent(content: unknown) {
   } catch {
     return String(content)
   }
+}
+
+/** An agent's Command repair proposal gets a Review and save card (ADR 0038). */
+function repairProposalFor(
+  toolName: string,
+  result: { readonly content: unknown; readonly state: string } | undefined,
+) {
+  if (toolName !== 'project_actions' || !result || result.state === 'error') return null
+  return <CommandRepairProposalCard content={result.content} />
 }
 
 export function ToolCallRouter({
@@ -63,7 +73,13 @@ export function ToolCallRouter({
   const appLaunch = finalResult
     ? getMcpAppLaunch(finalResult.content, parseToolArgs(part.arguments))
     : null
-  const withMcpApp = appLaunch ? (
+  const repairProposal = repairProposalFor(part.name, finalResult)
+  const withMcpApp = repairProposal ? (
+    <div className="space-y-3">
+      {toolCallBlock}
+      {repairProposal}
+    </div>
+  ) : appLaunch ? (
     <div className="space-y-3">
       {toolCallBlock}
       <McpAppHost

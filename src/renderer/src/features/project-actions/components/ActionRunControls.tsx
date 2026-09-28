@@ -63,7 +63,7 @@ export function ActionRunControls(props: {
       run.workspacePath,
       run.projectPath,
     ])
-    const prompt = `Investigate the project action "${run.action.name}" in this workspace and on the current machine. Propose a compatible command for me to review and save. Do not replace the saved action or launch a replacement automatically.\n\nAction ID: ${run.action.id}\nCommand: ${resolvedActionCommand(run.invocation)}\nWorking directory: ${workingDirectory}\nResult: ${run.status}, exit ${run.exitCode ?? 'unknown'}\n${run.error ?? ''}\n\nRetained output:\n${output.slice(-REPAIR_OUTPUT_CHARACTERS)}`
+    const prompt = `Investigate the project action "${run.action.name}" in this workspace and on the current machine. Propose a compatible command with the project_actions tool's "propose" action so I can review and save it. Do not replace the saved action or launch a replacement automatically.\n\nAction ID: ${run.action.id}\nCommand: ${resolvedActionCommand(run.invocation)}\nWorking directory: ${workingDirectory}\nResult: ${run.status}, exit ${run.exitCode ?? 'unknown'}\n${run.error ?? ''}\n\nRetained output:\n${output.slice(-REPAIR_OUTPUT_CHARACTERS)}`
     const current = useComposerStore.getState().input
     setComposerTextValue(current.trim() ? `${current}\n\n${prompt}` : prompt)
     useUIStore

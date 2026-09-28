@@ -10,11 +10,22 @@ import type {
 import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { renderWithQueryClient } from '@/test-utils/query-test-utils'
+import { useActionPanelStore } from '../../state/action-panel-store'
+import { ActionPanel } from '../action-panel/ActionPanel'
 
 const mocks = vi.hoisted(() => ({
   manage: vi.fn<(request: ActionManagementRequest) => Promise<ActionManagementResult>>(),
 }))
 vi.mock('@/shared/lib/ipc', () => ({ api: { manageProjectActions: mocks.manage } }))
+vi.mock('@/features/chat/hooks', () => ({
+  useChat: () => ({ activeSession: { id: 'session', projectPath: '/repo' } }),
+}))
+
+/** The shell docks the panel; the test renders its content beside the status. */
+function PanelHost() {
+  const request = useActionPanelStore((state) => state.request)
+  return request ? <ActionPanel request={request} /> : null
+}
 
 import { WorkspacePreparationStatus } from '../WorkspacePreparationStatus'
 
@@ -75,13 +86,17 @@ describe('Workspace preparation with a disabled shared setup', () => {
       throw new Error(`Unexpected operation ${operation.type}`)
     })
 
+    useActionPanelStore.setState({ request: null, drafts: {} })
     renderWithQueryClient(
-      <WorkspacePreparationStatus scope={{ projectPath: '/repo', sessionId: 'session' }} />,
+      <>
+        <WorkspacePreparationStatus scope={{ projectPath: '/repo', sessionId: 'session' }} />
+        <PanelHost />
+      </>,
     )
-    fireEvent.click(await screen.findByRole('button', { name: 'Review changes' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Check the setup' }))
     expect(screen.getByRole('button', { name: 'Run setup' })).toBeDisabled()
-    expect(screen.getByRole('dialog', { name: 'Review workspace setup' })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Enable this version' }))
+    expect(await screen.findByText('Check this shared setup')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Turn on this version' }))
 
     await waitFor(() =>
       expect(mocks.manage).toHaveBeenCalledWith({
@@ -95,5 +110,6 @@ describe('Workspace preparation with a disabled shared setup', () => {
       }),
     )
     await waitFor(() => expect(screen.getByRole('button', { name: 'Run setup' })).toBeEnabled())
+    expect(useActionPanelStore.getState().request).toBeNull()
   })
 })

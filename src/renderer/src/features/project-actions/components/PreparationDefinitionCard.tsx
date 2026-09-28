@@ -1,11 +1,7 @@
-import type {
-  ActionCatalog,
-  ActionCatalogEdit,
-  ActionStorage,
-  PreparationDefinition,
-} from '@shared/types/action-definitions'
+import type { ActionCatalog, ActionCatalogEdit } from '@shared/types/action-definitions'
 import { Button } from '@/shared/ui/Button'
 import { SyntaxBlock } from '@/shared/ui/SyntaxBlock'
+import { PREPARATION_COPY } from '../lib/action-panel-copy'
 import { actionInvocationLabel, actionSourceLabels } from '../lib/native-action-display'
 
 type Entry = ActionCatalog['preparation'][number]
@@ -23,7 +19,7 @@ export function PreparationDefinitionCard({
     readonly profileId: string
   }
   readonly busy: boolean
-  readonly onEdit: (draft: { definition: PreparationDefinition; source: ActionStorage }) => void
+  readonly onEdit: () => void
   readonly onReview: (id: string) => void
   readonly apply: Apply
 }) {
@@ -31,29 +27,12 @@ export function PreparationDefinitionCard({
     <div className="space-y-3 rounded-xl border border-border p-4">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h3 className="text-sm font-medium">
-            {phase === 'setup' ? 'Set up workspace' : 'Clean up workspace'}
-          </h3>
-          <p className="mt-1 text-xs text-text-tertiary">
-            {phase === 'setup'
-              ? 'Before the first agent turn in a new worktree.'
-              : 'Before actual worktree removal, after sessions release it.'}
+          <h3 className="text-sm font-medium">{PREPARATION_COPY[phase].title}</h3>
+          <p className="mt-1 text-xs leading-5 text-text-tertiary">
+            {PREPARATION_COPY[phase].description}
           </p>
         </div>
-        <Button
-          disabled={!profileId}
-          onClick={() =>
-            onEdit({
-              definition: entry?.definition ?? {
-                id: crypto.randomUUID(),
-                profileId,
-                phase,
-                invocation: { type: 'command', command: '', directory: '.' },
-              },
-              source: entry?.source === 'project' ? 'project' : 'local',
-            })
-          }
-        >
+        <Button disabled={!profileId} onClick={onEdit}>
           {entry ? 'Edit' : 'Configure'}
         </Button>
       </div>
@@ -74,19 +53,19 @@ export function PreparationDefinitionCard({
               }
             >
               {entry.review === 'required'
-                ? 'Review required'
+                ? 'Check it before it runs'
                 : entry.review === 'enabled'
-                  ? 'Enabled on this machine'
-                  : 'Disabled on this machine'}
+                  ? 'On for you'
+                  : 'Off for you'}
             </span>
             <Button variant="ghost" disabled={busy} onClick={() => onReview(entry.definition.id)}>
-              {entry.review === 'enabled' ? 'Review or disable' : 'Review changes'}
+              {entry.review === 'required' ? 'Check it' : 'Turn on or off'}
             </Button>
           </div>
           <PreparationStorageControls entry={entry} busy={busy} apply={apply} />
         </>
       ) : (
-        <p className="text-xs text-text-tertiary">No {phase} configured.</p>
+        <p className="text-xs text-text-tertiary">Nothing set up yet.</p>
       )}
     </div>
   )

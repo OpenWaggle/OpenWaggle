@@ -1,4 +1,6 @@
 export { ActionRunPanel } from './components/ActionRunPanel'
+export { ActionPanelLayout } from './components/action-panel/ActionPanelLayout'
+export { CommandRepairProposalCard } from './components/action-panel/CommandRepairProposalCard'
 export { ProjectActionConditionBuilder } from './components/ProjectActionConditionBuilder'
 export { ProjectActionGlyph } from './components/ProjectActionGlyph'
 export { ProjectActionsControl } from './components/ProjectActionsControl'
