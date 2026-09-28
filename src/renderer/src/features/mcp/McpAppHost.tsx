@@ -1,4 +1,5 @@
 import type { McpAppDescriptor, McpAppToolCallResult, McpJsonValue } from '@shared/types/mcp'
+import { replaceMcpBinaryPayloads } from '@shared/utils/mcp-binary-payload'
 import { ShieldAlert, X } from 'lucide-react'
 import { useMemo, useRef, useState } from 'react'
 import { setComposerTextValue } from '@/features/chat/lib'
@@ -110,7 +111,7 @@ export function McpAppHost({
             <Button
               onClick={() =>
                 setComposerTextValue(
-                  `MCP App context from ${descriptor.serverLabel}\n\n${JSON.stringify(stagedContext, null, JSON_INDENT_SPACES)}`,
+                  `MCP App context from ${descriptor.serverLabel}\n\n${JSON.stringify(replaceMcpBinaryPayloads(stagedContext), null, JSON_INDENT_SPACES)}`,
                 )
               }
             >

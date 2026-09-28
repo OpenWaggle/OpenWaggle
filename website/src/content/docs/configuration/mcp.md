@@ -146,7 +146,9 @@ If a custom provider rejects tool requests, use a compatible model or correct it
 
 ### Images and binary results
 
-When an MCP tool returns images, such as a browser screenshot, OpenWaggle passes them to the model as images, up to 8 per tool result. It never adds the encoded image data to the tool's text. A model without image input receives a short note in place of each image. Audio and binary resource data are also left out of the model's text and replaced by a marker showing their size. The complete result stays available to MCP Apps and the conversation view.
+When an MCP tool returns images, such as a browser screenshot, OpenWaggle passes up to 8 per tool result to the model as images instead of adding their encoded data to the tool's text. The text shows a numbered marker such as `[image #1: image/png]` where each image was. A model without image input receives a note that the image was omitted.
+
+Audio, binary resource data, embedded `data:` URIs, and long runs of base64 text in structured results are also replaced by a marker showing their size. The same rule applies when you add MCP App context to your draft. The screenshot still appears under the agent's message in the conversation, and the complete result stays available to MCP Apps.
 
 ## Bounded `mcp_run` orchestration
 

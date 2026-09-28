@@ -8,6 +8,7 @@ import {
 import { decodeUnknownOrThrow } from '@shared/schema'
 import { mcpConfigValueSchema } from '@shared/schemas/mcp'
 import type { McpAppDescriptor, McpAppToolCallResult, McpJsonValue } from '@shared/types/mcp'
+import { replaceMcpBinaryPayloads } from '@shared/utils/mcp-binary-payload'
 import { useEffect } from 'react'
 import { setComposerTextValue } from '@/features/chat/lib'
 import { useComposerStore } from '@/features/composer/state'
@@ -26,8 +27,13 @@ function jsonValue(value: unknown): McpJsonValue {
   )
 }
 
+function draftJson(value: McpJsonValue) {
+  // Draft text reaches the model verbatim, so binary payloads are replaced by size markers.
+  return JSON.stringify(replaceMcpBinaryPayloads(value), null, JSON_INDENT_SPACES)
+}
+
 function textFromContent(value: McpJsonValue) {
-  if (!Array.isArray(value)) return JSON.stringify(value, null, JSON_INDENT_SPACES)
+  if (!Array.isArray(value)) return draftJson(value)
   const text = value.flatMap((entry) => {
     if (
       typeof entry === 'object' &&
@@ -40,7 +46,7 @@ function textFromContent(value: McpJsonValue) {
     }
     return []
   })
-  return text.length > 0 ? text.join('\n\n') : JSON.stringify(value, null, JSON_INDENT_SPACES)
+  return text.length > 0 ? text.join('\n\n') : draftJson(value)
 }
 
 function appendToComposerDraft(message: string) {
