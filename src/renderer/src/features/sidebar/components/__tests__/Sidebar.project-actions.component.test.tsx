@@ -300,7 +300,6 @@ describe('Sidebar project actions', () => {
         skillTogglesByProject: { [PROJECT_PATH]: { 'code-review': true } },
       },
     }))
-    // The removal reads the reference fields from the Host, which holds what the store persisted.
     apiMock.getSettings.mockResolvedValue(usePreferencesStore.getState().settings)
 
     render(<Sidebar />)

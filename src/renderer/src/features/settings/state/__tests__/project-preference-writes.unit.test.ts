@@ -15,7 +15,7 @@ vi.mock('@/shared/lib/ipc', () => ({
   api: apiMock,
 }))
 
-import type { PreferencesState } from '../preferences-store-types'
+import { usePreferencesStore } from '../preferences-store'
 import {
   persistProjectPreference,
   removeModelAndReferences,
@@ -30,14 +30,14 @@ function deferred<T>() {
   return { promise, resolve }
 }
 
-/** Minimal preferences store: only `settings` is read or written by the preference writes. */
+/** The real preferences store, seeded with the renderer's (possibly stale) settings copy. */
 function storeWith(settings: Settings) {
-  let state = { settings }
-  const get = () => state as PreferencesState
-  const set = (update: (current: PreferencesState) => Partial<PreferencesState>) => {
-    state = { ...state, ...update(state as PreferencesState) }
+  usePreferencesStore.setState({ settings })
+  return {
+    get: usePreferencesStore.getState,
+    set: usePreferencesStore.setState,
+    current: () => usePreferencesStore.getState().settings,
   }
-  return { get, set, current: () => state.settings }
 }
 
 describe('project preference writes', () => {
