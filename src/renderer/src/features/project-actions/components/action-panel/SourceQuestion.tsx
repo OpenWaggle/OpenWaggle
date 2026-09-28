@@ -11,7 +11,7 @@ import { Button } from '@/shared/ui/Button'
 import { Textarea } from '@/shared/ui/Textarea'
 import { useActionDiscovery } from '../../hooks/useNativeActions'
 import type { ActionPanelSource, DraftActionDefinition } from '../../lib/action-panel-drafts'
-import { scriptCommand, taskReferenceKey } from '../../lib/action-panel-scripts'
+import { rankScripts, scriptCommand, taskReferenceKey } from '../../lib/action-panel-scripts'
 import { findDiscoveredTask } from '../../lib/action-task-availability'
 import { useActionPanelStore } from '../../state/action-panel-store'
 import { ChoiceCards } from './ChoiceCards'
@@ -49,7 +49,7 @@ function linkedScriptMissing(
 }
 
 function sourceChoices(tasks: readonly DiscoveredProjectTask[]) {
-  const example = tasks[0]?.reference.task
+  const example = rankScripts(tasks)[0]?.reference.task
   return [
     {
       value: 'script' as const,

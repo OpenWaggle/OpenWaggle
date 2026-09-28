@@ -59,8 +59,9 @@ export function PreparationSettings(props: {
       <header>
         <h2 className="text-base font-semibold">Workspace preparation</h2>
         <p className="mt-2 text-sm leading-6 text-text-tertiary">
-          Setup and cleanup for worktrees created by OpenWaggle. Each workspace keeps the profile
-          version it started with. Shared commands need your review and local enablement.
+          Setup and cleanup for worktrees created by OpenWaggle. Each worktree keeps the version it
+          started with. A shared setup someone else changed is checked by you before it runs on your
+          computer.
         </p>
       </header>
       {multipleProfiles ? (
