@@ -1117,16 +1117,18 @@ Pi also validates every call against the provider-facing schema (`validateToolAr
 `execute`. A flattened repair kept as constraints was stricter than the server schema:
 `patternProperties` in closed alternatives, hoisted `$ref`s into removed combinators (also from
 `$defs`/`additionalProperties`), `unevaluatedProperties`, and requirements hoisted past a `true`
-alternative all made Pi block valid calls before call-time validation ran. So when the server
-schema compiles and the repair restructured it (root `anyOf`/`oneOf`/`allOf`/`$ref`; dropping a
-root `not`/`enum`/`if` or setting a missing `type` only loosens it), direct tools register a
-relaxed repair (`provider-tool-parameter-relaxation.ts`:
+alternative all made Pi block valid calls before call-time validation ran. Even "loosening"
+repairs can be stricter: a dropped `if`/`then` hides annotations `unevaluatedProperties`
+relied on, a `$ref` can point into a dropped keyword, and a set root `type` reaches
+`{$ref:'#'}`. So whenever the server schema compiles, direct tools register a relaxed repair
+(`provider-tool-parameter-relaxation.ts`:
 object root, `required` only for fields every accepted argument carries, annotations, and each
 property as `{anyOf: [...definitions, {}]}`, with `{}` first when a definition holds a `$ref`,
 `$dynamicRef` or `$recursiveRef`, because Pi compiles union members standalone and a reference
 to `'#'` then recurses forever; local `$ref`s into a wrapped property are rebased to follow it).
-Root `$ref` inlining must not resolve a local `$ref` inside a nested `$id` resource against the
-document root, or the flattened `required` can demand fields the server does not. A permissive
+Flattening resolves local `$ref`s against the document root, which misreads references inside
+a nested `$id` resource and can hoist `required` fields the server does not demand, so when the
+server schema has any nested `$id` the relaxed schema keeps only the root's own `required`. A permissive
 schema also disables Pi's clean-up, so `execute` redoes it (`mcp-direct-tool-call-validation.ts`):
 forward the first candidate the exact server validator accepts, trying Pi's cleaned output
 against the server schema, then Pi's coercion through the unrelaxed flattened repair, then the

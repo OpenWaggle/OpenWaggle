@@ -124,3 +124,23 @@ export function resolveLocalPointer(document: unknown, pointer: string): unknown
   }
   return current
 }
+
+export interface ExpectedPipelineCase extends PipelineCase {
+  /**
+   * `server`: Pi accepts it against the server schema, and the repaired tool forwards the same.
+   * `coerced`: only Pi's coercion through the flattened repair makes it valid for the server.
+   * `rejected`: neither accepts it.
+   */
+  readonly expected: 'server' | 'coerced' | 'rejected'
+}
+
+/** Asserts a pipeline case takes its expected path and forwards only valid arguments. */
+export async function expectPipelineCase({ schema, arguments_, expected }: ExpectedPipelineCase) {
+  const onServerSchema = piOnServerSchema(schema, arguments_)
+  const repaired = await throughRepairedTool(schema, arguments_)
+
+  expect(onServerSchema.accepted).toBe(expected === 'server')
+  expect(repaired.accepted).toBe(expected !== 'rejected')
+  if (expected === 'server') expect(repaired).toEqual(onServerSchema)
+  if (repaired.accepted) expect(serverSchemaAccepts(schema, repaired.forwarded)).toBe(true)
+}

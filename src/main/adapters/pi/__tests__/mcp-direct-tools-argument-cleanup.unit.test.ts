@@ -17,6 +17,12 @@ interface CleanUpCase extends PipelineCase {
 // Pi drops optional nulls and coerces stringified primitives; the repair must not undo that.
 const CLEAN_UP_CASES: readonly CleanUpCase[] = [
   {
+    label: 'a stringified number when the repair only dropped a root not',
+    schema: { type: 'object', properties: { n: { type: 'number' } }, not: { required: ['z'] } },
+    arguments_: { n: '5' },
+    forwarded: { n: 5 },
+  },
+  {
     label: 'a stringified number in an untyped root',
     schema: { properties: { n: { type: 'number' } } },
     arguments_: { n: '5' },
@@ -78,20 +84,5 @@ describe('repaired MCP direct tools at call time', () => {
     expect(parameters.properties).toEqual({ a: { type: 'string' } })
     expect(parameters.required).toEqual(['a'])
     expect(() => validateToolArguments(definition, toolCall({}))).toThrow(/a/)
-  })
-
-  it('keeps property types for Pi when the repair only dropped a root keyword', () => {
-    // Dropping a root `not` only loosens the schema, so Pi can coerce through the real types.
-    const { definition } = register({
-      type: 'object',
-      properties: { n: { type: 'number' } },
-      not: { required: ['z'] },
-    })
-
-    expect(JSON.parse(JSON.stringify(definition.parameters))).toEqual({
-      type: 'object',
-      properties: { n: { type: 'number' } },
-    })
-    expect(validateToolArguments(definition, toolCall({ n: '5' }))).toEqual({ n: 5 })
   })
 })

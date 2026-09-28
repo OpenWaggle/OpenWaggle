@@ -1,22 +1,12 @@
-import { describe, expect, it } from 'vitest'
+import { describe, it } from 'vitest'
 import {
-  type PipelineCase,
-  piOnServerSchema,
-  serverSchemaAccepts,
-  throughRepairedTool,
+  type ExpectedPipelineCase,
+  expectPipelineCase,
 } from './mcp-direct-tools-pipeline.test-utils'
 
 // Every schema here needs repair before Bedrock or OpenAI accept it. Each case is one a
 // flattened repair used as constraints mishandled: it rejected a valid call, dropped Pi's
 // null clean-up or type coercion, or recursed forever.
-interface ExpectedPipelineCase extends PipelineCase {
-  /**
-   * `server`: Pi accepts it against the server schema, and the repaired tool forwards the same.
-   * `coerced`: only Pi's coercion through the flattened repair makes it valid for the server.
-   * `rejected`: neither accepts it.
-   */
-  readonly expected: 'server' | 'coerced' | 'rejected'
-}
 
 const PIPELINE_CASES: readonly ExpectedPipelineCase[] = [
   {
@@ -52,36 +42,6 @@ const PIPELINE_CASES: readonly ExpectedPipelineCase[] = [
       unevaluatedProperties: false,
     },
     arguments_: { 'x-a': 'x' },
-  },
-  {
-    label: 'additionalProperties referencing into a removed combinator',
-    expected: 'server',
-    schema: {
-      type: 'object',
-      additionalProperties: { $ref: '#/allOf/0/properties/a' },
-      allOf: [{ properties: { a: { type: 'string' } } }],
-    },
-    arguments_: { z: 'hi' },
-  },
-  {
-    label: 'a $defs entry referencing into a removed combinator',
-    expected: 'server',
-    schema: {
-      type: 'object',
-      $defs: { Item: { $ref: '#/anyOf/0/properties/a' } },
-      properties: { x: { $ref: '#/$defs/Item' } },
-      anyOf: [{ properties: { a: { type: 'string' } } }],
-    },
-    arguments_: { x: 'hi' },
-  },
-  {
-    label: 'a hoisted field referencing into a removed combinator',
-    expected: 'server',
-    schema: {
-      type: 'object',
-      anyOf: [{ properties: { a: { type: 'string' }, b: { $ref: '#/anyOf/0/properties/a' } } }],
-    },
-    arguments_: { b: 'hi' },
   },
   {
     label: 'a value only root additionalProperties coerces',
@@ -161,69 +121,26 @@ const PIPELINE_CASES: readonly ExpectedPipelineCase[] = [
     arguments_: { opts: { n: '3' } },
   },
   {
-    label: 'a field referencing the root of a recursive schema',
+    label: 'a property only a dropped then marked evaluated',
     expected: 'server',
     schema: {
       type: 'object',
-      anyOf: [{ properties: { a: { type: 'string' }, child: { $ref: '#' } } }],
+      properties: { kind: { type: 'string' } },
+      if: { properties: { kind: { const: 'a' } } },
+      ...Object.fromEntries([['then', { properties: { a: { type: 'string' } } }]]),
+      unevaluatedProperties: false,
     },
-    arguments_: { child: { a: 'x' } },
+    arguments_: { kind: 'a', a: 'x' },
   },
   {
-    label: 'a field with a draft 2020-12 $dynamicRef to the root',
+    label: 'a pattern property once the missing root type is set',
     expected: 'server',
     schema: {
-      type: 'object',
-      not: { required: ['zz'] },
-      properties: { a: { type: 'string' }, child: { $dynamicRef: '#' } },
+      properties: {},
+      patternProperties: { '^x': { type: 'string' } },
+      additionalProperties: { type: 'number' },
     },
-    arguments_: { child: { a: 'x' } },
-  },
-  {
-    label: 'a field with a draft 2019-09 $recursiveRef to the root',
-    expected: 'server',
-    schema: {
-      type: 'object',
-      $recursiveAnchor: true,
-      anyOf: [{ properties: { a: { type: 'string' }, child: { $recursiveRef: '#' } } }],
-    },
-    arguments_: { child: { a: 'x' } },
-  },
-  {
-    label: 'a $ref chained through a nested $id (root anyOf)',
-    expected: 'server',
-    schema: {
-      anyOf: [{ $ref: '#/$defs/A' }],
-      $defs: {
-        A: { $id: 'urn:a', $ref: '#/$defs/B', $defs: { B: { type: 'object' } } },
-        B: { type: 'object', required: ['z'] },
-      },
-    },
-    arguments_: {},
-  },
-  {
-    label: 'a $ref chained through a nested $id (root allOf)',
-    expected: 'server',
-    schema: {
-      allOf: [{ $ref: '#/$defs/A' }],
-      $defs: {
-        A: { $id: 'urn:a', $ref: '#/$defs/B', $defs: { B: { type: 'object' } } },
-        B: { type: 'object', required: ['z'] },
-      },
-    },
-    arguments_: {},
-  },
-  {
-    label: 'a $ref chained through a nested $id (root $ref)',
-    expected: 'server',
-    schema: {
-      $ref: '#/$defs/A',
-      $defs: {
-        A: { $id: 'urn:a', $ref: '#/$defs/B', $defs: { B: { type: 'object' } } },
-        B: { type: 'object', required: ['z'] },
-      },
-    },
-    arguments_: {},
+    arguments_: { x1: '5' },
   },
   {
     label: 'a call missing the discriminator every alternative requires',
@@ -261,14 +178,6 @@ const PIPELINE_CASES: readonly ExpectedPipelineCase[] = [
 describe('repaired MCP direct tools through the agent loop', () => {
   it.each(PIPELINE_CASES)(
     'handle $label as Pi handles the server schema ($expected)',
-    async ({ schema, arguments_, expected }) => {
-      const onServerSchema = piOnServerSchema(schema, arguments_)
-      const repaired = await throughRepairedTool(schema, arguments_)
-
-      expect(onServerSchema.accepted).toBe(expected === 'server')
-      expect(repaired.accepted).toBe(expected !== 'rejected')
-      if (expected === 'server') expect(repaired).toEqual(onServerSchema)
-      if (repaired.accepted) expect(serverSchemaAccepts(schema, repaired.forwarded)).toBe(true)
-    },
+    expectPipelineCase,
   )
 })

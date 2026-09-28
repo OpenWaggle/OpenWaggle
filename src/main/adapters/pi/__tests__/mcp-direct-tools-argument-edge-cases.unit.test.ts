@@ -55,4 +55,28 @@ describe('repaired MCP direct tools at the edges', () => {
 
     expect(resolveLocalPointer(parameters, b.$ref)).toEqual({ enum: ['p', 'q'] })
   })
+
+  it('rebases a percent-encoded pointer but leaves references inside a nested $id resource', () => {
+    const { definition } = register({
+      type: 'object',
+      properties: {
+        'a b': { type: 'object', properties: { x: { enum: ['p'] } } },
+        c: { $ref: '#/properties/a%20b/properties/x' },
+        d: {
+          $id: 'urn:d',
+          type: 'object',
+          properties: { p: { type: 'string' }, r: { $ref: '#/properties/p' } },
+        },
+      },
+      anyOf: [{ required: ['c'] }],
+    })
+    const parameters: unknown = JSON.parse(JSON.stringify(definition.parameters))
+    const c = resolveLocalPointer(parameters, '#/properties/c/anyOf/1')
+    if (!isJsonSchemaObject(c) || typeof c.$ref !== 'string') throw new Error('c was not wrapped')
+
+    expect(resolveLocalPointer(parameters, c.$ref)).toEqual({ enum: ['p'] })
+    expect(resolveLocalPointer(parameters, '#/properties/d/anyOf/1/properties/r')).toEqual({
+      $ref: '#/properties/p',
+    })
+  })
 })
