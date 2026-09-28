@@ -13,6 +13,7 @@ import {
   hasClaimedSessionWriterSuccessor,
   reserveActiveSessionRun,
 } from './active-session-runs'
+import { requestHiveWorkerCleanup } from './hive-worker-cleanup-request'
 import { acquireSessionHostRunLease, type SessionHostRunLease } from './session-host-run-admission'
 
 export interface CoordinateSessionRunsInput {
@@ -106,7 +107,13 @@ function coordinateLiveSessionRuns(input: CoordinateSessionRunsInput) {
           })
         }
       }
-      if (!settlement.accepted || !settlement.scheduled) return results
+      if (!settlement.accepted) return results
+      if (!settlement.scheduled) {
+        // Hive cleanup trigger: the Session settled with nothing scheduled. It may be a finished
+        // Worker, or a parent whose accepted/cancelled Workers can now be archived.
+        yield* requestHiveWorkerCleanup(input.sessionId)
+        return results
+      }
       runId = RunId(settlement.scheduled.runId)
     }
   })

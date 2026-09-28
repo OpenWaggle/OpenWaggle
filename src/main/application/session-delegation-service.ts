@@ -1,3 +1,4 @@
+import { SessionId } from '@shared/types/brand'
 import type {
   SessionControlDelegationMutationRequest,
   SessionControlMutationResponse,
@@ -6,6 +7,7 @@ import * as Effect from 'effect/Effect'
 import { SessionControlIdentityService } from '../ports/session-control-identity-service'
 import { SessionDelegationRepository } from '../ports/session-delegation-repository'
 import { SessionOrchestrationUpdateDeliveryService } from '../ports/session-orchestration-update-delivery-service'
+import { requestHiveWorkerCleanup } from './hive-worker-cleanup-request'
 
 function specificationUpdateWorker(response: SessionControlMutationResponse) {
   const outcome = response.outcome
@@ -16,6 +18,14 @@ function specificationUpdateWorker(response: SessionControlMutationResponse) {
     return outcome.workerSessionId
   }
   return outcome.effect === 'delegation-updated' && outcome.specificationChanged
+    ? outcome.workerSessionId
+    : undefined
+}
+
+function terminalDelegationWorker(response: SessionControlMutationResponse) {
+  const outcome = response.outcome
+  if (response.replayed || outcome.effect !== 'delegation-updated') return undefined
+  return outcome.delegationState === 'accepted' || outcome.delegationState === 'cancelled'
     ? outcome.workerSessionId
     : undefined
 }
@@ -38,6 +48,11 @@ export function executeSessionDelegationMutation(input: {
       yield* delivery
         .deliverPendingSpecificationsToActiveRun({ workerSessionId })
         .pipe(Effect.catchAll(() => Effect.succeed(false)))
+    }
+    const finishedWorkerSessionId = terminalDelegationWorker(response)
+    if (finishedWorkerSessionId) {
+      // Hive cleanup trigger: the parent accepted or cancelled this Worker's Delegation.
+      yield* requestHiveWorkerCleanup(SessionId(finishedWorkerSessionId))
     }
     return response
   })

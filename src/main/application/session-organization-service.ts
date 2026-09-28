@@ -83,22 +83,34 @@ function executeExistingWorkspaceHandoff(input: {
   })
 }
 
+/** Archive one Session: replay-classify first, then stop its desktop work and commit. */
+export function archiveSession(input: {
+  readonly callerId: string
+  readonly request: SessionOrganizationRequest & {
+    readonly command: Extract<SessionOrganizationRequest['command'], { operation: 'archive' }>
+  }
+}) {
+  return Effect.gen(function* () {
+    const repository = yield* SessionOrganizationRepository
+    const admission = yield* repository.prepareArchive(input)
+    if (admission.status === 'completed') return admission.response
+    return yield* withSessionDesktopRemoval(
+      SessionId(input.request.command.sessionId),
+      repository.execute(input),
+    )
+  })
+}
+
 export function organizeSession(input: {
   readonly callerId: string
   readonly request: SessionOrganizationRequest
 }) {
   return Effect.gen(function* () {
-    const repository = yield* SessionOrganizationRepository
     if (input.request.command.operation === 'archive') {
-      const admission = yield* repository.prepareArchive({
+      return yield* archiveSession({
         ...input,
         request: { ...input.request, command: input.request.command },
       })
-      if (admission.status === 'completed') return admission.response
-      return yield* withSessionDesktopRemoval(
-        SessionId(input.request.command.sessionId),
-        repository.execute(input),
-      )
     }
     return yield* input.request.command.operation === 'handoff'
       ? withSessionActionRelease(

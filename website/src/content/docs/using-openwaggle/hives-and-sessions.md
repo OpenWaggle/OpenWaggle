@@ -92,6 +92,12 @@ Each spawn creates one durable Delegation Contract. The Worker submits a revisio
 
 Use [Agent Definitions](/docs/extending/agent-definitions) for optional reusable roles. No definition is required: the parent agent may decide the Worker approach for each assignment.
 
+### Automatic cleanup of finished Workers
+
+When the parent agent accepts or cancels a Worker's delegation, OpenWaggle archives that Worker on the parent's behalf if you never interacted with it. A Worker that is still busy is archived once it becomes idle: no active run, no queued Follow-ups, and no pending question or approval request. Interacting includes sending it a message or Follow-up, steering or replacing its run, answering one of its questions or approval requests, branching its conversation, and renaming, pinning, archiving, or restoring it, whether from the app or the CLI. Opening or reading a Worker does not count. Any Worker you have interacted with stays in the sidebar. Archiving is recorded as the parent agent's action, and nothing is deleted.
+
+Archived Workers stay listed under **Archived** in the Session Summary's Hive section and in **Settings > Archived items**. Use the restore button beside an archived Worker in the Hive section, or **Restore** in Settings, to return it to the sidebar and continue the conversation. OpenWaggle does not archive a restored Worker again. The parent agent can still send `start` or `follow_up` to an archived Worker, and can restore it with `unarchive`.
+
 ## How hosted agents coordinate
 
 An agent running inside OpenWaggle uses its native `sessions` tool. It can list or search available Agent definitions, then spawn a Worker with a specific objective, an optional definition, and an explicit Workspace choice. Without a definition, the Worker is a normal agent. A spawned Worker starts with its own context: the parent must include the task and any necessary references rather than assuming the Worker can see the parent's transcript.

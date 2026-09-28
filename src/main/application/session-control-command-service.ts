@@ -19,6 +19,7 @@ import {
   reserveActiveSessionRun,
   reservePendingClassicSessionRun,
 } from './active-session-runs'
+import { withSessionCommandSerialization } from './session-command-serialization'
 import {
   executeUnserializedSessionControlCommand,
   type SessionControlCommandDependencies,
@@ -26,35 +27,6 @@ import {
 import { coordinateSessionRuns } from './session-control-run-coordinator'
 import { acquireSessionHostRunLease, type SessionHostRunLease } from './session-host-run-admission'
 import { forkSupervisedSessionRuns } from './session-run-coordinator-supervision'
-
-interface SessionSemaphoreEntry {
-  readonly semaphore: Effect.Semaphore
-  users: number
-}
-
-const sessionSemaphores = new Map<string, SessionSemaphoreEntry>()
-
-function acquireSessionSemaphore(sessionId: string) {
-  return Effect.sync(() => {
-    const existing = sessionSemaphores.get(sessionId)
-    if (existing) {
-      existing.users += 1
-      return existing
-    }
-    const created = { semaphore: Effect.runSync(Effect.makeSemaphore(1)), users: 1 }
-    sessionSemaphores.set(sessionId, created)
-    return created
-  })
-}
-
-function releaseSessionSemaphore(sessionId: string, entry: SessionSemaphoreEntry) {
-  return Effect.sync(() => {
-    entry.users -= 1
-    if (entry.users === 0 && sessionSemaphores.get(sessionId) === entry) {
-      sessionSemaphores.delete(sessionId)
-    }
-  })
-}
 
 function waitForWriterOrCancellation(settled: Promise<void>, signal: AbortSignal) {
   return Effect.async<void>((resume) => {
@@ -208,22 +180,19 @@ export function executeSessionControlMutation(input: {
       ? yield* acquireSessionHostRunLease('run')
       : undefined
     let transferred = false
-    return yield* Effect.acquireUseRelease(
-      acquireSessionSemaphore(sessionId),
-      (entry) =>
-        executeUnserializedSessionControlCommand(input).pipe(
-          Effect.tap((response) =>
-            dispatchAcceptedSessionControlRun(response, lease).pipe(
-              Effect.tap((didTransfer) =>
-                Effect.sync(() => {
-                  transferred = didTransfer
-                }),
-              ),
+    return yield* withSessionCommandSerialization(
+      sessionId,
+      executeUnserializedSessionControlCommand(input).pipe(
+        Effect.tap((response) =>
+          dispatchAcceptedSessionControlRun(response, lease).pipe(
+            Effect.tap((didTransfer) =>
+              Effect.sync(() => {
+                transferred = didTransfer
+              }),
             ),
           ),
-          entry.semaphore.withPermits(1),
         ),
-      (entry) => releaseSessionSemaphore(sessionId, entry),
+      ),
     ).pipe(
       Effect.ensuring(
         Effect.sync(() => {

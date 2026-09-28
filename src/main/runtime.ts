@@ -76,6 +76,7 @@ import {
   SessionProjectionWithActionsLive as SqliteSessionProjectionRepositoryLive,
 } from './runtime-action-services'
 import { DesktopServicesLive } from './runtime-desktop-services'
+import { HiveWorkerCleanupServicesLive } from './runtime-hive-cleanup-services'
 import { startHostBackgroundServices } from './runtime-host-services'
 import { AppDatabaseLive } from './services/database-service'
 import { AppLogger } from './services/logger-service'
@@ -233,6 +234,7 @@ const SessionControlServicesLive = Layer.mergeAll(
   SessionOrchestrationUpdateDeliveryWithDependenciesLive,
   FilesystemSessionExportArtifactWriterLive,
   SessionExportResourceResolverWithDatabaseLive,
+  HiveWorkerCleanupServicesLive,
 )
 
 registerPiBundledOAuthFlows()

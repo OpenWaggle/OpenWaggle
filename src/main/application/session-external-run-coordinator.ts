@@ -8,6 +8,7 @@ import {
 } from '../ports/session-control-run-lifecycle-repository'
 import { SessionOrchestrationUpdateDeliveryService } from '../ports/session-orchestration-update-delivery-service'
 import { publishSessionHostEvent } from '../session-host/session-host-events'
+import { requestHiveWorkerCleanup } from './hive-worker-cleanup-request'
 
 export function startExternalSessionRun(input: {
   readonly sessionId: SessionId
@@ -105,6 +106,7 @@ export function settleExternalSessionRun(input: {
         parentSessionId: settlement.orchestrationUpdate.parentSessionId,
       })
     }
+    if (!settlement.scheduled) yield* requestHiveWorkerCleanup(input.sessionId)
     return settlement
   })
 }
