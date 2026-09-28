@@ -121,9 +121,10 @@ and are inherited by subsequent actions and agent shell commands.
 worktree keeps its profile snapshot but clears old completion and environment values, so setup runs
 again for the replacement checkout.
 
-Shared setup and cleanup require local review and enablement. Execution changes require another
-review. The review dialog shows the previous and current invocation and offers **Enable this version** or
-**Keep disabled**. A previously reviewed workspace snapshot does not silently adopt upstream edits.
+Shared setup and cleanup require local review and enablement, except that saving one turns it on for
+you. Execution changes made by others require another review. The review panel lists what changed and
+offers **Turn on this version** or **Keep it off**. A previously reviewed workspace snapshot does not
+silently adopt upstream edits.
 
 Cleanup runs before actual worktree removal, after its last binding is released and action processes
 have stopped. Failure retains the checkout. In **Settings > Worktrees**, choose **Retry cleanup** or
