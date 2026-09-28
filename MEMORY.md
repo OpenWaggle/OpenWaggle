@@ -1113,6 +1113,36 @@ server in the user's config already served object roots. Every tool parameter ro
 OpenAI-completions request builders (`onPayload` throws before the network) and checks that rule.
 Third-party MCP schemas are repaired at the Pi adapter (`providerToolParameters`), and the server's
 original schema still validates arguments before approval.
+Pi also validates every call against the provider-facing schema (`validateToolArguments`) before
+`execute`, then passes its cleaned output (optional `null`s dropped, `'5'` coerced to `5`) to
+`execute`. A flattened repair kept as constraints was stricter than the server schema:
+`patternProperties` in closed alternatives, hoisted `$ref`s into removed combinators (also from
+`$defs`/`additionalProperties`), `unevaluatedProperties`, and requirements hoisted past a `true`
+alternative all made Pi block valid calls before call-time validation ran. Even "loosening"
+repairs can be stricter: a dropped `if`/`then` hides annotations `unevaluatedProperties`
+relied on, a `$ref` can point into a dropped keyword, and a set root `type` reaches
+`{$ref:'#'}`. So whenever the server schema compiles, direct tools register a relaxed repair
+(`provider-tool-parameter-relaxation.ts`:
+object root, `required` only for fields every accepted argument carries, annotations, and each
+property as `{anyOf: [...definitions, {}]}`, with `{}` first when a definition holds a `$ref`,
+`$dynamicRef` or `$recursiveRef`, because Pi compiles union members standalone and a reference
+to `'#'` then recurses forever; local `$ref`s into a wrapped property are rebased to follow it).
+Flattening resolves local `$ref`s against the document root, which misreads references inside
+a nested `$id` resource and can hoist `required` fields the server does not demand, so when the
+server schema has any nested `$id` the relaxed schema keeps only the root's own `required`. A permissive
+schema also disables Pi's clean-up, so `execute` redoes it (`mcp-direct-tool-call-validation.ts`):
+forward the first candidate the exact server validator accepts, trying Pi's cleaned output
+against the server schema, then Pi's coercion through the unrelaxed flattened repair, then the
+raw arguments. Pi's verdict is confirmed exactly because Pi bundles its own TypeBox (1.3.27 vs
+the app's 1.3.32), and the copies disagree on edge cases such as the `iri` format and
+`minLength` on graphemes. Direct tools whose server schema does not compile keep the unrelaxed
+repair, because it is then the only check before approval. Sampling tools keep it too: Pi does
+not validate their calls, so relaxing would only cost guidance. Flattening is bounded in depth
+and total schemas, since `{anyOf: [{$ref:'#'}, ...]}` otherwise recurses or explodes. Such a
+schema still compiles but overflows the stack on every exact `Check`; the validator reports that
+as a readable violation, so the tool registers but every call is rejected before approval. When
+relaxation drops a root `additionalProperties: false`, the description says only the listed
+properties are accepted, unless `patternProperties` (also dropped) admit other names.
 
 For managed-worktree cleanup, a retained preparation snapshot belongs to a directory generation,
 not merely a project and worktree path. Pin the worktree directory's device, inode and birth time

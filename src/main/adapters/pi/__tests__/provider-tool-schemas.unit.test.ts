@@ -261,7 +261,10 @@ describe('repaired MCP direct tools keep their argument semantics', () => {
 
     expect(schema).toMatchObject({
       type: 'object',
-      properties: { path: { type: 'string' }, child: { $ref: '#/$defs/Child' } },
+      properties: {
+        path: { anyOf: [{ type: 'string' }, {}] },
+        child: { anyOf: [{}, { $ref: '#/$defs/Child' }] },
+      },
       required: ['path'],
       $defs: { Child: { type: 'object' } },
     })

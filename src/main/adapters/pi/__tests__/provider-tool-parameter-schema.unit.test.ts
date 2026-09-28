@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
-  compileToolArgumentsValidator,
   providerToolParameters,
   providerToolSchemaViolations,
 } from '../provider-tool-parameter-schema'
+import { compileToolArgumentsValidator } from '../tool-arguments-validator'
 
 describe('providerToolParameters', () => {
   it('returns a conforming schema as is, without repairs', () => {
@@ -112,5 +112,51 @@ describe('providerToolParameters', () => {
     if (!('validate' in compiled)) throw new Error(compiled.error)
     expect(compiled.validate({ a: 'x' })).toEqual([])
     expect(compiled.validate({ a: 'x', b: 'y' })).not.toEqual([])
+  })
+
+  it('requires nothing on behalf of a true alternative and tells the model it exists', () => {
+    const { schema, repairs } = providerToolParameters({
+      type: 'object',
+      anyOf: [true, { properties: { a: { type: 'string' } }, required: ['a'] }],
+    })
+
+    expect(schema.required).toBeUndefined()
+    expect(schema.description).toMatch(/2 shapes.*2\) any object/)
+    expect(repairs).toContain('flattened root anyOf of 2 schemas')
+  })
+
+  it('stops flattening a combinator that references its own root', () => {
+    const { schema, repairs } = providerToolParameters({
+      type: 'object',
+      properties: { a: { type: 'string' } },
+      anyOf: [{ $ref: '#' }, { $ref: '#' }],
+    })
+
+    expect(schema).toMatchObject({ type: 'object', properties: { a: { type: 'string' } } })
+    expect(repairs).toContain('stopped flattening recursive root combinators')
+  })
+
+  it.each(['object', 'string'])(
+    'bounds the work a wide self-referencing combinator costs, reporting each repair once (%s root)',
+    (type) => {
+      const started = performance.now()
+      const { repairs } = providerToolParameters({
+        type,
+        anyOf: Array.from({ length: 60 }, () => ({ $ref: '#' })),
+      })
+
+      // Unbounded, 60 self-references cost minutes; bounded, milliseconds.
+      expect(performance.now() - started).toBeLessThan(3_000)
+      expect(new Set(repairs).size).toBe(repairs.length)
+    },
+  )
+
+  it('does not close the flattened root when a true alternative accepts any object', () => {
+    const { schema } = providerToolParameters({
+      type: 'object',
+      anyOf: [true, { properties: { a: { type: 'string' } }, additionalProperties: false }],
+    })
+
+    expect(schema).not.toHaveProperty('additionalProperties')
   })
 })
