@@ -393,6 +393,20 @@ Recording is a main/renderer protocol, not merely a `desktopCapturer` grant: suc
 - Do not rely on the browser repainting `<option>` text before a native select popup opens. The popup
   is drawn outside the DOM, so neither jsdom nor Playwright can observe what it shows, and a lost race
   can render two options with identical text. Use one label vocabulary instead.
+- The selected model is app-DB state, never repo state. `.openwaggle/settings.json` lives inside the
+  user's repository, so a personal model pick committed there leaks machine-specific provider config;
+  it is stored as `selectedModelsByProject` in the SQLite `settings_store` instead, and the project
+  file writer strips any legacy `preferences.model` on write. `thinkingLevel` and `authorizationMode`
+  stay repo-local by design.
+- A Session's model lives in its execution profile (`session_execution_profiles.profile_json` `$.modelId`)
+  and changes only through the Host-owned `sessions:set-model` channel. Classic and Waggle Runs read it
+  once at Run start, so a mid-turn switch reaches only the next Run, including queued follow-ups. The
+  renderer records each Run's model from `agent_start.model` (`runModelBySessionId`) to explain the pending
+  pick above the composer and keep the context meter on the running model. That map survives an
+  `agent_end` with `willRetry` (the Run continues on the same model through the auto-retry wait) and is
+  cleared on a terminal `agent_end`, a failed or cancelled `auto_retry_end`, or run completion. Sends and enqueues await
+  `settledSessionModelWrites` first, because the Host, not the send payload, picks the model. A Session
+  pick never rewrites the project's preferred model for new Sessions.
 
 ## Tooling Memory
 

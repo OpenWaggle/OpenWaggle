@@ -12,9 +12,8 @@ export interface ProjectPreferences {
   readonly authorizationMode?: AgentAuthorizationMode
 }
 
-/** A preference write, where `null` deletes the key and `undefined` leaves it alone. */
+/** A preference write to the repo-local settings file, where `null` deletes the key and `undefined` leaves it alone. */
 export interface ProjectPreferencesUpdate {
-  readonly model?: string | null
   readonly thinkingLevel?: ThinkingLevel | null
   readonly authorizationMode?: AgentAuthorizationMode | null
 }

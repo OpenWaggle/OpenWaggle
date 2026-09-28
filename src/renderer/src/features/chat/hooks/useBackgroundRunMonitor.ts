@@ -1,9 +1,20 @@
+import { SupportedModelId } from '@shared/types/brand'
+import type { AgentTransportEvent } from '@shared/types/stream'
 import { useEffect, useLayoutEffect } from 'react'
 import { isTerminalTransportEvent } from '@/features/chat/lib/agent-stream-utils'
 import { useAgentLoopEventStore } from '@/features/chat/state/agent-loop-event-store'
 import { useBackgroundRunStore } from '@/features/chat/state/background-run-store'
 import { useChatStore } from '@/features/chat/state/chat-store'
 import { api } from '@/shared/lib/ipc'
+
+/**
+ * An attempt that Pi will auto-retry ends with `agent_end` + `willRetry`, but the Run continues on
+ * the model it started with; forgetting it would hide the pending model-switch notice and move the
+ * context meter during the retry wait.
+ */
+function isRetryingAttemptEnd(event: AgentTransportEvent) {
+  return event.type === 'agent_end' && event.willRetry === true
+}
 
 /**
  * Mounted once at the workspace level. Tracks which sessions have
@@ -35,7 +46,8 @@ export function useBackgroundRunMonitor(): void {
       applyAgentLoopEvent(payload.sessionId, payload.event)
       if (payload.event.type === 'agent_start') {
         compactionOnlySessionIds.delete(payload.sessionId)
-        addActiveRun(payload.sessionId)
+        const runModel = payload.event.model?.trim()
+        addActiveRun(payload.sessionId, runModel ? SupportedModelId(runModel) : undefined)
       }
       if (payload.event.type === 'compaction_start' && !hasActiveRun(payload.sessionId)) {
         if (payload.event.reason === 'manual') {
@@ -50,7 +62,11 @@ export function useBackgroundRunMonitor(): void {
       ) {
         removeActiveRun(payload.sessionId)
       }
-      if (isTerminalTransportEvent(payload.event)) {
+      if (isTerminalTransportEvent(payload.event) && !isRetryingAttemptEnd(payload.event)) {
+        removeActiveRun(payload.sessionId)
+      }
+      // A stopped retry delay ends the Run without another agent_end.
+      if (payload.event.type === 'auto_retry_end' && !payload.event.success) {
         removeActiveRun(payload.sessionId)
       }
     })

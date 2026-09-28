@@ -31,6 +31,7 @@ import {
   organizeSession,
   setAuthorizationMode,
 } from './host-ui-session-lifecycle-operations'
+import { setSessionModel } from './host-ui-session-model-operation'
 import {
   invalid,
   requireArgCount,
@@ -93,6 +94,7 @@ function dispatchSessionOperation(channel: HostBackedSessionGuiChannel, args: re
     .with('sessions:unarchive', () => organizeFromArgs(args, 'unarchive'))
     .with('sessions:update-title', () => updateSessionTitle(args))
     .with('sessions:set-authorization-mode', () => setAuthorizationMode(args))
+    .with('sessions:set-model', () => setSessionModel(args))
     .with('sessions:list-by-ids', () => listSessionsByIds(args))
     .with('sessions:list-page', () => listSessionCatalogPage(args))
     .with('sessions:list-projects', () => listSessionProjectPage(args))

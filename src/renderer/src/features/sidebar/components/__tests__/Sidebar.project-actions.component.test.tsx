@@ -21,7 +21,9 @@ const { apiMock, navigateMock, routerState } = vi.hoisted(() => ({
     deleteSession: vi.fn(),
     getGitStatus: vi.fn(),
     getProjectPreferences: vi.fn(),
+    getSettings: vi.fn(),
     getProviderModels: vi.fn(),
+    removeProjectModel: vi.fn().mockResolvedValue('/repo/openwaggle'),
     listActiveRuns: vi.fn(),
     listGitBranches: vi.fn(),
     listSessionsByIds: vi.fn(),
@@ -298,6 +300,7 @@ describe('Sidebar project actions', () => {
         skillTogglesByProject: { [PROJECT_PATH]: { 'code-review': true } },
       },
     }))
+    apiMock.getSettings.mockResolvedValue(usePreferencesStore.getState().settings)
 
     render(<Sidebar />)
 
@@ -330,6 +333,7 @@ describe('Sidebar project actions', () => {
         projectDisplayNames: {},
         skillTogglesByProject: {},
       })
+      expect(apiMock.removeProjectModel).toHaveBeenCalledWith(PROJECT_PATH, [])
       expect(useChatStore.getState().activeSessionId).toBeNull()
       expect(navigateMock).toHaveBeenCalledWith({ to: '/' })
     })

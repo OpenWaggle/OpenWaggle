@@ -17,6 +17,7 @@ import {
   toSessionId,
   toSummary,
 } from './chat-store-helpers'
+import { createSessionModelActions, withPendingSessionModel } from './chat-store-session-model'
 import type { ChatActions, ChatState } from './chat-store-types'
 import {
   draftMaterializationGeneration,
@@ -312,7 +313,8 @@ export function createChatActions(set: ChatSet, get: ChatGet): ChatActions {
     refreshSession: (id) => refreshSession(id, set, get),
     setSessionAuthorizationMode: (id, authorizationMode) =>
       setSessionAuthorizationMode(id, authorizationMode, set, get),
-    upsertSession: (session) => upsertSession(session, set),
+    ...createSessionModelActions(set, get),
+    upsertSession: (session) => upsertSession(withPendingSessionModel(session), set),
     deleteSession: (id) => deleteSession(id, set, get),
     updateSessionTitle: (id, title) => updateSessionTitle(id, title, set, get),
     clearError: () => set({ error: null }),

@@ -1,5 +1,6 @@
 import { useComposerActionStore } from '@/features/composer/state/composer-action-store'
 import type { ComposerAttachmentsController } from '../hooks'
+import { useModelSwitchNotice } from '../hooks/useModelSwitchNotice'
 import { AutoTextAttachmentChips } from './AutoTextAttachmentChips'
 import { ComposerAlerts } from './ComposerAlerts'
 
@@ -22,6 +23,7 @@ export function ComposerHeader({
 }: ComposerHeaderProps) {
   const branchMessage = useComposerActionStore((s) => s.branchMessage)
   const setBranchMessage = useComposerActionStore((s) => s.setBranchMessage)
+  const modelSwitchNotice = useModelSwitchNotice()
   const alerts = buildComposerAlerts({
     attachmentError: attachments.attachmentError,
     clearAttachmentError: attachments.clearAttachmentError,
@@ -29,6 +31,7 @@ export function ComposerHeader({
     onClearVoiceError,
     branchMessage,
     clearBranchMessage: () => setBranchMessage(null),
+    modelSwitchMessage: modelSwitchNotice?.message ?? null,
   })
 
   return (
@@ -51,6 +54,7 @@ interface BuildComposerAlertsInput {
   readonly onClearVoiceError: () => void
   readonly branchMessage: string | null
   readonly clearBranchMessage: () => void
+  readonly modelSwitchMessage: string | null
 }
 
 function buildComposerAlerts({
@@ -60,11 +64,14 @@ function buildComposerAlerts({
   onClearVoiceError,
   branchMessage,
   clearBranchMessage,
+  modelSwitchMessage,
 }: BuildComposerAlertsInput) {
   const alerts: ComposerAlertViewModel[] = []
   appendComposerAlert(alerts, 'attachment-error', attachmentError, clearAttachmentError)
   appendComposerAlert(alerts, 'voice-error', voiceError, onClearVoiceError)
   appendComposerAlert(alerts, 'branch-message', branchMessage, clearBranchMessage)
+  // Not dismissable: it describes live state and clears itself when the next Run starts.
+  if (modelSwitchMessage) alerts.push({ id: 'model-next-message', message: modelSwitchMessage })
   return alerts
 }
 

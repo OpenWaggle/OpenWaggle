@@ -1,10 +1,12 @@
 import { existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   ensureProjectSettingsFile,
   getProjectSettingsPath,
+  grantProjectAuthorization,
+  installLegacyPreferenceMigrator,
   listProjectAuthorizationGrants,
   loadProjectConfig,
   loadProjectConfigStrict,
@@ -25,6 +27,7 @@ describe('loadProjectConfig', () => {
   })
 
   afterEach(() => {
+    installLegacyPreferenceMigrator(null)
     rmSync(tmpDir, { recursive: true, force: true })
   })
 
@@ -176,10 +179,10 @@ describe('loadProjectConfig', () => {
       'utf-8',
     )
 
-    await setProjectPreferences(tmpDir, { model: 'openai/gpt-4.1', thinkingLevel: 'high' })
+    await setProjectPreferences(tmpDir, { thinkingLevel: 'high' })
 
     const config = await loadProjectConfig(tmpDir)
-    expect(config.preferences).toEqual({ model: 'openai/gpt-4.1', thinkingLevel: 'high' })
+    expect(config.preferences).toEqual({ thinkingLevel: 'high' })
     expect(config.pi).toEqual({ compaction: { enabled: true } })
   })
 
@@ -194,11 +197,77 @@ describe('loadProjectConfig', () => {
       'utf-8',
     )
 
-    await setProjectPreferences(tmpDir, { model: 'openai/gpt-4.1' })
+    await setProjectPreferences(tmpDir, { thinkingLevel: 'medium' })
 
     const config = await loadProjectConfig(tmpDir)
     expect(config.pi).toEqual({ compaction: { enabled: false } })
-    expect(config.preferences).toEqual({ model: 'openai/gpt-4.1' })
+    expect(config.preferences).toEqual({ thinkingLevel: 'medium' })
+  })
+
+  it('strips legacy model overrides from the file on write', async () => {
+    writeFileSync(
+      getSettingsPath(tmpDir),
+      JSON.stringify({ preferences: { model: 'openai/gpt-4.1', thinkingLevel: 'low' } }),
+      'utf-8',
+    )
+
+    await setProjectPreferences(tmpDir, { thinkingLevel: 'high' })
+
+    const config = await loadProjectConfig(tmpDir)
+    // The selected model is app-DB state; the repo-local file must never keep it.
+    expect(config.preferences).toEqual({ thinkingLevel: 'high' })
+  })
+
+  it('migrates the legacy model through the installed hook on every config write', async () => {
+    const migrator = vi.fn().mockResolvedValue(undefined)
+    installLegacyPreferenceMigrator(migrator)
+    writeFileSync(
+      getSettingsPath(tmpDir),
+      JSON.stringify({ preferences: { model: 'openai/gpt-4.1' } }),
+      'utf-8',
+    )
+
+    await grantProjectAuthorization(tmpDir, {
+      requester: 'MCP server',
+      requesterId: 'server-a',
+      capability: 'mcp.tool-call',
+    })
+
+    // The centralized strip covers every writer, and the value reaches the DB before it leaves
+    // the file, so no writer can lose the override.
+    expect(migrator).toHaveBeenCalledWith(tmpDir, 'openai/gpt-4.1')
+    expect((await loadProjectConfig(tmpDir)).preferences).toBeUndefined()
+    expect(await listProjectAuthorizationGrants(tmpDir)).toHaveLength(1)
+  })
+
+  it('keeps the legacy model in the file when the migrator fails', async () => {
+    installLegacyPreferenceMigrator(vi.fn().mockRejectedValue(new Error('db down')))
+    writeFileSync(
+      getSettingsPath(tmpDir),
+      JSON.stringify({ preferences: { model: 'openai/gpt-4.1' } }),
+      'utf-8',
+    )
+
+    await setProjectPreferences(tmpDir, { thinkingLevel: 'high' })
+
+    // Strip only after a safe migration: a failed DB write must not lose the override.
+    expect((await loadProjectConfig(tmpDir)).preferences).toEqual({
+      model: 'openai/gpt-4.1',
+      thinkingLevel: 'high',
+    })
+  })
+
+  it('drops the preferences key when a write leaves it empty', async () => {
+    writeFileSync(
+      getSettingsPath(tmpDir),
+      JSON.stringify({ preferences: { model: 'openai/gpt-4.1' } }),
+      'utf-8',
+    )
+
+    await setProjectPreferences(tmpDir, { authorizationMode: 'yolo' })
+
+    const config = await loadProjectConfig(tmpDir)
+    expect(config.preferences).toEqual({ authorizationMode: 'yolo' })
   })
 
   it('fails safely on invalid settings parsing during update and does not overwrite file', async () => {

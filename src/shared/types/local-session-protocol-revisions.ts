@@ -101,6 +101,7 @@ export const LOCAL_SESSION_REVISION_16_CAPABILITIES = [
 export const LOCAL_SESSION_REVISION_17_CAPABILITIES = [
   ...LOCAL_SESSION_REVISION_16_CAPABILITIES,
   'host-ui:native-actions-v1',
+  'host-ui:project-model-persistence-v1',
 ] as const
 
 export const LOCAL_SESSION_CAPABILITIES = LOCAL_SESSION_REVISION_17_CAPABILITIES
