@@ -6,6 +6,8 @@ import Button from '@/components/ui/Button.astro';
 import PackageInstallTabs from '@/components/docs/PackageInstallTabs.astro';
 import PackageVersionSelect from '@/components/docs/PackageVersionSelect.astro';
 import { packageDocumentationPage } from '@/data/package-docs';
+import { docsArticleJsonLd, DEFAULT_DESCRIPTION } from '@/lib/seo';
+import { docsPath } from '@/lib/site-paths';
 
 interface Props {
   title: string;
@@ -16,9 +18,19 @@ interface Props {
 const { title, description, slug } = Astro.props;
 const packagePage = packageDocumentationPage(slug);
 const navigationSlug = packagePage ? `packages/${packagePage.definition.slug}` : slug;
+const pageDescription = description ?? DEFAULT_DESCRIPTION;
+const jsonLd = docsArticleJsonLd({
+  title,
+  description: pageDescription,
+  path: Astro.url.pathname,
+  breadcrumbs: [
+    { name: 'Docs', path: docsPath('getting-started/first-run') },
+    { name: title, path: Astro.url.pathname },
+  ],
+});
 ---
 
-<BaseLayout title={`${title} — OpenWaggle Docs`} description={description ?? ''}>
+<BaseLayout title={`${title} | OpenWaggle Docs`} description={pageDescription} type="article" jsonLd={jsonLd}>
   <div class="mx-auto flex max-w-[1440px] px-6 md:px-20">
     <Sidebar />
 
@@ -57,13 +69,5 @@ const navigationSlug = packagePage ? `packages/${packagePage.definition.slug}` :
     </div>
   </div>
 
-  <script type="application/ld+json" set:html={JSON.stringify({
-    "@context": "https://schema.org",
-    "@type": "BreadcrumbList",
-    "itemListElement": [
-      { "@type": "ListItem", "position": 1, "name": "Docs", "item": "https://openwaggle.ai/docs" },
-      { "@type": "ListItem", "position": 2, "name": title, "item": `https://openwaggle.ai/docs/${slug}` },
-    ],
-  })} />
   <PackageInstallTabs />
 </BaseLayout>

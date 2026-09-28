@@ -32,7 +32,7 @@ describe('documentation navigation', () => {
   });
 
   it('ships the same walkthrough redirect in Astro and Cloudflare Pages', () => {
-    const destination = '/docs/getting-started/first-run';
+    const destination = '/docs/getting-started/first-run/';
     const redirects = readFileSync(new URL('../../../public/_redirects', import.meta.url), 'utf8');
     const docsRedirect = redirects.split(/\r?\n/).find((line) => line.startsWith('/docs '));
     expect(docsRedirect?.trim().split(/\s+/)).toEqual(['/docs', destination, '301']);
