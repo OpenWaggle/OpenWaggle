@@ -14,6 +14,10 @@ type ObjectRootSchema = JsonObject & { readonly type: 'object' }
  * OpenAI serializers forward tool parameters unchanged.
  */
 const UNSUPPORTED_ROOT_KEYWORDS = new Set(['anyOf', 'oneOf', 'allOf', 'enum', 'const', 'not'])
+
+/** Root annotations kept on a rewritten schema; every other root assertion is dropped. */
+const KEPT_ROOT_ANNOTATIONS = new Set(['title', 'description', '$comment', '$defs', 'definitions'])
+
 const ALTERNATIVE_COMBINATORS = ['anyOf', 'oneOf'] as const
 
 function isJsonObject(value: McpJsonValue | undefined): value is JsonObject {
@@ -24,102 +28,76 @@ function isObjectRootSchema(value: McpJsonValue | undefined): value is ObjectRoo
   return isJsonObject(value) && value.type === 'object'
 }
 
-function objectMembers(value: McpJsonValue | undefined) {
-  return Array.isArray(value) ? value.filter(isJsonObject) : []
+function arrayValue(value: McpJsonValue | undefined) {
+  return Array.isArray(value) ? value : []
 }
 
 function stringList(value: McpJsonValue | undefined) {
-  return Array.isArray(value)
-    ? value.filter((entry): entry is string => typeof entry === 'string')
-    : []
+  return arrayValue(value).filter((entry): entry is string => typeof entry === 'string')
 }
 
-function memberProperties(member: JsonObject) {
-  const properties = member.properties
+function propertyEntries(schema: McpJsonValue) {
+  const properties = isJsonObject(schema) ? schema.properties : undefined
   return isJsonObject(properties) ? Object.entries(properties) : []
 }
 
-function memberPropertyNames(member: JsonObject) {
-  return memberProperties(member).map(([name]) => name)
-}
-
-// A definition referencing into a removed root keyword (for example
-// `#/anyOf/0/$defs/Item`) would dangle once that keyword is stripped.
-const REMOVED_KEYWORD_REFERENCE = /"\$ref":"#\/(?:anyOf|oneOf|allOf|enum|const|not)(?:\/|")/u
-
-function hoistable(definition: McpJsonValue): McpJsonValue {
-  if (!REMOVED_KEYWORD_REFERENCE.test(JSON.stringify(definition))) return definition
-  const description = isJsonObject(definition) ? definition.description : undefined
-  return typeof description === 'string' ? { description } : {}
-}
-
 /**
- * What one `anyOf`/`oneOf` alternative allows for a property: its own definition, nothing
- * when the alternative is closed, or anything (`{}`) when the alternative leaves the
- * property unconstrained, which keeps the hoisted schema from rejecting arguments that
- * alternative accepted.
+ * Fields every argument the original schema accepts must carry: the root's and each
+ * `allOf` member's `required`, plus, per `anyOf`/`oneOf`, the fields every alternative
+ * requires (any accepted argument satisfies at least one alternative).
  */
-function alternativeDefinition(member: McpJsonValue, name: string): McpJsonValue | undefined {
-  if (!isJsonObject(member)) return {}
-  const properties = member.properties
-  const definition = isJsonObject(properties) ? properties[name] : undefined
-  if (definition !== undefined) return hoistable(definition)
-  return member.additionalProperties === false ? undefined : {}
-}
-
-/**
- * Hoists combinator members' properties to the root so the model keeps its argument
- * guidance, without rejecting any argument the original schema accepted:
- * - Root and `allOf` definitions apply to every valid argument, so the first of them wins
- *   and `allOf` members contribute required fields.
- * - `anyOf`/`oneOf` members are alternatives. A property they define differently (a
- *   discriminator such as `kind: {const: 'a'}` vs `{const: 'b'}`), or that some
- *   alternative leaves unconstrained, becomes a nested `anyOf` of what each alternative
- *   allows, which providers accept below the root. Their required fields apply only to
- *   that alternative and are not hoisted.
- */
-function hoistMemberProperties(schema: ObjectRootSchema) {
-  const rootProperties = schema.properties
-  const properties: Record<string, McpJsonValue> = isJsonObject(rootProperties)
-    ? Object.fromEntries(
-        Object.entries(rootProperties).map(([name, definition]) => [name, hoistable(definition)]),
-      )
-    : {}
+function guaranteedRequired(schema: ObjectRootSchema) {
   const required = new Set(stringList(schema.required))
-  for (const member of objectMembers(schema.allOf)) {
-    for (const [name, definition] of memberProperties(member)) {
-      if (!Object.hasOwn(properties, name)) properties[name] = hoistable(definition)
+  for (const member of arrayValue(schema.allOf)) {
+    if (isJsonObject(member)) for (const name of stringList(member.required)) required.add(name)
+  }
+  for (const combinator of ALTERNATIVE_COMBINATORS) {
+    const members = arrayValue(schema[combinator])
+    if (members.length === 0 || !members.every(isJsonObject)) continue
+    const [first, ...rest] = members.map((member) => new Set(stringList(member.required)))
+    for (const name of first ?? []) {
+      if (rest.every((names) => names.has(name))) required.add(name)
     }
-    for (const name of stringList(member.required)) required.add(name)
   }
-  for (const [name, definitions] of alternativeDefinitions(schema, properties)) {
-    properties[name] =
-      definitions.length === 1 ? (definitions[0] ?? {}) : { anyOf: [...definitions] }
-  }
-  return { properties, required: [...required] }
+  return [...required]
 }
 
-/** Distinct definitions each `anyOf`/`oneOf` alternative allows, per not-yet-defined name. */
-function alternativeDefinitions(
-  schema: ObjectRootSchema,
-  defined: Readonly<Record<string, McpJsonValue>>,
-) {
-  const alternatives = new Map<string, Map<string, McpJsonValue>>()
-  for (const combinator of ALTERNATIVE_COMBINATORS) {
-    const combinatorValue = schema[combinator]
-    const members = Array.isArray(combinatorValue) ? combinatorValue : []
-    const names = new Set(members.filter(isJsonObject).flatMap(memberPropertyNames))
-    for (const name of names) {
-      if (Object.hasOwn(defined, name)) continue
-      const distinct = alternatives.get(name) ?? new Map<string, McpJsonValue>()
-      for (const member of members) {
-        const candidate = alternativeDefinition(member, name)
-        if (candidate !== undefined) distinct.set(JSON.stringify(candidate), candidate)
-      }
-      alternatives.set(name, distinct)
+/**
+ * Every definition the schema gives each property, from the root, `allOf` members and
+ * `anyOf`/`oneOf` alternatives, deduplicated by content.
+ */
+function propertyDefinitions(schema: ObjectRootSchema) {
+  const definitions = new Map<string, Map<string, McpJsonValue>>()
+  const sources = [
+    schema,
+    ...arrayValue(schema.allOf),
+    ...ALTERNATIVE_COMBINATORS.flatMap((combinator) => arrayValue(schema[combinator])),
+  ]
+  for (const source of sources) {
+    for (const [name, definition] of propertyEntries(source)) {
+      const distinct = definitions.get(name) ?? new Map<string, McpJsonValue>()
+      distinct.set(JSON.stringify(definition), definition)
+      definitions.set(name, distinct)
     }
   }
-  return [...alternatives].map(([name, distinct]) => [name, [...distinct.values()]] as const)
+  return definitions
+}
+
+/**
+ * A property schema that shows the model each original definition but accepts any value.
+ * The `{}` alternative is what guarantees the rewrite never rejects an argument the
+ * original accepted: an alternative may not apply to a given argument, a `$ref` may point
+ * into a removed keyword, and root keywords that coerced or admitted the value are gone.
+ */
+function guidanceOnly(definitions: readonly McpJsonValue[]): McpJsonValue {
+  const described = definitions.find(
+    (definition) => isJsonObject(definition) && typeof definition.description === 'string',
+  )
+  const description = isJsonObject(described) ? described.description : undefined
+  return {
+    ...(typeof description === 'string' ? { description } : {}),
+    anyOf: [...definitions, {}],
+  }
 }
 
 /**
@@ -128,12 +106,12 @@ function alternativeDefinitions(
  * keywords above. One violating tool makes Amazon Bedrock or OpenAI reject the whole
  * request, which would otherwise break every turn that carries the tool.
  *
- * Only the unsupported root keywords are removed. Their members' properties are hoisted
- * so the model keeps argument guidance, and `unevaluatedProperties` is dropped because
- * it would otherwise reject properties the removed combinators used to evaluate. The
- * result accepts every argument the original accepted (it may accept more); the tool's
- * own server still validates the full contract. A schema without an object root falls
- * back to an open argument object.
+ * Provider-safe schemas pass through unchanged. Otherwise Pi validates calls against the
+ * rewrite before execute (`validateToolArguments`), so it must never reject an argument
+ * the original accepted. The rewrite therefore asserts only an object root and the fields
+ * every accepted argument carries; each property keeps its original definitions as model
+ * guidance next to a permissive alternative. The tool's own server still validates the
+ * full contract. A schema without an object root falls back to an open argument object.
  */
 export function toProviderToolParameters(
   schema: McpJsonValue | undefined,
@@ -144,18 +122,18 @@ export function toProviderToolParameters(
   if (!Object.keys(schema).some((keyword) => UNSUPPORTED_ROOT_KEYWORDS.has(keyword))) {
     return Type.Unsafe<Record<string, unknown>>(schema)
   }
-  const { properties, required } = hoistMemberProperties(schema)
-  const supported = Object.fromEntries(
-    Object.entries(schema).filter(
-      ([keyword]) =>
-        !UNSUPPORTED_ROOT_KEYWORDS.has(keyword) &&
-        keyword !== 'unevaluatedProperties' &&
-        keyword !== 'properties' &&
-        keyword !== 'required',
-    ),
+  const properties = Object.fromEntries(
+    [...propertyDefinitions(schema)].map(([name, distinct]) => [
+      name,
+      guidanceOnly([...distinct.values()]),
+    ]),
+  )
+  const required = guaranteedRequired(schema)
+  const annotations = Object.fromEntries(
+    Object.entries(schema).filter(([keyword]) => KEPT_ROOT_ANNOTATIONS.has(keyword)),
   )
   return Type.Unsafe<Record<string, unknown>>({
-    ...supported,
+    ...annotations,
     type: 'object',
     ...(Object.keys(properties).length > 0 ? { properties } : {}),
     ...(required.length > 0 ? { required } : {}),

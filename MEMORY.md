@@ -1099,15 +1099,17 @@ root (live-probed via OpenRouter `openai/gpt-4.1-mini`). One such tool breaks ev
 Anthropic serializer instead rewrites the root to `{type:'object', properties, required}`, hiding
 a root union's fields from the model and dropping root descriptions, so put limits on properties.
 `preview_resize` shipped a root `anyOf` until it was flattened. External MCP direct and sampling
-schemas go through `toProviderToolParameters` (`provider-tool-parameters.ts`): it keeps an object
-root, strips those root keywords, and hoists combinator members' `properties` so the result
-never rejects an argument the original accepted. Pi's `validateToolArguments` checks calls
-against these parameters before execute, so a stricter result blocks valid calls before the
-MCP server sees them. Root and `allOf` definitions win (only `allOf` adds `required`);
-properties from `anyOf`/`oneOf` alternatives become a nested `anyOf` of what each alternative
-allows (`{}` when an open alternative leaves the property unconstrained), so discriminators
-like `kind: {const:'a'}` vs `{const:'b'}` keep every branch valid. It also drops
-`unevaluatedProperties` and any hoisted `$ref` into a removed keyword.
+schemas go through `toProviderToolParameters` (`provider-tool-parameters.ts`). Provider-safe
+schemas pass through unchanged. Otherwise Pi's `validateToolArguments` checks calls against the
+rewrite before execute, so the rewrite must never reject an argument the original accepted;
+four review rounds found that any rewrite keeping hoisted definitions as constraints fails that
+(discriminated `oneOf` branches, `patternProperties` in closed alternatives, `$ref`s into removed
+keywords from `$defs`/`additionalProperties`/`then`, lost `additionalProperties` coercion). The
+rewrite therefore asserts only `type: "object"` and the fields every accepted argument carries
+(root and `allOf` `required`, plus the intersection of each `anyOf`/`oneOf`'s alternatives), and
+turns each property into `{anyOf: [...its original definitions, {}]}`: the model still sees
+every definition, and the `{}` alternative makes validation permissive. Root assertions are
+dropped; only `title`/`description`/`$comment`/`$defs`/`definitions` are kept.
 `first-party-tool-parameter-schemas.unit.test.ts` pins the exact list of app tool registrations
 (browser preview, MCP gateway/direct/`mcp_run`, `project_actions`, `sessions`) and asserts the
 object-root contract, so add new app tool factories to it; `packages/pi-waggle` tools and

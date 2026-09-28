@@ -61,6 +61,10 @@ describe('MCP sampling tools', () => {
       expect(root.type).toBe('object')
       expect(root.anyOf).toBeUndefined()
     }
-    expect(plain(tools[1]?.parameters).properties).toEqual(PROPERTIES)
+    expect(plain(tools[0]?.parameters).properties).toEqual(PROPERTIES)
+    expect(plain(tools[1]?.parameters).properties).toEqual({
+      a: { anyOf: [{ type: 'string' }, {}] },
+      b: { anyOf: [{ type: 'string' }, {}] },
+    })
   })
 })

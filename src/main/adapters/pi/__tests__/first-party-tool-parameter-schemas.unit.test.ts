@@ -166,6 +166,6 @@ describe('first-party Pi tool parameter schemas', async () => {
     const tool = tools.find(({ name }) => name === 'mcp/direct_object_union')?.tool
     if (!tool) throw new Error('direct_object_union was not registered.')
 
-    expect(schemaRoot(tool).properties).toEqual({ a: { type: 'string' } })
+    expect(schemaRoot(tool).properties).toEqual({ a: { anyOf: [{ type: 'string' }, {}] } })
   })
 })
