@@ -1092,16 +1092,24 @@ Amazon Bedrock is stricter: Pi's Bedrock Converse serializer forwards `tool.para
 unchanged, and Bedrock rejects the whole request when any tool's root lacks `type: "object"`
 (`toolConfig.tools.N.toolSpec.inputSchema.json.type must be one of the following: object`), or
 when a Claude tool root carries `anyOf`/`oneOf`/`allOf` even beside `type: "object"`
-(`input_schema does not support oneOf, allOf, or anyOf at the top level`; root `not` is accepted,
-live-probed on `eu.anthropic.claude-opus-4-8`). One such tool breaks every Bedrock turn. Pi's
+(`input_schema does not support oneOf, allOf, or anyOf at the top level`; live-probed on
+`eu.anthropic.claude-opus-4-8`). OpenAI (Pi's completions/responses serializers also forward
+parameters unchanged) rejects root `oneOf`/`anyOf`/`allOf`/`enum`/`const`/`not` beside an object
+root (live-probed via OpenRouter `openai/gpt-4.1-mini`). One such tool breaks every turn. Pi's
 Anthropic serializer instead rewrites the root to `{type:'object', properties, required}`, hiding
 a root union's fields from the model and dropping root descriptions, so put limits on properties.
 `preview_resize` shipped a root `anyOf` until it was flattened. External MCP direct and sampling
-schemas go through `toProviderToolParameters` (`provider-tool-parameters.ts`), which keeps an
-object root and strips root combinators. `first-party-tool-parameter-schemas.unit.test.ts` pins
-the exact list of app tool registrations (browser preview, MCP gateway/direct/`mcp_run`,
-`project_actions`, `sessions`) and asserts the object-root contract, so add new app tool
-factories to it; `packages/pi-waggle` tools and third-party Pi extension tools are not covered.
+schemas go through `toProviderToolParameters` (`provider-tool-parameters.ts`): it keeps an object
+root, strips those root keywords, hoists combinator members' `properties` (root wins; only
+`allOf` members add `required`) and drops `unevaluatedProperties`, which would otherwise make
+Pi's `validateToolArguments` reject arguments the removed combinators used to evaluate.
+`first-party-tool-parameter-schemas.unit.test.ts` pins the exact list of app tool registrations
+(browser preview, MCP gateway/direct/`mcp_run`, `project_actions`, `sessions`) and asserts the
+object-root contract, so add new app tool factories to it; `packages/pi-waggle` tools and
+third-party Pi extension tools are not covered. Build string enums as `{type:'string', enum}`
+with OpenWaggle's own TypeBox (Pi's `StringEnum` returns Pi's TypeBox copy's `TUnsafe`, which
+breaks declaration emit), and never pass `Type.Union` a mapped array: TypeBox infers `never`
+from a widened array, silently erasing the Static type.
 
 For managed-worktree cleanup, a retained preparation snapshot belongs to a directory generation,
 not merely a project and worktree path. Pin the worktree directory's device, inode and birth time

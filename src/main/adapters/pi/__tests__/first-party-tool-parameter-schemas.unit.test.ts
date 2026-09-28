@@ -9,13 +9,13 @@ import { createMcpGatewayExtension } from '../mcp-gateway-extension'
 import { createProjectActionsToolExtension } from '../project-actions-tool-extension'
 import { createSessionsToolExtension } from '../sessions-tool-extension'
 
-// Every provider-facing tool schema must be a JSON object at the root without root
-// combinators. Amazon Bedrock rejects the whole request otherwise, either with
-// "toolConfig.tools.N.toolSpec.inputSchema.json.type must be one of the following: object"
-// or, for Claude, "input_schema does not support oneOf, allOf, or anyOf at the top level".
-// Pi's Anthropic serializer drops root unions to an empty object, and OpenAI-completions
-// providers emit `{}` arguments for them.
-const ROOT_COMBINATORS = ['anyOf', 'oneOf', 'allOf'] as const
+// Every provider-facing tool schema must be a JSON object at the root without the root
+// keywords providers reject. Amazon Bedrock fails the whole request otherwise ("...inputSchema
+// .json.type must be one of the following: object", or for Claude "input_schema does not
+// support oneOf, allOf, or anyOf at the top level"), and OpenAI rejects root
+// oneOf/anyOf/allOf/enum/const/not. Pi's Anthropic serializer drops root unions to an empty
+// object, and OpenAI-completions providers emit `{}` arguments for them.
+const UNSUPPORTED_ROOT_KEYWORDS = ['anyOf', 'oneOf', 'allOf', 'enum', 'const', 'not'] as const
 
 type SchemaRoot = { readonly type?: unknown } & Readonly<Record<string, unknown>>
 
@@ -151,13 +151,13 @@ describe('first-party Pi tool parameter schemas', async () => {
   })
 
   it.each(tools.map(({ name, tool }) => [name, tool] as const))(
-    '%s exposes an object root without root-level combinators',
+    '%s exposes an object root without unsupported root keywords',
     (_name, tool) => {
       const root = schemaRoot(tool)
 
       expect(root.type).toBe('object')
-      for (const combinator of ROOT_COMBINATORS) {
-        expect(root[combinator]).toBeUndefined()
+      for (const keyword of UNSUPPORTED_ROOT_KEYWORDS) {
+        expect(root[keyword]).toBeUndefined()
       }
     },
   )

@@ -4,7 +4,10 @@ import {
   BROWSER_PREVIEW_VIEWPORT_MIN_DIMENSION,
 } from '@shared/browser-preview-viewports'
 import type { BrowserPreviewAutomationResizeInput } from '@shared/types/browser-preview-automation'
-import { BROWSER_PREVIEW_VIEWPORT_PRESET_IDS } from '@shared/types/browser-preview-controls'
+import {
+  BROWSER_PREVIEW_VIEWPORT_PRESET_IDS,
+  type BrowserPreviewViewportPresetId,
+} from '@shared/types/browser-preview-controls'
 import { type Static, type TObject, Type } from 'typebox'
 import { Check, Errors } from 'typebox/value'
 import { previewTabTargetParameters } from './browser-preview-automation-schemas-core'
@@ -18,7 +21,13 @@ const viewportDimension = Type.Integer({
   description: `Freeform mode only. ${VIEWPORT_LIMITS}`,
 })
 
-const preset = Type.Enum(BROWSER_PREVIEW_VIEWPORT_PRESET_IDS, { description: 'Preset mode only.' })
+// The `{ type: 'string', enum }` shape Pi's StringEnum emits, which every provider accepts.
+// Built locally so the schema type comes from OpenWaggle's TypeBox, not Pi's copy.
+const preset = Type.Unsafe<BrowserPreviewViewportPresetId>({
+  type: 'string',
+  enum: [...BROWSER_PREVIEW_VIEWPORT_PRESET_IDS],
+  description: 'Preset mode only.',
+})
 
 const orientation = Type.Union([Type.Literal('portrait'), Type.Literal('landscape')], {
   description: 'Preset mode only. Defaults to the preset orientation.',
@@ -66,7 +75,7 @@ export const previewResizeParameters = Type.Object(
       [fillVariant.properties.mode, freeformVariant.properties.mode, presetVariant.properties.mode],
       {
         description:
-          'fill sizes the viewport to the panel and takes no other fields; freeform requires width and height; preset requires preset and accepts orientation. Fields from another mode are rejected.',
+          'fill sizes the viewport to the panel and takes no size fields; freeform requires width and height; preset requires preset and accepts orientation. tabId is accepted in every mode; fields from another mode are rejected.',
       },
     ),
     width: Type.Optional(viewportDimension),

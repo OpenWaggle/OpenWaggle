@@ -218,9 +218,23 @@ describe('Pi browser preview automation extension', () => {
     {
       label: 'freeform without height',
       params: { mode: 'freeform', width: 800 },
-      message: 'mode "freeform": arguments: must have required properties height',
+      message: /mode "freeform": .*height/,
     },
-    { label: 'preset without preset', params: { mode: 'preset' }, message: 'mode "preset"' },
+    {
+      label: 'an unknown preset',
+      params: { mode: 'preset', preset: 'nokia-3310' },
+      message: /Invalid preview_resize arguments: \/preset/,
+    },
+    {
+      label: 'preset without preset',
+      params: { mode: 'preset' },
+      message: /mode "preset": .*preset/,
+    },
+    {
+      label: 'freeform with a foreign field and a missing field',
+      params: { mode: 'freeform', width: 800, orientation: 'portrait' },
+      message: /mode "freeform": orientation is not accepted; .*height/,
+    },
     {
       label: 'fill with freeform dimensions',
       params: { mode: 'fill', width: 800, height: 600 },
