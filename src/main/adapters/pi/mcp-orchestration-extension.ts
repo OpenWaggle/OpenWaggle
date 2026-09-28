@@ -10,6 +10,7 @@ import {
   type McpOrchestrationInvocation,
 } from './mcp-orchestration-runtime'
 import { type ExecuteGateway, executeMcpToolCall, reviewMcpCall } from './mcp-tool-execution'
+import { mcpModelFacingContent } from './mcp-tool-result-content'
 
 const orchestrationCall = Type.Object({
   id: Type.String({ description: 'Unique activity id for this call.' }),
@@ -175,11 +176,11 @@ function programFromParameters(params: {
   return compileLegacyMcpOrchestration({ mode: params.mode, calls: params.calls })
 }
 
-function resultText(input: {
+function resultContent(input: {
   readonly return: McpJsonValue
   readonly results: readonly McpOrchestrationChildResult[]
 }) {
-  return JSON.stringify({
+  return mcpModelFacingContent({
     summary: {
       completed: input.results.filter((result) => result.status === 'completed').length,
       failed: input.results.filter((result) => result.status === 'failed').length,
@@ -252,7 +253,7 @@ export function registerMcpOrchestrationTool(pi: ExtensionAPI, executeGateway: E
         operationSignal,
       )
       return {
-        content: [{ type: 'text', text: resultText(output) }],
+        ...resultContent(output),
         details: { kind: 'orchestration', result: output.results },
         ...(output.results.some((result) => result.status !== 'completed')
           ? { isError: true }

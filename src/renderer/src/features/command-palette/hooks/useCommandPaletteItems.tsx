@@ -10,6 +10,7 @@ import { wagglePresetsQueryOptions } from '@/queries/waggle-presets'
 import { useUIStore } from '@/shell/ui-store'
 import { insertComposerCommandText } from '../lib/command-palette-actions'
 import {
+  createBuiltInCommandItems,
   createConfigureWaggleItem,
   createPresetItems,
   createSkillItems,
@@ -82,11 +83,13 @@ export function useCommandPaletteItems({
       onSelectSkill(skillId, skillName)
       closeSlashCommandMenu()
     },
-    insertCompactCommand: closeSlashCommandMenu,
+  }
+  const insertCommandText = (command: string) => {
+    insertComposerCommandText(command)
+    closeSlashCommandMenu()
   }
   const insertExtensionSlashCommand = ({ entry }: ExtensionSlashCommandActionInput) => {
-    insertComposerCommandText(extensionSlashCommandText(entry))
-    closeSlashCommandMenu()
+    insertCommandText(extensionSlashCommandText(entry))
   }
   const skillItems = createSkillItems(slashSkills, lowerQuery, actions.selectSkill)
   const presetItems = createPresetItems(wagglePresets, lowerQuery, actions.selectPreset)
@@ -95,6 +98,7 @@ export function useCommandPaletteItems({
   if (filter === 'waggle') return [...presetItems, ...configureWaggleItems]
 
   return [
+    ...createBuiltInCommandItems(lowerQuery, insertCommandText),
     ...skillItems,
     ...presetItems,
     ...createExtensionSlashCommandItems({

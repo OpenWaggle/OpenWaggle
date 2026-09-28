@@ -5,12 +5,12 @@ import { setComposerTextValue } from '@/features/chat/lib'
 import { Button } from '@/shared/ui/Button'
 import { StructuredPayload } from '@/shared/ui/StructuredPayload'
 import { useMcpAppBridge } from './mcp-app-bridge'
+import { mcpAppDraftJson } from './mcp-app-draft-text'
 import { useMcpAppResource } from './use-mcp-app-resource'
 
 const MIN_FRAME_HEIGHT = 160
 const MAX_FRAME_HEIGHT = 800
 const INITIAL_FRAME_HEIGHT = 320
-const JSON_INDENT_SPACES = 2
 const EMPTY_ARGUMENTS: Readonly<Record<string, McpJsonValue>> = {}
 
 export function McpAppHost({
@@ -110,7 +110,7 @@ export function McpAppHost({
             <Button
               onClick={() =>
                 setComposerTextValue(
-                  `MCP App context from ${descriptor.serverLabel}\n\n${JSON.stringify(stagedContext, null, JSON_INDENT_SPACES)}`,
+                  `MCP App context from ${descriptor.serverLabel}\n\n${mcpAppDraftJson(stagedContext)}`,
                 )
               }
             >

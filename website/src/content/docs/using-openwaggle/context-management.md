@@ -17,7 +17,7 @@ Usage comes from the runtime's context-usage snapshot, not a live estimate of ea
 
 ## Manual compaction
 
-To compact before continuing a long task, wait until the agent is idle, type this in the message box, and send it:
+To compact before continuing a long task, wait until the agent is idle, type this in the message box (or pick **Compact session** from the `/` menu), and send it:
 
 ```text
 /compact

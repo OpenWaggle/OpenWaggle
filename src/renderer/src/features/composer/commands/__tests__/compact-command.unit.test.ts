@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { compactCommandText, parseCompactCommand } from '../compact-command'
+import { parseCompactCommand } from '../compact-command'
 
 describe('compact command parsing', () => {
   it('accepts the bare /compact command', () => {
@@ -21,10 +21,5 @@ describe('compact command parsing', () => {
   it('rejects lookalike commands', () => {
     expect(parseCompactCommand('/compactly')).toBeNull()
     expect(parseCompactCommand('please /compact')).toBeNull()
-  })
-
-  it('formats the command text with optional instructions', () => {
-    expect(compactCommandText()).toBe('/compact')
-    expect(compactCommandText(' keep migration findings ')).toBe('/compact keep migration findings')
   })
 })

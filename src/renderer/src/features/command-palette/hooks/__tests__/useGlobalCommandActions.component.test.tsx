@@ -77,6 +77,20 @@ describe('useGlobalCommandActions', () => {
     expect(mocks.showToast).toHaveBeenCalledWith('Session compacted.', 'success')
   })
 
+  it('shows the Host reason without Electron transport context when compaction is refused', async () => {
+    mocks.compactSession.mockRejectedValue(
+      new Error(
+        "Error invoking remote method 'agent:compact-session': Error: Nothing to compact (session too small)",
+      ),
+    )
+    const { result } = renderHook(() => useGlobalCommandActions())
+
+    await act(() => result.current.actions.compactSession())
+
+    expect(mocks.showToast).toHaveBeenCalledWith('Nothing to compact (session too small)', 'error')
+    expect(mocks.refreshSession).not.toHaveBeenCalled()
+  })
+
   it('toggles the available active Session Summary from the command surface', () => {
     useSessionSummaryUIStore.getState().syncPanel('session-1', {
       available: true,
