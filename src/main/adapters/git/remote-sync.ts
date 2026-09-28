@@ -12,6 +12,22 @@ export interface RemoteSyncResult {
   readonly message: string
 }
 
+/**
+ * The checked-out branch and the upstream it tracks, read locally without touching the network.
+ * Null for a detached HEAD or a branch with no upstream, where a pull could only fail.
+ */
+export async function resolveTrackedBranch(
+  projectPath: string,
+): Promise<{ readonly branch: string; readonly upstream: string } | null> {
+  const [branch, upstream] = await Promise.all([
+    runGit(projectPath, ['symbolic-ref', '--quiet', '--short', 'HEAD']),
+    runGit(projectPath, ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{upstream}']),
+  ])
+  const branchName = branch.code === 0 ? branch.stdout.trim() : ''
+  const upstreamName = upstream.code === 0 ? upstream.stdout.trim() : ''
+  return branchName && upstreamName ? { branch: branchName, upstream: upstreamName } : null
+}
+
 /** Pull the current branch, refusing anything but a fast-forward so local state is never rewritten. */
 export async function pullCurrentBranchFastForward(
   projectPath: string,

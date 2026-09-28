@@ -71,6 +71,10 @@ export function createWorktreeLaunchRows(input: {
   const sessionId = input.sessionId
   if (!sessionId) return []
   if (input.liveLaunch) {
+    // A finished local launch has nothing left to say; the run it started takes over.
+    if (input.liveLaunch.environment === 'local' && input.liveLaunch.status === 'complete') {
+      return []
+    }
     return [
       {
         type: 'worktree-launch',

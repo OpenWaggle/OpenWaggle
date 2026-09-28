@@ -23,6 +23,7 @@ export function useChatRows(inputs: {
   phase: ReturnType<typeof useStreamingPhase>
   interruptedRun?: SessionInterruptedRun
   worktreeLaunch?: WorktreeLaunchSnapshot | null
+  firstSendPending?: boolean
   compactionStatus?: AgentCompactionStatus | null
   turnDurationsByAnchorMessageId?: ReadonlyMap<string, number>
   expandedTurnKeys?: ReadonlySet<string>
@@ -40,6 +41,7 @@ export function useChatRows(inputs: {
     phase: inputs.phase,
     interruptedRun: inputs.interruptedRun,
     worktreeLaunch: inputs.worktreeLaunch,
+    firstSendPending: inputs.firstSendPending,
     compactionStatus: inputs.compactionStatus,
     turnDurationsByAnchorMessageId: inputs.turnDurationsByAnchorMessageId,
     expandedTurnKeys: inputs.expandedTurnKeys,

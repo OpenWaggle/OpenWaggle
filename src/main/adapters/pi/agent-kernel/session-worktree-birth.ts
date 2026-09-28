@@ -77,10 +77,15 @@ async function recoverRecordedWorktree(input: {
 }) {
   if (!input.existing) return undefined
   if (existsSync(input.existing) && (await isWorktreeOf(input.primaryPath, input.existing))) {
-    input.options.onProgress?.({
-      stage: 'preparing-workspace',
-      details: ['Recovering the session worktree'],
-    })
+    // Every later turn passes here with nothing to do; reporting it flashed a launch card per turn.
+    const reportsRecovery = input.workspace.handoffSeedState === 'pending'
+    if (reportsRecovery) {
+      input.options.onProgress?.({
+        stage: 'preparing-workspace',
+        label: 'Recovering the session worktree',
+        details: ['Recovering the session worktree'],
+      })
+    }
     await applyPendingHandoffSeed(input.primaryPath, input.existing, input.workspace)
     await setSessionWorktree(
       input.session.id,
@@ -96,11 +101,13 @@ async function recoverRecordedWorktree(input: {
       sessionId: String(input.session.id),
       worktreePath: input.existing,
     })
-    input.options.onProgress?.({
-      stage: 'worktree-created',
-      details: ['Recovered the existing session worktree'],
-      worktreePath: input.existing,
-    })
+    if (reportsRecovery) {
+      input.options.onProgress?.({
+        stage: 'worktree-created',
+        details: ['Recovered the existing session worktree'],
+        worktreePath: input.existing,
+      })
+    }
     return input.existing
   }
   logger.warn('Session worktree missing; refusing to run', {
@@ -137,6 +144,7 @@ async function adoptDeterministicWorktree(input: {
   if (await isWorktreeOf(input.primaryPath, input.worktreePath)) {
     input.options.onProgress?.({
       stage: 'preparing-workspace',
+      label: 'Recovering the session worktree',
       details: ['Recovering the session worktree'],
     })
     const branch = input.workspace.worktreeBranch ?? undefined
@@ -185,11 +193,15 @@ async function createSessionWorktree(input: {
   readonly options: SessionWorktreeBirthOptions
 }) {
   await input.options.onBeforeWorktreeCreate?.()
-  const baseRef = await resolveFreshWorktreeBaseRef(
-    input.workspace,
-    input.primaryPath,
-    input.options.signal,
-  )
+  const baseRef = await resolveFreshWorktreeBaseRef(input.workspace, input.primaryPath, {
+    ...(input.options.signal ? { signal: input.options.signal } : {}),
+    onFetch: (base) =>
+      input.options.onProgress?.({
+        stage: 'fetching-base',
+        label: `Pulling latest ${base} from origin`,
+        details: [`Fetching origin/${base}`],
+      }),
+  })
   if (!baseRef) {
     throw new Error(
       'Could not create a worktree for this session: no base branch is resolvable. Select a base branch or switch this session to Local mode.',
@@ -200,6 +212,7 @@ async function createSessionWorktree(input: {
     (await resolveSessionWorktreeBranch(input.primaryPath, input.sessionId))
   input.options.onProgress?.({
     stage: 'checking-out-files',
+    label: `Creating worktree ${branch} from ${baseRef}`,
     details: [`Creating ${branch} from ${baseRef}`],
     worktreePath: input.worktreePath,
     branch,
@@ -283,6 +296,7 @@ async function ensureSessionWorktreeProjectPathUnlocked(
   if (adopted) return adopted
   options.onProgress?.({
     stage: 'preparing-workspace',
+    label: 'Preparing the session worktree',
     details: ['Preparing the session worktree'],
   })
   return createSessionWorktree({

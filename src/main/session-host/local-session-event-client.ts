@@ -3,6 +3,9 @@ import type { Socket } from 'node:net'
 import { decodeUnknownExactOrThrow, Schema } from '@shared/schema'
 import {
   backgroundRunActivityEventsSchema,
+  worktreeLaunchEnvironmentSchema,
+  worktreeLaunchStageSchema,
+  worktreeLaunchStepSchema,
   worktreeSetupActionTerminalSchema,
 } from '@shared/schemas/background-run'
 import { jsonValueSchema } from '@shared/schemas/validation'
@@ -64,15 +67,12 @@ function decodeDegradedSnapshot(value: unknown): BackgroundRunSnapshot['degraded
 
 const worktreeLaunchSnapshotSchema = Schema.Struct({
   status: Schema.Literal('running', 'complete', 'failed'),
-  stage: Schema.Literal(
-    'preparing-workspace',
-    'checking-out-files',
-    'worktree-created',
-    'starting-task',
-  ),
+  stage: worktreeLaunchStageSchema,
   startedAt: Schema.Number,
   updatedAt: Schema.Number,
   details: Schema.Array(Schema.String),
+  environment: Schema.optional(worktreeLaunchEnvironmentSchema),
+  steps: Schema.optional(Schema.Array(worktreeLaunchStepSchema)),
   progressPercentage: Schema.optional(Schema.Number),
   worktreePath: Schema.optional(Schema.String),
   branch: Schema.optional(Schema.String),

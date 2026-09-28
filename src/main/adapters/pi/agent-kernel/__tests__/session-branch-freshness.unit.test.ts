@@ -10,8 +10,15 @@ const {
   isLocalBranchMock,
   localBranchIsBehindRemoteMock,
   pullCurrentBranchFastForwardMock,
+  resolveTrackedBranchMock,
   runGitMock,
 } = vi.hoisted(() => ({
+  resolveTrackedBranchMock: vi.fn(
+    async (_projectPath: string): Promise<{ branch: string; upstream: string } | null> => ({
+      branch: 'main',
+      upstream: 'origin/main',
+    }),
+  ),
   fetchRemoteBranchMock: vi.fn(async (_projectPath: string, _branch: string) => true),
   isLocalBranchMock: vi.fn(async (_projectPath: string, _branch: string) => true),
   localBranchIsBehindRemoteMock: vi.fn(async (_projectPath: string, _branch: string) => false),
@@ -32,6 +39,7 @@ vi.mock('../../../git/remote-sync', () => ({
   isLocalBranch: isLocalBranchMock,
   localBranchIsBehindRemote: localBranchIsBehindRemoteMock,
   pullCurrentBranchFastForward: pullCurrentBranchFastForwardMock,
+  resolveTrackedBranch: resolveTrackedBranchMock,
 }))
 
 const { refreshFirstRunBranch, resolveFreshWorktreeBaseRef } = await import(
@@ -52,6 +60,16 @@ describe('resolveFreshWorktreeBaseRef', () => {
       'origin/main',
     )
     expect(fetchRemoteBranchMock).toHaveBeenCalledWith('/repo', 'main', expect.anything())
+  })
+
+  it('announces the fetch before waiting on the network', async () => {
+    const onFetch = vi.fn()
+    fetchRemoteBranchMock.mockImplementation(async () => {
+      expect(onFetch).toHaveBeenCalledWith('main')
+      return true
+    })
+    await resolveFreshWorktreeBaseRef({ worktreeBaseRef: 'main' }, '/repo', { onFetch })
+    expect(fetchRemoteBranchMock).toHaveBeenCalledOnce()
   })
 
   it('births from origin when start-from-origin is set', async () => {
@@ -127,6 +145,39 @@ describe('refreshFirstRunBranch', () => {
       ok: true,
       message: 'Pulled latest changes.',
     })
+    resolveTrackedBranchMock
+      .mockReset()
+      .mockResolvedValue({ branch: 'main', upstream: 'origin/main' })
+  })
+
+  it('reports the pull as a local launch step before it reaches the network', async () => {
+    const onProgress = vi.fn()
+    pullCurrentBranchFastForwardMock.mockImplementation(async () => {
+      expect(onProgress).toHaveBeenCalledWith({
+        stage: 'syncing-branch',
+        environment: 'local',
+        parallel: true,
+        label: 'Pulling latest changes for main',
+        details: ['Pulling origin/main into main'],
+      })
+      return { ok: true, message: 'Pulled latest changes.' }
+    })
+    await Effect.runPromise(refreshFirstRunBranch(kernelInput({}), '/repo', onProgress))
+    expect(pullCurrentBranchFastForwardMock).toHaveBeenCalledOnce()
+    expect(onProgress).toHaveBeenLastCalledWith({
+      stage: 'syncing-branch',
+      environment: 'local',
+      completesStep: true,
+      details: [],
+    })
+  })
+
+  it('skips the pull, and reports nothing, when the branch tracks no upstream', async () => {
+    resolveTrackedBranchMock.mockResolvedValue(null)
+    const onProgress = vi.fn()
+    await Effect.runPromise(refreshFirstRunBranch(kernelInput({}), '/repo', onProgress))
+    expect(pullCurrentBranchFastForwardMock).not.toHaveBeenCalled()
+    expect(onProgress).not.toHaveBeenCalled()
   })
 
   it('pulls the checked-out branch before the first run of a local-mode conversation', async () => {

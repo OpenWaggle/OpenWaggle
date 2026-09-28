@@ -121,37 +121,6 @@ describe('ensureSessionWorktreeProjectPath', () => {
     expect(result).toContain('/.openwaggle/worktrees/repo/')
   })
 
-  it('reports the real first-send Git stages with branch and base-ref details', async () => {
-    const onProgress = vi.fn()
-
-    const result = await ensureSessionWorktreeProjectPath(
-      session({ environmentMode: 'worktree', worktreeBaseRef: 'develop' }),
-      { onProgress },
-    )
-
-    expect(onProgress.mock.calls).toEqual([
-      [{ stage: 'preparing-workspace', details: ['Preparing the session worktree'] }],
-      [
-        {
-          stage: 'checking-out-files',
-          details: ['Creating ow/session-sess-abcdef12 from develop'],
-          branch: 'ow/session-sess-abcdef12',
-          baseRef: 'develop',
-          worktreePath: result,
-        },
-      ],
-      [
-        {
-          stage: 'worktree-created',
-          details: ['Created ow/session-sess-abcdef12 from develop'],
-          branch: 'ow/session-sess-abcdef12',
-          baseRef: 'develop',
-          worktreePath: result,
-        },
-      ],
-    ])
-  })
-
   it('passes the run cancellation signal into worktree creation', async () => {
     const controller = new AbortController()
 

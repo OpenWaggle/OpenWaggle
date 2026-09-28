@@ -47,7 +47,12 @@ export function StatusRow({
       fallback={
         <CoreStatusIndicator
           text={label}
-          separated={!isRetry && row.type === 'phase-indicator' && row.label !== 'Thinking'}
+          separated={
+            !isRetry &&
+            row.type === 'phase-indicator' &&
+            row.label !== 'Thinking' &&
+            row.label !== 'Starting session'
+          }
         />
       }
       input={{

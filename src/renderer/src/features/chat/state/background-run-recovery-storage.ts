@@ -1,4 +1,9 @@
 import { Schema, safeDecodeUnknown } from '@shared/schema'
+import {
+  worktreeLaunchEnvironmentSchema,
+  worktreeLaunchStageSchema,
+  worktreeLaunchStepSchema,
+} from '@shared/schemas/background-run'
 import { agentSendPayloadSchema, toAgentSendPayload } from '@shared/schemas/validation'
 import { toWaggleConfig, waggleConfigSchema } from '@shared/schemas/waggle'
 import type { WorktreeLaunchSnapshot } from '@shared/types/background-run'
@@ -17,15 +22,12 @@ const setupActionSchema = Schema.Struct({
 
 const worktreeLaunchSchema = Schema.Struct({
   status: Schema.Literal('running', 'complete', 'failed'),
-  stage: Schema.Literal(
-    'preparing-workspace',
-    'checking-out-files',
-    'worktree-created',
-    'starting-task',
-  ),
+  stage: worktreeLaunchStageSchema,
   startedAt: Schema.Number,
   updatedAt: Schema.Number,
   details: Schema.mutable(Schema.Array(Schema.String)),
+  environment: Schema.optional(worktreeLaunchEnvironmentSchema),
+  steps: Schema.optional(Schema.mutable(Schema.Array(worktreeLaunchStepSchema))),
   progressPercentage: Schema.optional(Schema.Number),
   worktreePath: Schema.optional(Schema.String),
   branch: Schema.optional(Schema.String),

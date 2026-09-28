@@ -142,6 +142,9 @@ export function useTranscriptSection(params: TranscriptSectionParams): ChatTrans
   const worktreeLaunch = useBackgroundRunStore((state) =>
     activeSessionId ? (state.worktreeLaunchBySessionId.get(activeSessionId) ?? null) : null,
   )
+  const firstSendPending = useBackgroundRunStore((state) =>
+    activeSessionId ? state.firstSendRecoveryBySessionId.has(activeSessionId) : false,
+  )
   const draftBranch = useSessionStore((state) => state.draftBranch)
   const draftBranchSourceNodeId =
     activeSessionId &&
@@ -200,6 +203,7 @@ export function useTranscriptSection(params: TranscriptSectionParams): ChatTrans
     phase,
     interruptedRun,
     worktreeLaunch,
+    firstSendPending,
     compactionStatus,
     expandedTurnKeys,
     turnDurationsByAnchorMessageId: params.turnDurationsByAnchorMessageId,

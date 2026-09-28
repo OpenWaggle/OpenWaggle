@@ -1,4 +1,8 @@
-import type { WorktreeLaunchProgress, WorktreeLaunchSnapshot } from '@shared/types/background-run'
+import type {
+  WorktreeLaunchProgress,
+  WorktreeLaunchSnapshot,
+  WorktreeLaunchStep,
+} from '@shared/types/background-run'
 import type { SessionId } from '@shared/types/brand'
 import type { AgentPhaseEventPayload } from '@shared/types/phase'
 import type { AgentTransportEvent } from '@shared/types/stream'
@@ -31,19 +35,58 @@ function appendLaunchDetails(existing: readonly string[] | undefined, incoming: 
   return [...new Set([...(existing ?? []), ...incoming])]
 }
 
+const LAUNCH_COMPLETION_STAGES: ReadonlySet<WorktreeLaunchProgress['stage']> = new Set([
+  'worktree-created',
+  'starting-task',
+])
+
+function closeStep(step: WorktreeLaunchStep, now: number): WorktreeLaunchStep {
+  return step.completedAt === undefined ? { ...step, completedAt: now } : step
+}
+
+/**
+ * Fold one progress report into the launch's step list.
+ *
+ * A sequential step closes every open step when it starts, which is how a worktree birth reads:
+ * fetch, then check out. A parallel step leaves the others open, because the local branch sync and
+ * the MCP connections really do wait at the same time. A completion stage closes everything.
+ */
+function nextLaunchSteps(
+  existing: readonly WorktreeLaunchStep[] | undefined,
+  progress: WorktreeLaunchProgress,
+  now: number,
+): readonly WorktreeLaunchStep[] | undefined {
+  const steps = existing ?? []
+  if (LAUNCH_COMPLETION_STAGES.has(progress.stage)) {
+    return steps.length > 0 ? steps.map((step) => closeStep(step, now)) : existing
+  }
+  if (progress.completesStep) {
+    return steps.map((step) => (step.stage === progress.stage ? closeStep(step, now) : step))
+  }
+  if (!progress.label) return existing
+  const open = steps.find((step) => step.stage === progress.stage && step.completedAt === undefined)
+  if (open?.label === progress.label) return steps
+  const settled = progress.parallel ? steps : steps.map((step) => closeStep(step, now))
+  return [...settled, { stage: progress.stage, label: progress.label, startedAt: now }]
+}
+
 function worktreeLaunchProgressSnapshot(
   existing: WorktreeLaunchSnapshot | undefined,
   progress: WorktreeLaunchProgress,
-) {
+): WorktreeLaunchSnapshot {
   const now = Date.now()
+  const { label: _label, parallel: _parallel, completesStep, ...fields } = progress
+  const steps = nextLaunchSteps(existing?.steps, progress, now)
   return {
     ...existing,
-    ...progress,
+    ...fields,
     status: progress.stage === 'starting-task' ? ('complete' as const) : ('running' as const),
-    stage: progress.stage,
+    // Closing a parallel step reports its stage without making it the launch's latest stage.
+    stage: completesStep && existing ? existing.stage : progress.stage,
     startedAt: existing?.startedAt ?? now,
     updatedAt: now,
     details: appendLaunchDetails(existing?.details, progress.details),
+    ...(steps ? { steps } : {}),
   }
 }
 

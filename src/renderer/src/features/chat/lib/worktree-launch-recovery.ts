@@ -43,6 +43,8 @@ function restoreFailedLaunch(
     startedAt: previousLaunch?.startedAt ?? now,
     updatedAt: now,
     details: previousLaunch?.details ?? [],
+    environment: previousLaunch?.environment,
+    steps: previousLaunch?.steps,
     progressPercentage: previousLaunch?.progressPercentage,
     worktreePath: previousLaunch?.worktreePath,
     branch: previousLaunch?.branch,
