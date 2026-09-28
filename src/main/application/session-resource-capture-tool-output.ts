@@ -1,5 +1,6 @@
 import type { ToolCallResult } from '@shared/types/tools'
 import { isRecord } from '@shared/utils/validation'
+import { mcpGatewayResultForCapture } from './session-resource-capture-gateway'
 
 const MAX_ORCHESTRATION_CHILD_TOOLS = 128
 
@@ -50,7 +51,10 @@ function capturedOrchestrationTool(
     canonicalKey: `tool:${normalizedServerId}:${normalizedToolName}`,
     occurrenceKey: `read:tool:${String(toolResult.id)}:child:${String(index)}:${candidate.id}`,
     label: `${normalizedToolName} · ${normalizedServerLabel}`,
-    result: candidate.result ?? null,
+    // A child result is a full MCP gateway result, so its MCP App mirror is dropped the same way.
+    result: isRecord(candidate.result)
+      ? mcpGatewayResultForCapture(candidate.result)
+      : (candidate.result ?? null),
   }
 }
 

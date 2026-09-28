@@ -8,12 +8,12 @@ import {
 import { decodeUnknownOrThrow } from '@shared/schema'
 import { mcpConfigValueSchema } from '@shared/schemas/mcp'
 import type { McpAppDescriptor, McpAppToolCallResult, McpJsonValue } from '@shared/types/mcp'
-import { replaceMcpBinaryPayloads } from '@shared/utils/mcp-binary-payload'
 import { useEffect } from 'react'
 import { setComposerTextValue } from '@/features/chat/lib'
 import { useComposerStore } from '@/features/composer/state'
 import { formatDisplayPathsInText } from '@/shared/lib/display-path'
 import { api } from '@/shared/lib/ipc'
+import { mcpAppDraftText } from './mcp-app-draft-text'
 import type { ParsedMcpAppResource } from './mcp-app-resource'
 
 const JSON_INDENT_SPACES = 2
@@ -25,28 +25,6 @@ function jsonValue(value: unknown): McpJsonValue {
     mcpConfigValueSchema,
     serialized === undefined ? null : JSON.parse(serialized),
   )
-}
-
-function draftJson(value: McpJsonValue) {
-  // Draft text reaches the model verbatim, so binary payloads are replaced by size markers.
-  return JSON.stringify(replaceMcpBinaryPayloads(value), null, JSON_INDENT_SPACES)
-}
-
-function textFromContent(value: McpJsonValue) {
-  if (!Array.isArray(value)) return draftJson(value)
-  const text = value.flatMap((entry) => {
-    if (
-      typeof entry === 'object' &&
-      entry !== null &&
-      !Array.isArray(entry) &&
-      entry.type === 'text' &&
-      typeof entry.text === 'string'
-    ) {
-      return [entry.text]
-    }
-    return []
-  })
-  return text.length > 0 ? text.join('\n\n') : draftJson(value)
 }
 
 function appendToComposerDraft(message: string) {
@@ -151,7 +129,7 @@ function registerServerHandlers(bridge: AppBridge, input: McpAppBridgeInput) {
 
 function registerHostHandlers(bridge: AppBridge, input: McpAppBridgeInput) {
   bridge.onmessage = async ({ content }) => {
-    const message = `MCP App message from ${input.descriptor.serverLabel}\n\n${textFromContent(jsonValue(content))}`
+    const message = `MCP App message from ${input.descriptor.serverLabel}\n\n${mcpAppDraftText(jsonValue(content))}`
     const displayMessage = formatDisplayPathsInText(message, [input.projectPath])
     const confirmed = await api.showConfirm(
       'Add this untrusted MCP App message to your draft?',

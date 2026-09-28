@@ -50,4 +50,36 @@ describe('replaceMcpBinaryPayloads', () => {
     expect(normalizeMcpImageMimeType('image/png')).toBe('image/png')
     expect(normalizeMcpImageMimeType('image/svg+xml')).toBeNull()
   })
+
+  it('accepts an image sent as a data URI and labels non-base64 image data neutrally', () => {
+    const attached: string[] = []
+    const sanitized = replaceMcpBinaryPayloads(
+      [
+        { type: 'image', data: `data:image/webp;base64,${PNG}`, mimeType: 'image/png' },
+        { type: 'image', data: 'https://example.test/shot.png', mimeType: 'image/png' },
+      ],
+      {
+        onImage: ({ data, mimeType }) => {
+          attached.push(`${mimeType}:${data}`)
+          return attached.length
+        },
+      },
+    )
+
+    expect(attached).toEqual([`image/webp:${PNG}`])
+    expect(sanitized).toEqual([
+      { type: 'image', data: '[image #1: image/webp]', mimeType: 'image/png' },
+      { type: 'image', data: '[image data omitted: 29 characters]', mimeType: 'image/png' },
+    ])
+  })
+
+  it('treats upper-case base64 data URI markers and base64url blobs as binary', () => {
+    const blob = 'aB3_-9Zz'.repeat(600)
+    expect(replaceMcpBinaryPayloads(`see DATA:IMAGE/PNG;BASE64,${PNG} now`)).toBe(
+      `see [image/png data URI omitted: ${String(`DATA:IMAGE/PNG;BASE64,${PNG}`.length)} characters] now`,
+    )
+    expect(replaceMcpBinaryPayloads(blob)).toBe(
+      `[base64 data omitted: ${String(blob.length)} base64 characters]`,
+    )
+  })
 })

@@ -35,7 +35,7 @@ describe('MCP tool result binary normalization', () => {
   })
 
   it('removes data URIs and opaque base64 strings from structured MCP content', async () => {
-    const opaque = 'QUJD'.repeat(2_000)
+    const opaque = 'aB3+'.repeat(1_500)
     const callResult: McpGatewayResult = {
       operation: 'call',
       text: 'MCP tool completed.',
@@ -43,6 +43,7 @@ describe('MCP tool result binary normalization', () => {
         preview: 'Rendered data:image/png;base64,iVBORw0KGgoAAAANSUhEUg== inline',
         trace: opaque,
         pageId: 'page-1',
+        sequence: 'ACGT'.repeat(1_500),
       },
       attribution: ATTRIBUTION,
     }
@@ -58,8 +59,11 @@ describe('MCP tool result binary normalization', () => {
     expect(text).not.toContain('iVBORw0KGgoAAAANSUhEUg')
     expect(text).not.toContain(opaque.slice(0, 64))
     expect(text).toContain('Rendered [image/png data URI omitted:')
+    expect(text).toContain('characters] inline')
     expect(text).toContain(`[base64 data omitted: ${String(opaque.length)} base64 characters]`)
     expect(text).toContain('"pageId":"page-1"')
+    // Long single-case sequences such as DNA are data the model needs, not base64.
+    expect(text).toContain('ACGT'.repeat(1_500))
   })
 
   it('keeps MCP error results flagged as errors', async () => {

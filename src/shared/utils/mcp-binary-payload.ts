@@ -23,9 +23,22 @@ export interface McpBinaryPayloadOptions {
 }
 
 const BASE64_PAYLOAD_PATTERN = /^[A-Za-z0-9+/]+={0,2}$/
+const BASE64URL_PAYLOAD_PATTERN = /^[A-Za-z0-9_-]+={0,2}$/
 const BASE64_WHITESPACE_PATTERN = /\s+/g
-const DATA_URI_PATTERN = /data:([a-z]+\/[a-z0-9.+-]+)(?:;[a-z0-9=.-]+)*;base64,[A-Za-z0-9+/=\s]+/gi
-/** A string this long made only of base64 characters is binary data, not prose or an identifier. */
+const BASE64_LINE_BREAK_PATTERN = /\r?\n/g
+/** The payload may wrap across lines, but stops at the first space so following prose survives. */
+const DATA_URI_PATTERN =
+  /data:([a-z]+\/[a-z0-9.+-]+)(?:;[a-z0-9=.-]+)*;base64,[A-Za-z0-9+/]+(?:\r?\n[A-Za-z0-9+/]+)*={0,2}/gi
+const DATA_URI_MARKER_PATTERN = /;base64,/i
+const IMAGE_DATA_URI_PREFIX_PATTERN = /^data:([a-z]+\/[a-z0-9.+-]+)(?:;[a-z0-9=.-]+)*;base64,/i
+const BASE64_QUANTUM = 4
+const UPPERCASE_PATTERN = /[A-Z]/
+const LOWERCASE_PATTERN = /[a-z]/
+const DIGIT_PATTERN = /[0-9]/
+/**
+ * A string this long that decodes as base64 is binary data, not prose or an identifier. Mixed case
+ * plus digits keeps long single-case sequences (DNA, hex dumps) from being mistaken for base64.
+ */
 const MIN_OPAQUE_BASE64_CHARACTERS = 4_096
 
 /** Mirrors Pi's `normalizeSupportedImageMimeType`; providers reject any other inline format. */
@@ -41,12 +54,20 @@ function omittedMarker(kind: string, characters: number) {
 }
 
 function isOpaqueBase64(value: string) {
-  return value.length >= MIN_OPAQUE_BASE64_CHARACTERS && BASE64_PAYLOAD_PATTERN.test(value)
+  if (value.length < MIN_OPAQUE_BASE64_CHARACTERS) return false
+  const payload = value.replace(BASE64_LINE_BREAK_PATTERN, '')
+  return (
+    payload.length % BASE64_QUANTUM === 0 &&
+    (BASE64_PAYLOAD_PATTERN.test(payload) || BASE64URL_PAYLOAD_PATTERN.test(payload)) &&
+    UPPERCASE_PATTERN.test(payload) &&
+    LOWERCASE_PATTERN.test(payload) &&
+    DIGIT_PATTERN.test(payload)
+  )
 }
 
 function replaceStringPayloads(value: string) {
   if (isOpaqueBase64(value)) return omittedMarker('base64', value.length)
-  if (!value.includes(';base64,')) return value
+  if (!DATA_URI_MARKER_PATTERN.test(value)) return value
   return value.replace(
     DATA_URI_PATTERN,
     (dataUri, mimeType: string) =>
@@ -59,13 +80,25 @@ interface ImageState {
   readonly onImage: McpBinaryPayloadOptions['onImage']
 }
 
-function imageMarker(data: string, mimeType: unknown, state: ImageState) {
-  const normalizedMimeType =
-    typeof mimeType === 'string' ? normalizeMcpImageMimeType(mimeType) : null
-  const payload = data.replace(BASE64_WHITESPACE_PATTERN, '')
-  if (!normalizedMimeType || payload.length === 0 || !BASE64_PAYLOAD_PATTERN.test(payload)) {
-    return omittedMarker('image', data.length)
+/** Some servers send a data URI instead of bare base64; its MIME type then wins. */
+function imagePayload(data: string, mimeType: unknown) {
+  const dataUri = IMAGE_DATA_URI_PREFIX_PATTERN.exec(data)
+  const declaredMimeType = dataUri?.[1] ?? (typeof mimeType === 'string' ? mimeType : null)
+  return {
+    mimeType: declaredMimeType ? normalizeMcpImageMimeType(declaredMimeType) : null,
+    payload: (dataUri ? data.slice(dataUri[0].length) : data).replace(
+      BASE64_WHITESPACE_PATTERN,
+      '',
+    ),
   }
+}
+
+function imageMarker(data: string, mimeType: unknown, state: ImageState) {
+  const { mimeType: normalizedMimeType, payload } = imagePayload(data, mimeType)
+  if (payload.length === 0 || !BASE64_PAYLOAD_PATTERN.test(payload)) {
+    return `[image data omitted: ${String(data.length)} characters]`
+  }
+  if (!normalizedMimeType) return omittedMarker('image', data.length)
   if (!state.numbers.has(payload)) {
     state.numbers.set(
       payload,

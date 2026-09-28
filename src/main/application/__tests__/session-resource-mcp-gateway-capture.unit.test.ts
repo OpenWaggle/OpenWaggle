@@ -94,4 +94,43 @@ describe('MCP gateway Session Resource capture', () => {
 
     expect(images).toHaveLength(1)
   })
+
+  it('does not catalog the MCP App mirror of an mcp_run child twice', async () => {
+    const upserts: UpsertSessionResourceInput[] = []
+    await Effect.runPromise(
+      captureSuccessfulRunResources({
+        sessionId: SessionId('session-1'),
+        runId: 'run-mcp-orchestration',
+        payload: { text: '', thinkingLevel: 'medium', attachments: [] },
+        messages: [
+          assistantToolResultMessage(false, {
+            name: 'mcp_run',
+            details: {
+              kind: 'orchestration',
+              result: [
+                {
+                  id: 'shot',
+                  handle: 'opaque-shot',
+                  status: 'completed',
+                  provenance: { handle: 'opaque-shot', ...ATTRIBUTION },
+                  result: {
+                    operation: 'call',
+                    text: 'MCP tool completed.',
+                    result: [screenshot()],
+                    attribution: ATTRIBUTION,
+                    app: {
+                      descriptor: { resourceUri: 'ui://screenshot' },
+                      toolResult: { content: [screenshot()], isError: false },
+                    },
+                  },
+                },
+              ],
+            },
+          }),
+        ],
+      }).pipe(Effect.provide(sessionResourceTestLayer(upserts))),
+    )
+
+    expect(upserts.filter((resource) => resource.kind === 'image')).toHaveLength(1)
+  })
 })

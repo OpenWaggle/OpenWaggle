@@ -5,13 +5,17 @@ import { isRecord } from '@shared/utils/validation'
  * The MCP copy of a gateway result, cataloged once. An MCP App result mirrors the tool's content
  * blocks, so that copy is kept only when the gateway result exposes structured content instead.
  */
-function gatewayDetailsPayload(value: unknown) {
-  if (!isRecord(value) || value.kind !== 'gateway' || !isRecord(value.result)) return null
-  const { app, ...result } = value.result
+export function mcpGatewayResultForCapture(gatewayResult: Readonly<Record<string, unknown>>) {
+  const { app, ...result } = gatewayResult
   const appToolResult = isRecord(app) && isRecord(app.toolResult) ? app.toolResult : null
   return appToolResult && appToolResult.structuredContent !== undefined
-    ? { ...value, result: { ...result, appContent: appToolResult.content } }
-    : { ...value, result }
+    ? { ...result, appContent: appToolResult.content }
+    : result
+}
+
+function gatewayDetailsPayload(value: unknown) {
+  if (!isRecord(value) || value.kind !== 'gateway' || !isRecord(value.result)) return null
+  return { ...value, result: mcpGatewayResultForCapture(value.result) }
 }
 
 /**
