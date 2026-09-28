@@ -9,6 +9,7 @@ import {
   invalidateProjectAuthorizationDefault,
   usePreferencesStore,
 } from '@/features/settings/state'
+import { persistProjectPreference } from '@/features/settings/state/project-preference-writes'
 import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
 import { Button } from '@/shared/ui/Button'
@@ -176,8 +177,9 @@ export function AgentAccessSection({
 
     setModeError(null)
     setSavingProject(true)
-    api
-      .setProjectPreferences(projectPath, { authorizationMode: mode })
+    // Routed through the tracked writer so a concurrent model removal waits for this write
+    // instead of being overtaken by its legacy migration.
+    persistProjectPreference(projectPath, { authorizationMode: mode })
       .then(() => {
         projectAuthorization.setMode(mode)
         // The composer names the mode in force for inheriting sessions, so it has to be told the

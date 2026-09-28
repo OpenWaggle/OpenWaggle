@@ -1,6 +1,6 @@
 import { SessionId, SupportedModelId } from '@shared/types/brand'
 import type { LocalSessionCommandPayload } from '@shared/types/local-session-protocol'
-import { fromAny } from '@total-typescript/shoehorn'
+import { fromAny, fromPartial } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -17,7 +17,9 @@ const {
   prepareMock,
   requestHostDrainMock,
   settleMock,
+  sessionDetailMock,
 } = vi.hoisted(() => ({
+  sessionDetailMock: vi.fn(),
   acquireLeaseMock: vi.fn(),
   activateMock: vi.fn(),
   attachmentCleanupMock: vi.fn(),
@@ -54,6 +56,7 @@ vi.mock('../../session-host/session-host-events', () => ({
 
 import { ExplicitWaggleOperationJournal } from '../../ports/explicit-waggle-operation-journal'
 import { SessionControlAttachmentService } from '../../ports/session-control-attachment-service'
+import { SessionProjectionRepository } from '../../ports/session-projection-repository'
 import {
   activeWaggleRuns,
   cancelAllSessionRuns,
@@ -75,6 +78,9 @@ const attachmentService = SessionControlAttachmentService.of({
   resolve: attachmentResolveMock,
   release: () => Effect.die('unused'),
 })
+const sessionProjection = SessionProjectionRepository.of(
+  fromPartial({ getOptional: (id: SessionId) => sessionDetailMock(id) }),
+)
 const operationJournal = ExplicitWaggleOperationJournal.of({
   claim: journalClaimMock,
   complete: journalCompleteMock,
@@ -123,6 +129,7 @@ function runWaggleCommand(withAttachment = false, hostRunCeiling?: number) {
   }).pipe(
     Effect.provideService(SessionControlAttachmentService, attachmentService),
     Effect.provideService(ExplicitWaggleOperationJournal, operationJournal),
+    Effect.provideService(SessionProjectionRepository, sessionProjection),
   )
   return Effect.runPromise(fromAny<Effect.Effect<unknown, Error, never>, unknown>(effect))
 }
@@ -147,6 +154,7 @@ describe('explicit Waggle command cleanup and admission races', () => {
       .mockReset()
       .mockReturnValue(Effect.succeed({ accepted: true, stateRevision: 2, intent: {} }))
     requestHostDrainMock.mockReset()
+    sessionDetailMock.mockReset().mockReturnValue(Effect.succeed(null))
     settleMock.mockReset().mockReturnValue(Effect.succeed({ accepted: true, stateRevision: 4 }))
   })
 

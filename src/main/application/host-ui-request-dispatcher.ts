@@ -12,29 +12,18 @@ import {
 } from './host-ui-agent-definition-dispatcher'
 import { getHostUiAgentContextUsage, listHostUiActiveActivities } from './host-ui-agent-operation'
 import { discoverHostUiDocs } from './host-ui-docs-operation'
-import {
-  acceptHostUiExtensionUpdate,
-  applyHostUiExtensionPackageRemove,
-  applyHostUiExtensionPackageWrite,
-  approveHostUiExtensionBuild,
-  authorizeHostUiExtensionRuntimeModule,
-  invokeHostUiExtension,
-  listHostUiExtensionContributions,
-  listHostUiExtensionPackages,
-  proposeHostUiExtensionPackageRemove,
-  proposeHostUiExtensionPackageWrite,
-  reloadHostUiExtension,
-  setHostUiExtensionEnabled,
-  setHostUiExtensionProjectDisabled,
-  setHostUiExtensionTrusted,
-} from './host-ui-extension-operations'
+import { dispatchHostUiExtensionOperation } from './host-ui-extension-dispatcher'
 import * as McpHostUi from './host-ui-mcp-operation-dispatcher'
 import {
   hostUiStringValue,
   invalidHostUiInput,
+  oneInput,
+  oneOrTwoInputs,
   optionalHostUiProjectPath,
   requiredHostUiString,
   requireHostUiArgCount,
+  TWO_ARGUMENTS,
+  twoInputs,
 } from './host-ui-operation-validation'
 import { getHostUiProviderModels } from './host-ui-provider-operation'
 import { raceHostUiRequestWithSignal } from './host-ui-request-cancellation'
@@ -49,7 +38,11 @@ import {
   grantProjectAuthorizationOperation,
   revokeProjectAuthorizationOperation,
 } from './project-authorization-grant-operation'
-import { setProjectPreferencesOperation } from './project-preferences-operation'
+import { removeProjectModelOperation } from './project-model-removal-operation'
+import {
+  getProjectPreferencesOperation,
+  setProjectPreferencesOperation,
+} from './project-preferences-operation'
 import {
   getSettingsOperation,
   setEnabledModelsOperation,
@@ -58,30 +51,13 @@ import {
 } from './settings-operations'
 import { authorizeHostUiWorkspaceProject } from './workspace-project-authorization'
 
-const TWO_ARGUMENTS = 2
 const THREE_ARGUMENTS = 3
 const HOST_UI_REVISION_11 = 11
-
-function oneInput<A, E, R>(
-  args: readonly unknown[],
-  operation: (input: unknown) => Effect.Effect<A, E, R>,
-) {
-  return Effect.gen(function* () {
-    yield* requireHostUiArgCount(args, 1)
-    return yield* operation(args[0])
-  })
-}
 
 function isSettingsChannel(
   channel: HostBackedGuiChannel,
 ): channel is Extract<HostBackedGuiChannel, `settings:${string}`> {
   return channel.startsWith('settings:')
-}
-
-function isExtensionChannel(
-  channel: HostBackedGuiChannel,
-): channel is Extract<HostBackedGuiChannel, `extensions:${string}`> {
-  return channel.startsWith('extensions:')
 }
 
 function isSkillsChannel(
@@ -115,51 +91,10 @@ function dispatchSettingsOperation(
     .exhaustive()
 }
 
-function dispatchExtensionOperation(
-  channel: Extract<HostBackedGuiChannel, `extensions:${string}`>,
-  args: readonly unknown[],
-) {
-  return match(channel)
-    .with('extensions:list-packages', () =>
-      Effect.gen(function* () {
-        yield* requireHostUiArgCount(args, 0, 1)
-        return yield* listHostUiExtensionPackages(args[0])
-      }),
-    )
-    .with('extensions:list-contributions', () =>
-      Effect.gen(function* () {
-        yield* requireHostUiArgCount(args, 0, 1)
-        return yield* listHostUiExtensionContributions(args[0])
-      }),
-    )
-    .with('extensions:propose-package-write', () =>
-      oneInput(args, proposeHostUiExtensionPackageWrite),
-    )
-    .with('extensions:apply-package-write', () => oneInput(args, applyHostUiExtensionPackageWrite))
-    .with('extensions:propose-package-remove', () =>
-      oneInput(args, proposeHostUiExtensionPackageRemove),
-    )
-    .with('extensions:apply-package-remove', () =>
-      oneInput(args, applyHostUiExtensionPackageRemove),
-    )
-    .with('extensions:invoke', () =>
-      Effect.gen(function* () {
-        yield* requireHostUiArgCount(args, 1, TWO_ARGUMENTS)
-        return yield* invokeHostUiExtension(args[0], args[1])
-      }),
-    )
-    .with('extensions:set-trusted', () => oneInput(args, setHostUiExtensionTrusted))
-    .with('extensions:set-enabled', () => oneInput(args, setHostUiExtensionEnabled))
-    .with('extensions:set-project-disabled', () =>
-      oneInput(args, setHostUiExtensionProjectDisabled),
-    )
-    .with('extensions:accept-update', () => oneInput(args, acceptHostUiExtensionUpdate))
-    .with('extensions:approve-build', () => oneInput(args, approveHostUiExtensionBuild))
-    .with('extensions:reload', () => oneInput(args, reloadHostUiExtension))
-    .with('extensions:authorize-runtime-module', () =>
-      oneInput(args, authorizeHostUiExtensionRuntimeModule),
-    )
-    .exhaustive()
+function isExtensionChannel(
+  channel: HostBackedGuiChannel,
+): channel is Extract<HostBackedGuiChannel, `extensions:${string}`> {
+  return channel.startsWith('extensions:')
 }
 
 function dispatchHostUiChannel(
@@ -185,7 +120,7 @@ function dispatchHostUiChannel(
     return dispatchSettingsOperation(channel, args)
   }
   if (isExtensionChannel(channel)) {
-    return dispatchExtensionOperation(channel, args)
+    return dispatchHostUiExtensionOperation(channel, args)
   }
   if (isSkillsChannel(channel)) {
     return dispatchHostUiSkillsOperation(channel, args)
@@ -221,12 +156,11 @@ function dispatchHostUiChannel(
         return yield* getHostUiProviderModels(yield* optionalHostUiProjectPath(args[0]))
       }),
     )
-    .with('project-config:set-preferences', () =>
-      Effect.gen(function* () {
-        yield* requireHostUiArgCount(args, TWO_ARGUMENTS)
-        return yield* setProjectPreferencesOperation(args[0], args[1])
-      }),
+    .with('project-config:set-preferences', () => twoInputs(args, setProjectPreferencesOperation))
+    .with('project-config:remove-project-model', () =>
+      oneOrTwoInputs(args, removeProjectModelOperation),
     )
+    .with('project-config:get-preferences', () => oneInput(args, getProjectPreferencesOperation))
     .with('authorization-grants:grant', () =>
       Effect.gen(function* () {
         yield* requireHostUiArgCount(args, TWO_ARGUMENTS)

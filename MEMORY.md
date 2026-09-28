@@ -78,6 +78,7 @@ Load `.agents/skills/pi-integration/SKILL.md` for details.
 - The owning Session Host is also the authority for MCP configuration, pooled connection status, capability browsing, Tasks, Events, secrets, logout, and interactive OAuth. GUI and CLI clients route every MCP mutation through Host-backed operations; OAuth may open the browser from the detached Electron Host, but resolving the server definition, committing credentials, and reconciling clients stay under one owner-process writer lease. Expanding Host-backed MCP channels requires a new Local Session protocol revision so an older detached Host is upgraded before the GUI sends a channel it cannot decode.
 - MCP credential or configuration reconciliation must not interrupt an active turn, but it must mark every active runtime namespace for deferred invalidation. Close those connections immediately after turn completion so the next turn reconnects; preserving them merely because the config-derived snapshot revision is unchanged can reuse revoked credentials indefinitely. Management reads hold a reader lease until external MCP work actually settles, connection-closing tombstones outlive cancelled callers, and Session calls must match the authoritative snapshot identity established at lifecycle boundaries. MCP App calls and resource discovery additionally bind to the server config hash captured in the App descriptor so approval cannot retarget after configuration replacement.
 - Runtime OAuth refresh, explicit authorization, and logout share a per-server generation authority. Logout advances a revocation tombstone before its serialized vault removal, so a refresh already committing is removed afterward and an older provider cannot recreate credentials. Interactive authorization owns the next generation and cancellation must abort the callback listener and network exchange before releasing the MCP management writer.
+- Never serialize MCP binary payloads into model-facing tool text. Base64 tokenizes at ~1.6 characters per token, so one Chrome DevTools screenshot (433,816 characters) added ~271k tokens and overflowed a 458,752-token window in a single tool step; Pi's chars/4 estimate predicted only ~108k, so the pre-sampling threshold could not catch it. MCP tool results forward images as native Pi image content (bounded per result, numbered markers in the text; Pi downgrades them for text-only models) and replace audio, blob, data-URI, and opaque base64 data with size markers (`src/shared/utils/mcp-binary-payload.ts`, also used for MCP App draft text). `details` keeps the complete result for attribution, MCP Apps, and the UI; Session Resource capture scans only that MCP copy so a screenshot is cataloged once.
 
 ## Electron Runtime Memory
 
@@ -309,7 +310,7 @@ Recording is a main/renderer protocol, not merely a `desktopCapturer` grant: suc
 - Before changing composer draft ownership, flush pending Lexical updates with `editor.read()` and then read the composer store. Lexical batches edits, so a workspace hydration or session switch can otherwise snapshot stale store text and overwrite the newest edit. Regression coverage must use a real editor with an update pending during hydration, clearing, and session switching, not just direct store writes.
 - Native resize tests must establish their input precondition and await the renderer's responsive state, not just `BrowserWindow.setContentSize()`, which returns before ResizeObserver runs. Hidden iframe pointer delivery can miss on macOS as well as Linux/Windows: non-privileged tab tests use delegated DOM clicks while host follow-ups retain trusted keyboard activation. CI preserves Playwright reports even when retries make the job green.
 - Session-selection E2E readiness must match the mounted route surface's Session ID to the selected sidebar row, not just the header title and composer visibility. Sidebar selection updates the store before routing commits, so the outgoing surface can briefly show the new title/transcript before its lazy route replacement. Workspace hydration remains an independent boundary and must not be awaited by the shared navigation helper (delayed-hydration tests intentionally hold it).
-- Manual compaction mirrors Pi TUI slash-command UX: `/compact` and `/compact <custom instructions>`, not context-meter-triggered compaction.
+- Manual compaction mirrors Pi TUI slash-command UX: `/compact` and `/compact <custom instructions>`, not context-meter-triggered compaction. The `/` chooser lists the GUI-only built-ins (`/compact`, `/fork`, `/clone`) first, matched by command name; Enter submits a built-in only when it is the whole draft, otherwise Enter/Tab/click completes it. Without that, a skill whose description merely mentioned "compact" captured Enter and manual compaction was unreachable.
 - Provider auth UI is method-based. Keep provider-level availability separate from API-key configured state and OAuth connected state.
 - Compact composer interactions stay in-row unless the maintainer explicitly asks for a larger workflow.
 - Responsive composer toolbars reserve a non-shrinking primary-action group for voice, stop, and send. Secondary controls compact at the composer container boundary; they must never push the send action outside the composer.
@@ -399,6 +400,20 @@ Recording is a main/renderer protocol, not merely a `desktopCapturer` grant: suc
 - Do not rely on the browser repainting `<option>` text before a native select popup opens. The popup
   is drawn outside the DOM, so neither jsdom nor Playwright can observe what it shows, and a lost race
   can render two options with identical text. Use one label vocabulary instead.
+- The selected model is app-DB state, never repo state. `.openwaggle/settings.json` lives inside the
+  user's repository, so a personal model pick committed there leaks machine-specific provider config;
+  it is stored as `selectedModelsByProject` in the SQLite `settings_store` instead, and the project
+  file writer strips any legacy `preferences.model` on write. `thinkingLevel` and `authorizationMode`
+  stay repo-local by design.
+- A Session's model lives in its execution profile (`session_execution_profiles.profile_json` `$.modelId`)
+  and changes only through the Host-owned `sessions:set-model` channel. Classic and Waggle Runs read it
+  once at Run start, so a mid-turn switch reaches only the next Run, including queued follow-ups. The
+  renderer records each Run's model from `agent_start.model` (`runModelBySessionId`) to explain the pending
+  pick above the composer and keep the context meter on the running model. That map survives an
+  `agent_end` with `willRetry` (the Run continues on the same model through the auto-retry wait) and is
+  cleared on a terminal `agent_end`, a failed or cancelled `auto_retry_end`, or run completion. Sends and enqueues await
+  `settledSessionModelWrites` first, because the Host, not the send payload, picks the model. A Session
+  pick never rewrites the project's preferred model for new Sessions.
 
 ## Tooling Memory
 

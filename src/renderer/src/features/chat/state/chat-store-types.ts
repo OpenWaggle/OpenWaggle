@@ -30,6 +30,11 @@ export interface ChatState {
     id: SessionId,
     authorizationMode: AgentAuthorizationMode | null,
   ) => Promise<void>
+  /**
+   * Switches the model the Session's next Run uses. A Run that is already streaming keeps its model;
+   * the pick is durable at once and applies to the next prompt, including queued follow-ups.
+   */
+  setSessionModel: (id: SessionId, model: SupportedModelId) => Promise<void>
   upsertSession: (session: SessionDetail) => void
   deleteSession: (id: SessionId) => Promise<void>
   updateSessionTitle: (id: SessionId, title: string) => void

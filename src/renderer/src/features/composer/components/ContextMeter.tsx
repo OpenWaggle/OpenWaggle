@@ -13,7 +13,10 @@ import { ContextMeterRing } from './ContextMeterRing'
 export function ContextMeter() {
   const activeSessionId = useChatStore((s) => s.activeSessionId)
   const activeSession = useChatStore((s) => s.activeSession)
-  const selectedModel = useComposerModel().model
+  const composerModel = useComposerModel()
+  // A streaming turn keeps reporting usage for the model it started with; the meter follows that
+  // model until the turn ends so a mid-turn switch never mixes one model's usage with another's window.
+  const selectedModel = composerModel.runningModel ?? composerModel.model
   const providerModels = useProviderStore((s) => s.providerModels)
   const fallbackContextWindow = findContextWindow(providerModels, selectedModel)
   const requestKey = buildContextUsageRequestKey(

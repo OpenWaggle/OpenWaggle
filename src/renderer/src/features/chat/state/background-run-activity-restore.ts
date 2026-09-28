@@ -6,6 +6,7 @@ import type {
 import type { SessionId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
 import type { AgentCompactionStatus } from '@/features/chat/lib/compaction-lifecycle'
+import { api } from '@/shared/lib/ipc'
 import { applyCompactionSnapshotEvent } from './background-run-compaction'
 
 interface RunRenderSnapshot {
@@ -97,4 +98,15 @@ export function restoreCompactionSnapshots(
     })
   }
   return snapshots
+}
+
+export async function loadActiveActivityState() {
+  const activities = await api.listActiveRuns()
+  const runs = activities.filter(isAgentRun)
+  return {
+    ids: new Set<SessionId>(activities.map((activity) => activity.sessionId)),
+    runs,
+    compactions: activities.filter(isActiveCompaction),
+    snapshots: await Promise.all(runs.map((run) => api.getBackgroundRun(run.sessionId))),
+  }
 }

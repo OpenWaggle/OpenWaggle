@@ -8,6 +8,7 @@ import { useComposerStore } from '@/features/composer/state'
 import { isSelectableModel, useProviderStore } from '@/features/providers/state'
 import { usePreferencesStore } from '@/features/settings/state'
 import { api } from '@/shared/lib/ipc'
+import { ipcErrorMessage } from '@/shared/lib/ipc-error-message'
 import { setComposerTextValue } from '../lib/composer-text'
 import { getVisibleForkTargets, type SessionForkTarget } from '../lib/session-fork-targets'
 
@@ -25,10 +26,6 @@ interface SessionCopyWorkflowParams {
   readonly refreshSession: (sessionId: SessionId) => Promise<void>
   readonly refreshSessionWorkspace: (sessionId: SessionId | null) => Promise<void>
   readonly showToast: (message: string) => void
-}
-
-function copyErrorMessage(error: unknown) {
-  return error instanceof Error ? error.message : String(error)
 }
 
 function routeToCopiedSession(params: SessionCopyWorkflowParams, sessionId: SessionId) {
@@ -87,7 +84,7 @@ async function forkMessageToNewSessionAction(params: SessionCopyWorkflowParams, 
     useChatStore.getState().upsertSession(result.session)
     await activateCopiedSession(params, result.session.id, result.editorText ?? '')
   } catch (error) {
-    params.showToast(`Failed to fork session: ${copyErrorMessage(error)}`)
+    params.showToast(`Failed to fork session: ${ipcErrorMessage(error)}`)
   }
 }
 
@@ -124,7 +121,7 @@ async function cloneCurrentSessionToNewSessionAction(params: SessionCopyWorkflow
     useChatStore.getState().upsertSession(result.session)
     await activateCopiedSession(params, result.session.id, '')
   } catch (error) {
-    params.showToast(`Failed to clone session: ${copyErrorMessage(error)}`)
+    params.showToast(`Failed to clone session: ${ipcErrorMessage(error)}`)
   }
 }
 

@@ -15,6 +15,7 @@ import {
   isGuiOnlyComposerCommand,
 } from '@/features/composer/commands'
 import { api } from '@/shared/lib/ipc'
+import { settledSessionModelWrites } from '../state/session-model-writes'
 
 export interface SessionFollowUpQueueItem {
   readonly id: string
@@ -169,6 +170,9 @@ export function useSessionFollowUpQueue(sessionId: SessionId | null) {
     if (isGuiOnlyComposerCommand(payload.text)) {
       throw new Error(GUI_COMMAND_REQUIRES_IDLE_MESSAGE)
     }
+    // A queued follow-up runs with the Session model current when its Run starts; store a pick made
+    // just before queueing first so the follow-up cannot start ahead of it.
+    await settledSessionModelWrites(sessionId)
     await mutate({
       operation: 'follow-up',
       sessionId,

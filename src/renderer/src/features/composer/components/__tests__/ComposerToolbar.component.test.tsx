@@ -1,4 +1,4 @@
-import { SessionId, SupportedModelId } from '@shared/types/brand'
+import { SupportedModelId } from '@shared/types/brand'
 import type { ProviderInfo } from '@shared/types/llm'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import { fireEvent, render, screen } from '@testing-library/react'
@@ -8,7 +8,6 @@ import { useComposerStore } from '@/features/composer/state/composer-store'
 import { useProviderStore } from '@/features/providers/state'
 import { usePreferencesStore } from '@/features/settings/state'
 import { Button } from '@/shared/ui/Button'
-import { ComposerModelPicker } from '../ComposerModelPicker'
 import { ComposerToolbar } from '../ComposerToolbar'
 
 vi.mock('@/shared/lib/ipc', () => ({
@@ -110,30 +109,6 @@ describe('ComposerToolbar', () => {
     fireEvent.click(voice)
     expect(screen.queryByRole('menuitem', { name: /Attach files/ })).not.toBeInTheDocument()
     expect(onToggleVoice).not.toHaveBeenCalled()
-  })
-
-  it('shows and locks the persisted execution model for an existing Session', () => {
-    const executionModel = SupportedModelId('anthropic/claude-sonnet-4-5')
-    useChatStore.setState({
-      activeSessionId: SessionId('session-frozen-model'),
-      activeSession: {
-        id: SessionId('session-frozen-model'),
-        title: 'Frozen model',
-        projectPath: '/project',
-        messages: [],
-        createdAt: 1,
-        updatedAt: 1,
-        executionModel,
-      },
-    })
-
-    render(<ComposerModelPicker />)
-
-    const model = screen.getByRole('button', { name: String(executionModel) })
-    expect(model).toBeDisabled()
-    expect(model).toHaveAttribute('title', expect.stringContaining(String(executionModel)))
-    fireEvent.click(model)
-    expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
   })
 
   it('keeps controls on one row and establishes a composer-width responsive boundary', () => {

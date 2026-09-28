@@ -3,6 +3,12 @@ import type { IpcInvokeChannel } from './ipc'
 export const HOST_UI_CONTRACT_VERSION = 1 as const
 export const HOST_UI_REVISION_17_REQUIRED_CHANNELS = [
   'project-actions:manage',
+  'project-config:get-preferences',
+  'project-config:set-preferences',
+  'project-config:remove-project-model',
+  'authorization-grants:grant',
+  'authorization-grants:revoke',
+  'sessions:set-model',
 ] as const satisfies readonly IpcInvokeChannel[]
 export const HOST_UI_REVISION_16_REQUIRED_CHANNELS = [
   'sessions:resources:list',
@@ -147,6 +153,7 @@ export const HOST_BACKED_GUI_CHANNELS = [
   'extensions:authorize-runtime-module',
   'providers:get-models',
   'project-config:set-preferences',
+  'project-config:remove-project-model',
   'docs:discover',
   'agent-definitions:manage',
   'skills:list',

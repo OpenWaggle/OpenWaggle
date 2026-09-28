@@ -49,6 +49,7 @@ const [
   worktreeLaunchCapability,
   sessionResourcesCapability,
   nativeActionsCapability,
+  projectModelPersistenceCapability,
   launchStepsCapability,
 ] = LOCAL_SESSION_CAPABILITIES
 
@@ -80,6 +81,7 @@ const currentCapabilitySchema = Schema.Tuple(
   Schema.Literal(worktreeLaunchCapability),
   Schema.Literal(sessionResourcesCapability),
   Schema.Literal(nativeActionsCapability),
+  Schema.Literal(projectModelPersistenceCapability),
   Schema.Literal(launchStepsCapability),
 )
 

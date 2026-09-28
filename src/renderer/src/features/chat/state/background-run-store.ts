@@ -1,5 +1,5 @@
 import type { AgentSendPayload } from '@shared/types/agent'
-import type { WorktreeLaunchSnapshot } from '@shared/types/background-run'
+import type { ActiveAgentRunInfo, WorktreeLaunchSnapshot } from '@shared/types/background-run'
 import type { SessionId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
 import type { SupportedModelId } from '@shared/types/llm'
@@ -9,11 +9,14 @@ import { create } from 'zustand'
 import { applyAgentTransportEvent } from '@/features/chat/lib/chat-stream-state'
 import type { AgentCompactionStatus } from '@/features/chat/lib/compaction-lifecycle'
 import { api } from '@/shared/lib/ipc'
-import { addActiveRunToState, removeActiveRunFromState } from './background-run-active-state'
+import {
+  addActiveRunToState,
+  mergeRestoredRunModels,
+  removeActiveRunFromState,
+} from './background-run-active-state'
 import {
   captureActivityRevisions,
-  isActiveCompaction,
-  isAgentRun,
+  loadActiveActivityState,
   noteActivityLifecycleChange,
   restoreCompactionSnapshots,
   retainUnchangedActivities,
@@ -44,10 +47,12 @@ export interface FirstSendRecovery {
 
 interface BackgroundRunState {
   activeRunIds: Set<SessionId>
+  /** The model each busy Session's current Run started with; a mid-turn switch never changes it. */
+  runModelBySessionId: Map<SessionId, SupportedModelId>
   renderSnapshotsBySessionId: Map<SessionId, ActiveRunRenderSnapshot>
   worktreeLaunchBySessionId: Map<SessionId, WorktreeLaunchSnapshot>
   firstSendRecoveryBySessionId: Map<SessionId, FirstSendRecovery>
-  addActiveRun: (id: SessionId) => void
+  addActiveRun: (id: SessionId, model?: SupportedModelId) => void
   removeActiveRun: (id: SessionId) => void
   hasActiveRun: (id: SessionId) => boolean
   getRunRenderSnapshot: (id: SessionId) => ActiveRunRenderSnapshot | null
@@ -141,10 +146,12 @@ function reconcileTerminalRecoveryState(input: {
 function mergeInitializedRecoveryState(
   state: BackgroundRunState,
   activeRunIds: ReadonlySet<SessionId>,
+  runs: readonly ActiveAgentRunInfo[],
   reconciled: Awaited<ReturnType<typeof reconcilePersistedFirstSends>>,
 ) {
   return {
     activeRunIds: new Set([...activeRunIds, ...state.activeRunIds]),
+    runModelBySessionId: mergeRestoredRunModels(state.runModelBySessionId, activeRunIds, runs),
     // Live renderer events received while initialization awaited IPC are always newer.
     worktreeLaunchBySessionId: new Map([
       ...reconciled.launches,
@@ -160,20 +167,10 @@ function mergeInitializedRecoveryState(
 function initialBackgroundRunState() {
   return {
     activeRunIds: new Set<SessionId>(),
+    runModelBySessionId: new Map<SessionId, SupportedModelId>(),
     renderSnapshotsBySessionId: new Map<SessionId, ActiveRunRenderSnapshot>(),
     worktreeLaunchBySessionId: new Map<SessionId, WorktreeLaunchSnapshot>(),
     firstSendRecoveryBySessionId: new Map<SessionId, FirstSendRecovery>(),
-  }
-}
-
-async function loadActiveActivityState() {
-  const activities = await api.listActiveRuns()
-  const runs = activities.filter(isAgentRun)
-  return {
-    ids: new Set<SessionId>(activities.map((activity) => activity.sessionId)),
-    runs,
-    compactions: activities.filter(isActiveCompaction),
-    snapshots: await Promise.all(runs.map((run) => api.getBackgroundRun(run.sessionId))),
   }
 }
 
@@ -182,7 +179,7 @@ function mergeCurrentActivityState(
   current: ReturnType<typeof retainUnchangedActivities>,
   reconciled: Awaited<ReturnType<typeof reconcilePersistedFirstSends>>,
 ) {
-  const next = mergeInitializedRecoveryState(state, current.ids, reconciled)
+  const next = mergeInitializedRecoveryState(state, current.ids, current.runs, reconciled)
   persistRecoveryState(next.worktreeLaunchBySessionId, next.firstSendRecoveryBySessionId)
   return {
     ...next,
@@ -197,9 +194,9 @@ function mergeCurrentActivityState(
 export const useBackgroundRunStore = create<BackgroundRunState>((set, get) => ({
   ...initialBackgroundRunState(),
 
-  addActiveRun(id: SessionId) {
+  addActiveRun(id: SessionId, model?: SupportedModelId) {
     noteActivityLifecycleChange(id)
-    set((state) => addActiveRunToState(state, id))
+    set((state) => addActiveRunToState(state, id, model))
   },
 
   removeActiveRun(id: SessionId) {

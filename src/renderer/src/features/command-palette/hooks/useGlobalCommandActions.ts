@@ -6,6 +6,7 @@ import { useProject, useSessions } from '@/features/sessions/hooks'
 import { usePreferencesStore } from '@/features/settings/state'
 import { useTerminalCommands } from '@/features/terminal'
 import { api } from '@/shared/lib/ipc'
+import { ipcErrorMessage } from '@/shared/lib/ipc-error-message'
 import { useRightSidebarCoordinator } from '@/shared/lib/right-sidebar-coordinator'
 import { useUIStore } from '@/shell/ui-store'
 import type { CoreCommandActions } from '../lib/global-command-core-items'
@@ -135,7 +136,7 @@ export function useGlobalCommandActions() {
       await Promise.all([refreshSession(activeSessionId), refreshSessionWorkspace(activeSessionId)])
       showToast('Session compacted.', 'success')
     } catch (error) {
-      showToast(error instanceof Error ? error.message : String(error), 'error')
+      showToast(ipcErrorMessage(error), 'error')
     }
   }
 

@@ -1,27 +1,21 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { CommandPaletteItem } from '../../model'
 import { buildCommandPaletteEntries } from '../command-palette-entries'
-import { createBaseCommands, createSkillItems } from '../command-palette-items'
+import { createBuiltInCommandItems, createSkillItems } from '../command-palette-items'
 import { normalizeCommandQuery, truncateCommandDescription } from '../command-palette-text'
 
 const {
   closeSlashCommandMenuMock,
-  compactCommandTextMock,
   consumeActiveSlashCommandMock,
   getUiStateMock,
   insertSlashCommandTextAtActiveSlashMock,
   openFeedbackModalMock,
 } = vi.hoisted(() => ({
   closeSlashCommandMenuMock: vi.fn(),
-  compactCommandTextMock: vi.fn(() => '/compact'),
   consumeActiveSlashCommandMock: vi.fn(),
   getUiStateMock: vi.fn(),
   insertSlashCommandTextAtActiveSlashMock: vi.fn(),
   openFeedbackModalMock: vi.fn(),
-}))
-
-vi.mock('@/features/composer/commands', () => ({
-  compactCommandText: compactCommandTextMock,
 }))
 
 vi.mock('@/features/composer/lib', () => ({
@@ -33,8 +27,9 @@ vi.mock('@/shell/ui-store', () => ({
   useUIStore: { getState: getUiStateMock },
 }))
 
-const { createOptionalCommandPaletteAction, insertCompactCommand, openFeedbackModal } =
-  await import('../command-palette-actions')
+const { createOptionalCommandPaletteAction, openFeedbackModal } = await import(
+  '../command-palette-actions'
+)
 
 function item(id: string, section?: string): CommandPaletteItem {
   return {
@@ -87,21 +82,39 @@ describe('buildCommandPaletteEntries', () => {
   })
 })
 
-describe('createBaseCommands', () => {
-  it('does not expose commands that only close the palette without backing behavior', () => {
-    const closeSlashCommandMenu = vi.fn()
-    const commands = createBaseCommands({
-      closeSlashCommandMenu,
-      configureWaggle: vi.fn(),
-      insertCompactCommand: vi.fn(),
-      selectPreset: vi.fn(),
-      selectSkill: vi.fn(),
-    })
+describe('createBuiltInCommandItems', () => {
+  it('lists the GUI-only built-in commands for an empty query', () => {
+    const items = createBuiltInCommandItems('', vi.fn())
 
-    expect(commands.map((command) => command.id)).not.toContain('code-review')
-    expect(commands.map((command) => command.id)).not.toContain('new-worktree')
-    expect(commands.map((command) => command.id)).not.toContain('personality')
-    expect(commands.some((command) => command.action === closeSlashCommandMenu)).toBe(false)
+    expect(items.map((command) => command.trailing)).toEqual(['/compact', '/fork', '/clone'])
+    expect(items.every((command) => command.section === 'Commands')).toBe(true)
+    expect(items.some((command) => command.submitsOnEnter)).toBe(false)
+  })
+
+  it('completes a partially typed command so instructions can follow it', () => {
+    const insertCommand = vi.fn()
+    const items = createBuiltInCommandItems('comp', insertCommand)
+
+    expect(items.map((command) => command.id)).toEqual(['command-compact'])
+    expect(items[0]?.submitsOnEnter).toBe(false)
+    items[0]?.action()
+    expect(insertCommand).toHaveBeenCalledWith('/compact')
+  })
+
+  it('submits a fully typed command on Enter instead of completing it', () => {
+    const items = createBuiltInCommandItems('compact', vi.fn())
+
+    expect(items).toHaveLength(1)
+    expect(items[0]).toMatchObject({ id: 'command-compact', submitsOnEnter: true })
+  })
+
+  it('matches command names only, so short queries still reach skills', () => {
+    expect(createBuiltInCommandItems('visualize', vi.fn())).toEqual([])
+    expect(createBuiltInCommandItems('se', vi.fn())).toEqual([])
+    expect(createBuiltInCommandItems('c', vi.fn()).map((command) => command.trailing)).toEqual([
+      '/compact',
+      '/clone',
+    ])
   })
 })
 
@@ -166,12 +179,6 @@ describe('command palette actions', () => {
 
   it('returns undefined when an optional action is unavailable', () => {
     expect(createOptionalCommandPaletteAction(vi.fn())).toBeUndefined()
-  })
-
-  it('replaces the active slash token with the compact command', () => {
-    insertCompactCommand()
-
-    expect(insertSlashCommandTextAtActiveSlashMock).toHaveBeenCalledWith('/compact')
   })
 
   it('opens feedback after consuming the slash token and closing the menu', () => {
