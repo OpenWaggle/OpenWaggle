@@ -263,7 +263,7 @@ describe('repaired MCP direct tools keep their argument semantics', () => {
       type: 'object',
       properties: {
         path: { anyOf: [{ type: 'string' }, {}] },
-        child: { anyOf: [{ $ref: '#/$defs/Child' }, {}] },
+        child: { anyOf: [{}, { $ref: '#/$defs/Child' }] },
       },
       required: ['path'],
       $defs: { Child: { type: 'object' } },

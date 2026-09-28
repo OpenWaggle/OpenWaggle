@@ -1108,15 +1108,21 @@ server in the user's config already served object roots. Every tool parameter ro
 OpenAI-completions request builders (`onPayload` throws before the network) and checks that rule.
 Third-party MCP schemas are repaired at the Pi adapter (`providerToolParameters`), and the server's
 original schema still validates arguments before approval.
-Pi also validates every call against the repaired provider-facing schema (`validateToolArguments`)
-before `execute`, so the repair must never be stricter than the original or Pi blocks valid calls
-before call-time validation runs. Flattened definitions kept as constraints were stricter in
-practice: `patternProperties` in closed alternatives, hoisted `$ref`s into removed combinators
-(also from `$defs`/`additionalProperties`), `unevaluatedProperties`, lost root
-`additionalProperties` coercion, and requirements hoisted past a `true` alternative. Repaired
-schemas are therefore relaxed (`provider-tool-parameter-relaxation.ts`): root `type`,
-`properties`, `required` (only what every accepted argument carries) and annotations stay, and
-each property becomes `{anyOf: [...its definitions, {}]}` as guidance.
+Pi also validates every call against the provider-facing schema (`validateToolArguments`) before
+`execute`, then passes its cleaned output (optional `null`s dropped, `'5'` coerced to `5`) to
+`execute`. A flattened repair kept as constraints was stricter than the server schema:
+`patternProperties` in closed alternatives, hoisted `$ref`s into removed combinators (also from
+`$defs`/`additionalProperties`), `unevaluatedProperties`, and requirements hoisted past a `true`
+alternative all made Pi block valid calls before call-time validation ran. So when the server
+schema compiles, direct tools register a relaxed repair (`provider-tool-parameter-relaxation.ts`:
+object root, `required` only for fields every accepted argument carries, annotations, and each
+property as `{anyOf: [...definitions, {}]}`, with `{}` first when a definition holds a `$ref`,
+because Pi compiles union members standalone and `{$ref:'#'}` then recurses forever). A
+permissive schema also disables Pi's clean-up, so `execute` redoes it
+(`mcp-direct-tool-call-validation.ts`): accept what Pi accepts against the server schema and
+forward its output, else what Pi's coercion through the unrelaxed flattened repair turns into
+arguments the server schema accepts exactly. Sampling tools and uncompilable server schemas keep
+the unrelaxed repair, since nothing else checks them before the server.
 
 For managed-worktree cleanup, a retained preparation snapshot belongs to a directory generation,
 not merely a project and worktree path. Pin the worktree directory's device, inode and birth time

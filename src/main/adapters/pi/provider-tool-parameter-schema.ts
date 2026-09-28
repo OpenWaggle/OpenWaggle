@@ -1,6 +1,4 @@
 import { isMatching, P } from '@diegogbrisa/ts-match'
-import { Compile } from 'typebox/schema'
-import { relaxForPreCallValidation } from './provider-tool-parameter-relaxation'
 
 type JsonSchemaObject = { readonly [key: string]: unknown }
 type MutableJsonSchema = { [key: string]: unknown }
@@ -26,8 +24,9 @@ const ROOT_FORBIDDEN_KEYWORDS = [
 const ROOT_DROPPED_KEYWORDS = ['not', 'enum', 'const', 'if', 'then', 'else'] as const
 const ALTERNATIVE_KEYWORDS = ['anyOf', 'oneOf'] as const
 const MAX_REFERENCE_DEPTH = 16
+/** Nested root combinators flattened; bounds `{ anyOf: [{ $ref: '#' }, ...] }` recursion. */
+const MAX_FLATTEN_DEPTH = 4
 const LOCAL_POINTER_PREFIX = '#/'
-const MAX_VALIDATION_DETAILS = 8
 
 export function isJsonSchemaObject(value: unknown): value is JsonSchemaObject {
   return isMatching(P.record(P.string, P._), value) && !Array.isArray(value)
@@ -147,9 +146,10 @@ function flattenMembers(
   members: readonly JsonSchemaObject[],
   document: JsonSchemaObject,
   repairs: string[],
+  depth: number,
 ) {
   return members.map((member) =>
-    flattenRoot(inlineReference(member, document, repairs), document, repairs),
+    flattenRoot(inlineReference(member, document, repairs), document, repairs, depth + 1),
   )
 }
 
@@ -194,20 +194,37 @@ function mergeAlternatives(
   if (root.result.additionalProperties === undefined && allClosed) {
     root.result.additionalProperties = false
   }
-  const shapes = alternatives
-    .map((alternative, index) => `${String(index + 1)}) ${describeAlternative(alternative)}`)
-    .join('; ')
-  const note = `Arguments take one of ${String(alternatives.length)} shapes, checked when the tool runs: ${shapes}.`
+  const note = alternativesNote(alternatives, hasUnconstrainedAlternative)
   const description = root.result.description
   root.result.description = typeof description === 'string' ? `${description}\n\n${note}` : note
+}
+
+/** Tells the model which shapes the flattened alternatives had, since the schema no longer does. */
+function alternativesNote(
+  alternatives: readonly MutableJsonSchema[],
+  hasUnconstrainedAlternative: boolean,
+) {
+  const described = [
+    ...alternatives.map(describeAlternative),
+    ...(hasUnconstrainedAlternative ? ['any object'] : []),
+  ]
+  const shapes = described.map((shape, index) => `${String(index + 1)}) ${shape}`).join('; ')
+  return `Arguments take one of ${String(described.length)} shapes, checked when the tool runs: ${shapes}.`
 }
 
 function flattenRoot(
   node: JsonSchemaObject,
   document: JsonSchemaObject,
   repairs: string[],
+  depth = 0,
 ): MutableJsonSchema {
   const { anyOf: _anyOf, oneOf: _oneOf, allOf, ...rest } = node
+  // A member referencing an ancestor (`{ anyOf: [{ $ref: '#' }] }`) would recurse forever.
+  // Dropping the combinators there only loosens the schema; call-time validation is exact.
+  if (depth >= MAX_FLATTEN_DEPTH) {
+    repairs.push('stopped flattening recursive root combinators')
+    return { ...rest }
+  }
   const root: FlatRoot = {
     result: { ...rest },
     properties: { ...propertiesOf(node) },
@@ -215,7 +232,7 @@ function flattenRoot(
   }
   const conjunction = schemaArray(allOf)
   if (conjunction) {
-    mergeConjunction(root, flattenMembers(conjunction, document, repairs))
+    mergeConjunction(root, flattenMembers(conjunction, document, repairs, depth))
     repairs.push(`merged root allOf of ${String(conjunction.length)} schemas`)
   }
   for (const keyword of ALTERNATIVE_KEYWORDS) {
@@ -225,10 +242,11 @@ function flattenRoot(
     const hasUnconstrainedAlternative = Array.isArray(raw) && raw.includes(true)
     mergeAlternatives(
       root,
-      flattenMembers(members, document, repairs).filter(isObjectShaped),
+      flattenMembers(members, document, repairs, depth).filter(isObjectShaped),
       hasUnconstrainedAlternative,
     )
-    repairs.push(`flattened root ${keyword} of ${String(members.length)} schemas`)
+    const count = Array.isArray(raw) ? raw.length : members.length
+    repairs.push(`flattened root ${keyword} of ${String(count)} schemas`)
   }
   const { result, properties, required } = root
   if (Object.keys(properties).length > 0 || result.properties !== undefined) {
@@ -286,30 +304,10 @@ export function providerToolParameters(schema: unknown): ProviderToolParameters 
     repairs.push(`set root type ${JSON.stringify(type) ?? 'missing'} to "object"`)
     flattened.type = 'object'
   }
-  return { schema: relaxForPreCallValidation(flattened, repairs), repairs }
+  return { schema: flattened, repairs }
 }
 
-export type ToolArgumentsValidator = (arguments_: unknown) => readonly string[]
-
-/**
- * Compiles `schema` so arguments can be checked against it exactly. Returns the compile error
- * instead of a validator when the schema uses something the validator cannot evaluate.
- */
-export function compileToolArgumentsValidator(
-  schema: JsonSchemaObject,
-): { readonly validate: ToolArgumentsValidator } | { readonly error: string } {
-  try {
-    const validator = Compile(schema)
-    return {
-      validate: (arguments_) => {
-        if (validator.Check(arguments_)) return []
-        const [, errors] = validator.Errors(arguments_)
-        return errors
-          .slice(0, MAX_VALIDATION_DETAILS)
-          .map((error) => `${error.instancePath || 'arguments'}: ${error.message}`)
-      },
-    }
-  } catch (error) {
-    return { error: error instanceof Error ? error.message : String(error) }
-  }
-}
+export {
+  compileToolArgumentsValidator,
+  type ToolArgumentsValidator,
+} from './tool-arguments-validator'
