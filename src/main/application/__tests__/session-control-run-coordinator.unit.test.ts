@@ -61,6 +61,7 @@ describe('Session Control Run coordinator', () => {
           Effect.sync(() => {
             cleanupRequests.push(requested)
           }),
+        restoreForUserCommand: () => Effect.void,
       }),
       Layer.succeed(SessionControlIdentityService, {
         nextRunId: Effect.sync(() => {

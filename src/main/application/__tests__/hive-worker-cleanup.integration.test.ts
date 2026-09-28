@@ -1,115 +1,37 @@
-import fs from 'node:fs/promises'
-import os from 'node:os'
 import path from 'node:path'
 import * as SqlClient from '@effect/sql/SqlClient'
-import { FollowUpId, ReportCorrelationId, ReportId, RunId, SessionId } from '@shared/types/brand'
+import { RunId, SessionId } from '@shared/types/brand'
 import { SESSION_CONTROL_CONTRACT_VERSION } from '@shared/types/session-control'
-import type { SessionHostEventPayload } from '@shared/types/session-host-event'
 import * as Effect from 'effect/Effect'
-import * as Layer from 'effect/Layer'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import {
-  makeHiveWorkerCleanupTestLayer,
   QUEEN_CALLER_ID,
   seedHiveWorker,
 } from '../../adapters/__tests__/hive-worker-cleanup-fixture'
-import { SessionControlIdentityService } from '../../ports/session-control-identity-service'
 import { SessionControlRunLifecycleRepository } from '../../ports/session-control-run-lifecycle-repository'
-import { SessionOrchestrationUpdateDeliveryService } from '../../ports/session-orchestration-update-delivery-service'
-import { installSessionHostEventPublisher } from '../../session-host/session-host-events'
-import { makeHiveWorkerCleanupLayer } from '../hive-worker-cleanup-service'
 import { startSessionRun } from '../session-control-service'
 import { executeSessionDelegationMutation } from '../session-delegation-service'
 import { settleExternalSessionRun } from '../session-external-run-coordinator'
 import { organizeSession } from '../session-organization-service'
-
-function hiveHostLayer(databasePath: string) {
-  const store = makeHiveWorkerCleanupTestLayer(databasePath)
-  let runSequence = 0
-  const supportLayer = Layer.mergeAll(
-    Layer.succeed(SessionControlIdentityService, {
-      nextRunId: Effect.sync(() => {
-        runSequence += 1
-        return RunId(`run-generated-${String(runSequence)}`)
-      }),
-      nextFollowUpId: Effect.succeed(FollowUpId('follow-up-unused')),
-      nextReportId: Effect.succeed(ReportId('report-unused')),
-      nextReportCorrelationId: Effect.succeed(ReportCorrelationId('correlation-unused')),
-      now: Effect.succeed(5000),
-    }),
-    Layer.succeed(SessionOrchestrationUpdateDeliveryService, {
-      deliverPendingToActiveRun: () => Effect.succeed(false),
-      deliverPendingSpecificationsToActiveRun: () => Effect.succeed(false),
-    }),
-  )
-  const cleanup = makeHiveWorkerCleanupLayer('inline').pipe(Layer.provide(store))
-  return Layer.mergeAll(store, supportLayer, cleanup)
-}
-
-function seedQueenAuthority(sql: SqlClient.SqlClient, projectPath: string) {
-  return Effect.gen(function* () {
-    yield* sql.unsafe(`CREATE TABLE settings_store (
-      key TEXT PRIMARY KEY,
-      value_json TEXT NOT NULL,
-      updated_at INTEGER NOT NULL
-    )`)
-    yield* sql`UPDATE sessions SET project_path = ${projectPath}`
-    yield* sql`
-      INSERT INTO session_execution_profiles (
-        session_id, profile_json, authority_origin_caller_id,
-        authorization_ceiling, created_at, updated_at
-      ) VALUES (
-        ${'queen'}, ${'{"modelId":"provider/model","thinkingLevel":"medium"}'},
-        ${'gui:local-user'}, ${'ask-for-approval'}, ${1000}, ${1000}
-      )
-    `
-  })
-}
-
-function archived(sql: SqlClient.SqlClient, sessionId: string) {
-  return sql<{ readonly archived: number }>`
-    SELECT archived FROM sessions WHERE id = ${sessionId}
-  `.pipe(Effect.map((rows) => rows[0]?.archived === 1))
-}
-
-function startAs(callerId: string, sessionId: string, key: string) {
-  return startSessionRun({
-    callerId,
-    request: {
-      contractVersion: SESSION_CONTROL_CONTRACT_VERSION,
-      requestId: key,
-      idempotencyKey: key,
-      command: {
-        operation: 'start',
-        sessionId,
-        input: { text: 'Check one more thing.', attachmentIds: [] },
-      },
-    },
-  })
-}
+import {
+  archived,
+  archiveStateJournal,
+  delegationCommand,
+  hiveHostLayer,
+  seedQueenAuthority,
+  startAs,
+  useHiveHostTestContext,
+} from './hive-worker-cleanup-host.test-harness'
 
 describe('Hive cleanup phase against the real SQLite Session Host store', () => {
-  let temporaryRoot = ''
-  let events: SessionHostEventPayload[] = []
-  let releasePublisher: (() => void) | undefined
-
-  beforeEach(async () => {
-    temporaryRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-hive-cleanup-flow-'))
-    events = []
-    releasePublisher = installSessionHostEventPublisher((event) => events.push(event))
-  })
-
-  afterEach(async () => {
-    releasePublisher?.()
-    await fs.rm(temporaryRoot, { recursive: true, force: true })
-  })
+  const host = useHiveHostTestContext('openwaggle-hive-cleanup-flow-')
 
   it('archives a Worker when its parent accepts it, and the Queen can still start it', async () => {
     const result = await Effect.runPromise(
       Effect.gen(function* () {
         const sql = yield* SqlClient.SqlClient
         yield* seedHiveWorker(sql, { state: 'ready_for_review' })
-        yield* seedQueenAuthority(sql, temporaryRoot)
+        yield* seedQueenAuthority(sql, host.temporaryRoot)
         const accepted = yield* executeSessionDelegationMutation({
           callerId: QUEEN_CALLER_ID,
           request: {
@@ -137,7 +59,7 @@ describe('Hive cleanup phase against the real SQLite Session Host store', () => 
           restarted: restarted.outcome,
           archivedAfterRestart: yield* archived(sql, 'worker'),
         }
-      }).pipe(Effect.provide(hiveHostLayer(path.join(temporaryRoot, 'accept.sqlite')))),
+      }).pipe(Effect.provide(hiveHostLayer(path.join(host.temporaryRoot, 'accept.sqlite')))),
     )
 
     expect(result.accepted).toMatchObject({
@@ -148,7 +70,7 @@ describe('Hive cleanup phase against the real SQLite Session Host store', () => 
     expect(result.attribution).toEqual([{ caller_id: QUEEN_CALLER_ID }])
     expect(result.restarted).toMatchObject({ effect: 'started-run', sessionId: 'worker' })
     expect(result.archivedAfterRestart).toBe(true)
-    expect(events).toContainEqual({
+    expect(host.events).toContainEqual({
       kind: 'session-list-changed',
       sessionId: 'worker',
       change: 'archived',
@@ -160,7 +82,7 @@ describe('Hive cleanup phase against the real SQLite Session Host store', () => 
       Effect.gen(function* () {
         const sql = yield* SqlClient.SqlClient
         yield* seedHiveWorker(sql, { state: 'working' })
-        yield* seedQueenAuthority(sql, temporaryRoot)
+        yield* seedQueenAuthority(sql, host.temporaryRoot)
         const started = yield* startAs(QUEEN_CALLER_ID, 'worker', 'queen-start')
         if (started.outcome.effect !== 'started-run') throw new Error('Worker Run did not start.')
         const runId = RunId(started.outcome.runId)
@@ -188,7 +110,7 @@ describe('Hive cleanup phase against the real SQLite Session Host store', () => 
           finalResponse: 'Stopped early.',
         })
         return { archivedWhileRunning, archivedAfterSettle: yield* archived(sql, 'worker') }
-      }).pipe(Effect.provide(hiveHostLayer(path.join(temporaryRoot, 'cancel.sqlite')))),
+      }).pipe(Effect.provide(hiveHostLayer(path.join(host.temporaryRoot, 'cancel.sqlite')))),
     )
 
     expect(result).toEqual({ archivedWhileRunning: false, archivedAfterSettle: true })
@@ -204,7 +126,7 @@ describe('Hive cleanup phase against the real SQLite Session Host store', () => 
           state: 'ready_for_review',
           seedParent: false,
         })
-        yield* seedQueenAuthority(sql, temporaryRoot)
+        yield* seedQueenAuthority(sql, host.temporaryRoot)
         const userMessage = yield* startSessionRun({
           callerId: 'gui:local-user',
           request: {
@@ -269,13 +191,47 @@ describe('Hive cleanup phase against the real SQLite Session Host store', () => 
           restoredWasArchived,
           restoredArchived: yield* archived(sql, 'restored'),
         }
-      }).pipe(Effect.provide(hiveHostLayer(path.join(temporaryRoot, 'interaction.sqlite')))),
+      }).pipe(Effect.provide(hiveHostLayer(path.join(host.temporaryRoot, 'interaction.sqlite')))),
     )
 
     expect(result).toEqual({
       talkedToArchived: false,
       restoredWasArchived: true,
       restoredArchived: false,
+    })
+  })
+  it('archives the parent Worker once its last nested Delegation is accepted', async () => {
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        yield* seedHiveWorker(sql, { workerId: 'lead' })
+        yield* seedHiveWorker(sql, {
+          workerId: 'helper',
+          parentId: 'lead',
+          seedParent: false,
+          state: 'ready_for_review',
+        })
+        yield* seedQueenAuthority(sql, host.temporaryRoot)
+        // The Queen already accepted the lead; it stays only because its helper is unfinished.
+        const accepted = yield* delegationCommand('session-agent:lead:run-lead', 'lead-accepts', {
+          operation: 'delegation-accept',
+          sessionId: 'lead',
+          delegationId: 'delegation-helper',
+        })
+        return {
+          accepted: accepted.outcome.effect,
+          helperArchived: yield* archived(sql, 'helper'),
+          leadArchived: yield* archived(sql, 'lead'),
+          leadJournal: yield* archiveStateJournal(sql, 'lead'),
+        }
+      }).pipe(Effect.provide(hiveHostLayer(path.join(host.temporaryRoot, 'nested.sqlite')))),
+    )
+
+    expect(result).toEqual({
+      accepted: 'delegation-updated',
+      helperArchived: true,
+      leadArchived: true,
+      leadJournal: [{ caller_id: QUEEN_CALLER_ID, operation: 'archive' }],
     })
   })
 })

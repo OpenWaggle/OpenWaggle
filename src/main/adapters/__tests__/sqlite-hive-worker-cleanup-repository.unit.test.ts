@@ -6,6 +6,7 @@ import { SessionId } from '@shared/types/brand'
 import * as Effect from 'effect/Effect'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { HiveWorkerCleanupRepository } from '../../ports/hive-worker-cleanup-repository'
+import { hiveWorkerCleanupCandidateStatement } from '../sqlite-hive-worker-cleanup-repository'
 import {
   makeHiveWorkerCleanupTestLayer,
   QUEEN_CALLER_ID,
@@ -119,10 +120,44 @@ describe('SQLite Hive Worker cleanup eligibility', () => {
     expect(candidates).toEqual([])
   })
 
+  it.each([
+    ['CLI accept', 'local-user:machine', 'delegation-accept'],
+    ['CLI revision request', 'local-user:machine', 'delegation-request-revision'],
+    ['CLI reopen', 'local-user:machine', 'delegation-reopen'],
+    ['profile cancel', 'profile:reviewer', 'delegation-cancel'],
+    ['GUI submit', 'gui:local-user', 'delegation-submit'],
+  ])('keeps a Worker whose Delegation a user reviewed: %s', async (name, callerId, operation) => {
+    const candidates = await eligibleWorkerIds(`review-${name.replaceAll(' ', '-')}`, (sql) =>
+      Effect.gen(function* () {
+        yield* seedHiveWorker(sql)
+        yield* recordOperation(sql, {
+          callerId,
+          operation,
+          sessionId: 'queen',
+          targetScope: 'delegation:delegation-worker:actor:queen',
+        })
+      }),
+    )
+    expect(candidates).toEqual([])
+  })
+
   it('ignores agent-authored operations such as the Queen unarchiving or following up', async () => {
     const candidates = await eligibleWorkerIds('agent-operations', (sql) =>
       Effect.gen(function* () {
         yield* seedHiveWorker(sql)
+        yield* recordOperation(sql, {
+          callerId: QUEEN_CALLER_ID,
+          operation: 'delegation-accept',
+          sessionId: 'queen',
+          targetScope: 'delegation:delegation-worker:actor:queen',
+        })
+        // A user review of a different Delegation whose id shares this one's prefix.
+        yield* recordOperation(sql, {
+          callerId: 'local-user:machine',
+          operation: 'delegation-accept',
+          sessionId: 'queen',
+          targetScope: 'delegation:delegation-worker-2:actor:queen',
+        })
         yield* recordOperation(sql, {
           callerId: 'session-agent:queen:run-later',
           operation: 'unarchive',
@@ -239,5 +274,29 @@ describe('SQLite Hive Worker cleanup eligibility', () => {
       }),
     )
     expect(candidates).toEqual([])
+  })
+  it('looks up pending authorizations through the Run index instead of scanning every request', async () => {
+    const plan = await Effect.runPromise(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        const [text, params] = hiveWorkerCleanupCandidateStatement(sql, {
+          sessionId: SessionId('queen'),
+          includeDirectWorkers: true,
+        }).compile()
+        return yield* sql.unsafe<{ readonly detail: string }>(`EXPLAIN QUERY PLAN ${text}`, params)
+      }).pipe(
+        Effect.provide(makeHiveWorkerCleanupTestLayer(path.join(temporaryRoot, 'plan.sqlite'))),
+      ),
+    )
+    const requestSteps = plan
+      .map((row) => row.detail)
+      .filter((detail) => /\brequests\b/.test(detail))
+
+    expect(requestSteps.length).toBeGreaterThan(0)
+    for (const detail of requestSteps) {
+      expect(detail).toMatch(
+        /USING (COVERING )?INDEX idx_session_authorization_requests_run_status/,
+      )
+    }
   })
 })

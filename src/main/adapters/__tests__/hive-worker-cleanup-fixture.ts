@@ -76,6 +76,7 @@ export function seedHiveWorker(
           session_id, state_revision, active_run_id, queue_state, queue_revision, updated_at
         ) VALUES (${parentId}, ${1}, ${null}, ${'running'}, ${0}, ${1000})
       `
+      yield* seedExecutionProfile(sql, parentId)
     }
     yield* sql`INSERT INTO sessions (id, project_path, title) VALUES (${workerId}, ${'/project'}, ${workerId})`
     yield* sql`
@@ -102,6 +103,16 @@ export function seedHiveWorker(
         current_specification_revision, created_at, updated_at
       ) VALUES (
         ${delegationId}, ${parentId}, ${workerId}, ${input.state ?? 'accepted'}, ${1}, ${1000}, ${2000}
+      )
+    `
+    yield* seedExecutionProfile(sql, workerId)
+    yield* sql`
+      INSERT INTO derived_child_management_grants (
+        id, parent_session_id, child_session_id, delegation_id,
+        source_caller_id, capabilities_json, authorization_ceiling, created_at
+      ) VALUES (
+        ${`grant-${workerId}`}, ${parentId}, ${workerId}, ${delegationId},
+        ${'gui:local-user'}, ${'[]'}, ${'ask-for-approval'}, ${1000}
       )
     `
     yield* sql`
@@ -142,17 +153,36 @@ export function seedHiveWorker(
   })
 }
 
+/** A live execution profile whose authority originates from the GUI user. */
+function seedExecutionProfile(sql: SqlClient.SqlClient, sessionId: string) {
+  return sql`
+    INSERT INTO session_execution_profiles (
+      session_id, profile_json, authority_origin_caller_id,
+      authorization_ceiling, created_at, updated_at
+    ) VALUES (
+      ${sessionId}, ${'{"modelId":"provider/model","thinkingLevel":"medium"}'},
+      ${'gui:local-user'}, ${'ask-for-approval'}, ${1000}, ${1000}
+    )
+  `
+}
+
 /** Records one journaled mutation against `sessionId` exactly as Session Control does. */
 export function recordOperation(
   sql: SqlClient.SqlClient,
-  input: { readonly callerId: string; readonly operation: string; readonly sessionId: string },
+  input: {
+    readonly callerId: string
+    readonly operation: string
+    readonly sessionId: string
+    /** Defaults to the Session itself; Delegation mutations use `delegation:<id>:actor:<id>`. */
+    readonly targetScope?: string
+  },
 ) {
   return sql`
     INSERT INTO session_operations (
       caller_id, operation, target_scope, idempotency_key, request_json,
       status, outcome_json, created_at, updated_at
     ) VALUES (
-      ${input.callerId}, ${input.operation}, ${input.sessionId},
+      ${input.callerId}, ${input.operation}, ${input.targetScope ?? input.sessionId},
       ${`${input.operation}-${input.callerId}`}, ${'{}'}, ${'completed'}, ${'{}'}, ${3000}, ${3000}
     )
   `
