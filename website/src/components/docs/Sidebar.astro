@@ -1,12 +1,13 @@
 ---
 import { developerDocsNav, docsNav, isDeveloperDoc } from '@/data/docs-nav';
+import { canonicalDocsPath } from '@/data/package-docs';
 
 const currentPath = Astro.url.pathname.replace(/\/$/, '');
 const developerArea = isDeveloperDoc(currentPath.replace(/^\/docs\//, ''));
 const sections = developerArea ? developerDocsNav : docsNav;
 const otherArea = developerArea
-  ? { title: 'User guide', href: '/docs/getting-started/first-run' }
-  : { title: 'Developer docs', href: '/docs/developer-guide/building-from-source' };
+  ? { title: 'User guide', href: '/docs/getting-started/first-run/' }
+  : { title: 'Developer docs', href: '/docs/developer-guide/building-from-source/' };
 ---
 
 {/* Shared nav fragment rendered once, used in both desktop and mobile */}
@@ -22,8 +23,9 @@ const otherArea = developerArea
           </h3>
           <ul class="flex flex-col gap-0.5">
             {section.items.map((item) => {
-              const href = `/docs/${item.slug}`;
-              const isActive = currentPath === href || currentPath.startsWith(`${href}/`);
+              const path = `/docs/${item.slug}`;
+              const href = canonicalDocsPath(item.slug);
+              const isActive = currentPath === path || currentPath.startsWith(`${path}/`);
               return (
                 <li>
                   <a
@@ -59,8 +61,9 @@ const otherArea = developerArea
           </h3>
           <ul class="flex flex-col gap-0.5">
             {section.items.map((item) => {
-              const href = `/docs/${item.slug}`;
-              const isActive = currentPath === href || currentPath.startsWith(`${href}/`);
+              const path = `/docs/${item.slug}`;
+              const href = canonicalDocsPath(item.slug);
+              const isActive = currentPath === path || currentPath.startsWith(`${path}/`);
               return (
                 <li>
                   <a

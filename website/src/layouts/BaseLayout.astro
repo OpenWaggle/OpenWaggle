@@ -3,26 +3,33 @@ import '@/styles/global.css';
 import Header from '@/components/Header.astro';
 import Footer from '@/components/Footer.astro';
 import SEO from '@/components/SEO.astro';
+import { DEFAULT_DESCRIPTION, DEFAULT_OG_IMAGE, DEFAULT_TITLE, type JsonLd } from '@/lib/seo';
 
 interface Props {
   title?: string;
   description?: string;
   ogImage?: string;
+  ogImageAlt?: string;
+  type?: 'website' | 'article';
   noIndex?: boolean;
+  jsonLd?: readonly JsonLd[];
 }
 
 const {
-  title = 'OpenWaggle | A desktop app for coding with AI',
-  description = 'Work on a project with an AI agent, review code changes, and check the result in a built-in browser. Available for macOS, Windows, and Linux.',
-  ogImage = '/screenshots/feature-coding-agent.png',
+  title = DEFAULT_TITLE,
+  description = DEFAULT_DESCRIPTION,
+  ogImage = DEFAULT_OG_IMAGE,
+  ogImageAlt,
+  type,
   noIndex = false,
+  jsonLd,
 } = Astro.props;
 ---
 
 <!doctype html>
 <html lang="en" class="dark">
   <head>
-    <SEO title={title} description={description} ogImage={ogImage} noIndex={noIndex} />
+    <SEO title={title} description={description} ogImage={ogImage} ogImageAlt={ogImageAlt} type={type} noIndex={noIndex} jsonLd={jsonLd} />
   </head>
   <body class="min-h-screen bg-bg text-text-primary">
     <a href="#main-content" class="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-50 focus:rounded-lg focus:bg-accent focus:px-4 focus:py-2 focus:text-bg focus:font-semibold">
