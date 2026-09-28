@@ -50,6 +50,24 @@ describe('launch steps', () => {
     ])
   })
 
+  it('relabels a parallel step with how it ended when it closes', () => {
+    const progress = [
+      {
+        stage: 'connecting-tools',
+        label: 'Connecting MCP servers: figma',
+        parallel: true,
+        details: [],
+      },
+      {
+        stage: 'connecting-tools',
+        completesStep: true,
+        label: 'MCP servers: figma still connecting',
+        details: [],
+      },
+    ] as const
+    expect(stepsAfter(...progress)).toEqual([['MCP servers: figma still connecting', true]])
+  })
+
   it('closes every open step on a completion stage and does not repeat a step', () => {
     expect(
       stepsAfter(

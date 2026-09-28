@@ -43,6 +43,7 @@ describe('MCP authorization identity lease', () => {
     })
     const runtime = fromPartial<McpRuntimeServiceShape>({
       reconcileIdleConnections: () => Effect.void,
+      forgetToolCatalog: () => Effect.void,
     })
     const vault = fromPartial<McpSecretVaultServiceShape>({
       resolve: () => Effect.succeed('token'),
@@ -101,7 +102,11 @@ describe('MCP authorization identity lease', () => {
         }),
     })
     const reconcileIdleConnections = vi.fn(() => Effect.void)
-    const runtime = fromPartial<McpRuntimeServiceShape>({ reconcileIdleConnections })
+    const forgetToolCatalog = vi.fn<McpRuntimeServiceShape['forgetToolCatalog']>(() => Effect.void)
+    const runtime = fromPartial<McpRuntimeServiceShape>({
+      reconcileIdleConnections,
+      forgetToolCatalog,
+    })
     const vault = fromPartial<McpSecretVaultServiceShape>({
       resolve: () => Effect.fail(new Error('secret was not found')),
       set: setSecret,
@@ -131,6 +136,12 @@ describe('MCP authorization identity lease', () => {
       ),
     ).resolves.toEqual([])
     expect(setSecret).toHaveBeenCalledWith({ name: 'TOKEN', value: 'replacement' })
+    // Forgotten before the sign-in and again once it ended, then for every server on a secret.
+    expect(forgetToolCatalog.mock.calls).toEqual([
+      [{ serverInstanceId: 'server-cancel' }],
+      [{ serverInstanceId: 'server-cancel' }],
+      ['all-servers'],
+    ])
   })
 
   it('reconciles stale providers when authorization fails before a vault write', async () => {
@@ -144,7 +155,10 @@ describe('MCP authorization identity lease', () => {
           definition: { url: 'https://docs.example.com/mcp', auth: { type: 'oauth' } },
         }),
     })
-    const runtime = fromPartial<McpRuntimeServiceShape>({ reconcileIdleConnections })
+    const runtime = fromPartial<McpRuntimeServiceShape>({
+      reconcileIdleConnections,
+      forgetToolCatalog: () => Effect.void,
+    })
     const vault = fromPartial<McpSecretVaultServiceShape>({
       resolve: () => Effect.succeed('old-token'),
       set: () => Effect.succeed([]),

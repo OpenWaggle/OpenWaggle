@@ -9,6 +9,7 @@ import { MCP_CONFIG, MCP_SKILLS_EXTENSION_ID } from '@shared/constants/mcp'
 import { decodeUnknownOrThrow } from '@shared/schema'
 import { mcpConfigValueSchema } from '@shared/schemas/mcp'
 import type { McpCapabilityFamily, McpJsonValue } from '@shared/types/mcp'
+import { connectUnlessAborted } from './connect-abort'
 import { createLegacySseClientTransport } from './legacy-sse-client-transport'
 import { getMcpProtocolOptions } from './protocol-negotiation'
 import { createMcpCapabilityMethods } from './sdk-client-capabilities'
@@ -266,7 +267,7 @@ export function createFirstPartyMcpConnectionFactory(input: {
   ) => AuthProvider
   readonly clientVersion: string
 }): McpConnectionFactory {
-  return async ({ snapshot, server }) => {
+  return async ({ snapshot, server, signal }) => {
     const client = new Client(
       { name: 'OpenWaggle', version: input.clientVersion },
       {
@@ -286,15 +287,7 @@ export function createFirstPartyMcpConnectionFactory(input: {
       resolveSecret: input.resolveSecret,
       ...(input.createAuthProvider ? { createAuthProvider: input.createAuthProvider } : {}),
     })
-    try {
-      await client.connect(transport, {
-        timeout: MCP_CONFIG.CONNECT_TIMEOUT_MS,
-        maxTotalTimeout: MCP_CONFIG.CONNECT_TIMEOUT_MS,
-      })
-      return createConnection(client, server, interactions)
-    } catch (error) {
-      await client.close().catch(() => undefined)
-      throw error
-    }
+    await connectUnlessAborted(client, transport, signal)
+    return createConnection(client, server, interactions)
   }
 }

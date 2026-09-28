@@ -50,7 +50,15 @@ export async function assertQaPortAvailable(port = QA_CDP_PORT) {
   })
 }
 
-function electronEnvironment(lease: QaLease): NodeJS.ProcessEnv {
+/**
+ * The QA app's environment. Automation disables executable Pi extensions, which also hides the
+ * first-party tools (the MCP gateway and direct tools, `sessions`) from the model; a caller that
+ * sets `OPENWAGGLE_AUTOMATION_FIRST_PARTY_EXTENSIONS=1` keeps those tools so a QA run can drive them.
+ */
+export function electronEnvironment(
+  lease: Pick<QaLease, 'automationIdentity' | 'metadata'>,
+  callerEnvironment: NodeJS.ProcessEnv = process.env,
+): NodeJS.ProcessEnv {
   return buildSafeElectronEnvironment({
     ELECTRON_ENABLE_LOGGING: '1',
     OPENWAGGLE_AUTOMATION: '1',
@@ -58,6 +66,9 @@ function electronEnvironment(lease: QaLease): NodeJS.ProcessEnv {
     OPENWAGGLE_AUTOMATION_PROJECT_PATH: lease.metadata.projectPath,
     OPENWAGGLE_DISABLE_SINGLE_INSTANCE: '1',
     OPENWAGGLE_USER_DATA_DIR: lease.metadata.profilePath,
+    ...(callerEnvironment.OPENWAGGLE_AUTOMATION_FIRST_PARTY_EXTENSIONS === '1'
+      ? { OPENWAGGLE_AUTOMATION_FIRST_PARTY_EXTENSIONS: '1' }
+      : {}),
   })
 }
 

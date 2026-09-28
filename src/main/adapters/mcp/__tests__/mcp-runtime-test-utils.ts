@@ -7,8 +7,10 @@ import type {
 } from '@shared/types/mcp'
 import { Effect } from 'effect'
 import type {
+  McpDirectToolListOptions,
   McpRuntimeInteractions,
   McpRuntimeServiceShape,
+  McpToolCatalogScope,
 } from '../../../ports/mcp-runtime-service'
 import { makeMcpRuntimeService } from '../runtime/runtime-service-factory'
 import type { McpClientConnection, McpRuntimeTool } from '../runtime/types'
@@ -48,7 +50,9 @@ export function createMcpRuntimeServiceForTests(
           ...(interactions ? { interactions } : {}),
         }),
       ),
-    listDirectTools: (snapshot: McpTurnSnapshot) => run(service.listDirectTools(snapshot)),
+    listDirectTools: (snapshot: McpTurnSnapshot, options?: McpDirectToolListOptions) =>
+      run(service.listDirectTools(snapshot, options)),
+    forgetToolCatalog: (scope: McpToolCatalogScope) => run(service.forgetToolCatalog(scope)),
     browseCapabilities: (snapshot: McpTurnSnapshot, serverInstanceId?: string) =>
       run(
         service.browseCapabilities({
@@ -173,4 +177,15 @@ export function connection(
       })),
     close: input.close ?? (async () => undefined),
   }
+}
+
+/** A `listDirectTools` that waits for the given servers, as a cold first turn does. */
+export function waitingFor<A, E>(names: readonly string[], result: Effect.Effect<A, E>) {
+  const settle = (options?: McpDirectToolListOptions) =>
+    options?.onWaitSettled?.({ connected: names, stillConnecting: [], unavailable: [] })
+  return (_: unknown, options?: McpDirectToolListOptions) =>
+    Effect.sync(() => options?.onWaiting?.(names)).pipe(
+      Effect.zipRight(result),
+      Effect.tap(() => settle(options)),
+    )
 }

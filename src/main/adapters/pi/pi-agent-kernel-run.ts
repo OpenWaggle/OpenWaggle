@@ -1,6 +1,5 @@
 import * as Effect from 'effect/Effect'
 import * as Exit from 'effect/Exit'
-import { serversConnectedBeforeTurn } from '../../domain/mcp/direct-tool-servers'
 import type {
   AgentKernelRunInput,
   AgentKernelWaggleRunOptions,
@@ -8,7 +7,10 @@ import type {
 import type { BrowserPreviewAutomationServiceShape } from '../../ports/browser-preview-automation-service'
 import type { InlineVisualizationServiceShape } from '../../ports/inline-visualization-service'
 import type { McpConfigServiceShape } from '../../ports/mcp-config-service'
-import type { McpRuntimeServiceShape } from '../../ports/mcp-runtime-service'
+import type {
+  McpDirectToolWaitOutcome,
+  McpRuntimeServiceShape,
+} from '../../ports/mcp-runtime-service'
 import type { TerminalServiceShape } from '../../ports/terminal-service'
 import type { WorkspacePreparationServiceShape } from '../../ports/workspace-preparation-service'
 import { runPiSession } from './agent-kernel/classic-run'
@@ -87,28 +89,26 @@ export function prepareMcpTurn(input: {
   readonly config: McpConfigServiceShape
   readonly runtime: McpRuntimeServiceShape
   readonly serverAllowlist?: readonly string[]
-  /** Called with the servers the turn connects before Pi starts, when there are any. */
+  /**
+   * Called with the servers the turn waits for before Pi starts, when it waits for any: required
+   * servers, and optional ones with no cached tool list during their short grace.
+   */
   readonly onConnecting?: (serverNames: readonly string[]) => void
-  /** Called once those servers answered. A failure leaves the step open so the error lands on it. */
-  readonly onConnected?: () => void
+  /** Called once that wait is over. A failure leaves the step open so the error lands on it. */
+  readonly onConnected?: (outcome: McpDirectToolWaitOutcome) => void
 }) {
   return Effect.gen(function* () {
     const snapshot = restrictMcpSnapshot(
       yield* input.config.createTurnSnapshot(input),
       input.serverAllowlist,
     )
-    const connectedFirst = serversConnectedBeforeTurn(snapshot).map((server) => server.name)
-    if (connectedFirst.length > 0) input.onConnecting?.(connectedFirst)
     yield* input.runtime.prepareTurn({ sessionId: input.sessionId, snapshot })
     return yield* Effect.gen(function* () {
       const directTools = snapshot
-        ? yield* input.runtime
-            .listDirectTools(snapshot)
-            .pipe(
-              Effect.tap(() =>
-                Effect.sync(() => (connectedFirst.length > 0 ? input.onConnected?.() : undefined)),
-              ),
-            )
+        ? yield* input.runtime.listDirectTools(snapshot, {
+            ...(input.onConnecting ? { onWaiting: input.onConnecting } : {}),
+            ...(input.onConnected ? { onWaitSettled: input.onConnected } : {}),
+          })
         : []
       const extensionFactory = snapshot
         ? createMcpGatewayExtension({

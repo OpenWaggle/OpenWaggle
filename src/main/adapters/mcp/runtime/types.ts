@@ -75,6 +75,8 @@ export interface McpClientConnection {
 export interface McpConnectionFactoryInput {
   readonly snapshot: McpTurnSnapshot
   readonly server: McpTurnSnapshotServer
+  /** Aborted when the connection's slot is closed before the connect finished. */
+  readonly signal?: AbortSignal
 }
 
 export type McpConnectionFactory = (

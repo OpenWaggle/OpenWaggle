@@ -7,25 +7,43 @@ import type {
   McpTurnSnapshot,
   McpTurnSnapshotServer,
 } from '@shared/types/mcp'
-import type { Effect, Ref } from 'effect'
+import type { Deferred, Effect, Ref, SynchronizedRef } from 'effect'
 import type {
   McpRuntimeFailure,
   McpServerNotEnabled,
   McpStaleToolHandle,
 } from '../../../ports/mcp-errors'
-import type { McpRuntimeConnectionStatus } from '../../../ports/mcp-runtime-service'
+import type {
+  McpDirectToolListOptions,
+  McpRuntimeConnectionStatus,
+  McpToolCatalogScope,
+} from '../../../ports/mcp-runtime-service'
 import type { McpRemoteTaskStore } from './remote-task-store'
 import type { McpRuntimeConnectionsService } from './runtime-connections'
+import type { McpToolCatalogCache } from './tool-catalog-cache'
 import type { McpClientConnection, McpRuntimeTool } from './types'
 
-/** A tool resolved from a server catalog, addressable by an opaque handle. */
+/**
+ * A tool resolved from a server catalog, addressable by an opaque handle.
+ *
+ * `live` tools were listed by the Session's own connection. `cached` tools came from the tool
+ * list cache while that connection was still starting; using one waits for the connection and
+ * checks the live tool still matches (see `resolveToolHandle`).
+ */
 export interface CatalogTool {
   readonly handle: string
   readonly server: McpTurnSnapshotServer
-  readonly connection: McpClientConnection
   readonly tool: McpRuntimeTool
   readonly snapshotRevision: string
   readonly runtimeNamespace: string
+  readonly source: 'live' | 'cached'
+}
+
+/** A listing of one server's tools in flight for a Session, shared by everyone who needs it. */
+export interface ServerListing {
+  readonly result: Deferred.Deferred<readonly CatalogTool[], McpRuntimeFailure>
+  /** Fires when the listing's connection slot was closed, so its failure is not a real one. */
+  readonly retired: AbortSignal
 }
 
 export interface CatalogCacheEntry {
@@ -71,6 +89,11 @@ export interface McpEventInboxState {
  */
 export interface RuntimeStateContext {
   readonly catalogs: Ref.Ref<Map<string, CatalogCacheEntry>>
+  readonly listings: SynchronizedRef.SynchronizedRef<Map<string, ServerListing>>
+  /** Connection attempts whose listings must not be remembered; see `forgetToolCatalog`. */
+  readonly forgottenAttempts: WeakSet<AbortSignal>
+  /** Config hash each server last failed to connect with, per Session; see `recordConnectFailure`. */
+  readonly connectFailures: Ref.Ref<ReadonlyMap<string, string>>
   readonly handles: Ref.Ref<Map<string, CatalogTool>>
   readonly notices: Ref.Ref<Map<string, McpRuntimeNotice[]>>
   readonly eventSubscriptionCells: Ref.Ref<Map<string, EventSubscriptionCell>>
@@ -78,6 +101,8 @@ export interface RuntimeStateContext {
   readonly events: Ref.Ref<McpEventInboxState>
   readonly connections: McpRuntimeConnectionsService
   readonly remoteTasks: McpRemoteTaskStore
+  readonly toolCatalogCache: McpToolCatalogCache
+  readonly optionalStartupGraceMs: number
   readonly handleKey: Buffer
 }
 
@@ -96,10 +121,20 @@ export interface McpRuntimeStateService {
     snapshot: McpTurnSnapshot,
     selectServer?: (server: McpTurnSnapshotServer) => boolean,
   ): Effect.Effect<readonly CatalogTool[], McpRuntimeFailure>
+  /** The direct tools a turn registers with Pi; see `loadDirectToolCatalog`. */
+  loadDirectToolCatalog(
+    snapshot: McpTurnSnapshot,
+    options?: McpDirectToolListOptions,
+  ): Effect.Effect<readonly CatalogTool[], McpRuntimeFailure>
   findHandle(
     snapshot: McpTurnSnapshot,
     handle: string,
   ): Effect.Effect<CatalogTool, McpStaleToolHandle>
+  /** A handle's live tool, waiting for its server when the handle came from the cache. */
+  resolveHandle(
+    snapshot: McpTurnSnapshot,
+    handle: string,
+  ): Effect.Effect<CatalogTool, McpRuntimeFailure>
   recordRemoteTasks(input: {
     readonly snapshot: McpTurnSnapshot
     readonly server: McpTurnSnapshotServer
@@ -119,6 +154,7 @@ export interface McpRuntimeStateService {
   getEventSubscriptions(
     sessionId?: string | null,
   ): Effect.Effect<readonly McpEventSubscriptionState[]>
+  forgetToolCatalog(scope: McpToolCatalogScope): Effect.Effect<void>
   invalidateSessionConnections(sessionId: string): Effect.Effect<void>
   disposeSession(sessionId: string): Effect.Effect<void>
   reconcileIdleConnections(isActive: (runtimeNamespace: string) => boolean): Effect.Effect<void>

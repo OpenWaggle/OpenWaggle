@@ -1,13 +1,16 @@
-import type { McpTurnSnapshot, McpTurnSnapshotServer } from '@shared/types/mcp'
+import type { McpTurnSnapshotServer } from '@shared/types/mcp'
 
-/** Whether a server exposes tools directly to the model, so a turn must list them before Pi starts. */
+/**
+ * Whether a server exposes tools directly to the model, so a turn registers them with Pi before
+ * it starts.
+ */
 export function serverRequestsDirectTools(server: McpTurnSnapshotServer) {
   const selection = server.definition.directTools
   return selection === true || (Array.isArray(selection) && selection.length > 0)
 }
 
-/** The servers a turn connects before its first model call. The gateway connects the rest lazily. */
-export function serversConnectedBeforeTurn(snapshot: McpTurnSnapshot | null) {
-  if (!snapshot || snapshot.effectiveState !== 'on') return []
-  return snapshot.servers.filter(serverRequestsDirectTools)
+/** Whether a server's definition selects one of its tools to be exposed directly. */
+export function serverOffersToolDirectly(server: McpTurnSnapshotServer, toolName: string) {
+  const selection = server.definition.directTools
+  return selection === true || (Array.isArray(selection) && selection.includes(toolName))
 }

@@ -13,6 +13,7 @@ import type { McpRemoteTaskStore } from './remote-task-store'
 import { runMcpRuntimeDoctor } from './runtime-doctor'
 import { makeMcpRuntimeSnapshotAuthority } from './runtime-snapshot-authority'
 import { makeMcpRuntimeState } from './runtime-state'
+import type { McpToolCatalogCache } from './tool-catalog-cache'
 import type { McpConnectionFactory } from './types'
 
 function clearPendingInvalidation(pending: Ref.Ref<Set<string>>, sessionId: string) {
@@ -37,6 +38,8 @@ interface McpRuntimeServiceInput {
   readonly connect: McpConnectionFactory
   readonly createHandleKey?: () => Buffer
   readonly remoteTaskStore?: McpRemoteTaskStore
+  readonly toolCatalogCache?: McpToolCatalogCache
+  readonly optionalStartupGraceMs?: number
   readonly turnState?: McpTurnStateServiceShape
 }
 
@@ -77,8 +80,7 @@ export function makeMcpRuntimeService(
             if (!snapshot) return yield* state.disposeSession(sessionId)
             yield* state.discardSupersededSessionConnections(snapshot)
           }).pipe(
-            // If turn preparation fails/dies/interrupts, settle the turn and dispose
-            // the session so no stale "pending" turn or connection is left behind.
+            // A failed or interrupted preparation settles the turn and disposes the session.
             Effect.onError(() =>
               snapshotAuthority.tombstone(sessionId).pipe(
                 Effect.zipRight(turnState.complete(sessionId)),
@@ -112,8 +114,9 @@ export function makeMcpRuntimeService(
             input2.interactions,
           ),
         ),
-      listDirectTools: (snapshot) =>
-        withAuthoritativeSnapshot(snapshot, listMcpDirectTools(state, snapshot)),
+      forgetToolCatalog: (scope) => state.forgetToolCatalog(scope),
+      listDirectTools: (snapshot, options) =>
+        withAuthoritativeSnapshot(snapshot, listMcpDirectTools(state, snapshot, options)),
       browseCapabilities: (input2) =>
         withAuthoritativeSnapshot(
           input2.snapshot,
