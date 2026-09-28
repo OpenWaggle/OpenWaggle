@@ -15,7 +15,7 @@ const LazyTerminalPanel = lazy(() =>
   })),
 )
 const LazyBrowserPreviewPanel = lazy(() =>
-  import('@/features/browser-preview').then((module) => ({
+  import('@/features/browser-preview/components').then((module) => ({
     default: module.BrowserPreviewPanel,
   })),
 )

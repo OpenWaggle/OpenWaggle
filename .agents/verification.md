@@ -50,7 +50,7 @@ pnpm lint
 pnpm check
 ```
 
-`pnpm check` runs typecheck plus the full static verification (installer script, contrast, test typecheck, lint, package release validation, API snapshots, package docs, package smoke). Lint runs Biome, ESLint architecture/style rules, and instruction-reference checks.
+`pnpm check` runs typecheck plus the full static verification (installer script, contrast, test typecheck, lint, renderer bundle budget, package release validation, API snapshots, package docs, package smoke). The renderer bundle budget (`pnpm check:renderer-bundle`) runs `electron-vite build` and `scripts/check-syntax-bundle.ts`, so an oversized initial renderer graph fails the required Typecheck & Lint job on the PR instead of failing the release build after the version PR merges. Lint runs Biome, ESLint architecture/style rules, and instruction-reference checks.
 
 ## Targeted Tests
 

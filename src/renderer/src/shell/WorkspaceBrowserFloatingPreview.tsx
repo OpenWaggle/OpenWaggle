@@ -1,9 +1,9 @@
 import { useEffect } from 'react'
 import {
-  BrowserPreviewFloatingPanel,
   selectBrowserPreviewFloating,
   useBrowserPreviewFloatingStore,
 } from '@/features/browser-preview'
+import { BrowserPreviewFloatingPanel } from '@/features/browser-preview/components'
 import { useChat } from '@/features/chat/hooks'
 import { isSessionSummaryPanelVisible, useSessionSummaryUIStore } from '@/features/session-summary'
 import { useProject } from '@/features/sessions/hooks'
