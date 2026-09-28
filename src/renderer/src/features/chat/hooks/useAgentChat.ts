@@ -63,6 +63,7 @@ export function useAgentChat(
     selectOptimisticUserMessages(sessionId),
   )
   const addOptimisticUserMessage = useOptimisticUserMessageStore((state) => state.add)
+  const removeOptimisticUserMessage = useOptimisticUserMessageStore((state) => state.remove)
   const removeMatchedOptimisticUserMessages = useOptimisticUserMessageStore(
     (state) => state.removeMatched,
   )
@@ -146,6 +147,7 @@ export function useAgentChat(
     sessionId,
     isFirstMessage: session?.messages.length === 0,
     model,
+    error,
     refs,
     setMessagesBySessionId,
     setRunRenderMessages,
@@ -155,6 +157,7 @@ export function useAgentChat(
     setStatus,
     setCompactionStatus: updateCompactionStatus,
     addOptimisticUserMessage,
+    removeOptimisticUserMessage,
     upsertSession,
   })
   useLayoutEffect(() => {

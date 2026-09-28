@@ -213,6 +213,17 @@ export function useSendMessage(options: UseSendMessageOptions): SendMessageHandl
          */
         return
       }
+      if (report.outcome === 'queued') {
+        /*
+         * Kept as a Follow-up, not run: no Run will report back, so nothing may keep waiting for one. A
+         * brand-new Session has no queue for this to join, but the contract allows it.
+         */
+        useFirstSendPendingStore.getState().clear(sessionId)
+        useBackgroundRunStore.getState().setFirstSendRecovery(sessionId, null)
+        useBackgroundRunStore.getState().clearRunRenderSnapshot(sessionId)
+        useOptimisticUserMessageStore.getState().remove(sessionId, optimisticUserMessage.id)
+        return
+      }
       /*
        * A cancellation is reported too, so work the user may still want is not discarded - but it carries its
        * outcome, because a caller must not tell the user their turn "could not start" when they stopped it.

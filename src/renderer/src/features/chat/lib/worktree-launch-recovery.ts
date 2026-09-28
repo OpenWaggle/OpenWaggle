@@ -115,7 +115,9 @@ export async function retryFirstSend(sessionIdValue: string, workLocally = false
   restoreFailedLaunch(
     sessionId,
     previousLaunch,
-    'The first message was not delivered. Try again or work locally.',
+    report.outcome === 'queued'
+      ? 'The message was queued as a Follow-up instead of starting. Resume the queue to send it.'
+      : 'The first message was not delivered. Try again or work locally.',
   )
 }
 

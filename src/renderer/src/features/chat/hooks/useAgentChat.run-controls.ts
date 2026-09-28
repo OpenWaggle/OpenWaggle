@@ -12,7 +12,8 @@ import { isModelActionable } from '@/features/providers/state'
 import { usePreferencesStore } from '@/features/settings/state'
 import { api } from '@/shared/lib/ipc'
 import { createOptimisticUserMessage } from '../lib/useAgentChat.utils'
-import { createPendingRunWaiter, updateMessagesForSession } from './useAgentChat.message-cache'
+import { beginForegroundRun, forgetQueuedSend } from './useAgentChat.foreground-run'
+import { updateMessagesForSession } from './useAgentChat.message-cache'
 import type {
   AgentChatStatus,
   AgentRunActions,
@@ -44,6 +45,8 @@ interface AgentRunControlParams {
   readonly sessionId: SessionId | null
   readonly isFirstMessage: boolean
   readonly model: SupportedModelId | undefined
+  /** The error on screen when this render's controls were created; a queued send restores it. */
+  readonly error: Error | undefined
   readonly refs: AgentRunControlRefs
   readonly setMessagesBySessionId: SetMessagesBySessionId
   readonly setRunRenderMessages: SetRunRenderMessages
@@ -60,6 +63,7 @@ interface AgentRunControlParams {
   readonly setStatus: SetAgentChatStatus
   readonly setCompactionStatus: SetCompactionStatus
   readonly addOptimisticUserMessage: (sessionId: SessionId, message: UIMessage) => void
+  readonly removeOptimisticUserMessage: (sessionId: SessionId, messageId: UIMessage['id']) => void
   readonly upsertSession: (session: SessionDetail) => void
 }
 
@@ -142,28 +146,18 @@ export function createAgentRunControls(params: AgentRunControlParams) {
     }
   }
 
-  function startForegroundRun(targetSessionId: SessionId) {
-    const { promise, waiter } = createPendingRunWaiter()
-    refs.pendingRunWaiterRef.current = waiter
-    refs.foregroundStreamActiveRef.current = true
-    refs.foregroundSessionIdRef.current = targetSessionId
-    refs.terminalRunErrorRef.current = undefined
-    params.setBackgroundStreaming(false)
-    params.setError(undefined)
-    params.setStatus('submitted')
-    return promise
-  }
-
   async function dispatchAgentSend(
     payload: AgentSendPayload,
     waggleConfig: WaggleConfig | null,
     model: SupportedModelId,
+    optimisticMessageId: UIMessage['id'],
   ) {
     if (!sessionId) {
       return
     }
     const targetSessionId = sessionId
-    const runPromise = startForegroundRun(targetSessionId)
+    const run = beginForegroundRun(refs, params, targetSessionId)
+    const runPromise = run.promise
     const sendPromise = waggleConfig
       ? api.sendWaggleMessage(targetSessionId, payload, model, waggleConfig)
       : api.sendMessage(targetSessionId, payload, model)
@@ -175,6 +169,7 @@ export function createAgentRunControls(params: AgentRunControlParams) {
      * begins immediately, and the superseded send's reply arrives after that replacement has started.
      */
     let notDelivered: MessageNotDelivered | null = null
+    let queued: boolean
     let delivered = false
     try {
       /*
@@ -187,9 +182,12 @@ export function createAgentRunControls(params: AgentRunControlParams) {
       if (report.outcome === 'delivered') {
         delivered = true
         await runPromise
-      } else {
-        // Nothing is waiting on the run any more, but its rejection must not surface unhandled.
-        void runPromise.catch(() => undefined)
+        return
+      }
+      // Nothing is waiting on the run any more, but its rejection must not surface unhandled.
+      void runPromise.catch(() => undefined)
+      queued = report.outcome === 'queued'
+      if (report.outcome !== 'queued') {
         notDelivered = new MessageNotDelivered(report.outcome, report.message)
       }
     } catch (runError) {
@@ -219,6 +217,10 @@ export function createAgentRunControls(params: AgentRunControlParams) {
        * destroyed the work a caller was holding for exactly this case.
        */
       throw delivered ? new MessageDeliveredRunFailed(normalizedError) : normalizedError
+    }
+    if (queued) {
+      forgetQueuedSend({ refs, setters: params, targetSessionId, run, optimisticMessageId })
+      return
     }
     /*
      * The caller is told, so work it submitted is not lost - a review is restored - but the session is left
@@ -255,7 +257,7 @@ export function createAgentRunControls(params: AgentRunControlParams) {
       (currentMessages) => [...currentMessages, optimisticUserMessage],
       { cacheRunSnapshot: true },
     )
-    await dispatchAgentSend(payload, waggleConfig, params.model)
+    await dispatchAgentSend(payload, waggleConfig, params.model, optimisticUserMessage.id)
     if (params.isFirstMessage) {
       params.setFirstSendRecovery(sessionId, null)
     }
