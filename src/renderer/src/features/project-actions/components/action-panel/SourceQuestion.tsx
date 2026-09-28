@@ -125,7 +125,9 @@ function ScriptSource(
         <MissingScriptNotice
           {...props}
           invocation={invocation}
-          {...((discovery.data?.tasks.length ?? 0) > 0 ? { onPickAnother: focusPicker } : {})}
+          {...((discovery.data?.tasks.length ?? 0) > 0 && !discovery.error
+            ? { onPickAnother: focusPicker }
+            : {})}
         />
       ) : null}
       {invocation.type === 'task' && linked ? (

@@ -1,9 +1,9 @@
 import type {
-  ActionCatalog,
   ActionManifest,
   PreparationDefinition,
   PreparationReview,
 } from '@shared/types/action-definitions'
+import { effectivePreparation } from './effective-project-definitions'
 import {
   preparationExecutionKey,
   preparationReview,
@@ -11,8 +11,14 @@ import {
 } from './preparation-review-context'
 
 interface SaverEnablementInput {
-  /** The catalog before the save, to see what the slot held and whether it awaited review. */
-  readonly before: ActionCatalog
+  /** The definitions before the save, to see what the slot held and whether it awaited review. */
+  readonly before: {
+    readonly document: {
+      readonly manifest: ActionManifest
+      readonly reviews: readonly PreparationReview[]
+    }
+    readonly shared: ActionManifest
+  }
   readonly document: {
     readonly manifest: ActionManifest
     readonly reviews: readonly PreparationReview[]
@@ -31,13 +37,22 @@ export function withSaverEnablement<T extends SaverEnablementInput['document']>(
   input: SaverEnablementInput & { readonly document: T },
 ): T {
   const { definition } = input
-  const pending = input.before.preparation.find(
+  // Read the slot directly rather than resolving the whole catalog, so a save can still repair a
+  // pre-existing invalid state such as two definitions in one slot.
+  const { before } = input
+  const pending = effectivePreparation(
+    before.document.manifest.preparation,
+    before.shared.preparation,
+  ).find(
     ({ definition: entry }) =>
       entry.profileId === definition.profileId && entry.phase === definition.phase,
+  )?.definition
+  const pendingKey = pending ? preparationExecutionKey(pending) : null
+  const reviewed = before.document.reviews.some(
+    (review) => review.definitionId === pending?.id && review.fingerprint === pendingKey,
   )
   const unreadPendingChange =
-    pending?.review === 'required' &&
-    preparationExecutionKey(pending.definition) === preparationExecutionKey(definition)
+    pending !== undefined && !reviewed && pendingKey === preparationExecutionKey(definition)
   if (unreadPendingChange) return input.document
   const profileName = reviewProfileContext(definition.profileId, [
     ...input.document.manifest.profiles,

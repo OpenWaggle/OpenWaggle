@@ -270,7 +270,7 @@ export function editActionCatalog(
   }
   if (edit.type === 'save-preparation')
     nextDocument = withSaverEnablement({
-      before: resolveActionCatalog(document, shared, ''),
+      before: { document, shared },
       document: nextDocument,
       shared: nextShared,
       definition: edit.definition,

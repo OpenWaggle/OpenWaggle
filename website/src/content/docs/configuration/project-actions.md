@@ -89,7 +89,7 @@ Setup is separate from an on-demand Project Action. Configure it in **Settings >
 2. Answer **What should it run?** with a project script or a command that finishes, such as the project's dependency-install command.
 3. Check **Who should have this setup?** and the folder under **Optional settings**, then click **Save setup**.
 
-Saving a setup turns it on for you, whether you keep it private or share it: you have just seen exactly what will run. A shared setup still needs each teammate's review before it runs on their computer, and a later change made by someone else needs your review. Settings shows **Check it before it runs** for those. **Check it** opens the panel with what changed in plain words; choose **Turn on this version** or **Keep it off**. Closing it leaves the setup off.
+Saving a setup turns it on for you, whether you keep it private or share it: you have just seen exactly what will run. The one exception is a teammate's change waiting for your review that you save without changing its command or folder; it stays off until you check it, and the saved message tells you so. A shared setup still needs each teammate's review before it runs on their computer, and a later change made by someone else needs your review. Settings shows **Check it before it runs** for those. **Check it** opens the panel with what changed in plain words; choose **Turn on this version** or **Keep it off**. Closing it leaves the setup off.
 
 Profiles let different kinds of work use different setups. They stay out of sight until you need one: use **Add another setup profile** in the same section. Once a project has more than one, Settings shows a **Setup profile** picker and the panel names the profile it edits.
 

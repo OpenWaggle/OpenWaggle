@@ -1,4 +1,9 @@
-import type { ActionDefinition, ActionStorage } from '@shared/types/action-definitions'
+import type {
+  ActionCatalog,
+  ActionDefinition,
+  ActionStorage,
+  PreparationDefinition,
+} from '@shared/types/action-definitions'
 
 /**
  * Plain-language wording for the guided action panel (ADR 0038). One label is used everywhere a
@@ -154,3 +159,20 @@ export function preparationStorageCopy(phase: PreparationPhase, sharedEdit: bool
 
 export const SHARED_PREPARATION_SAVE_NOTE =
   'It will be on for you. Teammates will be asked to check it before it runs for them.'
+
+export function phaseNoun(phase: PreparationPhase) {
+  return phase === 'setup' ? 'worktree setup' : 'worktree cleanup'
+}
+
+/** Saving counts as a review except for an unchanged pending change (ADR 0038); say which. */
+export function preparationSavedMessage(saved: ActionCatalog, definition: PreparationDefinition) {
+  const noun = phaseNoun(definition.phase)
+  const entry = saved.preparation.find(
+    (candidate) =>
+      candidate.definition.profileId === definition.profileId &&
+      candidate.definition.phase === definition.phase,
+  )
+  return entry?.review === 'enabled'
+    ? `Saved your ${noun}. It’s on for you.`
+    : `Saved your ${noun}. It stays off until you check it in Settings.`
+}

@@ -5,6 +5,7 @@ import type { ActionManagementScope } from '@shared/types/action-management'
 import { useRef, useState } from 'react'
 import { useUIStore } from '@/shell/ui-store'
 import { preparationDraftProblem } from '../lib/action-draft-problems'
+import { phaseNoun, preparationSavedMessage } from '../lib/action-panel-copy'
 import { draftBaseState, type PreparationDraft } from '../lib/action-panel-drafts'
 import { useActionPanelStore } from '../state/action-panel-store'
 import { useEditActionCatalog, useNativeActions } from './useNativeActions'
@@ -15,10 +16,6 @@ const CHANGED_WHILE_SAVING =
 function saveError(cause: unknown) {
   if (!(cause instanceof Error)) return 'Could not save.'
   return cause.message.includes('changed since') ? CHANGED_WHILE_SAVING : cause.message
-}
-
-function phaseNoun(phase: PreparationDefinition['phase']) {
-  return phase === 'setup' ? 'worktree setup' : 'worktree cleanup'
 }
 
 export function useSavePreparationDraft(scope: ActionManagementScope) {
@@ -79,11 +76,11 @@ export function useSavePreparationDraft(scope: ActionManagementScope) {
       if (draftBaseState(draft, latest).kind !== 'current') {
         return CHANGED_WHILE_SAVING
       }
-      await edit.mutateAsync({
+      const saved = await edit.mutateAsync({
         revision: latest.revision,
         edit: { type: 'save-preparation', definition: decoded.data, storage: draft.storage },
       })
-      finish(`Saved your ${phaseNoun(decoded.data.phase)}.`)
+      finish(preparationSavedMessage(saved, decoded.data))
       return null
     })
 

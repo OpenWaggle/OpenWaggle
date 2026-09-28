@@ -204,7 +204,9 @@ function PendingReviewNotice(props: { readonly entry: Entry | undefined; readonl
       className="grid gap-2.5 rounded-xl border border-warning/40 bg-warning/5 px-4 py-3.5"
     >
       <p role="status" className="text-sm font-medium text-text-primary">
-        This shared {props.noun} changed and is off for you until you check it
+        {entry.previous
+          ? `This shared ${props.noun} changed and is off for you until you check it`
+          : `This shared ${props.noun} is off for you until you check it`}
       </p>
       {changes.length > 0 ? (
         <ul className="grid gap-1.5 text-sm leading-6">
@@ -218,8 +220,8 @@ function PendingReviewNotice(props: { readonly entry: Entry | undefined; readonl
         </ul>
       ) : null}
       <p className="text-sm leading-6 text-text-tertiary">
-        Saving your own changes turns your version on for you. To turn this version on without
-        changing it, use Check it in Settings.
+        Saving turns your version on only when you change the command or folder. To turn this
+        version on as it is, use Check it in Settings.
       </p>
     </section>
   )

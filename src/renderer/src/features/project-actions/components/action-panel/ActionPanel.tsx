@@ -38,13 +38,20 @@ export function ActionPanel({ request }: { readonly request: ActionPanelRequest 
     const root = rootRef.current
     if (!root) return
     const focusIn = () => setFocusWithin(true)
-    const focusOut = (event: FocusEvent) =>
-      setFocusWithin(event.relatedTarget instanceof Node && root.contains(event.relatedTarget))
+    // Focus moving to another element outside the panel disables the entry. A null target means
+    // the focused control unmounted or chrome was clicked; the next pointer press decides.
+    const focusOut = (event: FocusEvent) => {
+      if (event.relatedTarget instanceof Node) setFocusWithin(root.contains(event.relatedTarget))
+    }
+    const pointerDown = (event: PointerEvent) =>
+      setFocusWithin(event.target instanceof Node && root.contains(event.target))
     root.addEventListener('focusin', focusIn)
     root.addEventListener('focusout', focusOut)
+    document.addEventListener('pointerdown', pointerDown, true)
     return () => {
       root.removeEventListener('focusin', focusIn)
       root.removeEventListener('focusout', focusOut)
+      document.removeEventListener('pointerdown', pointerDown, true)
     }
   }, [])
   return (

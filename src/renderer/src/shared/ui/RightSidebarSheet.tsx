@@ -62,7 +62,9 @@ export function RightSidebarSheet({
       const first = focusable[0]
       const last = focusable.at(-1)
       const active = document.activeElement
-      if (event.shiftKey && (active === first || !aside.contains(active))) {
+      // Focus on a programmatic target (tabindex="-1", such as a title) counts as the start.
+      const offCycle = active instanceof HTMLElement && !focusable.includes(active)
+      if (event.shiftKey && (active === first || !aside.contains(active) || offCycle)) {
         event.preventDefault()
         last?.focus({ preventScroll: true })
         return
