@@ -7,8 +7,8 @@ import type { ActionRun } from '@shared/types/action-runs'
 import { quotePosixShellArgument, quotePowerShellArgument } from '@shared/utils/shell-argument'
 
 export const actionSourceLabels: Record<ActionDefinitionSource, string> = {
-  local: 'Only on this device',
-  project: 'Shared in project',
+  local: 'Only you',
+  project: 'Everyone on the project',
   override: 'Locally overridden',
 }
 export function actionInvocationLabel(invocation: ActionInvocation): string {

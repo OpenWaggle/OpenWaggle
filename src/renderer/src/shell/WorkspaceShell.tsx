@@ -4,6 +4,7 @@ import {
   useBackgroundRunMonitor,
   useSetupActionTerminalReconciliation,
 } from '@/features/chat/hooks'
+import { ActionPanelLayout } from '@/features/project-actions'
 import { Sidebar } from '@/features/sidebar/components'
 import { useTerminalActivityMonitor } from '@/features/terminal'
 import { Header } from '@/shell/Header'
@@ -64,15 +65,17 @@ export function WorkspaceShell({ children }: WorkspaceShellProps) {
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         {!settingsOpen && <Header />}
-        <WorkspaceRightPanel>
-          <div className="relative flex size-full min-h-0 min-w-0 flex-col overflow-hidden">
-            {children}
-            <WorkspaceTerminal />
-            <Suspense fallback={null}>
-              <LazyWorkspaceBrowserFloatingPreview />
-            </Suspense>
-          </div>
-        </WorkspaceRightPanel>
+        <ActionPanelLayout>
+          <WorkspaceRightPanel>
+            <div className="relative flex size-full min-h-0 min-w-0 flex-col overflow-hidden">
+              {children}
+              <WorkspaceTerminal />
+              <Suspense fallback={null}>
+                <LazyWorkspaceBrowserFloatingPreview />
+              </Suspense>
+            </div>
+          </WorkspaceRightPanel>
+        </ActionPanelLayout>
       </div>
 
       <ToastOverlay />

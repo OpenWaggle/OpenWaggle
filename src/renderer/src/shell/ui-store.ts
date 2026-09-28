@@ -1,7 +1,9 @@
 import type { AgentErrorInfo } from '@shared/types/errors'
-import { create } from 'zustand'
+import { create, type StoreApi } from 'zustand'
 
 const DELAY_MS = 3500
+/** Long enough to reach a toast's button, such as Run now after saving an action. */
+const ACTION_TOAST_DELAY_MS = 8_000
 const FEEDBACK_COOLDOWN_MS = 60_000
 
 export const DIFF_PANEL_MIN = 360
@@ -94,6 +96,8 @@ interface UIState {
   closeTerminal: () => void
   showToast: (message: string, variant?: ToastData['variant']) => void
   showPersistentToast: (data: ToastData) => void
+  /** A toast with one button that still dismisses itself. */
+  showActionToast: (data: ToastData) => void
   clearToast: () => void
   openSlashCommandMenu: () => void
   closeSlashCommandMenu: () => void
@@ -119,6 +123,15 @@ interface UIState {
 let toastTimer: ReturnType<typeof setTimeout> | null = null
 let feedbackCooldownTimer: ReturnType<typeof setTimeout> | null = null
 let nextChatCommandRequestId = 1
+
+function showTimedToast(set: StoreApi<UIState>['setState'], data: ToastData, delayMs: number) {
+  if (toastTimer) clearTimeout(toastTimer)
+  set({ toastMessage: data.message, toastData: data })
+  toastTimer = setTimeout(() => {
+    toastTimer = null
+    set({ toastMessage: null, toastData: null })
+  }, delayMs)
+}
 
 export const useUIStore = create<UIState>((set, get) => ({
   sidebarOpen: true,
@@ -163,12 +176,11 @@ export const useUIStore = create<UIState>((set, get) => ({
   },
 
   showToast(message, variant = 'neutral') {
-    if (toastTimer) clearTimeout(toastTimer)
-    set({ toastMessage: message, toastData: { message, variant } })
-    toastTimer = setTimeout(() => {
-      toastTimer = null
-      set({ toastMessage: null, toastData: null })
-    }, DELAY_MS)
+    showTimedToast(set, { message, variant }, DELAY_MS)
+  },
+
+  showActionToast(data) {
+    showTimedToast(set, data, ACTION_TOAST_DELAY_MS)
   },
 
   showPersistentToast(data) {

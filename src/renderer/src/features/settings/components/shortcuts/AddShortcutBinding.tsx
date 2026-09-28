@@ -14,15 +14,15 @@ import { ProjectActionConditionBuilder } from '@/features/project-actions'
 import { Button } from '@/shared/ui/Button'
 import { Select } from '@/shared/ui/Select'
 import {
-  type ShortcutBrowserRow,
-  shortcutBrowserConflictLabels,
-} from '../../lib/shortcut-browser-model'
-import {
   isShortcutModifierKey,
   ShortcutBindingButton,
   ShortcutConflictNotice,
   shortcutBindingFromEvent,
-} from './ShortcutRowParts'
+} from '@/shared/ui/ShortcutRecorder'
+import {
+  type ShortcutBrowserRow,
+  shortcutBrowserConflictLabels,
+} from '../../lib/shortcut-browser-model'
 
 export type UpdateProjectShortcutRules = (
   actionId: string,
