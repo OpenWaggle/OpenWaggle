@@ -4,7 +4,10 @@ import { Duration, Effect, Either, Exit, Fiber, Option, Ref } from 'effect'
 import { serverRequestsDirectTools } from '../../../domain/mcp/direct-tool-servers'
 import { resolveMcpRuntimeNamespace } from '../../../domain/mcp/runtime-namespace'
 import { type McpRuntimeFailure, McpStaleToolHandle } from '../../../ports/mcp-errors'
-import type { McpDirectToolListOptions } from '../../../ports/mcp-runtime-service'
+import type {
+  McpDirectToolListOptions,
+  McpDirectToolWaitOutcome,
+} from '../../../ports/mcp-runtime-service'
 import {
   connectNoticeId,
   discardSupersededSessionConnections,
@@ -110,6 +113,12 @@ function planServer(
   })
 }
 
+/** The tools one server gave the turn, and how its wait ended when the turn waited for it. */
+interface PlanResult {
+  readonly tools: readonly CatalogTool[]
+  readonly waited?: { readonly server: string; readonly state: keyof McpDirectToolWaitOutcome }
+}
+
 /**
  * Waits a short grace for an optional server with nothing cached, then starts without it.
  *
@@ -123,19 +132,22 @@ function awaitWithinGrace(
   plan: Extract<ServerPlan, { readonly type: 'grace' }>,
 ) {
   return Effect.gen(function* () {
+    const server = plan.server.name
     const outcome = yield* Fiber.await(plan.listing).pipe(
       Effect.timeoutOption(Duration.millis(ctx.optionalStartupGraceMs)),
       Effect.interruptible,
     )
     if (Option.isSome(outcome)) {
       const exit = outcome.value
-      return Exit.isSuccess(exit) && Either.isRight(exit.value) ? exit.value.right : []
+      return Exit.isSuccess(exit) && Either.isRight(exit.value)
+        ? ({ tools: exit.value.right, waited: { server, state: 'connected' } } satisfies PlanResult)
+        : ({ tools: [], waited: { server, state: 'unavailable' } } satisfies PlanResult)
     }
     const runtimeNamespace = resolveMcpRuntimeNamespace(snapshot)
     yield* addNotice(ctx, runtimeNamespace, {
       id: connectNoticeId(plan.server),
       severity: 'info',
-      title: `${plan.server.name} MCP server is still connecting`,
+      title: `${server} MCP server is still connecting`,
       detail: 'This turn started without its direct tools. The next turn includes them.',
       action: 'Wait for the server to connect, or use the mcp tool to reach it sooner.',
       serverInstanceId: plan.server.instanceId,
@@ -145,20 +157,36 @@ function awaitWithinGrace(
     if (Option.isSome(settled)) {
       yield* removeNotice(ctx, runtimeNamespace, connectNoticeId(plan.server))
     }
-    return []
+    return { tools: [], waited: { server, state: 'stillConnecting' } } satisfies PlanResult
   })
 }
 
-function resolvePlan(ctx: RuntimeStateContext, snapshot: McpTurnSnapshot, plan: ServerPlan) {
-  if (plan.type === 'ready') return Effect.succeed(plan.tools)
+function resolvePlan(
+  ctx: RuntimeStateContext,
+  snapshot: McpTurnSnapshot,
+  plan: ServerPlan,
+): Effect.Effect<PlanResult, McpRuntimeFailure> {
+  if (plan.type === 'ready') return Effect.succeed({ tools: plan.tools })
   if (plan.type === 'grace') return awaitWithinGrace(ctx, snapshot, plan)
+  const server = plan.server.name
   return loadServerCatalog(ctx, snapshot, plan.server).pipe(
+    Effect.map((tools): PlanResult => ({ tools, waited: { server, state: 'connected' } })),
     Effect.catchAll((error) =>
       reportServerUnavailable(ctx, snapshot, plan.server, error.message).pipe(
-        Effect.as<readonly CatalogTool[]>([]),
+        Effect.as<PlanResult>({ tools: [], waited: { server, state: 'unavailable' } }),
       ),
     ),
   )
+}
+
+function waitOutcome(results: readonly PlanResult[]): McpDirectToolWaitOutcome {
+  const servers = (state: keyof McpDirectToolWaitOutcome) =>
+    results.flatMap((result) => (result.waited?.state === state ? [result.waited.server] : []))
+  return {
+    connected: servers('connected'),
+    stillConnecting: servers('stillConnecting'),
+    unavailable: servers('unavailable'),
+  }
 }
 
 /**
@@ -184,7 +212,8 @@ export function loadDirectToolCatalog(
     const results = yield* Effect.forEach(plans, (plan) => resolvePlan(ctx, snapshot, plan), {
       concurrency: 'unbounded',
     })
-    return results.flat()
+    if (waitingFor.length > 0) options.onWaitSettled?.(waitOutcome(results))
+    return results.flatMap((result) => result.tools)
   })
 }
 

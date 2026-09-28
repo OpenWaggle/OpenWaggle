@@ -65,7 +65,12 @@ function nextLaunchSteps(
     return steps.length > 0 ? steps.map((step) => closeStep(step, now)) : existing
   }
   if (progress.completesStep) {
-    return steps.map((step) => (step.stage === progress.stage ? closeStep(step, now) : step))
+    // A closing report may relabel its step with how it ended.
+    return steps.map((step) =>
+      step.stage === progress.stage && step.completedAt === undefined
+        ? closeStep(progress.label ? { ...step, label: progress.label } : step, now)
+        : step,
+    )
   }
   if (!progress.label) return existing
   const open = steps.find((step) => step.stage === progress.stage && step.completedAt === undefined)

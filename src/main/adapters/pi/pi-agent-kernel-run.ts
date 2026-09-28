@@ -7,7 +7,10 @@ import type {
 import type { BrowserPreviewAutomationServiceShape } from '../../ports/browser-preview-automation-service'
 import type { InlineVisualizationServiceShape } from '../../ports/inline-visualization-service'
 import type { McpConfigServiceShape } from '../../ports/mcp-config-service'
-import type { McpRuntimeServiceShape } from '../../ports/mcp-runtime-service'
+import type {
+  McpDirectToolWaitOutcome,
+  McpRuntimeServiceShape,
+} from '../../ports/mcp-runtime-service'
 import type { TerminalServiceShape } from '../../ports/terminal-service'
 import type { WorkspacePreparationServiceShape } from '../../ports/workspace-preparation-service'
 import { runPiSession } from './agent-kernel/classic-run'
@@ -92,7 +95,7 @@ export function prepareMcpTurn(input: {
    */
   readonly onConnecting?: (serverNames: readonly string[]) => void
   /** Called once that wait is over. A failure leaves the step open so the error lands on it. */
-  readonly onConnected?: () => void
+  readonly onConnected?: (outcome: McpDirectToolWaitOutcome) => void
 }) {
   return Effect.gen(function* () {
     const snapshot = restrictMcpSnapshot(
@@ -101,16 +104,11 @@ export function prepareMcpTurn(input: {
     )
     yield* input.runtime.prepareTurn({ sessionId: input.sessionId, snapshot })
     return yield* Effect.gen(function* () {
-      let waited = false
       const directTools = snapshot
-        ? yield* input.runtime
-            .listDirectTools(snapshot, {
-              onWaiting: (serverNames) => {
-                waited = true
-                input.onConnecting?.(serverNames)
-              },
-            })
-            .pipe(Effect.tap(() => Effect.sync(() => (waited ? input.onConnected?.() : undefined))))
+        ? yield* input.runtime.listDirectTools(snapshot, {
+            ...(input.onConnecting ? { onWaiting: input.onConnecting } : {}),
+            ...(input.onConnected ? { onWaitSettled: input.onConnected } : {}),
+          })
         : []
       const extensionFactory = snapshot
         ? createMcpGatewayExtension({

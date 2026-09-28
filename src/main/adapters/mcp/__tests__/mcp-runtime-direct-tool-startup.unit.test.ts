@@ -162,9 +162,15 @@ describe('non-blocking MCP direct tools', () => {
     const target = directSnapshot()
     await service.prepareTurn({ sessionId: 'session-1', snapshot: target })
 
-    await expect(service.listDirectTools(target, { onWaiting })).resolves.toEqual([])
+    const onWaitSettled = vi.fn()
+    await expect(service.listDirectTools(target, { onWaiting, onWaitSettled })).resolves.toEqual([])
 
     expect(onWaiting).toHaveBeenCalledWith(['private-docs-server'])
+    expect(onWaitSettled).toHaveBeenCalledWith({
+      connected: [],
+      stillConnecting: ['private-docs-server'],
+      unavailable: [],
+    })
     expect(await service.getNotices('session-1')).toEqual([
       expect.objectContaining({
         id: 'runtime:server-1:connect',
@@ -260,5 +266,32 @@ describe('non-blocking MCP direct tools', () => {
     await service.listDirectTools(target, { onWaiting })
 
     expect(onWaiting).not.toHaveBeenCalled()
+  })
+
+  it('reports an optional server that failed within its grace as unavailable', async () => {
+    const onWaitSettled = vi.fn()
+    const service = createMcpRuntimeService({
+      connect: async () => {
+        throw new Error('secret cannot be decrypted')
+      },
+      toolCatalogCache: new InMemoryMcpToolCatalogCache(),
+      optionalStartupGraceMs: 60_000,
+    })
+    const target = directSnapshot()
+    await service.prepareTurn({ sessionId: 'session-1', snapshot: target })
+
+    await expect(service.listDirectTools(target, { onWaitSettled })).resolves.toEqual([])
+
+    expect(onWaitSettled).toHaveBeenCalledWith({
+      connected: [],
+      stillConnecting: [],
+      unavailable: ['private-docs-server'],
+    })
+    expect(await service.getNotices('session-1')).toEqual([
+      expect.objectContaining({
+        severity: 'warning',
+        title: 'private-docs-server MCP server could not connect',
+      }),
+    ])
   })
 })

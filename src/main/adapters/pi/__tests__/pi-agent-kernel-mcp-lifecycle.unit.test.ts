@@ -1,6 +1,7 @@
 import { fromPartial } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
 import { describe, expect, it, vi } from 'vitest'
+import type { AgentKernelRunInput } from '../../../ports/agent-kernel-service'
 import type { McpConfigServiceShape } from '../../../ports/mcp-config-service'
 import type {
   McpDirectToolListOptions,
@@ -8,6 +9,7 @@ import type {
 } from '../../../ports/mcp-runtime-service'
 import { server, snapshot } from '../../mcp/__tests__/mcp-runtime-test-utils'
 import { prepareMcpTurn } from '../pi-agent-kernel-adapter'
+import { createWorktreeLaunchReporter } from '../pi-agent-kernel-launch'
 
 describe('Pi MCP turn preparation lifecycle', () => {
   it('disposes the active MCP turn when direct-tool preparation fails', async () => {
@@ -117,7 +119,9 @@ describe('Pi MCP turn preparation lifecycle', () => {
       prepareTurn: () => Effect.void,
       listDirectTools: (_snapshot: unknown, options?: McpDirectToolListOptions) =>
         Effect.sync(() => {
-          if (c.waitsFor.length > 0) options?.onWaiting?.(c.waitsFor)
+          if (c.waitsFor.length === 0) return []
+          options?.onWaiting?.(c.waitsFor)
+          options?.onWaitSettled?.({ connected: c.waitsFor, stillConnecting: [], unavailable: [] })
           return []
         }),
       completeTurn: () => Effect.void,
@@ -140,5 +144,32 @@ describe('Pi MCP turn preparation lifecycle', () => {
 
     expect(reported).toEqual(c.reported)
     await Effect.runPromise(prepared.finish)
+  })
+
+  it.each([
+    [{ connected: ['atlassian'], stillConnecting: [], unavailable: [] }, undefined],
+    [
+      { connected: ['atlassian'], stillConnecting: ['playwright'], unavailable: ['figma'] },
+      'MCP servers: atlassian connected; playwright still connecting; figma unavailable',
+    ],
+  ])('labels the finished MCP step with servers that did not connect: %j', (outcome, label) => {
+    const onWorktreeLaunch = vi.fn()
+    const reporter = createWorktreeLaunchReporter(
+      fromPartial<AgentKernelRunInput>({
+        session: { environmentMode: 'local', messages: [] },
+        onWorktreeLaunch,
+      }),
+    )
+
+    reporter.reportConnectingTools(['atlassian', 'playwright', 'figma'])
+    reporter.reportToolsConnected(outcome)
+
+    expect(onWorktreeLaunch).toHaveBeenLastCalledWith({
+      stage: 'connecting-tools',
+      environment: 'local',
+      completesStep: true,
+      ...(label ? { label } : {}),
+      details: label ? [label] : [],
+    })
   })
 })

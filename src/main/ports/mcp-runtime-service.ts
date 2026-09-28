@@ -69,9 +69,19 @@ export interface McpRuntimeConnectionStatus {
   readonly capabilities: readonly McpCapabilityFamily[]
 }
 
+/** How the servers a turn waited for ended up once it stopped waiting. */
+export interface McpDirectToolWaitOutcome {
+  readonly connected: readonly string[]
+  /** Optional servers whose grace ended first; they keep connecting for the next turn. */
+  readonly stillConnecting: readonly string[]
+  readonly unavailable: readonly string[]
+}
+
 export interface McpDirectToolListOptions {
   /** Called with the servers the turn is about to wait for, only when it waits for any. */
   readonly onWaiting?: (serverNames: readonly string[]) => void
+  /** Called once that wait is over, only when there was one and the turn goes ahead. */
+  readonly onWaitSettled?: (outcome: McpDirectToolWaitOutcome) => void
 }
 
 export interface McpRuntimeServiceShape {
