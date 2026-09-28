@@ -15,6 +15,26 @@ function mergeSettings(set: PreferencesSet, patch: Partial<Settings>) {
 }
 
 /**
+ * Tracks a write chain under a key without displacing a different chain already tracked there:
+ * when an alias chain re-keys onto a canonical path that has its own pending write, a removal
+ * addressed by the canonical path must wait for both, or the displaced write could land after the
+ * deletion and recreate the entry.
+ */
+function trackPendingWrite(key: string, chain: Promise<void>) {
+  const existing = pendingProjectPreferenceWrites.get(key)
+  if (!existing || existing === chain) {
+    pendingProjectPreferenceWrites.set(key, chain)
+    return
+  }
+  const merged = Promise.allSettled([existing, chain]).then(() => undefined)
+  pendingProjectPreferenceWrites.set(key, merged)
+  void merged.finally(() => {
+    if (pendingProjectPreferenceWrites.get(key) === merged)
+      pendingProjectPreferenceWrites.delete(key)
+  })
+}
+
+/**
  * Re-keys the renderer's per-project state from an aliased path to the canonical identity the
  * backend reports, so later reads, writes, and removals all address the same entry. Every
  * project-keyed settings map must move together or Session Host policy lookups by the canonical
@@ -27,6 +47,10 @@ async function reconcileProjectIdentity(
   get: PreferencesGet,
 ) {
   const { settings } = get()
+  // Skill and agent-definition toggles persist through their own Host APIs without updating this
+  // store, so the renderer copies can be stale; re-keying them from the store would send the stale
+  // maps back and revert every toggle changed since load. The Host's maps are authoritative.
+  const hostSettings = await api.getSettings()
   const remapPath = (path: string) => (path === requestedPath ? canonicalPath : path)
   // The aliased path is the identity the user just interacted through, so its entry wins on
   // conflict; entries that only existed under the canonical key are preserved by the merge.
@@ -58,8 +82,10 @@ async function reconcileProjectIdentity(
   const patch: Partial<Settings> = {
     recentProjects,
     projectDisplayNames: rekeyFlat({ ...settings.projectDisplayNames }),
-    skillTogglesByProject: rekeyNested({ ...settings.skillTogglesByProject }),
-    agentDefinitionTogglesByProject: rekeyNested({ ...settings.agentDefinitionTogglesByProject }),
+    skillTogglesByProject: rekeyNested({ ...hostSettings.skillTogglesByProject }),
+    agentDefinitionTogglesByProject: rekeyNested({
+      ...hostSettings.agentDefinitionTogglesByProject,
+    }),
     multiAgentEnabledByProject: rekeyFlat({ ...settings.multiAgentEnabledByProject }),
     sessionHostParentConcurrencyLimitsByProject: rekeyFlat({
       ...settings.sessionHostParentConcurrencyLimitsByProject,
@@ -114,7 +140,7 @@ export function persistProjectPreference(
         const stillPending = pendingProjectPreferenceWrites.get(projectPath)
         if (stillPending) {
           pendingProjectPreferenceWrites.delete(projectPath)
-          pendingProjectPreferenceWrites.set(canonicalPath, stillPending)
+          trackPendingWrite(canonicalPath, stillPending)
         }
         if (removingProjectPaths.has(projectPath)) {
           removingProjectPaths.add(canonicalPath)
@@ -123,10 +149,7 @@ export function persistProjectPreference(
       } else {
         // Renderer state still names the alias (this caller does not reconcile), so the chain is
         // tracked under both identities and a removal addressed by either one waits for it.
-        pendingProjectPreferenceWrites.set(
-          canonicalPath,
-          pendingProjectPreferenceWrites.get(projectPath) ?? tracked,
-        )
+        trackPendingWrite(canonicalPath, pendingProjectPreferenceWrites.get(projectPath) ?? tracked)
       }
     })
     // Failures propagate: fire-and-forget callers log them, callers that expose save state show
@@ -161,21 +184,22 @@ function clearRemovalMarkerCopies(originalPath: string) {
  * covers the whole perform step — deletion plus reference cleanup — so a model change cannot pass
  * the guard mid-removal and orphan itself afterwards.
  */
-export function removeProjectModelTracked(
+export function removeProjectModelTracked<T extends string | { readonly canonicalPath: string }>(
   projectPath: string,
-  perform: () => Promise<string>,
-): Promise<string> {
+  perform: () => Promise<T>,
+): Promise<T> {
   removingProjectPaths.add(projectPath)
   const pending = pendingProjectPreferenceWrites.get(projectPath) ?? Promise.resolve()
   return pending
     .catch(() => undefined)
     .then(perform)
-    .then((canonicalPath) => {
+    .then((result) => {
+      const canonicalPath = typeof result === 'string' ? result : result.canonicalPath
       // The re-key may have copied the removal marker onto the canonical identity.
       clearRemovalMarkerCopies(projectPath)
       removingProjectPaths.delete(projectPath)
       if (canonicalPath) removingProjectPaths.delete(canonicalPath)
-      return canonicalPath
+      return result
     })
     .catch((err: unknown) => {
       // A failed removal leaves the project visible and retryable; clear the alias marker and
@@ -192,48 +216,82 @@ export function awaitPendingProjectPreferenceWrites(projectPath: string): Promis
   return pending.catch(() => undefined)
 }
 
-/** One project's reference snapshot, captured before its stored model is removed. */
-interface ProjectReferenceSnapshot {
-  projectPath: string | null
-  recentProjects: string[]
-  projectDisplayNames: Record<string, string>
-  skillTogglesByProject: Record<string, Record<string, boolean>>
+/** The project-reference fields a removal strips and, on failure, puts back. */
+type ProjectReferences = Pick<
+  Settings,
+  'projectPath' | 'recentProjects' | 'projectDisplayNames' | 'skillTogglesByProject'
+>
+
+function withoutKey<V>(record: Readonly<Record<string, V>>, key: string): Record<string, V> {
+  const { [key]: _removed, ...rest } = record
+  return rest
+}
+
+/** Re-inserts one removed project's reference entries into the Host's current reference state. */
+function restoredReferences(
+  path: string,
+  before: ProjectReferences,
+  current: ProjectReferences,
+): ProjectReferences {
+  const recentProjects = [...current.recentProjects]
+  const originalIndex = before.recentProjects.indexOf(path)
+  if (originalIndex >= 0 && !recentProjects.includes(path)) {
+    recentProjects.splice(Math.min(originalIndex, recentProjects.length), 0, path)
+  }
+  const displayName = before.projectDisplayNames[path]
+  const skillToggles = before.skillTogglesByProject[path]
+  return {
+    projectPath:
+      before.projectPath === path && current.projectPath === null ? path : current.projectPath,
+    recentProjects,
+    projectDisplayNames:
+      displayName === undefined
+        ? current.projectDisplayNames
+        : { ...current.projectDisplayNames, [path]: displayName },
+    skillTogglesByProject:
+      skillToggles === undefined
+        ? current.skillTogglesByProject
+        : { ...current.skillTogglesByProject, [path]: skillToggles },
+  }
 }
 
 /**
- * Deletes the stored model and persists the reference removal as one locked step. When the
- * reference update fails after the model is already gone, the project stays visible, so the last
- * saved model is restored before the failure propagates — the user retries instead of losing the
- * preference silently.
+ * Removes one project's references and then its stored model, as one locked step.
+ *
+ * The reference fields are read from the Host rather than the renderer store: skill toggles
+ * persist through their own Host API, so a store copy would revert them for every other project.
+ *
+ * References go first so the renderer never has to write a model back. The Host removal compensates
+ * its own partial failures under the identity it deleted by (the recorded alias target, which a
+ * renderer-side preference read cannot reproduce once a symlink is retargeted or the directory is
+ * gone). If the Host removal fails, the references are put back and the project stays visible for
+ * a retry.
  */
 export async function removeModelAndReferences(
   path: string,
-  snapshot: ProjectReferenceSnapshot,
-): Promise<string> {
+): Promise<{ canonicalPath: string; references: ProjectReferences }> {
+  const before = await api.getSettings()
+  const references: ProjectReferences = {
+    projectPath: before.projectPath === path ? null : before.projectPath,
+    recentProjects: before.recentProjects.filter((projectPath) => projectPath !== path),
+    projectDisplayNames: withoutKey(before.projectDisplayNames, path),
+    skillTogglesByProject: withoutKey(before.skillTogglesByProject, path),
+  }
   // Surviving references that resolve to the same identity keep the stored model alive.
   const remainingReferences = [
-    ...snapshot.recentProjects,
-    ...(snapshot.projectPath ? [snapshot.projectPath] : []),
+    ...references.recentProjects,
+    ...(references.projectPath ? [references.projectPath] : []),
   ]
-  // Captured after the in-flight write chain settles, so compensation sees the last saved model.
-  const previousPrefs = await api.getProjectPreferences(path)
+  const result = await api.updateSettings(references)
+  if (!result.ok) throw new Error(result.error)
   try {
-    // The Host removal itself is several separately persisted steps (legacy-file strip, model
-    // entry, alias records), so it can reject after the model is already gone; the rollback
-    // scope must cover it, not just the reference update.
     const canonicalPath = await api.removeProjectModel(path, remainingReferences)
-    const result = await api.updateSettings({
-      projectPath: snapshot.projectPath,
-      recentProjects: snapshot.recentProjects,
-      projectDisplayNames: snapshot.projectDisplayNames,
-      skillTogglesByProject: snapshot.skillTogglesByProject,
-    })
-    if (!result.ok) throw new Error(result.error)
-    return canonicalPath
+    return { canonicalPath, references }
   } catch (err) {
-    if (previousPrefs?.model !== undefined) {
-      await api.setProjectPreferences(path, { model: previousPrefs.model }).catch(() => undefined)
-    }
+    await api
+      .getSettings()
+      .then((current) => api.updateSettings(restoredReferences(path, before, current)))
+      .catch(() => undefined)
     throw err
   }
 }

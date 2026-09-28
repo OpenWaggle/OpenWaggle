@@ -278,28 +278,13 @@ export function createPreferencesActions(
     },
     removeProjectReferences: async (path) => {
       // Any in-flight model write for this project is awaited first so the deletion cannot be
-      // overtaken by it and resurrected afterwards. The deletion itself runs BEFORE the project
+      // overtaken by it and resurrected afterwards. The whole removal completes BEFORE the project
       // disappears from the renderer state: if it fails, the entry stays visible and retryable
       // instead of silently abandoning the stored model.
-      const { settings } = get()
-      const recentProjects = settings.recentProjects.filter((projectPath) => projectPath !== path)
-      const { [path]: _displayName, ...projectDisplayNames } = settings.projectDisplayNames
-      const { [path]: _skillToggles, ...skillTogglesByProject } = settings.skillTogglesByProject
-      const projectPath = settings.projectPath === path ? null : settings.projectPath
-      await removeProjectModelTracked(path, () =>
-        removeModelAndReferences(path, {
-          projectPath,
-          recentProjects,
-          projectDisplayNames,
-          skillTogglesByProject,
-        }),
+      const { references } = await removeProjectModelTracked(path, () =>
+        removeModelAndReferences(path),
       )
-      mergeSettings(set, {
-        projectPath,
-        recentProjects,
-        projectDisplayNames,
-        skillTogglesByProject,
-      })
+      mergeSettings(set, references)
     },
     loadProjectPreferences: (projectPath) => loadProjectPreferences(projectPath, set),
   }

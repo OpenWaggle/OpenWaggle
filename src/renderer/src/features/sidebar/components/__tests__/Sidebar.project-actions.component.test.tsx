@@ -21,6 +21,7 @@ const { apiMock, navigateMock, routerState } = vi.hoisted(() => ({
     deleteSession: vi.fn(),
     getGitStatus: vi.fn(),
     getProjectPreferences: vi.fn(),
+    getSettings: vi.fn(),
     getProviderModels: vi.fn(),
     removeProjectModel: vi.fn().mockResolvedValue('/repo/openwaggle'),
     listActiveRuns: vi.fn(),
@@ -299,6 +300,8 @@ describe('Sidebar project actions', () => {
         skillTogglesByProject: { [PROJECT_PATH]: { 'code-review': true } },
       },
     }))
+    // The removal reads the reference fields from the Host, which holds what the store persisted.
+    apiMock.getSettings.mockResolvedValue(usePreferencesStore.getState().settings)
 
     render(<Sidebar />)
 

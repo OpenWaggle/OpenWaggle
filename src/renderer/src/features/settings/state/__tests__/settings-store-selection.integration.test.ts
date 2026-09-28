@@ -142,6 +142,12 @@ describe('preferences-store selection integration', () => {
     )
 
     await awaitPendingProjectPreferenceWrites('/repo/b-alias')
+    // The removal reads the reference fields from the Host; the canonical reference is persisted.
+    apiMock.getSettings.mockResolvedValue({
+      ...DEFAULT_SETTINGS,
+      projectPath: '/repo/b',
+      recentProjects: ['/repo/b-alias'],
+    })
     await usePreferencesStore.getState().removeProjectReferences('/repo/b-alias')
 
     // The canonical reference survives the alias removal, so the backend keeps the shared entry.
