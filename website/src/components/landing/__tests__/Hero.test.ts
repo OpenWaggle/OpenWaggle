@@ -1,5 +1,6 @@
 import { experimental_AstroContainer as AstroContainer } from 'astro/container';
 import { describe, expect, it } from 'vitest';
+import { openingTag } from '@/test/html';
 import Hero from '../Hero.astro';
 
 describe('landing hero', () => {
@@ -22,8 +23,9 @@ describe('landing hero', () => {
   it('labels the background motion control without a visible caption', async () => {
     const container = await AstroContainer.create();
     const html = await container.renderToString(Hero);
-    expect(html).toMatch(/id="honeycomb-motion"[^>]*aria-pressed="false"/);
-    expect(html).toMatch(/id="honeycomb-motion"[^>]*aria-label="Pause background animation"/);
+    const control = openingTag(html, 'honeycomb-motion');
+    expect(control).toContain('aria-pressed="false"');
+    expect(control).toContain('aria-label="Pause background animation"');
     expect(html).not.toContain('Inside OpenWaggle');
   });
 });

@@ -2,8 +2,10 @@ import {
   packageDocumentationDefinitions,
   packageDocumentationForSlug as findPackageDocumentationForSlug,
   packageDocumentationPage as resolvePackageDocumentationPage,
+  packageDocumentationRoute,
   versionPackageDocumentation,
 } from '../../../scripts/package-documentation-model';
+import { docsPath } from '../lib/site-paths';
 
 export {
   packageDocumentationPageRoute,
@@ -33,6 +35,17 @@ export const packageDocumentation = packageDocumentationDefinitions.map((definit
   versionPackageDocumentation(definition, versionsForSlug(definition.slug)),
 );
 
+
+const packageAliases = new Map(packageDocumentation.map((definition) => [`packages/${definition.slug}`, definition]));
+
+/**
+ * Canonical URL for a docs slug. Package slugs such as `packages/pi-waggle` are noindex aliases,
+ * so they resolve to the current version's page instead.
+ */
+export function canonicalDocsPath(slug: string): string {
+  const definition = packageAliases.get(slug);
+  return definition ? packageDocumentationRoute(definition.slug, definition.currentVersion) : docsPath(slug);
+}
 
 export function packageDocumentationPage(routeSlug: string) {
   return resolvePackageDocumentationPage(packageDocumentation, routeSlug);

@@ -16,7 +16,7 @@ const groups = [
         label: 'Waggle',
         image: '/screenshots/session-tree-panel.png',
         alt: 'A Waggle conversation where two agents review a fix in turns, with the Session tree open',
-        description: 'Pair two agents on one task, each with its own model and role. They take turns until they agree or reach the turn limit.',
+        description: 'Pair two agents on one task, each with its own model and role. They take turns until they agree, you stop them, or they reach the turn limit.',
       },
     ],
   },
@@ -75,7 +75,7 @@ const visibility = [
     <legend class="sr-only">Explore OpenWaggle</legend>
     {groups.map(({ id: groupId, label: groupLabel, views: groupViews }, index) => (
       <div role="group" aria-labelledby={`demo-group-${groupId}`} class:list={['flex flex-wrap items-center justify-center gap-1', index > 0 && 'md:border-l md:border-border-light md:pl-6']}>
-        <span id={`demo-group-${groupId}`} class="mr-1 hidden text-[11px] uppercase tracking-widest text-text-muted md:inline">{groupLabel}</span>
+        <span id={`demo-group-${groupId}`} class="mr-1 hidden text-[11px] uppercase tracking-widest text-text-tertiary md:inline">{groupLabel}</span>
         {groupViews.map(({ id, label }) => (
           <label class="cursor-pointer">
             <input class="peer sr-only" type="radio" name="product-view" id={`view-${id}`} aria-controls={`demo-${id}`} value={id} checked={id === defaultView} />
@@ -89,5 +89,9 @@ const visibility = [
 
 <style>
   .demo-view:not(.demo-default) { display: none; }
+  /* Without :has() the tabs cannot switch figures, so show only the default view. */
+  @supports not selector(:has(*)) {
+    fieldset { display: none; }
+  }
 </style>
 <style is:inline set:html={visibility}></style>

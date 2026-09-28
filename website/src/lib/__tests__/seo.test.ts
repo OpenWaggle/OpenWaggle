@@ -10,6 +10,8 @@ describe('seo defaults', () => {
     expect(DEFAULT_DESCRIPTION.length).toBeLessThanOrEqual(MAX_DESCRIPTION_LENGTH);
   });
 
+  // The app repository has no LICENSE file (only the npm packages are MIT), so the site must not
+  // call the app open source until one is added.
   it('does not claim a licence the repository does not declare', () => {
     expect(JSON.stringify(softwareApplicationJsonLd())).not.toMatch(/open[- ]source|license/i);
     expect(DEFAULT_DESCRIPTION).not.toMatch(/open[- ]source/i);

@@ -6,8 +6,7 @@ import Button from '@/components/ui/Button.astro';
 import PackageInstallTabs from '@/components/docs/PackageInstallTabs.astro';
 import PackageVersionSelect from '@/components/docs/PackageVersionSelect.astro';
 import { packageDocumentationPage } from '@/data/package-docs';
-import { docsArticleJsonLd, DEFAULT_DESCRIPTION } from '@/lib/seo';
-import { docsPath } from '@/lib/site-paths';
+import { DEFAULT_DESCRIPTION, docsArticleJsonLd, organizationJsonLd, websiteJsonLd } from '@/lib/seo';
 
 interface Props {
   title: string;
@@ -19,15 +18,17 @@ const { title, description, slug } = Astro.props;
 const packagePage = packageDocumentationPage(slug);
 const navigationSlug = packagePage ? `packages/${packagePage.definition.slug}` : slug;
 const pageDescription = description ?? DEFAULT_DESCRIPTION;
-const jsonLd = docsArticleJsonLd({
+// The article references the Organization and WebSite by @id, so each page defines them too.
+const jsonLd = [organizationJsonLd(), websiteJsonLd(), ...docsArticleJsonLd({
   title,
   description: pageDescription,
   path: Astro.url.pathname,
   breadcrumbs: [
-    { name: 'Docs', path: docsPath('getting-started/first-run') },
+    // `/docs` only redirects, so the trail starts at the home page rather than a docs index.
+    { name: 'OpenWaggle', path: '/' },
     { name: title, path: Astro.url.pathname },
   ],
-});
+})];
 ---
 
 <BaseLayout title={`${title} | OpenWaggle Docs`} description={pageDescription} type="article" jsonLd={jsonLd}>

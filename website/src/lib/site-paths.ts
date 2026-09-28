@@ -1,6 +1,7 @@
 // Pages build to `<route>/index.html`, so Cloudflare Pages serves each page at its trailing-slash URL
 // and answers the slash-less form with a 308. Internal links use the final URL to skip that hop.
-const ASSET_EXTENSION = /\.(?:png|jpe?g|gif|svg|webp|avif|ico|xml|json|txt|webmanifest|pdf|zip|css|js|mjs)$/iu;
+const ASSET_EXTENSION =
+  /\.(?:png|jpe?g|gif|svg|webp|avif|ico|xml|json|txt|webmanifest|pdf|zip|css|js|mjs|woff2?|ttf|otf|mp4|webm)$/iu;
 const SUFFIX_START = /[?#]/u;
 
 /** Adds the trailing slash to a site-relative page URL, keeping any query or fragment. */
@@ -18,6 +19,7 @@ export function docsPath(slug: string): string {
   return withTrailingSlash(`/docs/${slug}`);
 }
 
+// Only the fields this plugin reads. `@types/hast` is not a website dependency, so it is not imported.
 interface HastNode {
   type: string;
   tagName?: string;

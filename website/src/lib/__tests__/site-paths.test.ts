@@ -35,12 +35,13 @@ describe('rehypeTrailingSlashLinks', () => {
 });
 
 describe('hard-coded internal links', () => {
-  it('already use the trailing-slash URL in every component', async () => {
+  it('already use the trailing-slash URL in every component and MDX page', async () => {
     const { readdirSync, readFileSync } = await import('node:fs');
     const { join } = await import('node:path');
-    const root = new URL('../../', import.meta.url).pathname;
+    const { fileURLToPath } = await import('node:url');
+    const root = fileURLToPath(new URL('../../', import.meta.url));
     const files = readdirSync(root, { recursive: true, encoding: 'utf8' })
-      .filter((file) => file.endsWith('.astro') && !file.includes('__tests__'));
+      .filter((file) => /\.(?:astro|mdx)$/u.test(file) && !file.includes('__tests__'));
     const offenders = files.flatMap((file) =>
       [...readFileSync(join(root, file), 'utf8').matchAll(/href(?:=|: )["'](\/[^"'{}]*)["']/g)]
         .map(([, href = '']) => href)
@@ -48,5 +49,14 @@ describe('hard-coded internal links', () => {
         .map((href) => `${file}: ${href}`),
     );
     expect(offenders).toEqual([]);
+  });
+});
+
+describe('markdown link rewriting', () => {
+  it('stays wired into the Astro Markdown pipeline', async () => {
+    const { readFileSync } = await import('node:fs');
+    const config = readFileSync(new URL('../../../astro.config.ts', import.meta.url), 'utf8');
+    expect(config).toContain("import { rehypeTrailingSlashLinks } from './src/lib/site-paths';");
+    expect(config).toMatch(/rehypePlugins: \[[\s\S]*\brehypeTrailingSlashLinks\b[\s\S]*\]/u);
   });
 });

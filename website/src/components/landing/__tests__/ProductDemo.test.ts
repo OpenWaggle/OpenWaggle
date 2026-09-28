@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs';
 import { experimental_AstroContainer as AstroContainer } from 'astro/container';
 import { describe, expect, it } from 'vitest';
+import { openingTag } from '@/test/html';
 import ProductDemo from '../ProductDemo.astro';
 
 const VIEWS = ['hive', 'waggle', 'conversation', 'changes', 'browser'];
@@ -20,7 +21,7 @@ describe('product demo', () => {
     expect(html).toContain('Explore OpenWaggle');
     expect(html.match(/type="radio"/g)).toHaveLength(VIEWS.length);
     expect(html.match(/ checked/g)).toHaveLength(1);
-    expect(html).toMatch(/id="view-hive"[^>]* checked/);
+    expect(openingTag(html, 'view-hive')).toMatch(/\schecked\b/);
     const order = VIEWS.map((view) => html.indexOf(`id="view-${view}"`));
     expect(order.every((position) => position >= 0)).toBe(true);
     expect(order).toEqual([...order].sort((a, b) => a - b));
@@ -40,7 +41,7 @@ describe('product demo', () => {
   it('keeps the default view visible and reveals the others through their radio', async () => {
     const container = await AstroContainer.create();
     const html = await container.renderToString(ProductDemo);
-    expect(html).toMatch(/id="demo-hive" class="[^"]*demo-default/);
+    expect(openingTag(html, 'demo-hive')).toMatch(/class="[^"]*\bdemo-default\b/);
     expect(html).toContain('.product-demo:has(input:checked:not(#view-hive)) #demo-hive { display: none; }');
     for (const view of VIEWS.slice(1)) {
       expect(html).toContain(`.product-demo:has(#view-${view}:checked) #demo-${view} { display: block; }`);

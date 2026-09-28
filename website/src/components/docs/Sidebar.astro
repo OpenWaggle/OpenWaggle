@@ -1,6 +1,6 @@
 ---
 import { developerDocsNav, docsNav, isDeveloperDoc } from '@/data/docs-nav';
-import { docsPath } from '@/lib/site-paths';
+import { canonicalDocsPath } from '@/data/package-docs';
 
 const currentPath = Astro.url.pathname.replace(/\/$/, '');
 const developerArea = isDeveloperDoc(currentPath.replace(/^\/docs\//, ''));
@@ -24,7 +24,7 @@ const otherArea = developerArea
           <ul class="flex flex-col gap-0.5">
             {section.items.map((item) => {
               const path = `/docs/${item.slug}`;
-              const href = docsPath(item.slug);
+              const href = canonicalDocsPath(item.slug);
               const isActive = currentPath === path || currentPath.startsWith(`${path}/`);
               return (
                 <li>
@@ -62,7 +62,7 @@ const otherArea = developerArea
           <ul class="flex flex-col gap-0.5">
             {section.items.map((item) => {
               const path = `/docs/${item.slug}`;
-              const href = docsPath(item.slug);
+              const href = canonicalDocsPath(item.slug);
               const isActive = currentPath === path || currentPath.startsWith(`${path}/`);
               return (
                 <li>
