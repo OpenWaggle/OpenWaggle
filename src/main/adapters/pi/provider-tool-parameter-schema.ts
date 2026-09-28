@@ -4,6 +4,7 @@ import {
   type MutableJsonSchema,
   propertiesOf,
   requiredOf,
+  resolvePointer,
   schemaArray,
 } from './json-schema-object'
 
@@ -33,7 +34,6 @@ const MAX_REFERENCE_DEPTH = 16
 /** Bounds flattening `{ anyOf: [{ $ref: '#' }, ...] }`, which otherwise recurses without end. */
 const MAX_FLATTEN_DEPTH = 4
 const MAX_FLATTENED_SCHEMAS = 256
-const LOCAL_POINTER_PREFIX = '#/'
 
 /** Why a provider would reject `schema` as a tool's parameters; empty when every provider accepts it. */
 export function providerToolSchemaViolations(schema: unknown): string[] {
@@ -56,21 +56,6 @@ export interface ProviderToolParameters {
   readonly schema: JsonSchemaObject
   /** What was changed to get there; empty when the input already conformed and is returned as is. */
   readonly repairs: readonly string[]
-}
-
-function resolvePointer(
-  document: JsonSchemaObject,
-  reference: string,
-): JsonSchemaObject | undefined {
-  if (reference === '#') return document
-  if (!reference.startsWith(LOCAL_POINTER_PREFIX)) return undefined
-  let current: unknown = document
-  for (const rawSegment of reference.slice(LOCAL_POINTER_PREFIX.length).split('/')) {
-    const segment = decodeURIComponent(rawSegment).replaceAll('~1', '/').replaceAll('~0', '~')
-    if (!isJsonSchemaObject(current)) return undefined
-    current = current[segment]
-  }
-  return isJsonSchemaObject(current) ? current : undefined
 }
 
 /** Replaces a root `$ref` with the local definition it names, keeping sibling keywords. */

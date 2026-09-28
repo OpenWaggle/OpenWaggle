@@ -181,6 +181,15 @@ const REFERENCE_CASES: readonly ExpectedPipelineCase[] = [
     },
     arguments_: {},
   },
+  {
+    label: 'a root $ref whose pointer percent-encodes a slash',
+    expected: 'server',
+    schema: {
+      $ref: '#/$defs/a%2Fb',
+      $defs: { 'a/b': { type: 'object', required: ['x'] }, a: { b: { type: 'object' } } },
+    },
+    arguments_: {},
+  },
 ]
 
 describe('repaired MCP direct tools with schema references', () => {

@@ -80,4 +80,11 @@ describe('repaired MCP direct tools at the edges', () => {
       $ref: '#/properties/p',
     })
   })
+
+  it('registers a tool whose local $ref has a malformed percent escape', () => {
+    // Resolving it used to throw, which aborted registering every direct tool of the snapshot.
+    const { definition } = register({ type: 'object', anyOf: [{ $ref: '#/$defs/50%' }], $defs: {} })
+
+    expect(JSON.parse(JSON.stringify(definition.parameters))).toMatchObject({ type: 'object' })
+  })
 })

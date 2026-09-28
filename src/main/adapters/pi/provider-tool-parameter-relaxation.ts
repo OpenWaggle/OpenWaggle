@@ -27,12 +27,17 @@ const REFERENCE_KEYWORD = /"\$(?:ref|dynamicRef|recursiveRef)"/u
 /** A local JSON pointer's decoded segments whose target moved, and where it moved to. */
 type PointerMove = readonly [from: readonly string[], to: readonly string[]]
 
+/** Keywords whose values are instance data, not subschemas. */
+const DATA_KEYWORDS = new Set(['const', 'enum', 'default', 'examples'])
+
 /** Whether any subschema below the root declares `$id`, which rebases its local references. */
 function hasNestedResource(value: unknown, root = true): boolean {
   if (Array.isArray(value)) return value.some((item) => hasNestedResource(item, false))
   if (!isJsonSchemaObject(value)) return false
   if (!root && typeof value.$id === 'string') return true
-  return Object.values(value).some((entry) => hasNestedResource(entry, false))
+  return Object.entries(value).some(
+    ([keyword, entry]) => !DATA_KEYWORDS.has(keyword) && hasNestedResource(entry, false),
+  )
 }
 
 /** RFC 6901 escaping, then URI fragment encoding (`$` stays readable, as in `$defs`). */
@@ -45,13 +50,13 @@ function encodePointerSegment(segment: string) {
 
 const LOCAL_POINTER_PREFIX = '#/'
 
+/** RFC 6901 §6: percent-decode the fragment first, then split, then unescape `~1` and `~0`. */
 function decodedPointer(reference: string) {
   if (!reference.startsWith(LOCAL_POINTER_PREFIX)) return undefined
   try {
-    return reference
-      .slice(LOCAL_POINTER_PREFIX.length)
+    return decodeURIComponent(reference.slice(LOCAL_POINTER_PREFIX.length))
       .split('/')
-      .map((segment) => decodeURIComponent(segment).replaceAll('~1', '/').replaceAll('~0', '~'))
+      .map((segment) => segment.replaceAll('~1', '/').replaceAll('~0', '~'))
   } catch {
     return undefined
   }
