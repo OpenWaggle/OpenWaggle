@@ -1,6 +1,8 @@
 import type { ActionCatalog, ProjectTaskDiscovery } from '@shared/types/action-definitions'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { newActionDraft } from '../../lib/action-panel-drafts'
+import { useActionPanelStore } from '../../state/action-panel-store'
 import { useProjectActionStore } from '../../state/project-action-store'
 import { actionCatalog, TEST_ACTION, TEST_TASK } from './native-action-fixtures'
 
@@ -28,6 +30,40 @@ describe('ProjectActionsControl', () => {
     mocks.catalog = actionCatalog()
     mocks.discovery = undefined
     useProjectActionStore.setState({ lastInvokedByProject: {}, previewOpenedRuns: [] })
+    useActionPanelStore.setState({ request: null, drafts: {} })
+  })
+  it('opens the action panel from Add action and offers to continue an unfinished one', () => {
+    render(<ProjectActionsControl projectPath="/repo" />)
+    fireEvent.click(screen.getByRole('button', { name: 'Project actions' }))
+    expect(screen.queryByRole('menuitem', { name: /Continue/ })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Add action' }))
+    expect(useActionPanelStore.getState().request).toEqual({
+      kind: 'action',
+      scope: { projectPath: '/repo', sessionId: 'session' },
+      actionId: null,
+      origin: 'session',
+    })
+    const draft = newActionDraft(false)
+    useActionPanelStore.setState({
+      request: null,
+      drafts: { '/repo': { ...draft, definition: { ...draft.definition, name: 'Half done' } } },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Project actions' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Continue new action' }))
+    expect(useActionPanelStore.getState().request).toMatchObject({ kind: 'action', actionId: null })
+  })
+  it('tells two same-named actions apart in the menu', () => {
+    mocks.catalog = {
+      ...actionCatalog(),
+      actions: [
+        { source: 'project', definition: TEST_ACTION },
+        { source: 'local', definition: { ...TEST_ACTION, id: 'mine', name: 'test' } },
+      ],
+    }
+    render(<ProjectActionsControl projectPath="/repo" />)
+    fireEvent.click(screen.getByRole('button', { name: 'Project actions' }))
+    expect(screen.getByText('shared')).toBeInTheDocument()
+    expect(screen.getByText('only you')).toBeInTheDocument()
   })
   it('keeps + Action as the entry point after saving and running an action', () => {
     const lint = { ...TEST_ACTION, id: 'lint', name: 'Lint' }

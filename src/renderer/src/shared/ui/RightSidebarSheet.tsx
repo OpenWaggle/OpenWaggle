@@ -50,8 +50,9 @@ export function RightSidebarSheet({
         return
       }
       if (event.key !== 'Tab') return
+      // An initial-focus target with tabindex="-1" (such as a panel title) is not a Tab stop.
       const focusable = Array.from(aside.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter(
-        (element) => element.getClientRects().length > 0,
+        (element) => element.getClientRects().length > 0 && element.tabIndex >= 0,
       )
       if (focusable.length === 0) {
         event.preventDefault()
@@ -61,7 +62,9 @@ export function RightSidebarSheet({
       const first = focusable[0]
       const last = focusable.at(-1)
       const active = document.activeElement
-      if (event.shiftKey && (active === first || !aside.contains(active))) {
+      // Focus on a programmatic target (tabindex="-1", such as a title) counts as the start.
+      const offCycle = active instanceof HTMLElement && !focusable.includes(active)
+      if (event.shiftKey && (active === first || !aside.contains(active) || offCycle)) {
         event.preventDefault()
         last?.focus({ preventScroll: true })
         return

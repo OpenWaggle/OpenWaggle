@@ -18,6 +18,8 @@ import {
   reviewedProfile,
   reviewProfileContext,
 } from './preparation-review-context'
+import { withSaverEnablement } from './preparation-saver-enablement'
+import { assertUniqueActionName } from './project-action-names'
 
 export { preparationExecutionKey } from './preparation-review-context'
 
@@ -215,6 +217,7 @@ export function editActionCatalog(
       shared,
     }
   }
+  if (edit.type === 'save-action') assertUniqueActionName(document, shared, edit.definition)
   const target = edit.storage === 'local' ? document.manifest : shared
   const next = match(edit)
     .with({ type: 'save-action' }, ({ definition }) => ({
@@ -265,24 +268,13 @@ export function editActionCatalog(
       },
     }
   }
-  // Saving a personal preparation enables precisely this execution, without trusting later shared edits.
-  if (edit.type === 'save-preparation' && edit.storage === 'local') {
-    const definition = edit.definition
-    nextDocument = {
-      ...nextDocument,
-      reviews: [
-        ...nextDocument.reviews.filter((review) => review.definitionId !== definition.id),
-        preparationReview(
-          definition,
-          true,
-          reviewProfileContext(definition.profileId, [
-            ...nextDocument.manifest.profiles,
-            ...nextShared.profiles,
-          ]).profileName,
-        ),
-      ],
-    }
-  }
+  if (edit.type === 'save-preparation')
+    nextDocument = withSaverEnablement({
+      before: { document, shared },
+      document: nextDocument,
+      shared: nextShared,
+      definition: edit.definition,
+    })
   nextDocument = {
     ...nextDocument,
     manifest: retainPrivatePreparationProfiles(

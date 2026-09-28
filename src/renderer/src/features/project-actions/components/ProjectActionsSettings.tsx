@@ -6,6 +6,7 @@ import type {
 } from '@shared/types/action-definitions'
 import type { ActionManagementScope } from '@shared/types/action-management'
 import { isActiveActionRun } from '@shared/types/action-runs'
+import { actionNameKey } from '@shared/utils/action-name'
 import { FolderOpen, Plus } from 'lucide-react'
 import { useState } from 'react'
 import { useResourceProject } from '@/features/settings'
@@ -18,7 +19,8 @@ import {
   useEditActionCatalog,
   useNativeActions,
 } from '../hooks/useNativeActions'
-import { NativeActionEditor } from './NativeActionEditor'
+import { duplicateActionNames } from '../lib/action-names'
+import { useActionPanelStore } from '../state/action-panel-store'
 import { ActionPublicationRecovery, NativeActionSettingsRow } from './NativeActionSettingsRow'
 import { PreparationSettings } from './PreparationSettings'
 import { RunningActionsLink } from './RunningActionsLink'
@@ -71,10 +73,14 @@ function ProjectActionDefinitions({ projectPath }: { readonly projectPath: strin
   const catalog = useNativeActions(scope)
   const runs = useActionRuns(runScope)
   const edit = useEditActionCatalog(scope)
-  const [editor, setEditor] = useState<EffectiveDefinition<ActionDefinition> | null | undefined>(
-    undefined,
-  )
   const [error, setError] = useState<string | null>(null)
+  const openEditor = (entry: EffectiveDefinition<ActionDefinition> | null) =>
+    useActionPanelStore.getState().openPanel({
+      kind: 'action',
+      scope,
+      actionId: entry?.definition.id ?? null,
+      origin: 'settings',
+    })
   const availability = useActionAvailability(scope, catalog.data?.actions ?? [], runs.data ?? [])
   const running = (runs.data ?? []).filter(isActiveActionRun)
   async function apply(change: ActionCatalogEdit) {
@@ -96,7 +102,7 @@ function ProjectActionDefinitions({ projectPath }: { readonly projectPath: strin
           variant="primary"
           className="min-h-9"
           disabled={!catalog.data}
-          onClick={() => setEditor(null)}
+          onClick={() => openEditor(null)}
         >
           <Plus className="size-4" />
           Add action
@@ -120,7 +126,7 @@ function ProjectActionDefinitions({ projectPath }: { readonly projectPath: strin
         loading={catalog.isPending}
         busy={edit.isPending}
         availability={availability}
-        onEdit={setEditor}
+        onEdit={openEditor}
         apply={apply}
       />
       <p className="text-xs leading-5 text-text-tertiary">
@@ -128,12 +134,6 @@ function ProjectActionDefinitions({ projectPath }: { readonly projectPath: strin
         an action starts.
       </p>
       {catalog.data ? <PreparationSettings scope={scope} catalog={catalog.data} /> : null}
-      <SettingsActionEditor
-        scope={scope}
-        catalog={catalog.data}
-        editor={editor}
-        onClose={() => setEditor(undefined)}
-      />
     </div>
   )
 }
@@ -153,6 +153,8 @@ function SavedProjectActions({
   readonly onEdit: (entry: EffectiveDefinition<ActionDefinition> | null) => void
   readonly apply: (edit: ActionCatalogEdit) => Promise<void>
 }) {
+  const duplicates = duplicateActionNames(catalog?.actions ?? [])
+  const recentlySaved = useActionPanelStore((state) => state.recentlySaved?.id ?? null)
   return (
     <section aria-label="Saved actions" className="overflow-hidden rounded-xl border border-border">
       {loading ? <p className="p-5 text-sm text-text-tertiary">Loading actions…</p> : null}
@@ -172,36 +174,14 @@ function SavedProjectActions({
           entry={entry}
           busy={busy}
           unavailable={availability(entry.definition)}
+          status={{
+            duplicate: duplicates.has(actionNameKey(entry.definition.name)),
+            highlighted: recentlySaved === entry.definition.id,
+          }}
           onEdit={() => onEdit(entry)}
           apply={apply}
         />
       ))}
     </section>
-  )
-}
-
-function SettingsActionEditor({
-  scope,
-  catalog,
-  editor,
-  onClose,
-}: {
-  readonly scope: ActionManagementScope
-  readonly catalog: ActionCatalog | undefined
-  readonly editor: EffectiveDefinition<ActionDefinition> | null | undefined
-  readonly onClose: () => void
-}) {
-  return (
-    <>
-      {editor !== undefined && catalog ? (
-        <NativeActionEditor
-          key={`${scope.projectPath}:${scope.sessionId ?? ''}:${editor?.definition.id ?? 'new'}`}
-          scope={scope}
-          entry={editor}
-          revision={catalog.revision}
-          onClose={() => onClose()}
-        />
-      ) : null}
-    </>
   )
 }

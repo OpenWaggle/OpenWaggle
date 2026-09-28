@@ -2,6 +2,8 @@
 
 Status: implemented; validated in Electron and independently reviewed
 
+Superseded in part by [ADR 0038](0038-guided-action-panel.md): the Add action form and the rule that saving a shared Workspace setup or cleanup leaves it disabled for its author.
+
 Date: 2026-09-21
 
 Project Actions currently expose T3-specific configuration and terminology, as described in ADR 0030. The redesign will use OpenWaggle's own configuration and domain language, borrowing useful behavior from Codex, T3, and editors without adding tool-specific importers to this scope. Discovery of ordinary project commands, such as `package.json` scripts, remains compatible with this boundary.

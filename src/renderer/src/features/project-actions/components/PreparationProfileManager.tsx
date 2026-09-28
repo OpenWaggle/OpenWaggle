@@ -4,11 +4,14 @@ import { Button } from '@/shared/ui/Button'
 import { TextInput } from '@/shared/ui/TextInput'
 export function PreparationProfileManager({
   profile,
+  multipleProfiles,
   busy,
   apply,
   onSelect,
 }: {
   readonly profile: ActionCatalog['profiles'][number] | undefined
+  /** Profiles stay out of sight until a project has more than one (ADR 0038). */
+  readonly multipleProfiles: boolean
   readonly busy: boolean
   readonly apply: (edit: ActionCatalogEdit) => Promise<boolean>
   readonly onSelect: (id: string) => void
@@ -16,10 +19,17 @@ export function PreparationProfileManager({
   const [name, setName] = useState('')
   return (
     <details>
-      <summary className="cursor-pointer text-xs text-text-tertiary">Manage profiles</summary>
+      <summary className="cursor-pointer text-xs text-text-tertiary">
+        {multipleProfiles ? 'Manage setup profiles' : 'Add another setup profile'}
+      </summary>
+      {multipleProfiles ? null : (
+        <p className="mt-3 text-xs leading-5 text-text-tertiary">
+          Use different setups for different kinds of work. You pick one when you create a worktree.
+        </p>
+      )}
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <TextInput
-          aria-label="New preparation profile name"
+          aria-label="New setup profile name"
           placeholder="Profile name"
           value={name}
           onChange={(event) => setName(event.target.value)}

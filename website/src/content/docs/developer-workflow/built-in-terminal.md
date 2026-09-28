@@ -59,7 +59,7 @@ Saving a selected task keeps a reference to it. Each launch resolves the current
 A removed task stays visible as unavailable until you edit the action.
 
 Actions are private to this project on your machine by default. Saving one creates no repository file.
-Choose **In the project** under **Save to** to write the definition to `.openwaggle/actions.json`. This does not commit the file.
+Under **Who should have this action?**, choose **Everyone working on this project** to write the definition to `.openwaggle/actions.json`. This does not commit the file.
 A personal override replaces the complete shared definition; **Restore shared version** removes it.
 Settings shows where each definition comes from and offers explicit storage and removal controls.
 Worktrees of the same project share private definitions, while unrelated projects remain separate.
@@ -86,9 +86,9 @@ preparation profiles; its running-process link takes you back to the session.
 
 The Session Host owns action processes. Switching sessions or closing and reopening the GUI does
 not launch a second process. By default, starting the same action again opens its active run.
-Finite tasks can explicitly allow concurrent runs; services cannot. Restart validates the current
-command before stopping the old execution. When the last active session releases a workspace,
-OpenWaggle stops its services. Retained output is bounded, and trimmed output is marked.
+An action that stops when it finishes can explicitly allow several runs at once; one that keeps
+running cannot. Restart validates the current command before stopping the old execution. When the
+last active session releases a workspace, OpenWaggle stops the actions that keep running there. Retained output is bounded, and trimmed output is marked.
 If the owning Host itself is lost, the run becomes interrupted and requires an explicit restart.
 
 Actions receive `OPENWAGGLE_PROJECT_ROOT` and `OPENWAGGLE_WORKTREE_PATH`, plus the private environment
@@ -121,9 +121,10 @@ and are inherited by subsequent actions and agent shell commands.
 worktree keeps its profile snapshot but clears old completion and environment values, so setup runs
 again for the replacement checkout.
 
-Shared setup and cleanup require local review and enablement. Execution changes require another
-review. The review dialog shows the previous and current invocation and offers **Enable this version** or
-**Keep disabled**. A previously reviewed workspace snapshot does not silently adopt upstream edits.
+Shared setup and cleanup require local review and enablement, except that saving one turns it on for
+you. Execution changes made by others require another review. The review panel lists what changed and
+offers **Turn on this version** or **Keep it off**. A previously reviewed workspace snapshot does not
+silently adopt upstream edits.
 
 Cleanup runs before actual worktree removal, after its last binding is released and action processes
 have stopped. Failure retains the checkout. In **Settings > Worktrees**, choose **Retry cleanup** or
