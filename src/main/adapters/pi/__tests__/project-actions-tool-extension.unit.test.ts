@@ -105,6 +105,10 @@ describe('Pi project_actions shares GUI executions', () => {
     { label: 'output without runId', params: { action: 'output' } },
     { label: 'stop without runId', params: { action: 'stop' } },
     {
+      label: 'propose without a command',
+      params: { action: 'propose', actionId: 'test', reason: 'x' },
+    },
+    {
       label: 'negative output offset',
       params: { action: 'output', runId: 'run', afterOffset: -1 },
     },

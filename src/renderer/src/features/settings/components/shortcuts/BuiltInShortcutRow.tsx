@@ -9,17 +9,17 @@ import { type KeyboardEvent, useState } from 'react'
 import { ProjectActionConditionBuilder } from '@/features/project-actions'
 import { Button } from '@/shared/ui/Button'
 import {
+  isShortcutModifierKey,
+  ShortcutBindingButton,
+  ShortcutConflictNotice,
+  shortcutBindingFromEvent,
+} from '@/shared/ui/ShortcutRecorder'
+import {
   type BuiltInShortcutBrowserRow,
   type ShortcutBrowserRow,
   shortcutBrowserConflictLabels,
 } from '../../lib/shortcut-browser-model'
-import {
-  isShortcutModifierKey,
-  ShortcutBindingButton,
-  ShortcutConflictNotice,
-  ShortcutSourceBadge,
-  shortcutBindingFromEvent,
-} from './ShortcutRowParts'
+import { ShortcutSourceBadge } from './ShortcutRowParts'
 
 interface BuiltInShortcutRowProps {
   readonly row: BuiltInShortcutBrowserRow

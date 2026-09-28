@@ -92,7 +92,7 @@ A first message in **Current checkout** gets a **Starting session** card for the
 
 If checkout creation fails, the card keeps the submitted turn visible and adds **Retry**. The details disclose the Git operation and error instead of replacing it with a generic spinner. Once the agent starts, the large card becomes a small expandable **Worktree created** row. That row remains in the transcript after reload as a record of where the session began. Local sessions and cancelled worktree launches do not get that row.
 
-A configured preparation profile adds **Workspace setup** after checkout creation. Setup must succeed before the first agent turn. A failed or review-blocked setup has its own output and controls in **Session Summary > Workspace preparation**, including **Retry setup**, **Review changes**, and **Continue anyway** where applicable. Development servers belong in on-demand Project actions, not setup. See [Workspace preparation](/docs/developer-workflow/built-in-terminal#workspace-preparation).
+A configured preparation profile adds **Workspace setup** after checkout creation. Setup must succeed before the first agent turn. A failed or review-blocked setup has its own output and controls in **Session Summary > Workspace preparation**, including **Retry setup**, **Check the setup**, and **Continue anyway** where applicable. Development servers belong in on-demand Project actions, not setup. See [Workspace preparation](/docs/developer-workflow/built-in-terminal#workspace-preparation).
 
 ### Recovering a missing worktree
 

@@ -1,6 +1,6 @@
 ---
 title: "Project actions"
-description: "Save project commands, manage running tasks and services, and prepare new worktrees."
+description: "Save project commands, manage their runs, and prepare new worktrees."
 order: 7
 section: "Customize"
 ---
@@ -11,12 +11,16 @@ Actions run in the selected session's workspace. For a worktree session, that me
 
 ## Save and run a command
 
-1. Open **+ Action > Add action**, or **Settings > Project actions > Add action**. Settings has its own project picker; check that it names the right project.
-2. Choose a suggestion under **Use a project script**, or enter a **Name** and **Command** yourself, such as `Run tests` and `pnpm test`.
-3. Leave **Save to > Only on this device** selected for a private action. It belongs to this project, not every project on your machine.
-4. For a finite command such as tests, keep the default **Task** run behavior. Use **More options** to change the working directory or other execution preferences.
-5. Click **Save action**. Saving does not run the command.
-6. Return to the session, open **+ Action**, and choose the action to run it.
+1. Open **+ Action > Add action**, or **Settings > Project actions > Add action**. A panel opens on the right. It names the project it saves to; Settings has its own project picker, and the panel says so when that project differs from your current session's.
+2. Answer **What should it run?** Choose **A script from this project** and pick one, or choose **A command I type myself** and type it, such as `pnpm test`.
+3. Answer **What should it be called?** Picking a script suggests a readable name, such as **Run tests**. Each name must be different from the project's other actions, ignoring letter case.
+4. Click **Save action**. Saving does not run the command. When you saved from **+ Action** in a session, the confirmation offers **Run now** for that session. Saving from Settings instead highlights the new action in the list.
+
+Everything under **Optional settings** already has a sensible default, shown in plain words next to each question. Click **Change** only when the default is wrong. The line above **Save action** summarises what will happen; click it to read the full sentence.
+
+The panel docks beside your work like the other right sidebars. Drag its left edge to resize it; on narrow windows it opens over the app instead. Opening it replaces the sidebar you had open, and closing it brings that sidebar back.
+
+You don't have to finish in one go. Closing the panel, or opening another sidebar, keeps what you have so far, even after a restart. **+ Action** then offers **Continue new action** or **Continue editing** the action. A project keeps one unfinished action at a time: starting another first asks whether to continue the one you had or discard it. **Cancel** discards it, and asks first if you had changed anything.
 
 The output view shows the command, working directory, status, and exit result. Use **Copy output** or **Copy command** when you need to share a failure. Commands run with the access available to their process, not in a separate sandbox.
 
@@ -34,32 +38,34 @@ OpenWaggle reads these task sources without running project code or installing d
 
 Suggestions include the package or group and source file, so two packages' `test` tasks remain distinguishable. JavaScript tasks use the declared package manager or lockfile evidence; conflicting lockfiles produce a diagnostic rather than a guessed runner.
 
-A selected script stays linked to its task definition. Future launches use the task in the session's workspace and its package-relative directory. Editing the script in the repository therefore affects the next launch. If the task disappears on another branch, the saved action becomes unavailable instead of running a stale copy.
+A selected script stays linked to its task definition. Future launches use the task in the session's workspace and its package-relative directory. Editing the script in the repository therefore affects the next launch. If the task disappears on another branch, the saved action becomes unavailable instead of running a stale copy. Editing such an action explains which script is missing and lets you keep the link or pick another script. If OpenWaggle saw the command that script ran on this computer, it also offers to use that command instead.
 
-Editing the displayed **Command**, or choosing **Use as custom command**, replaces that link with command text you maintain yourself. **Refresh** rereads suggestions. Empty or failed discovery does not prevent you from entering a custom command. Other task formats, including `justfile` recipes, currently need a custom command.
+**Copy it as my own command instead** replaces that link with command text you maintain yourself, in the same folder. The script list rereads the project by itself; if reading fails, choose **Try again** or type a command. Other task formats, including `justfile` recipes, currently need a custom command.
 
-## Tasks, services, and background work
+## Actions that finish and actions that keep running
 
-Under **More options > Run behavior**, choose:
+Under **Optional settings > Does it stop on its own?**, choose:
 
-- **Task** for a command that finishes, such as tests or a build.
-- **Service** for a command that keeps running, such as a dev server.
+- **Yes, it finishes by itself** for a command such as tests or a build. Settings lists it as **Stops when done**.
+- **No, it keeps running until I stop it** for a command such as a dev server or file watcher. Settings lists it as **Keeps running**.
+
+Picking a script such as `dev` or `start` chooses the second answer for you.
 
 These are managed processes. You can view their output in the foreground or leave them running while you work elsewhere; there is no separate foreground/background switch.
 
 By default, each action has one active run per workspace. Choosing an already-running action shows its existing output. It does not queue another run or interrupt it. Different actions and different workspaces can run independently.
 
-Use **Stop** to end the selected run. **Restart** stops that run, waits for it to terminate, then starts a replacement using the current definition. After a run finishes, selecting the action again starts a new run. Tasks can opt into **Allow concurrent runs**; services remain single-instance.
+Use **Stop** to end the selected run. **Restart** stops that run, waits for it to terminate, then starts a replacement using the current definition. After a run finishes, selecting the action again starts a new run. For an action that finishes by itself, **If you click it while it is still running** can be changed to **Start another copy**; an action that keeps running always has one run at a time.
 
 Switching sessions or closing the output view does not stop a run. Managed runs can survive quitting the desktop app while the background session service remains alive. Reopening reconnects without launching another copy. If the process was lost, for example after a computer restart, OpenWaggle retains available output and offers **Restart** rather than silently relaunching it.
 
-Services stop when the last session releases their workspace, including when that final session is archived. Releasing one session does not stop a service another session still uses. Service shutdown happens before workspace cleanup and removal.
+Actions that keep running stop when the last session releases their workspace, including when that final session is archived. Releasing one session does not stop an action another session still uses. They stop before workspace cleanup and removal.
 
 ## Open a dev-server preview
 
-Save your server command and choose **More options > Run behavior > Service**. Under **Preview preferences**, enable **Open preview when ready** if you want the browser to open automatically.
+Save your server command with **No, it keeps running until I stop it**. Then, under **Optional settings > Open it in the browser preview?**, choose **Yes, open the preview when the server is ready**. Picking a `dev` or `start` script turns this on for you.
 
-OpenWaggle detects a URL from the run's output and waits until the server responds before opening it. Use **Preview URL override** if detection cannot find the right address. The URL belongs to that run and workspace, so a server using a different available port can have a different preview target.
+OpenWaggle detects a URL from the run's output and waits until the server responds before opening it. Fill in the preview URL under the same setting only if detection opens the wrong address. The URL belongs to that run and workspace, so a server using a different available port can have a different preview target.
 
 You can also choose **Open preview** in the run's output view once it is ready. An HTTP response establishes that a server is listening, not that your application is healthy. Check output and the page itself if startup fails or the preview displays an error.
 
@@ -67,30 +73,31 @@ See [Browser preview](/docs/developer-workflow/browser-preview) for inspecting t
 
 ## Local and shared definitions
 
-New actions default to **Only on this device**. OpenWaggle keeps them in local app storage, scoped to the selected project. Worktrees belonging to that project share its local definitions; unrelated projects do not.
+New actions are saved for **Just me** by default, under **Optional settings > Who should have this action?**. OpenWaggle keeps them in local app storage, scoped to the selected project. Worktrees belonging to that project share its local definitions; unrelated projects do not.
 
-Choose **In the project** to save an action in `.openwaggle/actions.json`. You can commit that file to share definitions with teammates. Saving it does not commit or publish anything. Keep credentials out of shared commands; sharing does not include approvals, prepared environment values, or run history.
+Choose **Everyone working on this project** to save an action in `.openwaggle/actions.json`. You can commit that file to share definitions with teammates. Saving it does not commit or publish anything. Keep credentials out of shared commands; sharing does not include approvals, prepared environment values, or run history.
 
 Storage is a per-definition choice. Sharing a test action does not share your other actions, setup, or cleanup.
 
-To customize a shared action privately, click **Edit**, select **Only on this device**, and save. OpenWaggle shows one effective entry marked **Locally overridden**, leaving the shared definition unchanged. Under **Storage and removal**, **Restore shared version** removes your override.
+When you edit a shared action, the question becomes **Who should get these changes?**. **Only me** keeps the shared version for everyone else and gives you a private version; Settings marks it **Locally overridden**. **Everyone on the project** updates the shared file. To move an action between private and shared without editing it, use **Storage and removal** in Settings.
 
 ## Run setup for a new worktree
 
 Setup is separate from an on-demand Project Action. Configure it in **Settings > Project actions > Workspace preparation**:
 
-1. Select a **Preparation profile**, or use **Manage profiles > Add profile** to make one for a different workflow.
-2. Under **Set up workspace**, click **Configure**.
-3. Choose a project script or enter a command that finishes, such as the project's dependency-install command.
-4. Check the working directory and storage choice, then click **Save setup**.
+1. Under **Set up new worktrees**, click **Configure**. The same panel opens.
+2. Answer **What should it run?** with a project script or a command that finishes, such as the project's dependency-install command.
+3. Check **Who should have this setup?** and the folder under **Optional settings**, then click **Save setup**.
 
-Saving a private setup definition enables that version on your machine. A shared definition needs explicit review and local enablement before it can run. Use **Review changes**, inspect the command and directory, then choose **Enable this version** or **Keep disabled**. Closing the review does not enable it.
+Saving a setup turns it on for you, whether you keep it private or share it: you have just seen exactly what will run. The one exception is a teammate's change waiting for your review that you save without changing its command or folder; it stays off until you check it, and the saved message tells you so. A shared setup still needs each teammate's review before it runs on their computer, and a later change made by someone else needs your review. Settings shows **Check it before it runs** for those. **Check it** opens the panel with what changed in plain words; choose **Turn on this version** or **Keep it off**. Closing it leaves the setup off.
 
-When creating a new managed worktree, choose its **Preparation** profile if the project has more than one. Setup must finish successfully before the first agent turn starts. A failed or stopped attempt pauses that turn and offers **Retry setup** or **Continue anyway**. **Stop setup** stops the active attempt before releasing the workspace for other work.
+Profiles let different kinds of work use different setups. They stay out of sight until you need one: use **Add another setup profile** in the same section. Once a project has more than one, Settings shows a **Setup profile** picker and the panel names the profile it edits.
+
+When creating a new managed worktree, choose its profile if the project has more than one. Setup must finish successfully before the first agent turn starts. A failed or stopped attempt pauses that turn and offers **Retry setup** or **Continue anyway**. **Stop setup** stops the active attempt before releasing the workspace for other work.
 
 Existing checkouts do not run setup merely because you open them or send a message. In Session Summary's **Workspace preparation** section, select a profile if needed, then choose **Run setup**.
 
-Successful setup retains exported environment changes privately for that workspace. Later agent commands and action runs inherit them; already-running processes do not. Failed setup does not publish a partially prepared environment. Keep development servers as Service actions, not setup commands that never finish.
+Successful setup retains exported environment changes privately for that workspace. Later agent commands and action runs inherit them; already-running processes do not. Failed setup does not publish a partially prepared environment. Keep development servers as actions that keep running, not setup commands that never finish.
 
 ### Profile updates and cleanup
 
@@ -98,23 +105,29 @@ A worktree keeps a snapshot of the profile's setup and cleanup definitions. Edit
 
 The snapshot retains commands and task references, not copies of scripts they call. Changes inside those scripts still affect execution.
 
-Configure optional cleanup under **Clean up workspace** in the same settings section. Cleanup runs before actual managed-worktree removal, while its files remain available, after the final session releases it. Setup and cleanup have independent storage choices.
+Configure optional cleanup under **Clean up worktrees** in the same settings section. Cleanup runs before actual managed-worktree removal, while its files remain available, after the final session releases it. Setup and cleanup have independent storage choices.
 
-Shared preparation commands show **Review required** when their execution definition changes. Review compares the previously reviewed version with the execution to enable. An unchanged, reviewed worktree snapshot can still run even if the project's current profile has changed.
+Shared preparation commands show **Check it before it runs** when their execution definition changes. The review lists what changed since the version you last turned on. When a new worktree or a worktree removal is waiting on that review, the panel opens by itself. An unchanged, reviewed worktree snapshot can still run even if the project's current profile has changed.
 
 If cleanup fails, OpenWaggle retains the worktree. In **Settings > Worktrees**, inspect **Cleanup output** and choose **Retry cleanup**. **Delete anyway** skips cleanup and may leave external resources behind. It is distinct from **Force remove**, which can also discard uncommitted changes or remove a locked worktree.
 
 ## Add a shortcut
 
-Select the project you want to work in, then open **Settings > Shortcuts > Add binding**. In **Command**, choose your action under **Project Actions**, record a key combination, then click **Add binding**. Use Command, Control, Alt, or Shift with a key. Backspace or Delete clears the combination while recording.
+In the action panel, **Optional settings > Keyboard shortcut** records one combination for the action. Use Command, Control, Alt, or Shift with a key. If the combination already does something else, the panel names it and asks whether to use it anyway.
+
+For conditions or several bindings, choose **More shortcut options**, or open **Settings > Shortcuts > Add binding**. In **Command**, choose your action under **Project Actions**, record a key combination, then click **Add binding**. Backspace or Delete clears the combination while recording.
 
 Optional conditions limit when a binding applies. Unknown context names evaluate to false until supplied by the app. Review overlap warnings. Project Action bindings take precedence over built-in bindings; within each list, the last matching rule wins. Built-in shortcuts and Project Action bindings are managed in this same section.
 
 ## Edit and remove actions
 
-In **Settings > Project actions**, click **Edit** beside an action and finish with **Save action**. Changes apply to its next launch, not to a process already running. Under **Storage and removal**, you can move the definition between local and project storage or choose **Remove definition**. Removing a definition does not undo commands already run; use the run's **Stop** control to end an active process.
+In **Settings > Project actions**, click **Edit** beside an action and finish with **Save changes**. Changes apply to its next launch, not to a process already running. If the saved action changed after you started editing, for example through `git pull`, the panel lists what changed and asks whether to **Keep my changes** or **Use the new version**. It never overwrites the other change silently.
 
-If a failed or interrupted run offers **Fix with agent**, it adds a repair request to your message draft. Review and send it. The request asks the agent to propose a compatible command, not silently replace the saved definition or launch a replacement. Custom shell commands may need changes to work on another operating system.
+**Remove this action**, at the bottom of the panel, explains what removal means before anything is removed. For a locally overridden action it is **Restore shared version** instead. Removing a definition does not undo commands already run; use the run's **Stop** control to end an active process.
+
+Two actions with the same name keep working, for example when a teammate shares one called the same as yours. The + Action menu tells them apart with a grey hint, and Settings offers **Rename**.
+
+If a failed or interrupted run offers **Fix with agent**, it adds a repair request to your message draft. Review and send it. The agent proposes a compatible command, and its reply shows **Review and save**. That opens the panel with the proposal and what it changes; nothing changes until you save. Custom shell commands may need changes to work on another operating system.
 
 Saved actions from older OpenWaggle versions migrate to native local definitions. Older worktree-setup selections become setup in the default preparation profile, while the original action remains available. New definitions no longer use the `actions` key in `.openwaggle/settings.json`.
 
