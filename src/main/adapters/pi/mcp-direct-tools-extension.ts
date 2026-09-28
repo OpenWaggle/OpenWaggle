@@ -1,24 +1,7 @@
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'
-import type { McpDirectToolDescriptor, McpJsonValue } from '@shared/types/mcp'
-import { Type } from 'typebox'
+import type { McpDirectToolDescriptor } from '@shared/types/mcp'
 import { type ExecuteGateway, executeApprovedCall, textResult } from './mcp-tool-execution'
-
-function isObjectRootSchema(
-  value: McpJsonValue | undefined,
-): value is Record<string, McpJsonValue> & { readonly type: 'object' } {
-  return (
-    typeof value === 'object' && value !== null && !Array.isArray(value) && value.type === 'object'
-  )
-}
-
-// Providers require a JSON-object root: Amazon Bedrock rejects any other root `type`.
-// The MCP SDK already enforces `type: "object"` on listed tools; this keeps a descriptor
-// from any other source from breaking every request that carries the tool.
-function parameters(tool: McpDirectToolDescriptor) {
-  return isObjectRootSchema(tool.inputSchema)
-    ? Type.Unsafe<Record<string, unknown>>(tool.inputSchema)
-    : Type.Record(Type.String(), Type.Unknown())
-}
+import { toProviderToolParameters } from './provider-tool-parameters'
 
 export function registerMcpDirectTools(
   pi: ExtensionAPI,
@@ -31,7 +14,7 @@ export function registerMcpDirectTools(
       label: `${tool.title} · ${tool.serverLabel}`,
       description: `${tool.description ?? tool.title}\n\nProvided by the ${tool.serverLabel} MCP server. Every call requires fresh user approval.`,
       promptSnippet: `Use ${tool.title} from ${tool.serverLabel} when its explicit MCP capability is needed.`,
-      parameters: parameters(tool),
+      parameters: toProviderToolParameters(tool.inputSchema),
       executionMode: 'parallel',
       async execute(_toolCallId, arguments_, signal, _onUpdate, ctx) {
         const result = await executeApprovedCall({

@@ -1,6 +1,5 @@
 import { type Context, complete, type Tool, type UserMessage } from '@earendil-works/pi-ai/compat'
 import type { ExtensionContext } from '@earendil-works/pi-coding-agent'
-import { Type } from 'typebox'
 import { openExternal } from '../../desktop-ui'
 import type {
   McpElicitationResult,
@@ -21,6 +20,7 @@ import {
   reviewText,
   stringValue,
 } from './mcp-interaction-helpers'
+import { toProviderToolParameters } from './provider-tool-parameters'
 
 const MAX_SAMPLING_TOKENS = 16_384
 
@@ -98,15 +98,10 @@ function toSamplingTools(request: JsonObject): Tool[] | undefined {
     if (!isObject(value)) continue
     const name = stringValue(value.name)
     if (!name) continue
-    // Keep the provider-facing root an object; Amazon Bedrock rejects any other root type.
-    const schema =
-      isObject(value.inputSchema) && value.inputSchema.type === 'object'
-        ? value.inputSchema
-        : { type: 'object' }
     tools.push({
       name,
       description: stringValue(value.description) ?? '',
-      parameters: Type.Unsafe<Record<string, unknown>>(schema),
+      parameters: toProviderToolParameters(value.inputSchema),
     })
   }
   return tools.length > 0 ? tools : undefined

@@ -4,39 +4,28 @@ import {
   BROWSER_PREVIEW_VIEWPORT_MIN_DIMENSION,
 } from '@shared/browser-preview-viewports'
 import type { BrowserPreviewAutomationResizeInput } from '@shared/types/browser-preview-automation'
-import { type TSchema, Type } from 'typebox'
+import { BROWSER_PREVIEW_VIEWPORT_PRESET_IDS } from '@shared/types/browser-preview-controls'
+import { type Static, type TObject, Type } from 'typebox'
 import { Check, Errors } from 'typebox/value'
 import { previewTabTargetParameters } from './browser-preview-automation-schemas-core'
+import { formatTypeBoxErrors } from './typebox-errors'
+
+const VIEWPORT_LIMITS = `Viewport area may not exceed ${String(BROWSER_PREVIEW_VIEWPORT_MAX_AREA)} pixels.`
 
 const viewportDimension = Type.Integer({
   minimum: BROWSER_PREVIEW_VIEWPORT_MIN_DIMENSION,
   maximum: BROWSER_PREVIEW_VIEWPORT_MAX_DIMENSION,
+  description: `Freeform mode only. ${VIEWPORT_LIMITS}`,
 })
 
-const preset = Type.Union([
-  Type.Literal('iphone-se'),
-  Type.Literal('iphone-xr'),
-  Type.Literal('iphone-12-pro'),
-  Type.Literal('iphone-14-pro-max'),
-  Type.Literal('pixel-7'),
-  Type.Literal('samsung-galaxy-s8-plus'),
-  Type.Literal('samsung-galaxy-s20-ultra'),
-  Type.Literal('ipad-mini'),
-  Type.Literal('ipad-air'),
-  Type.Literal('ipad-pro'),
-  Type.Literal('surface-pro-7'),
-  Type.Literal('surface-duo'),
-  Type.Literal('galaxy-z-fold-5'),
-  Type.Literal('asus-zenbook-fold'),
-  Type.Literal('samsung-galaxy-a51-71'),
-  Type.Literal('nest-hub'),
-  Type.Literal('nest-hub-max'),
-])
+const preset = Type.Enum(BROWSER_PREVIEW_VIEWPORT_PRESET_IDS, { description: 'Preset mode only.' })
 
-const orientation = Type.Union([Type.Literal('portrait'), Type.Literal('landscape')])
+const orientation = Type.Union([Type.Literal('portrait'), Type.Literal('landscape')], {
+  description: 'Preset mode only. Defaults to the preset orientation.',
+})
 
-// Per-mode contracts. They are closed so a field that belongs to another mode is
-// reported to the model instead of being silently ignored.
+// Per-mode contracts. They are closed, like the Session Host wire schema, so a field that
+// belongs to another mode is reported to the model instead of being silently ignored.
 const fillVariant = Type.Object(
   { ...previewTabTargetParameters.properties, mode: Type.Literal('fill') },
   { additionalProperties: false },
@@ -66,16 +55,18 @@ const presetVariant = Type.Object(
  * ("inputSchema.json.type must be one of the following: object"), flattened to no
  * properties by Pi's Anthropic serializer, and emitted as `{}` by some
  * OpenAI-completions providers. The per-mode required fields are enforced by
- * {@link toPreviewResizeInput} before the call is authorized.
+ * {@link toPreviewResizeInput} before the call is authorized. Limits live on the
+ * properties because Pi's Anthropic serializer drops root-level descriptions.
  */
 export const previewResizeParameters = Type.Object(
   {
     ...previewTabTargetParameters.properties,
+    // A tuple literal, not a mapped array: TypeBox infers never from a widened array.
     mode: Type.Union(
-      [fillVariant, freeformVariant, presetVariant].map((variant) => variant.properties.mode),
+      [fillVariant.properties.mode, freeformVariant.properties.mode, presetVariant.properties.mode],
       {
         description:
-          'fill sizes the viewport to the panel; freeform requires width and height; preset requires preset and accepts orientation.',
+          'fill sizes the viewport to the panel and takes no other fields; freeform requires width and height; preset requires preset and accepts orientation. Fields from another mode are rejected.',
       },
     ),
     width: Type.Optional(viewportDimension),
@@ -83,21 +74,31 @@ export const previewResizeParameters = Type.Object(
     preset: Type.Optional(preset),
     orientation: Type.Optional(orientation),
   },
-  {
-    description: `Viewport area may not exceed ${String(BROWSER_PREVIEW_VIEWPORT_MAX_AREA)} pixels.`,
-  },
+  { description: VIEWPORT_LIMITS },
 )
 
-const VARIANTS_BY_MODE: Readonly<Record<string, TSchema>> = {
+type PreviewResizeMode = Static<typeof previewResizeParameters>['mode']
+
+const VARIANTS_BY_MODE = {
   fill: fillVariant,
   freeform: freeformVariant,
   preset: presetVariant,
-}
+} satisfies Record<PreviewResizeMode, TObject>
 
-function describeErrors(schema: TSchema, params: unknown) {
-  return [...Errors(schema, params)]
-    .map((error) => `${error.instancePath || 'arguments'}: ${error.message}`)
-    .join('; ')
+function describeModeErrors(mode: PreviewResizeMode, params: Readonly<Record<string, unknown>>) {
+  const variant = VARIANTS_BY_MODE[mode]
+  const accepted = new Set(Object.keys(variant.properties))
+  const unexpected = Object.keys(params).filter((field) => !accepted.has(field))
+  const unexpectedPaths = new Set(unexpected.map((field) => `/${field}`))
+  const remaining = Errors(variant, params).filter(
+    (error) => error.keyword !== 'additionalProperties' && !unexpectedPaths.has(error.instancePath),
+  )
+  return [
+    ...(unexpected.length > 0
+      ? [`${unexpected.join(', ')} ${unexpected.length === 1 ? 'is' : 'are'} not accepted`]
+      : []),
+    ...(remaining.length > 0 ? [formatTypeBoxErrors(remaining)] : []),
+  ].join('; ')
 }
 
 /**
@@ -108,17 +109,13 @@ function describeErrors(schema: TSchema, params: unknown) {
 export function toPreviewResizeInput(params: unknown): BrowserPreviewAutomationResizeInput {
   if (!Check(previewResizeParameters, params)) {
     throw new Error(
-      `Invalid preview_resize arguments: ${describeErrors(previewResizeParameters, params)}`,
+      `Invalid preview_resize arguments: ${formatTypeBoxErrors(Errors(previewResizeParameters, params))}`,
     )
   }
-  // Read before the variant guards: once every variant is ruled out TypeScript narrows
-  // `params` to never, although a mode-mismatched field still reaches this point.
-  const mode = params.mode
   if (Check(fillVariant, params)) return params
   if (Check(freeformVariant, params)) return params
   if (Check(presetVariant, params)) return params
-  const variant = VARIANTS_BY_MODE[mode] ?? previewResizeParameters
   throw new Error(
-    `Invalid preview_resize arguments for mode "${mode}": ${describeErrors(variant, params)}`,
+    `Invalid preview_resize arguments for mode "${params.mode}": ${describeModeErrors(params.mode, params)}`,
   )
 }

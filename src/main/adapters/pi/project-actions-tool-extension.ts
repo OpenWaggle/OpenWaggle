@@ -12,6 +12,7 @@ import type { ActionCatalogServiceShape } from '../../ports/action-catalog-servi
 import type { ActionRunServiceShape, ActionRunWorkspace } from '../../ports/action-run-service'
 import type { SessionWorkspaceResourceRepositoryShape } from '../../ports/session-workspace-resource-repository'
 import { getOpenWaggleAuthorize } from './agent-kernel/openwaggle-authorize-channel'
+import { formatTypeBoxErrors } from './typebox-errors'
 
 const identifier = Type.String({ minLength: 1, maxLength: ACTION_DEFINITION_LIMITS.ID_LENGTH })
 const parameterVariants = [
@@ -48,9 +49,7 @@ const parameters = Type.Unsafe<ProjectActionParameters>({
 
 function assertProjectActionArguments(params: unknown): asserts params is ProjectActionParameters {
   if (!Check(parameters, params)) {
-    const details = [...Errors(parameters, params)]
-      .map((error) => `${error.instancePath || 'arguments'}: ${error.message}`)
-      .join('; ')
+    const details = formatTypeBoxErrors(Errors(parameters, params))
     throw new Error(`Invalid project_actions arguments: ${details}`)
   }
   const action = params.action
@@ -59,9 +58,7 @@ function assertProjectActionArguments(params: unknown): asserts params is Projec
   )
   if (variant === undefined) throw new Error(`Unknown project_actions action "${action}".`)
   if (Check(variant, params)) return
-  const details = [...Errors(variant, params)]
-    .map((error) => `${error.instancePath || 'arguments'}: ${error.message}`)
-    .join('; ')
+  const details = formatTypeBoxErrors(Errors(variant, params))
   throw new Error(`Invalid project_actions arguments for "${action}": ${details}`)
 }
 export interface ProjectActionToolServices {

@@ -182,14 +182,9 @@ describe('Pi browser preview automation extension', () => {
     expect(shape.type).toBe('object')
     expect(shape.anyOf).toBeUndefined()
     expect(shape.required).toEqual(['mode'])
-    expect(Object.keys(shape.properties ?? {})).toEqual([
-      'tabId',
-      'mode',
-      'width',
-      'height',
-      'preset',
-      'orientation',
-    ])
+    expect(Object.keys(shape.properties ?? {}).sort()).toEqual(
+      ['tabId', 'mode', 'width', 'height', 'preset', 'orientation'].sort(),
+    )
   })
 
   it.each([
@@ -223,18 +218,18 @@ describe('Pi browser preview automation extension', () => {
     {
       label: 'freeform without height',
       params: { mode: 'freeform', width: 800 },
-      message: 'mode "freeform"',
+      message: 'mode "freeform": arguments: must have required properties height',
     },
     { label: 'preset without preset', params: { mode: 'preset' }, message: 'mode "preset"' },
     {
       label: 'fill with freeform dimensions',
       params: { mode: 'fill', width: 800, height: 600 },
-      message: 'mode "fill"',
+      message: 'mode "fill": width, height are not accepted',
     },
     {
       label: 'freeform with an orientation',
       params: { mode: 'freeform', width: 800, height: 600, orientation: 'portrait' },
-      message: 'mode "freeform"',
+      message: 'mode "freeform": orientation is not accepted',
     },
   ])('rejects $label before asking for approval', async ({ params, message }) => {
     const tools = await registeredTools()

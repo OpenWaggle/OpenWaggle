@@ -1090,12 +1090,18 @@ provider dropping arguments for the schema shape before blaming parsing or permi
 cheapest discriminator is a raw REST probe of the provider with the exact tool JSON.
 Amazon Bedrock is stricter: Pi's Bedrock Converse serializer forwards `tool.parameters`
 unchanged, and Bedrock rejects the whole request when any tool's root lacks `type: "object"`
-(`toolConfig.tools.N.toolSpec.inputSchema.json.type must be one of the following: object`), so
-one root-union tool breaks every Bedrock turn. Pi's Anthropic serializer instead rewrites the
-root to `{type:'object', properties: schema.properties ?? {}}`, silently hiding a root union's
-fields from the model. `preview_resize` shipped a root `anyOf` until it was flattened;
-`first-party-tool-parameter-schemas.unit.test.ts` now asserts every first-party and direct MCP
-tool registers an object root with no root combinators, so add new tool factories to it.
+(`toolConfig.tools.N.toolSpec.inputSchema.json.type must be one of the following: object`), or
+when a Claude tool root carries `anyOf`/`oneOf`/`allOf` even beside `type: "object"`
+(`input_schema does not support oneOf, allOf, or anyOf at the top level`; root `not` is accepted,
+live-probed on `eu.anthropic.claude-opus-4-8`). One such tool breaks every Bedrock turn. Pi's
+Anthropic serializer instead rewrites the root to `{type:'object', properties, required}`, hiding
+a root union's fields from the model and dropping root descriptions, so put limits on properties.
+`preview_resize` shipped a root `anyOf` until it was flattened. External MCP direct and sampling
+schemas go through `toProviderToolParameters` (`provider-tool-parameters.ts`), which keeps an
+object root and strips root combinators. `first-party-tool-parameter-schemas.unit.test.ts` pins
+the exact list of app tool registrations (browser preview, MCP gateway/direct/`mcp_run`,
+`project_actions`, `sessions`) and asserts the object-root contract, so add new app tool
+factories to it; `packages/pi-waggle` tools and third-party Pi extension tools are not covered.
 
 For managed-worktree cleanup, a retained preparation snapshot belongs to a directory generation,
 not merely a project and worktree path. Pin the worktree directory's device, inode and birth time
