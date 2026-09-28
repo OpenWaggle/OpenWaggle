@@ -12,6 +12,12 @@ import {
 import { useState } from 'react'
 import { Button } from '@/shared/ui/Button'
 import { cancelFirstSend, retryFirstSend } from '../lib/worktree-launch-recovery'
+import {
+  isLocalLaunch,
+  type LaunchStepView,
+  launchStepAnnouncement,
+  launchStepViews,
+} from '../lib/worktree-launch-steps'
 import { useChatDisplayText, useChatDisplayTextFormatter } from './ChatDisplayPathContext'
 
 interface WorktreeLaunchRowProps {
@@ -93,11 +99,22 @@ function ActionButton({
 
 function WorktreeProgressSteps({
   launch,
+  steps,
   worktreeCreated,
 }: {
   readonly launch: WorktreeLaunchSnapshot
+  readonly steps: readonly LaunchStepView[] | null
   readonly worktreeCreated: boolean
 }) {
+  if (steps) {
+    return (
+      <>
+        {steps.map((step) => (
+          <WorktreeStep key={step.key} label={step.label} state={step.state} />
+        ))}
+      </>
+    )
+  }
   if (worktreeCreated) {
     const startingTaskState = launch.status === 'failed' ? 'failed' : 'active'
     return (
@@ -129,74 +146,135 @@ function worktreeProgressAnnouncement(
   return 'Preparing workspace'
 }
 
-export function WorktreeLaunchRow({ sessionId, launch }: WorktreeLaunchRowProps) {
-  const [showDetails, setShowDetails] = useState(false)
-  const [actionPending, setActionPending] = useState(false)
-  const [actionError, setActionError] = useState<string | null>(null)
-  const complete = launch.status === 'complete'
-  const worktreeCreated = launch.stage === 'worktree-created' || launch.stage === 'starting-task'
-  const formatDisplayText = useChatDisplayTextFormatter()
-  const displayErrorMessage = useChatDisplayText(launch.errorMessage ?? '')
-  const displayActionError = useChatDisplayText(actionError ?? '')
-  const progressAnnouncement = worktreeProgressAnnouncement(
-    launch,
-    worktreeCreated,
-    displayErrorMessage,
-  )
+function launchHeading(launch: WorktreeLaunchSnapshot) {
+  if (isLocalLaunch(launch)) {
+    return launch.status === 'failed' ? 'Session setup failed' : 'Starting session'
+  }
+  return launch.status === 'failed' ? 'Worktree setup failed' : 'Creating a worktree'
+}
 
-  function runAction(action: () => Promise<void>) {
-    setActionPending(true)
-    setActionError(null)
+function useLaunchRecoveryAction() {
+  const [pending, setPending] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  function run(action: () => Promise<void>) {
+    setPending(true)
+    setError(null)
     void action()
-      .catch((error: unknown) => {
-        setActionError(error instanceof Error ? error.message : String(error))
+      .catch((actionError: unknown) => {
+        setError(actionError instanceof Error ? actionError.message : String(actionError))
       })
-      .finally(() => setActionPending(false))
+      .finally(() => setPending(false))
   }
+  return { pending, error, run }
+}
 
-  if (complete) {
-    return (
-      <section aria-label="Worktree created" className="text-text-tertiary">
-        <Button
-          variant="unstyled"
-          aria-expanded={showDetails}
-          className="flex items-center gap-2 text-xs transition-colors hover:text-text-secondary"
-          onClick={() => setShowDetails((current) => !current)}
-          type="button"
+function LaunchRecoveryActions({
+  sessionId,
+  launch,
+  recovery,
+}: {
+  readonly sessionId: string
+  readonly launch: WorktreeLaunchSnapshot
+  readonly recovery: ReturnType<typeof useLaunchRecoveryAction>
+}) {
+  return (
+    <div className="flex items-center gap-1">
+      {launch.status === 'failed' && (
+        <ActionButton
+          disabled={recovery.pending}
+          onClick={() => recovery.run(() => retryFirstSend(sessionId))}
         >
-          <ChevronRight
-            aria-hidden="true"
-            className={`size-3 transition-transform ${showDetails ? 'rotate-90' : ''}`}
-          />
-          <Split aria-hidden="true" className="size-3.5" />
-          <span>Worktree created</span>
-        </Button>
-        {showDetails && (
-          <div className="ml-5 mt-2 space-y-1 border-l border-border pl-3 font-mono text-xs text-text-muted">
-            {launch.details.map((detail) => (
-              <div key={detail}>{formatDisplayText(detail)}</div>
-            ))}
-          </div>
-        )}
-      </section>
-    )
-  }
+          <RotateCcw aria-hidden="true" className="size-3.5" /> Retry
+        </ActionButton>
+      )}
+      {/* A local launch is already local; only a worktree launch can fall back to the checkout. */}
+      {isLocalLaunch(launch) ? null : (
+        <ActionButton
+          disabled={recovery.pending}
+          onClick={() => recovery.run(() => retryFirstSend(sessionId, true))}
+        >
+          <Laptop aria-hidden="true" className="size-3.5" /> Work locally
+        </ActionButton>
+      )}
+      <ActionButton
+        disabled={recovery.pending}
+        onClick={() => recovery.run(() => cancelFirstSend(sessionId))}
+      >
+        <X aria-hidden="true" className="size-3.5" /> Cancel
+      </ActionButton>
+    </div>
+  )
+}
+
+function LaunchDetails({ launch }: { readonly launch: WorktreeLaunchSnapshot }) {
+  const formatDisplayText = useChatDisplayTextFormatter()
+  return (
+    <>
+      {launch.details.map((detail) => (
+        <div key={detail}>{formatDisplayText(detail)}</div>
+      ))}
+    </>
+  )
+}
+
+function WorktreeCreatedTrace({ launch }: { readonly launch: WorktreeLaunchSnapshot }) {
+  const [showDetails, setShowDetails] = useState(false)
+  return (
+    <section aria-label="Worktree created" className="text-text-tertiary">
+      <Button
+        variant="unstyled"
+        aria-expanded={showDetails}
+        className="flex items-center gap-2 text-xs transition-colors hover:text-text-secondary"
+        onClick={() => setShowDetails((current) => !current)}
+        type="button"
+      >
+        <ChevronRight
+          aria-hidden="true"
+          className={`size-3 transition-transform ${showDetails ? 'rotate-90' : ''}`}
+        />
+        <Split aria-hidden="true" className="size-3.5" />
+        <span>Worktree created</span>
+      </Button>
+      {showDetails && (
+        <div className="ml-5 mt-2 space-y-1 border-l border-border pl-3 font-mono text-xs text-text-muted">
+          <LaunchDetails launch={launch} />
+        </div>
+      )}
+    </section>
+  )
+}
+
+function LaunchProgressCard({
+  sessionId,
+  launch,
+}: {
+  readonly sessionId: string
+  readonly launch: WorktreeLaunchSnapshot
+}) {
+  const [showDetails, setShowDetails] = useState(false)
+  const recovery = useLaunchRecoveryAction()
+  const worktreeCreated = launch.stage === 'worktree-created' || launch.stage === 'starting-task'
+  const steps = launchStepViews(launch)
+  const heading = launchHeading(launch)
+  const displayErrorMessage = useChatDisplayText(launch.errorMessage ?? '')
+  const displayActionError = useChatDisplayText(recovery.error ?? '')
+  const progressAnnouncement = steps
+    ? launchStepAnnouncement(steps, heading, displayErrorMessage)
+    : worktreeProgressAnnouncement(launch, worktreeCreated, displayErrorMessage)
+  const HeadingIcon = isLocalLaunch(launch) ? Laptop : Split
 
   return (
-    <section
-      aria-label={launch.status === 'failed' ? 'Worktree setup failed' : 'Creating a worktree'}
-      className="space-y-2 text-text-secondary"
-    >
+    <section aria-label={heading} className="space-y-2 text-text-secondary">
       <p aria-live="polite" className="sr-only" role="status">
         {progressAnnouncement}
       </p>
       <div className="flex items-center gap-2 px-0.5 text-xs text-text-tertiary">
-        <Split aria-hidden="true" className="size-3.5" />
-        <span>{launch.status === 'failed' ? 'Worktree setup failed' : 'Creating a worktree'}</span>
+        <HeadingIcon aria-hidden="true" className="size-3.5" />
+        <span>{heading}</span>
       </div>
       <div className="rounded-2xl border border-border-light bg-bg-secondary/50 px-4 py-3.5">
         <div className="space-y-3">
-          <WorktreeProgressSteps launch={launch} worktreeCreated={worktreeCreated} />
+          <WorktreeProgressSteps launch={launch} steps={steps} worktreeCreated={worktreeCreated} />
         </div>
         {displayErrorMessage && (
           <p className="mt-3 text-xs text-status-error">{displayErrorMessage}</p>
@@ -218,37 +296,21 @@ export function WorktreeLaunchRow({ sessionId, launch }: WorktreeLaunchRowProps)
             />
             More details
           </Button>
-          <div className="flex items-center gap-1">
-            {launch.status === 'failed' && (
-              <ActionButton
-                disabled={actionPending}
-                onClick={() => runAction(() => retryFirstSend(sessionId))}
-              >
-                <RotateCcw aria-hidden="true" className="size-3.5" /> Retry
-              </ActionButton>
-            )}
-            <ActionButton
-              disabled={actionPending}
-              onClick={() => runAction(() => retryFirstSend(sessionId, true))}
-            >
-              <Laptop aria-hidden="true" className="size-3.5" /> Work locally
-            </ActionButton>
-            <ActionButton
-              disabled={actionPending}
-              onClick={() => runAction(() => cancelFirstSend(sessionId))}
-            >
-              <X aria-hidden="true" className="size-3.5" /> Cancel
-            </ActionButton>
-          </div>
+          <LaunchRecoveryActions sessionId={sessionId} launch={launch} recovery={recovery} />
         </div>
         {showDetails && (
           <div className="mt-2 space-y-1 border-t border-border pt-2 font-mono text-xs text-text-muted">
-            {launch.details.map((detail) => (
-              <div key={detail}>{formatDisplayText(detail)}</div>
-            ))}
+            <LaunchDetails launch={launch} />
           </div>
         )}
       </div>
     </section>
   )
+}
+
+export function WorktreeLaunchRow({ sessionId, launch }: WorktreeLaunchRowProps) {
+  if (launch.status !== 'complete')
+    return <LaunchProgressCard sessionId={sessionId} launch={launch} />
+  // A local launch leaves no trace: the transcript continues with the run itself.
+  return isLocalLaunch(launch) ? null : <WorktreeCreatedTrace launch={launch} />
 }

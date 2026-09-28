@@ -53,6 +53,11 @@ describe('Local Session snapshot boundary', () => {
       branch: 'ow/session-running',
       baseRef: 'main',
       errorMessage: 'Task startup failed.',
+      environment: 'worktree',
+      steps: [
+        { stage: 'fetching-base', label: 'Pulling latest main from origin', startedAt: 2 },
+        { stage: 'checking-out-files', label: 'Creating worktree', startedAt: 3 },
+      ],
       setupAction: {
         terminalId: 'setup-terminal',
         actionId: 'setup-action',

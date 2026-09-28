@@ -149,7 +149,9 @@ export function useSessionStatusMonitor(): void {
       setTransientStatus(sessionId, 'working', phase.startedAt)
     })
 
-    const unsubCompleted = api.onRunCompleted(({ sessionId }) => {
+    const unsubCompleted = api.onRunCompleted(({ sessionId, continues }) => {
+      // The Session went straight on to a queued Follow-up; it is still running.
+      if (continues) return
       completedDuringHydration.add(sessionId)
       activeWaggleSessions.delete(sessionId)
       markRunCompleted(sessionId)

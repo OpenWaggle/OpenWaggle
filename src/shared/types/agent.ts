@@ -182,18 +182,24 @@ export function getMessageText(message: Message): string {
  * Effect - so a caller awaiting the invoke could not tell a completed turn from a refused one. A review
  * submitted as a session's first message was therefore cleared on a failure that looked exactly like success.
  *
- * Three outcomes, not two, because "not delivered" and "cannot tell" call for different behaviour:
+ * More than two outcomes, because "not delivered", "cannot tell" and "kept for later" call for different behaviour:
  *
  * - `delivered`: the run produced a turn.
  * - `refused`: the run never started, and the reason is known. A caller may treat this as an error.
  * - `cancelled`: the run was aborted. This says nothing about whether the message arrived - a cancellation
  *   before the prompt was sent reports the same outcome as one mid-turn - so it must not be raised as an
  *   error, while a caller holding work the user might still want should keep it.
+ * - `queued`: the Host kept the message, but as a Follow-up in the Session's queue, not as a Run. It does
+ *   this whenever the Session still has a Run or has Follow-ups waiting - including an idle Session whose
+ *   queue a failed Run paused. No Run belongs to this send, so a caller must not wait for one: reported
+ *   as `delivered`, the renderer showed Stop and "Thinking" over an idle Session indefinitely.
  */
-export type AgentSendOutcome = 'delivered' | 'refused' | 'cancelled'
+export type AgentSendOutcome = 'delivered' | 'refused' | 'cancelled' | 'queued'
 
 export interface AgentSendReport {
   readonly outcome: AgentSendOutcome
   readonly message?: string
   readonly code?: string
+  /** The Run a `delivered` send started, when the Host reported it. */
+  readonly runId?: string
 }

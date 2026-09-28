@@ -28,10 +28,26 @@ export function desktopCommandTouchesFence(
   command: DesktopServiceCommand,
   fence: DesktopFenceRecord,
 ) {
-  if (command.service !== 'browser' || command.operation === 'deleteOwner') return false
+  if (
+    command.service !== 'browser' ||
+    command.operation === 'deleteOwner' ||
+    command.operation === 'inspectOwner'
+  )
+    return false
   return fence.scope.kind === 'owner'
     ? command.scope.sessionId === fence.scope.ownerKey
     : desktopPathContains(fence.scope.directoryPath, command.scope.workingPath)
+}
+
+/**
+ * Read-only presence queries. With a proven native-free desktop (never adopted or cleanly
+ * closed) they have a definite answer without a GUI: nothing native exists.
+ */
+export function isDesktopPresenceInspection(command: DesktopServiceCommand) {
+  return (
+    (command.service === 'terminal' && command.operation === 'getActivitySnapshot') ||
+    (command.service === 'browser' && command.operation === 'inspectOwner')
+  )
 }
 
 /** Only narrow cleanup can execute without a native owner or during orderly shutdown. */

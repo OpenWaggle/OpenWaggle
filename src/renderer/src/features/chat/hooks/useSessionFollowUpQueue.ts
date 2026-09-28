@@ -5,6 +5,7 @@ import {
   type SessionControlMutationCommand,
   type SessionControlMutationResponse,
 } from '@shared/types/session-control'
+import type { FollowUpQueuePauseReason } from '@shared/types/session-control-queue'
 import type { SessionQueryOutcome } from '@shared/types/session-query'
 import { THINKING_LEVELS } from '@shared/types/settings'
 import { isRecord } from '@shared/utils/validation'
@@ -35,6 +36,8 @@ export interface SessionFollowUpQueueItem {
 
 export interface SessionFollowUpQueueSnapshot {
   readonly state: 'running' | 'paused'
+  /** Why a paused queue paused, as the Host recorded it. */
+  readonly pauseReason?: FollowUpQueuePauseReason
   readonly revision: number
   readonly activeRunId: string | null
   readonly items: readonly SessionFollowUpQueueItem[]
@@ -96,6 +99,7 @@ function queueSnapshot(outcome: SessionQueryOutcome): SessionFollowUpQueueSnapsh
   if ('error' in outcome) throw new Error(outcome.error.message)
   return {
     state: outcome.queueState,
+    ...(outcome.queuePauseReason ? { pauseReason: outcome.queuePauseReason } : {}),
     revision: outcome.queueRevision,
     activeRunId: outcome.activeRunId,
     items: outcome.items.map((item) => ({

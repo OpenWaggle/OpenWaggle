@@ -63,6 +63,28 @@ describe('offline desktop cleanup under broker ownership proof', () => {
     await expect(fs.stat(logsDir)).rejects.toMatchObject({ code: 'ENOENT' })
   })
 
+  it('reports that nothing native exists for presence inspections', async () => {
+    const execute = makeOfflineDesktopCleanupExecutor(path.join(root, 'missing-history'))
+    await expect(
+      Effect.runPromise(
+        execute({ service: 'browser', operation: 'inspectOwner', ownerKey: 'worker' }),
+      ),
+    ).resolves.toEqual({
+      service: 'browser',
+      operation: 'inspectOwner',
+      value: { registered: false, previews: 0 },
+    })
+    await expect(
+      Effect.runPromise(
+        execute({ service: 'terminal', operation: 'getActivitySnapshot', input: {} }),
+      ),
+    ).resolves.toEqual({
+      service: 'terminal',
+      operation: 'getActivitySnapshot',
+      value: { revision: 0, summaries: [], truncated: false },
+    })
+  })
+
   it('retains cold scrollback on stop and removes only the exact deleted owner histories', async () => {
     const { logsDir } = await seed()
     const execute = makeOfflineDesktopCleanupExecutor(logsDir)
@@ -119,7 +141,11 @@ describe('offline desktop cleanup under broker ownership proof', () => {
   })
 
   const unsupportedCommands: readonly DesktopServiceCommand[] = [
-    { service: 'terminal', operation: 'getActivitySnapshot', input: {} },
+    {
+      service: 'terminal',
+      operation: 'open',
+      input: { ownerKey: 'worker', terminalId: 'main', cwd: '/project', cols: 80, rows: 24 },
+    },
     { service: 'terminal', operation: 'closeAll', input: {} },
     {
       service: 'terminal',

@@ -58,7 +58,7 @@ These names have precise meanings in the GUI, CLI, MCP adapter, and native `sess
 | **Launch** | Atomically create an independent root Session and start its first Run. |
 | **Spawn** | Atomically create and start a Worker beneath a parent, including its lineage and Delegation Contract. |
 | **Fork** | Create a new Session from a stable point in an existing transcript. |
-| **Message** | Adaptive convenience action: start immediately when idle, otherwise append a durable Follow-up. |
+| **Message** | Adaptive convenience action: start immediately when idle, otherwise append a durable Follow-up. An idle Session whose queue is paused still starts the message; the paused Follow-ups stay queued. |
 | **Start** | Start a new Run on an idle Session. It never queues behind an active Run. |
 | **Follow-up** | Submit a durable, separate next Run. It remains queued while the current Run finishes; if that Run has just settled, it starts immediately as the next Run. |
 | **Steer** | Append guidance to one exact active Run without interrupting it. It requires that Run's identity. |
@@ -66,7 +66,7 @@ These names have precise meanings in the GUI, CLI, MCP adapter, and native `sess
 | **Promote** | Remove one queued Follow-up and deliver it as Steering to the exact active Run. |
 | **Withdraw** | Remove a pending Follow-up before delivery. |
 | **Reorder** | Change pending Follow-up order against an expected queue revision. |
-| **Pause / Resume** | Stop or restart automatic delivery of queued Follow-ups. Pausing does not interrupt a Run. |
+| **Pause / Resume** | Stop or restart automatic delivery of queued Follow-ups. Pausing does not interrupt a Run. A failed, interrupted, or timed-out Run pauses the queue only for Follow-ups accepted before the Run ended; one accepted after that starts at settlement. `queue list` reports why a paused queue paused. |
 | **Interrupt** | Stop one exact active Run without starting another. |
 | **Wait** | Perform one bounded observation until a Session condition is reached or the timeout expires. It uses Host events internally but does not create a persistent subscription or consume an agent Run slot. |
 | **Watch** | Stream authorized Session Host events, with a cursor for reconnect and resynchronization. |
@@ -91,6 +91,14 @@ Session capabilities constrain the native `sessions` tool and authenticated Sess
 Each spawn creates one durable Delegation Contract. The Worker submits a revision with evidence; the parent agent normally reviews it, asks for revision, or accepts it. The GUI shows state and navigation but does not make the human approve every submission. A normally completed Worker that did not submit explicitly receives a host-captured submission so its result is not lost.
 
 Use [Agent Definitions](/docs/extending/agent-definitions) for optional reusable roles. No definition is required: the parent agent may decide the Worker approach for each assignment.
+
+### Automatic cleanup of finished Workers
+
+When the parent agent accepts or cancels a Worker's delegation, OpenWaggle archives that Worker on the parent's behalf if you never interacted with it. A Worker that is still busy is archived once it becomes idle: no active run, no queued Follow-ups, and no pending question or approval request. Interacting includes sending it a message or Follow-up, steering or replacing its run, answering one of its questions or approval requests, reviewing its delegation yourself (accepting, cancelling, reopening, or asking for a revision), branching its conversation, and renaming, archiving, or restoring it, whether from the app or the CLI. Any Worker you have interacted with stays in the sidebar. A pinned Worker is not archived while it is pinned. Archiving is recorded as the parent agent's action, and nothing is deleted.
+
+Reading a Worker's transcript is not interaction, but OpenWaggle leaves a Worker alone while it is open in the app, and while it has a terminal, a browser preview, or a running project service that archiving would stop. It checks again the next time a run in the Hive finishes.
+
+Archived Workers stay listed under **Archived** in the Session Summary's Hive section and in **Settings > Archived items**. Use the restore button beside an archived Worker in the Hive section, or **Restore** in Settings, to return it to the sidebar and continue the conversation. Work sent to a Worker that cleanup archived restores it in the same step, so it is back in the sidebar and out of the Hive section's **Archived** list while it runs. That covers a message, Follow-up, `start`, steer, or replace, and reopening or asking for a revision of its delegation, whether you do it or an agent does. The restore is recorded as whoever sent the work. OpenWaggle does not archive a Worker you restored again. A Worker an agent restored stays visible until its delegation is accepted or cancelled again; after that, cleanup can archive it once more. A Worker that you or an agent archived explicitly stays archived when it gets new work, and the parent agent can restore it with `unarchive`.
 
 ## How hosted agents coordinate
 

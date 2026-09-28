@@ -77,14 +77,18 @@ Managed worktrees are created outside your project, at `~/.openwaggle/worktrees/
 
 ### First-send worktree feedback
 
-When the first message creates a worktree, OpenWaggle reports Git checkout progress before the agent starts:
+When the first message creates a worktree, OpenWaggle lists each step in the conversation as it starts, before the agent runs:
 
-1. **Preparing workspace** resolves the requested base ref and target path.
-2. **Checking out files** runs the Git worktree operation.
-3. **Worktree created** confirms that the isolated checkout exists.
-4. **Starting task** sends your submitted message to the agent.
+1. **Preparing the session worktree** resolves the requested base ref and target path.
+2. **Pulling latest `<branch>` from origin** fetches a local base branch, when there is one to fetch.
+3. **Creating worktree `<branch>` from `<base>`** runs the Git worktree operation.
+4. **Running project setup** appears only when a Setup action will run.
+5. **Connecting MCP servers** appears when enabled servers expose tools directly to the model.
+6. **Starting task** sends your submitted message to the agent.
 
-While setup runs, the transcript shows a **Creating a worktree** card with **More details**, **Work locally**, and **Cancel**. **Work locally** stops the in-flight setup, changes that session to Current checkout, and retries the same submitted turn once. **Cancel** removes the optimistic turn and restores its text, attachments, skill reference, and Waggle preset to the composer.
+A finished step shows a check mark and the running one a spinner. While setup runs, the transcript shows a **Creating a worktree** card with **More details**, **Work locally**, and **Cancel**. **Work locally** stops the in-flight setup, changes that session to Current checkout, and retries the same submitted turn once. **Cancel** removes the optimistic turn and restores its text, attachments, skill reference, and Waggle preset to the composer.
+
+A first message in **Current checkout** gets a **Starting session** card for the same kind of wait: **Pulling latest changes** runs when the checked-out branch tracks an upstream, alongside **Connecting MCP servers**. That card has no **Work locally** action and disappears once the agent starts. Until a step or the agent reports, the conversation shows **Starting session...**.
 
 If checkout creation fails, the card keeps the submitted turn visible and adds **Retry**. The details disclose the Git operation and error instead of replacing it with a generic spinner. Once the agent starts, the large card becomes a small expandable **Worktree created** row. That row remains in the transcript after reload as a record of where the session began. Local sessions and cancelled worktree launches do not get that row.
 

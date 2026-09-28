@@ -184,3 +184,88 @@ describe('preparation around worktree birth', () => {
     expect(environment).not.toHaveBeenCalled()
   })
 })
+
+describe('Setup launch step', () => {
+  let projectPath = ''
+  afterEach(async () => {
+    await rm(projectPath, { recursive: true, force: true })
+  })
+
+  async function launchWith(preparation: WorkspacePreparation | null) {
+    projectPath = await realpath(await mkdtemp(join(tmpdir(), 'action-setup-step-')))
+    const workspacePath = join(projectPath, 'worktree')
+    await mkdir(workspacePath)
+    const order: string[] = []
+    mocks.birth.mockImplementation(
+      async (_session, options: SessionWorktreeSetupDispatchOptions) => {
+        await options.onSetupPending?.({
+          session: fromPartial({ id: SessionId('session'), projectPath }),
+          primaryPath: projectPath,
+          worktreePath: workspacePath,
+          setupGeneration: 'birth',
+        })
+        return workspacePath
+      },
+    )
+    const onWorktreeLaunch = vi.fn((progress: { readonly stage: string }) => {
+      order.push(`progress:${progress.stage}`)
+    })
+    await Effect.runPromise(
+      prepareActionWorkspace(
+        fromPartial<AgentKernelRunInput>({
+          session: { id: SessionId('session'), projectPath, environmentMode: 'worktree' },
+          signal: new AbortController().signal,
+          onWorktreeLaunch,
+        }),
+        {
+          workspaces: {
+            getBound: () =>
+              Effect.succeed({
+                id: 'workspace',
+                projectPath,
+                workingPath: workspacePath,
+                pending: false,
+                kind: 'managed-worktree',
+                worktreeBranch: 'feature',
+              }),
+          },
+          preparation: fromPartial<WorkspacePreparationServiceShape>({
+            capture: () => Effect.succeed(fromPartial({})),
+            read: () => Effect.succeed(preparation),
+            requireSetup: () => Effect.sync(() => void order.push('setup')),
+            isCurrentWorkspaceGeneration: () => Effect.succeed(true),
+            environment: () => Effect.succeed({}),
+          }),
+        },
+      ),
+    )
+    return order
+  }
+
+  function preparationWith(setupDefinitions: number): WorkspacePreparation {
+    return fromPartial<WorkspacePreparation>({
+      revision: 1,
+      setup: { status: 'idle' },
+      snapshot: {
+        profile: { id: 'default' },
+        definitions: Array.from({ length: setupDefinitions }, (_, index) => ({
+          definition: { id: `setup-${String(index)}`, profileId: 'default', phase: 'setup' },
+          review: 'enabled',
+        })),
+      },
+    })
+  }
+
+  it('reports a Setup action that will run as a step around it', async () => {
+    expect(await launchWith(preparationWith(1))).toEqual([
+      'progress:running-setup',
+      'setup',
+      'progress:running-setup',
+    ])
+  })
+
+  it('reports nothing when the profile has no Setup action to run', async () => {
+    expect(await launchWith(preparationWith(0))).toEqual(['setup'])
+    expect(await launchWith(null)).toEqual(['setup'])
+  })
+})

@@ -2,6 +2,8 @@ import { matchBy } from '@diegogbrisa/ts-match'
 import { type AgentSessionEvent, calculateContextTokens } from '@earendil-works/pi-coding-agent'
 import type { JsonValue } from '@shared/types/json'
 import { createModelRef } from '@shared/types/llm'
+import { classifyAgentError } from '../../../agent/error-classifier'
+import { userFacingErrorDetail } from '../../../utils/describe-error'
 import { toJsonValue } from '../pi-message-mapper'
 import { getAgentEndError, getAgentEndReason, getAgentEndUsage } from './agent-end-events'
 import { handleMessageStart, handleMessageUpdate } from './assistant-events'
@@ -171,10 +173,25 @@ function emitAutoRetryEnd(state: SessionListenerState, event: AutoRetryEndSessio
   })
 }
 
+/**
+ * The error a failed `agent_end` carries, classified as the Host classifies a terminal error: this
+ * event is the Run's only terminal failure event, so it names the code and a redacted detail.
+ */
+function classifiedAgentEndError(messages: AgentEndSessionEvent['messages']) {
+  const error = getAgentEndError(messages)
+  if (!error) return undefined
+  const classified = classifyAgentError(new Error(error.message))
+  return { message: userFacingErrorDetail(classified.message), code: classified.code }
+}
+
 function emitAgentEnd(state: SessionListenerState, event: AgentEndSessionEvent) {
   const reason = getAgentEndReason(event.messages)
   const error =
-    reason === 'error' || reason === 'aborted' ? getAgentEndError(event.messages) : undefined
+    reason === 'error'
+      ? classifiedAgentEndError(event.messages)
+      : reason === 'aborted'
+        ? getAgentEndError(event.messages)
+        : undefined
   emitEvent(state.input.onEvent, {
     type: 'agent_end',
     runId: state.runId,

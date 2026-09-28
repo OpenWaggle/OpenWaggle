@@ -7,7 +7,7 @@ import { DesktopServiceCommandQueue } from './desktop-service-command-queue'
 import { desktopUnavailableError } from './desktop-service-errors'
 import { DesktopServiceFences, isDesktopNativeFree } from './desktop-service-fences'
 import { DesktopServiceLeases } from './desktop-service-leases'
-import { desktopCommandTouchesFence } from './desktop-service-policy'
+import { desktopCommandTouchesFence, isDesktopPresenceInspection } from './desktop-service-policy'
 
 function asError(error: unknown) {
   return error instanceof Error ? error : new Error('Desktop operation failed.')
@@ -50,7 +50,9 @@ export function makeDesktopServiceBroker(input: {
           throw desktopUnavailableError()
         return { result: queue.execute(command, owner.id, signal) }
       }
-      if (!mutations.cleanupAllowed(command, records) || !(await isDesktopNativeFree(input.owners)))
+      const offlineAllowed =
+        isDesktopPresenceInspection(command) || mutations.cleanupAllowed(command, records)
+      if (!offlineAllowed || !(await isDesktopNativeFree(input.owners)))
         throw desktopUnavailableError()
       // Durable active fence predates this proof; any subsequent GUI registration must
       // restore that fence before opening native admission. Never infer proof from TTL.

@@ -1,4 +1,5 @@
 import { SessionId } from '@shared/types/brand'
+import type { FollowUpQueuePauseReason } from '@shared/types/session-control-queue'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { QueuedMessages } from '../QueuedMessages'
@@ -26,8 +27,15 @@ interface QueuedMessageFixture {
 const queueMock = vi.hoisted(() => {
   const items: QueuedMessageFixture[] = []
   const error: Error | null = null
+  const snapshot: {
+    state: 'running' | 'paused'
+    pauseReason?: FollowUpQueuePauseReason
+    revision: number
+    activeRunId: string | null
+    items: QueuedMessageFixture[]
+  } = { state: 'running', revision: 0, activeRunId: 'run-1', items }
   return {
-    snapshot: { state: 'running', revision: 0, activeRunId: 'run-1', items },
+    snapshot,
     error,
     refresh: vi.fn().mockResolvedValue(undefined),
     withdraw: vi.fn().mockResolvedValue(undefined),
@@ -73,6 +81,8 @@ describe('QueuedMessages', () => {
   beforeEach(() => {
     queue()
     queueMock.snapshot.state = 'running'
+    queueMock.snapshot.activeRunId = 'run-1'
+    delete queueMock.snapshot.pauseReason
     queueMock.error = null
     queueMock.refresh.mockReset().mockResolvedValue(undefined)
     noOpSteer.mockClear()
@@ -197,6 +207,30 @@ describe('QueuedMessages', () => {
     expect(screen.getByText('Queue paused')).toBeVisible()
     fireEvent.click(screen.getByRole('button', { name: 'Resume' }))
     expect(queueMock.setPaused).toHaveBeenCalledWith(false)
+  })
+
+  // A bare "Queue paused" after a failed Run read as the app ignoring the messages.
+  it.each([
+    ['run-failed', 'Paused because the last Run failed.'],
+    ['run-interrupted', 'Paused because the last Run was stopped.'],
+    ['parent-limit', 'Paused because the parent Session has as many active Workers as it allows.'],
+    ['requested', 'Paused on request.'],
+    [undefined, 'The queue is paused.'],
+  ] as const)('says the queue paused for %s', (reason, copy) => {
+    queue({ id: 'follow-up-1', text: 'try again' })
+    queueMock.snapshot.state = 'paused'
+    if (reason) queueMock.snapshot.pauseReason = reason
+    render(
+      <QueuedMessages
+        sessionId={CONV_A}
+        onSteer={noOpSteer}
+        isStreaming={false}
+        onToast={noOpToast}
+      />,
+    )
+
+    expect(screen.getByText((text) => text.startsWith(copy))).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Resume' })).toBeVisible()
   })
 
   it('explains blocked delivery and disables steering until attention is resolved', () => {

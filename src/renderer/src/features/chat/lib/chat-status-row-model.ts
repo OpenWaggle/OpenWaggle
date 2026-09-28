@@ -6,11 +6,24 @@ import type { ChatRow } from './types-chat-row'
 interface StatusRowInput {
   readonly phase: StreamingPhaseState
   readonly isLoading: boolean
+  /** The agent ended the Run and the Host is still settling it (see `run-finishing-store`). */
+  readonly isFinishing?: boolean
   readonly error: Error | undefined
   readonly lastUserMessage: string | null
   readonly dismissedError: string | null
   readonly sessionId: string | null
   readonly compactionStatus?: AgentCompactionStatus | null
+  /**
+   * A new Session's first message was sent and nothing has reported back yet: no launch step, no
+   * run. The Host may be creating the Session or building the runtime; say so instead of nothing.
+   */
+  readonly awaitingFirstRun?: boolean
+}
+
+// A failed Run shows its error while it settles; a clean one says it is being wrapped up.
+function appendFinishingRow(rows: ChatRow[], input: StatusRowInput) {
+  if (!input.isFinishing || input.phase.current || input.isLoading || input.error) return
+  rows.push({ type: 'phase-indicator', label: 'Finishing', elapsedMs: 0 })
 }
 
 export function appendStatusRows(rows: ChatRow[], input: StatusRowInput) {
@@ -37,6 +50,10 @@ export function appendStatusRows(rows: ChatRow[], input: StatusRowInput) {
       label: 'Thinking',
       elapsedMs: input.phase.totalElapsedMs,
     })
+  }
+  appendFinishingRow(rows, input)
+  if (!input.phase.current && !input.isLoading && !input.error && input.awaitingFirstRun) {
+    rows.push({ type: 'phase-indicator', label: 'Starting session', elapsedMs: 0 })
   }
   if (input.error && !input.isLoading) {
     rows.push({

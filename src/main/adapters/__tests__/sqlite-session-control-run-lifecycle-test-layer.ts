@@ -6,14 +6,20 @@ import { SESSION_CONTROL_CONTRACT_VERSION } from '@shared/types/session-control'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import { submitSessionMessage } from '../../application/session-control-service'
-import { SessionControlIdentityService } from '../../ports/session-control-identity-service'
+import {
+  SessionControlIdentityService,
+  type SessionControlIdentityServiceShape,
+} from '../../ports/session-control-identity-service'
 import { SQLITE_PREPARE_CACHE_SIZE } from '../../services/database-constants'
 import { CURRENT_SESSION_LINEAGE_SCHEMA_STATEMENTS } from '../../services/database-session-lineage-schema'
 import { SESSION_CONTROL_TARGET_SCHEMA_STATEMENTS } from '../../services/session-host-target-schema'
 import { SqliteSessionControlRepositoryLive } from '../sqlite-session-control-repository'
 import { SqliteSessionControlRunLifecycleRepositoryLive } from '../sqlite-session-control-run-lifecycle-repository'
 
-export function makeSessionControlRunLifecycleTestLayer(databasePath: string) {
+export function makeSessionControlRunLifecycleTestLayer(
+  databasePath: string,
+  identities: Partial<SessionControlIdentityServiceShape> = {},
+) {
   const sqlite = SqliteClient.layer({
     filename: databasePath,
     prepareCacheSize: SQLITE_PREPARE_CACHE_SIZE,
@@ -63,6 +69,7 @@ export function makeSessionControlRunLifecycleTestLayer(databasePath: string) {
       nextReportId: Effect.succeed(ReportId('report-unused')),
       nextReportCorrelationId: Effect.succeed(ReportCorrelationId('correlation-unused')),
       now: Effect.succeed(1234),
+      ...identities,
     }),
   )
 }

@@ -8,6 +8,12 @@ import type { SemanticDiscoveryReadiness } from './session-query'
 import type { AgentTransportEvent } from './stream'
 import type { WaggleStreamMetadata, WaggleTurnEvent } from './waggle'
 
+export type SessionRunTerminalStatus =
+  | 'completed'
+  | 'failed'
+  | 'interrupted'
+  | 'interrupted-by-interaction-timeout'
+
 export interface SessionHostEventCursor {
   readonly hostInstanceId: string
   readonly sequence: number
@@ -33,6 +39,14 @@ export type SessionHostEventPayload =
       readonly sessionId: string
       readonly stateRevision: number
       readonly operation: string
+      /** For `run-settled` and `follow-up-started`: the Run that settled. */
+      readonly runId?: string
+      readonly terminalStatus?: SessionRunTerminalStatus
+      /**
+       * The Run failed after its terminal event reported a clean end (it could not be saved). Only
+       * the classification code: messages stay on the transport, which needs `sessions:read`.
+       */
+      readonly failureCode?: string
     }
   | {
       readonly kind: 'session-waggle-transport'

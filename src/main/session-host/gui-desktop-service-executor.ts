@@ -3,6 +3,7 @@ import { decodeUnknownExactOrThrow } from '@shared/schema'
 import { desktopServiceCommandSchema } from '@shared/schemas/desktop-service'
 import {
   DESKTOP_SERVICE_LIMITS,
+  type DesktopBrowserOwnerInspection,
   type DesktopCommandEnvelope,
   type DesktopCompletion,
   type DesktopMutationScope,
@@ -23,6 +24,7 @@ export function makeGuiDesktopServiceExecutor(services: {
   readonly browser: BrowserPreviewAutomationServiceShape
   readonly acquireBrowserMutationFence: (scope: DesktopMutationScope) => Promise<() => void>
   readonly deleteBrowserOwner: (ownerKey: string) => Promise<void>
+  readonly inspectBrowserOwner: (ownerKey: string) => DesktopBrowserOwnerInspection
 }) {
   const running = new Map<
     string,
@@ -63,6 +65,13 @@ export function makeGuiDesktopServiceExecutor(services: {
       }).pipe(
         Effect.as({ service: 'browser' as const, operation: 'deleteOwner' as const, value: null }),
       )
+    }
+    if (command.operation === 'inspectOwner') {
+      return Effect.sync(() => ({
+        service: 'browser' as const,
+        operation: 'inspectOwner' as const,
+        value: services.inspectBrowserOwner(command.ownerKey),
+      }))
     }
     return executeDesktopBrowserCommand(services.browser, command)
   }

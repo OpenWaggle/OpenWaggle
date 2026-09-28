@@ -16,8 +16,24 @@ import { clearComposerDraftForSession, errorMessage } from './sidebar-action-uti
 
 type Navigate = ReturnType<typeof useNavigate>
 
+/** Live reads and moves for leaving a session that was archived or deleted while open. */
+export interface SidebarRemovalNavigation {
+  /** The live active session, read when an asynchronous mutation settles. */
+  readonly getActiveSessionId: () => SessionId | null
+  /** Whether a new-session draft is open, which the user chose after starting the removal. */
+  readonly hasDraftSession: () => boolean
+  /** Sessions in the order the sidebar renders them, read at action time. */
+  readonly getVisibleSessionIds: () => readonly SessionId[]
+  /** Whether a session is still listed (not archived or deleted meanwhile), read at settle time. */
+  readonly isSessionListed: (sessionId: SessionId) => boolean
+  readonly selectSession: (sessionId: SessionId) => void
+  /** Leave every session without creating a new draft session. */
+  readonly clearActiveSession: () => void
+}
+
 interface SidebarSessionActionDeps {
   readonly activeSessionId: SessionId | null
+  readonly removalNavigation: SidebarRemovalNavigation
   readonly matchingActiveSessionTree: SessionTree | null
   readonly matchingActiveWorkspace: SessionWorkspace | null
   readonly navigate: Navigate
@@ -25,7 +41,6 @@ interface SidebarSessionActionDeps {
   readonly queryClient: QueryClient
   readonly selectedModel: SupportedModelId | undefined
   readonly showToast: (message: string) => void
-  readonly startDraftSession: (projectPath: string | null) => void
   readonly clearTransientDraftContext: () => void
   readonly deleteSession: (sessionId: SessionId) => Promise<void>
   readonly loadChatSessions: () => Promise<void>
@@ -35,12 +50,61 @@ interface SidebarSessionActionDeps {
   readonly togglePin: (sessionId: SessionId) => void
 }
 
-function navigateHomeAfterActiveSessionChange(
+/**
+ * The row a reader lands on when the one they are viewing leaves the list: the nearest still-listed
+ * row after it, else before it. The order is captured when the removal starts; which rows are still
+ * listed is read when it settles, because neighbours can be archived or deleted meanwhile.
+ */
+export function adjacentSessionId(
+  visibleSessionIds: readonly SessionId[],
+  removedSessionId: SessionId,
+  isListed: (sessionId: SessionId) => boolean = () => true,
+): SessionId | null {
+  const index = visibleSessionIds.findIndex((id) => String(id) === String(removedSessionId))
+  const candidate = (id: SessionId | undefined) =>
+    id !== undefined && String(id) !== String(removedSessionId) && isListed(id)
+  if (index === -1) return visibleSessionIds.find(candidate) ?? null
+  const after = visibleSessionIds.slice(index + 1).find(candidate)
+  if (after) return after
+  return [...visibleSessionIds.slice(0, index)].reverse().find(candidate) ?? null
+}
+
+interface RemovalStart {
+  readonly order: readonly SessionId[]
+  readonly wasActive: boolean
+}
+
+/** Captured before the mutation: deletion clears the active session before it resolves. */
+function startRemoval(navigation: SidebarRemovalNavigation, sessionId: SessionId): RemovalStart {
+  return {
+    order: navigation.getVisibleSessionIds(),
+    wasActive: String(navigation.getActiveSessionId()) === String(sessionId),
+  }
+}
+
+/**
+ * Archiving or deleting the open session moves the reader to its neighbour in the sidebar. It
+ * used to start a new draft session instead, so every archive looked like it had created a
+ * session. With no neighbour left, the reader returns to the empty home, still without a draft.
+ * If the reader opened something else while the removal ran, they stay there.
+ */
+function leaveRemovedActiveSession(
   deps: SidebarSessionActionDeps,
   sessionId: SessionId,
+  start: RemovalStart,
 ) {
-  if (deps.activeSessionId !== sessionId) return
-  deps.startDraftSession(deps.projectPath)
+  const navigation = deps.removalNavigation
+  if (!start.wasActive) return
+  const active = navigation.getActiveSessionId()
+  if (active !== null && String(active) !== String(sessionId)) return
+  if (active === null && navigation.hasDraftSession()) return
+  const neighbour = adjacentSessionId(start.order, sessionId, navigation.isSessionListed)
+  if (neighbour) {
+    navigation.selectSession(neighbour)
+    return
+  }
+  deps.clearTransientDraftContext()
+  navigation.clearActiveSession()
   void deps.navigate({ to: '/' })
 }
 
@@ -118,12 +182,9 @@ function cloneSession(deps: SidebarSessionActionDeps, sessionId: SessionId) {
 export function createSidebarSessionActions(deps: SidebarSessionActionDeps) {
   return {
     archive(sessionId: SessionId) {
+      // Archiving is reversible from the archived list, so it does not ask first; only deletion does.
+      const start = startRemoval(deps.removalNavigation, sessionId)
       void (async () => {
-        const confirmed = await api.showConfirm(
-          'Archive this session?',
-          'Archiving hides the full session and all branches from normal navigation.',
-        )
-        if (!confirmed) return
         await api.archiveSession(sessionId)
         await refreshAfterCommittedSessionMutation(
           async () => {
@@ -137,7 +198,7 @@ export function createSidebarSessionActions(deps: SidebarSessionActionDeps) {
               refreshArchivedSessions(deps.queryClient),
             ]),
         )
-        navigateHomeAfterActiveSessionChange(deps, sessionId)
+        leaveRemovedActiveSession(deps, sessionId, start)
       })().catch((error: unknown) => {
         deps.showToast(`Failed to archive session: ${errorMessage(error)}`)
       })
@@ -146,17 +207,16 @@ export function createSidebarSessionActions(deps: SidebarSessionActionDeps) {
       cloneSession(deps, sessionId)
     },
     delete(sessionId: SessionId) {
+      const start = startRemoval(deps.removalNavigation, sessionId)
       void deps
         .deleteSession(sessionId)
-        .then(() => navigateHomeAfterActiveSessionChange(deps, sessionId))
+        .then(() => leaveRemovedActiveSession(deps, sessionId, start))
         .catch((error: unknown) => {
           deps.showToast(`Failed to delete session: ${errorMessage(error)}`)
         })
     },
     select(id: SessionId) {
-      deps.clearTransientDraftContext()
-      useChatStore.getState().setActiveSession(id)
-      void deps.navigate({ to: '/sessions/$sessionId', params: { sessionId: String(id) } })
+      deps.removalNavigation.selectSession(id)
     },
     togglePin(id: SessionId) {
       deps.togglePin(id)

@@ -103,7 +103,11 @@ function toRunAvailability(run: SessionControlRunState): SessionRunAvailability 
 export function applyAdaptiveMessage(input: ApplyAdaptiveMessageInput): ApplyAdaptiveMessageResult {
   const plan = planMessageSubmission({
     run: toRunAvailability(input.state.run),
-    followUpQueue: { pendingCount: input.state.followUpQueue.items.length },
+    followUpQueue: {
+      pendingCount: input.state.followUpQueue.items.length,
+      state: input.state.followUpQueue.state,
+      headDeliverable: input.state.followUpQueue.items[0]?.deliveryState === 'pending',
+    },
   })
 
   return matchBy(plan, 'action')

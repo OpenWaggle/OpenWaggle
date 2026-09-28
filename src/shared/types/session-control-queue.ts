@@ -1,5 +1,25 @@
 export const MAX_FOLLOW_UP_QUEUE_ITEMS = 256
 
+/**
+ * Why a Follow-up queue stopped delivering. Recorded when the queue goes from running to paused and
+ * cleared on resume, so the queue can say what paused it instead of only that it is paused.
+ */
+export const FOLLOW_UP_QUEUE_PAUSE_REASONS = [
+  'requested',
+  'run-failed',
+  'run-interrupted',
+  'run-timed-out',
+  'parent-limit',
+  'host-lost',
+  'profile-revoked',
+] as const
+
+export type FollowUpQueuePauseReason = (typeof FOLLOW_UP_QUEUE_PAUSE_REASONS)[number]
+
+export function isFollowUpQueuePauseReason(value: unknown): value is FollowUpQueuePauseReason {
+  return FOLLOW_UP_QUEUE_PAUSE_REASONS.some((reason) => reason === value)
+}
+
 export interface SessionControlQueueWithdrawCommand {
   readonly operation: 'queue-withdraw'
   readonly sessionId: string

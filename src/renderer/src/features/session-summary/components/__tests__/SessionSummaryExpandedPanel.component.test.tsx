@@ -57,3 +57,42 @@ describe('SessionSummaryExpandedPanel', () => {
     expect(screen.getByText('Sources remain available')).toBeInTheDocument()
   })
 })
+
+function renderPanel(sessionId: string) {
+  return render(
+    <SessionSummaryExpandedPanel
+      input={{ panelId: `panel-${sessionId}`, sessionId, sections: [], transient: false }}
+    />,
+  )
+}
+
+const animates = () =>
+  screen
+    .getByRole('complementary', { name: 'Session Summary' })
+    .className.includes('session-summary-panel-enter')
+
+describe('SessionSummaryExpandedPanel entrance', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('does not slide in again when the chat surface remounts it right away', () => {
+    vi.useFakeTimers()
+    const first = renderPanel('session-remount')
+    expect(animates()).toBe(true)
+    first.unmount()
+
+    renderPanel('session-remount')
+    expect(animates()).toBe(false)
+  })
+
+  it('still animates a panel reopened after a real pause', () => {
+    vi.useFakeTimers()
+    const first = renderPanel('session-reopen')
+    first.unmount()
+    vi.advanceTimersByTime(5_000)
+
+    renderPanel('session-reopen')
+    expect(animates()).toBe(true)
+  })
+})

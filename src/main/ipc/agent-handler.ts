@@ -140,8 +140,15 @@ function registerAgentRunHandlers() {
           return yield* Effect.die(new Error('Session Control returned the wrong contract.'))
         }
         const outcome = result.response.outcome
-        return outcome.effect === 'rejected'
-          ? ({ outcome: 'refused', message: outcome.code, code: outcome.code } as const)
+        if (outcome.effect === 'rejected') {
+          return { outcome: 'refused', message: outcome.code, code: outcome.code } as const
+        }
+        // The Host keeps a message as a Follow-up, not a Run, while the Session has a Run or waiting
+        // Follow-ups (a failed Run pauses them). No completion will follow for this send.
+        if (outcome.effect === 'queued-follow-up') return { outcome: 'queued' } as const
+        // Naming the Run lets the renderer credit only that Run's completion to this send.
+        return outcome.effect === 'started-run'
+          ? ({ outcome: 'delivered', runId: outcome.runId } as const)
           : ({ outcome: 'delivered' } as const)
       }),
   )

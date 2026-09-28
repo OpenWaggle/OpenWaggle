@@ -52,7 +52,13 @@ function canSteerQueuedMessages(section: ChatComposerSectionState) {
   const timelineCompactionStatus = getTimelineCompactionStatus(section.compactionStatus)
   const isStandaloneManualCompaction =
     timelineCompactionStatus?.reason === 'manual' && isCompactionRunning(section.compactionStatus)
-  return section.status !== 'ready' && section.status !== 'error' && !isStandaloneManualCompaction
+  // A finishing Run has nothing left to steer into.
+  return (
+    section.status !== 'ready' &&
+    section.status !== 'error' &&
+    section.status !== 'finishing' &&
+    !isStandaloneManualCompaction
+  )
 }
 
 /** Last path segment, so a project-scoped approval names somewhere the user recognises. */
@@ -267,6 +273,7 @@ export function ChatComposerStack({
             }
             onCancel={onCancel}
             isLoading={isLoading}
+            isFinishing={section.status === 'finishing'}
             mode={branchSummaryComposerMode(
               branchSummaryMode,
               section.sessionDetailPending || !draftContextReady,

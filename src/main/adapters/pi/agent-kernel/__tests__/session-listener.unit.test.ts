@@ -49,6 +49,51 @@ describe('createSessionListener Pi compatibility', () => {
     expect(emitted[1]).not.toHaveProperty('finalError')
   })
 
+  /*
+   * This agent_end is the Run's only terminal failure event now (the Host no longer repeats it), so
+   * it carries the classified code and the redacted detail the Host used to send.
+   */
+  it('classifies the error a failed agent_end carries', () => {
+    const emitted: AgentTransportEvent[] = []
+    const listener = createSessionListener(
+      {
+        model: SupportedModelId('openrouter/anthropic/claude-haiku-4.5'),
+        onEvent: (event) => emitted.push(event),
+      },
+      'run-1',
+    )
+
+    listener({
+      type: 'agent_end',
+      willRetry: false,
+      messages: [
+        {
+          role: 'assistant',
+          content: [],
+          api: 'openai-completions',
+          provider: 'openrouter',
+          model: 'anthropic/claude-haiku-4.5',
+          usage,
+          stopReason: 'error',
+          errorMessage:
+            '402 {"type":"error","error":{"type":"billing_error","message":"This request requires more credits, or fewer max_tokens."}}',
+          timestamp: 1,
+        },
+      ],
+    })
+
+    expect(emitted).toMatchObject([
+      {
+        type: 'agent_end',
+        reason: 'error',
+        error: {
+          code: expect.any(String),
+          message: 'This request requires more credits, or fewer max_tokens.',
+        },
+      },
+    ])
+  })
+
   it('does not duplicate Pi settlement or extension-entry persistence as transport events', () => {
     const emitted: AgentTransportEvent[] = []
     const listener = createSessionListener(

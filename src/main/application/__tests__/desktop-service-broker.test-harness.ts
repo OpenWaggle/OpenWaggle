@@ -74,6 +74,12 @@ export function brokerHarness(
         return Effect.succeed({ service: 'browser', operation: 'deleteOwner', value: null })
       if (command.service === 'terminal' && command.operation === 'closeAllForOwner')
         return Effect.succeed({ service: 'terminal', operation: 'closeAllForOwner', value: null })
+      if (command.service === 'browser' && command.operation === 'inspectOwner')
+        return Effect.succeed({
+          service: 'browser',
+          operation: 'inspectOwner',
+          value: { registered: false, previews: 0 },
+        })
       return Effect.fail(new Error('No offline native implementation for this command.'))
     })
   const repository: DesktopFenceRepositoryShape = {

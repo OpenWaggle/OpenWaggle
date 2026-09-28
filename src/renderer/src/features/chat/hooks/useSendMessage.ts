@@ -9,6 +9,7 @@ import { createOptimisticUserMessage } from '@/features/chat/lib/useAgentChat.ut
 import { useBackgroundRunStore } from '@/features/chat/state/background-run-store'
 import { useChatStore } from '@/features/chat/state/chat-store'
 import { flushDraftAuthorizationModeToSession } from '@/features/chat/state/draft-authorization-mode-store'
+import { useFirstSendPendingStore } from '@/features/chat/state/first-send-pending-store'
 import { withInlineVisualizationContext } from '@/features/chat/state/inline-visualization-state'
 import { useOptimisticUserMessageStore } from '@/features/chat/state/optimistic-user-message-store'
 import { snapshotDraftWorktreePlan } from '@/features/git'
@@ -186,6 +187,7 @@ export function useSendMessage(options: UseSendMessageOptions): SendMessageHandl
     const optimisticUserMessage = createOptimisticUserMessage(payload)
     useOptimisticUserMessageStore.getState().add(sessionId, optimisticUserMessage)
     useBackgroundRunStore.getState().setRunRenderMessages(sessionId, [optimisticUserMessage])
+    useFirstSendPendingStore.getState().mark(sessionId)
     useBackgroundRunStore.getState().setFirstSendRecovery(sessionId, {
       payload,
       waggleConfig: config,
@@ -211,12 +213,24 @@ export function useSendMessage(options: UseSendMessageOptions): SendMessageHandl
          */
         return
       }
+      if (report.outcome === 'queued') {
+        /*
+         * Kept as a Follow-up, not run: no Run will report back, so nothing may keep waiting for one. A
+         * brand-new Session has no queue for this to join, but the contract allows it.
+         */
+        useFirstSendPendingStore.getState().clear(sessionId)
+        useBackgroundRunStore.getState().setFirstSendRecovery(sessionId, null)
+        useBackgroundRunStore.getState().clearRunRenderSnapshot(sessionId)
+        useOptimisticUserMessageStore.getState().remove(sessionId, optimisticUserMessage.id)
+        return
+      }
       /*
        * A cancellation is reported too, so work the user may still want is not discarded - but it carries its
        * outcome, because a caller must not tell the user their turn "could not start" when they stopped it.
        */
       throw new MessageNotDelivered(report.outcome, report.message)
     } catch (error) {
+      useFirstSendPendingStore.getState().clear(sessionId)
       if (config) useWaggleStore.getState().stopCollaboration(sessionId)
       if (error instanceof MessageNotDelivered && error.outcome === 'cancelled') {
         useBackgroundRunStore.getState().clearRunRenderSnapshot(sessionId)
