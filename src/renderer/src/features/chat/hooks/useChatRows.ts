@@ -14,6 +14,7 @@ export function useChatRows(inputs: {
   customMessages?: Parameters<typeof buildChatRows>[0]['customMessages']
   interactionEvents?: Parameters<typeof buildChatRows>[0]['interactionEvents']
   isLoading: boolean
+  isFinishing?: boolean
   error: Error | undefined
   lastUserMessage: string | null
   dismissedError: string | null
@@ -33,6 +34,7 @@ export function useChatRows(inputs: {
     customMessages: inputs.customMessages ?? [],
     interactionEvents: inputs.interactionEvents ?? [],
     isLoading: inputs.isLoading,
+    isFinishing: inputs.isFinishing,
     error: inputs.error,
     lastUserMessage: inputs.lastUserMessage,
     dismissedError: inputs.dismissedError,

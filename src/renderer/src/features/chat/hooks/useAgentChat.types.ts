@@ -25,6 +25,8 @@ export type AgentChatStatus =
   | 'compacting'
   | 'retrying'
   | 'error'
+  /** The agent ended the Run and the Host is still settling it: nothing left to stop. */
+  | 'finishing'
 
 export interface AgentChatReturn {
   messages: UIMessage[]
@@ -54,11 +56,26 @@ export interface AgentChatReturn {
 export interface PendingRunWaiter {
   readonly resolve: () => void
   readonly reject: (error: Error) => void
+  /**
+   * Offer a Run's completion. A waiter that knows which Run it follows takes only that Run's
+   * completion (or one naming no Run) and passes an earlier Run's on to the send it displaced.
+   * Without it, any completion settles the waiter.
+   */
+  readonly complete?: (completion: RunCompletion) => RunCompletionRouting
 }
+
+export interface RunCompletion {
+  /** The Run that completed; absent for a completion of the whole Session (Stop, reconnect). */
+  readonly runId?: string
+  readonly error?: Error
+}
+
+/** `held` means the waiter does not know its Run yet and will decide once it does. */
+export type RunCompletionRouting = 'settled' | 'forwarded' | 'held'
 
 export interface AgentRunActions {
   readonly flushDeferredSessionSnapshot: () => void
-  readonly settlePendingRun: (nextError?: Error) => void
+  readonly settlePendingRun: (nextError?: Error, runId?: string) => RunCompletionRouting
 }
 
 export interface UpdateMessagesOptions {

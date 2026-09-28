@@ -21,6 +21,8 @@ interface ComposerProps {
   onEnqueue: (payload: AgentSendPayload) => Promise<boolean | undefined> | boolean | undefined
   onCancel: () => void
   isLoading: boolean
+  /** The agent ended the Run and the Host is settling it: no Stop, and a message is queued. */
+  isFinishing?: boolean
   mode?: {
     readonly disabled?: boolean
     readonly placeholder?: string
@@ -34,6 +36,11 @@ interface ComposerProps {
   onToast?: (message: string) => void
 }
 
+function runAnnouncement(isLoading: boolean, isFinishing: boolean) {
+  if (isFinishing) return 'Agent is finishing'
+  return isLoading ? 'Agent is working' : ''
+}
+
 export function Composer({
   sessionId = null,
   accessControl,
@@ -41,6 +48,7 @@ export function Composer({
   onEnqueue,
   onCancel,
   isLoading,
+  isFinishing = false,
   mode,
   onToast,
 }: ComposerProps) {
@@ -90,7 +98,7 @@ export function Composer({
   return (
     <div className="shrink-0">
       <output aria-live="polite" className="sr-only">
-        {isLoading ? 'Agent is working' : ''}
+        {runAnnouncement(isLoading, isFinishing)}
       </output>
       <ComposerHiddenFileInput
         fileInputRef={fileInputRef}
@@ -125,6 +133,7 @@ export function Composer({
             },
             onCancel,
             isLoading,
+            isFinishing,
             canSend: submission.canSend,
             sendTitle,
           }}

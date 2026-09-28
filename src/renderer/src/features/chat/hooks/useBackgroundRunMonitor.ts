@@ -4,6 +4,7 @@ import { useAgentLoopEventStore } from '@/features/chat/state/agent-loop-event-s
 import { useBackgroundRunStore } from '@/features/chat/state/background-run-store'
 import { useChatStore } from '@/features/chat/state/chat-store'
 import { useFirstSendPendingStore } from '@/features/chat/state/first-send-pending-store'
+import { trackRunFinishing, useRunFinishingStore } from '@/features/chat/state/run-finishing-store'
 import { api } from '@/shared/lib/ipc'
 
 /**
@@ -34,6 +35,7 @@ export function useBackgroundRunMonitor(): void {
     const compactionOnlySessionIds = new Set<string>()
     const unsubEvent = api.onAgentEvent((payload) => {
       applyAgentLoopEvent(payload.sessionId, payload.event)
+      trackRunFinishing(payload.sessionId, payload.event)
       if (payload.event.type === 'agent_start') {
         compactionOnlySessionIds.delete(payload.sessionId)
         useFirstSendPendingStore.getState().clear(payload.sessionId)
@@ -59,6 +61,9 @@ export function useBackgroundRunMonitor(): void {
     })
 
     const unsubCompleted = api.onRunCompleted((payload) => {
+      // The Session went straight on to a queued Follow-up; it is still running.
+      if (payload.continues) return
+      useRunFinishingStore.getState().clear(payload.sessionId)
       useFirstSendPendingStore.getState().clear(payload.sessionId)
       removeActiveRun(payload.sessionId)
       void refreshSession(payload.sessionId).finally(() => {

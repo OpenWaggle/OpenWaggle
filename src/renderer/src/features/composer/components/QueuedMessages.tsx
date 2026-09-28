@@ -1,4 +1,5 @@
 import type { SessionId } from '@shared/types/brand'
+import type { FollowUpQueuePauseReason } from '@shared/types/session-control-queue'
 import { AlertTriangle, ArrowUp, Play, RotateCcw, Timer, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { type SessionFollowUpQueueItem, useSessionFollowUpQueue } from '@/features/chat/hooks'
@@ -32,25 +33,37 @@ function attentionCopy(item: SessionFollowUpQueueItem) {
 }
 
 /*
- * Said while nothing is running, because that is when a paused queue looks broken: a failed or
- * stopped Run pauses it, and every message sent to the Session afterwards joins it instead of running.
+ * What paused the queue, as the Host recorded it. Without it the dock said only "Queue paused",
+ * which after a failed Run read as the app ignoring the messages.
  */
-const PAUSED_IDLE_QUEUE_COPY =
-  'A failed or stopped Run pauses the queue. New messages wait here until you resume.'
+const PAUSE_REASON_COPY = {
+  requested: 'Paused on request. Resume to send these messages.',
+  'run-failed':
+    'Paused because the last Run failed. Resume to send these, or send a new message to try again.',
+  'run-interrupted': 'Paused because the last Run was stopped. Resume to send these messages.',
+  'run-timed-out':
+    'Paused because the last Run timed out waiting for a response. Resume to send these messages.',
+  'parent-limit':
+    'Paused because the parent Session has as many active Workers as it allows. Resume when one finishes.',
+  'host-lost': 'Paused because OpenWaggle stopped during a Run. Resume to send these messages.',
+  'profile-revoked': 'Paused because the access profile that sent these messages was revoked.',
+} as const satisfies Record<FollowUpQueuePauseReason, string>
+
+const UNKNOWN_PAUSE_COPY = 'The queue is paused. Resume to send these messages.'
 
 function QueueHeader({
   count,
   headNeedsAttention,
   isResuming,
   queueState,
-  hasActiveRun,
+  pauseReason,
   onResume,
 }: {
   readonly count: number
   readonly headNeedsAttention: boolean
   readonly isResuming: boolean
   readonly queueState: 'running' | 'paused'
-  readonly hasActiveRun: boolean
+  readonly pauseReason: FollowUpQueuePauseReason | undefined
   readonly onResume: () => void
 }) {
   return (
@@ -62,8 +75,10 @@ function QueueHeader({
         queueState={queueState}
         onResume={onResume}
       />
-      {queueState === 'paused' && !hasActiveRun ? (
-        <p className="text-xs leading-normal text-text-tertiary">{PAUSED_IDLE_QUEUE_COPY}</p>
+      {queueState === 'paused' ? (
+        <p className="text-xs leading-normal text-text-tertiary">
+          {pauseReason ? PAUSE_REASON_COPY[pauseReason] : UNKNOWN_PAUSE_COPY}
+        </p>
       ) : null}
     </div>
   )
@@ -275,7 +290,7 @@ export function QueuedMessages({ sessionId, onSteer, isStreaming, onToast }: Que
                 headNeedsAttention={queue[0]?.deliveryState === 'needs_attention'}
                 isResuming={isResuming}
                 queueState={snapshot.state}
-                hasActiveRun={snapshot.activeRunId !== null}
+                pauseReason={snapshot.pauseReason}
                 onResume={() => void resumeQueue()}
               />
 

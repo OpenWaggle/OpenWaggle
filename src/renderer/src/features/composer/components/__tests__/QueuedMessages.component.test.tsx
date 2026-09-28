@@ -1,4 +1,5 @@
 import { SessionId } from '@shared/types/brand'
+import type { FollowUpQueuePauseReason } from '@shared/types/session-control-queue'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { QueuedMessages } from '../QueuedMessages'
@@ -28,6 +29,7 @@ const queueMock = vi.hoisted(() => {
   const error: Error | null = null
   const snapshot: {
     state: 'running' | 'paused'
+    pauseReason?: FollowUpQueuePauseReason
     revision: number
     activeRunId: string | null
     items: QueuedMessageFixture[]
@@ -80,6 +82,7 @@ describe('QueuedMessages', () => {
     queue()
     queueMock.snapshot.state = 'running'
     queueMock.snapshot.activeRunId = 'run-1'
+    delete queueMock.snapshot.pauseReason
     queueMock.error = null
     queueMock.refresh.mockReset().mockResolvedValue(undefined)
     noOpSteer.mockClear()
@@ -206,13 +209,18 @@ describe('QueuedMessages', () => {
     expect(queueMock.setPaused).toHaveBeenCalledWith(false)
   })
 
-  // After a failed Run the Session is idle and every new message joins the paused queue. Without a
-  // reason on screen that reads as the app ignoring the message.
-  it('says why an idle Session queues messages while its queue is paused', () => {
+  // A bare "Queue paused" after a failed Run read as the app ignoring the messages.
+  it.each([
+    ['run-failed', 'Paused because the last Run failed.'],
+    ['run-interrupted', 'Paused because the last Run was stopped.'],
+    ['parent-limit', 'Paused because the parent Session has as many active Workers as it allows.'],
+    ['requested', 'Paused on request.'],
+    [undefined, 'The queue is paused.'],
+  ] as const)('says the queue paused for %s', (reason, copy) => {
     queue({ id: 'follow-up-1', text: 'try again' })
     queueMock.snapshot.state = 'paused'
-    queueMock.snapshot.activeRunId = null
-    const { rerender } = render(
+    if (reason) queueMock.snapshot.pauseReason = reason
+    render(
       <QueuedMessages
         sessionId={CONV_A}
         onSteer={noOpSteer}
@@ -221,23 +229,8 @@ describe('QueuedMessages', () => {
       />,
     )
 
-    expect(
-      screen.getByText(
-        'A failed or stopped Run pauses the queue. New messages wait here until you resume.',
-      ),
-    ).toBeVisible()
+    expect(screen.getByText((text) => text.startsWith(copy))).toBeVisible()
     expect(screen.getByRole('button', { name: 'Resume' })).toBeVisible()
-
-    queueMock.snapshot.activeRunId = 'run-1'
-    rerender(
-      <QueuedMessages
-        sessionId={CONV_A}
-        onSteer={noOpSteer}
-        isStreaming={false}
-        onToast={noOpToast}
-      />,
-    )
-    expect(screen.queryByText(/A failed or stopped Run pauses the queue/)).toBeNull()
   })
 
   it('explains blocked delivery and disables steering until attention is resolved', () => {

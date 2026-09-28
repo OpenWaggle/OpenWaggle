@@ -4,6 +4,8 @@ import { Button } from '@/shared/ui/Button'
 
 interface ComposerSendControlsProps {
   readonly isLoading: boolean
+  /** The agent has ended the Run and the Host is settling it; there is nothing left to stop. */
+  readonly isFinishing?: boolean
   readonly canSend: boolean
   readonly sendTitle?: string
   readonly onSend: () => void
@@ -12,6 +14,7 @@ interface ComposerSendControlsProps {
 
 export function ComposerSendControls({
   isLoading,
+  isFinishing = false,
   canSend,
   sendTitle,
   onSend,
@@ -19,7 +22,8 @@ export function ComposerSendControls({
 }: ComposerSendControlsProps) {
   return (
     <>
-      {isLoading ? <CancelRunButton onCancel={onCancel} /> : null}
+      {isFinishing ? <FinishingRunNotice /> : null}
+      {isLoading && !isFinishing ? <CancelRunButton onCancel={onCancel} /> : null}
       <SendMessageButton
         isLoading={isLoading}
         canSend={canSend}
@@ -27,6 +31,21 @@ export function ComposerSendControls({
         onSend={onSend}
       />
     </>
+  )
+}
+
+/*
+ * In place of Stop while the Host settles a Run the agent already ended. A message sent now waits
+ * in the queue and starts once the Run has settled.
+ */
+function FinishingRunNotice() {
+  return (
+    <span
+      className="text-xs whitespace-nowrap text-text-tertiary"
+      title="The agent is done. OpenWaggle is saving this Run; a message sent now starts right after."
+    >
+      Finishing…
+    </span>
   )
 }
 

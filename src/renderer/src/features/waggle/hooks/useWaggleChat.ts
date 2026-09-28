@@ -45,6 +45,8 @@ export function useWaggleChat(sessionId: SessionId | null): void {
     // Safety net: if the collaboration-complete turn event was missed,
     // onRunCompleted still transitions the store to 'completed'.
     const unsubRunCompleted = api.onRunCompleted((payload) => {
+      // The Session went straight on to a queued Follow-up; it has not finished.
+      if (payload.continues) return
       const state = useWaggleStore.getState()
       if (
         state.activeCollaborationId === payload.sessionId &&

@@ -12,13 +12,18 @@ import { isModelActionable } from '@/features/providers/state'
 import { usePreferencesStore } from '@/features/settings/state'
 import { api } from '@/shared/lib/ipc'
 import { createOptimisticUserMessage } from '../lib/useAgentChat.utils'
-import { beginForegroundRun, forgetQueuedSend } from './useAgentChat.foreground-run'
+import {
+  beginForegroundRun,
+  forgetQueuedSend,
+  offerRunCompletion,
+} from './useAgentChat.foreground-run'
 import { updateMessagesForSession } from './useAgentChat.message-cache'
 import type {
   AgentChatStatus,
   AgentRunActions,
   MutableValueRef,
   PendingRunWaiter,
+  RunCompletionRouting,
   SetAgentChatError,
   SetAgentChatStatus,
   SetBackgroundStreaming,
@@ -95,17 +100,26 @@ function shouldDeferSnapshotRefresh(refs: AgentRunControlRefs) {
   )
 }
 
-function settlePendingRun(refs: AgentRunControlRefs, nextError?: Error) {
+/**
+ * Hand a completion to the send being followed. It stays followed unless the completion was its
+ * own: a completion of an earlier Run is passed back to that Run's send, and one that arrives
+ * before the send knows its Run is held until it does.
+ */
+function settlePendingRun(
+  refs: AgentRunControlRefs,
+  nextError?: Error,
+  runId?: string,
+): RunCompletionRouting {
   const pending = refs.pendingRunWaiterRef.current
-  refs.pendingRunWaiterRef.current = null
-  if (!pending) {
-    return
+  if (!pending) return 'settled'
+  const routing = offerRunCompletion(pending, {
+    ...(runId === undefined ? {} : { runId }),
+    ...(nextError ? { error: nextError } : {}),
+  })
+  if (routing === 'settled' && refs.pendingRunWaiterRef.current === pending) {
+    refs.pendingRunWaiterRef.current = null
   }
-  if (nextError) {
-    pending.reject(nextError)
-    return
-  }
-  pending.resolve()
+  return routing
 }
 
 export function createAgentRunControls(params: AgentRunControlParams) {
@@ -181,6 +195,7 @@ export function createAgentRunControls(params: AgentRunControlParams) {
       const report = await sendPromise
       if (report.outcome === 'delivered') {
         delivered = true
+        run.bind(report.runId)
         await runPromise
         return
       }
@@ -192,11 +207,15 @@ export function createAgentRunControls(params: AgentRunControlParams) {
       }
     } catch (runError) {
       const normalizedError = normalizeError(runError)
-      if (refs.foregroundSessionIdRef.current === targetSessionId) {
+      // A later send may already own the foreground: this Run's completion was passed back to it
+      // after that send began. Its state is not this send's to clear or to mark failed.
+      const ownsForeground =
+        refs.pendingRunWaiterRef.current === null || refs.pendingRunWaiterRef.current === run.waiter
+      if (ownsForeground && refs.foregroundSessionIdRef.current === targetSessionId) {
         refs.pendingRunWaiterRef.current = null
         clearRunPointers(refs)
       }
-      if (refs.currentSessionIdRef.current === targetSessionId) {
+      if (ownsForeground && refs.currentSessionIdRef.current === targetSessionId) {
         params.setError(normalizedError)
         params.setStatus('error')
         refs.terminalRunErrorRef.current = normalizedError
@@ -279,7 +298,8 @@ export function createAgentRunControls(params: AgentRunControlParams) {
   return {
     runActions: {
       flushDeferredSessionSnapshot,
-      settlePendingRun: (nextError?: Error) => settlePendingRun(refs, nextError),
+      settlePendingRun: (nextError?: Error, runId?: string) =>
+        settlePendingRun(refs, nextError, runId),
     } satisfies AgentRunActions,
     withDeferredSnapshotRefresh,
     sendUserPayload,

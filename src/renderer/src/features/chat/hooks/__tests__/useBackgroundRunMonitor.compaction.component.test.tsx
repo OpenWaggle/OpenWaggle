@@ -3,6 +3,7 @@ import type { IpcEventChannelMap } from '@shared/types/ipc-events'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useBackgroundRunStore } from '../../state/background-run-store'
+import { useRunFinishingStore } from '../../state/run-finishing-store'
 import { useBackgroundRunMonitor } from '../useBackgroundRunMonitor'
 
 type AgentEventPayload = IpcEventChannelMap['agent:event']['payload']
@@ -10,7 +11,9 @@ type AgentEventHandler = (payload: AgentEventPayload) => void
 
 const apiMock = vi.hoisted(() => {
   let agentEventHandler: AgentEventHandler | null = null
-  let runCompletedHandler: ((payload: { sessionId: typeof SESSION_ID }) => void) | null = null
+  let runCompletedHandler:
+    | ((payload: { sessionId: typeof SESSION_ID; continues?: true }) => void)
+    | null = null
   return {
     getAgentEventHandler: () => agentEventHandler,
     getRunCompletedHandler: () => runCompletedHandler,
@@ -21,10 +24,12 @@ const apiMock = vi.hoisted(() => {
       agentEventHandler = handler
       return vi.fn()
     }),
-    onRunCompleted: vi.fn((handler: (payload: { sessionId: typeof SESSION_ID }) => void) => {
-      runCompletedHandler = handler
-      return vi.fn()
-    }),
+    onRunCompleted: vi.fn(
+      (handler: (payload: { sessionId: typeof SESSION_ID; continues?: true }) => void) => {
+        runCompletedHandler = handler
+        return vi.fn()
+      },
+    ),
   }
 })
 
@@ -148,6 +153,51 @@ describe('useBackgroundRunMonitor compaction lifecycle', () => {
       expect(useBackgroundRunStore.getState().hasActiveRun(SESSION_ID)).toBe(false)
       expect(useBackgroundRunStore.getState().getRunRenderSnapshot(SESSION_ID)).toBeNull()
     })
+    unmount()
+  })
+})
+
+describe('useBackgroundRunMonitor finishing Runs', () => {
+  beforeEach(() => {
+    apiMock.listActiveRuns.mockReset().mockResolvedValue([])
+    apiMock.getBackgroundRun.mockReset().mockResolvedValue(null)
+    useRunFinishingStore.setState({ ids: new Set() })
+  })
+
+  function completeRun(payload: { readonly continues?: true }) {
+    const handler = apiMock.getRunCompletedHandler()
+    if (!handler) throw new Error('Expected run-completed handler')
+    handler({ sessionId: SESSION_ID, ...payload })
+  }
+
+  // The Session is finishing from the agent's terminal agent_end until the Host settles the Run.
+  it('marks a Session finishing from its terminal agent_end until the Run settles', () => {
+    const { unmount } = renderHook(() => useBackgroundRunMonitor())
+    const isFinishing = () => useRunFinishingStore.getState().ids.has(SESSION_ID)
+
+    emitAgentEvent({ type: 'agent_start', runId: 'run-1', timestamp: 1 })
+    emitAgentEvent({
+      type: 'agent_end',
+      runId: 'run-1',
+      reason: 'error',
+      willRetry: true,
+      timestamp: 2,
+    })
+    expect(isFinishing()).toBe(false)
+
+    emitAgentEvent({ type: 'agent_end', runId: 'run-1', reason: 'error', timestamp: 3 })
+    expect(isFinishing()).toBe(true)
+
+    // The Host went straight on to a Follow-up: still finishing until that Run starts.
+    completeRun({ continues: true })
+    expect(isFinishing()).toBe(true)
+    emitAgentEvent({ type: 'agent_start', runId: 'run-2', timestamp: 4 })
+    expect(isFinishing()).toBe(false)
+
+    emitAgentEvent({ type: 'agent_end', runId: 'run-2', reason: 'stop', timestamp: 5 })
+    expect(isFinishing()).toBe(true)
+    completeRun({})
+    expect(isFinishing()).toBe(false)
     unmount()
   })
 })

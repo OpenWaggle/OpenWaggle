@@ -209,6 +209,7 @@ interface BuildChatRowsParams {
   customMessages?: readonly AgentTransportCustomEvent[]
   interactionEvents?: readonly AgentInteractionEvent[]
   isLoading: boolean
+  isFinishing?: boolean
   error: Error | undefined
   lastUserMessage: string | null
   dismissedError: string | null

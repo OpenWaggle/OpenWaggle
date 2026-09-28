@@ -11,6 +11,7 @@ import type { useStreamingPhase } from '@/features/chat/hooks/useStreamingPhase'
 import { useWaggleMetadataLookup } from '@/features/chat/hooks/useWaggleMetadataLookup'
 import { useBackgroundRunStore } from '@/features/chat/state/background-run-store'
 import { useFirstSendPendingStore } from '@/features/chat/state/first-send-pending-store'
+import { useIsRunFinishing } from '@/features/chat/state/run-finishing-store'
 import { selectExpandedTurnKeys, useTurnFoldStore } from '@/features/chat/state/turn-fold-store'
 import { useSessionStore } from '@/features/sessions/state'
 import {
@@ -109,6 +110,15 @@ export interface TranscriptSectionParams {
   readonly compactionStatus: AgentCompactionStatus | null
 }
 
+function isTranscriptLoading(flags: {
+  readonly isLoading: boolean
+  readonly isFinishing: boolean
+  readonly isSteering: boolean
+}) {
+  if (flags.isSteering) return true
+  return flags.isLoading && !flags.isFinishing
+}
+
 export function useTranscriptSection(params: TranscriptSectionParams): ChatTranscriptSectionState {
   const {
     messages,
@@ -154,7 +164,9 @@ export function useTranscriptSection(params: TranscriptSectionParams): ChatTrans
       ? draftBranch.sourceNodeId
       : null
 
-  const transcriptLoading = isLoading || isSteering
+  // The agent is done while the Host settles its Run: the reply is not streaming any more.
+  const isFinishing = useIsRunFinishing(activeSessionId)
+  const transcriptLoading = isTranscriptLoading({ isLoading, isFinishing, isSteering })
   const transcriptMessages = resolveTranscriptMessages({
     activeSessionId,
     activeSessionUpdatedAt: activeSession?.updatedAt,
@@ -195,6 +207,7 @@ export function useTranscriptSection(params: TranscriptSectionParams): ChatTrans
     customMessages: mergedCustomMessages,
     interactionEvents: mergedInteractionEvents,
     isLoading: transcriptLoading,
+    isFinishing,
     error,
     lastUserMessage,
     dismissedError,

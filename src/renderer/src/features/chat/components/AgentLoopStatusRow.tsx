@@ -51,6 +51,7 @@ export function StatusRow({
             !isRetry &&
             row.type === 'phase-indicator' &&
             row.label !== 'Thinking' &&
+            row.label !== 'Finishing' &&
             row.label !== 'Starting session'
           }
         />

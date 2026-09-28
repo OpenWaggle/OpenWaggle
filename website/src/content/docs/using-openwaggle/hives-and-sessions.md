@@ -58,7 +58,7 @@ These names have precise meanings in the GUI, CLI, MCP adapter, and native `sess
 | **Launch** | Atomically create an independent root Session and start its first Run. |
 | **Spawn** | Atomically create and start a Worker beneath a parent, including its lineage and Delegation Contract. |
 | **Fork** | Create a new Session from a stable point in an existing transcript. |
-| **Message** | Adaptive convenience action: start immediately when idle, otherwise append a durable Follow-up. |
+| **Message** | Adaptive convenience action: start immediately when idle, otherwise append a durable Follow-up. An idle Session whose queue is paused still starts the message; the paused Follow-ups stay queued. |
 | **Start** | Start a new Run on an idle Session. It never queues behind an active Run. |
 | **Follow-up** | Submit a durable, separate next Run. It remains queued while the current Run finishes; if that Run has just settled, it starts immediately as the next Run. |
 | **Steer** | Append guidance to one exact active Run without interrupting it. It requires that Run's identity. |
@@ -66,7 +66,7 @@ These names have precise meanings in the GUI, CLI, MCP adapter, and native `sess
 | **Promote** | Remove one queued Follow-up and deliver it as Steering to the exact active Run. |
 | **Withdraw** | Remove a pending Follow-up before delivery. |
 | **Reorder** | Change pending Follow-up order against an expected queue revision. |
-| **Pause / Resume** | Stop or restart automatic delivery of queued Follow-ups. Pausing does not interrupt a Run. |
+| **Pause / Resume** | Stop or restart automatic delivery of queued Follow-ups. Pausing does not interrupt a Run. A failed, interrupted, or timed-out Run pauses the queue only for Follow-ups accepted before the Run ended; one accepted after that starts at settlement. `queue list` reports why a paused queue paused. |
 | **Interrupt** | Stop one exact active Run without starting another. |
 | **Wait** | Perform one bounded observation until a Session condition is reached or the timeout expires. It uses Host events internally but does not create a persistent subscription or consume an agent Run slot. |
 | **Watch** | Stream authorized Session Host events, with a cursor for reconnect and resynchronization. |
