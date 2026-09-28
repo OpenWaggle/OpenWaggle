@@ -37,7 +37,7 @@ describe('Local Session authorization grant revision', () => {
         },
       })
 
-      expect(supportedRevisionsForCommand(payload)).toEqual([17])
+      expect(supportedRevisionsForCommand(payload)).toEqual([18])
       expect(() => decodeLocalSessionCommandPayloadForRevision(payload, 16)).toThrow(/revision 17/)
       expect(decodeLocalSessionCommandPayloadForRevision(payload, 17)).toEqual(payload)
     },
@@ -55,7 +55,7 @@ describe('Local Session authorization grant revision', () => {
       accepted: false,
       protocol: hello.protocol,
       code: 'incompatible_protocol',
-      supportedRevisions: [17],
+      supportedRevisions: [18],
     })
     expect(LOCAL_SESSION_CAPABILITIES).toContain('host-ui:authorization-grants-v1')
     expect(LOCAL_SESSION_REVISION_10_CAPABILITIES).toContain('host-ui:authorization-grants-v1')
@@ -77,17 +77,18 @@ describe('Local Session authorization grant revision', () => {
     expect(decodeLocalSessionNegotiationResult(current)).toEqual(current)
 
     const latest = negotiateLocalSessionProtocol(
-      { ...hello, supportedRevisions: [17, 16] },
+      { ...hello, supportedRevisions: [18, 17] },
       'latest',
     )
-    if (!latest.accepted) throw new Error('Expected revision-seventeen negotiation.')
-    expect(latest.revision).toBe(17)
+    if (!latest.accepted) throw new Error('Expected revision-eighteen negotiation.')
+    expect(latest.revision).toBe(18)
     expect(latest.capabilities).toEqual(LOCAL_SESSION_CAPABILITIES)
     expect(latest.capabilities).toContain('desktop:services-v1')
     expect(latest.capabilities).toContain('host-ui:session-project-catalog-v1')
     expect(latest.capabilities).toContain('host-ui:turn-diff-files-v1')
     expect(latest.capabilities).toContain('updates:channel-v1')
     expect(latest.capabilities).toContain('host-ui:native-actions-v1')
+    expect(latest.capabilities).toContain('events:launch-steps-v1')
     expect(latest.capabilities).toContain('events:worktree-launch-v1')
     expect(latest.capabilities).toContain('host-ui:session-resources-v1')
     expect(decodeLocalSessionNegotiationResult(latest)).toEqual(latest)

@@ -83,7 +83,12 @@ function interruptRuns(sql: SqlClient.SqlClient, runs: readonly RunRow[], now: n
       `
       yield* sql`
         UPDATE session_control_states SET
-          active_run_id = ${null}, queue_state = ${'paused'},
+          active_run_id = ${null},
+          queue_pause_reason = CASE
+            WHEN queue_state = ${'paused'} THEN queue_pause_reason
+            ELSE ${'profile-revoked'}
+          END,
+          queue_state = ${'paused'},
           queue_revision = queue_revision + 1, state_revision = state_revision + 1,
           updated_at = ${now}
         WHERE session_id = ${run.session_id}
@@ -124,6 +129,10 @@ function pauseAffectedQueues(sql: SqlClient.SqlClient, callerId: string, now: nu
       UNION SELECT session_id FROM directly_active_sessions
     )
     UPDATE session_control_states SET
+      queue_pause_reason = CASE
+        WHEN queue_state = ${'paused'} THEN queue_pause_reason
+        ELSE ${'profile-revoked'}
+      END,
       queue_state = ${'paused'}, queue_revision = queue_revision + 1,
       state_revision = state_revision + 1, updated_at = ${now}
     WHERE session_id IN (SELECT session_id FROM affected_sessions)

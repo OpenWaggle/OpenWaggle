@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from 'node:fs/promises'
+import { copyFile, mkdtemp, rm, stat, utimes } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { SessionId } from '@shared/types/brand'
@@ -111,8 +111,10 @@ async function createWorktreeSnapshot(projectPath: string): Promise<string | nul
   const indexFile = path.join(scratchDir, 'index')
   const env = { GIT_INDEX_FILE: indexFile }
   try {
-    const readTree = await runGit(projectPath, ['read-tree', 'HEAD'], { env })
-    if (readTree.code !== 0) return null
+    if (!(await seedScratchIndex(projectPath, indexFile))) {
+      const readTree = await runGit(projectPath, ['read-tree', 'HEAD'], { env })
+      if (readTree.code !== 0) return null
+    }
     // -A stages modifications, deletions and untracked files; .gitignore still applies.
     const add = await runGit(projectPath, ['add', '-A', '--', ':/'], { env })
     if (add.code !== 0) {
@@ -144,6 +146,35 @@ async function createWorktreeSnapshot(projectPath: string): Promise<string | nul
     return commit.stdout.trim() || null
   } finally {
     await rm(scratchDir, { recursive: true, force: true }).catch(() => {})
+  }
+}
+
+/**
+ * Copy the real index into the scratch index, so `git add -A` below only re-hashes files whose
+ * stat data changed. Built from `read-tree HEAD` instead, the index had no stat data and every
+ * tracked file was read and hashed again: seconds per turn in a large worktree, on the path that
+ * holds the Run open after the agent has finished. The staged content it carries does not matter,
+ * because `add -A` replaces it with the working tree. The copy keeps the source's mtime; a newer
+ * one could make racily-clean entries look clean.
+ *
+ * Returns false when there is no index to copy (a fresh repository), and the caller falls back.
+ */
+async function seedScratchIndex(projectPath: string, indexFile: string): Promise<boolean> {
+  const located = await runGit(projectPath, [
+    'rev-parse',
+    '--path-format=absolute',
+    '--git-path',
+    'index',
+  ])
+  const source = located.code === 0 ? located.stdout.trim() : ''
+  if (!source) return false
+  try {
+    const sourceStat = await stat(source)
+    await copyFile(source, indexFile)
+    await utimes(indexFile, sourceStat.atime, sourceStat.mtime)
+    return true
+  } catch {
+    return false
   }
 }
 

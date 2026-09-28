@@ -43,6 +43,8 @@ function restoreFailedLaunch(
     startedAt: previousLaunch?.startedAt ?? now,
     updatedAt: now,
     details: previousLaunch?.details ?? [],
+    environment: previousLaunch?.environment,
+    steps: previousLaunch?.steps,
     progressPercentage: previousLaunch?.progressPercentage,
     worktreePath: previousLaunch?.worktreePath,
     branch: previousLaunch?.branch,
@@ -113,7 +115,9 @@ export async function retryFirstSend(sessionIdValue: string, workLocally = false
   restoreFailedLaunch(
     sessionId,
     previousLaunch,
-    'The first message was not delivered. Try again or work locally.',
+    report.outcome === 'queued'
+      ? 'The message was queued as a Follow-up instead of starting. Resume the queue to send it.'
+      : 'The first message was not delivered. Try again or work locally.',
   )
 }
 

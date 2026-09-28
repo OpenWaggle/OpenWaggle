@@ -1,5 +1,6 @@
 import * as Effect from 'effect/Effect'
-import { createLogger } from '../../logger'
+import * as Exit from 'effect/Exit'
+import { serversConnectedBeforeTurn } from '../../domain/mcp/direct-tool-servers'
 import type {
   AgentKernelRunInput,
   AgentKernelWaggleRunOptions,
@@ -18,14 +19,16 @@ import { runPiWaggle } from './agent-kernel/waggle-run'
 import { createBrowserPreviewAutomationExtension } from './browser-preview-automation-extension'
 import { BROWSER_PREVIEW_AUTOMATION_SYSTEM_PROMPT } from './browser-preview-automation-system-prompt'
 import { createMcpGatewayExtension } from './mcp-gateway-extension'
+import {
+  createWorktreeLaunchReporter,
+  prepareVisualizationDirectory,
+} from './pi-agent-kernel-launch'
 import { prepareActionWorkspace } from './prepare-action-workspace'
 import {
   createProjectActionsToolExtension,
   type ProjectActionToolServices,
 } from './project-actions-tool-extension'
 import { createSessionsToolExtension } from './sessions-tool-extension'
-
-const logger = createLogger('pi-agent-kernel')
 
 export function createBrowserPreviewRuntimeResources(input: {
   readonly enabled: boolean
@@ -84,15 +87,29 @@ export function prepareMcpTurn(input: {
   readonly config: McpConfigServiceShape
   readonly runtime: McpRuntimeServiceShape
   readonly serverAllowlist?: readonly string[]
+  /** Called with the servers the turn connects before Pi starts, when there are any. */
+  readonly onConnecting?: (serverNames: readonly string[]) => void
+  /** Called once those servers answered. A failure leaves the step open so the error lands on it. */
+  readonly onConnected?: () => void
 }) {
   return Effect.gen(function* () {
     const snapshot = restrictMcpSnapshot(
       yield* input.config.createTurnSnapshot(input),
       input.serverAllowlist,
     )
+    const connectedFirst = serversConnectedBeforeTurn(snapshot).map((server) => server.name)
+    if (connectedFirst.length > 0) input.onConnecting?.(connectedFirst)
     yield* input.runtime.prepareTurn({ sessionId: input.sessionId, snapshot })
     return yield* Effect.gen(function* () {
-      const directTools = snapshot ? yield* input.runtime.listDirectTools(snapshot) : []
+      const directTools = snapshot
+        ? yield* input.runtime
+            .listDirectTools(snapshot)
+            .pipe(
+              Effect.tap(() =>
+                Effect.sync(() => (connectedFirst.length > 0 ? input.onConnected?.() : undefined)),
+              ),
+            )
+        : []
       const extensionFactory = snapshot
         ? createMcpGatewayExtension({
             snapshot,
@@ -124,27 +141,6 @@ export function prepareMcpTurn(input: {
   })
 }
 
-function createWorktreeLaunchReporter(input: AgentKernelRunInput) {
-  let didReport = false
-  const onWorktreeLaunch = input.onWorktreeLaunch
-    ? (progress: Parameters<NonNullable<typeof input.onWorktreeLaunch>>[0]) => {
-        didReport = true
-        input.onWorktreeLaunch?.(progress)
-      }
-    : undefined
-  return {
-    runInput: onWorktreeLaunch ? { ...input, onWorktreeLaunch } : input,
-    reportTaskStarting(executionPath: string) {
-      if (!didReport) return
-      onWorktreeLaunch?.({
-        stage: 'starting-task',
-        details: ['Starting the task in the new worktree'],
-        worktreePath: executionPath,
-      })
-    },
-  }
-}
-
 export function runPiAgentKernel(
   input: AgentKernelRunInput,
   dependencies: {
@@ -165,30 +161,49 @@ export function runPiAgentKernel(
       launchReporter.runInput,
       { workspaces: dependencies.projectActions.workspaces, preparation: dependencies.preparation },
     )
-    yield* refreshFirstRunBranch(input, executionPath)
-    const visualizationDirectory = yield* dependencies.inlineVisualization
-      .prepareSession(input.session.id)
-      .pipe(
-        Effect.catchAll((error) =>
-          Effect.sync(() => {
-            logger.warn('Failed to prepare the session visualization directory', {
-              sessionId: input.session.id,
-              error: error.message,
-            })
-            return undefined
-          }),
+    /*
+     * The first-run branch sync and the MCP connections are both network waits, and running them
+     * one after another made a first send wait for both. They are not fully independent: project
+     * MCP config is read from the checkout being pulled, and stdio servers start in it. A first turn
+     * can therefore use the pre-pull MCP config; the turn's `finish` re-reads it, so the next turn
+     * reconnects with whatever the pull brought in.
+     */
+    let preparedMcpTurn: Effect.Effect.Success<ReturnType<typeof prepareMcpTurn>> | undefined
+    const [, visualizationDirectory, mcpTurn] = yield* Effect.all(
+      [
+        refreshFirstRunBranch(input, executionPath, launchReporter.report),
+        prepareVisualizationDirectory(dependencies.inlineVisualization, input.session.id),
+        prepareMcpTurn({
+          projectPath,
+          executionPath,
+          sessionId: input.session.id,
+          config: dependencies.mcpConfig,
+          runtime: dependencies.mcpRuntime,
+          ...(input.mcpServerAllowlist !== undefined
+            ? { serverAllowlist: input.mcpServerAllowlist }
+            : {}),
+          onConnecting: launchReporter.reportConnectingTools,
+          onConnected: launchReporter.reportToolsConnected,
+        }).pipe(
+          Effect.tap((turn) =>
+            Effect.sync(() => {
+              preparedMcpTurn = turn
+            }),
+          ),
         ),
-      )
-    const mcpTurn = yield* prepareMcpTurn({
-      projectPath,
-      executionPath,
-      sessionId: input.session.id,
-      config: dependencies.mcpConfig,
-      runtime: dependencies.mcpRuntime,
-      ...(input.mcpServerAllowlist !== undefined
-        ? { serverAllowlist: input.mcpServerAllowlist }
-        : {}),
-    })
+      ],
+      { concurrency: 'unbounded' },
+    ).pipe(
+      // A sibling can fail after MCP connected; release that turn, and drop late launch reports.
+      Effect.onExit((exit) =>
+        Exit.isSuccess(exit)
+          ? Effect.void
+          : Effect.suspend(() => {
+              launchReporter.close()
+              return preparedMcpTurn?.finish ?? Effect.void
+            }),
+      ),
+    )
     const sessionsExtensionFactory = createRunSessionsExtension(input, executionPath, projectPath)
     const extensionFactories = mcpTurn.extensionFactory ? [mcpTurn.extensionFactory] : []
     const browserPreviewResources = createBrowserPreviewRuntimeResources({

@@ -2,13 +2,28 @@ import type { RepositoryPath, SessionId } from '@shared/types/brand'
 import { resolveSessionWorkingDir } from '@shared/utils/worktree'
 import { type QueryClient, useQueryClient } from '@tanstack/react-query'
 import { useEffect } from 'react'
-import { useBranchSummaryStore } from '@/features/chat/state'
+import { useBranchSummaryStore, useChatStore } from '@/features/chat/state'
 import { resolvePinnedDropNeighbours } from '../lib/pinned-sessions'
 import { usePinnedSessionsStore } from '../state/pinned-sessions-store'
 import { createSidebarBranchActions } from './sidebar-branch-actions'
 import { createSidebarProjectActions } from './sidebar-project-actions'
 import { createSidebarSessionActions } from './sidebar-session-actions'
 import { useSidebarState } from './useSidebarState'
+
+/**
+ * The rendered section that holds the active session, in display order: the Pinned rows when it
+ * is pinned, otherwise its project group. A neighbour is picked inside that section so removing a
+ * session never jumps the reader into another project.
+ */
+function visibleSectionSessionIds(state: ReturnType<typeof useSidebarState>): readonly SessionId[] {
+  const activeId = String(useChatStore.getState().activeSessionId ?? '')
+  const pinned = state.pinnedRows.map((row) => row.session.id)
+  if (pinned.some((id) => String(id) === activeId)) return pinned
+  const group = state.sessionGroups.projects.find((candidate) =>
+    candidate.sessions.some((session) => String(session.id) === activeId),
+  )
+  return group ? group.sessions.map((session) => session.id) : []
+}
 
 function createDomainActions(
   state: ReturnType<typeof useSidebarState>,
@@ -19,6 +34,21 @@ function createDomainActions(
 ) {
   const session = createSidebarSessionActions({
     activeSessionId: state.activeSessionId,
+    removalNavigation: {
+      getActiveSessionId: () => useChatStore.getState().activeSessionId,
+      hasDraftSession: () => useChatStore.getState().draftSession !== null,
+      getVisibleSessionIds: () => visibleSectionSessionIds(state),
+      isSessionListed: (id: SessionId) =>
+        useChatStore
+          .getState()
+          .sessions.some((session) => String(session.id) === String(id) && !session.archived),
+      selectSession(id: SessionId) {
+        clearTransientDraftContext()
+        useChatStore.getState().setActiveSession(id)
+        void state.navigate({ to: '/sessions/$sessionId', params: { sessionId: String(id) } })
+      },
+      clearActiveSession: () => useChatStore.getState().setActiveSession(null),
+    },
     clearTransientDraftContext,
     deleteSession: state.chat.deleteSession,
     loadChatSessions: state.chat.loadSessions,
@@ -31,7 +61,6 @@ function createDomainActions(
     refreshSessionWorkspace: state.sessions.refreshSessionWorkspace,
     selectedModel: state.preferences.selectedModel,
     showToast: state.showToast,
-    startDraftSession: state.chat.startDraftSession,
     togglePin(sessionId: SessionId) {
       const store = usePinnedSessionsStore.getState()
       const isPinned = store.pins.some((pin) => String(pin.sessionId) === String(sessionId))
@@ -69,6 +98,11 @@ function createDomainActions(
     setProjectPath: state.project.setProjectPath,
     showToast: state.showToast,
     startDraftSession: state.chat.startDraftSession,
+    clearActiveSession: () => useChatStore.getState().setActiveSession(null),
+    getActiveSessionId: () => {
+      const active = useChatStore.getState().activeSessionId
+      return active === null ? null : String(active)
+    },
   })
 
   return { branch, project, session }

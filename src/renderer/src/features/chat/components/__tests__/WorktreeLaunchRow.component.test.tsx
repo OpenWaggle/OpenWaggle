@@ -154,3 +154,88 @@ describe('WorktreeLaunchRow', () => {
     expect(screen.queryByText(/\.openwaggle\/worktrees/)).toBeNull()
   })
 })
+
+function stepState(label: string) {
+  return screen
+    .getAllByText(label)
+    .map((element) => element.parentElement?.getAttribute('data-state'))
+    .find((state) => state !== null && state !== undefined)
+}
+
+describe('WorktreeLaunchRow launch steps', () => {
+  it('renders each reported step for a worktree launch, Codex-style', () => {
+    render(
+      <WorktreeLaunchRow
+        sessionId="session-a"
+        launch={{
+          status: 'running',
+          stage: 'checking-out-files',
+          environment: 'worktree',
+          startedAt: 1,
+          updatedAt: 3,
+          details: [],
+          steps: [
+            {
+              stage: 'fetching-base',
+              label: 'Pulling latest main from origin',
+              startedAt: 1,
+              completedAt: 2,
+            },
+            {
+              stage: 'checking-out-files',
+              label: 'Creating worktree ow/session-a from origin/main',
+              startedAt: 2,
+            },
+          ],
+        }}
+      />,
+    )
+
+    expect(stepState('Pulling latest main from origin')).toBe('complete')
+    expect(stepState('Creating worktree ow/session-a from origin/main')).toBe('active')
+    expect(stepState('Starting task')).toBe('pending')
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'Creating worktree ow/session-a from origin/main',
+    )
+  })
+
+  it('shows a local launch without offering to work locally, and hides it once complete', () => {
+    const local = {
+      status: 'running' as const,
+      stage: 'connecting-tools' as const,
+      environment: 'local' as const,
+      startedAt: 1,
+      updatedAt: 2,
+      details: [],
+      steps: [
+        {
+          stage: 'syncing-branch' as const,
+          label: 'Pulling latest changes for main',
+          startedAt: 1,
+          completedAt: 2,
+        },
+        {
+          stage: 'connecting-tools' as const,
+          label: 'Connecting MCP servers: atlassian',
+          startedAt: 2,
+        },
+      ],
+    }
+    const { container, rerender } = render(
+      <WorktreeLaunchRow sessionId="session-a" launch={local} />,
+    )
+
+    expect(screen.getByLabelText('Starting session')).toBeInTheDocument()
+    expect(stepState('Connecting MCP servers: atlassian')).toBe('active')
+    expect(screen.queryByRole('button', { name: /Work locally/ })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Cancel/ })).toBeInTheDocument()
+
+    rerender(
+      <WorktreeLaunchRow
+        sessionId="session-a"
+        launch={{ ...local, status: 'complete', stage: 'starting-task' }}
+      />,
+    )
+    expect(container).toBeEmptyDOMElement()
+  })
+})

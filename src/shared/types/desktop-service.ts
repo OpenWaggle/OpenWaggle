@@ -34,12 +34,24 @@ export type DesktopServiceCommand =
       readonly record: DesktopFenceRecord
     }
   | { readonly service: 'browser'; readonly operation: 'deleteOwner'; readonly ownerKey: string }
+  | { readonly service: 'browser'; readonly operation: 'inspectOwner'; readonly ownerKey: string }
+
+/** Live GUI browser state for one Session owner: an open Session registers its owner. */
+export interface DesktopBrowserOwnerInspection {
+  readonly registered: boolean
+  readonly previews: number
+}
 
 export type DesktopServiceResult =
   | DesktopBrowserResult
   | DesktopTerminalResult
   | { readonly service: 'fence'; readonly operation: 'acquire'; readonly value: null }
   | { readonly service: 'browser'; readonly operation: 'deleteOwner'; readonly value: null }
+  | {
+      readonly service: 'browser'
+      readonly operation: 'inspectOwner'
+      readonly value: DesktopBrowserOwnerInspection
+    }
 
 export interface DesktopCommandEnvelope {
   readonly commandId: string

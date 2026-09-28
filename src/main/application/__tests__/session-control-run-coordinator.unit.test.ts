@@ -7,6 +7,7 @@ import {
   activateStartingRun,
   settleAndScheduleNextFollowUp,
 } from '../../domain/session-control/run-lifecycle'
+import { HiveWorkerCleanup } from '../../ports/hive-worker-cleanup'
 import { SessionControlIdentityService } from '../../ports/session-control-identity-service'
 import { SessionControlRunExecutor } from '../../ports/session-control-run-executor'
 import { SessionControlRunLifecycleRepository } from '../../ports/session-control-run-lifecycle-repository'
@@ -53,7 +54,15 @@ describe('Session Control Run coordinator', () => {
     const generatedRunIds = [RunId('run-second'), RunId('run-unused')]
     const executedTexts: string[] = []
     const deliveredParents: string[] = []
+    const cleanupRequests: string[] = []
     const layer = Layer.mergeAll(
+      Layer.succeed(HiveWorkerCleanup, {
+        requestReconciliation: (requested) =>
+          Effect.sync(() => {
+            cleanupRequests.push(requested)
+          }),
+        restoreForCommand: () => Effect.void,
+      }),
       Layer.succeed(SessionControlIdentityService, {
         nextRunId: Effect.sync(() => {
           const next = generatedRunIds.shift()
@@ -125,6 +134,8 @@ describe('Session Control Run coordinator', () => {
 
     expect(executedTexts).toEqual(['First task.', 'Second task.'])
     expect(deliveredParents).toEqual(['queen'])
+    // Hive cleanup runs once the Session settles with nothing scheduled, not between Follow-ups.
+    expect(cleanupRequests).toEqual([sessionId])
     expect(result).toEqual([
       { runId: RunId('run-first'), terminalStatus: 'completed' },
       { runId: RunId('run-second'), terminalStatus: 'completed' },

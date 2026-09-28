@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 import type { McpDirectToolDescriptor, McpTurnSnapshot } from '@shared/types/mcp'
 import { Effect } from 'effect'
+import { serverRequestsDirectTools } from '../../../domain/mcp/direct-tool-servers'
 import type { McpRuntimeFailure } from '../../../ports/mcp-errors'
 import type { CatalogTool, McpRuntimeStateService } from './runtime-state'
 
@@ -42,20 +43,13 @@ export function listMcpDirectTools(
   snapshot: McpTurnSnapshot,
 ): Effect.Effect<readonly McpDirectToolDescriptor[], McpRuntimeFailure> {
   if (snapshot.effectiveState !== 'on') return Effect.succeed([])
-  return state
-    .loadCatalog(
-      snapshot,
-      (server) =>
-        server.definition.directTools === true ||
-        (Array.isArray(server.definition.directTools) && server.definition.directTools.length > 0),
-    )
-    .pipe(
-      Effect.map((catalog) => {
-        const descriptors: McpDirectToolDescriptor[] = []
-        for (const tool of catalog) {
-          if (requestedDirectTool(tool)) descriptors.push(toDescriptor(tool))
-        }
-        return descriptors
-      }),
-    )
+  return state.loadCatalog(snapshot, serverRequestsDirectTools).pipe(
+    Effect.map((catalog) => {
+      const descriptors: McpDirectToolDescriptor[] = []
+      for (const tool of catalog) {
+        if (requestedDirectTool(tool)) descriptors.push(toDescriptor(tool))
+      }
+      return descriptors
+    }),
+  )
 }

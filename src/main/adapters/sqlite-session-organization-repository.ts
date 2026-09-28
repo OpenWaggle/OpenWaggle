@@ -136,7 +136,8 @@ function applyHandoff(
   })
 }
 
-function executeOrganization(
+/** One journaled organization mutation; nests as a savepoint inside a caller's transaction. */
+export function executeOrganization(
   sql: SqlClient.SqlClient,
   input: Parameters<SessionOrganizationRepositoryShape['execute']>[0],
 ) {

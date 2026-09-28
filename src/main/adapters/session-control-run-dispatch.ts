@@ -1,5 +1,7 @@
+import type { AgentTransportEvent } from '@shared/types/stream'
 import type { WaggleInvocation } from '@shared/types/waggle'
 import * as Effect from 'effect/Effect'
+import type { AgentRunResult } from '../application/agent-run/types'
 import { executeAgentRun } from '../application/agent-run-service'
 import { explicitWaggleTerminalResult } from '../application/explicit-waggle-command-result'
 import { runRegisteredExplicitWaggle } from '../application/explicit-waggle-command-runner'
@@ -92,6 +94,46 @@ function executionContext(
   }
 }
 
+/**
+ * Tracks the event that tells clients a Run has ended: Pi's last `agent_end` that is not followed
+ * by an automatic retry. Its time is when the Run was seen to end, which decides whether a
+ * Follow-up accepted meanwhile is an explicit retry (see `planRunSettlement`).
+ */
+function trackTerminalEvent() {
+  let terminal: { readonly at: number; readonly failed: boolean } | undefined
+  return {
+    observe(event: AgentTransportEvent) {
+      if (event.type !== 'agent_end' || event.willRetry) return
+      terminal = { at: Date.now(), failed: event.reason === 'error' }
+    },
+    get current() {
+      return terminal
+    },
+  }
+}
+
+/**
+ * Ends a Run that failed, publishing its terminal event exactly once. When Pi (or the kernel) has
+ * already published the failure there is nothing to add; publishing it again sent clients a
+ * second `agent_end`. When no terminal event went out, as when the Run never reached Pi, the
+ * Host publishes it. A failure found after a clean `agent_end`, such as the turn failing to save,
+ * is returned for the settlement to report instead.
+ */
+function endFailedRun(
+  request: SessionControlRunExecutionInput,
+  result: Extract<AgentRunResult, { outcome: 'error' | 'invalid-model' | 'not-found' }>,
+  terminal: ReturnType<typeof trackTerminalEvent>,
+) {
+  const ended = terminal.current
+  if (!ended) {
+    publishRunFailure(request, result)
+    return { terminalEventAt: Date.now() }
+  }
+  return ended.failed
+    ? { terminalEventAt: ended.at }
+    : { terminalEventAt: ended.at, failure: { code: result.code } }
+}
+
 function runQueuedWaggle(
   input: RegisteredRunInput,
   context: RegisteredRunContext,
@@ -122,6 +164,8 @@ function runQueuedWaggle(
       result: explicitWaggleTerminalResult(result),
       resourceResult: result,
       payload,
+      // The Waggle runner publishes the Run's single agent_end just before it returns.
+      terminalEventAt: Date.now(),
     }),
   )
 }
@@ -137,6 +181,7 @@ function runClassic(input: RegisteredRunInput, context: RegisteredRunContext) {
         : {}),
     }
     let didReportWorktreeLaunch = false
+    const terminal = trackTerminalEvent()
     const result = yield* executeAgentRun({
       sessionId: input.request.sessionId,
       runId: input.request.runId,
@@ -146,6 +191,7 @@ function runClassic(input: RegisteredRunInput, context: RegisteredRunContext) {
       ...executionContext(input, context),
       signal: input.controller.signal,
       onEvent: (event) => {
+        terminal.observe(event)
         publishSessionHostEvent({
           kind: 'session-transport',
           sessionId: input.request.sessionId,
@@ -170,6 +216,10 @@ function runClassic(input: RegisteredRunInput, context: RegisteredRunContext) {
         })
       },
     })
+    let ending: {
+      readonly terminalEventAt?: number
+      readonly failure?: { readonly code: string }
+    } = terminal.current ? { terminalEventAt: terminal.current.at } : {}
     if (
       result.outcome === 'invalid-model' ||
       result.outcome === 'not-found' ||
@@ -184,7 +234,7 @@ function runClassic(input: RegisteredRunInput, context: RegisteredRunContext) {
           event: { type: 'failure', errorMessage: result.message },
         })
       }
-      publishRunFailure(input.request, result)
+      ending = endFailedRun(input.request, result, terminal)
     }
     if (result.outcome === 'success') {
       yield* context.requestedWaggle.runIfRequested({
@@ -196,7 +246,7 @@ function runClassic(input: RegisteredRunInput, context: RegisteredRunContext) {
         controller: input.controller,
       })
     }
-    return { mode: 'classic' as const, result, resourceResult: result, payload }
+    return { mode: 'classic' as const, result, resourceResult: result, payload, ...ending }
   })
 }
 

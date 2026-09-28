@@ -1,4 +1,5 @@
 import type * as SqlClient from '@effect/sql/SqlClient'
+import { isFollowUpQueuePauseReason } from '@shared/types/session-control-queue'
 import type { SessionQueryRequest } from '@shared/types/session-query'
 import * as Effect from 'effect/Effect'
 import {
@@ -116,6 +117,16 @@ export function readSession(sql: SqlClient.SqlClient, request: SessionQueryReque
   })
 }
 
+/** Only a paused queue has a reason; a reason the Host does not know is not reported. */
+function queuePauseReason(row: {
+  readonly queue_state: 'running' | 'paused'
+  readonly queue_pause_reason: string | null
+}) {
+  return row.queue_state === 'paused' && isFollowUpQueuePauseReason(row.queue_pause_reason)
+    ? { queuePauseReason: row.queue_pause_reason }
+    : {}
+}
+
 export function readStatus(sql: SqlClient.SqlClient, request: SessionQueryRequest) {
   if (request.query.operation !== 'status') throw new Error('Expected status query.')
   const query = request.query
@@ -123,6 +134,7 @@ export function readStatus(sql: SqlClient.SqlClient, request: SessionQueryReques
     const rows = yield* sql<{
       state_revision: number
       queue_state: 'running' | 'paused'
+      queue_pause_reason: string | null
       queue_revision: number
       active_run_id: string | null
       active_run_status: string | null
@@ -131,6 +143,7 @@ export function readStatus(sql: SqlClient.SqlClient, request: SessionQueryReques
       SELECT
         session_control_states.state_revision,
         session_control_states.queue_state,
+        session_control_states.queue_pause_reason,
         session_control_states.queue_revision,
         session_control_states.active_run_id,
         session_runs.status AS active_run_status,
@@ -154,6 +167,7 @@ export function readStatus(sql: SqlClient.SqlClient, request: SessionQueryReques
       sessionId: query.sessionId,
       stateRevision: row.state_revision,
       queueState: row.queue_state,
+      ...queuePauseReason(row),
       queueRevision: row.queue_revision,
       activeRunId: row.active_run_id,
       ...(row.active_run_status ? { activeRunStatus: row.active_run_status } : {}),
@@ -169,10 +183,12 @@ export function readQueue(sql: SqlClient.SqlClient, request: SessionQueryRequest
     Effect.gen(function* () {
       const states = yield* sql<{
         queue_state: 'running' | 'paused'
+        queue_pause_reason: string | null
         queue_revision: number
         active_run_id: string | null
       }>`
-        SELECT queue_state, queue_revision, active_run_id FROM session_control_states
+        SELECT queue_state, queue_pause_reason, queue_revision, active_run_id
+        FROM session_control_states
         WHERE session_id = ${query.sessionId} LIMIT 1
       `
       const state = states[0]
@@ -203,6 +219,7 @@ export function readQueue(sql: SqlClient.SqlClient, request: SessionQueryRequest
         operation: 'queue-list',
         sessionId: query.sessionId,
         queueState: state.queue_state,
+        ...queuePauseReason(state),
         queueRevision: state.queue_revision,
         activeRunId: state.active_run_id,
         items: rows.map((row) => ({

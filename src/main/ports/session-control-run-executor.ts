@@ -12,6 +12,10 @@ export interface SessionControlRunExecutionInput {
 
 export interface SessionControlRunExecutionResult {
   readonly terminalStatus: SessionControlTerminalRunStatus
+  /** When the Run's terminal `agent_end` was published, if one was. */
+  readonly terminalEventAt?: number
+  /** A failure found after the Run's terminal event said it ended cleanly (it failed to save). */
+  readonly failure?: { readonly code: string }
   readonly finalResponse?: string
 }
 

@@ -37,6 +37,7 @@ describe('Host mutation completion and real terminal admission', () => {
       terminal: service,
       browser: fromPartial<BrowserPreviewAutomationServiceShape>({}),
       deleteBrowserOwner: async () => undefined,
+      inspectBrowserOwner: () => ({ registered: false, previews: 0 }),
       acquireBrowserMutationFence: async () => () => undefined,
     })
     const bridge = await startGuiDesktopServiceBridge({

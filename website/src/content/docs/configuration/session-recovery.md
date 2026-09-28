@@ -25,7 +25,9 @@ Open the session and look above the message box for **Waiting for you** or an ap
 
 Read the request and respond there. For a protected action, **Allow once** permits it, while **Continue without** declines it. Do not switch to full access just to dismiss a request you have not understood. See [Approvals and permissions](/docs/configuration/approvals-permissions).
 
-If your message is in the follow-up queue, it may be waiting for the current work to finish. A paused queue shows **Resume**; inspect any item needing attention before resuming delivery. Repeatedly sending the same task can queue duplicate work. See [Conversations and tools](/docs/using-openwaggle/chat-and-tools).
+If your message is in the follow-up queue, it may be waiting for the current work to finish. After the agent ends a run, OpenWaggle takes a moment to save it and shows **Finishing…** in place of the stop button. A message sent then waits in the queue and starts as soon as the run is saved.
+
+A failed or stopped run pauses the follow-ups that were already queued, and the queue says why it paused. Anything you send after the failure is treated as a retry and runs normally; the earlier follow-ups stay paused until you choose **Resume**. Inspect any item needing attention before resuming delivery. Repeatedly sending the same task can queue duplicate work. See [Conversations and tools](/docs/using-openwaggle/chat-and-tools).
 
 ## A worktree is missing or could not be created
 

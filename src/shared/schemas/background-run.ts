@@ -16,14 +16,33 @@ export const worktreeSetupActionTerminalSchema = Schema.Struct({
   cwd: Schema.String,
 })
 
+export const worktreeLaunchStageSchema = Schema.Literal(
+  'preparing-workspace',
+  'fetching-base',
+  'checking-out-files',
+  'worktree-created',
+  'running-setup',
+  'syncing-branch',
+  'connecting-tools',
+  'starting-task',
+)
+
+export const worktreeLaunchEnvironmentSchema = Schema.Literal('local', 'worktree')
+
+export const worktreeLaunchStepSchema = Schema.Struct({
+  stage: worktreeLaunchStageSchema,
+  label: Schema.String,
+  startedAt: Schema.Number,
+  completedAt: Schema.optional(Schema.Number),
+})
+
 export const worktreeLaunchProgressSchema = Schema.Struct({
-  stage: Schema.Literal(
-    'preparing-workspace',
-    'checking-out-files',
-    'worktree-created',
-    'starting-task',
-  ),
+  stage: worktreeLaunchStageSchema,
   details: Schema.Array(Schema.String),
+  label: Schema.optional(Schema.String),
+  parallel: Schema.optional(Schema.Boolean),
+  completesStep: Schema.optional(Schema.Boolean),
+  environment: Schema.optional(worktreeLaunchEnvironmentSchema),
   progressPercentage: Schema.optional(Schema.Number),
   worktreePath: Schema.optional(Schema.String),
   branch: Schema.optional(Schema.String),

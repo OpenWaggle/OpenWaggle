@@ -34,6 +34,39 @@ const closedOwner: DesktopOwnerRecord = {
 
 describe('desktop broker native-free cleanup proof', () => {
   it.each([{ owner: null }, { owner: closedOwner }])(
+    'answers a presence inspection without a GUI only after native-free proof %#',
+    async ({ owner }) => {
+      const instance = harness([], owner)
+      const inspection = {
+        service: 'browser' as const,
+        operation: 'inspectOwner' as const,
+        ownerKey: 'session-one',
+      }
+      await expect(Effect.runPromise(instance.broker.execute(inspection))).resolves.toEqual({
+        service: 'browser',
+        operation: 'inspectOwner',
+        value: { registered: false, previews: 0 },
+      })
+      expect(instance.offlineCommands).toEqual([inspection])
+      expect(instance.records.size).toBe(0)
+    },
+  )
+
+  it('refuses a presence inspection when a GUI owner may still hold native state', async () => {
+    const instance = harness([], { ...closedOwner, state: 'active' })
+    await expect(
+      Effect.runPromise(
+        instance.broker.execute({
+          service: 'terminal',
+          operation: 'getActivitySnapshot',
+          input: {},
+        }),
+      ),
+    ).rejects.toThrow('attached OpenWaggle desktop')
+    expect(instance.offlineCommands).toEqual([])
+  })
+
+  it.each([{ owner: null }, { owner: closedOwner }])(
     'permits exactly fenced cleanup after native-free proof %#',
     async ({ owner }) => {
       const instance = harness([], owner)

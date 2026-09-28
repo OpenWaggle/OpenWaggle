@@ -50,6 +50,28 @@ describe('GUI desktop executor ownership and durable fences', () => {
     expect(instance.status).toHaveBeenCalledOnce()
   })
 
+  it('reports browser-owner registration without touching browser automation', async () => {
+    const instance = executorHarness({ registeredOwnerKey: 'worker' })
+    const inspect = (ownerKey: string, commandId: string) =>
+      instance.executor.execute(
+        envelope({ service: 'browser', operation: 'inspectOwner', ownerKey }, commandId),
+        'lease-one',
+      )
+    expect(await inspect('worker', 'inspect-worker')).toMatchObject({
+      outcome: 'success',
+      result: {
+        service: 'browser',
+        operation: 'inspectOwner',
+        value: { registered: true, previews: 0 },
+      },
+    })
+    expect(await inspect('other', 'inspect-other')).toMatchObject({
+      outcome: 'success',
+      result: { value: { registered: false, previews: 0 } },
+    })
+    expect(instance.status).not.toHaveBeenCalled()
+  })
+
   it('waits for actual native fence admission before acknowledging acquisition', async () => {
     const gate = Promise.withResolvers<void>()
     const instance = executorHarness({ acquireGate: Effect.promise(() => gate.promise) })

@@ -40,6 +40,7 @@ const service = fromPartial<BrowserPreviewAutomationServiceShape>({
   status: vi.fn(() => Effect.succeed(status)),
   navigate: vi.fn(() => Effect.succeed(status)),
   click: vi.fn(() => Effect.void),
+  resize: vi.fn(() => Effect.succeed({ tabId: 'tab-1', viewport: { mode: 'fill' as const } })),
   snapshot: vi.fn(() => Effect.succeed(snapshot)),
 })
 
@@ -169,5 +170,68 @@ describe('Pi browser preview automation extension', () => {
       { sessionId: SessionId('session-1'), workingPath: '/project' },
       { target: { kind: 'environment-port', port: 5173 } },
     )
+  })
+
+  it('resizes through one object schema and still enforces each mode contract', async () => {
+    const tools = await registeredTools()
+    const resize = tools.get('preview_resize')
+    const confirm = vi.fn<ExtensionContext['ui']['confirm']>(async () => true)
+    const scope = { sessionId: SessionId('session-1'), workingPath: '/project' }
+
+    expect(JSON.parse(JSON.stringify(resize?.parameters))).toMatchObject({
+      type: 'object',
+      required: ['mode'],
+      properties: {
+        mode: { anyOf: [{ const: 'fill' }, { const: 'freeform' }, { const: 'preset' }] },
+      },
+    })
+    await expect(
+      resize?.execute(
+        'resize-1',
+        { mode: 'freeform', width: 800 },
+        undefined,
+        undefined,
+        context(confirm),
+      ),
+    ).rejects.toThrow('requires both width and height')
+    await expect(
+      resize?.execute('resize-2', { mode: 'preset' }, undefined, undefined, context(confirm)),
+    ).rejects.toThrow('requires preset')
+    expect(confirm).not.toHaveBeenCalled()
+    expect(service.resize).not.toHaveBeenCalled()
+
+    await resize?.execute(
+      'resize-3',
+      { mode: 'fill', width: 800, preset: 'ipad-air' },
+      undefined,
+      undefined,
+      context(confirm),
+    )
+    expect(service.resize).toHaveBeenLastCalledWith(scope, { mode: 'fill' })
+    await resize?.execute(
+      'resize-4',
+      { tabId: 'tab-2', mode: 'preset', preset: 'ipad-air', orientation: 'landscape' },
+      undefined,
+      undefined,
+      context(confirm),
+    )
+    expect(service.resize).toHaveBeenLastCalledWith(scope, {
+      tabId: 'tab-2',
+      mode: 'preset',
+      preset: 'ipad-air',
+      orientation: 'landscape',
+    })
+    await resize?.execute(
+      'resize-5',
+      { mode: 'freeform', width: 800, height: 600 },
+      undefined,
+      undefined,
+      context(confirm),
+    )
+    expect(service.resize).toHaveBeenLastCalledWith(scope, {
+      mode: 'freeform',
+      width: 800,
+      height: 600,
+    })
   })
 })

@@ -147,6 +147,10 @@ export function recoverSessionAfterHostLoss(
     followUpQueue: {
       ...state.followUpQueue,
       state: 'paused',
+      pauseReason:
+        state.followUpQueue.state === 'paused'
+          ? state.followUpQueue.pauseReason
+          : ('host-lost' as const),
       revision: state.followUpQueue.revision + QUEUE_REVISION_INCREMENT,
     },
   }

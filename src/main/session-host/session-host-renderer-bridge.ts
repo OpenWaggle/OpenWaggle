@@ -1,6 +1,9 @@
 import type { BackgroundRunSnapshot } from '@shared/types/background-run'
 import { SessionId } from '@shared/types/brand'
-import type { SessionHostEventEnvelope } from '@shared/types/session-host-event'
+import type {
+  SessionHostEventEnvelope,
+  SessionHostEventPayload,
+} from '@shared/types/session-host-event'
 import { createLogger } from '../logger'
 import { broadcastToWindows } from '../utils/broadcast'
 import {
@@ -54,6 +57,37 @@ export function reconcileRemoteRunSnapshots(snapshots: readonly BackgroundRunSna
   }
 }
 
+function settledRunDetails(
+  payload: Extract<SessionHostEventPayload, { kind: 'session-state-changed' }>,
+) {
+  return {
+    ...(payload.runId ? { runId: payload.runId } : {}),
+    ...(payload.terminalStatus ? { terminalStatus: payload.terminalStatus } : {}),
+    ...(payload.failureCode ? { failureCode: payload.failureCode } : {}),
+  }
+}
+
+/**
+ * A Run settling ends the Session's activity, unless the Host went straight on to a queued
+ * Follow-up. That Run's send is still told it completed (`continues`), so it is not left waiting for
+ * the whole chain, while the Session keeps its streaming state for the next Run.
+ */
+function relaySettlement(
+  payload: Extract<SessionHostEventPayload, { kind: 'session-state-changed' }>,
+  options: { readonly streamBufferAlreadyProjected?: boolean },
+) {
+  const sessionId = SessionId(payload.sessionId)
+  if (payload.operation === 'run-settled') {
+    clearAgentPhase(sessionId)
+    if (!options.streamBufferAlreadyProjected) clearStreamBuffer(sessionId)
+    emitRunCompleted(sessionId, settledRunDetails(payload))
+    return
+  }
+  if (payload.operation === 'follow-up-started' && payload.runId) {
+    emitRunCompleted(sessionId, { ...settledRunDetails(payload), continues: true })
+  }
+}
+
 export function relaySessionHostEvent(
   delivery: SessionHostEventEnvelope,
   options: { readonly streamBufferAlreadyProjected?: boolean } = {},
@@ -104,14 +138,8 @@ export function relaySessionHostEvent(
     emitWaggleTurnEvent(SessionId(delivery.payload.sessionId), delivery.payload.event)
     return
   }
-  if (
-    delivery.payload.kind === 'session-state-changed' &&
-    delivery.payload.operation === 'run-settled'
-  ) {
-    const sessionId = SessionId(delivery.payload.sessionId)
-    clearAgentPhase(sessionId)
-    if (!options.streamBufferAlreadyProjected) clearStreamBuffer(sessionId)
-    emitRunCompleted(sessionId)
+  if (delivery.payload.kind === 'session-state-changed') {
+    relaySettlement(delivery.payload, options)
   }
   broadcastToWindows('session-host:event', delivery)
 }

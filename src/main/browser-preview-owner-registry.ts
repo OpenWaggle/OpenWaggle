@@ -122,6 +122,12 @@ export class BrowserPreviewOwnerRegistry {
     }
   }
 
+  /** A live renderer holds this owner: the Session is open, or retains previews or a Run. */
+  isRegistered(ownerKey: string): boolean {
+    const owner = this.owners.get(ownerKey)
+    return owner !== undefined && !owner.sender.isDestroyed()
+  }
+
   assertRegistered(ownerKey: string, sender: WebContents): void {
     const owner = this.owners.get(ownerKey)
     if (!owner || owner.sender !== sender || sender.isDestroyed()) {

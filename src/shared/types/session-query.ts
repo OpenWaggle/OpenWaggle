@@ -1,5 +1,6 @@
 import type { AgentLoopInteraction } from './agent-loop-interaction'
 import type { DelegationState } from './session-collaboration'
+import type { FollowUpQueuePauseReason } from './session-control-queue'
 import type {
   DelegationConflictKind,
   DelegationConflictStatus,
@@ -222,6 +223,8 @@ export type SessionQueryOutcome =
       readonly sessionId: string
       readonly stateRevision: number
       readonly queueState: 'running' | 'paused'
+      /** Why a paused queue paused, when the Host recorded it. */
+      readonly queuePauseReason?: FollowUpQueuePauseReason
       readonly queueRevision: number
       readonly activeRunId: string | null
       readonly activeRunStatus?: string
@@ -231,6 +234,8 @@ export type SessionQueryOutcome =
       readonly operation: 'queue-list'
       readonly sessionId: string
       readonly queueState: 'running' | 'paused'
+      /** Why a paused queue paused, when the Host recorded it. */
+      readonly queuePauseReason?: FollowUpQueuePauseReason
       readonly queueRevision: number
       readonly activeRunId: string | null
       readonly items: readonly {

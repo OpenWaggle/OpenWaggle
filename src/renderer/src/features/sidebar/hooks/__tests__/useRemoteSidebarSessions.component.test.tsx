@@ -8,6 +8,7 @@ import { hookInput, listResponse, summary } from './useRemoteSidebarSessions.tes
 const apiMocks = vi.hoisted(() => ({
   listSessionsByIds: vi.fn(),
   querySessionControl: vi.fn(),
+  onSessionHostEvent: vi.fn(),
 }))
 
 vi.mock('@/shared/lib/ipc', () => ({ api: apiMocks }))
@@ -24,6 +25,76 @@ describe('remote sidebar Session filtering', () => {
     })
     apiMocks.querySessionControl.mockImplementation(async () => listResponse([], { totalCount: 0 }))
     apiMocks.listSessionsByIds.mockResolvedValue([])
+    apiMocks.onSessionHostEvent.mockReturnValue(() => undefined)
+  })
+
+  it('drops a remote result as soon as the Host reports it archived or deleted', async () => {
+    const kept = summary('session-kept', 'Needle kept')
+    const archived = summary('session-archived', 'Needle archived')
+    const deleted = summary('session-deleted', 'Needle deleted')
+    let emit: (event: unknown) => void = () => undefined
+    apiMocks.onSessionHostEvent.mockImplementation((callback: (event: unknown) => void) => {
+      emit = callback
+      return () => undefined
+    })
+    apiMocks.querySessionControl.mockImplementation(async (request) =>
+      request.query.searchText === 'needle'
+        ? listResponse([kept, archived, deleted])
+        : listResponse([], { totalCount: 0 }),
+    )
+    apiMocks.listSessionsByIds.mockResolvedValue([kept, archived, deleted])
+
+    const { result } = renderHook(() => useRemoteSidebarSessions(hookInput({ query: 'needle' })))
+    await waitFor(() => expect(result.current.sessions).toHaveLength(3))
+
+    act(() => {
+      emit({
+        cursor: { epoch: 'e', sequence: 1 },
+        payload: {
+          kind: 'session-list-changed',
+          sessionId: 'session-archived',
+          change: 'archived',
+        },
+      })
+      emit({
+        cursor: { epoch: 'e', sequence: 2 },
+        payload: { kind: 'session-list-changed', sessionId: 'session-deleted', change: 'deleted' },
+      })
+    })
+
+    expect(result.current.sessions).toEqual([kept])
+  })
+
+  it('keeps an archived row out even when a page already in flight lands afterwards', async () => {
+    const archived = summary('session-late', 'Needle late')
+    let emit: (event: unknown) => void = () => undefined
+    apiMocks.onSessionHostEvent.mockImplementation((callback: (event: unknown) => void) => {
+      emit = callback
+      return () => undefined
+    })
+    const hydration = Promise.withResolvers<readonly ReturnType<typeof summary>[]>()
+    apiMocks.querySessionControl.mockImplementation(async (request) =>
+      request.query.searchText === 'needle'
+        ? listResponse([archived])
+        : listResponse([], { totalCount: 0 }),
+    )
+    apiMocks.listSessionsByIds.mockReturnValue(hydration.promise)
+
+    const { result } = renderHook(() => useRemoteSidebarSessions(hookInput({ query: 'needle' })))
+    await waitFor(() => expect(apiMocks.listSessionsByIds).toHaveBeenCalled())
+    const archivedEvent = (change: string) => ({
+      cursor: { epoch: 'e', sequence: change === 'archived' ? 1 : 2 },
+      payload: { kind: 'session-list-changed', sessionId: 'session-late', change },
+    })
+    act(() => emit(archivedEvent('archived')))
+    await act(async () => {
+      hydration.resolve([archived])
+      await hydration.promise
+    })
+    expect(result.current.sessions).toEqual([])
+
+    act(() => emit(archivedEvent('unarchived')))
+    expect(result.current.sessions).toEqual([archived])
   })
 
   it('finds a title beyond the loaded catalog page through one Host catalog query', async () => {

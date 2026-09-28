@@ -1,9 +1,11 @@
 import type { SessionId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
+import { isAgentErrorCode, makeErrorInfo } from '@shared/types/errors'
 import type { IpcEventPayload } from '@shared/types/ipc'
 import type { SessionDetail } from '@shared/types/session'
 import { SESSION_QUERY_CONTRACT_VERSION } from '@shared/types/session-query'
 import { useEffect, useLayoutEffect } from 'react'
+import { setLastAgentErrorInfo } from '@/features/chat/lib/agent-error-store'
 import { useAgentLoopEventStore } from '@/features/chat/state/agent-loop-event-store'
 import { api } from '@/shared/lib/ipc'
 import { sessionToUIMessages } from '../lib/useAgentChat.utils'
@@ -53,7 +55,8 @@ interface RunCompletionContext {
   readonly statusRef: MutableValueRef<string>
   readonly setBackgroundStreaming: (backgroundStreaming: boolean) => void
   readonly setCompactionStatus: (status: null) => void
-  readonly setStatus: (status: 'ready') => void
+  readonly setStatus: (status: 'ready' | 'error') => void
+  readonly setError: (error: Error | undefined) => void
   readonly agentRunActionsRef: MutableValueRef<AgentRunActions | null>
 }
 
@@ -78,6 +81,19 @@ function shouldFlushCompletedRunSnapshot(context: RunCompletionContext) {
   )
 }
 
+/**
+ * A Run the Host settled as failed although no failure reached this renderer: it failed after a
+ * clean `agent_end` (the turn could not be saved), or before it reported anything.
+ */
+function settlementFailure(payload: IpcEventPayload<'agent:run-completed'>) {
+  if (payload.terminalStatus !== 'failed') return undefined
+  const code =
+    payload.failureCode && isAgentErrorCode(payload.failureCode) ? payload.failureCode : 'unknown'
+  const info = makeErrorInfo(code, 'The Run failed without reporting an error.')
+  setLastAgentErrorInfo(payload.sessionId, { message: info.userMessage, code })
+  return new Error(info.userMessage)
+}
+
 function handleRunCompletedPayload(
   payload: IpcEventPayload<'agent:run-completed'>,
   context: RunCompletionContext,
@@ -86,17 +102,26 @@ function handleRunCompletedPayload(
     return
   }
 
-  const terminalError = context.terminalRunErrorRef.current
+  const reportedError = context.terminalRunErrorRef.current
+  const terminalError = reportedError ?? settlementFailure(payload)
+  const routing =
+    context.agentRunActionsRef.current?.settlePendingRun(terminalError, payload.runId) ?? 'settled'
+  if (routing !== 'held') context.terminalRunErrorRef.current = undefined
+  // The Host went straight on to a queued Follow-up, or this was an earlier Run settling after a
+  // new send began: the Session is not idle, so its run state stays as it is.
+  if (payload.continues || routing === 'forwarded') return
+
   context.foregroundStreamActiveRef.current = false
   context.foregroundSessionIdRef.current = null
   context.setBackgroundStreaming(false)
   context.backgroundStreamingRef.current = false
   context.backgroundReconnectSessionIdRef.current = null
-  if (!terminalError) {
-    context.setStatus('ready')
+  if (!terminalError) context.setStatus('ready')
+  // A failure only the settlement reported has not been shown yet.
+  if (terminalError && !reportedError) {
+    context.setError(terminalError)
+    context.setStatus('error')
   }
-  context.agentRunActionsRef.current?.settlePendingRun(terminalError)
-  context.terminalRunErrorRef.current = undefined
   context.deferredRefreshSessionIdRef.current = context.subscribedSessionId
   if (shouldFlushCompletedRunSnapshot(context)) {
     context.agentRunActionsRef.current?.flushDeferredSessionSnapshot()

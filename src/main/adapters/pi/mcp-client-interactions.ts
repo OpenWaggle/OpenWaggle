@@ -2,6 +2,7 @@ import { type Context, complete, type Tool, type UserMessage } from '@earendil-w
 import type { ExtensionContext } from '@earendil-works/pi-coding-agent'
 import { Type } from 'typebox'
 import { openExternal } from '../../desktop-ui'
+import { createLogger } from '../../logger'
 import type {
   McpElicitationResult,
   McpRuntimeInteractions,
@@ -21,8 +22,10 @@ import {
   reviewText,
   stringValue,
 } from './mcp-interaction-helpers'
+import { providerToolParameters } from './provider-tool-parameter-schema'
 
 const MAX_SAMPLING_TOKENS = 16_384
+const logger = createLogger('mcp-client-interactions')
 
 async function handleUrlElicitation(input: {
   readonly ctx: ExtensionContext
@@ -98,7 +101,14 @@ function toSamplingTools(request: JsonObject): Tool[] | undefined {
     if (!isObject(value)) continue
     const name = stringValue(value.name)
     if (!name) continue
-    const schema = isObject(value.inputSchema) ? value.inputSchema : { type: 'object' }
+    // The server validates the tool calls it gets back; the model provider only needs an object root.
+    const { schema, repairs } = providerToolParameters(value.inputSchema)
+    if (repairs.length > 0) {
+      logger.warn('Normalized MCP sampling tool input schema that model providers would reject', {
+        tool: name,
+        repairs,
+      })
+    }
     tools.push({
       name,
       description: stringValue(value.description) ?? '',

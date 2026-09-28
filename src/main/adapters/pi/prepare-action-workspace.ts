@@ -1,3 +1,5 @@
+import type { WorktreeLaunchProgress } from '@shared/types/background-run'
+import type { WorkspacePreparation } from '@shared/types/workspace-preparation'
 import * as Effect from 'effect/Effect'
 import type { ActionRunWorkspace } from '../../ports/action-run-service'
 import type { AgentKernelRunInput } from '../../ports/agent-kernel-service'
@@ -6,6 +8,29 @@ import type { WorkspacePreparationServiceShape } from '../../ports/workspace-pre
 import { readPreparedWorkspaceEnvironment } from '../project-actions/action-workspace-environment'
 import { requireSessionProjectPath } from './agent-kernel/session-manager'
 import { ensureSessionWorktreeProjectPath } from './agent-kernel/session-worktree-birth'
+
+const SETUP_STARTED: WorktreeLaunchProgress = {
+  stage: 'running-setup',
+  label: 'Running project setup',
+  details: ['Running the project Setup action in the new worktree'],
+}
+const SETUP_FINISHED: WorktreeLaunchProgress = {
+  stage: 'running-setup',
+  completesStep: true,
+  details: [],
+}
+
+/** Only a Setup action that will actually run is worth a launch step; an empty profile is instant. */
+function runsSetupAction(preparation: WorkspacePreparation | null) {
+  if (!preparation) return false
+  if (preparation.setup.status !== 'idle' && preparation.setup.status !== 'running') return false
+  return preparation.snapshot.definitions.some(
+    (entry) =>
+      entry.definition.phase === 'setup' &&
+      entry.definition.profileId === preparation.snapshot.profile.id &&
+      entry.review !== 'disabled',
+  )
+}
 
 export function prepareActionWorkspace(
   input: AgentKernelRunInput,
@@ -52,7 +77,10 @@ export function prepareActionWorkspace(
                       'A previous setup dispatch has no confirmed result. Review Workspace preparation and explicitly run setup or continue.',
                     ),
                   )
+                const reportsSetup = runsSetupAction(yield* services.preparation.read(workspace))
+                if (reportsSetup) input.onWorktreeLaunch?.(SETUP_STARTED)
                 yield* services.preparation.requireSetup(workspace)
+                if (reportsSetup) input.onWorktreeLaunch?.(SETUP_FINISHED)
               }),
             ),
           signal: input.signal,
