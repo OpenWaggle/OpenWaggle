@@ -33,11 +33,17 @@ describe('guided action panel catalog rules (ADR 0038)', () => {
     const discovered = await catalog.read(scope())
     const overridden = await catalog.edit(scope(), discovered.revision, {
       type: 'save-action',
-      definition: { ...action, invocation: { ...action.invocation, directory: 'packages/app' } },
+      definition: {
+        ...action,
+        invocation: { type: 'command', command: 'pnpm test', directory: 'packages/app' },
+      },
       storage: 'local',
     })
     expect(overridden.actions).toEqual([
-      expect.objectContaining({ source: 'override', definition: expect.objectContaining({ name: 'Test' }) }),
+      expect.objectContaining({
+        source: 'override',
+        definition: expect.objectContaining({ name: 'Test' }),
+      }),
     ])
   })
 
@@ -75,7 +81,14 @@ describe('guided action panel catalog rules (ADR 0038)', () => {
     await shared({
       ...EMPTY_ACTION_MANIFEST,
       preparation: [
-        { ...setup, invocation: { type: 'command', command: 'pnpm install --frozen-lockfile', directory: '.' } },
+        {
+          ...setup,
+          invocation: {
+            type: 'command',
+            command: 'pnpm install --frozen-lockfile',
+            directory: '.',
+          },
+        },
       ],
     })
     const changed = await catalog.read(scope())
