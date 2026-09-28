@@ -1137,7 +1137,11 @@ the app's 1.3.32), and the copies disagree on edge cases such as the `iri` forma
 `minLength` on graphemes. Direct tools whose server schema does not compile keep the unrelaxed
 repair, because it is then the only check before approval. Sampling tools keep it too: Pi does
 not validate their calls, so relaxing would only cost guidance. Flattening is bounded in depth
-and total schemas, since `{anyOf: [{$ref:'#'}, ...]}` otherwise recurses or explodes.
+and total schemas, since `{anyOf: [{$ref:'#'}, ...]}` otherwise recurses or explodes. Such a
+schema still compiles but overflows the stack on every exact `Check`; the validator reports that
+as a readable violation, so the tool registers but every call is rejected before approval. When
+relaxation drops a root `additionalProperties: false`, the description says only the listed
+properties are accepted, unless `patternProperties` (also dropped) admit other names.
 
 For managed-worktree cleanup, a retained preparation snapshot belongs to a directory generation,
 not merely a project and worktree path. Pin the worktree directory's device, inode and birth time

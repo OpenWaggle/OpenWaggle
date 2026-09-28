@@ -3,6 +3,7 @@ import {
   isJsonSchemaObject,
   LOCAL_POINTER_PREFIX,
   type MutableJsonSchema,
+  schemaArray,
 } from './json-schema-object'
 
 /**
@@ -42,6 +43,16 @@ const SCHEMA_MAP_KEYWORDS = new Set([
   'definitions',
   'dependentSchemas',
 ])
+
+/** Whether the server root, or a root combinator member, admits names by `patternProperties`. */
+function admitsPatternProperties(serverSchema: Readonly<Record<string, unknown>>) {
+  const members = ['anyOf', 'oneOf', 'allOf'].flatMap(
+    (keyword): readonly unknown[] => schemaArray(serverSchema[keyword]) ?? [],
+  )
+  return [serverSchema, ...members].some(
+    (member) => isJsonSchemaObject(member) && member.patternProperties !== undefined,
+  )
+}
 
 /**
  * Whether anything below the root declares a string `$id`, which rebases its local references.
@@ -170,8 +181,9 @@ export function relaxForPreCallValidation(
     if (RELAXED_ROOT_KEYWORDS.has(keyword)) relaxed[keyword] = value
     else repairs.push(`relaxed root ${keyword}; enforced by the server schema when the tool runs`)
   }
-  // The model no longer sees the closed root, so say it in words.
-  if (schema.additionalProperties === false) {
+  // The model no longer sees the closed root, so say it in words, unless pattern properties
+  // (also dropped) admit other names and the note would steer the model away from them.
+  if (schema.additionalProperties === false && !admitsPatternProperties(serverSchema)) {
     const note = 'Only the listed properties are accepted.'
     const description = relaxed.description
     relaxed.description = typeof description === 'string' ? `${description}\n\n${note}` : note

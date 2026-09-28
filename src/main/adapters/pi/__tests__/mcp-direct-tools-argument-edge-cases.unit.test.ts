@@ -1,4 +1,5 @@
 import type { ExtensionContext } from '@earendil-works/pi-coding-agent'
+import type { McpJsonValue } from '@shared/types/mcp'
 import { fromPartial } from '@total-typescript/shoehorn'
 import { describe, expect, it } from 'vitest'
 import { isJsonSchemaObject } from '../json-schema-object'
@@ -121,6 +122,33 @@ describe('repaired MCP direct tools at the edges', () => {
 
     expect(parameters.additionalProperties).toBeUndefined()
     expect(parameters.description).toMatch(/Only the listed properties are accepted\./)
+  })
+
+  it.each<{ readonly label: string; readonly schema: McpJsonValue }>([
+    {
+      label: 'the root',
+      schema: {
+        type: 'object',
+        properties: { a: { type: 'string' } },
+        patternProperties: { '^x_': { type: 'string' } },
+        additionalProperties: false,
+        anyOf: [{ required: ['a'] }],
+      },
+    },
+    {
+      label: 'an alternative',
+      schema: {
+        type: 'object',
+        anyOf: [
+          { properties: { a: { type: 'string' } }, additionalProperties: false },
+          { patternProperties: { '^x_': { type: 'string' } }, additionalProperties: false },
+        ],
+      },
+    },
+  ])('does not call a root closed when $label admits pattern properties', ({ schema }) => {
+    const parameters = JSON.parse(JSON.stringify(register(schema).definition.parameters))
+
+    expect(String(parameters.description ?? '')).not.toMatch(/Only the listed properties/)
   })
 
   it('rejects with a readable error when the server schema recurses without end', async () => {
