@@ -4,6 +4,7 @@ import type {
   WorktreeLaunchStep,
 } from '@shared/types/background-run'
 import type { SessionId } from '@shared/types/brand'
+import type { AgentRunCompletedPayload } from '@shared/types/ipc-events'
 import type { AgentPhaseEventPayload } from '@shared/types/phase'
 import type { AgentTransportEvent } from '@shared/types/stream'
 import type { WaggleStreamMetadata, WaggleTurnEvent } from '@shared/types/waggle'
@@ -27,8 +28,11 @@ export {
   upsertStreamBufferRunIdentity,
 } from './stream-buffer'
 
-export function emitRunCompleted(sessionId: SessionId) {
-  broadcastToWindows('agent:run-completed', { sessionId })
+export function emitRunCompleted(
+  sessionId: SessionId,
+  details: Omit<AgentRunCompletedPayload, 'sessionId'> = {},
+) {
+  broadcastToWindows('agent:run-completed', { sessionId, ...details })
 }
 
 function appendLaunchDetails(existing: readonly string[] | undefined, incoming: readonly string[]) {

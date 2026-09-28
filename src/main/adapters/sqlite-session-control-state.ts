@@ -6,6 +6,7 @@ import { inlineVisualizationContextSchema } from '@shared/schemas/validation'
 import { toWaggleInvocation, waggleInvocationSchema } from '@shared/schemas/waggle'
 import { AGENT_AUTHORIZATION_MODES } from '@shared/types/agent-authorization'
 import { FollowUpId, RunId, SessionId } from '@shared/types/brand'
+import { isFollowUpQueuePauseReason } from '@shared/types/session-control-queue'
 import { THINKING_LEVELS } from '@shared/types/settings'
 import * as Effect from 'effect/Effect'
 import type {
@@ -25,6 +26,7 @@ interface SessionControlStateRow {
   readonly active_run_id: string | null
   readonly queue_state: string
   readonly queue_revision: number
+  readonly queue_pause_reason: string | null
 }
 
 interface SessionRunRow {
@@ -73,6 +75,12 @@ function decodeQueueState(raw: string): 'running' | 'paused' {
   throw new Error(`Invalid Follow-up queue state: ${raw}`)
 }
 
+function decodePauseReason(state: 'running' | 'paused', raw: string | null) {
+  if (state === 'running' || raw === null) return {}
+  if (isFollowUpQueuePauseReason(raw)) return { pauseReason: raw }
+  throw new Error(`Invalid Follow-up queue pause reason: ${raw}`)
+}
+
 function decodeRun(row: SessionRunRow | undefined): SessionControlRunState {
   if (!row) return { state: 'idle' }
   if (row.status === 'starting') {
@@ -113,7 +121,8 @@ function decodeFollowUp(row: SessionFollowUpRow): SessionControlFollowUp {
 export function loadSessionControlState(sql: SqlClient.SqlClient, sessionId: string) {
   return Effect.gen(function* () {
     const stateRows = yield* sql<SessionControlStateRow>`
-      SELECT session_id, state_revision, active_run_id, queue_state, queue_revision
+      SELECT session_id, state_revision, active_run_id, queue_state, queue_revision,
+        queue_pause_reason
       FROM session_control_states
       WHERE session_id = ${sessionId}
       LIMIT 1
@@ -138,16 +147,20 @@ export function loadSessionControlState(sql: SqlClient.SqlClient, sessionId: str
     `
 
     return yield* Effect.try({
-      try: (): SessionControlSessionState => ({
-        sessionId: SessionId(stateRow.session_id),
-        revision: stateRow.state_revision,
-        run: decodeRun(runRows[0]),
-        followUpQueue: {
-          state: decodeQueueState(stateRow.queue_state),
-          revision: stateRow.queue_revision,
-          items: followUpRows.map(decodeFollowUp),
-        },
-      }),
+      try: (): SessionControlSessionState => {
+        const queueState = decodeQueueState(stateRow.queue_state)
+        return {
+          sessionId: SessionId(stateRow.session_id),
+          revision: stateRow.state_revision,
+          run: decodeRun(runRows[0]),
+          followUpQueue: {
+            state: queueState,
+            ...decodePauseReason(queueState, stateRow.queue_pause_reason),
+            revision: stateRow.queue_revision,
+            items: followUpRows.map(decodeFollowUp),
+          },
+        }
+      },
       catch: (cause) => repositoryError('decode-session-state', cause),
     })
   })
@@ -259,6 +272,11 @@ export function persistSessionControlState(
       SET state_revision = ${state.revision},
           active_run_id = ${activeRunId},
           queue_state = ${state.followUpQueue.state},
+          queue_pause_reason = ${
+            state.followUpQueue.state === 'paused'
+              ? (state.followUpQueue.pauseReason ?? null)
+              : null
+          },
           queue_revision = ${state.followUpQueue.revision},
           updated_at = ${now}
       WHERE session_id = ${state.sessionId}

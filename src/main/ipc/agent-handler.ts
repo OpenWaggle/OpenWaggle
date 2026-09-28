@@ -145,8 +145,10 @@ function registerAgentRunHandlers() {
         }
         // The Host keeps a message as a Follow-up, not a Run, while the Session has a Run or waiting
         // Follow-ups (a failed Run pauses them). No completion will follow for this send.
-        return outcome.effect === 'queued-follow-up'
-          ? ({ outcome: 'queued' } as const)
+        if (outcome.effect === 'queued-follow-up') return { outcome: 'queued' } as const
+        // Naming the Run lets the renderer credit only that Run's completion to this send.
+        return outcome.effect === 'started-run'
+          ? ({ outcome: 'delivered', runId: outcome.runId } as const)
           : ({ outcome: 'delivered' } as const)
       }),
   )

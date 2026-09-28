@@ -68,15 +68,28 @@ describe('Session Control Follow-up queue', () => {
 
     expect(result).toEqual({
       accepted: true,
-      queue: { state: 'paused', revision: 16, items: [pending] },
+      queue: { state: 'paused', pauseReason: 'requested', revision: 16, items: [pending] },
     })
+  })
+
+  it('records why the queue paused and forgets it on resume', () => {
+    const paused = mutateFollowUpQueue(
+      { state: 'running', revision: 3, items: [] },
+      { type: 'pause', expectedRevision: 3, reason: 'run-failed' },
+    )
+    expect(paused).toMatchObject({ accepted: true, queue: { pauseReason: 'run-failed' } })
+    if (!paused.accepted) return
+
+    const resumed = mutateFollowUpQueue(paused.queue, { type: 'resume', expectedRevision: 4 })
+
+    expect(resumed).toEqual({ accepted: true, queue: { state: 'running', revision: 5, items: [] } })
   })
 
   it('resumes a paused queue explicitly without consuming its next Follow-up', () => {
     const pending = { id: FollowUpId('follow-up-pending'), payload: 'later' }
 
     const result = mutateFollowUpQueue(
-      { state: 'paused', revision: 21, items: [pending] },
+      { state: 'paused', pauseReason: 'run-failed', revision: 21, items: [pending] },
       { type: 'resume', expectedRevision: 21 },
     )
 

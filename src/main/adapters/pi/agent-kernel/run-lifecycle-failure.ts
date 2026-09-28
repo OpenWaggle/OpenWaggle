@@ -1,6 +1,8 @@
 import { type AgentSession, sessionEntryToContextMessages } from '@earendil-works/pi-coding-agent'
 import type { Message } from '@shared/types/agent'
+import { classifyAgentError } from '../../../agent/error-classifier'
 import type { AgentKernelRunInput, AgentKernelRunResult } from '../../../ports/agent-kernel-service'
+import { userFacingErrorDetail } from '../../../utils/describe-error'
 import { getPiAssistantStopReason } from '../pi-run-result'
 import { waitForPostRunSettlement } from './post-run-settlement'
 import { projectPiSessionSnapshot } from './session-projection'
@@ -69,6 +71,12 @@ function buildFailedRunResult(input: {
   }
 }
 
+/** Classified as the Host classifies the run's terminal error, since this is its only report. */
+function classifiedRunError(message: string) {
+  const classified = classifyAgentError(new Error(message))
+  return { message: userFacingErrorDetail(classified.message), code: classified.code }
+}
+
 function emitFailedRunEnd(input: {
   readonly runInput: AgentKernelRunInput
   readonly aborted: boolean
@@ -78,7 +86,7 @@ function emitFailedRunEnd(input: {
     type: 'agent_end',
     runId: input.runInput.runId,
     reason: input.aborted ? 'aborted' : 'error',
-    ...(input.aborted ? {} : { error: { message: input.message } }),
+    ...(input.aborted ? {} : { error: classifiedRunError(input.message) }),
     timestamp: Date.now(),
     model: input.runInput.model,
   })

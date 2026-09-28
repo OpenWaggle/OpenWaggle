@@ -1,13 +1,10 @@
 import type { FollowUpId, RunId, SessionId } from '@shared/types/brand'
+import type { SessionRunTerminalStatus } from '@shared/types/session-host-event'
 import { Context, type Effect } from 'effect'
 import type { SessionControlIntentSnapshot } from '../domain/session-control/message-aggregate'
 import type { SessionControlRepositoryError } from '../errors'
 
-export type SessionControlTerminalRunStatus =
-  | 'completed'
-  | 'failed'
-  | 'interrupted'
-  | 'interrupted-by-interaction-timeout'
+export type SessionControlTerminalRunStatus = SessionRunTerminalStatus
 
 export type SessionControlRunActivationResult =
   | {
@@ -77,6 +74,12 @@ export interface SessionControlRunLifecycleRepositoryShape {
     readonly runId: RunId
     readonly nextRunId: RunId
     readonly terminalStatus: SessionControlTerminalRunStatus
+    /**
+     * When the Run's terminal event reached clients (Session Control clock). A failed or interrupted
+     * Run pauses only the Follow-ups accepted by then; later ones were sent after the Run was seen
+     * to end and start normally. Omitted when unknown: every Follow-up is treated as earlier.
+     */
+    readonly terminalEventAt?: number
     readonly finalResponse?: string
     readonly suppressFollowUpScheduling?: boolean
   }) => Effect.Effect<SessionControlRunSettlementResult, SessionControlRepositoryError>

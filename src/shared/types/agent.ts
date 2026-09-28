@@ -200,4 +200,6 @@ export interface AgentSendReport {
   readonly outcome: AgentSendOutcome
   readonly message?: string
   readonly code?: string
+  /** The Run a `delivered` send started, when the Host reported it. */
+  readonly runId?: string
 }

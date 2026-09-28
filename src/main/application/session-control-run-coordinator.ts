@@ -52,6 +52,7 @@ function coordinateLiveSessionRuns(input: CoordinateSessionRunsInput) {
     while (true) {
       const reservation = initialReservation ?? reserveActiveSessionRun(input.sessionId, runId)
       initialReservation = undefined
+      let settledExecution: SessionControlRunExecutionResult | undefined
       const settlement = yield* Effect.gen(function* () {
         const activation = yield* lifecycle.activate({ sessionId: input.sessionId, runId })
         if (!activation.accepted && !reservation.controller.signal.aborted) return undefined
@@ -75,6 +76,7 @@ function coordinateLiveSessionRuns(input: CoordinateSessionRunsInput) {
               .pipe(Effect.catchAll(() => Effect.succeed({ terminalStatus: 'failed' as const })))
           : { terminalStatus: 'interrupted' as const }
         results.push({ runId, terminalStatus: execution.terminalStatus })
+        settledExecution = execution
 
         const nextRunId = yield* identities.nextRunId
         return yield* lifecycle.settle({
@@ -82,6 +84,9 @@ function coordinateLiveSessionRuns(input: CoordinateSessionRunsInput) {
           runId,
           nextRunId,
           terminalStatus: execution.terminalStatus,
+          ...(execution.terminalEventAt === undefined
+            ? {}
+            : { terminalEventAt: execution.terminalEventAt }),
           suppressFollowUpScheduling: hasClaimedSessionWriterSuccessor(input.sessionId, runId),
           ...(execution.finalResponse ? { finalResponse: execution.finalResponse } : {}),
         })
@@ -93,6 +98,14 @@ function coordinateLiveSessionRuns(input: CoordinateSessionRunsInput) {
           sessionId: input.sessionId,
           stateRevision: settlement.stateRevision,
           operation: settlement.scheduled ? 'follow-up-started' : 'run-settled',
+          // Which Run settled and how, so a client credits the completion to that Run's send.
+          runId,
+          ...(settledExecution
+            ? {
+                terminalStatus: settledExecution.terminalStatus,
+                ...(settledExecution.failure ? { failureCode: settledExecution.failure.code } : {}),
+              }
+            : {}),
         })
         if (settlement.delegationUpdate) {
           publishSessionHostEvent({

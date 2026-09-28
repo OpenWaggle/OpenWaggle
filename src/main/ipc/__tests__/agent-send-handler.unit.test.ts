@@ -74,7 +74,8 @@ describe('agent:send-message report', () => {
     typedHandleMock.mockReset()
   })
 
-  it('reports a started Run as delivered', async () => {
+  // The report names the Run, so the renderer credits only that Run's completion to this send.
+  it('reports a started Run as delivered, naming the Run', async () => {
     hostReplies({
       operation: 'message',
       effect: 'started-run',
@@ -85,14 +86,14 @@ describe('agent:send-message report', () => {
 
     const report = await Effect.runPromise(getSendHandler()({}, SESSION_ID, PAYLOAD, MODEL))
 
-    expect(report).toEqual({ outcome: 'delivered' })
+    expect(report).toEqual({ outcome: 'delivered', runId: 'run-1' })
   })
 
   /*
-   * The Host appends a message to the Follow-up queue instead of starting a Run whenever the queue
-   * still holds items - including an idle Session whose queue a failed Run paused. Reporting that as
-   * "delivered" told the renderer a Run was on its way; none was, so it waited for a completion that
-   * never came and showed Stop and "Thinking" over an idle Session.
+   * The Host appends a message to the Follow-up queue instead of starting a Run while the Session
+   * still has a Run, including one Pi has ended that the Host has not settled yet. Reporting that
+   * as "delivered" told the renderer a Run was on its way; none was, so it waited for a completion
+   * that never came and showed Stop and "Thinking" over an idle Session.
    */
   it('reports a message the Host queued as queued, not delivered', async () => {
     hostReplies({
