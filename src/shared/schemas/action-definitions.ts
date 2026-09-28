@@ -1,5 +1,9 @@
 import { Schema } from '@shared/schema'
-import { ACTION_DEFINITION_LIMITS } from '@shared/types/action-definitions'
+import {
+  ACTION_DEFINITION_LIMITS,
+  COMMAND_REPAIR_PROPOSAL_TYPE,
+  COMMAND_REPAIR_REASON_LENGTH,
+} from '@shared/types/action-definitions'
 import { PROJECT_ACTION_LIMITS } from '@shared/types/project-actions'
 import { normalizeBrowserPreviewAddress } from '@shared/utils/browser-preview-url'
 import { projectActionIconSchema, projectActionShortcutRuleSchema } from './project-actions'
@@ -58,6 +62,19 @@ export const actionDefinitionSchema = Schema.Struct({
     ),
   ),
 }).pipe(Schema.filter((action) => action.kind !== 'service' || !action.allowConcurrent))
+
+const repairCommand = Schema.Struct({
+  command: text(ACTION_DEFINITION_LIMITS.COMMAND_LENGTH),
+  directory: actionRelativePathSchema,
+})
+export const commandRepairProposalSchema = Schema.Struct({
+  type: Schema.Literal(COMMAND_REPAIR_PROPOSAL_TYPE),
+  actionId: actionDefinitionIdSchema,
+  actionName: text(ACTION_DEFINITION_LIMITS.NAME_LENGTH),
+  current: repairCommand,
+  proposed: repairCommand,
+  reason: text(COMMAND_REPAIR_REASON_LENGTH),
+})
 
 export const preparationProfileSchema = Schema.Struct({
   id: actionDefinitionIdSchema,

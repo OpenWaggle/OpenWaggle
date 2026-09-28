@@ -96,6 +96,45 @@ describe('Pi project_actions shares GUI executions', () => {
     expect(shape.properties?.restartRunId).toBeDefined()
     expect(shape.properties?.runId).toBeDefined()
     expect(shape.properties?.afterOffset).toBeDefined()
+    expect(shape.properties?.command).toBeDefined()
+    expect(shape.properties?.reason).toBeDefined()
+  })
+
+  it('returns a Command repair proposal as data without authorizing, saving or launching', async () => {
+    const { tool, authorize, ctx } = registration(true)
+    const result = await tool.execute(
+      'propose',
+      { action: 'propose', actionId: 'test', command: ' pnpm dev --host ', reason: 'Bind all hosts.' },
+      undefined,
+      undefined,
+      ctx,
+    )
+    expect(result).not.toMatchObject({ isError: true })
+    expect(result.details).toEqual({
+      type: 'command-repair-proposal',
+      actionId: 'test',
+      actionName: fixture.definition.name,
+      current: expect.objectContaining({ directory: '.' }),
+      proposed: { command: 'pnpm dev --host', directory: '.' },
+      reason: 'Bind all hosts.',
+    })
+    expect(authorize).not.toHaveBeenCalled()
+    expect(fixture.processes).toHaveLength(0)
+  })
+
+  it('rejects a proposal whose directory leaves the project', async () => {
+    const { tool, ctx } = registration(true)
+    const result = await tool.execute(
+      'propose-outside',
+      { action: 'propose', actionId: 'test', command: 'pnpm dev', directory: '../other', reason: 'x' },
+      undefined,
+      undefined,
+      ctx,
+    )
+    expect(result).toMatchObject({ isError: true })
+    expect(result.content).toEqual([
+      expect.objectContaining({ text: expect.stringContaining('must be relative to the project') }),
+    ])
   })
 
   it.each([
@@ -104,6 +143,7 @@ describe('Pi project_actions shares GUI executions', () => {
     { label: 'start without actionId', params: { action: 'start' } },
     { label: 'output without runId', params: { action: 'output' } },
     { label: 'stop without runId', params: { action: 'stop' } },
+    { label: 'propose without a command', params: { action: 'propose', actionId: 'test', reason: 'x' } },
     {
       label: 'negative output offset',
       params: { action: 'output', runId: 'run', afterOffset: -1 },

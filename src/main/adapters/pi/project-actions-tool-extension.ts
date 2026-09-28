@@ -1,10 +1,20 @@
 import { createHash } from 'node:crypto'
 import { match } from '@diegogbrisa/ts-match'
 import type { ExtensionContext, ExtensionFactory } from '@earendil-works/pi-coding-agent'
-import { ACTION_DEFINITION_LIMITS } from '@shared/types/action-definitions'
+import { safeDecodeUnknown } from '@shared/schema'
+import { commandRepairProposalSchema } from '@shared/schemas/action-definitions'
+import {
+  ACTION_DEFINITION_LIMITS,
+  type ActionDefinition,
+  COMMAND_REPAIR_PROPOSAL_TYPE,
+  COMMAND_REPAIR_REASON_LENGTH,
+  type CommandRepairProposal,
+  type ProjectTaskDiscovery,
+} from '@shared/types/action-definitions'
 import { isActiveActionRun } from '@shared/types/action-runs'
 import { SessionId } from '@shared/types/brand'
 import { actionExecutionKey } from '@shared/utils/action-execution-key'
+import { projectTaskArguments } from '@shared/utils/project-task-command'
 import * as Effect from 'effect/Effect'
 import { type Static, Type } from 'typebox'
 import { Check, Errors } from 'typebox/value'
@@ -14,6 +24,15 @@ import type { SessionWorkspaceResourceRepositoryShape } from '../../ports/sessio
 import { getOpenWaggleAuthorize } from './agent-kernel/openwaggle-authorize-channel'
 
 const identifier = Type.String({ minLength: 1, maxLength: ACTION_DEFINITION_LIMITS.ID_LENGTH })
+const proposedCommand = Type.String({
+  minLength: 1,
+  maxLength: ACTION_DEFINITION_LIMITS.COMMAND_LENGTH,
+})
+const relativeDirectory = Type.String({
+  minLength: 1,
+  maxLength: ACTION_DEFINITION_LIMITS.PATH_LENGTH,
+})
+const proposalReason = Type.String({ minLength: 1, maxLength: COMMAND_REPAIR_REASON_LENGTH })
 const parameterVariants = [
   Type.Object({ action: Type.Literal('list') }),
   Type.Object({ action: Type.Literal('discover') }),
@@ -29,6 +48,13 @@ const parameterVariants = [
     afterOffset: Type.Optional(Type.Integer({ minimum: 0 })),
   }),
   Type.Object({ action: Type.Literal('stop'), runId: identifier }),
+  Type.Object({
+    action: Type.Literal('propose'),
+    actionId: identifier,
+    command: proposedCommand,
+    directory: Type.Optional(relativeDirectory),
+    reason: proposalReason,
+  }),
 ] as const
 type ProjectActionParameters = Static<(typeof parameterVariants)[number]>
 
@@ -42,6 +68,9 @@ const parameters = Type.Unsafe<ProjectActionParameters>({
     restartRunId: Type.Optional(identifier),
     runId: Type.Optional(identifier),
     afterOffset: Type.Optional(Type.Integer({ minimum: 0 })),
+    command: Type.Optional(proposedCommand),
+    directory: Type.Optional(relativeDirectory),
+    reason: Type.Optional(proposalReason),
   },
   required: ['action'],
 })
@@ -151,6 +180,52 @@ async function startAction(
   )
 }
 
+function currentCommand(definition: ActionDefinition, discovery: ProjectTaskDiscovery) {
+  const invocation = definition.invocation
+  if (invocation.type === 'command')
+    return { command: invocation.command, directory: invocation.directory }
+  const task = discovery.tasks.find(
+    ({ reference }) =>
+      reference.provider === invocation.task.provider &&
+      reference.source === invocation.task.source &&
+      reference.task === invocation.task.task &&
+      reference.directory === invocation.task.directory,
+  )
+  const words = [task?.runner ?? '', ...projectTaskArguments(invocation.task)].filter(Boolean)
+  return { command: words.join(' '), directory: invocation.task.directory }
+}
+
+/** Only data: the user reviews and saves the proposal in the action panel (ADR 0038). */
+async function proposeRepair(
+  input: ProjectActionToolInput,
+  workspace: ActionRunWorkspace,
+  params: Extract<Static<typeof parameters>, { action: 'propose' }>,
+): Promise<CommandRepairProposal> {
+  const catalog = await Effect.runPromise(input.catalog.read(workspace))
+  const definition = catalog.actions.find(
+    (entry) => entry.definition.id === params.actionId,
+  )?.definition
+  if (!definition) throw new Error('Saved action not found. Use list to inspect available actions.')
+  const discovery =
+    definition.invocation.type === 'task'
+      ? await Effect.runPromise(input.catalog.discover(workspace.workspacePath))
+      : { tasks: [], diagnostics: [] }
+  const current = currentCommand(definition, discovery)
+  const decoded = safeDecodeUnknown(commandRepairProposalSchema, {
+    type: COMMAND_REPAIR_PROPOSAL_TYPE,
+    actionId: definition.id,
+    actionName: definition.name,
+    current,
+    proposed: { command: params.command.trim(), directory: params.directory ?? current.directory },
+    reason: params.reason.trim(),
+  })
+  if (!decoded.success)
+    throw new Error(
+      `Invalid project_actions arguments for "propose": ${decoded.issues.join('; ')}. The directory must be relative to the project, such as "." or "packages/app".`,
+    )
+  return decoded.data
+}
+
 async function execute(
   input: ProjectActionToolInput,
   params: Static<typeof parameters>,
@@ -180,6 +255,7 @@ async function execute(
     .with({ action: 'start' }, (start) =>
       startAction(input, workspace, start, requestId, ctx, signal),
     )
+    .with({ action: 'propose' }, (propose) => proposeRepair(input, workspace, propose))
     .with({ action: 'stop' }, async ({ runId }) => {
       await authorize(ctx, 'stop', workspace.workspacePath, runId, signal)
       signal?.throwIfAborted()
@@ -194,7 +270,7 @@ export function createProjectActionsToolExtension(input: ProjectActionToolInput)
       name: 'project_actions',
       label: 'Project Actions',
       description:
-        'List saved project actions and discovered tasks; start, inspect, read output, or stop managed runs in this Session’s Workspace. These are the same executions shown in the Session Hub. Repeated starts reuse the active run unless finite-task concurrency was explicitly enabled. Restart is explicit. Output reads never launch a process.',
+        'List saved project actions and discovered tasks; start, inspect, read output, or stop managed runs in this Session’s Workspace. These are the same executions shown in the Session Hub. Repeated starts reuse the active run unless finite-task concurrency was explicitly enabled. Restart is explicit. Output reads never launch a process. To fix a failing action, use "propose" with its actionId, the replacement command, an optional project-relative directory and a short reason: the user reviews and saves it; nothing is changed or run.',
       parameters,
       executionMode: 'sequential',
       async execute(toolCallId, params, signal, _onUpdate, ctx) {

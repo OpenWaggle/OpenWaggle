@@ -119,6 +119,22 @@ export type ActionCatalogEdit =
   | { readonly type: 'delete-preparation'; readonly id: string; readonly storage: ActionStorage }
   | { readonly type: 'review-preparation'; readonly id: string; readonly enabled: boolean }
 
+export const COMMAND_REPAIR_PROPOSAL_TYPE = 'command-repair-proposal'
+export const COMMAND_REPAIR_REASON_LENGTH = 2_000
+
+/**
+ * An agent-produced replacement command for a saved Project action (a Command repair proposal).
+ * It is only data: the user reviews and saves it in the action panel; nothing is applied or run.
+ */
+export interface CommandRepairProposal {
+  readonly type: typeof COMMAND_REPAIR_PROPOSAL_TYPE
+  readonly actionId: string
+  readonly actionName: string
+  readonly current: { readonly command: string; readonly directory: string }
+  readonly proposed: { readonly command: string; readonly directory: string }
+  readonly reason: string
+}
+
 export interface DiscoveredProjectTask {
   readonly reference: ProjectTaskReference
   readonly group: string
