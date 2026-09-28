@@ -1078,6 +1078,19 @@ issue #218). When `pi.validateToolArguments` reports `Received arguments: {}`, s
 provider dropping arguments for the schema shape before blaming parsing or permissions; the
 cheapest discriminator is a raw REST probe of the provider with the exact tool JSON.
 
+Other providers reject a root union outright rather than dropping arguments. Pi 0.87 sends
+`tool.parameters` verbatim unless strict constrained sampling is on, so a root `anyOf` reached
+Bedrock as `toolConfig.tools.N.toolSpec.inputSchema.json` ("type must be one of: object" on the
+first turn) and OpenAI via OpenRouter as "schema must be a JSON Schema of 'type: \"object\"', got
+'type: \"None\"'" (gpt-4.1/gpt-4o-mini; gpt-5.x routes tolerated it). The culprit was
+`preview_resize`, tool 8 after Pi's four built-ins and four earlier preview tools; every MCP
+server in the user's config already served object roots. Every tool parameter root must be
+`type: "object"` with no root `anyOf`/`oneOf`/`allOf`/`enum`/`not`/`const`/`$ref`.
+`provider-tool-schemas.unit.test.ts` pushes every OpenWaggle tool through Pi's real Bedrock and
+OpenAI-completions request builders (`onPayload` throws before the network) and checks that rule.
+Third-party MCP schemas are repaired at the Pi adapter (`providerToolParameters`), and the server's
+original schema still validates arguments before approval.
+
 For managed-worktree cleanup, a retained preparation snapshot belongs to a directory generation,
 not merely a project and worktree path. Pin the worktree directory's device, inode and birth time
 when the checkout exists; a pre-birth snapshot gets its identity after materialization. If the
