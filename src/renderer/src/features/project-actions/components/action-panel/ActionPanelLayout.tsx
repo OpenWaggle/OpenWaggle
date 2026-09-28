@@ -1,9 +1,14 @@
-import { type ReactNode, useEffect } from 'react'
+import { lazy, type ReactNode, Suspense, useEffect } from 'react'
 import { useRightSidebarCoordinator } from '@/shared/lib/right-sidebar-coordinator'
 import { RightSidebarLayout } from '@/shared/ui/RightSidebarLayout'
 import { WORKSPACE_SIDE_PANEL_SIZING } from '@/shared/ui/right-sidebar-sizing-presets'
 import { useActionPanelStore } from '../../state/action-panel-store'
-import { ActionPanel } from './ActionPanel'
+
+// The guided editor only renders once a panel request is open, so keep it out of the eager
+// shell graph (scripts/check-syntax-bundle.ts enforces the initial renderer budget).
+const LazyActionPanel = lazy(() =>
+  import('./ActionPanel').then((module) => ({ default: module.ActionPanel })),
+)
 
 /** The workspace side panel's sizing, so every right sidebar behaves alike (ADR 0038). */
 const ACTION_PANEL_SIZING = {
@@ -27,7 +32,13 @@ export function ActionPanelLayout({ children }: { readonly children: ReactNode }
     <RightSidebarLayout
       open={open}
       sizing={ACTION_PANEL_SIZING}
-      sidebar={request ? <ActionPanel request={request} /> : null}
+      sidebar={
+        request ? (
+          <Suspense fallback={null}>
+            <LazyActionPanel request={request} />
+          </Suspense>
+        ) : null
+      }
       onOpenChange={(next) => {
         if (!next) useActionPanelStore.getState().closePanel()
       }}

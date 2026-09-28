@@ -38,7 +38,7 @@ Ordinary CI enforces deterministic properties:
 
 - `monaco-editor`, Monaco editor chunks, and Monaco language workers are absent from dependencies and production output.
 - At most two shared syntax workers exist, and neither starts before syntax-eligible content becomes visible. The bounded second lane prevents a large source request from starving compact visible code. An active Pierre diff or focused editor may add one bounded worker only while that explicit surface is mounted; inactive right-sidebar routes retain no worker.
-- Syntax and focused-editor workers use ES-module output so bundled grammars remain separate demand-loaded chunks. Production build gates keep the initial renderer entry below 1 MiB, its complete static module graph below 4.5 MiB, the shared syntax worker below 768 KiB, the focused-editor chunk below 512 KiB, and its worker below 768 KiB.
+- Syntax and focused-editor workers use ES-module output so bundled grammars remain separate demand-loaded chunks. Production build gates keep the initial renderer entry below 1 MiB, its complete static module graph below 4.5 MiB, the shared syntax worker below 768 KiB, the focused-editor chunk below 512 KiB, and its worker below 768 KiB. `pnpm check` (the required Typecheck & Lint job) enforces these gates on every pull request through `pnpm check:renderer-bundle`, not only in release builds.
 - Feature components do not construct Shiki highlighters or workers.
 - Visible requests outrank near-viewport requests; near-viewport work outranks offscreen work.
 - Superseded, unmounted, and scrolled-away requests cancel without logging grammar failures.

@@ -1,6 +1,5 @@
+// Preview panels are exported from `./components`, not here. See components/index.ts.
 export type { BrowserPreviewTab, BrowserPreviewTabPatch } from './browser-preview-model'
-export { BrowserPreviewFloatingPanel } from './components/BrowserPreviewFloatingPanel'
-export { BrowserPreviewPanel } from './components/BrowserPreviewPanel'
 export {
   clearBrowserPreviewExternalFallback,
   registerBrowserPreviewExternalFallback,

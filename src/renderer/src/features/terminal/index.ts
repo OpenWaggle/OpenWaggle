@@ -1,4 +1,6 @@
-export { TerminalPane, TerminalPanel, TerminalSearchBar } from './components'
+// Terminal panes, panels, and search stay out of this root index: the eager shell imports it for
+// hooks and helpers, and re-exporting xterm-backed components here pulls them into the initial
+// renderer graph. Load them lazily from `@/features/terminal/components`.
 export { useTerminalActivityMonitor } from './hooks/useTerminalActivityMonitor'
 export { createSidePanelTerminal, useTerminalCommands } from './hooks/useTerminalCommands'
 export { reconcileSetupActionTerminal } from './lib/setup-action-terminal'

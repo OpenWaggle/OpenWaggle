@@ -25,8 +25,7 @@ vi.mock('@/features/chat/hooks', () => ({
   }),
 }))
 vi.mock('@/features/sessions/hooks', () => ({ useProject: () => ({ projectPath: '/repo' }) }))
-vi.mock('@/features/browser-preview', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/features/browser-preview')>()),
+vi.mock('@/features/browser-preview/components', () => ({
   BrowserPreviewFloatingPanel: ({ suspended }: { readonly suspended: boolean }) => (
     <div data-testid="floating-preview" data-suspended={suspended} />
   ),
