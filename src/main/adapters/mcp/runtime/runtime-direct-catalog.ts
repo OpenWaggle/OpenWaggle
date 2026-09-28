@@ -11,7 +11,8 @@ import { discardSupersededSessionConnections } from './runtime-catalog'
 import {
   addNotice,
   connectNoticeId,
-  getNotices,
+  failRequiredServer,
+  removeInfoNotice,
   removeNotice,
   reportServerUnavailable,
 } from './runtime-notices'
@@ -22,6 +23,7 @@ import {
   toCatalogTools,
 } from './runtime-server-listing'
 import type { CatalogTool, RuntimeStateContext, ServerListing } from './runtime-state-types'
+import { connectFailedBefore, recordConnectFailure } from './runtime-tool-catalog-state'
 import { mcpToolCatalogIdentity } from './tool-catalog-cache'
 
 type ListingOutcome = Either.Either<readonly CatalogTool[], McpRuntimeFailure>
@@ -62,7 +64,8 @@ function namespaceIsLive(ctx: RuntimeStateContext, runtimeNamespace: string) {
 
 /**
  * Reports a failed background listing, unless the failure is only its slot being closed (a new
- * snapshot revision, a reconcile, a dispose) or the Session is gone.
+ * snapshot revision, a reconcile, a dispose) or the Session is gone. A retired listing clears the
+ * "still connecting" notice it may have left, because nothing is connecting any more.
  */
 function reportBackgroundFailure(
   ctx: RuntimeStateContext,
@@ -72,8 +75,12 @@ function reportBackgroundFailure(
   error: McpRuntimeFailure,
 ) {
   return Effect.gen(function* () {
-    if (listing.retired.aborted) return
-    if (!(yield* namespaceIsLive(ctx, resolveMcpRuntimeNamespace(snapshot)))) return
+    const runtimeNamespace = resolveMcpRuntimeNamespace(snapshot)
+    if (listing.retired.aborted) {
+      return yield* removeInfoNotice(ctx, runtimeNamespace, connectNoticeId(server))
+    }
+    if (!(yield* namespaceIsLive(ctx, runtimeNamespace))) return
+    yield* recordConnectFailure(ctx, snapshot, server)
     yield* reportServerUnavailable(ctx, snapshot, server, error.message).pipe(
       Effect.catchAll(() => Effect.void),
     )
@@ -116,19 +123,6 @@ function registerCachedTools(ctx: RuntimeStateContext, tools: readonly CatalogTo
   })
 }
 
-/** Whether this Session's last attempt to reach the server failed, which the cache cannot fix. */
-function lastConnectFailed(
-  ctx: RuntimeStateContext,
-  snapshot: McpTurnSnapshot,
-  server: McpTurnSnapshotServer,
-) {
-  return getNotices(ctx, resolveMcpRuntimeNamespace(snapshot)).pipe(
-    Effect.map((notices) =>
-      notices.some((notice) => notice.id === connectNoticeId(server) && notice.severity !== 'info'),
-    ),
-  )
-}
-
 function readCachedTools(
   ctx: RuntimeStateContext,
   snapshot: McpTurnSnapshot,
@@ -152,7 +146,7 @@ function planServer(
       return { waitsFor: server.name, resolve: awaitRequired(ctx, snapshot, server) }
     }
     // Offering cached tools of a server that just failed would only fail each call, late.
-    const failedBefore = yield* lastConnectFailed(ctx, snapshot, server)
+    const failedBefore = yield* connectFailedBefore(ctx, snapshot, server)
     const watched = yield* listInBackground(ctx, snapshot, server)
     const cachedTools = failedBefore ? undefined : yield* readCachedTools(ctx, snapshot, server)
     if (!cachedTools) {
@@ -238,11 +232,7 @@ function awaitRequired(
     Effect.map(
       (tools): PlanResult => ({ tools, waited: { server: server.name, state: 'connected' } }),
     ),
-    Effect.catchAll((error) =>
-      reportServerUnavailable(ctx, snapshot, server, error.message).pipe(
-        Effect.as<PlanResult>({ tools: [], waited: { server: server.name, state: 'unavailable' } }),
-      ),
-    ),
+    Effect.catchAll((error) => failRequiredServer(ctx, snapshot, server, error.message)),
   )
 }
 

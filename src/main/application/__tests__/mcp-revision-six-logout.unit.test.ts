@@ -65,7 +65,7 @@ describe('revision-six MCP logout', () => {
 
     await logout(layer, 'server-signed-out')
 
-    expect(forgetToolCatalog).toHaveBeenCalledWith('server-signed-out')
+    expect(forgetToolCatalog).toHaveBeenCalledWith({ serverInstanceId: 'server-signed-out' })
   })
 
   it('reconciles runtime clients when OAuth vault removal fails', async () => {

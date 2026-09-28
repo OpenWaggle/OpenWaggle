@@ -114,7 +114,7 @@ export function makeMcpRuntimeService(
             input2.interactions,
           ),
         ),
-      forgetToolCatalog: (serverInstanceId) => state.forgetToolCatalog(serverInstanceId),
+      forgetToolCatalog: (scope) => state.forgetToolCatalog(scope),
       listDirectTools: (snapshot, options) =>
         withAuthoritativeSnapshot(snapshot, listMcpDirectTools(state, snapshot, options)),
       browseCapabilities: (input2) =>

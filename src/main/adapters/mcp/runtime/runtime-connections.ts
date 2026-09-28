@@ -19,6 +19,8 @@ export interface McpRuntimeConnectionsService {
   /** Starts the connection without waiting for it; see `startConnection`. */
   start(snapshot: McpTurnSnapshot, server: McpTurnSnapshotServer): Effect.Effect<ConnectionAttempt>
   isCurrent(key: string, connection: McpClientConnection): Effect.Effect<boolean>
+  /** The keys of every slot, or of one server's slots. */
+  keys(serverInstanceId?: string): Effect.Effect<readonly string[]>
   closeSuperseded(runtimeNamespace: string, snapshotRevision: string): Effect.Effect<void>
   closeKey(key: string): Effect.Effect<void>
   closeIfCurrent(key: string, connection: McpClientConnection): Effect.Effect<void>
@@ -44,6 +46,12 @@ export function makeMcpRuntimeConnections(input: {
       get: (snapshot, server) => getConnection(ctx, snapshot, server),
       start: (snapshot, server) => startConnection(ctx, snapshot, server),
       isCurrent: (key, connection) => isCurrentConnection(ctx, key, connection),
+      keys: (serverInstanceId) =>
+        matchingKeys(
+          ctx,
+          (status) =>
+            serverInstanceId === undefined || status.serverInstanceId === serverInstanceId,
+        ),
       closeSuperseded: (runtimeNamespace, snapshotRevision) =>
         matchingKeys(
           ctx,

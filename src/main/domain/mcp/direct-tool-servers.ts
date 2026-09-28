@@ -8,3 +8,9 @@ export function serverRequestsDirectTools(server: McpTurnSnapshotServer) {
   const selection = server.definition.directTools
   return selection === true || (Array.isArray(selection) && selection.length > 0)
 }
+
+/** Whether a server's definition selects one of its tools to be exposed directly. */
+export function serverOffersToolDirectly(server: McpTurnSnapshotServer, toolName: string) {
+  const selection = server.definition.directTools
+  return selection === true || (Array.isArray(selection) && selection.includes(toolName))
+}

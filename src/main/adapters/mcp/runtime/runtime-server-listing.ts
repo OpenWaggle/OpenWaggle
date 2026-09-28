@@ -3,7 +3,10 @@ import { canonicalJson } from '@shared/canonical-json'
 import { MCP_CONFIG } from '@shared/constants/mcp'
 import type { McpTurnSnapshot, McpTurnSnapshotServer } from '@shared/types/mcp'
 import { Clock, Deferred, Effect, Ref, SynchronizedRef } from 'effect'
-import { serverRequestsDirectTools } from '../../../domain/mcp/direct-tool-servers'
+import {
+  serverOffersToolDirectly,
+  serverRequestsDirectTools,
+} from '../../../domain/mcp/direct-tool-servers'
 import { resolveMcpRuntimeNamespace } from '../../../domain/mcp/runtime-namespace'
 import { type McpRuntimeFailure, toMcpRuntimeError } from '../../../ports/mcp-errors'
 import type { CatalogTool, RuntimeStateContext, ServerListing } from './runtime-state-types'
@@ -74,9 +77,12 @@ function cachedToolDefinition(tool: McpRuntimeTool): McpRuntimeTool {
 }
 
 /**
- * Remembers a direct-tool server's list for later Sessions, off the listing's critical path.
- * Only servers whose direct tools a turn registers ever read the cache, so no other server's
- * tools are written to disk.
+ * Remembers a server's direct tools for later Sessions, off the listing's critical path.
+ *
+ * Only what a later turn can stand in with is kept: the selected direct tools of an optional
+ * server. A required server is always waited for, and other tools never become descriptors. A
+ * listing over a connection opened before its server's lists were forgotten (a sign-out, a new
+ * sign-in, a changed secret) still speaks for the old credentials and is not remembered.
  */
 function rememberToolList(
   ctx: RuntimeStateContext,
@@ -84,12 +90,20 @@ function rememberToolList(
   server: McpTurnSnapshotServer,
   tools: readonly McpRuntimeTool[],
 ) {
-  if (!serverRequestsDirectTools(server)) return Effect.void
-  const identity = mcpToolCatalogIdentity(snapshot, server)
-  const definitions = tools.map(cachedToolDefinition)
-  return Effect.forkDaemon(
-    Effect.promise(() => ctx.toolCatalogCache.write(identity, definitions).catch(() => undefined)),
-  ).pipe(Effect.asVoid)
+  return Effect.gen(function* () {
+    if (!serverRequestsDirectTools(server) || server.definition.required) return
+    const key = ctx.connections.key(snapshot, server)
+    if ((yield* Ref.get(ctx.forgottenConnections)).has(key)) return
+    const identity = mcpToolCatalogIdentity(snapshot, server)
+    const definitions = tools
+      .filter((tool) => serverOffersToolDirectly(server, tool.name))
+      .map(cachedToolDefinition)
+    yield* Effect.forkDaemon(
+      Effect.promise(() =>
+        ctx.toolCatalogCache.write(identity, definitions).catch(() => undefined),
+      ),
+    )
+  })
 }
 
 /**
@@ -150,14 +164,24 @@ function forgetListing(ctx: RuntimeStateContext, key: string, listing: ServerLis
   })
 }
 
+function joinableListing(ctx: RuntimeStateContext, key: string) {
+  return SynchronizedRef.get(ctx.listings).pipe(
+    Effect.map((current) => {
+      const existing = current.get(key)
+      return existing && !existing.retired.aborted ? existing : undefined
+    }),
+  )
+}
+
 /**
  * Starts, or joins, the listing of a server's tools for this Session.
  *
  * One listing runs per connection at a time, so a turn's background listing and the calls that
  * need the same list share it instead of each listing the server again. The connection is
- * started before this returns, under the caller's lifecycle lock, and the listing runs on a
- * daemon so a caller that stops waiting never strands the others. A listing whose connection was
- * retired is not joined.
+ * started before this returns, under the caller's lifecycle lock, and outside the Host-wide
+ * listing table: starting can wait for a closing slot of the same key, which must not hold up
+ * other Sessions' listings. The listing runs on a daemon so a caller that stops waiting never
+ * strands the others. A listing whose connection was retired is not joined.
  */
 export function startServerListing(
   ctx: RuntimeStateContext,
@@ -165,22 +189,26 @@ export function startServerListing(
   server: McpTurnSnapshotServer,
 ): Effect.Effect<ServerListing> {
   const key = ctx.connections.key(snapshot, server)
-  return SynchronizedRef.modifyEffect(ctx.listings, (current) => {
-    const existing = current.get(key)
-    if (existing && !existing.retired.aborted) return Effect.succeed([existing, current] as const)
-    return Effect.gen(function* () {
-      const attempt = yield* ctx.connections.start(snapshot, server)
-      const result = yield* Deferred.make<readonly CatalogTool[], McpRuntimeFailure>()
-      const listing: ServerListing = { result, retired: attempt.retired }
-      yield* Effect.forkDaemon(
-        attempt.connection.pipe(
-          Effect.flatMap((connection) => listServerTools(ctx, snapshot, server, connection)),
-          Effect.exit,
-          Effect.flatMap((exit) => Deferred.done(result, exit)),
-          Effect.ensuring(forgetListing(ctx, key, listing)),
-        ),
-      )
-      return [listing, new Map(current).set(key, listing)] as const
+  return Effect.gen(function* () {
+    const joined = yield* joinableListing(ctx, key)
+    if (joined) return joined
+    const attempt = yield* ctx.connections.start(snapshot, server)
+    return yield* SynchronizedRef.modifyEffect(ctx.listings, (current) => {
+      const existing = current.get(key)
+      if (existing && !existing.retired.aborted) return Effect.succeed([existing, current] as const)
+      return Effect.gen(function* () {
+        const result = yield* Deferred.make<readonly CatalogTool[], McpRuntimeFailure>()
+        const listing: ServerListing = { result, retired: attempt.retired }
+        yield* Effect.forkDaemon(
+          attempt.connection.pipe(
+            Effect.flatMap((connection) => listServerTools(ctx, snapshot, server, connection)),
+            Effect.exit,
+            Effect.flatMap((exit) => Deferred.done(result, exit)),
+            Effect.ensuring(forgetListing(ctx, key, listing)),
+          ),
+        )
+        return [listing, new Map(current).set(key, listing)] as const
+      })
     })
   })
 }

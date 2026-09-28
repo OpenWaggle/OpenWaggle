@@ -10,6 +10,7 @@ import type {
   McpDirectToolListOptions,
   McpRuntimeInteractions,
   McpRuntimeServiceShape,
+  McpToolCatalogScope,
 } from '../../../ports/mcp-runtime-service'
 import { makeMcpRuntimeService } from '../runtime/runtime-service-factory'
 import type { McpClientConnection, McpRuntimeTool } from '../runtime/types'
@@ -51,6 +52,7 @@ export function createMcpRuntimeServiceForTests(
       ),
     listDirectTools: (snapshot: McpTurnSnapshot, options?: McpDirectToolListOptions) =>
       run(service.listDirectTools(snapshot, options)),
+    forgetToolCatalog: (scope: McpToolCatalogScope) => run(service.forgetToolCatalog(scope)),
     browseCapabilities: (snapshot: McpTurnSnapshot, serverInstanceId?: string) =>
       run(
         service.browseCapabilities({

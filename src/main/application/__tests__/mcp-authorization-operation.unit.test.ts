@@ -102,9 +102,10 @@ describe('MCP authorization identity lease', () => {
         }),
     })
     const reconcileIdleConnections = vi.fn(() => Effect.void)
+    const forgetToolCatalog = vi.fn<McpRuntimeServiceShape['forgetToolCatalog']>(() => Effect.void)
     const runtime = fromPartial<McpRuntimeServiceShape>({
       reconcileIdleConnections,
-      forgetToolCatalog: () => Effect.void,
+      forgetToolCatalog,
     })
     const vault = fromPartial<McpSecretVaultServiceShape>({
       resolve: () => Effect.fail(new Error('secret was not found')),
@@ -135,6 +136,12 @@ describe('MCP authorization identity lease', () => {
       ),
     ).resolves.toEqual([])
     expect(setSecret).toHaveBeenCalledWith({ name: 'TOKEN', value: 'replacement' })
+    // Forgotten before the sign-in and again once it ended, then for every server on a secret.
+    expect(forgetToolCatalog.mock.calls).toEqual([
+      [{ serverInstanceId: 'server-cancel' }],
+      [{ serverInstanceId: 'server-cancel' }],
+      ['all-servers'],
+    ])
   })
 
   it('reconciles stale providers when authorization fails before a vault write', async () => {

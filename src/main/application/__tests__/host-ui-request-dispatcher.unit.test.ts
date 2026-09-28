@@ -209,7 +209,10 @@ describe('Host UI request dispatcher', () => {
         }),
     })
     const reconcileIdleConnections = vi.fn(() => Effect.void)
-    const runtime = fromPartial<McpRuntimeServiceShape>({ reconcileIdleConnections })
+    const runtime = fromPartial<McpRuntimeServiceShape>({
+      reconcileIdleConnections,
+      forgetToolCatalog: () => Effect.void,
+    })
     const controller = new AbortController()
     const pending = runWithoutRequirements(
       dispatchHostUiRequest({

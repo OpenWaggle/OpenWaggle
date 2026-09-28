@@ -25,6 +25,8 @@ export interface McpToolCatalogCache {
   write(identity: McpToolCatalogIdentity, tools: readonly McpRuntimeTool[]): Promise<void>
   /** Drops every list of a server, after its credentials changed or it was removed. */
   forgetServer(serverInstanceId: string): Promise<void>
+  /** Drops every list, after a secret any server may use changed. */
+  forgetAll(): Promise<void>
 }
 
 /**
@@ -79,6 +81,10 @@ export class InMemoryMcpToolCatalogCache implements McpToolCatalogCache {
 
   async forgetServer(serverInstanceId: string) {
     this.forget(serverInstanceId)
+  }
+
+  async forgetAll() {
+    this.entries.clear()
   }
 
   /** The live entry for a key, or undefined once it has aged out. */

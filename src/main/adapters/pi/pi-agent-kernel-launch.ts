@@ -11,13 +11,6 @@ import type { McpDirectToolWaitOutcome } from '../../ports/mcp-runtime-service'
 const logger = createLogger('pi-agent-kernel')
 
 /**
- * Reports what a run does before Pi starts, so a first send is never silent.
- *
- * Steps are reported for a Session's first run, and for any later run that had to prepare its
- * worktree. An ordinary later turn reports nothing: its transcript already shows the run, and a
- * launch card on every turn flashed the transcript and the sidebar status.
- */
-/**
  * The finished MCP step's label when not every server it waited for connected. The turn goes ahead
  * without those servers' direct tools, and a check mark beside "Connecting MCP servers: figma"
  * would claim a connection that never happened.
@@ -34,6 +27,13 @@ function settledToolsLabel(outcome: McpDirectToolWaitOutcome) {
   return incomplete ? `MCP servers: ${parts.join('; ')}` : undefined
 }
 
+/**
+ * Reports what a run does before Pi starts, so a first send is never silent.
+ *
+ * Steps are reported for a Session's first run, and for any later run that had to prepare its
+ * worktree. An ordinary later turn reports nothing: its transcript already shows the run, and a
+ * launch card on every turn flashed the transcript and the sidebar status.
+ */
 export function createWorktreeLaunchReporter(input: AgentKernelRunInput) {
   let didReport = false
   const environment: WorktreeLaunchEnvironment =

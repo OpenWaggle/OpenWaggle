@@ -16,6 +16,7 @@ import type {
 import type {
   McpDirectToolListOptions,
   McpRuntimeConnectionStatus,
+  McpToolCatalogScope,
 } from '../../../ports/mcp-runtime-service'
 import type { McpRemoteTaskStore } from './remote-task-store'
 import type { McpRuntimeConnectionsService } from './runtime-connections'
@@ -89,6 +90,10 @@ export interface McpEventInboxState {
 export interface RuntimeStateContext {
   readonly catalogs: Ref.Ref<Map<string, CatalogCacheEntry>>
   readonly listings: SynchronizedRef.SynchronizedRef<Map<string, ServerListing>>
+  /** Connection keys whose listings must not be remembered; see `forgetToolCatalog`. */
+  readonly forgottenConnections: Ref.Ref<ReadonlySet<string>>
+  /** Config hash each server last failed to connect with, per Session; see `recordConnectFailure`. */
+  readonly connectFailures: Ref.Ref<ReadonlyMap<string, string>>
   readonly handles: Ref.Ref<Map<string, CatalogTool>>
   readonly notices: Ref.Ref<Map<string, McpRuntimeNotice[]>>
   readonly eventSubscriptionCells: Ref.Ref<Map<string, EventSubscriptionCell>>
@@ -149,7 +154,7 @@ export interface McpRuntimeStateService {
   getEventSubscriptions(
     sessionId?: string | null,
   ): Effect.Effect<readonly McpEventSubscriptionState[]>
-  forgetToolCatalog(serverInstanceId: string): Effect.Effect<void>
+  forgetToolCatalog(scope: McpToolCatalogScope): Effect.Effect<void>
   invalidateSessionConnections(sessionId: string): Effect.Effect<void>
   disposeSession(sessionId: string): Effect.Effect<void>
   reconcileIdleConnections(isActive: (runtimeNamespace: string) => boolean): Effect.Effect<void>

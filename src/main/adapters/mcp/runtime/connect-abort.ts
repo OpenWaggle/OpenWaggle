@@ -5,15 +5,18 @@ import { MCP_CONFIG } from '@shared/constants/mcp'
  * Connects a client, unless its slot is closed first.
  *
  * Closing a connection slot aborts its connect so the close does not wait for a slow server to
- * finish starting. Closing the client tears the transport down, which ends a stdio server's
- * process and makes the pending connect reject.
+ * finish starting. The transport is closed as well as the client: while the SDK probes the
+ * protocol version it has not attached the transport to the client yet, so closing the client
+ * alone would do nothing. Closing the transport ends a stdio server's process and makes the
+ * pending connect reject.
  */
 export async function connectUnlessAborted(
   client: Client,
   transport: Transport,
   signal: AbortSignal | undefined,
 ) {
-  const closeClient = () => client.close().catch(() => undefined)
+  const closeClient = () =>
+    Promise.all([transport.close().catch(() => undefined), client.close().catch(() => undefined)])
   if (signal?.aborted) {
     await transport.close().catch(() => undefined)
     throw new Error('MCP connection was cancelled before it started.')

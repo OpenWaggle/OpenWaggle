@@ -1,7 +1,9 @@
-import type { McpTurnSnapshot } from '@shared/types/mcp'
+import type { McpTurnSnapshot, McpTurnSnapshotServer } from '@shared/types/mcp'
 import { Effect, Option } from 'effect'
+import { serverRequestsDirectTools } from '../../../domain/mcp/direct-tool-servers'
 import { type McpRuntimeFailure, McpStaleToolHandle } from '../../../ports/mcp-errors'
 import { findHandle, loadCatalog } from './runtime-catalog'
+import { reportServerUnavailable } from './runtime-notices'
 import { freshServerCatalog, loadServerCatalog } from './runtime-server-listing'
 import type { CatalogTool, RuntimeStateContext } from './runtime-state-types'
 
@@ -31,16 +33,24 @@ export function resolveToolHandle(
     const fresh = yield* freshServerCatalog(ctx, snapshot, server)
     const freshTool = fresh?.find((candidate) => candidate.handle === handle)
     if (freshTool) return freshTool
-    const liveTools = yield* loadServerCatalog(ctx, snapshot, server)
+    // Reported like any listing of the server, so a required server still fails as required.
+    const liveTools = yield* loadServerCatalog(ctx, snapshot, server).pipe(
+      Effect.tapError((error) => reportServerUnavailable(ctx, snapshot, server, error.message)),
+    )
     const live = liveTools.find((candidate) => candidate.handle === handle)
     if (live) return live
     const stillOffered = liveTools.some((candidate) => candidate.tool.name === tool.tool.name)
     return yield* Effect.fail(
-      new McpStaleToolHandle({
-        message: stillOffered
-          ? `The MCP tool ${tool.tool.name} on ${server.name} changed its input schema since this turn saw it. Describe it with the mcp tool for the current schema; the next turn offers it directly.`
-          : `${server.name} no longer offers the MCP tool ${tool.tool.name}. Search or list tools again.`,
-      }),
+      new McpStaleToolHandle({ message: staleToolMessage(tool, server, stillOffered) }),
     )
   })
+}
+
+/** What the model is told when a tool it saw is gone or changed: how to get the current one. */
+function staleToolMessage(tool: CatalogTool, server: McpTurnSnapshotServer, stillOffered: boolean) {
+  const lookUp = 'Search or list tools with the mcp tool to get its current handle and schema.'
+  if (!stillOffered)
+    return `${server.name} no longer offers the MCP tool ${tool.tool.name}. ${lookUp}`
+  const nextTurn = serverRequestsDirectTools(server) ? ' The next turn offers it directly.' : ''
+  return `The MCP tool ${tool.tool.name} on ${server.name} changed its input schema since this turn saw it. ${lookUp}${nextTurn}`
 }

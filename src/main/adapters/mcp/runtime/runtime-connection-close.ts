@@ -12,7 +12,11 @@ export function closeKey(
     Effect.gen(function* () {
       type CloseDecision =
         | { readonly type: 'missing' }
-        | { readonly type: 'waiting'; readonly done: Deferred.Deferred<void> }
+        | {
+            readonly type: 'waiting'
+            readonly done: Deferred.Deferred<void>
+            readonly connecting: boolean
+          }
         | {
             readonly type: 'owner'
             readonly cell: ConnectionCell
@@ -29,7 +33,14 @@ export function closeKey(
             return Effect.succeed([{ type: 'missing' }, current] as const)
           }
           if (existing.type === 'closing') {
-            return Effect.succeed([{ type: 'waiting', done: existing.done }, current] as const)
+            return Effect.succeed([
+              {
+                type: 'waiting',
+                done: existing.done,
+                connecting: existing.cell.connection === undefined,
+              },
+              current,
+            ] as const)
           }
           return Deferred.make<void>().pipe(
             Effect.map(
@@ -43,10 +54,16 @@ export function closeKey(
         },
       )
       if (decision.type === 'missing') return
-      if (decision.type === 'waiting') return yield* restore(Deferred.await(decision.done))
-      // A connect still in progress is cancelled, so the close waits for the cancellation rather
-      // than for a slow server to finish starting.
+      if (decision.type === 'waiting') {
+        // Another close owns the tombstone; one still connecting is not worth waiting out.
+        return decision.connecting ? undefined : yield* restore(Deferred.await(decision.done))
+      }
+      // A connect still in progress is cancelled. The caller waits only for the slot's state to be
+      // released, not for the cancelled connect to settle: lifecycle writers hold the Host-wide
+      // lock while they close, and a slow server must not hold every Session behind it.
       decision.cell.abort.abort()
+      const connecting = decision.cell.connection === undefined
+      const released = yield* Deferred.make<void>()
 
       const finish = SynchronizedRef.update(ctx.cells, (current) => {
         const existing = current.get(key)
@@ -57,6 +74,7 @@ export function closeKey(
       }).pipe(Effect.zipRight(Deferred.succeed(decision.done, undefined)), Effect.asVoid)
 
       const cleanup = ctx.onClose(key).pipe(
+        Effect.ensuring(Deferred.succeed(released, undefined)),
         Effect.zipRight(
           Deferred.await(decision.cell.deferred).pipe(
             Effect.matchCauseEffect({
@@ -68,9 +86,10 @@ export function closeKey(
         ),
         Effect.ensuring(finish),
       )
-      // Keep the tombstone until cleanup settles, even if its caller is cancelled.
+      // Keep the tombstone until cleanup settles, even if its caller is cancelled. A new connect
+      // for the same key still waits for it, so two processes never serve one slot.
       yield* Effect.forkDaemon(cleanup)
-      yield* restore(Deferred.await(decision.done))
+      yield* restore(Deferred.await(connecting ? released : decision.done))
     }),
   )
 }

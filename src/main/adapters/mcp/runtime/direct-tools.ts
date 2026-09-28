@@ -1,17 +1,13 @@
 import { createHash } from 'node:crypto'
 import type { McpDirectToolDescriptor, McpTurnSnapshot } from '@shared/types/mcp'
 import { Effect } from 'effect'
+import { serverOffersToolDirectly } from '../../../domain/mcp/direct-tool-servers'
 import type { McpRuntimeFailure } from '../../../ports/mcp-errors'
 import type { McpDirectToolListOptions } from '../../../ports/mcp-runtime-service'
 import type { CatalogTool, McpRuntimeStateService } from './runtime-state'
 
 const MODEL_TOOL_NAME_MAX_LENGTH = 64
 const IDENTITY_SUFFIX_LENGTH = 8
-
-function requestedDirectTool(tool: CatalogTool) {
-  const selection = tool.server.definition.directTools
-  return selection === true || (Array.isArray(selection) && selection.includes(tool.tool.name))
-}
 
 function slug(value: string) {
   const normalized = value.toLocaleLowerCase().replace(/[^a-z0-9_-]+/g, '_')
@@ -48,7 +44,8 @@ export function listMcpDirectTools(
     Effect.map((catalog) => {
       const descriptors: McpDirectToolDescriptor[] = []
       for (const tool of catalog) {
-        if (requestedDirectTool(tool)) descriptors.push(toDescriptor(tool))
+        if (serverOffersToolDirectly(tool.server, tool.tool.name))
+          descriptors.push(toDescriptor(tool))
       }
       return descriptors
     }),
