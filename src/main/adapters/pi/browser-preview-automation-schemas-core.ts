@@ -3,6 +3,7 @@ import {
   BROWSER_PREVIEW_VIEWPORT_MAX_AREA,
   BROWSER_PREVIEW_VIEWPORT_MAX_DIMENSION,
   BROWSER_PREVIEW_VIEWPORT_MIN_DIMENSION,
+  isValidBrowserPreviewViewportSize,
 } from '@shared/browser-preview-viewports'
 import { BROWSER_PREVIEW_LIMITS } from '@shared/types/browser-preview'
 import {
@@ -140,6 +141,12 @@ export function browserPreviewResizeInput(
     .with('freeform', () => {
       if (width === undefined || height === undefined) {
         throw new Error('preview_resize with mode "freeform" requires both width and height.')
+      }
+      // Checked here too so the user is never asked to approve a size the service rejects.
+      if (!isValidBrowserPreviewViewportSize(width, height)) {
+        throw new Error(
+          `preview_resize with mode "freeform" exceeds the viewport limit: area may not exceed ${String(BROWSER_PREVIEW_VIEWPORT_MAX_AREA)} pixels.`,
+        )
       }
       return { ...target, mode: 'freeform' as const, width, height }
     })
