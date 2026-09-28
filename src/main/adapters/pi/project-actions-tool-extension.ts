@@ -12,8 +12,25 @@ import type { ActionCatalogServiceShape } from '../../ports/action-catalog-servi
 import type { ActionRunServiceShape, ActionRunWorkspace } from '../../ports/action-run-service'
 import type { SessionWorkspaceResourceRepositoryShape } from '../../ports/session-workspace-resource-repository'
 import { getOpenWaggleAuthorize } from './agent-kernel/openwaggle-authorize-channel'
+import { proposeRepair } from './project-actions-repair-proposal'
 
 const identifier = Type.String({ minLength: 1, maxLength: ACTION_DEFINITION_LIMITS.ID_LENGTH })
+/** Proposal text must contain something other than whitespace. */
+const NON_BLANK = '\\S'
+const proposedCommand = Type.String({
+  minLength: 1,
+  maxLength: ACTION_DEFINITION_LIMITS.COMMAND_LENGTH,
+  pattern: NON_BLANK,
+})
+const relativeDirectory = Type.String({
+  minLength: 1,
+  maxLength: ACTION_DEFINITION_LIMITS.PATH_LENGTH,
+})
+const proposalReason = Type.String({
+  minLength: 1,
+  maxLength: ACTION_DEFINITION_LIMITS.REPAIR_REASON_LENGTH,
+  pattern: NON_BLANK,
+})
 const parameterVariants = [
   Type.Object({ action: Type.Literal('list') }),
   Type.Object({ action: Type.Literal('discover') }),
@@ -29,6 +46,13 @@ const parameterVariants = [
     afterOffset: Type.Optional(Type.Integer({ minimum: 0 })),
   }),
   Type.Object({ action: Type.Literal('stop'), runId: identifier }),
+  Type.Object({
+    action: Type.Literal('propose'),
+    actionId: identifier,
+    command: proposedCommand,
+    directory: Type.Optional(relativeDirectory),
+    reason: proposalReason,
+  }),
 ] as const
 type ProjectActionParameters = Static<(typeof parameterVariants)[number]>
 
@@ -42,6 +66,9 @@ const parameters = Type.Unsafe<ProjectActionParameters>({
     restartRunId: Type.Optional(identifier),
     runId: Type.Optional(identifier),
     afterOffset: Type.Optional(Type.Integer({ minimum: 0 })),
+    command: Type.Optional(proposedCommand),
+    directory: Type.Optional(relativeDirectory),
+    reason: Type.Optional(proposalReason),
   },
   required: ['action'],
 })
@@ -180,6 +207,9 @@ async function execute(
     .with({ action: 'start' }, (start) =>
       startAction(input, workspace, start, requestId, ctx, signal),
     )
+    .with({ action: 'propose' }, (propose) =>
+      proposeRepair({ catalog: input.catalog, workspace, proposal: propose }),
+    )
     .with({ action: 'stop' }, async ({ runId }) => {
       await authorize(ctx, 'stop', workspace.workspacePath, runId, signal)
       signal?.throwIfAborted()
@@ -194,7 +224,7 @@ export function createProjectActionsToolExtension(input: ProjectActionToolInput)
       name: 'project_actions',
       label: 'Project Actions',
       description:
-        'List saved project actions and discovered tasks; start, inspect, read output, or stop managed runs in this Session’s Workspace. These are the same executions shown in the Session Hub. Repeated starts reuse the active run unless finite-task concurrency was explicitly enabled. Restart is explicit. Output reads never launch a process.',
+        'List saved project actions and discovered tasks; start, inspect, read output, or stop managed runs in this Session’s Workspace. These are the same executions shown in the Session Hub. Repeated starts reuse the active run unless finite-task concurrency was explicitly enabled. Restart is explicit. Output reads never launch a process. To fix a failing action, use "propose" with its actionId, the replacement command, an optional project-relative directory and a short reason: the user reviews and saves it; nothing is changed or run.',
       parameters,
       executionMode: 'sequential',
       async execute(toolCallId, params, signal, _onUpdate, ctx) {

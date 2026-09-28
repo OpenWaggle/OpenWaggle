@@ -43,7 +43,7 @@ Saving a [Project Action](/docs/configuration/project-actions) does not grant th
 
 Workspace setup and cleanup have a separate local review decision. Saving your own private preparation command enables that version on your machine. Finding a shared definition in `.openwaggle/actions.json` does not enable it, even in YOLO mode.
 
-Use **Review changes** to inspect the command and working directory, then choose **Enable this version** or **Keep disabled**. Changed execution definitions require review again; closing the dialog does not approve them. Review covers the definition, not every script it calls, so inspect repository changes too.
+Use **Check it** to inspect the command and working directory, then choose **Turn on this version** or **Keep it off**. Changed execution definitions require review again; closing the review does not approve them. Review covers the definition, not every script it calls, so inspect repository changes too.
 
 Failed setup pauses the first agent turn in a new worktree. **Continue anyway** bypasses that preparation requirement; it does not mean setup succeeded. Failed cleanup retains the worktree. **Delete anyway** skips cleanup and may leave resources such as temporary databases behind.
 

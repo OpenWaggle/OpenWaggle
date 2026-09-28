@@ -4,8 +4,10 @@ import type {
   ActionDefinition,
   EffectiveDefinition,
 } from '@shared/types/action-definitions'
+import { cn } from '@/shared/lib/cn'
 import { Button } from '@/shared/ui/Button'
 import { StructuredPayload } from '@/shared/ui/StructuredPayload'
+import { RUN_BEHAVIOUR_COPY } from '../lib/action-panel-copy'
 import { actionInvocationLabel, actionSourceLabels } from '../lib/native-action-display'
 import { ProjectActionGlyph } from './ProjectActionGlyph'
 
@@ -14,16 +16,24 @@ export function NativeActionSettingsRow({
   busy,
   onEdit,
   unavailable,
+  status,
   apply,
 }: {
   readonly entry: EffectiveDefinition<ActionDefinition>
   readonly busy: boolean
   readonly unavailable?: string
+  /** A same-named action exists; or this row was just saved from the action panel. */
+  readonly status: { readonly duplicate: boolean; readonly highlighted: boolean }
   readonly onEdit: () => void
   readonly apply: (edit: ActionCatalogEdit) => Promise<void>
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-3 border-b border-border px-4 py-4 last:border-0">
+    <div
+      className={cn(
+        'flex flex-wrap items-center gap-3 border-b border-border px-4 py-4 transition-colors duration-700 last:border-0',
+        status.highlighted && 'bg-accent/8',
+      )}
+    >
       <div className="flex size-9 items-center justify-center rounded-lg bg-bg-hover text-text-secondary">
         <ProjectActionGlyph icon={entry.definition.icon} className="size-4" />
       </div>
@@ -31,12 +41,23 @@ export function NativeActionSettingsRow({
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
           <h3 className="text-sm font-medium text-text-primary">{entry.definition.name}</h3>
           <span className="text-xs text-text-tertiary">{actionSourceLabels[entry.source]}</span>
+          <span className="text-xs text-text-tertiary">
+            {RUN_BEHAVIOUR_COPY[entry.definition.kind].label}
+          </span>
         </div>
         <p className="mt-1 truncate font-mono text-xs text-text-tertiary">
           {actionInvocationLabel(entry.definition.invocation)}
         </p>
       </div>
       {unavailable ? <p className="w-full text-xs text-error-text">{unavailable}</p> : null}
+      {status.duplicate ? (
+        <p className="w-full pl-12 text-xs text-warning">
+          Two actions are called {entry.definition.name}.{' '}
+          <Button variant="link" size="none" className="inline text-xs" onClick={() => onEdit()}>
+            Rename
+          </Button>
+        </p>
+      ) : null}
       <Button variant="secondary" onClick={() => onEdit()}>
         Edit
       </Button>

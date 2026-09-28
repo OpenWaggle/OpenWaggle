@@ -1,9 +1,10 @@
 import type { WorkspacePreparation } from '@shared/types/workspace-preparation'
-import { useState } from 'react'
+import { useEffect, useEffectEvent, useRef } from 'react'
 import { Button } from '@/shared/ui/Button'
 import { PlainTextBlock } from '@/shared/ui/PlainTextBlock'
+import { useNativeActions } from '../hooks/useNativeActions'
 import { useWorkspacePreparation } from '../hooks/useWorkspacePreparation'
-import { PreparationReviewDialog } from './PreparationReviewDialog'
+import { useActionPanelStore } from '../state/action-panel-store'
 
 function cleanupAlertMessage(preparation: WorkspacePreparation, generationMismatch: boolean) {
   if (generationMismatch)
@@ -24,7 +25,10 @@ export function WorkspaceCleanupFailure(props: {
   readonly onDeleteAnyway: () => void
   readonly onForceRemove: () => void
 }) {
-  const [closedReview, setClosedReview] = useState(false)
+  const openedReview = useRef(false)
+  // Settings reads the catalog with a project-only scope; share that key (a session-scoped read
+  // would fail once the worktree's session is released).
+  const catalog = useNativeActions({ projectPath: props.projectPath })
   const state = useWorkspacePreparation({
     projectPath: props.projectPath,
     workspaceId: props.initial.workspaceId,
@@ -38,6 +42,35 @@ export function WorkspaceCleanupFailure(props: {
         (entry) => entry.definition.phase === 'cleanup' && entry.review === 'required',
       )
   const busy = props.busy || state.mutation.isPending
+  function openReview(automatic: boolean) {
+    if (!required) return
+    const definitionId = required.definition.id
+    useActionPanelStore.getState().openPanel({
+      kind: 'review',
+      projectPath: props.projectPath,
+      review: {
+        entry: required,
+        profileName: preparation.snapshot.profile.name,
+        showProfile: (catalog.data?.profiles.length ?? 0) > 1,
+        automatic,
+        decide: (enabled) =>
+          state.mutation.mutateAsync({
+            type: 'review-snapshot',
+            definitionId,
+            enabled,
+            expectedRevision: preparation.revision,
+          }),
+      },
+    })
+  }
+  // Removal waiting on a changed shared cleanup opens the review by itself, once (ADR 0038).
+  const openAutomaticReview = useEffectEvent(() => openReview(true))
+  const needsReview = required !== undefined
+  useEffect(() => {
+    if (!needsReview || openedReview.current) return
+    openedReview.current = true
+    openAutomaticReview()
+  }, [needsReview])
   return (
     <div className="space-y-3 border-t border-border p-4">
       {preparation.catalogError ? (
@@ -62,8 +95,8 @@ export function WorkspaceCleanupFailure(props: {
       ) : null}
       <div className="flex flex-wrap gap-2">
         {props.generationMismatch ? null : required ? (
-          <Button disabled={busy} onClick={() => setClosedReview(false)}>
-            Review changes
+          <Button disabled={busy} onClick={() => openReview(false)}>
+            Check the cleanup
           </Button>
         ) : (
           <Button disabled={busy} onClick={props.onRetry}>
@@ -90,26 +123,6 @@ export function WorkspaceCleanupFailure(props: {
           </Button>
         </details>
       </div>
-      {required && !closedReview ? (
-        <PreparationReviewDialog
-          entry={required}
-          currentProfileName={preparation.snapshot.profile.name}
-          busy={busy}
-          error={state.mutation.error?.message}
-          onClose={() => setClosedReview(true)}
-          onDecide={(enabled) => {
-            void state.mutation
-              .mutateAsync({
-                type: 'review-snapshot',
-                definitionId: required.definition.id,
-                enabled,
-                expectedRevision: preparation.revision,
-              })
-              .then(() => setClosedReview(true))
-              .catch(() => {})
-          }}
-        />
-      ) : null}
       {state.mutation.error ? (
         <p role="alert" className="text-xs text-error-text">
           {state.mutation.error.message}

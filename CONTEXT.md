@@ -1911,8 +1911,10 @@ _Avoid_: search (it narrows in place rather than producing results), sidebar vie
 - An overridden definition appears once as the effective definition, labelled Locally overridden; removing the override restores the shared version.
 - Shared **Workspace setup** and **Workspace cleanup** require explicit **Workspace automation enablement** before automatic execution; discovering their definitions does not enable them.
 - **Workspace automation enablement** covers the reviewed execution definition; changes to its command or execution settings require renewed review, while cosmetic changes do not.
+- Saving a shared **Workspace setup** or **Workspace cleanup** records **Workspace automation enablement** for the saving user's exact execution definition; other users still review it before it runs for them.
 - Pending automation review visibly explains why workspace preparation or removal is paused and exposes the changed definition for review.
 - Automation review opens automatically when a changed definition blocks workspace preparation or removal; dismissing it does not enable that definition.
+- Each **Project action** name is unique within its project, ignoring letter case; a **Local definition override** is the same effective action, not a second name.
 - A **Project action** owns zero or more **Project action bindings**; a project resolves them as one ordered stack.
 - A **Project action run** executes one **Project action** in a specific **Workspace resource**.
 - A **Project action** defaults to one active **Project action run** per **Workspace resource**; finite tasks may explicitly allow concurrent runs, each with its own status and output.
@@ -1927,6 +1929,7 @@ _Avoid_: search (it narrows in place rather than producing results), sidebar vie
 - A development-server **Project action run** supplies an **Action preview target** through output detection or a manual URL override; automatic opening respects the action's preference and waits for readiness.
 - A **Project action binding** may intentionally override another active binding, while a **Shortcut registry** entry remains conflict-free.
 - A **Project action candidate** becomes a **Project action** only after the user explicitly saves it; discovery never grants command-execution authority.
+- A project has at most one **Project action draft**, whether it composes a new Project action or changes an existing one; leaving its editor keeps the draft, and only saving or explicitly discarding it ends the draft.
 - A **Project action candidate** comes from task definitions in the selected project's files and retains its source, task name, runner, and working directory.
 - **Project action candidates** include root and workspace-package tasks, grouped by package; their working directories resolve within the **Workspace resource** where they run.
 - Saving a **Project action candidate** creates a **Project task reference** that follows the named task's definition in the current workspace; a missing task makes the action unavailable.
@@ -2387,7 +2390,7 @@ _Avoid_: Run (an agent execution), terminal (the output surface is not the execu
 
 **Long-running action**:
 A Project action intended to provide an ongoing process, such as a development server, within a Workspace resource.
-_Avoid_: setup action (preparation must finish), background task (ambiguous with agent work)
+_Avoid_: setup action (preparation must finish), background task (ambiguous with agent work), service (a former interface label; users see "keeps running until you stop it")
 
 **Action preview target**:
 The detected or explicitly configured URL associated with a development-server Project action run for opening a Browser preview.
@@ -2420,6 +2423,10 @@ _Avoid_: repository snapshot (it does not freeze source files), current profile 
 **Project action candidate**:
 A declared task discovered in the selected project's supported task-definition files that the user has not yet saved as a Project action.
 _Avoid_: project action (it is only a candidate), auto-imported script, checked-in action candidate (discovery does not imply version-control status)
+
+**Project action draft**:
+An unsaved Project action, or unsaved changes to one, that a user is composing for a project. It is kept privately on the user's device, survives leaving the editor and restarting the app, and ends only when the user saves or explicitly discards it. It never runs and is never shared.
+_Avoid_: Project action candidate (a candidate is a discovered task, not the user's composition), unsaved action (does not say it outlives the editor)
 
 **Command repair proposal**:
 An agent-produced replacement for an incompatible configured command that the user can review and save.

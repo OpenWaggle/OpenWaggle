@@ -11,6 +11,7 @@ import { useMediaQuery } from '@/shared/hooks/useMediaQuery'
 import { api } from '@/shared/lib/ipc'
 import { useRightSidebarCoordinator } from '@/shared/lib/right-sidebar-coordinator'
 import { RightSidebarLayout } from '@/shared/ui/RightSidebarLayout'
+import { WORKSPACE_SIDE_PANEL_SIZING } from '@/shared/ui/right-sidebar-sizing-presets'
 import { useUIStore } from './ui-store'
 import { useBrowserPreviewOwnerRegistration } from './useBrowserPreviewOwnerRegistration'
 import { WorkspacePanelContent } from './WorkspacePanelContent'
@@ -24,11 +25,7 @@ import {
   type WorkspacePanelSurface,
 } from './workspace-panel-store'
 
-const SIDE_PANEL_DEFAULT_WIDTH = 520
-const SIDE_PANEL_MIN_WIDTH = 320
-const SIDE_PANEL_MAX_WIDTH = 900
-const SIDE_PANEL_MAIN_MIN_WIDTH = 420
-const SIDE_PANEL_SHEET_BREAKPOINT_PX = 980
+const SIDE_PANEL_SHEET_BREAKPOINT_PX = WORKSPACE_SIDE_PANEL_SIZING.sheetBreakpointPx
 const SIDE_PANEL_STORAGE_KEY = 'openwaggle:workspace-side-panel-width'
 
 interface WorkspaceRightPanelProps {
@@ -64,14 +61,7 @@ export function WorkspaceRightPanel({ children }: WorkspaceRightPanelProps) {
     <RightSidebarLayout
       maximized={panel.maximized}
       open={panel.activeSurface !== null}
-      sizing={{
-        defaultWidth: SIDE_PANEL_DEFAULT_WIDTH,
-        mainMinWidth: SIDE_PANEL_MAIN_MIN_WIDTH,
-        maxWidth: SIDE_PANEL_MAX_WIDTH,
-        minWidth: SIDE_PANEL_MIN_WIDTH,
-        sheetBreakpointPx: SIDE_PANEL_SHEET_BREAKPOINT_PX,
-        storageKey: SIDE_PANEL_STORAGE_KEY,
-      }}
+      sizing={{ ...WORKSPACE_SIDE_PANEL_SIZING, storageKey: SIDE_PANEL_STORAGE_KEY }}
       sidebar={
         <div className="flex size-full min-h-0 flex-col" data-testid="workspace-right-panel">
           <WorkspaceSurfaceTabs
