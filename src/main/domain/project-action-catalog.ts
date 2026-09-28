@@ -18,6 +18,7 @@ import {
   reviewedProfile,
   reviewProfileContext,
 } from './preparation-review-context'
+import { assertUniqueActionName } from './project-action-names'
 
 export { preparationExecutionKey } from './preparation-review-context'
 
@@ -215,6 +216,7 @@ export function editActionCatalog(
       shared,
     }
   }
+  if (edit.type === 'save-action') assertUniqueActionName(document, shared, edit.definition)
   const target = edit.storage === 'local' ? document.manifest : shared
   const next = match(edit)
     .with({ type: 'save-action' }, ({ definition }) => ({
@@ -265,8 +267,9 @@ export function editActionCatalog(
       },
     }
   }
-  // Saving a personal preparation enables precisely this execution, without trusting later shared edits.
-  if (edit.type === 'save-preparation' && edit.storage === 'local') {
+  // Saving a preparation counts as the saver's review of precisely this execution (ADR 0038), in
+  // either storage. It never trusts later edits, and other users still review shared definitions.
+  if (edit.type === 'save-preparation') {
     const definition = edit.definition
     nextDocument = {
       ...nextDocument,
