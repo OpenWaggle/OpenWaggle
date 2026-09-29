@@ -16,20 +16,22 @@ const EMOJI_WITH_ATTACHMENT_LENGTH = 2
 
 /**
  * Characters that render as nothing or change how their neighbours render: zero-width and
- * joiner characters, fillers, variation selectors, tag characters, and the bidirectional
- * marks, embeddings, and isolates (the Arabic letter mark and all bidi controls are included).
+ * joiner characters, fillers, variation selectors, tag characters, bidi marks, other format
+ * characters, and the line and paragraph separators.
  */
-const DEFAULT_IGNORABLE = /^[\p{Default_Ignorable_Code_Point}\u061c]$/u
+const INVISIBLE = /^[\p{Default_Ignorable_Code_Point}\p{Cf}\p{Zl}\p{Zp}]$/u
 const BIDI_CONTROL = /^\p{Bidi_Control}$/u
+const EMOJI = /^\p{Emoji}$/u
 const EMOJI_PICTOGRAPH = /^\p{Extended_Pictographic}$/u
 const EMOJI_MODIFIER = /^\p{Emoji_Modifier}$/u
-/** The variation selectors that pick a text or emoji glyph for the character before them. */
-const GLYPH_VARIATION_SELECTOR = /^[\ufe00-\ufe0f]$/u
-/**
- * A complete subdivision flag, such as Scotland's: the black flag, a region and subdivision
- * code (three to six lowercase letters or digits) spelled in tag characters, and the cancel tag. Any other tag character is shown escaped.
- */
-const SUBDIVISION_FLAG = /\u{1f3f4}[\u{e0030}-\u{e0039}\u{e0061}-\u{e007a}]{3,6}\u{e007f}/gu
+/** The selectors that pick the text or the emoji glyph of the emoji before them. */
+const EMOJI_PRESENTATION_SELECTOR = /^[\ufe0e\ufe0f]$/u
+/** A letter or mark of a script that joins letters with ZWJ/ZWNJ, such as Persian or Hindi. */
+const JOINING_SCRIPT_LETTER = /^(?![\p{Script=Latin}\p{Script=Common}])[\p{L}\p{M}]$/u
+const ZERO_WIDTH_NON_JOINER = '\u200c'
+/** The subdivision flags Unicode recommends: England, Scotland, and Wales. */
+const SUBDIVISION_FLAG =
+  /\u{1f3f4}(?:\u{e0067}\u{e0062}\u{e0065}\u{e006e}\u{e0067}|\u{e0067}\u{e0062}\u{e0073}\u{e0063}\u{e0074}|\u{e0067}\u{e0062}\u{e0077}\u{e006c}\u{e0073})\u{e007f}/gu
 
 function isControl(code: number) {
   if (code === TAB || code === LINE_FEED) return false
@@ -45,35 +47,38 @@ function visibleEscape(code: number) {
     : `\\u${hex.padStart(CODE_UNIT_HEX_DIGITS, '0')}`
 }
 
-/** The emoji a joiner or modifier attaches to, skipping one glyph selector or modifier. */
+/** The emoji a joiner attaches to, skipping one presentation selector or skin-tone modifier. */
 function emojiBefore(characters: readonly string[], index: number) {
   const previous = characters[index - 1] ?? ''
-  const attached = GLYPH_VARIATION_SELECTOR.test(previous) || EMOJI_MODIFIER.test(previous)
+  const attached = EMOJI_PRESENTATION_SELECTOR.test(previous) || EMOJI_MODIFIER.test(previous)
   const base = attached ? (characters[index - EMOJI_WITH_ATTACHMENT_LENGTH] ?? '') : previous
   return EMOJI_PICTOGRAPH.test(base)
 }
 
 /**
- * Whether an ignorable character is doing its visible job: a zero-width joiner between two
- * emoji (as in a family emoji), or one glyph selector right after a visible character (as in
- * a red heart). Anything else could hide data inside an approval line.
+ * Whether an invisible character is doing its visible job: a zero-width joiner between two
+ * emoji (as in a family emoji), a joiner or non-joiner inside a word of a script that uses
+ * them, or one presentation selector right after an emoji (as in a red heart or a keycap).
+ * Anything else could hide data inside an approval line.
  */
 function isRenderingJoin(characters: readonly string[], index: number) {
   const character = characters[index] ?? ''
-  if (character === ZERO_WIDTH_JOINER) {
-    return emojiBefore(characters, index) && EMOJI_PICTOGRAPH.test(characters[index + 1] ?? '')
-  }
-  if (!GLYPH_VARIATION_SELECTOR.test(character)) return false
   const previous = characters[index - 1] ?? ''
-  return (
-    previous !== '' && !DEFAULT_IGNORABLE.test(previous) && !isControl(previous.codePointAt(0) ?? 0)
-  )
+  const next = characters[index + 1] ?? ''
+  if (character === ZERO_WIDTH_JOINER || character === ZERO_WIDTH_NON_JOINER) {
+    const joinsEmoji =
+      character === ZERO_WIDTH_JOINER &&
+      emojiBefore(characters, index) &&
+      EMOJI_PICTOGRAPH.test(next)
+    return joinsEmoji || (JOINING_SCRIPT_LETTER.test(previous) && JOINING_SCRIPT_LETTER.test(next))
+  }
+  return EMOJI_PRESENTATION_SELECTOR.test(character) && EMOJI.test(previous)
 }
 
 function isHidden(characters: readonly string[], index: number) {
   const character = characters[index] ?? ''
   if (BIDI_CONTROL.test(character)) return true
-  return DEFAULT_IGNORABLE.test(character) && !isRenderingJoin(characters, index)
+  return INVISIBLE.test(character) && !isRenderingJoin(characters, index)
 }
 
 function sanitizeSegment(text: string) {

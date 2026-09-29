@@ -1,5 +1,7 @@
 import { sanitizeTerminalText } from './terminal-text'
 
+const GRAPHEME_SEGMENTER = new Intl.Segmenter(undefined, { granularity: 'grapheme' })
+
 export interface RunCliOutputSinks {
   readonly writeStdout: (text: string) => Promise<void>
   readonly writeStderr: (text: string) => void
@@ -20,7 +22,7 @@ export class RunCliOutput {
     private readonly onStdoutFailure: (error: unknown) => void,
   ) {}
 
-  private heldCarriageReturn = false
+  private heldGrapheme = ''
 
   private enqueue(write: () => Promise<void> | void) {
     this.queue = this.queue.then(write)
@@ -32,11 +34,15 @@ export class RunCliOutput {
       this.stdout(text)
       return
     }
-    // A CRLF split across two deltas is still one line break, so a trailing CR waits for
-    // the next delta.
-    const joined = `${this.heldCarriageReturn ? '\r' : ''}${text}`
-    this.heldCarriageReturn = joined.endsWith('\r')
-    this.stdout(sanitizeTerminalText(this.heldCarriageReturn ? joined.slice(0, -1) : joined))
+    // An emoji, a flag, or a CRLF split across two deltas is still one character to the
+    // terminal, so the last grapheme waits for the next delta unless it ends the line.
+    const graphemes = [...GRAPHEME_SEGMENTER.segment(`${this.heldGrapheme}${text}`)].map(
+      (part) => part.segment,
+    )
+    const last = graphemes.at(-1) ?? ''
+    this.heldGrapheme = last.endsWith('\n') ? '' : last
+    const complete = this.heldGrapheme === '' ? graphemes : graphemes.slice(0, -1)
+    if (complete.length > 0) this.stdout(sanitizeTerminalText(complete.join('')))
   }
 
   /** Machine output that is already safely encoded, such as JSON lines. */

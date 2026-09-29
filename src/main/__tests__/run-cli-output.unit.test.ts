@@ -29,7 +29,25 @@ describe('terminal text sanitizing', () => {
       'after flag \u{1f3f4}\u{e0067}\u{e0062}\u{e0073}\u{e0063}\u{e0074}\u{e007f}\\u{e0063}',
     ],
     ['fillers \u3164\u034f\u{e0100}', 'fillers \\u3164\\u034f\\u{e0100}'],
-    ['selectors ls\ufe00\ufe01\ufe0e -la', 'selectors ls\ufe00\\ufe01\\ufe0e -la'],
+    ['selectors ls\ufe00\ufe01\ufe0e -la', 'selectors ls\\ufe00\\ufe01\\ufe0e -la'],
+    ['separators ls\u2028\u2029\ufff9-la', 'separators ls\\u2028\\u2029\\ufff9-la'],
+    ['arabic format \u0600\u06dd', 'arabic format \\u0600\\u06dd'],
+    ['keycaps 1\ufe0f\u20e3 #\ufe0f\u20e3', 'keycaps 1\ufe0f\u20e3 #\ufe0f\u20e3'],
+    ['eye \u{1f441}\ufe0f\u200d\u{1f5e8}\ufe0f', 'eye \u{1f441}\ufe0f\u200d\u{1f5e8}\ufe0f'],
+    [
+      'persian \u0645\u06cc\u200c\u062e\u0648\u0627\u0647\u0645',
+      'persian \u0645\u06cc\u200c\u062e\u0648\u0627\u0647\u0645',
+    ],
+    ['hindi \u0915\u094d\u200d\u0937', 'hindi \u0915\u094d\u200d\u0937'],
+    ['latin non-joiner a\u200cb', 'latin non-joiner a\\u200cb'],
+    [
+      'fake flag \u{1f3f4}\u{e0078}\u{e0078}\u{e0078}\u{e0078}\u{e0078}\u{e0078}\u{e007f}',
+      'fake flag \u{1f3f4}\\u{e0078}\\u{e0078}\\u{e0078}\\u{e0078}\\u{e0078}\\u{e0078}\\u{e007f}',
+    ],
+    [
+      'us japan \u{1f1fa}\u{1f1f8}\u{1f1ef}\u{1f1f5}',
+      'us japan \u{1f1fa}\u{1f1f8}\u{1f1ef}\u{1f1f5}',
+    ],
     ['joiners ls\u200d\ufe0f\u200d -la', 'joiners ls\\u200d\\ufe0f\\u200d -la'],
     ['mongolian \u180b khmer \u17b4 \u206a', 'mongolian \\u180b khmer \\u17b4 \\u206a'],
     ['heart fire \u2764\ufe0f\u200d\u{1f525}', 'heart fire \u2764\ufe0f\u200d\u{1f525}'],
@@ -80,9 +98,10 @@ describe('run output queue', () => {
     new RunCliOutput({ ...sinks, stdoutIsTerminal: false }, () => undefined).reply('\u001b[1mb')
     const terminal = new RunCliOutput({ ...sinks, stdoutIsTerminal: true }, () => undefined)
     terminal.reply('\u001b[1mb')
+    terminal.reply('\n')
     await terminal.flushed()
 
-    expect(written).toEqual(['\u001b[1mb', '\\x1b[1mb'])
+    expect(written.join('')).toBe('\u001b[1mb\\x1b[1mb\n')
   })
 
   it('keeps a CRLF split across two reply deltas as one line break', async () => {
@@ -99,9 +118,34 @@ describe('run output queue', () => {
     )
     output.reply('a\r')
     output.reply('\nb')
+    output.reply('\n')
     await output.flushed()
 
-    expect(written.join('')).toBe('a\nb')
+    expect(written.join('')).toBe('a\nb\n')
+  })
+
+  it.each([
+    [['\u2764', '\ufe0f ok']],
+    [['\u{1f468}', '\u200d\u{1f469}']],
+    [['1', '\ufe0f\u20e3']],
+    [['\u{1f3f4}\u{e0067}\u{e0062}', '\u{e0073}\u{e0063}\u{e0074}\u{e007f}']],
+  ])('keeps an emoji split across reply deltas whole: %j', async (deltas) => {
+    const written: string[] = []
+    const output = new RunCliOutput(
+      {
+        writeStdout: async (text) => {
+          written.push(text)
+        },
+        writeStderr: () => undefined,
+        stdoutIsTerminal: true,
+      },
+      () => undefined,
+    )
+    for (const delta of deltas) output.reply(delta)
+    output.reply('\n')
+    await output.flushed()
+
+    expect(written.join('')).toBe(`${deltas.join('')}\n`)
   })
 
   it('reports the first stdout failure once and stops writing', async () => {
