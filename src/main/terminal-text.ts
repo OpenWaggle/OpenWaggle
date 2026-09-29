@@ -26,8 +26,15 @@ const EMOJI_PICTOGRAPH = /^\p{Extended_Pictographic}$/u
 const EMOJI_MODIFIER = /^\p{Emoji_Modifier}$/u
 /** The selectors that pick the text or the emoji glyph of the emoji before them. */
 const EMOJI_PRESENTATION_SELECTOR = /^[\ufe0e\ufe0f]$/u
-/** A letter or mark of a script that joins letters with ZWJ/ZWNJ, such as Persian or Hindi. */
-const JOINING_SCRIPT_LETTER = /^(?![\p{Script=Latin}\p{Script=Common}])[\p{L}\p{M}]$/u
+/**
+ * A letter or mark of a script whose words use ZWJ/ZWNJ to control joining or conjuncts:
+ * Arabic, Syriac, N'Ko, Mongolian, and the Indic scripts.
+ */
+const JOINING_SCRIPT_LETTER =
+  /^(?=[\p{L}\p{M}])[\p{scx=Arab}\p{scx=Syrc}\p{scx=Nkoo}\p{scx=Mong}\p{scx=Deva}\p{scx=Beng}\p{scx=Guru}\p{scx=Gujr}\p{scx=Orya}\p{scx=Taml}\p{scx=Telu}\p{scx=Knda}\p{scx=Mlym}\p{scx=Sinh}]$/u
+/** Digits, `#`, and `*` are emoji only as keycaps, with a selector and the keycap mark. */
+const KEYCAP_BASE = /^[0-9#*]$/u
+const COMBINING_KEYCAP = '\u20e3'
 const ZERO_WIDTH_NON_JOINER = '\u200c'
 /** The subdivision flags Unicode recommends: England, Scotland, and Wales. */
 const SUBDIVISION_FLAG =
@@ -72,7 +79,8 @@ function isRenderingJoin(characters: readonly string[], index: number) {
       EMOJI_PICTOGRAPH.test(next)
     return joinsEmoji || (JOINING_SCRIPT_LETTER.test(previous) && JOINING_SCRIPT_LETTER.test(next))
   }
-  return EMOJI_PRESENTATION_SELECTOR.test(character) && EMOJI.test(previous)
+  if (!EMOJI_PRESENTATION_SELECTOR.test(character)) return false
+  return KEYCAP_BASE.test(previous) ? next === COMBINING_KEYCAP : EMOJI.test(previous)
 }
 
 function isHidden(characters: readonly string[], index: number) {
@@ -81,10 +89,12 @@ function isHidden(characters: readonly string[], index: number) {
   return INVISIBLE.test(character) && !isRenderingJoin(characters, index)
 }
 
-function sanitizeSegment(text: string) {
-  const characters = [...text]
+/** `following` is text that comes next; it informs neighbour checks but is not written. */
+function sanitizeSegment(text: string, following: string) {
+  const own = [...text]
+  const characters = [...own, ...following]
   let result = ''
-  for (const [index, character] of characters.entries()) {
+  for (const [index, character] of own.entries()) {
     const code = character.codePointAt(0) ?? 0
     if (code === CARRIAGE_RETURN && characters[index + 1] === '\n') continue
     const escaped = isControl(code) || isHidden(characters, index)
@@ -98,14 +108,15 @@ function sanitizeSegment(text: string) {
  * and invisible characters are written out visibly rather than interpreted or deleted: an
  * approval message could otherwise move the cursor, rewrite the line being approved, reorder
  * its text, or hide part of a command. Line breaks and tabs are kept, CRLF becomes LF, and
- * emoji (including joined sequences and subdivision flags) print as emoji.
+ * emoji (including joined sequences and subdivision flags) print as emoji. Pass the text
+ * that follows, when it is known, so a joiner at the end is judged by its real neighbour.
  */
-export function sanitizeTerminalText(text: string) {
+export function sanitizeTerminalText(text: string, following = '') {
   let result = ''
   let start = 0
   for (const flag of text.matchAll(SUBDIVISION_FLAG)) {
-    result += sanitizeSegment(text.slice(start, flag.index)) + flag[0]
+    result += sanitizeSegment(text.slice(start, flag.index), flag[0]) + flag[0]
     start = flag.index + flag[0].length
   }
-  return result + sanitizeSegment(text.slice(start))
+  return result + sanitizeSegment(text.slice(start), following)
 }

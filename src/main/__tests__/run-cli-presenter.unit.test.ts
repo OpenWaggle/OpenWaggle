@@ -1,5 +1,6 @@
 import { SupportedModelId } from '@shared/types/brand'
 import { describe, expect, it } from 'vitest'
+import { RunCliOutput } from '../run-cli-output'
 import { RunCliPresenter, summarizeToolArguments } from '../run-cli-presenter'
 
 function presenter() {
@@ -92,5 +93,44 @@ describe('run CLI presenter', () => {
     expect(stderr.join('')).toBe(
       'openwaggle: worktree setup failed: branch exists\nopenwaggle: error: rate limited\n',
     )
+  })
+})
+
+describe('run CLI presenter on a terminal', () => {
+  it('writes a held emoji before a progress note that interrupts the reply line', async () => {
+    const combined: string[] = []
+    const output = new RunCliOutput(
+      {
+        writeStdout: async (text) => {
+          combined.push(`out:${text}`)
+        },
+        writeStderr: (text) => combined.push(`err:${text}`),
+        stdoutIsTerminal: true,
+      },
+      () => undefined,
+    )
+    const instance = new RunCliPresenter({
+      reply: (text) => output.reply(text),
+      stderr: (text) => output.stderr(text),
+    })
+    const update = (delta: string) =>
+      instance.present({
+        kind: 'session-transport',
+        sessionId: 's',
+        event: {
+          type: 'message_update',
+          timestamp: 1,
+          messageId: 'm',
+          role: 'assistant',
+          assistantMessageEvent: { type: 'text_delta', contentIndex: 0, delta },
+        },
+      })
+
+    update('Done \u2764')
+    update('\ufe0f')
+    instance.status('retrying')
+    await output.flushed()
+
+    expect(combined.join('')).toBe('out:Done out:\u2764\ufe0f\nerr:openwaggle: retrying\n')
   })
 })

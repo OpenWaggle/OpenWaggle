@@ -1,6 +1,8 @@
 import { sanitizeTerminalText } from './terminal-text'
 
 const GRAPHEME_SEGMENTER = new Intl.Segmenter(undefined, { granularity: 'grapheme' })
+/** Longer than any real emoji sequence; a longer cluster is written out rather than held. */
+const MAX_HELD_GRAPHEME_LENGTH = 64
 
 export interface RunCliOutputSinks {
   readonly writeStdout: (text: string) => Promise<void>
@@ -40,9 +42,13 @@ export class RunCliOutput {
       (part) => part.segment,
     )
     const last = graphemes.at(-1) ?? ''
-    this.heldGrapheme = last.endsWith('\n') ? '' : last
-    const complete = this.heldGrapheme === '' ? graphemes : graphemes.slice(0, -1)
-    if (complete.length > 0) this.stdout(sanitizeTerminalText(complete.join('')))
+    // A grapheme can grow without end (combining marks); past a bound it is written anyway.
+    const holds = !last.endsWith('\n') && last.length <= MAX_HELD_GRAPHEME_LENGTH
+    this.heldGrapheme = holds ? last : ''
+    const complete = holds ? graphemes.slice(0, -1) : graphemes
+    if (complete.length > 0) {
+      this.stdout(sanitizeTerminalText(complete.join(''), this.heldGrapheme))
+    }
   }
 
   /** Machine output that is already safely encoded, such as JSON lines. */

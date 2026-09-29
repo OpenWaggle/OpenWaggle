@@ -41,6 +41,11 @@ describe('terminal text sanitizing', () => {
     ['hindi \u0915\u094d\u200d\u0937', 'hindi \u0915\u094d\u200d\u0937'],
     ['latin non-joiner a\u200cb', 'latin non-joiner a\\u200cb'],
     [
+      'cyrillic and han \u0444\u200c\u0444 \u6587\u200c\u4ef6',
+      'cyrillic and han \u0444\\u200c\u0444 \u6587\\u200c\u4ef6',
+    ],
+    ['digit selector 1\ufe0f 1\ufe0e', 'digit selector 1\\ufe0f 1\\ufe0e'],
+    [
       'fake flag \u{1f3f4}\u{e0078}\u{e0078}\u{e0078}\u{e0078}\u{e0078}\u{e0078}\u{e007f}',
       'fake flag \u{1f3f4}\\u{e0078}\\u{e0078}\\u{e0078}\\u{e0078}\\u{e0078}\\u{e0078}\\u{e007f}',
     ],
@@ -129,6 +134,8 @@ describe('run output queue', () => {
     [['\u{1f468}', '\u200d\u{1f469}']],
     [['1', '\ufe0f\u20e3']],
     [['\u{1f3f4}\u{e0067}\u{e0062}', '\u{e0073}\u{e0063}\u{e0074}\u{e007f}']],
+    [['\u0645\u06cc\u200c\u062e', '\u0648\u0627\u0647\u0645']],
+    [['\u0915\u094d\u200c\u0937']],
   ])('keeps an emoji split across reply deltas whole: %j', async (deltas) => {
     const written: string[] = []
     const output = new RunCliOutput(
@@ -146,6 +153,24 @@ describe('run output queue', () => {
     await output.flushed()
 
     expect(written.join('')).toBe(`${deltas.join('')}\n`)
+  })
+
+  it('writes out a grapheme that keeps growing instead of holding it forever', async () => {
+    const written: string[] = []
+    const output = new RunCliOutput(
+      {
+        writeStdout: async (text) => {
+          written.push(text)
+        },
+        writeStderr: () => undefined,
+        stdoutIsTerminal: true,
+      },
+      () => undefined,
+    )
+    output.reply(`a${'\u0301'.repeat(100)}`)
+    await output.flushed()
+
+    expect(written.join('')).toBe(`a${'\u0301'.repeat(100)}`)
   })
 
   it('reports the first stdout failure once and stops writing', async () => {
