@@ -200,6 +200,32 @@ describe('update restart policy', () => {
     expect(dependencies.install).toHaveBeenCalledOnce()
   })
 
+  it('runs one install when the idle wait and Restart now reach it together', async () => {
+    let state: UpdateRestartState = 'pending'
+    const { controller, dependencies } = harness({
+      activeRuns: [0],
+      choice: 'when-idle',
+      state: () => state,
+    })
+    let finishInstall: () => void = () => undefined
+    dependencies.install.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          finishInstall = resolve
+        }),
+    )
+    dependencies.countActiveRuns.mockResolvedValueOnce(1)
+    state = 'installable'
+    await controller.requestRestart()
+    const restarting = controller.restartNow()
+    await settle()
+    finishInstall()
+    await restarting
+    await settle()
+
+    expect(dependencies.install).toHaveBeenCalledOnce()
+  })
+
   it('ignores a second Restart to update while the dialog is open', async () => {
     const { controller, dependencies } = harness({ activeRuns: [1], choice: 'cancel' })
     let answer: (choice: UpdateRestartChoice) => void = () => undefined

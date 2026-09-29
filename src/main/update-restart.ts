@@ -47,10 +47,17 @@ export function createUpdateRestartController(dependencies: UpdateRestartDepende
   }
 
   // Installing normally quits the app; if the updater declined (its state changed), clear any
-  // waiting indicator so the UI does not keep promising an install that will not happen.
-  const install = async () => {
-    await dependencies.install()
-    dependencies.reportWaiting(null)
+  // waiting indicator so the UI does not keep promising an install that will not happen. The idle
+  // wait and Restart now can both reach this at once, so only one install runs at a time.
+  let installation: Promise<void> | null = null
+  const install = () => {
+    installation ??= dependencies
+      .install()
+      .then(() => dependencies.reportWaiting(null))
+      .finally(() => {
+        installation = null
+      })
+    return installation
   }
 
   const waitUntilIdleThenInstall = async (generation: number) => {
