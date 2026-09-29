@@ -2,7 +2,8 @@ import type { ViewportGeometry } from './transcript-viewport-geometry'
 
 /*
  * The lowest a sent message's bottom may sit, as a fraction of the viewport and in pixels, so a
- * message taller than the viewport still leaves its reply room below it. Codex places a sent
+ * long message still leaves its reply room below it: any message taller than that limit minus the
+ * preferred top is held partly scrolled off. Codex places a sent
  * message's bottom at `max(h / 3, 240px)` for the same reason.
  */
 const SENT_BOTTOM_VIEWPORT_FRACTION = 1 / 3
@@ -15,6 +16,8 @@ export interface SentTurn {
 }
 
 export interface SentTurnLayout {
+  /** The message's top relative to the viewport while held; above the preference when tall. */
+  readonly heldTop: number
   /** The scroll position that holds the sent message in place. */
   readonly heldScrollTop: number
   /** The space still reserved below the turn; 0 once the turn fills the viewport. */
@@ -38,8 +41,14 @@ export function measureSentTurn(geometry: ViewportGeometry, turn: SentTurn): Sen
   const turnHeight = geometry.getContentHeight() - rowContentTop
   const available = clientHeight - heldTop
   return {
+    heldTop,
     heldScrollTop: rowContentTop - heldTop,
     reservedSpace: Math.max(0, available - turnHeight),
     overflows: turnHeight > available,
   }
+}
+
+/** The space that keeps a reserved sent turn in place, or 0 once it fills the viewport. */
+export function reservedSpaceFor(geometry: ViewportGeometry, turn: SentTurn | null) {
+  return (turn ? measureSentTurn(geometry, turn) : null)?.reservedSpace ?? 0
 }

@@ -6,7 +6,7 @@ import { useTranscriptViewport } from '../hooks/useTranscriptViewport'
 import { useTranscriptWindowRange } from '../hooks/useTranscriptWindowRange'
 import { useTurnSettlePresentation } from '../hooks/useTurnSettlePresentation'
 import { chatRowKeys } from '../lib/transcript-row-keys'
-import { latestTurnHasToolActivity, visibleMessageNodeIds } from '../lib/transcript-rows'
+import { visibleMessageNodeIds } from '../lib/transcript-rows'
 import type { ChatRow } from '../lib/types-chat-row'
 import type { ChatRowRenderContext } from './ChatRowRenderContext'
 import { ScrollToBottomButton } from './ScrollToBottomButton'
@@ -43,14 +43,14 @@ export function TranscriptViewport({
 }) {
   const { rows, isLoading, lastUserMessageId, userDidSend, onUserDidSendConsumed } = input
   const keys = chatRowKeys(rows)
-  const { session, showScrollToBottom, showScrollbar, pendingRestoreKey, following } =
+  const { session, showScrollToBottom, showScrollbar, pendingRestoreKey, boundsLikeFollower } =
     useTranscriptViewport(positionKey, keys.length > 0)
   const transcriptWindow = useTranscriptWindowRange({
     rows,
     keys,
     anchorKey: pendingRestoreKey,
     isFollowing: () => session.controller.isFollowing,
-    following,
+    boundsLikeFollower,
   })
   const { exiting, clearExiting } = useTurnSettlePresentation({
     rows,
@@ -69,11 +69,11 @@ export function TranscriptViewport({
 
   useTranscriptCommitLayout({
     session,
+    rows,
     keys,
     sentKey: lastUserMessageId ? `message:${lastUserMessageId}` : null,
     userDidSend,
     onUserDidSendConsumed,
-    latestTurnHasWork: latestTurnHasToolActivity(rows),
     hasLater: transcriptWindow.hasLater,
     showNewest: transcriptWindow.showNewest,
   })

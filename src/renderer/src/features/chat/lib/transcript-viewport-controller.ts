@@ -1,4 +1,4 @@
-import { measureSentTurn, type SentTurn } from './transcript-sent-turn'
+import { measureSentTurn, reservedSpaceFor, type SentTurn } from './transcript-sent-turn'
 import type { ViewportGeometry } from './transcript-viewport-geometry'
 
 /**
@@ -13,15 +13,15 @@ import type { ViewportGeometry } from './transcript-viewport-geometry'
  * - `new-turn`: the message just sent is held near the top while its reply streams in below.
  *
  * A sent turn is held until its content reaches the bottom of the viewport, the way the Codex
- * desktop app does. From there a turn doing work (tool calls, a Waggle turn) is followed, and a
- * plain answer keeps its message in place and continues below the fold. Scrolling at any point
- * stops that; scrolling down to the live end follows again.
+ * desktop app does. A turn doing work (tool calls, a Waggle turn) when it gets there is followed;
+ * a plain answer keeps its message in place and continues below the fold, even if work starts
+ * later. Scrolling at any point stops that; scrolling down to the live end follows again.
  *
  * DOM access goes through `ViewportGeometry` so the rules are testable without layout.
  */
 
 export const NEAR_BOTTOM_PX = 64
-/** Where a sent message settles, below the transcript's top fade. */
+/** Where a sent message prefers to settle, below the transcript's top fade. */
 export const NEW_TURN_TOP_OFFSET_PX = 24
 const SCROLL_ECHO_TOLERANCE_PX = 1
 const ANCHOR_TOLERANCE_PX = 0.5
@@ -44,8 +44,10 @@ export class TranscriptViewportController {
    * under the reader: dropping it clamped the view and threw the turn down the screen.
    */
   private reservation: SentTurn | null = null
-  /** Whether the latest turn is doing work (tool calls, a Waggle turn) rather than only answering. */
-  private latestTurnHasWork = false
+  /** Whether the reserved turn is doing work (tool calls, a Waggle turn) rather than only answering. */
+  private turnHasWork = false
+  /** Whether the held turn fit the viewport at the last layout, so crossing its bottom is now. */
+  private heldTurnFit = true
   private expectedScrollTop: number | null = null
   private lastObservedScrollTop = 0
   /** Whether the view rested exactly at the end after the last layout or scroll. */
@@ -77,8 +79,13 @@ export class TranscriptViewportController {
     return this.currentMode.kind === 'following'
   }
 
-  setLatestTurnHasWork(hasWork: boolean) {
-    this.latestTurnHasWork = hasWork
+  setTurnHasWork(hasWork: boolean) {
+    this.turnHasWork = hasWork
+  }
+
+  /** The row key of the sent turn whose space is reserved, if any. */
+  get sentTurnKey() {
+    return this.reservation?.key ?? null
   }
 
   /** Whether a sent turn is held near the top, which is where the reader is looking. */
@@ -90,10 +97,11 @@ export class TranscriptViewportController {
   readingPosition(): ReadingPosition | null {
     // The bottom of a capped window is not the live end: that reader is still in history.
     const atLiveEnd = !this.windowHasLater && this.distanceToBottom() <= SCROLL_ECHO_TOLERANCE_PX
-    if (this.currentMode.kind !== 'following' && !atLiveEnd) {
-      return { key: this.currentMode.key, top: this.currentMode.top }
-    }
-    return null
+    const mode = this.currentMode
+    if (mode.kind === 'following' || atLiveEnd) return null
+    // A held message sits at its measured top, which a tall message moves above the preference.
+    const held = mode.kind === 'new-turn' ? measureSentTurn(this.geometry, mode) : null
+    return { key: mode.key, top: held?.heldTop ?? mode.top }
   }
 
   follow() {
@@ -121,24 +129,27 @@ export class TranscriptViewportController {
 
   anchorNewTurn(key: string) {
     this.holding = false
+    this.heldTurnFit = true
+    this.turnHasWork = false
     this.reservation = { key, top: NEW_TURN_TOP_OFFSET_PX }
     this.currentMode = { kind: 'new-turn', key, top: NEW_TURN_TOP_OFFSET_PX }
     this.applyLayout()
   }
 
   /**
-   * Moves the reserved turn to the latest user message: the persisted copy of an optimistic one,
-   * or a steer or Follow-up that arrived while the turn was held (Codex re-places those too). A
-   * reader who scrolled inside the turn keeps it until its message is really gone.
+   * Moves the reserved turn to the persisted copy of its message: the optimistic row is gone and
+   * the latest user message is mounted under a new id. A steer or Follow-up that arrives while the
+   * original is still mounted stays inside the held turn; re-placing on it pinned the steer while
+   * the running output grew above it, out of view.
    */
   reconcileSentTurn(latestKey: string | null) {
     const reservation = this.reservation
-    if (!reservation || latestKey === null || latestKey === reservation.key) return
+    if (!reservation || latestKey === null || this.hasMountedRow(reservation.key)) return
     if (!this.hasMountedRow(latestKey)) return
-    if (this.currentMode.kind !== 'new-turn' && this.hasMountedRow(reservation.key)) return
     this.reservation = { key: latestKey, top: reservation.top }
-    if (this.currentMode.kind === 'new-turn')
+    if (this.currentMode.kind === 'new-turn') {
       this.currentMode = { ...this.currentMode, key: latestKey }
+    }
   }
 
   /** Ends a disclosure hold; a reader left at the live end resumes following it. */
@@ -189,8 +200,6 @@ export class TranscriptViewportController {
     const movingUp = scrollTop < previous - SCROLL_ECHO_TOLERANCE_PX
     const atEnd = distance <= SCROLL_ECHO_TOLERANCE_PX
     this.restingAtEnd = atEnd
-    // A held sent turn that is still where the controller put it was clamped, not scrolled.
-    if (this.currentMode.kind === 'new-turn' && this.isAtNewTurnPosition(this.currentMode)) return
     if (!this.windowHasLater && (atEnd || (!movingUp && distance <= NEAR_BOTTOM_PX))) {
       this.rejoinEnd()
       return
@@ -247,8 +256,9 @@ export class TranscriptViewportController {
 
   /**
    * Holds the sent message near the top while its reply streams into the space reserved below.
-   * Work that reaches the bottom of the viewport is followed from there; the view is already at
-   * the end of the turn then, so nothing moves. A plain answer stays held and continues below.
+   * A working turn that crosses the bottom of the viewport is followed from there, moving the view
+   * only by the overshoot of the commit that crossed it. A turn that crossed as a plain answer
+   * stays held: following it later would throw a reader mid-answer to the end.
    */
   private applyNewTurn(mode: Extract<ViewportMode, { kind: 'new-turn' }>) {
     const layout = measureSentTurn(this.geometry, mode)
@@ -260,7 +270,9 @@ export class TranscriptViewportController {
       this.applyMode()
       return
     }
-    if (layout.overflows && this.latestTurnHasWork) {
+    const crossing = layout.overflows && this.heldTurnFit
+    this.heldTurnFit = !layout.overflows
+    if (crossing && this.turnHasWork) {
       this.enterFollowing()
       this.applyMode()
       return
@@ -269,18 +281,8 @@ export class TranscriptViewportController {
     this.write(layout.heldScrollTop)
   }
 
-  /** The space that keeps the reserved sent turn in place, or 0 once it fills the viewport. */
   private reservedSpace() {
-    const layout = this.reservation ? measureSentTurn(this.geometry, this.reservation) : null
-    return layout?.reservedSpace ?? 0
-  }
-
-  /** Whether the held sent turn sits where the controller put it, allowing for a browser clamp. */
-  private isAtNewTurnPosition(mode: Extract<ViewportMode, { kind: 'new-turn' }>) {
-    const layout = measureSentTurn(this.geometry, mode)
-    if (!layout) return false
-    const target = Math.min(Math.max(0, layout.heldScrollTop), this.maxScrollTop())
-    return Math.abs(this.geometry.getScrollTop() - target) <= SCROLL_ECHO_TOLERANCE_PX
+    return reservedSpaceFor(this.geometry, this.reservation)
   }
 
   /**

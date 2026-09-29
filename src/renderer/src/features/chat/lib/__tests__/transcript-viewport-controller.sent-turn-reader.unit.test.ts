@@ -100,15 +100,19 @@ describe('TranscriptViewportController reader inside a sent turn', () => {
     expect(viewport.endSpace).toBe(500 - TOP - 160)
   })
 
-  it('holds a steer that arrives while the turn is held, like a new send', () => {
+  it('keeps holding the sent message when a steer arrives inside its turn', () => {
     const { viewport, controller } = reservedTurn()
 
     viewport.setRows([...rows(10), ['sent', 60], ['reply', 100], ['steer', 40]])
     controller.reconcileSentTurn('steer')
     controller.applyLayout()
+    expect(controller.mode).toEqual({ kind: 'new-turn', key: 'sent', top: TOP })
 
-    expect(controller.mode).toEqual({ kind: 'new-turn', key: 'steer', top: TOP })
-    expect(viewport.rowTop('steer')).toBe(TOP)
+    // The running output keeps growing above the steer and stays in view under the message.
+    viewport.setRows([...rows(10), ['sent', 60], ['reply', 300], ['steer', 40]])
+    controller.applyLayout()
+    expect(viewport.rowTop('sent')).toBe(TOP)
+    expect(viewport.rowTop('reply')).toBe(TOP + 60)
   })
 
   it('leaves a reader inside the turn where they are when a steer arrives', () => {
@@ -121,5 +125,15 @@ describe('TranscriptViewportController reader inside a sent turn', () => {
 
     expect(controller.mode.kind).toBe('anchored')
     expect(viewport.rowTop('sent')).toBe(TOP + 150)
+    expect(controller.sentTurnKey).toBe('sent')
+  })
+
+  it('does not move the reservation to a latest message that has no row yet', () => {
+    const { viewport, controller } = reservedTurn('optimistic')
+
+    viewport.setRows([...rows(10), ['reply', 100]])
+    controller.reconcileSentTurn('persisted')
+
+    expect(controller.sentTurnKey).toBe('optimistic')
   })
 })

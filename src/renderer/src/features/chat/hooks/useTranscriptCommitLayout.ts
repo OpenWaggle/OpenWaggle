@@ -1,14 +1,15 @@
 import { useLayoutEffect } from 'react'
+import { turnHasWork } from '../lib/transcript-rows'
 import type { TranscriptViewportSession } from '../lib/transcript-viewport-session'
+import type { ChatRow } from '../lib/types-chat-row'
 
 interface UseTranscriptCommitLayoutInput {
   readonly session: TranscriptViewportSession
+  readonly rows: readonly ChatRow[]
   readonly keys: readonly string[]
   /** Row key of the latest user message. */
   readonly sentKey: string | null
   readonly userDidSend: boolean
-  /** Whether the latest turn has tool calls or a Waggle turn, which is followed once it overflows. */
-  readonly latestTurnHasWork: boolean
   readonly onUserDidSendConsumed: () => void
   readonly hasLater: boolean
   readonly showNewest: () => void
@@ -25,7 +26,6 @@ export function useTranscriptCommitLayout(input: UseTranscriptCommitLayoutInput)
   const { session, sentKey } = input
   useLayoutEffect(() => {
     session.setWindowHasLater(input.hasLater)
-    session.setLatestTurnHasWork(input.latestTurnHasWork)
     const sentRowPresent = sentKey !== null && input.keys.includes(sentKey)
     if (input.userDidSend && sentRowPresent) {
       if (input.hasLater) {
@@ -36,6 +36,9 @@ export function useTranscriptCommitLayout(input: UseTranscriptCommitLayoutInput)
       input.onUserDidSendConsumed()
     }
     if (!input.userDidSend) session.reconcileSentTurn(sentKey)
+    // Work is judged over the whole held turn: a steer inside it is a user row, not a new turn.
+    const heldKey = session.controller.sentTurnKey
+    session.setTurnHasWork(heldKey !== null && turnHasWork(input.rows, input.keys, heldKey))
     session.layout()
   })
 }

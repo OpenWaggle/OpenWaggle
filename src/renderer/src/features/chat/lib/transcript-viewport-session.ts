@@ -44,7 +44,7 @@ export interface TranscriptViewportView {
    * Whether the window is bounded like a follower's, during render: the reader follows the live
    * end, or a held sent turn is receiving its reply (which must mount under it, not be capped).
    */
-  readonly setFollowing: (following: boolean) => void
+  readonly setBoundsLikeFollower: (boundsLikeFollower: boolean) => void
 }
 
 type Timer = ReturnType<typeof setTimeout>
@@ -236,9 +236,9 @@ export class TranscriptViewportSession {
     this.syncButton()
   }
 
-  /** Tells the controller whether the latest turn is doing work, which it follows once overflowing. */
-  setLatestTurnHasWork(hasWork: boolean) {
-    this.controller.setLatestTurnHasWork(hasWork)
+  /** Tells the controller whether the held turn is doing work, which it follows once it overflows. */
+  setTurnHasWork(hasWork: boolean) {
+    this.controller.setTurnHasWork(hasWork)
   }
 
   reconcileSentTurn(latestKey: string | null) {
@@ -283,7 +283,9 @@ export class TranscriptViewportSession {
   }
 
   private syncButton() {
-    this.view.setFollowing(this.controller.isFollowing || this.controller.isHoldingSentTurn)
+    this.view.setBoundsLikeFollower(
+      this.controller.isFollowing || this.controller.isHoldingSentTurn,
+    )
     // Mirrors the mode for tests and diagnosis; written directly, so it costs no render.
     const mode = this.controller.mode
     if (this.scroller) {

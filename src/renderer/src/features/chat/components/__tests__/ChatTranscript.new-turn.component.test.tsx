@@ -122,6 +122,32 @@ describe('ChatTranscript sent turn', () => {
     expect(layout.rowTop('message:u2')).toBe(24)
   })
 
+  it('keeps holding a plain answer that starts a tool call after it spilled below the fold', () => {
+    const { sent, commit } = sendTurn()
+    layout.setHeight('message:a2', 1400)
+    commit(section([...sent, assistantMessage('a2', false)]))
+
+    commit(section([...sent, assistantMessage('a2', true)]))
+
+    expect(layout.mode()).toBe('new-turn:message:u2')
+    expect(layout.rowTop('message:u2')).toBe(24)
+  })
+
+  it('keeps the sent message held when a steer arrives under its running output', () => {
+    const { sent, commit } = sendTurn()
+    layout.setHeight('message:a2', 120)
+    layout.setHeight('message:steer', 40)
+    commit(section([...sent, assistantMessage('a2', false)]))
+
+    commit(section([...sent, assistantMessage('a2', false), userMessage('steer')]))
+    layout.setHeight('message:a2', 300)
+    commit(section([...sent, assistantMessage('a2', false), userMessage('steer')]))
+
+    expect(layout.mode()).toBe('new-turn:message:u2')
+    expect(layout.rowTop('message:u2')).toBe(24)
+    expect(layout.rowTop('message:a2')).toBe(84)
+  })
+
   it('rejoins the live end when the reader scrolls down to it', () => {
     const { sent, commit } = sendTurn()
     layout.setHeight('message:a2', 1400)
