@@ -143,7 +143,10 @@ function getStatusRow(status: UpdateStatus) {
       dotClass: 'bg-info',
     }))
     .with('downloaded', (s) => ({
-      subtitle: `v${s.version} ready to install`,
+      subtitle:
+        s.waitingForRuns !== undefined && s.waitingForRuns > 0
+          ? `v${s.version} will install when ${s.waitingForRuns === 1 ? '1 agent run finishes' : `${s.waitingForRuns} agent runs finish`}`
+          : `v${s.version} ready to install`,
       subtitleClass: 'text-success',
       dotClass: 'bg-success',
     }))
@@ -216,6 +219,8 @@ export function GeneralSection() {
   const canCheck =
     status.type === 'idle' || status.type === 'not-available' || status.type === 'error'
   const isDownloaded = status.type === 'downloaded'
+  const isWaitingForRuns =
+    status.type === 'downloaded' && status.waitingForRuns !== undefined && status.waitingForRuns > 0
   const isChecking = status.type === 'checking'
 
   return (
@@ -278,8 +283,9 @@ export function GeneralSection() {
                   variant="primary"
                   size="xs"
                   onClick={() => {
-                    if (typeof api.installUpdate === 'function') {
-                      api.installUpdate().catch((err: unknown) => {
+                    const install = isWaitingForRuns ? api.installUpdateNow : api.installUpdate
+                    if (typeof install === 'function') {
+                      install().catch((err: unknown) => {
                         logger.warn('Failed to install update', { error: String(err) })
                       })
                     }
@@ -287,7 +293,7 @@ export function GeneralSection() {
                   className="h-7 bg-accent text-bg hover:bg-accent-dim"
                 >
                   <RotateCcw className="size-3" />
-                  Restart to update
+                  {isWaitingForRuns ? 'Restart now' : 'Restart to update'}
                 </Button>
               )}
             </div>

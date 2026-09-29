@@ -1,7 +1,17 @@
 #!/usr/bin/env bash
 # OpenWaggle installer — downloads the latest release for your platform.
 # Usage: curl -fsSL https://raw.githubusercontent.com/OpenWaggle/OpenWaggle/main/scripts/install.sh | bash
+# Opens the app when it finishes. Pass --no-launch (`bash -s -- --no-launch`) or set
+# OPENWAGGLE_NO_LAUNCH=1 to skip that; it is also skipped over SSH, in CI, and without a display.
 set -euo pipefail
+
+NO_LAUNCH_ARGUMENT=""
+for installer_argument in "$@"; do
+  case "${installer_argument}" in
+    --no-launch) NO_LAUNCH_ARGUMENT="1" ;;
+    *) printf '\033[1;31merror:\033[0m Unknown option: %s\n' "${installer_argument}" >&2; exit 1 ;;
+  esac
+done
 
 DEFAULT_REPO="OpenWaggle/OpenWaggle"
 REPO="${OPENWAGGLE_INSTALL_REPO:-${DEFAULT_REPO}}"
@@ -14,6 +24,8 @@ READY_MESSAGE="Ready to waggle"
 READY_TYPE_DELAY_SECONDS="0.045"
 READY_CURSOR_BLINK_DELAY_SECONDS="0.12"
 READY_CURSOR_BLINK_CYCLES=2
+MAC_APP_ID="com.openwaggle.app"
+APP_QUIT_WAIT_SECONDS=30
 
 info()  { printf '\033[1;34m==>\033[0m %s\n' "$*"; }
 error() { printf '\033[1;31merror:\033[0m %s\n' "$*" >&2; exit 1; }
@@ -62,8 +74,8 @@ release_matches_channel() {
   local channel="$2"
   case "${channel}" in
     stable) printf '%s\n' "${tag}" | grep -Eq '^v?[0-9]+\.[0-9]+\.[0-9]+$' ;;
-    beta) printf '%s\n' "${tag}" | grep -Eq '^v?[0-9]+\.[0-9]+\.[0-9]+(-beta\.[0-9]+)?$' ;;
-    alpha) printf '%s\n' "${tag}" | grep -Eq '^v?[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta)\.[0-9]+)?$' ;;
+    beta) printf '%s\n' "${tag}" | grep -Eq '^v?[0-9]+\.[0-9]+\.[0-9]+(-(beta|rc)\.[0-9]+)?$' ;;
+    alpha) printf '%s\n' "${tag}" | grep -Eq '^v?[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta|rc)\.[0-9]+)?$' ;;
     *) return 1 ;;
   esac
 }
@@ -303,6 +315,59 @@ install_cli_shim_atomically() {
 }
 # END TESTABLE CLI TARGET GUARD
 
+# BEGIN TESTABLE LAUNCH POLICY
+# Prints why the installer must not open the app, or nothing when it may.
+launch_skip_reason() {
+  local platform="$1"
+  if [ "${NO_LAUNCH_ARGUMENT:-}" = "1" ] || [ "${OPENWAGGLE_NO_LAUNCH:-}" = "1" ]; then
+    printf '%s\n' "launch was disabled"
+  elif [ -n "${CI:-}" ]; then
+    printf '%s\n' "running in CI"
+  elif [ -n "${SSH_CONNECTION:-}" ] || [ -n "${SSH_TTY:-}" ]; then
+    printf '%s\n' "running over SSH"
+  elif [ "${platform}" = "linux" ] && [ -z "${DISPLAY:-}" ] && [ -z "${WAYLAND_DISPLAY:-}" ]; then
+    printf '%s\n' "no graphical session is available"
+  fi
+}
+# END TESTABLE LAUNCH POLICY
+
+mac_app_is_running() {
+  osascript -e "application id \"${MAC_APP_ID}\" is running" 2>/dev/null | grep -q '^true$'
+}
+
+# Quit the running app through its normal quit path so it saves state before its bundle is replaced.
+quit_running_mac_app() {
+  mac_app_is_running || return 0
+  info "Quitting the running OpenWaggle…"
+  osascript -e "tell application id \"${MAC_APP_ID}\" to quit" >/dev/null 2>&1 || true
+  local waited
+  for ((waited = 0; waited < APP_QUIT_WAIT_SECONDS; waited++)); do
+    mac_app_is_running || return 0
+    sleep 1
+  done
+  error "OpenWaggle is still running. Quit it, then run the installer again."
+}
+
+launch_installed_app() {
+  local skip_reason
+  skip_reason="$(launch_skip_reason "${PLATFORM}")"
+  if [ -n "${skip_reason}" ]; then
+    info "Not opening OpenWaggle (${skip_reason}). Run \`openwaggle\` or open the app to start it."
+    return
+  fi
+  info "Opening OpenWaggle…"
+  if [ "${PLATFORM}" = "mac" ]; then
+    open "${INSTALLED_APP_PATH}" || info "Could not open OpenWaggle; open it from Applications."
+  else
+    if command -v setsid >/dev/null 2>&1; then
+      setsid "${APPIMAGE_PATH}" >/dev/null 2>&1 < /dev/null &
+    else
+      nohup "${APPIMAGE_PATH}" >/dev/null 2>&1 < /dev/null &
+    fi
+    info "If OpenWaggle was already open, restart it to use ${VERSION}."
+  fi
+}
+
 animate_ready() {
   if [ ! -t 1 ]; then
     info "${READY_MESSAGE}"
@@ -428,8 +493,10 @@ if [ "${PLATFORM}" = "mac" ]; then
   MOUNT_POINT="$(hdiutil attach -nobrowse -readonly "${DOWNLOAD_PATH}" 2>/dev/null | tail -1 | awk -F'\t' '{print $NF}')"
   APP_PATH="$(find "${MOUNT_POINT}" -maxdepth 1 -name '*.app' | head -1)"
   [ -z "${APP_PATH}" ] && error "No .app bundle found in DMG"
+  quit_running_mac_app
   mkdir -p "${APPLICATIONS_DIR}"
-  rm -rf "${APPLICATIONS_DIR}/$(basename "${APP_PATH}")"
+  INSTALLED_APP_PATH="${APPLICATIONS_DIR}/$(basename "${APP_PATH}")"
+  rm -rf "${INSTALLED_APP_PATH}"
   cp -R "${APP_PATH}" "${APPLICATIONS_DIR}/"
   hdiutil detach "${MOUNT_POINT}" -quiet 2>/dev/null || true
   # Remove quarantine for unsigned app
@@ -498,3 +565,4 @@ fi
 persist_selected_channel || error "Could not save the ${CHANNEL} update channel preference."
 rm -f "${DOWNLOAD_PATH}"
 animate_ready
+launch_installed_app

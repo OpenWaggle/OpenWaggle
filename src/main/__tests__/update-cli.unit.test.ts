@@ -7,6 +7,8 @@ const {
   quitAndInstallMock,
   writeCliStdoutMock,
   createClientMock,
+  requestSingleInstanceLockMock,
+  releaseSingleInstanceLockMock,
   updater,
 } = vi.hoisted(() => {
   const updater: {
@@ -35,12 +37,19 @@ const {
     quitAndInstallMock: vi.fn(),
     writeCliStdoutMock: vi.fn(() => Promise.resolve()),
     createClientMock: vi.fn(() => Promise.resolve({ clientKind: 'cli' })),
+    requestSingleInstanceLockMock: vi.fn(() => true),
+    releaseSingleInstanceLockMock: vi.fn(),
     updater,
   }
 })
 
 vi.mock('electron', () => ({
-  app: { isPackaged: false, getAppPath: () => '/workspace/OpenWaggle' },
+  app: {
+    isPackaged: false,
+    getAppPath: () => '/workspace/OpenWaggle',
+    requestSingleInstanceLock: requestSingleInstanceLockMock,
+    releaseSingleInstanceLock: releaseSingleInstanceLockMock,
+  },
 }))
 vi.mock('electron-updater', () => ({
   autoUpdater: Object.assign(updater, {
@@ -81,6 +90,7 @@ describe('update CLI', () => {
     )
     checkForUpdatesMock.mockResolvedValue(null)
     configureUpdaterFeedMock.mockReset()
+    requestSingleInstanceLockMock.mockReturnValue(true)
   })
 
   afterEach(() => {
@@ -204,6 +214,44 @@ describe('update CLI', () => {
     expect(quitAndInstallMock).not.toHaveBeenCalled()
     expect(writeCliStdoutMock).not.toHaveBeenCalledWith(
       expect.stringMatching(/Downloading|Installing/u),
+    )
+  })
+
+  it('installs silently without opening the app when the desktop app is closed', async () => {
+    updater.once.mockImplementation((event: string, listener: () => void) => {
+      if (event === 'update-downloaded') queueMicrotask(listener)
+      return updater
+    })
+    checkForUpdatesMock.mockResolvedValue({
+      isUpdateAvailable: true,
+      updateInfo: { version: '0.4.1' },
+    })
+
+    await expect(runUpdateCli([])).resolves.toEqual({ exitCode: 0, updaterOwnsExit: true })
+
+    expect(updater.autoDownload).toBe(true)
+    expect(releaseSingleInstanceLockMock).toHaveBeenCalledOnce()
+    expect(quitAndInstallMock).toHaveBeenCalledWith(true, false)
+  })
+
+  it('leaves installation to a running desktop app so it can protect active runs', async () => {
+    requestSingleInstanceLockMock.mockReturnValue(false)
+    checkForUpdatesMock.mockResolvedValue({
+      isUpdateAvailable: true,
+      updateInfo: { version: '0.4.1' },
+    })
+
+    await expect(runUpdateCli([])).resolves.toEqual({ exitCode: 0, updaterOwnsExit: false })
+
+    expect(requestSingleInstanceLockMock).toHaveBeenCalledWith({
+      openwaggleInstanceProbe: 'update-cli',
+    })
+    expect(releaseSingleInstanceLockMock).not.toHaveBeenCalled()
+    expect(updater.autoDownload).toBe(false)
+    expect(updater.autoInstallOnAppQuit).toBe(false)
+    expect(quitAndInstallMock).not.toHaveBeenCalled()
+    expect(writeCliStdoutMock).toHaveBeenCalledWith(
+      expect.stringContaining('choose Restart to update in the app'),
     )
   })
 

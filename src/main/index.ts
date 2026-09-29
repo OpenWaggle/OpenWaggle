@@ -15,6 +15,7 @@ import { readInlineVisualizationSource } from './application/inline-visualizatio
 import { openSessionResourceContentStream } from './application/session-resource-content'
 import { applicationCliArguments } from './application-cli-arguments'
 import { registerApplicationProtocols } from './application-protocols'
+import { isDesktopInstanceProbe } from './desktop-instance-probe'
 import { getAllBrowserWindows, isAutomationMode } from './desktop-ui'
 import { configureDesktopUiAfterReady, prepareDesktopUi } from './desktop-window-policy'
 import { env, installDesktopShellEnvironment } from './env'
@@ -327,7 +328,10 @@ function startApp() {
       }
       return
     }
-    app.on('second-instance', focusExistingWindow)
+    app.on('second-instance', (_event, _argv, _workingDirectory, additionalData) => {
+      if (isDesktopInstanceProbe(additionalData)) return
+      focusExistingWindow()
+    })
   }
 
   registerAppLifecycle()

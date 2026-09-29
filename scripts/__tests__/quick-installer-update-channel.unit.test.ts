@@ -97,12 +97,13 @@ describe('quick installer update channel', () => {
     await expect(resolveRelease(source, 'tag', releases, 'alpha')).resolves.toBe('v0.5.0-beta.1')
   })
 
-  it('keeps RC releases out of automatic channels', async () => {
+  it('offers RC releases to Beta and Alpha but never Stable', async () => {
     const source = await fs.readFile('scripts/install.sh', 'utf8')
     const releases = [{ tag_name: 'v0.5.0-rc.1' }, { tag_name: 'v0.4.0' }]
 
-    await expect(resolveRelease(source, 'tag', releases, 'beta')).resolves.toBe('v0.4.0')
-    await expect(resolveRelease(source, 'tag', releases, 'alpha')).resolves.toBe('v0.4.0')
+    await expect(resolveRelease(source, 'tag', releases, 'stable')).resolves.toBe('v0.4.0')
+    await expect(resolveRelease(source, 'tag', releases, 'beta')).resolves.toBe('v0.5.0-rc.1')
+    await expect(resolveRelease(source, 'tag', releases, 'alpha')).resolves.toBe('v0.5.0-rc.1')
   })
 
   it('searches later GitHub pages before deciding that no Stable release exists', async () => {

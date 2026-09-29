@@ -27,19 +27,107 @@ The workflow's job set and the repository ruleset must stay in sync. Apply these
 1. `Settings → Rules → Rulesets → OpenWaggle main protections → required_status_checks`: set the required contexts to `Commit Policy`, `Typecheck & Lint`, `Unit Tests`, `Integration & Component Tests`, `MCP Conformance`, `Package Release Gate`.
 2. Remove the `merge_queue` rule from the same ruleset (ADR 0033): PRs merge directly once the required checks pass.
 
-The workflow currently publishes unsigned platform artifacts. Public distribution still depends on platform trust work such as macOS notarization and Windows code signing.
+The workflow currently publishes unsigned platform artifacts.
+
+Platform trust for v1:
+
+- macOS Developer ID signing and notarization block `1.0.0`. They must be in the release workflow before the first RC, so the RC validation window exercises the same signing pipeline that Stable ships with. macOS in-app updates require a signed app.
+- The signing identity is an individual Apple Developer Program membership. macOS installs an update only when it is signed by the same team as the running app, so changing the signing team later may require a one-time manual reinstall for macOS users.
+- The first signed macOS build is expected to need a one-time manual reinstall from unsigned builds. Ship it during Beta, not RC.
+- Required GitHub Actions secrets: `MACOS_CERTIFICATE_P12_BASE64` (the Developer ID Application
+  certificate exported as `.p12`, base64-encoded), `MACOS_CERTIFICATE_PASSWORD`, `APPLE_ID`,
+  `APPLE_APP_SPECIFIC_PASSWORD`, and `APPLE_TEAM_ID`. Without them Alpha and Beta macOS builds stay
+  unsigned; RC and Stable macOS builds fail closed (`scripts/mac-signing.ts`). When configured,
+  the release workflow verifies each app with `codesign`, `stapler`, and `spctl` before upload.
+- Windows code signing does not block `1.0.0`; it is tracked as post-v1 work. Unsigned Windows installers show a SmartScreen warning on first install.
+- Linux AppImage artifacts are not signed.
 
 ## Versioning
 
-OpenWaggle uses semver with release channels. The current prerelease train is
-`0.4.0-alpha.N`; its Stable promotion is `0.4.0`, not `0.4.1`. New prerelease development after
-that promotion starts on the next intended semver line.
+OpenWaggle uses semver with release channels. The `0.x` prerelease trains end without a Stable
+release: the first Stable release is `1.0.0`, reached through the `1.0.0-<stage>.N` prerelease
+train. From `1.0.0` onward, semver is a compatibility promise to users: a change that breaks a
+covered surface requires a major version.
+
+### v1 release train path
+
+The `1.0.0` line starts at Beta; there is no `1.0.0-alpha.N` stage, because the `0.x` alpha
+builds already served as the alpha stage.
+
+1. `1.0.0-beta.1` is the first `1.0.0` build. It should also be the first signed macOS build, so
+   the one-time manual reinstall coincides with the new version line. If Apple Developer approval
+   is delayed, `1.0.0-beta.1` ships unsigned and a later signed `1.0.0-beta.N` carries the
+   reinstall.
+2. Remaining v1 work lands as further `1.0.0-beta.N` builds.
+3. `1.0.0-rc.1` starts the release-candidate freeze once v1 work is complete and macOS signing is
+   in the release workflow.
+4. `1.0.0` Stable follows the RC validation window.
+
+### RC freeze and promotion guard
+
+During RC, `main` is frozen for app code: merge only release-blocker fixes, each of which cuts the
+next `1.0.0-rc.N` and restarts the validation window. The Stable promotion dispatch fails closed
+unless the content of `main` equals the content of the last RC tag, except for the root
+`package.json` version and non-app paths (`website/**`, `docs/**`, `.agents/**`, and top-level
+`*.md`). A non-release change to app code during RC, such as a `chore(deps):` lockfile bump, blocks
+promotion until it is reverted or released as the next RC. The guard blocks promotion only; it does
+not block merges.
+
+### After 1.0.0
+
+OpenWaggle keeps one release line. Release-eligible merges to `main` prepare the next Stable
+version (`1.0.1`, `1.1.0`, `2.0.0`), and the maintainer decides the cadence by when the release PR
+is merged. There is no rolling Beta and no maintenance branch.
+
+A Beta or Alpha line such as `1.2.0-beta.1` opens only by explicit `target_version` dispatch, for a
+risky minor or a new major train. While it is open, Stable cannot receive a separate fix: a fix
+ships as the next prerelease and reaches Stable through promotion. Open a prerelease line only when
+it is expected to be promoted within about a week.
+
+### v1 scope and release blockers
+
+`1.0.0-rc.1` may start only when all of these are done:
+
+- macOS signing and notarization run in the release workflow.
+- RC builds reach Beta and Alpha update channels automatically.
+- The in-app update restart asks for confirmation while an agent run is active.
+- The release docs and release skill match the v1 release policy.
+- No release blocker is open.
+
+`1.0.0` Stable additionally requires a curated `CHANGELOG.md` entry and release notes for the
+whole v1 train; these can be written during the RC window.
+
+Everything else, including open feature, reliability-polish, dependency-pinning, and coverage
+issues, is post-v1. A **release blocker** is any known bug that loses user data, prevents launch,
+or blocks updating, at any stage. An open release blocker prevents entering RC; during RC it cuts a
+new `1.0.0-rc.N` and restarts the validation window. A bug whose persisted data is intact and only
+presents incorrectly is not a release blocker.
+
+GitHub tracking: the `v1.0.0` milestone holds only the work that blocks RC, and the
+`release-blocker` label marks release blockers. Issues outside the milestone are post-v1 by
+default; there is no `post-v1` label.
+
+### v1 compatibility promise
+
+| Surface | Covered | Rule within one major version |
+|---------|---------|-------------------------------|
+| User data (sessions, settings, projects, credentials, Session Host database) | Yes | Every later release opens data written by any earlier release of the same major, migrating forward automatically. Downgrades are unsupported. |
+| Sessions, Delegations, and Access CLIs, including machine output | Yes | Commands, flags, and JSON/JSONL output stay compatible. Additive fields are allowed; removing or renaming one is breaking. |
+| Session Control through the OpenWaggle MCP server | Yes | Existing contract versions keep their semantics. Adding a new contract version beside the old one is not breaking. |
+| Agent-definition schema | Yes | A definition valid under the first release of the major stays valid. |
+| Supported platforms (macOS, Windows x64, Linux x64) | Yes | Dropping a platform or raising its minimum OS version is breaking. |
+| Extension host contract | No | Governed by `@openwaggle/extension-sdk`'s own semver; `0.x` may break. |
+| Pi-owned resources (Pi extensions, skills, prompts) | No | Follow Pi's compatibility; a Pi upgrade that breaks them is not an OpenWaggle major. |
+| UI layout, copy, default settings, keybindings | No | May change in any release. |
+
+To retire a covered field or command, ship the replacement beside it and remove the old one only in
+the next major version.
 
 | Stage | Example Version | What Happens On Release |
 |-------|-----------------|-------------------------|
-| Alpha | `0.4.0-alpha.N` | Increments `alpha.N+1` on release-eligible changes. |
-| Beta | `0.4.0-beta.N` | Increments `beta.N+1` after the project moves to beta. |
-| Stable | `0.4.0` | `fix:` increments patch, `feat:` increments minor, breaking changes increment major. |
+| Alpha | `1.0.0-alpha.N` | Increments `alpha.N+1` on release-eligible changes. |
+| Beta | `1.0.0-beta.N` | Increments `beta.N+1` after the project moves to beta. |
+| Stable | `1.0.0` | `fix:` increments patch, `feat:` increments minor, breaking changes increment major. |
 
 Stage transitions use the same protected, version-only release PR as ordinary releases. Never
 retag a prerelease or edit a GitHub release to simulate promotion.
@@ -47,19 +135,21 @@ retag a prerelease or edit a GitHub release to simulate promotion.
 Prepare an explicit forward transition from `main` with:
 
 ```bash
-gh workflow run release.yml --ref main -f target_version=0.4.0
+gh workflow run release.yml --ref main -f target_version=1.0.0
 ```
 
 Manual release dispatches are accepted only from `main` and require an explicit target. The
 workflow rejects equal versions, downgrades, and backwards channel movement, then creates the
 normal version-only PR. A maintainer must merge that green PR before its tag and artifacts publish.
-The same path can later open a new prerelease line such as `0.5.0-alpha.1`.
+The same path can later open a new prerelease line such as `2.0.0-alpha.1`.
 
-Update eligibility is monotonic: Stable receives Stable; Beta receives Beta and Stable; Alpha
-receives Alpha, Beta, and Stable. RC versions remain available through exact-version installation,
-because electron-updater's GitHub provider treats RC as a custom channel. Release packaging
-publishes the matching metadata aliases for every eligible automatic channel because
-electron-builder does not generate the cross-channel aliases for its GitHub provider. The app and
+Update eligibility is monotonic: Stable receives Stable; Beta receives Beta, RC, and Stable; Alpha
+receives Alpha, Beta, RC, and Stable. The app lists releases and selects the newest eligible
+non-downgrade version itself, then points the updater at that release's metadata, so RC does not
+depend on electron-updater's GitHub-provider channel rules (which treat RC as a custom channel). An
+RC build with no saved preference defaults to Beta. Release packaging publishes the matching
+metadata aliases for every eligible automatic channel because electron-builder does not generate
+the cross-channel aliases for its GitHub provider. The app and
 CLI persist one shared channel and explicitly disable downgrades. The app re-reads that
 authoritative channel before installing a downloaded release and invalidates a release that is no
 longer eligible. Automatic install on ordinary app quit is disabled on every platform so all
@@ -67,20 +157,78 @@ downloads pass through the explicit, authoritative restart action. The shell ins
 selected policy channel as a one-time Session Host intent instead of inferring future policy from
 the downloaded artifact's version.
 
+### Differential update downloads
+
+Releases publish `.blockmap` files beside the macOS zip and DMG and the Windows installer (the
+AppImage embeds its own), so electron-updater downloads only the blocks that changed. GitHub
+release downloads reject multi-range requests with HTTP 501, so the app's feed sets
+`useMultipleRangeRequest: false` and fetches single ranges, as electron-updater's GitHub provider
+does. A simulated one-line release change downloaded 8.0 MB of a 354.7 MB macOS zip. The macOS and
+Windows updaters diff against the previously downloaded update, so the first in-app update after a
+manual install, or after a release without blockmaps, is a full download; later ones are
+differential. `builder-debug.yml` is a local build dump and is not published.
+
+### Update restart and relaunch
+
+Updates download automatically in the background; installing is always a user action.
+
+- An update restart never silently interrupts an agent run. When the user chooses **Restart to
+  update** and the Session Host has active runs in any session (window, Worker, or CLI-started),
+  the app offers **Restart when idle** (default), **Restart now**, and **Cancel**.
+- **Restart when idle** installs once the Session Host has no active run. Runs started after the
+  choice also count. The wait has no timeout; the update action stays visible with the number of
+  runs it is waiting for, so the user can still choose **Restart now**.
+- **Restart now** stops active runs through normal cancellation, recording them as interrupted,
+  waits up to 30 seconds for them to settle, and then installs, so the installer never kills a
+  running agent. The Session Host itself is released through its existing drain and handoff to the
+  newer version.
+- With no active runs, the restart installs immediately without a dialog.
+- The app relaunches automatically after installing an update, and after a fresh install where an
+  installer runs. This follows `pingdotgg/t3code`:
+  - In-app updates install silently and force a relaunch on every platform
+    (`quitAndInstall(isSilent: true, isForceRunAfter: true)`); Windows shows no installer wizard.
+  - The Windows NSIS installer is one-click and launches the app when it finishes.
+  - The macOS `.dmg` is drag-to-Applications and does not auto-launch. There is no `.pkg`.
+  - A downloaded Linux AppImage is launched by opening it.
+- `install.sh` launches the app when it finishes, because it is OpenWaggle's one-command desktop
+  install (t3code's shell installer installs only its CLI, so it sets no precedent here). It skips
+  the launch without a graphical session (SSH, CI, or Linux without `$DISPLAY` or
+  `$WAYLAND_DISPLAY`), with `--no-launch`, or with `OPENWAGGLE_NO_LAUNCH=1`. On macOS it quits a
+  running app through its normal quit path before replacing it. On Linux the AppImage is replaced
+  atomically and a running app keeps running; the installer tells the user to restart it.
+- `openwaggle update` never opens a window the user did not have open. If the desktop app is
+  running, a channel update only reports the available version: the app offers it and its
+  **Restart to update** action installs it, so active runs stay protected and the app relaunches.
+  If the app is closed, the command installs silently without launching it. An exact
+  `--version` install quits and relaunches a running app, and does not launch a closed one.
+
 ### Protected release recovery
 
 The failed `0.3.0-alpha.44` direct-push attempt created a remote tag whose commit never reached protected `main`. Recovery intentionally sets the root version on `main` to `0.3.0-alpha.44` in a `chore(release):` reconciliation commit. That subject skips both release-PR generation and tag publication. The existing orphan tag is preserved for auditability; the next release-eligible change increments the reconciled root version and publishes `0.3.0-alpha.45` only after a maintainer merges the version PR that passed exact-head CI. Do not delete, move, or reuse the orphan tag.
 
 ## Release Notes
 
-Release intent metadata is planned but not implemented yet. Until committed release-intent files exist, product-impacting PRs should include reviewer-facing release notes in the PR body:
+Conventional Commits are the app's release intent: they decide whether a merge produces a release
+and, for Stable versions, whether it is a patch, minor, or major. OpenWaggle does not use separate
+release-intent files. A change that breaks a covered surface must use a `!` Conventional Commit
+title so it produces a major version.
+
+- Prerelease builds use GitHub's generated release notes.
+- Stable releases get a hand-written entry in the root `CHANGELOG.md`, and the same text is used as
+  the GitHub Release notes. `CHANGELOG.md` starts at `1.0.0`; it notes that earlier `0.x` builds
+  used a legacy process and remain listed in GitHub Releases.
+- The `1.0.0` entry summarizes the whole v1 train, not only the last RC.
+
+Product-impacting PRs should still include reviewer-facing release notes in the PR body so the
+Stable changelog can be written from them:
 
 - User-visible feature or behavior changes.
 - Relevant docs updates.
 - Validation evidence.
 - Known remaining scope or follow-up work.
 
-Do not rely on commit subjects alone for large product changes such as Session Tree, branch lifecycle, resource precedence, or provider/auth behavior.
+Planned post-v1 guard: a CI check that fails when a PR changes a covered surface's contract without
+a `!` title.
 
 ## Npm Package Publishing
 

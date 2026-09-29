@@ -14,6 +14,7 @@ import {
 import { app } from 'electron'
 import { autoUpdater } from 'electron-updater'
 import { writeCliStdout } from './cli-stdout'
+import { isDesktopAppRunning } from './desktop-instance-probe'
 import { launchExternalApplication } from './desktop-ui'
 import { getEnvWithOverrides } from './env'
 import { createLocalSessionCliClientInput } from './local-session-cli-client'
@@ -94,14 +95,19 @@ async function releaseForTag(tag: string) {
   return decodeUnknownOrThrow(releaseSchema, await response.json())
 }
 
-async function runBundledInstaller(tag: string) {
+async function runBundledInstaller(tag: string, relaunch: boolean) {
   const installerPath = app.isPackaged
     ? path.join(process.resourcesPath, 'openwaggle-install.sh')
     : path.join(app.getAppPath(), 'scripts', 'install.sh')
   return await new Promise<number>((resolve, reject) => {
+    // The installer quits a running app before replacing it and then opens the new version.
+    // Without a running app, a terminal update must not open a window.
     const child = spawn('bash', [installerPath], {
       stdio: 'inherit',
-      env: getEnvWithOverrides({ OPENWAGGLE_RELEASE_TAG: tag }),
+      env: getEnvWithOverrides({
+        OPENWAGGLE_RELEASE_TAG: tag,
+        ...(relaunch ? {} : { OPENWAGGLE_NO_LAUNCH: '1' }),
+      }),
     })
     child.once('error', reject)
     child.once('exit', (code) => resolve(code ?? EXIT.FAILURE))
@@ -114,7 +120,7 @@ async function download(url: string) {
   return Buffer.from(await response.arrayBuffer())
 }
 
-async function runWindowsInstaller(tag: string) {
+async function runWindowsInstaller(tag: string, relaunch: boolean) {
   const release = await releaseForTag(tag)
   const installer = release.assets.find((asset) => /-x64\.exe$/u.test(asset.name))
   const checksums = release.assets.find((asset) => asset.name === 'SHA256SUMS.txt')
@@ -135,7 +141,8 @@ async function runWindowsInstaller(tag: string) {
     throw new Error(`Release ${tag} failed checksum verification.`)
   const destination = path.join(tmpdir(), `openwaggle-update-${randomUUID()}.exe`)
   await writeFile(destination, contents, { mode: WINDOWS_INSTALLER_MODE })
-  await launchExternalApplication(destination, ['/S'])
+  // NSIS closes a running app before replacing it; `--force-run` reopens it afterwards.
+  await launchExternalApplication(destination, relaunch ? ['/S', '--force-run'] : ['/S'])
 }
 
 async function installExactVersion(tag: string, checkOnly: boolean) {
@@ -144,12 +151,13 @@ async function installExactVersion(tag: string, checkOnly: boolean) {
     await writeCliStdout(`OpenWaggle ${release.tag_name} is available.\n`)
     return { exitCode: EXIT.SUCCESS, updaterOwnsExit: false }
   }
+  const relaunch = isDesktopAppRunning()
   if (process.platform === 'win32') {
-    await runWindowsInstaller(tag)
+    await runWindowsInstaller(tag, relaunch)
     await writeCliStdout(`Installing OpenWaggle ${release.tag_name}…\n`)
     return { exitCode: EXIT.SUCCESS, updaterOwnsExit: false }
   }
-  const exitCode = await runBundledInstaller(tag)
+  const exitCode = await runBundledInstaller(tag, relaunch)
   return { exitCode, updaterOwnsExit: false }
 }
 
@@ -197,8 +205,12 @@ function abandonDownloadWaiter(waiter: ReturnType<typeof createDownloadWaiter> |
 }
 
 async function updateFromChannel(channel: UpdateChannel, checkOnly: boolean) {
-  await configureUpdater(channel, checkOnly)
-  const downloaded = checkOnly ? null : createDownloadWaiter()
+  // A running desktop app owns installation, so its Restart to update action can protect active
+  // agent runs and relaunch it. The terminal then only reports the available version.
+  const deferToDesktop = !checkOnly && isDesktopAppRunning()
+  const reportOnly = checkOnly || deferToDesktop
+  await configureUpdater(channel, reportOnly)
+  const downloaded = reportOnly ? null : createDownloadWaiter()
   const result = await autoUpdater.checkForUpdates().catch((error: unknown) => {
     abandonDownloadWaiter(downloaded)
     throw error
@@ -220,10 +232,19 @@ async function updateFromChannel(channel: UpdateChannel, checkOnly: boolean) {
     await writeCliStdout(`OpenWaggle ${version} is available on the ${channel} channel.\n`)
     return { exitCode: EXIT.SUCCESS, updaterOwnsExit: false }
   }
+  if (deferToDesktop) {
+    autoUpdater.autoInstallOnAppQuit = false
+    await writeCliStdout(
+      `OpenWaggle ${version} is available on the ${channel} channel. OpenWaggle is open, so it will ` +
+        'offer the update there; choose Restart to update in the app.\n',
+    )
+    return { exitCode: EXIT.SUCCESS, updaterOwnsExit: false }
+  }
   await writeCliStdout(`Downloading OpenWaggle ${version} from the ${channel} channel…\n`)
   await downloaded?.promise
   await writeCliStdout(`Installing OpenWaggle ${version}…\n`)
-  autoUpdater.quitAndInstall(false, true)
+  // The desktop app was not running, so a terminal update installs without opening a window.
+  autoUpdater.quitAndInstall(true, false)
   return { exitCode: EXIT.SUCCESS, updaterOwnsExit: true }
 }
 

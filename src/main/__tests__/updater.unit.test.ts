@@ -148,11 +148,11 @@ describe('updater service', () => {
   })
 
   describe('installUpdate', () => {
-    it('calls quitAndInstall with correct arguments', () => {
+    it('installs silently and forces the app to relaunch', () => {
       initAutoUpdater('stable')
       emitter().emit('update-downloaded', { version: '1.2.3' })
       installUpdate()
-      expect(mockQuitAndInstall).toHaveBeenCalledWith(false, true)
+      expect(mockQuitAndInstall).toHaveBeenCalledWith(true, true)
     })
   })
 

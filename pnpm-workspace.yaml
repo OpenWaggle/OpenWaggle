@@ -75,6 +75,18 @@ minimumReleaseAgeExclude:
   - "@earendil-works/pi-protocol@0.87.1"
   - "@earendil-works/pi-telemetry@0.87.1"
   - "@earendil-works/pi-tui@0.87.1"
+  # electron-builder 26.17.0 (2026-09-26) is the newest stable v26 release. 26.16.1+ fixes
+  # CSC_LINK-based macOS signing (set-key-partition-list received the .p12 password instead of
+  # the keychain password; electron-builder #10066/#10172), which v1 macOS signing needs, and
+  # 26.17.0 adds the pnpm 11 dependency-collection fixes. Every package below carries SLSA
+  # provenance. Drop these entries once 2026-10-03 passes the seven-day window.
+  - app-builder-lib@26.17.0
+  - dmg-builder@26.17.0
+  - electron-builder@26.17.0
+  - electron-builder-squirrel-windows@26.17.0
+  # electron-updater 6.8.10 is the runtime half of the same release; it fixes differential
+  # (blockmap) downloads: multi-batch range requests and stale cached blockmaps.
+  - electron-updater@6.8.10
   - "@hono/node-server@2.0.11"
   - "@huggingface/transformers@4.2.0"
   - adm-zip@0.6.0

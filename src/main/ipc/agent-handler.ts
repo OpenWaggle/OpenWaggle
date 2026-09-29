@@ -37,7 +37,7 @@ function emitCancelledCompletion(sessionId: SessionId) {
   emitRunCompleted(sessionId)
 }
 
-function interruptSessionRun(sessionId: SessionId) {
+export function interruptSessionRun(sessionId: SessionId) {
   return Effect.gen(function* () {
     const statusResult = yield* dispatchLocalSessionCommand({
       caller: { callerId: 'gui:local-user' },

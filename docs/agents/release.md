@@ -5,14 +5,18 @@ Use this file for agent-facing release and update-channel decisions. The canonic
 ## Current Release Model
 
 OpenWaggle uses semver release channels. Stable is the default user channel; Beta and Alpha are
-explicit opt-ins. The `0.4.0-alpha.N` train promotes to Stable as `0.4.0`; later prerelease work
-starts a new semver line rather than incrementing the stable patch solely to remove the suffix.
+explicit opt-ins. The `0.x` prerelease trains end without a Stable release: the first Stable
+release is `1.0.0`, reached through the `1.0.0-<stage>.N` prerelease train. From `1.0.0` onward a
+breaking change to a covered surface requires a major version. The `1.0.0` line starts at `1.0.0-beta.1`, ideally the first signed macOS build; there is no
+`1.0.0-alpha.N` stage. After `1.0.0` there is one release line: merges prepare the next Stable version, and a
+Beta/Alpha line opens only by explicit dispatch when it is expected to be promoted within about a
+week.
 
 The desktop app, `openwaggle update`, and `scripts/install.sh` use the same channel vocabulary:
 
 - Stable accepts plain semver releases only.
-- Beta accepts Beta and Stable releases.
-- Alpha accepts Alpha, Beta, and Stable releases.
+- Beta accepts Beta, RC, and Stable releases.
+- Alpha accepts Alpha, Beta, RC, and Stable releases.
 - Channel changes never authorize an automatic downgrade.
 - `--version` and `OPENWAGGLE_RELEASE_TAG` are exact, one-time selections and do not change the
 persisted channel.
@@ -24,9 +28,11 @@ macOS, automatic staging on quit stays disabled: the renderer's eligible **Resta
 action hands the selected zip to Squirrel.Mac, avoiding a stale staged prerelease after narrowing
 the channel.
 
-RC versions are exact-version releases only. electron-updater's GitHub provider treats RC as a
-custom channel rather than part of Alpha or Beta, so promising automatic RC eligibility would not
-match the shipped updater.
+RC is not a separate channel, but RC releases reach Beta and Alpha automatically. The app selects
+the eligible release itself (`src/main/update-feed.ts`) and points a generic feed at it, so
+electron-updater's GitHub-provider rule that treats RC as a custom channel does not apply. RC
+releases publish `rc`, `beta`, and `alpha` metadata. An RC build with no saved preference defaults
+to Beta.
 
 GitHub's `prerelease` flag is not the channel authority. Version semantics decide eligibility, so
 historical Alpha releases accidentally marked as ordinary GitHub releases cannot enter Stable.
@@ -43,7 +49,7 @@ Release automation is GitHub-based:
 
 The `0.3.0-alpha.44` recovery is intentionally exceptional: an earlier blocked direct push left that tag pointing to an unreachable commit. The reconciliation commit records `0.3.0-alpha.44` on `main` with a non-version `chore(release):` subject so no tag or build runs. Preserve the orphan tag; the next generated version PR must advance to `0.3.0-alpha.45`.
 
-Published artifacts are currently unsigned. macOS notarization and Windows signing are release/distribution trust work, not routine implementation tasks.
+Published artifacts are currently unsigned. macOS signing and notarization block `1.0.0` and must be in place before the first RC; Windows signing is post-v1. See `docs/release-and-versioning.md` for the platform trust rules.
 
 ## When To Load The Release Skill
 
@@ -59,7 +65,10 @@ Load `.agents/skills/release/SKILL.md` before changing:
 
 ## Release Notes
 
-Until release-intent files exist, product-impacting PRs should include reviewer-facing release notes in the PR body:
+Conventional Commits decide app releases and Stable version bumps; there are no release-intent
+files. A change that breaks a covered surface needs a `!` title. Prereleases use GitHub's
+generated notes; Stable releases get a hand-written `CHANGELOG.md` entry reused as the GitHub
+Release notes. Product-impacting PRs should include reviewer-facing release notes in the PR body:
 
 - user-visible feature or behavior changes
 - relevant docs updates
@@ -76,7 +85,7 @@ Use `.agents/verification.md` for baseline validation. For release work, prefer 
 
 OpenWaggle npm packages use Release Please manifest mode through `release-please-config.json`, `.release-please-manifest.json`, and `.github/workflows/package-release.yml`.
 
-- This workflow is separate from the desktop app release workflow. Package versions use path-scoped Conventional Commits; app versions use app release-intent files.
+- This workflow is separate from the desktop app release workflow. Package versions use path-scoped Conventional Commits interpreted by Release Please; the app version uses the Conventional Commits of merges to `main` through the app release workflow.
 - Release Please owns one coordinated package release PR, package-local `CHANGELOG.md` files, package-specific GitHub Releases, and short component tags such as `extension-sdk-v0.1.0`.
 - Package release automation validates the exact generated PR head through the normal pull-request CI path and retains the attested final tarballs for post-merge promotion.
 - Release-eligible commits that touch `packages/<name>/**` or an affected package's canonical generated documentation source directly release that package. Unrelated app, website, general docs, fixture, or workflow changes do not publish npm packages.

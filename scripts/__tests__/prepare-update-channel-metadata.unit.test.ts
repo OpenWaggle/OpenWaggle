@@ -38,12 +38,12 @@ describe('update channel metadata', () => {
     await expect(fs.readdir(root)).resolves.toEqual(['alpha.yml', 'beta.yml'])
   })
 
-  it('keeps RC metadata isolated for exact-version installs', async () => {
+  it('makes RC releases available to Beta and Alpha users, never Stable', async () => {
     const root = await fixture('rc.yml')
     await expect(
       prepareUpdateChannelMetadata({ directory: root, buildChannel: 'rc', platform: 'windows' }),
-    ).resolves.toEqual(['rc.yml'])
-    await expect(fs.readdir(root)).resolves.toEqual(['rc.yml'])
+    ).resolves.toEqual(['rc.yml', 'beta.yml', 'alpha.yml'])
+    await expect(fs.readdir(root)).resolves.toEqual(['alpha.yml', 'beta.yml', 'rc.yml'])
   })
 
   it('keeps Alpha releases off the Stable and Beta feeds', async () => {

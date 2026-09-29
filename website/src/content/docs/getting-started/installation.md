@@ -44,14 +44,24 @@ Alpha when no Stable release is available in the release list.
 - On Linux, it installs the AppImage under `~/.local/lib/openwaggle`, installs the `openwaggle`
   command in `~/.local/bin`, and creates a `.desktop` entry.
 
+When it finishes, the script opens OpenWaggle. On macOS, if OpenWaggle is already open, the script
+quits it first and opens the new version. On Linux, restart an already open OpenWaggle to use the
+new version. The script does not open the app over SSH, in CI, or on Linux without a display. To
+install without opening it, set `OPENWAGGLE_NO_LAUNCH=1` or pass `--no-launch`:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/OpenWaggle/OpenWaggle/main/scripts/install.sh \
+  | bash -s -- --no-launch
+```
+
 To opt into a prerelease channel, use the same installer:
 
 ```bash
-# Alpha also receives Beta and Stable releases.
+# Alpha also receives Beta, release candidate, and Stable releases.
 curl -fsSL https://raw.githubusercontent.com/OpenWaggle/OpenWaggle/main/scripts/install.sh \
   | OPENWAGGLE_CHANNEL=alpha bash
 
-# Beta also receives Stable releases.
+# Beta also receives release candidate and Stable releases.
 curl -fsSL https://raw.githubusercontent.com/OpenWaggle/OpenWaggle/main/scripts/install.sh \
   | OPENWAGGLE_CHANNEL=beta bash
 ```
@@ -91,11 +101,13 @@ openwaggle update --version 0.4.0
 ```
 
 `--check` reports availability without downloading. Without `--check`, `openwaggle update`
-downloads and installs the newest eligible release. Choosing `--channel` is persistent; choosing
-`--version` is a one-time install and can target an exact Stable or prerelease version. RC builds
-are available only through `--version` or `OPENWAGGLE_RELEASE_TAG`; they are not an automatic
-update channel. On a first launch with no saved preference, an Alpha or Beta build starts on its
-matching channel; Stable remains the default otherwise. The app confirms each switch into Alpha
+downloads and installs the newest eligible release without opening the app. If OpenWaggle is
+already open, the command leaves the update to the app instead: choose **Restart to update**
+there, so running agent work is not interrupted without asking. Choosing `--channel` is persistent; choosing
+`--version` is a one-time install and can target an exact Stable or prerelease version. Release
+candidates (RC) are not a separate channel; Beta and Alpha receive them automatically. On a first
+launch with no saved preference, an Alpha or Beta build starts on its matching channel and a
+release candidate starts on Beta; Stable remains the default otherwise. The app confirms each switch into Alpha
 and checks a newly selected channel immediately. OpenWaggle never downgrades automatically when
 channels change, and **Restart to update** re-reads the shared channel before installing an
 already-downloaded release.
