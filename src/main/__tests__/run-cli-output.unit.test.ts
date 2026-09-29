@@ -45,6 +45,8 @@ describe('terminal text sanitizing', () => {
       'cyrillic and han \u0444\\u200c\u0444 \u6587\\u200c\u4ef6',
     ],
     ['digit selector 1\ufe0f 1\ufe0e', 'digit selector 1\\ufe0f 1\\ufe0e'],
+    ['latin marks nai\u0308\u200c\u0308ve', 'latin marks nai\u0308\\u200c\u0308ve'],
+    ['apostrophes x\u02bc\u200c\u02bcy', 'apostrophes x\u02bc\\u200c\u02bcy'],
     [
       'fake flag \u{1f3f4}\u{e0078}\u{e0078}\u{e0078}\u{e0078}\u{e0078}\u{e0078}\u{e007f}',
       'fake flag \u{1f3f4}\\u{e0078}\\u{e0078}\\u{e0078}\\u{e0078}\\u{e0078}\\u{e0078}\\u{e007f}',
@@ -136,7 +138,7 @@ describe('run output queue', () => {
     [['\u{1f3f4}\u{e0067}\u{e0062}', '\u{e0073}\u{e0063}\u{e0074}\u{e007f}']],
     [['\u0645\u06cc\u200c\u062e', '\u0648\u0627\u0647\u0645']],
     [['\u0915\u094d\u200c\u0937']],
-  ])('keeps an emoji split across reply deltas whole: %j', async (deltas) => {
+  ])('judges graphemes and joiners across reply deltas: %j', async (deltas) => {
     const written: string[] = []
     const output = new RunCliOutput(
       {

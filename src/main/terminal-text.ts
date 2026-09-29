@@ -27,11 +27,13 @@ const EMOJI_MODIFIER = /^\p{Emoji_Modifier}$/u
 /** The selectors that pick the text or the emoji glyph of the emoji before them. */
 const EMOJI_PRESENTATION_SELECTOR = /^[\ufe0e\ufe0f]$/u
 /**
- * A letter or mark of a script whose words use ZWJ/ZWNJ to control joining or conjuncts:
- * Arabic, Syriac, N'Ko, Mongolian, and the Indic scripts.
+ * A letter of a script whose words use ZWJ/ZWNJ to control joining or conjuncts: Arabic,
+ * Syriac, N'Ko, Mongolian, and the Indic scripts.
  */
 const JOINING_SCRIPT_LETTER =
-  /^(?=[\p{L}\p{M}])[\p{scx=Arab}\p{scx=Syrc}\p{scx=Nkoo}\p{scx=Mong}\p{scx=Deva}\p{scx=Beng}\p{scx=Guru}\p{scx=Gujr}\p{scx=Orya}\p{scx=Taml}\p{scx=Telu}\p{scx=Knda}\p{scx=Mlym}\p{scx=Sinh}]$/u
+  /^(?=\p{L})[\p{sc=Arab}\p{sc=Syrc}\p{sc=Nkoo}\p{sc=Mong}\p{sc=Deva}\p{sc=Beng}\p{sc=Guru}\p{sc=Gujr}\p{sc=Orya}\p{sc=Taml}\p{sc=Telu}\p{sc=Knda}\p{sc=Mlym}\p{sc=Sinh}]$/u
+const LETTER_OR_MARK = /^[\p{L}\p{M}]$/u
+const MARK = /^\p{M}$/u
 /** Digits, `#`, and `*` are emoji only as keycaps, with a selector and the keycap mark. */
 const KEYCAP_BASE = /^[0-9#*]$/u
 const COMBINING_KEYCAP = '\u20e3'
@@ -62,6 +64,25 @@ function emojiBefore(characters: readonly string[], index: number) {
   return EMOJI_PICTOGRAPH.test(base)
 }
 
+/** The nearest letter from `index` in direction `step`, skipping combining marks. */
+function nearestLetter(characters: readonly string[], index: number, step: 1 | -1) {
+  let position = index + step
+  while (MARK.test(characters[position] ?? '')) position += step
+  return characters[position] ?? ''
+}
+
+/** A joiner between visible letters or marks of a word in a script that uses joiners. */
+function isInsideJoiningWord(characters: readonly string[], index: number) {
+  const touchesText =
+    LETTER_OR_MARK.test(characters[index - 1] ?? '') &&
+    LETTER_OR_MARK.test(characters[index + 1] ?? '')
+  return (
+    touchesText &&
+    JOINING_SCRIPT_LETTER.test(nearestLetter(characters, index, -1)) &&
+    JOINING_SCRIPT_LETTER.test(nearestLetter(characters, index, 1))
+  )
+}
+
 /**
  * Whether an invisible character is doing its visible job: a zero-width joiner between two
  * emoji (as in a family emoji), a joiner or non-joiner inside a word of a script that uses
@@ -77,7 +98,7 @@ function isRenderingJoin(characters: readonly string[], index: number) {
       character === ZERO_WIDTH_JOINER &&
       emojiBefore(characters, index) &&
       EMOJI_PICTOGRAPH.test(next)
-    return joinsEmoji || (JOINING_SCRIPT_LETTER.test(previous) && JOINING_SCRIPT_LETTER.test(next))
+    return joinsEmoji || isInsideJoiningWord(characters, index)
   }
   if (!EMOJI_PRESENTATION_SELECTOR.test(character)) return false
   return KEYCAP_BASE.test(previous) ? next === COMBINING_KEYCAP : EMOJI.test(previous)
