@@ -1,7 +1,6 @@
 import type { SessionId } from '@shared/types/brand'
 import { create } from 'zustand'
 import type { PendingSend } from '../lib/optimistic-user-message'
-import { useChatStore } from './chat-store'
 
 const DRAFT_SCOPE = 'draft'
 
@@ -23,15 +22,14 @@ interface PendingSendState {
   readonly adoptDraft: (sessionId: SessionId) => void
   /** Clears this exact send, wherever it moved; a newer send in its place is kept. */
   readonly clearSend: (send: PendingSend) => void
+  /** Ends a Session's send; the chat store calls it when the reader leaves that Session. */
   readonly clearSession: (sessionId: SessionId) => void
 }
 
 export const usePendingSendStore = create<PendingSendState>((set) => ({
   bySession: new Map(),
-  begin: (sessionId, send) => {
-    watchSessionLeave()
-    set((state) => ({ bySession: new Map(state.bySession).set(scopeKey(sessionId), send) }))
-  },
+  begin: (sessionId, send) =>
+    set((state) => ({ bySession: new Map(state.bySession).set(scopeKey(sessionId), send) })),
   adoptDraft: (sessionId) =>
     set((state) => {
       const draft = state.bySession.get(DRAFT_SCOPE)
@@ -57,24 +55,6 @@ export const usePendingSendStore = create<PendingSendState>((set) => ({
       return { bySession }
     }),
 }))
-
-/*
- * Leaving a Session ends its pending send. One its transcript never held (the reader left before
- * the workspace loaded) would otherwise hold a long-finished message on the next visit and discard
- * the saved reading position. A draft's send is not left: it moves to the Session it creates.
- * Subscribed on the first send rather than at import, which a circular import would see too early.
- */
-let watchingSessionLeave = false
-function watchSessionLeave() {
-  if (watchingSessionLeave) return
-  watchingSessionLeave = true
-  useChatStore.subscribe((state, previous) => {
-    const left = previous.activeSessionId
-    if (left !== null && state.activeSessionId !== left) {
-      usePendingSendStore.getState().clearSession(left)
-    }
-  })
-}
 
 /** The pending send of the Session (or draft) on screen, with the actions that begin and end it. */
 export function usePendingSend(sessionId: SessionId | null) {
