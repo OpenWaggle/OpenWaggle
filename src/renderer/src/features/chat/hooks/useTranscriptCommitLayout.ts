@@ -8,7 +8,6 @@ interface UseTranscriptCommitLayoutInput {
   readonly sentKey: string | null
   readonly userDidSend: boolean
   readonly onUserDidSendConsumed: () => void
-  readonly latestTurnHasToolActivity: boolean
   readonly hasLater: boolean
   readonly showNewest: () => void
 }
@@ -16,8 +15,8 @@ interface UseTranscriptCommitLayoutInput {
 /**
  * Applies the viewport after every commit, before paint (ADR 0036).
  *
- * A send anchors the new turn near the top; tool activity hands it over to live following; and the
- * controller re-applies its mode to the new layout.
+ * A send holds the new turn near the top until the reader scrolls, and the controller re-applies
+ * its mode to the new layout.
  * Must be declared after the settle presentation hook so a fold is seen before the anchor moves.
  */
 export function useTranscriptCommitLayout(input: UseTranscriptCommitLayoutInput) {
@@ -34,14 +33,17 @@ export function useTranscriptCommitLayout(input: UseTranscriptCommitLayoutInput)
       session.anchorNewTurn(sentKey)
       input.onUserDidSendConsumed()
     }
+    const { controller } = session
+    const reservedKey = controller.sentTurnKey
+    // The optimistic message was replaced by its persisted copy under a new id. A reader who
+    // scrolled inside the turn keeps its reserved space only while that row is really gone.
     const sentReplaced =
-      mode.kind === 'new-turn' &&
+      reservedKey !== null &&
       sentKey !== null &&
-      mode.key !== sentKey &&
-      session.controller.hasMountedRow(sentKey)
-    // The optimistic message was replaced by its persisted copy under a new id.
-    if (!input.userDidSend && sentReplaced) session.anchorNewTurn(sentKey)
-    if (input.latestTurnHasToolActivity) session.releaseNewTurn()
+      reservedKey !== sentKey &&
+      controller.hasMountedRow(sentKey) &&
+      (mode.kind === 'new-turn' || !controller.hasMountedRow(reservedKey))
+    if (!input.userDidSend && sentReplaced) session.replaceSentTurn(sentKey)
     session.layout()
   })
 }

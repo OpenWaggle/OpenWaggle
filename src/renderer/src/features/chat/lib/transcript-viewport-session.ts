@@ -233,8 +233,8 @@ export class TranscriptViewportSession {
     this.syncButton()
   }
 
-  releaseNewTurn() {
-    this.controller.releaseNewTurn()
+  replaceSentTurn(key: string) {
+    this.controller.replaceSentTurn(key)
     this.syncButton()
   }
 
