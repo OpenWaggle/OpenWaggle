@@ -37,6 +37,7 @@ type AuthorizedLocalSessionCommandPayload = Exclude<
       | 'host-ui-v1'
       | 'desktop-service-v1'
       | 'local-update-v1'
+      | 'local-host-v1'
   }
 >
 
@@ -239,6 +240,7 @@ function classifyLocalSessionPayload(payload: LocalSessionCommandPayload) {
       'host-ui-v1',
       'desktop-service-v1',
       'local-update-v1',
+      'local-host-v1',
       'local-attachments-v1',
       'local-compaction-v1',
       'local-compaction-cancel-v1',

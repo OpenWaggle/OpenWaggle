@@ -31,6 +31,9 @@ export interface ProjectPreferencesUpdatePayload {
 export interface OpenWaggleProjectConfigApi {
   manageProjectActions(request: ActionManagementRequest): Promise<ActionManagementResult>
   selectProjectFolder(): Promise<string | null>
+  /** Consume the project an `openwaggle <path>` launch asked to open, if any. */
+  takeOpenProjectRequest(): Promise<string | null>
+  onOpenProjectRequested(callback: () => void): () => void
   getProjectPreferences(projectPath: string): Promise<ProjectPreferencesPayload | null>
   /** Resolves to the canonical (realpath) project path the write was stored under. */
   setProjectPreferences(

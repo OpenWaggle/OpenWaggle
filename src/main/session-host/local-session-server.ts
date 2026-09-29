@@ -54,6 +54,11 @@ export interface LocalSessionServerDependencies {
     readonly payload: unknown
     readonly signal: AbortSignal
     readonly releaseAdmissionReader: () => void
+    /** Begin a graceful stop; returns the stopping Host and the Actions it waits for. */
+    readonly requestHostStop: () => {
+      readonly hostInstanceId: string
+      readonly runningActions: number
+    }
   }) => Promise<unknown>
   readonly authorizeEvent?: (
     caller: AuthenticatedLocalSessionCaller,

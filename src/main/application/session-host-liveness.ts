@@ -11,7 +11,7 @@ export const SESSION_HOST_LIVENESS_KINDS = [
 ] as const
 
 export type SessionHostLivenessKind = (typeof SESSION_HOST_LIVENESS_KINDS)[number]
-export type SessionHostDrainReason = 'recovery' | 'upgrade'
+export type SessionHostDrainReason = 'recovery' | 'upgrade' | 'stop'
 const SHUTDOWN_RETRY_DELAY_MS = 250
 
 export interface SessionHostLivenessOptions {
@@ -104,13 +104,16 @@ export class SessionHostLiveness {
     this.requestShutdownSafely()
   }
 
-  acquire(kind: SessionHostLivenessKind): () => void {
-    if (
-      this.closed ||
-      this.shutdownRequested ||
-      (this.draining && kind !== 'client' && kind !== 'subscription')
-    ) {
-      throw new Error('Session Host is no longer accepting liveness owners.')
+  /**
+   * `whileDraining` admits work that helps a drain finish, such as interrupting a Run. It
+   * still holds the Host open until it completes, so its response is delivered.
+   */
+  acquire(kind: SessionHostLivenessKind, options: { readonly whileDraining?: boolean } = {}) {
+    const admittedByDrain = kind === 'client' || kind === 'subscription' || options.whileDraining
+    if (this.closed || this.shutdownRequested || (this.draining && !admittedByDrain)) {
+      throw new Error(
+        'The Session Host is stopping and is no longer accepting new work; try again once it has stopped.',
+      )
     }
     this.cancelIdleTimer()
     this.owners.set(kind, (this.owners.get(kind) ?? 0) + 1)

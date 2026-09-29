@@ -6,6 +6,7 @@ import type { SessionHostEventCursor } from '@shared/types/session-host-event'
 import * as Cause from 'effect/Cause'
 import * as Option from 'effect/Option'
 import * as Runtime from 'effect/Runtime'
+import { isAdmittedWhileDraining } from './local-session-drain-admission'
 import type { LocalSessionCursorResolution } from './local-session-event-cursor-projection'
 import {
   disconnectLocalSessionProfile,
@@ -67,7 +68,24 @@ export async function executeLocalSessionCommandFrame(input: {
   readonly send: (frame: LocalSessionServerFrame) => Promise<void>
   readonly releaseAdmissionReader?: () => void
 }) {
-  const releaseOperation = input.dependencies.liveness.acquire('operation')
+  let releaseOperation: () => void
+  try {
+    releaseOperation = input.dependencies.liveness.acquire('operation', {
+      whileDraining:
+        input.dependencies.liveness.isDraining() && isAdmittedWhileDraining(input.frame.payload),
+    })
+  } catch (error) {
+    // A stopping Host refuses this one request; the connection stays usable.
+    input.releaseAdmissionReader?.()
+    await input.send({
+      kind: 'error',
+      requestId: input.frame.requestId,
+      code: 'host_draining',
+      message: describeLocalSessionServerError(error),
+      retryable: true,
+    })
+    return
+  }
   try {
     let payload: unknown
     try {
@@ -80,6 +98,13 @@ export async function executeLocalSessionCommandFrame(input: {
         payload: input.frame.payload,
         signal: input.signal,
         releaseAdmissionReader: () => input.releaseAdmissionReader?.(),
+        requestHostStop: () => {
+          input.dependencies.liveness.requestDrain('stop')
+          return {
+            hostInstanceId: input.dependencies.hostInstanceId,
+            runningActions: input.dependencies.liveness.ownerCount('action-run'),
+          }
+        },
       })
       input.releaseAdmissionReader?.()
       const refreshed = refreshedProfileId(payload)

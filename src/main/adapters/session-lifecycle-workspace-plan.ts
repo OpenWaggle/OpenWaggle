@@ -1,3 +1,4 @@
+import path from 'node:path'
 import type * as SqlClient from '@effect/sql/SqlClient'
 import type { ResolvedAgentDefinitionSnapshot } from '@shared/types/agent-definition'
 import type { SessionLifecycleCommand } from '@shared/types/session-lifecycle'
@@ -69,6 +70,27 @@ function localWorkspacePlan(
   })
 }
 
+interface ProjectWorkspaceRow {
+  readonly id: string
+  readonly kind: string
+  readonly working_path: string
+  readonly lifecycle_state: string
+}
+
+/** Whether `directory` is `root` or somewhere below it. */
+function isWithin(directory: string, root: string) {
+  const relative = path.relative(root, directory)
+  const escapes = relative === '..' || relative.startsWith(`..${path.sep}`)
+  return relative === '' || (!escapes && !path.isAbsolute(relative))
+}
+
+/**
+ * The `current` Workspace is the one the caller works in: an agent's exact Workspace, or the
+ * Workspace containing a CLI caller's directory. A caller elsewhere (another project, or a
+ * directory OpenWaggle does not manage) has no current Workspace for this project, so the
+ * named project's own checkout is used. A caller inside a worktree that is not ready is
+ * refused rather than silently moved to the checkout.
+ */
 function currentWorkspacePlan(
   sql: SqlClient.SqlClient,
   input: PrepareSessionLifecycleInput,
@@ -79,20 +101,30 @@ function currentWorkspacePlan(
     return localWorkspacePlan(sql, projectPath, input.identities.workspaceId)
   }
   return Effect.gen(function* () {
-    const rows = yield* sql<WorkspaceRow>`
-      SELECT id
+    const rows = yield* sql<ProjectWorkspaceRow>`
+      SELECT id, kind, working_path, lifecycle_state
       FROM workspace_resources
       WHERE project_path = ${projectPath}
-        AND working_path = ${workingDirectory}
-        AND lifecycle_state = 'ready'
-      LIMIT 1
     `
-    if (!rows[0]) {
+    const containing = rows
+      .filter((row) => isWithin(workingDirectory, row.working_path))
+      .sort((left, right) => right.working_path.length - left.working_path.length)[0]
+    if (containing?.lifecycle_state === 'ready') {
+      return { mode: 'existing', workspaceId: containing.id } as const
+    }
+    if (containing?.kind === 'managed-worktree') {
       return yield* Effect.fail(
-        preparationError('initiating-workspace-not-found', { projectPath, workingDirectory }),
+        preparationError(
+          'initiating-workspace-not-ready',
+          new Error(
+            containing.lifecycle_state === 'failed' || containing.lifecycle_state === 'missing'
+              ? `The worktree at ${containing.working_path} is ${containing.lifecycle_state}. Run from the project checkout, or pass --workspace local.`
+              : `The worktree at ${containing.working_path} is ${containing.lifecycle_state}. Wait until it is ready, or pass --workspace local.`,
+          ),
+        ),
       )
     }
-    return { mode: 'existing', workspaceId: rows[0].id } as const
+    return yield* localWorkspacePlan(sql, projectPath, input.identities.workspaceId)
   })
 }
 
