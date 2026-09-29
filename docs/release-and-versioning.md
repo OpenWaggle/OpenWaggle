@@ -37,7 +37,9 @@ Platform trust for v1:
 - Required GitHub Actions secrets: `MACOS_CERTIFICATE_P12_BASE64` (the Developer ID Application
   certificate exported as `.p12`, base64-encoded), `MACOS_CERTIFICATE_PASSWORD`, `APPLE_ID`,
   `APPLE_APP_SPECIFIC_PASSWORD`, and `APPLE_TEAM_ID`. Without them Alpha and Beta macOS builds stay
-  unsigned; RC and Stable macOS builds fail closed (`scripts/mac-signing.ts`). When configured,
+  unsigned; the release workflow refuses to build RC and Stable macOS artifacts without them. The
+  electron-builder config (`scripts/mac-signing.ts`) only chooses how to sign and never fails,
+  because every electron-builder command, including `postinstall`, loads it. When configured,
   the release workflow verifies each app with `codesign`, `stapler`, and `spctl` before upload.
 - Windows code signing does not block `1.0.0`; it is tracked as post-v1 work. Unsigned Windows installers show a SmartScreen warning on first install.
 - Linux AppImage artifacts are not signed.

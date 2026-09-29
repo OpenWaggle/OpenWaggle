@@ -13,30 +13,17 @@ describe('macOS signing', () => {
     expect(resolveMacSigning('dev', { ...certificate, ...notarization })).toEqual({ identity: null })
   })
 
-  it('lets prerelease builds ship unsigned until a certificate is configured', () => {
+  it('leaves builds unsigned without a certificate, whatever the channel', () => {
     expect(resolveMacSigning('beta', {})).toEqual({ identity: null })
-    expect(resolveMacSigning('alpha', {})).toEqual({ identity: null })
+    expect(resolveMacSigning('stable', {})).toEqual({ identity: null })
+    expect(resolveMacSigning('rc', {})).toEqual({ identity: null })
   })
 
   it('signs and notarizes release builds when credentials are configured', () => {
-    expect(resolveMacSigning('beta', { ...certificate, ...notarization })).toEqual({
+    expect(resolveMacSigning('stable', { ...certificate, ...notarization })).toEqual({
       hardenedRuntime: true,
       notarize: true,
     })
     expect(resolveMacSigning('beta', certificate)).toEqual({ hardenedRuntime: true, notarize: false })
-  })
-
-  it('fails closed for release candidates and Stable without signing and notarization', () => {
-    expect(() => resolveMacSigning('rc', {}, 'darwin')).toThrow(/Release candidate macOS builds must be signed/u)
-    expect(() => resolveMacSigning('stable', certificate, 'darwin')).toThrow(/Stable macOS builds must be signed/u)
-    expect(resolveMacSigning('stable', { ...certificate, ...notarization }, 'darwin')).toEqual({
-      hardenedRuntime: true,
-      notarize: true,
-    })
-  })
-
-  it('does not block Linux and Windows release jobs that load the same configuration', () => {
-    expect(resolveMacSigning('stable', {}, 'linux')).toEqual({ identity: null })
-    expect(resolveMacSigning('rc', {}, 'win32')).toEqual({ identity: null })
   })
 })

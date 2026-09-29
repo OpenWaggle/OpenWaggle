@@ -579,6 +579,22 @@ jobs:
           esac
           echo "OPENWAGGLE_RELEASE_CHANNEL=$channel" >> "$GITHUB_ENV"
 
+      - name: Require macOS signing for release candidates and Stable
+        shell: bash
+        env:
+          MACOS_SIGNING_CONFIGURED: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 != '' && secrets.MACOS_CERTIFICATE_PASSWORD != '' }}
+          MACOS_NOTARIZATION_CONFIGURED: ${{ secrets.APPLE_ID != '' && secrets.APPLE_APP_SPECIFIC_PASSWORD != '' && secrets.APPLE_TEAM_ID != '' }}
+        run: |
+          set -euo pipefail
+          case "$OPENWAGGLE_RELEASE_CHANNEL" in
+            rc|stable)
+              if [ "$MACOS_SIGNING_CONFIGURED" != "true" ] || [ "$MACOS_NOTARIZATION_CONFIGURED" != "true" ]; then
+                echo "::error::${OPENWAGGLE_RELEASE_CHANNEL} macOS builds must be signed and notarized; configure the macOS signing secrets." >&2
+                exit 1
+              fi
+              ;;
+          esac
+
       - run: pnpm build
 
       - name: Build macOS artifacts (arm64 + x64)
@@ -596,7 +612,7 @@ jobs:
         shell: bash
         env:
           MACOS_SIGNING_CONFIGURED: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 != '' }}
-          MACOS_NOTARIZATION_CONFIGURED: ${{ secrets.APPLE_ID != '' }}
+          MACOS_NOTARIZATION_CONFIGURED: ${{ secrets.APPLE_ID != '' && secrets.APPLE_APP_SPECIFIC_PASSWORD != '' && secrets.APPLE_TEAM_ID != '' }}
         run: |
           set -euo pipefail
           if [ "$MACOS_SIGNING_CONFIGURED" != "true" ]; then

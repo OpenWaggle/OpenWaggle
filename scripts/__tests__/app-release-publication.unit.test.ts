@@ -40,4 +40,12 @@ describe('desktop app release publication', () => {
     )
     expect(WORKFLOW).toContain("format('{0}/release-notes.md', runner.temp)")
   })
+
+  it('refuses to build unsigned release candidate or Stable macOS artifacts', () => {
+    const guard = WORKFLOW.indexOf('name: Require macOS signing for release candidates and Stable')
+    const build = WORKFLOW.indexOf('name: Build macOS artifacts (arm64 + x64)')
+    expect(guard).toBeGreaterThan(0)
+    expect(guard).toBeLessThan(build)
+    expect(WORKFLOW).toMatch(/rc\|stable\)\n\s+if \[ "\$MACOS_SIGNING_CONFIGURED" != "true" \] \|\| \[ "\$MACOS_NOTARIZATION_CONFIGURED" != "true" \]; then/u)
+  })
 })
