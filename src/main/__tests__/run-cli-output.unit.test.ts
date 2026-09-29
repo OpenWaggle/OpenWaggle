@@ -23,11 +23,20 @@ describe('terminal text sanitizing', () => {
     ['family \u{1f468}\u200d\u{1f469}', 'family \u{1f468}\u200d\u{1f469}'],
     ['lone \\x0d\n kept', 'lone \\x0d\n kept'],
     ['bare flag \u{1f3f4}\u{e0049}\u{e0047}', 'bare flag \u{1f3f4}\\u{e0049}\\u{e0047}'],
+    ['short flag \u{1f3f4}\u{e0061}\u{e007f}', 'short flag \u{1f3f4}\\u{e0061}\\u{e007f}'],
     [
       'after flag \u{1f3f4}\u{e0067}\u{e0062}\u{e0073}\u{e0063}\u{e0074}\u{e007f}\u{e0063}',
       'after flag \u{1f3f4}\u{e0067}\u{e0062}\u{e0073}\u{e0063}\u{e0074}\u{e007f}\\u{e0063}',
     ],
     ['fillers \u3164\u034f\u{e0100}', 'fillers \\u3164\\u034f\\u{e0100}'],
+    ['selectors ls\ufe00\ufe01\ufe0e -la', 'selectors ls\ufe00\\ufe01\\ufe0e -la'],
+    ['joiners ls\u200d\ufe0f\u200d -la', 'joiners ls\\u200d\\ufe0f\\u200d -la'],
+    ['mongolian \u180b khmer \u17b4 \u206a', 'mongolian \\u180b khmer \\u17b4 \\u206a'],
+    ['heart fire \u2764\ufe0f\u200d\u{1f525}', 'heart fire \u2764\ufe0f\u200d\u{1f525}'],
+    [
+      'skin toned \u{1f469}\u{1f3fd}\u200d\u{1f4bb}',
+      'skin toned \u{1f469}\u{1f3fd}\u200d\u{1f4bb}',
+    ],
     [
       'emoji \u2764\ufe0f \u{1f44d}\u{1f3fd} \u4e2d\u6587 e\u0301',
       'emoji \u2764\ufe0f \u{1f44d}\u{1f3fd} \u4e2d\u6587 e\u0301',
