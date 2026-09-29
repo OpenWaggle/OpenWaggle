@@ -99,3 +99,37 @@ it('keeps current workspace paths authoritative for both Pi shell tools', async 
     })
   }
 })
+
+it('points both Pi shell tools at the Session scratch directory for temp files', async () => {
+  await createPiSessionForRun(
+    fromPartial({
+      preparedEnvironment: { TMPDIR: '/tmp', READY: 'yes' },
+      scratchDirectory: '/private/scratch/session-a',
+      projectRoot: '/project',
+      workspacePath: '/workspace',
+      services: { cwd: '/workspace' },
+      sessionManager: { buildSessionContext: () => ({ messages: [] }) },
+      thinkingLevel: 'off',
+    }),
+  )
+  for (const name of ['bash', 'powershell']) {
+    const hook = mocks.hooks.get(name)
+    if (!hook) throw new Error(`Missing ${name} spawn hook`)
+    expect(
+      hook({
+        command: 'git push > "$TMPDIR/push.log" 2>&1',
+        cwd: '/workspace',
+        env: { TMPDIR: '/tmp', TMP: '/tmp', TEMP: '/tmp', KEEP: 'value' },
+      }).env,
+    ).toEqual({
+      KEEP: 'value',
+      READY: 'yes',
+      TMPDIR: '/private/scratch/session-a',
+      TMP: '/private/scratch/session-a',
+      TEMP: '/private/scratch/session-a',
+      OPENWAGGLE_PROJECT_ROOT: '/project',
+      OPENWAGGLE_WORKTREE_PATH: '/workspace',
+      OPENWAGGLE_AGENT_RUN: '1',
+    })
+  }
+})

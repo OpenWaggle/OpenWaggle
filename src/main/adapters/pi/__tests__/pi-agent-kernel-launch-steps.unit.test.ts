@@ -22,6 +22,9 @@ const runMocks = vi.hoisted(() => ({
   resolveTrackedBranch: vi.fn(async () => ({ branch: 'main', upstream: 'origin/main' })),
 }))
 
+vi.mock('../../../utils/session-scratch-directory', () => ({
+  prepareSessionScratchDirectory: async (sessionId: string) => `/scratch/${sessionId}`,
+}))
 vi.mock('../agent-kernel/classic-run', () => ({ runPiSession: runMocks.runPiSession }))
 vi.mock('../agent-kernel/session-manager', () => ({
   requireSessionProjectPath: () => '/repo',

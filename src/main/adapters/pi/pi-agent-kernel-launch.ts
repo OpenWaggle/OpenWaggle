@@ -7,6 +7,7 @@ import { createLogger } from '../../logger'
 import type { AgentKernelRunInput } from '../../ports/agent-kernel-service'
 import type { InlineVisualizationServiceShape } from '../../ports/inline-visualization-service'
 import type { McpDirectToolWaitOutcome } from '../../ports/mcp-runtime-service'
+import { prepareSessionScratchDirectory } from '../../utils/session-scratch-directory'
 
 const logger = createLogger('pi-agent-kernel')
 
@@ -101,6 +102,24 @@ export function prepareVisualizationDirectory(
         logger.warn('Failed to prepare the session visualization directory', {
           sessionId,
           error: error.message,
+        })
+        return undefined
+      }),
+    ),
+  )
+}
+
+/**
+ * A missing scratch directory must not block the turn: tools then keep the Host's temp directory,
+ * which is the behaviour before per-Session scratch directories existed.
+ */
+export function prepareScratchDirectory(sessionId: AgentKernelRunInput['session']['id']) {
+  return Effect.tryPromise(() => prepareSessionScratchDirectory(sessionId)).pipe(
+    Effect.catchAll((error) =>
+      Effect.sync(() => {
+        logger.warn('Failed to prepare the session scratch directory', {
+          sessionId,
+          error: String(error.error),
         })
         return undefined
       }),

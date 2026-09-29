@@ -5,6 +5,7 @@ import { clampThinkingLevel } from '@shared/utils/thinking-levels'
 import { resolveEffectiveAuthorizationMode } from '../../../application/agent-authorization-mode'
 import type { AgentKernelRunInput, AgentKernelRunResult } from '../../../ports/agent-kernel-service'
 import { getPiModelAvailableThinkingLevels, type PiModel } from '../pi-provider-catalog'
+import { scratchDirectorySystemPrompt } from '../pi-provider-resources'
 import {
   buildPiRunNewMessages,
   extractPiAssistantTerminalError,
@@ -57,7 +58,16 @@ interface CreatePiRunSessionRuntimeInput extends PiRuntimeExtensionIsolationInpu
   readonly trustedExtensionFactories?: readonly ExtensionFactory[]
   readonly systemPromptAppendices?: readonly string[]
   readonly visualizationDirectory?: string
+  readonly scratchDirectory?: string
   readonly steeringInputHook?: boolean
+}
+
+function runSystemPromptAppendices(input: CreatePiRunSessionRuntimeInput) {
+  const appendices = [
+    ...(input.scratchDirectory ? [scratchDirectorySystemPrompt(input.scratchDirectory)] : []),
+    ...(input.systemPromptAppendices ?? []),
+  ]
+  return appendices.length > 0 ? { systemPromptAppendices: appendices } : {}
 }
 
 function exposePiRunControl(
@@ -90,9 +100,7 @@ export async function createPiRunSessionRuntime(
     ...(input.trustedExtensionFactories
       ? { trustedExtensionFactories: [...input.trustedExtensionFactories] }
       : {}),
-    ...(input.systemPromptAppendices
-      ? { systemPromptAppendices: [...input.systemPromptAppendices] }
-      : {}),
+    ...runSystemPromptAppendices(input),
     ...(input.visualizationDirectory
       ? { visualizationDirectory: input.visualizationDirectory }
       : {}),
@@ -133,6 +141,7 @@ export async function createPiRunSessionRuntime(
       thinkingLevel,
       openWaggleUi,
       ...(input.preparedEnvironment ? { preparedEnvironment: input.preparedEnvironment } : {}),
+      ...(input.scratchDirectory ? { scratchDirectory: input.scratchDirectory } : {}),
     })
 
     return exposePiRunControl(input, selectedRuntime.runtime.model, session)
@@ -156,6 +165,7 @@ export async function createPiRunSessionRuntime(
       thinkingLevel,
       openWaggleUi,
       ...(input.preparedEnvironment ? { preparedEnvironment: input.preparedEnvironment } : {}),
+      ...(input.scratchDirectory ? { scratchDirectory: input.scratchDirectory } : {}),
     })
 
     return exposePiRunControl(input, fallbackRuntime.model, session)

@@ -113,6 +113,18 @@ function allowFirstPartyExtensionFactoriesForAutomation() {
   return env.OPENWAGGLE_AUTOMATION_FIRST_PARTY_EXTENSIONS === '1'
 }
 
+/**
+ * Host-authored scratch guidance. TMPDIR alone does not help when the model types a literal
+ * `/tmp/push.log`, which is how two concurrent Sessions read each other's push output.
+ */
+export function scratchDirectorySystemPrompt(scratchDirectory: string) {
+  return [
+    '## Session scratch directory',
+    `The private scratch directory for this session is ${JSON.stringify(scratchDirectory)}; TMPDIR, TMP, and TEMP point to it for tool processes.`,
+    'Write temporary files, logs, and command output there, for example "$TMPDIR/push.log". Other sessions share /tmp, so never write fixed file names directly under /tmp. OpenWaggle removes this directory when the session is archived or deleted.',
+  ].join('\n')
+}
+
 function systemPromptAppendices(options: PiRuntimeServicesOptions) {
   const appendices = [...(options.systemPromptAppendices ?? [])]
   if (options.visualizationDirectory) {

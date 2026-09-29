@@ -12,6 +12,7 @@ import {
   type PreparedEnvironment,
   withoutWorkspaceContext,
 } from '../../../domain/prepared-environment'
+import { sessionScratchEnvironment } from '../../../utils/session-scratch-directory'
 import type { PiModel } from '../pi-provider-catalog'
 import {
   createOpenWaggleAgentSessionFromServices,
@@ -20,6 +21,8 @@ import {
 
 export async function createPiSessionForRun(input: {
   readonly preparedEnvironment?: PreparedEnvironment
+  /** Private per-Session temp directory exported to tool processes as TMPDIR, TMP, and TEMP. */
+  readonly scratchDirectory?: string
   readonly projectRoot: string
   readonly workspacePath: string
   readonly services: AgentSessionServices
@@ -28,13 +31,22 @@ export async function createPiSessionForRun(input: {
   readonly thinkingLevel: ThinkingLevel
   readonly openWaggleUi: OpenWaggleAgentSessionOptions['openWaggleUi']
 }) {
+  const windows = process.platform === 'win32'
+  const scratchEnvironment = input.scratchDirectory
+    ? sessionScratchEnvironment(input.scratchDirectory)
+    : {}
   const markAgentRun = (context: { command: string; cwd: string; env: NodeJS.ProcessEnv }) => ({
     ...context,
     env: {
       ...applyPreparedEnvironment(
-        withoutWorkspaceContext(context.env),
-        withoutWorkspaceContext(input.preparedEnvironment ?? {}),
-        process.platform === 'win32',
+        applyPreparedEnvironment(
+          withoutWorkspaceContext(context.env),
+          withoutWorkspaceContext(input.preparedEnvironment ?? {}),
+          windows,
+        ),
+        // Applied last so a setup-captured TMPDIR cannot point tools back at the shared /tmp.
+        scratchEnvironment,
+        windows,
       ),
       // Pi's spawn context starts from the detached Host environment, not Session metadata.
       OPENWAGGLE_PROJECT_ROOT: input.projectRoot,
