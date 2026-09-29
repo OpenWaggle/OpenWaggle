@@ -21,4 +21,4 @@ The Host already drains itself before an upgrade handoff: it refuses new work, l
 
 ## Consequences
 
-`openwaggle host stop` gives a supported way to empty the background process without losing Runs. A Host held by a long-running Action or an unanswered approval still waits. The command says so and names what to do: interrupt the Run or stop the Action. There is no forced stop; killing the process remains the only way to skip the drain, with its documented host-loss outcome. The desktop app starts a new Host the next time it needs one.
+`openwaggle host stop` gives a supported way to empty the background process without losing Runs. A Host held by a long-running Action or an unanswered approval still waits. The command says so and names what to do: pause the queue, interrupt the Run, or stop the Action. There is no forced stop; killing the process remains the only way to skip the drain, with its documented host-loss outcome. The desktop app starts a new Host the next time it needs one.

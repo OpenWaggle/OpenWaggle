@@ -21,8 +21,19 @@ const INVISIBLE_PLUS = 0x2064
 const BYTE_ORDER_MARK = 0xfeff
 const TAG_START = 0xe0000
 const TAG_END = 0xe007f
-/** Subdivision flags (such as Scotland's) are this flag followed by tag characters. */
-const WAVING_BLACK_FLAG = 0x1f3f4
+const COMBINING_GRAPHEME_JOINER = 0x034f
+const HANGUL_CHOSEONG_FILLER = 0x115f
+const HANGUL_JUNGSEONG_FILLER = 0x1160
+const MONGOLIAN_VOWEL_SEPARATOR = 0x180e
+const HANGUL_FILLER = 0x3164
+const HALFWIDTH_HANGUL_FILLER = 0xffa0
+const VARIATION_SELECTOR_SUPPLEMENT_START = 0xe0100
+const VARIATION_SELECTOR_SUPPLEMENT_END = 0xe01ef
+/**
+ * A complete subdivision flag, such as Scotland's: the black flag, a lowercase region code
+ * spelled in tag characters, and the cancel tag. Any other tag character is shown escaped.
+ */
+const SUBDIVISION_FLAG = /\u{1f3f4}[\u{e0030}-\u{e0039}\u{e0061}-\u{e007a}]{1,6}\u{e007f}/gu
 const HEX_RADIX = 16
 const LAST_BYTE = 0xff
 const BYTE_HEX_DIGITS = 2
@@ -48,18 +59,26 @@ function isBidiControl(code: number) {
  * Characters that render as nothing, so text can hide inside an approval line. The zero-width
  * joiner stays, because emoji sequences need it.
  */
+const INVISIBLE_CHARACTERS: ReadonlySet<number> = new Set([
+  SOFT_HYPHEN,
+  COMBINING_GRAPHEME_JOINER,
+  HANGUL_CHOSEONG_FILLER,
+  HANGUL_JUNGSEONG_FILLER,
+  MONGOLIAN_VOWEL_SEPARATOR,
+  ZERO_WIDTH_SPACE,
+  ZERO_WIDTH_NON_JOINER,
+  HANGUL_FILLER,
+  BYTE_ORDER_MARK,
+  HALFWIDTH_HANGUL_FILLER,
+])
+
 function isInvisible(code: number) {
   return (
-    code === SOFT_HYPHEN ||
-    code === ZERO_WIDTH_SPACE ||
-    code === ZERO_WIDTH_NON_JOINER ||
+    INVISIBLE_CHARACTERS.has(code) ||
     (code >= WORD_JOINER && code <= INVISIBLE_PLUS) ||
-    code === BYTE_ORDER_MARK
+    (code >= VARIATION_SELECTOR_SUPPLEMENT_START && code <= VARIATION_SELECTOR_SUPPLEMENT_END) ||
+    (code >= TAG_START && code <= TAG_END)
   )
-}
-
-function isTag(code: number) {
-  return code >= TAG_START && code <= TAG_END
 }
 
 /** A character written out, such as `\x1b`, `\u202e`, or `\u{e0041}`. */
@@ -71,24 +90,31 @@ function visibleEscape(code: number) {
     : `\\u${hex.padStart(CODE_UNIT_HEX_DIGITS, '0')}`
 }
 
-/**
- * Make agent-controlled text safe to print. Control characters and bidirectional-text
- * controls are written out visibly rather than interpreted or deleted: an approval message
- * could otherwise move the cursor, rewrite the line being approved, reorder its text, or
- * hide part of a command. Line breaks and tabs are kept, and CRLF becomes LF.
- */
-export function sanitizeTerminalText(text: string) {
+function sanitizeSegment(text: string) {
   const characters = [...text]
   let result = ''
-  let inFlag = false
   for (const [index, character] of characters.entries()) {
     const code = character.codePointAt(0) ?? 0
     if (code === CARRIAGE_RETURN && characters[index + 1] === '\n') continue
-    // Tag characters are invisible, so they are shown unless they spell a subdivision flag.
-    inFlag = code === WAVING_BLACK_FLAG || (inFlag && isTag(code))
-    const hiddenTag = isTag(code) && !inFlag
-    const escaped = isControl(code) || isBidiControl(code) || isInvisible(code) || hiddenTag
+    const escaped = isControl(code) || isBidiControl(code) || isInvisible(code)
     result += escaped ? visibleEscape(code) : character
   }
   return result
+}
+
+/**
+ * Make agent-controlled text safe to print. Control characters, bidirectional-text controls,
+ * and invisible characters are written out visibly rather than interpreted or deleted: an
+ * approval message could otherwise move the cursor, rewrite the line being approved, reorder
+ * its text, or hide part of a command. Line breaks and tabs are kept, CRLF becomes LF, and
+ * complete subdivision flag emoji print as flags.
+ */
+export function sanitizeTerminalText(text: string) {
+  let result = ''
+  let start = 0
+  for (const flag of text.matchAll(SUBDIVISION_FLAG)) {
+    result += sanitizeSegment(text.slice(start, flag.index)) + flag[0]
+    start = flag.index + flag[0].length
+  }
+  return result + sanitizeSegment(text.slice(start))
 }

@@ -22,6 +22,16 @@ describe('terminal text sanitizing', () => {
     ],
     ['family \u{1f468}\u200d\u{1f469}', 'family \u{1f468}\u200d\u{1f469}'],
     ['lone \\x0d\n kept', 'lone \\x0d\n kept'],
+    ['bare flag \u{1f3f4}\u{e0049}\u{e0047}', 'bare flag \u{1f3f4}\\u{e0049}\\u{e0047}'],
+    [
+      'after flag \u{1f3f4}\u{e0067}\u{e0062}\u{e0073}\u{e0063}\u{e0074}\u{e007f}\u{e0063}',
+      'after flag \u{1f3f4}\u{e0067}\u{e0062}\u{e0073}\u{e0063}\u{e0074}\u{e007f}\\u{e0063}',
+    ],
+    ['fillers \u3164\u034f\u{e0100}', 'fillers \\u3164\\u034f\\u{e0100}'],
+    [
+      'emoji \u2764\ufe0f \u{1f44d}\u{1f3fd} \u4e2d\u6587 e\u0301',
+      'emoji \u2764\ufe0f \u{1f44d}\u{1f3fd} \u4e2d\u6587 e\u0301',
+    ],
   ])('sanitizes %j', (input, expected) => {
     expect(sanitizeTerminalText(input)).toBe(expected)
   })

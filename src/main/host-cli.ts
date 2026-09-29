@@ -191,7 +191,7 @@ function waitsForPhrase(blockingRuns: number | null, blockingActions: number) {
 }
 
 const SOONER_HINT =
-  "To stop it sooner, pause queued Follow-ups with 'openwaggle sessions queue pause', interrupt Runs with 'openwaggle sessions interrupt <session-id> --expected-run <run-id>', and stop Actions in the desktop app."
+  "To stop it sooner, pause queued Follow-ups with 'openwaggle sessions queue pause <session-id> --queue-revision <n>', interrupt Runs with 'openwaggle sessions interrupt <session-id> --expected-run <run-id>', and stop Actions in the desktop app."
 
 const SETTLED_STOP_MESSAGES = {
   stopped: 'Session Host stopped.',

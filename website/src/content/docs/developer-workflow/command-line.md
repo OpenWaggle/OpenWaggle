@@ -68,7 +68,7 @@ Press Ctrl-C once to interrupt the Run and wait for it to stop. Press it again t
 
 `run` exits with 0 when the Run completes, 1 when it fails or its result cannot be read, 2 for a usage error, 3 to 6 for authentication, authorization, not-found, and conflict errors, 7 when a question outlasts `--interaction-timeout-ms`, 8 when the Session Host is unavailable or exits, and 130 when the Run is interrupted. If another client replaces or deletes the Run, `run` reports that and exits instead of waiting. Reusing `--idempotency-key` attaches to the Run the key first started. Add `--jsonl` to get the Session's Host events as versioned records instead of text, ending with a `run-settled` record that carries the exit status and, when there is one, the reason.
 
-Agent-controlled text written to your terminal, such as tool arguments and approval messages, shows control characters and text-direction overrides as escapes such as `\x1b` or `\u202e`, so it cannot rewrite, reorder, or hide part of the line you are about to approve. The reply on stdout is treated the same way when stdout is a terminal, and left untouched when you pipe it. When the reader of stdout goes away, as with `openwaggle run ... | head -1`, `run` interrupts the Run and exits.
+Agent-controlled text written to your terminal, such as tool arguments and approval messages, shows control characters, text-direction overrides, and invisible characters (zero-width spaces, byte-order marks, tag characters) as escapes such as `\x1b` or `\u202e`, so it cannot rewrite, reorder, or hide part of the line you are about to approve. Emoji, including joined sequences and subdivision flags, print normally. The reply on stdout is treated the same way when stdout is a terminal, and left untouched when you pipe it. When the reader of stdout goes away, as with `openwaggle run ... | head -1`, `run` interrupts the Run and exits.
 
 ## Check the Session Host
 
@@ -98,7 +98,7 @@ openwaggle host stop
 openwaggle host stop --wait --timeout-ms 60000
 ```
 
-The Session Host exits on its own a few minutes after its last work ends, so stopping it is rarely needed. `host stop` makes it refuse new work at once and exit as soon as its active Runs, running Actions, exports, and other owned work finish. It never interrupts a Run. Follow-ups already queued behind an active Run still run first; pause the queue with `openwaggle sessions queue pause` to stop sooner. The command says what the Host is waiting for.
+The Session Host exits on its own a few minutes after its last work ends, so stopping it is rarely needed. `host stop` makes it refuse new work at once and exit as soon as its active Runs, running Actions, exports, and other owned work finish. It never interrupts a Run. Follow-ups already queued behind an active Run still run first; pause the queue with `openwaggle sessions queue pause <session-id> --queue-revision <n>` to stop sooner (`openwaggle sessions queue list <session-id>` shows the revision). The command says what the Host is waiting for.
 
 While it stops, the Host still answers the commands that end work: you can read Sessions (but not wait on them), answer a Run's questions and approvals, interrupt a Run with `openwaggle sessions interrupt <session-id> --expected-run <run-id>` (`openwaggle status` lists both IDs), and stop an Action in the desktop app, which keeps showing your Sessions. Commands that start work fail with a message that the Host is stopping.
 

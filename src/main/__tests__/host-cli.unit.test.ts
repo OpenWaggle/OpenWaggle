@@ -95,7 +95,7 @@ describe('openwaggle host stop', () => {
       blockingActions: 1,
     })
     expect(formatHostStopReport(report)).toBe(
-      "Session Host refuses new requests and stops once its 2 active Runs and a running Action finish.\nTo stop it sooner, pause queued Follow-ups with 'openwaggle sessions queue pause', interrupt Runs with 'openwaggle sessions interrupt <session-id> --expected-run <run-id>', and stop Actions in the desktop app.",
+      "Session Host refuses new requests and stops once its 2 active Runs and a running Action finish.\nTo stop it sooner, pause queued Follow-ups with 'openwaggle sessions queue pause <session-id> --queue-revision <n>', interrupt Runs with 'openwaggle sessions interrupt <session-id> --expected-run <run-id>', and stop Actions in the desktop app.",
     )
     const oneRun = {
       state: 'stopping',
