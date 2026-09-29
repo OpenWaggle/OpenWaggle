@@ -665,6 +665,24 @@ the live Run scope again for long-running operations such as exports. Tests for 
 must use real canonical directories; invented paths exercise rejection rather than the intended
 authorization branch.
 
+An Effect tagged error with no `message` field reaches `Effect.runPromise` callers as a
+`FiberFailure` whose message is the placeholder "An error has occurred". Every
+`LocalSessionCommandAuthorizationError` looked like that in the Sessions tool, which hid a plain
+`target_scope_denied`. Render failures that leave the Host through
+`sessionCommandFailureMessage`, and assert the rendered text in tests, not only the error code.
+
+A root Session agent's target scope is decided in two places: `resolveSessionToolAgentCaller`
+when the tool is called, and `sessionAgentBlockReason` when a queued Follow-up is delivered.
+Change them together (ADR 0039). A user-originated root now reaches every project; the
+delivery check used to compare project paths and would pause every cross-project Follow-up as
+`authority_changed` even after the tool accepted it.
+
+Agent tool processes get `TMPDIR`/`TMP`/`TEMP` pointing at a per-Session 0700 scratch directory
+through the Pi bash and PowerShell `spawnHook` in `pi-run-session.ts`, applied after the prepared
+Workspace environment. The Host deletes it from `session-host-events.ts` on `session-list-changed`
+`archived`/`deleted`. Tests that run `runPiAgentKernel` must mock
+`utils/session-scratch-directory` or they create directories in the real temp directory.
+
 Native Session capabilities constrain OpenWaggle tools and the Session Host API. They are not an
 OS sandbox against arbitrary commands from another process running as the same user. A hostile or
 YOLO shell needs a separate account, container, or operating-system sandbox for containment.
