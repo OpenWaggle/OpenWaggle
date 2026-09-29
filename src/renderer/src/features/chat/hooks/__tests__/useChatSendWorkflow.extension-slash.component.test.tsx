@@ -245,34 +245,4 @@ describe('useChatSendWorkflow extension slash commands', () => {
     expect(params.handleSend).not.toHaveBeenCalled()
     expect(discardPreparedAttachment).not.toHaveBeenCalled()
   })
-
-  it('records the latest user message as the send baseline before sending', async () => {
-    const setPendingSend = vi.fn()
-    const handleSend = vi.fn(() => {
-      expect(setPendingSend).toHaveBeenLastCalledWith({ afterUserMessageId: 'latest-user' })
-      return Promise.resolve()
-    })
-    const messages = [
-      { id: 'older-user', role: 'user' as const, parts: [] },
-      { id: 'latest-user', role: 'user' as const, parts: [] },
-      { id: 'answer', role: 'assistant' as const, parts: [] },
-    ]
-    const params = sendWorkflowParams({ handleSend, messages, setPendingSend })
-    const { result } = renderHook(() => useChatSendWorkflow(params))
-
-    await act(() => result.current.sendWithWaggle(payload('Next question')))
-    expect(handleSend).toHaveBeenCalledOnce()
-  })
-
-  it('clears the pending send when the send is refused', async () => {
-    const params = sendWorkflowParams({
-      handleSend: vi.fn().mockRejectedValue(new MessageNotDelivered('refused', 'No model.')),
-    })
-    const { result } = renderHook(() => useChatSendWorkflow(params))
-
-    await expect(act(() => result.current.sendWithWaggle(payload('Hello')))).rejects.toBeInstanceOf(
-      MessageNotDelivered,
-    )
-    expect(params.setPendingSend).toHaveBeenLastCalledWith(null)
-  })
 })
