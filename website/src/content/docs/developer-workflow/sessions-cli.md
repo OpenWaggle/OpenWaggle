@@ -11,6 +11,8 @@ The CLI talks to the local Session Host, the process that owns saved sessions an
 
 An agent hosted by OpenWaggle should use its native `sessions` tool. The CLI is for people in a terminal and agents running in other tools. Both paths create the same durable Sessions; a CLI-spawned Worker appears in the desktop sidebar and Session Summary.
 
+For opening the app, `openwaggle run`, `openwaggle status`, and the full command list, see [Command line](/docs/developer-workflow/command-line).
+
 The installed app includes the CLI. On macOS and Linux, packaged app startup installs or refreshes its managed command at `~/.local/bin/openwaggle`; make sure `~/.local/bin` is on your shell's `PATH`. OpenWaggle never overwrites an unrelated file at that path, so resolve a path conflict explicitly if the command is unavailable. The Windows installer manages the command. From a source checkout, use `pnpm cli:dev -- <command>`.
 
 ## Start with an existing session
@@ -109,7 +111,7 @@ openwaggle sessions queue reorder <session-id> <follow-up-id>... \
 openwaggle sessions promote <session-id> <follow-up-id> --expected-run <run-id>
 openwaggle sessions requests list <session-id>
 openwaggle sessions requests respond <session-id> <run-id> <request-id> \
-  --response-json '{"choice":"approve"}' --approve
+  --response-json '{"kind":"confirm","accepted":true}' --approve
 ```
 
 Pending agent-loop questions survive GUI disconnects and have no automatic expiry. Inspect and answer them explicitly through the GUI or CLI. Queue mutations use an expected revision so concurrent callers cannot silently overwrite each other.
@@ -194,7 +196,7 @@ On Windows, starting a detached Host uses the built-in Windows PowerShell helper
 
 The installed Windows command adds Electron's `--` argument separator automatically. If you invoke the executable directly, include it: `OpenWaggle.exe -- access profiles create ...`. For a development executable, put it after the app path: `electron . -- access profiles create ...`. Without it, Electron can reject capability names such as `sessions:read` or URL arguments before OpenWaggle starts.
 
-The current Local Session protocol revision is **17**, and the Host accepts **only revision 17**. Revision 17 adds native managed Actions and removes legacy action commands. Revision 16 added Session resource Host-UI operations; revision 15 added worktree-launch events. Revision 14 added update commands, revision 13 added turn-diff file reads, and revision 12 added project catalog commands. Revision 11 introduced the GUI's native terminal/browser bridge. Saving and revoking project approvals was introduced in revision 10. Desktop registration and these approval controls are available only to the local GUI, not external agent profiles.
+The current Local Session protocol revision is **19**, and the Host accepts **only revision 19**. Revision 19 adds the `openwaggle host stop` command. Revision 18 added labelled launch steps to worktree launch events and Run snapshots. Revision 17 added native managed Actions and removed legacy action commands. Revision 16 added Session resource Host-UI operations; revision 15 added worktree-launch events. Revision 14 added update commands, revision 13 added turn-diff file reads, and revision 12 added project catalog commands. Revision 11 introduced the GUI's native terminal/browser bridge. Saving and revoking project approvals was introduced in revision 10. Desktop registration and these approval controls are available only to the local GUI, not external agent profiles.
 
 Workspace authorization and visualization source preparation were introduced in revision 9, steering receipts in revision 8, and MCP authorization in revision 7. These minimum operation revisions do not mean the current Host accepts all old wire revisions. Older Hosts must complete the authenticated upgrade handoff before serving requests they do not support. The GUI does not fall back to its own database, save approvals locally, or grant access when the Host is unavailable.
 

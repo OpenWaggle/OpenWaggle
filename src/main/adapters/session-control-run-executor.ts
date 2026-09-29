@@ -35,7 +35,7 @@ import { SettingsService } from '../services/settings-service'
 import { startStreamBuffer } from '../utils/stream-bridge'
 import { executeRegisteredRun } from './session-control-run-dispatch'
 import { loadRunExecutionProfile } from './session-control-run-executor-profile'
-import { terminalRunResult } from './session-control-run-result'
+import { publishRunStartFailure, terminalRunResult } from './session-control-run-result'
 import type { ResolvedSessionRunExecution } from './session-run-execution-profile'
 import {
   liveSessionAuthorityBlockReason,
@@ -117,10 +117,10 @@ function registerInteractionDeadline(input: {
       })
 }
 
-function executeRunAfterAttachmentAdmission(input: SessionControlRunExecutionInput) {
+/** Everything a Run needs before it reaches Pi; a failure here ends the Run with its reason. */
+function prepareRun(sql: SqlClient.SqlClient, input: SessionControlRunExecutionInput) {
   return Effect.gen(function* () {
     const settingsService = yield* SettingsService
-    const sql = yield* SqlClient.SqlClient
     const authorityBlock = yield* liveSessionAuthorityBlockReason(
       sql,
       input.intent.callerId,
@@ -135,6 +135,17 @@ function executeRunAfterAttachmentAdmission(input: SessionControlRunExecutionInp
       yield* settingsService.get(),
       execution,
     )
+    return { execution, authoritySnapshot, allowModelMultiAgent }
+  })
+}
+
+function executeRunAfterAttachmentAdmission(input: SessionControlRunExecutionInput) {
+  return Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient
+    const { execution, authoritySnapshot, allowModelMultiAgent } = yield* prepareRun(
+      sql,
+      input,
+    ).pipe(Effect.tapError((error) => Effect.sync(() => publishRunStartFailure(input, error))))
     let interactionTimedOut = false
     let checkingAuthority = false
     const authorityDriftTimer = authoritySnapshot

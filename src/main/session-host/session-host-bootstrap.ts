@@ -11,6 +11,7 @@ import { LocalSessionProfileRepository } from '../ports/local-session-profile-re
 import type { AppServices } from '../runtime'
 import { SettingsService } from '../services/settings-service'
 import { listStreamBufferSnapshots } from '../utils/stream-buffer'
+import { dispatchLocalHostCommand } from './local-host-command'
 import { createLocalSessionAuthenticator } from './local-session-authenticator'
 import {
   exposeLocalSessionCommandResultCursor,
@@ -99,11 +100,21 @@ export async function startAppSessionHost(input: {
       releaseAdmissionReader,
       resolveEventCursor,
       exposeEventCursor,
+      requestHostStop,
     }) => {
       const decodedPayload = decodeLocalSessionCommandPayloadForRevision(
         payload,
         negotiatedRevision,
       )
+      if (decodedPayload.contract === 'local-host-v1') {
+        return dispatchLocalHostCommand({
+          caller,
+          payload: decodedPayload,
+          countBlockingRuns: async () =>
+            (await readSessionHostUpgradeBlockers(input.paths.databasePath)).blockingRuns.length,
+          requestHostStop,
+        })
+      }
       const cursorResolution = resolveLocalSessionCommandCursor(decodedPayload, resolveEventCursor)
       const result =
         cursorResolution.status === 'resync-required'

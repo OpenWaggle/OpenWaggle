@@ -31,7 +31,6 @@ import type {
   AuthenticatedLocalSessionCaller,
   LocalSessionServerDependencies,
 } from './local-session-server'
-import { describeLocalSessionServerError } from './local-session-server-frame'
 
 const DEFAULT_HANDSHAKE_TIMEOUT_MS = 5000
 
@@ -192,8 +191,10 @@ export class LocalSessionConnection {
       budget: this.authenticationBudget,
       signal: this.authenticationController.signal,
       send: (frame) => this.send(frame),
-      authenticationFailed: (error) =>
-        this.fail(undefined, 'authentication_failed', describeLocalSessionServerError(error)),
+      // Why authentication failed stays in the Host: telling an unauthenticated peer whether a
+      // profile exists or was revoked would let it probe for profile names.
+      authenticationFailed: () =>
+        this.fail(undefined, 'authentication_failed', 'Local Session authentication failed.'),
     })
     if (result.status === 'closed') return
     this.caller = result.caller

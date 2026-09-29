@@ -44,7 +44,10 @@ vi.mock('../session-host/profile-credential-destination', () => ({
   readStoredProfileCredential: mocks.readStoredCredential,
 }))
 
-import { createLocalSessionCliClientInput } from '../local-session-cli-client'
+import {
+  createLocalSessionCliClientInput,
+  prepareLocalSessionCliClientInput,
+} from '../local-session-cli-client'
 import { parseMcpCliArguments } from '../mcp-cli-arguments'
 
 describe('local Sessions CLI client credentials', () => {
@@ -95,5 +98,14 @@ describe('local Sessions CLI client credentials', () => {
 
     expect(mocks.readCredentialStdin).toHaveBeenCalledOnce()
     expect(mocks.ensureHost).toHaveBeenCalledOnce()
+  })
+
+  it('prepares a client for read-only commands without starting the Session Host', async () => {
+    const input = await prepareLocalSessionCliClientInput(parseMcpCliArguments([]))
+
+    expect(input.clientKind).toBe('cli')
+    expect(mocks.ensureHost).not.toHaveBeenCalled()
+    await createLocalSessionCliClientInput(parseMcpCliArguments([]))
+    expect(mocks.ensureHost).toHaveBeenCalledTimes(1)
   })
 })

@@ -72,9 +72,10 @@ curl -fsSL https://raw.githubusercontent.com/OpenWaggle/OpenWaggle/main/scripts/
 
 After installing the app, launching it installs or refreshes the managed `openwaggle` command on
 macOS or Linux; make sure `~/.local/bin` is on your shell's `PATH`. An unrelated command at that
-path is never replaced. Windows installers register the command automatically. The CLI lets
-terminals and external coding agents discover and control the same live Sessions shown in the app;
-see [Sessions CLI](/docs/developer-workflow/sessions-cli).
+path is never replaced. Windows installers register the command automatically. Run
+`openwaggle --help` to list the commands. The CLI lets terminals and external coding agents run
+agents headlessly and control the same live Sessions shown in the app; see
+[Command line](/docs/developer-workflow/command-line) and [Sessions CLI](/docs/developer-workflow/sessions-cli).
 
 ## Choose an update channel
 

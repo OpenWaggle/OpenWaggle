@@ -1,0 +1,257 @@
+import { LOCAL_HOST_CONTRACT_VERSION } from '@shared/types/local-host'
+import type { LocalSessionCommandResult } from '@shared/types/local-session-protocol'
+import { writeCliStdout } from './cli-stdout'
+import { validateCommandCliOptions } from './command-cli-option-contract'
+import { env } from './env'
+import type { LocalSessionCliClientInput } from './local-session-cli-client'
+import { hasFlag, option, type ParsedArguments, parseMcpCliArguments } from './mcp-cli-arguments'
+import { SESSION_CLI_EXIT, sessionCliExitCodeForError } from './session-cli-exit-status'
+import { executeLocalSessionCommand } from './session-host/local-session-client'
+import { refreshLocalSessionHostEndpoint } from './session-host/local-session-paths'
+import { positiveInteger } from './sessions-cli-arguments'
+import { sessionsCliResponseText, writeSessionsCliError } from './sessions-cli-output'
+import {
+  defaultStatusCliDependencies,
+  type HostProbe,
+  probeRunningHost,
+  runStatusCli,
+  type StatusCliDependencies,
+} from './status-cli'
+
+export const HOST_CLI_USAGE = `OpenWaggle Session Host
+
+The Session Host is the background process that owns Sessions and agent Runs. It starts
+on demand and exits on its own a few minutes after its last work ends.
+
+Usage:
+  openwaggle host status [--json]
+  openwaggle host stop [--wait [--timeout-ms <ms>]] [--json]
+
+'host status' is the same as 'openwaggle status'.
+
+'host stop' refuses new work at once and lets active Runs finish before the Host exits.
+With --wait it returns only once the Host has exited (default timeout: 2 minutes).
+If the desktop app is open it starts a new Host when it next needs one.
+
+Only the local user can stop the Host; access profiles cannot.
+
+Options:
+  -h, --help`
+
+const STOP_OPTIONS = ['wait', 'timeout-ms', 'json'] as const
+const BOOLEAN_OPTIONS = new Set(['wait', 'json'])
+export const HOST_STOP_DEFAULT_TIMEOUT_MS = 120_000
+const HOST_STOP_POLL_INTERVAL_MS = 250
+
+type ClientInput = LocalSessionCliClientInput
+
+export interface HostCliDependencies {
+  readonly status: StatusCliDependencies
+  readonly execute: (
+    input: ClientInput & {
+      readonly payload: Parameters<typeof executeLocalSessionCommand>[0]['payload']
+    },
+  ) => Promise<LocalSessionCommandResult>
+  readonly now: () => number
+  readonly wait: (milliseconds: number) => Promise<void>
+  readonly writeStdout: (text: string) => Promise<void>
+}
+
+const defaultDependencies: HostCliDependencies = {
+  status: defaultStatusCliDependencies,
+  execute: async (input) =>
+    executeLocalSessionCommand({
+      ...input,
+      paths: await refreshLocalSessionHostEndpoint(input.paths),
+    }),
+  now: Date.now,
+  wait: (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
+  writeStdout: writeCliStdout,
+}
+
+export type HostStopReport =
+  | { readonly state: 'not-running' }
+  | {
+      readonly state: 'upgrade-pending'
+      readonly hostInstanceId: string
+      readonly blockingRuns: number
+    }
+  | {
+      readonly state: 'stopping' | 'stopped' | 'replaced' | 'timed-out'
+      readonly hostInstanceId: string
+      readonly blockingRuns: number
+      readonly blockingActions: number
+    }
+
+function isHelp(args: readonly string[], parsed: ParsedArguments) {
+  return (
+    (args.length === 1 && (args[0] === '-h' || args[0] === 'help')) || parsed.options.has('help')
+  )
+}
+
+async function requestStop(input: ClientInput, dependencies: HostCliDependencies) {
+  const result = await dependencies.execute({
+    ...input,
+    payload: {
+      contract: 'local-host-v1',
+      request: { contractVersion: LOCAL_HOST_CONTRACT_VERSION, operation: 'stop' },
+    },
+  })
+  if (result.contract !== 'local-host-v1') {
+    throw new Error('The Session Host returned an unexpected response to stop.')
+  }
+  return result.response
+}
+
+/** Poll until the stopped Host no longer answers, or another Host has taken its place. */
+async function waitForExit(
+  input: ClientInput,
+  hostInstanceId: string,
+  timeoutMs: number,
+  dependencies: HostCliDependencies,
+): Promise<'stopped' | 'replaced' | 'timed-out'> {
+  const deadline = dependencies.now() + timeoutMs
+  while (dependencies.now() < deadline) {
+    // While it shuts down the Host refuses even new connections; that is progress, not failure.
+    const probe: HostProbe | null = await probeRunningHost(input, dependencies.status.probe).catch(
+      () => null,
+    )
+    if (probe?.state === 'not-running') return 'stopped'
+    if (probe?.state === 'running' && probe.hostInstanceId !== hostInstanceId) return 'replaced'
+    await dependencies.wait(HOST_STOP_POLL_INTERVAL_MS)
+  }
+  return 'timed-out'
+}
+
+/** How long `--wait` waits, or `undefined` without `--wait`. Checked before the Host is asked. */
+function waitTimeout(parsed: ParsedArguments) {
+  if (!hasFlag(parsed, 'wait')) {
+    if (parsed.options.has('timeout-ms'))
+      throw new Error('--wait must be given to use --timeout-ms.')
+    return undefined
+  }
+  const timeoutMs = option(parsed, 'timeout-ms')
+  return timeoutMs ? positiveInteger(timeoutMs, '--timeout-ms') : HOST_STOP_DEFAULT_TIMEOUT_MS
+}
+
+export async function stopHost(
+  parsed: ParsedArguments,
+  dependencies: HostCliDependencies = defaultDependencies,
+  profile: string | undefined = env.OPENWAGGLE_PROFILE,
+): Promise<HostStopReport> {
+  const timeoutMs = waitTimeout(parsed)
+  if (profile) {
+    throw new Error(
+      "'host stop' requires the local user's authorization and cannot use an access profile. Unset OPENWAGGLE_PROFILE and try again.",
+    )
+  }
+  const input = await dependencies.status.prepareClientInput(parsed)
+  const probe = await probeRunningHost(input, dependencies.status.probe)
+  if (probe.state === 'not-running') return { state: 'not-running' }
+  if (probe.state === 'upgrade-pending') {
+    // An older Host has no stop command, but it is already handing over once it is idle.
+    const pending = { hostInstanceId: probe.hostInstanceId, blockingRuns: probe.blockingRuns }
+    if (timeoutMs === undefined) return { state: 'upgrade-pending', ...pending }
+    const state = await waitForExit(input, probe.hostInstanceId, timeoutMs, dependencies)
+    return { state, ...pending, blockingActions: 0 }
+  }
+  const response = await requestStop(input, dependencies)
+  const stopping = {
+    hostInstanceId: response.hostInstanceId,
+    blockingRuns: response.blockingRuns,
+    blockingActions: response.blockingActions,
+  }
+  if (timeoutMs === undefined) return { state: 'stopping', ...stopping }
+  const outcome = await waitForExit(input, response.hostInstanceId, timeoutMs, dependencies)
+  return { state: outcome, ...stopping }
+}
+
+/** What the Host still waits for, or `undefined` when nothing holds it. */
+function waitsForPhrase(blockingRuns: number, blockingActions: number) {
+  const parts = [
+    blockingRuns > 0
+      ? blockingRuns === 1
+        ? 'its active Run'
+        : `its ${blockingRuns} active Runs`
+      : undefined,
+    blockingActions > 0
+      ? blockingActions === 1
+        ? 'a running Action'
+        : `${blockingActions} running Actions`
+      : undefined,
+  ].filter((part) => part !== undefined)
+  if (parts.length === 0) return undefined
+  const single = blockingRuns + blockingActions === 1
+  return `${parts.join(' and ')} ${single ? 'finishes' : 'finish'}`
+}
+
+const SOONER_HINT =
+  "To stop it sooner, interrupt Runs with 'openwaggle sessions interrupt <session-id> --expected-run <run-id>' and stop Actions in the desktop app."
+
+const SETTLED_STOP_MESSAGES = {
+  stopped: 'Session Host stopped.',
+  replaced: 'Session Host stopped; another client has already started a new one.',
+  'timed-out': 'Session Host is still stopping; its active work has not finished yet.',
+} as const
+
+export function formatHostStopReport(report: HostStopReport) {
+  if (report.state === 'not-running') return 'Session Host is not running.'
+  if (report.state === 'upgrade-pending') {
+    const waitsFor = waitsForPhrase(report.blockingRuns, 0)
+    return `An older Session Host is running and hands over to this version once ${waitsFor ?? 'it is idle'}.`
+  }
+  const waitsFor = waitsForPhrase(report.blockingRuns, report.blockingActions)
+  if (report.state === 'stopping') {
+    return waitsFor
+      ? `Session Host refuses new work and stops once ${waitsFor}.\n${SOONER_HINT}`
+      : 'Session Host is stopping.'
+  }
+  if (report.state === 'timed-out' && waitsFor) {
+    return `${SETTLED_STOP_MESSAGES[report.state]}\n${SOONER_HINT}`
+  }
+  return SETTLED_STOP_MESSAGES[report.state]
+}
+
+async function runHostStop(args: readonly string[], dependencies: HostCliDependencies) {
+  const parsed = parseMcpCliArguments(args)
+  const json = hasFlag(parsed, 'json')
+  try {
+    validateCommandCliOptions({
+      surface: 'OpenWaggle host',
+      route: 'stop',
+      arguments: parsed,
+      optionsByRoute: { stop: STOP_OPTIONS },
+      booleanOptions: BOOLEAN_OPTIONS,
+      argumentsByRoute: { stop: { minimum: 0, maximum: 0 } },
+    })
+    const report = await stopHost(parsed, dependencies)
+    await dependencies.writeStdout(
+      json
+        ? sessionsCliResponseText('host-stop', report, true)
+        : `${formatHostStopReport(report)}\n`,
+    )
+    return report.state === 'timed-out' ? SESSION_CLI_EXIT.TIMEOUT : SESSION_CLI_EXIT.SUCCESS
+  } catch (error) {
+    return sessionCliExitCodeForError(writeSessionsCliError(error, json))
+  }
+}
+
+export async function runHostCli(
+  args: readonly string[],
+  dependencies: HostCliDependencies = defaultDependencies,
+) {
+  const [command, ...rest] = args
+  const parsed = parseMcpCliArguments(args)
+  if (command === undefined || isHelp(args, parsed)) {
+    await dependencies.writeStdout(`${HOST_CLI_USAGE}\n`)
+    return SESSION_CLI_EXIT.SUCCESS
+  }
+  if (command === 'status') return runStatusCli(rest, dependencies.status)
+  if (command === 'stop') return runHostStop(rest, dependencies)
+  return sessionCliExitCodeForError(
+    writeSessionsCliError(
+      new Error(`Unsupported OpenWaggle host command: ${command}. Expected status or stop.`),
+      false,
+    ),
+  )
+}

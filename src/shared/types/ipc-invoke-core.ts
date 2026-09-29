@@ -236,6 +236,11 @@ export interface IpcCoreInvokeChannelMap
     args: []
     return: string | null
   }
+  /** Consume the project an `openwaggle <path>` launch asked to open, if any. */
+  'project:take-open-request': {
+    args: []
+    return: string | null
+  }
   'project-config:get-preferences': {
     args: [projectPath: string]
     return: ProjectPreferencesPayload | null

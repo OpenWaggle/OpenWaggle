@@ -1,0 +1,67 @@
+import type { LocalSessionCallerIdentity } from '@shared/types/local-session-profile'
+import { fromPartial } from '@total-typescript/shoehorn'
+import { describe, expect, it, vi } from 'vitest'
+import { dispatchLocalHostCommand } from '../local-host-command'
+
+const payload = {
+  contract: 'local-host-v1',
+  request: { contractVersion: 1, operation: 'stop' },
+} as const
+
+function caller(identity: Partial<LocalSessionCallerIdentity>) {
+  return fromPartial<LocalSessionCallerIdentity>(identity)
+}
+
+describe('Session Host stop command', () => {
+  it('lets the local user stop the Host and reports what it waits for', async () => {
+    const requestHostStop = vi.fn(() => ({ hostInstanceId: 'host-1', runningActions: 1 }))
+
+    await expect(
+      dispatchLocalHostCommand({
+        caller: caller({ callerId: 'local-user:ada' }),
+        payload,
+        countBlockingRuns: async () => 2,
+        requestHostStop,
+      }),
+    ).resolves.toEqual({
+      contract: 'local-host-v1',
+      response: {
+        contractVersion: 1,
+        operation: 'stop',
+        hostInstanceId: 'host-1',
+        blockingRuns: 2,
+        blockingActions: 1,
+      },
+    })
+    expect(requestHostStop).toHaveBeenCalledTimes(1)
+  })
+
+  it.each([
+    [
+      'a named profile',
+      {
+        callerId: 'local-user:ada',
+        profileAuthority: fromPartial<NonNullable<LocalSessionCallerIdentity['profileAuthority']>>(
+          {},
+        ),
+      },
+    ],
+    ['the desktop app', { callerId: 'gui:local-user' }],
+    ['an agent', { callerId: 'session-agent:s-1:r-1' }],
+  ] satisfies [string, Partial<LocalSessionCallerIdentity>][])(
+    'refuses %s without stopping anything',
+    async (_label, identity) => {
+      const requestHostStop = vi.fn(() => ({ hostInstanceId: 'host-1', runningActions: 1 }))
+
+      await expect(
+        dispatchLocalHostCommand({
+          caller: caller(identity),
+          payload,
+          countBlockingRuns: async () => 0,
+          requestHostStop,
+        }),
+      ).rejects.toMatchObject({ code: 'capability_denied' })
+      expect(requestHostStop).not.toHaveBeenCalled()
+    },
+  )
+})

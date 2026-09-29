@@ -1,5 +1,6 @@
 import { writeSync } from 'node:fs'
 import { Writable } from 'node:stream'
+import { isatty } from 'node:tty'
 import { env } from './env'
 
 const MIN_ROUTED_OUTPUT_FD = 3
@@ -79,6 +80,12 @@ export function writeWritableChunk(output: Writable, value: string) {
       reject(cause)
     }
   })
+}
+
+/** Whether application CLI output reaches a terminal, including through the Linux shim's fd. */
+export function cliStdoutIsTerminal() {
+  const fd = routedOutputFd()
+  return fd === null ? Boolean(process.stdout.isTTY) : isatty(fd)
 }
 
 /** Keep application CLI bytes separate from Linux Electron startup stdout. */

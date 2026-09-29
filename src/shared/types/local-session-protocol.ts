@@ -110,6 +110,7 @@ export type LocalSessionCommandPayload =
       readonly request: HostUiV1Request
     }
   | LocalUpdateCommandPayload
+  | LocalHostCommandPayload
   | LocalSessionCompactionCommandPayload
   | LocalSessionWaggleCommandPayload
 
@@ -162,6 +163,7 @@ export type LocalSessionCommandResult =
       readonly response: HostUiV1Result
     }
   | LocalUpdateCommandResult
+  | LocalHostCommandResult
   | LocalSessionCompactionCommandResult
   | LocalSessionWaggleCommandResult
 
@@ -270,6 +272,7 @@ import type { AttachmentOrigin, PreparedAttachment } from './agent'
 import type { BackgroundRunSnapshot } from './background-run'
 import type { DesktopServiceRequest, DesktopServiceResponse } from './desktop-service'
 import type { HostUiV1Request, HostUiV1Result } from './host-ui-protocol'
+import type { LocalHostCommandPayload, LocalHostCommandResult } from './local-host'
 import type {
   LocalSessionCompactionCommandPayload,
   LocalSessionCompactionCommandResult,

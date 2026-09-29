@@ -18,6 +18,21 @@ const VALID_RESPONSE = JSON.stringify({
   result: { contract: 'local-session-v1', response: { outcome: { sessions: [] } } },
 })
 
+/** An installed CLI that answers the sessions list and the discovery checks correctly. */
+function installedCli(overrides: Partial<Record<string, { stdout: string; stderr: string }>> = {}) {
+  return vi.fn(async (_command: string, args: readonly string[]) => {
+    const key = args[0] ?? ''
+    const override = overrides[key]
+    if (override) return override
+    if (key === '--version') return { stdout: '0.4.0-alpha.10\n', stderr: '' }
+    if (key === '--help') return { stdout: 'Usage:\n  openwaggle run <prompt>\n', stderr: '' }
+    if (key === 'sesions') {
+      return { stdout: '', stderr: "openwaggle: unknown command 'sesions'. Did you mean 'sessions'?\n" }
+    }
+    return { stdout: VALID_RESPONSE, stderr: '' }
+  })
+}
+
 describe('installed CLI verification', () => {
   it('lets cmd.exe parse its /c command tail without Node CRT escaping', () => {
     expect(shouldUseWindowsVerbatimArguments('win32')).toBe(true)
@@ -55,7 +70,7 @@ describe('installed CLI verification', () => {
   it.each(['linux', 'darwin', 'win32'] satisfies NodeJS.Platform[])(
     'runs the installed command with an isolated profile and cleans its Host on %s',
     async (platform) => {
-      const runCli = vi.fn(async () => ({ stdout: VALID_RESPONSE, stderr: '' }))
+      const runCli = installedCli()
       const shutdownAndRemoveProfile = vi.fn(async () => undefined)
 
       await verifyInstalledCli('/installed/openwaggle', platform, {
@@ -85,7 +100,7 @@ describe('installed CLI verification', () => {
   })
 
   it('uses the caller-provided fresh-shell PATH for Windows command resolution', async () => {
-    const runCli = vi.fn(async () => ({ stdout: VALID_RESPONSE, stderr: '' }))
+    const runCli = installedCli()
 
     await verifyInstalledCli('openwaggle', 'win32', {
       createProfile: async () => 'D:\\isolated-profile',
@@ -146,5 +161,39 @@ describe('installed CLI verification', () => {
 
     expect(shutdownProfile).toHaveBeenCalledWith('D:\\retained-profile')
     expect(shutdownAndRemoveProfile).not.toHaveBeenCalled()
+  })
+
+  it('checks that the installed command answers help, version, and typos itself', async () => {
+    const runCli = installedCli()
+
+    await verifyInstalledCli('/installed/openwaggle', 'linux', {
+      createProfile: async () => '/isolated/profile',
+      runCli,
+      shutdownAndRemoveProfile: async () => undefined,
+    })
+
+    expect(runCli).toHaveBeenCalledWith(
+      '/installed/openwaggle',
+      ['sesions'],
+      expect.any(Object),
+      'linux',
+      { expectedExitCode: 2 },
+    )
+  })
+
+  it.each([
+    ['--version', 'did not print its version'],
+    ['--help', 'did not print its usage'],
+    ['sesions', 'did not report a mistyped command'],
+  ])('fails when %s opens the app instead of answering', async (argument, message) => {
+    const runCli = installedCli({ [argument]: { stdout: '', stderr: '' } })
+
+    await expect(
+      verifyInstalledCli('/installed/openwaggle', 'darwin', {
+        createProfile: async () => '/isolated/profile',
+        runCli,
+        shutdownAndRemoveProfile: async () => undefined,
+      }),
+    ).rejects.toThrow(message)
   })
 })

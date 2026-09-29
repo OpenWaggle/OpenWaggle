@@ -37,6 +37,11 @@ function humanOutcome(value: unknown) {
 }
 
 export function writeSessionsCliResponse(command: string, value: unknown, json: boolean) {
+  return writeCliStdout(sessionsCliResponseText(command, value, json))
+}
+
+/** The text `writeSessionsCliResponse` writes, for commands with their own stdout writer. */
+export function sessionsCliResponseText(command: string, value: unknown, json: boolean) {
   const output = json
     ? JSON.stringify(
         {
@@ -49,18 +54,16 @@ export function writeSessionsCliResponse(command: string, value: unknown, json: 
         JSON_INDENT_SPACES,
       )
     : humanOutcome(value)
-  return writeCliStdout(`${output}\n`)
+  return `${output}\n`
+}
+
+/** One versioned JSONL stream line, including its trailing newline. */
+export function sessionsCliStreamRecordLine(record: unknown) {
+  return `${JSON.stringify({ schemaVersion: SESSIONS_CLI_OUTPUT_SCHEMA_VERSION, type: 'record', record })}\n`
 }
 
 export function writeSessionsCliStreamRecord(record: unknown, jsonl: boolean) {
-  const output = jsonl
-    ? JSON.stringify({
-        schemaVersion: SESSIONS_CLI_OUTPUT_SCHEMA_VERSION,
-        type: 'record',
-        record,
-      })
-    : humanOutcome(record)
-  return writeCliStdout(`${output}\n`)
+  return writeCliStdout(jsonl ? sessionsCliStreamRecordLine(record) : `${humanOutcome(record)}\n`)
 }
 
 export type SessionsCliErrorKind =

@@ -23,7 +23,12 @@ export class InstalledCliProcessTreeExitUnprovenError extends AggregateError {}
 interface RunInstalledCliOptions {
   readonly maxOutputBytes?: number
   readonly timeoutMs?: number
+  /** The exit status that counts as success; usage errors deliberately exit with 2. */
+  readonly expectedExitCode?: number
 }
+
+const USAGE_EXIT_CODE = 2
+const SEMANTIC_VERSION = /\d+\.\d+\.\d+/
 
 interface VerifyInstalledCliDependencies {
   readonly environmentOverrides?: Readonly<Record<string, string>>
@@ -33,6 +38,7 @@ interface VerifyInstalledCliDependencies {
     args: readonly string[],
     environment: Record<string, string>,
     platform: NodeJS.Platform,
+    options?: RunInstalledCliOptions,
   ) => Promise<CliResult>
   readonly shutdownAndRemoveProfile?: (userDataRoot: string) => Promise<void>
   readonly shutdownProfile?: (userDataRoot: string) => Promise<void>
@@ -66,6 +72,7 @@ export function runInstalledCli(
 ) {
   const processInput = installedCliProcess(command, args, platform)
   const maxOutputBytes = options.maxOutputBytes ?? CLI_MAX_OUTPUT_BYTES
+  const expectedExitCode = options.expectedExitCode ?? 0
   const timeoutMs = options.timeoutMs ?? CLI_TIMEOUT_MS
   return new Promise<CliResult>((resolve, reject) => {
     const child = spawn(processInput.command, [...processInput.args], {
@@ -120,7 +127,7 @@ export function runInstalledCli(
       outcomeOwned = true
       clearTimeout(timer)
       const stderrText = Buffer.concat(stderr).toString()
-      if (code !== 0) {
+      if (code !== expectedExitCode) {
         reject(
           new Error(
             `Installed OpenWaggle CLI exited with ${String(code ?? signal)}: ${stderrText}`,
@@ -151,6 +158,32 @@ export function assertInstalledCliResponse(stdout: string, platform: NodeJS.Plat
     !isRecord(parsed.result)
   ) {
     throw new Error('Installed OpenWaggle CLI returned an invalid sessions list response.')
+  }
+}
+
+/**
+ * The installed command must answer help, version, and typos itself instead of opening the
+ * desktop app, through every platform's shim (the Linux output descriptor, the Windows `--`).
+ */
+export async function verifyInstalledCliDiscovery(
+  command: string,
+  environment: Record<string, string>,
+  platform: NodeJS.Platform,
+  runCli: NonNullable<VerifyInstalledCliDependencies['runCli']> = runInstalledCli,
+) {
+  const version = await runCli(command, ['--version'], environment, platform)
+  if (!SEMANTIC_VERSION.test(version.stdout)) {
+    throw new Error('Installed OpenWaggle CLI did not print its version for --version.')
+  }
+  const help = await runCli(command, ['--help'], environment, platform)
+  if (!help.stdout.includes('Usage:') || !help.stdout.includes('openwaggle run')) {
+    throw new Error('Installed OpenWaggle CLI did not print its usage for --help.')
+  }
+  const typo = await runCli(command, ['sesions'], environment, platform, {
+    expectedExitCode: USAGE_EXIT_CODE,
+  })
+  if (!typo.stderr.includes("Did you mean 'sessions'?")) {
+    throw new Error('Installed OpenWaggle CLI did not report a mistyped command.')
   }
 }
 
@@ -194,6 +227,7 @@ export async function verifyInstalledCli(
       platform,
     )
     assertInstalledCliResponse(result.stdout, platform)
+    await verifyInstalledCliDiscovery(command, environment, platform, executeCli)
   } catch (error) {
     primaryFailure = { error }
   }

@@ -20,6 +20,34 @@ export function publishRunFailure(
   })
 }
 
+function errorCode(error: unknown) {
+  if (typeof error !== 'object' || error === null || !('code' in error)) return undefined
+  return typeof error.code === 'string' ? error.code : undefined
+}
+
+/**
+ * End a Run that failed before it reached Pi, such as when its authority, execution profile,
+ * or project configuration could not be loaded. Without this terminal event the Run settled
+ * as failed with no reason any client could show.
+ */
+export function publishRunStartFailure(input: SessionControlRunExecutionInput, error: unknown) {
+  const code = errorCode(error)
+  publishSessionHostEvent({
+    kind: 'session-transport',
+    sessionId: input.sessionId,
+    event: {
+      type: 'agent_end',
+      runId: input.runId,
+      reason: 'error',
+      error: {
+        message: error instanceof Error ? error.message : String(error),
+        ...(code ? { code } : {}),
+      },
+      timestamp: Date.now(),
+    },
+  })
+}
+
 export function terminalRunResult(result: AgentRunResult, interactionTimedOut: boolean) {
   const latestAssistantMessage =
     result.outcome === 'success'
