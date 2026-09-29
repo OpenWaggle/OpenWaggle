@@ -16,6 +16,10 @@ describe('terminal text sanitizing', () => {
     ['arabic mark \u061c', 'arabic mark \\u061c'],
     ['hid\u200bden \ufeff\u00ad', 'hid\\u200bden \\ufeff\\xad'],
     ['tag \u{e0041}', 'tag \\u{e0041}'],
+    [
+      'scotland \u{1f3f4}\u{e0067}\u{e0062}\u{e0073}\u{e0063}\u{e0074}\u{e007f}',
+      'scotland \u{1f3f4}\u{e0067}\u{e0062}\u{e0073}\u{e0063}\u{e0074}\u{e007f}',
+    ],
     ['family \u{1f468}\u200d\u{1f469}', 'family \u{1f468}\u200d\u{1f469}'],
     ['lone \\x0d\n kept', 'lone \\x0d\n kept'],
   ])('sanitizes %j', (input, expected) => {

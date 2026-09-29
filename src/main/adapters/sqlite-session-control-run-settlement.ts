@@ -102,15 +102,6 @@ export function planRunSettlement(
   if (input.suppressFollowUpScheduling) {
     return { ...settleSessionRun(state, input.runId), scheduled: undefined }
   }
-  if (input.pauseFollowUpsForHostStop) {
-    const settled = settleSessionRun(state, input.runId)
-    if (!settled.accepted) return { ...settled, scheduled: undefined }
-    return {
-      ...settled,
-      state: pauseRunningQueue(settled.state, input.nextRunId, 'host-lost'),
-      scheduled: undefined,
-    }
-  }
   if (deferForParentLimit) {
     const settled = settleSessionRun(state, input.runId)
     if (!settled.accepted) return { ...settled, scheduled: undefined }

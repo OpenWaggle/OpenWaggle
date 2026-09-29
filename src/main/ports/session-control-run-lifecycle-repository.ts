@@ -82,11 +82,6 @@ export interface SessionControlRunLifecycleRepositoryShape {
     readonly terminalEventAt?: number
     readonly finalResponse?: string
     readonly suppressFollowUpScheduling?: boolean
-    /**
-     * The Host is stopping (`openwaggle host stop`), so a waiting Follow-up must not start a new
-     * Run: the queue pauses as it does when the Host stops during a Run, and resumes on request.
-     */
-    readonly pauseFollowUpsForHostStop?: boolean
   }) => Effect.Effect<SessionControlRunSettlementResult, SessionControlRepositoryError>
   readonly recoverHostLoss: Effect.Effect<
     readonly { readonly sessionId: SessionId; readonly runId: RunId }[],

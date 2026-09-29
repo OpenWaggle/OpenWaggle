@@ -29,7 +29,8 @@ Usage:
 
 'host status' is the same as 'openwaggle status'.
 
-'host stop' refuses new work at once and lets active Runs finish before the Host exits.
+'host stop' refuses new requests at once and lets active Runs, including the Follow-ups
+already queued behind them, finish before the Host exits.
 With --wait it returns only once the Host has exited (default timeout: 2 minutes).
 If the desktop app is open it starts a new Host when it next needs one.
 
@@ -190,7 +191,7 @@ function waitsForPhrase(blockingRuns: number | null, blockingActions: number) {
 }
 
 const SOONER_HINT =
-  "To stop it sooner, interrupt Runs with 'openwaggle sessions interrupt <session-id> --expected-run <run-id>' and stop Actions in the desktop app."
+  "To stop it sooner, pause queued Follow-ups with 'openwaggle sessions queue pause', interrupt Runs with 'openwaggle sessions interrupt <session-id> --expected-run <run-id>', and stop Actions in the desktop app."
 
 const SETTLED_STOP_MESSAGES = {
   stopped: 'Session Host stopped.',
@@ -207,7 +208,7 @@ export function formatHostStopReport(report: HostStopReport) {
   const waitsFor = waitsForPhrase(report.blockingRuns, report.blockingActions)
   if (report.state === 'stopping') {
     return waitsFor
-      ? `Session Host refuses new work and stops once ${waitsFor}.\n${SOONER_HINT}`
+      ? `Session Host refuses new requests and stops once ${waitsFor}.\n${SOONER_HINT}`
       : 'Session Host is stopping.'
   }
   if (report.state === 'timed-out' && waitsFor) {

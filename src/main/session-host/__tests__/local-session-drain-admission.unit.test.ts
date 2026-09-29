@@ -165,5 +165,23 @@ describe('commands a draining Session Host still accepts', () => {
         hostUi('agent-definitions:manage', [{ command: { operation: 'import-plan' } }]),
       ),
     ).toBe(false)
+    // Channels whose arguments decide whether they only read.
+    const reads: ActionManagementRequest['operation'][] = [
+      { type: 'catalog' },
+      { type: 'discover' },
+      { type: 'runs' },
+      { type: 'preparation' },
+      { type: 'retained-preparation' },
+    ]
+    for (const operation of reads) {
+      expect([operation.type, isAdmittedWhileDraining(action(operation))]).toEqual([
+        operation.type,
+        true,
+      ])
+    }
+    expect(isAdmittedWhileDraining(hostUi('mcp:get-settings', []))).toBe(true)
+    expect(isAdmittedWhileDraining(hostUi('mcp:get-settings', [{ reconcileRuntime: true }]))).toBe(
+      false,
+    )
   })
 })

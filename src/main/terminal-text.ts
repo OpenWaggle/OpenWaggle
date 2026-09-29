@@ -21,6 +21,8 @@ const INVISIBLE_PLUS = 0x2064
 const BYTE_ORDER_MARK = 0xfeff
 const TAG_START = 0xe0000
 const TAG_END = 0xe007f
+/** Subdivision flags (such as Scotland's) are this flag followed by tag characters. */
+const WAVING_BLACK_FLAG = 0x1f3f4
 const HEX_RADIX = 16
 const LAST_BYTE = 0xff
 const BYTE_HEX_DIGITS = 2
@@ -52,9 +54,12 @@ function isInvisible(code: number) {
     code === ZERO_WIDTH_SPACE ||
     code === ZERO_WIDTH_NON_JOINER ||
     (code >= WORD_JOINER && code <= INVISIBLE_PLUS) ||
-    code === BYTE_ORDER_MARK ||
-    (code >= TAG_START && code <= TAG_END)
+    code === BYTE_ORDER_MARK
   )
+}
+
+function isTag(code: number) {
+  return code >= TAG_START && code <= TAG_END
 }
 
 /** A character written out, such as `\x1b`, `\u202e`, or `\u{e0041}`. */
@@ -75,10 +80,14 @@ function visibleEscape(code: number) {
 export function sanitizeTerminalText(text: string) {
   const characters = [...text]
   let result = ''
+  let inFlag = false
   for (const [index, character] of characters.entries()) {
     const code = character.codePointAt(0) ?? 0
     if (code === CARRIAGE_RETURN && characters[index + 1] === '\n') continue
-    const escaped = isControl(code) || isBidiControl(code) || isInvisible(code)
+    // Tag characters are invisible, so they are shown unless they spell a subdivision flag.
+    inFlag = code === WAVING_BLACK_FLAG || (inFlag && isTag(code))
+    const hiddenTag = isTag(code) && !inFlag
+    const escaped = isControl(code) || isBidiControl(code) || isInvisible(code) || hiddenTag
     result += escaped ? visibleEscape(code) : character
   }
   return result
