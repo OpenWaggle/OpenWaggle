@@ -1,21 +1,26 @@
 import { decodeUnknownOrThrow, Schema } from '@shared/schema'
 import { SessionId } from '@shared/types/brand'
 import { isUpdateChannel, type UpdateChannel } from '@shared/types/update-channel'
+import type { UpdateStatus } from '@shared/types/updater'
 import * as Effect from 'effect/Effect'
 import { app } from 'electron'
 import { invokeConfiguredHostUi } from '../application/gui-session-command-router'
 import { listHostUiActiveActivities } from '../application/host-ui-agent-operation'
+import { interruptSessionRun } from '../application/session-run-interruption'
 import { getAllBrowserWindows, showMessageBox } from '../desktop-ui'
 import { createLogger } from '../logger'
 import { runAppEffect } from '../runtime'
-import { createUpdateRestartController, type UpdateRestartChoice } from '../update-restart'
+import {
+  createUpdateRestartController,
+  type UpdateRestartChoice,
+  type UpdateRestartState,
+} from '../update-restart'
 import {
   checkForUpdates,
   getUpdateStatus,
   installUpdate,
   setUpdateWaitingForRuns,
 } from '../updater'
-import { interruptSessionRun } from './agent-handler'
 import { typedHandle } from './typed-ipc'
 
 const logger = createLogger('update-restart')
@@ -23,12 +28,17 @@ const UPDATE_RESTART_POLL_INTERVAL_MS = 3_000
 const UPDATE_RESTART_INTERRUPT_SETTLE_TIMEOUT_MS = 30_000
 const RESTART_CHOICES: readonly UpdateRestartChoice[] = ['when-idle', 'now', 'cancel']
 const CANCEL_CHOICE_INDEX = 2
-const activeActivitiesSchema = Schema.Array(
-  Schema.Struct({
-    activity: Schema.Literal('agent-run', 'compaction'),
-    sessionId: Schema.String,
-  }),
-)
+// Only the Session id is read, so a new activity kind from the Host still counts and is stopped
+// instead of making Restart to update fail.
+const activeActivitiesSchema = Schema.Array(Schema.Struct({ sessionId: Schema.String }))
+
+function updateRestartState(status: UpdateStatus): UpdateRestartState {
+  if (status.type === 'downloaded') return 'installable'
+  if (status.type === 'checking' || status.type === 'available' || status.type === 'downloading') {
+    return 'pending'
+  }
+  return 'none'
+}
 
 function parseUpdateChannel(value: unknown): UpdateChannel | undefined {
   if (value === undefined || isUpdateChannel(value)) return value
@@ -44,11 +54,9 @@ async function listActiveActivities() {
   return decodeUnknownOrThrow(activeActivitiesSchema, activities)
 }
 
+/** Stops every active run and compaction; interruptSessionRun handles both. */
 async function interruptActiveRuns() {
-  const activities = await listActiveActivities()
-  const sessionIds = new Set(
-    activities.filter((activity) => activity.activity === 'agent-run').map((a) => a.sessionId),
-  )
+  const sessionIds = new Set((await listActiveActivities()).map((activity) => activity.sessionId))
   await Promise.all(
     [...sessionIds].map((sessionId) => runAppEffect(interruptSessionRun(SessionId(sessionId)))),
   )
@@ -72,7 +80,7 @@ const updateRestart = createUpdateRestartController({
   countActiveRuns: async () => (await listActiveActivities()).length,
   chooseRestart,
   interruptActiveRuns,
-  hasInstallableUpdate: () => getUpdateStatus().type === 'downloaded',
+  updateState: () => updateRestartState(getUpdateStatus()),
   reportWaiting: setUpdateWaitingForRuns,
   install: installUpdate,
   wait: (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),

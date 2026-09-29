@@ -17,6 +17,7 @@ import { cleanupSessionRun } from '../agent/session-cleanup'
 import { getAgentContextUsage } from '../application/agent-session-service'
 import { listHostUiActiveActivities } from '../application/host-ui-agent-operation'
 import { dispatchLocalSessionCommand } from '../application/local-session-command-dispatcher'
+import { interruptSessionRun } from '../application/session-run-interruption'
 import {
   clearAgentPhase,
   clearStreamBuffer,
@@ -35,65 +36,6 @@ function clearSessionTransportState(sessionId: SessionId) {
 function emitCancelledCompletion(sessionId: SessionId) {
   clearSessionTransportState(sessionId)
   emitRunCompleted(sessionId)
-}
-
-export function interruptSessionRun(sessionId: SessionId) {
-  return Effect.gen(function* () {
-    const statusResult = yield* dispatchLocalSessionCommand({
-      caller: { callerId: 'gui:local-user' },
-      payload: {
-        contract: 'session-query-v2',
-        request: {
-          contractVersion: SESSION_QUERY_CONTRACT_VERSION,
-          requestId: randomUUID(),
-          query: { operation: 'status', sessionId },
-        },
-      },
-    })
-    if (
-      statusResult.contract !== 'session-query-v2' ||
-      statusResult.response.outcome.operation !== 'status' ||
-      'error' in statusResult.response.outcome
-    ) {
-      return
-    }
-    if (statusResult.response.outcome.activeRunId) {
-      yield* dispatchLocalSessionCommand({
-        caller: { callerId: 'gui:local-user' },
-        payload: {
-          contract: 'session-control-v2',
-          request: {
-            contractVersion: SESSION_CONTROL_CONTRACT_VERSION,
-            requestId: randomUUID(),
-            idempotencyKey: randomUUID(),
-            command: {
-              operation: 'interrupt',
-              sessionId,
-              expectedRunId: statusResult.response.outcome.activeRunId,
-            },
-          },
-        },
-      })
-      return
-    }
-    const requestId = randomUUID()
-    const cancellation = yield* dispatchLocalSessionCommand({
-      caller: { callerId: 'gui:local-user' },
-      payload: {
-        contract: 'local-compaction-cancel-v1',
-        request: { requestId, sessionId },
-      },
-    })
-    if (
-      cancellation.contract !== 'local-compaction-cancel-v1' ||
-      cancellation.response.requestId !== requestId ||
-      cancellation.response.sessionId !== sessionId
-    ) {
-      return yield* Effect.fail(
-        new Error('Session Host returned an invalid compaction cancellation response.'),
-      )
-    }
-  })
 }
 
 /**

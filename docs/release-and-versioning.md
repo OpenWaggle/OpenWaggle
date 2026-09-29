@@ -27,7 +27,7 @@ The workflow's job set and the repository ruleset must stay in sync. Apply these
 1. `Settings → Rules → Rulesets → OpenWaggle main protections → required_status_checks`: set the required contexts to `Commit Policy`, `Typecheck & Lint`, `Unit Tests`, `Integration & Component Tests`, `MCP Conformance`, `Package Release Gate`.
 2. Remove the `merge_queue` rule from the same ruleset (ADR 0033): PRs merge directly once the required checks pass.
 
-The workflow currently publishes unsigned platform artifacts.
+macOS release artifacts are signed and notarized when the signing secrets below are configured; Windows and Linux artifacts are unsigned.
 
 Platform trust for v1:
 
@@ -68,10 +68,13 @@ builds already served as the alpha stage.
 During RC, `main` is frozen for app code: merge only release-blocker fixes, each of which cuts the
 next `1.0.0-rc.N` and restarts the validation window. The Stable promotion dispatch fails closed
 unless the content of `main` equals the content of the last RC tag, except for the root
-`package.json` version and non-app paths (`website/**`, `docs/**`, `.agents/**`, and top-level
-`*.md`). A non-release change to app code during RC, such as a `chore(deps):` lockfile bump, blocks
-promotion until it is reverted or released as the next RC. The guard blocks promotion only; it does
-not block merges.
+`package.json` version and non-app paths (`website/**` except the bundled user docs under
+`website/src/content/docs/**`, `docs/**`, `.agents/**`, and top-level `*.md`). Renames count on both
+sides, so moving app code into an ignored path still blocks. A non-release change to app code
+during RC, such as a `chore(deps):` lockfile bump, blocks promotion until it is reverted or
+released as the next RC. A new major version (`X.0.0`) cannot be promoted without a
+`X.0.0-rc.N` tag; later minors and patches may release straight to Stable. The guard blocks
+promotion only; it does not block merges.
 
 ### After 1.0.0
 
@@ -175,13 +178,16 @@ Updates download automatically in the background; installing is always a user ac
 - An update restart never silently interrupts an agent run. When the user chooses **Restart to
   update** and the Session Host has active runs in any session (window, Worker, or CLI-started),
   the app offers **Restart when idle** (default), **Restart now**, and **Cancel**.
+- Active runs include standalone compactions.
 - **Restart when idle** installs once the Session Host has no active run. Runs started after the
-  choice also count. The wait has no timeout; the update action stays visible with the number of
-  runs it is waiting for, so the user can still choose **Restart now**.
-- **Restart now** stops active runs through normal cancellation, recording them as interrupted,
-  waits up to 30 seconds for them to settle, and then installs, so the installer never kills a
-  running agent. The Session Host itself is released through its existing drain and handoff to the
-  newer version.
+  choice also count. The wait has no timeout and survives periodic or manual update checks; it ends
+  only when no eligible update remains, for example after the Update channel changes. The update
+  action stays visible with the number of runs it is waiting for, so the user can still choose
+  **Restart now**.
+- **Restart now** stops active runs and compactions through normal cancellation, recording them as
+  interrupted, waits up to 30 seconds for them to settle, and then installs. A run that does not
+  stop in that time, such as a queued Follow-up that starts meanwhile, is ended by the restart. The
+  Session Host itself is released through its existing drain and handoff to the newer version.
 - With no active runs, the restart installs immediately without a dialog.
 - The app relaunches automatically after installing an update, and after a fresh install where an
   installer runs. This follows `pingdotgg/t3code`:
@@ -193,14 +199,19 @@ Updates download automatically in the background; installing is always a user ac
 - `install.sh` launches the app when it finishes, because it is OpenWaggle's one-command desktop
   install (t3code's shell installer installs only its CLI, so it sets no precedent here). It skips
   the launch without a graphical session (SSH, CI, or Linux without `$DISPLAY` or
-  `$WAYLAND_DISPLAY`), with `--no-launch`, or with `OPENWAGGLE_NO_LAUNCH=1`. On macOS it quits a
-  running app through its normal quit path before replacing it. On Linux the AppImage is replaced
-  atomically and a running app keeps running; the installer tells the user to restart it.
-- `openwaggle update` never opens a window the user did not have open. If the desktop app is
-  running, a channel update only reports the available version: the app offers it and its
-  **Restart to update** action installs it, so active runs stay protected and the app relaunches.
-  If the app is closed, the command installs silently without launching it. An exact
-  `--version` install quits and relaunches a running app, and does not launch a closed one.
+  `$WAYLAND_DISPLAY`), with `--no-launch`, or with `OPENWAGGLE_NO_LAUNCH=1`. On macOS it quits the
+  running desktop window process (the app's only `Foreground` process; the detached Session Host
+  and CLI processes share the bundle id but are `UIElement`) with `SIGTERM`, which Electron handles
+  as a normal quit, before replacing the bundle. On Linux the AppImage is replaced atomically and a
+  running app keeps running; the installer tells the user to restart it.
+- `openwaggle update` never opens a window the user did not have open and never installs under a
+  running desktop app. If the app is running, a channel update only reports the available version
+  and tells the user to install it from **Settings > General > About & Updates**, where **Check
+  now** and **Restart to update** protect active runs and relaunch the app. An exact `--version`
+  install refuses while the app is open. With the app closed, Windows and Linux install silently
+  without launching it. macOS installs through the bundled installer, because Squirrel.Mac always
+  relaunches the app after an in-app install. The desktop-app check uses the single-instance lock,
+  so it cannot see an app started with `OPENWAGGLE_DISABLE_SINGLE_INSTANCE=1` (automation only).
 
 ### Protected release recovery
 
@@ -214,8 +225,10 @@ release-intent files. A change that breaks a covered surface must use a `!` Conv
 title so it produces a major version.
 
 - Prerelease builds use GitHub's generated release notes.
-- Stable releases get a hand-written entry in the root `CHANGELOG.md`, and the same text is used as
-  the GitHub Release notes. `CHANGELOG.md` starts at `1.0.0`; it notes that earlier `0.x` builds
+- Stable releases get a hand-written `## X.Y.Z` entry in the root `CHANGELOG.md`, and the same text
+  is used as the GitHub Release notes (`scripts/app-release-notes.ts`). The release workflow fails
+  before creating a release PR, branch, or tag when a Stable version has no entry, so write the
+  entry on `main` first. `CHANGELOG.md` starts at `1.0.0`; it notes that earlier `0.x` builds
   used a legacy process and remain listed in GitHub Releases.
 - The `1.0.0` entry summarizes the whole v1 train, not only the last RC.
 

@@ -103,8 +103,9 @@ openwaggle update --version 0.4.0
 
 `--check` reports availability without downloading. Without `--check`, `openwaggle update`
 downloads and installs the newest eligible release without opening the app. If OpenWaggle is
-already open, the command leaves the update to the app instead: choose **Restart to update**
-there, so running agent work is not interrupted without asking. Choosing `--channel` is persistent; choosing
+already open, the command leaves the update to the app instead: open **Settings → General → About
+& Updates**, choose **Check now**, then **Restart to update**, so running agent work is not
+interrupted without asking. An exact `--version` install asks you to quit OpenWaggle first. Choosing `--channel` is persistent; choosing
 `--version` is a one-time install and can target an exact Stable or prerelease version. Release
 candidates (RC) are not a separate channel; Beta and Alpha receive them automatically. On a first
 launch with no saved preference, an Alpha or Beta build starts on its matching channel and a

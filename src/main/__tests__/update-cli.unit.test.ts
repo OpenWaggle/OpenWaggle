@@ -9,6 +9,7 @@ const {
   createClientMock,
   requestSingleInstanceLockMock,
   releaseSingleInstanceLockMock,
+  spawnMock,
   updater,
 } = vi.hoisted(() => {
   const updater: {
@@ -39,10 +40,12 @@ const {
     createClientMock: vi.fn(() => Promise.resolve({ clientKind: 'cli' })),
     requestSingleInstanceLockMock: vi.fn(() => true),
     releaseSingleInstanceLockMock: vi.fn(),
+    spawnMock: vi.fn(),
     updater,
   }
 })
 
+vi.mock('node:child_process', () => ({ spawn: spawnMock }))
 vi.mock('electron', () => ({
   app: {
     isPackaged: false,
@@ -95,6 +98,7 @@ describe('update CLI', () => {
 
   afterEach(() => {
     vi.unstubAllGlobals()
+    vi.restoreAllMocks()
   })
 
   it('shows help without starting the Session Host', async () => {
@@ -194,6 +198,7 @@ describe('update CLI', () => {
   })
 
   it('cancels an ineligible channel download without installing it', async () => {
+    vi.spyOn(process, 'platform', 'get').mockReturnValue('linux')
     const cancel = vi.fn()
     checkForUpdatesMock.mockResolvedValue({
       cancellationToken: { cancel },
@@ -214,44 +219,6 @@ describe('update CLI', () => {
     expect(quitAndInstallMock).not.toHaveBeenCalled()
     expect(writeCliStdoutMock).not.toHaveBeenCalledWith(
       expect.stringMatching(/Downloading|Installing/u),
-    )
-  })
-
-  it('installs silently without opening the app when the desktop app is closed', async () => {
-    updater.once.mockImplementation((event: string, listener: () => void) => {
-      if (event === 'update-downloaded') queueMicrotask(listener)
-      return updater
-    })
-    checkForUpdatesMock.mockResolvedValue({
-      isUpdateAvailable: true,
-      updateInfo: { version: '0.4.1' },
-    })
-
-    await expect(runUpdateCli([])).resolves.toEqual({ exitCode: 0, updaterOwnsExit: true })
-
-    expect(updater.autoDownload).toBe(true)
-    expect(releaseSingleInstanceLockMock).toHaveBeenCalledOnce()
-    expect(quitAndInstallMock).toHaveBeenCalledWith(true, false)
-  })
-
-  it('leaves installation to a running desktop app so it can protect active runs', async () => {
-    requestSingleInstanceLockMock.mockReturnValue(false)
-    checkForUpdatesMock.mockResolvedValue({
-      isUpdateAvailable: true,
-      updateInfo: { version: '0.4.1' },
-    })
-
-    await expect(runUpdateCli([])).resolves.toEqual({ exitCode: 0, updaterOwnsExit: false })
-
-    expect(requestSingleInstanceLockMock).toHaveBeenCalledWith({
-      openwaggleInstanceProbe: 'update-cli',
-    })
-    expect(releaseSingleInstanceLockMock).not.toHaveBeenCalled()
-    expect(updater.autoDownload).toBe(false)
-    expect(updater.autoInstallOnAppQuit).toBe(false)
-    expect(quitAndInstallMock).not.toHaveBeenCalled()
-    expect(writeCliStdoutMock).toHaveBeenCalledWith(
-      expect.stringContaining('choose Restart to update in the app'),
     )
   })
 

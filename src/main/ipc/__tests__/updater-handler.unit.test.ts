@@ -44,7 +44,7 @@ vi.mock('../../desktop-ui', () => ({
   getAllBrowserWindows: () => [],
   showMessageBox: () => mockShowMessageBox(),
 }))
-vi.mock('../agent-handler', () => ({
+vi.mock('../../application/session-run-interruption', () => ({
   interruptSessionRun: (sessionId: string) => mockInterruptSessionRun(sessionId),
 }))
 

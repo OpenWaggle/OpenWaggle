@@ -163,6 +163,12 @@ jobs:
             exit 0
           fi
 
+          # Stable releases publish the hand-written CHANGELOG.md entry; fail before any branch,
+          # PR, or tag exists when it is missing.
+          if [[ "$VERSION" != *-* ]]; then
+            pnpm exec tsx scripts/app-release-notes.ts check --version "$VERSION"
+          fi
+
           RELEASE_BRANCH="app-release-v${VERSION}"
           TAG="v${VERSION}"
 
@@ -853,6 +859,18 @@ jobs:
         with:
           path: artifacts
 
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: 24
+
+      - name: Prepare Stable release notes
+        if: ${{ !contains(needs.version.outputs.new_version, '-') }}
+        env:
+          RELEASE_VERSION: ${{ needs.version.outputs.new_version }}
+        run: |
+          node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/app-release-notes.ts write \
+            --version "$RELEASE_VERSION" --output "$RUNNER_TEMP/release-notes.md"
+
       - name: Collect release assets
         run: |
           mkdir -p release
@@ -870,5 +888,7 @@ jobs:
           draft: false
           prerelease: ${{ contains(needs.version.outputs.new_version, '-') }}
           make_latest: ${{ contains(needs.version.outputs.new_version, '-') && 'false' || 'true' }}
-          generate_release_notes: true
+          # Prereleases use generated notes; Stable uses its CHANGELOG.md entry.
+          generate_release_notes: ${{ contains(needs.version.outputs.new_version, '-') }}
+          body_path: ${{ !contains(needs.version.outputs.new_version, '-') && format('{0}/release-notes.md', runner.temp) || '' }}
           files: release/*

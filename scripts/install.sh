@@ -331,18 +331,27 @@ launch_skip_reason() {
 }
 # END TESTABLE LAUNCH POLICY
 
-mac_app_is_running() {
-  osascript -e "application id \"${MAC_APP_ID}\" is running" 2>/dev/null | grep -q '^true$'
+# The desktop window process is the app's only Foreground process. The detached Session Host and
+# CLI invocations share its bundle id but register as UIElement, so they are never matched here.
+running_mac_gui_pids() {
+  local asn
+  for asn in $(lsappinfo find "bundleid=${MAC_APP_ID}" 2>/dev/null); do
+    lsappinfo info -only pid,applicationtype "${asn}" 2>/dev/null | tr '\n' ' ' | \
+      sed -n 's/.*"pid"=\([0-9][0-9]*\).*"ApplicationType"="Foreground".*/\1/p'
+  done
 }
 
-# Quit the running app through its normal quit path so it saves state before its bundle is replaced.
+# Quit the running desktop app through Electron's normal quit path (SIGTERM emits before-quit), so
+# it saves state before its bundle is replaced. The Session Host keeps running and hands over to
+# the new version through its own drain.
 quit_running_mac_app() {
-  mac_app_is_running || return 0
+  local pids pid waited
+  pids="$(running_mac_gui_pids)"
+  [ -n "${pids}" ] || return 0
   info "Quitting the running OpenWaggle…"
-  osascript -e "tell application id \"${MAC_APP_ID}\" to quit" >/dev/null 2>&1 || true
-  local waited
+  for pid in ${pids}; do kill -TERM "${pid}" 2>/dev/null || true; done
   for ((waited = 0; waited < APP_QUIT_WAIT_SECONDS; waited++)); do
-    mac_app_is_running || return 0
+    [ -n "$(running_mac_gui_pids)" ] || return 0
     sleep 1
   done
   error "OpenWaggle is still running. Quit it, then run the installer again."

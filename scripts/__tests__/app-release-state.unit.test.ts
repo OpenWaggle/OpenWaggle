@@ -4,6 +4,7 @@ import {
   expectedVersionOnlyManifest,
   latestReleaseCandidateTag,
   promotionGuardViolations,
+  requiresReleaseCandidate,
   releaseSubjectVersion,
   selectOwnedReleasePullRequests,
   type AppReleasePullRequest,
@@ -94,7 +95,13 @@ describe('app release state model', () => {
 
     expect(
       promotionGuardViolations({
-        changedPaths: ['package.json', 'website/src/content/docs/index.md', 'docs/adr/0039.md', 'README.md', '.agents/skills/release/SKILL.md'],
+        changedPaths: [
+          'package.json',
+          'website/src/pages/index.astro',
+          'docs/adr/0040.md',
+          'README.md',
+          '.agents/skills/release/SKILL.md',
+        ],
         releaseCandidateManifestJson,
         candidateManifestJson: '{"name":"openwaggle","version":"1.0.0","private":true}',
       }),
@@ -104,10 +111,28 @@ describe('app release state model', () => {
   it('reports app changes and manifest changes beyond the version', () => {
     expect(
       promotionGuardViolations({
-        changedPaths: ['package.json', 'pnpm-lock.yaml', 'src/main/updater.ts', 'docs/notes.md'],
+        changedPaths: [
+          'package.json',
+          'pnpm-lock.yaml',
+          'src/main/updater.ts',
+          'docs/notes.md',
+          'website/src/content/docs/getting-started/installation.md',
+        ],
         releaseCandidateManifestJson: '{"name":"openwaggle","version":"1.0.0-rc.3"}',
         candidateManifestJson: '{"name":"openwaggle","version":"1.0.0","dependencies":{"lodash":"4.17.21"}}',
       }),
-    ).toEqual(['package.json', 'pnpm-lock.yaml', 'src/main/updater.ts'])
+    ).toEqual([
+      'package.json',
+      'pnpm-lock.yaml',
+      'src/main/updater.ts',
+      'website/src/content/docs/getting-started/installation.md',
+    ])
+  })
+
+  it('requires a release candidate only before a new major version', () => {
+    expect(requiresReleaseCandidate('1.0.0')).toBe(true)
+    expect(requiresReleaseCandidate('2.0.0')).toBe(true)
+    expect(requiresReleaseCandidate('1.1.0')).toBe(false)
+    expect(requiresReleaseCandidate('1.0.1')).toBe(false)
   })
 })

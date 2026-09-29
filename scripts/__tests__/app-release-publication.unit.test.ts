@@ -25,4 +25,15 @@ describe('desktop app release publication', () => {
       /verify_version_only_tree "\$parent_sha" "\$commit_sha"\n\s+pnpm exec tsx scripts\/app-release-state\.ts verify-promotion \\\n\s+--target "\$VERSION" \\\n\s+--candidate "\$commit_sha"/u,
     )
   })
+
+  it('publishes Stable releases with their CHANGELOG entry and fails before tagging without one', () => {
+    expect(WORKFLOW).toMatch(
+      /if \[\[ "\$VERSION" != \*-\* \]\]; then\n\s+pnpm exec tsx scripts\/app-release-notes\.ts check --version "\$VERSION"\n\s+fi\n\n\s+RELEASE_BRANCH=/u,
+    )
+    expect(WORKFLOW).toContain('scripts/app-release-notes.ts write')
+    expect(WORKFLOW).toContain(
+      "generate_release_notes: ${{ contains(needs.version.outputs.new_version, '-') }}",
+    )
+    expect(WORKFLOW).toContain("format('{0}/release-notes.md', runner.temp)")
+  })
 })

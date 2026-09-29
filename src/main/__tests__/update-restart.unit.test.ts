@@ -3,12 +3,13 @@ import {
   createUpdateRestartController,
   type UpdateRestartChoice,
   type UpdateRestartDependencies,
+  type UpdateRestartState,
 } from '../update-restart'
 
 function harness(input: {
   readonly activeRuns: readonly number[]
   readonly choice?: UpdateRestartChoice
-  readonly installable?: () => boolean
+  readonly state?: () => UpdateRestartState
 }) {
   const counts = [...input.activeRuns]
   const events: string[] = []
@@ -25,7 +26,7 @@ function harness(input: {
       counts.splice(0, counts.length, 0)
       return Promise.resolve()
     }),
-    hasInstallableUpdate: vi.fn(input.installable ?? (() => true)),
+    updateState: vi.fn(input.state ?? ((): UpdateRestartState => 'installable')),
     reportWaiting: vi.fn((activeRuns: number | null) => {
       events.push(`waiting:${activeRuns ?? 'none'}`)
     }),
@@ -51,7 +52,7 @@ describe('update restart policy', () => {
 
     await controller.requestRestart()
 
-    expect(events).toEqual(['install'])
+    expect(events).toEqual(['install', 'waiting:none'])
   })
 
   it('does nothing when the user cancels', async () => {
@@ -67,7 +68,7 @@ describe('update restart policy', () => {
 
     await controller.requestRestart()
 
-    expect(events).toEqual(['choose:2', 'interrupt', 'install'])
+    expect(events).toEqual(['choose:2', 'interrupt', 'install', 'waiting:none'])
   })
 
   it('waits until the Session Host is idle, counting runs started later, then installs', async () => {
@@ -83,6 +84,7 @@ describe('update restart policy', () => {
       'waiting:2',
       'waiting:1',
       'install',
+      'waiting:none',
     ])
   })
 
@@ -101,30 +103,52 @@ describe('update restart policy', () => {
       'waiting:none',
       'interrupt',
       'install',
+      'waiting:none',
     ])
   })
 
-  it('stops waiting when the downloaded update is no longer installable', async () => {
-    let installable = true
+  it('keeps waiting through a re-check and stops only when no eligible update remains', async () => {
+    const states: UpdateRestartState[] = [
+      'installable',
+      'installable',
+      'pending',
+      'installable',
+      'none',
+    ]
     const { controller, dependencies, events } = harness({
       activeRuns: [1],
       choice: 'when-idle',
-      installable: () => installable,
-    })
-    dependencies.wait.mockImplementation(() => {
-      installable = false
-      return Promise.resolve()
+      state: () => (states.length > 1 ? (states.shift() ?? 'none') : 'none'),
     })
 
     await controller.requestRestart()
     await settle()
 
-    expect(events).toEqual(['choose:1', 'waiting:1', 'waiting:1', 'waiting:none'])
+    expect(events).toEqual(['choose:1', 'waiting:1', 'waiting:1', 'waiting:1', 'waiting:none'])
     expect(dependencies.install).not.toHaveBeenCalled()
   })
 
+  it('ignores a second Restart to update while the dialog is open', async () => {
+    const { controller, dependencies } = harness({ activeRuns: [1], choice: 'cancel' })
+    let answer: (choice: UpdateRestartChoice) => void = () => undefined
+    dependencies.chooseRestart.mockImplementationOnce(
+      () =>
+        new Promise<UpdateRestartChoice>((resolve) => {
+          answer = resolve
+        }),
+    )
+
+    const first = controller.requestRestart()
+    await settle()
+    await controller.requestRestart()
+    answer('cancel')
+    await first
+
+    expect(dependencies.chooseRestart).toHaveBeenCalledOnce()
+  })
+
   it('ignores the restart action without a downloaded update', async () => {
-    const { controller, dependencies } = harness({ activeRuns: [0], installable: () => false })
+    const { controller, dependencies } = harness({ activeRuns: [0], state: () => 'none' })
 
     await controller.requestRestart()
 
