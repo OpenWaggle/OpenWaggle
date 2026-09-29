@@ -8,38 +8,45 @@ const S1 = SessionId('session-1')
 const S2 = SessionId('session-2')
 const SEND = { afterUserMessageId: 'u1' }
 
-/** How the chat panel reads, begins and ends pending sends (ADR 0036). */
+/** The wiring the chat panel hands to the send workflow and the transcript (ADR 0036). */
 describe('usePendingSend', () => {
   beforeEach(() => {
     usePendingSendStore.setState({ bySession: new Map() })
     useChatStore.setState({ activeSessionId: null })
   })
 
-  it("begins a send for its own Session, visible to that Session's transcript only", () => {
+  it("shows a send the workflow began to that Session's transcript only", () => {
     const own = renderHook(() => usePendingSend(S1))
     const other = renderHook(() => usePendingSend(S2))
     const draft = renderHook(() => usePendingSend(null))
 
-    act(() => own.result.current.begin(SEND))
+    act(() => own.result.current.workflow.beginPendingSend(SEND))
 
-    expect(own.result.current.pendingSend).toBe(SEND)
-    expect(other.result.current.pendingSend).toBeNull()
-    expect(draft.result.current.pendingSend).toBeNull()
+    expect(own.result.current.transcript.pendingSend).toBe(SEND)
+    expect(other.result.current.transcript.pendingSend).toBeNull()
+    expect(draft.result.current.transcript.pendingSend).toBeNull()
   })
 
   it('ends the send once the transcript has held it', () => {
     const { result } = renderHook(() => usePendingSend(S1))
-    act(() => result.current.begin(SEND))
-    act(() => result.current.consume())
-    expect(result.current.pendingSend).toBeNull()
+    act(() => result.current.workflow.beginPendingSend(SEND))
+    act(() => result.current.transcript.onPendingSendConsumed())
+    expect(result.current.transcript.pendingSend).toBeNull()
+  })
+
+  it('ends the send when the workflow clears it after a refusal', () => {
+    const { result } = renderHook(() => usePendingSend(S1))
+    act(() => result.current.workflow.beginPendingSend(SEND))
+    act(() => result.current.workflow.clearPendingSend(SEND))
+    expect(result.current.transcript.pendingSend).toBeNull()
   })
 
   it("shows a draft's send to the Session it created", () => {
     const draft = renderHook(() => usePendingSend(null))
-    act(() => draft.result.current.begin(SEND))
+    act(() => draft.result.current.workflow.beginPendingSend(SEND))
     act(() => usePendingSendStore.getState().adoptDraft(S1))
 
-    expect(renderHook(() => usePendingSend(S1)).result.current.pendingSend).toBe(SEND)
+    expect(renderHook(() => usePendingSend(S1)).result.current.transcript.pendingSend).toBe(SEND)
   })
 
   it("ends a Session's send when the reader leaves it, but not a draft send it creates", () => {

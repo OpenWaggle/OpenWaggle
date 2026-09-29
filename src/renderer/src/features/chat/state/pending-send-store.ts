@@ -56,18 +56,24 @@ export const usePendingSendStore = create<PendingSendState>((set) => ({
     }),
 }))
 
-/** The pending send of the Session (or draft) on screen, with the actions that begin and end it. */
+/** The chat panel's pending-send wiring for the Session (or draft) on screen. */
 export function usePendingSend(sessionId: SessionId | null) {
   const pendingSend = usePendingSendStore(
     (state) => state.bySession.get(scopeKey(sessionId)) ?? null,
   )
   const { begin, clearSend } = usePendingSendStore.getState()
   return {
-    pendingSend,
-    begin: (send: PendingSend) => begin(sessionId, send),
-    clearSend,
-    consume: () => {
-      if (pendingSend) clearSend(pendingSend)
+    /** Handed to the send workflow, which begins a send and clears it when the send throws. */
+    workflow: {
+      beginPendingSend: (send: PendingSend) => begin(sessionId, send),
+      clearPendingSend: clearSend,
+    },
+    /** Handed to the transcript section, which holds the sent row and then consumes the send. */
+    transcript: {
+      pendingSend,
+      onPendingSendConsumed: () => {
+        if (pendingSend) clearSend(pendingSend)
+      },
     },
   }
 }
