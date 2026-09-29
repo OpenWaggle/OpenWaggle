@@ -22,6 +22,8 @@ export interface TranscriptViewportInput {
   readonly lastUserMessageId: string | null
   readonly pendingSend: PendingSend | null
   readonly onPendingSendConsumed: () => void
+  /** Whether this view is the one that keeps the Session's send (its branch is known). */
+  readonly canConsumePendingSend: boolean
   readonly onToggleTurnFold: (turnKey: string) => void
   readonly sessionCreatedAt: number | null
 }
@@ -75,6 +77,7 @@ export function TranscriptViewport({
     keys,
     sentKey: pendingSentRowKey(pendingSend, lastUserMessageId),
     onPendingSendConsumed,
+    canConsumePendingSend: input.canConsumePendingSend,
     hasLater: transcriptWindow.hasLater,
     showNewest: transcriptWindow.showNewest,
   })

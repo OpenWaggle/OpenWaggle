@@ -143,6 +143,30 @@ describe('ChatTranscript sent turn identity', () => {
     expect(onPendingSendConsumed).toHaveBeenCalledOnce()
   })
 
+  it('follows a working first turn while its Session branch is still unknown', () => {
+    // The send stays pending across these commits; it must still be held only once.
+    layout.setHeight('message:optimistic-user-1', 60)
+    const pendingSend = pendingSendAfter([])
+    const first = [userMessage('optimistic-user-1')]
+    const pending = { activeSessionId: SessionId('new-session'), activeBranchId: null, pendingSend }
+    const view = render(<ChatTranscript section={section(first, pending)} />)
+    layout.setHeight('message:a1', 200)
+    view.rerender(
+      <ChatTranscript section={section([...first, assistantMessage('a1', true)], pending)} />,
+    )
+    expect(layout.mode()).toBe('new-turn:message:optimistic-user-1')
+
+    layout.setHeight('message:a1', 1400)
+    view.rerender(
+      <ChatTranscript section={section([...first, assistantMessage('a1', true)], pending)} />,
+    )
+    view.rerender(
+      <ChatTranscript section={section([...first, assistantMessage('a1', true)], pending)} />,
+    )
+    expect(layout.mode()).toBe('following')
+    expect(layout.distanceToBottom()).toBe(0)
+  })
+
   it('does not take the previous message being persisted for a pending send', () => {
     layout.setHeight('message:a1', 900)
     const onPendingSendConsumed = vi.fn()

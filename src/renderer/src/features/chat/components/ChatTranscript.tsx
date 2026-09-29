@@ -74,8 +74,6 @@ function transcriptSurface(section: ChatTranscriptSectionState) {
   return 'rows'
 }
 
-function keepPendingSend() {}
-
 export function ChatTranscript({ section, renderVisibleMessageRows }: ChatTranscriptProps) {
   const {
     isLoading,
@@ -133,11 +131,9 @@ export function ChatTranscript({ section, renderVisibleMessageRows }: ChatTransc
           isLoading,
           lastUserMessageId: section.lastUserMessageId,
           pendingSend: section.pendingSend,
-          /*
-           * A new Session's view remounts once its branch is known; the send stays pending until
-           * then so the remounted view holds the message too.
-           */
-          onPendingSendConsumed: activeBranchId ? section.onPendingSendConsumed : keepPendingSend,
+          onPendingSendConsumed: section.onPendingSendConsumed,
+          // A new Session's view remounts once its branch is known (ADR 0036).
+          canConsumePendingSend: activeBranchId !== null && activeBranchId !== undefined,
           onToggleTurnFold: section.onToggleTurnFold,
           sessionCreatedAt: section.sessionCreatedAt ?? null,
         }}

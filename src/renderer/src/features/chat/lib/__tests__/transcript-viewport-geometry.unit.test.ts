@@ -2,6 +2,11 @@ import { fromPartial } from '@total-typescript/shoehorn'
 import { describe, expect, it } from 'vitest'
 import { createDomViewportGeometry } from '../transcript-viewport-geometry'
 
+/** A viewport-relative box; the unit environment has no DOM. */
+function rect(top: number, height: number) {
+  return fromPartial<DOMRect>({ top, bottom: top + height, height })
+}
+
 function geometry(input: {
   scrollHeight: number
   contentHeight: number
@@ -9,10 +14,14 @@ function geometry(input: {
   endSpaceHeight: number
 }) {
   const scroller = fromPartial<HTMLElement>({ scrollHeight: input.scrollHeight })
-  const content = fromPartial<HTMLElement>({ offsetTop: 0, offsetHeight: input.contentHeight })
+  // The content column is scrolled, as in the app: rects are relative to the viewport.
+  const scrolled = -120
+  const content = fromPartial<HTMLElement>({
+    getBoundingClientRect: () => rect(scrolled, input.contentHeight),
+  })
   const endSpace = fromPartial<HTMLElement>({
-    offsetTop: input.endSpaceTop,
     offsetHeight: input.endSpaceHeight,
+    getBoundingClientRect: () => rect(scrolled + input.endSpaceTop, input.endSpaceHeight),
   })
   return createDomViewportGeometry({
     scroller: () => scroller,

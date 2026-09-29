@@ -10,6 +10,11 @@ interface UseTranscriptCommitLayoutInput {
   /** Row key of the pending send's own optimistic message, once it is the latest user row. */
   readonly sentKey: string | null
   readonly onPendingSendConsumed: () => void
+  /**
+   * Whether this mount may consume the send. A new Session's view remounts once its branch is
+   * known; until then the send stays pending, so the remounted view holds the message again.
+   */
+  readonly canConsumePendingSend: boolean
   readonly hasLater: boolean
   readonly showNewest: () => void
 }
@@ -23,7 +28,11 @@ interface UseTranscriptCommitLayoutInput {
  */
 export function useTranscriptCommitLayout(input: UseTranscriptCommitLayoutInput) {
   const { session, sentKey } = input
-  /** The sent row this mount has held, so a send not consumed yet is anchored once per mount. */
+  /*
+   * The sent row this mount has held. A send this mount may not consume stays pending across its
+   * commits (`canConsumePendingSend`), and this is what anchors it only once: re-anchoring every
+   * commit pinned the message again and never let a working turn be followed.
+   */
   const anchoredSentKey = useRef<string | null>(null)
   useLayoutEffect(() => {
     session.setWindowHasLater(input.hasLater)
@@ -34,7 +43,7 @@ export function useTranscriptCommitLayout(input: UseTranscriptCommitLayoutInput)
       }
       anchoredSentKey.current = sentKey
       session.anchorNewTurn(sentKey, input.keys[input.keys.indexOf(sentKey) - 1] ?? null)
-      input.onPendingSendConsumed()
+      if (input.canConsumePendingSend) input.onPendingSendConsumed()
     }
     session.syncRows(transcriptRowIndex(input.rows, input.keys))
     session.layout()

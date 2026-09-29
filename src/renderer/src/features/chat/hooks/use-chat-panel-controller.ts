@@ -14,7 +14,7 @@ import { buildDiffSection } from '../lib/diff-section'
 import { setComposerSessionAuthorizationMode } from '../lib/session-authorization-mode-action'
 import { sendStarterPrompt } from '../lib/starter-prompt-action'
 import type { ChatPanelSections } from '../model'
-import { usePendingSendFor, usePendingSendStore } from '../state/pending-send-store'
+import { usePendingSend } from '../state/pending-send-store'
 import { useBranchFromMessage } from './useBranchFromMessage'
 import { useBranchSummaryWorkflow } from './useBranchSummaryWorkflow'
 import { useChatPanelEnvironment } from './useChatPanelEnvironment'
@@ -35,8 +35,7 @@ export function useChatPanelSections(): ChatPanelSections {
     refreshSession,
     setSessionAuthorizationMode,
   } = env.chat
-  const pendingSend = usePendingSendFor(activeSessionId)
-  const { begin: beginPendingSendIn, clearSend: clearPendingSend } = usePendingSendStore.getState()
+  const pendingSends = usePendingSend(activeSessionId)
   const {
     activeWorkspace,
     clearDraftBranchForSession,
@@ -151,8 +150,8 @@ export function useChatPanelSections(): ChatPanelSections {
     refreshSession,
     refreshSessionWorkspace,
     sessionCopy,
-    beginPendingSend: (send) => beginPendingSendIn(activeSessionId, send),
-    clearPendingSend,
+    beginPendingSend: pendingSends.begin,
+    clearPendingSend: pendingSends.clearSend,
     showToast,
     startWaggleCollaboration,
     stop,
@@ -210,10 +209,8 @@ export function useChatPanelSections(): ChatPanelSections {
     turnAnchorMessageIds: reveal.turnAnchorMessageIds,
     turnsByAnchorNodeId: reveal.turnsByAnchorNodeId,
     turnDurationsByAnchorMessageId: reveal.turnDurationsByAnchorMessageId,
-    pendingSend,
-    onPendingSendConsumed: () => {
-      if (pendingSend) clearPendingSend(pendingSend)
-    },
+    pendingSend: pendingSends.pendingSend,
+    onPendingSendConsumed: pendingSends.consume,
     streamSignalVersion,
     compactionStatus,
   })

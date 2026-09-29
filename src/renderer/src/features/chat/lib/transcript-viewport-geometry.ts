@@ -35,8 +35,11 @@ function rowElements(content: HTMLElement | null) {
  */
 function minHeightSlack(content: HTMLElement | null, endSpace: HTMLElement | null) {
   if (!content || !endSpace) return 0
-  const endSpaceBottom = endSpace.offsetTop + endSpace.offsetHeight
-  return Math.max(0, content.offsetTop + content.offsetHeight - endSpaceBottom)
+  // Both edges in the same frame, so a positioned ancestor between them cannot skew the slack.
+  return Math.max(
+    0,
+    content.getBoundingClientRect().bottom - endSpace.getBoundingClientRect().bottom,
+  )
 }
 
 function rowElement(content: HTMLElement | null, key: string) {
