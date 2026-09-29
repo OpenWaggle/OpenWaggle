@@ -7,7 +7,10 @@ import {
 } from '../ports/session-control-run-executor'
 import { SessionControlRunLifecycleRepository } from '../ports/session-control-run-lifecycle-repository'
 import { SessionOrchestrationUpdateDeliveryService } from '../ports/session-orchestration-update-delivery-service'
-import { publishSessionHostEvent } from '../session-host/session-host-events'
+import {
+  publishSessionHostEvent,
+  tryGetSessionHostEventRuntime,
+} from '../session-host/session-host-events'
 import {
   type ActiveSessionRunReservation,
   hasClaimedSessionWriterSuccessor,
@@ -30,6 +33,11 @@ export interface CoordinatedRunResult {
     | 'failed'
     | 'interrupted'
     | 'interrupted-by-interaction-timeout'
+}
+
+/** A stopping Host finishes its active Runs but starts none of their queued Follow-ups. */
+function hostIsStopping() {
+  return tryGetSessionHostEventRuntime()?.liveness.drainReason() === 'stop'
 }
 
 export function coordinateSessionRuns(input: CoordinateSessionRunsInput) {
@@ -88,6 +96,7 @@ function coordinateLiveSessionRuns(input: CoordinateSessionRunsInput) {
             ? {}
             : { terminalEventAt: execution.terminalEventAt }),
           suppressFollowUpScheduling: hasClaimedSessionWriterSuccessor(input.sessionId, runId),
+          pauseFollowUpsForHostStop: hostIsStopping(),
           ...(execution.finalResponse ? { finalResponse: execution.finalResponse } : {}),
         })
       }).pipe(Effect.ensuring(Effect.sync(reservation.release)))

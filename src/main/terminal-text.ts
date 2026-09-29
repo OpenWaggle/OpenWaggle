@@ -13,6 +13,14 @@ const BIDI_EMBEDDING_START = 0x202a
 const BIDI_EMBEDDING_END = 0x202e
 const BIDI_ISOLATE_START = 0x2066
 const BIDI_ISOLATE_END = 0x2069
+const SOFT_HYPHEN = 0x00ad
+const ZERO_WIDTH_SPACE = 0x200b
+const ZERO_WIDTH_NON_JOINER = 0x200c
+const WORD_JOINER = 0x2060
+const INVISIBLE_PLUS = 0x2064
+const BYTE_ORDER_MARK = 0xfeff
+const TAG_START = 0xe0000
+const TAG_END = 0xe007f
 const HEX_RADIX = 16
 const LAST_BYTE = 0xff
 const BYTE_HEX_DIGITS = 2
@@ -34,11 +42,27 @@ function isBidiControl(code: number) {
   )
 }
 
-/** A control character written out, such as `\x1b` or `\u202e`. */
+/**
+ * Characters that render as nothing, so text can hide inside an approval line. The zero-width
+ * joiner stays, because emoji sequences need it.
+ */
+function isInvisible(code: number) {
+  return (
+    code === SOFT_HYPHEN ||
+    code === ZERO_WIDTH_SPACE ||
+    code === ZERO_WIDTH_NON_JOINER ||
+    (code >= WORD_JOINER && code <= INVISIBLE_PLUS) ||
+    code === BYTE_ORDER_MARK ||
+    (code >= TAG_START && code <= TAG_END)
+  )
+}
+
+/** A character written out, such as `\x1b`, `\u202e`, or `\u{e0041}`. */
 function visibleEscape(code: number) {
   const hex = code.toString(HEX_RADIX)
-  return code <= LAST_BYTE
-    ? `\\x${hex.padStart(BYTE_HEX_DIGITS, '0')}`
+  if (code <= LAST_BYTE) return `\\x${hex.padStart(BYTE_HEX_DIGITS, '0')}`
+  return hex.length > CODE_UNIT_HEX_DIGITS
+    ? `\\u{${hex}}`
     : `\\u${hex.padStart(CODE_UNIT_HEX_DIGITS, '0')}`
 }
 
@@ -49,11 +73,13 @@ function visibleEscape(code: number) {
  * hide part of a command. Line breaks and tabs are kept, and CRLF becomes LF.
  */
 export function sanitizeTerminalText(text: string) {
+  const characters = [...text]
   let result = ''
-  for (let index = 0; index < text.length; index += 1) {
-    const code = text.charCodeAt(index)
-    if (code === CARRIAGE_RETURN && text.charCodeAt(index + 1) === LINE_FEED) continue
-    result += isControl(code) || isBidiControl(code) ? visibleEscape(code) : text[index]
+  for (const [index, character] of characters.entries()) {
+    const code = character.codePointAt(0) ?? 0
+    if (code === CARRIAGE_RETURN && characters[index + 1] === '\n') continue
+    const escaped = isControl(code) || isBidiControl(code) || isInvisible(code)
+    result += escaped ? visibleEscape(code) : character
   }
   return result
 }

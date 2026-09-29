@@ -14,6 +14,10 @@ describe('terminal text sanitizing', () => {
     ['rm -rf \u202esdrawkcab', 'rm -rf \\u202esdrawkcab'],
     ['isolate \u2066x\u2069 mark \u200f', 'isolate \\u2066x\\u2069 mark \\u200f'],
     ['arabic mark \u061c', 'arabic mark \\u061c'],
+    ['hid\u200bden \ufeff\u00ad', 'hid\\u200bden \\ufeff\\xad'],
+    ['tag \u{e0041}', 'tag \\u{e0041}'],
+    ['family \u{1f468}\u200d\u{1f469}', 'family \u{1f468}\u200d\u{1f469}'],
+    ['lone \\x0d\n kept', 'lone \\x0d\n kept'],
   ])('sanitizes %j', (input, expected) => {
     expect(sanitizeTerminalText(input)).toBe(expected)
   })

@@ -71,7 +71,8 @@ export async function executeLocalSessionCommandFrame(input: {
   let releaseOperation: () => void
   try {
     releaseOperation = input.dependencies.liveness.acquire('operation', {
-      whileDraining: isAdmittedWhileDraining(input.frame.payload),
+      whileDraining:
+        input.dependencies.liveness.isDraining() && isAdmittedWhileDraining(input.frame.payload),
     })
   } catch (error) {
     // A stopping Host refuses this one request; the connection stays usable.

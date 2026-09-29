@@ -98,7 +98,7 @@ openwaggle host stop
 openwaggle host stop --wait --timeout-ms 60000
 ```
 
-The Session Host exits on its own a few minutes after its last work ends, so stopping it is rarely needed. `host stop` makes it refuse new work at once and exit as soon as its active Runs, running Actions, exports, and other owned work finish. It never interrupts a Run. The command says what the Host is waiting for.
+The Session Host exits on its own a few minutes after its last work ends, so stopping it is rarely needed. `host stop` makes it refuse new work at once and exit as soon as its active Runs, running Actions, exports, and other owned work finish. It never interrupts a Run. Queued Follow-ups wait: when a Run ends, its Session's queue pauses, and you resume it in the desktop app or with `openwaggle sessions queue resume`. The command says what the Host is waiting for.
 
 While it stops, the Host still answers the commands that end work: you can read Sessions (but not wait on them), answer a Run's questions and approvals, interrupt a Run with `openwaggle sessions interrupt <session-id> --expected-run <run-id>` (`openwaggle status` lists both IDs), and stop an Action in the desktop app, which keeps showing your Sessions. Commands that start work fail with a message that the Host is stopping.
 

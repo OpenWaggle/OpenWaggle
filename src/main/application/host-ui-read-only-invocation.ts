@@ -3,41 +3,43 @@ import { actionManagementRequestSchema } from '@shared/schemas/action-management
 import type { HostBackedGuiChannel } from '@shared/types/host-ui-protocol'
 import { isRecord } from '@shared/utils/validation'
 
-const REPLAY_SAFE_HOST_UI_CHANNELS = new Set<HostBackedGuiChannel>([
-  'agent:list-active-runs',
-  'agent:get-context-usage',
-  'sessions:get-detail',
-  'sessions:list-by-ids',
-  'sessions:list-page',
-  'sessions:list-projects',
-  'sessions:list-hive-page',
-  'sessions:list-archived-branches',
-  'sessions:get-tree',
-  'sessions:get-workspace',
-  'sessions:turn-checkpoints:list',
-  'sessions:turn-diff:get',
-  'sessions:turn-diff-files:get',
-  'sessions:pins:list',
-  'sessions:resources:get',
-  'sessions:resources:locate-image',
-  'sessions:resources:node-page',
-  'sessions:resources:list-by-node-ids',
-  'sessions:resources:thumbnail',
-  'settings:get',
-  'extensions:list-packages',
-  'extensions:list-contributions',
-  'mcp:list-secrets',
-  'mcp:list-capabilities',
-  'mcp:list-events',
-  'mcp:list-event-subscriptions',
-  'mcp:preview-imports',
-  'providers:get-models',
-  'docs:discover',
-  'skills:list',
-  'skills:get-preview',
-  'agent-definitions:list-display',
-  'agent-definitions:get-preview',
-])
+/** Channels that only read, whatever their arguments. */
+export const READ_ONLY_HOST_UI_CHANNELS: ReadonlySet<HostBackedGuiChannel> =
+  new Set<HostBackedGuiChannel>([
+    'agent:list-active-runs',
+    'agent:get-context-usage',
+    'sessions:get-detail',
+    'sessions:list-by-ids',
+    'sessions:list-page',
+    'sessions:list-projects',
+    'sessions:list-hive-page',
+    'sessions:list-archived-branches',
+    'sessions:get-tree',
+    'sessions:get-workspace',
+    'sessions:turn-checkpoints:list',
+    'sessions:turn-diff:get',
+    'sessions:turn-diff-files:get',
+    'sessions:pins:list',
+    'sessions:resources:get',
+    'sessions:resources:locate-image',
+    'sessions:resources:node-page',
+    'sessions:resources:list-by-node-ids',
+    'sessions:resources:thumbnail',
+    'settings:get',
+    'extensions:list-packages',
+    'extensions:list-contributions',
+    'mcp:list-secrets',
+    'mcp:list-capabilities',
+    'mcp:list-events',
+    'mcp:list-event-subscriptions',
+    'mcp:preview-imports',
+    'providers:get-models',
+    'docs:discover',
+    'skills:list',
+    'skills:get-preview',
+    'agent-definitions:list-display',
+    'agent-definitions:get-preview',
+  ])
 
 function isReplaySafeAgentDefinitionInvocation(args: readonly unknown[]) {
   if (args.length !== 1 || !isRecord(args[0]) || !isRecord(args[0].command)) return false
@@ -74,5 +76,5 @@ export function isReadOnlyHostUiInvocation(
   }
   if (channel === 'agent-definitions:manage') return isReplaySafeAgentDefinitionInvocation(args)
   if (channel === 'mcp:get-settings') return isReplaySafeMcpSettingsInvocation(args)
-  return REPLAY_SAFE_HOST_UI_CHANNELS.has(channel)
+  return READ_ONLY_HOST_UI_CHANNELS.has(channel)
 }
