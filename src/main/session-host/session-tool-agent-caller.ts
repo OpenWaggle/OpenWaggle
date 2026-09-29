@@ -138,6 +138,19 @@ function effectiveAuthorizationCeiling(row: AuthorityRow) {
     : ('yolo' as const)
 }
 
+/**
+ * A root Session whose authority came from the local desktop user, or from a profile scoped to the
+ * whole catalog, reaches every project the user can reach. The project is not an authority boundary
+ * for the user's own agents: capabilities and the Authorization ceiling still decide what the
+ * agent may do there. Workers and roots born from a narrower profile keep their narrower scope.
+ */
+function reachesEveryProject(
+  row: AuthorityRow,
+  origins: readonly NonNullable<ReturnType<typeof originAuthority>>[],
+) {
+  return row.parent_session_id === null && origins.every((origin) => origin.scope.all === true)
+}
+
 function sharedProjectScopePath(
   row: AuthorityRow,
   origins: readonly NonNullable<ReturnType<typeof originAuthority>>[],
@@ -149,6 +162,30 @@ function sharedProjectScopePath(
       candidate.scope.projectPaths?.includes(row.project_path ?? '') === true,
   )
   return shared ? row.project_path : undefined
+}
+
+function projectReach(
+  row: AuthorityRow,
+  origins: readonly NonNullable<ReturnType<typeof originAuthority>>[],
+) {
+  if (reachesEveryProject(row, origins)) {
+    return { everyProject: true, sharedProjectPath: undefined } as const
+  }
+  return { everyProject: false, sharedProjectPath: sharedProjectScopePath(row, origins) } as const
+}
+
+function agentBaseScope(input: {
+  readonly everyProject: boolean
+  readonly sharedProjectPath: string | undefined
+  readonly sessionIds: readonly string[]
+  readonly filesystemRoot: string
+}) {
+  const roots = { exportRoots: [input.filesystemRoot], attachmentRoots: [input.filesystemRoot] }
+  if (input.everyProject) return { all: true, ...roots }
+  if (input.sharedProjectPath !== undefined) {
+    return { projectPaths: [input.sharedProjectPath], ...roots }
+  }
+  return { sessionIds: [...input.sessionIds], ...roots }
 }
 
 function loadAuthorityRow(sql: SqlClient.SqlClient, sessionId: string) {
@@ -220,8 +257,8 @@ export function resolveSessionToolAgentCaller(
     const origins = [origin, snapshotOrigin].filter(
       (candidate): candidate is NonNullable<typeof candidate> => candidate !== undefined,
     )
-    const sharedProjectPath = sharedProjectScopePath(row, origins)
-    const sharesProjectScope = sharedProjectPath !== undefined
+    const { everyProject, sharedProjectPath } = projectReach(row, origins)
+    const sharesProjectScope = everyProject || sharedProjectPath !== undefined
     const scopedTargets = sharesProjectScope
       ? []
       : yield* loadScopedSessionAgentTargets(sql, {
@@ -239,17 +276,12 @@ export function resolveSessionToolAgentCaller(
     const baseSessionIds = visibleTargets
       .filter((target) => row.parent_session_id === null || target.session_id === input.sessionId)
       .map((target) => target.session_id)
-    const baseScope = sharesProjectScope
-      ? {
-          projectPaths: [sharedProjectPath],
-          exportRoots: [filesystemRoot],
-          attachmentRoots: [filesystemRoot],
-        }
-      : {
-          sessionIds: baseSessionIds,
-          exportRoots: [filesystemRoot],
-          attachmentRoots: [filesystemRoot],
-        }
+    const baseScope = agentBaseScope({
+      everyProject,
+      sharedProjectPath,
+      sessionIds: baseSessionIds,
+      filesystemRoot,
+    })
     const ceiling = effectiveAuthorizationCeiling(row)
     return {
       callerId: `session-agent:${input.sessionId}:${input.runId}`,

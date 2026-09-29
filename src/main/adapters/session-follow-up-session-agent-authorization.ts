@@ -8,6 +8,8 @@ import {
   authorizeSessionTarget,
   authorizeSessionTargetForCaller,
 } from '../domain/session-control/session-capability-authorization'
+import { createLogger } from '../logger'
+import { decodeSessionAuthoritySnapshot } from '../session-host/session-authority-snapshot'
 import {
   type AttentionReason,
   decodedCapabilities,
@@ -21,11 +23,14 @@ import {
 } from './session-follow-up-authority-support'
 import { decodeSessionExecutionProfile } from './session-run-execution-profile'
 
+const logger = createLogger('session-follow-up-authorization')
+
 interface SourceRow {
   readonly project_path: string | null
   readonly profile_json: string
   readonly authorization_ceiling: 'yolo' | 'ask-for-approval'
   readonly authority_origin_caller_id: string
+  readonly authority_scope_snapshot_json: string | null
   readonly parent_session_id: string | null
   readonly capabilities_json: string | null
   readonly grant_authorization_ceiling: 'yolo' | 'ask-for-approval' | null
@@ -35,13 +40,41 @@ interface SourceRow {
   readonly target_grant_revoked_at: number | null
 }
 
+/**
+ * Mirrors the Sessions tool caller: a root whose authority came from the local user, or from a
+ * catalog-wide profile, reaches every project. Anything narrower stays inside its own project.
+ */
+function rootReachesEveryProject(
+  source: SourceRow,
+  originProfile: QueuedFollowUpProfileRow | undefined,
+) {
+  let snapshot: ReturnType<typeof decodeSessionAuthoritySnapshot>
+  try {
+    snapshot = decodeSessionAuthoritySnapshot(source.authority_scope_snapshot_json)
+  } catch (error) {
+    // An unreadable snapshot fails closed to the same-project rule.
+    logger.warn('Queued Follow-up source has an unreadable authority snapshot', {
+      authorityOriginCallerId: source.authority_origin_caller_id,
+      error: String(error),
+    })
+    return false
+  }
+  if (snapshot && snapshot.scope.all !== true) return false
+  if (!profileId(source.authority_origin_caller_id)) return true
+  return originProfile !== undefined && profileAuthority(originProfile).scope.all === true
+}
+
 function sourceRelationshipBlockReason(
   sql: SqlClient.SqlClient,
   sourceId: string,
   source: SourceRow,
   target: TargetRow,
+  originProfile: QueuedFollowUpProfileRow | undefined,
 ) {
   if (source.parent_session_id === null) {
+    if (rootReachesEveryProject(source, originProfile)) {
+      return Effect.succeed<AttentionReason | undefined>(undefined)
+    }
     return Effect.succeed<AttentionReason | undefined>(
       !source.project_path || source.project_path !== target.project_path
         ? 'authority_changed'
@@ -140,6 +173,7 @@ export function sessionAgentBlockReason(
       SELECT sessions.project_path, session_execution_profiles.profile_json,
         session_execution_profiles.authorization_ceiling,
         session_execution_profiles.authority_origin_caller_id,
+        session_execution_profiles.authority_scope_snapshot_json,
         COALESCE(session_spawn_lineage.parent_session_id, session_lineage.parent_session_id)
           AS parent_session_id,
         derived_child_management_grants.capabilities_json,
@@ -172,7 +206,13 @@ export function sessionAgentBlockReason(
       sourceCapabilities.capabilities,
     )
     if (origin.blockReason) return origin.blockReason
-    const relationshipBlock = yield* sourceRelationshipBlockReason(sql, sourceId, source, target)
+    const relationshipBlock = yield* sourceRelationshipBlockReason(
+      sql,
+      sourceId,
+      source,
+      target,
+      origin.originProfile,
+    )
     if (relationshipBlock) return relationshipBlock
     const derivedCapabilities =
       source.target_grant_revoked_at === null

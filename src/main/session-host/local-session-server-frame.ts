@@ -5,9 +5,10 @@ import {
   type LocalSessionOutboundByteBudget,
   LocalSessionOutboundCapacityError,
 } from './local-session-outbound-budget'
+import { sessionCommandFailureMessage } from './session-command-failure-message'
 
 export function describeLocalSessionServerError(error: unknown) {
-  return error instanceof Error ? error.message : String(error)
+  return sessionCommandFailureMessage(error)
 }
 
 function writeSocketSegment(socket: Socket, segment: Buffer): Promise<void> {

@@ -69,30 +69,54 @@ function localWorkspacePlan(
   })
 }
 
+interface InitiatingWorkspaceRow {
+  readonly id: string
+  readonly project_path: string
+  readonly lifecycle_state: string
+}
+
+function crossProjectCurrentWorkspaceError(projectPath: string, workingDirectory: string) {
+  return preparationError(
+    'initiating-workspace-in-another-project',
+    new Error(
+      `Workspace "current" is the caller's checkout ${workingDirectory}, which belongs to another project than ${projectPath}. Use workspace "local" or "new-worktree" to start a Session in ${projectPath}.`,
+    ),
+  )
+}
+
+/**
+ * `current` means the initiating Session's own Workspace. When the caller launches into another
+ * project that Workspace does not exist there: an omitted selection falls back to the target
+ * project's local checkout, while an explicit `current` is refused with the reason.
+ */
 function currentWorkspacePlan(
   sql: SqlClient.SqlClient,
   input: PrepareSessionLifecycleInput,
   projectPath: string,
+  explicit: boolean,
 ) {
   const workingDirectory = input.initiatingWorkingDirectory
   if (!workingDirectory || workingDirectory === projectPath) {
     return localWorkspacePlan(sql, projectPath, input.identities.workspaceId)
   }
   return Effect.gen(function* () {
-    const rows = yield* sql<WorkspaceRow>`
-      SELECT id
+    const rows = yield* sql<InitiatingWorkspaceRow>`
+      SELECT id, project_path, lifecycle_state
       FROM workspace_resources
-      WHERE project_path = ${projectPath}
-        AND working_path = ${workingDirectory}
-        AND lifecycle_state = 'ready'
-      LIMIT 1
+      WHERE working_path = ${workingDirectory}
     `
-    if (!rows[0]) {
-      return yield* Effect.fail(
-        preparationError('initiating-workspace-not-found', { projectPath, workingDirectory }),
-      )
+    const own = rows.filter((row) => row.project_path === projectPath)
+    const ready = own.find((row) => row.lifecycle_state === 'ready')
+    if (ready) return { mode: 'existing', workspaceId: ready.id } as const
+    if (own.length === 0 && rows.length > 0) {
+      if (explicit) {
+        return yield* Effect.fail(crossProjectCurrentWorkspaceError(projectPath, workingDirectory))
+      }
+      return yield* localWorkspacePlan(sql, projectPath, input.identities.workspaceId)
     }
-    return { mode: 'existing', workspaceId: rows[0].id } as const
+    return yield* Effect.fail(
+      preparationError('initiating-workspace-not-found', { projectPath, workingDirectory }),
+    )
   })
 }
 
@@ -149,6 +173,13 @@ export function prepareLifecycleWorkspacePlan(
       },
     })
   }
-  if (selection.mode === 'current') return currentWorkspacePlan(sql, input, projectPath)
+  if (selection.mode === 'current') {
+    return currentWorkspacePlan(
+      sql,
+      input,
+      projectPath,
+      input.request.command.workspace?.mode === 'current',
+    )
+  }
   return localWorkspacePlan(sql, projectPath, input.identities.workspaceId)
 }

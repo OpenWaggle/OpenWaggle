@@ -1,0 +1,127 @@
+import fs from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
+import * as SqlClient from '@effect/sql/SqlClient'
+import { RunId, SessionId } from '@shared/types/brand'
+import { SESSION_CONTROL_CONTRACT_VERSION } from '@shared/types/session-control'
+import * as Effect from 'effect/Effect'
+import { afterEach, describe, expect, it } from 'vitest'
+import { submitSessionMessage } from '../../application/session-control-service'
+import { SessionControlRunLifecycleRepository } from '../../ports/session-control-run-lifecycle-repository'
+import { makeSessionControlRunLifecycleTestLayer } from './sqlite-session-control-run-lifecycle-test-layer'
+
+const PROFILE_JSON = '{"modelId":"provider/model","thinkingLevel":"medium"}'
+
+describe('SQLite queued Follow-up from another project', () => {
+  let temporaryRoot = ''
+
+  afterEach(async () => {
+    if (temporaryRoot) await fs.rm(temporaryRoot, { recursive: true, force: true })
+  })
+
+  async function settleCrossProjectFollowUp(origin: {
+    readonly callerId: string
+    readonly profileScope?: object
+  }) {
+    temporaryRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-follow-up-cross-project-'))
+    const layer = makeSessionControlRunLifecycleTestLayer(
+      path.join(temporaryRoot, 'cross-project.sqlite'),
+    )
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        // The layer's target lives in /project; the source is a root in another repository.
+        yield* sql`INSERT INTO sessions (id, project_path) VALUES (${'source'}, ${'/other'})`
+        yield* sql`
+          INSERT INTO session_runs (id, session_id, status, created_at, updated_at) VALUES
+            (${'run-source'}, ${'source'}, ${'active'}, ${1}, ${1}),
+            (${'run-active'}, ${'session-target'}, ${'active'}, ${2}, ${2})
+        `
+        yield* sql`
+          INSERT INTO session_execution_profiles (
+            session_id, profile_json, authority_origin_caller_id,
+            authorization_ceiling, created_at, updated_at
+          ) VALUES (
+            ${'source'}, ${PROFILE_JSON}, ${origin.callerId}, ${'ask-for-approval'}, ${1}, ${1}
+          )
+        `
+        if (origin.profileScope) {
+          yield* sql`
+            INSERT INTO session_client_profiles (
+              id, name, credential_verifier, capabilities_json, scope_json,
+              authorization_ceiling, created_at, updated_at
+            ) VALUES (
+              ${'origin'}, ${'origin'}, ${'verifier'},
+              ${JSON.stringify(['sessions:message'])}, ${JSON.stringify(origin.profileScope)},
+              ${'ask-for-approval'}, ${1}, ${1}
+            )
+          `
+        }
+        yield* sql`
+          UPDATE session_control_states SET active_run_id = ${'run-active'}
+          WHERE session_id = ${'session-target'}
+        `
+        yield* submitSessionMessage({
+          callerId: 'session-agent:source:run-source',
+          request: {
+            contractVersion: SESSION_CONTROL_CONTRACT_VERSION,
+            requestId: 'queue-cross-project',
+            idempotencyKey: 'queue-cross-project-once',
+            command: {
+              // A message to a busy Session queues as a Follow-up.
+              operation: 'message',
+              sessionId: 'session-target',
+              input: { text: 'Report from the other repository.', attachmentIds: [] },
+            },
+          },
+        })
+        const lifecycle = yield* SessionControlRunLifecycleRepository
+        const settled = yield* lifecycle.settle({
+          sessionId: SessionId('session-target'),
+          runId: RunId('run-active'),
+          nextRunId: RunId('run-after'),
+          terminalStatus: 'completed',
+        })
+        const followUps = yield* sql<{
+          readonly delivery_state: string
+          readonly attention_reason: string | null
+        }>`SELECT delivery_state, attention_reason FROM session_follow_ups`
+        return { settled, followUp: followUps[0] }
+      }).pipe(Effect.provide(layer)),
+    )
+  }
+
+  it('delivers a Follow-up queued by a user-originated root in another project', async () => {
+    const result = await settleCrossProjectFollowUp({ callerId: 'gui:local-user' })
+
+    expect(result).toMatchObject({
+      settled: { accepted: true, scheduled: { runId: RunId('run-after') } },
+      followUp: undefined,
+    })
+  })
+
+  it('delivers a Follow-up queued by a root born from a catalog-wide profile', async () => {
+    const result = await settleCrossProjectFollowUp({
+      callerId: 'profile:origin',
+      profileScope: { all: true },
+    })
+
+    expect(result).toMatchObject({
+      settled: { accepted: true, scheduled: { runId: RunId('run-after') } },
+      followUp: undefined,
+    })
+  })
+
+  it('pauses a Follow-up whose root is limited to its own project', async () => {
+    const result = await settleCrossProjectFollowUp({
+      callerId: 'profile:origin',
+      profileScope: { projectPaths: ['/other', '/project'] },
+    })
+
+    expect(result).toMatchObject({
+      settled: { accepted: true },
+      followUp: { delivery_state: 'needs_attention', attention_reason: 'authority_changed' },
+    })
+    expect(result.settled).not.toHaveProperty('scheduled')
+  })
+})

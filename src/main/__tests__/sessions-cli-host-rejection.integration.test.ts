@@ -94,7 +94,11 @@ describe('Sessions CLI Host rejection', () => {
     expect(JSON.parse(String(vi.mocked(process.stderr.write).mock.calls[0]?.[0]))).toEqual({
       schemaVersion: 1,
       type: 'error',
-      error: { kind: 'authorization', message: 'An error has occurred' },
+      error: {
+        kind: 'authorization',
+        message:
+          'Session command refused (capability_denied): the caller lacks a Session capability this operation requires.',
+      },
     })
     expect(exitCode).toBe(4)
     expect(process.stdout.write).not.toHaveBeenCalled()

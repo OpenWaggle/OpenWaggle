@@ -62,6 +62,25 @@ describe('sessions tool flattened schema', () => {
     )
   })
 
+  it('names the actions that require a property the flat schema leaves optional', () => {
+    const shape = schemaShape(flattenSessionsToolParameters(sessionsToolParameterVariants))
+    const objective = fromAny<{ description?: string }, unknown>(shape.properties?.objective)
+    const projectPath = fromAny<{ description?: string }, unknown>(shape.properties?.projectPath)
+
+    expect(objective.description).toBe('Required for launch, spawn.')
+    expect(projectPath.description).toBeUndefined()
+    expect(shape.required).toEqual(['action'])
+  })
+
+  it('enforces required fields for actions that share one parameter variant', () => {
+    expect(() => assertSessionsToolActionArguments(asParams({ action: 'archive' }))).toThrow(
+      /Invalid arguments for sessions action "archive"/,
+    )
+    expect(() =>
+      assertSessionsToolActionArguments(asParams({ action: 'unarchive', sessionId: 'session-a' })),
+    ).not.toThrow()
+  })
+
   it('rejects unknown actions instead of passing them to the payload builders', () => {
     expect(() =>
       assertSessionsToolActionArguments(asParams({ action: '__no_permitted_actions__' })),

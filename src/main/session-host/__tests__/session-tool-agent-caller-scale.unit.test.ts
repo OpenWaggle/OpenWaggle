@@ -87,7 +87,7 @@ describe('Sessions tool agent authority at catalog scale', () => {
     )
 
     expect(caller.profileAuthority.scope).toEqual({
-      projectPaths: ['/project'],
+      all: true,
       exportRoots: ['/project'],
       attachmentRoots: ['/project'],
     })

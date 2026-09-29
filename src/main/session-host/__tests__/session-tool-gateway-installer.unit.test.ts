@@ -20,7 +20,7 @@ describe('Sessions tool agent authority', () => {
     await fs.rm(temporaryRoot, { recursive: true, force: true })
   })
 
-  it('gives a Queen project-scoped user authority and a Worker only its derived direct scope', async () => {
+  it('gives a user-originated Queen catalog-wide authority and a Worker only its derived direct scope', async () => {
     const sqlite = SqliteClient.layer({
       filename: path.join(temporaryRoot, 'authority.sqlite'),
       prepareCacheSize: SQLITE_PREPARE_CACHE_SIZE,
@@ -216,8 +216,10 @@ describe('Sessions tool agent authority', () => {
       }).pipe(Effect.provide(sqlite)),
     )
 
-    expect(queen.profileAuthority).toMatchObject({
-      scope: { projectPaths: ['/project'] },
+    expect(queen.profileAuthority?.scope).toEqual({
+      all: true,
+      exportRoots: ['/project'],
+      attachmentRoots: ['/project'],
     })
     expect(queen.profileAuthority?.capabilities).toContain('sessions:create')
     expect(queen.profileAuthority?.capabilities).not.toContain('sessions:respond')
