@@ -1,3 +1,4 @@
+import { SessionBranchId, SessionId } from '@shared/types/brand'
 import { act, render } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -104,6 +105,42 @@ describe('ChatTranscript sent turn identity', () => {
 
     expect(layout.mode()).toBe('new-turn:message:optimistic-user-1')
     expect(onPendingSendConsumed).toHaveBeenCalled()
+  })
+
+  it("keeps a new Session's send pending until its branch is known, then holds it again", () => {
+    // Real-Electron QA: a new Session's view remounts once its branch loads, and a send consumed by
+    // the first view left the remounted one following, with the message dropped down the screen.
+    layout.setHeight('message:optimistic-user-1', 60)
+    const onPendingSendConsumed = vi.fn()
+    const first = [userMessage('optimistic-user-1')]
+    const pendingSend = pendingSendAfter([])
+    const session = SessionId('new-session')
+    const view = render(
+      <ChatTranscript
+        section={section(first, {
+          activeSessionId: session,
+          activeBranchId: null,
+          pendingSend,
+          onPendingSendConsumed,
+        })}
+      />,
+    )
+    expect(layout.mode()).toBe('new-turn:message:optimistic-user-1')
+    expect(onPendingSendConsumed).not.toHaveBeenCalled()
+
+    const branch = SessionBranchId('new-session:main')
+    view.rerender(
+      <ChatTranscript
+        section={section(first, {
+          activeSessionId: session,
+          activeBranchId: branch,
+          pendingSend,
+          onPendingSendConsumed,
+        })}
+      />,
+    )
+    expect(layout.mode()).toBe('new-turn:message:optimistic-user-1')
+    expect(onPendingSendConsumed).toHaveBeenCalledOnce()
   })
 
   it('does not take the previous message being persisted for a pending send', () => {

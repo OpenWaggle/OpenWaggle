@@ -43,7 +43,8 @@ interface ChatSendWorkflowParams {
   readonly refreshSession: (sessionId: SessionId) => Promise<void>
   readonly refreshSessionWorkspace: (sessionId: SessionId) => Promise<void>
   readonly sessionCopy: ReturnType<typeof useSessionCopyWorkflow>
-  readonly setPendingSend: (value: PendingSend | null) => void
+  readonly beginPendingSend: (send: PendingSend) => void
+  readonly clearPendingSend: (send: PendingSend) => void
   readonly showToast: (message: string) => void
   readonly startWaggleCollaboration: (sessionId: SessionId, config: WaggleConfig) => void
   readonly stop: () => void
@@ -194,13 +195,14 @@ export function useChatSendWorkflow(params: ChatSendWorkflowParams) {
 
       // Cleared when the transcript holds the sent row, or below when the send throws. A send path
       // that returns without a row and without throwing would leave it pending in this Session.
-      params.setPendingSend(pendingSendAfter(params.messages))
+      const pendingSend = pendingSendAfter(params.messages)
+      params.beginPendingSend(pendingSend)
       params.phase.reset()
       try {
         await sendThroughActiveMode(params, payload)
         if (params.activeSessionId) params.clearDraftBranchForSession(params.activeSessionId)
       } catch (error) {
-        params.setPendingSend(null)
+        params.clearPendingSend(pendingSend)
         if (payload.waggle?.config && params.activeSessionId) {
           params.stopWaggleCollaboration(params.activeSessionId)
         }

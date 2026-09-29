@@ -1,3 +1,4 @@
+import { SessionBranchId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
 import { vi } from 'vitest'
 import type { ChatRow, MessageChatRow } from '../../lib/types-chat-row'
@@ -180,6 +181,8 @@ export function transcriptSection(
     worktreePath: null,
     recentProjects: [],
     activeSessionId: null,
+    // A known branch: a new Session's view keeps its send pending until its branch is known.
+    activeBranchId: SessionBranchId('main'),
     turnsByAnchorNodeId: new Map(),
     onToggleTurnFold: () => {},
     onDismissInterruptedRun: () => {},

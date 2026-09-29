@@ -14,12 +14,12 @@ import { buildDiffSection } from '../lib/diff-section'
 import { setComposerSessionAuthorizationMode } from '../lib/session-authorization-mode-action'
 import { sendStarterPrompt } from '../lib/starter-prompt-action'
 import type { ChatPanelSections } from '../model'
+import { usePendingSendFor, usePendingSendStore } from '../state/pending-send-store'
 import { useBranchFromMessage } from './useBranchFromMessage'
 import { useBranchSummaryWorkflow } from './useBranchSummaryWorkflow'
 import { useChatPanelEnvironment } from './useChatPanelEnvironment'
 import { useChatSendWorkflow } from './useChatSendWorkflow'
 import { useComposerSection } from './useComposerSection'
-import { usePendingSend } from './usePendingSend'
 import { useSessionCopyWorkflow } from './useSessionCopyWorkflow'
 import { useSteerWorkflow } from './useSteerWorkflow'
 import { useTranscriptSection } from './useTranscriptSection'
@@ -35,7 +35,8 @@ export function useChatPanelSections(): ChatPanelSections {
     refreshSession,
     setSessionAuthorizationMode,
   } = env.chat
-  const [pendingSend, setPendingSend] = usePendingSend(activeSessionId)
+  const pendingSend = usePendingSendFor(activeSessionId)
+  const { begin: beginPendingSendIn, clearSend: clearPendingSend } = usePendingSendStore.getState()
   const {
     activeWorkspace,
     clearDraftBranchForSession,
@@ -150,7 +151,8 @@ export function useChatPanelSections(): ChatPanelSections {
     refreshSession,
     refreshSessionWorkspace,
     sessionCopy,
-    setPendingSend,
+    beginPendingSend: (send) => beginPendingSendIn(activeSessionId, send),
+    clearPendingSend,
     showToast,
     startWaggleCollaboration,
     stop,
@@ -209,7 +211,9 @@ export function useChatPanelSections(): ChatPanelSections {
     turnsByAnchorNodeId: reveal.turnsByAnchorNodeId,
     turnDurationsByAnchorMessageId: reveal.turnDurationsByAnchorMessageId,
     pendingSend,
-    onPendingSendConsumed: () => setPendingSend(null),
+    onPendingSendConsumed: () => {
+      if (pendingSend) clearPendingSend(pendingSend)
+    },
     streamSignalVersion,
     compactionStatus,
   })

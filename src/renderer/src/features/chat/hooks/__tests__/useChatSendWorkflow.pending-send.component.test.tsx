@@ -48,7 +48,8 @@ function sendWorkflowParams(overrides: Partial<SendWorkflowParams> = {}): SendWo
       openForkSelector: vi.fn(),
       selectForkTarget: vi.fn(),
     },
-    setPendingSend: vi.fn(),
+    beginPendingSend: vi.fn(),
+    clearPendingSend: vi.fn(),
     showToast: vi.fn(),
     startWaggleCollaboration: vi.fn(),
     stop: vi.fn(),
@@ -65,9 +66,9 @@ describe('useChatSendWorkflow pending send', () => {
   })
 
   it('records the latest user message as the send baseline before sending', async () => {
-    const setPendingSend = vi.fn()
+    const beginPendingSend = vi.fn()
     const handleSend = vi.fn(() => {
-      expect(setPendingSend).toHaveBeenLastCalledWith({ afterUserMessageId: 'latest-user' })
+      expect(beginPendingSend).toHaveBeenLastCalledWith({ afterUserMessageId: 'latest-user' })
       return Promise.resolve()
     })
     const messages = [
@@ -75,7 +76,7 @@ describe('useChatSendWorkflow pending send', () => {
       { id: 'latest-user', role: 'user' as const, parts: [] },
       { id: 'answer', role: 'assistant' as const, parts: [] },
     ]
-    const params = sendWorkflowParams({ handleSend, messages, setPendingSend })
+    const params = sendWorkflowParams({ handleSend, messages, beginPendingSend })
     const { result } = renderHook(() => useChatSendWorkflow(params))
 
     await act(() => result.current.sendWithWaggle(payload('Next question')))
@@ -91,6 +92,8 @@ describe('useChatSendWorkflow pending send', () => {
     await expect(act(() => result.current.sendWithWaggle(payload('Hello')))).rejects.toBeInstanceOf(
       MessageNotDelivered,
     )
-    expect(params.setPendingSend).toHaveBeenLastCalledWith(null)
+    // The exact send it began is cleared, so a newer send in its place survives.
+    const begun = vi.mocked(params.beginPendingSend).mock.calls[0]?.[0]
+    expect(params.clearPendingSend).toHaveBeenCalledWith(begun)
   })
 })

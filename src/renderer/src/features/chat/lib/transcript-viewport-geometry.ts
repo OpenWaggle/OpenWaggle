@@ -27,6 +27,18 @@ function rowElements(content: HTMLElement | null) {
   return content ? content.querySelectorAll<HTMLElement>(`[${TRANSCRIPT_ROW_KEY_ATTRIBUTE}]`) : []
 }
 
+/*
+ * The content column is at least as tall as the viewport, so when its rows and end space are
+ * shorter, the difference is empty slack below the end space. It is not content: counting it made
+ * a held turn look taller than it was, the end space came out short, and the browser clamped the
+ * sent message down the screen when the first message of a Session shrank its reply rows.
+ */
+function minHeightSlack(content: HTMLElement | null, endSpace: HTMLElement | null) {
+  if (!content || !endSpace) return 0
+  const endSpaceBottom = endSpace.offsetTop + endSpace.offsetHeight
+  return Math.max(0, content.offsetTop + content.offsetHeight - endSpaceBottom)
+}
+
 function rowElement(content: HTMLElement | null, key: string) {
   return (
     content?.querySelector<HTMLElement>(`[${TRANSCRIPT_ROW_KEY_ATTRIBUTE}="${CSS.escape(key)}"]`) ??
@@ -50,7 +62,9 @@ export function createDomViewportGeometry(elements: TranscriptViewportElements):
     getContentHeight: () => {
       const scroller = elements.scroller()
       if (!scroller) return 0
-      return scroller.scrollHeight - (elements.endSpace()?.offsetHeight ?? 0)
+      const endSpace = elements.endSpace()
+      const endSpaceHeight = endSpace?.offsetHeight ?? 0
+      return scroller.scrollHeight - endSpaceHeight - minHeightSlack(elements.content(), endSpace)
     },
     setEndSpace: (height) => {
       const endSpace = elements.endSpace()

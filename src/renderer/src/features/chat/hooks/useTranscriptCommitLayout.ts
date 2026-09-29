@@ -1,4 +1,4 @@
-import { useLayoutEffect } from 'react'
+import { useLayoutEffect, useRef } from 'react'
 import { transcriptRowIndex } from '../lib/transcript-rows'
 import type { TranscriptViewportSession } from '../lib/transcript-viewport-session'
 import type { ChatRow } from '../lib/types-chat-row'
@@ -23,16 +23,17 @@ interface UseTranscriptCommitLayoutInput {
  */
 export function useTranscriptCommitLayout(input: UseTranscriptCommitLayoutInput) {
   const { session, sentKey } = input
+  /** The sent row this mount has held, so a send not consumed yet is anchored once per mount. */
+  const anchoredSentKey = useRef<string | null>(null)
   useLayoutEffect(() => {
     session.setWindowHasLater(input.hasLater)
-    if (sentKey !== null && input.keys.includes(sentKey)) {
+    if (sentKey !== null && sentKey !== anchoredSentKey.current && input.keys.includes(sentKey)) {
       if (input.hasLater) {
         input.showNewest()
         return
       }
+      anchoredSentKey.current = sentKey
       session.anchorNewTurn(sentKey, input.keys[input.keys.indexOf(sentKey) - 1] ?? null)
-      // Consuming here, in the same layout flush, is what anchors a send once: a deferred consume
-      // would re-anchor it on every commit until the pending send cleared.
       input.onPendingSendConsumed()
     }
     session.syncRows(transcriptRowIndex(input.rows, input.keys))
