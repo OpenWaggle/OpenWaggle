@@ -1,6 +1,5 @@
 import type { WaggleCollaborationStatus } from '@shared/types/waggle'
 import { useQuery } from '@tanstack/react-query'
-import { useState } from 'react'
 import { useAgentChat } from '@/features/chat/hooks/useAgentChat'
 import { useSendMessage } from '@/features/chat/hooks/useSendMessage'
 import { useSessionFollowUpQueue } from '@/features/chat/hooks/useSessionFollowUpQueue'
@@ -15,6 +14,7 @@ import { buildDiffSection } from '../lib/diff-section'
 import { setComposerSessionAuthorizationMode } from '../lib/session-authorization-mode-action'
 import { sendStarterPrompt } from '../lib/starter-prompt-action'
 import type { ChatPanelSections } from '../model'
+import { usePendingSend } from '../state/pending-send-store'
 import { useBranchFromMessage } from './useBranchFromMessage'
 import { useBranchSummaryWorkflow } from './useBranchSummaryWorkflow'
 import { useChatPanelEnvironment } from './useChatPanelEnvironment'
@@ -26,8 +26,6 @@ import { useTranscriptSection } from './useTranscriptSection'
 import { useVisualizationFollowUpDispatcher } from './useVisualizationFollowUpDispatcher'
 
 export function useChatPanelSections(): ChatPanelSections {
-  const [userDidSend, setUserDidSend] = useState(false)
-
   const env = useChatPanelEnvironment()
   const {
     activeSessionId,
@@ -37,6 +35,7 @@ export function useChatPanelSections(): ChatPanelSections {
     refreshSession,
     setSessionAuthorizationMode,
   } = env.chat
+  const pendingSends = usePendingSend(activeSessionId)
   const {
     activeWorkspace,
     clearDraftBranchForSession,
@@ -151,7 +150,7 @@ export function useChatPanelSections(): ChatPanelSections {
     refreshSession,
     refreshSessionWorkspace,
     sessionCopy,
-    setUserDidSend,
+    ...pendingSends.workflow,
     showToast,
     startWaggleCollaboration,
     stop,
@@ -209,8 +208,7 @@ export function useChatPanelSections(): ChatPanelSections {
     turnAnchorMessageIds: reveal.turnAnchorMessageIds,
     turnsByAnchorNodeId: reveal.turnsByAnchorNodeId,
     turnDurationsByAnchorMessageId: reveal.turnDurationsByAnchorMessageId,
-    userDidSend,
-    onUserDidSendConsumed: () => setUserDidSend(false),
+    ...pendingSends.transcript,
     streamSignalVersion,
     compactionStatus,
   })

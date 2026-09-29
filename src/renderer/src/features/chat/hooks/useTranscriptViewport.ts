@@ -10,7 +10,7 @@ import { savedReadingPosition, TranscriptViewportSession } from '../lib/transcri
 export function useTranscriptViewport(positionKey: string, hasRows: boolean) {
   const [showScrollToBottom, setShowScrollToBottom] = useState(false)
   const [showScrollbar, setShowScrollbar] = useState(false)
-  const [following, setFollowing] = useState(true)
+  const [boundsLikeFollower, setBoundsLikeFollower] = useState(true)
   const [pendingRestoreKey, setPendingRestoreKey] = useState(
     () => savedReadingPosition(positionKey)?.key ?? null,
   )
@@ -20,7 +20,7 @@ export function useTranscriptViewport(positionKey: string, hasRows: boolean) {
         setShowScrollToBottom,
         setShowScrollbar,
         setPendingRestoreKey,
-        setFollowing,
+        setBoundsLikeFollower,
       }),
   )
 
@@ -39,5 +39,5 @@ export function useTranscriptViewport(positionKey: string, hasRows: boolean) {
 
   useEffect(() => () => session.dispose(), [session])
 
-  return { session, showScrollToBottom, showScrollbar, pendingRestoreKey, following }
+  return { session, showScrollToBottom, showScrollbar, pendingRestoreKey, boundsLikeFollower }
 }

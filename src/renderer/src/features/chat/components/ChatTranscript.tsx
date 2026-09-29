@@ -130,8 +130,10 @@ export function ChatTranscript({ section, renderVisibleMessageRows }: ChatTransc
           context: rowContext,
           isLoading,
           lastUserMessageId: section.lastUserMessageId,
-          userDidSend: section.userDidSend,
-          onUserDidSendConsumed: section.onUserDidSendConsumed,
+          pendingSend: section.pendingSend,
+          onPendingSendConsumed: section.onPendingSendConsumed,
+          // A new Session's view remounts once its branch is known (ADR 0036).
+          canConsumePendingSend: activeBranchId !== null && activeBranchId !== undefined,
           onToggleTurnFold: section.onToggleTurnFold,
           sessionCreatedAt: section.sessionCreatedAt ?? null,
         }}

@@ -1,81 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import {
-  NEW_TURN_TOP_OFFSET_PX,
-  TranscriptViewportController,
-  type ViewportGeometry,
-} from '../transcript-viewport-controller'
-
-/** A column of rows with known heights, standing in for browser layout. */
-function fakeViewport(rows: Array<[string, number]>, clientHeight = 500) {
-  let list = rows
-  let scrollTop = 0
-  let endSpace = 0
-  let height = clientHeight
-  const contentHeight = () => list.reduce((sum, [, rowHeight]) => sum + rowHeight, 0)
-  const offsetOf = (key: string) => {
-    let offset = 0
-    for (const [rowKey, rowHeight] of list) {
-      if (rowKey === key) return offset
-      offset += rowHeight
-    }
-    return null
-  }
-  const clamp = (value: number) =>
-    Math.min(Math.max(0, value), Math.max(0, contentHeight() + endSpace - height))
-  const geometry: ViewportGeometry = {
-    getScrollTop: () => scrollTop,
-    setScrollTop: (value) => {
-      scrollTop = clamp(value)
-    },
-    getClientHeight: () => height,
-    getContentHeight: contentHeight,
-    setEndSpace: (value) => {
-      endSpace = value
-      scrollTop = clamp(scrollTop)
-    },
-    getRowTop: (key) => {
-      const offset = offsetOf(key)
-      return offset === null ? null : offset - scrollTop
-    },
-    getFirstVisibleRow: () => {
-      let offset = 0
-      for (const [key, rowHeight] of list) {
-        if (offset + rowHeight > scrollTop) return { key, top: offset - scrollTop }
-        offset += rowHeight
-      }
-      return null
-    },
-  }
-  return {
-    geometry,
-    setRows: (next: Array<[string, number]>) => {
-      list = next
-      scrollTop = clamp(scrollTop)
-    },
-    setClientHeight: (value: number) => {
-      height = value
-      scrollTop = clamp(scrollTop)
-    },
-    /** A reader scrolling, which the controller did not cause. */
-    userScrollTo: (value: number) => {
-      scrollTop = clamp(value)
-    },
-    rowTop: (key: string) => geometry.getRowTop(key),
-    get scrollTop() {
-      return scrollTop
-    },
-    get endSpace() {
-      return endSpace
-    },
-    maxScrollTop: () => Math.max(0, contentHeight() + endSpace - height),
-  }
-}
-
-const rows = (count: number, height = 100, prefix = 'row') =>
-  Array.from({ length: count }, (_, index): [string, number] => [
-    `${prefix}-${String(index)}`,
-    height,
-  ])
+import { TranscriptViewportController } from '../transcript-viewport-controller'
+import { fakeViewport, rows } from './transcript-viewport.fixtures'
 
 describe('TranscriptViewportController', () => {
   it('follows the live end as content grows', () => {
@@ -209,33 +134,6 @@ describe('TranscriptViewportController', () => {
     controller.hold('row-9')
     controller.releaseHold()
     expect(controller.isFollowing).toBe(true)
-  })
-
-  it('pins a sent message near the top and reserves space for the reply', () => {
-    const viewport = fakeViewport([...rows(10), ['sent', 60]])
-    const controller = new TranscriptViewportController(viewport.geometry)
-    controller.anchorNewTurn('sent')
-
-    expect(viewport.rowTop('sent')).toBe(NEW_TURN_TOP_OFFSET_PX)
-    expect(viewport.endSpace).toBe(500 - NEW_TURN_TOP_OFFSET_PX - 60)
-
-    viewport.setRows([...rows(10), ['sent', 60], ['reply', 200]])
-    controller.applyLayout()
-    expect(viewport.rowTop('sent')).toBe(NEW_TURN_TOP_OFFSET_PX)
-    expect(viewport.endSpace).toBe(500 - NEW_TURN_TOP_OFFSET_PX - 260)
-  })
-
-  it('hands a sent turn over to live following once it outgrows the viewport', () => {
-    const viewport = fakeViewport([...rows(10), ['sent', 60]])
-    const controller = new TranscriptViewportController(viewport.geometry)
-    controller.anchorNewTurn('sent')
-
-    viewport.setRows([...rows(10), ['sent', 60], ['reply', 900]])
-    controller.applyLayout()
-
-    expect(controller.isFollowing).toBe(true)
-    expect(viewport.endSpace).toBe(0)
-    expect(viewport.scrollTop).toBe(viewport.maxScrollTop())
   })
 
   it('restores a saved reading position by row, not by pixel offset', () => {

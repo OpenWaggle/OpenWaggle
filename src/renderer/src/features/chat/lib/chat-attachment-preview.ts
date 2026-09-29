@@ -1,6 +1,7 @@
 import type { AgentSendPayload, AttachmentRecord } from '@shared/types/agent'
 import type { UIMessage } from '@shared/types/chat-ui'
 import { takeAttachmentPreviewUrl } from '@/shared/lib/attachment-preview-urls'
+import { OPTIMISTIC_USER_MESSAGE_ID_PREFIX } from './optimistic-user-message'
 
 const MAX_ATTACHMENT_PREVIEW_CHARS = 320
 let optimisticUserMessageCounter = 0
@@ -61,7 +62,7 @@ export function createOptimisticUserMessage(payload: AgentSendPayload): UIMessag
   })
 
   return {
-    id: `optimistic-user-${Date.now()}-${String(optimisticUserMessageCounter)}`,
+    id: `${OPTIMISTIC_USER_MESSAGE_ID_PREFIX}${Date.now()}-${String(optimisticUserMessageCounter)}`,
     role: 'user',
     parts: [...imageParts, ...buildClientUserMessageParts(payload)],
     createdAt: new Date(),

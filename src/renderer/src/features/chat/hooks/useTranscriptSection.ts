@@ -22,7 +22,7 @@ import {
 import { resolveTranscriptMessages } from '../lib/session-workspace-transcript'
 import { expandedTurnKeysWithAliases, persistedUserMessageAliases } from '../lib/turn-fold-aliases'
 import type { AgentInteractionEvent } from '../lib/types-chat-row'
-import type { ChatTranscriptSectionState } from '../model'
+import type { ChatTranscriptSectionState, PendingSend } from '../model'
 import type { AgentCompactionStatus } from './useAgentChat.types'
 import { useChatRows } from './useChatRows'
 
@@ -105,8 +105,8 @@ export interface TranscriptSectionParams {
   readonly turnsByAnchorNodeId: ReadonlyMap<string, TurnCheckpointSummary>
   /** Durable per-turn durations keyed by terminal assistant message id (turn checkpoints). */
   readonly turnDurationsByAnchorMessageId?: ReadonlyMap<string, number>
-  readonly userDidSend: boolean
-  readonly onUserDidSendConsumed: () => void
+  readonly pendingSend: PendingSend | null
+  readonly onPendingSendConsumed: () => void
   readonly compactionStatus: AgentCompactionStatus | null
 }
 
@@ -143,8 +143,8 @@ export function useTranscriptSection(params: TranscriptSectionParams): ChatTrans
     handleDismissInterruptedRun,
     handleBranchFromMessage,
     handleForkFromMessage,
-    userDidSend,
-    onUserDidSendConsumed,
+    pendingSend,
+    onPendingSendConsumed,
     compactionStatus,
   } = params
 
@@ -227,7 +227,7 @@ export function useTranscriptSection(params: TranscriptSectionParams): ChatTrans
     toggleTurnFold(activeSessionId, turnKey)
   }
 
-  // Compute lastUserMessageId for session-restore identity gating, not send anchoring.
+  // The latest user message: session-restore identity gating, and the row a pending send holds.
   const lastUserMessageId = (() => {
     for (let i = transcriptMessages.length - 1; i >= 0; i -= 1) {
       if (transcriptMessages[i]?.role === 'user') return transcriptMessages[i]?.id ?? null
@@ -263,7 +263,7 @@ export function useTranscriptSection(params: TranscriptSectionParams): ChatTrans
     onToggleTurnFold: handleToggleTurnFold,
     lastUserMessageId,
     streamSignalVersion,
-    userDidSend,
-    onUserDidSendConsumed,
+    pendingSend,
+    onPendingSendConsumed,
   }
 }

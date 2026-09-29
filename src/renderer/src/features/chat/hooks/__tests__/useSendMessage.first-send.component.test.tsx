@@ -6,6 +6,7 @@ import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { FirstSendFailed } from '../../lib/message-delivery'
 import { useChatStore } from '../../state/chat-store'
+import { usePendingSendStore } from '../../state/pending-send-store'
 
 const {
   flushDraftAuthorizationModeMock,
@@ -280,9 +281,13 @@ describe("a session's first send", () => {
       }),
     )
 
+    const draftSend = { afterUserMessageId: null }
+    usePendingSendStore.getState().begin(null, draftSend)
     await act(() => result.current.handleSend(PAYLOAD))
 
     expect(sendMessageMock).toHaveBeenCalledWith(sessionId, PAYLOAD, draftModel)
+    // The draft's pending send moves to the created Session, whose transcript holds the message.
+    expect(usePendingSendStore.getState().bySession.get(String(sessionId))).toBe(draftSend)
   })
 
   it('attributes an authorization setup failure to the newly created session', async () => {
