@@ -19,6 +19,8 @@ import { api } from '@/shared/lib/ipc'
 import { ipcErrorMessage } from '@/shared/lib/ipc-error-message'
 import { createRendererLogger } from '@/shared/lib/logger'
 import { MessageNotDelivered } from '../lib/message-delivery'
+import { pendingSendAfter } from '../lib/optimistic-user-message'
+import type { PendingSend } from '../model'
 import type { useBranchSummaryWorkflow } from './useBranchSummaryWorkflow'
 import type { useSessionCopyWorkflow } from './useSessionCopyWorkflow'
 
@@ -41,7 +43,7 @@ interface ChatSendWorkflowParams {
   readonly refreshSession: (sessionId: SessionId) => Promise<void>
   readonly refreshSessionWorkspace: (sessionId: SessionId) => Promise<void>
   readonly sessionCopy: ReturnType<typeof useSessionCopyWorkflow>
-  readonly setUserDidSend: (value: boolean) => void
+  readonly setPendingSend: (value: PendingSend | null) => void
   readonly showToast: (message: string) => void
   readonly startWaggleCollaboration: (sessionId: SessionId, config: WaggleConfig) => void
   readonly stop: () => void
@@ -190,13 +192,13 @@ export function useChatSendWorkflow(params: ChatSendWorkflowParams) {
       if (!draftBranchReady)
         throw new MessageNotDelivered('refused', 'Branch source is unavailable.')
 
-      params.setUserDidSend(true)
+      params.setPendingSend(pendingSendAfter(params.messages))
       params.phase.reset()
       try {
         await sendThroughActiveMode(params, payload)
         if (params.activeSessionId) params.clearDraftBranchForSession(params.activeSessionId)
       } catch (error) {
-        params.setUserDidSend(false)
+        params.setPendingSend(null)
         if (payload.waggle?.config && params.activeSessionId) {
           params.stopWaggleCollaboration(params.activeSessionId)
         }

@@ -130,8 +130,8 @@ export function ChatTranscript({ section, renderVisibleMessageRows }: ChatTransc
           context: rowContext,
           isLoading,
           lastUserMessageId: section.lastUserMessageId,
-          userDidSend: section.userDidSend,
-          onUserDidSendConsumed: section.onUserDidSendConsumed,
+          pendingSend: section.pendingSend,
+          onPendingSendConsumed: section.onPendingSendConsumed,
           onToggleTurnFold: section.onToggleTurnFold,
           sessionCreatedAt: section.sessionCreatedAt ?? null,
         }}

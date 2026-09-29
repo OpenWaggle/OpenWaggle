@@ -108,7 +108,7 @@ function sendWorkflowParams(overrides: Partial<SendWorkflowParams> = {}): SendWo
       openForkSelector: vi.fn(),
       selectForkTarget: vi.fn(),
     },
-    setUserDidSend: vi.fn(),
+    setPendingSend: vi.fn(),
     showToast: vi.fn(),
     startWaggleCollaboration: vi.fn(),
     stop: vi.fn(),

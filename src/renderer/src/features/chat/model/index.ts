@@ -3,4 +3,5 @@ export type {
   ChatDiffSectionState,
   ChatPanelSections,
   ChatTranscriptSectionState,
+  PendingSend,
 } from './chat-panel-sections'

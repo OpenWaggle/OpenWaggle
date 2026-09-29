@@ -5,10 +5,11 @@ import { useTranscriptEdgeLoading } from '../hooks/useTranscriptEdgeLoading'
 import { useTranscriptViewport } from '../hooks/useTranscriptViewport'
 import { useTranscriptWindowRange } from '../hooks/useTranscriptWindowRange'
 import { useTurnSettlePresentation } from '../hooks/useTurnSettlePresentation'
-import { isOptimisticUserMessageId } from '../lib/chat-attachment-preview'
+import { pendingSentRowKey } from '../lib/optimistic-user-message'
 import { chatRowKeys } from '../lib/transcript-row-keys'
 import { visibleMessageNodeIds } from '../lib/transcript-rows'
 import type { ChatRow } from '../lib/types-chat-row'
+import type { PendingSend } from '../model'
 import type { ChatRowRenderContext } from './ChatRowRenderContext'
 import { ScrollToBottomButton } from './ScrollToBottomButton'
 import { TranscriptRows } from './TranscriptRows'
@@ -19,8 +20,8 @@ export interface TranscriptViewportInput {
   readonly context: ChatRowRenderContext
   readonly isLoading: boolean
   readonly lastUserMessageId: string | null
-  readonly userDidSend: boolean
-  readonly onUserDidSendConsumed: () => void
+  readonly pendingSend: PendingSend | null
+  readonly onPendingSendConsumed: () => void
   readonly onToggleTurnFold: (turnKey: string) => void
   readonly sessionCreatedAt: number | null
 }
@@ -42,7 +43,7 @@ export function TranscriptViewport({
   readonly trailing: ReactNode
   readonly renderVisibleMessageRows?: (nodeIds: readonly string[], rows: ReactNode) => ReactNode
 }) {
-  const { rows, isLoading, lastUserMessageId, userDidSend, onUserDidSendConsumed } = input
+  const { rows, isLoading, lastUserMessageId, pendingSend, onPendingSendConsumed } = input
   const keys = chatRowKeys(rows)
   const { session, showScrollToBottom, showScrollbar, pendingRestoreKey, boundsLikeFollower } =
     useTranscriptViewport(positionKey, keys.length > 0)
@@ -72,10 +73,8 @@ export function TranscriptViewport({
     session,
     rows,
     keys,
-    sentKey: lastUserMessageId ? `message:${lastUserMessageId}` : null,
-    sentIsOptimistic: lastUserMessageId !== null && isOptimisticUserMessageId(lastUserMessageId),
-    userDidSend,
-    onUserDidSendConsumed,
+    sentKey: pendingSentRowKey(pendingSend, lastUserMessageId),
+    onPendingSendConsumed,
     hasLater: transcriptWindow.hasLater,
     showNewest: transcriptWindow.showNewest,
   })

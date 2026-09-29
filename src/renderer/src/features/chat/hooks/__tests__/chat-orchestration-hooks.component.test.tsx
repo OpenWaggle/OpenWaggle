@@ -163,7 +163,7 @@ function sendWorkflowParams(overrides: Partial<Parameters<typeof useChatSendWork
       openForkSelector: vi.fn(),
       selectForkTarget: vi.fn(),
     },
-    setUserDidSend: vi.fn(),
+    setPendingSend: vi.fn(),
     showToast: vi.fn(),
     startWaggleCollaboration: vi.fn(),
     stop: vi.fn(),
@@ -306,7 +306,7 @@ describe('chat orchestration hooks', () => {
 
     expect(params.startWaggleCollaboration).toHaveBeenCalledOnce()
     expect(params.stopWaggleCollaboration).toHaveBeenCalledWith(SESSION_ID)
-    expect(params.setUserDidSend).toHaveBeenLastCalledWith(false)
+    expect(params.setPendingSend).toHaveBeenLastCalledWith(null)
   })
 
   it('does not swallow first-message Waggle sends before a session exists', async () => {

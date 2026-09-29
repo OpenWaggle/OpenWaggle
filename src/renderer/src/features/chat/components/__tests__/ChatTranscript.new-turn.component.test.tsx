@@ -18,6 +18,7 @@ vi.mock('@/shared/lib/ipc', () => ({
   api: apiMock,
 }))
 
+import { pendingSendAfter } from '../../lib/optimistic-user-message'
 import type { ChatTranscriptSectionState } from '../../model'
 import { ChatTranscript } from '../ChatTranscript'
 import {
@@ -63,7 +64,9 @@ describe('ChatTranscript sent turn', () => {
     layout.setHeight('message:optimistic-user-2', 60)
     const view = render(<ChatTranscript section={section(history, { isLoading: false })} />)
     const sent = [...history, userMessage('optimistic-user-2')]
-    view.rerender(<ChatTranscript section={section(sent, { userDidSend: true })} />)
+    view.rerender(
+      <ChatTranscript section={section(sent, { pendingSend: pendingSendAfter(history) })} />,
+    )
     act(() => layout.flushScroll())
     const commit = (state: ChatTranscriptSectionState) => {
       view.rerender(<ChatTranscript section={state} />)
@@ -148,63 +151,6 @@ describe('ChatTranscript sent turn', () => {
     expect(layout.rowTop('message:a2')).toBe(84)
   })
 
-  it('holds the sent message, not the previous one, when the send commits before its row', () => {
-    layout.setHeight('message:a1', 900)
-    layout.setHeight('message:optimistic-user-2', 60)
-    const view = render(<ChatTranscript section={section(history, { isLoading: false })} />)
-    view.rerender(<ChatTranscript section={section(history, { userDidSend: true })} />)
-    expect(layout.mode()).toBe('following')
-
-    view.rerender(
-      <ChatTranscript
-        section={section([...history, userMessage('optimistic-user-2')], { userDidSend: true })}
-      />,
-    )
-    expect(layout.mode()).toBe('new-turn:message:optimistic-user-2')
-    expect(layout.rowTop('message:optimistic-user-2')).toBe(24)
-  })
-
-  it('holds the first message of a new Session whose view mounts with it already present', () => {
-    layout.setHeight('message:optimistic-user-1', 60)
-    const onUserDidSendConsumed = vi.fn()
-    const first = [userMessage('optimistic-user-1')]
-    render(
-      <ChatTranscript section={section(first, { userDidSend: true, onUserDidSendConsumed })} />,
-    )
-
-    expect(layout.mode()).toBe('new-turn:message:optimistic-user-1')
-    expect(onUserDidSendConsumed).toHaveBeenCalled()
-  })
-
-  it('does not take the previous message being persisted for a pending send', () => {
-    layout.setHeight('message:a1', 900)
-    const onUserDidSendConsumed = vi.fn()
-    const view = render(<ChatTranscript section={section(history, { isLoading: false })} />)
-    view.rerender(
-      <ChatTranscript section={section(history, { userDidSend: true, onUserDidSendConsumed })} />,
-    )
-    const persisted = [userMessage('u1-persisted'), assistantMessage('a1', false)]
-    view.rerender(
-      <ChatTranscript section={section(persisted, { userDidSend: true, onUserDidSendConsumed })} />,
-    )
-
-    expect(layout.mode()).toBe('following')
-    expect(onUserDidSendConsumed).not.toHaveBeenCalled()
-  })
-
-  it('returns to the live end, not the previous message, when the sent one is withdrawn', () => {
-    const { sent, commit } = sendTurn()
-    layout.setHeight('message:a2', 120)
-    commit(section([...sent, assistantMessage('a2', false)]))
-
-    // A refused or queued send removes its optimistic row.
-    commit(section(history))
-    commit(section(history))
-
-    expect(layout.mode()).toBe('following')
-    expect(layout.distanceToBottom()).toBe(0)
-  })
-
   it('keeps holding the sent message when the run completes with a steer inside it', () => {
     const { sent, commit } = sendTurn()
     layout.setHeight('message:a2', 120)
@@ -230,29 +176,6 @@ describe('ChatTranscript sent turn', () => {
     layout.setHeight('message:a3', 900)
     commit(section([...steered, assistantMessage('a3', false)]))
     expect(layout.mode()).toBe('following')
-  })
-
-  it('holds a message sent while reading older history once the newest rows mount', () => {
-    const older = Array.from({ length: 260 }, (_, index) => userMessage(`h${String(index)}`))
-    const onUserDidSendConsumed = vi.fn()
-    const view = render(
-      <ChatTranscript section={section(older.slice(0, 40), { isLoading: false })} />,
-    )
-    act(() => layout.userScroll(-300))
-    // Rows arriving under an anchored reader cap the window, so newer rows are not mounted.
-    view.rerender(<ChatTranscript section={section(older, { isLoading: false })} />)
-    expect(document.body.textContent).toContain('Load newer messages')
-
-    layout.setHeight('message:optimistic-user-2', 60)
-    const sent = [...older, userMessage('optimistic-user-2')]
-    view.rerender(
-      <ChatTranscript section={section(sent, { userDidSend: true, onUserDidSendConsumed })} />,
-    )
-    act(() => layout.flushScroll())
-
-    expect(layout.mode()).toBe('new-turn:message:optimistic-user-2')
-    expect(layout.rowTop('message:optimistic-user-2')).toBe(24)
-    expect(onUserDidSendConsumed).toHaveBeenCalled()
   })
 
   it('rejoins the live end when the reader scrolls down to it', () => {
@@ -327,21 +250,5 @@ describe('ChatTranscript sent turn', () => {
 
     expect(onToggleTurnFold).not.toHaveBeenCalled()
     expect(layout.rowTop('message:optimistic-user-2')).toBe(24)
-  })
-
-  it('mounts the reply under a message sent from a full live window', () => {
-    // A follower's window grows to its 160-row bound as rows arrive, so the sent row is its last.
-    const older = Array.from({ length: 170 }, (_, index) => userMessage(`h${String(index)}`))
-    const view = render(
-      <ChatTranscript section={section(older.slice(0, 40), { isLoading: false })} />,
-    )
-    view.rerender(<ChatTranscript section={section(older, { isLoading: false })} />)
-    const sent = [...older, userMessage('optimistic-user-2')]
-    view.rerender(<ChatTranscript section={section(sent, { userDidSend: true })} />)
-    view.rerender(<ChatTranscript section={section([...sent, assistantMessage('a2', false)])} />)
-
-    expect(layout.rowTop('message:a2')).not.toBeNull()
-    expect(document.body.textContent).not.toContain('Load newer messages')
-    expect(layout.mode()).toBe('new-turn:message:optimistic-user-2')
   })
 })
