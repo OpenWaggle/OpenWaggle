@@ -1,5 +1,5 @@
 /** Status report types and their human-readable rendering. */
-import { sanitizeTerminalText } from './run-cli-output'
+import { sanitizeTerminalText } from './terminal-text'
 
 /** A field printed on one line; a line break in a title must not fake another status line. */
 function singleLine(text: string) {

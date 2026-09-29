@@ -1,6 +1,6 @@
 import { decodeHostUiV1Request } from '@shared/schemas/host-ui-protocol'
 import type { ActionManagementRequest } from '@shared/types/action-management'
-import { HOST_UI_CONTRACT_VERSION } from '@shared/types/host-ui-protocol'
+import { HOST_UI_CONTRACT_VERSION, type HostBackedGuiChannel } from '@shared/types/host-ui-protocol'
 import { describe, expect, it } from 'vitest'
 import { isAdmittedWhileDraining } from '../local-session-drain-admission'
 
@@ -21,7 +21,30 @@ function action(operation: ActionManagementRequest['operation']) {
   return { contract: 'host-ui-v1', request }
 }
 
+/** Any Host UI request as the desktop app puts it on the wire. */
+function hostUi(channel: HostBackedGuiChannel, args: readonly unknown[]) {
+  const request = decodeHostUiV1Request({
+    contractVersion: HOST_UI_CONTRACT_VERSION,
+    requestId: 'request-1',
+    channel,
+    args: args.map((value) =>
+      value === undefined ? { kind: 'undefined' } : { kind: 'value', value },
+    ),
+  })
+  return { contract: 'host-ui-v1', request }
+}
+
 describe('commands a draining Session Host still accepts', () => {
+  it("keeps answering the desktop app's reads", () => {
+    expect(isAdmittedWhileDraining(hostUi('settings:get', []))).toBe(true)
+    expect(isAdmittedWhileDraining(hostUi('sessions:get-detail', ['s-1']))).toBe(true)
+    expect(isAdmittedWhileDraining(hostUi('agent:list-active-runs', [undefined]))).toBe(true)
+    expect(isAdmittedWhileDraining(action({ type: 'runs' }))).toBe(true)
+    expect(isAdmittedWhileDraining(hostUi('sessions:set-model', ['s-1', 'openai/gpt-5']))).toBe(
+      false,
+    )
+  })
+
   it('accepts commands that end or unblock active work', () => {
     for (const payload of [
       { contract: 'local-host-v1' },

@@ -241,12 +241,13 @@ export async function runHostCli(
   dependencies: HostCliDependencies = defaultDependencies,
 ) {
   const [command, ...rest] = args
+  // `host status` is the status command, including its own --help.
+  if (command === 'status') return runStatusCli(rest, dependencies.status)
   const parsed = parseMcpCliArguments(args)
   if (command === undefined || isHelp(args, parsed)) {
     await dependencies.writeStdout(`${HOST_CLI_USAGE}\n`)
     return SESSION_CLI_EXIT.SUCCESS
   }
-  if (command === 'status') return runStatusCli(rest, dependencies.status)
   if (command === 'stop') return runHostStop(rest, dependencies)
   return sessionCliExitCodeForError(
     writeSessionsCliError(

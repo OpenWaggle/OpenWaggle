@@ -25,8 +25,10 @@ export async function dispatchLocalHostCommand(input: {
   }
 }): Promise<LocalHostCommandResult> {
   authorizeLocalHostCaller(input.caller)
-  const blockingRuns = await input.countBlockingRuns()
+  // Stop first, so no Run can be admitted between the count and the drain. The count only
+  // informs the reply; failing to read it must not cancel the stop.
   const stopping = input.requestHostStop()
+  const blockingRuns = await input.countBlockingRuns().catch(() => 0)
   return {
     contract: 'local-host-v1',
     response: {

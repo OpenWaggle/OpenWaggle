@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
-import { RunCliOutput, sanitizeTerminalText } from '../run-cli-output'
+import { RunCliOutput } from '../run-cli-output'
+import { sanitizeTerminalText } from '../terminal-text'
 
 describe('terminal text sanitizing', () => {
   it.each([

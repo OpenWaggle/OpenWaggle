@@ -61,7 +61,9 @@ const UNDESCRIBED_FAILURE = 'The Session Host could not complete the request.'
 
 export function describeLocalSessionServerError(error: unknown) {
   if (!Runtime.isFiberFailure(error)) {
-    return describeFailure(error) ?? (error instanceof Error ? error.message : UNDESCRIBED_FAILURE)
+    const described =
+      describeFailure(error) ?? (error instanceof Error ? error.message : UNDESCRIBED_FAILURE)
+    return described.trim() === '' ? UNDESCRIBED_FAILURE : described
   }
   // A FiberFailure prints its whole cause, including any object it carries, so only the
   // failure or defect inside it is described.

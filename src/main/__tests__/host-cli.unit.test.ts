@@ -207,5 +207,8 @@ describe('openwaggle host stop', () => {
     }
     expect(await runHostCli(['status'], status)).toBe(0)
     expect(statusOutput.join('')).toContain('Session Host: not running')
+    statusOutput.length = 0
+    expect(await runHostCli(['status', '--help'], status)).toBe(0)
+    expect(statusOutput.join('')).toContain('openwaggle status [--json]')
   })
 })

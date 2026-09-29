@@ -36,6 +36,22 @@ describe('Session Host stop command', () => {
     expect(requestHostStop).toHaveBeenCalledTimes(1)
   })
 
+  it('still stops when the Runs it waits for cannot be counted', async () => {
+    const requestHostStop = vi.fn(() => ({ hostInstanceId: 'host-1', runningActions: 0 }))
+
+    await expect(
+      dispatchLocalHostCommand({
+        caller: caller({ callerId: 'local-user:ada' }),
+        payload,
+        countBlockingRuns: async () => {
+          throw new Error('database busy')
+        },
+        requestHostStop,
+      }),
+    ).resolves.toMatchObject({ response: { blockingRuns: 0 } })
+    expect(requestHostStop).toHaveBeenCalledTimes(1)
+  })
+
   it.each([
     [
       'a named profile',

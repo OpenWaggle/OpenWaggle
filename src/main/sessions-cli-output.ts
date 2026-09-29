@@ -99,7 +99,11 @@ export function sessionsCliErrorKindForCode(code: string): SessionsCliErrorKind 
     return 'authorization'
   }
   if (normalized.includes('timeout')) return 'timeout'
-  if (normalized.includes('host_stopped') || normalized.includes('host_lost')) {
+  if (
+    normalized.includes('host_stopped') ||
+    normalized.includes('host_lost') ||
+    normalized === 'host_draining'
+  ) {
     return 'host_unavailable'
   }
   if (normalized.endsWith('_failed')) return 'internal'

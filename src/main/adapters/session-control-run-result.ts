@@ -1,6 +1,7 @@
 import { getMessageText } from '@shared/types/agent'
 import type { AgentRunResult } from '../application/agent-run/types'
 import type { SessionControlRunExecutionInput } from '../ports/session-control-run-executor'
+import { describeLocalSessionServerError } from '../session-host/local-session-server-frame'
 import { publishSessionHostEvent } from '../session-host/session-host-events'
 
 export function publishRunFailure(
@@ -40,7 +41,7 @@ export function publishRunStartFailure(input: SessionControlRunExecutionInput, e
       runId: input.runId,
       reason: 'error',
       error: {
-        message: error instanceof Error ? error.message : String(error),
+        message: describeLocalSessionServerError(error),
         ...(code ? { code } : {}),
       },
       timestamp: Date.now(),

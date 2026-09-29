@@ -1,5 +1,7 @@
 import { safeDecodeUnknown } from '@shared/schema'
 import { actionManagementRequestSchema } from '@shared/schemas/action-management'
+import { hostBackedGuiChannelSchema } from '@shared/schemas/host-ui-protocol'
+import { isReadOnlyHostUiInvocation } from '../application/host-ui-read-only-invocation'
 
 /**
  * Commands a draining Session Host still accepts. A drain waits for active work to end, so
@@ -29,14 +31,30 @@ function field(value: unknown, key: string): unknown {
   return typeof value === 'object' && value !== null ? Reflect.get(value, key) : undefined
 }
 
-/** Host UI arguments travel as `{ kind: 'value', value }` wire values. */
-function settlesActionWork(request: unknown) {
-  if (field(request, 'channel') !== 'project-actions:manage') return false
+/** Host UI arguments travel as `{ kind: 'value', value }` or `{ kind: 'undefined' }`. */
+function hostUiArguments(request: unknown): readonly unknown[] | undefined {
   const args = field(request, 'args')
-  const argument: unknown = Array.isArray(args) && args.length === 1 ? args.at(0) : undefined
-  if (field(argument, 'kind') !== 'value') return false
-  const decoded = safeDecodeUnknown(actionManagementRequestSchema, field(argument, 'value'))
+  if (!Array.isArray(args)) return undefined
+  const kinds = args.map((argument) => field(argument, 'kind'))
+  if (kinds.some((kind) => kind !== 'undefined' && kind !== 'value')) return undefined
+  return args.map((argument) => field(argument, 'value'))
+}
+
+function settlesActionWork(channel: string, args: readonly unknown[]) {
+  if (channel !== 'project-actions:manage' || args.length !== 1) return false
+  const decoded = safeDecodeUnknown(actionManagementRequestSchema, args[0])
   return decoded.success && SETTLING_ACTION_OPERATIONS.has(decoded.data.operation.type)
+}
+
+/**
+ * The desktop app reads everything through Host UI requests, so its reads are admitted too:
+ * a user who opens the app to answer an approval must be able to load the Session.
+ */
+function admitsHostUiRequest(request: unknown) {
+  const channel = safeDecodeUnknown(hostBackedGuiChannelSchema, field(request, 'channel'))
+  const args = hostUiArguments(request)
+  if (!channel.success || !args) return false
+  return settlesActionWork(channel.data, args) || isReadOnlyHostUiInvocation(channel.data, args)
 }
 
 export function isAdmittedWhileDraining(payload: unknown) {
@@ -48,6 +66,6 @@ export function isAdmittedWhileDraining(payload: unknown) {
     const operation = field(field(request, 'command'), 'operation')
     return typeof operation === 'string' && SETTLING_CONTROL_OPERATIONS.has(operation)
   }
-  if (contract === 'host-ui-v1') return settlesActionWork(request)
+  if (contract === 'host-ui-v1') return admitsHostUiRequest(request)
   return false
 }
