@@ -50,6 +50,17 @@ describe('Session Host stop wire contract', () => {
         'stop',
       ),
     ).toEqual({ contract: 'local-host-v1', response })
+    const uncounted = { ...response, blockingRuns: null }
+    expect(
+      decodeLocalSessionCommandResponse(
+        {
+          kind: 'response',
+          requestId: 'stop',
+          payload: { contract: 'local-host-v1', response: uncounted },
+        },
+        'stop',
+      ),
+    ).toEqual({ contract: 'local-host-v1', response: uncounted })
     expect(() =>
       decodeLocalSessionCommandResponse(
         {

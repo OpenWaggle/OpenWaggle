@@ -36,12 +36,34 @@ export function describeInteraction(interaction: AgentLoopInteraction) {
     .exhaustive()
 }
 
+const FIRST_PRINTABLE_ASCII = 0x20
+const LAST_PRINTABLE_ASCII = 0x7e
+const HEX_RADIX = 16
+const JSON_UNICODE_ESCAPE_DIGITS = 4
+
+/**
+ * JSON with every character outside printable ASCII escaped as `\uXXXX`, so the example
+ * survives the terminal sanitizer unchanged and still parses when pasted.
+ */
+function asciiJson(value: string) {
+  const json = JSON.stringify(value)
+  let result = ''
+  for (let index = 0; index < json.length; index += 1) {
+    const code = json.charCodeAt(index)
+    const printable = code >= FIRST_PRINTABLE_ASCII && code <= LAST_PRINTABLE_ASCII
+    result += printable
+      ? json[index]
+      : `\\u${code.toString(HEX_RADIX).padStart(JSON_UNICODE_ESCAPE_DIGITS, '0')}`
+  }
+  return result
+}
+
 function exampleResponse(interaction: AgentLoopInteraction) {
   return matchBy(interaction, 'kind')
     .with('confirm', () => '{"kind":"confirm","accepted":true}')
     .with(
       'select',
-      (select) => `{"kind":"select","selected":${JSON.stringify(select.choices[0] ?? '')}}`,
+      (select) => `{"kind":"select","selected":${asciiJson(select.choices[0] ?? '')}}`,
     )
     .with('input', () => '{"kind":"input","value":"..."}')
     .with('editor', () => '{"kind":"editor","value":"..."}')

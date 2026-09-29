@@ -13,6 +13,7 @@ describe('terminal text sanitizing', () => {
     ['c1 \u009b31m', 'c1 \\x9b31m'],
     ['rm -rf \u202esdrawkcab', 'rm -rf \\u202esdrawkcab'],
     ['isolate \u2066x\u2069 mark \u200f', 'isolate \\u2066x\\u2069 mark \\u200f'],
+    ['arabic mark \u061c', 'arabic mark \\u061c'],
   ])('sanitizes %j', (input, expected) => {
     expect(sanitizeTerminalText(input)).toBe(expected)
   })
@@ -55,6 +56,25 @@ describe('run output queue', () => {
     await terminal.flushed()
 
     expect(written).toEqual(['\u001b[1mb', '\\x1b[1mb'])
+  })
+
+  it('keeps a CRLF split across two reply deltas as one line break', async () => {
+    const written: string[] = []
+    const output = new RunCliOutput(
+      {
+        writeStdout: async (text) => {
+          written.push(text)
+        },
+        writeStderr: () => undefined,
+        stdoutIsTerminal: true,
+      },
+      () => undefined,
+    )
+    output.reply('a\r')
+    output.reply('\nb')
+    await output.flushed()
+
+    expect(written.join('')).toBe('a\nb')
   })
 
   it('reports the first stdout failure once and stops writing', async () => {

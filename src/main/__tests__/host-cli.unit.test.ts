@@ -103,6 +103,11 @@ describe('openwaggle host stop', () => {
       blockingRuns: 1,
       blockingActions: 0,
     } as const
+    expect(
+      formatHostStopReport({ ...oneRun, blockingRuns: null, blockingActions: 1 }).split('\n')[0],
+    ).toBe(
+      'Session Host refuses new work and stops once its active Runs and running Actions, if any, finish.',
+    )
     expect(formatHostStopReport(oneRun).split('\n')[0]).toBe(
       'Session Host refuses new work and stops once its active Run finishes.',
     )

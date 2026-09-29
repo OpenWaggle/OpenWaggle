@@ -6,6 +6,7 @@ const CARRIAGE_RETURN = 0x0d
 const C0_END = 0x1f
 const C1_START = 0x80
 const C1_END = 0x9f
+const ARABIC_LETTER_MARK = 0x061c
 const LEFT_TO_RIGHT_MARK = 0x200e
 const RIGHT_TO_LEFT_MARK = 0x200f
 const BIDI_EMBEDDING_START = 0x202a
@@ -25,6 +26,7 @@ function isControl(code: number) {
 /** Characters that reorder the text around them, so what is shown differs from what is sent. */
 function isBidiControl(code: number) {
   return (
+    code === ARABIC_LETTER_MARK ||
     code === LEFT_TO_RIGHT_MARK ||
     code === RIGHT_TO_LEFT_MARK ||
     (code >= BIDI_EMBEDDING_START && code <= BIDI_EMBEDDING_END) ||

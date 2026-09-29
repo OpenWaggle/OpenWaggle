@@ -20,13 +20,23 @@ export class RunCliOutput {
     private readonly onStdoutFailure: (error: unknown) => void,
   ) {}
 
+  private heldCarriageReturn = false
+
   private enqueue(write: () => Promise<void> | void) {
     this.queue = this.queue.then(write)
   }
 
   /** Agent reply text. Stops quietly after the reader goes away (for example, `| head`). */
   reply(text: string) {
-    this.stdout(this.sinks.stdoutIsTerminal ? sanitizeTerminalText(text) : text)
+    if (!this.sinks.stdoutIsTerminal) {
+      this.stdout(text)
+      return
+    }
+    // A CRLF split across two deltas is still one line break, so a trailing CR waits for
+    // the next delta.
+    const joined = `${this.heldCarriageReturn ? '\r' : ''}${text}`
+    this.heldCarriageReturn = joined.endsWith('\r')
+    this.stdout(sanitizeTerminalText(this.heldCarriageReturn ? joined.slice(0, -1) : joined))
   }
 
   /** Machine output that is already safely encoded, such as JSON lines. */

@@ -19,12 +19,21 @@ const SETTLING_CONTRACTS: ReadonlySet<string> = new Set([
 const WAITING_QUERY_OPERATIONS: ReadonlySet<string> = new Set(['wait', 'exports-wait'])
 /**
  * Replay-safe reads that still do work on the Host: listing MCP capabilities connects to
- * (and may start) MCP servers, and context usage builds a Pi session.
+ * (and may start) MCP servers, context usage builds a Pi session, and the model catalog and
+ * Agent definition plans load Pi resources, running extensions and installing missing
+ * packages. Only listing Agent definitions stays admitted.
  */
 const WORKING_HOST_UI_READS: ReadonlySet<string> = new Set([
   'mcp:list-capabilities',
   'agent:get-context-usage',
+  'providers:get-models',
 ])
+
+function loadsPiResources(channel: string, args: readonly unknown[]) {
+  if (WORKING_HOST_UI_READS.has(channel)) return true
+  if (channel !== 'agent-definitions:manage') return false
+  return field(field(args[0], 'command'), 'operation') !== 'list'
+}
 const SETTLING_CONTROL_OPERATIONS: ReadonlySet<string> = new Set([
   'interrupt',
   'interrupt-descendants',
@@ -70,7 +79,7 @@ function admitsHostUiRequest(request: unknown) {
     argument.kind === 'value' ? argument.value : undefined,
   )
   if (settlesActionWork(channel, args)) return true
-  return !WORKING_HOST_UI_READS.has(channel) && isReadOnlyHostUiInvocation(channel, args)
+  return !loadsPiResources(channel, args) && isReadOnlyHostUiInvocation(channel, args)
 }
 
 export function isAdmittedWhileDraining(payload: unknown) {

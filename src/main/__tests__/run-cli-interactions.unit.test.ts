@@ -3,6 +3,7 @@ import type { AgentLoopInteraction } from '@shared/types/agent-loop-interaction'
 import { fromPartial } from '@total-typescript/shoehorn'
 import { describe, expect, it } from 'vitest'
 import { respondCommandHint } from '../run-cli-interactions'
+import { sanitizeTerminalText } from '../terminal-text'
 
 function selectWithChoice(choice: string) {
   return fromPartial<AgentLoopInteraction>({
@@ -34,5 +35,14 @@ describe('respondCommandHint', () => {
 
     expect(hint).toContain('--response-json <response>')
     expect(hint).toContain('where <response> is {"kind":"select","selected":"a & b"}')
+  })
+
+  it('keeps the example valid JSON when a choice holds control characters', () => {
+    const hint = respondCommandHint(selectWithChoice('a\u0085b\u007f\u202e'), 'darwin') ?? ''
+    const quoted = hint.split('--response-json ')[1] ?? ''
+
+    expect(sanitizeTerminalText(hint)).toBe(hint)
+    const parsed = execFileSync('sh', ['-c', `printf %s ${quoted}`], { encoding: 'utf8' })
+    expect(JSON.parse(parsed)).toEqual({ kind: 'select', selected: 'a\u0085b\u007f\u202e' })
   })
 })

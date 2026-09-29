@@ -44,6 +44,11 @@ describe('commands a draining Session Host still accepts', () => {
     expect(isAdmittedWhileDraining(hostUi('sessions:get-detail', ['s-1']))).toBe(true)
     expect(isAdmittedWhileDraining(hostUi('agent:list-active-runs', [undefined]))).toBe(true)
     expect(isAdmittedWhileDraining(action({ type: 'runs' }))).toBe(true)
+    expect(
+      isAdmittedWhileDraining(
+        hostUi('agent-definitions:manage', [{ command: { operation: 'list' } }]),
+      ),
+    ).toBe(true)
     expect(isAdmittedWhileDraining(hostUi('sessions:set-model', ['s-1', 'openai/gpt-5']))).toBe(
       false,
     )
@@ -92,6 +97,8 @@ describe('commands a draining Session Host still accepts', () => {
       }),
       hostUi('mcp:list-capabilities', [undefined]),
       hostUi('agent:get-context-usage', ['s-1']),
+      hostUi('providers:get-models', ['/repo']),
+      hostUi('agent-definitions:manage', [{ command: { operation: 'refresh-plan' } }]),
       control('message'),
       control('follow-up'),
       action({ type: 'start', actionId: 'dev', requestId: 'request-2' }),
