@@ -3,7 +3,7 @@ import {
   NEW_TURN_TOP_OFFSET_PX,
   TranscriptViewportController,
 } from '../transcript-viewport-controller'
-import { fakeViewport, rows } from './transcript-viewport.fixtures'
+import { fakeViewport, rowIndex, rows } from './transcript-viewport.fixtures'
 
 const TOP = NEW_TURN_TOP_OFFSET_PX
 
@@ -13,12 +13,14 @@ function sentTurn(reply: number | null, options: { readonly work?: boolean } = {
   const viewport = fakeViewport([...rows(10), ...turn])
   const controller = new TranscriptViewportController(viewport.geometry)
   controller.anchorNewTurn('sent')
-  controller.setTurnHasWork(options.work ?? false)
+  const setWork = (work: boolean) =>
+    controller.syncRows(rowIndex([], { workAfter: work ? ['sent'] : [] }))
+  setWork(options.work ?? false)
   const grow = (height: number) => {
     viewport.setRows([...rows(10), ['sent', 60], ['reply', height]])
     controller.applyLayout()
   }
-  return { viewport, controller, grow }
+  return { viewport, controller, grow, setWork }
 }
 
 describe('TranscriptViewportController sent turn', () => {
@@ -65,8 +67,8 @@ describe('TranscriptViewportController sent turn', () => {
   })
 
   it('follows a held plain answer that starts working only once it reaches the bottom', () => {
-    const { viewport, controller, grow } = sentTurn(100)
-    controller.setTurnHasWork(true)
+    const { viewport, controller, grow, setWork } = sentTurn(100)
+    setWork(true)
     grow(200)
     expect(viewport.rowTop('sent')).toBe(TOP)
 
@@ -75,12 +77,12 @@ describe('TranscriptViewportController sent turn', () => {
   })
 
   it('keeps holding a plain answer that starts working after it spilled below the fold', () => {
-    const { viewport, controller, grow } = sentTurn(100)
+    const { viewport, controller, grow, setWork } = sentTurn(100)
     grow(1500)
     expect(controller.isHoldingSentTurn).toBe(true)
 
     // A tool call arrives while the reader is still reading the answer from its top.
-    controller.setTurnHasWork(true)
+    setWork(true)
     grow(1540)
 
     expect(controller.isHoldingSentTurn).toBe(true)
@@ -88,9 +90,9 @@ describe('TranscriptViewportController sent turn', () => {
   })
 
   it('follows a working turn that crosses the bottom again after it shrank back', () => {
-    const { controller, grow } = sentTurn(100)
+    const { controller, grow, setWork } = sentTurn(100)
     grow(1500)
-    controller.setTurnHasWork(true)
+    setWork(true)
     grow(100)
     expect(controller.isHoldingSentTurn).toBe(true)
 
@@ -172,7 +174,7 @@ describe('TranscriptViewportController sent turn', () => {
     expect(controller.mode.kind).toBe('anchored')
     expect(viewport.scrollTop).toBe(scrollTop)
     // Its reservation went with it: an older user message must not become the held turn.
-    controller.reconcileSentTurn('row-9')
+    controller.syncRows(rowIndex(['row-9'], { users: ['row-9'] }))
     expect(controller.sentTurnKey).toBeNull()
   })
 })

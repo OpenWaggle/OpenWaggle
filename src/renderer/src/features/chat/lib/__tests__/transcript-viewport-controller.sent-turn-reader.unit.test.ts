@@ -3,7 +3,7 @@ import {
   NEW_TURN_TOP_OFFSET_PX,
   TranscriptViewportController,
 } from '../transcript-viewport-controller'
-import { fakeViewport, rows } from './transcript-viewport.fixtures'
+import { fakeViewport, keysOf, rowIndex, rows } from './transcript-viewport.fixtures'
 
 const TOP = NEW_TURN_TOP_OFFSET_PX
 
@@ -11,7 +11,7 @@ const TOP = NEW_TURN_TOP_OFFSET_PX
 function reservedTurn(sentKey = 'sent') {
   const viewport = fakeViewport([...rows(10), [sentKey, 60], ['reply', 100]])
   const controller = new TranscriptViewportController(viewport.geometry)
-  controller.anchorNewTurn(sentKey)
+  controller.anchorNewTurn(sentKey, 'row-9')
   const scrollUp = (delta: number) => {
     viewport.userScrollTo(viewport.scrollTop - delta)
     controller.handleScroll()
@@ -80,8 +80,9 @@ describe('TranscriptViewportController reader inside a sent turn', () => {
   it('moves the held sent turn to the persisted copy of its message', () => {
     const { viewport, controller } = reservedTurn('optimistic')
 
-    viewport.setRows([...rows(10), ['persisted', 60], ['reply', 100]])
-    controller.reconcileSentTurn('persisted')
+    const swapped: Array<[string, number]> = [...rows(10), ['persisted', 60], ['reply', 100]]
+    viewport.setRows(swapped)
+    controller.syncRows(rowIndex(keysOf(swapped), { users: ['persisted'] }))
     controller.applyLayout()
 
     expect(controller.mode).toEqual({ kind: 'new-turn', key: 'persisted', top: TOP })
@@ -92,19 +93,69 @@ describe('TranscriptViewportController reader inside a sent turn', () => {
     const { viewport, controller, scrollUp } = reservedTurn('optimistic')
     scrollUp(150)
 
-    viewport.setRows([...rows(10), ['persisted', 60], ['reply', 100]])
-    controller.reconcileSentTurn('persisted')
+    const swapped: Array<[string, number]> = [...rows(10), ['persisted', 60], ['reply', 100]]
+    viewport.setRows(swapped)
+    controller.syncRows(rowIndex(keysOf(swapped), { users: ['persisted'] }))
     controller.applyLayout()
 
     expect(viewport.rowTop('persisted')).toBe(TOP + 150)
     expect(viewport.endSpace).toBe(500 - TOP - 160)
   })
 
+  it('pairs the persisted copy by position, not by being the latest user message', () => {
+    const { viewport, controller } = reservedTurn('optimistic')
+
+    // The run completes with a steer inside the turn: the steer is now the latest user message.
+    const swapped: Array<[string, number]> = [
+      ...rows(10),
+      ['persisted', 60],
+      ['reply', 100],
+      ['steer', 40],
+    ]
+    viewport.setRows(swapped)
+    controller.syncRows(rowIndex(keysOf(swapped), { users: ['persisted', 'steer'] }))
+    controller.applyLayout()
+
+    expect(controller.sentTurnKey).toBe('persisted')
+    expect(viewport.rowTop('persisted')).toBe(TOP)
+  })
+
+  it('does not hold the previous message when the sent one is withdrawn', () => {
+    const list: Array<[string, number]> = [
+      ['u1', 60],
+      ['a1', 900],
+      ['sent', 60],
+    ]
+    const viewport = fakeViewport(list)
+    const controller = new TranscriptViewportController(viewport.geometry)
+    controller.anchorNewTurn('sent', 'a1')
+
+    // A refused or queued send removes its optimistic row; the previous turn is all that is left.
+    const withdrawn: Array<[string, number]> = [
+      ['u1', 60],
+      ['a1', 900],
+    ]
+    viewport.setRows(withdrawn)
+    controller.syncRows(rowIndex(keysOf(withdrawn), { users: ['u1'] }))
+    controller.applyLayout()
+    controller.applyLayout()
+
+    expect(controller.sentTurnKey).toBeNull()
+    expect(controller.isFollowing).toBe(true)
+    expect(viewport.scrollTop).toBe(viewport.maxScrollTop())
+  })
+
   it('keeps holding the sent message when a steer arrives inside its turn', () => {
     const { viewport, controller } = reservedTurn()
 
-    viewport.setRows([...rows(10), ['sent', 60], ['reply', 100], ['steer', 40]])
-    controller.reconcileSentTurn('steer')
+    const steered: Array<[string, number]> = [
+      ...rows(10),
+      ['sent', 60],
+      ['reply', 100],
+      ['steer', 40],
+    ]
+    viewport.setRows(steered)
+    controller.syncRows(rowIndex(keysOf(steered), { users: ['sent', 'steer'] }))
     controller.applyLayout()
     expect(controller.mode).toEqual({ kind: 'new-turn', key: 'sent', top: TOP })
 
@@ -115,25 +166,31 @@ describe('TranscriptViewportController reader inside a sent turn', () => {
     expect(viewport.rowTop('reply')).toBe(TOP + 60)
   })
 
-  it('leaves a reader inside the turn where they are when a steer arrives', () => {
-    const { viewport, controller, scrollUp } = reservedTurn()
-    scrollUp(150)
-
-    viewport.setRows([...rows(10), ['sent', 60], ['reply', 100], ['steer', 40]])
-    controller.reconcileSentTurn('steer')
-    controller.applyLayout()
-
-    expect(controller.mode.kind).toBe('anchored')
-    expect(viewport.rowTop('sent')).toBe(TOP + 150)
-    expect(controller.sentTurnKey).toBe('sent')
-  })
-
-  it('does not move the reservation to a latest message that has no row yet', () => {
+  it('does not move the reservation to a persisted copy that has no row yet', () => {
     const { viewport, controller } = reservedTurn('optimistic')
 
     viewport.setRows([...rows(10), ['reply', 100]])
-    controller.reconcileSentTurn('persisted')
+    controller.syncRows(
+      rowIndex([...keysOf(rows(10)), 'persisted', 'reply'], { users: ['persisted'] }),
+    )
 
     expect(controller.sentTurnKey).toBe('optimistic')
+  })
+
+  it('follows a working turn that crosses the bottom after the reader re-held it', () => {
+    const { viewport, controller, scrollUp } = reservedTurn()
+    viewport.setRows([...rows(10), ['sent', 60], ['reply', 900]])
+    controller.applyLayout()
+    scrollUp(100)
+    viewport.setRows([...rows(10), ['sent', 60], ['reply', 100]])
+    controller.applyLayout()
+    viewport.userScrollTo(viewport.maxScrollTop())
+    controller.handleScroll()
+    expect(controller.isHoldingSentTurn).toBe(true)
+
+    controller.syncRows(rowIndex([], { workAfter: ['sent'] }))
+    viewport.setRows([...rows(10), ['sent', 60], ['reply', 700]])
+    controller.applyLayout()
+    expect(controller.isFollowing).toBe(true)
   })
 })

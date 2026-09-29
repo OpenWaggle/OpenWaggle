@@ -1,5 +1,5 @@
-import { useLayoutEffect } from 'react'
-import { turnHasWork } from '../lib/transcript-rows'
+import { useLayoutEffect, useRef } from 'react'
+import { transcriptRowIndex } from '../lib/transcript-rows'
 import type { TranscriptViewportSession } from '../lib/transcript-viewport-session'
 import type { ChatRow } from '../lib/types-chat-row'
 
@@ -24,21 +24,25 @@ interface UseTranscriptCommitLayoutInput {
  */
 export function useTranscriptCommitLayout(input: UseTranscriptCommitLayoutInput) {
   const { session, sentKey } = input
+  const previousSentKey = useRef(sentKey)
   useLayoutEffect(() => {
     session.setWindowHasLater(input.hasLater)
+    /*
+     * Only a user row that arrived with or after the send is the sent message. The send can
+     * commit before its optimistic row does, and the latest user row is then the previous turn's.
+     */
+    const sentArrived = sentKey !== previousSentKey.current
+    previousSentKey.current = sentKey
     const sentRowPresent = sentKey !== null && input.keys.includes(sentKey)
-    if (input.userDidSend && sentRowPresent) {
+    if (input.userDidSend && sentArrived && sentRowPresent) {
       if (input.hasLater) {
         input.showNewest()
         return
       }
-      session.anchorNewTurn(sentKey)
+      session.anchorNewTurn(sentKey, input.keys[input.keys.indexOf(sentKey) - 1] ?? null)
       input.onUserDidSendConsumed()
     }
-    if (!input.userDidSend) session.reconcileSentTurn(sentKey)
-    // Work is judged over the whole held turn: a steer inside it is a user row, not a new turn.
-    const heldKey = session.controller.sentTurnKey
-    session.setTurnHasWork(heldKey !== null && turnHasWork(input.rows, input.keys, heldKey))
+    session.syncRows(transcriptRowIndex(input.rows, input.keys))
     session.layout()
   })
 }

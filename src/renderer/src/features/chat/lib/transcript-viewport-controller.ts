@@ -1,4 +1,4 @@
-import { measureSentTurn, reservedSpaceFor, type SentTurn } from './transcript-sent-turn'
+import { measureSentTurn, SentTurnHold, type TranscriptRowIndex } from './transcript-sent-turn'
 import type { ViewportGeometry } from './transcript-viewport-geometry'
 
 /**
@@ -38,16 +38,8 @@ export interface ReadingPosition {
 
 export class TranscriptViewportController {
   private currentMode: ViewportMode = { kind: 'following' }
-  /*
-   * The sent turn whose reply space is still reserved. It outlives the `new-turn` mode while the
-   * reader scrolls around inside that turn, so the space tracks the turn instead of being dropped
-   * under the reader: dropping it clamped the view and threw the turn down the screen.
-   */
-  private reservation: SentTurn | null = null
-  /** Whether the reserved turn is doing work (tool calls, a Waggle turn) rather than only answering. */
-  private turnHasWork = false
-  /** Whether the held turn fit the viewport at the last layout, so crossing its bottom is now. */
-  private heldTurnFit = true
+  /** The sent turn whose reply space is reserved; it outlives `new-turn` mode (ADR 0036). */
+  private readonly sent = new SentTurnHold()
   private expectedScrollTop: number | null = null
   private lastObservedScrollTop = 0
   /** Whether the view rested exactly at the end after the last layout or scroll. */
@@ -79,13 +71,17 @@ export class TranscriptViewportController {
     return this.currentMode.kind === 'following'
   }
 
-  setTurnHasWork(hasWork: boolean) {
-    this.turnHasWork = hasWork
-  }
-
   /** The row key of the sent turn whose space is reserved, if any. */
   get sentTurnKey() {
-    return this.reservation?.key ?? null
+    return this.sent.current?.key ?? null
+  }
+
+  /** Reads the rows after a commit; a steer or Follow-up after the sent message stays inside it. */
+  syncRows(index: TranscriptRowIndex) {
+    const moved = this.sent.sync(index, (key) => this.hasMountedRow(key))
+    if (moved !== null && this.currentMode.kind === 'new-turn') {
+      this.currentMode = { ...this.currentMode, key: moved }
+    }
   }
 
   /** Whether a sent turn is held near the top, which is where the reader is looking. */
@@ -120,36 +116,18 @@ export class TranscriptViewportController {
 
   restore(position: ReadingPosition) {
     this.restingAtEnd = false
-    this.reservation = null
+    this.sent.clear()
     this.currentMode = { kind: 'anchored', key: position.key, top: position.top }
     this.applyLayout()
     // A position that lands exactly at the end is a reader who left following it.
     if (!this.windowHasLater && this.distanceToBottom() <= SCROLL_ECHO_TOLERANCE_PX) this.follow()
   }
 
-  anchorNewTurn(key: string) {
+  anchorNewTurn(key: string, precedingKey: string | null = null) {
     this.holding = false
-    this.heldTurnFit = true
-    this.turnHasWork = false
-    this.reservation = { key, top: NEW_TURN_TOP_OFFSET_PX }
+    this.sent.start({ key, top: NEW_TURN_TOP_OFFSET_PX, precedingKey })
     this.currentMode = { kind: 'new-turn', key, top: NEW_TURN_TOP_OFFSET_PX }
     this.applyLayout()
-  }
-
-  /**
-   * Moves the reserved turn to the persisted copy of its message: the optimistic row is gone and
-   * the latest user message is mounted under a new id. A steer or Follow-up that arrives while the
-   * original is still mounted stays inside the held turn; re-placing on it pinned the steer while
-   * the running output grew above it, out of view.
-   */
-  reconcileSentTurn(latestKey: string | null) {
-    const reservation = this.reservation
-    if (!reservation || latestKey === null || this.hasMountedRow(reservation.key)) return
-    if (!this.hasMountedRow(latestKey)) return
-    this.reservation = { key: latestKey, top: reservation.top }
-    if (this.currentMode.kind === 'new-turn') {
-      this.currentMode = { ...this.currentMode, key: latestKey }
-    }
   }
 
   /** Ends a disclosure hold; a reader left at the live end resumes following it. */
@@ -257,22 +235,19 @@ export class TranscriptViewportController {
   /**
    * Holds the sent message near the top while its reply streams into the space reserved below.
    * A working turn that crosses the bottom of the viewport is followed from there, moving the view
-   * only by the overshoot of the commit that crossed it. A turn that crossed as a plain answer
-   * stays held: following it later would throw a reader mid-answer to the end.
+   * only by the overshoot of the commit that crossed it; a plain answer stays held.
    */
   private applyNewTurn(mode: Extract<ViewportMode, { kind: 'new-turn' }>) {
     const layout = measureSentTurn(this.geometry, mode)
     if (!layout) {
       // The sent row left the DOM without a replacement (a refused send, compaction): its reply
       // space goes with it, and the reader's view is held by whatever row is visible.
-      this.reservation = null
+      this.sent.clear()
       this.captureReadingPosition()
       this.applyMode()
       return
     }
-    const crossing = layout.overflows && this.heldTurnFit
-    this.heldTurnFit = !layout.overflows
-    if (crossing && this.turnHasWork) {
+    if (this.sent.crossesWhileWorking(layout)) {
       this.enterFollowing()
       this.applyMode()
       return
@@ -282,7 +257,7 @@ export class TranscriptViewportController {
   }
 
   private reservedSpace() {
-    return reservedSpaceFor(this.geometry, this.reservation)
+    return this.sent.reservedSpace(this.geometry)
   }
 
   /**
@@ -290,16 +265,17 @@ export class TranscriptViewportController {
    * held turn itself; following would drop the space and move the turn down the screen.
    */
   private rejoinEnd() {
-    const reservation = this.reservation
-    if (reservation && this.reservedSpace() > 0) {
-      this.currentMode = { kind: 'new-turn', key: reservation.key, top: reservation.top }
+    const turn = this.sent.current
+    if (turn && this.reservedSpace() > 0) {
+      this.sent.resume()
+      this.currentMode = { kind: 'new-turn', key: turn.key, top: turn.top }
       return
     }
     this.enterFollowing()
   }
 
   private enterFollowing() {
-    this.reservation = null
+    this.sent.clear()
     this.currentMode = { kind: 'following' }
   }
 

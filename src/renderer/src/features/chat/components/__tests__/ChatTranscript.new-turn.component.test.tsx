@@ -148,6 +148,60 @@ describe('ChatTranscript sent turn', () => {
     expect(layout.rowTop('message:a2')).toBe(84)
   })
 
+  it('holds the sent message, not the previous one, when the send commits before its row', () => {
+    layout.setHeight('message:a1', 900)
+    layout.setHeight('message:u2', 60)
+    const view = render(<ChatTranscript section={section(history, { isLoading: false })} />)
+    view.rerender(<ChatTranscript section={section(history, { userDidSend: true })} />)
+    expect(layout.mode()).toBe('following')
+
+    view.rerender(
+      <ChatTranscript section={section([...history, userMessage('u2')], { userDidSend: true })} />,
+    )
+    expect(layout.mode()).toBe('new-turn:message:u2')
+    expect(layout.rowTop('message:u2')).toBe(24)
+  })
+
+  it('returns to the live end, not the previous message, when the sent one is withdrawn', () => {
+    const { sent, commit } = sendTurn()
+    layout.setHeight('message:a2', 120)
+    commit(section([...sent, assistantMessage('a2', false)]))
+
+    // A refused or queued send removes its optimistic row.
+    commit(section(history))
+    commit(section(history))
+
+    expect(layout.mode()).toBe('following')
+    expect(layout.distanceToBottom()).toBe(0)
+  })
+
+  it('keeps holding the sent message when the run completes with a steer inside it', () => {
+    const { sent, commit } = sendTurn()
+    layout.setHeight('message:a2', 120)
+    layout.setHeight('message:steer', 40)
+    layout.setHeight('message:u2-persisted', 60)
+    commit(section([...sent, assistantMessage('a2', false), userMessage('steer')]))
+
+    const persisted = [...history, userMessage('u2-persisted')]
+    commit(section([...persisted, assistantMessage('a2', false), userMessage('steer')]))
+
+    expect(layout.mode()).toBe('new-turn:message:u2-persisted')
+    expect(layout.rowTop('message:u2-persisted')).toBe(24)
+  })
+
+  it('follows a turn whose work came before a steer once it reaches the bottom', () => {
+    const { sent, commit } = sendTurn()
+    layout.setHeight('message:a2', 120)
+    layout.setHeight('message:a3', 100)
+    const steered = [...sent, assistantMessage('a2', true), userMessage('steer')]
+    commit(section([...steered, assistantMessage('a3', false)]))
+    expect(layout.rowTop('message:u2')).toBe(24)
+
+    layout.setHeight('message:a3', 900)
+    commit(section([...steered, assistantMessage('a3', false)]))
+    expect(layout.mode()).toBe('following')
+  })
+
   it('rejoins the live end when the reader scrolls down to it', () => {
     const { sent, commit } = sendTurn()
     layout.setHeight('message:a2', 1400)

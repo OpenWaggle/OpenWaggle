@@ -4,6 +4,7 @@ import {
   type SavedReadingPosition,
   saveReadingPositions,
 } from './transcript-reading-positions'
+import type { TranscriptRowIndex } from './transcript-sent-turn'
 import { NEAR_BOTTOM_PX, TranscriptViewportController } from './transcript-viewport-controller'
 import {
   createDomViewportGeometry,
@@ -230,19 +231,14 @@ export class TranscriptViewportSession {
     this.syncButton()
   }
 
-  anchorNewTurn(key: string) {
+  anchorNewTurn(key: string, precedingKey: string | null) {
     this.interrupt()
-    this.controller.anchorNewTurn(key)
+    this.controller.anchorNewTurn(key, precedingKey)
     this.syncButton()
   }
 
-  /** Tells the controller whether the held turn is doing work, which it follows once it overflows. */
-  setTurnHasWork(hasWork: boolean) {
-    this.controller.setTurnHasWork(hasWork)
-  }
-
-  reconcileSentTurn(latestKey: string | null) {
-    this.controller.reconcileSentTurn(latestKey)
+  syncRows(index: TranscriptRowIndex) {
+    this.controller.syncRows(index)
   }
 
   dispose() {
