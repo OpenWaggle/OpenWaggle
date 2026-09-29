@@ -59,4 +59,21 @@ describe('Local Session server error descriptions', () => {
     )
     expect(describeLocalSessionServerError('plain')).toBe('plain')
   })
+
+  it('never prints an undescribed failure or defect object', async () => {
+    const plain = await fiberFailure({ secret: 'hunter2' })
+    let defect: unknown
+    try {
+      await Effect.runPromise(Effect.die({ secret: 'hunter2' }))
+    } catch (failure) {
+      defect = failure
+    }
+
+    expect(describeLocalSessionServerError(plain)).toBe(
+      'The Session Host could not complete the request.',
+    )
+    expect(describeLocalSessionServerError(defect)).toBe(
+      'The Session Host could not complete the request.',
+    )
+  })
 })

@@ -32,6 +32,7 @@ export { RUN_CLI_INTERRUPTED_EXIT } from './run-cli-settlement'
 const DUPLICATE_INTERRUPT_WINDOW_MS = 250
 /** How long a second Ctrl-C waits for the first interrupt to reach the Session Host. */
 export const RUN_CLI_INTERRUPT_DELIVERY_TIMEOUT_MS = 3_000
+const INTERRUPTED_BEFORE_LAUNCH = 'interrupted before the Run started; nothing was launched.'
 /** How long queued output may take to drain once the command has decided to exit. */
 const RUN_CLI_FINAL_FLUSH_TIMEOUT_MS = 2_000
 
@@ -170,7 +171,11 @@ function canAskQuestions(invocation: RunInvocation, dependencies: RunCliDependen
 async function streamRun(
   session: RunCliSession,
   launch: Awaited<ReturnType<typeof launchPayload>>,
-  input: { readonly dependencies: RunCliDependencies; readonly jsonl: boolean },
+  input: {
+    readonly dependencies: RunCliDependencies
+    readonly jsonl: boolean
+    readonly interrupted: Promise<null>
+  },
   clientInput: Awaited<ReturnType<RunCliDependencies['createClientInput']>>,
 ) {
   let markSubscribed: () => void = () => undefined
@@ -183,7 +188,11 @@ async function streamRun(
     (result) => ({ kind: 'ended' as const, result }),
     (error: unknown) => ({ kind: 'failed' as const, error }),
   )
-  const beforeLaunch = await Promise.race([subscribed, watchEnded])
+  const cancelled = input.interrupted.then(() => ({ kind: 'cancelled' as const }))
+  const beforeLaunch = await Promise.race([subscribed, watchEnded, cancelled])
+  if (beforeLaunch?.kind === 'cancelled') {
+    return { exitCode: RUN_CLI_INTERRUPTED_EXIT, message: INTERRUPTED_BEFORE_LAUNCH }
+  }
   if (beforeLaunch?.kind === 'failed') throw beforeLaunch.error
   if (beforeLaunch) {
     return {
@@ -227,7 +236,7 @@ async function withTimeout(operation: Promise<unknown>, timeoutMs: number) {
 }
 
 async function interruptedBeforeLaunch(jsonl: boolean, dependencies: RunCliDependencies) {
-  const message = 'interrupted before the Run started; nothing was launched.'
+  const message = INTERRUPTED_BEFORE_LAUNCH
   if (jsonl) {
     await dependencies.writeStdout(
       sessionsCliStreamRecordLine({
@@ -249,8 +258,9 @@ async function launchAndStream(invocation: RunInvocation, dependencies: RunCliDe
     interruptedEarly = () => resolve(null)
   })
   const releaseInterrupts = dependencies.onInterrupt(() => {
-    if (session) session.requestInterrupt()
-    else interruptedEarly()
+    // Until the launch is sent, Ctrl-C cancels it; afterwards it interrupts the Run.
+    interruptedEarly()
+    session?.requestInterrupt()
   })
   try {
     // Reading the prompt from stdin and starting the Session Host can both take a while;
@@ -269,7 +279,7 @@ async function launchAndStream(invocation: RunInvocation, dependencies: RunCliDe
       const settlement = await streamRun(
         activeSession,
         launch,
-        { dependencies, jsonl: invocation.jsonl },
+        { dependencies, jsonl: invocation.jsonl, interrupted: earlyInterrupt },
         clientInput,
       )
       activeSession.stopWatching()

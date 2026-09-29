@@ -1,6 +1,11 @@
 /** Status report types and their human-readable rendering. */
 import { sanitizeTerminalText } from './run-cli-output'
 
+/** A field printed on one line; a line break in a title must not fake another status line. */
+function singleLine(text: string) {
+  return sanitizeTerminalText(text).replace(/\s*\n\s*/g, ' ')
+}
+
 const MILLISECONDS_PER_SECOND = 1_000
 const SECONDS_PER_MINUTE = 60
 const MINUTES_PER_HOUR = 60
@@ -104,9 +109,9 @@ export function formatStatusReport(report: StatusReport, now: number) {
   lines.push(`Active runs: ${activeRuns.length}`)
   for (const run of activeRuns) {
     lines.push(
-      `  ${run.sessionId}  ${run.title === null ? '(Session details unavailable)' : sanitizeTerminalText(run.title)}  (${run.model}, ${formatDuration(now - run.startedAt)}${waitingNote(run.pendingQuestions)})`,
+      `  ${run.sessionId}  ${run.title === null ? '(Session details unavailable)' : singleLine(run.title)}  (${singleLine(run.model)}, ${formatDuration(now - run.startedAt)}${waitingNote(run.pendingQuestions)})`,
     )
-    const where = run.projectPath ? `  in ${sanitizeTerminalText(run.projectPath)}` : ''
+    const where = run.projectPath ? `  in ${singleLine(run.projectPath)}` : ''
     lines.push(`    Run ${run.runId ?? 'unknown'}${where}`)
   }
   return lines.join('\n')

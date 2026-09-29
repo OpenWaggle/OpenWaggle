@@ -17,7 +17,7 @@ function selectWithChoice(choice: string) {
 
 describe('respondCommandHint', () => {
   it('quotes an agent-chosen choice so pasting the command cannot run anything else', () => {
-    const hint = respondCommandHint(selectWithChoice("x'; touch /tmp/owned; echo '"))
+    const hint = respondCommandHint(selectWithChoice("x'; touch /tmp/owned; echo '"), 'darwin')
     expect(hint).toBeDefined()
     const responseJson = hint?.split('--response-json ')[1] ?? ''
 
@@ -27,5 +27,12 @@ describe('respondCommandHint', () => {
       kind: 'select',
       selected: "x'; touch /tmp/owned; echo '",
     })
+  })
+
+  it('shows the response on its own line on Windows', () => {
+    const hint = respondCommandHint(selectWithChoice('a & b'), 'win32')
+
+    expect(hint).toContain('--response-json <response>')
+    expect(hint).toContain('where <response> is {"kind":"select","selected":"a & b"}')
   })
 })

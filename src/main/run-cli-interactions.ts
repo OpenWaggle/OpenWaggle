@@ -50,11 +50,20 @@ function exampleResponse(interaction: AgentLoopInteraction) {
 }
 
 /** How to answer a question from another terminal, when it has a CLI response form. */
-export function respondCommandHint(interaction: AgentLoopInteraction) {
+export function respondCommandHint(
+  interaction: AgentLoopInteraction,
+  platform: NodeJS.Platform = process.platform,
+) {
   const example = exampleResponse(interaction)
   if (!example) return undefined
   const approve = isAuthorizationConfirmation(interaction) ? ' --approve' : ''
-  return `openwaggle sessions requests respond ${interaction.sessionId} ${interaction.runId} ${interaction.interactionId} --response-json ${shellSingleQuoted(example)}${approve}`
+  const command = `openwaggle sessions requests respond ${interaction.sessionId} ${interaction.runId} ${interaction.interactionId}`
+  // Windows shells quote differently, and a choice could break out of any one form, so the
+  // response is shown on its own line to be quoted for the shell in use.
+  if (platform === 'win32') {
+    return `${command} --response-json <response>${approve}\n  where <response> is ${example}`
+  }
+  return `${command} --response-json ${shellSingleQuoted(example)}${approve}`
 }
 
 /** POSIX single quoting, so an agent-chosen choice cannot break out of the pasted command. */

@@ -68,9 +68,23 @@ export async function executeLocalSessionCommandFrame(input: {
   readonly send: (frame: LocalSessionServerFrame) => Promise<void>
   readonly releaseAdmissionReader?: () => void
 }) {
-  const releaseOperation = input.dependencies.liveness.acquire('operation', {
-    whileDraining: isAdmittedWhileDraining(input.frame.payload),
-  })
+  let releaseOperation: () => void
+  try {
+    releaseOperation = input.dependencies.liveness.acquire('operation', {
+      whileDraining: isAdmittedWhileDraining(input.frame.payload),
+    })
+  } catch (error) {
+    // A stopping Host refuses this one request; the connection stays usable.
+    input.releaseAdmissionReader?.()
+    await input.send({
+      kind: 'error',
+      requestId: input.frame.requestId,
+      code: 'host_draining',
+      message: describeLocalSessionServerError(error),
+      retryable: true,
+    })
+    return
+  }
   try {
     let payload: unknown
     try {

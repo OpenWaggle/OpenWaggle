@@ -51,9 +51,14 @@ export async function lookUpRun(execute: Execute, target: RunTarget): Promise<Ru
     }
     const run = outcome.turns.find((turn) => turn.runId === target.runId)
     if (run) return lookupForStatus(run.status, target)
-    if (!outcome.nextCursor) break
+    if (!outcome.nextCursor) return missingRun(target)
     cursor = outcome.nextCursor
   }
+  // Too many newer Runs to search: the Run may still exist, so its state is unknown.
+  return { kind: 'unknown', reason: 'the Run is older than the recent Runs searched' }
+}
+
+function missingRun(target: RunTarget): RunLookup {
   return {
     kind: 'settled',
     settlement: {

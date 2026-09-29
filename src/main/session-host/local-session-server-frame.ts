@@ -43,23 +43,33 @@ function describeFailure(failure: unknown, depth = 0): string | undefined {
   // A tagged error without a message still says what failed through its tag, code,
   // operation, and underlying cause.
   const tag = stringField(failure, '_tag')
-  const label = [tag, stringField(failure, 'code')].filter(Boolean).join(': ')
+  const code = stringField(failure, 'code')
+  const label = [tag, code].filter(Boolean).join(': ')
   const operation = stringField(failure, 'operation')
-  if (!tag && !operation && !message) return describeDetails(failure)
+  if (!tag && !code && !operation) return describeDetails(failure)
   const cause: unknown = Reflect.get(failure, 'cause')
   const reason = depth < MAX_DESCRIBED_CAUSES ? describeFailure(cause, depth + 1) : undefined
   const described = [
     label ? `${label}${operation ? ` (${operation})` : ''}` : operation,
     reason,
   ].filter(Boolean)
-  return described.length > 0 ? described.join(': ') : message
+  return described.length > 0 ? described.join(': ') : undefined
 }
 
+/** Shown when a failure names nothing safe to show; its details stay in the Host. */
+const UNDESCRIBED_FAILURE = 'The Session Host could not complete the request.'
+
 export function describeLocalSessionServerError(error: unknown) {
-  const failure = Runtime.isFiberFailure(error)
-    ? Option.getOrUndefined(Cause.failureOption(error[Runtime.FiberFailureCauseId]))
-    : error
-  return describeFailure(failure ?? error) ?? String(error)
+  if (!Runtime.isFiberFailure(error)) {
+    return describeFailure(error) ?? (error instanceof Error ? error.message : UNDESCRIBED_FAILURE)
+  }
+  // A FiberFailure prints its whole cause, including any object it carries, so only the
+  // failure or defect inside it is described.
+  const cause = error[Runtime.FiberFailureCauseId]
+  const failure =
+    Option.getOrUndefined(Cause.failureOption(cause)) ??
+    Option.getOrUndefined(Cause.dieOption(cause))
+  return describeFailure(failure) ?? UNDESCRIBED_FAILURE
 }
 
 function writeSocketSegment(socket: Socket, segment: Buffer): Promise<void> {

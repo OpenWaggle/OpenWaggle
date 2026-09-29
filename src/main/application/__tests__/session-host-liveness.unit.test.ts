@@ -56,6 +56,24 @@ describe('Session Host liveness', () => {
     },
   )
 
+  it.each(['stop', 'upgrade', 'recovery'] as const)(
+    'admits work-ending operations during a %s drain and waits for them',
+    (reason) => {
+      const requestShutdown = vi.fn()
+      const liveness = new SessionHostLiveness({ idleGracePeriodMs: 60_000, requestShutdown })
+      const releaseRun = liveness.acquire('run')
+      liveness.requestDrain(reason)
+
+      expect(() => liveness.acquire('operation')).toThrow('The Session Host is stopping')
+      const releaseInterrupt = liveness.acquire('operation', { whileDraining: true })
+      releaseRun()
+      expect(requestShutdown).not.toHaveBeenCalled()
+      releaseInterrupt()
+      expect(requestShutdown).toHaveBeenCalledTimes(1)
+      expect(() => liveness.acquire('operation', { whileDraining: true })).toThrow()
+    },
+  )
+
   it('shuts down only after the final owner releases and the grace period elapses', async () => {
     vi.useFakeTimers()
     const requestShutdown = vi.fn()

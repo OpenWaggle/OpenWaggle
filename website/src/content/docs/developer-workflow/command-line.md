@@ -33,7 +33,7 @@ Usage:
   ...
 ```
 
-The same applies to an unknown short option such as `-x`, a mistyped or differently cased `--hlep`, `--HELP`, `--h`, `--verison`, or `--v`, a value given to `--help` or `--version`, and a path that does not exist. An unknown long option followed by a word, such as `openwaggle --json sessions list`, is a mistake too. Other long switches on their own, such as `--remote-debugging-port=9222`, still go to Electron and start the app, because automation, debugging, and the updater rely on them.
+The same applies to an unknown short option such as `-x`, a mistyped or differently cased `--hlep`, `--HELP`, `--h`, `--verison`, or `--v`, a value given to `--help` or `--version`, and a path that does not exist. In the installed app, an unknown long option followed by a word, such as `openwaggle --json sessions list`, is a mistake too; a development build passes it to Electron, which needs such arguments. A command written as a switch, such as `--status`, is reported with the command it meant. Other long switches on their own, such as `--remote-debugging-port=9222`, still go to Electron and start the app, because automation, debugging, and the updater rely on them.
 
 ## Commands
 
@@ -100,6 +100,6 @@ openwaggle host stop --wait --timeout-ms 60000
 
 The Session Host exits on its own a few minutes after its last work ends, so stopping it is rarely needed. `host stop` makes it refuse new work at once and exit as soon as its active Runs, running Actions, exports, and other owned work finish. It never interrupts a Run. The command says what the Host is waiting for.
 
-While it stops, the Host still answers the commands that end work: you can read Sessions, answer a Run's questions and approvals, interrupt a Run with `openwaggle sessions interrupt <session-id> --expected-run <run-id>` (`openwaggle status` lists both IDs), and stop an Action in the desktop app. Commands that start work fail with a message that the Host is stopping.
+While it stops, the Host still answers the commands that end work: you can read Sessions (but not wait on them), answer a Run's questions and approvals, interrupt a Run with `openwaggle sessions interrupt <session-id> --expected-run <run-id>` (`openwaggle status` lists both IDs), and stop an Action in the desktop app. Commands that start work fail with a message that the Host is stopping.
 
 With `--wait` the command returns once the Host has exited, or exits with status 7 if its work outlasts the timeout (2 minutes by default). If the desktop app is open, it starts a new Host the next time it needs one. Only you can stop the Host; named access profiles and agents cannot. `openwaggle host status` is the same as `openwaggle status`. Checking the status counts as activity, so an idle Host waits a little longer before it exits.

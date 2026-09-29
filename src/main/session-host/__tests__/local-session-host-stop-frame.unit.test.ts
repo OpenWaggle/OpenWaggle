@@ -72,12 +72,18 @@ describe('stopping the Session Host while it drains', () => {
     test.releaseRun()
   })
 
-  it('refuses other new work with an explanation', async () => {
+  it('refuses other new work with a retryable error for that request only', async () => {
     const test = drainingDependencies()
+    const { run, send } = execute(test.dependencies, { contract: 'session-lifecycle-v2' })
 
-    await expect(
-      execute(test.dependencies, { contract: 'session-lifecycle-v2' }).run,
-    ).rejects.toThrow('The Session Host is stopping')
+    await run
+    expect(send).toHaveBeenCalledWith({
+      kind: 'error',
+      requestId: 'request-1',
+      code: 'host_draining',
+      message: expect.stringContaining('The Session Host is stopping'),
+      retryable: true,
+    })
     expect(test.dispatch).not.toHaveBeenCalled()
     test.releaseRun()
   })

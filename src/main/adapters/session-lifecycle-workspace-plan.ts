@@ -80,7 +80,8 @@ interface ProjectWorkspaceRow {
 /** Whether `directory` is `root` or somewhere below it. */
 function isWithin(directory: string, root: string) {
   const relative = path.relative(root, directory)
-  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative))
+  const escapes = relative === '..' || relative.startsWith(`..${path.sep}`)
+  return relative === '' || (!escapes && !path.isAbsolute(relative))
 }
 
 /**
@@ -116,7 +117,9 @@ function currentWorkspacePlan(
         preparationError(
           'initiating-workspace-not-ready',
           new Error(
-            `The worktree at ${containing.working_path} is ${containing.lifecycle_state}. Wait until it is ready, or pass --workspace local.`,
+            containing.lifecycle_state === 'failed' || containing.lifecycle_state === 'missing'
+              ? `The worktree at ${containing.working_path} is ${containing.lifecycle_state}. Run from the project checkout, or pass --workspace local.`
+              : `The worktree at ${containing.working_path} is ${containing.lifecycle_state}. Wait until it is ready, or pass --workspace local.`,
           ),
         ),
       )

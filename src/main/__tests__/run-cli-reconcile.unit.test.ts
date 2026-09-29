@@ -40,6 +40,22 @@ describe('openwaggle run reconciliation', () => {
     expect(test.stderr.join('')).toContain('interrupted before the Run started')
   })
 
+  it('cancels while the event subscription is still being set up', async () => {
+    const test = harness()
+    const dependencies = {
+      ...test.dependencies,
+      watch: () => new Promise<never>(() => undefined),
+    }
+    const running = runRunCli(['task'], dependencies)
+    await vi.waitFor(() => expect(test.stderr).not.toBeUndefined())
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    test.interrupt()
+
+    expect(await running).toBe(RUN_CLI_INTERRUPTED_EXIT)
+    expect(test.commands).toEqual([])
+    expect(test.stderr.join('')).toContain('nothing was launched')
+  })
+
   it('does not show the output of a Run that replaced this one', async () => {
     const test = harness({
       afterLaunch: [

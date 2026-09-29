@@ -176,7 +176,7 @@ export async function verifyInstalledCliDiscovery(
     throw new Error('Installed OpenWaggle CLI did not print its version for --version.')
   }
   const help = await runCli(command, ['--help'], environment, platform)
-  if (!help.stdout.includes('Usage:') || !help.stdout.includes('openwaggle run')) {
+  if (!help.stdout.includes('Usage:') || !help.stdout.includes('Commands:')) {
     throw new Error('Installed OpenWaggle CLI did not print its usage for --help.')
   }
   const typo = await runCli(command, ['sesions'], environment, platform, {

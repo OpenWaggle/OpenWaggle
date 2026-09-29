@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   setActivationPolicy: vi.fn(),
   stdout: vi.fn(async (_text: string) => undefined),
   delegate: vi.fn((_argv: readonly string[]) => true),
+  flush: vi.fn(async () => undefined),
 }))
 
 vi.mock('electron', () => ({
@@ -17,7 +18,7 @@ vi.mock('electron', () => ({
     whenReady: async () => undefined,
   },
 }))
-vi.mock('../cli-output-flush', () => ({ flushCliOutput: async () => undefined }))
+vi.mock('../cli-output-flush', () => ({ flushCliOutput: mocks.flush }))
 vi.mock('../cli-stdout', () => ({
   writeCliStdout: mocks.stdout,
   writeWritableChunk: async (output: NodeJS.WritableStream, text: string) => {
@@ -46,6 +47,29 @@ beforeEach(() => {
 })
 
 describe('top-level CLI entry', () => {
+  it('exits even when a stalled reader never drains the output', async () => {
+    vi.useFakeTimers()
+    try {
+      mocks.flush.mockImplementationOnce(() => new Promise<undefined>(() => undefined))
+      startTopLevelCli(['--version'], environment)
+
+      await vi.advanceTimersByTimeAsync(2_000)
+      expect(mocks.exit).toHaveBeenCalledWith(0)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('keeps a closed output pipe from becoming a main-process error', () => {
+    startTopLevelCli(['--version'], environment)
+
+    expect(process.stderr.listenerCount('error')).toBeGreaterThan(0)
+    expect(process.stdout.listenerCount('error')).toBeGreaterThan(0)
+    expect(() =>
+      process.stderr.emit('error', Object.assign(new Error('EPIPE'), { code: 'EPIPE' })),
+    ).not.toThrow()
+  })
+
   it('prints help and exits without starting the desktop app', async () => {
     expect(startTopLevelCli(['--help'], environment)).toEqual({ kind: 'handled' })
 

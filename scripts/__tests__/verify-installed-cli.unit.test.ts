@@ -2,6 +2,7 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
+import { topLevelCliUsage } from '../../src/main/top-level-cli-usage'
 import {
   assertInstalledCliResponse,
   InstalledCliProcessTreeExitUnprovenError,
@@ -25,7 +26,8 @@ function installedCli(overrides: Partial<Record<string, { stdout: string; stderr
     const override = overrides[key]
     if (override) return override
     if (key === '--version') return { stdout: '0.4.0-alpha.10\n', stderr: '' }
-    if (key === '--help') return { stdout: 'Usage:\n  openwaggle run <prompt>\n', stderr: '' }
+    // The real usage text, so the check and the CLI cannot drift apart.
+    if (key === '--help') return { stdout: `${topLevelCliUsage('0.4.0-alpha.10')}\n`, stderr: '' }
     if (key === 'sesions') {
       return { stdout: '', stderr: "openwaggle: unknown command 'sesions'. Did you mean 'sessions'?\n" }
     }

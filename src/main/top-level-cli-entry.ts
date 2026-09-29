@@ -72,9 +72,33 @@ function hideFromDock(platform: NodeJS.Platform) {
   if (platform === 'darwin') app.setActivationPolicy('accessory')
 }
 
+/** A reader that stopped reading must not keep a finished command running. */
+const EXIT_FLUSH_TIMEOUT_MS = 2_000
+
 async function exitAfterOutput(exitCode: number) {
-  await flushCliOutput().catch(() => undefined)
+  let timer: ReturnType<typeof setTimeout> | undefined
+  await Promise.race([
+    flushCliOutput().catch(() => undefined),
+    new Promise<void>((resolve) => {
+      timer = setTimeout(resolve, EXIT_FLUSH_TIMEOUT_MS)
+    }),
+  ])
+  clearTimeout(timer)
   app.exit(exitCode)
+}
+
+/**
+ * A closed pipe (`openwaggle run … 2>&1 | head`) reports EPIPE as a stream `error` event.
+ * Unhandled, Electron shows a main-process error dialog, so commands ignore stream errors.
+ */
+let ignoringOutputStreamErrors = false
+
+function ignoreOutputStreamErrors() {
+  if (ignoringOutputStreamErrors) return
+  ignoringOutputStreamErrors = true
+  const ignore = () => undefined
+  process.stdout.on('error', ignore)
+  process.stderr.on('error', ignore)
 }
 
 function writeAndExit(write: () => Promise<void> | void, exitCode: number) {
@@ -127,7 +151,10 @@ export function startTopLevelCli(
   platform: NodeJS.Platform = process.platform,
 ): TopLevelCliLaunch {
   const route = routeTopLevelCli(argv, environment)
-  if (route.kind !== 'gui' && route.kind !== 'open-project') hideFromDock(platform)
+  if (route.kind !== 'gui' && route.kind !== 'open-project') {
+    hideFromDock(platform)
+    ignoreOutputStreamErrors()
+  }
   const handled = { kind: 'handled' } as const
   return matchBy(route, 'kind')
     .with('gui', (): TopLevelCliLaunch => ({ kind: 'gui' }))
