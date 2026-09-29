@@ -13,6 +13,7 @@ import type { AgentTransportCustomEvent } from '@shared/types/stream'
 import type { TurnCheckpointSummary } from '@shared/types/turn-diff'
 import type { WaggleCollaborationStatus, WagglePreset } from '@shared/types/waggle'
 import type { AgentChatStatus, AgentCompactionStatus } from '../hooks/useAgentChat'
+import type { PendingSend } from '../lib/optimistic-user-message'
 import type { SessionForkTarget } from '../lib/session-fork-targets'
 import type { AgentInteractionEvent, ChatRow } from '../lib/types-chat-row'
 
@@ -42,10 +43,10 @@ export interface ChatTranscriptSectionState {
   readonly lastUserMessageId: string | null
   /** Monotonic streaming signal used by scroll-follow without rescanning the full transcript. */
   readonly streamSignalVersion: number
-  /** Intent flag; true when the user pressed Send and consumed by the scroll hook. */
-  readonly userDidSend: boolean
-  /** Clears userDidSend after the scroll effect processes it. */
-  readonly onUserDidSendConsumed: () => void
+  /** A send the transcript has not held near the top yet; consumed by the viewport. */
+  readonly pendingSend: PendingSend | null
+  /** Clears `pendingSend` once the viewport has held the sent message. */
+  readonly onPendingSendConsumed: () => void
   onOpenProject: () => Promise<void>
   onSelectProjectPath: (path: string) => void
   onRetryText: (content: string) => Promise<void>

@@ -116,13 +116,16 @@ export function useTurnSettlePresentation({
     const present = new Set(keys)
     const { removed, beforeKey } = removedBlock(previous, present)
     const foldKey = newestFoldKey(keys, new Set(previous.mountedKeys))
+    /*
+     * A held sent turn keeps its message fixed near the top, so its work can fold away below it
+     * like it does for a follower; only a reader who scrolled into the turn keeps it open.
+     */
+    const foldsUnderReader = controller.isFollowing || controller.isHoldingSentTurn
     // The reader was looking at rows this fold removes: keep the turn open under them.
     const readingInsideTurn =
-      !controller.isFollowing &&
+      !foldsUnderReader &&
       previous.mountedKeys.some((key) => !present.has(key) && previous.visible.has(key))
-    const waggleTurnKey = controller.isFollowing
-      ? null
-      : foldedVisibleWaggleTurn(previous, rowsByKey)
+    const waggleTurnKey = foldsUnderReader ? null : foldedVisibleWaggleTurn(previous, rowsByKey)
     const reopenKey =
       readingInsideTurn && foldKey ? foldKey.slice(TURN_FOLD_KEY_PREFIX.length) : waggleTurnKey
     if (reopenKey) {
@@ -130,7 +133,7 @@ export function useTurnSettlePresentation({
       onToggleTurnFold(reopenKey)
       return
     }
-    if (removed.length > 0 && controller.isFollowing && !prefersReducedMotion()) {
+    if (removed.length > 0 && foldsUnderReader && !prefersReducedMotion()) {
       setExiting({ id: Date.now(), rows: removed, beforeKey })
     }
   }, [rows, keys, start, end, isLoading, viewport, onToggleTurnFold])

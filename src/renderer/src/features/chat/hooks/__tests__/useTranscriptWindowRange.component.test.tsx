@@ -24,7 +24,7 @@ describe('useTranscriptWindowRange', () => {
         keys,
         anchorKey: null,
         isFollowing: () => false,
-        following: false,
+        boundsLikeFollower: false,
       })
       sizes.push(range.end - range.start)
       return range
@@ -52,7 +52,7 @@ describe('useTranscriptWindowRange', () => {
         keys,
         anchorKey: null,
         isFollowing: () => following,
-        following,
+        boundsLikeFollower: following,
       }),
     )
     rows = rowsOf(1_400)

@@ -1,3 +1,4 @@
+export type { PendingSend } from '../lib/optimistic-user-message'
 export type {
   ChatComposerSectionState,
   ChatDiffSectionState,
