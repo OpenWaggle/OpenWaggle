@@ -70,6 +70,8 @@ export const PRELOAD_API_METHODS: readonly (keyof OpenWaggleApi)[] = [
   'getProviderModels',
   // Project
   'selectProjectFolder',
+  'takeOpenProjectRequest',
+  'onOpenProjectRequested',
   'getProjectPreferences',
   'setProjectPreferences',
   'manageProjectActions',

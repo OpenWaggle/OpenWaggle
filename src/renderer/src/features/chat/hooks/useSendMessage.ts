@@ -12,6 +12,7 @@ import { flushDraftAuthorizationModeToSession } from '@/features/chat/state/draf
 import { useFirstSendPendingStore } from '@/features/chat/state/first-send-pending-store'
 import { withInlineVisualizationContext } from '@/features/chat/state/inline-visualization-state'
 import { useOptimisticUserMessageStore } from '@/features/chat/state/optimistic-user-message-store'
+import { usePendingSendStore } from '@/features/chat/state/pending-send-store'
 import { snapshotDraftWorktreePlan } from '@/features/git'
 import {
   selectDraftWorkspacePreparation,
@@ -184,6 +185,8 @@ export function useSendMessage(options: UseSendMessageOptions): SendMessageHandl
         String(sessionId),
       )
     }
+    // The draft's pending send moves with it, so the new Session's transcript holds this message.
+    usePendingSendStore.getState().adoptDraft(sessionId)
     const optimisticUserMessage = createOptimisticUserMessage(payload)
     useOptimisticUserMessageStore.getState().add(sessionId, optimisticUserMessage)
     useBackgroundRunStore.getState().setRunRenderMessages(sessionId, [optimisticUserMessage])

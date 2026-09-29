@@ -1,6 +1,7 @@
 import { getMessageText } from '@shared/types/agent'
 import type { AgentRunResult } from '../application/agent-run/types'
 import type { SessionControlRunExecutionInput } from '../ports/session-control-run-executor'
+import { describeLocalSessionServerError } from '../session-host/local-session-server-frame'
 import { publishSessionHostEvent } from '../session-host/session-host-events'
 
 export function publishRunFailure(
@@ -15,6 +16,34 @@ export function publishRunFailure(
       runId: input.runId,
       reason: 'error',
       error: { message: result.message, code: result.code },
+      timestamp: Date.now(),
+    },
+  })
+}
+
+function errorCode(error: unknown) {
+  if (typeof error !== 'object' || error === null || !('code' in error)) return undefined
+  return typeof error.code === 'string' ? error.code : undefined
+}
+
+/**
+ * End a Run that failed before it reached Pi, such as when its authority, execution profile,
+ * or project configuration could not be loaded. Without this terminal event the Run settled
+ * as failed with no reason any client could show.
+ */
+export function publishRunStartFailure(input: SessionControlRunExecutionInput, error: unknown) {
+  const code = errorCode(error)
+  publishSessionHostEvent({
+    kind: 'session-transport',
+    sessionId: input.sessionId,
+    event: {
+      type: 'agent_end',
+      runId: input.runId,
+      reason: 'error',
+      error: {
+        message: describeLocalSessionServerError(error),
+        ...(code ? { code } : {}),
+      },
       timestamp: Date.now(),
     },
   })

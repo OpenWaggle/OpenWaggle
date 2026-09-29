@@ -5,9 +5,11 @@ import { useTranscriptEdgeLoading } from '../hooks/useTranscriptEdgeLoading'
 import { useTranscriptViewport } from '../hooks/useTranscriptViewport'
 import { useTranscriptWindowRange } from '../hooks/useTranscriptWindowRange'
 import { useTurnSettlePresentation } from '../hooks/useTurnSettlePresentation'
+import { pendingSentRowKey } from '../lib/optimistic-user-message'
 import { chatRowKeys } from '../lib/transcript-row-keys'
-import { latestTurnHasToolActivity, visibleMessageNodeIds } from '../lib/transcript-rows'
+import { visibleMessageNodeIds } from '../lib/transcript-rows'
 import type { ChatRow } from '../lib/types-chat-row'
+import type { PendingSend } from '../model'
 import type { ChatRowRenderContext } from './ChatRowRenderContext'
 import { ScrollToBottomButton } from './ScrollToBottomButton'
 import { TranscriptRows } from './TranscriptRows'
@@ -18,8 +20,10 @@ export interface TranscriptViewportInput {
   readonly context: ChatRowRenderContext
   readonly isLoading: boolean
   readonly lastUserMessageId: string | null
-  readonly userDidSend: boolean
-  readonly onUserDidSendConsumed: () => void
+  readonly pendingSend: PendingSend | null
+  readonly onPendingSendConsumed: () => void
+  /** Whether this view is the one that keeps the Session's send (its branch is known). */
+  readonly canConsumePendingSend: boolean
   readonly onToggleTurnFold: (turnKey: string) => void
   readonly sessionCreatedAt: number | null
 }
@@ -41,16 +45,16 @@ export function TranscriptViewport({
   readonly trailing: ReactNode
   readonly renderVisibleMessageRows?: (nodeIds: readonly string[], rows: ReactNode) => ReactNode
 }) {
-  const { rows, isLoading, lastUserMessageId, userDidSend, onUserDidSendConsumed } = input
+  const { rows, isLoading, lastUserMessageId, pendingSend, onPendingSendConsumed } = input
   const keys = chatRowKeys(rows)
-  const { session, showScrollToBottom, showScrollbar, pendingRestoreKey, following } =
+  const { session, showScrollToBottom, showScrollbar, pendingRestoreKey, boundsLikeFollower } =
     useTranscriptViewport(positionKey, keys.length > 0)
   const transcriptWindow = useTranscriptWindowRange({
     rows,
     keys,
     anchorKey: pendingRestoreKey,
     isFollowing: () => session.controller.isFollowing,
-    following,
+    boundsLikeFollower,
   })
   const { exiting, clearExiting } = useTurnSettlePresentation({
     rows,
@@ -69,11 +73,11 @@ export function TranscriptViewport({
 
   useTranscriptCommitLayout({
     session,
+    rows,
     keys,
-    sentKey: lastUserMessageId ? `message:${lastUserMessageId}` : null,
-    userDidSend,
-    onUserDidSendConsumed,
-    latestTurnHasToolActivity: latestTurnHasToolActivity(rows),
+    sentKey: pendingSentRowKey(pendingSend, lastUserMessageId),
+    onPendingSendConsumed,
+    canConsumePendingSend: input.canConsumePendingSend,
     hasLater: transcriptWindow.hasLater,
     showNewest: transcriptWindow.showNewest,
   })
@@ -142,6 +146,7 @@ export function TranscriptViewport({
 
       <ScrollToBottomButton
         visible={showScrollToBottom || transcriptWindow.hasLater}
+        working={isLoading}
         onClick={() => {
           if (transcriptWindow.hasLater) transcriptWindow.showNewest()
           session.scrollToBottom()

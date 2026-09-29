@@ -151,7 +151,7 @@ async function installExactVersion(tag: string, checkOnly: boolean) {
     await writeCliStdout(`OpenWaggle ${release.tag_name} is available.\n`)
     return { exitCode: EXIT.SUCCESS, updaterOwnsExit: false }
   }
-  const relaunch = isDesktopAppRunning()
+  const relaunch = isDesktopAppRunning(app)
   if (process.platform === 'win32') {
     await runWindowsInstaller(tag, relaunch)
     await writeCliStdout(`Installing OpenWaggle ${release.tag_name}…\n`)
@@ -207,7 +207,7 @@ function abandonDownloadWaiter(waiter: ReturnType<typeof createDownloadWaiter> |
 async function updateFromChannel(channel: UpdateChannel, checkOnly: boolean) {
   // A running desktop app owns installation, so its Restart to update action can protect active
   // agent runs and relaunch it. The terminal then only reports the available version.
-  const deferToDesktop = !checkOnly && isDesktopAppRunning()
+  const deferToDesktop = !checkOnly && isDesktopAppRunning(app)
   const reportOnly = checkOnly || deferToDesktop
   await configureUpdater(channel, reportOnly)
   const downloaded = reportOnly ? null : createDownloadWaiter()

@@ -82,6 +82,7 @@ describe('Local Session server', () => {
       exposeEventCursor: expect.any(Function),
       payload: { operation: 'status', sessionId: 'session-target' },
       releaseAdmissionReader: expect.any(Function),
+      requestHostStop: expect.any(Function),
       resolveEventCursor: expect.any(Function),
       signal: expect.any(AbortSignal),
     })

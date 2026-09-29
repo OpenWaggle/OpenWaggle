@@ -1,3 +1,6 @@
+import { measureSentTurn, SentTurnHold, type TranscriptRowIndex } from './transcript-sent-turn'
+import type { ViewportGeometry } from './transcript-viewport-geometry'
+
 /**
  * Where the transcript viewport goes when its content or size changes (ADR 0036).
  *
@@ -9,28 +12,19 @@
  * - `anchored`: a row, identified by key, is held at a fixed offset from the viewport top.
  * - `new-turn`: the message just sent is held near the top while its reply streams in below.
  *
+ * A sent turn is held until its content reaches the bottom of the viewport, the way the Codex
+ * desktop app does. A turn doing work (tool calls, a Waggle turn) when it gets there is followed;
+ * a plain answer keeps its message in place and continues below the fold, even if work starts
+ * later. Scrolling at any point stops that; scrolling down to the live end follows again.
+ *
  * DOM access goes through `ViewportGeometry` so the rules are testable without layout.
  */
 
 export const NEAR_BOTTOM_PX = 64
-/** Where a sent message settles, below the transcript's top fade. */
+/** Where a sent message prefers to settle, below the transcript's top fade. */
 export const NEW_TURN_TOP_OFFSET_PX = 24
 const SCROLL_ECHO_TOLERANCE_PX = 1
 const ANCHOR_TOLERANCE_PX = 0.5
-
-export interface ViewportGeometry {
-  getScrollTop(): number
-  setScrollTop(value: number): void
-  getClientHeight(): number
-  /** Scrollable height excluding the reserved end space. */
-  getContentHeight(): number
-  /** Reserves space after the last row so a sent message can sit near the top. */
-  setEndSpace(height: number): void
-  /** Top of the row with this key relative to the viewport top, or `null` when not mounted. */
-  getRowTop(key: string): number | null
-  /** The first row whose bottom is below the viewport top. */
-  getFirstVisibleRow(): { readonly key: string; readonly top: number } | null
-}
 
 export type ViewportMode =
   | { readonly kind: 'following' }
@@ -44,6 +38,8 @@ export interface ReadingPosition {
 
 export class TranscriptViewportController {
   private currentMode: ViewportMode = { kind: 'following' }
+  /** The sent turn whose reply space is reserved; it outlives `new-turn` mode (ADR 0036). */
+  private readonly sent = new SentTurnHold()
   private expectedScrollTop: number | null = null
   private lastObservedScrollTop = 0
   /** Whether the view rested exactly at the end after the last layout or scroll. */
@@ -75,19 +71,38 @@ export class TranscriptViewportController {
     return this.currentMode.kind === 'following'
   }
 
+  /** The row key of the sent turn whose space is reserved, if any; mirrored for diagnosis. */
+  get sentTurnKey() {
+    return this.sent.current?.key ?? null
+  }
+
+  /** Reads the rows after a commit; a steer or Follow-up after the sent message stays inside it. */
+  syncRows(index: TranscriptRowIndex) {
+    const moved = this.sent.sync(index, (key) => this.hasMountedRow(key))
+    if (moved !== null && this.currentMode.kind === 'new-turn') {
+      this.currentMode = { ...this.currentMode, key: moved }
+    }
+  }
+
+  /** Whether a sent turn is held near the top, which is where the reader is looking. */
+  get isHoldingSentTurn() {
+    return this.currentMode.kind === 'new-turn'
+  }
+
   /** The reading position worth saving: `null` while following the live end. */
   readingPosition(): ReadingPosition | null {
     // The bottom of a capped window is not the live end: that reader is still in history.
     const atLiveEnd = !this.windowHasLater && this.distanceToBottom() <= SCROLL_ECHO_TOLERANCE_PX
-    if (this.currentMode.kind === 'anchored' && !atLiveEnd) {
-      return { key: this.currentMode.key, top: this.currentMode.top }
-    }
-    return null
+    const mode = this.currentMode
+    if (mode.kind === 'following' || atLiveEnd) return null
+    // A held message sits at its measured top, which a tall message moves above the preference.
+    const held = mode.kind === 'new-turn' ? measureSentTurn(this.geometry, mode) : null
+    return { key: mode.key, top: held?.heldTop ?? mode.top }
   }
 
   follow() {
     this.holding = false
-    this.currentMode = { kind: 'following' }
+    this.enterFollowing()
     this.applyLayout()
   }
 
@@ -101,21 +116,18 @@ export class TranscriptViewportController {
 
   restore(position: ReadingPosition) {
     this.restingAtEnd = false
+    this.sent.clear()
     this.currentMode = { kind: 'anchored', key: position.key, top: position.top }
     this.applyLayout()
     // A position that lands exactly at the end is a reader who left following it.
     if (!this.windowHasLater && this.distanceToBottom() <= SCROLL_ECHO_TOLERANCE_PX) this.follow()
   }
 
-  anchorNewTurn(key: string) {
+  anchorNewTurn(key: string, precedingKey: string | null = null) {
+    this.holding = false
+    this.sent.start({ key, top: NEW_TURN_TOP_OFFSET_PX, precedingKey })
     this.currentMode = { kind: 'new-turn', key, top: NEW_TURN_TOP_OFFSET_PX }
     this.applyLayout()
-  }
-
-  /** A sent turn handing over to live following: tool activity began or it outgrew the viewport. */
-  releaseNewTurn() {
-    if (this.currentMode.kind !== 'new-turn') return
-    this.follow()
   }
 
   /** Ends a disclosure hold; a reader left at the live end resumes following it. */
@@ -126,7 +138,8 @@ export class TranscriptViewportController {
       !this.windowHasLater &&
       this.distanceToBottom() <= NEAR_BOTTOM_PX
     ) {
-      this.follow()
+      this.rejoinEnd()
+      this.applyLayout()
     }
   }
 
@@ -155,19 +168,18 @@ export class TranscriptViewportController {
     this.expectedScrollTop = null
     this.holding = false
     /*
-     * Resting exactly at the end always rejoins it: shrinking content makes the browser clamp the
-     * scroll position there, which is not the reader scrolling up. Within the rest of the
-     * near-bottom band only a move toward the end rejoins, or a reader nudging upward during a
-     * stream would be pulled back down by the next token.
+     * Resting exactly at the end always rejoins it (following, or the held turn whose reserved
+     * space ends there): shrinking content makes the browser clamp the scroll position there,
+     * which is not the reader scrolling up. Within the rest of the near-bottom band only a move
+     * toward the end rejoins, or a reader nudging upward during a stream would be pulled back
+     * down by the next token.
      */
     const distance = this.distanceToBottom()
     const movingUp = scrollTop < previous - SCROLL_ECHO_TOLERANCE_PX
     const atEnd = distance <= SCROLL_ECHO_TOLERANCE_PX
     this.restingAtEnd = atEnd
-    // A sent turn sits at the end of its reserved space; a clamp there is not the reader leaving.
-    if (atEnd && this.currentMode.kind === 'new-turn') return
     if (!this.windowHasLater && (atEnd || (!movingUp && distance <= NEAR_BOTTOM_PX))) {
-      this.currentMode = { kind: 'following' }
+      this.rejoinEnd()
       return
     }
     this.captureReadingPosition()
@@ -183,7 +195,7 @@ export class TranscriptViewportController {
       !this.holding &&
       !this.windowHasLater
     ) {
-      this.currentMode = { kind: 'following' }
+      this.rejoinEnd()
     }
     this.applyMode()
     this.restingAtEnd = this.distanceToBottom() <= SCROLL_ECHO_TOLERANCE_PX
@@ -195,11 +207,13 @@ export class TranscriptViewportController {
       this.applyNewTurn(mode)
       return
     }
-    this.setEndSpace(0)
     if (mode.kind === 'following') {
+      this.setEndSpace(0)
       this.write(this.maxScrollTop())
       return
     }
+    // The reserved space tracks the turn under a reader inside it, so the end never moves.
+    this.setEndSpace(this.reservedSpace())
     const top = this.geometry.getRowTop(mode.key)
     if (top === null) {
       // The anchored row left the DOM (released from the window, compacted away); hold the next one.
@@ -218,29 +232,57 @@ export class TranscriptViewportController {
     return this.maxScrollTop() - this.geometry.getScrollTop()
   }
 
+  /**
+   * Holds the sent message near the top while its reply streams into the space reserved below.
+   * A working turn that crosses the bottom of the viewport is followed from there, moving the view
+   * only by the overshoot of the commit that crossed it; a plain answer stays held.
+   */
   private applyNewTurn(mode: Extract<ViewportMode, { kind: 'new-turn' }>) {
-    const rowTop = this.geometry.getRowTop(mode.key)
-    if (rowTop === null) {
-      this.follow()
+    const layout = measureSentTurn(this.geometry, mode)
+    if (!layout) {
+      // The sent row left the DOM without a replacement (a refused send, compaction): its reply
+      // space goes with it, and the reader's view is held by whatever row is visible.
+      this.sent.clear()
+      this.captureReadingPosition()
+      this.applyMode()
       return
     }
-    const clientHeight = this.geometry.getClientHeight()
-    const rowContentTop = this.geometry.getScrollTop() + rowTop
-    const turnHeight = this.geometry.getContentHeight() - rowContentTop
-    const available = clientHeight - mode.top
-    if (turnHeight > available) {
-      this.follow()
+    if (this.sent.crossesWhileWorking(layout)) {
+      this.enterFollowing()
+      this.applyMode()
       return
     }
-    this.setEndSpace(available - turnHeight)
-    this.write(rowContentTop - mode.top)
+    this.setEndSpace(layout.reservedSpace)
+    this.write(layout.heldScrollTop)
+  }
+
+  private reservedSpace() {
+    return this.sent.reservedSpace(this.geometry)
+  }
+
+  /**
+   * A reader back at the end. While a sent turn still reserves space, the end of that space is the
+   * held turn itself; following would drop the space and move the turn down the screen.
+   */
+  private rejoinEnd() {
+    const turn = this.sent.current
+    if (turn && this.reservedSpace() > 0) {
+      this.sent.resume()
+      this.currentMode = { kind: 'new-turn', key: turn.key, top: turn.top }
+      return
+    }
+    this.enterFollowing()
+  }
+
+  private enterFollowing() {
+    this.sent.clear()
+    this.currentMode = { kind: 'following' }
   }
 
   private captureReadingPosition() {
     const row = this.geometry.getFirstVisibleRow()
-    this.currentMode = row
-      ? { kind: 'anchored', key: row.key, top: row.top }
-      : { kind: 'following' }
+    if (row) this.currentMode = { kind: 'anchored', key: row.key, top: row.top }
+    else this.enterFollowing()
   }
 
   private maxScrollTop() {

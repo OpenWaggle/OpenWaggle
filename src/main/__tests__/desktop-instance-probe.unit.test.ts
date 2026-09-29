@@ -1,7 +1,4 @@
 import { describe, expect, it, vi } from 'vitest'
-
-vi.mock('electron', () => ({ app: {} }))
-
 import { isDesktopAppRunning, isDesktopInstanceProbe } from '../desktop-instance-probe'
 
 describe('desktop instance probe', () => {

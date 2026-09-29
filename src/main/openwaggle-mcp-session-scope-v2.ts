@@ -60,6 +60,7 @@ function directTarget(payload: LocalSessionCommandPayload) {
       'host-ui-v1',
       'desktop-service-v1',
       'local-update-v1',
+      'local-host-v1',
       () => {
         throw new Error('Local GUI contracts are not available through the Sessions MCP adapter.')
       },

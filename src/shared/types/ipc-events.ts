@@ -111,6 +111,10 @@ export interface IpcEventChannelMap {
   'window:fullscreen-changed': {
     payload: boolean
   }
+  /** A command-line launch asked to open a project; take it with `project:take-open-request`. */
+  'app:open-project-requested': {
+    payload: null
+  }
   'auth:oauth-status': {
     payload: OAuthFlowStatus
   }

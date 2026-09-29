@@ -64,8 +64,8 @@ describe('Local Session MCP authority protocol revision', () => {
   })
 
   it('forces changed authority commands to upgrade a revision-six Host', () => {
-    expect(supportedRevisionsForCommand(hostUiCommand('mcp:get-settings'))).toEqual([18])
-    expect(supportedRevisionsForCommand(hostUiCommand('mcp:logout-server'))).toEqual([18])
-    expect(supportedRevisionsForCommand(hostUiCommand('mcp:authorize-server'))).toEqual([18])
+    expect(supportedRevisionsForCommand(hostUiCommand('mcp:get-settings'))).toEqual([19])
+    expect(supportedRevisionsForCommand(hostUiCommand('mcp:logout-server'))).toEqual([19])
+    expect(supportedRevisionsForCommand(hostUiCommand('mcp:authorize-server'))).toEqual([19])
   })
 })

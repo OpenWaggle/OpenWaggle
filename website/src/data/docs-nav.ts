@@ -69,6 +69,7 @@ export const developerDocsNav: NavSection[] = [
       { title: 'Contributing', slug: 'developer-guide/contributing' },
       { title: 'Architecture', slug: 'developer-guide/architecture' },
       { title: 'Pi runtime', slug: 'developer-workflow/pi-runtime' },
+      { title: 'Command line', slug: 'developer-workflow/command-line' },
       { title: 'Sessions CLI', slug: 'developer-workflow/sessions-cli' },
       { title: 'Token benchmarks', slug: 'using-openwaggle/token-benchmarks' },
       { title: 'Build an extension', slug: 'extending/openwaggle-extensions' },

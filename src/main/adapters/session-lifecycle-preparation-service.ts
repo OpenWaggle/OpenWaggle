@@ -10,6 +10,7 @@ import { SessionLifecyclePreparationError } from '../errors'
 import { AgentKernelService } from '../ports/agent-kernel-service'
 import {
   type PreparedSessionLifecycleAttempt,
+  type PrepareSessionLifecycleInput,
   SessionLifecyclePreparationService,
 } from '../ports/session-lifecycle-preparation-service'
 import { SettingsService } from '../services/settings-service'
@@ -25,6 +26,23 @@ import {
   prepareLifecycleWorkspacePlan,
   projectPathForLifecycleCommand,
 } from './session-lifecycle-workspace-plan'
+
+/** Launch and spawn start a Run at once, so they cannot proceed without a model. */
+function requireRunModel(
+  command: PrepareSessionLifecycleInput['request']['command'],
+  modelId: string,
+) {
+  const startsRun = command.operation === 'launch' || command.operation === 'spawn'
+  if (!startsRun || modelId.trim().length > 0) return Effect.void
+  return Effect.fail(
+    preparationError(
+      'resolve-model',
+      new Error(
+        'No model is selected. Pass --model <provider/model>, or choose a model in the OpenWaggle desktop app.',
+      ),
+    ),
+  )
+}
 
 function preparationError(operation: string, cause: unknown) {
   return new SessionLifecyclePreparationError({ operation, cause })
@@ -181,6 +199,13 @@ export const SessionLifecyclePreparationServiceLive = Layer.effect(
             )
             const plan = yield* prepareLifecycleWorkspacePlan(sql, input, projectPath, definition)
             const command = input.request.command
+            const profile = buildLifecycleExecutionProfile({
+              command,
+              settings,
+              parent,
+              definition,
+            })
+            yield* requireRunModel(command, profile.modelId)
             const forked =
               command.operation === 'fork'
                 ? yield* prepareLifecycleFork({
@@ -193,12 +218,6 @@ export const SessionLifecyclePreparationServiceLive = Layer.effect(
             const piSession = forked?.result ?? (yield* kernel.createSession({ projectPath }))
             piSessionFile = piSession.piSessionFile
             yield* recordPreparedSessionFile(sql, attemptId, piSession.piSessionFile)
-            const profile = buildLifecycleExecutionProfile({
-              command,
-              settings,
-              parent,
-              definition,
-            })
             const derivedCapabilities = deriveChildCapabilities(input, profile)
             const sessionCapabilities = resolveLifecycleSessionCapabilities({
               command,

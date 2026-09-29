@@ -1,5 +1,4 @@
 import { isMatching } from '@diegogbrisa/ts-match'
-import { app } from 'electron'
 
 const DESKTOP_INSTANCE_PROBE = { openwaggleInstanceProbe: 'update-cli' } as const
 
@@ -17,7 +16,7 @@ export function isDesktopInstanceProbe(additionalData: unknown) {
  * Whether the desktop app currently holds the single-instance lock. The probe releases the lock
  * immediately when it wins it, so it never keeps a later desktop launch from starting.
  */
-export function isDesktopAppRunning(lock: DesktopInstanceLock = app) {
+export function isDesktopAppRunning(lock: DesktopInstanceLock) {
   if (!lock.requestSingleInstanceLock({ ...DESKTOP_INSTANCE_PROBE })) return true
   lock.releaseSingleInstanceLock()
   return false

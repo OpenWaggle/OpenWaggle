@@ -30,7 +30,9 @@ function superviseDeliveryAcknowledgement(
   const runtime = tryGetSessionHostEventRuntime()
   let releaseLiveness: () => void = () => undefined
   try {
-    releaseLiveness = runtime?.liveness.acquire('follow-up-delivery') ?? releaseLiveness
+    // Acknowledging delivered context finishes existing work, so a draining Host allows it.
+    releaseLiveness =
+      runtime?.liveness.acquire('follow-up-delivery', { whileDraining: true }) ?? releaseLiveness
   } catch (error) {
     logger.error('Could not reserve Session Host liveness for a delivery acknowledgement.', {
       error: String(error),

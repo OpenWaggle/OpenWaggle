@@ -26,7 +26,8 @@ function hasProfileCredentialSource(arguments_: ParsedArguments) {
   )
 }
 
-export async function createLocalSessionCliClientInput(
+/** Resolve CLI identity and Host paths without starting or contacting the Session Host. */
+export async function prepareLocalSessionCliClientInput(
   arguments_: ParsedArguments,
   options: { readonly supportedRevisions?: readonly number[] } = {},
 ): Promise<LocalSessionCliClientInput> {
@@ -51,7 +52,7 @@ export async function createLocalSessionCliClientInput(
         ? await readProfileCredentialFile(credentialFile)
         : await readStoredProfileCredential({ stateRoot: paths.stateRoot, profileName: profile })
     : undefined
-  const input = {
+  return {
     paths,
     clientKind: 'cli' as const,
     clientVersion: app.getVersion(),
@@ -60,6 +61,13 @@ export async function createLocalSessionCliClientInput(
     ...(profile ? { profile } : {}),
     ...(profileCredential ? { profileCredential } : {}),
   }
+}
+
+export async function createLocalSessionCliClientInput(
+  arguments_: ParsedArguments,
+  options: { readonly supportedRevisions?: readonly number[] } = {},
+): Promise<LocalSessionCliClientInput> {
+  const input = await prepareLocalSessionCliClientInput(arguments_, options)
   await ensureLocalSessionHost(input)
-  return { ...input, paths: await refreshLocalSessionHostEndpoint(paths) }
+  return { ...input, paths: await refreshLocalSessionHostEndpoint(input.paths) }
 }
