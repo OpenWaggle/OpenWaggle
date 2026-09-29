@@ -240,7 +240,7 @@ describe('openwaggle run interrupts and output failures', () => {
     expect(test.stderr.join('')).toContain('stdout was closed')
   })
 
-  it('removes terminal control sequences from agent-controlled text', async () => {
+  it('shows terminal control sequences in agent-controlled text instead of running them', async () => {
     const test = harness({
       interactive: true,
       ask: async () => 'n',
@@ -257,7 +257,7 @@ describe('openwaggle run interrupts and output failures', () => {
     await test.emit(settled('completed'))
 
     expect(await running).toBe(0)
-    expect(test.stderr.join('')).toContain('rm -rf /ls')
+    expect(test.stderr.join('')).toContain('rm -rf /\\x1b[2K\\x1b[1Gls')
     expect(test.stderr.join('')).not.toContain('\u001b')
   })
 })

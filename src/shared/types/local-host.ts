@@ -12,8 +12,8 @@ export interface LocalHostStopResponse {
   readonly contractVersion: typeof LOCAL_HOST_CONTRACT_VERSION
   readonly operation: 'stop'
   readonly hostInstanceId: string
-  /** Runs the Host waits for before it exits. */
-  readonly blockingRuns: number
+  /** Runs the Host waits for before it exits; `null` when it could not count them. */
+  readonly blockingRuns: number | null
   /** Running Actions, such as dev servers, the Host also waits for. */
   readonly blockingActions: number
 }

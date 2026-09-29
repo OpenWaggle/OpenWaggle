@@ -58,6 +58,9 @@ describe('Local Session server error descriptions', () => {
       'SessionLifecyclePreparationError (outer): disk full',
     )
     expect(describeLocalSessionServerError('plain')).toBe('plain')
+    expect(describeLocalSessionServerError(await fiberFailure(' '))).toBe(
+      'The Session Host could not complete the request.',
+    )
     expect(describeLocalSessionServerError(new Error(''))).toBe(
       'The Session Host could not complete the request.',
     )

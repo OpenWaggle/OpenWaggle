@@ -4,6 +4,10 @@ import { HOST_UI_CONTRACT_VERSION, type HostBackedGuiChannel } from '@shared/typ
 import { describe, expect, it } from 'vitest'
 import { isAdmittedWhileDraining } from '../local-session-drain-admission'
 
+const query = (value: Record<string, unknown>) => ({
+  contract: 'session-query-v2',
+  request: { query: value },
+})
 const control = (operation: string) => ({
   contract: 'session-control-v2',
   request: { command: { operation } },
@@ -48,7 +52,15 @@ describe('commands a draining Session Host still accepts', () => {
   it('accepts commands that end or unblock active work', () => {
     for (const payload of [
       { contract: 'local-host-v1' },
-      { contract: 'session-query-v2' },
+      query({ operation: 'read', sessionId: 's-1' }),
+      query({
+        operation: 'search',
+        query: 'x',
+        mode: 'lexical',
+        requireFresh: true,
+        waitTimeoutMs: 5,
+      }),
+      query({ operation: 'search', query: 'x', mode: 'semantic' }),
       { contract: 'local-compaction-cancel-v1' },
       { contract: 'session-waggle-cancel-v1' },
       control('interrupt'),
@@ -69,6 +81,17 @@ describe('commands a draining Session Host still accepts', () => {
     for (const payload of [
       { contract: 'session-lifecycle-v2' },
       { contract: 'local-compaction-v1' },
+      query({ operation: 'wait', targets: [] }),
+      query({ operation: 'exports-wait', exportOperationId: 'e-1' }),
+      query({
+        operation: 'search',
+        query: 'x',
+        mode: 'semantic',
+        requireFresh: true,
+        waitTimeoutMs: 60_000,
+      }),
+      hostUi('mcp:list-capabilities', [undefined]),
+      hostUi('agent:get-context-usage', ['s-1']),
       control('message'),
       control('follow-up'),
       action({ type: 'start', actionId: 'dev', requestId: 'request-2' }),

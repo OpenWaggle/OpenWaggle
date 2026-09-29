@@ -1,6 +1,4 @@
 /** Text that came from an agent or another client, made safe to print on a terminal. */
-const ESCAPE = 0x1b
-const BELL = 0x07
 const DELETE = 0x7f
 const TAB = 0x09
 const LINE_FEED = 0x0a
@@ -8,69 +6,52 @@ const CARRIAGE_RETURN = 0x0d
 const C0_END = 0x1f
 const C1_START = 0x80
 const C1_END = 0x9f
-const CSI_INTRODUCER = 0x5b
-const OSC_INTRODUCER = 0x5d
-const STRING_TERMINATOR = 0x5c
-const CSI_FINAL_START = 0x40
-const CSI_FINAL_END = 0x7e
-/** An escape byte plus its introducer. */
-const ESCAPE_PREFIX_LENGTH = 2
+const LEFT_TO_RIGHT_MARK = 0x200e
+const RIGHT_TO_LEFT_MARK = 0x200f
+const BIDI_EMBEDDING_START = 0x202a
+const BIDI_EMBEDDING_END = 0x202e
+const BIDI_ISOLATE_START = 0x2066
+const BIDI_ISOLATE_END = 0x2069
+const HEX_RADIX = 16
+const LAST_BYTE = 0xff
+const BYTE_HEX_DIGITS = 2
+const CODE_UNIT_HEX_DIGITS = 4
 
-function isFinalCsiByte(code: number) {
-  return code >= CSI_FINAL_START && code <= CSI_FINAL_END
-}
-
-function skipCsi(text: string, start: number) {
-  let index = start
-  while (index < text.length && !isFinalCsiByte(text.charCodeAt(index))) index += 1
-  return index + 1
-}
-
-function skipOsc(text: string, start: number) {
-  let index = start
-  while (index < text.length) {
-    const code = text.charCodeAt(index)
-    if (code === BELL) return index + 1
-    if (code === ESCAPE && text.charCodeAt(index + 1) === STRING_TERMINATOR) {
-      return index + ESCAPE_PREFIX_LENGTH
-    }
-    index += 1
-  }
-  return index
-}
-
-/** Where an escape sequence starting at `start` ends, so all of it can be dropped. */
-function skipEscapeSequence(text: string, start: number) {
-  const introducer = text.charCodeAt(start + 1)
-  if (introducer === CSI_INTRODUCER) return skipCsi(text, start + ESCAPE_PREFIX_LENGTH)
-  if (introducer === OSC_INTRODUCER) return skipOsc(text, start + ESCAPE_PREFIX_LENGTH)
-  return Math.min(start + ESCAPE_PREFIX_LENGTH, text.length)
-}
-
-function isDroppedControl(code: number) {
+function isControl(code: number) {
   if (code === TAB || code === LINE_FEED) return false
   return code <= C0_END || code === DELETE || (code >= C1_START && code <= C1_END)
 }
 
+/** Characters that reorder the text around them, so what is shown differs from what is sent. */
+function isBidiControl(code: number) {
+  return (
+    code === LEFT_TO_RIGHT_MARK ||
+    code === RIGHT_TO_LEFT_MARK ||
+    (code >= BIDI_EMBEDDING_START && code <= BIDI_EMBEDDING_END) ||
+    (code >= BIDI_ISOLATE_START && code <= BIDI_ISOLATE_END)
+  )
+}
+
+/** A control character written out, such as `\x1b` or `\u202e`. */
+function visibleEscape(code: number) {
+  const hex = code.toString(HEX_RADIX)
+  return code <= LAST_BYTE
+    ? `\\x${hex.padStart(BYTE_HEX_DIGITS, '0')}`
+    : `\\u${hex.padStart(CODE_UNIT_HEX_DIGITS, '0')}`
+}
+
 /**
- * Remove terminal control sequences from agent-controlled text. Without this, a tool argument
- * or approval message could move the cursor or rewrite the line a user is about to approve.
+ * Make agent-controlled text safe to print. Control characters and bidirectional-text
+ * controls are written out visibly rather than interpreted or deleted: an approval message
+ * could otherwise move the cursor, rewrite the line being approved, reorder its text, or
+ * hide part of a command. Line breaks and tabs are kept, and CRLF becomes LF.
  */
 export function sanitizeTerminalText(text: string) {
   let result = ''
-  let index = 0
-  while (index < text.length) {
+  for (let index = 0; index < text.length; index += 1) {
     const code = text.charCodeAt(index)
-    if (code === ESCAPE) {
-      index = skipEscapeSequence(text, index)
-      continue
-    }
-    if (code === CARRIAGE_RETURN && text.charCodeAt(index + 1) === LINE_FEED) {
-      index += 1
-      continue
-    }
-    if (!isDroppedControl(code)) result += text[index]
-    index += 1
+    if (code === CARRIAGE_RETURN && text.charCodeAt(index + 1) === LINE_FEED) continue
+    result += isControl(code) || isBidiControl(code) ? visibleEscape(code) : text[index]
   }
   return result
 }

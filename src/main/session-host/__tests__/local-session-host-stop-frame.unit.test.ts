@@ -72,6 +72,24 @@ describe('stopping the Session Host while it drains', () => {
     test.releaseRun()
   })
 
+  it("still serves the desktop app's reads", async () => {
+    const test = drainingDependencies()
+    test.dispatch.mockImplementation(async () => ({ settings: {} }))
+
+    await execute(test.dependencies, {
+      contract: 'host-ui-v1',
+      request: {
+        contractVersion: 1,
+        requestId: 'ui-1',
+        channel: 'settings:get',
+        args: [],
+      },
+    }).run
+
+    expect(test.dispatch).toHaveBeenCalledTimes(1)
+    test.releaseRun()
+  })
+
   it('refuses other new work with a retryable error for that request only', async () => {
     const test = drainingDependencies()
     const { run, send } = execute(test.dependencies, { contract: 'session-lifecycle-v2' })

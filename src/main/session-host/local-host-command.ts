@@ -28,7 +28,7 @@ export async function dispatchLocalHostCommand(input: {
   // Stop first, so no Run can be admitted between the count and the drain. The count only
   // informs the reply; failing to read it must not cancel the stop.
   const stopping = input.requestHostStop()
-  const blockingRuns = await input.countBlockingRuns().catch(() => 0)
+  const blockingRuns = await input.countBlockingRuns().catch(() => null)
   return {
     contract: 'local-host-v1',
     response: {

@@ -79,7 +79,7 @@ export type HostStopReport =
   | {
       readonly state: 'stopping' | 'stopped' | 'replaced' | 'timed-out'
       readonly hostInstanceId: string
-      readonly blockingRuns: number
+      readonly blockingRuns: number | null
       readonly blockingActions: number
     }
 
@@ -167,7 +167,11 @@ export async function stopHost(
 }
 
 /** What the Host still waits for, or `undefined` when nothing holds it. */
-function waitsForPhrase(blockingRuns: number, blockingActions: number) {
+function waitsForPhrase(blockingRuns: number | null, blockingActions: number) {
+  if (blockingRuns === null) {
+    const actions = blockingActions > 0 ? ' and running Actions' : ''
+    return `its active Runs${actions}, if any, finish`
+  }
   const parts = [
     blockingRuns > 0
       ? blockingRuns === 1

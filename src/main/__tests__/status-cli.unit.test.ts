@@ -216,7 +216,7 @@ describe('openwaggle status', () => {
     expect(output.join('')).toContain('This command never starts the Session Host.')
   })
 
-  it('strips terminal control sequences from Session titles and paths', () => {
+  it('shows control sequences and line breaks in titles and paths as text', () => {
     const text = formatStatusReport(
       {
         version: '1.2.3',
@@ -225,7 +225,7 @@ describe('openwaggle status', () => {
           {
             sessionId: 's-1',
             runId: 'r-1',
-            title: 'Fix \u001b]0;owned\u0007build',
+            title: 'Fix \u001b]0;owned\u0007build\nActive runs: none',
             projectPath: '/repo\u001b[2J',
             model: 'test/model',
             startedAt: NOW,
@@ -236,9 +236,12 @@ describe('openwaggle status', () => {
       NOW,
     )
 
-    expect(text).toContain('Fix build')
-    expect(text.endsWith('    Run r-1  in /repo')).toBe(true)
+    expect(text).toContain('Fix \\x1b]0;owned\\x07build Active runs: none')
+    expect(text.endsWith('    Run r-1  in /repo\\x1b[2J')).toBe(true)
     expect(text).not.toContain('\u001b')
+    expect(text.split('\n').filter((line) => line.startsWith('Active runs'))).toEqual([
+      'Active runs: 1',
+    ])
   })
 
   it('formats elapsed time compactly', () => {

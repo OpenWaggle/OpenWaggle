@@ -48,7 +48,7 @@ describe('Session Host stop command', () => {
         },
         requestHostStop,
       }),
-    ).resolves.toMatchObject({ response: { blockingRuns: 0 } })
+    ).resolves.toMatchObject({ response: { blockingRuns: null } })
     expect(requestHostStop).toHaveBeenCalledTimes(1)
   })
 

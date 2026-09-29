@@ -1,6 +1,6 @@
 import { safeDecodeUnknown } from '@shared/schema'
 import { actionManagementRequestSchema } from '@shared/schemas/action-management'
-import { hostBackedGuiChannelSchema } from '@shared/schemas/host-ui-protocol'
+import { hostUiV1RequestSchema } from '@shared/schemas/host-ui-protocol'
 import { isReadOnlyHostUiInvocation } from '../application/host-ui-read-only-invocation'
 
 /**
@@ -8,14 +8,22 @@ import { isReadOnlyHostUiInvocation } from '../application/host-ui-read-only-inv
  * it must keep accepting the commands that end or unblock that work: reading state,
  * interrupting or cancelling a Run, answering its questions, and stopping an Action or a
  * Workspace setup. Refusing them would leave a Run waiting on an approval nobody can give,
- * and the Host would never exit. Waits are reads that can last many minutes, so they take
- * their own liveness and stay refused.
+ * and the Host would never exit. Waits, including searches that wait for fresh results,
+ * can last many minutes, so they stay refused.
  */
 const SETTLING_CONTRACTS: ReadonlySet<string> = new Set([
   'local-host-v1',
-  'session-query-v2',
   'local-compaction-cancel-v1',
   'session-waggle-cancel-v1',
+])
+const WAITING_QUERY_OPERATIONS: ReadonlySet<string> = new Set(['wait', 'exports-wait'])
+/**
+ * Replay-safe reads that still do work on the Host: listing MCP capabilities connects to
+ * (and may start) MCP servers, and context usage builds a Pi session.
+ */
+const WORKING_HOST_UI_READS: ReadonlySet<string> = new Set([
+  'mcp:list-capabilities',
+  'agent:get-context-usage',
 ])
 const SETTLING_CONTROL_OPERATIONS: ReadonlySet<string> = new Set([
   'interrupt',
@@ -31,13 +39,16 @@ function field(value: unknown, key: string): unknown {
   return typeof value === 'object' && value !== null ? Reflect.get(value, key) : undefined
 }
 
-/** Host UI arguments travel as `{ kind: 'value', value }` or `{ kind: 'undefined' }`. */
-function hostUiArguments(request: unknown): readonly unknown[] | undefined {
-  const args = field(request, 'args')
-  if (!Array.isArray(args)) return undefined
-  const kinds = args.map((argument) => field(argument, 'kind'))
-  if (kinds.some((kind) => kind !== 'undefined' && kind !== 'value')) return undefined
-  return args.map((argument) => field(argument, 'value'))
+function admitsQuery(request: unknown) {
+  const query = field(request, 'query')
+  const operation = field(query, 'operation')
+  if (typeof operation !== 'string' || WAITING_QUERY_OPERATIONS.has(operation)) return false
+  const waitsForFreshResults =
+    operation === 'search' &&
+    field(query, 'mode') !== 'lexical' &&
+    field(query, 'requireFresh') === true &&
+    Number(field(query, 'waitTimeoutMs') ?? 0) > 0
+  return !waitsForFreshResults
 }
 
 function settlesActionWork(channel: string, args: readonly unknown[]) {
@@ -51,10 +62,15 @@ function settlesActionWork(channel: string, args: readonly unknown[]) {
  * a user who opens the app to answer an approval must be able to load the Session.
  */
 function admitsHostUiRequest(request: unknown) {
-  const channel = safeDecodeUnknown(hostBackedGuiChannelSchema, field(request, 'channel'))
-  const args = hostUiArguments(request)
-  if (!channel.success || !args) return false
-  return settlesActionWork(channel.data, args) || isReadOnlyHostUiInvocation(channel.data, args)
+  const decoded = safeDecodeUnknown(hostUiV1RequestSchema, request)
+  if (!decoded.success) return false
+  const { channel } = decoded.data
+  // Arguments travel as `{ kind: 'value', value }` or `{ kind: 'undefined' }`.
+  const args = decoded.data.args.map((argument) =>
+    argument.kind === 'value' ? argument.value : undefined,
+  )
+  if (settlesActionWork(channel, args)) return true
+  return !WORKING_HOST_UI_READS.has(channel) && isReadOnlyHostUiInvocation(channel, args)
 }
 
 export function isAdmittedWhileDraining(payload: unknown) {
@@ -66,6 +82,7 @@ export function isAdmittedWhileDraining(payload: unknown) {
     const operation = field(field(request, 'command'), 'operation')
     return typeof operation === 'string' && SETTLING_CONTROL_OPERATIONS.has(operation)
   }
+  if (contract === 'session-query-v2') return admitsQuery(request)
   if (contract === 'host-ui-v1') return admitsHostUiRequest(request)
   return false
 }

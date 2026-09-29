@@ -5,14 +5,14 @@ import { sanitizeTerminalText } from '../terminal-text'
 describe('terminal text sanitizing', () => {
   it.each([
     ['plain text\n\ttabbed', 'plain text\n\ttabbed'],
-    ['red \u001b[31mtext\u001b[0m', 'red text'],
-    ['erase\u001b[2K\u001b[1Gline', 'eraseline'],
-    ['title \u001b]0;fake\u0007done', 'title done'],
-    ['link \u001b]8;;https://x\u001b\\label', 'link label'],
-    ['over\rwrite', 'overwrite'],
+    ['red \u001b[31mtext\u001b[0m', 'red \\x1b[31mtext\\x1b[0m'],
+    ['ls \u001b[;./0m -la', 'ls \\x1b[;./0m -la'],
+    ['title \u001b]0;fake\u0007done', 'title \\x1b]0;fake\\x07done'],
+    ['over\rwrite', 'over\\x0dwrite'],
     ['windows\r\nline', 'windows\nline'],
-    ['bell\u0007 and \u009b31m c1', 'bell and 31m c1'],
-    ['dangling escape\u001b', 'dangling escape'],
+    ['c1 \u009b31m', 'c1 \\x9b31m'],
+    ['rm -rf \u202esdrawkcab', 'rm -rf \\u202esdrawkcab'],
+    ['isolate \u2066x\u2069 mark \u200f', 'isolate \\u2066x\\u2069 mark \\u200f'],
   ])('sanitizes %j', (input, expected) => {
     expect(sanitizeTerminalText(input)).toBe(expected)
   })
@@ -54,7 +54,7 @@ describe('run output queue', () => {
     terminal.reply('\u001b[1mb')
     await terminal.flushed()
 
-    expect(written).toEqual(['\u001b[1mb', 'b'])
+    expect(written).toEqual(['\u001b[1mb', '\\x1b[1mb'])
   })
 
   it('reports the first stdout failure once and stops writing', async () => {

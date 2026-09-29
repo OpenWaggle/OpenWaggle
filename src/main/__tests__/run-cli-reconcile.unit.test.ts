@@ -54,6 +54,7 @@ describe('openwaggle run reconciliation', () => {
     expect(await running).toBe(RUN_CLI_INTERRUPTED_EXIT)
     expect(test.commands).toEqual([])
     expect(test.stderr.join('')).toContain('nothing was launched')
+    expect(test.stderr.join('')).not.toContain('interrupting once the Run has started')
   })
 
   it('does not show the output of a Run that replaced this one', async () => {
