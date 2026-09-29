@@ -17,19 +17,23 @@ describe('desktop app release publication', () => {
     )
   })
 
-  it('guards Stable promotion against content that differs from the last release candidate', () => {
+  it('guards every Stable version before a release PR exists and again before tagging', () => {
     expect(WORKFLOW).toMatch(
-      /verify-promotion \\\n\s+--target "\$RELEASE_TARGET_VERSION" \\\n\s+--candidate HEAD/u,
+      /app-release-notes\.ts check --version "\$VERSION"[\s\S]*?verify-promotion \\\n\s+--target "\$VERSION" \\\n\s+--candidate HEAD\n\s+fi\n\n\s+RELEASE_BRANCH=/u,
     )
     expect(WORKFLOW).toMatch(
       /verify_version_only_tree "\$parent_sha" "\$commit_sha"\n\s+pnpm exec tsx scripts\/app-release-state\.ts verify-promotion \\\n\s+--target "\$VERSION" \\\n\s+--candidate "\$commit_sha"/u,
     )
   })
 
-  it('publishes Stable releases with their CHANGELOG entry and fails before tagging without one', () => {
-    expect(WORKFLOW).toMatch(
-      /if \[\[ "\$VERSION" != \*-\* \]\]; then\n\s+pnpm exec tsx scripts\/app-release-notes\.ts check --version "\$VERSION"\n\s+fi\n\n\s+RELEASE_BRANCH=/u,
+  it('lets an ordinary merge wait for its CHANGELOG entry but fails a dispatch or release commit', () => {
+    expect(WORKFLOW).toContain(
+      'if [ -z "$RELEASE_TARGET_VERSION" ] && [ "$RELEASE_SUBJECT_VERSION" != "$VERSION" ]; then',
     )
+    expect(WORKFLOW).toContain('waits for its CHANGELOG.md entry; no release PR was prepared.')
+  })
+
+  it('publishes Stable releases with their CHANGELOG entry and fails before tagging without one', () => {
     expect(WORKFLOW).toContain('scripts/app-release-notes.ts write')
     expect(WORKFLOW).toContain(
       "generate_release_notes: ${{ contains(needs.version.outputs.new_version, '-') }}",

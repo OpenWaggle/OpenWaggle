@@ -34,7 +34,13 @@ const activeActivitiesSchema = Schema.Array(Schema.Struct({ sessionId: Schema.St
 
 function updateRestartState(status: UpdateStatus): UpdateRestartState {
   if (status.type === 'downloaded') return 'installable'
-  if (status.type === 'checking' || status.type === 'available' || status.type === 'downloading') {
+  // A failed re-check is usually transient; the next check restores the downloaded update.
+  if (
+    status.type === 'checking' ||
+    status.type === 'available' ||
+    status.type === 'downloading' ||
+    status.type === 'error'
+  ) {
     return 'pending'
   }
   return 'none'
@@ -77,7 +83,9 @@ async function chooseRestart(activeRuns: number): Promise<UpdateRestartChoice> {
 }
 
 const updateRestart = createUpdateRestartController({
-  countActiveRuns: async () => (await listActiveActivities()).length,
+  // One Session with both a run and a compaction counts once.
+  countActiveRuns: async () =>
+    new Set((await listActiveActivities()).map((activity) => activity.sessionId)).size,
   chooseRestart,
   interruptActiveRuns,
   updateState: () => updateRestartState(getUpdateStatus()),

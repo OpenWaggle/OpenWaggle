@@ -336,8 +336,8 @@ launch_skip_reason() {
 running_mac_gui_pids() {
   local asn
   for asn in $(lsappinfo find "bundleid=${MAC_APP_ID}" 2>/dev/null); do
-    lsappinfo info -only pid,applicationtype "${asn}" 2>/dev/null | tr '\n' ' ' | \
-      sed -n 's/.*"pid"=\([0-9][0-9]*\).*"ApplicationType"="Foreground".*/\1/p'
+    lsappinfo info -only pid,applicationtype "${asn}" 2>/dev/null | \
+      awk -F= '/"pid"/ { pid = $2 } /"ApplicationType"/ { type = $2 } END { if (type == "\"Foreground\"") print pid }'
   done
 }
 

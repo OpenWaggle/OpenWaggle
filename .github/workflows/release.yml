@@ -147,9 +147,6 @@ jobs:
             pnpm exec tsx scripts/app-release-state.ts validate-transition \
               --current "$CURRENT_VERSION" \
               --target "$RELEASE_TARGET_VERSION"
-            pnpm exec tsx scripts/app-release-state.ts verify-promotion \
-              --target "$RELEASE_TARGET_VERSION" \
-              --candidate HEAD
             VERSION="$RELEASE_TARGET_VERSION"
           elif [ "$RELEASE_SUBJECT_VERSION" = "$CURRENT_VERSION" ]; then
             VERSION="$CURRENT_VERSION"
@@ -163,10 +160,22 @@ jobs:
             exit 0
           fi
 
-          # Stable releases publish the hand-written CHANGELOG.md entry; fail before any branch,
-          # PR, or tag exists when it is missing.
+          # Stable gates run before any branch, PR, or tag exists. A Stable release publishes its
+          # hand-written CHANGELOG.md entry: an ordinary merge without one waits with a notice,
+          # while a dispatch or a merged release commit fails. The promotion guard requires an RC
+          # before a new major and RC-identical content after one.
           if [[ "$VERSION" != *-* ]]; then
-            pnpm exec tsx scripts/app-release-notes.ts check --version "$VERSION"
+            if ! pnpm exec tsx scripts/app-release-notes.ts check --version "$VERSION"; then
+              if [ -z "$RELEASE_TARGET_VERSION" ] && [ "$RELEASE_SUBJECT_VERSION" != "$VERSION" ]; then
+                echo "::notice::Stable ${VERSION} waits for its CHANGELOG.md entry; no release PR was prepared."
+                write_no_release_output
+                exit 0
+              fi
+              exit 1
+            fi
+            pnpm exec tsx scripts/app-release-state.ts verify-promotion \
+              --target "$VERSION" \
+              --candidate HEAD
           fi
 
           RELEASE_BRANCH="app-release-v${VERSION}"

@@ -11,7 +11,8 @@ export type UpdateRestartChoice = 'when-idle' | 'now' | 'cancel'
 
 /**
  * `installable`: a downloaded, channel-eligible update is ready. `pending`: the updater is
- * re-checking or re-downloading (a periodic or manual check); a Restart when idle wait survives it.
+ * re-checking or re-downloading (a periodic or manual check), or that check failed transiently; a
+ * Restart when idle wait survives it.
  * `none`: no eligible update remains, for example after the Update channel changed.
  */
 export type UpdateRestartState = 'installable' | 'pending' | 'none'
@@ -72,9 +73,19 @@ export function createUpdateRestartController(dependencies: UpdateRestartDepende
     }
   }
 
+  // A re-check in flight keeps the update pending; wait for it to settle instead of dropping intent.
+  const settledUpdateState = async () => {
+    let state = dependencies.updateState()
+    while (state === 'pending') {
+      await dependencies.wait(dependencies.pollIntervalMs)
+      state = dependencies.updateState()
+    }
+    return state
+  }
+
   const restartNow = async () => {
     stopWaiting()
-    if (dependencies.updateState() !== 'installable') return
+    if ((await settledUpdateState()) !== 'installable') return
     if ((await dependencies.countActiveRuns()) > 0) {
       await dependencies.interruptActiveRuns()
       let settledFor = 0

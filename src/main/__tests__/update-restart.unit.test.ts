@@ -128,6 +128,30 @@ describe('update restart policy', () => {
     expect(dependencies.install).not.toHaveBeenCalled()
   })
 
+  it('lets Restart now wait out a re-check instead of dropping the restart', async () => {
+    const states: UpdateRestartState[] = ['pending', 'pending', 'installable']
+    const { controller, events } = harness({
+      activeRuns: [0],
+      state: () => (states.length > 1 ? (states.shift() ?? 'installable') : 'installable'),
+    })
+
+    await controller.restartNow()
+
+    expect(events).toEqual(['install', 'waiting:none'])
+  })
+
+  it('does not install from Restart now when the re-check leaves no eligible update', async () => {
+    const states: UpdateRestartState[] = ['pending', 'none']
+    const { controller, dependencies } = harness({
+      activeRuns: [0],
+      state: () => (states.length > 1 ? (states.shift() ?? 'none') : 'none'),
+    })
+
+    await controller.restartNow()
+
+    expect(dependencies.install).not.toHaveBeenCalled()
+  })
+
   it('ignores a second Restart to update while the dialog is open', async () => {
     const { controller, dependencies } = harness({ activeRuns: [1], choice: 'cancel' })
     let answer: (choice: UpdateRestartChoice) => void = () => undefined

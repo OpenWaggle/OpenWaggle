@@ -72,8 +72,10 @@ unless the content of `main` equals the content of the last RC tag, except for t
 `website/src/content/docs/**`, `docs/**`, `.agents/**`, and top-level `*.md`). Renames count on both
 sides, so moving app code into an ignored path still blocks. A non-release change to app code
 during RC, such as a `chore(deps):` lockfile bump, blocks promotion until it is reverted or
-released as the next RC. A new major version (`X.0.0`) cannot be promoted without a
-`X.0.0-rc.N` tag; later minors and patches may release straight to Stable. The guard blocks
+released as the next RC. A new major version (`X.0.0`) cannot be released without a
+`X.0.0-rc.N` tag, including one computed from a breaking-change merge; later minors and patches may
+release straight to Stable. The guard runs before any Stable release PR exists and again before
+tagging. The guard blocks
 promotion only; it does not block merges.
 
 ### After 1.0.0
@@ -178,10 +180,11 @@ Updates download automatically in the background; installing is always a user ac
 - An update restart never silently interrupts an agent run. When the user chooses **Restart to
   update** and the Session Host has active runs in any session (window, Worker, or CLI-started),
   the app offers **Restart when idle** (default), **Restart now**, and **Cancel**.
-- Active runs include standalone compactions.
+- Active runs include standalone compactions; a Session counts once.
 - **Restart when idle** installs once the Session Host has no active run. Runs started after the
-  choice also count. The wait has no timeout and survives periodic or manual update checks; it ends
-  only when no eligible update remains, for example after the Update channel changes. The update
+  choice also count. The wait has no timeout and survives periodic or manual update checks,
+  including a check that fails transiently; it ends only when no eligible update remains, for
+  example after the Update channel changes. **Restart now** during such a check waits for it. The update
   action stays visible with the number of runs it is waiting for, so the user can still choose
   **Restart now**.
 - **Restart now** stops active runs and compactions through normal cancellation, recording them as
@@ -226,9 +229,10 @@ title so it produces a major version.
 
 - Prerelease builds use GitHub's generated release notes.
 - Stable releases get a hand-written `## X.Y.Z` entry in the root `CHANGELOG.md`, and the same text
-  is used as the GitHub Release notes (`scripts/app-release-notes.ts`). The release workflow fails
-  before creating a release PR, branch, or tag when a Stable version has no entry, so write the
-  entry on `main` first. `CHANGELOG.md` starts at `1.0.0`; it notes that earlier `0.x` builds
+  is used as the GitHub Release notes (`scripts/app-release-notes.ts`). No release PR, branch, or
+  tag is created for a Stable version without an entry: an ordinary merge records a notice and
+  waits, while a `target_version` dispatch or a merged release commit fails. Write the entry on
+  `main` first. `CHANGELOG.md` starts at `1.0.0`; it notes that earlier `0.x` builds
   used a legacy process and remain listed in GitHub Releases.
 - The `1.0.0` entry summarizes the whole v1 train, not only the last RC.
 
