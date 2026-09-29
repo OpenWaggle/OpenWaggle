@@ -192,6 +192,8 @@ export function useChatSendWorkflow(params: ChatSendWorkflowParams) {
       if (!draftBranchReady)
         throw new MessageNotDelivered('refused', 'Branch source is unavailable.')
 
+      // Cleared when the transcript holds the sent row, or below when the send throws. A send path
+      // that returns without a row and without throwing would leave it pending in this Session.
       params.setPendingSend(pendingSendAfter(params.messages))
       params.phase.reset()
       try {

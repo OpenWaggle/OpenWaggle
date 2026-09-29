@@ -13,16 +13,9 @@ import type { AgentTransportCustomEvent } from '@shared/types/stream'
 import type { TurnCheckpointSummary } from '@shared/types/turn-diff'
 import type { WaggleCollaborationStatus, WagglePreset } from '@shared/types/waggle'
 import type { AgentChatStatus, AgentCompactionStatus } from '../hooks/useAgentChat'
+import type { PendingSend } from '../lib/optimistic-user-message'
 import type { SessionForkTarget } from '../lib/session-fork-targets'
 import type { AgentInteractionEvent, ChatRow } from '../lib/types-chat-row'
-
-/**
- * A composer send the transcript is waiting to hold near the top. The latest user message when the
- * send began tells its optimistic row apart from earlier ones, which can keep optimistic ids.
- */
-export interface PendingSend {
-  readonly afterUserMessageId: string | null
-}
 
 /**
  * `loading` while the selected Session's detail or transcript has not hydrated yet, which must never

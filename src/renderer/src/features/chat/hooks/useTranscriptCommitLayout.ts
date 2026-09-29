@@ -31,6 +31,8 @@ export function useTranscriptCommitLayout(input: UseTranscriptCommitLayoutInput)
         return
       }
       session.anchorNewTurn(sentKey, input.keys[input.keys.indexOf(sentKey) - 1] ?? null)
+      // Consuming here, in the same layout flush, is what anchors a send once: a deferred consume
+      // would re-anchor it on every commit until the pending send cleared.
       input.onPendingSendConsumed()
     }
     session.syncRows(transcriptRowIndex(input.rows, input.keys))
