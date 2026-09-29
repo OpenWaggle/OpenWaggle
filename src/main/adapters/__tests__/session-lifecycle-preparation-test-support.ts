@@ -122,8 +122,8 @@ export function makeLifecyclePreparationLayer(
       get: () =>
         Effect.succeed({
           ...DEFAULT_SETTINGS,
-          ...settingsOverrides,
           selectedModel: SupportedModelId('provider/model'),
+          ...settingsOverrides,
           sessionHostParentConcurrencyLimitsByProject: { [projectPath]: 9 },
         }),
       update: () => Effect.void,

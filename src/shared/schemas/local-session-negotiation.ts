@@ -51,6 +51,7 @@ const [
   nativeActionsCapability,
   projectModelPersistenceCapability,
   launchStepsCapability,
+  hostStopCapability,
 ] = LOCAL_SESSION_CAPABILITIES
 
 const supportedRevisionListSchema = Schema.Array(
@@ -83,6 +84,7 @@ const currentCapabilitySchema = Schema.Tuple(
   Schema.Literal(nativeActionsCapability),
   Schema.Literal(projectModelPersistenceCapability),
   Schema.Literal(launchStepsCapability),
+  Schema.Literal(hostStopCapability),
 )
 
 export const localSessionNegotiationResultSchema: Schema.Schema<LocalSessionNegotiationResult> =

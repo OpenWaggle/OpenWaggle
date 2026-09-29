@@ -4,6 +4,10 @@ import type {
   LocalSessionClientFrame,
   LocalSessionServerFrame,
 } from '@shared/types/local-session-protocol'
+import * as Cause from 'effect/Cause'
+import * as Option from 'effect/Option'
+import * as Runtime from 'effect/Runtime'
+import { createLogger } from '../logger'
 import { LocalSessionAdmissionGate } from './local-session-admission-gate'
 import {
   type ActiveLocalSessionCommand,
@@ -31,7 +35,18 @@ import type {
   AuthenticatedLocalSessionCaller,
   LocalSessionServerDependencies,
 } from './local-session-server'
-import { describeLocalSessionServerError } from './local-session-server-frame'
+
+const logger = createLogger('session-host/connection')
+
+/** The failure code only; the error may carry the presented credential. */
+function authenticationFailureCode(error: unknown) {
+  const failure: unknown = Runtime.isFiberFailure(error)
+    ? Option.getOrUndefined(Cause.failureOption(error[Runtime.FiberFailureCauseId]))
+    : error
+  const code: unknown =
+    typeof failure === 'object' && failure !== null ? Reflect.get(failure, 'code') : undefined
+  return typeof code === 'string' ? code : 'unknown'
+}
 
 const DEFAULT_HANDSHAKE_TIMEOUT_MS = 5000
 
@@ -192,8 +207,14 @@ export class LocalSessionConnection {
       budget: this.authenticationBudget,
       signal: this.authenticationController.signal,
       send: (frame) => this.send(frame),
-      authenticationFailed: (error) =>
-        this.fail(undefined, 'authentication_failed', describeLocalSessionServerError(error)),
+      // Why authentication failed stays in the Host log: telling an unauthenticated peer
+      // whether a profile exists or was revoked would let it probe for profile names.
+      authenticationFailed: (error) => {
+        logger.warn('Local Session authentication failed', {
+          reason: authenticationFailureCode(error),
+        })
+        return this.fail(undefined, 'authentication_failed', 'Local Session authentication failed.')
+      },
     })
     if (result.status === 'closed') return
     this.caller = result.caller

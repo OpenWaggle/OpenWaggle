@@ -94,7 +94,8 @@ describe('Sessions CLI Host rejection', () => {
     expect(JSON.parse(String(vi.mocked(process.stderr.write).mock.calls[0]?.[0]))).toEqual({
       schemaVersion: 1,
       type: 'error',
-      error: { kind: 'authorization', message: 'An error has occurred' },
+      // A tagged error without a message is described by its code, not Effect's placeholder.
+      error: { kind: 'authorization', message: 'capability_denied' },
     })
     expect(exitCode).toBe(4)
     expect(process.stdout.write).not.toHaveBeenCalled()

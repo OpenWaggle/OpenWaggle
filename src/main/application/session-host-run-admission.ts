@@ -6,7 +6,9 @@ export class SessionHostDrainingError extends Error {
   readonly retryable = true
 
   constructor() {
-    super('The Session Host is draining and is not accepting new Runs or exports.')
+    super(
+      'The Session Host is stopping and is no longer accepting new work; try again once it has stopped.',
+    )
     this.name = 'SessionHostDrainingError'
   }
 }
@@ -25,4 +27,16 @@ export function acquireSessionHostRunLease(kind: 'run' | 'export') {
     },
     catch: () => new SessionHostDrainingError(),
   })
+}
+
+/**
+ * Waits can hold the Host open for many minutes, so a draining Host refuses them. The
+ * refusal is the retryable `host_draining` error, like any other refused work.
+ */
+export function acquireWaitLiveness(liveness: { acquire: (kind: 'wait') => () => void }) {
+  try {
+    return liveness.acquire('wait')
+  } catch {
+    throw new SessionHostDrainingError()
+  }
 }

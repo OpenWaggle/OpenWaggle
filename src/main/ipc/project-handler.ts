@@ -12,6 +12,7 @@ import {
   setProjectPreferencesOperation,
 } from '../application/project-preferences-operation'
 import { browserWindowFromWebContents, showMessageBox, showOpenDialog } from '../desktop-ui'
+import { takeOpenProjectRequest } from '../open-project-requests'
 import { validateProjectPath } from './project-path-validation'
 import { hostHandle, typedHandle } from './typed-ipc'
 
@@ -40,6 +41,8 @@ export function registerProjectHandlers(): void {
       return yield* Effect.promise(() => fs.realpath(pickedPath).catch(() => pickedPath))
     }),
   )
+
+  typedHandle('project:take-open-request', () => Effect.sync(takeOpenProjectRequest))
 
   hostHandle('project-config:get-preferences', (_event, projectPath: string) =>
     getProjectPreferencesOperation(projectPath),

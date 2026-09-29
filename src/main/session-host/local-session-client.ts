@@ -20,6 +20,7 @@ import {
   LOCAL_SESSION_AUTHORIZATION_GRANTS_REVISION,
   LOCAL_SESSION_COMPACTION_REVISION,
   LOCAL_SESSION_DESKTOP_SERVICE_REVISION,
+  LOCAL_SESSION_HOST_CONTROL_REVISION,
   LOCAL_SESSION_LEGACY_HOST_UI_REVISION,
   LOCAL_SESSION_MCP_AUTH_REVISION,
   LOCAL_SESSION_MCP_HOST_UI_REVISION,
@@ -84,6 +85,7 @@ function minimumHostUiRevision(channel: HostBackedGuiChannel) {
 
 function minimumProtocolRevision(payload: LocalSessionCommandPayload) {
   if (payload.contract === 'local-update-v1') return LOCAL_SESSION_UPDATE_REVISION
+  if (payload.contract === 'local-host-v1') return LOCAL_SESSION_HOST_CONTROL_REVISION
   if (payload.contract === 'desktop-service-v1') return LOCAL_SESSION_DESKTOP_SERVICE_REVISION
   if (
     payload.contract === 'session-control-v2' &&
@@ -110,6 +112,9 @@ function minimumProtocolRevision(payload: LocalSessionCommandPayload) {
 function unsupportedRevisionMessage(payload: LocalSessionCommandPayload) {
   if (payload.contract === 'local-update-v1') {
     return 'The connected Session Host does not support update channel commands.'
+  }
+  if (payload.contract === 'local-host-v1') {
+    return 'The connected Session Host does not support being stopped from the CLI.'
   }
   if (payload.contract === 'desktop-service-v1')
     return 'The connected Session Host does not support desktop services.'

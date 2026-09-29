@@ -17,7 +17,7 @@ import {
   markReportsDelivered,
   markSpecificationUpdatesDelivered,
 } from './session-control-run-context-delivery'
-import { publishRunFailure } from './session-control-run-result'
+import { publishRunFailure, publishRunStartFailure } from './session-control-run-result'
 import {
   narrowRunAuthorization,
   type ResolvedSessionRunExecution,
@@ -252,7 +252,9 @@ function runClassic(input: RegisteredRunInput, context: RegisteredRunContext) {
 
 export function executeRegisteredRun(input: RegisteredRunInput) {
   return Effect.gen(function* () {
-    const context = yield* loadRegisteredRunContext(input)
+    const context = yield* loadRegisteredRunContext(input).pipe(
+      Effect.tapError((error) => Effect.sync(() => publishRunStartFailure(input.request, error))),
+    )
     const waggle = input.request.intent.waggle
     return yield* waggle ? runQueuedWaggle(input, context, waggle) : runClassic(input, context)
   })

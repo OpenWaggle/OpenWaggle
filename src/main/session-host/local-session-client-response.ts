@@ -2,6 +2,7 @@ import { match } from '@diegogbrisa/ts-match'
 import { decodeUnknownExactOrThrow, Schema } from '@shared/schema'
 import { decodeDesktopServiceResponse } from '@shared/schemas/desktop-service'
 import { decodeHostUiV1Result } from '@shared/schemas/host-ui-protocol'
+import { decodeLocalHostResponse } from '@shared/schemas/local-host'
 import { decodeLocalSessionProfileManagementResponse } from '@shared/schemas/local-session-profile-management'
 import { decodeLocalUpdateResponse } from '@shared/schemas/local-update'
 import { decodeSessionControlMutationResponse } from '@shared/schemas/session-control'
@@ -168,6 +169,10 @@ function decodeCommandPayload(payload: Record<string, unknown>): LocalSessionCom
     .with('local-update-v1', () => ({
       contract: 'local-update-v1' as const,
       response: decodeLocalUpdateResponse(payload.response),
+    }))
+    .with('local-host-v1', () => ({
+      contract: 'local-host-v1' as const,
+      response: decodeLocalHostResponse(payload.response),
     }))
     .with('session-waggle-v1', () => {
       if (!isSessionWaggleResponse(payload.response)) throw new Error('Invalid Waggle response.')

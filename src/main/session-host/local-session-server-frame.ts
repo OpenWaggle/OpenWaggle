@@ -1,13 +1,80 @@
 import type { Socket } from 'node:net'
 import type { LocalSessionProfileManagementResponse } from '@shared/types/local-session-profile-management'
+import * as Cause from 'effect/Cause'
+import * as Option from 'effect/Option'
+import * as Runtime from 'effect/Runtime'
 import { encodeLocalSessionFrameSegments } from './local-session-framing'
 import {
   type LocalSessionOutboundByteBudget,
   LocalSessionOutboundCapacityError,
 } from './local-session-outbound-budget'
 
+/** The message Effect gives a tagged error that was created without one. */
+const EFFECT_DEFAULT_ERROR_MESSAGE = 'An error has occurred'
+
+function stringField(value: object, key: string) {
+  const field: unknown = Reflect.get(value, key)
+  return typeof field === 'string' && field.length > 0 ? field : undefined
+}
+
+const MAX_DESCRIBED_CAUSES = 3
+const MAX_DETAIL_LENGTH = 500
+/**
+ * Fields of a structured cause that identify what failed. Only these are shown, so a cause
+ * that carries credentials, settings, or payloads never reaches a client.
+ */
+const DESCRIBED_DETAIL_FIELDS = ['reason', 'projectPath', 'sessionId', 'workspaceId', 'runId']
+
+function describeDetails(value: object) {
+  const details = DESCRIBED_DETAIL_FIELDS.flatMap((key) => {
+    const field = stringField(value, key)
+    return field ? [`${key}=${field}`] : []
+  }).join(', ')
+  if (!details) return undefined
+  return details.length > MAX_DETAIL_LENGTH ? `${details.slice(0, MAX_DETAIL_LENGTH)}…` : details
+}
+
+function describeFailure(failure: unknown, depth = 0): string | undefined {
+  if (typeof failure !== 'object' || failure === null) {
+    return failure === undefined ? undefined : String(failure)
+  }
+  const message = stringField(failure, 'message')
+  if (message && message !== EFFECT_DEFAULT_ERROR_MESSAGE) return message
+  // A tagged error without a message still says what failed through its tag, code,
+  // operation, and underlying cause.
+  const tag = stringField(failure, '_tag')
+  const code = stringField(failure, 'code')
+  const label = [tag, code].filter(Boolean).join(': ')
+  const operation = stringField(failure, 'operation')
+  if (!tag && !code && !operation) return describeDetails(failure)
+  const cause: unknown = Reflect.get(failure, 'cause')
+  const reason = depth < MAX_DESCRIBED_CAUSES ? describeFailure(cause, depth + 1) : undefined
+  const described = [
+    label ? `${label}${operation ? ` (${operation})` : ''}` : operation,
+    reason,
+  ].filter(Boolean)
+  return described.length > 0 ? described.join(': ') : undefined
+}
+
+/** Shown when a failure names nothing safe to show; its details stay in the Host. */
+const UNDESCRIBED_FAILURE = 'The Session Host could not complete the request.'
+
 export function describeLocalSessionServerError(error: unknown) {
-  return error instanceof Error ? error.message : String(error)
+  const described = describeServerError(error)
+  return described.trim() === '' ? UNDESCRIBED_FAILURE : described
+}
+
+function describeServerError(error: unknown) {
+  if (!Runtime.isFiberFailure(error)) {
+    return describeFailure(error) ?? (error instanceof Error ? error.message : UNDESCRIBED_FAILURE)
+  }
+  // A FiberFailure prints its whole cause, including any object it carries, so only the
+  // failure or defect inside it is described.
+  const cause = error[Runtime.FiberFailureCauseId]
+  const failure =
+    Option.getOrUndefined(Cause.failureOption(cause)) ??
+    Option.getOrUndefined(Cause.dieOption(cause))
+  return describeFailure(failure) ?? UNDESCRIBED_FAILURE
 }
 
 function writeSocketSegment(socket: Socket, segment: Buffer): Promise<void> {
