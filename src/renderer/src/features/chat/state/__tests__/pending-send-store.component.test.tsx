@@ -55,6 +55,10 @@ describe('usePendingSend', () => {
     act(() => usePendingSendStore.getState().adoptDraft(S1))
     expect(usePendingSendStore.getState().bySession.get(String(S1))).toBe(SEND)
 
+    // Other chat-store updates while the Session stays open are not a leave.
+    act(() => useChatStore.setState({ error: null }))
+    expect(usePendingSendStore.getState().bySession.get(String(S1))).toBe(SEND)
+
     act(() => useChatStore.setState({ activeSessionId: S2 }))
     expect(usePendingSendStore.getState().bySession.get(String(S1))).toBeUndefined()
   })
