@@ -145,6 +145,38 @@ describe('TranscriptViewportController reader inside a sent turn', () => {
     expect(viewport.scrollTop).toBe(viewport.maxScrollTop())
   })
 
+  it('pairs the persisted copy after the row before it was re-keyed during the turn', () => {
+    const list: Array<[string, number]> = [
+      ['u1', 60],
+      ['a-stream', 100],
+      ['sent', 60],
+    ]
+    const viewport = fakeViewport(list)
+    const controller = new TranscriptViewportController(viewport.geometry)
+    controller.anchorNewTurn('sent', 'a-stream')
+
+    // The previous run's snapshot refresh re-keys its answer while the sent message is held.
+    const refreshed: Array<[string, number]> = [
+      ['u1', 60],
+      ['a-persisted', 100],
+      ['sent', 60],
+    ]
+    viewport.setRows(refreshed)
+    controller.syncRows(rowIndex(keysOf(refreshed), { users: ['u1', 'sent'] }))
+
+    const swapped: Array<[string, number]> = [
+      ['u1', 60],
+      ['a-persisted', 100],
+      ['sent-p', 60],
+    ]
+    viewport.setRows(swapped)
+    controller.syncRows(rowIndex(keysOf(swapped), { users: ['u1', 'sent-p'] }))
+    controller.applyLayout()
+
+    expect(controller.sentTurnKey).toBe('sent-p')
+    expect(viewport.rowTop('sent-p')).toBe(TOP)
+  })
+
   it('keeps holding the sent message when a steer arrives inside its turn', () => {
     const { viewport, controller } = reservedTurn()
 

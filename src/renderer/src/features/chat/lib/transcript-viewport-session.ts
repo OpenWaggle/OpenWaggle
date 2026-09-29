@@ -287,6 +287,7 @@ export class TranscriptViewportSession {
     if (this.scroller) {
       this.scroller.dataset.transcriptMode =
         mode.kind === 'following' ? mode.kind : `${mode.kind}:${mode.key}`
+      this.scroller.dataset.transcriptSentTurn = this.controller.sentTurnKey ?? ''
     }
     this.view.setShowScrollToBottom(
       !this.controller.isFollowing && this.controller.distanceToBottom() > NEAR_BOTTOM_PX,

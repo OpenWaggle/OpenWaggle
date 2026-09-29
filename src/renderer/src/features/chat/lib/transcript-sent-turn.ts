@@ -117,11 +117,19 @@ export class SentTurnHold {
   sync(index: TranscriptRowIndex, isMounted: (key: string) => boolean) {
     const turn = this.turn
     if (!turn) return null
-    const copy = isMounted(turn.key) ? null : persistedSentKey(turn, index)
-    const moved = copy !== null && isMounted(copy) ? copy : null
-    if (moved !== null) this.turn = { ...turn, key: moved }
-    this.hasWork = index.hasWorkAfter(moved ?? turn.key)
-    return moved
+    let next = turn
+    if (isMounted(turn.key)) {
+      // Track the row before the message as it is re-keyed (a finished run's snapshot refresh),
+      // so pairing only depends on the commit that swaps the message itself.
+      const at = index.keys.indexOf(turn.key)
+      if (at >= 0) next = { ...turn, precedingKey: index.keys[at - 1] ?? null }
+    } else {
+      const copy = persistedSentKey(turn, index)
+      if (copy !== null && isMounted(copy)) next = { ...turn, key: copy }
+    }
+    this.turn = next
+    this.hasWork = index.hasWorkAfter(next.key)
+    return next.key === turn.key ? null : next.key
   }
 
   /**

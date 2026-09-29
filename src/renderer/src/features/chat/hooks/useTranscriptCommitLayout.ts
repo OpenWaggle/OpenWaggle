@@ -25,16 +25,22 @@ interface UseTranscriptCommitLayoutInput {
 export function useTranscriptCommitLayout(input: UseTranscriptCommitLayoutInput) {
   const { session, sentKey } = input
   const previousSentKey = useRef(sentKey)
+  /** The latest user row from before the pending send; `null` while nothing is being sent. */
+  const sendBaseline = useRef<{ readonly key: string | null } | null>(null)
   useLayoutEffect(() => {
     session.setWindowHasLater(input.hasLater)
     /*
      * Only a user row that arrived with or after the send is the sent message. The send can
      * commit before its optimistic row does, and the latest user row is then the previous turn's.
+     * The baseline is kept until the send is anchored, so a capped window that first has to show
+     * its newest rows still anchors on the commit after.
      */
-    const sentArrived = sentKey !== previousSentKey.current
+    if (!input.userDidSend) sendBaseline.current = null
+    else sendBaseline.current ??= { key: previousSentKey.current }
     previousSentKey.current = sentKey
+    const sentArrived = sendBaseline.current !== null && sentKey !== sendBaseline.current.key
     const sentRowPresent = sentKey !== null && input.keys.includes(sentKey)
-    if (input.userDidSend && sentArrived && sentRowPresent) {
+    if (sentArrived && sentRowPresent) {
       if (input.hasLater) {
         input.showNewest()
         return

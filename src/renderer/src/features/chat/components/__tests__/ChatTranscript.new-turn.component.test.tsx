@@ -202,6 +202,29 @@ describe('ChatTranscript sent turn', () => {
     expect(layout.mode()).toBe('following')
   })
 
+  it('holds a message sent while reading older history once the newest rows mount', () => {
+    const older = Array.from({ length: 260 }, (_, index) => userMessage(`h${String(index)}`))
+    const onUserDidSendConsumed = vi.fn()
+    const view = render(
+      <ChatTranscript section={section(older.slice(0, 40), { isLoading: false })} />,
+    )
+    act(() => layout.userScroll(-300))
+    // Rows arriving under an anchored reader cap the window, so newer rows are not mounted.
+    view.rerender(<ChatTranscript section={section(older, { isLoading: false })} />)
+    expect(document.body.textContent).toContain('Load newer messages')
+
+    layout.setHeight('message:u2', 60)
+    const sent = [...older, userMessage('u2')]
+    view.rerender(
+      <ChatTranscript section={section(sent, { userDidSend: true, onUserDidSendConsumed })} />,
+    )
+    act(() => layout.flushScroll())
+
+    expect(layout.mode()).toBe('new-turn:message:u2')
+    expect(layout.rowTop('message:u2')).toBe(24)
+    expect(onUserDidSendConsumed).toHaveBeenCalled()
+  })
+
   it('rejoins the live end when the reader scrolls down to it', () => {
     const { sent, commit } = sendTurn()
     layout.setHeight('message:a2', 1400)

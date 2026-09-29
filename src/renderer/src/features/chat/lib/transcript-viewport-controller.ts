@@ -71,7 +71,7 @@ export class TranscriptViewportController {
     return this.currentMode.kind === 'following'
   }
 
-  /** The row key of the sent turn whose space is reserved, if any. */
+  /** The row key of the sent turn whose space is reserved, if any; mirrored for diagnosis. */
   get sentTurnKey() {
     return this.sent.current?.key ?? null
   }
