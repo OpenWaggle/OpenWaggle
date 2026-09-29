@@ -6,7 +6,7 @@ import { useTranscriptViewport } from '../hooks/useTranscriptViewport'
 import { useTranscriptWindowRange } from '../hooks/useTranscriptWindowRange'
 import { useTurnSettlePresentation } from '../hooks/useTurnSettlePresentation'
 import { chatRowKeys } from '../lib/transcript-row-keys'
-import { visibleMessageNodeIds } from '../lib/transcript-rows'
+import { latestTurnHasToolActivity, visibleMessageNodeIds } from '../lib/transcript-rows'
 import type { ChatRow } from '../lib/types-chat-row'
 import type { ChatRowRenderContext } from './ChatRowRenderContext'
 import { ScrollToBottomButton } from './ScrollToBottomButton'
@@ -73,6 +73,7 @@ export function TranscriptViewport({
     sentKey: lastUserMessageId ? `message:${lastUserMessageId}` : null,
     userDidSend,
     onUserDidSendConsumed,
+    latestTurnHasWork: latestTurnHasToolActivity(rows),
     hasLater: transcriptWindow.hasLater,
     showNewest: transcriptWindow.showNewest,
   })
@@ -141,6 +142,7 @@ export function TranscriptViewport({
 
       <ScrollToBottomButton
         visible={showScrollToBottom || transcriptWindow.hasLater}
+        working={isLoading}
         onClick={() => {
           if (transcriptWindow.hasLater) transcriptWindow.showNewest()
           session.scrollToBottom()

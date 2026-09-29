@@ -1,4 +1,4 @@
-import type { ViewportGeometry } from '../transcript-viewport-controller'
+import type { ViewportGeometry } from '../transcript-viewport-geometry'
 
 /** A column of rows with known heights, standing in for browser layout. */
 export function fakeViewport(rows: Array<[string, number]>, clientHeight = 500) {
@@ -32,6 +32,7 @@ export function fakeViewport(rows: Array<[string, number]>, clientHeight = 500) 
       const offset = offsetOf(key)
       return offset === null ? null : offset - scrollTop
     },
+    getRowHeight: (key) => list.find(([rowKey]) => rowKey === key)?.[1] ?? null,
     getFirstVisibleRow: () => {
       let offset = 0
       for (const [key, rowHeight] of list) {

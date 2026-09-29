@@ -4,10 +4,16 @@ import { Button } from '@/shared/ui/Button'
 
 interface ScrollToBottomButtonProps {
   readonly visible: boolean
+  /** A run is still producing output below the fold. */
+  readonly working?: boolean
   readonly onClick: () => void
 }
 
-export function ScrollToBottomButton({ visible, onClick }: ScrollToBottomButtonProps) {
+export function ScrollToBottomButton({
+  visible,
+  working = false,
+  onClick,
+}: ScrollToBottomButtonProps) {
   /*
    * Hidden means gone for input too. The wrapper faded out but the button kept
    * `pointer-events-auto`, so an invisible control over the bottom of the transcript swallowed
@@ -37,7 +43,14 @@ export function ScrollToBottomButton({ visible, onClick }: ScrollToBottomButtonP
           'focus-visible:outline-none',
         )}
         aria-label="Scroll to bottom"
+        data-working={working ? 'true' : undefined}
       >
+        {working ? (
+          <span
+            aria-hidden="true"
+            className="size-1.5 rounded-full bg-accent animate-pulse motion-reduce:animate-none"
+          />
+        ) : null}
         <ChevronDown className="size-3" />
         <span>Scroll to bottom</span>
       </Button>

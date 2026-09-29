@@ -30,7 +30,7 @@ Production-build measurements bound the cost of mounted rows: streaming stayed w
 
 - The saved position is the key of the row at the top of the viewport plus its offset within the viewport, stored per (Session, branch).
 - Returning rebuilds the window around the anchor, within the bound, and puts the anchored row back at the same offset, including rows deep in older history.
-- A reader who left pinned to the bottom returns pinned to the bottom.
+- A reader who left pinned to the bottom returns pinned to the bottom. A reader who left a held turn that had overflowed returns to its sent message.
 - A missing anchor (first visit, compaction replaced the row, branch gone) opens at the newest end.
 - Switching branch applies the same rules to the target branch; no window state carries across branches.
 
@@ -49,7 +49,14 @@ These ship with the window change because they share its render and scroll bound
 - Settle fold while the reader is elsewhere: instant, with the reader's anchored row held in place.
 - Any manual disclosure (turn fold, tool-call details, thinking, changed-files card): the toggled row stays under the pointer and stick-to-bottom is suspended for that size change, so expanding the last turn while pinned does not throw the reader to the end.
 
-**Sending holds the new turn near the top until the reader moves.** On every send the user's message settles near the top of the viewport with reserved space below, and the reply streams into that space. Tool activity does not release it. Once the reply outgrows the viewport it continues below the fold while the view stays still, and the scroll-to-bottom button appears. Scrolling down to the live end hands the turn over to following; scrolling up at any point stops auto-scroll. A reader who scrolls inside the turn keeps the reserved space: the reply consumes it as it grows, and it is never dropped under the reader, because dropping it made the browser clamp the scroll position and threw the turn down the screen. A settling fold under a held turn collapses the way it does for a follower. This matches ChatGPT and the Codex desktop app, whose response spacer shrinks by each growth delta, holds the viewport rather than following, and clears only when the reader reaches the bottom. T3 Code anchors only a thread's first message and follows the end once the turn overflows; anchoring every send and holding it are deliberate differences. An earlier version handed a sent turn over to following as soon as it overflowed or started a tool call, which removed the reserved space in one commit and moved the sent message down the screen mid-reply.
+**Sending holds the new turn near the top until it reaches the bottom of the viewport.** On every send the user's message settles near the top of the viewport with reserved space below, and the reply streams into that space. A message taller than the viewport is held with its bottom no lower than `max(viewport / 3, 240px)`, so its reply stays in view. Starting a tool call does not release the hold. When the turn's content reaches the bottom of the viewport:
+
+- A turn doing work (tool calls, a Waggle turn) is followed from there. The view is already at the end of the turn at that moment, so following only ever moves toward newer content.
+- A plain answer stays held and continues below the fold, with the scroll-to-bottom button showing that output is still arriving.
+
+Scrolling up at any point stops auto-scroll, and a reader who scrolled away is never pulled back. Scrolling down to the live end follows again. A reader who scrolls inside the turn keeps the reserved space, which tracks the turn's height, so the end of the transcript does not move under them. While the space remains, the end of it is the held turn, and returning there holds the turn again rather than following. The space goes away only with the turn's message itself (a refused send, or compaction). While a turn is held, the window is bounded like a follower's, so the reply mounts under the message instead of being capped. A settling fold under a held turn collapses the way it does for a follower. When the optimistic message is persisted under a new id, or a steer or Follow-up arrives while the turn is held, the hold moves to that latest user message.
+
+This follows the Codex desktop app's agent thread (`ChatGPT.app` 26.924, `local-conversation-thread-*.js`). There a send places a response spacer and enters a `static` follow mode; work starting (`prework`) moves it to `prework_watch`; the turn's content crossing the viewport bottom switches it to `prework_follow`, which clears the spacer and follows; and a turn without prework stays `static`. T3 Code anchors only a thread's first message and follows once the turn overflows, whatever it contains. Anchoring every send and holding plain answers are deliberate differences. An earlier version released the hold as soon as a tool call started, while the turn was still short. That dropped the reserved space in one commit, the browser clamped the scroll position, and the sent message jumped down the screen mid-reply.
 
 ## Consequences
 
@@ -57,7 +64,7 @@ The window and every scroll rule live in one controller (`transcript-viewport-co
 
 Row keys are unique per transcript (`chatRowKeys`); a repeated key is suffixed by occurrence, because an unreachable duplicate would break both the window and the anchor.
 
-A browser clamp is not a reader. Shrinking content makes the browser clamp `scrollTop` to the end, which fires a scroll event; resting exactly at the end therefore always rejoins the live end, and only an upward move inside the near-bottom band keeps a reader detached.
+A browser clamp is not a reader. Shrinking content makes the browser clamp `scrollTop` to the end, which fires a scroll event. Resting exactly at the end therefore always rejoins it: the live end, or a held turn when its reserved space ends there. Only an upward move inside the near-bottom band keeps a reader detached. A clamp that leaves a held turn where the controller put it is layout too.
 
 The persisted copy of a just-completed turn replaces its optimistic user message under a new id. Fold state is keyed by that id, so the fold survives through an alias derived from the live message list (`turn-fold-aliases.ts`). Row identity still changes across that swap, which remounts the turn's rows once; the anchor recovers because the geometry is unchanged.
 

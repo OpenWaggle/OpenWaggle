@@ -1,3 +1,6 @@
+import { measureSentTurn, type SentTurn } from './transcript-sent-turn'
+import type { ViewportGeometry } from './transcript-viewport-geometry'
+
 /**
  * Where the transcript viewport goes when its content or size changes (ADR 0036).
  *
@@ -9,9 +12,10 @@
  * - `anchored`: a row, identified by key, is held at a fixed offset from the viewport top.
  * - `new-turn`: the message just sent is held near the top while its reply streams in below.
  *
- * A sent turn stays held until the reader moves (ChatGPT and Codex behave the same way): its
- * reply fills the space reserved under it, then grows below the fold without moving the view.
- * Scrolling down to the live end is what hands the turn over to following.
+ * A sent turn is held until its content reaches the bottom of the viewport, the way the Codex
+ * desktop app does. From there a turn doing work (tool calls, a Waggle turn) is followed, and a
+ * plain answer keeps its message in place and continues below the fold. Scrolling at any point
+ * stops that; scrolling down to the live end follows again.
  *
  * DOM access goes through `ViewportGeometry` so the rules are testable without layout.
  */
@@ -21,20 +25,6 @@ export const NEAR_BOTTOM_PX = 64
 export const NEW_TURN_TOP_OFFSET_PX = 24
 const SCROLL_ECHO_TOLERANCE_PX = 1
 const ANCHOR_TOLERANCE_PX = 0.5
-
-export interface ViewportGeometry {
-  getScrollTop(): number
-  setScrollTop(value: number): void
-  getClientHeight(): number
-  /** Scrollable height excluding the reserved end space. */
-  getContentHeight(): number
-  /** Reserves space after the last row so a sent message can sit near the top. */
-  setEndSpace(height: number): void
-  /** Top of the row with this key relative to the viewport top, or `null` when not mounted. */
-  getRowTop(key: string): number | null
-  /** The first row whose bottom is below the viewport top. */
-  getFirstVisibleRow(): { readonly key: string; readonly top: number } | null
-}
 
 export type ViewportMode =
   | { readonly kind: 'following' }
@@ -50,10 +40,12 @@ export class TranscriptViewportController {
   private currentMode: ViewportMode = { kind: 'following' }
   /*
    * The sent turn whose reply space is still reserved. It outlives the `new-turn` mode while the
-   * reader scrolls around inside that turn, so the space is only ever consumed by the reply, never
-   * dropped under the reader: dropping it clamped the view and threw the turn down the screen.
+   * reader scrolls around inside that turn, so the space tracks the turn instead of being dropped
+   * under the reader: dropping it clamped the view and threw the turn down the screen.
    */
-  private reservation: { readonly key: string; readonly top: number } | null = null
+  private reservation: SentTurn | null = null
+  /** Whether the latest turn is doing work (tool calls, a Waggle turn) rather than only answering. */
+  private latestTurnHasWork = false
   private expectedScrollTop: number | null = null
   private lastObservedScrollTop = 0
   /** Whether the view rested exactly at the end after the last layout or scroll. */
@@ -83,6 +75,10 @@ export class TranscriptViewportController {
 
   get isFollowing() {
     return this.currentMode.kind === 'following'
+  }
+
+  setLatestTurnHasWork(hasWork: boolean) {
+    this.latestTurnHasWork = hasWork
   }
 
   /** Whether a sent turn is held near the top, which is where the reader is looking. */
@@ -130,16 +126,19 @@ export class TranscriptViewportController {
     this.applyLayout()
   }
 
-  /** The row key of the sent turn whose reply space is reserved, if any. */
-  get sentTurnKey() {
-    return this.reservation?.key ?? null
-  }
-
-  /** The sent message now lives under another row key: its optimistic copy was persisted. */
-  replaceSentTurn(key: string) {
-    if (!this.reservation) return
-    this.reservation = { key, top: this.reservation.top }
-    if (this.currentMode.kind === 'new-turn') this.currentMode = { ...this.currentMode, key }
+  /**
+   * Moves the reserved turn to the latest user message: the persisted copy of an optimistic one,
+   * or a steer or Follow-up that arrived while the turn was held (Codex re-places those too). A
+   * reader who scrolled inside the turn keeps it until its message is really gone.
+   */
+  reconcileSentTurn(latestKey: string | null) {
+    const reservation = this.reservation
+    if (!reservation || latestKey === null || latestKey === reservation.key) return
+    if (!this.hasMountedRow(latestKey)) return
+    if (this.currentMode.kind !== 'new-turn' && this.hasMountedRow(reservation.key)) return
+    this.reservation = { key: latestKey, top: reservation.top }
+    if (this.currentMode.kind === 'new-turn')
+      this.currentMode = { ...this.currentMode, key: latestKey }
   }
 
   /** Ends a disclosure hold; a reader left at the live end resumes following it. */
@@ -180,10 +179,11 @@ export class TranscriptViewportController {
     this.expectedScrollTop = null
     this.holding = false
     /*
-     * Resting exactly at the end always rejoins it: shrinking content makes the browser clamp the
-     * scroll position there, which is not the reader scrolling up. Within the rest of the
-     * near-bottom band only a move toward the end rejoins, or a reader nudging upward during a
-     * stream would be pulled back down by the next token.
+     * Resting exactly at the end always rejoins it (following, or the held turn whose reserved
+     * space ends there): shrinking content makes the browser clamp the scroll position there,
+     * which is not the reader scrolling up. Within the rest of the near-bottom band only a move
+     * toward the end rejoins, or a reader nudging upward during a stream would be pulled back
+     * down by the next token.
      */
     const distance = this.distanceToBottom()
     const movingUp = scrollTop < previous - SCROLL_ECHO_TOLERANCE_PX
@@ -225,8 +225,8 @@ export class TranscriptViewportController {
       this.write(this.maxScrollTop())
       return
     }
-    // The reply consumes the reserved space as it grows; the space is never dropped under a reader.
-    this.setEndSpace(Math.min(this.endSpace, this.reservedSpace()))
+    // The reserved space tracks the turn under a reader inside it, so the end never moves.
+    this.setEndSpace(this.reservedSpace())
     const top = this.geometry.getRowTop(mode.key)
     if (top === null) {
       // The anchored row left the DOM (released from the window, compacted away); hold the next one.
@@ -246,49 +246,50 @@ export class TranscriptViewportController {
   }
 
   /**
-   * Holds the sent message near the top. The reply streams into the space reserved below it; once
-   * it outgrows the viewport it continues below the fold and the view stays where it is.
+   * Holds the sent message near the top while its reply streams into the space reserved below.
+   * Work that reaches the bottom of the viewport is followed from there; the view is already at
+   * the end of the turn then, so nothing moves. A plain answer stays held and continues below.
    */
   private applyNewTurn(mode: Extract<ViewportMode, { kind: 'new-turn' }>) {
-    const rowTop = this.geometry.getRowTop(mode.key)
-    if (rowTop === null) {
-      // The sent row left the DOM without a replacement: hold what the reader sees instead.
+    const layout = measureSentTurn(this.geometry, mode)
+    if (!layout) {
+      // The sent row left the DOM without a replacement (a refused send, compaction): its reply
+      // space goes with it, and the reader's view is held by whatever row is visible.
       this.reservation = null
       this.captureReadingPosition()
       this.applyMode()
       return
     }
-    const rowContentTop = this.geometry.getScrollTop() + rowTop
-    this.setEndSpace(this.reservedSpace())
-    this.write(rowContentTop - mode.top)
+    if (layout.overflows && this.latestTurnHasWork) {
+      this.enterFollowing()
+      this.applyMode()
+      return
+    }
+    this.setEndSpace(layout.reservedSpace)
+    this.write(layout.heldScrollTop)
   }
 
-  /** The space that keeps the reserved sent turn near the top, or 0 once its reply fills the view. */
+  /** The space that keeps the reserved sent turn in place, or 0 once it fills the viewport. */
   private reservedSpace() {
-    const reservation = this.reservation
-    const rowTop = reservation ? this.geometry.getRowTop(reservation.key) : null
-    if (!reservation || rowTop === null) return 0
-    const rowContentTop = this.geometry.getScrollTop() + rowTop
-    const turnHeight = this.geometry.getContentHeight() - rowContentTop
-    return Math.max(0, this.geometry.getClientHeight() - reservation.top - turnHeight)
+    const layout = this.reservation ? measureSentTurn(this.geometry, this.reservation) : null
+    return layout?.reservedSpace ?? 0
   }
 
   /** Whether the held sent turn sits where the controller put it, allowing for a browser clamp. */
   private isAtNewTurnPosition(mode: Extract<ViewportMode, { kind: 'new-turn' }>) {
-    const rowTop = this.geometry.getRowTop(mode.key)
-    if (rowTop === null) return false
-    const scrollTop = this.geometry.getScrollTop()
-    const target = Math.min(Math.max(0, scrollTop + rowTop - mode.top), this.maxScrollTop())
-    return Math.abs(scrollTop - target) <= SCROLL_ECHO_TOLERANCE_PX
+    const layout = measureSentTurn(this.geometry, mode)
+    if (!layout) return false
+    const target = Math.min(Math.max(0, layout.heldScrollTop), this.maxScrollTop())
+    return Math.abs(this.geometry.getScrollTop() - target) <= SCROLL_ECHO_TOLERANCE_PX
   }
 
   /**
-   * A reader back at the end. While a sent turn still has reserved space, the end of that space is
-   * the held turn itself; following would drop the space and move the turn down the screen.
+   * A reader back at the end. While a sent turn still reserves space, the end of that space is the
+   * held turn itself; following would drop the space and move the turn down the screen.
    */
   private rejoinEnd() {
     const reservation = this.reservation
-    if (reservation && this.endSpace > 0 && this.geometry.getRowTop(reservation.key) !== null) {
+    if (reservation && this.reservedSpace() > 0) {
       this.currentMode = { kind: 'new-turn', key: reservation.key, top: reservation.top }
       return
     }

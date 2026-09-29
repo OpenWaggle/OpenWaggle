@@ -40,7 +40,10 @@ export interface TranscriptViewportView {
   readonly setShowScrollbar: (visible: boolean) => void
   /** The row a pending restore is waiting for, so the window can be built around it. */
   readonly setPendingRestoreKey: (key: string | null) => void
-  /** Whether the reader follows the live end, so the window can be bounded during render. */
+  /**
+   * Whether the window is bounded like a follower's, during render: the reader follows the live
+   * end, or a held sent turn is receiving its reply (which must mount under it, not be capped).
+   */
   readonly setFollowing: (following: boolean) => void
 }
 
@@ -233,9 +236,13 @@ export class TranscriptViewportSession {
     this.syncButton()
   }
 
-  replaceSentTurn(key: string) {
-    this.controller.replaceSentTurn(key)
-    this.syncButton()
+  /** Tells the controller whether the latest turn is doing work, which it follows once overflowing. */
+  setLatestTurnHasWork(hasWork: boolean) {
+    this.controller.setLatestTurnHasWork(hasWork)
+  }
+
+  reconcileSentTurn(latestKey: string | null) {
+    this.controller.reconcileSentTurn(latestKey)
   }
 
   dispose() {
@@ -276,7 +283,7 @@ export class TranscriptViewportSession {
   }
 
   private syncButton() {
-    this.view.setFollowing(this.controller.isFollowing)
+    this.view.setFollowing(this.controller.isFollowing || this.controller.isHoldingSentTurn)
     // Mirrors the mode for tests and diagnosis; written directly, so it costs no render.
     const mode = this.controller.mode
     if (this.scroller) {

@@ -5,57 +5,111 @@ import {
 } from '../transcript-viewport-controller'
 import { fakeViewport, rows } from './transcript-viewport.fixtures'
 
+const TOP = NEW_TURN_TOP_OFFSET_PX
+
+function sentTurn(reply: number | null, options: { readonly work?: boolean } = {}) {
+  const turn: Array<[string, number]> = [['sent', 60]]
+  if (reply !== null) turn.push(['reply', reply])
+  const viewport = fakeViewport([...rows(10), ...turn])
+  const controller = new TranscriptViewportController(viewport.geometry)
+  controller.setLatestTurnHasWork(options.work ?? false)
+  controller.anchorNewTurn('sent')
+  const grow = (height: number) => {
+    viewport.setRows([...rows(10), ['sent', 60], ['reply', height]])
+    controller.applyLayout()
+  }
+  return { viewport, controller, grow }
+}
+
 describe('TranscriptViewportController sent turn', () => {
   it('pins a sent message near the top and reserves space for the reply', () => {
-    const viewport = fakeViewport([...rows(10), ['sent', 60]])
-    const controller = new TranscriptViewportController(viewport.geometry)
-    controller.anchorNewTurn('sent')
+    const { viewport, grow } = sentTurn(null)
+    expect(viewport.rowTop('sent')).toBe(TOP)
+    expect(viewport.endSpace).toBe(500 - TOP - 60)
 
-    expect(viewport.rowTop('sent')).toBe(NEW_TURN_TOP_OFFSET_PX)
-    expect(viewport.endSpace).toBe(500 - NEW_TURN_TOP_OFFSET_PX - 60)
-
-    viewport.setRows([...rows(10), ['sent', 60], ['reply', 200]])
-    controller.applyLayout()
-    expect(viewport.rowTop('sent')).toBe(NEW_TURN_TOP_OFFSET_PX)
-    expect(viewport.endSpace).toBe(500 - NEW_TURN_TOP_OFFSET_PX - 260)
+    grow(200)
+    expect(viewport.rowTop('sent')).toBe(TOP)
+    expect(viewport.endSpace).toBe(500 - TOP - 260)
   })
 
-  it('holds a sent turn in place once its reply outgrows the viewport', () => {
-    const viewport = fakeViewport([...rows(10), ['sent', 60]])
+  it('keeps a working turn held until it reaches the bottom of the viewport', () => {
+    const { viewport, controller, grow } = sentTurn(100, { work: true })
+    grow(300)
+    expect(controller.isHoldingSentTurn).toBe(true)
+    expect(viewport.rowTop('sent')).toBe(TOP)
+  })
+
+  it('follows a working turn from the moment it reaches the bottom of the viewport', () => {
+    const { viewport, controller, grow } = sentTurn(100, { work: true })
+    const heldScrollTop = viewport.scrollTop
+
+    grow(900)
+
+    expect(controller.isFollowing).toBe(true)
+    expect(viewport.endSpace).toBe(0)
+    expect(viewport.scrollTop).toBe(viewport.maxScrollTop())
+    // Following starts at the end of the turn, so the view only ever moves toward newer content.
+    expect(viewport.scrollTop).toBeGreaterThanOrEqual(heldScrollTop)
+  })
+
+  it('holds a plain answer in place once it outgrows the viewport', () => {
+    const { viewport, controller, grow } = sentTurn(null)
+    grow(900)
+
+    expect(controller.isHoldingSentTurn).toBe(true)
+    expect(viewport.endSpace).toBe(0)
+    expect(viewport.rowTop('sent')).toBe(TOP)
+
+    grow(1500)
+    expect(viewport.rowTop('sent')).toBe(TOP)
+  })
+
+  it('follows a held plain answer that starts working only once it reaches the bottom', () => {
+    const { viewport, controller, grow } = sentTurn(100)
+    controller.setLatestTurnHasWork(true)
+    grow(200)
+    expect(viewport.rowTop('sent')).toBe(TOP)
+
+    grow(900)
+    expect(controller.isFollowing).toBe(true)
+  })
+
+  it('never pulls a reader who scrolled away back to a working turn', () => {
+    const { viewport, controller, grow } = sentTurn(100, { work: true })
+    viewport.userScrollTo(viewport.scrollTop - 150)
+    controller.handleScroll()
+
+    grow(900)
+
+    expect(controller.mode.kind).toBe('anchored')
+    expect(viewport.rowTop('sent')).toBe(TOP + 150)
+  })
+
+  it('keeps the reply of a message taller than the viewport in view', () => {
+    const viewport = fakeViewport([...rows(10), ['sent', 800], ['reply', 100]])
     const controller = new TranscriptViewportController(viewport.geometry)
     controller.anchorNewTurn('sent')
 
-    viewport.setRows([...rows(10), ['sent', 60], ['reply', 900]])
-    controller.applyLayout()
-
-    expect(controller.isFollowing).toBe(false)
+    const sentTop = viewport.rowTop('sent') ?? 0
+    // The message's bottom sits no lower than 240px, like Codex, leaving the rest for the reply.
+    expect(sentTop + 800).toBe(240)
+    expect(viewport.rowTop('reply')).toBe(240)
     expect(controller.isHoldingSentTurn).toBe(true)
-    expect(viewport.endSpace).toBe(0)
-    expect(viewport.rowTop('sent')).toBe(NEW_TURN_TOP_OFFSET_PX)
-
-    viewport.setRows([...rows(10), ['sent', 60], ['reply', 1500]])
-    controller.applyLayout()
-    expect(viewport.rowTop('sent')).toBe(NEW_TURN_TOP_OFFSET_PX)
   })
 
   it('hands a held sent turn over to following when the reader scrolls to the live end', () => {
-    const viewport = fakeViewport([...rows(10), ['sent', 60], ['reply', 900]])
-    const controller = new TranscriptViewportController(viewport.geometry)
-    controller.anchorNewTurn('sent')
+    const { viewport, controller, grow } = sentTurn(900)
 
     viewport.userScrollTo(viewport.maxScrollTop())
     controller.handleScroll()
     expect(controller.isFollowing).toBe(true)
 
-    viewport.setRows([...rows(10), ['sent', 60], ['reply', 1200]])
-    controller.applyLayout()
+    grow(1200)
     expect(viewport.scrollTop).toBe(viewport.maxScrollTop())
   })
 
   it('treats a clamp at the held sent turn as layout, not the reader leaving', () => {
-    const viewport = fakeViewport([...rows(10), ['sent', 60], ['reply', 900]])
-    const controller = new TranscriptViewportController(viewport.geometry)
-    controller.anchorNewTurn('sent')
+    const { viewport, controller } = sentTurn(900)
 
     // The reply shrinks (its work folds), and the browser clamps before the next layout runs.
     viewport.setRows([...rows(10), ['sent', 60], ['reply', 100]])
@@ -63,66 +117,28 @@ describe('TranscriptViewportController sent turn', () => {
     expect(controller.isHoldingSentTurn).toBe(true)
 
     controller.applyLayout()
-    expect(viewport.rowTop('sent')).toBe(NEW_TURN_TOP_OFFSET_PX)
-    expect(viewport.endSpace).toBe(500 - NEW_TURN_TOP_OFFSET_PX - 160)
+    expect(viewport.rowTop('sent')).toBe(TOP)
+    expect(viewport.endSpace).toBe(500 - TOP - 160)
   })
 
-  it('keeps the reserved space under a reader who scrolls up during the reply', () => {
-    const viewport = fakeViewport([...rows(10), ['sent', 60], ['reply', 100]])
-    const controller = new TranscriptViewportController(viewport.geometry)
-    controller.anchorNewTurn('sent')
-
-    viewport.userScrollTo(viewport.scrollTop - 150)
+  it('ignores a scroll event at the held position of an overflowing plain answer', () => {
+    const { controller } = sentTurn(900)
+    // Not at the end and not moved: a late echo or a redundant event, not the reader.
     controller.handleScroll()
-    controller.applyLayout()
-    const readerTop = NEW_TURN_TOP_OFFSET_PX + 150
-    expect(viewport.rowTop('sent')).toBe(readerTop)
-
-    // The reply consumes the reserved space as it grows; the reader's row does not move.
-    viewport.setRows([...rows(10), ['sent', 60], ['reply', 200]])
-    controller.applyLayout()
-    expect(viewport.rowTop('sent')).toBe(readerTop)
-    expect(viewport.endSpace).toBe(500 - NEW_TURN_TOP_OFFSET_PX - 260)
+    expect(controller.isHoldingSentTurn).toBe(true)
   })
 
-  it('returns to the held sent turn when the reader scrolls back into its reserved space', () => {
-    const viewport = fakeViewport([...rows(10), ['sent', 60], ['reply', 100]])
-    const controller = new TranscriptViewportController(viewport.geometry)
-    controller.anchorNewTurn('sent')
+  it('saves a held, overflowing sent turn as the reading position', () => {
+    const { viewport, controller } = sentTurn(900)
+    expect(controller.readingPosition()).toEqual({ key: 'sent', top: TOP })
 
-    viewport.userScrollTo(viewport.scrollTop - 150)
-    controller.handleScroll()
     viewport.userScrollTo(viewport.maxScrollTop())
     controller.handleScroll()
-
-    expect(controller.isHoldingSentTurn).toBe(true)
-    controller.applyLayout()
-    expect(viewport.rowTop('sent')).toBe(NEW_TURN_TOP_OFFSET_PX)
-    expect(viewport.endSpace).toBeGreaterThan(0)
-  })
-
-  it('moves the held sent turn to the persisted copy of its message', () => {
-    const viewport = fakeViewport([...rows(10), ['optimistic', 60], ['reply', 100]])
-    const controller = new TranscriptViewportController(viewport.geometry)
-    controller.anchorNewTurn('optimistic')
-
-    viewport.setRows([...rows(10), ['persisted', 60], ['reply', 100]])
-    controller.replaceSentTurn('persisted')
-    controller.applyLayout()
-
-    expect(controller.sentTurnKey).toBe('persisted')
-    expect(controller.mode).toEqual({
-      kind: 'new-turn',
-      key: 'persisted',
-      top: NEW_TURN_TOP_OFFSET_PX,
-    })
-    expect(viewport.rowTop('persisted')).toBe(NEW_TURN_TOP_OFFSET_PX)
+    expect(controller.readingPosition()).toBeNull()
   })
 
   it('holds what the reader sees when the held sent row leaves the DOM', () => {
-    const viewport = fakeViewport([...rows(10), ['sent', 60], ['reply', 900]])
-    const controller = new TranscriptViewportController(viewport.geometry)
-    controller.anchorNewTurn('sent')
+    const { viewport, controller } = sentTurn(900)
     const scrollTop = viewport.scrollTop
 
     viewport.setRows([...rows(10), ['other', 60], ['reply', 900]])
