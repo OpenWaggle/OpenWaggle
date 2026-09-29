@@ -37,6 +37,7 @@ export function createUpdateRestartController(dependencies: UpdateRestartDepende
   let waitGeneration = 0
   let waiting = false
   let choosing = false
+  let restarting = false
 
   const stopWaiting = () => {
     waitGeneration += 1
@@ -73,19 +74,19 @@ export function createUpdateRestartController(dependencies: UpdateRestartDepende
     }
   }
 
-  // A re-check in flight keeps the update pending; wait for it to settle instead of dropping intent.
+  // A re-check in flight keeps the update pending; give it a bounded time to settle.
   const settledUpdateState = async () => {
     let state = dependencies.updateState()
-    while (state === 'pending') {
+    let waitedFor = 0
+    while (state === 'pending' && waitedFor < dependencies.interruptSettleTimeoutMs) {
       await dependencies.wait(dependencies.pollIntervalMs)
+      waitedFor += dependencies.pollIntervalMs
       state = dependencies.updateState()
     }
     return state
   }
 
-  const restartNow = async () => {
-    stopWaiting()
-    if ((await settledUpdateState()) !== 'installable') return
+  const interruptAndInstall = async () => {
     if ((await dependencies.countActiveRuns()) > 0) {
       await dependencies.interruptActiveRuns()
       let settledFor = 0
@@ -100,9 +101,24 @@ export function createUpdateRestartController(dependencies: UpdateRestartDepende
     await install()
   }
 
+  const restartNow = async () => {
+    if (restarting) return
+    restarting = true
+    try {
+      const state = await settledUpdateState()
+      // Still re-checking: never interrupt runs later without the user seeing it. Any Restart when
+      // idle wait keeps running and remains visible once the update is downloaded again.
+      if (state === 'pending') return
+      stopWaiting()
+      if (state === 'installable') await interruptAndInstall()
+    } finally {
+      restarting = false
+    }
+  }
+
   /** The Restart to update action. */
   const requestRestart = async () => {
-    if (waiting || choosing || dependencies.updateState() !== 'installable') return
+    if (waiting || choosing || restarting || dependencies.updateState() !== 'installable') return
     const activeRuns = await dependencies.countActiveRuns()
     if (activeRuns === 0) {
       await install()

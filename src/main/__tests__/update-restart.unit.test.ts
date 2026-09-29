@@ -152,6 +152,54 @@ describe('update restart policy', () => {
     expect(dependencies.install).not.toHaveBeenCalled()
   })
 
+  it('gives up on Restart now after a bounded re-check and keeps the idle wait', async () => {
+    let state: UpdateRestartState = 'installable'
+    const { controller, dependencies, events } = harness({
+      activeRuns: [1],
+      choice: 'when-idle',
+      state: () => state,
+    })
+    const pendingWaits: Array<() => void> = []
+    dependencies.wait.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          pendingWaits.push(resolve)
+        }),
+    )
+    await controller.requestRestart()
+    await settle()
+    state = 'pending'
+    dependencies.wait.mockImplementation(() => Promise.resolve())
+
+    await controller.restartNow()
+
+    expect(dependencies.wait).toHaveBeenCalledTimes(1 + 100 / 10)
+    expect(dependencies.install).not.toHaveBeenCalled()
+    expect(events).not.toContain('waiting:none')
+  })
+
+  it('ignores Restart to update while Restart now is settling', async () => {
+    let state: UpdateRestartState = 'pending'
+    const { controller, dependencies } = harness({ activeRuns: [0], state: () => state })
+    let release: () => void = () => undefined
+    dependencies.wait.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          release = resolve
+        }),
+    )
+
+    const restarting = controller.restartNow()
+    await settle()
+    state = 'installable'
+    await controller.requestRestart()
+    release()
+    await restarting
+
+    expect(dependencies.chooseRestart).not.toHaveBeenCalled()
+    expect(dependencies.install).toHaveBeenCalledOnce()
+  })
+
   it('ignores a second Restart to update while the dialog is open', async () => {
     const { controller, dependencies } = harness({ activeRuns: [1], choice: 'cancel' })
     let answer: (choice: UpdateRestartChoice) => void = () => undefined

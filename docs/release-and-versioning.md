@@ -184,7 +184,9 @@ Updates download automatically in the background; installing is always a user ac
 - **Restart when idle** installs once the Session Host has no active run. Runs started after the
   choice also count. The wait has no timeout and survives periodic or manual update checks,
   including a check that fails transiently; it ends only when no eligible update remains, for
-  example after the Update channel changes. **Restart now** during such a check waits for it. The update
+  example after the Update channel changes. **Restart now** during such a check waits up to 30
+  seconds for it; if the check is still running, nothing is interrupted and any Restart when idle
+  wait continues. The update
   action stays visible with the number of runs it is waiting for, so the user can still choose
   **Restart now**.
 - **Restart now** stops active runs and compactions through normal cancellation, recording them as
