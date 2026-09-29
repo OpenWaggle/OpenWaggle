@@ -44,6 +44,13 @@ export function buildClientUserMessage(payload: AgentSendPayload) {
     .join('\n\n')
 }
 
+const OPTIMISTIC_USER_MESSAGE_ID_PREFIX = 'optimistic-user-'
+
+/** Whether a user message is the renderer's optimistic copy of a send, not yet persisted. */
+export function isOptimisticUserMessageId(id: string) {
+  return id.startsWith(OPTIMISTIC_USER_MESSAGE_ID_PREFIX)
+}
+
 export function createOptimisticUserMessage(payload: AgentSendPayload): UIMessage {
   optimisticUserMessageCounter += 1
   const imageParts: UIMessage['parts'] = payload.attachments.flatMap((attachment, index) => {
@@ -61,7 +68,7 @@ export function createOptimisticUserMessage(payload: AgentSendPayload): UIMessag
   })
 
   return {
-    id: `optimistic-user-${Date.now()}-${String(optimisticUserMessageCounter)}`,
+    id: `${OPTIMISTIC_USER_MESSAGE_ID_PREFIX}${Date.now()}-${String(optimisticUserMessageCounter)}`,
     role: 'user',
     parts: [...imageParts, ...buildClientUserMessageParts(payload)],
     createdAt: new Date(),

@@ -9,6 +9,8 @@ interface UseTranscriptCommitLayoutInput {
   readonly keys: readonly string[]
   /** Row key of the latest user message. */
   readonly sentKey: string | null
+  /** Whether the latest user message is the optimistic copy of a send. */
+  readonly sentIsOptimistic: boolean
   readonly userDidSend: boolean
   readonly onUserDidSendConsumed: () => void
   readonly hasLater: boolean
@@ -24,27 +26,28 @@ interface UseTranscriptCommitLayoutInput {
  */
 export function useTranscriptCommitLayout(input: UseTranscriptCommitLayoutInput) {
   const { session, sentKey } = input
-  const previousSentKey = useRef(sentKey)
-  /** The latest user row from before the pending send; `null` while nothing is being sent. */
-  const sendBaseline = useRef<{ readonly key: string | null } | null>(null)
+  /** The sent row this viewport last held, so a send is anchored once. */
+  const anchoredSentKey = useRef<string | null>(null)
   useLayoutEffect(() => {
     session.setWindowHasLater(input.hasLater)
     /*
-     * Only a user row that arrived with or after the send is the sent message. The send can
-     * commit before its optimistic row does, and the latest user row is then the previous turn's.
-     * The baseline is kept until the send is anchored, so a capped window that first has to show
-     * its newest rows still anchors on the commit after.
+     * The sent message is the optimistic copy of the send, not merely the latest user row. The
+     * send can commit before its optimistic row does, a capped window first has to show its newest
+     * rows, and a new Session's viewport can mount with the row already present; the previous
+     * turn's message being persisted meanwhile is not the send.
      */
-    if (!input.userDidSend) sendBaseline.current = null
-    else sendBaseline.current ??= { key: previousSentKey.current }
-    previousSentKey.current = sentKey
-    const sentArrived = sendBaseline.current !== null && sentKey !== sendBaseline.current.key
-    const sentRowPresent = sentKey !== null && input.keys.includes(sentKey)
-    if (sentArrived && sentRowPresent) {
+    const sentPending =
+      input.userDidSend &&
+      input.sentIsOptimistic &&
+      sentKey !== null &&
+      sentKey !== anchoredSentKey.current &&
+      input.keys.includes(sentKey)
+    if (sentPending) {
       if (input.hasLater) {
         input.showNewest()
         return
       }
+      anchoredSentKey.current = sentKey
       session.anchorNewTurn(sentKey, input.keys[input.keys.indexOf(sentKey) - 1] ?? null)
       input.onUserDidSendConsumed()
     }

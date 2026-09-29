@@ -60,9 +60,9 @@ describe('ChatTranscript sent turn', () => {
 
   function sendTurn() {
     layout.setHeight('message:a1', 900)
-    layout.setHeight('message:u2', 60)
+    layout.setHeight('message:optimistic-user-2', 60)
     const view = render(<ChatTranscript section={section(history, { isLoading: false })} />)
-    const sent = [...history, userMessage('u2')]
+    const sent = [...history, userMessage('optimistic-user-2')]
     view.rerender(<ChatTranscript section={section(sent, { userDidSend: true })} />)
     act(() => layout.flushScroll())
     const commit = (state: ChatTranscriptSectionState) => {
@@ -74,12 +74,12 @@ describe('ChatTranscript sent turn', () => {
 
   it('pins the sent message near the top while its reply streams', () => {
     const { sent, commit } = sendTurn()
-    expect(layout.mode()).toBe('new-turn:message:u2')
-    expect(layout.rowTop('message:u2')).toBe(24)
+    expect(layout.mode()).toBe('new-turn:message:optimistic-user-2')
+    expect(layout.rowTop('message:optimistic-user-2')).toBe(24)
 
     layout.setHeight('message:a2', 120)
     commit(section([...sent, assistantMessage('a2', false)]))
-    expect(layout.rowTop('message:u2')).toBe(24)
+    expect(layout.rowTop('message:optimistic-user-2')).toBe(24)
   })
 
   it('keeps the sent message pinned when the reply starts using tools', () => {
@@ -88,15 +88,15 @@ describe('ChatTranscript sent turn', () => {
     layout.setHeight('message:a2', 120)
     commit(section([...sent, assistantMessage('a2', true)]))
 
-    expect(layout.mode()).toBe('new-turn:message:u2')
-    expect(layout.rowTop('message:u2')).toBe(24)
+    expect(layout.mode()).toBe('new-turn:message:optimistic-user-2')
+    expect(layout.rowTop('message:optimistic-user-2')).toBe(24)
   })
 
   it('follows a working turn from the moment it reaches the bottom of the viewport', () => {
     const { sent, commit } = sendTurn()
     layout.setHeight('message:a2', 400)
     commit(section([...sent, assistantMessage('a2', true)]))
-    expect(layout.rowTop('message:u2')).toBe(24)
+    expect(layout.rowTop('message:optimistic-user-2')).toBe(24)
 
     layout.setHeight('message:a2', 1400)
     commit(section([...sent, assistantMessage('a2', true)]))
@@ -104,7 +104,7 @@ describe('ChatTranscript sent turn', () => {
     expect(layout.mode()).toBe('following')
     expect(layout.distanceToBottom()).toBe(0)
     // The view moved toward the end, never down the screen.
-    expect(layout.rowTop('message:u2')).toBeLessThan(24)
+    expect(layout.rowTop('message:optimistic-user-2')).toBeLessThan(24)
   })
 
   it('holds a plain answer still once it outgrows the viewport', () => {
@@ -112,14 +112,14 @@ describe('ChatTranscript sent turn', () => {
 
     layout.setHeight('message:a2', 1400)
     commit(section([...sent, assistantMessage('a2', false)]))
-    expect(layout.rowTop('message:u2')).toBe(24)
+    expect(layout.rowTop('message:optimistic-user-2')).toBe(24)
     expect(layout.distanceToBottom()).toBeGreaterThan(0)
     const button = document.querySelector('[aria-label="Scroll to bottom"]')
     expect(button?.getAttribute('data-working')).toBe('true')
 
     layout.setHeight('message:a2', 2000)
     commit(section([...sent, assistantMessage('a2', false)]))
-    expect(layout.rowTop('message:u2')).toBe(24)
+    expect(layout.rowTop('message:optimistic-user-2')).toBe(24)
   })
 
   it('keeps holding a plain answer that starts a tool call after it spilled below the fold', () => {
@@ -129,8 +129,8 @@ describe('ChatTranscript sent turn', () => {
 
     commit(section([...sent, assistantMessage('a2', true)]))
 
-    expect(layout.mode()).toBe('new-turn:message:u2')
-    expect(layout.rowTop('message:u2')).toBe(24)
+    expect(layout.mode()).toBe('new-turn:message:optimistic-user-2')
+    expect(layout.rowTop('message:optimistic-user-2')).toBe(24)
   })
 
   it('keeps the sent message held when a steer arrives under its running output', () => {
@@ -143,23 +143,53 @@ describe('ChatTranscript sent turn', () => {
     layout.setHeight('message:a2', 300)
     commit(section([...sent, assistantMessage('a2', false), userMessage('steer')]))
 
-    expect(layout.mode()).toBe('new-turn:message:u2')
-    expect(layout.rowTop('message:u2')).toBe(24)
+    expect(layout.mode()).toBe('new-turn:message:optimistic-user-2')
+    expect(layout.rowTop('message:optimistic-user-2')).toBe(24)
     expect(layout.rowTop('message:a2')).toBe(84)
   })
 
   it('holds the sent message, not the previous one, when the send commits before its row', () => {
     layout.setHeight('message:a1', 900)
-    layout.setHeight('message:u2', 60)
+    layout.setHeight('message:optimistic-user-2', 60)
     const view = render(<ChatTranscript section={section(history, { isLoading: false })} />)
     view.rerender(<ChatTranscript section={section(history, { userDidSend: true })} />)
     expect(layout.mode()).toBe('following')
 
     view.rerender(
-      <ChatTranscript section={section([...history, userMessage('u2')], { userDidSend: true })} />,
+      <ChatTranscript
+        section={section([...history, userMessage('optimistic-user-2')], { userDidSend: true })}
+      />,
     )
-    expect(layout.mode()).toBe('new-turn:message:u2')
-    expect(layout.rowTop('message:u2')).toBe(24)
+    expect(layout.mode()).toBe('new-turn:message:optimistic-user-2')
+    expect(layout.rowTop('message:optimistic-user-2')).toBe(24)
+  })
+
+  it('holds the first message of a new Session whose view mounts with it already present', () => {
+    layout.setHeight('message:optimistic-user-1', 60)
+    const onUserDidSendConsumed = vi.fn()
+    const first = [userMessage('optimistic-user-1')]
+    render(
+      <ChatTranscript section={section(first, { userDidSend: true, onUserDidSendConsumed })} />,
+    )
+
+    expect(layout.mode()).toBe('new-turn:message:optimistic-user-1')
+    expect(onUserDidSendConsumed).toHaveBeenCalled()
+  })
+
+  it('does not take the previous message being persisted for a pending send', () => {
+    layout.setHeight('message:a1', 900)
+    const onUserDidSendConsumed = vi.fn()
+    const view = render(<ChatTranscript section={section(history, { isLoading: false })} />)
+    view.rerender(
+      <ChatTranscript section={section(history, { userDidSend: true, onUserDidSendConsumed })} />,
+    )
+    const persisted = [userMessage('u1-persisted'), assistantMessage('a1', false)]
+    view.rerender(
+      <ChatTranscript section={section(persisted, { userDidSend: true, onUserDidSendConsumed })} />,
+    )
+
+    expect(layout.mode()).toBe('following')
+    expect(onUserDidSendConsumed).not.toHaveBeenCalled()
   })
 
   it('returns to the live end, not the previous message, when the sent one is withdrawn', () => {
@@ -195,7 +225,7 @@ describe('ChatTranscript sent turn', () => {
     layout.setHeight('message:a3', 100)
     const steered = [...sent, assistantMessage('a2', true), userMessage('steer')]
     commit(section([...steered, assistantMessage('a3', false)]))
-    expect(layout.rowTop('message:u2')).toBe(24)
+    expect(layout.rowTop('message:optimistic-user-2')).toBe(24)
 
     layout.setHeight('message:a3', 900)
     commit(section([...steered, assistantMessage('a3', false)]))
@@ -213,15 +243,15 @@ describe('ChatTranscript sent turn', () => {
     view.rerender(<ChatTranscript section={section(older, { isLoading: false })} />)
     expect(document.body.textContent).toContain('Load newer messages')
 
-    layout.setHeight('message:u2', 60)
-    const sent = [...older, userMessage('u2')]
+    layout.setHeight('message:optimistic-user-2', 60)
+    const sent = [...older, userMessage('optimistic-user-2')]
     view.rerender(
       <ChatTranscript section={section(sent, { userDidSend: true, onUserDidSendConsumed })} />,
     )
     act(() => layout.flushScroll())
 
-    expect(layout.mode()).toBe('new-turn:message:u2')
-    expect(layout.rowTop('message:u2')).toBe(24)
+    expect(layout.mode()).toBe('new-turn:message:optimistic-user-2')
+    expect(layout.rowTop('message:optimistic-user-2')).toBe(24)
     expect(onUserDidSendConsumed).toHaveBeenCalled()
   })
 
@@ -246,12 +276,12 @@ describe('ChatTranscript sent turn', () => {
     commit(section(streaming))
 
     act(() => layout.userScroll(-200))
-    expect(layout.rowTop('message:u2')).toBe(224)
+    expect(layout.rowTop('message:optimistic-user-2')).toBe(224)
     expect(layout.mode()).not.toBe('following')
 
     layout.setHeight('message:a2', 200)
     commit(section(streaming))
-    expect(layout.rowTop('message:u2')).toBe(224)
+    expect(layout.rowTop('message:optimistic-user-2')).toBe(224)
   })
 
   it('keeps holding the sent message when its optimistic copy is persisted under a new id', () => {
@@ -285,14 +315,18 @@ describe('ChatTranscript sent turn', () => {
     const answer = assistantMessage('answer', false)
     layout.setHeight('message:work', 200)
     commit(section([...sent, work, answer], { onToggleTurnFold }))
-    expect(layout.rowTop('message:u2')).toBe(24)
+    expect(layout.rowTop('message:optimistic-user-2')).toBe(24)
 
     const settled = [...sent, answer]
-    const settledRows = [...sent.map(messageRow), turnFoldRow('u2'), messageRow(answer)]
+    const settledRows = [
+      ...sent.map(messageRow),
+      turnFoldRow('optimistic-user-2'),
+      messageRow(answer),
+    ]
     commit(section(settled, { isLoading: false, chatRows: settledRows, onToggleTurnFold }))
 
     expect(onToggleTurnFold).not.toHaveBeenCalled()
-    expect(layout.rowTop('message:u2')).toBe(24)
+    expect(layout.rowTop('message:optimistic-user-2')).toBe(24)
   })
 
   it('mounts the reply under a message sent from a full live window', () => {
@@ -302,12 +336,12 @@ describe('ChatTranscript sent turn', () => {
       <ChatTranscript section={section(older.slice(0, 40), { isLoading: false })} />,
     )
     view.rerender(<ChatTranscript section={section(older, { isLoading: false })} />)
-    const sent = [...older, userMessage('u2')]
+    const sent = [...older, userMessage('optimistic-user-2')]
     view.rerender(<ChatTranscript section={section(sent, { userDidSend: true })} />)
     view.rerender(<ChatTranscript section={section([...sent, assistantMessage('a2', false)])} />)
 
     expect(layout.rowTop('message:a2')).not.toBeNull()
     expect(document.body.textContent).not.toContain('Load newer messages')
-    expect(layout.mode()).toBe('new-turn:message:u2')
+    expect(layout.mode()).toBe('new-turn:message:optimistic-user-2')
   })
 })

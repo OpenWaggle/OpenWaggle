@@ -5,6 +5,7 @@ import { useTranscriptEdgeLoading } from '../hooks/useTranscriptEdgeLoading'
 import { useTranscriptViewport } from '../hooks/useTranscriptViewport'
 import { useTranscriptWindowRange } from '../hooks/useTranscriptWindowRange'
 import { useTurnSettlePresentation } from '../hooks/useTurnSettlePresentation'
+import { isOptimisticUserMessageId } from '../lib/chat-attachment-preview'
 import { chatRowKeys } from '../lib/transcript-row-keys'
 import { visibleMessageNodeIds } from '../lib/transcript-rows'
 import type { ChatRow } from '../lib/types-chat-row'
@@ -72,6 +73,7 @@ export function TranscriptViewport({
     rows,
     keys,
     sentKey: lastUserMessageId ? `message:${lastUserMessageId}` : null,
+    sentIsOptimistic: lastUserMessageId !== null && isOptimisticUserMessageId(lastUserMessageId),
     userDidSend,
     onUserDidSendConsumed,
     hasLater: transcriptWindow.hasLater,
