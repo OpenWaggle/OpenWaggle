@@ -117,7 +117,7 @@ describe('forked Pi session identity', () => {
       },
     ]
 
-    const rekeyed = rekeyForkedSessionLines(lines)
+    const { lines: rekeyed, sourceIdById } = rekeyForkedSessionLines(lines)
     const entries = rekeyed.slice(1).map((line) => {
       if (typeof line !== 'object' || line === null) throw new Error('Expected an entry')
       return new Map(Object.entries(line))
@@ -138,6 +138,7 @@ describe('forked Pi session identity', () => {
     expect(entries[2]?.get('firstKeptEntryId')).toBe(ids[1])
     expect(entries[3]?.get('fromId')).toBe('outside-this-file')
     expect(entries[4]?.get('targetId')).toBe(ids[1])
+    expect([...sourceIdById]).toEqual(ids.map((id, index) => [id, lines[index + 1]?.id]))
     expect(entries[5]?.get('data')).toEqual({
       sourceCompactionId: ids[2],
       firstKeptEntryId: ids[1],
@@ -163,6 +164,10 @@ describe('forked Pi session identity', () => {
       if (node.parentId !== null) expect(forkIds.has(node.parentId)).toBe(true)
     }
     expect(result.sessionSnapshot.activeNodeId).toBe(nodes.at(-1)?.id)
+    // Each fork node records the source node it was copied from.
+    const sourceNodeIdByNodeId =
+      'sourceNodeIdByNodeId' in result ? result.sourceNodeIdByNodeId : undefined
+    expect(nodes.map((node) => sourceNodeIdByNodeId?.get(node.id))).toEqual([...sourceIds])
 
     const reopened = SessionManager.open(result.piSessionFile ?? '', undefined, directory)
     const compaction = reopened.getEntries().find((entry) => entry.type === 'compaction')

@@ -45,7 +45,11 @@ function isSessionEntry(line: unknown): line is { readonly id: string; readonly 
  * own nodes and the fork cannot be saved. Re-keying the new file before it is projected keeps the
  * forked session a normal Pi session with ids of its own.
  */
-export function rekeyForkedSessionLines(lines: readonly unknown[]): readonly unknown[] {
+export function rekeyForkedSessionLines(lines: readonly unknown[]): {
+  readonly lines: readonly unknown[]
+  /** The source entry each new id was copied from. */
+  readonly sourceIdById: ReadonlyMap<string, string>
+} {
   const taken = new Set<string>()
   for (const line of lines) {
     if (isSessionEntry(line)) taken.add(line.id)
@@ -58,7 +62,7 @@ export function rekeyForkedSessionLines(lines: readonly unknown[]): readonly unk
     idMap.set(line.id, id)
   }
 
-  return lines.map((line) => {
+  const rekeyed = lines.map((line) => {
     if (!isSessionEntry(line)) return line
     const next = remapReferences({ ...line, id: idMap.get(line.id) ?? line.id }, idMap, [
       ...ENTRY_REFERENCE_FIELDS,
@@ -68,6 +72,8 @@ export function rekeyForkedSessionLines(lines: readonly unknown[]): readonly unk
     }
     return next
   })
+  const sourceIdById = new Map([...idMap].map(([sourceId, id]) => [id, sourceId] as const))
+  return { lines: rekeyed, sourceIdById }
 }
 
 function remapReferences(
@@ -95,7 +101,7 @@ export async function writeRekeyedForkedSession(sessionFile: string, lines: read
   try {
     await writeFile(
       temporaryFile,
-      `${rekeyed.map((line) => JSON.stringify(line)).join('\n')}\n`,
+      `${rekeyed.lines.map((line) => JSON.stringify(line)).join('\n')}\n`,
       'utf8',
     )
     await rename(temporaryFile, sessionFile)
@@ -103,4 +109,5 @@ export async function writeRekeyedForkedSession(sessionFile: string, lines: read
     await rm(temporaryFile, { force: true })
     throw error
   }
+  return rekeyed.sourceIdById
 }

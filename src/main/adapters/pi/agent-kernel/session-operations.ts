@@ -122,12 +122,13 @@ export async function navigatePiSessionTree(
  * is projected, after the runtime that created it is disposed.
  */
 async function projectForkedSession(fork: ForkedPiSession, cwd: string) {
-  await writeRekeyedForkedSession(fork.sessionFile, fork.lines)
+  const sourceNodeIdByNodeId = await writeRekeyedForkedSession(fork.sessionFile, fork.lines)
   const sessionManager = SessionManager.open(fork.sessionFile, undefined, cwd)
   return {
     piSessionId: sessionManager.getSessionId(),
     piSessionFile: fork.sessionFile,
     sessionSnapshot: projectPiSessionSnapshot({ sessionManager }),
+    sourceNodeIdByNodeId,
   }
 }
 

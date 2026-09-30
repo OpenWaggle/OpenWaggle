@@ -1,9 +1,10 @@
 import type * as SqlClient from '@effect/sql/SqlClient'
-import { SessionId, SupportedModelId } from '@shared/types/brand'
+import { SessionId, SessionNodeId, SupportedModelId } from '@shared/types/brand'
 import type { SessionDetail } from '@shared/types/session'
 import type { ForkSessionCommand } from '@shared/types/session-lifecycle'
 import * as Effect from 'effect/Effect'
 import { reserveSessionTreeMutation } from '../application/active-session-runs'
+import { attributeCopiedVisualizationSources } from '../application/inline-visualization-ownership'
 import { SessionLifecyclePreparationError } from '../errors'
 import type { AgentKernelServiceShape } from '../ports/agent-kernel-service'
 
@@ -96,7 +97,23 @@ export function prepareLifecycleFork(input: {
           }),
         )
       }
-      return { result, targetNodeId }
+      // Inline visualizations are stored with the Session that rendered them. Without the owner in
+      // the copied messages' metadata, a fork looked for them in its own, empty store.
+      const sourceNodes = yield* input.sql<{ readonly id: string; readonly metadata_json: string }>`
+        SELECT id, metadata_json FROM session_nodes WHERE session_id = ${input.command.sourceSessionId}
+      `
+      const sessionSnapshot = attributeCopiedVisualizationSources(
+        result.sessionSnapshot,
+        {
+          id: SessionId(input.command.sourceSessionId),
+          nodes: sourceNodes.map((node) => ({
+            id: SessionNodeId(node.id),
+            metadataJson: node.metadata_json,
+          })),
+        },
+        result.sourceNodeIdByNodeId,
+      )
+      return { result: { ...result, sessionSnapshot }, targetNodeId }
     }).pipe(Effect.ensuring(Effect.sync(writer.release)))
   })
 }

@@ -23,6 +23,6 @@ The fork keeps its provenance in `session_derivations`, whose `source_node_id` i
 
 ## Consequences
 
-Forks and clones save, and a forked Session is an ordinary Pi session with ids of its own, so a later run, branch, or compaction in it cannot collide with its source either. A forked node has a different id from the node it was copied from, and the derivation row records the fork point. Per-node data that lives only in the projection, such as the ownership of an inline visualization in an assistant message's metadata, is not carried into the fork, so such a visualization may not resolve there.
+Forks and clones save, and a forked Session is an ordinary Pi session with ids of its own, so a later run, branch, or compaction in it cannot collide with its source either. A forked node has a different id from the node it was copied from, and the derivation row records the fork point. The fork result maps each new id to its source node, so per-node data that lives only in the projection can follow the copy. Inline visualizations use it: they are stored with the Session that rendered them, and a copied message keeps that Session as its visualization owner, through any number of copies. Deleting that Session deletes its visualizations, so its forks can no longer show them; archiving keeps them.
 
 Independent Sessions still share the global node key. Pi's ids are random, so a collision between unrelated Sessions is unlikely but possible, and would fail that Session's snapshot. Keying nodes by Session remains the complete fix if that ever happens.
