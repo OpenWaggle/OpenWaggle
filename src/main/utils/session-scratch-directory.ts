@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
@@ -77,7 +77,8 @@ export async function markSessionScratchNamespace(root = sessionScratchRoot()) {
   const content = `${owner}${SCRATCH_NAMESPACE_OWNER_TERMINATOR}`
   if ((await fs.readFile(marker, 'utf8').catch(() => undefined)) === content) return
   // Written aside and renamed into place, so a failed write never leaves a partial marker.
-  const pending = `${marker}.${process.pid}.tmp`
+  // Unique per call: concurrent prepares of a fresh namespace each write their own pending file.
+  const pending = `${marker}.${process.pid}.${randomUUID()}.tmp`
   await fs.writeFile(pending, content, { mode: OWNER_FILE_MODE })
   await fs.rename(pending, marker)
 }
@@ -183,7 +184,9 @@ export async function prepareSessionScratchDirectory(
   forgetIdleState(directory, state)
   await ensurePrivateDirectory(path.dirname(root))
   await ensurePrivateDirectory(root)
-  await markSessionScratchNamespace(root)
+  // Best effort: an unmarked namespace is only swept after a week unused, so a failed marker
+  // write must not cost the Run its scratch directory.
+  await markSessionScratchNamespace(root).catch(() => undefined)
   await ensurePrivateDirectory(directory)
   // Sweeps judge age by modification time, so each Run marks its directory and namespace as used.
   const touchedAt = new Date()

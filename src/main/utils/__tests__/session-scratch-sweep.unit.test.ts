@@ -4,6 +4,7 @@ import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   configureSessionScratchNamespace,
+  markSessionScratchNamespace,
   prepareSessionScratchDirectory,
   retainSessionScratchDirectory,
   sessionScratchRoot,
@@ -111,6 +112,25 @@ describe('Session scratch sweep', () => {
     await expect(fs.access(throwawayRoot)).rejects.toMatchObject(missing)
     expect((await fs.stat(keptRoot)).isDirectory()).toBe(true)
     expect((await fs.stat(ownRoot)).isDirectory()).toBe(true)
+  })
+
+  it('marks a fresh namespace once when several Sessions prepare it at the same time', async () => {
+    const profile = path.join(temporaryDirectory, 'profiles', 'parallel')
+    await fs.mkdir(profile, { recursive: true })
+    useNamespace(profile)
+    const namespace = sessionScratchRoot(temporaryDirectory)
+    const sessions = ['session-1', 'session-2', 'session-3', 'session-4']
+
+    await Promise.all(sessions.map((id) => prepareSessionScratchDirectory(id, namespace)))
+    await fs.rm(path.join(namespace, '.owner'))
+    // Concurrent markers of an unmarked namespace each succeed rather than racing on one file.
+    await expect(
+      Promise.all(sessions.map(() => markSessionScratchNamespace(namespace))),
+    ).resolves.toHaveLength(sessions.length)
+
+    await expect(fs.readFile(path.join(namespace, '.owner'), 'utf8')).resolves.toBe(`${profile}\n`)
+    const leftovers = (await fs.readdir(namespace)).filter((name) => name.endsWith('.tmp'))
+    expect(leftovers).toEqual([])
   })
 
   it('marks a namespace again when it was removed while the Host ran', async () => {

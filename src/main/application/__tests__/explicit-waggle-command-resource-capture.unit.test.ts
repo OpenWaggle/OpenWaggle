@@ -1,8 +1,17 @@
+import { randomUUID } from 'node:crypto'
+import fs from 'node:fs/promises'
+import path from 'node:path'
 import { SessionId, SupportedModelId } from '@shared/types/brand'
 import type { LocalSessionCommandPayload } from '@shared/types/local-session-protocol'
 import { fromAny, fromPartial } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  configureSessionScratchNamespace,
+  prepareSessionScratchDirectory,
+  removeSessionScratchDirectory,
+  sessionScratchRoot,
+} from '../../utils/session-scratch-directory'
 
 const {
   acquireLeaseMock,
@@ -138,6 +147,8 @@ function runWaggleCommand(withAttachment = false, hostRunCeiling?: number, opera
   )
 }
 
+const namespaceRestores: (() => void)[] = []
+
 describe('explicit Waggle resource capture', () => {
   beforeEach(() => {
     cancelAllSessionRuns()
@@ -161,6 +172,12 @@ describe('explicit Waggle resource capture', () => {
     sessionDetailMock.mockReset().mockReturnValue(Effect.succeed(null))
     settleMock.mockReset().mockReturnValue(Effect.succeed({ accepted: true, stateRevision: 4 }))
   })
+
+  afterEach(async () => {
+    await fs.rm(sessionScratchRoot(), { recursive: true, force: true })
+    for (const restore of namespaceRestores.splice(0)) restore()
+  })
+
   it("captures the Waggle's resources, like a classic Run", async () => {
     const result = { outcome: 'success', newMessages: [], resourceMessages: [] }
     executeWaggleRunMock.mockReturnValue(Effect.succeed(result))
@@ -174,5 +191,32 @@ describe('explicit Waggle resource capture', () => {
       expect.objectContaining({ text: 'Run Waggle' }),
       result,
     )
+  })
+
+  it('captures an image from the scratch directory when the Session is archived mid-Waggle', async () => {
+    namespaceRestores.push(configureSessionScratchNamespace(`waggle-capture-${randomUUID()}`))
+    const directory = await prepareSessionScratchDirectory(SESSION_ID)
+    const image = path.join(directory, 'evidence.png')
+    executeWaggleRunMock.mockReturnValue(
+      Effect.promise(async () => {
+        await fs.writeFile(image, 'png')
+        // The user archives the Session while the last agent's turn is still running.
+        await removeSessionScratchDirectory(SESSION_ID)
+        return { outcome: 'success', newMessages: [], resourceMessages: [] }
+      }),
+    )
+    let imageAtCapture: string | undefined
+    captureResourcesMock.mockImplementation(() =>
+      Effect.promise(async () => {
+        imageAtCapture = await fs.readFile(image, 'utf8').catch(() => undefined)
+      }),
+    )
+
+    await runWaggleCommand()
+
+    expect(imageAtCapture).toBe('png')
+    await vi.waitFor(async () => {
+      await expect(fs.access(directory)).rejects.toMatchObject({ code: 'ENOENT' })
+    })
   })
 })
