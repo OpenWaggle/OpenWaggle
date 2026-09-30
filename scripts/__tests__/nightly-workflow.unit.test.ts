@@ -43,4 +43,19 @@ describe('nightly packaged canary workflow', () => {
       expect(use).toMatch(/@[0-9a-f]{40}$/u)
     }
   })
+
+  it('checks the syntax budget after packaging and reruns it once before failing', () => {
+    const packaging = WORKFLOW.indexOf('- name: Package installers')
+    const smoke = WORKFLOW.indexOf('- name: Smoke packaged runtime')
+    const benchmark = WORKFLOW.indexOf('- name: Check syntax performance budgets')
+    expect(packaging).toBeGreaterThan(0)
+    expect(smoke).toBeGreaterThan(packaging)
+    expect(benchmark).toBeGreaterThan(smoke)
+    expect(WORKFLOW).toMatch(
+      /if pnpm benchmark:syntax; then\n\s+exit 0\n\s+fi\n\s+echo "::warning::[^"]+"\n\s+pnpm benchmark:syntax\n/u,
+    )
+    expect(WORKFLOW).toContain(
+      'SYNTAX_BENCHMARK_PROFILE: performance/syntax-budgets/macos-arm64-github-hosted.json',
+    )
+  })
 })

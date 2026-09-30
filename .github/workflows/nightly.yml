@@ -72,14 +72,6 @@ jobs:
       - name: Build production bundle
         run: pnpm build
 
-      # The syntax performance budget previously ran only in the deleted macOS E2E
-      # job. Kept alive here on the macOS canary as a non-gating regression signal.
-      - name: Check syntax performance budgets
-        if: matrix.syntax_budget
-        run: pnpm benchmark:syntax
-        env:
-          SYNTAX_BENCHMARK_PROFILE: performance/syntax-budgets/macos-arm64-github-hosted.json
-
       - name: Package installers
         run: pnpm exec electron-builder ${{ matrix.build_flags }}
         env:
@@ -95,6 +87,25 @@ jobs:
           $version = node -p "require('./package.json').version"
           $installerPath = Join-Path $PWD "dist/openwaggle-$version-x64.exe"
           pnpm exec tsx scripts/verify-windows-installer.ts "$installerPath"
+
+      # The syntax performance budget previously ran only in the deleted macOS E2E
+      # job. Kept alive here on the macOS canary as a non-gating regression signal.
+      # It runs after packaging and the packaged smoke, so a budget failure never
+      # skips that coverage. On the shared runner a single slow run is often a
+      # scheduling outlier (it has failed on unchanged main), so a failure is rerun
+      # once and only a second failure fails the job: a sustained regression fails
+      # both runs.
+      - name: Check syntax performance budgets
+        if: matrix.syntax_budget
+        shell: bash
+        run: |
+          if pnpm benchmark:syntax; then
+            exit 0
+          fi
+          echo "::warning::Syntax benchmark exceeded its budget once; rerunning to tell a shared-runner outlier from a sustained regression."
+          pnpm benchmark:syntax
+        env:
+          SYNTAX_BENCHMARK_PROFILE: performance/syntax-budgets/macos-arm64-github-hosted.json
 
       - name: Upload build artifacts on failure
         if: failure()
