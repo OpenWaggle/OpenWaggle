@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import type { ContextUsage } from '@earendil-works/pi-coding-agent'
+import { type ContextUsage, SessionManager } from '@earendil-works/pi-coding-agent'
 import type { ContextUsageSnapshot } from '@shared/types/context-usage'
 import {
   AgentKernelMissingEntryError,
@@ -12,6 +12,7 @@ import {
   disposeOpenWagglePiSession,
   withOpenWagglePiSessionLifecycleContext,
 } from '../pi-session-lifecycle'
+import { writeRekeyedForkedSession } from './fork-entry-identity'
 import type { PiRuntimeExtensionIsolationInput } from './runtime-extension-isolation'
 import { createSessionListener } from './session-listener'
 import { projectPiSessionSnapshot } from './session-projection'
@@ -116,10 +117,45 @@ export async function navigatePiSessionTree(
   })
 }
 
+/**
+ * Pi's fork keeps the copied entry ids, so the fork is written again with ids of its own before it
+ * is projected, after the runtime that created it is disposed.
+ */
+async function projectForkedSession(fork: ForkedPiSession, cwd: string) {
+  const sourceNodeIdByNodeId = await writeRekeyedForkedSession(fork.sessionFile, fork.lines)
+  const sessionManager = SessionManager.open(fork.sessionFile, undefined, cwd)
+  return {
+    piSessionId: sessionManager.getSessionId(),
+    piSessionFile: fork.sessionFile,
+    sessionSnapshot: projectPiSessionSnapshot({ sessionManager }),
+    sourceNodeIdByNodeId,
+  }
+}
+
+interface ForkedPiSession {
+  readonly sessionFile: string
+  readonly lines: readonly unknown[]
+  readonly editorText?: string
+}
+
+function forkedPiSession(
+  session: { readonly sessionFile: string | undefined; readonly sessionManager: SessionManager },
+  selectedText: string | undefined,
+): ForkedPiSession {
+  const header = session.sessionManager.getHeader()
+  if (!session.sessionFile || !header) throw new Error('Pi did not create the forked session.')
+  return {
+    sessionFile: session.sessionFile,
+    lines: [header, ...session.sessionManager.getEntries()],
+    ...(selectedText ? { editorText: selectedText } : {}),
+  }
+}
+
 export async function forkPiSession(
   input: ForkAgentKernelSessionInput & PiRuntimeExtensionIsolationInput,
 ) {
   const runtime = await createPiSessionRuntime(input)
+  let forked: ForkedPiSession | undefined
   try {
     const result = await withOpenWagglePiSessionLifecycleContext(runtime.session, () =>
       runtime.fork(input.targetNodeId, { position: input.position }),
@@ -132,14 +168,7 @@ export async function forkPiSession(
         sessionSnapshot: projectPiSessionSnapshot(runtime.session),
       }
     }
-
-    return {
-      cancelled: false,
-      piSessionId: runtime.session.sessionId,
-      piSessionFile: runtime.session.sessionFile,
-      sessionSnapshot: projectPiSessionSnapshot(runtime.session),
-      ...(result.selectedText ? { editorText: result.selectedText } : {}),
-    }
+    forked = forkedPiSession(runtime.session, result.selectedText)
   } catch (error) {
     if (
       error instanceof Error &&
@@ -151,5 +180,11 @@ export async function forkPiSession(
     throw error
   } finally {
     await disposeOpenWagglePiSession(runtime.session)
+  }
+
+  return {
+    cancelled: false,
+    ...(await projectForkedSession(forked, runtime.cwd)),
+    ...(forked.editorText ? { editorText: forked.editorText } : {}),
   }
 }

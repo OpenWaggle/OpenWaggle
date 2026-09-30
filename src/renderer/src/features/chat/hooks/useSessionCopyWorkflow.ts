@@ -1,15 +1,21 @@
 import { type SessionId, SessionNodeId, type SupportedModelId } from '@shared/types/brand'
+import type { UIMessage } from '@shared/types/chat-ui'
 import type { SessionWorkspace } from '@shared/types/session'
 import type { useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
 import { useChatStore } from '@/features/chat/state'
-import { buildComposerDraftContextKey } from '@/features/composer/lib'
+import { buildPendingSessionDraftContextKey } from '@/features/composer/lib'
 import { useComposerStore } from '@/features/composer/state'
 import { isSelectableModel, useProviderStore } from '@/features/providers/state'
 import { usePreferencesStore } from '@/features/settings/state'
 import { api } from '@/shared/lib/ipc'
 import { ipcErrorMessage } from '@/shared/lib/ipc-error-message'
+import { findUserMessageNode } from '../lib/branch-from-message'
 import { setComposerTextValue } from '../lib/composer-text'
+import {
+  currentConversationWorkspace,
+  resolveCurrentConversationNode,
+} from '../lib/current-conversation-node'
 import { getVisibleForkTargets, type SessionForkTarget } from '../lib/session-fork-targets'
 
 type Navigate = ReturnType<typeof useNavigate>
@@ -17,9 +23,9 @@ type Navigate = ReturnType<typeof useNavigate>
 interface SessionCopyWorkflowParams {
   readonly activeSessionId: SessionId | null
   readonly activeWorkspace: SessionWorkspace | null
+  readonly messages: readonly UIMessage[]
   readonly draftBranchSourceNodeId: SessionNodeId | null
   readonly model: SupportedModelId | undefined
-  readonly projectPath: string | null
   readonly navigate: Navigate
   readonly setActiveSession: (sessionId: SessionId | null) => void
   readonly loadSessions: () => Promise<void>
@@ -41,15 +47,14 @@ async function activateCopiedSession(
   sessionId: SessionId,
   editorText: string,
 ) {
-  const session = useChatStore.getState().sessionById.get(sessionId)
-  const contextKey = buildComposerDraftContextKey({
-    projectPath: session?.projectPath ?? params.projectPath,
-    sessionId,
-  })
-  const appliedDraft = useComposerStore.getState().switchScopedDraftContext(contextKey, {
-    input: editorText,
-    attachments: [],
-  })
+  // The copy has no hydrated workspace yet, so its first draft is the Session's pending draft.
+  // A branch key written here was never read: the fork's message never reached the composer.
+  const appliedDraft = useComposerStore
+    .getState()
+    .switchScopedDraftContext(buildPendingSessionDraftContextKey(sessionId), {
+      input: editorText,
+      attachments: [],
+    })
   setComposerTextValue(appliedDraft.input)
   params.setActiveSession(sessionId)
   routeToCopiedSession(params, sessionId)
@@ -60,7 +65,10 @@ async function activateCopiedSession(
   ])
 }
 
-async function forkMessageToNewSessionAction(params: SessionCopyWorkflowParams, messageId: string) {
+async function forkNodeToNewSessionAction(
+  params: SessionCopyWorkflowParams,
+  nodeId: SessionNodeId,
+) {
   if (!params.activeSessionId) return
   if (!isModelActionable(params.model)) {
     params.showToast('Select a model before forking.')
@@ -68,11 +76,7 @@ async function forkMessageToNewSessionAction(params: SessionCopyWorkflowParams, 
   }
 
   try {
-    const result = await api.forkSessionToNew(
-      params.activeSessionId,
-      params.model,
-      SessionNodeId(messageId),
-    )
+    const result = await api.forkSessionToNew(params.activeSessionId, params.model, nodeId)
     if (result.cancelled) {
       params.showToast('Session fork cancelled.')
       return
@@ -94,17 +98,22 @@ async function cloneCurrentSessionToNewSessionAction(params: SessionCopyWorkflow
     return
   }
 
-  const targetNodeId = params.draftBranchSourceNodeId ?? params.activeWorkspace?.activeNodeId
-  if (!targetNodeId) {
-    params.showToast('No session history to clone.')
-    return
-  }
   if (!isModelActionable(params.model)) {
     params.showToast('Select a model before cloning.')
     return
   }
 
   try {
+    const sessionId = params.activeSessionId
+    const targetNodeId =
+      params.draftBranchSourceNodeId ??
+      (await resolveCurrentConversationNode(sessionId, params.activeWorkspace))
+    // The head may have been re-read from the Host; do not clone a Session the user has left.
+    if (useChatStore.getState().activeSessionId !== sessionId) return
+    if (!targetNodeId) {
+      params.showToast('No session history to clone.')
+      return
+    }
     const result = await api.cloneSessionToNew(
       params.activeSessionId,
       params.model,
@@ -125,9 +134,40 @@ async function cloneCurrentSessionToNewSessionAction(params: SessionCopyWorkflow
   }
 }
 
+/**
+ * The persisted node of the message to fork. A message sent since the workspace was loaded is not
+ * in it yet (runs refresh only the Session detail), so the current workspace is read for it.
+ */
+async function findForkSourceNode(
+  params: SessionCopyWorkflowParams,
+  sessionId: SessionId,
+  messageId: string,
+) {
+  const loaded =
+    params.activeWorkspace?.tree.session.id === sessionId ? params.activeWorkspace : null
+  const node = findUserMessageNode({ messages: params.messages, workspace: loaded, messageId })
+  if (node) return node
+  const current = await currentConversationWorkspace(sessionId, loaded, { keepEarlierNode: false })
+  return findUserMessageNode({ messages: params.messages, workspace: current, messageId })
+}
+
+/** Fork targets from the current workspace, which includes messages sent since the last load. */
+async function currentForkTargets(params: SessionCopyWorkflowParams, sessionId: SessionId) {
+  return getVisibleForkTargets(
+    await currentConversationWorkspace(sessionId, params.activeWorkspace),
+  )
+}
+
 export function useSessionCopyWorkflow(params: SessionCopyWorkflowParams) {
   const [forkSelectorOpen, setForkSelectorOpen] = useState(false)
-  const forkTargets = getVisibleForkTargets(params.activeWorkspace)
+  const [currentTargets, setCurrentTargets] = useState<{
+    readonly sessionId: SessionId
+    readonly targets: readonly SessionForkTarget[]
+  } | null>(null)
+  const forkTargets =
+    currentTargets && currentTargets.sessionId === params.activeSessionId
+      ? currentTargets.targets
+      : getVisibleForkTargets(params.activeWorkspace)
 
   return {
     forkSelectorOpen,
@@ -138,19 +178,47 @@ export function useSessionCopyWorkflow(params: SessionCopyWorkflowParams) {
     cloneCurrentSessionToNewSession() {
       return cloneCurrentSessionToNewSessionAction(params)
     },
-    forkMessageToNewSession(messageId: string) {
-      return forkMessageToNewSessionAction(params, messageId)
+    async forkMessageToNewSession(messageId: string) {
+      const sessionId = params.activeSessionId
+      if (!sessionId) return
+      if (!isModelActionable(params.model)) {
+        params.showToast('Select a model before forking.')
+        return
+      }
+      try {
+        const node = await findForkSourceNode(params, sessionId, messageId)
+        // The source may have been re-read from the Host; do not fork a Session the user has left.
+        if (useChatStore.getState().activeSessionId !== sessionId) return
+        if (!node) {
+          params.showToast(
+            'Fork source is not available yet. Wait for the transcript to finish loading and try again.',
+          )
+          return
+        }
+        await forkNodeToNewSessionAction(params, node.id)
+      } catch (error) {
+        params.showToast(`Failed to fork session: ${ipcErrorMessage(error)}`)
+      }
     },
     openForkSelector() {
-      if (forkTargets.length === 0) {
+      const sessionId = params.activeSessionId
+      if (!sessionId) {
         params.showToast('No user messages are available to fork.')
         return
       }
-      setForkSelectorOpen(true)
+      void currentForkTargets(params, sessionId).then((targets) => {
+        if (useChatStore.getState().activeSessionId !== sessionId) return
+        if (targets.length === 0) {
+          params.showToast('No user messages are available to fork.')
+          return
+        }
+        setCurrentTargets({ sessionId, targets })
+        setForkSelectorOpen(true)
+      })
     },
     selectForkTarget(target: SessionForkTarget) {
       setForkSelectorOpen(false)
-      void forkMessageToNewSessionAction(params, String(target.entryId))
+      void forkNodeToNewSessionAction(params, target.entryId)
     },
   }
 }

@@ -3,10 +3,12 @@ import { type SessionId, SessionNodeId } from '@shared/types/brand'
 import type { SessionTree, SessionWorkspace } from '@shared/types/session'
 import type { QueryClient } from '@tanstack/react-query'
 import type { useNavigate } from '@tanstack/react-router'
+import { resolveCurrentConversationNode } from '@/features/chat/lib'
 import { useChatStore } from '@/features/chat/state'
-import { buildComposerDraftContextKey } from '@/features/composer/lib'
+import { buildPendingSessionDraftContextKey } from '@/features/composer/lib'
 import { useComposerStore } from '@/features/composer/state'
 import { isModelActionable } from '@/features/providers/state'
+import { useSessionStore } from '@/features/sessions/state'
 import { usePreferencesStore } from '@/features/settings/state'
 import { refreshArchivedSessions } from '@/queries/archived-sessions'
 import { refreshAfterCommittedSessionMutation } from '@/queries/committed-session-refresh'
@@ -122,32 +124,34 @@ function setComposerTextValue(text: string) {
   })
 }
 
-function activateClonedSession(
-  deps: SidebarSessionActionDeps,
-  sessionId: SessionId,
-  project: string | null,
-) {
-  const contextKey = buildComposerDraftContextKey({ projectPath: project, sessionId })
-  useComposerStore.getState().switchScopedDraftContext(contextKey, { input: '', attachments: [] })
+function activateClonedSession(deps: SidebarSessionActionDeps, sessionId: SessionId) {
+  // The clone has no hydrated workspace yet, so its first draft is the Session's pending draft.
+  useComposerStore
+    .getState()
+    .switchScopedDraftContext(buildPendingSessionDraftContextKey(sessionId), {
+      input: '',
+      attachments: [],
+    })
   setComposerTextValue('')
   useChatStore.getState().setActiveSession(sessionId)
   void deps.navigate({ to: '/sessions/$sessionId', params: { sessionId: String(sessionId) } })
 }
 
-function cloneSession(deps: SidebarSessionActionDeps, sessionId: SessionId) {
-  const targetNodeId =
-    deps.matchingActiveWorkspace?.activeNodeId ??
-    deps.matchingActiveSessionTree?.session.lastActiveNodeId
+async function cloneTargetNodeId(deps: SidebarSessionActionDeps, sessionId: SessionId) {
+  const draft = useSessionStore.getState().draftBranch
+  if (draft?.sessionId === sessionId) return draft.sourceNodeId
+  return (
+    (await resolveCurrentConversationNode(sessionId, deps.matchingActiveWorkspace ?? null)) ??
+    deps.matchingActiveSessionTree?.session.lastActiveNodeId ??
+    null
+  )
+}
 
+async function cloneSession(deps: SidebarSessionActionDeps, sessionId: SessionId) {
   if (deps.activeSessionId !== sessionId) {
     deps.showToast('Open this session before cloning it.')
     return
   }
-  if (!targetNodeId) {
-    deps.showToast('No session history to clone.')
-    return
-  }
-
   if (
     !isModelActionable(usePreferencesStore.getState().settings.enabledModels, deps.selectedModel)
   ) {
@@ -155,28 +159,37 @@ function cloneSession(deps: SidebarSessionActionDeps, sessionId: SessionId) {
     return
   }
 
-  void api
-    .cloneSessionToNew(sessionId, deps.selectedModel, SessionNodeId(String(targetNodeId)))
-    .then((result) => {
-      if (result.cancelled) {
-        deps.showToast('Session clone cancelled.')
-        return
-      }
-      if (!result.session) {
-        deps.showToast('Session clone did not return a session.')
-        return
-      }
-      useChatStore.getState().upsertSession(result.session)
-      activateClonedSession(deps, result.session.id, result.session.projectPath)
-      return Promise.all([
-        deps.loadChatSessions(),
-        deps.loadSessionTrees(),
-        deps.refreshSessionWorkspace(result.session.id),
-      ])
-    })
-    .catch((error: unknown) => {
-      deps.showToast(`Failed to clone session: ${errorMessage(error)}`)
-    })
+  try {
+    const targetNodeId = await cloneTargetNodeId(deps, sessionId)
+    // The head may have been re-read from the Host; do not clone a Session the user has left.
+    if (useChatStore.getState().activeSessionId !== sessionId) return
+    if (!targetNodeId) {
+      deps.showToast('No session history to clone.')
+      return
+    }
+    const result = await api.cloneSessionToNew(
+      sessionId,
+      deps.selectedModel,
+      SessionNodeId(String(targetNodeId)),
+    )
+    if (result.cancelled) {
+      deps.showToast('Session clone cancelled.')
+      return
+    }
+    if (!result.session) {
+      deps.showToast('Session clone did not return a session.')
+      return
+    }
+    useChatStore.getState().upsertSession(result.session)
+    activateClonedSession(deps, result.session.id)
+    await Promise.all([
+      deps.loadChatSessions(),
+      deps.loadSessionTrees(),
+      deps.refreshSessionWorkspace(result.session.id),
+    ])
+  } catch (error) {
+    deps.showToast(`Failed to clone session: ${errorMessage(error)}`)
+  }
 }
 
 export function createSidebarSessionActions(deps: SidebarSessionActionDeps) {
@@ -204,7 +217,7 @@ export function createSidebarSessionActions(deps: SidebarSessionActionDeps) {
       })
     },
     clone(sessionId: SessionId) {
-      cloneSession(deps, sessionId)
+      void cloneSession(deps, sessionId)
     },
     delete(sessionId: SessionId) {
       const start = startRemoval(deps.removalNavigation, sessionId)
