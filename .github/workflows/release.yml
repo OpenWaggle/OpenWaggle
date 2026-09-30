@@ -597,8 +597,23 @@ jobs:
 
       - run: pnpm build
 
+      # Notarization waits minutes on Apple while notarytool polls over the runner's network. One
+      # lost connection (1.0.0-beta.1, run 36695614844) must not fail the release, so only that
+      # failure rebuilds once; a rejection or any other failure still fails the first attempt.
       - name: Build macOS artifacts (arm64 + x64)
-        run: pnpm exec electron-builder --mac --arm64 --x64 --publish never
+        shell: bash
+        run: |
+          set -uo pipefail
+          BUILD_LOG="$RUNNER_TEMP/electron-builder-mac.log"
+          for BUILD_ATTEMPT in 1 2; do
+            if pnpm exec electron-builder --mac --arm64 --x64 --publish never 2>&1 | tee "$BUILD_LOG"; then
+              exit 0
+            fi
+            if [ "$BUILD_ATTEMPT" -eq 2 ] || ! node scripts/notarization-failure.ts "$BUILD_LOG"; then
+              exit 1
+            fi
+            echo "::warning::Notarization lost its connection to Apple; rebuilding and resubmitting once."
+          done
         env:
           # Unset secrets keep Alpha/Beta builds unsigned; RC and Stable fail closed without them.
           CSC_IDENTITY_AUTO_DISCOVERY: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 != '' }}
