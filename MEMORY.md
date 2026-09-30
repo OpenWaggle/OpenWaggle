@@ -671,22 +671,28 @@ An Effect tagged error with no `message` field reaches `Effect.runPromise` calle
 `target_scope_denied`. Render failures that leave the Host through
 `sessionCommandFailureMessage`, and assert the rendered text in tests, not only the error code.
 
-A root Session agent's target scope is decided in two places: `resolveSessionToolAgentCaller`
-when the tool is called, and `sessionAgentBlockReason` when a queued Follow-up is delivered.
-Change them together (ADR 0039). A user-originated root now reaches every project; the
-delivery check used to compare project paths and would pause every cross-project Follow-up as
-`authority_changed` even after the tool accepted it.
+A root Session agent's catalog-wide reach (ADR 0039) is decided by one function,
+`sessionAgentRunReachesEveryProject` (`adapters/session-agent-run-project-reach.ts`), called by
+`resolveSessionToolAgentCaller` when the tool is called and by `sessionAgentBlockReason` when a
+queued Follow-up is delivered. It needs both the Session's own authority
+(`rootSessionReachesEveryProject`: a root from the local user or a catalog-wide profile, origin read
+from the caller id) and the Run's initiator (`session_runs.intent_json.callerId`, followed through up
+to eight agents). Without the initiator check, a project-scoped CLI profile could message a desktop
+Session and have it act in every project. Session agents may launch or create only in projects
+already in the catalog (`session-tool-project-catalog.ts`).
 
 Agent tool processes get `TMPDIR`/`TMP`/`TEMP` pointing at a per-Session 0700 scratch directory
 through the Pi bash and PowerShell `spawnHook` in `pi-run-session.ts`, applied after the prepared
 Workspace environment. Keep that path short: macOS limits a Unix socket path to 104 bytes and
 `tsx`, Chromium, and others bind sockets under `TMPDIR`. A scratch dir under `os.tmpdir()`
 (`/var/folders/...`) plus a UUID was 108 bytes and crashed `tsx`, so `pnpm verify` and `git push`
-failed from agent shells; it now lives at `/tmp/ow-scratch-<uid>/<8-hex profile hash>/<12-hex
-Session hash>` on POSIX. The profile hash (from the Host's user-data root) keeps each OpenWaggle
+failed from agent shells; it now lives at `<base>/ow-scratch-<uid>/<8-hex profile hash>/<12-hex
+Session hash>`, where `<base>` is the user temp directory if the path fits 56 bytes, else `/tmp`. The profile hash (from the Host's user-data root) keeps each OpenWaggle
 profile's Host from sweeping another's directories; the startup sweep
 (`session-scratch-sweep-background`) removes directories of Sessions deleted or archived while no
-Host ran. Code that
+Host ran, and other profiles' namespaces unused for a week. `prepareSessionScratchDirectory` touches
+the mtime because the sweeps judge age by it. An OpenWaggle process started from an agent shell
+restores `TMPDIR` from `OPENWAGGLE_HOST_TMPDIR` at startup (`restoreHostTemporaryDirectory`). Code that
 must agree with the Host on a temp path (the Session Host socket fallback in `local-session-paths`)
 reads `hostTemporaryDirectory()`, which prefers `OPENWAGGLE_HOST_TMPDIR` exported next to the
 scratch `TMPDIR`. The Host deletes the directory from `session-host-events.ts` on
@@ -694,16 +700,15 @@ scratch `TMPDIR`. The Host deletes the directory from `session-host-events.ts` o
 an archive mid-Run defers the removal to the Run's end. Tests that run `runPiAgentKernel` must mock
 `utils/session-scratch-directory` or they create directories in the real temp directory.
 
-A root's project reach is decided by `rootSessionReachesEveryProject`, called from both the
-Sessions tool caller and queued Follow-up delivery. A spawned Worker's authority snapshot stores its
+A spawned Worker's authority snapshot stores its
 project, never `all`, even under a catalog-wide Queen (`workerAuthorityScope`). An unreadable
 authority snapshot counts as changed authority in `sqlite-session-live-authority`; letting the decode
 error escape failed the whole Run settlement.
 
 A failed Local Session handshake must not name its code: `profile_not_found` and
 `profile_revoked` overlap the authorization codes, and rendering them told an unauthenticated
-client whether a profile name exists. `localSessionAuthenticationFailureMessage` returns one text
-for every tagged authentication failure.
+client whether a profile name exists. `localSessionAuthenticationFailureMessage` returns one text for
+every failure except an admission-budget refusal (`LocalSessionAuthenticationBudgetError`).
 
 A schema copied with `{ ...schema }` loses TypeBox's non-enumerable `~kind` and `~optional`, and
 `Type.Optional` then adds `~optional` as a visible key that reaches provider payloads. Copy with

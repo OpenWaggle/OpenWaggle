@@ -108,7 +108,7 @@ After spawning, the parent can use `wait` for a bounded observation, read the Wo
 
 ### Sessions in other repositories
 
-An agent is not limited to its own repository. A Session you started from the app can list, search, and read Sessions in any project on this computer, report to them, send them Follow-ups, steer, interrupt, or archive them, and launch or create a new Session in another repository, without sharing a Hive. For example:
+An agent is not limited to its own repository. A Session you started from the app can list, search, and read Sessions in any project you have opened in OpenWaggle, report to them, send them Follow-ups, steer, interrupt, or archive them, and launch or create a new Session in another of those projects, without sharing a Hive. This applies to turns you started, or that another such agent started; a turn started by a restricted CLI profile, or by a Worker's report, stays in the Session's own project. For example:
 
 ```text
 Find the open OpenWaggle session about the release checklist and report this failing
@@ -120,7 +120,7 @@ To start work elsewhere, the agent passes that repository's path with `workspace
 
 ### Scratch files
 
-Each Session has a private scratch directory for temporary files. OpenWaggle sets `TMPDIR`, `TMP`, and `TEMP` to it for the agent's shell tools and names it in the agent's instructions, so two agents writing `push.log` at the same time cannot overwrite or read each other's file. Only your user account can open it. OpenWaggle deletes it when you archive or delete the Session, or when the running turn ends if you archive it mid-turn; keep anything you need in the workspace instead.
+Each Session has a private scratch directory for temporary files. OpenWaggle sets `TMPDIR`, `TMP`, and `TEMP` to it for the agent's shell tools and names it in the agent's instructions, so two agents writing `push.log` at the same time cannot overwrite or read each other's file. On macOS and Linux only your user account can open it. OpenWaggle deletes it when you archive or delete the Session, or when the running turn ends if you archive it mid-turn; keep anything you need in the workspace instead.
 
 Keep a later instruction as a **Follow-up** when it should start after the current Run. Use **Steer** only when it belongs in that exact active Run. Navigating between Sessions does not interrupt either Run. See the [Sessions CLI](/docs/developer-workflow/sessions-cli) for the corresponding external-agent commands.
 
