@@ -74,6 +74,25 @@ describe('SQLite Session lifecycle fork persistence', () => {
     })
   })
 
+  it('names an untitled fork after its source Session', async () => {
+    const layer = makeSessionLifecycleTestLayer(path.join(temporaryRoot, 'untitled-fork.sqlite'))
+    const input = forkLifecycleInput()
+    const { title: _explicitTitle, ...command } = input.request.command
+    const title = await Effect.runPromise(
+      Effect.gen(function* () {
+        const repository = yield* SessionLifecycleRepository
+        yield* repository.execute({ ...input, request: { ...input.request, command } })
+        const sql = yield* SqlClient.SqlClient
+        const rows = yield* sql<{ readonly title: string }>`
+          SELECT title FROM sessions WHERE id = ${'session-fork'}
+        `
+        return rows[0]?.title
+      }).pipe(Effect.provide(layer)),
+    )
+
+    expect(title).toBe('Parent')
+  })
+
   it('rejects idempotency-key reuse with a different lifecycle command', async () => {
     const layer = makeSessionLifecycleTestLayer(path.join(temporaryRoot, 'idempotency.sqlite'))
     const error = await Effect.runPromise(

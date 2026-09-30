@@ -65,11 +65,11 @@ function persistSessionMetadata(
   authorityScope: ExecuteInput['callerAuthorityScope'],
 ) {
   const command = input.request.command
-  const title =
+  const explicitTitle =
     command.operation === 'spawn'
       ? boundGeneratedSessionTitle(command.delegation.objective)
       : command.title === undefined
-        ? 'New session'
+        ? null
         : assertSessionTitle(command.title)
   const environmentMode = workspace.kind === 'managed-worktree' ? 'worktree' : 'local'
   const worktreePath =
@@ -78,6 +78,7 @@ function persistSessionMetadata(
       : null
   const branchId = mainBranchId(String(input.session.sessionId))
   return Effect.gen(function* () {
+    const title = explicitTitle ?? (yield* defaultLifecycleTitle(sql, command))
     yield* sql`
       INSERT INTO sessions (
         id, pi_session_id, pi_session_file, project_path, title, archived,
@@ -153,6 +154,23 @@ function persistSessionMetadata(
       title,
       ...(selectedAgentDefinitionName ? { agentDefinitionName: selectedAgentDefinitionName } : {}),
     })
+  })
+}
+
+/**
+ * A fork keeps its source's title. Titles are generated only for a Session with no messages, so a
+ * fork left as "New session" never got a name, and several of them could not be told apart.
+ */
+function defaultLifecycleTitle(
+  sql: SqlClient.SqlClient,
+  command: ExecuteInput['request']['command'],
+) {
+  if (command.operation !== 'fork') return Effect.succeed('New session')
+  return Effect.gen(function* () {
+    const rows = yield* sql<{ readonly title: string }>`
+      SELECT title FROM sessions WHERE id = ${command.sourceSessionId} LIMIT 1
+    `
+    return rows[0]?.title ?? 'New session'
   })
 }
 

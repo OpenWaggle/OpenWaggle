@@ -11,6 +11,7 @@ import { useWaggleChat } from '@/features/waggle/hooks'
 import { useWaggleStore } from '@/features/waggle/state'
 import { extensionContributionsQueryOptions } from '@/queries/extensions'
 import { buildDiffSection } from '../lib/diff-section'
+import { followBranchHead } from '../lib/follow-branch-head'
 import { setComposerSessionAuthorizationMode } from '../lib/session-authorization-mode-action'
 import { sendStarterPrompt } from '../lib/starter-prompt-action'
 import type { ChatPanelSections } from '../model'
@@ -112,9 +113,9 @@ export function useChatPanelSections(): ChatPanelSections {
   const sessionCopy = useSessionCopyWorkflow({
     activeSessionId,
     activeWorkspace,
+    messages,
     draftBranchSourceNodeId: draftBranch?.sourceNodeId ?? null,
     model,
-    projectPath,
     navigate,
     setActiveSession,
     loadSessions,
@@ -141,6 +142,7 @@ export function useChatPanelSections(): ChatPanelSections {
     clearDraftBranchForSession,
     draftBranch,
     extensionContributions: extensionRegistry,
+    followBranchHead: (sessionId) => followBranchHead(navigate, sessionId),
     handleSend,
     handleSendWaggle,
     messages,

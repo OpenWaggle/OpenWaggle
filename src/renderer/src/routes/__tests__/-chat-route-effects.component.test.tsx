@@ -249,4 +249,36 @@ describe('useChatRouteEffects', () => {
     expect(refreshStatus).toHaveBeenCalledWith('/route-project')
     expect(refreshBranches).toHaveBeenCalledWith('/route-project')
   })
+
+  it('keeps a retry draft started on a routed branch until the route moves to a branch', async () => {
+    const routeSessionId = SessionId('route-session')
+    const clearDraftBranchForSession = vi.fn()
+    useChatStore.setState({
+      activeSessionId: routeSessionId,
+      sessionById: new Map([[routeSessionId, sessionDetail('route-session', '/old-project')]]),
+    })
+    useSessionStore.setState({ draftBranch: null, clearDraftBranchForSession })
+
+    const initialRoute: { readonly branchId: string | null; readonly nodeId: string | null } = {
+      branchId: 'branch-2',
+      nodeId: 'branch-2-head',
+    }
+    const { rerender } = renderHook(
+      (props: typeof initialRoute) =>
+        useChatRouteEffects({ ...props, diffOpen: false, sessionId: String(routeSessionId) }),
+      { initialProps: initialRoute },
+    )
+
+    // The retry sets its draft before its navigation drops the routed branch.
+    act(() => {
+      useSessionStore.setState({
+        draftBranch: { sessionId: routeSessionId, sourceNodeId: SessionNodeId('retry-source') },
+      })
+    })
+    rerender({ branchId: null, nodeId: 'retry-source' })
+    expect(clearDraftBranchForSession).not.toHaveBeenCalled()
+
+    rerender({ branchId: 'branch-3', nodeId: 'branch-3-head' })
+    await waitFor(() => expect(clearDraftBranchForSession).toHaveBeenCalledWith(routeSessionId))
+  })
 })

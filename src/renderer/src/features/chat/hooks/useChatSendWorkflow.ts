@@ -34,6 +34,8 @@ interface ChatSendWorkflowParams {
     ReturnType<typeof useBranchSummaryWorkflow>['materializeDraftBranchForSend']
   >[0]
   readonly extensionContributions: ExtensionContributionRegistryView | null
+  /** Moves the Session's view off a routed node so it follows the head the send extends. */
+  readonly followBranchHead: (sessionId: SessionId) => void
   readonly handleSend: (payload: AgentSendPayload) => Promise<void>
   readonly handleSendWaggle: (payload: AgentSendPayload, config: WaggleConfig) => Promise<void>
   readonly model: SupportedModelId | undefined
@@ -200,7 +202,13 @@ export function useChatSendWorkflow(params: ChatSendWorkflowParams) {
       params.phase.reset()
       try {
         await sendThroughActiveMode(params, payload)
-        if (params.activeSessionId) params.clearDraftBranchForSession(params.activeSessionId)
+        if (params.activeSessionId) {
+          params.clearDraftBranchForSession(params.activeSessionId)
+          // A retry or branch switch routes to the node it continues from. Kept after the send,
+          // that node pinned the view below the new messages: a reload showed the branch without
+          // them, as if the send had gone somewhere else.
+          params.followBranchHead(params.activeSessionId)
+        }
       } catch (error) {
         params.clearPendingSend(pendingSend)
         if (payload.waggle?.config && params.activeSessionId) {

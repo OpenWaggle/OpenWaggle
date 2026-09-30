@@ -91,6 +91,7 @@ function sendWorkflowParams(overrides: Partial<SendWorkflowParams> = {}): SendWo
     clearDraftBranchForSession: vi.fn(),
     draftBranch: null,
     extensionContributions: extensionRegistry([extensionSlashEntry()]),
+    followBranchHead: vi.fn(),
     handleSend: vi.fn().mockResolvedValue(undefined),
     handleSendWaggle: vi.fn().mockResolvedValue(undefined),
     messages: [],

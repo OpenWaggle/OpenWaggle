@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import type { ContextUsage } from '@earendil-works/pi-coding-agent'
+import { type ContextUsage, SessionManager } from '@earendil-works/pi-coding-agent'
 import type { ContextUsageSnapshot } from '@shared/types/context-usage'
 import {
   AgentKernelMissingEntryError,
@@ -12,6 +12,7 @@ import {
   disposeOpenWagglePiSession,
   withOpenWagglePiSessionLifecycleContext,
 } from '../pi-session-lifecycle'
+import { rekeyForkedSessionFile } from './fork-entry-identity'
 import type { PiRuntimeExtensionIsolationInput } from './runtime-extension-isolation'
 import { createSessionListener } from './session-listener'
 import { projectPiSessionSnapshot } from './session-projection'
@@ -116,10 +117,25 @@ export async function navigatePiSessionTree(
   })
 }
 
+/**
+ * The forked file keeps Pi's copied entry ids until it is re-keyed, so the snapshot is projected
+ * from the re-keyed file after the runtime that wrote it is disposed.
+ */
+async function projectForkedSession(sessionFile: string, cwd: string) {
+  await rekeyForkedSessionFile(sessionFile)
+  const sessionManager = SessionManager.open(sessionFile, undefined, cwd)
+  return {
+    piSessionId: sessionManager.getSessionId(),
+    piSessionFile: sessionFile,
+    sessionSnapshot: projectPiSessionSnapshot({ sessionManager }),
+  }
+}
+
 export async function forkPiSession(
   input: ForkAgentKernelSessionInput & PiRuntimeExtensionIsolationInput,
 ) {
   const runtime = await createPiSessionRuntime(input)
+  let forked: { readonly sessionFile: string; readonly editorText?: string } | undefined
   try {
     const result = await withOpenWagglePiSessionLifecycleContext(runtime.session, () =>
       runtime.fork(input.targetNodeId, { position: input.position }),
@@ -132,12 +148,10 @@ export async function forkPiSession(
         sessionSnapshot: projectPiSessionSnapshot(runtime.session),
       }
     }
-
-    return {
-      cancelled: false,
-      piSessionId: runtime.session.sessionId,
-      piSessionFile: runtime.session.sessionFile,
-      sessionSnapshot: projectPiSessionSnapshot(runtime.session),
+    const sessionFile = runtime.session.sessionFile
+    if (!sessionFile) throw new Error('Pi did not write the forked session file.')
+    forked = {
+      sessionFile,
       ...(result.selectedText ? { editorText: result.selectedText } : {}),
     }
   } catch (error) {
@@ -151,5 +165,11 @@ export async function forkPiSession(
     throw error
   } finally {
     await disposeOpenWagglePiSession(runtime.session)
+  }
+
+  return {
+    cancelled: false,
+    ...(await projectForkedSession(forked.sessionFile, runtime.cwd)),
+    ...(forked.editorText ? { editorText: forked.editorText } : {}),
   }
 }
