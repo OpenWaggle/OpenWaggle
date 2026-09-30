@@ -27,8 +27,12 @@ export function sessionEvidenceDirectoryFor(scratchDirectory: string) {
   )
 }
 
+/** Evidence directories this process prepared, by the scratch directory they belong to. */
+const preparedEvidenceDirectories = new Map<string, string>()
+
 /** Create the Session's evidence directory owner-only at every level, and mark it as used. */
 export async function prepareSessionEvidenceDirectory(scratchDirectory: string) {
+  preparedEvidenceDirectories.delete(scratchDirectory)
   const directory = sessionEvidenceDirectoryFor(scratchDirectory)
   const root = path.dirname(directory)
   await ensurePrivateDirectory(path.dirname(root))
@@ -36,20 +40,27 @@ export async function prepareSessionEvidenceDirectory(scratchDirectory: string) 
   await ensurePrivateDirectory(directory)
   const touchedAt = new Date()
   await fs.utimes(directory, touchedAt, touchedAt)
+  preparedEvidenceDirectories.set(scratchDirectory, directory)
   return directory
 }
 
-/**
- * The Session's evidence directory if its Run prepared it, else undefined. The tool environment
- * and system prompt only name a directory that exists, so an agent is never pointed at a path
- * that failed its ownership checks.
- */
-export function preparedSessionEvidenceDirectory(scratchDirectory: string) {
-  const directory = sessionEvidenceDirectoryFor(scratchDirectory)
+function isRealDirectory(directory: string) {
   try {
     const stats = lstatSync(directory)
-    return stats.isDirectory() && !stats.isSymbolicLink() ? directory : undefined
+    return stats.isDirectory() && !stats.isSymbolicLink()
   } catch {
-    return undefined
+    return false
   }
+}
+
+/**
+ * The Session's evidence directory if a Run prepared it and it is still a real directory at every
+ * level, else undefined. The tool environment and system prompt only name such a directory, so an
+ * agent is never pointed at a path that failed its ownership checks.
+ */
+export function preparedSessionEvidenceDirectory(scratchDirectory: string) {
+  const directory = preparedEvidenceDirectories.get(scratchDirectory)
+  if (!directory) return undefined
+  const root = path.dirname(directory)
+  return [path.dirname(root), root, directory].every(isRealDirectory) ? directory : undefined
 }

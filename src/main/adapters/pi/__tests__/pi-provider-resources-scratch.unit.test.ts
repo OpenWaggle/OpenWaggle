@@ -1,4 +1,12 @@
+import fs from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { prepareSessionEvidenceDirectory } from '../../../utils/session-evidence-directory'
+import {
+  prepareSessionScratchDirectory,
+  sessionScratchRoot,
+} from '../../../utils/session-scratch-directory'
 import { scratchDirectorySystemPrompt } from '../pi-provider-resources'
 
 describe('Session scratch directory system prompt', () => {
@@ -30,5 +38,17 @@ describe('Session scratch directory system prompt', () => {
     )
 
     expect(prompt).not.toContain('OPENWAGGLE_EVIDENCE_DIR')
+  })
+
+  it('names the evidence directory a Run prepared when given only the scratch directory', async () => {
+    const base = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-prompt-evidence-'))
+    try {
+      const scratch = await prepareSessionScratchDirectory('session-a', sessionScratchRoot(base))
+      const evidence = await prepareSessionEvidenceDirectory(scratch)
+
+      expect(scratchDirectorySystemPrompt(scratch)).toContain(JSON.stringify(evidence))
+    } finally {
+      await fs.rm(base, { recursive: true, force: true })
+    }
   })
 })

@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   preparedSessionEvidenceDirectory,
   prepareSessionEvidenceDirectory,
@@ -123,5 +123,56 @@ describe('Session evidence directory', () => {
 
     const evidence = await prepareSessionEvidenceDirectory(scratch)
     expect(preparedSessionEvidenceDirectory(scratch)).toBe(evidence)
+  })
+
+  posixOnly('does not report an evidence directory whose preparation was refused', async () => {
+    const scratch = await prepareSessionScratchDirectory('session-a', root)
+    const shared = path.join(temporaryDirectory, 'shared')
+    await fs.mkdir(path.join(shared, path.basename(scratch)), { recursive: true })
+    await fs.symlink(shared, sessionEvidenceRoot(root))
+
+    await expect(prepareSessionEvidenceDirectory(scratch)).rejects.toThrow('not a real directory')
+    expect(preparedSessionEvidenceDirectory(scratch)).toBeUndefined()
+  })
+
+  posixOnly('does not report a regular file planted as the evidence directory', async () => {
+    const scratch = await prepareSessionScratchDirectory('session-a', root)
+    await fs.mkdir(sessionEvidenceRoot(root), { mode: OWNER_ONLY })
+    await fs.writeFile(sessionEvidenceDirectoryFor(scratch), 'not a directory')
+
+    await expect(prepareSessionEvidenceDirectory(scratch)).rejects.toThrow('not a real directory')
+    expect(preparedSessionEvidenceDirectory(scratch)).toBeUndefined()
+  })
+
+  it('stops reporting an evidence directory that was removed after it was prepared', async () => {
+    const scratch = await prepareSessionScratchDirectory('session-a', root)
+    const evidence = await prepareSessionEvidenceDirectory(scratch)
+    await fs.rm(evidence, { recursive: true })
+
+    expect(preparedSessionEvidenceDirectory(scratch)).toBeUndefined()
+  })
+
+  posixOnly('does not report a directory whose ownership check failed', async () => {
+    const scratch = await prepareSessionScratchDirectory('session-a', root)
+    await fs.mkdir(sessionEvidenceDirectoryFor(scratch), { recursive: true, mode: OWNER_ONLY })
+    const owner = (await fs.stat(scratch)).uid
+    // Every level is a real directory, but the check sees another user's.
+    const getuid = vi.spyOn(process, 'getuid').mockReturnValue(owner + 1)
+    try {
+      await expect(prepareSessionEvidenceDirectory(scratch)).rejects.toThrow('another user')
+    } finally {
+      getuid.mockRestore()
+    }
+
+    expect(preparedSessionEvidenceDirectory(scratch)).toBeUndefined()
+  })
+
+  posixOnly('stops reporting an evidence directory later replaced by a file', async () => {
+    const scratch = await prepareSessionScratchDirectory('session-a', root)
+    const evidence = await prepareSessionEvidenceDirectory(scratch)
+    await fs.rm(evidence, { recursive: true })
+    await fs.writeFile(evidence, 'not a directory')
+
+    expect(preparedSessionEvidenceDirectory(scratch)).toBeUndefined()
   })
 })
