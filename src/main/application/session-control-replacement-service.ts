@@ -15,6 +15,7 @@ import { SessionControlOperationPendingError } from '../errors'
 import { AgentRunInterruptionService } from '../ports/agent-run-interruption-service'
 import { SessionControlIdentityService } from '../ports/session-control-identity-service'
 import { SessionControlOperationJournal } from '../ports/session-control-operation-journal'
+import { lendSessionAttachmentTransitionToSettlingRun } from './session-attachment-cleanup'
 import { fenceFailedClaimedSessionOperation } from './session-control-claimed-operation-recovery'
 import { toSessionControlIntentMessage } from './session-control-message-input'
 import { clampRunAuthorizationOverride } from './session-control-run-authorization'
@@ -97,14 +98,21 @@ export function replaceSessionRun(input: ReplaceSessionRunInput) {
     }
 
     return yield* Effect.gen(function* () {
-      const interruption = yield* AgentRunInterruptionService.pipe(
-        Effect.flatMap((service) =>
-          service.interrupt({
-            sessionId: input.request.command.sessionId,
-            runId: interruptedRunId,
-          }),
+      // The command dispatcher holds this Session's attachment transition, and the interrupted
+      // Run releases its attachments under it before settling. Lend it to that Run, or the wait
+      // below never ends.
+      const interruption = yield* lendSessionAttachmentTransitionToSettlingRun({
+        sessionId: input.request.command.sessionId,
+        runId: interruptedRunId,
+        effect: AgentRunInterruptionService.pipe(
+          Effect.flatMap((service) =>
+            service.interrupt({
+              sessionId: input.request.command.sessionId,
+              runId: interruptedRunId,
+            }),
+          ),
         ),
-      )
+      })
       const outcome: SessionControlMutationOutcome = interruption.accepted
         ? {
             operation: 'replace',
