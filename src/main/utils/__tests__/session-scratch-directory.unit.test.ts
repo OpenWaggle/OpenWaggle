@@ -92,6 +92,20 @@ describe('Session scratch directory', () => {
     )
   })
 
+  posixOnly('refuses a directory another user owns', async () => {
+    await fs.mkdir(path.dirname(root), { recursive: true, mode: OWNER_ONLY })
+    const owner = (await fs.stat(path.dirname(root))).uid
+    // As if another account had created the per-user directory first.
+    const getuid = vi.spyOn(process, 'getuid').mockReturnValue(owner + 1)
+    try {
+      await expect(prepareSessionScratchDirectory('session-a', root)).rejects.toThrow(
+        'owned by another user',
+      )
+    } finally {
+      getuid.mockRestore()
+    }
+  })
+
   it('keeps the directory and its files across runs of the same Session', async () => {
     const directory = await prepareSessionScratchDirectory('session-a', root)
     await fs.writeFile(path.join(directory, 'plan.txt'), 'kept')

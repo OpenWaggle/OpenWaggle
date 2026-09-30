@@ -113,7 +113,7 @@ function authorize(payload: LocalSessionCommandPayload, widens: boolean) {
 describe('input into a Run that reaches every project', () => {
   it.each(Object.entries(runInputs))(
     'refuses %s from a caller that lacks the Run reach',
-    async (_name, payload) => {
+    async (name, payload) => {
       const { result, runInputWidensReach } = authorize(payload, true)
 
       const message = sessionCommandFailureMessage(await result)
@@ -126,6 +126,13 @@ describe('input into a Run that reaches every project', () => {
           runId: 'run-desktop',
         }),
       )
+      if (name === 'promote') {
+        // The Follow-up is judged by who wrote it, so the check must receive it.
+        expect(runInputWidensReach).toHaveBeenCalledWith(
+          expect.objectContaining({ followUpId: 'follow-up' }),
+        )
+        expect(message).toContain('this Follow-up was written by a caller that cannot')
+      }
     },
   )
 

@@ -33,7 +33,7 @@ describe('SQLite Session control: a re-authorized Follow-up', () => {
     await fs.rm(tmpRoot, { recursive: true, force: true })
   })
 
-  it('keeps its writer as the author and stays readable', async () => {
+  it('keeps its writer as the author through repeated re-authorization, and stays readable', async () => {
     const layer = makeSessionControlTestLayer(path.join(tmpRoot, 'session-host.sqlite'))
     const result = await Effect.runPromise(
       Effect.gen(function* () {
@@ -74,17 +74,27 @@ describe('SQLite Session control: a re-authorized Follow-up', () => {
             runAuthorizationOverride: 'ask-for-approval',
           }),
         })
+        // Re-authorized a second time, by another local caller, it must still name its writer.
+        const again = yield* mutateSessionQueue({
+          callerId: 'gui:local-user',
+          request: request('reauthorize-again', {
+            operation: 'queue-update-authorization',
+            sessionId: 'session-target',
+            followUpId,
+            runAuthorizationOverride: null,
+          }),
+        })
         // Loading the Session's control state decodes the stored intent strictly.
         const state = yield* loadSessionControlState(sql, 'session-target')
-        return { reauthorized, intent: state.followUpQueue.items[0]?.intent }
+        return { reauthorized, again, intent: state.followUpQueue.items[0]?.intent }
       }).pipe(Effect.provide(layer)),
     )
 
-    expect(result.intent).toMatchObject({
-      callerId: 'local-user',
-      authorCallerId: 'profile:ci',
-      runAuthorizationOverride: 'ask-for-approval',
-    })
     expect(result.reauthorized.outcome).toMatchObject({ effect: 'queue-updated' })
+    expect(result.again.outcome).toMatchObject({ effect: 'queue-updated' })
+    expect(result.intent).toMatchObject({
+      callerId: 'gui:local-user',
+      authorCallerId: 'profile:ci',
+    })
   })
 })
