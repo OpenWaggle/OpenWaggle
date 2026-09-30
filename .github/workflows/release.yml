@@ -143,6 +143,16 @@ jobs:
             echo "should_release=false" >> "$GITHUB_OUTPUT"
           }
 
+          # A maintainer closing the release PR mid-validation is a deliberate "not this
+          # version", not a workflow failure: report it and end without preparing a release.
+          exit_if_release_pr_closed() {
+            if [ "$1" = "CLOSED" ]; then
+              echo "::notice::Release PR ${PR_URL} was closed during validation; nothing to prepare."
+              write_no_release_output
+              exit 0
+            fi
+          }
+
           if [ -n "$RELEASE_TARGET_VERSION" ]; then
             pnpm exec tsx scripts/app-release-state.ts validate-transition \
               --current "$CURRENT_VERSION" \
@@ -441,6 +451,7 @@ jobs:
                 write_no_release_output
                 exit 0
               fi
+              exit_if_release_pr_closed "$CURRENT_PR_STATE"
               test "$CURRENT_PR_STATE" = "OPEN"
               test "$(jq -er '.baseRefName' <<<"$PR_DETAILS")" = "main"
               test "$(jq -er '.headRefName' <<<"$PR_DETAILS")" = "$RELEASE_BRANCH"
@@ -530,6 +541,7 @@ jobs:
                 write_no_release_output
                 exit 0
               fi
+              exit_if_release_pr_closed "$AFTER_VALIDATION_STATE"
               test "$AFTER_VALIDATION_STATE" = "OPEN"
               git fetch origin "+refs/heads/main:refs/remotes/origin/main"
               MAIN_SHA=$(git rev-parse origin/main)
