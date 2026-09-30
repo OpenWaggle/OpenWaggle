@@ -3,6 +3,7 @@ import {
   decodeSessionAuthoritySnapshot,
   encodeSessionAuthoritySnapshot,
   retargetSessionAuthoritySnapshot,
+  workerAuthorityScope,
 } from '../session-authority-snapshot'
 
 describe('Session authority snapshots', () => {
@@ -65,5 +66,15 @@ describe('Session authority snapshots', () => {
         }),
       ),
     ).toThrow()
+  })
+
+  it("stores a Worker's narrower derived scope exactly, and only narrows catalog-wide reach", () => {
+    const sessionScoped = { sessionIds: ['queen'], exportRoots: ['/w'], attachmentRoots: ['/w'] }
+
+    expect(workerAuthorityScope(sessionScoped, '/projects/a')).toEqual(sessionScoped)
+    expect(workerAuthorityScope({ all: true, exportRoots: ['/w'] }, '/projects/a')).toEqual({
+      projectPaths: ['/projects/a'],
+      exportRoots: ['/w'],
+    })
   })
 })

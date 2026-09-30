@@ -56,6 +56,8 @@ describe('Run initiator chains between two roots', () => {
       snapshot?: string
       /** A Worker recorded only in the historical `session_lineage` table. */
       historicalQueenSessionId?: string
+      /** Store this intent JSON as is, instead of one built from `callerId`. */
+      rawIntentJson?: string
     }[],
     use: (sql: SqlClient.SqlClient) => Effect.Effect<A, unknown>,
   ) {
@@ -118,10 +120,13 @@ describe('Run initiator chains between two roots', () => {
             ) VALUES (${run.sessionId}, ${'yolo'}, ${null})`
           }
           yield* sql`INSERT INTO session_runs (id, session_id, intent_json) VALUES (
-            ${run.runId}, ${run.sessionId}, ${JSON.stringify({
-              callerId: run.callerId,
-              ...(run.authorCallerId ? { authorCallerId: run.authorCallerId } : {}),
-            })}
+            ${run.runId}, ${run.sessionId}, ${
+              run.rawIntentJson ??
+              JSON.stringify({
+                callerId: run.callerId,
+                ...(run.authorCallerId ? { authorCallerId: run.authorCallerId } : {}),
+              })
+            }
           )`
         }
         return yield* use(sql)
@@ -228,5 +233,19 @@ describe('Run initiator chains between two roots', () => {
     ]
 
     await expect(judge(runs)).resolves.toMatchObject({ reach: false })
+  })
+
+  it('fails closed on a Run that records no initiator, such as a migrated legacy Run', async () => {
+    const runs = [
+      {
+        runId: 'legacy',
+        sessionId: 'cutover-root',
+        callerId: 'unused',
+        origin: 'local-user:cutover',
+        rawIntentJson: '{"syntheticLegacyRuntime":true}',
+      },
+    ]
+
+    await expect(judge(runs)).resolves.toEqual({ reach: false, ceiling: 'ask-for-approval' })
   })
 })
