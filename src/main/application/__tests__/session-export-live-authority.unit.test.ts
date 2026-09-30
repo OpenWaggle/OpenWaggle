@@ -35,6 +35,9 @@ describe('live Session export authority', () => {
           CREATE TABLE sessions (id TEXT PRIMARY KEY, project_path TEXT)
         `)
         yield* sql.unsafe(`
+          CREATE TABLE session_runs (id TEXT PRIMARY KEY, session_id TEXT NOT NULL, intent_json TEXT)
+        `)
+        yield* sql.unsafe(`
           CREATE TABLE session_execution_profiles (
             session_id TEXT PRIMARY KEY,
             authorization_ceiling TEXT NOT NULL,
