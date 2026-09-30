@@ -53,6 +53,7 @@ const intentSnapshotSchema = Schema.Struct({
     Schema.Number.pipe(Schema.int(), Schema.between(0, MAX_NODE_TIMER_DELAY_MS)),
   ),
   callerId: Schema.String,
+  authorCallerId: Schema.optional(Schema.String),
   acceptedAt: Schema.Number.pipe(Schema.int(), Schema.nonNegative()),
   idempotencyKey: Schema.String,
 })

@@ -111,6 +111,8 @@ describe('Session Control queue aggregate', () => {
               deliveryState: 'pending',
               intent: {
                 callerId: 'gui:local-user',
+                // The writer stays on record, so re-approval does not lend it the desktop reach.
+                authorCallerId: 'profile:revoked',
                 runAuthorizationOverride: 'ask-for-approval',
               },
             },

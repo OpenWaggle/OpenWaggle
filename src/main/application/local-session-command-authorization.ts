@@ -17,6 +17,7 @@ import {
   type LocalSessionAuthorizationTarget,
 } from './local-session-derived-authority'
 import { authorizeInterruptDescendantTargets } from './local-session-descendant-authorization'
+import { authorizeRunInputReach } from './local-session-run-input-reach'
 import { isUnscopedSessionDiscovery } from './local-session-unscoped-discovery'
 
 export {
@@ -297,6 +298,7 @@ export function authorizeLocalSessionCommand(input: {
         new LocalSessionCommandAuthorizationError({ code: authorization.code }),
       )
     }
+    yield* authorizeRunInputReach(input.caller, payload)
   })
 }
 

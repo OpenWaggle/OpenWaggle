@@ -15,6 +15,7 @@ const SESSION_AGENT_CALLER_PREFIX = 'session-agent:'
 
 interface RunSourceRow {
   readonly initiator_caller_id: string | null
+  readonly author_caller_id: string | null
   readonly authority_origin_caller_id: string
   readonly authority_scope_snapshot_json: string | null
   readonly parent_session_id: string | null
@@ -41,8 +42,16 @@ function liveProfileScope(sql: SqlClient.SqlClient, callerId: string) {
     `
     const profile = rows[0]
     if (!profile || profile.revoked_at !== null) return undefined
-    return decodeLocalSessionProfileScope(parseJsonUnknown(profile.scope_json))
+    // An unreadable scope fails closed: no reach, rather than a defect that ends the Run.
+    return yield* Effect.try(() =>
+      decodeLocalSessionProfileScope(parseJsonUnknown(profile.scope_json)),
+    ).pipe(Effect.orElseSucceed(() => undefined))
   })
+}
+
+/** Whether a caller, as the author of input into a Run, reaches every project. */
+export function callerReachesEveryProject(sql: SqlClient.SqlClient, callerId: string) {
+  return initiatorReachesEveryProject(sql, callerId, 0)
 }
 
 function initiatorReachesEveryProject(
@@ -78,6 +87,7 @@ export function sessionAgentRunReachesEveryProject(
   return Effect.gen(function* () {
     const rows = yield* sql<RunSourceRow>`
       SELECT json_extract(session_runs.intent_json, '$.callerId') AS initiator_caller_id,
+        json_extract(session_runs.intent_json, '$.authorCallerId') AS author_caller_id,
         session_execution_profiles.authority_origin_caller_id,
         session_execution_profiles.authority_scope_snapshot_json,
         COALESCE(session_spawn_lineage.parent_session_id, session_lineage.parent_session_id)
@@ -110,6 +120,10 @@ export function sessionAgentRunReachesEveryProject(
       }),
     ).pipe(Effect.orElseSucceed(() => false))
     if (!ownReach) return false
-    return yield* initiatorReachesEveryProject(sql, row.initiator_caller_id, depth)
+    if (!(yield* initiatorReachesEveryProject(sql, row.initiator_caller_id, depth))) return false
+    // A re-authorized Follow-up keeps its author, who must reach every project as well.
+    return row.author_caller_id === null
+      ? true
+      : yield* initiatorReachesEveryProject(sql, row.author_caller_id, depth)
   })
 }

@@ -31,7 +31,7 @@ export function assertSessionAgentLifecycleProjectKnown(
     if (rows[0]?.known === 1) return
     return yield* Effect.fail(
       new Error(
-        `Session command refused: ${projectPath} is not a project in OpenWaggle. A Session agent can only launch or create Sessions in a project that already has a Session; open the project in OpenWaggle first.`,
+        `Session command refused: ${projectPath} is not a project in OpenWaggle. A Session agent can only launch or create Sessions in a project that already has a Session or Workspace in OpenWaggle; open the project in OpenWaggle first.`,
       ),
     )
   })

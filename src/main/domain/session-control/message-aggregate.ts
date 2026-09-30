@@ -18,6 +18,12 @@ export interface SessionControlIntentSnapshot {
   readonly runAuthorizationOverride?: AgentAuthorizationMode
   readonly interactionTimeoutMs?: number
   readonly callerId: string
+  /**
+   * Who wrote the input, when someone else later re-authorized it (`queue-update-authorization`
+   * sets `callerId` to the re-authorizer). Reach checks require both, so re-approving a ceiling
+   * does not lend the author the re-authorizer's reach.
+   */
+  readonly authorCallerId?: string
   readonly acceptedAt: number
   readonly idempotencyKey: string
 }

@@ -7,6 +7,7 @@ import * as Layer from 'effect/Layer'
 import { SessionAuthorizationTargetRepositoryError } from '../errors'
 import { SessionAuthorizationTargetRepository } from '../ports/session-authorization-target-repository'
 import { isPathInsideDirectory } from '../utils/project-path-validation'
+import { runInputWidensReach } from './session-agent-run-input-reach'
 import { listLiveScopedDerivedAuthorities } from './sqlite-session-derived-authority'
 import { authorizedSessionScope } from './sqlite-session-query-support'
 
@@ -259,6 +260,16 @@ export const SqliteSessionAuthorizationTargetRepositoryLive = Layer.effect(
         }).pipe(mapTargetError),
       listLiveDerivedAuthorities: (callerId, originScope) =>
         listLiveScopedDerivedAuthorities(sql, callerId, originScope),
+      runInputWidensReach: (input) =>
+        runInputWidensReach(sql, input).pipe(
+          Effect.mapError(
+            (cause) =>
+              new SessionAuthorizationTargetRepositoryError({
+                operation: 'run-input-reach',
+                cause,
+              }),
+          ),
+        ),
     })
   }),
 )
