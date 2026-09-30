@@ -5,6 +5,7 @@ import * as SqlClient from '@effect/sql/SqlClient'
 import { SqliteClient } from '@effect/sql-sqlite-node'
 import * as Effect from 'effect/Effect'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { requestedWaggleRunId } from '../../domain/session-control/root-session-project-reach'
 import { SQLITE_PREPARE_CACHE_SIZE } from '../../services/database-constants'
 import { runInputWidensReach } from '../session-agent-run-input-reach'
 import { sessionAgentRunReachesEveryProject } from '../session-agent-run-project-reach'
@@ -164,6 +165,21 @@ describe('sessionAgentRunReachesEveryProject', () => {
     await expect(reaches(chain, 's8')).resolves.toBe(true)
     await expect(reaches(chain, 's9')).resolves.toBe(false)
     await expect(reaches([], 'missing')).resolves.toBe(false)
+  })
+
+  it('judges an agent-requested Waggle by the classic Run that requested it', async () => {
+    const byDesktop = [{ id: 's', origin: 'gui:local-user', initiator: 'gui:local-user' }]
+    const byProfile = [{ id: 's', origin: 'gui:local-user', initiator: 'profile:project' }]
+    await expect(
+      withCatalog(byDesktop, [], (sql) =>
+        sessionAgentRunReachesEveryProject(sql, 's', requestedWaggleRunId('run-s')),
+      ),
+    ).resolves.toBe(true)
+    await expect(
+      withCatalog(byProfile, [], (sql) =>
+        sessionAgentRunReachesEveryProject(sql, 's', requestedWaggleRunId('run-s')),
+      ),
+    ).resolves.toBe(false)
   })
 
   it('needs the author of a re-authorized Follow-up to reach every project too', async () => {

@@ -56,3 +56,20 @@ export function rootSessionReachesEveryProject(input: {
   if (isProfileCallerId(input.originCallerId)) return input.liveProfileScope?.all === true
   return false
 }
+
+const REQUESTED_WAGGLE_RUN_PREFIX = 'waggle-of-'
+
+/**
+ * The Run id of the Waggle an agent requests from a classic Run. It has no `session_runs` row of
+ * its own; reach and ceiling checks read the classic Run it names instead.
+ */
+export function requestedWaggleRunId(classicRunId: string) {
+  return `${REQUESTED_WAGGLE_RUN_PREFIX}${classicRunId}`
+}
+
+/** The classic Run a requested Waggle's Run id names, or undefined for any other Run id. */
+export function requestedWaggleClassicRunId(runId: string) {
+  return runId.startsWith(REQUESTED_WAGGLE_RUN_PREFIX)
+    ? runId.slice(REQUESTED_WAGGLE_RUN_PREFIX.length)
+    : undefined
+}

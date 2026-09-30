@@ -4,11 +4,7 @@ import { SessionId, SupportedModelId } from '@shared/types/brand'
 import type { SessionEnvironmentMode } from '@shared/types/git'
 import type { SessionDetail, SessionSummary } from '@shared/types/session'
 import * as Effect from 'effect/Effect'
-import { parseSessionAgentCallerId } from '../../domain/session-control/root-session-project-reach'
-import {
-  sessionAgentAuthorizationBoundary,
-  sessionAgentCallerRunCeiling,
-} from '../../session-host/session-agent-run-ceiling'
+import { sessionAgentCallerBoundary } from '../../session-host/session-agent-run-ceiling'
 import { sessionIdsForQuery } from '../sessions/hydration'
 import { attachSessionLineage, loadSessionLineageRows } from '../sessions/session-list'
 import { runStoreEffect } from '../store-runtime'
@@ -251,18 +247,7 @@ export async function getSessionCallerAuthorizationBoundary(callerId: string) {
           : { authorizationCeiling: 'ask-for-approval' as const, revoked: true }
       }
 
-      const agent = parseSessionAgentCallerId(callerId)
-      if (!agent) return null
-      const boundary = yield* sessionAgentAuthorizationBoundary(sql, agent.sessionId)
-      // The caller's Run counts too: an agent acting for an ask-for-approval initiator stays there.
-      const runCeiling = yield* sessionAgentCallerRunCeiling(sql, callerId).pipe(
-        Effect.orElseSucceed(() => 'ask-for-approval' as const),
-      )
-      return {
-        authorizationCeiling:
-          runCeiling === 'ask-for-approval' ? runCeiling : boundary.authorizationCeiling,
-        revoked: boundary.revoked,
-      }
+      return (yield* sessionAgentCallerBoundary(sql, callerId)) ?? null
     }),
   )
 }

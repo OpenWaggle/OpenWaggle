@@ -7,6 +7,7 @@ import {
   isProfileCallerId,
   MAX_RUN_INITIATOR_CHAIN_DEPTH,
   parseSessionAgentCallerId,
+  requestedWaggleClassicRunId,
   rootSessionReachesEveryProject,
 } from '../domain/session-control/root-session-project-reach'
 import { decodeSessionAuthoritySnapshot } from '../session-host/session-authority-snapshot'
@@ -91,7 +92,8 @@ export function sessionAgentRunReachesEveryProject(
       LEFT JOIN session_client_profiles
         ON session_execution_profiles.authority_origin_caller_id =
           ${'profile:'} || session_client_profiles.id
-      WHERE session_runs.id = ${runId} AND session_runs.session_id = ${sessionId}
+      WHERE session_runs.id = ${requestedWaggleClassicRunId(runId) ?? runId}
+        AND session_runs.session_id = ${sessionId}
       LIMIT 1
     `
     const row = rows[0]

@@ -5,8 +5,9 @@ import * as SqlClient from '@effect/sql/SqlClient'
 import { SqliteClient } from '@effect/sql-sqlite-node'
 import * as Effect from 'effect/Effect'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { requestedWaggleRunId } from '../../domain/session-control/root-session-project-reach'
 import { SQLITE_PREPARE_CACHE_SIZE } from '../../services/database-constants'
-import { runInitiatorCeiling } from '../session-agent-run-ceiling'
+import { runInitiatorCeiling, sessionAgentCallerBoundary } from '../session-agent-run-ceiling'
 
 interface RunRow {
   readonly sessionId: string
@@ -15,6 +16,11 @@ interface RunRow {
   readonly status?: string
   /** The Session's own origin; `profile:<id>` binds it to that profile's live ceiling. */
   readonly origin?: string
+  /** Who wrote the Run's input when someone else re-authorized it. */
+  readonly author?: string
+  /** A Worker of this Session; its grant is revoked when `grantRevoked` is set. */
+  readonly parent?: string
+  readonly grantRevoked?: boolean
 }
 
 describe('runInitiatorCeiling', () => {
@@ -29,7 +35,10 @@ describe('runInitiatorCeiling', () => {
     await fs.rm(root, { recursive: true, force: true })
   })
 
-  function ceiling(runs: readonly RunRow[], sessionId: string, runId: string) {
+  function withCatalog<A>(
+    runs: readonly RunRow[],
+    use: (sql: SqlClient.SqlClient) => Effect.Effect<A, unknown>,
+  ) {
     databaseCount += 1
     const database = SqliteClient.layer({
       filename: path.join(root, `ceiling-${databaseCount}.sqlite`),
@@ -65,14 +74,28 @@ describe('runInitiatorCeiling', () => {
         for (const [index, run] of runs.entries()) {
           yield* sql`INSERT INTO session_runs (id, session_id, status, intent_json, created_at)
             VALUES (${run.runId}, ${run.sessionId}, ${run.status ?? 'active'},
-              ${JSON.stringify({ callerId: run.callerId })}, ${index})`
+              ${JSON.stringify({
+                callerId: run.callerId,
+                ...(run.author ? { authorCallerId: run.author } : {}),
+              })}, ${index})`
+          if (run.parent) {
+            yield* sql`INSERT OR IGNORE INTO session_spawn_lineage (child_session_id, parent_session_id)
+              VALUES (${run.sessionId}, ${run.parent})`
+            yield* sql`INSERT OR IGNORE INTO derived_child_management_grants (
+              child_session_id, authorization_ceiling, revoked_at
+            ) VALUES (${run.sessionId}, ${'yolo'}, ${run.grantRevoked ? 1 : null})`
+          }
           yield* sql`INSERT OR IGNORE INTO session_execution_profiles (
             session_id, authorization_ceiling, authority_origin_caller_id
           ) VALUES (${run.sessionId}, ${'yolo'}, ${run.origin ?? 'gui:local-user'})`
         }
-        return yield* runInitiatorCeiling(sql, sessionId, runId)
+        return yield* use(sql)
       }).pipe(Effect.provide(database)),
     )
+  }
+
+  function ceiling(runs: readonly RunRow[], sessionId: string, runId: string) {
+    return withCatalog(runs, (sql) => runInitiatorCeiling(sql, sessionId, runId))
   }
 
   it('follows the ceiling of the caller that started the Run', async () => {
@@ -114,10 +137,63 @@ describe('runInitiatorCeiling', () => {
     ).resolves.toBe('ask-for-approval')
   })
 
-  it('bounds a Waggle Run, which has no row, by the active classic Run it runs in', async () => {
-    const classic = [{ sessionId: 's', runId: 'classic', callerId: 'profile:asker' }]
-    await expect(ceiling(classic, 's', 'waggle-s')).resolves.toBe('ask-for-approval')
-    // An explicit Waggle the GUI started, with no classic Run, keeps the Session's own ceiling.
-    await expect(ceiling([], 's', 'waggle-explicit')).resolves.toBe('yolo')
+  it('bounds an agent-requested Waggle by the classic Run that requested it, even later', async () => {
+    const classic = { sessionId: 's', runId: 'classic', callerId: 'profile:asker' }
+    const waggle = requestedWaggleRunId('classic')
+    await expect(ceiling([classic], 's', waggle)).resolves.toBe('ask-for-approval')
+    // The classic Run has settled and the Session moved on; the Waggle still acted for asker.
+    const later = [
+      { ...classic, status: 'completed' },
+      { sessionId: 's', runId: 'gui-run', callerId: 'gui:local-user' },
+    ]
+    await expect(ceiling(later, 's', waggle)).resolves.toBe('ask-for-approval')
+  })
+
+  it('treats a Run it cannot find as ask-for-approval', async () => {
+    await expect(ceiling([], 's', 'missing')).resolves.toBe('ask-for-approval')
+  })
+
+  it('needs the writer of a re-authorized Follow-up to allow yolo as well', async () => {
+    const reauthorized = [
+      { sessionId: 's', runId: 'r', callerId: 'gui:local-user', author: 'profile:asker' },
+    ]
+    await expect(ceiling(reauthorized, 's', 'r')).resolves.toBe('ask-for-approval')
+  })
+
+  it('treats an initiating Worker with a revoked grant as ask-for-approval', async () => {
+    const runs = [
+      { sessionId: 'queen', runId: 'run-queen', callerId: 'gui:local-user' },
+      {
+        sessionId: 'worker',
+        runId: 'run-worker',
+        callerId: 'session-agent:queen:run-queen',
+        parent: 'queen',
+        grantRevoked: true,
+      },
+      { sessionId: 's', runId: 'r', callerId: 'session-agent:worker:run-worker' },
+    ]
+    await expect(ceiling(runs, 's', 'r')).resolves.toBe('ask-for-approval')
+  })
+
+  it('stops following a chain after eight agents', async () => {
+    const chain = Array.from({ length: 10 }, (_, index) => ({
+      sessionId: `s${index}`,
+      runId: `r${index}`,
+      callerId: index === 0 ? 'gui:local-user' : `session-agent:s${index - 1}:r${index - 1}`,
+    }))
+    await expect(ceiling(chain, 's8', 'r8')).resolves.toBe('yolo')
+    await expect(ceiling(chain, 's9', 'r9')).resolves.toBe('ask-for-approval')
+  })
+
+  it('gives the Runs a Session agent starts the ceiling of the caller it acts for', async () => {
+    const runs = [{ sessionId: 's', runId: 'r', callerId: 'profile:asker' }]
+    await expect(
+      withCatalog(runs, (sql) => sessionAgentCallerBoundary(sql, 'session-agent:s:r')),
+    ).resolves.toEqual({ authorizationCeiling: 'ask-for-approval', revoked: false })
+    await expect(
+      withCatalog([{ sessionId: 's', runId: 'r', callerId: 'gui:local-user' }], (sql) =>
+        sessionAgentCallerBoundary(sql, 'session-agent:s:r'),
+      ),
+    ).resolves.toEqual({ authorizationCeiling: 'yolo', revoked: false })
   })
 })

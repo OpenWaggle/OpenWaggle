@@ -6,6 +6,7 @@ import {
   isProfileCallerId,
   MAX_RUN_INITIATOR_CHAIN_DEPTH,
   parseSessionAgentCallerId,
+  requestedWaggleClassicRunId,
 } from '../domain/session-control/root-session-project-reach'
 
 const ASK: AgentAuthorizationMode = 'ask-for-approval'
@@ -109,31 +110,17 @@ function callerCeiling(
 }
 
 /**
- * The Run whose initiator bounds `runId`. Waggle Runs have no `session_runs` row: an
- * agent-requested Waggle runs inside the Session's active classic Run, whose initiator applies,
- * and an explicit Waggle is GUI-only, so with no active Run there is nothing narrower to apply.
+ * The Run whose initiator bounds `runId`: that Run, or for an agent-requested Waggle, which has no
+ * row of its own, the classic Run that requested it.
  */
 function initiatorRow(sql: SqlClient.SqlClient, sessionId: string, runId: string) {
-  return Effect.gen(function* () {
-    const exact = yield* sql<InitiatorRow>`
-      SELECT json_extract(intent_json, '$.callerId') AS initiator_caller_id,
-        json_extract(intent_json, '$.authorCallerId') AS author_caller_id
-      FROM session_runs
-      WHERE id = ${runId} AND session_id = ${sessionId}
-      LIMIT 1
-    `
-    if (exact[0]) return exact[0]
-    const active = yield* sql<InitiatorRow>`
-      SELECT json_extract(intent_json, '$.callerId') AS initiator_caller_id,
-        json_extract(intent_json, '$.authorCallerId') AS author_caller_id
-      FROM session_runs
-      WHERE session_id = ${sessionId}
-        AND status IN (${'starting'}, ${'active'}, ${'stopping'})
-      ORDER BY created_at DESC
-      LIMIT 1
-    `
-    return active[0]
-  })
+  return sql<InitiatorRow>`
+    SELECT json_extract(intent_json, '$.callerId') AS initiator_caller_id,
+      json_extract(intent_json, '$.authorCallerId') AS author_caller_id
+    FROM session_runs
+    WHERE id = ${requestedWaggleClassicRunId(runId) ?? runId} AND session_id = ${sessionId}
+    LIMIT 1
+  `.pipe(Effect.map((rows) => rows[0]))
 }
 
 /**
@@ -151,10 +138,7 @@ export function runInitiatorCeiling(
   if (depth > MAX_RUN_INITIATOR_CHAIN_DEPTH) return Effect.succeed(ASK)
   return Effect.gen(function* () {
     const row = yield* initiatorRow(sql, sessionId, runId)
-    // Only an explicit Waggle Run, which the GUI starts, has neither; the Session's own ceiling
-    // still applies to it.
-    if (!row) return YOLO
-    if (!row.initiator_caller_id) return ASK
+    if (!row?.initiator_caller_id) return ASK
     const callers = [row.initiator_caller_id, row.author_caller_id].filter(
       (caller): caller is string => caller !== null,
     )
@@ -164,8 +148,22 @@ export function runInitiatorCeiling(
   })
 }
 
-/** The ceiling of the Run a `session-agent:<session>:<run>` caller acts in, or yolo otherwise. */
-export function sessionAgentCallerRunCeiling(sql: SqlClient.SqlClient, callerId: string) {
+/**
+ * The Authorization boundary of a `session-agent:<session>:<run>` caller: its Session's boundary,
+ * narrowed by whoever started the Run it acts in. The Run mode of anything that caller starts is
+ * resolved through this, so it cannot exceed the ceiling of the caller it acts for.
+ */
+export function sessionAgentCallerBoundary(sql: SqlClient.SqlClient, callerId: string) {
   const agent = parseSessionAgentCallerId(callerId)
-  return agent ? runInitiatorCeiling(sql, agent.sessionId, agent.runId) : Effect.succeed(YOLO)
+  if (!agent) return Effect.succeed(undefined)
+  return Effect.gen(function* () {
+    const boundary = yield* sessionAgentAuthorizationBoundary(sql, agent.sessionId)
+    const runCeiling = yield* runInitiatorCeiling(sql, agent.sessionId, agent.runId).pipe(
+      Effect.orElseSucceed(() => ASK),
+    )
+    return {
+      authorizationCeiling: narrower([boundary.authorizationCeiling, runCeiling]),
+      revoked: boundary.revoked,
+    } satisfies SessionAuthorizationBoundary
+  })
 }
