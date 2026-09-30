@@ -1,5 +1,7 @@
+import fs from 'node:fs/promises'
 import os from 'node:os'
-import { describe, expect, it } from 'vitest'
+import path from 'node:path'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { isOwnedQaTemporaryPath, qaSharedTemporaryDirectory } from '../electron-qa-lease'
 
 describe('Electron QA lease location', () => {
@@ -31,5 +33,39 @@ describe('Electron QA lease location', () => {
         shared,
       ),
     ).toBe(false)
+  })
+
+  describe('when launched from an agent shell', () => {
+    const roots: string[] = []
+
+    afterEach(async () => {
+      vi.unstubAllEnvs()
+      vi.resetModules()
+      await Promise.all(roots.splice(0).map((root) => fs.rm(root, { recursive: true, force: true })))
+    })
+
+    it('puts the lease, profile, and evidence in the Host temp directory, not TMPDIR', async () => {
+      const [host, scratch] = await Promise.all([
+        fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-qa-host-')),
+        fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-qa-scratch-')),
+      ])
+      roots.push(host, scratch)
+      vi.stubEnv('OPENWAGGLE_HOST_TMPDIR', host)
+      vi.stubEnv('TMPDIR', scratch)
+      // A port nothing else uses, so the test never meets a real QA lease.
+      vi.stubEnv('OPENWAGGLE_QA_CDP_PORT', String(40_000 + (process.pid % 20_000)))
+      vi.resetModules()
+      const { acquireQaLease, releaseQaLease } = await import('../electron-qa-lease')
+
+      const lease = await acquireQaLease('/project')
+      try {
+        expect(path.dirname(lease.directory)).toBe(host)
+        expect(path.dirname(lease.metadata.profilePath)).toBe(host)
+        expect(path.dirname(lease.metadata.artifactsPath)).toBe(host)
+        expect(await fs.readdir(scratch)).toEqual([])
+      } finally {
+        await releaseQaLease(lease)
+      }
+    })
   })
 })
