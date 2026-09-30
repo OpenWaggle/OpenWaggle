@@ -104,8 +104,15 @@ describe('Sessions tool command admission', () => {
   })
 
   it('admits the same agent launching into a known project', async () => {
-    const caller = await admit(launch(KNOWN_PROJECT))
+    const { caller, payload } = await admit(launch(KNOWN_PROJECT))
 
     expect(caller.profileAuthority.scope).toMatchObject({ all: true })
+    expect(payload).toEqual(launch(KNOWN_PROJECT))
+  })
+
+  it('matches a known project named with a trailing slash and dispatches its stored path', async () => {
+    const { payload } = await admit(launch(`${KNOWN_PROJECT}/./`))
+
+    expect(payload).toEqual(launch(KNOWN_PROJECT))
   })
 })

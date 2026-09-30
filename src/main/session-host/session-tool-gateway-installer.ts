@@ -106,12 +106,11 @@ export const installAppSessionToolGateway = Effect.gen(function* () {
     ) {
       throw new Error('The agent Session tool cannot invoke Host UI operations.')
     }
-    const payload = input.payload
-    const caller = await admitSessionToolCommand(sql, {
+    const { caller, payload } = await admitSessionToolCommand(sql, {
       sourceSessionId: input.sourceSessionId,
       sourceRunId: input.sourceRunId,
       workingDirectory: input.workingDirectory,
-      payload,
+      payload: input.payload,
       ...(input.signal ? { signal: input.signal } : {}),
     })
     const command = Effect.suspend(

@@ -1,3 +1,4 @@
+import path from 'node:path'
 import type * as SqlClient from '@effect/sql/SqlClient'
 import type { LocalSessionProfileScope } from '@shared/types/local-session-profile'
 import type { LocalSessionCommandPayload } from '@shared/types/local-session-protocol'
@@ -9,6 +10,31 @@ function lifecycleTargetProjectPath(payload: LocalSessionCommandPayload) {
   return command.operation === 'launch' || command.operation === 'create'
     ? command.projectPath
     : undefined
+}
+
+type SessionLifecyclePayload = Extract<
+  LocalSessionCommandPayload,
+  { readonly contract: 'session-lifecycle-v2' }
+>
+
+function normalizedLifecyclePayload(payload: SessionLifecyclePayload): SessionLifecyclePayload {
+  const command = payload.request.command
+  if (command.operation !== 'launch' && command.operation !== 'create') return payload
+  if (!path.isAbsolute(command.projectPath)) return payload
+  const projectPath = path.resolve(command.projectPath)
+  if (projectPath === command.projectPath) return payload
+  return { ...payload, request: { ...payload.request, command: { ...command, projectPath } } }
+}
+
+/**
+ * Normalize an absolute launch or create project path (`/p/`, `/p/./x/..` become `/p`), so the
+ * catalog check and the command agree on the path the catalog stores. Relative paths are left for
+ * the command's own validation to refuse.
+ */
+export function normalizeLifecycleProjectPath<Payload extends LocalSessionCommandPayload>(
+  payload: Payload,
+): Payload | SessionLifecyclePayload {
+  return payload.contract === 'session-lifecycle-v2' ? normalizedLifecyclePayload(payload) : payload
 }
 
 /**
