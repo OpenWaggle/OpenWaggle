@@ -6,7 +6,7 @@ describe('update channels', () => {
     ['alpha', 'alpha'],
     ['beta', 'beta'],
     ['stable', 'stable'],
-    ['rc', 'stable'],
+    ['rc', 'beta'],
     ['dev', 'stable'],
   ] as const)('defaults a %s build to the %s preference', (buildChannel, expected) => {
     expect(defaultUpdateChannelForBuild(buildChannel)).toBe(expected)

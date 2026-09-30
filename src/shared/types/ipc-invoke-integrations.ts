@@ -196,6 +196,10 @@ export interface IpcIntegrationInvokeChannelMap
     args: []
     return: undefined
   }
+  'updater:install-now': {
+    args: []
+    return: undefined
+  }
   'updater:get-status': {
     args: []
     return: UpdateStatus

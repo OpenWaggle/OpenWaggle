@@ -1,53 +1,42 @@
 ---
 name: release
-description: This skill should be used when designing, implementing, reviewing, or operating OpenWaggle releases, version bumps, release-intent files, changelog/GitHub release notes, updater channels, or Alpha/Beta/RC/Stable update-track behavior.
+description: This skill should be used when designing, implementing, reviewing, or operating OpenWaggle releases, version bumps, changelog/GitHub release notes, updater channels, signing, installers, or Alpha/Beta/RC/Stable update-channel behavior.
 ---
 
 # OpenWaggle Release & Versioning
 
-Use this skill to keep OpenWaggle release behavior aligned with the OpenWaggle v1 release policy. Treat this policy as runtime/SDK-agnostic source of truth for future release/versioning work unless the maintainer explicitly changes it.
+Use this skill to keep OpenWaggle release behavior aligned with the v1 release policy. The policy is ADR 0040 (`docs/adr/0040-adopt-the-v1-release-policy.md`); the canonical rules are in `docs/release-and-versioning.md`. PRD #90 is closed and superseded; do not implement its release-intent files.
 
 ## Load first
 
-Before changing release, versioning, updater, changelog, GitHub workflow, or update-track behavior:
+Before changing release, versioning, updater, changelog, GitHub workflow, installer, signing, or Update channel behavior:
 
-1. Read `docs/release-and-versioning.md` when it exists or has been updated.
-2. Read PRD issue `#90` for historical context if implementation details are unclear, but keep release/versioning decisions independent of any one runtime, CLI, or SDK.
-3. Inspect the current release workflow, updater service, updater IPC/preload API, Settings About/Updates UI, and sidebar logo/footer version UI before editing.
-4. Preserve the project rules in `AGENTS.md`, especially branch workflow, no commits without approval, no unknown-work reverts, no casts, and Electron QA for renderer/preload/IPC changes.
+1. Read `docs/release-and-versioning.md` and ADR 0040. Read ADR 0032 for Build identity and Build channel.
+2. Use the `CONTEXT.md` terms **Build channel** (the installed artifact's stage), **Update channel** (the user's saved update selection), **Compatibility promise**, **Covered surface**, and **Release blocker**.
+3. Inspect the current `release.yml`, `scripts/app-release-state.ts`, `src/main/update-feed.ts`, `src/main/updater.ts`, `scripts/prepare-update-channel-metadata.ts`, `scripts/install.sh`, and the Settings About/Updates UI before editing.
+4. Preserve `AGENTS.md` rules: no commits without approval, no unknown-work reverts, Electron QA for renderer/preload/IPC changes, and `grill-with-docs` for any new release decision.
 
 ## Release domains
 
 OpenWaggle has two independent release domains:
 
-- The **app release workflow** publishes desktop artifacts and update metadata. Its release intent comes from `.release/changes/*` files and explicit `release:none` classification.
-- The **npm package workflow** publishes the packages under `packages/*`. Its release intent comes from path-scoped Conventional Commits interpreted by Release Please.
+- The **App release workflow** publishes desktop artifacts and update metadata. Its release intent is the Conventional Commit subject of merges to `main`.
+- The **npm package workflow** publishes the packages under `packages/*` through Release Please with path-scoped Conventional Commits.
 
-Do not apply the app release-intent policy to npm package versions, and do not let package Conventional Commits drive the desktop app version.
+Do not let package releases drive the desktop app version, and do not let package GitHub Releases become the repository's "Latest" release.
 
 ## App release core policy
 
-Keep automation, but make both release intent and publication approval explicit. Every generated desktop app release PR remains open until a maintainer or explicitly authorized human merges it; the workflow must never merge its own release PR.
+Keep automation, but keep publication approval explicit. Every generated desktop app release PR stays open until a maintainer or explicitly authorized human merges it; the workflow never merges its own release PR and never depends on a ruleset bypass.
 
 ## Runtime/SDK agnosticism
 
-Keep release policy independent of any one runtime, CLI, or SDK. The current v1 train may be motivated by a runtime migration, but `/release` must remain reusable if OpenWaggle later supports or switches to another runtime integration.
+Keep release policy independent of any one runtime, CLI, or SDK. The v1 train is not tied to one runtime; `/release` must remain reusable if OpenWaggle later supports or switches to another runtime integration.
 
 - Describe release readiness in product terms: launch, provider/auth/model selection, project selection, prompt execution, streaming/tool rendering, persistence, sessions, branching, install/update, and blocker status.
 - Do not encode Pi-specific terms, files, adapters, or SDK behaviors into release policy unless the task is explicitly about the Pi implementation.
 - Keep runtime-specific implementation details in runtime integration skills/docs, not in `/release`.
-- If a future CLI/SDK becomes part of OpenWaggle, apply the same Alpha/Beta/RC/Stable, release-intent, changelog, updater, and UI policies to that integration.
-
-
-- For desktop app releases, stop using commit messages as the source of truth for version bumps.
-- Require every PR to be release-classified:
-  - product/user-impacting PRs include one or more `.release/changes/<slug>.md` files;
-  - internal-only PRs carry an explicit `release:none` classification;
-  - no release classification means no merge.
-- Treat Alpha/Beta/RC/Stable as release-train state owned by the release workflow, not as fields repeated in every release-intent file.
-- Consume release-intent files into `CHANGELOG.md` and GitHub Release notes during publication, then delete consumed files in the release commit.
-- Keep one root `CHANGELOG.md` as canonical permanent release history.
-- Generate GitHub Release notes from the same source as the changelog.
+- If a future CLI/SDK becomes part of OpenWaggle, apply the same Alpha/Beta/RC/Stable, changelog, updater, and UI policies to that integration.
 
 ## Npm package policy
 
@@ -73,262 +62,100 @@ The canonical package policy lives in `docs/release-and-versioning.md` and ADR-0
 
 ## Version train
 
-Use the v1 release train:
-
-```txt
-1.0.0-alpha.N
-1.0.0-beta.N
-1.0.0-rc.N
-1.0.0
-```
+- The `0.x` trains end without a Stable release. The first Stable release is `1.0.0`.
+- The `1.0.0` line starts at `1.0.0-beta.1`, ideally the first signed macOS build. There is no `1.0.0-alpha.N` stage.
+- Train: `1.0.0-beta.N` -> `1.0.0-rc.N` -> `1.0.0`.
+- Stage jumps use the Release workflow's `target_version` dispatch from `main`; it opens an ordinary version-only release PR.
 
 Meanings:
 
-- Alpha: internal / early dogfood; foundational migration may still be hardening.
-- Beta: opt-in public validation; the v1 application/runtime foundation is usable and remaining work is hardening.
-- RC: release-candidate freeze; release blockers only.
+- Beta: opt-in validation; remaining v1 work lands here.
+- RC: release-candidate freeze; release-blocker fixes only.
 - Stable: normal/default users.
 
-Keep the base version fixed at `1.0.0` throughout the v1 prerelease train. Use real semantic impact values in release-intent entries during v1, but do not let those values move the base version away from `1.0.0` before stable.
+## Compatibility promise
 
-After v1:
+From `1.0.0`, breaking a Covered surface requires the next major version. Covered: user data (forward migration within a major, no downgrades), the Sessions/Delegations/Access CLIs and their machine output (additive fields allowed), Session Control over the OpenWaggle MCP server (keep existing contract versions' semantics), the Agent-definition schema, and supported platforms. Not covered: the extension host contract (follows `@openwaggle/extension-sdk` semver), Pi-owned resources, UI layout, copy, defaults, and keybindings. Retire a covered field by shipping its replacement beside it and removing it only in the next major.
 
-- `patch` means a bug fix.
-- `minor` means a user-facing capability.
-- `major` means an incompatible product/runtime/data break and starts the next major train.
+## Release intent and notes
 
-## Stage transitions
+- Conventional Commits decide whether a merge releases and, for Stable, the bump: `fix:` patch, `feat:` minor, `!`/`BREAKING CHANGE` major. On prereleases any `feat:`/`fix:` increments `N`.
+- There are no `.release/changes/*` files and no `release:none` classification.
+- A change that breaks a Covered surface must use a `!` title. A CI guard for this is planned post-v1 (#259).
+- Prereleases use GitHub's generated release notes.
+- Stable releases get a hand-written root `## X.Y.Z` `CHANGELOG.md` entry reused as the GitHub Release notes; the workflow fails closed without it (`scripts/app-release-notes.ts`). `CHANGELOG.md` starts at `1.0.0` and notes the legacy `0.x` process; the `1.0.0` entry summarizes the whole v1 train.
+- Product-impacting PRs include reviewer-facing release notes in the PR body.
 
-Move stages by objective criteria, not by whether the product feels perfect.
+## v1 scope and release blockers
 
-### Alpha start
+`1.0.0-rc.1` requires: macOS signing and notarization in the release workflow (#253), RC delivered to Beta and Alpha (#254), the update restart rules below (#255), relaunch after install (#256), the RC promotion guard (#257), Stable-only GitHub "Latest" (#261), docs and this skill matching the policy, and no open release blocker. `1.0.0` also requires the curated changelog (#258). Everything else is post-v1. Track RC-blocking work in the `v1.0.0` milestone and defects with the `release-blocker` label.
 
-Cut `1.0.0-alpha.1` only once the runtime-backed app is end-to-end dogfoodable:
+A **Release blocker** loses user data, prevents launch, or blocks updating. It blocks entering RC; during RC it cuts `rc.N+1` and restarts the 7-day window. Intact data shown incorrectly is not a release blocker.
 
-- packaged app launches;
-- at least one hosted provider can be authenticated and selected;
-- project selection works;
-- standard prompt path works through the active runtime integration;
-- streaming/tool activity renders truthfully enough to inspect;
-- basic session persistence/reopen works;
-- no known startup/data-loss corruption blocker exists;
-- alpha updater channel can deliver the next alpha.
+## RC freeze and promotion
 
-Use curated standard release-intent entries for `1.0.0-alpha.1`; do not backfill one file per historical migration commit.
+- During RC, `main` is frozen for app code: merge only release-blocker fixes.
+- Stable promotion fails closed unless `main` matches the last RC tag's tree except the root `package.json` version and `website/**` (but not the bundled `website/src/content/docs/**`), `docs/**`, `.agents/**`, and top-level `*.md`; renames count on both sides. A new major (`X.0.0`) requires an RC tag. The guard blocks promotion, not merges.
+- Promote after a 7-day RC window with no open release blocker.
 
-### Alpha to Beta
+## After 1.0.0
 
-Move to Beta when the v1 application/runtime foundation is end-to-end usable and remaining work is hardening/validation, not foundational migration:
+One release line: merges prepare the next Stable version and the maintainer sets cadence by merging the release PR. There is no rolling Beta and no maintenance branch. Open a Beta/Alpha line (for example `1.2.0-beta.1`) only by explicit dispatch for a risky minor or a new major train, and only when it is expected to be promoted within about a week; while it is open, Stable fixes ship through that prerelease and its promotion.
 
-- the selected v1 runtime integration is the only default runtime path;
-- provider/model/auth flows work through OpenWaggle-owned runtime adapter services;
-- standard chat and Waggle operate on the v1 runtime foundation;
-- session persistence/reopen and product-level branching work;
-- streaming/tool rendering is truthful enough for real testing;
-- install/update can deliver prerelease builds;
-- no known data-loss or launch-blocking bugs remain.
+## Platform trust
 
-### Beta to RC
+- macOS Developer ID signing and notarization block `1.0.0` and must run before the first RC. The identity is an individual Apple Developer membership; changing the signing team later can force a manual macOS reinstall.
+- The first signed macOS build likely needs a one-time manual reinstall from unsigned builds; ship it during Beta.
+- Windows signing is post-v1 (#49). Linux AppImage is not signed.
 
-Move to RC when v1 scope is complete/frozen:
+## Update channels
 
-- no open `v1-required` work remains;
-- no open `release-blocker` bugs remain;
-- critical user path validation passes;
-- user-facing install/provider/session/basic usage docs are accurate enough;
-- all known non-blockers are labeled or tracked as post-v1;
-- a `release/1.0` branch/release plan exists;
-- RC freeze rules begin.
-
-### RC to Stable
-
-Promote RC to stable after a 7-day validation window with no unresolved release blockers. If a blocker is found:
-
-1. Fix only the blocker.
-2. Cut a new RC.
-3. Restart the 7-day validation window.
-
-Stable `1.0.0` must rebuild from the same source content as the final validated RC, changing only version/release metadata.
-
-## Release publication
-
-- Product-impacting merge to `main` opens or updates a generated release PR for the active prerelease stage:
-  - active Alpha stage -> next `1.0.0-alpha.N`;
-  - active Beta stage -> next `1.0.0-beta.N`.
-- Exact-head CI must pass on the generated release PR, but passing CI does not merge or publish it.
-- Merging the generated release PR is the explicit maintainer publication decision. Its protected merge starts tag creation, platform builds, installer verification, and GitHub Release publication.
-- Never auto-merge a desktop app release PR and never depend on a ruleset bypass.
-- `release:none` merges do not publish app releases.
-- One manually merged app release PR produces one app prerelease build, even when it consumes multiple product-impacting changes or release-intent files.
-- RC and Stable require a release PR / release-plan gate before publishing.
-- Bot release commits update `package.json`, `CHANGELOG.md`, and consumed release-intent files.
-- Prevent release loops from bot commits.
-- Fail closed when version, tag, GitHub release classification, or updater metadata is inconsistent.
-
-## Release-intent files
-
-Use this schema:
-
-```md
----
-impact: patch | minor | major | none
-area: runtime | sessions | providers | ui | installer | updater | user-docs | internal
-audience: users | prerelease-users | developers
-milestone: v1 | post-v1
----
-
-Human-facing release note.
-```
-
-Rules:
-
-- One file equals one release note entry.
-- User/prerelease entries must use user-facing wording.
-- Technical wording is allowed only for `audience: developers`.
-- `impact: none` is optional and only for notable developer/internal audit entries.
-- Ordinary internal-only PRs should use `release:none` instead of noisy `impact: none` files.
-- `area: user-docs` means public/user-facing documentation, primarily website docs.
-- Internal specs, learnings, lessons, and architecture notes are normally `area: internal`, `audience: developers`, and either `release:none` or `impact: none` only when worth auditing.
-- Group generated release notes by `area`, not by `impact`.
-- Exclude developer/internal entries from GitHub Release notes by default; allow them in `CHANGELOG.md` under Internal/Developer when useful.
-
-Impact rules:
-
-- Alpha: `impact: major` is allowed.
-- Beta: `impact: major` is discouraged and requires explicit review/approval.
-- RC: `impact: major` is blocked unless it is an unavoidable release-blocker fix with maintainer approval.
-- Post-v1 stable: `impact: major` starts the next major train.
-
-## Changelog, GitHub Releases, and announcements
-
-- Start the formal generated changelog with the v1 release train.
-- Add a note that older `0.x-alpha.N` builds used the legacy release process and remain available in GitHub Releases.
-- Keep Alpha/Beta/RC release notes incremental.
-- Generate stable `1.0.0` notes as a curated draft from the whole v1 train, then manually edit before publishing.
-- Generate curated summaries for stable major/minor releases.
-- Use generated incremental notes for stable patch releases by default.
-- Generate X.com announcement draft material only for stable major/minor releases by default.
-- Do not generate public announcement drafts for Alpha/Beta/RC/patch releases by default.
-
-## Update tracks
-
-Expose exactly these user-selectable update tracks in Settings:
+User-selectable Update channels are exactly Stable, Beta, and Alpha. RC is not a separate channel.
 
 ```txt
-Stable
-Beta
-Alpha
-```
-
-Do not expose RC as a separate user-selectable track initially.
-
-Eligibility:
-
-```txt
-Stable -> stable only
+Stable -> stable
 Beta   -> beta, rc, stable
 Alpha  -> alpha, beta, rc, stable
 ```
 
-Selection rules:
+- The app selects the newest eligible non-downgrade release itself (`src/main/update-feed.ts`) and points a generic feed at that release; release packaging writes the metadata aliases each eligible channel reads.
+- Channel changes affect future updates only and never permit a downgrade.
+- The desktop app, `openwaggle update`, and `install.sh` share one saved Update channel. Exact versions are one-time installs.
+- A build with no saved choice defaults to its own prerelease stream; an RC build defaults to Beta.
+- Switching into Alpha requires confirmation every time.
+- Build channel (installed artifact) and Update channel (saved preference) are separate; never infer the Update channel from the installed version once a choice exists.
 
-- Always offer the newest eligible non-downgrade update for the selected track.
-- Never let Stable receive Beta, Alpha, or RC builds.
-- Never let Beta receive Alpha builds.
-- Let Alpha advance to Beta, RC, and Stable when those are the best eligible builds.
-- Let Beta advance to RC and Stable.
-- Let users switch to a lower-risk track at any time.
-- Make track changes affect future updates only.
-- Do not support downgrades.
-- When switching down from Alpha/Beta before Stable catches up, explain that the user will receive the next eligible newer build on the selected track.
-- Require confirmation every time the user switches into Alpha.
-- Use inline explanatory copy for Beta.
+## Update restart and relaunch
 
-Use separate concepts:
+- Check automatically; download in the background; installing is always a user action.
+- An update restart never silently interrupts an agent run. With active runs anywhere in the Session Host, offer **Restart when idle** (default), **Restart now**, and **Cancel**. Restart when idle waits with no timeout and counts runs started later; the update action shows how many runs it waits for and keeps **Restart now** available. Restart now records runs as interrupted.
+- With no active runs, restart immediately without a dialog.
+- Restart now stops active runs and compactions through normal cancellation (30 s settle wait) before installing; the Session Host is released through its existing drain and handoff. Restart when idle survives update re-checks.
+- Install with `quitAndInstall(isSilent: true, isForceRunAfter: true)`, following `pingdotgg/t3code`: silent on Windows, relaunch on every platform.
+- Re-read the authoritative Update channel before installing.
+- Fresh installs: NSIS launches the app; the macOS `.dmg` stays drag-to-Applications (no `.pkg`); `install.sh` launches the app unless there is no graphical session or `--no-launch` is passed, quitting the running desktop window (the `Foreground` process; the Session Host is `UIElement`) first; `openwaggle update` never installs under a running desktop app (a channel update defers to Restart to update, an exact `--version` refuses) and never opens a window; on macOS it installs through the bundled installer because Squirrel.Mac always relaunches.
 
-- Installed build kind comes from the raw semver version (`alpha`, `beta`, `rc`, or stable).
-- Selected update track is persisted user preference and controls future update eligibility.
-- Do not infer selected update track only from installed version once Settings opt-in exists.
+## GitHub Releases
 
-## Update UX
-
-Implement update UX as a first-class in-app flow. Do not push users to scripts or manual installer hunting for Alpha/Beta opt-in.
-
-- Check automatically on startup.
-- Check periodically in the background.
-- Check immediately after selected update track changes.
-- Show an update button only when an eligible update is available or an update action is in progress.
-- Keep download/install user-initiated.
-- Make the update button do the whole action:
-  1. user clicks update;
-  2. app downloads update;
-  3. app automatically restarts/installs after download completes.
-- If an agent run is active, confirm before updating/restarting.
-- Make restart behavior clear in button tooltip/copy.
-- Prefer `autoDownload = false` and explicit download on click.
-
-## Sidebar/version UI
-
-- Show a compact badge next to the main logo only for installed prerelease builds:
-  - Alpha for `*-alpha.N`;
-  - Beta for `*-beta.N`;
-  - RC for `*-rc.N`.
-- Show no logo badge for stable builds.
-- Derive the badge from installed version only, not selected update track.
-- Show the full raw version string for all builds near the Settings/footer area.
-- Keep the raw version visible for support, feedback, logs, and screenshots.
+- Prereleases are GitHub prereleases. Only plain `X.Y.Z` app releases may be the repository's "Latest" release; package releases use `--latest=false` (#261).
+- Never retag a prerelease or edit a GitHub release to simulate promotion.
+- Fail closed when version, tag, release classification, or update metadata is inconsistent.
 
 ## Implementation guidance
 
-Prefer deep, testable modules:
-
-- release policy engine: version parsing, build kind, update-track eligibility, maturity ordering, no-downgrade behavior, best-update selection;
-- release-intent parser/validator: schema validation and policy checks;
-- release notes generator: changelog/GitHub notes/curated draft generation;
-- updater orchestration: automatic checks, manual download, auto restart after user action, active-run confirmation;
-- Settings update-track UI model;
-- sidebar version badge/footer model.
-
-Respect hexagonal boundaries:
-
-- Put pure release policy and semver/update eligibility logic in shared/domain-style modules with no Electron dependency.
-- Keep Electron updater integration in main-process infrastructure/application code behind typed IPC.
-- Keep renderer components focused on UI state and typed preload APIs.
+- Keep pure version parsing, eligibility, and selection logic free of Electron and covered by unit tests.
+- Keep Electron updater integration in main-process code behind typed IPC; renderer components use typed preload APIs.
 - Validate runtime data at boundaries with shared schema helpers.
-
-## Testing expectations
-
-Test external behavior, not implementation details.
-
-Add tests for:
-
-- version parsing and installed build kind;
-- Stable/Beta/Alpha eligibility;
-- newest eligible non-downgrade selection;
-- Alpha advancing to Beta/RC/Stable;
-- Beta never receiving Alpha;
-- Stable never receiving prereleases;
-- switching down without downgrade;
-- release-intent schema validation;
-- release note grouping by area;
-- GitHub notes excluding developer entries;
-- changelog including developer/internal entries when appropriate;
-- bot release dry-run version/changelog/consumption behavior;
-- Settings update-track selection, Beta copy, Alpha confirmation every time;
-- sidebar prerelease badge and footer raw version;
-- update button hidden/available/downloading behavior;
-- active-run confirmation before update/restart.
-
-Run Electron QA after renderer, preload, IPC, or updater changes. Validate the real app because update UX crosses main/preload/renderer boundaries.
+- Release workflow changes need their contract tests (`app-release-workflow` tests) updated in the same change.
+- Run Electron QA after renderer, preload, IPC, or updater changes.
 
 ## Do not do
 
-- Do not reintroduce commit-message-driven versioning as the release source of truth.
-- Do not publish Alpha/Beta/RC builds to Stable users.
-- Do not make Beta users eligible for Alpha builds.
-- Do not treat raw semver prerelease suffix as a replacement for selected update-track state.
-- Do not support downgrades as part of this policy.
-- Do not create a side-by-side Canary app unless the maintainer explicitly opens that scope.
-- Do not require scripts/manual downloads as the primary Alpha/Beta opt-in UX.
-- Do not backfill detailed release-intent entries for every old `0.x-alpha.N` release.
-- Do not ask the maintainer to reconfirm decisions already locked in this policy unless implementation discovers a real conflict.
+- Do not add release-intent files or a `release:none` classification.
+- Do not publish Beta or RC builds to Stable users, or Alpha builds to Beta users.
+- Do not support downgrades.
+- Do not promote Stable from content that differs from the last RC.
+- Do not open a rolling Beta or maintenance branch without a new decision.
+- Do not create a side-by-side Canary app without a new decision.
+- Do not require scripts or manual downloads as the primary Beta/Alpha opt-in UX.
+- Do not make a release decision without running `grill-with-docs`.

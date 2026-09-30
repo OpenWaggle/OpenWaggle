@@ -45,6 +45,12 @@ export function getUpdateStatus(): UpdateStatus {
   return currentStatus
 }
 
+export function setUpdateWaitingForRuns(activeRuns: number | null) {
+  if (currentStatus.type !== 'downloaded') return
+  const { waitingForRuns: _previous, ...downloaded } = currentStatus
+  setStatus(activeRuns === null ? downloaded : { ...downloaded, waitingForRuns: activeRuns })
+}
+
 function logUpdateCheckError(error: unknown) {
   logger.error('Update check failed', {
     message: error instanceof Error ? error.message : String(error),
@@ -208,7 +214,7 @@ export async function installUpdate(): Promise<void> {
     logger.warn('Ignoring install request for an update outside the authoritative channel')
     return
   }
-  autoUpdater.quitAndInstall(false, true)
+  autoUpdater.quitAndInstall(true, true) // silent install + relaunch, as pingdotgg/t3code does
 }
 
 export function initAutoUpdater(

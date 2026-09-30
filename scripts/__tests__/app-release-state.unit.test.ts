@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest'
 import {
   assertForwardAppVersionTransition,
   expectedVersionOnlyManifest,
+  latestReleaseCandidateTag,
+  promotionGuardViolations,
+  requiresReleaseCandidate,
   releaseSubjectVersion,
   selectOwnedReleasePullRequests,
   type AppReleasePullRequest,
@@ -77,5 +80,59 @@ describe('app release state model', () => {
     )
     expect(releaseSubjectVersion('chore(release): v0.3.0-alpha.45 extra')).toBeNull()
     expect(releaseSubjectVersion('fix(release): v0.3.0-alpha.45 (#123)')).toBeNull()
+  })
+
+  it('selects the newest release candidate for a Stable target only', () => {
+    const tags = ['v1.0.0-rc.2', 'v1.0.0-rc.10', 'v1.0.0-beta.4', 'v1.1.0-rc.1', 'v1.0.0-rc.1']
+
+    expect(latestReleaseCandidateTag(tags, '1.0.0')).toBe('v1.0.0-rc.10')
+    expect(latestReleaseCandidateTag(tags, '1.2.0')).toBeNull()
+    expect(latestReleaseCandidateTag(tags, '1.0.0-rc.11')).toBeNull()
+  })
+
+  it('allows only a version change and non-app paths between the last RC and Stable', () => {
+    const releaseCandidateManifestJson = '{"name":"openwaggle","version":"1.0.0-rc.3","private":true}'
+
+    expect(
+      promotionGuardViolations({
+        changedPaths: [
+          'package.json',
+          'website/src/pages/index.astro',
+          'docs/adr/0040.md',
+          'README.md',
+          '.agents/skills/release/SKILL.md',
+        ],
+        releaseCandidateManifestJson,
+        candidateManifestJson: '{"name":"openwaggle","version":"1.0.0","private":true}',
+      }),
+    ).toEqual([])
+  })
+
+  it('reports app changes and manifest changes beyond the version', () => {
+    expect(
+      promotionGuardViolations({
+        changedPaths: [
+          'package.json',
+          'pnpm-lock.yaml',
+          'src/main/updater.ts',
+          'docs/notes.md',
+          'website/src/content/docs/getting-started/installation.md',
+        ],
+        releaseCandidateManifestJson: '{"name":"openwaggle","version":"1.0.0-rc.3"}',
+        candidateManifestJson: '{"name":"openwaggle","version":"1.0.0","dependencies":{"lodash":"4.17.21"}}',
+      }),
+    ).toEqual([
+      'package.json',
+      'pnpm-lock.yaml',
+      'src/main/updater.ts',
+      'website/src/content/docs/getting-started/installation.md',
+    ])
+  })
+
+  it('requires a release candidate only before a new major version', () => {
+    expect(requiresReleaseCandidate('1.0.0')).toBe(true)
+    expect(requiresReleaseCandidate('2.0.0')).toBe(true)
+    expect(requiresReleaseCandidate('1.1.0')).toBe(false)
+    expect(requiresReleaseCandidate('1.0.1')).toBe(false)
   })
 })

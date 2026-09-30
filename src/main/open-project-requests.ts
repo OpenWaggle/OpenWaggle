@@ -1,6 +1,7 @@
 import { realpathSync, statSync } from 'node:fs'
 import path from 'node:path'
 import { Schema, safeDecodeUnknown } from '@shared/schema'
+import { isDesktopInstanceProbe } from './desktop-instance-probe'
 import { createLogger } from './logger'
 import { broadcastToWindows } from './utils/broadcast'
 
@@ -90,6 +91,8 @@ export function claimAppInstance(input: {
     const data = input.openProjectPath ? { openProjectPath: input.openProjectPath } : undefined
     if (!input.host.requestSingleInstanceLock(data)) return 'secondary'
     input.host.on('second-instance', (_event, _argv, _workingDirectory, additionalData) => {
+      // `openwaggle update` probes whether the app is running; it must not raise a window.
+      if (isDesktopInstanceProbe(additionalData)) return
       input.revealWindow()
       acceptSecondInstanceData(additionalData)
     })

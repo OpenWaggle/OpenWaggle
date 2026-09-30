@@ -991,6 +991,18 @@ _Avoid_: Changesets workflow
 The release path that publishes OpenWaggle desktop app artifacts and update metadata.
 _Avoid_: npm package publishing workflow
 
+**Compatibility promise**:
+The guarantee, starting at the first Stable release `1.0.0`, that a release within one major version does not break any **Covered surface**. Breaking a Covered surface requires the next major version.
+_Avoid_: stability guarantee, API freeze (the promise covers more than APIs and does not freeze additions)
+
+**Release blocker**:
+A known bug that loses user data, prevents launch, or blocks updating. It blocks entering a release candidate, and a release blocker found during a release candidate requires a new one. A bug that only presents intact data incorrectly is not a release blocker.
+_Avoid_: P0, critical bug, v1-required (v1-required work is planned scope, not a defect)
+
+**Covered surface**:
+A user-relied-on part of OpenWaggle that the **Compatibility promise** protects: user data, the Sessions, Delegations, and Access CLIs and their machine output, Session Control over the OpenWaggle MCP server, the Agent-definition schema, and the supported platforms. The extension host contract follows the extension SDK's own version, and Pi-owned resources follow Pi's compatibility; neither is a Covered surface of the app.
+_Avoid_: public API (user data and platforms are covered too), stable surface
+
 **Dual package output**:
 A package distribution shape that publishes both ESM imports and CommonJS require entry points, plus TypeScript declarations.
 _Avoid_: raw TypeScript exports, ESM-only package output
@@ -2440,11 +2452,15 @@ _Avoid_: build flavor, build variant (do not name only the icon or only the chan
 
 **Build channel**:
 The release stage a build belongs to: `stable`, a prerelease stage (`alpha`, `beta`, `rc`), or `dev`. The **App release workflow** owns the non-dev channels; any build produced outside it is `dev`.
-_Avoid_: update track (that is the updater's feed selection, not the artifact's own identity), release train
+_Avoid_: Update channel (that is the user's saved update selection, not the artifact's own identity), release train
 
 **Isolated build data**:
 A **Dev build** owns its settings, sessions, and credentials under its own user-data location (its display name, applied via `app.setName`), so a stale or dev build can never read or overwrite the installed release's real state. Released channels share the canonical user-data location; isolating them from each other is deferred until the existing install base can be migrated (see docs/adr/0032).
 _Avoid_: shared config, shared profile
+
+**Update channel**:
+The user's saved choice of which releases the app and the `openwaggle update` command may update to: `stable`, `beta`, or `alpha`. Each channel accepts its own stage and every lower-risk stage, and changing it never permits a downgrade.
+_Avoid_: update track, release track, Build channel (that is the installed artifact's own stage)
 
 **Dev build**:
 Any build not produced by the **App release workflow**. Its **Build identity** carries its source provenance (the worktree or branch it was built from), because several dev builds may be installed at once and must each be distinguishable.
@@ -2453,5 +2469,5 @@ _Avoid_: local build (a dev build may be copied to another machine), debug build
 - The **App release workflow** is the sole authority that assigns a non-dev **Build channel**; a build produced with no channel signal is a **Dev build**. The channel is never inferred from the version string, because every build off the release train carries the same prerelease version whether or not it was actually released.
 - A build surfaces its own **Build identity** through its display name (`OpenWaggle`, `OpenWaggle Alpha`, or `OpenWaggle Dev (<slug>)`), shown in the app's About Version row, so a running window can be identified without inspecting the artifact on disk. Display names stay ASCII-only, because the name flows into Electron's User-Agent (an HTTP ByteString header) and a non-ASCII character throws on every request.
 
-- Released builds share one **Update track**: the single published `latest` feed, read with prereleases allowed so the prerelease-versioned train updates within itself. A **Dev build** never auto-updates. Per-channel release feeds are deferred, because the GitHub publish provider emits one channel file per release.
-- **Update detection** (seeing that a newer build exists on the track) is independent of **Update installation** (replacing the running app). Detection needs only a reachable feed; unattended installation additionally needs a signed, and on macOS notarized, build.
+- Released builds follow the user's saved **Update channel**, not their own **Build channel**. A **Dev build** never auto-updates.
+- **Update detection** (seeing that a newer build exists on the Update channel) is independent of **Update installation** (replacing the running app). Detection needs only a reachable feed; unattended installation additionally needs a signed, and on macOS notarized, build.
