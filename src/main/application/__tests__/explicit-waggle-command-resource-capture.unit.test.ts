@@ -148,6 +148,7 @@ function runWaggleCommand(withAttachment = false, hostRunCeiling?: number, opera
 }
 
 const namespaceRestores: (() => void)[] = []
+const CAPTURE_WORK_MS = 100
 
 describe('explicit Waggle resource capture', () => {
   beforeEach(() => {
@@ -208,6 +209,9 @@ describe('explicit Waggle resource capture', () => {
     let imageAtCapture: string | undefined
     captureResourcesMock.mockImplementation(() =>
       Effect.promise(async () => {
+        // The real capture writes to the database before it reads files; give a removal that
+        // was not deferred time to finish first.
+        await new Promise((resolve) => setTimeout(resolve, CAPTURE_WORK_MS))
         imageAtCapture = await fs.readFile(image, 'utf8').catch(() => undefined)
       }),
     )

@@ -3,6 +3,9 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { env } from '../env'
+import { createLogger } from '../logger'
+
+const logger = createLogger('session-scratch-directory')
 
 const SCRATCH_DIRECTORY_MODE = 0o700
 const PERMISSION_BITS = 0o777
@@ -79,8 +82,13 @@ export async function markSessionScratchNamespace(root = sessionScratchRoot()) {
   // Written aside and renamed into place, so a failed write never leaves a partial marker.
   // Unique per call: concurrent prepares of a fresh namespace each write their own pending file.
   const pending = `${marker}.${process.pid}.${randomUUID()}.tmp`
-  await fs.writeFile(pending, content, { mode: OWNER_FILE_MODE })
-  await fs.rename(pending, marker)
+  try {
+    await fs.writeFile(pending, content, { mode: OWNER_FILE_MODE })
+    await fs.rename(pending, marker)
+  } catch (error) {
+    await fs.rm(pending, { force: true }).catch(() => undefined)
+    throw error
+  }
 }
 
 function scratchDirectoryState(directory: string) {
@@ -186,7 +194,12 @@ export async function prepareSessionScratchDirectory(
   await ensurePrivateDirectory(root)
   // Best effort: an unmarked namespace is only swept after a week unused, so a failed marker
   // write must not cost the Run its scratch directory.
-  await markSessionScratchNamespace(root).catch(() => undefined)
+  await markSessionScratchNamespace(root).catch((error: unknown) => {
+    logger.warn('Could not mark the session scratch namespace with its owner', {
+      root,
+      error: String(error),
+    })
+  })
   await ensurePrivateDirectory(directory)
   // Sweeps judge age by modification time, so each Run marks its directory and namespace as used.
   const touchedAt = new Date()

@@ -133,6 +133,17 @@ describe('Session scratch sweep', () => {
     expect(leftovers).toEqual([])
   })
 
+  it('still prepares the directory, and leaves no pending file, when the marker cannot be written', async () => {
+    useNamespace(path.join(temporaryDirectory, 'profiles', 'unmarkable'))
+    const namespace = sessionScratchRoot(temporaryDirectory)
+    await fs.mkdir(path.join(namespace, '.owner'), { recursive: true })
+
+    const directory = await prepareSessionScratchDirectory('session-unmarkable', namespace)
+
+    expect((await fs.stat(directory)).isDirectory()).toBe(true)
+    expect((await fs.readdir(namespace)).filter((name) => name.endsWith('.tmp'))).toEqual([])
+  })
+
   it('marks a namespace again when it was removed while the Host ran', async () => {
     const profile = path.join(temporaryDirectory, 'profiles', 'recreated')
     await fs.mkdir(profile, { recursive: true })
