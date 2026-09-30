@@ -134,6 +134,22 @@ export interface SessionDetail {
   readonly authorizationMode?: AgentAuthorizationMode
   /** Immutable model selected by this Session's persisted execution profile. */
   readonly executionModel?: SupportedModelId
+  /** Conversation position the Session resumes from; see {@link SessionResumePosition}. */
+  readonly resumePosition?: SessionResumePosition
+}
+
+/**
+ * The conversation position selected in the projection (the active branch head, or the node a
+ * branch switch or retry navigated to), with the number of Pi entries the projection had seen.
+ *
+ * Pi keeps its tree position in memory and reopens a session file at its last entry, so a
+ * selection made by one Pi operation is lost by the next. Pi operations restore this position
+ * instead, but only while the Pi file still holds exactly `piEntryCount` entries: a file with
+ * entries the projection has not seen is newer than the selection and keeps its own position.
+ */
+export interface SessionResumePosition {
+  readonly nodeId: SessionNodeId
+  readonly piEntryCount: number
 }
 
 /** Per-session worktree birth plan persisted by the composer strip (WS1b). */

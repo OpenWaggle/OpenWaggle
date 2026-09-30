@@ -10,6 +10,10 @@ import { useBranchSummaryStore } from '../../state/branch-summary-store'
 import { useChatStore } from '../../state/chat-store'
 import { useBackgroundRunMonitor } from '../useBackgroundRunMonitor'
 import { useChatSendWorkflow } from '../useChatSendWorkflow'
+import {
+  sendWorkflowParams as baseSendWorkflowParams,
+  type SendWorkflowParams,
+} from './send-workflow-params'
 
 type AgentEventPayload = IpcEventChannelMap['agent:event']['payload']
 type RunCompletedPayload = IpcEventChannelMap['agent:run-completed']['payload']
@@ -125,23 +129,8 @@ function wagglePayload(text: string): AgentSendPayload {
   }
 }
 
-function sendWorkflowParams(overrides: Partial<Parameters<typeof useChatSendWorkflow>[0]> = {}) {
-  const params = {
-    activeSessionId: SESSION_ID,
-    branchSummary: {
-      materializeBranchSummary: vi.fn().mockResolvedValue(undefined),
-      materializeDraftBranchForSend: vi.fn().mockResolvedValue(true),
-      cancelBranchSummary: vi.fn(),
-      skipBranchSummary: vi.fn(),
-      startCustomBranchSummary: vi.fn(),
-      switchComposerToDraftBranch: vi.fn(),
-    },
-    clearDraftBranchForSession: vi.fn(),
-    draftBranch: null,
-    extensionContributions: null,
-    handleSend: vi.fn().mockResolvedValue(undefined),
-    handleSendWaggle: vi.fn().mockResolvedValue(undefined),
-    model: MODEL,
+function sendWorkflowParams(overrides: Partial<SendWorkflowParams> = {}) {
+  return baseSendWorkflowParams({
     messages: [
       {
         id: 'persisted-user',
@@ -150,29 +139,8 @@ function sendWorkflowParams(overrides: Partial<Parameters<typeof useChatSendWork
         createdAt: new Date(1),
       },
     ],
-    phase: { reset: vi.fn() },
-    projectPath: '/tmp/project',
-    refreshSession: vi.fn().mockResolvedValue(undefined),
-    refreshSessionWorkspace: vi.fn().mockResolvedValue(undefined),
-    sessionCopy: {
-      forkSelectorOpen: false,
-      forkTargets: [],
-      closeForkSelector: vi.fn(),
-      cloneCurrentSessionToNewSession: vi.fn().mockResolvedValue(undefined),
-      forkMessageToNewSession: vi.fn().mockResolvedValue(undefined),
-      openForkSelector: vi.fn(),
-      selectForkTarget: vi.fn(),
-    },
-    beginPendingSend: vi.fn(),
-    clearPendingSend: vi.fn(),
-    showToast: vi.fn(),
-    startWaggleCollaboration: vi.fn(),
-    stop: vi.fn(),
-    stopWaggleCollaboration: vi.fn(),
-    waggleStatus: 'idle',
     ...overrides,
-  } satisfies Parameters<typeof useChatSendWorkflow>[0]
-  return params
+  })
 }
 
 describe('chat orchestration hooks', () => {
