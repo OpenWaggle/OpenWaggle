@@ -7,7 +7,11 @@ import { env } from '../env'
 const SCRATCH_DIRECTORY_MODE = 0o700
 const PERMISSION_BITS = 0o777
 const SCRATCH_ROOT_NAME = 'ow-scratch'
-const SCRATCH_NAME_HASH_CHARACTERS = 16
+const SCRATCH_NAME_HASH_CHARACTERS = 12
+const NAMESPACE_HASH_CHARACTERS = 8
+/** A directory this young may belong to a Session created after the sweep read the catalog. */
+const SWEEP_MINIMUM_AGE_MS = 60 * 60 * 1000
+const DEFAULT_NAMESPACE_SOURCE = 'default'
 /**
  * `os.tmpdir()` on macOS is a 48-byte `/var/folders/...` path, and a Unix socket path must fit in
  * 104 bytes. Tools such as `tsx` bind sockets under `TMPDIR`, so the scratch directory lives under
@@ -27,6 +31,21 @@ interface ScratchDirectoryState {
 }
 
 const scratchDirectoryStates = new Map<string, ScratchDirectoryState>()
+
+function shortHash(value: string, characters: number) {
+  return createHash('sha256').update(value).digest('hex').slice(0, characters)
+}
+
+let scratchNamespace = shortHash(DEFAULT_NAMESPACE_SOURCE, NAMESPACE_HASH_CHARACTERS)
+
+/**
+ * Give this Host's scratch directories their own parent. Every OpenWaggle profile (the app, each
+ * dev profile) has its own Host and Session catalog but shares `/tmp`, so without a namespace one
+ * Host's sweep would delete another Host's live directories.
+ */
+export function configureSessionScratchNamespace(userDataRoot: string) {
+  scratchNamespace = shortHash(path.resolve(userDataRoot), NAMESPACE_HASH_CHARACTERS)
+}
 
 function scratchDirectoryState(directory: string) {
   const existing = scratchDirectoryStates.get(directory)
@@ -59,36 +78,33 @@ function defaultScratchBase() {
   return process.platform === 'win32' ? os.tmpdir() : POSIX_SCRATCH_BASE
 }
 
+function scratchUserDirectoryName() {
+  const uid = process.getuid?.()
+  return uid === undefined ? SCRATCH_ROOT_NAME : `${SCRATCH_ROOT_NAME}-${uid}`
+}
+
 /**
- * The per-user parent of every Session scratch directory. On a shared `/tmp` the user id in the
- * name keeps another local account from pre-creating the parent; ownership is still verified.
+ * This Host's parent of every Session scratch directory. On a shared `/tmp` the user id in the
+ * name keeps another local account from pre-creating it; ownership is still verified.
  */
 export function sessionScratchRoot(temporaryDirectory = defaultScratchBase()) {
-  const uid = process.getuid?.()
-  return path.join(
-    temporaryDirectory,
-    uid === undefined ? SCRATCH_ROOT_NAME : `${SCRATCH_ROOT_NAME}-${uid}`,
-  )
+  return path.join(temporaryDirectory, scratchUserDirectoryName(), scratchNamespace)
 }
 
 export function sessionScratchDirectoryPath(sessionId: string, root = sessionScratchRoot()) {
   if (sessionId.length === 0) throw new Error('Session id is required for a scratch directory')
-  const name = createHash('sha256')
-    .update(sessionId)
-    .digest('hex')
-    .slice(0, SCRATCH_NAME_HASH_CHARACTERS)
-  return path.join(root, name)
+  return path.join(root, shortHash(sessionId, SCRATCH_NAME_HASH_CHARACTERS))
 }
 
-function isAlreadyExists(error: unknown) {
-  return error instanceof Error && 'code' in error && error.code === 'EEXIST'
+function hasErrorCode(error: unknown, code: string) {
+  return error instanceof Error && 'code' in error && error.code === code
 }
 
 async function ensurePrivateDirectory(directory: string) {
   try {
     await fs.mkdir(directory, { mode: SCRATCH_DIRECTORY_MODE })
   } catch (error) {
-    if (!isAlreadyExists(error)) throw error
+    if (!hasErrorCode(error, 'EEXIST')) throw error
   }
   const stats = await fs.lstat(directory)
   if (stats.isSymbolicLink() || !stats.isDirectory()) {
@@ -117,6 +133,7 @@ export async function prepareSessionScratchDirectory(
   state.removeWhenReleased = false
   await state.removal
   forgetIdleState(directory, state)
+  await ensurePrivateDirectory(path.dirname(root))
   await ensurePrivateDirectory(root)
   await ensurePrivateDirectory(directory)
   return directory
@@ -168,6 +185,51 @@ export async function removeSessionScratchDirectory(
     return
   }
   await removeNow(directory, state)
+}
+
+async function isOwnedPrivateDirectory(directory: string) {
+  const stats = await fs.lstat(directory)
+  const uid = process.getuid?.()
+  return stats.isDirectory() && !stats.isSymbolicLink() && (uid === undefined || stats.uid === uid)
+}
+
+/**
+ * Remove scratch directories whose Session is gone or archived. Archive and delete remove the
+ * directory while the Host runs; this catches Sessions deleted while it was down or left behind by
+ * a failed removal. Directories in use by a Run, or too young to rule out a new Session, are kept.
+ * Returns the number removed.
+ */
+export async function sweepSessionScratchDirectories(
+  liveSessionIds: Iterable<string>,
+  root = sessionScratchRoot(),
+  now = Date.now(),
+) {
+  const live = new Set(
+    Array.from(liveSessionIds, (sessionId) =>
+      path.basename(sessionScratchDirectoryPath(sessionId, root)),
+    ),
+  )
+  let entries: string[]
+  try {
+    if (!(await isOwnedPrivateDirectory(root))) return 0
+    entries = await fs.readdir(root)
+  } catch (error) {
+    if (hasErrorCode(error, 'ENOENT')) return 0
+    throw error
+  }
+  let removed = 0
+  for (const name of entries) {
+    if (live.has(name)) continue
+    const directory = path.join(root, name)
+    const state = scratchDirectoryStates.get(directory)
+    if (state && state.retained > 0) continue
+    const stats = await fs.lstat(directory).catch(() => undefined)
+    if (!stats?.isDirectory() || stats.isSymbolicLink()) continue
+    if (now - stats.mtimeMs < SWEEP_MINIMUM_AGE_MS) continue
+    await removeNow(directory, state ?? scratchDirectoryState(directory))
+    removed += 1
+  }
+  return removed
 }
 
 /**

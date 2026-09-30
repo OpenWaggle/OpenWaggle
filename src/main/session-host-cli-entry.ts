@@ -19,6 +19,7 @@ import {
 } from './session-host/session-host-cutover'
 import { acquireSessionHostOwnership } from './session-host/session-host-ownership'
 import { describeError } from './utils/describe-error'
+import { configureSessionScratchNamespace } from './utils/session-scratch-directory'
 
 const FAILURE_EXIT_CODE = 1
 const logger = createLogger('session-host-cli')
@@ -49,6 +50,7 @@ export function startSessionHostCliIfRequested(argv: readonly string[]) {
   // A detached Host owns no windows and must never register in the macOS Dock.
   if (process.platform === 'darwin') app.setActivationPolicy('accessory')
   configureAppStoragePaths(app, env.OPENWAGGLE_USER_DATA_DIR)
+  configureSessionScratchNamespace(app.getPath('userData'))
   void app
     .whenReady()
     .then(async () => {

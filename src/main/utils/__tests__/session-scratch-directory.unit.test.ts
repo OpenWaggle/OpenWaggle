@@ -3,6 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
+  configureSessionScratchNamespace,
   HOST_TEMPORARY_DIRECTORY_ENV,
   hostTemporaryDirectory,
   prepareSessionScratchDirectory,
@@ -11,11 +12,13 @@ import {
   sessionScratchDirectoryPath,
   sessionScratchEnvironment,
   sessionScratchRoot,
+  sweepSessionScratchDirectories,
 } from '../session-scratch-directory'
 
 const OWNER_ONLY = 0o700
 /** macOS limits a Unix socket path to 104 bytes; leave room for names like `tsx-501/12345.pipe`. */
 const SOCKET_ROOM_SCRATCH_PATH_BYTES = 48
+const TWO_HOURS_MS = 2 * 60 * 60 * 1000
 const PERMISSION_BITS = 0o777
 const posixOnly = process.platform === 'win32' ? it.skip : it
 
@@ -67,7 +70,7 @@ describe('Session scratch directory', () => {
   posixOnly('refuses a symlink planted in place of the Session directory', async () => {
     const elsewhere = path.join(temporaryDirectory, 'elsewhere')
     await fs.mkdir(elsewhere)
-    await fs.mkdir(root, { mode: OWNER_ONLY })
+    await fs.mkdir(root, { recursive: true, mode: OWNER_ONLY })
     await fs.symlink(elsewhere, sessionScratchDirectoryPath('session-a', root))
 
     await expect(prepareSessionScratchDirectory('session-a', root)).rejects.toThrow(
@@ -138,6 +141,41 @@ describe('Session scratch directory', () => {
     await release()
 
     expect((await fs.stat(directory)).isDirectory()).toBe(true)
+  })
+
+  it('gives each OpenWaggle profile its own scratch root so one Host never sweeps another', () => {
+    configureSessionScratchNamespace('/Users/me/Library/Application Support/openwaggle')
+    const app = sessionScratchRoot(temporaryDirectory)
+    configureSessionScratchNamespace('/Users/me/Library/Application Support/OpenWaggle Dev (x)')
+    const dev = sessionScratchRoot(temporaryDirectory)
+
+    expect(app).not.toBe(dev)
+    expect(path.dirname(app)).toBe(path.dirname(dev))
+  })
+
+  it('sweeps directories of Sessions that are gone and keeps live, young, and running ones', async () => {
+    const [live, gone, running] = await Promise.all([
+      prepareSessionScratchDirectory('session-live', root),
+      prepareSessionScratchDirectory('session-gone', root),
+      prepareSessionScratchDirectory('session-running', root),
+    ])
+    const release = retainSessionScratchDirectory('session-running', root)
+
+    await expect(sweepSessionScratchDirectories(['session-live'], root, Date.now())).resolves.toBe(
+      0,
+    )
+    await expect(
+      sweepSessionScratchDirectories(['session-live'], root, Date.now() + TWO_HOURS_MS),
+    ).resolves.toBe(1)
+
+    await expect(fs.access(gone)).rejects.toThrow()
+    expect((await fs.stat(live)).isDirectory()).toBe(true)
+    expect((await fs.stat(running)).isDirectory()).toBe(true)
+    await release()
+  })
+
+  it('treats a missing scratch root as nothing to sweep', async () => {
+    await expect(sweepSessionScratchDirectories([], root)).resolves.toBe(0)
   })
 
   it('prefers the preserved Host temp directory inside a tool process', () => {
