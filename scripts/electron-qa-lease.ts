@@ -22,7 +22,10 @@ const QA_LEASE_CANDIDATE_PREFIX = 'openwaggle-qa-lease-candidate-'
  * directory, so a lease there would let two Sessions both "hold" the port; the Host's temp
  * directory, preserved in OPENWAGGLE_HOST_TMPDIR, is shared.
  */
-const QA_SHARED_TEMPORARY_DIRECTORY = process.env.OPENWAGGLE_HOST_TMPDIR || os.tmpdir()
+export function qaSharedTemporaryDirectory(environment: NodeJS.ProcessEnv = process.env) {
+  return environment.OPENWAGGLE_HOST_TMPDIR || os.tmpdir()
+}
+const QA_SHARED_TEMPORARY_DIRECTORY = qaSharedTemporaryDirectory()
 const QA_LEASE_DIRECTORY = path.join(
   QA_SHARED_TEMPORARY_DIRECTORY,
   `openwaggle-qa-${QA_CDP_PORT}.lease`,

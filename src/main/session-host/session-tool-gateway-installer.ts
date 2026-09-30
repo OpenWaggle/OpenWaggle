@@ -42,17 +42,12 @@ import type { SessionWorkspaceHandoffService } from '../ports/session-workspace-
 import type { SessionWorkspaceResourceRepository } from '../ports/session-workspace-resource-repository'
 import type { TerminalService } from '../ports/terminal-service'
 import type { SettingsService } from '../services/settings-service'
-import { resolveSessionToolAgentCaller } from './session-tool-agent-caller'
+import { admitSessionToolCommand } from './session-tool-command-admission'
 import { installSessionToolGateway } from './session-tool-gateway'
-import {
-  runSessionToolCallerResolution,
-  throwIfSessionToolAborted,
-} from './session-tool-gateway-cancellation'
 import {
   admitSessionToolMutation,
   admitSessionToolObservation,
 } from './session-tool-mutation-admission'
-import { assertSessionAgentLifecycleProjectKnown } from './session-tool-project-catalog'
 
 export { resolveSessionToolAgentCaller } from './session-tool-agent-caller'
 
@@ -112,18 +107,13 @@ export const installAppSessionToolGateway = Effect.gen(function* () {
       throw new Error('The agent Session tool cannot invoke Host UI operations.')
     }
     const payload = input.payload
-    const caller = await runSessionToolCallerResolution(
-      resolveSessionToolAgentCaller(sql, {
-        sessionId: input.sourceSessionId,
-        runId: input.sourceRunId,
-        workingDirectory: input.workingDirectory,
-      }),
-      input.signal,
-    )
-    throwIfSessionToolAborted(input.signal)
-    await Effect.runPromise(
-      assertSessionAgentLifecycleProjectKnown(sql, caller.profileAuthority.scope, payload),
-    )
+    const caller = await admitSessionToolCommand(sql, {
+      sourceSessionId: input.sourceSessionId,
+      sourceRunId: input.sourceRunId,
+      workingDirectory: input.workingDirectory,
+      payload,
+      ...(input.signal ? { signal: input.signal } : {}),
+    })
     const command = Effect.suspend(
       (): Effect.Effect<LocalSessionCommandResult, unknown, SessionToolDependencies> =>
         dispatchNonHostUiLocalSessionCommand({
