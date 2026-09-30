@@ -28,6 +28,8 @@ interface SessionResourceTestLayerOptions {
   readonly inspectedManagedPaths?: string[]
   readonly readManagedPaths?: string[]
   readonly readSourceFails?: boolean
+  /** Receives the roots each local-file read was allowed to use. */
+  readonly readSourceRoots?: Array<readonly string[]>
   readonly storeFileFails?: boolean
   readonly listedResources?: readonly SessionResource[]
   readonly hasOccurrence?: boolean
@@ -257,10 +259,12 @@ export function sessionResourceTestLayer(
             sizeBytes: input.bytes.byteLength,
           })
         },
-        readSource: () =>
-          options.readSourceFails
+        readSource: (input) => {
+          options.readSourceRoots?.push(input.allowedRoots)
+          return options.readSourceFails
             ? Effect.fail(new SessionResourceStoreError({ operation: 'readSource' }))
-            : Effect.succeed(Buffer.from(PNG_BASE64, 'base64')),
+            : Effect.succeed(Buffer.from(PNG_BASE64, 'base64'))
+        },
         inspect: (managedPath) =>
           Effect.sync(() => options.inspectedManagedPaths?.push(managedPath)).pipe(
             Effect.flatMap(() =>

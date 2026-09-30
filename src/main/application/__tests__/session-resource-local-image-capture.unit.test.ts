@@ -194,4 +194,24 @@ ${LOCAL_IMAGE_MARKDOWN}
     expectCapturedLocalImage(repairedUpserts)
     expect(rekeyedCanonicalKeys).toEqual([expect.stringMatching(/^sha256:/u)])
   })
+
+  it("lets backfill read images from the Session's own scratch directory", async () => {
+    const image = `${sessionScratchDirectoryPath('session-1')}/electron-qa-evidence/final.png`
+    const readSourceRoots: Array<readonly string[]> = []
+
+    await Effect.runPromise(
+      captureProjectedSessionResources({
+        sessionId: SessionId('session-1'),
+        messages: [
+          {
+            ...assistantLocalImageMessage(),
+            parts: [{ type: 'text' as const, text: `![Final](file://${image})` }],
+          },
+        ],
+      }).pipe(Effect.provide(sessionResourceTestLayer([], { readSourceRoots }))),
+    )
+
+    expect(readSourceRoots).toHaveLength(1)
+    expect(readSourceRoots[0]).toContain(sessionScratchDirectoryPath('session-1'))
+  })
 })

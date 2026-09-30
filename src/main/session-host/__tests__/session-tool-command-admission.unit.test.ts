@@ -44,7 +44,7 @@ describe('Sessions tool command admission', () => {
     await fs.rm(root, { recursive: true, force: true })
   })
 
-  function admit(payload: LocalSessionCommandPayload) {
+  function admit(payload: LocalSessionCommandPayload, knownProject = KNOWN_PROJECT) {
     databaseCount += 1
     const database = SqliteClient.layer({
       filename: path.join(root, `admission-${databaseCount}.sqlite`),
@@ -79,7 +79,7 @@ describe('Sessions tool command admission', () => {
           authorization_ceiling TEXT NOT NULL, revoked_at INTEGER
         )`)
         yield* sql`INSERT INTO sessions (id, project_path) VALUES
-          (${'root'}, ${PROJECT}), (${'other'}, ${KNOWN_PROJECT})`
+          (${'root'}, ${PROJECT}), (${'other'}, ${knownProject})`
         yield* sql`INSERT INTO session_execution_profiles (
           session_id, profile_json, authority_origin_caller_id, authorization_ceiling
         ) VALUES (${'root'}, ${PROFILE_JSON}, ${'gui:local-user'}, ${'yolo'})`
@@ -114,5 +114,12 @@ describe('Sessions tool command admission', () => {
     const { payload } = await admit(launch(`${KNOWN_PROJECT}/./`))
 
     expect(payload).toEqual(launch(KNOWN_PROJECT))
+  })
+
+  it('does not resolve a relative project path against the Host working directory', async () => {
+    // `.` would otherwise become the Host's own working directory, here a known project.
+    await expect(admit(launch('.'), process.cwd())).rejects.toThrow(
+      'is not a project in OpenWaggle',
+    )
   })
 })
