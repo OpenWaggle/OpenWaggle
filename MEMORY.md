@@ -682,13 +682,23 @@ through the Pi bash and PowerShell `spawnHook` in `pi-run-session.ts`, applied a
 Workspace environment. Keep that path short: macOS limits a Unix socket path to 104 bytes and
 `tsx`, Chromium, and others bind sockets under `TMPDIR`. A scratch dir under `os.tmpdir()`
 (`/var/folders/...`) plus a UUID was 108 bytes and crashed `tsx`, so `pnpm verify` and `git push`
-failed from agent shells; it now lives at `/tmp/ow-scratch-<uid>/<16-hex hash>` on POSIX. Code that
+failed from agent shells; it now lives at `/tmp/ow-scratch-<uid>/<8-hex profile hash>/<12-hex
+Session hash>` on POSIX. The profile hash (from the Host's user-data root) keeps each OpenWaggle
+profile's Host from sweeping another's directories; the startup sweep
+(`session-scratch-sweep-background`) removes directories of Sessions deleted or archived while no
+Host ran. Code that
 must agree with the Host on a temp path (the Session Host socket fallback in `local-session-paths`)
 reads `hostTemporaryDirectory()`, which prefers `OPENWAGGLE_HOST_TMPDIR` exported next to the
 scratch `TMPDIR`. The Host deletes the directory from `session-host-events.ts` on
 `session-list-changed` `archived`/`deleted`, but a Run holds it (`withRetainedScratchDirectory`), so
 an archive mid-Run defers the removal to the Run's end. Tests that run `runPiAgentKernel` must mock
 `utils/session-scratch-directory` or they create directories in the real temp directory.
+
+A root's project reach is decided by `rootSessionReachesEveryProject`, called from both the
+Sessions tool caller and queued Follow-up delivery. A spawned Worker's authority snapshot stores its
+project, never `all`, even under a catalog-wide Queen (`workerAuthorityScope`). An unreadable
+authority snapshot counts as changed authority in `sqlite-session-live-authority`; letting the decode
+error escape failed the whole Run settlement.
 
 A failed Local Session handshake must not name its code: `profile_not_found` and
 `profile_revoked` overlap the authorization codes, and rendering them told an unauthenticated
