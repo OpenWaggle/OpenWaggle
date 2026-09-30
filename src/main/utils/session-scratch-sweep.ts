@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
+import { SESSION_EVIDENCE_DIRECTORY_NAME } from './session-evidence-directory'
 import {
   markSessionScratchNamespace,
   removeUnretainedScratchDirectory,
@@ -63,11 +64,33 @@ async function sweepAbandonedNamespaces(root: string, now: number) {
   const ownNamespace = path.basename(root)
   let removed = 0
   for (const name of await fs.readdir(userDirectory)) {
-    if (name === ownNamespace) continue
+    if (name === ownNamespace || name === SESSION_EVIDENCE_DIRECTORY_NAME) continue
     const namespace = path.join(userDirectory, name)
     if (!(await isOwnedPrivateDirectory(namespace).catch(() => false))) continue
     if (!(await namespaceAbandoned(namespace, now))) continue
     const gone = await fs.rm(namespace, { recursive: true, force: true }).then(
+      () => true,
+      () => false,
+    )
+    if (gone) removed += 1
+  }
+  return removed
+}
+
+/**
+ * Remove Sessions' evidence directories that nothing has written to for a week. They outlive
+ * archiving on purpose, so a Queen can show an archived Worker's screenshots, but not forever.
+ */
+async function pruneStaleEvidence(userDirectory: string, now: number) {
+  const evidenceRoot = path.join(userDirectory, SESSION_EVIDENCE_DIRECTORY_NAME)
+  if (!(await isOwnedPrivateDirectory(evidenceRoot).catch(() => false))) return 0
+  let removed = 0
+  for (const name of await fs.readdir(evidenceRoot)) {
+    const directory = path.join(evidenceRoot, name)
+    if (!(await isOwnedPrivateDirectory(directory).catch(() => false))) continue
+    const newest = await newestModification(directory).catch(() => now)
+    if (now - newest < ABANDONED_NAMESPACE_AGE_MS) continue
+    const gone = await fs.rm(directory, { recursive: true, force: true }).then(
       () => true,
       () => false,
     )
@@ -114,5 +137,9 @@ export async function sweepSessionScratchDirectories(
     // cannot be removed (for example a read-only file a tool left) does not stop the sweep.
     if (await removeUnretainedScratchDirectory(directory)) removed += 1
   }
-  return removed + (await sweepAbandonedNamespaces(root, now))
+  return (
+    removed +
+    (await sweepAbandonedNamespaces(root, now)) +
+    (await pruneStaleEvidence(path.dirname(root), now))
+  )
 }

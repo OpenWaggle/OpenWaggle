@@ -11,4 +11,12 @@ describe('Session scratch directory system prompt', () => {
     expect(prompt).toContain('"$TMPDIR/push.log"')
     expect(prompt).toContain('never write fixed file names directly under /tmp')
   })
+
+  it('names the evidence directory that outlives the Session for screenshots', () => {
+    const prompt = scratchDirectorySystemPrompt('/tmp/ow-scratch-501/37a8eec1/0123456789ab')
+
+    expect(prompt).toContain('"/tmp/ow-scratch-501/evidence/0123456789ab"')
+    expect(prompt).toContain('$OPENWAGGLE_EVIDENCE_DIR')
+    expect(prompt).toContain('kept after this session is archived')
+  })
 })

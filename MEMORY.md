@@ -712,7 +712,7 @@ Session hash>`, where `<base>` is the user temp directory if the path fits 56 by
 profile's Host from sweeping another's directories; the startup sweep
 (`session-scratch-sweep-background`) removes directories of Sessions deleted or archived while no
 Host ran, and another profile's namespace once the user-data directory named in its `.owner` marker is gone (unmarked namespaces: after a week unused). `prepareSessionScratchDirectory` touches
-the mtime because the sweeps judge age by it. An OpenWaggle process started from an agent shell
+the mtime because the sweeps judge age by it. Screenshots meant for the user or another Session go to `$OPENWAGGLE_EVIDENCE_DIR` (`<base>/ow-scratch-<uid>/evidence/<session>`, `utils/session-evidence-directory.ts`), which survives archiving and is an image capture root for every Session: a Worker's scratch directory is deleted when cleanup archives it, so a Queen could not render screenshots saved there. An OpenWaggle process started from an agent shell
 restores `TMPDIR` from `OPENWAGGLE_HOST_TMPDIR` at startup (`restoreHostTemporaryDirectory`). Code that
 must agree with the Host on a temp path (the Session Host socket fallback in `local-session-paths`)
 reads `hostTemporaryDirectory()`, which prefers `OPENWAGGLE_HOST_TMPDIR` exported next to the

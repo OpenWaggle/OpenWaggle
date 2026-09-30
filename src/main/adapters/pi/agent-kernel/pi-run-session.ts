@@ -12,6 +12,10 @@ import {
   type PreparedEnvironment,
   withoutWorkspaceContext,
 } from '../../../domain/prepared-environment'
+import {
+  SESSION_EVIDENCE_DIRECTORY_ENV,
+  sessionEvidenceDirectoryFor,
+} from '../../../utils/session-evidence-directory'
 import { sessionScratchEnvironment } from '../../../utils/session-scratch-directory'
 import type { PiModel } from '../pi-provider-catalog'
 import {
@@ -33,7 +37,10 @@ export async function createPiSessionForRun(input: {
 }) {
   const windows = process.platform === 'win32'
   const scratchEnvironment = input.scratchDirectory
-    ? sessionScratchEnvironment(input.scratchDirectory)
+    ? {
+        ...sessionScratchEnvironment(input.scratchDirectory),
+        [SESSION_EVIDENCE_DIRECTORY_ENV]: sessionEvidenceDirectoryFor(input.scratchDirectory),
+      }
     : {}
   const markAgentRun = (context: { command: string; cwd: string; env: NodeJS.ProcessEnv }) => ({
     ...context,

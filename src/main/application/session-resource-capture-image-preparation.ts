@@ -4,6 +4,7 @@ import * as Effect from 'effect/Effect'
 import { MAX_CAPTURED_IMAGE_BYTES } from '../domain/session-resource-image'
 import { SessionResourceImageValidator } from '../ports/session-resource-image-validator'
 import { SessionResourceStore } from '../ports/session-resource-store'
+import { sessionEvidenceRoot } from '../utils/session-evidence-directory'
 import { sessionScratchDirectoryPath } from '../utils/session-scratch-directory'
 import {
   advanceGeneratedImageCaptureBudget,
@@ -21,9 +22,11 @@ const AGENT_IMAGE_TEMP_DIRECTORIES = ['electron-qa-evidence', 'openwaggle-eviden
 
 /**
  * Where an assistant's `file:` images may be captured from: the workspace, the dedicated agent
- * evidence directories in the shared temp directory, and the Session's own scratch directory.
- * The agent's `TMPDIR` is that scratch directory, so `$TMPDIR/electron-qa-evidence/...` lands
- * there; it is private to the Session, so the whole directory is allowed.
+ * evidence directories in the shared temp directory, the Session's own scratch directory, and the
+ * user's evidence directories. The agent's `TMPDIR` is that scratch directory, so
+ * `$TMPDIR/electron-qa-evidence/...` lands there; it is private to the Session, so the whole
+ * directory is allowed. `$OPENWAGGLE_EVIDENCE_DIR` survives archiving, so a Queen can embed the
+ * screenshots of a Worker that cleanup archived.
  */
 export function localImageCaptureRoots(workingPath: string | null, sessionId: string) {
   const temporaryParents = [os.tmpdir(), process.platform === 'win32' ? null : '/tmp'].filter(
@@ -32,6 +35,7 @@ export function localImageCaptureRoots(workingPath: string | null, sessionId: st
   return [
     ...(workingPath ? [workingPath] : []),
     sessionScratchDirectoryPath(sessionId),
+    sessionEvidenceRoot(),
     ...temporaryParents.flatMap((root) =>
       AGENT_IMAGE_TEMP_DIRECTORIES.map((directory) => path.join(root, directory)),
     ),

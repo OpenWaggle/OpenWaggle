@@ -46,7 +46,7 @@ The configured MCP server is `electron-devtools` in `.mcp.json`.
 5. Interact with the changed feature using `click`, `type_text`, `fill`, and `press_key`.
 6. `list_console_messages` filtered to errors: verify no unexpected console errors.
 7. Capture at least one representative final-state screenshot, plus additional states needed to prove the interaction.
-8. Save QA evidence under a run-specific directory in the OS temporary directory, never inside the repository. Intentional visual-regression baselines are separate test assets and do not count as QA evidence.
+8. Save QA evidence in `$OPENWAGGLE_EVIDENCE_DIR` when it is set (an OpenWaggle agent shell; it survives archiving, so a Queen can render a Worker's screenshots), otherwise under a run-specific directory in the OS temporary directory, never inside the repository. Intentional visual-regression baselines are separate test assets and do not count as QA evidence.
 9. Render every evidence screenshot in the final user response using its absolute path.
 10. Report the result with pass/fail rows and any gaps.
 

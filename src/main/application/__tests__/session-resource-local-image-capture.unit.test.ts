@@ -6,6 +6,7 @@ import * as Layer from 'effect/Layer'
 import { describe, expect, it } from 'vitest'
 import type { UpsertSessionResourceInput } from '../../ports/session-resource-repository'
 import { SessionResourceStore } from '../../ports/session-resource-store'
+import { sessionEvidenceRoot } from '../../utils/session-evidence-directory'
 import { sessionScratchDirectoryPath } from '../../utils/session-scratch-directory'
 import { captureProjectedSessionResources } from '../session-resource-backfill'
 import { captureSuccessfulRunResources } from '../session-resource-capture'
@@ -75,6 +76,10 @@ describe('local assistant Markdown image capture', () => {
 
     expect(roots).toContain(sessionScratchDirectoryPath('session-qa'))
     expect(roots).not.toContain(sessionScratchDirectoryPath('session-other'))
+  })
+
+  it("authorizes the user's evidence directories, so a Queen can show a Worker's screenshots", () => {
+    expect(localImageCaptureRoots('/workspace', 'session-queen')).toContain(sessionEvidenceRoot())
   })
 
   it('extracts supported file images without treating local files as links', () => {

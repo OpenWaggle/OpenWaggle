@@ -133,6 +133,8 @@ it('points both Pi shell tools at the Session scratch directory for temp files',
       TEMP: '/private/scratch/session-a',
       // Keeps an agent-run `openwaggle` CLI pointed at the Host's socket fallback directory.
       [HOST_TEMPORARY_DIRECTORY_ENV]: hostTemporaryDirectory(),
+      // Kept after archiving, so a Queen can render this Session's screenshots.
+      OPENWAGGLE_EVIDENCE_DIR: '/private/evidence/session-a',
       OPENWAGGLE_PROJECT_ROOT: '/project',
       OPENWAGGLE_WORKTREE_PATH: '/workspace',
       OPENWAGGLE_AGENT_RUN: '1',

@@ -158,7 +158,8 @@ function hasErrorCode(error: unknown, code: string) {
   return error instanceof Error && 'code' in error && error.code === code
 }
 
-async function ensurePrivateDirectory(directory: string) {
+/** Create `directory` owner-only, refusing a symlink, a non-directory, or another user's directory. */
+export async function ensurePrivateDirectory(directory: string) {
   try {
     await fs.mkdir(directory, { mode: SCRATCH_DIRECTORY_MODE })
   } catch (error) {

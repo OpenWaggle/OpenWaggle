@@ -7,6 +7,7 @@ import { createLogger } from '../../logger'
 import type { AgentKernelRunInput } from '../../ports/agent-kernel-service'
 import type { InlineVisualizationServiceShape } from '../../ports/inline-visualization-service'
 import type { McpDirectToolWaitOutcome } from '../../ports/mcp-runtime-service'
+import { prepareSessionEvidenceDirectory } from '../../utils/session-evidence-directory'
 import { prepareSessionScratchDirectory } from '../../utils/session-scratch-directory'
 
 const logger = createLogger('pi-agent-kernel')
@@ -114,7 +115,17 @@ export function prepareVisualizationDirectory(
  * which is the behaviour before per-Session scratch directories existed.
  */
 export function prepareScratchDirectory(sessionId: AgentKernelRunInput['session']['id']) {
-  return Effect.tryPromise(() => prepareSessionScratchDirectory(sessionId)).pipe(
+  return Effect.tryPromise(async () => {
+    const directory = await prepareSessionScratchDirectory(sessionId)
+    // Best effort: without it the agent can still write evidence to its scratch directory.
+    await prepareSessionEvidenceDirectory(directory).catch((error: unknown) => {
+      logger.warn('Failed to prepare the session evidence directory', {
+        sessionId,
+        error: String(error),
+      })
+    })
+    return directory
+  }).pipe(
     Effect.catchAll((error) =>
       Effect.sync(() => {
         logger.warn('Failed to prepare the session scratch directory', {
