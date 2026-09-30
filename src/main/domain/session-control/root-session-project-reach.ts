@@ -1,6 +1,9 @@
 import type { LocalSessionProfileScope } from '@shared/types/local-session-profile'
 
 const PROFILE_CALLER_PREFIX = 'profile:'
+const SESSION_AGENT_CALLER_PREFIX = 'session-agent:'
+/** Hops through agents starting each other's Runs that reach and ceiling checks follow. */
+export const MAX_RUN_INITIATOR_CHAIN_DEPTH = 8
 
 type ReachScope = Pick<LocalSessionProfileScope, 'all'>
 
@@ -13,6 +16,17 @@ export function isLocalUserCallerId(callerId: string) {
 
 export function isProfileCallerId(callerId: string) {
   return callerId.startsWith(PROFILE_CALLER_PREFIX)
+}
+
+/** The Session and Run of a `session-agent:<sessionId>:<runId>` caller, or undefined. */
+export function parseSessionAgentCallerId(callerId: string) {
+  if (!callerId.startsWith(SESSION_AGENT_CALLER_PREFIX)) return undefined
+  const separator = callerId.lastIndexOf(':')
+  if (separator <= SESSION_AGENT_CALLER_PREFIX.length) return undefined
+  return {
+    sessionId: callerId.slice(SESSION_AGENT_CALLER_PREFIX.length, separator),
+    runId: callerId.slice(separator + 1),
+  }
 }
 
 /**

@@ -4,7 +4,11 @@ import { SessionId, SupportedModelId } from '@shared/types/brand'
 import type { SessionEnvironmentMode } from '@shared/types/git'
 import type { SessionDetail, SessionSummary } from '@shared/types/session'
 import * as Effect from 'effect/Effect'
-import { sessionAgentCallerRunCeiling } from '../../session-host/session-agent-run-ceiling'
+import { parseSessionAgentCallerId } from '../../domain/session-control/root-session-project-reach'
+import {
+  sessionAgentAuthorizationBoundary,
+  sessionAgentCallerRunCeiling,
+} from '../../session-host/session-agent-run-ceiling'
 import { sessionIdsForQuery } from '../sessions/hydration'
 import { attachSessionLineage, loadSessionLineageRows } from '../sessions/session-list'
 import { runStoreEffect } from '../store-runtime'
@@ -228,13 +232,6 @@ export async function getSessionAuthorizationBoundary(id: SessionId) {
   )
 }
 
-function callerSourceSessionId(callerId: string) {
-  const prefix = 'session-agent:'
-  if (!callerId.startsWith(prefix)) return undefined
-  const lastSeparator = callerId.lastIndexOf(':')
-  return lastSeparator > prefix.length ? callerId.slice(prefix.length, lastSeparator) : undefined
-}
-
 export async function getSessionCallerAuthorizationBoundary(callerId: string) {
   return runStoreEffect(
     Effect.gen(function* () {
@@ -254,52 +251,18 @@ export async function getSessionCallerAuthorizationBoundary(callerId: string) {
           : { authorizationCeiling: 'ask-for-approval' as const, revoked: true }
       }
 
-      const sourceSessionId = callerSourceSessionId(callerId)
-      if (!sourceSessionId) return null
-      const rows = yield* sql<{
-        readonly execution_ceiling: 'yolo' | 'ask-for-approval'
-        readonly grant_ceiling: 'yolo' | 'ask-for-approval' | null
-        readonly grant_revoked_at: number | null
-        readonly parent_session_id: string | null
-        readonly profile_ceiling: 'yolo' | 'ask-for-approval' | null
-        readonly profile_revoked_at: number | null
-      }>`
-        SELECT execution.authorization_ceiling AS execution_ceiling,
-          COALESCE(lineage.parent_session_id, historical.parent_session_id)
-            AS parent_session_id,
-          grants.authorization_ceiling AS grant_ceiling,
-          grants.revoked_at AS grant_revoked_at,
-          profiles.authorization_ceiling AS profile_ceiling,
-          profiles.revoked_at AS profile_revoked_at
-        FROM session_execution_profiles AS execution
-        LEFT JOIN session_spawn_lineage AS lineage
-          ON lineage.child_session_id = execution.session_id
-        LEFT JOIN session_lineage AS historical
-          ON historical.session_id = execution.session_id
-        LEFT JOIN derived_child_management_grants AS grants
-          ON grants.child_session_id = execution.session_id
-        LEFT JOIN session_client_profiles AS profiles
-          ON execution.authority_origin_caller_id = ${'profile:'} || profiles.id
-        WHERE execution.session_id = ${sourceSessionId}
-        LIMIT 1
-      `
-      const row = rows[0]
-      if (!row) return { authorizationCeiling: 'ask-for-approval' as const, revoked: true }
-      const missingWorkerGrant = row.parent_session_id !== null && row.grant_ceiling === null
-      const revoked =
-        missingWorkerGrant || row.grant_revoked_at !== null || row.profile_revoked_at !== null
+      const agent = parseSessionAgentCallerId(callerId)
+      if (!agent) return null
+      const boundary = yield* sessionAgentAuthorizationBoundary(sql, agent.sessionId)
       // The caller's Run counts too: an agent acting for an ask-for-approval initiator stays there.
       const runCeiling = yield* sessionAgentCallerRunCeiling(sql, callerId).pipe(
         Effect.orElseSucceed(() => 'ask-for-approval' as const),
       )
-      const authorizationCeiling =
-        row.execution_ceiling === 'ask-for-approval' ||
-        row.grant_ceiling === 'ask-for-approval' ||
-        row.profile_ceiling === 'ask-for-approval' ||
-        runCeiling === 'ask-for-approval'
-          ? ('ask-for-approval' as const)
-          : ('yolo' as const)
-      return { authorizationCeiling, revoked }
+      return {
+        authorizationCeiling:
+          runCeiling === 'ask-for-approval' ? runCeiling : boundary.authorizationCeiling,
+        revoked: boundary.revoked,
+      }
     }),
   )
 }

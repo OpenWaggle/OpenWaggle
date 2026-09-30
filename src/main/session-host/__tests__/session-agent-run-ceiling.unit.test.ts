@@ -12,7 +12,9 @@ interface RunRow {
   readonly sessionId: string
   readonly runId: string
   readonly callerId: string
-  readonly sessionCeiling?: 'yolo' | 'ask-for-approval'
+  readonly status?: string
+  /** The Session's own origin; `profile:<id>` binds it to that profile's live ceiling. */
+  readonly origin?: string
 }
 
 describe('runInitiatorCeiling', () => {
@@ -36,12 +38,23 @@ describe('runInitiatorCeiling', () => {
     return Effect.runPromise(
       Effect.gen(function* () {
         const sql = yield* SqlClient.SqlClient
+        yield* sql.unsafe(`CREATE TABLE session_runs (
+          id TEXT PRIMARY KEY, session_id TEXT NOT NULL, status TEXT NOT NULL,
+          intent_json TEXT, created_at INTEGER NOT NULL
+        )`)
+        yield* sql.unsafe(`CREATE TABLE session_execution_profiles (
+          session_id TEXT PRIMARY KEY, authorization_ceiling TEXT NOT NULL,
+          authority_origin_caller_id TEXT NOT NULL
+        )`)
         yield* sql.unsafe(
-          'CREATE TABLE session_runs (id TEXT PRIMARY KEY, session_id TEXT NOT NULL, intent_json TEXT)',
+          'CREATE TABLE session_spawn_lineage (child_session_id TEXT PRIMARY KEY, parent_session_id TEXT NOT NULL)',
         )
         yield* sql.unsafe(
-          'CREATE TABLE session_execution_profiles (session_id TEXT PRIMARY KEY, authorization_ceiling TEXT NOT NULL)',
+          'CREATE TABLE session_lineage (session_id TEXT PRIMARY KEY, parent_session_id TEXT)',
         )
+        yield* sql.unsafe(`CREATE TABLE derived_child_management_grants (
+          child_session_id TEXT PRIMARY KEY, authorization_ceiling TEXT NOT NULL, revoked_at INTEGER
+        )`)
         yield* sql.unsafe(`CREATE TABLE session_client_profiles (
           id TEXT PRIMARY KEY, authorization_ceiling TEXT NOT NULL, revoked_at INTEGER
         )`)
@@ -49,13 +62,13 @@ describe('runInitiatorCeiling', () => {
           (${'asker'}, ${'ask-for-approval'}, ${null}),
           (${'trusted'}, ${'yolo'}, ${null}),
           (${'revoked'}, ${'yolo'}, ${1})`
-        for (const run of runs) {
-          yield* sql`INSERT INTO session_runs (id, session_id, intent_json) VALUES (
-            ${run.runId}, ${run.sessionId}, ${JSON.stringify({ callerId: run.callerId })}
-          )`
+        for (const [index, run] of runs.entries()) {
+          yield* sql`INSERT INTO session_runs (id, session_id, status, intent_json, created_at)
+            VALUES (${run.runId}, ${run.sessionId}, ${run.status ?? 'active'},
+              ${JSON.stringify({ callerId: run.callerId })}, ${index})`
           yield* sql`INSERT OR IGNORE INTO session_execution_profiles (
-            session_id, authorization_ceiling
-          ) VALUES (${run.sessionId}, ${run.sessionCeiling ?? 'yolo'})`
+            session_id, authorization_ceiling, authority_origin_caller_id
+          ) VALUES (${run.sessionId}, ${'yolo'}, ${run.origin ?? 'gui:local-user'})`
         }
         return yield* runInitiatorCeiling(sql, sessionId, runId)
       }).pipe(Effect.provide(database)),
@@ -83,13 +96,28 @@ describe('runInitiatorCeiling', () => {
     await expect(ceiling(runs, 's', 'r')).resolves.toBe('ask-for-approval')
   })
 
-  it('treats a revoked, unknown, or missing initiator as ask-for-approval', async () => {
+  it('applies the live ceiling of the profile an initiating agent came from', async () => {
+    // Session A came from profile asker (lowered to ask after A was created); the user typed in A.
+    const runs = [
+      { sessionId: 'a', runId: 'run-a', callerId: 'gui:local-user', origin: 'profile:asker' },
+      { sessionId: 'b', runId: 'run-b', callerId: 'session-agent:a:run-a' },
+    ]
+    await expect(ceiling(runs, 'b', 'run-b')).resolves.toBe('ask-for-approval')
+  })
+
+  it('treats a revoked or unknown initiator as ask-for-approval', async () => {
     await expect(
       ceiling([{ sessionId: 's', runId: 'r', callerId: 'profile:revoked' }], 's', 'r'),
     ).resolves.toBe('ask-for-approval')
     await expect(
       ceiling([{ sessionId: 's', runId: 'r', callerId: 'transient-mcp:a' }], 's', 'r'),
     ).resolves.toBe('ask-for-approval')
-    await expect(ceiling([], 's', 'missing')).resolves.toBe('ask-for-approval')
+  })
+
+  it('bounds a Waggle Run, which has no row, by the active classic Run it runs in', async () => {
+    const classic = [{ sessionId: 's', runId: 'classic', callerId: 'profile:asker' }]
+    await expect(ceiling(classic, 's', 'waggle-s')).resolves.toBe('ask-for-approval')
+    // An explicit Waggle the GUI started, with no classic Run, keeps the Session's own ceiling.
+    await expect(ceiling([], 's', 'waggle-explicit')).resolves.toBe('yolo')
   })
 })

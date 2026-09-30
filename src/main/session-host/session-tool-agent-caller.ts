@@ -183,10 +183,6 @@ function loadAuthorityRow(sql: SqlClient.SqlClient, sessionId: string) {
   `
 }
 
-/**
- * The Session's own ceiling, also bounded by whoever started this Run, so a yolo Session messaged
- * by an ask-for-approval caller cannot start yolo Runs on that caller's behalf.
- */
 function snapshotOriginAuthority(
   row: AuthorityRow,
   authoritySnapshot: ReturnType<typeof decodeSessionAuthoritySnapshot>,
@@ -205,6 +201,10 @@ function snapshotOriginAuthority(
   }
 }
 
+/**
+ * The Session's own ceiling, also bounded by whoever started this Run, so a yolo Session messaged
+ * by an ask-for-approval caller cannot start yolo Runs on that caller's behalf.
+ */
 function agentRunCeiling(
   sql: SqlClient.SqlClient,
   row: AuthorityRow,

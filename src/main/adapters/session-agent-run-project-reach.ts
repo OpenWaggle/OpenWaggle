@@ -5,13 +5,11 @@ import * as Effect from 'effect/Effect'
 import {
   isLocalUserCallerId,
   isProfileCallerId,
+  MAX_RUN_INITIATOR_CHAIN_DEPTH,
+  parseSessionAgentCallerId,
   rootSessionReachesEveryProject,
 } from '../domain/session-control/root-session-project-reach'
 import { decodeSessionAuthoritySnapshot } from '../session-host/session-authority-snapshot'
-
-/** Hops through agents starting each other's Runs; a longer chain is refused, not followed. */
-const MAX_INITIATOR_CHAIN_DEPTH = 8
-const SESSION_AGENT_CALLER_PREFIX = 'session-agent:'
 
 interface RunSourceRow {
   readonly initiator_caller_id: string | null
@@ -21,16 +19,6 @@ interface RunSourceRow {
   readonly parent_session_id: string | null
   readonly profile_scope_json: string | null
   readonly profile_revoked_at: number | null
-}
-
-function sessionAgentCaller(callerId: string) {
-  if (!callerId.startsWith(SESSION_AGENT_CALLER_PREFIX)) return undefined
-  const separator = callerId.lastIndexOf(':')
-  if (separator <= SESSION_AGENT_CALLER_PREFIX.length) return undefined
-  return {
-    sessionId: callerId.slice(SESSION_AGENT_CALLER_PREFIX.length, separator),
-    runId: callerId.slice(separator + 1),
-  }
 }
 
 function liveProfileScope(sql: SqlClient.SqlClient, callerId: string) {
@@ -63,7 +51,7 @@ function initiatorReachesEveryProject(
   if (isProfileCallerId(callerId)) {
     return liveProfileScope(sql, callerId).pipe(Effect.map((scope) => scope?.all === true))
   }
-  const agent = sessionAgentCaller(callerId)
+  const agent = parseSessionAgentCallerId(callerId)
   if (!agent) return Effect.succeed(false)
   return sessionAgentRunReachesEveryProject(sql, agent.sessionId, agent.runId, depth + 1)
 }
@@ -83,7 +71,7 @@ export function sessionAgentRunReachesEveryProject(
   runId: string,
   depth = 0,
 ): Effect.Effect<boolean, unknown> {
-  if (depth > MAX_INITIATOR_CHAIN_DEPTH) return Effect.succeed(false)
+  if (depth > MAX_RUN_INITIATOR_CHAIN_DEPTH) return Effect.succeed(false)
   return Effect.gen(function* () {
     const rows = yield* sql<RunSourceRow>`
       SELECT json_extract(session_runs.intent_json, '$.callerId') AS initiator_caller_id,
