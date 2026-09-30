@@ -144,6 +144,20 @@ describe('Session scratch sweep', () => {
     expect((await fs.readdir(namespace)).filter((name) => name.endsWith('.tmp'))).toEqual([])
   })
 
+  it("leaves its own namespace's owner marker in place", async () => {
+    const profile = path.join(temporaryDirectory, 'profiles', 'marked')
+    await fs.mkdir(profile, { recursive: true })
+    useNamespace(profile)
+    const namespace = sessionScratchRoot(temporaryDirectory)
+    await prepareSessionScratchDirectory('session-live', namespace)
+    const old = new Date(Date.now() - EIGHT_DAYS_MS)
+    await fs.utimes(path.join(namespace, '.owner'), old, old)
+
+    await sweepSessionScratchDirectories(['session-live'], namespace, Date.now() + TWO_HOURS_MS)
+
+    await expect(fs.readFile(path.join(namespace, '.owner'), 'utf8')).resolves.toBe(`${profile}\n`)
+  })
+
   it('marks a namespace again when it was removed while the Host ran', async () => {
     const profile = path.join(temporaryDirectory, 'profiles', 'recreated')
     await fs.mkdir(profile, { recursive: true })

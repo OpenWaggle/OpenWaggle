@@ -21,6 +21,8 @@ interface RunRow {
   /** A Worker of this Session; its grant is revoked when `grantRevoked` is set. */
   readonly parent?: string
   readonly grantRevoked?: boolean
+  /** A Worker whose management grant row is gone altogether. */
+  readonly grantMissing?: boolean
 }
 
 describe('runInitiatorCeiling', () => {
@@ -81,9 +83,11 @@ describe('runInitiatorCeiling', () => {
           if (run.parent) {
             yield* sql`INSERT OR IGNORE INTO session_spawn_lineage (child_session_id, parent_session_id)
               VALUES (${run.sessionId}, ${run.parent})`
-            yield* sql`INSERT OR IGNORE INTO derived_child_management_grants (
-              child_session_id, authorization_ceiling, revoked_at
-            ) VALUES (${run.sessionId}, ${'yolo'}, ${run.grantRevoked ? 1 : null})`
+            if (!run.grantMissing) {
+              yield* sql`INSERT OR IGNORE INTO derived_child_management_grants (
+                child_session_id, authorization_ceiling, revoked_at
+              ) VALUES (${run.sessionId}, ${'yolo'}, ${run.grantRevoked ? 1 : null})`
+            }
           }
           yield* sql`INSERT OR IGNORE INTO session_execution_profiles (
             session_id, authorization_ceiling, authority_origin_caller_id
@@ -176,6 +180,10 @@ describe('runInitiatorCeiling', () => {
       { sessionId: 's', runId: 'r', callerId: 'session-agent:worker:run-worker' },
     ]
     await expect(ceiling(runs, 's', 'r')).resolves.toBe('ask-for-approval')
+    const withoutGrant = runs.map((run) =>
+      run.sessionId === 'worker' ? { ...run, grantRevoked: false, grantMissing: true } : run,
+    )
+    await expect(ceiling(withoutGrant, 's', 'r')).resolves.toBe('ask-for-approval')
   })
 
   it('stops following a chain after eight agents', async () => {
