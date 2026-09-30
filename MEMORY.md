@@ -684,8 +684,11 @@ queued Follow-up is delivered. It needs both the Session's own authority
 (`rootSessionReachesEveryProject`: a root from the local user or a catalog-wide profile, origin read
 from the caller id) and the Run's initiator (`session_runs.intent_json.callerId`, followed through up
 to eight agents). Without the initiator check, a project-scoped CLI profile could message a desktop
-Session and have it act in every project. Session agents may launch or create only in projects
-already in the catalog (`session-tool-project-catalog.ts`).
+Session and have it act in every project. Input into a running catalog-wide Run (steer, promote,
+request/approval respond) from a narrower caller is refused in `local-session-run-input-reach.ts`
+(`runInputWidensReach` on the authorization target port), and a re-authorized Follow-up keeps its
+writer in `intent.authorCallerId`, which the chain also checks. Session agents with catalog-wide
+scope may launch or create only in projects already in the catalog (`session-tool-project-catalog.ts`).
 
 Agent tool processes get `TMPDIR`/`TMP`/`TEMP` pointing at a per-Session 0700 scratch directory
 through the Pi bash and PowerShell `spawnHook` in `pi-run-session.ts`, applied after the prepared
