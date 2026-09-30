@@ -3,6 +3,7 @@ import { fromPartial } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import { describe, expect, it, vi } from 'vitest'
+import { withRunAttachmentCleanup } from '../../adapters/session-control-run-executor'
 import { AgentSteeringService } from '../../ports/agent-steering-service'
 import { SessionAuthorizationTargetRepository } from '../../ports/session-authorization-target-repository'
 import { SessionControlRepository } from '../../ports/session-control-repository'
@@ -22,7 +23,11 @@ import { SessionReportDeliveryService } from '../../ports/session-report-deliver
 import { SessionReportRepository } from '../../ports/session-report-repository'
 import { SessionWorkspaceHandoffService } from '../../ports/session-workspace-handoff-service'
 import { SessionWorkspaceResourceRepository } from '../../ports/session-workspace-resource-repository'
-import { interruptExactSessionRun, reserveActiveSessionRun } from '../active-session-runs'
+import {
+  interruptExactSessionRun,
+  reserveActiveSessionRun,
+  waitForSessionRuns,
+} from '../active-session-runs'
 import { dispatchAdmittedSessionControlCommand } from '../local-session-command-dispatcher'
 import { NoopActionRunServiceLayer } from './action-run-service-test-layer'
 import { NoopSessionDesktopLayer } from './desktop-service-test-layer'
@@ -56,6 +61,29 @@ function unusedDispatcherCommandDependencies() {
     Layer.succeed(SessionReportRepository, fromPartial({})),
     Layer.succeed(SessionWorkspaceHandoffService, fromPartial({})),
   )
+}
+
+function interruptLiveRun(input: { readonly sessionId: string; readonly runId: string }) {
+  return Effect.promise(() =>
+    interruptExactSessionRun(SessionId(input.sessionId), input.runId),
+  ).pipe(
+    Effect.map((accepted) =>
+      accepted
+        ? { accepted: true as const }
+        : { accepted: false as const, code: 'run_not_live' as const },
+    ),
+  )
+}
+
+const DEADLOCK_PROBE_MS = 2_000
+
+function settlesWithin<A>(promise: Promise<A>, timeoutMs: number) {
+  return Promise.race([
+    promise.then((value) => ({ settled: true as const, value })),
+    new Promise<{ readonly settled: false }>((resolve) =>
+      setTimeout(() => resolve({ settled: false }), timeoutMs),
+    ),
+  ])
 }
 
 function testLayer(state: Parameters<typeof makePromotionReplacementLayer>[0]) {
@@ -135,6 +163,83 @@ describe('Local Session attachment transition dispatch', () => {
       response: { outcome: { effect: 'promoted-follow-up' } },
     })
     expect(setup.release).toHaveBeenCalledOnce()
+  })
+
+  it('replaces a live Run whose teardown releases its attachments under the same transition', async () => {
+    const sessionId = SessionId('session-replace-live-run')
+    const runId = RunId('run-live')
+    const run = reserveActiveSessionRun(sessionId, runId)
+    const releasedRunAttachments = vi.fn()
+    const setup = makePromotionReplacementLayer(
+      {
+        sessionId,
+        revision: 3,
+        run: { state: 'active', runId },
+        followUpQueue: { state: 'running', revision: 0, items: [] },
+      },
+      { interrupt: interruptLiveRun },
+    )
+    const layer = Layer.mergeAll(
+      settingsLayer,
+      unusedDispatcherCommandDependencies(),
+      setup.layer,
+      // The replacement Run's coordinator finds nothing to start, so it ends at once.
+      Layer.succeed(
+        SessionControlRunLifecycleRepository,
+        fromPartial({
+          activate: () =>
+            Effect.succeed({ accepted: false as const, code: 'run_not_starting' as const }),
+        }),
+      ),
+    )
+    // The live Run as the production executor owns it: once aborted, it releases its own
+    // attachments under the Session attachment transition, and only then settles.
+    const liveRun = Effect.runPromise(
+      withRunAttachmentCleanup({
+        effect: Effect.async<void>((resume) => {
+          if (run.controller.signal.aborted) return resume(Effect.void)
+          run.controller.signal.addEventListener('abort', () => resume(Effect.void), {
+            once: true,
+          })
+        }),
+        attachments: {
+          release: (input) => Effect.sync(() => releasedRunAttachments(input.attachmentIds)),
+        },
+        attachmentIds: ['attachment-live-run'],
+        sessionId,
+        runId,
+        ownerCallerId: localUser.callerId,
+      }).pipe(Effect.ensuring(Effect.sync(run.release))),
+    )
+
+    const replace = Effect.runPromise(
+      dispatchAdmittedSessionControlCommand({
+        caller: localUser,
+        payload: controlPayload({
+          operation: 'replace',
+          sessionId,
+          expectedRunId: runId,
+          input: { text: 'Start over.', attachmentIds: [] },
+        }),
+      }).pipe(Effect.provide(layer)),
+    )
+    try {
+      const outcome = await settlesWithin(replace, DEADLOCK_PROBE_MS)
+      expect(outcome.settled).toBe(true)
+      await expect(replace).resolves.toMatchObject({
+        response: {
+          outcome: { effect: 'replaced-run', interruptedRunId: runId, runId: 'run-replacement' },
+        },
+      })
+      await liveRun
+      expect(releasedRunAttachments).toHaveBeenCalledWith(['attachment-live-run'])
+      await expect(waitForSessionRuns(sessionId, DEADLOCK_PROBE_MS)).resolves.toBe(true)
+    } finally {
+      // Break a deadlock so a failing assertion does not leak a parked fiber into other tests.
+      run.release()
+      await replace.catch(() => undefined)
+      await liveRun
+    }
   })
 
   it.each([false, true])(

@@ -1260,6 +1260,25 @@ healthy project when an unrelated terminal has a persistent history-write failur
 When removing or truncating history, discard retry and failure state inside the serialized
 mutation after earlier writes settle; an in-flight flush can otherwise recreate deleted history.
 
+### A replace must not wait on its Run while holding the attachment transition
+
+The Session Control dispatcher holds a Session's attachment transition for a whole non-interrupt
+command. `replace` waits there for the interrupted Run to settle, and that Run's teardown
+(`withRunAttachmentCleanup`) releases its attachments under the same transition before it
+settles. Every replace of a live classic Run deadlocked: the Worker stayed `active`, the replacing
+Queen's Sessions tool call never returned (the dispatch is uninterruptible), and GUI Stop on the
+Queen waited on a Run that could not settle, so the renderer showed "Timed out waiting for the
+Local Session Host" while the Host kept serving other Sessions. Host restart then recovered both
+Runs as `interrupted-by-host-loss` and paused the Worker queue with `host-lost`.
+
+The replacement now lends its transition to exactly the awaited Run
+(`lendSessionAttachmentTransitionToSettlingRun`, borrower named by `settlingRunId`); every other
+operation stays excluded. Explicit Waggle teardown runs `cleanupUnreferenced`, which would delete
+the replacement's bound attachments, so it does not borrow: replacing a live explicit Waggle Run
+can still deadlock. GUI/CLI `interrupt` now waits at most `RUN_INTERRUPTION_SETTLEMENT_WAIT_MS`
+for settlement and then answers `interruption-requested`. The wait must be marked
+`Effect.interruptible`, or the dispatcher's uninterruptible region makes the timeout wait too.
+
 ## Website documentation routing
 
 The user guide starts at `/docs/getting-started/first-run` with the label **Get started**; `/docs` redirects there. `website/src/data/docs-nav.ts` separates user navigation from developer/package references without moving existing content URLs. Page frontmatter still supplies section/order to the installed-docs generator, independently of the website sidebar.
