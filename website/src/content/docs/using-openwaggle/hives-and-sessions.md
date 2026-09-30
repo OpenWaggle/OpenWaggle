@@ -108,7 +108,7 @@ After spawning, the parent can use `wait` for a bounded observation, read the Wo
 
 ### Sessions in other repositories
 
-An agent is not limited to its own repository. A Session you started from the app can list, search, and read Sessions in any project you have opened in OpenWaggle, report to them, send them Follow-ups, steer, interrupt, or archive them, and launch or create a new Session in another of those projects, without sharing a Hive. This applies to turns you started, or that another such agent started; a turn started by a restricted CLI profile, or by a Worker's Follow-up, stays in the Session's own project, and a restricted profile cannot steer a turn that reaches other projects. For example:
+An agent is not limited to its own repository. A Session you started from the app can list, search, and read Sessions in any project that has a Session or Workspace in OpenWaggle, report to them, send them Follow-ups, steer, interrupt, or archive them, and launch or create a new Session in another of those projects, without sharing a Hive. A project you only opened, without sending a message, does not count yet; start a Session there first. This applies to turns you started, or that another such agent started; a turn started by a restricted CLI profile, or by a Worker's Follow-up, stays in the Session's own project, and a restricted profile cannot steer a turn that reaches other projects. For example:
 
 ```text
 Find the open OpenWaggle session about the release checklist and report this failing

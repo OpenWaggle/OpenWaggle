@@ -50,6 +50,8 @@ describe('Run initiator chains between two roots', () => {
       authorCallerId?: string
       /** The Queen of this Run's Session, which makes that Session a Worker. */
       queenSessionId?: string
+      /** Who created this Run's Session; the desktop user unless set. */
+      origin?: string
     }[],
     use: (sql: SqlClient.SqlClient) => Effect.Effect<A, unknown>,
   ) {
@@ -88,10 +90,10 @@ describe('Run initiator chains between two roots', () => {
         ) VALUES
           (${'asker'}, ${'{"all":true}'}, ${'ask-for-approval'}, ${null}),
           (${'revoked'}, ${'{"all":true}'}, ${'yolo'}, ${1})`
-        for (const sessionId of new Set(runs.map((run) => run.sessionId))) {
-          yield* sql`INSERT INTO session_execution_profiles (
+        for (const run of runs) {
+          yield* sql`INSERT OR IGNORE INTO session_execution_profiles (
             session_id, profile_json, authority_origin_caller_id, authorization_ceiling
-          ) VALUES (${sessionId}, ${PROFILE_JSON}, ${'gui:local-user'}, ${'yolo'})`
+          ) VALUES (${run.sessionId}, ${PROFILE_JSON}, ${run.origin ?? 'gui:local-user'}, ${'yolo'})`
         }
         for (const run of runs) {
           if (run.queenSessionId) {
@@ -176,6 +178,16 @@ describe('Run initiator chains between two roots', () => {
 
   it('takes reach and ceiling away from a Run whose initiating profile was revoked', async () => {
     const runs = [{ runId: 'r', sessionId: 'a', callerId: 'profile:revoked' }]
+
+    await expect(judge(runs)).resolves.toEqual({ reach: false, ceiling: 'ask-for-approval' })
+  })
+
+  it('takes reach and ceiling away when a Session further back lost its origin profile', async () => {
+    // A catalog-wide profile created root `s`; its agent then woke root `t`. The profile is revoked.
+    const runs = [
+      { runId: 'run-s', sessionId: 's', callerId: 'gui:local-user', origin: 'profile:revoked' },
+      { runId: 'run-t', sessionId: 't', callerId: 'session-agent:s:run-s' },
+    ]
 
     await expect(judge(runs)).resolves.toEqual({ reach: false, ceiling: 'ask-for-approval' })
   })

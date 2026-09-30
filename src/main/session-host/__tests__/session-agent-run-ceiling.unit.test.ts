@@ -147,6 +147,9 @@ describe('runInitiatorCeiling', () => {
       { sessionId: 's', runId: 'gui-run', callerId: 'gui:local-user' },
     ]
     await expect(ceiling(later, 's', waggle)).resolves.toBe('ask-for-approval')
+    // A classic Run the desktop user started gives its Waggle yolo, not the no-row fallback.
+    const byUser = [{ sessionId: 's', runId: 'classic', callerId: 'gui:local-user' }]
+    await expect(ceiling(byUser, 's', waggle)).resolves.toBe('yolo')
   })
 
   it('treats a Run it cannot find as ask-for-approval', async () => {
