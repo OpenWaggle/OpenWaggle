@@ -72,6 +72,20 @@ describe('sessions tool flattened schema', () => {
     expect(shape.required).toEqual(['action'])
   })
 
+  it('keeps TypeBox internal keys out of the serialized provider schema', () => {
+    const serialized = JSON.stringify(flattenSessionsToolParameters(sessionsToolParameterVariants))
+
+    // Providers that reject unknown JSON Schema keywords would refuse the whole tool.
+    expect(serialized).not.toMatch(/"~[A-Za-z]+"/)
+  })
+
+  it('still validates optional described properties after flattening', () => {
+    const flat = flattenSessionsToolParameters(sessionsToolParameterVariants)
+
+    expect(Check(flat, { action: 'launch', objective: 'Fix it' })).toBe(true)
+    expect(Check(flat, { action: 'launch', objective: '' })).toBe(false)
+  })
+
   it('enforces required fields for actions that share one parameter variant', () => {
     expect(() => assertSessionsToolActionArguments(asParams({ action: 'archive' }))).toThrow(
       /Invalid arguments for sessions action "archive"/,

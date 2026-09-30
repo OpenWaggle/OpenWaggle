@@ -11,7 +11,7 @@ function readString(value: object, key: string) {
 }
 
 /** The error an Effect `FiberFailure` wraps, which it does not expose as `cause`. */
-function unwrapFiberFailure(error: unknown) {
+export function unwrapFiberFailure(error: unknown) {
   if (!Runtime.isFiberFailure(error)) return error
   return Cause.squash(error[Runtime.FiberFailureCauseId])
 }
@@ -24,7 +24,11 @@ function describeOne(error: unknown) {
   const code = readString(error, 'code')
   const label = [tag, operation ? `(${operation})` : null].filter(Boolean).join(' ')
   const detail = [code && code !== tag ? code : null, message].filter(Boolean).join(': ')
-  return [label, detail].filter(Boolean).join(': ') || String(error)
+  const description = [label, detail].filter(Boolean).join(': ')
+  // A plain-object cause (for example `{ projectPath }` context) has nothing to show; rendering
+  // it as "[object Object]" only adds noise, and its fields are not meant to leave the Host.
+  if (description) return description
+  return error instanceof Error ? String(error) : ''
 }
 
 /**
@@ -37,7 +41,8 @@ function describeOne(error: unknown) {
  */
 export function describeError(error: unknown): string {
   if (error === undefined || error === null) return String(error)
-  return errorCauseChain(error).map(describeOne).join(' <- ')
+  const described = errorCauseChain(error).map(describeOne).filter(Boolean).join(' <- ')
+  return described || String(error)
 }
 
 /** The error and each of its causes, outermost first, unwrapping Effect `FiberFailure`s. */

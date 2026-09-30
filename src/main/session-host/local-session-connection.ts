@@ -31,7 +31,7 @@ import type {
   AuthenticatedLocalSessionCaller,
   LocalSessionServerDependencies,
 } from './local-session-server'
-import { describeLocalSessionServerError } from './local-session-server-frame'
+import { localSessionAuthenticationFailureMessage } from './session-command-failure-message'
 
 const DEFAULT_HANDSHAKE_TIMEOUT_MS = 5000
 
@@ -193,7 +193,11 @@ export class LocalSessionConnection {
       signal: this.authenticationController.signal,
       send: (frame) => this.send(frame),
       authenticationFailed: (error) =>
-        this.fail(undefined, 'authentication_failed', describeLocalSessionServerError(error)),
+        this.fail(
+          undefined,
+          'authentication_failed',
+          localSessionAuthenticationFailureMessage(error),
+        ),
     })
     if (result.status === 'closed') return
     this.caller = result.caller

@@ -1,7 +1,7 @@
 import * as Cause from 'effect/Cause'
 import * as Runtime from 'effect/Runtime'
-import { LocalSessionCommandAuthorizationError } from '../errors'
-import { describeError, userFacingErrorDetail } from '../utils/describe-error'
+import { LocalSessionAuthenticationError, LocalSessionCommandAuthorizationError } from '../errors'
+import { describeError, unwrapFiberFailure, userFacingErrorDetail } from '../utils/describe-error'
 
 /** Effect's placeholder when a failure carries no message of its own. */
 const EFFECT_PLACEHOLDER_MESSAGE = 'An error has occurred'
@@ -15,8 +15,28 @@ const AUTHORIZATION_REASONS = {
   profile_revoked: 'the caller profile was revoked',
 } satisfies Record<LocalSessionCommandAuthorizationError['code'], string>
 
-function unwrapFailure(error: unknown): unknown {
-  return Runtime.isFiberFailure(error) ? Cause.squash(error[Runtime.FiberFailureCauseId]) : error
+const CANCELLED_MESSAGE = 'Session command was cancelled.'
+
+/**
+ * One text for every authentication failure. Naming the code would tell a client without a
+ * credential whether a profile name exists or was revoked.
+ */
+export const LOCAL_SESSION_AUTHENTICATION_FAILED_MESSAGE =
+  'Authentication with the Local Session Host failed. Check the profile name and credential.'
+
+function isInterruptedOnly(error: unknown) {
+  return (
+    Runtime.isFiberFailure(error) && Cause.isInterruptedOnly(error[Runtime.FiberFailureCauseId])
+  )
+}
+
+function isAuthenticationFailure(failure: unknown) {
+  return (
+    failure instanceof LocalSessionAuthenticationError ||
+    (typeof failure === 'object' &&
+      failure !== null &&
+      Reflect.get(failure, '_tag') === 'LocalSessionAuthenticationError')
+  )
 }
 
 type AuthorizationCode = keyof typeof AUTHORIZATION_REASONS
@@ -54,7 +74,9 @@ function hasUsefulMessage(failure: unknown): failure is Error {
  * operation, and cause chain, redacted and bounded like any other detail that leaves the Host.
  */
 export function sessionCommandFailureMessage(error: unknown): string {
-  const failure = unwrapFailure(error)
+  if (isInterruptedOnly(error)) return CANCELLED_MESSAGE
+  const failure = unwrapFiberFailure(error)
+  if (isAuthenticationFailure(failure)) return LOCAL_SESSION_AUTHENTICATION_FAILED_MESSAGE
   if (failure instanceof LocalSessionCommandAuthorizationError) {
     return describeAuthorizationFailure(failure.code, failure.missing ?? [])
   }
@@ -66,4 +88,17 @@ export function sessionCommandFailureMessage(error: unknown): string {
     return describeAuthorizationFailure(code, missingCapabilities(failure))
   }
   return userFacingErrorDetail(describeError(failure))
+}
+
+/**
+ * The message for a failed handshake. Plain errors such as the authentication rate limit keep
+ * their text; tagged Host errors (unknown or revoked profile, rejected credential, repository
+ * failure) all share one message so an unauthenticated client learns nothing about profiles.
+ */
+export function localSessionAuthenticationFailureMessage(error: unknown): string {
+  const failure = unwrapFiberFailure(error)
+  if (hasUsefulMessage(failure) && Reflect.get(failure, '_tag') === undefined) {
+    return failure.message
+  }
+  return LOCAL_SESSION_AUTHENTICATION_FAILED_MESSAGE
 }

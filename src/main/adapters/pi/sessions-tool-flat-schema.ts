@@ -57,10 +57,16 @@ function describeRequiredActions(schema: TSchema, actions: readonly string[] | u
   if (!actions?.length) return schema
   const note = `Required for ${actions.join(', ')}.`
   const existing: unknown = Reflect.get(schema, 'description')
-  return {
-    ...schema,
-    description: typeof existing === 'string' && existing ? `${existing} ${note}` : note,
-  }
+  // Copy with descriptors, not a spread: TypeBox keeps `~kind` and `~optional` non-enumerable,
+  // and a spread drops them so `Type.Optional` re-adds `~optional` as a visible key that would
+  // reach provider payloads.
+  const described: TSchema = Object.defineProperties({}, Object.getOwnPropertyDescriptors(schema))
+  Reflect.set(
+    described,
+    'description',
+    typeof existing === 'string' && existing ? `${existing} ${note}` : note,
+  )
+  return described
 }
 
 /**
