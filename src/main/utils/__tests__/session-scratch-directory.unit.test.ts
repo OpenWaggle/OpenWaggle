@@ -110,11 +110,24 @@ describe('Session scratch directory', () => {
 
   it('recreates the directory after a removal that was still in flight', async () => {
     await prepareSessionScratchDirectory('session-a', root)
-    const removal = removeSessionScratchDirectory('session-a', root)
-    const directory = await prepareSessionScratchDirectory('session-a', root)
-    await removal
+    const rm = fs.rm.bind(fs)
+    const { promise: removalMayFinish, resolve: finishRemoval } = Promise.withResolvers<void>()
+    // Hold the removal open so the next prepare really starts while it is in flight.
+    const spy = vi.spyOn(fs, 'rm').mockImplementation(async (target, options) => {
+      await removalMayFinish
+      return rm(target, options)
+    })
+    try {
+      const removal = removeSessionScratchDirectory('session-a', root)
+      const preparing = prepareSessionScratchDirectory('session-a', root)
+      finishRemoval()
+      const directory = await preparing
+      await removal
 
-    expect((await fs.stat(directory)).isDirectory()).toBe(true)
+      expect((await fs.stat(directory)).isDirectory()).toBe(true)
+    } finally {
+      spy.mockRestore()
+    }
   })
 
   posixOnly('keeps the default path short enough for Unix sockets under TMPDIR', () => {
