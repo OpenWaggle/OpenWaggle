@@ -4,7 +4,10 @@ import { useBranchSummaryStore } from '@/features/chat/state'
 import { useComposerStore } from '@/features/composer/state/composer-store'
 import { useSessionStore } from '@/features/sessions/state'
 import { usePreferencesStore } from '@/features/settings/state'
-import { buildComposerDraftContextKey } from '../lib/composer-draft-context'
+import {
+  buildComposerDraftContextKey,
+  buildPendingSessionDraftContextKey,
+} from '../lib/composer-draft-context'
 import { setEditorDraft } from '../lib/lexical-utils'
 
 type SessionStoreState = ReturnType<typeof useSessionStore.getState>
@@ -38,7 +41,9 @@ export function useScopedComposerDrafts(activeSessionId: SessionId | null) {
   const activeWorkspace = useSessionStore((state) => state.activeWorkspace)
   const draftBranch = useSessionStore((state) => state.draftBranch)
   const activeDraftContextKey = useComposerStore((state) => state.activeDraftContextKey)
-  const pendingContextKey = `session:${activeSessionId}:pending`
+  const pendingContextKey = activeSessionId
+    ? buildPendingSessionDraftContextKey(activeSessionId)
+    : 'session:null:pending'
   const contextKey =
     buildScopedComposerContextKey(projectPath, activeSessionId, activeWorkspace, draftBranch) ??
     pendingContextKey

@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs'
 import { SessionManager } from '@earendil-works/pi-coding-agent'
-import type { SessionDetail } from '@shared/types/session'
+import type { SessionDetail, SessionResumePosition } from '@shared/types/session'
 
 /**
  * The opened checkout for a session.
@@ -43,6 +43,26 @@ export function resolveSessionWorkingPath(session: SessionDetail): string {
   )
 }
 
+/**
+ * Moves a reopened Pi session to the conversation position the projection selected.
+ *
+ * Pi opens a session file at its last entry and keeps later tree navigation in memory only. A
+ * branch switch or a retry from an earlier message is a separate Pi operation from the run that
+ * follows it, so without this the run would continue whichever branch was written last: the
+ * message lands on another branch than the one the user is looking at, and the model answers
+ * from that other branch's context. See {@link SessionResumePosition} for the freshness rule.
+ */
+function resumeSelectedPosition(
+  sessionManager: SessionManager,
+  position: SessionResumePosition | undefined,
+) {
+  if (!position) return
+  if (sessionManager.getEntries().length !== position.piEntryCount) return
+  const nodeId = String(position.nodeId)
+  if (sessionManager.getLeafId() === nodeId || !sessionManager.getEntry(nodeId)) return
+  sessionManager.branch(nodeId)
+}
+
 export function createSessionManagerForSession(session: SessionDetail, projectPath: string) {
   /*
    * A missing transcript file is benign and expected: the session may predate the file,
@@ -50,7 +70,9 @@ export function createSessionManagerForSession(session: SessionDetail, projectPa
    * missing worktree, so this fallback stays silent on purpose.
    */
   if (session.piSessionFile && existsSync(session.piSessionFile)) {
-    return SessionManager.open(session.piSessionFile, undefined, projectPath)
+    const sessionManager = SessionManager.open(session.piSessionFile, undefined, projectPath)
+    resumeSelectedPosition(sessionManager, session.resumePosition)
+    return sessionManager
   }
 
   const sessionManager = SessionManager.create(projectPath)

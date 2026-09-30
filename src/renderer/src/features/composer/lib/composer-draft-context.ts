@@ -31,3 +31,11 @@ export function buildComposerDraftContextKey(input: ComposerDraftContextInput): 
   }
   return `${sessionKey}:main`
 }
+
+/**
+ * The draft a Session owns before its workspace hydrates. Hydration moves it to the branch the
+ * workspace selects, so text written here survives a newly opened Session's first render.
+ */
+export function buildPendingSessionDraftContextKey(sessionId: SessionId): string {
+  return `session:${String(sessionId)}:pending`
+}

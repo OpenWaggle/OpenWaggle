@@ -68,12 +68,15 @@ export function withRunAttachmentCleanup<A, E, R>(input: {
   readonly attachments: Pick<SessionControlAttachmentServiceShape, 'release'>
   readonly attachmentIds: readonly string[]
   readonly sessionId: string
+  readonly runId: string
   readonly ownerCallerId: string
 }) {
   return preserveOutcomeAfterAttachmentCleanup({
     effect: input.effect,
     cleanup: withSessionAttachmentTransition({
       sessionId: input.sessionId,
+      // A replacement holds this transition while it waits for this Run to settle.
+      settlingRunId: input.runId,
       effect: input.attachments.release({
         attachmentIds: input.attachmentIds,
         sessionId: input.sessionId,
@@ -229,6 +232,7 @@ function executeRun(input: SessionControlRunExecutionInput) {
       attachments,
       attachmentIds: input.intent.attachmentIds,
       sessionId: input.sessionId,
+      runId: input.runId,
       ownerCallerId: input.intent.callerId,
     })
   })

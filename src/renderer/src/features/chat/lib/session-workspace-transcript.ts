@@ -57,15 +57,34 @@ function fromWorkspaceNode(
   return next
 }
 
+/**
+ * A reconciled user row keeps its optimistic id for React identity (see
+ * `reconcileSnapshotUserMessages`), so its persisted identity is the node recorded in its metadata.
+ */
+function persistedNodeId(message: UIMessage) {
+  const nodeId = message.metadata?.sessionNodeId
+  return nodeId === undefined ? null : String(nodeId)
+}
+
+function indexMessagesByPersistedIdentity(messages: readonly UIMessage[]) {
+  const messagesById = new Map<string, UIMessage>()
+  for (const message of messages) {
+    const nodeId = persistedNodeId(message)
+    if (nodeId !== null && !messagesById.has(nodeId)) messagesById.set(nodeId, message)
+  }
+  for (const message of messages) messagesById.set(message.id, message)
+  return messagesById
+}
+
 function workspacePathToMessages(workspace: SessionWorkspace, messages: UIMessage[]) {
-  const messagesById = new Map(messages.map((message) => [message.id, message]))
+  const messagesById = indexMessagesByPersistedIdentity(messages)
   const workspaceMessages: UIMessage[] = []
 
   for (const entry of workspace.transcriptPath) {
     const message = entry.node.message
     if (!message) continue
     const nodeId = String(entry.node.id)
-    const existingMessage = messagesById.get(String(message.id))
+    const existingMessage = messagesById.get(String(message.id)) ?? messagesById.get(nodeId)
     workspaceMessages.push(
       existingMessage
         ? withSessionNodeId(existingMessage, nodeId)
@@ -138,10 +157,16 @@ function unsavedLiveTail(
   const persistedMessageIds = new Set(
     workspace.tree.nodes.flatMap((node) => (node.message ? [String(node.message.id)] : [])),
   )
+  const persistedNodeIds = new Set(workspace.tree.nodes.map((node) => String(node.id)))
 
-  return messages
-    .slice(lastWorkspaceMessageIndex + 1)
-    .filter((message) => !persistedMessageIds.has(message.id))
+  // A persisted message from another branch is not a live tail, including a reconciled user row
+  // whose optimistic id hides its node: showing it put the abandoned branch into a retry draft.
+  return messages.slice(lastWorkspaceMessageIndex + 1).filter((message) => {
+    const nodeId = persistedNodeId(message)
+    return (
+      !persistedMessageIds.has(message.id) && (nodeId === null || !persistedNodeIds.has(nodeId))
+    )
+  })
 }
 
 function appendLiveTailWhenViewingHeadOrDraftSource(

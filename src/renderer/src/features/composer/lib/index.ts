@@ -1,4 +1,7 @@
-export { buildComposerDraftContextKey } from './composer-draft-context'
+export {
+  buildComposerDraftContextKey,
+  buildPendingSessionDraftContextKey,
+} from './composer-draft-context'
 export {
   consumeActiveSlashCommand,
   insertComposerInvocation,

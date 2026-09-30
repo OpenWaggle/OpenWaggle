@@ -15,13 +15,16 @@ import {
 } from '../domain/session-control/run-interruption'
 import { planSteeringMessage } from '../domain/session-control/steering'
 import { SessionControlOperationPendingError } from '../errors'
-import { AgentRunInterruptionService } from '../ports/agent-run-interruption-service'
 import { AgentSteeringService } from '../ports/agent-steering-service'
 import { SessionControlAttachmentService } from '../ports/session-control-attachment-service'
 import { SessionControlOperationJournal } from '../ports/session-control-operation-journal'
 import { SessionDescendantRunRepository } from '../ports/session-descendant-run-repository'
 import { releaseSessionControlAttachments } from './session-attachment-cleanup'
 import { authorizeDescendantInterruptionSnapshot } from './session-control-descendant-authorization'
+import {
+  interruptRunWithBoundedSettlement,
+  requestRunInterruption,
+} from './session-control-interruption-settlement'
 
 const DESCENDANT_INTERRUPTION_CONCURRENCY = 8
 
@@ -272,14 +275,13 @@ export function interruptSessionRun(input: InterruptSessionRunInput) {
       )
     }
 
-    const interruption = yield* AgentRunInterruptionService.pipe(
-      Effect.flatMap((service) =>
-        (input.requestOnly ? service.requestInterrupt : service.interrupt)({
-          sessionId: input.request.command.sessionId,
-          runId: input.request.command.expectedRunId,
-        }),
-      ),
-    )
+    const target = {
+      sessionId: input.request.command.sessionId,
+      runId: input.request.command.expectedRunId,
+    }
+    const interruption = yield* input.requestOnly
+      ? requestRunInterruption(target)
+      : interruptRunWithBoundedSettlement(target)
     const outcome: SessionControlMutationOutcome = interruption.accepted
       ? {
           operation: 'interrupt',
