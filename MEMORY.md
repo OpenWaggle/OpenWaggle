@@ -690,7 +690,7 @@ request/approval respond) from a narrower caller is refused in `local-session-ru
 writer in `intent.authorCallerId`, which the chain also checks. A Session agent's Authorization ceiling is
 also clamped by its Run's initiator (`session-host/session-agent-run-ceiling.ts`, used by the tool
 caller and `getSessionCallerAuthorizationBoundary`); an unidentifiable initiator counts as
-ask-for-approval. `queue-update-authorization` needs `sessions:authorization`. Reports are content,
+ask-for-approval. An agent-requested Waggle's Run id is `waggle-of-<classicRunId>` (`requestedWaggleRunId`) so these checks can find its classic Run, and it inherits that Run's authorization context through `runIfRequested({ authority })`. `queue-update-authorization` needs `sessions:authorization`. Reports are content,
 not commands: the Host labels them but does not track information flow. Session agents with catalog-wide
 scope may launch or create only in projects already in the catalog (`session-tool-project-catalog.ts`).
 
