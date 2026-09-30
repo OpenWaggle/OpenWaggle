@@ -15,8 +15,12 @@ import {
   type WaggleRunInput,
   type WaggleRunResult,
 } from '../application/waggle-run-service'
+import { requestedWaggleRunId } from '../domain/session-control/root-session-project-reach'
 import type { AgentKernelService } from '../ports/agent-kernel-service'
-import { AgentRequestedWaggleService } from '../ports/agent-requested-waggle-service'
+import {
+  AgentRequestedWaggleService,
+  type RequestedWaggleAuthority,
+} from '../ports/agent-requested-waggle-service'
 import type { ExtensionLifecycleRepository } from '../ports/extension-lifecycle-repository'
 import type { ExtensionManagerService } from '../ports/extension-manager-service'
 import type { ExtensionProjectOverridesRepository } from '../ports/extension-project-overrides-repository'
@@ -60,11 +64,13 @@ function publishEnd(
 
 interface RequestedWaggleInput {
   readonly sessionId: SessionId
+  /** The classic Run that requested the Waggle. */
   readonly runId: string
   readonly messages: readonly Message[]
   readonly model: SupportedModelId
   readonly thinkingLevel: ThinkingLevel
   readonly controller: AbortController
+  readonly authority?: Partial<RequestedWaggleAuthority>
 }
 
 type RequestedWaggleDependencies =
@@ -102,8 +108,10 @@ export function runRequestedWaggleWith(
         },
       })
     })
-    const runId = `waggle-${input.sessionId}`
+    // Tied to the classic Run, so authority checks can trace who this Waggle acts for.
+    const runId = requestedWaggleRunId(input.runId)
     const result = yield* runWaggle({
+      ...input.authority,
       sessionId: input.sessionId,
       runId,
       payload: {
@@ -175,7 +183,7 @@ export function runRequestedWaggleWith(
     Effect.tapError((error) =>
       Effect.sync(() => {
         const classified = classifyAgentError(error)
-        publishEnd(input.sessionId, `waggle-${input.sessionId}`, 'error', {
+        publishEnd(input.sessionId, requestedWaggleRunId(input.runId), 'error', {
           message: userFacingErrorDetail(classified.message),
           code: classified.code,
         })
