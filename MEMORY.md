@@ -679,9 +679,25 @@ delivery check used to compare project paths and would pause every cross-project
 
 Agent tool processes get `TMPDIR`/`TMP`/`TEMP` pointing at a per-Session 0700 scratch directory
 through the Pi bash and PowerShell `spawnHook` in `pi-run-session.ts`, applied after the prepared
-Workspace environment. The Host deletes it from `session-host-events.ts` on `session-list-changed`
-`archived`/`deleted`. Tests that run `runPiAgentKernel` must mock
+Workspace environment. Keep that path short: macOS limits a Unix socket path to 104 bytes and
+`tsx`, Chromium, and others bind sockets under `TMPDIR`. A scratch dir under `os.tmpdir()`
+(`/var/folders/...`) plus a UUID was 108 bytes and crashed `tsx`, so `pnpm verify` and `git push`
+failed from agent shells; it now lives at `/tmp/ow-scratch-<uid>/<16-hex hash>` on POSIX. Code that
+must agree with the Host on a temp path (the Session Host socket fallback in `local-session-paths`)
+reads `hostTemporaryDirectory()`, which prefers `OPENWAGGLE_HOST_TMPDIR` exported next to the
+scratch `TMPDIR`. The Host deletes the directory from `session-host-events.ts` on
+`session-list-changed` `archived`/`deleted`, but a Run holds it (`withRetainedScratchDirectory`), so
+an archive mid-Run defers the removal to the Run's end. Tests that run `runPiAgentKernel` must mock
 `utils/session-scratch-directory` or they create directories in the real temp directory.
+
+A failed Local Session handshake must not name its code: `profile_not_found` and
+`profile_revoked` overlap the authorization codes, and rendering them told an unauthenticated
+client whether a profile name exists. `localSessionAuthenticationFailureMessage` returns one text
+for every tagged authentication failure.
+
+A schema copied with `{ ...schema }` loses TypeBox's non-enumerable `~kind` and `~optional`, and
+`Type.Optional` then adds `~optional` as a visible key that reaches provider payloads. Copy with
+`Object.getOwnPropertyDescriptors` when decorating a TypeBox schema.
 
 Native Session capabilities constrain OpenWaggle tools and the Session Host API. They are not an
 OS sandbox against arbitrary commands from another process running as the same user. A hostile or
