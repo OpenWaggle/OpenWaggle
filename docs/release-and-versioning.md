@@ -41,6 +41,11 @@ Platform trust for v1:
   electron-builder config (`scripts/mac-signing.ts`) only chooses how to sign and never fails,
   because every electron-builder command, including `postinstall`, loads it. When configured,
   the release workflow verifies each app with `codesign`, `stapler`, and `spctl` before upload.
+- Notarization depends on the runner's network while notarytool waits for Apple's verdict. When
+  `scripts/notarization-failure.ts` identifies a failure as notarytool losing its connection to
+  Apple (a transport error or an Apple 5xx), the macOS build rebuilds and resubmits once. A
+  rejected submission, a credential error, or any other failure fails the first attempt. A second
+  lost connection fails the job; rerun the failed jobs, which reuses the version job's result.
 - Windows code signing does not block `1.0.0`; it is tracked as post-v1 work. Unsigned Windows installers show a SmartScreen warning on first install.
 - Linux AppImage artifacts are not signed.
 
