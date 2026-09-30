@@ -4,6 +4,7 @@ import {
   markSessionScratchNamespace,
   removeUnretainedScratchDirectory,
   SCRATCH_NAMESPACE_OWNER_FILE,
+  SCRATCH_NAMESPACE_OWNER_TERMINATOR,
   sessionScratchDirectoryPath,
   sessionScratchRoot,
 } from './session-scratch-directory'
@@ -40,9 +41,14 @@ async function newestModification(directory: string) {
  * exists: its own Host sweeps its Sessions. An unmarked one goes once nothing touched it for a week.
  */
 async function namespaceAbandoned(namespace: string, now: number) {
-  const owner = await fs
+  const marker = await fs
     .readFile(path.join(namespace, SCRATCH_NAMESPACE_OWNER_FILE), 'utf8')
     .catch(() => undefined)
+  // An empty, partial, or relative marker says nothing about the profile: treat it as unmarked.
+  const recorded = marker?.endsWith(SCRATCH_NAMESPACE_OWNER_TERMINATOR)
+    ? marker.slice(0, -SCRATCH_NAMESPACE_OWNER_TERMINATOR.length)
+    : undefined
+  const owner = recorded && path.isAbsolute(recorded) ? recorded : undefined
   const newest = await newestModification(namespace).catch(() => now)
   if (owner === undefined) return now - newest >= ABANDONED_NAMESPACE_AGE_MS
   if (now - newest < SWEEP_MINIMUM_AGE_MS) return false

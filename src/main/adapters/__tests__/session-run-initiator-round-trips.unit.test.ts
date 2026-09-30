@@ -115,13 +115,14 @@ describe('Run initiator chains between two roots', () => {
     })
   })
 
-  it('fails closed once a chain passes the Run limit', async () => {
-    await expect(
-      judge(pingPong(MAX_RUN_INITIATOR_CHAIN_HOPS + 1, 'gui:local-user')),
-    ).resolves.toEqual({ reach: false, ceiling: 'ask-for-approval' })
+  it('fails closed once a chain is longer than the Run limit', async () => {
+    // `pingPong(hops)` builds `hops + 1` Runs.
     await expect(judge(pingPong(MAX_RUN_INITIATOR_CHAIN_HOPS, 'gui:local-user'))).resolves.toEqual({
-      reach: true,
-      ceiling: 'yolo',
+      reach: false,
+      ceiling: 'ask-for-approval',
     })
+    await expect(
+      judge(pingPong(MAX_RUN_INITIATOR_CHAIN_HOPS - 1, 'gui:local-user')),
+    ).resolves.toEqual({ reach: true, ceiling: 'yolo' })
   })
 })

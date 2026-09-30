@@ -41,6 +41,8 @@ let scratchNamespace = shortHash(DEFAULT_NAMESPACE_SOURCE, NAMESPACE_HASH_CHARAC
 let scratchNamespaceOwner: string | undefined
 /** Names the user-data directory a namespace belongs to, so other Hosts know when it is gone. */
 export const SCRATCH_NAMESPACE_OWNER_FILE = '.owner'
+/** Ends a complete marker, so a marker cut short by a failed write is recognizably incomplete. */
+export const SCRATCH_NAMESPACE_OWNER_TERMINATOR = '\n'
 const OWNER_FILE_MODE = 0o600
 
 /**
@@ -72,8 +74,12 @@ export async function markSessionScratchNamespace(root = sessionScratchRoot()) {
   await ensurePrivateDirectory(root)
   // Read every time rather than cached: the namespace may have been removed and recreated since.
   const marker = path.join(root, SCRATCH_NAMESPACE_OWNER_FILE)
-  if ((await fs.readFile(marker, 'utf8').catch(() => undefined)) === owner) return
-  await fs.writeFile(marker, owner, { mode: OWNER_FILE_MODE })
+  const content = `${owner}${SCRATCH_NAMESPACE_OWNER_TERMINATOR}`
+  if ((await fs.readFile(marker, 'utf8').catch(() => undefined)) === content) return
+  // Written aside and renamed into place, so a failed write never leaves a partial marker.
+  const pending = `${marker}.${process.pid}.tmp`
+  await fs.writeFile(pending, content, { mode: OWNER_FILE_MODE })
+  await fs.rename(pending, marker)
 }
 
 function scratchDirectoryState(directory: string) {

@@ -123,7 +123,23 @@ describe('Session scratch sweep', () => {
 
     await prepareSessionScratchDirectory('session-second', namespace)
 
-    await expect(fs.readFile(path.join(namespace, '.owner'), 'utf8')).resolves.toBe(profile)
+    await expect(fs.readFile(path.join(namespace, '.owner'), 'utf8')).resolves.toBe(`${profile}\n`)
+  })
+
+  it.each([
+    ['an empty', ''],
+    ['a partial', '/Users/me/Library/Applica'],
+    ['a relative', 'profiles/kept\n'],
+  ])('treats %s owner marker as unmarked', async (_kind, marker) => {
+    const damagedRoot = path.join(path.dirname(root), 'damaged')
+    await prepareSessionScratchDirectory('session-own', root)
+    await fs.mkdir(path.join(damagedRoot, 'session'), { recursive: true, mode: 0o700 })
+    await fs.writeFile(path.join(damagedRoot, '.owner'), marker)
+
+    await sweepSessionScratchDirectories(['session-own'], root, Date.now() + TWO_HOURS_MS)
+    expect((await fs.stat(damagedRoot)).isDirectory()).toBe(true)
+    await sweepSessionScratchDirectories(['session-own'], root, Date.now() + EIGHT_DAYS_MS)
+    await expect(fs.access(damagedRoot)).rejects.toMatchObject(missing)
   })
 
   it('removes an unmarked namespace of another profile only after a week without a Run', async () => {

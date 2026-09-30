@@ -37,6 +37,9 @@ import type { SessionQueryRepository } from '../ports/session-query-repository'
 import type { SessionReportDeliveryService } from '../ports/session-report-delivery-service'
 import type { SessionReportRepository } from '../ports/session-report-repository'
 import type { SessionRepository } from '../ports/session-repository'
+import type { SessionResourceImageValidator } from '../ports/session-resource-image-validator'
+import type { SessionResourceRepository } from '../ports/session-resource-repository'
+import type { SessionResourceStore } from '../ports/session-resource-store'
 import type { SessionWaitService } from '../ports/session-wait-service'
 import type { SessionWorkspaceHandoffService } from '../ports/session-workspace-handoff-service'
 import type { SessionWorkspaceResourceRepository } from '../ports/session-workspace-resource-repository'
@@ -81,6 +84,9 @@ type SessionToolDependencies =
   | SessionWorkspaceHandoffService
   | SessionQueryRepository
   | SessionReportRepository
+  | SessionResourceImageValidator
+  | SessionResourceRepository
+  | SessionResourceStore
   | SessionReportDeliveryService
   | SessionProjectionRepository
   | SessionRepository

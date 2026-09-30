@@ -31,7 +31,7 @@ export function followRunInitiatorChain(
   const sessionIds = chain.sessionIds.has(sessionId)
     ? chain.sessionIds
     : new Set([...chain.sessionIds, sessionId])
-  if (chain.hops > MAX_RUN_INITIATOR_CHAIN_HOPS) return undefined
+  if (chain.hops >= MAX_RUN_INITIATOR_CHAIN_HOPS) return undefined
   if (sessionIds.size > MAX_RUN_INITIATOR_CHAIN_DEPTH + 1) return undefined
   return { hops: chain.hops + 1, sessionIds }
 }
