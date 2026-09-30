@@ -159,6 +159,31 @@ describe('Session scratch sweep', () => {
     await expect(fs.readFile(path.join(namespace, '.owner'), 'utf8')).resolves.toBe(`${profile}\n`)
   })
 
+  it("repairs its own namespace's damaged owner marker at startup", async () => {
+    const profile = path.join(temporaryDirectory, 'profiles', 'repaired')
+    await fs.mkdir(profile, { recursive: true })
+    useNamespace(profile)
+    const namespace = sessionScratchRoot(temporaryDirectory)
+    await prepareSessionScratchDirectory('session-live', namespace)
+    await fs.writeFile(path.join(namespace, '.owner'), '')
+
+    await sweepSessionScratchDirectories(['session-live'], namespace, Date.now())
+
+    await expect(fs.readFile(path.join(namespace, '.owner'), 'utf8')).resolves.toBe(`${profile}\n`)
+  })
+
+  posixOnly('never writes its owner marker through a planted per-user symlink', async () => {
+    const victim = path.join(temporaryDirectory, 'planted')
+    useNamespace(path.join(temporaryDirectory, 'profiles', 'careful'))
+    const namespace = sessionScratchRoot(temporaryDirectory)
+    await fs.mkdir(path.join(victim, path.basename(namespace)), { recursive: true, mode: 0o700 })
+    await fs.symlink(victim, path.dirname(namespace))
+
+    await sweepSessionScratchDirectories([], namespace, Date.now())
+
+    expect(await fs.readdir(path.join(victim, path.basename(namespace)))).not.toContain('.owner')
+  })
+
   it('marks a namespace again when it was removed while the Host ran', async () => {
     const profile = path.join(temporaryDirectory, 'profiles', 'recreated')
     await fs.mkdir(profile, { recursive: true })

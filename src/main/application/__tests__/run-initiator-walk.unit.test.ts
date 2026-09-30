@@ -110,6 +110,27 @@ describe('walkRunInitiators', () => {
     },
   )
 
+  it("records a shared Run's deepest branch, not its last one", () => {
+    const limit = MAX_RUN_INITIATOR_CHAIN_HOPS
+    // `x` follows a long branch, then a one-Run branch. `top` reaches `x` directly, then again
+    // through `p`, where the budget left is too short for `x`'s long branch.
+    const longRuns = 200
+    const detourRuns = 100
+    const catalog: Catalog = {
+      ...line(longRuns, alternating, 'a'),
+      leaf: { sessionId: 'a', verdict: true, follows: [] },
+      x: { sessionId: 'b', verdict: true, follows: [`a${longRuns - 1}`, 'leaf'] },
+      ...line(detourRuns, alternating, 'p'),
+      top: { sessionId: 'a', verdict: true, follows: ['x', `p${detourRuns - 1}`] },
+    }
+    const p0 = catalog.p0
+    if (!p0) throw new Error('The detour has a first Run')
+    catalog.p0 = { ...p0, follows: ['x'] }
+    expect(1 + detourRuns + 1 + longRuns).toBeGreaterThan(limit)
+
+    expect(decide(catalog, 'top').verdict).toBe(false)
+  })
+
   it('fails closed when the tree spans more than the Session limit, even across branches', () => {
     const others = MAX_RUN_INITIATOR_CHAIN_DEPTH
     // Each branch alone stays within the limit; together they span one Session too many.

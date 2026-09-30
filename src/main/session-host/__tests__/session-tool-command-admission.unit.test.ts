@@ -32,6 +32,18 @@ function launch(projectPath: string): LocalSessionCommandPayload {
   }
 }
 
+function create(projectPath: string): LocalSessionCommandPayload {
+  return {
+    contract: 'session-lifecycle-v2',
+    request: {
+      contractVersion: 2,
+      requestId: 'request-create',
+      idempotencyKey: 'create-once',
+      command: { operation: 'create', projectPath, title: 'Idle', workspace: { mode: 'local' } },
+    },
+  }
+}
+
 describe('Sessions tool command admission', () => {
   let root = ''
   let databaseCount = 0
@@ -108,6 +120,12 @@ describe('Sessions tool command admission', () => {
 
     expect(caller.profileAuthority.scope).toMatchObject({ all: true })
     expect(payload).toEqual(launch(KNOWN_PROJECT))
+  })
+
+  it('normalizes a create path the same way as a launch path', async () => {
+    const { payload } = await admit(create(`${KNOWN_PROJECT}/`))
+
+    expect(payload).toEqual(create(KNOWN_PROJECT))
   })
 
   it('matches a known project named with a trailing slash and dispatches its stored path', async () => {

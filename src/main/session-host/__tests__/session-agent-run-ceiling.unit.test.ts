@@ -207,4 +207,15 @@ describe('runInitiatorCeiling', () => {
       ),
     ).resolves.toEqual({ authorizationCeiling: 'yolo', revoked: false })
   })
+
+  it('falls back to ask-for-approval when the Run intent cannot be read', async () => {
+    const runs = [{ sessionId: 's', runId: 'r', callerId: 'gui:local-user' }]
+    await expect(
+      withCatalog(runs, (sql) =>
+        sql`UPDATE session_runs SET intent_json = ${'not json'} WHERE id = ${'r'}`.pipe(
+          Effect.zipRight(sessionAgentCallerBoundary(sql, 'session-agent:s:r')),
+        ),
+      ),
+    ).resolves.toEqual({ authorizationCeiling: 'ask-for-approval', revoked: false })
+  })
 })
