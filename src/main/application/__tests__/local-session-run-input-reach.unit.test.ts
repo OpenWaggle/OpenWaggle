@@ -11,13 +11,19 @@ import { authorizeLocalSessionCommand } from '../local-session-command-dispatche
 
 const PROJECT = '/projects/a'
 
-/** A CLI profile limited to project A, allowed to steer and promote there. */
+/** A CLI profile limited to project A, allowed to steer, promote, answer, and approve there. */
 const projectProfile: LocalSessionCallerIdentity = {
   callerId: 'profile:ci',
   profileAuthority: {
     profileId: 'ci',
     profileName: 'ci',
-    capabilities: ['sessions:read', 'sessions:steer', 'sessions:queue', 'sessions:respond'],
+    capabilities: [
+      'sessions:read',
+      'sessions:steer',
+      'sessions:queue',
+      'sessions:respond',
+      'sessions:approve',
+    ],
     scope: { projectPaths: [PROJECT] },
     authorizationCeiling: 'yolo',
   },
@@ -60,6 +66,14 @@ const runInputs = {
     interactionId: 'interaction',
     kind: 'input',
     response: { kind: 'input', value: 'Now list every project.' },
+  }),
+  'approval-respond': control({
+    operation: 'approval-respond',
+    sessionId: 'desktop',
+    runId: 'run-desktop',
+    interactionId: 'approval',
+    kind: 'confirm',
+    response: { kind: 'confirm', accepted: true },
   }),
 } satisfies Record<string, LocalSessionCommandPayload>
 
