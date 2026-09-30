@@ -45,6 +45,14 @@ export interface StartLocalSessionHostInput {
   readonly describeUpgradeBlockers?: LocalSessionServerDependencies['describeUpgradeBlockers']
 }
 
+const DRAIN_STOP_EVENT_GRACE_MS = 100
+const DRAIN_STOP_FLUSH_POLL_MS = 20
+const DRAIN_STOP_FLUSH_TIMEOUT_MS = 1_000
+
+function delay(milliseconds: number) {
+  return new Promise<void>((resolve) => setTimeout(resolve, milliseconds))
+}
+
 export class LocalSessionHostRuntime {
   private stopPromise: Promise<void> | null = null
   private readonly stoppedPromise: Promise<void>
@@ -79,9 +87,24 @@ export class LocalSessionHostRuntime {
     return this.stopPromise
   }
 
+  /**
+   * A drain ends when the last Run settles, which is also when its settlement event is
+   * published. Give subscribers a bounded moment to receive it before sockets close, or a
+   * client watching the Run sees the connection drop instead of the Run's result.
+   */
+  private async flushOutboundBeforeDrainStop() {
+    if (!this.liveness.isDraining()) return
+    const deadline = Date.now() + DRAIN_STOP_FLUSH_TIMEOUT_MS
+    await delay(DRAIN_STOP_EVENT_GRACE_MS)
+    while (this.server.outboundByteUsage().pendingBytes > 0 && Date.now() < deadline) {
+      await delay(DRAIN_STOP_FLUSH_POLL_MS)
+    }
+  }
+
   private async stopOnce() {
     const errors: unknown[] = []
     try {
+      await collectStopError(errors, () => this.flushOutboundBeforeDrainStop())
       await collectStopError(errors, () => this.server.close(false))
       await collectStopError(errors, this.stopOwnedServices)
       await collectStopError(errors, this.releaseSettingsObserver)

@@ -7,5 +7,6 @@ export {
   type SettingsTab,
   useUIStore,
 } from './ui-store'
+export { useOpenProjectRequests } from './useOpenProjectRequests'
 export { useSessionFloatingPreviewStatus } from './useSessionFloatingPreviewStatus'
 export { WorkspaceShell } from './WorkspaceShell'

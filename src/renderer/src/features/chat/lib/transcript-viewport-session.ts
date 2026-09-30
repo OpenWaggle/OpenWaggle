@@ -4,6 +4,7 @@ import {
   type SavedReadingPosition,
   saveReadingPositions,
 } from './transcript-reading-positions'
+import type { TranscriptRowIndex } from './transcript-sent-turn'
 import { NEAR_BOTTOM_PX, TranscriptViewportController } from './transcript-viewport-controller'
 import {
   createDomViewportGeometry,
@@ -40,8 +41,11 @@ export interface TranscriptViewportView {
   readonly setShowScrollbar: (visible: boolean) => void
   /** The row a pending restore is waiting for, so the window can be built around it. */
   readonly setPendingRestoreKey: (key: string | null) => void
-  /** Whether the reader follows the live end, so the window can be bounded during render. */
-  readonly setFollowing: (following: boolean) => void
+  /**
+   * Whether the window is bounded like a follower's, during render: the reader follows the live
+   * end, or a held sent turn is receiving its reply (which must mount under it, not be capped).
+   */
+  readonly setBoundsLikeFollower: (boundsLikeFollower: boolean) => void
 }
 
 type Timer = ReturnType<typeof setTimeout>
@@ -227,15 +231,14 @@ export class TranscriptViewportSession {
     this.syncButton()
   }
 
-  anchorNewTurn(key: string) {
+  anchorNewTurn(key: string, precedingKey: string | null) {
     this.interrupt()
-    this.controller.anchorNewTurn(key)
+    this.controller.anchorNewTurn(key, precedingKey)
     this.syncButton()
   }
 
-  releaseNewTurn() {
-    this.controller.releaseNewTurn()
-    this.syncButton()
+  syncRows(index: TranscriptRowIndex) {
+    this.controller.syncRows(index)
   }
 
   dispose() {
@@ -276,12 +279,15 @@ export class TranscriptViewportSession {
   }
 
   private syncButton() {
-    this.view.setFollowing(this.controller.isFollowing)
+    this.view.setBoundsLikeFollower(
+      this.controller.isFollowing || this.controller.isHoldingSentTurn,
+    )
     // Mirrors the mode for tests and diagnosis; written directly, so it costs no render.
     const mode = this.controller.mode
     if (this.scroller) {
       this.scroller.dataset.transcriptMode =
         mode.kind === 'following' ? mode.kind : `${mode.kind}:${mode.key}`
+      this.scroller.dataset.transcriptSentTurn = this.controller.sentTurnKey ?? ''
     }
     this.view.setShowScrollToBottom(
       !this.controller.isFollowing && this.controller.distanceToBottom() > NEAR_BOTTOM_PX,

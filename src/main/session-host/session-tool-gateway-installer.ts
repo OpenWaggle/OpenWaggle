@@ -106,6 +106,7 @@ export const installAppSessionToolGateway = Effect.gen(function* () {
     if (
       input.payload.contract === 'host-ui-v1' ||
       input.payload.contract === 'local-update-v1' ||
+      input.payload.contract === 'local-host-v1' ||
       input.payload.contract === 'desktop-service-v1'
     ) {
       throw new Error('The agent Session tool cannot invoke Host UI operations.')

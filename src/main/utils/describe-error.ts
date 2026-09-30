@@ -16,18 +16,7 @@ export function unwrapFiberFailure(error: unknown) {
   return Cause.squash(error[Runtime.FiberFailureCauseId])
 }
 
-/** How a cause that is a bare object, such as `{ projectPath }` context, is rendered. */
-type PlainObjectRendering = 'json' | 'omit'
-
-function plainObjectJson(value: object) {
-  try {
-    return JSON.stringify(value) ?? ''
-  } catch {
-    return ''
-  }
-}
-
-function describeOne(error: unknown, plainObjects: PlainObjectRendering) {
+function describeOne(error: unknown) {
   if (typeof error !== 'object' || error === null) return String(error)
   const tag = readString(error, '_tag') ?? (error instanceof Error ? error.name : null)
   const message = readString(error, 'message')
@@ -35,11 +24,7 @@ function describeOne(error: unknown, plainObjects: PlainObjectRendering) {
   const code = readString(error, 'code')
   const label = [tag, operation ? `(${operation})` : null].filter(Boolean).join(' ')
   const detail = [code && code !== tag ? code : null, message].filter(Boolean).join(': ')
-  const description = [label, detail].filter(Boolean).join(': ')
-  if (description) return description
-  if (error instanceof Error) return String(error)
-  // "[object Object]" says nothing. Logs keep the context; text for callers leaves it out.
-  return plainObjects === 'json' ? plainObjectJson(error) : ''
+  return [label, detail].filter(Boolean).join(': ') || String(error)
 }
 
 /**
@@ -48,20 +33,11 @@ function describeOne(error: unknown, plainObjects: PlainObjectRendering) {
  * Tagged errors such as `SessionProjectionRepositoryError` carry an empty `message`, so reading
  * `error.message` alone produced empty log fields and a generic error card for a failed turn save
  * (ADR 0037). This keeps the tag, the repository operation, and every cause, including the one an
- * Effect `FiberFailure` hides behind a symbol. Bare-object causes are rendered as JSON for the
- * Host log; pass `plainObjects: 'omit'` for text that leaves the Host.
+ * Effect `FiberFailure` hides behind a symbol.
  */
-export function describeError(
-  error: unknown,
-  options: { readonly plainObjects?: PlainObjectRendering } = {},
-): string {
+export function describeError(error: unknown): string {
   if (error === undefined || error === null) return String(error)
-  const plainObjects = options.plainObjects ?? 'json'
-  const described = errorCauseChain(error)
-    .map((entry) => describeOne(entry, plainObjects))
-    .filter(Boolean)
-    .join(' <- ')
-  return described || String(error)
+  return errorCauseChain(error).map(describeOne).join(' <- ')
 }
 
 /** The error and each of its causes, outermost first, unwrapping Effect `FiberFailure`s. */

@@ -7,6 +7,7 @@ import * as Effect from 'effect/Effect'
 import type { SessionQueryRepositoryShape } from '../ports/session-query-repository'
 import { getSessionHostEventRuntime } from '../session-host/session-host-events'
 import type { SessionHostEventSubscription } from './session-host-event-hub'
+import { acquireWaitLiveness } from './session-host-run-admission'
 
 type ExportWaitRequest = SessionQueryRequest & {
   readonly query: Extract<SessionQueryRequest['query'], { readonly operation: 'exports-wait' }>
@@ -180,7 +181,7 @@ export async function waitForSessionExport(
   },
 ): Promise<SessionQueryResponse> {
   const runtime = getSessionHostEventRuntime()
-  const releaseLiveness = runtime.liveness.acquire('wait')
+  const releaseLiveness = acquireWaitLiveness(runtime.liveness)
   const snapshotCursor = runtime.eventHub.cursor()
   let subscription: ReturnType<typeof runtime.eventHub.subscribeAfter> | undefined
   try {

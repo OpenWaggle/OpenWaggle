@@ -116,7 +116,7 @@ check to it. If there isn't one, launch a session in ~/Projects/OpenWaggle on a 
 worktree with this report as its objective.
 ```
 
-To start work elsewhere, the agent passes that repository's path with `workspace` set to `local` or `new-worktree`. `current` means the agent's own checkout, so it is refused for another project; leaving `workspace` out uses the other project's main checkout. The native Session capabilities and the Authorization ceiling apply in every project, exactly as they do in the agent's own. Workers keep their narrower grants, and a Session started from a [named CLI profile](/docs/developer-workflow/sessions-cli#restricted-external-agent-profiles) stays inside that profile's projects. When the Host refuses a request, the tool reports why, such as the missing capability.
+To start work elsewhere, the agent passes that repository's path with `workspace` set to `local` or `new-worktree`. Leaving `workspace` out, or passing `current`, uses the other project's main checkout. The native Session capabilities and the Authorization ceiling apply in every project, exactly as they do in the agent's own. Workers keep their narrower grants, and a Session started from a [named CLI profile](/docs/developer-workflow/sessions-cli#restricted-external-agent-profiles) stays inside its own project unless the profile covers every project. When the Host refuses a request, the tool reports why, such as the missing capability.
 
 ### Scratch files
 

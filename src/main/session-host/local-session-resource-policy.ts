@@ -1,13 +1,5 @@
 import type { LocalSessionServerDependencies } from './local-session-server'
 
-/**
- * Authentication refused by the admission budget (throttled or aborted) before any profile was
- * looked up. Its text says nothing about profiles, so it may reach an unauthenticated client.
- */
-export class LocalSessionAuthenticationBudgetError extends Error {
-  override readonly name = 'LocalSessionAuthenticationBudgetError'
-}
-
 export const DEFAULT_MAX_CONNECTIONS = 128
 export const MAX_DECODED_FRAMES_PER_CHUNK = 256
 export const DEFAULT_MAX_PENDING_INBOUND_BYTES_GLOBAL = 64 * 1024 * 1024
@@ -141,9 +133,7 @@ export class LocalSessionAuthenticationBudget {
   private assertNotThrottled(key: string | undefined) {
     const now = this.now()
     if (this.globalFailures?.blockedUntil && this.globalFailures.blockedUntil > now) {
-      throw new LocalSessionAuthenticationBudgetError(
-        'Local Session authentication is temporarily throttled.',
-      )
+      throw new Error('Local Session authentication is temporarily throttled.')
     }
     if (this.globalFailures && now - this.globalFailures.windowStartedAt >= this.failureWindowMs) {
       this.globalFailures = undefined
@@ -152,9 +142,7 @@ export class LocalSessionAuthenticationBudget {
     const failure = this.failures.get(key)
     if (!failure) return
     if (failure.blockedUntil > now) {
-      throw new LocalSessionAuthenticationBudgetError(
-        'Local Session profile authentication is temporarily throttled.',
-      )
+      throw new Error('Local Session profile authentication is temporarily throttled.')
     }
     if (now - failure.windowStartedAt >= this.failureWindowMs) this.failures.delete(key)
   }
@@ -187,9 +175,7 @@ export class LocalSessionAuthenticationBudget {
 
   private acquire(signal: AbortSignal): Promise<void> {
     if (signal.aborted)
-      return Promise.reject(
-        new LocalSessionAuthenticationBudgetError('Local Session authentication was aborted.'),
-      )
+      return Promise.reject(new Error('Local Session authentication was aborted.'))
     if (this.active < this.maxConcurrent) {
       this.active += 1
       return Promise.resolve()
@@ -206,9 +192,7 @@ export class LocalSessionAuthenticationBudget {
         abort: () => {
           const index = this.waiting.indexOf(waiter)
           if (index !== -1) this.waiting.splice(index, 1)
-          reject(
-            new LocalSessionAuthenticationBudgetError('Local Session authentication was aborted.'),
-          )
+          reject(new Error('Local Session authentication was aborted.'))
         },
       }
       signal.addEventListener('abort', waiter.abort, { once: true })

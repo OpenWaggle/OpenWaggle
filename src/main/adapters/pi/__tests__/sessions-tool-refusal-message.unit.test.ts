@@ -91,7 +91,7 @@ describe('Sessions tool refusal messages', () => {
 
     const [content] = result.content
     expect(content?.type === 'text' ? content.text : '').toBe(
-      'SessionLifecyclePreparationError (prepare-session-lifecycle) <- Error: Project directory does not exist: /projects/missing',
+      'SessionLifecyclePreparationError (prepare-session-lifecycle): Project directory does not exist: /projects/missing',
     )
   })
 })

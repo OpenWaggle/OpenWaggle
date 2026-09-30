@@ -1,5 +1,5 @@
 import type { RepositoryPath } from '@shared/types/brand'
-import { RepositoryPath as makeRepositoryPath, SessionId } from '@shared/types/brand'
+import { SessionId } from '@shared/types/brand'
 import type { SessionSummary } from '@shared/types/session'
 import {
   SESSION_QUERY_CONTRACT_VERSION,
@@ -10,6 +10,7 @@ import type { useNavigate } from '@tanstack/react-router'
 import { refreshArchivedSessions } from '@/queries/archived-sessions'
 import { api } from '@/shared/lib/ipc'
 import { archiveWorkspaceOwner, deleteWorkspaceOwner } from '@/shell/workspace-panel-cleanup'
+import { openProjectInDraft } from './open-project-in-draft'
 import {
   clearComposerDraftForSession,
   clearComposerDraftsForSessions,
@@ -146,17 +147,8 @@ export function sessionsInDeletionOrder(sessions: readonly SessionSummary[]) {
   return ordered
 }
 
-function resetToDraftForProject(deps: SidebarProjectActionDeps, projectPath: string | null) {
-  deps.clearTransientDraftContext()
-  deps.startDraftSession(projectPath)
-  if (projectPath) deps.expandProject(projectPath)
-  void deps.navigate({ to: '/' })
-}
-
-async function selectProjectPath(deps: SidebarProjectActionDeps, path: string) {
-  resetToDraftForProject(deps, path)
-  await deps.setProjectPath(path)
-  deps.refreshGit(makeRepositoryPath(path))
+function selectProjectPath(deps: SidebarProjectActionDeps, path: string) {
+  return openProjectInDraft(deps, path)
 }
 
 async function archiveProjectSessions(deps: SidebarProjectActionDeps, path: string) {

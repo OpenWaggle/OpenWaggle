@@ -18,6 +18,7 @@ import {
 } from '@shared/types/local-session-protocol'
 import { desktopServiceRequestSchema } from './desktop-service'
 import { hostUiV1RequestSchema } from './host-ui-protocol'
+import { localHostRequestSchema } from './local-host'
 import { requiredLocalSessionCommandRevision } from './local-session-command-revision'
 import { localSessionNegotiationResultSchema } from './local-session-negotiation'
 import { localSessionProfileAuthoritySchema } from './local-session-profile'
@@ -212,6 +213,10 @@ export const localSessionCommandPayloadSchema: Schema.Schema<LocalSessionCommand
     Schema.Struct({
       contract: Schema.Literal('local-update-v1'),
       request: localUpdateRequestSchema,
+    }),
+    Schema.Struct({
+      contract: Schema.Literal('local-host-v1'),
+      request: localHostRequestSchema,
     }),
     Schema.Struct({
       contract: Schema.Literal('local-compaction-v1'),

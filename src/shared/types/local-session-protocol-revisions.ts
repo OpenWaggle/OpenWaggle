@@ -1,4 +1,5 @@
-export const LOCAL_SESSION_CURRENT_REVISION = 18 as const
+export const LOCAL_SESSION_CURRENT_REVISION = 19 as const
+export const LOCAL_SESSION_HOST_CONTROL_REVISION = 19 as const
 export const LOCAL_SESSION_LAUNCH_STEPS_REVISION = 18 as const
 export const LOCAL_SESSION_NATIVE_ACTIONS_REVISION = 17 as const
 export const LOCAL_SESSION_RESOURCE_HOST_UI_REVISION = 16 as const
@@ -19,6 +20,7 @@ export const LOCAL_SESSION_WAGGLE_REVISION = 3 as const
  * Revision 17 removes legacy action commands (ADR 0035). Revision 18 adds labelled launch steps,
  * local launches, and their new stages to worktree launch events and Run snapshots, which a
  * revision-17 client decodes exactly and would reject mid-stream; older clients must upgrade.
+ * Revision 19 adds the `local-host-v1` stop command used by `openwaggle host stop` (ADR 0039).
  */
 export const LOCAL_SESSION_SUPPORTED_REVISIONS = [LOCAL_SESSION_CURRENT_REVISION] as const
 
@@ -114,4 +116,9 @@ export const LOCAL_SESSION_REVISION_18_CAPABILITIES = [
   'events:launch-steps-v1',
 ] as const
 
-export const LOCAL_SESSION_CAPABILITIES = LOCAL_SESSION_REVISION_18_CAPABILITIES
+export const LOCAL_SESSION_REVISION_19_CAPABILITIES = [
+  ...LOCAL_SESSION_REVISION_18_CAPABILITIES,
+  'host:stop-v1',
+] as const
+
+export const LOCAL_SESSION_CAPABILITIES = LOCAL_SESSION_REVISION_19_CAPABILITIES

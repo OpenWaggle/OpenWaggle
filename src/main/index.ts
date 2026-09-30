@@ -8,7 +8,6 @@ import {
   configureDefaultSessionEmbeddingModelForPackagedRuntime,
   SESSION_EMBEDDING_MODEL_RESOURCE_DIRECTORY,
 } from './adapters/multilingual-e5-session-embedding-model'
-import { startAppCliIfRequested } from './app-cli-entry'
 import { registerAppQuitCleanup } from './app-quit-cleanup'
 import { invokeConfiguredHostUi } from './application/gui-session-command-router'
 import { readInlineVisualizationSource } from './application/inline-visualization-source-service'
@@ -23,6 +22,7 @@ import { installInlineVisualizationNavigationGuard } from './inline-visualizatio
 import { applyInstallerUpdateChannelIntent } from './installer-update-channel-intent'
 import { createLogger, initFileLogger } from './logger'
 import { createMainWindow, focusExistingWindow } from './main-window'
+import { claimAppInstance } from './open-project-requests'
 import {
   configureInlineVisualizationProcessIsolation,
   registerRendererScheme,
@@ -33,6 +33,7 @@ import {
   type GuiSessionHostLifecycle,
   prepareGuiSessionHostLifecycle,
 } from './session-host/gui-session-host-lifecycle'
+import { startTopLevelCli } from './top-level-cli-entry'
 
 const FAILURE_EXIT_CODE = 1
 const STARTUP_TIMINGS_SWITCH = 'openwaggle-startup-timings'
@@ -69,6 +70,7 @@ const appIconPath = is.dev
 const logger = createLogger('main/index')
 const startupStartedAt = performance.now()
 let ipcHandlersRegistered = false
+let mainWindowCreated = false
 let cleanupTerminalsOnce: IpcHandlersModule['cleanupTerminals'] | null = null
 let disposeAutoUpdaterOnce: (() => void) | null = null
 let persistAllActiveRunsOnce: AgentHandlerModule['persistAllActiveRuns'] | null = null
@@ -226,9 +228,16 @@ async function bootstrapServicesAndWindow() {
   startupMark('protocol-handlers-registered')
 
   createMainWindowWithVisualizationGuard()
+  mainWindowCreated = true
   startupMark('main-window-created')
 
   if (!isAutomationMode()) void initializeAutoUpdaterAfterWindow()
+}
+
+/** A later launch focuses the window, or creates one after startup as the Dock icon does. */
+function revealMainWindow() {
+  if (getAllBrowserWindows().length > 0 || !mainWindowCreated) focusExistingWindow()
+  else createMainWindowWithVisualizationGuard()
 }
 
 function createMainWindowWithVisualizationGuard() {
@@ -314,21 +323,17 @@ function registerAppLifecycle() {
   })
 }
 
-function startApp() {
+function startApp(openProjectPath?: string) {
   configureAppStoragePaths(app, env.OPENWAGGLE_USER_DATA_DIR)
   prepareDesktopUi(app)
 
-  if (env.OPENWAGGLE_DISABLE_SINGLE_INSTANCE !== '1') {
-    if (!app.requestSingleInstanceLock()) {
-      logger.warn('Another OpenWaggle instance is already running; quitting this instance')
-      if (env.OPENWAGGLE_AUTOMATION === '1') {
-        quitAutomationSecondInstance()
-      } else {
-        app.quit()
-      }
-      return
-    }
-    app.on('second-instance', focusExistingWindow)
+  const singleInstance = env.OPENWAGGLE_DISABLE_SINGLE_INSTANCE !== '1'
+  const instance = { host: app, openProjectPath, singleInstance, revealWindow: revealMainWindow }
+  if (claimAppInstance(instance) === 'secondary') {
+    logger.warn('Another OpenWaggle instance is already running; quitting this instance')
+    if (env.OPENWAGGLE_AUTOMATION === '1') quitAutomationSecondInstance()
+    else app.quit()
+    return
   }
 
   registerAppLifecycle()
@@ -336,6 +341,5 @@ function startApp() {
 
 const cliArguments = applicationCliArguments(process.argv, { isPackaged: app.isPackaged })
 
-if (!startAppCliIfRequested(cliArguments)) {
-  startApp()
-}
+const launch = startTopLevelCli(cliArguments)
+if (launch.kind === 'gui') startApp(launch.openProjectPath)

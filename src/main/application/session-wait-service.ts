@@ -19,6 +19,7 @@ import {
 import { SessionWaitService } from '../ports/session-wait-service'
 import { getSessionHostEventRuntime } from '../session-host/session-host-events'
 import { waitForSessionExport } from './session-export-wait'
+import { acquireWaitLiveness } from './session-host-run-admission'
 
 type WaitRequest = SessionQueryRequest & {
   readonly query: Extract<SessionQueryRequest['query'], { readonly operation: 'wait' }>
@@ -159,7 +160,7 @@ async function wait(
   },
 ): Promise<SessionQueryResponse> {
   const runtime = getSessionHostEventRuntime()
-  const releaseLiveness = runtime.liveness.acquire('wait')
+  const releaseLiveness = acquireWaitLiveness(runtime.liveness)
   const snapshotCursor = runtime.eventHub.cursor()
   let subscription: ReturnType<typeof runtime.eventHub.subscribeAfter> | undefined
   try {

@@ -23,6 +23,7 @@ type CapabilityAuthorizedPayload = Exclude<
       | 'host-ui-v1'
       | 'desktop-service-v1'
       | 'local-update-v1'
+      | 'local-host-v1'
   }
 >
 

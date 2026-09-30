@@ -1,11 +1,8 @@
 import * as Cause from 'effect/Cause'
 import * as Runtime from 'effect/Runtime'
 import { LocalSessionAuthenticationError, LocalSessionCommandAuthorizationError } from '../errors'
-import { describeError, unwrapFiberFailure, userFacingErrorDetail } from '../utils/describe-error'
-import { LocalSessionAuthenticationBudgetError } from './local-session-resource-policy'
-
-/** Effect's placeholder when a failure carries no message of its own. */
-const EFFECT_PLACEHOLDER_MESSAGE = 'An error has occurred'
+import { unwrapFiberFailure, userFacingErrorDetail } from '../utils/describe-error'
+import { describeLocalSessionServerError } from './local-session-server-frame'
 
 const AUTHORIZATION_REASONS = {
   capability_denied: 'the caller lacks a Session capability this operation requires',
@@ -17,15 +14,12 @@ const AUTHORIZATION_REASONS = {
 } satisfies Record<LocalSessionCommandAuthorizationError['code'], string>
 
 const CANCELLED_MESSAGE = 'Session command was cancelled.'
-const UNEXPECTED_FAILURE_MESSAGE =
-  'Session command failed unexpectedly. The Session Host log has the details.'
 
 /**
- * One text for every authentication failure. Naming the code would tell a client without a
- * credential whether a profile name exists or was revoked.
+ * One text for an authentication error that reaches a command path. Naming the code would tell a
+ * caller whether a profile name exists or was revoked.
  */
-export const LOCAL_SESSION_AUTHENTICATION_FAILED_MESSAGE =
-  'Authentication with the Local Session Host failed. Check the profile name and credential.'
+export const LOCAL_SESSION_AUTHENTICATION_FAILED_MESSAGE = 'Local Session authentication failed.'
 
 function isInterruptedOnly(error: unknown) {
   return (
@@ -42,57 +36,28 @@ function isAuthenticationFailure(failure: unknown) {
   )
 }
 
-function describeAuthorizationFailure(
-  code: LocalSessionCommandAuthorizationError['code'],
-  missing: readonly string[],
-) {
+function describeAuthorizationFailure(failure: LocalSessionCommandAuthorizationError) {
+  const missing = failure.missing ?? []
   const detail = missing.length > 0 ? ` Missing capabilities: ${missing.join(', ')}.` : ''
-  return `Session command refused (${code}): ${AUTHORIZATION_REASONS[code]}.${detail}`
-}
-
-function hasUsefulMessage(failure: unknown): failure is Error {
-  return (
-    failure instanceof Error &&
-    failure.message.length > 0 &&
-    failure.message !== EFFECT_PLACEHOLDER_MESSAGE
-  )
+  return `Session command refused (${failure.code}): ${AUTHORIZATION_REASONS[failure.code]}.${detail}`
 }
 
 /**
  * Turn a Session command failure into a message an agent or CLI user can act on.
  *
  * Effect renders a tagged error without a `message` field as "An error has occurred", which hid
- * every authorization refusal and preparation failure from the Sessions tool. Authorization
- * refusals name their code and reason; other message-less failures fall back to the tag,
- * operation, and cause chain. Every text that is not a fixed message is redacted and bounded,
- * because Sessions tool results go into provider transcripts.
+ * every authorization refusal from the Sessions tool. Authorization refusals name their code,
+ * reason, and missing capabilities; a cancelled command says so; anything else is described by
+ * `describeLocalSessionServerError`, which shows only identifying fields of a cause. Every text
+ * except the fixed messages is redacted and bounded, because Sessions tool results go into
+ * provider transcripts. The Sessions tool and the Host's command error frames both use it.
  */
 export function sessionCommandFailureMessage(error: unknown): string {
   if (isInterruptedOnly(error)) return CANCELLED_MESSAGE
   const failure = unwrapFiberFailure(error)
   if (isAuthenticationFailure(failure)) return LOCAL_SESSION_AUTHENTICATION_FAILED_MESSAGE
   if (failure instanceof LocalSessionCommandAuthorizationError) {
-    return describeAuthorizationFailure(failure.code, failure.missing ?? [])
+    return describeAuthorizationFailure(failure)
   }
-  if (hasUsefulMessage(failure)) return userFacingErrorDetail(failure.message)
-  if (typeof failure !== 'object' || failure === null) return userFacingErrorDetail(String(failure))
-  // A bare object (for example `Effect.die({ projectPath })`) says nothing useful, and its fields
-  // are Host context that the caller should not see; the Host log keeps it.
-  if (!(failure instanceof Error) && Reflect.get(failure, '_tag') === undefined) {
-    return UNEXPECTED_FAILURE_MESSAGE
-  }
-  return userFacingErrorDetail(describeError(failure, { plainObjects: 'omit' }))
-}
-
-/**
- * The message for a failed handshake. Only admission-budget refusals (throttled, aborted) keep
- * their text; every other failure, tagged or not (unknown or revoked profile, rejected credential,
- * a corrupt profile row, a repository failure), shares one message so an unauthenticated client
- * learns nothing about profiles.
- */
-export function localSessionAuthenticationFailureMessage(error: unknown): string {
-  const failure = unwrapFiberFailure(error)
-  return failure instanceof LocalSessionAuthenticationBudgetError
-    ? failure.message
-    : LOCAL_SESSION_AUTHENTICATION_FAILED_MESSAGE
+  return userFacingErrorDetail(describeLocalSessionServerError(error))
 }

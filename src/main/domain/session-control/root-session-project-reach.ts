@@ -16,7 +16,7 @@ export function isProfileCallerId(callerId: string) {
 }
 
 /**
- * Whether a root Session agent's own authority reaches every project (ADR 0039).
+ * Whether a root Session agent's own authority reaches every project (ADR 0040).
  *
  * Only a root qualifies, and only when its authority came from the local desktop user or from a
  * CLI profile whose live scope is catalog-wide. A stored authority snapshot narrower than the

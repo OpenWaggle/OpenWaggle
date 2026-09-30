@@ -41,11 +41,11 @@ function initialRange(keys: readonly string[], anchorKey: string | null) {
 function boundLive(
   range: TranscriptWindowRange | null,
   keys: readonly string[],
-  following: boolean,
+  boundsLikeFollower: boolean,
   restoring: boolean,
 ) {
   if (!range) return range
-  if (!following) return capAnchoredLiveWindow(range, keys)
+  if (!boundsLikeFollower) return capAnchoredLiveWindow(range, keys)
   // A window built around a pending restore stays put until the restore lands.
   return trimLiveWindow(restoring ? range : reattachLiveEnd(range, keys), keys)
 }
@@ -54,7 +54,7 @@ function currentRange(
   range: TranscriptWindowRange | null,
   keys: readonly string[],
   anchorKey: string | null,
-  following: boolean,
+  boundsLikeFollower: boolean,
 ) {
   const reconciled = isRangeCurrent(range, keys)
     ? range
@@ -67,7 +67,7 @@ function currentRange(
   if (reconciled && anchorArrived && !rangeIncludes(reconciled, keys, anchorKey)) {
     return rangeAround(keys, anchorKey)
   }
-  return boundLive(reconciled, keys, following, anchorKey !== null)
+  return boundLive(reconciled, keys, boundsLikeFollower, anchorKey !== null)
 }
 
 interface UseTranscriptWindowRangeInput {
@@ -79,8 +79,11 @@ interface UseTranscriptWindowRangeInput {
    */
   readonly anchorKey: string | null
   readonly isFollowing: () => boolean
-  /** The same as `isFollowing()`, as state, for bounding the window during render. */
-  readonly following: boolean
+  /**
+   * Whether to bound the window like a follower's during render: the reader follows the live end,
+   * or a held sent turn is receiving its reply, which must mount under it rather than be capped.
+   */
+  readonly boundsLikeFollower: boolean
 }
 
 /**
@@ -95,12 +98,12 @@ export function useTranscriptWindowRange({
   keys,
   anchorKey,
   isFollowing,
-  following,
+  boundsLikeFollower,
 }: UseTranscriptWindowRangeInput) {
   const [range, setRange] = useState<TranscriptWindowRange | null>(null)
   const [announcement, setAnnouncement] = useState('')
 
-  const current = currentRange(range, keys, anchorKey, following)
+  const current = currentRange(range, keys, anchorKey, boundsLikeFollower)
   if (current !== range) setRange(current)
   const resolved = current ? resolveRange(current, keys) : null
 

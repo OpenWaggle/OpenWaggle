@@ -93,7 +93,7 @@ export function retargetSessionAuthoritySnapshot(
 }
 
 /**
- * The scope stored for a new Worker. A catalog-wide parent (ADR 0039) must not hand that reach to
+ * The scope stored for a new Worker. A catalog-wide parent (ADR 0040) must not hand that reach to
  * its Workers' snapshots: a Worker never reaches every project, and a future feature that promotes
  * or detaches a Worker would otherwise inherit it. The Worker gets its project instead, which is
  * what a Worker snapshot held before root agents reached every project.

@@ -24,6 +24,7 @@ vi.mock('../typed-ipc', () => ({
   typedHandle: typedHandleMock,
 }))
 
+import { requestOpenProject } from '../../open-project-requests'
 import { registerProjectHandlers } from '../project-handler'
 
 function getRegisteredHandler(name: string) {
@@ -61,6 +62,17 @@ describe('registerProjectHandlers', () => {
     const grants = getRegisteredHandler('authorization-grants:list')
     await expect(preferences?.({}, projectPath)).rejects.toThrow()
     await expect(grants?.({}, projectPath)).rejects.toThrow()
+  })
+
+  it('hands the renderer a command-line project request exactly once', async () => {
+    projectPath = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-project-request-'))
+    registerProjectHandlers()
+    const take = getRegisteredHandler('project:take-open-request')
+
+    requestOpenProject(projectPath)
+
+    await expect(take?.({})).resolves.toBe(await fs.realpath(projectPath))
+    await expect(take?.({})).resolves.toBeNull()
   })
 
   it('attaches the folder dialog to the requesting window when available', async () => {

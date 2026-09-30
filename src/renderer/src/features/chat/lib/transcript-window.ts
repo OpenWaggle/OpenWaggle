@@ -198,8 +198,9 @@ export function extendLater(
 /**
  * Releases the oldest mounted rows once the live window outgrows the bound.
  *
- * Only for a reader following the live end: trimming above someone reading older rows would move
- * the rows they are reading.
+ * Only for a window bounded like a follower's (the live end, or a held sent turn, which is
+ * re-anchored by key): trimming above someone reading older rows would move the rows they are
+ * reading.
  */
 export function trimLiveWindow(
   range: TranscriptWindowRange,
