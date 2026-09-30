@@ -3,6 +3,7 @@ import * as Exit from 'effect/Exit'
 import * as Fiber from 'effect/Fiber'
 import { describe, expect, it } from 'vitest'
 import {
+  lendSessionAttachmentTransitionToSettlingRun,
   preserveOutcomeAfterAttachmentCleanup,
   withSessionAttachmentTransition,
 } from '../session-attachment-cleanup'
@@ -164,6 +165,98 @@ describe('Session attachment cleanup outcome preservation', () => {
     releaseOuter.resolve()
     await Promise.all([outer, childFinished.promise])
     expect(childEntered).toBe(true)
+  })
+
+  it('admits only the awaited Run teardown while a holder lends its transition', async () => {
+    const sessionId = 'session-lent-transition'
+    const events: string[] = []
+    const teardownQueued = Promise.withResolvers<void>()
+    const thirdPartyQueued = Promise.withResolvers<void>()
+    const runSettled = Promise.withResolvers<void>()
+    let teardown: Promise<unknown> | undefined
+    let thirdParty: Promise<unknown> | undefined
+    const holder = Effect.runPromise(
+      withSessionAttachmentTransition({
+        sessionId,
+        effect: Effect.gen(function* () {
+          events.push('holder-bound')
+          // Both queue before the loan opens: the awaited Run's teardown and an unrelated cleanup.
+          teardown = Effect.runPromise(
+            withSessionAttachmentTransition({
+              sessionId,
+              settlingRunId: 'run-awaited',
+              effect: Effect.sync(() => {
+                events.push('teardown')
+                runSettled.resolve()
+              }),
+            }),
+          )
+          thirdParty = Effect.runPromise(
+            withSessionAttachmentTransition({
+              sessionId,
+              settlingRunId: 'run-other',
+              effect: Effect.sync(() => events.push('other')),
+            }),
+          )
+          teardownQueued.resolve()
+          thirdPartyQueued.resolve()
+          yield* lendSessionAttachmentTransitionToSettlingRun({
+            sessionId,
+            runId: 'run-awaited',
+            effect: Effect.promise(() => runSettled.promise),
+          })
+          events.push('holder-durable')
+        }),
+      }),
+    )
+
+    await Promise.all([teardownQueued.promise, thirdPartyQueued.promise, holder])
+    await Promise.all([teardown, thirdParty])
+    expect(events).toEqual(['holder-bound', 'teardown', 'holder-durable', 'other'])
+  })
+
+  it('admits a Run teardown that starts after the loan opened, and not after it closed', async () => {
+    const sessionId = 'session-lent-late-teardown'
+    const events: string[] = []
+    const lentTeardown = Promise.withResolvers<void>()
+    const releaseHolder = Promise.withResolvers<void>()
+    let lateTeardown: Promise<unknown> | undefined
+    const holder = Effect.runPromise(
+      withSessionAttachmentTransition({
+        sessionId,
+        effect: Effect.gen(function* () {
+          yield* lendSessionAttachmentTransitionToSettlingRun({
+            sessionId,
+            runId: 'run-awaited',
+            effect: Effect.promise(() =>
+              Effect.runPromise(
+                withSessionAttachmentTransition({
+                  sessionId,
+                  settlingRunId: 'run-awaited',
+                  effect: Effect.sync(() => events.push('lent-teardown')),
+                }),
+              ).then(() => lentTeardown.resolve()),
+            ),
+          })
+          lateTeardown = Effect.runPromise(
+            withSessionAttachmentTransition({
+              sessionId,
+              settlingRunId: 'run-awaited',
+              effect: Effect.sync(() => events.push('late-teardown')),
+            }),
+          )
+          yield* Effect.promise(() => releaseHolder.promise)
+          events.push('holder-done')
+        }),
+      }),
+    )
+
+    await lentTeardown.promise
+    await Promise.resolve()
+    expect(events).toEqual(['lent-teardown'])
+    releaseHolder.resolve()
+    await Promise.all([holder, lateTeardown])
+    expect(events).toEqual(['lent-teardown', 'holder-done', 'late-teardown'])
   })
 
   it('does not replace a committed command response with a cleanup failure', async () => {

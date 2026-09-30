@@ -15,6 +15,7 @@ describe('Session Control Run attachment cleanup', () => {
         attachments: { release },
         attachmentIds: ['attachment-consumed'],
         sessionId: 'session-target',
+        runId: 'run-target',
         ownerCallerId: 'gui:local-user',
       }),
     )
@@ -36,6 +37,7 @@ describe('Session Control Run attachment cleanup', () => {
         attachments: { release: () => cleanup },
         attachmentIds: ['attachment-consumed'],
         sessionId: 'session-target',
+        runId: 'run-target',
         ownerCallerId: 'gui:local-user',
       }),
     )

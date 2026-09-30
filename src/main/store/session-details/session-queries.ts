@@ -1,13 +1,14 @@
 import * as SqlClient from '@effect/sql/SqlClient'
 import { isAgentAuthorizationMode } from '@shared/types/agent-authorization'
-import { SessionId, SupportedModelId } from '@shared/types/brand'
+import { SessionId, SessionNodeId, SupportedModelId } from '@shared/types/brand'
 import type { SessionEnvironmentMode } from '@shared/types/git'
-import type { SessionDetail, SessionSummary } from '@shared/types/session'
+import type { SessionDetail, SessionResumePosition, SessionSummary } from '@shared/types/session'
 import * as Effect from 'effect/Effect'
 import { sessionAgentCallerBoundary } from '../../session-host/session-agent-run-ceiling'
 import { sessionIdsForQuery } from '../sessions/hydration'
 import { attachSessionLineage, loadSessionLineageRows } from '../sessions/session-list'
 import { runStoreEffect } from '../store-runtime'
+import { isAgentLoopAuditNode } from './agent-loop-audit-node'
 import { EMPTY_INDEX, MESSAGE_ENTRY_TYPE } from './constants'
 import { hydrateWaggleConfig, parseJsonValue } from './json'
 import {
@@ -38,10 +39,22 @@ function hydrateSessionDetailSummary(row: SessionSummaryRow) {
   }
 }
 
+function resumePosition(
+  sessionRow: SessionRow,
+  nodeRows: readonly SessionNodeRow[],
+): SessionResumePosition | null {
+  if (!sessionRow.last_active_node_id) return null
+  const piEntryCount = nodeRows.filter(
+    (row) => !isAgentLoopAuditNode({ kind: row.kind, contentJson: row.content_json }),
+  ).length
+  return { nodeId: SessionNodeId(sessionRow.last_active_node_id), piEntryCount }
+}
+
 function hydrateSessionDetail(sessionRow: SessionRow, nodeRows: readonly SessionNodeRow[]) {
   try {
     const environmentMode: SessionEnvironmentMode =
       sessionRow.environment_mode === 'worktree' ? 'worktree' : 'local'
+    const position = resumePosition(sessionRow, nodeRows)
     return {
       id: SessionId(sessionRow.id),
       title: sessionRow.title,
@@ -63,6 +76,7 @@ function hydrateSessionDetail(sessionRow: SessionRow, nodeRows: readonly Session
       ...(sessionRow.execution_model_id
         ? { executionModel: SupportedModelId(sessionRow.execution_model_id) }
         : {}),
+      ...(position ? { resumePosition: position } : {}),
     }
   } catch (error) {
     logSessionHydrationFailure(sessionRow, error)

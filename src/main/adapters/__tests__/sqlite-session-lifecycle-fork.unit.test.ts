@@ -2,6 +2,7 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import * as SqlClient from '@effect/sql/SqlClient'
+import { SESSION_TITLE_MAX_LENGTH } from '@shared/session-title'
 import * as Effect from 'effect/Effect'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { SessionLifecycleRepository } from '../../ports/session-lifecycle-repository'
@@ -72,6 +73,67 @@ describe('SQLite Session lifecycle fork persistence', () => {
       active_node_id: 'fork-node',
       node_count: 1,
     })
+  })
+
+  it('names an untitled copy after its source Session', async () => {
+    const layer = makeSessionLifecycleTestLayer(path.join(temporaryRoot, 'untitled-fork.sqlite'))
+    const input = forkLifecycleInput()
+    const { title: _explicitTitle, ...command } = input.request.command
+    const title = await Effect.runPromise(
+      Effect.gen(function* () {
+        const repository = yield* SessionLifecycleRepository
+        yield* repository.execute({ ...input, request: { ...input.request, command } })
+        const sql = yield* SqlClient.SqlClient
+        const rows = yield* sql<{ readonly title: string }>`
+          SELECT title FROM sessions WHERE id = ${'session-fork'}
+        `
+        return rows[0]?.title
+      }).pipe(Effect.provide(layer)),
+    )
+
+    expect(title).toBe('Parent (copy)')
+  })
+
+  it('does not stack copy markers when a copy is copied again', async () => {
+    const layer = makeSessionLifecycleTestLayer(path.join(temporaryRoot, 'copy-of-copy.sqlite'))
+    const input = forkLifecycleInput()
+    const { title: _explicitTitle, ...command } = input.request.command
+    const title = await Effect.runPromise(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        yield* sql`UPDATE sessions SET title = ${'Parent (fork)'} WHERE id = ${'session-parent'}`
+        const repository = yield* SessionLifecycleRepository
+        yield* repository.execute({ ...input, request: { ...input.request, command } })
+        const rows = yield* sql<{ readonly title: string }>`
+          SELECT title FROM sessions WHERE id = ${'session-fork'}
+        `
+        return rows[0]?.title
+      }).pipe(Effect.provide(layer)),
+    )
+
+    expect(title).toBe('Parent (copy)')
+  })
+
+  it('keeps a copy name of a long emoji title within the title limit', async () => {
+    const layer = makeSessionLifecycleTestLayer(path.join(temporaryRoot, 'long-title.sqlite'))
+    const input = forkLifecycleInput()
+    const { title: _explicitTitle, ...command } = input.request.command
+    const longTitle = `${'a'.repeat(SESSION_TITLE_MAX_LENGTH - 12)}${'😀'.repeat(6)}`
+    const title = await Effect.runPromise(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        yield* sql`UPDATE sessions SET title = ${longTitle} WHERE id = ${'session-parent'}`
+        const repository = yield* SessionLifecycleRepository
+        yield* repository.execute({ ...input, request: { ...input.request, command } })
+        const rows = yield* sql<{ readonly title: string }>`
+          SELECT title FROM sessions WHERE id = ${'session-fork'}
+        `
+        return rows[0]?.title ?? ''
+      }).pipe(Effect.provide(layer)),
+    )
+
+    expect(title.length).toBeLessThanOrEqual(SESSION_TITLE_MAX_LENGTH)
+    expect(title.endsWith('😀 (copy)')).toBe(true)
   })
 
   it('rejects idempotency-key reuse with a different lifecycle command', async () => {

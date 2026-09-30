@@ -143,6 +143,16 @@ jobs:
             echo "should_release=false" >> "$GITHUB_OUTPUT"
           }
 
+          # A maintainer closing the release PR mid-validation is a deliberate "not this
+          # version", not a workflow failure: report it and end without preparing a release.
+          exit_if_release_pr_closed() {
+            if [ "$1" = "CLOSED" ]; then
+              echo "::notice::Release PR ${PR_URL} was closed during validation; nothing to prepare."
+              write_no_release_output
+              exit 0
+            fi
+          }
+
           if [ -n "$RELEASE_TARGET_VERSION" ]; then
             pnpm exec tsx scripts/app-release-state.ts validate-transition \
               --current "$CURRENT_VERSION" \
@@ -441,6 +451,7 @@ jobs:
                 write_no_release_output
                 exit 0
               fi
+              exit_if_release_pr_closed "$CURRENT_PR_STATE"
               test "$CURRENT_PR_STATE" = "OPEN"
               test "$(jq -er '.baseRefName' <<<"$PR_DETAILS")" = "main"
               test "$(jq -er '.headRefName' <<<"$PR_DETAILS")" = "$RELEASE_BRANCH"
@@ -530,6 +541,7 @@ jobs:
                 write_no_release_output
                 exit 0
               fi
+              exit_if_release_pr_closed "$AFTER_VALIDATION_STATE"
               test "$AFTER_VALIDATION_STATE" = "OPEN"
               git fetch origin "+refs/heads/main:refs/remotes/origin/main"
               MAIN_SHA=$(git rev-parse origin/main)
@@ -597,8 +609,23 @@ jobs:
 
       - run: pnpm build
 
+      # Notarization waits minutes on Apple while notarytool polls over the runner's network. One
+      # lost connection (1.0.0-beta.1, run 36695614844) must not fail the release, so only that
+      # failure rebuilds once; a rejection or any other failure still fails the first attempt.
       - name: Build macOS artifacts (arm64 + x64)
-        run: pnpm exec electron-builder --mac --arm64 --x64 --publish never
+        shell: bash
+        run: |
+          set -uo pipefail
+          BUILD_LOG="$RUNNER_TEMP/electron-builder-mac.log"
+          for BUILD_ATTEMPT in 1 2; do
+            if pnpm exec electron-builder --mac --arm64 --x64 --publish never 2>&1 | tee "$BUILD_LOG"; then
+              exit 0
+            fi
+            if [ "$BUILD_ATTEMPT" -eq 2 ] || ! node scripts/notarization-failure.ts "$BUILD_LOG"; then
+              exit 1
+            fi
+            echo "::warning::Notarization lost its connection to Apple; rebuilding and resubmitting once."
+          done
         env:
           # Unset secrets keep Alpha/Beta builds unsigned; RC and Stable fail closed without them.
           CSC_IDENTITY_AUTO_DISCOVERY: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 != '' }}

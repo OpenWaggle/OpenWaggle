@@ -62,6 +62,13 @@ export function makeLifecyclePreparationLayer(
         )
       `)
       yield* sql.unsafe(`
+        CREATE TABLE session_nodes (
+          id TEXT PRIMARY KEY,
+          session_id TEXT NOT NULL,
+          metadata_json TEXT NOT NULL
+        )
+      `)
+      yield* sql.unsafe(`
         CREATE TABLE session_lifecycle_preparation_attempts (
           attempt_id TEXT PRIMARY KEY,
           session_id TEXT NOT NULL,

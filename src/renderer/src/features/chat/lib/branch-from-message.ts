@@ -51,7 +51,15 @@ function findTranscriptNode(
   message: UIMessage | undefined,
 ) {
   const createdOrder = message?.metadata?.sessionNodeCreatedOrder
+  // A reconciled user row keeps its optimistic id, so its node is the one its metadata names.
+  const recordedNodeId = message?.metadata?.sessionNodeId
   return (
+    (recordedNodeId === undefined
+      ? undefined
+      : workspace?.tree.nodes.find(
+          (node) =>
+            node.sessionId === workspace.tree.session.id && String(node.id) === recordedNodeId,
+        )) ??
     workspace?.transcriptPath.find(
       (entry) =>
         entry.node.sessionId === workspace.tree.session.id && String(entry.node.id) === messageId,
@@ -69,6 +77,17 @@ function findTranscriptNode(
               (message?.role === 'assistant' && node.kind === 'assistant_message')),
         ))
   )
+}
+
+/**
+ * The persisted user-message node a transcript message was saved as, or null while its projection
+ * has not arrived. A message id is not a node id: a row sent in this window keeps its optimistic id
+ * after the snapshot reconciles it, and Pi rejects that id as a fork target.
+ */
+export function findUserMessageNode(input: CreateBranchDraftSelectionInput): SessionNode | null {
+  const message = input.messages.find((candidate) => candidate.id === input.messageId)
+  const node = findTranscriptNode(input.workspace, input.messageId, message)
+  return node?.kind === 'user_message' ? node : null
 }
 
 export function createBranchDraftSelectionFromNode(node: SessionNode): BranchDraftSelection {

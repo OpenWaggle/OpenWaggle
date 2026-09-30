@@ -33,9 +33,10 @@ fixture_advance_main() {
 fixture_pr() {
   jq -nc --arg sha "$(git --git-dir "$TEST_REMOTE" rev-parse "$TEST_BRANCH")" \
     --arg branch "$TEST_BRANCH" --arg status "$TEST_MERGE_STATUS" \
+    --arg state "$(if [ -f "$TEST_PR_CLOSED" ]; then echo CLOSED; else echo OPEN; fi)" \
     '{baseRefName:"main", headRefName:$branch, headRefOid:$sha,
       headRepository:{name:"OpenWaggle"}, headRepositoryOwner:{login:"OpenWaggle"},
-      isCrossRepository:false, mergeCommit:null, number:221, state:"OPEN",
+      isCrossRepository:false, mergeCommit:null, number:221, state:$state,
       title:"chore(release): v0.4.0-alpha.5", url:"https://example.test/pull/221",
       mergeStateStatus:$status}'
 }
@@ -82,6 +83,7 @@ gh() {
     'run watch')
       echo "ci $3" >> "$TEST_EVENTS"
       if [ "$TEST_ADVANCE_DURING" = 'ci' ]; then fixture_advance_main; fi
+      if [ "$TEST_CLOSE_DURING_CI" = 'true' ]; then touch "$TEST_PR_CLOSED"; fi
       ;;
     *) echo "Unexpected gh command: $*" >&2; return 1 ;;
   esac
@@ -96,6 +98,7 @@ export interface ReleaseSyncOptions {
   mergeStatus?: 'BLOCKED' | 'UNKNOWN'
   orphan?: boolean
   advanceDuring?: 'ci' | 'update'
+  closeDuringCi?: boolean
   tamperOnUpdate?: boolean
   tamper?: 'manifest' | 'file'
   workflow?: string
@@ -188,6 +191,8 @@ export async function runReleaseSync(options: ReleaseSyncOptions = {}) {
         TEST_BRANCH: RELEASE_BRANCH,
         TEST_MERGE_STATUS: options.mergeStatus ?? 'BLOCKED',
         TEST_PR_EXISTS: prExists,
+        TEST_PR_CLOSED: path.join(directory, 'pr-closed'),
+        TEST_CLOSE_DURING_CI: String(options.closeDuringCi === true),
         TEST_EVENTS: eventsPath,
         TEST_ADVANCED: path.join(directory, 'advanced'),
         TEST_ADVANCE_DURING: options.advanceDuring ?? '',

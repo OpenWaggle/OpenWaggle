@@ -166,6 +166,11 @@ export interface AgentKernelForkSessionResult {
   readonly sessionSnapshot: AgentKernelSessionSnapshot
   readonly editorText?: string
   readonly cancelled: boolean
+  /**
+   * The source node each fork node was copied from. A fork's nodes get ids of their own, so
+   * per-node data kept outside the Pi file follows its source through this map.
+   */
+  readonly sourceNodeIdByNodeId?: ReadonlyMap<string, string>
 }
 
 export interface AgentKernelServiceShape {
