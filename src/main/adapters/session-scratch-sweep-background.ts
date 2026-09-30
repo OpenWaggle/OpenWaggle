@@ -2,10 +2,8 @@ import * as SqlClient from '@effect/sql/SqlClient'
 import * as Cause from 'effect/Cause'
 import * as Effect from 'effect/Effect'
 import { createLogger } from '../logger'
-import {
-  sessionScratchRoot,
-  sweepSessionScratchDirectories,
-} from '../utils/session-scratch-directory'
+import { sessionScratchRoot } from '../utils/session-scratch-directory'
+import { sweepSessionScratchDirectories } from '../utils/session-scratch-sweep'
 
 const logger = createLogger('session-scratch-sweep')
 

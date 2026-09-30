@@ -9,11 +9,6 @@ const PERMISSION_BITS = 0o777
 const SCRATCH_ROOT_NAME = 'ow-scratch'
 const SCRATCH_NAME_HASH_CHARACTERS = 12
 const NAMESPACE_HASH_CHARACTERS = 8
-const HOUR_MS = 60 * 60 * 1000
-/** A directory this young may belong to a Session created after the sweep read the catalog. */
-const SWEEP_MINIMUM_AGE_MS = HOUR_MS
-/** Another profile's namespace untouched this long belongs to a profile that no longer runs. */
-const ABANDONED_NAMESPACE_AGE_MS = 7 * 24 * HOUR_MS
 const DEFAULT_NAMESPACE_SOURCE = 'default'
 /**
  * A Unix socket path must fit in 104 bytes on macOS. Tools such as `tsx` (`/tsx-<uid>/<pid>.pipe`)
@@ -50,7 +45,12 @@ let scratchNamespace = shortHash(DEFAULT_NAMESPACE_SOURCE, NAMESPACE_HASH_CHARAC
  * Host's sweep would delete another Host's live directories.
  */
 export function configureSessionScratchNamespace(userDataRoot: string) {
+  const previous = scratchNamespace
   scratchNamespace = shortHash(path.resolve(userDataRoot), NAMESPACE_HASH_CHARACTERS)
+  /** Restores the previous namespace; tests use it to leave module state as they found it. */
+  return () => {
+    scratchNamespace = previous
+  }
 }
 
 function scratchDirectoryState(directory: string) {
@@ -225,85 +225,21 @@ export async function removeSessionScratchDirectory(
   await removeNow(directory, state)
 }
 
-async function isOwnedPrivateDirectory(directory: string) {
-  const stats = await fs.lstat(directory)
-  const uid = process.getuid?.()
-  return stats.isDirectory() && !stats.isSymbolicLink() && (uid === undefined || stats.uid === uid)
-}
-
-async function newestModification(directory: string) {
-  const stats = await fs.lstat(directory)
-  let newest = stats.mtimeMs
-  for (const name of await fs.readdir(directory)) {
-    const child = await fs.lstat(path.join(directory, name)).catch(() => undefined)
-    if (child) newest = Math.max(newest, child.mtimeMs)
-  }
-  return newest
-}
-
 /**
- * Remove other profiles' namespaces that nothing has touched for a week. Throwaway profiles such
- * as `pnpm dev:debug` runs get a fresh namespace each time and no Host ever sweeps it again.
+ * Remove a scratch directory unless a Run holds it. Checked and started in the same tick, so a Run
+ * that retains it afterwards waits for the removal instead of losing files mid-Run. Resolves
+ * whether it was removed; a failed removal resolves false.
  */
-async function sweepAbandonedNamespaces(root: string, now: number) {
-  const userDirectory = path.dirname(root)
-  const ownNamespace = path.basename(root)
-  let removed = 0
-  for (const name of await fs.readdir(userDirectory)) {
-    if (name === ownNamespace) continue
-    const namespace = path.join(userDirectory, name)
-    if (!(await isOwnedPrivateDirectory(namespace).catch(() => false))) continue
-    const newest = await newestModification(namespace).catch(() => now)
-    if (now - newest < ABANDONED_NAMESPACE_AGE_MS) continue
-    await fs.rm(namespace, { recursive: true, force: true })
-    removed += 1
+export function removeUnretainedScratchDirectory(directory: string) {
+  const state = scratchDirectoryState(directory)
+  if (state.retained > 0) {
+    forgetIdleState(directory, state)
+    return Promise.resolve(false)
   }
-  return removed
-}
-
-/**
- * Remove scratch directories whose Session is gone or archived. Archive and delete remove the
- * directory while the Host runs; this catches Sessions deleted while it was down or left behind by
- * a failed removal. Directories in use by a Run, or too young to rule out a new Session, are kept.
- * Other profiles' namespaces are removed only once abandoned for a week. Returns the number of
- * directories removed.
- */
-export async function sweepSessionScratchDirectories(
-  liveSessionIds: Iterable<string>,
-  root = sessionScratchRoot(),
-  now = Date.now(),
-) {
-  const live = new Set(
-    Array.from(liveSessionIds, (sessionId) =>
-      path.basename(sessionScratchDirectoryPath(sessionId, root)),
-    ),
+  return removeNow(directory, state).then(
+    () => true,
+    () => false,
   )
-  let entries: string[]
-  try {
-    if (!(await isOwnedPrivateDirectory(path.dirname(root)))) return 0
-    entries = (await isOwnedPrivateDirectory(root).catch(() => false)) ? await fs.readdir(root) : []
-  } catch (error) {
-    if (hasErrorCode(error, 'ENOENT')) return 0
-    throw error
-  }
-  let removed = 0
-  for (const name of entries) {
-    if (live.has(name)) continue
-    const directory = path.join(root, name)
-    const stats = await fs.lstat(directory).catch(() => undefined)
-    if (!stats?.isDirectory() || stats.isSymbolicLink()) continue
-    if (now - stats.mtimeMs < SWEEP_MINIMUM_AGE_MS) continue
-    // Checked after the awaits and right before starting the removal, in the same tick, so a Run
-    // that retained the directory meanwhile keeps it; a later Run waits for the removal instead.
-    const state = scratchDirectoryState(directory)
-    if (state.retained > 0) {
-      forgetIdleState(directory, state)
-      continue
-    }
-    await removeNow(directory, state)
-    removed += 1
-  }
-  return removed + (await sweepAbandonedNamespaces(root, now))
 }
 
 /**

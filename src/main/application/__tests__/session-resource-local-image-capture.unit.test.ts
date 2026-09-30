@@ -57,7 +57,7 @@ function expectCapturedLocalImage(upserts: readonly UpsertSessionResourceInput[]
 
 describe('local assistant Markdown image capture', () => {
   it('authorizes the workspace and dedicated agent image directories', () => {
-    const roots = localImageCaptureRoots('/workspace')
+    const roots = localImageCaptureRoots('/workspace', 'session-qa')
 
     expect(roots).toContain('/workspace')
     expect(roots).toContain(`${os.tmpdir()}/electron-qa-evidence`)
@@ -102,7 +102,7 @@ ${LOCAL_IMAGE_MARKDOWN}
           count: 0,
         },
         { filePath: LOCAL_IMAGE_PATH, mimeType: 'image/png', title: 'QA evidence' },
-        localImageCaptureRoots(null),
+        localImageCaptureRoots(null, 'session-qa'),
       ).pipe(Effect.provide(sessionResourceTestLayer([], { readSourceFails: true }))),
     )
 

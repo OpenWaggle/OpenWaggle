@@ -37,6 +37,7 @@ import { executeRegisteredRun } from './session-control-run-dispatch'
 import { loadRunExecutionProfile } from './session-control-run-executor-profile'
 import { publishRunStartFailure, terminalRunResult } from './session-control-run-result'
 import type { ResolvedSessionRunExecution } from './session-run-execution-profile'
+import { withRetainedScratchDirectory } from './session-scratch-retention'
 import {
   liveSessionAuthorityBlockReason,
   loadSessionAuthoritySnapshot,
@@ -183,24 +184,32 @@ function executeRunAfterAttachmentAdmission(input: SessionControlRunExecutionInp
         )
       },
     })
-    const registered = yield* executeRegisteredRun({
-      request: input,
-      execution,
-      controller: input.controller,
-      allowModelMultiAgent,
-    }).pipe(
-      Effect.ensuring(
-        Effect.sync(() => {
-          releaseInteractionDeadline()
-          if (authorityDriftTimer) clearInterval(authorityDriftTimer)
-        }),
-      ),
-    )
-    yield* captureRunResultResources(
+    // Held through resource capture too, so images the agent embedded from its scratch directory
+    // are captured even when the Session was archived during the Run.
+    const registered = yield* withRetainedScratchDirectory(
       input.sessionId,
-      input.runId,
-      registered.payload,
-      registered.resourceResult,
+      Effect.gen(function* () {
+        const result = yield* executeRegisteredRun({
+          request: input,
+          execution,
+          controller: input.controller,
+          allowModelMultiAgent,
+        }).pipe(
+          Effect.ensuring(
+            Effect.sync(() => {
+              releaseInteractionDeadline()
+              if (authorityDriftTimer) clearInterval(authorityDriftTimer)
+            }),
+          ),
+        )
+        yield* captureRunResultResources(
+          input.sessionId,
+          input.runId,
+          result.payload,
+          result.resourceResult,
+        )
+        return result
+      }),
     )
     const ending = {
       ...(registered.terminalEventAt === undefined

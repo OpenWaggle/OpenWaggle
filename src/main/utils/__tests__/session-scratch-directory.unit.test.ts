@@ -14,7 +14,6 @@ import {
   sessionScratchDirectoryPath,
   sessionScratchEnvironment,
   sessionScratchRoot,
-  sweepSessionScratchDirectories,
 } from '../session-scratch-directory'
 
 const OWNER_ONLY = 0o700
@@ -22,11 +21,16 @@ const OWNER_ONLY = 0o700
 const SOCKET_ROOM_SCRATCH_PATH_BYTES = 56
 const TWO_HOURS_MS = 2 * 60 * 60 * 1000
 const EIGHT_DAYS_MS = 8 * 24 * 60 * 60 * 1000
-const DEFAULT_NAMESPACE_SOURCE = 'default'
 
 const missing = { code: 'ENOENT' }
 const PERMISSION_BITS = 0o777
 const posixOnly = process.platform === 'win32' ? it.skip : it
+
+const namespaceRestores: (() => void)[] = []
+
+function useNamespace(userDataRoot: string) {
+  namespaceRestores.push(configureSessionScratchNamespace(userDataRoot))
+}
 
 describe('Session scratch directory', () => {
   let temporaryDirectory = ''
@@ -38,8 +42,8 @@ describe('Session scratch directory', () => {
   })
 
   afterEach(async () => {
-    // Some tests switch the namespace; later tests and files expect the default one.
-    configureSessionScratchNamespace(DEFAULT_NAMESPACE_SOURCE)
+    // Some tests switch the namespace; put back whatever the module had before them.
+    for (const restore of namespaceRestores.splice(0).reverse()) restore()
     await fs.rm(temporaryDirectory, { recursive: true, force: true })
   })
 
@@ -182,78 +186,25 @@ describe('Session scratch directory', () => {
   })
 
   it('gives each OpenWaggle profile its own scratch root so one Host never sweeps another', () => {
-    configureSessionScratchNamespace('/Users/me/Library/Application Support/openwaggle')
+    useNamespace('/Users/me/Library/Application Support/openwaggle')
     const app = sessionScratchRoot(temporaryDirectory)
-    configureSessionScratchNamespace('/Users/me/Library/Application Support/OpenWaggle Dev (x)')
+    useNamespace('/Users/me/Library/Application Support/OpenWaggle Dev (x)')
     const dev = sessionScratchRoot(temporaryDirectory)
 
     expect(app).not.toBe(dev)
     expect(path.dirname(app)).toBe(path.dirname(dev))
   })
 
-  it('sweeps directories of Sessions that are gone and keeps live, young, and running ones', async () => {
-    const [live, gone, running] = await Promise.all([
-      prepareSessionScratchDirectory('session-live', root),
-      prepareSessionScratchDirectory('session-gone', root),
-      prepareSessionScratchDirectory('session-running', root),
-    ])
-    const release = retainSessionScratchDirectory('session-running', root)
+  it('marks the directory and its namespace as used each time a Run prepares it', async () => {
+    const directory = await prepareSessionScratchDirectory('session-a', root)
+    const old = new Date(Date.now() - EIGHT_DAYS_MS)
+    await Promise.all([fs.utimes(directory, old, old), fs.utimes(root, old, old)])
 
-    await expect(sweepSessionScratchDirectories(['session-live'], root, Date.now())).resolves.toBe(
-      0,
-    )
-    await expect(
-      sweepSessionScratchDirectories(['session-live'], root, Date.now() + TWO_HOURS_MS),
-    ).resolves.toBe(1)
+    await prepareSessionScratchDirectory('session-a', root)
 
-    await expect(fs.access(gone)).rejects.toMatchObject(missing)
-    expect((await fs.stat(live)).isDirectory()).toBe(true)
-    expect((await fs.stat(running)).isDirectory()).toBe(true)
-    await release()
-  })
-
-  it('keeps a directory a Run retained while the sweep was reading it', async () => {
-    const directory = await prepareSessionScratchDirectory('session-racing', root)
-    const lstat = fs.lstat.bind(fs)
-    let release: (() => Promise<void>) | undefined
-    const spy = vi.spyOn(fs, 'lstat').mockImplementation(async (target, options) => {
-      const stats = await lstat(target, options)
-      // The Session is unarchived and its Run starts while the sweep awaits this lstat.
-      if (target === directory && !release) {
-        release = retainSessionScratchDirectory('session-racing', root)
-      }
-      return stats
-    })
-    try {
-      await expect(
-        sweepSessionScratchDirectories([], root, Date.now() + TWO_HOURS_MS),
-      ).resolves.toBe(0)
-    } finally {
-      spy.mockRestore()
-    }
-
-    expect((await fs.stat(directory)).isDirectory()).toBe(true)
-    await release?.()
-  })
-
-  it("removes another profile's namespace only after a week without a Run", async () => {
-    configureSessionScratchNamespace('/profiles/throwaway')
-    const throwawayRoot = sessionScratchRoot(temporaryDirectory)
-    await prepareSessionScratchDirectory('session-throwaway', throwawayRoot)
-    configureSessionScratchNamespace(DEFAULT_NAMESPACE_SOURCE)
-    const ownRoot = sessionScratchRoot(temporaryDirectory)
-    await prepareSessionScratchDirectory('session-own', ownRoot)
-
-    await sweepSessionScratchDirectories(['session-own'], ownRoot, Date.now() + TWO_HOURS_MS)
-    expect((await fs.stat(throwawayRoot)).isDirectory()).toBe(true)
-
-    await sweepSessionScratchDirectories(['session-own'], ownRoot, Date.now() + EIGHT_DAYS_MS)
-    await expect(fs.access(throwawayRoot)).rejects.toMatchObject(missing)
-    expect((await fs.stat(ownRoot)).isDirectory()).toBe(true)
-  })
-
-  it('treats a missing scratch root as nothing to sweep', async () => {
-    await expect(sweepSessionScratchDirectories([], root)).resolves.toBe(0)
+    const recent = Date.now() - TWO_HOURS_MS
+    expect((await fs.stat(directory)).mtimeMs).toBeGreaterThan(recent)
+    expect((await fs.stat(root)).mtimeMs).toBeGreaterThan(recent)
   })
 
   it('prefers the preserved Host temp directory inside a tool process', () => {

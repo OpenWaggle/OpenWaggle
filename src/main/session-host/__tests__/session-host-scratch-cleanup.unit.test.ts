@@ -26,12 +26,11 @@ describe('Session Host scratch directory cleanup', () => {
   let sessionA = ''
   let sessionB = ''
   let marker = ''
-  let namespace = ''
+  let restoreNamespace: () => void = () => undefined
 
   beforeEach(() => {
     // An own namespace, removed afterwards, so the shared default one under /tmp is not left behind.
-    namespace = `scratch-cleanup-${randomUUID()}`
-    configureSessionScratchNamespace(namespace)
+    restoreNamespace = configureSessionScratchNamespace(`scratch-cleanup-${randomUUID()}`)
     sessionA = `scratch-cleanup-${randomUUID()}`
     sessionB = `scratch-cleanup-${randomUUID()}`
     marker = `scratch-cleanup-${randomUUID()}`
@@ -50,7 +49,7 @@ describe('Session Host scratch directory cleanup', () => {
     liveness?.close()
     await Promise.all([sessionA, sessionB, marker].map((id) => removeSessionScratchDirectory(id)))
     await fs.rm(sessionScratchRoot(), { recursive: true, force: true })
-    configureSessionScratchNamespace('default')
+    restoreNamespace()
   })
 
   it.each(['archived', 'deleted'] as const)(
@@ -83,6 +82,25 @@ describe('Session Host scratch directory cleanup', () => {
 
     await releaseRun()
     await waitForRemoval(directory)
+  })
+
+  it('keeps the directory when a Session archived mid-Run is unarchived before the Run ends', async () => {
+    const directory = await prepareSessionScratchDirectory(sessionA)
+    const releaseRun = retainSessionScratchDirectory(sessionA)
+
+    publishSessionHostEvent({
+      kind: 'session-list-changed',
+      sessionId: sessionA,
+      change: 'archived',
+    })
+    publishSessionHostEvent({
+      kind: 'session-list-changed',
+      sessionId: sessionA,
+      change: 'unarchived',
+    })
+    await releaseRun()
+
+    expect((await fs.stat(directory)).isDirectory()).toBe(true)
   })
 
   it.each(['created', 'updated', 'unarchived'] as const)(

@@ -25,13 +25,13 @@ const AGENT_IMAGE_TEMP_DIRECTORIES = ['electron-qa-evidence', 'openwaggle-eviden
  * The agent's `TMPDIR` is that scratch directory, so `$TMPDIR/electron-qa-evidence/...` lands
  * there; it is private to the Session, so the whole directory is allowed.
  */
-export function localImageCaptureRoots(workingPath: string | null, sessionId?: string) {
+export function localImageCaptureRoots(workingPath: string | null, sessionId: string) {
   const temporaryParents = [os.tmpdir(), process.platform === 'win32' ? null : '/tmp'].filter(
     (root): root is string => root !== null,
   )
   return [
     ...(workingPath ? [workingPath] : []),
-    ...(sessionId ? [sessionScratchDirectoryPath(sessionId)] : []),
+    sessionScratchDirectoryPath(sessionId),
     ...temporaryParents.flatMap((root) =>
       AGENT_IMAGE_TEMP_DIRECTORIES.map((directory) => path.join(root, directory)),
     ),

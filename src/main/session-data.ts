@@ -1,5 +1,6 @@
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { configureSessionScratchNamespace } from './utils/session-scratch-directory'
 
 const SESSION_DATA_DIRECTORY_NAME = 'session-data'
 const CHROMIUM_DIPS_BASENAME = 'DIPS'
@@ -45,6 +46,8 @@ export function configureAppStoragePaths(
   const userDataPath = overrideUserDataPath ?? appPaths.getPath('userData')
   appPaths.setPath('userData', userDataPath)
   mkdirSync(userDataPath, { recursive: true })
+  // The GUI captures Session images from scratch directories too, so it must agree with the Host.
+  configureSessionScratchNamespace(userDataPath)
 
   const sessionDataPath = join(userDataPath, SESSION_DATA_DIRECTORY_NAME)
   mkdirSync(sessionDataPath, { recursive: true })

@@ -13,6 +13,7 @@ import type {
 } from '../../ports/mcp-runtime-service'
 import type { TerminalServiceShape } from '../../ports/terminal-service'
 import type { WorkspacePreparationServiceShape } from '../../ports/workspace-preparation-service'
+import { withRetainedScratchDirectory } from '../session-scratch-retention'
 import { runPiSession } from './agent-kernel/classic-run'
 import { restrictMcpSnapshot } from './agent-kernel/restricted-mcp-snapshot'
 import type { PiRuntimeExtensionIsolationInput } from './agent-kernel/runtime-extension-isolation'
@@ -25,7 +26,6 @@ import {
   createWorktreeLaunchReporter,
   prepareScratchDirectory,
   prepareVisualizationDirectory,
-  withRetainedScratchDirectory,
 } from './pi-agent-kernel-launch'
 import { prepareActionWorkspace } from './prepare-action-workspace'
 import {
