@@ -37,6 +37,17 @@ describe('desktop app release branch synchronization', () => {
     expect(result.manifest).toBe(result.expectedManifest)
   })
 
+  it('ends without a release when the maintainer closes the release PR during CI', async () => {
+    const result = await runReleaseSync({ closeDuringCi: true })
+
+    expect(result.succeeded, result.stderr).toBe(true)
+    expect(result.events).toEqual(['update', `ci ${result.head}`])
+    expect(result.outputs).toBe('should_release=false\n')
+    expect(result.tags).toBe('')
+    expect(result.stdout).toContain('was closed during validation; nothing to prepare')
+    expect(result.stdout).not.toContain('Release PR ready for maintainer review')
+  })
+
   it('retries before CI when main advances during the branch update', async () => {
     const result = await runReleaseSync({ advanceDuring: 'update' })
 
