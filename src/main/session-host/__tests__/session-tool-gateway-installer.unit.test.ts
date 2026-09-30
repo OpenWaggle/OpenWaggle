@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { authorizeSessionTargetForCaller } from '../../domain/session-control/session-capability-authorization'
 import { SQLITE_PREPARE_CACHE_SIZE } from '../../services/database-constants'
 import { resolveSessionToolAgentCaller } from '../session-tool-gateway-installer'
+import { insertRunInitiators } from './session-run-initiators.test-support'
 
 describe('Sessions tool agent authority', () => {
   let temporaryRoot = ''
@@ -37,13 +38,19 @@ describe('Sessions tool agent authority', () => {
       Effect.gen(function* () {
         const sql = yield* SqlClient.SqlClient
         yield* sql.unsafe(`CREATE TABLE sessions (id TEXT PRIMARY KEY, project_path TEXT)`)
-        yield* sql.unsafe(
-          `CREATE TABLE session_runs (id TEXT PRIMARY KEY, session_id TEXT NOT NULL, intent_json TEXT)`,
-        )
         // The desktop user started the Queen's Run, so the Queen reaches every project.
-        yield* sql`INSERT INTO session_runs (id, session_id, intent_json) VALUES (
-          ${'run-queen'}, ${'queen'}, ${JSON.stringify({ callerId: 'gui:local-user' })}
-        )`
+        yield* insertRunInitiators(sql, [
+          ['run-queen', 'queen', 'gui:local-user'],
+          ['run-worker', 'worker', 'session-agent:queen:run-queen'],
+          [
+            'run-exact-worker',
+            'restricted-worker',
+            'session-agent:restricted-root:run-exact-queen',
+          ],
+          ...['exact-queen', 'downgraded-queen', 'restricted-before', 'restricted-after'].map(
+            (name) => [`run-${name}`, 'restricted-root', 'profile:origin-profile'] as const,
+          ),
+        ])
         yield* sql.unsafe(`
           CREATE TABLE session_execution_profiles (
             session_id TEXT PRIMARY KEY,

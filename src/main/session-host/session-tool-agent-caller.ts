@@ -13,10 +13,9 @@ import {
 import * as Effect from 'effect/Effect'
 import { sessionAgentRunReachesEveryProject } from '../adapters/session-agent-run-project-reach'
 import { decodeSessionExecutionProfile } from '../adapters/session-run-execution-profile'
-import {
-  assertSessionAuthoritySnapshot,
-  decodeSessionAuthoritySnapshot,
-} from './session-authority-snapshot'
+import { runInitiatorCeiling } from './session-agent-run-ceiling'
+import { decodeSessionAuthoritySnapshot } from './session-authority-snapshot'
+import { agentBaseScope, assertSnapshotStillHolds } from './session-tool-agent-caller-scope'
 import { loadScopedSessionAgentTargets } from './session-tool-agent-scope'
 
 interface AuthorityRow {
@@ -152,20 +151,6 @@ function sharedProjectScopePath(
   return shared ? row.project_path : undefined
 }
 
-function agentBaseScope(input: {
-  readonly everyProject: boolean
-  readonly sharedProjectPath: string | undefined
-  readonly sessionIds: readonly string[]
-  readonly filesystemRoot: string
-}) {
-  const roots = { exportRoots: [input.filesystemRoot], attachmentRoots: [input.filesystemRoot] }
-  if (input.everyProject) return { all: true, ...roots }
-  if (input.sharedProjectPath !== undefined) {
-    return { projectPaths: [input.sharedProjectPath], ...roots }
-  }
-  return { sessionIds: [...input.sessionIds], ...roots }
-}
-
 function loadAuthorityRow(sql: SqlClient.SqlClient, sessionId: string) {
   return sql<AuthorityRow>`
     SELECT
@@ -198,20 +183,40 @@ function loadAuthorityRow(sql: SqlClient.SqlClient, sessionId: string) {
   `
 }
 
-function assertSnapshotStillHolds(
+/**
+ * The Session's own ceiling, also bounded by whoever started this Run, so a yolo Session messaged
+ * by an ask-for-approval caller cannot start yolo Runs on that caller's behalf.
+ */
+function snapshotOriginAuthority(
+  row: AuthorityRow,
   authoritySnapshot: ReturnType<typeof decodeSessionAuthoritySnapshot>,
-  workingDirectory: string,
+  effective: ReturnType<typeof effectiveCapabilities>,
 ) {
-  if (!authoritySnapshot) return Effect.void
-  return Effect.tryPromise({
-    try: async () => {
-      await assertSessionAuthoritySnapshot(authoritySnapshot)
-      if (workingDirectory !== authoritySnapshot.workingPath) {
-        throw new Error('Session working directory differs from its authority snapshot.')
-      }
+  if (!authoritySnapshot) return undefined
+  return {
+    authority: {
+      profileId: row.origin_profile_id ?? 'restricted-origin',
+      profileName: row.origin_profile_id ?? 'restricted-origin',
+      capabilities: effective.originCapabilities ?? effective.capabilities,
+      scope: authoritySnapshot.scope,
+      authorizationCeiling: row.origin_profile_authorization_ceiling ?? row.authorization_ceiling,
     },
-    catch: (cause) => new Error('Session authority changed after it was granted.', { cause }),
-  })
+    scope: authoritySnapshot.scope,
+  }
+}
+
+function agentRunCeiling(
+  sql: SqlClient.SqlClient,
+  row: AuthorityRow,
+  input: { readonly sessionId: string; readonly runId: string },
+) {
+  return runInitiatorCeiling(sql, input.sessionId, input.runId).pipe(
+    Effect.map((initiatorCeiling) =>
+      initiatorCeiling === 'ask-for-approval'
+        ? initiatorCeiling
+        : effectiveAuthorizationCeiling(row),
+    ),
+  )
 }
 
 export function resolveSessionToolAgentCaller(
@@ -225,19 +230,7 @@ export function resolveSessionToolAgentCaller(
     yield* assertSnapshotStillHolds(authoritySnapshot, input.workingDirectory)
     const effective = effectiveCapabilities(row)
     const origin = originAuthority(row, effective.originCapabilities)
-    const snapshotOrigin = authoritySnapshot
-      ? {
-          authority: {
-            profileId: row.origin_profile_id ?? 'restricted-origin',
-            profileName: row.origin_profile_id ?? 'restricted-origin',
-            capabilities: effective.originCapabilities ?? effective.capabilities,
-            scope: authoritySnapshot.scope,
-            authorizationCeiling:
-              row.origin_profile_authorization_ceiling ?? row.authorization_ceiling,
-          },
-          scope: authoritySnapshot.scope,
-        }
-      : undefined
+    const snapshotOrigin = snapshotOriginAuthority(row, authoritySnapshot, effective)
     const origins = [origin, snapshotOrigin].filter(
       (candidate): candidate is NonNullable<typeof candidate> => candidate !== undefined,
     )
@@ -271,7 +264,7 @@ export function resolveSessionToolAgentCaller(
       sessionIds: baseSessionIds,
       filesystemRoot,
     })
-    const ceiling = effectiveAuthorizationCeiling(row)
+    const ceiling = yield* agentRunCeiling(sql, row, input)
     return {
       callerId: `session-agent:${input.sessionId}:${input.runId}`,
       workingDirectory: input.workingDirectory,

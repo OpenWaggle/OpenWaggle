@@ -4,6 +4,7 @@ import { SessionId, SupportedModelId } from '@shared/types/brand'
 import type { SessionEnvironmentMode } from '@shared/types/git'
 import type { SessionDetail, SessionSummary } from '@shared/types/session'
 import * as Effect from 'effect/Effect'
+import { sessionAgentCallerRunCeiling } from '../../session-host/session-agent-run-ceiling'
 import { sessionIdsForQuery } from '../sessions/hydration'
 import { attachSessionLineage, loadSessionLineageRows } from '../sessions/session-list'
 import { runStoreEffect } from '../store-runtime'
@@ -287,10 +288,15 @@ export async function getSessionCallerAuthorizationBoundary(callerId: string) {
       const missingWorkerGrant = row.parent_session_id !== null && row.grant_ceiling === null
       const revoked =
         missingWorkerGrant || row.grant_revoked_at !== null || row.profile_revoked_at !== null
+      // The caller's Run counts too: an agent acting for an ask-for-approval initiator stays there.
+      const runCeiling = yield* sessionAgentCallerRunCeiling(sql, callerId).pipe(
+        Effect.orElseSucceed(() => 'ask-for-approval' as const),
+      )
       const authorizationCeiling =
         row.execution_ceiling === 'ask-for-approval' ||
         row.grant_ceiling === 'ask-for-approval' ||
-        row.profile_ceiling === 'ask-for-approval'
+        row.profile_ceiling === 'ask-for-approval' ||
+        runCeiling === 'ask-for-approval'
           ? ('ask-for-approval' as const)
           : ('yolo' as const)
       return { authorizationCeiling, revoked }
