@@ -2,6 +2,7 @@ import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 // Must be first: renames dev builds before any module reads app userData.
 import './apply-build-identity'
+import './restore-host-temporary-directory' // before any module caches a temp path
 import { electronApp, is } from '@electron-toolkit/utils'
 import { app } from 'electron'
 import {
@@ -16,7 +17,7 @@ import { applicationCliArguments } from './application-cli-arguments'
 import { registerApplicationProtocols } from './application-protocols'
 import { getAllBrowserWindows, isAutomationMode } from './desktop-ui'
 import { configureDesktopUiAfterReady, prepareDesktopUi } from './desktop-window-policy'
-import { env, installDesktopShellEnvironment, restoreHostTemporaryDirectory } from './env'
+import { env, installDesktopShellEnvironment } from './env'
 import { describeError } from './error-description'
 import { installInlineVisualizationNavigationGuard } from './inline-visualization-navigation'
 import { applyInstallerUpdateChannelIntent } from './installer-update-channel-intent'
@@ -54,7 +55,6 @@ type AgentHandlerModule = Awaited<ReturnType<typeof importAgentHandlerModule>>
 type IpcHandlersModule = Awaited<ReturnType<typeof importIpcHandlersModule>>
 type RuntimeModule = Awaited<ReturnType<typeof importRuntimeModule>>
 
-restoreHostTemporaryDirectory()
 configureInlineVisualizationProcessIsolation()
 registerRendererScheme()
 
