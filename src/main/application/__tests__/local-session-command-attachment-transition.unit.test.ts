@@ -1,7 +1,12 @@
 import { FollowUpId, RunId, SessionId } from '@shared/types/brand'
 import { fromPartial } from '@total-typescript/shoehorn'
+import * as Duration from 'effect/Duration'
 import * as Effect from 'effect/Effect'
+import * as Fiber from 'effect/Fiber'
 import * as Layer from 'effect/Layer'
+import * as Option from 'effect/Option'
+import * as TestClock from 'effect/TestClock'
+import * as TestContext from 'effect/TestContext'
 import { describe, expect, it, vi } from 'vitest'
 import { withRunAttachmentCleanup } from '../../adapters/session-control-run-executor'
 import { AgentSteeringService } from '../../ports/agent-steering-service'
@@ -29,6 +34,7 @@ import {
   waitForSessionRuns,
 } from '../active-session-runs'
 import { dispatchAdmittedSessionControlCommand } from '../local-session-command-dispatcher'
+import { RUN_INTERRUPTION_SETTLEMENT_WAIT_MS } from '../session-control-external-service'
 import { NoopActionRunServiceLayer } from './action-run-service-test-layer'
 import { NoopSessionDesktopLayer } from './desktop-service-test-layer'
 import {
@@ -239,6 +245,51 @@ describe('Local Session attachment transition dispatch', () => {
       run.release()
       await replace.catch(() => undefined)
       await liveRun
+    }
+  })
+
+  it('answers Stop once the settlement bound passes when the aborted Run never settles', async () => {
+    const sessionId = SessionId('session-stop-unsettled-run')
+    const runId = RunId('run-unsettled')
+    const run = reserveActiveSessionRun(sessionId, runId)
+    const setup = makePromotionReplacementLayer(
+      {
+        sessionId,
+        revision: 4,
+        run: { state: 'active', runId },
+        followUpQueue: { state: 'running', revision: 0, items: [] },
+      },
+      { interrupt: interruptLiveRun },
+    )
+    const layer = Layer.mergeAll(settingsLayer, unusedDispatcherCommandDependencies(), setup.layer)
+    try {
+      const stop = await Effect.runPromise(
+        Effect.gen(function* () {
+          const fiber = yield* Effect.fork(
+            dispatchAdmittedSessionControlCommand({
+              caller: localUser,
+              payload: controlPayload({ operation: 'interrupt', sessionId, expectedRunId: runId }),
+            }),
+          )
+          // Let the command reach the Run's abort and arm its settlement bound.
+          for (let turn = 0; turn < 100 && !run.controller.signal.aborted; turn += 1) {
+            yield* Effect.yieldNow()
+          }
+          expect(run.controller.signal.aborted).toBe(true)
+          yield* TestClock.adjust(Duration.millis(RUN_INTERRUPTION_SETTLEMENT_WAIT_MS - 1))
+          expect(Option.isNone(yield* Fiber.poll(fiber))).toBe(true)
+          yield* TestClock.adjust(Duration.millis(1))
+          return yield* Fiber.join(fiber)
+        }).pipe(Effect.provide(layer), Effect.provide(TestContext.TestContext)),
+      )
+
+      expect(stop).toMatchObject({
+        response: { outcome: { effect: 'interruption-requested', runId } },
+      })
+      // The Run still owns the Session until its teardown settles it.
+      expect(setup.state().run).toEqual({ state: 'stopping', runId })
+    } finally {
+      run.release()
     }
   })
 

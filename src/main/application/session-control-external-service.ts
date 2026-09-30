@@ -8,6 +8,7 @@ import type {
   SessionControlMutationResponse,
   SessionControlSteerMutationRequest,
 } from '@shared/types/session-control'
+import * as Duration from 'effect/Duration'
 import * as Effect from 'effect/Effect'
 import {
   applyRunInterruption,
@@ -24,6 +25,13 @@ import { releaseSessionControlAttachments } from './session-attachment-cleanup'
 import { authorizeDescendantInterruptionSnapshot } from './session-control-descendant-authorization'
 
 const DESCENDANT_INTERRUPTION_CONCURRENCY = 8
+/**
+ * How long an interrupt waits for the aborted Run to settle before it answers. The abort is
+ * already delivered, and the settlement still reaches every client as a Session state event. A
+ * Run whose teardown hangs must not hold the reply past the client's response timeout, where it
+ * reads as an unreachable Session Host.
+ */
+export const RUN_INTERRUPTION_SETTLEMENT_WAIT_MS = 5_000
 
 export interface SteerSessionRunInput {
   readonly callerId: string
@@ -273,12 +281,23 @@ export function interruptSessionRun(input: InterruptSessionRunInput) {
     }
 
     const interruption = yield* AgentRunInterruptionService.pipe(
-      Effect.flatMap((service) =>
-        (input.requestOnly ? service.requestInterrupt : service.interrupt)({
+      Effect.flatMap((service) => {
+        const target = {
           sessionId: input.request.command.sessionId,
           runId: input.request.command.expectedRunId,
-        }),
-      ),
+        }
+        if (input.requestOnly) return service.requestInterrupt(target)
+        // Session Control dispatch runs interrupts uninterruptibly; only this wait may be cut
+        // short. A Run that is still settling was live, so its abort was accepted.
+        return service.interrupt(target).pipe(
+          Effect.interruptible,
+          Effect.timeoutTo({
+            duration: Duration.millis(RUN_INTERRUPTION_SETTLEMENT_WAIT_MS),
+            onSuccess: (result) => result,
+            onTimeout: () => ({ accepted: true }) as const,
+          }),
+        )
+      }),
     )
     const outcome: SessionControlMutationOutcome = interruption.accepted
       ? {
