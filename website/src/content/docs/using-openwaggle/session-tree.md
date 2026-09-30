@@ -62,7 +62,7 @@ To copy history into a separate session, open the command palette and use:
 - **Fork to new session** to choose a previous user message and start a new session with that message ready to edit and resend.
 - **Clone current session** to copy the selected conversation path into a new session with a blank message box.
 
-Both leave the original conversation intact and give the copy the original session's title, which you can rename. They copy conversation history, not a backup of your working files.
+Both leave the original conversation intact. The new session is named after the original, marked `(fork)` or `(copy)`; you can rename it. They copy conversation history, not a backup of your working files.
 
 For saved links, the app can retain `branch`, `node`, and `panel=session-tree` in the route. An unsent draft branch is temporary and is not restored from a copied URL.
 

@@ -24,7 +24,7 @@ export function sendWorkflowParams(
     clearDraftBranchForSession: vi.fn(),
     draftBranch: null,
     extensionContributions: null,
-    followBranchHead: vi.fn(),
+    trackRoutedNode: vi.fn(() => vi.fn()),
     handleSend: vi.fn().mockResolvedValue(undefined),
     handleSendWaggle: vi.fn().mockResolvedValue(undefined),
     messages: [],

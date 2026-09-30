@@ -164,9 +164,16 @@ export function useSessionCopyWorkflow(params: SessionCopyWorkflowParams) {
       return cloneCurrentSessionToNewSessionAction(params)
     },
     async forkMessageToNewSession(messageId: string) {
-      if (!params.activeSessionId) return
+      const sessionId = params.activeSessionId
+      if (!sessionId) return
+      if (!isModelActionable(params.model)) {
+        params.showToast('Select a model before forking.')
+        return
+      }
       try {
-        const node = await findForkSourceNode(params, params.activeSessionId, messageId)
+        const node = await findForkSourceNode(params, sessionId, messageId)
+        // The source may have been re-read from the Host; do not fork a Session the user has left.
+        if (useChatStore.getState().activeSessionId !== sessionId) return
         if (!node) {
           params.showToast(
             'Fork source is not available yet. Wait for the transcript to finish loading and try again.',

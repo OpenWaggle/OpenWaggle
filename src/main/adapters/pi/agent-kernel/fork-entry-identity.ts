@@ -1,6 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { readFile, rename, rm, writeFile } from 'node:fs/promises'
-import { parseJsonUnknown } from '@shared/schema'
+import { rename, rm, writeFile } from 'node:fs/promises'
 import { isRecord } from '@shared/utils/validation'
 
 /**
@@ -58,16 +57,14 @@ export function rekeyForkedSessionLines(lines: readonly unknown[]): readonly unk
   })
 }
 
-function parseSessionFileLines(content: string) {
-  return content
-    .split('\n')
-    .filter((line) => line.trim().length > 0)
-    .map(parseJsonUnknown)
-}
-
-/** Re-keys a forked Pi session file in place; see {@link rekeyForkedSessionLines}. */
-export async function rekeyForkedSessionFile(sessionFile: string) {
-  const lines = parseSessionFileLines(await readFile(sessionFile, 'utf8'))
+/**
+ * Writes a forked Pi session with fresh entry ids; see {@link rekeyForkedSessionLines}.
+ *
+ * The lines come from the fork's in-memory session, not from its file: Pi writes a fork file only
+ * once the copied path holds an assistant message, so a fork of a Session's first message has no
+ * file yet. The file is created or replaced atomically.
+ */
+export async function writeRekeyedForkedSession(sessionFile: string, lines: readonly unknown[]) {
   const rekeyed = rekeyForkedSessionLines(lines)
   const temporaryFile = `${sessionFile}.${randomUUID()}.rekey`
   try {

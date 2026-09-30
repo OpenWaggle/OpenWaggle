@@ -17,12 +17,12 @@ Two fixes were considered:
 
 ## Decision
 
-After Pi writes a fork file, and before OpenWaggle projects it, every entry gets a new id in Pi's format (the first eight characters of a UUID). The tree and Pi's cross-entry references are rewritten with it: `parentId`, a compaction's `firstKeptEntryId`, a branch summary's `fromId`, and the `targetId` of labels and context edits. A reference to an entry outside the file, such as a branch summary's source on another path, is left as it is. The file is replaced atomically, then reopened with Pi's `SessionManager` for the snapshot.
+After Pi forks, and before OpenWaggle projects the fork, every entry gets a new id in Pi's format (the first eight characters of a UUID). The tree and Pi's cross-entry references are rewritten with it: `parentId`, a compaction's `firstKeptEntryId`, a branch summary's `fromId`, and the `targetId` of labels and context edits. A reference to an entry outside the file, such as a branch summary's source on another path, is left as it is. The entries are taken from the fork's in-memory session, because Pi writes a fork file only once the copied path holds an assistant message; a fork of a Session's first message has no file yet. The file is created or replaced atomically, then reopened with Pi's `SessionManager` for the snapshot.
 
 The fork keeps its provenance in `session_derivations`, whose `source_node_id` is the source Session's node id.
 
 ## Consequences
 
-Forks and clones save, and a forked Session is an ordinary Pi session with ids of its own, so a later run, branch, or compaction in it cannot collide with its source either. A forked node has a different id from the node it was copied from; nothing in the product relates the two by id, and the derivation row records the fork point.
+Forks and clones save, and a forked Session is an ordinary Pi session with ids of its own, so a later run, branch, or compaction in it cannot collide with its source either. A forked node has a different id from the node it was copied from, and the derivation row records the fork point. Per-node data that lives only in the projection, such as the ownership of an inline visualization in an assistant message's metadata, is not carried into the fork, so such a visualization may not resolve there.
 
 Independent Sessions still share the global node key. Pi's ids are random, so a collision between unrelated Sessions is unlikely but possible, and would fail that Session's snapshot. Keying nodes by Session remains the complete fix if that ever happens.

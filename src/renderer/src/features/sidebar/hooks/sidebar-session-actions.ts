@@ -5,7 +5,7 @@ import type { QueryClient } from '@tanstack/react-query'
 import type { useNavigate } from '@tanstack/react-router'
 import { resolveCurrentConversationNode } from '@/features/chat/lib'
 import { useChatStore } from '@/features/chat/state'
-import { buildComposerDraftContextKey } from '@/features/composer/lib'
+import { buildPendingSessionDraftContextKey } from '@/features/composer/lib'
 import { useComposerStore } from '@/features/composer/state'
 import { isModelActionable } from '@/features/providers/state'
 import { useSessionStore } from '@/features/sessions/state'
@@ -124,13 +124,14 @@ function setComposerTextValue(text: string) {
   })
 }
 
-function activateClonedSession(
-  deps: SidebarSessionActionDeps,
-  sessionId: SessionId,
-  project: string | null,
-) {
-  const contextKey = buildComposerDraftContextKey({ projectPath: project, sessionId })
-  useComposerStore.getState().switchScopedDraftContext(contextKey, { input: '', attachments: [] })
+function activateClonedSession(deps: SidebarSessionActionDeps, sessionId: SessionId) {
+  // The clone has no hydrated workspace yet, so its first draft is the Session's pending draft.
+  useComposerStore
+    .getState()
+    .switchScopedDraftContext(buildPendingSessionDraftContextKey(sessionId), {
+      input: '',
+      attachments: [],
+    })
   setComposerTextValue('')
   useChatStore.getState().setActiveSession(sessionId)
   void deps.navigate({ to: '/sessions/$sessionId', params: { sessionId: String(sessionId) } })
@@ -178,7 +179,7 @@ async function cloneSession(deps: SidebarSessionActionDeps, sessionId: SessionId
       return
     }
     useChatStore.getState().upsertSession(result.session)
-    activateClonedSession(deps, result.session.id, result.session.projectPath)
+    activateClonedSession(deps, result.session.id)
     await Promise.all([
       deps.loadChatSessions(),
       deps.loadSessionTrees(),

@@ -10,7 +10,11 @@ export function isAgentLoopAuditNode(node: {
   readonly kind: string
   readonly contentJson: string
 }) {
-  if (node.kind !== 'custom') {
+  // Session detail reads count Pi entries on every load, so skip parsing unrelated custom nodes.
+  if (
+    node.kind !== 'custom' ||
+    !node.contentJson.includes(OPENWAGGLE_AGENT_LOOP.SESSION_EVENT_CUSTOM_TYPE)
+  ) {
     return false
   }
 

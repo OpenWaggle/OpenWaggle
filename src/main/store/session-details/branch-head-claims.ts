@@ -1,13 +1,29 @@
 import type { ProjectedSessionNodeInput } from '../../ports/session-repository'
-import { isDescendantOrSame } from './branch-utils'
 import type { SessionBranchRow } from './types'
 
 const FIRST_DUPLICATE_ID_SUFFIX = 2
 
+function ancestorDepth(
+  nodeById: ReadonlyMap<string, ProjectedSessionNodeInput>,
+  headId: string,
+  ancestorId: string | null,
+) {
+  let depth = 0
+  let currentId: string | null = headId
+  while (currentId) {
+    if (currentId === ancestorId) return depth
+    depth += 1
+    currentId = nodeById.get(currentId)?.parentId ?? null
+  }
+  return null
+}
+
 /**
  * Assigns each head the saved branch it continues: the saved branch whose head is this head or
- * one of its ancestors. Claims are made for every head before any fallback match, so a branch
+ * its nearest ancestor. Claims are made for every head before any fallback match, so a branch
  * started inside a saved branch cannot take that branch's row away from the head that grew it.
+ * The nearest ancestor wins because a retry inside a branch saves a row at the retried node,
+ * which is also an ancestor of the branch's own head.
  */
 export function claimSavedBranchesByHead(
   heads: readonly string[],
@@ -21,15 +37,15 @@ export function claimSavedBranchesByHead(
   const claimedIds = new Set<string>()
   for (const headId of heads) {
     if (headId === context.mainHeadId) continue
-    const row = existingBranches.find(
-      (branch) =>
-        branch.is_main !== 1 &&
-        !claimedIds.has(branch.id) &&
-        isDescendantOrSame(context.nodeById, headId, branch.head_node_id),
-    )
-    if (!row) continue
-    claims.set(headId, row)
-    claimedIds.add(row.id)
+    let nearest: { readonly row: SessionBranchRow; readonly depth: number } | null = null
+    for (const row of existingBranches) {
+      if (row.is_main === 1 || claimedIds.has(row.id)) continue
+      const depth = ancestorDepth(context.nodeById, headId, row.head_node_id)
+      if (depth !== null && (nearest === null || depth < nearest.depth)) nearest = { row, depth }
+    }
+    if (!nearest) continue
+    claims.set(headId, nearest.row)
+    claimedIds.add(nearest.row.id)
   }
   return { claims, claimedIds }
 }

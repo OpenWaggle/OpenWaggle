@@ -9,6 +9,7 @@ import type { UIMessage } from '@shared/types/chat-ui'
 import type { SessionNode, SessionWorkspace } from '@shared/types/session'
 import { act, renderHook } from '@testing-library/react'
 import { expect, it, vi } from 'vitest'
+import { useChatStore } from '@/features/chat/state'
 import { useComposerStore } from '@/features/composer/state'
 import { useSessionCopyWorkflow } from '../useSessionCopyWorkflow'
 
@@ -137,6 +138,7 @@ it('forks the persisted node of a message sent in this window and drafts its tex
       updatedAt: 2,
     },
   })
+  useChatStore.setState({ activeSessionId: sessionId })
   const showToast = vi.fn()
   const { result } = renderHook(() =>
     useSessionCopyWorkflow({

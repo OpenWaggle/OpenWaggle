@@ -2,7 +2,7 @@ import type { AgentSendPayload } from '@shared/types/agent'
 import { SessionId, SessionNodeId } from '@shared/types/brand'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { MessageNotDelivered } from '../../lib/message-delivery'
+import { MessageDeliveredRunFailed, MessageNotDelivered } from '../../lib/message-delivery'
 import { useBranchSummaryStore } from '../../state/branch-summary-store'
 import { useChatSendWorkflow } from '../useChatSendWorkflow'
 import { sendWorkflowParams } from './send-workflow-params'
@@ -54,29 +54,48 @@ describe('useChatSendWorkflow pending send', () => {
   })
 
   it('follows the branch head once a send from a retry draft is delivered', async () => {
+    const followBranchHead = vi.fn()
     const params = sendWorkflowParams({
       draftBranch: { sessionId: SESSION_ID, sourceNodeId: SessionNodeId('retry-source') },
+      trackRoutedNode: vi.fn(() => followBranchHead),
     })
     const { result } = renderHook(() => useChatSendWorkflow(params))
 
     await act(() => result.current.sendWithWaggle(payload('Retried question')))
 
+    expect(params.trackRoutedNode).toHaveBeenCalledWith(SESSION_ID)
     expect(params.branchSummary.materializeDraftBranchForSend).toHaveBeenCalledWith(
       params.draftBranch,
     )
     expect(params.clearDraftBranchForSession).toHaveBeenCalledWith(SESSION_ID)
-    expect(params.followBranchHead).toHaveBeenCalledWith(SESSION_ID)
+    expect(followBranchHead).toHaveBeenCalledOnce()
+  })
+
+  it('follows the branch head when the Run fails after the message was delivered', async () => {
+    const followBranchHead = vi.fn()
+    const params = sendWorkflowParams({
+      handleSend: vi.fn().mockRejectedValue(new MessageDeliveredRunFailed(new Error('Run failed'))),
+      trackRoutedNode: vi.fn(() => followBranchHead),
+    })
+    const { result } = renderHook(() => useChatSendWorkflow(params))
+
+    await expect(act(() => result.current.sendWithWaggle(payload('Hello')))).rejects.toBeInstanceOf(
+      MessageDeliveredRunFailed,
+    )
+    expect(followBranchHead).toHaveBeenCalledOnce()
   })
 
   it('keeps the routed node when the send is refused', async () => {
+    const followBranchHead = vi.fn()
     const params = sendWorkflowParams({
       handleSend: vi.fn().mockRejectedValue(new MessageNotDelivered('refused', 'No model.')),
+      trackRoutedNode: vi.fn(() => followBranchHead),
     })
     const { result } = renderHook(() => useChatSendWorkflow(params))
 
     await expect(act(() => result.current.sendWithWaggle(payload('Hello')))).rejects.toBeInstanceOf(
       MessageNotDelivered,
     )
-    expect(params.followBranchHead).not.toHaveBeenCalled()
+    expect(followBranchHead).not.toHaveBeenCalled()
   })
 })

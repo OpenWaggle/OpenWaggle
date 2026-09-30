@@ -1,5 +1,9 @@
 import type * as SqlClient from '@effect/sql/SqlClient'
-import { assertSessionTitle, boundGeneratedSessionTitle } from '@shared/session-title'
+import {
+  assertSessionTitle,
+  boundGeneratedSessionTitle,
+  SESSION_TITLE_MAX_LENGTH,
+} from '@shared/session-title'
 import { SessionId } from '@shared/types/brand'
 import * as Effect from 'effect/Effect'
 import { SessionLifecycleRepositoryError } from '../errors'
@@ -158,19 +162,22 @@ function persistSessionMetadata(
 }
 
 /**
- * A fork keeps its source's title. Titles are generated only for a Session with no messages, so a
- * fork left as "New session" never got a name, and several of them could not be told apart.
+ * An untitled fork is named after its source, marked as a fork or a copy. Titles are generated only
+ * for a Session with no messages, so a fork left as "New session" never got a name.
  */
 function defaultLifecycleTitle(
   sql: SqlClient.SqlClient,
   command: ExecuteInput['request']['command'],
 ) {
   if (command.operation !== 'fork') return Effect.succeed('New session')
+  const suffix = (command.position ?? 'at') === 'before' ? ' (fork)' : ' (copy)'
   return Effect.gen(function* () {
     const rows = yield* sql<{ readonly title: string }>`
       SELECT title FROM sessions WHERE id = ${command.sourceSessionId} LIMIT 1
     `
-    return rows[0]?.title ?? 'New session'
+    const source = rows[0]?.title
+    if (!source) return 'New session'
+    return `${source.slice(0, SESSION_TITLE_MAX_LENGTH - suffix.length).trimEnd()}${suffix}`
   })
 }
 

@@ -2,9 +2,14 @@ import type { SessionId, SessionNodeId } from '@shared/types/brand'
 import type { SessionWorkspace } from '@shared/types/session'
 import { api } from '@/shared/lib/ipc'
 
-function viewsBranchHead(workspace: SessionWorkspace) {
+/** Whether the workspace shows a node before the head of a known branch. */
+function selectsEarlierNode(workspace: SessionWorkspace) {
   const branch = workspace.tree.branches.find((item) => item.id === workspace.activeBranchId)
-  return branch?.headNodeId === workspace.activeNodeId
+  return (
+    branch !== undefined &&
+    workspace.activeNodeId !== null &&
+    branch.headNodeId !== workspace.activeNodeId
+  )
 }
 
 /**
@@ -20,7 +25,7 @@ export async function resolveCurrentConversationNode(
   workspace: SessionWorkspace | null,
 ): Promise<SessionNodeId | null> {
   const ownWorkspace = workspace?.tree.session.id === sessionId ? workspace : null
-  if (ownWorkspace?.activeNodeId && !viewsBranchHead(ownWorkspace)) {
+  if (ownWorkspace?.activeNodeId && selectsEarlierNode(ownWorkspace)) {
     return ownWorkspace.activeNodeId
   }
   const current = await api.getSessionWorkspace(

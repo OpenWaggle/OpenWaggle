@@ -18,7 +18,7 @@ import { invokeBoundExtension } from '@/features/extensions'
 import { api } from '@/shared/lib/ipc'
 import { ipcErrorMessage } from '@/shared/lib/ipc-error-message'
 import { createRendererLogger } from '@/shared/lib/logger'
-import { MessageNotDelivered } from '../lib/message-delivery'
+import { MessageNotDelivered, wasMessageDelivered } from '../lib/message-delivery'
 import { pendingSendAfter } from '../lib/optimistic-user-message'
 import type { PendingSend } from '../model'
 import type { useBranchSummaryWorkflow } from './useBranchSummaryWorkflow'
@@ -34,8 +34,8 @@ interface ChatSendWorkflowParams {
     ReturnType<typeof useBranchSummaryWorkflow>['materializeDraftBranchForSend']
   >[0]
   readonly extensionContributions: ExtensionContributionRegistryView | null
-  /** Moves the Session's view off a routed node so it follows the head the send extends. */
-  readonly followBranchHead: (sessionId: SessionId) => void
+  /** Captures the routed node at send time; the result moves the view to the branch head. */
+  readonly trackRoutedNode: (sessionId: SessionId) => () => void
   readonly handleSend: (payload: AgentSendPayload) => Promise<void>
   readonly handleSendWaggle: (payload: AgentSendPayload, config: WaggleConfig) => Promise<void>
   readonly model: SupportedModelId | undefined
@@ -189,6 +189,9 @@ export function useChatSendWorkflow(params: ChatSendWorkflowParams) {
         if (!composerRetainsDraft) discardSessionResourceAttachments(payload.attachments)
         return
       }
+      const followBranchHead = params.activeSessionId
+        ? params.trackRoutedNode(params.activeSessionId)
+        : () => undefined
       const draftBranchReady = await params.branchSummary.materializeDraftBranchForSend(
         params.draftBranch,
       )
@@ -202,14 +205,11 @@ export function useChatSendWorkflow(params: ChatSendWorkflowParams) {
       params.phase.reset()
       try {
         await sendThroughActiveMode(params, payload)
-        if (params.activeSessionId) {
-          params.clearDraftBranchForSession(params.activeSessionId)
-          // A retry or branch switch routes to the node it continues from. Kept after the send,
-          // that node pinned the view below the new messages: a reload showed the branch without
-          // them, as if the send had gone somewhere else.
-          params.followBranchHead(params.activeSessionId)
-        }
+        if (params.activeSessionId) params.clearDraftBranchForSession(params.activeSessionId)
+        followBranchHead()
       } catch (error) {
+        // A Run that failed after delivery still saved the message on the branch.
+        if (wasMessageDelivered(error)) followBranchHead()
         params.clearPendingSend(pendingSend)
         if (payload.waggle?.config && params.activeSessionId) {
           params.stopWaggleCollaboration(params.activeSessionId)
