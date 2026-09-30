@@ -8,7 +8,7 @@ import type {
 import { normalizeSkillId } from '@shared/utils/skill-id'
 import { env } from '../../env'
 import { isPathInside } from '../../utils/paths'
-import { sessionEvidenceDirectoryFor } from '../../utils/session-evidence-directory'
+import { preparedSessionEvidenceDirectory } from '../../utils/session-evidence-directory'
 import type { OpenWaggleExtensionPiResourceRoot } from './openwaggle-pi-settings-resources'
 
 export interface PiRuntimeServicesOptions {
@@ -118,12 +118,19 @@ function allowFirstPartyExtensionFactoriesForAutomation() {
  * Host-authored scratch guidance. TMPDIR alone does not help when the model types a literal
  * `/tmp/push.log`, which is how two concurrent Sessions read each other's push output.
  */
-export function scratchDirectorySystemPrompt(scratchDirectory: string) {
+export function scratchDirectorySystemPrompt(
+  scratchDirectory: string,
+  evidenceDirectory = preparedSessionEvidenceDirectory(scratchDirectory),
+) {
   return [
     '## Session scratch directory',
     `The private scratch directory for this session is ${JSON.stringify(scratchDirectory)}; TMPDIR, TMP, and TEMP point to it for your shell tools.`,
     'Write temporary files, logs, and command output there, for example "$TMPDIR/push.log". Other sessions share /tmp, so never write fixed file names directly under /tmp. OpenWaggle removes this directory when the session is archived or deleted.',
-    `Save screenshots and other files you will show the user or another session in ${JSON.stringify(sessionEvidenceDirectoryFor(scratchDirectory))} ($OPENWAGGLE_EVIDENCE_DIR) instead; it is kept after this session is archived, and images there can be embedded by any session.`,
+    ...(evidenceDirectory
+      ? [
+          `Save screenshots and other files you will show the user or another session in ${JSON.stringify(evidenceDirectory)} ($OPENWAGGLE_EVIDENCE_DIR) instead; it is kept after this session is archived, and images there can be embedded by any session.`,
+        ]
+      : []),
   ].join('\n')
 }
 

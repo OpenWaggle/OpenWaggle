@@ -1,3 +1,4 @@
+import { lstatSync } from 'node:fs'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { ensurePrivateDirectory, sessionScratchRoot } from './session-scratch-directory'
@@ -36,4 +37,19 @@ export async function prepareSessionEvidenceDirectory(scratchDirectory: string) 
   const touchedAt = new Date()
   await fs.utimes(directory, touchedAt, touchedAt)
   return directory
+}
+
+/**
+ * The Session's evidence directory if its Run prepared it, else undefined. The tool environment
+ * and system prompt only name a directory that exists, so an agent is never pointed at a path
+ * that failed its ownership checks.
+ */
+export function preparedSessionEvidenceDirectory(scratchDirectory: string) {
+  const directory = sessionEvidenceDirectoryFor(scratchDirectory)
+  try {
+    const stats = lstatSync(directory)
+    return stats.isDirectory() && !stats.isSymbolicLink() ? directory : undefined
+  } catch {
+    return undefined
+  }
 }

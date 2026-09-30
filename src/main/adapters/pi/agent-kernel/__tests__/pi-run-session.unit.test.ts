@@ -10,6 +10,7 @@ type SpawnHook = (context: SpawnContext) => SpawnContext
 const mocks = vi.hoisted(() => ({
   hooks: new Map<string, SpawnHook>(),
   createSession: vi.fn(),
+  preparedEvidence: vi.fn(),
 }))
 
 vi.mock('@earendil-works/pi-coding-agent', () => ({
@@ -23,6 +24,10 @@ vi.mock('@earendil-works/pi-coding-agent', () => ({
   },
   defineTool: (definition: unknown) => definition,
 }))
+vi.mock('../../../../utils/session-evidence-directory', () => ({
+  SESSION_EVIDENCE_DIRECTORY_ENV: 'OPENWAGGLE_EVIDENCE_DIR',
+  preparedSessionEvidenceDirectory: mocks.preparedEvidence,
+}))
 vi.mock('../../pi-session-lifecycle', () => ({
   createOpenWaggleAgentSessionFromServices: mocks.createSession,
 }))
@@ -32,6 +37,7 @@ import { createPiSessionForRun } from '../pi-run-session'
 beforeEach(() => {
   mocks.hooks.clear()
   mocks.createSession.mockResolvedValue({ session: { setThinkingLevel: vi.fn() } })
+  mocks.preparedEvidence.mockReset().mockReturnValue('/private/evidence/session-a')
 })
 
 it('applies persisted removals to both Pi shell tools without mutating their ambient environment', async () => {
@@ -140,4 +146,24 @@ it('points both Pi shell tools at the Session scratch directory for temp files',
       OPENWAGGLE_AGENT_RUN: '1',
     })
   }
+})
+
+it('does not name an evidence directory the Run could not prepare', async () => {
+  mocks.preparedEvidence.mockReturnValue(undefined)
+  await createPiSessionForRun(
+    fromPartial({
+      scratchDirectory: '/private/scratch/session-a',
+      projectRoot: '/project',
+      workspacePath: '/workspace',
+      services: { cwd: '/workspace' },
+      sessionManager: { buildSessionContext: () => ({ messages: [] }) },
+      thinkingLevel: 'off',
+    }),
+  )
+  const hook = mocks.hooks.get('bash')
+  if (!hook) throw new Error('Missing bash spawn hook')
+
+  expect(hook({ command: 'true', cwd: '/workspace', env: {} }).env).not.toHaveProperty(
+    'OPENWAGGLE_EVIDENCE_DIR',
+  )
 })

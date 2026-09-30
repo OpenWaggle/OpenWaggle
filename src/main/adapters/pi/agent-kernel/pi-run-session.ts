@@ -13,8 +13,8 @@ import {
   withoutWorkspaceContext,
 } from '../../../domain/prepared-environment'
 import {
+  preparedSessionEvidenceDirectory,
   SESSION_EVIDENCE_DIRECTORY_ENV,
-  sessionEvidenceDirectoryFor,
 } from '../../../utils/session-evidence-directory'
 import { sessionScratchEnvironment } from '../../../utils/session-scratch-directory'
 import type { PiModel } from '../pi-provider-catalog'
@@ -36,10 +36,13 @@ export async function createPiSessionForRun(input: {
   readonly openWaggleUi: OpenWaggleAgentSessionOptions['openWaggleUi']
 }) {
   const windows = process.platform === 'win32'
+  const evidenceDirectory = input.scratchDirectory
+    ? preparedSessionEvidenceDirectory(input.scratchDirectory)
+    : undefined
   const scratchEnvironment = input.scratchDirectory
     ? {
         ...sessionScratchEnvironment(input.scratchDirectory),
-        [SESSION_EVIDENCE_DIRECTORY_ENV]: sessionEvidenceDirectoryFor(input.scratchDirectory),
+        ...(evidenceDirectory ? { [SESSION_EVIDENCE_DIRECTORY_ENV]: evidenceDirectory } : {}),
       }
     : {}
   const markAgentRun = (context: { command: string; cwd: string; env: NodeJS.ProcessEnv }) => ({

@@ -13,10 +13,22 @@ describe('Session scratch directory system prompt', () => {
   })
 
   it('names the evidence directory that outlives the Session for screenshots', () => {
-    const prompt = scratchDirectorySystemPrompt('/tmp/ow-scratch-501/37a8eec1/0123456789ab')
+    const prompt = scratchDirectorySystemPrompt(
+      '/tmp/ow-scratch-501/37a8eec1/0123456789ab',
+      '/tmp/ow-scratch-501/evidence/0123456789ab',
+    )
 
     expect(prompt).toContain('"/tmp/ow-scratch-501/evidence/0123456789ab"')
     expect(prompt).toContain('$OPENWAGGLE_EVIDENCE_DIR')
     expect(prompt).toContain('kept after this session is archived')
+  })
+
+  it('does not name an evidence directory that was not prepared', () => {
+    const prompt = scratchDirectorySystemPrompt(
+      '/tmp/ow-scratch-501/37a8eec1/0123456789ab',
+      undefined,
+    )
+
+    expect(prompt).not.toContain('OPENWAGGLE_EVIDENCE_DIR')
   })
 })

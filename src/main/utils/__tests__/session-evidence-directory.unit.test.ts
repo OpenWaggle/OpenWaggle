@@ -3,6 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
+  preparedSessionEvidenceDirectory,
   prepareSessionEvidenceDirectory,
   sessionEvidenceDirectoryFor,
   sessionEvidenceRoot,
@@ -71,5 +72,56 @@ describe('Session evidence directory', () => {
 
     await sweepSessionScratchDirectories([], root, Date.now() + EIGHT_DAYS_MS)
     await expect(fs.access(evidence)).rejects.toMatchObject({ code: 'ENOENT' })
+  })
+
+  it('marks the evidence directory as used on every Run, so the sweep keeps it', async () => {
+    const scratch = await prepareSessionScratchDirectory('session-a', root)
+    const evidence = await prepareSessionEvidenceDirectory(scratch)
+    const old = new Date(Date.now() - EIGHT_DAYS_MS)
+    await fs.utimes(evidence, old, old)
+
+    await prepareSessionEvidenceDirectory(scratch)
+    await sweepSessionScratchDirectories([], root, Date.now())
+
+    expect((await fs.stat(evidence)).isDirectory()).toBe(true)
+  })
+
+  it('keeps recent evidence in nested folders when the namespace sweep runs', async () => {
+    const scratch = await prepareSessionScratchDirectory('session-a', root)
+    const evidence = await prepareSessionEvidenceDirectory(scratch)
+    await fs.mkdir(path.join(evidence, 'run-1'))
+    await fs.writeFile(path.join(evidence, 'run-1', 'final.png'), 'png')
+    // The evidence root and the Session's folder look old; only the nested folder is new.
+    const old = new Date(Date.now() - EIGHT_DAYS_MS)
+    await fs.utimes(evidence, old, old)
+    await fs.utimes(sessionEvidenceRoot(root), old, old)
+
+    await sweepSessionScratchDirectories([], root, Date.now())
+
+    await expect(fs.readFile(path.join(evidence, 'run-1', 'final.png'), 'utf8')).resolves.toBe(
+      'png',
+    )
+  })
+
+  posixOnly('never prunes through a symlink planted as the evidence root', async () => {
+    await prepareSessionScratchDirectory('session-a', root)
+    const victim = path.join(temporaryDirectory, 'victim')
+    const project = path.join(victim, 'old-project')
+    await fs.mkdir(project, { recursive: true })
+    const old = new Date(Date.now() - EIGHT_DAYS_MS * 2)
+    await fs.utimes(project, old, old)
+    await fs.symlink(victim, sessionEvidenceRoot(root))
+
+    await sweepSessionScratchDirectories([], root, Date.now())
+
+    expect((await fs.stat(project)).isDirectory()).toBe(true)
+  })
+
+  it('reports an evidence directory only once it was prepared', async () => {
+    const scratch = await prepareSessionScratchDirectory('session-a', root)
+    expect(preparedSessionEvidenceDirectory(scratch)).toBeUndefined()
+
+    const evidence = await prepareSessionEvidenceDirectory(scratch)
+    expect(preparedSessionEvidenceDirectory(scratch)).toBe(evidence)
   })
 })
