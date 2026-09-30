@@ -2,8 +2,10 @@ import os from 'node:os'
 import { MessageId, SessionId } from '@shared/types/brand'
 import type { SessionResource } from '@shared/types/session-resource'
 import * as Effect from 'effect/Effect'
+import * as Layer from 'effect/Layer'
 import { describe, expect, it } from 'vitest'
 import type { UpsertSessionResourceInput } from '../../ports/session-resource-repository'
+import { SessionResourceStore } from '../../ports/session-resource-store'
 import { sessionScratchDirectoryPath } from '../../utils/session-scratch-directory'
 import { captureProjectedSessionResources } from '../session-resource-backfill'
 import { captureSuccessfulRunResources } from '../session-resource-capture'
@@ -198,6 +200,18 @@ ${LOCAL_IMAGE_MARKDOWN}
   it("lets backfill read images from the Session's own scratch directory", async () => {
     const image = `${sessionScratchDirectoryPath('session-1')}/electron-qa-evidence/final.png`
     const readSourceRoots: Array<readonly string[]> = []
+    const recordingReadRoots = Layer.effect(
+      SessionResourceStore,
+      Effect.map(SessionResourceStore, (store) =>
+        SessionResourceStore.of({
+          ...store,
+          readSource: (input) => {
+            readSourceRoots.push(input.allowedRoots)
+            return store.readSource(input)
+          },
+        }),
+      ),
+    )
 
     await Effect.runPromise(
       captureProjectedSessionResources({
@@ -208,7 +222,7 @@ ${LOCAL_IMAGE_MARKDOWN}
             parts: [{ type: 'text' as const, text: `![Final](file://${image})` }],
           },
         ],
-      }).pipe(Effect.provide(sessionResourceTestLayer([], { readSourceRoots }))),
+      }).pipe(Effect.provide(recordingReadRoots), Effect.provide(sessionResourceTestLayer([]))),
     )
 
     expect(readSourceRoots).toHaveLength(1)
