@@ -92,6 +92,22 @@ describe('Session scratch directory', () => {
     )
   })
 
+  posixOnly.each([
+    ['the per-user directory', (scratchRoot: string) => path.dirname(scratchRoot)],
+    ['the profile namespace', (scratchRoot: string) => scratchRoot],
+  ])('refuses a symlink planted in place of %s', async (_level, plantedAt) => {
+    const elsewhere = path.join(temporaryDirectory, 'planted-by-another-account')
+    await fs.mkdir(elsewhere, { mode: OWNER_ONLY })
+    const planted = plantedAt(root)
+    await fs.mkdir(path.dirname(planted), { recursive: true, mode: OWNER_ONLY })
+    await fs.symlink(elsewhere, planted)
+
+    await expect(prepareSessionScratchDirectory('session-a', root)).rejects.toThrow(
+      'not a real directory',
+    )
+    await expect(fs.readdir(elsewhere)).resolves.toEqual([])
+  })
+
   posixOnly('refuses a directory another user owns', async () => {
     await fs.mkdir(path.dirname(root), { recursive: true, mode: OWNER_ONLY })
     const owner = (await fs.stat(path.dirname(root))).uid
