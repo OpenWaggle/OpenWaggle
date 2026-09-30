@@ -48,6 +48,8 @@ describe('Run initiator chains between two roots', () => {
       sessionId: string
       callerId: string
       authorCallerId?: string
+      /** The Queen of this Run's Session, which makes that Session a Worker. */
+      queenSessionId?: string
     }[],
     use: (sql: SqlClient.SqlClient) => Effect.Effect<A, unknown>,
   ) {
@@ -83,13 +85,23 @@ describe('Run initiator chains between two roots', () => {
         )`)
         yield* sql`INSERT INTO session_client_profiles (
           id, scope_json, authorization_ceiling, revoked_at
-        ) VALUES (${'asker'}, ${'{"all":true}'}, ${'ask-for-approval'}, ${null})`
-        for (const sessionId of ['a', 'b']) {
+        ) VALUES
+          (${'asker'}, ${'{"all":true}'}, ${'ask-for-approval'}, ${null}),
+          (${'revoked'}, ${'{"all":true}'}, ${'yolo'}, ${1})`
+        for (const sessionId of new Set(runs.map((run) => run.sessionId))) {
           yield* sql`INSERT INTO session_execution_profiles (
             session_id, profile_json, authority_origin_caller_id, authorization_ceiling
           ) VALUES (${sessionId}, ${PROFILE_JSON}, ${'gui:local-user'}, ${'yolo'})`
         }
         for (const run of runs) {
+          if (run.queenSessionId) {
+            yield* sql`INSERT OR IGNORE INTO session_spawn_lineage (
+              child_session_id, parent_session_id
+            ) VALUES (${run.sessionId}, ${run.queenSessionId})`
+            yield* sql`INSERT OR IGNORE INTO derived_child_management_grants (
+              child_session_id, authorization_ceiling, revoked_at
+            ) VALUES (${run.sessionId}, ${'yolo'}, ${null})`
+          }
           yield* sql`INSERT INTO session_runs (id, session_id, intent_json) VALUES (
             ${run.runId}, ${run.sessionId}, ${JSON.stringify({
               callerId: run.callerId,
@@ -102,7 +114,7 @@ describe('Run initiator chains between two roots', () => {
     )
   }
 
-  function judge(runs: ReturnType<typeof pingPong>) {
+  function judge(runs: Parameters<typeof withRuns>[0]) {
     const last = runs[runs.length - 1]
     if (!last) throw new Error('A chain has at least one Run')
     return withRuns(runs, (sql) =>
@@ -144,5 +156,27 @@ describe('Run initiator chains between two roots', () => {
       reach: true,
       ceiling: 'yolo',
     })
+  })
+
+  it("does not let a Queen Run that its Worker's Follow-up started reach every project", async () => {
+    // The desktop user started the Queen's first Run; its Worker then woke the Queen.
+    const runs = [
+      { runId: 'q1', sessionId: 'queen', callerId: 'gui:local-user' },
+      {
+        runId: 'w1',
+        sessionId: 'worker',
+        callerId: 'session-agent:queen:q1',
+        queenSessionId: 'queen',
+      },
+      { runId: 'q2', sessionId: 'queen', callerId: 'session-agent:worker:w1' },
+    ]
+
+    await expect(judge(runs)).resolves.toMatchObject({ reach: false })
+  })
+
+  it('takes reach and ceiling away from a Run whose initiating profile was revoked', async () => {
+    const runs = [{ runId: 'r', sessionId: 'a', callerId: 'profile:revoked' }]
+
+    await expect(judge(runs)).resolves.toEqual({ reach: false, ceiling: 'ask-for-approval' })
   })
 })

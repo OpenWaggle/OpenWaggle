@@ -145,12 +145,8 @@ describe('sessionAgentRunReachesEveryProject', () => {
   it('does not let a Worker-started Run of its Queen reach every project', async () => {
     const sessions = [
       { id: 'queen', origin: 'gui:local-user', initiator: 'session-agent:worker:run-worker' },
-      {
-        id: 'worker',
-        origin: 'gui:local-user',
-        initiator: 'session-agent:queen:run-queen',
-        parent: 'queen',
-      },
+      // No loop: the desktop user started the Worker's Run, and the Worker is still no root.
+      { id: 'worker', origin: 'gui:local-user', initiator: 'gui:local-user', parent: 'queen' },
     ]
     await expect(reaches(sessions, 'queen')).resolves.toBe(false)
   })
