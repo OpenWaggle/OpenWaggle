@@ -184,6 +184,44 @@ describe('Session scratch sweep', () => {
     await expect(fs.access(unmarkedRoot)).rejects.toMatchObject(missing)
   })
 
+  posixOnly('never sweeps through a symlink planted as its own namespace', async () => {
+    const victim = path.join(temporaryDirectory, 'victim-projects')
+    const project = path.join(victim, 'old-project')
+    await fs.mkdir(project, { recursive: true })
+    const old = new Date(Date.now() - EIGHT_DAYS_MS * 2)
+    await fs.utimes(project, old, old)
+    await fs.mkdir(path.dirname(root), { recursive: true, mode: 0o700 })
+    await fs.symlink(victim, root)
+
+    await expect(
+      sweepSessionScratchDirectories([], root, Date.now() + EIGHT_DAYS_MS),
+    ).resolves.toBe(0)
+    expect((await fs.stat(project)).isDirectory()).toBe(true)
+  })
+
+  posixOnly(
+    "keeps another profile's namespace when its user-data directory cannot be read",
+    async () => {
+      const locked = path.join(temporaryDirectory, 'locked')
+      const profile = path.join(locked, 'profile')
+      await fs.mkdir(profile, { recursive: true })
+      useNamespace(profile)
+      const lockedRoot = sessionScratchRoot(temporaryDirectory)
+      await prepareSessionScratchDirectory('session-locked', lockedRoot)
+      useNamespace(path.join(temporaryDirectory, 'profiles', 'own'))
+      const ownRoot = sessionScratchRoot(temporaryDirectory)
+      await prepareSessionScratchDirectory('session-own', ownRoot)
+      // `stat` on the profile now fails with EACCES, not ENOENT: the profile may still exist.
+      await fs.chmod(locked, 0o000)
+      try {
+        await sweepSessionScratchDirectories(['session-own'], ownRoot, Date.now() + TWO_HOURS_MS)
+        expect((await fs.stat(lockedRoot)).isDirectory()).toBe(true)
+      } finally {
+        await fs.chmod(locked, 0o700)
+      }
+    },
+  )
+
   posixOnly(
     'never follows a symlinked user directory or namespace into files it must keep',
     async () => {
