@@ -1,10 +1,14 @@
+import { randomUUID } from 'node:crypto'
 import fs from 'node:fs/promises'
-import os from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SessionHostEventHub } from '../../application/session-host-event-hub'
 import { SessionHostLiveness } from '../../application/session-host-liveness'
-import { prepareSessionScratchDirectory } from '../../utils/session-scratch-directory'
+import {
+  prepareSessionScratchDirectory,
+  removeSessionScratchDirectory,
+  retainSessionScratchDirectory,
+} from '../../utils/session-scratch-directory'
 import { installSessionHostEventRuntime, publishSessionHostEvent } from '../session-host-events'
 
 async function waitForRemoval(directory: string) {
@@ -14,13 +18,17 @@ async function waitForRemoval(directory: string) {
 }
 
 describe('Session Host scratch directory cleanup', () => {
-  let temporaryDirectory = ''
   let releaseRuntime: (() => void) | undefined
   let liveness: SessionHostLiveness | undefined
+  // The default root is shared, so each test uses Session ids nothing else can pick.
+  let sessionA = ''
+  let sessionB = ''
+  let marker = ''
 
-  beforeEach(async () => {
-    temporaryDirectory = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-scratch-cleanup-'))
-    vi.spyOn(os, 'tmpdir').mockReturnValue(temporaryDirectory)
+  beforeEach(() => {
+    sessionA = `scratch-cleanup-${randomUUID()}`
+    sessionB = `scratch-cleanup-${randomUUID()}`
+    marker = `scratch-cleanup-${randomUUID()}`
     liveness = new SessionHostLiveness({
       idleGracePeriodMs: 60_000,
       requestShutdown: () => undefined,
@@ -34,38 +42,55 @@ describe('Session Host scratch directory cleanup', () => {
   afterEach(async () => {
     releaseRuntime?.()
     liveness?.close()
-    vi.restoreAllMocks()
-    await fs.rm(temporaryDirectory, { recursive: true, force: true })
+    await Promise.all([sessionA, sessionB, marker].map((id) => removeSessionScratchDirectory(id)))
   })
 
   it.each(['archived', 'deleted'] as const)(
     'removes the scratch directory when a Session is %s',
     async (change) => {
-      const directory = await prepareSessionScratchDirectory('session-a')
-      const sibling = await prepareSessionScratchDirectory('session-b')
+      const directory = await prepareSessionScratchDirectory(sessionA)
+      const sibling = await prepareSessionScratchDirectory(sessionB)
       await fs.writeFile(path.join(directory, 'push.log'), 'output')
 
-      publishSessionHostEvent({ kind: 'session-list-changed', sessionId: 'session-a', change })
+      publishSessionHostEvent({ kind: 'session-list-changed', sessionId: sessionA, change })
 
       await waitForRemoval(directory)
       await expect(fs.stat(sibling)).resolves.toBeDefined()
     },
   )
 
+  it('keeps the directory of a Session archived mid-Run until that Run ends', async () => {
+    const directory = await prepareSessionScratchDirectory(sessionA)
+    const releaseRun = retainSessionScratchDirectory(sessionA)
+    const markerDirectory = await prepareSessionScratchDirectory(marker)
+
+    publishSessionHostEvent({
+      kind: 'session-list-changed',
+      sessionId: sessionA,
+      change: 'archived',
+    })
+    publishSessionHostEvent({ kind: 'session-list-changed', sessionId: marker, change: 'deleted' })
+    await waitForRemoval(markerDirectory)
+    await expect(fs.stat(directory)).resolves.toBeDefined()
+
+    await releaseRun()
+    await waitForRemoval(directory)
+  })
+
   it.each(['created', 'updated', 'unarchived'] as const)(
     'keeps the scratch directory when a Session is %s',
     async (change) => {
-      const directory = await prepareSessionScratchDirectory('session-a')
+      const directory = await prepareSessionScratchDirectory(sessionA)
       // A later removal that has finished shows any earlier one would have too.
-      const marker = await prepareSessionScratchDirectory('session-marker')
+      const markerDirectory = await prepareSessionScratchDirectory(marker)
 
-      publishSessionHostEvent({ kind: 'session-list-changed', sessionId: 'session-a', change })
+      publishSessionHostEvent({ kind: 'session-list-changed', sessionId: sessionA, change })
       publishSessionHostEvent({
         kind: 'session-list-changed',
-        sessionId: 'session-marker',
+        sessionId: marker,
         change: 'deleted',
       })
-      await waitForRemoval(marker)
+      await waitForRemoval(markerDirectory)
 
       await expect(fs.stat(directory)).resolves.toBeDefined()
     },

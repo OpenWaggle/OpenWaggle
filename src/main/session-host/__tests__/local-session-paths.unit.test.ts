@@ -11,6 +11,23 @@ import {
 
 const OWNER_DIRECTORY_MODE = 0o700
 
+const envMocks = vi.hoisted(() => {
+  const state: { hostTemporaryDirectory?: string } = {}
+  return state
+})
+vi.mock('../../env', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../../env')>()
+  return {
+    ...original,
+    env: new Proxy(original.env, {
+      get: (target, key) =>
+        key === 'OPENWAGGLE_HOST_TMPDIR'
+          ? envMocks.hostTemporaryDirectory
+          : Reflect.get(target, key),
+    }),
+  }
+})
+
 function longUserDataRoot(root: string) {
   let candidate = path.join(root, 'user-data')
   let index = 0
@@ -61,6 +78,28 @@ describe('Local Session Host paths', () => {
     expect(first.endpoint).toBe(second.endpoint)
     expect(first.endpoint).toMatch(/^\/private\/tmp\/owsh-[a-f0-9]{20}\/host\.sock$/)
     expect(Buffer.byteLength(first.endpoint, 'utf8')).toBeLessThanOrEqual(100)
+  })
+
+  it('finds the Host socket fallback from an agent tool process with a scratch TMPDIR', () => {
+    const longRoot = path.join('/users/test', 'nested-segment'.repeat(20))
+    envMocks.hostTemporaryDirectory = '/var/folders/73/f8dtlm290sxdl1n1ktfgsdg40000gn/T'
+    vi.spyOn(os, 'tmpdir').mockReturnValue('/tmp/ow-scratch-501/0123456789abcdef')
+    try {
+      const agentShell = resolveLocalSessionHostPaths({
+        userDataRoot: longRoot,
+        platform: 'darwin',
+      })
+      const host = resolveLocalSessionHostPaths({
+        userDataRoot: longRoot,
+        platform: 'darwin',
+        temporaryRoot: envMocks.hostTemporaryDirectory,
+      })
+
+      expect(agentShell.endpoint).toBe(host.endpoint)
+    } finally {
+      delete envMocks.hostTemporaryDirectory
+      vi.restoreAllMocks()
+    }
   })
 
   it('falls back to /tmp when the configured temporary root is itself too long', () => {

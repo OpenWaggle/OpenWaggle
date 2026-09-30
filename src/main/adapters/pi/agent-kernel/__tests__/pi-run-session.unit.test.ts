@@ -1,5 +1,9 @@
 import { fromPartial } from '@total-typescript/shoehorn'
 import { beforeEach, expect, it, vi } from 'vitest'
+import {
+  HOST_TEMPORARY_DIRECTORY_ENV,
+  hostTemporaryDirectory,
+} from '../../../../utils/session-scratch-directory'
 
 type SpawnContext = { command: string; cwd: string; env: NodeJS.ProcessEnv }
 type SpawnHook = (context: SpawnContext) => SpawnContext
@@ -127,6 +131,8 @@ it('points both Pi shell tools at the Session scratch directory for temp files',
       TMPDIR: '/private/scratch/session-a',
       TMP: '/private/scratch/session-a',
       TEMP: '/private/scratch/session-a',
+      // Keeps an agent-run `openwaggle` CLI pointed at the Host's socket fallback directory.
+      [HOST_TEMPORARY_DIRECTORY_ENV]: hostTemporaryDirectory(),
       OPENWAGGLE_PROJECT_ROOT: '/project',
       OPENWAGGLE_WORKTREE_PATH: '/workspace',
       OPENWAGGLE_AGENT_RUN: '1',

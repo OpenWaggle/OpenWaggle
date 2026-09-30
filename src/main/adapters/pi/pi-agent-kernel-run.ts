@@ -25,6 +25,7 @@ import {
   createWorktreeLaunchReporter,
   prepareScratchDirectory,
   prepareVisualizationDirectory,
+  withRetainedScratchDirectory,
 } from './pi-agent-kernel-launch'
 import { prepareActionWorkspace } from './prepare-action-workspace'
 import {
@@ -155,6 +156,13 @@ export function runPiAgentKernel(
     readonly browserPreviewAutomation: BrowserPreviewAutomationServiceShape
     readonly enableBrowserPreviewAutomation: boolean
   },
+) {
+  return withRetainedScratchDirectory(input.session.id, runPiAgentKernelTurn(input, dependencies))
+}
+
+function runPiAgentKernelTurn(
+  input: AgentKernelRunInput,
+  dependencies: Parameters<typeof runPiAgentKernel>[1],
 ) {
   return Effect.gen(function* () {
     const launchReporter = createWorktreeLaunchReporter(input)

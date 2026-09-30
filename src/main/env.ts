@@ -40,6 +40,8 @@ const envSchema = Schema.Struct({
   OPENWAGGLE_PROFILE: Schema.optional(Schema.String),
   OPENWAGGLE_PROFILE_CREDENTIAL_FILE: Schema.optional(Schema.String),
   OPENWAGGLE_AGENT_RUN: Schema.optional(Schema.Literal('1')),
+  /** The Host's own temp directory, preserved in agent tool processes whose TMPDIR is a scratch dir. */
+  OPENWAGGLE_HOST_TMPDIR: Schema.optional(Schema.String),
   SystemRoot: Schema.optional(Schema.String),
   TEMP: Schema.optional(Schema.String),
   TMP: Schema.optional(Schema.String),

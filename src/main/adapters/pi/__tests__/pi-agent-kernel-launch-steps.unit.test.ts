@@ -24,6 +24,7 @@ const runMocks = vi.hoisted(() => ({
 
 vi.mock('../../../utils/session-scratch-directory', () => ({
   prepareSessionScratchDirectory: async (sessionId: string) => `/scratch/${sessionId}`,
+  retainSessionScratchDirectory: () => async () => undefined,
 }))
 vi.mock('../agent-kernel/classic-run', () => ({ runPiSession: runMocks.runPiSession }))
 vi.mock('../agent-kernel/session-manager', () => ({

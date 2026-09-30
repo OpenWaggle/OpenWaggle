@@ -7,7 +7,10 @@ import { createLogger } from '../../logger'
 import type { AgentKernelRunInput } from '../../ports/agent-kernel-service'
 import type { InlineVisualizationServiceShape } from '../../ports/inline-visualization-service'
 import type { McpDirectToolWaitOutcome } from '../../ports/mcp-runtime-service'
-import { prepareSessionScratchDirectory } from '../../utils/session-scratch-directory'
+import {
+  prepareSessionScratchDirectory,
+  retainSessionScratchDirectory,
+} from '../../utils/session-scratch-directory'
 
 const logger = createLogger('pi-agent-kernel')
 
@@ -124,5 +127,30 @@ export function prepareScratchDirectory(sessionId: AgentKernelRunInput['session'
         return undefined
       }),
     ),
+  )
+}
+
+/**
+ * Hold the Session scratch directory for the whole Run, so archiving a Session mid-Run defers the
+ * removal until the Run ends instead of deleting temp files a running tool still uses.
+ */
+export function withRetainedScratchDirectory<A, E, R>(
+  sessionId: AgentKernelRunInput['session']['id'],
+  run: Effect.Effect<A, E, R>,
+) {
+  return Effect.acquireUseRelease(
+    Effect.sync(() => retainSessionScratchDirectory(sessionId)),
+    () => run,
+    (release) =>
+      Effect.tryPromise(release).pipe(
+        Effect.catchAll((error) =>
+          Effect.sync(() => {
+            logger.warn('Could not remove the session scratch directory after its run', {
+              sessionId,
+              error: String(error.error),
+            })
+          }),
+        ),
+      ),
   )
 }

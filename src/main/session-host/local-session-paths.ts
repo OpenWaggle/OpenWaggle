@@ -1,8 +1,8 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto'
 import fs from 'node:fs/promises'
-import os from 'node:os'
 import path from 'node:path'
 import { DATABASE_FILE_NAME } from '../services/database-constants'
+import { hostTemporaryDirectory } from '../utils/session-scratch-directory'
 import { secureWindowsUserOnly, type WindowsUserOnlySecurity } from './windows-user-only-security'
 
 const PORTABLE_UNIX_SOCKET_PATH_BYTES = 100
@@ -79,7 +79,8 @@ export function resolveLocalSessionHostPaths(input: {
   const endpointDirectoryName = `owsh-${hash}`
   const endpointName = 'host.sock'
   const temporaryEndpointDirectory = path.join(
-    input.temporaryRoot ?? os.tmpdir(),
+    // Not `os.tmpdir()`: an agent's tool process has TMPDIR set to its Session scratch directory.
+    input.temporaryRoot ?? hostTemporaryDirectory(),
     endpointDirectoryName,
   )
   const temporaryEndpoint = path.join(temporaryEndpointDirectory, endpointName)

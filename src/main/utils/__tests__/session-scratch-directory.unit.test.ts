@@ -3,14 +3,19 @@ import os from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
+  HOST_TEMPORARY_DIRECTORY_ENV,
+  hostTemporaryDirectory,
   prepareSessionScratchDirectory,
   removeSessionScratchDirectory,
+  retainSessionScratchDirectory,
   sessionScratchDirectoryPath,
   sessionScratchEnvironment,
   sessionScratchRoot,
 } from '../session-scratch-directory'
 
 const OWNER_ONLY = 0o700
+/** macOS limits a Unix socket path to 104 bytes; leave room for names like `tsx-501/12345.pipe`. */
+const SOCKET_ROOM_SCRATCH_PATH_BYTES = 48
 const PERMISSION_BITS = 0o777
 const posixOnly = process.platform === 'win32' ? it.skip : it
 
@@ -98,8 +103,46 @@ describe('Session scratch directory', () => {
     expect((await fs.stat(directory)).isDirectory()).toBe(true)
   })
 
-  it.each(['../escape', 'a/b', '', '.hidden'])('rejects the unsafe Session id %j', (sessionId) => {
-    expect(() => sessionScratchDirectoryPath(sessionId, root)).toThrow('not a valid scratch')
+  posixOnly('keeps the default path short enough for Unix sockets under TMPDIR', () => {
+    const directory = sessionScratchDirectoryPath('3557992e-9fa2-48bb-b462-84e59638207c')
+
+    expect(directory.startsWith('/tmp/')).toBe(true)
+    expect(Buffer.byteLength(directory, 'utf8')).toBeLessThanOrEqual(SOCKET_ROOM_SCRATCH_PATH_BYTES)
+  })
+
+  it('never lets a Session id escape the root', () => {
+    for (const sessionId of ['../escape', 'a/b', '.hidden']) {
+      expect(path.dirname(sessionScratchDirectoryPath(sessionId, root))).toBe(root)
+    }
+    expect(() => sessionScratchDirectoryPath('', root)).toThrow('Session id is required')
+  })
+
+  it('defers an archive removal until the Run using the directory ends', async () => {
+    const directory = await prepareSessionScratchDirectory('session-a', root)
+    const release = retainSessionScratchDirectory('session-a', root)
+    await fs.writeFile(path.join(directory, 'build.log'), 'in use')
+
+    await removeSessionScratchDirectory('session-a', root)
+    await expect(fs.readFile(path.join(directory, 'build.log'), 'utf8')).resolves.toBe('in use')
+
+    await release()
+    await expect(fs.access(directory)).rejects.toThrow()
+  })
+
+  it('drops a deferred removal when the Session runs again before the Run ends', async () => {
+    const directory = await prepareSessionScratchDirectory('session-a', root)
+    const release = retainSessionScratchDirectory('session-a', root)
+    await removeSessionScratchDirectory('session-a', root)
+
+    await prepareSessionScratchDirectory('session-a', root)
+    await release()
+
+    expect((await fs.stat(directory)).isDirectory()).toBe(true)
+  })
+
+  it('prefers the preserved Host temp directory inside a tool process', () => {
+    expect(hostTemporaryDirectory('/var/folders/host/T')).toBe('/var/folders/host/T')
+    expect(hostTemporaryDirectory('')).toBe(os.tmpdir())
   })
 
   it('exports the directory through every common temp variable', () => {
@@ -107,6 +150,7 @@ describe('Session scratch directory', () => {
       TMPDIR: '/scratch/session-a',
       TMP: '/scratch/session-a',
       TEMP: '/scratch/session-a',
+      [HOST_TEMPORARY_DIRECTORY_ENV]: hostTemporaryDirectory(),
     })
   })
 })
