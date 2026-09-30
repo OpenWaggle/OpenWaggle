@@ -5,15 +5,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SessionHostEventHub } from '../../application/session-host-event-hub'
 import { SessionHostLiveness } from '../../application/session-host-liveness'
 import {
+  configureSessionScratchNamespace,
   prepareSessionScratchDirectory,
   removeSessionScratchDirectory,
   retainSessionScratchDirectory,
+  sessionScratchRoot,
 } from '../../utils/session-scratch-directory'
 import { installSessionHostEventRuntime, publishSessionHostEvent } from '../session-host-events'
 
 async function waitForRemoval(directory: string) {
   await vi.waitFor(async () => {
-    await expect(fs.access(directory)).rejects.toThrow()
+    await expect(fs.access(directory)).rejects.toMatchObject({ code: 'ENOENT' })
   })
 }
 
@@ -24,8 +26,12 @@ describe('Session Host scratch directory cleanup', () => {
   let sessionA = ''
   let sessionB = ''
   let marker = ''
+  let namespace = ''
 
   beforeEach(() => {
+    // An own namespace, removed afterwards, so the shared default one under /tmp is not left behind.
+    namespace = `scratch-cleanup-${randomUUID()}`
+    configureSessionScratchNamespace(namespace)
     sessionA = `scratch-cleanup-${randomUUID()}`
     sessionB = `scratch-cleanup-${randomUUID()}`
     marker = `scratch-cleanup-${randomUUID()}`
@@ -43,6 +49,8 @@ describe('Session Host scratch directory cleanup', () => {
     releaseRuntime?.()
     liveness?.close()
     await Promise.all([sessionA, sessionB, marker].map((id) => removeSessionScratchDirectory(id)))
+    await fs.rm(sessionScratchRoot(), { recursive: true, force: true })
+    configureSessionScratchNamespace('default')
   })
 
   it.each(['archived', 'deleted'] as const)(

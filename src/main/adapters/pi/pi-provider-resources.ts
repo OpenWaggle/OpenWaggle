@@ -120,7 +120,7 @@ function allowFirstPartyExtensionFactoriesForAutomation() {
 export function scratchDirectorySystemPrompt(scratchDirectory: string) {
   return [
     '## Session scratch directory',
-    `The private scratch directory for this session is ${JSON.stringify(scratchDirectory)}; TMPDIR, TMP, and TEMP point to it for tool processes.`,
+    `The private scratch directory for this session is ${JSON.stringify(scratchDirectory)}; TMPDIR, TMP, and TEMP point to it for your shell tools.`,
     'Write temporary files, logs, and command output there, for example "$TMPDIR/push.log". Other sessions share /tmp, so never write fixed file names directly under /tmp. OpenWaggle removes this directory when the session is archived or deleted.',
   ].join('\n')
 }

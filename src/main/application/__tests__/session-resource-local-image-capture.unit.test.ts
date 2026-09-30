@@ -4,6 +4,7 @@ import type { SessionResource } from '@shared/types/session-resource'
 import * as Effect from 'effect/Effect'
 import { describe, expect, it } from 'vitest'
 import type { UpsertSessionResourceInput } from '../../ports/session-resource-repository'
+import { sessionScratchDirectoryPath } from '../../utils/session-scratch-directory'
 import { captureProjectedSessionResources } from '../session-resource-backfill'
 import { captureSuccessfulRunResources } from '../session-resource-capture'
 import { GENERATED_IMAGE_CAPTURE_LIMITS } from '../session-resource-capture-image-budget'
@@ -65,6 +66,13 @@ describe('local assistant Markdown image capture', () => {
       expect(roots).toContain('/tmp/electron-qa-evidence')
       expect(roots).not.toContain('/tmp')
     }
+  })
+
+  it("authorizes the Session's own scratch directory, which is the agent's TMPDIR", () => {
+    const roots = localImageCaptureRoots('/workspace', 'session-qa')
+
+    expect(roots).toContain(sessionScratchDirectoryPath('session-qa'))
+    expect(roots).not.toContain(sessionScratchDirectoryPath('session-other'))
   })
 
   it('extracts supported file images without treating local files as links', () => {

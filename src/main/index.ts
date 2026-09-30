@@ -17,7 +17,7 @@ import { applicationCliArguments } from './application-cli-arguments'
 import { registerApplicationProtocols } from './application-protocols'
 import { getAllBrowserWindows, isAutomationMode } from './desktop-ui'
 import { configureDesktopUiAfterReady, prepareDesktopUi } from './desktop-window-policy'
-import { env, installDesktopShellEnvironment } from './env'
+import { env, installDesktopShellEnvironment, restoreHostTemporaryDirectory } from './env'
 import { describeError } from './error-description'
 import { installInlineVisualizationNavigationGuard } from './inline-visualization-navigation'
 import { applyInstallerUpdateChannelIntent } from './installer-update-channel-intent'
@@ -53,6 +53,7 @@ type AgentHandlerModule = Awaited<ReturnType<typeof importAgentHandlerModule>>
 type IpcHandlersModule = Awaited<ReturnType<typeof importIpcHandlersModule>>
 type RuntimeModule = Awaited<ReturnType<typeof importRuntimeModule>>
 
+restoreHostTemporaryDirectory()
 configureInlineVisualizationProcessIsolation()
 registerRendererScheme()
 

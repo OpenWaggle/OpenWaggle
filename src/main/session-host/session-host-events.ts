@@ -3,7 +3,10 @@ import type { SessionHostEventPayload } from '@shared/types/session-host-event'
 import type { SessionHostEventHub } from '../application/session-host-event-hub'
 import type { SessionHostLiveness } from '../application/session-host-liveness'
 import { createLogger } from '../logger'
-import { removeSessionScratchDirectory } from '../utils/session-scratch-directory'
+import {
+  keepSessionScratchDirectory,
+  removeSessionScratchDirectory,
+} from '../utils/session-scratch-directory'
 import {
   projectWorktreeLaunchFailure,
   projectWorktreeLaunchProgress,
@@ -45,6 +48,10 @@ function notifySemanticDiscoverySourceObservers() {
 /** Scratch files are disposable, so an archived or deleted Session gives its directory up. */
 function releaseSessionScratchDirectory(payload: SessionHostEventPayload) {
   if (payload.kind !== 'session-list-changed') return
+  if (payload.change === 'unarchived') {
+    keepSessionScratchDirectory(payload.sessionId)
+    return
+  }
   if (payload.change !== 'archived' && payload.change !== 'deleted') return
   void removeSessionScratchDirectory(payload.sessionId).catch((error: unknown) => {
     logger.warn('Could not remove the session scratch directory', {

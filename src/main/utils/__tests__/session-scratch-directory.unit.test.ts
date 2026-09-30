@@ -1,11 +1,13 @@
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   configureSessionScratchNamespace,
+  defaultScratchBase,
   HOST_TEMPORARY_DIRECTORY_ENV,
   hostTemporaryDirectory,
+  keepSessionScratchDirectory,
   prepareSessionScratchDirectory,
   removeSessionScratchDirectory,
   retainSessionScratchDirectory,
@@ -17,8 +19,12 @@ import {
 
 const OWNER_ONLY = 0o700
 /** macOS limits a Unix socket path to 104 bytes; leave room for names like `tsx-501/12345.pipe`. */
-const SOCKET_ROOM_SCRATCH_PATH_BYTES = 48
+const SOCKET_ROOM_SCRATCH_PATH_BYTES = 56
 const TWO_HOURS_MS = 2 * 60 * 60 * 1000
+const EIGHT_DAYS_MS = 8 * 24 * 60 * 60 * 1000
+const DEFAULT_NAMESPACE_SOURCE = 'default'
+
+const missing = { code: 'ENOENT' }
 const PERMISSION_BITS = 0o777
 const posixOnly = process.platform === 'win32' ? it.skip : it
 
@@ -32,6 +38,8 @@ describe('Session scratch directory', () => {
   })
 
   afterEach(async () => {
+    // Some tests switch the namespace; later tests and files expect the default one.
+    configureSessionScratchNamespace(DEFAULT_NAMESPACE_SOURCE)
     await fs.rm(temporaryDirectory, { recursive: true, force: true })
   })
 
@@ -92,7 +100,7 @@ describe('Session scratch directory', () => {
     await fs.writeFile(path.join(directory, 'nested', 'state.tfstate'), 'secret')
 
     await removeSessionScratchDirectory('session-a', root)
-    await expect(fs.access(directory)).rejects.toThrow()
+    await expect(fs.access(directory)).rejects.toMatchObject(missing)
     await expect(removeSessionScratchDirectory('session-a', root)).resolves.toBeUndefined()
   })
 
@@ -102,15 +110,19 @@ describe('Session scratch directory', () => {
     const directory = await prepareSessionScratchDirectory('session-a', root)
     await removal
 
-    await expect(fs.stat(directory)).resolves.toMatchObject({})
     expect((await fs.stat(directory)).isDirectory()).toBe(true)
   })
 
   posixOnly('keeps the default path short enough for Unix sockets under TMPDIR', () => {
     const directory = sessionScratchDirectoryPath('3557992e-9fa2-48bb-b462-84e59638207c')
 
-    expect(directory.startsWith('/tmp/')).toBe(true)
     expect(Buffer.byteLength(directory, 'utf8')).toBeLessThanOrEqual(SOCKET_ROOM_SCRATCH_PATH_BYTES)
+  })
+
+  posixOnly('keeps a short user temp directory and falls back to /tmp for a long one', () => {
+    // A user who set TMPDIR because /tmp is noexec keeps it; macOS /var/folders is too long.
+    expect(defaultScratchBase('/home/me/.tmp')).toBe('/home/me/.tmp')
+    expect(defaultScratchBase('/var/folders/73/f8dtlm290sxdl1n1ktfgsdg40000gn/T')).toBe('/tmp')
   })
 
   it('never lets a Session id escape the root', () => {
@@ -129,18 +141,44 @@ describe('Session scratch directory', () => {
     await expect(fs.readFile(path.join(directory, 'build.log'), 'utf8')).resolves.toBe('in use')
 
     await release()
-    await expect(fs.access(directory)).rejects.toThrow()
+    await expect(fs.access(directory)).rejects.toMatchObject(missing)
   })
 
-  it('drops a deferred removal when the Session runs again before the Run ends', async () => {
+  it('drops a deferred removal when the Session is unarchived before the Run ends', async () => {
     const directory = await prepareSessionScratchDirectory('session-a', root)
     const release = retainSessionScratchDirectory('session-a', root)
     await removeSessionScratchDirectory('session-a', root)
 
-    await prepareSessionScratchDirectory('session-a', root)
+    keepSessionScratchDirectory('session-a', root)
     await release()
 
     expect((await fs.stat(directory)).isDirectory()).toBe(true)
+  })
+
+  it('keeps an archive that arrives between the Run retaining and preparing the directory', async () => {
+    const release = retainSessionScratchDirectory('session-a', root)
+    await removeSessionScratchDirectory('session-a', root)
+    const directory = await prepareSessionScratchDirectory('session-a', root)
+
+    await release()
+    await expect(fs.access(directory)).rejects.toMatchObject(missing)
+  })
+
+  it('still removes the directory after an earlier removal failed', async () => {
+    const directory = await prepareSessionScratchDirectory('session-a', root)
+    const rm = vi
+      .spyOn(fs, 'rm')
+      .mockRejectedValueOnce(Object.assign(new Error('busy'), { code: 'EBUSY' }))
+    try {
+      const first = removeSessionScratchDirectory('session-a', root)
+      const second = removeSessionScratchDirectory('session-a', root)
+
+      await expect(first).rejects.toMatchObject({ code: 'EBUSY' })
+      await expect(second).resolves.toBeUndefined()
+      await expect(fs.access(directory)).rejects.toMatchObject(missing)
+    } finally {
+      rm.mockRestore()
+    }
   })
 
   it('gives each OpenWaggle profile its own scratch root so one Host never sweeps another', () => {
@@ -168,10 +206,50 @@ describe('Session scratch directory', () => {
       sweepSessionScratchDirectories(['session-live'], root, Date.now() + TWO_HOURS_MS),
     ).resolves.toBe(1)
 
-    await expect(fs.access(gone)).rejects.toThrow()
+    await expect(fs.access(gone)).rejects.toMatchObject(missing)
     expect((await fs.stat(live)).isDirectory()).toBe(true)
     expect((await fs.stat(running)).isDirectory()).toBe(true)
     await release()
+  })
+
+  it('keeps a directory a Run retained while the sweep was reading it', async () => {
+    const directory = await prepareSessionScratchDirectory('session-racing', root)
+    const lstat = fs.lstat.bind(fs)
+    let release: (() => Promise<void>) | undefined
+    const spy = vi.spyOn(fs, 'lstat').mockImplementation(async (target, options) => {
+      const stats = await lstat(target, options)
+      // The Session is unarchived and its Run starts while the sweep awaits this lstat.
+      if (target === directory && !release) {
+        release = retainSessionScratchDirectory('session-racing', root)
+      }
+      return stats
+    })
+    try {
+      await expect(
+        sweepSessionScratchDirectories([], root, Date.now() + TWO_HOURS_MS),
+      ).resolves.toBe(0)
+    } finally {
+      spy.mockRestore()
+    }
+
+    expect((await fs.stat(directory)).isDirectory()).toBe(true)
+    await release?.()
+  })
+
+  it("removes another profile's namespace only after a week without a Run", async () => {
+    configureSessionScratchNamespace('/profiles/throwaway')
+    const throwawayRoot = sessionScratchRoot(temporaryDirectory)
+    await prepareSessionScratchDirectory('session-throwaway', throwawayRoot)
+    configureSessionScratchNamespace(DEFAULT_NAMESPACE_SOURCE)
+    const ownRoot = sessionScratchRoot(temporaryDirectory)
+    await prepareSessionScratchDirectory('session-own', ownRoot)
+
+    await sweepSessionScratchDirectories(['session-own'], ownRoot, Date.now() + TWO_HOURS_MS)
+    expect((await fs.stat(throwawayRoot)).isDirectory()).toBe(true)
+
+    await sweepSessionScratchDirectories(['session-own'], ownRoot, Date.now() + EIGHT_DAYS_MS)
+    await expect(fs.access(throwawayRoot)).rejects.toMatchObject(missing)
+    expect((await fs.stat(ownRoot)).isDirectory()).toBe(true)
   })
 
   it('treats a missing scratch root as nothing to sweep', async () => {

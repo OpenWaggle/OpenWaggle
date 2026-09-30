@@ -54,6 +54,23 @@ export const env: Env = decodeUnknownOrThrow(envSchema, process.env)
 
 export const logLevel = env.OPENWAGGLE_LOG_LEVEL ?? 'info'
 
+const TEMPORARY_DIRECTORY_VARIABLES = ['TMPDIR', 'TMP', 'TEMP'] as const
+
+/**
+ * An OpenWaggle process started from an agent's shell tool (the `openwaggle` CLI, or an agent
+ * running `pnpm dev`) inherits that Session's scratch directory as TMPDIR, TMP, and TEMP.
+ * Its own temp files, including a nested Host's caches, belong in the Host temp directory, which
+ * the agent environment preserves in OPENWAGGLE_HOST_TMPDIR; archiving the Session would
+ * otherwise delete them under the running process.
+ */
+export function restoreHostTemporaryDirectory(
+  environment: NodeJS.ProcessEnv = process.env,
+  hostTemporaryDirectory = env.OPENWAGGLE_HOST_TMPDIR,
+) {
+  if (!hostTemporaryDirectory) return
+  for (const name of TEMPORARY_DIRECTORY_VARIABLES) environment[name] = hostTemporaryDirectory
+}
+
 /** Unlike the startup snapshot above, PATH can change after desktop-shell hydration. */
 export function getCurrentProcessPath(): string | undefined {
   return process.env.PATH

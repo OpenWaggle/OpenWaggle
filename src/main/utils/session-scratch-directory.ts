@@ -9,15 +9,21 @@ const PERMISSION_BITS = 0o777
 const SCRATCH_ROOT_NAME = 'ow-scratch'
 const SCRATCH_NAME_HASH_CHARACTERS = 12
 const NAMESPACE_HASH_CHARACTERS = 8
+const HOUR_MS = 60 * 60 * 1000
 /** A directory this young may belong to a Session created after the sweep read the catalog. */
-const SWEEP_MINIMUM_AGE_MS = 60 * 60 * 1000
+const SWEEP_MINIMUM_AGE_MS = HOUR_MS
+/** Another profile's namespace untouched this long belongs to a profile that no longer runs. */
+const ABANDONED_NAMESPACE_AGE_MS = 7 * 24 * HOUR_MS
 const DEFAULT_NAMESPACE_SOURCE = 'default'
 /**
- * `os.tmpdir()` on macOS is a 48-byte `/var/folders/...` path, and a Unix socket path must fit in
- * 104 bytes. Tools such as `tsx` bind sockets under `TMPDIR`, so the scratch directory lives under
- * the short `/tmp` instead and keeps a hashed, fixed-length name.
+ * A Unix socket path must fit in 104 bytes on macOS. Tools such as `tsx` (`/tsx-<uid>/<pid>.pipe`)
+ * and Chromium (`/.com.google.Chrome.XXXXXX/SingletonSocket`, 43 bytes) bind sockets under
+ * `TMPDIR`, so the scratch directory path stays within this budget to leave room for them. Under
+ * the macOS per-user temp directory (`/var/folders/...`, 48 bytes on its own) it would not fit, so
+ * there the scratch root falls back to the short `/tmp`.
  */
-const POSIX_SCRATCH_BASE = '/tmp'
+const MAX_SCRATCH_DIRECTORY_PATH_BYTES = 56
+const POSIX_SHORT_SCRATCH_BASE = '/tmp'
 /** The Host's own temp directory, kept for tool processes whose `TMPDIR` points at a scratch dir. */
 export const HOST_TEMPORARY_DIRECTORY_ENV = 'OPENWAGGLE_HOST_TMPDIR' satisfies keyof typeof env
 
@@ -74,21 +80,35 @@ export function hostTemporaryDirectory(preserved = env.OPENWAGGLE_HOST_TMPDIR) {
   return preserved || os.tmpdir()
 }
 
-function defaultScratchBase() {
-  return process.platform === 'win32' ? os.tmpdir() : POSIX_SCRATCH_BASE
-}
-
 function scratchUserDirectoryName() {
   const uid = process.getuid?.()
   return uid === undefined ? SCRATCH_ROOT_NAME : `${SCRATCH_ROOT_NAME}-${uid}`
 }
 
+function rootUnder(temporaryDirectory: string) {
+  return path.join(temporaryDirectory, scratchUserDirectoryName(), scratchNamespace)
+}
+
 /**
- * This Host's parent of every Session scratch directory. On a shared `/tmp` the user id in the
- * name keeps another local account from pre-creating it; ownership is still verified.
+ * The user's temp directory when a scratch path under it fits the socket budget, as on Linux or
+ * with a short custom `TMPDIR` (for example one chosen because `/tmp` is `noexec`), and `/tmp`
+ * otherwise. Windows has no Unix socket limit and always uses the user temp directory.
+ */
+export function defaultScratchBase(temporaryDirectory = hostTemporaryDirectory()) {
+  if (process.platform === 'win32') return temporaryDirectory
+  const sample = path.join(rootUnder(temporaryDirectory), 'x'.repeat(SCRATCH_NAME_HASH_CHARACTERS))
+  return Buffer.byteLength(sample, 'utf8') <= MAX_SCRATCH_DIRECTORY_PATH_BYTES
+    ? temporaryDirectory
+    : POSIX_SHORT_SCRATCH_BASE
+}
+
+/**
+ * This Host's parent of every Session scratch directory. Every level is created owner-only and
+ * refused if it is a symlink or owned by another user, so another local account can at most
+ * block it, never read it.
  */
 export function sessionScratchRoot(temporaryDirectory = defaultScratchBase()) {
-  return path.join(temporaryDirectory, scratchUserDirectoryName(), scratchNamespace)
+  return rootUnder(temporaryDirectory)
 }
 
 export function sessionScratchDirectoryPath(sessionId: string, root = sessionScratchRoot()) {
@@ -122,7 +142,7 @@ async function ensurePrivateDirectory(directory: string) {
 /**
  * Create the Session's private scratch directory. Each Session, Worker or not, gets its own, so
  * concurrent agents that pick the same literal file name cannot read or overwrite each other's
- * files. A new Run means the Session is live again, so a removal deferred by archive is dropped.
+ * files. A removal still in flight finishes first; its failure is the remover's to report.
  */
 export async function prepareSessionScratchDirectory(
   sessionId: string,
@@ -130,17 +150,23 @@ export async function prepareSessionScratchDirectory(
 ) {
   const directory = sessionScratchDirectoryPath(sessionId, root)
   const state = scratchDirectoryState(directory)
-  state.removeWhenReleased = false
-  await state.removal
+  await state.removal?.catch(() => undefined)
   forgetIdleState(directory, state)
   await ensurePrivateDirectory(path.dirname(root))
   await ensurePrivateDirectory(root)
   await ensurePrivateDirectory(directory)
+  // Sweeps judge age by modification time, so each Run marks its directory and namespace as used.
+  const touchedAt = new Date()
+  await Promise.all([
+    fs.utimes(root, touchedAt, touchedAt),
+    fs.utimes(directory, touchedAt, touchedAt),
+  ])
   return directory
 }
 
 function removeNow(directory: string, state: ScratchDirectoryState) {
-  const previous = state.removal ?? Promise.resolve()
+  // A failed earlier removal must not cancel this one.
+  const previous = state.removal?.catch(() => undefined) ?? Promise.resolve()
   const removal: Promise<void> = previous
     .then(() => fs.rm(directory, { recursive: true, force: true }))
     .finally(() => {
@@ -174,6 +200,18 @@ export function retainSessionScratchDirectory(sessionId: string, root = sessionS
   }
 }
 
+/**
+ * The Session was unarchived, so a removal its archive deferred to the end of a running Run no
+ * longer applies. Deleted Sessions are never restored, so only unarchive calls this.
+ */
+export function keepSessionScratchDirectory(sessionId: string, root = sessionScratchRoot()) {
+  const directory = sessionScratchDirectoryPath(sessionId, root)
+  const state = scratchDirectoryStates.get(directory)
+  if (!state) return
+  state.removeWhenReleased = false
+  forgetIdleState(directory, state)
+}
+
 export async function removeSessionScratchDirectory(
   sessionId: string,
   root = sessionScratchRoot(),
@@ -193,11 +231,42 @@ async function isOwnedPrivateDirectory(directory: string) {
   return stats.isDirectory() && !stats.isSymbolicLink() && (uid === undefined || stats.uid === uid)
 }
 
+async function newestModification(directory: string) {
+  const stats = await fs.lstat(directory)
+  let newest = stats.mtimeMs
+  for (const name of await fs.readdir(directory)) {
+    const child = await fs.lstat(path.join(directory, name)).catch(() => undefined)
+    if (child) newest = Math.max(newest, child.mtimeMs)
+  }
+  return newest
+}
+
+/**
+ * Remove other profiles' namespaces that nothing has touched for a week. Throwaway profiles such
+ * as `pnpm dev:debug` runs get a fresh namespace each time and no Host ever sweeps it again.
+ */
+async function sweepAbandonedNamespaces(root: string, now: number) {
+  const userDirectory = path.dirname(root)
+  const ownNamespace = path.basename(root)
+  let removed = 0
+  for (const name of await fs.readdir(userDirectory)) {
+    if (name === ownNamespace) continue
+    const namespace = path.join(userDirectory, name)
+    if (!(await isOwnedPrivateDirectory(namespace).catch(() => false))) continue
+    const newest = await newestModification(namespace).catch(() => now)
+    if (now - newest < ABANDONED_NAMESPACE_AGE_MS) continue
+    await fs.rm(namespace, { recursive: true, force: true })
+    removed += 1
+  }
+  return removed
+}
+
 /**
  * Remove scratch directories whose Session is gone or archived. Archive and delete remove the
  * directory while the Host runs; this catches Sessions deleted while it was down or left behind by
  * a failed removal. Directories in use by a Run, or too young to rule out a new Session, are kept.
- * Returns the number removed.
+ * Other profiles' namespaces are removed only once abandoned for a week. Returns the number of
+ * directories removed.
  */
 export async function sweepSessionScratchDirectories(
   liveSessionIds: Iterable<string>,
@@ -211,8 +280,8 @@ export async function sweepSessionScratchDirectories(
   )
   let entries: string[]
   try {
-    if (!(await isOwnedPrivateDirectory(root))) return 0
-    entries = await fs.readdir(root)
+    if (!(await isOwnedPrivateDirectory(path.dirname(root)))) return 0
+    entries = (await isOwnedPrivateDirectory(root).catch(() => false)) ? await fs.readdir(root) : []
   } catch (error) {
     if (hasErrorCode(error, 'ENOENT')) return 0
     throw error
@@ -221,15 +290,20 @@ export async function sweepSessionScratchDirectories(
   for (const name of entries) {
     if (live.has(name)) continue
     const directory = path.join(root, name)
-    const state = scratchDirectoryStates.get(directory)
-    if (state && state.retained > 0) continue
     const stats = await fs.lstat(directory).catch(() => undefined)
     if (!stats?.isDirectory() || stats.isSymbolicLink()) continue
     if (now - stats.mtimeMs < SWEEP_MINIMUM_AGE_MS) continue
-    await removeNow(directory, state ?? scratchDirectoryState(directory))
+    // Checked after the awaits and right before starting the removal, in the same tick, so a Run
+    // that retained the directory meanwhile keeps it; a later Run waits for the removal instead.
+    const state = scratchDirectoryState(directory)
+    if (state.retained > 0) {
+      forgetIdleState(directory, state)
+      continue
+    }
+    await removeNow(directory, state)
     removed += 1
   }
-  return removed
+  return removed + (await sweepAbandonedNamespaces(root, now))
 }
 
 /**

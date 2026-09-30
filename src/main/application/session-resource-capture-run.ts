@@ -256,7 +256,7 @@ function captureAssistantResources(input: SuccessfulRunResourceInput, links: Lin
       generatedImageBudget: { bytes: 0, count: 0, attempts: 0 },
       toolCount: 0,
       links,
-      localImageRoots: localImageCaptureRoots(workingPath),
+      localImageRoots: localImageCaptureRoots(workingPath, input.sessionId),
     }
     for (const message of input.messages) {
       if (message.role !== 'assistant') continue
