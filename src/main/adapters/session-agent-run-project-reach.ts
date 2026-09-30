@@ -8,9 +8,10 @@ import {
   isLocalUserCallerId,
   isProfileCallerId,
   parseSessionAgentCallerId,
-  RUN_INITIATOR_CHAIN_START,
   type RunInitiatorChain,
   rootSessionReachesEveryProject,
+  runInitiatorVerdictKey,
+  startRunInitiatorChain,
 } from '../domain/session-control/root-session-project-reach'
 import { decodeSessionAuthoritySnapshot } from '../session-host/session-authority-snapshot'
 
@@ -42,13 +43,13 @@ function liveProfileScope(sql: SqlClient.SqlClient, callerId: string) {
 
 /** Whether a caller, as the author of input into a Run, reaches every project. */
 export function callerReachesEveryProject(sql: SqlClient.SqlClient, callerId: string) {
-  return initiatorReachesEveryProject(sql, callerId, RUN_INITIATOR_CHAIN_START)
+  return initiatorReachesEveryProject(sql, callerId, startRunInitiatorChain<boolean>())
 }
 
 function initiatorReachesEveryProject(
   sql: SqlClient.SqlClient,
   callerId: string,
-  chain: RunInitiatorChain,
+  chain: RunInitiatorChain<boolean>,
 ): Effect.Effect<boolean, unknown> {
   if (isLocalUserCallerId(callerId)) return Effect.succeed(true)
   if (isProfileCallerId(callerId)) {
@@ -72,10 +73,24 @@ export function sessionAgentRunReachesEveryProject(
   sql: SqlClient.SqlClient,
   sessionId: string,
   runId: string,
-  chain: RunInitiatorChain = RUN_INITIATOR_CHAIN_START,
+  chain: RunInitiatorChain<boolean> = startRunInitiatorChain<boolean>(),
 ): Effect.Effect<boolean, unknown> {
+  const key = runInitiatorVerdictKey(sessionId, runId)
+  const known = chain.verdicts.get(key)
+  if (known !== undefined) return Effect.succeed(known)
   const next = followRunInitiatorChain(chain, sessionId)
   if (!next) return Effect.succeed(false)
+  return runReachesEveryProject(sql, sessionId, runId, next).pipe(
+    Effect.tap((verdict) => Effect.sync(() => chain.verdicts.set(key, verdict))),
+  )
+}
+
+function runReachesEveryProject(
+  sql: SqlClient.SqlClient,
+  sessionId: string,
+  runId: string,
+  next: RunInitiatorChain<boolean>,
+): Effect.Effect<boolean, unknown> {
   return Effect.gen(function* () {
     const rows = yield* sql<RunSourceRow>`
       SELECT json_extract(session_runs.intent_json, '$.callerId') AS initiator_caller_id,

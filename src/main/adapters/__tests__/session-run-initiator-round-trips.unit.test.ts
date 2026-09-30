@@ -4,26 +4,48 @@ import path from 'node:path'
 import * as SqlClient from '@effect/sql/SqlClient'
 import { SqliteClient } from '@effect/sql-sqlite-node'
 import * as Effect from 'effect/Effect'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { MAX_RUN_INITIATOR_CHAIN_HOPS } from '../../domain/session-control/root-session-project-reach'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type * as RootSessionProjectReach from '../../domain/session-control/root-session-project-reach'
+import {
+  MAX_RUN_INITIATOR_CHAIN_HOPS,
+  type RunInitiatorChain,
+} from '../../domain/session-control/root-session-project-reach'
 import { SQLITE_PREPARE_CACHE_SIZE } from '../../services/database-constants'
 import { runInitiatorCeiling } from '../../session-host/session-agent-run-ceiling'
 import { sessionAgentRunReachesEveryProject } from '../session-agent-run-project-reach'
+
+const followed = vi.hoisted(() => ({ runs: 0 }))
+
+// Counts the Runs each check follows, so a walk that forks without sharing verdicts shows up.
+vi.mock('../../domain/session-control/root-session-project-reach', async (importOriginal) => {
+  const original = await importOriginal<typeof RootSessionProjectReach>()
+  return {
+    ...original,
+    followRunInitiatorChain<Verdict>(chain: RunInitiatorChain<Verdict>, sessionId: string) {
+      followed.runs += 1
+      return original.followRunInitiatorChain(chain, sessionId)
+    },
+  }
+})
 
 const PROFILE_JSON = '{"modelId":"provider/model","thinkingLevel":"medium"}'
 /** Twenty round trips of Follow-ups between two roots: far more hops than there are Sessions. */
 const ROUND_TRIP_HOPS = 40
 
-/** Runs `run-0` ... `run-<hops>` alternating between roots `a` and `b`, each started by the last. */
-function pingPong(hops: number, firstInitiator: string) {
-  return Array.from({ length: hops + 1 }, (_, index) => ({
-    runId: `run-${index}`,
-    sessionId: index % 2 === 0 ? 'a' : 'b',
-    callerId:
-      index === 0
-        ? firstInitiator
-        : `session-agent:${(index - 1) % 2 === 0 ? 'a' : 'b'}:run-${index - 1}`,
-  }))
+/**
+ * Runs `run-0` ... `run-<hops>` alternating between roots `a` and `b`, each started by the last.
+ * With `authoredByPrevious`, each is also a re-authorized Follow-up the previous Run wrote.
+ */
+function pingPong(hops: number, firstInitiator: string, authoredByPrevious = false) {
+  return Array.from({ length: hops + 1 }, (_, index) => {
+    const previous = `session-agent:${(index - 1) % 2 === 0 ? 'a' : 'b'}:run-${index - 1}`
+    return {
+      runId: `run-${index}`,
+      sessionId: index % 2 === 0 ? 'a' : 'b',
+      callerId: index === 0 ? firstInitiator : previous,
+      ...(authoredByPrevious && index > 0 ? { authorCallerId: previous } : {}),
+    }
+  })
 }
 
 describe('Run initiator chains between two roots', () => {
@@ -39,7 +61,12 @@ describe('Run initiator chains between two roots', () => {
   })
 
   function withRuns<A>(
-    runs: readonly { runId: string; sessionId: string; callerId: string }[],
+    runs: readonly {
+      runId: string
+      sessionId: string
+      callerId: string
+      authorCallerId?: string
+    }[],
     use: (sql: SqlClient.SqlClient) => Effect.Effect<A, unknown>,
   ) {
     databaseCount += 1
@@ -82,7 +109,10 @@ describe('Run initiator chains between two roots', () => {
         }
         for (const run of runs) {
           yield* sql`INSERT INTO session_runs (id, session_id, intent_json) VALUES (
-            ${run.runId}, ${run.sessionId}, ${JSON.stringify({ callerId: run.callerId })}
+            ${run.runId}, ${run.sessionId}, ${JSON.stringify({
+              callerId: run.callerId,
+              ...(run.authorCallerId ? { authorCallerId: run.authorCallerId } : {}),
+            })}
           )`
         }
         return yield* use(sql)
@@ -124,5 +154,17 @@ describe('Run initiator chains between two roots', () => {
     await expect(
       judge(pingPong(MAX_RUN_INITIATOR_CHAIN_HOPS - 1, 'gui:local-user')),
     ).resolves.toEqual({ reach: true, ceiling: 'yolo' })
+  })
+
+  it('follows each Run once when every Run has both an initiator and an author', async () => {
+    // Each Run forks the walk in two: without shared verdicts this is 2^hops Runs per check.
+    const hops = 10
+    followed.runs = 0
+    await expect(judge(pingPong(hops, 'gui:local-user', true))).resolves.toEqual({
+      reach: true,
+      ceiling: 'yolo',
+    })
+    // One reach check and one ceiling check, each following every Run once.
+    expect(followed.runs).toBe(2 * (hops + 1))
   })
 })

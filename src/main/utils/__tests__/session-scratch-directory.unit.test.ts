@@ -22,6 +22,8 @@ const SOCKET_ROOM_SCRATCH_PATH_BYTES = 56
 const TWO_HOURS_MS = 2 * 60 * 60 * 1000
 const EIGHT_DAYS_MS = 8 * 24 * 60 * 60 * 1000
 
+/** Long enough for a prepare that does not wait for an in-flight removal to finish. */
+const UNWAITED_PREPARE_MS = 50
 const missing = { code: 'ENOENT' }
 const PERMISSION_BITS = 0o777
 const posixOnly = process.platform === 'win32' ? it.skip : it
@@ -120,6 +122,9 @@ describe('Session scratch directory', () => {
     try {
       const removal = removeSessionScratchDirectory('session-a', root)
       const preparing = prepareSessionScratchDirectory('session-a', root)
+      // Let a prepare that did not wait for the removal finish first, so the removal would then
+      // delete the directory it returned.
+      await new Promise((resolve) => setTimeout(resolve, UNWAITED_PREPARE_MS))
       finishRemoval()
       const directory = await preparing
       await removal

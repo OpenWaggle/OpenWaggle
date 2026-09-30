@@ -7,8 +7,9 @@ import {
   isLocalUserCallerId,
   isProfileCallerId,
   parseSessionAgentCallerId,
-  RUN_INITIATOR_CHAIN_START,
   type RunInitiatorChain,
+  runInitiatorVerdictKey,
+  startRunInitiatorChain,
 } from '../domain/session-control/root-session-project-reach'
 
 const ASK: AgentAuthorizationMode = 'ask-for-approval'
@@ -82,7 +83,7 @@ export function sessionAgentAuthorizationBoundary(sql: SqlClient.SqlClient, sess
 function callerCeiling(
   sql: SqlClient.SqlClient,
   callerId: string,
-  chain: RunInitiatorChain,
+  chain: RunInitiatorChain<AgentAuthorizationMode>,
 ): Effect.Effect<AgentAuthorizationMode, unknown> {
   if (isLocalUserCallerId(callerId)) return Effect.succeed(YOLO)
   if (isProfileCallerId(callerId)) {
@@ -135,10 +136,24 @@ export function runInitiatorCeiling(
   sql: SqlClient.SqlClient,
   sessionId: string,
   runId: string,
-  chain: RunInitiatorChain = RUN_INITIATOR_CHAIN_START,
+  chain: RunInitiatorChain<AgentAuthorizationMode> = startRunInitiatorChain<AgentAuthorizationMode>(),
 ): Effect.Effect<AgentAuthorizationMode, unknown> {
+  const key = runInitiatorVerdictKey(sessionId, runId)
+  const known = chain.verdicts.get(key)
+  if (known !== undefined) return Effect.succeed(known)
   const next = followRunInitiatorChain(chain, sessionId)
   if (!next) return Effect.succeed(ASK)
+  return initiatorsCeiling(sql, sessionId, runId, next).pipe(
+    Effect.tap((verdict) => Effect.sync(() => chain.verdicts.set(key, verdict))),
+  )
+}
+
+function initiatorsCeiling(
+  sql: SqlClient.SqlClient,
+  sessionId: string,
+  runId: string,
+  next: RunInitiatorChain<AgentAuthorizationMode>,
+): Effect.Effect<AgentAuthorizationMode, unknown> {
   return Effect.gen(function* () {
     const row = yield* initiatorRow(sql, sessionId, runId)
     if (!row?.initiator_caller_id) return ASK

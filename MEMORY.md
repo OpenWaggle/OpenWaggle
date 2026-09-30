@@ -691,7 +691,7 @@ A root Session agent's catalog-wide reach (ADR 0042) is decided by one function,
 queued Follow-up is delivered. It needs both the Session's own authority
 (`rootSessionReachesEveryProject`: a root from the local user or a catalog-wide profile, origin read
 from the caller id) and the Run's initiator (`session_runs.intent_json.callerId`, followed through up
-to eight other Sessions, counted by distinct Session so Follow-up round trips between two roots do not exhaust it, and at most 256 Runs). Without the initiator check, a project-scoped CLI profile could message a desktop
+to eight other Sessions, counted by distinct Session so Follow-up round trips between two roots do not exhaust it early, and at most 256 Runs, about 128 round trips; verdicts are shared across the walk's branches so each Run is read once). Without the initiator check, a project-scoped CLI profile could message a desktop
 Session and have it act in every project. Input into a running catalog-wide Run (steer, promote,
 request/approval respond) from a narrower caller is refused in `local-session-run-input-reach.ts`
 (`runInputWidensReach` on the authorization target port), and a re-authorized Follow-up keeps its
