@@ -18,6 +18,7 @@ type FeedConfiguration =
       readonly provider: 'generic'
       readonly url: string
       readonly channel: ReturnType<typeof updaterFeedChannel>
+      readonly useMultipleRangeRequest: false
     }
 
 interface UpdateFeedTarget {
@@ -72,8 +73,10 @@ function isEligibleReleaseChannel(
   updateChannel: UpdateChannel,
 ) {
   if (releaseChannel === 'stable') return true
-  if (releaseChannel === 'rc' || updateChannel === 'stable') return false
-  return updateChannel === 'alpha' || releaseChannel === 'beta'
+  if (updateChannel === 'stable') return false
+  // Beta and Alpha both accept release candidates, so the RC validation window
+  // reaches every prerelease user; only Alpha accepts Alpha builds.
+  return releaseChannel !== 'alpha' || updateChannel === 'alpha'
 }
 
 export function isVersionEligibleForChannel(version: string, channel: UpdateChannel) {
@@ -128,6 +131,9 @@ export function configureUpdaterFeed(
       provider: 'generic',
       url: `https://github.com/OpenWaggle/OpenWaggle/releases/download/${encodeURIComponent(tag)}/`,
       channel: updaterFeedChannel(channel),
+      // GitHub release downloads answer multi-range requests with HTTP 501, so differential
+      // (blockmap) downloads must use single ranges, as electron-updater's GitHub provider does.
+      useMultipleRangeRequest: false,
     })
   })
 }

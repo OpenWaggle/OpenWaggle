@@ -1,5 +1,9 @@
 import type * as SqlClient from '@effect/sql/SqlClient'
-import { assertSessionTitle, boundGeneratedSessionTitle } from '@shared/session-title'
+import {
+  assertSessionTitle,
+  boundGeneratedSessionTitle,
+  SESSION_TITLE_MAX_LENGTH,
+} from '@shared/session-title'
 import { SessionId } from '@shared/types/brand'
 import * as Effect from 'effect/Effect'
 import { SessionLifecycleRepositoryError } from '../errors'
@@ -65,11 +69,11 @@ function persistSessionMetadata(
   authorityScope: ExecuteInput['callerAuthorityScope'],
 ) {
   const command = input.request.command
-  const title =
+  const explicitTitle =
     command.operation === 'spawn'
       ? boundGeneratedSessionTitle(command.delegation.objective)
       : command.title === undefined
-        ? 'New session'
+        ? null
         : assertSessionTitle(command.title)
   const environmentMode = workspace.kind === 'managed-worktree' ? 'worktree' : 'local'
   const worktreePath =
@@ -78,6 +82,7 @@ function persistSessionMetadata(
       : null
   const branchId = mainBranchId(String(input.session.sessionId))
   return Effect.gen(function* () {
+    const title = explicitTitle ?? (yield* defaultLifecycleTitle(sql, command))
     yield* sql`
       INSERT INTO sessions (
         id, pi_session_id, pi_session_file, project_path, title, archived,
@@ -153,6 +158,44 @@ function persistSessionMetadata(
       title,
       ...(selectedAgentDefinitionName ? { agentDefinitionName: selectedAgentDefinitionName } : {}),
     })
+  })
+}
+
+/**
+ * Truncates to a UTF-16 length, which is what the title limit counts, without splitting a
+ * surrogate pair.
+ */
+function truncateTitle(title: string, maxLength: number) {
+  let truncated = ''
+  for (const character of title) {
+    if (truncated.length + character.length > maxLength) break
+    truncated += character
+  }
+  return truncated.trimEnd()
+}
+
+/** A marker left by an earlier fork or copy, so a fork of a fork is not "X (fork) (fork)". */
+const COPY_TITLE_SUFFIX = / \((?:fork|copy)\)$/
+
+/**
+ * An untitled fork is named after its source, marked as a fork or a copy. Titles are generated only
+ * for a Session with no messages, so a fork left as "New session" never got a name.
+ */
+function defaultLifecycleTitle(
+  sql: SqlClient.SqlClient,
+  command: ExecuteInput['request']['command'],
+) {
+  if (command.operation !== 'fork') return Effect.succeed('New session')
+  const suffix = (command.position ?? 'at') === 'before' ? ' (fork)' : ' (copy)'
+  return Effect.gen(function* () {
+    const rows = yield* sql<{ readonly title: string }>`
+      SELECT title FROM sessions WHERE id = ${command.sourceSessionId} LIMIT 1
+    `
+    const source = rows[0]?.title.replace(COPY_TITLE_SUFFIX, '').trim()
+    if (!source) return 'New session'
+    return assertSessionTitle(
+      `${truncateTitle(source, SESSION_TITLE_MAX_LENGTH - suffix.length)}${suffix}`,
+    )
   })
 }
 

@@ -1,5 +1,6 @@
 import type { WaggleCollaborationStatus } from '@shared/types/waggle'
 import { useQuery } from '@tanstack/react-query'
+import { useRouter } from '@tanstack/react-router'
 import { useAgentChat } from '@/features/chat/hooks/useAgentChat'
 import { useSendMessage } from '@/features/chat/hooks/useSendMessage'
 import { useSessionFollowUpQueue } from '@/features/chat/hooks/useSessionFollowUpQueue'
@@ -11,6 +12,7 @@ import { useWaggleChat } from '@/features/waggle/hooks'
 import { useWaggleStore } from '@/features/waggle/state'
 import { extensionContributionsQueryOptions } from '@/queries/extensions'
 import { buildDiffSection } from '../lib/diff-section'
+import { trackRoutedNode } from '../lib/follow-branch-head'
 import { setComposerSessionAuthorizationMode } from '../lib/session-authorization-mode-action'
 import { sendStarterPrompt } from '../lib/starter-prompt-action'
 import type { ChatPanelSections } from '../model'
@@ -27,6 +29,7 @@ import { useVisualizationFollowUpDispatcher } from './useVisualizationFollowUpDi
 
 export function useChatPanelSections(): ChatPanelSections {
   const env = useChatPanelEnvironment()
+  const router = useRouter()
   const {
     activeSessionId,
     activeSession,
@@ -112,9 +115,9 @@ export function useChatPanelSections(): ChatPanelSections {
   const sessionCopy = useSessionCopyWorkflow({
     activeSessionId,
     activeWorkspace,
+    messages,
     draftBranchSourceNodeId: draftBranch?.sourceNodeId ?? null,
     model,
-    projectPath,
     navigate,
     setActiveSession,
     loadSessions,
@@ -141,6 +144,7 @@ export function useChatPanelSections(): ChatPanelSections {
     clearDraftBranchForSession,
     draftBranch,
     extensionContributions: extensionRegistry,
+    trackRoutedNode: (sessionId) => trackRoutedNode(router, sessionId),
     handleSend,
     handleSendWaggle,
     messages,

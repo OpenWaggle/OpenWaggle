@@ -51,7 +51,7 @@ Below the controls, select a project to read its agent definitions or enable and
 
 **Context compaction** controls when OpenWaggle reduces the older context sent to a model so a long conversation can continue. **Automatic compaction threshold** defaults to **80%** of the model's context capacity. It applies across models, projects, and sessions. The model's capabilities determine whether this uses native compaction or a portable summary; there is no provider-specific switch.
 
-**About & Updates** shows your installed version and update channel. Stable is the default. Beta also accepts Stable releases; Alpha accepts Alpha, Beta, and Stable releases. Entering Alpha requires confirmation. Changing the channel saves it and immediately checks for an eligible update, but never authorizes a downgrade.
+**About & Updates** shows your installed version and update channel. Stable is the default. Beta also accepts release candidate and Stable releases; Alpha accepts Alpha, Beta, release candidate, and Stable releases. Entering Alpha requires confirmation. Changing the channel saves it and immediately checks for an eligible update, but never authorizes a downgrade.
 
 Use **Check now** to check again. A downloaded update installs only when you choose **Restart to update**. OpenWaggle rechecks that it is still eligible for your channel before restarting; ordinary app exit does not install it. The app and `openwaggle update` share the channel setting.
 

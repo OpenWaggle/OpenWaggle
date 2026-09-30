@@ -124,6 +124,17 @@ describe('app instance claim', () => {
     expect(takeOpenProjectRequest()).toBeNull()
   })
 
+  it('ignores the update CLI probe instead of raising a window', () => {
+    const { host, launchAgain } = fakeHost(true)
+    const revealWindow = vi.fn()
+    claimAppInstance({ host, openProjectPath: undefined, singleInstance: true, revealWindow })
+
+    launchAgain({ openwaggleInstanceProbe: 'update-cli' })
+
+    expect(revealWindow).not.toHaveBeenCalled()
+    expect(takeOpenProjectRequest()).toBeNull()
+  })
+
   it('skips the lock when single-instance mode is disabled', () => {
     const { host, lockData } = fakeHost(false)
 

@@ -53,8 +53,10 @@ for the About view and the updater/userData decisions.
   `latest*.yml`; Beta and Alpha map to their corresponding metadata files.
   Release packaging creates the cross-channel aliases that electron-builder's
   GitHub provider omits: Stable is visible to all automatic channels, Beta to
-  Beta and Alpha, and Alpha only to Alpha. RC remains an exact-version channel
-  because electron-updater's GitHub provider treats it as custom. The channel
+  Beta and Alpha, and Alpha only to Alpha. RC was originally an exact-version
+  channel because electron-updater's GitHub provider treats it as custom;
+  ADR 0040 makes RC visible to Beta and Alpha, which works because the app
+  selects the release itself and uses a generic feed. The channel
   is shared by desktop Settings and `openwaggle update`; changing it never
   enables downgrades. Dev builds never auto-update.
 

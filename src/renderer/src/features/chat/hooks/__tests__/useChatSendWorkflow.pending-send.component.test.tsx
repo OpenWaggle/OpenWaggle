@@ -1,62 +1,18 @@
 import type { AgentSendPayload } from '@shared/types/agent'
-import { SessionId, SupportedModelId } from '@shared/types/brand'
+import { SessionId, SessionNodeId } from '@shared/types/brand'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { MessageNotDelivered } from '../../lib/message-delivery'
+import { MessageDeliveredRunFailed, MessageNotDelivered } from '../../lib/message-delivery'
 import { useBranchSummaryStore } from '../../state/branch-summary-store'
 import { useChatSendWorkflow } from '../useChatSendWorkflow'
+import { sendWorkflowParams } from './send-workflow-params'
 
 vi.mock('@/shared/lib/ipc', () => ({ api: {} }))
 
 const SESSION_ID = SessionId('session-1')
-const MODEL = SupportedModelId('openai/gpt-5.5')
-
-type SendWorkflowParams = Parameters<typeof useChatSendWorkflow>[0]
 
 function payload(text: string): AgentSendPayload {
   return { text, thinkingLevel: 'medium', attachments: [] }
-}
-
-function sendWorkflowParams(overrides: Partial<SendWorkflowParams> = {}): SendWorkflowParams {
-  return {
-    activeSessionId: SESSION_ID,
-    branchSummary: {
-      materializeBranchSummary: vi.fn().mockResolvedValue(undefined),
-      materializeDraftBranchForSend: vi.fn().mockResolvedValue(true),
-      cancelBranchSummary: vi.fn(),
-      skipBranchSummary: vi.fn(),
-      startCustomBranchSummary: vi.fn(),
-      switchComposerToDraftBranch: vi.fn(),
-    },
-    clearDraftBranchForSession: vi.fn(),
-    draftBranch: null,
-    extensionContributions: null,
-    handleSend: vi.fn().mockResolvedValue(undefined),
-    handleSendWaggle: vi.fn().mockResolvedValue(undefined),
-    messages: [],
-    model: MODEL,
-    phase: { reset: vi.fn() },
-    projectPath: '/tmp/project',
-    refreshSession: vi.fn().mockResolvedValue(undefined),
-    refreshSessionWorkspace: vi.fn().mockResolvedValue(undefined),
-    sessionCopy: {
-      forkSelectorOpen: false,
-      forkTargets: [],
-      closeForkSelector: vi.fn(),
-      cloneCurrentSessionToNewSession: vi.fn().mockResolvedValue(undefined),
-      forkMessageToNewSession: vi.fn().mockResolvedValue(undefined),
-      openForkSelector: vi.fn(),
-      selectForkTarget: vi.fn(),
-    },
-    beginPendingSend: vi.fn(),
-    clearPendingSend: vi.fn(),
-    showToast: vi.fn(),
-    startWaggleCollaboration: vi.fn(),
-    stop: vi.fn(),
-    stopWaggleCollaboration: vi.fn(),
-    waggleStatus: 'idle',
-    ...overrides,
-  } satisfies SendWorkflowParams
 }
 
 /** The baseline a send records so the transcript can hold its own optimistic row (ADR 0036). */
@@ -95,5 +51,54 @@ describe('useChatSendWorkflow pending send', () => {
     // The exact send it began is cleared, so a newer send in its place survives.
     const begun = vi.mocked(params.beginPendingSend).mock.calls[0]?.[0]
     expect(params.clearPendingSend).toHaveBeenCalledWith(begun)
+  })
+
+  it('follows the branch head once a send from a retry draft is delivered', async () => {
+    const followBranchHead = vi.fn()
+    const params = sendWorkflowParams({
+      draftBranch: { sessionId: SESSION_ID, sourceNodeId: SessionNodeId('retry-source') },
+      trackRoutedNode: vi.fn(() => followBranchHead),
+    })
+    const { result } = renderHook(() => useChatSendWorkflow(params))
+
+    await act(() => result.current.sendWithWaggle(payload('Retried question')))
+
+    expect(params.trackRoutedNode).toHaveBeenCalledWith(SESSION_ID)
+    expect(params.branchSummary.materializeDraftBranchForSend).toHaveBeenCalledWith(
+      params.draftBranch,
+    )
+    expect(params.clearDraftBranchForSession).toHaveBeenCalledWith(SESSION_ID)
+    expect(followBranchHead).toHaveBeenCalledOnce()
+  })
+
+  it('spends the retry draft and follows the head when the Run fails after delivery', async () => {
+    const followBranchHead = vi.fn()
+    const params = sendWorkflowParams({
+      draftBranch: { sessionId: SESSION_ID, sourceNodeId: SessionNodeId('retry-source') },
+      handleSend: vi.fn().mockRejectedValue(new MessageDeliveredRunFailed(new Error('Run failed'))),
+      trackRoutedNode: vi.fn(() => followBranchHead),
+    })
+    const { result } = renderHook(() => useChatSendWorkflow(params))
+
+    await expect(act(() => result.current.sendWithWaggle(payload('Hello')))).rejects.toBeInstanceOf(
+      MessageDeliveredRunFailed,
+    )
+    // Kept, the draft would branch the next message from the retry source again.
+    expect(params.clearDraftBranchForSession).toHaveBeenCalledWith(SESSION_ID)
+    expect(followBranchHead).toHaveBeenCalledOnce()
+  })
+
+  it('keeps the routed node when the send is refused', async () => {
+    const followBranchHead = vi.fn()
+    const params = sendWorkflowParams({
+      handleSend: vi.fn().mockRejectedValue(new MessageNotDelivered('refused', 'No model.')),
+      trackRoutedNode: vi.fn(() => followBranchHead),
+    })
+    const { result } = renderHook(() => useChatSendWorkflow(params))
+
+    await expect(act(() => result.current.sendWithWaggle(payload('Hello')))).rejects.toBeInstanceOf(
+      MessageNotDelivered,
+    )
+    expect(followBranchHead).not.toHaveBeenCalled()
   })
 })
