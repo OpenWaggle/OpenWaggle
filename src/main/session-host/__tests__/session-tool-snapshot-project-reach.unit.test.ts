@@ -44,6 +44,12 @@ describe('Sessions tool reach bounded by the stored authority snapshot', () => {
       Effect.gen(function* () {
         const sql = yield* SqlClient.SqlClient
         yield* sql.unsafe(`CREATE TABLE sessions (id TEXT PRIMARY KEY, project_path TEXT)`)
+        yield* sql.unsafe(
+          `CREATE TABLE session_runs (id TEXT PRIMARY KEY, session_id TEXT NOT NULL, intent_json TEXT)`,
+        )
+        yield* sql`INSERT INTO session_runs (id, session_id, intent_json) VALUES (
+          ${`run-${sessionId}`}, ${sessionId}, ${JSON.stringify({ callerId: 'gui:local-user' })}
+        )`
         yield* sql.unsafe(`CREATE TABLE session_execution_profiles (
           session_id TEXT PRIMARY KEY, profile_json TEXT NOT NULL,
           authority_origin_caller_id TEXT NOT NULL, authority_scope_snapshot_json TEXT,

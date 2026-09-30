@@ -52,6 +52,7 @@ import {
   admitSessionToolMutation,
   admitSessionToolObservation,
 } from './session-tool-mutation-admission'
+import { assertSessionAgentLifecycleProjectKnown } from './session-tool-project-catalog'
 
 export { resolveSessionToolAgentCaller } from './session-tool-agent-caller'
 
@@ -119,6 +120,7 @@ export const installAppSessionToolGateway = Effect.gen(function* () {
       input.signal,
     )
     throwIfSessionToolAborted(input.signal)
+    await Effect.runPromise(assertSessionAgentLifecycleProjectKnown(sql, payload))
     const command = Effect.suspend(
       (): Effect.Effect<LocalSessionCommandResult, unknown, SessionToolDependencies> =>
         dispatchNonHostUiLocalSessionCommand({

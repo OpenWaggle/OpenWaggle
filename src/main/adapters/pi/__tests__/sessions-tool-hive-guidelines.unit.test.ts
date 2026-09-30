@@ -46,7 +46,7 @@ describe('Sessions tool cross-project guidance', () => {
     expect(guidelines).toEqual(
       expect.arrayContaining([
         expect.stringMatching(
-          /root Session started from the desktop reaches Sessions in other repositories.*Workers and project-scoped profiles stay in their own scope.*catalogScope project.*projectPath to launch or create with workspace local or new-worktree/,
+          /root Session started from the desktop or from a catalog-wide CLI profile reaches Sessions in every project OpenWaggle knows.*current Run was started by the desktop user.*Workers and project-scoped callers stay in their own scope.*catalogScope project.*projectPath to launch or create with workspace local or new-worktree/,
         ),
       ]),
     )

@@ -11,8 +11,8 @@ import {
   type SessionCapability,
 } from '@shared/types/session-capability'
 import * as Effect from 'effect/Effect'
+import { sessionAgentRunReachesEveryProject } from '../adapters/session-agent-run-project-reach'
 import { decodeSessionExecutionProfile } from '../adapters/session-run-execution-profile'
-import { rootSessionReachesEveryProject } from '../domain/session-control/root-session-project-reach'
 import {
   assertSessionAuthoritySnapshot,
   decodeSessionAuthoritySnapshot,
@@ -139,16 +139,6 @@ function effectiveAuthorizationCeiling(row: AuthorityRow) {
     : ('yolo' as const)
 }
 
-function reachesEveryProject(
-  row: AuthorityRow,
-  origins: readonly NonNullable<ReturnType<typeof originAuthority>>[],
-) {
-  return rootSessionReachesEveryProject({
-    isRoot: row.parent_session_id === null,
-    originScopes: origins.map((origin) => origin.scope),
-  })
-}
-
 function sharedProjectScopePath(
   row: AuthorityRow,
   origins: readonly NonNullable<ReturnType<typeof originAuthority>>[],
@@ -160,16 +150,6 @@ function sharedProjectScopePath(
       candidate.scope.projectPaths?.includes(row.project_path ?? '') === true,
   )
   return shared ? row.project_path : undefined
-}
-
-function projectReach(
-  row: AuthorityRow,
-  origins: readonly NonNullable<ReturnType<typeof originAuthority>>[],
-) {
-  if (reachesEveryProject(row, origins)) {
-    return { everyProject: true, sharedProjectPath: undefined } as const
-  }
-  return { everyProject: false, sharedProjectPath: sharedProjectScopePath(row, origins) } as const
 }
 
 function agentBaseScope(input: {
@@ -218,6 +198,22 @@ function loadAuthorityRow(sql: SqlClient.SqlClient, sessionId: string) {
   `
 }
 
+function assertSnapshotStillHolds(
+  authoritySnapshot: ReturnType<typeof decodeSessionAuthoritySnapshot>,
+  workingDirectory: string,
+) {
+  if (!authoritySnapshot) return Effect.void
+  return Effect.tryPromise({
+    try: async () => {
+      await assertSessionAuthoritySnapshot(authoritySnapshot)
+      if (workingDirectory !== authoritySnapshot.workingPath) {
+        throw new Error('Session working directory differs from its authority snapshot.')
+      }
+    },
+    catch: (cause) => new Error('Session authority changed after it was granted.', { cause }),
+  })
+}
+
 export function resolveSessionToolAgentCaller(
   sql: SqlClient.SqlClient,
   input: { readonly sessionId: string; readonly runId: string; readonly workingDirectory: string },
@@ -226,17 +222,7 @@ export function resolveSessionToolAgentCaller(
     const rows = yield* loadAuthorityRow(sql, input.sessionId)
     const row = assertLiveAuthority(rows[0], input.sessionId)
     const authoritySnapshot = decodeSessionAuthoritySnapshot(row.authority_scope_snapshot_json)
-    if (authoritySnapshot) {
-      yield* Effect.tryPromise({
-        try: async () => {
-          await assertSessionAuthoritySnapshot(authoritySnapshot)
-          if (input.workingDirectory !== authoritySnapshot.workingPath) {
-            throw new Error('Session working directory differs from its authority snapshot.')
-          }
-        },
-        catch: (cause) => new Error('Session authority changed after it was granted.', { cause }),
-      })
-    }
+    yield* assertSnapshotStillHolds(authoritySnapshot, input.workingDirectory)
     const effective = effectiveCapabilities(row)
     const origin = originAuthority(row, effective.originCapabilities)
     const snapshotOrigin = authoritySnapshot
@@ -255,7 +241,12 @@ export function resolveSessionToolAgentCaller(
     const origins = [origin, snapshotOrigin].filter(
       (candidate): candidate is NonNullable<typeof candidate> => candidate !== undefined,
     )
-    const { everyProject, sharedProjectPath } = projectReach(row, origins)
+    const everyProject = yield* sessionAgentRunReachesEveryProject(
+      sql,
+      input.sessionId,
+      input.runId,
+    )
+    const sharedProjectPath = everyProject ? undefined : sharedProjectScopePath(row, origins)
     const sharesProjectScope = everyProject || sharedProjectPath !== undefined
     const scopedTargets = sharesProjectScope
       ? []

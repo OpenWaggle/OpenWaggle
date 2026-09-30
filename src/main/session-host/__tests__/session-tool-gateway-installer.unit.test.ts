@@ -37,6 +37,13 @@ describe('Sessions tool agent authority', () => {
       Effect.gen(function* () {
         const sql = yield* SqlClient.SqlClient
         yield* sql.unsafe(`CREATE TABLE sessions (id TEXT PRIMARY KEY, project_path TEXT)`)
+        yield* sql.unsafe(
+          `CREATE TABLE session_runs (id TEXT PRIMARY KEY, session_id TEXT NOT NULL, intent_json TEXT)`,
+        )
+        // The desktop user started the Queen's Run, so the Queen reaches every project.
+        yield* sql`INSERT INTO session_runs (id, session_id, intent_json) VALUES (
+          ${'run-queen'}, ${'queen'}, ${JSON.stringify({ callerId: 'gui:local-user' })}
+        )`
         yield* sql.unsafe(`
           CREATE TABLE session_execution_profiles (
             session_id TEXT PRIMARY KEY,

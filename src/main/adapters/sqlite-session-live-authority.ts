@@ -1,10 +1,14 @@
 import type * as SqlClient from '@effect/sql/SqlClient'
 import * as Effect from 'effect/Effect'
+import { createLogger } from '../logger'
 import {
   assertSessionAuthoritySnapshotForWorkspace,
   decodeSessionAuthoritySnapshot,
   provisionalSessionAuthoritySnapshot,
 } from '../session-host/session-authority-snapshot'
+import { describeError } from '../utils/describe-error'
+
+const logger = createLogger('session-live-authority')
 
 function profileId(callerId: string) {
   return callerId.startsWith('profile:') ? callerId.slice('profile:'.length) : undefined
@@ -43,7 +47,15 @@ function sessionAuthorityChanged(sql: SqlClient.SqlClient, sessionId: string) {
     // An unreadable snapshot fails closed as changed authority. Letting the decode error escape
     // failed the whole Run settlement, so the target Session never started its next Run.
     const snapshot = yield* loadSessionAuthoritySnapshot(sql, sessionId).pipe(
-      Effect.catchAllDefect(() => Effect.succeed(null)),
+      Effect.catchAllDefect((defect) =>
+        Effect.sync(() => {
+          logger.warn('Session authority snapshot is unreadable; treating it as changed', {
+            sessionId,
+            error: describeError(defect),
+          })
+          return null
+        }),
+      ),
     )
     if (snapshot === null) return true
     if (!snapshot) return false

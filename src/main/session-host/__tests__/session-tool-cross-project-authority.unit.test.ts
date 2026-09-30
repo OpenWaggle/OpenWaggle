@@ -26,6 +26,18 @@ const PROJECT_BY_SESSION: Readonly<Record<string, string>> = {
   'profile-root': GOSAFE,
   'all-profile-root': GOSAFE,
   'openwaggle-root': OPENWAGGLE,
+  // A desktop root whose current Run a project-scoped CLI profile started.
+  'driven-root': GOSAFE,
+}
+
+/** Who started each Session's current Run, as `session_runs.intent_json.callerId` records it. */
+const RUN_INITIATOR_BY_SESSION: Readonly<Record<string, string>> = {
+  'gosafe-root': 'gui:local-user',
+  'gosafe-worker': 'session-agent:gosafe-root:run-gosafe-root',
+  'profile-root': 'profile:project-profile',
+  'all-profile-root': 'profile:all-profile',
+  'openwaggle-root': 'gui:local-user',
+  'driven-root': 'profile:project-profile',
 }
 
 const authorizationLayer = Layer.mergeAll(
@@ -130,6 +142,9 @@ async function resolveCallers(databasePath: string) {
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
       yield* sql.unsafe(`CREATE TABLE sessions (id TEXT PRIMARY KEY, project_path TEXT)`)
+      yield* sql.unsafe(`CREATE TABLE session_runs (
+        id TEXT PRIMARY KEY, session_id TEXT NOT NULL, intent_json TEXT
+      )`)
       yield* sql.unsafe(`CREATE TABLE session_execution_profiles (
         session_id TEXT PRIMARY KEY, profile_json TEXT NOT NULL,
         authority_origin_caller_id TEXT NOT NULL, authority_scope_snapshot_json TEXT,
@@ -154,11 +169,15 @@ async function resolveCallers(databasePath: string) {
       )`)
       for (const [id, projectPath] of Object.entries(PROJECT_BY_SESSION)) {
         yield* sql`INSERT INTO sessions (id, project_path) VALUES (${id}, ${projectPath})`
+        yield* sql`INSERT INTO session_runs (id, session_id, intent_json) VALUES (
+          ${`run-${id}`}, ${id}, ${JSON.stringify({ callerId: RUN_INITIATOR_BY_SESSION[id] })}
+        )`
       }
       for (const [id, origin] of [
         ['gosafe-root', 'gui:local-user'],
         ['gosafe-worker', 'gui:local-user'],
         ['openwaggle-root', 'gui:local-user'],
+        ['driven-root', 'gui:local-user'],
         ['profile-root', 'profile:project-profile'],
         ['all-profile-root', 'profile:all-profile'],
       ] as const) {
@@ -201,6 +220,7 @@ async function resolveCallers(databasePath: string) {
         worker: yield* resolve('gosafe-worker'),
         projectProfile: yield* resolve('profile-root'),
         allProfile: yield* resolve('all-profile-root'),
+        drivenByProfile: yield* resolve('driven-root'),
       }
     }).pipe(Effect.provide(database)),
   )
@@ -253,6 +273,18 @@ describe('Sessions tool cross-project authority', () => {
         // Assert the reason, so a refusal for some unrelated cause cannot keep this green.
         expect(sessionCommandFailureMessage(failure)).toContain('(target_scope_denied)')
       }
+    },
+  )
+
+  // A caller limited to one project must not borrow a desktop Session's reach by messaging it.
+  it.each(Object.entries(crossProjectPayloads))(
+    'keeps a desktop Session whose Run a project-scoped profile started out of another project for %s',
+    async (_name, payload) => {
+      const failure = await authorize(callers.drivenByProfile, payload).then(
+        () => undefined,
+        (error: unknown) => error,
+      )
+      expect(sessionCommandFailureMessage(failure)).toContain('(target_scope_denied)')
     },
   )
 

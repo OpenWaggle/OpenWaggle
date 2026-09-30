@@ -1,8 +1,10 @@
 import type { ExtensionContext, ExtensionFactory } from '@earendil-works/pi-coding-agent'
 import type { SessionCapability } from '@shared/types/session-capability'
 import { listAgentDefinitions, searchAgentDefinitions } from '../../agents/agent-definition-catalog'
+import { createLogger } from '../../logger'
 import { sessionCommandFailureMessage } from '../../session-host/session-command-failure-message'
 import { executeSessionToolCommand } from '../../session-host/session-tool-gateway'
+import { describeError } from '../../utils/describe-error'
 import { assertFilesystemWriteScope } from '../../utils/filesystem-write-scope'
 import { getOpenWaggleAuthorize } from './agent-kernel/openwaggle-authorize-channel'
 import { sessionsToolSchemaForCapabilities } from './sessions-tool-capability-schema'
@@ -13,6 +15,8 @@ import {
 } from './sessions-tool-flat-schema'
 import type { SessionsToolParameters } from './sessions-tool-parameters'
 import { buildSessionsToolPayload } from './sessions-tool-payload'
+
+const logger = createLogger('sessions-tool')
 
 const DEFAULT_AGENT_DEFINITION_RESULTS = 50
 
@@ -242,6 +246,8 @@ function successfulToolResult(result: unknown) {
 
 function failedToolResult(error: unknown) {
   const message = sessionCommandFailureMessage(error)
+  // The result text leaves out Host context such as paths in a cause; the log keeps all of it.
+  logger.warn('Sessions tool command failed', { message, error: describeError(error) })
   return {
     content: [{ type: 'text' as const, text: message }],
     details: undefined,
@@ -261,7 +267,7 @@ export function createSessionsToolExtension(input: SessionsToolExtensionInput): 
       promptGuidelines: [
         'Use spawn for a new Worker Session; it never creates an in-memory subagent.',
         'Use launch for an independent root Session that starts immediately, or create for an idle independent root. Neither joins the current Hive.',
-        'A root Session started from the desktop reaches Sessions in other repositories without sharing a Hive; Workers and project-scoped profiles stay in their own scope and get target_scope_denied. Use list or search with catalogScope project and that repository projectPath, or catalogScope all, then read, report, or follow_up by sessionId. To start work there, pass its projectPath to launch or create with workspace local or new-worktree; workspace current is only your own checkout.',
+        'A root Session started from the desktop or from a catalog-wide CLI profile reaches Sessions in every project OpenWaggle knows, without sharing a Hive, when its current Run was started by the desktop user or by an agent with the same reach. Workers and project-scoped callers stay in their own scope and get target_scope_denied. Use list or search with catalogScope project and that repository projectPath, or catalogScope all, then read, report, or follow_up by sessionId. To start work there, pass its projectPath to launch or create with workspace local or new-worktree; workspace current is only your own checkout.',
         'Use start for an idle Session, follow_up for durable work after its current Run, steer to append to one exact active Run, replace to interrupt and restart, and promote to move one queued Follow-up into an exact active Run.',
         'launch, spawn, start, follow_up, and replace accept authorization: yolo only when the caller grant permits that effective access.',
         'Use requests_list to inspect parked interactions. request_respond cannot approve Authorization; approval_respond requires an explicit delegated approval grant.',

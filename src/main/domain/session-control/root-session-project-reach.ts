@@ -1,19 +1,44 @@
 import type { LocalSessionProfileScope } from '@shared/types/local-session-profile'
 
+const PROFILE_CALLER_PREFIX = 'profile:'
+
+type ReachScope = Pick<LocalSessionProfileScope, 'all'>
+
+/** The local desktop user: the GUI, or the `openwaggle` CLI authenticated as the local user. */
+export function isLocalUserCallerId(callerId: string) {
+  return (
+    callerId === 'local-user' || callerId === 'gui:local-user' || callerId.startsWith('local-user:')
+  )
+}
+
+export function isProfileCallerId(callerId: string) {
+  return callerId.startsWith(PROFILE_CALLER_PREFIX)
+}
+
 /**
- * Whether a root Session agent reaches every project (ADR 0039).
+ * Whether a root Session agent's own authority reaches every project (ADR 0039).
  *
- * `originScopes` are the scopes that bound the agent's authority: the live scope of the CLI
- * profile it came from, if any, and the scope stored in its authority snapshot, if any. A root
- * from the desktop user has neither, or only catalog-wide ones, and reaches every project. Any
- * narrower scope keeps it inside its own project, and a Worker never reaches every project.
+ * Only a root qualifies, and only when its authority came from the local desktop user or from a
+ * CLI profile whose live scope is catalog-wide. A stored authority snapshot narrower than the
+ * whole catalog keeps it inside its own project. The origin is read from the caller id, never
+ * inferred from missing data, so a transient MCP or unknown origin never qualifies.
+ *
+ * This is necessary but not sufficient: the Run must also have been started by a caller that
+ * reaches every project (see `sessionAgentRunReachesEveryProject`), or a project-scoped caller
+ * could drive a desktop Session into other projects.
  *
  * The Sessions tool (when the agent calls it) and queued Follow-up delivery (when a Follow-up it
  * sent is delivered later) both decide with this function, so the two cannot drift apart.
  */
 export function rootSessionReachesEveryProject(input: {
   readonly isRoot: boolean
-  readonly originScopes: readonly Pick<LocalSessionProfileScope, 'all'>[]
+  readonly originCallerId: string
+  readonly liveProfileScope?: ReachScope | undefined
+  readonly snapshotScope?: ReachScope | undefined
 }) {
-  return input.isRoot && input.originScopes.every((scope) => scope.all === true)
+  if (!input.isRoot) return false
+  if (input.snapshotScope && input.snapshotScope.all !== true) return false
+  if (isLocalUserCallerId(input.originCallerId)) return true
+  if (isProfileCallerId(input.originCallerId)) return input.liveProfileScope?.all === true
+  return false
 }

@@ -26,6 +26,8 @@ describe('SQLite queued Follow-up from another project', () => {
     readonly snapshotJson?: string
     /** The origin profile's scope after the Follow-up was queued and before it is delivered. */
     readonly profileScopeAtDelivery?: object
+    /** Who started the source's Run; defaults to the source's own origin. */
+    readonly runInitiatorCallerId?: string
   }) {
     temporaryRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-follow-up-cross-project-'))
     const layer = makeSessionControlRunLifecycleTestLayer(
@@ -36,10 +38,14 @@ describe('SQLite queued Follow-up from another project', () => {
         const sql = yield* SqlClient.SqlClient
         // The layer's target lives in /project; the source is a root in another repository.
         yield* sql`INSERT INTO sessions (id, project_path) VALUES (${'source'}, ${'/other'})`
+        const sourceIntent = JSON.stringify({
+          callerId: origin.runInitiatorCallerId ?? origin.callerId,
+        })
         yield* sql`
-          INSERT INTO session_runs (id, session_id, status, created_at, updated_at) VALUES
-            (${'run-source'}, ${'source'}, ${'active'}, ${1}, ${1}),
-            (${'run-active'}, ${'session-target'}, ${'active'}, ${2}, ${2})
+          INSERT INTO session_runs (id, session_id, status, intent_json, created_at, updated_at)
+          VALUES
+            (${'run-source'}, ${'source'}, ${'active'}, ${sourceIntent}, ${1}, ${1}),
+            (${'run-active'}, ${'session-target'}, ${'active'}, ${null}, ${2}, ${2})
         `
         yield* sql`
           INSERT INTO session_execution_profiles (
@@ -151,6 +157,18 @@ describe('SQLite queued Follow-up from another project', () => {
     settled: { accepted: true },
     followUp: { delivery_state: 'needs_attention', attention_reason: 'authority_changed' },
   }
+
+  // A project-scoped caller must not borrow a desktop Session's reach by messaging it.
+  it('pauses when a project-scoped profile started the desktop root Run that queued it', async () => {
+    const result = await settleCrossProjectFollowUp({
+      callerId: 'gui:local-user',
+      runInitiatorCallerId: 'profile:origin',
+      profileScope: { projectPaths: ['/other'] },
+    })
+
+    expect(result).toMatchObject(paused)
+    expect(result.settled).not.toHaveProperty('scheduled')
+  })
 
   it('pauses when the origin profile was narrowed after the Follow-up was queued', async () => {
     const result = await settleCrossProjectFollowUp({
