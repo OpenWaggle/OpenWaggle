@@ -82,20 +82,46 @@ describe('Session scratch sweep', () => {
     await release?.()
   })
 
-  it("removes another profile's namespace only after a week without a Run", async () => {
-    useNamespace('/profiles/throwaway')
+  it("removes another profile's namespace once that profile is gone, never while it exists", async () => {
+    const kept = path.join(temporaryDirectory, 'profiles', 'kept')
+    const throwaway = path.join(temporaryDirectory, 'profiles', 'throwaway')
+    await Promise.all([
+      fs.mkdir(kept, { recursive: true }),
+      fs.mkdir(throwaway, { recursive: true }),
+    ])
+    useNamespace(kept)
+    const keptRoot = sessionScratchRoot(temporaryDirectory)
+    await prepareSessionScratchDirectory('session-kept', keptRoot)
+    useNamespace(throwaway)
     const throwawayRoot = sessionScratchRoot(temporaryDirectory)
     await prepareSessionScratchDirectory('session-throwaway', throwawayRoot)
-    useNamespace('/profiles/own')
+    useNamespace(path.join(temporaryDirectory, 'profiles', 'own'))
     const ownRoot = sessionScratchRoot(temporaryDirectory)
     await prepareSessionScratchDirectory('session-own', ownRoot)
 
-    await sweepSessionScratchDirectories(['session-own'], ownRoot, Date.now() + TWO_HOURS_MS)
+    // A profile closed for more than a week still exists, so its Sessions keep their files.
+    await sweepSessionScratchDirectories(['session-own'], ownRoot, Date.now() + EIGHT_DAYS_MS)
+    expect((await fs.stat(keptRoot)).isDirectory()).toBe(true)
     expect((await fs.stat(throwawayRoot)).isDirectory()).toBe(true)
 
-    await sweepSessionScratchDirectories(['session-own'], ownRoot, Date.now() + EIGHT_DAYS_MS)
+    await fs.rm(throwaway, { recursive: true })
+    await sweepSessionScratchDirectories(['session-own'], ownRoot, Date.now())
+    expect((await fs.stat(throwawayRoot)).isDirectory()).toBe(true)
+    await sweepSessionScratchDirectories(['session-own'], ownRoot, Date.now() + TWO_HOURS_MS)
     await expect(fs.access(throwawayRoot)).rejects.toMatchObject(missing)
+    expect((await fs.stat(keptRoot)).isDirectory()).toBe(true)
     expect((await fs.stat(ownRoot)).isDirectory()).toBe(true)
+  })
+
+  it('removes an unmarked namespace of another profile only after a week without a Run', async () => {
+    const unmarkedRoot = path.join(path.dirname(root), 'unmarked')
+    await prepareSessionScratchDirectory('session-own', root)
+    await fs.mkdir(path.join(unmarkedRoot, 'session'), { recursive: true, mode: 0o700 })
+
+    await sweepSessionScratchDirectories(['session-own'], root, Date.now() + TWO_HOURS_MS)
+    expect((await fs.stat(unmarkedRoot)).isDirectory()).toBe(true)
+    await sweepSessionScratchDirectories(['session-own'], root, Date.now() + EIGHT_DAYS_MS)
+    await expect(fs.access(unmarkedRoot)).rejects.toMatchObject(missing)
   })
 
   posixOnly(

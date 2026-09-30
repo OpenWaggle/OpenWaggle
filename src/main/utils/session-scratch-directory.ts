@@ -38,6 +38,11 @@ function shortHash(value: string, characters: number) {
 }
 
 let scratchNamespace = shortHash(DEFAULT_NAMESPACE_SOURCE, NAMESPACE_HASH_CHARACTERS)
+let scratchNamespaceOwner: string | undefined
+/** Names the user-data directory a namespace belongs to, so other Hosts know when it is gone. */
+export const SCRATCH_NAMESPACE_OWNER_FILE = '.owner'
+const OWNER_FILE_MODE = 0o600
+const markedNamespaces = new Set<string>()
 
 /**
  * Give this Host's scratch directories their own parent. Every OpenWaggle profile (the app, each
@@ -46,11 +51,30 @@ let scratchNamespace = shortHash(DEFAULT_NAMESPACE_SOURCE, NAMESPACE_HASH_CHARAC
  */
 export function configureSessionScratchNamespace(userDataRoot: string) {
   const previous = scratchNamespace
-  scratchNamespace = shortHash(path.resolve(userDataRoot), NAMESPACE_HASH_CHARACTERS)
+  const previousOwner = scratchNamespaceOwner
+  scratchNamespaceOwner = path.resolve(userDataRoot)
+  scratchNamespace = shortHash(scratchNamespaceOwner, NAMESPACE_HASH_CHARACTERS)
   /** Restores the previous namespace; tests use it to leave module state as they found it. */
   return () => {
     scratchNamespace = previous
+    scratchNamespaceOwner = previousOwner
   }
+}
+
+/**
+ * Record which user-data directory owns this namespace. Another profile's Host removes the
+ * namespace once that directory is gone, and never while the profile still exists, however long
+ * it goes unused.
+ */
+export async function markSessionScratchNamespace(root = sessionScratchRoot()) {
+  const owner = scratchNamespaceOwner
+  if (!owner || markedNamespaces.has(root)) return
+  await ensurePrivateDirectory(path.dirname(root))
+  await ensurePrivateDirectory(root)
+  await fs.writeFile(path.join(root, SCRATCH_NAMESPACE_OWNER_FILE), owner, {
+    mode: OWNER_FILE_MODE,
+  })
+  markedNamespaces.add(root)
 }
 
 function scratchDirectoryState(directory: string) {
@@ -154,6 +178,7 @@ export async function prepareSessionScratchDirectory(
   forgetIdleState(directory, state)
   await ensurePrivateDirectory(path.dirname(root))
   await ensurePrivateDirectory(root)
+  await markSessionScratchNamespace(root)
   await ensurePrivateDirectory(directory)
   // Sweeps judge age by modification time, so each Run marks its directory and namespace as used.
   const touchedAt = new Date()

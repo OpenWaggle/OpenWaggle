@@ -1,7 +1,9 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import {
+  markSessionScratchNamespace,
   removeUnretainedScratchDirectory,
+  SCRATCH_NAMESPACE_OWNER_FILE,
   sessionScratchDirectoryPath,
   sessionScratchRoot,
 } from './session-scratch-directory'
@@ -9,7 +11,7 @@ import {
 const HOUR_MS = 60 * 60 * 1000
 /** A directory this young may belong to a Session created after the sweep read the catalog. */
 const SWEEP_MINIMUM_AGE_MS = HOUR_MS
-/** Another profile's namespace untouched this long belongs to a profile that no longer runs. */
+/** An unmarked namespace of another profile untouched this long belongs to one that is gone. */
 const ABANDONED_NAMESPACE_AGE_MS = 7 * 24 * HOUR_MS
 
 function hasErrorCode(error: unknown, code: string) {
@@ -33,9 +35,23 @@ async function newestModification(directory: string) {
 }
 
 /**
- * Remove other profiles' namespaces that nothing has touched for a week. Throwaway profiles such
- * as `pnpm dev:debug` runs get a fresh namespace each time and no Host ever sweeps it again.
+ * Whether another profile's namespace can go. A marked namespace goes once the user-data directory
+ * it names is gone, such as a throwaway `pnpm dev:debug` profile, and never while that profile
+ * exists: its own Host sweeps its Sessions. An unmarked one goes once nothing touched it for a week.
  */
+async function namespaceAbandoned(namespace: string, now: number) {
+  const owner = await fs
+    .readFile(path.join(namespace, SCRATCH_NAMESPACE_OWNER_FILE), 'utf8')
+    .catch(() => undefined)
+  const newest = await newestModification(namespace).catch(() => now)
+  if (owner === undefined) return now - newest >= ABANDONED_NAMESPACE_AGE_MS
+  if (now - newest < SWEEP_MINIMUM_AGE_MS) return false
+  return fs.stat(owner).then(
+    () => false,
+    (error: unknown) => hasErrorCode(error, 'ENOENT'),
+  )
+}
+
 async function sweepAbandonedNamespaces(root: string, now: number) {
   const userDirectory = path.dirname(root)
   const ownNamespace = path.basename(root)
@@ -44,8 +60,7 @@ async function sweepAbandonedNamespaces(root: string, now: number) {
     if (name === ownNamespace) continue
     const namespace = path.join(userDirectory, name)
     if (!(await isOwnedPrivateDirectory(namespace).catch(() => false))) continue
-    const newest = await newestModification(namespace).catch(() => now)
-    if (now - newest < ABANDONED_NAMESPACE_AGE_MS) continue
+    if (!(await namespaceAbandoned(namespace, now))) continue
     const gone = await fs.rm(namespace, { recursive: true, force: true }).then(
       () => true,
       () => false,
@@ -59,7 +74,7 @@ async function sweepAbandonedNamespaces(root: string, now: number) {
  * Remove scratch directories whose Session is gone or archived. Archive and delete remove the
  * directory while the Host runs; this catches Sessions deleted while it was down or left behind by
  * a failed removal. Directories in use by a Run, or too young to rule out a new Session, are kept.
- * Other profiles' namespaces are removed only once abandoned for a week. Returns the number of
+ * Other profiles' namespaces are removed only once their profile is gone. Returns the number of
  * directories removed.
  */
 export async function sweepSessionScratchDirectories(
@@ -72,6 +87,8 @@ export async function sweepSessionScratchDirectories(
       path.basename(sessionScratchDirectoryPath(sessionId, root)),
     ),
   )
+  // Mark this Host's namespace so other profiles' Hosts keep it while this profile exists.
+  await markSessionScratchNamespace(root).catch(() => undefined)
   let entries: string[]
   try {
     if (!(await isOwnedPrivateDirectory(path.dirname(root)))) return 0
