@@ -147,7 +147,7 @@ async function findForkSourceNode(
     params.activeWorkspace?.tree.session.id === sessionId ? params.activeWorkspace : null
   const node = findUserMessageNode({ messages: params.messages, workspace: loaded, messageId })
   if (node) return node
-  const current = await currentConversationWorkspace(sessionId, loaded)
+  const current = await currentConversationWorkspace(sessionId, loaded, { keepEarlierNode: false })
   return findUserMessageNode({ messages: params.messages, workspace: current, messageId })
 }
 

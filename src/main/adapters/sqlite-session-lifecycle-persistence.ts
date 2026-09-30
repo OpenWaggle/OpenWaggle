@@ -161,6 +161,19 @@ function persistSessionMetadata(
   })
 }
 
+/**
+ * Truncates to a UTF-16 length, which is what the title limit counts, without splitting a
+ * surrogate pair.
+ */
+function truncateTitle(title: string, maxLength: number) {
+  let truncated = ''
+  for (const character of title) {
+    if (truncated.length + character.length > maxLength) break
+    truncated += character
+  }
+  return truncated.trimEnd()
+}
+
 /** A marker left by an earlier fork or copy, so a fork of a fork is not "X (fork) (fork)". */
 const COPY_TITLE_SUFFIX = / \((?:fork|copy)\)$/
 
@@ -180,12 +193,9 @@ function defaultLifecycleTitle(
     `
     const source = rows[0]?.title.replace(COPY_TITLE_SUFFIX, '').trim()
     if (!source) return 'New session'
-    // Truncate by code point so a long title cannot end in half a surrogate pair.
-    const base = Array.from(source)
-      .slice(0, SESSION_TITLE_MAX_LENGTH - suffix.length)
-      .join('')
-      .trimEnd()
-    return assertSessionTitle(`${base}${suffix}`)
+    return assertSessionTitle(
+      `${truncateTitle(source, SESSION_TITLE_MAX_LENGTH - suffix.length)}${suffix}`,
+    )
   })
 }
 

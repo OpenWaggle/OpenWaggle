@@ -22,14 +22,18 @@ function selectsEarlierNode(workspace: SessionWorkspace) {
  * The loaded workspace is not refreshed when a run finishes (the transcript shows the new turn from
  * the Session detail), so its head is the one from before the last run. Cloning that head silently
  * dropped the latest turn, and a message sent since the load could not be forked. A failed read
- * falls back to the loaded workspace.
+ * falls back to the loaded workspace. Looking up one message needs the Host's copy whichever node
+ * is selected, so `keepEarlierNode: false` always reads it.
  */
 export async function currentConversationWorkspace(
   sessionId: SessionId,
   workspace: SessionWorkspace | null,
+  options: { readonly keepEarlierNode?: boolean } = {},
 ): Promise<SessionWorkspace | null> {
   const ownWorkspace = workspace?.tree.session.id === sessionId ? workspace : null
-  if (ownWorkspace && selectsEarlierNode(ownWorkspace)) return ownWorkspace
+  if (ownWorkspace && options.keepEarlierNode !== false && selectsEarlierNode(ownWorkspace)) {
+    return ownWorkspace
+  }
   try {
     const current = await api.getSessionWorkspace(
       sessionId,
