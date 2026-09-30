@@ -7,6 +7,7 @@ import {
   markSessionScratchNamespace,
   prepareSessionScratchDirectory,
   retainSessionScratchDirectory,
+  sessionScratchDirectoryPath,
   sessionScratchRoot,
 } from '../session-scratch-directory'
 import { sweepSessionScratchDirectories } from '../session-scratch-sweep'
@@ -196,6 +197,22 @@ describe('Session scratch sweep', () => {
     expect((await fs.stat(unmarkedRoot)).isDirectory()).toBe(true)
     await sweepSessionScratchDirectories(['session-own'], root, Date.now() + EIGHT_DAYS_MS)
     await expect(fs.access(unmarkedRoot)).rejects.toMatchObject(missing)
+  })
+
+  posixOnly('never sweeps a per-user directory another account owns', async () => {
+    await prepareSessionScratchDirectory('session-gone', root)
+    const gone = path.join(root, path.basename(sessionScratchDirectoryPath('session-gone', root)))
+    const owner = (await fs.stat(path.dirname(root))).uid
+    // As if another account had created the per-user directory and planted old directories.
+    const getuid = vi.spyOn(process, 'getuid').mockReturnValue(owner + 1)
+    try {
+      await expect(
+        sweepSessionScratchDirectories([], root, Date.now() + EIGHT_DAYS_MS),
+      ).resolves.toBe(0)
+    } finally {
+      getuid.mockRestore()
+    }
+    expect((await fs.stat(gone)).isDirectory()).toBe(true)
   })
 
   posixOnly('never sweeps through a symlink planted as its own namespace', async () => {

@@ -165,6 +165,50 @@ describe('Session scratch directory', () => {
     }
   })
 
+  it('waits for every chained removal, not only the first, before recreating the directory', async () => {
+    await prepareSessionScratchDirectory('session-a', root)
+    const rm = fs.rm.bind(fs)
+    const gates = [Promise.withResolvers<void>(), Promise.withResolvers<void>()]
+    let calls = 0
+    const spy = vi.spyOn(fs, 'rm').mockImplementation(async (target, options) => {
+      const gate = gates[calls]
+      calls += 1
+      await gate?.promise
+      return rm(target, options)
+    })
+    try {
+      // Archived, then archived or deleted again while the first removal still runs.
+      const first = removeSessionScratchDirectory('session-a', root)
+      const second = removeSessionScratchDirectory('session-a', root)
+      gates[0]?.resolve()
+      await first
+      const preparing = prepareSessionScratchDirectory('session-a', root)
+      await new Promise((resolve) => setTimeout(resolve, UNWAITED_PREPARE_MS))
+      gates[1]?.resolve()
+      const directory = await preparing
+      await second
+
+      expect((await fs.stat(directory)).isDirectory()).toBe(true)
+    } finally {
+      spy.mockRestore()
+    }
+  })
+
+  posixOnly('refuses a regular file in place of the Session directory', async () => {
+    await fs.mkdir(root, { recursive: true, mode: OWNER_ONLY })
+    await fs.writeFile(sessionScratchDirectoryPath('session-a', root), 'not a directory')
+
+    await expect(prepareSessionScratchDirectory('session-a', root)).rejects.toThrow(
+      'not a real directory',
+    )
+  })
+
+  posixOnly('gives each user account its own scratch parent', () => {
+    expect(path.basename(path.dirname(sessionScratchRoot('/base')))).toBe(
+      `ow-scratch-${process.getuid?.()}`,
+    )
+  })
+
   posixOnly('keeps the default path short enough for Unix sockets under TMPDIR', () => {
     const directory = sessionScratchDirectoryPath('3557992e-9fa2-48bb-b462-84e59638207c')
 
