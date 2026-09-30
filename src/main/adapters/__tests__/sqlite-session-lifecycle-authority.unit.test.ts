@@ -24,7 +24,7 @@ describe('SQLite Session lifecycle authority', () => {
 
   it.each([
     ['a project-scoped parent', (projectPath: string) => ({ projectPaths: [projectPath] })],
-    // A catalog-wide Queen (ADR 0040) must not store that reach in its Worker's snapshot.
+    // A catalog-wide Queen (ADR 0041) must not store that reach in its Worker's snapshot.
     ['a catalog-wide parent', () => ({ all: true })],
   ])('stores a project-bound scope for a pending Worker of %s', async (_name, parentScope) => {
     const projectPath = path.join(temporaryRoot, 'spawn-project')

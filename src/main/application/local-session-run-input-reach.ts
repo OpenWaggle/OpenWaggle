@@ -28,7 +28,7 @@ function runInput(payload: LocalSessionCommandPayload): RunInput | undefined {
 }
 
 /**
- * Refuse input into a running Run from a caller that lacks that Run's reach (ADR 0040). The Run
+ * Refuse input into a running Run from a caller that lacks that Run's reach (ADR 0041). The Run
  * check looks at who started a Run; without this, a caller limited to one project could steer,
  * promote into, or answer a desktop Run that reaches every project and direct it elsewhere. A
  * Follow-up, which starts its own Run under the caller's reach, stays available.

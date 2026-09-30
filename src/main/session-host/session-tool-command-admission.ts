@@ -11,7 +11,7 @@ import { assertSessionAgentLifecycleProjectKnown } from './session-tool-project-
 /**
  * Resolve the Session agent calling the Sessions tool and apply the checks that come before
  * dispatch: its live authority, and, for a catalog-wide agent, that a launch or create names a
- * project OpenWaggle already knows (ADR 0040).
+ * project OpenWaggle already knows (ADR 0041).
  */
 export async function admitSessionToolCommand(
   sql: SqlClient.SqlClient,
