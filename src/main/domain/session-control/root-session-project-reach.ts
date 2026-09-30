@@ -4,50 +4,13 @@ const PROFILE_CALLER_PREFIX = 'profile:'
 const SESSION_AGENT_CALLER_PREFIX = 'session-agent:'
 /**
  * Other Sessions that reach and ceiling checks follow through agents starting each other's Runs.
- * Counted by distinct Session, so two roots that keep answering each other with Follow-ups keep
- * their reach up to `MAX_RUN_INITIATOR_CHAIN_HOPS` Runs rather than losing it after four round trips.
+ * Counted by distinct Session across the whole tree of initiators, so two roots that keep answering
+ * each other with Follow-ups keep their reach up to `MAX_RUN_INITIATOR_CHAIN_HOPS` Runs rather than
+ * losing it after four round trips.
  */
 export const MAX_RUN_INITIATOR_CHAIN_DEPTH = 8
-/** Runs a check follows at most, however few Sessions they belong to; beyond it, it fails closed. */
+/** Runs on the longest initiator path a check follows; beyond it, the check fails closed. */
 export const MAX_RUN_INITIATOR_CHAIN_HOPS = 256
-
-/**
- * The Runs a reach or ceiling check has followed so far, and the verdicts it has already reached
- * for Runs, shared by every branch of one check: a Run with both an initiator and an author forks
- * the walk, and without the shared verdicts a chain of them would cost exponentially many reads.
- */
-export interface RunInitiatorChain<Verdict> {
-  readonly hops: number
-  readonly sessionIds: ReadonlySet<string>
-  readonly verdicts: Map<string, Verdict>
-}
-
-/** A fresh chain for one check. */
-export function startRunInitiatorChain<Verdict>(): RunInitiatorChain<Verdict> {
-  return { hops: 0, sessionIds: new Set(), verdicts: new Map() }
-}
-
-/** The key a chain records a Run's verdict under. */
-export function runInitiatorVerdictKey(sessionId: string, runId: string) {
-  return JSON.stringify([sessionId, durableSessionRunId(runId)])
-}
-
-/**
- * Follow one more Run, in `sessionId`. Returns undefined once the chain passes more than
- * `MAX_RUN_INITIATOR_CHAIN_DEPTH` other Sessions or `MAX_RUN_INITIATOR_CHAIN_HOPS` Runs, which the
- * caller treats as failing closed.
- */
-export function followRunInitiatorChain<Verdict>(
-  chain: RunInitiatorChain<Verdict>,
-  sessionId: string,
-): RunInitiatorChain<Verdict> | undefined {
-  const sessionIds = chain.sessionIds.has(sessionId)
-    ? chain.sessionIds
-    : new Set([...chain.sessionIds, sessionId])
-  if (chain.hops >= MAX_RUN_INITIATOR_CHAIN_HOPS) return undefined
-  if (sessionIds.size > MAX_RUN_INITIATOR_CHAIN_DEPTH + 1) return undefined
-  return { hops: chain.hops + 1, sessionIds, verdicts: chain.verdicts }
-}
 
 type ReachScope = Pick<LocalSessionProfileScope, 'all'>
 

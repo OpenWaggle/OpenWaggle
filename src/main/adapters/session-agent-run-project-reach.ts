@@ -3,15 +3,17 @@ import { parseJsonUnknown } from '@shared/schema'
 import { decodeLocalSessionProfileScope } from '@shared/schemas/local-session-profile'
 import * as Effect from 'effect/Effect'
 import {
+  type RunInitiatorWalk,
+  type RunReference,
+  type RunVerdictStep,
+  walkRunInitiators,
+} from '../application/run-initiator-walk'
+import {
   durableSessionRunId,
-  followRunInitiatorChain,
   isLocalUserCallerId,
   isProfileCallerId,
   parseSessionAgentCallerId,
-  type RunInitiatorChain,
   rootSessionReachesEveryProject,
-  runInitiatorVerdictKey,
-  startRunInitiatorChain,
 } from '../domain/session-control/root-session-project-reach'
 import { decodeSessionAuthoritySnapshot } from '../session-host/session-authority-snapshot'
 
@@ -41,23 +43,25 @@ function liveProfileScope(sql: SqlClient.SqlClient, callerId: string) {
   })
 }
 
-/** Whether a caller, as the author of input into a Run, reaches every project. */
-export function callerReachesEveryProject(sql: SqlClient.SqlClient, callerId: string) {
-  return initiatorReachesEveryProject(sql, callerId, startRunInitiatorChain<boolean>())
-}
-
-function initiatorReachesEveryProject(
+/** A caller's own verdict, or the agent Run whose verdict it takes. */
+function callerReach(
   sql: SqlClient.SqlClient,
   callerId: string,
-  chain: RunInitiatorChain<boolean>,
-): Effect.Effect<boolean, unknown> {
+): Effect.Effect<boolean | RunReference, unknown> {
   if (isLocalUserCallerId(callerId)) return Effect.succeed(true)
   if (isProfileCallerId(callerId)) {
     return liveProfileScope(sql, callerId).pipe(Effect.map((scope) => scope?.all === true))
   }
-  const agent = parseSessionAgentCallerId(callerId)
-  if (!agent) return Effect.succeed(false)
-  return sessionAgentRunReachesEveryProject(sql, agent.sessionId, agent.runId, chain)
+  return Effect.succeed(parseSessionAgentCallerId(callerId) ?? false)
+}
+
+/** Whether a caller, as the author of input into a Run, reaches every project. */
+export function callerReachesEveryProject(sql: SqlClient.SqlClient, callerId: string) {
+  return callerReach(sql, callerId).pipe(
+    Effect.flatMap((reach) =>
+      typeof reach === 'boolean' ? Effect.succeed(reach) : walkRunInitiators(reachWalk(sql), reach),
+    ),
+  )
 }
 
 /**
@@ -67,30 +71,32 @@ function initiatorReachesEveryProject(
  * limited to one project could message a desktop Session and have it act in every project.
  *
  * Decided from durable rows only, so the Sessions tool and queued Follow-up delivery agree.
- * Unreadable data, and chains through more than eight other Sessions or 256 Runs, fail closed.
+ * Unreadable data, and initiator trees spanning more than eight other Sessions or 256 Runs, fail
+ * closed.
  */
 export function sessionAgentRunReachesEveryProject(
   sql: SqlClient.SqlClient,
   sessionId: string,
   runId: string,
-  chain: RunInitiatorChain<boolean> = startRunInitiatorChain<boolean>(),
 ): Effect.Effect<boolean, unknown> {
-  const key = runInitiatorVerdictKey(sessionId, runId)
-  const known = chain.verdicts.get(key)
-  if (known !== undefined) return Effect.succeed(known)
-  const next = followRunInitiatorChain(chain, sessionId)
-  if (!next) return Effect.succeed(false)
-  return runReachesEveryProject(sql, sessionId, runId, next).pipe(
-    Effect.tap((verdict) => Effect.sync(() => chain.verdicts.set(key, verdict))),
-  )
+  return walkRunInitiators(reachWalk(sql), { sessionId, runId })
 }
 
-function runReachesEveryProject(
+function reachWalk(sql: SqlClient.SqlClient): RunInitiatorWalk<boolean, unknown> {
+  return {
+    step: (run) => runReachStep(sql, run.sessionId, run.runId),
+    combine: (verdicts) => verdicts.every((verdict) => verdict),
+    failClosed: false,
+  }
+}
+
+const NO_REACH: RunVerdictStep<boolean> = { verdict: false, followRuns: [] }
+
+function runReachStep(
   sql: SqlClient.SqlClient,
   sessionId: string,
   runId: string,
-  next: RunInitiatorChain<boolean>,
-): Effect.Effect<boolean, unknown> {
+): Effect.Effect<RunVerdictStep<boolean>, unknown> {
   return Effect.gen(function* () {
     const rows = yield* sql<RunSourceRow>`
       SELECT json_extract(session_runs.intent_json, '$.callerId') AS initiator_caller_id,
@@ -115,7 +121,7 @@ function runReachesEveryProject(
       LIMIT 1
     `
     const row = rows[0]
-    if (!row?.initiator_caller_id) return false
+    if (!row?.initiator_caller_id) return NO_REACH
     const ownReach = yield* Effect.try(() =>
       rootSessionReachesEveryProject({
         isRoot: row.parent_session_id === null,
@@ -127,11 +133,17 @@ function runReachesEveryProject(
         snapshotScope: decodeSessionAuthoritySnapshot(row.authority_scope_snapshot_json)?.scope,
       }),
     ).pipe(Effect.orElseSucceed(() => false))
-    if (!ownReach) return false
-    if (!(yield* initiatorReachesEveryProject(sql, row.initiator_caller_id, next))) return false
+    if (!ownReach) return NO_REACH
     // A re-authorized Follow-up keeps its author, who must reach every project as well.
-    return row.author_caller_id === null
-      ? true
-      : yield* initiatorReachesEveryProject(sql, row.author_caller_id, next)
+    const callers = [row.initiator_caller_id, row.author_caller_id].filter(
+      (caller): caller is string => caller !== null,
+    )
+    const followRuns: RunReference[] = []
+    for (const caller of callers) {
+      const reach = yield* callerReach(sql, caller)
+      if (reach === false) return NO_REACH
+      if (reach !== true) followRuns.push(reach)
+    }
+    return { verdict: true, followRuns }
   })
 }

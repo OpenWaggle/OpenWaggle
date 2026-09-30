@@ -2,14 +2,16 @@ import type * as SqlClient from '@effect/sql/SqlClient'
 import type { AgentAuthorizationMode } from '@shared/types/agent-authorization'
 import * as Effect from 'effect/Effect'
 import {
+  type RunInitiatorWalk,
+  type RunReference,
+  type RunVerdictStep,
+  walkRunInitiators,
+} from '../application/run-initiator-walk'
+import {
   durableSessionRunId,
-  followRunInitiatorChain,
   isLocalUserCallerId,
   isProfileCallerId,
   parseSessionAgentCallerId,
-  type RunInitiatorChain,
-  runInitiatorVerdictKey,
-  startRunInitiatorChain,
 } from '../domain/session-control/root-session-project-reach'
 
 const ASK: AgentAuthorizationMode = 'ask-for-approval'
@@ -80,12 +82,12 @@ export function sessionAgentAuthorizationBoundary(sql: SqlClient.SqlClient, sess
   })
 }
 
+/** A caller's own ceiling, and for an agent the Run whose ceiling also bounds it. */
 function callerCeiling(
   sql: SqlClient.SqlClient,
   callerId: string,
-  chain: RunInitiatorChain<AgentAuthorizationMode>,
-): Effect.Effect<AgentAuthorizationMode, unknown> {
-  if (isLocalUserCallerId(callerId)) return Effect.succeed(YOLO)
+): Effect.Effect<RunVerdictStep<AgentAuthorizationMode>, unknown> {
+  if (isLocalUserCallerId(callerId)) return Effect.succeed({ verdict: YOLO, followRuns: [] })
   if (isProfileCallerId(callerId)) {
     return Effect.gen(function* () {
       const rows = yield* sql<{
@@ -97,20 +99,20 @@ function callerCeiling(
         LIMIT 1
       `
       const profile = rows[0]
-      return profile && profile.revoked_at === null ? profile.authorization_ceiling : ASK
+      const verdict = profile && profile.revoked_at === null ? profile.authorization_ceiling : ASK
+      return { verdict, followRuns: [] }
     })
   }
   const agent = parseSessionAgentCallerId(callerId)
-  if (!agent) return Effect.succeed(ASK)
-  return Effect.gen(function* () {
-    const boundary = yield* sessionAgentAuthorizationBoundary(sql, agent.sessionId)
-    if (boundary.revoked) return ASK
-    return narrower([
-      boundary.authorizationCeiling,
-      yield* runInitiatorCeiling(sql, agent.sessionId, agent.runId, chain),
-    ])
-  })
+  if (!agent) return Effect.succeed(ASKING)
+  return sessionAgentAuthorizationBoundary(sql, agent.sessionId).pipe(
+    Effect.map((boundary) =>
+      boundary.revoked ? ASKING : { verdict: boundary.authorizationCeiling, followRuns: [agent] },
+    ),
+  )
 }
+
+const ASKING: RunVerdictStep<AgentAuthorizationMode> = { verdict: ASK, followRuns: [] }
 
 /**
  * The Run whose initiator bounds `runId`: that Run, or for an agent-requested Waggle, which has no
@@ -136,33 +138,36 @@ export function runInitiatorCeiling(
   sql: SqlClient.SqlClient,
   sessionId: string,
   runId: string,
-  chain: RunInitiatorChain<AgentAuthorizationMode> = startRunInitiatorChain<AgentAuthorizationMode>(),
 ): Effect.Effect<AgentAuthorizationMode, unknown> {
-  const key = runInitiatorVerdictKey(sessionId, runId)
-  const known = chain.verdicts.get(key)
-  if (known !== undefined) return Effect.succeed(known)
-  const next = followRunInitiatorChain(chain, sessionId)
-  if (!next) return Effect.succeed(ASK)
-  return initiatorsCeiling(sql, sessionId, runId, next).pipe(
-    Effect.tap((verdict) => Effect.sync(() => chain.verdicts.set(key, verdict))),
-  )
+  return walkRunInitiators(ceilingWalk(sql), { sessionId, runId })
 }
 
-function initiatorsCeiling(
+function ceilingWalk(sql: SqlClient.SqlClient): RunInitiatorWalk<AgentAuthorizationMode, unknown> {
+  return {
+    step: (run) => runCeilingStep(sql, run),
+    combine: narrower,
+    failClosed: ASK,
+  }
+}
+
+function runCeilingStep(
   sql: SqlClient.SqlClient,
-  sessionId: string,
-  runId: string,
-  next: RunInitiatorChain<AgentAuthorizationMode>,
-): Effect.Effect<AgentAuthorizationMode, unknown> {
+  run: RunReference,
+): Effect.Effect<RunVerdictStep<AgentAuthorizationMode>, unknown> {
   return Effect.gen(function* () {
-    const row = yield* initiatorRow(sql, sessionId, runId)
-    if (!row?.initiator_caller_id) return ASK
+    const row = yield* initiatorRow(sql, run.sessionId, run.runId)
+    if (!row?.initiator_caller_id) return ASKING
     const callers = [row.initiator_caller_id, row.author_caller_id].filter(
       (caller): caller is string => caller !== null,
     )
-    const ceilings: AgentAuthorizationMode[] = []
-    for (const caller of callers) ceilings.push(yield* callerCeiling(sql, caller, next))
-    return narrower(ceilings)
+    const verdicts: AgentAuthorizationMode[] = []
+    const followRuns: RunReference[] = []
+    for (const caller of callers) {
+      const step = yield* callerCeiling(sql, caller)
+      verdicts.push(step.verdict)
+      followRuns.push(...step.followRuns)
+    }
+    return { verdict: narrower(verdicts), followRuns }
   })
 }
 
