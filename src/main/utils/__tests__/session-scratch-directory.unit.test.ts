@@ -194,6 +194,33 @@ describe('Session scratch directory', () => {
     }
   })
 
+  it('runs chained removals in order, so a slow first one cannot delete a recreated directory', async () => {
+    await prepareSessionScratchDirectory('session-a', root)
+    const rm = fs.rm.bind(fs)
+    const slowFirst = Promise.withResolvers<void>()
+    let calls = 0
+    const spy = vi.spyOn(fs, 'rm').mockImplementation(async (target, options) => {
+      calls += 1
+      if (calls === 1) await slowFirst.promise
+      return rm(target, options)
+    })
+    try {
+      const first = removeSessionScratchDirectory('session-a', root)
+      const second = removeSessionScratchDirectory('session-a', root)
+      const preparing = prepareSessionScratchDirectory('session-a', root)
+      // A second removal that did not wait would finish now and let prepare recreate the
+      // directory before the first removal runs.
+      await new Promise((resolve) => setTimeout(resolve, UNWAITED_PREPARE_MS))
+      slowFirst.resolve()
+      const directory = await preparing
+      await Promise.all([first, second])
+
+      expect((await fs.stat(directory)).isDirectory()).toBe(true)
+    } finally {
+      spy.mockRestore()
+    }
+  })
+
   posixOnly('refuses a regular file in place of the Session directory', async () => {
     await fs.mkdir(root, { recursive: true, mode: OWNER_ONLY })
     await fs.writeFile(sessionScratchDirectoryPath('session-a', root), 'not a directory')
