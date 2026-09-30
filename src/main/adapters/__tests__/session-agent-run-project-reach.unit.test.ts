@@ -254,7 +254,10 @@ describe('runInputWidensReach', () => {
         }
         for (const followUp of followUps) {
           yield* sql`INSERT INTO session_follow_ups (id, session_id, intent_json) VALUES (
-            ${followUp.id}, ${followUp.sessionId}, ${JSON.stringify({ callerId: followUp.callerId })}
+            ${followUp.id}, ${followUp.sessionId}, ${JSON.stringify({
+              callerId: followUp.callerId,
+              ...(followUp.authorCallerId ? { authorCallerId: followUp.authorCallerId } : {}),
+            })}
           )`
         }
         return yield* runInputWidensReach(sql, { ...input, sessionId: 's', runId: 'run-s' })
@@ -275,6 +278,16 @@ describe('runInputWidensReach', () => {
   it('accepts any caller into a Run that stays in its project', async () => {
     const projectRun = [{ id: 's', origin: 'gui:local-user', initiator: 'profile:project' }]
     await expect(widens(projectRun, { callerId: 'profile:project' })).resolves.toBe(false)
+  })
+
+  it('refuses promoting a re-authorized Follow-up whose writer lacks the reach', async () => {
+    // The desktop user re-authorized a project-scoped profile's Follow-up.
+    const followUps = [
+      { id: 'f', sessionId: 's', callerId: 'gui:local-user', authorCallerId: 'profile:project' },
+    ]
+    await expect(
+      widens(desktopRun, { callerId: 'gui:local-user', followUpId: 'f' }, followUps),
+    ).resolves.toBe(true)
   })
 
   it('judges a promoted Follow-up by its author as well as by the promoter', async () => {
