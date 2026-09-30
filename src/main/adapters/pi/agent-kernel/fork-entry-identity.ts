@@ -8,15 +8,16 @@ import { isRecord } from '@shared/utils/validation'
  */
 const ENTRY_REFERENCE_FIELDS = ['parentId', 'firstKeptEntryId', 'fromId', 'targetId'] as const
 
-const PI_ENTRY_ID_LENGTH = 8
-const MAX_ID_ATTEMPTS = 100
-
+/**
+ * A full UUID rather than Pi's eight-character id. The new ids join a node key shared by every
+ * Session, and a fork mints them all at once: eight hex characters collide with an existing node
+ * too often at that scale, and a full UUID can never equal an id Pi generates later.
+ */
 function nextEntryId(taken: ReadonlySet<string>) {
-  for (let attempt = 0; attempt < MAX_ID_ATTEMPTS; attempt += 1) {
-    const id = randomUUID().slice(0, PI_ENTRY_ID_LENGTH)
+  while (true) {
+    const id = randomUUID()
     if (!taken.has(id)) return id
   }
-  return randomUUID()
 }
 
 function isSessionEntry(line: unknown): line is { readonly id: string; readonly type: string } {

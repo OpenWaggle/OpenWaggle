@@ -71,7 +71,7 @@ afterEach(async () => {
  * A Session with two conversation branches whose Pi file was last written on the second branch,
  * then switched back to main. The switch is a Pi tree navigation, which Pi keeps in memory.
  */
-async function sessionSwitchedBackToMain() {
+async function sessionSwitchedBackToMain(options: { readonly withAuditNode?: boolean } = {}) {
   const pi = SessionManager.create(projectPath, projectPath)
   pi.appendModelChange('provider', 'model')
   const forkPoint = appendTurn(pi, 'first', 1)
@@ -87,12 +87,29 @@ async function sessionSwitchedBackToMain() {
     piSessionFile,
   })
   const snapshot = projectPiSessionSnapshot({ sessionManager: pi })
+  // A run's durable agent-loop events live only in the projection, after the Pi entries.
+  const auditNodes = options.withAuditNode
+    ? [
+        {
+          id: 'run-1:agent-loop:0',
+          parentId: snapshot.activeNodeId,
+          piEntryType: 'custom',
+          kind: 'custom' as const,
+          role: null,
+          timestampMs: 50,
+          contentJson: JSON.stringify({ customType: 'openwaggle.agent-loop.event', data: {} }),
+          metadataJson: '{}',
+          pathDepth: 0,
+          createdOrder: snapshot.nodes.length,
+        },
+      ]
+    : []
   await persistSessionSnapshot({
     sessionId: SessionId(String(session.id)),
     piSessionId: pi.getSessionId(),
     piSessionFile,
     activeNodeId: snapshot.activeNodeId,
-    nodes: snapshot.nodes,
+    nodes: [...snapshot.nodes, ...auditNodes],
   })
   const detail = await getSessionDetail(SessionId(String(session.id)))
   if (!detail) throw new Error('Session detail is missing')
@@ -108,6 +125,14 @@ describe('Pi session resume position', () => {
 
     expect(detail.resumePosition?.nodeId).toBe(mainHead)
     expect(reopened.getEntry(next)?.parentId).toBe(mainHead)
+  })
+
+  it('counts only Pi entries, so projected agent-loop events do not disable the resume', async () => {
+    const { detail, mainHead } = await sessionSwitchedBackToMain({ withAuditNode: true })
+
+    const reopened = createSessionManagerForSession(detail, projectPath)
+
+    expect(reopened.getLeafId()).toBe(mainHead)
   })
 
   it('keeps the Pi file position when the file has entries the projection has not seen', async () => {

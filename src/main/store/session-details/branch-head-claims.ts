@@ -3,19 +3,15 @@ import type { SessionBranchRow } from './types'
 
 const FIRST_DUPLICATE_ID_SUFFIX = 2
 
-function ancestorDepth(
-  nodeById: ReadonlyMap<string, ProjectedSessionNodeInput>,
-  headId: string,
-  ancestorId: string | null,
-) {
-  let depth = 0
+/** Distance from a head to each node on its path, the head itself at 0. */
+function depthsOnPath(nodeById: ReadonlyMap<string, ProjectedSessionNodeInput>, headId: string) {
+  const depths = new Map<string, number>()
   let currentId: string | null = headId
-  while (currentId) {
-    if (currentId === ancestorId) return depth
-    depth += 1
+  while (currentId && !depths.has(currentId)) {
+    depths.set(currentId, depths.size)
     currentId = nodeById.get(currentId)?.parentId ?? null
   }
-  return null
+  return depths
 }
 
 /**
@@ -37,11 +33,14 @@ export function claimSavedBranchesByHead(
   const claimedIds = new Set<string>()
   for (const headId of heads) {
     if (headId === context.mainHeadId) continue
+    const depths = depthsOnPath(context.nodeById, headId)
     let nearest: { readonly row: SessionBranchRow; readonly depth: number } | null = null
     for (const row of existingBranches) {
-      if (row.is_main === 1 || claimedIds.has(row.id)) continue
-      const depth = ancestorDepth(context.nodeById, headId, row.head_node_id)
-      if (depth !== null && (nearest === null || depth < nearest.depth)) nearest = { row, depth }
+      if (row.is_main === 1 || claimedIds.has(row.id) || !row.head_node_id) continue
+      const depth = depths.get(row.head_node_id)
+      if (depth !== undefined && (nearest === null || depth < nearest.depth)) {
+        nearest = { row, depth }
+      }
     }
     if (!nearest) continue
     claims.set(headId, nearest.row)

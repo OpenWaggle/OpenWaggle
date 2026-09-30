@@ -161,6 +161,8 @@ async function cloneSession(deps: SidebarSessionActionDeps, sessionId: SessionId
 
   try {
     const targetNodeId = await cloneTargetNodeId(deps, sessionId)
+    // The head may have been re-read from the Host; do not clone a Session the user has left.
+    if (useChatStore.getState().activeSessionId !== sessionId) return
     if (!targetNodeId) {
       deps.showToast('No session history to clone.')
       return

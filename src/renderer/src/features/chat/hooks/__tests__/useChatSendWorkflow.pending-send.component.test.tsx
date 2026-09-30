@@ -71,9 +71,10 @@ describe('useChatSendWorkflow pending send', () => {
     expect(followBranchHead).toHaveBeenCalledOnce()
   })
 
-  it('follows the branch head when the Run fails after the message was delivered', async () => {
+  it('spends the retry draft and follows the head when the Run fails after delivery', async () => {
     const followBranchHead = vi.fn()
     const params = sendWorkflowParams({
+      draftBranch: { sessionId: SESSION_ID, sourceNodeId: SessionNodeId('retry-source') },
       handleSend: vi.fn().mockRejectedValue(new MessageDeliveredRunFailed(new Error('Run failed'))),
       trackRoutedNode: vi.fn(() => followBranchHead),
     })
@@ -82,6 +83,8 @@ describe('useChatSendWorkflow pending send', () => {
     await expect(act(() => result.current.sendWithWaggle(payload('Hello')))).rejects.toBeInstanceOf(
       MessageDeliveredRunFailed,
     )
+    // Kept, the draft would branch the next message from the retry source again.
+    expect(params.clearDraftBranchForSession).toHaveBeenCalledWith(SESSION_ID)
     expect(followBranchHead).toHaveBeenCalledOnce()
   })
 

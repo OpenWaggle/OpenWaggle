@@ -101,9 +101,12 @@ async function cloneCurrentSessionToNewSessionAction(params: SessionCopyWorkflow
   }
 
   try {
+    const sessionId = params.activeSessionId
     const targetNodeId =
       params.draftBranchSourceNodeId ??
-      (await resolveCurrentConversationNode(params.activeSessionId, params.activeWorkspace))
+      (await resolveCurrentConversationNode(sessionId, params.activeWorkspace))
+    // The head may have been re-read from the Host; do not clone a Session the user has left.
+    if (useChatStore.getState().activeSessionId !== sessionId) return
     if (!targetNodeId) {
       params.showToast('No session history to clone.')
       return
@@ -150,9 +153,29 @@ async function findForkSourceNode(
     : null
 }
 
+/** Fork targets from the Host workspace, which includes messages sent since the last load. */
+async function currentForkTargets(params: SessionCopyWorkflowParams, sessionId: SessionId) {
+  const loaded =
+    params.activeWorkspace?.tree.session.id === sessionId ? params.activeWorkspace : null
+  const current = await api
+    .getSessionWorkspace(
+      sessionId,
+      loaded?.activeBranchId ? { branchId: loaded.activeBranchId } : undefined,
+    )
+    .catch(() => null)
+  return getVisibleForkTargets(current?.tree.session.id === sessionId ? current : loaded)
+}
+
 export function useSessionCopyWorkflow(params: SessionCopyWorkflowParams) {
   const [forkSelectorOpen, setForkSelectorOpen] = useState(false)
-  const forkTargets = getVisibleForkTargets(params.activeWorkspace)
+  const [currentTargets, setCurrentTargets] = useState<{
+    readonly sessionId: SessionId
+    readonly targets: readonly SessionForkTarget[]
+  } | null>(null)
+  const forkTargets =
+    currentTargets && currentTargets.sessionId === params.activeSessionId
+      ? currentTargets.targets
+      : getVisibleForkTargets(params.activeWorkspace)
 
   return {
     forkSelectorOpen,
@@ -186,11 +209,20 @@ export function useSessionCopyWorkflow(params: SessionCopyWorkflowParams) {
       }
     },
     openForkSelector() {
-      if (forkTargets.length === 0) {
+      const sessionId = params.activeSessionId
+      if (!sessionId) {
         params.showToast('No user messages are available to fork.')
         return
       }
-      setForkSelectorOpen(true)
+      void currentForkTargets(params, sessionId).then((targets) => {
+        if (useChatStore.getState().activeSessionId !== sessionId) return
+        if (targets.length === 0) {
+          params.showToast('No user messages are available to fork.')
+          return
+        }
+        setCurrentTargets({ sessionId, targets })
+        setForkSelectorOpen(true)
+      })
     },
     selectForkTarget(target: SessionForkTarget) {
       setForkSelectorOpen(false)

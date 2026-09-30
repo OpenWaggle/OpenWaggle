@@ -7,7 +7,7 @@ import {
 } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
 import type { SessionNode, SessionWorkspace } from '@shared/types/session'
-import { act, renderHook } from '@testing-library/react'
+import { act, renderHook, waitFor } from '@testing-library/react'
 import { expect, it, vi } from 'vitest'
 import { useChatStore } from '@/features/chat/state'
 import { useComposerStore } from '@/features/composer/state'
@@ -48,6 +48,7 @@ it('keeps session copy commands safe when there is no active session or fork tar
 
 it('shows the Host reason without Electron transport context when cloning fails', async () => {
   apiMock.getSessionWorkspace.mockResolvedValue(null)
+  useChatStore.setState({ activeSessionId: SessionId('session-1') })
   apiMock.cloneSessionToNew.mockRejectedValue(
     new Error("Error invoking remote method 'sessions:clone-to-new': Error: Session is busy"),
   )
@@ -209,6 +210,7 @@ it('clones the branch head the Host has now, not the head loaded before the last
     activeNodeId: SessionNodeId('current-head'),
   })
   apiMock.cloneSessionToNew.mockResolvedValue({ cancelled: true })
+  useChatStore.setState({ activeSessionId: sessionId })
   const { result } = renderHook(() =>
     useSessionCopyWorkflow({
       activeSessionId: sessionId,
@@ -235,4 +237,54 @@ it('clones the branch head the Host has now, not the head loaded before the last
     SupportedModelId('openai/gpt-5.5'),
     SessionNodeId('current-head'),
   )
+})
+
+it('lists fork targets from the Host, including a message sent since the workspace loaded', async () => {
+  const sessionId = SessionId('session-1')
+  const sent = userNode('sent-since-load', sessionId)
+  apiMock.getSessionWorkspace.mockResolvedValue({
+    tree: {
+      session: {
+        id: sessionId,
+        title: 'Session',
+        projectPath: '/repo',
+        createdAt: 1,
+        updatedAt: 2,
+        lastActiveNodeId: sent.id,
+        lastActiveBranchId: null,
+      },
+      nodes: [sent],
+      branches: [],
+      branchStates: [],
+      uiState: null,
+    },
+    activeBranchId: null,
+    activeNodeId: sent.id,
+    transcriptPath: [{ node: sent, branchId: null, isActive: true }],
+  } satisfies SessionWorkspace)
+  useChatStore.setState({ activeSessionId: sessionId })
+  const showToast = vi.fn()
+  const { result } = renderHook(() =>
+    useSessionCopyWorkflow({
+      activeSessionId: sessionId,
+      activeWorkspace: null,
+      messages: [],
+      draftBranchSourceNodeId: null,
+      model: SupportedModelId('openai/gpt-5.5'),
+      navigate: vi.fn(),
+      setActiveSession: vi.fn(),
+      loadSessions: vi.fn().mockResolvedValue(undefined),
+      refreshSession: vi.fn().mockResolvedValue(undefined),
+      refreshSessionWorkspace: vi.fn().mockResolvedValue(undefined),
+      showToast,
+    }),
+  )
+
+  act(() => result.current.openForkSelector())
+
+  await waitFor(() => expect(result.current.forkSelectorOpen).toBe(true))
+  expect(showToast).not.toHaveBeenCalled()
+  expect(result.current.forkTargets).toEqual([
+    { entryId: SessionNodeId('sent-since-load'), text: 'Retry me' },
+  ])
 })

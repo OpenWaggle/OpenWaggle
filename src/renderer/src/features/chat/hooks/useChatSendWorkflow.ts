@@ -208,8 +208,12 @@ export function useChatSendWorkflow(params: ChatSendWorkflowParams) {
         if (params.activeSessionId) params.clearDraftBranchForSession(params.activeSessionId)
         followBranchHead()
       } catch (error) {
-        // A Run that failed after delivery still saved the message on the branch.
-        if (wasMessageDelivered(error)) followBranchHead()
+        // A Run that failed after delivery still saved the message on the branch, so the draft
+        // is spent: kept, the next send would branch from the retry source again.
+        if (wasMessageDelivered(error)) {
+          if (params.activeSessionId) params.clearDraftBranchForSession(params.activeSessionId)
+          followBranchHead()
+        }
         params.clearPendingSend(pendingSend)
         if (payload.waggle?.config && params.activeSessionId) {
           params.stopWaggleCollaboration(params.activeSessionId)
