@@ -75,4 +75,12 @@ describe('resolveCurrentConversationNode', () => {
     )
     expect(apiMock.getSessionWorkspace).toHaveBeenCalledWith(SESSION_ID, undefined)
   })
+
+  it('falls back to the loaded head when the Host read fails', async () => {
+    apiMock.getSessionWorkspace.mockRejectedValue(new Error('Host unavailable'))
+
+    await expect(
+      resolveCurrentConversationNode(SESSION_ID, workspace('head', 'head')),
+    ).resolves.toBe('head')
+  })
 })

@@ -9,6 +9,17 @@ import { isRecord } from '@shared/utils/validation'
 const ENTRY_REFERENCE_FIELDS = ['parentId', 'firstKeptEntryId', 'fromId', 'targetId'] as const
 
 /**
+ * Pi records a compaction reconstruction as a custom entry whose data names entries of the file.
+ * Pi only compares these ids to avoid recording the same reconstruction twice.
+ */
+const RECONSTRUCTION_CUSTOM_TYPE = 'pi.compaction_reconstruction'
+const RECONSTRUCTION_REFERENCE_FIELDS = [
+  'sourceCompactionId',
+  'firstKeptEntryId',
+  'droppedThroughEntryId',
+] as const
+
+/**
  * A full UUID rather than Pi's eight-character id. The new ids join a node key shared by every
  * Session, and a fork mints them all at once: eight hex characters collide with an existing node
  * too often at that scale, and a full UUID can never equal an id Pi generates later.
@@ -49,13 +60,26 @@ export function rekeyForkedSessionLines(lines: readonly unknown[]): readonly unk
 
   return lines.map((line) => {
     if (!isSessionEntry(line)) return line
-    const next: Record<string, unknown> = { ...line, id: idMap.get(line.id) ?? line.id }
-    for (const field of ENTRY_REFERENCE_FIELDS) {
-      const reference = next[field]
-      if (typeof reference === 'string') next[field] = idMap.get(reference) ?? reference
+    const next = remapReferences({ ...line, id: idMap.get(line.id) ?? line.id }, idMap, [
+      ...ENTRY_REFERENCE_FIELDS,
+    ])
+    if (next.customType === RECONSTRUCTION_CUSTOM_TYPE && isRecord(next.data)) {
+      next.data = remapReferences({ ...next.data }, idMap, [...RECONSTRUCTION_REFERENCE_FIELDS])
     }
     return next
   })
+}
+
+function remapReferences(
+  record: Record<string, unknown>,
+  idMap: ReadonlyMap<string, string>,
+  fields: readonly string[],
+) {
+  for (const field of fields) {
+    const reference = record[field]
+    if (typeof reference === 'string') record[field] = idMap.get(reference) ?? reference
+  }
+  return record
 }
 
 /**

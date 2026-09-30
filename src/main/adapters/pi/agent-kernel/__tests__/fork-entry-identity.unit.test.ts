@@ -108,6 +108,13 @@ describe('forked Pi session identity', () => {
       { type: 'compaction', id: 'c', parentId: 'b', firstKeptEntryId: 'b' },
       { type: 'branch_summary', id: 'd', parentId: 'c', fromId: 'outside-this-file' },
       { type: 'label', id: 'e', parentId: 'd', targetId: 'b' },
+      {
+        type: 'custom',
+        id: 'f',
+        parentId: 'e',
+        customType: 'pi.compaction_reconstruction',
+        data: { sourceCompactionId: 'c', firstKeptEntryId: 'b', droppedThroughEntryId: 'a' },
+      },
     ]
 
     const rekeyed = rekeyForkedSessionLines(lines)
@@ -119,17 +126,23 @@ describe('forked Pi session identity', () => {
 
     expect(rekeyed[0]).toEqual(lines[0])
     expect(new Set(ids).size).toBe(ids.length)
-    for (const id of ids) expect(['a', 'b', 'c', 'd', 'e']).not.toContain(id)
+    for (const id of ids) expect(['a', 'b', 'c', 'd', 'e', 'f']).not.toContain(id)
     expect(entries.map((entry) => entry.get('parentId'))).toEqual([
       null,
       ids[0],
       ids[1],
       ids[2],
       ids[3],
+      ids[4],
     ])
     expect(entries[2]?.get('firstKeptEntryId')).toBe(ids[1])
     expect(entries[3]?.get('fromId')).toBe('outside-this-file')
     expect(entries[4]?.get('targetId')).toBe(ids[1])
+    expect(entries[5]?.get('data')).toEqual({
+      sourceCompactionId: ids[2],
+      firstKeptEntryId: ids[1],
+      droppedThroughEntryId: ids[0],
+    })
   })
 
   it('returns a fork snapshot whose nodes do not reuse the source session ids', async () => {

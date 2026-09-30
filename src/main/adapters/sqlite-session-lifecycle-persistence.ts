@@ -161,6 +161,9 @@ function persistSessionMetadata(
   })
 }
 
+/** A marker left by an earlier fork or copy, so a fork of a fork is not "X (fork) (fork)". */
+const COPY_TITLE_SUFFIX = / \((?:fork|copy)\)$/
+
 /**
  * An untitled fork is named after its source, marked as a fork or a copy. Titles are generated only
  * for a Session with no messages, so a fork left as "New session" never got a name.
@@ -175,9 +178,14 @@ function defaultLifecycleTitle(
     const rows = yield* sql<{ readonly title: string }>`
       SELECT title FROM sessions WHERE id = ${command.sourceSessionId} LIMIT 1
     `
-    const source = rows[0]?.title
+    const source = rows[0]?.title.replace(COPY_TITLE_SUFFIX, '').trim()
     if (!source) return 'New session'
-    return `${source.slice(0, SESSION_TITLE_MAX_LENGTH - suffix.length).trimEnd()}${suffix}`
+    // Truncate by code point so a long title cannot end in half a surrogate pair.
+    const base = Array.from(source)
+      .slice(0, SESSION_TITLE_MAX_LENGTH - suffix.length)
+      .join('')
+      .trimEnd()
+    return assertSessionTitle(`${base}${suffix}`)
   })
 }
 

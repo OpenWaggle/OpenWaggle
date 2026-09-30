@@ -93,6 +93,26 @@ describe('SQLite Session lifecycle fork persistence', () => {
     expect(title).toBe('Parent (copy)')
   })
 
+  it('does not stack copy markers when a copy is copied again', async () => {
+    const layer = makeSessionLifecycleTestLayer(path.join(temporaryRoot, 'copy-of-copy.sqlite'))
+    const input = forkLifecycleInput()
+    const { title: _explicitTitle, ...command } = input.request.command
+    const title = await Effect.runPromise(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        yield* sql`UPDATE sessions SET title = ${'Parent (fork)'} WHERE id = ${'session-parent'}`
+        const repository = yield* SessionLifecycleRepository
+        yield* repository.execute({ ...input, request: { ...input.request, command } })
+        const rows = yield* sql<{ readonly title: string }>`
+          SELECT title FROM sessions WHERE id = ${'session-fork'}
+        `
+        return rows[0]?.title
+      }).pipe(Effect.provide(layer)),
+    )
+
+    expect(title).toBe('Parent (copy)')
+  })
+
   it('rejects idempotency-key reuse with a different lifecycle command', async () => {
     const layer = makeSessionLifecycleTestLayer(path.join(temporaryRoot, 'idempotency.sqlite'))
     const error = await Effect.runPromise(

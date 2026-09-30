@@ -12,7 +12,10 @@ import { api } from '@/shared/lib/ipc'
 import { ipcErrorMessage } from '@/shared/lib/ipc-error-message'
 import { findUserMessageNode } from '../lib/branch-from-message'
 import { setComposerTextValue } from '../lib/composer-text'
-import { resolveCurrentConversationNode } from '../lib/current-conversation-node'
+import {
+  currentConversationWorkspace,
+  resolveCurrentConversationNode,
+} from '../lib/current-conversation-node'
 import { getVisibleForkTargets, type SessionForkTarget } from '../lib/session-fork-targets'
 
 type Navigate = ReturnType<typeof useNavigate>
@@ -133,7 +136,7 @@ async function cloneCurrentSessionToNewSessionAction(params: SessionCopyWorkflow
 
 /**
  * The persisted node of the message to fork. A message sent since the workspace was loaded is not
- * in it yet (runs refresh only the Session detail), so the Host workspace is read again for it.
+ * in it yet (runs refresh only the Session detail), so the current workspace is read for it.
  */
 async function findForkSourceNode(
   params: SessionCopyWorkflowParams,
@@ -144,26 +147,15 @@ async function findForkSourceNode(
     params.activeWorkspace?.tree.session.id === sessionId ? params.activeWorkspace : null
   const node = findUserMessageNode({ messages: params.messages, workspace: loaded, messageId })
   if (node) return node
-  const current = await api.getSessionWorkspace(
-    sessionId,
-    loaded?.activeBranchId ? { branchId: loaded.activeBranchId } : undefined,
-  )
-  return current?.tree.session.id === sessionId
-    ? findUserMessageNode({ messages: params.messages, workspace: current, messageId })
-    : null
+  const current = await currentConversationWorkspace(sessionId, loaded)
+  return findUserMessageNode({ messages: params.messages, workspace: current, messageId })
 }
 
-/** Fork targets from the Host workspace, which includes messages sent since the last load. */
+/** Fork targets from the current workspace, which includes messages sent since the last load. */
 async function currentForkTargets(params: SessionCopyWorkflowParams, sessionId: SessionId) {
-  const loaded =
-    params.activeWorkspace?.tree.session.id === sessionId ? params.activeWorkspace : null
-  const current = await api
-    .getSessionWorkspace(
-      sessionId,
-      loaded?.activeBranchId ? { branchId: loaded.activeBranchId } : undefined,
-    )
-    .catch(() => null)
-  return getVisibleForkTargets(current?.tree.session.id === sessionId ? current : loaded)
+  return getVisibleForkTargets(
+    await currentConversationWorkspace(sessionId, params.activeWorkspace),
+  )
 }
 
 export function useSessionCopyWorkflow(params: SessionCopyWorkflowParams) {
