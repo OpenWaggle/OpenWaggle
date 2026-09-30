@@ -8,5 +8,10 @@ export type UpdateStatus =
   | { readonly type: 'available'; readonly version: string }
   | { readonly type: 'not-available' }
   | { readonly type: 'downloading'; readonly version: string; readonly percent: number }
-  | { readonly type: 'downloaded'; readonly version: string }
+  | {
+      readonly type: 'downloaded'
+      readonly version: string
+      /** Set while Restart when idle waits for this many active agent runs to finish. */
+      readonly waitingForRuns?: number
+    }
   | { readonly type: 'error'; readonly message: string }

@@ -60,6 +60,7 @@ OpenWaggle is an Electron desktop coding-agent UI on top of Pi.
   Run, and `steer` only for the exact active Run. See the
   [Hive guide](website/src/content/docs/using-openwaggle/hives-and-sessions.md) and
   [agent domain map](docs/agents/domain.md).
+- Whenever a product, architecture, release, or process decision is needed, run the `grill-with-docs` skill (`.agents/skills/grill-with-docs/SKILL.md`) instead of deciding unilaterally or asking an ad-hoc list of questions.
 - Do not commit, push, reset, clean, checkout, restore, or delete branches unless the maintainer explicitly approves that exact action.
 - Do not use destructive commands to resolve local conflicts. Ask if unrelated work blocks the task.
 - Prefer additive or isolated changes when another agent is active.

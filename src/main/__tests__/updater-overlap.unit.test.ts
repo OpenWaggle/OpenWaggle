@@ -58,6 +58,7 @@ import {
   getUpdateStatus,
   initAutoUpdater,
   installUpdate,
+  setUpdateWaitingForRuns,
 } from '../updater'
 
 describe('updater overlapping checks', () => {
@@ -241,10 +242,16 @@ describe('updater overlapping checks', () => {
     expect(Reflect.get(updaterRef.current ?? {}, 'autoInstallOnAppQuit')).toBe(false)
     expect(getUpdateStatus()).toEqual({ type: 'downloaded', version: '0.5.0' })
     installUpdate()
-    expect(Reflect.get(updaterRef.current ?? {}, 'quitAndInstall')).toHaveBeenCalledWith(
-      false,
-      true,
-    )
+    expect(Reflect.get(updaterRef.current ?? {}, 'quitAndInstall')).toHaveBeenCalledWith(true, true)
+  })
+
+  it('reports and clears how many runs Restart when idle is waiting for', () => {
+    initAutoUpdater('stable')
+    updaterRef.current?.emit('update-downloaded', { version: '1.2.3' })
+    setUpdateWaitingForRuns(2)
+    expect(getUpdateStatus()).toEqual({ type: 'downloaded', version: '1.2.3', waitingForRuns: 2 })
+    setUpdateWaitingForRuns(null)
+    expect(getUpdateStatus()).toEqual({ type: 'downloaded', version: '1.2.3' })
   })
 
   it('re-reads the authoritative channel before installing a downloaded update', async () => {

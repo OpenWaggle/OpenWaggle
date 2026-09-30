@@ -7,6 +7,9 @@ const {
   quitAndInstallMock,
   writeCliStdoutMock,
   createClientMock,
+  requestSingleInstanceLockMock,
+  releaseSingleInstanceLockMock,
+  spawnMock,
   updater,
 } = vi.hoisted(() => {
   const updater: {
@@ -35,12 +38,21 @@ const {
     quitAndInstallMock: vi.fn(),
     writeCliStdoutMock: vi.fn(() => Promise.resolve()),
     createClientMock: vi.fn(() => Promise.resolve({ clientKind: 'cli' })),
+    requestSingleInstanceLockMock: vi.fn(() => true),
+    releaseSingleInstanceLockMock: vi.fn(),
+    spawnMock: vi.fn(),
     updater,
   }
 })
 
+vi.mock('node:child_process', () => ({ spawn: spawnMock }))
 vi.mock('electron', () => ({
-  app: { isPackaged: false, getAppPath: () => '/workspace/OpenWaggle' },
+  app: {
+    isPackaged: false,
+    getAppPath: () => '/workspace/OpenWaggle',
+    requestSingleInstanceLock: requestSingleInstanceLockMock,
+    releaseSingleInstanceLock: releaseSingleInstanceLockMock,
+  },
 }))
 vi.mock('electron-updater', () => ({
   autoUpdater: Object.assign(updater, {
@@ -81,10 +93,12 @@ describe('update CLI', () => {
     )
     checkForUpdatesMock.mockResolvedValue(null)
     configureUpdaterFeedMock.mockReset()
+    requestSingleInstanceLockMock.mockReturnValue(true)
   })
 
   afterEach(() => {
     vi.unstubAllGlobals()
+    vi.restoreAllMocks()
   })
 
   it('shows help without starting the Session Host', async () => {
@@ -184,6 +198,7 @@ describe('update CLI', () => {
   })
 
   it('cancels an ineligible channel download without installing it', async () => {
+    vi.spyOn(process, 'platform', 'get').mockReturnValue('linux')
     const cancel = vi.fn()
     checkForUpdatesMock.mockResolvedValue({
       cancellationToken: { cancel },

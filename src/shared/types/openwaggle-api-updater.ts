@@ -10,7 +10,10 @@ import type { UpdateStatus } from './updater'
 
 export interface OpenWaggleUpdaterApi {
   checkForUpdates(channel?: UpdateChannel): Promise<void>
+  /** Restart to update; asks first when agent runs are active. */
   installUpdate(): Promise<void>
+  /** Restart now, stopping any active agent runs; ends a Restart when idle wait. */
+  installUpdateNow(): Promise<void>
   getUpdateStatus(): Promise<UpdateStatus>
   getAppVersion(): Promise<string>
   onUpdateStatus(callback: (payload: UpdateStatus) => void): () => void

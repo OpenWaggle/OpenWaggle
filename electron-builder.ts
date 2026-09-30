@@ -1,4 +1,5 @@
 import { CANONICAL_EXECUTABLE_NAME, resolveBuildIdentity, resolveIconBasePath } from './scripts/build-identity'
+import { resolveMacSigning } from './scripts/mac-signing'
 
 /**
  * electron-builder configuration as a function (see docs/adr/0032). The Build
@@ -98,9 +99,9 @@ const config = {
     { from: 'scripts/install.sh', to: 'openwaggle-install.sh' },
   ],
   mac: {
-    // Local builds: skip codesigning (no Apple Developer ID).
-    // Distribution: remove this, configure CSC_LINK/CSC_KEY_PASSWORD.
-    identity: null,
+    // Release builds sign with the Developer ID certificate in CSC_LINK and notarize with the
+    // APPLE_* credentials; dev builds stay unsigned. RC and Stable fail closed without both.
+    ...resolveMacSigning(identity.channel),
     icon: icons.mac,
     // Keep artifact filenames keyed to the lowercase package name (not the
     // channel-specific productName) so install.sh and release verification match.

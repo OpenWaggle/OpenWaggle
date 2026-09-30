@@ -16,10 +16,11 @@ export function updaterFeedChannel(channel: UpdateChannel) {
 
 /**
  * Preserve the release stream that installed a prerelease build when the user
- * has not made an explicit choice yet. RC builds intentionally move to Stable:
- * RC is exact-install only and is not an automatic update channel.
+ * has not made an explicit choice yet. RC builds default to Beta, the
+ * lowest-risk channel that still receives later release candidates.
  */
 export function defaultUpdateChannelForBuild(buildChannel: BuildChannel): UpdateChannel {
   if (buildChannel === 'alpha' || buildChannel === 'beta') return buildChannel
+  if (buildChannel === 'rc') return 'beta'
   return DEFAULT_UPDATE_CHANNEL
 }
