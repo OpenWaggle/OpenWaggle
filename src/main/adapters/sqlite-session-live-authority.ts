@@ -40,7 +40,12 @@ export function loadSessionAuthoritySnapshot(sql: SqlClient.SqlClient, sessionId
 
 function sessionAuthorityChanged(sql: SqlClient.SqlClient, sessionId: string) {
   return Effect.gen(function* () {
-    const snapshot = yield* loadSessionAuthoritySnapshot(sql, sessionId)
+    // An unreadable snapshot fails closed as changed authority. Letting the decode error escape
+    // failed the whole Run settlement, so the target Session never started its next Run.
+    const snapshot = yield* loadSessionAuthoritySnapshot(sql, sessionId).pipe(
+      Effect.catchAllDefect(() => Effect.succeed(null)),
+    )
+    if (snapshot === null) return true
     if (!snapshot) return false
     const workspaces = yield* sql<{
       readonly authority_origin_caller_id: string

@@ -4,6 +4,7 @@ import {
   type SessionCapability,
 } from '@shared/types/session-capability'
 import * as Effect from 'effect/Effect'
+import { rootSessionReachesEveryProject } from '../domain/session-control/root-session-project-reach'
 import {
   authorizeSessionTarget,
   authorizeSessionTargetForCaller,
@@ -41,11 +42,14 @@ interface SourceRow {
 }
 
 /**
- * Mirrors the Sessions tool caller: a root whose authority came from the local user, or from a
- * catalog-wide profile, reaches every project. Anything narrower stays inside its own project.
+ * Whether a queued Follow-up's source reaches every project at delivery time. The same rule as
+ * the Sessions tool caller; see `rootSessionReachesEveryProject`.
  */
-function rootReachesEveryProject(
-  source: SourceRow,
+export function queuedFollowUpSourceReachesEveryProject(
+  source: Pick<
+    SourceRow,
+    'authority_origin_caller_id' | 'authority_scope_snapshot_json' | 'parent_session_id'
+  >,
   originProfile: QueuedFollowUpProfileRow | undefined,
 ) {
   let snapshot: ReturnType<typeof decodeSessionAuthoritySnapshot>
@@ -59,9 +63,15 @@ function rootReachesEveryProject(
     })
     return false
   }
-  if (snapshot && snapshot.scope.all !== true) return false
-  if (!profileId(source.authority_origin_caller_id)) return true
-  return originProfile !== undefined && profileAuthority(originProfile).scope.all === true
+  const fromProfile = profileId(source.authority_origin_caller_id) !== undefined
+  if (fromProfile && originProfile === undefined) return false
+  return rootSessionReachesEveryProject({
+    isRoot: source.parent_session_id === null,
+    originScopes: [
+      ...(originProfile ? [profileAuthority(originProfile).scope] : []),
+      ...(snapshot ? [snapshot.scope] : []),
+    ],
+  })
 }
 
 function sourceRelationshipBlockReason(
@@ -72,7 +82,7 @@ function sourceRelationshipBlockReason(
   originProfile: QueuedFollowUpProfileRow | undefined,
 ) {
   if (source.parent_session_id === null) {
-    if (rootReachesEveryProject(source, originProfile)) {
+    if (queuedFollowUpSourceReachesEveryProject(source, originProfile)) {
       return Effect.succeed<AttentionReason | undefined>(undefined)
     }
     return Effect.succeed<AttentionReason | undefined>(

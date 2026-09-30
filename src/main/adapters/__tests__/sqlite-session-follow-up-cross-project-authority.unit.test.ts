@@ -22,6 +22,10 @@ describe('SQLite queued Follow-up from another project', () => {
   async function settleCrossProjectFollowUp(origin: {
     readonly callerId: string
     readonly profileScope?: object
+    /** Raw `authority_scope_snapshot_json` stored for the source Session. */
+    readonly snapshotJson?: string
+    /** The origin profile's scope after the Follow-up was queued and before it is delivered. */
+    readonly profileScopeAtDelivery?: object
   }) {
     temporaryRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-follow-up-cross-project-'))
     const layer = makeSessionControlRunLifecycleTestLayer(
@@ -75,6 +79,22 @@ describe('SQLite queued Follow-up from another project', () => {
             },
           },
         })
+        // Stored after queueing: this test is about the delivery-time decision only, and the
+        // queueing path validates a snapshot against a real Workspace binding.
+        if (origin.snapshotJson !== undefined) {
+          yield* sql`
+            UPDATE session_execution_profiles
+            SET authority_scope_snapshot_json = ${origin.snapshotJson}
+            WHERE session_id = ${'source'}
+          `
+        }
+        if (origin.profileScopeAtDelivery) {
+          yield* sql`
+            UPDATE session_client_profiles
+            SET scope_json = ${JSON.stringify(origin.profileScopeAtDelivery)}
+            WHERE id = ${'origin'}
+          `
+        }
         const lifecycle = yield* SessionControlRunLifecycleRepository
         const settled = yield* lifecycle.settle({
           sessionId: SessionId('session-target'),
@@ -112,7 +132,9 @@ describe('SQLite queued Follow-up from another project', () => {
     })
   })
 
-  it('pauses a Follow-up whose root is limited to its own project', async () => {
+  // A root from a named profile is pinned to its own project even when the profile lists
+  // several, so listing the target project in the profile is not enough.
+  it('pauses a Follow-up from a root of a multi-project profile', async () => {
     const result = await settleCrossProjectFollowUp({
       callerId: 'profile:origin',
       profileScope: { projectPaths: ['/other', '/project'] },
@@ -122,6 +144,33 @@ describe('SQLite queued Follow-up from another project', () => {
       settled: { accepted: true },
       followUp: { delivery_state: 'needs_attention', attention_reason: 'authority_changed' },
     })
+    expect(result.settled).not.toHaveProperty('scheduled')
+  })
+
+  const paused = {
+    settled: { accepted: true },
+    followUp: { delivery_state: 'needs_attention', attention_reason: 'authority_changed' },
+  }
+
+  it('pauses when the origin profile was narrowed after the Follow-up was queued', async () => {
+    const result = await settleCrossProjectFollowUp({
+      callerId: 'profile:origin',
+      profileScope: { all: true },
+      profileScopeAtDelivery: { projectPaths: ['/other'] },
+    })
+
+    expect(result).toMatchObject(paused)
+    expect(result.settled).not.toHaveProperty('scheduled')
+  })
+
+  // Settlement used to fail on the decode error, so the target never started its next Run.
+  it('pauses instead of failing settlement when the stored snapshot is unreadable', async () => {
+    const result = await settleCrossProjectFollowUp({
+      callerId: 'gui:local-user',
+      snapshotJson: '{"scope": "not a scope"}',
+    })
+
+    expect(result).toMatchObject(paused)
     expect(result.settled).not.toHaveProperty('scheduled')
   })
 })

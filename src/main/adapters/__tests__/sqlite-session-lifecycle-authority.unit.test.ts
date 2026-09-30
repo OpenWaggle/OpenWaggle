@@ -22,7 +22,11 @@ describe('SQLite Session lifecycle authority', () => {
     await fs.rm(temporaryRoot, { recursive: true, force: true })
   })
 
-  it('normalizes a local Session agent scope to its new pending Worker Workspace', async () => {
+  it.each([
+    ['a project-scoped parent', (projectPath: string) => ({ projectPaths: [projectPath] })],
+    // A catalog-wide Queen (ADR 0039) must not store that reach in its Worker's snapshot.
+    ['a catalog-wide parent', () => ({ all: true })],
+  ])('stores a project-bound scope for a pending Worker of %s', async (_name, parentScope) => {
     const projectPath = path.join(temporaryRoot, 'spawn-project')
     const parentWorkingPath = path.join(temporaryRoot, 'parent-worktree')
     const childPlannedPath = `pending://workspace-worker-new`
@@ -44,7 +48,7 @@ describe('SQLite Session lifecycle authority', () => {
           callerId: 'session-agent:session-parent:run-parent',
           initiatingWorkingDirectory: parentWorkingPath,
           callerAuthorityScope: {
-            projectPaths: [projectPath],
+            ...parentScope(projectPath),
             exportRoots: [parentWorkingPath],
             attachmentRoots: [parentWorkingPath],
           },

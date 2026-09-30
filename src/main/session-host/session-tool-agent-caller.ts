@@ -12,6 +12,7 @@ import {
 } from '@shared/types/session-capability'
 import * as Effect from 'effect/Effect'
 import { decodeSessionExecutionProfile } from '../adapters/session-run-execution-profile'
+import { rootSessionReachesEveryProject } from '../domain/session-control/root-session-project-reach'
 import {
   assertSessionAuthoritySnapshot,
   decodeSessionAuthoritySnapshot,
@@ -138,17 +139,14 @@ function effectiveAuthorizationCeiling(row: AuthorityRow) {
     : ('yolo' as const)
 }
 
-/**
- * A root Session whose authority came from the local desktop user, or from a profile scoped to the
- * whole catalog, reaches every project the user can reach. The project is not an authority boundary
- * for the user's own agents: capabilities and the Authorization ceiling still decide what the
- * agent may do there. Workers and roots born from a narrower profile keep their narrower scope.
- */
 function reachesEveryProject(
   row: AuthorityRow,
   origins: readonly NonNullable<ReturnType<typeof originAuthority>>[],
 ) {
-  return row.parent_session_id === null && origins.every((origin) => origin.scope.all === true)
+  return rootSessionReachesEveryProject({
+    isRoot: row.parent_session_id === null,
+    originScopes: origins.map((origin) => origin.scope),
+  })
 }
 
 function sharedProjectScopePath(

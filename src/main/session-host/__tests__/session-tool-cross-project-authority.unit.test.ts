@@ -245,8 +245,14 @@ describe('Sessions tool cross-project authority', () => {
   it.each(Object.entries(crossProjectPayloads))(
     'keeps a Worker and a project-scoped profile out of another project for %s',
     async (_name, payload) => {
-      await expect(authorize(callers.worker, payload)).rejects.toThrow()
-      await expect(authorize(callers.projectProfile, payload)).rejects.toThrow()
+      for (const caller of [callers.worker, callers.projectProfile]) {
+        const failure = await authorize(caller, payload).then(
+          () => undefined,
+          (error: unknown) => error,
+        )
+        // Assert the reason, so a refusal for some unrelated cause cannot keep this green.
+        expect(sessionCommandFailureMessage(failure)).toContain('(target_scope_denied)')
+      }
     },
   )
 
