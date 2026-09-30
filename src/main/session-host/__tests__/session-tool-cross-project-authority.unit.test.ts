@@ -28,6 +28,8 @@ const PROJECT_BY_SESSION: Readonly<Record<string, string>> = {
   'openwaggle-root': OPENWAGGLE,
   // A desktop root whose current Run a project-scoped CLI profile started.
   'driven-root': GOSAFE,
+  // A yolo desktop root whose current Run an ask-for-approval CLI profile started.
+  'asked-root': GOSAFE,
 }
 
 /** Who started each Session's current Run, as `session_runs.intent_json.callerId` records it. */
@@ -38,6 +40,7 @@ const RUN_INITIATOR_BY_SESSION: Readonly<Record<string, string>> = {
   'all-profile-root': 'profile:all-profile',
   'openwaggle-root': 'gui:local-user',
   'driven-root': 'profile:project-profile',
+  'asked-root': 'profile:asker-profile',
 }
 
 const authorizationLayer = Layer.mergeAll(
@@ -179,6 +182,7 @@ async function resolveCallers(databasePath: string) {
         ['gosafe-worker', 'gui:local-user'],
         ['openwaggle-root', 'gui:local-user'],
         ['driven-root', 'gui:local-user'],
+        ['asked-root', 'gui:local-user'],
         ['profile-root', 'profile:project-profile'],
         ['all-profile-root', 'profile:all-profile'],
       ] as const) {
@@ -206,6 +210,11 @@ async function resolveCallers(databasePath: string) {
           ${JSON.stringify({ projectPaths: [GOSAFE] })}, ${'yolo'}, ${null}
         ),
         (
+          ${'asker-profile'},
+          ${'["sessions:discover","sessions:read","sessions:message"]'},
+          ${JSON.stringify({ projectPaths: [GOSAFE] })}, ${'ask-for-approval'}, ${null}
+        ),
+        (
           ${'all-profile'},
           ${'["sessions:discover","sessions:read","sessions:create","sessions:start","sessions:message"]'},
           ${JSON.stringify({ all: true })}, ${'yolo'}, ${null}
@@ -222,6 +231,7 @@ async function resolveCallers(databasePath: string) {
         projectProfile: yield* resolve('profile-root'),
         allProfile: yield* resolve('all-profile-root'),
         drivenByProfile: yield* resolve('driven-root'),
+        askedByProfile: yield* resolve('asked-root'),
       }
     }).pipe(Effect.provide(database)),
   )
@@ -288,6 +298,12 @@ describe('Sessions tool cross-project authority', () => {
       expect(sessionCommandFailureMessage(failure)).toContain('(target_scope_denied)')
     },
   )
+
+  it('bounds the agent ceiling by an ask-for-approval profile that started its Run', () => {
+    expect(callers.independent.profileAuthority?.authorizationCeiling).toBe('yolo')
+    // The Session is yolo, but its Run acts for an ask-for-approval caller.
+    expect(callers.askedByProfile.profileAuthority?.authorizationCeiling).toBe('ask-for-approval')
+  })
 
   it('names the refusal reason instead of a generic failure', async () => {
     const failure = await authorize(callers.projectProfile, crossProjectPayloads.launch).then(

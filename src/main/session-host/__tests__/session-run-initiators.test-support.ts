@@ -8,7 +8,7 @@ export type RunInitiator = readonly [runId: string, sessionId: string, callerId:
 export function insertRunInitiators(sql: SqlClient.SqlClient, runs: readonly RunInitiator[]) {
   return Effect.gen(function* () {
     yield* sql.unsafe(
-      'CREATE TABLE session_runs (id TEXT PRIMARY KEY, session_id TEXT NOT NULL, intent_json TEXT)',
+      `CREATE TABLE session_runs (id TEXT PRIMARY KEY, session_id TEXT NOT NULL, intent_json TEXT, status TEXT NOT NULL DEFAULT 'active', created_at INTEGER NOT NULL DEFAULT 0)`,
     )
     for (const [runId, sessionId, callerId] of runs) {
       yield* sql`INSERT INTO session_runs (id, session_id, intent_json)
