@@ -42,7 +42,6 @@ let scratchNamespaceOwner: string | undefined
 /** Names the user-data directory a namespace belongs to, so other Hosts know when it is gone. */
 export const SCRATCH_NAMESPACE_OWNER_FILE = '.owner'
 const OWNER_FILE_MODE = 0o600
-const markedNamespaces = new Set<string>()
 
 /**
  * Give this Host's scratch directories their own parent. Every OpenWaggle profile (the app, each
@@ -68,13 +67,13 @@ export function configureSessionScratchNamespace(userDataRoot: string) {
  */
 export async function markSessionScratchNamespace(root = sessionScratchRoot()) {
   const owner = scratchNamespaceOwner
-  if (!owner || markedNamespaces.has(root)) return
+  if (!owner) return
   await ensurePrivateDirectory(path.dirname(root))
   await ensurePrivateDirectory(root)
-  await fs.writeFile(path.join(root, SCRATCH_NAMESPACE_OWNER_FILE), owner, {
-    mode: OWNER_FILE_MODE,
-  })
-  markedNamespaces.add(root)
+  // Read every time rather than cached: the namespace may have been removed and recreated since.
+  const marker = path.join(root, SCRATCH_NAMESPACE_OWNER_FILE)
+  if ((await fs.readFile(marker, 'utf8').catch(() => undefined)) === owner) return
+  await fs.writeFile(marker, owner, { mode: OWNER_FILE_MODE })
 }
 
 function scratchDirectoryState(directory: string) {

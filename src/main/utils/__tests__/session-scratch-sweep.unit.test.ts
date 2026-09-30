@@ -113,6 +113,19 @@ describe('Session scratch sweep', () => {
     expect((await fs.stat(ownRoot)).isDirectory()).toBe(true)
   })
 
+  it('marks a namespace again when it was removed while the Host ran', async () => {
+    const profile = path.join(temporaryDirectory, 'profiles', 'recreated')
+    await fs.mkdir(profile, { recursive: true })
+    useNamespace(profile)
+    const namespace = sessionScratchRoot(temporaryDirectory)
+    await prepareSessionScratchDirectory('session-first', namespace)
+    await fs.rm(namespace, { recursive: true })
+
+    await prepareSessionScratchDirectory('session-second', namespace)
+
+    await expect(fs.readFile(path.join(namespace, '.owner'), 'utf8')).resolves.toBe(profile)
+  })
+
   it('removes an unmarked namespace of another profile only after a week without a Run', async () => {
     const unmarkedRoot = path.join(path.dirname(root), 'unmarked')
     await prepareSessionScratchDirectory('session-own', root)
