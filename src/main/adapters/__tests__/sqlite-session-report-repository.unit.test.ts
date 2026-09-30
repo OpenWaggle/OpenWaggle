@@ -201,6 +201,43 @@ describe('SQLite Session report repository', () => {
     })
   })
 
+  it('accepts a report from the Waggle a classic Run requested, attributed to that Run', async () => {
+    const layer = makeSessionLifecycleTestLayer(path.join(root, 'waggle-source-run.db'))
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const lifecycle = yield* SessionLifecycleRepository
+        const reports = yield* SessionReportRepository
+        const sql = yield* SqlClient.SqlClient
+        yield* lifecycle.execute(spawnLifecycleInput())
+        const response = yield* reports.execute({
+          callerId: 'session-agent:session-worker:waggle-of-run-worker',
+          request: {
+            contractVersion: SESSION_CONTROL_CONTRACT_VERSION,
+            requestId: 'request-waggle-report',
+            idempotencyKey: 'waggle-report',
+            command: {
+              operation: 'report' as const,
+              sessionId: 'session-worker',
+              sourceRunId: 'waggle-of-run-worker',
+              target: { type: 'upstream' as const },
+              input: { text: 'The Waggle agreed on a plan.', requestReply: false },
+            },
+          },
+          reportId: 'report-waggle',
+          correlationId: 'correlation-waggle',
+          now: 3000,
+        })
+        const stored = yield* sql<{ source_run_id: string }>`
+          SELECT source_run_id FROM cross_session_reports WHERE id = ${'report-waggle'}
+        `
+        return { response, sourceRunId: stored[0]?.source_run_id }
+      }).pipe(Effect.provide(layer)),
+    )
+
+    expect(result.response.outcome).toMatchObject({ effect: 'accepted-report' })
+    expect(result.sourceRunId).toBe('run-worker')
+  })
+
   it('rejects an external profile that claims a real Session Run attribution', async () => {
     const layer = makeSessionLifecycleTestLayer(path.join(root, 'external-run-forgery.db'))
     const result = await Effect.runPromise(

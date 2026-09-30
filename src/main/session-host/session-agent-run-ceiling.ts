@@ -2,11 +2,13 @@ import type * as SqlClient from '@effect/sql/SqlClient'
 import type { AgentAuthorizationMode } from '@shared/types/agent-authorization'
 import * as Effect from 'effect/Effect'
 import {
+  durableSessionRunId,
+  followRunInitiatorChain,
   isLocalUserCallerId,
   isProfileCallerId,
-  MAX_RUN_INITIATOR_CHAIN_DEPTH,
   parseSessionAgentCallerId,
-  requestedWaggleClassicRunId,
+  RUN_INITIATOR_CHAIN_START,
+  type RunInitiatorChain,
 } from '../domain/session-control/root-session-project-reach'
 
 const ASK: AgentAuthorizationMode = 'ask-for-approval'
@@ -80,7 +82,7 @@ export function sessionAgentAuthorizationBoundary(sql: SqlClient.SqlClient, sess
 function callerCeiling(
   sql: SqlClient.SqlClient,
   callerId: string,
-  depth: number,
+  chain: RunInitiatorChain,
 ): Effect.Effect<AgentAuthorizationMode, unknown> {
   if (isLocalUserCallerId(callerId)) return Effect.succeed(YOLO)
   if (isProfileCallerId(callerId)) {
@@ -104,7 +106,7 @@ function callerCeiling(
     if (boundary.revoked) return ASK
     return narrower([
       boundary.authorizationCeiling,
-      yield* runInitiatorCeiling(sql, agent.sessionId, agent.runId, depth + 1),
+      yield* runInitiatorCeiling(sql, agent.sessionId, agent.runId, chain),
     ])
   })
 }
@@ -118,7 +120,7 @@ function initiatorRow(sql: SqlClient.SqlClient, sessionId: string, runId: string
     SELECT json_extract(intent_json, '$.callerId') AS initiator_caller_id,
       json_extract(intent_json, '$.authorCallerId') AS author_caller_id
     FROM session_runs
-    WHERE id = ${requestedWaggleClassicRunId(runId) ?? runId} AND session_id = ${sessionId}
+    WHERE id = ${durableSessionRunId(runId)} AND session_id = ${sessionId}
     LIMIT 1
   `.pipe(Effect.map((rows) => rows[0]))
 }
@@ -133,9 +135,10 @@ export function runInitiatorCeiling(
   sql: SqlClient.SqlClient,
   sessionId: string,
   runId: string,
-  depth = 0,
+  chain: RunInitiatorChain = RUN_INITIATOR_CHAIN_START,
 ): Effect.Effect<AgentAuthorizationMode, unknown> {
-  if (depth > MAX_RUN_INITIATOR_CHAIN_DEPTH) return Effect.succeed(ASK)
+  const next = followRunInitiatorChain(chain, sessionId)
+  if (!next) return Effect.succeed(ASK)
   return Effect.gen(function* () {
     const row = yield* initiatorRow(sql, sessionId, runId)
     if (!row?.initiator_caller_id) return ASK
@@ -143,7 +146,7 @@ export function runInitiatorCeiling(
       (caller): caller is string => caller !== null,
     )
     const ceilings: AgentAuthorizationMode[] = []
-    for (const caller of callers) ceilings.push(yield* callerCeiling(sql, caller, depth))
+    for (const caller of callers) ceilings.push(yield* callerCeiling(sql, caller, next))
     return narrower(ceilings)
   })
 }

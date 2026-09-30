@@ -2,8 +2,39 @@ import type { LocalSessionProfileScope } from '@shared/types/local-session-profi
 
 const PROFILE_CALLER_PREFIX = 'profile:'
 const SESSION_AGENT_CALLER_PREFIX = 'session-agent:'
-/** Hops through agents starting each other's Runs that reach and ceiling checks follow. */
+/**
+ * Other Sessions that reach and ceiling checks follow through agents starting each other's Runs.
+ * Counted by distinct Session, so two roots that keep answering each other with Follow-ups do not
+ * lose their reach after a few round trips.
+ */
 export const MAX_RUN_INITIATOR_CHAIN_DEPTH = 8
+/** Runs a check follows at most, however few Sessions they belong to; beyond it, it fails closed. */
+export const MAX_RUN_INITIATOR_CHAIN_HOPS = 256
+
+/** The Runs a reach or ceiling check has followed so far. */
+export interface RunInitiatorChain {
+  readonly hops: number
+  readonly sessionIds: ReadonlySet<string>
+}
+
+export const RUN_INITIATOR_CHAIN_START: RunInitiatorChain = { hops: 0, sessionIds: new Set() }
+
+/**
+ * Follow one more Run, in `sessionId`. Returns undefined once the chain passes more than
+ * `MAX_RUN_INITIATOR_CHAIN_DEPTH` other Sessions or `MAX_RUN_INITIATOR_CHAIN_HOPS` Runs, which the
+ * caller treats as failing closed.
+ */
+export function followRunInitiatorChain(
+  chain: RunInitiatorChain,
+  sessionId: string,
+): RunInitiatorChain | undefined {
+  const sessionIds = chain.sessionIds.has(sessionId)
+    ? chain.sessionIds
+    : new Set([...chain.sessionIds, sessionId])
+  if (chain.hops > MAX_RUN_INITIATOR_CHAIN_HOPS) return undefined
+  if (sessionIds.size > MAX_RUN_INITIATOR_CHAIN_DEPTH + 1) return undefined
+  return { hops: chain.hops + 1, sessionIds }
+}
 
 type ReachScope = Pick<LocalSessionProfileScope, 'all'>
 
@@ -72,4 +103,13 @@ export function requestedWaggleClassicRunId(runId: string) {
   return runId.startsWith(REQUESTED_WAGGLE_RUN_PREFIX)
     ? runId.slice(REQUESTED_WAGGLE_RUN_PREFIX.length)
     : undefined
+}
+
+/**
+ * The `session_runs` row that stands for a Run: the classic Run behind a requested Waggle, or
+ * the Run itself. Checks that need a durable Run (reach, ceiling, report source, spawn parent)
+ * read this row.
+ */
+export function durableSessionRunId(runId: string) {
+  return requestedWaggleClassicRunId(runId) ?? runId
 }

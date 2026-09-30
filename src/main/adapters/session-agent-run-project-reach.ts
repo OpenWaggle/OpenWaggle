@@ -3,11 +3,13 @@ import { parseJsonUnknown } from '@shared/schema'
 import { decodeLocalSessionProfileScope } from '@shared/schemas/local-session-profile'
 import * as Effect from 'effect/Effect'
 import {
+  durableSessionRunId,
+  followRunInitiatorChain,
   isLocalUserCallerId,
   isProfileCallerId,
-  MAX_RUN_INITIATOR_CHAIN_DEPTH,
   parseSessionAgentCallerId,
-  requestedWaggleClassicRunId,
+  RUN_INITIATOR_CHAIN_START,
+  type RunInitiatorChain,
   rootSessionReachesEveryProject,
 } from '../domain/session-control/root-session-project-reach'
 import { decodeSessionAuthoritySnapshot } from '../session-host/session-authority-snapshot'
@@ -40,13 +42,13 @@ function liveProfileScope(sql: SqlClient.SqlClient, callerId: string) {
 
 /** Whether a caller, as the author of input into a Run, reaches every project. */
 export function callerReachesEveryProject(sql: SqlClient.SqlClient, callerId: string) {
-  return initiatorReachesEveryProject(sql, callerId, 0)
+  return initiatorReachesEveryProject(sql, callerId, RUN_INITIATOR_CHAIN_START)
 }
 
 function initiatorReachesEveryProject(
   sql: SqlClient.SqlClient,
   callerId: string,
-  depth: number,
+  chain: RunInitiatorChain,
 ): Effect.Effect<boolean, unknown> {
   if (isLocalUserCallerId(callerId)) return Effect.succeed(true)
   if (isProfileCallerId(callerId)) {
@@ -54,7 +56,7 @@ function initiatorReachesEveryProject(
   }
   const agent = parseSessionAgentCallerId(callerId)
   if (!agent) return Effect.succeed(false)
-  return sessionAgentRunReachesEveryProject(sql, agent.sessionId, agent.runId, depth + 1)
+  return sessionAgentRunReachesEveryProject(sql, agent.sessionId, agent.runId, chain)
 }
 
 /**
@@ -64,15 +66,16 @@ function initiatorReachesEveryProject(
  * limited to one project could message a desktop Session and have it act in every project.
  *
  * Decided from durable rows only, so the Sessions tool and queued Follow-up delivery agree.
- * Unreadable data and chains longer than eight agents fail closed.
+ * Unreadable data, and chains through more than eight other Sessions or 256 Runs, fail closed.
  */
 export function sessionAgentRunReachesEveryProject(
   sql: SqlClient.SqlClient,
   sessionId: string,
   runId: string,
-  depth = 0,
+  chain: RunInitiatorChain = RUN_INITIATOR_CHAIN_START,
 ): Effect.Effect<boolean, unknown> {
-  if (depth > MAX_RUN_INITIATOR_CHAIN_DEPTH) return Effect.succeed(false)
+  const next = followRunInitiatorChain(chain, sessionId)
+  if (!next) return Effect.succeed(false)
   return Effect.gen(function* () {
     const rows = yield* sql<RunSourceRow>`
       SELECT json_extract(session_runs.intent_json, '$.callerId') AS initiator_caller_id,
@@ -92,7 +95,7 @@ export function sessionAgentRunReachesEveryProject(
       LEFT JOIN session_client_profiles
         ON session_execution_profiles.authority_origin_caller_id =
           ${'profile:'} || session_client_profiles.id
-      WHERE session_runs.id = ${requestedWaggleClassicRunId(runId) ?? runId}
+      WHERE session_runs.id = ${durableSessionRunId(runId)}
         AND session_runs.session_id = ${sessionId}
       LIMIT 1
     `
@@ -110,10 +113,10 @@ export function sessionAgentRunReachesEveryProject(
       }),
     ).pipe(Effect.orElseSucceed(() => false))
     if (!ownReach) return false
-    if (!(yield* initiatorReachesEveryProject(sql, row.initiator_caller_id, depth))) return false
+    if (!(yield* initiatorReachesEveryProject(sql, row.initiator_caller_id, next))) return false
     // A re-authorized Follow-up keeps its author, who must reach every project as well.
     return row.author_caller_id === null
       ? true
-      : yield* initiatorReachesEveryProject(sql, row.author_caller_id, depth)
+      : yield* initiatorReachesEveryProject(sql, row.author_caller_id, next)
   })
 }

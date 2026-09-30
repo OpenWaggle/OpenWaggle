@@ -5,6 +5,7 @@ import { decodeSessionLifecycleOutcome } from '@shared/schemas/session-lifecycle
 import { RunId, SessionId } from '@shared/types/brand'
 import type { SessionLifecycleOutcome } from '@shared/types/session-lifecycle'
 import * as Effect from 'effect/Effect'
+import { durableSessionRunId } from '../domain/session-control/root-session-project-reach'
 import { decideSpawnAdmission } from '../domain/session-control/spawn-admission'
 import { planChildLineage } from '../domain/session-control/spawn-lineage'
 import { SessionLifecycleRepositoryError } from '../errors'
@@ -157,7 +158,8 @@ function spawnTarget(
   command: Extract<ExecuteInput['request']['command'], { readonly operation: 'spawn' }>,
 ) {
   const parentSessionId = command.parentSessionId
-  const parentRunId = command.expectedParentRunId
+  // A requested Waggle spawns for the classic Run it acts for, which is the parent's active Run.
+  const parentRunId = durableSessionRunId(command.expectedParentRunId)
   return Effect.gen(function* () {
     const parentRows = yield* sql<ParentSessionRow>`
       SELECT project_path FROM sessions WHERE id = ${parentSessionId} LIMIT 1

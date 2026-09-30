@@ -23,7 +23,11 @@ import {
   loadAuthorizedReportCandidates,
   type ReportSourceRow,
 } from './sqlite-session-report-targets'
-import { resolveReportCorrelationId, sourceRunAuthorized } from './sqlite-session-report-validation'
+import {
+  reportSourceRunId,
+  resolveReportCorrelationId,
+  sourceRunAuthorized,
+} from './sqlite-session-report-validation'
 
 interface ReplayRow {
   readonly request_json: string
@@ -206,7 +210,7 @@ function executeReport(sql: SqlClient.SqlClient, input: ExecuteSessionReportInpu
           authored_by, content, request_reply, created_at
         ) VALUES (
           ${input.reportId}, ${correlationId}, ${replyTo ?? null}, ${source.session_id},
-          ${input.request.command.sourceRunId ?? null}, ${input.callerId},
+          ${reportSourceRunId(input)}, ${input.callerId},
           ${input.request.command.input.text},
           ${input.request.command.input.requestReply ? 1 : 0}, ${input.now}
         )
