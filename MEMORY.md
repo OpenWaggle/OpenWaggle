@@ -687,7 +687,11 @@ to eight agents). Without the initiator check, a project-scoped CLI profile coul
 Session and have it act in every project. Input into a running catalog-wide Run (steer, promote,
 request/approval respond) from a narrower caller is refused in `local-session-run-input-reach.ts`
 (`runInputWidensReach` on the authorization target port), and a re-authorized Follow-up keeps its
-writer in `intent.authorCallerId`, which the chain also checks. Session agents with catalog-wide
+writer in `intent.authorCallerId`, which the chain also checks. A Session agent's Authorization ceiling is
+also clamped by its Run's initiator (`session-host/session-agent-run-ceiling.ts`, used by the tool
+caller and `getSessionCallerAuthorizationBoundary`); an unidentifiable initiator counts as
+ask-for-approval. `queue-update-authorization` needs `sessions:authorization`. Reports are content,
+not commands: the Host labels them but does not track information flow. Session agents with catalog-wide
 scope may launch or create only in projects already in the catalog (`session-tool-project-catalog.ts`).
 
 Agent tool processes get `TMPDIR`/`TMP`/`TEMP` pointing at a per-Session 0700 scratch directory
