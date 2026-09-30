@@ -686,14 +686,14 @@ A root Session agent's catalog-wide reach (ADR 0041) is decided by one function,
 queued Follow-up is delivered. It needs both the Session's own authority
 (`rootSessionReachesEveryProject`: a root from the local user or a catalog-wide profile, origin read
 from the caller id) and the Run's initiator (`session_runs.intent_json.callerId`, followed through up
-to eight agents). Without the initiator check, a project-scoped CLI profile could message a desktop
+to eight other Sessions, counted by distinct Session so Follow-up round trips between two roots do not exhaust it, and at most 256 Runs). Without the initiator check, a project-scoped CLI profile could message a desktop
 Session and have it act in every project. Input into a running catalog-wide Run (steer, promote,
 request/approval respond) from a narrower caller is refused in `local-session-run-input-reach.ts`
 (`runInputWidensReach` on the authorization target port), and a re-authorized Follow-up keeps its
 writer in `intent.authorCallerId`, which the chain also checks. A Session agent's Authorization ceiling is
 also clamped by its Run's initiator (`session-host/session-agent-run-ceiling.ts`, used by the tool
 caller and `getSessionCallerAuthorizationBoundary`); an unidentifiable initiator counts as
-ask-for-approval. An agent-requested Waggle's Run id is `waggle-of-<classicRunId>` (`requestedWaggleRunId`) so these checks can find its classic Run, and it inherits that Run's authorization context through `runIfRequested({ authority })`. `queue-update-authorization` needs `sessions:authorization`. Reports are content,
+ask-for-approval. An agent-requested Waggle's Run id is `waggle-of-<classicRunId>` (`requestedWaggleRunId`) so these checks can find its classic Run, and it inherits that Run's authorization context through `runIfRequested({ authority })`. Anything that needs the Waggle's durable Run (report source, spawn parent, reach, ceiling) reads `durableSessionRunId(runId)`. `queue-update-authorization` needs `sessions:authorization`. Reports are content,
 not commands: the Host labels them but does not track information flow. Session agents with catalog-wide
 scope may launch or create only in projects already in the catalog (`session-tool-project-catalog.ts`).
 
@@ -706,7 +706,7 @@ failed from agent shells; it now lives at `<base>/ow-scratch-<uid>/<8-hex profil
 Session hash>`, where `<base>` is the user temp directory if the path fits 56 bytes, else `/tmp`. The profile hash (from the Host's user-data root) keeps each OpenWaggle
 profile's Host from sweeping another's directories; the startup sweep
 (`session-scratch-sweep-background`) removes directories of Sessions deleted or archived while no
-Host ran, and other profiles' namespaces unused for a week. `prepareSessionScratchDirectory` touches
+Host ran, and another profile's namespace once the user-data directory named in its `.owner` marker is gone (unmarked namespaces: after a week unused). `prepareSessionScratchDirectory` touches
 the mtime because the sweeps judge age by it. An OpenWaggle process started from an agent shell
 restores `TMPDIR` from `OPENWAGGLE_HOST_TMPDIR` at startup (`restoreHostTemporaryDirectory`). Code that
 must agree with the Host on a temp path (the Session Host socket fallback in `local-session-paths`)
