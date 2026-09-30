@@ -64,6 +64,8 @@ pnpm test:coverage
 
 Use targeted Vitest file runs while iterating, then run the relevant script before handoff.
 
+The unit tier runs in the pre-push hook next to about 1,500 other files, so keep it in-process. A test that spawns many real child processes belongs in `*.integration.test.ts`. Examples are real `git` repositories and the profile-credential owned-file helper. Process start-up under parallel load makes such tests time out in `pnpm verify` even though they pass alone.
+
 ## Renderer Work
 
 For any `src/renderer/` change:
