@@ -6,6 +6,9 @@ const SAFE_ELECTRON_ENVIRONMENT_KEYS = [
   'LANG',
   'LC_ALL',
   'LOGNAME',
+  // Lets a QA app started from an agent shell move its TMPDIR back off the Session scratch
+  // directory at startup, as every OpenWaggle process does.
+  'OPENWAGGLE_HOST_TMPDIR',
   'PATH',
   'SHELL',
   'SYSTEMROOT',
