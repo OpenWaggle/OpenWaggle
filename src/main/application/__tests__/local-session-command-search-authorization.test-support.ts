@@ -119,6 +119,7 @@ export function testLayer(liveProfile: LiveProfile, repository: SessionQueryRepo
         hiveRootSessionId: delegationId,
         authorizationCeiling: 'yolo' as const,
       }),
+    runInputWidensReach: () => Effect.succeed(false),
     listLiveDerivedAuthorities: () => Effect.succeed([]),
   })
   const settings = Layer.succeed(SettingsService, {

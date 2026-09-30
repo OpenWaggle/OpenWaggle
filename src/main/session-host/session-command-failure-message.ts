@@ -39,7 +39,8 @@ function isAuthenticationFailure(failure: unknown) {
 function describeAuthorizationFailure(failure: LocalSessionCommandAuthorizationError) {
   const missing = failure.missing ?? []
   const detail = missing.length > 0 ? ` Missing capabilities: ${missing.join(', ')}.` : ''
-  return `Session command refused (${failure.code}): ${AUTHORIZATION_REASONS[failure.code]}.${detail}`
+  const reason = failure.detail ?? `${AUTHORIZATION_REASONS[failure.code]}.`
+  return `Session command refused (${failure.code}): ${reason}${detail}`
 }
 
 /**

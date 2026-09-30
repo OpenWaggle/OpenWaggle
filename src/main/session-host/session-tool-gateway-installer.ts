@@ -121,12 +121,9 @@ export const installAppSessionToolGateway = Effect.gen(function* () {
       input.signal,
     )
     throwIfSessionToolAborted(input.signal)
-    // Only a caller that reaches every project can name a project outside its own, and checking
-    // before authorization would tell any other caller which paths are projects.
-    const scope = caller.profileAuthority.scope
-    if ('all' in scope && scope.all === true) {
-      await Effect.runPromise(assertSessionAgentLifecycleProjectKnown(sql, payload))
-    }
+    await Effect.runPromise(
+      assertSessionAgentLifecycleProjectKnown(sql, caller.profileAuthority.scope, payload),
+    )
     const command = Effect.suspend(
       (): Effect.Effect<LocalSessionCommandResult, unknown, SessionToolDependencies> =>
         dispatchNonHostUiLocalSessionCommand({

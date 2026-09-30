@@ -50,7 +50,10 @@ describe('Session agent lifecycle project catalog check', () => {
     await fs.rm(root, { recursive: true, force: true })
   })
 
-  function check(payload: LocalSessionCommandPayload) {
+  function check(
+    payload: LocalSessionCommandPayload,
+    callerScope: { all?: boolean } = { all: true },
+  ) {
     const database = SqliteClient.layer({
       filename: path.join(root, 'catalog.sqlite'),
       prepareCacheSize: SQLITE_PREPARE_CACHE_SIZE,
@@ -67,7 +70,7 @@ describe('Session agent lifecycle project catalog check', () => {
         yield* sql`INSERT INTO sessions (id, project_path) VALUES (${'s'}, ${'/projects/gosafe'})`
         yield* sql`INSERT INTO workspace_resources (id, project_path)
           VALUES (${'w'}, ${'/projects/openwaggle'})`
-        return yield* assertSessionAgentLifecycleProjectKnown(sql, payload)
+        return yield* assertSessionAgentLifecycleProjectKnown(sql, callerScope, payload)
       }).pipe(Effect.provide(database)),
     )
   }
@@ -84,5 +87,9 @@ describe('Session agent lifecycle project catalog check', () => {
     await expect(check(payload('/Users/me/Downloads/untrusted-repo'))).rejects.toThrow(
       'is not a project in OpenWaggle',
     )
+  })
+
+  it('leaves a narrower caller to its own scope check, so it cannot probe for projects', async () => {
+    await expect(check(launch('/Users/me/Downloads/untrusted-repo'), {})).resolves.toBeUndefined()
   })
 })

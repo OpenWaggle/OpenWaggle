@@ -41,11 +41,15 @@ export function authorizeRunInputReach(
   if (!input) return Effect.void
   return Effect.gen(function* () {
     const repository = yield* SessionAuthorizationTargetRepository
-    if (!repository.runInputWidensReach) return
     const widens = yield* repository.runInputWidensReach({ callerId: caller.callerId, ...input })
     if (widens) {
       return yield* Effect.fail(
-        new LocalSessionCommandAuthorizationError({ code: 'target_scope_denied' }),
+        new LocalSessionCommandAuthorizationError({
+          code: 'target_scope_denied',
+          detail: input.followUpId
+            ? 'this Run can act in every project, and this Follow-up was written by a caller that cannot. Let the Run finish and the Follow-up start its own Run.'
+            : 'this Run can act in every project, so input into it must come from a caller that can too. Send a Follow-up instead; it starts its own Run.',
+        }),
       )
     }
   })

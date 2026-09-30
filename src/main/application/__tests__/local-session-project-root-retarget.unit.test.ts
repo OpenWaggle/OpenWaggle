@@ -54,6 +54,7 @@ describe('named-profile project root retargeting', () => {
       Layer.succeed(SessionAuthorizationTargetRepository, {
         resolve: () => Effect.die('unused'),
         resolveDelegation: () => Effect.die('unused'),
+        runInputWidensReach: () => Effect.succeed(false),
         listLiveDerivedAuthorities: () => Effect.succeed([]),
       }),
       Layer.succeed(LocalSessionProfileRepository, {

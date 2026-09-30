@@ -5,10 +5,10 @@ export const sessionsToolCatalogScope = Type.Optional(
   Type.Union([Type.Literal('current'), Type.Literal('project'), Type.Literal('all')]),
 )
 
-/** list, search, and delegations_list ignore `projectPath` unless catalogScope is `project`. */
+/** The discovery actions ignore `projectPath` unless catalogScope is `project`. */
 export const sessionsToolProjectPath = Type.Optional(
   Type.String({
     description:
-      'Absolute path of a project in OpenWaggle. list, search, and delegations_list use it only with catalogScope project.',
+      'Absolute path of a project in OpenWaggle, as list shows it. For list, search, delegations_list, and delegations_conflicts it applies only with catalogScope project.',
   }),
 )

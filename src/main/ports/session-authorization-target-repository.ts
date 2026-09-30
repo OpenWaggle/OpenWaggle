@@ -31,7 +31,7 @@ export interface SessionAuthorizationTargetRepositoryShape {
    * that Run has. A Run that reaches every project must not take input from a narrower caller,
    * or that caller could direct it into other projects (ADR 0040).
    */
-  readonly runInputWidensReach?: (input: {
+  readonly runInputWidensReach: (input: {
     readonly callerId: string
     readonly sessionId: string
     readonly runId: string

@@ -69,7 +69,9 @@ describe('sessions tool flattened schema', () => {
     const projectPath = fromAny<{ description?: string }, unknown>(shape.properties?.projectPath)
 
     expect(objective.description).toBe('Required for launch, spawn.')
-    expect(projectPath.description).toBeUndefined()
+    // Optional for every action, so it names none; its own description explains catalogScope.
+    expect(projectPath.description).not.toContain('Required for')
+    expect(projectPath.description).toContain('only with catalogScope project')
     expect(shape.required).toEqual(['action'])
   })
 

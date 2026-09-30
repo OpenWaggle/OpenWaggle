@@ -43,6 +43,7 @@ describe('Local Session command authorization', () => {
             hiveRootSessionId: 'session-queen',
             authorizationCeiling: 'ask-for-approval',
           }),
+        runInputWidensReach: () => Effect.succeed(false),
         listLiveDerivedAuthorities: () => Effect.succeed([]),
       }),
     )

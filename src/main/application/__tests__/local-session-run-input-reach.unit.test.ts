@@ -53,6 +53,14 @@ const runInputs = {
     expectedRunId: 'run-desktop',
     followUpId: 'follow-up',
   }),
+  'request-respond': control({
+    operation: 'request-respond',
+    sessionId: 'desktop',
+    runId: 'run-desktop',
+    interactionId: 'interaction',
+    kind: 'input',
+    response: { kind: 'input', value: 'Now list every project.' },
+  }),
 } satisfies Record<string, LocalSessionCommandPayload>
 
 function authorize(payload: LocalSessionCommandPayload, widens: boolean) {
@@ -94,7 +102,9 @@ describe('input into a Run that reaches every project', () => {
     async (_name, payload) => {
       const { result, runInputWidensReach } = authorize(payload, true)
 
-      expect(sessionCommandFailureMessage(await result)).toContain('(target_scope_denied)')
+      const message = sessionCommandFailureMessage(await result)
+      expect(message).toContain('(target_scope_denied)')
+      expect(message).toContain('this Run can act in every project')
       expect(runInputWidensReach).toHaveBeenCalledWith(
         expect.objectContaining({
           callerId: 'profile:ci',

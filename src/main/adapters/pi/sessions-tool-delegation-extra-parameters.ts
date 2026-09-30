@@ -5,6 +5,10 @@ import {
 } from '@shared/types/session-delegation-query'
 import { SESSION_QUERY_DISCOVERY_LIMIT } from '@shared/types/session-query'
 import { Type } from 'typebox'
+import {
+  sessionsToolCatalogScope,
+  sessionsToolProjectPath,
+} from './sessions-tool-catalog-parameters'
 
 const evidence = Type.Array(
   Type.Object({
@@ -37,10 +41,8 @@ export const delegationVerifyParameter = Type.Object({
 
 export const delegationsConflictsParameter = Type.Object({
   action: Type.Literal('delegations_conflicts'),
-  catalogScope: Type.Optional(
-    Type.Union([Type.Literal('current'), Type.Literal('project'), Type.Literal('all')]),
-  ),
-  projectPath: Type.Optional(Type.String()),
+  catalogScope: sessionsToolCatalogScope,
+  projectPath: sessionsToolProjectPath,
   parentSessionId: Type.Optional(Type.String()),
   workerSessionId: Type.Optional(Type.String()),
   delegationId: Type.Optional(Type.String()),

@@ -38,6 +38,7 @@ function eventLayer(
           hiveRootSessionId: 'session-queen',
           authorizationCeiling: 'yolo' as const,
         }),
+      runInputWidensReach: () => Effect.succeed(false),
       listLiveDerivedAuthorities: () => Effect.succeed(derivedAuthorities),
     }),
     Layer.succeed(LocalSessionProfileRepository, {

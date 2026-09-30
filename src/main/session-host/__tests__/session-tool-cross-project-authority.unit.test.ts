@@ -56,6 +56,7 @@ const authorizationLayer = Layer.mergeAll(
         hiveRootSessionId: delegationId,
         authorizationCeiling: 'yolo',
       }),
+    runInputWidensReach: () => Effect.succeed(false),
     listLiveDerivedAuthorities: () => Effect.succeed([]),
   }),
   Layer.succeed(SettingsService, {

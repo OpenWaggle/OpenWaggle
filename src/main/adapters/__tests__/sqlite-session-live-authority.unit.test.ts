@@ -77,4 +77,32 @@ describe('live Session authority admission', () => {
 
     expect(result).toEqual(['profile_revoked', 'profile_revoked'])
   })
+
+  it('treats an unreadable authority snapshot as changed authority instead of failing', async () => {
+    const sqlite = SqliteClient.layer({
+      filename: path.join(temporaryRoot, 'unreadable.sqlite'),
+      prepareCacheSize: SQLITE_PREPARE_CACHE_SIZE,
+    })
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        yield* sql.unsafe(`
+          CREATE TABLE session_execution_profiles (
+            session_id TEXT PRIMARY KEY,
+            authority_origin_caller_id TEXT NOT NULL,
+            authority_scope_snapshot_json TEXT
+          )
+        `)
+        yield* sql`
+          INSERT INTO session_execution_profiles (
+            session_id, authority_origin_caller_id, authority_scope_snapshot_json
+          ) VALUES (${'target'}, ${'gui:local-user'}, ${'{"scope":"not a scope"}'})
+        `
+        // A caller without its own Session reaches only the target check.
+        return yield* liveSessionAuthorityBlockReason(sql, 'gui:local-user', 'target')
+      }).pipe(Effect.provide(sqlite)),
+    )
+
+    expect(result).toBe('authority_changed')
+  })
 })

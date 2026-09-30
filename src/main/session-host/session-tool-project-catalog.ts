@@ -1,4 +1,5 @@
 import type * as SqlClient from '@effect/sql/SqlClient'
+import type { LocalSessionProfileScope } from '@shared/types/local-session-profile'
 import type { LocalSessionCommandPayload } from '@shared/types/local-session-protocol'
 import * as Effect from 'effect/Effect'
 
@@ -18,8 +19,12 @@ function lifecycleTargetProjectPath(payload: LocalSessionCommandPayload) {
  */
 export function assertSessionAgentLifecycleProjectKnown(
   sql: SqlClient.SqlClient,
+  callerScope: LocalSessionProfileScope,
   payload: LocalSessionCommandPayload,
 ) {
+  // Only a catalog-wide caller can name a project outside its own; a narrower caller is refused by
+  // its scope, and checking for it here would tell it which paths are projects.
+  if (callerScope.all !== true) return Effect.void
   const projectPath = lifecycleTargetProjectPath(payload)
   if (projectPath === undefined) return Effect.void
   return Effect.gen(function* () {
@@ -31,7 +36,7 @@ export function assertSessionAgentLifecycleProjectKnown(
     if (rows[0]?.known === 1) return
     return yield* Effect.fail(
       new Error(
-        `Session command refused: ${projectPath} is not a project in OpenWaggle. A Session agent can only launch or create Sessions in a project that already has a Session or Workspace in OpenWaggle; open the project in OpenWaggle first.`,
+        `Session command refused: ${projectPath} is not a project in OpenWaggle. A Session agent can only launch or create Sessions in a project that already has a Session or Workspace in OpenWaggle. Pass its absolute path exactly as list with catalogScope all shows it, or open the project in OpenWaggle first.`,
       ),
     )
   })
