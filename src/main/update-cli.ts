@@ -1,9 +1,3 @@
-import { spawn } from 'node:child_process'
-import { createHash, randomUUID } from 'node:crypto'
-import { writeFile } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
-import path from 'node:path'
-import { decodeUnknownOrThrow, Schema } from '@shared/schema'
 import { LOCAL_SESSION_UPDATE_REVISION } from '@shared/types/local-session-protocol'
 import { LOCAL_UPDATE_CONTRACT_VERSION } from '@shared/types/local-update'
 import {
@@ -14,21 +8,16 @@ import {
 import { app } from 'electron'
 import { autoUpdater } from 'electron-updater'
 import { writeCliStdout } from './cli-stdout'
-import { launchExternalApplication } from './desktop-ui'
-import { getEnvWithOverrides } from './env'
+import { isDesktopAppRunning } from './desktop-instance-probe'
 import { createLocalSessionCliClientInput } from './local-session-cli-client'
 import { hasFlag, option, parseMcpCliArguments } from './mcp-cli-arguments'
 import { executeLocalSessionCommand } from './session-host/local-session-client'
+import { releaseForTag, runBundledInstaller, runWindowsInstaller } from './update-cli-installers'
 import { configureUpdaterFeed, isVersionEligibleForChannel } from './update-feed'
 
 const EXIT = { SUCCESS: 0, FAILURE: 1, USAGE: 2 } as const
 const DOWNLOAD_TIMEOUT_MS = 15 * 60 * 1_000
-const WINDOWS_INSTALLER_MODE = 0o700
 const RELEASE_TAG_PATTERN = /^v?\d+\.\d+\.\d+(?:-(?:alpha|beta|rc)\.\d+)?$/u
-const releaseSchema = Schema.Struct({
-  tag_name: Schema.String,
-  assets: Schema.Array(Schema.Struct({ name: Schema.String, browser_download_url: Schema.String })),
-})
 
 class UpdateCliUsageError extends Error {}
 
@@ -85,58 +74,8 @@ function normalizeVersion(value: string) {
   return tag
 }
 
-async function releaseForTag(tag: string) {
-  const response = await fetch(
-    `https://api.github.com/repos/OpenWaggle/OpenWaggle/releases/tags/${encodeURIComponent(tag)}`,
-    { headers: { accept: 'application/vnd.github+json' } },
-  )
-  if (!response.ok) throw new Error(`OpenWaggle release ${tag} was not found.`)
-  return decodeUnknownOrThrow(releaseSchema, await response.json())
-}
-
-async function runBundledInstaller(tag: string) {
-  const installerPath = app.isPackaged
-    ? path.join(process.resourcesPath, 'openwaggle-install.sh')
-    : path.join(app.getAppPath(), 'scripts', 'install.sh')
-  return await new Promise<number>((resolve, reject) => {
-    const child = spawn('bash', [installerPath], {
-      stdio: 'inherit',
-      env: getEnvWithOverrides({ OPENWAGGLE_RELEASE_TAG: tag }),
-    })
-    child.once('error', reject)
-    child.once('exit', (code) => resolve(code ?? EXIT.FAILURE))
-  })
-}
-
-async function download(url: string) {
-  const response = await fetch(url)
-  if (!response.ok) throw new Error(`Download failed with HTTP ${response.status}.`)
-  return Buffer.from(await response.arrayBuffer())
-}
-
-async function runWindowsInstaller(tag: string) {
-  const release = await releaseForTag(tag)
-  const installer = release.assets.find((asset) => /-x64\.exe$/u.test(asset.name))
-  const checksums = release.assets.find((asset) => asset.name === 'SHA256SUMS.txt')
-  if (!installer || !checksums)
-    throw new Error(`Release ${tag} is missing Windows verification assets.`)
-  const [contents, checksumContents] = await Promise.all([
-    download(installer.browser_download_url),
-    download(checksums.browser_download_url),
-  ])
-  const expected = checksumContents
-    .toString('utf8')
-    .split('\n')
-    .find((line) => line.trimEnd().endsWith(` ${installer.name}`))
-    ?.trim()
-    .split(/\s+/u)[0]
-  const actual = createHash('sha256').update(contents).digest('hex')
-  if (!expected || expected !== actual)
-    throw new Error(`Release ${tag} failed checksum verification.`)
-  const destination = path.join(tmpdir(), `openwaggle-update-${randomUUID()}.exe`)
-  await writeFile(destination, contents, { mode: WINDOWS_INSTALLER_MODE })
-  await launchExternalApplication(destination, ['/S'])
-}
+const DESKTOP_OPEN_EXACT_VERSION_MESSAGE =
+  'OpenWaggle is open. Quit it first so its active agent runs are not interrupted, then run this command again.'
 
 async function installExactVersion(tag: string, checkOnly: boolean) {
   const release = await releaseForTag(tag)
@@ -144,6 +83,8 @@ async function installExactVersion(tag: string, checkOnly: boolean) {
     await writeCliStdout(`OpenWaggle ${release.tag_name} is available.\n`)
     return { exitCode: EXIT.SUCCESS, updaterOwnsExit: false }
   }
+  // Installing over a running app would stop its active agent runs without asking.
+  if (isDesktopAppRunning(app)) throw new Error(DESKTOP_OPEN_EXACT_VERSION_MESSAGE)
   if (process.platform === 'win32') {
     await runWindowsInstaller(tag)
     await writeCliStdout(`Installing OpenWaggle ${release.tag_name}…\n`)
@@ -196,9 +137,54 @@ function abandonDownloadWaiter(waiter: ReturnType<typeof createDownloadWaiter> |
   void waiter.promise.catch(() => undefined)
 }
 
+type ChannelInstallMode = 'check' | 'defer-to-desktop' | 'bundled-installer' | 'updater'
+
+function channelInstallMode(checkOnly: boolean): ChannelInstallMode {
+  if (checkOnly) return 'check'
+  // A running desktop app owns installation, so its Restart to update action can protect active
+  // agent runs and relaunch it. The terminal then only reports the available version.
+  if (isDesktopAppRunning(app)) return 'defer-to-desktop'
+  // Squirrel.Mac ignores quitAndInstall's arguments and always relaunches the app, so macOS installs
+  // through the bundled installer, which can install without opening a window.
+  return process.platform === 'darwin' ? 'bundled-installer' : 'updater'
+}
+
+async function installAvailableUpdate(input: {
+  readonly mode: ChannelInstallMode
+  readonly version: string
+  readonly channel: UpdateChannel
+  readonly downloaded: ReturnType<typeof createDownloadWaiter> | null
+}) {
+  const { mode, version, channel } = input
+  if (mode === 'check') {
+    await writeCliStdout(`OpenWaggle ${version} is available on the ${channel} channel.\n`)
+    return { exitCode: EXIT.SUCCESS, updaterOwnsExit: false }
+  }
+  if (mode === 'defer-to-desktop') {
+    autoUpdater.autoInstallOnAppQuit = false
+    await writeCliStdout(
+      `OpenWaggle ${version} is available on the ${channel} channel. OpenWaggle is open, so install ` +
+        'it from the app: Settings > General > About & Updates > Check now, then Restart to update.\n',
+    )
+    return { exitCode: EXIT.SUCCESS, updaterOwnsExit: false }
+  }
+  if (mode === 'bundled-installer') {
+    await writeCliStdout(`Installing OpenWaggle ${version} from the ${channel} channel…\n`)
+    return { exitCode: await runBundledInstaller(`v${version}`), updaterOwnsExit: false }
+  }
+  await writeCliStdout(`Downloading OpenWaggle ${version} from the ${channel} channel…\n`)
+  await input.downloaded?.promise
+  await writeCliStdout(`Installing OpenWaggle ${version}…\n`)
+  // Windows and Linux honor this: install silently without opening a window.
+  autoUpdater.quitAndInstall(true, false)
+  return { exitCode: EXIT.SUCCESS, updaterOwnsExit: true }
+}
+
 async function updateFromChannel(channel: UpdateChannel, checkOnly: boolean) {
-  await configureUpdater(channel, checkOnly)
-  const downloaded = checkOnly ? null : createDownloadWaiter()
+  const mode = channelInstallMode(checkOnly)
+  const reportOnly = mode !== 'updater'
+  await configureUpdater(channel, reportOnly)
+  const downloaded = reportOnly ? null : createDownloadWaiter()
   const result = await autoUpdater.checkForUpdates().catch((error: unknown) => {
     abandonDownloadWaiter(downloaded)
     throw error
@@ -216,15 +202,7 @@ async function updateFromChannel(channel: UpdateChannel, checkOnly: boolean) {
     void result.downloadPromise?.catch(() => undefined)
     throw new Error(`OpenWaggle ${version} is not eligible for the ${channel} update channel.`)
   }
-  if (checkOnly) {
-    await writeCliStdout(`OpenWaggle ${version} is available on the ${channel} channel.\n`)
-    return { exitCode: EXIT.SUCCESS, updaterOwnsExit: false }
-  }
-  await writeCliStdout(`Downloading OpenWaggle ${version} from the ${channel} channel…\n`)
-  await downloaded?.promise
-  await writeCliStdout(`Installing OpenWaggle ${version}…\n`)
-  autoUpdater.quitAndInstall(false, true)
-  return { exitCode: EXIT.SUCCESS, updaterOwnsExit: true }
+  return installAvailableUpdate({ mode, version, channel, downloaded })
 }
 
 async function readAndUpdateChannel(

@@ -237,7 +237,7 @@ async function ensureGitHubRelease({ artifact, artifactRoot }: Readonly<{
     await run('gh', [
       'release', 'create', artifact.tag,
       ...expectedPaths,
-      '--verify-tag', '--title', `${artifact.name} ${artifact.version}`, '--notes-file', notesPath,
+      '--verify-tag', '--latest=false', '--title', `${artifact.name} ${artifact.version}`, '--notes-file', notesPath,
     ])
   } finally {
     await rm(temporaryDirectory, { force: true, recursive: true })

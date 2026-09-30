@@ -289,6 +289,7 @@ export const api: OpenWaggleApi = {
   // Auto-updater
   checkForUpdates: invoke('updater:check'),
   installUpdate: invoke('updater:install'),
+  installUpdateNow: invoke('updater:install-now'),
   getUpdateStatus: invoke('updater:get-status'),
   getAppVersion: invoke('app:get-version'),
   getDesktopNativeAdmissionIssue: invoke('app:get-native-admission-issue'),

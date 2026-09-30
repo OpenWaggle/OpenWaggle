@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
 import { pathToFileURL } from 'node:url'
 import { isMatching, P } from '@diegogbrisa/ts-match'
@@ -10,6 +11,19 @@ const RELEASE_SUBJECT_PATTERN =
   /^chore\(release\): v([0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?)(?: \(#[0-9]+\))?$/u
 const APP_VERSION_PATTERN = /^(\d+)\.(\d+)\.(\d+)(?:-(alpha|beta|rc)\.(\d+))?$/u
 const CHANNEL_RANK = { alpha: 0, beta: 1, rc: 2, stable: 3 } as const
+const RELEASE_CANDIDATE_TAG_PATTERN = /^v(?<core>\d+\.\d+\.\d+)-rc\.(?<sequence>\d+)$/u
+const ROOT_MANIFEST_PATH = 'package.json'
+/**
+ * Paths that never enter a desktop app artifact, so they may change between RC and Stable. The
+ * website's user docs are the exception: `docs:generate` bundles them into the app.
+ */
+const PROMOTION_IGNORED_PATH_PATTERNS = [
+  /^website\/(?!src\/content\/docs\/)/u,
+  /^docs\//u,
+  /^\.agents\//u,
+  /^[^/]+\.md$/u,
+]
+const MAJOR_RELEASE_PATTERN = /^\d+\.0\.0$/u
 
 const pullRequestSchema = Schema.Struct({
   baseRefName: Schema.String,
@@ -53,6 +67,85 @@ export function selectOwnedReleasePullRequests(
 export function expectedVersionOnlyManifest(baseManifestJson: string, version: string) {
   const manifest = Schema.decodeUnknownSync(manifestJsonSchema)(baseManifestJson)
   return `${JSON.stringify({ ...manifest, version }, null, JSON_INDENT)}\n`
+}
+
+/** A new major version always ships through a release candidate; minors and patches need not. */
+export function requiresReleaseCandidate(targetVersion: string) {
+  return MAJOR_RELEASE_PATTERN.test(targetVersion)
+}
+
+function manifestWithoutVersion(manifestJson: string) {
+  const { version: _version, ...rest } = Schema.decodeUnknownSync(manifestJsonSchema)(manifestJson)
+  return JSON.stringify(rest)
+}
+
+/**
+ * The newest `vX.Y.Z-rc.N` tag for a Stable target `X.Y.Z`, or null when the target is a
+ * prerelease or no release candidate exists for it.
+ */
+export function latestReleaseCandidateTag(tags: readonly string[], targetVersion: string) {
+  if (!/^\d+\.\d+\.\d+$/u.test(targetVersion)) return null
+  let selected: { readonly tag: string; readonly sequence: number } | null = null
+  for (const tag of tags) {
+    const groups = RELEASE_CANDIDATE_TAG_PATTERN.exec(tag)?.groups
+    if (!groups || groups.core !== targetVersion) continue
+    const sequence = Number(groups.sequence)
+    if (!selected || sequence > selected.sequence) selected = { tag, sequence }
+  }
+  return selected?.tag ?? null
+}
+
+/**
+ * Paths that make a Stable candidate differ from its last release candidate. Non-app paths are
+ * ignored, and the root manifest may differ only in its version.
+ */
+export function promotionGuardViolations(input: {
+  readonly changedPaths: readonly string[]
+  readonly releaseCandidateManifestJson: string
+  readonly candidateManifestJson: string
+}) {
+  return input.changedPaths.filter((changedPath) => {
+    if (PROMOTION_IGNORED_PATH_PATTERNS.some((pattern) => pattern.test(changedPath))) return false
+    if (changedPath !== ROOT_MANIFEST_PATH) return true
+    return (
+      manifestWithoutVersion(input.releaseCandidateManifestJson) !==
+      manifestWithoutVersion(input.candidateManifestJson)
+    )
+  })
+}
+
+function git(args: readonly string[]) {
+  return execFileSync('git', args, { encoding: 'utf8' })
+}
+
+function verifyPromotion(targetVersion: string, candidateRef: string) {
+  const tags = git(['tag', '--list', `v${targetVersion}-rc.*`]).split('\n').filter(Boolean)
+  const releaseCandidateTag = latestReleaseCandidateTag(tags, targetVersion)
+  if (!releaseCandidateTag) {
+    // A new major version always ships through a release candidate; later minors and patches may
+    // release straight to Stable (docs/release-and-versioning.md, "After 1.0.0").
+    if (requiresReleaseCandidate(targetVersion)) {
+      throw new Error(`Stable ${targetVersion} needs a validated ${targetVersion}-rc.N release first.`)
+    }
+    process.stdout.write(`No release candidate precedes ${targetVersion}; promotion guard skipped.\n`)
+    return
+  }
+  // --no-renames lists both sides of a move, so moving app code into an ignored path still counts.
+  const changedPaths = git(['diff', '--name-only', '--no-renames', releaseCandidateTag, candidateRef])
+    .split('\n')
+    .filter(Boolean)
+  const violations = promotionGuardViolations({
+    changedPaths,
+    releaseCandidateManifestJson: git(['show', `${releaseCandidateTag}:${ROOT_MANIFEST_PATH}`]),
+    candidateManifestJson: git(['show', `${candidateRef}:${ROOT_MANIFEST_PATH}`]),
+  })
+  if (violations.length > 0) {
+    throw new Error(
+      `Stable ${targetVersion} must match ${releaseCandidateTag} apart from its version and non-app paths. ` +
+        `Revert these changes or release them as the next release candidate:\n${violations.join('\n')}`,
+    )
+  }
+  process.stdout.write(`Stable ${targetVersion} matches ${releaseCandidateTag}.\n`)
 }
 
 export function releaseSubjectVersion(subject: string) {
@@ -136,6 +229,11 @@ async function runCli() {
       throw new Error('Commit subject is not a release subject.')
     }
     process.stdout.write(version)
+    return
+  }
+
+  if (command === 'verify-promotion') {
+    verifyPromotion(argument('--target'), argument('--candidate'))
     return
   }
 

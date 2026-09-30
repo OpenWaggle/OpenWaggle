@@ -19,7 +19,7 @@ function releaseFeedChannel(channel: BuildChannel): ReleaseFeedChannel {
 function eligibleChannels(channel: ReleaseFeedChannel): readonly ReleaseFeedChannel[] {
   if (channel === 'stable') return ['stable', 'beta', 'alpha']
   if (channel === 'beta') return ['beta', 'alpha']
-  if (channel === 'rc') return ['rc']
+  if (channel === 'rc') return ['rc', 'beta', 'alpha']
   return ['alpha']
 }
 

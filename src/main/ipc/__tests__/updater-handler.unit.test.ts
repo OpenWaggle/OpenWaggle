@@ -6,6 +6,10 @@ const mockCheckForUpdates = vi.fn()
 const mockInstallUpdate = vi.fn()
 const mockGetUpdateStatus = vi.fn()
 const mockAppGetVersion = vi.fn((_arg?: string) => '0.1.0')
+const mockListActiveRuns = vi.fn((): unknown[] => [])
+const mockShowMessageBoxOptions: { readonly message?: string }[] = []
+const mockShowMessageBox = vi.fn(() => Promise.resolve({ response: 2 }))
+const mockInterruptSessionRun = vi.fn((_sessionId: string) => Effect.void)
 const handlers = new Map<string, (...args: unknown[]) => unknown>()
 
 vi.mock('electron', () => ({
@@ -28,6 +32,24 @@ vi.mock('../../updater', () => ({
   checkForUpdates: (channel?: unknown) => mockCheckForUpdates(channel),
   installUpdate: () => mockInstallUpdate(),
   getUpdateStatus: () => mockGetUpdateStatus(),
+  setUpdateWaitingForRuns: vi.fn(),
+}))
+
+vi.mock('../../application/gui-session-command-router', () => ({
+  invokeConfiguredHostUi: () => Promise.resolve({ handled: true, result: mockListActiveRuns() }),
+}))
+vi.mock('../../application/host-ui-agent-operation', () => ({
+  listHostUiActiveActivities: () => Effect.succeed([]),
+}))
+vi.mock('../../desktop-ui', () => ({
+  getAllBrowserWindows: () => [],
+  showMessageBox: (_window: unknown, options: { readonly message?: string }) => {
+    mockShowMessageBoxOptions.push(options)
+    return mockShowMessageBox()
+  },
+}))
+vi.mock('../../application/session-run-interruption', () => ({
+  interruptSessionRun: (sessionId: string) => mockInterruptSessionRun(sessionId),
 }))
 
 vi.mock('../../logger', () => ({
@@ -53,12 +75,13 @@ describe('updater-handler', () => {
     mockGetUpdateStatus.mockReturnValue({ type: 'idle' })
   })
 
-  it('registers exactly four handlers', () => {
+  it('registers exactly five handlers', () => {
     registerUpdaterHandlers()
 
-    expect(handlers.size).toBe(4)
+    expect(handlers.size).toBe(5)
     expect(handlers.has('updater:check')).toBe(true)
     expect(handlers.has('updater:install')).toBe(true)
+    expect(handlers.has('updater:install-now')).toBe(true)
     expect(handlers.has('updater:get-status')).toBe(true)
     expect(handlers.has('app:get-version')).toBe(true)
   })
@@ -94,12 +117,60 @@ describe('updater-handler', () => {
   })
 
   describe('updater:install', () => {
-    it('calls installUpdate when invoked', async () => {
+    beforeEach(() => {
+      mockGetUpdateStatus.mockReturnValue({ type: 'downloaded', version: '1.0.0' })
+      mockListActiveRuns.mockReset()
+      mockListActiveRuns.mockReturnValue([])
+      mockShowMessageBox.mockClear()
+      mockInterruptSessionRun.mockClear()
+    })
+
+    it('installs without asking when no agent run is active', async () => {
       registerUpdaterHandlers()
 
       const handler = handlers.get('updater:install')
       expect(handler).toBeDefined()
       await handler?.({})
+      expect(mockShowMessageBox).not.toHaveBeenCalled()
+      expect(mockInstallUpdate).toHaveBeenCalledOnce()
+    })
+
+    it('asks before restarting over active runs and installs nothing on Cancel', async () => {
+      mockListActiveRuns.mockReturnValue([{ activity: 'agent-run', sessionId: 'session-1' }])
+      registerUpdaterHandlers()
+
+      await handlers.get('updater:install')?.({})
+
+      expect(mockShowMessageBox).toHaveBeenCalledOnce()
+      expect(mockInstallUpdate).not.toHaveBeenCalled()
+    })
+
+    it('counts a Session with both a run and a compaction once', async () => {
+      mockListActiveRuns.mockReturnValue([
+        { activity: 'agent-run', sessionId: 'session-1' },
+        { activity: 'compaction', sessionId: 'session-1' },
+      ])
+      mockShowMessageBox.mockImplementationOnce(() => Promise.resolve({ response: 2 }))
+      registerUpdaterHandlers()
+
+      await handlers.get('updater:install')?.({})
+
+      expect(mockShowMessageBox).toHaveBeenCalledOnce()
+      expect(mockShowMessageBoxOptions.at(-1)?.message).toBe('1 agent run is still working.')
+    })
+
+    it('stops active runs before installing on Restart now', async () => {
+      mockListActiveRuns
+        .mockReturnValueOnce([{ activity: 'agent-run', sessionId: 'session-1' }])
+        .mockReturnValueOnce([{ activity: 'agent-run', sessionId: 'session-1' }])
+        .mockReturnValueOnce([{ activity: 'agent-run', sessionId: 'session-1' }])
+        .mockReturnValue([])
+      mockShowMessageBox.mockResolvedValueOnce({ response: 1 })
+      registerUpdaterHandlers()
+
+      await handlers.get('updater:install')?.({})
+
+      expect(mockInterruptSessionRun).toHaveBeenCalledWith('session-1')
       expect(mockInstallUpdate).toHaveBeenCalledOnce()
     })
   })

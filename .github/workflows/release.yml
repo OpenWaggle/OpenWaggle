@@ -160,6 +160,24 @@ jobs:
             exit 0
           fi
 
+          # Stable gates run before any branch, PR, or tag exists. A Stable release publishes its
+          # hand-written CHANGELOG.md entry: an ordinary merge without one waits with a notice,
+          # while a dispatch or a merged release commit fails. The promotion guard requires an RC
+          # before a new major and RC-identical content after one.
+          if [[ "$VERSION" != *-* ]]; then
+            if ! pnpm exec tsx scripts/app-release-notes.ts check --version "$VERSION"; then
+              if [ -z "$RELEASE_TARGET_VERSION" ] && [ "$RELEASE_SUBJECT_VERSION" != "$VERSION" ]; then
+                echo "::notice::Stable ${VERSION} waits for its CHANGELOG.md entry; no release PR was prepared."
+                write_no_release_output
+                exit 0
+              fi
+              exit 1
+            fi
+            pnpm exec tsx scripts/app-release-state.ts verify-promotion \
+              --target "$VERSION" \
+              --candidate HEAD
+          fi
+
           RELEASE_BRANCH="app-release-v${VERSION}"
           TAG="v${VERSION}"
 
@@ -198,6 +216,9 @@ jobs:
             local parent_sha
             parent_sha=$(git rev-parse "${commit_sha}^")
             verify_version_only_tree "$parent_sha" "$commit_sha"
+            pnpm exec tsx scripts/app-release-state.ts verify-promotion \
+              --target "$VERSION" \
+              --candidate "$commit_sha"
           }
 
           write_release_outputs() {
@@ -558,12 +579,56 @@ jobs:
           esac
           echo "OPENWAGGLE_RELEASE_CHANNEL=$channel" >> "$GITHUB_ENV"
 
+      - name: Require macOS signing for release candidates and Stable
+        shell: bash
+        env:
+          MACOS_SIGNING_CONFIGURED: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 != '' && secrets.MACOS_CERTIFICATE_PASSWORD != '' }}
+          MACOS_NOTARIZATION_CONFIGURED: ${{ secrets.APPLE_ID != '' && secrets.APPLE_APP_SPECIFIC_PASSWORD != '' && secrets.APPLE_TEAM_ID != '' }}
+        run: |
+          set -euo pipefail
+          case "$OPENWAGGLE_RELEASE_CHANNEL" in
+            rc|stable)
+              if [ "$MACOS_SIGNING_CONFIGURED" != "true" ] || [ "$MACOS_NOTARIZATION_CONFIGURED" != "true" ]; then
+                echo "::error::${OPENWAGGLE_RELEASE_CHANNEL} macOS builds must be signed and notarized; configure the macOS signing secrets." >&2
+                exit 1
+              fi
+              ;;
+          esac
+
       - run: pnpm build
 
       - name: Build macOS artifacts (arm64 + x64)
         run: pnpm exec electron-builder --mac --arm64 --x64 --publish never
         env:
-          CSC_IDENTITY_AUTO_DISCOVERY: false
+          # Unset secrets keep Alpha/Beta builds unsigned; RC and Stable fail closed without them.
+          CSC_IDENTITY_AUTO_DISCOVERY: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 != '' }}
+          CSC_LINK: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 }}
+          CSC_KEY_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
+      - name: Verify macOS signing and notarization
+        shell: bash
+        env:
+          MACOS_SIGNING_CONFIGURED: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 != '' }}
+          MACOS_NOTARIZATION_CONFIGURED: ${{ secrets.APPLE_ID != '' && secrets.APPLE_APP_SPECIFIC_PASSWORD != '' && secrets.APPLE_TEAM_ID != '' }}
+        run: |
+          set -euo pipefail
+          if [ "$MACOS_SIGNING_CONFIGURED" != "true" ]; then
+            echo "macOS signing is not configured; this ${OPENWAGGLE_RELEASE_CHANNEL} build is unsigned."
+            exit 0
+          fi
+          shopt -s nullglob
+          apps=(dist/mac*/*.app)
+          [ "${#apps[@]}" -gt 0 ]
+          for app in "${apps[@]}"; do
+            codesign --verify --deep --strict --verbose=2 "$app"
+            if [ "$MACOS_NOTARIZATION_CONFIGURED" = "true" ]; then
+              xcrun stapler validate "$app"
+              spctl --assess --type execute --verbose "$app"
+            fi
+          done
 
       - name: Prepare macOS update channels
         run: pnpm exec tsx scripts/prepare-update-channel-metadata.ts dist "$OPENWAGGLE_RELEASE_CHANNEL" mac
@@ -577,6 +642,7 @@ jobs:
           path: |
             dist/*.dmg
             dist/*.zip
+            dist/*.blockmap
             dist/*.yml
           if-no-files-found: error
 
@@ -682,6 +748,7 @@ jobs:
           name: windows-artifacts
           path: |
             dist/*.exe
+            dist/*.blockmap
             dist/*.yml
           if-no-files-found: error
 
@@ -817,10 +884,25 @@ jobs:
         with:
           path: artifacts
 
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: 24
+
+      - name: Prepare Stable release notes
+        if: ${{ !contains(needs.version.outputs.new_version, '-') }}
+        env:
+          RELEASE_VERSION: ${{ needs.version.outputs.new_version }}
+        run: |
+          node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/app-release-notes.ts write \
+            --version "$RELEASE_VERSION" --output "$RUNNER_TEMP/release-notes.md"
+
       - name: Collect release assets
         run: |
           mkdir -p release
-          find artifacts -type f \( -name '*.dmg' -o -name '*.zip' -o -name '*.AppImage' -o -name '*.exe' -o -name '*.yml' \) -exec cp {} release/ \;
+          # Blockmaps let electron-updater download only the changed blocks of an update (the
+          # AppImage embeds its own). builder-debug.yml is a local build dump, not a release asset.
+          find artifacts -type f \( -name '*.dmg' -o -name '*.zip' -o -name '*.AppImage' -o -name '*.exe' \
+            -o -name '*.blockmap' -o \( -name '*.yml' ! -name 'builder-debug.yml' \) \) -exec cp {} release/ \;
           cd release && sha256sum * > SHA256SUMS.txt
 
       - name: Create draft release
@@ -830,5 +912,8 @@ jobs:
           name: ${{ needs.version.outputs.new_tag }}
           draft: false
           prerelease: ${{ contains(needs.version.outputs.new_version, '-') }}
-          generate_release_notes: true
+          make_latest: ${{ contains(needs.version.outputs.new_version, '-') && 'false' || 'true' }}
+          # Prereleases use generated notes; Stable uses its CHANGELOG.md entry.
+          generate_release_notes: ${{ contains(needs.version.outputs.new_version, '-') }}
+          body_path: ${{ !contains(needs.version.outputs.new_version, '-') && format('{0}/release-notes.md', runner.temp) || '' }}
           files: release/*
