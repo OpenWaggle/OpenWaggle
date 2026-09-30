@@ -94,9 +94,10 @@ jobs:
       # skips that coverage. On the shared runner a single slow run is often a
       # scheduling outlier (it has failed on unchanged main), so a failure is rerun
       # once and only a second failure fails the job: a sustained regression fails
-      # both runs.
+      # both runs. It needs only the installed dependencies, so it still reports when
+      # packaging or the smoke failed.
       - name: Check syntax performance budgets
-        if: matrix.syntax_budget
+        if: ${{ !cancelled() && matrix.syntax_budget }}
         shell: bash
         run: |
           if pnpm benchmark:syntax; then

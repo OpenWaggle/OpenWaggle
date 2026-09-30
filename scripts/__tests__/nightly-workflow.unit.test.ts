@@ -51,6 +51,8 @@ describe('nightly packaged canary workflow', () => {
     expect(packaging).toBeGreaterThan(0)
     expect(smoke).toBeGreaterThan(packaging)
     expect(benchmark).toBeGreaterThan(smoke)
+    // A packaging or smoke failure must not also hide that night's benchmark signal.
+    expect(WORKFLOW).toContain('if: ${{ !cancelled() && matrix.syntax_budget }}')
     expect(WORKFLOW).toMatch(
       /if pnpm benchmark:syntax; then\n\s+exit 0\n\s+fi\n\s+echo "::warning::[^"]+"\n\s+pnpm benchmark:syntax\n/u,
     )
