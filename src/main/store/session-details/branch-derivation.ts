@@ -1,8 +1,11 @@
-import { OPENWAGGLE_AGENT_LOOP } from '@shared/constants/agent-loop'
-import { parseJsonUnknown } from '@shared/schema'
-import { isRecord } from '@shared/utils/validation'
 import type { ProjectedSessionNodeInput } from '../../ports/session-repository'
+import { isAgentLoopAuditNode } from './agent-loop-audit-node'
 import { deriveBranchForHead } from './branch-head'
+import {
+  claimSavedBranchesByHead,
+  nextFallbackBranchName,
+  unusedBranchId,
+} from './branch-head-claims'
 import {
   buildChildCounts,
   createdOrderByNodeId,
@@ -15,21 +18,6 @@ import {
 } from './branch-utils'
 import { EMPTY_INDEX, MAIN_BRANCH_NAME } from './constants'
 import type { DerivedSessionBranch, SessionBranchRow } from './types'
-
-function isAgentLoopAuditNode(node: ProjectedSessionNodeInput) {
-  if (node.kind !== 'custom') {
-    return false
-  }
-
-  try {
-    const content = parseJsonUnknown(node.contentJson)
-    return (
-      isRecord(content) && content.customType === OPENWAGGLE_AGENT_LOOP.SESSION_EVENT_CUSTOM_TYPE
-    )
-  } catch {
-    return false
-  }
-}
 
 function branchDerivationNodes(nodes: readonly ProjectedSessionNodeInput[]) {
   return nodes.filter((node) => !isAgentLoopAuditNode(node))
@@ -134,22 +122,45 @@ function deriveBranchesForHeads(input: {
   readonly mainBranchRow: SessionBranchRow | undefined
   readonly context: BranchDerivationContext
 }) {
-  return uniqueHeadIds([
+  const heads = uniqueHeadIds([
     input.context.mainHeadId,
     input.context.activeHeadId,
     ...input.context.leafIds,
-  ]).map((headId, index) =>
-    deriveBranchForHead({
+  ])
+  const { claims, claimedIds } = claimSavedBranchesByHead(
+    heads,
+    input.existingBranches,
+    input.context,
+  )
+  const takenNames = new Set(input.existingBranches.map((branch) => branch.name))
+  const takenIds = new Set(input.existingBranches.map((branch) => branch.id))
+  const continuedIds = new Set<string>()
+  return heads.map((headId, index) => {
+    const claimed = claims.get(headId)
+    const { branch: derived, continuesSavedBranch } = deriveBranchForHead({
       sessionId: input.sessionId,
       headId,
-      index,
+      fallbackName: nextFallbackBranchName(takenNames, index + 1),
       mainHeadId: input.context.mainHeadId,
       mainBranchRow: input.mainBranchRow,
-      existingBranches: input.existingBranches,
+      existingBranches: claimed
+        ? [claimed]
+        : input.existingBranches.filter(
+            (branch) => !claimedIds.has(branch.id) && !continuedIds.has(branch.id),
+          ),
       nodeById: input.context.nodeById,
       childCounts: input.context.childCounts,
-    }),
-  )
+    })
+    // A new branch is identified by its start node, which a saved sibling branch can share.
+    const branch =
+      !continuesSavedBranch && takenIds.has(derived.id)
+        ? { ...derived, id: unusedBranchId(takenIds, `${input.sessionId}:branch:${headId}`) }
+        : derived
+    takenIds.add(branch.id)
+    if (continuesSavedBranch) continuedIds.add(branch.id)
+    takenNames.add(branch.name)
+    return branch
+  })
 }
 
 function selectActiveBranch(input: {

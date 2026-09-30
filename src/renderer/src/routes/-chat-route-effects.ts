@@ -1,7 +1,7 @@
 import { RepositoryPath, SessionBranchId, SessionId, SessionNodeId } from '@shared/types/brand'
 import { resolveSessionWorkingDir } from '@shared/utils/worktree'
 import { useNavigate } from '@tanstack/react-router'
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useBranchSummaryStore, useChatStore } from '@/features/chat/state'
 import { useGitStore } from '@/features/git/state'
 import { useSessionStatusStore, useSessionStore } from '@/features/sessions/state'
@@ -95,10 +95,28 @@ export function useChatRouteEffects({
   const routeBranchId = branchId ? SessionBranchId(branchId) : null
   const routeNodeId = nodeId ? SessionNodeId(nodeId) : null
 
+  const lastRoutedBranch = useRef<{
+    readonly draftBranch: typeof draftBranch
+    readonly routeBranchId: SessionBranchId | null
+  } | null>(null)
   useEffect(() => {
+    const previous = lastRoutedBranch.current
+    lastRoutedBranch.current = { draftBranch, routeBranchId }
+    if (!draftBranch) return
+    // A retry sets its draft before the route drops the branch it was started from, so that
+    // branch is still routed on the draft's first render. Clearing on that stale route lost
+    // every retry started on a non-main branch, and its message went to the branch head.
+    const unchanged =
+      previous?.draftBranch === draftBranch && previous.routeBranchId === routeBranchId
+    const startedOnThisRoute =
+      previous !== null &&
+      previous.draftBranch !== draftBranch &&
+      previous.routeBranchId === routeBranchId
+    const routeMovedToBranch = routeBranchId !== null && !unchanged && !startedOnThisRoute
     if (
-      draftBranch &&
-      (routeSessionTreeId === null || draftBranch.sessionId !== routeSessionTreeId || routeBranchId)
+      routeSessionTreeId === null ||
+      draftBranch.sessionId !== routeSessionTreeId ||
+      routeMovedToBranch
     ) {
       useBranchSummaryStore.getState().clearPrompt()
       clearDraftBranchForSession(draftBranch.sessionId)

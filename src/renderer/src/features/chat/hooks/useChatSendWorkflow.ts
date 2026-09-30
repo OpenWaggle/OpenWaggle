@@ -18,7 +18,7 @@ import { invokeBoundExtension } from '@/features/extensions'
 import { api } from '@/shared/lib/ipc'
 import { ipcErrorMessage } from '@/shared/lib/ipc-error-message'
 import { createRendererLogger } from '@/shared/lib/logger'
-import { MessageNotDelivered } from '../lib/message-delivery'
+import { MessageNotDelivered, wasMessageDelivered } from '../lib/message-delivery'
 import { pendingSendAfter } from '../lib/optimistic-user-message'
 import type { PendingSend } from '../model'
 import type { useBranchSummaryWorkflow } from './useBranchSummaryWorkflow'
@@ -34,6 +34,8 @@ interface ChatSendWorkflowParams {
     ReturnType<typeof useBranchSummaryWorkflow>['materializeDraftBranchForSend']
   >[0]
   readonly extensionContributions: ExtensionContributionRegistryView | null
+  /** Captures the routed node at send time; the result moves the view to the branch head. */
+  readonly trackRoutedNode: (sessionId: SessionId) => () => void
   readonly handleSend: (payload: AgentSendPayload) => Promise<void>
   readonly handleSendWaggle: (payload: AgentSendPayload, config: WaggleConfig) => Promise<void>
   readonly model: SupportedModelId | undefined
@@ -187,6 +189,9 @@ export function useChatSendWorkflow(params: ChatSendWorkflowParams) {
         if (!composerRetainsDraft) discardSessionResourceAttachments(payload.attachments)
         return
       }
+      const followBranchHead = params.activeSessionId
+        ? params.trackRoutedNode(params.activeSessionId)
+        : () => undefined
       const draftBranchReady = await params.branchSummary.materializeDraftBranchForSend(
         params.draftBranch,
       )
@@ -201,7 +206,14 @@ export function useChatSendWorkflow(params: ChatSendWorkflowParams) {
       try {
         await sendThroughActiveMode(params, payload)
         if (params.activeSessionId) params.clearDraftBranchForSession(params.activeSessionId)
+        followBranchHead()
       } catch (error) {
+        // A Run that failed after delivery still saved the message on the branch, so the draft
+        // is spent: kept, the next send would branch from the retry source again.
+        if (wasMessageDelivered(error)) {
+          if (params.activeSessionId) params.clearDraftBranchForSession(params.activeSessionId)
+          followBranchHead()
+        }
         params.clearPendingSend(pendingSend)
         if (payload.waggle?.config && params.activeSessionId) {
           params.stopWaggleCollaboration(params.activeSessionId)

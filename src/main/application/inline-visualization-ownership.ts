@@ -20,6 +20,8 @@ export function attributeCopiedVisualizationSources(
     readonly id: SessionId
     readonly nodes: readonly Pick<SessionNode, 'id' | 'metadataJson'>[]
   },
+  /** The source node a copied node came from, when the copy has ids of its own. */
+  sourceNodeIdByNodeId?: ReadonlyMap<string, string>,
 ): AgentKernelSessionSnapshot {
   const previousOwners = new Map(
     sourceSession.nodes.flatMap((node) => {
@@ -43,7 +45,9 @@ export function attributeCopiedVisualizationSources(
       ) {
         return node
       }
-      const ownerSessionId = previousOwners.get(node.id) ?? sourceSession.id
+      const sourceNodeId = sourceNodeIdByNodeId?.get(node.id) ?? node.id
+      // A copy of a copy keeps pointing at the Session that rendered the visualization.
+      const ownerSessionId = previousOwners.get(sourceNodeId) ?? sourceSession.id
       return {
         ...node,
         metadataJson: mergeVisualizationOwner(node.metadataJson, ownerSessionId),

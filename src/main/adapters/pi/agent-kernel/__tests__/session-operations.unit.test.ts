@@ -189,23 +189,10 @@ describe('Pi session operations', () => {
     ).rejects.toBeInstanceOf(AgentKernelMissingEntryError)
   })
 
-  it('forks through the Pi runtime and disposes the session even when the target is invalid', async () => {
+  it('disposes the fork runtime and reports a missing entry when the target is invalid', async () => {
+    // The successful fork path, which re-keys the new Pi file, is covered with a real Pi
+    // session file in fork-entry-identity.unit.test.ts.
     const runtimeSession = { sessionId: 'pi-session-2', sessionFile: '/repo/fork.jsonl' }
-    const fork = vi.fn(async () => ({ cancelled: false, selectedText: 'fork prompt' }))
-    operationMocks.createPiSessionRuntime.mockResolvedValue({ session: runtimeSession, fork })
-
-    await expect(
-      forkPiSession({ ...input(), targetNodeId: 'node-2', position: 'at' }),
-    ).resolves.toEqual({
-      cancelled: false,
-      piSessionId: 'pi-session-2',
-      piSessionFile: '/repo/fork.jsonl',
-      sessionSnapshot: { activeNodeId: 'node-2', nodes: [] },
-      editorText: 'fork prompt',
-    })
-    expect(fork).toHaveBeenCalledWith('node-2', { position: 'at' })
-    expect(operationMocks.disposeOpenWagglePiSession).toHaveBeenCalledWith(runtimeSession)
-
     const invalidFork = vi.fn(async () => {
       throw new Error('Invalid entry ID for forking')
     })
