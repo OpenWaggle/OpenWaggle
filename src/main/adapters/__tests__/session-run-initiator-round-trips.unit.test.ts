@@ -52,6 +52,10 @@ describe('Run initiator chains between two roots', () => {
       queenSessionId?: string
       /** Who created this Run's Session; the desktop user unless set. */
       origin?: string
+      /** The Session's stored authority snapshot JSON. */
+      snapshot?: string
+      /** A Worker recorded only in the historical `session_lineage` table. */
+      historicalQueenSessionId?: string
     }[],
     use: (sql: SqlClient.SqlClient) => Effect.Effect<A, unknown>,
   ) {
@@ -89,11 +93,20 @@ describe('Run initiator chains between two roots', () => {
           id, scope_json, authorization_ceiling, revoked_at
         ) VALUES
           (${'asker'}, ${'{"all":true}'}, ${'ask-for-approval'}, ${null}),
-          (${'revoked'}, ${'{"all":true}'}, ${'yolo'}, ${1})`
+          (${'revoked'}, ${'{"all":true}'}, ${'yolo'}, ${1}),
+          (${'unreadable'}, ${'{"all":"yes"'}, ${'yolo'}, ${null})`
         for (const run of runs) {
           yield* sql`INSERT OR IGNORE INTO session_execution_profiles (
-            session_id, profile_json, authority_origin_caller_id, authorization_ceiling
-          ) VALUES (${run.sessionId}, ${PROFILE_JSON}, ${run.origin ?? 'gui:local-user'}, ${'yolo'})`
+            session_id, profile_json, authority_origin_caller_id, authority_scope_snapshot_json,
+            authorization_ceiling
+          ) VALUES (
+            ${run.sessionId}, ${PROFILE_JSON}, ${run.origin ?? 'gui:local-user'},
+            ${run.snapshot ?? null}, ${'yolo'}
+          )`
+          if (run.historicalQueenSessionId) {
+            yield* sql`INSERT OR IGNORE INTO session_lineage (session_id, parent_session_id)
+              VALUES (${run.sessionId}, ${run.historicalQueenSessionId})`
+          }
         }
         for (const run of runs) {
           if (run.queenSessionId) {
@@ -190,5 +203,30 @@ describe('Run initiator chains between two roots', () => {
     ]
 
     await expect(judge(runs)).resolves.toEqual({ reach: false, ceiling: 'ask-for-approval' })
+  })
+
+  it('fails closed, rather than failing, on unreadable authority data along the chain', async () => {
+    // `first` holds a snapshot that no longer decodes; its agent started `s`'s Run.
+    const brokenSnapshot = [
+      { runId: 'run-first', sessionId: 'first', callerId: 'gui:local-user', snapshot: '{"x":1}' },
+      { runId: 'run-s', sessionId: 's', callerId: 'session-agent:first:run-first' },
+    ]
+    const unreadableProfile = [{ runId: 'run-s', sessionId: 's', callerId: 'profile:unreadable' }]
+
+    await expect(judge(brokenSnapshot)).resolves.toMatchObject({ reach: false })
+    await expect(judge(unreadableProfile)).resolves.toMatchObject({ reach: false })
+  })
+
+  it('does not treat a historical Worker as a root that reaches every project', async () => {
+    const runs = [
+      {
+        runId: 'run-h',
+        sessionId: 'historical-worker',
+        callerId: 'gui:local-user',
+        historicalQueenSessionId: 'queen',
+      },
+    ]
+
+    await expect(judge(runs)).resolves.toMatchObject({ reach: false })
   })
 })
