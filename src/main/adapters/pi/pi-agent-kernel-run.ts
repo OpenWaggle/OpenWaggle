@@ -1,5 +1,6 @@
 import * as Effect from 'effect/Effect'
 import * as Exit from 'effect/Exit'
+import { withRetainedScratchDirectory } from '../../application/session-scratch-retention'
 import type {
   AgentKernelRunInput,
   AgentKernelWaggleRunOptions,
@@ -13,7 +14,6 @@ import type {
 } from '../../ports/mcp-runtime-service'
 import type { TerminalServiceShape } from '../../ports/terminal-service'
 import type { WorkspacePreparationServiceShape } from '../../ports/workspace-preparation-service'
-import { withRetainedScratchDirectory } from '../session-scratch-retention'
 import { runPiSession } from './agent-kernel/classic-run'
 import { restrictMcpSnapshot } from './agent-kernel/restricted-mcp-snapshot'
 import type { PiRuntimeExtensionIsolationInput } from './agent-kernel/runtime-extension-isolation'

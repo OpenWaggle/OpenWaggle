@@ -8,6 +8,7 @@ import {
   withSessionAttachmentTransition,
 } from '../application/session-attachment-cleanup'
 import { captureRunResultResources } from '../application/session-resource-run-result'
+import { runAndCaptureWithRetainedScratch } from '../application/session-scratch-retention'
 import { loadProjectConfigStrict } from '../config/project-config'
 import { resolveSessionHostProjectPolicy } from '../domain/session-control/session-host-policy'
 import type { AgentKernelService } from '../ports/agent-kernel-service'
@@ -37,7 +38,6 @@ import { executeRegisteredRun } from './session-control-run-dispatch'
 import { loadRunExecutionProfile } from './session-control-run-executor-profile'
 import { publishRunStartFailure, terminalRunResult } from './session-control-run-result'
 import type { ResolvedSessionRunExecution } from './session-run-execution-profile'
-import { runAndCaptureWithRetainedScratch } from './session-scratch-retention'
 import {
   liveSessionAuthorityBlockReason,
   loadSessionAuthoritySnapshot,
