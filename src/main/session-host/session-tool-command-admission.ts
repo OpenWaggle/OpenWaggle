@@ -14,7 +14,7 @@ import {
 /**
  * Resolve the Session agent calling the Sessions tool and apply the checks that come before
  * dispatch: its live authority, and, for a catalog-wide agent, that a launch or create names a
- * project OpenWaggle already knows (ADR 0041). Returns the caller and the payload to dispatch.
+ * project OpenWaggle already knows (ADR 0042). Returns the caller and the payload to dispatch.
  */
 export async function admitSessionToolCommand<Payload extends LocalSessionCommandPayload>(
   sql: SqlClient.SqlClient,

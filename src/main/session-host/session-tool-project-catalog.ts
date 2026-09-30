@@ -39,7 +39,7 @@ export function normalizeLifecycleProjectPath<Payload extends LocalSessionComman
 
 /**
  * A Session agent may launch or create Sessions only in a project OpenWaggle already knows: one
- * with a Session or a Workspace in the catalog. Reaching every project (ADR 0041) means every
+ * with a Session or a Workspace in the catalog. Reaching every project (ADR 0042) means every
  * project in the catalog, not every directory on disk; otherwise a prompt-injected agent could
  * start a Session in `~/Downloads/untrusted-repo` and load its instructions and skills.
  */

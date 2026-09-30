@@ -685,7 +685,7 @@ An Effect tagged error with no `message` field reaches `Effect.runPromise` calle
 `target_scope_denied`. Render failures that leave the Host through
 `sessionCommandFailureMessage`, and assert the rendered text in tests, not only the error code.
 
-A root Session agent's catalog-wide reach (ADR 0041) is decided by one function,
+A root Session agent's catalog-wide reach (ADR 0042) is decided by one function,
 `sessionAgentRunReachesEveryProject` (`adapters/session-agent-run-project-reach.ts`), called by
 `resolveSessionToolAgentCaller` when the tool is called and by `sessionAgentBlockReason` when a
 queued Follow-up is delivered. It needs both the Session's own authority

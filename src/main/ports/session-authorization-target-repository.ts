@@ -29,7 +29,7 @@ export interface SessionAuthorizationTargetRepositoryShape {
    * Whether input from `callerId` into the Run `runId` of `sessionId` (a steer, a promoted
    * Follow-up, or an answer to a pending request) would come from a caller without the reach
    * that Run has. A Run that reaches every project must not take input from a narrower caller,
-   * or that caller could direct it into other projects (ADR 0041).
+   * or that caller could direct it into other projects (ADR 0042).
    */
   readonly runInputWidensReach: (input: {
     readonly callerId: string
