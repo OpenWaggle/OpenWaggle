@@ -2,7 +2,10 @@ import type { ExtensionAPI, ToolDefinition } from '@earendil-works/pi-coding-age
 import { fromPartial } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
 import { afterEach, describe, expect, it } from 'vitest'
-import { LocalSessionCommandAuthorizationError } from '../../../errors'
+import {
+  LocalSessionCommandAuthorizationError,
+  SessionLifecyclePreparationError,
+} from '../../../errors'
 import { installSessionToolGateway } from '../../../session-host/session-tool-gateway'
 import { createSessionsToolExtension } from '../sessions-tool-extension'
 
@@ -71,8 +74,7 @@ describe('Sessions tool refusal messages', () => {
     releaseGateway = installSessionToolGateway(() =>
       Effect.runPromise(
         Effect.fail(
-          Object.assign(new Error(''), {
-            _tag: 'SessionLifecyclePreparationError',
+          new SessionLifecyclePreparationError({
             operation: 'prepare-session-lifecycle',
             cause: new Error('Project directory does not exist: /projects/missing'),
           }),

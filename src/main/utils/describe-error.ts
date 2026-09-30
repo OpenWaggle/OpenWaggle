@@ -16,7 +16,18 @@ export function unwrapFiberFailure(error: unknown) {
   return Cause.squash(error[Runtime.FiberFailureCauseId])
 }
 
-function describeOne(error: unknown) {
+/** How a cause that is a bare object, such as `{ projectPath }` context, is rendered. */
+type PlainObjectRendering = 'json' | 'omit'
+
+function plainObjectJson(value: object) {
+  try {
+    return JSON.stringify(value) ?? ''
+  } catch {
+    return ''
+  }
+}
+
+function describeOne(error: unknown, plainObjects: PlainObjectRendering) {
   if (typeof error !== 'object' || error === null) return String(error)
   const tag = readString(error, '_tag') ?? (error instanceof Error ? error.name : null)
   const message = readString(error, 'message')
@@ -25,10 +36,10 @@ function describeOne(error: unknown) {
   const label = [tag, operation ? `(${operation})` : null].filter(Boolean).join(' ')
   const detail = [code && code !== tag ? code : null, message].filter(Boolean).join(': ')
   const description = [label, detail].filter(Boolean).join(': ')
-  // A plain-object cause (for example `{ projectPath }` context) has nothing to show; rendering
-  // it as "[object Object]" only adds noise, and its fields are not meant to leave the Host.
   if (description) return description
-  return error instanceof Error ? String(error) : ''
+  if (error instanceof Error) return String(error)
+  // "[object Object]" says nothing. Logs keep the context; text for callers leaves it out.
+  return plainObjects === 'json' ? plainObjectJson(error) : ''
 }
 
 /**
@@ -37,11 +48,19 @@ function describeOne(error: unknown) {
  * Tagged errors such as `SessionProjectionRepositoryError` carry an empty `message`, so reading
  * `error.message` alone produced empty log fields and a generic error card for a failed turn save
  * (ADR 0037). This keeps the tag, the repository operation, and every cause, including the one an
- * Effect `FiberFailure` hides behind a symbol.
+ * Effect `FiberFailure` hides behind a symbol. Bare-object causes are rendered as JSON for the
+ * Host log; pass `plainObjects: 'omit'` for text that leaves the Host.
  */
-export function describeError(error: unknown): string {
+export function describeError(
+  error: unknown,
+  options: { readonly plainObjects?: PlainObjectRendering } = {},
+): string {
   if (error === undefined || error === null) return String(error)
-  const described = errorCauseChain(error).map(describeOne).filter(Boolean).join(' <- ')
+  const plainObjects = options.plainObjects ?? 'json'
+  const described = errorCauseChain(error)
+    .map((entry) => describeOne(entry, plainObjects))
+    .filter(Boolean)
+    .join(' <- ')
   return described || String(error)
 }
 

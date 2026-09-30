@@ -13,6 +13,10 @@ import {
 } from '@shared/types/session-query'
 import { type Static, Type } from 'typebox'
 import { sessionsToolAttachmentPaths as attachmentPaths } from './sessions-tool-attachment-parameters'
+import {
+  sessionsToolCatalogScope,
+  sessionsToolProjectPath,
+} from './sessions-tool-catalog-parameters'
 import { sessionsToolCollaborationParameters } from './sessions-tool-collaboration-parameters'
 import { sessionsToolControlParameters } from './sessions-tool-control-parameters'
 import { delegationsConflictsParameter } from './sessions-tool-delegation-extra-parameters'
@@ -51,7 +55,7 @@ const rootSpecialization = {
 export const sessionsToolParameters = Type.Union([
   Type.Object({
     action: Type.Literal('create'),
-    projectPath: Type.Optional(Type.String()),
+    projectPath: sessionsToolProjectPath,
     title: Type.Optional(sessionTitle),
     workspace: rootWorkspace,
     workspaceId: Type.Optional(Type.String()),
@@ -80,7 +84,7 @@ export const sessionsToolParameters = Type.Union([
   Type.Object({
     action: Type.Literal('launch'),
     objective: Type.String({ minLength: 1 }),
-    projectPath: Type.Optional(Type.String()),
+    projectPath: sessionsToolProjectPath,
     title: Type.Optional(sessionTitle),
     workspace: rootWorkspace,
     workspaceId: Type.Optional(Type.String()),
@@ -207,10 +211,8 @@ export const sessionsToolParameters = Type.Union([
   ...sessionsToolCollaborationParameters,
   Type.Object({
     action: Type.Literal('delegations_list'),
-    catalogScope: Type.Optional(
-      Type.Union([Type.Literal('current'), Type.Literal('project'), Type.Literal('all')]),
-    ),
-    projectPath: Type.Optional(Type.String()),
+    catalogScope: sessionsToolCatalogScope,
+    projectPath: sessionsToolProjectPath,
     parentSessionId: Type.Optional(Type.String()),
     workerSessionId: Type.Optional(Type.String()),
     states: Type.Optional(
@@ -239,21 +241,17 @@ export const sessionsToolParameters = Type.Union([
   delegationsConflictsParameter,
   Type.Object({
     action: Type.Literal('list'),
-    catalogScope: Type.Optional(
-      Type.Union([Type.Literal('current'), Type.Literal('project'), Type.Literal('all')]),
-    ),
+    catalogScope: sessionsToolCatalogScope,
     limit: Type.Optional(Type.Integer({ minimum: 1, maximum: SESSION_QUERY_DISCOVERY_LIMIT })),
     cursor: Type.Optional(Type.String()),
-    projectPath: Type.Optional(Type.String()),
+    projectPath: sessionsToolProjectPath,
     archived: Type.Optional(Type.Boolean()),
   }),
   Type.Object({
     action: Type.Literal('search'),
-    catalogScope: Type.Optional(
-      Type.Union([Type.Literal('current'), Type.Literal('project'), Type.Literal('all')]),
-    ),
+    catalogScope: sessionsToolCatalogScope,
     query: Type.String({ minLength: 1 }),
-    projectPath: Type.Optional(Type.String()),
+    projectPath: sessionsToolProjectPath,
     limit: Type.Optional(Type.Integer({ minimum: 1, maximum: SESSION_QUERY_DISCOVERY_LIMIT })),
     cursor: Type.Optional(Type.String()),
     fullTranscript: Type.Optional(

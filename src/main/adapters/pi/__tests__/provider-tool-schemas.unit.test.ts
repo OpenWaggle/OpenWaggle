@@ -182,6 +182,17 @@ describe('tool schemas OpenWaggle hands to Pi', () => {
     expect(violationsByTool(payloads.openai)).toEqual({})
   })
 
+  it('send no TypeBox internal keys and keep per-action required notes', async () => {
+    const payloads = await providerToolPayloads(await openWaggleTools(REAL_DIRECT_TOOLS))
+
+    for (const payload of [payloads.bedrock, payloads.openai]) {
+      const sessions = JSON.stringify(payload.get('sessions'))
+      // Providers that reject unknown JSON Schema keywords would refuse the whole request.
+      expect(JSON.stringify([...payload.values()])).not.toMatch(/"~[A-Za-z]+"/)
+      expect(sessions).toContain('"description":"Required for launch, spawn."')
+    }
+  })
+
   it('passes conforming MCP schemas through unchanged', async () => {
     const payloads = await providerToolPayloads(
       (await openWaggleTools(REAL_DIRECT_TOOLS)).filter((tool) =>

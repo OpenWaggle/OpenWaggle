@@ -8,6 +8,7 @@ import {
   LocalSessionProfileRepositoryError,
   SessionLifecyclePreparationError,
 } from '../../errors'
+import { LocalSessionAuthenticationBudgetError } from '../local-session-resource-policy'
 import {
   LOCAL_SESSION_AUTHENTICATION_FAILED_MESSAGE,
   localSessionAuthenticationFailureMessage,
@@ -37,12 +38,6 @@ describe('sessionCommandFailureMessage', () => {
 
     expect(sessionCommandFailureMessage(failure)).toBe(
       'Session command refused (capability_denied): the caller lacks a Session capability this operation requires. Missing capabilities: sessions:create.',
-    )
-  })
-
-  it('keeps the code of a refusal rebuilt from a protocol frame', () => {
-    expect(sessionCommandFailureMessage({ code: 'target_scope_denied' })).toMatch(
-      /^Session command refused \(target_scope_denied\)/,
     )
   })
 
@@ -97,6 +92,34 @@ describe('sessionCommandFailureMessage', () => {
   it('keeps an ordinary error message as it is', () => {
     expect(sessionCommandFailureMessage(new Error('Session not found.'))).toBe('Session not found.')
   })
+
+  it('redacts and bounds an error that carries its own message, and a defect', async () => {
+    const long = sessionCommandFailureMessage(
+      new Error(
+        `${os.homedir()}/private token=abcdefghijklmnop ${'x'.repeat(USER_FACING_DETAIL_LIMIT)}`,
+      ),
+    )
+    expect(long).toMatch(/^~\/private /)
+    expect(long).not.toContain('abcdefghijklmnop')
+    expect(long.length).toBeLessThanOrEqual(USER_FACING_DETAIL_LIMIT + 1)
+
+    const defect = await Effect.runPromise(Effect.die(`${os.homedir()}/secret`)).then(
+      () => undefined,
+      (failure: unknown) => failure,
+    )
+    expect(sessionCommandFailureMessage(defect)).toBe('~/secret')
+  })
+
+  it('does not print a bare-object defect as [object Object] or expose its fields', async () => {
+    const defect = await Effect.runPromise(Effect.die({ projectPath: '/projects/private' })).then(
+      () => undefined,
+      (failure: unknown) => failure,
+    )
+    const message = sessionCommandFailureMessage(defect)
+    expect(message).toBe(
+      'Session command failed unexpectedly. The Session Host log has the details.',
+    )
+  })
 })
 
 describe('localSessionAuthenticationFailureMessage', () => {
@@ -120,11 +143,19 @@ describe('localSessionAuthenticationFailureMessage', () => {
     ).toBe(LOCAL_SESSION_AUTHENTICATION_FAILED_MESSAGE)
   })
 
-  it('keeps the text of a plain throttling error', () => {
+  it('keeps the text of an admission-budget refusal', () => {
     expect(
       localSessionAuthenticationFailureMessage(
-        new Error('Local Session authentication is temporarily throttled.'),
+        new LocalSessionAuthenticationBudgetError(
+          'Local Session authentication is temporarily throttled.',
+        ),
       ),
     ).toBe('Local Session authentication is temporarily throttled.')
+  })
+
+  it('hides an untagged error from the profile lookup, such as a corrupt profile row', () => {
+    expect(
+      localSessionAuthenticationFailureMessage(new SyntaxError('Unexpected token in JSON')),
+    ).toBe(LOCAL_SESSION_AUTHENTICATION_FAILED_MESSAGE)
   })
 })

@@ -1,7 +1,9 @@
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
+import * as Effect from 'effect/Effect'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { LocalSessionCommandAuthorizationError } from '../errors'
 import type { LocalSessionCliClientInput } from '../local-session-cli-client'
 import {
   type LocalSessionHostRuntime,
@@ -77,9 +79,16 @@ describe('Sessions CLI Host rejection', () => {
           },
         }
       },
-      dispatch: async () => {
-        throw Object.assign(new Error('An error has occurred'), { code: 'capability_denied' })
-      },
+      // The real dispatcher rejects through Effect.runPromise, which wraps the tagged refusal.
+      dispatch: () =>
+        Effect.runPromise(
+          Effect.fail(
+            new LocalSessionCommandAuthorizationError({
+              code: 'capability_denied',
+              missing: ['sessions:discover'],
+            }),
+          ),
+        ),
     })
     mocks.clientInput = {
       paths,
@@ -97,7 +106,7 @@ describe('Sessions CLI Host rejection', () => {
       error: {
         kind: 'authorization',
         message:
-          'Session command refused (capability_denied): the caller lacks a Session capability this operation requires.',
+          'Session command refused (capability_denied): the caller lacks a Session capability this operation requires. Missing capabilities: sessions:discover.',
       },
     })
     expect(exitCode).toBe(4)

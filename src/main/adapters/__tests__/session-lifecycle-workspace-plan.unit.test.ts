@@ -95,6 +95,10 @@ describe('Session lifecycle workspace plan across projects', () => {
   })
 
   it('still refuses an unknown initiating Workspace', async () => {
-    await expect(plan(undefined, '/somewhere/else')).rejects.toThrow()
+    const failure = await plan(undefined, '/somewhere/else').then(
+      () => undefined,
+      (error: unknown) => error,
+    )
+    expect(sessionCommandFailureMessage(failure)).toContain('initiating-workspace-not-found')
   })
 })

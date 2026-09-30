@@ -48,6 +48,20 @@ describe('describeError', () => {
     )
   })
 
+  it('logs a bare-object cause as JSON and leaves it out of text for callers', () => {
+    const error = new RepositoryError({
+      operation: 'plan-workspace',
+      cause: { projectPath: '/projects/private' },
+    })
+
+    expect(describeError(error)).toBe(
+      'SessionProjectionRepositoryError (plan-workspace) <- {"projectPath":"/projects/private"}',
+    )
+    expect(describeError(error, { plainObjects: 'omit' })).toBe(
+      'SessionProjectionRepositoryError (plan-workspace)',
+    )
+  })
+
   it('describes non-error values', () => {
     expect(describeError('boom')).toBe('boom')
     expect(describeError(undefined)).toBe('undefined')

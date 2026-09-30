@@ -1,6 +1,7 @@
 import { fromAny } from '@total-typescript/shoehorn'
 import { Check } from 'typebox/value'
 import { describe, expect, it } from 'vitest'
+import { sessionsToolSchemaForCapabilities } from '../sessions-tool-capability-schema'
 import {
   assertSessionsToolActionArguments,
   flattenSessionsToolParameters,
@@ -70,6 +71,18 @@ describe('sessions tool flattened schema', () => {
     expect(objective.description).toBe('Required for launch, spawn.')
     expect(projectPath.description).toBeUndefined()
     expect(shape.required).toEqual(['action'])
+  })
+
+  it('names only permitted actions in the required notes of a capability-filtered schema', () => {
+    const shape = schemaShape(
+      sessionsToolSchemaForCapabilities({
+        capabilities: ['sessions:discover', 'sessions:read', 'sessions:spawn'],
+        modelMultiAgentEnabled: true,
+      }),
+    )
+    const objective = fromAny<{ description?: string }, unknown>(shape.properties?.objective)
+
+    expect(objective.description).toBe('Required for spawn.')
   })
 
   it('keeps TypeBox internal keys out of the serialized provider schema', () => {
