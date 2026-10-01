@@ -138,7 +138,11 @@ describe('applyAgentTransportEvent incorporated user messages', () => {
       timestamp: 1_000,
     })
 
-    expect(messages.at(-1)?.metadata).toEqual({ sessionNodeCreatedOrder: 2, waggleInvocation })
+    expect(messages.at(-1)?.metadata).toEqual({
+      sessionNodeCreatedOrder: 2,
+      waggleInvocation,
+      liveIncorporated: true,
+    })
   })
 
   it('ignores a user message start without content', () => {

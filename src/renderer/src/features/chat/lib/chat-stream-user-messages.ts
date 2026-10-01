@@ -51,7 +51,7 @@ export function applyIncorporatedUserMessage(
     role: 'user',
     parts: userMessage.parts.flatMap(messagePartToUIParts),
     createdAt: new Date(event.timestamp),
-    metadata: incorporatedUserMetadata(userMessage),
+    metadata: { ...incorporatedUserMetadata(userMessage), liveIncorporated: true },
   }
   const alreadyShown = messages.some(
     (message) =>
