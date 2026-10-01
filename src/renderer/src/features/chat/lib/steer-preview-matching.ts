@@ -79,10 +79,11 @@ function incorporatedContentOf(message: UIMessage): SteerIncorporatedContent {
 }
 
 /**
- * While the Host has not answered a promotion yet, a user row the Run incorporated after the
- * preview began, with exactly the preview's typed text and attachment count, stands in for it so
- * the steer does not show twice until the receipt arrives. This pairing is display-only: it is
- * never recorded, and only the receipt's log boundary and digest name the delivered row.
+ * While the Host has not answered a promotion yet, a user row the log appended after the preview
+ * began (above every log order the transcript held then), with exactly the preview's typed text and
+ * attachment count, stands in for it so the steer does not show twice until the receipt arrives.
+ * This pairing is display-only: it is never recorded, and only the receipt's log boundary and
+ * digest name the delivered row.
  */
 function awaitingReceiptMessageIndex(
   messages: readonly UIMessage[],
@@ -91,9 +92,12 @@ function awaitingReceiptMessageIndex(
 ) {
   const expected = turn.incorporatedContent
   const index = messages.findIndex((message, candidateIndex) => {
+    const createdOrder = message.metadata?.sessionNodeCreatedOrder
     if (
       message.role !== 'user' ||
-      message.metadata?.sessionNodeCreatedOrder === undefined ||
+      createdOrder === undefined ||
+      // Only a message the log appended after the preview began can be the steer.
+      createdOrder <= turn.baselineMaxCreatedOrder ||
       turn.baselineUserMessageIds.has(message.id) ||
       consumedMessageIndexes.has(candidateIndex)
     ) {

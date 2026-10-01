@@ -119,6 +119,12 @@ export function useOptimisticSteeredTurn(
         incorporatedContent,
         durableContent: buildAgentPromptText(payload),
         baselineLength: messagesRef.current.length,
+        baselineMaxCreatedOrder: Math.max(
+          -1,
+          ...messagesRef.current.flatMap(
+            (message) => message.metadata?.sessionNodeCreatedOrder ?? [],
+          ),
+        ),
         baselineUserMessageIds: new Set(
           messagesRef.current.flatMap((message) => (message.role === 'user' ? [message.id] : [])),
         ),

@@ -19,6 +19,7 @@ function preview(id: string): OptimisticSteerPreview {
     durableContent: id,
     baselineLength: 0,
     baselineUserMessageIds: new Set<string>(),
+    baselineMaxCreatedOrder: -1,
     message,
   }
 }

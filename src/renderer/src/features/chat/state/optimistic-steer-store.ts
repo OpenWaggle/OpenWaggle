@@ -19,6 +19,8 @@ export interface OptimisticSteerPreview {
   readonly receipt?: Extract<AgentSteerDeliveryReceipt, { delivery: 'queued' }> | null
   readonly baselineLength: number
   readonly baselineUserMessageIds: ReadonlySet<string>
+  /** The highest native log order the transcript held when the preview began, or -1. */
+  readonly baselineMaxCreatedOrder: number
   readonly message: UIMessage
   readonly durableMessageId?: string
   readonly durableMessageCreatedOrder?: number

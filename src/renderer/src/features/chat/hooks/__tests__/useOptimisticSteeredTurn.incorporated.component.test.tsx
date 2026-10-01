@@ -153,4 +153,37 @@ describe('useOptimisticSteeredTurn with incorporated user messages', () => {
 
     expect(result.current.visibleMessages).toEqual(delivered)
   })
+
+  it('does not stand in an unrelated same-text row from before the preview began', () => {
+    const initialMessages = [userMessage('initial', 'start', 5)]
+    const messagesRef = { current: initialMessages }
+    const { result, rerender } = renderHook(
+      ({ hydratedMessages }) =>
+        useOptimisticSteeredTurn(
+          hydratedMessages,
+          SESSION_ID,
+          (payload) => payload.text,
+          messagesRef,
+          false,
+        ),
+      { initialProps: { hydratedMessages: initialMessages } },
+    )
+    act(() => {
+      result.current
+        .previewSteeredUserTurn({ ...FIRST_PAYLOAD, text: 'continue' }, 'sending')
+        .setReceipt(null)
+    })
+    // A re-keyed older row (a snapshot refresh changed its id) with the same text arrives first.
+    const unrelated = userMessage('rekeyed-older', 'continue', 3)
+    rerender({ hydratedMessages: [...initialMessages, unrelated] })
+
+    expect(
+      result.current.visibleMessages.filter((message) => message.metadata?.steerDelivery),
+    ).toHaveLength(1)
+
+    const steer = userMessage('live-user', 'continue', 6)
+    rerender({ hydratedMessages: [...initialMessages, unrelated, steer] })
+
+    expect(result.current.visibleMessages).toEqual([...initialMessages, unrelated, steer])
+  })
 })
