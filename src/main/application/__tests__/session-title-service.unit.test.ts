@@ -86,13 +86,34 @@ describe('generateInitialSessionTitle', () => {
     expect(publishSessionHostEventMock).not.toHaveBeenCalled()
   })
 
-  it('keeps the Provisional title when no model is available, without retrying', async () => {
+  it('keeps the title when no model is available, without retrying or trying again later', async () => {
+    const provisional = world().state.title
     world().replies.push(new SessionTitleGenerationError({ reason: 'no-model', message: 'none' }))
 
     await run(generateInitialSessionTitle({ sessionId: SESSION_ID, text: 'Hello' }))
 
     expect(world().requests).toHaveLength(1)
-    expect(world().state.source).toBe('provisional')
+    // Settled, so a Host restart does not spend the request again; a root still owes a refinement.
+    expect(world().state).toMatchObject({
+      title: provisional,
+      source: 'generated',
+      needsRefinement: true,
+    })
+  })
+
+  it('settles a Worker whose title request failed, with no refinement owed', async () => {
+    resetWorld({ isWorker: true, title: 'Review the auth module' })
+    world().replies.push(new SessionTitleGenerationError({ reason: 'no-model', message: 'none' }))
+
+    await run(
+      generateInitialSessionTitle({ sessionId: SESSION_ID, text: 'Review the auth module' }),
+    )
+
+    expect(world().state).toMatchObject({
+      title: 'Review the auth module',
+      source: 'generated',
+      needsRefinement: false,
+    })
   })
 
   it('retries a failed request twice with backoff before keeping the Provisional title', async () => {

@@ -20,7 +20,7 @@ export const TitleModelCopy = {
   automaticHelp: "Uses the cheapest available model from each session's own provider.",
   offHelp: 'Sessions keep their first message as the title.',
   selectedModelNote:
-    "Each session's first message and Worker objectives, and the conversation when a title is refined or regenerated, are sent to this model's provider.",
+    "Each session's first message and Worker objectives, and the conversation when a title is refined or regenerated, are sent to this model's provider. If it fails, the session's own model is used.",
 } as const
 
 interface TitleModelOption {

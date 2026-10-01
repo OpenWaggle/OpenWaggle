@@ -46,7 +46,7 @@ import {
   refreshAdmissionBeforeIdleLifecycleProjection,
   refreshAdmissionBeforeStartedLifecycleProjection,
 } from './session-lifecycle-event-projection'
-import { requestSpawnedWorkerTitle } from './session-title-scheduler'
+import { requestLifecycleTitle } from './session-title-scheduler'
 
 export {
   type ConfiguredHostUiInvocation,
@@ -232,7 +232,7 @@ function dispatchNonHostUiLocalSessionCommandImplementation(
         })
         yield* refreshAdmissionBeforeIdleLifecycleProjection(response, input.beforeProfileRefresh)
         publishLifecycleResponse(response)
-        requestSpawnedWorkerTitle(admittedPayload.request, response)
+        requestLifecycleTitle(admittedPayload.request, response)
         return { contract: 'session-lifecycle-v2', response } as const
       }).pipe(Effect.uninterruptible)
     }).pipe(Effect.ensuring(Effect.sync(admission.release)))

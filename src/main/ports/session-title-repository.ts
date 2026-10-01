@@ -16,7 +16,8 @@ export interface SessionTitleState {
   readonly archived: boolean
   /** Workers are titled from their Delegation objective and never receive Title refinement. */
   readonly isWorker: boolean
-  readonly createdAt: number
+  /** Last activity; title writes never move it, so it measures the Session's work, not its titles. */
+  readonly updatedAt: number
 }
 
 /**
@@ -32,11 +33,6 @@ export interface SessionTitleRepositoryShape {
   readonly getState: (
     sessionId: SessionId,
   ) => Effect.Effect<SessionTitleState | null, SessionTitleRepositoryError>
-  /** Turns a still-default title into the Provisional title; false when it is no longer default. */
-  readonly assignProvisional: (
-    sessionId: SessionId,
-    title: string,
-  ) => Effect.Effect<boolean, SessionTitleRepositoryError>
   /** Applies a generated title without touching recency; false when the expectation failed. */
   readonly applyGenerated: (input: {
     readonly sessionId: SessionId
@@ -48,18 +44,18 @@ export interface SessionTitleRepositoryShape {
   readonly clearRefinement: (
     sessionId: SessionId,
   ) => Effect.Effect<void, SessionTitleRepositoryError>
-  /** Recent Sessions still owed a Title refinement, for recovery after the Host restarts. */
+  /** Recently active Sessions still owed a Title refinement, for recovery after a Host restart. */
   readonly listPendingRefinements: (input: {
-    readonly createdAfter: number
+    readonly activeAfter: number
     readonly limit: number
   }) => Effect.Effect<readonly SessionId[], SessionTitleRepositoryError>
-  /** Settles refinements owed by Sessions older than the cutoff; a refinement belongs to a start. */
-  readonly settleRefinementsCreatedBefore: (
-    createdBefore: number,
+  /** Settles refinements owed by Sessions idle since the cutoff; a refinement belongs to a start. */
+  readonly settleRefinementsIdleSince: (
+    activeBefore: number,
   ) => Effect.Effect<void, SessionTitleRepositoryError>
-  /** Recent Sessions still showing a Provisional title, whose generation a Host restart cut off. */
+  /** Recently active Sessions still showing a Provisional title a Host restart cut off. */
   readonly listRecentProvisional: (input: {
-    readonly createdAfter: number
+    readonly activeAfter: number
     readonly limit: number
   }) => Effect.Effect<readonly SessionId[], SessionTitleRepositoryError>
 }

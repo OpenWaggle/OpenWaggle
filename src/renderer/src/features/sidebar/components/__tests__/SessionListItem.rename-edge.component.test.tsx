@@ -85,4 +85,32 @@ describe('SessionListItem rename edge cases', () => {
       expect(screen.getByRole('button', { name: 'Keyboard rename' })).toHaveFocus(),
     )
   })
+
+  it('saves a blur that comes after the refocus window, even without user input', async () => {
+    const now = vi.spyOn(performance, 'now')
+    now.mockReturnValue(1_000)
+    renderStoreBackedRow()
+    startRename()
+    fireEvent.change(titleField(), { target: { value: 'Late blur title' } })
+
+    now.mockReturnValue(2_000)
+    fireEvent.blur(titleField())
+
+    await waitFor(() =>
+      expect(updateSessionTitleMock).toHaveBeenCalledWith(TITLE_SESSION_ID, 'Late blur title'),
+    )
+    now.mockRestore()
+  })
+
+  it('saves a blur inside the refocus window once the person has typed', async () => {
+    renderStoreBackedRow()
+    startRename()
+    fireEvent.keyDown(titleField(), { key: 'x' })
+    fireEvent.change(titleField(), { target: { value: 'Typed title' } })
+    fireEvent.blur(titleField())
+
+    await waitFor(() =>
+      expect(updateSessionTitleMock).toHaveBeenCalledWith(TITLE_SESSION_ID, 'Typed title'),
+    )
+  })
 })

@@ -179,14 +179,19 @@ interface LifecycleTitle {
 const DEFAULT_LIFECYCLE_TITLE: LifecycleTitle = { title: DEFAULT_SESSION_TITLE, source: 'default' }
 
 /**
- * A Worker starts with its objective trimmed like a first message, a Provisional title the Title
- * model replaces in the background. An explicitly given title is manual and never generated over.
+ * A Worker, or a root launched without a title, starts with its objective trimmed like a first
+ * message, a Provisional title the Title model replaces in the background. An explicitly given
+ * title is manual and never generated over.
  */
 function lifecycleTitleFromCommand(
   command: ExecuteInput['request']['command'],
 ): LifecycleTitle | null {
   if (command.operation === 'spawn') {
     return { title: buildDeterministicTitle(command.delegation.objective), source: 'provisional' }
+  }
+  // A launched root already has its first message; show it while its first Run is still queued.
+  if (command.operation === 'launch' && command.title === undefined) {
+    return { title: buildDeterministicTitle(command.objective), source: 'provisional' }
   }
   return command.title === undefined
     ? null

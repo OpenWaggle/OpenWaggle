@@ -8,6 +8,8 @@ import * as Layer from 'effect/Layer'
 import { afterEach, describe, expect, it } from 'vitest'
 import { SessionLifecycleRepository } from '../../ports/session-lifecycle-repository'
 import { SessionTitleRepository } from '../../ports/session-title-repository'
+import { assignProvisionalSessionTitle } from '../../store/session-details/session-mutations'
+import { setStoreEffectRunner } from '../../store/store-runtime'
 import { SqliteSessionTitleRepositoryLive } from '../sqlite-session-title-repository'
 import {
   makeSessionLifecycleTestLayer,
@@ -35,7 +37,16 @@ describe('SQLite Session title repository', () => {
     temporaryRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-title-repository-'))
     const base = makeSessionLifecycleTestLayer(path.join(temporaryRoot, 'titles.sqlite'))
     const layer = Layer.merge(base, SqliteSessionTitleRepositoryLive.pipe(Layer.provide(base)))
-    return Effect.runPromise(program.pipe(Effect.provide(layer)))
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        // The Provisional-title write lives in the session store, which runs through this hook.
+        setStoreEffectRunner((effect) =>
+          Effect.runPromise(effect.pipe(Effect.provideService(SqlClient.SqlClient, sql))),
+        )
+        return yield* program
+      }).pipe(Effect.provide(layer)),
+    )
   }
 
   function createUntitledRoot() {
@@ -100,10 +111,13 @@ describe('SQLite Session title repository', () => {
     const result = await withRepository(
       Effect.gen(function* () {
         yield* createUntitledRoot()
-        const repository = yield* SessionTitleRepository
         const before = yield* titleRow(ROOT)
-        const first = yield* repository.assignProvisional(ROOT, 'Hello world')
-        const second = yield* repository.assignProvisional(ROOT, 'Another message')
+        const first = yield* Effect.promise(() =>
+          assignProvisionalSessionTitle(ROOT, 'Hello world'),
+        )
+        const second = yield* Effect.promise(() =>
+          assignProvisionalSessionTitle(ROOT, 'Another message'),
+        )
         return { before, first, second, after: yield* titleRow(ROOT) }
       }),
     )
@@ -123,7 +137,7 @@ describe('SQLite Session title repository', () => {
       Effect.gen(function* () {
         yield* createUntitledRoot()
         const repository = yield* SessionTitleRepository
-        yield* repository.assignProvisional(ROOT, 'fix this')
+        yield* Effect.promise(() => assignProvisionalSessionTitle(ROOT, 'fix this'))
         const stale = yield* repository.applyGenerated({
           sessionId: ROOT,
           expected: { title: 'something else', sources: ['provisional'] },
@@ -136,13 +150,13 @@ describe('SQLite Session title repository', () => {
           title: 'Fix failing test',
           needsRefinement: true,
         })
-        const pending = yield* repository.listPendingRefinements({ createdAfter: 0, limit: 10 })
+        const pending = yield* repository.listPendingRefinements({ activeAfter: 0, limit: 10 })
         yield* repository.clearRefinement(ROOT)
         return {
           stale,
           applied,
           pending,
-          afterClear: yield* repository.listPendingRefinements({ createdAfter: 0, limit: 10 }),
+          afterClear: yield* repository.listPendingRefinements({ activeAfter: 0, limit: 10 }),
           row: yield* titleRow(ROOT),
         }
       }),

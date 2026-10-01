@@ -21,7 +21,7 @@ interface SessionTitleRow {
   readonly archived: number
   readonly execution_model_id: string | null
   readonly is_worker: number
-  readonly created_at: number
+  readonly updated_at: number
 }
 
 function repositoryError(operation: string, cause: unknown) {
@@ -41,7 +41,7 @@ function toState(row: SessionTitleRow): SessionTitleState {
     executionModel: row.execution_model_id ? SupportedModelId(row.execution_model_id) : null,
     archived: row.archived === 1,
     isWorker: row.is_worker === 1,
-    createdAt: row.created_at,
+    updatedAt: row.updated_at,
   }
 }
 
@@ -55,7 +55,7 @@ function getState(sql: SqlClient.SqlClient, sessionId: SessionId) {
         sessions.title_needs_refinement,
         sessions.project_path,
         sessions.archived,
-        sessions.created_at,
+        sessions.updated_at,
         json_extract(session_execution_profiles.profile_json, '$.modelId') AS execution_model_id,
         EXISTS (
           SELECT 1 FROM session_spawn_lineage
@@ -104,23 +104,6 @@ function applyGenerated(
   )
 }
 
-function assignProvisional(sql: SqlClient.SqlClient, sessionId: SessionId, provisional: string) {
-  const title = assertSessionTitle(provisional)
-  return sql.withTransaction(
-    Effect.gen(function* () {
-      const rows = yield* sql<{ readonly id: string }>`
-        UPDATE sessions
-        SET title = ${title}, title_source = ${'provisional'}, title_needs_refinement = ${0}
-        WHERE id = ${sessionId} AND title_source = ${'default'}
-        RETURNING id
-      `
-      if (rows.length === 0) return false
-      yield* persistSessionReportTitleReference(sql, sessionId, title)
-      return true
-    }),
-  )
-}
-
 export const SqliteSessionTitleRepositoryLive = Layer.effect(
   SessionTitleRepository,
   Effect.gen(function* () {
@@ -128,10 +111,6 @@ export const SqliteSessionTitleRepositoryLive = Layer.effect(
     return SessionTitleRepository.of({
       getState: (sessionId) =>
         getState(sql, sessionId).pipe(Effect.mapError((cause) => repositoryError('get', cause))),
-      assignProvisional: (sessionId, title) =>
-        assignProvisional(sql, sessionId, title).pipe(
-          Effect.mapError((cause) => repositoryError('assign-provisional', cause)),
-        ),
       applyGenerated: (input) =>
         applyGenerated(sql, input).pipe(
           Effect.mapError((cause) => repositoryError('apply-generated', cause)),
@@ -141,28 +120,28 @@ export const SqliteSessionTitleRepositoryLive = Layer.effect(
           Effect.asVoid,
           Effect.mapError((cause) => repositoryError('clear-refinement', cause)),
         ),
-      listPendingRefinements: ({ createdAfter, limit }) =>
+      listPendingRefinements: ({ activeAfter, limit }) =>
         sql<{ readonly id: string }>`
           SELECT id FROM sessions
           WHERE title_needs_refinement = ${1} AND title_source = ${'generated'} AND archived = ${0}
-            AND created_at >= ${createdAfter}
-          ORDER BY created_at DESC
+            AND updated_at >= ${activeAfter}
+          ORDER BY updated_at DESC
           LIMIT ${limit}
         `.pipe(
           Effect.map((rows) => rows.map((row) => SessionId(row.id))),
           Effect.mapError((cause) => repositoryError('list-pending-refinements', cause)),
         ),
-      settleRefinementsCreatedBefore: (createdBefore) =>
+      settleRefinementsIdleSince: (activeBefore) =>
         sql`UPDATE sessions SET title_needs_refinement = ${0}
-          WHERE title_needs_refinement = ${1} AND created_at < ${createdBefore}`.pipe(
+          WHERE title_needs_refinement = ${1} AND updated_at < ${activeBefore}`.pipe(
           Effect.asVoid,
           Effect.mapError((cause) => repositoryError('settle-stale-refinements', cause)),
         ),
-      listRecentProvisional: ({ createdAfter, limit }) =>
+      listRecentProvisional: ({ activeAfter, limit }) =>
         sql<{ readonly id: string }>`
           SELECT id FROM sessions
-          WHERE title_source = ${'provisional'} AND archived = ${0} AND created_at >= ${createdAfter}
-          ORDER BY created_at DESC
+          WHERE title_source = ${'provisional'} AND archived = ${0} AND updated_at >= ${activeAfter}
+          ORDER BY updated_at DESC
           LIMIT ${limit}
         `.pipe(
           Effect.map((rows) => rows.map((row) => SessionId(row.id))),

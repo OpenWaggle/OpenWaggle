@@ -179,17 +179,20 @@ export function SessionListItem({
         />
       </span>
 
-      <SessionRowHoverActions isActive={isActive} menuOpen={menu.menuOpen}>
-        <SessionPinButton
-          isPinned={isPinned}
-          session={session}
-          onClick={(event) => {
-            event.stopPropagation()
-            actions.togglePin(sessionId)
-          }}
-        />
-        <SessionRowMenuTrigger session={session} onClick={menu.openUnderButton} />
-      </SessionRowHoverActions>
+      {/* The rename field spans the title line; its actions would sit under its text. */}
+      {rename.isEditing ? null : (
+        <SessionRowHoverActions isActive={isActive} menuOpen={menu.menuOpen}>
+          <SessionPinButton
+            isPinned={isPinned}
+            session={session}
+            onClick={(event) => {
+              event.stopPropagation()
+              actions.togglePin(sessionId)
+            }}
+          />
+          <SessionRowMenuTrigger session={session} onClick={menu.openUnderButton} />
+        </SessionRowHoverActions>
+      )}
 
       <SessionItemContextMenu
         open={menu.menuOpen}

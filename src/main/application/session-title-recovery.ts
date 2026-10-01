@@ -4,7 +4,7 @@ import { toSessionTitleContextMessage } from '../domain/session-title/session-ti
 import { createLogger } from '../logger'
 import { SessionProjectionRepository } from '../ports/session-projection-repository'
 import { SessionTitleRepository } from '../ports/session-title-repository'
-import { TITLE_WORK_WINDOW_MS } from './session-title-generation'
+import { enabledTitleModel, TITLE_WORK_WINDOW_MS } from './session-title-generation'
 import { refineSessionTitle } from './session-title-refinement'
 import { generateInitialSessionTitle } from './session-title-service'
 
@@ -12,11 +12,18 @@ const logger = createLogger('session-title-recovery')
 
 const RECOVERY_LIMIT = 20
 
+function logItemFailure(sessionId: SessionId) {
+  return (cause: unknown) =>
+    Effect.sync(() => {
+      logger.warn('Could not resume title work for a Session', { sessionId, cause: String(cause) })
+    })
+}
+
 /** A Provisional title whose generation a Host restart cut off is generated again from its first message. */
 function resumeProvisional(sessionId: SessionId) {
   return Effect.gen(function* () {
-    const session = yield* (yield* SessionProjectionRepository).get(sessionId)
-    const first = session.messages.find((message) => message.role === 'user')
+    const session = yield* (yield* SessionProjectionRepository).getOptional(sessionId)
+    const first = session?.messages.find((message) => message.role === 'user')
     // No first message yet: the first Run's preflight asks for the title itself.
     if (!first) return
     const message = toSessionTitleContextMessage(first)
@@ -34,16 +41,19 @@ function resumeProvisional(sessionId: SessionId) {
  */
 export const recoverSessionTitleWork = Effect.gen(function* () {
   const repository = yield* SessionTitleRepository
-  const createdAfter = Date.now() - TITLE_WORK_WINDOW_MS
-  yield* repository.settleRefinementsCreatedBefore(createdAfter)
+  const activeAfter = Date.now() - TITLE_WORK_WINDOW_MS
+  yield* repository.settleRefinementsIdleSince(activeAfter)
+  // Off generates nothing, so there is nothing to resume or read.
+  if ((yield* enabledTitleModel()) === null) return
   for (const sessionId of yield* repository.listRecentProvisional({
-    createdAfter,
+    activeAfter,
     limit: RECOVERY_LIMIT,
   })) {
-    yield* resumeProvisional(sessionId)
+    // One Session that was deleted or cannot be read must not stop the others.
+    yield* resumeProvisional(sessionId).pipe(Effect.catchAllCause(logItemFailure(sessionId)))
   }
   for (const sessionId of yield* repository.listPendingRefinements({
-    createdAfter,
+    activeAfter,
     limit: RECOVERY_LIMIT,
   })) {
     yield* refineSessionTitle(sessionId)

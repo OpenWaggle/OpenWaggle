@@ -21,11 +21,14 @@ import { SettingsService } from '../../services/settings-service'
 
 export const publishSessionHostEventMock: Mock<(event: unknown) => void> = vi.fn()
 
+/** A scripted reply that never arrives, for timeout tests. */
+export const HANG = 'hang'
+
 export const SESSION_ID = SessionId('session-1')
 export const SESSION_MODEL = SupportedModelId('anthropic/claude-opus')
 
 export function text(role: Message['role'], body: string, id: string): Message {
-  return { id: MessageId(id), role, parts: [{ type: 'text', text: body }], createdAt: 1 }
+  return { id: MessageId(id), role, parts: [{ type: 'text', text: body }], createdAt: Date.now() }
 }
 
 export interface World {
@@ -66,7 +69,7 @@ function makeWorld(overrides: Partial<SessionTitleState> = {}): World {
       executionModel: SESSION_MODEL,
       archived: false,
       isWorker: false,
-      createdAt: Date.now(),
+      updatedAt: Date.now(),
       ...overrides,
     },
     messages: [],
@@ -81,7 +84,6 @@ const TestRepository = Layer.succeed(
   SessionTitleRepository,
   SessionTitleRepository.of({
     getState: () => Effect.sync(() => ({ ...world().state })),
-    assignProvisional: () => Effect.succeed(false),
     applyGenerated: (input) =>
       Effect.sync(() => {
         const current = world().state
@@ -102,9 +104,9 @@ const TestRepository = Layer.succeed(
         world().cleared.push(sessionId)
         world().state = { ...world().state, needsRefinement: false }
       }),
-    settleRefinementsCreatedBefore: (createdBefore) =>
+    settleRefinementsIdleSince: (activeBefore) =>
       Effect.sync(() => {
-        if (world().state.createdAt < createdBefore) {
+        if (world().state.updatedAt < activeBefore) {
           world().state = { ...world().state, needsRefinement: false }
         }
       }),
@@ -128,6 +130,7 @@ const TestGenerator = Layer.succeed(
         world().duringGeneration?.()
         const reply = world().replies.shift()
         if (reply === undefined) return Effect.dieMessage('No scripted Title model reply')
+        if (reply === HANG) return Effect.never
         return reply instanceof SessionTitleGenerationError
           ? Effect.fail(reply)
           : Effect.succeed({ text: reply, modelRef: SupportedModelId('anthropic/claude-haiku') })
@@ -142,22 +145,24 @@ const TestSettings = Layer.succeed(
   }),
 )
 
+function projectedSession(): SessionDetail {
+  const messages = [...world().messages]
+  world().duringRead?.()
+  return {
+    id: SESSION_ID,
+    title: world().state.title,
+    projectPath: '/repo',
+    messages,
+    createdAt: 1,
+    updatedAt: 1,
+  }
+}
+
 const TestProjection = Layer.succeed(
   SessionProjectionRepository,
   fromPartial({
-    get: () =>
-      Effect.sync((): SessionDetail => {
-        const messages = [...world().messages]
-        world().duringRead?.()
-        return {
-          id: SESSION_ID,
-          title: world().state.title,
-          projectPath: '/repo',
-          messages,
-          createdAt: 1,
-          updatedAt: 1,
-        }
-      }),
+    get: () => Effect.sync(projectedSession),
+    getOptional: () => Effect.sync(projectedSession),
   }),
 )
 

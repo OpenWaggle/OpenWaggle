@@ -37,7 +37,7 @@ function spawned(replayed = false): SessionLifecycleResponse {
 
 describe('session title scheduler', () => {
   it('does nothing outside the Session Host and answers regeneration with a failure', async () => {
-    scheduler.requestSpawnedWorkerTitle(spawnRequest(), spawned())
+    scheduler.requestLifecycleTitle(spawnRequest(), spawned())
 
     expect(generateMock).not.toHaveBeenCalled()
     await expect(scheduler.runSessionTitleRegeneration(SessionId('s'))).resolves.toMatchObject({
@@ -53,17 +53,39 @@ describe('session title scheduler', () => {
       ),
     )
 
-    scheduler.requestSpawnedWorkerTitle(spawnRequest(), spawned(true))
-    scheduler.requestSpawnedWorkerTitle(
+    scheduler.requestLifecycleTitle(spawnRequest(), spawned(true))
+    scheduler.requestLifecycleTitle(
       spawnRequest(),
       fromPartial({ replayed: false, outcome: { effect: 'launched-root', sessionId: 'root' } }),
     )
-    scheduler.requestSpawnedWorkerTitle(spawnRequest(), spawned())
+    scheduler.requestLifecycleTitle(spawnRequest(), spawned())
     await vi.waitFor(() => expect(generateMock).toHaveBeenCalledTimes(1))
 
     expect(generateMock).toHaveBeenCalledWith({
       sessionId: 'worker-1',
       text: 'Review the auth module',
     })
+  })
+
+  it('titles an untitled launched root from its objective, but never one launched with a title', async () => {
+    generateMock.mockClear()
+    const launch = (title?: string): SessionLifecycleRequest =>
+      fromPartial({
+        command: {
+          operation: 'launch',
+          objective: 'Audit the schema',
+          ...(title === undefined ? {} : { title }),
+        },
+      })
+    const launched: SessionLifecycleResponse = fromPartial({
+      replayed: false,
+      outcome: { operation: 'launch', effect: 'launched-root', sessionId: 'root-1' },
+    })
+
+    scheduler.requestLifecycleTitle(launch('Named by caller'), launched)
+    scheduler.requestLifecycleTitle(launch(), launched)
+    await vi.waitFor(() => expect(generateMock).toHaveBeenCalledTimes(1))
+
+    expect(generateMock).toHaveBeenCalledWith({ sessionId: 'root-1', text: 'Audit the schema' })
   })
 })

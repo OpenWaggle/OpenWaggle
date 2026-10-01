@@ -25,8 +25,12 @@ interface RenameEdit {
 }
 
 const USER_INPUT_EVENTS = ['pointerdown', 'keydown'] as const
-/** How long after an edit starts a focus move nobody asked for is undone instead of saving. */
-const PROGRAMMATIC_BLUR_GRACE_MS = 1_000
+/**
+ * How long after an edit starts a focus move nobody asked for is undone instead of saving. React
+ * restores focus within a frame or two of the commit; the window stays short so an assistive
+ * technology moving focus without key events is only briefly held back.
+ */
+const PROGRAMMATIC_BLUR_GRACE_MS = 400
 
 /**
  * Inline rename for one Session title. Enter or blur saves, Escape cancels.
@@ -41,7 +45,7 @@ const PROGRAMMATIC_BLUR_GRACE_MS = 1_000
  * Only a person ends an edit by leaving the field. Double-clicking an inactive Session row opens
  * that Session with the first click and the rename with the second, and React then restores the
  * focus it captured before the Session switch committed, which moved the caret to the composer
- * and closed the rename. A blur shortly after the edit starts, with no pointer or key input since,
+ * and closed the rename. A blur just after the edit starts, with no pointer or key input since,
  * puts the caret back instead.
  */
 export function useSessionTitleRename(

@@ -8,7 +8,7 @@ import {
   formatSessionTitleContext,
   toSessionTitleContextMessage,
 } from '../domain/session-title/session-title-context'
-import type { SessionTitleGenerationError } from '../errors'
+import { SessionTitleGenerationError } from '../errors'
 import { createLogger } from '../logger'
 import { SessionProjectionRepository } from '../ports/session-projection-repository'
 import type { SessionTitleGenerator } from '../ports/session-title-generator'
@@ -31,6 +31,8 @@ const INITIAL_TITLE_RETRY = Schedule.intersect(
   Schedule.recurs(2),
 )
 const FAILURE_MESSAGE_MAX_LENGTH = 200
+/** A Regenerate a person is waiting for ends with a message instead of spinning forever. */
+const REGENERATION_TIMEOUT = '60 seconds'
 
 function generateInitial(input: {
   readonly sessionId: SessionId
@@ -61,13 +63,24 @@ function generateInitial(input: {
         while: (error) =>
           error._tag !== 'SessionTitleGenerationError' || error.reason !== 'no-model',
       }),
+      // After the retries, a failed request settles like a reply with no usable title, so Host
+      // restarts do not spend the same request again on every start.
+      Effect.catchTag('SessionTitleGenerationError', (error) =>
+        Effect.sync(() => {
+          logger.warn('Title model request failed; keeping the current title', {
+            sessionId: input.sessionId,
+            reason: error.reason,
+          })
+          return { kind: 'generated', generated: null } as const
+        }),
+      ),
     )
     if (attempt.kind === 'off') return
     const { generated } = attempt
     // As in T3 Code, a reply with no usable title keeps the current title and owes a root one
     // refinement, which names the Session once its first turn has an answer. A first message with
-    // only an attachment is always owed one: its subject is in the reply, not the request.
-    if (!generated && state.isWorker) return
+    // only an attachment is always owed one: its subject is in the reply, not the request. A
+    // Worker is never refined, so its Provisional title simply becomes its title.
     const needsRefinement =
       !state.isWorker && (!generated || generated.needsRefinement || !input.text.trim())
     const applied = yield* repository.applyGenerated({
@@ -147,7 +160,18 @@ function regenerate(
       message: context.message,
       previousTitle: state.title,
       attachments: context.attachments,
-    }).pipe(Effect.either)
+      priority: 'user',
+    }).pipe(
+      Effect.timeoutFail({
+        duration: REGENERATION_TIMEOUT,
+        onTimeout: () =>
+          new SessionTitleGenerationError({
+            reason: 'request-failed',
+            message: 'The Title model did not answer in time.',
+          }),
+      }),
+      Effect.either,
+    )
     if (generated._tag === 'Left') {
       return generated.left.reason === 'no-model'
         ? ({ outcome: 'unavailable', reason: 'no-model' } as const)

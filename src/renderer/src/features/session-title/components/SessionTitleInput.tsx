@@ -33,6 +33,8 @@ export function SessionTitleInput({
         }
       }}
       onClick={(event) => event.stopPropagation()}
+      // Selecting text and dragging it must not start the row's own drag.
+      onDragStart={(event) => event.stopPropagation()}
       onDoubleClick={(event) => event.stopPropagation()}
       variant="transparent"
       inputSize="sm"

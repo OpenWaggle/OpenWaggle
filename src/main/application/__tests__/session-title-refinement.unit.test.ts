@@ -1,10 +1,11 @@
-import { Effect } from 'effect'
+import { Effect, Fiber, TestClock, TestContext } from 'effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { SessionTitleGenerationError } from '../../errors'
 import { recoverSessionTitleWork } from '../session-title-recovery'
 import { refineSessionTitle } from '../session-title-refinement'
 import { regenerateSessionTitle } from '../session-title-service'
 import {
+  HANG,
   json,
   resetWorld,
   run,
@@ -66,15 +67,10 @@ describe('refineSessionTitle', () => {
     expect(world().state).toMatchObject({ title: 'Screenshot review', needsRefinement: false })
   })
 
-  it('settles instead of refining a Session older than a day', async () => {
-    resetWorld({
-      title: 'Screenshot review',
-      source: 'generated',
-      needsRefinement: true,
-      createdAt: Date.now() - 2 * 24 * 60 * 60 * 1000,
-    })
+  it('settles instead of refining when the first message is older than a day', async () => {
+    const dayAndAHalfAgo = Date.now() - 36 * 60 * 60 * 1000
     world().messages = [
-      text('user', 'look at this', 'u1'),
+      { ...text('user', 'look at this', 'u1'), createdAt: dayAndAHalfAgo },
       text('assistant', 'Sidebar rows.', 'a1'),
     ]
 
@@ -82,6 +78,35 @@ describe('refineSessionTitle', () => {
 
     expect(world().requests).toEqual([])
     expect(world().state.needsRefinement).toBe(false)
+  })
+
+  it('refines a Session created long ago whose first message is recent', async () => {
+    resetWorld({
+      title: 'Screenshot review',
+      source: 'generated',
+      needsRefinement: true,
+      updatedAt: Date.now(),
+    })
+    world().messages = [
+      { ...text('user', 'look at this', 'u1'), createdAt: Date.now() },
+      text('assistant', 'Sidebar rows overlap.', 'a1'),
+    ]
+    world().replies.push(json('Fix sidebar row overlap'))
+
+    await run(refineSessionTitle(SESSION_ID))
+
+    expect(world().state.title).toBe('Fix sidebar row overlap')
+  })
+
+  it('reads and resumes nothing on a Host restart while the Title model is Off', async () => {
+    resetWorld({ title: 'make titles short', source: 'provisional' })
+    world().messages = [text('user', 'make titles short', 'u1')]
+    world().titleModel = 'off'
+
+    await run(recoverSessionTitleWork)
+
+    expect(world().requests).toEqual([])
+    expect(world().state.source).toBe('provisional')
   })
 
   it('runs a trigger that arrived during a refinement once it finishes', async () => {
@@ -168,6 +193,23 @@ describe('regenerateSessionTitle', () => {
 
     expect(await run(regenerateSessionTitle(SESSION_ID))).toEqual({ outcome: 'superseded' })
     expect(world().state.title).toBe('Newer rename')
+  })
+
+  it('gives up after a minute when the Title model never answers', async () => {
+    world().replies.push(HANG)
+
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const fiber = yield* Effect.fork(regenerateSessionTitle(SESSION_ID))
+        yield* TestClock.adjust('61 seconds')
+        return yield* Fiber.join(fiber)
+      }).pipe(Effect.provide(TestLayer), Effect.provide(TestContext.TestContext)),
+    )
+
+    expect(result).toEqual({
+      outcome: 'failed',
+      message: 'The Title model did not answer in time.',
+    })
   })
 
   it('reports why it could not run', async () => {

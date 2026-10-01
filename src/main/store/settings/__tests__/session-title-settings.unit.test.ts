@@ -9,10 +9,10 @@ import {
 import { buildNextSettingsSnapshot } from '../snapshot'
 
 describe('Title model settings', () => {
-  it('defaults to Automatic and ignores an invalid stored value', () => {
+  it('defaults to Automatic and fails closed to Off on an invalid stored value', () => {
     expect(resolveStoredSessionTitleSettings({})).toEqual({ sessionTitleModel: 'automatic' })
-    expect(resolveStoredSessionTitleSettings({ sessionTitleModel: 'not-a-model' })).toEqual({
-      sessionTitleModel: 'automatic',
+    expect(resolveStoredSessionTitleSettings({ sessionTitleModel: 'none' })).toEqual({
+      sessionTitleModel: 'off',
     })
     expect(resolveStoredSessionTitleSettings({ sessionTitleModel: 'off' })).toEqual({
       sessionTitleModel: 'off',

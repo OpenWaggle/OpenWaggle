@@ -81,6 +81,27 @@ describe('SQLite Session lifecycle title persistence', () => {
     )
   })
 
+  it('starts an untitled launched root with a Provisional title from its objective', async () => {
+    temporaryRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-lifecycle-title-'))
+    const layer = makeSessionLifecycleTestLayer(path.join(temporaryRoot, 'launch.sqlite'))
+    const launched = rootLifecycleInput('launch')
+    const { title: _title, ...untitled } = launched.request.command
+    const rows = await Effect.runPromise(
+      Effect.gen(function* () {
+        yield* (yield* SessionLifecycleRepository).execute({
+          ...launched,
+          request: { ...launched.request, command: untitled },
+        })
+        const sql = yield* SqlClient.SqlClient
+        return yield* sql<{ readonly title: string; readonly title_source: string }>`
+          SELECT title, title_source FROM sessions WHERE id = ${'session-launch'}
+        `
+      }).pipe(Effect.provide(layer)),
+    )
+
+    expect(rows).toEqual([{ title: 'Audit the target schema.', title_source: 'provisional' }])
+  })
+
   it('rejects a blank explicit title when an internal caller bypasses boundary decoding', async () => {
     temporaryRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-lifecycle-title-'))
     const layer = makeSessionLifecycleTestLayer(path.join(temporaryRoot, 'blank.sqlite'))

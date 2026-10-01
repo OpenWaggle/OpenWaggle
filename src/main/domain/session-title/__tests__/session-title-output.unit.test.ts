@@ -59,4 +59,22 @@ describe('sanitizeGeneratedSessionTitle', () => {
     expect(title?.endsWith('...')).toBe(true)
     expect(title).not.toContain('wor...')
   })
+
+  it('never splits an emoji when it bounds a title without spaces', () => {
+    const title = sanitizeGeneratedSessionTitle('😀'.repeat(100)) ?? ''
+
+    expect(title.endsWith('...')).toBe(true)
+    expect(title.length).toBeLessThanOrEqual(GENERATED_SESSION_TITLE_MAX_LENGTH)
+    expect(title.isWellFormed()).toBe(true)
+  })
+
+  it('removes control and bidi override characters', () => {
+    expect(sanitizeGeneratedSessionTitle('\u202eevil\u202c title\u0000x')).toBe('evil title x')
+  })
+
+  it('skips a preamble line that introduces the title', () => {
+    expect(sanitizeGeneratedSessionTitle('Sure! Here is a title:\nFix sidebar overlap')).toBe(
+      'Fix sidebar overlap',
+    )
+  })
 })

@@ -33,6 +33,13 @@ const THINKING_BLOCK = /<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi
 const CODE_FENCE = /^```(?:json)?\s*|\s*```$/g
 const JSON_OBJECT = /\{[\s\S]*\}/
 const TITLE_LABEL = /^(?:title|session title)\s*:\s*/i
+/**
+ * Controls and bidi overrides would reach the sidebar, header, and window title. A Worker's
+ * objective, and so its title, can come from another model, so the text is not trusted.
+ */
+const UNSAFE_CHARACTERS = /[\p{Cc}\u200e\u200f\u202a-\u202e\u2066-\u2069]/gu
+/** A preamble such as "Sure! Here is a title:" introduces the answer on the next line. */
+const PREAMBLE_LINE = /:\s*$/
 const WRAPPING_QUOTES = /^["'`“”‘’]+|["'`“”‘’]+$/g
 const TRAILING_PUNCTUATION = /[\s.!?,;:]+$/
 
@@ -49,9 +56,14 @@ function decodeJsonTitle(text: string) {
   return decoded.success ? decoded.data : null
 }
 
+/** Cuts by code point, so an emoji or astral character is never split into a lone surrogate. */
 function boundTitle(title: string) {
   if (title.length <= GENERATED_SESSION_TITLE_MAX_LENGTH) return title
-  const cut = title.slice(0, GENERATED_SESSION_TITLE_MAX_LENGTH - ELLIPSIS.length)
+  let cut = ''
+  for (const character of title) {
+    if (cut.length + character.length > GENERATED_SESSION_TITLE_MAX_LENGTH - ELLIPSIS.length) break
+    cut += character
+  }
   const lastSpace = cut.lastIndexOf(' ')
   return `${(lastSpace > 0 ? cut.slice(0, lastSpace) : cut).trimEnd()}${ELLIPSIS}`
 }
@@ -68,10 +80,11 @@ function stripWrapping(text: string) {
 
 /** One line, no label, quotes, or trailing punctuation; null when nothing usable is left. */
 export function sanitizeGeneratedSessionTitle(raw: string) {
-  const firstLine = raw
+  const lines = raw
     .split(/\r?\n/)
-    .map((line) => line.trim())
-    .find((line) => line.length > 0)
+    .map((line) => line.replace(UNSAFE_CHARACTERS, ' ').trim())
+    .filter((line) => line.length > 0)
+  const firstLine = lines.find((line) => !PREAMBLE_LINE.test(line)) ?? lines[0]
   if (!firstLine) return null
   const title = stripWrapping(firstLine.replace(TITLE_LABEL, '').replace(/\s+/g, ' '))
   if (!title || PLACEHOLDER_TITLES.has(title.toLowerCase())) return null

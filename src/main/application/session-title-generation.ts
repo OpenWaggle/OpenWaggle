@@ -5,6 +5,7 @@ import * as Effect from 'effect/Effect'
 import type { SessionTitleContextAttachment } from '../domain/session-title/session-title-context'
 import { parseGeneratedSessionTitle } from '../domain/session-title/session-title-output'
 import { buildSessionTitlePrompt } from '../domain/session-title/session-title-prompts'
+import { SessionTitleGenerationError } from '../errors'
 import { SessionTitleGenerator } from '../ports/session-title-generator'
 import type { SessionTitleState } from '../ports/session-title-repository'
 import { SettingsService } from '../services/settings-service'
@@ -13,11 +14,16 @@ import { publishSessionHostEvent } from '../session-host/session-host-events'
 export const GENERATABLE_SOURCES: readonly SessionTitleSource[] = ['default', 'provisional']
 
 /**
- * Title work belongs to a Session's start. A refinement owed by an older Session, or a
- * Provisional title older than this, is settled rather than generated, so switching the Title
- * model back on never retitles weeks-old Sessions.
+ * Title work belongs to a Session's start. A refinement whose first message is older than this, or
+ * a Session idle for longer, is settled rather than generated, so switching the Title model back
+ * on never retitles weeks-old Sessions.
  */
 export const TITLE_WORK_WINDOW_MS = 24 * 60 * 60 * 1000
+/**
+ * Bounds one background request end to end, including model-runtime setup that has no timeout of
+ * its own, so a stuck provider never holds a Host-wide permit.
+ */
+const TITLE_REQUEST_TIMEOUT = '90 seconds'
 
 /**
  * Title requests share the Session model's provider and rate limit with the Runs they title. A
@@ -55,11 +61,16 @@ export function enabledTitleModel() {
   })
 }
 
-export function isRecentSession(state: SessionTitleState, now: number) {
-  return now - state.createdAt <= TITLE_WORK_WINDOW_MS
+/** Whether a moment, such as a Session's first message, is still within the title-work window. */
+export function isWithinTitleWorkWindow(at: number, now: number) {
+  return now - at <= TITLE_WORK_WINDOW_MS
 }
 
-/** Sends one title request, at most `TITLE_REQUEST_CONCURRENCY` at a time across the Host. */
+/**
+ * Sends one title request. Background work takes one of `TITLE_REQUEST_CONCURRENCY` Host-wide
+ * permits; a request a person is waiting for (`priority: 'user'`) skips the queue, so a burst of
+ * Worker titles never holds up a Regenerate.
+ */
 export function generateTitle(input: {
   readonly state: SessionTitleState
   readonly titleModel: EnabledTitleModel
@@ -67,6 +78,7 @@ export function generateTitle(input: {
   readonly message: string
   readonly previousTitle?: string
   readonly attachments?: readonly SessionTitleContextAttachment[]
+  readonly priority?: 'background' | 'user'
 }) {
   return Effect.gen(function* () {
     const generator = yield* SessionTitleGenerator
@@ -75,13 +87,25 @@ export function generateTitle(input: {
       ...(input.previousTitle === undefined ? {} : { previousTitle: input.previousTitle }),
       ...(input.attachments ? { attachments: input.attachments } : {}),
     })
-    const response = yield* titleRequestPermits.withPermits(1)(
-      generator.generate({
+    const request = generator
+      .generate({
         sessionModel: input.sessionModel ?? input.state.executionModel,
         titleModel: input.titleModel,
         ...prompt,
-      }),
-    )
+      })
+      .pipe(
+        Effect.timeoutFail({
+          duration: TITLE_REQUEST_TIMEOUT,
+          onTimeout: () =>
+            new SessionTitleGenerationError({
+              reason: 'request-failed',
+              message: 'The Title model did not answer in time.',
+            }),
+        }),
+      )
+    const response = yield* input.priority === 'user'
+      ? request
+      : titleRequestPermits.withPermits(1)(request)
     return parseGeneratedSessionTitle(response.text)
   })
 }

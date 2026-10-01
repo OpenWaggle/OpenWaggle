@@ -11,7 +11,7 @@ import {
   claimTitleWork,
   enabledTitleModel,
   generateTitle,
-  isRecentSession,
+  isWithinTitleWorkWindow,
   publishTitleChanged,
 } from './session-title-generation'
 
@@ -33,12 +33,15 @@ function refine(sessionId: SessionId) {
     const repository = yield* SessionTitleRepository
     const state = yield* repository.getState(sessionId)
     if (!state?.needsRefinement || state.source !== 'generated' || state.archived) return
-    if (state.isWorker || !isRecentSession(state, Date.now())) return yield* settle(sessionId)
+    if (state.isWorker) return yield* settle(sessionId)
     const session = yield* (yield* SessionProjectionRepository).get(sessionId)
-    const userMessages = session.messages.filter((message) => message.role === 'user').length
+    const userMessages = session.messages.filter((message) => message.role === 'user')
     // The first turn may not be persisted yet; its Run triggers the refinement when it ends.
-    if (userMessages === 0) return
-    if (userMessages > 1) return yield* settle(sessionId)
+    const first = userMessages[0]
+    if (!first) return
+    if (userMessages.length > 1 || !isWithinTitleWorkWindow(first.createdAt, Date.now())) {
+      return yield* settle(sessionId)
+    }
     const context = formatSessionTitleContext(session.messages.map(toSessionTitleContextMessage))
     const answered = session.messages.some(
       (message) =>

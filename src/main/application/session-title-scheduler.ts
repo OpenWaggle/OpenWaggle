@@ -45,19 +45,31 @@ export function requestInitialSessionTitle(input: {
 }
 
 /**
- * A Worker's title is generated from its Delegation objective as soon as it is spawned, so a Worker
- * whose first Run waits behind a concurrency limit still gets a recognizable title.
+ * A Worker's title is generated from its Delegation objective as soon as it is spawned, and an
+ * untitled launched root's from its objective as soon as it is launched, so a Session whose first
+ * Run waits behind a concurrency limit or a worktree setup still gets a recognizable title.
  */
-export function requestSpawnedWorkerTitle(
+export function requestLifecycleTitle(
   request: SessionLifecycleRequest,
   response: SessionLifecycleResponse,
 ) {
-  if (response.replayed || response.outcome.effect !== 'spawned-worker') return
-  if (request.command.operation !== 'spawn') return
-  requestInitialSessionTitle({
-    sessionId: SessionId(response.outcome.sessionId),
-    text: request.command.delegation.objective,
-  })
+  if (response.replayed) return
+  const { command } = request
+  const { outcome } = response
+  if (outcome.effect === 'spawned-worker' && command.operation === 'spawn') {
+    requestInitialSessionTitle({
+      sessionId: SessionId(outcome.sessionId),
+      text: command.delegation.objective,
+    })
+    return
+  }
+  if (
+    outcome.effect === 'launched-root' &&
+    command.operation === 'launch' &&
+    command.title === undefined
+  ) {
+    requestInitialSessionTitle({ sessionId: SessionId(outcome.sessionId), text: command.objective })
+  }
 }
 
 /** Run an owed Title refinement once the first turn has answered. */
