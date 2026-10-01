@@ -47,7 +47,19 @@ export function piTextAndImageContentToParts(content: unknown) {
   return nonEmptyMessageParts(parts)
 }
 
-const SYNTHESIZED_ATTACHMENT_BLOCK = /(?:^|\n\n)\[Attachment: /u
+/**
+ * Where the attachment blocks `buildAgentPromptText` appends begin: after the typed text and a
+ * blank line (or at the start), a whole line `[Attachment: <name>]`, followed by the attachment's
+ * extracted text on the next line or by nothing. Typed text that merely contains
+ * `[Attachment: ` in a sentence is kept.
+ *
+ * Typed text that itself ends in such a line cannot be told apart: `buildAgentPromptText` makes
+ * the same string for the text `A\n\n[Attachment: x]` with no attachments as for `A` with an
+ * attachment `x` without extracted text, and this fallback runs exactly when no display
+ * projection recorded the message's attachments. It strips from the first such line, which keeps
+ * every message OpenWaggle sent with attachments readable.
+ */
+const SYNTHESIZED_ATTACHMENT_BLOCK = /(?:^|\n\n)\[Attachment: [^\n]*\](?=\n|$)/u
 
 /** The typed text of a Pi user prompt, without the attachment blocks OpenWaggle appended to it. */
 function withoutSynthesizedAttachments(part: MessagePart): MessagePart[] {
