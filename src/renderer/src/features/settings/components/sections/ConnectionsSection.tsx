@@ -7,6 +7,7 @@ import { Button } from '@/shared/ui/Button'
 import { AvailableModelsSection } from './connections/AvailableModelsSection'
 import { OAuthProviderRow } from './connections/OAuthProviderRow'
 import { ProviderRow } from './connections/ProviderRow'
+import { TitleModelSection } from './connections/TitleModelSection'
 
 interface AuthProviderGroupProps {
   readonly title: string
@@ -132,6 +133,8 @@ export function ConnectionsSection() {
       </AuthProviderGroup>
 
       <AvailableModelsSection />
+
+      <TitleModelSection />
 
       <p className="text-xs text-text-tertiary">
         API keys are stored locally on your machine and never sent anywhere except to the respective

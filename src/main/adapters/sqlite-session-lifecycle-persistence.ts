@@ -1,11 +1,9 @@
 import type * as SqlClient from '@effect/sql/SqlClient'
-import {
-  assertSessionTitle,
-  boundGeneratedSessionTitle,
-  SESSION_TITLE_MAX_LENGTH,
-} from '@shared/session-title'
+import { assertSessionTitle, SESSION_TITLE_MAX_LENGTH } from '@shared/session-title'
+import { DEFAULT_SESSION_TITLE, type SessionTitleSource } from '@shared/session-title-source'
 import { SessionId } from '@shared/types/brand'
 import * as Effect from 'effect/Effect'
+import { buildDeterministicTitle } from '../agent/title-generator'
 import { SessionLifecycleRepositoryError } from '../errors'
 import type { SessionLifecycleRepositoryShape } from '../ports/session-lifecycle-repository'
 import { encodeSessionAuthoritySnapshot } from '../session-host/session-authority-snapshot'
@@ -69,12 +67,7 @@ function persistSessionMetadata(
   authorityScope: ExecuteInput['callerAuthorityScope'],
 ) {
   const command = input.request.command
-  const explicitTitle =
-    command.operation === 'spawn'
-      ? boundGeneratedSessionTitle(command.delegation.objective)
-      : command.title === undefined
-        ? null
-        : assertSessionTitle(command.title)
+  const explicitTitle = lifecycleTitleFromCommand(command)
   const environmentMode = workspace.kind === 'managed-worktree' ? 'worktree' : 'local'
   const worktreePath =
     workspace.kind === 'managed-worktree' && workspace.lifecycle_state === 'ready'
@@ -82,15 +75,16 @@ function persistSessionMetadata(
       : null
   const branchId = mainBranchId(String(input.session.sessionId))
   return Effect.gen(function* () {
-    const title = explicitTitle ?? (yield* defaultLifecycleTitle(sql, command))
+    const { title, source: titleSource } =
+      explicitTitle ?? (yield* defaultLifecycleTitle(sql, command))
     yield* sql`
       INSERT INTO sessions (
-        id, pi_session_id, pi_session_file, project_path, title, archived,
+        id, pi_session_id, pi_session_file, project_path, title, title_source, archived,
         created_at, updated_at, last_active_branch_id, environment_mode, worktree_path,
         worktree_base_ref, worktree_start_from_origin, authorization_mode_override
       ) VALUES (
         ${input.session.sessionId}, ${input.session.piSessionId},
-        ${input.session.piSessionFile ?? null}, ${projectPath}, ${title}, ${0},
+        ${input.session.piSessionFile ?? null}, ${projectPath}, ${title}, ${titleSource}, ${0},
         ${input.now}, ${input.now}, ${branchId}, ${environmentMode}, ${worktreePath},
         ${workspace.worktree_base_ref}, ${workspace.worktree_start_from_origin},
         ${null}
@@ -177,25 +171,51 @@ function truncateTitle(title: string, maxLength: number) {
 /** A marker left by an earlier fork or copy, so a fork of a fork is not "X (fork) (fork)". */
 const COPY_TITLE_SUFFIX = / \((?:fork|copy)\)$/
 
+interface LifecycleTitle {
+  readonly title: string
+  readonly source: SessionTitleSource
+}
+
+const DEFAULT_LIFECYCLE_TITLE: LifecycleTitle = { title: DEFAULT_SESSION_TITLE, source: 'default' }
+
 /**
- * An untitled fork is named after its source, marked as a fork or a copy. Titles are generated only
- * for a Session with no messages, so a fork left as "New session" never got a name.
+ * A Worker starts with its objective trimmed like a first message, a Provisional title the Title
+ * model replaces in the background. An explicitly given title is manual and never generated over.
+ */
+function lifecycleTitleFromCommand(
+  command: ExecuteInput['request']['command'],
+): LifecycleTitle | null {
+  if (command.operation === 'spawn') {
+    return { title: buildDeterministicTitle(command.delegation.objective), source: 'provisional' }
+  }
+  return command.title === undefined
+    ? null
+    : { title: assertSessionTitle(command.title), source: 'manual' }
+}
+
+/**
+ * An untitled fork is named after its source, marked as a fork or a copy, and keeps that title like
+ * a rename. Titles are generated only for a Session with no messages, so a fork left as
+ * "New session" never got a name.
  */
 function defaultLifecycleTitle(
   sql: SqlClient.SqlClient,
   command: ExecuteInput['request']['command'],
 ) {
-  if (command.operation !== 'fork') return Effect.succeed('New session')
+  if (command.operation !== 'fork') return Effect.succeed(DEFAULT_LIFECYCLE_TITLE)
   const suffix = (command.position ?? 'at') === 'before' ? ' (fork)' : ' (copy)'
   return Effect.gen(function* () {
     const rows = yield* sql<{ readonly title: string }>`
       SELECT title FROM sessions WHERE id = ${command.sourceSessionId} LIMIT 1
     `
     const source = rows[0]?.title.replace(COPY_TITLE_SUFFIX, '').trim()
-    if (!source) return 'New session'
-    return assertSessionTitle(
-      `${truncateTitle(source, SESSION_TITLE_MAX_LENGTH - suffix.length)}${suffix}`,
-    )
+    if (!source) return DEFAULT_LIFECYCLE_TITLE
+    return {
+      title: assertSessionTitle(
+        `${truncateTitle(source, SESSION_TITLE_MAX_LENGTH - suffix.length)}${suffix}`,
+      ),
+      source: 'manual',
+    } satisfies LifecycleTitle
   })
 }
 

@@ -15,6 +15,7 @@ import type {
   SessionWorkspaceSelection,
   SessionWorktreePlan,
 } from './session'
+import type { SessionTitleRegenerationResult } from './session-title'
 
 export interface IpcSessionInvokeChannelMap {
   'sessions:get-detail': { args: [id: SessionId]; return: SessionDetail | null }
@@ -38,6 +39,11 @@ export interface IpcSessionInvokeChannelMap {
   'sessions:archive': { args: [id: SessionId]; return: undefined }
   'sessions:unarchive': { args: [id: SessionId]; return: undefined }
   'sessions:update-title': { args: [id: SessionId, title: string]; return: undefined }
+  /** Ask the Title model for a new title from the whole history and apply it (ADR 0043). */
+  'sessions:regenerate-title': {
+    args: [id: SessionId]
+    return: SessionTitleRegenerationResult
+  }
   /** `null` clears the session override so the session inherits again. */
   'sessions:set-authorization-mode': {
     args: [id: SessionId, mode: AgentAuthorizationMode | null]

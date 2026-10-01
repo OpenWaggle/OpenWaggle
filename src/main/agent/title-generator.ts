@@ -1,4 +1,5 @@
 import { TITLE } from '@shared/constants/text-processing'
+import { DEFAULT_SESSION_TITLE } from '@shared/session-title-source'
 
 const TITLE_WORD_SEPARATOR = ' '
 
@@ -35,7 +36,7 @@ function normalizeTitleInput(text: string) {
 export function buildDeterministicTitle(text: string): string {
   const normalized = deduplicateConsecutiveWords(normalizeTitleInput(text)).trim()
   if (!normalized) {
-    return 'New session'
+    return DEFAULT_SESSION_TITLE
   }
   return truncateTitle(normalized)
 }

@@ -17,6 +17,7 @@ export function makeLocalSessionProfileTestLayer(filename: string) {
           pi_session_id TEXT NOT NULL UNIQUE,
           project_path TEXT,
           title TEXT NOT NULL,
+          title_source TEXT NOT NULL DEFAULT 'manual', title_needs_refinement INTEGER NOT NULL DEFAULT 0,
           archived INTEGER NOT NULL DEFAULT 0,
           created_at INTEGER NOT NULL,
           updated_at INTEGER NOT NULL

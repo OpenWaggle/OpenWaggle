@@ -1,0 +1,91 @@
+import { SessionId, type SupportedModelId } from '@shared/types/brand'
+import type {
+  SessionLifecycleRequest,
+  SessionLifecycleResponse,
+} from '@shared/types/session-lifecycle'
+import type { SessionTitleRegenerationResult } from '@shared/types/session-title'
+import * as Effect from 'effect/Effect'
+import * as Runtime from 'effect/Runtime'
+import type { SessionTitleContextAttachment } from '../domain/session-title/session-title-context'
+import type { SessionProjectionRepository } from '../ports/session-projection-repository'
+import type { SessionTitleGenerator } from '../ports/session-title-generator'
+import type { SessionTitleRepository } from '../ports/session-title-repository'
+import type { SettingsService } from '../services/settings-service'
+import {
+  generateInitialSessionTitle,
+  recoverPendingSessionTitleRefinements,
+  refineSessionTitle,
+  regenerateSessionTitle,
+} from './session-title-service'
+
+type SessionTitleWorkContext =
+  | SessionTitleRepository
+  | SessionTitleGenerator
+  | SettingsService
+  | SessionProjectionRepository
+
+/**
+ * Title work runs in the Session Host's runtime, detached from the Run or Spawn that asked for it,
+ * so a slow or failing Title model can never delay a stream or cost a durable turn (ADR 0037).
+ * Outside the Host nothing is installed and requests are ignored.
+ */
+let titleRuntime: Runtime.Runtime<SessionTitleWorkContext> | null = null
+
+export const installSessionTitleWorker = Effect.gen(function* () {
+  titleRuntime = yield* Effect.runtime<SessionTitleWorkContext>()
+  Runtime.runFork(titleRuntime)(recoverPendingSessionTitleRefinements)
+})
+
+/** Generate a title for a Session that still has its default or Provisional title. */
+export function requestInitialSessionTitle(input: {
+  readonly sessionId: SessionId
+  readonly text: string
+  readonly attachments?: readonly SessionTitleContextAttachment[]
+  readonly model?: SupportedModelId | null
+}) {
+  if (!titleRuntime) return
+  Runtime.runFork(titleRuntime)(generateInitialSessionTitle(input))
+}
+
+/**
+ * A Worker's title is generated from its Delegation objective as soon as it is spawned, so a Worker
+ * whose first Run waits behind a concurrency limit still gets a recognizable title.
+ */
+export function requestSpawnedWorkerTitle(
+  request: SessionLifecycleRequest,
+  response: SessionLifecycleResponse,
+) {
+  if (response.replayed || response.outcome.effect !== 'spawned-worker') return
+  if (request.command.operation !== 'spawn') return
+  requestInitialSessionTitle({
+    sessionId: SessionId(response.outcome.sessionId),
+    text: request.command.delegation.objective,
+  })
+}
+
+/** Run an owed Title refinement once the first turn has answered. */
+export function requestSessionTitleRefinement(sessionId: SessionId) {
+  if (!titleRuntime) return
+  Runtime.runFork(titleRuntime)(refineSessionTitle(sessionId))
+}
+
+export function runSessionTitleRegeneration(
+  sessionId: SessionId,
+): Promise<SessionTitleRegenerationResult> {
+  if (!titleRuntime) {
+    return Promise.resolve({
+      outcome: 'failed',
+      message: 'Title regeneration is not available until the Session Host is running.',
+    })
+  }
+  return Runtime.runPromise(titleRuntime)(
+    regenerateSessionTitle(sessionId).pipe(
+      Effect.catchAllCause(() =>
+        Effect.succeed({
+          outcome: 'failed',
+          message: 'The title could not be regenerated.',
+        } satisfies SessionTitleRegenerationResult),
+      ),
+    ),
+  )
+}

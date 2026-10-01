@@ -35,6 +35,7 @@ export function makeSessionControlTestLayer(
         id TEXT PRIMARY KEY,
         project_path TEXT,
         title TEXT NOT NULL DEFAULT '',
+        title_source TEXT NOT NULL DEFAULT 'manual', title_needs_refinement INTEGER NOT NULL DEFAULT 0,
         archived INTEGER NOT NULL DEFAULT 0,
         environment_mode TEXT NOT NULL DEFAULT 'local',
         worktree_path TEXT,

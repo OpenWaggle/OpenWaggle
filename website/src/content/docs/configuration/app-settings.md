@@ -108,6 +108,14 @@ If configured cleanup fails, the worktree stays in the list with its output and 
 
 Expand **API Key Providers** to save a key or **OAuth Providers** to sign in through a browser. Under **Available Models**, enable the models you want beside the message box. The selector shows models that are both enabled and available through their provider.
 
+**Title model** chooses the model that writes [session titles](/docs/using-openwaggle/chat-and-tools#session-titles):
+
+| Choice | What happens |
+|---|---|
+| **Automatic** (default) | The cheapest available model from each session's own provider writes its title, using the same sign-in. |
+| A specific model | That model writes every title. Each session's opening message, and each Worker's task, is sent to that model's provider. |
+| **Off** | No titles are generated. Sessions keep their opening message as the title, and **Regenerate title** is hidden. |
+
 See [Providers and models](/docs/providers/overview) for the full setup.
 
 ## MCP

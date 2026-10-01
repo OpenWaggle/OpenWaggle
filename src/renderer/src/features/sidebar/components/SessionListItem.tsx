@@ -1,6 +1,7 @@
 import { SessionId } from '@shared/types/brand'
 import type { SessionSummary } from '@shared/types/session'
 import { useState } from 'react'
+import { useSessionTitleRename } from '@/features/session-title'
 import { cn } from '@/shared/lib/cn'
 import { useSessionRowDescription } from '../hooks/useSessionRowDescription'
 import { useSessionRowStatus } from '../hooks/useSessionRowStatus'
@@ -112,6 +113,7 @@ export function SessionListItem({
   const sessionId = SessionId(String(session.id))
   const status = useSessionRowStatus(sessionId, session)
   const menu = useRowContextMenu()
+  const rename = useSessionTitleRename(sessionId, session.title)
   const pinned = resolvePinnedMeta(pinnedRow)
   const rowDescription = useSessionRowDescription({
     session,
@@ -162,6 +164,7 @@ export function SessionListItem({
           isActive={isActive}
           isInFlight={status.isInFlight}
           session={session}
+          rename={rename}
           onSelect={() => actions.select(sessionId)}
         />
         <SessionRowSecondLine
@@ -192,8 +195,7 @@ export function SessionListItem({
         sessionId={sessionId}
         isPinned={isPinned}
         actions={actions}
-        onMoveUp={pinned.onMoveUp}
-        onMoveDown={pinned.onMoveDown}
+        commands={{ rename: rename.start, moveUp: pinned.onMoveUp, moveDown: pinned.onMoveDown }}
         onClose={menu.close}
       />
     </li>

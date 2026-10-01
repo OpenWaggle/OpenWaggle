@@ -78,6 +78,7 @@ import {
 import { DesktopServicesLive } from './runtime-desktop-services'
 import { HiveWorkerCleanupServicesLive } from './runtime-hive-cleanup-services'
 import { startHostBackgroundServices } from './runtime-host-services'
+import { SessionTitleServicesLive } from './runtime-session-title-services'
 import { AppDatabaseLive } from './services/database-service'
 import { AppLogger } from './services/logger-service'
 import { SettingsService } from './services/settings-service'
@@ -258,6 +259,7 @@ const AppLayer = Layer.mergeAll(
   SharpSessionResourceThumbnailerLive,
   SqliteSessionProjectionRepositoryLive,
   SqliteSessionRepositoryLive,
+  SessionTitleServicesLive,
   FilesystemStandardsLive,
   PiAgentKernelWithExtensionSelectionLive,
   McpServicesLive,

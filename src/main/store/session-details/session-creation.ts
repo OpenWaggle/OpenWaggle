@@ -1,4 +1,5 @@
 import * as SqlClient from '@effect/sql/SqlClient'
+import { DEFAULT_SESSION_TITLE } from '@shared/session-title-source'
 import { SessionId } from '@shared/types/brand'
 import type { SessionDetail } from '@shared/types/session'
 import * as Effect from 'effect/Effect'
@@ -21,7 +22,7 @@ function buildNewSessionDetail(
 ): SessionDetail {
   return {
     id,
-    title: 'New session',
+    title: DEFAULT_SESSION_TITLE,
     projectPath: input.projectPath,
     piSessionId: input.piSessionId,
     piSessionFile: input.piSessionFile,
@@ -49,13 +50,14 @@ function insertSessionRow(input: {
 }) {
   return input.sql`
     INSERT INTO sessions (
-      id, pi_session_id, pi_session_file, project_path, title, archived, waggle_config_json,
-      created_at, updated_at, last_active_node_id, last_active_branch_id, environment_mode,
-      authorization_mode_override
+      id, pi_session_id, pi_session_file, project_path, title, title_source, archived,
+      waggle_config_json, created_at, updated_at, last_active_node_id, last_active_branch_id,
+      environment_mode, authorization_mode_override
     )
     VALUES (
       ${input.sessionId}, ${input.input.piSessionId}, ${input.input.piSessionFile ?? null},
-      ${input.input.projectPath}, ${input.session.title}, ${0}, ${null}, ${input.now}, ${input.now},
+      ${input.input.projectPath}, ${input.session.title}, ${'default'}, ${0}, ${null},
+      ${input.now}, ${input.now},
       ${null}, ${input.branchId}, ${input.input.environmentMode ?? 'local'},
       ${input.input.authorizationMode ?? null}
     )

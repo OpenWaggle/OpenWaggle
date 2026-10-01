@@ -35,6 +35,18 @@ export class SessionProjectionRepositoryError extends Data.TaggedError(
   readonly cause?: unknown
 }> {}
 
+export class SessionTitleRepositoryError extends Data.TaggedError('SessionTitleRepositoryError')<{
+  readonly operation: string
+  readonly cause?: unknown
+}> {}
+
+/** A Title model request that could not produce a title; the Session keeps its current title. */
+export class SessionTitleGenerationError extends Data.TaggedError('SessionTitleGenerationError')<{
+  readonly reason: 'no-model' | 'request-failed' | 'empty-response'
+  readonly message: string
+  readonly cause?: unknown
+}> {}
+
 export class SessionResourceRepositoryError extends Data.TaggedError(
   'SessionResourceRepositoryError',
 )<{

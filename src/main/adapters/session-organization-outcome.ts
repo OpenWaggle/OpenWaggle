@@ -37,7 +37,10 @@ export function persistOrganizationMutation(
   if (command.operation === 'rename') {
     const title = assertSessionTitle(command.title)
     return Effect.gen(function* () {
-      yield* sql`UPDATE sessions SET title = ${title}, updated_at = ${now}
+      // A rename is manual, so generation never replaces it, and it is metadata: it leaves
+      // updated_at, and with it the sidebar's recency order, alone (ADR 0043).
+      yield* sql`UPDATE sessions
+        SET title = ${title}, title_source = ${'manual'}, title_needs_refinement = ${0}
         WHERE id = ${command.sessionId}`
       yield* persistSessionReportTitleReference(sql, command.sessionId, title)
     })

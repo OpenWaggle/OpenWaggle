@@ -37,6 +37,9 @@ export interface ChatState {
   setSessionModel: (id: SessionId, model: SupportedModelId) => Promise<void>
   upsertSession: (session: SessionDetail) => void
   deleteSession: (id: SessionId) => Promise<void>
+  /** Patch the title locally without reloading, so an optimistic rename can be reverted. */
+  applySessionTitle: (id: SessionId, title: string) => void
+  /** Apply a committed title, then refresh the Session catalog from the Host. */
   updateSessionTitle: (id: SessionId, title: string) => void
   clearError: () => void
 }
