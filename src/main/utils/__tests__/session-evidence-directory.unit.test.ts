@@ -11,6 +11,7 @@ import {
 import {
   prepareSessionScratchDirectory,
   removeSessionScratchDirectory,
+  retainSessionScratchDirectory,
   sessionScratchRoot,
 } from '../session-scratch-directory'
 import { sweepSessionScratchDirectories } from '../session-scratch-sweep'
@@ -174,5 +175,17 @@ describe('Session evidence directory', () => {
     await fs.writeFile(evidence, 'not a directory')
 
     expect(preparedSessionEvidenceDirectory(scratch)).toBeUndefined()
+  })
+
+  it('keeps week-old evidence of a Session whose Run just started', async () => {
+    const scratch = await prepareSessionScratchDirectory('session-a', root)
+    const evidence = await prepareSessionEvidenceDirectory(scratch)
+    const release = retainSessionScratchDirectory('session-a', root)
+    try {
+      await sweepSessionScratchDirectories(['session-a'], root, Date.now() + EIGHT_DAYS_MS)
+      expect((await fs.stat(evidence)).isDirectory()).toBe(true)
+    } finally {
+      await release()
+    }
   })
 })

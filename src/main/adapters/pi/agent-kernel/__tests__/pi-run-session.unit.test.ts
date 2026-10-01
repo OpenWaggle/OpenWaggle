@@ -163,7 +163,9 @@ it('does not name an evidence directory the Run could not prepare', async () => 
   const hook = mocks.hooks.get('bash')
   if (!hook) throw new Error('Missing bash spawn hook')
 
-  expect(hook({ command: 'true', cwd: '/workspace', env: {} }).env).not.toHaveProperty(
+  // Inherited from an outer Session when this Host was started from an agent shell.
+  const inherited = { OPENWAGGLE_EVIDENCE_DIR: '/private/evidence/outer-session' }
+  expect(hook({ command: 'true', cwd: '/workspace', env: inherited }).env).not.toHaveProperty(
     'OPENWAGGLE_EVIDENCE_DIR',
   )
 })

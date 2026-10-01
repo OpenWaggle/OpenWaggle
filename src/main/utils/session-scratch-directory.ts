@@ -272,6 +272,11 @@ export async function removeSessionScratchDirectory(
   await removeNow(directory, state)
 }
 
+/** Whether a Run in this process currently holds the scratch directory. */
+export function scratchDirectoryInUse(directory: string) {
+  return (scratchDirectoryStates.get(directory)?.retained ?? 0) > 0
+}
+
 /**
  * Remove a scratch directory unless a Run holds it. Checked and started in the same tick, so a Run
  * that retains it afterwards waits for the removal instead of losing files mid-Run. Resolves

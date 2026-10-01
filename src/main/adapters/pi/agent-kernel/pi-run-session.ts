@@ -23,6 +23,19 @@ import {
   type OpenWaggleAgentSessionOptions,
 } from '../pi-session-lifecycle'
 
+/**
+ * Drop an evidence directory the Host inherited (for example a Host started from an agent shell),
+ * so a Run whose own evidence directory was not prepared never writes into another Session's.
+ */
+function withoutInheritedEvidenceDirectory(
+  environment: NodeJS.ProcessEnv,
+  evidenceDirectory: string | undefined,
+): NodeJS.ProcessEnv {
+  if (evidenceDirectory) return environment
+  const { [SESSION_EVIDENCE_DIRECTORY_ENV]: _inherited, ...rest } = environment
+  return rest
+}
+
 export async function createPiSessionForRun(input: {
   readonly preparedEnvironment?: PreparedEnvironment
   /** Private per-Session temp directory exported to tool processes as TMPDIR, TMP, and TEMP. */
@@ -48,15 +61,18 @@ export async function createPiSessionForRun(input: {
   const markAgentRun = (context: { command: string; cwd: string; env: NodeJS.ProcessEnv }) => ({
     ...context,
     env: {
-      ...applyPreparedEnvironment(
+      ...withoutInheritedEvidenceDirectory(
         applyPreparedEnvironment(
-          withoutWorkspaceContext(context.env),
-          withoutWorkspaceContext(input.preparedEnvironment ?? {}),
+          applyPreparedEnvironment(
+            withoutWorkspaceContext(context.env),
+            withoutWorkspaceContext(input.preparedEnvironment ?? {}),
+            windows,
+          ),
+          // Applied last so a setup-captured TMPDIR cannot point tools back at the shared /tmp.
+          scratchEnvironment,
           windows,
         ),
-        // Applied last so a setup-captured TMPDIR cannot point tools back at the shared /tmp.
-        scratchEnvironment,
-        windows,
+        evidenceDirectory,
       ),
       // Pi's spawn context starts from the detached Host environment, not Session metadata.
       OPENWAGGLE_PROJECT_ROOT: input.projectRoot,

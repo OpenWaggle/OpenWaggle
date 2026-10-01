@@ -6,6 +6,7 @@ import {
   removeUnretainedScratchDirectory,
   SCRATCH_NAMESPACE_OWNER_FILE,
   SCRATCH_NAMESPACE_OWNER_TERMINATOR,
+  scratchDirectoryInUse,
   sessionScratchDirectoryPath,
   sessionScratchRoot,
 } from './session-scratch-directory'
@@ -81,8 +82,8 @@ async function sweepAbandonedNamespaces(root: string, now: number) {
  * Remove Sessions' evidence directories that nothing has written to for a week. They outlive
  * archiving on purpose, so a Queen can show an archived Worker's screenshots, but not forever.
  */
-async function pruneStaleEvidence(userDirectory: string, now: number) {
-  const evidenceRoot = path.join(userDirectory, SESSION_EVIDENCE_DIRECTORY_NAME)
+async function pruneStaleEvidence(root: string, now: number) {
+  const evidenceRoot = path.join(path.dirname(root), SESSION_EVIDENCE_DIRECTORY_NAME)
   if (!(await isOwnedPrivateDirectory(evidenceRoot).catch(() => false))) return 0
   let removed = 0
   for (const name of await fs.readdir(evidenceRoot)) {
@@ -90,6 +91,8 @@ async function pruneStaleEvidence(userDirectory: string, now: number) {
     if (!(await isOwnedPrivateDirectory(directory).catch(() => false))) continue
     const newest = await newestModification(directory).catch(() => now)
     if (now - newest < ABANDONED_NAMESPACE_AGE_MS) continue
+    // A Session idle for a week may have just started a Run that is about to write evidence.
+    if (scratchDirectoryInUse(path.join(root, name))) continue
     const gone = await fs.rm(directory, { recursive: true, force: true }).then(
       () => true,
       () => false,
@@ -138,8 +141,6 @@ export async function sweepSessionScratchDirectories(
     if (await removeUnretainedScratchDirectory(directory)) removed += 1
   }
   return (
-    removed +
-    (await sweepAbandonedNamespaces(root, now)) +
-    (await pruneStaleEvidence(path.dirname(root), now))
+    removed + (await sweepAbandonedNamespaces(root, now)) + (await pruneStaleEvidence(root, now))
   )
 }
