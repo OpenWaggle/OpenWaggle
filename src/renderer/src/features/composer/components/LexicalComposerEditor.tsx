@@ -1,4 +1,3 @@
-import { AutoFocusPlugin } from '@lexical/react/LexicalAutoFocusPlugin'
 import { LexicalComposer } from '@lexical/react/LexicalComposer'
 import { ContentEditable } from '@lexical/react/LexicalContentEditable'
 import { LexicalErrorBoundary } from '@lexical/react/LexicalErrorBoundary'
@@ -13,6 +12,7 @@ import { SkillMentionNode } from './nodes/SkillMentionNode'
 import { SymbolMentionNode } from './nodes/SymbolMentionNode'
 import { WaggleMentionNode } from './nodes/WaggleMentionNode'
 import { AutoResizePlugin } from './plugins/AutoResizePlugin'
+import { ComposerAutoFocusPlugin } from './plugins/ComposerAutoFocusPlugin'
 import { EditablePlugin } from './plugins/EditablePlugin'
 import { EditorRefPlugin } from './plugins/EditorRefPlugin'
 import { KeyboardPlugin } from './plugins/KeyboardPlugin'
@@ -74,7 +74,7 @@ export function LexicalComposerEditor({
         ErrorBoundary={LexicalErrorBoundary}
       />
       <HistoryPlugin />
-      <AutoFocusPlugin />
+      <ComposerAutoFocusPlugin />
       <EditablePlugin disabled={disabled} />
       <KeyboardPlugin onSubmit={onSubmit} />
       <SyncPlugin />

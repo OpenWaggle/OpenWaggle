@@ -37,6 +37,8 @@ export interface World {
   readonly cleared: SessionId[]
   /** Runs while the model "thinks", to simulate a rename landing mid-generation. */
   duringGeneration?: () => void
+  /** Runs while the transcript is read, to simulate a Run ending mid-refinement. */
+  duringRead?: () => void
 }
 
 let currentWorld: World | null = null
@@ -64,6 +66,7 @@ function makeWorld(overrides: Partial<SessionTitleState> = {}): World {
       executionModel: SESSION_MODEL,
       archived: false,
       isWorker: false,
+      createdAt: Date.now(),
       ...overrides,
     },
     messages: [],
@@ -99,6 +102,14 @@ const TestRepository = Layer.succeed(
         world().cleared.push(sessionId)
         world().state = { ...world().state, needsRefinement: false }
       }),
+    settleRefinementsCreatedBefore: (createdBefore) =>
+      Effect.sync(() => {
+        if (world().state.createdAt < createdBefore) {
+          world().state = { ...world().state, needsRefinement: false }
+        }
+      }),
+    listRecentProvisional: () =>
+      Effect.sync(() => (world().state.source === 'provisional' ? [world().state.sessionId] : [])),
     listPendingRefinements: () =>
       Effect.sync(() =>
         world().state.needsRefinement && world().state.source === 'generated'
@@ -135,16 +146,18 @@ const TestProjection = Layer.succeed(
   SessionProjectionRepository,
   fromPartial({
     get: () =>
-      Effect.sync(
-        (): SessionDetail => ({
+      Effect.sync((): SessionDetail => {
+        const messages = [...world().messages]
+        world().duringRead?.()
+        return {
           id: SESSION_ID,
           title: world().state.title,
           projectPath: '/repo',
-          messages: [...world().messages],
+          messages,
           createdAt: 1,
           updatedAt: 1,
-        }),
-      ),
+        }
+      }),
   }),
 )
 

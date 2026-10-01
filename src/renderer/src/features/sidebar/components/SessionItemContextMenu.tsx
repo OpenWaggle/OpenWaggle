@@ -61,7 +61,7 @@ function SessionMenuButton({
       type="button"
       disabled={disabled}
       onClick={onClick}
-      className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-text-secondary transition-colors hover:bg-bg-hover disabled:cursor-default disabled:opacity-60${danger ? ' hover:text-error' : ''}`}
+      className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-text-secondary transition-colors enabled:hover:bg-bg-hover disabled:cursor-not-allowed disabled:opacity-50${danger ? ' hover:text-error' : ''}`}
     >
       <Icon className="size-3 shrink-0" />
       <span>{label}</span>

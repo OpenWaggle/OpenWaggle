@@ -112,8 +112,8 @@ Expand **API Key Providers** to save a key or **OAuth Providers** to sign in thr
 
 | Choice | What happens |
 |---|---|
-| **Automatic** (default) | The cheapest available model from each session's own provider writes its title, using the same sign-in. |
-| A specific model | That model writes every title. Each session's opening message, and each Worker's task, is sent to that model's provider. |
+| **Automatic** (default) | The cheapest available model from each session's own provider and model family writes its title, using the same sign-in and region. |
+| A specific model | That model writes every title. Each session's opening message and each Worker's task are sent to that model's provider, and so is the conversation, up to about 8,000 characters, when a title is refined or regenerated. |
 | **Off** | No titles are generated. Sessions keep their opening message as the title, and **Regenerate title** is hidden. |
 
 See [Providers and models](/docs/providers/overview) for the full setup.

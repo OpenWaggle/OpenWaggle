@@ -114,6 +114,39 @@ describe('generateInitialSessionTitle', () => {
     expect(world().state.title).toBe('Third time lucky')
   })
 
+  it('stops retrying once the Title model is turned Off', async () => {
+    world().replies.push(
+      new SessionTitleGenerationError({ reason: 'request-failed', message: 'overloaded' }),
+    )
+    world().duringGeneration = () => {
+      world().titleModel = 'off'
+    }
+
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const fiber = yield* Effect.fork(
+          generateInitialSessionTitle({ sessionId: SESSION_ID, text: 'Hello' }),
+        )
+        yield* TestClock.adjust('10 seconds')
+        yield* Fiber.join(fiber)
+      }).pipe(Effect.provide(TestLayer), Effect.provide(TestContext.TestContext)),
+    )
+
+    expect(world().requests).toHaveLength(1)
+    expect(world().state.source).toBe('provisional')
+  })
+
+  it('titles a first message that is only an attachment and owes it a refinement', async () => {
+    resetWorld({ title: 'New session', source: 'default' })
+    world().replies.push(json('Screenshot review'))
+    const attachments = [{ id: 'a', name: 'sidebar.png', mimeType: 'image/png' }]
+
+    await run(generateInitialSessionTitle({ sessionId: SESSION_ID, text: '', attachments }))
+
+    expect(world().requests[0]?.prompt).toContain('- sidebar.png (image/png)')
+    expect(world().state).toMatchObject({ title: 'Screenshot review', needsRefinement: true })
+  })
+
   it('owes a root one refinement for a vague request and runs it once the turn answered', async () => {
     world().messages = [
       text('user', 'Fix this failing test', 'u1'),

@@ -3,6 +3,7 @@ import { SessionTitleInput, useSessionTitleRename } from '@/features/session-tit
 import { cn } from '@/shared/lib/cn'
 import { Button } from '@/shared/ui/Button'
 
+const RENAME_HINT = 'Double-click, or press Enter, to rename'
 const HEADER_TITLE_CLASS = 'no-drag min-w-0 truncate text-sm font-medium text-text-primary'
 
 /** The Session identity header's title; a double-click renames the selected Session in place. */
@@ -34,11 +35,13 @@ export function HeaderSessionTitle({
 
   return (
     <Button
+      ref={rename.returnFocusRef}
       variant="unstyled"
       type="button"
       data-qa="header-session-title"
       className={cn(HEADER_TITLE_CLASS, 'cursor-default text-left')}
-      title={title}
+      title={`${title}\nDouble-click to rename`}
+      aria-description={RENAME_HINT}
       onDoubleClick={rename.start}
       onKeyDown={(event) => {
         if (event.key !== 'Enter' && event.key !== 'F2') return

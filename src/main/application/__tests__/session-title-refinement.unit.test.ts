@@ -1,11 +1,9 @@
 import { Effect } from 'effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { SessionTitleGenerationError } from '../../errors'
-import {
-  recoverPendingSessionTitleRefinements,
-  refineSessionTitle,
-  regenerateSessionTitle,
-} from '../session-title-service'
+import { recoverSessionTitleWork } from '../session-title-recovery'
+import { refineSessionTitle } from '../session-title-refinement'
+import { regenerateSessionTitle } from '../session-title-service'
 import {
   json,
   resetWorld,
@@ -68,6 +66,57 @@ describe('refineSessionTitle', () => {
     expect(world().state).toMatchObject({ title: 'Screenshot review', needsRefinement: false })
   })
 
+  it('settles instead of refining a Session older than a day', async () => {
+    resetWorld({
+      title: 'Screenshot review',
+      source: 'generated',
+      needsRefinement: true,
+      createdAt: Date.now() - 2 * 24 * 60 * 60 * 1000,
+    })
+    world().messages = [
+      text('user', 'look at this', 'u1'),
+      text('assistant', 'Sidebar rows.', 'a1'),
+    ]
+
+    await run(refineSessionTitle(SESSION_ID))
+
+    expect(world().requests).toEqual([])
+    expect(world().state.needsRefinement).toBe(false)
+  })
+
+  it('runs a trigger that arrived during a refinement once it finishes', async () => {
+    // The first pass reads a transcript whose first turn has not answered yet.
+    world().messages = [text('user', 'look at this', 'u1')]
+    world().replies.push(json('Fix sidebar row overlap'))
+    world().duringRead = () => {
+      world().duringRead = undefined
+      // The answer lands and its Run ends while the first pass holds the claim.
+      world().messages = [
+        text('user', 'look at this', 'u1'),
+        text('assistant', 'Sidebar rows overlap.', 'a1'),
+      ]
+      Effect.runSync(refineSessionTitle(SESSION_ID).pipe(Effect.provide(TestLayer)))
+    }
+
+    await run(refineSessionTitle(SESSION_ID))
+
+    expect(world().requests).toHaveLength(1)
+    expect(world().state).toMatchObject({
+      title: 'Fix sidebar row overlap',
+      needsRefinement: false,
+    })
+  })
+
+  it('resumes a Provisional title a Host restart cut off', async () => {
+    resetWorld({ title: 'make titles short', source: 'provisional' })
+    world().messages = [text('user', 'make titles short', 'u1')]
+    world().replies.push(json('Short session titles'))
+
+    await run(recoverSessionTitleWork)
+
+    expect(world().state).toMatchObject({ title: 'Short session titles', source: 'generated' })
+  })
+
   it('is resumed after a Host restart', async () => {
     world().messages = [
       text('user', 'look at this', 'u1'),
@@ -75,7 +124,7 @@ describe('refineSessionTitle', () => {
     ]
     world().replies.push(json('Fix sidebar row overlap'))
 
-    await run(recoverPendingSessionTitleRefinements)
+    await run(recoverSessionTitleWork)
 
     expect(world().state).toMatchObject({
       title: 'Fix sidebar row overlap',

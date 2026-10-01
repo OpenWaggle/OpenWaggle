@@ -95,11 +95,13 @@ describe('Session identity header rename', () => {
 
     fireEvent.doubleClick(screen.getByRole('button', { name: TITLE }))
     fireEvent.change(titleField(), { target: { value: '   ' } })
+    fireEvent.pointerDown(document.body)
     fireEvent.blur(titleField())
     expect(updateSessionTitleMock).not.toHaveBeenCalled()
 
     fireEvent.doubleClick(screen.getByRole('button', { name: TITLE }))
     fireEvent.change(titleField(), { target: { value: 'Blurred header title' } })
+    fireEvent.pointerDown(document.body)
     fireEvent.blur(titleField())
     await waitFor(() =>
       expect(updateSessionTitleMock).toHaveBeenCalledWith(SESSION_ID, 'Blurred header title'),

@@ -136,13 +136,13 @@ describe('SQLite Session title repository', () => {
           title: 'Fix failing test',
           needsRefinement: true,
         })
-        const pending = yield* repository.listPendingRefinements(10)
+        const pending = yield* repository.listPendingRefinements({ createdAfter: 0, limit: 10 })
         yield* repository.clearRefinement(ROOT)
         return {
           stale,
           applied,
           pending,
-          afterClear: yield* repository.listPendingRefinements(10),
+          afterClear: yield* repository.listPendingRefinements({ createdAfter: 0, limit: 10 }),
           row: yield* titleRow(ROOT),
         }
       }),

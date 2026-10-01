@@ -21,6 +21,7 @@ interface SessionTitleRow {
   readonly archived: number
   readonly execution_model_id: string | null
   readonly is_worker: number
+  readonly created_at: number
 }
 
 function repositoryError(operation: string, cause: unknown) {
@@ -40,6 +41,7 @@ function toState(row: SessionTitleRow): SessionTitleState {
     executionModel: row.execution_model_id ? SupportedModelId(row.execution_model_id) : null,
     archived: row.archived === 1,
     isWorker: row.is_worker === 1,
+    createdAt: row.created_at,
   }
 }
 
@@ -53,6 +55,7 @@ function getState(sql: SqlClient.SqlClient, sessionId: SessionId) {
         sessions.title_needs_refinement,
         sessions.project_path,
         sessions.archived,
+        sessions.created_at,
         json_extract(session_execution_profiles.profile_json, '$.modelId') AS execution_model_id,
         EXISTS (
           SELECT 1 FROM session_spawn_lineage
@@ -138,15 +141,32 @@ export const SqliteSessionTitleRepositoryLive = Layer.effect(
           Effect.asVoid,
           Effect.mapError((cause) => repositoryError('clear-refinement', cause)),
         ),
-      listPendingRefinements: (limit) =>
+      listPendingRefinements: ({ createdAfter, limit }) =>
         sql<{ readonly id: string }>`
           SELECT id FROM sessions
           WHERE title_needs_refinement = ${1} AND title_source = ${'generated'} AND archived = ${0}
+            AND created_at >= ${createdAfter}
           ORDER BY created_at DESC
           LIMIT ${limit}
         `.pipe(
           Effect.map((rows) => rows.map((row) => SessionId(row.id))),
           Effect.mapError((cause) => repositoryError('list-pending-refinements', cause)),
+        ),
+      settleRefinementsCreatedBefore: (createdBefore) =>
+        sql`UPDATE sessions SET title_needs_refinement = ${0}
+          WHERE title_needs_refinement = ${1} AND created_at < ${createdBefore}`.pipe(
+          Effect.asVoid,
+          Effect.mapError((cause) => repositoryError('settle-stale-refinements', cause)),
+        ),
+      listRecentProvisional: ({ createdAfter, limit }) =>
+        sql<{ readonly id: string }>`
+          SELECT id FROM sessions
+          WHERE title_source = ${'provisional'} AND archived = ${0} AND created_at >= ${createdAfter}
+          ORDER BY created_at DESC
+          LIMIT ${limit}
+        `.pipe(
+          Effect.map((rows) => rows.map((row) => SessionId(row.id))),
+          Effect.mapError((cause) => repositoryError('list-recent-provisional', cause)),
         ),
     })
   }),

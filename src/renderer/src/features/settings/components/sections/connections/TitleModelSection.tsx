@@ -10,6 +10,7 @@ import { useProviders } from '@/features/settings/hooks/useSettings'
 import { usePreferencesStore } from '@/features/settings/state'
 import { createRendererLogger } from '@/shared/lib/logger'
 import { Select } from '@/shared/ui/Select'
+import { useUIStore } from '@/shell/ui-store'
 
 const logger = createRendererLogger('settings')
 
@@ -19,7 +20,7 @@ export const TitleModelCopy = {
   automaticHelp: "Uses the cheapest available model from each session's own provider.",
   offHelp: 'Sessions keep their first message as the title.',
   selectedModelNote:
-    "Each session's first message and Worker objectives are sent to this model's provider to generate titles.",
+    "Each session's first message and Worker objectives, and the conversation when a title is refined or regenerated, are sent to this model's provider.",
 } as const
 
 interface TitleModelOption {
@@ -83,6 +84,7 @@ export function TitleModelSection() {
     void setSessionTitleModel(next)
       .catch((error: unknown) => {
         logger.warn('Failed to update title model', { error: String(error) })
+        useUIStore.getState().showToast("Couldn't save the Title model. Try again.", 'error')
       })
       .finally(() => setSaving(false))
   }
@@ -92,7 +94,7 @@ export function TitleModelSection() {
       <div className="space-y-1">
         <h3 className="text-base font-semibold text-text-primary">Session titles</h3>
         <p className="text-xs text-text-tertiary">
-          Choose the model that names new sessions in the background.
+          Choose the model that names new sessions in the background and regenerates titles.
         </p>
       </div>
       <div className="rounded-lg border border-border bg-bg px-5 py-3">

@@ -120,6 +120,7 @@ export function SessionRowTitle({
        * layered above it.
        */}
       <Button
+        ref={rename.returnFocusRef}
         variant="unstyled"
         type="button"
         onClick={onSelect}

@@ -77,12 +77,25 @@ describe('SessionListItem rename', () => {
     fireEvent.doubleClick(screen.getByText(ORIGINAL_TITLE))
     const field = titleField()
     fireEvent.change(field, { target: { value: 'Blurred title' } })
+    fireEvent.pointerDown(document.body)
     fireEvent.blur(field)
 
     await waitFor(() =>
       expect(updateSessionTitleMock).toHaveBeenCalledWith(TITLE_SESSION_ID, 'Blurred title'),
     )
     expect(updateSessionTitleMock).toHaveBeenCalledOnce()
+  })
+
+  it('keeps editing when focus leaves the field without any user input', async () => {
+    renderStoreBackedRow()
+
+    fireEvent.doubleClick(screen.getByText(ORIGINAL_TITLE))
+    const field = titleField()
+    fireEvent.blur(field)
+
+    await waitFor(() => expect(field).toHaveFocus())
+    expect(titleField()).toBe(field)
+    expect(updateSessionTitleMock).not.toHaveBeenCalled()
   })
 
   it('renames the focused row with F2', () => {

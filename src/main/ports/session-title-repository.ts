@@ -16,6 +16,7 @@ export interface SessionTitleState {
   readonly archived: boolean
   /** Workers are titled from their Delegation objective and never receive Title refinement. */
   readonly isWorker: boolean
+  readonly createdAt: number
 }
 
 /**
@@ -47,10 +48,20 @@ export interface SessionTitleRepositoryShape {
   readonly clearRefinement: (
     sessionId: SessionId,
   ) => Effect.Effect<void, SessionTitleRepositoryError>
-  /** Sessions still owed a Title refinement, for recovery after the Host restarts. */
-  readonly listPendingRefinements: (
-    limit: number,
-  ) => Effect.Effect<readonly SessionId[], SessionTitleRepositoryError>
+  /** Recent Sessions still owed a Title refinement, for recovery after the Host restarts. */
+  readonly listPendingRefinements: (input: {
+    readonly createdAfter: number
+    readonly limit: number
+  }) => Effect.Effect<readonly SessionId[], SessionTitleRepositoryError>
+  /** Settles refinements owed by Sessions older than the cutoff; a refinement belongs to a start. */
+  readonly settleRefinementsCreatedBefore: (
+    createdBefore: number,
+  ) => Effect.Effect<void, SessionTitleRepositoryError>
+  /** Recent Sessions still showing a Provisional title, whose generation a Host restart cut off. */
+  readonly listRecentProvisional: (input: {
+    readonly createdAfter: number
+    readonly limit: number
+  }) => Effect.Effect<readonly SessionId[], SessionTitleRepositoryError>
 }
 
 export class SessionTitleRepository extends Context.Tag('@openwaggle/SessionTitleRepository')<

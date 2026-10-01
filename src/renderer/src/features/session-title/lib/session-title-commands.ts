@@ -24,6 +24,7 @@ const UNAVAILABLE_MESSAGES = {
 } satisfies Record<SessionTitleRegenerationUnavailableReason, string>
 
 export const SessionTitleMessages = {
+  regenerating: 'Regenerating the title…',
   unchanged: 'The current title already fits this session.',
   unavailable: UNAVAILABLE_MESSAGES,
 } as const
@@ -63,18 +64,23 @@ export function resolveRenamedSessionTitle(previousTitle: string, draft: string)
 
 /**
  * Rename a Session optimistically. The Host marks the title manual so generation never replaces
- * it; if the Host rejects the rename, the previous title comes back unless something newer
- * already replaced the optimistic one.
+ * it. `baseline` is the title the edit started from: a draft equal to it is no rename, even when a
+ * generated title replaced it meanwhile. If the Host rejects the rename, the title shown when the
+ * edit ended comes back, unless something newer already replaced the optimistic one.
  */
-export async function renameSession(sessionId: SessionId, previousTitle: string, draft: string) {
-  const title = resolveRenamedSessionTitle(previousTitle, draft)
+export async function renameSession(
+  sessionId: SessionId,
+  titles: { readonly baseline: string; readonly current: string },
+  draft: string,
+) {
+  const title = resolveRenamedSessionTitle(titles.baseline, draft)
   if (title === null) return
   applySessionTitleLocally(sessionId, title)
   try {
     await api.updateSessionTitle(sessionId, title)
   } catch (error) {
     if (currentSessionTitle(sessionId) === title) {
-      applySessionTitleLocally(sessionId, previousTitle)
+      applySessionTitleLocally(sessionId, titles.current)
     }
     useUIStore.getState().showToast(`Failed to rename session: ${ipcErrorMessage(error)}`, 'error')
   }
@@ -97,6 +103,7 @@ function reportRegenerationResult(sessionId: SessionId, result: SessionTitleRege
 export async function regenerateSessionTitle(sessionId: SessionId) {
   const regeneration = useSessionTitleRegenerationStore.getState()
   if (!regeneration.begin(sessionId)) return
+  useUIStore.getState().showToast(SessionTitleMessages.regenerating)
   try {
     reportRegenerationResult(sessionId, await api.regenerateSessionTitle(sessionId))
   } catch (error) {

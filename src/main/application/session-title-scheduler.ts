@@ -11,12 +11,9 @@ import type { SessionProjectionRepository } from '../ports/session-projection-re
 import type { SessionTitleGenerator } from '../ports/session-title-generator'
 import type { SessionTitleRepository } from '../ports/session-title-repository'
 import type { SettingsService } from '../services/settings-service'
-import {
-  generateInitialSessionTitle,
-  recoverPendingSessionTitleRefinements,
-  refineSessionTitle,
-  regenerateSessionTitle,
-} from './session-title-service'
+import { recoverSessionTitleWork } from './session-title-recovery'
+import { refineSessionTitle } from './session-title-refinement'
+import { generateInitialSessionTitle, regenerateSessionTitle } from './session-title-service'
 
 type SessionTitleWorkContext =
   | SessionTitleRepository
@@ -33,7 +30,7 @@ let titleRuntime: Runtime.Runtime<SessionTitleWorkContext> | null = null
 
 export const installSessionTitleWorker = Effect.gen(function* () {
   titleRuntime = yield* Effect.runtime<SessionTitleWorkContext>()
-  Runtime.runFork(titleRuntime)(recoverPendingSessionTitleRefinements)
+  Runtime.runFork(titleRuntime)(recoverSessionTitleWork)
 })
 
 /** Generate a title for a Session that still has its default or Provisional title. */

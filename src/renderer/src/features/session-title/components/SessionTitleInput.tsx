@@ -18,11 +18,13 @@ export function SessionTitleInput({
       value={rename.draft}
       maxLength={SESSION_TITLE_MAX_LENGTH}
       onChange={(event) => rename.setDraft(event.target.value)}
-      onBlur={rename.save}
+      onBlur={rename.blur}
       onKeyDown={(event) => {
+        // Enter and Escape confirm or cancel an IME composition, not the rename.
+        if (event.nativeEvent.isComposing) return
         if (event.key === 'Enter') {
           event.preventDefault()
-          rename.save()
+          rename.submit()
         }
         if (event.key === 'Escape') {
           event.preventDefault()

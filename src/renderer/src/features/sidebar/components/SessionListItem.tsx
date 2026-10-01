@@ -139,6 +139,8 @@ export function SessionListItem({
       title={rowDescription}
       data-qa="sidebar-session-row"
       {...rowProps}
+      // Selecting or dragging text inside the rename field must not start a pinned-row drag.
+      {...(rename.isEditing ? { draggable: false } : {})}
       data-session-id={sessionId}
       style={rowStyle}
       className={cn(

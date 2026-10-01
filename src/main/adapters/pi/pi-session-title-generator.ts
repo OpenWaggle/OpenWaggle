@@ -30,10 +30,27 @@ function supportsText(model: PiModel) {
 }
 
 /**
- * The cheapest available text model from the Session model's own provider, so the request goes
- * where the Session already sends its messages, under the same login. A model priced at zero
- * (subscriptions, local servers) is already as cheap as it gets and is kept. Non-reasoning models
- * are preferred because thinking only adds latency to a six-word answer.
+ * Aggregating providers (Bedrock, OpenRouter) list many vendors' models under one provider, and
+ * the cheapest of those can be a speech model or a 3B model. A candidate must share the Session
+ * model's vendor line: everything up to the last `/` (`anthropic/claude-…`), or a Bedrock-style
+ * `region.vendor.` prefix (`eu.anthropic.claude-…`), which also keeps the request in the same
+ * inference region. Ids without such a prefix (`claude-sonnet-4-6`, `gpt-5.5`) share the provider.
+ */
+const BEDROCK_STYLE_VENDOR = /^((?:[a-z]{2,7}\.)?[a-z]+\.)[a-z]/
+/** OpenRouter routing variants such as `:batch` or `:free` change latency or limits, not the model. */
+const ROUTING_VARIANT = /:[a-z]+$/
+
+export function modelVendorLine(modelId: string) {
+  const slash = modelId.lastIndexOf('/')
+  if (slash >= 0) return modelId.slice(0, slash + 1)
+  return BEDROCK_STYLE_VENDOR.exec(modelId)?.[1] ?? ''
+}
+
+/**
+ * The cheapest available text model from the Session model's own provider and vendor line, so
+ * the request goes where the Session already sends its messages, under the same login. A model
+ * priced at zero (subscriptions, local servers) is already as cheap as it gets and is kept.
+ * Non-reasoning models are preferred because thinking only adds latency to a six-word answer.
  */
 export function selectAutomaticTitleModel(
   sessionModel: PiModel,
@@ -41,9 +58,12 @@ export function selectAutomaticTitleModel(
 ): PiModel {
   const sessionPrice = price(sessionModel)
   if (sessionPrice <= 0) return sessionModel
+  const vendorLine = modelVendorLine(sessionModel.id)
   const cheaper = available.filter(
     (model) =>
       model.provider === sessionModel.provider &&
+      modelVendorLine(model.id) === vendorLine &&
+      !ROUTING_VARIANT.test(model.id) &&
       supportsText(model) &&
       price(model) > 0 &&
       price(model) < sessionPrice,
