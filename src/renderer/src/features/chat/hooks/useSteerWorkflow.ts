@@ -1,7 +1,11 @@
 import { matchBy } from '@diegogbrisa/ts-match'
 import type { SessionId } from '@shared/types/brand'
 import type { SessionControlSteeringReceipt } from '@shared/types/session-control'
-import { selectPendingSteerFollowUps, useOptimisticSteerStore } from '@/features/chat/state'
+import {
+  selectPendingSteerFollowUps,
+  useOptimisticSteerStore,
+  userStopCount,
+} from '@/features/chat/state'
 import { createRendererLogger } from '@/shared/lib/logger'
 import { reportQueuedSteerFailure } from '../lib/queue-failure-feedback'
 import type { AgentChatReturn } from './useAgentChat.types'
@@ -35,6 +39,7 @@ export function useSteerWorkflow(deps: SteerWorkflowDeps): SteerWorkflowReturn {
     if (!item || !useOptimisticSteerStore.getState().beginPromotion(activeSessionId, messageId))
       return
     let preview: OptimisticSteerPreviewController | undefined
+    const stopsBefore = userStopCount(activeSessionId)
     try {
       // This is display-only: the Host still resolves the original immutable attachments and
       // intent by Follow-up ID. Never reconstruct a delivery payload from the queue preview.
@@ -63,7 +68,16 @@ export function useSteerWorkflow(deps: SteerWorkflowDeps): SteerWorkflowReturn {
         .exhaustive()
     } catch (error) {
       preview?.clear()
-      reportQueuedSteerFailure({ logger, showToast }, activeSessionId, messageId, error)
+      // The user stopped the Run while the promotion was pending: the Host rejects it and the
+      // message goes back to the queue, which is what Stop asked for, not a failure to report.
+      if (userStopCount(activeSessionId) !== stopsBefore) {
+        logger.info('A Stop ended the Run a queued message was steering into', {
+          sessionId: activeSessionId,
+          messageId,
+        })
+      } else {
+        reportQueuedSteerFailure({ logger, showToast }, activeSessionId, messageId, error)
+      }
     } finally {
       // The Host has removed an accepted Follow-up, or retained a refused one. A queued receipt
       // keeps its preview until the actual user node arrives, which can follow a long tool call.

@@ -8,4 +8,5 @@ export {
   selectOptimisticSteerPreviews,
   selectPendingSteerFollowUps,
   useOptimisticSteerStore,
+  userStopCount,
 } from './optimistic-steer-store'

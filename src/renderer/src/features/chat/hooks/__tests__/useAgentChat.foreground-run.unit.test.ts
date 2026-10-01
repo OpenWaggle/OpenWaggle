@@ -6,6 +6,7 @@ import type { SessionDetail } from '@shared/types/session'
 import { act, renderHook } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { isReportableSendFailure, MessageNotDelivered } from '../../lib/message-delivery'
+import { userStopCount } from '../../state/optimistic-steer-store'
 import {
   apiMock,
   createDeferred,
@@ -157,12 +158,14 @@ describe('useAgentChat foreground run', () => {
       sendPromise = result.current.sendMessage(SEND_PAYLOAD)
     })
 
+    const stopsBefore = userStopCount(SessionId('session-1'))
     await act(async () => {
       result.current.stop()
       await sendPromise
     })
 
     expect(apiMock.cancelAgent).toHaveBeenCalledWith(SessionId('session-1'))
+    expect(userStopCount(SessionId('session-1'))).toBe(stopsBefore + 1)
     expect(result.current.status).toBe('ready')
   })
 

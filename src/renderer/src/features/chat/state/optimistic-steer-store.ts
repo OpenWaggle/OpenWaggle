@@ -29,6 +29,9 @@ export interface OptimisticSteerPreview {
 interface OptimisticSteerState {
   readonly previews: Map<SessionId, readonly OptimisticSteerPreview[]>
   readonly pendingPromotions: Map<SessionId, readonly string[]>
+  /** How many times the user has stopped each Session's Run from this window. */
+  readonly userStops: Map<SessionId, number>
+  readonly noteUserStop: (sessionId: SessionId) => void
   readonly beginPromotion: (sessionId: SessionId, followUpId: string) => boolean
   readonly finishPromotion: (sessionId: SessionId, followUpId: string) => void
   readonly add: (sessionId: SessionId, preview: OptimisticSteerPreview) => void
@@ -48,6 +51,11 @@ interface OptimisticSteerState {
 
 const EMPTY_PREVIEWS: readonly OptimisticSteerPreview[] = []
 const EMPTY_PROMOTIONS: readonly string[] = []
+
+/** The user's Stop count for a Session, to tell a Stop apart from a failed promotion. */
+export function userStopCount(sessionId: SessionId) {
+  return useOptimisticSteerStore.getState().userStops.get(sessionId) ?? 0
+}
 
 export function selectPendingSteerFollowUps(sessionId: SessionId | null) {
   return (state: OptimisticSteerState) =>
@@ -72,6 +80,14 @@ export function selectOptimisticSteerPreviews(sessionId: SessionId | null) {
 export const useOptimisticSteerStore = create<OptimisticSteerState>((set) => ({
   previews: new Map(),
   pendingPromotions: new Map(),
+  userStops: new Map(),
+  noteUserStop(sessionId) {
+    set((state) => {
+      const userStops = new Map(state.userStops)
+      userStops.set(sessionId, (state.userStops.get(sessionId) ?? 0) + 1)
+      return { userStops }
+    })
+  },
   beginPromotion(sessionId, followUpId) {
     let started = false
     set((state) => {

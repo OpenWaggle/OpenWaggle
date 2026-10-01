@@ -50,7 +50,7 @@ function setup() {
 
 describe('useSteerWorkflow with the durable Host queue', () => {
   beforeEach(() => {
-    useOptimisticSteerStore.setState({ pendingPromotions: new Map() })
+    useOptimisticSteerStore.setState({ pendingPromotions: new Map(), userStops: new Map() })
   })
 
   it('previews a pending promotion without withdrawing its durable queue item', async () => {
@@ -192,6 +192,32 @@ describe('useSteerWorkflow with the durable Host queue', () => {
     await act(() => result.current.handleSteer('follow-up-1'))
     expect(deps.showToast).toHaveBeenCalledWith(expect.stringContaining('Could not steer'))
     expect(result.current.isSteering).toBe(false)
+  })
+
+  it('does not report a promotion the user rejected by stopping the Run', async () => {
+    const deps = setup()
+    let rejectPromotion: (error: Error) => void = () => undefined
+    deps.promoteFollowUp.mockReturnValueOnce(
+      new Promise<SessionControlSteeringReceipt>((_resolve, reject) => {
+        rejectPromotion = reject
+      }),
+    )
+    const { result } = renderHook(() => useSteerWorkflow(deps))
+    let operation: Promise<void> | undefined
+    act(() => {
+      operation = result.current.handleSteer('follow-up-1')
+    })
+
+    useOptimisticSteerStore.getState().noteUserStop(deps.activeSessionId)
+    await act(async () => {
+      rejectPromotion(new Error('run_not_live'))
+      await operation
+    })
+
+    expect(deps.showToast).not.toHaveBeenCalled()
+    expect(useOptimisticSteerStore.getState().pendingPromotions.has(deps.activeSessionId)).toBe(
+      false,
+    )
   })
 
   it('does not cancel an accepted promotion when the user navigates away', async () => {

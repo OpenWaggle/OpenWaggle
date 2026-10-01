@@ -12,6 +12,7 @@ import { isModelActionable } from '@/features/providers/state'
 import { usePreferencesStore } from '@/features/settings/state'
 import { api } from '@/shared/lib/ipc'
 import { createOptimisticUserMessage } from '../lib/useAgentChat.utils'
+import { useOptimisticSteerStore } from '../state/optimistic-steer-store'
 import { settledSessionModelWrites } from '../state/session-model-writes'
 import {
   beginForegroundRun,
@@ -288,6 +289,8 @@ export function createAgentRunControls(params: AgentRunControlParams) {
 
   function stop() {
     if (sessionId) {
+      // A promotion this Stop rejects is the user's doing, not a steering failure.
+      useOptimisticSteerStore.getState().noteUserStop(sessionId)
       void api.cancelAgent(sessionId).catch((cancelError: unknown) => {
         const normalizedError = normalizeError(cancelError)
         params.setError(normalizedError)
