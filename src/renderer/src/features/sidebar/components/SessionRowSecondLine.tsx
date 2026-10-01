@@ -1,5 +1,5 @@
 import type { SessionSummary } from '@shared/types/session'
-import { ChessQueen, Pickaxe } from 'lucide-react'
+import { ChessQueen, Pencil, Pickaxe } from 'lucide-react'
 import { cn } from '@/shared/lib/cn'
 import { formatCompactRelativeTime } from '@/shared/lib/format'
 import { PINNED_SHORTCUT_LIMIT } from '../lib/pinned-sessions'
@@ -53,6 +53,12 @@ export function SessionRowSecondLine({
           >
             {stateLabel}
           </span>
+        )}
+        {session.followUpEditHeldAt === undefined ? null : (
+          <>
+            {stateLabel === '' ? null : <Separator />}
+            <FollowUpEditWaitIndicator />
+          </>
         )}
         {session.lineage?.role === 'queen' || session.lineage?.role === 'worker' ? (
           <>
@@ -118,6 +124,22 @@ export function SessionLineageIndicator({ session }: { readonly session: Session
       {lineage.workerCount > 0 ? (
         <span className="text-xs tabular-nums">{lineage.workerCount}</span>
       ) : null}
+    </span>
+  )
+}
+
+/**
+ * A queued message is held for the user's edit, so the queue is not delivering. Info: a person is
+ * needed (ADR 0021). Text, not only a glyph, because the hold blocks the Session until it ends.
+ */
+function FollowUpEditWaitIndicator() {
+  return (
+    <span
+      data-qa="sidebar-row-edit-wait"
+      className="inline-flex shrink-0 items-center gap-0.5 text-info-text"
+    >
+      <Pencil aria-hidden="true" className="size-3" />
+      Waiting on your edit
     </span>
   )
 }

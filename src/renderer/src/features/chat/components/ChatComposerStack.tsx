@@ -274,10 +274,13 @@ export function ChatComposerStack({
             onCancel={onCancel}
             isLoading={isLoading}
             isFinishing={section.status === 'finishing'}
-            mode={branchSummaryComposerMode(
-              branchSummaryMode,
-              section.sessionDetailPending || !draftContextReady,
-            )}
+            mode={{
+              ...branchSummaryComposerMode(
+                branchSummaryMode,
+                section.sessionDetailPending || !draftContextReady,
+              ),
+              queuedMessagesSessionId: activeSessionId,
+            }}
             onToast={onToast}
           />
         </div>

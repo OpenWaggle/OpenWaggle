@@ -23,6 +23,7 @@ import { SyncPlugin } from './plugins/SyncPlugin'
 
 interface LexicalComposerEditorProps {
   onSubmit: (text: string) => void
+  onEscape?: () => void
   disabled?: boolean
   placeholder: string
   editorRef: RefObject<LexicalEditor | null>
@@ -47,6 +48,7 @@ const EDITOR_CONFIG = {
 
 export function LexicalComposerEditor({
   onSubmit,
+  onEscape,
   disabled,
   placeholder,
   editorRef,
@@ -76,7 +78,7 @@ export function LexicalComposerEditor({
       <HistoryPlugin />
       <AutoFocusPlugin />
       <EditablePlugin disabled={disabled} />
-      <KeyboardPlugin onSubmit={onSubmit} />
+      <KeyboardPlugin onSubmit={onSubmit} onEscape={onEscape} />
       <SyncPlugin />
       <SlashCommandPlugin />
       <AutoResizePlugin />

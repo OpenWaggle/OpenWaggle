@@ -16,7 +16,7 @@ export function followUpQueueAnnouncement(input: {
   return `${String(input.count)} Follow-up${plural} ${state}.`
 }
 
-export function QueueUnavailableNotice({ onRetry }: { readonly onRetry: () => Promise<void> }) {
+export function QueueUnavailableNotice({ onRetry }: { readonly onRetry: () => Promise<unknown> }) {
   const [isRetrying, setIsRetrying] = useState(false)
 
   async function retry() {

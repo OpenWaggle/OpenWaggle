@@ -86,8 +86,9 @@ export function useSessionFollowUpQueue(sessionId: SessionId | null) {
   const query = useQuery(sessionFollowUpQueueOptions(sessionId))
 
   async function refresh() {
-    if (!sessionId) return
-    await query.refetch()
+    if (!sessionId) return undefined
+    const result = await query.refetch()
+    return result.data
   }
 
   async function enqueue(payload: AgentSendPayload) {
@@ -195,13 +196,17 @@ export function useSessionFollowUpQueue(sessionId: SessionId | null) {
     await refresh()
   }
 
-  async function reorder(orderedFollowUpIds: readonly string[]) {
+  /**
+   * Reorders the whole queue. Guarded by `expectedQueueRevision` (default: the loaded snapshot's);
+   * a stale guard rejects with `queue_revision_changed`.
+   */
+  async function reorder(orderedFollowUpIds: readonly string[], expectedQueueRevision?: number) {
     if (!sessionId) return
-    const snapshot = query.data ?? (await readQueue(sessionId))
+    const revision = expectedQueueRevision ?? (query.data ?? (await readQueue(sessionId))).revision
     await mutate({
       operation: 'queue-reorder',
       sessionId,
-      expectedQueueRevision: snapshot.revision,
+      expectedQueueRevision: revision,
       orderedFollowUpIds,
     })
     await refresh()

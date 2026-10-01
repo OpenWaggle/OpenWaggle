@@ -16,6 +16,8 @@ interface ComposerToolbarProps {
     readonly isFinishing?: boolean
     readonly canSend: boolean
     readonly sendTitle?: string
+    /** The primary action saves a queued-message edit instead of sending. */
+    readonly savesEdit?: boolean
   }
   readonly onToggleVoice: () => void
   readonly voiceMode: 'idle' | 'recording' | 'transcribing'
@@ -57,6 +59,7 @@ export function ComposerToolbar({
           isFinishing={submission.isFinishing}
           canSend={submission.canSend}
           sendTitle={submission.sendTitle}
+          savesEdit={submission.savesEdit}
           onSend={submission.onSend}
           onCancel={submission.onCancel}
         />

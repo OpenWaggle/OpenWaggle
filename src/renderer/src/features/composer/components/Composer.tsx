@@ -1,4 +1,5 @@
 import type { AgentSendPayload } from '@shared/types/agent'
+import type { SessionId } from '@shared/types/brand'
 import type { LexicalEditor } from 'lexical'
 import type { ReactNode } from 'react'
 import { useEffect, useRef } from 'react'
@@ -7,12 +8,18 @@ import { useComposerAttachments } from '../hooks/useComposerAttachments'
 import type { SendFailureDisposition } from '../hooks/useComposerSubmission'
 import { useComposerSubmission } from '../hooks/useComposerSubmission'
 import { useComposerVoiceControls } from '../hooks/useComposerVoiceControls'
+import { useAdoptHeldQueuedMessageEdit, useQueuedMessageEdit } from '../hooks/useQueuedMessageEdit'
 import { useSessionScopedFilePicker } from '../hooks/useSessionScopedFilePicker'
+import {
+  isOpenQueuedMessageEdit,
+  type OpenQueuedMessageEdit,
+} from '../state/queued-message-edit-store'
 import { ComposerDropZone } from './ComposerDropZone'
 import { ComposerEditorArea } from './ComposerEditorArea'
 import { ComposerHeader } from './ComposerHeader'
 import { ComposerHiddenFileInput } from './ComposerHiddenFileInput'
 import { ComposerModeControls } from './ComposerModeControls'
+import { QueuedMessageEditBar } from './QueuedMessageEditBar'
 
 interface ComposerProps {
   readonly sessionId?: string | null
@@ -32,8 +39,44 @@ interface ComposerProps {
     readonly recordHistory?: boolean
     readonly allowEnqueue?: boolean
     readonly onSendFailure?: (cause: unknown) => SendFailureDisposition
+    /**
+     * The Session whose queued messages this composer can edit. While one of them is being
+     * edited, the composer is in edit mode: it shows the edit bar, and Enter saves the edit.
+     */
+    readonly queuedMessagesSessionId?: SessionId | null
   }
   onToast?: (message: string) => void
+}
+
+function noToast() {}
+
+/** The composer's mode with its defaults. */
+function resolveComposerMode(mode: ComposerProps['mode']) {
+  return {
+    disabled: mode?.disabled,
+    placeholder: mode?.placeholder,
+    sendTitle: mode?.sendTitle,
+    requiresText: mode?.requiresText ?? false,
+    clearOnSubmit: mode?.clearOnSubmit ?? true,
+    recordHistory: mode?.recordHistory ?? true,
+    allowEnqueue: mode?.allowEnqueue ?? true,
+    onSendFailure: mode?.onSendFailure,
+  }
+}
+
+/** Editing a queued message: the input says so, and the primary action saves. */
+function withQueuedEditMode(
+  resolved: ReturnType<typeof resolveComposerMode>,
+  openEdit: OpenQueuedMessageEdit | null,
+) {
+  if (!openEdit) return resolved
+  return {
+    ...resolved,
+    // Saving or cancelling is in flight: hold the draft still until the Host answers.
+    disabled: resolved.disabled || openEdit.phase !== 'editing',
+    placeholder: 'Edit the queued message',
+    sendTitle: 'Save edit',
+  }
 }
 
 function runAnnouncement(isLoading: boolean, isFinishing: boolean) {
@@ -52,14 +95,19 @@ export function Composer({
   mode,
   onToast,
 }: ComposerProps) {
-  const disabled = mode?.disabled
-  const placeholder = mode?.placeholder
-  const sendTitle = mode?.sendTitle
-  const requiresText = mode?.requiresText ?? false
-  const clearOnSubmit = mode?.clearOnSubmit ?? true
-  const recordHistory = mode?.recordHistory ?? true
-  const allowEnqueue = mode?.allowEnqueue ?? true
-  const onSendFailure = mode?.onSendFailure
+  const queuedEdit = useQueuedMessageEdit(mode?.queuedMessagesSessionId ?? null, onToast ?? noToast)
+  useAdoptHeldQueuedMessageEdit(mode?.queuedMessagesSessionId ?? null)
+  const openEdit = isOpenQueuedMessageEdit(queuedEdit.edit) ? queuedEdit.edit : null
+  const {
+    disabled,
+    placeholder,
+    sendTitle,
+    requiresText,
+    clearOnSubmit,
+    recordHistory,
+    allowEnqueue,
+    onSendFailure,
+  } = withQueuedEditMode(resolveComposerMode(mode), openEdit)
   const editorRef = useRef<LexicalEditor | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   useSessionScopedFilePicker(sessionId, fileInputRef)
@@ -81,11 +129,15 @@ export function Composer({
     attachments: attachments.attachments,
     hasPreparingTextAttachment: attachments.hasPreparingTextAttachment,
   })
+  function submit() {
+    if (openEdit) void queuedEdit.save()
+    else submission.handleSubmit()
+  }
   const voice = useComposerVoiceControls({
     disabled,
     editorRef,
     sendComposed: submission.sendComposed,
-    submitCurrentDraft: submission.submitCurrentDraft,
+    submitCurrentDraft: openEdit ? submit : submission.submitCurrentDraft,
   })
 
   useEffect(() => {
@@ -109,13 +161,17 @@ export function Composer({
         editorRef={editorRef}
         fileAttachment={attachments.fileAttachment}
       >
+        {openEdit ? (
+          <QueuedMessageEditBar edit={openEdit} onCancel={() => void queuedEdit.cancel()} />
+        ) : null}
         <ComposerHeader
           attachments={attachments}
           voiceError={voice.error}
           onClearVoiceError={voice.clearError}
         />
         <ComposerEditorArea
-          onSubmit={submission.handleSubmit}
+          onSubmit={submit}
+          onEscape={openEdit ? () => void queuedEdit.cancel() : undefined}
           disabled={disabled}
           placeholder={placeholder}
           isLoading={isLoading}
@@ -128,14 +184,13 @@ export function Composer({
           fileInputRef={fileInputRef}
           voice={voice}
           submission={{
-            onSend: () => {
-              submission.handleSubmit()
-            },
+            onSend: submit,
             onCancel,
             isLoading,
             isFinishing,
             canSend: submission.canSend,
             sendTitle,
+            savesEdit: openEdit !== null,
           }}
         />
       </ComposerDropZone>

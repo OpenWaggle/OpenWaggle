@@ -1,0 +1,64 @@
+import { create } from 'zustand'
+import type { SessionFollowUpEdit } from '@/features/chat/hooks'
+
+/**
+ * This window's Follow-up edit for one Session, while the composer edits a queued message.
+ *
+ * Kept per Session, outside the composer's draft, because the Host hold outlives the composer:
+ * leaving the Session keeps the hold, and coming back must reopen the composer in edit mode.
+ * The edited content itself lives in the Session's ordinary scoped draft; the draft that was in the
+ * composer before the edit is set aside under `queuedMessageEditStashKey`.
+ */
+export type QueuedMessageEdit =
+  | {
+      readonly phase: 'beginning'
+      readonly followUpId: string
+    }
+  | {
+      readonly phase: 'editing' | 'saving' | 'cancelling'
+      readonly followUpId: string
+      /**
+       * The open edit as `beginEdit` returned it (or as it was adopted), kept until save: the save
+       * is guarded by the queue revision the edit was based on, and `item` carries the queued
+       * Waggle invocation and visualization context the composer does not show.
+       */
+      readonly based: SessionFollowUpEdit
+    }
+
+export type OpenQueuedMessageEdit = Exclude<QueuedMessageEdit, { readonly phase: 'beginning' }>
+
+interface QueuedMessageEditState {
+  readonly edits: Readonly<Record<string, QueuedMessageEdit>>
+  readonly setEdit: (sessionId: string, edit: QueuedMessageEdit | null) => void
+}
+
+export const useQueuedMessageEditStore = create<QueuedMessageEditState>((set) => ({
+  edits: {},
+  setEdit(sessionId, edit) {
+    set((state) => {
+      const edits = { ...state.edits }
+      if (edit) edits[sessionId] = edit
+      else delete edits[sessionId]
+      return { edits }
+    })
+  },
+}))
+
+export function selectQueuedMessageEdit(sessionId: string | null) {
+  return (state: QueuedMessageEditState) => (sessionId ? (state.edits[sessionId] ?? null) : null)
+}
+
+export function isOpenQueuedMessageEdit(
+  edit: QueuedMessageEdit | null,
+): edit is OpenQueuedMessageEdit {
+  return edit !== null && edit.phase !== 'beginning'
+}
+
+/**
+ * Where the composer's own draft waits during a Follow-up edit. Inside the composer's scoped drafts
+ * so its attachments stay owned (and are not discarded), and session-scoped so deleting the Session
+ * clears it with the Session's other drafts.
+ */
+export function queuedMessageEditStashKey(sessionId: string) {
+  return `follow-up-edit:session:${sessionId}:stash`
+}

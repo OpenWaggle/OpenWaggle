@@ -8,6 +8,7 @@ export {
   type SessionFollowUpEditHold,
   type SessionFollowUpEditPayload,
   type SessionFollowUpQueueItem,
+  type SessionFollowUpQueueSnapshot,
   sessionFollowUpQueueOptions,
   useSessionFollowUpQueue,
 } from './useSessionFollowUpQueue'

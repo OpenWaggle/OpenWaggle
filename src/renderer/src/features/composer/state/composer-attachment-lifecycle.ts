@@ -6,6 +6,12 @@ import type { ComposerState } from './composer-store-types'
 
 const logger = createRendererLogger('composer-attachments')
 const submittedAttachmentIds = new Set<string>()
+/*
+ * Attachments a queued Follow-up already references on the Host, loaded back into the composer by a
+ * Follow-up edit. The composer never owns them: removing their chip, cancelling the edit, or
+ * restoring the set-aside draft must not discard what the queued message still delivers.
+ */
+const hostReferencedAttachmentIds = new Set<string>()
 
 function ownedAttachments(state: ComposerState) {
   const attachments = new Map<string, PreparedAttachment>()
@@ -37,6 +43,10 @@ export function markAttachmentsSubmitted(attachments: readonly PreparedAttachmen
   for (const attachment of attachments) submittedAttachmentIds.add(attachment.id)
 }
 
+export function retainHostReferencedAttachments(attachments: readonly PreparedAttachment[]) {
+  for (const attachment of attachments) hostReferencedAttachmentIds.add(attachment.id)
+}
+
 export function unmarkAttachmentsSubmitted(attachments: readonly PreparedAttachment[]) {
   for (const attachment of attachments) submittedAttachmentIds.delete(attachment.id)
 }
@@ -66,6 +76,7 @@ export function releaseAbandonedSessionResourceAttachments(
   }
   const abandoned = abandonedAttachments(previous, current)
   for (const attachment of abandoned) {
+    if (hostReferencedAttachmentIds.has(attachment.id)) continue
     if (submittedAttachmentIds.delete(attachment.id)) continue
     if (attachment.origin === 'session-resource') discardSessionResourceAttachments([attachment])
     else releaseAttachmentPreviewUrls([attachment])

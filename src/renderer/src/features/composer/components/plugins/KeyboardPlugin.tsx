@@ -12,11 +12,15 @@ import { setEditorText } from '../../lib/lexical-utils'
 
 interface KeyboardPluginProps {
   onSubmit: (text: string) => void
+  /** Escape not taken by a menu above the input (they register at higher priority). */
+  onEscape?: () => void
 }
 
-export function KeyboardPlugin({ onSubmit }: KeyboardPluginProps): null {
+export function KeyboardPlugin({ onSubmit, onEscape }: KeyboardPluginProps): null {
   const [editor] = useLexicalComposerContext()
   const submit = useEffectEvent(onSubmit)
+  const hasEscape = onEscape !== undefined
+  const cancelOnEscape = useEffectEvent(() => onEscape?.())
 
   useEffect(() => {
     return editor.registerCommand<KeyboardEvent>(
@@ -27,6 +31,12 @@ export function KeyboardPlugin({ onSubmit }: KeyboardPluginProps): null {
           event.preventDefault()
           const text = editor.getEditorState().read(() => $getRoot().getTextContent())
           submit(text)
+          return true
+        }
+
+        if (event.key === 'Escape' && hasEscape) {
+          event.preventDefault()
+          cancelOnEscape()
           return true
         }
 
@@ -78,7 +88,7 @@ export function KeyboardPlugin({ onSubmit }: KeyboardPluginProps): null {
       },
       COMMAND_PRIORITY_NORMAL,
     )
-  }, [editor])
+  }, [editor, hasEscape])
 
   return null
 }
