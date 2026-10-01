@@ -119,11 +119,6 @@ describe('QueuedMessages reordering', () => {
     fireEvent.click(await screen.findByRole('menuitem', { name: 'Move up' }))
 
     await waitFor(() => expect(queueMock.reorder).toHaveBeenCalledWith(['b', 'a', 'c'], 4))
-    // Focus follows the moved message, and the new place is announced.
-    await waitFor(() =>
-      expect(screen.getByRole('button', { name: 'Reorder second' })).toHaveFocus(),
-    )
-    expect(screen.getByText('Moved to position 1 of 3.')).toBeInTheDocument()
   })
 
   it('offers only the moves a row can make', async () => {

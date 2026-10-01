@@ -11,7 +11,12 @@ import {
 import { Button } from '@/shared/ui/Button'
 import { useQueuedMessageArrangement } from '../hooks/useQueuedMessageArrangement'
 import { useQueuedMessageEdit } from '../hooks/useQueuedMessageEdit'
-import { selectComposerBusy, useComposerActivityStore } from '../state/composer-activity-store'
+import {
+  draftBusyReason,
+  selectDraftActivity,
+  useComposerActivityStore,
+} from '../state/composer-activity-store'
+import { useComposerStore } from '../state/composer-store'
 import { ComposerDock } from './ComposerDock'
 import { QueuedMessageRow } from './QueuedMessageRow'
 import { followUpQueueAnnouncement, QueueUnavailableNotice } from './QueueUnavailableNotice'
@@ -140,7 +145,10 @@ export function QueuedMessages({ sessionId, onSteer, isStreaming, onToast }: Que
   const queuedEdit = useQueuedMessageEdit(sessionId, onToast)
   const arrangement = useQueuedMessageArrangement(sessionId, queue, onToast)
   // An edit must not interleave with composer work in flight or a branch-summary prompt.
-  const composerBusy = useComposerActivityStore(selectComposerBusy)
+  const visibleKey = useComposerStore((state) => state.activeDraftContextKey)
+  const sessionKey = visibleKey?.includes(`session:${String(sessionId)}:`) ? visibleKey : null
+  const composerBusy =
+    draftBusyReason(useComposerActivityStore(selectDraftActivity(sessionKey))) !== null
   const branchSummaryOpen = useBranchSummaryStore((state) => state.prompt !== null)
   const canBeginEdit = queuedEdit.edit === null && !composerBusy && !branchSummaryOpen
 
@@ -201,7 +209,7 @@ export function QueuedMessages({ sessionId, onSteer, isStreaming, onToast }: Que
         })}
       </span>
       <span aria-live="polite" className="sr-only">
-        {arrangement.announcement}
+        <span key={arrangement.announcement.nonce}>{arrangement.announcement.text}</span>
       </span>
       {showDock ? (
         <ComposerDock className="flex flex-col gap-1.5 px-2.5 pt-2 pb-1.5">
