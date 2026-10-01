@@ -57,6 +57,21 @@ export function isOpenQueuedMessageEdit(
   return edit !== null && edit.phase !== 'beginning'
 }
 
+/*
+ * Holds this window gave up because their draft was cleared (Session deleted or archived, branch
+ * archived). The release reaches the Host asynchronously, and until it does the queue still shows
+ * the hold as this user's, which adoption would otherwise re-open. Hold ids are never reused.
+ */
+const abandonedHoldIds = new Set<string>()
+
+export function markHoldAbandoned(holdId: string) {
+  abandonedHoldIds.add(holdId)
+}
+
+export function isHoldAbandoned(holdId: string) {
+  return abandonedHoldIds.has(holdId)
+}
+
 /**
  * Where the composer's own draft waits during a Follow-up edit. Inside the composer's scoped drafts
  * so its attachments stay owned (and are not discarded), and session-scoped so deleting the Session

@@ -14,6 +14,15 @@ interface PendingFocus {
 }
 
 /**
+ * Focus is still with the dock (its grip or menu) or was dropped to the page when the row was
+ * relocated. Anywhere else, the user has moved on and keeps their focus.
+ */
+function focusStillInDock(list: HTMLElement | null) {
+  const active = document.activeElement
+  return active === null || active === document.body || (list?.contains(active) ?? false)
+}
+
+/**
  * Focuses the moved message's grip once the rendered order shows it at its new place. Focusing
  * earlier lands on the row React is about to relocate, which blurs it again (Move down).
  */
@@ -44,18 +53,26 @@ export function useQueuedMessageArrangement(
   const visibleIds = visible.map((item) => item.id)
   const renderedOrder = visibleIds.join('\n')
 
+  // The first order change after a move settles it: focus follows the message if it landed where
+  // the move put it and the user has not moved focus since; either way the pending focus ends, so
+  // it can never steal focus on some later change.
   useLayoutEffect(() => {
     const pending = pendingFocusRef.current
-    if (!pending || renderedOrder.split('\n')[pending.index] !== pending.followUpId) return
-    if (focusWhenPlaced(listRef.current, pending)) pendingFocusRef.current = null
+    if (!pending) return
+    pendingFocusRef.current = null
+    if (renderedOrder.split('\n')[pending.index] !== pending.followUpId) return
+    if (focusStillInDock(listRef.current)) focusWhenPlaced(listRef.current, pending)
   }, [renderedOrder])
 
   async function moveAndFocus(followUpId: string, anchor: QueuedMessageAnchor) {
     const moved = await move(followUpId, anchor)
     if (!moved) return
     const pending = { followUpId, index: moved.position - 1 }
-    // The new order may already be on screen; otherwise the layout effect focuses on commit.
-    pendingFocusRef.current = focusWhenPlaced(listRef.current, pending) ? null : pending
+    // Focus follows only if it is still with the dock. The new order may already be on screen;
+    // otherwise the layout effect focuses on the commit that shows it.
+    if (focusStillInDock(listRef.current)) {
+      pendingFocusRef.current = focusWhenPlaced(listRef.current, pending) ? null : pending
+    }
     setAnnouncement((previous) => ({
       text: `Moved to position ${String(moved.position)} of ${String(moved.count)}.`,
       nonce: previous.nonce + 1,

@@ -1,7 +1,10 @@
 import { SessionId } from '@shared/types/brand'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { SessionFollowUpQueueSnapshot } from '@/features/chat/hooks'
+import {
+  SessionControlRejectedError,
+  type SessionFollowUpQueueSnapshot,
+} from '@/features/chat/hooks'
 import { useEscapeHotkey } from '@/shared/hooks/useEscapeHotkey'
 import {
   openedEdit,
@@ -129,6 +132,46 @@ describe('Composer queued-message edit: Escape, Cancel, and in-flight work', () 
     pressEscape()
 
     await waitFor(() => expect(queueMock.cancelEdit).toHaveBeenCalledTimes(1))
+  })
+
+  it('forgets a first Escape once the edit leaves editing (a failed save)', async () => {
+    queueMock.saveEdit.mockRejectedValueOnce(
+      new SessionControlRejectedError('queue-edit-save', 'queue_byte_capacity_reached'),
+    )
+    openEdit('changed text')
+    renderComposer()
+    await waitFor(() => expect(input()).toHaveTextContent('changed text'))
+    pressEscape()
+    expect(screen.getByText('Press Esc again to discard your changes')).toBeInTheDocument()
+
+    fireEvent.keyDown(input(), { key: 'Enter' })
+    await waitFor(() => expect(toast).toHaveBeenCalledWith(expect.stringContaining('too large')))
+    await waitFor(() => expect(screen.getByText('Editing queued message')).toBeInTheDocument())
+    pressEscape()
+
+    expect(queueMock.cancelEdit).not.toHaveBeenCalled()
+    expect(screen.getByText('Press Esc again to discard your changes')).toBeInTheDocument()
+  })
+
+  it('forgets a first Escape when the edit carries on under a new hold', async () => {
+    openEdit('changed text')
+    renderComposer()
+    await waitFor(() => expect(input()).toHaveTextContent('changed text'))
+    pressEscape()
+
+    // An interrupted edit taken up again under a fresh hold.
+    act(() =>
+      useQueuedMessageEditStore.getState().setEdit('session-a', {
+        phase: 'editing',
+        followUpId: 'mine',
+        contextKey: KEY_A,
+        based: openedEdit(QUEUED, 'hold-2'),
+      }),
+    )
+    expect(screen.queryByText('Press Esc again to discard your changes')).not.toBeInTheDocument()
+    pressEscape()
+
+    expect(queueMock.cancelEdit).not.toHaveBeenCalled()
   })
 
   it('leaves Escape to a sheet or popover that owns it on the shared stack', async () => {

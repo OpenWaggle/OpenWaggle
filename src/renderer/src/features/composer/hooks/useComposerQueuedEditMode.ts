@@ -43,20 +43,25 @@ export function useComposerQueuedEditMode(
   const attachments = useComposerStore((state) => state.attachments)
   const here = queuedEdit.isVisible ? queuedEdit.edit : null
   const activity = useComposerActivityStore(selectDraftActivity(here?.contextKey ?? null))
-  // Armed for the draft text it was pressed on: typing again asks again.
-  const [armedInput, setArmedInput] = useState<string | null>(null)
+  // Armed for the hold and draft text it was pressed on: typing again, a new hold (an interrupted
+  // edit carried on), or leaving 'editing' (save, cancel) asks again.
+  const [armed, setArmed] = useState<{ readonly holdId: string; readonly input: string } | null>(
+    null,
+  )
   const hasContent = input.trim().length > 0 || attachments.length > 0
   const open = isOpenQueuedMessageEdit(here) ? here : null
+  const escapeArmed =
+    open?.phase === 'editing' && armed?.holdId === open.based.holdId && armed.input === input
 
   function handleEscape() {
     if (open?.phase !== 'editing') return
     const unchanged = isUnchangedEdit(readComposerDraft(open.contextKey), open.based.item)
-    if (unchanged || armedInput === input) {
-      setArmedInput(null)
+    if (unchanged || escapeArmed) {
+      setArmed(null)
       void queuedEdit.cancel()
       return
     }
-    setArmedInput(input)
+    setArmed({ holdId: open.based.holdId, input })
   }
 
   return {
@@ -68,10 +73,13 @@ export function useComposerQueuedEditMode(
       hasContent &&
       draftBusyReason(activity) === null &&
       attachmentLimitReason(attachments) === null,
-    escapeArmed: open?.phase === 'editing' && armedInput === input,
-    save: () => void queuedEdit.save(),
+    escapeArmed,
+    save: () => {
+      setArmed(null)
+      void queuedEdit.save()
+    },
     cancel: () => {
-      setArmedInput(null)
+      setArmed(null)
       void queuedEdit.cancel()
     },
     onEscape: handleEscape,

@@ -6,8 +6,10 @@ import {
   type SessionFollowUpQueueItem,
   useSessionFollowUpQueue,
 } from '@/features/chat/hooks'
+import { retainHostReferencedAttachments } from '../state/composer-attachment-lifecycle'
 import { useComposerStore } from '../state/composer-store'
 import {
+  isHoldAbandoned,
   type OpenQueuedMessageEdit,
   selectQueuedMessageEdit,
   useQueuedMessageEditStore,
@@ -115,7 +117,11 @@ export function useQueuedMessageEdit(
       if (stillHolds(sessionId, open.based.holdId)) await handleSaveFailure(sessionId, open, error)
       return
     }
-    if (stillHolds(sessionId, open.based.holdId)) restoreStashedDraft(sessionId, open)
+    if (!stillHolds(sessionId, open.based.holdId)) return
+    // The queued message now carries every chip, including ones added during the edit: protect
+    // them all while the set-aside draft replaces them.
+    retainHostReferencedAttachments(draft.attachments)
+    restoreStashedDraft(sessionId, open)
   }
 
   async function handleSaveFailure(id: SessionId, open: OpenQueuedMessageEdit, error: unknown) {
@@ -198,8 +204,13 @@ export function useQueuedMessageEdit(
 
 /** A message this user holds for editing, which an edit could be re-adopted for. */
 function isOwnHold(item: SessionFollowUpQueueItem) {
+  const holdId = item.editHold?.holdId
   return (
-    item.editable && item.editHold?.heldByCurrentUser === true && item.editHold.holdId !== undefined
+    item.editable &&
+    item.editHold?.heldByCurrentUser === true &&
+    holdId !== undefined &&
+    // Given up with its cleared draft; the Host has not processed the release yet.
+    !isHoldAbandoned(holdId)
   )
 }
 
@@ -226,6 +237,7 @@ export function useAdoptHeldQueuedMessageEdit(sessionId: SessionId | null) {
     const resumed = queue.resumeEdit(followUpId)
     const contextKey = visibleSessionDraftContext(String(sessionId))
     if (!resumed || storedEdit(sessionId) || !contextKey || contextKey.endsWith(':pending')) return
+    if (isHoldAbandoned(resumed.holdId)) return
     // This window now renews the hold and releases it when it closes (ADR 0043).
     if (!(await queue.adoptEdit(resumed).catch(() => false))) return
     if (storedEdit(sessionId) || visibleSessionDraftContext(String(sessionId)) !== contextKey)

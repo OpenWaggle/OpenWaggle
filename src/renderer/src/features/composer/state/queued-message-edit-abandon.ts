@@ -3,6 +3,7 @@ import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
 import {
   isOpenQueuedMessageEdit,
+  markHoldAbandoned,
   queuedMessageEditStashKey,
   useQueuedMessageEditStore,
 } from './queued-message-edit-store'
@@ -37,7 +38,11 @@ export function abandonQueuedMessageEdits(matchesContext: (contextKey: string) =
   const stashKeys: string[] = []
   for (const [sessionId, edit] of Object.entries(edits)) {
     if (!matchesContext(edit.contextKey)) continue
-    if (isOpenQueuedMessageEdit(edit)) releaseHold(sessionId, edit.followUpId, edit.based.holdId)
+    if (isOpenQueuedMessageEdit(edit)) {
+      // Before forgetting it: adoption must not re-open it while the release is on its way.
+      markHoldAbandoned(edit.based.holdId)
+      releaseHold(sessionId, edit.followUpId, edit.based.holdId)
+    }
     setEdit(sessionId, null)
     stashKeys.push(queuedMessageEditStashKey(sessionId))
   }

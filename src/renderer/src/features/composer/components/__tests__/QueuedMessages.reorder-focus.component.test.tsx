@@ -11,10 +11,13 @@ const queueMock = vi.hoisted(() => {
   const listeners = new Set<() => void>()
   const mock: {
     snapshot: SessionFollowUpQueueSnapshot
+    /** Publish this after a reorder instead of the reordered queue (another change landed). */
+    publishInstead: SessionFollowUpQueueSnapshot | null
     subscribe: (listener: () => void) => () => void
     publish: (snapshot: SessionFollowUpQueueSnapshot) => void
   } = {
     snapshot: { state: 'running', revision: 1, activeRunId: null, items: [], waitingOnEdit: false },
+    publishInstead: null,
     subscribe(listener) {
       listeners.add(listener)
       return () => listeners.delete(listener)
@@ -41,7 +44,9 @@ vi.mock('@/features/chat/hooks/useSessionFollowUpQueue', async (importOriginal) 
           const byId = new Map(queueMock.snapshot.items.map((item) => [item.id, item]))
           const items = order.flatMap((id) => byId.get(id) ?? [])
           // The query cache notifies on a later task, so the dock re-renders after the move resolves.
-          setTimeout(() => queueMock.publish(snapshotOf(items, queueMock.snapshot.revision + 1)), 0)
+          const next =
+            queueMock.publishInstead ?? snapshotOf(items, queueMock.snapshot.revision + 1)
+          setTimeout(() => queueMock.publish(next), 0)
           return Promise.resolve()
         },
       }
@@ -50,11 +55,10 @@ vi.mock('@/features/chat/hooks/useSessionFollowUpQueue', async (importOriginal) 
 })
 
 const SESSION = SessionId('session-a')
-const ITEMS: SessionFollowUpQueueItem[] = [
-  queueItem({ id: 'a', text: 'first' }),
-  queueItem({ id: 'b', text: 'second' }),
-  queueItem({ id: 'c', text: 'third' }),
-]
+const FIRST = queueItem({ id: 'a', text: 'first' })
+const SECOND = queueItem({ id: 'b', text: 'second' })
+const THIRD = queueItem({ id: 'c', text: 'third' })
+const ITEMS: SessionFollowUpQueueItem[] = [FIRST, SECOND, THIRD]
 
 function renderDock() {
   return render(
@@ -134,6 +138,7 @@ describe('QueuedMessages reorder focus', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
     queueMock.snapshot = snapshotOf(ITEMS, 4)
+    queueMock.publishInstead = null
     useOptimisticSteerStore.setState({ pendingPromotions: new Map() })
   })
 
@@ -199,5 +204,39 @@ describe('QueuedMessages reorder focus', () => {
     expect(announcementNode()).toHaveTextContent('Moved to position 2 of 3.')
     // A new node, so assistive technology announces it rather than seeing unchanged text.
     expect(announcementNode()).not.toBe(firstAnnouncement)
+  })
+
+  it('does not take focus back once the user has moved it elsewhere', async () => {
+    render(
+      <>
+        <QueuedMessages sessionId={SESSION} onSteer={vi.fn()} isStreaming onToast={vi.fn()} />
+        <input aria-label="Elsewhere" />
+      </>,
+    )
+    const elsewhere = screen.getByRole('textbox', { name: 'Elsewhere' })
+    await moveWithMenu('first', 'Move down')
+    elsewhere.focus()
+
+    await waitFor(() => expect(renderedOrder()).toEqual(['b', 'a', 'c']))
+    await act(() => new Promise((resolve) => setTimeout(resolve, 0)))
+    expect(elsewhere).toHaveFocus()
+  })
+
+  it('never lets a stale pending focus steal focus on a later reorder', async () => {
+    renderDock()
+    // Another change lands first, so the move's own order never shows.
+    queueMock.publishInstead = snapshotOf([FIRST, THIRD, SECOND], 5)
+
+    await moveWithMenu('first', 'Move down')
+    await waitFor(() => expect(renderedOrder()).toEqual(['a', 'c', 'b']))
+    const other = screen.getByRole('button', { name: 'Edit queued message: third' })
+    other.focus()
+
+    // A later change happens to put "first" where the old move wanted it.
+    act(() => queueMock.publish(snapshotOf([SECOND, FIRST, THIRD], 6)))
+
+    await waitFor(() => expect(renderedOrder()).toEqual(['b', 'a', 'c']))
+    expect(grip('first')).not.toHaveFocus()
+    expect(other).toHaveFocus()
   })
 })
