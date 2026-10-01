@@ -25,10 +25,35 @@ function transcript(messages: readonly UIMessage[]) {
   })
 }
 
-function streamAnswer(runId: string, messageId: string, text: string, startAt: number) {
+interface IncorporatedUserMessage {
+  readonly text: string
+  readonly sessionNodeCreatedOrder: number
+}
+
+function streamAnswer(
+  runId: string,
+  messageId: string,
+  text: string,
+  startAt: number,
+  userMessage: IncorporatedUserMessage,
+) {
   emitAgentEvent({
     sessionId: SESSION_ID,
     event: { type: 'agent_start', runId, model: MODEL, timestamp: startAt },
+  })
+  // The Host publishes the user message the moment Pi incorporates it into the Run.
+  emitAgentEvent({
+    sessionId: SESSION_ID,
+    event: {
+      type: 'message_start',
+      messageId: `${runId}:user`,
+      role: 'user',
+      userMessage: {
+        parts: [{ type: 'text', text: userMessage.text }],
+        sessionNodeCreatedOrder: userMessage.sessionNodeCreatedOrder,
+      },
+      timestamp: startAt,
+    },
   })
   emitAgentEvent({
     sessionId: SESSION_ID,
@@ -45,6 +70,9 @@ function streamAnswer(runId: string, messageId: string, text: string, startAt: n
     },
   })
 }
+
+const FIRST_USER = { text: SEND_PAYLOAD.text, sessionNodeCreatedOrder: 0 }
+const QUEUED_USER = { text: 'Queued question', sessionNodeCreatedOrder: 2 }
 
 const FIRST_TURN: SessionDetail['messages'] = [
   {
@@ -78,8 +106,9 @@ const QUEUED_TURN: SessionDetail['messages'] = [
 
 /*
  * A Follow-up queued during a Run starts as the next Run when the Run settles.
- * The renderer is told `continues: true` and keeps following the stream, but nothing ever puts the
- * Follow-up's user message into the live transcript.
+ * The renderer is told `continues: true` and keeps following the stream, and ignores snapshots
+ * while it does. The Follow-up's user message reaches the live transcript only because the Host
+ * publishes it, with its content, when Pi incorporates it into the new Run.
  */
 describe('useAgentChat Follow-up delivered at the end of a Run', () => {
   installUseAgentChatTestLifecycle()
@@ -96,7 +125,7 @@ describe('useAgentChat Follow-up delivered at the end of a Run', () => {
       send = result.current.sendMessage(SEND_PAYLOAD)
     })
     await act(async () => {
-      streamAnswer('run-1', 'assistant-1', 'Answer 1', 10)
+      streamAnswer('run-1', 'assistant-1', 'Answer 1', 10, FIRST_USER)
       emitAgentEvent({
         sessionId: SESSION_ID,
         event: { type: 'agent_end', runId: 'run-1', reason: 'stop', timestamp: 20 },
@@ -113,7 +142,7 @@ describe('useAgentChat Follow-up delivered at the end of a Run', () => {
     session = createSessionWithMessages(2, FIRST_TURN)
     rerender()
     await act(async () => {
-      streamAnswer('run-2', 'assistant-2', 'Answer 2', 30)
+      streamAnswer('run-2', 'assistant-2', 'Answer 2', 30, QUEUED_USER)
     })
 
     expect(transcript(result.current.messages)).toEqual([
@@ -136,7 +165,7 @@ describe('useAgentChat Follow-up delivered at the end of a Run', () => {
       send = result.current.sendMessage(SEND_PAYLOAD)
     })
     await act(async () => {
-      streamAnswer('run-1', 'assistant-1', 'Answer 1', 10)
+      streamAnswer('run-1', 'assistant-1', 'Answer 1', 10, FIRST_USER)
       emitAgentEvent({
         sessionId: SESSION_ID,
         event: { type: 'agent_end', runId: 'run-1', reason: 'stop', timestamp: 20 },
@@ -150,7 +179,7 @@ describe('useAgentChat Follow-up delivered at the end of a Run', () => {
       await send
     })
     await act(async () => {
-      streamAnswer('run-2', 'assistant-2', 'Answer 2', 30)
+      streamAnswer('run-2', 'assistant-2', 'Answer 2', 30, QUEUED_USER)
     })
     const settled = createSessionWithMessages(3, [...FIRST_TURN, ...QUEUED_TURN])
     apiMock.getSessionDetail.mockResolvedValue(settled)
