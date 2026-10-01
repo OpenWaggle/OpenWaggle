@@ -116,7 +116,8 @@ export function settleAndScheduleNextFollowUp(
   if (
     state.followUpQueue.state === 'paused' ||
     !nextFollowUp ||
-    nextFollowUp.deliveryState !== 'pending'
+    nextFollowUp.deliveryState !== 'pending' ||
+    nextFollowUp.editHold
   ) {
     return settled
   }

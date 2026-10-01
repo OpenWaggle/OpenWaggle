@@ -154,7 +154,8 @@ export function applyQueueMutation(input: ApplyQueueMutationInput): ApplyQueueMu
   if (
     input.mutation.type === 'resume' &&
     input.state.run.state === 'idle' &&
-    nextFollowUp?.deliveryState === 'pending'
+    nextFollowUp?.deliveryState === 'pending' &&
+    !nextFollowUp.editHold
   ) {
     const queueRevision = queueResult.queue.revision + STATE_REVISION_INCREMENT
     return {

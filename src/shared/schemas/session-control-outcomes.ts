@@ -155,6 +155,8 @@ const acceptedReportOutcomeSchema = Schema.Struct({
 
 const queueUpdatedOutcomeSchema = Schema.Struct({
   operation: Schema.Literal(
+    'queue-edit-cancel',
+    'queue-edit-save',
     'queue-pause',
     'queue-reorder',
     'queue-resume',
@@ -170,11 +172,22 @@ const queueUpdatedOutcomeSchema = Schema.Struct({
 })
 
 const queueResumeStartedRunOutcomeSchema = Schema.Struct({
-  operation: Schema.Literal('queue-resume'),
+  operation: Schema.Literal('queue-resume', 'queue-edit-save', 'queue-edit-cancel'),
   effect: Schema.Literal('started-run'),
   sessionId: Schema.String,
   runId: Schema.String,
   followUpId: Schema.String,
+  queueRevision: stateRevisionSchema,
+  stateRevision: stateRevisionSchema,
+})
+
+const followUpEditHeldOutcomeSchema = Schema.Struct({
+  operation: Schema.Literal('queue-edit-begin'),
+  effect: Schema.Literal('follow-up-edit-held'),
+  sessionId: Schema.String,
+  followUpId: Schema.String,
+  holdId: Schema.String,
+  leaseExpiresAt: stateRevisionSchema,
   queueRevision: stateRevisionSchema,
   stateRevision: stateRevisionSchema,
 })
@@ -213,5 +226,6 @@ export const sessionControlMutationOutcomeSchema: Schema.Schema<SessionControlMu
     acceptedReportOutcomeSchema,
     queueUpdatedOutcomeSchema,
     queueResumeStartedRunOutcomeSchema,
+    followUpEditHeldOutcomeSchema,
     rejectedMutationOutcomeSchema,
   )

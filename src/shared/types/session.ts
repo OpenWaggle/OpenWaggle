@@ -81,6 +81,11 @@ export interface SessionSummary {
   readonly pendingInteractionAt?: number
   /** Host time when the pending-interaction set was sampled, including when it was empty. */
   readonly pendingInteractionSnapshotAt?: number
+  /**
+   * Acquisition time of the earliest live Follow-up edit hold: the queue is waiting on the user's
+   * edit (sidebar: "Waiting on your edit"). Sampled with the pending-interaction set.
+   */
+  readonly followUpEditHeldAt?: number
 }
 
 /** Opaque keyset page used by the GUI Session catalog. */

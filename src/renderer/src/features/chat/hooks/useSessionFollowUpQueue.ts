@@ -5,10 +5,6 @@ import {
   type SessionControlMutationCommand,
   type SessionControlMutationResponse,
 } from '@shared/types/session-control'
-import type { FollowUpQueuePauseReason } from '@shared/types/session-control-queue'
-import type { SessionQueryOutcome } from '@shared/types/session-query'
-import { THINKING_LEVELS } from '@shared/types/settings'
-import { isRecord } from '@shared/utils/validation'
 import { queryOptions, type UseQueryOptions, useQuery } from '@tanstack/react-query'
 import {
   GUI_COMMAND_REQUIRES_IDLE_MESSAGE,
@@ -16,101 +12,30 @@ import {
 } from '@/features/composer/commands'
 import { api } from '@/shared/lib/ipc'
 import { settledSessionModelWrites } from '../state/session-model-writes'
+import {
+  EMPTY_SNAPSHOT,
+  queueSnapshot,
+  SessionControlRejectedError,
+  type SessionFollowUpEdit,
+  type SessionFollowUpEditPayload,
+  type SessionFollowUpQueueSnapshot,
+} from './session-follow-up-queue-model'
 
-export interface SessionFollowUpQueueItem {
-  readonly id: string
-  readonly text: string
-  readonly attachmentCount: number
-  readonly createdAt: number
-  readonly deliveryState: 'pending' | 'needs_attention'
-  readonly attentionReason?:
-    | 'authorization_ceiling_changed'
-    | 'profile_revoked'
-    | 'authority_changed'
-  readonly wagglePresetName?: string
-  readonly waggleSource?: 'user' | 'agent'
-  readonly authorizationMode?: 'yolo' | 'ask-for-approval'
-  readonly thinkingLevel?: AgentSendPayload['thinkingLevel']
-  readonly callerId?: string
-}
-
-export interface SessionFollowUpQueueSnapshot {
-  readonly state: 'running' | 'paused'
-  /** Why a paused queue paused, as the Host recorded it. */
-  readonly pauseReason?: FollowUpQueuePauseReason
-  readonly revision: number
-  readonly activeRunId: string | null
-  readonly items: readonly SessionFollowUpQueueItem[]
-}
-
-const EMPTY_SNAPSHOT: SessionFollowUpQueueSnapshot = {
-  state: 'running',
-  revision: 0,
-  activeRunId: null,
-  items: [],
-}
+export {
+  isLostFollowUpEdit,
+  SessionControlRejectedError,
+  type SessionFollowUpEdit,
+  type SessionFollowUpEditHold,
+  type SessionFollowUpEditPayload,
+  type SessionFollowUpQueueItem,
+  type SessionFollowUpQueueSnapshot,
+} from './session-follow-up-queue-model'
 
 function sessionFollowUpQueueKey(sessionId: SessionId | string) {
   return ['session-control', 'queue', String(sessionId)] as const
 }
 
 type SessionFollowUpQueueKey = readonly ['session-control', 'queue', string | null]
-
-type SessionFollowUpQueueIntent = Pick<
-  SessionFollowUpQueueItem,
-  | 'text'
-  | 'attachmentCount'
-  | 'wagglePresetName'
-  | 'waggleSource'
-  | 'authorizationMode'
-  | 'thinkingLevel'
-  | 'callerId'
->
-
-function queueIntent(value: unknown): SessionFollowUpQueueIntent {
-  if (!isRecord(value)) {
-    return { text: '', attachmentCount: 0 }
-  }
-  const record = value
-  const waggle = isRecord(record.waggle) ? record.waggle : undefined
-  const thinkingLevel = THINKING_LEVELS.find((level) => level === record.thinkingLevel)
-  return {
-    text: typeof record.text === 'string' ? record.text : '',
-    attachmentCount: Array.isArray(record.attachmentIds) ? record.attachmentIds.length : 0,
-    ...(waggle && typeof waggle.presetName === 'string'
-      ? { wagglePresetName: waggle.presetName }
-      : {}),
-    ...(waggle && (waggle.source === 'user' || waggle.source === 'agent')
-      ? { waggleSource: waggle.source }
-      : {}),
-    ...(record.runAuthorizationOverride === 'yolo' ||
-    record.runAuthorizationOverride === 'ask-for-approval'
-      ? { authorizationMode: record.runAuthorizationOverride }
-      : {}),
-    ...(thinkingLevel ? { thinkingLevel } : {}),
-    ...(typeof record.callerId === 'string' ? { callerId: record.callerId } : {}),
-  }
-}
-
-function queueSnapshot(outcome: SessionQueryOutcome): SessionFollowUpQueueSnapshot {
-  if (outcome.operation !== 'queue-list') {
-    throw new Error('Session Host returned the wrong response for a Follow-up queue query.')
-  }
-  if ('error' in outcome) throw new Error(outcome.error.message)
-  return {
-    state: outcome.queueState,
-    ...(outcome.queuePauseReason ? { pauseReason: outcome.queuePauseReason } : {}),
-    revision: outcome.queueRevision,
-    activeRunId: outcome.activeRunId,
-    items: outcome.items.map((item) => ({
-      id: item.followUpId,
-      ...queueIntent(item.intent),
-      createdAt: item.createdAt,
-      deliveryState: item.deliveryState,
-      ...(item.attentionReason ? { attentionReason: item.attentionReason } : {}),
-    })),
-  }
-}
 
 async function readQueue(sessionId: SessionId) {
   const response = await api.querySessionControl({
@@ -123,7 +48,7 @@ async function readQueue(sessionId: SessionId) {
 
 function rejected(response: SessionControlMutationResponse) {
   return response.outcome.effect === 'rejected'
-    ? new Error(`Session Control rejected ${response.outcome.operation}: ${response.outcome.code}`)
+    ? new SessionControlRejectedError(response.outcome.operation, response.outcome.code)
     : null
 }
 
@@ -282,6 +207,80 @@ export function useSessionFollowUpQueue(sessionId: SessionId | null) {
     await refresh()
   }
 
+  /**
+   * Begins a Follow-up edit: the Host holds the item so the queue stops delivering at it, and
+   * returns the item's current content to load into the composer. Throws a
+   * `SessionControlRejectedError` when the item is gone, not this user's, or already being edited.
+   */
+  async function beginEdit(followUpId: string): Promise<SessionFollowUpEdit> {
+    if (!sessionId) throw new Error('Select a Session before editing a queued message.')
+    const response = await mutate({ operation: 'queue-edit-begin', sessionId, followUpId })
+    if (response.outcome.effect !== 'follow-up-edit-held') {
+      throw new Error('Session Host returned the wrong response for a Follow-up edit.')
+    }
+    const { holdId, leaseExpiresAt } = response.outcome
+    const current = await readQueue(sessionId)
+    const item = current.items.find((candidate) => candidate.id === followUpId)
+    if (!item) {
+      await cancelEdit({ followUpId, holdId }).catch(() => undefined)
+      throw new SessionControlRejectedError('queue-edit-begin', 'follow_up_not_found')
+    }
+    await refresh()
+    return { followUpId, holdId, leaseExpiresAt, item }
+  }
+
+  /**
+   * Saves an open Follow-up edit in place (same identity and position) and releases its hold; the
+   * queue then delivers again. GUI-only composer commands are refused like a new Follow-up. When
+   * `isLostFollowUpEdit(error)` holds, the edit can no longer be saved and the draft should be kept.
+   */
+  async function saveEdit(
+    edit: Pick<SessionFollowUpEdit, 'followUpId' | 'holdId'>,
+    payload: SessionFollowUpEditPayload,
+  ) {
+    if (!sessionId) throw new Error('Select a Session before saving a queued message.')
+    if (isGuiOnlyComposerCommand(payload.text)) {
+      throw new Error(GUI_COMMAND_REQUIRES_IDLE_MESSAGE)
+    }
+    try {
+      // Save against the latest revision: the guard is for concurrent queue changes, not for
+      // whatever the queue looked like when the edit began.
+      const current = await readQueue(sessionId)
+      await mutate({
+        operation: 'queue-edit-save',
+        sessionId,
+        followUpId: edit.followUpId,
+        holdId: edit.holdId,
+        expectedQueueRevision: current.revision,
+        input: {
+          text: payload.text,
+          attachmentIds: payload.attachments.map((attachment) => attachment.id),
+          ...(payload.waggle ? { waggle: payload.waggle } : {}),
+          ...(payload.visualizationContext
+            ? { visualizationContext: payload.visualizationContext }
+            : {}),
+        },
+      })
+    } finally {
+      await refresh()
+    }
+  }
+
+  /** Ends an open Follow-up edit without changing the item; releasing a lost hold succeeds. */
+  async function cancelEdit(edit: Pick<SessionFollowUpEdit, 'followUpId' | 'holdId'>) {
+    if (!sessionId) return
+    try {
+      await mutate({
+        operation: 'queue-edit-cancel',
+        sessionId,
+        followUpId: edit.followUpId,
+        holdId: edit.holdId,
+      })
+    } finally {
+      await refresh()
+    }
+  }
+
   return {
     snapshot: query.data ?? EMPTY_SNAPSHOT,
     isLoading: query.isLoading,
@@ -292,6 +291,9 @@ export function useSessionFollowUpQueue(sessionId: SessionId | null) {
     resubmitWithCurrentAccess,
     setPaused,
     reorder,
+    beginEdit,
+    saveEdit,
+    cancelEdit,
     refresh,
   }
 }

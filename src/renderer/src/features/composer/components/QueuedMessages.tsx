@@ -45,6 +45,8 @@ const PAUSE_REASON_COPY = {
     'Paused because the last Run timed out waiting for a response. Resume to send these messages.',
   'parent-limit':
     'Paused because the parent Session has as many active Workers as it allows. Resume when one finishes.',
+  'host-run-ceiling':
+    'Paused because OpenWaggle is running as many Runs as it allows. Resume when one finishes.',
   'host-lost': 'Paused because OpenWaggle stopped during a Run. Resume to send these messages.',
   'profile-revoked': 'Paused because the access profile that sent these messages was revoked.',
 } as const satisfies Record<FollowUpQueuePauseReason, string>

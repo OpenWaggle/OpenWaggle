@@ -75,8 +75,11 @@ function settleUnsuccessfulRun(
         PAUSE_REASON_BY_TERMINAL_STATUS[input.terminalStatus],
       )
     : settled.state
-  const retry = items.find(isRetry)
-  if (!retry || retry.deliveryState !== 'pending') {
+  const retryIndex = items.findIndex(isRetry)
+  const retry = items[retryIndex]
+  // A Follow-up edit hold stops delivery at the held item, so a retry behind one waits too.
+  const heldAtOrBeforeRetry = items.slice(0, retryIndex + 1).some((item) => item.editHold)
+  if (retry?.deliveryState !== 'pending' || heldAtOrBeforeRetry) {
     return { accepted: true as const, state: next, scheduled: undefined }
   }
   return {

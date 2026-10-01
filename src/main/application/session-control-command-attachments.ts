@@ -14,7 +14,8 @@ function controlAttachmentIds(
     command.operation === 'start' ||
     command.operation === 'follow-up' ||
     command.operation === 'steer' ||
-    command.operation === 'replace'
+    command.operation === 'replace' ||
+    command.operation === 'queue-edit-save'
   ) {
     return command.input.attachmentIds
   }

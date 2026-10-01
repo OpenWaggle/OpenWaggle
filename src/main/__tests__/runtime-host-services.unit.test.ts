@@ -23,6 +23,9 @@ vi.mock('../application/session-export-recovery', () => ({
 vi.mock('../adapters/session-scratch-sweep-background', () => ({
   runSessionScratchSweepBackground: recorded('scratch sweep'),
 }))
+vi.mock('../application/follow-up-edit-hold-expiry', () => ({
+  runFollowUpEditHoldExpiryBackground: recorded('follow-up edit hold expiry'),
+}))
 vi.mock('../adapters/session-semantic-discovery-background', () => ({
   runSessionSemanticDiscoveryBackground: recorded('semantic discovery'),
 }))
@@ -46,5 +49,7 @@ describe('Host background services', () => {
     // Removes scratch directories of Sessions deleted or archived while no Host ran (ADR 0042).
     expect(started).toContain('scratch sweep')
     expect(started).toContain('tool gateway')
+    // Releases Follow-up edit holds whose lease ran out so their queues deliver again (ADR 0043).
+    expect(started).toContain('follow-up edit hold expiry')
   })
 })

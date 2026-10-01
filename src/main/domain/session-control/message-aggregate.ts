@@ -28,6 +28,19 @@ export interface SessionControlIntentSnapshot {
   readonly idempotencyKey: string
 }
 
+/**
+ * A Follow-up edit hold: the Host-owned lease that stops queue delivery at this Follow-up while
+ * its author edits it. It belongs to the item, so it travels with the item when the queue is
+ * reordered. It is lease state, not part of the intent snapshot (see `follow-up-edit.ts`).
+ */
+export interface SessionControlFollowUpEditHold {
+  readonly holdId: string
+  readonly holderCallerId: string
+  readonly acquiredAt: number
+  /** Host clock; a hold past this is gone. Renewal moves it, without a queue revision. */
+  readonly expiresAt: number
+}
+
 export interface SessionControlFollowUp extends FollowUpQueueItem {
   readonly intent: SessionControlIntentSnapshot
   readonly deliveryState: 'pending' | 'needs_attention'
@@ -35,6 +48,7 @@ export interface SessionControlFollowUp extends FollowUpQueueItem {
     | 'authorization_ceiling_changed'
     | 'profile_revoked'
     | 'authority_changed'
+  readonly editHold?: SessionControlFollowUpEditHold
 }
 
 export type SessionControlRunState =
@@ -113,6 +127,7 @@ export function applyAdaptiveMessage(input: ApplyAdaptiveMessageInput): ApplyAda
       pendingCount: input.state.followUpQueue.items.length,
       state: input.state.followUpQueue.state,
       headDeliverable: input.state.followUpQueue.items[0]?.deliveryState === 'pending',
+      headHeld: input.state.followUpQueue.items[0]?.editHold !== undefined,
     },
   })
 

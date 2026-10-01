@@ -12,6 +12,7 @@ import type {
   SessionControlMutationRequest,
   SessionControlMutationResponse,
   SessionControlPromoteMutationRequest,
+  SessionControlQueueEditMutationRequest,
   SessionControlQueueMutationRequest,
   SessionControlReplaceMutationRequest,
   SessionControlStartMutationRequest,
@@ -49,6 +50,7 @@ import {
   interruptSessionRun,
 } from './session-control-external-service'
 import { promoteSessionFollowUp } from './session-control-promotion-service'
+import { editSessionFollowUp, FOLLOW_UP_EDIT_CALLER_ID } from './session-control-queue-edit-service'
 import { replaceSessionRun } from './session-control-replacement-service'
 import { executeResourceSessionControlCommand } from './session-control-resource-command-dispatch'
 import {
@@ -111,6 +113,9 @@ function executeRunOrQueueCommand(
     | 'queue-pause'
     | 'queue-resume'
     | 'queue-update-authorization'
+    | 'queue-edit-begin'
+    | 'queue-edit-save'
+    | 'queue-edit-cancel'
   >,
 ) {
   const { authority, callerId, request, hostRunCeiling } = input
@@ -159,6 +164,17 @@ function executeRunOrQueueCommand(
                 : command,
           } satisfies SessionControlQueueMutationRequest,
         }),
+    )
+    .with('queue-edit-begin', 'queue-edit-save', 'queue-edit-cancel', (command) =>
+      editSessionFollowUp({
+        callerId,
+        desktopUser:
+          callerId === FOLLOW_UP_EDIT_CALLER_ID &&
+          authority === undefined &&
+          input.caller?.profileAuthority === undefined,
+        ...(hostRunCeiling ? { hostRunCeiling } : {}),
+        request: { ...request, command } satisfies SessionControlQueueEditMutationRequest,
+      }),
     )
     .exhaustive()
 }
@@ -241,6 +257,9 @@ export function executeUnserializedSessionControlCommand(
       'queue-pause',
       'queue-resume',
       'queue-update-authorization',
+      'queue-edit-begin',
+      'queue-edit-save',
+      'queue-edit-cancel',
       (command) => executeRunOrQueueCommand(input, command),
     )
     .with(

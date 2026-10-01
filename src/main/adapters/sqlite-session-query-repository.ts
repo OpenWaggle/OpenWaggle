@@ -85,7 +85,7 @@ function queryProgram(
   if (request.query.operation === 'wait' || request.query.operation === 'exports-wait') {
     throw new Error('Session wait must be executed by SessionWaitService.')
   }
-  return readQueue(sql, request)
+  return readQueue(sql, request, { callerId, desktopUser: authority === undefined })
 }
 
 function execute(

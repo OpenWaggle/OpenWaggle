@@ -55,6 +55,7 @@ export function dispatchAcceptedSessionControlRun(
       'descendant-interruptions-requested',
       'promoted-follow-up',
       'queue-updated',
+      'follow-up-edit-held',
       'accepted-report',
       'delegation-claims-updated',
       'delegation-conflict-acknowledged',
@@ -147,7 +148,9 @@ function commandMayStartRun(request: SessionControlMutationRequest) {
     operation === 'start' ||
     operation === 'follow-up' ||
     operation === 'replace' ||
-    operation === 'queue-resume'
+    operation === 'queue-resume' ||
+    operation === 'queue-edit-save' ||
+    operation === 'queue-edit-cancel'
   )
 }
 

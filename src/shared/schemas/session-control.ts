@@ -143,6 +143,34 @@ const queueUpdateAuthorizationCommandSchema = Schema.Struct({
   runAuthorizationOverride: Schema.NullOr(Schema.Literal(...AGENT_AUTHORIZATION_MODES)),
 })
 
+const queueEditBeginCommandSchema = Schema.Struct({
+  operation: Schema.Literal('queue-edit-begin'),
+  sessionId: sessionInputIdSchema,
+  followUpId: sessionInputIdSchema,
+})
+
+/** A Follow-up edit carries the fields a new Follow-up carries, minus thinking level and authorization. */
+const followUpEditInputSchema = Schema.Struct({
+  ...steeringInputSchema.fields,
+  waggle: Schema.optional(waggleInvocationSchema),
+})
+
+const queueEditSaveCommandSchema = Schema.Struct({
+  operation: Schema.Literal('queue-edit-save'),
+  sessionId: sessionInputIdSchema,
+  followUpId: sessionInputIdSchema,
+  holdId: sessionInputIdSchema,
+  expectedQueueRevision: Schema.Number.pipe(Schema.int(), Schema.nonNegative()),
+  input: followUpEditInputSchema,
+})
+
+const queueEditCancelCommandSchema = Schema.Struct({
+  operation: Schema.Literal('queue-edit-cancel'),
+  sessionId: sessionInputIdSchema,
+  followUpId: sessionInputIdSchema,
+  holdId: sessionInputIdSchema,
+})
+
 const interactionResponseCommandSchema = Schema.Struct({
   operation: Schema.Literal('request-respond', 'approval-respond'),
   sessionId: sessionInputIdSchema,
@@ -186,6 +214,9 @@ export const sessionControlMutationRequestSchema: Schema.Schema<SessionControlMu
       messageCommandSchema,
       ...sessionOrganizationCommandSchemas,
       promoteCommandSchema,
+      queueEditBeginCommandSchema,
+      queueEditCancelCommandSchema,
+      queueEditSaveCommandSchema,
       queuePauseCommandSchema,
       queueReorderCommandSchema,
       queueResumeCommandSchema,

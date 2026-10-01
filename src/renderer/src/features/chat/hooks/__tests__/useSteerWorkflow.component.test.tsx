@@ -24,6 +24,8 @@ function setup() {
       id,
       text: `Text for ${id}`,
       attachmentCount: 0,
+      attachments: [],
+      editable: false,
       createdAt: 1,
       deliveryState: 'pending' as const,
     })),

@@ -1,12 +1,16 @@
 import * as SqlClient from '@effect/sql/SqlClient'
 import { canonicalJson } from '@shared/canonical-json'
+import type { SessionControlMutationRequest } from '@shared/types/session-control'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
+import type { SessionControlSessionState } from '../domain/session-control/message-aggregate'
 import { SessionControlRepositoryError } from '../errors'
 import {
+  type SessionControlMutationDecision,
   SessionControlRepository,
   type SessionControlRepositoryShape,
+  type SessionControlRunAdmissionRefusal,
 } from '../ports/session-control-repository'
 import { applyCurrentFollowUpAuthorization } from './session-follow-up-authorization'
 import { decodeStoredSessionControlMutationOutcome } from './sqlite-session-control-outcome-decoder'
@@ -31,7 +35,17 @@ function isQueueMutation(operation: string) {
     operation === 'queue-reorder' ||
     operation === 'queue-pause' ||
     operation === 'queue-resume' ||
-    operation === 'queue-update-authorization'
+    operation === 'queue-update-authorization' ||
+    operation === 'queue-edit-begin'
+  )
+}
+
+/** Operations that can deliver the queue head, so they see its current authorization first. */
+function mayDeliverQueueHead(operation: string) {
+  return (
+    operation === 'queue-resume' ||
+    operation === 'queue-edit-save' ||
+    operation === 'queue-edit-cancel'
   )
 }
 
@@ -108,6 +122,44 @@ function loadExistingOperation(
   `
 }
 
+function newRunAdmissionRefusal(
+  sql: SqlClient.SqlClient,
+  targetScope: string,
+  hostRunCeiling: number,
+) {
+  return Effect.gen(function* () {
+    const parentAdmission = yield* directWorkerRunAdmission(sql, targetScope)
+    if (!parentAdmission.admitted) return 'parent_concurrency_limit_reached' as const
+    const rows = yield* sql<{ readonly count: number }>`
+      SELECT COUNT(*) AS count
+      FROM session_control_states
+      WHERE active_run_id IS NOT NULL
+    `
+    const hostActiveRuns = rows[0]?.count ?? 0
+    return hostActiveRuns >= hostRunCeiling ? ('host_run_ceiling_reached' as const) : undefined
+  })
+}
+
+function decisionWithoutNewRun(input: {
+  readonly input: Parameters<SessionControlRepositoryShape['executeMutation']>[0]
+  readonly state: SessionControlSessionState
+  readonly operation: SessionControlMutationRequest['command']['operation']
+  readonly targetScope: string
+  readonly refusal: SessionControlRunAdmissionRefusal
+}): SessionControlMutationDecision {
+  const rejected = {
+    accepted: false,
+    outcome: {
+      operation: input.operation,
+      effect: 'rejected',
+      sessionId: input.targetScope,
+      code: input.refusal,
+    },
+  } as const
+  const fallback = input.input.decideWithoutNewRun?.(input.state, input.refusal)
+  return fallback?.accepted && fallback.state.run.state !== 'starting' ? fallback : rejected
+}
+
 function executeMutation(
   sql: SqlClient.SqlClient,
   input: Parameters<SessionControlRepositoryShape['executeMutation']>[0],
@@ -136,10 +188,9 @@ function executeMutation(
         }
 
         const loadedState = yield* loadSessionControlState(sql, targetScope)
-        const state =
-          operation === 'queue-resume'
-            ? yield* applyCurrentFollowUpAuthorization(sql, loadedState)
-            : loadedState
+        const state = mayDeliverQueueHead(operation)
+          ? yield* applyCurrentFollowUpAuthorization(sql, loadedState)
+          : loadedState
         const authorityBlock = yield* liveSessionAuthorityBlockReason(sql, input.callerId)
         const reservationBlock = yield* reservedQueueMutationRejection(sql, operation, targetScope)
         const decision = reservationBlock
@@ -159,38 +210,11 @@ function executeMutation(
         const startsNewRun =
           decision.accepted && state.run.state === 'idle' && decision.state.run.state === 'starting'
         const hostRunCeiling = input.hostRunCeiling ?? DEFAULT_SETTINGS.sessionHostRunCeiling
-        const admittedDecision = startsNewRun
-          ? yield* Effect.gen(function* () {
-              const parentAdmission = yield* directWorkerRunAdmission(sql, targetScope)
-              if (!parentAdmission.admitted) {
-                return {
-                  accepted: false,
-                  outcome: {
-                    operation,
-                    effect: 'rejected',
-                    sessionId: targetScope,
-                    code: 'parent_concurrency_limit_reached',
-                  },
-                } as const
-              }
-              const rows = yield* sql<{ readonly count: number }>`
-                SELECT COUNT(*) AS count
-                FROM session_control_states
-                WHERE active_run_id IS NOT NULL
-              `
-              const hostActiveRuns = rows[0]?.count ?? 0
-              return hostActiveRuns >= hostRunCeiling
-                ? ({
-                    accepted: false,
-                    outcome: {
-                      operation,
-                      effect: 'rejected',
-                      sessionId: targetScope,
-                      code: 'host_run_ceiling_reached',
-                    },
-                  } as const)
-                : decision
-            })
+        const refusal = startsNewRun
+          ? yield* newRunAdmissionRefusal(sql, targetScope, hostRunCeiling)
+          : undefined
+        const admittedDecision = refusal
+          ? decisionWithoutNewRun({ input, state, operation, targetScope, refusal })
           : decision
         if (admittedDecision.accepted) {
           yield* persistSessionControlState(sql, admittedDecision.state, now)

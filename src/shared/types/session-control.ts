@@ -13,7 +13,10 @@ import type {
   SessionControlInterruptDescendantsCommand,
 } from './session-control-interruption'
 import type {
-  SessionControlQueueMutationCommand,
+  SessionControlQueueEditBeginCommand,
+  SessionControlQueueEditCancelCommand,
+  SessionControlQueueEditSaveCommand,
+  SessionControlQueueOutcome,
   SessionControlQueuePauseCommand,
   SessionControlQueueReorderCommand,
   SessionControlQueueResumeCommand,
@@ -65,6 +68,11 @@ export type {
   SessionControlInterruptDescendantsCommand,
 } from './session-control-interruption'
 export type {
+  SessionControlFollowUpEditInput,
+  SessionControlQueueEditBeginCommand,
+  SessionControlQueueEditCancelCommand,
+  SessionControlQueueEditCommand,
+  SessionControlQueueEditSaveCommand,
   SessionControlQueueMutationCommand,
   SessionControlQueuePauseCommand,
   SessionControlQueueReorderCommand,
@@ -80,6 +88,7 @@ export type {
   SessionControlInterruptMutationRequest,
   SessionControlMessageMutationRequest,
   SessionControlPromoteMutationRequest,
+  SessionControlQueueEditMutationRequest,
   SessionControlQueueMutationRequest,
   SessionControlReplaceMutationRequest,
   SessionControlReportMutationRequest,
@@ -142,6 +151,9 @@ export const SESSION_CONTROL_MUTATION_OPERATIONS = [
   'unarchive',
   'handoff',
   'promote',
+  'queue-edit-begin',
+  'queue-edit-cancel',
+  'queue-edit-save',
   'queue-pause',
   'queue-reorder',
   'queue-resume',
@@ -164,6 +176,9 @@ export type SessionControlMutationCommand =
   | SessionAuthorizationSetCommand
   | SessionOrganizationCommand
   | SessionControlPromoteCommand
+  | SessionControlQueueEditBeginCommand
+  | SessionControlQueueEditCancelCommand
+  | SessionControlQueueEditSaveCommand
   | SessionControlQueuePauseCommand
   | SessionControlQueueReorderCommand
   | SessionControlQueueResumeCommand
@@ -249,24 +264,7 @@ export type SessionControlMutationOutcome =
       readonly runId: string
       readonly stateRevision: number
     }
-  | {
-      readonly operation: SessionControlQueueMutationCommand['operation']
-      readonly effect: 'queue-updated'
-      readonly sessionId: string
-      readonly queueState: 'running' | 'paused'
-      readonly queueRevision: number
-      readonly followUpIds: readonly string[]
-      readonly stateRevision: number
-    }
-  | {
-      readonly operation: 'queue-resume'
-      readonly effect: 'started-run'
-      readonly sessionId: string
-      readonly runId: string
-      readonly followUpId: string
-      readonly queueRevision: number
-      readonly stateRevision: number
-    }
+  | SessionControlQueueOutcome
   | {
       readonly operation: 'message'
       readonly effect: 'queued-follow-up'

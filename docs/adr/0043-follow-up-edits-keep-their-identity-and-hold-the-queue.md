@@ -29,3 +29,8 @@ Two related rules ship with this change:
 
 - When a Steering message has been accepted but not yet incorporated (an **Undelivered steering message**) and its Run is stopped, it returns to the front of the Follow-up queue instead of being lost with Pi's cleared steering queue.
 - When Pi starts incorporating a user message, the Host sends that message's display content with the event, so the transcript shows a Follow-up as soon as its Run starts and turns a steered bubble from queued to delivered at the moment the agent reads it.
+
+## Implementation notes
+
+The hold is lease state, so it lives where leases die with the Host: a connection-scoped SQLite `TEMP` table on the Host's single connection. That keeps holds transactional with the queue state they block without a migration, and a Host restart releases every hold. A lease lasts 30 seconds. The desktop main process renews the holds of each window every 10 seconds through an unjournaled Local UI command and cancels a window's holds when it closes, reloads, navigates, or crashes; when the desktop app or its Host connection is gone, renewal stops and the lease expires. An expired hold stops blocking at once, and a Host sweep then lets its Session deliver. Beginning, saving, and cancelling an edit are desktop-only Session Control operations; the Sessions tool, CLI, and MCP do not offer them.
+

@@ -174,7 +174,12 @@ export function promoteSessionFollowUp(input: PromoteSessionFollowUpInput) {
             }))
             .with('stopping', (run) => ({ state: 'stopping', runId: run.runId }))
             .exhaustive(),
-          followUpQueue: { items: state.followUpQueue.items.map((item) => item.id) },
+          followUpQueue: {
+            items: state.followUpQueue.items.map((item) => item.id),
+            heldItems: state.followUpQueue.items
+              .filter((item) => item.editHold)
+              .map((item) => item.id),
+          },
         })
         if (!plan.accepted) {
           return {

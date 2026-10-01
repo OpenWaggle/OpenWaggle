@@ -2,12 +2,14 @@ import type * as SqlClient from '@effect/sql/SqlClient'
 import { isFollowUpQueuePauseReason } from '@shared/types/session-control-queue'
 import type { SessionQueryRequest } from '@shared/types/session-query'
 import * as Effect from 'effect/Effect'
+import { listFollowUpEditHeldSessions } from './sqlite-follow-up-edit-holds'
 import {
   parseSessionJson,
   type SessionQuerySummaryRow,
   sessionQueryResponse,
   sessionQuerySummary,
 } from './sqlite-session-query-support'
+import { type QueueListEditContext, queueListEditFields } from './sqlite-session-queue-edit-fields'
 
 export function readSession(sql: SqlClient.SqlClient, request: SessionQueryRequest) {
   const sessionId = 'sessionId' in request.query ? request.query.sessionId : ''
@@ -162,6 +164,9 @@ export function readStatus(sql: SqlClient.SqlClient, request: SessionQueryReques
         error: { code: 'session_not_found', message: 'Session not found.' },
       })
     }
+    const followUpEditHeldAt = (yield* listFollowUpEditHeldSessions(sql, Date.now())).get(
+      query.sessionId,
+    )
     return sessionQueryResponse(request, {
       operation: 'status',
       sessionId: query.sessionId,
@@ -172,11 +177,16 @@ export function readStatus(sql: SqlClient.SqlClient, request: SessionQueryReques
       activeRunId: row.active_run_id,
       ...(row.active_run_status ? { activeRunStatus: row.active_run_status } : {}),
       pendingFollowUpCount: row.pending_follow_up_count,
+      ...(followUpEditHeldAt === undefined ? {} : { followUpEditHeldAt }),
     })
   })
 }
 
-export function readQueue(sql: SqlClient.SqlClient, request: SessionQueryRequest) {
+export function readQueue(
+  sql: SqlClient.SqlClient,
+  request: SessionQueryRequest,
+  editContext: QueueListEditContext = { callerId: undefined, desktopUser: false },
+) {
   if (request.query.operation !== 'queue-list') throw new Error('Expected queue-list query.')
   const query = request.query
   return sql.withTransaction(
@@ -215,6 +225,12 @@ export function readQueue(sql: SqlClient.SqlClient, request: SessionQueryRequest
         WHERE session_id = ${query.sessionId}
         ORDER BY position, id
       `
+      const editFields = yield* queueListEditFields(sql, {
+        sessionId: query.sessionId,
+        includeBodies: query.includeBodies === true,
+        rows,
+        context: editContext,
+      })
       return sessionQueryResponse(request, {
         operation: 'queue-list',
         sessionId: query.sessionId,
@@ -229,6 +245,8 @@ export function readQueue(sql: SqlClient.SqlClient, request: SessionQueryRequest
           deliveryState: row.delivery_state,
           ...(row.attention_reason ? { attentionReason: row.attention_reason } : {}),
           ...(query.includeBodies ? { intent: parseSessionJson(row.intent_json) } : {}),
+          editable: false,
+          ...editFields.get(row.id),
         })),
         omittedBodyCount: query.includeBodies ? 0 : rows.length,
       })
