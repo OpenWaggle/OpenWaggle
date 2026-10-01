@@ -4,6 +4,7 @@ import type {
   BackgroundRunUserMessage,
 } from '@shared/types/background-run'
 import type { JsonValue } from '@shared/types/json'
+import type { AgentTransportMessageStartEvent } from '@shared/types/stream'
 import { retainedBytesAfterTextAppend, retainedPartsBytes } from './stream-buffer-byte-accounting'
 import {
   appendReasoningPart,
@@ -127,9 +128,17 @@ export function updateStreamBufferActivityEvents(
 /** Retains a user message the Run incorporated; one that does not fit is left to the snapshot. */
 export function appendStreamBufferUserMessage(
   buffer: ActiveStreamBuffer,
-  userMessage: BackgroundRunUserMessage,
+  event: AgentTransportMessageStartEvent,
   totalRetainedBytes: number,
 ): StreamBufferUpdate {
+  if (!event.userMessage) return { buffer, retainedDelta: 0 }
+  const userMessage: BackgroundRunUserMessage = {
+    ...event.userMessage,
+    messageId: event.messageId,
+    timestamp: event.timestamp,
+    // A steer incorporated after the buffered answer's tools follows that answer.
+    ...(buffer.messageId ? { afterAssistantMessageId: buffer.messageId } : {}),
+  }
   const existing = buffer.userMessages ?? []
   if (existing.some((message) => message.messageId === userMessage.messageId)) {
     return { buffer, retainedDelta: 0 }

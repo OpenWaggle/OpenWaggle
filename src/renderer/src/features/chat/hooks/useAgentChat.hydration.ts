@@ -2,7 +2,7 @@ import type { SessionId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
 import type { SessionDetail } from '@shared/types/session'
 import { api } from '@/shared/lib/ipc'
-import { applyRetainedUserMessages } from '../lib/chat-stream-user-messages'
+import { placeReconnectedRunMessages } from '../lib/chat-stream-user-messages'
 import { acknowledgeCompactionStatus } from '../lib/compaction-lifecycle'
 import {
   appendMissingOptimisticUserMessages,
@@ -282,11 +282,6 @@ async function reconnectToBackgroundRun(
     return historicalMessages
   }
 
-  const incorporatedMessages = applyRetainedUserMessages(
-    historicalMessages,
-    snapshot.userMessages ?? [],
-    snapshot.startedAt,
-  )
   const partialAssistant = buildPartialAssistantMessage(snapshot.parts, snapshot.messageId)
-  return partialAssistant ? [...incorporatedMessages, partialAssistant] : incorporatedMessages
+  return placeReconnectedRunMessages(historicalMessages, snapshot, partialAssistant)
 }

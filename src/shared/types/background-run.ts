@@ -120,12 +120,16 @@ export interface ActiveCompactionInfo {
 
 export type ActiveRunInfo = ActiveAgentRunInfo | ActiveCompactionInfo
 
-/** Full snapshot including accumulated message parts for reconnection. */
 /** A user message the active Run has incorporated, retained so a reconnect still shows it. */
 export interface BackgroundRunUserMessage extends AgentTransportUserMessage {
   readonly messageId: string
+  /** When the Run incorporated the message. */
+  readonly timestamp: number
+  /** The assistant message the snapshot was streaming when the Run incorporated this one. */
+  readonly afterAssistantMessageId?: string
 }
 
+/** Full snapshot including accumulated message parts for reconnection. */
 export interface BackgroundRunSnapshot extends ActiveAgentRunInfo {
   readonly messageId?: string
   readonly parts: readonly MessagePart[]

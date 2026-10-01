@@ -82,6 +82,7 @@ describe('useAgentChat background reconnect', () => {
           messageId: 'live-user-2',
           parts: [{ type: 'text', text: 'Queued question' }],
           sessionNodeCreatedOrder: 2,
+          timestamp: 3,
         },
       ],
       parts: [{ type: 'text', text: 'Partial answer' }],

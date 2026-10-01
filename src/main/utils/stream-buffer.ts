@@ -158,10 +158,9 @@ export function applyEventToStreamBuffer(sessionId: SessionId, event: AgentTrans
         updateBufferedAssistantMessageId(sessionId, value.messageId)
         resetBufferedParts(sessionId)
       }
-      if (value.role === 'user' && value.userMessage) {
-        const userMessage = { messageId: value.messageId, ...value.userMessage }
+      if (value.role === 'user') {
         applyBufferedUpdate(sessionId, (buffer) =>
-          appendStreamBufferUserMessage(buffer, userMessage, totalRetainedBytes),
+          appendStreamBufferUserMessage(buffer, value, totalRetainedBytes),
         )
       }
     })

@@ -61,6 +61,27 @@ describe('stream-buffer user messages', () => {
     })
   })
 
+  it('records the answer each user message follows so a reconnect orders it after that answer', () => {
+    startStreamBuffer(SESSION_ID, MODEL, 'classic')
+    applyEventToStreamBuffer(SESSION_ID, userMessageStart('user-1', 'Question', 1))
+    applyEventToStreamBuffer(SESSION_ID, {
+      type: 'message_start',
+      messageId: 'assistant-1',
+      role: 'assistant',
+      timestamp: 2,
+    })
+    applyEventToStreamBuffer(SESSION_ID, userMessageStart('user-2', 'Steer', 3))
+
+    const userMessages = getStreamBuffer(SESSION_ID)?.userMessages
+    expect(userMessages?.[0]).not.toHaveProperty('afterAssistantMessageId')
+    expect(userMessages?.[0]).toMatchObject({ messageId: 'user-1', timestamp: 1 })
+    expect(userMessages?.[1]).toMatchObject({
+      messageId: 'user-2',
+      timestamp: 3,
+      afterAssistantMessageId: 'assistant-1',
+    })
+  })
+
   it('restores retained user messages from a Host snapshot', () => {
     startStreamBuffer(SESSION_ID, MODEL, 'classic')
     applyEventToStreamBuffer(SESSION_ID, userMessageStart('user-1', 'Steered note', 9))

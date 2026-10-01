@@ -1,4 +1,5 @@
 import { decodeUnknownExactOrThrow, Schema } from '@shared/schema'
+import { backgroundRunUserMessageSchema } from '@shared/schemas/agent-transport-user-message'
 import {
   backgroundRunActivityEventsSchema,
   worktreeLaunchEnvironmentSchema,
@@ -55,19 +56,12 @@ function decodeWorktreeLaunchSnapshot(value: unknown): WorktreeLaunchSnapshot | 
   return decodeUnknownExactOrThrow(worktreeLaunchSnapshotSchema, value)
 }
 
-const userMessageSnapshotSchema = Schema.Struct({
-  messageId: Schema.String,
-  parts: Schema.Array(Schema.Unknown),
-  sessionNodeCreatedOrder: Schema.Number,
-  durableTextSha256: Schema.optional(Schema.String.pipe(Schema.pattern(/^[a-f0-9]{64}$/))),
-})
-
 function decodeUserMessageSnapshots(value: unknown): Pick<BackgroundRunSnapshot, 'userMessages'> {
   if (value === undefined) return {}
   const userMessages = decodeUnknownExactOrThrow(
-    Schema.Array(userMessageSnapshotSchema),
+    Schema.Array(backgroundRunUserMessageSchema),
     value,
-  ).map((userMessage) => ({ ...userMessage, parts: userMessage.parts.map(decodeMessagePart) }))
+  )
   return userMessages.length > 0 ? { userMessages } : {}
 }
 

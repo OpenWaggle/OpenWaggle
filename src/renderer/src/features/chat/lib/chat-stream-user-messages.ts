@@ -1,4 +1,4 @@
-import type { BackgroundRunUserMessage } from '@shared/types/background-run'
+import type { BackgroundRunSnapshot, BackgroundRunUserMessage } from '@shared/types/background-run'
 import type { UIMessage } from '@shared/types/chat-ui'
 import type {
   AgentTransportMessageStartEvent,
@@ -61,14 +61,12 @@ export function applyIncorporatedUserMessage(
   return next
 }
 
-/** Shows the user messages a reconnected Run already incorporated, as their live events would. */
-export function applyRetainedUserMessages(
+function applyRetainedUserMessages(
   messages: readonly UIMessage[],
   userMessages: readonly BackgroundRunUserMessage[],
-  timestamp: number,
 ): UIMessage[] {
   return userMessages.reduce<UIMessage[]>(
-    (current, { messageId, ...userMessage }) =>
+    (current, { messageId, timestamp, afterAssistantMessageId: _after, ...userMessage }) =>
       applyIncorporatedUserMessage(current, {
         type: 'message_start',
         messageId,
@@ -77,5 +75,29 @@ export function applyRetainedUserMessages(
         timestamp,
       }),
     [...messages],
+  )
+}
+
+/**
+ * Rebuilds a reconnected Run's live tail: the user messages it already incorporated, around the
+ * answer it is still streaming. A message incorporated after that answer's tools follows it.
+ */
+export function placeReconnectedRunMessages(
+  historicalMessages: readonly UIMessage[],
+  snapshot: Pick<BackgroundRunSnapshot, 'messageId' | 'userMessages'>,
+  partialAssistant: UIMessage | null,
+): UIMessage[] {
+  const userMessages = snapshot.userMessages ?? []
+  const followsPartial = (userMessage: BackgroundRunUserMessage) =>
+    partialAssistant !== null &&
+    snapshot.messageId !== undefined &&
+    userMessage.afterAssistantMessageId === snapshot.messageId
+  const earlier = applyRetainedUserMessages(
+    historicalMessages,
+    userMessages.filter((userMessage) => !followsPartial(userMessage)),
+  )
+  return applyRetainedUserMessages(
+    partialAssistant ? [...earlier, partialAssistant] : earlier,
+    userMessages.filter(followsPartial),
   )
 }

@@ -2,6 +2,7 @@ import type { UIMessage } from '@shared/types/chat-ui'
 import type { AgentTransportEvent } from '@shared/types/stream'
 import { describe, expect, it } from 'vitest'
 import { applyAgentTransportEvent } from '../chat-stream-state'
+import { placeReconnectedRunMessages } from '../chat-stream-user-messages'
 
 const DIGEST = 'e'.repeat(64)
 
@@ -114,5 +115,41 @@ describe('applyAgentTransportEvent incorporated user messages', () => {
     })
 
     expect(messages).toEqual(answered)
+  })
+
+  it('places a reconnected Run user message after the answer it followed', () => {
+    const partial: UIMessage = {
+      id: 'assistant-2',
+      role: 'assistant',
+      parts: [{ type: 'text', content: 'Partial answer' }],
+    }
+    const userMessage = (messageId: string, text: string, order: number, after?: string) => ({
+      messageId,
+      parts: [{ type: 'text' as const, text }],
+      sessionNodeCreatedOrder: order,
+      timestamp: 5_000 + order,
+      ...(after ? { afterAssistantMessageId: after } : {}),
+    })
+
+    const messages = placeReconnectedRunMessages(
+      answered,
+      {
+        messageId: 'assistant-2',
+        userMessages: [
+          userMessage('queued', 'Queued question', 2),
+          userMessage('steer', 'Steer after the tools', 4, 'assistant-2'),
+        ],
+      },
+      partial,
+    )
+
+    expect(messages.map((message) => message.id)).toEqual([
+      'user-1',
+      'assistant-1',
+      'queued',
+      'assistant-2',
+      'steer',
+    ])
+    expect(messages[4]?.createdAt).toEqual(new Date(5_004))
   })
 })
