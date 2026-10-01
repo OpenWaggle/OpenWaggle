@@ -88,6 +88,20 @@ describe('QueuedMessages reordering', () => {
     expect(dataTransfer.getData(QUEUED_MESSAGE_DRAG_TYPE)).toBe('c')
   })
 
+  it('shows the drop line on the side where the message will land', () => {
+    renderDock()
+    const dataTransfer = makeDataTransfer()
+
+    fireEvent.dragStart(screen.getByRole('button', { name: 'Reorder first' }), { dataTransfer })
+    fireEvent.dragOver(rowFor('third'), { dataTransfer })
+    expect(rowFor('third')).toHaveAttribute('data-drop-target', 'after')
+    fireEvent.dragEnd(screen.getByRole('button', { name: 'Reorder first' }), { dataTransfer })
+
+    fireEvent.dragStart(screen.getByRole('button', { name: 'Reorder third' }), { dataTransfer })
+    fireEvent.dragOver(rowFor('first'), { dataTransfer })
+    expect(rowFor('first')).toHaveAttribute('data-drop-target', 'before')
+  })
+
   it('ignores drops that are not a queued message', () => {
     renderDock()
     const dataTransfer = makeDataTransfer()
@@ -105,6 +119,11 @@ describe('QueuedMessages reordering', () => {
     fireEvent.click(await screen.findByRole('menuitem', { name: 'Move up' }))
 
     await waitFor(() => expect(queueMock.reorder).toHaveBeenCalledWith(['b', 'a', 'c'], 4))
+    // Focus follows the moved message, and the new place is announced.
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Reorder second' })).toHaveFocus(),
+    )
+    expect(screen.getByText('Moved to position 1 of 3.')).toBeInTheDocument()
   })
 
   it('offers only the moves a row can make', async () => {
@@ -144,10 +163,10 @@ describe('QueuedMessages reordering', () => {
     queueMock.refresh.mockResolvedValueOnce(
       snapshotOf(
         [
+          queueItem({ id: 'x', text: 'new first' }),
           queueItem({ id: 'a', text: 'first' }),
           queueItem({ id: 'b', text: 'second' }),
           queueItem({ id: 'c', text: 'third' }),
-          queueItem({ id: 'd', text: 'fourth' }),
         ],
         5,
       ),
@@ -157,7 +176,8 @@ describe('QueuedMessages reordering', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Reorder second' }))
     fireEvent.click(await screen.findByRole('menuitem', { name: 'Move up' }))
 
-    await waitFor(() => expect(queueMock.reorder).toHaveBeenLastCalledWith(['b', 'a', 'c', 'd'], 5))
+    // Still "just before first", not "position 1" of a queue that changed underneath.
+    await waitFor(() => expect(queueMock.reorder).toHaveBeenLastCalledWith(['x', 'b', 'a', 'c'], 5))
     expect(toast).not.toHaveBeenCalled()
   })
 

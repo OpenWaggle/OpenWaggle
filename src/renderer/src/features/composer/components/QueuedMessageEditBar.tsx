@@ -1,17 +1,18 @@
 import { Pencil } from 'lucide-react'
 import { Button } from '@/shared/ui/Button'
-import type { OpenQueuedMessageEdit } from '../state/queued-message-edit-store'
+import type { QueuedMessageEdit } from '../state/queued-message-edit-store'
 
 interface QueuedMessageEditBarProps {
-  readonly edit: OpenQueuedMessageEdit
+  readonly edit: QueuedMessageEdit
   readonly onCancel: () => void
 }
 
 const PHASE_COPY = {
+  beginning: 'Opening queued message…',
   editing: 'Editing queued message',
   saving: 'Saving queued message…',
   cancelling: 'Cancelling edit…',
-} as const satisfies Record<OpenQueuedMessageEdit['phase'], string>
+} as const satisfies Record<QueuedMessageEdit['phase'], string>
 
 /**
  * Edit-mode marker above the composer input. The queue waits at this message until the edit is
@@ -37,6 +38,33 @@ export function QueuedMessageEditBar({ edit, onCancel }: QueuedMessageEditBarPro
         aria-label="Cancel editing queued message"
       >
         Cancel
+      </Button>
+    </div>
+  )
+}
+
+/**
+ * The edit belongs to another draft of this Session (another branch or message), so this one is
+ * an ordinary composer. The queue still waits on the edit, so say so and offer the way out.
+ */
+export function QueuedMessageEditElsewhereNote({ onCancel }: { readonly onCancel: () => void }) {
+  return (
+    <div
+      className="flex items-center gap-1.5 border-b border-border px-4 py-1.5"
+      data-qa="queued-message-edit-elsewhere"
+    >
+      <Pencil aria-hidden="true" className="size-3 shrink-0 text-info" />
+      <span role="status" className="flex-1 text-xs text-text-secondary">
+        A queued message is being edited in another branch. Go back to that branch to finish it.
+      </span>
+      <Button
+        variant="ghost"
+        size="xs"
+        type="button"
+        onClick={onCancel}
+        aria-label="Cancel editing queued message"
+      >
+        Cancel edit
       </Button>
     </div>
   )

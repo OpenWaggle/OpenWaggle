@@ -3,13 +3,19 @@ import type { FollowUpQueuePauseReason } from '@shared/types/session-control-que
 import { Play, Timer } from 'lucide-react'
 import { useState } from 'react'
 import { type SessionFollowUpQueueItem, useSessionFollowUpQueue } from '@/features/chat/hooks'
-import { selectPendingSteerFollowUps, useOptimisticSteerStore } from '@/features/chat/state'
+import {
+  selectPendingSteerFollowUps,
+  useBranchSummaryStore,
+  useOptimisticSteerStore,
+} from '@/features/chat/state'
 import { Button } from '@/shared/ui/Button'
+import { useQueuedMessageArrangement } from '../hooks/useQueuedMessageArrangement'
 import { useQueuedMessageEdit } from '../hooks/useQueuedMessageEdit'
-import { useQueuedMessageReorder } from '../hooks/useQueuedMessageReorder'
+import { selectComposerBusy, useComposerActivityStore } from '../state/composer-activity-store'
 import { ComposerDock } from './ComposerDock'
-import { QueuedMessageRow, type QueuedMessageRowActions } from './QueuedMessageRow'
+import { QueuedMessageRow } from './QueuedMessageRow'
 import { followUpQueueAnnouncement, QueueUnavailableNotice } from './QueueUnavailableNotice'
+import type { QueuedMessageRowActions } from './queued-message-row-types'
 
 interface QueuedMessagesProps {
   readonly sessionId: SessionId | null
@@ -132,7 +138,11 @@ export function QueuedMessages({ sessionId, onSteer, isStreaming, onToast }: Que
   const pendingIds = new Set(pendingPromotions)
   const queue = snapshot.items.filter((item) => !pendingIds.has(item.id))
   const queuedEdit = useQueuedMessageEdit(sessionId, onToast)
-  const { move } = useQueuedMessageReorder(sessionId, pendingIds, onToast)
+  const arrangement = useQueuedMessageArrangement(sessionId, queue, onToast)
+  // An edit must not interleave with composer work in flight or a branch-summary prompt.
+  const composerBusy = useComposerActivityStore(selectComposerBusy)
+  const branchSummaryOpen = useBranchSummaryStore((state) => state.prompt !== null)
+  const canBeginEdit = queuedEdit.edit === null && !composerBusy && !branchSummaryOpen
 
   async function resolveAttention(item: SessionFollowUpQueueItem) {
     setResolvingId(item.id)
@@ -170,7 +180,11 @@ export function QueuedMessages({ sessionId, onSteer, isStreaming, onToast }: Que
     onResolve: (item) => void resolveAttention(item),
     onSteer: (followUpId) => void onSteer(followUpId),
     onEdit: (followUpId) => void queuedEdit.begin(followUpId),
-    onMove: (followUpId, targetIndex) => void move(followUpId, targetIndex),
+    onMove: arrangement.onMove,
+    onDragStart: arrangement.onDragStart,
+    onDragEnd: arrangement.onDragEnd,
+    dropAnchor: arrangement.dropAnchor,
+    onDropOn: arrangement.onDropOn,
   }
 
   const queueUnavailable = sessionId !== null && error !== null
@@ -185,6 +199,9 @@ export function QueuedMessages({ sessionId, onSteer, isStreaming, onToast }: Que
           count: queue.length,
           queueState: snapshot.state,
         })}
+      </span>
+      <span aria-live="polite" className="sr-only">
+        {arrangement.announcement}
       </span>
       {showDock ? (
         <ComposerDock className="flex flex-col gap-1.5 px-2.5 pt-2 pb-1.5">
@@ -201,15 +218,26 @@ export function QueuedMessages({ sessionId, onSteer, isStreaming, onToast }: Que
                 onResume={() => void resumeQueue()}
               />
 
-              <ul aria-label="Queued messages" className="flex flex-col gap-1">
+              <ul
+                ref={arrangement.listRef}
+                aria-label="Queued messages"
+                className="flex flex-col gap-1"
+              >
                 {queue.map((item, index) => (
                   <QueuedMessageRow
                     key={item.id}
                     item={item}
-                    place={{ index, count: queue.length }}
+                    neighbours={{
+                      previousId: queue[index - 1]?.id ?? null,
+                      nextId: queue[index + 1]?.id ?? null,
+                    }}
+                    reorderable={queue.length > 1}
                     isStreaming={isStreaming}
                     isResolving={resolvingId !== null}
-                    canBeginEdit={queuedEdit.edit === null}
+                    edit={{
+                      canBegin: canBeginEdit,
+                      phase: queuedEdit.edit?.followUpId === item.id ? queuedEdit.edit.phase : null,
+                    }}
                     actions={rowActions}
                   />
                 ))}

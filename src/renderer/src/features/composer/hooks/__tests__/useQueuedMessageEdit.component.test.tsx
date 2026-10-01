@@ -5,18 +5,15 @@ import {
   SessionControlRejectedError,
   type SessionFollowUpQueueSnapshot,
 } from '@/features/chat/hooks'
+import { isHostReferencedAttachment } from '../../state/composer-attachment-lifecycle'
 import { useComposerStore } from '../../state/composer-store'
 import {
   queuedMessageEditStashKey,
   useQueuedMessageEditStore,
 } from '../../state/queued-message-edit-store'
+import { LOST_EDIT_MESSAGE } from '../queued-message-edit-messages'
+import { useQueuedMessageEdit } from '../useQueuedMessageEdit'
 import {
-  LOST_EDIT_MESSAGE,
-  useAdoptHeldQueuedMessageEdit,
-  useQueuedMessageEdit,
-} from '../useQueuedMessageEdit'
-import {
-  heldItem,
   openedEdit,
   preparedAttachment,
   queueItem,
@@ -120,7 +117,12 @@ describe('useQueuedMessageEdit', () => {
       input: 'my draft',
       attachments: [DRAFT_ATTACHMENT],
     })
-    expect(hook.result.current.edit).toMatchObject({ phase: 'editing', followUpId: QUEUED.id })
+    expect(hook.result.current.edit).toMatchObject({
+      phase: 'editing',
+      followUpId: QUEUED.id,
+      contextKey: KEY_A,
+    })
+    expect(hook.result.current.isVisible).toBe(true)
   })
 
   it('saves against the edit beginEdit returned, then restores the exact draft', async () => {
@@ -202,6 +204,8 @@ describe('useQueuedMessageEdit', () => {
     expect(composer().attachments).toEqual([DRAFT_ATTACHMENT])
     expect(hook.result.current.edit).toBeNull()
     expect(queueMock.discard).not.toHaveBeenCalled()
+    // Protected only while the edit had them in the composer.
+    expect(isHostReferencedAttachment({ id: 'host-1' })).toBe(false)
   })
 
   it('reports a refused begin and leaves the draft alone', async () => {
@@ -245,40 +249,5 @@ describe('useQueuedMessageEdit', () => {
     expect(composer().input).toBe('half edited')
     await act(() => hook.result.current.save())
     expect(composer().input).toBe('my draft')
-  })
-})
-
-describe('useAdoptHeldQueuedMessageEdit', () => {
-  beforeEach(() => {
-    useComposerStore.setState(useComposerStore.getInitialState())
-    useQueuedMessageEditStore.setState({ edits: {} })
-    composer().switchScopedDraftContext(KEY_A)
-  })
-
-  it('reopens edit mode for a message this user holds when no edit is open for it', () => {
-    composer().setInput('my draft')
-    queueMock.snapshot = snapshotOf([heldItem(QUEUED, 'hold-9')])
-
-    renderHook(() => useAdoptHeldQueuedMessageEdit(SESSION_A))
-
-    expect(useQueuedMessageEditStore.getState().edits['session-a']).toMatchObject({
-      phase: 'editing',
-      followUpId: QUEUED.id,
-      based: { holdId: 'hold-9' },
-    })
-    expect(composer().input).toBe('queued text')
-    expect(composer().getScopedDraft(queuedMessageEditStashKey('session-a'))?.input).toBe(
-      'my draft',
-    )
-  })
-
-  it('leaves a hold alone when it is not this user’s', () => {
-    queueMock.snapshot = snapshotOf([
-      { ...QUEUED, editHold: { heldByCurrentUser: false, acquiredAt: 1, leaseExpiresAt: 2 } },
-    ])
-
-    renderHook(() => useAdoptHeldQueuedMessageEdit(SESSION_A))
-
-    expect(useQueuedMessageEditStore.getState().edits).toEqual({})
   })
 })

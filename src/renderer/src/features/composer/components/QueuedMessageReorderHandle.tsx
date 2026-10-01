@@ -12,6 +12,8 @@ interface QueuedMessageReorderHandleProps {
   readonly label: string
   readonly onMoveUp: (() => void) | null
   readonly onMoveDown: (() => void) | null
+  readonly onDragStart: () => void
+  readonly onDragEnd: () => void
 }
 
 /**
@@ -26,6 +28,8 @@ export function QueuedMessageReorderHandle({
   label,
   onMoveUp,
   onMoveDown,
+  onDragStart,
+  onDragEnd,
 }: QueuedMessageReorderHandleProps) {
   const [menuOpen, setMenuOpen] = useState(false)
 
@@ -46,6 +50,7 @@ export function QueuedMessageReorderHandle({
           variant="unstyled"
           type="button"
           draggable
+          data-qa="queued-message-grip"
           aria-label={`Reorder ${label}`}
           title="Drag to reorder, or click to move"
           onClick={() => setMenuOpen(!menuOpen)}
@@ -53,7 +58,9 @@ export function QueuedMessageReorderHandle({
             setMenuOpen(false)
             event.dataTransfer.effectAllowed = 'move'
             event.dataTransfer.setData(QUEUED_MESSAGE_DRAG_TYPE, followUpId)
+            onDragStart()
           }}
+          onDragEnd={onDragEnd}
           className="flex h-5 w-3.5 cursor-grab items-center justify-center rounded text-text-tertiary hover:text-text-secondary active:cursor-grabbing"
         >
           <GripVertical className="size-3" />

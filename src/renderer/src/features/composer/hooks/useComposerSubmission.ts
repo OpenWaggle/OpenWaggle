@@ -6,6 +6,7 @@ import { useSelectedModelThinkingLevel } from '@/features/providers/hooks'
 import { GUI_COMMAND_REQUIRES_IDLE_MESSAGE, isGuiOnlyComposerCommand } from '../commands'
 import { clearEditor, setEditorDraft } from '../lib/lexical-utils'
 import { consumeSendResult } from '../lib/send-result'
+import { trackComposerSubmission } from '../state/composer-activity-store'
 import {
   discardSessionResourceAttachments,
   markAttachmentsSubmitted,
@@ -203,6 +204,8 @@ export function useComposerSubmission({
       () => false,
     )
     pendingQueuedSubmissions.set(pendingKey, result)
+    // A Follow-up edit waits for this: acknowledgement clears the draft that submitted it.
+    trackComposerSubmission(result)
     void result.then(() => {
       if (pendingQueuedSubmissions.get(pendingKey) === result) {
         pendingQueuedSubmissions.delete(pendingKey)

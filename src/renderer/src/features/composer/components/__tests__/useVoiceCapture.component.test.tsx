@@ -207,6 +207,27 @@ describe('useVoiceCapture', () => {
     expect(sendComposed).toHaveBeenCalledWith('prefix draft transcript')
   })
 
+  it('in a queued-message edit, inserts the transcript and saves instead of sending', async () => {
+    useComposerStore.setState({ input: 'edited' })
+    const sendComposed = vi.fn(() => true)
+    const sendAfterInsert = vi.fn(() => {
+      expect(useComposerStore.getState().input).toBe('edited draft transcript')
+    })
+    const insertText = vi.fn((text: string) => {
+      const store = useComposerStore.getState()
+      store.setInput(store.input + text)
+    })
+    const hook = renderHook(() => useVoiceCapture({ insertText, sendComposed, sendAfterInsert }))
+
+    act(() => hook.result.current.toggleVoice())
+    hook.rerender()
+    act(() => hook.result.current.stopAndSend())
+    hook.rerender()
+
+    await waitFor(() => expect(sendAfterInsert).toHaveBeenCalledOnce())
+    expect(sendComposed).not.toHaveBeenCalled()
+  })
+
   it('surfaces the no-speech message when transcription is empty', async () => {
     mocks.transcribeVoiceLocal.mockResolvedValueOnce({ text: '   ' })
     const hook = renderVoiceHook()

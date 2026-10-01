@@ -43,8 +43,17 @@ export function markAttachmentsSubmitted(attachments: readonly PreparedAttachmen
   for (const attachment of attachments) submittedAttachmentIds.add(attachment.id)
 }
 
-export function retainHostReferencedAttachments(attachments: readonly PreparedAttachment[]) {
+export function retainHostReferencedAttachments(attachments: readonly { readonly id: string }[]) {
   for (const attachment of attachments) hostReferencedAttachmentIds.add(attachment.id)
+}
+
+/** The edit that loaded them has ended and they have left the composer. */
+export function releaseHostReferencedAttachments(attachments: readonly { readonly id: string }[]) {
+  for (const attachment of attachments) hostReferencedAttachmentIds.delete(attachment.id)
+}
+
+export function isHostReferencedAttachment(attachment: { readonly id: string }) {
+  return hostReferencedAttachmentIds.has(attachment.id)
 }
 
 export function unmarkAttachmentsSubmitted(attachments: readonly PreparedAttachment[]) {

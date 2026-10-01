@@ -10,6 +10,8 @@ interface UseComposerVoiceControlsInput {
   readonly editorRef: RefObject<LexicalEditor | null>
   readonly sendComposed: (text: string) => boolean | Promise<boolean>
   readonly submitCurrentDraft: () => void
+  /** Stop-and-send inserts the transcript and calls this instead of sending (a queued-message edit). */
+  readonly sendAfterInsert?: (() => void) | null
 }
 
 export function useComposerVoiceControls({
@@ -17,12 +19,14 @@ export function useComposerVoiceControls({
   editorRef,
   sendComposed,
   submitCurrentDraft,
+  sendAfterInsert = null,
 }: UseComposerVoiceControlsInput) {
   const setInput = useComposerStore((s) => s.setInput)
   const voice = useVoiceCapture({
     disabled,
     insertText: (text) => insertTextAtEditorOrStore(editorRef.current, text, setInput),
     sendComposed,
+    sendAfterInsert,
   })
 
   // useHotkey syncs the callback every render, so it always sees the latest

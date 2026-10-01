@@ -6,17 +6,20 @@ import type { SessionFollowUpEdit } from '@/features/chat/hooks'
  *
  * Kept per Session, outside the composer's draft, because the Host hold outlives the composer:
  * leaving the Session keeps the hold, and coming back must reopen the composer in edit mode.
- * The edited content itself lives in the Session's ordinary scoped draft; the draft that was in the
- * composer before the edit is set aside under `queuedMessageEditStashKey`.
+ * The edited content lives in one scoped draft, `contextKey` (drafts are per branch or node, so
+ * the composer is in edit mode only while that draft is the visible one); the draft that was there
+ * before the edit is set aside under `queuedMessageEditStashKey`.
  */
 export type QueuedMessageEdit =
   | {
       readonly phase: 'beginning'
       readonly followUpId: string
+      readonly contextKey: string
     }
   | {
       readonly phase: 'editing' | 'saving' | 'cancelling'
       readonly followUpId: string
+      readonly contextKey: string
       /**
        * The open edit as `beginEdit` returned it (or as it was adopted), kept until save: the save
        * is guarded by the queue revision the edit was based on, and `item` carries the queued

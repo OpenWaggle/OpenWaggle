@@ -8,6 +8,7 @@ import {
   queueItem,
   snapshotOf,
 } from '../../hooks/__tests__/queued-message-edit.test-support'
+import { useComposerActivityStore } from '../../state/composer-activity-store'
 import { useComposerStore } from '../../state/composer-store'
 import { useQueuedMessageEditStore } from '../../state/queued-message-edit-store'
 import { Composer } from '../Composer'
@@ -45,6 +46,7 @@ vi.mock('@/features/chat/hooks/useSessionFollowUpQueue', async (importOriginal) 
 }))
 
 const SESSION = SessionId('session-a')
+const KEY_A = 'project:/repo:session:session-a:main'
 const QUEUED = queueItem({ id: 'mine', text: 'queued text' })
 
 function renderComposer() {
@@ -74,8 +76,9 @@ describe('Composer queued-message edit mode', () => {
 
   beforeEach(() => {
     useComposerStore.setState(useComposerStore.getInitialState())
-    useComposerStore.getState().switchScopedDraftContext('project:/repo:session:session-a:main')
+    useComposerStore.getState().switchScopedDraftContext(KEY_A)
     useQueuedMessageEditStore.setState({ edits: {} })
+    useComposerActivityStore.setState({ preparingAttachments: 0, pendingSubmissions: 0 })
     queueMock.snapshot = snapshotOf([QUEUED])
     queueMock.saveEdit.mockReset().mockResolvedValue(undefined)
     queueMock.cancelEdit.mockReset().mockResolvedValue(undefined)
@@ -87,9 +90,12 @@ describe('Composer queued-message edit mode', () => {
       attachments: [],
     })
     useComposerStore.getState().setInput('queued text')
-    useQueuedMessageEditStore
-      .getState()
-      .setEdit('session-a', { phase: 'editing', followUpId: 'mine', based: openedEdit(QUEUED) })
+    useQueuedMessageEditStore.getState().setEdit('session-a', {
+      phase: 'editing',
+      followUpId: 'mine',
+      contextKey: KEY_A,
+      based: openedEdit(QUEUED),
+    })
   }
 
   it('shows the edit bar and saves on Enter instead of queueing', async () => {
@@ -138,6 +144,53 @@ describe('Composer queued-message edit mode', () => {
 
     expect(await screen.findByText('Editing queued message')).toBeInTheDocument()
     await waitFor(() => expect(input()).toHaveTextContent('queued text'))
+  })
+
+  it('neither sends nor queues on Enter while the queued message is still opening', async () => {
+    useComposerStore.getState().setInput('my draft')
+    useQueuedMessageEditStore
+      .getState()
+      .setEdit('session-a', { phase: 'beginning', followUpId: 'mine', contextKey: KEY_A })
+    const { onEnqueue, onSend } = renderComposer()
+
+    expect(screen.getByText('Opening queued message…')).toBeInTheDocument()
+    fireEvent.keyDown(input(), { key: 'Enter' })
+
+    expect(onEnqueue).not.toHaveBeenCalled()
+    expect(onSend).not.toHaveBeenCalled()
+    expect(queueMock.saveEdit).not.toHaveBeenCalled()
+  })
+
+  it('does not save while an attachment is preparing', async () => {
+    openEdit()
+    useComposerActivityStore.setState({ preparingAttachments: 1 })
+    renderComposer()
+    await waitFor(() => expect(input()).toHaveTextContent('queued text'))
+
+    expect(screen.getByTitle('Save edit')).toBeDisabled()
+    fireEvent.keyDown(input(), { key: 'Enter' })
+
+    expect(queueMock.saveEdit).not.toHaveBeenCalled()
+  })
+
+  it('is an ordinary composer with a way out when the edit belongs to another branch', async () => {
+    openEdit()
+    act(() => {
+      useComposerStore.getState().switchScopedDraftContext('project:/repo:session:session-a:other')
+    })
+    renderComposer()
+
+    expect(screen.queryByText('Editing queued message')).not.toBeInTheDocument()
+    expect(screen.queryByTitle('Save edit')).not.toBeInTheDocument()
+    expect(screen.getByText(/being edited in another branch/)).toBeInTheDocument()
+    fireEvent.keyDown(input(), { key: 'Enter' })
+    expect(queueMock.saveEdit).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel editing queued message' }))
+    await waitFor(() => expect(queueMock.cancelEdit).toHaveBeenCalledWith(openedEdit(QUEUED)))
+    await waitFor(() =>
+      expect(useComposerStore.getState().getScopedDraft(KEY_A)?.input).toBe('my draft'),
+    )
   })
 
   it('is an ordinary composer when nothing is being edited', () => {

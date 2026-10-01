@@ -1,9 +1,10 @@
-import { AlertTriangle, ArrowUp, Pencil, RotateCcw, Trash2 } from 'lucide-react'
+import { AlertTriangle, Pencil } from 'lucide-react'
 import type { SessionFollowUpQueueItem } from '@/features/chat/hooks'
 import { cn } from '@/shared/lib/cn'
-import { Button } from '@/shared/ui/Button'
-import { QUEUED_MESSAGE_DRAG_TYPE, QueuedMessageReorderHandle } from './QueuedMessageReorderHandle'
+import { QueuedMessageReorderHandle } from './QueuedMessageReorderHandle'
+import { QueuedMessageRowControls } from './QueuedMessageRowControls'
 import { QueueIntentBadges } from './QueueIntentBadges'
+import type { QueuedMessageRowActions, QueuedMessageRowEditState } from './queued-message-row-types'
 
 const ATTENTION_REASON_COPY = {
   authorization_ceiling_changed:
@@ -14,33 +15,14 @@ const ATTENTION_REASON_COPY = {
     'Session authority changed. Re-submit with current access or dismiss this Follow-up.',
 } as const
 
+const ACCESSIBLE_LABEL_LENGTH = 60
+
 function attentionCopy(item: SessionFollowUpQueueItem) {
   if (item.deliveryState !== 'needs_attention') return undefined
   return item.attentionReason
     ? ATTENTION_REASON_COPY[item.attentionReason]
     : 'This Follow-up cannot be delivered. Review Session access or dismiss it.'
 }
-
-export interface QueuedMessageRowActions {
-  readonly onDismiss: (followUpId: string) => void
-  readonly onResolve: (item: SessionFollowUpQueueItem) => void
-  readonly onSteer: (followUpId: string) => void
-  readonly onEdit: (followUpId: string) => void
-  readonly onMove: (followUpId: string, targetIndex: number) => void
-}
-
-interface QueuedMessageRowProps {
-  readonly item: SessionFollowUpQueueItem
-  /** Where the row sits among the rows the dock shows, and how many there are. */
-  readonly place: { readonly index: number; readonly count: number }
-  readonly isStreaming: boolean
-  readonly isResolving: boolean
-  /** False while another edit is open or starting in this Session. */
-  readonly canBeginEdit: boolean
-  readonly actions: QueuedMessageRowActions
-}
-
-const ACCESSIBLE_LABEL_LENGTH = 60
 
 function itemLabel(item: SessionFollowUpQueueItem) {
   return item.text || `${String(item.attachmentCount)} attachment(s)`
@@ -52,6 +34,17 @@ function accessibleLabel(label: string) {
   return line.length > ACCESSIBLE_LABEL_LENGTH ? `${line.slice(0, ACCESSIBLE_LABEL_LENGTH)}…` : line
 }
 
+interface QueuedMessageRowProps {
+  readonly item: SessionFollowUpQueueItem
+  /** The row's visible neighbours, which Move up / Move down place it next to. */
+  readonly neighbours: { readonly previousId: string | null; readonly nextId: string | null }
+  readonly reorderable: boolean
+  readonly isStreaming: boolean
+  readonly isResolving: boolean
+  readonly edit: QueuedMessageRowEditState
+  readonly actions: QueuedMessageRowActions
+}
+
 function BeingEditedMarker() {
   return (
     <span className="flex items-center gap-1 text-xs text-info-text">
@@ -61,44 +54,50 @@ function BeingEditedMarker() {
   )
 }
 
+function clearDropTarget(element: HTMLElement) {
+  element.removeAttribute('data-drop-target')
+}
+
 /**
- * One queued message. The whole row is a drop target; only its grip starts a drag. Drag feedback
- * lives on the DOM node, not in state, because re-rendering mid-gesture cancels the drag.
+ * One queued message. The whole row is a drop target; only its grip starts a drag. The drop line
+ * sits on the side where the message will land. Drag feedback lives on the DOM node, not in state,
+ * because re-rendering mid-gesture cancels the drag.
  */
 export function QueuedMessageRow({
   item,
-  place,
+  neighbours,
+  reorderable,
   isStreaming,
   isResolving,
-  canBeginEdit,
+  edit,
   actions,
 }: QueuedMessageRowProps) {
   const attention = attentionCopy(item)
-  const held = item.editHold !== undefined
-  const reorderable = place.count > 1
   const label = itemLabel(item)
   const shortLabel = accessibleLabel(label)
+  const { previousId, nextId } = neighbours
 
   return (
     <li
       data-qa="queued-message-row"
       data-follow-up-id={item.id}
       onDragOver={(event) => {
-        if (!event.dataTransfer.types.includes(QUEUED_MESSAGE_DRAG_TYPE)) return
+        const anchor = actions.dropAnchor(item.id)
+        if (!anchor) return
         event.preventDefault()
-        event.currentTarget.dataset.dropTarget = 'true'
+        event.currentTarget.dataset.dropTarget = anchor.position
       }}
-      onDragLeave={(event) => event.currentTarget.removeAttribute('data-drop-target')}
+      onDragLeave={(event) => clearDropTarget(event.currentTarget)}
       onDrop={(event) => {
-        event.currentTarget.removeAttribute('data-drop-target')
-        const draggedId = event.dataTransfer.getData(QUEUED_MESSAGE_DRAG_TYPE)
-        if (!draggedId) return
+        clearDropTarget(event.currentTarget)
+        if (!actions.dropAnchor(item.id)) return
         event.preventDefault()
-        if (draggedId !== item.id) actions.onMove(draggedId, place.index)
+        actions.onDropOn(item.id)
       }}
       className={cn(
         'flex items-center gap-2 rounded-lg px-2.5 py-2',
-        'data-[drop-target=true]:shadow-[inset_0_2px_0_var(--color-accent)]',
+        'data-[drop-target=before]:shadow-[inset_0_2px_0_var(--color-accent)]',
+        'data-[drop-target=after]:shadow-[inset_0_-2px_0_var(--color-accent)]',
         attention ? 'border border-warning/20 bg-warning/5' : 'bg-bg/50',
       )}
     >
@@ -106,81 +105,37 @@ export function QueuedMessageRow({
         <QueuedMessageReorderHandle
           followUpId={item.id}
           label={shortLabel}
-          onMoveUp={place.index > 0 ? () => actions.onMove(item.id, place.index - 1) : null}
-          onMoveDown={
-            place.index < place.count - 1 ? () => actions.onMove(item.id, place.index + 1) : null
+          onMoveUp={
+            previousId
+              ? () => actions.onMove(item.id, { position: 'before', followUpId: previousId })
+              : null
           }
+          onMoveDown={
+            nextId ? () => actions.onMove(item.id, { position: 'after', followUpId: nextId }) : null
+          }
+          onDragStart={() => actions.onDragStart(item.id)}
+          onDragEnd={actions.onDragEnd}
         />
       ) : null}
       <div className="flex min-w-0 flex-1 flex-col gap-1">
         <div className="whitespace-pre-wrap text-xs leading-normal text-text-muted">{label}</div>
         <QueueIntentBadges item={item} />
-        {held ? <BeingEditedMarker /> : null}
-        {attention && (
+        {item.editHold ? <BeingEditedMarker /> : null}
+        {attention ? (
           <div className="flex items-start gap-1 text-xs leading-normal text-warning">
             <AlertTriangle className="mt-0.5 size-3 shrink-0" />
             <span>{attention}</span>
           </div>
-        )}
-      </div>
-      <div className="flex items-center gap-1">
-        {attention ? (
-          <Button
-            variant="unstyled"
-            type="button"
-            onClick={() => {
-              if (!isResolving) actions.onResolve(item)
-            }}
-            aria-disabled={isResolving}
-            className="flex items-center gap-1 rounded-md border border-warning/30 bg-warning/8 px-2 py-1 text-warning hover:bg-warning/15 aria-disabled:opacity-50"
-          >
-            <RotateCcw className="size-3" />
-            <span className="text-xs font-semibold">
-              {item.attentionReason === 'authorization_ceiling_changed'
-                ? 'Use current access'
-                : 'Re-submit'}
-            </span>
-          </Button>
         ) : null}
-        {/* The Host refuses to promote a message while it is being edited. */}
-        {isStreaming && !held && (
-          <Button
-            variant="unstyled"
-            type="button"
-            onClick={() => actions.onSteer(item.id)}
-            disabled={item.deliveryState === 'needs_attention'}
-            title={attention ? 'Resolve this Follow-up before steering it.' : undefined}
-            className="flex items-center gap-1 rounded-md bg-accent/8 px-2 py-1"
-          >
-            <ArrowUp className="size-3 text-accent" />
-            <span className="text-xs font-semibold text-accent">Steer</span>
-          </Button>
-        )}
-        {item.editable ? (
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            radius="md"
-            type="button"
-            onClick={() => actions.onEdit(item.id)}
-            disabled={!canBeginEdit || held}
-            aria-label={`Edit queued message: ${shortLabel}`}
-            title={held ? 'This message is being edited' : 'Edit'}
-            className="justify-center"
-          >
-            <Pencil className="size-3" />
-          </Button>
-        ) : null}
-        <Button
-          variant="unstyled"
-          type="button"
-          onClick={() => actions.onDismiss(item.id)}
-          className="rounded-md px-1.5 py-1"
-          title="Dismiss"
-        >
-          <Trash2 className="size-3 text-text-muted hover:text-text-primary" />
-        </Button>
       </div>
+      <QueuedMessageRowControls
+        item={item}
+        label={shortLabel}
+        isStreaming={isStreaming}
+        isResolving={isResolving}
+        edit={edit}
+        actions={actions}
+      />
     </li>
   )
 }

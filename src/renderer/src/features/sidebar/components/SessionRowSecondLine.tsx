@@ -35,6 +35,9 @@ export function SessionRowSecondLine({
   readonly shortcutIndex: number | null
 }) {
   const showShortcut = shortcutIndex !== null && shortcutIndex < PINNED_SHORTCUT_LIMIT
+  const waitingOnEdit = session.followUpEditHeldAt !== undefined
+  // The lineage glyph follows whichever of the state and the edit wait came before it.
+  const leadBeforeLineage = stateLabel !== '' || waitingOnEdit
 
   return (
     <span
@@ -54,15 +57,15 @@ export function SessionRowSecondLine({
             {stateLabel}
           </span>
         )}
-        {session.followUpEditHeldAt === undefined ? null : (
+        {waitingOnEdit ? (
           <>
             {stateLabel === '' ? null : <Separator />}
             <FollowUpEditWaitIndicator />
           </>
-        )}
+        ) : null}
         {session.lineage?.role === 'queen' || session.lineage?.role === 'worker' ? (
           <>
-            {stateLabel === '' ? null : <Separator />}
+            {leadBeforeLineage ? <Separator /> : null}
             <SessionLineageIndicator session={session} />
           </>
         ) : null}

@@ -4,7 +4,6 @@ import type { SessionFollowUpAttachmentDescriptor } from '@shared/types/session-
 import type { WaggleInvocation, WagglePreset } from '@shared/types/waggle'
 import type { SessionFollowUpQueueItem } from '@/features/chat/hooks'
 import { setEditorDraft } from '../lib/lexical-utils'
-import { retainHostReferencedAttachments } from '../state/composer-attachment-lifecycle'
 import { useComposerStore } from '../state/composer-store'
 import type { ComposerScopedDraft } from '../state/composer-store-types'
 import { queuedMessageEditStashKey } from '../state/queued-message-edit-store'
@@ -40,11 +39,9 @@ function wagglePresetFromInvocation(waggle: WaggleInvocation): WagglePreset {
 
 /** The composer draft that edits `item`. */
 export function queuedMessageDraft(item: SessionFollowUpQueueItem): ComposerScopedDraft {
-  const attachments = item.attachments.map(hostAttachment)
-  retainHostReferencedAttachments(attachments)
   return {
     input: item.text,
-    attachments,
+    attachments: item.attachments.map(hostAttachment),
     wagglePreset: item.waggle ? wagglePresetFromInvocation(item.waggle) : null,
   }
 }
@@ -107,18 +104,28 @@ export function stashDraftAndLoad(
   writeComposerDraft(contextKey, edit)
 }
 
-/** Takes the set-aside draft back out of the stash. */
-export function takeStashedDraft(sessionId: string): ComposerScopedDraft {
-  const stashKey = queuedMessageEditStashKey(sessionId)
-  const store = useComposerStore.getState()
-  const stashed = store.getScopedDraft(stashKey) ?? EMPTY_DRAFT
-  return {
-    ...stashed,
-    // Leave the stash only after the draft is back, so its attachments stay owned throughout.
-    attachments: [...stashed.attachments],
-  }
+/**
+ * Reads the set-aside draft. Clear the stash only after the draft is written back, so its
+ * attachments stay owned throughout.
+ */
+export function readStashedDraft(sessionId: string): ComposerScopedDraft {
+  return (
+    useComposerStore.getState().getScopedDraft(queuedMessageEditStashKey(sessionId)) ?? EMPTY_DRAFT
+  )
 }
 
 export function clearStashedDraft(sessionId: string) {
   useComposerStore.getState().clearScopedDraft(queuedMessageEditStashKey(sessionId))
+}
+
+/** Puts focus back in the input when `contextKey` is the visible draft. */
+export function focusVisibleEditor(contextKey: string) {
+  const state = useComposerStore.getState()
+  if (state.activeDraftContextKey === contextKey) state.lexicalEditor?.focus()
+}
+
+/** The composer's visible draft, when it belongs to `sessionId` (not one it is switching from). */
+export function visibleSessionDraftContext(sessionId: string) {
+  const contextKey = useComposerStore.getState().activeDraftContextKey
+  return contextKey?.includes(`session:${sessionId}:`) ? contextKey : null
 }
