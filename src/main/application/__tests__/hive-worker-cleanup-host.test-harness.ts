@@ -69,7 +69,7 @@ export function commandHostLayer(databasePath: string) {
         Effect.succeed({ terminalStatus: 'completed' as const, finalResponse: 'Done.' }),
     }),
     Layer.succeed(AgentRunInterruptionService, fromPartial({})),
-    Layer.succeed(AgentSteeringService, fromPartial({})),
+    Layer.succeed(AgentSteeringService, fromPartial({ takeUndelivered: () => Effect.succeed([]) })),
     Layer.succeed(SessionAuthorizationTargetRepository, fromPartial({})),
     Layer.succeed(SessionControlAttachmentService, fromPartial({})),
     Layer.succeed(SessionDescendantRunRepository, fromPartial({})),

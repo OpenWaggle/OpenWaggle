@@ -78,6 +78,8 @@ Pi's internal steering queue is an adapter detail. The durable **Follow-up queue
 
 When you promote a Follow-up, its preview moves into the conversation while the Host processes it. During compaction it shows that it is waiting. Acceptance can precede delivery while a tool is still running, so the preview remains until the actual user message arrives. Switching Sessions does not discard it. If the Host refuses the promotion, the Follow-up remains in its queue.
 
+A steered message the agent has not read yet is not lost when its Run ends first. If you stop, interrupt, or replace the Run, or it ends without reading the message, the message returns to the front of the Follow-up queue, in the order it was steered. A promoted Follow-up keeps its identity, text, attachments, and options. A message steered directly, for example by an agent or the Sessions CLI, becomes a new Follow-up from the same caller. A stopped Run pauses the queue as usual, so you can resume, steer, or dismiss it. A message the agent had already started reading stays in the transcript and is not returned. After a Host crash, OpenWaggle cannot tell which steered messages were read, so it returns none of them.
+
 ## Authorization and capacity
 
 A child inherits the parent's execution profile by default. Any specialization can keep or reduce approval, tool, MCP, and native Session capabilities; it cannot widen them through the Sessions API. `YOLO (Full access)` is available only when the caller and resolved authorization ceiling already permit it.

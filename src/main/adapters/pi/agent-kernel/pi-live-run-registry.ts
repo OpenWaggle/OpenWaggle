@@ -5,10 +5,18 @@ import type {
   HydratedAttachment,
   InlineVisualizationContext,
 } from '@shared/types/agent'
+import type { SteeringDelivery } from '../../../domain/session-control/undelivered-steering'
 import type { AgentSteeringResult } from '../../../ports/agent-steering-service'
 import type { PiModel } from '../pi-provider-catalog'
 import { stripAtomicVisualizationContext } from '../pi-runtime-input'
 import { createPiRunControl } from './pi-run-control'
+import {
+  createDeliveryTracker,
+  type DeliveryTracker,
+  deliveryCandidate,
+  retainUndeliveredSteers,
+  type SteerLedgerEntry,
+} from './pi-steer-delivery-ledger'
 
 interface PiLiveRun {
   readonly runId: string
@@ -24,6 +32,7 @@ export interface PiLiveRunSteeringInput {
   readonly attachments: readonly HydratedAttachment[]
   readonly visualizationContext?: InlineVisualizationContext
   readonly requireDurableDelivery?: boolean
+  readonly delivery?: SteeringDelivery
 }
 
 interface RegisteredPiLiveRun {
@@ -35,14 +44,8 @@ interface RegisteredPiLiveRun {
   readonly pendingDeliveries: Set<DeliveryTracker>
   readonly deliveryListeners: Set<() => void>
   readonly stopObservingMessages?: () => void
+  readonly steerLedger: SteerLedgerEntry[]
   steerTail: Promise<void>
-}
-
-interface DeliveryTracker {
-  readonly entriesBefore: number
-  readonly steerTextsBefore: readonly string[]
-  readonly inFlightUserTextsBefore: ReadonlyMap<string, number>
-  readonly candidates: Array<{ readonly message: object; readonly originalText: string }>
 }
 
 const liveRuns = new Map<string, RegisteredPiLiveRun>()
@@ -114,13 +117,16 @@ export function registerPiLiveRun(run: PiLiveRun) {
       routeThroughInputHook: run.routeThroughInputHook === true,
     }),
     ...observation,
+    steerLedger: [],
     steerTail: Promise.resolve(),
   }
   liveRuns.set(run.runId, registered)
   return () => {
+    const live = liveRuns.get(run.runId) === registered
+    if (live) liveRuns.delete(run.runId)
     controller.abort()
     observation.stopObservingMessages?.()
-    if (liveRuns.get(run.runId) === registered) liveRuns.delete(run.runId)
+    if (live) retainUndeliveredSteers(run.runId, registered.steerLedger)
   }
 }
 
@@ -143,14 +149,7 @@ function awaitDurableSteerDelivery(input: {
     const check = () => {
       if (finished) return
       try {
-        const matchingSteersBefore = input.tracker.steerTextsBefore.filter(
-          (text) => stripAtomicVisualizationContext(text) === input.durableText,
-        ).length
-        const matchingInFlightBefore =
-          input.tracker.inFlightUserTextsBefore.get(input.durableText) ?? 0
-        const target = input.tracker.candidates.filter(
-          (candidate) => candidate.originalText === input.durableText,
-        )[matchingSteersBefore + matchingInFlightBefore]
+        const target = deliveryCandidate(input.tracker, input.durableText)
         const delivered =
           target !== undefined &&
           input.liveRun.run.session.sessionManager
@@ -165,7 +164,9 @@ function awaitDurableSteerDelivery(input: {
           input.liveRun.controller.signal.aborted ||
           liveRuns.get(input.runId) !== input.liveRun
         ) {
-          finish(false)
+          // Pi started incorporating the message before the Run ended. Returning the Follow-up
+          // would deliver it twice, so the promotion counts even though no entry was persisted.
+          finish(target !== undefined)
           return
         }
       } catch (error) {
@@ -182,27 +183,64 @@ function awaitDurableSteerDelivery(input: {
   })
 }
 
+/** Record where a steer went once Pi run control returned it. */
+function recordSteerHandoff(handoff: {
+  readonly liveRun: RegisteredPiLiveRun
+  readonly input: PiLiveRunSteeringInput
+  readonly delivery: Awaited<ReturnType<RegisteredPiLiveRun['control']['steer']>>
+  readonly tracker?: DeliveryTracker
+  readonly ledgerEntry?: SteerLedgerEntry
+}): 'accepted' | 'refused' {
+  const { liveRun, input, delivery, tracker, ledgerEntry } = handoff
+  const stopTracking = () => {
+    if (tracker) liveRun.pendingDeliveries.delete(tracker)
+    if (ledgerEntry) ledgerEntry.stage = 'settled'
+  }
+  if (delivery.delivery === 'handled') {
+    stopTracking()
+    return 'accepted'
+  }
+  if (!input.requireDurableDelivery && liveRuns.get(input.runId) !== liveRun) {
+    // The Run ended while Pi queued this steer, after its Undelivered steering messages were
+    // collected. Refuse it so the caller keeps the message instead of a disposed Pi queue.
+    stopTracking()
+    return 'refused'
+  }
+  if (ledgerEntry && tracker) {
+    ledgerEntry.stage = 'queued'
+    ledgerEntry.queued = { tracker, durableText: delivery.durableText }
+  }
+  return 'accepted'
+}
+
 export async function steerPiLiveRun(input: PiLiveRunSteeringInput): Promise<AgentSteeringResult> {
   const liveRun = liveRuns.get(input.runId)
   if (!liveRun) return { accepted: false, code: 'run_not_live' }
+  // Recorded on arrival, so a Run that ends hands its steers back in the order they were sent.
+  const ledgerEntry: SteerLedgerEntry | undefined = input.delivery
+    ? { delivery: input.delivery, stage: 'awaiting-handoff' }
+    : undefined
+  if (ledgerEntry) liveRun.steerLedger.push(ledgerEntry)
+  const settleLedgerEntry = () => {
+    if (ledgerEntry) ledgerEntry.stage = 'settled'
+  }
   const steering = liveRun.steerTail.then(async () => {
     if (liveRuns.get(input.runId) !== liveRun) {
+      settleLedgerEntry()
       return { result: { accepted: false, code: 'run_not_live' } as const }
     }
     if (!liveRun.run.session.isStreaming && !liveRun.run.session.isCompacting) {
+      settleLedgerEntry()
       return { result: { accepted: false, code: 'run_not_streaming' } as const }
     }
-    const tracker: DeliveryTracker | undefined = input.requireDurableDelivery
-      ? {
-          entriesBefore: liveRun.run.session.sessionManager.getEntries().length,
-          steerTextsBefore: [...(liveRun.run.session.getSteeringMessages?.() ?? [])],
-          inFlightUserTextsBefore: new Map(liveRun.inFlightUserTexts),
-          candidates: [...liveRun.inFlightMessages].map(([message, originalText]) => ({
-            message,
-            originalText,
-          })),
-        }
-      : undefined
+    const tracker: DeliveryTracker | undefined =
+      input.requireDurableDelivery || ledgerEntry
+        ? createDeliveryTracker({
+            session: liveRun.run.session,
+            inFlightUserTexts: liveRun.inFlightUserTexts,
+            inFlightMessages: liveRun.inFlightMessages,
+          })
+        : undefined
     if (tracker) liveRun.pendingDeliveries.add(tracker)
     let delivery: Awaited<ReturnType<typeof liveRun.control.steer>>
     try {
@@ -214,9 +252,13 @@ export async function steerPiLiveRun(input: PiLiveRunSteeringInput): Promise<Age
       })
     } catch (error) {
       if (tracker) liveRun.pendingDeliveries.delete(tracker)
+      settleLedgerEntry()
       throw error
     }
-    if (delivery.delivery === 'handled' && tracker) liveRun.pendingDeliveries.delete(tracker)
+    const tracking = { ...(tracker ? { tracker } : {}), ...(ledgerEntry ? { ledgerEntry } : {}) }
+    if (recordSteerHandoff({ liveRun, input, delivery, ...tracking }) === 'refused') {
+      return { result: { accepted: false, code: 'run_not_live' } as const }
+    }
     const receipt: AgentSteerDeliveryReceipt =
       delivery.delivery === 'handled'
         ? { delivery: 'handled' }

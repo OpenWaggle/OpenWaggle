@@ -47,7 +47,6 @@ import { setSessionAuthorization } from './session-authorization-service'
 import {
   interruptSessionDescendants,
   interruptSessionRun,
-  steerSessionRun,
 } from './session-control-external-service'
 import { promoteSessionFollowUp } from './session-control-promotion-service'
 import { replaceSessionRun } from './session-control-replacement-service'
@@ -58,6 +57,7 @@ import {
   startSessionRun,
   submitSessionMessage,
 } from './session-control-service'
+import { steerSessionRun } from './session-control-steering-service'
 import { respondToSessionInteraction } from './session-interaction-service'
 
 interface ExecuteCommandInput {

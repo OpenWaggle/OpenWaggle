@@ -2,6 +2,7 @@ import type { FollowUpId, RunId, SessionId } from '@shared/types/brand'
 import type { SessionRunTerminalStatus } from '@shared/types/session-host-event'
 import { Context, type Effect } from 'effect'
 import type { SessionControlIntentSnapshot } from '../domain/session-control/message-aggregate'
+import type { UndeliveredSteer } from '../domain/session-control/undelivered-steering'
 import type { SessionControlRepositoryError } from '../errors'
 
 export type SessionControlTerminalRunStatus = SessionRunTerminalStatus
@@ -82,6 +83,11 @@ export interface SessionControlRunLifecycleRepositoryShape {
     readonly terminalEventAt?: number
     readonly finalResponse?: string
     readonly suppressFollowUpScheduling?: boolean
+    /**
+     * Steering messages the Run ended without incorporating, in steering order. Settlement
+     * returns them to the front of the Follow-up queue before it pauses or schedules the queue.
+     */
+    readonly undeliveredSteers?: readonly UndeliveredSteer[]
   }) => Effect.Effect<SessionControlRunSettlementResult, SessionControlRepositoryError>
   readonly recoverHostLoss: Effect.Effect<
     readonly { readonly sessionId: SessionId; readonly runId: RunId }[],

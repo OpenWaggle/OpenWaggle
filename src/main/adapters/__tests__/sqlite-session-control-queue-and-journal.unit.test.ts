@@ -167,7 +167,7 @@ describe('SQLite Session Control queue and operation journal', () => {
     const layer = Layer.merge(
       baseLayer,
       Layer.merge(
-        Layer.succeed(AgentSteeringService, { steer }),
+        Layer.succeed(AgentSteeringService, { steer, takeUndelivered: () => Effect.succeed([]) }),
         Layer.succeed(SessionControlAttachmentService, {
           prepare: () => Effect.succeed([]),
           bind: () => Effect.void,

@@ -58,6 +58,7 @@ describe('Session Control promotion and replacement', () => {
       text: 'Steer this now.',
       attachments: [],
       requireDurableDelivery: true,
+      delivery: { kind: 'promoted-follow-up', followUpId: 'follow-up-next' },
       visualizationContext: {
         title: 'Service map',
         sourcePath: '/repo/service-map.html',

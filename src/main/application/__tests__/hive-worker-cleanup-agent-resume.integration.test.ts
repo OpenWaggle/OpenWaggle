@@ -57,6 +57,7 @@ function reviveWorkerRun(sql: SqlClient.SqlClient) {
 function withLiveRunServices<A, E, R>(effect: Effect.Effect<A, E, R>) {
   return effect.pipe(
     Effect.provideService(AgentSteeringService, {
+      takeUndelivered: () => Effect.succeed([]),
       steer: () =>
         Effect.succeed({
           accepted: true,

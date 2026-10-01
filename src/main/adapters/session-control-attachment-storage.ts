@@ -161,6 +161,18 @@ function cleanupUnreferenced(sql: SqlClient.SqlClient, sessionId: string) {
       SELECT intent_json FROM session_runs WHERE session_id = ${sessionId}
         AND status IN (${'starting'}, ${'active'}, ${'stopping'}) AND intent_json IS NOT NULL
       UNION ALL SELECT intent_json FROM session_follow_ups WHERE session_id = ${sessionId}
+      -- A queued steer keeps its attachments while its Run is live, so a stopped Run can return
+      -- it to the Follow-up queue intact. Once the Run settles they are unreferenced unless it was.
+      UNION ALL SELECT json_extract(operation.request_json, '$.input') AS intent_json
+      FROM session_operations AS operation
+      JOIN session_runs AS run
+        ON run.id = json_extract(operation.outcome_json, '$.runId')
+        AND run.session_id = operation.target_scope
+      WHERE operation.target_scope = ${sessionId}
+        AND operation.operation = ${'steer'}
+        AND operation.status = ${'completed'}
+        AND json_extract(operation.outcome_json, '$.effect') = ${'steered-run'}
+        AND run.status IN (${'starting'}, ${'active'}, ${'stopping'})
     `
       const referenced = yield* Effect.try({
         try: () => referencedAttachmentIds(rows),

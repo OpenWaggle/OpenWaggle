@@ -36,6 +36,7 @@ function releasePromotedAttachments(input: {
 
 function promotedSteeringInput(
   runId: string,
+  followUpId: FollowUpId,
   intent: SessionControlIntentSnapshot,
   attachments: AgentSteeringInput['attachments'],
 ): AgentSteeringInput {
@@ -44,6 +45,7 @@ function promotedSteeringInput(
     text: intent.text,
     attachments,
     requireDurableDelivery: true,
+    delivery: { kind: 'promoted-follow-up', followUpId },
     ...(intent.visualizationContext ? { visualizationContext: intent.visualizationContext } : {}),
   }
 }
@@ -88,7 +90,12 @@ function completeClaimedPromotion(input: {
         : yield* AgentSteeringService.pipe(
             Effect.flatMap((service) =>
               service.steer(
-                promotedSteeringInput(input.expectedRunId, input.intent, attachments.right),
+                promotedSteeringInput(
+                  input.expectedRunId,
+                  input.followUpId,
+                  input.intent,
+                  attachments.right,
+                ),
               ),
             ),
             Effect.catchAll(() =>

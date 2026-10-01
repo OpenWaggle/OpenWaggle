@@ -61,6 +61,7 @@ export function makePromotionReplacementLayer(
       }),
       Layer.succeed(AgentSteeringService, {
         steer: (input) => Effect.succeed(steer(input)),
+        takeUndelivered: () => Effect.succeed([]),
       }),
       Layer.succeed(AgentRunInterruptionService, {
         requestInterrupt: (input) => Effect.succeed(interrupt(input)),

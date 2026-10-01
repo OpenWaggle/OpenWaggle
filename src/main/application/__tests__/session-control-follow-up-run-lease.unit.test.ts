@@ -45,7 +45,7 @@ function unusedCommandDependencies() {
     NoopActionRunServiceLayer,
     Layer.succeed(SessionWorkspaceResourceRepository, fromPartial({})),
     Layer.succeed(AgentRunInterruptionService, fromPartial({})),
-    Layer.succeed(AgentSteeringService, fromPartial({})),
+    Layer.succeed(AgentSteeringService, fromPartial({ takeUndelivered: () => Effect.succeed([]) })),
     Layer.succeed(SessionAuthorizationTargetRepository, fromPartial({})),
     Layer.succeed(SessionControlAttachmentService, fromPartial({})),
     Layer.succeed(SessionControlOperationJournal, fromPartial({})),

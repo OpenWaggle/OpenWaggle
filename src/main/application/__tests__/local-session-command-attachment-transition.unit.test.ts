@@ -141,6 +141,7 @@ describe('Local Session attachment transition dispatch', () => {
         unusedDispatcherCommandDependencies(),
         setup.layer,
         Layer.succeed(AgentSteeringService, {
+          takeUndelivered: () => Effect.succeed([]),
           steer: () =>
             Effect.promise(async () => {
               steeringEntered.resolve()

@@ -15,6 +15,7 @@ import {
 } from './active-session-runs'
 import { requestHiveWorkerCleanup } from './hive-worker-cleanup-request'
 import { acquireSessionHostRunLease, type SessionHostRunLease } from './session-host-run-admission'
+import { takeUndeliveredSteers } from './undelivered-steering-settlement'
 
 export interface CoordinateSessionRunsInput {
   readonly sessionId: SessionId
@@ -79,6 +80,7 @@ function coordinateLiveSessionRuns(input: CoordinateSessionRunsInput) {
         settledExecution = execution
 
         const nextRunId = yield* identities.nextRunId
+        const undeliveredSteers = yield* takeUndeliveredSteers(runId)
         return yield* lifecycle.settle({
           sessionId: input.sessionId,
           runId,
@@ -89,6 +91,7 @@ function coordinateLiveSessionRuns(input: CoordinateSessionRunsInput) {
             : { terminalEventAt: execution.terminalEventAt }),
           suppressFollowUpScheduling: hasClaimedSessionWriterSuccessor(input.sessionId, runId),
           ...(execution.finalResponse ? { finalResponse: execution.finalResponse } : {}),
+          ...(undeliveredSteers.length > 0 ? { undeliveredSteers } : {}),
         })
       }).pipe(Effect.ensuring(Effect.sync(reservation.release)))
       if (!settlement) return results

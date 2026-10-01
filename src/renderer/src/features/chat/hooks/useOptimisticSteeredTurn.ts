@@ -74,9 +74,10 @@ export function useOptimisticSteeredTurn(
       .reconcile(sessionId, reconciledOptimisticTurns, allOptimisticTurnsAreDurable)
   }, [allOptimisticTurnsAreDurable, hasNewDurableMatch, reconciledOptimisticTurns, sessionId])
 
-  // A steer preview only represents delivery within the active run. Stop clears Pi's pending
-  // steering queue, so any preview that did not project into the transcript must disappear when
-  // that run settles. The store is session-scoped, which preserves previews across navigation.
+  // A steer preview only represents delivery within the active run. A steer that run never
+  // incorporated returns to the Follow-up queue when it settles, so any preview that did not
+  // project into the transcript must disappear then. The store is session-scoped, which preserves
+  // previews across navigation.
   useEffect(() => {
     if (!sessionId || !isSessionIdle) return
     useOptimisticSteerStore.getState().clearSession(sessionId)

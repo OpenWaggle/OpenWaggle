@@ -8,6 +8,7 @@ import {
   replaceWithExternalSessionRun,
   startExternalSessionRun,
 } from '../domain/session-control/run-lifecycle'
+import { returnUndeliveredSteers } from '../domain/session-control/undelivered-steering'
 import { SessionControlRepositoryError } from '../errors'
 import {
   SessionControlRunLifecycleRepository,
@@ -197,9 +198,21 @@ function settle(
         const reservedIds = yield* reservedFollowUpIds(sql, input.sessionId)
         if (reservedIds.size > 0) return { status: 'promotion-pending' } as const
         const loadedState = yield* loadSessionControlState(sql, input.sessionId)
-        const state = yield* applyCurrentFollowUpAuthorization(sql, loadedState)
+        const undeliveredSteers = input.undeliveredSteers ?? []
+        const state = yield* applyCurrentFollowUpAuthorization(
+          sql,
+          returnUndeliveredSteers(loadedState, undeliveredSteers),
+        )
         const replacementPending = yield* replacementIsPending(sql, state, input)
         if (replacementPending) {
+          // The replacement's completion owns this Session's next state revision, so the returned
+          // steers change only the queue revision here and reach clients with that transition.
+          const returned = returnUndeliveredSteers(loadedState, undeliveredSteers, {
+            bumpStateRevision: false,
+          })
+          if (returned !== loadedState) {
+            yield* persistSessionControlState(sql, returned, Date.now())
+          }
           return {
             status: 'settled',
             result: { accepted: false, code: 'run_not_active' },
