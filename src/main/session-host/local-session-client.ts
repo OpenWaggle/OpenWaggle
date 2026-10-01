@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { isFollowUpEditCommand } from '@shared/schemas/local-session-command-revision'
 import { decodeLocalSessionCommandPayload } from '@shared/schemas/local-session-protocol'
 import {
   HOST_BACKED_MCP_GUI_CHANNELS,
@@ -20,6 +21,7 @@ import {
   LOCAL_SESSION_AUTHORIZATION_GRANTS_REVISION,
   LOCAL_SESSION_COMPACTION_REVISION,
   LOCAL_SESSION_DESKTOP_SERVICE_REVISION,
+  LOCAL_SESSION_FOLLOW_UP_EDIT_REVISION,
   LOCAL_SESSION_HOST_CONTROL_REVISION,
   LOCAL_SESSION_LEGACY_HOST_UI_REVISION,
   LOCAL_SESSION_MCP_AUTH_REVISION,
@@ -84,6 +86,7 @@ function minimumHostUiRevision(channel: HostBackedGuiChannel) {
 }
 
 function minimumProtocolRevision(payload: LocalSessionCommandPayload) {
+  if (isFollowUpEditCommand(payload)) return LOCAL_SESSION_FOLLOW_UP_EDIT_REVISION
   if (payload.contract === 'local-update-v1') return LOCAL_SESSION_UPDATE_REVISION
   if (payload.contract === 'local-host-v1') return LOCAL_SESSION_HOST_CONTROL_REVISION
   if (payload.contract === 'desktop-service-v1') return LOCAL_SESSION_DESKTOP_SERVICE_REVISION
@@ -110,6 +113,9 @@ function minimumProtocolRevision(payload: LocalSessionCommandPayload) {
 }
 
 function unsupportedRevisionMessage(payload: LocalSessionCommandPayload) {
+  if (isFollowUpEditCommand(payload)) {
+    return 'The connected Session Host does not support editing queued messages.'
+  }
   if (payload.contract === 'local-update-v1') {
     return 'The connected Session Host does not support update channel commands.'
   }

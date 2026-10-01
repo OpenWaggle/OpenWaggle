@@ -37,7 +37,7 @@ describe('Local Session authorization grant revision', () => {
         },
       })
 
-      expect(supportedRevisionsForCommand(payload)).toEqual([19])
+      expect(supportedRevisionsForCommand(payload)).toEqual([20])
       expect(() => decodeLocalSessionCommandPayloadForRevision(payload, 16)).toThrow(/revision 17/)
       expect(decodeLocalSessionCommandPayloadForRevision(payload, 17)).toEqual(payload)
     },
@@ -55,7 +55,7 @@ describe('Local Session authorization grant revision', () => {
       accepted: false,
       protocol: hello.protocol,
       code: 'incompatible_protocol',
-      supportedRevisions: [19],
+      supportedRevisions: [20],
     })
     expect(LOCAL_SESSION_CAPABILITIES).toContain('host-ui:authorization-grants-v1')
     expect(LOCAL_SESSION_REVISION_10_CAPABILITIES).toContain('host-ui:authorization-grants-v1')
@@ -77,11 +77,11 @@ describe('Local Session authorization grant revision', () => {
     expect(decodeLocalSessionNegotiationResult(current)).toEqual(current)
 
     const latest = negotiateLocalSessionProtocol(
-      { ...hello, supportedRevisions: [19, 18] },
+      { ...hello, supportedRevisions: [20, 19] },
       'latest',
     )
     if (!latest.accepted) throw new Error('Expected revision-nineteen negotiation.')
-    expect(latest.revision).toBe(19)
+    expect(latest.revision).toBe(20)
     expect(latest.capabilities).toEqual(LOCAL_SESSION_CAPABILITIES)
     expect(latest.capabilities).toContain('desktop:services-v1')
     expect(latest.capabilities).toContain('host-ui:session-project-catalog-v1')

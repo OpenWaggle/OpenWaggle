@@ -14,6 +14,7 @@ import {
   LOCAL_SESSION_AUTHORIZATION_GRANTS_REVISION,
   LOCAL_SESSION_COMPACTION_REVISION,
   LOCAL_SESSION_DESKTOP_SERVICE_REVISION,
+  LOCAL_SESSION_FOLLOW_UP_EDIT_REVISION,
   LOCAL_SESSION_HOST_CONTROL_REVISION,
   LOCAL_SESSION_LEGACY_HOST_UI_REVISION,
   LOCAL_SESSION_MCP_AUTH_REVISION,
@@ -59,7 +60,22 @@ export function requiredHostUiRevision(channel: HostBackedGuiChannel) {
     : LOCAL_SESSION_LEGACY_HOST_UI_REVISION
 }
 
+/** Follow-up edit commands (ADR 0043) need a Host that can hold a Follow-up. */
+export function isFollowUpEditCommand(payload: LocalSessionCommandPayload) {
+  if (payload.contract === 'local-ui-v1') {
+    return payload.request.command.operation === 'renew-follow-up-edit-hold'
+  }
+  if (payload.contract !== 'session-control-v2') return false
+  const { operation } = payload.request.command
+  return (
+    operation === 'queue-edit-begin' ||
+    operation === 'queue-edit-save' ||
+    operation === 'queue-edit-cancel'
+  )
+}
+
 export function requiredLocalSessionCommandRevision(payload: LocalSessionCommandPayload) {
+  if (isFollowUpEditCommand(payload)) return LOCAL_SESSION_FOLLOW_UP_EDIT_REVISION
   if (payload.contract === 'local-update-v1') return LOCAL_SESSION_UPDATE_REVISION
   if (payload.contract === 'local-host-v1') return LOCAL_SESSION_HOST_CONTROL_REVISION
   if (payload.contract === 'desktop-service-v1') return LOCAL_SESSION_DESKTOP_SERVICE_REVISION
