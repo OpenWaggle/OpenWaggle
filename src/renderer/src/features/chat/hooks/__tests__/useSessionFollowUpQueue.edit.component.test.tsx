@@ -79,9 +79,21 @@ function respond(outcome: unknown) {
 
 const HELD = {
   holdId: 'hold-1',
+  baseQueueRevision: 8,
   holderIsCaller: true,
   acquiredAt: 100,
   leaseExpiresAt: 30_100,
+}
+
+const BEGUN = {
+  operation: 'queue-edit-begin',
+  effect: 'follow-up-edit-held',
+  sessionId: SESSION_ID,
+  followUpId: 'follow-up-1',
+  holdId: 'hold-1',
+  leaseExpiresAt: 30_100,
+  queueRevision: 8,
+  stateRevision: 9,
 }
 
 describe('useSessionFollowUpQueue Follow-up edits', () => {
@@ -95,27 +107,24 @@ describe('useSessionFollowUpQueue Follow-up edits', () => {
     const { result } = renderHookWithQueryClient(() => useSessionFollowUpQueue(SESSION_ID))
     await waitFor(() => expect(result.current.snapshot.items).toHaveLength(1))
 
+    expect(result.current.snapshot.waitingOnEdit).toBe(true)
     expect(result.current.snapshot.items[0]).toMatchObject({
       editable: true,
-      editHold: { holdId: 'hold-1', heldByCurrentUser: true, leaseExpiresAt: 30_100 },
+      editHold: {
+        holdId: 'hold-1',
+        baseQueueRevision: 8,
+        heldByCurrentUser: true,
+        leaseExpiresAt: 30_100,
+      },
       attachments: [{ id: 'attachment-1', name: 'notes.txt', mimeType: 'text/plain' }],
       waggle: { presetId: 'preset-review', config: { mode: 'sequential' } },
     })
   })
 
-  it('begins an edit, then saves the content in place with the latest queue revision', async () => {
+  it('begins an edit, then saves the content in place against the revision it began at', async () => {
     const { result } = renderHookWithQueryClient(() => useSessionFollowUpQueue(SESSION_ID))
     await waitFor(() => expect(result.current.snapshot.items).toHaveLength(1))
-    respond({
-      operation: 'queue-edit-begin',
-      effect: 'follow-up-edit-held',
-      sessionId: SESSION_ID,
-      followUpId: 'follow-up-1',
-      holdId: 'hold-1',
-      leaseExpiresAt: 30_100,
-      queueRevision: 8,
-      stateRevision: 9,
-    })
+    respond(BEGUN)
     apiMocks.querySessionControl.mockResolvedValue(queue(HELD))
 
     let edit: Awaited<ReturnType<typeof result.current.beginEdit>> | undefined
@@ -125,8 +134,11 @@ describe('useSessionFollowUpQueue Follow-up edits', () => {
     expect(edit).toMatchObject({
       followUpId: 'follow-up-1',
       holdId: 'hold-1',
+      queueRevision: 8,
       item: { text: 'Queued text', attachments: [{ id: 'attachment-1' }] },
     })
+    if (!edit) throw new Error('expected an edit')
+    const begun = edit
 
     respond({
       operation: 'queue-edit-save',
@@ -138,10 +150,10 @@ describe('useSessionFollowUpQueue Follow-up edits', () => {
       stateRevision: 10,
     })
     await act(() =>
-      result.current.saveEdit(
-        { followUpId: 'follow-up-1', holdId: 'hold-1' },
-        { text: 'Edited', attachments: [{ id: 'attachment-1' }, { id: 'attachment-2' }] },
-      ),
+      result.current.saveEdit(begun, {
+        text: 'Edited',
+        attachments: [{ id: 'attachment-1' }, { id: 'attachment-2' }],
+      }),
     )
     expect(apiMocks.mutateSessionControl).toHaveBeenLastCalledWith(
       expect.objectContaining({
@@ -150,7 +162,7 @@ describe('useSessionFollowUpQueue Follow-up edits', () => {
           sessionId: SESSION_ID,
           followUpId: 'follow-up-1',
           holdId: 'hold-1',
-          expectedQueueRevision: 7,
+          expectedQueueRevision: 8,
           input: { text: 'Edited', attachmentIds: ['attachment-1', 'attachment-2'] },
         },
       }),
@@ -160,7 +172,7 @@ describe('useSessionFollowUpQueue Follow-up edits', () => {
   it('refuses a GUI-only composer command and reports a lost hold', async () => {
     const { result } = renderHookWithQueryClient(() => useSessionFollowUpQueue(SESSION_ID))
     await waitFor(() => expect(result.current.snapshot.items).toHaveLength(1))
-    const edit = { followUpId: 'follow-up-1', holdId: 'hold-1' }
+    const edit = { followUpId: 'follow-up-1', holdId: 'hold-1', queueRevision: 8 }
 
     await expect(
       result.current.saveEdit(edit, { text: '/compact', attachments: [] }),
@@ -177,6 +189,52 @@ describe('useSessionFollowUpQueue Follow-up edits', () => {
       .saveEdit(edit, { text: 'Edited', attachments: [] })
       .catch((error: unknown) => error)
     expect(isLostFollowUpEdit(failure)).toBe(true)
+  })
+
+  it('releases the hold again when the content cannot be read after beginning', async () => {
+    const { result } = renderHookWithQueryClient(() => useSessionFollowUpQueue(SESSION_ID))
+    await waitFor(() => expect(result.current.snapshot.items).toHaveLength(1))
+    respond(BEGUN)
+    respond({
+      operation: 'queue-edit-cancel',
+      effect: 'queue-updated',
+      sessionId: SESSION_ID,
+      queueState: 'running',
+      queueRevision: 9,
+      followUpIds: ['follow-up-1'],
+      stateRevision: 10,
+    })
+    apiMocks.querySessionControl.mockRejectedValueOnce(new Error('Host unavailable'))
+
+    await expect(result.current.beginEdit('follow-up-1')).rejects.toThrow('Host unavailable')
+    expect(apiMocks.mutateSessionControl).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        command: expect.objectContaining({ operation: 'queue-edit-cancel', holdId: 'hold-1' }),
+      }),
+    )
+  })
+
+  it('re-adopts an edit this user holds after a remount', async () => {
+    apiMocks.querySessionControl.mockResolvedValue(queue(HELD))
+    const { result } = renderHookWithQueryClient(() => useSessionFollowUpQueue(SESSION_ID))
+    await waitFor(() => expect(result.current.snapshot.items).toHaveLength(1))
+
+    expect(result.current.resumeEdit('follow-up-1')).toMatchObject({
+      followUpId: 'follow-up-1',
+      holdId: 'hold-1',
+      queueRevision: 8,
+      item: { text: 'Queued text' },
+    })
+    expect(result.current.resumeEdit('missing')).toBeNull()
+  })
+
+  it('does not offer to re-adopt another holder’s edit', async () => {
+    apiMocks.querySessionControl.mockResolvedValue(
+      queue({ holderIsCaller: false, acquiredAt: 100, leaseExpiresAt: 30_100 }),
+    )
+    const { result } = renderHookWithQueryClient(() => useSessionFollowUpQueue(SESSION_ID))
+    await waitFor(() => expect(result.current.snapshot.items).toHaveLength(1))
+    expect(result.current.resumeEdit('follow-up-1')).toBeNull()
   })
 
   it('cancels an edit by its hold', async () => {

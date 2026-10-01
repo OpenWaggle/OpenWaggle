@@ -1,20 +1,15 @@
 import type { AgentSendPayload } from '@shared/types/agent'
 import type { SessionId } from '@shared/types/brand'
-import {
-  SESSION_CONTROL_CONTRACT_VERSION,
-  type SessionControlMutationCommand,
-  type SessionControlMutationResponse,
-} from '@shared/types/session-control'
 import { queryOptions, type UseQueryOptions, useQuery } from '@tanstack/react-query'
 import {
   GUI_COMMAND_REQUIRES_IDLE_MESSAGE,
   isGuiOnlyComposerCommand,
 } from '@/features/composer/commands'
-import { api } from '@/shared/lib/ipc'
 import { settledSessionModelWrites } from '../state/session-model-writes'
+import { mutate, readQueue } from './session-follow-up-queue-client'
 import {
   EMPTY_SNAPSHOT,
-  queueSnapshot,
+  heldEdit,
   SessionControlRejectedError,
   type SessionFollowUpEdit,
   type SessionFollowUpEditPayload,
@@ -36,33 +31,6 @@ function sessionFollowUpQueueKey(sessionId: SessionId | string) {
 }
 
 type SessionFollowUpQueueKey = readonly ['session-control', 'queue', string | null]
-
-async function readQueue(sessionId: SessionId) {
-  const response = await api.querySessionControl({
-    contractVersion: SESSION_CONTROL_CONTRACT_VERSION,
-    requestId: crypto.randomUUID(),
-    query: { operation: 'queue-list', sessionId, includeBodies: true },
-  })
-  return queueSnapshot(response.outcome)
-}
-
-function rejected(response: SessionControlMutationResponse) {
-  return response.outcome.effect === 'rejected'
-    ? new SessionControlRejectedError(response.outcome.operation, response.outcome.code)
-    : null
-}
-
-async function mutate(command: SessionControlMutationCommand) {
-  const response = await api.mutateSessionControl({
-    contractVersion: SESSION_CONTROL_CONTRACT_VERSION,
-    requestId: crypto.randomUUID(),
-    idempotencyKey: crypto.randomUUID(),
-    command,
-  })
-  const error = rejected(response)
-  if (error) throw error
-  return response
-}
 
 export function sessionFollowUpQueueOptions(
   sessionId: SessionId | null,
@@ -216,6 +184,7 @@ export function useSessionFollowUpQueue(sessionId: SessionId | null) {
    * Begins a Follow-up edit: the Host holds the item so the queue stops delivering at it, and
    * returns the item's current content to load into the composer. Throws a
    * `SessionControlRejectedError` when the item is gone, not this user's, or already being edited.
+   * If the content cannot be read after the hold was acquired, the hold is released again.
    */
   async function beginEdit(followUpId: string): Promise<SessionFollowUpEdit> {
     if (!sessionId) throw new Error('Select a Session before editing a queued message.')
@@ -223,24 +192,43 @@ export function useSessionFollowUpQueue(sessionId: SessionId | null) {
     if (response.outcome.effect !== 'follow-up-edit-held') {
       throw new Error('Session Host returned the wrong response for a Follow-up edit.')
     }
-    const { holdId, leaseExpiresAt } = response.outcome
-    const current = await readQueue(sessionId)
-    const item = current.items.find((candidate) => candidate.id === followUpId)
+    const { holdId, leaseExpiresAt, queueRevision } = response.outcome
+    const edit = { followUpId, holdId, queueRevision }
+    let item: SessionFollowUpEdit['item'] | undefined
+    try {
+      const current = await readQueue(sessionId)
+      item = current.items.find((candidate) => candidate.id === followUpId)
+    } catch (error) {
+      await cancelEdit(edit).catch(() => undefined)
+      throw error
+    }
     if (!item) {
-      await cancelEdit({ followUpId, holdId }).catch(() => undefined)
+      await cancelEdit(edit).catch(() => undefined)
       throw new SessionControlRejectedError('queue-edit-begin', 'follow_up_not_found')
     }
     await refresh()
-    return { followUpId, holdId, leaseExpiresAt, item }
+    return { ...edit, leaseExpiresAt, item }
+  }
+
+  /**
+   * Re-adopts an edit this user already holds, for example after the composer remounted or the
+   * user came back to the Session. Returns null when the Follow-up is not held by this user, in
+   * which case `beginEdit` starts a new edit. Reads the latest snapshot, so `refresh()` first when
+   * it may be stale.
+   */
+  function resumeEdit(followUpId: string): SessionFollowUpEdit | null {
+    return heldEdit(query.data ?? EMPTY_SNAPSHOT, followUpId)
   }
 
   /**
    * Saves an open Follow-up edit in place (same identity and position) and releases its hold; the
-   * queue then delivers again. GUI-only composer commands are refused like a new Follow-up. When
-   * `isLostFollowUpEdit(error)` holds, the edit can no longer be saved and the draft should be kept.
+   * queue then delivers again. GUI-only composer commands are refused like a new Follow-up. The save
+   * names the revision the edit began at (`edit.queueRevision`), so reordering or other items'
+   * changes do not refuse it. When `isLostFollowUpEdit(error)` holds, the edit can no longer be
+   * saved: keep the draft and offer to queue it as a new message (its attachments stay bindable).
    */
   async function saveEdit(
-    edit: Pick<SessionFollowUpEdit, 'followUpId' | 'holdId'>,
+    edit: Pick<SessionFollowUpEdit, 'followUpId' | 'holdId' | 'queueRevision'>,
     payload: SessionFollowUpEditPayload,
   ) {
     if (!sessionId) throw new Error('Select a Session before saving a queued message.')
@@ -248,15 +236,12 @@ export function useSessionFollowUpQueue(sessionId: SessionId | null) {
       throw new Error(GUI_COMMAND_REQUIRES_IDLE_MESSAGE)
     }
     try {
-      // Save against the latest revision: the guard is for concurrent queue changes, not for
-      // whatever the queue looked like when the edit began.
-      const current = await readQueue(sessionId)
       await mutate({
         operation: 'queue-edit-save',
         sessionId,
         followUpId: edit.followUpId,
         holdId: edit.holdId,
-        expectedQueueRevision: current.revision,
+        expectedQueueRevision: edit.queueRevision,
         input: {
           text: payload.text,
           attachmentIds: payload.attachments.map((attachment) => attachment.id),
@@ -271,7 +256,10 @@ export function useSessionFollowUpQueue(sessionId: SessionId | null) {
     }
   }
 
-  /** Ends an open Follow-up edit without changing the item; releasing a lost hold succeeds. */
+  /**
+   * Ends an open Follow-up edit without changing the item. Releasing a hold that is already gone
+   * succeeds, and the queue then delivers if it can.
+   */
   async function cancelEdit(edit: Pick<SessionFollowUpEdit, 'followUpId' | 'holdId'>) {
     if (!sessionId) return
     try {
@@ -297,6 +285,7 @@ export function useSessionFollowUpQueue(sessionId: SessionId | null) {
     setPaused,
     reorder,
     beginEdit,
+    resumeEdit,
     saveEdit,
     cancelEdit,
     refresh,

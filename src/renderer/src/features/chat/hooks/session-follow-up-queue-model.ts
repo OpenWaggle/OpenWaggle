@@ -41,20 +41,29 @@ export interface SessionFollowUpQueueItem {
 export interface SessionFollowUpEditHold {
   /** Known only when this user holds the edit (in this window or another one). */
   readonly holdId?: string
+  /** Known with `holdId`: the queue revision the edit began at, which a save names. */
+  readonly baseQueueRevision?: number
   readonly heldByCurrentUser: boolean
   readonly acquiredAt: number
+  /** Wall-clock estimate of when the Host lease runs out unless renewed. */
   readonly leaseExpiresAt: number
 }
 
 /**
- * An open Follow-up edit, returned by `beginEdit`. Load `item` into the composer, then call
- * `saveEdit(edit, payload)` or `cancelEdit(edit)`. While it is open the queue does not deliver this
- * item or anything behind it. The Host lease is renewed by the desktop main process for the window
- * that began it and released if that window closes or reloads.
+ * An open Follow-up edit, returned by `beginEdit` or `resumeEdit`. Load `item` into the composer,
+ * then call `saveEdit(edit, payload)` or `cancelEdit(edit)`. While it is open the queue does not
+ * deliver this item or anything behind it. The desktop main process renews the Host lease for the
+ * window that began the edit and releases it if that window closes or reloads; a remounted
+ * composer in the same window re-adopts the edit with `resumeEdit(followUpId)`.
  */
 export interface SessionFollowUpEdit {
   readonly followUpId: string
   readonly holdId: string
+  /**
+   * The queue revision the edit began at. A save names it: only a change to this Follow-up itself
+   * (which also ends the hold) refuses the save, not reordering or changes to other items.
+   */
+  readonly queueRevision: number
   readonly leaseExpiresAt: number
   readonly item: SessionFollowUpQueueItem
 }
@@ -73,7 +82,8 @@ export interface SessionFollowUpEditPayload {
  * A Session Control rejection, with the Host's code. Follow-up edit codes: `follow_up_not_found`
  * (withdrawn or delivered), `follow_up_not_editable` (someone else queued it),
  * `follow_up_edit_held` (already being edited), `follow_up_edit_not_held` and
- * `follow_up_edit_hold_mismatch` (the hold is gone, e.g. its lease expired), `queue_revision_changed`,
+ * `follow_up_edit_hold_mismatch` (the hold is gone, e.g. its lease expired, or a replayed begin
+ * after a Host restart), `queue_revision_changed` (the edit's base revision is stale),
  * `queue_byte_capacity_reached`, `follow_up_edit_requires_desktop_user`.
  */
 export class SessionControlRejectedError extends Error {
@@ -89,6 +99,7 @@ export class SessionControlRejectedError extends Error {
 /** Codes after which an open Follow-up edit can no longer be saved: the hold or the item is gone. */
 const LOST_EDIT_CODES: ReadonlySet<string> = new Set([
   'follow_up_not_found',
+  'follow_up_not_editable',
   'follow_up_edit_not_held',
   'follow_up_edit_hold_mismatch',
 ])
@@ -105,6 +116,11 @@ export interface SessionFollowUpQueueSnapshot {
   readonly revision: number
   readonly activeRunId: string | null
   readonly items: readonly SessionFollowUpQueueItem[]
+  /**
+   * Some Follow-up is out for an edit, so the queue waits on it. Sends that should not overtake the
+   * held message (an explicit Waggle) belong in the queue (`enqueue`) while this holds.
+   */
+  readonly waitingOnEdit: boolean
 }
 
 export const EMPTY_SNAPSHOT: SessionFollowUpQueueSnapshot = {
@@ -112,6 +128,26 @@ export const EMPTY_SNAPSHOT: SessionFollowUpQueueSnapshot = {
   revision: 0,
   activeRunId: null,
   items: [],
+  waitingOnEdit: false,
+}
+
+/** The open edit of a Follow-up this user holds, from the latest snapshot (see `resumeEdit`). */
+export function heldEdit(
+  snapshot: SessionFollowUpQueueSnapshot,
+  followUpId: string,
+): SessionFollowUpEdit | null {
+  const item = snapshot.items.find((candidate) => candidate.id === followUpId)
+  const hold = item?.editHold
+  if (!item || !hold?.heldByCurrentUser || !hold.holdId || hold.baseQueueRevision === undefined) {
+    return null
+  }
+  return {
+    followUpId,
+    holdId: hold.holdId,
+    queueRevision: hold.baseQueueRevision,
+    leaseExpiresAt: hold.leaseExpiresAt,
+    item,
+  }
 }
 
 type SessionFollowUpQueueIntent = Pick<
@@ -171,29 +207,43 @@ export function queueSnapshot(outcome: SessionQueryOutcome): SessionFollowUpQueu
     throw new Error('Session Host returned the wrong response for a Follow-up queue query.')
   }
   if ('error' in outcome) throw new Error(outcome.error.message)
+  const items = outcome.items.map(queueItem)
   return {
     state: outcome.queueState,
     ...(outcome.queuePauseReason ? { pauseReason: outcome.queuePauseReason } : {}),
     revision: outcome.queueRevision,
     activeRunId: outcome.activeRunId,
-    items: outcome.items.map((item) => ({
-      id: item.followUpId,
-      ...queueIntent(item.intent),
-      createdAt: item.createdAt,
-      deliveryState: item.deliveryState,
-      ...(item.attentionReason ? { attentionReason: item.attentionReason } : {}),
-      attachments: item.attachments ?? [],
-      editable: item.editable === true,
-      ...(item.editHold
-        ? {
-            editHold: {
-              ...(item.editHold.holdId ? { holdId: item.editHold.holdId } : {}),
-              heldByCurrentUser: item.editHold.holderIsCaller,
-              acquiredAt: item.editHold.acquiredAt,
-              leaseExpiresAt: item.editHold.leaseExpiresAt,
-            },
-          }
-        : {}),
-    })),
+    items,
+    waitingOnEdit: items.some((item) => item.editHold !== undefined),
+  }
+}
+
+type QueueListItem = Extract<
+  SessionQueryOutcome,
+  { operation: 'queue-list'; items: unknown }
+>['items'][number]
+
+function queueItem(item: QueueListItem): SessionFollowUpQueueItem {
+  return {
+    id: item.followUpId,
+    ...queueIntent(item.intent),
+    createdAt: item.createdAt,
+    deliveryState: item.deliveryState,
+    ...(item.attentionReason ? { attentionReason: item.attentionReason } : {}),
+    attachments: item.attachments ?? [],
+    editable: item.editable === true,
+    ...(item.editHold
+      ? {
+          editHold: {
+            ...(item.editHold.holdId ? { holdId: item.editHold.holdId } : {}),
+            ...(item.editHold.baseQueueRevision !== undefined
+              ? { baseQueueRevision: item.editHold.baseQueueRevision }
+              : {}),
+            heldByCurrentUser: item.editHold.holderIsCaller,
+            acquiredAt: item.editHold.acquiredAt,
+            leaseExpiresAt: item.editHold.leaseExpiresAt,
+          },
+        }
+      : {}),
   }
 }
