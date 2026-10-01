@@ -9,12 +9,13 @@ import {
   replaceWithExternalSessionRun,
   startExternalSessionRun,
 } from '../domain/session-control/run-lifecycle'
-import { returnUndeliveredSteers } from '../domain/session-control/undelivered-steering'
+import { returnUndeliveredSteersReportingDrops } from '../domain/session-control/undelivered-steering'
 import { SessionControlRepositoryError } from '../errors'
 import {
   SessionControlRunLifecycleRepository,
   type SessionControlRunLifecycleRepositoryShape,
 } from '../ports/session-control-run-lifecycle-repository'
+import { reportDroppedReturnedSteers } from './returned-steer-drop-report'
 import { releaseDeliveredSteerAttachments } from './session-control-attachment-references'
 import { applyCurrentFollowUpAuthorization } from './session-follow-up-authorization'
 import {
@@ -196,6 +197,7 @@ function settle(
   input: SettleInput,
   promotionRetriesRemaining = PROMOTION_SETTLEMENT_RETRY_LIMIT,
 ): ReturnType<SessionControlRunLifecycleRepositoryShape['settle']> {
+  let droppedSteers: ReturnType<typeof returnUndeliveredSteersReportingDrops>['dropped'] = []
   return sql
     .withTransaction(
       Effect.gen(function* () {
@@ -206,7 +208,12 @@ function settle(
         const reservedIds = yield* reservedFollowUpIds(sql, input.sessionId)
         if (reservedIds.size > 0) return { status: 'promotion-pending' } as const
         const loadedState = yield* loadSessionControlState(sql, input.sessionId)
-        const returned = returnUndeliveredSteers(loadedState, input.undeliveredSteers ?? [])
+        const steerReturn = returnUndeliveredSteersReportingDrops(
+          loadedState,
+          input.undeliveredSteers ?? [],
+        )
+        const returned = steerReturn.state
+        droppedSteers = steerReturn.dropped
         const state = yield* applyCurrentFollowUpAuthorization(sql, returned)
         const replacementPending = yield* replacementIsPending(sql, state, input)
         if (replacementPending) {
@@ -265,7 +272,7 @@ function settle(
     .pipe(
       Effect.flatMap((outcome) =>
         outcome.status === 'settled'
-          ? Effect.succeed(outcome.result)
+          ? reportDroppedReturnedSteers(input, droppedSteers).pipe(Effect.as(outcome.result))
           : promotionRetriesRemaining <= 0
             ? Effect.fail(
                 repositoryError('settle-run-promotion-pending', {

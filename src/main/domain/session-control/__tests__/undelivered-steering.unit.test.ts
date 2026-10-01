@@ -8,6 +8,7 @@ import {
   pauseStrandedFollowUps,
   queueHasRoomForReturnableSteer,
   returnUndeliveredSteers,
+  returnUndeliveredSteersReportingDrops,
 } from '../undelivered-steering'
 
 function followUp(id: string, text = `Text ${id}`): SessionControlFollowUp {
@@ -95,11 +96,12 @@ describe('returning Undelivered steering messages', () => {
     )
     const promoted = items[5]
     if (!promoted) throw new Error('fixture')
-    const returned = returnUndeliveredSteers(state(items), [
+    const { state: returned, dropped } = returnUndeliveredSteersReportingDrops(state(items), [
       { delivery: { kind: 'steer', followUp: followUp('direct-a') }, handedOff: true },
       { delivery: { kind: 'steer', followUp: followUp('direct-b') }, handedOff: true },
       { delivery: { kind: 'promoted-follow-up', followUpId: promoted.id }, handedOff: true },
     ])
+    expect(dropped.map((item) => item.id)).toEqual([FollowUpId('direct-b')])
     expect(returned.followUpQueue.items).toHaveLength(MAX_FOLLOW_UP_QUEUE_LISTED_ITEMS)
     expect(returned.followUpQueue.items.slice(0, 2).map((item) => item.id)).toEqual([
       FollowUpId('direct-a'),

@@ -51,14 +51,30 @@ function returnedFollowUp(
  * is skipped. Queue capacity is not enforced: the user already submitted these messages. Direct
  * steers are admitted only while the queue has room and are bounded per Run; past
  * `MAX_FOLLOW_UP_QUEUE_LISTED_ITEMS` (only reachable when several displaced Runs return their
- * steers together) the excess direct steers are dropped, so every queued id stays nameable.
+ * steers together) the excess direct steers are dropped, so every queued id stays nameable; use
+ * `returnUndeliveredSteersReportingDrops` to report them.
  */
 export function returnUndeliveredSteers(
   state: SessionControlSessionState,
   steers: readonly UndeliveredSteer[],
 ): SessionControlSessionState {
+  return returnUndeliveredSteersReportingDrops(state, steers).state
+}
+
+/**
+ * `returnUndeliveredSteers`, also naming the direct steers it dropped past the listed cap. Their
+ * callers already hold a steered-Run receipt, so the caller must report the drop.
+ */
+export function returnUndeliveredSteersReportingDrops(
+  state: SessionControlSessionState,
+  steers: readonly UndeliveredSteer[],
+): {
+  readonly state: SessionControlSessionState
+  readonly dropped: readonly SessionControlFollowUp[]
+} {
   const queued = new Map(state.followUpQueue.items.map((item) => [item.id, item]))
   const front: SessionControlFollowUp[] = []
+  const dropped: SessionControlFollowUp[] = []
   const returnedIds = new Set<FollowUpId>()
   // Direct steers add items; promoted ones only move. Admission bounds one Run's direct steers,
   // but steers of displaced Runs can return together, so the total is clamped here: a queue
@@ -68,11 +84,22 @@ export function returnUndeliveredSteers(
     const item = returnedFollowUp(steer, queued)
     if (!item || returnedIds.has(item.id)) continue
     const adds = !queued.has(item.id)
-    if (adds && room <= 0) continue
+    if (adds && room <= 0) {
+      dropped.push(item)
+      continue
+    }
     if (adds) room -= 1
     returnedIds.add(item.id)
     front.push(item)
   }
+  return { state: withFront(state, front, returnedIds), dropped }
+}
+
+function withFront(
+  state: SessionControlSessionState,
+  front: readonly SessionControlFollowUp[],
+  returnedIds: ReadonlySet<FollowUpId>,
+): SessionControlSessionState {
   if (front.length === 0) return state
   const rest = state.followUpQueue.items.filter((item) => !returnedIds.has(item.id))
   const items = [...front, ...rest]
