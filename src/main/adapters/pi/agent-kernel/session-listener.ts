@@ -2,6 +2,7 @@ import { matchBy } from '@diegogbrisa/ts-match'
 import { type AgentSessionEvent, calculateContextTokens } from '@earendil-works/pi-coding-agent'
 import type { JsonValue } from '@shared/types/json'
 import { createModelRef } from '@shared/types/llm'
+import type { AgentTransportUserMessage } from '@shared/types/stream'
 import { classifyAgentError } from '../../../agent/error-classifier'
 import { userFacingErrorDetail } from '../../../utils/describe-error'
 import { createStreamingMessageId, toJsonValue } from '../pi-message-mapper'
@@ -22,7 +23,12 @@ import type {
   ToolExecutionUpdateSessionEvent,
 } from './listener-types'
 import { emitEvent } from './transport-emitter'
-import { pendingUserMessageDisplay } from './user-message-events'
+import {
+  incorporatedUserMessageDisplay,
+  incorporatedWaggleUserRequestDisplay,
+  isVisibleWaggleUserRequest,
+  type PiUserMessageEntrySource,
+} from './user-message-events'
 
 function emitAgentStart(state: SessionListenerState) {
   emitEvent(state.input.onEvent, {
@@ -83,12 +89,12 @@ function handleToolExecutionEnd(state: SessionListenerState, event: ToolExecutio
 /**
  * Publishes a user message the moment Pi incorporates it into the Run, so the transcript shows a
  * Follow-up as soon as its Run starts and a steer when the agent reads it. Pi emits a user message's
- * start and end back to back; at its end the display projection is recorded and the entry is about
+ * start and end back to back. At its end the display projection is recorded and the entry is about
  * to be appended, so the event carries the same parts, log order, and digest as the persisted node.
  */
-function emitUserMessageStart(
+function emitIncorporatedUserMessage(
   state: SessionListenerState,
-  message: Extract<MessageEndSessionEvent['message'], { role: 'user' }>,
+  display: (source: PiUserMessageEntrySource) => AgentTransportUserMessage,
 ) {
   const sessionEntries = state.input.sessionEntries
   if (!sessionEntries) return
@@ -96,17 +102,31 @@ function emitUserMessageStart(
     type: 'message_start',
     messageId: createStreamingMessageId(),
     role: 'user',
-    userMessage: pendingUserMessageDisplay(sessionEntries, message.content),
+    userMessage: display(sessionEntries),
     timestamp: Date.now(),
     model: state.input.model,
   })
 }
 
-function handleMessageEnd(state: SessionListenerState, event: MessageEndSessionEvent) {
-  if (event.message.role === 'user') {
-    emitUserMessageStart(state, event.message)
-    return
+function handleIncorporatedUserMessage(
+  state: SessionListenerState,
+  message: MessageEndSessionEvent['message'],
+) {
+  if (message.role === 'user') {
+    emitIncorporatedUserMessage(state, (source) => incorporatedUserMessageDisplay(source, message))
+    return true
   }
+  if (message.role === 'custom' && isVisibleWaggleUserRequest(message)) {
+    emitIncorporatedUserMessage(state, (source) =>
+      incorporatedWaggleUserRequestDisplay(source, message),
+    )
+    return true
+  }
+  return false
+}
+
+function handleMessageEnd(state: SessionListenerState, event: MessageEndSessionEvent) {
+  if (handleIncorporatedUserMessage(state, event.message)) return
   if (!state.currentMessageId || event.message.role !== 'assistant') {
     return
   }

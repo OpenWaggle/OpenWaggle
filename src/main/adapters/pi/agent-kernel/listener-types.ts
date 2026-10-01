@@ -8,8 +8,8 @@ export interface SessionListenerInput {
   readonly model: SupportedModelId
   readonly getContextWindow?: (provider: string, modelId: string) => number | undefined
   readonly onEvent: (event: AgentTransportEvent) => void
-  /** The Run's Session log. Without it, user messages are not published to the transcript. */
-  readonly sessionEntries?: PiUserMessageEntrySource
+  /** The Run's Session log; null where no user message can arrive, such as manual compaction. */
+  readonly sessionEntries: PiUserMessageEntrySource | null
 }
 
 export interface SessionListenerState {

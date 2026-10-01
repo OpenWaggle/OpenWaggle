@@ -13,6 +13,7 @@ import type {
   AgentLoopInteractionStatus,
 } from './agent-loop-interaction'
 import type { JsonValue } from './json'
+import type { WaggleInvocationMetadata } from './waggle'
 
 interface TransportEventBase {
   readonly timestamp: number
@@ -148,6 +149,8 @@ export interface AgentTransportUserMessage {
   readonly sessionNodeCreatedOrder: number
   /** Hash of Pi's projected first user text block, the value a queued steer receipt carries. */
   readonly durableTextSha256?: string
+  /** The Waggle preset a visible Waggle user request invoked. */
+  readonly waggleInvocation?: WaggleInvocationMetadata
 }
 
 export interface AgentTransportMessageStartEvent extends TransportEventBase {

@@ -1,4 +1,5 @@
 import type { AgentSessionEvent, SessionEntry } from '@earendil-works/pi-coding-agent'
+import { PI_WAGGLE_USER_REQUEST_CUSTOM_TYPE } from '@openwaggle/pi-waggle/protocol'
 import { SupportedModelId } from '@shared/types/brand'
 import type { AgentTransportEvent } from '@shared/types/stream'
 import { describe, expect, it } from 'vitest'
@@ -41,17 +42,42 @@ function createFakePiSession(initialEntries: SessionEntry[] = []) {
       listeners.add(listener)
       return () => listeners.delete(listener)
     },
-    deliverUserMessage(content: Extract<AgentSessionEvent, { type: 'message_start' }>['message']) {
-      emit({ type: 'message_start', message: content })
-      emit({ type: 'message_end', message: content })
-      nextId += 1
-      entries.push({
-        type: 'message',
-        id: `message-${String(nextId)}`,
-        parentId: leafId(),
-        timestamp: TIMESTAMP,
-        message: content,
-      })
+    /**
+     * During a Run Pi notifies a message's end before appending it. An idle session appends a
+     * custom message before notifying at all; `before-end` models a Pi that appends at the end.
+     */
+    deliverMessage(
+      message: Extract<AgentSessionEvent, { type: 'message_start' }>['message'],
+      append: 'before-start' | 'before-end' | 'after-end' = 'after-end',
+    ) {
+      const appendEntry = () => {
+        nextId += 1
+        entries.push(
+          message.role === 'custom'
+            ? {
+                type: 'custom_message',
+                id: `custom-message-${String(nextId)}`,
+                parentId: leafId(),
+                timestamp: TIMESTAMP,
+                customType: message.customType,
+                content: message.content,
+                display: message.display,
+                details: message.details,
+              }
+            : {
+                type: 'message',
+                id: `message-${String(nextId)}`,
+                parentId: leafId(),
+                timestamp: TIMESTAMP,
+                message,
+              },
+        )
+      }
+      if (append === 'before-start') appendEntry()
+      emit({ type: 'message_start', message })
+      if (append === 'before-end') appendEntry()
+      emit({ type: 'message_end', message })
+      if (append === 'after-end') appendEntry()
     },
   }
 }
@@ -85,11 +111,12 @@ const piUserMessage = {
 
 describe('createSessionListener user messages', () => {
   it.each([
-    ['before', true],
-    ['after', false],
-  ])(
-    'publishes the persisted display projection when subscribed %s the projection queue',
-    (_order, listenerFirst) => {
+    ['subscribed before the projection queue', true, 'after-end'],
+    ['subscribed after the projection queue', false, 'after-end'],
+    ['Pi appends before notifying the end', true, 'before-end'],
+  ] as const)(
+    'publishes the persisted display projection when %s',
+    (_case, listenerFirst, append) => {
       const session = createFakePiSession([
         {
           type: 'message',
@@ -116,7 +143,7 @@ describe('createSessionListener user messages', () => {
       enqueueUserInputProjection(session, payload)
       if (!listenerFirst) subscribeListener()
 
-      session.deliverUserMessage(piUserMessage)
+      session.deliverMessage(piUserMessage, append)
 
       const expected = buildUserInputProjection(
         payload,
@@ -153,7 +180,7 @@ describe('createSessionListener user messages', () => {
       ),
     )
 
-    session.deliverUserMessage({
+    session.deliverMessage({
       role: 'user',
       content: [
         { type: 'text', text: 'Report from a peer' },
@@ -171,11 +198,62 @@ describe('createSessionListener user messages', () => {
     const session = createFakePiSession()
     const emitted: AgentTransportEvent[] = []
     session.subscribe(
-      createSessionListener({ model: MODEL, onEvent: (event) => emitted.push(event) }, 'run-1'),
+      createSessionListener(
+        { model: MODEL, sessionEntries: null, onEvent: (event) => emitted.push(event) },
+        'run-1',
+      ),
     )
 
-    session.deliverUserMessage({ role: 'user', content: 'Hello', timestamp: 1 })
+    session.deliverMessage({ role: 'user', content: 'Hello', timestamp: 1 })
 
     expect(emitted).toEqual([])
+  })
+
+  it.each([
+    ['an idle session appends it before notifying', 'before-start'],
+    ['a Run appends it after notifying', 'after-end'],
+  ] as const)('publishes a visible Waggle user request when %s', (_case, append) => {
+    const session = createFakePiSession()
+    const emitted: AgentTransportEvent[] = []
+    session.subscribe(
+      createSessionListener(
+        {
+          model: MODEL,
+          sessionEntries: session.sessionManager,
+          onEvent: (event) => emitted.push(event),
+        },
+        'run-1',
+      ),
+    )
+    const waggleInvocation = { presetId: 'preset-1', presetName: 'Review pair', source: 'user' }
+    const request = {
+      role: 'custom' as const,
+      customType: PI_WAGGLE_USER_REQUEST_CUSTOM_TYPE,
+      content: 'Review this\n\n[Attachment: screenshot.png]',
+      display: true,
+      details: {
+        userInput: buildUserInputProjection({ text: 'Review this', attachments: [attachment] }),
+        waggleInvocation,
+      },
+      timestamp: 1,
+    }
+
+    session.deliverMessage(
+      { ...request, display: false, customType: 'openwaggle-waggle-turn' },
+      append,
+    )
+    session.deliverMessage(request, append)
+
+    expect(userMessageStarts(emitted).map((event) => event.userMessage)).toEqual([
+      {
+        parts: [
+          { type: 'text', text: 'Review this' },
+          { type: 'attachment', attachment },
+        ],
+        sessionNodeCreatedOrder: 1,
+        waggleInvocation,
+      },
+    ])
+    expect(session.entries[1]?.type).toBe('custom_message')
   })
 })
