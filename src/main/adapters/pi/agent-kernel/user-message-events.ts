@@ -1,7 +1,7 @@
 import type { AgentSession, SessionEntry } from '@earendil-works/pi-coding-agent'
 import { PI_WAGGLE_USER_REQUEST_CUSTOM_TYPE } from '@openwaggle/pi-waggle/protocol'
 import type { AgentTransportUserMessage } from '@shared/types/stream'
-import { piTextAndImageContentToParts } from './message-parts'
+import { piUserContentToDisplayParts } from './message-parts'
 import { findUserInputProjection } from './user-input-projection'
 import { visibleWaggleUserMessageDisplay } from './visible-waggle-user-message-projection'
 
@@ -54,9 +54,9 @@ export function incorporatedUserMessageDisplay(
   )
   const projection = findUserInputProjection(position.parentId, position.entryById)
   return {
-    // Without a recorded projection this is the snapshot's own fallback: text only, without
-    // visualization context or image payloads.
-    parts: projection?.parts ?? piTextAndImageContentToParts(message.content),
+    // Without a recorded projection this is the snapshot's own fallback: the typed text only,
+    // without synthesized attachment blocks, visualization context, or image payloads.
+    parts: projection?.parts ?? piUserContentToDisplayParts(message.content),
     sessionNodeCreatedOrder: position.createdOrder,
     ...(projection?.durableTextSha256 ? { durableTextSha256: projection.durableTextSha256 } : {}),
   }

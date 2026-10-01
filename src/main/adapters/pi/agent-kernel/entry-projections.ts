@@ -10,8 +10,8 @@ import {
   buildMessageNodeContentJson,
   buildRawNodeContentJson,
   piAssistantContentToParts,
-  piTextAndImageContentToParts,
   piToolResultContentToPart,
+  piUserContentToDisplayParts,
 } from './message-parts'
 import { visibleWaggleUserMessageProjection } from './visible-waggle-user-message-projection'
 
@@ -64,7 +64,7 @@ function userMessageProjection(
     kind: 'user_message',
     role: 'user',
     contentJson: buildMessageNodeContentJson(
-      displayParts ?? piTextAndImageContentToParts(value.content),
+      displayParts ?? piUserContentToDisplayParts(value.content),
       null,
     ),
     metadataJson: '{}',

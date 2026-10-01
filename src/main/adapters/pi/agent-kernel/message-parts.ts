@@ -47,6 +47,28 @@ export function piTextAndImageContentToParts(content: unknown) {
   return nonEmptyMessageParts(parts)
 }
 
+const SYNTHESIZED_ATTACHMENT_BLOCK = /(?:^|\n\n)\[Attachment: /u
+
+/** The typed text of a Pi user prompt, without the attachment blocks OpenWaggle appended to it. */
+function withoutSynthesizedAttachments(part: MessagePart): MessagePart[] {
+  if (part.type !== 'text') return [part]
+  const marker = SYNTHESIZED_ATTACHMENT_BLOCK.exec(part.text)
+  if (!marker) return [part]
+  const text = part.text.slice(0, marker.index).trim()
+  return text ? [textMessagePart(text)] : []
+}
+
+/**
+ * The display parts of a Pi user message no display projection was recorded for. Pi's text is
+ * model input, so the `[Attachment: …]` blocks synthesized from attachments are dropped with its
+ * image payloads and visualization context; the live transcript and the snapshot both use this.
+ */
+export function piUserContentToDisplayParts(content: unknown) {
+  return nonEmptyMessageParts(
+    piTextAndImageContentToParts(content).flatMap(withoutSynthesizedAttachments),
+  )
+}
+
 function assistantTextPart(text: string): MessagePart {
   return { type: 'text', text }
 }

@@ -4,6 +4,7 @@ import { SupportedModelId } from '@shared/types/brand'
 import type { AgentTransportEvent } from '@shared/types/stream'
 import { describe, expect, it } from 'vitest'
 import { createSessionListener } from '../session-listener'
+import { projectPiSessionSnapshot } from '../session-projection'
 import { buildUserInputProjection, enqueueUserInputProjection } from '../user-input-projection'
 
 const TIMESTAMP = '2026-10-01T10:00:00.000Z'
@@ -166,7 +167,7 @@ describe('createSessionListener user messages', () => {
     },
   )
 
-  it('falls back to Pi text without image payloads when no display projection was recorded', () => {
+  it('falls back to the typed text alone when no display projection was recorded', () => {
     const session = createFakePiSession()
     const emitted: AgentTransportEvent[] = []
     session.subscribe(
@@ -183,15 +184,23 @@ describe('createSessionListener user messages', () => {
     session.deliverMessage({
       role: 'user',
       content: [
-        { type: 'text', text: 'Report from a peer' },
+        { type: 'text', text: 'Report from a peer\n\n[Attachment: notes.txt]\nnotes body' },
         { type: 'image', data: 'base64-image', mimeType: 'image/png' },
       ],
       timestamp: 1,
     })
+    session.deliverMessage({ role: 'user', content: '[Attachment: notes.txt]', timestamp: 2 })
 
     expect(userMessageStarts(emitted).map((event) => event.userMessage)).toEqual([
       { parts: [{ type: 'text', text: 'Report from a peer' }], sessionNodeCreatedOrder: 0 },
+      { parts: [{ type: 'text', text: '' }], sessionNodeCreatedOrder: 1 },
     ])
+    // The snapshot projects the same entries the same way.
+    expect(
+      projectPiSessionSnapshot({ sessionManager: session.sessionManager }).nodes.map(
+        (node) => JSON.parse(node.contentJson).parts,
+      ),
+    ).toEqual(userMessageStarts(emitted).map((event) => event.userMessage?.parts))
   })
 
   it('does not publish user messages without the Run Session log', () => {
