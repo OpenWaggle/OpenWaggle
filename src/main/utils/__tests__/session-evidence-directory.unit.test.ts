@@ -34,13 +34,13 @@ describe('Session evidence directory', () => {
     await fs.rm(temporaryDirectory, { recursive: true, force: true })
   })
 
-  it('sits beside the profile namespaces, named like the scratch directory', async () => {
+  it("sits inside the profile namespace, named like the Session's scratch directory", async () => {
     const scratch = await prepareSessionScratchDirectory('session-a', root)
 
     expect(sessionEvidenceDirectoryFor(scratch)).toBe(
-      path.join(path.dirname(root), 'evidence', path.basename(scratch)),
+      path.join(root, 'evidence', path.basename(scratch)),
     )
-    expect(sessionEvidenceRoot(root)).toBe(path.join(path.dirname(root), 'evidence'))
+    expect(sessionEvidenceRoot(root)).toBe(path.join(root, 'evidence'))
   })
 
   posixOnly('is created owner-only and survives archiving the Session', async () => {
@@ -186,6 +186,34 @@ describe('Session evidence directory', () => {
       expect((await fs.stat(evidence)).isDirectory()).toBe(true)
     } finally {
       await release()
+    }
+  })
+
+  it('lets a Run that starts during the startup prune keep its evidence directory', async () => {
+    const scratch = await prepareSessionScratchDirectory('session-a', root)
+    const evidence = await prepareSessionEvidenceDirectory(scratch)
+    const old = new Date(Date.now() - EIGHT_DAYS_MS)
+    await fs.utimes(evidence, old, old)
+    const rm = fs.rm.bind(fs)
+    const removalMayFinish = Promise.withResolvers<void>()
+    const spy = vi.spyOn(fs, 'rm').mockImplementation(async (target, options) => {
+      if (target === evidence) await removalMayFinish.promise
+      return rm(target, options)
+    })
+    try {
+      const sweeping = sweepSessionScratchDirectories(['session-a'], root, Date.now())
+      await vi.waitFor(() => expect(spy).toHaveBeenCalledWith(evidence, expect.anything()))
+      // The Session's Run starts while the prune is still removing its week-old evidence.
+      const release = retainSessionScratchDirectory('session-a', root)
+      const preparing = prepareSessionEvidenceDirectory(scratch)
+      removalMayFinish.resolve()
+      await Promise.all([sweeping, preparing])
+      release()
+
+      expect((await fs.stat(evidence)).isDirectory()).toBe(true)
+      expect(preparedSessionEvidenceDirectory(scratch)).toBe(evidence)
+    } finally {
+      spy.mockRestore()
     }
   })
 })

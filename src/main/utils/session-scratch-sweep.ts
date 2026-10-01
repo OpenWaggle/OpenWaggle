@@ -1,6 +1,9 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { SESSION_EVIDENCE_DIRECTORY_NAME } from './session-evidence-directory'
+import {
+  removeStaleEvidenceDirectory,
+  SESSION_EVIDENCE_DIRECTORY_NAME,
+} from './session-evidence-directory'
 import {
   markSessionScratchNamespace,
   removeUnretainedScratchDirectory,
@@ -65,7 +68,7 @@ async function sweepAbandonedNamespaces(root: string, now: number) {
   const ownNamespace = path.basename(root)
   let removed = 0
   for (const name of await fs.readdir(userDirectory)) {
-    if (name === ownNamespace || name === SESSION_EVIDENCE_DIRECTORY_NAME) continue
+    if (name === ownNamespace) continue
     const namespace = path.join(userDirectory, name)
     if (!(await isOwnedPrivateDirectory(namespace).catch(() => false))) continue
     if (!(await namespaceAbandoned(namespace, now))) continue
@@ -83,7 +86,7 @@ async function sweepAbandonedNamespaces(root: string, now: number) {
  * archiving on purpose, so a Queen can show an archived Worker's screenshots, but not forever.
  */
 async function pruneStaleEvidence(root: string, now: number) {
-  const evidenceRoot = path.join(path.dirname(root), SESSION_EVIDENCE_DIRECTORY_NAME)
+  const evidenceRoot = path.join(root, SESSION_EVIDENCE_DIRECTORY_NAME)
   if (!(await isOwnedPrivateDirectory(evidenceRoot).catch(() => false))) return 0
   let removed = 0
   for (const name of await fs.readdir(evidenceRoot)) {
@@ -92,10 +95,8 @@ async function pruneStaleEvidence(root: string, now: number) {
     const newest = await newestModification(directory).catch(() => now)
     if (now - newest < ABANDONED_NAMESPACE_AGE_MS) continue
     // A Session idle for a week may have just started a Run that is about to write evidence.
-    if (scratchDirectoryInUse(path.join(root, name))) continue
-    const gone = await fs.rm(directory, { recursive: true, force: true }).then(
-      () => true,
-      () => false,
+    const gone = await removeStaleEvidenceDirectory(directory, () =>
+      scratchDirectoryInUse(path.join(root, name)),
     )
     if (gone) removed += 1
   }
@@ -131,7 +132,8 @@ export async function sweepSessionScratchDirectories(
   }
   let removed = 0
   for (const name of entries) {
-    if (live.has(name)) continue
+    // Evidence outlives archiving; it is pruned on its own schedule below.
+    if (live.has(name) || name === SESSION_EVIDENCE_DIRECTORY_NAME) continue
     const directory = path.join(root, name)
     const stats = await fs.lstat(directory).catch(() => undefined)
     if (!stats?.isDirectory() || stats.isSymbolicLink()) continue
