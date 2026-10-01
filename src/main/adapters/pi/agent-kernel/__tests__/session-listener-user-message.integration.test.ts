@@ -169,4 +169,37 @@ describe('published user messages against a real Pi session', () => {
       published,
     })
   })
+
+  it('equals the persisted node of a visible Waggle request incorporated during a Run', async () => {
+    const { session, faux, model, events } = await createRealPiSession()
+    const waggleInvocation = { presetId: 'preset-2', presetName: 'Pair', source: 'agent' }
+    faux.setResponses([
+      async (): Promise<AssistantMessage> => {
+        // Streaming: Pi queues the request and appends it only after notifying its end.
+        await session.sendCustomMessage(
+          {
+            customType: PI_WAGGLE_USER_REQUEST_CUSTOM_TYPE,
+            content: 'Hand this to the pair',
+            display: true,
+            details: {
+              source: 'openwaggle',
+              kind: 'waggle-user-request',
+              userInput: buildUserInputProjection(payload('Hand this to the pair')),
+              waggleInvocation,
+            },
+          },
+          { triggerTurn: true },
+        )
+        return fauxAssistantMessage('first answer')
+      },
+      fauxAssistantMessage('answer after the request'),
+    ])
+
+    await promptPiSession(session, model, payload('Start'))
+
+    const published = publishedUserMessages(events).find((message) => message.waggleInvocation)
+    if (!published) throw new Error('The Waggle user request was not published')
+    expect(persistedNode(session, published)).toEqual({ kind: 'user_message', published })
+    expect(published.parts[0]).toEqual({ type: 'text', text: 'Hand this to the pair' })
+  })
 })
