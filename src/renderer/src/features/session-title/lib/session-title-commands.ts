@@ -103,10 +103,19 @@ function reportRegenerationResult(sessionId: SessionId, result: SessionTitleRege
 export async function regenerateSessionTitle(sessionId: SessionId) {
   const regeneration = useSessionTitleRegenerationStore.getState()
   if (!regeneration.begin(sessionId)) return
-  useUIStore.getState().showToast(SessionTitleMessages.regenerating)
+  // The menu closes at once, so a persistent toast says the request is running. It clears when
+  // the request ends unless an outcome toast has already replaced it.
+  const progress = { message: SessionTitleMessages.regenerating, variant: 'neutral' } as const
+  useUIStore.getState().showPersistentToast(progress)
+  const clearProgress = () => {
+    if (useUIStore.getState().toastData === progress) useUIStore.getState().clearToast()
+  }
   try {
-    reportRegenerationResult(sessionId, await api.regenerateSessionTitle(sessionId))
+    const result = await api.regenerateSessionTitle(sessionId)
+    clearProgress()
+    reportRegenerationResult(sessionId, result)
   } catch (error) {
+    clearProgress()
     useUIStore
       .getState()
       .showToast(`Couldn't regenerate the title: ${ipcErrorMessage(error)}`, 'error')

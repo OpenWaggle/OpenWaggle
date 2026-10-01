@@ -96,6 +96,17 @@ describe('SessionListItem title regeneration', () => {
     expect(useUIStore.getState().toastData).toBeNull()
   })
 
+  it('shows that a regeneration is running until it ends', async () => {
+    const pending = Promise.withResolvers<SessionTitleRegenerationResult>()
+    regenerateSessionTitleMock.mockReturnValueOnce(pending.promise)
+    renderStoreBackedRow()
+    regenerate()
+
+    expect(useUIStore.getState().toastData?.message).toBe(SessionTitleMessages.regenerating)
+    pending.resolve({ outcome: 'superseded' })
+    await waitFor(() => expect(useUIStore.getState().toastData).toBeNull())
+  })
+
   it('says the title already fits when the model keeps it', async () => {
     regenerateSessionTitleMock.mockResolvedValueOnce({
       outcome: 'unchanged',
