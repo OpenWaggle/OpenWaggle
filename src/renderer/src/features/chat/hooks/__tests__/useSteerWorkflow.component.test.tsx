@@ -65,6 +65,7 @@ describe('useSteerWorkflow with the durable Host queue', () => {
     expect(deps.previewSteeredUserTurn).toHaveBeenCalledWith(
       { text: 'Text for follow-up-2', attachments: [], thinkingLevel: 'off' },
       'waiting-for-compaction',
+      { text: 'Text for follow-up-2', attachmentCount: 0 },
     )
     expect(useOptimisticSteerStore.getState().pendingPromotions.get(deps.activeSessionId)).toEqual([
       'follow-up-2',

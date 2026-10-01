@@ -3,9 +3,17 @@ import type { SessionId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
 import { create } from 'zustand'
 
+/** What the user row a steer becomes shows: its typed text and how many attachments it carries. */
+export interface SteerIncorporatedContent {
+  readonly text: string
+  readonly attachmentCount: number
+}
+
 export interface OptimisticSteerPreview {
   readonly id: string
   readonly content: string
+  /** Display-only pairing while a promotion awaits its receipt; the receipt alone records it. */
+  readonly incorporatedContent: SteerIncorporatedContent
   readonly durableContent: string
   /** null waits for the Host receipt; undefined uses the locally known prompt text. */
   readonly receipt?: Extract<AgentSteerDeliveryReceipt, { delivery: 'queued' }> | null

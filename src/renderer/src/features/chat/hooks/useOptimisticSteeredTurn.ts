@@ -3,7 +3,11 @@ import type { SessionId } from '@shared/types/brand'
 import type { UIMessage, UIMessageMetadata } from '@shared/types/chat-ui'
 import { buildAgentPromptText } from '@shared/utils/agent-prompt-text'
 import { useEffect } from 'react'
-import { selectOptimisticSteerPreviews, useOptimisticSteerStore } from '@/features/chat/state'
+import {
+  type SteerIncorporatedContent,
+  selectOptimisticSteerPreviews,
+  useOptimisticSteerStore,
+} from '@/features/chat/state'
 import {
   insertOptimisticSteeredUserTurn,
   matchSteeredUserTurns,
@@ -21,11 +25,12 @@ export interface OptimisticSteerPreviewController {
   readonly setDeliveryState: (state: SteerDeliveryState) => void
 }
 
-interface OptimisticSteeredTurnReturn {
+export interface OptimisticSteeredTurnReturn {
   readonly visibleMessages: UIMessage[]
   readonly previewSteeredUserTurn: (
     payload: AgentSendPayload,
     deliveryState: SteerDeliveryState,
+    incorporatedContent?: SteerIncorporatedContent,
   ) => OptimisticSteerPreviewController
 }
 
@@ -90,7 +95,14 @@ export function useOptimisticSteeredTurn(
 
   return {
     visibleMessages,
-    previewSteeredUserTurn: (payload: AgentSendPayload, deliveryState: SteerDeliveryState) => {
+    previewSteeredUserTurn: (
+      payload: AgentSendPayload,
+      deliveryState: SteerDeliveryState,
+      incorporatedContent: SteerIncorporatedContent = {
+        text: payload.text.trim(),
+        attachmentCount: payload.attachments.length,
+      },
+    ) => {
       const content = buildClientUserMessage(payload)
       const optimisticTurnId = createOptimisticTurnId()
       if (!sessionId) {
@@ -104,6 +116,7 @@ export function useOptimisticSteeredTurn(
       useOptimisticSteerStore.getState().add(sessionId, {
         id: optimisticTurnId,
         content,
+        incorporatedContent,
         durableContent: buildAgentPromptText(payload),
         baselineLength: messagesRef.current.length,
         baselineUserMessageIds: new Set(

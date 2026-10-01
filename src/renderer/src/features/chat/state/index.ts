@@ -4,6 +4,7 @@ export { useChatStore } from './chat-store'
 export { takeDraftMaterialization } from './draft-session-materialization'
 export {
   type OptimisticSteerPreview,
+  type SteerIncorporatedContent,
   selectOptimisticSteerPreviews,
   selectPendingSteerFollowUps,
   useOptimisticSteerStore,

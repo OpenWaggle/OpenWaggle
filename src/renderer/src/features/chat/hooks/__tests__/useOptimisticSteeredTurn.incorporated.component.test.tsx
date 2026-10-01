@@ -9,6 +9,7 @@ import { useOptimisticSteerStore } from '@/features/chat/state'
 import { useOptimisticSteeredTurn } from '../useOptimisticSteeredTurn'
 
 const SESSION_ID = SessionId('session-1')
+const ATTACHED_NOTES = '[Attachment] notes.txt\nnotes body'
 const FIRST_PAYLOAD: AgentSendPayload = {
   text: 'continue',
   thinkingLevel: 'medium',
@@ -110,5 +111,46 @@ describe('useOptimisticSteeredTurn with incorporated user messages', () => {
     expect(
       result.current.visibleMessages.filter((message) => message.metadata?.steerDelivery),
     ).toHaveLength(1)
+  })
+
+  it.each([
+    ['text and attachments', 'Compare these', [ATTACHED_NOTES]],
+    ['only attachments', '', [ATTACHED_NOTES]],
+  ])('stands in for a promoted Follow-up with %s', (_case, text, attachments) => {
+    const initialMessages = [userMessage('initial', 'start', 0)]
+    const { result, rerender } = renderHook(
+      ({ hydratedMessages }) =>
+        useOptimisticSteeredTurn(
+          hydratedMessages,
+          SESSION_ID,
+          (payload) => payload.text,
+          { current: initialMessages },
+          false,
+        ),
+      { initialProps: { hydratedMessages: initialMessages } },
+    )
+    act(() => {
+      // The queue preview summarizes attachments, so its own text cannot match the delivered row.
+      result.current
+        .previewSteeredUserTurn(
+          { ...FIRST_PAYLOAD, text: [text, '[1 attachments]'].filter(Boolean).join('\n\n') },
+          'sending',
+          { text, attachmentCount: attachments.length },
+        )
+        .setReceipt(null)
+    })
+    const incorporated: UIMessage = {
+      id: 'live-user',
+      role: 'user',
+      parts: [
+        ...(text ? [{ type: 'text' as const, content: text }] : []),
+        ...attachments.map((content) => ({ type: 'text' as const, content })),
+      ],
+      metadata: { sessionNodeCreatedOrder: 3 },
+    }
+    const delivered = [...initialMessages, incorporated]
+    rerender({ hydratedMessages: delivered })
+
+    expect(result.current.visibleMessages).toEqual(delivered)
   })
 })

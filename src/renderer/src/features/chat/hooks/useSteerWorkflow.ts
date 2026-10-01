@@ -47,6 +47,8 @@ export function useSteerWorkflow(deps: SteerWorkflowDeps): SteerWorkflowReturn {
           attachments: [],
         },
         deps.isCompacting ? 'waiting-for-compaction' : 'sending',
+        // The delivered row shows the item's own text and attachments, not the summary above.
+        { text: item.text.trim(), attachmentCount: item.attachmentCount },
       )
       preview.setReceipt(null)
       const receipt = await withDeferredSnapshotRefresh(() => promoteFollowUp(messageId))

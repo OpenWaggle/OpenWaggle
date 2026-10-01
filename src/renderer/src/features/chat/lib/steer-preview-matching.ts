@@ -1,5 +1,6 @@
 import type { UIMessage } from '@shared/types/chat-ui'
-import type { OptimisticSteerPreview } from '@/features/chat/state'
+import type { OptimisticSteerPreview, SteerIncorporatedContent } from '@/features/chat/state'
+import { ATTACHMENT_TEXT_PREFIX } from './chat-attachment-preview'
 
 function getUIMessagePrimaryText(message: UIMessage) {
   return message.parts.find(
@@ -64,24 +65,43 @@ function receiptMessageIndex(
   return index >= 0 ? index : undefined
 }
 
+/** What a user row shows, split as a steer preview knows it: typed text and attachment count. */
+function incorporatedContentOf(message: UIMessage): SteerIncorporatedContent {
+  const textParts = message.parts.flatMap((part) => (part.type === 'text' ? [part.content] : []))
+  const attachments = textParts.filter((text) => text.startsWith(ATTACHMENT_TEXT_PREFIX))
+  return {
+    text: textParts
+      .filter((text) => !text.startsWith(ATTACHMENT_TEXT_PREFIX))
+      .join('\n\n')
+      .trim(),
+    attachmentCount: attachments.length,
+  }
+}
+
 /**
  * While the Host has not answered a promotion yet, a user row the Run incorporated after the
- * preview began with exactly the preview's text stands in for it, so the steer does not show twice
- * until the receipt arrives and names the delivered row.
+ * preview began, with exactly the preview's typed text and attachment count, stands in for it so
+ * the steer does not show twice until the receipt arrives. This pairing is display-only: it is
+ * never recorded, and only the receipt's log boundary and digest name the delivered row.
  */
 function awaitingReceiptMessageIndex(
   messages: readonly UIMessage[],
   turn: OptimisticSteerPreview,
   consumedMessageIndexes: ReadonlySet<number>,
 ) {
-  const index = messages.findIndex(
-    (message, candidateIndex) =>
-      message.role === 'user' &&
-      message.metadata?.sessionNodeCreatedOrder !== undefined &&
-      !turn.baselineUserMessageIds.has(message.id) &&
-      !consumedMessageIndexes.has(candidateIndex) &&
-      getUIMessagePrimaryText(message) === turn.content,
-  )
+  const expected = turn.incorporatedContent
+  const index = messages.findIndex((message, candidateIndex) => {
+    if (
+      message.role !== 'user' ||
+      message.metadata?.sessionNodeCreatedOrder === undefined ||
+      turn.baselineUserMessageIds.has(message.id) ||
+      consumedMessageIndexes.has(candidateIndex)
+    ) {
+      return false
+    }
+    const shown = incorporatedContentOf(message)
+    return shown.text === expected.text && shown.attachmentCount === expected.attachmentCount
+  })
   return index >= 0 ? index : undefined
 }
 
