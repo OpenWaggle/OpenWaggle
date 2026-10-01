@@ -35,3 +35,15 @@ export async function mutate(command: SessionControlMutationCommand) {
   if (error) throw error
   return response
 }
+
+/**
+ * Binds a Follow-up edit hold this user holds to this window, so it renews the hold and releases
+ * it when the window closes; `false` when the Host no longer has the hold.
+ */
+export function adoptHeldEdit(hold: {
+  readonly sessionId: string
+  readonly followUpId: string
+  readonly holdId: string
+}) {
+  return api.adoptFollowUpEdit(hold)
+}

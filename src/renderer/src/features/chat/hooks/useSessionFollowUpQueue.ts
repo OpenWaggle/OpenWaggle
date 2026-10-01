@@ -6,7 +6,7 @@ import {
   isGuiOnlyComposerCommand,
 } from '@/features/composer/commands'
 import { settledSessionModelWrites } from '../state/session-model-writes'
-import { mutate, readQueue } from './session-follow-up-queue-client'
+import { adoptHeldEdit, mutate, readQueue } from './session-follow-up-queue-client'
 import {
   EMPTY_SNAPSHOT,
   heldEdit,
@@ -228,6 +228,18 @@ export function useSessionFollowUpQueue(sessionId: SessionId | null) {
   }
 
   /**
+   * Binds an edit from `resumeEdit` to this window before it is opened: this window then keeps the
+   * hold alive and releases it when it closes or reloads. Resolves `false` when the hold is gone,
+   * in which case the edit must not be opened.
+   */
+  async function adoptEdit(edit: Pick<SessionFollowUpEdit, 'followUpId' | 'holdId'>) {
+    if (!sessionId) return false
+    const adopted = await adoptHeldEdit({ sessionId, ...edit })
+    if (!adopted) await refresh()
+    return adopted
+  }
+
+  /**
    * Saves an open Follow-up edit in place (same identity and position) and releases its hold; the
    * queue then delivers again. GUI-only composer commands are refused like a new Follow-up. The save
    * names the revision the edit began at (`edit.queueRevision`), so reordering or other items'
@@ -293,6 +305,7 @@ export function useSessionFollowUpQueue(sessionId: SessionId | null) {
     reorder,
     beginEdit,
     resumeEdit,
+    adoptEdit,
     saveEdit,
     cancelEdit,
     refresh,

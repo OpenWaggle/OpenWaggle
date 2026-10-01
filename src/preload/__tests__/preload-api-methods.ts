@@ -19,6 +19,7 @@ export const PRELOAD_API_METHODS: readonly (keyof OpenWaggleApi)[] = [
   'manageAccessProfiles',
   'mutateSessionControl',
   'querySessionControl',
+  'adoptFollowUpEdit',
   // Agent
   'sendMessage',
   'cancelAgent',

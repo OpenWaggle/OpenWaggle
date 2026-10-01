@@ -249,3 +249,14 @@ export function decodeSessionControlMutationResponse(value: unknown) {
 export function decodeSessionControlMutationOutcome(value: unknown) {
   return decodeUnknownExactOrThrow(sessionControlMutationOutcomeSchema, value)
 }
+
+const followUpEditHoldReferenceSchema = Schema.Struct({
+  sessionId: sessionInputIdSchema,
+  followUpId: sessionInputIdSchema,
+  holdId: sessionInputIdSchema,
+})
+
+/** A Follow-up edit hold a desktop window names, e.g. to adopt it (ADR 0043). */
+export function decodeFollowUpEditHoldReference(value: unknown) {
+  return decodeUnknownExactOrThrow(followUpEditHoldReferenceSchema, value)
+}

@@ -52,6 +52,22 @@ export class FollowUpEditHoldWindowLeases {
     this.ensureTimer()
   }
 
+  /**
+   * Moves a hold this user already holds to the window that adopts it, once the Host confirms the
+   * hold is still live: that window now renews it and releases it when it closes. A hold the Host
+   * no longer has stops being tracked. `isCurrent` is false when the adopting page changed while
+   * the Host was asked, so the hold is not bound to the window's next page.
+   */
+  async adopt(windowId: number, hold: WindowFollowUpEditHold, isCurrent: () => boolean) {
+    if (!(await this.dependencies.renew(hold))) {
+      this.forget(hold.holdId)
+      return false
+    }
+    if (!isCurrent()) return false
+    this.track(windowId, hold)
+    return true
+  }
+
   /** Stops tracking a hold that was saved, cancelled, or lost. */
   forget(holdId: string) {
     for (const [windowId, holds] of this.holdsByWindow) {

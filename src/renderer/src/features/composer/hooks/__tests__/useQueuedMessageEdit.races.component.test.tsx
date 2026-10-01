@@ -33,9 +33,12 @@ const queueMock = vi.hoisted(() => {
     snapshot: SessionFollowUpQueueSnapshot
     /** What a refetch returns, when it differs from the rendered snapshot. */
     fresh: SessionFollowUpQueueSnapshot | null
+    /** Whether the Host still has a re-adopted hold. */
+    adopted: boolean
   } & Record<'beginEdit' | 'saveEdit' | 'cancelEdit' | 'discard', ReturnType<typeof vi.fn>> = {
     snapshot: { state: 'running', revision: 1, activeRunId: null, items: [], waitingOnEdit: false },
     fresh: null,
+    adopted: true,
     beginEdit: vi.fn(),
     saveEdit: vi.fn(),
     cancelEdit: vi.fn(),
@@ -58,6 +61,7 @@ vi.mock('@/features/chat/hooks/useSessionFollowUpQueue', async (importOriginal) 
       saveEdit: queueMock.saveEdit,
       cancelEdit: queueMock.cancelEdit,
       ...resumeFrom(queueMock.fresh ?? queueMock.snapshot, actual.heldEdit),
+      adoptEdit: () => Promise.resolve(queueMock.adopted),
     }),
   }
 })
@@ -239,6 +243,7 @@ describe('useQueuedMessageEdit in flight', () => {
 describe('useAdoptHeldQueuedMessageEdit', () => {
   beforeEach(() => {
     queueMock.fresh = null
+    queueMock.adopted = true
     useComposerStore.setState(useComposerStore.getInitialState())
     useQueuedMessageEditStore.setState({ edits: {} })
   })
@@ -292,6 +297,19 @@ describe('useAdoptHeldQueuedMessageEdit', () => {
     await act(() => Promise.resolve())
 
     expect(useQueuedMessageEditStore.getState().edits).toEqual({})
+  })
+
+  it('does not open an edit whose hold this window could not adopt', async () => {
+    composer().switchScopedDraftContext(KEY_A)
+    composer().setInput('my draft')
+    queueMock.snapshot = snapshotOf([heldItem(QUEUED)])
+    queueMock.adopted = false
+
+    renderHook(() => useAdoptHeldQueuedMessageEdit(SESSION_A))
+    await act(() => Promise.resolve())
+
+    expect(useQueuedMessageEditStore.getState().edits).toEqual({})
+    expect(composer().input).toBe('my draft')
   })
 
   it('leaves a hold alone when it is not this user’s', async () => {

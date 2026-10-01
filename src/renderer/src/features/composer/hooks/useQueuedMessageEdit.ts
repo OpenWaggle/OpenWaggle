@@ -226,6 +226,10 @@ export function useAdoptHeldQueuedMessageEdit(sessionId: SessionId | null) {
     const resumed = queue.resumeEdit(followUpId)
     const contextKey = visibleSessionDraftContext(String(sessionId))
     if (!resumed || storedEdit(sessionId) || !contextKey || contextKey.endsWith(':pending')) return
+    // This window now renews the hold and releases it when it closes (ADR 0043).
+    if (!(await queue.adoptEdit(resumed).catch(() => false))) return
+    if (storedEdit(sessionId) || visibleSessionDraftContext(String(sessionId)) !== contextKey)
+      return
     openEdit(sessionId, contextKey, resumed)
   })
 

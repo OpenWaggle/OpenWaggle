@@ -18,6 +18,7 @@ export const api: OpenWaggleApi = {
   manageAccessProfiles: invoke('access-profiles:manage'),
   mutateSessionControl: invoke('session-control:mutate'),
   querySessionControl: invoke('session-control:query'),
+  adoptFollowUpEdit: invoke('session-control:adopt-follow-up-edit'),
   // Agent
   sendMessage: invoke('agent:send-message'),
   cancelAgent: invoke('agent:cancel'),

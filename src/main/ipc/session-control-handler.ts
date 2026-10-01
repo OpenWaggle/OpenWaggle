@@ -1,5 +1,8 @@
 import { randomUUID } from 'node:crypto'
-import { decodeSessionControlMutationRequest } from '@shared/schemas/session-control'
+import {
+  decodeFollowUpEditHoldReference,
+  decodeSessionControlMutationRequest,
+} from '@shared/schemas/session-control'
 import { decodeSessionQueryRequest } from '@shared/schemas/session-query'
 import type { LocalSessionCommandPayload } from '@shared/types/local-session-protocol'
 import {
@@ -155,6 +158,21 @@ export function registerSessionControlHandlers() {
       }
       trackFollowUpEditHold(window, request, result.response)
       return result.response
+    }),
+  )
+
+  typedHandle('session-control:adopt-follow-up-edit', (event, rawHold) =>
+    Effect.promise(() => {
+      const hold = decodeFollowUpEditHoldReference(rawHold)
+      const windowId = event.sender.id
+      const generation = windowGenerations.snapshot(windowId)
+      return windowLeases
+        .adopt(windowId, hold, () => windowGenerations.isCurrent(windowId, generation))
+        .catch((error: unknown) => {
+          // Not adopted: the window that holds it keeps renewing it, or its lease expires.
+          logger.warn('A Follow-up edit hold could not be adopted', { error: String(error) })
+          return false
+        })
     }),
   )
 

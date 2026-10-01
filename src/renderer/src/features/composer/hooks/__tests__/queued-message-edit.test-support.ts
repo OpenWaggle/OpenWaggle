@@ -117,5 +117,6 @@ export function resumeFrom(
   return {
     refresh: () => Promise.resolve(snapshot),
     resumeEdit: (followUpId: string) => heldEditOf(snapshot, followUpId),
+    adoptEdit: () => Promise.resolve(true),
   }
 }

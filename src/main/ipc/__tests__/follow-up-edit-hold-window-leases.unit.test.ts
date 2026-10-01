@@ -57,6 +57,32 @@ describe('FollowUpEditHoldWindowLeases', () => {
     expect(stopped).toHaveBeenCalled()
   })
 
+  it('moves a live hold to the window that adopts it', async () => {
+    const { leases, goneCallbacks, dependencies } = harness()
+    leases.track(7, HOLD)
+
+    expect(await leases.adopt(8, HOLD, () => true)).toBe(true)
+    expect(leases.heldBy(7)).toEqual([])
+    expect(leases.heldBy(8)).toEqual([HOLD])
+    // Closing the window that began the edit no longer releases it.
+    goneCallbacks.get(7)?.()
+    expect(dependencies.release).not.toHaveBeenCalled()
+    goneCallbacks.get(8)?.()
+    await vi.waitFor(() => expect(dependencies.release).toHaveBeenCalledWith(HOLD))
+  })
+
+  it('does not adopt a hold the Host lost, or into a page that changed meanwhile', async () => {
+    const lost = harness(false)
+    lost.leases.track(7, HOLD)
+    expect(await lost.leases.adopt(8, HOLD, () => true)).toBe(false)
+    expect(lost.leases.heldBy(7)).toEqual([])
+
+    const reloaded = harness()
+    reloaded.leases.track(7, HOLD)
+    expect(await reloaded.leases.adopt(8, HOLD, () => false)).toBe(false)
+    expect(reloaded.leases.heldBy(7)).toEqual([HOLD])
+  })
+
   it('keeps renewing a hold the Host still has', async () => {
     const { leases, dependencies } = harness(true)
     leases.track(7, HOLD)

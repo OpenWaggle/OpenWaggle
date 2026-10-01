@@ -7,6 +7,7 @@ import { SESSION_ID } from './session-follow-up-queue.test-fixtures'
 const apiMocks = vi.hoisted(() => ({
   querySessionControl: vi.fn(),
   mutateSessionControl: vi.fn(),
+  adoptFollowUpEdit: vi.fn(),
 }))
 
 vi.mock('@/shared/lib/ipc', () => ({ api: apiMocks }))
@@ -226,6 +227,21 @@ describe('useSessionFollowUpQueue Follow-up edits', () => {
       item: { text: 'Queued text' },
     })
     expect(result.current.resumeEdit('missing')).toBeNull()
+  })
+
+  it('binds a re-adopted edit to this window, and reports a hold that is gone', async () => {
+    apiMocks.querySessionControl.mockResolvedValue(queue(HELD))
+    const { result } = renderHookWithQueryClient(() => useSessionFollowUpQueue(SESSION_ID))
+    await waitFor(() => expect(result.current.snapshot.items).toHaveLength(1))
+    const edit = { followUpId: 'follow-up-1', holdId: 'hold-1' }
+    apiMocks.adoptFollowUpEdit.mockResolvedValueOnce(true).mockResolvedValueOnce(false)
+
+    await expect(result.current.adoptEdit(edit)).resolves.toBe(true)
+    expect(apiMocks.adoptFollowUpEdit).toHaveBeenCalledWith({ sessionId: SESSION_ID, ...edit })
+    const reads = apiMocks.querySessionControl.mock.calls.length
+    await expect(result.current.adoptEdit(edit)).resolves.toBe(false)
+    // A lost hold refreshes the queue so the item shows as no longer held.
+    expect(apiMocks.querySessionControl.mock.calls.length).toBeGreaterThan(reads)
   })
 
   it('does not offer to re-adopt another holder’s edit', async () => {
