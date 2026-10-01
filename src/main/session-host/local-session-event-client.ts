@@ -86,6 +86,20 @@ function decodeWorktreeLaunchSnapshot(value: unknown): WorktreeLaunchSnapshot | 
   return decodeUnknownExactOrThrow(worktreeLaunchSnapshotSchema, value)
 }
 
+const userMessageSnapshotSchema = Schema.Struct({
+  messageId: Schema.String,
+  parts: Schema.Array(Schema.Unknown),
+  sessionNodeCreatedOrder: Schema.Number,
+  durableTextSha256: Schema.optional(Schema.String.pipe(Schema.pattern(/^[a-f0-9]{64}$/))),
+})
+
+function decodeUserMessageSnapshots(value: unknown): BackgroundRunSnapshot['userMessages'] {
+  if (value === undefined) return undefined
+  return decodeUnknownExactOrThrow(Schema.Array(userMessageSnapshotSchema), value).map(
+    (userMessage) => ({ ...userMessage, parts: userMessage.parts.map(decodeMessagePart) }),
+  )
+}
+
 function decodeActiveRunSnapshots(value: unknown): BackgroundRunSnapshot[] {
   if (!Array.isArray(value)) throw new Error('Local Session Host returned an invalid Run snapshot.')
   return value.map((candidate) => {
@@ -103,6 +117,7 @@ function decodeActiveRunSnapshots(value: unknown): BackgroundRunSnapshot[] {
     }
     const degraded = decodeDegradedSnapshot(candidate.degraded)
     const worktreeLaunch = decodeWorktreeLaunchSnapshot(candidate.worktreeLaunch)
+    const userMessages = decodeUserMessageSnapshots(candidate.userMessages)
     return {
       activity: 'agent-run',
       activityEvents: decodeUnknownExactOrThrow(
@@ -115,6 +130,7 @@ function decodeActiveRunSnapshots(value: unknown): BackgroundRunSnapshot[] {
       startedAt: candidate.startedAt,
       ...(candidate.messageId ? { messageId: candidate.messageId } : {}),
       parts: candidate.parts.map(decodeMessagePart),
+      ...(userMessages && userMessages.length > 0 ? { userMessages } : {}),
       ...(degraded ? { degraded } : {}),
       ...(worktreeLaunch ? { worktreeLaunch } : {}),
     }

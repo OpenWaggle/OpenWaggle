@@ -11,6 +11,7 @@ import type {
   AgentLoopInteractionResponse,
   AgentLoopInteractionStatus,
 } from './agent-loop-interaction'
+import type { MessagePart } from './agent'
 import type { JsonValue } from './json'
 
 interface TransportEventBase {
@@ -136,10 +137,25 @@ export interface AgentTransportTurnEndEvent extends TransportEventBase {
   readonly turnIndex: number
 }
 
+/**
+ * A user message Pi has started incorporating into the active Run, as the transcript shows it.
+ * Carries the same source-free display parts and identity the persisted user node projects, never
+ * Pi's model input (synthesized attachment text or image payloads).
+ */
+export interface AgentTransportUserMessage {
+  readonly parts: readonly MessagePart[]
+  /** Native Session log order the user node is appended at, as `MessageMetadata` carries it. */
+  readonly sessionNodeCreatedOrder: number
+  /** Hash of Pi's projected first user text block, the value a queued steer receipt carries. */
+  readonly durableTextSha256?: string
+}
+
 export interface AgentTransportMessageStartEvent extends TransportEventBase {
   readonly type: 'message_start'
   readonly messageId: string
   readonly role: 'user' | 'assistant' | 'system' | 'tool'
+  /** Present on a user message: its display content from the moment Pi reads it. */
+  readonly userMessage?: AgentTransportUserMessage
 }
 
 export interface AgentTransportMessageUpdateEvent extends TransportEventBase {

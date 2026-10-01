@@ -4,7 +4,7 @@ import type { JsonValue } from '@shared/types/json'
 import { createModelRef } from '@shared/types/llm'
 import { classifyAgentError } from '../../../agent/error-classifier'
 import { userFacingErrorDetail } from '../../../utils/describe-error'
-import { toJsonValue } from '../pi-message-mapper'
+import { createStreamingMessageId, toJsonValue } from '../pi-message-mapper'
 import { getAgentEndError, getAgentEndReason, getAgentEndUsage } from './agent-end-events'
 import { handleMessageStart, handleMessageUpdate } from './assistant-events'
 import type {
@@ -22,6 +22,7 @@ import type {
   ToolExecutionUpdateSessionEvent,
 } from './listener-types'
 import { emitEvent } from './transport-emitter'
+import { pendingUserMessageDisplay } from './user-message-events'
 
 function emitAgentStart(state: SessionListenerState) {
   emitEvent(state.input.onEvent, {
@@ -79,7 +80,33 @@ function handleToolExecutionEnd(state: SessionListenerState, event: ToolExecutio
   })
 }
 
+/**
+ * Publishes a user message the moment Pi incorporates it into the Run, so the transcript shows a
+ * Follow-up as soon as its Run starts and a steer when the agent reads it. Pi emits a user message's
+ * start and end back to back; at its end the display projection is recorded and the entry is about
+ * to be appended, so the event carries the same parts, log order, and digest as the persisted node.
+ */
+function emitUserMessageStart(
+  state: SessionListenerState,
+  message: Extract<MessageEndSessionEvent['message'], { role: 'user' }>,
+) {
+  const sessionEntries = state.input.sessionEntries
+  if (!sessionEntries) return
+  emitEvent(state.input.onEvent, {
+    type: 'message_start',
+    messageId: createStreamingMessageId(),
+    role: 'user',
+    userMessage: pendingUserMessageDisplay(sessionEntries, message.content),
+    timestamp: Date.now(),
+    model: state.input.model,
+  })
+}
+
 function handleMessageEnd(state: SessionListenerState, event: MessageEndSessionEvent) {
+  if (event.message.role === 'user') {
+    emitUserMessageStart(state, event.message)
+    return
+  }
   if (!state.currentMessageId || event.message.role !== 'assistant') {
     return
   }

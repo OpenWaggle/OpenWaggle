@@ -26,6 +26,7 @@ import { applyToolExecutionEndToParts } from './stream-buffer-tool-parts'
 import {
   appendStreamBufferText,
   appendStreamBufferToolCallDelta,
+  appendStreamBufferUserMessage,
   type StreamBufferUpdate,
   updateStreamBufferActivityEvents,
   updateStreamBufferParts,
@@ -156,6 +157,12 @@ export function applyEventToStreamBuffer(sessionId: SessionId, event: AgentTrans
       if (value.role === 'assistant') {
         updateBufferedAssistantMessageId(sessionId, value.messageId)
         resetBufferedParts(sessionId)
+      }
+      if (value.role === 'user' && value.userMessage) {
+        const userMessage = { messageId: value.messageId, ...value.userMessage }
+        applyBufferedUpdate(sessionId, (buffer) =>
+          appendStreamBufferUserMessage(buffer, userMessage, totalRetainedBytes),
+        )
       }
     })
     .with('message_update', (value) => applyMessageUpdateToStreamBuffer(sessionId, value))

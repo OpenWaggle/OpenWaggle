@@ -2,11 +2,14 @@ import type { AgentSessionEvent } from '@earendil-works/pi-coding-agent'
 import type { JsonValue } from '@shared/types/json'
 import type { SupportedModelId } from '@shared/types/llm'
 import type { AgentTransportEvent } from '@shared/types/stream'
+import type { PiUserMessageEntrySource } from './user-message-events'
 
 export interface SessionListenerInput {
   readonly model: SupportedModelId
   readonly getContextWindow?: (provider: string, modelId: string) => number | undefined
   readonly onEvent: (event: AgentTransportEvent) => void
+  /** The Run's Session log. Without it, user messages are not published to the transcript. */
+  readonly sessionEntries?: PiUserMessageEntrySource
 }
 
 export interface SessionListenerState {

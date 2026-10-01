@@ -2,6 +2,7 @@ import type { MessagePart } from '@shared/types/agent'
 import type {
   BackgroundRunActivityEvent,
   BackgroundRunSnapshot,
+  BackgroundRunUserMessage,
   RunMode,
   WorktreeLaunchSnapshot,
 } from '@shared/types/background-run'
@@ -16,6 +17,8 @@ export interface ActiveStreamBuffer {
   readonly parts: readonly MessagePart[]
   readonly activityEvents?: readonly BackgroundRunActivityEvent[]
   readonly activityEventsBytes?: number
+  readonly userMessages?: readonly BackgroundRunUserMessage[]
+  readonly userMessagesBytes?: number
   readonly retainedBytes: number
   readonly omittedBytes: number
   readonly degradedToolCallIds: ReadonlySet<string>
@@ -42,8 +45,12 @@ export function degradedToolCallIdRetainedDelta(
   )
 }
 
+function retainedSideChannelBytes(buffer: ActiveStreamBuffer) {
+  return (buffer.activityEventsBytes ?? 0) + (buffer.userMessagesBytes ?? 0)
+}
+
 export function retainedStreamBufferBytes(buffer: ActiveStreamBuffer) {
-  return buffer.retainedBytes + buffer.degradedToolCallIdsBytes + (buffer.activityEventsBytes ?? 0)
+  return buffer.retainedBytes + buffer.degradedToolCallIdsBytes + retainedSideChannelBytes(buffer)
 }
 
 export function withoutRetainedStreamContent(buffer: ActiveStreamBuffer): ActiveStreamBuffer {
@@ -63,7 +70,7 @@ export function exceedsStreamBufferLimit(
   retainedDelta: number,
 ) {
   return (
-    retainedPartsBytes + buffer.degradedToolCallIdsBytes + (buffer.activityEventsBytes ?? 0) >
+    retainedPartsBytes + buffer.degradedToolCallIdsBytes + retainedSideChannelBytes(buffer) >
       MAX_ACTIVE_STREAM_BUFFER_BYTES ||
     totalRetainedBytes + retainedDelta > MAX_TOTAL_STREAM_BUFFER_BYTES
   )
@@ -129,6 +136,9 @@ export function toStreamBufferSnapshot(
     startedAt: buffer.startedAt,
     ...(buffer.messageId ? { messageId: buffer.messageId } : {}),
     parts: [...buffer.parts],
+    ...(buffer.userMessages && buffer.userMessages.length > 0
+      ? { userMessages: [...buffer.userMessages] }
+      : {}),
     activityEvents: [...(buffer.activityEvents ?? [])],
     ...(buffer.omittedBytes > 0
       ? {
@@ -171,6 +181,20 @@ function restoreActivityEvents(
   }
 }
 
+function restoreUserMessages(
+  userMessages: readonly BackgroundRunUserMessage[],
+  retainedBytesBefore: number,
+  totalRetainedBytes: number,
+) {
+  const retainedBytes =
+    userMessages.length > 0 ? Buffer.byteLength(JSON.stringify(userMessages), 'utf8') : 0
+  const accepted =
+    retainedBytes > 0 &&
+    retainedBytesBefore + retainedBytes <= MAX_ACTIVE_STREAM_BUFFER_BYTES &&
+    totalRetainedBytes + retainedBytesBefore + retainedBytes <= MAX_TOTAL_STREAM_BUFFER_BYTES
+  return accepted ? { userMessages: [...userMessages], userMessagesBytes: retainedBytes } : {}
+}
+
 export function restoreStreamBufferSnapshots(
   buffers: Map<SessionId, ActiveStreamBuffer>,
   snapshots: readonly BackgroundRunSnapshot[],
@@ -189,9 +213,15 @@ export function restoreStreamBufferSnapshots(
       acceptedRetainedBytes,
       totalRetainedBytes,
     )
+    const userMessages = restoreUserMessages(
+      snapshot.userMessages ?? [],
+      acceptedRetainedBytes + activity.activityEventsBytes,
+      totalRetainedBytes,
+    )
+    const userMessagesBytes = userMessages.userMessagesBytes ?? 0
     const degradedToolCallIds = restoreDegradedToolCallIds({
       toolCallIds: snapshot.degraded?.toolCallIds ?? [],
-      retainedPartsBytes: acceptedRetainedBytes + activity.activityEventsBytes,
+      retainedPartsBytes: acceptedRetainedBytes + activity.activityEventsBytes + userMessagesBytes,
       totalRetainedBytes,
     })
     buffers.set(snapshot.sessionId, {
@@ -201,6 +231,7 @@ export function restoreStreamBufferSnapshots(
       ...(snapshot.messageId ? { messageId: snapshot.messageId } : {}),
       parts: accepted ? [...snapshot.parts] : [],
       ...activity,
+      ...userMessages,
       retainedBytes: acceptedRetainedBytes,
       omittedBytes: (snapshot.degraded?.omittedBytes ?? 0) + (accepted ? 0 : retainedBytes),
       degradedToolCallIds: degradedToolCallIds.toolCallIds,
@@ -208,7 +239,10 @@ export function restoreStreamBufferSnapshots(
       ...(snapshot.worktreeLaunch ? { worktreeLaunch: snapshot.worktreeLaunch } : {}),
     })
     totalRetainedBytes +=
-      acceptedRetainedBytes + degradedToolCallIds.retainedBytes + activity.activityEventsBytes
+      acceptedRetainedBytes +
+      degradedToolCallIds.retainedBytes +
+      activity.activityEventsBytes +
+      userMessagesBytes
   }
   return { previousSessionIds, totalRetainedBytes }
 }
