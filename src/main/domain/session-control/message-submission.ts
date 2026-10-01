@@ -34,15 +34,14 @@ function queueWillDeliver(queue: FollowUpQueueSnapshot) {
  * it, so order is kept. To an idle Session whose queue will not deliver (paused after a failed Run,
  * or held by a Follow-up that needs attention) it starts a Run: joining that queue would leave it
  * waiting for a Resume, and it is the user's answer to the failure. The held items stay held.
- * A head out for a Follow-up edit is different: the user is rewriting the next message, so a new
- * one waits behind it rather than overtaking it.
+ * A running queue whose head is out for a Follow-up edit is different: the user is rewriting the
+ * next message, so a new one waits behind it rather than overtaking it. A paused queue with a held
+ * head still starts the new message, or it would wait for a Resume behind an edit.
  */
 export function planMessageSubmission(snapshot: MessageSubmissionSnapshot): MessageSubmissionPlan {
-  if (
-    snapshot.run.state === 'idle' &&
-    !snapshot.followUpQueue.headHeld &&
-    !queueWillDeliver(snapshot.followUpQueue)
-  ) {
+  const waitsOnEdit =
+    snapshot.followUpQueue.headHeld === true && snapshot.followUpQueue.state === 'running'
+  if (snapshot.run.state === 'idle' && !waitsOnEdit && !queueWillDeliver(snapshot.followUpQueue)) {
     return { action: 'start-run' }
   }
   return { action: 'append-follow-up' }

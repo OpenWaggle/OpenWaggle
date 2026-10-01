@@ -7,6 +7,7 @@ import type {
 } from '@shared/types/local-session-protocol'
 import * as Effect from 'effect/Effect'
 import * as Option from 'effect/Option'
+import { FOLLOW_UP_EDIT_HOLD_LEASE_MS } from '../domain/session-control/follow-up-edit-lease'
 import { FollowUpEditHoldRepository } from '../ports/follow-up-edit-hold-repository'
 import { SessionControlAttachmentService } from '../ports/session-control-attachment-service'
 import { SessionProjectionRepository } from '../ports/session-projection-repository'
@@ -73,17 +74,21 @@ function renewFollowUpEditHold(
 ) {
   return Effect.gen(function* () {
     const holds = yield* Effect.serviceOption(FollowUpEditHoldRepository)
-    const leaseExpiresAt = Option.isSome(holds)
+    const renewed = Option.isSome(holds)
       ? yield* holds.value.renew({
           sessionId: command.sessionId,
           followUpId: command.followUpId,
           holdId: command.holdId,
           holderCallerId: caller.callerId,
         })
-      : undefined
-    return leaseExpiresAt === undefined
-      ? ({ effect: 'follow-up-edit-hold-lost' } as const)
-      : ({ effect: 'follow-up-edit-hold-renewed', leaseExpiresAt } as const)
+      : false
+    return renewed
+      ? ({
+          effect: 'follow-up-edit-hold-renewed',
+          // The lease runs on the Host's monotonic clock; this is its wall-clock estimate.
+          leaseExpiresAt: Date.now() + FOLLOW_UP_EDIT_HOLD_LEASE_MS,
+        } as const)
+      : ({ effect: 'follow-up-edit-hold-lost' } as const)
   })
 }
 

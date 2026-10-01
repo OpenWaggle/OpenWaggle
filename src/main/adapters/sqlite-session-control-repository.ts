@@ -1,23 +1,23 @@
 import * as SqlClient from '@effect/sql/SqlClient'
 import { canonicalJson } from '@shared/canonical-json'
-import type { SessionControlMutationRequest } from '@shared/types/session-control'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import type { SessionControlSessionState } from '../domain/session-control/message-aggregate'
 import { SessionControlRepositoryError } from '../errors'
 import {
-  type SessionControlMutationDecision,
   SessionControlRepository,
   type SessionControlRepositoryShape,
-  type SessionControlRunAdmissionRefusal,
 } from '../ports/session-control-repository'
 import { applyCurrentFollowUpAuthorization } from './session-follow-up-authorization'
 import { decodeStoredSessionControlMutationOutcome } from './sqlite-session-control-outcome-decoder'
+import {
+  deliverAfterQueueDecision,
+  newRunAdmissionRefusal,
+} from './sqlite-session-control-queue-delivery'
 import { loadSessionControlState, persistSessionControlState } from './sqlite-session-control-state'
 import { reservedFollowUpIds } from './sqlite-session-follow-up-reservation'
 import { liveSessionAuthorityBlockReason } from './sqlite-session-live-authority'
-import { directWorkerRunAdmission } from './sqlite-session-parent-run-admission'
 
 interface SessionOperationRow {
   readonly request_json: string
@@ -37,15 +37,6 @@ function isQueueMutation(operation: string) {
     operation === 'queue-resume' ||
     operation === 'queue-update-authorization' ||
     operation === 'queue-edit-begin'
-  )
-}
-
-/** Operations that can deliver the queue head, so they see its current authorization first. */
-function mayDeliverQueueHead(operation: string) {
-  return (
-    operation === 'queue-resume' ||
-    operation === 'queue-edit-save' ||
-    operation === 'queue-edit-cancel'
   )
 }
 
@@ -122,42 +113,19 @@ function loadExistingOperation(
   `
 }
 
-function newRunAdmissionRefusal(
-  sql: SqlClient.SqlClient,
-  targetScope: string,
-  hostRunCeiling: number,
-) {
-  return Effect.gen(function* () {
-    const parentAdmission = yield* directWorkerRunAdmission(sql, targetScope)
-    if (!parentAdmission.admitted) return 'parent_concurrency_limit_reached' as const
-    const rows = yield* sql<{ readonly count: number }>`
-      SELECT COUNT(*) AS count
-      FROM session_control_states
-      WHERE active_run_id IS NOT NULL
-    `
-    const hostActiveRuns = rows[0]?.count ?? 0
-    return hostActiveRuns >= hostRunCeiling ? ('host_run_ceiling_reached' as const) : undefined
-  })
-}
-
-function decisionWithoutNewRun(input: {
-  readonly input: Parameters<SessionControlRepositoryShape['executeMutation']>[0]
-  readonly state: SessionControlSessionState
-  readonly operation: SessionControlMutationRequest['command']['operation']
-  readonly targetScope: string
-  readonly refusal: SessionControlRunAdmissionRefusal
-}): SessionControlMutationDecision {
-  const rejected = {
-    accepted: false,
-    outcome: {
-      operation: input.operation,
-      effect: 'rejected',
-      sessionId: input.targetScope,
-      code: input.refusal,
-    },
-  } as const
-  const fallback = input.input.decideWithoutNewRun?.(input.state, input.refusal)
-  return fallback?.accepted && fallback.state.run.state !== 'starting' ? fallback : rejected
+/**
+ * Resumption re-checks the head's authorization before it can start it. The check may change the
+ * head and bump revisions, but the caller's expected queue revision names the stored queue, so it
+ * is guarded against the stored revisions; the decision's own increment covers the change.
+ */
+function withCurrentHeadAuthorization(sql: SqlClient.SqlClient, state: SessionControlSessionState) {
+  return applyCurrentFollowUpAuthorization(sql, state).pipe(
+    Effect.map((authorized) => ({
+      ...authorized,
+      revision: state.revision,
+      followUpQueue: { ...authorized.followUpQueue, revision: state.followUpQueue.revision },
+    })),
+  )
 }
 
 function executeMutation(
@@ -178,19 +146,23 @@ function executeMutation(
         })
         const existing = existingRows[0]
         if (existing) {
-          return yield* replayExistingOperation({
+          const replay = yield* replayExistingOperation({
             existing,
             requestJson,
             operation,
             targetScope,
             idempotencyKey: input.request.idempotencyKey,
           })
+          if (!input.validateReplay) return replay
+          const current = yield* loadSessionControlState(sql, targetScope)
+          return { ...replay, outcome: input.validateReplay(replay.outcome, current) }
         }
 
         const loadedState = yield* loadSessionControlState(sql, targetScope)
-        const state = mayDeliverQueueHead(operation)
-          ? yield* applyCurrentFollowUpAuthorization(sql, loadedState)
-          : loadedState
+        const state =
+          operation === 'queue-resume'
+            ? yield* withCurrentHeadAuthorization(sql, loadedState)
+            : loadedState
         const authorityBlock = yield* liveSessionAuthorityBlockReason(sql, input.callerId)
         const reservationBlock = yield* reservedQueueMutationRejection(sql, operation, targetScope)
         const decision = reservationBlock
@@ -214,8 +186,16 @@ function executeMutation(
           ? yield* newRunAdmissionRefusal(sql, targetScope, hostRunCeiling)
           : undefined
         const admittedDecision = refusal
-          ? decisionWithoutNewRun({ input, state, operation, targetScope, refusal })
-          : decision
+          ? ({
+              accepted: false,
+              outcome: { operation, effect: 'rejected', sessionId: targetScope, code: refusal },
+            } as const)
+          : yield* deliverAfterQueueDecision(sql, {
+              decision,
+              operation,
+              nextRunId: input.nextRunId,
+              hostRunCeiling,
+            })
         if (admittedDecision.accepted) {
           yield* persistSessionControlState(sql, admittedDecision.state, now)
         }

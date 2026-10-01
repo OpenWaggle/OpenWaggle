@@ -105,11 +105,14 @@ function applyAuthorizationUpdate(
     }
   }
   const { runAuthorizationOverride: _previous, ...baseIntent } = selected.intent
-  const { attentionReason: _reason, ...baseFollowUp } = selected
+  const { attentionReason: _reason, editHold, ...baseFollowUp } = selected
   const authorCallerId = baseIntent.authorCallerId ?? baseIntent.callerId
   const items = [...input.state.followUpQueue.items]
   items[itemIndex] = {
     ...baseFollowUp,
+    // Re-authorization by anyone but the editor hands the Follow-up to another caller, which makes
+    // it uneditable, so an open edit of it ends.
+    ...(editHold && editHold.holderCallerId === mutation.callerId ? { editHold } : {}),
     deliveryState: 'pending',
     intent: {
       ...baseIntent,

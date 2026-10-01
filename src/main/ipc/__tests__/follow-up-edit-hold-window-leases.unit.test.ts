@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   FollowUpEditHoldWindowLeases,
   type WindowFollowUpEditHold,
+  WindowPageGenerations,
 } from '../follow-up-edit-hold-window-leases'
 
 const HOLD: WindowFollowUpEditHold = {
@@ -45,14 +46,24 @@ describe('FollowUpEditHoldWindowLeases', () => {
     expect(dependencies.watchWindow).toHaveBeenCalledTimes(2)
   })
 
-  it('renews tracked holds and stops renewing holds the Host lost', async () => {
+  it('renews tracked holds, and cancels a hold the Host lost so its queue can deliver', async () => {
     const { leases, dependencies, ticks, stopped } = harness(false)
     leases.track(7, HOLD)
 
     ticks[0]?.()
     await vi.waitFor(() => expect(dependencies.renew).toHaveBeenCalledWith(HOLD))
-    await vi.waitFor(() => expect(leases.heldBy(7)).toEqual([]))
+    await vi.waitFor(() => expect(dependencies.release).toHaveBeenCalledWith(HOLD))
+    expect(leases.heldBy(7)).toEqual([])
     expect(stopped).toHaveBeenCalled()
+  })
+
+  it('keeps renewing a hold the Host still has', async () => {
+    const { leases, dependencies } = harness(true)
+    leases.track(7, HOLD)
+
+    await leases.renewAll()
+    expect(dependencies.release).not.toHaveBeenCalled()
+    expect(leases.heldBy(7)).toEqual([HOLD])
   })
 
   it('keeps a hold through a transient renewal failure', async () => {
@@ -81,5 +92,35 @@ describe('FollowUpEditHoldWindowLeases', () => {
     goneCallbacks.get(7)?.()
     leases.track(7, { ...HOLD, holdId: 'hold-after-reload' })
     expect(dependencies.watchWindow).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('WindowPageGenerations', () => {
+  function generations() {
+    const events = new Map<number, { pageChanged: () => void; destroyed: () => void }>()
+    const tracker = new WindowPageGenerations((windowId, windowEvents) => {
+      if (windowId === 99) return false
+      events.set(windowId, windowEvents)
+      return true
+    })
+    return { tracker, events }
+  }
+
+  it('keeps a begin bound to its page while the page stays loaded', () => {
+    const { tracker } = generations()
+    const generation = tracker.snapshot(7)
+    expect(tracker.isCurrent(7, generation)).toBe(true)
+  })
+
+  it('reports a page that reloaded, crashed, or closed during the begin as gone', () => {
+    const { tracker, events } = generations()
+    const reloaded = tracker.snapshot(7)
+    events.get(7)?.pageChanged()
+    expect(tracker.isCurrent(7, reloaded)).toBe(false)
+
+    const closing = tracker.snapshot(8)
+    events.get(8)?.destroyed()
+    expect(tracker.isCurrent(8, closing)).toBe(false)
+    expect(tracker.isCurrent(99, tracker.snapshot(99))).toBe(false)
   })
 })

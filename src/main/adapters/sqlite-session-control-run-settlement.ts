@@ -1,6 +1,10 @@
 import type * as SqlClient from '@effect/sql/SqlClient'
 import type { FollowUpQueuePauseReason } from '@shared/types/session-control-queue'
 import * as Effect from 'effect/Effect'
+import {
+  deliverIdleQueueHead,
+  isFollowUpEditHeld,
+} from '../domain/session-control/follow-up-delivery'
 import type {
   SessionControlFollowUp,
   SessionControlSessionState,
@@ -80,10 +84,20 @@ function settleUnsuccessfulRun(
     : settled.state
   const retryIndex = items.findIndex(isRetry)
   const retry = items[retryIndex]
-  // A Follow-up edit hold stops delivery at the held item, so a retry behind one waits too.
-  const heldAtOrBeforeRetry = items.slice(0, retryIndex + 1).some((item) => item.editHold)
-  if (retry?.deliveryState !== 'pending' || heldAtOrBeforeRetry) {
+  if (retry?.deliveryState !== 'pending') {
     return { accepted: true as const, state: next, scheduled: undefined }
+  }
+  // A Follow-up edit hold stops delivery at the held item, so a retry behind one waits for the
+  // hold to end; `deliverIdleQueueHead` starts it then.
+  if (terminalEventAt !== undefined && items.slice(0, retryIndex + 1).some(isFollowUpEditHeld)) {
+    return {
+      accepted: true as const,
+      state: {
+        ...next,
+        followUpQueue: { ...next.followUpQueue, deferredRetryAfter: terminalEventAt },
+      },
+      scheduled: undefined,
+    }
   }
   return {
     accepted: true as const,
@@ -118,10 +132,16 @@ export function planRunSettlement(
     }
   }
   const { terminalStatus } = input
-  if (terminalStatus === 'completed') {
-    return settleAndScheduleNextFollowUp(state, input.runId, input.nextRunId)
-  }
-  return settleUnsuccessfulRun(state, { ...input, terminalStatus })
+  const result =
+    terminalStatus === 'completed'
+      ? settleAndScheduleNextFollowUp(state, input.runId, input.nextRunId)
+      : settleUnsuccessfulRun(state, { ...input, terminalStatus })
+  if (!result.accepted || result.scheduled) return result
+  // Whatever an idle queue could deliver now is delivered, so it never waits with nothing to wake it.
+  const delivery = deliverIdleQueueHead(result.state, input.nextRunId)
+  return delivery.delivered
+    ? { accepted: true as const, state: delivery.state, scheduled: delivery.delivered }
+    : { ...result, state: delivery.state }
 }
 
 /**

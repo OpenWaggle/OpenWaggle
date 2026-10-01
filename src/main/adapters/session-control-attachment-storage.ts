@@ -13,7 +13,9 @@ import {
   parseBrowserAttachmentMetadata,
 } from '../utils/browser-attachment-metadata'
 import { referencedSessionAttachmentIds } from './session-control-attachment-references'
+import { monotonicNowMs } from '../utils/monotonic-clock'
 import type { AttachmentStoragePolicy } from './session-control-attachment-service'
+import { retainedFollowUpEditAttachmentIds } from './sqlite-follow-up-edit-holds'
 
 interface PreparedAttachmentRow {
   readonly id: string
@@ -141,7 +143,11 @@ function bindAttachments(
 function cleanupUnreferenced(sql: SqlClient.SqlClient, sessionId: string) {
   return sql.withTransaction(
     Effect.gen(function* () {
-      const referenced = yield* referencedSessionAttachmentIds(sql, sessionId)
+      const intentReferenced = yield* referencedSessionAttachmentIds(sql, sessionId)
+      // Attachments a Follow-up edit named stay a while longer, so a retried save or a lost edit
+      // queued as a new message can still bind them.
+      const retained = yield* retainedFollowUpEditAttachmentIds(sql, sessionId, monotonicNowMs())
+      const referenced = new Set([...intentReferenced, ...retained])
       if (referenced.size === 0) {
         yield* sql`DELETE FROM session_prepared_attachments WHERE session_id = ${sessionId}`
         return

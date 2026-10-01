@@ -8,13 +8,14 @@ import {
   type SessionControlMutationResponse,
 } from '@shared/types/session-control'
 import * as Effect from 'effect/Effect'
-import { webContents } from 'electron'
+import { powerMonitor, webContents } from 'electron'
 import { dispatchLocalSessionCommand } from '../application/local-session-command-dispatcher'
 import { createLogger } from '../logger'
 import { runAppEffect } from '../runtime'
 import {
   FollowUpEditHoldWindowLeases,
   type WindowFollowUpEditHold,
+  WindowPageGenerations,
 } from './follow-up-edit-hold-window-leases'
 import { typedHandle } from './typed-ipc'
 
@@ -23,9 +24,19 @@ const logger = createLogger('session-control-ipc')
 /** Rejections that mean the hold no longer exists, so the window stops renewing it. */
 const HOLD_GONE_CODES: ReadonlySet<string> = new Set([
   'follow_up_not_found',
+  'follow_up_not_editable',
   'follow_up_edit_not_held',
   'follow_up_edit_hold_mismatch',
 ])
+
+const windowGenerations = new WindowPageGenerations((windowId, events) => {
+  const contents = webContents.fromId(windowId)
+  if (!contents || contents.isDestroyed()) return false
+  contents.on('did-navigate', events.pageChanged)
+  contents.on('render-process-gone', events.pageChanged)
+  contents.once('destroyed', events.destroyed)
+  return true
+})
 
 function dispatchGuiCommand(payload: LocalSessionCommandPayload) {
   return dispatchLocalSessionCommand({
@@ -94,18 +105,27 @@ const windowLeases = new FollowUpEditHoldWindowLeases({
 
 /** Binds the Follow-up edit holds a window begins to that window (ADR 0043). */
 function trackFollowUpEditHold(
-  windowId: number,
+  window: { readonly windowId: number; readonly generation: number | undefined },
   request: SessionControlMutationRequest,
   response: SessionControlMutationResponse,
 ) {
   const { command } = request
   const { outcome } = response
   if (command.operation === 'queue-edit-begin' && outcome.effect === 'follow-up-edit-held') {
-    windowLeases.track(windowId, {
+    const hold = {
       sessionId: outcome.sessionId,
       followUpId: outcome.followUpId,
       holdId: outcome.holdId,
-    })
+    }
+    if (windowGenerations.isCurrent(window.windowId, window.generation)) {
+      windowLeases.track(window.windowId, hold)
+    } else {
+      void releaseHold(hold).catch((error: unknown) =>
+        logger.warn('A Follow-up edit begun by a closed window could not be released', {
+          error: String(error),
+        }),
+      )
+    }
     return
   }
   if (command.operation !== 'queue-edit-save' && command.operation !== 'queue-edit-cancel') return
@@ -115,14 +135,25 @@ function trackFollowUpEditHold(
 }
 
 export function registerSessionControlHandlers() {
+  // Timers may fire late after a sleep; renew at once so an open edit keeps its hold.
+  powerMonitor.on('resume', () => {
+    void windowLeases.renewAll()
+  })
   typedHandle('session-control:mutate', (event, rawRequest) =>
     Effect.gen(function* () {
       const request = decodeSessionControlMutationRequest(rawRequest)
+      const window = {
+        windowId: event.sender.id,
+        generation:
+          request.command.operation === 'queue-edit-begin'
+            ? windowGenerations.snapshot(event.sender.id)
+            : undefined,
+      }
       const result = yield* dispatchGuiCommand({ contract: 'session-control-v2', request })
       if (result.contract !== 'session-control-v2') {
         return yield* Effect.die(new Error('Session Control returned the wrong contract.'))
       }
-      trackFollowUpEditHold(event.sender.id, request, result.response)
+      trackFollowUpEditHold(window, request, result.response)
       return result.response
     }),
   )

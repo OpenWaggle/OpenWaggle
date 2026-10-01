@@ -255,6 +255,8 @@ export function mutateSessionQueue(input: MutateSessionQueueInput) {
       callerId: input.callerId,
       ...(input.hostRunCeiling ? { hostRunCeiling: input.hostRunCeiling } : {}),
       request: input.request,
+      // A withdrawn, reordered, or re-authorized held item can leave an idle queue runnable.
+      nextRunId,
       decide: (state) => {
         const constrainedState =
           input.request.command.operation === 'queue-resume' &&

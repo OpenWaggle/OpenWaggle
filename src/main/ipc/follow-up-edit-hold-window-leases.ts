@@ -1,4 +1,4 @@
-import { FOLLOW_UP_EDIT_HOLD_RENEW_INTERVAL_MS } from '@shared/types/session-control-queue'
+import { FOLLOW_UP_EDIT_HOLD_RENEW_INTERVAL_MS } from '../domain/session-control/follow-up-edit-lease'
 
 /** One Follow-up edit hold a desktop window began. */
 export interface WindowFollowUpEditHold {
@@ -80,7 +80,10 @@ export class FollowUpEditHoldWindowLeases {
     ).then(() => undefined)
   }
 
-  /** Renews every tracked hold once; a hold the Host no longer has stops being tracked. */
+  /**
+   * Renews every tracked hold once. A hold the Host no longer has stops being tracked and is
+   * cancelled, which lets its queue deliver at once instead of waiting for the Host's sweep.
+   */
   async renewAll() {
     if (this.renewing) return
     this.renewing = true
@@ -89,7 +92,9 @@ export class FollowUpEditHoldWindowLeases {
       await Promise.all(
         holds.map(async (hold) => {
           try {
-            if (!(await this.dependencies.renew(hold))) this.forget(hold.holdId)
+            if (await this.dependencies.renew(hold)) return
+            this.forget(hold.holdId)
+            await this.dependencies.release(hold)
           } catch (error) {
             // Keep the hold: a transient Host failure must not end an edit early. If the Host
             // stays unreachable, its lease expires there.
@@ -122,5 +127,42 @@ export class FollowUpEditHoldWindowLeases {
   private stopTimer() {
     this.stopRenewal?.()
     this.stopRenewal = undefined
+  }
+}
+
+/**
+ * Counts page loads per window. A Follow-up edit begun by a page that has since reloaded, crashed,
+ * or closed must be released, not bound to the window's next page, so the begin snapshots the
+ * generation before it is sent and the hold is tracked only if the generation is unchanged.
+ */
+export class WindowPageGenerations {
+  private readonly generations = new Map<number, number>()
+
+  constructor(
+    /** Subscribes to the window's page changes; `false` when the window is already gone. */
+    private readonly watch: (
+      windowId: number,
+      events: { readonly pageChanged: () => void; readonly destroyed: () => void },
+    ) => boolean,
+  ) {}
+
+  snapshot(windowId: number): number | undefined {
+    const current = this.generations.get(windowId)
+    if (current !== undefined) return current
+    const watching = this.watch(windowId, {
+      pageChanged: () => {
+        this.generations.set(windowId, (this.generations.get(windowId) ?? 0) + 1)
+      },
+      destroyed: () => {
+        this.generations.delete(windowId)
+      },
+    })
+    if (!watching) return undefined
+    this.generations.set(windowId, 0)
+    return 0
+  }
+
+  isCurrent(windowId: number, generation: number | undefined) {
+    return generation !== undefined && this.generations.get(windowId) === generation
   }
 }

@@ -2,6 +2,7 @@ import { SESSION_CONTROL_CONTRACT_VERSION } from '@shared/types/session-control'
 import * as Cause from 'effect/Cause'
 import * as Effect from 'effect/Effect'
 import * as Schedule from 'effect/Schedule'
+import { FOLLOW_UP_EDIT_HOLD_SWEEP_INTERVAL_MS } from '../domain/session-control/follow-up-edit-lease'
 import { createLogger } from '../logger'
 import {
   type ExpiredFollowUpEditHold,
@@ -11,14 +12,12 @@ import { dispatchAdmittedSessionControlCommand } from './local-session-command-d
 
 const logger = createLogger('follow-up-edit-hold-expiry')
 
-/** How often the Host looks for Follow-up edit holds whose lease ran out. */
-export const FOLLOW_UP_EDIT_HOLD_SWEEP_INTERVAL_MS = 5_000
-
 /**
  * An expired hold is already gone from every delivery decision; releasing it here only gives an
  * idle Session whose queue it blocked the chance to deliver, through the same cancel the holder
  * would have sent. The cancel is journaled under the holder with a key derived from the hold, so a
- * retried sweep replays instead of acting twice.
+ * retried sweep replays instead of acting twice. The hold's row is removed by that cancel, so a
+ * cancel that fails (for example while the Host drains) is retried on the next sweep.
  */
 function releaseExpiredHold(hold: ExpiredFollowUpEditHold) {
   const key = `follow-up-edit-hold-expired:${hold.holdId}`
@@ -53,7 +52,7 @@ function releaseExpiredHold(hold: ExpiredFollowUpEditHold) {
 
 export const releaseExpiredFollowUpEditHolds = Effect.gen(function* () {
   const holds = yield* FollowUpEditHoldRepository
-  const expired = yield* holds.takeExpired()
+  const expired = yield* holds.listExpired()
   yield* Effect.forEach(expired, releaseExpiredHold, { discard: true })
   return expired.length
 })

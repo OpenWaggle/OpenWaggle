@@ -1,21 +1,3 @@
-import type { InlineVisualizationContext } from '@shared/types/agent'
-import type { FollowUpId, RunId } from '@shared/types/brand'
-import type { FollowUpQueuePauseReason } from '@shared/types/session-control-queue'
-import type { WaggleInvocation } from '@shared/types/waggle'
-import {
-  type FollowUpEditReleaseOutcome,
-  isFollowUpEditHeld,
-  type QueueOutcomeBase,
-  releasedOutcome,
-} from './follow-up-edit-release'
-import { MAX_FOLLOW_UP_QUEUE_BYTES } from './follow-up-queue'
-import type {
-  SessionControlFollowUp,
-  SessionControlFollowUpEditHold,
-  SessionControlIntentSnapshot,
-  SessionControlSessionState,
-} from './message-aggregate'
-
 /**
  * Follow-up edit and Follow-up edit hold (ADR 0043).
  *
@@ -26,9 +8,29 @@ import type {
  *
  * Beginning an edit puts a hold on the item. Delivery stops at a held item: nothing from it onward
  * starts at Run settlement, on resumption, or by steering promotion, and a new message to an idle
- * Session with a held head queues behind it. Saving or cancelling releases the hold, and if the
- * Session is idle and its queue runnable the next Follow-up starts, as on resumption.
+ * Session with a held head of a running queue queues behind it. Saving or cancelling releases the
+ * hold; what the queue then delivers is decided by `deliverIdleQueueHead`, which the repository
+ * applies after every accepted queue change.
+ *
+ * Revision rule: a save names the queue revision its edit began at (`baseQueueRevision`), not the
+ * queue's current revision. While held, a Follow-up's content can change only through this edit;
+ * anything else that changes the item ends the hold (withdrawal, delivery, re-authorization by
+ * another caller), and the save is then refused as not held. Reordering, and changes to other
+ * items, do not affect a save.
  */
+import type { InlineVisualizationContext } from '@shared/types/agent'
+import type { FollowUpId } from '@shared/types/brand'
+import type { WaggleInvocation } from '@shared/types/waggle'
+import { isFollowUpEditHeld } from './follow-up-delivery'
+import { MAX_FOLLOW_UP_QUEUE_BYTES, serializedBytes } from './follow-up-queue'
+import type {
+  SessionControlFollowUp,
+  SessionControlFollowUpEditHold,
+  SessionControlIntentSnapshot,
+  SessionControlSessionState,
+} from './message-aggregate'
+
+export { isFollowUpEditHeld } from './follow-up-delivery'
 
 const REVISION_INCREMENT = 1
 
@@ -55,6 +57,12 @@ interface FollowUpEditRejection {
   readonly state: SessionControlSessionState
 }
 
+interface QueueOutcomeBase {
+  readonly sessionId: SessionControlSessionState['sessionId']
+  readonly queueRevision: number
+  readonly stateRevision: number
+}
+
 export type BeginFollowUpEditResult =
   | {
       readonly accepted: true
@@ -73,13 +81,19 @@ export type ReleaseFollowUpEditResult =
   | {
       readonly accepted: true
       readonly state: SessionControlSessionState
-      readonly outcome: FollowUpEditReleaseOutcome
+      readonly outcome: QueueOutcomeBase & {
+        readonly operation: 'queue-edit-save' | 'queue-edit-cancel'
+        readonly effect: 'queue-updated'
+        readonly queueState: 'running' | 'paused'
+        readonly followUpIds: readonly string[]
+      }
     }
   | FollowUpEditRejection
 
-/** Who wrote the Follow-up: its author, or the caller that queued it when nobody re-authorized it. */
-function followUpAuthor(intent: SessionControlIntentSnapshot) {
-  return intent.authorCallerId ?? intent.callerId
+/** The provenance that decides who may edit a Follow-up. */
+export interface FollowUpEditProvenance {
+  readonly callerId: string
+  readonly authorCallerId?: string
 }
 
 /**
@@ -87,10 +101,8 @@ function followUpAuthor(intent: SessionControlIntentSnapshot) {
  * be that caller: attachments are owned by the delivery caller, so a Follow-up re-authorized by
  * someone else could not deliver attachments the author binds.
  */
-export { type FollowUpEditReleaseOutcome, isFollowUpEditHeld } from './follow-up-edit-release'
-
-export function canEditFollowUp(item: SessionControlFollowUp, callerId: string) {
-  return item.intent.callerId === callerId && followUpAuthor(item.intent) === callerId
+export function canEditFollowUp(intent: FollowUpEditProvenance, callerId: string) {
+  return intent.callerId === callerId && (intent.authorCallerId ?? intent.callerId) === callerId
 }
 
 function rejection(
@@ -123,10 +135,6 @@ function withoutHold(item: SessionControlFollowUp): SessionControlFollowUp {
   return released
 }
 
-function serializedBytes(value: unknown) {
-  return new TextEncoder().encode(JSON.stringify(value)).byteLength
-}
-
 function queueBytesWith(
   items: readonly SessionControlFollowUp[],
   index: number,
@@ -136,6 +144,25 @@ function queueBytesWith(
     (bytes, item, itemIndex) => bytes + serializedBytes(itemIndex === index ? intent : item.intent),
     0,
   )
+}
+
+function released(
+  state: SessionControlSessionState,
+  operation: 'queue-edit-save' | 'queue-edit-cancel',
+): ReleaseFollowUpEditResult {
+  return {
+    accepted: true,
+    state,
+    outcome: {
+      operation,
+      effect: 'queue-updated',
+      sessionId: state.sessionId,
+      queueState: state.followUpQueue.state,
+      queueRevision: state.followUpQueue.revision,
+      followUpIds: state.followUpQueue.items.map((item) => item.id),
+      stateRevision: state.revision,
+    },
+  }
 }
 
 /** The edited intent: new content, everything else (provenance and run settings) unchanged. */
@@ -164,20 +191,27 @@ export function beginFollowUpEdit(input: {
   readonly followUpId: FollowUpId
   readonly callerId: string
   readonly holdId: string
+  /** Wall clock, shown to the user. */
   readonly acquiredAt: number
+  /** Host monotonic clock, which the lease runs on. */
+  readonly leaseStartedAt: number
   readonly leaseMs: number
 }): BeginFollowUpEditResult {
   const { state } = input
   const index = state.followUpQueue.items.findIndex((item) => item.id === input.followUpId)
   const item = state.followUpQueue.items[index]
   if (!item) return rejection(state, 'follow_up_not_found')
-  if (!canEditFollowUp(item, input.callerId)) return rejection(state, 'follow_up_not_editable')
+  if (!canEditFollowUp(item.intent, input.callerId)) {
+    return rejection(state, 'follow_up_not_editable')
+  }
   if (isFollowUpEditHeld(item)) return rejection(state, 'follow_up_edit_held')
+  const baseQueueRevision = state.followUpQueue.revision + REVISION_INCREMENT
   const editHold: SessionControlFollowUpEditHold = {
     holdId: input.holdId,
     holderCallerId: input.callerId,
     acquiredAt: input.acquiredAt,
-    expiresAt: input.acquiredAt + input.leaseMs,
+    expiresAt: input.leaseStartedAt + input.leaseMs,
+    baseQueueRevision,
   }
   const next = replaceItem(state, index, { ...item, editHold })
   return {
@@ -189,8 +223,8 @@ export function beginFollowUpEdit(input: {
       sessionId: state.sessionId,
       followUpId: item.id,
       holdId: input.holdId,
-      leaseExpiresAt: editHold.expiresAt,
-      queueRevision: next.followUpQueue.revision,
+      leaseExpiresAt: input.acquiredAt + input.leaseMs,
+      queueRevision: baseQueueRevision,
       stateRevision: next.revision,
     },
   }
@@ -201,44 +235,39 @@ export function saveFollowUpEdit(input: {
   readonly followUpId: FollowUpId
   readonly callerId: string
   readonly holdId: string
+  /** The `queueRevision` the edit began at (see the revision rule above). */
   readonly expectedQueueRevision: number
   readonly content: FollowUpEditContent
-  readonly nextRunId: RunId
-  /** The Host refused to admit the Run the release would start; pause with this reason. */
-  readonly deferDelivery?: FollowUpQueuePauseReason
 }): ReleaseFollowUpEditResult {
   const { state } = input
-  if (state.followUpQueue.revision !== input.expectedQueueRevision) {
-    return rejection(state, 'queue_revision_changed')
-  }
   const index = state.followUpQueue.items.findIndex((item) => item.id === input.followUpId)
   const item = state.followUpQueue.items[index]
   if (!item) return rejection(state, 'follow_up_not_found')
   if (!item.editHold) return rejection(state, 'follow_up_edit_not_held')
   if (item.editHold.holdId !== input.holdId) return rejection(state, 'follow_up_edit_hold_mismatch')
-  if (!canEditFollowUp(item, input.callerId)) return rejection(state, 'follow_up_not_editable')
+  if (item.editHold.baseQueueRevision !== input.expectedQueueRevision) {
+    return rejection(state, 'queue_revision_changed')
+  }
+  if (!canEditFollowUp(item.intent, input.callerId)) {
+    return rejection(state, 'follow_up_not_editable')
+  }
   const intent = editedIntent(item.intent, input.content)
   if (queueBytesWith(state.followUpQueue.items, index, intent) > MAX_FOLLOW_UP_QUEUE_BYTES) {
     return rejection(state, 'queue_byte_capacity_reached')
   }
-  const saved = replaceItem(state, index, { ...withoutHold(item), intent })
-  return {
-    accepted: true,
-    ...releasedOutcome(saved, 'queue-edit-save', input.nextRunId, input.deferDelivery),
-  }
+  return released(replaceItem(state, index, { ...withoutHold(item), intent }), 'queue-edit-save')
 }
 
 /**
- * Releases a hold without changing the Follow-up. A hold that is already gone (saved, expired,
- * withdrawn, or delivered) releases successfully, so a window closing late or a lease expiring
- * converge on the same result; only another hold on the same item is refused.
+ * Releases a hold without changing the Follow-up. Releasing a hold that is already gone (saved,
+ * expired, withdrawn, or delivered) is an accepted no-op, so a window closing late and a lease
+ * expiring converge on the same result; the repository then lets the queue deliver if it can,
+ * which is how the expiry sweep resumes a queue. Only another hold on the same item is refused.
  */
 export function cancelFollowUpEdit(input: {
   readonly state: SessionControlSessionState
   readonly followUpId: FollowUpId
   readonly holdId: string
-  readonly nextRunId: RunId
-  readonly deferDelivery?: FollowUpQueuePauseReason
 }): ReleaseFollowUpEditResult {
   const { state } = input
   const index = state.followUpQueue.items.findIndex((item) => item.id === input.followUpId)
@@ -246,9 +275,8 @@ export function cancelFollowUpEdit(input: {
   if (item?.editHold && item.editHold.holdId !== input.holdId) {
     return rejection(state, 'follow_up_edit_hold_mismatch')
   }
-  const released = item?.editHold ? replaceItem(state, index, withoutHold(item)) : state
-  return {
-    accepted: true,
-    ...releasedOutcome(released, 'queue-edit-cancel', input.nextRunId, input.deferDelivery),
-  }
+  return released(
+    item?.editHold ? replaceItem(state, index, withoutHold(item)) : state,
+    'queue-edit-cancel',
+  )
 }

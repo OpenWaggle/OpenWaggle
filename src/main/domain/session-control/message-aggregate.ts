@@ -42,9 +42,12 @@ export interface SessionControlIntentSnapshot {
 export interface SessionControlFollowUpEditHold {
   readonly holdId: string
   readonly holderCallerId: string
+  /** Wall-clock acquisition time, for display. */
   readonly acquiredAt: number
-  /** Host clock; a hold past this is gone. Renewal moves it, without a queue revision. */
+  /** Host monotonic clock; a hold past this is gone. Renewal moves it without a queue revision. */
   readonly expiresAt: number
+  /** The queue revision the edit began at; a save names it (see `saveFollowUpEdit`). */
+  readonly baseQueueRevision: number
 }
 
 export interface SessionControlFollowUp extends FollowUpQueueItem {

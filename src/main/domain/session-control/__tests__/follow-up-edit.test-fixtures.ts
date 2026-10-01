@@ -10,7 +10,8 @@ export const HOLD = {
   holderCallerId: USER,
   acquiredAt: 1_000,
   expiresAt: 31_000,
-}
+  baseQueueRevision: 4,
+} as const
 
 export function followUp(
   id: string,
@@ -38,11 +39,14 @@ export function state(
   items: readonly SessionControlFollowUp[],
   run: SessionControlSessionState['run'] = { state: 'active', runId: RunId('run-active') },
   queueState: 'running' | 'paused' = 'running',
+  queue: Partial<SessionControlSessionState['followUpQueue']> = {},
 ): SessionControlSessionState {
   return {
     sessionId: SESSION_ID,
     revision: 10,
     run,
-    followUpQueue: { state: queueState, revision: 4, items },
+    followUpQueue: { state: queueState, revision: 4, items, ...queue },
   }
 }
+
+export const IDLE = { state: 'idle' } as const

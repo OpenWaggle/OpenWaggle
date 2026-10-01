@@ -24,6 +24,11 @@ export interface FollowUpQueue<TItem extends FollowUpQueueItem> {
   readonly pauseReason?: FollowUpQueuePauseReason
   readonly revision: number
   readonly items: readonly TItem[]
+  /**
+   * Set while a failed Run's explicit retry waits behind a Follow-up edit hold: the retry is the
+   * first item accepted after this time (Session Control clock). Lease state, like the hold.
+   */
+  readonly deferredRetryAfter?: number
 }
 
 export interface AppendFollowUp<TItem extends FollowUpQueueItem> {
@@ -93,7 +98,7 @@ function acceptedQueue<TItem extends FollowUpQueueItem>(
   }
 }
 
-function serializedBytes(value: unknown) {
+export function serializedBytes(value: unknown) {
   return new TextEncoder().encode(JSON.stringify(value)).byteLength
 }
 

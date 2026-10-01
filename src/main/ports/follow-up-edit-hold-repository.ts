@@ -13,12 +13,15 @@ export interface ExpiredFollowUpEditHold extends FollowUpEditHoldReference {
 
 /** Lease operations on Follow-up edit holds (ADR 0043). Holds die with the Host. */
 export interface FollowUpEditHoldRepositoryShape {
-  /** Extends a live hold of `holderCallerId`; resolves to its new expiry, or none if it is gone. */
+  /** Extends a live hold of `holderCallerId`; `false` once the hold is gone. */
   readonly renew: (
     input: FollowUpEditHoldReference & { readonly holderCallerId: string },
-  ) => Effect.Effect<number | undefined, SessionControlRepositoryError>
-  /** Removes holds whose lease ran out and returns those of Sessions that still exist. */
-  readonly takeExpired: () => Effect.Effect<
+  ) => Effect.Effect<boolean, SessionControlRepositoryError>
+  /**
+   * Holds whose lease ran out, of Sessions that still exist. They stay listed until a cancel for
+   * them is accepted, so a failed release is retried.
+   */
+  readonly listExpired: () => Effect.Effect<
     readonly ExpiredFollowUpEditHold[],
     SessionControlRepositoryError
   >
@@ -27,6 +30,11 @@ export interface FollowUpEditHoldRepositoryShape {
     ReadonlyMap<string, number>,
     SessionControlRepositoryError
   >
+  /** Keeps attachments an edit names for a while after nothing references them. */
+  readonly retainAttachments: (input: {
+    readonly sessionId: string
+    readonly attachmentIds: readonly string[]
+  }) => Effect.Effect<void, SessionControlRepositoryError>
 }
 
 export class FollowUpEditHoldRepository extends Context.Tag(

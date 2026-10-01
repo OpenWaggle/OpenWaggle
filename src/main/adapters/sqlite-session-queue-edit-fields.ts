@@ -7,7 +7,9 @@ import {
   type SessionFollowUpEditHoldSummary,
 } from '@shared/types/session-control-queue'
 import * as Effect from 'effect/Effect'
+import { canEditFollowUp } from '../domain/session-control/follow-up-edit'
 import type { SessionControlFollowUpEditHold } from '../domain/session-control/message-aggregate'
+import { monotonicNowMs } from '../utils/monotonic-clock'
 import { listSessionFollowUpEditHolds } from './sqlite-follow-up-edit-holds'
 
 /** The provenance fields that decide who may edit a queued Follow-up. */
@@ -36,26 +38,25 @@ function intentProvenance(intentJson: string) {
   return decodeUnknownOrThrow(intentProvenanceSchema, parseJsonUnknown(intentJson))
 }
 
-/** Mirrors `canEditFollowUp`: the desktop user queued it and nobody else re-authorized it. */
+/** The desktop user may edit a Follow-up it queued itself (see `canEditFollowUp`). */
 function isEditable(intentJson: string, context: QueueListEditContext) {
   if (!context.desktopUser || context.callerId !== FOLLOW_UP_EDIT_CALLER_ID) return false
-  const intent = intentProvenance(intentJson)
-  return (
-    intent.callerId === context.callerId &&
-    (intent.authorCallerId ?? intent.callerId) === context.callerId
-  )
+  return canEditFollowUp(intentProvenance(intentJson), context.callerId)
 }
 
 function holdSummary(
   hold: SessionControlFollowUpEditHold,
   callerId: string | undefined,
+  clock: { readonly wall: number; readonly monotonic: number },
 ): SessionFollowUpEditHoldSummary {
   const holderIsCaller = callerId !== undefined && hold.holderCallerId === callerId
   return {
-    ...(holderIsCaller ? { holdId: hold.holdId } : {}),
+    // Only the holder learns what it saves, cancels, or re-adopts the edit with.
+    ...(holderIsCaller ? { holdId: hold.holdId, baseQueueRevision: hold.baseQueueRevision } : {}),
     holderIsCaller,
     acquiredAt: hold.acquiredAt,
-    leaseExpiresAt: hold.expiresAt,
+    // The lease runs on the Host's monotonic clock; this is its wall-clock estimate.
+    leaseExpiresAt: clock.wall + Math.max(0, hold.expiresAt - clock.monotonic),
   }
 }
 
@@ -105,7 +106,8 @@ export function queueListEditFields(
   },
 ) {
   return Effect.gen(function* () {
-    const holds = yield* listSessionFollowUpEditHolds(sql, input.sessionId, Date.now())
+    const clock = { wall: Date.now(), monotonic: monotonicNowMs() }
+    const holds = yield* listSessionFollowUpEditHolds(sql, input.sessionId, clock.monotonic)
     const attachmentIdsByItem = new Map(
       input.rows.map((row) => [
         row.id,
@@ -124,7 +126,7 @@ export function queueListEditFields(
           row.id,
           {
             editable: isEditable(row.intent_json, input.context),
-            ...(hold ? { editHold: holdSummary(hold, input.context.callerId) } : {}),
+            ...(hold ? { editHold: holdSummary(hold, input.context.callerId, clock) } : {}),
             ...(input.includeBodies
               ? {
                   attachments: (attachmentIdsByItem.get(row.id) ?? []).flatMap((id) => {

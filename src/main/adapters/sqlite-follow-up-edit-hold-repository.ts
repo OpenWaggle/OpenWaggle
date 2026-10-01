@@ -3,10 +3,12 @@ import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import { SessionControlRepositoryError } from '../errors'
 import { FollowUpEditHoldRepository } from '../ports/follow-up-edit-hold-repository'
+import { monotonicNowMs } from '../utils/monotonic-clock'
 import {
+  listExpiredFollowUpEditHolds,
   listFollowUpEditHeldSessions,
   renewFollowUpEditHold,
-  takeExpiredFollowUpEditHolds,
+  retainFollowUpEditAttachments,
 } from './sqlite-follow-up-edit-holds'
 
 function repositoryError(operation: string) {
@@ -19,16 +21,20 @@ export const SqliteFollowUpEditHoldRepositoryLive = Layer.effect(
     const sql = yield* SqlClient.SqlClient
     return FollowUpEditHoldRepository.of({
       renew: (input) =>
-        renewFollowUpEditHold(sql, { ...input, now: Date.now() }).pipe(
+        renewFollowUpEditHold(sql, { ...input, now: monotonicNowMs() }).pipe(
           Effect.mapError(repositoryError('renew-follow-up-edit-hold')),
         ),
-      takeExpired: () =>
-        takeExpiredFollowUpEditHolds(sql, Date.now()).pipe(
-          Effect.mapError(repositoryError('take-expired-follow-up-edit-holds')),
+      listExpired: () =>
+        listExpiredFollowUpEditHolds(sql, monotonicNowMs()).pipe(
+          Effect.mapError(repositoryError('list-expired-follow-up-edit-holds')),
         ),
       heldSessions: () =>
-        listFollowUpEditHeldSessions(sql, Date.now()).pipe(
+        listFollowUpEditHeldSessions(sql, monotonicNowMs()).pipe(
           Effect.mapError(repositoryError('list-follow-up-edit-held-sessions')),
+        ),
+      retainAttachments: (input) =>
+        retainFollowUpEditAttachments(sql, input, monotonicNowMs()).pipe(
+          Effect.mapError(repositoryError('retain-follow-up-edit-attachments')),
         ),
     })
   }),

@@ -16,7 +16,8 @@ import type {
   SessionControlSessionState,
 } from '../domain/session-control/message-aggregate'
 import { SessionControlRepositoryError } from '../errors'
-import { persistFollowUpEditHolds, withFollowUpEditHolds } from './sqlite-follow-up-edit-holds'
+import { monotonicNowMs } from '../utils/monotonic-clock'
+import { persistFollowUpEditHolds, withFollowUpEditLeaseState } from './sqlite-follow-up-edit-holds'
 
 const POSITION_INCREMENT = 1
 const EMPTY_QUEUE_POSITION = -1
@@ -166,13 +167,7 @@ export function loadSessionControlState(sql: SqlClient.SqlClient, sessionId: str
       },
       catch: (cause) => repositoryError('decode-session-state', cause),
     })
-    const items = yield* withFollowUpEditHolds(
-      sql,
-      sessionId,
-      state.followUpQueue.items,
-      Date.now(),
-    )
-    return { ...state, followUpQueue: { ...state.followUpQueue, items } }
+    return yield* withFollowUpEditLeaseState(sql, state, monotonicNowMs())
   })
 }
 
@@ -277,7 +272,7 @@ export function persistSessionControlState(
   return Effect.gen(function* () {
     const activeRunId = yield* persistRun(sql, state, now)
     yield* persistFollowUps(sql, state, now)
-    yield* persistFollowUpEditHolds(sql, state)
+    yield* persistFollowUpEditHolds(sql, state, monotonicNowMs())
     yield* sql`
       UPDATE session_control_states
       SET state_revision = ${state.revision},

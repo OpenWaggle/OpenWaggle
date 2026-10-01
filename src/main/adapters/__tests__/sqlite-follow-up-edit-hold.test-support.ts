@@ -14,6 +14,7 @@ import {
 } from '../../application/session-control-service'
 import { SessionControlRunLifecycleRepository } from '../../ports/session-control-run-lifecycle-repository'
 import { SqliteFollowUpEditHoldRepositoryLive } from '../sqlite-follow-up-edit-hold-repository'
+import { loadSessionControlState } from '../sqlite-session-control-state'
 import { makeSessionControlTestLayer } from './sqlite-session-control-test-layer'
 
 export const USER = 'gui:local-user'
@@ -51,10 +52,9 @@ export function edit(
   })
 }
 
-/** An active Run with one Follow-up the desktop user queued behind it. */
-export const activeRunWithQueuedFollowUp = Effect.gen(function* () {
+/** Delivery re-checks a Follow-up's authority against the target's execution profile. */
+const executionProfile = Effect.gen(function* () {
   const sql = yield* SqlClient.SqlClient
-  // Delivery re-checks the Follow-up's authority against the target's execution profile.
   yield* sql`
     INSERT INTO session_execution_profiles (
       session_id, profile_json, authority_origin_caller_id,
@@ -64,6 +64,42 @@ export const activeRunWithQueuedFollowUp = Effect.gen(function* () {
       ${USER}, ${'ask-for-approval'}, ${1000}, ${1000}
     )
   `
+})
+
+/**
+ * An idle Session whose queue holds the desktop user's Follow-ups, in order. The queue is stored
+ * directly because the test identities give every queued Follow-up the same id.
+ */
+export function idleQueue(
+  items: readonly { readonly id: string; readonly acceptedAt?: number }[],
+  queueState: 'running' | 'paused' = 'running',
+) {
+  return Effect.gen(function* () {
+    yield* executionProfile
+    const sql = yield* SqlClient.SqlClient
+    for (const [position, item] of items.entries()) {
+      const intent = {
+        text: `Text of ${item.id}`,
+        attachmentIds: [],
+        callerId: USER,
+        acceptedAt: item.acceptedAt ?? position + 1,
+        idempotencyKey: `key-${item.id}`,
+      }
+      yield* sql`
+        INSERT INTO session_follow_ups (
+          id, session_id, position, delivery_state, intent_json, created_at, updated_at
+        ) VALUES (
+          ${item.id}, ${SESSION}, ${position}, ${'pending'}, ${JSON.stringify(intent)}, ${1}, ${1}
+        )
+      `
+    }
+    yield* sql`UPDATE session_control_states SET queue_state = ${queueState} WHERE session_id = ${SESSION}`
+  })
+}
+
+/** An active Run with one Follow-up the desktop user queued behind it. */
+export const activeRunWithQueuedFollowUp = Effect.gen(function* () {
+  yield* executionProfile
   yield* submitSessionMessage({
     callerId: USER,
     request: request({
@@ -100,4 +136,12 @@ export function followUpEditLayer(tmpRoot: string, name: string) {
     SqliteFollowUpEditHoldRepositoryLive,
     makeSessionControlTestLayer(path.join(tmpRoot, name)),
   )
+}
+
+export function beginEdit(followUpId: string) {
+  return edit({ operation: 'queue-edit-begin', sessionId: SESSION, followUpId })
+}
+
+export function loadState() {
+  return SqlClient.SqlClient.pipe(Effect.flatMap((sql) => loadSessionControlState(sql, SESSION)))
 }

@@ -1,3 +1,7 @@
+import type { AttachmentKind, AttachmentOrigin, InlineVisualizationContext } from './agent'
+import type { AgentAuthorizationMode } from './agent-authorization'
+import type { WaggleInvocationInput } from './waggle'
+
 export const MAX_FOLLOW_UP_QUEUE_ITEMS = 256
 
 /**
@@ -16,8 +20,6 @@ export const FOLLOW_UP_QUEUE_PAUSE_REASONS = [
   'run-interrupted',
   'run-timed-out',
   'parent-limit',
-  /** Releasing a Follow-up edit could not start its head: the Host runs as many Runs as allowed. */
-  'host-run-ceiling',
   'host-lost',
   'profile-revoked',
 ] as const
@@ -67,19 +69,6 @@ export type SessionControlQueueMutationCommand =
   | SessionControlQueueUpdateAuthorizationCommand
   | SessionControlQueueWithdrawCommand
 
-import type { AttachmentKind, AttachmentOrigin, InlineVisualizationContext } from './agent'
-import type { AgentAuthorizationMode } from './agent-authorization'
-import type { WaggleInvocationInput } from './waggle'
-
-/**
- * How long a Follow-up edit hold lives without a renewal. The desktop main process renews each hold
- * it owns every {@link FOLLOW_UP_EDIT_HOLD_RENEW_INTERVAL_MS}; a hold whose window, desktop, or
- * Host connection is gone stops being renewed and expires, so an abandoned edit cannot block a
- * queue for longer than this.
- */
-export const FOLLOW_UP_EDIT_HOLD_LEASE_MS = 30_000
-export const FOLLOW_UP_EDIT_HOLD_RENEW_INTERVAL_MS = 10_000
-
 /** The replaceable part of a queued Follow-up: the Follow-up edit input. */
 export interface SessionControlFollowUpEditInput {
   readonly text: string
@@ -124,6 +113,8 @@ export type SessionControlQueueEditCommand =
 export interface SessionFollowUpEditHoldSummary {
   /** Only the caller holding the edit learns the hold id it saves or cancels with. */
   readonly holdId?: string
+  /** For the holder: the queue revision the edit began at, which a save names. */
+  readonly baseQueueRevision?: number
   readonly holderIsCaller: boolean
   readonly acquiredAt: number
   readonly leaseExpiresAt: number
@@ -153,8 +144,17 @@ export type SessionControlQueueOutcome =
       readonly stateRevision: number
     }
   | {
-      /** Releasing a Follow-up edit hold delivers the next Follow-up the same way resumption does. */
-      readonly operation: 'queue-resume' | 'queue-edit-save' | 'queue-edit-cancel'
+      /**
+       * A queue change that leaves an idle Session's queue able to deliver starts its next
+       * Follow-up, the same way resumption does (for example withdrawing or saving a held head).
+       */
+      readonly operation:
+        | 'queue-resume'
+        | 'queue-withdraw'
+        | 'queue-reorder'
+        | 'queue-update-authorization'
+        | 'queue-edit-save'
+        | 'queue-edit-cancel'
       readonly effect: 'started-run'
       readonly sessionId: string
       readonly runId: string

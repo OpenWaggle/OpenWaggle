@@ -149,6 +149,10 @@ function commandMayStartRun(request: SessionControlMutationRequest) {
     operation === 'follow-up' ||
     operation === 'replace' ||
     operation === 'queue-resume' ||
+    // A queue change can let an idle Session's queue deliver (`deliverIdleQueueHead`).
+    operation === 'queue-withdraw' ||
+    operation === 'queue-reorder' ||
+    operation === 'queue-update-authorization' ||
     operation === 'queue-edit-save' ||
     operation === 'queue-edit-cancel'
   )

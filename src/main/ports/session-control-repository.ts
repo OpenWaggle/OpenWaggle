@@ -1,3 +1,4 @@
+import type { RunId } from '@shared/types/brand'
 import type {
   SessionControlMutationOutcome,
   SessionControlMutationRequest,
@@ -23,18 +24,16 @@ export interface ExecuteSessionControlMutationInput {
   readonly hostRunCeiling?: number
   readonly decide: (state: SessionControlSessionState) => SessionControlMutationDecision
   /**
-   * Decides again when `decide` would start a Run the Host does not admit. Without it the mutation
-   * is rejected with the admission code. A decision that still starts a Run is rejected too.
+   * The Run id an accepted queue change uses when it lets an idle queue deliver (see
+   * `deliverIdleQueueHead`). Without it the queue is left as decided.
    */
-  readonly decideWithoutNewRun?: (
+  readonly nextRunId?: RunId
+  /** Adjusts a replayed outcome to the current state, e.g. to refuse a hold that no longer exists. */
+  readonly validateReplay?: (
+    outcome: SessionControlMutationOutcome,
     state: SessionControlSessionState,
-    refusal: SessionControlRunAdmissionRefusal,
-  ) => SessionControlMutationDecision
+  ) => SessionControlMutationOutcome
 }
-
-export type SessionControlRunAdmissionRefusal =
-  | 'parent_concurrency_limit_reached'
-  | 'host_run_ceiling_reached'
 
 export interface ExecuteSessionControlMutationResult {
   readonly replayed: boolean

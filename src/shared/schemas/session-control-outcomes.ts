@@ -172,7 +172,14 @@ const queueUpdatedOutcomeSchema = Schema.Struct({
 })
 
 const queueResumeStartedRunOutcomeSchema = Schema.Struct({
-  operation: Schema.Literal('queue-resume', 'queue-edit-save', 'queue-edit-cancel'),
+  operation: Schema.Literal(
+    'queue-resume',
+    'queue-withdraw',
+    'queue-reorder',
+    'queue-update-authorization',
+    'queue-edit-save',
+    'queue-edit-cancel',
+  ),
   effect: Schema.Literal('started-run'),
   sessionId: Schema.String,
   runId: Schema.String,

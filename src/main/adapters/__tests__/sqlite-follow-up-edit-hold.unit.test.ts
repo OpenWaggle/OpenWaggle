@@ -47,12 +47,14 @@ describe('Follow-up edit holds in SQLite', () => {
         const settled = yield* settleRun()
         const sql = yield* SqlClient.SqlClient
         const afterSettle = yield* loadSessionControlState(sql, SESSION)
+        if (begun.outcome.effect !== 'follow-up-edit-held') throw new Error('expected a hold')
         const saved = yield* edit({
           operation: 'queue-edit-save',
           sessionId: SESSION,
           followUpId: FOLLOW_UP,
           holdId: HOLD,
-          expectedQueueRevision: afterSettle.followUpQueue.revision,
+          // Settlement changed the queue revision since; the save names the edit's own revision.
+          expectedQueueRevision: begun.outcome.queueRevision,
           input: { text: 'Edited', attachmentIds: [] },
         })
         const afterSave = yield* loadSessionControlState(sql, SESSION)
@@ -110,7 +112,7 @@ describe('Follow-up edit holds in SQLite', () => {
           followUpId: FOLLOW_UP,
           editable: true,
           attachments: [],
-          editHold: { holdId: HOLD, holderIsCaller: true },
+          editHold: { holdId: HOLD, holderIsCaller: true, baseQueueRevision: 2 },
         },
       ],
     })
@@ -168,24 +170,42 @@ describe('Follow-up edit holds in SQLite', () => {
         yield* sql`UPDATE temp.session_follow_up_edit_holds SET expires_at = ${1}`
         const afterExpiry = yield* loadSessionControlState(sql, SESSION)
         const renewedAfterExpiry = yield* holds.renew({ ...key, holderCallerId: USER })
-        const expired = yield* holds.takeExpired()
+        const expired = yield* holds.listExpired()
+        const stillListed = yield* holds.listExpired()
         const kicked = yield* edit({
           operation: 'queue-edit-cancel',
           sessionId: SESSION,
           followUpId: FOLLOW_UP,
           holdId: HOLD,
         })
-        return { renewed, otherCaller, afterExpiry, renewedAfterExpiry, expired, kicked }
+        const afterRelease = yield* holds.listExpired()
+        return {
+          renewed,
+          otherCaller,
+          afterExpiry,
+          renewedAfterExpiry,
+          expired,
+          stillListed,
+          kicked,
+          afterRelease,
+        }
       }).pipe(Effect.provide(layer('lease.sqlite'))),
     )
 
-    expect(result.renewed).toBeGreaterThan(Date.now())
-    expect(result.otherCaller).toBeUndefined()
+    expect(result.renewed).toBe(true)
+    expect(result.otherCaller).toBe(false)
     expect(result.afterExpiry.followUpQueue.items[0]?.editHold).toBeUndefined()
-    expect(result.renewedAfterExpiry).toBeUndefined()
-    expect(result.expired).toEqual([
-      { sessionId: SESSION, followUpId: FOLLOW_UP, holdId: HOLD, holderCallerId: USER },
-    ])
+    expect(result.renewedAfterExpiry).toBe(false)
+    const expiredHold = {
+      sessionId: SESSION,
+      followUpId: FOLLOW_UP,
+      holdId: HOLD,
+      holderCallerId: USER,
+    }
+    expect(result.expired).toEqual([expiredHold])
+    // Listing does not release: only an accepted cancel removes the hold, so a failed one retries.
+    expect(result.stillListed).toEqual([expiredHold])
+    expect(result.afterRelease).toEqual([])
     expect(result.kicked.outcome).toMatchObject({
       operation: 'queue-edit-cancel',
       effect: 'started-run',
