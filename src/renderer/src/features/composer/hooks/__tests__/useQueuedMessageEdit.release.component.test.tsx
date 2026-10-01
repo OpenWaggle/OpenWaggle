@@ -74,7 +74,7 @@ function composer() {
 describe('ending a queued-message edit', () => {
   beforeEach(() => {
     useComposerStore.setState(useComposerStore.getInitialState())
-    useQueuedMessageEditStore.setState({ edits: {} })
+    useQueuedMessageEditStore.setState({ edits: {}, abandonedHoldIds: new Set() })
     queueMock.snapshot = snapshotOf([QUEUED])
     queueMock.beginEdit.mockReset()
     queueMock.saveEdit.mockReset().mockResolvedValue(undefined)
@@ -118,6 +118,65 @@ describe('ending a queued-message edit', () => {
     )
     // The queued message now carries it: leaving the composer must not discard it.
     expect(composer().attachments).toEqual([])
+    expect(queueMock.discard).not.toHaveBeenCalled()
+  })
+
+  it('adopts the hold again once its release fails to reach the Host', async () => {
+    composer().switchScopedDraftContext(MAIN_KEY)
+    useQueuedMessageEditStore.getState().setEdit('session-a', {
+      phase: 'editing',
+      followUpId: QUEUED.id,
+      contextKey: FEATURE_KEY,
+      based: openedEdit(QUEUED, 'hold-8'),
+    })
+    let failRelease: (cause: Error) => void = () => undefined
+    queueMock.mutateSessionControl.mockReturnValueOnce(
+      new Promise((_resolve, reject) => {
+        failRelease = reject
+      }),
+    )
+    act(() => composer().clearScopedDraftsForBranch('session-a', 'feature'))
+    queueMock.snapshot = snapshotOf([heldItem(QUEUED, 'hold-8')])
+    renderHook(() => useAdoptHeldQueuedMessageEdit(SESSION_A))
+    await act(() => Promise.resolve())
+    expect(queueMock.adoptEdit).not.toHaveBeenCalled()
+
+    await act(async () => {
+      failRelease(new Error('Host connection lost'))
+      await Promise.resolve()
+    })
+
+    await vi.waitFor(() => expect(queueMock.adoptEdit).toHaveBeenCalledTimes(1))
+    expect(useQueuedMessageEditStore.getState().edits['session-a']).toMatchObject({
+      phase: 'editing',
+      followUpId: QUEUED.id,
+    })
+  })
+
+  it('keeps an added attachment when its edit is abandoned while the save is in flight', async () => {
+    composer().switchScopedDraftContext(MAIN_KEY)
+    const hook = renderHook(() => useQueuedMessageEdit(SESSION_A, vi.fn()))
+    queueMock.beginEdit.mockResolvedValueOnce(openedEdit(QUEUED))
+    await act(() => hook.result.current.begin(QUEUED.id))
+    act(() => composer().addAttachments([ADDED]))
+    let finishSave: () => void = () => undefined
+    queueMock.saveEdit.mockReturnValueOnce(
+      new Promise<void>((resolve) => {
+        finishSave = resolve
+      }),
+    )
+
+    let saving: Promise<void> = Promise.resolve()
+    act(() => {
+      saving = hook.result.current.save()
+    })
+    act(() => composer().clearScopedDraftsForSession('session-a'))
+    await act(async () => {
+      finishSave()
+      await saving
+    })
+
+    // The committed save references it: clearing the draft must not discard it.
     expect(queueMock.discard).not.toHaveBeenCalled()
   })
 })

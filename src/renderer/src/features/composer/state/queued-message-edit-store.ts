@@ -32,11 +32,21 @@ export type OpenQueuedMessageEdit = Exclude<QueuedMessageEdit, { readonly phase:
 
 interface QueuedMessageEditState {
   readonly edits: Readonly<Record<string, QueuedMessageEdit>>
+  /**
+   * Holds this window gave up because their draft was cleared (Session deleted or archived, branch
+   * archived). The release reaches the Host asynchronously, and until it does the queue still shows
+   * the hold as this user's, which adoption would otherwise re-open. Hold ids are never reused.
+   * Kept in the store so adoption re-runs when a failed release forgets one.
+   */
+  readonly abandonedHoldIds: ReadonlySet<string>
   readonly setEdit: (sessionId: string, edit: QueuedMessageEdit | null) => void
 }
 
+const NO_ABANDONED_HOLDS: ReadonlySet<string> = new Set()
+
 export const useQueuedMessageEditStore = create<QueuedMessageEditState>((set) => ({
   edits: {},
+  abandonedHoldIds: NO_ABANDONED_HOLDS,
   setEdit(sessionId, edit) {
     set((state) => {
       const edits = { ...state.edits }
@@ -57,24 +67,28 @@ export function isOpenQueuedMessageEdit(
   return edit !== null && edit.phase !== 'beginning'
 }
 
-/*
- * Holds this window gave up because their draft was cleared (Session deleted or archived, branch
- * archived). The release reaches the Host asynchronously, and until it does the queue still shows
- * the hold as this user's, which adoption would otherwise re-open. Hold ids are never reused.
- */
-const abandonedHoldIds = new Set<string>()
-
 export function markHoldAbandoned(holdId: string) {
-  abandonedHoldIds.add(holdId)
+  useQueuedMessageEditStore.setState((state) => ({
+    abandonedHoldIds: new Set([...state.abandonedHoldIds, holdId]),
+  }))
 }
 
 /** A release that never reached the Host: adoption may take the hold up again instead of it staying stuck. */
 export function forgetAbandonedHold(holdId: string) {
-  abandonedHoldIds.delete(holdId)
+  useQueuedMessageEditStore.setState((state) => {
+    if (!state.abandonedHoldIds.has(holdId)) return state
+    const abandonedHoldIds = new Set(state.abandonedHoldIds)
+    abandonedHoldIds.delete(holdId)
+    return { abandonedHoldIds }
+  })
 }
 
 export function isHoldAbandoned(holdId: string) {
-  return abandonedHoldIds.has(holdId)
+  return useQueuedMessageEditStore.getState().abandonedHoldIds.has(holdId)
+}
+
+export function selectAbandonedHoldIds(state: QueuedMessageEditState) {
+  return state.abandonedHoldIds
 }
 
 /**

@@ -11,6 +11,7 @@ import { useComposerStore } from '../state/composer-store'
 import {
   isHoldAbandoned,
   type OpenQueuedMessageEdit,
+  selectAbandonedHoldIds,
   selectQueuedMessageEdit,
   useQueuedMessageEditStore,
 } from '../state/queued-message-edit-store'
@@ -203,14 +204,14 @@ export function useQueuedMessageEdit(
 }
 
 /** A message this user holds for editing, which an edit could be re-adopted for. */
-function isOwnHold(item: SessionFollowUpQueueItem) {
+function isOwnHold(item: SessionFollowUpQueueItem, abandonedHoldIds: ReadonlySet<string>) {
   const holdId = item.editHold?.holdId
   return (
     item.editable &&
     item.editHold?.heldByCurrentUser === true &&
     holdId !== undefined &&
     // Given up with its cleared draft; the Host has not processed the release yet.
-    !isHoldAbandoned(holdId)
+    !abandonedHoldIds.has(holdId)
   )
 }
 
@@ -227,7 +228,12 @@ export function useAdoptHeldQueuedMessageEdit(sessionId: SessionId | null) {
     selectQueuedMessageEdit(sessionId ? String(sessionId) : null),
   )
   const visibleKey = useComposerStore((state) => state.activeDraftContextKey)
-  const orphan = edit === null ? queue.snapshot.items.find(isOwnHold) : undefined
+  // Subscribed, so a hold whose release failed (and is forgotten as abandoned) is adopted again.
+  const abandonedHoldIds = useQueuedMessageEditStore(selectAbandonedHoldIds)
+  const orphan =
+    edit === null
+      ? queue.snapshot.items.find((item) => isOwnHold(item, abandonedHoldIds))
+      : undefined
   const orphanHoldId = orphan?.editHold?.holdId ?? null
   const adopt = useEffectEvent(async () => {
     const followUpId = orphan?.id
