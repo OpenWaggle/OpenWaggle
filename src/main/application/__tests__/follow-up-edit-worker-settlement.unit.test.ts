@@ -13,7 +13,10 @@ import { HiveWorkerCleanup } from '../../ports/hive-worker-cleanup'
 import { SessionControlRunLifecycleRepository } from '../../ports/session-control-run-lifecycle-repository'
 import { SessionOrchestrationUpdateDeliveryService } from '../../ports/session-orchestration-update-delivery-service'
 import { installSessionHostEventPublisher } from '../../session-host/session-host-events'
-import { settleDeferredWorkerDelegationAfterQueueChange } from '../follow-up-edit-worker-settlement'
+import {
+  requestCleanupAfterDeferredWorkerSettlement,
+  settleDeferredWorkerDelegationAfterQueueChange,
+} from '../follow-up-edit-worker-settlement'
 
 const WITHDRAW: SessionControlMutationRequest = {
   contractVersion: SESSION_CONTROL_CONTRACT_VERSION,
@@ -47,6 +50,7 @@ const UPDATED = response({
 function run(input: {
   readonly request: SessionControlMutationRequest
   readonly response: SessionControlMutationResponse
+  readonly settlementFails?: boolean
 }) {
   const calls: string[] = []
   const published: SessionHostEventPayload[] = []
@@ -55,9 +59,10 @@ function run(input: {
       SessionControlRunLifecycleRepository,
       fromPartial({
         settleDeferredWorkerDelegation: () =>
-          Effect.sync(() => {
+          Effect.suspend(() => {
             calls.push('settle')
-            return {
+            if (input.settlementFails) return Effect.die(new Error('database locked'))
+            return Effect.succeed({
               delegationUpdate: {
                 delegationId: 'delegation-1',
                 parentSessionId: SessionId('queen'),
@@ -71,7 +76,7 @@ function run(input: {
                 sourceRunId: RunId('run-1'),
                 state: 'ready_for_review' as const,
               },
-            }
+            })
           }),
       }),
     ),
@@ -97,8 +102,13 @@ function run(input: {
   const uninstall = installSessionHostEventPublisher((payload) => published.push(payload))
   return Effect.runPromise(
     settleDeferredWorkerDelegationAfterQueueChange(input.request, input.response).pipe(
+      Effect.tap((due) =>
+        due
+          ? requestCleanupAfterDeferredWorkerSettlement(input.request.command.sessionId)
+          : Effect.void,
+      ),
+      Effect.map((due) => ({ due, calls, published })),
       Effect.provide(layer),
-      Effect.as({ calls, published }),
       Effect.ensuring(Effect.sync(uninstall)),
     ),
   )
@@ -107,10 +117,18 @@ function run(input: {
 describe('settling a Worker whose held Follow-up ended without a Run', () => {
   it('publishes and delivers the deferred Delegation update after a queue change', async () => {
     const result = await run({ request: WITHDRAW, response: UPDATED })
+    expect(result.due).toBe(true)
     expect(result.calls).toEqual(['settle', 'deliver:queen', 'cleanup:worker'])
     expect(result.published).toEqual([
       { kind: 'session-list-changed', sessionId: 'queen', change: 'updated' },
     ])
+  })
+
+  it('never fails the queue change that already committed when the settlement fails', async () => {
+    const result = await run({ request: WITHDRAW, response: UPDATED, settlementFails: true })
+    expect(result.due).toBe(false)
+    expect(result.calls).toEqual(['settle'])
+    expect(result.published).toEqual([])
   })
 
   it('leaves settlement to the Run a queue change started, and ignores rejected changes', async () => {

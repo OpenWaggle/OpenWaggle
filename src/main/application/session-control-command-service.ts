@@ -19,7 +19,10 @@ import {
   reserveActiveSessionRun,
   reservePendingClassicSessionRun,
 } from './active-session-runs'
-import { settleDeferredWorkerDelegationAfterQueueChange } from './follow-up-edit-worker-settlement'
+import {
+  requestCleanupAfterDeferredWorkerSettlement,
+  settleDeferredWorkerDelegationAfterQueueChange,
+} from './follow-up-edit-worker-settlement'
 import { restoreHiveWorkerAfterCommand } from './hive-worker-cleanup-request'
 import { withSessionCommandSerialization } from './session-command-serialization'
 import {
@@ -206,7 +209,8 @@ export function executeSessionControlMutation(input: {
     const lease = yield* acquireRunLease(input.request)
     const queueDeliveryAdmitted = !commandMayDeliverQueue(input.request) || lease !== undefined
     let transferred = false
-    return yield* withSessionCommandSerialization(
+    let workerCleanupDue = false
+    const response = yield* withSessionCommandSerialization(
       sessionId,
       executeUnserializedSessionControlCommand({
         ...input,
@@ -229,7 +233,13 @@ export function executeSessionControlMutation(input: {
           ),
         ),
         Effect.tap((response) =>
-          settleDeferredWorkerDelegationAfterQueueChange(input.request, response),
+          settleDeferredWorkerDelegationAfterQueueChange(input.request, response).pipe(
+            Effect.tap((due) =>
+              Effect.sync(() => {
+                workerCleanupDue = due
+              }),
+            ),
+          ),
         ),
       ),
     ).pipe(
@@ -239,5 +249,8 @@ export function executeSessionControlMutation(input: {
         }),
       ),
     )
+    // Outside the serialization: an inline cleanup pass takes the Worker's serialization itself.
+    if (workerCleanupDue) yield* requestCleanupAfterDeferredWorkerSettlement(sessionId)
+    return response
   })
 }
