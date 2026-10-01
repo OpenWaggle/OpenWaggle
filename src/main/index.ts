@@ -2,6 +2,7 @@ import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 // Must be first: renames dev builds before any module reads app userData.
 import './apply-build-identity'
+import './restore-host-temporary-directory' // before any module caches a temp path
 import { electronApp, is } from '@electron-toolkit/utils'
 import { app } from 'electron'
 import {

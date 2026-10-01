@@ -4,6 +4,10 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { type AppPathManager, configureAppStoragePaths } from '../session-data'
+import {
+  configureSessionScratchNamespace,
+  sessionScratchRoot,
+} from '../utils/session-scratch-directory'
 
 const SESSION_DATA_DIRECTORY_NAME = 'session-data'
 const REPAIR_MARKER_FILENAME = '.openwaggle-dips-repair-v1'
@@ -51,6 +55,23 @@ afterEach(async () => {
 })
 
 describe('configureAppStoragePaths', () => {
+  it('gives the process the scratch namespace of this profile, as the Host computes it', () => {
+    const userDataPath = createTempDirectory()
+    const { appPathManager } = createAppPathManager(userDataPath)
+    const restore = configureSessionScratchNamespace('/some/other/profile')
+    try {
+      configureAppStoragePaths(appPathManager)
+      const configured = sessionScratchRoot('/base')
+      configureSessionScratchNamespace(userDataPath)
+
+      // The GUI and the Host both derive it from the user-data directory, so images captured by
+      // either side come from the same scratch directory.
+      expect(configured).toBe(sessionScratchRoot('/base'))
+    } finally {
+      restore()
+    }
+  })
+
   it('creates userData and sessionData paths and records them on the app', () => {
     const userDataPath = createTempDirectory()
     const { appPathManager, getRecordedPath } = createAppPathManager(userDataPath)

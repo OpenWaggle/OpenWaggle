@@ -11,11 +11,11 @@ import {
   type SessionCapability,
 } from '@shared/types/session-capability'
 import * as Effect from 'effect/Effect'
+import { sessionAgentRunReachesEveryProject } from '../adapters/session-agent-run-project-reach'
 import { decodeSessionExecutionProfile } from '../adapters/session-run-execution-profile'
-import {
-  assertSessionAuthoritySnapshot,
-  decodeSessionAuthoritySnapshot,
-} from './session-authority-snapshot'
+import { runInitiatorCeiling } from './session-agent-run-ceiling'
+import { decodeSessionAuthoritySnapshot } from './session-authority-snapshot'
+import { agentBaseScope, assertSnapshotStillHolds } from './session-tool-agent-caller-scope'
 import { loadScopedSessionAgentTargets } from './session-tool-agent-scope'
 
 interface AuthorityRow {
@@ -183,6 +183,42 @@ function loadAuthorityRow(sql: SqlClient.SqlClient, sessionId: string) {
   `
 }
 
+function snapshotOriginAuthority(
+  row: AuthorityRow,
+  authoritySnapshot: ReturnType<typeof decodeSessionAuthoritySnapshot>,
+  effective: ReturnType<typeof effectiveCapabilities>,
+) {
+  if (!authoritySnapshot) return undefined
+  return {
+    authority: {
+      profileId: row.origin_profile_id ?? 'restricted-origin',
+      profileName: row.origin_profile_id ?? 'restricted-origin',
+      capabilities: effective.originCapabilities ?? effective.capabilities,
+      scope: authoritySnapshot.scope,
+      authorizationCeiling: row.origin_profile_authorization_ceiling ?? row.authorization_ceiling,
+    },
+    scope: authoritySnapshot.scope,
+  }
+}
+
+/**
+ * The Session's own ceiling, also bounded by whoever started this Run, so a yolo Session messaged
+ * by an ask-for-approval caller cannot start yolo Runs on that caller's behalf.
+ */
+function agentRunCeiling(
+  sql: SqlClient.SqlClient,
+  row: AuthorityRow,
+  input: { readonly sessionId: string; readonly runId: string },
+) {
+  return runInitiatorCeiling(sql, input.sessionId, input.runId).pipe(
+    Effect.map((initiatorCeiling) =>
+      initiatorCeiling === 'ask-for-approval'
+        ? initiatorCeiling
+        : effectiveAuthorizationCeiling(row),
+    ),
+  )
+}
+
 export function resolveSessionToolAgentCaller(
   sql: SqlClient.SqlClient,
   input: { readonly sessionId: string; readonly runId: string; readonly workingDirectory: string },
@@ -191,37 +227,20 @@ export function resolveSessionToolAgentCaller(
     const rows = yield* loadAuthorityRow(sql, input.sessionId)
     const row = assertLiveAuthority(rows[0], input.sessionId)
     const authoritySnapshot = decodeSessionAuthoritySnapshot(row.authority_scope_snapshot_json)
-    if (authoritySnapshot) {
-      yield* Effect.tryPromise({
-        try: async () => {
-          await assertSessionAuthoritySnapshot(authoritySnapshot)
-          if (input.workingDirectory !== authoritySnapshot.workingPath) {
-            throw new Error('Session working directory differs from its authority snapshot.')
-          }
-        },
-        catch: (cause) => new Error('Session authority changed after it was granted.', { cause }),
-      })
-    }
+    yield* assertSnapshotStillHolds(authoritySnapshot, input.workingDirectory)
     const effective = effectiveCapabilities(row)
     const origin = originAuthority(row, effective.originCapabilities)
-    const snapshotOrigin = authoritySnapshot
-      ? {
-          authority: {
-            profileId: row.origin_profile_id ?? 'restricted-origin',
-            profileName: row.origin_profile_id ?? 'restricted-origin',
-            capabilities: effective.originCapabilities ?? effective.capabilities,
-            scope: authoritySnapshot.scope,
-            authorizationCeiling:
-              row.origin_profile_authorization_ceiling ?? row.authorization_ceiling,
-          },
-          scope: authoritySnapshot.scope,
-        }
-      : undefined
+    const snapshotOrigin = snapshotOriginAuthority(row, authoritySnapshot, effective)
     const origins = [origin, snapshotOrigin].filter(
       (candidate): candidate is NonNullable<typeof candidate> => candidate !== undefined,
     )
-    const sharedProjectPath = sharedProjectScopePath(row, origins)
-    const sharesProjectScope = sharedProjectPath !== undefined
+    const everyProject = yield* sessionAgentRunReachesEveryProject(
+      sql,
+      input.sessionId,
+      input.runId,
+    )
+    const sharedProjectPath = everyProject ? undefined : sharedProjectScopePath(row, origins)
+    const sharesProjectScope = everyProject || sharedProjectPath !== undefined
     const scopedTargets = sharesProjectScope
       ? []
       : yield* loadScopedSessionAgentTargets(sql, {
@@ -239,18 +258,13 @@ export function resolveSessionToolAgentCaller(
     const baseSessionIds = visibleTargets
       .filter((target) => row.parent_session_id === null || target.session_id === input.sessionId)
       .map((target) => target.session_id)
-    const baseScope = sharesProjectScope
-      ? {
-          projectPaths: [sharedProjectPath],
-          exportRoots: [filesystemRoot],
-          attachmentRoots: [filesystemRoot],
-        }
-      : {
-          sessionIds: baseSessionIds,
-          exportRoots: [filesystemRoot],
-          attachmentRoots: [filesystemRoot],
-        }
-    const ceiling = effectiveAuthorizationCeiling(row)
+    const baseScope = agentBaseScope({
+      everyProject,
+      sharedProjectPath,
+      sessionIds: baseSessionIds,
+      filesystemRoot,
+    })
+    const ceiling = yield* agentRunCeiling(sql, row, input)
     return {
       callerId: `session-agent:${input.sessionId}:${input.runId}`,
       workingDirectory: input.workingDirectory,

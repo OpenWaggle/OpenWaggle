@@ -24,6 +24,7 @@ vi.mock('../../utils/stream-bridge', () => ({
   startStreamBuffer: mocks.startStreamBuffer,
 }))
 
+import { requestedWaggleRunId } from '../../domain/session-control/root-session-project-reach'
 import { runRequestedWaggleWith } from '../agent-requested-waggle-adapter'
 
 const SESSION_ID = SessionId('agent-handoff-session')
@@ -92,6 +93,32 @@ describe('agent-requested Waggle adapter', () => {
     for (const mock of Object.values(mocks)) mock.mockReset()
   })
 
+  it('runs the Waggle under the classic Run authorization and caller', async () => {
+    const runWaggle = runner()
+
+    await Effect.runPromise(
+      runRequestedWaggleWith(
+        {
+          ...input(),
+          authority: {
+            runAuthorizationOverride: 'ask-for-approval',
+            authorityCallerId: 'profile:asker',
+            toolAllowlist: ['read'],
+          },
+        },
+        runWaggle,
+      ),
+    )
+
+    expect(runWaggle).toHaveBeenCalledWith(
+      expect.objectContaining({
+        runAuthorizationOverride: 'ask-for-approval',
+        authorityCallerId: 'profile:asker',
+        toolAllowlist: ['read'],
+      }),
+    )
+  })
+
   it('chains a valid handoff through the injected Waggle runner and cleans its registry', async () => {
     const runWaggle = runner()
 
@@ -100,7 +127,8 @@ describe('agent-requested Waggle adapter', () => {
     expect(runWaggle).toHaveBeenCalledWith(
       expect.objectContaining({
         sessionId: SESSION_ID,
-        runId: `waggle-${SESSION_ID}`,
+        // Named after the classic Run, so authority checks can trace who the Waggle acts for.
+        runId: requestedWaggleRunId('classic-run'),
         model: MODEL,
         payload: expect.objectContaining({ text: 'Review the durable result.' }),
       }),

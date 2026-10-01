@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { authorizeSessionTargetForCaller } from '../../domain/session-control/session-capability-authorization'
 import { SQLITE_PREPARE_CACHE_SIZE } from '../../services/database-constants'
 import { resolveSessionToolAgentCaller } from '../session-tool-gateway-installer'
+import { insertRunInitiators } from './session-run-initiators.test-support'
 
 describe('Sessions tool agent authority', () => {
   let temporaryRoot = ''
@@ -20,7 +21,7 @@ describe('Sessions tool agent authority', () => {
     await fs.rm(temporaryRoot, { recursive: true, force: true })
   })
 
-  it('gives a Queen project-scoped user authority and a Worker only its derived direct scope', async () => {
+  it('gives a user-originated Queen catalog-wide authority and a Worker only its derived direct scope', async () => {
     const sqlite = SqliteClient.layer({
       filename: path.join(temporaryRoot, 'authority.sqlite'),
       prepareCacheSize: SQLITE_PREPARE_CACHE_SIZE,
@@ -37,6 +38,19 @@ describe('Sessions tool agent authority', () => {
       Effect.gen(function* () {
         const sql = yield* SqlClient.SqlClient
         yield* sql.unsafe(`CREATE TABLE sessions (id TEXT PRIMARY KEY, project_path TEXT)`)
+        // The desktop user started the Queen's Run, so the Queen reaches every project.
+        yield* insertRunInitiators(sql, [
+          ['run-queen', 'queen', 'gui:local-user'],
+          ['run-worker', 'worker', 'session-agent:queen:run-queen'],
+          [
+            'run-exact-worker',
+            'restricted-worker',
+            'session-agent:restricted-root:run-exact-queen',
+          ],
+          ...['exact-queen', 'downgraded-queen', 'restricted-before', 'restricted-after'].map(
+            (name) => [`run-${name}`, 'restricted-root', 'profile:origin-profile'] as const,
+          ),
+        ])
         yield* sql.unsafe(`
           CREATE TABLE session_execution_profiles (
             session_id TEXT PRIMARY KEY,
@@ -216,8 +230,10 @@ describe('Sessions tool agent authority', () => {
       }).pipe(Effect.provide(sqlite)),
     )
 
-    expect(queen.profileAuthority).toMatchObject({
-      scope: { projectPaths: ['/project'] },
+    expect(queen.profileAuthority?.scope).toEqual({
+      all: true,
+      exportRoots: ['/project'],
+      attachmentRoots: ['/project'],
     })
     expect(queen.profileAuthority?.capabilities).toContain('sessions:create')
     expect(queen.profileAuthority?.capabilities).not.toContain('sessions:respond')

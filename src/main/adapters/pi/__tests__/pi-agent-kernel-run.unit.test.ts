@@ -24,8 +24,15 @@ const runMocks = vi.hoisted(() => ({
     message: 'Pulled latest changes.',
   })),
   resolveTrackedBranch: vi.fn(async () => ({ branch: 'main', upstream: 'origin/main' })),
+  prepareSessionScratchDirectory: vi.fn(async (sessionId: string) => `/scratch/${sessionId}`),
+  retainSessionScratchDirectory: vi.fn(),
+  releaseScratchDirectory: vi.fn(async () => undefined),
 }))
 
+vi.mock('../../../utils/session-scratch-directory', () => ({
+  prepareSessionScratchDirectory: runMocks.prepareSessionScratchDirectory,
+  retainSessionScratchDirectory: runMocks.retainSessionScratchDirectory,
+}))
 vi.mock('../agent-kernel/classic-run', () => ({ runPiSession: runMocks.runPiSession }))
 vi.mock('../agent-kernel/session-manager', () => ({
   requireSessionProjectPath: () => '/repo',
@@ -72,6 +79,11 @@ describe('runPiAgentKernel', () => {
     for (const mock of Object.values(runMocks)) mock.mockReset()
     runMocks.ensureSessionWorktreeProjectPath.mockResolvedValue('/repo/worktree')
     runMocks.createSessionsToolExtension.mockReturnValue(runMocks.sessionsExtensionFactory)
+    runMocks.prepareSessionScratchDirectory.mockImplementation(
+      async (sessionId: string) => `/scratch/${sessionId}`,
+    )
+    runMocks.releaseScratchDirectory.mockResolvedValue(undefined)
+    runMocks.retainSessionScratchDirectory.mockReturnValue(runMocks.releaseScratchDirectory)
     runMocks.resolveTrackedBranch.mockResolvedValue({ branch: 'main', upstream: 'origin/main' })
     runMocks.pullCurrentBranchFastForward.mockResolvedValue({
       ok: true,
@@ -147,8 +159,15 @@ describe('runPiAgentKernel', () => {
       expect.objectContaining({
         workingPath: '/repo/worktree',
         visualizationDirectory: '/visualizations/session-1',
+        scratchDirectory: '/scratch/session-1',
         sessionsExtensionFactory: runMocks.sessionsExtensionFactory,
       }),
+    )
+    // The Run holds its scratch directory until it ends, so an archive mid-Run cannot delete it.
+    expect(runMocks.retainSessionScratchDirectory).toHaveBeenCalledWith('session-1')
+    expect(runMocks.releaseScratchDirectory).toHaveBeenCalledTimes(1)
+    expect(runMocks.releaseScratchDirectory.mock.invocationCallOrder[0]).toBeGreaterThan(
+      runMocks.runPiSession.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY,
     )
     expect(prepareTurn).toHaveBeenCalledWith({
       sessionId: 'session-1',
@@ -215,6 +234,7 @@ describe('runPiAgentKernel', () => {
         waggle,
         workingPath: '/repo/worktree',
         visualizationDirectory: '/visualizations/session-waggle',
+        scratchDirectory: '/scratch/session-waggle',
         sessionsExtensionFactory: runMocks.sessionsExtensionFactory,
       }),
     )

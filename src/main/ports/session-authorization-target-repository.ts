@@ -25,6 +25,18 @@ export interface SessionAuthorizationTargetRepositoryShape {
   readonly resolveWorkspaceProjectPaths?: (
     workspaceRoots: readonly string[],
   ) => Effect.Effect<readonly string[], SessionAuthorizationTargetRepositoryError>
+  /**
+   * Whether input from `callerId` into the Run `runId` of `sessionId` (a steer, a promoted
+   * Follow-up, or an answer to a pending request) would come from a caller without the reach
+   * that Run has. A Run that reaches every project must not take input from a narrower caller,
+   * or that caller could direct it into other projects (ADR 0042).
+   */
+  readonly runInputWidensReach: (input: {
+    readonly callerId: string
+    readonly sessionId: string
+    readonly runId: string
+    readonly followUpId?: string
+  }) => Effect.Effect<boolean, SessionAuthorizationTargetRepositoryError>
   readonly resolve: (
     sessionId: string,
   ) => Effect.Effect<SessionAuthorizationTarget, SessionAuthorizationTargetRepositoryError>

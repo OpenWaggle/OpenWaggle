@@ -17,7 +17,19 @@ export const QA_CDP_PORT =
 const QA_PROFILE_PREFIX = 'openwaggle-qa-profile-'
 const QA_ARTIFACT_PREFIX = 'openwaggle-qa-evidence-'
 const QA_LEASE_CANDIDATE_PREFIX = 'openwaggle-qa-lease-candidate-'
-const QA_LEASE_DIRECTORY = path.join(os.tmpdir(), `openwaggle-qa-${QA_CDP_PORT}.lease`)
+/**
+ * The lease must be machine-wide. An agent's shell has TMPDIR set to its own Session scratch
+ * directory, so a lease there would let two Sessions both "hold" the port; the Host's temp
+ * directory, preserved in OPENWAGGLE_HOST_TMPDIR, is shared.
+ */
+export function qaSharedTemporaryDirectory(environment: NodeJS.ProcessEnv = process.env) {
+  return environment.OPENWAGGLE_HOST_TMPDIR || os.tmpdir()
+}
+const QA_SHARED_TEMPORARY_DIRECTORY = qaSharedTemporaryDirectory()
+const QA_LEASE_DIRECTORY = path.join(
+  QA_SHARED_TEMPORARY_DIRECTORY,
+  `openwaggle-qa-${QA_CDP_PORT}.lease`,
+)
 const QA_LEASE_METADATA = 'metadata.json'
 const QA_LEASE_VERSION = 1
 const CLEANUP_RETRY_COUNT = 10
@@ -70,10 +82,19 @@ export function parseQaLeaseMetadata(value: unknown): QaLeaseMetadata | null {
   return value
 }
 
-export function isOwnedQaTemporaryPath(candidate: string, prefix: string) {
+/**
+ * Whether a QA profile or artifact path is one a launcher created, so stale-lease recovery may
+ * remove it. They live in the shared directory with the lease, so any Session or terminal can
+ * recover a lease that a crashed launcher in another Session left behind.
+ */
+export function isOwnedQaTemporaryPath(
+  candidate: string,
+  prefix: string,
+  root = QA_SHARED_TEMPORARY_DIRECTORY,
+) {
   const resolvedCandidate = path.resolve(candidate)
   return (
-    path.dirname(resolvedCandidate) === path.resolve(os.tmpdir()) &&
+    path.dirname(resolvedCandidate) === path.resolve(root) &&
     path.basename(resolvedCandidate).startsWith(prefix)
   )
 }
@@ -156,9 +177,13 @@ export function recoverStaleQaLease(leaseDirectory = QA_LEASE_DIRECTORY) {
 export function acquireQaLease(projectPath: string): Promise<QaLease> {
   return withLeaseMutationLock(QA_LEASE_DIRECTORY, async () => {
     await recoverStaleLeaseUnderLock(QA_LEASE_DIRECTORY)
-    const profilePath = await fs.mkdtemp(path.join(os.tmpdir(), QA_PROFILE_PREFIX))
-    const artifactsPath = await fs.mkdtemp(path.join(os.tmpdir(), QA_ARTIFACT_PREFIX))
-    const candidateDirectory = await fs.mkdtemp(path.join(os.tmpdir(), QA_LEASE_CANDIDATE_PREFIX))
+    const profilePath = await fs.mkdtemp(path.join(QA_SHARED_TEMPORARY_DIRECTORY, QA_PROFILE_PREFIX))
+    const artifactsPath = await fs.mkdtemp(
+      path.join(QA_SHARED_TEMPORARY_DIRECTORY, QA_ARTIFACT_PREFIX),
+    )
+    const candidateDirectory = await fs.mkdtemp(
+      path.join(QA_SHARED_TEMPORARY_DIRECTORY, QA_LEASE_CANDIDATE_PREFIX),
+    )
     const metadata = {
       version: QA_LEASE_VERSION,
       launcherPid: process.pid,

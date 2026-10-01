@@ -10,6 +10,7 @@ import {
   getSafeChildEnv,
   getSessionHostChildEnv,
   getWindowsSecurityChildEnv,
+  restoreHostTemporaryDirectory,
 } from '../env'
 
 const MINIMAL_PATH = ['/usr/bin', '/bin'].join(delimiter)
@@ -24,6 +25,28 @@ afterEach(() => {
 })
 
 describe('main process environment helpers', () => {
+  it('moves an OpenWaggle process started from an agent shell back to the Host temp dir', () => {
+    const scratch = '/tmp/ow-scratch-501/37a8eec1/41437e3fd25b'
+    const environment = { TMPDIR: scratch, TMP: scratch, TEMP: scratch, KEEP: 'value' }
+
+    restoreHostTemporaryDirectory(environment, '/var/folders/host/T')
+
+    expect(environment).toEqual({
+      TMPDIR: '/var/folders/host/T',
+      TMP: '/var/folders/host/T',
+      TEMP: '/var/folders/host/T',
+      KEEP: 'value',
+    })
+  })
+
+  it('leaves the temp directory alone outside an agent shell', () => {
+    const environment = { TMPDIR: '/var/folders/user/T' }
+
+    restoreHostTemporaryDirectory(environment, undefined)
+
+    expect(environment).toEqual({ TMPDIR: '/var/folders/user/T' })
+  })
+
   it('adds common user tool directories to the npm-compatible PATH', () => {
     vi.stubEnv('PATH', MINIMAL_PATH)
 

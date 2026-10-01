@@ -102,6 +102,7 @@ function testLayer(input: {
         hiveRootSessionId: 'queen',
         authorizationCeiling: 'yolo' as const,
       }),
+    runInputWidensReach: () => Effect.succeed(false),
     listLiveDerivedAuthorities: () => Effect.succeed(input.derivedAuthorities),
   })
   const observe = (

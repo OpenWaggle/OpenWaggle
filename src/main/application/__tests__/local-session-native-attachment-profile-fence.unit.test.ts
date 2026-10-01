@@ -107,6 +107,7 @@ function testLayer(prepare: SessionControlAttachmentServiceShape['prepare']) {
           authorizationCeiling: 'ask-for-approval' as const,
         }),
       resolveDelegation: () => Effect.die('Delegations are not used in this test.'),
+      runInputWidensReach: () => Effect.succeed(false),
       listLiveDerivedAuthorities: () => Effect.succeed([]),
     }),
     Layer.succeed(SessionControlAttachmentService, {

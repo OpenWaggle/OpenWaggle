@@ -5,6 +5,7 @@ import type { SessionId, SupportedModelId } from '@shared/types/brand'
 import * as Effect from 'effect/Effect'
 import { publishSessionHostEvent } from '../session-host/session-host-events'
 import { publishExplicitWaggleResult } from './explicit-waggle-command-result'
+import { withRetainedScratchDirectory } from './session-scratch-retention'
 import {
   toWaggleKernelExecutionContext,
   type WaggleExecutionContext,
@@ -24,54 +25,59 @@ export function runRegisteredExplicitWaggle(
 ) {
   return Effect.gen(function* () {
     let didReportWorktreeLaunch = false
-    const result = yield* executeWaggleRun({
-      sessionId: input.sessionId,
-      runId: input.runId,
-      payload: input.payload,
-      hydratedAttachments: input.hydratedAttachments,
-      model: input.model,
-      config: input.config,
-      ...toWaggleKernelExecutionContext(input),
-      signal: input.abortController.signal,
-      onRunPrepared: (runtimeModel) => startWaggleStream(input, runtimeModel),
-      onEvent: (event, meta) => {
-        publishSessionHostEvent({
-          kind: 'session-waggle-transport',
-          sessionId: input.sessionId,
-          event,
-          meta,
-        })
-        if (event.type !== 'agent_end') {
+    // Held for the whole Waggle, not only each turn, so archiving the Session between two agents'
+    // turns does not delete temp files the next turn still uses.
+    const result = yield* withRetainedScratchDirectory(
+      input.sessionId,
+      executeWaggleRun({
+        sessionId: input.sessionId,
+        runId: input.runId,
+        payload: input.payload,
+        hydratedAttachments: input.hydratedAttachments,
+        model: input.model,
+        config: input.config,
+        ...toWaggleKernelExecutionContext(input),
+        signal: input.abortController.signal,
+        onRunPrepared: (runtimeModel) => startWaggleStream(input, runtimeModel),
+        onEvent: (event, meta) => {
           publishSessionHostEvent({
-            kind: 'session-transport',
+            kind: 'session-waggle-transport',
             sessionId: input.sessionId,
             event,
+            meta,
           })
-        }
-      },
-      onTurnEvent: (event) =>
-        publishSessionHostEvent({
-          kind: 'session-waggle-turn',
-          sessionId: input.sessionId,
-          event,
-        }),
-      onWorktreeLaunch: (progress) => {
-        didReportWorktreeLaunch = true
-        publishSessionHostEvent({
-          kind: 'session-worktree-launch',
-          sessionId: input.sessionId,
-          model: input.model,
-          mode: 'waggle',
-          event: { type: 'progress', progress },
-        })
-      },
-      onTitleAssigned: () =>
-        publishSessionHostEvent({
-          kind: 'session-list-changed',
-          sessionId: input.sessionId,
-          change: 'updated',
-        }),
-    })
+          if (event.type !== 'agent_end') {
+            publishSessionHostEvent({
+              kind: 'session-transport',
+              sessionId: input.sessionId,
+              event,
+            })
+          }
+        },
+        onTurnEvent: (event) =>
+          publishSessionHostEvent({
+            kind: 'session-waggle-turn',
+            sessionId: input.sessionId,
+            event,
+          }),
+        onWorktreeLaunch: (progress) => {
+          didReportWorktreeLaunch = true
+          publishSessionHostEvent({
+            kind: 'session-worktree-launch',
+            sessionId: input.sessionId,
+            model: input.model,
+            mode: 'waggle',
+            event: { type: 'progress', progress },
+          })
+        },
+        onTitleAssigned: () =>
+          publishSessionHostEvent({
+            kind: 'session-list-changed',
+            sessionId: input.sessionId,
+            change: 'updated',
+          }),
+      }),
+    )
 
     if (result.outcome === 'error' && didReportWorktreeLaunch) {
       publishSessionHostEvent({

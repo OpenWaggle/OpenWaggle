@@ -25,7 +25,9 @@ import {
   settleExternalSessionRun,
 } from './session-external-run-coordinator'
 import { acquireSessionHostRunLease, type SessionHostRunLease } from './session-host-run-admission'
+import { captureRunResultResources } from './session-resource-run-result'
 import { forkSupervisedSessionRuns } from './session-run-coordinator-supervision'
+import { runAndCaptureWithRetainedScratch } from './session-scratch-retention'
 
 interface ExplicitWaggleRunContext {
   readonly sessionId: SessionId
@@ -151,7 +153,14 @@ export function executePreparedExplicitWaggle(
         new Error(`Could not activate explicit Waggle: ${activation.code}.`),
       )
     }
-    const result = yield* runRegisteredExplicitWaggle(input)
+    // Capture the Waggle's resources, such as images its agents embedded, as a classic Run does.
+    // The scratch directory is held through the capture for images the agents wrote there.
+    const result = yield* runAndCaptureWithRetainedScratch({
+      sessionId: input.sessionId,
+      run: runRegisteredExplicitWaggle(input),
+      capture: (waggleResult) =>
+        captureRunResultResources(input.sessionId, input.runId, input.payload, waggleResult),
+    })
     const terminal = explicitWaggleTerminalResult(result)
     const settlement = yield* settleExternalSessionRun({
       sessionId: input.sessionId,

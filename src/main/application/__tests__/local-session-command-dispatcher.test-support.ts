@@ -21,6 +21,7 @@ const targetLayer = Layer.succeed(SessionAuthorizationTargetRepository, {
       hiveRootSessionId: 'session-queen',
       authorizationCeiling: 'yolo',
     }),
+  runInputWidensReach: () => Effect.succeed(false),
   listLiveDerivedAuthorities: () => Effect.succeed([]),
 })
 

@@ -40,6 +40,8 @@ const envSchema = Schema.Struct({
   OPENWAGGLE_PROFILE: Schema.optional(Schema.String),
   OPENWAGGLE_PROFILE_CREDENTIAL_FILE: Schema.optional(Schema.String),
   OPENWAGGLE_AGENT_RUN: Schema.optional(Schema.Literal('1')),
+  /** The Host's own temp directory, preserved in agent tool processes whose TMPDIR is a scratch dir. */
+  OPENWAGGLE_HOST_TMPDIR: Schema.optional(Schema.String),
   SystemRoot: Schema.optional(Schema.String),
   TEMP: Schema.optional(Schema.String),
   TMP: Schema.optional(Schema.String),
@@ -51,6 +53,23 @@ export type Env = SchemaType<typeof envSchema>
 export const env: Env = decodeUnknownOrThrow(envSchema, process.env)
 
 export const logLevel = env.OPENWAGGLE_LOG_LEVEL ?? 'info'
+
+const TEMPORARY_DIRECTORY_VARIABLES = ['TMPDIR', 'TMP', 'TEMP'] as const
+
+/**
+ * An OpenWaggle process started from an agent's shell tool (the `openwaggle` CLI, or an agent
+ * running `pnpm dev`) inherits that Session's scratch directory as TMPDIR, TMP, and TEMP.
+ * Its own temp files, including a nested Host's caches, belong in the Host temp directory, which
+ * the agent environment preserves in OPENWAGGLE_HOST_TMPDIR; archiving the Session would
+ * otherwise delete them under the running process.
+ */
+export function restoreHostTemporaryDirectory(
+  environment: NodeJS.ProcessEnv = process.env,
+  hostTemporaryDirectory = env.OPENWAGGLE_HOST_TMPDIR,
+) {
+  if (!hostTemporaryDirectory) return
+  for (const name of TEMPORARY_DIRECTORY_VARIABLES) environment[name] = hostTemporaryDirectory
+}
 
 /** Unlike the startup snapshot above, PATH can change after desktop-shell hydration. */
 export function getCurrentProcessPath(): string | undefined {

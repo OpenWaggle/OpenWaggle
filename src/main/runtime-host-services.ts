@@ -1,4 +1,5 @@
 import * as Effect from 'effect/Effect'
+import { runSessionScratchSweepBackground } from './adapters/session-scratch-sweep-background'
 import { runSessionSemanticDiscoveryBackground } from './adapters/session-semantic-discovery-background'
 import { activateTrustedMainExtensionsForActiveProjectSafely } from './application/extension-trusted-main-activation-service'
 import { runSessionExportRecoveryBackground } from './application/session-export-recovery'
@@ -8,6 +9,7 @@ import { runTranscriptTermRepairBackground } from './store/session-details/snaps
 export const startHostBackgroundServices = Effect.gen(function* () {
   yield* installAppSessionToolGateway
   yield* runSessionExportRecoveryBackground
+  yield* runSessionScratchSweepBackground
   yield* runSessionSemanticDiscoveryBackground
   yield* runTranscriptTermRepairBackground
   yield* activateTrustedMainExtensionsForActiveProjectSafely()

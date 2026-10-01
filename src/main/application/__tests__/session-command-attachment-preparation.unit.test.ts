@@ -70,6 +70,7 @@ describe('Session command attachment preparation', () => {
             authorizationCeiling: 'ask-for-approval' as const,
           }),
         resolveDelegation: () => Effect.die('unused'),
+        runInputWidensReach: () => Effect.succeed(false),
         listLiveDerivedAuthorities: () => Effect.succeed([]),
       }),
     )

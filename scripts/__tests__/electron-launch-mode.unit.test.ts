@@ -63,6 +63,19 @@ describe('Playwright Electron launch mode', () => {
     }
   })
 
+  it('forwards the Host temp directory so a QA app leaves the agent scratch directory', () => {
+    const previous = process.env.OPENWAGGLE_HOST_TMPDIR
+    process.env.OPENWAGGLE_HOST_TMPDIR = '/var/folders/host/T'
+    try {
+      expect(buildSafeElectronEnvironment({})).toMatchObject({
+        OPENWAGGLE_HOST_TMPDIR: '/var/folders/host/T',
+      })
+    } finally {
+      if (previous === undefined) delete process.env.OPENWAGGLE_HOST_TMPDIR
+      else process.env.OPENWAGGLE_HOST_TMPDIR = previous
+    }
+  })
+
   it('forwards the display and X authority required by a Linux virtual display', () => {
     const previousDisplay = process.env.DISPLAY
     const previousXAuthority = process.env.XAUTHORITY

@@ -2,8 +2,12 @@ import os from 'node:os'
 import { MessageId, SessionId } from '@shared/types/brand'
 import type { SessionResource } from '@shared/types/session-resource'
 import * as Effect from 'effect/Effect'
+import * as Layer from 'effect/Layer'
 import { describe, expect, it } from 'vitest'
 import type { UpsertSessionResourceInput } from '../../ports/session-resource-repository'
+import { SessionResourceStore } from '../../ports/session-resource-store'
+import { sessionEvidenceRoot } from '../../utils/session-evidence-directory'
+import { sessionScratchDirectoryPath } from '../../utils/session-scratch-directory'
 import { captureProjectedSessionResources } from '../session-resource-backfill'
 import { captureSuccessfulRunResources } from '../session-resource-capture'
 import { GENERATED_IMAGE_CAPTURE_LIMITS } from '../session-resource-capture-image-budget'
@@ -56,7 +60,7 @@ function expectCapturedLocalImage(upserts: readonly UpsertSessionResourceInput[]
 
 describe('local assistant Markdown image capture', () => {
   it('authorizes the workspace and dedicated agent image directories', () => {
-    const roots = localImageCaptureRoots('/workspace')
+    const roots = localImageCaptureRoots('/workspace', 'session-qa')
 
     expect(roots).toContain('/workspace')
     expect(roots).toContain(`${os.tmpdir()}/electron-qa-evidence`)
@@ -65,6 +69,17 @@ describe('local assistant Markdown image capture', () => {
       expect(roots).toContain('/tmp/electron-qa-evidence')
       expect(roots).not.toContain('/tmp')
     }
+  })
+
+  it("authorizes the Session's own scratch directory, which is the agent's TMPDIR", () => {
+    const roots = localImageCaptureRoots('/workspace', 'session-qa')
+
+    expect(roots).toContain(sessionScratchDirectoryPath('session-qa'))
+    expect(roots).not.toContain(sessionScratchDirectoryPath('session-other'))
+  })
+
+  it("authorizes the user's evidence directories, so a Queen can show a Worker's screenshots", () => {
+    expect(localImageCaptureRoots('/workspace', 'session-queen')).toContain(sessionEvidenceRoot())
   })
 
   it('extracts supported file images without treating local files as links', () => {
@@ -94,7 +109,7 @@ ${LOCAL_IMAGE_MARKDOWN}
           count: 0,
         },
         { filePath: LOCAL_IMAGE_PATH, mimeType: 'image/png', title: 'QA evidence' },
-        localImageCaptureRoots(null),
+        localImageCaptureRoots(null, 'session-qa'),
       ).pipe(Effect.provide(sessionResourceTestLayer([], { readSourceFails: true }))),
     )
 
@@ -185,5 +200,37 @@ ${LOCAL_IMAGE_MARKDOWN}
 
     expectCapturedLocalImage(repairedUpserts)
     expect(rekeyedCanonicalKeys).toEqual([expect.stringMatching(/^sha256:/u)])
+  })
+
+  it("lets backfill read images from the Session's own scratch directory", async () => {
+    const image = `${sessionScratchDirectoryPath('session-1')}/electron-qa-evidence/final.png`
+    const readSourceRoots: Array<readonly string[]> = []
+    const recordingReadRoots = Layer.effect(
+      SessionResourceStore,
+      Effect.map(SessionResourceStore, (store) =>
+        SessionResourceStore.of({
+          ...store,
+          readSource: (input) => {
+            readSourceRoots.push(input.allowedRoots)
+            return store.readSource(input)
+          },
+        }),
+      ),
+    )
+
+    await Effect.runPromise(
+      captureProjectedSessionResources({
+        sessionId: SessionId('session-1'),
+        messages: [
+          {
+            ...assistantLocalImageMessage(),
+            parts: [{ type: 'text' as const, text: `![Final](file://${image})` }],
+          },
+        ],
+      }).pipe(Effect.provide(recordingReadRoots), Effect.provide(sessionResourceTestLayer([]))),
+    )
+
+    expect(readSourceRoots).toHaveLength(1)
+    expect(readSourceRoots[0]).toContain(sessionScratchDirectoryPath('session-1'))
   })
 })

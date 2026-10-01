@@ -4,6 +4,7 @@ import net from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
+import { qaSharedTemporaryDirectory } from '../electron-qa-lease'
 import { spawn } from 'node:child_process'
 import {
   observeElectronQaChildExit,
@@ -46,8 +47,9 @@ describe('managed Electron QA launcher', () => {
   })
 
   it('validates lease metadata before trusting cleanup paths', () => {
-    const profilePath = path.join(os.tmpdir(), 'openwaggle-qa-profile-safe')
-    const artifactsPath = path.join(os.tmpdir(), 'openwaggle-qa-evidence-safe')
+    // Launchers create these in the shared directory, which differs from TMPDIR in agent shells.
+    const profilePath = path.join(qaSharedTemporaryDirectory(), 'openwaggle-qa-profile-safe')
+    const artifactsPath = path.join(qaSharedTemporaryDirectory(), 'openwaggle-qa-evidence-safe')
 
     expect(
       parseQaLeaseMetadata({
@@ -98,8 +100,12 @@ describe('managed Electron QA launcher', () => {
   })
 
   it('recovers a validated stale lease without touching its retained evidence', async () => {
-    const profilePath = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-qa-profile-'))
-    const artifactsPath = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-qa-evidence-'))
+    const profilePath = await fs.mkdtemp(
+      path.join(qaSharedTemporaryDirectory(), 'openwaggle-qa-profile-'),
+    )
+    const artifactsPath = await fs.mkdtemp(
+      path.join(qaSharedTemporaryDirectory(), 'openwaggle-qa-evidence-'),
+    )
     const leasePath = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-qa-test-lease-'))
     await fs.writeFile(
       path.join(leasePath, 'metadata.json'),

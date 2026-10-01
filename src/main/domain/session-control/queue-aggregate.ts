@@ -106,6 +106,7 @@ function applyAuthorizationUpdate(
   }
   const { runAuthorizationOverride: _previous, ...baseIntent } = selected.intent
   const { attentionReason: _reason, ...baseFollowUp } = selected
+  const authorCallerId = baseIntent.authorCallerId ?? baseIntent.callerId
   const items = [...input.state.followUpQueue.items]
   items[itemIndex] = {
     ...baseFollowUp,
@@ -113,6 +114,7 @@ function applyAuthorizationUpdate(
     intent: {
       ...baseIntent,
       callerId: mutation.callerId,
+      ...(authorCallerId !== mutation.callerId ? { authorCallerId } : {}),
       ...(mutation.runAuthorizationOverride
         ? { runAuthorizationOverride: mutation.runAuthorizationOverride }
         : {}),

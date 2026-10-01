@@ -16,6 +16,18 @@ import type { PiRuntimeExtensionIsolationInput } from './runtime-extension-isola
 import { createSessionListener } from './session-listener'
 import { captureTurnCheckpoint } from './turn-capture'
 
+function sessionDirectories(input: {
+  readonly visualizationDirectory?: string
+  readonly scratchDirectory?: string
+}) {
+  return {
+    ...(input.visualizationDirectory
+      ? { visualizationDirectory: input.visualizationDirectory }
+      : {}),
+    ...(input.scratchDirectory ? { scratchDirectory: input.scratchDirectory } : {}),
+  }
+}
+
 function runtimeResources(
   input: {
     readonly preparedEnvironment?: AgentKernelRunInput['preparedEnvironment']
@@ -51,6 +63,7 @@ export async function runPiSession(
     PiRuntimeExtensionIsolationInput & {
       readonly workingPath: string
       readonly visualizationDirectory?: string
+      readonly scratchDirectory?: string
       readonly mcpExtensionFactory?: ExtensionFactory
       readonly sessionsExtensionFactory?: ExtensionFactory
       readonly extensionFactories?: readonly ExtensionFactory[]
@@ -111,9 +124,7 @@ export async function runPiSession(
     skillAllowlist: input.skillAllowlist,
     enabledOpenWaggleExtensionPackages: input.enabledOpenWaggleExtensionPackages,
     enabledOpenWaggleExtensionPackagePaths: input.enabledOpenWaggleExtensionPackagePaths,
-    ...(input.visualizationDirectory
-      ? { visualizationDirectory: input.visualizationDirectory }
-      : {}),
+    ...sessionDirectories(input),
     recordOpenWaggleExtensionRuntimeFailure: input.recordOpenWaggleExtensionRuntimeFailure,
     ...runtimeResources(input, extensionFactories),
   })

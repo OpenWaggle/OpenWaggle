@@ -11,7 +11,7 @@ function readString(value: object, key: string) {
 }
 
 /** The error an Effect `FiberFailure` wraps, which it does not expose as `cause`. */
-function unwrapFiberFailure(error: unknown) {
+export function unwrapFiberFailure(error: unknown) {
   if (!Runtime.isFiberFailure(error)) return error
   return Cause.squash(error[Runtime.FiberFailureCauseId])
 }

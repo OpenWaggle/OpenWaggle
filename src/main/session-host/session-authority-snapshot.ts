@@ -92,6 +92,21 @@ export function retargetSessionAuthoritySnapshot(
   }
 }
 
+/**
+ * The scope stored for a new Worker. A catalog-wide parent (ADR 0042) must not hand that reach to
+ * its Workers' snapshots: a Worker never reaches every project, and a future feature that promotes
+ * or detaches a Worker would otherwise inherit it. The Worker gets its project instead, which is
+ * what a Worker snapshot held before root agents reached every project.
+ */
+export function workerAuthorityScope(
+  scope: LocalSessionProfileScope,
+  projectPath: string,
+): LocalSessionProfileScope {
+  if (scope.all !== true) return scope
+  const { all: _all, ...rest } = scope
+  return { ...rest, projectPaths: [projectPath] }
+}
+
 /** Validates a not-yet-materialized Workspace without granting its future path early. */
 export function provisionalSessionAuthoritySnapshot(
   snapshot: SessionAuthoritySnapshot,

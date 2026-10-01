@@ -20,6 +20,7 @@ export type PiWaggleKernelRunInput = AgentKernelRunInput & {
    */
   readonly workingPath: string
   readonly visualizationDirectory?: string
+  readonly scratchDirectory?: string
   readonly mcpExtensionFactory?: ExtensionFactory
   readonly sessionsExtensionFactory?: ExtensionFactory
   readonly extensionFactories?: readonly ExtensionFactory[]

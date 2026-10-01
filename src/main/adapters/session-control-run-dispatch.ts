@@ -237,6 +237,15 @@ function runClassic(input: RegisteredRunInput, context: RegisteredRunContext) {
       ending = endFailedRun(input.request, result, terminal)
     }
     if (result.outcome === 'success') {
+      const {
+        peerAgentReports: _reports,
+        onPeerAgentReportsDelivered: _reportsDelivered,
+        orchestrationUpdates: _updates,
+        onOrchestrationUpdatesDelivered: _updatesDelivered,
+        delegationSpecificationUpdates: _specifications,
+        onDelegationSpecificationUpdatesDelivered: _specificationsDelivered,
+        ...authority
+      } = executionContext(input, context)
       yield* context.requestedWaggle.runIfRequested({
         sessionId: input.request.sessionId,
         runId: input.request.runId,
@@ -244,6 +253,9 @@ function runClassic(input: RegisteredRunInput, context: RegisteredRunContext) {
         model: input.execution.model,
         thinkingLevel: input.request.intent.thinkingLevel ?? input.execution.thinkingLevel,
         controller: input.controller,
+        // The classic Run already delivered its reports and updates; the Waggle inherits only
+        // who it acts for and what it may do.
+        authority,
       })
     }
     return { mode: 'classic' as const, result, resourceResult: result, payload, ...ending }

@@ -11,52 +11,52 @@ import type { SessionQueryRequest } from '@shared/types/session-query'
 export function requiredSessionControlCapabilities(
   command: SessionControlMutationRequest['command'],
 ): readonly SessionCapability[] {
-  return matchBy(command, 'operation')
-    .with('message', 'follow-up', () => ['sessions:message'])
-    .with('start', () => ['sessions:start'])
-    .with('steer', () => ['sessions:steer'])
-    .with('interrupt', 'interrupt-descendants', () => ['sessions:interrupt'])
-    .with('request-respond', 'approval-respond', (interaction) =>
-      interaction.operation === 'approval-respond' ? ['sessions:approve'] : ['sessions:respond'],
-    )
-    .with('authorization-set', () => ['sessions:authorization'])
-    .with('report', () => ['sessions:report'])
-    .with('export-cancel', () => ['sessions:export'])
-    .with('export-create', (command) =>
-      command.includeQueueBodies
-        ? ['sessions:export', 'sessions:read', 'sessions:queue']
-        : ['sessions:export', 'sessions:read'],
-    )
-    .with('rename', 'archive', 'unarchive', 'handoff', () => ['sessions:organize'])
-    .with(
-      'delegation-submit',
-      'delegation-state',
-      'delegation-claim',
-      'delegation-propose-amendment',
-      () => ['delegations:contribute'],
-    )
-    .with(
-      'delegation-request-revision',
-      'delegation-accept',
-      'delegation-reopen',
-      'delegation-cancel',
-      'delegation-conflict-acknowledge',
-      'delegation-dependency',
-      'delegation-amend',
-      'delegation-verify',
-      () => ['delegations:review'],
-    )
-    .with('promote', () => ['sessions:queue', 'sessions:steer'])
-    .with('replace', () => ['sessions:message', 'sessions:interrupt'])
-    .with(
-      'queue-withdraw',
-      'queue-reorder',
-      'queue-pause',
-      'queue-resume',
-      'queue-update-authorization',
-      () => ['sessions:queue'],
-    )
-    .exhaustive()
+  return (
+    matchBy(command, 'operation')
+      .with('message', 'follow-up', () => ['sessions:message'])
+      .with('start', () => ['sessions:start'])
+      .with('steer', () => ['sessions:steer'])
+      .with('interrupt', 'interrupt-descendants', () => ['sessions:interrupt'])
+      .with('request-respond', 'approval-respond', (interaction) =>
+        interaction.operation === 'approval-respond' ? ['sessions:approve'] : ['sessions:respond'],
+      )
+      .with('authorization-set', () => ['sessions:authorization'])
+      .with('report', () => ['sessions:report'])
+      .with('export-cancel', () => ['sessions:export'])
+      .with('export-create', (command) =>
+        command.includeQueueBodies
+          ? ['sessions:export', 'sessions:read', 'sessions:queue']
+          : ['sessions:export', 'sessions:read'],
+      )
+      .with('rename', 'archive', 'unarchive', 'handoff', () => ['sessions:organize'])
+      .with(
+        'delegation-submit',
+        'delegation-state',
+        'delegation-claim',
+        'delegation-propose-amendment',
+        () => ['delegations:contribute'],
+      )
+      .with(
+        'delegation-request-revision',
+        'delegation-accept',
+        'delegation-reopen',
+        'delegation-cancel',
+        'delegation-conflict-acknowledge',
+        'delegation-dependency',
+        'delegation-amend',
+        'delegation-verify',
+        () => ['delegations:review'],
+      )
+      .with('promote', () => ['sessions:queue', 'sessions:steer'])
+      .with('replace', () => ['sessions:message', 'sessions:interrupt'])
+      .with('queue-withdraw', 'queue-reorder', 'queue-pause', 'queue-resume', () => [
+        'sessions:queue',
+      ])
+      // Re-authorizing someone else's Follow-up clears a revocation or authority pause and can
+      // raise its mode, so it is an authorization change like authorization-set.
+      .with('queue-update-authorization', () => ['sessions:queue', 'sessions:authorization'])
+      .exhaustive()
+  )
 }
 
 export function requiredSessionLifecycleCapabilities(

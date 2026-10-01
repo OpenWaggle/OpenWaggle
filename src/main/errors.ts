@@ -126,6 +126,8 @@ export class LocalSessionCommandAuthorizationError extends Data.TaggedError(
     | 'profile_not_found'
     | 'profile_revoked'
   readonly missing?: readonly string[]
+  /** Why this particular refusal happened, when the code's general reason would mislead. */
+  readonly detail?: string
 }> {}
 
 export class SessionAuthorizationTargetRepositoryError extends Data.TaggedError(

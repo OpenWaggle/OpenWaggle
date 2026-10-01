@@ -2,6 +2,11 @@ import { SessionId } from '@shared/types/brand'
 import type { SessionHostEventPayload } from '@shared/types/session-host-event'
 import type { SessionHostEventHub } from '../application/session-host-event-hub'
 import type { SessionHostLiveness } from '../application/session-host-liveness'
+import { createLogger } from '../logger'
+import {
+  keepSessionScratchDirectory,
+  removeSessionScratchDirectory,
+} from '../utils/session-scratch-directory'
 import {
   projectWorktreeLaunchFailure,
   projectWorktreeLaunchProgress,
@@ -12,6 +17,8 @@ import {
   clearStreamBuffer,
   startStreamBufferFromAgentStart,
 } from '../utils/stream-buffer'
+
+const logger = createLogger('session-host-events')
 
 let publishEvent: ((payload: SessionHostEventPayload) => void) | null = null
 let eventRuntime: {
@@ -38,7 +45,24 @@ function notifySemanticDiscoverySourceObservers() {
   }
 }
 
+/** Scratch files are disposable, so an archived or deleted Session gives its directory up. */
+function releaseSessionScratchDirectory(payload: SessionHostEventPayload) {
+  if (payload.kind !== 'session-list-changed') return
+  if (payload.change === 'unarchived') {
+    keepSessionScratchDirectory(payload.sessionId)
+    return
+  }
+  if (payload.change !== 'archived' && payload.change !== 'deleted') return
+  void removeSessionScratchDirectory(payload.sessionId).catch((error: unknown) => {
+    logger.warn('Could not remove the session scratch directory', {
+      sessionId: payload.sessionId,
+      error: String(error),
+    })
+  })
+}
+
 function projectHostOwnedRunState(payload: SessionHostEventPayload) {
+  releaseSessionScratchDirectory(payload)
   if (payload.kind === 'session-transport') {
     const sessionId = SessionId(payload.sessionId)
     if (payload.event.type === 'agent_start') {

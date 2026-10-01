@@ -679,6 +679,63 @@ the live Run scope again for long-running operations such as exports. Tests for 
 must use real canonical directories; invented paths exercise rejection rather than the intended
 authorization branch.
 
+An Effect tagged error with no `message` field reaches `Effect.runPromise` callers as a
+`FiberFailure` whose message is the placeholder "An error has occurred". Every
+`LocalSessionCommandAuthorizationError` looked like that in the Sessions tool, which hid a plain
+`target_scope_denied`. Render failures that leave the Host through
+`sessionCommandFailureMessage`, and assert the rendered text in tests, not only the error code.
+
+A root Session agent's catalog-wide reach (ADR 0042) is decided by one function,
+`sessionAgentRunReachesEveryProject` (`adapters/session-agent-run-project-reach.ts`), called by
+`resolveSessionToolAgentCaller` when the tool is called and by `sessionAgentBlockReason` when a
+queued Follow-up is delivered. It needs both the Session's own authority
+(`rootSessionReachesEveryProject`: a root from the local user or a catalog-wide profile, origin read
+from the caller id) and the Run's initiator (`session_runs.intent_json.callerId`, followed through up
+to eight other Sessions, counted by distinct Session so Follow-up round trips between two roots do not exhaust it early, and at most 256 Runs, about 128 round trips; limits apply to the whole initiator/author tree; `walkRunInitiators` in `application/run-initiator-walk.ts` reads each Run once and is order-independent). Without the initiator check, a project-scoped CLI profile could message a desktop
+Session and have it act in every project. Input into a running catalog-wide Run (steer, promote,
+request/approval respond) from a narrower caller is refused in `local-session-run-input-reach.ts`
+(`runInputWidensReach` on the authorization target port), and a re-authorized Follow-up keeps its
+writer in `intent.authorCallerId`, which the chain also checks. A Session agent's Authorization ceiling is
+also clamped by its Run's initiator (`session-host/session-agent-run-ceiling.ts`, used by the tool
+caller and `getSessionCallerAuthorizationBoundary`); an unidentifiable initiator counts as
+ask-for-approval. An agent-requested Waggle's Run id is `waggle-of-<classicRunId>` (`requestedWaggleRunId`) so these checks can find its classic Run, and it inherits that Run's authorization context through `runIfRequested({ authority })`. Anything that needs the Waggle's durable Run (report source, spawn parent, reach, ceiling) reads `durableSessionRunId(runId)`. `queue-update-authorization` needs `sessions:authorization`. Reports are content,
+not commands: the Host labels them but does not track information flow. Session agents with catalog-wide
+scope may launch or create only in projects already in the catalog (`session-tool-project-catalog.ts`).
+
+Agent tool processes get `TMPDIR`/`TMP`/`TEMP` pointing at a per-Session 0700 scratch directory
+through the Pi bash and PowerShell `spawnHook` in `pi-run-session.ts`, applied after the prepared
+Workspace environment. Keep that path short: macOS limits a Unix socket path to 104 bytes and
+`tsx`, Chromium, and others bind sockets under `TMPDIR`. A scratch dir under `os.tmpdir()`
+(`/var/folders/...`) plus a UUID was 108 bytes and crashed `tsx`, so `pnpm verify` and `git push`
+failed from agent shells; it now lives at `<base>/ow-scratch-<uid>/<8-hex profile hash>/<12-hex
+Session hash>`, where `<base>` is the user temp directory if the path fits 56 bytes, else `/tmp`. The profile hash (from the Host's user-data root) keeps each OpenWaggle
+profile's Host from sweeping another's directories; the startup sweep
+(`session-scratch-sweep-background`) removes directories of Sessions deleted or archived while no
+Host ran, and another profile's namespace once the user-data directory named in its `.owner` marker is gone (unmarked namespaces: after a week unused). `prepareSessionScratchDirectory` touches
+the mtime because the sweeps judge age by it. Screenshots meant for the user or another Session go to `$OPENWAGGLE_EVIDENCE_DIR` (`<base>/ow-scratch-<uid>/<profile>/evidence/<session>`, `utils/session-evidence-directory.ts`), which survives archiving and is an image capture root for every Session: a Worker's scratch directory is deleted when cleanup archives it, so a Queen could not render screenshots saved there. An OpenWaggle process started from an agent shell
+restores `TMPDIR` from `OPENWAGGLE_HOST_TMPDIR` at startup (`restoreHostTemporaryDirectory`). Code that
+must agree with the Host on a temp path (the Session Host socket fallback in `local-session-paths`)
+reads `hostTemporaryDirectory()`, which prefers `OPENWAGGLE_HOST_TMPDIR` exported next to the
+scratch `TMPDIR`. The Host deletes the directory from `session-host-events.ts` on
+`session-list-changed` `archived`/`deleted`, but a Run holds it (`withRetainedScratchDirectory`), so
+an archive mid-Run defers the removal to the Run's end. Tests that run `runPiAgentKernel` must mock
+`utils/session-scratch-directory` or they create directories in the real temp directory.
+
+A spawned Worker's authority snapshot stores its
+project, never `all`, even under a catalog-wide Queen (`workerAuthorityScope`). An unreadable
+authority snapshot counts as changed authority in `sqlite-session-live-authority`; letting the decode
+error escape failed the whole Run settlement.
+
+A failed Local Session handshake must not name its code: `profile_not_found` and
+`profile_revoked` overlap the authorization codes. `local-session-connection.ts` sends one message
+and logs the reason; `sessionCommandFailureMessage` also maps a stray `LocalSessionAuthenticationError`
+to that message. The Sessions tool and command error frames both render failures through
+`sessionCommandFailureMessage`, which falls back to the allowlisted `describeLocalSessionServerError`.
+
+A schema copied with `{ ...schema }` loses TypeBox's non-enumerable `~kind` and `~optional`, and
+`Type.Optional` then adds `~optional` as a visible key that reaches provider payloads. Copy with
+`Object.getOwnPropertyDescriptors` when decorating a TypeBox schema.
+
 Native Session capabilities constrain OpenWaggle tools and the Session Host API. They are not an
 OS sandbox against arbitrary commands from another process running as the same user. A hostile or
 YOLO shell needs a separate account, container, or operating-system sandbox for containment.

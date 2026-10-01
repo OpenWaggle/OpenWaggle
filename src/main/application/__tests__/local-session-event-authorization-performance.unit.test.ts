@@ -63,6 +63,7 @@ describe('local Session event authorization admission snapshots', () => {
             authorizationCeiling: 'yolo' as const,
           }),
         listLiveDerivedAuthorities,
+        runInputWidensReach: () => Effect.succeed(false),
         listAuthorizedSessionIds,
       }),
       Layer.succeed(LocalSessionProfileRepository, {

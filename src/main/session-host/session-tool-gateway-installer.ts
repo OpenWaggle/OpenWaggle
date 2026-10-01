@@ -37,17 +37,16 @@ import type { SessionQueryRepository } from '../ports/session-query-repository'
 import type { SessionReportDeliveryService } from '../ports/session-report-delivery-service'
 import type { SessionReportRepository } from '../ports/session-report-repository'
 import type { SessionRepository } from '../ports/session-repository'
+import type { SessionResourceImageValidator } from '../ports/session-resource-image-validator'
+import type { SessionResourceRepository } from '../ports/session-resource-repository'
+import type { SessionResourceStore } from '../ports/session-resource-store'
 import type { SessionWaitService } from '../ports/session-wait-service'
 import type { SessionWorkspaceHandoffService } from '../ports/session-workspace-handoff-service'
 import type { SessionWorkspaceResourceRepository } from '../ports/session-workspace-resource-repository'
 import type { TerminalService } from '../ports/terminal-service'
 import type { SettingsService } from '../services/settings-service'
-import { resolveSessionToolAgentCaller } from './session-tool-agent-caller'
+import { admitSessionToolCommand } from './session-tool-command-admission'
 import { installSessionToolGateway } from './session-tool-gateway'
-import {
-  runSessionToolCallerResolution,
-  throwIfSessionToolAborted,
-} from './session-tool-gateway-cancellation'
 import {
   admitSessionToolMutation,
   admitSessionToolObservation,
@@ -85,6 +84,9 @@ type SessionToolDependencies =
   | SessionWorkspaceHandoffService
   | SessionQueryRepository
   | SessionReportRepository
+  | SessionResourceImageValidator
+  | SessionResourceRepository
+  | SessionResourceStore
   | SessionReportDeliveryService
   | SessionProjectionRepository
   | SessionRepository
@@ -110,16 +112,13 @@ export const installAppSessionToolGateway = Effect.gen(function* () {
     ) {
       throw new Error('The agent Session tool cannot invoke Host UI operations.')
     }
-    const payload = input.payload
-    const caller = await runSessionToolCallerResolution(
-      resolveSessionToolAgentCaller(sql, {
-        sessionId: input.sourceSessionId,
-        runId: input.sourceRunId,
-        workingDirectory: input.workingDirectory,
-      }),
-      input.signal,
-    )
-    throwIfSessionToolAborted(input.signal)
+    const { caller, payload } = await admitSessionToolCommand(sql, {
+      sourceSessionId: input.sourceSessionId,
+      sourceRunId: input.sourceRunId,
+      workingDirectory: input.workingDirectory,
+      payload: input.payload,
+      ...(input.signal ? { signal: input.signal } : {}),
+    })
     const command = Effect.suspend(
       (): Effect.Effect<LocalSessionCommandResult, unknown, SessionToolDependencies> =>
         dispatchNonHostUiLocalSessionCommand({

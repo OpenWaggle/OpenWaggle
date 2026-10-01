@@ -1,5 +1,6 @@
 import * as Effect from 'effect/Effect'
 import * as Exit from 'effect/Exit'
+import { withRetainedScratchDirectory } from '../../application/session-scratch-retention'
 import type {
   AgentKernelRunInput,
   AgentKernelWaggleRunOptions,
@@ -23,6 +24,7 @@ import { BROWSER_PREVIEW_AUTOMATION_SYSTEM_PROMPT } from './browser-preview-auto
 import { createMcpGatewayExtension } from './mcp-gateway-extension'
 import {
   createWorktreeLaunchReporter,
+  prepareScratchDirectory,
   prepareVisualizationDirectory,
 } from './pi-agent-kernel-launch'
 import { prepareActionWorkspace } from './prepare-action-workspace'
@@ -155,6 +157,13 @@ export function runPiAgentKernel(
     readonly enableBrowserPreviewAutomation: boolean
   },
 ) {
+  return withRetainedScratchDirectory(input.session.id, runPiAgentKernelTurn(input, dependencies))
+}
+
+function runPiAgentKernelTurn(
+  input: AgentKernelRunInput,
+  dependencies: Parameters<typeof runPiAgentKernel>[1],
+) {
   return Effect.gen(function* () {
     const launchReporter = createWorktreeLaunchReporter(input)
     const { projectPath, executionPath, preparedEnvironment } = yield* prepareActionWorkspace(
@@ -169,10 +178,11 @@ export function runPiAgentKernel(
      * reconnects with whatever the pull brought in.
      */
     let preparedMcpTurn: Effect.Effect.Success<ReturnType<typeof prepareMcpTurn>> | undefined
-    const [, visualizationDirectory, mcpTurn] = yield* Effect.all(
+    const [, visualizationDirectory, scratchDirectory, mcpTurn] = yield* Effect.all(
       [
         refreshFirstRunBranch(input, executionPath, launchReporter.report),
         prepareVisualizationDirectory(dependencies.inlineVisualization, input.session.id),
+        prepareScratchDirectory(input.session.id),
         prepareMcpTurn({
           projectPath,
           executionPath,
@@ -231,6 +241,7 @@ export function runPiAgentKernel(
               preparedEnvironment,
               sessionsExtensionFactory,
               ...(visualizationDirectory ? { visualizationDirectory } : {}),
+              ...(scratchDirectory ? { scratchDirectory } : {}),
               extensionFactories,
               ...browserPreviewResources,
               trustedExtensionFactories,
@@ -242,6 +253,7 @@ export function runPiAgentKernel(
               preparedEnvironment,
               sessionsExtensionFactory,
               ...(visualizationDirectory ? { visualizationDirectory } : {}),
+              ...(scratchDirectory ? { scratchDirectory } : {}),
               extensionFactories,
               ...browserPreviewResources,
               trustedExtensionFactories,

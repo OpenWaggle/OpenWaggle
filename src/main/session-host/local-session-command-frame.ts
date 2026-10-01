@@ -21,6 +21,7 @@ import {
   invalidatedProfileId,
   refreshedProfileId,
 } from './local-session-server-frame'
+import { sessionCommandFailureMessage } from './session-command-failure-message'
 
 const INVALIDATION_RESPONSE_DELIVERY_GRACE_MS = 250
 
@@ -116,7 +117,7 @@ export async function executeLocalSessionCommandFrame(input: {
         kind: 'error',
         requestId: input.frame.requestId,
         code: failure.code,
-        message: describeLocalSessionServerError(error),
+        message: sessionCommandFailureMessage(error),
         retryable: failure.retryable,
       })
       return

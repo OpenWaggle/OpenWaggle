@@ -6,6 +6,7 @@ import { type SessionsToolParameters, sessionsToolParameters } from './sessions-
 /** Loose structural view of a union member for run-time schema surgery. */
 export interface SessionsToolRuntimeVariant {
   readonly properties: TProperties
+  readonly required?: readonly string[]
 }
 
 /** Enumerate the concrete `action` literal schemas a variant declares. */
@@ -31,12 +32,42 @@ function singleActionVariants(
     const choices = actionChoices(variant.properties.action)
     if (choices.length <= 1) return [variant]
     const { action: _sharedAction, ...shared } = variant.properties
-    return choices.map((choice) => ({ properties: { action: choice, ...shared } }))
+    return choices.map((choice) => ({ ...variant, properties: { action: choice, ...shared } }))
   })
 }
 
 export const sessionsToolParameterVariants: readonly SessionsToolRuntimeVariant[] =
   singleActionVariants(sessionsToolParameters.anyOf)
+
+function requiredActionsByProperty(variants: readonly SessionsToolRuntimeVariant[]) {
+  const requiredBy = new Map<string, string[]>()
+  for (const variant of variants) {
+    const action = variantActionName(variant)
+    if (action === undefined) continue
+    for (const key of variant.required ?? []) {
+      if (key === 'action') continue
+      requiredBy.set(key, [...(requiredBy.get(key) ?? []), action])
+    }
+  }
+  return requiredBy
+}
+
+/** Name the actions that need a property, since the flat schema cannot mark it required. */
+function describeRequiredActions(schema: TSchema, actions: readonly string[] | undefined): TSchema {
+  if (!actions?.length) return schema
+  const note = `Required for ${actions.join(', ')}.`
+  const existing: unknown = Reflect.get(schema, 'description')
+  // Copy with descriptors, not a spread: TypeBox keeps `~kind` and `~optional` non-enumerable,
+  // and a spread drops them so `Type.Optional` re-adds `~optional` as a visible key that would
+  // reach provider payloads.
+  const described: TSchema = Object.defineProperties({}, Object.getOwnPropertyDescriptors(schema))
+  Reflect.set(
+    described,
+    'description',
+    typeof existing === 'string' && existing ? `${existing} ${note}` : note,
+  )
+  return described
+}
 
 /**
  * The provider-facing sessions tool schema: a single object with `action` as a literal
@@ -51,6 +82,7 @@ export function flattenSessionsToolParameters(
 ): TUnsafe<SessionsToolParameters> {
   const actions: TSchema[] = []
   const propertiesByKey = new Map<string, TSchema[]>()
+  const requiredBy = requiredActionsByProperty(variants)
   for (const variant of variants) {
     actions.push(variant.properties.action)
     for (const [key, schema] of Object.entries(variant.properties)) {
@@ -66,9 +98,9 @@ export function flattenSessionsToolParameters(
   for (const [key, occurrences] of propertiesByKey) {
     const merged = occurrences.length === 1 ? occurrences[0] : Type.Union(occurrences)
     // Every non-action property is optional in the flat schema because required-ness is
-    // per-action and cannot be expressed here; assertSessionsToolActionArguments enforces
-    // each variant's contract at run time.
-    properties[key] = Type.Optional(merged)
+    // per-action and cannot be expressed here. The description names the actions that need
+    // it, and assertSessionsToolActionArguments enforces each variant's contract at run time.
+    properties[key] = Type.Optional(describeRequiredActions(merged, requiredBy.get(key)))
   }
   return Type.Unsafe<SessionsToolParameters>({
     type: 'object',

@@ -64,6 +64,7 @@ describe('Session descendant interruption authorization', () => {
         resolve: () => Effect.die('unrestricted callers do not resolve authorization targets'),
         resolveDelegation: () =>
           Effect.die('unrestricted callers do not resolve authorization targets'),
+        runInputWidensReach: () => Effect.succeed(false),
         listLiveDerivedAuthorities: () => Effect.succeed([]),
       }),
       Layer.succeed(SessionControlOperationJournal, {
@@ -131,6 +132,7 @@ describe('Session descendant interruption authorization', () => {
       Layer.succeed(SessionAuthorizationTargetRepository, {
         resolve: (sessionId) => Effect.succeed(target(sessionId)),
         resolveDelegation: () => Effect.succeed(target('worker')),
+        runInputWidensReach: () => Effect.succeed(false),
         listLiveDerivedAuthorities: () => Effect.succeed([]),
       }),
       Layer.succeed(SessionControlOperationJournal, { claim, complete: () => Effect.void }),

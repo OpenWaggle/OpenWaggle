@@ -79,6 +79,7 @@ describe('named-profile Session export scope', () => {
           authorizationCeiling: 'ask-for-approval' as const,
         }),
       resolveDelegation: () => Effect.die('unused'),
+      runInputWidensReach: () => Effect.succeed(false),
       listLiveDerivedAuthorities: () => Effect.succeed([]),
     })
   }

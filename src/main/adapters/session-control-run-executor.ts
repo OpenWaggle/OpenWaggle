@@ -8,6 +8,7 @@ import {
   withSessionAttachmentTransition,
 } from '../application/session-attachment-cleanup'
 import { captureRunResultResources } from '../application/session-resource-run-result'
+import { runAndCaptureWithRetainedScratch } from '../application/session-scratch-retention'
 import { loadProjectConfigStrict } from '../config/project-config'
 import { resolveSessionHostProjectPolicy } from '../domain/session-control/session-host-policy'
 import type { AgentKernelService } from '../ports/agent-kernel-service'
@@ -186,25 +187,31 @@ function executeRunAfterAttachmentAdmission(input: SessionControlRunExecutionInp
         )
       },
     })
-    const registered = yield* executeRegisteredRun({
-      request: input,
-      execution,
-      controller: input.controller,
-      allowModelMultiAgent,
-    }).pipe(
-      Effect.ensuring(
-        Effect.sync(() => {
-          releaseInteractionDeadline()
-          if (authorityDriftTimer) clearInterval(authorityDriftTimer)
-        }),
+    // Held through resource capture too, so images the agent embedded from its scratch directory
+    // are captured even when the Session was archived during the Run.
+    const registered = yield* runAndCaptureWithRetainedScratch({
+      sessionId: input.sessionId,
+      run: executeRegisteredRun({
+        request: input,
+        execution,
+        controller: input.controller,
+        allowModelMultiAgent,
+      }).pipe(
+        Effect.ensuring(
+          Effect.sync(() => {
+            releaseInteractionDeadline()
+            if (authorityDriftTimer) clearInterval(authorityDriftTimer)
+          }),
+        ),
       ),
-    )
-    yield* captureRunResultResources(
-      input.sessionId,
-      input.runId,
-      registered.payload,
-      registered.resourceResult,
-    )
+      capture: (result) =>
+        captureRunResultResources(
+          input.sessionId,
+          input.runId,
+          result.payload,
+          result.resourceResult,
+        ),
+    })
     const ending = {
       ...(registered.terminalEventAt === undefined
         ? {}

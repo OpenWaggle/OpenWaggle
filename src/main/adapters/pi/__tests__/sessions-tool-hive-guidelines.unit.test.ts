@@ -32,3 +32,23 @@ describe('Sessions tool Hive cleanup guidance', () => {
     )
   })
 })
+
+describe('Sessions tool cross-project guidance', () => {
+  it('tells the agent how to reach Sessions and start work in another repository', async () => {
+    const registerTool = vi.fn()
+    await createSessionsToolExtension({
+      sessionId: 'session-independent',
+      runId: 'run-current',
+      workingDirectory: '/project',
+    })(fromPartial<ExtensionAPI>({ registerTool }))
+
+    const guidelines: unknown = registerTool.mock.calls[0]?.[0]?.promptGuidelines
+    expect(guidelines).toEqual(
+      expect.arrayContaining([
+        expect.stringMatching(
+          /root Session started from the desktop or from a catalog-wide CLI profile reaches Sessions in every project OpenWaggle knows.*current Run was started by the desktop user.*Workers and project-scoped callers stay in their own scope.*catalogScope project.*projectPath to launch or create with workspace local or new-worktree/,
+        ),
+      ]),
+    )
+  })
+})

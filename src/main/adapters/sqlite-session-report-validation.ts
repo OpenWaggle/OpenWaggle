@@ -1,6 +1,16 @@
 import type * as SqlClient from '@effect/sql/SqlClient'
 import * as Effect from 'effect/Effect'
+import { durableSessionRunId } from '../domain/session-control/root-session-project-reach'
 import type { ExecuteSessionReportInput } from '../ports/session-report-repository'
+
+/**
+ * The durable Run a report records as its source. A requested Waggle has no `session_runs` row
+ * of its own, so its reports name the classic Run it acts for.
+ */
+export function reportSourceRunId(input: ExecuteSessionReportInput) {
+  const sourceRunId = input.request.command.sourceRunId
+  return sourceRunId ? durableSessionRunId(sourceRunId) : null
+}
 
 export function sourceRunAuthorized(
   sql: SqlClient.SqlClient,
@@ -15,7 +25,7 @@ export function sourceRunAuthorized(
   return Effect.gen(function* () {
     const sourceRuns = yield* sql<{ readonly id: string }>`
       SELECT id FROM session_runs
-      WHERE id = ${sourceRunId} AND session_id = ${sourceSessionId}
+      WHERE id = ${durableSessionRunId(sourceRunId)} AND session_id = ${sourceSessionId}
       LIMIT 1
     `
     return sourceRuns[0] !== undefined

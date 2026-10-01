@@ -63,6 +63,7 @@ function createBackfillCaptureState(
   knownOccurrenceIds: ReadonlySet<string>,
   retryUnavailableResourceId: string | undefined,
   workingPath: string | null,
+  sessionId: string,
 ): BackfillCaptureState {
   const occurrenceIds = capturedOccurrenceIds(resources)
   for (const id of knownOccurrenceIds) occurrenceIds.add(id)
@@ -83,7 +84,7 @@ function createBackfillCaptureState(
       knownResources: progress.knownImageResources,
       retryUnavailableResourceId: retryUnavailableResourceId ?? null,
       deferred: [],
-      localImageRoots: localImageCaptureRoots(workingPath),
+      localImageRoots: localImageCaptureRoots(workingPath, sessionId),
       projectionBlocked: false,
       progressed: false,
     },
@@ -210,6 +211,7 @@ export function captureProjectedSessionResources(input: CaptureProjectedSessionR
           knownOccurrenceIds,
           input.retryUnavailableResourceId,
           workingPath,
+          input.sessionId,
         )
         yield* captureBackfilledMessages(input, state, workingPath)
         yield* repairDeferredResources(state)

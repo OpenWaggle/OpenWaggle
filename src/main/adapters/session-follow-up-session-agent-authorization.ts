@@ -8,6 +8,7 @@ import {
   authorizeSessionTarget,
   authorizeSessionTargetForCaller,
 } from '../domain/session-control/session-capability-authorization'
+import { sessionAgentRunReachesEveryProject } from './session-agent-run-project-reach'
 import {
   type AttentionReason,
   decodedCapabilities,
@@ -37,15 +38,19 @@ interface SourceRow {
 
 function sourceRelationshipBlockReason(
   sql: SqlClient.SqlClient,
-  sourceId: string,
-  source: SourceRow,
+  source: { readonly sessionId: string; readonly runId: string; readonly row: SourceRow },
   target: TargetRow,
 ) {
-  if (source.parent_session_id === null) {
-    return Effect.succeed<AttentionReason | undefined>(
-      !source.project_path || source.project_path !== target.project_path
-        ? 'authority_changed'
-        : undefined,
+  const sourceId = source.sessionId
+  if (source.row.parent_session_id === null) {
+    // The same decision the Sessions tool made when the Follow-up was queued.
+    return sessionAgentRunReachesEveryProject(sql, source.sessionId, source.runId).pipe(
+      Effect.map((everyProject): AttentionReason | undefined =>
+        everyProject ||
+        (source.row.project_path !== null && source.row.project_path === target.project_path)
+          ? undefined
+          : 'authority_changed',
+      ),
     )
   }
   return Effect.gen(function* () {
@@ -172,7 +177,11 @@ export function sessionAgentBlockReason(
       sourceCapabilities.capabilities,
     )
     if (origin.blockReason) return origin.blockReason
-    const relationshipBlock = yield* sourceRelationshipBlockReason(sql, sourceId, source, target)
+    const relationshipBlock = yield* sourceRelationshipBlockReason(
+      sql,
+      { sessionId: sourceId, runId: callerId.slice(callerId.lastIndexOf(':') + 1), row: source },
+      target,
+    )
     if (relationshipBlock) return relationshipBlock
     const derivedCapabilities =
       source.target_grant_revoked_at === null

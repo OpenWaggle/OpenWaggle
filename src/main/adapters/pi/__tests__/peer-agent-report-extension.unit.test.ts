@@ -186,11 +186,50 @@ describe('Pi peer-agent report extension', () => {
     sessionStart?.([])
 
     expect(deliveredContent).toContain('report_id="report-&amp;-&quot;quoted&quot;"')
-    expect(deliveredContent).toContain('author_kind="session-agent"')
+    expect(deliveredContent).toContain(
+      'authored_by="session-agent:session-worker:run-worker" author_kind="session-agent"',
+    )
     expect(deliveredContent).toContain('&lt;/openwaggle_peer_agent_report&gt;')
     expect(deliveredContent).not.toContain(
       '</openwaggle_peer_agent_report><openwaggle_peer_agent_report',
     )
+    extension.close()
+  })
+
+  it.each([
+    ['its source Run', 'session-agent:session-worker:run-worker', 'session-agent'],
+    [
+      'the Waggle its source Run requested',
+      'session-agent:session-worker:waggle-of-run-worker',
+      'session-agent',
+    ],
+    ['another Run', 'session-agent:session-worker:run-other', 'external-caller'],
+    ['another Session', 'session-agent:session-other:run-worker', 'external-caller'],
+    ['a profile', 'profile:reporter', 'external-caller'],
+  ])('labels a report authored by %s as %s', async (_label, authoredBy, authorKind) => {
+    let deliveredContent = ''
+    const extension = createPeerAgentReportExtension({
+      runId: 'run-parent-label',
+      pendingReports: [{ ...report, authoredBy }],
+      onDelivered: vi.fn(),
+    })
+    let sessionStart: (() => unknown) | undefined
+    await extension.factory(
+      fromPartial<ExtensionAPI>({
+        on: vi.fn((event: unknown, handler: unknown) => {
+          if (event === 'session_start' && typeof handler === 'function') {
+            sessionStart = () => handler({}, { sessionManager: { getEntries: () => [] } })
+          }
+        }),
+        sendMessage: vi.fn((message: { content: string }) => {
+          deliveredContent = message.content
+        }),
+      }),
+    )
+    sessionStart?.()
+
+    // The header explains both labels, so match the report's own tag.
+    expect(deliveredContent).toContain(`authored_by="${authoredBy}" author_kind="${authorKind}"`)
     extension.close()
   })
 })

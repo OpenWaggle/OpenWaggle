@@ -106,6 +106,22 @@ An agent running inside OpenWaggle uses its native `sessions` tool. It can list 
 
 After spawning, the parent can use `wait` for a bounded observation, read the Worker's Session or Delegation history, and review its submitted revision. The native tool's `wait` is not a permanent subscription; external CLI/MCP clients can use `watch` for a continuing event stream. The parent may ask for revision or accept the submission. An agent can use `report` to pass context to its parent, the Queen, or another Worker without starting a Run in the recipient. A user can ask a Worker to report a finding upstream; no separate reporting UI is required.
 
+### Sessions in other repositories
+
+An agent is not limited to its own repository. A Session you started from the app can list, search, and read Sessions in any project that has a Session or Workspace in OpenWaggle, report to them, send them Follow-ups, steer, interrupt, or archive them, and launch or create a new Session in another of those projects, without sharing a Hive. A project you only opened, without sending a message, does not count yet; start a Session there first. This applies to turns you started, or that another such agent started; a turn started by a restricted CLI profile, or by a Worker's Follow-up, stays in the Session's own project, and a restricted profile cannot steer a turn that reaches other projects. For example:
+
+```text
+Find the open OpenWaggle session about the release checklist and report this failing
+check to it. If there isn't one, launch a session in ~/Projects/OpenWaggle on a new
+worktree with this report as its objective.
+```
+
+To start work elsewhere, the agent passes that repository's path with `workspace` set to `local` or `new-worktree`. Leaving `workspace` out, or passing `current`, uses the other project's main checkout. The native Session capabilities and the Authorization ceiling apply in every project, exactly as they do in the agent's own. Workers keep their narrower grants, and a Session started from a [named CLI profile](/docs/developer-workflow/sessions-cli#restricted-external-agent-profiles) stays inside its own project unless the profile covers every project. When the Host refuses a request, the tool reports why, such as the missing capability.
+
+### Scratch files
+
+Each Session has a private scratch directory for temporary files. OpenWaggle sets `TMPDIR`, `TMP`, and `TEMP` to it for the agent's shell tools and names it in the agent's instructions, so two agents writing `push.log` at the same time cannot overwrite or read each other's file. On macOS and Linux only your user account can open it. OpenWaggle deletes it when you archive or delete the Session, or when the running turn ends if you archive it mid-turn; keep anything you need in the workspace instead. Screenshots and other files an agent wants to show you or another Session go to a separate evidence directory, `$OPENWAGGLE_EVIDENCE_DIR`, which is kept after archiving, so a Queen can still show a finished Worker's screenshots. OpenWaggle removes a Session's evidence once nothing has been added to it for a week.
+
 Keep a later instruction as a **Follow-up** when it should start after the current Run. Use **Steer** only when it belongs in that exact active Run. Navigating between Sessions does not interrupt either Run. See the [Sessions CLI](/docs/developer-workflow/sessions-cli) for the corresponding external-agent commands.
 
 ## External control and live UI updates

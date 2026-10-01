@@ -54,6 +54,31 @@ describe('Session capability authorization', () => {
     })
   })
 
+  it('treats re-authorizing a queued Follow-up as an authorization change', () => {
+    const reauthorize: SessionControlMutationRequest['command'] = {
+      operation: 'queue-update-authorization',
+      sessionId: 'session-target',
+      followUpId: 'follow-up-target',
+      runAuthorizationOverride: 'yolo',
+    }
+
+    expect(requiredSessionControlCapabilities(reauthorize)).toEqual([
+      'sessions:queue',
+      'sessions:authorization',
+    ])
+    // A root agent has sessions:queue by default but not sessions:authorization.
+    expect(
+      authorizeSessionCapabilities(
+        { ...authority, capabilities: ['sessions:queue'] },
+        requiredSessionControlCapabilities(reauthorize),
+      ),
+    ).toEqual({
+      authorized: false,
+      code: 'capability_denied',
+      missing: ['sessions:authorization'],
+    })
+  })
+
   it('keeps atomic lifecycle requirements distinct', () => {
     const launch: SessionLifecycleRequest['command'] = {
       operation: 'launch',

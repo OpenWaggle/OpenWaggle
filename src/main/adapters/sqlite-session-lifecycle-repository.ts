@@ -10,6 +10,7 @@ import {
 import {
   decodeSessionAuthoritySnapshot,
   retargetSynthesizedSessionAuthorityScope,
+  workerAuthorityScope,
 } from '../session-host/session-authority-snapshot'
 import {
   findLifecycleReplay,
@@ -132,6 +133,10 @@ function execute(
                 authorityOrigin.callerId,
               )
             : authorityOrigin.scope
+        const storedAuthorityScope =
+          admittedAuthorityScope && input.request.command.operation === 'spawn'
+            ? workerAuthorityScope(admittedAuthorityScope, target.projectPath)
+            : admittedAuthorityScope
 
         const runId = yield* persistLifecycleSession(
           sql,
@@ -139,7 +144,7 @@ function execute(
           target.projectPath,
           workspace,
           authorityOrigin.callerId,
-          admittedAuthorityScope,
+          storedAuthorityScope,
         )
         const outcome = yield* lifecycleOutcome(sql, input, {
           workspaceId: workspace.id,

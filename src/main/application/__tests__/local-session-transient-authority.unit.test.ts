@@ -93,6 +93,7 @@ function testLayer(repository: SessionQueryRepositoryShape) {
           hiveRootSessionId: delegationId,
           authorizationCeiling: 'ask-for-approval' as const,
         }),
+      runInputWidensReach: () => Effect.succeed(false),
       listLiveDerivedAuthorities: () => Effect.succeed([]),
     }),
     Layer.succeed(SessionQueryRepository, repository),

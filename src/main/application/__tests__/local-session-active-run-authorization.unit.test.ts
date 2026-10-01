@@ -23,6 +23,7 @@ function authorizationLayer(caller: LocalSessionCallerIdentity) {
           authorizationCeiling: 'yolo' as const,
         }),
       resolveDelegation: () => Effect.die('Delegations are not used in this test.'),
+      runInputWidensReach: () => Effect.succeed(false),
       listLiveDerivedAuthorities: () => Effect.succeed([]),
     }),
     Layer.succeed(LocalSessionProfileRepository, {
