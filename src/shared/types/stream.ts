@@ -5,13 +5,13 @@
  * remaining vendor-free shared types.
  */
 
+import type { MessagePart } from './agent'
 import type {
   AgentLoopInteraction,
   AgentLoopInteractionKind,
   AgentLoopInteractionResponse,
   AgentLoopInteractionStatus,
 } from './agent-loop-interaction'
-import type { MessagePart } from './agent'
 import type { JsonValue } from './json'
 
 interface TransportEventBase {

@@ -149,14 +149,6 @@ describe('Local Session client', () => {
           mode: 'classic',
           startedAt: 1,
           parts: [{ type: 'text', text: 'already streamed' }],
-          userMessages: [
-            {
-              messageId: 'user-already-incorporated',
-              parts: [{ type: 'text', text: 'Queued question' }],
-              sessionNodeCreatedOrder: 7,
-              durableTextSha256: 'c'.repeat(64),
-            },
-          ],
           degraded: {
             reason: 'content-limit',
             omittedBytes: 42,
@@ -251,14 +243,6 @@ describe('Local Session client', () => {
           mode: 'classic',
           startedAt: 1,
           parts: [{ type: 'text', text: 'already streamed' }],
-          userMessages: [
-            {
-              messageId: 'user-already-incorporated',
-              parts: [{ type: 'text', text: 'Queued question' }],
-              sessionNodeCreatedOrder: 7,
-              durableTextSha256: 'c'.repeat(64),
-            },
-          ],
           degraded: {
             reason: 'content-limit',
             omittedBytes: 42,

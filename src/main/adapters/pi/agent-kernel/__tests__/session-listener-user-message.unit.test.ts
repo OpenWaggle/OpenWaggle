@@ -20,7 +20,14 @@ function createFakePiSession(initialEntries: SessionEntry[] = []) {
     appendCustomEntry: (customType: string, data?: unknown) => {
       nextId += 1
       const id = `custom-${String(nextId)}`
-      entries.push({ type: 'custom', id, parentId: leafId(), timestamp: TIMESTAMP, customType, data })
+      entries.push({
+        type: 'custom',
+        id,
+        parentId: leafId(),
+        timestamp: TIMESTAMP,
+        customType,
+        data,
+      })
       return id
     },
   }
