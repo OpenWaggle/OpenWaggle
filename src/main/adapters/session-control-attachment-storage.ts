@@ -12,8 +12,8 @@ import {
   browserAttachmentMetadataJson,
   parseBrowserAttachmentMetadata,
 } from '../utils/browser-attachment-metadata'
-import { referencedSessionAttachmentIds } from './session-control-attachment-references'
 import { monotonicNowMs } from '../utils/monotonic-clock'
+import { referencedSessionAttachmentIds } from './session-control-attachment-references'
 import type { AttachmentStoragePolicy } from './session-control-attachment-service'
 import { retainedFollowUpEditAttachmentIds } from './sqlite-follow-up-edit-holds'
 
