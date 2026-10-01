@@ -11,7 +11,24 @@ function incorporatedUserMetadata(userMessage: AgentTransportUserMessage) {
   return {
     sessionNodeCreatedOrder: userMessage.sessionNodeCreatedOrder,
     ...(userMessage.durableTextSha256 ? { durableTextSha256: userMessage.durableTextSha256 } : {}),
+    ...(userMessage.waggleInvocation ? { waggleInvocation: userMessage.waggleInvocation } : {}),
   }
+}
+
+/** Whether a transcript row is this incorporated message: its log order, with its content. */
+function isSameIncorporatedMessage(
+  message: UIMessage,
+  incorporated: UIMessage,
+  userMessage: AgentTransportUserMessage,
+) {
+  if (message.role !== 'user') return false
+  if (message.metadata?.sessionNodeCreatedOrder !== userMessage.sessionNodeCreatedOrder)
+    return false
+  const digest = userMessage.durableTextSha256
+  return (
+    (digest !== undefined && message.metadata?.durableTextSha256 === digest) ||
+    getUIMessageText(message) === getUIMessageText(incorporated)
+  )
 }
 
 /** A user row this renderer shows before the Host has recorded it: an optimistic send. */
@@ -29,14 +46,6 @@ export function applyIncorporatedUserMessage(
   event: AgentTransportMessageStartEvent & { readonly userMessage: AgentTransportUserMessage },
 ): UIMessage[] {
   const { userMessage } = event
-  const alreadyShown = messages.some(
-    (message) =>
-      message.id === event.messageId ||
-      (message.role === 'user' &&
-        message.metadata?.sessionNodeCreatedOrder === userMessage.sessionNodeCreatedOrder),
-  )
-  if (alreadyShown) return [...messages]
-
   const incorporated: UIMessage = {
     id: event.messageId,
     role: 'user',
@@ -44,6 +53,13 @@ export function applyIncorporatedUserMessage(
     createdAt: new Date(event.timestamp),
     metadata: incorporatedUserMetadata(userMessage),
   }
+  const alreadyShown = messages.some(
+    (message) =>
+      message.id === event.messageId ||
+      isSameIncorporatedMessage(message, incorporated, userMessage),
+  )
+  if (alreadyShown) return [...messages]
+
   const text = getUIMessageText(incorporated)
   const optimisticIndex = text
     ? messages.findIndex(

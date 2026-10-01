@@ -106,6 +106,41 @@ describe('applyAgentTransportEvent incorporated user messages', () => {
     expect(snapshotted.map((message) => message.id)).toEqual(['user-1', 'assistant-1', 'node-2'])
   })
 
+  it('shows a different message that reuses a log order a stale row still holds', () => {
+    // A branch switch or compaction can leave a row with the same order but other content.
+    const stale = answered.concat({
+      id: 'other-branch',
+      role: 'user',
+      parts: [{ type: 'text', content: 'Something else' }],
+      metadata: { sessionNodeCreatedOrder: 2, durableTextSha256: 'f'.repeat(64) },
+    })
+
+    const messages = applyAgentTransportEvent(stale, userMessageStart('live-user', 'Steer', 2))
+
+    expect(messages.map((message) => message.id)).toContain('live-user')
+  })
+
+  it('shows a Waggle request with the preset it invoked', () => {
+    const waggleInvocation = {
+      presetId: 'preset-1',
+      presetName: 'Review pair',
+      source: 'user' as const,
+    }
+    const messages = applyAgentTransportEvent(answered, {
+      type: 'message_start',
+      messageId: 'live-waggle',
+      role: 'user',
+      userMessage: {
+        parts: [{ type: 'text', text: 'Review this' }],
+        sessionNodeCreatedOrder: 2,
+        waggleInvocation,
+      },
+      timestamp: 1_000,
+    })
+
+    expect(messages.at(-1)?.metadata).toEqual({ sessionNodeCreatedOrder: 2, waggleInvocation })
+  })
+
   it('ignores a user message start without content', () => {
     const messages = applyAgentTransportEvent(answered, {
       type: 'message_start',
