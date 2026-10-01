@@ -1,7 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { openedEdit, queueItem } from '../../hooks/__tests__/queued-message-edit.test-support'
 import { useComposerStore } from '../composer-store'
-import { queuedMessageEditStashKey, useQueuedMessageEditStore } from '../queued-message-edit-store'
+import {
+  isHoldAbandoned,
+  queuedMessageEditStashKey,
+  useQueuedMessageEditStore,
+} from '../queued-message-edit-store'
 
 const ipc = vi.hoisted(() => ({
   mutateSessionControl: vi.fn(),
@@ -71,5 +75,15 @@ describe('clearing the drafts of a queued-message edit', () => {
     expect(cancelCommands()).toEqual([])
     expect(useQueuedMessageEditStore.getState().edits['session-a']).toBeDefined()
     expect(useComposerStore.getState().getScopedDraft(STASH_KEY)?.input).toBe('my draft')
+  })
+
+  it('lets adoption take the hold up again when the release never reaches the Host', async () => {
+    ipc.mutateSessionControl.mockReset().mockRejectedValue(new Error('Host connection lost'))
+    openEditIn(BRANCH_KEY)
+
+    useComposerStore.getState().clearScopedDraftsForBranch('session-a', 'feature')
+    expect(isHoldAbandoned('hold-1')).toBe(true)
+
+    await vi.waitFor(() => expect(isHoldAbandoned('hold-1')).toBe(false))
   })
 })

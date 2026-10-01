@@ -2,6 +2,7 @@ import { SESSION_CONTROL_CONTRACT_VERSION } from '@shared/types/session-control'
 import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
 import {
+  forgetAbandonedHold,
   isOpenQueuedMessageEdit,
   markHoldAbandoned,
   queuedMessageEditStashKey,
@@ -20,6 +21,9 @@ function releaseHold(sessionId: string, followUpId: string, holdId: string) {
       command: { operation: 'queue-edit-cancel', sessionId, followUpId, holdId },
     })
     .catch((cause: unknown) => {
+      // The Host never saw the release, and this window keeps renewing the hold. Let adoption take
+      // it up again so the message does not stay "being edited" with no way back in.
+      forgetAbandonedHold(holdId)
       logger.warn('Failed to release an abandoned Follow-up edit hold', {
         message: cause instanceof Error ? cause.message : String(cause),
       })

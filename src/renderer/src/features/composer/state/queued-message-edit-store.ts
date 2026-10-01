@@ -68,6 +68,11 @@ export function markHoldAbandoned(holdId: string) {
   abandonedHoldIds.add(holdId)
 }
 
+/** A release that never reached the Host: adoption may take the hold up again instead of it staying stuck. */
+export function forgetAbandonedHold(holdId: string) {
+  abandonedHoldIds.delete(holdId)
+}
+
 export function isHoldAbandoned(holdId: string) {
   return abandonedHoldIds.has(holdId)
 }

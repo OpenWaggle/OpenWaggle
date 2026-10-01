@@ -103,6 +103,9 @@ export function useQueuedMessageEdit(
       if (block.message) onToast(block.message)
       return
     }
+    // The save may commit before anything below runs (or the edit is abandoned mid-save), so
+    // protect every chip it names first, as a queued send does. A failed save keeps the chips.
+    retainHostReferencedAttachments(draft.attachments)
     setEdit(sessionId, { ...open, phase: 'saving' })
     const { waggle, visualizationContext } = open.based.item
     const nextWaggle = editedWaggle(draft.wagglePreset ?? null, waggle)
@@ -118,9 +121,6 @@ export function useQueuedMessageEdit(
       return
     }
     if (!stillHolds(sessionId, open.based.holdId)) return
-    // The queued message now carries every chip, including ones added during the edit: protect
-    // them all while the set-aside draft replaces them.
-    retainHostReferencedAttachments(draft.attachments)
     restoreStashedDraft(sessionId, open)
   }
 
