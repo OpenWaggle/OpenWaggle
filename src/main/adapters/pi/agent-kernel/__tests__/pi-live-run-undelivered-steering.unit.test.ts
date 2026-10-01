@@ -1,11 +1,12 @@
 import type { AgentSession, SessionEntry } from '@earendil-works/pi-coding-agent'
 import { FollowUpId } from '@shared/types/brand'
+import { MAX_RETURNED_STEER_OVERFLOW } from '@shared/types/session-control-returned-steers'
 import { fromPartial } from '@total-typescript/shoehorn'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { SessionControlFollowUp } from '../../../../domain/session-control/message-aggregate'
 import type { PiModel } from '../../pi-provider-catalog'
 import { registerPiLiveRun, steerPiLiveRun } from '../pi-live-run-registry'
-import { takeUndeliveredPiSteers } from '../pi-steer-delivery-ledger'
+import { forgetUndeliveredPiSteers, readUndeliveredPiSteers } from '../pi-steer-delivery-ledger'
 
 type SessionEvent = Parameters<Parameters<AgentSession['subscribe']>[0]>[0]
 type UserMessage = Extract<SessionEvent, { type: 'message_start' }>['message']
@@ -77,7 +78,7 @@ describe('Pi Undelivered steering messages', () => {
     unregister = undefined
   })
 
-  it('hands back a queued steer, once, when the Run ends without incorporating it', async () => {
+  it('keeps a queued steer the Run ended without incorporating until settlement forgets it', async () => {
     const live = liveSession()
     unregister = registerPiLiveRun({ runId: 'run-stopped', session: live.session, model })
     const delivery = { kind: 'steer', followUp: followUp('direct', 'Check the logs.') } as const
@@ -88,8 +89,11 @@ describe('Pi Undelivered steering messages', () => {
     unregister()
     unregister = undefined
 
-    expect(takeUndeliveredPiSteers('run-stopped')).toEqual([{ delivery, handedOff: true }])
-    expect(takeUndeliveredPiSteers('run-stopped')).toEqual([])
+    expect(readUndeliveredPiSteers('run-stopped')).toEqual([{ delivery, handedOff: true }])
+    // A settlement that failed reads the same steers again.
+    expect(readUndeliveredPiSteers('run-stopped')).toEqual([{ delivery, handedOff: true }])
+    forgetUndeliveredPiSteers('run-stopped')
+    expect(readUndeliveredPiSteers('run-stopped')).toEqual([])
   })
 
   it('hands back nothing after Pi incorporated the steer before the Run completed', async () => {
@@ -106,7 +110,7 @@ describe('Pi Undelivered steering messages', () => {
     unregister()
     unregister = undefined
 
-    expect(takeUndeliveredPiSteers('run-completed')).toEqual([])
+    expect(readUndeliveredPiSteers('run-completed')).toEqual([])
   })
 
   it('never hands back a steer Pi started incorporating before the abort', async () => {
@@ -127,7 +131,7 @@ describe('Pi Undelivered steering messages', () => {
     unregister()
     unregister = undefined
 
-    expect(takeUndeliveredPiSteers('run-aborted-mid-message')).toEqual([])
+    expect(readUndeliveredPiSteers('run-aborted-mid-message')).toEqual([])
   })
 
   it('does not mistake an earlier identical message for the steer', async () => {
@@ -141,7 +145,7 @@ describe('Pi Undelivered steering messages', () => {
     unregister()
     unregister = undefined
 
-    expect(takeUndeliveredPiSteers('run-identical')).toEqual([{ delivery, handedOff: true }])
+    expect(readUndeliveredPiSteers('run-identical')).toEqual([{ delivery, handedOff: true }])
   })
 
   it('reports steers in the order they were sent, including one still waiting for compaction', async () => {
@@ -175,7 +179,7 @@ describe('Pi Undelivered steering messages', () => {
     await expect(promotion).resolves.toEqual({ accepted: false, code: 'run_not_live' })
     await expect(compactionBlocked).rejects.toThrow()
     expect(live.steer).toHaveBeenCalledTimes(2)
-    expect(takeUndeliveredPiSteers('run-ordered')).toEqual([
+    expect(readUndeliveredPiSteers('run-ordered')).toEqual([
       { delivery: first, handedOff: true },
       { delivery: promoted, handedOff: true },
       { delivery: waiting, handedOff: false },
@@ -199,7 +203,7 @@ describe('Pi Undelivered steering messages', () => {
     unregister = undefined
 
     await expect(promotion).resolves.toMatchObject({ accepted: true })
-    expect(takeUndeliveredPiSteers('run-started-promotion')).toEqual([])
+    expect(readUndeliveredPiSteers('run-started-promotion')).toEqual([])
   })
 
   it('refuses a steer Pi queued only after the Run ended', async () => {
@@ -225,11 +229,75 @@ describe('Pi Undelivered steering messages', () => {
     releaseSteer()
 
     await expect(steering).resolves.toEqual({ accepted: false, code: 'run_not_live' })
-    expect(takeUndeliveredPiSteers('run-late-handoff')).toEqual([
+    expect(readUndeliveredPiSteers('run-late-handoff')).toEqual([
       {
         delivery: { kind: 'steer', followUp: followUp('late', 'Late.') },
         handedOff: false,
       },
     ])
+  })
+
+  it('accepts a steer Pi queued after the Run ended when Pi had already started it', async () => {
+    const live = liveSession()
+    let releaseSteer: () => void = () => undefined
+    live.steer.mockImplementationOnce(
+      (text: string) =>
+        new Promise<string>((resolve) => {
+          releaseSteer = () => resolve(text)
+        }),
+    )
+    unregister = registerPiLiveRun({ runId: 'run-started-late', session: live.session, model })
+
+    const steering = steerPiLiveRun({
+      runId: 'run-started-late',
+      text: 'Started.',
+      attachments: [],
+      delivery: { kind: 'steer', followUp: followUp('started', 'Started.') },
+    })
+    await vi.waitFor(() => expect(live.steer).toHaveBeenCalledOnce())
+    live.start('Started.')
+    unregister()
+    unregister = undefined
+    releaseSteer()
+
+    await expect(steering).resolves.toMatchObject({ accepted: true })
+    // Still inside Pi run control when the Run ended, so the ledger never hands it back.
+    expect(readUndeliveredPiSteers('run-started-late')).toEqual([
+      { delivery: { kind: 'steer', followUp: followUp('started', 'Started.') }, handedOff: false },
+    ])
+  })
+
+  it('bounds the direct steers one Run could hand back', async () => {
+    const live = liveSession()
+    unregister = registerPiLiveRun({ runId: 'run-bounded', session: live.session, model })
+    for (let index = 0; index < MAX_RETURNED_STEER_OVERFLOW; index += 1) {
+      await expect(
+        steerPiLiveRun({
+          runId: 'run-bounded',
+          text: `Steer ${index}.`,
+          attachments: [],
+          delivery: { kind: 'steer', followUp: followUp(`steer-${index}`, `Steer ${index}.`) },
+        }),
+      ).resolves.toMatchObject({ accepted: true })
+    }
+
+    await expect(
+      steerPiLiveRun({
+        runId: 'run-bounded',
+        text: 'One too many.',
+        attachments: [],
+        delivery: { kind: 'steer', followUp: followUp('too-many', 'One too many.') },
+      }),
+    ).resolves.toEqual({ accepted: false, code: 'steering_capacity_reached' })
+    // Incorporated steers no longer count against the bound.
+    live.persist(live.start('Steer 0.'))
+    await expect(
+      steerPiLiveRun({
+        runId: 'run-bounded',
+        text: 'Room again.',
+        attachments: [],
+        delivery: { kind: 'steer', followUp: followUp('room', 'Room again.') },
+      }),
+    ).resolves.toMatchObject({ accepted: true })
   })
 })

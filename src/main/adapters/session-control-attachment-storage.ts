@@ -12,6 +12,7 @@ import {
   browserAttachmentMetadataJson,
   parseBrowserAttachmentMetadata,
 } from '../utils/browser-attachment-metadata'
+import { referencedSessionAttachmentIds } from './session-control-attachment-references'
 import type { AttachmentStoragePolicy } from './session-control-attachment-service'
 
 interface PreparedAttachmentRow {
@@ -29,9 +30,6 @@ interface PreparedAttachmentRow {
 
 interface StoredBytesRow {
   readonly bytes: number
-}
-interface AttachmentIntentRow {
-  readonly intent_json: string
 }
 
 function cleanupExpiredAttachments(sql: SqlClient.SqlClient, now: number) {
@@ -140,44 +138,10 @@ function bindAttachments(
   )
 }
 
-function referencedAttachmentIds(rows: readonly AttachmentIntentRow[]) {
-  const referenced = new Set<string>()
-  for (const row of rows) {
-    const intent: unknown = JSON.parse(row.intent_json)
-    if (typeof intent !== 'object' || intent === null || !('attachmentIds' in intent))
-      throw new Error('A retained Session intent has no attachment capability list.')
-    const attachmentIds = intent.attachmentIds
-    if (!Array.isArray(attachmentIds) || !attachmentIds.every((id) => typeof id === 'string'))
-      throw new Error('A retained Session intent has an invalid attachment capability list.')
-    for (const id of attachmentIds) referenced.add(id)
-  }
-  return referenced
-}
-
 function cleanupUnreferenced(sql: SqlClient.SqlClient, sessionId: string) {
   return sql.withTransaction(
     Effect.gen(function* () {
-      const rows = yield* sql<AttachmentIntentRow>`
-      SELECT intent_json FROM session_runs WHERE session_id = ${sessionId}
-        AND status IN (${'starting'}, ${'active'}, ${'stopping'}) AND intent_json IS NOT NULL
-      UNION ALL SELECT intent_json FROM session_follow_ups WHERE session_id = ${sessionId}
-      -- A queued steer keeps its attachments while its Run is live, so a stopped Run can return
-      -- it to the Follow-up queue intact. Once the Run settles they are unreferenced unless it was.
-      UNION ALL SELECT json_extract(operation.request_json, '$.input') AS intent_json
-      FROM session_operations AS operation
-      JOIN session_runs AS run
-        ON run.id = json_extract(operation.outcome_json, '$.runId')
-        AND run.session_id = operation.target_scope
-      WHERE operation.target_scope = ${sessionId}
-        AND operation.operation = ${'steer'}
-        AND operation.status = ${'completed'}
-        AND json_extract(operation.outcome_json, '$.effect') = ${'steered-run'}
-        AND run.status IN (${'starting'}, ${'active'}, ${'stopping'})
-    `
-      const referenced = yield* Effect.try({
-        try: () => referencedAttachmentIds(rows),
-        catch: (cause) => (cause instanceof Error ? cause : new Error(String(cause))),
-      })
+      const referenced = yield* referencedSessionAttachmentIds(sql, sessionId)
       if (referenced.size === 0) {
         yield* sql`DELETE FROM session_prepared_attachments WHERE session_id = ${sessionId}`
         return

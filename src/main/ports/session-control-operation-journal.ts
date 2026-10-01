@@ -36,15 +36,24 @@ export interface CompleteSessionControlOperationInput {
   readonly request: SessionControlMutationRequest
   readonly outcome: SessionControlMutationOutcome
   readonly finalizeState?: (state: SessionControlSessionState) => SessionControlSessionState
+  /**
+   * Derive the stored outcome from the state `finalizeState` produced, for an outcome that reports
+   * that state (its revision). Other operations may change the state between claim and completion,
+   * so a revision computed at claim time can be stale. Ignored without `finalizeState`.
+   */
+  readonly outcomeForFinalState?: (
+    finalState: SessionControlSessionState,
+  ) => SessionControlMutationOutcome
 }
 
 export interface SessionControlOperationJournalShape {
   readonly claim: (
     input: ClaimSessionControlOperationInput,
   ) => Effect.Effect<ClaimSessionControlOperationResult, SessionControlRepositoryError>
+  /** Resolves with the outcome the journal recorded for the operation. */
   readonly complete: (
     input: CompleteSessionControlOperationInput,
-  ) => Effect.Effect<void, SessionControlRepositoryError>
+  ) => Effect.Effect<SessionControlMutationOutcome, SessionControlRepositoryError>
 }
 
 export class SessionControlOperationJournal extends Context.Tag(

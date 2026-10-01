@@ -1,4 +1,4 @@
-import { MAX_FOLLOW_UP_QUEUE_ITEMS } from '@shared/types/session-control-queue'
+import { MAX_FOLLOW_UP_QUEUE_LISTED_ITEMS } from '@shared/types/session-control-returned-steers'
 import { Type } from 'typebox'
 
 const queueRevision = Type.Integer({ minimum: 0 })
@@ -9,7 +9,7 @@ export const sessionsToolQueueParameters = [
     sessionId: Type.String(),
     followUpIds: Type.Array(Type.String(), {
       minItems: 1,
-      maxItems: MAX_FOLLOW_UP_QUEUE_ITEMS,
+      maxItems: MAX_FOLLOW_UP_QUEUE_LISTED_ITEMS,
       uniqueItems: true,
     }),
   }),
@@ -17,7 +17,7 @@ export const sessionsToolQueueParameters = [
     action: Type.Literal('queue_reorder'),
     sessionId: Type.String(),
     followUpIds: Type.Array(Type.String(), {
-      maxItems: MAX_FOLLOW_UP_QUEUE_ITEMS,
+      maxItems: MAX_FOLLOW_UP_QUEUE_LISTED_ITEMS,
       uniqueItems: true,
     }),
     queueRevision,

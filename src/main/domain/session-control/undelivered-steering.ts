@@ -1,5 +1,6 @@
 import { matchBy } from '@diegogbrisa/ts-match'
 import type { FollowUpId } from '@shared/types/brand'
+import { MAX_FOLLOW_UP_QUEUE_ITEMS, mutateFollowUpQueue } from './follow-up-queue'
 import type { SessionControlFollowUp, SessionControlSessionState } from './message-aggregate'
 
 const REVISION_INCREMENT = 1
@@ -45,15 +46,13 @@ function returnedFollowUp(
  * Return a stopped Run's Undelivered steering messages to the front of the Follow-up queue, in
  * the order they were steered and ahead of every waiting Follow-up. A promoted Follow-up keeps its
  * identity and whole item; one no longer queued (withdrawn, or removed by an accepted promotion)
- * is skipped. Queue capacity is not enforced: the user already submitted these messages.
- *
- * `bumpStateRevision: false` is for a settlement whose state transition belongs to a pending Run
- * replacement, which publishes the next state revision itself.
+ * is skipped. Queue capacity is not enforced: the user already submitted these messages. Direct
+ * steers are admitted only while the queue has room and are bounded per Run, so the queue stays
+ * within `MAX_FOLLOW_UP_QUEUE_LISTED_ITEMS`.
  */
 export function returnUndeliveredSteers(
   state: SessionControlSessionState,
   steers: readonly UndeliveredSteer[],
-  options: { readonly bumpStateRevision: boolean } = { bumpStateRevision: true },
 ): SessionControlSessionState {
   const queued = new Map(state.followUpQueue.items.map((item) => [item.id, item]))
   const front: SessionControlFollowUp[] = []
@@ -73,11 +72,45 @@ export function returnUndeliveredSteers(
   if (unchanged) return state
   return {
     ...state,
-    revision: state.revision + (options.bumpStateRevision ? REVISION_INCREMENT : 0),
+    revision: state.revision + REVISION_INCREMENT,
     followUpQueue: {
       ...state.followUpQueue,
       revision: state.followUpQueue.revision + REVISION_INCREMENT,
       items,
     },
   }
+}
+
+/**
+ * Pause a running queue that waits on a Session with no Run. Nothing schedules a queue between
+ * Runs, so Follow-ups left behind by a Run that ended outside its own settlement (a refused
+ * interruption, or a settlement another writer overtook) would wait forever. Paused, they show why
+ * and the user can resume, steer, or dismiss them.
+ */
+export function pauseStrandedFollowUps(
+  state: SessionControlSessionState,
+): SessionControlSessionState {
+  if (
+    state.run.state !== 'idle' ||
+    state.followUpQueue.state !== 'running' ||
+    state.followUpQueue.items.length === 0
+  ) {
+    return state
+  }
+  const paused = mutateFollowUpQueue(state.followUpQueue, {
+    type: 'pause',
+    expectedRevision: state.followUpQueue.revision,
+    reason: 'run-interrupted',
+  })
+  if (!paused.accepted) return state
+  return { ...state, revision: state.revision + REVISION_INCREMENT, followUpQueue: paused.queue }
+}
+
+/**
+ * A direct steer is admitted only while the Follow-up queue has room for it, because a Run that
+ * stops before incorporating it returns it there. With the Pi runtime bounding the direct steers
+ * one Run can hand back, a queue never grows past `MAX_FOLLOW_UP_QUEUE_LISTED_ITEMS`.
+ */
+export function queueHasRoomForReturnableSteer(state: SessionControlSessionState) {
+  return state.followUpQueue.items.length < MAX_FOLLOW_UP_QUEUE_ITEMS
 }

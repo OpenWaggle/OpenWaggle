@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { AgentSteeringService } from '../../ports/agent-steering-service'
 import { interruptExactSessionRun, reserveActiveSessionRun } from '../active-session-runs'
 import { dispatchAdmittedSessionControlCommand } from '../local-session-command-dispatcher'
+import { noUndeliveredSteers } from './agent-steering-test-layer'
 import {
   controlPayload,
   localUser,
@@ -141,7 +142,7 @@ describe('Local Session attachment transition dispatch', () => {
         unusedDispatcherCommandDependencies(),
         setup.layer,
         Layer.succeed(AgentSteeringService, {
-          takeUndelivered: () => Effect.succeed([]),
+          ...noUndeliveredSteers,
           steer: () =>
             Effect.promise(async () => {
               steeringEntered.resolve()

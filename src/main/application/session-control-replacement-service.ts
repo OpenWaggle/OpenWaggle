@@ -113,22 +113,23 @@ export function replaceSessionRun(input: ReplaceSessionRunInput) {
           ),
         ),
       })
+      const replacedOutcome = (stateRevision: number): SessionControlMutationOutcome => ({
+        operation: 'replace',
+        effect: 'replaced-run',
+        sessionId: input.request.command.sessionId,
+        interruptedRunId,
+        runId: replacementRunId,
+        stateRevision,
+      })
       const outcome: SessionControlMutationOutcome = interruption.accepted
-        ? {
-            operation: 'replace',
-            effect: 'replaced-run',
-            sessionId: input.request.command.sessionId,
-            interruptedRunId,
-            runId: replacementRunId,
-            stateRevision: claim.stateRevision + 1,
-          }
+        ? replacedOutcome(claim.stateRevision + 1)
         : {
             operation: 'replace',
             effect: 'rejected',
             sessionId: input.request.command.sessionId,
             code: interruption.code,
           }
-      yield* journal.complete({
+      const recorded = yield* journal.complete({
         callerId: input.callerId,
         request: input.request,
         outcome,
@@ -136,8 +137,13 @@ export function replaceSessionRun(input: ReplaceSessionRunInput) {
           ? (state) =>
               startClaimedReplacement(state, interruptedRunId, replacementRunId, replacementIntent)
           : (state) => releaseRejectedRunInterruption(state, interruptedRunId),
+        // The interrupted Run's settlement can change the state in between (it returns its
+        // Undelivered steering messages), so the replacement reports the revision it produced.
+        ...(interruption.accepted
+          ? { outcomeForFinalState: (state) => replacedOutcome(state.revision) }
+          : {}),
       })
-      return response(input, false, outcome)
+      return response(input, false, recorded)
     }).pipe(
       Effect.onError(() => fenceFailedClaimedSessionOperation(input.request.command.sessionId)),
     )

@@ -37,6 +37,7 @@ import { executeSessionControlMutation } from '../session-control-command-servic
 import { SessionHostEventHub } from '../session-host-event-hub'
 import { SessionHostLiveness } from '../session-host-liveness'
 import { NoopActionRunServiceLayer } from './action-run-service-test-layer'
+import { noUndeliveredSteers } from './agent-steering-test-layer'
 import { NoopSessionDesktopLayer } from './desktop-service-test-layer'
 
 function unusedCommandDependencies() {
@@ -45,7 +46,7 @@ function unusedCommandDependencies() {
     NoopActionRunServiceLayer,
     Layer.succeed(SessionWorkspaceResourceRepository, fromPartial({})),
     Layer.succeed(AgentRunInterruptionService, fromPartial({})),
-    Layer.succeed(AgentSteeringService, fromPartial({ takeUndelivered: () => Effect.succeed([]) })),
+    Layer.succeed(AgentSteeringService, fromPartial(noUndeliveredSteers)),
     Layer.succeed(SessionAuthorizationTargetRepository, fromPartial({})),
     Layer.succeed(SessionControlAttachmentService, fromPartial({})),
     Layer.succeed(SessionControlOperationJournal, fromPartial({})),

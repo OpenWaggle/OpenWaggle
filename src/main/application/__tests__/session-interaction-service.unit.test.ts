@@ -45,6 +45,7 @@ describe('Session interaction service', () => {
       complete: (input) =>
         Effect.sync(() => {
           completed.push(input.outcome)
+          return input.outcome
         }),
     })
     const pending = requestAgentLoopInteraction({

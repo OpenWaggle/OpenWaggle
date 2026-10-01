@@ -1,6 +1,7 @@
 import type * as SqlClient from '@effect/sql/SqlClient'
 import { isFollowUpQueuePauseReason } from '@shared/types/session-control-queue'
 import type { SessionQueryRequest } from '@shared/types/session-query'
+import { returnedSteerProvenance } from '@shared/utils/returned-steer-provenance'
 import * as Effect from 'effect/Effect'
 import { listFollowUpEditHeldSessions } from './sqlite-follow-up-edit-holds'
 import {
@@ -239,6 +240,7 @@ export function readQueue(
         queueRevision: state.queue_revision,
         activeRunId: state.active_run_id,
         items: rows.map((row) => ({
+          ...returnedSteerProvenance(parseSessionJson(row.intent_json)),
           followUpId: row.id,
           position: row.position,
           createdAt: row.created_at,

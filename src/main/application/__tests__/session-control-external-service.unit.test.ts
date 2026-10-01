@@ -19,6 +19,7 @@ import { SessionControlIdentityService } from '../../ports/session-control-ident
 import { SessionControlOperationJournal } from '../../ports/session-control-operation-journal'
 import { interruptSessionRun } from '../session-control-external-service'
 import { steerSessionRun } from '../session-control-steering-service'
+import { noUndeliveredSteers } from './agent-steering-test-layer'
 
 const request = {
   contractVersion: SESSION_CONTROL_CONTRACT_VERSION,
@@ -59,10 +60,14 @@ function makeLayer(input: {
           }),
         complete: (completeInput) =>
           Effect.sync(() => {
-            completedOutcome = completeInput.outcome
             if (completeInput.finalizeState) {
               currentState = completeInput.finalizeState(currentState)
             }
+            const outcome = completeInput.outcomeForFinalState
+              ? completeInput.outcomeForFinalState(currentState)
+              : completeInput.outcome
+            completedOutcome = outcome
+            return outcome
           }),
       }),
       Layer.succeed(SessionControlAttachmentService, {
@@ -74,7 +79,7 @@ function makeLayer(input: {
       }),
       Layer.succeed(AgentSteeringService, {
         steer: (steeringInput) => Effect.promise(() => input.steer(steeringInput)),
-        takeUndelivered: () => Effect.succeed([]),
+        ...noUndeliveredSteers,
       }),
       Layer.succeed(SessionControlIdentityService, {
         nextRunId: Effect.succeed(RunId('run-unused')),
@@ -128,6 +133,7 @@ describe('Session Control external command service', () => {
             callerId: 'local-user',
             acceptedAt: 4242,
             idempotencyKey: 'idempotency-steer',
+            returnedSteer: { runId: 'run-active' },
           },
         },
       },

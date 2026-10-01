@@ -10,7 +10,10 @@ import {
   settleAndScheduleNextFollowUp,
   settleSessionRun,
 } from '../domain/session-control/run-lifecycle'
+import { pauseStrandedFollowUps } from '../domain/session-control/undelivered-steering'
 import type { SessionControlRunLifecycleRepositoryShape } from '../ports/session-control-run-lifecycle-repository'
+import { releaseDeliveredSteerAttachments } from './session-control-attachment-references'
+import { persistSessionControlState } from './sqlite-session-control-state'
 import { hasPendingReplacementForRun } from './sqlite-session-follow-up-reservation'
 
 const QUEUE_REVISION_INCREMENT = 1
@@ -119,4 +122,30 @@ export function planRunSettlement(
     return settleAndScheduleNextFollowUp(state, input.runId, input.nextRunId)
   }
   return settleUnsuccessfulRun(state, { ...input, terminalStatus })
+}
+
+/**
+ * Settle a Run that no longer owns its Session: a pending replacement is taking over (`stopping`
+ * with a replace operation in flight), or another writer already displaced it. The Session state
+ * is not this Run's to change, but its Undelivered steering messages still return to the queue,
+ * with their own state revision, which the result reports so the change is published. A queue left
+ * running on a Session with no Run is paused, since nothing would schedule it.
+ */
+export function settleDisplacedRun(
+  sql: SqlClient.SqlClient,
+  input: {
+    readonly loadedState: SessionControlSessionState
+    readonly returned: SessionControlSessionState
+    readonly input: SettleInput
+    readonly code?: 'run_not_starting' | 'run_not_active' | 'run_changed'
+  },
+) {
+  return Effect.gen(function* () {
+    const code = input.code ?? 'run_not_active'
+    if (input.returned === input.loadedState) return { accepted: false, code } as const
+    const state = pauseStrandedFollowUps(input.returned)
+    yield* persistSessionControlState(sql, state, Date.now())
+    yield* releaseDeliveredSteerAttachments(sql, input.input)
+    return { accepted: false, code, stateRevision: state.revision } as const
+  })
 }

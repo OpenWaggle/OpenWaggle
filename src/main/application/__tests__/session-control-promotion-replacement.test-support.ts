@@ -12,6 +12,7 @@ import { AgentSteeringService } from '../../ports/agent-steering-service'
 import { SessionControlAttachmentService } from '../../ports/session-control-attachment-service'
 import { SessionControlIdentityService } from '../../ports/session-control-identity-service'
 import { SessionControlOperationJournal } from '../../ports/session-control-operation-journal'
+import { noUndeliveredSteers } from './agent-steering-test-layer'
 
 export function makePromotionReplacementLayer(
   initialState: SessionControlSessionState,
@@ -36,6 +37,10 @@ export function makePromotionReplacementLayer(
     interrupt,
     release,
     state: () => state,
+    /** Change the state as a concurrent writer would, for example a settling Run. */
+    updateState: (update: (current: SessionControlSessionState) => SessionControlSessionState) => {
+      state = update(state)
+    },
     layer: Layer.mergeAll(
       Layer.succeed(SessionControlOperationJournal, {
         claim: (input) =>
@@ -50,6 +55,7 @@ export function makePromotionReplacementLayer(
         complete: (input) =>
           Effect.sync(() => {
             if (input.finalizeState) state = input.finalizeState(state)
+            return input.outcomeForFinalState ? input.outcomeForFinalState(state) : input.outcome
           }),
       }),
       Layer.succeed(SessionControlAttachmentService, {
@@ -61,7 +67,7 @@ export function makePromotionReplacementLayer(
       }),
       Layer.succeed(AgentSteeringService, {
         steer: (input) => Effect.succeed(steer(input)),
-        takeUndelivered: () => Effect.succeed([]),
+        ...noUndeliveredSteers,
       }),
       Layer.succeed(AgentRunInterruptionService, {
         requestInterrupt: (input) => Effect.succeed(interrupt(input)),

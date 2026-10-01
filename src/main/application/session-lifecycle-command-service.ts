@@ -2,6 +2,7 @@ import { matchBy } from '@diegogbrisa/ts-match'
 import { RunId, SessionId } from '@shared/types/brand'
 import type { SessionLifecycleResponse } from '@shared/types/session-lifecycle'
 import * as Effect from 'effect/Effect'
+import type { AgentSteeringService } from '../ports/agent-steering-service'
 import type { SessionControlIdentityService } from '../ports/session-control-identity-service'
 import type { SessionControlRunExecutor } from '../ports/session-control-run-executor'
 import type { SessionControlRunLifecycleRepository } from '../ports/session-control-run-lifecycle-repository'
@@ -19,6 +20,7 @@ import {
 import { forkSupervisedSessionRuns } from './session-run-coordinator-supervision'
 
 type SessionLifecycleDispatchDependencies =
+  | AgentSteeringService
   | SessionControlIdentityService
   | SessionControlRunExecutor
   | SessionControlRunLifecycleRepository

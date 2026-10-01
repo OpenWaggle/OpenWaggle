@@ -57,6 +57,7 @@ const intentSnapshotSchema = Schema.Struct({
   authorCallerId: Schema.optional(Schema.String),
   acceptedAt: Schema.Number.pipe(Schema.int(), Schema.nonNegative()),
   idempotencyKey: Schema.String,
+  returnedSteer: Schema.optional(Schema.Struct({ runId: Schema.String })),
 })
 
 function repositoryError(operation: string, cause: unknown) {

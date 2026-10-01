@@ -50,6 +50,11 @@ export type SessionControlRunSettlementResult =
   | {
       readonly accepted: false
       readonly code: 'run_not_starting' | 'run_not_active' | 'run_changed'
+      /**
+       * Set when this Run no longer owned the Session (a replacement took over) but settlement
+       * still returned its Undelivered steering messages to the queue, at this state revision.
+       */
+      readonly stateRevision?: number
     }
 
 export interface SessionControlRunLifecycleRepositoryShape {

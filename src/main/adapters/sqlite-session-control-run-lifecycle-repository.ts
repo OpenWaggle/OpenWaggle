@@ -14,12 +14,14 @@ import {
   SessionControlRunLifecycleRepository,
   type SessionControlRunLifecycleRepositoryShape,
 } from '../ports/session-control-run-lifecycle-repository'
+import { releaseDeliveredSteerAttachments } from './session-control-attachment-references'
 import { applyCurrentFollowUpAuthorization } from './session-follow-up-authorization'
 import { recoverSessionControlHostLoss } from './sqlite-session-control-host-loss-recovery'
 import {
   planRunSettlement,
   replacementIsPending,
   type SettleInput,
+  settleDisplacedRun,
 } from './sqlite-session-control-run-settlement'
 import { loadSessionControlState, persistSessionControlState } from './sqlite-session-control-state'
 import { settleWorkerDelegation } from './sqlite-session-control-worker-settlement'
@@ -198,24 +200,13 @@ function settle(
         const reservedIds = yield* reservedFollowUpIds(sql, input.sessionId)
         if (reservedIds.size > 0) return { status: 'promotion-pending' } as const
         const loadedState = yield* loadSessionControlState(sql, input.sessionId)
-        const undeliveredSteers = input.undeliveredSteers ?? []
-        const state = yield* applyCurrentFollowUpAuthorization(
-          sql,
-          returnUndeliveredSteers(loadedState, undeliveredSteers),
-        )
+        const returned = returnUndeliveredSteers(loadedState, input.undeliveredSteers ?? [])
+        const state = yield* applyCurrentFollowUpAuthorization(sql, returned)
         const replacementPending = yield* replacementIsPending(sql, state, input)
         if (replacementPending) {
-          // The replacement's completion owns this Session's next state revision, so the returned
-          // steers change only the queue revision here and reach clients with that transition.
-          const returned = returnUndeliveredSteers(loadedState, undeliveredSteers, {
-            bumpStateRevision: false,
-          })
-          if (returned !== loadedState) {
-            yield* persistSessionControlState(sql, returned, Date.now())
-          }
           return {
             status: 'settled',
-            result: { accepted: false, code: 'run_not_active' },
+            result: yield* settleDisplacedRun(sql, { loadedState, returned, input }),
           } as const
         }
         const parentAdmission = input.suppressFollowUpScheduling
@@ -223,7 +214,17 @@ function settle(
           : yield* directWorkerRunAdmission(sql, input.sessionId)
         const deferForParentLimit = !parentAdmission.admitted
         const result = planRunSettlement(state, input, deferForParentLimit)
-        if (!result.accepted) return { status: 'settled', result } as const
+        if (!result.accepted) {
+          return {
+            status: 'settled',
+            result: yield* settleDisplacedRun(sql, {
+              loadedState,
+              returned,
+              input,
+              code: result.code,
+            }),
+          } as const
+        }
         const { scheduled } = result
         const now = Date.now()
         yield* sql`
@@ -235,6 +236,7 @@ function settle(
           ? undefined
           : yield* settleWorkerDelegation(sql, input, scheduled !== undefined, now)
         yield* persistSessionControlState(sql, result.state, now)
+        yield* releaseDeliveredSteerAttachments(sql, input)
         return settledRunResponse(result, workerUpdate)
       }),
     )

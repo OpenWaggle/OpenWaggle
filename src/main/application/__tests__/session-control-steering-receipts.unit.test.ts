@@ -14,6 +14,7 @@ import { SessionControlIdentityService } from '../../ports/session-control-ident
 import { SessionControlOperationJournal } from '../../ports/session-control-operation-journal'
 import { promoteSessionFollowUp } from '../session-control-promotion-service'
 import { steerSessionRun } from '../session-control-steering-service'
+import { noUndeliveredSteers } from './agent-steering-test-layer'
 
 const receipts: readonly AgentSteerDeliveryReceipt[] = [
   { delivery: 'queued', durableTextSha256: 'b'.repeat(64), minimumCreatedOrder: 17 },
@@ -46,7 +47,7 @@ function receiptLayer(receipt: AgentSteerDeliveryReceipt) {
   }
   const steer = vi.fn(() => Effect.succeed({ accepted: true as const, receipt }))
   const layer = Layer.mergeAll(
-    Layer.succeed(AgentSteeringService, { steer, takeUndelivered: () => Effect.succeed([]) }),
+    Layer.succeed(AgentSteeringService, { steer, ...noUndeliveredSteers }),
     Layer.succeed(SessionControlIdentityService, {
       nextRunId: Effect.succeed(RunId('run-unused')),
       nextFollowUpId: Effect.succeed(FollowUpId('follow-up-returnable')),
@@ -75,6 +76,7 @@ function receiptLayer(receipt: AgentSteerDeliveryReceipt) {
         Effect.sync(() => {
           completedOutcome = input.outcome
           if (input.finalizeState) state = input.finalizeState(state)
+          return input.outcome
         }),
     }),
   )

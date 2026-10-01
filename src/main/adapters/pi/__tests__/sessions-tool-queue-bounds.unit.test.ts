@@ -1,4 +1,4 @@
-import { MAX_FOLLOW_UP_QUEUE_ITEMS } from '@shared/types/session-control-queue'
+import { MAX_FOLLOW_UP_QUEUE_LISTED_ITEMS } from '@shared/types/session-control-returned-steers'
 import { Check } from 'typebox/value'
 import { describe, expect, it } from 'vitest'
 import { sessionsToolParameters } from '../sessions-tool-parameters'
@@ -14,26 +14,29 @@ describe('Pi Sessions Follow-up ID contract', () => {
   it.each([
     { action: 'queue_withdraw', sessionId: 'queen' },
     { action: 'queue_reorder', sessionId: 'queen', queueRevision: 1 },
-  ] as const)('bounds unique IDs for $action at the shared queue capacity', (base) => {
-    expect(
-      Check(sessionsToolParameters, {
-        ...base,
-        followUpIds: ids(MAX_FOLLOW_UP_QUEUE_ITEMS),
-      }),
-    ).toBe(true)
-    expect(
-      Check(sessionsToolParameters, {
-        ...base,
-        followUpIds: ids(MAX_FOLLOW_UP_QUEUE_ITEMS + 1),
-      }),
-    ).toBe(false)
-    expect(
-      Check(sessionsToolParameters, {
-        ...base,
-        followUpIds: ['follow-up-1', 'follow-up-1'],
-      }),
-    ).toBe(false)
-  })
+  ] as const)(
+    'bounds unique IDs for $action at the queue capacity, including returned steers',
+    (base) => {
+      expect(
+        Check(sessionsToolParameters, {
+          ...base,
+          followUpIds: ids(MAX_FOLLOW_UP_QUEUE_LISTED_ITEMS),
+        }),
+      ).toBe(true)
+      expect(
+        Check(sessionsToolParameters, {
+          ...base,
+          followUpIds: ids(MAX_FOLLOW_UP_QUEUE_LISTED_ITEMS + 1),
+        }),
+      ).toBe(false)
+      expect(
+        Check(sessionsToolParameters, {
+          ...base,
+          followUpIds: ['follow-up-1', 'follow-up-1'],
+        }),
+      ).toBe(false)
+    },
+  )
 
   it('deduplicates direct adapter input before Host decoding', () => {
     expect(

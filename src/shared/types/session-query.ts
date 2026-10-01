@@ -253,6 +253,11 @@ export type SessionQueryOutcome =
           | 'authorization_ceiling_changed'
           | 'profile_revoked'
           | 'authority_changed'
+        /**
+         * Set when a direct steer became this Follow-up because its Run stopped before
+         * incorporating it. `idempotencyKey` is the steer's, so its caller can recognise it.
+         */
+        readonly returnedSteer?: { readonly runId: string; readonly idempotencyKey: string }
         readonly intent?: unknown
         /** The calling user queued this Follow-up and may begin a Follow-up edit on it. */
         readonly editable: boolean

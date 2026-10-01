@@ -9,7 +9,7 @@ import {
 import { SessionOrchestrationUpdateDeliveryService } from '../ports/session-orchestration-update-delivery-service'
 import { publishSessionHostEvent } from '../session-host/session-host-events'
 import { requestHiveWorkerCleanup } from './hive-worker-cleanup-request'
-import { takeUndeliveredSteers } from './undelivered-steering-settlement'
+import { settleWithUndeliveredSteers } from './undelivered-steering-settlement'
 
 export function startExternalSessionRun(input: {
   readonly sessionId: SessionId
@@ -81,14 +81,18 @@ export function settleExternalSessionRun(input: {
     const lifecycle = yield* SessionControlRunLifecycleRepository
     const updateDelivery = yield* SessionOrchestrationUpdateDeliveryService
     const nextRunId = yield* identities.nextRunId
-    const undeliveredSteers = yield* takeUndeliveredSteers(input.runId)
-    const settlement = yield* lifecycle.settle({
+    const settlement = yield* settleWithUndeliveredSteers({
       sessionId: input.sessionId,
       runId: input.runId,
-      nextRunId,
-      terminalStatus: input.terminalStatus,
-      ...(input.finalResponse ? { finalResponse: input.finalResponse } : {}),
-      ...(undeliveredSteers.length > 0 ? { undeliveredSteers } : {}),
+      settle: (undeliveredSteers) =>
+        lifecycle.settle({
+          sessionId: input.sessionId,
+          runId: input.runId,
+          nextRunId,
+          terminalStatus: input.terminalStatus,
+          ...(input.finalResponse ? { finalResponse: input.finalResponse } : {}),
+          ...(undeliveredSteers.length > 0 ? { undeliveredSteers } : {}),
+        }),
     })
     if (!settlement.accepted) return settlement
     publishSessionHostEvent({

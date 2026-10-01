@@ -26,6 +26,12 @@ export interface SessionControlIntentSnapshot {
   readonly authorCallerId?: string
   readonly acceptedAt: number
   readonly idempotencyKey: string
+  /**
+   * Set on a Follow-up that a direct Steering message became when its Run stopped before
+   * incorporating it: the Run it was steered into. `idempotencyKey` and `callerId` are the steer's,
+   * so its caller can find it in the queue instead of sending it again.
+   */
+  readonly returnedSteer?: { readonly runId: string }
 }
 
 /**

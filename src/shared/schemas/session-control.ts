@@ -6,7 +6,7 @@ import {
   type SessionControlMutationRequest,
   type SessionControlMutationResponse,
 } from '@shared/types/session-control'
-import { MAX_FOLLOW_UP_QUEUE_ITEMS } from '@shared/types/session-control-queue'
+import { MAX_FOLLOW_UP_QUEUE_LISTED_ITEMS } from '@shared/types/session-control-returned-steers'
 import { THINKING_LEVELS } from '@shared/types/settings'
 import { agentLoopResponseSchema } from './agent-loop-interaction'
 import { sessionAttachmentIdsSchema } from './session-attachment'
@@ -42,7 +42,7 @@ const steeringInputSchema = Schema.Struct({
 })
 
 const uniqueFollowUpIdsSchema = Schema.Array(sessionInputIdSchema).pipe(
-  Schema.maxItems(MAX_FOLLOW_UP_QUEUE_ITEMS),
+  Schema.maxItems(MAX_FOLLOW_UP_QUEUE_LISTED_ITEMS),
   Schema.filter(
     (followUpIds) =>
       new Set(followUpIds).size === followUpIds.length || 'Follow-up IDs must be unique.',

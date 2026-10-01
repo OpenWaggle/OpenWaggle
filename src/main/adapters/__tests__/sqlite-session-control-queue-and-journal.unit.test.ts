@@ -8,6 +8,7 @@ import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import * as ManagedRuntime from 'effect/ManagedRuntime'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { noUndeliveredSteers } from '../../application/__tests__/agent-steering-test-layer'
 import { promoteSessionFollowUp } from '../../application/session-control-promotion-service'
 import { mutateSessionQueue } from '../../application/session-control-service'
 import { SessionControlOperationPendingError } from '../../errors'
@@ -167,7 +168,7 @@ describe('SQLite Session Control queue and operation journal', () => {
     const layer = Layer.merge(
       baseLayer,
       Layer.merge(
-        Layer.succeed(AgentSteeringService, { steer, takeUndelivered: () => Effect.succeed([]) }),
+        Layer.succeed(AgentSteeringService, { steer, ...noUndeliveredSteers }),
         Layer.succeed(SessionControlAttachmentService, {
           prepare: () => Effect.succeed([]),
           bind: () => Effect.void,

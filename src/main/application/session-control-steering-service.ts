@@ -8,6 +8,7 @@ import type {
 import * as Effect from 'effect/Effect'
 import type { SessionControlFollowUp } from '../domain/session-control/message-aggregate'
 import { planSteeringMessage } from '../domain/session-control/steering'
+import { queueHasRoomForReturnableSteer } from '../domain/session-control/undelivered-steering'
 import { SessionControlOperationPendingError } from '../errors'
 import { AgentSteeringService } from '../ports/agent-steering-service'
 import { SessionControlAttachmentService } from '../ports/session-control-attachment-service'
@@ -56,6 +57,7 @@ function returnableSteer(input: SteerSessionRunInput) {
         callerId: input.callerId,
         acceptedAt,
         idempotencyKey: input.request.idempotencyKey,
+        returnedSteer: { runId: input.request.command.expectedRunId },
       },
     } satisfies SessionControlFollowUp
   })
@@ -85,16 +87,16 @@ export function steerSessionRun(input: SteerSessionRunInput) {
             .with('stopping', (run) => ({ state: 'stopping', runId: run.runId }))
             .exhaustive(),
         })
-        return plan.accepted
+        const code = !plan.accepted
+          ? plan.code
+          : queueHasRoomForReturnableSteer(state)
+            ? undefined
+            : 'queue_capacity_reached'
+        return code === undefined
           ? { accepted: true }
           : {
               accepted: false,
-              outcome: {
-                operation: 'steer',
-                effect: 'rejected',
-                sessionId: state.sessionId,
-                code: plan.code,
-              },
+              outcome: { operation: 'steer', effect: 'rejected', sessionId: state.sessionId, code },
             }
       },
     })

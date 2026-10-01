@@ -1,7 +1,14 @@
 import { FollowUpId, RunId, SessionId } from '@shared/types/brand'
+import { MAX_FOLLOW_UP_QUEUE_LISTED_ITEMS } from '@shared/types/session-control-returned-steers'
 import { describe, expect, it } from 'vitest'
+import { MAX_FOLLOW_UP_QUEUE_ITEMS, mutateFollowUpQueue } from '../follow-up-queue'
 import type { SessionControlFollowUp, SessionControlSessionState } from '../message-aggregate'
-import { returnUndeliveredSteers } from '../undelivered-steering'
+import { releaseRejectedRunInterruption } from '../run-interruption'
+import {
+  pauseStrandedFollowUps,
+  queueHasRoomForReturnableSteer,
+  returnUndeliveredSteers,
+} from '../undelivered-steering'
 
 function followUp(id: string, text = `Text ${id}`): SessionControlFollowUp {
   return {
@@ -82,13 +89,61 @@ describe('returning Undelivered steering messages', () => {
     expect(returned.followUpQueue.items[0]?.id).toBe(FollowUpId('direct'))
   })
 
-  it('can leave the state revision to a pending Run replacement', () => {
-    const returned = returnUndeliveredSteers(
-      state([followUp('waiting')]),
-      [{ delivery: { kind: 'steer', followUp: followUp('direct') }, handedOff: true }],
-      { bumpStateRevision: false },
+  it('pauses a running queue left on a Session with no Run, so its Follow-ups are not stranded', () => {
+    const stranded: SessionControlSessionState = {
+      ...state([followUp('returned')]),
+      run: { state: 'idle' },
+    }
+    const paused = pauseStrandedFollowUps(stranded)
+    expect(paused.followUpQueue).toMatchObject({
+      state: 'paused',
+      pauseReason: 'run-interrupted',
+      revision: 4,
+    })
+    expect(paused.revision).toBe(8)
+    expect(pauseStrandedFollowUps(state([followUp('waiting')]))).toMatchObject({
+      followUpQueue: { state: 'running' },
+    })
+    const empty: SessionControlSessionState = { ...state([]), run: { state: 'idle' } }
+    expect(pauseStrandedFollowUps(empty)).toBe(empty)
+  })
+
+  it('pauses the queue when a refused interruption releases a Run that already settled', () => {
+    const released = releaseRejectedRunInterruption(
+      state([followUp('returned')]),
+      RunId('run-stopped'),
     )
-    expect(returned.revision).toBe(7)
-    expect(returned.followUpQueue.revision).toBe(4)
+    expect(released.run).toEqual({ state: 'idle' })
+    expect(released.followUpQueue).toMatchObject({
+      state: 'paused',
+      pauseReason: 'run-interrupted',
+    })
+  })
+
+  it('admits a direct steer only while the queue has room to take it back', () => {
+    const items = (count: number) =>
+      Array.from({ length: count }, (_, index) => followUp(`queued-${index}`))
+    expect(queueHasRoomForReturnableSteer(state(items(MAX_FOLLOW_UP_QUEUE_ITEMS - 1)))).toBe(true)
+    expect(queueHasRoomForReturnableSteer(state(items(MAX_FOLLOW_UP_QUEUE_ITEMS)))).toBe(false)
+  })
+
+  it('keeps a queue pushed past capacity by returned steers reorderable and withdrawable', () => {
+    const items = Array.from({ length: MAX_FOLLOW_UP_QUEUE_LISTED_ITEMS }, (_, index) =>
+      followUp(`queued-${index}`),
+    )
+    const queue = state(items).followUpQueue
+    const reordered = mutateFollowUpQueue(queue, {
+      type: 'reorder',
+      expectedRevision: queue.revision,
+      orderedFollowUpIds: [...items].reverse().map((item) => item.id),
+    })
+    expect(reordered).toMatchObject({ accepted: true })
+    const withdrawn = mutateFollowUpQueue(queue, {
+      type: 'withdraw',
+      followUpIds: [FollowUpId('queued-0')],
+    })
+    expect(withdrawn.accepted && withdrawn.queue.items).toHaveLength(
+      MAX_FOLLOW_UP_QUEUE_LISTED_ITEMS - 1,
+    )
   })
 })
