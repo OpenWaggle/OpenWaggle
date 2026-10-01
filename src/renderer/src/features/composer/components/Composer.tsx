@@ -122,6 +122,7 @@ export function Composer({
     clearOnSubmit,
     recordHistory,
     allowEnqueue,
+    enqueueWaggle: queuedEdit.waitingOnEdit,
     onToast,
     editorRef,
     projectPath,

@@ -1,6 +1,6 @@
 import type { AgentSendPayload } from '@shared/types/agent'
 import type { SessionId } from '@shared/types/brand'
-import { queryOptions, type UseQueryOptions, useQuery } from '@tanstack/react-query'
+import { queryOptions, type UseQueryOptions, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   GUI_COMMAND_REQUIRES_IDLE_MESSAGE,
   isGuiOnlyComposerCommand,
@@ -17,6 +17,7 @@ import {
 } from './session-follow-up-queue-model'
 
 export {
+  heldEdit,
   isLostFollowUpEdit,
   SessionControlRejectedError,
   type SessionFollowUpEdit,
@@ -51,6 +52,7 @@ export function sessionFollowUpQueueOptions(
 }
 
 export function useSessionFollowUpQueue(sessionId: SessionId | null) {
+  const queryClient = useQueryClient()
   const query = useQuery(sessionFollowUpQueueOptions(sessionId))
 
   async function refresh() {
@@ -213,11 +215,16 @@ export function useSessionFollowUpQueue(sessionId: SessionId | null) {
   /**
    * Re-adopts an edit this user already holds, for example after the composer remounted or the
    * user came back to the Session. Returns null when the Follow-up is not held by this user, in
-   * which case `beginEdit` starts a new edit. Reads the latest snapshot, so `refresh()` first when
-   * it may be stale.
+   * which case `beginEdit` starts a new edit. Reads the latest cached snapshot (not this render's),
+   * so awaiting `refresh()` first is enough when it may be stale.
    */
   function resumeEdit(followUpId: string): SessionFollowUpEdit | null {
-    return heldEdit(query.data ?? EMPTY_SNAPSHOT, followUpId)
+    const options = sessionFollowUpQueueOptions(sessionId)
+    const latest =
+      queryClient.getQueryData<SessionFollowUpQueueSnapshot>(options.queryKey) ??
+      query.data ??
+      EMPTY_SNAPSHOT
+    return heldEdit(latest, followUpId)
   }
 
   /**

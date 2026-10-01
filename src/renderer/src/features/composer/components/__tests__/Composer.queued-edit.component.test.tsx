@@ -1,11 +1,15 @@
-import { SessionId } from '@shared/types/brand'
+import { SessionId, SupportedModelId } from '@shared/types/brand'
+import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SessionFollowUpQueueSnapshot } from '@/features/chat/hooks'
+import { usePreferencesStore } from '@/features/settings/state'
 import {
   heldItem,
   openedEdit,
   queueItem,
+  REVIEW_PRESET,
+  resumeFrom,
   snapshotOf,
 } from '../../hooks/__tests__/queued-message-edit.test-support'
 import { useComposerActivityStore } from '../../state/composer-activity-store'
@@ -18,7 +22,7 @@ const queueMock = vi.hoisted(() => {
     'saveEdit' | 'cancelEdit',
     ReturnType<typeof vi.fn>
   > = {
-    snapshot: { state: 'running', revision: 1, activeRunId: null, items: [] },
+    snapshot: { state: 'running', revision: 1, activeRunId: null, items: [], waitingOnEdit: false },
     saveEdit: vi.fn(),
     cancelEdit: vi.fn(),
   }
@@ -36,14 +40,18 @@ vi.mock('@/shared/lib/ipc', () => ({
 }))
 vi.mock('@tanstack/react-router', () => ({ useNavigate: () => vi.fn() }))
 vi.mock('@/features/sessions/hooks', () => ({ useProject: () => ({ projectPath: '/repo' }) }))
-vi.mock('@/features/chat/hooks/useSessionFollowUpQueue', async (importOriginal) => ({
-  ...(await importOriginal<object>()),
-  useSessionFollowUpQueue: () => ({
-    snapshot: queueMock.snapshot,
-    saveEdit: queueMock.saveEdit,
-    cancelEdit: queueMock.cancelEdit,
-  }),
-}))
+vi.mock('@/features/chat/hooks/useSessionFollowUpQueue', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/features/chat/hooks')>()
+  return {
+    ...actual,
+    useSessionFollowUpQueue: () => ({
+      snapshot: queueMock.snapshot,
+      saveEdit: queueMock.saveEdit,
+      cancelEdit: queueMock.cancelEdit,
+      ...resumeFrom(queueMock.snapshot, actual.heldEdit),
+    }),
+  }
+})
 
 const SESSION = SessionId('session-a')
 const KEY_A = 'project:/repo:session:session-a:main'
@@ -191,6 +199,37 @@ describe('Composer queued-message edit mode', () => {
     await waitFor(() =>
       expect(useComposerStore.getState().getScopedDraft(KEY_A)?.input).toBe('my draft'),
     )
+  })
+
+  it('queues an explicit Waggle instead of starting it while the queue waits on an edit', async () => {
+    queueMock.snapshot = { ...snapshotOf([QUEUED]), waitingOnEdit: true }
+    usePreferencesStore.setState({
+      settings: { ...DEFAULT_SETTINGS, selectedModel: SupportedModelId('openai/gpt-5') },
+    })
+    useComposerStore.getState().setInput('review this')
+    useComposerStore.getState().setSelectedWagglePreset(REVIEW_PRESET)
+    const onSend = vi.fn()
+    const onEnqueue = vi.fn(() => true)
+    render(
+      <Composer
+        onSend={onSend}
+        onEnqueue={onEnqueue}
+        onCancel={vi.fn()}
+        isLoading={false}
+        mode={{ queuedMessagesSessionId: SESSION }}
+        onToast={vi.fn()}
+      />,
+    )
+    await waitFor(() => expect(input()).toHaveTextContent('review this'))
+
+    fireEvent.keyDown(input(), { key: 'Enter' })
+
+    await waitFor(() =>
+      expect(onEnqueue).toHaveBeenCalledWith(
+        expect.objectContaining({ waggle: expect.objectContaining({ presetId: 'review' }) }),
+      ),
+    )
+    expect(onSend).not.toHaveBeenCalled()
   })
 
   it('is an ordinary composer when nothing is being edited', () => {

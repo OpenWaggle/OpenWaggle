@@ -41,6 +41,11 @@ interface UseComposerSubmissionInput {
   readonly clearOnSubmit: boolean
   readonly recordHistory: boolean
   readonly allowEnqueue: boolean
+  /**
+   * Queue an explicit Waggle even when idle: the queue waits on a Follow-up edit, and starting the
+   * Waggle now would overtake the held message.
+   */
+  readonly enqueueWaggle?: boolean
   readonly onToast?: (message: string) => void
   readonly editorRef: RefObject<LexicalEditor | null>
   readonly projectPath: string | null
@@ -111,6 +116,7 @@ export function useComposerSubmission({
   clearOnSubmit,
   recordHistory,
   allowEnqueue,
+  enqueueWaggle = false,
   onToast,
   editorRef,
   projectPath,
@@ -142,7 +148,7 @@ export function useComposerSubmission({
       if (block.type === 'toast') onToast?.(block.message)
       return { type: 'blocked' } satisfies DispatchResult
     }
-    if (isLoading && allowEnqueue) {
+    if (allowEnqueue && (isLoading || (enqueueWaggle && payload.waggle !== undefined))) {
       if (isGuiOnlyComposerCommand(payload.text)) {
         onToast?.(GUI_COMMAND_REQUIRES_IDLE_MESSAGE)
         return { type: 'blocked' } satisfies DispatchResult

@@ -18,7 +18,7 @@ const queueMock = vi.hoisted(() => {
     'beginEdit' | 'withdraw',
     ReturnType<typeof vi.fn>
   > = {
-    snapshot: { state: 'running', revision: 1, activeRunId: null, items: [] },
+    snapshot: { state: 'running', revision: 1, activeRunId: null, items: [], waitingOnEdit: false },
     beginEdit: vi.fn(),
     withdraw: vi.fn(),
   }

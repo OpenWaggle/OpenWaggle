@@ -71,17 +71,51 @@ export function snapshotOf(
   items: readonly SessionFollowUpQueueItem[],
   revision = 1,
 ): SessionFollowUpQueueSnapshot {
-  return { state: 'running', revision, activeRunId: 'run-1', items }
+  return {
+    state: 'running',
+    revision,
+    activeRunId: 'run-1',
+    items,
+    waitingOnEdit: items.some((item) => item.editHold !== undefined),
+  }
 }
 
+export const BASE_QUEUE_REVISION = 7
+
 export function openedEdit(item: SessionFollowUpQueueItem, holdId = 'hold-1'): SessionFollowUpEdit {
-  return { followUpId: item.id, holdId, leaseExpiresAt: 30_000, item }
+  return {
+    followUpId: item.id,
+    holdId,
+    queueRevision: BASE_QUEUE_REVISION,
+    leaseExpiresAt: 30_000,
+    item,
+  }
 }
 
 /** The held form of an item, as the queue shows it to the user who holds it. */
 export function heldItem(item: SessionFollowUpQueueItem, holdId = 'hold-1') {
   return {
     ...item,
-    editHold: { holdId, heldByCurrentUser: true, acquiredAt: 1, leaseExpiresAt: 30_000 },
+    editHold: {
+      holdId,
+      baseQueueRevision: BASE_QUEUE_REVISION,
+      heldByCurrentUser: true,
+      acquiredAt: 1,
+      leaseExpiresAt: 30_000,
+    },
+  }
+}
+
+/** What a test's `useSessionFollowUpQueue` mock needs to re-adopt held edits like the real hook. */
+export function resumeFrom(
+  snapshot: SessionFollowUpQueueSnapshot,
+  heldEditOf: (
+    snapshot: SessionFollowUpQueueSnapshot,
+    followUpId: string,
+  ) => SessionFollowUpEdit | null,
+) {
+  return {
+    refresh: () => Promise.resolve(snapshot),
+    resumeEdit: (followUpId: string) => heldEditOf(snapshot, followUpId),
   }
 }

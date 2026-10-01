@@ -1,5 +1,5 @@
 import { SessionId } from '@shared/types/brand'
-import { act, renderHook } from '@testing-library/react'
+import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   SessionControlRejectedError,
@@ -12,22 +12,25 @@ import {
   queuedMessageEditStashKey,
   useQueuedMessageEditStore,
 } from '../../state/queued-message-edit-store'
-import { DROPPED_ATTACHMENTS_SUFFIX } from '../queued-message-edit-messages'
 import { useAdoptHeldQueuedMessageEdit, useQueuedMessageEdit } from '../useQueuedMessageEdit'
 import {
+  BASE_QUEUE_REVISION,
   heldItem,
   openedEdit,
   preparedAttachment,
   queueItem,
+  resumeFrom,
   snapshotOf,
 } from './queued-message-edit.test-support'
 
 const queueMock = vi.hoisted(() => {
-  const mock: { snapshot: SessionFollowUpQueueSnapshot } & Record<
-    'beginEdit' | 'saveEdit' | 'cancelEdit' | 'discard',
-    ReturnType<typeof vi.fn>
-  > = {
-    snapshot: { state: 'running', revision: 1, activeRunId: null, items: [] },
+  const mock: {
+    snapshot: SessionFollowUpQueueSnapshot
+    /** What a refetch returns, when it differs from the rendered snapshot. */
+    fresh: SessionFollowUpQueueSnapshot | null
+  } & Record<'beginEdit' | 'saveEdit' | 'cancelEdit' | 'discard', ReturnType<typeof vi.fn>> = {
+    snapshot: { state: 'running', revision: 1, activeRunId: null, items: [], waitingOnEdit: false },
+    fresh: null,
     beginEdit: vi.fn(),
     saveEdit: vi.fn(),
     cancelEdit: vi.fn(),
@@ -40,15 +43,19 @@ vi.mock('@/shared/lib/ipc', () => ({
   api: { discardPreparedAttachment: queueMock.discard },
 }))
 
-vi.mock('@/features/chat/hooks/useSessionFollowUpQueue', async (importOriginal) => ({
-  ...(await importOriginal<object>()),
-  useSessionFollowUpQueue: () => ({
-    snapshot: queueMock.snapshot,
-    beginEdit: queueMock.beginEdit,
-    saveEdit: queueMock.saveEdit,
-    cancelEdit: queueMock.cancelEdit,
-  }),
-}))
+vi.mock('@/features/chat/hooks/useSessionFollowUpQueue', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/features/chat/hooks')>()
+  return {
+    ...actual,
+    useSessionFollowUpQueue: () => ({
+      snapshot: queueMock.snapshot,
+      beginEdit: queueMock.beginEdit,
+      saveEdit: queueMock.saveEdit,
+      cancelEdit: queueMock.cancelEdit,
+      ...resumeFrom(queueMock.fresh ?? queueMock.snapshot, actual.heldEdit),
+    }),
+  }
+})
 
 const SESSION_A = SessionId('session-a')
 const KEY_A = 'project:/repo:session:session-a:branch:main'
@@ -171,68 +178,98 @@ describe('useQueuedMessageEdit in flight', () => {
     expect(composer().input).toBe('my draft')
   })
 
-  it('drops newly added attachments after the Host rejects a save, and says so', async () => {
+  it('keeps newly added attachments after the Host rejects a save, for a retry', async () => {
     const { hook, onToast } = await renderOpenEdit()
     act(() => composer().addAttachments([preparedAttachment('new-1')]))
     queueMock.saveEdit.mockRejectedValueOnce(
-      new SessionControlRejectedError('queue-edit-save', 'queue_revision_changed'),
+      new SessionControlRejectedError('queue-edit-save', 'queue_byte_capacity_reached'),
     )
 
     await act(() => hook.result.current.save())
 
-    expect(composer().attachments.map((attachment) => attachment.id)).toEqual(['host-1'])
+    // The Host retains attachments a live hold's save named, so the retry can bind them again.
+    expect(composer().attachments.map((attachment) => attachment.id)).toEqual(['host-1', 'new-1'])
     expect(hook.result.current.edit).toMatchObject({ phase: 'editing' })
-    expect(onToast).toHaveBeenCalledWith(expect.stringContaining(DROPPED_ATTACHMENTS_SUFFIX))
+    expect(onToast).toHaveBeenCalledWith(expect.stringContaining('too large'))
+    await act(() => hook.result.current.save())
+    expect(queueMock.saveEdit).toHaveBeenLastCalledWith(
+      openedEdit(QUEUED),
+      expect.objectContaining({
+        attachments: [
+          expect.objectContaining({ id: 'host-1' }),
+          expect.objectContaining({ id: 'new-1' }),
+        ],
+      }),
+    )
   })
 })
 
 describe('useAdoptHeldQueuedMessageEdit', () => {
   beforeEach(() => {
+    queueMock.fresh = null
     useComposerStore.setState(useComposerStore.getInitialState())
     useQueuedMessageEditStore.setState({ edits: {} })
   })
 
-  it('reopens edit mode for a message this user holds when no edit is open for it', () => {
+  it('reopens edit mode for a message this user holds when no edit is open for it', async () => {
     composer().switchScopedDraftContext(KEY_A)
     composer().setInput('my draft')
     queueMock.snapshot = snapshotOf([heldItem(QUEUED, 'hold-9')])
 
     renderHook(() => useAdoptHeldQueuedMessageEdit(SESSION_A))
 
-    expect(useQueuedMessageEditStore.getState().edits['session-a']).toMatchObject({
-      phase: 'editing',
-      followUpId: QUEUED.id,
-      contextKey: KEY_A,
-      based: { holdId: 'hold-9' },
-    })
+    // Re-adopted through `resumeEdit`, carrying the revision the edit began at for its save.
+    await waitFor(() =>
+      expect(useQueuedMessageEditStore.getState().edits['session-a']).toMatchObject({
+        phase: 'editing',
+        followUpId: QUEUED.id,
+        contextKey: KEY_A,
+        based: { holdId: 'hold-9', queueRevision: BASE_QUEUE_REVISION },
+      }),
+    )
     expect(composer().input).toBe('queued text')
     expect(composer().getScopedDraft(queuedMessageEditStashKey('session-a'))?.input).toBe(
       'my draft',
     )
   })
 
-  it('adopts once the Session draft becomes visible', () => {
+  it('adopts once the Session draft becomes visible', async () => {
     composer().switchScopedDraftContext('project:/repo:session:session-b:main')
     queueMock.snapshot = snapshotOf([heldItem(QUEUED)])
     renderHook(() => useAdoptHeldQueuedMessageEdit(SESSION_A))
+    await act(() => Promise.resolve())
     expect(useQueuedMessageEditStore.getState().edits).toEqual({})
 
     act(() => {
       composer().switchScopedDraftContext(KEY_A)
     })
 
-    expect(useQueuedMessageEditStore.getState().edits['session-a']).toMatchObject({
-      contextKey: KEY_A,
-    })
+    await waitFor(() =>
+      expect(useQueuedMessageEditStore.getState().edits['session-a']).toMatchObject({
+        contextKey: KEY_A,
+      }),
+    )
   })
 
-  it('leaves a hold alone when it is not this user’s', () => {
+  it('does not adopt a hold the refreshed queue no longer shows', async () => {
+    composer().switchScopedDraftContext(KEY_A)
+    queueMock.snapshot = snapshotOf([heldItem(QUEUED)])
+    queueMock.fresh = snapshotOf([QUEUED])
+
+    renderHook(() => useAdoptHeldQueuedMessageEdit(SESSION_A))
+    await act(() => Promise.resolve())
+
+    expect(useQueuedMessageEditStore.getState().edits).toEqual({})
+  })
+
+  it('leaves a hold alone when it is not this user’s', async () => {
     composer().switchScopedDraftContext(KEY_A)
     queueMock.snapshot = snapshotOf([
       { ...QUEUED, editHold: { heldByCurrentUser: false, acquiredAt: 1, leaseExpiresAt: 2 } },
     ])
 
     renderHook(() => useAdoptHeldQueuedMessageEdit(SESSION_A))
+    await act(() => Promise.resolve())
 
     expect(useQueuedMessageEditStore.getState().edits).toEqual({})
   })

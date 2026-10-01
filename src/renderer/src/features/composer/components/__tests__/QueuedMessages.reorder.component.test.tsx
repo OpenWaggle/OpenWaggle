@@ -16,7 +16,7 @@ const queueMock = vi.hoisted(() => {
     'reorder' | 'refresh',
     ReturnType<typeof vi.fn>
   > = {
-    snapshot: { state: 'running', revision: 1, activeRunId: null, items: [] },
+    snapshot: { state: 'running', revision: 1, activeRunId: null, items: [], waitingOnEdit: false },
     reorder: vi.fn(),
     refresh: vi.fn(),
   }

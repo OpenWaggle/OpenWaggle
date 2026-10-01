@@ -9,7 +9,6 @@ const BEGIN_REJECTION_COPY: Readonly<Record<string, string>> = {
 
 export const LOST_EDIT_MESSAGE =
   'This queued message was already sent or removed, so your edit was not saved. Your text is back in the composer to send as a new message.'
-export const DROPPED_ATTACHMENTS_SUFFIX = ' Attach new files again if you need them.'
 
 export function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : String(error)

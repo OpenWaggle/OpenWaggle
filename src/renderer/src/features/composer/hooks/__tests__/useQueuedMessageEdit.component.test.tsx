@@ -27,7 +27,7 @@ const queueMock = vi.hoisted(() => {
     'beginEdit' | 'saveEdit' | 'cancelEdit' | 'discard',
     ReturnType<typeof vi.fn>
   > = {
-    snapshot: { state: 'running', revision: 1, activeRunId: null, items: [] },
+    snapshot: { state: 'running', revision: 1, activeRunId: null, items: [], waitingOnEdit: false },
     beginEdit: vi.fn(),
     saveEdit: vi.fn(),
     cancelEdit: vi.fn(),
@@ -170,9 +170,13 @@ describe('useQueuedMessageEdit', () => {
     await act(() => hook.result.current.save())
 
     expect(composer().input).toBe('edited text\n\nmy draft')
-    expect(composer().attachments).toEqual([DRAFT_ATTACHMENT])
+    // The Host keeps the edit's attachments bindable, so they come along to be sent as new.
+    expect(composer().attachments.map((attachment) => attachment.id)).toEqual(['host-1', 'draft-1'])
     expect(hook.result.current.edit).toBeNull()
-    expect(onToast).toHaveBeenCalledWith(expect.stringContaining(LOST_EDIT_MESSAGE))
+    expect(onToast).toHaveBeenCalledWith(LOST_EDIT_MESSAGE)
+    // Removing a kept Host attachment's chip must not discard what the Host still holds.
+    act(() => composer().removeAttachment('host-1'))
+    expect(queueMock.discard).not.toHaveBeenCalled()
   })
 
   it('stays in edit mode with the edit intact when a save fails for another reason', async () => {

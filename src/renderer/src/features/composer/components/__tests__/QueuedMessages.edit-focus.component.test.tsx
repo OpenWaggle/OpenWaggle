@@ -18,7 +18,7 @@ const queueMock = vi.hoisted(() => {
     'beginEdit' | 'saveEdit' | 'cancelEdit',
     ReturnType<typeof vi.fn>
   > = {
-    snapshot: { state: 'running', revision: 1, activeRunId: null, items: [] },
+    snapshot: { state: 'running', revision: 1, activeRunId: null, items: [], waitingOnEdit: false },
     beginEdit: vi.fn(),
     saveEdit: vi.fn(),
     cancelEdit: vi.fn(),

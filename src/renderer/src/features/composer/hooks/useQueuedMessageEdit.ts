@@ -2,7 +2,6 @@ import type { SessionId } from '@shared/types/brand'
 import { useEffect, useEffectEvent } from 'react'
 import {
   isLostFollowUpEdit,
-  SessionControlRejectedError,
   type SessionFollowUpEdit,
   type SessionFollowUpQueueItem,
   useSessionFollowUpQueue,
@@ -10,7 +9,6 @@ import {
 import { useBranchSummaryStore } from '@/features/chat/state'
 import { isComposerBusy } from '../state/composer-activity-store'
 import {
-  isHostReferencedAttachment,
   releaseHostReferencedAttachments,
   retainHostReferencedAttachments,
 } from '../state/composer-attachment-lifecycle'
@@ -37,7 +35,6 @@ import {
 } from './queued-message-edit-drafts'
 import {
   beginFailureMessage,
-  DROPPED_ATTACHMENTS_SUFFIX,
   errorMessage,
   LOST_EDIT_MESSAGE,
   saveFailureMessage,
@@ -73,13 +70,19 @@ export function editBlockedByComposer() {
 
 /**
  * Ends the edit: `draft` replaces the edited content, the stash is released after it, and the
- * Host-referenced chips stop being protected once they have left the composer.
+ * Host-referenced chips stop being protected once they have left the composer (a lost edit kept as
+ * a new draft keeps them, and their protection, until they leave too).
  */
 function endEdit(sessionId: SessionId, open: OpenQueuedMessageEdit, draft: ComposerScopedDraft) {
   const leaving = readComposerDraft(open.contextKey).attachments
   writeComposerDraft(open.contextKey, draft)
   clearStashedDraft(String(sessionId))
-  releaseHostReferencedAttachments([...open.based.item.attachments, ...leaving])
+  const staying = new Set(draft.attachments.map((attachment) => attachment.id))
+  releaseHostReferencedAttachments(
+    [...open.based.item.attachments, ...leaving].filter(
+      (attachment) => !staying.has(attachment.id),
+    ),
+  )
   setEdit(sessionId, null)
   focusVisibleEditor(open.contextKey)
 }
@@ -88,10 +91,19 @@ function restoreStashedDraft(sessionId: SessionId, open: OpenQueuedMessageEdit) 
   endEdit(sessionId, open, readStashedDraft(String(sessionId)))
 }
 
+function mergeAttachments(
+  first: ComposerScopedDraft['attachments'],
+  second: ComposerScopedDraft['attachments'],
+) {
+  return [
+    ...new Map([...first, ...second].map((attachment) => [attachment.id, attachment])).values(),
+  ]
+}
+
 /**
  * A lost edit cannot be saved: keep what the user wrote, out of edit mode, so it can be sent as a
- * new message. Its hold is gone, so its attachments are no longer kept for it: only the set-aside
- * draft's attachments come back.
+ * new message, together with the set-aside draft. The Host keeps attachments an edit named
+ * bindable for a while after the hold is gone, so the edit's attachments come along.
  */
 function keepLostEditAsDraft(
   sessionId: SessionId,
@@ -99,9 +111,11 @@ function keepLostEditAsDraft(
   edited: ComposerScopedDraft,
 ) {
   const stashed = readStashedDraft(String(sessionId))
+  // Still Host-referenced, so composer cleanup must not discard them if their chips are removed.
+  retainHostReferencedAttachments(edited.attachments)
   endEdit(sessionId, open, {
     input: mergeText(edited.input.trim(), stashed.input),
-    attachments: stashed.attachments,
+    attachments: mergeAttachments(edited.attachments, stashed.attachments),
     wagglePreset: edited.wagglePreset ?? stashed.wagglePreset ?? null,
   })
 }
@@ -204,24 +218,12 @@ export function useQueuedMessageEdit(
   ) {
     if (isLostFollowUpEdit(error)) {
       keepLostEditAsDraft(id, open, draft)
-      onToast(
-        draft.attachments.length > 0
-          ? LOST_EDIT_MESSAGE + DROPPED_ATTACHMENTS_SUFFIX
-          : LOST_EDIT_MESSAGE,
-      )
+      onToast(LOST_EDIT_MESSAGE)
       return
     }
+    // Still held: the Host keeps every attachment the edit named, so retry with the edit as is.
     setEdit(id, { ...open, phase: 'editing' })
-    if (!(error instanceof SessionControlRejectedError)) {
-      // Refused before the Host saw it (a GUI-only command, a broken connection): nothing changed.
-      onToast(saveFailureMessage(error))
-      return
-    }
-    // The Host deletes attachments a rejected save added, so their chips would no longer resolve.
-    const kept = draft.attachments.filter(isHostReferencedAttachment)
-    const dropped = kept.length !== draft.attachments.length
-    if (dropped) writeComposerDraft(open.contextKey, { ...draft, attachments: kept })
-    onToast(saveFailureMessage(error) + (dropped ? DROPPED_ATTACHMENTS_SUFFIX : ''))
+    onToast(saveFailureMessage(error))
   }
 
   async function cancel() {
@@ -251,14 +253,23 @@ export function useQueuedMessageEdit(
     restoreStashedDraft(sessionId, open)
   }
 
-  return { edit, isVisible, begin, save, cancel, endWithdrawnEdit }
+  return {
+    edit,
+    isVisible,
+    /** The queue waits on an edit (any window's): an explicit Waggle must queue behind it. */
+    waitingOnEdit: queue.snapshot.waitingOnEdit,
+    begin,
+    save,
+    cancel,
+    endWithdrawnEdit,
+  }
 }
 
-/** The open edit a held queue item represents, when this user holds it and knows its hold. */
-function heldEdit(item: SessionFollowUpQueueItem): SessionFollowUpEdit | null {
-  const hold = item.editHold
-  if (!hold?.heldByCurrentUser || !hold.holdId) return null
-  return { followUpId: item.id, holdId: hold.holdId, leaseExpiresAt: hold.leaseExpiresAt, item }
+/** A message this user holds for editing, which an edit could be re-adopted for. */
+function isOwnHold(item: SessionFollowUpQueueItem) {
+  return (
+    item.editable && item.editHold?.heldByCurrentUser === true && item.editHold.holdId !== undefined
+  )
 }
 
 /**
@@ -269,21 +280,26 @@ function heldEdit(item: SessionFollowUpQueueItem): SessionFollowUpEdit | null {
  * once per Session composer; this is the only place an edit is adopted.
  */
 export function useAdoptHeldQueuedMessageEdit(sessionId: SessionId | null) {
-  const { snapshot } = useSessionFollowUpQueue(sessionId)
+  const queue = useSessionFollowUpQueue(sessionId)
   const edit = useQueuedMessageEditStore(
     selectQueuedMessageEdit(sessionId ? String(sessionId) : null),
   )
   const visibleKey = useComposerStore((state) => state.activeDraftContextKey)
-  const orphan = edit === null ? snapshot.items.map(heldEdit).find((held) => held !== null) : null
-  const orphanHoldId = orphan?.holdId ?? null
-  const adopt = useEffectEvent(() => {
-    if (!sessionId || !orphan || storedEdit(sessionId)) return
+  const orphan = edit === null ? queue.snapshot.items.find(isOwnHold) : undefined
+  const orphanHoldId = orphan?.editHold?.holdId ?? null
+  const adopt = useEffectEvent(async () => {
+    const followUpId = orphan?.id
+    if (!sessionId || !followUpId || storedEdit(sessionId)) return
+    // The hold may have ended since this snapshot; re-adopt only what the Host still shows held.
+    await queue.refresh()
+    const resumed = queue.resumeEdit(followUpId)
     const contextKey = visibleSessionDraftContext(String(sessionId))
-    if (contextKey && !contextKey.endsWith(':pending')) openEdit(sessionId, contextKey, orphan)
+    if (!resumed || storedEdit(sessionId) || !contextKey || contextKey.endsWith(':pending')) return
+    openEdit(sessionId, contextKey, resumed)
   })
 
   useEffect(() => {
-    if (orphanHoldId && visibleKey) adopt()
+    if (orphanHoldId && visibleKey) void adopt()
   }, [orphanHoldId, visibleKey])
 }
 

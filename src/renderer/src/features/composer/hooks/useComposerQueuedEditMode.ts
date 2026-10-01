@@ -12,6 +12,8 @@ export interface ComposerQueuedEditMode {
   readonly elsewhere: boolean
   /** Saving is possible now (content, nothing preparing, within the limits). */
   readonly canSave: boolean
+  /** The Session's queue waits on an edit, so an explicit Waggle is queued, not started. */
+  readonly waitingOnEdit: boolean
   readonly save: () => void
   readonly cancel: () => void
 }
@@ -35,6 +37,7 @@ export function useComposerQueuedEditMode(
   return {
     here,
     elsewhere: queuedEdit.edit !== null && !queuedEdit.isVisible,
+    waitingOnEdit: queuedEdit.waitingOnEdit,
     canSave:
       isOpenQueuedMessageEdit(here) &&
       here.phase === 'editing' &&
