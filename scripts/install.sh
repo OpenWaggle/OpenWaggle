@@ -143,6 +143,24 @@ resolve_release_tag() {
   [ -n "${selected}" ] || return 1
   printf '%s\n' "${selected}"
 }
+
+# Releases also publish a `.blockmap` beside each installer for differential updates, and its
+# name extends the installer's. Both lookups below therefore match whole names, never substrings.
+select_asset_url() {
+  local release_json="$1"
+  local asset_pattern="$2"
+  printf '%s' "${release_json}" | grep '"browser_download_url"' | \
+    sed -n "s/.*\"browser_download_url\": *\"\([^\"]*\)\".*/\1/p" | \
+    grep -E "/${asset_pattern}\$" | head -1
+}
+
+# Prints the SHA-256 that `sha256sum`-format SHA256SUMS.txt lists for exactly this file name.
+expected_checksum() {
+  local checksum_file="$1"
+  local file_name="$2"
+  awk -v name="${file_name}" '{ entry = $2; sub(/^\*/, "", entry) } entry == name { print $1; exit }' \
+    "${checksum_file}"
+}
 # END TESTABLE RELEASE RESOLUTION
 
 # BEGIN TESTABLE UPDATE CHANNEL PREFERENCE
@@ -462,7 +480,7 @@ elif [ "${PLATFORM}" = "linux" ]; then
   ASSET_PATTERN="openwaggle-.*-${ARCH_LABEL}\\.AppImage"
 fi
 
-ASSET_URL="$(printf '%s' "${RELEASE_JSON}" | grep '"browser_download_url"' | sed -n "s/.*\"browser_download_url\": *\"\([^\"]*\\)\".*/\1/p" | grep -E "${ASSET_PATTERN}" | head -1)"
+ASSET_URL="$(select_asset_url "${RELEASE_JSON}" "${ASSET_PATTERN}")"
 [ -z "${ASSET_URL:-}" ] && error "No matching asset found for ${PLATFORM}/${ARCH_LABEL}"
 
 FILENAME="$(basename "${ASSET_URL}")"
@@ -479,7 +497,7 @@ if [ -n "${SHA_URL:-}" ]; then
   info "Verifying checksum…"
   SHA_FILE="${TMPDIR}/SHA256SUMS.txt"
   curl_with_retry -fsSL -o "${SHA_FILE}" "${SHA_URL}"
-  EXPECTED="$(grep "${FILENAME}" "${SHA_FILE}" | awk '{print $1}')"
+  EXPECTED="$(expected_checksum "${SHA_FILE}" "${FILENAME}")"
   if [ -n "${EXPECTED}" ]; then
     if command -v sha256sum >/dev/null 2>&1; then
       ACTUAL="$(sha256sum "${DOWNLOAD_PATH}" | awk '{print $1}')"
