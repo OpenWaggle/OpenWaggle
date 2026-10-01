@@ -1,0 +1,31 @@
+# Follow-up edits keep their identity and hold the queue
+
+Status: accepted
+
+Date: 2026-10-01
+
+## Context
+
+A queued Follow-up message could only be withdrawn, reordered, or steered. Users wanted to fix a queued message without losing its place, by reopening it in the composer with its text, attachments, and any skill or Waggle invocation. Editing in the composer takes long enough that the active Run can settle meanwhile, and the queue would then deliver the old text. A queue that had a message out for editing would no longer deliver what the user meant, in the order the user set.
+
+Two shapes were considered:
+
+- **Withdraw and re-queue.** The renderer withdraws the item, the composer edits it, and saving queues a new Follow-up and reorders it back into place. This needs no new Host operation, but it changes the Follow-up identity that callers, retries, and Delegations rely on, and the queue can deliver the items behind it, or the item itself, between the steps.
+- **Edit in place under a Host hold.** The Host replaces the Follow-up intent snapshot while keeping its identity and position, and stops delivery at that item until the edit ends.
+
+## Decision
+
+A **Follow-up edit** replaces a pending Follow-up message's intent snapshot in place: same Follow-up identity, same queue position, revision-guarded like every other queue mutation. Only the user who queued a message can edit it. Message provenance never changes, so another caller's Follow-up can be reordered or withdrawn but not rewritten.
+
+An edit runs under a **Follow-up edit hold**. Beginning an edit asks the Host to hold the item. While a hold exists, queue delivery stops at the held item, so nothing from that item onward starts, including at Run settlement and on queue resumption. The held item can still be reordered, and the hold travels with the item. Saving the edit or cancelling it releases the hold. The Host owns the hold as a lease bound to the desktop window that began it: the hold survives switching Sessions, which shows it as waiting on the user's edit, and the Host releases it when that window closes or reloads, or the app's Host connection is lost, so an abandoned edit cannot block a queue forever.
+
+Thinking level and authorization are not part of an edit. They are Session state applied when a Run starts, like the model, and moving them off messages is a separate change.
+
+## Consequences
+
+The queue gains a delivery-blocking state that is neither a pause nor needs-attention. Every delivery path has to respect it: settlement scheduling, explicit resumption, idle message submission, and steering promotion of the held item, which is refused while held. A held head item means an idle Session with a non-empty queue that will not start on its own, so a new message submitted then is queued behind it, the same as with a paused queue.
+
+Two related rules ship with this change:
+
+- When a Steering message has been accepted but not yet incorporated (an **Undelivered steering message**) and its Run is stopped, it returns to the front of the Follow-up queue instead of being lost with Pi's cleared steering queue.
+- When Pi starts incorporating a user message, the Host sends that message's display content with the event, so the transcript shows a Follow-up as soon as its Run starts and turns a steered bubble from queued to delivered at the moment the agent reads it.

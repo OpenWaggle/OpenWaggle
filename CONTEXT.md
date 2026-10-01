@@ -471,6 +471,10 @@ _Avoid_: replacement prompt, queued follow-up, cancel-and-restart steering
 An operation that converts one selected Follow-up message into a Steering message for the targeted active run.
 _Avoid_: queue promotion, move to front
 
+**Undelivered steering message**:
+A Steering message its active run has accepted but not yet incorporated. If that run is stopped before incorporating it, it returns to the front of the Follow-up queue as a Follow-up message.
+_Avoid_: queued steer, pending follow-up, sent message
+
 **Run replacement**:
 An explicit operation that cancels a targeted active run and starts a new run from replacement input.
 _Avoid_: steering message, interrupt
@@ -490,6 +494,14 @@ _Avoid_: interrupt, dismiss notification
 **Follow-up reordering**:
 An operation that changes the relative delivery order of pending Follow-up messages.
 _Avoid_: steering promotion, replace
+
+**Follow-up edit**:
+An operation that replaces a pending Follow-up message's intent snapshot while preserving its Follow-up identity and queue position. Only the user who queued a Follow-up message can edit it; its Message provenance never changes.
+_Avoid_: withdraw and re-queue, replace, steer
+
+**Follow-up edit hold**:
+A Host-owned, leased state that stops Follow-up queue delivery at the Follow-up message being edited, including every message behind it, until the edit is saved or cancelled or the editing window closes. Leaving the Session keeps the hold and shows it as waiting on the user's edit.
+_Avoid_: queue pause, skip, lock
 
 **Follow-up queue pause**:
 A state that retains pending Follow-up messages while preventing their automatic delivery.
@@ -520,7 +532,7 @@ The caller-selected retry identity that makes repeated execution of the same aut
 _Avoid_: follow-up identity, request identity, request timestamp
 
 **Follow-up intent snapshot**:
-The durable non-authority message content and turn intent captured when a Follow-up message is accepted.
+The durable non-authority message content and turn intent captured when a Follow-up message is accepted, and replaced only by a Follow-up edit.
 _Avoid_: queue payload, execution profile snapshot
 
 **Target execution profile**:
@@ -688,7 +700,7 @@ The persisted, conflict-free mapping from product commands to user-recorded cros
 _Avoid_: component-local shortcut literal, silent shortcut replacement
 
 **Waggle invocation**:
-An explicit, one-shot user or standard-agent request to run a saved Waggle preset for one prompt. A Waggle invocation cannot start another Waggle while collaboration is already active.
+An explicit, one-shot user or standard-agent request to run a saved Waggle preset for one prompt. Like a skill invocation, a user's Waggle invocation is part of the prompt's content, so editing a queued Follow-up message can add or remove it. A Waggle invocation cannot start another Waggle while collaboration is already active.
 _Avoid_: hidden mode toggle, implicit collaboration
 
 **Waggle handoff**:
