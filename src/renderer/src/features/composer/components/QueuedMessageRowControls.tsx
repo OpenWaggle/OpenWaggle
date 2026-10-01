@@ -70,9 +70,8 @@ export function QueuedMessageRowControls({
           size="icon-xs"
           radius="md"
           type="button"
-          onClick={() => {
-            if (!editUnavailable) actions.onEdit(item.id)
-          }}
+          // Still clickable when unavailable, so the user hears why (begin explains it).
+          onClick={() => actions.onEdit(item.id)}
           aria-disabled={editUnavailable}
           aria-label={`Edit queued message: ${label}`}
           title={held ? 'This message is being edited' : 'Edit'}

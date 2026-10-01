@@ -1,8 +1,15 @@
 import type { SessionId } from '@shared/types/brand'
-import { useComposerActivityStore } from '../state/composer-activity-store'
+import { useState } from 'react'
+import {
+  draftBusyReason,
+  selectDraftActivity,
+  useComposerActivityStore,
+} from '../state/composer-activity-store'
 import { useComposerStore } from '../state/composer-store'
 import { isOpenQueuedMessageEdit, type QueuedMessageEdit } from '../state/queued-message-edit-store'
 import { attachmentLimitReason } from './composer-submission-support'
+import { readComposerDraft } from './queued-message-edit-drafts'
+import { isUnchangedEdit } from './queued-message-edit-transitions'
 import { useAdoptHeldQueuedMessageEdit, useQueuedMessageEdit } from './useQueuedMessageEdit'
 
 export interface ComposerQueuedEditMode {
@@ -10,17 +17,21 @@ export interface ComposerQueuedEditMode {
   readonly here: QueuedMessageEdit | null
   /** An edit is open in another draft (another branch) of this Session. */
   readonly elsewhere: boolean
-  /** Saving is possible now (content, nothing preparing, within the limits). */
+  /** Saving is possible now (content, no work in flight for the draft, within the limits). */
   readonly canSave: boolean
   /** The Session's queue waits on an edit, so an explicit Waggle is queued, not started. */
   readonly waitingOnEdit: boolean
+  /** A first Escape on a changed edit asks for a second one before discarding the changes. */
+  readonly escapeArmed: boolean
   readonly save: () => void
   readonly cancel: () => void
+  /** Escape in the input: discards an unchanged edit at once, a changed one on the second press. */
+  readonly onEscape: () => void
 }
 
 /**
  * Follow-up edit mode as the composer sees it: whether the visible draft is being edited, and the
- * save / cancel actions. Also re-adopts an orphan hold, once per mounted composer.
+ * save / cancel / Escape actions. Also re-adopts an orphan hold, once per mounted composer.
  */
 export function useComposerQueuedEditMode(
   sessionId: SessionId | null,
@@ -30,21 +41,39 @@ export function useComposerQueuedEditMode(
   useAdoptHeldQueuedMessageEdit(sessionId)
   const input = useComposerStore((state) => state.input)
   const attachments = useComposerStore((state) => state.attachments)
-  const preparing = useComposerActivityStore((state) => state.preparingAttachments > 0)
   const here = queuedEdit.isVisible ? queuedEdit.edit : null
+  const activity = useComposerActivityStore(selectDraftActivity(here?.contextKey ?? null))
+  // Armed for the draft text it was pressed on: typing again asks again.
+  const [armedInput, setArmedInput] = useState<string | null>(null)
   const hasContent = input.trim().length > 0 || attachments.length > 0
+  const open = isOpenQueuedMessageEdit(here) ? here : null
+
+  function handleEscape() {
+    if (open?.phase !== 'editing') return
+    const unchanged = isUnchangedEdit(readComposerDraft(open.contextKey), open.based.item)
+    if (unchanged || armedInput === input) {
+      setArmedInput(null)
+      void queuedEdit.cancel()
+      return
+    }
+    setArmedInput(input)
+  }
 
   return {
     here,
     elsewhere: queuedEdit.edit !== null && !queuedEdit.isVisible,
     waitingOnEdit: queuedEdit.waitingOnEdit,
     canSave:
-      isOpenQueuedMessageEdit(here) &&
-      here.phase === 'editing' &&
+      open?.phase === 'editing' &&
       hasContent &&
-      !preparing &&
+      draftBusyReason(activity) === null &&
       attachmentLimitReason(attachments) === null,
+    escapeArmed: open?.phase === 'editing' && armedInput === input,
     save: () => void queuedEdit.save(),
-    cancel: () => void queuedEdit.cancel(),
+    cancel: () => {
+      setArmedInput(null)
+      void queuedEdit.cancel()
+    },
+    onEscape: handleEscape,
   }
 }

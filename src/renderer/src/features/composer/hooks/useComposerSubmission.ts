@@ -211,7 +211,7 @@ export function useComposerSubmission({
     )
     pendingQueuedSubmissions.set(pendingKey, result)
     // A Follow-up edit waits for this: acknowledgement clears the draft that submitted it.
-    trackComposerSubmission(result)
+    trackComposerSubmission(draftSnapshot.activeDraftContextKey, result)
     void result.then(() => {
       if (pendingQueuedSubmissions.get(pendingKey) === result) {
         pendingQueuedSubmissions.delete(pendingKey)

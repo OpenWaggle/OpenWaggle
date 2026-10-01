@@ -16,7 +16,7 @@ import { ComposerEditorArea } from './ComposerEditorArea'
 import { ComposerHeader } from './ComposerHeader'
 import { ComposerHiddenFileInput } from './ComposerHiddenFileInput'
 import { ComposerModeControls } from './ComposerModeControls'
-import { QueuedMessageEditBar, QueuedMessageEditElsewhereNote } from './QueuedMessageEditBar'
+import { QueuedMessageEditNotices } from './QueuedMessageEditBar'
 
 interface ComposerProps {
   readonly sessionId?: string | null
@@ -166,10 +166,7 @@ export function Composer({
         editorRef={editorRef}
         fileAttachment={attachments.fileAttachment}
       >
-        {editHere ? <QueuedMessageEditBar edit={editHere} onCancel={queuedEdit.cancel} /> : null}
-        {queuedEdit.elsewhere ? (
-          <QueuedMessageEditElsewhereNote onCancel={queuedEdit.cancel} />
-        ) : null}
+        <QueuedMessageEditNotices mode={queuedEdit} />
         <ComposerHeader
           attachments={attachments}
           voiceError={voice.error}
@@ -177,7 +174,7 @@ export function Composer({
         />
         <ComposerEditorArea
           onSubmit={submit}
-          onEscape={editHere ? queuedEdit.cancel : undefined}
+          onEscape={editHere ? queuedEdit.onEscape : undefined}
           disabled={disabled}
           placeholder={placeholder}
           isLoading={isLoading}

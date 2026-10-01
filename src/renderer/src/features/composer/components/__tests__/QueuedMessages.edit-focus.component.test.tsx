@@ -82,7 +82,7 @@ describe('queued-message edit focus', () => {
     useComposerStore.getState().switchScopedDraftContext('project:/repo:session:session-a:main')
     useComposerStore.getState().setInput('my draft')
     useQueuedMessageEditStore.setState({ edits: {} })
-    useComposerActivityStore.setState({ preparingAttachments: 0, pendingSubmissions: 0 })
+    useComposerActivityStore.setState({ drafts: {} })
     queueMock.snapshot = snapshotOf([QUEUED])
     queueMock.beginEdit.mockReset().mockResolvedValue(openedEdit(QUEUED))
     queueMock.saveEdit.mockReset().mockResolvedValue(undefined)

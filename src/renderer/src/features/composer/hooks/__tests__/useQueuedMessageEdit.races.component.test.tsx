@@ -1,17 +1,22 @@
 import { SessionId } from '@shared/types/brand'
 import { act, renderHook, waitFor } from '@testing-library/react'
+import { fromPartial } from '@total-typescript/shoehorn'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   SessionControlRejectedError,
   type SessionFollowUpQueueSnapshot,
 } from '@/features/chat/hooks'
 import { useBranchSummaryStore } from '@/features/chat/state'
-import { useComposerActivityStore } from '../../state/composer-activity-store'
+import {
+  setDraftActivityForTests,
+  useComposerActivityStore,
+} from '../../state/composer-activity-store'
 import { useComposerStore } from '../../state/composer-store'
 import {
   queuedMessageEditStashKey,
   useQueuedMessageEditStore,
 } from '../../state/queued-message-edit-store'
+import { BEGIN_BLOCK_COPY, SAVE_BUSY_COPY } from '../queued-message-edit-messages'
 import { useAdoptHeldQueuedMessageEdit, useQueuedMessageEdit } from '../useQueuedMessageEdit'
 import {
   BASE_QUEUE_REVISION,
@@ -92,7 +97,7 @@ describe('useQueuedMessageEdit in flight', () => {
   beforeEach(() => {
     useComposerStore.setState(useComposerStore.getInitialState())
     useQueuedMessageEditStore.setState({ edits: {} })
-    useComposerActivityStore.setState({ preparingAttachments: 0, pendingSubmissions: 0 })
+    useComposerActivityStore.setState({ drafts: {} })
     useBranchSummaryStore.getState().clearPrompt()
     composer().switchScopedDraftContext(KEY_A)
     composer().setInput('my draft')
@@ -119,19 +124,46 @@ describe('useQueuedMessageEdit in flight', () => {
     expect(hook.result.current.edit).toBeNull()
   })
 
-  it('does not begin while composer work is in flight or a branch summary prompt is open', async () => {
-    const hook = renderHook(() => useQueuedMessageEdit(SESSION_A, vi.fn()))
-    useComposerActivityStore.setState({ preparingAttachments: 1 })
+  it('says why it does not begin while this draft has work in flight or a prompt is open', async () => {
+    const onToast = vi.fn()
+    const hook = renderHook(() => useQueuedMessageEdit(SESSION_A, onToast))
+    setDraftActivityForTests(KEY_A, { preparingAttachments: 1 })
     await act(() => hook.result.current.begin(QUEUED.id))
-    useComposerActivityStore.setState({ preparingAttachments: 0, pendingSubmissions: 1 })
+    setDraftActivityForTests(KEY_A, { pendingSubmissions: 1 })
+    await act(() => hook.result.current.begin(QUEUED.id))
+    useComposerActivityStore.setState({ drafts: {} })
+    act(() => useBranchSummaryStore.setState({ prompt: fromPartial({ mode: 'choice' }) }))
     await act(() => hook.result.current.begin(QUEUED.id))
 
     expect(queueMock.beginEdit).not.toHaveBeenCalled()
+    expect(onToast.mock.calls.map(([message]) => message)).toEqual([
+      BEGIN_BLOCK_COPY.preparing,
+      BEGIN_BLOCK_COPY.submitting,
+      BEGIN_BLOCK_COPY['branch-summary'],
+    ])
+  })
+
+  it('is not held up by work in flight for another draft', async () => {
+    setDraftActivityForTests(KEY_A_OTHER_BRANCH, { pendingSubmissions: 1 })
+
+    await renderOpenEdit()
+
+    expect(queueMock.beginEdit).toHaveBeenCalledWith(QUEUED.id)
+  })
+
+  it('says why a save waits for a queued message to be acknowledged', async () => {
+    const { hook, onToast } = await renderOpenEdit()
+    setDraftActivityForTests(KEY_A, { pendingSubmissions: 1 })
+
+    await act(() => hook.result.current.save())
+
+    expect(queueMock.saveEdit).not.toHaveBeenCalled()
+    expect(onToast).toHaveBeenCalledWith(SAVE_BUSY_COPY.submitting)
   })
 
   it('does not save while an attachment is still preparing', async () => {
     const { hook } = await renderOpenEdit()
-    useComposerActivityStore.setState({ preparingAttachments: 1 })
+    setDraftActivityForTests(KEY_A, { preparingAttachments: 1 })
 
     await act(() => hook.result.current.save())
 

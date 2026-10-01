@@ -9,7 +9,8 @@ const submittedAttachmentIds = new Set<string>()
 /*
  * Attachments a queued Follow-up already references on the Host, loaded back into the composer by a
  * Follow-up edit. The composer never owns them: removing their chip, cancelling the edit, or
- * restoring the set-aside draft must not discard what the queued message still delivers.
+ * restoring the set-aside draft must not discard what the queued message still delivers. Each id
+ * is released when its chip leaves the composer.
  */
 const hostReferencedAttachmentIds = new Set<string>()
 
@@ -47,11 +48,6 @@ export function retainHostReferencedAttachments(attachments: readonly { readonly
   for (const attachment of attachments) hostReferencedAttachmentIds.add(attachment.id)
 }
 
-/** The edit that loaded them has ended and they have left the composer. */
-export function releaseHostReferencedAttachments(attachments: readonly { readonly id: string }[]) {
-  for (const attachment of attachments) hostReferencedAttachmentIds.delete(attachment.id)
-}
-
 export function isHostReferencedAttachment(attachment: { readonly id: string }) {
   return hostReferencedAttachmentIds.has(attachment.id)
 }
@@ -85,8 +81,10 @@ export function releaseAbandonedSessionResourceAttachments(
   }
   const abandoned = abandonedAttachments(previous, current)
   for (const attachment of abandoned) {
-    if (hostReferencedAttachmentIds.has(attachment.id)) continue
-    if (submittedAttachmentIds.delete(attachment.id)) continue
+    // Leaving the composer ends both protections: a removed chip or a sent draft is let go of here.
+    const hostReferenced = hostReferencedAttachmentIds.delete(attachment.id)
+    const submitted = submittedAttachmentIds.delete(attachment.id)
+    if (hostReferenced || submitted) continue
     if (attachment.origin === 'session-resource') discardSessionResourceAttachments([attachment])
     else releaseAttachmentPreviewUrls([attachment])
   }

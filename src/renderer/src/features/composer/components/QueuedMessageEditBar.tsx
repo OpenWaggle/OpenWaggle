@@ -1,9 +1,12 @@
 import { Pencil } from 'lucide-react'
 import { Button } from '@/shared/ui/Button'
+import type { ComposerQueuedEditMode } from '../hooks/useComposerQueuedEditMode'
 import type { QueuedMessageEdit } from '../state/queued-message-edit-store'
 
 interface QueuedMessageEditBarProps {
   readonly edit: QueuedMessageEdit
+  /** A first Escape on a changed edit: say that a second one discards the changes. */
+  readonly escapeArmed: boolean
   readonly onCancel: () => void
 }
 
@@ -18,7 +21,8 @@ const PHASE_COPY = {
  * Edit-mode marker above the composer input. The queue waits at this message until the edit is
  * saved or cancelled, so the way out is always on screen. Escape in the input cancels too.
  */
-export function QueuedMessageEditBar({ edit, onCancel }: QueuedMessageEditBarProps) {
+export function QueuedMessageEditBar({ edit, escapeArmed, onCancel }: QueuedMessageEditBarProps) {
+  const busy = edit.phase !== 'editing'
   return (
     <div
       className="flex items-center gap-1.5 border-b border-border px-4 py-1.5"
@@ -28,14 +32,20 @@ export function QueuedMessageEditBar({ edit, onCancel }: QueuedMessageEditBarPro
       <span role="status" className="flex-1 text-xs font-semibold text-text-secondary">
         {PHASE_COPY[edit.phase]}
       </span>
-      <span className="text-xs text-text-tertiary">Enter to save · Esc to cancel</span>
+      <span aria-live="polite" className="text-xs text-text-tertiary">
+        {escapeArmed ? 'Press Esc again to discard your changes' : 'Enter to save · Esc to cancel'}
+      </span>
+      {/* aria-disabled, not disabled: focus stays on the button while the Host answers. */}
       <Button
         variant="ghost"
         size="xs"
         type="button"
-        onClick={onCancel}
-        disabled={edit.phase !== 'editing'}
+        onClick={() => {
+          if (!busy) onCancel()
+        }}
+        aria-disabled={busy}
         aria-label="Cancel editing queued message"
+        className="aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
       >
         Cancel
       </Button>
@@ -68,4 +78,18 @@ export function QueuedMessageEditElsewhereNote({ onCancel }: { readonly onCancel
       </Button>
     </div>
   )
+}
+
+/** Whichever edit notice the composer needs: edit mode here, or an edit in another branch. */
+export function QueuedMessageEditNotices({ mode }: { readonly mode: ComposerQueuedEditMode }) {
+  if (mode.here) {
+    return (
+      <QueuedMessageEditBar
+        edit={mode.here}
+        escapeArmed={mode.escapeArmed}
+        onCancel={mode.cancel}
+      />
+    )
+  }
+  return mode.elsewhere ? <QueuedMessageEditElsewhereNote onCancel={mode.cancel} /> : null
 }

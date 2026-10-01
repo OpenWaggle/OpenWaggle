@@ -8,7 +8,11 @@ import {
   queueItem,
   snapshotOf,
 } from '../../hooks/__tests__/queued-message-edit.test-support'
-import { useComposerActivityStore } from '../../state/composer-activity-store'
+import { BEGIN_BLOCK_COPY } from '../../hooks/queued-message-edit-messages'
+import {
+  setDraftActivityForTests,
+  useComposerActivityStore,
+} from '../../state/composer-activity-store'
 import { useComposerStore } from '../../state/composer-store'
 import { useQueuedMessageEditStore } from '../../state/queued-message-edit-store'
 import { QueuedMessages } from '../QueuedMessages'
@@ -41,9 +45,11 @@ const KEY_A = 'project:/repo:session:session-a:main'
 const MINE = queueItem({ id: 'mine', text: 'my message' })
 const THEIRS = queueItem({ id: 'theirs', text: 'worker message', editable: false })
 
+const toast = vi.fn()
+
 function renderDock() {
   return render(
-    <QueuedMessages sessionId={SESSION} onSteer={vi.fn()} isStreaming onToast={vi.fn()} />,
+    <QueuedMessages sessionId={SESSION} onSteer={vi.fn()} isStreaming onToast={toast} />,
   )
 }
 
@@ -58,10 +64,11 @@ describe('QueuedMessages editing', () => {
     useComposerStore.setState(useComposerStore.getInitialState())
     useComposerStore.getState().switchScopedDraftContext(KEY_A)
     useQueuedMessageEditStore.setState({ edits: {} })
-    useComposerActivityStore.setState({ preparingAttachments: 0, pendingSubmissions: 0 })
+    useComposerActivityStore.setState({ drafts: {} })
     queueMock.snapshot = snapshotOf([MINE, THEIRS])
     queueMock.beginEdit.mockReset().mockResolvedValue(openedEdit(MINE))
     queueMock.withdraw.mockReset().mockResolvedValue(undefined)
+    toast.mockClear()
   })
 
   it('offers Edit only on messages this user may edit', () => {
@@ -118,14 +125,18 @@ describe('QueuedMessages editing', () => {
   })
 
   it('disables Edit while the composer is preparing an attachment or acknowledging a send', () => {
-    useComposerActivityStore.setState({ preparingAttachments: 1 })
+    setDraftActivityForTests(KEY_A, { preparingAttachments: 1 })
     const view = renderDock()
     const edit = () => screen.getByRole('button', { name: 'Edit queued message: my message' })
     expect(edit()).toHaveAttribute('aria-disabled', 'true')
+    // Still answers a click, with the reason.
+    fireEvent.click(edit())
+    expect(toast).toHaveBeenCalledWith(BEGIN_BLOCK_COPY.preparing)
+    expect(queueMock.beginEdit).not.toHaveBeenCalled()
 
-    act(() => useComposerActivityStore.setState({ preparingAttachments: 0, pendingSubmissions: 1 }))
+    act(() => setDraftActivityForTests(KEY_A, { pendingSubmissions: 1 }))
     expect(edit()).toHaveAttribute('aria-disabled', 'true')
-    act(() => useComposerActivityStore.setState({ pendingSubmissions: 0 }))
+    act(() => useComposerActivityStore.setState({ drafts: {} }))
     expect(edit()).toHaveAttribute('aria-disabled', 'false')
     view.unmount()
   })
@@ -146,7 +157,7 @@ describe('QueuedMessages editing', () => {
     expect(queueMock.withdraw).not.toHaveBeenCalled()
   })
 
-  it('ends the edit when the message being edited is dismissed', async () => {
+  it('ends the edit, keeping the edited text, when the message being edited is dismissed', async () => {
     useComposerStore.getState().setInput('my draft')
     useQueuedMessageEditStore.getState().setEdit('session-a', {
       phase: 'editing',
@@ -164,6 +175,6 @@ describe('QueuedMessages editing', () => {
     fireEvent.click(within(rowFor('my message')).getByTitle('Dismiss'))
 
     await waitFor(() => expect(useQueuedMessageEditStore.getState().edits).toEqual({}))
-    expect(useComposerStore.getState().input).toBe('my draft')
+    expect(useComposerStore.getState().input).toBe('editing text\n\nmy draft')
   })
 })

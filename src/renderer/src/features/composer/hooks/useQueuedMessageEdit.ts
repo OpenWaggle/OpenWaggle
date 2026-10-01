@@ -2,142 +2,49 @@ import type { SessionId } from '@shared/types/brand'
 import { useEffect, useEffectEvent } from 'react'
 import {
   isLostFollowUpEdit,
-  type SessionFollowUpEdit,
+  SessionControlRejectedError,
   type SessionFollowUpQueueItem,
   useSessionFollowUpQueue,
 } from '@/features/chat/hooks'
-import { useBranchSummaryStore } from '@/features/chat/state'
-import { isComposerBusy } from '../state/composer-activity-store'
-import {
-  releaseHostReferencedAttachments,
-  retainHostReferencedAttachments,
-} from '../state/composer-attachment-lifecycle'
 import { useComposerStore } from '../state/composer-store'
-import type { ComposerScopedDraft } from '../state/composer-store-types'
 import {
-  isOpenQueuedMessageEdit,
   type OpenQueuedMessageEdit,
-  type QueuedMessageEdit,
   selectQueuedMessageEdit,
   useQueuedMessageEditStore,
 } from '../state/queued-message-edit-store'
-import { attachmentLimitMessage, attachmentLimitReason } from './composer-submission-support'
 import {
-  clearStashedDraft,
   editedWaggle,
   focusVisibleEditor,
-  queuedMessageDraft,
   readComposerDraft,
-  readStashedDraft,
-  stashDraftAndLoad,
   visibleSessionDraftContext,
-  writeComposerDraft,
 } from './queued-message-edit-drafts'
 import {
   beginFailureMessage,
   errorMessage,
+  INTERRUPTED_EDIT_MESSAGE,
   LOST_EDIT_MESSAGE,
+  NOT_EDITABLE_MESSAGE,
   saveFailureMessage,
+  WITHDRAWN_EDIT_MESSAGE,
 } from './queued-message-edit-messages'
+import {
+  beginTarget,
+  continueEdit,
+  currentEdit,
+  keepEditAsDraft,
+  openEdit,
+  restoreStashedDraft,
+  saveBlock,
+  setEdit,
+  stillHolds,
+  storedEdit,
+} from './queued-message-edit-transitions'
 
-function mergeText(edited: string, stashed: string) {
-  if (!stashed.trim()) return edited
-  return edited ? `${edited}\n\n${stashed}` : stashed
-}
-
-function storedEdit(sessionId: SessionId) {
-  return selectQueuedMessageEdit(String(sessionId))(useQueuedMessageEditStore.getState())
-}
-
-function currentEdit(sessionId: SessionId) {
-  const edit = storedEdit(sessionId)
-  return isOpenQueuedMessageEdit(edit) ? edit : null
-}
-
-/** After an await: the edit this call started from is still the one the store holds. */
-function stillHolds(sessionId: SessionId, holdId: string) {
-  return currentEdit(sessionId)?.based.holdId === holdId
-}
-
-function setEdit(sessionId: SessionId, edit: QueuedMessageEdit | null) {
-  useQueuedMessageEditStore.getState().setEdit(String(sessionId), edit)
-}
-
-/** Composer work in flight that an edit must not interleave with (see `composer-activity-store`). */
-export function editBlockedByComposer() {
-  return isComposerBusy() || useBranchSummaryStore.getState().prompt !== null
-}
-
-/**
- * Ends the edit: `draft` replaces the edited content, the stash is released after it, and the
- * Host-referenced chips stop being protected once they have left the composer (a lost edit kept as
- * a new draft keeps them, and their protection, until they leave too).
- */
-function endEdit(sessionId: SessionId, open: OpenQueuedMessageEdit, draft: ComposerScopedDraft) {
-  const leaving = readComposerDraft(open.contextKey).attachments
-  writeComposerDraft(open.contextKey, draft)
-  clearStashedDraft(String(sessionId))
-  const staying = new Set(draft.attachments.map((attachment) => attachment.id))
-  releaseHostReferencedAttachments(
-    [...open.based.item.attachments, ...leaving].filter(
-      (attachment) => !staying.has(attachment.id),
-    ),
-  )
-  setEdit(sessionId, null)
-  focusVisibleEditor(open.contextKey)
-}
-
-function restoreStashedDraft(sessionId: SessionId, open: OpenQueuedMessageEdit) {
-  endEdit(sessionId, open, readStashedDraft(String(sessionId)))
-}
-
-function mergeAttachments(
-  first: ComposerScopedDraft['attachments'],
-  second: ComposerScopedDraft['attachments'],
-) {
-  return [
-    ...new Map([...first, ...second].map((attachment) => [attachment.id, attachment])).values(),
-  ]
-}
-
-/**
- * A lost edit cannot be saved: keep what the user wrote, out of edit mode, so it can be sent as a
- * new message, together with the set-aside draft. The Host keeps attachments an edit named
- * bindable for a while after the hold is gone, so the edit's attachments come along.
- */
-function keepLostEditAsDraft(
-  sessionId: SessionId,
-  open: OpenQueuedMessageEdit,
-  edited: ComposerScopedDraft,
-) {
-  const stashed = readStashedDraft(String(sessionId))
-  // Still Host-referenced, so composer cleanup must not discard them if their chips are removed.
-  retainHostReferencedAttachments(edited.attachments)
-  endEdit(sessionId, open, {
-    input: mergeText(edited.input.trim(), stashed.input),
-    attachments: mergeAttachments(edited.attachments, stashed.attachments),
-    wagglePreset: edited.wagglePreset ?? stashed.wagglePreset ?? null,
-  })
-}
-
-/**
- * Opens edit mode for an edit this user holds, one just begun or one adopted, in the draft
- * `contextKey`. The draft there is set aside first unless an earlier stash is still waiting.
- */
-function openEdit(sessionId: SessionId, contextKey: string, based: SessionFollowUpEdit) {
-  retainHostReferencedAttachments(based.item.attachments)
-  stashDraftAndLoad(String(sessionId), contextKey, queuedMessageDraft(based.item))
-  setEdit(sessionId, { phase: 'editing', followUpId: based.followUpId, contextKey, based })
-  focusVisibleEditor(contextKey)
-}
-
-/** Why the draft cannot be saved right now, or null. Mirrors what sending checks. */
-function saveBlock(draft: ComposerScopedDraft) {
-  if (!draft.input.trim() && draft.attachments.length === 0) return { silent: true } as const
-  if (isComposerBusy()) return { silent: true } as const
-  const limit = attachmentLimitReason(draft.attachments)
-  return limit ? ({ silent: false, message: attachmentLimitMessage(limit) } as const) : null
-}
+/** The hold was lost but its message may still be queued: a fresh hold can carry the edit on. */
+const INTERRUPTED_CODES: ReadonlySet<string> = new Set([
+  'follow_up_edit_not_held',
+  'follow_up_edit_hold_mismatch',
+])
 
 /**
  * Editing a queued message in the composer (ADR 0043). The only adapter to the Follow-up edit
@@ -159,11 +66,15 @@ export function useQueuedMessageEdit(
   const isVisible = edit !== null && edit.contextKey === visibleKey
 
   async function begin(followUpId: string) {
-    if (!sessionId || storedEdit(sessionId) || editBlockedByComposer()) return
-    const contextKey = visibleSessionDraftContext(String(sessionId))
-    if (!contextKey || contextKey.endsWith(':pending')) return
+    if (!sessionId) return
+    const target = beginTarget(sessionId)
+    if (target.kind === 'blocked') {
+      onToast(target.message)
+      return
+    }
+    const { contextKey } = target
     setEdit(sessionId, { phase: 'beginning', followUpId, contextKey })
-    let opened: SessionFollowUpEdit
+    let opened: Awaited<ReturnType<typeof queue.beginEdit>>
     try {
       opened = await queue.beginEdit(followUpId)
     } catch (error) {
@@ -173,7 +84,7 @@ export function useQueuedMessageEdit(
     }
     const pending = storedEdit(sessionId)
     if (pending?.phase !== 'beginning' || pending.followUpId !== followUpId) {
-      // Superseded while the Host answered: do not leave the hold behind.
+      // Superseded while the Host answered (the draft was cleared): do not leave the hold behind.
       await queue.cancelEdit(opened).catch(() => undefined)
       return
     }
@@ -185,9 +96,9 @@ export function useQueuedMessageEdit(
     const open = currentEdit(sessionId)
     if (open?.phase !== 'editing' || open.contextKey !== visibleKey) return
     const draft = readComposerDraft(open.contextKey)
-    const block = saveBlock(draft)
+    const block = saveBlock(open.contextKey, draft)
     if (block) {
-      if (!block.silent) onToast(block.message)
+      if (block.message) onToast(block.message)
       return
     }
     setEdit(sessionId, { ...open, phase: 'saving' })
@@ -201,29 +112,47 @@ export function useQueuedMessageEdit(
         ...(visualizationContext ? { visualizationContext } : {}),
       })
     } catch (error) {
-      if (stillHolds(sessionId, open.based.holdId)) handleSaveFailure(sessionId, draft, open, error)
+      if (stillHolds(sessionId, open.based.holdId)) await handleSaveFailure(sessionId, open, error)
       return
     }
-    if (!stillHolds(sessionId, open.based.holdId)) return
-    // The queued message now carries these; they must not be discarded while leaving the composer.
-    retainHostReferencedAttachments(draft.attachments)
-    restoreStashedDraft(sessionId, open)
+    if (stillHolds(sessionId, open.based.holdId)) restoreStashedDraft(sessionId, open)
   }
 
-  function handleSaveFailure(
-    id: SessionId,
-    draft: ComposerScopedDraft,
-    open: OpenQueuedMessageEdit,
-    error: unknown,
-  ) {
+  async function handleSaveFailure(id: SessionId, open: OpenQueuedMessageEdit, error: unknown) {
     if (isLostFollowUpEdit(error)) {
-      keepLostEditAsDraft(id, open, draft)
-      onToast(LOST_EDIT_MESSAGE)
+      await recoverLostEdit(id, open, error)
       return
     }
     // Still held: the Host keeps every attachment the edit named, so retry with the edit as is.
     setEdit(id, { ...open, phase: 'editing' })
+    focusVisibleEditor(open.contextKey)
     onToast(saveFailureMessage(error))
+  }
+
+  /**
+   * The hold is gone. If the message is still queued and editable, take a fresh hold and keep
+   * editing; the user's draft stays exactly as it is. Only a message that is really gone turns
+   * the edit into a new draft; one that is still queued but no longer editable keeps its place
+   * and the text is offered alongside, never as a silent duplicate.
+   */
+  async function recoverLostEdit(id: SessionId, open: OpenQueuedMessageEdit, error: unknown) {
+    const fresh = await queue.refresh().catch(() => undefined)
+    if (!stillHolds(id, open.based.holdId)) return
+    const item = fresh?.items.find((candidate) => candidate.id === open.followUpId)
+    const interrupted =
+      error instanceof SessionControlRejectedError && INTERRUPTED_CODES.has(error.code)
+    if (item?.editable && interrupted) {
+      const reopened = await queue.beginEdit(open.followUpId).catch(() => null)
+      if (reopened && stillHolds(id, open.based.holdId)) {
+        continueEdit(id, open, reopened)
+        onToast(INTERRUPTED_EDIT_MESSAGE)
+        return
+      }
+      if (reopened) await queue.cancelEdit(reopened).catch(() => undefined)
+      if (!stillHolds(id, open.based.holdId)) return
+    }
+    keepEditAsDraft(id, open)
+    onToast(item ? NOT_EDITABLE_MESSAGE : LOST_EDIT_MESSAGE)
   }
 
   async function cancel() {
@@ -236,6 +165,7 @@ export function useQueuedMessageEdit(
     } catch (error) {
       // A lost hold has nothing left to release.
       if (!isLostFollowUpEdit(error)) {
+        // Focus stays where the user left it (the Cancel button or the input).
         if (stillHolds(sessionId, open.based.holdId))
           setEdit(sessionId, { ...open, phase: 'editing' })
         onToast(errorMessage(error))
@@ -245,12 +175,13 @@ export function useQueuedMessageEdit(
     if (stillHolds(sessionId, open.based.holdId)) restoreStashedDraft(sessionId, open)
   }
 
-  /** Withdrawing the message being edited ends the edit: there is nothing left to save into. */
+  /** Withdrawing the message being edited ends the edit; what the user wrote stays as a draft. */
   function endWithdrawnEdit(followUpId: string) {
     if (!sessionId) return
     const open = currentEdit(sessionId)
     if (open?.phase !== 'editing' || open.followUpId !== followUpId) return
-    restoreStashedDraft(sessionId, open)
+    keepEditAsDraft(sessionId, open)
+    onToast(WITHDRAWN_EDIT_MESSAGE)
   }
 
   return {

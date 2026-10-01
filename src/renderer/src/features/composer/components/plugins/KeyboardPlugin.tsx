@@ -8,6 +8,7 @@ import {
 } from 'lexical'
 import { useEffect, useEffectEvent } from 'react'
 import { useComposerStore } from '@/features/composer/state/composer-store'
+import { hasEnabledEscapeHandler } from '@/shared/hooks/useEscapeHotkey'
 import { setEditorText } from '../../lib/lexical-utils'
 
 interface KeyboardPluginProps {
@@ -34,7 +35,8 @@ export function KeyboardPlugin({ onSubmit, onEscape }: KeyboardPluginProps): nul
           return true
         }
 
-        if (event.key === 'Escape' && hasEscape) {
+        // A sheet, popover, or dialog that owns Escape through the shared stack goes first.
+        if (event.key === 'Escape' && hasEscape && !hasEnabledEscapeHandler()) {
           event.preventDefault()
           cancelOnEscape()
           return true

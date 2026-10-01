@@ -12,7 +12,10 @@ import {
   resumeFrom,
   snapshotOf,
 } from '../../hooks/__tests__/queued-message-edit.test-support'
-import { useComposerActivityStore } from '../../state/composer-activity-store'
+import {
+  setDraftActivityForTests,
+  useComposerActivityStore,
+} from '../../state/composer-activity-store'
 import { useComposerStore } from '../../state/composer-store'
 import { useQueuedMessageEditStore } from '../../state/queued-message-edit-store'
 import { Composer } from '../Composer'
@@ -86,7 +89,7 @@ describe('Composer queued-message edit mode', () => {
     useComposerStore.setState(useComposerStore.getInitialState())
     useComposerStore.getState().switchScopedDraftContext(KEY_A)
     useQueuedMessageEditStore.setState({ edits: {} })
-    useComposerActivityStore.setState({ preparingAttachments: 0, pendingSubmissions: 0 })
+    useComposerActivityStore.setState({ drafts: {} })
     queueMock.snapshot = snapshotOf([QUEUED])
     queueMock.saveEdit.mockReset().mockResolvedValue(undefined)
     queueMock.cancelEdit.mockReset().mockResolvedValue(undefined)
@@ -171,7 +174,7 @@ describe('Composer queued-message edit mode', () => {
 
   it('does not save while an attachment is preparing', async () => {
     openEdit()
-    useComposerActivityStore.setState({ preparingAttachments: 1 })
+    setDraftActivityForTests(KEY_A, { preparingAttachments: 1 })
     renderComposer()
     await waitFor(() => expect(input()).toHaveTextContent('queued text'))
 

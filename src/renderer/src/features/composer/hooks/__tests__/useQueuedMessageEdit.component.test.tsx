@@ -47,6 +47,7 @@ vi.mock('@/features/chat/hooks/useSessionFollowUpQueue', async (importOriginal) 
     beginEdit: queueMock.beginEdit,
     saveEdit: queueMock.saveEdit,
     cancelEdit: queueMock.cancelEdit,
+    refresh: () => Promise.resolve(queueMock.snapshot),
   }),
 }))
 
@@ -164,8 +165,10 @@ describe('useQueuedMessageEdit', () => {
     await beginEdit(hook)
     act(() => composer().setInput('edited text'))
     queueMock.saveEdit.mockRejectedValueOnce(
-      new SessionControlRejectedError('queue-edit-save', 'follow_up_edit_not_held'),
+      new SessionControlRejectedError('queue-edit-save', 'follow_up_not_found'),
     )
+    // Delivered while the save was on its way.
+    queueMock.snapshot = snapshotOf([])
 
     await act(() => hook.result.current.save())
 
