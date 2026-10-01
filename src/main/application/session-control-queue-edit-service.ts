@@ -21,7 +21,6 @@ import {
   type SessionControlMutationDecision,
   SessionControlRepository,
 } from '../ports/session-control-repository'
-import { monotonicNowMs } from '../utils/monotonic-clock'
 
 export { FOLLOW_UP_EDIT_CALLER_ID } from '@shared/types/session-control-queue'
 
@@ -31,6 +30,8 @@ export interface EditSessionFollowUpInput {
   readonly desktopUser: boolean
   readonly hostRunCeiling?: number
   readonly request: SessionControlQueueEditMutationRequest
+  /** See `MutateSessionQueueInput.queueDeliveryAdmitted`. */
+  readonly queueDeliveryAdmitted?: boolean
 }
 
 type EditCommand = SessionControlQueueEditMutationRequest['command']
@@ -39,7 +40,6 @@ interface EditDecisionContext {
   readonly callerId: string
   readonly holdId: string
   readonly acquiredAt: number
-  readonly leaseStartedAt: number
 }
 
 function decideEdit(
@@ -55,7 +55,6 @@ function decideEdit(
         callerId: context.callerId,
         holdId: context.holdId,
         acquiredAt: context.acquiredAt,
-        leaseStartedAt: context.leaseStartedAt,
         leaseMs: FOLLOW_UP_EDIT_HOLD_LEASE_MS,
       }),
     )
@@ -119,8 +118,6 @@ export function editSessionFollowUp(input: EditSessionFollowUpInput) {
     const nextRunId = yield* identities.nextRunId
     const holdId = `follow-up-edit-hold-${yield* identities.nextFollowUpId}`
     const acquiredAt = yield* Clock.currentTimeMillis
-    // The lease runs on the Host's monotonic clock, so a sleeping machine does not expire it.
-    const leaseStartedAt = monotonicNowMs()
     const command = input.request.command
     const rejected = (code: string): SessionControlMutationDecision => ({
       accepted: false,
@@ -137,7 +134,7 @@ export function editSessionFollowUp(input: EditSessionFollowUpInput) {
       request: input.request,
       // Releasing a hold lets the queue deliver: the repository starts the next Follow-up when an
       // idle Session's queue can, and pauses it when the Host cannot admit that Run.
-      nextRunId,
+      ...(input.queueDeliveryAdmitted === false ? {} : { nextRunId }),
       ...(command.operation === 'queue-edit-begin' ? { validateReplay: replayedBegin } : {}),
       decide: (state) => {
         if (!input.desktopUser) return rejected('follow_up_edit_requires_desktop_user')
@@ -145,7 +142,6 @@ export function editSessionFollowUp(input: EditSessionFollowUpInput) {
           callerId: input.callerId,
           holdId,
           acquiredAt,
-          leaseStartedAt,
         })
         return result.accepted
           ? { accepted: true, state: result.state, outcome: result.outcome }

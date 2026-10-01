@@ -27,6 +27,23 @@ import {
 
 let tmpRoot = ''
 
+/** The Session is a Worker of `queen` under a working Delegation. */
+const workerDelegation = Effect.gen(function* () {
+  const sql = yield* SqlClient.SqlClient
+  yield* sql`INSERT INTO sessions (id, project_path) VALUES (${'queen'}, ${'/project'})`
+  yield* sql`
+    INSERT INTO delegation_contracts (
+      id, parent_session_id, child_session_id, state,
+      current_specification_revision, created_at, updated_at
+    ) VALUES (${'delegation-1'}, ${'queen'}, ${SESSION}, ${'working'}, ${1}, ${1}, ${1})
+  `
+  yield* sql`
+    INSERT INTO delegation_specifications (
+      delegation_id, revision, specification_json, authored_by, created_at
+    ) VALUES (${'delegation-1'}, ${1}, ${'{"objective":"Answer"}'}, ${'queen'}, ${1})
+  `
+})
+
 function layer(name: string) {
   return followUpEditLayer(tmpRoot, name)
 }
@@ -83,33 +100,89 @@ describe('Follow-up edit holds across replays, Workers, and attachments', () => 
     const result = await Effect.runPromise(
       Effect.gen(function* () {
         const sql = yield* SqlClient.SqlClient
-        yield* sql`INSERT INTO sessions (id, project_path) VALUES (${'queen'}, ${'/project'})`
-        yield* sql`
-          INSERT INTO delegation_contracts (
-            id, parent_session_id, child_session_id, state,
-            current_specification_revision, created_at, updated_at
-          ) VALUES (${'delegation-1'}, ${'queen'}, ${SESSION}, ${'working'}, ${1}, ${1}, ${1})
-        `
+        yield* workerDelegation
         yield* activeRunWithQueuedFollowUp
         yield* beginEdit(FOLLOW_UP)
-        yield* SessionControlRunLifecycleRepository.pipe(
-          Effect.flatMap((runs) =>
-            runs.settle({
-              sessionId: SessionId(SESSION),
-              runId: RunId('run-next'),
-              nextRunId: RunId('run-after'),
-              terminalStatus: 'completed',
-              finalResponse: 'An intermediate answer',
-            }),
-          ),
-        )
-        return yield* sql<{ readonly state: string }>`
-          SELECT state FROM delegation_contracts WHERE id = ${'delegation-1'}
-        `
+        const runs = yield* SessionControlRunLifecycleRepository
+        yield* runs.settle({
+          sessionId: SessionId(SESSION),
+          runId: RunId('run-next'),
+          nextRunId: RunId('run-after'),
+          terminalStatus: 'completed',
+          finalResponse: 'An intermediate answer',
+        })
+        const delegationState = () =>
+          sql<{ readonly state: string }>`
+            SELECT state FROM delegation_contracts WHERE id = ${'delegation-1'}
+          `.pipe(Effect.map((rows) => rows[0]?.state))
+        const whileHeld = yield* delegationState()
+        const settledWhileHeld = yield* runs.settleDeferredWorkerDelegation?.({
+          sessionId: SessionId(SESSION),
+        }) ?? Effect.succeed(undefined)
+        const stillHeld = yield* delegationState()
+        // Withdrawing the held Follow-up ends the wait without a Run: the deferred result settles.
+        yield* mutateSessionQueue({
+          callerId: USER,
+          request: request({
+            operation: 'queue-withdraw',
+            sessionId: SESSION,
+            followUpIds: [FOLLOW_UP],
+          }),
+        })
+        const settled = yield* runs.settleDeferredWorkerDelegation?.({
+          sessionId: SessionId(SESSION),
+        }) ?? Effect.succeed(undefined)
+        const afterWithdraw = yield* delegationState()
+        const again = yield* runs.settleDeferredWorkerDelegation?.({
+          sessionId: SessionId(SESSION),
+        }) ?? Effect.succeed(undefined)
+        return { whileHeld, settledWhileHeld, stillHeld, settled, afterWithdraw, again }
       }).pipe(Effect.provide(layer('worker-delegation.sqlite'))),
     )
 
-    expect(result[0]?.state).toBe('working')
+    expect(result.whileHeld).toBe('working')
+    expect(result.settledWhileHeld).toBeUndefined()
+    expect(result.stillHeld).toBe('working')
+    expect(result.settled?.delegationUpdate).toMatchObject({
+      delegationId: 'delegation-1',
+      state: 'ready_for_review',
+    })
+    expect(result.afterWithdraw).toBe('ready_for_review')
+    expect(result.again).toBeUndefined()
+  })
+
+  it('settles a Worker whose held Follow-up waits in a paused queue', async () => {
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        yield* workerDelegation
+        yield* activeRunWithQueuedFollowUp
+        const held = yield* beginEdit(FOLLOW_UP)
+        if (held.outcome.effect !== 'follow-up-edit-held') throw new Error('expected a hold')
+        yield* mutateSessionQueue({
+          callerId: USER,
+          request: request({
+            operation: 'queue-pause',
+            sessionId: SESSION,
+            expectedQueueRevision: held.outcome.queueRevision,
+          }),
+        })
+        const runs = yield* SessionControlRunLifecycleRepository
+        yield* runs.settle({
+          sessionId: SessionId(SESSION),
+          runId: RunId('run-next'),
+          nextRunId: RunId('run-after'),
+          terminalStatus: 'completed',
+          finalResponse: 'The answer',
+        })
+        const rows = yield* sql<{ readonly state: string }>`
+          SELECT state FROM delegation_contracts WHERE id = ${'delegation-1'}
+        `
+        return rows[0]?.state
+      }).pipe(Effect.provide(layer('worker-paused.sqlite'))),
+    )
+
+    expect(result).toBe('ready_for_review')
   })
 
   it('withdraws a held Follow-up together with its hold', async () => {

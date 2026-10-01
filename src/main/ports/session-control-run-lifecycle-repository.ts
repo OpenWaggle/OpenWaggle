@@ -57,6 +57,11 @@ export type SessionControlRunSettlementResult =
       readonly stateRevision?: number
     }
 
+export type SessionControlWorkerSettlementUpdate = Pick<
+  Extract<SessionControlRunSettlementResult, { readonly accepted: true }>,
+  'delegationUpdate' | 'orchestrationUpdate'
+>
+
 export interface SessionControlRunLifecycleRepositoryShape {
   readonly startExternal?: (input: {
     readonly sessionId: SessionId
@@ -94,6 +99,16 @@ export interface SessionControlRunLifecycleRepositoryShape {
      */
     readonly undeliveredSteers?: readonly UndeliveredSteer[]
   }) => Effect.Effect<SessionControlRunSettlementResult, SessionControlRepositoryError>
+  /**
+   * Settles a Worker's Delegation that a held Follow-up deferred, once the Session is idle and its
+   * queue no longer waits on that edit. Resolves to the updates to publish, if any.
+   */
+  readonly settleDeferredWorkerDelegation?: (input: {
+    readonly sessionId: SessionId
+  }) => Effect.Effect<
+    SessionControlWorkerSettlementUpdate | undefined,
+    SessionControlRepositoryError
+  >
   readonly recoverHostLoss: Effect.Effect<
     readonly { readonly sessionId: SessionId; readonly runId: RunId }[],
     SessionControlRepositoryError

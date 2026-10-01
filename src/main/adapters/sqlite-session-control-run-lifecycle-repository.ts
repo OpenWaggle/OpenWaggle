@@ -3,7 +3,7 @@ import type { SessionId } from '@shared/types/brand'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
-import { hasPendingHeldFollowUp } from '../domain/session-control/follow-up-delivery'
+import { waitsOnHeldNextFollowUp } from '../domain/session-control/follow-up-delivery'
 import {
   activateStartingRun,
   replaceWithExternalSessionRun,
@@ -17,6 +17,11 @@ import {
 } from '../ports/session-control-run-lifecycle-repository'
 import { releaseDeliveredSteerAttachments } from './session-control-attachment-references'
 import { applyCurrentFollowUpAuthorization } from './session-follow-up-authorization'
+import {
+  deferWorkerSettlement,
+  settleDeferredWorkerDelegation,
+  takeDeferredWorkerSettlement,
+} from './sqlite-deferred-worker-settlement'
 import { recoverSessionControlHostLoss } from './sqlite-session-control-host-loss-recovery'
 import {
   planRunSettlement,
@@ -233,16 +238,25 @@ function settle(
           SET status = ${input.terminalStatus}, updated_at = ${now}
           WHERE id = ${input.runId} AND session_id = ${input.sessionId}
         `
+        // A newer settlement supersedes a Delegation settlement an edit deferred.
+        yield* takeDeferredWorkerSettlement(sql, input.sessionId)
+        // The queue's next Follow-up is out for an edit and is delivered once the edit ends, so the
+        // Worker is not done yet: its Delegation settles after that Run, or when the edit ends
+        // without one (see `settleDeferredWorkerDelegation`).
+        const waitsOnEdit = scheduled === undefined && waitsOnHeldNextFollowUp(result.state)
         const workerUpdate = input.suppressFollowUpScheduling
           ? undefined
-          : yield* settleWorkerDelegation(
-              sql,
-              input,
-              // A Follow-up out for an edit is delivered once the edit ends, so the Worker is not
-              // done yet: its Delegation settles after that Run instead.
-              scheduled !== undefined || hasPendingHeldFollowUp(result.state),
-              now,
-            )
+          : yield* settleWorkerDelegation(sql, input, scheduled !== undefined || waitsOnEdit, now)
+        if (
+          !input.suppressFollowUpScheduling &&
+          waitsOnEdit &&
+          input.terminalStatus === 'completed'
+        ) {
+          yield* deferWorkerSettlement(sql, input.sessionId, {
+            runId: input.runId,
+            ...(input.finalResponse ? { finalResponse: input.finalResponse } : {}),
+          })
+        }
         yield* persistSessionControlState(sql, result.state, now)
         yield* releaseDeliveredSteerAttachments(sql, input)
         return settledRunResponse(result, workerUpdate)
@@ -280,6 +294,8 @@ export const SqliteSessionControlRunLifecycleRepositoryLive = Layer.effect(
       replaceWithExternal: (input) => replaceWithExternal(sql, input),
       activate: (input) => activate(sql, input),
       settle: (input) => settle(sql, input),
+      settleDeferredWorkerDelegation: (input) =>
+        settleDeferredWorkerDelegation(sql, input.sessionId),
       recoverHostLoss: recoverSessionControlHostLoss(sql),
     })
   }),

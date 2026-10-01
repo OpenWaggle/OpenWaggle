@@ -47,6 +47,8 @@ export interface MutateSessionQueueInput {
   readonly callerAuthorizationCeiling?: AgentAuthorizationMode
   readonly hostRunCeiling?: number
   readonly request: SessionControlQueueMutationRequest
+  /** False while the Host drains: the change applies without starting the Run it would deliver. */
+  readonly queueDeliveryAdmitted?: boolean
 }
 
 function toQueueMutation(
@@ -256,7 +258,7 @@ export function mutateSessionQueue(input: MutateSessionQueueInput) {
       ...(input.hostRunCeiling ? { hostRunCeiling: input.hostRunCeiling } : {}),
       request: input.request,
       // A withdrawn, reordered, or re-authorized held item can leave an idle queue runnable.
-      nextRunId,
+      ...(input.queueDeliveryAdmitted === false ? {} : { nextRunId }),
       decide: (state) => {
         const constrainedState =
           input.request.command.operation === 'queue-resume' &&

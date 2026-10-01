@@ -165,9 +165,7 @@ export function readStatus(sql: SqlClient.SqlClient, request: SessionQueryReques
         error: { code: 'session_not_found', message: 'Session not found.' },
       })
     }
-    const followUpEditHeldAt = (yield* listFollowUpEditHeldSessions(sql, Date.now())).get(
-      query.sessionId,
-    )
+    const followUpEditHeldAt = (yield* listFollowUpEditHeldSessions(sql)).get(query.sessionId)
     return sessionQueryResponse(request, {
       operation: 'status',
       sessionId: query.sessionId,

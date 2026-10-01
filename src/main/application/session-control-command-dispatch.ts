@@ -68,6 +68,8 @@ interface ExecuteCommandInput {
   readonly request: SessionControlMutationRequest
   readonly authority?: LocalSessionProfileAuthority
   readonly hostRunCeiling?: number
+  /** False while the Host drains: queue changes apply but do not start the next Follow-up. */
+  readonly queueDeliveryAdmitted?: boolean
 }
 
 export type SessionControlCommandDependencies =
@@ -155,6 +157,7 @@ function executeRunOrQueueCommand(
           callerId,
           ...(authority ? { callerAuthorizationCeiling: authority.authorizationCeiling } : {}),
           ...(hostRunCeiling ? { hostRunCeiling } : {}),
+          ...(input.queueDeliveryAdmitted === false ? { queueDeliveryAdmitted: false } : {}),
           request: {
             ...request,
             command:
@@ -173,6 +176,7 @@ function executeRunOrQueueCommand(
           authority === undefined &&
           input.caller?.profileAuthority === undefined,
         ...(hostRunCeiling ? { hostRunCeiling } : {}),
+        ...(input.queueDeliveryAdmitted === false ? { queueDeliveryAdmitted: false } : {}),
         request: { ...request, command } satisfies SessionControlQueueEditMutationRequest,
       }),
     )

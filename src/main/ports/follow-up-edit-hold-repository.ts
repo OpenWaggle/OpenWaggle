@@ -1,11 +1,8 @@
+import type { FollowUpEditHoldReference } from '@shared/types/session-control-queue'
 import { Context, type Effect } from 'effect'
 import type { SessionControlRepositoryError } from '../errors'
 
-export interface FollowUpEditHoldReference {
-  readonly sessionId: string
-  readonly followUpId: string
-  readonly holdId: string
-}
+export type { FollowUpEditHoldReference }
 
 export interface ExpiredFollowUpEditHold extends FollowUpEditHoldReference {
   readonly holderCallerId: string
@@ -18,10 +15,11 @@ export interface FollowUpEditHoldRepositoryShape {
     input: FollowUpEditHoldReference & { readonly holderCallerId: string },
   ) => Effect.Effect<boolean, SessionControlRepositoryError>
   /**
-   * Holds whose lease ran out, of Sessions that still exist. They stay listed until a cancel for
-   * them is accepted, so a failed release is retried.
+   * One Host sweep: every live hold misses a sweep. Returns the holds whose lease ran out, of
+   * Sessions that still exist; they stay listed until a cancel for them is accepted, so a failed
+   * release is retried.
    */
-  readonly listExpired: () => Effect.Effect<
+  readonly advanceLeases: () => Effect.Effect<
     readonly ExpiredFollowUpEditHold[],
     SessionControlRepositoryError
   >

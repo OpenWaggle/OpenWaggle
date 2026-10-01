@@ -2,7 +2,7 @@ import type * as SqlClient from '@effect/sql/SqlClient'
 import * as Effect from 'effect/Effect'
 import {
   FOLLOW_UP_EDIT_ATTACHMENT_RETENTION_MS,
-  FOLLOW_UP_EDIT_HOLD_LEASE_MS,
+  FOLLOW_UP_EDIT_HOLD_LEASE_SWEEPS,
 } from '../domain/session-control/follow-up-edit-lease'
 import type {
   SessionControlFollowUpEditHold,
@@ -14,13 +14,15 @@ import type {
  * tables: the Host's single connection makes them transactional with the queue state they block,
  * they never enter the database file's schema (no migration, nothing for older binaries to
  * refuse), and they disappear when the Host's connection closes, so a Host restart releases every
- * hold (Host-loss recovery then pauses the queues they blocked). Lease times are on the Host's
- * monotonic clock. A hold past `expires_at` is gone everywhere at once: loads ignore it and
- * renewal refuses it.
+ * hold (Host-loss recovery then pauses the queues they blocked). A lease is counted in Host sweeps
+ * (`missed_sweeps`, see `follow-up-edit-lease.ts`); a hold that reached the lease is gone
+ * everywhere at once: loads ignore it and renewal refuses it.
  *
- * Alongside the holds: the deferred retry of a failed Run that waits behind a hold, and the
- * attachments named by edits, which outlive their last reference for a while so a retried save or
- * a lost edit queued as a new message can still bind them.
+ * Alongside the holds, lease state that dies with them:
+ * - the deferred retry of a failed Run that waits behind a hold;
+ * - the deferred settlement of a Worker's Delegation, whose next Follow-up waits on an edit;
+ * - attachments named by edits, which outlive their last reference for a while so a retried save
+ *   or a lost edit queued as a new message can still bind them.
  */
 const CREATE_LEASE_TABLES = [
   `CREATE TEMP TABLE IF NOT EXISTS session_follow_up_edit_holds (
@@ -29,7 +31,7 @@ const CREATE_LEASE_TABLES = [
     hold_id TEXT NOT NULL UNIQUE,
     holder_caller_id TEXT NOT NULL,
     acquired_at INTEGER NOT NULL,
-    expires_at REAL NOT NULL,
+    missed_sweeps INTEGER NOT NULL,
     base_queue_revision INTEGER NOT NULL
   )`,
   `CREATE TEMP TABLE IF NOT EXISTS session_follow_up_deferred_retries (
@@ -42,6 +44,11 @@ const CREATE_LEASE_TABLES = [
     retained_until REAL NOT NULL,
     PRIMARY KEY (session_id, attachment_id)
   )`,
+  `CREATE TEMP TABLE IF NOT EXISTS session_deferred_worker_settlements (
+    session_id TEXT PRIMARY KEY,
+    run_id TEXT NOT NULL,
+    final_response TEXT
+  )`,
 ]
 
 interface EditHoldRow {
@@ -50,7 +57,7 @@ interface EditHoldRow {
   readonly hold_id: string
   readonly holder_caller_id: string
   readonly acquired_at: number
-  readonly expires_at: number
+  readonly missed_sweeps: number
   readonly base_queue_revision: number
 }
 
@@ -65,24 +72,20 @@ function toHold(row: EditHoldRow): SessionControlFollowUpEditHold {
     holdId: row.hold_id,
     holderCallerId: row.holder_caller_id,
     acquiredAt: row.acquired_at,
-    expiresAt: row.expires_at,
+    missedSweeps: row.missed_sweeps,
     baseQueueRevision: row.base_queue_revision,
   }
 }
 
 /** Live holds of one Session, keyed by Follow-up. */
-export function listSessionFollowUpEditHolds(
-  sql: SqlClient.SqlClient,
-  sessionId: string,
-  now: number,
-) {
+export function listSessionFollowUpEditHolds(sql: SqlClient.SqlClient, sessionId: string) {
   return Effect.gen(function* () {
     yield* ensureFollowUpEditHoldTable(sql)
     const rows = yield* sql<EditHoldRow>`
-      SELECT follow_up_id, session_id, hold_id, holder_caller_id, acquired_at, expires_at,
+      SELECT follow_up_id, session_id, hold_id, holder_caller_id, acquired_at, missed_sweeps,
         base_queue_revision
       FROM temp.session_follow_up_edit_holds
-      WHERE session_id = ${sessionId} AND expires_at > ${now}
+      WHERE session_id = ${sessionId} AND missed_sweeps < ${FOLLOW_UP_EDIT_HOLD_LEASE_SWEEPS}
     `
     return new Map(rows.map((row) => [row.follow_up_id, toHold(row)]))
   })
@@ -92,10 +95,9 @@ export function listSessionFollowUpEditHolds(
 export function withFollowUpEditLeaseState(
   sql: SqlClient.SqlClient,
   state: SessionControlSessionState,
-  now: number,
 ) {
   return Effect.gen(function* () {
-    const holds = yield* listSessionFollowUpEditHolds(sql, state.sessionId, now)
+    const holds = yield* listSessionFollowUpEditHolds(sql, state.sessionId)
     const retries = yield* sql<{ readonly accepted_after: number }>`
       SELECT accepted_after FROM temp.session_follow_up_deferred_retries
       WHERE session_id = ${state.sessionId}
@@ -170,7 +172,7 @@ export function persistFollowUpEditHolds(
       if (!item.editHold) continue
       yield* sql`
         INSERT INTO temp.session_follow_up_edit_holds (
-          follow_up_id, session_id, hold_id, holder_caller_id, acquired_at, expires_at,
+          follow_up_id, session_id, hold_id, holder_caller_id, acquired_at, missed_sweeps,
           base_queue_revision
         )
         VALUES (
@@ -179,7 +181,7 @@ export function persistFollowUpEditHolds(
           ${item.editHold.holdId},
           ${item.editHold.holderCallerId},
           ${item.editHold.acquiredAt},
-          ${item.editHold.expiresAt},
+          ${item.editHold.missedSweeps},
           ${item.editHold.baseQueueRevision}
         )
       `
@@ -209,63 +211,58 @@ export interface FollowUpEditHoldKey {
 }
 
 /**
- * Extends a live hold. An expired hold stays expired: once a load could have ignored it, renewing
+ * Renews a live hold. An expired hold stays expired: once a load could have ignored it, renewing
  * it would resurrect a hold the queue may already have delivered past.
  */
 export function renewFollowUpEditHold(
   sql: SqlClient.SqlClient,
-  input: FollowUpEditHoldKey & { readonly holderCallerId: string; readonly now: number },
+  input: FollowUpEditHoldKey & { readonly holderCallerId: string },
 ) {
   return Effect.gen(function* () {
     yield* ensureFollowUpEditHoldTable(sql)
-    const rows = yield* sql<{ readonly expires_at: number }>`
+    const rows = yield* sql<{ readonly follow_up_id: string }>`
       UPDATE temp.session_follow_up_edit_holds
-      SET expires_at = ${input.now + FOLLOW_UP_EDIT_HOLD_LEASE_MS}
+      SET missed_sweeps = 0
       WHERE follow_up_id = ${input.followUpId}
         AND session_id = ${input.sessionId}
         AND hold_id = ${input.holdId}
         AND holder_caller_id = ${input.holderCallerId}
-        AND expires_at > ${input.now}
+        AND missed_sweeps < ${FOLLOW_UP_EDIT_HOLD_LEASE_SWEEPS}
         AND EXISTS (
           SELECT 1 FROM session_follow_ups
           WHERE session_follow_ups.id = ${input.followUpId}
             AND session_follow_ups.session_id = ${input.sessionId}
         )
-      RETURNING expires_at
+      RETURNING follow_up_id
     `
     return rows.length > 0
   })
 }
 
-/** Whether a hold is still live (used to refuse a replayed begin whose hold died). */
-export function isFollowUpEditHoldLive(
-  sql: SqlClient.SqlClient,
-  input: FollowUpEditHoldKey & { readonly now: number },
-) {
-  return listSessionFollowUpEditHolds(sql, input.sessionId, input.now).pipe(
-    Effect.map((holds) => holds.get(input.followUpId)?.holdId === input.holdId),
-  )
-}
-
 /**
- * Expired holds of existing Sessions. They are not deleted here: the cancel the sweep sends
+ * One Host sweep: every live hold misses a sweep, and the holds whose lease that used up are
+ * returned along with any expired earlier. They are not deleted here: the cancel the sweep sends
  * rewrites the Session's holds without them, so a failed cancel leaves the row for the next sweep.
  * Holds of deleted Sessions are dropped.
  */
-export function listExpiredFollowUpEditHolds(sql: SqlClient.SqlClient, now: number) {
+export function advanceFollowUpEditHoldLeases(sql: SqlClient.SqlClient) {
   return sql.withTransaction(
     Effect.gen(function* () {
       yield* ensureFollowUpEditHoldTable(sql)
       yield* sql`
         DELETE FROM temp.session_follow_up_edit_holds
-        WHERE expires_at <= ${now}
-          AND session_id NOT IN (SELECT session_id FROM session_control_states)
+        WHERE session_id NOT IN (SELECT session_id FROM session_control_states)
+      `
+      yield* sql`
+        UPDATE temp.session_follow_up_edit_holds
+        SET missed_sweeps = missed_sweeps + 1
+        WHERE missed_sweeps < ${FOLLOW_UP_EDIT_HOLD_LEASE_SWEEPS}
       `
       const rows = yield* sql<EditHoldRow>`
-        SELECT follow_up_id, session_id, hold_id, holder_caller_id, acquired_at, expires_at,
+        SELECT follow_up_id, session_id, hold_id, holder_caller_id, acquired_at, missed_sweeps,
           base_queue_revision
         FROM temp.session_follow_up_edit_holds
-        WHERE expires_at <= ${now}
+        WHERE missed_sweeps >= ${FOLLOW_UP_EDIT_HOLD_LEASE_SWEEPS}
       `
       return rows.map((row) => ({
         sessionId: row.session_id,
@@ -278,7 +275,7 @@ export function listExpiredFollowUpEditHolds(sql: SqlClient.SqlClient, now: numb
 }
 
 /** Sessions whose queue waits on a Follow-up edit, with the earliest hold's acquisition time. */
-export function listFollowUpEditHeldSessions(sql: SqlClient.SqlClient, now: number) {
+export function listFollowUpEditHeldSessions(sql: SqlClient.SqlClient) {
   return Effect.gen(function* () {
     yield* ensureFollowUpEditHoldTable(sql)
     const rows = yield* sql<{ readonly session_id: string; readonly acquired_at: number }>`
@@ -286,7 +283,7 @@ export function listFollowUpEditHeldSessions(sql: SqlClient.SqlClient, now: numb
       FROM temp.session_follow_up_edit_holds AS holds
       JOIN session_follow_ups ON session_follow_ups.id = holds.follow_up_id
         AND session_follow_ups.session_id = holds.session_id
-      WHERE holds.expires_at > ${now}
+      WHERE holds.missed_sweeps < ${FOLLOW_UP_EDIT_HOLD_LEASE_SWEEPS}
       GROUP BY holds.session_id
     `
     return new Map(rows.map((row) => [row.session_id, row.acquired_at]))

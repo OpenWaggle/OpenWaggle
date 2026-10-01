@@ -19,6 +19,7 @@ import {
   reserveActiveSessionRun,
   reservePendingClassicSessionRun,
 } from './active-session-runs'
+import { settleDeferredWorkerDelegationAfterQueueChange } from './follow-up-edit-worker-settlement'
 import { restoreHiveWorkerAfterCommand } from './hive-worker-cleanup-request'
 import { withSessionCommandSerialization } from './session-command-serialization'
 import {
@@ -141,21 +142,39 @@ export function dispatchAcceptedSessionControlRun(
   )
 }
 
-function commandMayStartRun(request: SessionControlMutationRequest) {
+/** Commands whose purpose is to start a Run: without a Run lease they are refused. */
+function commandStartsRun(request: SessionControlMutationRequest) {
   const operation = request.command.operation
   return (
     operation === 'message' ||
     operation === 'start' ||
     operation === 'follow-up' ||
     operation === 'replace' ||
-    operation === 'queue-resume' ||
-    // A queue change can let an idle Session's queue deliver (`deliverIdleQueueHead`).
+    operation === 'queue-resume'
+  )
+}
+
+/**
+ * Queue changes that can let an idle Session's queue deliver (`deliverIdleQueueHead`). While the
+ * Host drains there is no Run lease: they still apply, without starting the next Follow-up, so a
+ * window closing or a lease expiring during a drain releases its hold (Host restart recovery
+ * pauses whatever queue is left runnable).
+ */
+function commandMayDeliverQueue(request: SessionControlMutationRequest) {
+  const operation = request.command.operation
+  return (
     operation === 'queue-withdraw' ||
     operation === 'queue-reorder' ||
     operation === 'queue-update-authorization' ||
     operation === 'queue-edit-save' ||
     operation === 'queue-edit-cancel'
   )
+}
+
+function acquireRunLease(request: SessionControlMutationRequest) {
+  if (commandStartsRun(request)) return acquireSessionHostRunLease('run')
+  if (!commandMayDeliverQueue(request)) return Effect.succeed(undefined)
+  return acquireSessionHostRunLease('run').pipe(Effect.catchAll(() => Effect.succeed(undefined)))
 }
 
 type SessionControlDispatchDependencies =
@@ -184,13 +203,15 @@ export function executeSessionControlMutation(input: {
   }
   const sessionId = input.request.command.sessionId
   return Effect.gen(function* () {
-    const lease = commandMayStartRun(input.request)
-      ? yield* acquireSessionHostRunLease('run')
-      : undefined
+    const lease = yield* acquireRunLease(input.request)
+    const queueDeliveryAdmitted = !commandMayDeliverQueue(input.request) || lease !== undefined
     let transferred = false
     return yield* withSessionCommandSerialization(
       sessionId,
-      executeUnserializedSessionControlCommand(input).pipe(
+      executeUnserializedSessionControlCommand({
+        ...input,
+        ...(queueDeliveryAdmitted ? {} : { queueDeliveryAdmitted: false }),
+      }).pipe(
         Effect.tap((response) =>
           restoreHiveWorkerAfterCommand({
             callerId: input.callerId,
@@ -206,6 +227,9 @@ export function executeSessionControlMutation(input: {
               }),
             ),
           ),
+        ),
+        Effect.tap((response) =>
+          settleDeferredWorkerDelegationAfterQueueChange(input.request, response),
         ),
       ),
     ).pipe(

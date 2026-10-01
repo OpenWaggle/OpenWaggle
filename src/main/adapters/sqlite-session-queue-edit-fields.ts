@@ -8,8 +8,8 @@ import {
 } from '@shared/types/session-control-queue'
 import * as Effect from 'effect/Effect'
 import { canEditFollowUp } from '../domain/session-control/follow-up-edit'
+import { estimatedLeaseExpiry } from '../domain/session-control/follow-up-edit-lease'
 import type { SessionControlFollowUpEditHold } from '../domain/session-control/message-aggregate'
-import { monotonicNowMs } from '../utils/monotonic-clock'
 import { listSessionFollowUpEditHolds } from './sqlite-follow-up-edit-holds'
 
 /** The provenance fields that decide who may edit a queued Follow-up. */
@@ -47,7 +47,7 @@ function isEditable(intentJson: string, context: QueueListEditContext) {
 function holdSummary(
   hold: SessionControlFollowUpEditHold,
   callerId: string | undefined,
-  clock: { readonly wall: number; readonly monotonic: number },
+  now: number,
 ): SessionFollowUpEditHoldSummary {
   const holderIsCaller = callerId !== undefined && hold.holderCallerId === callerId
   return {
@@ -55,8 +55,8 @@ function holdSummary(
     ...(holderIsCaller ? { holdId: hold.holdId, baseQueueRevision: hold.baseQueueRevision } : {}),
     holderIsCaller,
     acquiredAt: hold.acquiredAt,
-    // The lease runs on the Host's monotonic clock; this is its wall-clock estimate.
-    leaseExpiresAt: clock.wall + Math.max(0, hold.expiresAt - clock.monotonic),
+    // The lease is counted in Host sweeps; this is its wall-clock estimate.
+    leaseExpiresAt: estimatedLeaseExpiry(hold.missedSweeps, now),
   }
 }
 
@@ -106,8 +106,8 @@ export function queueListEditFields(
   },
 ) {
   return Effect.gen(function* () {
-    const clock = { wall: Date.now(), monotonic: monotonicNowMs() }
-    const holds = yield* listSessionFollowUpEditHolds(sql, input.sessionId, clock.monotonic)
+    const now = Date.now()
+    const holds = yield* listSessionFollowUpEditHolds(sql, input.sessionId)
     const attachmentIdsByItem = new Map(
       input.rows.map((row) => [
         row.id,
@@ -126,7 +126,7 @@ export function queueListEditFields(
           row.id,
           {
             editable: isEditable(row.intent_json, input.context),
-            ...(hold ? { editHold: holdSummary(hold, input.context.callerId, clock) } : {}),
+            ...(hold ? { editHold: holdSummary(hold, input.context.callerId, now) } : {}),
             ...(input.includeBodies
               ? {
                   attachments: (attachmentIdsByItem.get(row.id) ?? []).flatMap((id) => {

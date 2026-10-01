@@ -17,7 +17,6 @@ function begin(input: SessionControlSessionState, followUpId = 'first', callerId
     callerId,
     holdId: 'hold-1',
     acquiredAt: 1_000,
-    leaseStartedAt: 50,
     leaseMs: 30_000,
   })
 }
@@ -50,7 +49,7 @@ const WAGGLE = toWaggleInvocation({
 const CHART = { title: 'Chart', sourcePath: '/tmp/chart.html', state: null }
 
 describe('Follow-up edit', () => {
-  it('holds the caller’s own Follow-up in place, on the monotonic lease clock', () => {
+  it('holds the caller’s own Follow-up in place, with a fresh sweep-counted lease', () => {
     const result = begin(state([followUp('first'), followUp('second')]))
 
     expect(result).toMatchObject({
@@ -71,7 +70,7 @@ describe('Follow-up edit', () => {
       holdId: 'hold-1',
       holderCallerId: USER,
       acquiredAt: 1_000,
-      expiresAt: 30_050,
+      missedSweeps: 0,
       baseQueueRevision: 5,
     })
   })
@@ -158,6 +157,22 @@ describe('Follow-up edit', () => {
     expect(save({ followUpId: FollowUpId('gone') })).toMatchObject({ code: 'follow_up_not_found' })
     expect(
       save({ content: { text: 'x'.repeat(33 * 1024 * 1024), attachmentIds: [] } }),
+    ).toMatchObject({ code: 'queue_byte_capacity_reached' })
+  })
+
+  it('lets an edit shrink an item of a queue that returned steers pushed past its byte cap', () => {
+    const large = 'x'.repeat(20 * 1024 * 1024)
+    const overCap = state([
+      followUp('first', { text: large }),
+      followUp('second', { text: large }, { editHold: HOLD }),
+    ])
+    expect(save({ state: overCap, content: { text: 'Shorter', attachmentIds: [] } })).toMatchObject(
+      {
+        accepted: true,
+      },
+    )
+    expect(
+      save({ state: overCap, content: { text: `${large}!`, attachmentIds: [] } }),
     ).toMatchObject({ code: 'queue_byte_capacity_reached' })
   })
 

@@ -135,15 +135,18 @@ function withoutHold(item: SessionControlFollowUp): SessionControlFollowUp {
   return released
 }
 
-function queueBytesWith(
+/**
+ * Whether an edit grows the queue past its byte cap. A queue already past the cap (returned steers
+ * ignore it) still accepts an edit that does not grow it, so an edit can always shrink an item.
+ */
+function exceedsQueueBytes(
   items: readonly SessionControlFollowUp[],
   index: number,
   intent: SessionControlIntentSnapshot,
 ) {
-  return items.reduce(
-    (bytes, item, itemIndex) => bytes + serializedBytes(itemIndex === index ? intent : item.intent),
-    0,
-  )
+  const current = items.reduce((bytes, item) => bytes + serializedBytes(item.intent), 0)
+  const edited = current - serializedBytes(items[index]?.intent ?? intent) + serializedBytes(intent)
+  return edited > MAX_FOLLOW_UP_QUEUE_BYTES && edited > current
 }
 
 function released(
@@ -193,8 +196,7 @@ export function beginFollowUpEdit(input: {
   readonly holdId: string
   /** Wall clock, shown to the user. */
   readonly acquiredAt: number
-  /** Host monotonic clock, which the lease runs on. */
-  readonly leaseStartedAt: number
+  /** The lease length a client can expect, for the outcome's wall-clock estimate. */
   readonly leaseMs: number
 }): BeginFollowUpEditResult {
   const { state } = input
@@ -210,7 +212,7 @@ export function beginFollowUpEdit(input: {
     holdId: input.holdId,
     holderCallerId: input.callerId,
     acquiredAt: input.acquiredAt,
-    expiresAt: input.leaseStartedAt + input.leaseMs,
+    missedSweeps: 0,
     baseQueueRevision,
   }
   const next = replaceItem(state, index, { ...item, editHold })
@@ -252,7 +254,7 @@ export function saveFollowUpEdit(input: {
     return rejection(state, 'follow_up_not_editable')
   }
   const intent = editedIntent(item.intent, input.content)
-  if (queueBytesWith(state.followUpQueue.items, index, intent) > MAX_FOLLOW_UP_QUEUE_BYTES) {
+  if (exceedsQueueBytes(state.followUpQueue.items, index, intent)) {
     return rejection(state, 'queue_byte_capacity_reached')
   }
   return released(replaceItem(state, index, { ...withoutHold(item), intent }), 'queue-edit-save')

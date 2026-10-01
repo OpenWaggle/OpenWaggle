@@ -167,7 +167,7 @@ export function loadSessionControlState(sql: SqlClient.SqlClient, sessionId: str
       },
       catch: (cause) => repositoryError('decode-session-state', cause),
     })
-    return yield* withFollowUpEditLeaseState(sql, state, monotonicNowMs())
+    return yield* withFollowUpEditLeaseState(sql, state)
   })
 }
 

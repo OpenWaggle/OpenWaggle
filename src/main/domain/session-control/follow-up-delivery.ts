@@ -33,10 +33,17 @@ export function isFollowUpEditHeld(item: SessionControlFollowUp | undefined) {
   return item?.editHold !== undefined
 }
 
-/** A pending Follow-up waits on an edit: it will be delivered once the edit ends. */
-export function hasPendingHeldFollowUp(state: SessionControlSessionState) {
-  return state.followUpQueue.items.some(
-    (item) => item.editHold !== undefined && item.deliveryState === 'pending',
+/**
+ * The queue's next delivery waits on an edit: the queue runs and its head is a pending Follow-up
+ * out for editing, so it is delivered once the edit ends. A paused queue, or a held item further
+ * back, does not make the Session's work pending.
+ */
+export function waitsOnHeldNextFollowUp(state: SessionControlSessionState) {
+  const head = state.followUpQueue.items[0]
+  return (
+    state.followUpQueue.state === 'running' &&
+    head?.deliveryState === 'pending' &&
+    isFollowUpEditHeld(head)
   )
 }
 

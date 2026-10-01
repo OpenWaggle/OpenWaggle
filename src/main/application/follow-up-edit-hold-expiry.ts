@@ -52,7 +52,7 @@ function releaseExpiredHold(hold: ExpiredFollowUpEditHold) {
 
 export const releaseExpiredFollowUpEditHolds = Effect.gen(function* () {
   const holds = yield* FollowUpEditHoldRepository
-  const expired = yield* holds.listExpired()
+  const expired = yield* holds.advanceLeases()
   yield* Effect.forEach(expired, releaseExpiredHold, { discard: true })
   return expired.length
 })

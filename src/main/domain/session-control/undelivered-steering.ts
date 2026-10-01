@@ -1,5 +1,7 @@
 import { matchBy } from '@diegogbrisa/ts-match'
 import type { FollowUpId } from '@shared/types/brand'
+import { MAX_FOLLOW_UP_QUEUE_LISTED_ITEMS } from '@shared/types/session-control-returned-steers'
+import { isFollowUpEditHeld } from './follow-up-delivery'
 import { MAX_FOLLOW_UP_QUEUE_ITEMS, mutateFollowUpQueue } from './follow-up-queue'
 import type { SessionControlFollowUp, SessionControlSessionState } from './message-aggregate'
 
@@ -47,8 +49,9 @@ function returnedFollowUp(
  * the order they were steered and ahead of every waiting Follow-up. A promoted Follow-up keeps its
  * identity and whole item; one no longer queued (withdrawn, or removed by an accepted promotion)
  * is skipped. Queue capacity is not enforced: the user already submitted these messages. Direct
- * steers are admitted only while the queue has room and are bounded per Run, so the queue stays
- * within `MAX_FOLLOW_UP_QUEUE_LISTED_ITEMS`.
+ * steers are admitted only while the queue has room and are bounded per Run; past
+ * `MAX_FOLLOW_UP_QUEUE_LISTED_ITEMS` (only reachable when several displaced Runs return their
+ * steers together) the excess direct steers are dropped, so every queued id stays nameable.
  */
 export function returnUndeliveredSteers(
   state: SessionControlSessionState,
@@ -57,9 +60,16 @@ export function returnUndeliveredSteers(
   const queued = new Map(state.followUpQueue.items.map((item) => [item.id, item]))
   const front: SessionControlFollowUp[] = []
   const returnedIds = new Set<FollowUpId>()
+  // Direct steers add items; promoted ones only move. Admission bounds one Run's direct steers,
+  // but steers of displaced Runs can return together, so the total is clamped here: a queue
+  // never lists more than `MAX_FOLLOW_UP_QUEUE_LISTED_ITEMS`, which a reorder can always name.
+  let room = MAX_FOLLOW_UP_QUEUE_LISTED_ITEMS - state.followUpQueue.items.length
   for (const steer of steers) {
     const item = returnedFollowUp(steer, queued)
     if (!item || returnedIds.has(item.id)) continue
+    const adds = !queued.has(item.id)
+    if (adds && room <= 0) continue
+    if (adds) room -= 1
     returnedIds.add(item.id)
     front.push(item)
   }
@@ -93,7 +103,9 @@ export function pauseStrandedFollowUps(
   if (
     state.run.state !== 'idle' ||
     state.followUpQueue.state !== 'running' ||
-    state.followUpQueue.items.length === 0
+    state.followUpQueue.items.length === 0 ||
+    // Not stranded: the queue waits on an open edit, and releasing it delivers (ADR 0043).
+    isFollowUpEditHeld(state.followUpQueue.items[0])
   ) {
     return state
   }

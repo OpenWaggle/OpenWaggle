@@ -1,5 +1,6 @@
 import type { LocalSessionCallerIdentity } from '@shared/types/local-session-profile'
 import type { LocalSessionCommandPayload } from '@shared/types/local-session-protocol'
+import { FOLLOW_UP_EDIT_CALLER_ID } from '@shared/types/session-control-queue'
 import * as Effect from 'effect/Effect'
 import * as Option from 'effect/Option'
 import { FollowUpEditHoldRepository } from '../ports/follow-up-edit-hold-repository'
@@ -54,7 +55,13 @@ export function bindSessionControlAttachments(
       }),
     ),
   )
-  return command.operation === 'queue-edit-save'
+  // Only the desktop user can save an edit; any other caller's save is refused before it binds
+  // anything worth keeping, so it gets no retention it could use to pin attachments.
+  const desktopEdit =
+    command.operation === 'queue-edit-save' &&
+    caller.callerId === FOLLOW_UP_EDIT_CALLER_ID &&
+    caller.profileAuthority === undefined
+  return desktopEdit
     ? bind.pipe(Effect.zipRight(retainFollowUpEditAttachments(command.sessionId, attachmentIds)))
     : bind
 }

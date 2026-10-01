@@ -44,8 +44,11 @@ export interface SessionControlFollowUpEditHold {
   readonly holderCallerId: string
   /** Wall-clock acquisition time, for display. */
   readonly acquiredAt: number
-  /** Host monotonic clock; a hold past this is gone. Renewal moves it without a queue revision. */
-  readonly expiresAt: number
+  /**
+   * Host sweeps since the last renewal (see `follow-up-edit-lease.ts`); a hold that reaches the
+   * lease is gone. Renewal clears it without a queue revision.
+   */
+  readonly missedSweeps: number
   /** The queue revision the edit began at; a save names it (see `saveFollowUpEdit`). */
   readonly baseQueueRevision: number
 }

@@ -2,8 +2,8 @@ import { FollowUpId, RunId } from '@shared/types/brand'
 import { describe, expect, it } from 'vitest'
 import {
   deliverIdleQueueHead,
-  hasPendingHeldFollowUp,
   pauseUndeliveredQueue,
+  waitsOnHeldNextFollowUp,
 } from '../follow-up-delivery'
 import { planFollowUpPromotion } from '../follow-up-promotion'
 import { applyAdaptiveMessage } from '../message-aggregate'
@@ -104,9 +104,12 @@ describe('Follow-up edit hold delivery', () => {
     expect(byEditor.accepted && byEditor.state.followUpQueue.items[0]?.editHold).toEqual(HOLD)
   })
 
-  it('reports a pending held Follow-up as still to be delivered', () => {
-    expect(hasPendingHeldFollowUp(state([followUp('first', {}, { editHold: HOLD })]))).toBe(true)
-    expect(hasPendingHeldFollowUp(state([followUp('first')]))).toBe(false)
+  it('waits on an edit only when a running queue’s next Follow-up is held', () => {
+    const held = followUp('first', {}, { editHold: HOLD })
+    expect(waitsOnHeldNextFollowUp(state([held]))).toBe(true)
+    expect(waitsOnHeldNextFollowUp(state([followUp('first')]))).toBe(false)
+    expect(waitsOnHeldNextFollowUp(state([followUp('first'), held]))).toBe(false)
+    expect(waitsOnHeldNextFollowUp(state([held], undefined, 'paused'))).toBe(false)
   })
 })
 

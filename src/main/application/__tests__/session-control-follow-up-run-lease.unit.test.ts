@@ -181,4 +181,77 @@ describe('idle Follow-up Session Host run lease', () => {
       liveness.close()
     }
   })
+
+  it('releases a Follow-up edit hold while the Host drains, without starting the next Run', async () => {
+    const sessionId = SessionId('session-draining-edit')
+    const liveness = new SessionHostLiveness({
+      idleGracePeriodMs: 60_000,
+      requestShutdown: vi.fn(),
+    })
+    const releaseRuntime = installSessionHostEventRuntime({
+      eventHub: new SessionHostEventHub(),
+      liveness,
+    })
+    const mutations: { readonly operation: string; readonly nextRunId?: string }[] = []
+    const layer = Layer.mergeAll(
+      unusedCommandDependencies(),
+      Layer.succeed(SessionControlRepository, {
+        executeMutation: (input) =>
+          Effect.sync(() => {
+            mutations.push({
+              operation: input.request.command.operation,
+              ...(input.nextRunId ? { nextRunId: input.nextRunId } : {}),
+            })
+            return {
+              replayed: false,
+              outcome: {
+                operation: 'queue-edit-cancel' as const,
+                effect: 'queue-updated' as const,
+                sessionId,
+                queueState: 'running' as const,
+                queueRevision: 2,
+                followUpIds: ['held'],
+                stateRevision: 3,
+              },
+            }
+          }),
+      }),
+      Layer.succeed(SessionControlIdentityService, {
+        nextRunId: Effect.succeed(RunId('run-not-admitted')),
+        nextFollowUpId: Effect.succeed(FollowUpId('follow-up-unused')),
+        nextReportId: Effect.succeed(ReportId('report-unused')),
+        nextReportCorrelationId: Effect.succeed(ReportCorrelationId('correlation-unused')),
+        now: Effect.succeed(1_000),
+      }),
+      Layer.succeed(SessionControlRunLifecycleRepository, fromPartial({})),
+      Layer.succeed(SessionControlRunExecutor, fromPartial({})),
+      Layer.succeed(SessionOrchestrationUpdateDeliveryService, fromPartial({})),
+    )
+    const command = (operation: 'queue-edit-cancel' | 'follow-up') =>
+      executeSessionControlMutation({
+        callerId: 'gui:local-user',
+        request: {
+          contractVersion: 2,
+          requestId: `request-${operation}`,
+          idempotencyKey: `key-${operation}`,
+          command:
+            operation === 'follow-up'
+              ? { operation, sessionId, input: { text: 'Later', attachmentIds: [] } }
+              : { operation, sessionId, followUpId: 'held', holdId: 'hold-1' },
+        },
+      }).pipe(Effect.provide(layer))
+
+    try {
+      liveness.requestDrain()
+      const released = await Effect.runPromise(command('queue-edit-cancel'))
+      const refused = await Effect.runPromiseExit(command('follow-up'))
+
+      expect(released.outcome).toMatchObject({ effect: 'queue-updated' })
+      expect(mutations).toEqual([{ operation: 'queue-edit-cancel' }])
+      expect(refused._tag).toBe('Failure')
+    } finally {
+      releaseRuntime()
+      liveness.close()
+    }
+  })
 })

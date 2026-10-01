@@ -4,6 +4,7 @@ import path from 'node:path'
 import * as SqlClient from '@effect/sql/SqlClient'
 import * as Effect from 'effect/Effect'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { FOLLOW_UP_EDIT_HOLD_LEASE_SWEEPS } from '../../domain/session-control/follow-up-edit-lease'
 import { FollowUpEditHoldRepository } from '../../ports/follow-up-edit-hold-repository'
 import { loadSessionControlState } from '../sqlite-session-control-state'
 import { readQueue } from '../sqlite-session-query-details'
@@ -167,19 +168,27 @@ describe('Follow-up edit holds in SQLite', () => {
         const otherCaller = yield* holds.renew({ ...key, holderCallerId: 'local-user:machine' })
         yield* settleRun()
         const sql = yield* SqlClient.SqlClient
-        yield* sql`UPDATE temp.session_follow_up_edit_holds SET expires_at = ${1}`
+        const sweeps = (count: number) =>
+          Effect.forEach(Array.from({ length: count }), () => holds.advanceLeases())
+        // A lease spans sweeps, not wall time: a sleeping machine does not expire it.
+        const beforeRenewal = yield* sweeps(FOLLOW_UP_EDIT_HOLD_LEASE_SWEEPS - 1)
+        const renewedLate = yield* holds.renew({ ...key, holderCallerId: USER })
+        const afterRenewal = yield* sweeps(FOLLOW_UP_EDIT_HOLD_LEASE_SWEEPS - 1)
+        const [expired] = yield* sweeps(1)
         const afterExpiry = yield* loadSessionControlState(sql, SESSION)
         const renewedAfterExpiry = yield* holds.renew({ ...key, holderCallerId: USER })
-        const expired = yield* holds.listExpired()
-        const stillListed = yield* holds.listExpired()
+        const stillListed = yield* holds.advanceLeases()
         const kicked = yield* edit({
           operation: 'queue-edit-cancel',
           sessionId: SESSION,
           followUpId: FOLLOW_UP,
           holdId: HOLD,
         })
-        const afterRelease = yield* holds.listExpired()
+        const afterRelease = yield* holds.advanceLeases()
         return {
+          beforeRenewal,
+          renewedLate,
+          afterRenewal,
           renewed,
           otherCaller,
           afterExpiry,
@@ -194,6 +203,9 @@ describe('Follow-up edit holds in SQLite', () => {
 
     expect(result.renewed).toBe(true)
     expect(result.otherCaller).toBe(false)
+    expect(result.beforeRenewal.flat()).toEqual([])
+    expect(result.renewedLate).toBe(true)
+    expect(result.afterRenewal.flat()).toEqual([])
     expect(result.afterExpiry.followUpQueue.items[0]?.editHold).toBeUndefined()
     expect(result.renewedAfterExpiry).toBe(false)
     const expiredHold = {
@@ -203,7 +215,7 @@ describe('Follow-up edit holds in SQLite', () => {
       holderCallerId: USER,
     }
     expect(result.expired).toEqual([expiredHold])
-    // Listing does not release: only an accepted cancel removes the hold, so a failed one retries.
+    // Expiring does not release: only an accepted cancel removes the hold, so a failed one retries.
     expect(result.stillListed).toEqual([expiredHold])
     expect(result.afterRelease).toEqual([])
     expect(result.kicked.outcome).toMatchObject({

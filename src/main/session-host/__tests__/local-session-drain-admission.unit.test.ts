@@ -40,6 +40,18 @@ function hostUi(channel: HostBackedGuiChannel, args: readonly unknown[]) {
 }
 
 describe('commands a draining Session Host still accepts', () => {
+  it('keeps open Follow-up edits alive and lets them be released', () => {
+    const renew = (operation: string) => ({
+      contract: 'local-ui-v1',
+      request: { command: { operation, sessionId: 's-1', followUpId: 'f-1', holdId: 'h-1' } },
+    })
+    expect(isAdmittedWhileDraining(renew('renew-follow-up-edit-hold'))).toBe(true)
+    expect(isAdmittedWhileDraining(renew('pin'))).toBe(false)
+    expect(isAdmittedWhileDraining(control('queue-edit-cancel'))).toBe(true)
+    expect(isAdmittedWhileDraining(control('queue-edit-begin'))).toBe(false)
+    expect(isAdmittedWhileDraining(control('queue-edit-save'))).toBe(false)
+  })
+
   it("keeps answering the desktop app's reads", () => {
     expect(isAdmittedWhileDraining(hostUi('settings:get', []))).toBe(true)
     expect(isAdmittedWhileDraining(hostUi('sessions:get-detail', ['s-1']))).toBe(true)

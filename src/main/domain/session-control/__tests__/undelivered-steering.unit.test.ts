@@ -89,6 +89,43 @@ describe('returning Undelivered steering messages', () => {
     expect(returned.followUpQueue.items[0]?.id).toBe(FollowUpId('direct'))
   })
 
+  it('never returns more direct steers than the queue can list, however many Runs return them', () => {
+    const items = Array.from({ length: MAX_FOLLOW_UP_QUEUE_LISTED_ITEMS - 1 }, (_, index) =>
+      followUp(`queued-${index}`),
+    )
+    const promoted = items[5]
+    if (!promoted) throw new Error('fixture')
+    const returned = returnUndeliveredSteers(state(items), [
+      { delivery: { kind: 'steer', followUp: followUp('direct-a') }, handedOff: true },
+      { delivery: { kind: 'steer', followUp: followUp('direct-b') }, handedOff: true },
+      { delivery: { kind: 'promoted-follow-up', followUpId: promoted.id }, handedOff: true },
+    ])
+    expect(returned.followUpQueue.items).toHaveLength(MAX_FOLLOW_UP_QUEUE_LISTED_ITEMS)
+    expect(returned.followUpQueue.items.slice(0, 2).map((item) => item.id)).toEqual([
+      FollowUpId('direct-a'),
+      promoted.id,
+    ])
+  })
+
+  it('leaves a queue waiting on an edit running when its Session has no Run', () => {
+    const held: SessionControlSessionState = {
+      ...state([
+        {
+          ...followUp('held'),
+          editHold: {
+            holdId: 'hold-1',
+            holderCallerId: 'local-user',
+            acquiredAt: 1000,
+            missedSweeps: 0,
+            baseQueueRevision: 3,
+          },
+        },
+      ]),
+      run: { state: 'idle' },
+    }
+    expect(pauseStrandedFollowUps(held)).toBe(held)
+  })
+
   it('pauses a running queue left on a Session with no Run, so its Follow-ups are not stranded', () => {
     const stranded: SessionControlSessionState = {
       ...state([followUp('returned')]),

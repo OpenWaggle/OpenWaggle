@@ -9,7 +9,7 @@ export const HOLD = {
   holdId: 'hold-1',
   holderCallerId: USER,
   acquiredAt: 1_000,
-  expiresAt: 31_000,
+  missedSweeps: 0,
   baseQueueRevision: 4,
 } as const
 

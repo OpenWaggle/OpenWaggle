@@ -10,6 +10,13 @@ export const MAX_FOLLOW_UP_QUEUE_ITEMS = 256
  */
 export const FOLLOW_UP_EDIT_CALLER_ID = 'gui:local-user'
 
+/** Names one Follow-up edit hold (ADR 0043). */
+export interface FollowUpEditHoldReference {
+  readonly sessionId: string
+  readonly followUpId: string
+  readonly holdId: string
+}
+
 /**
  * Why a Follow-up queue stopped delivering. Recorded when the queue goes from running to paused and
  * cleared on resume, so the queue can say what paused it instead of only that it is paused.
