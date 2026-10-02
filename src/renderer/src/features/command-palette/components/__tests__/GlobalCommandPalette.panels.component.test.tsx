@@ -185,4 +185,22 @@ describe('GlobalCommandPalette Panels section', () => {
     expect(mocks.openBuiltInPanel).toHaveBeenCalledWith('diff')
     expect(mocks.openExtensionPanel).toHaveBeenCalledWith({ entry: sidePanelEntry() })
   })
+
+  it('lists extension panels for the Session checkout the Panel rail asks about', async () => {
+    const { GlobalCommandPalette } = await import('../GlobalCommandPalette')
+    mocks.listExtensionContributions.mockImplementation(
+      (input: { readonly projectPaths: readonly string[] }) =>
+        Promise.resolve(
+          input.projectPaths.includes('/repo/.worktrees/session-1')
+            ? { projectPaths: input.projectPaths, entries: [sidePanelEntry()] }
+            : { projectPaths: input.projectPaths, entries: [] },
+        ),
+    )
+    renderWithQueryClient(<GlobalCommandPalette panelProjectPath="/repo/.worktrees/session-1" />)
+
+    expect(await screen.findByRole('menuitem', { name: /Notes/ })).toBeInTheDocument()
+    expect(mocks.listExtensionContributions).toHaveBeenCalledWith(
+      expect.objectContaining({ projectPaths: ['/repo/.worktrees/session-1'] }),
+    )
+  })
 })

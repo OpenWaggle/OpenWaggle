@@ -1,6 +1,7 @@
-import { ArrowLeft, Globe2, Maximize2, Minimize2, SquareTerminal, X } from 'lucide-react'
+import { ArrowLeft, Globe2, SquareTerminal, X } from 'lucide-react'
 import { useState } from 'react'
 import { Button } from '@/shared/ui/Button'
+import { RightPanelMaximizeButton } from '@/shared/ui/RightPanelMaximizeButton'
 import { WorkspaceBrowserSurfaceTab } from './WorkspaceBrowserSurfaceTab'
 import { WorkspaceBrowserTabContextMenu } from './WorkspaceBrowserTabContextMenu'
 import type { BrowserPreviewTabState } from './workspace-panel-model'
@@ -10,9 +11,7 @@ interface WorkspaceSurfaceTabsProps {
   readonly model: {
     readonly activeSurface: WorkspacePanelSurface
     readonly browserTabs: readonly BrowserPreviewTabState[]
-    readonly canMaximize: boolean
     readonly canCreateTerminal: boolean
-    readonly maximized: boolean
     /** A title replaces the browser tab strip for non-browser surfaces. */
     readonly title?: {
       readonly label: string
@@ -23,7 +22,6 @@ interface WorkspaceSurfaceTabsProps {
   readonly actions: {
     readonly newBrowser: () => void
     readonly newTerminal: () => void
-    readonly toggleMaximized: () => void
     readonly selectBrowser: (previewId: string) => void
     readonly closeBrowsers: (previewIds: readonly string[]) => void
     readonly closePanel: () => void
@@ -141,22 +139,7 @@ function WorkspacePanelToolbar({ model, actions }: WorkspaceSurfaceTabsProps) {
           <SquareTerminal className="size-3.5" />
         </Button>
       ) : null}
-      {model.canMaximize && (
-        <Button
-          size="icon-sm"
-          variant="ghost"
-          aria-label={model.maximized ? 'Restore side panel' : 'Maximize side panel'}
-          aria-pressed={model.maximized}
-          title={model.maximized ? 'Restore side panel' : 'Maximize side panel'}
-          onClick={actions.toggleMaximized}
-        >
-          {model.maximized ? (
-            <Minimize2 className="size-3.5" />
-          ) : (
-            <Maximize2 className="size-3.5" />
-          )}
-        </Button>
-      )}
+      <RightPanelMaximizeButton />
       <Button
         size="icon-sm"
         variant="ghost"

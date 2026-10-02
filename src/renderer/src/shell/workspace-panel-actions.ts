@@ -93,14 +93,23 @@ export function hideWorkspaceSideTerminal(ownerKey: string) {
  * belongs to the Session and is kept with its workspace panel group. Nothing opens implicitly.
  */
 export function toggleWorkspacePanelMaximized(ownerKey: string) {
-  if (ownerKey.length === 0) return false
+  if (rightPanelMaximizeUnavailableReason(ownerKey) !== null) return false
   const store = useWorkspacePanelStore.getState()
-  const group = store.groups[ownerKey]
-  const workspaceOpen = group?.panelOpen === true && group.activeSurface !== null
-  const routeOpen = useRightSidebarCoordinator.getState().activeClaim?.kind === 'route'
-  if (!workspaceOpen && !routeOpen) return false
-  store.setMaximized(ownerKey, !(group?.maximized ?? false))
+  store.setMaximized(ownerKey, store.groups[ownerKey]?.maximized !== true)
   return true
+}
+
+const OPEN_A_PANEL_FIRST = 'Open a panel first.'
+const GUIDED_PANEL_KEEPS_WIDTH = 'The guided action panel keeps its width.'
+
+/** Why the Right panel cannot be maximized right now, or null when it can. */
+export function rightPanelMaximizeUnavailableReason(ownerKey: string): string | null {
+  if (ownerKey.length === 0) return OPEN_A_PANEL_FIRST
+  const claim = useRightSidebarCoordinator.getState().activeClaim
+  if (claim?.kind === 'action-panel') return GUIDED_PANEL_KEEPS_WIDTH
+  const group = useWorkspacePanelStore.getState().groups[ownerKey]
+  const workspaceOpen = group?.panelOpen === true && group.activeSurface !== null
+  return workspaceOpen || claim?.kind === 'route' ? null : OPEN_A_PANEL_FIRST
 }
 
 /** Toggles the retained panel and preserves whichever surface was selected last. */

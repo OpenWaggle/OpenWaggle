@@ -281,14 +281,14 @@ describe('shell surfaces', () => {
     const main = routeContent.closest('[data-right-sidebar-main="true"]')
     const shell = await screen.findByTestId('workspace-right-panel')
     const sidebar = shell.closest('[data-right-sidebar-shell="true"]')
-    fireEvent.click(within(shell).getByRole('button', { name: 'Maximize side panel' }))
+    fireEvent.click(within(shell).getByRole('button', { name: 'Maximize panel', pressed: false }))
 
     expect(screen.getByText('Route content')).toBe(routeContent)
     expect(main).toHaveAttribute('inert')
     expect(sidebar).toHaveStyle({ width: '100%' })
     expect(useWorkspacePanelStore.getState().groups['draft:/repo']?.maximized).toBe(true)
 
-    fireEvent.click(within(shell).getByRole('button', { name: 'Restore side panel' }))
+    fireEvent.click(within(shell).getByRole('button', { name: 'Maximize panel', pressed: true }))
 
     expect(screen.getByText('Route content')).toBe(routeContent)
     expect(main).not.toHaveAttribute('inert')

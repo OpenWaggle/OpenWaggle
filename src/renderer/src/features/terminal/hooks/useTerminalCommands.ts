@@ -3,6 +3,7 @@ import { useProject } from '@/features/sessions/hooks'
 import { useUIStore } from '@/shell/ui-store'
 import {
   hideWorkspaceSideTerminal,
+  rightPanelMaximizeUnavailableReason,
   showWorkspaceSideTerminal,
   toggleWorkspacePanelMaximized,
   useWorkspaceSideTerminalVisible,
@@ -115,8 +116,9 @@ export function useTerminalCommands(): {
   }
 
   const toggleSidePanelMaximized = () => {
-    if (toggleWorkspacePanelMaximized(owner.ownerKey)) return
-    showToast('Open a panel first.', 'error')
+    const unavailable = rightPanelMaximizeUnavailableReason(owner.ownerKey)
+    if (unavailable === null) toggleWorkspacePanelMaximized(owner.ownerKey)
+    else showToast(unavailable, 'error')
   }
 
   const splitTerminalInDirection = (direction: 'side-by-side' | 'stacked') => {

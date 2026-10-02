@@ -3,6 +3,8 @@ import { create } from 'zustand'
 /** The open Right panel's maximize state, published by the shell (ADR 0043). */
 export interface RightPanelMaximizeTarget {
   readonly maximized: boolean
+  /** False in a narrow-window sheet and under the guided action panel, which keep their width. */
+  readonly canMaximize: boolean
   readonly toggle: () => void
   /** The current `rightPanel.toggleMaximized` binding, shown in the tooltip. */
   readonly shortcutLabel: string | null

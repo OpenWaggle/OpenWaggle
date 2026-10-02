@@ -6,8 +6,17 @@ import { RightPanelMaximizeButton } from '../RightPanelMaximizeButton'
 describe('RightPanelMaximizeButton', () => {
   afterEach(() => useRightPanelMaximizeStore.setState({ target: null }))
 
-  it('renders nothing until the shell publishes a Right panel', () => {
-    const { container } = render(<RightPanelMaximizeButton />)
+  it('renders nothing until the shell publishes a Right panel that can maximize', () => {
+    const { container, rerender } = render(<RightPanelMaximizeButton />)
+    expect(container).toBeEmptyDOMElement()
+
+    useRightPanelMaximizeStore.getState().publish({
+      maximized: false,
+      canMaximize: false,
+      toggle: vi.fn(),
+      shortcutLabel: null,
+    })
+    rerender(<RightPanelMaximizeButton />)
     expect(container).toBeEmptyDOMElement()
   })
 
@@ -15,20 +24,21 @@ describe('RightPanelMaximizeButton', () => {
     const toggle = vi.fn()
     useRightPanelMaximizeStore
       .getState()
-      .publish({ maximized: false, toggle, shortcutLabel: '⌘⇧M' })
+      .publish({ maximized: false, canMaximize: true, toggle, shortcutLabel: '⌘⇧M' })
     const { rerender } = render(<RightPanelMaximizeButton />)
 
-    const maximize = screen.getByRole('button', { name: 'Maximize panel' })
+    const maximize = screen.getByRole('button', { name: 'Maximize panel', pressed: false })
     expect(maximize).toHaveAttribute('title', 'Maximize panel (⌘⇧M)')
-    expect(maximize).toHaveAttribute('aria-pressed', 'false')
     fireEvent.click(maximize)
     expect(toggle).toHaveBeenCalledOnce()
 
-    useRightPanelMaximizeStore.getState().publish({ maximized: true, toggle, shortcutLabel: null })
+    useRightPanelMaximizeStore
+      .getState()
+      .publish({ maximized: true, canMaximize: true, toggle, shortcutLabel: null })
     rerender(<RightPanelMaximizeButton />)
-    expect(screen.getByRole('button', { name: 'Restore panel' })).toHaveAttribute(
-      'aria-pressed',
-      'true',
+    expect(screen.getByRole('button', { name: 'Maximize panel', pressed: true })).toHaveAttribute(
+      'title',
+      'Restore panel',
     )
   })
 })

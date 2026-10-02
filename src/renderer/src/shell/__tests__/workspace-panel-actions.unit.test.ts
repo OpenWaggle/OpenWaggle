@@ -6,6 +6,7 @@ import {
   hasActiveWorkspaceRightPanel,
   openWorkspacePreviewWithResult,
   refreshWorkspacePreview,
+  rightPanelMaximizeUnavailableReason,
   toggleWorkspacePanelMaximized,
   toggleWorkspacePreview,
   toggleWorkspaceRightPanel,
@@ -59,6 +60,16 @@ describe('workspace panel shortcut actions', () => {
     })
     expect(toggleWorkspacePanelMaximized(OWNER)).toBe(true)
     expect(useWorkspacePanelStore.getState().groups[OWNER]?.maximized).toBe(false)
+  })
+
+  it('leaves the guided action panel at its own width', () => {
+    useRightSidebarCoordinator.getState().claimRoute('diff')
+    useRightSidebarCoordinator.getState().claimActionPanel()
+    expect(rightPanelMaximizeUnavailableReason(OWNER)).toBe(
+      'The guided action panel keeps its width.',
+    )
+    expect(toggleWorkspacePanelMaximized(OWNER)).toBe(false)
+    expect(useWorkspacePanelStore.getState().groups[OWNER]).toBeUndefined()
   })
 
   it('selects the latest preview and routes refresh and zoom through typed IPC', async () => {

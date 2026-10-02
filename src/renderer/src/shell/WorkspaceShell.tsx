@@ -13,6 +13,7 @@ import { useUIStore } from '@/shell/ui-store'
 import { useAutoUpdater } from '@/shell/useAutoUpdater'
 import { RightPanelCommandPalette } from './right-panel/RightPanelCommandPalette'
 import { RightPanelHost } from './right-panel/RightPanelHost'
+import { RightPanelMaximizePublisher } from './right-panel/RightPanelMaximizePublisher'
 import { isRightPanelChatPath } from './right-panel/useRightPanelRouteNavigation'
 import { useDesktopNativeAdmissionNotice } from './useDesktopNativeAdmissionNotice'
 import { useWorkspaceLifecycle } from './useWorkspaceLifecycle'
@@ -79,6 +80,7 @@ export function WorkspaceShell({ children }: WorkspaceShellProps) {
             </WorkspaceRightPanel>
           </ActionPanelLayout>
           {chatRoute ? <RightPanelHost /> : null}
+          <RightPanelMaximizePublisher />
         </div>
       </div>
 

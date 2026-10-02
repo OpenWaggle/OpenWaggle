@@ -32,4 +32,4 @@ The right side of the window had grown one header button per surface (Changes, S
 
 The route and workspace right sidebars share sizing and a single storage key. The renderer gains a user-level rail layout store and per-Session panel memory for route-backed surfaces. The extension SDK manifest gains an optional side-panel `icon` and its API snapshot changes; the main process validates the Lucide name or reads the package SVG once per installed content hash. The Shortcut registry gains panel commands, including dynamic extension panel commands. The user documentation for the right sidebar, Project actions, shortcuts and extension authoring changes accordingly.
 
-Maximize applies to the one container, so every surface header has the same maximize control and switching surfaces keeps the Session's maximized state.
+Maximize applies to the one container, so every surface header has the same maximize control and switching surfaces keeps the Session's maximized state. A narrow-window sheet and the guided action panel (ADR 0038) keep their own width and offer no maximize control.

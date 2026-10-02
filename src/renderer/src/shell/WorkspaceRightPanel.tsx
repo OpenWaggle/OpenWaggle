@@ -7,7 +7,6 @@ import {
   terminalSidePanelLayoutKey,
   useTerminalStore,
 } from '@/features/terminal'
-import { useMediaQuery } from '@/shared/hooks/useMediaQuery'
 import { api } from '@/shared/lib/ipc'
 import { useRightSidebarCoordinator } from '@/shared/lib/right-sidebar-coordinator'
 import { RightSidebarLayout } from '@/shared/ui/RightSidebarLayout'
@@ -18,14 +17,12 @@ import { WorkspacePanelContent } from './WorkspacePanelContent'
 import { WorkspaceSurfaceTabs } from './WorkspaceSurfaceTabs'
 import { closeBrowserTabs } from './workspace-browser-close'
 import { reconcileClosedBrowsers } from './workspace-browser-close-reconciliation'
-import { newWorkspaceBrowser, toggleWorkspacePanelMaximized } from './workspace-panel-actions'
+import { newWorkspaceBrowser } from './workspace-panel-actions'
 import {
   type BrowserPreviewTabState,
   useWorkspacePanelStore,
   type WorkspacePanelSurface,
 } from './workspace-panel-store'
-
-const SIDE_PANEL_SHEET_BREAKPOINT_PX = RIGHT_PANEL_SIZING.sheetBreakpointPx
 
 interface WorkspaceRightPanelProps {
   readonly children: ReactNode
@@ -54,7 +51,6 @@ function activeBrowserForSurface(
  */
 export function WorkspaceRightPanel({ children }: WorkspaceRightPanelProps) {
   const panel = useWorkspaceRightPanelModel()
-  const isSheet = useMediaQuery(`(max-width: ${String(SIDE_PANEL_SHEET_BREAKPOINT_PX)}px)`)
 
   return (
     <RightSidebarLayout
@@ -68,9 +64,7 @@ export function WorkspaceRightPanel({ children }: WorkspaceRightPanelProps) {
               model={{
                 activeSurface: panel.activeSurface,
                 browserTabs: panel.browserTabs,
-                canMaximize: !isSheet,
                 canCreateTerminal: panel.owner.defaultCwd !== null,
-                maximized: panel.maximized,
                 ...surfaceTitle(panel.activeSurface, panel.showProjectActions),
               }}
               actions={{
@@ -80,7 +74,6 @@ export function WorkspaceRightPanel({ children }: WorkspaceRightPanelProps) {
                 newTerminal: panel.newSideTerminal,
                 selectBrowser: panel.showBrowser,
                 setBrowserAudioMuted: panel.setBrowserAudioMuted,
-                toggleMaximized: panel.toggleMaximized,
               }}
             />
           ) : null}
@@ -167,7 +160,6 @@ function useWorkspaceRightPanelModel() {
   const hidePanel = () => useWorkspacePanelStore.getState().hidePanel(owner.ownerKey)
   const newBrowser = () => void newWorkspaceBrowser(owner.ownerKey)
   const newSideTerminal = () => createSidePanelTerminal(owner.ownerKey, owner.defaultCwd)
-  const toggleMaximized = () => toggleWorkspacePanelMaximized(owner.ownerKey)
   const setBrowserAudioMuted = (previewId: string, audioMuted: boolean) => {
     void api
       .setBrowserPreviewAudioMuted(previewId, audioMuted)
@@ -207,7 +199,6 @@ function useWorkspaceRightPanelModel() {
     showProjectActions: () =>
       useWorkspacePanelStore.getState().showIndexSurface(owner.ownerKey, 'project-actions'),
     sidePanelKey,
-    toggleMaximized,
   }
 }
 

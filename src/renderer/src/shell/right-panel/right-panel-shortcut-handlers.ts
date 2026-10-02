@@ -9,6 +9,7 @@ import { useRightSidebarCoordinator } from '@/shared/lib/right-sidebar-coordinat
 import {
   closeWorkspaceRightPanel,
   hasActiveWorkspaceRightPanel,
+  rightPanelMaximizeUnavailableReason,
   toggleWorkspacePanelMaximized,
   toggleWorkspaceRightPanel,
 } from '../workspace-panel-actions'
@@ -42,9 +43,12 @@ export function rightPanelShortcutHandlers(input: {
       if (!toggleWorkspaceRightPanel(input.ownerKey)) input.newSideTerminal()
     },
     'rightPanel.toggleMaximized': () => {
-      if (!toggleWorkspacePanelMaximized(input.ownerKey)) {
-        input.showToast('Open a panel first.', 'error')
+      const unavailable = rightPanelMaximizeUnavailableReason(input.ownerKey)
+      if (unavailable !== null) {
+        input.showToast(unavailable, 'error')
+        return
       }
+      toggleWorkspacePanelMaximized(input.ownerKey)
     },
     'rightPanel.close': () => {
       if (hasRightPanelController()) closeRightPanel()
