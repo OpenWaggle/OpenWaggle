@@ -652,6 +652,14 @@ On the local macOS host, login-shell probes with long `-c` arguments exited via 
 
 `Mod+F` and `Mod+1` to `Mod+9` are registered directly by sidebar hooks rather than through `shortcutBindings`, so the settings conflict check could not see them and a user could bind a command onto one. The result was two live handlers and a console warning from the hotkey library with nothing in the UI to explain it. `RESERVED_SHORTCUT_KEYS` in `src/shared/types/shortcuts.ts` is where a directly-registered combination gets declared so the check can find it.
 
+The table's keys are written `MOD+F`, while `shortcutBindingKey` produces `Mod+F`. Direct lookups such as `RESERVED_SHORTCUT_KEYS[shortcutBindingKey(binding)]` therefore never matched, so no reserved combination was ever flagged. Use `reservedShortcutLabel` from `src/shared/utils/extension-panel-shortcuts.ts`, which compares case-insensitively. `project-action-model.ts` still did the raw lookup when this was found.
+
+### Extension panel shortcuts are a separate, conflict-free map
+
+Extension side panel shortcuts (ADR 0043) are not Shortcut registry rules, because `ShortcutRule.command` is a closed literal union. They live in `extensionPanelShortcutBindings`, keyed by `extensionRightPanelSurfaceId`, so a binding survives uninstall and reinstall. Every write that touches built-in rules or these bindings runs `extensionPanelShortcutUpdateError` in `settings-operations.ts`. That check rejects only conflicts the update introduces, so a stale saved state never blocks unrelated edits. At dispatch they come after project and built-in rules and apply only outside terminal focus. Unavailable panels are left out of the capture, so their keys pass through.
+
+An Effect `Schema.Record` whose key schema is a refinement drops keys that fail the refinement instead of failing the decode. A saved map with a bad key would load with that entry silently gone. Validate keys with a filter on the whole record when a present invalid value has to fail closed.
+
 ### Project action bindings are an ordered rule stack
 
 Project action bindings deliberately do not use the conflict-free product Shortcut registry. T3 Code resolves its full keybinding list from the end, and several conditional rules may target the same project action or chord. OpenWaggle preserves that behavior: `when` uses the T3 boolean grammar, unknown context names are false, and the last active matching rule wins. Likely overlap is a warning, not a save blocker. Keep the legacy one-shortcut project shape readable, but write the ordered multi-rule shape after an action is edited.

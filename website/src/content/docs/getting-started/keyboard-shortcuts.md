@@ -5,7 +5,7 @@ order: 9
 section: "Customize"
 ---
 
-These are the default bindings. Open **Settings > Shortcuts** to see or change configurable bindings. Sidebar filtering and pinned-session number keys are reserved rather than configurable. Some shortcuts depend on where focus is: for example, `Cmd/Ctrl+D` splits a terminal when you are typing in it, but opens the diff panel elsewhere.
+These are the default bindings. Open **Settings > Shortcuts** to see or change configurable bindings. Sidebar filtering and pinned-session number keys are reserved rather than configurable. Some shortcuts depend on where focus is: for example, `Cmd/Ctrl+D` splits a terminal when you are typing in it, but toggles Changes elsewhere.
 
 ## Shortcuts reference
 
@@ -20,9 +20,9 @@ These are the default bindings. Open **Settings > Shortcuts** to see or change c
 | Filter projects and sessions | `Cmd+F` | `Ctrl+F` |
 | Open pinned session 1 to 9 | `Cmd+1` … `Cmd+9` | `Ctrl+1` … `Ctrl+9` |
 | Toggle terminal | `Cmd+J` | `Ctrl+J` |
-| Toggle diff panel | `Cmd+D` | `Ctrl+D` |
+| Toggle Changes | `Cmd+D` | `Ctrl+D` |
 | Toggle right panel | `Cmd+Option+B` | `Ctrl+Alt+B` |
-| Toggle browser preview | `Cmd+Shift+J` | `Ctrl+Shift+J` |
+| Toggle Browser | `Cmd+Shift+J` | `Ctrl+Shift+J` |
 | Toggle Session Tree | `Cmd+Shift+Y` | `Ctrl+Shift+Y` |
 | Focus a pending request | `Cmd+Shift+A` | `Ctrl+Shift+A` |
 | Submit diff comment or review | `Cmd+Enter` | `Ctrl+Enter` |
@@ -42,7 +42,38 @@ These actions apply while focus is inside a terminal pane:
 | Close active terminal pane | `Cmd+W` | `Ctrl+W` |
 
 Terminal focus makes these bindings contextual. Outside a terminal, `Cmd/Ctrl+N` creates a session
-and `Cmd/Ctrl+D` toggles the diff panel.
+and `Cmd/Ctrl+D` toggles Changes.
+
+## Panel shortcuts
+
+Every panel the right panel can show has its own shortcut command. Pressing a panel's shortcut
+shows that panel, or closes the right panel when that panel is already showing, just like clicking
+its icon on the panel rail.
+
+| Panel | Default |
+|-------|---------|
+| All panels | Unassigned |
+| Changes | `Cmd/Ctrl+D` |
+| Project Actions | Unassigned |
+| Browser | `Cmd/Ctrl+Shift+J` |
+| Files | Unassigned |
+| Session Tree | `Cmd/Ctrl+Shift+Y` |
+| Resources | Unassigned |
+| Extension side panels | Unassigned |
+
+Assign the unassigned ones under **Settings > Shortcuts > Panels**. That group lists the built-in
+panels, the right panel toggle, and each installed extension's side panels under the extension's
+name. Record a combination, then **Save**; use the reset button to return a built-in panel to its
+default or the clear button to unassign it.
+
+Extensions cannot choose shortcuts for their panels; only you can. A panel shortcut must be unique:
+OpenWaggle refuses one that a built-in command, a reserved combination, or another panel already
+uses, and names what uses it. Panel shortcuts work everywhere except while you type in a terminal.
+
+An extension panel's shortcut does nothing while the panel cannot be shown, for example while its
+extension is disabled, untrusted, or waiting for an update, and the key goes to whatever has focus.
+The binding is kept when you uninstall the extension. It is listed under **Extensions not
+installed** so you can remove it, and it works again if you reinstall the extension.
 
 ## Right panel and browser preview
 
