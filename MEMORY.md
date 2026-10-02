@@ -464,6 +464,30 @@ Recording is a main/renderer protocol, not merely a `desktopCapturer` grant: suc
   picker gate (false while a Run starts: first send, foreground send, worktree launch; runs; or
   finishes). Sends, enqueues, and draft creates await `settledThinkingLevelWrites` /
   `settledSessionSettingWrites`.
+- Every Host Session already had `$.thinkingLevel` in its execution profile before revision 21
+  (written at creation or cutover, and required by `decodeSessionExecutionProfile`), but beta.5 Runs
+  used the message's level, so that stored value was stale. Pi's entries hold what each Session last
+  ran with. `migrateLegacyThinkingLevels` (`adapters/sqlite-legacy-thinking-level-migration.ts`)
+  runs first in `startHostBackgroundServices`, before the Host listens: (1) beta.5's desktop pick
+  `settings_store.thinkingLevel` becomes Pi's global default if valid and Pi names none
+  (`ThinkingLevelDefaultService.getConfiguredDefault`, unlike `getDefault` which falls back), then
+  the key is deleted, only after the Pi write succeeds; (2) once, gated by the
+  `sessionThinkingLevelsRestored` settings_store marker, every profile's level becomes the last
+  projected `thinking_level_change` on its active path (`last_active_node_id`, else the newest
+  node, where Pi opens the file), else its stored level, else Pi's default. Pi restores exactly that
+  entry when no level is passed (`sdk.js` `hasThinkingEntry`), but every Run now passes the stored
+  level, so without the backfill a Session would silently switch levels on its first Run after the
+  upgrade. It is not a ledger migration on purpose: a new migration id raises
+  `SESSION_HOST_SUPPORTED_MAX_MIGRATION_ID` and fences older binaries out of the database.
+  Failures are logged and retried at the next Host start.
+- `sessions:set-thinking-level` publishes `session-list-changed` as soon as the Session write
+  commits, then writes Pi's default; a failed default write is logged and never reported as a failed
+  Session change (`default-thinking-level-changed` is published only on success).
+- `withCallerCeiling` (`application/session-control-run-authorization.ts`) clamps a starting Run's
+  override to the caller's ask-for-approval ceiling only when the Run's `intent.callerId` is that
+  caller: its own message, or its own Follow-up that its resume delivers. Resuming in front of
+  someone else's Follow-up leaves it alone; that Run is bounded by its writer's boundary
+  (`session-agent-run-ceiling.ts`) when it starts.
 
 ## Tooling Memory
 
@@ -735,7 +759,22 @@ Session and have it act in every project. Input into a running catalog-wide Run 
 request/approval respond) from a narrower caller is refused in `local-session-run-input-reach.ts`
 (`runInputWidensReach` on the authorization target port). A Follow-up the desktop user adopted
 (`queue-adopt`) keeps its original writer in `intent.authorCallerId` as provenance only: reach and
-ceiling read `callerId`, because adopting is the user choosing to send it as their own. A Session agent's Authorization ceiling is
+ceiling read `callerId`, because adopting is the user choosing to send it as their own. Its
+attachment rows stay owned by the author: every resolve or release of a Follow-up's attachments
+(Run dispatch, Run-end release, promotion resolve and release) uses
+`followUpAttachmentOwner(intent)` = `authorCallerId ?? callerId` (`message-aggregate.ts`); using
+`callerId` failed promotion of an adopted Follow-up with `attachment_resolution_failed`. Every
+needs-attention path also pauses the queue (`applyFollowUpAuthorizationState` with no pause reason,
+profile revocation with `profile-revoked`), so `adoptFollowUp` resumes the queue in the same
+mutation when it is paused with no reason or `profile-revoked` and no item still needs attention;
+`requested` (and run-failed, host-lost, parent-limit) stay paused. `queue-adopt` is a delivering
+operation, so an idle Session then starts its head through `deliverAfterQueueDecision` (head
+authorization, parent limit, Host ceiling; a refused admission re-pauses) and the outcome is
+`started-run`. Clients gate `queue-adopt` (and every command) by the shared
+`requiredLocalSessionCommandRevision`; `local-session-client.ts` keeps no copy of the rules.
+`queue-list` `source` is `{ callerId, sessionId?, sessionTitle?, profileName? }`: `sessionTitle`
+is the agent Session's title when the lister may see it (desktop user: any; profile or agent: by
+`authorizedSessionScope`, archived and other projects included), never its id replaced. A Session agent's Authorization ceiling is
 also clamped by its Run's initiator (`session-host/session-agent-run-ceiling.ts`, used by the tool
 caller and `getSessionCallerAuthorizationBoundary`); an unidentifiable initiator counts as
 ask-for-approval. An agent-requested Waggle's Run id is `waggle-of-<classicRunId>` (`requestedWaggleRunId`) so these checks can find its classic Run, and it inherits that Run's authorization context through `runIfRequested({ authority })`. Anything that needs the Waggle's durable Run (report source, spawn parent, reach, ceiling) reads `durableSessionRunId(runId)`. `queue-adopt` (desktop user only) needs `sessions:queue` and `sessions:authorization`. Reports are content,

@@ -40,13 +40,14 @@ function runKey(run: RunReference) {
 }
 
 /**
- * Decide a Run from the Runs that started it: each Run's initiator and, for a re-authorized
- * Follow-up, its author, followed back through other agents' Runs. The whole tree of those Runs may
+ * Decide a Run from the Runs that started it: each Run's initiator, followed back through other
+ * agents' Runs (an adopted Follow-up's author is provenance only and is not followed, per ADR
+ * 0044). The whole tree of those Runs may
  * span at most `MAX_RUN_INITIATOR_CHAIN_DEPTH` other Sessions and `MAX_RUN_INITIATOR_CHAIN_HOPS`
  * Runs on its longest path; beyond either, the check fails closed.
  *
  * Each Run is read once and its verdict, depth, and Sessions are shared by every branch that reaches
- * it, so a chain of Runs with both an initiator and an author costs linear, not exponential, reads.
+ * it, so a Run reached along several branches costs linear, not exponential, reads.
  * The result does not depend on which branch reaches a Run first.
  */
 export function walkRunInitiators<Verdict, E>(

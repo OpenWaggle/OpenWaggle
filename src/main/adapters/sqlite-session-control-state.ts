@@ -63,9 +63,11 @@ const followUpIntentFields = {
 }
 
 /**
- * A starting Run's intent: its Follow-up intent snapshot plus the settings it was started with.
- * A stored Follow-up decodes with the same schema; any thinking level, authorization override, or
- * re-authorizing author it carries from before Follow-ups stopped carrying them is dropped.
+ * A starting Run's intent: its Follow-up intent snapshot plus the settings it was started with
+ * (`thinkingLevel`, `runAuthorizationOverride`), which only a Run started on an idle Session has.
+ * A stored Follow-up decodes with the same schema, and `decodeFollowUpIntent` drops those two
+ * settings from it. `authorCallerId` is kept: it names who queued a Follow-up the desktop user
+ * adopted (`queue-adopt`), for provenance and as the owner of its attachments.
  */
 const storedIntentSchema = Schema.Struct({
   ...followUpIntentFields,
