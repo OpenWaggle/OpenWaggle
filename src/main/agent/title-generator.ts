@@ -1,5 +1,6 @@
 import { TITLE } from '@shared/constants/text-processing'
 import { DEFAULT_SESSION_TITLE } from '@shared/session-title-source'
+import { UNSAFE_TITLE_CHARACTERS } from '../domain/session-title/session-title-text'
 
 const TITLE_WORD_SEPARATOR = ' '
 
@@ -11,12 +12,6 @@ export function deduplicateConsecutiveWords(title: string): string {
   result = result.replace(/\b(\w{4,})\1\b/gi, '$1')
   return result
 }
-
-/**
- * Controls and bidi overrides would reach the sidebar, header, and window title, and a Worker's
- * objective, which a Provisional title is cut from, can come from another model.
- */
-const UNSAFE_CHARACTERS = /[\p{Cc}\u061c\u200e\u200f\u2028\u2029\u202a-\u202e\u2066-\u2069]/gu
 
 /** Cuts by code point, so an emoji or astral character is never split into a lone surrogate. */
 function truncateTitle(text: string) {
@@ -48,7 +43,7 @@ function boundedInput(text: string) {
 function normalizeTitleInput(text: string) {
   return boundedInput(text)
     .split(/\r?\n/)
-    .map((line) => line.replace(UNSAFE_CHARACTERS, TITLE_WORD_SEPARATOR).trim())
+    .map((line) => line.replace(UNSAFE_TITLE_CHARACTERS, TITLE_WORD_SEPARATOR).trim())
     .filter((line) => line.length > 0)
     .join(TITLE_WORD_SEPARATOR)
     .replace(/\s+/g, TITLE_WORD_SEPARATOR)

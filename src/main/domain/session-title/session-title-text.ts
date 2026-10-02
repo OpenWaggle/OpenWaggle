@@ -15,3 +15,11 @@ export function limitTitleMessage(text: string, budget: number) {
   const tail = available - head
   return `${text.slice(0, head)}${CONTENT_TRUNCATED}${tail > 0 ? text.slice(-tail) : ''}`
 }
+
+/**
+ * Controls, bidi marks and overrides, and line separators would reach the sidebar, header, and
+ * window title. A generated title and a Worker's objective, which its Provisional title is cut
+ * from, can both come from another model, so neither is trusted.
+ */
+export const UNSAFE_TITLE_CHARACTERS =
+  /[\p{Cc}\u061c\u200e\u200f\u2028\u2029\u202a-\u202e\u2066-\u2069]/gu

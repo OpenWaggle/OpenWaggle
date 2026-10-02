@@ -1,5 +1,6 @@
 import { Schema, safeDecodeUnknown } from '@shared/schema'
 import { DEFAULT_SESSION_TITLE } from '@shared/session-title-source'
+import { UNSAFE_TITLE_CHARACTERS } from './session-title-text'
 
 export interface GeneratedSessionTitle {
   readonly title: string
@@ -33,11 +34,6 @@ const THINKING_BLOCK = /<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi
 const CODE_FENCE = /^```(?:json)?\s*|\s*```$/g
 const JSON_OBJECT = /\{[\s\S]*\}/
 const TITLE_LABEL = /^(?:title|session title)\s*:\s*/i
-/**
- * Controls and bidi overrides would reach the sidebar, header, and window title. A Worker's
- * objective, and so its title, can come from another model, so the text is not trusted.
- */
-const UNSAFE_CHARACTERS = /[\p{Cc}\u200e\u200f\u202a-\u202e\u2066-\u2069]/gu
 /** A preamble such as "Sure! Here is a title:" introduces the answer on the next line. */
 const PREAMBLE_LINE = /:\s*$/
 const WRAPPING_QUOTES = /^["'`“”‘’]+|["'`“”‘’]+$/g
@@ -82,7 +78,7 @@ function stripWrapping(text: string) {
 export function sanitizeGeneratedSessionTitle(raw: string) {
   const lines = raw
     .split(/\r?\n/)
-    .map((line) => line.replace(UNSAFE_CHARACTERS, ' ').trim())
+    .map((line) => line.replace(UNSAFE_TITLE_CHARACTERS, ' ').trim())
     .filter((line) => line.length > 0)
   const firstLine = lines.find((line) => !PREAMBLE_LINE.test(line)) ?? lines[0]
   if (!firstLine) return null

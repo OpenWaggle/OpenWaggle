@@ -41,7 +41,11 @@ export function claimTitleWork(kind: TitleWorkKind, sessionId: SessionId) {
   const key = `${kind}:${sessionId}`
   if (inFlight.has(key)) return null
   inFlight.add(key)
+  let released = false
+  // Idempotent, so releasing early never frees a later claim of the same key.
   return () => {
+    if (released) return
+    released = true
     inFlight.delete(key)
   }
 }

@@ -153,8 +153,14 @@ export function generateInitialSessionTitle(input: InitialTitleRequest) {
       let request: InitialTitleRequest | undefined = input
       while (request) {
         yield* runInitial(request)
-        request = initialAgain.get(input.sessionId)
-        initialAgain.delete(input.sessionId)
+        // Taking the next request and releasing the claim happen in one step, so a request that
+        // arrives in between is never left queued behind a claim nobody holds.
+        request = yield* Effect.sync(() => {
+          const next = initialAgain.get(input.sessionId)
+          initialAgain.delete(input.sessionId)
+          if (!next) release()
+          return next
+        })
       }
     }).pipe(Effect.ensuring(Effect.sync(release)))
   })

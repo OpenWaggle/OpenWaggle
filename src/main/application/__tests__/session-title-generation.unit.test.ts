@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest'
 import { SessionTitleGenerator } from '../../ports/session-title-generator'
 import type { SessionTitleState } from '../../ports/session-title-repository'
 import { SettingsService } from '../../services/settings-service'
-import { generateTitle } from '../session-title-generation'
+import { claimTitleWork, generateTitle } from '../session-title-generation'
 
 const STATE: SessionTitleState = {
   sessionId: SessionId('s'),
@@ -105,5 +105,16 @@ describe('generateTitle', () => {
     // The two holding a permit were already sent; the two still queued never were.
     expect(result.sent).toBe(2)
     expect(result.outcomes).toEqual(['Right', 'Right', 'Left', 'Left'])
+  })
+
+  it('never frees a later claim when an earlier one is released twice', () => {
+    const first = claimTitleWork('initial', SessionId('claimed'))
+    first?.()
+    const second = claimTitleWork('initial', SessionId('claimed'))
+    first?.()
+
+    expect(second).not.toBeNull()
+    expect(claimTitleWork('initial', SessionId('claimed'))).toBeNull()
+    second?.()
   })
 })
