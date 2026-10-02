@@ -22,7 +22,16 @@ import type { ThinkingLevel } from './settings'
 export interface IpcSessionInvokeChannelMap {
   'sessions:get-detail': { args: [id: SessionId]; return: SessionDetail | null }
   'sessions:create': {
-    args: [projectPath: string, worktreePlan?: SessionWorktreePlan, model?: SupportedModelId]
+    /**
+     * `thinkingLevel` is the level the new Session starts at, stored on it alone: unlike a
+     * desktop pick on an existing Session it never changes Pi's global default.
+     */
+    args: [
+      projectPath: string,
+      worktreePlan?: SessionWorktreePlan,
+      model?: SupportedModelId,
+      thinkingLevel?: ThinkingLevel,
+    ]
     return: SessionDetail
   }
   'sessions:fork-to-new': {

@@ -164,6 +164,7 @@ export interface OpenWaggleApi
     projectPath: string,
     worktreePlan?: SessionWorktreePlan,
     model?: SupportedModelId,
+    thinkingLevel?: ThinkingLevel,
   ): Promise<SessionDetail>
   forkSessionToNew(
     sessionId: SessionId,
