@@ -10,7 +10,6 @@ import {
   extensionExecutionPlacementSchema,
   extensionLucideIconNameSchema,
   extensionNonEmptyStringSchema,
-  extensionSlotContributionFamilySchema,
   extensionSvgIconPathSchema,
   validateBrokerCapabilityDeclaration,
 } from './manifest-primitives.js'
@@ -199,8 +198,23 @@ export const extensionSidePanelContributionRegistrationSchema = Schema.Struct({
   family: Schema.Literal(OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.SIDE_PANELS),
   contribution: extensionSidePanelContributionSchema,
 })
+const { CONTRIBUTION_FAMILY } = OPENWAGGLE_EXTENSION
+
+/**
+ * Side panels register only through the side panel schema, so a side panel whose `icon` is invalid
+ * is rejected instead of matching the slot schema with its icon silently stripped. Every other
+ * slot contribution family registers here.
+ */
 export const extensionSlotContributionRegistrationSchema = Schema.Struct({
-  family: extensionSlotContributionFamilySchema,
+  family: Schema.Literal(
+    CONTRIBUTION_FAMILY.SETTINGS_SECTIONS,
+    CONTRIBUTION_FAMILY.DIALOGS,
+    CONTRIBUTION_FAMILY.TRANSCRIPT_RENDERERS,
+    CONTRIBUTION_FAMILY.TOOL_RENDERERS,
+    CONTRIBUTION_FAMILY.CUSTOM_MESSAGE_RENDERERS,
+    CONTRIBUTION_FAMILY.INTERACTION_RENDERERS,
+    CONTRIBUTION_FAMILY.STATUS_WIDGETS,
+  ),
   contribution: extensionSlotContributionSchema,
 })
 export const extensionSessionSummaryContributionRegistrationSchema = Schema.Struct({

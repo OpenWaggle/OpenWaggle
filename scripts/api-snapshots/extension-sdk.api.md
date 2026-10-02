@@ -1528,8 +1528,13 @@ export declare const extensionSidePanelContributionRegistrationSchema: Schema.St
         }>]>>;
     }>>;
 }>;
+/**
+ * Side panels register only through the side panel schema, so a side panel whose `icon` is invalid
+ * is rejected instead of matching the slot schema with its icon silently stripped. Every other
+ * slot contribution family registers here.
+ */
 export declare const extensionSlotContributionRegistrationSchema: Schema.Struct<{
-    family: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
+    family: Schema.Literal<["settingsSections", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
     contribution: Schema.filter<Schema.Struct<{
         capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
         method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
@@ -1648,7 +1653,7 @@ export declare const extensionContributionRegistrationSchema: Schema.Union<[Sche
         }>]>>;
     }>>;
 }>, Schema.Struct<{
-    family: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
+    family: Schema.Literal<["settingsSections", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
     contribution: Schema.filter<Schema.Struct<{
         capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
         method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
@@ -4435,8 +4440,13 @@ export declare const extensionSidePanelContributionRegistrationSchema: Schema.St
         }>]>>;
     }>>;
 }>;
+/**
+ * Side panels register only through the side panel schema, so a side panel whose `icon` is invalid
+ * is rejected instead of matching the slot schema with its icon silently stripped. Every other
+ * slot contribution family registers here.
+ */
 export declare const extensionSlotContributionRegistrationSchema: Schema.Struct<{
-    family: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
+    family: Schema.Literal<["settingsSections", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
     contribution: Schema.filter<Schema.Struct<{
         capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
         method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
@@ -4555,7 +4565,7 @@ export declare const extensionContributionRegistrationSchema: Schema.Union<[Sche
         }>]>>;
     }>>;
 }>, Schema.Struct<{
-    family: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
+    family: Schema.Literal<["settingsSections", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
     contribution: Schema.filter<Schema.Struct<{
         capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
         method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
@@ -6894,8 +6904,13 @@ export declare const extensionSidePanelContributionRegistrationSchema: Schema.St
         }>]>>;
     }>>;
 }>;
+/**
+ * Side panels register only through the side panel schema, so a side panel whose `icon` is invalid
+ * is rejected instead of matching the slot schema with its icon silently stripped. Every other
+ * slot contribution family registers here.
+ */
 export declare const extensionSlotContributionRegistrationSchema: Schema.Struct<{
-    family: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
+    family: Schema.Literal<["settingsSections", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
     contribution: Schema.filter<Schema.Struct<{
         capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
         method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
@@ -7014,7 +7029,7 @@ export declare const extensionContributionRegistrationSchema: Schema.Union<[Sche
         }>]>>;
     }>>;
 }>, Schema.Struct<{
-    family: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
+    family: Schema.Literal<["settingsSections", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
     contribution: Schema.filter<Schema.Struct<{
         capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
         method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
@@ -9459,8 +9474,13 @@ export declare const extensionSidePanelContributionRegistrationSchema: Schema.St
         }>]>>;
     }>>;
 }>;
+/**
+ * Side panels register only through the side panel schema, so a side panel whose `icon` is invalid
+ * is rejected instead of matching the slot schema with its icon silently stripped. Every other
+ * slot contribution family registers here.
+ */
 export declare const extensionSlotContributionRegistrationSchema: Schema.Struct<{
-    family: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
+    family: Schema.Literal<["settingsSections", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
     contribution: Schema.filter<Schema.Struct<{
         capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
         method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
@@ -9579,7 +9599,7 @@ export declare const extensionContributionRegistrationSchema: Schema.Union<[Sche
         }>]>>;
     }>>;
 }>, Schema.Struct<{
-    family: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
+    family: Schema.Literal<["settingsSections", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
     contribution: Schema.filter<Schema.Struct<{
         capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
         method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
@@ -10720,8 +10740,13 @@ export declare const extensionSidePanelContributionRegistrationSchema: Schema.St
         }>]>>;
     }>>;
 }>;
+/**
+ * Side panels register only through the side panel schema, so a side panel whose `icon` is invalid
+ * is rejected instead of matching the slot schema with its icon silently stripped. Every other
+ * slot contribution family registers here.
+ */
 export declare const extensionSlotContributionRegistrationSchema: Schema.Struct<{
-    family: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
+    family: Schema.Literal<["settingsSections", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
     contribution: Schema.filter<Schema.Struct<{
         capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
         method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
@@ -10840,7 +10865,7 @@ export declare const extensionContributionRegistrationSchema: Schema.Union<[Sche
         }>]>>;
     }>>;
 }>, Schema.Struct<{
-    family: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
+    family: Schema.Literal<["settingsSections", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
     contribution: Schema.filter<Schema.Struct<{
         capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
         method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
@@ -13166,8 +13191,13 @@ export declare const extensionSidePanelContributionRegistrationSchema: Schema.St
         }>]>>;
     }>>;
 }>;
+/**
+ * Side panels register only through the side panel schema, so a side panel whose `icon` is invalid
+ * is rejected instead of matching the slot schema with its icon silently stripped. Every other
+ * slot contribution family registers here.
+ */
 export declare const extensionSlotContributionRegistrationSchema: Schema.Struct<{
-    family: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
+    family: Schema.Literal<["settingsSections", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
     contribution: Schema.filter<Schema.Struct<{
         capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
         method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
@@ -13286,7 +13316,7 @@ export declare const extensionContributionRegistrationSchema: Schema.Union<[Sche
         }>]>>;
     }>>;
 }>, Schema.Struct<{
-    family: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
+    family: Schema.Literal<["settingsSections", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
     contribution: Schema.filter<Schema.Struct<{
         capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
         method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;

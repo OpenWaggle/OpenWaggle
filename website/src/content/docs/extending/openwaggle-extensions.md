@@ -209,6 +209,8 @@ A side panel can declare an optional `icon`, which OpenWaggle shows on the Panel
 
 OpenWaggle draws only the icon's shape and paints it in the rail's own colours, the way it draws built-in icons, so colours and gradients in the file are ignored. Draw a single-colour shape on a transparent background with a `viewBox`; 24 × 24 matches Lucide. Keep the file under 32 KiB. OpenWaggle reads it once per installed package content and keeps only shapes. It rejects a file with `<script>` or `<foreignObject>` elements, characters XML does not allow, or no shapes left after cleaning. It drops `<style>` elements, `style` and `class` attributes, event handlers, external `href` references, embedded images and attribute values that name any resource other than a `url(#id)` inside the file. The SVG file counts as package content: editing it changes the package's content hash like any other package file.
 
+A side panel registered at runtime with `context.sdk.runtime.registerContribution` may use a Lucide name, or an SVG file that a side panel in the manifest already declares. Only manifest-declared SVG files are part of the content hash, so a registration that names any other SVG file fails, as does a registration whose `icon` does not match the icon schema.
+
 When the icon is missing, names an unknown Lucide icon or points to an unusable file, the panel shows a letter tile with the first letter of its title, and Settings › Extensions lists a `panel-icon-invalid` warning under the contribution registry diagnostics.
 
 ## Session Summary sections and resources

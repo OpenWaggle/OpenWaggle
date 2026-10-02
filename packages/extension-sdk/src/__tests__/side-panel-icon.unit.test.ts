@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
+import { OPENWAGGLE_EXTENSION } from '../constants'
 import {
   extensionContributionRegistrationSchema,
   extensionRouteContributionSchema,
   extensionSidePanelIconSchema,
+  extensionSlotContributionRegistrationSchema,
   validateExtensionManifest,
 } from '../manifest'
 import { safeDecodeExtensionSchema } from '../schema'
@@ -117,5 +119,43 @@ describe('side panel icon manifest schema', () => {
         contribution: { ...sidePanel, icon: { svg: 'assets/icon.svg' } },
       },
     })
+  })
+
+  it.each([
+    ['an invalid Lucide name', 'Not An Icon'],
+    ['a path outside the package', { svg: '../outside.svg' }],
+    ['a non-svg file', { svg: 'assets/icon.png' }],
+  ])('rejects a runtime side panel registration whose icon is %s', (_label, icon) => {
+    const result = safeDecodeExtensionSchema(extensionContributionRegistrationSchema, {
+      family: 'sidePanels',
+      contribution: { ...sidePanel, icon },
+    })
+
+    expect(result.success).toBe(false)
+  })
+
+  it('still accepts slot registrations for the other slot families', () => {
+    const result = safeDecodeExtensionSchema(extensionContributionRegistrationSchema, {
+      family: 'dialogs',
+      contribution: sidePanel,
+    })
+
+    expect(result).toEqual({ success: true, data: { family: 'dialogs', contribution: sidePanel } })
+  })
+
+  it('registers every slot family except side panels through the slot schema', () => {
+    const slotFamilies = OPENWAGGLE_EXTENSION.SLOT_CONTRIBUTION_FAMILIES.filter(
+      (family) =>
+        safeDecodeExtensionSchema(extensionSlotContributionRegistrationSchema, {
+          family,
+          contribution: sidePanel,
+        }).success,
+    )
+
+    expect(slotFamilies).toEqual(
+      OPENWAGGLE_EXTENSION.SLOT_CONTRIBUTION_FAMILIES.filter(
+        (family) => family !== OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.SIDE_PANELS,
+      ),
+    )
   })
 })

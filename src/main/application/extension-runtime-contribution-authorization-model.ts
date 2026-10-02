@@ -12,6 +12,7 @@ import {
   familyDiagnostics,
 } from './extension-contribution-authorization-model'
 import { getManifestFamilyContributions } from './extension-contribution-family-model'
+import { runtimeSidePanelIconDiagnostics } from './extension-runtime-side-panel-icon-model'
 
 function findStaticManifestContribution(input: {
   readonly manifest: OpenWaggleExtensionManifest | null
@@ -96,6 +97,7 @@ export function authorizeRuntimeContributionRegistration(input: {
       family: input.registration.family,
       contributionId: input.registration.contribution.id,
     }),
+    ...runtimeSidePanelIconDiagnostics(input),
   ]
 
   return diagnostics.length === 0 ? { _tag: 'authorized' } : { _tag: 'rejected', diagnostics }
