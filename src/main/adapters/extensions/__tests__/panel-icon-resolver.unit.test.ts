@@ -5,8 +5,12 @@ import * as Effect from 'effect/Effect'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SVG_ICON_MAX_BYTES } from '../../../domain/extension-panel-icon/svg-icon-sanitizer'
 import type { ExtensionPanelIconRequest } from '../../../ports/extension-panel-icon-resolver'
-import { lucideExportName } from '../lucide-panel-icon'
-import { createExtensionPanelIconResolver, readPackageIconFile } from '../panel-icon-resolver'
+import { createLucideCatalogLoader, lucideExportName } from '../lucide-panel-icon'
+import {
+  createExtensionPanelIconResolver,
+  type PanelIconFileRead,
+  readPackageIconFile,
+} from '../panel-icon-resolver'
 
 const ICON_SVG =
   '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M2 9h20" onclick="x()"/></svg>'
@@ -118,6 +122,7 @@ describe('extension panel icon resolver', () => {
     expect(await readPackageIconFile(packagePath, 'icon.svg')).toEqual({
       ok: false,
       message: `The SVG icon is larger than ${String(SVG_ICON_MAX_BYTES)} bytes.`,
+      retryable: false,
     })
   })
 
@@ -142,6 +147,7 @@ describe('extension panel icon resolver', () => {
     expect(await readPackageIconFile(packagePath, 'icon.svg')).toEqual({
       ok: false,
       message: 'The SVG icon resolves outside the extension package root.',
+      retryable: false,
     })
   })
 
@@ -185,5 +191,84 @@ describe('extension panel icon resolver', () => {
       message: 'The SVG icon could not be read: disk on fire',
       path: 'icon.svg',
     })
+  })
+
+  it('reports a directory at the icon path as not a file', async () => {
+    await fs.mkdir(path.join(packagePath, 'icon.svg'))
+
+    expect(await readPackageIconFile(packagePath, 'icon.svg')).toEqual({
+      ok: false,
+      message: 'The SVG icon is not a file.',
+      retryable: false,
+    })
+  })
+
+  it('reads a package SVG icon within the size limit', async () => {
+    await writeText('icon.svg', ICON_SVG)
+
+    expect(await readPackageIconFile(packagePath, 'icon.svg')).toEqual({
+      ok: true,
+      source: ICON_SVG,
+    })
+  })
+
+  it('retries a transient read failure instead of caching it', async () => {
+    const reads: PanelIconFileRead[] = [
+      { ok: false, message: 'The SVG icon could not be read: EMFILE', retryable: true },
+      { ok: true, source: ICON_SVG },
+    ]
+    const readIconFile = vi.fn(async () => reads.shift() ?? { ok: true as const, source: ICON_SVG })
+    const resolver = createExtensionPanelIconResolver({ readIconFile })
+
+    const failed = await resolveWith(resolver, request({ svg: 'icon.svg' }))
+    const retried = await resolveWith(resolver, request({ svg: 'icon.svg' }))
+    const cached = await resolveWith(resolver, request({ svg: 'icon.svg' }))
+
+    expect(failed).toMatchObject({ status: 'invalid', message: expect.stringContaining('EMFILE') })
+    expect(retried).toMatchObject({ status: 'resolved' })
+    expect(cached).toEqual(retried)
+    expect(readIconFile).toHaveBeenCalledTimes(2)
+  })
+
+  it('retries after an unexpected rejection instead of caching it', async () => {
+    const readIconFile = vi
+      .fn<() => Promise<PanelIconFileRead>>()
+      .mockRejectedValueOnce(new Error('EBUSY'))
+      .mockResolvedValue({ ok: true, source: ICON_SVG })
+    const resolver = createExtensionPanelIconResolver({ readIconFile })
+
+    await resolveWith(resolver, request({ svg: 'icon.svg' }))
+    const retried = await resolveWith(resolver, request({ svg: 'icon.svg' }))
+
+    expect(retried).toMatchObject({ status: 'resolved' })
+    expect(readIconFile).toHaveBeenCalledTimes(2)
+  })
+
+  it('caches deterministic failures such as a missing file or an unusable SVG', async () => {
+    const readIconFile = vi.fn(
+      async (_packagePath: string, relativePath: string): Promise<PanelIconFileRead> =>
+        relativePath === 'missing.svg'
+          ? { ok: false, message: 'The SVG icon file does not exist.', retryable: false }
+          : { ok: true, source: '<svg viewBox="0 0 1 1"><g/></svg>' },
+    )
+    const resolver = createExtensionPanelIconResolver({ readIconFile })
+
+    for (const svg of ['missing.svg', 'empty.svg', 'missing.svg', 'empty.svg']) {
+      expect(await resolveWith(resolver, request({ svg }))).toMatchObject({ status: 'invalid' })
+    }
+    expect(readIconFile).toHaveBeenCalledTimes(2)
+  })
+
+  it('retries a Lucide catalog import that failed', async () => {
+    const importCatalog = vi
+      .fn<() => Promise<Record<string, never>>>()
+      .mockRejectedValueOnce(new Error('import failed'))
+      .mockResolvedValue({})
+    const loadCatalog = createLucideCatalogLoader(importCatalog)
+
+    await expect(loadCatalog()).rejects.toThrow('import failed')
+    await expect(loadCatalog()).resolves.toEqual({})
+    await expect(loadCatalog()).resolves.toEqual({})
+    expect(importCatalog).toHaveBeenCalledTimes(2)
   })
 })

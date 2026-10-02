@@ -17,13 +17,25 @@ const LUCIDE_ROOT_ATTRIBUTES = [
   { name: 'stroke-linejoin', value: 'round' },
 ] as const
 
-let bundledCatalog: Promise<LucideIconCatalog> | null = null
+/**
+ * Memoizes a catalog import on first use. A rejected import is forgotten so the next request
+ * retries it instead of reporting the same failure for the rest of the session.
+ */
+export function createLucideCatalogLoader(importCatalog: () => Promise<LucideIconCatalog>) {
+  let catalog: Promise<LucideIconCatalog> | null = null
+  return () => {
+    catalog ??= importCatalog().catch((error: unknown) => {
+      catalog = null
+      throw error
+    })
+    return catalog
+  }
+}
 
 /** Loads the bundled `lucide` icon catalog once, on first use, keyed by PascalCase name. */
-export function loadBundledLucideIcons() {
-  bundledCatalog ??= import('lucide').then((module): LucideIconCatalog => module.icons)
-  return bundledCatalog
-}
+export const loadBundledLucideIcons = createLucideCatalogLoader(() =>
+  import('lucide').then((module): LucideIconCatalog => module.icons),
+)
 
 /** `git-pull-request` → `GitPullRequest`, `arrow-down-0-1` → `ArrowDown01`, as Lucide names them. */
 export function lucideExportName(kebabName: string) {

@@ -1,4 +1,3 @@
-import { readFile, stat } from 'node:fs/promises'
 import { formatErrorMessage, isEnoent } from '@shared/utils/node-error'
 import { Effect, Layer } from 'effect'
 import {
@@ -11,12 +10,17 @@ import {
   ExtensionPanelIconResolver,
   type ExtensionPanelIconResolverShape,
 } from '../../ports/extension-panel-icon-resolver'
+import { readBoundedFile } from './bounded-file-read'
 import { type LucideIconCatalog, loadBundledLucideIcons, lucideIconSvg } from './lucide-panel-icon'
 import { resolveSafePackageFilePath } from './package-files'
 
+/**
+ * A failed read is `retryable` when it may succeed later without the package changing (for
+ * example EMFILE, EACCES or EBUSY); such failures are reported but never cached.
+ */
 export type PanelIconFileRead =
   | { readonly ok: true; readonly source: string }
-  | { readonly ok: false; readonly message: string }
+  | { readonly ok: false; readonly message: string; readonly retryable: boolean }
 
 export interface ExtensionPanelIconResolverDependencies {
   readonly readIconFile?: (packagePath: string, relativePath: string) => Promise<PanelIconFileRead>
@@ -27,6 +31,10 @@ export interface ExtensionPanelIconResolverDependencies {
 const MAX_CACHED_SVG_ICONS = 256
 const KEY_SEPARATOR = '\u0000'
 
+function deterministicReadFailure(message: string): PanelIconFileRead {
+  return { ok: false, message, retryable: false }
+}
+
 /** Reads a package SVG once, confined by realpath to the package root and capped in size. */
 export async function readPackageIconFile(
   packagePath: string,
@@ -35,24 +43,24 @@ export async function readPackageIconFile(
   try {
     const filePath = await resolveSafePackageFilePath(packagePath, relativePath)
     if (filePath === null) {
-      return { ok: false, message: 'The SVG icon resolves outside the extension package root.' }
+      return deterministicReadFailure('The SVG icon resolves outside the extension package root.')
     }
-    const fileStat = await stat(filePath)
-    if (!fileStat.isFile()) return { ok: false, message: 'The SVG icon is not a file.' }
-    if (fileStat.size > SVG_ICON_MAX_BYTES) {
-      return {
-        ok: false,
-        message: `The SVG icon is larger than ${String(SVG_ICON_MAX_BYTES)} bytes.`,
-      }
+    const read = await readBoundedFile(filePath, SVG_ICON_MAX_BYTES)
+    if (read.kind === 'not-file') return deterministicReadFailure('The SVG icon is not a file.')
+    if (read.kind === 'oversized') {
+      return deterministicReadFailure(
+        `The SVG icon is larger than ${String(SVG_ICON_MAX_BYTES)} bytes.`,
+      )
     }
-    return { ok: true, source: await readFile(filePath, 'utf8') }
+    return { ok: true, source: read.content.toString('utf8') }
   } catch (error) {
-    return {
-      ok: false,
-      message: isEnoent(error)
-        ? 'The SVG icon file does not exist.'
-        : `The SVG icon could not be read: ${formatErrorMessage(error)}`,
-    }
+    return isEnoent(error)
+      ? deterministicReadFailure('The SVG icon file does not exist.')
+      : {
+          ok: false,
+          message: `The SVG icon could not be read: ${formatErrorMessage(error)}`,
+          retryable: true,
+        }
   }
 }
 
@@ -86,25 +94,45 @@ export function createExtensionPanelIconResolver(
   async function readAndSanitize(
     packagePath: string,
     relativePath: string,
-  ): Promise<ExtensionPanelIconResolution> {
+  ): Promise<{ readonly resolution: ExtensionPanelIconResolution; readonly cacheable: boolean }> {
     const read = await readIconFile(packagePath, relativePath).catch(
       (error: unknown): PanelIconFileRead => ({
         ok: false,
         message: `The SVG icon could not be read: ${formatErrorMessage(error)}`,
+        retryable: true,
       }),
     )
-    if (!read.ok) return { status: 'invalid', message: read.message, path: relativePath }
+    if (!read.ok) {
+      return {
+        resolution: { status: 'invalid', message: read.message, path: relativePath },
+        cacheable: !read.retryable,
+      }
+    }
     const sanitized = sanitizeSvgIcon(read.source)
-    return sanitized.ok
-      ? { status: 'resolved', icon: { source: 'svg', svg: sanitized.svg } }
-      : { status: 'invalid', message: sanitized.reason, path: relativePath }
+    return {
+      resolution: sanitized.ok
+        ? { status: 'resolved', icon: { source: 'svg', svg: sanitized.svg } }
+        : { status: 'invalid', message: sanitized.reason, path: relativePath },
+      cacheable: true,
+    }
+  }
+
+  /** Resolved icons and deterministic failures are cached; retryable failures are forgotten. */
+  async function readSanitizeAndRemember(
+    key: string,
+    packagePath: string,
+    relativePath: string,
+  ): Promise<ExtensionPanelIconResolution> {
+    const outcome = await readAndSanitize(packagePath, relativePath)
+    if (!outcome.cacheable) svgCache.delete(key)
+    return outcome.resolution
   }
 
   function resolveSvg(request: ExtensionPanelIconRequest, relativePath: string) {
     const key = [request.packagePath, request.contentHash, relativePath].join(KEY_SEPARATOR)
     const cached = svgCache.get(key)
     if (cached) return cached
-    const pending = readAndSanitize(request.packagePath, relativePath)
+    const pending = readSanitizeAndRemember(key, request.packagePath, relativePath)
     rememberBounded(svgCache, key, pending)
     return pending
   }
