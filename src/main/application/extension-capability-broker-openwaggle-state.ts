@@ -84,7 +84,7 @@ function loadOpenWaggleStateSnapshot(input: BrokerRouteInput) {
       recentProjects: [...settings.recentProjects],
       modelPreferences: toExtensionModelPrefs(
         settings,
-        yield* (yield* ThinkingLevelDefaultService).getDefault(settings.projectPath),
+        yield* (yield* ThinkingLevelDefaultService).getDefault(),
       ),
     } satisfies OpenWaggleStateSnapshot
   })

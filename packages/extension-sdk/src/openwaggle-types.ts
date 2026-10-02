@@ -146,7 +146,6 @@ export interface ExtensionModelPreferencesSettingsPatch {
   readonly selectedModel?: string
   readonly favoriteModels?: readonly string[]
   readonly enabledModels?: readonly string[]
-  readonly thinkingLevel?: string
 }
 
 export type ExtensionSettingsUpdatePayload = ExtensionModelPreferencesSettingsPatch & {

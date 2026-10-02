@@ -179,10 +179,10 @@ function loadLifecyclePolicy(
   )
 }
 
-/** A new Session starts from Pi's default thinking level, like Pi's own sessions. */
-function defaultThinkingLevel(defaults: ThinkingLevelDefaultServiceShape, projectPath: string) {
+/** A new Session starts from Pi's global default thinking level, never a project-level one. */
+function defaultThinkingLevel(defaults: ThinkingLevelDefaultServiceShape) {
   return defaults
-    .getDefault(projectPath)
+    .getDefault()
     .pipe(
       Effect.mapError(
         (cause) =>
@@ -226,7 +226,7 @@ export const SessionLifecyclePreparationServiceLive = Layer.effect(
               command,
               defaults: {
                 selectedModel: settings.selectedModel,
-                thinkingLevel: yield* defaultThinkingLevel(thinkingLevelDefaults, projectPath),
+                thinkingLevel: yield* defaultThinkingLevel(thinkingLevelDefaults),
               },
               parent,
               definition,

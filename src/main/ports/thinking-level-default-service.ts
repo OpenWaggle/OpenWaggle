@@ -7,8 +7,12 @@ import { Context, type Effect } from 'effect'
  * (Pi's `setThinkingLevel(level, { persist: true })`), without changing any existing Session.
  */
 export interface ThinkingLevelDefaultServiceShape {
-  /** Pi's default for new Sessions, as Pi resolves it for `projectPath` (project over global). */
-  readonly getDefault: (projectPath?: string | null) => Effect.Effect<ThinkingLevel, Error>
+  /**
+   * Pi's global default, where every new Session starts. OpenWaggle never uses a project-level
+   * `defaultThinkingLevel` (`.pi/settings.json` or `.openwaggle/settings.json` `pi`), so a draft
+   * pick always sticks.
+   */
+  readonly getDefault: () => Effect.Effect<ThinkingLevel, Error>
   /** Persists Pi's global default. */
   readonly setDefault: (level: ThinkingLevel) => Effect.Effect<void, Error>
 }

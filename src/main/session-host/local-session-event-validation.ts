@@ -2,6 +2,7 @@ import { decodeUnknownExactOrThrow, Schema } from '@shared/schema'
 import { agentTransportUserMessageSchema } from '@shared/schemas/agent-transport-user-message'
 import { worktreeLaunchProgressSchema } from '@shared/schemas/background-run'
 import type { SessionHostEventEnvelope } from '@shared/types/session-host-event'
+import { THINKING_LEVELS } from '@shared/types/settings'
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -62,6 +63,9 @@ const sessionEventValidators: Readonly<
 function isEventPayload(value: Record<string, unknown>) {
   if (value.kind === 'semantic-discovery-readiness-changed') {
     return isRecord(value.readiness) && typeof value.readiness.status === 'string'
+  }
+  if (value.kind === 'default-thinking-level-changed') {
+    return THINKING_LEVELS.some((level) => level === value.level)
   }
   if (typeof value.kind !== 'string' || typeof value.sessionId !== 'string') return false
   return sessionEventValidators[value.kind]?.(value) ?? false

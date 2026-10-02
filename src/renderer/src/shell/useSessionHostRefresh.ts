@@ -1,7 +1,12 @@
 import { SessionId } from '@shared/types/brand'
+import { isSessionlessHostEvent } from '@shared/types/session-host-event'
 import { type QueryClient, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef } from 'react'
-import { sessionFollowUpQueueOptions, type useChat } from '@/features/chat/hooks'
+import {
+  invalidateDefaultThinkingLevel,
+  sessionFollowUpQueueOptions,
+  type useChat,
+} from '@/features/chat/hooks'
 import type { useSessions } from '@/features/sessions/hooks'
 import { useSessionStatusStore } from '@/features/sessions/state'
 import { invalidateExtensionContributionsQueries } from '@/queries/extensions'
@@ -78,6 +83,8 @@ function invalidateSessionHostResyncQueries(queryClient: QueryClient) {
   const queryKey = sessionFollowUpQueueOptions(null).queryKey.slice(0, SESSION_QUERY_ROOT_SEGMENTS)
   void queryClient.invalidateQueries({ queryKey })
   void queryClient.invalidateQueries({ queryKey: queryKeys.archivedSessionBranches, exact: true })
+  // A missed default change cannot be replayed either.
+  void invalidateDefaultThinkingLevel(queryClient)
   void invalidateExtensionContributionsQueries(queryClient)
 }
 
@@ -142,7 +149,11 @@ export function useSessionHostRefresh(input: {
       const accepted = acceptsHostEvent(event.cursor, latestHostCursor.current)
       if (!accepted) return
       latestHostCursor.current = accepted
-      if (event.payload.kind === 'semantic-discovery-readiness-changed') return
+      if (event.payload.kind === 'default-thinking-level-changed') {
+        void invalidateDefaultThinkingLevel(queryClient)
+        return
+      }
+      if (isSessionlessHostEvent(event.payload)) return
       const { sessionId } = event.payload
       if (
         event.payload.kind === 'session-list-changed' &&

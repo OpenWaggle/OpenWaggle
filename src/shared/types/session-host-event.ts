@@ -5,6 +5,7 @@ import type {
   SessionExportProgress,
 } from './session-export-operation'
 import type { SemanticDiscoveryReadiness } from './session-query'
+import type { ThinkingLevel } from './settings'
 import type { AgentTransportEvent } from './stream'
 import type { WaggleStreamMetadata, WaggleTurnEvent } from './waggle'
 
@@ -69,12 +70,40 @@ export type SessionHostEventPayload =
       readonly readiness: SemanticDiscoveryReadiness
     }
   | {
+      /**
+       * Pi's global default thinking level changed (the desktop user picked a level), so every
+       * window's draft picker shows where the next new Session starts.
+       */
+      readonly kind: 'default-thinking-level-changed'
+      readonly level: ThinkingLevel
+    }
+  | {
       readonly kind: 'session-export-changed'
       readonly sessionId: string
       readonly exportOperationId: string
       readonly status: SessionExportOperationStatus
       readonly progress: SessionExportProgress
     }
+
+/** Host events about the app rather than one Session; only unscoped desktop callers see them. */
+export type SessionlessHostEventPayload = Extract<
+  SessionHostEventPayload,
+  { readonly kind: 'semantic-discovery-readiness-changed' | 'default-thinking-level-changed' }
+>
+
+export type SessionScopedHostEventPayload = Exclude<
+  SessionHostEventPayload,
+  SessionlessHostEventPayload
+>
+
+export function isSessionlessHostEvent(
+  payload: SessionHostEventPayload,
+): payload is SessionlessHostEventPayload {
+  return (
+    payload.kind === 'semantic-discovery-readiness-changed' ||
+    payload.kind === 'default-thinking-level-changed'
+  )
+}
 
 export interface SessionHostEventEnvelope {
   readonly cursor: SessionHostEventCursor

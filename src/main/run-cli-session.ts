@@ -3,7 +3,10 @@ import type {
   LocalSessionCommandPayload,
   LocalSessionCommandResult,
 } from '@shared/types/local-session-protocol'
-import type { SessionHostEventEnvelope } from '@shared/types/session-host-event'
+import {
+  isSessionlessHostEvent,
+  type SessionHostEventEnvelope,
+} from '@shared/types/session-host-event'
 import type { AgentTransportEvent } from '@shared/types/stream'
 import type { LocalSessionCliClientInput } from './local-session-cli-client'
 import { sessionControlPayload } from './run-cli-interactions'
@@ -42,7 +45,7 @@ export interface RunCliSessionDependencies extends RunCliOutputSinks {
 
 function payloadSessionId(event: SessionHostEventEnvelope) {
   const payload = event.payload
-  return payload.kind === 'semantic-discovery-readiness-changed' ? undefined : payload.sessionId
+  return isSessionlessHostEvent(payload) ? undefined : payload.sessionId
 }
 
 function errorMessage(error: unknown) {

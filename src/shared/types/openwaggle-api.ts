@@ -184,7 +184,7 @@ export interface OpenWaggleApi
   /** Refused with `session_run_active` while a Run is active; also sets Pi's global default. */
   setSessionThinkingLevel(id: SessionId, level: ThinkingLevel): Promise<SessionThinkingLevelChange>
   /** Pi's default thinking level, where a new Session starts. */
-  getDefaultThinkingLevel(projectPath?: string | null): Promise<ThinkingLevel>
+  getDefaultThinkingLevel(): Promise<ThinkingLevel>
   setDefaultThinkingLevel(level: ThinkingLevel): Promise<void>
   listArchivedSessionBranches(limit: number, cursor?: string): Promise<SessionCatalogPage>
   getSessionTree(sessionId: SessionId): Promise<SessionTree | null>

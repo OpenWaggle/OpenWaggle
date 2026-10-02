@@ -1,3 +1,4 @@
+import { isSessionlessHostEvent } from '@shared/types/session-host-event'
 import { describe, expect, it } from 'vitest'
 import { SessionHostEventHub } from '../session-host-event-hub'
 
@@ -160,9 +161,7 @@ describe('Session Host event hub', () => {
       subscriberCapacity: 2,
     })
     const result = hub.subscribeAfter(hub.cursor(), (event) =>
-      event.payload.kind === 'semantic-discovery-readiness-changed'
-        ? true
-        : event.payload.sessionId === 'session-allowed',
+      isSessionlessHostEvent(event.payload) ? true : event.payload.sessionId === 'session-allowed',
     )
     expect(result.status).toBe('ready')
     if (result.status !== 'ready') return
@@ -197,8 +196,7 @@ describe('Session Host event hub', () => {
     const result = hub.subscribeAfter(
       hub.cursor(),
       (event) =>
-        event.payload.kind !== 'semantic-discovery-readiness-changed' &&
-        event.payload.sessionId === 'session-allowed',
+        !isSessionlessHostEvent(event.payload) && event.payload.sessionId === 'session-allowed',
       { advanceFilteredCursor: true },
     )
     expect(result.status).toBe('ready')
@@ -260,8 +258,7 @@ describe('Session Host event hub', () => {
     const result = hub.subscribeAfter(
       cursor,
       (event) =>
-        event.payload.kind !== 'semantic-discovery-readiness-changed' &&
-        event.payload.sessionId === 'session-allowed',
+        !isSessionlessHostEvent(event.payload) && event.payload.sessionId === 'session-allowed',
       { advanceFilteredCursor: true },
     )
     expect(result.status).toBe('ready')
@@ -278,15 +275,13 @@ describe('Session Host event hub', () => {
     const hub = new SessionHostEventHub({ hostInstanceId: 'host-current' })
     const view = hub.createReplayView(
       (event) =>
-        event.payload.kind !== 'semantic-discovery-readiness-changed' &&
-        event.payload.sessionId !== 'session-not-granted',
+        !isSessionlessHostEvent(event.payload) && event.payload.sessionId !== 'session-not-granted',
       { capacity: 3, byteCapacity: 4096 },
     )
     const result = hub.subscribeAfter(
       { hostInstanceId: view.hostInstanceId, sequence: 0 },
       (event) =>
-        event.payload.kind !== 'semantic-discovery-readiness-changed' &&
-        event.payload.sessionId === 'session-requested',
+        !isSessionlessHostEvent(event.payload) && event.payload.sessionId === 'session-requested',
       { advanceFilteredCursor: true },
     )
     if (result.status !== 'ready') throw new Error('Expected a restricted subscription.')

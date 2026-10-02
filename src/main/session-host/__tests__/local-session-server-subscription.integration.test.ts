@@ -4,6 +4,7 @@ import os from 'node:os'
 import path from 'node:path'
 import type { LocalSessionProfileScope } from '@shared/types/local-session-profile'
 import { LOCAL_SESSION_CURRENT_REVISION } from '@shared/types/local-session-protocol'
+import { isSessionlessHostEvent } from '@shared/types/session-host-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SessionHostEventHub } from '../../application/session-host-event-hub'
 import { SessionHostLiveness } from '../../application/session-host-liveness'
@@ -142,7 +143,7 @@ describe('Local Session server subscriptions', () => {
       })
       const liveSessionIds = new Set(['session-original'])
       const authorizeEvent = vi.fn(async (_caller, event) => {
-        if (event.payload.kind === 'semantic-discovery-readiness-changed') return false
+        if (isSessionlessHostEvent(event.payload)) return false
         return liveSessionIds.has(event.payload.sessionId)
       })
       handle = await listenLocalSessionServer(endpoint, {

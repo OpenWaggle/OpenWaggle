@@ -15,8 +15,10 @@ export {
 } from './useSessionFollowUpQueue'
 export {
   defaultThinkingLevelQueryOptions,
+  invalidateDefaultThinkingLevel,
   type SessionThinkingLevel,
   SessionThinkingLevelRefusedError,
+  useSessionSettingsChangeable,
   useSessionThinkingLevel,
 } from './useSessionThinkingLevel'
 export {

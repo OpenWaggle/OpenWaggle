@@ -41,11 +41,7 @@ function services(change: SessionThinkingLevelChange = CHANGED) {
       effect.pipe(
         Effect.provideService(
           SessionSettingsRepository,
-          SessionSettingsRepository.of({
-            setModel,
-            setThinkingLevel,
-            applyRunStartThinkingLevel: () => Effect.succeed(true),
-          }),
+          SessionSettingsRepository.of({ setModel, setThinkingLevel }),
         ),
         Effect.provideService(
           ThinkingLevelDefaultService,
@@ -143,6 +139,10 @@ describe('sessions:set-thinking-level', () => {
       sessionId: SESSION_ID,
       change: 'updated',
     })
+    expect(publishSessionHostEventMock).toHaveBeenCalledWith({
+      kind: 'default-thinking-level-changed',
+      level: 'high',
+    })
   })
 
   it('refuses the change while a Run is active, leaving the global default alone', async () => {
@@ -166,15 +166,30 @@ describe('sessions:set-thinking-level', () => {
 })
 
 describe("Pi's default thinking level", () => {
-  it('reads it for a project and sets it for a Session that does not exist yet', async () => {
+  beforeEach(() => {
+    publishSessionHostEventMock.mockReset()
+  })
+
+  it('reads the global default and sets it for a Session that does not exist yet', async () => {
     const fixture = services()
 
-    await expect(run('sessions:get-default-thinking-level', ['/project'], fixture)).resolves.toBe(
-      'medium',
-    )
-    expect(fixture.getDefault).toHaveBeenCalledWith('/project')
+    await expect(run('sessions:get-default-thinking-level', [], fixture)).resolves.toBe('medium')
+    expect(fixture.getDefault).toHaveBeenCalledWith()
     await run('sessions:set-default-thinking-level', ['low'], fixture)
     expect(fixture.setDefault).toHaveBeenCalledWith('low')
     expect(fixture.setThinkingLevel).not.toHaveBeenCalled()
+    // Every window's draft picker refreshes.
+    expect(publishSessionHostEventMock).toHaveBeenCalledWith({
+      kind: 'default-thinking-level-changed',
+      level: 'low',
+    })
+  })
+
+  it('never reads a project-level default', async () => {
+    const fixture = services()
+
+    await expect(
+      run('sessions:get-default-thinking-level', ['/project'], fixture),
+    ).rejects.toThrow()
   })
 })

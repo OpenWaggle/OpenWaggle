@@ -271,7 +271,7 @@ describe('invokeExtensionCapability typed OpenWaggle capabilities', () => {
           key: OPENWAGGLE_EXTENSION_BROKER.SETTING_KEY.MODEL_PREFERENCES,
           projectPath: PROJECT_PATH,
           value: {
-            thinkingLevel: 'minimal',
+            favoriteModels: [],
           },
         },
       }),

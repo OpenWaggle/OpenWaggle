@@ -39,16 +39,13 @@ import {
 } from './extension-capability-broker-openwaggle-settings-payload'
 import { emptyObjectPayload } from './extension-capability-broker-payload'
 
-/** Pi's global default thinking level, which extensions see and set as `thinkingLevel`. */
-function defaultThinkingLevel(settings: Settings) {
-  return Effect.flatMap(ThinkingLevelDefaultService, (defaults) =>
-    defaults.getDefault(settings.projectPath),
-  )
-}
-
-function updateDefaultThinkingLevel(level: ThinkingLevel | undefined) {
-  if (level === undefined) return Effect.void
-  return Effect.flatMap(ThinkingLevelDefaultService, (defaults) => defaults.setDefault(level))
+/**
+ * Pi's global default thinking level, which extensions read as `thinkingLevel`. Extensions are not
+ * the desktop user, so they cannot set it: the thinking level is Session state, and only the
+ * user's pick in a Session also becomes Pi's global default.
+ */
+function defaultThinkingLevel() {
+  return Effect.flatMap(ThinkingLevelDefaultService, (defaults) => defaults.getDefault())
 }
 
 function settingsGetPayload(input: BrokerRouteInput) {
@@ -150,7 +147,7 @@ function runGetSetting(input: BrokerRouteInput, payload: ExtensionSettingsGetPay
         setting: selectedSettingValue({
           payload,
           settings,
-          defaultThinkingLevel: yield* defaultThinkingLevel(settings),
+          defaultThinkingLevel: yield* defaultThinkingLevel(),
         }),
       },
     })
@@ -190,7 +187,6 @@ function runUpdateSetting(input: BrokerRouteInput, payload: ExtensionSettingsUpd
     }
 
     yield* settingsService.update(toModelPreferencesUpdatePatch(payload.value))
-    yield* updateDefaultThinkingLevel(payload.value.thinkingLevel)
     const settings = yield* settingsService.get()
     return yield* auditedSuccess({
       invocation: input.invocation,
@@ -202,7 +198,7 @@ function runUpdateSetting(input: BrokerRouteInput, payload: ExtensionSettingsUpd
         method: OPENWAGGLE_EXTENSION_BROKER.METHOD.UPDATE_SETTING,
         setting: {
           key: OPENWAGGLE_EXTENSION_BROKER.SETTING_KEY.MODEL_PREFERENCES,
-          value: toExtensionModelPrefs(settings, yield* defaultThinkingLevel(settings)),
+          value: toExtensionModelPrefs(settings, yield* defaultThinkingLevel()),
         },
       },
     })
@@ -225,7 +221,7 @@ function routeSettingsOverview(input: BrokerRouteInput) {
         contributionId: input.invocation.contributionId,
         capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.SETTINGS,
         method: OPENWAGGLE_EXTENSION_BROKER.METHOD.GET_SETTINGS,
-        settings: toExtensionSettingsView(settings, yield* defaultThinkingLevel(settings)),
+        settings: toExtensionSettingsView(settings, yield* defaultThinkingLevel()),
       },
     })
   })
@@ -245,7 +241,6 @@ function runUpdateSettings(input: BrokerRouteInput) {
     }
 
     yield* settingsService.update(toSettingsUpdatePatch(validated.payload))
-    yield* updateDefaultThinkingLevel(validated.payload.thinkingLevel)
     const settings = yield* settingsService.get()
     return yield* auditedSuccess({
       invocation: input.invocation,
@@ -255,7 +250,7 @@ function runUpdateSettings(input: BrokerRouteInput) {
         contributionId: input.invocation.contributionId,
         capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.SETTINGS,
         method: OPENWAGGLE_EXTENSION_BROKER.METHOD.UPDATE_SETTINGS,
-        settings: toExtensionSettingsView(settings, yield* defaultThinkingLevel(settings)),
+        settings: toExtensionSettingsView(settings, yield* defaultThinkingLevel()),
       },
     })
   })

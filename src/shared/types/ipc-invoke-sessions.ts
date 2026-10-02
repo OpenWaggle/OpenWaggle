@@ -55,11 +55,8 @@ export interface IpcSessionInvokeChannelMap {
     args: [id: SessionId, level: ThinkingLevel]
     return: SessionThinkingLevelChange
   }
-  /** Pi's default thinking level for a new Session (project settings over global). */
-  'sessions:get-default-thinking-level': {
-    args: [projectPath?: string | null]
-    return: ThinkingLevel
-  }
+  /** Pi's global default thinking level, where every new Session starts (never a project one). */
+  'sessions:get-default-thinking-level': { args: []; return: ThinkingLevel }
   /** Set Pi's global default thinking level, for a Session that does not exist yet. */
   'sessions:set-default-thinking-level': { args: [level: ThinkingLevel]; return: undefined }
   'sessions:list-by-ids': { args: [sessionIds: SessionId[]]; return: SessionSummary[] }

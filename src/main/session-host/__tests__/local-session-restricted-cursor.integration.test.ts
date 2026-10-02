@@ -3,6 +3,7 @@ import type { Socket } from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
 import { LOCAL_SESSION_CURRENT_REVISION } from '@shared/types/local-session-protocol'
+import { isSessionlessHostEvent } from '@shared/types/session-host-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SessionHostEventHub } from '../../application/session-host-event-hub'
 import { SessionHostLiveness } from '../../application/session-host-liveness'
@@ -85,8 +86,7 @@ describe('Local Session restricted event cursors', () => {
         eventAdmissionSessionIds: ['session-visible'],
       }),
       authorizeEvent: async (_caller, event) =>
-        event.payload.kind !== 'semantic-discovery-readiness-changed' &&
-        event.payload.sessionId === 'session-visible',
+        !isSessionlessHostEvent(event.payload) && event.payload.sessionId === 'session-visible',
       dispatch: async ({ eventCursor }) => ({ cursor: eventCursor }),
     })
 
@@ -198,8 +198,7 @@ describe('Local Session restricted event cursors', () => {
         eventAdmissionSessionIds: ['session-visible'],
       }),
       authorizeEvent: async (_caller, event) =>
-        event.payload.kind !== 'semantic-discovery-readiness-changed' &&
-        event.payload.sessionId === 'session-visible',
+        !isSessionlessHostEvent(event.payload) && event.payload.sessionId === 'session-visible',
       dispatch: async ({ eventCursor }) => ({ cursor: eventCursor }),
     })
 

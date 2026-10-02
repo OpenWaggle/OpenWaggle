@@ -11,7 +11,6 @@ const SETTINGS_UPDATE_KEYS = new Set([
   'selectedModel',
   'favoriteModels',
   'enabledModels',
-  'thinkingLevel',
   'projectDisplayNames',
 ])
 const SETTINGS_UPDATE_SETTING_PAYLOAD_KEYS = new Set(['key', 'projectPath', 'value'])

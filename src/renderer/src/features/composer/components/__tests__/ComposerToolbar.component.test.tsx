@@ -67,8 +67,7 @@ function renderToolbar(
   }
   // A draft composer (no Session) shows Pi's default thinking level for new Sessions.
   const client = createRendererQueryClient()
-  const projectPath = usePreferencesStore.getState().settings.projectPath
-  client.setQueryData(defaultThinkingLevelQueryOptions(projectPath).queryKey, defaultThinkingLevel)
+  client.setQueryData(defaultThinkingLevelQueryOptions().queryKey, defaultThinkingLevel)
   return renderWithQueryClient(<ComposerToolbar {...defaults} {...overrides} />, client)
 }
 

@@ -7,7 +7,6 @@ import { publishSessionHostEvent } from '../session-host/session-host-events'
 import {
   invalid,
   requireArgCount,
-  requireOptionalArgCount,
   validateOptionalModel,
   validateSessionId,
 } from './host-ui-session-operation-validation'
@@ -67,21 +66,31 @@ export function setSessionThinkingLevel(
     const level = yield* validateThinkingLevel(args[1])
     const change = yield* (yield* SessionSettingsRepository).setThinkingLevel(sessionId, level)
     if (!change.changed) return change
-    yield* (yield* ThinkingLevelDefaultService).setDefault(level)
+    yield* setGlobalDefaultThinkingLevel(level)
     publishSessionHostEvent({ kind: 'session-list-changed', sessionId, change: 'updated' })
     return change
   })
 }
 
-/** Pi's default thinking level for a new Session, optionally as Pi resolves it for a project. */
+/**
+ * Persists the desktop user's pick as Pi's global default and tells every window, so each draft
+ * picker shows where the next new Session starts.
+ */
+function setGlobalDefaultThinkingLevel(level: ThinkingLevel) {
+  return Effect.gen(function* () {
+    yield* (yield* ThinkingLevelDefaultService).setDefault(level)
+    publishSessionHostEvent({ kind: 'default-thinking-level-changed', level })
+  })
+}
+
+/**
+ * Pi's global default thinking level, where every new Session starts. A project-level Pi
+ * `defaultThinkingLevel` is never used.
+ */
 export function getDefaultThinkingLevel(args: readonly unknown[]) {
   return Effect.gen(function* () {
-    yield* requireOptionalArgCount(args, 0, 1)
-    const projectPath = args[0]
-    if (projectPath !== undefined && projectPath !== null && typeof projectPath !== 'string') {
-      return yield* invalid('Project path must be a string.')
-    }
-    return yield* (yield* ThinkingLevelDefaultService).getDefault(projectPath ?? null)
+    yield* requireArgCount(args, 0)
+    return yield* (yield* ThinkingLevelDefaultService).getDefault()
   })
 }
 
@@ -93,6 +102,6 @@ export function setDefaultThinkingLevel(args: readonly unknown[]) {
   return Effect.gen(function* () {
     yield* requireArgCount(args, 1)
     const level = yield* validateThinkingLevel(args[0])
-    yield* (yield* ThinkingLevelDefaultService).setDefault(level)
+    yield* setGlobalDefaultThinkingLevel(level)
   })
 }
