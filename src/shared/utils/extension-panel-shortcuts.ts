@@ -114,19 +114,37 @@ export function extensionPanelShortcutConflicts(input: {
   return conflicts
 }
 
+interface ExtensionPanelShortcutState {
+  readonly rules: ShortcutRules
+  readonly bindings: ExtensionPanelShortcutBindings
+}
+
+function panelBindingKey(bindings: ExtensionPanelShortcutBindings, surfaceId: string) {
+  const binding = Object.hasOwn(bindings, surfaceId) ? bindings[surfaceId] : undefined
+  return binding === undefined ? null : shortcutBindingKey(binding)
+}
+
 /**
  * Rejects an update that introduces a conflict involving an extension panel shortcut. Conflicts
  * that already existed before the update do not block unrelated edits, so a stale saved state can
- * always be repaired one binding at a time.
+ * always be repaired one binding at a time. When the update changes the other side of a conflict
+ * (for example, resets a built-in shortcut to a default an extension panel already uses), the
+ * message names the extension panel that holds the combination.
  */
 export function extensionPanelShortcutUpdateError(
-  current: { readonly rules: ShortcutRules; readonly bindings: ExtensionPanelShortcutBindings },
-  next: { readonly rules: ShortcutRules; readonly bindings: ExtensionPanelShortcutBindings },
+  current: ExtensionPanelShortcutState,
+  next: ExtensionPanelShortcutState,
 ) {
   const existing = new Set(extensionPanelShortcutConflicts(current).map(conflictIdentity))
   const introduced = extensionPanelShortcutConflicts(next).find(
     (conflict) => !existing.has(conflictIdentity(conflict)),
   )
   if (introduced === undefined) return null
+  const panelAlreadyHeldKey =
+    introduced.owner.kind !== 'reserved' &&
+    panelBindingKey(current.bindings, introduced.surfaceId) === introduced.key
+  if (panelAlreadyHeldKey) {
+    return `Shortcut ${introduced.key} is used by ${extensionPanelFallbackLabel(introduced.surfaceId)}. Clear that panel's shortcut first.`
+  }
   return `Shortcut ${introduced.key} is already assigned to ${introduced.owner.label}.`
 }

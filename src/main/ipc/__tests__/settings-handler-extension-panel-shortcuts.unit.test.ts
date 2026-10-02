@@ -108,9 +108,52 @@ describe('extension panel shortcut updates', () => {
 
     expect(result).toEqual({
       ok: false,
-      error: expect.stringContaining('Shortcut Mod+Shift+G is already assigned'),
+      error:
+        "Shortcut Mod+Shift+G is used by extension panel notes (acme.notes). Clear that panel's shortcut first.",
     })
     expect(updateSettingsMock).not.toHaveBeenCalled()
+  })
+
+  it('names the extension panel when resetting a built-in shortcut to a default it uses', async () => {
+    // The user removed Toggle diff's Mod+D and gave it to an extension panel; resetting Toggle
+    // diff restores Mod+D, which the panel now holds.
+    const current: Settings = {
+      ...DEFAULT_SETTINGS,
+      shortcutRules: DEFAULT_SETTINGS.shortcutRules.filter(
+        (rule) => rule.command !== 'diff.toggle',
+      ),
+      extensionPanelShortcutBindings: { [NOTES]: { key: 'D', mod: true } },
+    }
+    const result = await update({ shortcutRules: DEFAULT_SETTINGS.shortcutRules }, current)
+
+    expect(result).toEqual({
+      ok: false,
+      error:
+        "Shortcut Mod+D is used by extension panel notes (acme.notes). Clear that panel's shortcut first.",
+    })
+    expect(updateSettingsMock).not.toHaveBeenCalled()
+  })
+
+  it('names the extension panel that already holds a combination another panel takes', async () => {
+    const current: Settings = {
+      ...DEFAULT_SETTINGS,
+      extensionPanelShortcutBindings: { [BOARD]: { key: 'G', mod: true, shift: true } },
+    }
+    const result = await update(
+      {
+        extensionPanelShortcutBindings: {
+          [BOARD]: { key: 'G', mod: true, shift: true },
+          [NOTES]: { key: 'G', mod: true, shift: true },
+        },
+      },
+      current,
+    )
+
+    expect(result).toEqual({
+      ok: false,
+      error: expect.stringContaining('Shortcut Mod+Shift+G is'),
+    })
+    expect(result).toEqual({ ok: false, error: expect.stringContaining('board (acme.board)') })
   })
 
   it('does not block unrelated edits on a conflict that already existed', async () => {
