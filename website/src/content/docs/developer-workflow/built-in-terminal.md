@@ -52,7 +52,7 @@ described in [Git integration](/docs/developer-workflow/git-integration). For he
 ## Project actions
 
 Project actions save the commands you run often: development servers, tests, lint, and builds.
-Open **+ Action** in the session header, then choose **Add action** to select a discovered project task or write a custom command.
+Open **Project Actions** from the right panel rail, then choose **Add action** to select a discovered project task or write a custom command.
 Discovery reads package scripts, workspace packages, Hatch environment scripts, and Cargo aliases
 from `.cargo/config.toml` or `.cargo/config`.
 Saving a selected task keeps a reference to it. Each launch resolves the current task in that session's workspace, including its package directory.
@@ -74,14 +74,16 @@ manually removing old recovery directories.
 
 Select an existing session in the project before running an action. You can save definitions from an empty draft, but running one requires a session.
 
-The header keeps its **+ Action** button. Running and recent actions appear under **Actions** in
-[Session Summary](/docs/using-openwaggle/session-summary). Select a run to open its output and
-controls in the right sidebar. You can stop or restart it, copy output or its command, and open
+The Project Actions panel lists each action with **Run**, **Stop**, and **Show output**. Running and
+recent actions also appear under **Actions** in [Session Summary](/docs/using-openwaggle/session-summary).
+Select a run to open its output and controls in the right panel. You can stop or restart it, copy output or its command, and open
 its preview. **Fix with agent** adds a repair request to your message draft for review. It does
 not send the request or edit the saved action automatically.
 
 Actions have their own managed output view. They do not type commands into your interactive
-terminal or replace a command already running there. Settings manages saved definitions and
+terminal or replace a command already running there. **Open in terminal** adds a read-only
+**action output** tab to the bottom drawer that follows the run, and its restarts, without starting
+a shell; closing that tab never stops the action. Settings manages saved definitions and
 preparation profiles; its running-process link takes you back to the session.
 
 The Session Host owns action processes. Switching sessions or closing and reopening the GUI does
