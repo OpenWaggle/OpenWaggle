@@ -15,6 +15,7 @@ import { listSessionFollowUpEditHolds } from './sqlite-follow-up-edit-holds'
 /** The provenance fields that decide who may edit a queued Follow-up. */
 const intentProvenanceSchema = Schema.Struct({
   callerId: Schema.String,
+  authorCallerId: Schema.optional(Schema.String),
   attachmentIds: Schema.Array(Schema.String),
 })
 

@@ -93,11 +93,16 @@ export type ReleaseFollowUpEditResult =
 /** The provenance that decides who may edit a Follow-up. */
 export interface FollowUpEditProvenance {
   readonly callerId: string
+  readonly authorCallerId?: string
 }
 
-/** Only the caller that queued a Follow-up can edit it: attachments are owned by that caller. */
+/**
+ * Only the caller that queued a Follow-up can edit it: attachments are owned by that caller. An
+ * adopted Follow-up (`queue-adopt`) is not editable: its content and attachments stay its
+ * author's, so the adopter can send or dismiss it but not rewrite it.
+ */
 export function canEditFollowUp(intent: FollowUpEditProvenance, callerId: string) {
-  return intent.callerId === callerId
+  return intent.callerId === callerId && intent.authorCallerId === undefined
 }
 
 function rejection(

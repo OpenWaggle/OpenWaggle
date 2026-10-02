@@ -1,6 +1,7 @@
 import { FollowUpId } from '@shared/types/brand'
 import { describe, expect, it } from 'vitest'
 import { adoptFollowUp } from '../follow-up-adopt'
+import { canEditFollowUp } from '../follow-up-edit'
 import { AGENT, followUp, HOLD, state, USER } from './follow-up-edit.test-fixtures'
 
 const PROFILE = 'profile:ci'
@@ -44,6 +45,8 @@ describe('adoptFollowUp', () => {
       stateRevision: 11,
     })
     expect(adopted?.intent).not.toHaveProperty('runAuthorizationOverride')
+    // Its content and attachments stay the author's: the adopter can send or dismiss it, not edit.
+    expect(adopted && canEditFollowUp(adopted.intent, USER)).toBe(false)
   })
 
   it('keeps the first author through a second adoption, and records none for its own Follow-up', () => {
