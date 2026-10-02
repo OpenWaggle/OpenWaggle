@@ -1,8 +1,5 @@
 import { lazy } from 'react'
-import {
-  isExtensionRightPanelSurfaceId,
-  type RightPanelSurfaceId,
-} from '@/shared/lib/right-panel-surfaces'
+import type { RightPanelSurfaceId } from '@/shared/lib/right-panel-surfaces'
 import { OPEN_A_SESSION_FIRST } from './right-panel-shortcut-handlers'
 import { useRightPanelModel } from './useRightPanelModel'
 
@@ -27,7 +24,7 @@ export function RightPanelCommandPalette({ chatRoute }: { readonly chatRoute: bo
       const surface = model.surfaces.find((entry) => entry.id === id)
       return surface === undefined ? NOT_AVAILABLE_HERE : surface.disabledReason
     }
-    if (isExtensionRightPanelSurfaceId(id) || OPENS_WITHOUT_RIGHT_PANEL.has(id)) return null
+    if (OPENS_WITHOUT_RIGHT_PANEL.has(id)) return null
     return OPEN_A_SESSION_FIRST
   }
   return <LazyGlobalCommandPalette panelDisabledReason={disabledReason} />

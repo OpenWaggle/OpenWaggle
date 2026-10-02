@@ -2,7 +2,7 @@ import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import type { ExtensionContributionRegistryEntry } from '@shared/types/extensions'
 import { describe, expect, it } from 'vitest'
 import { extensionRightPanelSurfaceId } from '@/shared/lib/right-panel-surfaces'
-import { railExtensionPanels } from '../right-panel-extension-panels'
+import { installedExtensionPanelIds, railExtensionPanels } from '../right-panel-extension-panels'
 
 const PROJECT = '/project'
 
@@ -98,5 +98,18 @@ describe('railExtensionPanels', () => {
     ])
     expect(panels).toHaveLength(1)
     expect(panels[0]).toMatchObject({ contentHash: 'new', status: { kind: 'available' } })
+  })
+
+  it('lists every installed side panel id once, including hidden ones, for rail ordering', () => {
+    const entries = [
+      sidePanel('issues'),
+      sidePanel('issues', { contentHash: 'other' }),
+      sidePanel('off', {}, { enabled: false }),
+      { ...sidePanel('route'), family: OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.ROUTES },
+    ]
+    expect(installedExtensionPanelIds({ projectPaths: [PROJECT], entries })).toEqual([
+      extensionRightPanelSurfaceId({ extensionId: 'linear', sidePanelId: 'issues' }),
+      extensionRightPanelSurfaceId({ extensionId: 'linear', sidePanelId: 'off' }),
+    ])
   })
 })

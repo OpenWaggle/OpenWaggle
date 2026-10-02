@@ -3,6 +3,7 @@ import { useRouterState } from '@tanstack/react-router'
 import { useEffect, useEffectEvent, useRef, useState } from 'react'
 import { api } from '@/shared/lib/ipc'
 import {
+  isExtensionRightPanelSurfaceId,
   parseExtensionRightPanelSurfaceId,
   type RightPanelSurfaceId,
   registerRightPanelController,
@@ -15,7 +16,7 @@ import {
   workspaceFileRightSidebarRequest,
 } from '@/shared/lib/right-sidebar-coordinator'
 import { EXTENSION_SIDE_PANEL_ROUTE_PANEL, useUIStore } from '../ui-store'
-import { showWorkspaceBrowser } from '../workspace-panel-actions'
+import { showWorkspaceBrowser, toggleWorkspaceRightPanel } from '../workspace-panel-actions'
 import { useWorkspacePanelStore } from '../workspace-panel-store'
 import { sessionRightPanelMemory, useRightPanelRailStore } from './right-panel-rail-store'
 import type { RightPanelModel } from './useRightPanelModel'
@@ -197,8 +198,11 @@ export function useRightPanelController(model: RightPanelModel, workingPath: str
       closePanel()
       return
     }
+    const memory = sessionRightPanelMemory(sessionKey)
+    // A side Terminal has no rail icon; the workspace panel brings it back as it was.
+    if (memory.terminal && toggleWorkspaceRightPanel(ownerKey)) return
     const rail = useRightPanelRailStore.getState()
-    const remembered = sessionRightPanelMemory(sessionKey).surface ?? rail.lastSurface
+    const remembered = memory.surface ?? rail.lastSurface
     const target = model.surfaces.find(
       (surface) => surface.id === remembered && surface.disabledReason === null,
     )
@@ -243,16 +247,25 @@ function useSessionPanelMemory(input: {
       : undefined
   // A remembered extension panel or Session Tree can need a moment to become available.
   const rememberedReady = remembered !== undefined && remembered.disabledReason === null
+  // Extension panels are unknown until the registry answers; that wait has no time limit.
+  const waitingForRegistry =
+    memory?.surface !== undefined &&
+    memory.surface !== null &&
+    isExtensionRightPanelSurfaceId(memory.surface) &&
+    !model.extensionRegistryLoaded
+  /** A Session whose open panel could not be restored keeps that memory until it shows one. */
+  const keptMemory = useRef<string | null>(null)
   const restoreSession = useEffectEvent((key: string, show: boolean) => {
     if (restoredKey === key) return
     const nothingShown = useRightSidebarCoordinator.getState().activeClaim === null
-    const surface = sessionRightPanelMemory(key).surface
-    if (show && nothingShown && surface !== null) showSurface(surface)
+    const remembered = sessionRightPanelMemory(key)
+    if (show && nothingShown && remembered.surface !== null) showSurface(remembered.surface)
+    keptMemory.current = !show && remembered.open ? key : null
     setRestoredKey(key)
   })
 
   useEffect(() => {
-    if (sessionKey === null) return
+    if (sessionKey === null || waitingForRegistry) return
     const nothingToRestore = memory?.open !== true || memory.surface === null
     // Let the route and workspace claims of the newly selected Session settle first, and give a
     // remembered surface that is still loading a bounded wait before the Session's memory moves on.
@@ -262,16 +275,22 @@ function useSessionPanelMemory(input: {
       ready ? 0 : RESTORE_WAIT_MS,
     )
     return () => clearTimeout(timer)
-  }, [memory?.open, memory?.surface, rememberedReady, sessionKey])
+  }, [memory?.open, memory?.surface, rememberedReady, sessionKey, waitingForRegistry])
 
   useEffect(() => {
     if (sessionKey === null || restoredKey !== sessionKey) return
     // The guided action panel is not this Session's choice; it must not overwrite its memory.
     if (shown.kind === 'action-panel') return
+    if (keptMemory.current === sessionKey) {
+      if (!shown.open) return
+      keptMemory.current = null
+    }
     useRightPanelRailStore.getState().rememberSession(sessionKey, {
       open: shown.open,
       ...(shown.highlight !== null ? { surface: shown.highlight } : {}),
       ...(routeFilePath !== null ? { lastFilePath: routeFilePath } : {}),
+      // Only a workspace side Terminal is shown without a rail icon to highlight.
+      ...(shown.open ? { terminal: shown.kind === 'workspace' && shown.highlight === null } : {}),
     })
   }, [restoredKey, routeFilePath, sessionKey, shown.highlight, shown.kind, shown.open])
 }

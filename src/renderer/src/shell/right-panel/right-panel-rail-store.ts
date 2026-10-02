@@ -16,12 +16,15 @@ export interface SessionRightPanelMemory {
   readonly surface: RightPanelSurfaceId | null
   readonly open: boolean
   readonly lastFilePath: string | null
+  /** The panel last showed a side Terminal, which has no rail icon. */
+  readonly terminal: boolean
 }
 
 const EMPTY_SESSION_MEMORY: SessionRightPanelMemory = {
   surface: null,
   open: false,
   lastFilePath: null,
+  terminal: false,
 }
 
 interface RightPanelRailPersistedState {
@@ -103,6 +106,7 @@ function sanitizeSessions(value: unknown): Record<string, SessionRightPanelMemor
       open: open === true,
       lastFilePath:
         typeof lastFilePath === 'string' && lastFilePath.length > 0 ? lastFilePath : null,
+      terminal: Reflect.get(raw, 'terminal') === true,
     }
   }
   return Object.fromEntries(Object.entries(sessions).slice(-MAX_REMEMBERED_SESSIONS))

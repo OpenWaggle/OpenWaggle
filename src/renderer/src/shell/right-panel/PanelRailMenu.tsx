@@ -69,6 +69,8 @@ export function PanelRailMenu(props: {
     isOpen: true,
     panelRef: menuRef,
     onClose: props.onClose,
+    // An action menu: it opens on Move up, not on the "Keep rail visible" check.
+    focusChecked: false,
   })
   const select = (action: () => void) => () => {
     props.onClose()

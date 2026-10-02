@@ -12,6 +12,7 @@ export function usePanelRailFocus(
   actions: {
     readonly move: (id: RightPanelSurfaceId, move: RailMove) => void
     readonly unpin: (id: RightPanelSurfaceId) => void
+    readonly reset: () => void
   },
 ) {
   const railKey = `${railIds.join('\n')}|${String(capacity)}`
@@ -20,7 +21,8 @@ export function usePanelRailFocus(
   useLayoutEffect(() => {
     const id = refocus.current
     const nav = navRef.current
-    if (id === null || nav === null || railKey === '') return
+    // railKey only re-runs this after the rail re-renders in a new order; it is never empty.
+    if (id === null || nav === null || railKey.length === 0) return
     refocus.current = null
     // Only take focus back from the rail itself (or from nowhere), never from elsewhere.
     const active = document.activeElement
@@ -46,5 +48,11 @@ export function usePanelRailFocus(
     actions.unpin(id)
   }
 
-  return { navRef, moveWithFocus, unpinWithFocus }
+  /** Reset can move every icon, so focus goes to All panels, which never moves. */
+  function resetWithFocus() {
+    refocus.current = 'all-panels'
+    actions.reset()
+  }
+
+  return { navRef, moveWithFocus, unpinWithFocus, resetWithFocus }
 }

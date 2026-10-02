@@ -78,6 +78,16 @@ interface GlobalCommandPaletteProps {
   readonly panelDisabledReason?: RightPanelSurfaceDisabledReason
 }
 
+/** Enabled here, but waiting for trust or an update before it can run (ADR 0043). */
+function cannotRunYet(entry: ExtensionContributionRegistryEntry) {
+  const { eligibility } = entry
+  return (
+    eligibility.runtimeEnabled &&
+    eligibility.enabled &&
+    eligibility.disabledProjectPaths.length === 0 &&
+    (!eligibility.trusted || eligibility.sdkCompatible === false || eligibility.updateAvailable)
+  )
+}
 export function GlobalCommandPalette({ panelDisabledReason }: GlobalCommandPaletteProps = {}) {
   const { actions, close, projectPath, sessionId, sessions, settings } = useGlobalCommandActions()
   const extensionActions = useGlobalExtensionActions({ projectPath, sessionId })
@@ -99,8 +109,9 @@ export function GlobalCommandPalette({ panelDisabledReason }: GlobalCommandPalet
   })
   const panelItems = createPanelCommandItems({
     settings,
+    // Panels that only need trust or an update are listed too; the Right panel names why.
     extensionPanels: extensionSidePanelSurfaces(extensionContributions).filter(
-      (panel) => panel.openable,
+      (panel) => panel.openable || cannotRunYet(panel.entry),
     ),
     disabledReason: panelDisabledReason,
     showSurface: (id: RightPanelSurfaceId, panel) => {

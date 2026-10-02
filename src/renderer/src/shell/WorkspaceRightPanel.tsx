@@ -58,7 +58,8 @@ export function WorkspaceRightPanel({ children }: WorkspaceRightPanelProps) {
 
   return (
     <RightSidebarLayout
-      maximized={panel.maximized}
+      // All panels has no header to restore from, so it always keeps the panel width.
+      maximized={panel.maximized && panel.activeSurface?.kind !== 'all-panels'}
       open={panel.activeSurface !== null}
       sizing={RIGHT_PANEL_SIZING}
       sidebar={

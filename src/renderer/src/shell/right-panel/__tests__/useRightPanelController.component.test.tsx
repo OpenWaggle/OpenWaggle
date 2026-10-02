@@ -1,7 +1,10 @@
 import { act, renderHook } from '@testing-library/react'
 import { FileText, GitCompare, LayoutGrid, Play } from 'lucide-react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { RightPanelSurfaceId } from '@/shared/lib/right-panel-surfaces'
+import {
+  extensionRightPanelSurfaceId,
+  type RightPanelSurfaceId,
+} from '@/shared/lib/right-panel-surfaces'
 import { useRightSidebarCoordinator } from '@/shared/lib/right-sidebar-coordinator'
 import type { RightPanelModel, RightPanelSurfaceEntry } from '../useRightPanelModel'
 
@@ -30,8 +33,12 @@ vi.mock('../useRightPanelRouteNavigation', () => ({
 vi.mock('@/shared/lib/ipc', () => ({
   api: { searchWorkspaceFiles: mocks.searchWorkspaceFiles },
 }))
-vi.mock('../../workspace-panel-actions', () => ({ showWorkspaceBrowser: vi.fn() }))
+vi.mock('../../workspace-panel-actions', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../workspace-panel-actions')>()),
+  showWorkspaceBrowser: vi.fn(),
+}))
 
+import { useWorkspacePanelStore } from '../../workspace-panel-store'
 import { useRightPanelRailStore } from '../right-panel-rail-store'
 import { useRightPanelController } from '../useRightPanelController'
 
@@ -157,8 +164,35 @@ describe('useRightPanelController', () => {
     renderHook(() => useRightPanelController(unavailable, '/repo'))
     act(() => vi.advanceTimersByTime(3000))
     expect(mocks.route.open).not.toHaveBeenCalled()
-    // Restored (gave up), so recording resumes with the closed panel.
-    expect(useRightPanelRailStore.getState().sessions[SESSION]?.open).toBe(false)
+    // Gave up, but the Session still remembers its open panel for next time.
+    expect(useRightPanelRailStore.getState().sessions[SESSION]).toMatchObject({
+      open: true,
+      surface: 'session-tree',
+    })
+  })
+
+  it('waits for the extension registry before restoring an extension panel', () => {
+    const notes = extensionRightPanelSurfaceId({ extensionId: 'acme', sidePanelId: 'notes' })
+    remember(notes)
+    renderHook(() => useRightPanelController(model({ extensionRegistryLoaded: false }), '/repo'))
+    act(() => vi.advanceTimersByTime(10_000))
+    expect(useRightPanelRailStore.getState().sessions[SESSION]).toMatchObject({
+      open: true,
+      surface: notes,
+    })
+  })
+
+  it('reopens a side Terminal with the Right panel toggle', () => {
+    useWorkspacePanelStore.getState().showTerminal(SESSION)
+    useWorkspacePanelStore.getState().hidePanel(SESSION)
+    useRightPanelRailStore.getState().rememberSession(SESSION, { terminal: true })
+    const { result } = renderHook(() => useRightPanelController(model(), '/repo'))
+    act(() => result.current.togglePanel())
+    expect(useWorkspacePanelStore.getState().groups[SESSION]).toMatchObject({
+      panelOpen: true,
+      activeSurface: { kind: 'terminal' },
+    })
+    expect(mocks.route.open).not.toHaveBeenCalled()
   })
 
   it('does not record the guided action panel into the Session’s memory', () => {

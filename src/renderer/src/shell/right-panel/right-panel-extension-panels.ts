@@ -78,6 +78,25 @@ function statusRank(status: RailExtensionPanelStatus) {
   return status.kind === 'available' ? 0 : 1
 }
 
+/**
+ * Every installed side panel's surface id, including panels hidden here (turned off or not for
+ * this project), so a first reorder keeps their install-order slot (ADR 0043).
+ */
+export function installedExtensionPanelIds(
+  registry: ExtensionContributionRegistryView | null,
+): ExtensionRightPanelSurfaceId[] {
+  if (registry === null) return []
+  const ids = registry.entries
+    .filter((entry) => entry.family === OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.SIDE_PANELS)
+    .map((entry) =>
+      extensionRightPanelSurfaceId({
+        extensionId: entry.extensionId,
+        sidePanelId: entry.contributionId,
+      }),
+    )
+  return [...new Set(ids)]
+}
+
 /** Every listable extension side panel, one per stable surface id, in registry (install) order. */
 export function railExtensionPanels(
   registry: ExtensionContributionRegistryView | null,

@@ -94,6 +94,7 @@ export function toggleWorkspacePanelMaximized(ownerKey: string) {
   if (ownerKey.length === 0 || group?.panelOpen !== true || group.activeSurface === null) {
     return false
   }
+  if (group.activeSurface.kind === 'all-panels') return false
   store.setMaximized(ownerKey, !group.maximized)
   return true
 }

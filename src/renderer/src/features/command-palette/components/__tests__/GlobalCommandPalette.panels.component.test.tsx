@@ -104,7 +104,9 @@ describe('GlobalCommandPalette Panels section', () => {
   }
   let unregister: (() => void) | null = null
 
-  beforeAll(() => {
+  beforeAll(async () => {
+    // The palette's module graph is large; load it once here instead of inside the first test.
+    await import('../GlobalCommandPalette')
     HTMLDialogElement.prototype.showModal ??= function showModal() {
       this.setAttribute('open', '')
     }

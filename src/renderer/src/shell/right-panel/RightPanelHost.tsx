@@ -2,7 +2,8 @@ import { useEffect, useEffectEvent } from 'react'
 import { useGit } from '@/features/git/hooks'
 import { ProjectActionsBackgroundEffects } from '@/features/project-actions'
 import { usePreferencesStore } from '@/features/settings/state'
-import { PanelRail } from './PanelRail'
+import { RIGHT_PANEL_RAIL_INSET_VAR } from '@/shared/ui/right-sidebar-layout-sizing'
+import { PANEL_RAIL_WIDTH_PX, PanelRail } from './PanelRail'
 import { useRightPanelRailStore } from './right-panel-rail-store'
 import { useRightPanelController } from './useRightPanelController'
 import { useRightPanelModel } from './useRightPanelModel'
@@ -29,8 +30,18 @@ export function RightPanelHost() {
     if (model.extensionRegistryLoaded) initializeExtensions(extensionKey)
   }, [extensionKey, model.extensionRegistryLoaded])
 
+  const railShown = model.shown.open || railVisibleWhenClosed
+  useEffect(() => {
+    if (!railShown) return
+    const root = document.documentElement
+    root.style.setProperty(RIGHT_PANEL_RAIL_INSET_VAR, `${String(PANEL_RAIL_WIDTH_PX)}px`)
+    return () => {
+      root.style.removeProperty(RIGHT_PANEL_RAIL_INSET_VAR)
+    }
+  }, [railShown])
+
   const effects = <ProjectActionsBackgroundEffects projectPath={model.projectPath} />
-  if (!model.shown.open && !railVisibleWhenClosed) return effects
+  if (!railShown) return effects
   return (
     <>
       {effects}

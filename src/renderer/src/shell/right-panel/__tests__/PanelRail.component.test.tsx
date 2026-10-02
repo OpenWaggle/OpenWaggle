@@ -137,6 +137,8 @@ describe('PanelRail', () => {
       clientY: 10,
     })
     const menu = screen.getByRole('menu', { name: 'Changes options' })
+    // Move up is disabled for the first icon, so the menu opens on the next action.
+    expect(document.activeElement).toHaveAccessibleName(/^Move down/)
     expect(within(menu).getByRole('menuitem', { name: /^Move up/ })).toBeDisabled()
     fireEvent.click(within(menu).getByRole('menuitem', { name: 'Remove from rail' }))
     expect(actions.unpin).toHaveBeenCalledWith('changes')
@@ -206,7 +208,10 @@ describe('PanelRail', () => {
     act(() => vi.advanceTimersByTime(400))
     fireEvent.keyDown(window, { key: 'Escape' })
     fireEvent.pointerUp(button, { clientY: 45, pointerId: 1 })
+    // The press that Escape cancelled still ends in a click, which must not open the icon.
+    fireEvent.click(button)
     expect(actions.move).not.toHaveBeenCalled()
+    expect(actions.toggleSurface).not.toHaveBeenCalled()
 
     fireEvent.pointerDown(button, { button: 0, clientY: 90, pointerId: 2 })
     act(() => vi.advanceTimersByTime(400))

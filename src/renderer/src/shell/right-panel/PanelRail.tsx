@@ -18,6 +18,8 @@ import { usePanelRailDrag } from './usePanelRailDrag'
 import { usePanelRailFocus } from './usePanelRailFocus'
 import type { RightPanelModel, RightPanelSurfaceEntry } from './useRightPanelModel'
 
+/** The rail's width (`w-11`); a narrow-window sheet opens beside it. */
+export const PANEL_RAIL_WIDTH_PX = 44
 /** One rail slot: a 32px icon button plus the 2px gap between slots. */
 const RAIL_SLOT_PX = 34
 /** All panels, its separator and the rail's vertical padding. */
@@ -151,6 +153,16 @@ function RailButton({
   )
 }
 
+/** Tells All panels which pinned icons have no room on the rail. */
+function usePublishOverflow(overflowIds: readonly RightPanelSurfaceId[]) {
+  const overflowKey = overflowIds.join('\n')
+  // The key keeps the effect from re-running for an equal list rebuilt on every render.
+  const publishOverflow = useEffectEvent((_key: string) =>
+    useRightPanelRailStore.getState().setOverflowing(overflowIds),
+  )
+  useEffect(() => publishOverflow(overflowKey), [overflowKey])
+}
+
 /** The Panel rail: All panels first, then the user's surfaces in their order (ADR 0043). */
 export function PanelRail(props: {
   readonly model: RightPanelModel
@@ -166,14 +178,12 @@ export function PanelRail(props: {
   const allPanels = model.surfaces.find((surface) => surface.id === 'all-panels')
   const anyNew = model.surfaces.some((surface) => surface.isNew)
   const highlight = model.shown.open ? model.shown.highlight : null
-  const overflowIds = model.railSurfaces.slice(fits.length).map((surface) => surface.id)
-  const overflowKey = overflowIds.join('\n')
-  // The key keeps the effect from re-running for an equal list rebuilt on every render.
-  const publishOverflow = useEffectEvent((_key: string) =>
-    useRightPanelRailStore.getState().setOverflowing(overflowIds),
+  usePublishOverflow(model.railSurfaces.slice(fits.length).map((surface) => surface.id))
+  const { navRef, moveWithFocus, unpinWithFocus, resetWithFocus } = usePanelRailFocus(
+    railIds,
+    capacity,
+    actions,
   )
-  useEffect(() => publishOverflow(overflowKey), [overflowKey])
-  const { navRef, moveWithFocus, unpinWithFocus } = usePanelRailFocus(railIds, capacity, actions)
   const menuOrigin = useRef<HTMLElement | null>(null)
 
   function activate(id: RightPanelSurfaceId) {
@@ -268,7 +278,7 @@ export function PanelRail(props: {
           onMove={moveWithFocus}
           onUnpin={unpinWithFocus}
           onShowAllPanels={() => actions.showSurface('all-panels')}
-          onReset={actions.reset}
+          onReset={resetWithFocus}
         />
       ) : null}
     </nav>

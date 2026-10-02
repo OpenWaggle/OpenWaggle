@@ -43,10 +43,7 @@ export function rightPanelShortcutHandlers(input: {
     },
     'rightPanel.toggleMaximized': () => {
       if (!toggleWorkspacePanelMaximized(input.ownerKey)) {
-        input.showToast(
-          'Only Project Actions, Browser, All panels and Terminal can be maximized.',
-          'error',
-        )
+        input.showToast('Only Project Actions, Browser and Terminal can be maximized.', 'error')
       }
     },
     'rightPanel.close': () => {

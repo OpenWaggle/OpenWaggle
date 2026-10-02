@@ -36,7 +36,9 @@ describe('Right panel rail store', () => {
       acknowledged: [],
       extensionsInitialized: false,
       lastSurface: null,
-      sessions: { 'session-1': { surface: 'browser', open: false, lastFilePath: null } },
+      sessions: {
+        'session-1': { surface: 'browser', open: false, lastFilePath: null, terminal: false },
+      },
     })
     expect(sanitizeRightPanelRailState(null).order).toBeNull()
   })
@@ -81,6 +83,7 @@ describe('Right panel rail store', () => {
       surface: 'changes',
       open: false,
       lastFilePath: null,
+      terminal: false,
     })
     expect(sessionRightPanelMemory('session-b').surface).toBeNull()
     expect(sessionRightPanelMemory(null).open).toBe(false)

@@ -12,7 +12,11 @@ import { BUILT_IN_RIGHT_PANEL_SURFACES } from '@/shared/lib/right-panel-catalog'
 import type { RightPanelSurfaceId } from '@/shared/lib/right-panel-surfaces'
 import { useRightSidebarCoordinator } from '@/shared/lib/right-sidebar-coordinator'
 import { useWorkspacePanelStore } from '../workspace-panel-store'
-import { type RailExtensionPanel, railExtensionPanels } from './right-panel-extension-panels'
+import {
+  installedExtensionPanelIds,
+  type RailExtensionPanel,
+  railExtensionPanels,
+} from './right-panel-extension-panels'
 import { visibleRailOrder } from './right-panel-rail-order'
 import { useRightPanelRailStore } from './right-panel-rail-store'
 import { type RightPanelShownSurface, resolveShownSurface } from './right-panel-shown-surface'
@@ -53,7 +57,7 @@ export interface RightPanelModel {
   readonly railSurfaces: readonly RightPanelSurfaceEntry[]
   /** Every surface id the rail may show in this context. */
   readonly knownRailIds: readonly RightPanelSurfaceId[]
-  /** Every surface that has a rail slot, including those that cannot run here yet. */
+  /** Every surface with a rail slot, including those that cannot run or are hidden here. */
   readonly listedRailIds: readonly RightPanelSurfaceId[]
   readonly extensionPanels: readonly RailExtensionPanel[]
   readonly extensionRegistryLoaded: boolean
@@ -151,7 +155,12 @@ export function useRightPanelModel(enabled = true): RightPanelModel {
   const knownRailIds = listed
     .filter((surface) => surface.needsLabel === null)
     .map((surface) => surface.id)
-  const listedRailIds = listed.map((surface) => surface.id)
+  const listedRailIds = [
+    ...new Set([
+      ...listed.map((surface) => surface.id),
+      ...installedExtensionPanelIds(sidePanels.registry),
+    ]),
+  ]
   const order = visibleRailOrder(railOrder, knownRailIds, hidden)
   const railSurfaces = order.flatMap((id) => surfaces.find((surface) => surface.id === id) ?? [])
 
