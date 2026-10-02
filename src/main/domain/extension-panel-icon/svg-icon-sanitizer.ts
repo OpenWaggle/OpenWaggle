@@ -1,4 +1,14 @@
 import {
+  ALLOWED_ATTRIBUTES,
+  ALLOWED_ELEMENTS,
+  ID_ATTRIBUTE,
+  NON_RENDERING_ELEMENTS,
+  REFERENCE_ATTRIBUTE,
+  REJECTED_ELEMENTS,
+  ROOT_ELEMENT,
+  SHAPE_GEOMETRY,
+} from './svg-icon-allowlist'
+import {
   parseSvgMarkup,
   type SvgMarkupAttribute,
   type SvgMarkupElement,
@@ -16,105 +26,6 @@ export type SvgIconSanitizeResult =
   | { readonly ok: false; readonly reason: string }
 
 const VIEW_BOX_NUMBER_COUNT = 4
-const ROOT_ELEMENT = 'svg'
-const REFERENCE_ATTRIBUTE = 'href'
-const ID_ATTRIBUTE = 'id'
-
-/** Active content: an icon containing any of these is rejected rather than silently repaired. */
-const REJECTED_ELEMENTS = new Set([
-  'script',
-  'foreignObject',
-  'iframe',
-  'embed',
-  'object',
-  'handler',
-  'listener',
-])
-
-/** Elements that draw something; a sanitized icon without one of these has nothing to show. */
-const SHAPE_ELEMENTS = new Set([
-  'path',
-  'circle',
-  'ellipse',
-  'line',
-  'polyline',
-  'polygon',
-  'rect',
-  'use',
-])
-
-/**
- * Shape and structure elements kept in the mask. Everything else is dropped with its subtree,
- * including `<style>`: a single-colour mask never needs CSS, and CSS can load resources in more
- * ways than an allowlist can follow.
- */
-const ALLOWED_ELEMENTS = new Set([
-  ROOT_ELEMENT,
-  ...SHAPE_ELEMENTS,
-  'g',
-  'defs',
-  'clipPath',
-  'mask',
-  'symbol',
-  'linearGradient',
-  'radialGradient',
-  'stop',
-])
-
-/** Presentation and geometry attributes kept in the mask; `style` and `class` are dropped. */
-const ALLOWED_ATTRIBUTES = new Set([
-  ID_ATTRIBUTE,
-  'transform',
-  'fill',
-  'fill-rule',
-  'fill-opacity',
-  'stroke',
-  'stroke-width',
-  'stroke-linecap',
-  'stroke-linejoin',
-  'stroke-miterlimit',
-  'stroke-dasharray',
-  'stroke-dashoffset',
-  'stroke-opacity',
-  'opacity',
-  'clip-path',
-  'clip-rule',
-  'mask',
-  'display',
-  'visibility',
-  'vector-effect',
-  'shape-rendering',
-  'paint-order',
-  'd',
-  'x',
-  'y',
-  'x1',
-  'y1',
-  'x2',
-  'y2',
-  'cx',
-  'cy',
-  'r',
-  'rx',
-  'ry',
-  'fx',
-  'fy',
-  'width',
-  'height',
-  'points',
-  'pathLength',
-  'offset',
-  'stop-color',
-  'stop-opacity',
-  'viewBox',
-  'preserveAspectRatio',
-  'gradientUnits',
-  'gradientTransform',
-  'spreadMethod',
-  'clipPathUnits',
-  'maskUnits',
-  'maskContentUnits',
-])
 
 const REFERENCE_ATTRIBUTES = new Set([REFERENCE_ATTRIBUTE, 'xlink:href'])
 /**
@@ -122,30 +33,11 @@ const REFERENCE_ATTRIBUTES = new Set([REFERENCE_ATTRIBUTE, 'xlink:href'])
  * disjoint character class, so matching stays linear however long the value is (no backtracking
  * blow-up), and whitespace is CSS's ASCII whitespace only.
  */
-const LOCAL_URL_REFERENCE = /url\([\t\n\f\r ]*(['"]?)#[A-Za-z_][\w.:-]*\1[\t\n\f\r ]*\)/gu
-const ASCII_WHITESPACE_EDGES = /^[\t\n\f\r ]+|[\t\n\f\r ]+$/gu
+const LOCAL_URL_REFERENCE = /url\([\t\n\f\r ]*(['"]?)#[\w.:-]+\1[\t\n\f\r ]*\)/gu
+/** CSS and XML whitespace: tab, line feed, form feed, carriage return and space. */
+const ASCII_WHITESPACE_CODES = new Set([9, 10, 12, 13, 32])
 /** An SVG number: no hex, no `Infinity`, no empty parts. */
 const SVG_NUMBER = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/u
-/** Containers whose children are only referenced, never drawn where they stand. */
-const NON_RENDERING_ELEMENTS = new Set([
-  'defs',
-  'clipPath',
-  'mask',
-  'symbol',
-  'linearGradient',
-  'radialGradient',
-])
-/** What a shape needs before it can draw anything: any one of these attribute sets. */
-const SHAPE_GEOMETRY: Readonly<Record<string, readonly (readonly string[])[]>> = {
-  path: [['d']],
-  circle: [['r']],
-  ellipse: [['rx'], ['ry']],
-  line: [['x1'], ['y1'], ['x2'], ['y2']],
-  polyline: [['points']],
-  polygon: [['points']],
-  rect: [['width', 'height']],
-  use: [[REFERENCE_ATTRIBUTE]],
-}
 /**
  * Anything that can still name a resource once local `url(#…)` references are removed: other
  * `url()` forms, image functions, `src()`, escapes, imports and quoted strings.
@@ -153,10 +45,17 @@ const SHAPE_GEOMETRY: Readonly<Record<string, readonly (readonly string[])[]>> =
 const RESOURCE_CSS =
   /\\|@import|expression\s*\(|url\s*\(|image-set\s*\(|image\s*\(|cross-fade\s*\(|element\s*\(|src\s*\(|['"]/iu
 const LENGTH_IN_PIXELS = /^\s*(\d+(?:\.\d+)?)(?:px)?\s*$/u
-const VIEW_BOX_SEPARATOR = /[\s,]+/u
+const VIEW_BOX_SEPARATOR = /[\t\n\f\r ,]+/u
+/** viewBox numbers are separated by whitespace and at most one comma. */
+const VIEW_BOX_DOUBLE_COMMA = /,[\t\n\f\r ]*,/u
 
+/** A linear trim; a `^\s+|\s+$` regex is quadratic on long inner whitespace runs. */
 function trimAsciiWhitespace(value: string) {
-  return value.replace(ASCII_WHITESPACE_EDGES, '')
+  let start = 0
+  let end = value.length
+  while (start < end && ASCII_WHITESPACE_CODES.has(value.charCodeAt(start))) start += 1
+  while (end > start && ASCII_WHITESPACE_CODES.has(value.charCodeAt(end - 1))) end -= 1
+  return value.slice(start, end)
 }
 
 function isLocalFragmentReference(value: string) {
@@ -240,13 +139,19 @@ function attributeValue(element: SvgMarkupElement, name: string) {
   return element.attributes.find((attribute) => attribute.name === name)?.value
 }
 
-/** Four SVG numbers with a positive width and height, as browsers require to draw anything. */
-function isValidViewBox(value: string) {
-  const numbers = trimAsciiWhitespace(value).split(VIEW_BOX_SEPARATOR)
-  if (numbers.length !== VIEW_BOX_NUMBER_COUNT) return false
-  if (!numbers.every((part) => SVG_NUMBER.test(part))) return false
+/**
+ * Four SVG numbers with a positive width and height, as browsers require to draw anything,
+ * written back in the one spelling every browser accepts.
+ */
+function normalizedViewBox(value: string) {
+  const trimmed = trimAsciiWhitespace(value)
+  if (VIEW_BOX_DOUBLE_COMMA.test(trimmed)) return null
+  const numbers = trimmed.split(VIEW_BOX_SEPARATOR)
+  if (numbers.length !== VIEW_BOX_NUMBER_COUNT) return null
+  if (!numbers.every((part) => SVG_NUMBER.test(part))) return null
   const [, , width, height] = numbers.map(Number)
-  return width !== undefined && height !== undefined && width > 0 && height > 0
+  const drawable = width !== undefined && height !== undefined && width > 0 && height > 0
+  return drawable ? numbers.join(' ') : null
 }
 
 function pixelLength(value: string | undefined) {
@@ -258,7 +163,7 @@ function pixelLength(value: string | undefined) {
 /** The root must carry a viewBox so the mask scales; derive one from numeric width/height. */
 function rootViewBox(root: SvgMarkupElement) {
   const declared = attributeValue(root, 'viewBox')
-  if (declared !== undefined) return isValidViewBox(declared) ? trimAsciiWhitespace(declared) : null
+  if (declared !== undefined) return normalizedViewBox(declared)
   const width = pixelLength(attributeValue(root, 'width'))
   const height = pixelLength(attributeValue(root, 'height'))
   return width !== null && height !== null ? `0 0 ${String(width)} ${String(height)}` : null

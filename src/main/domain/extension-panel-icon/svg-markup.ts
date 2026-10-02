@@ -138,11 +138,28 @@ class SvgMarkupReader {
         this.skipUntil('?>', 'processing instruction')
         continue
       }
+      if (this.source.startsWith('<!DOCTYPE', this.index)) {
+        this.skipExternalDoctype()
+        continue
+      }
       if (this.source.startsWith('<!', this.index)) {
-        throw new SvgMarkupError('DOCTYPE and entity declarations are not allowed.')
+        throw new SvgMarkupError('Entity and other declarations are not allowed.')
       }
       return
     }
+  }
+
+  /**
+   * Older editors write a public DOCTYPE. Nothing is ever fetched for it, so it is skipped; an
+   * internal subset could declare entities and is rejected.
+   */
+  private skipExternalDoctype() {
+    const end = this.source.indexOf('>', this.index)
+    if (end === -1) throw new SvgMarkupError('Unterminated DOCTYPE.')
+    if (this.source.slice(this.index, end).includes('[')) {
+      throw new SvgMarkupError('A DOCTYPE with an internal subset is not allowed.')
+    }
+    this.index = end + 1
   }
 
   private readName() {
@@ -165,6 +182,7 @@ class SvgMarkupReader {
 
   private readAttributes() {
     const attributes: SvgMarkupAttribute[] = []
+    const seen = new Set<string>()
     while (true) {
       this.skipWhitespace()
       const next = this.source[this.index]
@@ -177,9 +195,8 @@ class SvgMarkupReader {
       }
       this.index += 1
       this.skipWhitespace()
-      if (attributes.some((attribute) => attribute.name === name)) {
-        throw new SvgMarkupError(`Duplicate attribute "${name}".`)
-      }
+      if (seen.has(name)) throw new SvgMarkupError(`Duplicate attribute "${name}".`)
+      seen.add(name)
       attributes.push({ name, value: this.readAttributeValue() })
     }
   }

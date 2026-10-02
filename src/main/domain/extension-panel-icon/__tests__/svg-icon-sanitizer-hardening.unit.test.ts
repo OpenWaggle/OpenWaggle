@@ -2,9 +2,18 @@ import { describe, expect, it } from 'vitest'
 import { SVG_ICON_MAX_BYTES, sanitizeSvgIcon } from '../svg-icon-sanitizer'
 
 const SHAPE = '<path d="M2 9h20"/>'
-/** Generous for a linear scan of a 32 KB file, far below what backtracking would take. */
-const SANITIZE_BUDGET_MS = 1000
+/** A linear pass over 32 KB takes a few milliseconds; quadratic work takes about a second. */
+const SANITIZE_BUDGET_MS = 300
 const ROOT_TAG_BYTES = 120
+const LONG_RUN = ' '.repeat(SVG_ICON_MAX_BYTES - ROOT_TAG_BYTES)
+
+function sanitizeWithinBudget(source: string) {
+  expect(source.length).toBeLessThanOrEqual(SVG_ICON_MAX_BYTES)
+  const started = performance.now()
+  const result = sanitizeSvgIcon(source)
+  expect(performance.now() - started).toBeLessThan(SANITIZE_BUDGET_MS)
+  return result
+}
 
 function svgDocument(body: string, viewBox = '0 0 24 24') {
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${viewBox}">${body}</svg>`
@@ -12,16 +21,14 @@ function svgDocument(body: string, viewBox = '0 0 24 24') {
 
 describe('sanitizeSvgIcon hardening', () => {
   it('stays linear on url( values that never close', () => {
-    const spaces = ' '.repeat(SVG_ICON_MAX_BYTES - ROOT_TAG_BYTES)
-    const source = svgDocument(`<path d="M0 0" fill="url(${spaces}x"/>`)
-    expect(source.length).toBeLessThanOrEqual(SVG_ICON_MAX_BYTES)
-
-    const started = performance.now()
-    const result = sanitizeSvgIcon(source)
-
-    expect(performance.now() - started).toBeLessThan(SANITIZE_BUDGET_MS)
+    const result = sanitizeWithinBudget(svgDocument(`<path d="M0 0" fill="url(${LONG_RUN}x"/>`))
     expect(result.ok).toBe(true)
     expect(result.ok && result.svg).not.toContain('fill=')
+  })
+
+  it('stays linear on long whitespace runs inside references and the viewBox', () => {
+    expect(sanitizeWithinBudget(svgDocument(`${SHAPE}<use href="#a${LONG_RUN}b"/>`)).ok).toBe(true)
+    expect(sanitizeWithinBudget(svgDocument(SHAPE, `0${LONG_RUN}0 24 24`)).ok).toBe(true)
   })
 
   it('keeps quoted and spaced local url() references but not CSS-escaped or non-ASCII ones', () => {
@@ -67,7 +74,27 @@ describe('sanitizeSvgIcon hardening', () => {
     expect(sanitizeSvgIcon(svgDocument(SHAPE, viewBox)).ok).toBe(false)
   })
 
-  it('accepts a viewBox written with exponents and commas', () => {
-    expect(sanitizeSvgIcon(svgDocument(SHAPE, '0,0,2.4e1,24')).ok).toBe(true)
+  it('accepts a viewBox written with exponents and commas, normalized for browsers', () => {
+    const result = sanitizeSvgIcon(svgDocument(SHAPE, ' 0, 0,2.4e1 , 24 '))
+    expect(result.ok && result.svg).toContain('viewBox="0 0 2.4e1 24"')
+  })
+
+  it.each([
+    ['repeated commas', '0,,0 24 24'],
+    ['a non-breaking space', '0\u00A00 24 24'],
+  ])('rejects a viewBox with %s', (_label, viewBox) => {
+    expect(sanitizeSvgIcon(svgDocument(SHAPE, viewBox)).ok).toBe(false)
+  })
+
+  it('accepts a public DOCTYPE but not one with an internal subset', () => {
+    const doctype =
+      '<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">'
+    expect(sanitizeSvgIcon(`${doctype}${svgDocument(SHAPE)}`).ok).toBe(true)
+    expect(sanitizeSvgIcon(`<!DOCTYPE svg [<!ENTITY a "b">]>${svgDocument(SHAPE)}`).ok).toBe(false)
+  })
+
+  it('keeps url() references to ids that start with a digit', () => {
+    const result = sanitizeSvgIcon(svgDocument('<path d="M0 0" clip-path="url(#1a)"/>'))
+    expect(result.ok && result.svg).toContain('clip-path="url(#1a)"')
   })
 })
