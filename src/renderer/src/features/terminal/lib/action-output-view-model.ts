@@ -46,12 +46,11 @@ export function followReplacementRuns(
   let current = runs.find((run) => run.id === runIds.at(-1))
   while (current !== undefined && !isActiveActionRun(current)) {
     const startedAfter = current.startedAt
+    const followed = new Set(runIds)
     const next = runs
       .filter(
         (run) =>
-          run.action.id === view.actionId &&
-          run.startedAt > startedAfter &&
-          !runIds.includes(run.id),
+          run.action.id === view.actionId && run.startedAt > startedAfter && !followed.has(run.id),
       )
       .sort((left, right) => left.startedAt - right.startedAt)[0]
     if (next === undefined) break

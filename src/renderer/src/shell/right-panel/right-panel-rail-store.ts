@@ -150,7 +150,8 @@ export const useRightPanelRailStore = create<RightPanelRailState>()(
       reset: () => set({ order: null, hidden: [] }),
       acknowledge: (surfaces) => {
         const acknowledged = get().acknowledged
-        const missing = surfaces.filter((surface) => !acknowledged.includes(surface))
+        const known = new Set(acknowledged)
+        const missing = surfaces.filter((surface) => !known.has(surface))
         if (missing.length > 0) set({ acknowledged: [...acknowledged, ...missing] })
       },
       initializeExtensions: (surfaces) => {

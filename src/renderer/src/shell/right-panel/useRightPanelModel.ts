@@ -116,6 +116,8 @@ export function useRightPanelModel(enabled = true): RightPanelModel {
     hasSessionTree: Boolean(activeSessionTree),
   }
 
+  const hiddenIds = new Set(hidden)
+  const acknowledgedIds = new Set(acknowledged)
   const builtIns: RightPanelSurfaceEntry[] = BUILT_IN_RIGHT_PANEL_SURFACES.map((surface) => ({
     id: surface.id,
     title: surface.title,
@@ -126,7 +128,7 @@ export function useRightPanelModel(enabled = true): RightPanelModel {
     disabledReason: builtInDisabledReason(surface.id, context),
     needsLabel: null,
     extension: null,
-    pinned: surface.id === 'all-panels' || !hidden.includes(surface.id),
+    pinned: surface.id === 'all-panels' || !hiddenIds.has(surface.id),
     isNew: false,
     running: surface.id === 'project-actions' && running,
   }))
@@ -140,8 +142,8 @@ export function useRightPanelModel(enabled = true): RightPanelModel {
     disabledReason: panel.status.kind === 'available' ? null : panel.status.reason,
     needsLabel: panel.status.kind === 'available' ? null : panel.status.label,
     extension: panel,
-    pinned: !hidden.includes(panel.id),
-    isNew: extensionsInitialized && !acknowledged.includes(panel.id),
+    pinned: !hiddenIds.has(panel.id),
+    isNew: extensionsInitialized && !acknowledgedIds.has(panel.id),
     running: false,
   }))
   const surfaces = [...builtIns, ...extensions]

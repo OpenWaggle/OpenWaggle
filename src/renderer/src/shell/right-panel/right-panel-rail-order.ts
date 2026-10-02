@@ -38,7 +38,8 @@ export function fullRailOrder(
     const insertAt = previous.length > 0 ? Math.max(...previous) + 1 : 0
     order.splice(insertAt, 0, id)
   })
-  for (const id of known) if (!order.includes(id)) order.push(id)
+  const ordered = new Set(order)
+  for (const id of known) if (!ordered.has(id)) order.push(id)
   return order
 }
 
@@ -48,7 +49,9 @@ export function visibleRailOrder(
   known: readonly RightPanelSurfaceId[],
   hidden: readonly RightPanelSurfaceId[],
 ) {
-  return fullRailOrder(stored, known).filter((id) => known.includes(id) && !hidden.includes(id))
+  const knownIds = new Set(known)
+  const hiddenIds = new Set(hidden)
+  return fullRailOrder(stored, known).filter((id) => knownIds.has(id) && !hiddenIds.has(id))
 }
 
 function neighbour(
