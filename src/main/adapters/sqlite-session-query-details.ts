@@ -5,6 +5,11 @@ import { returnedSteerProvenance } from '@shared/utils/returned-steer-provenance
 import * as Effect from 'effect/Effect'
 import { listFollowUpEditHeldSessions } from './sqlite-follow-up-edit-holds'
 import {
+  followUpDeliveryView,
+  followUpIntentView,
+  type StoredFollowUpAttentionReason,
+} from './sqlite-session-follow-up-view'
+import {
   parseSessionJson,
   type SessionQuerySummaryRow,
   sessionQueryResponse,
@@ -211,11 +216,7 @@ export function readQueue(
         id: string
         position: number
         delivery_state: 'pending' | 'needs_attention'
-        attention_reason:
-          | 'authorization_ceiling_changed'
-          | 'profile_revoked'
-          | 'authority_changed'
-          | null
+        attention_reason: StoredFollowUpAttentionReason | null
         intent_json: string
         created_at: number
       }>`
@@ -242,9 +243,8 @@ export function readQueue(
           followUpId: row.id,
           position: row.position,
           createdAt: row.created_at,
-          deliveryState: row.delivery_state,
-          ...(row.attention_reason ? { attentionReason: row.attention_reason } : {}),
-          ...(query.includeBodies ? { intent: parseSessionJson(row.intent_json) } : {}),
+          ...followUpDeliveryView(row),
+          ...(query.includeBodies ? { intent: followUpIntentView(row.intent_json) } : {}),
           editable: false,
           ...editFields.get(row.id),
         })),

@@ -102,7 +102,6 @@ function waggleCommand(withAttachment = false, hostRunCeiling?: number, operatio
       sessionId: SESSION_ID,
       payload: {
         text: 'Run Waggle',
-        thinkingLevel: 'medium',
         attachments: withAttachment
           ? [
               {

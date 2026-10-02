@@ -1,4 +1,4 @@
-import { ArrowUp, Pencil, RotateCcw, Trash2 } from 'lucide-react'
+import { ArrowUp, Pencil, Trash2 } from 'lucide-react'
 import type { SessionFollowUpQueueItem } from '@/features/chat/hooks'
 import { Button } from '@/shared/ui/Button'
 import type { QueuedMessageRowActions, QueuedMessageRowEditState } from './queued-message-row-types'
@@ -7,7 +7,6 @@ interface QueuedMessageRowControlsProps {
   readonly item: SessionFollowUpQueueItem
   readonly label: string
   readonly isStreaming: boolean
-  readonly isResolving: boolean
   readonly edit: QueuedMessageRowEditState
   readonly actions: QueuedMessageRowActions
 }
@@ -20,7 +19,6 @@ export function QueuedMessageRowControls({
   item,
   label,
   isStreaming,
-  isResolving,
   edit,
   actions,
 }: QueuedMessageRowControlsProps) {
@@ -32,24 +30,6 @@ export function QueuedMessageRowControls({
 
   return (
     <div className="flex items-center gap-1">
-      {attention ? (
-        <Button
-          variant="unstyled"
-          type="button"
-          onClick={() => {
-            if (!isResolving) actions.onResolve(item)
-          }}
-          aria-disabled={isResolving}
-          className="flex items-center gap-1 rounded-md border border-warning/30 bg-warning/8 px-2 py-1 text-warning hover:bg-warning/15 aria-disabled:opacity-50"
-        >
-          <RotateCcw className="size-3" />
-          <span className="text-xs font-semibold">
-            {item.attentionReason === 'authorization_ceiling_changed'
-              ? 'Use current access'
-              : 'Re-submit'}
-          </span>
-        </Button>
-      ) : null}
       {/* The Host refuses to promote a message while it is being edited. */}
       {isStreaming && !held ? (
         <Button

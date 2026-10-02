@@ -50,6 +50,7 @@ import type {
   SessionCopyToNewResult,
   SessionDetail,
   SessionNavigateTreeOptions,
+  SessionThinkingLevelChange,
   SessionTree,
   SessionTreeFilterMode,
   SessionTreeUiStatePatch,
@@ -57,7 +58,7 @@ import type {
   SessionWorkspaceSelection,
   SessionWorktreePlan,
 } from './session'
-import type { Settings } from './settings'
+import type { Settings, ThinkingLevel } from './settings'
 import type {
   AgentsInstructionStatus,
   AgentsResolutionResult,
@@ -180,6 +181,11 @@ export interface OpenWaggleApi
   setSessionAuthorizationMode(id: SessionId, mode: AgentAuthorizationMode | null): Promise<void>
   /** Switch the model the Session's next Run uses; a running Run keeps its model. */
   setSessionModel(id: SessionId, model: SupportedModelId): Promise<void>
+  /** Refused with `session_run_active` while a Run is active; also sets Pi's global default. */
+  setSessionThinkingLevel(id: SessionId, level: ThinkingLevel): Promise<SessionThinkingLevelChange>
+  /** Pi's default thinking level, where a new Session starts. */
+  getDefaultThinkingLevel(projectPath?: string | null): Promise<ThinkingLevel>
+  setDefaultThinkingLevel(level: ThinkingLevel): Promise<void>
   listArchivedSessionBranches(limit: number, cursor?: string): Promise<SessionCatalogPage>
   getSessionTree(sessionId: SessionId): Promise<SessionTree | null>
   getSessionWorkspace(

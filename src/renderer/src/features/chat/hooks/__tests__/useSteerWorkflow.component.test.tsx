@@ -63,7 +63,7 @@ describe('useSteerWorkflow with the durable Host queue', () => {
       operation = result.current.handleSteer('follow-up-2')
     })
     expect(deps.previewSteeredUserTurn).toHaveBeenCalledWith(
-      { text: 'Text for follow-up-2', attachments: [], thinkingLevel: 'off' },
+      { text: 'Text for follow-up-2', attachments: [] },
       'waiting-for-compaction',
       { text: 'Text for follow-up-2', attachmentCount: 0 },
     )

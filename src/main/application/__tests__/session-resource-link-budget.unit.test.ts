@@ -61,7 +61,7 @@ describe('session link capture budgets', () => {
       captureSuccessfulRunResources({
         sessionId: SessionId('session-1'),
         runId: 'run-many-links',
-        payload: { text: userMarkdown.text, thinkingLevel: 'medium', attachments: [] },
+        payload: { text: userMarkdown.text, attachments: [] },
         messages: [linkMessage(0, 20), linkMessage(1, 20)],
       }).pipe(Effect.provide(sessionResourceTestLayer(upserts))),
     )

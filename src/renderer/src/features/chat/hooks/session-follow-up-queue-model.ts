@@ -1,13 +1,12 @@
 import { safeDecodeUnknown } from '@shared/schema'
 import { inlineVisualizationContextSchema } from '@shared/schemas/validation'
 import { toWaggleInvocation, waggleInvocationSchema } from '@shared/schemas/waggle'
-import type { AgentSendPayload, InlineVisualizationContext } from '@shared/types/agent'
+import type { InlineVisualizationContext } from '@shared/types/agent'
 import type {
   FollowUpQueuePauseReason,
   SessionFollowUpAttachmentDescriptor,
 } from '@shared/types/session-control-queue'
 import type { SessionQueryOutcome } from '@shared/types/session-query'
-import { THINKING_LEVELS } from '@shared/types/settings'
 import type { WaggleInvocation } from '@shared/types/waggle'
 import { isRecord } from '@shared/utils/validation'
 
@@ -17,14 +16,9 @@ export interface SessionFollowUpQueueItem {
   readonly attachmentCount: number
   readonly createdAt: number
   readonly deliveryState: 'pending' | 'needs_attention'
-  readonly attentionReason?:
-    | 'authorization_ceiling_changed'
-    | 'profile_revoked'
-    | 'authority_changed'
+  readonly attentionReason?: 'profile_revoked' | 'authority_changed'
   readonly wagglePresetName?: string
   readonly waggleSource?: 'user' | 'agent'
-  readonly authorizationMode?: 'yolo' | 'ask-for-approval'
-  readonly thinkingLevel?: AgentSendPayload['thinkingLevel']
   readonly callerId?: string
   /** The full queued Waggle invocation, to load the message back into the composer. */
   readonly waggle?: WaggleInvocation
@@ -156,8 +150,6 @@ type SessionFollowUpQueueIntent = Pick<
   | 'attachmentCount'
   | 'wagglePresetName'
   | 'waggleSource'
-  | 'authorizationMode'
-  | 'thinkingLevel'
   | 'callerId'
   | 'waggle'
   | 'visualizationContext'
@@ -181,7 +173,6 @@ function queueIntent(value: unknown): SessionFollowUpQueueIntent {
   }
   const record = value
   const waggle = isRecord(record.waggle) ? record.waggle : undefined
-  const thinkingLevel = THINKING_LEVELS.find((level) => level === record.thinkingLevel)
   return {
     text: typeof record.text === 'string' ? record.text : '',
     attachmentCount: Array.isArray(record.attachmentIds) ? record.attachmentIds.length : 0,
@@ -191,11 +182,6 @@ function queueIntent(value: unknown): SessionFollowUpQueueIntent {
     ...(waggle && (waggle.source === 'user' || waggle.source === 'agent')
       ? { waggleSource: waggle.source }
       : {}),
-    ...(record.runAuthorizationOverride === 'yolo' ||
-    record.runAuthorizationOverride === 'ask-for-approval'
-      ? { authorizationMode: record.runAuthorizationOverride }
-      : {}),
-    ...(thinkingLevel ? { thinkingLevel } : {}),
     ...(typeof record.callerId === 'string' ? { callerId: record.callerId } : {}),
     ...queuedWaggle(record.waggle),
     ...queuedVisualizationContext(record.visualizationContext),

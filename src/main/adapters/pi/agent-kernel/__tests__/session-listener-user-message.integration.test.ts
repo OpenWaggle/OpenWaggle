@@ -109,7 +109,7 @@ const notes = {
 }
 
 function payload(text: string): HydratedAgentSendPayload {
-  return { text, thinkingLevel: 'off', attachments: [notes] }
+  return { text, attachments: [notes] }
 }
 
 describe('published user messages against a real Pi session', () => {

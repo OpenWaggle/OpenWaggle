@@ -168,7 +168,6 @@ function commandMayDeliverQueue(request: SessionControlMutationRequest) {
   return (
     operation === 'queue-withdraw' ||
     operation === 'queue-reorder' ||
-    operation === 'queue-update-authorization' ||
     operation === 'queue-edit-save' ||
     operation === 'queue-edit-cancel'
   )

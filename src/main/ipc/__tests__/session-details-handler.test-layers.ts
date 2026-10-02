@@ -107,7 +107,6 @@ const TestSessionProjectionRepoLayer = Layer.succeed(
         catch: (cause) =>
           new SessionProjectionRepositoryError({ operation: 'setAuthorizationMode', cause }),
       }),
-    setExecutionModel: () => Effect.succeed(true),
     listTurnCheckpoints: () => Effect.succeed([]),
     getTurnDiff: () => Effect.succeed(null),
     getTurnDiffFiles: () => Effect.succeed([]),

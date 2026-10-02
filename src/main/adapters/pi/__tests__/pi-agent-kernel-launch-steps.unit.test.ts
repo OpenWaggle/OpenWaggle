@@ -88,7 +88,7 @@ describe('runPiAgentKernel launch steps', () => {
     const input = fromPartial<AgentKernelRunInput>({
       session: { id: SessionId('session-local'), projectPath: '/repo', messages: [] },
       runId: 'run-local',
-      payload: { text: 'Do the work', thinkingLevel: 'medium', attachments: [] },
+      payload: { text: 'Do the work', attachments: [] },
       model: SupportedModelId('openai/gpt-5.4'),
       signal: new AbortController().signal,
       onEvent: vi.fn(),
@@ -142,7 +142,7 @@ describe('runPiAgentKernel launch steps', () => {
     const input = fromPartial<AgentKernelRunInput>({
       session: { id: SessionId('session-local'), projectPath: '/repo', messages: [] },
       runId: 'run-local',
-      payload: { text: 'Do the work', thinkingLevel: 'medium', attachments: [] },
+      payload: { text: 'Do the work', attachments: [] },
       model: SupportedModelId('openai/gpt-5.4'),
       signal: new AbortController().signal,
       onEvent: vi.fn(),
@@ -224,7 +224,7 @@ describe('runPiAgentKernel launch steps', () => {
             messages: [fromPartial<Message>({ id: 'm-1' })],
           },
           runId: 'run-later',
-          payload: { text: 'More', thinkingLevel: 'medium', attachments: [] },
+          payload: { text: 'More', attachments: [] },
           model: SupportedModelId('openai/gpt-5.4'),
           signal: new AbortController().signal,
           onEvent: vi.fn(),
@@ -269,7 +269,7 @@ describe('runPiAgentKernel launch steps', () => {
         fromPartial<AgentKernelRunInput>({
           session: { id: SessionId('session-local'), projectPath: '/repo', messages: [] },
           runId: 'run-failing',
-          payload: { text: 'Do the work', thinkingLevel: 'medium', attachments: [] },
+          payload: { text: 'Do the work', attachments: [] },
           model: SupportedModelId('openai/gpt-5.4'),
           signal: new AbortController().signal,
           onEvent: vi.fn(),

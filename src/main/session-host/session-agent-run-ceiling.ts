@@ -23,7 +23,6 @@ function narrower(modes: readonly AgentAuthorizationMode[]) {
 
 interface InitiatorRow {
   readonly initiator_caller_id: string | null
-  readonly author_caller_id: string | null
 }
 
 export interface SessionAuthorizationBoundary {
@@ -120,8 +119,7 @@ const ASKING: RunVerdictStep<AgentAuthorizationMode> = { verdict: ASK, followRun
  */
 function initiatorRow(sql: SqlClient.SqlClient, sessionId: string, runId: string) {
   return sql<InitiatorRow>`
-    SELECT json_extract(intent_json, '$.callerId') AS initiator_caller_id,
-      json_extract(intent_json, '$.authorCallerId') AS author_caller_id
+    SELECT json_extract(intent_json, '$.callerId') AS initiator_caller_id
     FROM session_runs
     WHERE id = ${durableSessionRunId(runId)} AND session_id = ${sessionId}
     LIMIT 1
@@ -129,8 +127,7 @@ function initiatorRow(sql: SqlClient.SqlClient, sessionId: string, runId: string
 }
 
 /**
- * The narrowest Authorization ceiling of whoever started this Run and, for a re-authorized
- * Follow-up, whoever wrote it. A Session agent acts under this as well as its own Session's ceiling,
+ * The Authorization ceiling of whoever started this Run. A Session agent acts under this as well as its own Session's ceiling,
  * so an ask-for-approval caller that messages a yolo Session cannot have that Session start yolo
  * Runs on its behalf. An initiator the Host cannot identify counts as ask-for-approval.
  */
@@ -157,17 +154,7 @@ function runCeilingStep(
   return Effect.gen(function* () {
     const row = yield* initiatorRow(sql, run.sessionId, run.runId)
     if (!row?.initiator_caller_id) return ASKING
-    const callers = [row.initiator_caller_id, row.author_caller_id].filter(
-      (caller): caller is string => caller !== null,
-    )
-    const verdicts: AgentAuthorizationMode[] = []
-    const followRuns: RunReference[] = []
-    for (const caller of callers) {
-      const step = yield* callerCeiling(sql, caller)
-      verdicts.push(step.verdict)
-      followRuns.push(...step.followRuns)
-    }
-    return { verdict: narrower(verdicts), followRuns }
+    return yield* callerCeiling(sql, row.initiator_caller_id)
   })
 }
 

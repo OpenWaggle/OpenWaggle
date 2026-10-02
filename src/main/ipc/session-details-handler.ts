@@ -56,4 +56,13 @@ export function registerSessionDetailsHandlers(): void {
   typedHandle('sessions:set-model', (_event, ...args) =>
     dispatchHostBackedSessionGuiOperation('sessions:set-model', args),
   )
+  typedHandle('sessions:set-thinking-level', (_event, ...args) =>
+    dispatchHostBackedSessionGuiOperation('sessions:set-thinking-level', args),
+  )
+  typedHandle('sessions:get-default-thinking-level', (_event, ...args) =>
+    dispatchHostBackedSessionGuiOperation('sessions:get-default-thinking-level', args),
+  )
+  typedHandle('sessions:set-default-thinking-level', (_event, ...args) =>
+    dispatchHostBackedSessionGuiOperation('sessions:set-default-thinking-level', args),
+  )
 }

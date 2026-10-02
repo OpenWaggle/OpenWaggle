@@ -36,7 +36,7 @@ function runtimeInput() {
     session: fromPartial({ id: SessionId('session'), projectPath: '/repo' }),
     projectPath: '/repo',
     runId: 'run',
-    payload: fromPartial({ text: 'Go.', thinkingLevel: 'medium', attachments: [] }),
+    payload: fromPartial({ text: 'Go.', attachments: [] }),
     modelReference: SupportedModelId('provider/model'),
     signal: new AbortController().signal,
     onEvent: vi.fn(),

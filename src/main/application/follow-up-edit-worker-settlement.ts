@@ -19,7 +19,6 @@ const QUEUE_CHANGES = new Set<SessionControlMutationRequest['command']['operatio
   'queue-reorder',
   'queue-pause',
   'queue-resume',
-  'queue-update-authorization',
   'queue-edit-save',
   'queue-edit-cancel',
 ])

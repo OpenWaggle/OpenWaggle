@@ -20,7 +20,6 @@ import type {
   SessionControlQueuePauseCommand,
   SessionControlQueueReorderCommand,
   SessionControlQueueResumeCommand,
-  SessionControlQueueUpdateAuthorizationCommand,
   SessionControlQueueWithdrawCommand,
 } from './session-control-queue'
 import type {
@@ -77,7 +76,6 @@ export type {
   SessionControlQueuePauseCommand,
   SessionControlQueueReorderCommand,
   SessionControlQueueResumeCommand,
-  SessionControlQueueUpdateAuthorizationCommand,
   SessionControlQueueWithdrawCommand,
 } from './session-control-queue'
 export type {
@@ -157,7 +155,6 @@ export const SESSION_CONTROL_MUTATION_OPERATIONS = [
   'queue-pause',
   'queue-reorder',
   'queue-resume',
-  'queue-update-authorization',
   'queue-withdraw',
   'report',
   'replace',
@@ -182,7 +179,6 @@ export type SessionControlMutationCommand =
   | SessionControlQueuePauseCommand
   | SessionControlQueueReorderCommand
   | SessionControlQueueResumeCommand
-  | SessionControlQueueUpdateAuthorizationCommand
   | SessionControlQueueWithdrawCommand
   | SessionControlReplaceCommand
   | SessionControlStartCommand

@@ -118,3 +118,25 @@ export function watchCursor(arguments_: ParsedArguments) {
     sequence: nonNegativeInteger(required(sequence, '--after-sequence'), '--after-sequence'),
   }
 }
+
+/** Commands that act on an active Run or queue for one, so they never set Session settings. */
+const ACTIVE_RUN_COMMANDS = new Set(['follow-up', 'steer', 'replace'])
+
+/**
+ * A thinking level or Run authorization override applies only when a command starts a Run on an
+ * idle Session (create, launch, spawn, message, start). Refuse them on follow-up, steer, and
+ * replace with the same codes the Host uses for a message that would be queued.
+ */
+export function refuseRunSettingsOnActiveRunCommand(route: string, arguments_: ParsedArguments) {
+  if (!ACTIVE_RUN_COMMANDS.has(route)) return
+  if (arguments_.options.has('thinking')) {
+    throw new Error(
+      `thinking_level_requires_idle_session: sessions ${route} does not accept --thinking. The Session thinking level can change only when no Run is active; pass --thinking to message or start on an idle Session.`,
+    )
+  }
+  if (arguments_.options.has('authorization') || arguments_.options.has('yolo')) {
+    throw new Error(
+      `run_authorization_override_requires_idle_session: sessions ${route} does not accept --authorization or --yolo. A Run authorization override applies only to a Run started on an idle Session; pass it to message or start.`,
+    )
+  }
+}

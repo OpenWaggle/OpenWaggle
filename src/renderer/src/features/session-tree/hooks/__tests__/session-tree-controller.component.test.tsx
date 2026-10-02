@@ -107,7 +107,6 @@ describe('useSessionTreePanelController', () => {
         favoriteModels: [],
         enabledModels: [],
         projectPath: '/repo',
-        thinkingLevel: 'medium',
         recentProjects: [],
         skillTogglesByProject: {},
         projectDisplayNames: {},

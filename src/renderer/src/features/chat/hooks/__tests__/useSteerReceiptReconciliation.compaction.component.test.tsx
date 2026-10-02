@@ -9,7 +9,7 @@ import { useOptimisticSteeredTurn } from '../useOptimisticSteeredTurn'
 
 const { webcrypto } = await vi.importActual<{ webcrypto: Crypto }>('node:crypto')
 const SESSION_ID = SessionId('compacting-steer-session')
-const PAYLOAD: AgentSendPayload = { text: 'continue', attachments: [], thinkingLevel: 'off' }
+const PAYLOAD: AgentSendPayload = { text: 'continue', attachments: [] }
 const CONTINUE_SHA256 = 'e256ee8e7aff6957a781d8328f0f68e26996564c81fa458da59fbca2305138ad'
 
 function message(

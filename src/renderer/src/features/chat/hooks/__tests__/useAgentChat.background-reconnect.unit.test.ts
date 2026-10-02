@@ -32,12 +32,7 @@ describe('useAgentChat background reconnect', () => {
 
     const session = createSession()
     const { result } = renderHook(() =>
-      useAgentChat(
-        SessionId('session-1'),
-        session,
-        SupportedModelId('claude-sonnet-4-5'),
-        'medium',
-      ),
+      useAgentChat(SessionId('session-1'), session, SupportedModelId('claude-sonnet-4-5')),
     )
 
     await waitFor(() => {
@@ -89,12 +84,7 @@ describe('useAgentChat background reconnect', () => {
     })
 
     const { result } = renderHook(() =>
-      useAgentChat(
-        SessionId('session-1'),
-        persisted,
-        SupportedModelId('claude-sonnet-4-5'),
-        'medium',
-      ),
+      useAgentChat(SessionId('session-1'), persisted, SupportedModelId('claude-sonnet-4-5')),
     )
 
     await waitFor(() => {
@@ -139,7 +129,6 @@ describe('useAgentChat background reconnect', () => {
           },
         ]),
         SupportedModelId('claude-sonnet-4-5'),
-        'medium',
       ),
     )
 

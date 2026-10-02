@@ -75,7 +75,7 @@ describe('useAgentChat reconnect after a mid-Run compaction persisted the steer'
       parts: [{ type: 'text', text: 'Partial answer' }],
     })
 
-    const { result } = renderHook(() => useAgentChat(SESSION_ID, persisted, MODEL, 'medium'))
+    const { result } = renderHook(() => useAgentChat(SESSION_ID, persisted, MODEL))
 
     await waitFor(() => {
       expect(rows(result.current.messages)).toEqual([

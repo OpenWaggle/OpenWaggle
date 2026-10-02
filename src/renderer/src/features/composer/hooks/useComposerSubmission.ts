@@ -2,7 +2,6 @@ import type { AgentSendPayload, PreparedAttachment } from '@shared/types/agent'
 import type { WagglePreset } from '@shared/types/waggle'
 import type { LexicalEditor } from 'lexical'
 import type { RefObject } from 'react'
-import { useSelectedModelThinkingLevel } from '@/features/providers/hooks'
 import { GUI_COMMAND_REQUIRES_IDLE_MESSAGE, isGuiOnlyComposerCommand } from '../commands'
 import { clearEditor, setEditorDraft } from '../lib/lexical-utils'
 import { consumeSendResult } from '../lib/send-result'
@@ -128,7 +127,6 @@ export function useComposerSubmission({
   const reset = useComposerStore((s) => s.reset)
   const pushHistory = useComposerStore((s) => s.pushHistory)
   const selectedModel = useComposerModel().model
-  const { effectiveThinkingLevel } = useSelectedModelThinkingLevel(selectedModel ?? null)
 
   function clearComposerInput(snapshot?: ComposerDraftSnapshot) {
     if (snapshot && !isCurrentComposerDraft(snapshot)) {
@@ -231,7 +229,6 @@ export function useComposerSubmission({
   function handleSubmit(text?: string) {
     return submitPayload({
       text: (text ?? input).trim(),
-      thinkingLevel: effectiveThinkingLevel,
       attachments,
       ...(selectedWagglePreset
         ? {
@@ -250,7 +247,6 @@ export function useComposerSubmission({
     const state = useComposerStore.getState()
     return submitPayload({
       text,
-      thinkingLevel: effectiveThinkingLevel,
       attachments: state.attachments,
       ...(state.selectedWagglePreset
         ? {
@@ -269,7 +265,6 @@ export function useComposerSubmission({
     const state = useComposerStore.getState()
     submitPayload({
       text: state.input.trim(),
-      thinkingLevel: effectiveThinkingLevel,
       attachments: state.attachments,
       ...(state.selectedWagglePreset
         ? {

@@ -18,7 +18,6 @@ import { SessionControlOperationJournal } from '../ports/session-control-operati
 import { lendSessionAttachmentTransitionToSettlingRun } from './session-attachment-cleanup'
 import { fenceFailedClaimedSessionOperation } from './session-control-claimed-operation-recovery'
 import { toSessionControlIntentMessage } from './session-control-message-input'
-import { clampRunAuthorizationOverride } from './session-control-run-authorization'
 
 export interface ReplaceSessionRunInput {
   readonly callerId: string
@@ -49,16 +48,9 @@ export function replaceSessionRun(input: ReplaceSessionRunInput) {
     const acceptedAt = yield* identities.now
     const replacementIntent = {
       ...toSessionControlIntentMessage(input.request.command.input),
-      ...(clampRunAuthorizationOverride(
-        input.request.command.runAuthorizationOverride,
-        input.callerAuthorizationCeiling,
-      )
-        ? {
-            runAuthorizationOverride: clampRunAuthorizationOverride(
-              input.request.command.runAuthorizationOverride,
-              input.callerAuthorizationCeiling,
-            ),
-          }
+      // A replacement names no override; an ask-for-approval caller's Run still asks.
+      ...(input.callerAuthorizationCeiling === 'ask-for-approval'
+        ? { runAuthorizationOverride: 'ask-for-approval' as const }
         : {}),
       callerId: input.callerId,
       acceptedAt,

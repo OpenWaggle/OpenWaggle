@@ -1,10 +1,8 @@
-import type { SessionFollowUpQueueItem } from '@/features/chat/hooks'
 import type { QueuedMessageAnchor } from '../lib/queued-message-order'
 import type { QueuedMessageEdit } from '../state/queued-message-edit-store'
 
 export interface QueuedMessageRowActions {
   readonly onDismiss: (followUpId: string) => void
-  readonly onResolve: (item: SessionFollowUpQueueItem) => void
   readonly onSteer: (followUpId: string) => void
   readonly onEdit: (followUpId: string) => void
   readonly onMove: (followUpId: string, anchor: QueuedMessageAnchor) => void

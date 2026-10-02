@@ -21,7 +21,6 @@ const queue = vi.hoisted(() => ({
   error: null,
   refresh: vi.fn(),
   withdraw: vi.fn(),
-  resubmitWithCurrentAccess: vi.fn(),
   setPaused: vi.fn(),
 }))
 

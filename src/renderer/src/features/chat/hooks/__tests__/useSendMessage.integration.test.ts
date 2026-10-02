@@ -21,7 +21,6 @@ function makeDeps(overrides: Partial<SendDeps> = {}): SendDeps {
   return {
     activeSessionId: null,
     projectPath: '/test/project',
-    thinkingLevel: 'medium',
     createSession: vi.fn<SendDeps['createSession']>().mockResolvedValue(SessionId('new-session')),
     sendMessage: vi.fn<(p: AgentSendPayload) => Promise<void>>().mockResolvedValue(undefined),
     sendMessageToSession: vi.fn<SendDeps['sendMessageToSession']>().mockResolvedValue(undefined),
@@ -44,7 +43,7 @@ describe('createSendHandlers', () => {
       const convId = SessionId('session-5')
       const deps = makeDeps({ activeSessionId: convId })
       const { handleSend } = createSendHandlers(deps)
-      const payload: AgentSendPayload = { text: 'hello', thinkingLevel: 'medium', attachments: [] }
+      const payload: AgentSendPayload = { text: 'hello', attachments: [] }
 
       await handleSend(payload)
 
@@ -54,7 +53,7 @@ describe('createSendHandlers', () => {
     it('without active session: creates a session and sends the first message to that exact session', async () => {
       const deps = makeDeps({ activeSessionId: null })
       const { handleSend } = createSendHandlers(deps)
-      const payload: AgentSendPayload = { text: 'hello', thinkingLevel: 'medium', attachments: [] }
+      const payload: AgentSendPayload = { text: 'hello', attachments: [] }
 
       await handleSend(payload)
 
@@ -69,7 +68,7 @@ describe('createSendHandlers', () => {
         projectPath: null,
       })
       const { handleSend } = createSendHandlers(deps)
-      const payload: AgentSendPayload = { text: 'hello', thinkingLevel: 'medium', attachments: [] }
+      const payload: AgentSendPayload = { text: 'hello', attachments: [] }
 
       await expect(handleSend(payload)).rejects.toThrow('Select a project before sending.')
 
@@ -81,14 +80,13 @@ describe('createSendHandlers', () => {
   describe('handleSendText', () => {
     it('wraps handleSend with correct payload shape', async () => {
       const convId = SessionId('session-6')
-      const deps = makeDeps({ activeSessionId: convId, thinkingLevel: 'high' })
+      const deps = makeDeps({ activeSessionId: convId })
       const { handleSendText } = createSendHandlers(deps)
 
       await handleSendText('test message')
 
       expect(deps.sendMessage).toHaveBeenCalledWith({
         text: 'test message',
-        thinkingLevel: 'high',
         attachments: [],
       })
     })
@@ -102,7 +100,7 @@ describe('createSendHandlers', () => {
         title: 'Service map',
         state: { selectedService: 'api' },
       })
-      const deps = makeDeps({ activeSessionId: sessionId, thinkingLevel: 'high' })
+      const deps = makeDeps({ activeSessionId: sessionId })
 
       await createSendHandlers(deps).handleSendText('Retry with this selection')
 
@@ -123,7 +121,7 @@ describe('createSendHandlers', () => {
     it('sends first-message Waggle payloads to the created session instead of the next active session', async () => {
       const deps = makeDeps({ activeSessionId: null })
       const { handleSendWaggle } = createSendHandlers(deps)
-      const payload: AgentSendPayload = { text: 'waggle', thinkingLevel: 'medium', attachments: [] }
+      const payload: AgentSendPayload = { text: 'waggle', attachments: [] }
       const config: WaggleConfig = {
         mode: 'sequential',
         agents: [

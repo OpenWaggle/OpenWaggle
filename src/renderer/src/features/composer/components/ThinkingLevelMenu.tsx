@@ -1,8 +1,9 @@
 import type { ThinkingLevel } from '@shared/types/settings'
 import { Check, ChevronDown, Ellipsis } from 'lucide-react'
+import { useSessionThinkingLevel } from '@/features/chat/hooks'
+import { useChatStore } from '@/features/chat/state'
 import { useComposerStore } from '@/features/composer/state/composer-store'
 import { useSelectedModelThinkingLevel } from '@/features/providers/hooks'
-import { usePreferencesStore } from '@/features/settings/state'
 import { cn } from '@/shared/lib/cn'
 import { Button } from '@/shared/ui/Button'
 import { DENSE_MENU_ITEM_CLASS } from '@/shared/ui/menu-styles'
@@ -16,22 +17,24 @@ import {
 } from '../lib/thinking-level-view'
 
 export function ThinkingLevelMenu() {
-  const settings = usePreferencesStore((s) => s.settings)
-  const setThinkingLevel = usePreferencesStore((s) => s.setThinkingLevel)
+  const activeSessionId = useChatStore((s) => s.activeSessionId)
+  const sessionThinking = useSessionThinkingLevel(activeSessionId)
   const thinkingMenuOpen = useComposerStore((s) => s.thinkingMenuOpen)
   const openMenu = useComposerStore((s) => s.openMenu)
   const composerModel = useComposerModel().model
-  const thinking = useSelectedModelThinkingLevel(composerModel ?? null)
+  const thinking = useSelectedModelThinkingLevel(composerModel ?? null, sessionThinking.level)
   const hasSelectedModel = Boolean(composerModel?.trim())
   const canOpenThinkingMenu =
-    thinking.capabilitiesKnown && thinking.availableThinkingLevels.length > 0
+    sessionThinking.canChange &&
+    thinking.capabilitiesKnown &&
+    thinking.availableThinkingLevels.length > 0
   const selectedModelOnlySupportsOff =
     thinking.capabilitiesKnown && hasOnlyOffThinkingLevel(thinking.availableThinkingLevels)
 
   async function handleThinkingLevelChange(level: ThinkingLevel) {
     openMenu(null)
-    if (level === settings.thinkingLevel) return
-    await setThinkingLevel(level)
+    if (level === sessionThinking.level) return
+    await sessionThinking.setLevel(level).catch(() => undefined)
   }
 
   return (

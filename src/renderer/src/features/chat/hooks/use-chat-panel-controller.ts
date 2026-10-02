@@ -56,7 +56,6 @@ export function useChatPanelSections(): ChatPanelSections {
     recentProjects,
     refreshSessionWorkspace,
     showToast,
-    thinkingLevel,
   } = env
 
   const {
@@ -75,14 +74,13 @@ export function useChatPanelSections(): ChatPanelSections {
     agentCustomMessages,
     agentInteractionEvents,
     respondAgentInteraction,
-  } = useAgentChat(activeSessionId, activeSession, model, thinkingLevel)
+  } = useAgentChat(activeSessionId, activeSession, model)
   const followUpQueue = useSessionFollowUpQueue(activeSessionId)
 
   const { handleSend, handleSendText, handleSendWaggle } = useSendMessage({
     activeSessionId,
     model,
     projectPath,
-    thinkingLevel,
     createSession,
     sendMessage,
     sendWaggleMessage,

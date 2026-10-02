@@ -249,10 +249,7 @@ export type SessionQueryOutcome =
         readonly position: number
         readonly createdAt: number
         readonly deliveryState: 'pending' | 'needs_attention'
-        readonly attentionReason?:
-          | 'authorization_ceiling_changed'
-          | 'profile_revoked'
-          | 'authority_changed'
+        readonly attentionReason?: 'profile_revoked' | 'authority_changed'
         /**
          * Set when a direct steer became this Follow-up because its Run stopped before
          * incorporating it. `idempotencyKey` is the steer's, so its caller can recognise it.

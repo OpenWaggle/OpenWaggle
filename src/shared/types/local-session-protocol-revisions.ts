@@ -1,5 +1,6 @@
 export const LOCAL_SESSION_CURRENT_REVISION = 20 as const
 export const LOCAL_SESSION_FOLLOW_UP_EDIT_REVISION = 20 as const
+export const LOCAL_SESSION_SESSION_SETTINGS_REVISION = 20 as const
 export const LOCAL_SESSION_HOST_CONTROL_REVISION = 19 as const
 export const LOCAL_SESSION_LAUNCH_STEPS_REVISION = 18 as const
 export const LOCAL_SESSION_NATIVE_ACTIONS_REVISION = 17 as const
@@ -25,7 +26,10 @@ export const LOCAL_SESSION_WAGGLE_REVISION = 3 as const
  * Revision 20 adds Follow-up edits (ADR 0043): the `queue-edit-begin`, `queue-edit-save`, and
  * `queue-edit-cancel` Session Control operations and the `renew-follow-up-edit-hold` Local UI
  * command. A revision-20 desktop app refuses an older Host at the handshake, and each of these
- * commands is revision-gated too, so none reaches a Host that cannot hold a Follow-up.
+ * commands is revision-gated too, so none reaches a Host that cannot hold a Follow-up. Revision 20
+ * also makes the thinking level Session state: the `sessions:set-thinking-level` and default
+ * thinking-level Host UI channels, a Follow-up that carries no thinking level or Run authorization
+ * override, `message` accepting both only when it starts a Run, and no `queue-update-authorization`.
  */
 export const LOCAL_SESSION_SUPPORTED_REVISIONS = [LOCAL_SESSION_CURRENT_REVISION] as const
 

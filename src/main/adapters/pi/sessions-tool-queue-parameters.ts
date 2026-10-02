@@ -27,14 +27,4 @@ export const sessionsToolQueueParameters = [
     sessionId: Type.String(),
     queueRevision,
   }),
-  Type.Object({
-    action: Type.Literal('queue_update_authorization'),
-    sessionId: Type.String(),
-    followUpId: Type.String(),
-    authorization: Type.Union([
-      Type.Literal('inherit'),
-      Type.Literal('ask-for-approval'),
-      Type.Literal('yolo'),
-    ]),
-  }),
 ] as const

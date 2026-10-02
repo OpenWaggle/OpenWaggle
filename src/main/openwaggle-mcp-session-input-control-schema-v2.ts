@@ -39,6 +39,7 @@ export const mcpSessionControlOperationSchemasV2 = [
     message: mcpSessionTextSchemaV2.optional(),
     attachmentPaths: mcpSessionAttachmentPathsSchemaV2.optional(),
     thinking: mcpSessionIdSchemaV2.optional(),
+    ...runAuthorization,
     ...idempotency,
   }),
   operationSchema('start', {
@@ -54,8 +55,6 @@ export const mcpSessionControlOperationSchemasV2 = [
     sessionId: mcpSessionIdSchemaV2.optional(),
     message: mcpSessionTextSchemaV2.optional(),
     attachmentPaths: mcpSessionAttachmentPathsSchemaV2.optional(),
-    thinking: mcpSessionIdSchemaV2.optional(),
-    ...runAuthorization,
     ...idempotency,
   }),
   operationSchema('steer', {
@@ -76,8 +75,6 @@ export const mcpSessionControlOperationSchemasV2 = [
     expectedRunId: mcpSessionIdSchemaV2.optional(),
     message: mcpSessionTextSchemaV2.optional(),
     attachmentPaths: mcpSessionAttachmentPathsSchemaV2.optional(),
-    thinking: mcpSessionIdSchemaV2.optional(),
-    ...runAuthorization,
     ...idempotency,
   }),
   operationSchema('interrupt', {
@@ -245,12 +242,6 @@ export const mcpSessionControlOperationSchemasV2 = [
   operationSchema('queue-resume', {
     sessionId: mcpSessionIdSchemaV2.optional(),
     queueRevision: revision.optional(),
-    ...idempotency,
-  }),
-  operationSchema('queue-update-authorization', {
-    sessionId: mcpSessionIdSchemaV2.optional(),
-    followUpId: mcpSessionIdSchemaV2.optional(),
-    runAuthorizationOverride: z.enum(['inherit', 'ask-for-approval', 'yolo']).optional(),
     ...idempotency,
   }),
 ] as const

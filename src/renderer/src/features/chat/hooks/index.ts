@@ -14,6 +14,12 @@ export {
   useSessionFollowUpQueue,
 } from './useSessionFollowUpQueue'
 export {
+  defaultThinkingLevelQueryOptions,
+  type SessionThinkingLevel,
+  SessionThinkingLevelRefusedError,
+  useSessionThinkingLevel,
+} from './useSessionThinkingLevel'
+export {
   reconcileDurableSetupActionEvents,
   reconcileLiveSetupActionTerminals,
   useSetupActionTerminalReconciliation,

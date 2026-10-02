@@ -23,7 +23,7 @@ const BILLING_ERROR = '402 This request requires more credits'
 const QUEUED_PAYLOAD = { ...SEND_PAYLOAD, text: 'Try again' }
 
 function renderChat() {
-  return renderHook(() => useAgentChat(SESSION_ID, createSession(), MODEL, 'medium'))
+  return renderHook(() => useAgentChat(SESSION_ID, createSession(), MODEL))
 }
 
 function failRun(runId: string) {

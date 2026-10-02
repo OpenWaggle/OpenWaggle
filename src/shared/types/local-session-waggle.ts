@@ -1,5 +1,4 @@
 import type { AgentSendReport, PreparedAttachment } from './agent'
-import type { ThinkingLevel } from './settings'
 import type {
   WaggleAgentColor,
   WaggleCollaborationMode,
@@ -30,7 +29,6 @@ export interface LocalSessionWaggleConfig {
 
 export interface LocalSessionWagglePayload {
   readonly text: string
-  readonly thinkingLevel: ThinkingLevel
   readonly attachments: PreparedAttachment[]
   readonly waggle?: {
     readonly presetId: string

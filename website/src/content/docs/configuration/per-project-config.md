@@ -104,7 +104,7 @@ Older Pi, `.agents`, and `.openwaggle/agent/mcp.json` files are migration source
 
 ## Thinking level
 
-Choose the thinking level with the control beside the message box. Available levels depend on the selected model. See [Thinking levels](/docs/configuration/thinking-levels) for using this control.
+The thinking level is not a project setting, and `.openwaggle/settings.json` does not store it. Each Session keeps its own level, and new Sessions start from Pi's default. Choose it with the control beside the message box. See [Thinking levels](/docs/configuration/thinking-levels).
 
 ## Runtime settings
 

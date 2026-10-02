@@ -37,7 +37,6 @@ import {
   SETTINGS_KEY_SYNTAX_THEME_SELECTIONS,
   SETTINGS_KEY_UPDATE_CHANNEL,
 } from './keys'
-import { appendThinkingLevelWrite } from './thinking-level-persistence'
 
 export type SettingsPatchWrite = { readonly key: string; readonly value: unknown }
 
@@ -49,8 +48,6 @@ function appendChangedSetting(
 ) {
   if (changed) writes.push({ key, value })
 }
-
-export { getInvalidThinkingLevel } from './thinking-level-persistence'
 
 function appendBrowserSettingsWrites(
   writes: SettingsPatchWrite[],
@@ -136,7 +133,6 @@ function appendGeneralSettingsWrites(
     SETTINGS_KEY_PROJECT_PATH,
     next.projectPath,
   )
-  appendThinkingLevelWrite(writes, partial, next)
   appendChangedSetting(
     writes,
     partial.updateChannel !== undefined,

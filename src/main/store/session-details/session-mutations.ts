@@ -131,32 +131,6 @@ export async function setSessionAuthorizationMode(
   )
 }
 
-/**
- * Switches the model a Session's next Run resolves from its durable execution profile.
- *
- * Only the profile's `modelId` changes; every other captured preference and restriction is kept.
- * A Run reads the profile once when it starts, so a switch made while a Run streams applies to the
- * next Run, including queued follow-ups. `sessions.updated_at` is left alone on purpose: picking a
- * model is not Session activity and must not reorder the sidebar.
- *
- * @returns `false` when the Session has no valid execution profile to switch.
- */
-export async function setSessionExecutionModel(id: SessionId, modelId: string): Promise<boolean> {
-  return runStoreEffect(
-    Effect.gen(function* () {
-      const sql = yield* SqlClient.SqlClient
-      const rows = yield* sql<{ readonly session_id: string }>`
-        UPDATE session_execution_profiles
-        SET profile_json = json_set(profile_json, '$.modelId', ${modelId}),
-            updated_at = ${Date.now()}
-        WHERE session_id = ${id} AND json_valid(profile_json)
-        RETURNING session_id
-      `
-      return rows.length > 0
-    }),
-  )
-}
-
 /** Clear a session's Session worktree binding (death). */
 export async function clearSessionWorktree(id: SessionId): Promise<void> {
   await runStoreEffect(

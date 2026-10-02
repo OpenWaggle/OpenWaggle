@@ -1,11 +1,12 @@
 import { SessionId } from '@shared/types/brand'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, screen, waitFor } from '@testing-library/react'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   SessionControlRejectedError,
   type SessionFollowUpQueueSnapshot,
 } from '@/features/chat/hooks'
 import { useEscapeHotkey } from '@/shared/hooks/useEscapeHotkey'
+import { renderWithQueryClient } from '@/test-utils/query-test-utils'
 import {
   openedEdit,
   queueItem,
@@ -37,6 +38,7 @@ vi.mock('@/shared/lib/ipc', () => ({
     getSettings: vi.fn().mockResolvedValue({}),
     updateSettings: vi.fn().mockResolvedValue({ ok: true }),
     getProviderModels: vi.fn().mockResolvedValue([]),
+    getDefaultThinkingLevel: vi.fn().mockResolvedValue('medium'),
     listWagglePresets: vi.fn().mockResolvedValue([]),
     listExtensionContributions: vi.fn().mockResolvedValue({ projectPaths: [], entries: [] }),
   },
@@ -66,7 +68,7 @@ function OpenSheet({ onClose }: { readonly onClose: () => void }) {
 }
 
 function renderComposer(extra: React.ReactNode = null) {
-  render(
+  renderWithQueryClient(
     <>
       <Composer
         onSend={vi.fn()}

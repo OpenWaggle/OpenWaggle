@@ -16,7 +16,7 @@ describe('useAgentChat agent-loop persistence', () => {
   it('retains persistent notifications when the route-level chat hook remounts', async () => {
     const sessionId = SessionId('session-1')
     const firstMount = renderHook(() =>
-      useAgentChat(sessionId, createSession(), SupportedModelId('claude-sonnet-4-5'), 'medium'),
+      useAgentChat(sessionId, createSession(), SupportedModelId('claude-sonnet-4-5')),
     )
 
     await act(async () => {
@@ -43,7 +43,7 @@ describe('useAgentChat agent-loop persistence', () => {
     firstMount.unmount()
 
     const secondMount = renderHook(() =>
-      useAgentChat(sessionId, createSession(), SupportedModelId('claude-sonnet-4-5'), 'medium'),
+      useAgentChat(sessionId, createSession(), SupportedModelId('claude-sonnet-4-5')),
     )
 
     expect(secondMount.result.current.agentInteractionEvents).toEqual([

@@ -139,7 +139,6 @@ describe('run lifecycle settlement', () => {
 
     const payload: HydratedAgentSendPayload = {
       text: 'Analyze and continue',
-      thinkingLevel: 'high',
       attachments: [],
     }
 
@@ -218,7 +217,7 @@ describe('run lifecycle settlement', () => {
     })
 
     const result = await runSubscribedPiOperation({
-      runInput: runInput({ text: 'Continue', thinkingLevel: 'high', attachments: [] }),
+      runInput: runInput({ text: 'Continue', attachments: [] }),
       session: fromPartial<AgentSession>(session),
       unsubscribe: vi.fn(),
       abortWarning: 'abort failed',
@@ -272,7 +271,6 @@ describe('run lifecycle settlement', () => {
 
     const payload: HydratedAgentSendPayload = {
       text: 'Continue',
-      thinkingLevel: 'high',
       attachments: [],
     }
 

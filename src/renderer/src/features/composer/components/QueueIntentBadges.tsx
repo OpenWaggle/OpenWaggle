@@ -11,7 +11,7 @@ function queueCallerLabel(callerId: string | undefined) {
 }
 
 export function QueueIntentBadges({ item }: { readonly item: SessionFollowUpQueueItem }) {
-  if (!item.wagglePresetName && !item.authorizationMode && !item.thinkingLevel && !item.callerId) {
+  if (!item.wagglePresetName && !item.callerId) {
     return null
   }
   const callerLabel = queueCallerLabel(item.callerId)
@@ -25,16 +25,6 @@ export function QueueIntentBadges({ item }: { readonly item: SessionFollowUpQueu
       {item.waggleSource ? (
         <span className="rounded bg-bg-hover px-1.5 py-0.5 text-xs text-text-tertiary">
           {item.waggleSource === 'agent' ? 'From agent' : 'From user'}
-        </span>
-      ) : null}
-      {item.authorizationMode ? (
-        <span className="rounded bg-bg-hover px-1.5 py-0.5 text-xs text-text-tertiary">
-          {item.authorizationMode === 'yolo' ? 'YOLO access' : 'Ask for approval'}
-        </span>
-      ) : null}
-      {item.thinkingLevel ? (
-        <span className="rounded bg-bg-hover px-1.5 py-0.5 text-xs text-text-tertiary">
-          Thinking · {item.thinkingLevel}
         </span>
       ) : null}
       {callerLabel ? (

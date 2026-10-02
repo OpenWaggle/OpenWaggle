@@ -54,9 +54,6 @@ export function requiredSessionControlCapabilities(
       ])
       // Follow-up edits are also limited to the desktop user by the edit service.
       .with('queue-edit-begin', 'queue-edit-save', 'queue-edit-cancel', () => ['sessions:queue'])
-      // Re-authorizing someone else's Follow-up clears a revocation or authority pause and can
-      // raise its mode, so it is an authorization change like authorization-set.
-      .with('queue-update-authorization', () => ['sessions:queue', 'sessions:authorization'])
       .exhaustive()
   )
 }

@@ -4,7 +4,6 @@ import { SessionId } from '@shared/types/brand'
 export const SESSION_ID = SessionId('session-1')
 export const PAYLOAD: AgentSendPayload = {
   text: 'Run the tests',
-  thinkingLevel: 'high',
   attachments: [
     {
       id: 'attachment-1',
@@ -34,10 +33,12 @@ export function queueResponse() {
           position: 0,
           createdAt: 10,
           deliveryState: 'needs_attention' as const,
-          attentionReason: 'authorization_ceiling_changed' as const,
+          attentionReason: 'authority_changed' as const,
           intent: {
             text: 'Existing follow-up',
             attachmentIds: [],
+            // A Follow-up queued before it stopped carrying Session settings.
+            thinkingLevel: 'high',
             runAuthorizationOverride: 'yolo',
             waggle: { presetName: 'Cross-check', source: 'agent' },
           },

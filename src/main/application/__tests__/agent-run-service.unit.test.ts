@@ -57,7 +57,6 @@ const TestSessionProjectionLayer = Layer.succeed(SessionProjectionRepository, {
     }),
   setWorktreePlan: () => Effect.void,
   setAuthorizationMode: () => Effect.void,
-  setExecutionModel: () => Effect.succeed(true),
   listTurnCheckpoints: () => Effect.succeed([]),
   getTurnDiff: () => Effect.succeed(null),
   getTurnDiffFiles: () => Effect.succeed([]),
@@ -165,7 +164,7 @@ describe('executeAgentRun', () => {
       executeAgentRun({
         sessionId,
         runId: 'run-standard-1',
-        payload: { text: 'Implement the next slice', thinkingLevel: 'medium', attachments: [] },
+        payload: { text: 'Implement the next slice', attachments: [] },
         model,
         signal: new AbortController().signal,
         onEvent: () => undefined,
@@ -201,7 +200,7 @@ describe('executeAgentRun', () => {
       executeAgentRun({
         sessionId,
         runId: 'run-cancelled-worktree',
-        payload: { text: 'Start in a worktree', thinkingLevel: 'medium', attachments: [] },
+        payload: { text: 'Start in a worktree', attachments: [] },
         model,
         signal: controller.signal,
         onEvent: () => undefined,
@@ -228,7 +227,6 @@ describe('executeAgentRun', () => {
         runId: 'run-title-1',
         payload: {
           text: 'Draft a one-page summary of this app',
-          thinkingLevel: 'medium',
           attachments: [],
         },
         model,

@@ -12,7 +12,7 @@ function command(arguments_: readonly string[]) {
 
 describe('Sessions CLI command contract', () => {
   it('keeps follow-up and Steering as explicit different operations', () => {
-    const followUp = command(['follow-up', 'session-1', '--text', 'Do this', '--yolo'])
+    const followUp = command(['follow-up', 'session-1', '--text', 'Do this'])
     const steer = command([
       'steer',
       'session-1',
@@ -28,7 +28,6 @@ describe('Sessions CLI command contract', () => {
         command: {
           operation: 'follow-up',
           sessionId: 'session-1',
-          runAuthorizationOverride: 'yolo',
           input: { text: 'Do this' },
         },
       },
@@ -44,6 +43,21 @@ describe('Sessions CLI command contract', () => {
         },
       },
     })
+  })
+
+  it.each([
+    ['follow-up', 'session-1', '--text', 'Later'],
+    ['steer', 'session-1', '--text', 'Now', '--expected-run', 'run-1'],
+    ['replace', 'session-1', '--text', 'Again', '--expected-run', 'run-1'],
+  ])('refuses Session settings on %s, which acts on an active Run', (...base) => {
+    const thinking = command([...base, '--thinking', 'high'])
+    const yolo = command([...base, '--yolo'])
+    expect(() => buildSessionsCliPayload(thinking.name, thinking.arguments)).toThrow(
+      'thinking_level_requires_idle_session',
+    )
+    expect(() => buildSessionsCliPayload(yolo.name, yolo.arguments)).toThrow(
+      'run_authorization_override_requires_idle_session',
+    )
   })
 
   it('builds a Worker spawn with explicit parent Run and Workspace placement', () => {
@@ -83,22 +97,15 @@ describe('Sessions CLI command contract', () => {
     })
   })
 
-  it('rejects ambiguous adaptive Message authorization overrides', () => {
-    const adaptive = command(['message', 'session-1', '--text', 'Continue', '--yolo'])
-    expect(() => buildSessionsCliPayload(adaptive.name, adaptive.arguments)).toThrow(
-      'does not accept Run authorization',
-    )
-  })
-
-  it('rejects YOLO steering and accepts explicit approval mode for a new Run', () => {
-    const steer = command([
-      'steer',
+  it('carries Session thinking and a Run authorization override on a message or start', () => {
+    const message = command([
+      'message',
       'session-1',
       '--text',
-      'Change direction',
-      '--expected-run',
-      'run-1',
+      'Continue',
       '--yolo',
+      '--thinking',
+      'high',
     ])
     const start = command([
       'start',
@@ -109,9 +116,16 @@ describe('Sessions CLI command contract', () => {
       'ask-for-approval',
     ])
 
-    expect(() => buildSessionsCliPayload(steer.name, steer.arguments)).toThrow(
-      'Steer does not accept Run authorization',
-    )
+    // The Host refuses them if the message would be queued instead of starting a Run.
+    expect(buildSessionsCliPayload(message.name, message.arguments)).toMatchObject({
+      request: {
+        command: {
+          operation: 'message',
+          runAuthorizationOverride: 'yolo',
+          input: { text: 'Continue', thinkingLevel: 'high' },
+        },
+      },
+    })
     expect(buildSessionsCliPayload(start.name, start.arguments)).toMatchObject({
       request: { command: { runAuthorizationOverride: 'ask-for-approval' } },
     })

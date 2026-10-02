@@ -108,7 +108,7 @@ describe('useSessionStatusMonitor', () => {
       details: ['Starting task'],
     })
     useBackgroundRunStore.getState().setFirstSendRecovery(SESSION_ID, {
-      payload: { text: 'Retained prompt', thinkingLevel: 'medium', attachments: [] },
+      payload: { text: 'Retained prompt', attachments: [] },
       waggleConfig: null,
       model: SupportedModelId('openai/gpt-5'),
     })

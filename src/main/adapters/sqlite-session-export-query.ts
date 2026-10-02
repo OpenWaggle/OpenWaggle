@@ -22,6 +22,7 @@ import {
   readExportSnapshot,
   resolveExportSnapshotHead,
 } from './sqlite-session-export-snapshot'
+import type { StoredFollowUpAttentionReason } from './sqlite-session-follow-up-view'
 import { sessionQueryResponse } from './sqlite-session-query-support'
 
 type ExportRequest = SessionQueryRequest & {
@@ -32,11 +33,7 @@ interface ExportQueueRow {
   readonly id: string
   readonly position: number
   readonly delivery_state: 'pending' | 'needs_attention'
-  readonly attention_reason:
-    | 'authorization_ceiling_changed'
-    | 'profile_revoked'
-    | 'authority_changed'
-    | null
+  readonly attention_reason: StoredFollowUpAttentionReason | null
   readonly intent_json: string
   readonly created_at: number
 }

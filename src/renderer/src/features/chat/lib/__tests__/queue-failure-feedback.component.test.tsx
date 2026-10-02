@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { WORKTREE_MISSING_REASON } from '@/features/git'
 import { reportAutoSendQueueFailure } from '../queue-failure-feedback'
 
-const PAYLOAD: AgentSendPayload = { text: 'queued work', thinkingLevel: 'off', attachments: [] }
+const PAYLOAD: AgentSendPayload = { text: 'queued work', attachments: [] }
 
 function deps() {
   return {

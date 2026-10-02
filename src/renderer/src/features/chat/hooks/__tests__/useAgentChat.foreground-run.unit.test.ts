@@ -26,12 +26,7 @@ describe('useAgentChat foreground run', () => {
   it('retains the exact first turn until a blank session run completes', async () => {
     const model = SupportedModelId('claude-sonnet-4-5')
     const { result } = renderHook(() =>
-      useAgentChat(
-        SessionId('session-1'),
-        createSessionWithId(SessionId('session-1')),
-        model,
-        'medium',
-      ),
+      useAgentChat(SessionId('session-1'), createSessionWithId(SessionId('session-1')), model),
     )
 
     let sendPromise: Promise<void> | null = null
@@ -54,12 +49,7 @@ describe('useAgentChat foreground run', () => {
 
   it('streams optimistic user and assistant text through OpenWaggle runtime events', async () => {
     const { result } = renderHook(() =>
-      useAgentChat(
-        SessionId('session-1'),
-        createSession(),
-        SupportedModelId('claude-sonnet-4-5'),
-        'medium',
-      ),
+      useAgentChat(SessionId('session-1'), createSession(), SupportedModelId('claude-sonnet-4-5')),
     )
 
     let sendPromise: Promise<void> | null = null
@@ -124,12 +114,7 @@ describe('useAgentChat foreground run', () => {
     apiMock.sendMessage.mockRejectedValueOnce(failure)
 
     const { result } = renderHook(() =>
-      useAgentChat(
-        SessionId('session-1'),
-        createSession(),
-        SupportedModelId('claude-sonnet-4-5'),
-        'medium',
-      ),
+      useAgentChat(SessionId('session-1'), createSession(), SupportedModelId('claude-sonnet-4-5')),
     )
 
     await act(async () => {
@@ -145,12 +130,7 @@ describe('useAgentChat foreground run', () => {
 
   it('settles a foreground send when the run is cancelled', async () => {
     const { result } = renderHook(() =>
-      useAgentChat(
-        SessionId('session-1'),
-        createSession(),
-        SupportedModelId('claude-sonnet-4-5'),
-        'medium',
-      ),
+      useAgentChat(SessionId('session-1'), createSession(), SupportedModelId('claude-sonnet-4-5')),
     )
 
     let sendPromise: Promise<void> | null = null
@@ -181,7 +161,7 @@ describe('useAgentChat foreground run', () => {
       }: {
         readonly sessionId: SessionId
         readonly session: SessionDetail
-      }) => useAgentChat(sessionId, session, SupportedModelId('claude-sonnet-4-5'), 'medium'),
+      }) => useAgentChat(sessionId, session, SupportedModelId('claude-sonnet-4-5')),
       {
         initialProps: {
           sessionId: SessionId('session-1'),
@@ -226,7 +206,7 @@ describe('useAgentChat foreground run', () => {
       }: {
         readonly sessionId: SessionId
         readonly session: SessionDetail
-      }) => useAgentChat(sessionId, session, SupportedModelId('claude-sonnet-4-5'), 'medium'),
+      }) => useAgentChat(sessionId, session, SupportedModelId('claude-sonnet-4-5')),
       {
         initialProps: {
           sessionId: sessionA,
@@ -276,7 +256,6 @@ describe('useAgentChat foreground run', () => {
         SessionId('session-1'),
         createSessionWithId(SessionId('session-1')),
         SupportedModelId('claude-sonnet-4-5'),
-        'medium',
       ),
     )
 

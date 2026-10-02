@@ -51,15 +51,10 @@ function requestedRunAuthorizationOverride(payload: AuthorizedLocalSessionComman
       .exhaustive()
   }
   return matchBy(payload.request.command, 'operation')
+    .with('start', 'message', (command) => command.runAuthorizationOverride)
     .with(
-      'start',
       'follow-up',
       'replace',
-      'queue-update-authorization',
-      (command) => command.runAuthorizationOverride ?? undefined,
-    )
-    .with(
-      'message',
       'steer',
       'interrupt',
       'interrupt-descendants',

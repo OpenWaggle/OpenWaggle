@@ -80,7 +80,7 @@ describe('Follow-up edit holds in SQLite', () => {
     })
     expect(result.afterSave.run).toMatchObject({
       state: 'starting',
-      intent: { text: 'Edited', thinkingLevel: 'high', callerId: USER },
+      intent: { text: 'Edited', callerId: USER },
     })
     expect(result.afterSave.followUpQueue.items).toEqual([])
   })

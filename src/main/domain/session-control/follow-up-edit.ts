@@ -93,16 +93,11 @@ export type ReleaseFollowUpEditResult =
 /** The provenance that decides who may edit a Follow-up. */
 export interface FollowUpEditProvenance {
   readonly callerId: string
-  readonly authorCallerId?: string
 }
 
-/**
- * Only the caller that queued a Follow-up can edit it. Both the author and the delivery caller must
- * be that caller: attachments are owned by the delivery caller, so a Follow-up re-authorized by
- * someone else could not deliver attachments the author binds.
- */
+/** Only the caller that queued a Follow-up can edit it: attachments are owned by that caller. */
 export function canEditFollowUp(intent: FollowUpEditProvenance, callerId: string) {
-  return intent.callerId === callerId && (intent.authorCallerId ?? intent.callerId) === callerId
+  return intent.callerId === callerId
 }
 
 function rejection(

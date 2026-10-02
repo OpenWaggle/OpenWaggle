@@ -74,7 +74,6 @@ export function useSessionFollowUpQueue(sessionId: SessionId | null) {
       sessionId,
       input: {
         text: payload.text,
-        thinkingLevel: payload.thinkingLevel,
         ...(payload.waggle ? { waggle: payload.waggle } : {}),
         attachmentIds: payload.attachments.map((attachment) => attachment.id),
         ...(payload.visualizationContext
@@ -112,47 +111,6 @@ export function useSessionFollowUpQueue(sessionId: SessionId | null) {
     }
     await refresh()
     return response.outcome.receipt
-  }
-
-  async function resubmitWithCurrentAccess(followUpId: string) {
-    if (!sessionId) return
-    try {
-      const response = await mutate({
-        operation: 'queue-update-authorization',
-        sessionId,
-        followUpId,
-        runAuthorizationOverride: null,
-      })
-      if (response.outcome.effect !== 'queue-updated') return
-      const repairedHead = response.outcome.followUpIds[0] === followUpId
-      if (!repairedHead) return
-      let queueRevision = response.outcome.queueRevision
-      if (response.outcome.queueState === 'running') {
-        const current = await readQueue(sessionId)
-        if (
-          current.activeRunId ||
-          current.state !== 'running' ||
-          current.items[0]?.id !== followUpId
-        ) {
-          return
-        }
-        queueRevision = current.revision
-        const paused = await mutate({
-          operation: 'queue-pause',
-          sessionId,
-          expectedQueueRevision: queueRevision,
-        })
-        if (paused.outcome.effect !== 'queue-updated') return
-        queueRevision = paused.outcome.queueRevision
-      }
-      await mutate({
-        operation: 'queue-resume',
-        sessionId,
-        expectedQueueRevision: queueRevision,
-      })
-    } finally {
-      await refresh()
-    }
   }
 
   async function setPaused(paused: boolean) {
@@ -300,7 +258,6 @@ export function useSessionFollowUpQueue(sessionId: SessionId | null) {
     enqueue,
     withdraw,
     promote,
-    resubmitWithCurrentAccess,
     setPaused,
     reorder,
     beginEdit,

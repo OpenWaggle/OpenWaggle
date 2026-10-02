@@ -80,7 +80,7 @@ function emitAgentEvent(event: AgentEventPayload['event']) {
 }
 
 function payload(text: string): AgentSendPayload {
-  return { text, thinkingLevel: 'medium', attachments: [] }
+  return { text, attachments: [] }
 }
 
 function waggleConfig(): WaggleConfig {

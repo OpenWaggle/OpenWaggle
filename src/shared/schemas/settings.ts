@@ -10,12 +10,7 @@ import {
 import { browserProfileIdSchema, browserProfilesSchema } from '@shared/schemas/browser-profile'
 import { AGENT_AUTHORIZATION_MODES } from '@shared/types/agent-authorization'
 import { SESSION_ENVIRONMENT_MODES } from '@shared/types/git'
-import {
-  BROWSER_LINK_TARGETS,
-  DIFF_SYNTAX_THEMES,
-  DIFF_VIEWS,
-  THINKING_LEVELS,
-} from '@shared/types/settings'
+import { BROWSER_LINK_TARGETS, DIFF_SYNTAX_THEMES, DIFF_VIEWS } from '@shared/types/settings'
 import { SHORTCUT_COMMANDS, SHORTCUT_RULE_LIMITS } from '@shared/types/shortcuts'
 import { UPDATE_CHANNELS } from '@shared/types/update-channel'
 import { parseProjectActionWhenExpression } from '@shared/utils/project-action-shortcuts'
@@ -48,7 +43,6 @@ export const settingsUpdateSchema = Schema.Struct({
   favoriteModels: Schema.optional(Schema.mutable(Schema.Array(Schema.String))),
   enabledModels: Schema.optional(Schema.mutable(Schema.Array(Schema.String))),
   projectPath: Schema.optional(Schema.NullOr(Schema.String)),
-  thinkingLevel: Schema.optional(Schema.Literal(...THINKING_LEVELS)),
   updateChannel: Schema.optional(Schema.Literal(...UPDATE_CHANNELS)),
   compactionThresholdPercent: Schema.optional(
     Schema.Number.pipe(Schema.int(), Schema.between(1, PERCENT_BASE)),

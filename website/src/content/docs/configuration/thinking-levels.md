@@ -11,7 +11,7 @@ A thinking level asks a model how much reasoning effort to spend before answerin
 
 1. Select a model beside the message box.
 2. Open the thinking-level control next to the model controls. It shows the current level, such as **Medium**.
-3. Choose one of the available levels before sending your next message.
+3. Choose one of the available levels. You can change it while the Session has no Run in progress; the control is unavailable while a Run starts, runs, or stops.
 
 Start with the current level for ordinary work. Try a higher level when the model misses an important constraint or needs to reason through a difficult problem. Check its work either way.
 
@@ -31,7 +31,9 @@ These are all possible labels, not a list every model provides:
 | Extra High | `xhigh` |
 | Max | `max` |
 
-The default requested level is **Medium**. Choose a different level with the control beside the message box.
+The thinking level belongs to the Session, like its model. Every Run in the Session uses it, including queued messages when their turn comes; a queued message never keeps the level that was selected when you sent it. Changing it never affects your other Sessions.
+
+The level you choose also becomes the default for new Sessions. Pi stores that default in its global settings. Until you choose one, the default is **Medium**. Agents and CLI callers can set a Session's level when they start a Run, but their choice never changes your default.
 
 Pi, the agent engine included with the app, supplies the supported levels. The model and provider determine what each effort level means. It is not a fixed time limit or token budget.
 

@@ -205,14 +205,15 @@ function accessRestrictions(
 
 export function buildLifecycleExecutionProfile(input: {
   readonly command: SessionLifecycleCommand
-  readonly settings: {
+  /** The app's selected model and Pi's default thinking level for new Sessions. */
+  readonly defaults: {
     readonly selectedModel: string
     readonly thinkingLevel: ResolvedSessionExecutionProfile['thinkingLevel']
   }
   readonly parent: ParentExecutionSelection | undefined
   readonly definition: ResolvedAgentDefinitionSnapshot | undefined
 }): ResolvedSessionExecutionProfile {
-  const { command, settings, parent, definition } = input
+  const { command, defaults, parent, definition } = input
   const inherited = parent?.profile
   const specialization = command.operation === 'fork' ? undefined : command.specialization
   return {
@@ -220,13 +221,13 @@ export function buildLifecycleExecutionProfile(input: {
       specialization?.modelId,
       definition?.model,
       inherited?.modelId,
-      settings.selectedModel,
+      defaults.selectedModel,
     ),
     thinkingLevel: preferred(
       specialization?.thinkingLevel,
       definition?.reasoning,
       inherited?.thinkingLevel,
-      settings.thinkingLevel,
+      defaults.thinkingLevel,
     ),
     ...(definition?.name ? { agentDefinitionName: definition.name } : {}),
     ...accessRestrictions(inherited, definition),

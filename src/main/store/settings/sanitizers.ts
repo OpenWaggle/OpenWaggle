@@ -9,7 +9,6 @@ import {
   DEFAULT_SETTINGS,
   DIFF_SYNTAX_THEMES,
   DIFF_VIEWS,
-  THINKING_LEVELS,
 } from '@shared/types/settings'
 import {
   DEFAULT_SHORTCUT_BINDINGS,
@@ -42,16 +41,8 @@ export function isStringOrNull(value: unknown) {
   return typeof value === 'string' || value === null
 }
 
-export function isValidThinkingLevel(value: unknown) {
-  return typeof value === 'string' && includes(THINKING_LEVELS, value)
-}
-
 export function resolveProjectPath(raw: unknown) {
   return isStringOrNull(raw) ? raw : DEFAULT_SETTINGS.projectPath
-}
-
-export function resolveThinkingLevel(raw: unknown) {
-  return isValidThinkingLevel(raw) ? raw : DEFAULT_SETTINGS.thinkingLevel
 }
 
 export function isValidSessionEnvironmentMode(value: unknown) {

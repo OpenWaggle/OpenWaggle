@@ -14,13 +14,7 @@ import type {
 } from '@shared/types/browser-preview-controls'
 import type { BrowserProfile } from '@shared/types/browser-profile'
 import type { SessionEnvironmentMode } from '@shared/types/git'
-import type {
-  BrowserLinkTarget,
-  DiffSyntaxTheme,
-  DiffView,
-  Settings,
-  ThinkingLevel,
-} from '@shared/types/settings'
+import type { BrowserLinkTarget, DiffSyntaxTheme, DiffView, Settings } from '@shared/types/settings'
 import type { ShortcutBinding, ShortcutCommand, ShortcutRules } from '@shared/types/shortcuts'
 import type { SyntaxAppearanceVariant, SyntaxThemeId } from '@shared/types/syntax'
 import type { UpdateChannel } from '@shared/types/update-channel'
@@ -38,7 +32,6 @@ export interface PreferencesState {
   setProjectPath: (path: string | null) => Promise<void>
   pushRecentProject: (path: string) => Promise<void>
   removeRecentProject: (path: string) => Promise<void>
-  setThinkingLevel: (preset: ThinkingLevel) => Promise<void>
   setUpdateChannel: (channel: UpdateChannel) => Promise<void>
   setDefaultAuthorizationMode: (mode: AgentAuthorizationMode) => Promise<void>
   setDefaultSessionEnvironmentMode: (mode: SessionEnvironmentMode) => Promise<void>

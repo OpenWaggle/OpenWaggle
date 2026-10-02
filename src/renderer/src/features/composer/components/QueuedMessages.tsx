@@ -2,7 +2,7 @@ import type { SessionId } from '@shared/types/brand'
 import type { FollowUpQueuePauseReason } from '@shared/types/session-control-queue'
 import { Play, Timer } from 'lucide-react'
 import { useState } from 'react'
-import { type SessionFollowUpQueueItem, useSessionFollowUpQueue } from '@/features/chat/hooks'
+import { useSessionFollowUpQueue } from '@/features/chat/hooks'
 import {
   selectPendingSteerFollowUps,
   useBranchSummaryStore,
@@ -134,9 +134,7 @@ function QueueHeaderRow({
  * than a separate full-width panel.
  */
 export function QueuedMessages({ sessionId, onSteer, isStreaming, onToast }: QueuedMessagesProps) {
-  const { snapshot, error, refresh, resubmitWithCurrentAccess, setPaused, withdraw } =
-    useSessionFollowUpQueue(sessionId)
-  const [resolvingId, setResolvingId] = useState<string | null>(null)
+  const { snapshot, error, refresh, setPaused, withdraw } = useSessionFollowUpQueue(sessionId)
   const [isResuming, setIsResuming] = useState(false)
   const pendingPromotions = useOptimisticSteerStore(selectPendingSteerFollowUps(sessionId))
   // Reserved by a pending steering promotion: hidden from the dock and locked in place.
@@ -151,17 +149,6 @@ export function QueuedMessages({ sessionId, onSteer, isStreaming, onToast }: Que
     draftBusyReason(useComposerActivityStore(selectDraftActivity(sessionKey))) !== null
   const branchSummaryOpen = useBranchSummaryStore((state) => state.prompt !== null)
   const canBeginEdit = queuedEdit.edit === null && !composerBusy && !branchSummaryOpen
-
-  async function resolveAttention(item: SessionFollowUpQueueItem) {
-    setResolvingId(item.id)
-    try {
-      await resubmitWithCurrentAccess(item.id)
-    } catch (error) {
-      onToast(error instanceof Error ? error.message : String(error))
-    } finally {
-      setResolvingId(null)
-    }
-  }
 
   async function dismiss(followUpId: string) {
     try {
@@ -185,7 +172,6 @@ export function QueuedMessages({ sessionId, onSteer, isStreaming, onToast }: Que
 
   const rowActions: QueuedMessageRowActions = {
     onDismiss: (followUpId) => void dismiss(followUpId),
-    onResolve: (item) => void resolveAttention(item),
     onSteer: (followUpId) => void onSteer(followUpId),
     onEdit: (followUpId) => void queuedEdit.begin(followUpId),
     onMove: arrangement.onMove,
@@ -241,7 +227,6 @@ export function QueuedMessages({ sessionId, onSteer, isStreaming, onToast }: Que
                     }}
                     reorderable={queue.length > 1}
                     isStreaming={isStreaming}
-                    isResolving={resolvingId !== null}
                     edit={{
                       canBegin: canBeginEdit,
                       phase: queuedEdit.edit?.followUpId === item.id ? queuedEdit.edit.phase : null,

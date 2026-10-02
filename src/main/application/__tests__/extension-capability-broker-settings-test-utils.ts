@@ -1,6 +1,12 @@
-import { DEFAULT_SETTINGS, type Settings } from '@shared/types/settings'
+import {
+  DEFAULT_SETTINGS,
+  DEFAULT_THINKING_LEVEL,
+  type Settings,
+  type ThinkingLevel,
+} from '@shared/types/settings'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
+import { ThinkingLevelDefaultService } from '../../ports/thinking-level-default-service'
 import { SettingsService } from '../../services/settings-service'
 
 function nextSetting<T>(current: T, partial: T | undefined): T {
@@ -13,7 +19,6 @@ function mergeGeneralSettings(current: Settings, partial: Partial<Settings>) {
     favoriteModels: nextSetting(current.favoriteModels, partial.favoriteModels),
     enabledModels: nextSetting(current.enabledModels, partial.enabledModels),
     projectPath: nextSetting(current.projectPath, partial.projectPath),
-    thinkingLevel: nextSetting(current.thinkingLevel, partial.thinkingLevel),
     updateChannel: nextSetting(current.updateChannel, partial.updateChannel),
     compactionThresholdPercent: nextSetting(
       current.compactionThresholdPercent,
@@ -146,19 +151,34 @@ function cloneSettings(settings: Settings): Settings {
   }
 }
 
+/** Pi's default thinking level, held in memory: what extensions see as `thinkingLevel`. */
+export function makeThinkingLevelDefaultLayer(initial: ThinkingLevel = DEFAULT_THINKING_LEVEL) {
+  let current = initial
+  return Layer.succeed(ThinkingLevelDefaultService, {
+    getDefault: () => Effect.sync(() => current),
+    setDefault: (level) =>
+      Effect.sync(() => {
+        current = level
+      }),
+  })
+}
+
 export function makeBrokerSettingsLayer(currentProjectPath: string | null) {
   let currentSettings: Settings = {
     ...DEFAULT_SETTINGS,
     projectPath: currentProjectPath,
   }
 
-  return Layer.succeed(SettingsService, {
-    get: () => Effect.sync(() => cloneSettings(currentSettings)),
-    update: (partial) =>
-      Effect.sync(() => {
-        currentSettings = mergeSettings(currentSettings, partial)
-      }),
-    initialize: () => Effect.void,
-    flushForTests: () => Effect.void,
-  })
+  return Layer.merge(
+    Layer.succeed(SettingsService, {
+      get: () => Effect.sync(() => cloneSettings(currentSettings)),
+      update: (partial) =>
+        Effect.sync(() => {
+          currentSettings = mergeSettings(currentSettings, partial)
+        }),
+      initialize: () => Effect.void,
+      flushForTests: () => Effect.void,
+    }),
+    makeThinkingLevelDefaultLayer(),
+  )
 }

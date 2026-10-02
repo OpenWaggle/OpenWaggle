@@ -115,9 +115,7 @@ describe('useAgentChat Follow-up delivered at the end of a Run', () => {
 
   it('shows the queued message between the two answers while the Follow-up Run streams', async () => {
     let session = createSessionWithMessages(1, [])
-    const { result, rerender } = renderHook(() =>
-      useAgentChat(SESSION_ID, session, MODEL, 'medium'),
-    )
+    const { result, rerender } = renderHook(() => useAgentChat(SESSION_ID, session, MODEL))
     apiMock.sendMessage.mockResolvedValueOnce({ outcome: 'delivered', runId: 'run-1' })
 
     let send: Promise<void> | null = null
@@ -155,9 +153,7 @@ describe('useAgentChat Follow-up delivered at the end of a Run', () => {
 
   it('settles with the queued message in order once the Follow-up Run completes', async () => {
     let session = createSessionWithMessages(1, [])
-    const { result, rerender } = renderHook(() =>
-      useAgentChat(SESSION_ID, session, MODEL, 'medium'),
-    )
+    const { result, rerender } = renderHook(() => useAgentChat(SESSION_ID, session, MODEL))
     apiMock.sendMessage.mockResolvedValueOnce({ outcome: 'delivered', runId: 'run-1' })
 
     let send: Promise<void> | null = null

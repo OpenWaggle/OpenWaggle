@@ -12,7 +12,7 @@ vi.mock('@/shared/lib/ipc', () => ({ api: {} }))
 const SESSION_ID = SessionId('session-1')
 
 function payload(text: string): AgentSendPayload {
-  return { text, thinkingLevel: 'medium', attachments: [] }
+  return { text, attachments: [] }
 }
 
 /** The baseline a send records so the transcript can hold its own optimistic row (ADR 0036). */

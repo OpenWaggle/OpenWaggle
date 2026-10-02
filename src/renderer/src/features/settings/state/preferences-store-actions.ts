@@ -1,10 +1,5 @@
 import { SupportedModelId } from '@shared/types/brand'
-import {
-  DEFAULT_SETTINGS,
-  type Settings,
-  THINKING_LEVELS,
-  type ThinkingLevel,
-} from '@shared/types/settings'
+import { DEFAULT_SETTINGS, type Settings } from '@shared/types/settings'
 import {
   DEFAULT_SHORTCUT_RULES,
   type ShortcutBinding,
@@ -12,7 +7,6 @@ import {
   type ShortcutCommand,
   type ShortcutRules,
 } from '@shared/types/shortcuts'
-import { includes } from '@shared/utils/validation'
 import { useProviderStore } from '@/features/providers/state'
 import { setRuntimeAppearancePreferences } from '@/shared/lib/appearance-preferences-runtime'
 import { api } from '@/shared/lib/ipc'
@@ -111,17 +105,8 @@ async function loadProjectPreferences(projectPath: string, set: PreferencesSet) 
   const prefs = await api.getProjectPreferences(projectPath)
   if (!prefs) return
 
-  const model = prefs.model ? SupportedModelId(prefs.model) : undefined
-  const thinkingLevel =
-    prefs.thinkingLevel && includes(THINKING_LEVELS, prefs.thinkingLevel)
-      ? prefs.thinkingLevel
-      : undefined
-  if (!model && !thinkingLevel) return
-
-  const patch = {
-    ...(model ? { selectedModel: model } : {}),
-    ...(thinkingLevel ? { thinkingLevel } : {}),
-  }
+  if (!prefs.model) return
+  const patch = { selectedModel: SupportedModelId(prefs.model) }
   await api.updateSettings(patch)
   mergeSettings(set, patch)
 }
@@ -242,16 +227,6 @@ export function createPreferencesActions(
       const recentProjects = settings.recentProjects.filter((project) => project !== path)
       await api.updateSettings({ recentProjects })
       mergeSettings(set, { recentProjects })
-    },
-    setThinkingLevel: async (preset: ThinkingLevel) => {
-      const { settings } = get()
-      await api.updateSettings({ thinkingLevel: preset })
-      mergeSettings(set, { thinkingLevel: preset })
-      persistProjectPreference(settings.projectPath, { thinkingLevel: preset }, set, get).catch(
-        (err: unknown) => {
-          logger.warn('Failed to persist project preferences', { error: String(err) })
-        },
-      )
     },
     setEnabledModels: (models) => setEnabledModels(models, set, get),
     setProjectDisplayName: async (path, name) => {

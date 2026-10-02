@@ -141,7 +141,6 @@ function runQueuedWaggle(
 ) {
   const payload = {
     text: input.request.intent.text,
-    thinkingLevel: input.request.intent.thinkingLevel ?? input.execution.thinkingLevel,
     attachments: context.preparedAttachments,
     waggle,
     ...(input.request.intent.visualizationContext
@@ -174,7 +173,6 @@ function runClassic(input: RegisteredRunInput, context: RegisteredRunContext) {
   return Effect.gen(function* () {
     const payload = {
       text: input.request.intent.text,
-      thinkingLevel: input.request.intent.thinkingLevel ?? input.execution.thinkingLevel,
       attachments: context.preparedAttachments,
       ...(input.request.intent.visualizationContext
         ? { visualizationContext: input.request.intent.visualizationContext }
@@ -251,7 +249,6 @@ function runClassic(input: RegisteredRunInput, context: RegisteredRunContext) {
         runId: input.request.runId,
         messages: result.newMessages,
         model: input.execution.model,
-        thinkingLevel: input.request.intent.thinkingLevel ?? input.execution.thinkingLevel,
         controller: input.controller,
         // The classic Run already delivered its reports and updates; the Waggle inherits only
         // who it acts for and what it may do.

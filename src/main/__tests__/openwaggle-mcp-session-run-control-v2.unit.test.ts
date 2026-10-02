@@ -126,7 +126,36 @@ describe('OpenWaggle MCP Session Run Control v2 adapter', () => {
         message: 'Do not restart.',
         runAuthorizationOverride: 'yolo',
       }),
-    ).toThrow('Steer does not accept Run authorization')
+    ).toThrow('run_authorization_override_requires_idle_session')
+  })
+
+  it('sets Session thinking and Run authorization only on a message or start', () => {
+    expect(
+      buildMcpSessionPayloadV2({
+        operation: 'message',
+        sessionId: 'worker',
+        message: 'Think harder about this one.',
+        thinking: 'high',
+        yolo: true,
+      }),
+    ).toMatchObject({
+      request: {
+        command: {
+          operation: 'message',
+          runAuthorizationOverride: 'yolo',
+          input: { thinkingLevel: 'high' },
+        },
+      },
+    })
+    const activeRunTargets = [
+      { operation: 'follow-up', sessionId: 'worker', message: 'Queue this.' },
+      { operation: 'replace', sessionId: 'worker', expectedRunId: 'run-worker', message: 'Again.' },
+    ] as const
+    for (const target of activeRunTargets) {
+      // The schema offers neither on a Follow-up or a replacement.
+      expect(() => buildMcpSessionPayloadV2({ ...target, thinking: 'high' })).toThrow(/thinking/u)
+      expect(() => buildMcpSessionPayloadV2({ ...target, yolo: true })).toThrow(/yolo/u)
+    }
   })
 
   it.each([

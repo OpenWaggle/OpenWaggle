@@ -1,5 +1,4 @@
 import type { AttachmentKind, AttachmentOrigin, InlineVisualizationContext } from './agent'
-import type { AgentAuthorizationMode } from './agent-authorization'
 import type { WaggleInvocationInput } from './waggle'
 
 export const MAX_FOLLOW_UP_QUEUE_ITEMS = 256
@@ -62,18 +61,10 @@ export interface SessionControlQueueResumeCommand {
   readonly expectedQueueRevision: number
 }
 
-export interface SessionControlQueueUpdateAuthorizationCommand {
-  readonly operation: 'queue-update-authorization'
-  readonly sessionId: string
-  readonly followUpId: string
-  readonly runAuthorizationOverride: AgentAuthorizationMode | null
-}
-
 export type SessionControlQueueMutationCommand =
   | SessionControlQueuePauseCommand
   | SessionControlQueueReorderCommand
   | SessionControlQueueResumeCommand
-  | SessionControlQueueUpdateAuthorizationCommand
   | SessionControlQueueWithdrawCommand
 
 /** The replaceable part of a queued Follow-up: the Follow-up edit input. */
@@ -159,7 +150,6 @@ export type SessionControlQueueOutcome =
         | 'queue-resume'
         | 'queue-withdraw'
         | 'queue-reorder'
-        | 'queue-update-authorization'
         | 'queue-edit-save'
         | 'queue-edit-cancel'
       readonly effect: 'started-run'

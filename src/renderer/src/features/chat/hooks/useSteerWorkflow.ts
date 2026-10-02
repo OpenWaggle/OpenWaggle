@@ -48,7 +48,6 @@ export function useSteerWorkflow(deps: SteerWorkflowDeps): SteerWorkflowReturn {
       preview = deps.previewSteeredUserTurn(
         {
           text: [item.text, attachmentSummary].filter(Boolean).join('\n\n'),
-          thinkingLevel: item.thinkingLevel ?? 'off',
           attachments: [],
         },
         deps.isCompacting ? 'waiting-for-compaction' : 'sending',

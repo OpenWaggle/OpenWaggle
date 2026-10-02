@@ -113,7 +113,7 @@ export const activeRunWithQueuedFollowUp = Effect.gen(function* () {
     request: request({
       operation: 'follow-up',
       sessionId: SESSION,
-      input: { text: 'Original', attachmentIds: [], thinkingLevel: 'high' },
+      input: { text: 'Original', attachmentIds: [] },
     }),
   })
 })

@@ -67,11 +67,15 @@ export function resolveSelectedModelThinkingLevel(
   }
 }
 
+/**
+ * How `requestedThinkingLevel` (the Session thinking level) applies to the selected model: Pi
+ * clamps it to the levels the model supports when a Run starts.
+ */
 export function useSelectedModelThinkingLevel(
-  selectedModelOverride?: SupportedModelId | null,
+  selectedModelOverride: SupportedModelId | null | undefined,
+  requestedThinkingLevel: ThinkingLevel,
 ): SelectedModelThinkingLevel {
   const preferredModel = usePreferencesStore((state) => state.settings.selectedModel)
-  const requestedThinkingLevel = usePreferencesStore((state) => state.settings.thinkingLevel)
   const providerModels = useProviderStore((state) => state.providerModels)
   if (selectedModelOverride === null) {
     return {

@@ -1,7 +1,6 @@
 import type { MessageId, SessionId } from './brand'
 import type { JsonValue } from './json'
 import type { SupportedModelId } from './llm'
-import type { ThinkingLevel } from './settings'
 import type { ToolCallRequest, ToolCallResult } from './tools'
 import type { WaggleInvocation, WaggleInvocationMetadata, WaggleMessageMetadata } from './waggle'
 
@@ -95,7 +94,6 @@ export interface HydratedAgentSendPayload extends Omit<AgentSendPayload, 'attach
 
 export interface AgentSendPayload {
   readonly text: string
-  readonly thinkingLevel: ThinkingLevel
   readonly attachments: readonly PreparedAttachment[]
   readonly waggle?: WaggleInvocation
   readonly visualizationContext?: InlineVisualizationContext

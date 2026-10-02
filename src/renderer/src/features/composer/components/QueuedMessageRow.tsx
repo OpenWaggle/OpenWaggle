@@ -7,12 +7,10 @@ import { QueueIntentBadges } from './QueueIntentBadges'
 import type { QueuedMessageRowActions, QueuedMessageRowEditState } from './queued-message-row-types'
 
 const ATTENTION_REASON_COPY = {
-  authorization_ceiling_changed:
-    "Authorization changed. Update this Follow-up's authorization or dismiss it.",
   profile_revoked:
     'The submitting access profile was revoked. Restore access or dismiss this Follow-up.',
   authority_changed:
-    'Session authority changed. Re-submit with current access or dismiss this Follow-up.',
+    'Session authority changed. Restore access and resume the queue, or dismiss this Follow-up.',
 } as const
 
 const ACCESSIBLE_LABEL_LENGTH = 60
@@ -40,7 +38,6 @@ interface QueuedMessageRowProps {
   readonly neighbours: { readonly previousId: string | null; readonly nextId: string | null }
   readonly reorderable: boolean
   readonly isStreaming: boolean
-  readonly isResolving: boolean
   readonly edit: QueuedMessageRowEditState
   readonly actions: QueuedMessageRowActions
 }
@@ -68,7 +65,6 @@ export function QueuedMessageRow({
   neighbours,
   reorderable,
   isStreaming,
-  isResolving,
   edit,
   actions,
 }: QueuedMessageRowProps) {
@@ -132,7 +128,6 @@ export function QueuedMessageRow({
         item={item}
         label={shortLabel}
         isStreaming={isStreaming}
-        isResolving={isResolving}
         edit={edit}
         actions={actions}
       />

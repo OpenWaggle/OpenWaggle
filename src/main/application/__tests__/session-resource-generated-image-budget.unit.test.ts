@@ -33,7 +33,7 @@ describe('generated-image capture budget', () => {
       captureSuccessfulRunResources({
         sessionId: SessionId('session-1'),
         runId: 'run-many-generated-images',
-        payload: { text: '', thinkingLevel: 'medium', attachments: [] },
+        payload: { text: '', attachments: [] },
         messages,
       }).pipe(Effect.provide(sessionResourceTestLayer(upserts, { storedByteFiles }))),
     )
@@ -110,7 +110,7 @@ describe('generated-image capture budget', () => {
       captureSuccessfulRunResources({
         sessionId: SessionId('session-1'),
         runId: 'run-invalid-before-valid',
-        payload: { text: '', thinkingLevel: 'medium', attachments: [] },
+        payload: { text: '', attachments: [] },
         messages: [...invalidMessages, validMessage],
       }).pipe(Effect.provide(sessionResourceTestLayer(upserts, { storedByteFiles }))),
     )
@@ -154,7 +154,7 @@ describe('generated-image capture budget', () => {
       captureSuccessfulRunResources({
         sessionId: SessionId('session-1'),
         runId: 'run-invalid-attempt-limit',
-        payload: { text: '', thinkingLevel: 'medium', attachments: [] },
+        payload: { text: '', attachments: [] },
         messages: [...invalidMessages, validMessage],
       }).pipe(Effect.provide(sessionResourceTestLayer(upserts, { storedByteFiles }))),
     )

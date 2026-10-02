@@ -22,6 +22,7 @@ export interface SessionRow {
   readonly worktree_start_from_origin: number | null
   readonly authorization_mode_override: string | null
   readonly execution_model_id: string | null
+  readonly execution_thinking_level: string | null
 }
 
 export interface SessionSummaryRow {

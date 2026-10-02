@@ -59,7 +59,7 @@ it('preserves later Markdown image and link identities after the live tool captu
     captureSuccessfulRunResources({
       sessionId,
       runId: 'bounded-tools-run',
-      payload: { text: '', thinkingLevel: 'medium', attachments: [] },
+      payload: { text: '', attachments: [] },
       messages: [message],
     }).pipe(Effect.provide(sessionResourceTestLayer(liveUpserts))),
   )

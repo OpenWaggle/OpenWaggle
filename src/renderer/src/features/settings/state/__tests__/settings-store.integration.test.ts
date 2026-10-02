@@ -58,13 +58,6 @@ describe('preferences-store integration', () => {
     expect(usePreferencesStore.getState().settings.projectPath).toBe('/tmp/repo')
   })
 
-  it('persists thinking level updates', async () => {
-    await usePreferencesStore.getState().setThinkingLevel('high')
-
-    expect(apiMock.updateSettings).toHaveBeenCalledWith({ thinkingLevel: 'high' })
-    expect(usePreferencesStore.getState().settings.thinkingLevel).toBe('high')
-  })
-
   it.each([
     {
       name: 'Hive enabled',

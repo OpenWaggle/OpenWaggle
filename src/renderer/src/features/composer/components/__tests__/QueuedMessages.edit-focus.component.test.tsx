@@ -1,7 +1,8 @@
 import { SessionId } from '@shared/types/brand'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SessionFollowUpQueueSnapshot } from '@/features/chat/hooks'
+import { renderWithQueryClient } from '@/test-utils/query-test-utils'
 import {
   openedEdit,
   queueItem,
@@ -31,6 +32,7 @@ vi.mock('@/shared/lib/ipc', () => ({
     getSettings: vi.fn().mockResolvedValue({}),
     updateSettings: vi.fn().mockResolvedValue({ ok: true }),
     getProviderModels: vi.fn().mockResolvedValue([]),
+    getDefaultThinkingLevel: vi.fn().mockResolvedValue('medium'),
     listWagglePresets: vi.fn().mockResolvedValue([]),
     listExtensionContributions: vi.fn().mockResolvedValue({ projectPaths: [], entries: [] }),
   },
@@ -53,7 +55,7 @@ const SESSION = SessionId('session-a')
 const QUEUED = queueItem({ id: 'mine', text: 'queued text' })
 
 function renderStack() {
-  render(
+  renderWithQueryClient(
     <>
       <QueuedMessages sessionId={SESSION} onSteer={vi.fn()} isStreaming onToast={vi.fn()} />
       <Composer

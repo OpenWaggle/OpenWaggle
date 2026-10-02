@@ -3,14 +3,12 @@ import { describe, expect, it } from 'vitest'
 import { applyRunStart } from '../run-start'
 
 describe('Session Control explicit Run start', () => {
-  it('starts one idle Session Run with its requested authorization override', () => {
+  it('starts one idle Session Run with the thinking level and override it was started with', () => {
     const sessionId = SessionId('session-target')
     const runId = RunId('run-next')
     const intent = {
       text: 'Implement the target schema.',
       attachmentIds: [],
-      thinkingLevel: 'high',
-      runAuthorizationOverride: 'yolo',
       callerId: 'local-user',
       acceptedAt: 1234,
       idempotencyKey: 'start-one',
@@ -25,6 +23,7 @@ describe('Session Control explicit Run start', () => {
       },
       runId,
       intent,
+      runSettings: { thinkingLevel: 'high', runAuthorizationOverride: 'yolo' },
     })
 
     expect(result).toEqual({
@@ -32,7 +31,11 @@ describe('Session Control explicit Run start', () => {
       state: {
         sessionId,
         revision: 5,
-        run: { state: 'starting', runId, intent },
+        run: {
+          state: 'starting',
+          runId,
+          intent: { ...intent, thinkingLevel: 'high', runAuthorizationOverride: 'yolo' },
+        },
         followUpQueue: { state: 'paused', revision: 2, items: [] },
       },
       outcome: {

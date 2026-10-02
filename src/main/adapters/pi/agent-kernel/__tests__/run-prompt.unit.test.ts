@@ -41,7 +41,6 @@ it('persists clean display parts when Pi starts the image prompt', async () => {
 
   await promptPiSession(session, model, {
     text: 'Fix this layout',
-    thinkingLevel: 'medium',
     attachments: [attachment],
   })
 
@@ -82,7 +81,6 @@ it('does not leave a display projection when Pi handles input without a user mes
 
   await promptPiSession(session, fromPartial<PiModel>({ input: ['text'] }), {
     text: '/handled',
-    thinkingLevel: 'medium',
     attachments: [],
   })
 

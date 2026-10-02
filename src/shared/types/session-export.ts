@@ -48,10 +48,7 @@ export interface SessionExportManifest {
       readonly position: number
       readonly createdAt: number
       readonly deliveryState: 'pending' | 'needs_attention'
-      readonly attentionReason?:
-        | 'authorization_ceiling_changed'
-        | 'profile_revoked'
-        | 'authority_changed'
+      readonly attentionReason?: 'profile_revoked' | 'authority_changed'
       readonly intent?: unknown
     }[]
   }

@@ -1,6 +1,5 @@
 import type { AgentSendPayload } from '@shared/types/agent'
 import type { SessionId } from '@shared/types/brand'
-import { usePreferencesStore } from '@/features/settings/state'
 import { api } from '@/shared/lib/ipc'
 import { withInlineVisualizationContext } from '../state/inline-visualization-state'
 
@@ -138,10 +137,8 @@ export async function sendBrokeredVisualizationFollowUp(input: {
       : 'Send follow-up message?'
   const confirmed = await api.showConfirm(title, prompt)
   if (!confirmed) return false
-  const thinkingLevel = usePreferencesStore.getState().settings.thinkingLevel
   const payload = withInlineVisualizationContext(input.sessionId, {
     text: prompt,
-    thinkingLevel,
     attachments: [],
   })
   const dispatcher = followUpDispatchers.get(input.sessionId)

@@ -1,7 +1,7 @@
 import * as SqlClient from '@effect/sql/SqlClient'
 import { SqliteClient } from '@effect/sql-sqlite-node'
 import { SupportedModelId } from '@shared/types/brand'
-import { DEFAULT_SETTINGS, type Settings } from '@shared/types/settings'
+import { DEFAULT_SETTINGS, type Settings, type ThinkingLevel } from '@shared/types/settings'
 import { fromPartial } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
@@ -11,6 +11,7 @@ import {
   type CreateAgentKernelSessionInput,
   type ForkAgentKernelSessionInput,
 } from '../../ports/agent-kernel-service'
+import { ThinkingLevelDefaultService } from '../../ports/thinking-level-default-service'
 import { SQLITE_PREPARE_CACHE_SIZE } from '../../services/database-constants'
 import { SettingsService } from '../../services/settings-service'
 import { SessionLifecyclePreparationServiceLive } from '../session-lifecycle-preparation-service'
@@ -20,6 +21,8 @@ export function makeLifecyclePreparationLayer(
   createdProjects: string[],
   projectPath = '/project',
   settingsOverrides: Partial<Settings> = {},
+  /** Pi's default thinking level, where a new Session starts. */
+  defaultThinkingLevel: ThinkingLevel = 'medium',
 ) {
   const sqlite = SqliteClient.layer({ filename, prepareCacheSize: SQLITE_PREPARE_CACHE_SIZE })
   const schema = Layer.effectDiscard(
@@ -136,6 +139,10 @@ export function makeLifecyclePreparationLayer(
       update: () => Effect.void,
       initialize: () => Effect.void,
       flushForTests: () => Effect.void,
+    }),
+    Layer.succeed(ThinkingLevelDefaultService, {
+      getDefault: () => Effect.succeed(defaultThinkingLevel),
+      setDefault: () => Effect.void,
     }),
   )
   return Layer.mergeAll(

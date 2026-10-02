@@ -3,13 +3,12 @@ import { describe, expect, it } from 'vitest'
 import { applyAdaptiveMessage } from '../message-aggregate'
 
 describe('Session Control adaptive Message aggregate', () => {
-  it('accepts an idle Session message as one durable starting Run', () => {
+  it('accepts an idle Session message as one durable starting Run with its settings', () => {
     const sessionId = SessionId('session-target')
     const runId = RunId('run-next')
     const intent = {
       text: 'Implement the target schema.',
       attachmentIds: [],
-      thinkingLevel: 'high',
       callerId: 'local-user',
       acceptedAt: 1234,
       idempotencyKey: 'message-one',
@@ -24,6 +23,7 @@ describe('Session Control adaptive Message aggregate', () => {
       },
       identities: { runId, followUpId: FollowUpId('follow-up-unused') },
       intent,
+      runSettings: { thinkingLevel: 'high', runAuthorizationOverride: 'yolo' },
     })
 
     expect(result).toEqual({
@@ -31,7 +31,11 @@ describe('Session Control adaptive Message aggregate', () => {
       state: {
         sessionId,
         revision: 8,
-        run: { state: 'starting', runId, intent },
+        run: {
+          state: 'starting',
+          runId,
+          intent: { ...intent, thinkingLevel: 'high', runAuthorizationOverride: 'yolo' },
+        },
         followUpQueue: { state: 'running', revision: 3, items: [] },
       },
       outcome: {
@@ -88,5 +92,32 @@ describe('Session Control adaptive Message aggregate', () => {
         stateRevision: 10,
       },
     })
+  })
+
+  it.each([
+    [{ thinkingLevel: 'high' }, 'thinking_level_requires_idle_session'],
+    [{ runAuthorizationOverride: 'yolo' }, 'run_authorization_override_requires_idle_session'],
+  ] as const)('refuses Session settings on a message that would be queued', (runSettings, code) => {
+    const state = {
+      sessionId: SessionId('session-target'),
+      revision: 9,
+      run: { state: 'active', runId: RunId('run-active') },
+      followUpQueue: { state: 'running', revision: 4, items: [] },
+    } as const
+
+    const result = applyAdaptiveMessage({
+      state,
+      identities: { runId: RunId('run-unused'), followUpId: FollowUpId('follow-up-next') },
+      intent: {
+        text: 'Later, think harder.',
+        attachmentIds: [],
+        callerId: 'local-user',
+        acceptedAt: 2345,
+        idempotencyKey: 'message-three',
+      },
+      runSettings,
+    })
+
+    expect(result).toEqual({ accepted: false, code, state })
   })
 })

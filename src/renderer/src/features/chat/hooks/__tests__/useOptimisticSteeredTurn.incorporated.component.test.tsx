@@ -12,7 +12,6 @@ const SESSION_ID = SessionId('session-1')
 const ATTACHED_NOTES = '[Attachment] notes.txt\nnotes body'
 const FIRST_PAYLOAD: AgentSendPayload = {
   text: 'continue',
-  thinkingLevel: 'medium',
   attachments: [],
 }
 

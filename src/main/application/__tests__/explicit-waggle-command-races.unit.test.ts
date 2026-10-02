@@ -96,7 +96,6 @@ function runWaggleCommand(withAttachment = false, hostRunCeiling?: number) {
       sessionId: SESSION_ID,
       payload: {
         text: 'Run Waggle',
-        thinkingLevel: 'medium',
         attachments: withAttachment
           ? [
               {

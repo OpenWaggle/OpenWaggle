@@ -1,6 +1,6 @@
 import type { RunId, SessionId } from '@shared/types/brand'
 import * as Effect from 'effect/Effect'
-import type { SessionControlIntentSnapshot } from '../domain/session-control/message-aggregate'
+import type { SessionControlRunIntent } from '../domain/session-control/message-aggregate'
 import { SessionControlIdentityService } from '../ports/session-control-identity-service'
 import {
   SessionControlRunLifecycleRepository,
@@ -14,7 +14,7 @@ import { settleWithUndeliveredSteers } from './undelivered-steering-settlement'
 export function startExternalSessionRun(input: {
   readonly sessionId: SessionId
   readonly runId: RunId
-  readonly intent: SessionControlIntentSnapshot
+  readonly intent: SessionControlRunIntent
   readonly hostRunCeiling?: number
 }) {
   return Effect.gen(function* () {
@@ -39,7 +39,7 @@ export function prepareExternalSessionRunReplacement(input: {
   readonly sessionId: SessionId
   readonly previousRunId?: RunId
   readonly runId: RunId
-  readonly intent: SessionControlIntentSnapshot
+  readonly intent: SessionControlRunIntent
   readonly hostRunCeiling?: number
 }) {
   return Effect.gen(function* () {

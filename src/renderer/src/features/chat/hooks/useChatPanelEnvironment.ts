@@ -27,7 +27,6 @@ export function useChatPanelEnvironment() {
   const setActiveView = useUIStore((s) => s.setActiveView)
   const showToast = useUIStore((s) => s.showToast)
   const preferredModel = usePreferencesStore((s) => s.settings.selectedModel)
-  const thinkingLevel = usePreferencesStore((s) => s.settings.thinkingLevel)
   const recentProjects = usePreferencesStore((s) => s.settings.recentProjects)
   const project = useProject()
   const chat = useChat()
@@ -123,6 +122,5 @@ export function useChatPanelEnvironment() {
     refreshSessionWorkspace,
     setDraftBranch,
     showToast,
-    thinkingLevel,
   }
 }

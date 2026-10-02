@@ -1,9 +1,10 @@
 import { SessionId, SupportedModelId } from '@shared/types/brand'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, screen, waitFor } from '@testing-library/react'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SessionFollowUpQueueSnapshot } from '@/features/chat/hooks'
 import { usePreferencesStore } from '@/features/settings/state'
+import { renderWithQueryClient } from '@/test-utils/query-test-utils'
 import {
   heldItem,
   openedEdit,
@@ -37,6 +38,7 @@ vi.mock('@/shared/lib/ipc', () => ({
     getSettings: vi.fn().mockResolvedValue({}),
     updateSettings: vi.fn().mockResolvedValue({ ok: true }),
     getProviderModels: vi.fn().mockResolvedValue([]),
+    getDefaultThinkingLevel: vi.fn().mockResolvedValue('medium'),
     listWagglePresets: vi.fn().mockResolvedValue([]),
     listExtensionContributions: vi.fn().mockResolvedValue({ projectPaths: [], entries: [] }),
   },
@@ -63,7 +65,7 @@ const QUEUED = queueItem({ id: 'mine', text: 'queued text' })
 function renderComposer() {
   const onSend = vi.fn()
   const onEnqueue = vi.fn()
-  render(
+  renderWithQueryClient(
     <Composer
       onSend={onSend}
       onEnqueue={onEnqueue}
@@ -213,7 +215,7 @@ describe('Composer queued-message edit mode', () => {
     useComposerStore.getState().setSelectedWagglePreset(REVIEW_PRESET)
     const onSend = vi.fn()
     const onEnqueue = vi.fn(() => true)
-    render(
+    renderWithQueryClient(
       <Composer
         onSend={onSend}
         onEnqueue={onEnqueue}

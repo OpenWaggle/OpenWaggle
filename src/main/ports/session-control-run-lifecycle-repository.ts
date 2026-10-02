@@ -1,7 +1,7 @@
 import type { FollowUpId, RunId, SessionId } from '@shared/types/brand'
 import type { SessionRunTerminalStatus } from '@shared/types/session-host-event'
 import { Context, type Effect } from 'effect'
-import type { SessionControlIntentSnapshot } from '../domain/session-control/message-aggregate'
+import type { SessionControlRunIntent } from '../domain/session-control/message-aggregate'
 import type { UndeliveredSteer } from '../domain/session-control/undelivered-steering'
 import type { SessionControlRepositoryError } from '../errors'
 
@@ -11,7 +11,7 @@ export type SessionControlRunActivationResult =
   | {
       readonly accepted: true
       readonly stateRevision: number
-      readonly intent: SessionControlIntentSnapshot
+      readonly intent: SessionControlRunIntent
     }
   | {
       readonly accepted: false
@@ -44,7 +44,7 @@ export type SessionControlRunSettlementResult =
       readonly scheduled?: {
         readonly followUpId: FollowUpId
         readonly runId: RunId
-        readonly intent: SessionControlIntentSnapshot
+        readonly intent: SessionControlRunIntent
       }
     }
   | {
@@ -66,14 +66,14 @@ export interface SessionControlRunLifecycleRepositoryShape {
   readonly startExternal?: (input: {
     readonly sessionId: SessionId
     readonly runId: RunId
-    readonly intent: SessionControlIntentSnapshot
+    readonly intent: SessionControlRunIntent
     readonly hostRunCeiling?: number
   }) => Effect.Effect<SessionControlRunActivationResult, SessionControlRepositoryError>
   readonly replaceWithExternal?: (input: {
     readonly sessionId: SessionId
     readonly previousRunId?: RunId
     readonly runId: RunId
-    readonly intent: SessionControlIntentSnapshot
+    readonly intent: SessionControlRunIntent
     readonly hostRunCeiling?: number
   }) => Effect.Effect<SessionControlRunActivationResult, SessionControlRepositoryError>
   readonly activate: (input: {

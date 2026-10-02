@@ -8,20 +8,30 @@ import type {
   ExtensionSettingsView,
 } from '@shared/types/extension-broker'
 import type { SessionDetail, SessionTree } from '@shared/types/session'
-import type { Settings } from '@shared/types/settings'
+import type { Settings, ThinkingLevel } from '@shared/types/settings'
 
-export function toExtensionModelPrefs(settings: Settings): ExtensionModelPrefs {
+/**
+ * `thinkingLevel` is Pi's global default thinking level, where new Sessions start; it is not a
+ * Session's thinking level, which is Session state.
+ */
+export function toExtensionModelPrefs(
+  settings: Settings,
+  defaultThinkingLevel: ThinkingLevel,
+): ExtensionModelPrefs {
   return {
     selectedModel: settings.selectedModel,
     favoriteModels: [...settings.favoriteModels],
     enabledModels: [...settings.enabledModels],
-    thinkingLevel: settings.thinkingLevel,
+    thinkingLevel: defaultThinkingLevel,
   }
 }
 
-export function toExtensionSettingsView(settings: Settings): ExtensionSettingsView {
+export function toExtensionSettingsView(
+  settings: Settings,
+  defaultThinkingLevel: ThinkingLevel,
+): ExtensionSettingsView {
   return {
-    modelPreferences: toExtensionModelPrefs(settings),
+    modelPreferences: toExtensionModelPrefs(settings, defaultThinkingLevel),
     projectDisplayNames: { ...settings.projectDisplayNames },
   }
 }
@@ -85,7 +95,6 @@ export function toSettingsUpdatePatch(payload: ExtensionSettingsUpdatePayload): 
     ...(payload.enabledModels !== undefined
       ? { enabledModels: payload.enabledModels.map(SupportedModelId) }
       : {}),
-    ...(payload.thinkingLevel !== undefined ? { thinkingLevel: payload.thinkingLevel } : {}),
     ...(payload.projectDisplayNames !== undefined
       ? { projectDisplayNames: payload.projectDisplayNames }
       : {}),
@@ -105,7 +114,6 @@ export function toModelPreferencesUpdatePatch(
     ...(payload.enabledModels !== undefined
       ? { enabledModels: payload.enabledModels.map(SupportedModelId) }
       : {}),
-    ...(payload.thinkingLevel !== undefined ? { thinkingLevel: payload.thinkingLevel } : {}),
   }
 }
 

@@ -83,8 +83,14 @@ function exposePiRunControl(
   return { model, session }
 }
 
-function resolvePiRuntimeThinkingLevel(model: PiModel, requestedThinkingLevel: ThinkingLevel) {
-  return clampThinkingLevel(requestedThinkingLevel, getPiModelAvailableThinkingLevels(model))
+/** A Run starts with the Session thinking level, clamped to the model the Run uses. */
+function resolvePiRuntimeThinkingLevel(
+  model: PiModel,
+  sessionThinkingLevel: ThinkingLevel | undefined,
+) {
+  return sessionThinkingLevel
+    ? clampThinkingLevel(sessionThinkingLevel, getPiModelAvailableThinkingLevels(model))
+    : undefined
 }
 
 export async function createPiRunSessionRuntime(
@@ -130,7 +136,7 @@ export async function createPiRunSessionRuntime(
   try {
     const thinkingLevel = resolvePiRuntimeThinkingLevel(
       selectedRuntime.runtime.model,
-      input.payload.thinkingLevel,
+      input.session.executionThinkingLevel,
     )
     const { session } = await createPiSessionForRun({
       projectRoot: requireSessionProjectPath(input.session),
@@ -138,7 +144,7 @@ export async function createPiRunSessionRuntime(
       services: selectedRuntime.runtime.services,
       model: selectedRuntime.runtime.model,
       sessionManager,
-      thinkingLevel,
+      ...(thinkingLevel ? { thinkingLevel } : {}),
       openWaggleUi,
       ...(input.preparedEnvironment ? { preparedEnvironment: input.preparedEnvironment } : {}),
       ...(input.scratchDirectory ? { scratchDirectory: input.scratchDirectory } : {}),
@@ -154,7 +160,7 @@ export async function createPiRunSessionRuntime(
       await createPiProjectModelRuntimeWithoutOpenWaggleExtensions(runtimeOptions)
     const thinkingLevel = resolvePiRuntimeThinkingLevel(
       fallbackRuntime.model,
-      input.payload.thinkingLevel,
+      input.session.executionThinkingLevel,
     )
     const { session } = await createPiSessionForRun({
       projectRoot: requireSessionProjectPath(input.session),
@@ -162,7 +168,7 @@ export async function createPiRunSessionRuntime(
       services: fallbackRuntime.services,
       model: fallbackRuntime.model,
       sessionManager,
-      thinkingLevel,
+      ...(thinkingLevel ? { thinkingLevel } : {}),
       openWaggleUi,
       ...(input.preparedEnvironment ? { preparedEnvironment: input.preparedEnvironment } : {}),
       ...(input.scratchDirectory ? { scratchDirectory: input.scratchDirectory } : {}),

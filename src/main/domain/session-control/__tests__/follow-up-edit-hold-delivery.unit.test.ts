@@ -9,7 +9,7 @@ import { planFollowUpPromotion } from '../follow-up-promotion'
 import { applyAdaptiveMessage } from '../message-aggregate'
 import { applyQueueMutation } from '../queue-aggregate'
 import { settleAndScheduleNextFollowUp } from '../run-lifecycle'
-import { followUp, HOLD, IDLE, NEXT_RUN, state, USER } from './follow-up-edit.test-fixtures'
+import { followUp, HOLD, IDLE, NEXT_RUN, state } from './follow-up-edit.test-fixtures'
 
 describe('Follow-up edit hold delivery', () => {
   it('stops settlement at a held head but delivers items ahead of a held one', () => {
@@ -84,24 +84,6 @@ describe('Follow-up edit hold delivery', () => {
     })
     if (!result.accepted) throw new Error('reorder rejected')
     expect(result.state.followUpQueue.items[1]).toMatchObject({ id: 'first', editHold: HOLD })
-  })
-
-  it('ends the hold when another caller re-authorizes the Follow-up, not when its editor does', () => {
-    const reauthorize = (callerId: string) =>
-      applyQueueMutation({
-        state: state([followUp('first', {}, { editHold: HOLD })]),
-        mutation: {
-          type: 'update-authorization',
-          followUpId: FollowUpId('first'),
-          callerId,
-          runAuthorizationOverride: null,
-        },
-        nextRunId: NEXT_RUN,
-      })
-    const byOther = reauthorize('local-user:machine')
-    const byEditor = reauthorize(USER)
-    expect(byOther.accepted && byOther.state.followUpQueue.items[0]?.editHold).toBeFalsy()
-    expect(byEditor.accepted && byEditor.state.followUpQueue.items[0]?.editHold).toEqual(HOLD)
   })
 
   it('waits on an edit only when a running queue’s next Follow-up is held', () => {

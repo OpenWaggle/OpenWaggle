@@ -18,8 +18,11 @@ import {
 import { applyRunStart } from '../domain/session-control/run-start'
 import { SessionControlIdentityService } from '../ports/session-control-identity-service'
 import { SessionControlRepository } from '../ports/session-control-repository'
-import { toSessionControlIntentMessage } from './session-control-message-input'
-import { clampRunAuthorizationOverride } from './session-control-run-authorization'
+import {
+  requestedRunStartSettings,
+  toSessionControlIntentMessage,
+} from './session-control-message-input'
+import { withCallerCeiling } from './session-control-run-authorization'
 
 export interface SubmitSessionMessageInput {
   readonly callerId: string
@@ -53,7 +56,6 @@ export interface MutateSessionQueueInput {
 
 function toQueueMutation(
   command: SessionControlQueueMutationRequest['command'],
-  callerId: string,
 ): SessionControlQueueMutation {
   return matchBy(command, 'operation')
     .with('queue-withdraw', (withdraw) => ({
@@ -72,12 +74,6 @@ function toQueueMutation(
     .with('queue-resume', (resume) => ({
       type: 'resume',
       expectedRevision: resume.expectedQueueRevision,
-    }))
-    .with('queue-update-authorization', (update) => ({
-      type: 'update-authorization',
-      followUpId: FollowUpId(update.followUpId),
-      callerId,
-      runAuthorizationOverride: update.runAuthorizationOverride,
     }))
     .exhaustive()
 }
@@ -99,16 +95,20 @@ export function submitSessionMessage(input: SubmitSessionMessageInput) {
           identities: { runId, followUpId },
           intent: {
             ...toSessionControlIntentMessage(input.request.command.input),
-            ...(input.callerAuthorizationCeiling === 'ask-for-approval'
-              ? { runAuthorizationOverride: 'ask-for-approval' as const }
-              : {}),
             callerId: input.callerId,
             acceptedAt,
             idempotencyKey: input.request.idempotencyKey,
           },
+          runSettings: requestedRunStartSettings(
+            input.request.command.input,
+            input.request.command.runAuthorizationOverride,
+          ),
         })
         return result.accepted
-          ? result
+          ? {
+              ...result,
+              state: withCallerCeiling(state, result.state, input.callerAuthorizationCeiling),
+            }
           : {
               accepted: false,
               outcome: {
@@ -145,19 +145,12 @@ export function startSessionRun(input: StartSessionRunInput) {
         const result = applyRunStart({
           state,
           runId,
+          runSettings: requestedRunStartSettings(
+            input.request.command.input,
+            input.request.command.runAuthorizationOverride,
+          ),
           intent: {
             ...toSessionControlIntentMessage(input.request.command.input),
-            ...(clampRunAuthorizationOverride(
-              input.request.command.runAuthorizationOverride,
-              input.callerAuthorizationCeiling,
-            )
-              ? {
-                  runAuthorizationOverride: clampRunAuthorizationOverride(
-                    input.request.command.runAuthorizationOverride,
-                    input.callerAuthorizationCeiling,
-                  ),
-                }
-              : {}),
             ...(input.request.command.interactionTimeoutMs !== undefined
               ? { interactionTimeoutMs: input.request.command.interactionTimeoutMs }
               : {}),
@@ -167,7 +160,10 @@ export function startSessionRun(input: StartSessionRunInput) {
           },
         })
         return result.accepted
-          ? result
+          ? {
+              ...result,
+              state: withCallerCeiling(state, result.state, input.callerAuthorizationCeiling),
+            }
           : {
               accepted: false,
               outcome: {
@@ -208,24 +204,16 @@ export function queueSessionFollowUp(input: QueueSessionFollowUpInput) {
           followUpId,
           intent: {
             ...toSessionControlIntentMessage(input.request.command.input),
-            ...(clampRunAuthorizationOverride(
-              input.request.command.runAuthorizationOverride,
-              input.callerAuthorizationCeiling,
-            )
-              ? {
-                  runAuthorizationOverride: clampRunAuthorizationOverride(
-                    input.request.command.runAuthorizationOverride,
-                    input.callerAuthorizationCeiling,
-                  ),
-                }
-              : {}),
             callerId: input.callerId,
             acceptedAt,
             idempotencyKey: input.request.idempotencyKey,
           },
         })
         return result.accepted
-          ? result
+          ? {
+              ...result,
+              state: withCallerCeiling(state, result.state, input.callerAuthorizationCeiling),
+            }
           : {
               accepted: false,
               outcome: {
@@ -260,34 +248,16 @@ export function mutateSessionQueue(input: MutateSessionQueueInput) {
       // A withdrawn, reordered, or re-authorized held item can leave an idle queue runnable.
       ...(input.queueDeliveryAdmitted === false ? {} : { nextRunId }),
       decide: (state) => {
-        const constrainedState =
-          input.request.command.operation === 'queue-resume' &&
-          input.callerAuthorizationCeiling === 'ask-for-approval' &&
-          state.followUpQueue.items[0]
-            ? {
-                ...state,
-                followUpQueue: {
-                  ...state.followUpQueue,
-                  items: [
-                    {
-                      ...state.followUpQueue.items[0],
-                      intent: {
-                        ...state.followUpQueue.items[0].intent,
-                        runAuthorizationOverride: 'ask-for-approval' as const,
-                      },
-                    },
-                    ...state.followUpQueue.items.slice(1),
-                  ],
-                },
-              }
-            : state
         const result = applyQueueMutation({
-          state: constrainedState,
-          mutation: toQueueMutation(input.request.command, input.callerId),
+          state,
+          mutation: toQueueMutation(input.request.command),
           nextRunId,
         })
         return result.accepted
-          ? result
+          ? {
+              ...result,
+              state: withCallerCeiling(state, result.state, input.callerAuthorizationCeiling),
+            }
           : {
               accepted: false,
               outcome: {

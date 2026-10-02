@@ -33,6 +33,12 @@ export const THINKING_LEVELS = ['off', 'minimal', 'low', 'medium', 'high', 'xhig
 export type ThinkingLevel = (typeof THINKING_LEVELS)[number]
 
 /**
+ * Pi's built-in default thinking level, used when Pi's settings name none. The thinking level is
+ * Session state kept by Pi; a new Session starts from Pi's global default.
+ */
+export const DEFAULT_THINKING_LEVEL: ThinkingLevel = 'medium'
+
+/**
  * Diff view layout. "unified" is one column; "split" is side-by-side.
  * Named for the layout: "stacked" was rejected because it reads as a third mode
  * alongside unified and split rather than as a synonym for one of them.
@@ -70,7 +76,6 @@ export interface Settings {
   /** User-curated canonical Pi model refs ("provider/modelId") shown in the composer picker. */
   readonly enabledModels: readonly SupportedModelId[]
   readonly projectPath: string | null
-  readonly thinkingLevel: ThinkingLevel
   /** Release channel followed by both desktop and CLI update checks. */
   readonly updateChannel: UpdateChannel
   readonly recentProjects: readonly string[]
@@ -141,7 +146,6 @@ export const DEFAULT_SETTINGS: Settings = {
   favoriteModels: [],
   enabledModels: [],
   projectPath: null,
-  thinkingLevel: 'medium',
   updateChannel: DEFAULT_UPDATE_CHANNEL,
   recentProjects: [],
   skillTogglesByProject: {},

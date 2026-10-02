@@ -262,7 +262,6 @@ export async function steerPiLiveRun(input: PiLiveRunSteeringInput): Promise<Age
     try {
       delivery = await liveRun.control.steer({
         text: input.text,
-        thinkingLevel: 'off',
         attachments: input.attachments,
         ...(input.visualizationContext ? { visualizationContext: input.visualizationContext } : {}),
       })

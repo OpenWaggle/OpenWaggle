@@ -3,6 +3,7 @@ import { isAgentAuthorizationMode } from '@shared/types/agent-authorization'
 import { SessionId, SessionNodeId, SupportedModelId } from '@shared/types/brand'
 import type { SessionEnvironmentMode } from '@shared/types/git'
 import type { SessionDetail, SessionResumePosition, SessionSummary } from '@shared/types/session'
+import { THINKING_LEVELS } from '@shared/types/settings'
 import * as Effect from 'effect/Effect'
 import { sessionAgentCallerBoundary } from '../../session-host/session-agent-run-ceiling'
 import { sessionIdsForQuery } from '../sessions/hydration'
@@ -50,6 +51,11 @@ function resumePosition(
   return { nodeId: SessionNodeId(sessionRow.last_active_node_id), piEntryCount }
 }
 
+function sessionThinkingLevel(raw: string | null) {
+  const executionThinkingLevel = THINKING_LEVELS.find((level) => level === raw)
+  return executionThinkingLevel ? { executionThinkingLevel } : {}
+}
+
 function hydrateSessionDetail(sessionRow: SessionRow, nodeRows: readonly SessionNodeRow[]) {
   try {
     const environmentMode: SessionEnvironmentMode =
@@ -76,6 +82,7 @@ function hydrateSessionDetail(sessionRow: SessionRow, nodeRows: readonly Session
       ...(sessionRow.execution_model_id
         ? { executionModel: SupportedModelId(sessionRow.execution_model_id) }
         : {}),
+      ...sessionThinkingLevel(sessionRow.execution_thinking_level),
       ...(position ? { resumePosition: position } : {}),
     }
   } catch (error) {
@@ -107,7 +114,9 @@ function selectSessionRow(sql: SqlClient.SqlClient, id: SessionId) {
       sessions.worktree_base_ref,
       sessions.worktree_start_from_origin,
       sessions.authorization_mode_override,
-      json_extract(session_execution_profiles.profile_json, '$.modelId') AS execution_model_id
+      json_extract(session_execution_profiles.profile_json, '$.modelId') AS execution_model_id,
+      json_extract(session_execution_profiles.profile_json, '$.thinkingLevel')
+        AS execution_thinking_level
     FROM sessions
     LEFT JOIN session_execution_profiles
       ON session_execution_profiles.session_id = sessions.id

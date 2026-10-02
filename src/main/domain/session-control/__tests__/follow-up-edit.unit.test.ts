@@ -75,10 +75,9 @@ describe('Follow-up edit', () => {
     })
   })
 
-  it('lets only the caller that queued and authored a Follow-up edit it', () => {
+  it('lets only the caller that queued a Follow-up edit it', () => {
     expect(canEditFollowUp({ callerId: USER }, USER)).toBe(true)
-    expect(canEditFollowUp({ callerId: USER, authorCallerId: AGENT }, USER)).toBe(false)
-    expect(canEditFollowUp({ callerId: AGENT, authorCallerId: USER }, USER)).toBe(false)
+    expect(canEditFollowUp({ callerId: AGENT }, USER)).toBe(false)
     expect(begin(state([followUp('first', { callerId: AGENT })]))).toMatchObject({
       accepted: false,
       code: 'follow_up_not_editable',
@@ -94,7 +93,7 @@ describe('Follow-up edit', () => {
     })
   })
 
-  it('replaces only the content and keeps identity, position, provenance, and run settings', () => {
+  it('replaces only the content and keeps identity, position, and provenance', () => {
     const result = save()
 
     if (!result.accepted) throw new Error(`save rejected: ${result.code}`)
@@ -104,8 +103,6 @@ describe('Follow-up edit', () => {
     expect(result.state.followUpQueue.items[1]?.intent).toEqual({
       text: 'Rewritten',
       attachmentIds: ['attachment-2'],
-      thinkingLevel: 'high',
-      runAuthorizationOverride: 'ask-for-approval',
       callerId: USER,
       acceptedAt: 500,
       idempotencyKey: 'key-second',

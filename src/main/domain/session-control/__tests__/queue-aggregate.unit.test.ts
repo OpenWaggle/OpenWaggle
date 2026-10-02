@@ -63,66 +63,6 @@ describe('Session Control queue aggregate', () => {
     })
   })
 
-  it('rebinds an authorization-blocked Follow-up to the authorized caller without resuming', () => {
-    const sessionId = SessionId('session-target')
-    const followUpId = FollowUpId('follow-up-blocked')
-    const result = applyQueueMutation({
-      nextRunId: RunId('run-unused'),
-      state: {
-        sessionId,
-        revision: 4,
-        run: { state: 'idle' },
-        followUpQueue: {
-          state: 'paused',
-          revision: 8,
-          items: [
-            {
-              id: followUpId,
-              deliveryState: 'needs_attention',
-              attentionReason: 'profile_revoked',
-              intent: {
-                text: 'Continue.',
-                attachmentIds: [],
-                callerId: 'profile:revoked',
-                acceptedAt: 1000,
-                idempotencyKey: 'blocked',
-                runAuthorizationOverride: 'yolo',
-              },
-            },
-          ],
-        },
-      },
-      mutation: {
-        type: 'update-authorization',
-        followUpId,
-        callerId: 'gui:local-user',
-        runAuthorizationOverride: 'ask-for-approval',
-      },
-    })
-
-    expect(result).toMatchObject({
-      accepted: true,
-      state: {
-        followUpQueue: {
-          state: 'paused',
-          revision: 9,
-          items: [
-            {
-              deliveryState: 'pending',
-              intent: {
-                callerId: 'gui:local-user',
-                // The writer stays on record, so re-approval does not lend it the desktop reach.
-                authorCallerId: 'profile:revoked',
-                runAuthorizationOverride: 'ask-for-approval',
-              },
-            },
-          ],
-        },
-      },
-      outcome: { operation: 'queue-update-authorization' },
-    })
-  })
-
   it('atomically starts the pending head when an idle recovered queue resumes', () => {
     const sessionId = SessionId('session-target')
     const followUpId = FollowUpId('follow-up-recovered')

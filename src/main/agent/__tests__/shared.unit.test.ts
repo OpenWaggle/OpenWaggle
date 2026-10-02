@@ -29,7 +29,6 @@ describe('shared agent helpers', () => {
       const { buildPersistedUserMessageParts } = await import('../shared')
       const payload: AgentSendPayload = {
         text: '  hello world  ',
-        thinkingLevel: 'medium',
         attachments: [],
       }
       const parts = buildPersistedUserMessageParts(payload)
@@ -40,7 +39,6 @@ describe('shared agent helpers', () => {
       const { buildPersistedUserMessageParts } = await import('../shared')
       const payload: AgentSendPayload = {
         text: '   ',
-        thinkingLevel: 'medium',
         attachments: [],
       }
       const parts = buildPersistedUserMessageParts(payload)
@@ -51,7 +49,6 @@ describe('shared agent helpers', () => {
       const { buildPersistedUserMessageParts } = await import('../shared')
       const payload: HydratedAgentSendPayload = {
         text: 'check this',
-        thinkingLevel: 'medium',
         attachments: [
           {
             id: 'att-1',

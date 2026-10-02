@@ -1,12 +1,12 @@
 import type { RunId, SessionId } from '@shared/types/brand'
 import { Context, type Effect } from 'effect'
-import type { SessionControlIntentSnapshot } from '../domain/session-control/message-aggregate'
+import type { SessionControlRunIntent } from '../domain/session-control/message-aggregate'
 import type { SessionControlTerminalRunStatus } from './session-control-run-lifecycle-repository'
 
 export interface SessionControlRunExecutionInput {
   readonly sessionId: SessionId
   readonly runId: RunId
-  readonly intent: SessionControlIntentSnapshot
+  readonly intent: SessionControlRunIntent
   readonly controller: AbortController
 }
 

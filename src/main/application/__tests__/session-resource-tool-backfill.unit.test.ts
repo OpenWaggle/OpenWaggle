@@ -144,7 +144,7 @@ describe('production Session Resource tool projection', () => {
       captureSuccessfulRunResources({
         sessionId: SessionId('session-1'),
         runId: 'run-bounded-tools',
-        payload: { text: '', thinkingLevel: 'medium', attachments: [] },
+        payload: { text: '', attachments: [] },
         messages,
       }).pipe(Effect.provide(sessionResourceTestLayer(upserts))),
     )

@@ -101,12 +101,6 @@ describe('settings store updates', () => {
     expect(getSettings().skillTogglesByProject).toEqual({})
   })
 
-  it('roundtrips valid thinkingLevel through updateSettings', async () => {
-    const { getSettings, updateSettings } = await loadSettingsModule()
-    updateSettings({ thinkingLevel: 'max' })
-    expect(getSettings().thinkingLevel).toBe('max')
-  })
-
   it('roundtrips the shared desktop and CLI update channel', async () => {
     const { getSettings, updateSettings } = await loadSettingsModule()
     updateSettings({ updateChannel: 'alpha' })
@@ -132,7 +126,7 @@ describe('settings store updates', () => {
     const profileWrite = updateSettingsDurably({
       browserProfiles: [{ id: 'profile-imported', name: 'Imported', kind: 'persistent' }],
     })
-    updateSettings({ thinkingLevel: 'high' })
+    updateSettings({ updateChannel: 'beta' })
 
     await profileWrite
     await flushSettingsStoreForTests()
@@ -142,7 +136,7 @@ describe('settings store updates', () => {
     expect(getSettings()).toMatchObject({
       browserProfiles: [{ id: 'profile-imported', name: 'Imported', kind: 'persistent' }],
       recentProjects: ['/tmp/before'],
-      thinkingLevel: 'high',
+      updateChannel: 'beta',
     })
   })
 

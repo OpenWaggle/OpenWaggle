@@ -24,8 +24,6 @@ export function followUp(
     intent: {
       text: `Text of ${id}`,
       attachmentIds: [],
-      thinkingLevel: 'high',
-      runAuthorizationOverride: 'ask-for-approval',
       callerId: USER,
       acceptedAt: 500,
       idempotencyKey: `key-${id}`,

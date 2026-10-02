@@ -77,7 +77,7 @@ describe('session image occurrence display metadata', () => {
         captureSuccessfulRunResources({
           sessionId: SESSION_ID,
           runId: 'run-mixed-images',
-          payload: { text: 'Show both', thinkingLevel: 'medium', attachments: [] },
+          payload: { text: 'Show both', attachments: [] },
           messages: [
             {
               id: MessageId('user'),

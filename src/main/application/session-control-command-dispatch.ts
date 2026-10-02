@@ -114,7 +114,6 @@ function executeRunOrQueueCommand(
     | 'queue-reorder'
     | 'queue-pause'
     | 'queue-resume'
-    | 'queue-update-authorization'
     | 'queue-edit-begin'
     | 'queue-edit-save'
     | 'queue-edit-cancel'
@@ -146,27 +145,14 @@ function executeRunOrQueueCommand(
         request: { ...request, command } satisfies SessionControlFollowUpMutationRequest,
       }),
     )
-    .with(
-      'queue-withdraw',
-      'queue-reorder',
-      'queue-pause',
-      'queue-resume',
-      'queue-update-authorization',
-      (command) =>
-        mutateSessionQueue({
-          callerId,
-          ...(authority ? { callerAuthorizationCeiling: authority.authorizationCeiling } : {}),
-          ...(hostRunCeiling ? { hostRunCeiling } : {}),
-          ...(input.queueDeliveryAdmitted === false ? { queueDeliveryAdmitted: false } : {}),
-          request: {
-            ...request,
-            command:
-              command.operation === 'queue-update-authorization' &&
-              authority?.authorizationCeiling === 'ask-for-approval'
-                ? { ...command, runAuthorizationOverride: 'ask-for-approval' as const }
-                : command,
-          } satisfies SessionControlQueueMutationRequest,
-        }),
+    .with('queue-withdraw', 'queue-reorder', 'queue-pause', 'queue-resume', (command) =>
+      mutateSessionQueue({
+        callerId,
+        ...(authority ? { callerAuthorizationCeiling: authority.authorizationCeiling } : {}),
+        ...(hostRunCeiling ? { hostRunCeiling } : {}),
+        ...(input.queueDeliveryAdmitted === false ? { queueDeliveryAdmitted: false } : {}),
+        request: { ...request, command } satisfies SessionControlQueueMutationRequest,
+      }),
     )
     .with('queue-edit-begin', 'queue-edit-save', 'queue-edit-cancel', (command) =>
       editSessionFollowUp({
@@ -260,7 +246,6 @@ export function executeUnserializedSessionControlCommand(
       'queue-reorder',
       'queue-pause',
       'queue-resume',
-      'queue-update-authorization',
       'queue-edit-begin',
       'queue-edit-save',
       'queue-edit-cancel',

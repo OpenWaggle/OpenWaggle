@@ -43,7 +43,6 @@ function explicitWaggleIntent(payload: AgentSendPayload, callerId: string, idemp
   return {
     text: payload.text,
     attachmentIds: payload.attachments.map((attachment) => attachment.id),
-    thinkingLevel: payload.thinkingLevel,
     callerId,
     acceptedAt: Date.now(),
     idempotencyKey,

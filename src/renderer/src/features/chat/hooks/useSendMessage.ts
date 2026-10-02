@@ -2,7 +2,6 @@ import type { AgentSendPayload } from '@shared/types/agent'
 import type { SessionId } from '@shared/types/brand'
 import type { SupportedModelId } from '@shared/types/llm'
 import type { SessionWorktreePlan } from '@shared/types/session'
-import type { ThinkingLevel } from '@shared/types/settings'
 import type { WaggleConfig } from '@shared/types/waggle'
 import { FirstSendFailed, MessageNotDelivered } from '@/features/chat/lib'
 import { createOptimisticUserMessage } from '@/features/chat/lib/useAgentChat.utils'
@@ -27,7 +26,6 @@ const logger = createRendererLogger('use-send-message')
 interface SendMessageDeps {
   readonly activeSessionId: SessionId | null
   readonly projectPath: string | null
-  readonly thinkingLevel: ThinkingLevel
   readonly createSession: (
     projectPath: string,
     worktreePlan?: SessionWorktreePlan,
@@ -74,7 +72,6 @@ export function createSendHandlers(deps: SendMessageDeps): SendMessageHandlers {
   const {
     activeSessionId,
     projectPath,
-    thinkingLevel,
     createSession,
     sendMessage,
     sendMessageToSession,
@@ -115,7 +112,7 @@ export function createSendHandlers(deps: SendMessageDeps): SendMessageHandlers {
   }
 
   async function handleSendText(content: string) {
-    await handleSend({ text: content, thinkingLevel, attachments: [] })
+    await handleSend({ text: content, attachments: [] })
   }
 
   async function handleSendWaggle(payload: AgentSendPayload, config: WaggleConfig) {
@@ -159,7 +156,6 @@ interface UseSendMessageOptions {
   readonly activeSessionId: SessionId | null
   readonly model: SupportedModelId | undefined
   readonly projectPath: string | null
-  readonly thinkingLevel: ThinkingLevel
   readonly createSession: (
     projectPath: string,
     worktreePlan?: SessionWorktreePlan,

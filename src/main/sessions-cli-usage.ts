@@ -14,11 +14,12 @@ Usage:
     [--workspace share-parent|local|new-worktree] [--attach <path>]...
     [--deliverable <text>]... [--accept <criterion>]... [--resource <reference>]...
     [--authorization ask-for-approval|yolo] [--yolo] [--interaction-timeout-ms <ms>]
-  openwaggle sessions message <session-id> --text <message> [--attach <path>]...
-  openwaggle sessions start <session-id> --text <message> [--attach <path>]... [--yolo] [--interaction-timeout-ms <ms>]
-  openwaggle sessions follow-up <session-id> --text <message> [--attach <path>]... [--yolo]
+  openwaggle sessions message <session-id> --text <message> [--attach <path>]... [--thinking <level>] [--yolo]
+  openwaggle sessions start <session-id> --text <message> [--attach <path>]... [--thinking <level>] [--yolo]
+    [--interaction-timeout-ms <ms>]
+  openwaggle sessions follow-up <session-id> --text <message> [--attach <path>]...
   openwaggle sessions steer <session-id> --text <message> --expected-run <run-id> [--attach <path>]...
-  openwaggle sessions replace <session-id> --text <message> --expected-run <run-id> [--attach <path>]... [--yolo]
+  openwaggle sessions replace <session-id> --text <message> --expected-run <run-id> [--attach <path>]...
   openwaggle sessions interrupt <session-id> --expected-run <run-id>
   openwaggle sessions interrupt-descendants <session-id>
   openwaggle sessions rename <session-id> <title>
@@ -51,8 +52,6 @@ Usage:
   openwaggle sessions queue withdraw <session-id> <follow-up-id>...
   openwaggle sessions queue reorder <session-id> <follow-up-id>... --queue-revision <n>
   openwaggle sessions queue pause|resume <session-id> --queue-revision <n>
-  openwaggle sessions queue update-authorization <session-id> <follow-up-id>
-    --authorization inherit|ask-for-approval|yolo
   openwaggle sessions list [--project <path>|--all] [--archived] [--limit <n>] [--cursor <cursor>]
   openwaggle sessions search <query> [--mode hybrid|lexical|semantic] [--require-fresh]
     [--full-transcript] [--include-archived] [--project <path>|--all]
@@ -93,8 +92,12 @@ Output: human-readable by default; --json for one response; --jsonl for streams
 Authentication: --profile <name> [--credential-stdin|--profile-credential-file <path>]
 Mutation replay: --idempotency-key <key> on mutation commands
 Specialization (create, launch, spawn): --agent <name> [--model <provider/model>] [--thinking <level>]
-Run thinking (message, start, follow-up, replace): --thinking <level>
-Run authorization (launch, spawn, start, follow-up, replace): --authorization <mode> or --yolo
+Session thinking (message, start): --thinking <level> sets the Session thinking level, only when the
+  Session is idle and the command starts a Run; refused while a Run is active
+  (thinking_level_requires_idle_session), so follow-up, steer, and replace never accept it
+Run authorization (launch, spawn, message, start): --authorization <mode> or --yolo, for that one Run;
+  message and start accept it only when they start a Run on an idle Session
+  (run_authorization_override_requires_idle_session)
 New Worktree (create, launch, fork, spawn, handoff):
   --workspace new-worktree [--base-ref <ref>] [--start-from-origin]
 Unknown, missing-value, command-inapplicable, unexpected positional, and -- passthrough input
