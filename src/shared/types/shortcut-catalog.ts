@@ -102,7 +102,7 @@ export const SHORTCUT_DEFINITIONS: readonly ShortcutDefinition[] = [
   {
     command: 'rightPanel.toggleMaximized',
     label: 'Maximize right panel',
-    description: 'Toggle the retained workspace panel between normal and maximized width',
+    description: 'Maximize or restore the right panel, whichever panel it shows',
     group: 'Workspace',
     scope: 'global',
   },

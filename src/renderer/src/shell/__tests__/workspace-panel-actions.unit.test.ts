@@ -47,6 +47,20 @@ describe('workspace panel shortcut actions', () => {
     expect(useWorkspacePanelStore.getState().groups[OWNER]?.panelOpen).toBe(false)
   })
 
+  it('maximizes a route-backed surface such as Changes for the Session', () => {
+    expect(toggleWorkspacePanelMaximized(OWNER)).toBe(false)
+    useRightSidebarCoordinator.getState().claimRoute('diff')
+
+    expect(toggleWorkspacePanelMaximized(OWNER)).toBe(true)
+    expect(useWorkspacePanelStore.getState().groups[OWNER]).toMatchObject({
+      maximized: true,
+      activeSurface: null,
+      panelOpen: false,
+    })
+    expect(toggleWorkspacePanelMaximized(OWNER)).toBe(true)
+    expect(useWorkspacePanelStore.getState().groups[OWNER]?.maximized).toBe(false)
+  })
+
   it('selects the latest preview and routes refresh and zoom through typed IPC', async () => {
     const preview = useWorkspacePanelStore.getState().openBrowser(OWNER, 'https://example.com/docs')
     useWorkspacePanelStore.getState().showTerminal(OWNER)

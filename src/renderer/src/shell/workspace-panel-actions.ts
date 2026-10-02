@@ -6,6 +6,7 @@ import {
 } from '@/features/browser-preview'
 import { usePreferencesStore } from '@/features/settings/state'
 import { api } from '@/shared/lib/ipc'
+import { useRightSidebarCoordinator } from '@/shared/lib/right-sidebar-coordinator'
 import { useUIStore } from './ui-store'
 import { useWorkspacePanelStore } from './workspace-panel-store'
 
@@ -87,15 +88,18 @@ export function hideWorkspaceSideTerminal(ownerKey: string) {
   useWorkspacePanelStore.getState().hideTerminal(ownerKey)
 }
 
-/** Toggles the retained workspace panel without opening a surface implicitly. */
+/**
+ * Maximizes or restores the open Right panel, whichever surface it shows (ADR 0043). The state
+ * belongs to the Session and is kept with its workspace panel group. Nothing opens implicitly.
+ */
 export function toggleWorkspacePanelMaximized(ownerKey: string) {
+  if (ownerKey.length === 0) return false
   const store = useWorkspacePanelStore.getState()
   const group = store.groups[ownerKey]
-  if (ownerKey.length === 0 || group?.panelOpen !== true || group.activeSurface === null) {
-    return false
-  }
-  if (group.activeSurface.kind === 'all-panels') return false
-  store.setMaximized(ownerKey, !group.maximized)
+  const workspaceOpen = group?.panelOpen === true && group.activeSurface !== null
+  const routeOpen = useRightSidebarCoordinator.getState().activeClaim?.kind === 'route'
+  if (!workspaceOpen && !routeOpen) return false
+  store.setMaximized(ownerKey, !(group?.maximized ?? false))
   return true
 }
 

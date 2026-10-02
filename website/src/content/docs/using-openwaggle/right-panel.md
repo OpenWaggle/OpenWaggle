@@ -11,7 +11,7 @@ The right panel shows one panel at a time beside the conversation: Changes, Proj
 
 Click the panel button at the right end of the header, or press `Cmd+Option+B` on macOS or `Ctrl+Alt+B` on Windows and Linux. The panel comes back on whatever it showed last in this session. A session you have not opened the panel in yet starts on the panel you used most recently anywhere.
 
-Each session remembers its own panel. If one session has Changes open and another has the panel closed, switching between them restores each one as you left it. The panel width and the rail layout are yours and stay the same in every session.
+Each session remembers its own panel. If one session has Changes open and another has the panel closed, switching between them restores each one as you left it. Each session also remembers whether its panel is maximized: use the maximize button in any panel's header, or the **Maximize right panel** command. The panel width and the rail layout are yours and stay the same in every session.
 
 ## Using the rail
 

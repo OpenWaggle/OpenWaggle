@@ -2,11 +2,35 @@ import { useEffect, useEffectEvent } from 'react'
 import { useGit } from '@/features/git/hooks'
 import { ProjectActionsBackgroundEffects } from '@/features/project-actions'
 import { usePreferencesStore } from '@/features/settings/state'
+import { useRightPanelMaximizeStore } from '@/shared/lib/right-panel-maximize'
+import { formatShortcutBinding } from '@/shared/lib/shortcut-display'
 import { RIGHT_PANEL_RAIL_INSET_VAR } from '@/shared/ui/right-sidebar-layout-sizing'
+import { toggleWorkspacePanelMaximized } from '../workspace-panel-actions'
+import { useWorkspacePanelStore } from '../workspace-panel-store'
 import { PANEL_RAIL_WIDTH_PX, PanelRail } from './PanelRail'
 import { useRightPanelRailStore } from './right-panel-rail-store'
 import { useRightPanelController } from './useRightPanelController'
 import { useRightPanelModel } from './useRightPanelModel'
+
+/** Lets every surface header maximize the one Right panel container for this Session. */
+function usePublishRightPanelMaximize(ownerKey: string) {
+  const maximized = useWorkspacePanelStore((state) => state.groups[ownerKey]?.maximized === true)
+  const binding = usePreferencesStore(
+    (state) => state.settings.shortcutBindings['rightPanel.toggleMaximized'] ?? null,
+  )
+  const shortcutLabel = binding === null ? null : formatShortcutBinding(binding)
+  useEffect(() => {
+    const store = useRightPanelMaximizeStore.getState()
+    store.publish({
+      maximized,
+      shortcutLabel,
+      toggle: () => {
+        toggleWorkspacePanelMaximized(ownerKey)
+      },
+    })
+    return () => store.publish(null)
+  }, [maximized, ownerKey, shortcutLabel])
+}
 
 /**
  * Owns the Right panel for chat routes: registers the surface controller, keeps Session panel
@@ -30,6 +54,7 @@ export function RightPanelHost() {
     if (model.extensionRegistryLoaded) initializeExtensions(extensionKey)
   }, [extensionKey, model.extensionRegistryLoaded])
 
+  usePublishRightPanelMaximize(model.ownerKey)
   const railShown = model.shown.open || railVisibleWhenClosed
   useEffect(() => {
     if (!railShown) return

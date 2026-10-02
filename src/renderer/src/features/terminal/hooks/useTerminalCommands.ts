@@ -116,7 +116,7 @@ export function useTerminalCommands(): {
 
   const toggleSidePanelMaximized = () => {
     if (toggleWorkspacePanelMaximized(owner.ownerKey)) return
-    showToast('Open the workspace side panel first.', 'error')
+    showToast('Open a panel first.', 'error')
   }
 
   const splitTerminalInDirection = (direction: 'side-by-side' | 'stacked') => {

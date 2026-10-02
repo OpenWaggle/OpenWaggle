@@ -7,6 +7,7 @@ import {
   type SessionResourceBrowserTarget,
 } from '@/features/session-summary'
 import { terminalOwnerContext } from '@/features/terminal'
+import { useRightPanelMaximizeStore } from '@/shared/lib/right-panel-maximize'
 import { useRightSidebarCoordinator } from '@/shared/lib/right-sidebar-coordinator'
 import { PanelErrorBoundary } from '@/shared/ui/PanelErrorBoundary'
 import { RightSidebarLayout } from '@/shared/ui/RightSidebarLayout'
@@ -223,6 +224,9 @@ export function ChatRouteSurface({
   const routePanelScope =
     workspace.sessionId ?? (terminalOwnerContext(null, sections.diff.workingPath).ownerKey || null)
   const routePanelOpen = useRoutePanelClaim(routePanelKey, routePanelScope)
+  const routePanelMaximized = useRightPanelMaximizeStore(
+    (state) => state.target?.maximized === true,
+  )
   const sidePanelQuery = useExtensionSidePanelContributions({
     enabled: isExtensionRightSidebarPanel(renderedRightSidebarPanel),
     projectPath: sections.diff.workingPath,
@@ -252,6 +256,7 @@ export function ChatRouteSurface({
     >
       <PanelErrorBoundary name="Chat" className="flex min-w-0 flex-1 overflow-hidden">
         <RightSidebarLayout
+          maximized={routePanelMaximized}
           open={routePanelOpen}
           sizing={RIGHT_SIDEBAR_SIZING}
           onOpenChange={(open) => {

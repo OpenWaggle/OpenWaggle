@@ -124,12 +124,14 @@ function sanitizeGroup(value: unknown, ownerKey: string): WorkspacePanelGroupSta
   if (!isUnknownRecord(value)) return null
   const browserTabs = sanitizeTabs(value.browserTabs, ownerKey)
   const activeSurface = sanitizeActiveSurface(value.activeSurface, browserTabs)
-  if (browserTabs.length === 0 && activeSurface === null) return null
+  const maximized = value.maximized === true
+  // A group may exist only to remember that the Session's Right panel is maximized.
+  if (browserTabs.length === 0 && activeSurface === null && !maximized) return null
   const rawPanelOpen = value.panelOpen
   return {
     browserTabs,
     activeSurface,
-    maximized: value.maximized === true,
+    maximized,
     panelOpen: typeof rawPanelOpen === 'boolean' ? rawPanelOpen : activeSurface !== null,
   }
 }

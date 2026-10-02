@@ -18,7 +18,7 @@ import { WorkspacePanelContent } from './WorkspacePanelContent'
 import { WorkspaceSurfaceTabs } from './WorkspaceSurfaceTabs'
 import { closeBrowserTabs } from './workspace-browser-close'
 import { reconcileClosedBrowsers } from './workspace-browser-close-reconciliation'
-import { newWorkspaceBrowser } from './workspace-panel-actions'
+import { newWorkspaceBrowser, toggleWorkspacePanelMaximized } from './workspace-panel-actions'
 import {
   type BrowserPreviewTabState,
   useWorkspacePanelStore,
@@ -58,8 +58,7 @@ export function WorkspaceRightPanel({ children }: WorkspaceRightPanelProps) {
 
   return (
     <RightSidebarLayout
-      // All panels has no header to restore from, so it always keeps the panel width.
-      maximized={panel.maximized && panel.activeSurface?.kind !== 'all-panels'}
+      maximized={panel.maximized}
       open={panel.activeSurface !== null}
       sizing={RIGHT_PANEL_SIZING}
       sidebar={
@@ -168,8 +167,7 @@ function useWorkspaceRightPanelModel() {
   const hidePanel = () => useWorkspacePanelStore.getState().hidePanel(owner.ownerKey)
   const newBrowser = () => void newWorkspaceBrowser(owner.ownerKey)
   const newSideTerminal = () => createSidePanelTerminal(owner.ownerKey, owner.defaultCwd)
-  const toggleMaximized = () =>
-    useWorkspacePanelStore.getState().setMaximized(owner.ownerKey, !maximized)
+  const toggleMaximized = () => toggleWorkspacePanelMaximized(owner.ownerKey)
   const setBrowserAudioMuted = (previewId: string, audioMuted: boolean) => {
     void api
       .setBrowserPreviewAudioMuted(previewId, audioMuted)

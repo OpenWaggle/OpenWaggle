@@ -125,6 +125,6 @@ describe('useTerminalCommands focused layout routing', () => {
 
     act(() => result.current.toggleSidePanelMaximized())
 
-    expect(mocks.showToast).toHaveBeenCalledWith('Open the workspace side panel first.', 'error')
+    expect(mocks.showToast).toHaveBeenCalledWith('Open a panel first.', 'error')
   })
 })

@@ -8,6 +8,7 @@ import {
   toggleRightPanelSurface,
 } from '@/shared/lib/right-panel-surfaces'
 import { Button } from '@/shared/ui/Button'
+import { RightPanelMaximizeButton } from '@/shared/ui/RightPanelMaximizeButton'
 import { useUIStore } from '../ui-store'
 import { useWorkspacePanelStore } from '../workspace-panel-store'
 import { RightPanelSurfaceIcon } from './RightPanelSurfaceIcon'
@@ -122,6 +123,7 @@ export function AllPanelsSurface() {
         >
           All panels
         </h2>
+        <RightPanelMaximizeButton />
         <Button
           type="button"
           size="icon-sm"

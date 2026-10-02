@@ -1,5 +1,6 @@
 import { Search, X } from 'lucide-react'
 import { Button } from '@/shared/ui/Button'
+import { RightPanelMaximizeButton } from '@/shared/ui/RightPanelMaximizeButton'
 import { useUIStore } from '@/shell/ui-store'
 import { useWorkspaceEntryMutations } from '../hooks/useWorkspaceEntryMutations'
 import { useWorkspaceFileWatcher } from '../hooks/useWorkspaceFileWatcher'
@@ -61,6 +62,7 @@ export function WorkspaceFileNavigatorPanel(input: WorkspaceFileNavigatorPanelPr
           <Search className="size-3.5" aria-hidden="true" />
           Open a file
         </Button>
+        <RightPanelMaximizeButton />
         <Button
           type="button"
           size="icon-sm"
