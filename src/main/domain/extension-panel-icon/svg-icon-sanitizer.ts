@@ -17,7 +17,8 @@ export type SvgIconSanitizeResult =
 
 const VIEW_BOX_NUMBER_COUNT = 4
 const ROOT_ELEMENT = 'svg'
-const STYLE_ELEMENT = 'style'
+const REFERENCE_ATTRIBUTE = 'href'
+const ID_ATTRIBUTE = 'id'
 
 /** Active content: an icon containing any of these is rejected rather than silently repaired. */
 const REJECTED_ELEMENTS = new Set([
@@ -30,11 +31,8 @@ const REJECTED_ELEMENTS = new Set([
   'listener',
 ])
 
-/** Shape and structure elements kept in the mask. Everything else is dropped with its subtree. */
-const ALLOWED_ELEMENTS = new Set([
-  ROOT_ELEMENT,
-  STYLE_ELEMENT,
-  'g',
+/** Elements that draw something; a sanitized icon without one of these has nothing to show. */
+const SHAPE_ELEMENTS = new Set([
   'path',
   'circle',
   'ellipse',
@@ -42,20 +40,30 @@ const ALLOWED_ELEMENTS = new Set([
   'polyline',
   'polygon',
   'rect',
+  'use',
+])
+
+/**
+ * Shape and structure elements kept in the mask. Everything else is dropped with its subtree,
+ * including `<style>`: a single-colour mask never needs CSS, and CSS can load resources in more
+ * ways than an allowlist can follow.
+ */
+const ALLOWED_ELEMENTS = new Set([
+  ROOT_ELEMENT,
+  ...SHAPE_ELEMENTS,
+  'g',
   'defs',
   'clipPath',
   'mask',
-  'use',
   'symbol',
   'linearGradient',
   'radialGradient',
   'stop',
 ])
 
+/** Presentation and geometry attributes kept in the mask; `style` and `class` are dropped. */
 const ALLOWED_ATTRIBUTES = new Set([
-  'id',
-  'class',
-  'style',
+  ID_ATTRIBUTE,
   'transform',
   'fill',
   'fill-rule',
@@ -108,11 +116,15 @@ const ALLOWED_ATTRIBUTES = new Set([
   'maskContentUnits',
 ])
 
-const REFERENCE_ATTRIBUTES = new Set(['href', 'xlink:href'])
-const CSS_URL_FUNCTION = /url\s*\(([^)]*)\)/giu
-const CSS_URL_START = /url\s*\(/giu
-const UNSAFE_CSS = /\\|@import|expression\s*\(/iu
-const CSS_QUOTES = /^['"]|['"]$/gu
+const REFERENCE_ATTRIBUTES = new Set([REFERENCE_ATTRIBUTE, 'xlink:href'])
+/** A `url()` whose target is captured, with optional matching quotes. */
+const CSS_URL_FUNCTION = /url\s*\(\s*(['"]?)([^'"()]*)\1\s*\)/giu
+/**
+ * Anything that can still name a resource once local `url(#…)` references are removed: other
+ * `url()` forms, image functions, `src()`, escapes, imports and quoted strings.
+ */
+const RESOURCE_CSS =
+  /\\|@import|expression\s*\(|url\s*\(|image-set\s*\(|image\s*\(|cross-fade\s*\(|element\s*\(|src\s*\(|['"]/iu
 const LENGTH_IN_PIXELS = /^\s*(\d+(?:\.\d+)?)(?:px)?\s*$/u
 const VIEW_BOX_SEPARATOR = /[\s,]+/u
 
@@ -120,42 +132,41 @@ function isLocalFragmentReference(value: string) {
   return value.trim().startsWith('#')
 }
 
-/** True when every CSS `url(...)` in the value points at a fragment inside this document. */
+/** True when the value refers to nothing but fragments inside this document. */
 function referencesOnlyLocalFragments(value: string) {
-  if (UNSAFE_CSS.test(value)) return false
-  const urlStarts = [...value.matchAll(CSS_URL_START)].length
-  const urls = [...value.matchAll(CSS_URL_FUNCTION)]
-  return (
-    urls.length === urlStarts &&
-    urls.every((url) => isLocalFragmentReference((url[1] ?? '').trim().replace(CSS_QUOTES, '')))
+  const withoutLocalReferences = value.replace(
+    CSS_URL_FUNCTION,
+    (match, _quote: string, target: string) => (isLocalFragmentReference(target) ? '' : match),
   )
+  return !RESOURCE_CSS.test(withoutLocalReferences)
 }
 
 function sanitizeAttribute(attribute: SvgMarkupAttribute): readonly SvgMarkupAttribute[] {
   if (REFERENCE_ATTRIBUTES.has(attribute.name)) {
     return isLocalFragmentReference(attribute.value)
-      ? [{ name: 'href', value: attribute.value.trim() }]
+      ? [{ name: REFERENCE_ATTRIBUTE, value: attribute.value.trim() }]
       : []
   }
   if (!ALLOWED_ATTRIBUTES.has(attribute.name)) return []
+  // An id is a name, not a value the renderer resolves, so it may hold any character.
+  if (attribute.name === ID_ATTRIBUTE) return [attribute]
   return referencesOnlyLocalFragments(attribute.value) ? [attribute] : []
 }
 
-function sanitizeStyleElement(element: SvgMarkupElement): SvgMarkupElement | null {
-  if (element.children.some((child) => child.kind === 'element')) return null
-  const css = element.children.map((child) => (child.kind === 'text' ? child.text : '')).join('')
-  if (!referencesOnlyLocalFragments(css)) return null
-  return {
-    kind: 'element',
-    name: STYLE_ELEMENT,
-    attributes: [],
-    children: css.length > 0 ? [{ kind: 'text', text: css }] : [],
+/** `href` and `xlink:href` both become `href`; only the first usable reference is kept. */
+function sanitizeAttributes(attributes: readonly SvgMarkupAttribute[]) {
+  const sanitized: SvgMarkupAttribute[] = []
+  for (const attribute of attributes.flatMap(sanitizeAttribute)) {
+    const duplicateReference =
+      attribute.name === REFERENCE_ATTRIBUTE &&
+      sanitized.some((kept) => kept.name === REFERENCE_ATTRIBUTE)
+    if (!duplicateReference) sanitized.push(attribute)
   }
+  return sanitized
 }
 
 function sanitizeElement(element: SvgMarkupElement): SvgMarkupElement | null {
   if (!ALLOWED_ELEMENTS.has(element.name)) return null
-  if (element.name === STYLE_ELEMENT) return sanitizeStyleElement(element)
 
   const children: SvgMarkupNode[] = []
   for (const child of element.children) {
@@ -166,9 +177,16 @@ function sanitizeElement(element: SvgMarkupElement): SvgMarkupElement | null {
   return {
     kind: 'element',
     name: element.name,
-    attributes: element.attributes.flatMap(sanitizeAttribute),
+    attributes: sanitizeAttributes(element.attributes),
     children,
   }
+}
+
+function containsShape(element: SvgMarkupElement): boolean {
+  return (
+    SHAPE_ELEMENTS.has(element.name) ||
+    element.children.some((child) => child.kind === 'element' && containsShape(child))
+  )
 }
 
 function findRejectedElement(element: SvgMarkupElement): string | null {
@@ -227,8 +245,9 @@ function byteLength(value: string) {
 
 /**
  * Reduces an extension-provided SVG file to an allowlisted shape-only document. Scripts and
- * foreign content are rejected; unknown elements, event handlers, external references and CSS
- * that loads resources are removed.
+ * foreign content are rejected; unknown elements, `<style>` elements, `style` and `class`
+ * attributes, event handlers, external references and values that name resources are removed. An
+ * icon left without any shape is rejected.
  */
 export function sanitizeSvgIcon(source: string): SvgIconSanitizeResult {
   if (byteLength(source) > SVG_ICON_MAX_BYTES) {
@@ -249,7 +268,9 @@ export function sanitizeSvgIcon(source: string): SvgIconSanitizeResult {
   }
 
   const sanitized = sanitizeElement(parsed.root)
-  if (sanitized === null) return { ok: false, reason: 'The SVG file has no usable shapes.' }
+  if (sanitized === null || !containsShape(sanitized)) {
+    return { ok: false, reason: 'The SVG file has no usable shapes.' }
+  }
   const svg = serializeSvgIconRoot({
     ...sanitized,
     attributes: [

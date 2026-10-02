@@ -1,7 +1,8 @@
 /**
  * A deliberately small, strict XML reader for single-root SVG icon files. It accepts elements,
  * attributes, text, comments, CDATA and processing instructions; it rejects DOCTYPE and entity
- * declarations, unknown entities, mismatched tags and anything outside a single root element.
+ * declarations, unknown entities, mismatched tags, characters outside the XML `Char` production
+ * (raw or as character references) and anything outside a single root element.
  */
 
 export interface SvgMarkupAttribute {
@@ -32,6 +33,8 @@ const MAX_ELEMENT_COUNT = 4096
 const HEX_RADIX = 16
 const DECIMAL_RADIX = 10
 const MAX_CODE_POINT = 0x10ffff
+/** Anything outside the XML 1.0 `Char` production; serialized output must stay well-formed. */
+const NON_XML_CHAR = /[^\t\n\r\u0020-\uD7FF\uE000-\uFFFD\u{10000}-\u{10FFFF}]/u
 const HEX_REFERENCE_PREFIX = '#x'
 const DECIMAL_REFERENCE_PREFIX = '#'
 const HEX_REFERENCE = /^#x[0-9a-fA-F]+$/u
@@ -48,6 +51,15 @@ const NAMED_ENTITIES: Readonly<Record<string, string>> = {
 
 class SvgMarkupError extends Error {}
 
+function isXmlChar(codePoint: number) {
+  return (
+    Number.isInteger(codePoint) &&
+    codePoint > 0 &&
+    codePoint <= MAX_CODE_POINT &&
+    !NON_XML_CHAR.test(String.fromCodePoint(codePoint))
+  )
+}
+
 function decodeEntity(reference: string) {
   const named = NAMED_ENTITIES[reference]
   if (named !== undefined) return named
@@ -56,7 +68,7 @@ function decodeEntity(reference: string) {
     : DECIMAL_REFERENCE.test(reference)
       ? Number.parseInt(reference.slice(DECIMAL_REFERENCE_PREFIX.length), DECIMAL_RADIX)
       : Number.NaN
-  if (!Number.isInteger(codePoint) || codePoint <= 0 || codePoint > MAX_CODE_POINT) {
+  if (!isXmlChar(codePoint)) {
     throw new SvgMarkupError(`Unsupported character reference "&${reference};".`)
   }
   return String.fromCodePoint(codePoint)
@@ -238,6 +250,9 @@ class SvgMarkupReader {
 }
 
 export function parseSvgMarkup(source: string): SvgMarkupParseResult {
+  if (NON_XML_CHAR.test(source)) {
+    return { ok: false, reason: 'The file contains characters that XML does not allow.' }
+  }
   try {
     return { ok: true, root: new SvgMarkupReader(source).parseDocument() }
   } catch (error) {

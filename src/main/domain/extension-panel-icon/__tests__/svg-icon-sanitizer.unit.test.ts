@@ -94,31 +94,72 @@ describe('sanitizeSvgIcon', () => {
     expect(svg).not.toContain('set')
   })
 
-  it('drops <style> elements that load resources and keeps plain CSS', () => {
-    const external = sanitizedSvg(
-      svgDocument(`<style>path { fill: url(https://evil.test/a.svg#p) }</style>${SHAPE}`),
-    )
-    const imported = sanitizedSvg(svgDocument(`<style>@import "x.css";</style>${SHAPE}`))
-    const escaped = sanitizedSvg(svgDocument(`<style>path { fill: u\\72l(x) }</style>${SHAPE}`))
-    const plain = sanitizedSvg(
-      svgDocument(`<style><![CDATA[.a > path { fill: none }]]></style>${SHAPE}`),
+  it('drops every <style> element and style or class attribute', () => {
+    const svg = sanitizedSvg(
+      svgDocument(
+        `<style><![CDATA[.a > path { fill: none }]]></style><style>@font-face { src: "x.woff" }</style><path class="a" style="fill:red" d="M0 0"/>`,
+      ),
     )
 
-    expect(external).not.toContain('<style')
-    expect(imported).not.toContain('<style')
-    expect(escaped).not.toContain('<style')
-    expect(plain).toContain('<style>.a &gt; path { fill: none }</style>')
+    expect(svg).toBe(
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M0 0"/></svg>',
+    )
   })
 
   it('keeps local url() paint references and drops external ones', () => {
     const svg = sanitizedSvg(
       svgDocument(
-        '<path d="M0 0" fill="url(#g)" stroke="url(https://evil.test/p)" style="fill:url(\'https://evil.test\')"/>',
+        '<path d="M0 0" fill="url(#g)" stroke="url(https://evil.test/p)" mask="url( \'#m\' )"/>',
       ),
     )
 
     expect(svg).toContain('fill="url(#g)"')
+    expect(svg).toContain('mask="url( \'#m\' )"')
     expect(svg).not.toContain('evil.test')
+  })
+
+  it.each([
+    ['image-set()', 'image-set("https://evil.test/a.png" 1x)'],
+    ['-webkit-image-set()', '-webkit-image-set(url(#a) 1x, "https://evil.test/b.png" 2x)'],
+    ['image()', 'image("https://evil.test/a.png")'],
+    ['cross-fade()', 'cross-fade(url(#a), url(#b))'],
+    ['element()', 'element(#a)'],
+    ['src()', 'src("https://evil.test/a.svg")'],
+    ['bare quoted URL', '"https://evil.test/a.svg"'],
+    ['url() after a local reference', 'url(#a) url(https://evil.test/b)'],
+    ['escaped url()', 'u\\72l(https://evil.test/a)'],
+  ])('drops attribute values that name resources through %s', (_label, value) => {
+    const svg = sanitizedSvg(svgDocument(`<path d="M0 0" fill='${value}'/>`))
+
+    expect(svg).toBe(
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M0 0"/></svg>',
+    )
+  })
+
+  it('keeps only the first usable reference when href and xlink:href are both present', () => {
+    const svg = sanitizedSvg(
+      svgDocument(
+        '<defs><path id="a" d="M0 0"/><path id="b" d="M1 1"/></defs><use href="#a" xlink:href="#b"/><use href="https://evil.test/x#a" xlink:href="#b"/>',
+        'xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 24 24"',
+      ),
+    )
+
+    expect(svg).toContain('<use href="#a"/><use href="#b"/>')
+  })
+
+  it.each([
+    ['only structure', '<g><defs/></g>'],
+    ['only dropped elements', '<image href="#a"/><text>Hi</text>'],
+    ['empty root', ''],
+  ])('rejects an icon without any shape: %s', (_label, body) => {
+    expect(sanitizeSvgIcon(svgDocument(body))).toEqual({
+      ok: false,
+      reason: 'The SVG file has no usable shapes.',
+    })
+  })
+
+  it('accepts an icon whose only shape is a <use> reference', () => {
+    expect(sanitizeSvgIcon(svgDocument('<use href="#a"/>')).ok).toBe(true)
   })
 
   it('escapes attribute values when serializing', () => {
@@ -133,6 +174,14 @@ describe('sanitizeSvgIcon', () => {
     ['multiple roots', `${svgDocument(SHAPE)}${svgDocument(SHAPE)}`],
     ['unknown entity', svgDocument('<path d="&x;"/>')],
     ['malformed numeric reference', svgDocument('<path d="&#12x;"/>')],
+    ['control character reference', svgDocument('<path id="&#x1;" d="M0 0"/>')],
+    ['NUL character reference', svgDocument('<path id="&#0;" d="M0 0"/>')],
+    ['surrogate character reference', svgDocument('<path id="&#xD800;" d="M0 0"/>')],
+    ['U+FFFE character reference', svgDocument('<path id="&#xFFFE;" d="M0 0"/>')],
+    ['U+FFFF character reference', svgDocument('<path id="&#65535;" d="M0 0"/>')],
+    ['out-of-range character reference', svgDocument('<path id="&#x110000;" d="M0 0"/>')],
+    ['raw control character', svgDocument('<path id="a\u0001" d="M0 0"/>')],
+    ['raw lone surrogate', svgDocument('<path id="a\uD800" d="M0 0"/>')],
     ['unquoted attribute', '<svg viewBox=0><path/></svg>'],
     ['non-svg root', '<html><body/></html>'],
     ['text only', 'not an svg'],
