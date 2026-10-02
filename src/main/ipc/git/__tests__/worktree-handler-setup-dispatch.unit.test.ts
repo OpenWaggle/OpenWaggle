@@ -80,6 +80,7 @@ const SessionProjectionLayer = Layer.succeed(
     unarchive: () => Effect.void,
     listArchived: () => Effect.succeed([]),
     updateTitle: () => Effect.void,
+    assignProvisionalTitle: () => Effect.succeed(true),
     setWorktreePlan: () => Effect.void,
     setAuthorizationMode: () => Effect.void,
     setExecutionModel: () => Effect.succeed(true),

@@ -36,11 +36,11 @@ export function loadAgentRunPreflight(input: AgentRunInput) {
 
     const settingsService = yield* SettingsService
     const settings = yield* settingsService.get()
-    const assignedTitle = yield* assignSessionTitleFromUserText(
-      input.sessionId,
-      session,
-      input.payload.text,
-    )
+    const assignedTitle = yield* assignSessionTitleFromUserText(input.sessionId, session, {
+      text: input.payload.text,
+      attachments: input.payload.attachments,
+      model: input.model,
+    })
     if (assignedTitle) {
       yield* Effect.sync(() => input.onTitleAssigned?.(assignedTitle))
     }

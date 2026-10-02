@@ -1,6 +1,7 @@
 import { SessionId } from '@shared/types/brand'
 import type { SessionSummary } from '@shared/types/session'
 import { useState } from 'react'
+import { useSessionTitleRename } from '@/features/session-title'
 import { cn } from '@/shared/lib/cn'
 import { useSessionRowDescription } from '../hooks/useSessionRowDescription'
 import { useSessionRowStatus } from '../hooks/useSessionRowStatus'
@@ -112,6 +113,7 @@ export function SessionListItem({
   const sessionId = SessionId(String(session.id))
   const status = useSessionRowStatus(sessionId, session)
   const menu = useRowContextMenu()
+  const rename = useSessionTitleRename(sessionId, session.title)
   const pinned = resolvePinnedMeta(pinnedRow)
   const rowDescription = useSessionRowDescription({
     session,
@@ -137,6 +139,8 @@ export function SessionListItem({
       title={rowDescription}
       data-qa="sidebar-session-row"
       {...rowProps}
+      // Selecting or dragging text inside the rename field must not start a pinned-row drag.
+      {...(rename.isEditing ? { draggable: false } : {})}
       data-session-id={sessionId}
       style={rowStyle}
       className={cn(
@@ -162,6 +166,7 @@ export function SessionListItem({
           isActive={isActive}
           isInFlight={status.isInFlight}
           session={session}
+          rename={rename}
           onSelect={() => actions.select(sessionId)}
         />
         <SessionRowSecondLine
@@ -174,17 +179,20 @@ export function SessionListItem({
         />
       </span>
 
-      <SessionRowHoverActions isActive={isActive} menuOpen={menu.menuOpen}>
-        <SessionPinButton
-          isPinned={isPinned}
-          session={session}
-          onClick={(event) => {
-            event.stopPropagation()
-            actions.togglePin(sessionId)
-          }}
-        />
-        <SessionRowMenuTrigger session={session} onClick={menu.openUnderButton} />
-      </SessionRowHoverActions>
+      {/* The rename field spans the title line; its actions would sit under its text. */}
+      {rename.isEditing ? null : (
+        <SessionRowHoverActions isActive={isActive} menuOpen={menu.menuOpen}>
+          <SessionPinButton
+            isPinned={isPinned}
+            session={session}
+            onClick={(event) => {
+              event.stopPropagation()
+              actions.togglePin(sessionId)
+            }}
+          />
+          <SessionRowMenuTrigger session={session} onClick={menu.openUnderButton} />
+        </SessionRowHoverActions>
+      )}
 
       <SessionItemContextMenu
         open={menu.menuOpen}
@@ -192,8 +200,7 @@ export function SessionListItem({
         sessionId={sessionId}
         isPinned={isPinned}
         actions={actions}
-        onMoveUp={pinned.onMoveUp}
-        onMoveDown={pinned.onMoveDown}
+        commands={{ rename: rename.start, moveUp: pinned.onMoveUp, moveDown: pinned.onMoveDown }}
         onClose={menu.close}
       />
     </li>

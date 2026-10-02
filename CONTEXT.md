@@ -282,6 +282,26 @@ _Avoid_: replaying the run, restarting the session, best-effort continuation
 The CLI presentation of a Session subscription as a continuous human-readable or structured event stream.
 _Avoid_: wait, tailing session files
 
+**Session title**:
+The short, stable recognition label a person uses to find a Session again, set near its start and changed afterwards only by an explicit user rename or **Title regeneration**.
+_Avoid_: topic summary, live summary, first prompt, session name (Pi's term for the same field)
+
+**Provisional title**:
+The trimmed first message, or a Worker's trimmed Delegation objective, shown as a **Session title** until a generated one replaces it, and kept when generation is unavailable or fails.
+_Avoid_: title seed, fallback title, default title (that is "New session")
+
+**Title refinement**:
+The single automatic regeneration of a generated **Session title** after the first completed turn, owed when the first generation could not name the request: the model flagged it as too vague, gave no usable title, or failed, or the first message was only an attachment.
+_Avoid_: retitling, title drift, live title
+
+**Title regeneration**:
+A user-requested generation of a new **Session title** from the Session's whole history, applied directly and superseded if the title changes while it runs.
+_Avoid_: title suggestion, auto-retitle, refresh title
+
+**Title model**:
+The model that generates **Session titles**: Automatic by default, meaning the cheapest available model from the Session's own provider; a model the user selects; or Off, which leaves **Provisional titles** in place.
+_Avoid_: small model, utility model, text generation model
+
 **Session discovery text**:
 The compact searchable description of a session formed from its title, initial objective, and current preview.
 _Avoid_: transcript, full session content, hydrated session
@@ -1689,6 +1709,10 @@ _Avoid_: search (it narrows in place rather than producing results), sidebar vie
 - A **Session wait** wakes when the first target reaches a requested condition and does not wake for every streaming event.
 - The GUI consumes a **Session subscription**, while **Session watch** exposes the same authorized feed through the CLI.
 - **Session discovery** searches title, initial objective, and current preview through **Session discovery text**, while **Transcript search** is an explicit broader operation.
+- A Session without an explicit title receives a generated **Session title**: a root from its first message after showing a **Provisional title**, a Worker from its Delegation objective at Spawn. Only a root may receive **Title refinement**.
+- Title generation is always asynchronous: it never delays a Run, a Spawn, or any other Session operation, and every generated Session shows a **Provisional title**, or the default title when its first message has no text, until its generated title lands.
+- Changing a **Session title** by generation, **Title refinement**, **Title regeneration**, or rename never changes the Session's sidebar recency.
+- An explicitly given or renamed **Session title** is never replaced by generation, and a fork inherits its source's title marked as a fork or copy.
 - The default **Session discovery mode** is hybrid: exact lexical matches and semantic matches contribute candidates to one ranked result set.
 - A lexical **Session discovery mode** remains available for exact and deterministic automation, while a semantic mode permits concept-only retrieval.
 - Hybrid **Session discovery** falls back to lexical retrieval when its local semantic model or vector index is unavailable and reports that degradation to the caller.
@@ -2239,6 +2263,7 @@ _Avoid_: search (it narrows in place rather than producing results), sidebar vie
 
 - "notification" was used for both an announcement the agent sends and a request that holds the run. Resolved: an **Agent notification** can never be answered and lives in the **Notification stack**; an **Authorization request** or user-input request holds the run and docks to the composer.
 - "composer-adjacent notifications" was chosen from a design prototype and later reversed on purpose. Resolved: notifications float clear of the composer so that everything docked to the composer is something the user must answer.
+- "title" was used both for a stable label and for a summary that tracks the conversation. Resolved: a **Session title** is a stable recognition label; it changes after its start only by rename, **Title regeneration**, or one bounded **Title refinement**. Titling deliberately follows T3Code rather than the **Codex parity baseline** (ADR 0043).
 
 - "MCP extension" can imply that MCP lifecycle belongs to a Pi or OpenWaggle extension package. Resolved: use **OpenWaggle MCP integration** for the product and **MCP runtime** for the per-session client lifecycle.
 - "MCP enabled" can mean desired configuration or applied runtime state. Resolved: use **MCP desired state** for the user's request and report separately whether the safe boundary has applied it.

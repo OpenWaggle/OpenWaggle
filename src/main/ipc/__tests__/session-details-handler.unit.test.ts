@@ -46,6 +46,7 @@ describe('registerSessionDetailsHandlers', () => {
       'sessions:unarchive',
       'sessions:update-title',
       'sessions:set-authorization-mode',
+      'sessions:regenerate-title',
       'sessions:set-model',
     ])
   })

@@ -15,6 +15,7 @@ type BrowserAndScalarActions = Pick<
   | 'setDiffView'
   | 'setDiffWrapLines'
   | 'setCompactionThresholdPercent'
+  | 'setSessionTitleModel'
   | 'setBrowserLinkTarget'
   | 'setBrowserProfiles'
   | 'setBrowserDefaultProfileId'
@@ -74,6 +75,7 @@ export function createBrowserAndScalarPreferencesActions(
     setDiffWrapLines: (value) => persistSetting('diffWrapLines', value, set),
     setCompactionThresholdPercent: (value) =>
       persistSetting('compactionThresholdPercent', value, set),
+    setSessionTitleModel: (value) => persistSetting('sessionTitleModel', value, set),
     setBrowserLinkTarget: (value) => persistSetting('browserLinkTarget', value, set),
     setBrowserProfiles: (profiles) => persistBrowserProfiles(profiles, set),
     setBrowserDefaultProfileId: (value) => persistSetting('browserDefaultProfileId', value, set),

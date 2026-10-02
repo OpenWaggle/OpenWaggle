@@ -18,6 +18,7 @@ export {
 export type { BoundWorkspaceResource } from './session-details/session-mutations'
 export {
   archiveSession,
+  assignProvisionalSessionTitle,
   clearSessionWorktree,
   deleteSession,
   getBoundWorkspaceResource,

@@ -1,5 +1,6 @@
 import { safeDecodeUnknown } from '@shared/schema'
 import { settingsUpdateSchema } from '@shared/schemas/settings'
+import { parseSessionTitleModelSetting } from '@shared/session-title-model'
 import { SupportedModelId } from '@shared/types/brand'
 import {
   isMandatoryShortcutCommand,
@@ -131,6 +132,10 @@ export function updateSettingsOperation(raw: unknown) {
       selectedModel:
         result.data.selectedModel !== undefined
           ? SupportedModelId(result.data.selectedModel)
+          : undefined,
+      sessionTitleModel:
+        result.data.sessionTitleModel !== undefined
+          ? (parseSessionTitleModelSetting(result.data.sessionTitleModel) ?? undefined)
           : undefined,
       favoriteModels: result.data.favoriteModels?.map(SupportedModelId),
       enabledModels: result.data.enabledModels?.map(SupportedModelId),

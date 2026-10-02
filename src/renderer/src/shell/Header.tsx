@@ -175,6 +175,7 @@ export function Header() {
           activeBranchName={git.status?.branch ?? null}
           projectPath={projectPath}
           sidebarOpen={sidebarOpen}
+          sessionId={activeSessionId}
           title={title}
           sessionIdentity={currentSessionIdentity}
           onToggleSidebar={toggleSidebar}

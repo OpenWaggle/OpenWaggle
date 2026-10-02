@@ -18,6 +18,7 @@ import {
   toSummary,
 } from './chat-store-helpers'
 import { createSessionModelActions, withPendingSessionModel } from './chat-store-session-model'
+import { applySessionTitle } from './chat-store-title-actions'
 import type { ChatActions, ChatState } from './chat-store-types'
 import {
   draftMaterializationGeneration,
@@ -261,31 +262,7 @@ async function deleteSession(id: SessionId, set: ChatSet, get: ChatGet) {
 
 function updateSessionTitle(id: SessionId, title: string, set: ChatSet, get: ChatGet) {
   markSessionMutation(id)
-  set((state) => {
-    const existing = state.sessionById.get(id)
-    if (!existing) {
-      const now = Date.now()
-      return {
-        sessions: mergeSummary(state.sessions, {
-          id,
-          title,
-          projectPath: null,
-          messageCount: 1,
-          createdAt: now,
-          updatedAt: now,
-        }),
-      }
-    }
-
-    const session = { ...existing, title }
-    const sessionById = new Map(state.sessionById)
-    sessionById.set(id, session)
-    return {
-      sessionById,
-      sessions: mergeSummary(state.sessions, toSummary(session)),
-      activeSession: state.activeSessionId === id ? session : state.activeSession,
-    }
-  })
+  applySessionTitle(id, title, set)
   refreshSessionStoreForSession(id, get().activeSessionId)
 }
 
@@ -316,6 +293,7 @@ export function createChatActions(set: ChatSet, get: ChatGet): ChatActions {
     ...createSessionModelActions(set, get),
     upsertSession: (session) => upsertSession(withPendingSessionModel(session), set),
     deleteSession: (id) => deleteSession(id, set, get),
+    applySessionTitle: (id, title) => applySessionTitle(id, title, set),
     updateSessionTitle: (id, title) => updateSessionTitle(id, title, set, get),
     clearError: () => set({ error: null }),
   }

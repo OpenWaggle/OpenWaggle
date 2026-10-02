@@ -1,4 +1,5 @@
-export const LOCAL_SESSION_CURRENT_REVISION = 19 as const
+export const LOCAL_SESSION_CURRENT_REVISION = 20 as const
+export const LOCAL_SESSION_TITLE_REGENERATION_REVISION = 20 as const
 export const LOCAL_SESSION_HOST_CONTROL_REVISION = 19 as const
 export const LOCAL_SESSION_LAUNCH_STEPS_REVISION = 18 as const
 export const LOCAL_SESSION_NATIVE_ACTIONS_REVISION = 17 as const
@@ -21,6 +22,7 @@ export const LOCAL_SESSION_WAGGLE_REVISION = 3 as const
  * local launches, and their new stages to worktree launch events and Run snapshots, which a
  * revision-17 client decodes exactly and would reject mid-stream; older clients must upgrade.
  * Revision 19 adds the `local-host-v1` stop command used by `openwaggle host stop` (ADR 0039).
+ * Revision 20 adds the `sessions:regenerate-title` Host UI channel for Title regeneration (ADR 0043).
  */
 export const LOCAL_SESSION_SUPPORTED_REVISIONS = [LOCAL_SESSION_CURRENT_REVISION] as const
 
@@ -121,4 +123,9 @@ export const LOCAL_SESSION_REVISION_19_CAPABILITIES = [
   'host:stop-v1',
 ] as const
 
-export const LOCAL_SESSION_CAPABILITIES = LOCAL_SESSION_REVISION_19_CAPABILITIES
+export const LOCAL_SESSION_REVISION_20_CAPABILITIES = [
+  ...LOCAL_SESSION_REVISION_19_CAPABILITIES,
+  'host-ui:session-title-regeneration-v1',
+] as const
+
+export const LOCAL_SESSION_CAPABILITIES = LOCAL_SESSION_REVISION_20_CAPABILITIES
