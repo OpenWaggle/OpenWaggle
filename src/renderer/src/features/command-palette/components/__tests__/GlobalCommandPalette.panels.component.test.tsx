@@ -96,7 +96,12 @@ function panelLabels() {
 }
 
 describe('GlobalCommandPalette Panels section', () => {
-  const controller = { toggleSurface: vi.fn(), showSurface: vi.fn() }
+  const controller = {
+    toggleSurface: vi.fn(),
+    showSurface: vi.fn(),
+    togglePanel: vi.fn(),
+    closePanel: vi.fn(),
+  }
   let unregister: (() => void) | null = null
 
   beforeAll(() => {

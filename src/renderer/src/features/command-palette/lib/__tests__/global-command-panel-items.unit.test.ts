@@ -108,7 +108,12 @@ describe('createPanelCommandItems', () => {
   })
 
   it('shows surfaces through the controller and never toggles them', () => {
-    const controller = { toggleSurface: vi.fn(), showSurface: vi.fn() }
+    const controller = {
+      toggleSurface: vi.fn(),
+      showSurface: vi.fn(),
+      togglePanel: vi.fn(),
+      closePanel: vi.fn(),
+    }
     unregister = registerRightPanelController(controller)
     const legacy = { openBuiltInPanel: vi.fn(), openExtensionPanel: vi.fn() }
 

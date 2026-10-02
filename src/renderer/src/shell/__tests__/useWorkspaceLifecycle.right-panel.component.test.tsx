@@ -62,7 +62,12 @@ describe('useWorkspaceLifecycle Right panel shortcuts', () => {
   let useWorkspaceLifecycle: Awaited<
     ReturnType<typeof loadUseWorkspaceLifecycle>
   >['useWorkspaceLifecycle']
-  const controller = { toggleSurface: vi.fn(), showSurface: vi.fn() }
+  const controller = {
+    toggleSurface: vi.fn(),
+    showSurface: vi.fn(),
+    togglePanel: vi.fn(),
+    closePanel: vi.fn(),
+  }
   let unregister: (() => void) | null = null
 
   beforeEach(async () => {
