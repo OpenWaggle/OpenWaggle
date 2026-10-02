@@ -453,7 +453,12 @@ _Avoid_: Pi queue, renderer queue, steering queue
 **Follow-up message**:
 Input retained outside the active run in the Follow-up queue for later delivery as a new run.
 If the intended active run settles immediately before an explicit Follow-up is admitted, Session Control atomically starts that input as the next run instead of leaving it stranded in an otherwise runnable queue.
+A Follow-up message carries its content (text, attachments, skill or Waggle invocation), not the Session's model or thinking level; its run uses the Session's settings when it starts.
 _Avoid_: steering message, deferred steer
+
+**Session thinking level**:
+The thinking level a Session's next run uses, kept by Pi with the Session like the Session's model. It can be changed only while the Session has no active run, and is never stored as a project preference. Changing it also makes it the default for Sessions created afterwards (Pi's global default), without changing any existing Session.
+_Avoid_: message thinking level, project thinking preference
 
 **Run start**:
 An operation that begins a new run from submitted input while the target session is idle.
@@ -510,10 +515,6 @@ _Avoid_: interrupt, clear queue
 **Follow-up queue resumption**:
 An explicit operation that makes a paused Follow-up queue eligible to deliver its next message.
 _Avoid_: run start, retry
-
-**Follow-up authorization block**:
-The needs-attention state of a Follow-up message whose requested Run authorization override is no longer permitted when delivery is about to create its run.
-_Avoid_: silent downgrade, failed message, expired follow-up
 
 **Expected run identity**:
 The caller-supplied identity of the active run that a run-control operation is allowed to mutate.
@@ -784,7 +785,7 @@ An explicitly chosen Authorization mode at project or session level that replace
 _Avoid_: copied default, session mode snapshot, birth-time mode
 
 **Run authorization override**:
-An Authorization mode requested only for one newly created run and inherited by descendants of that run, always bounded by its Authorization ceiling and never persisted as a session default.
+An Authorization mode requested only for one newly created run and inherited by descendants of that run, always bounded by its Authorization ceiling and never persisted as a session default. A caller requests it only when creating a Session or starting a run on an idle Session; it is refused while a run is active, so a Follow-up message never carries one.
 _Avoid_: session override, permanent YOLO, caller permission
 
 **Draft authorization override**:
@@ -1419,11 +1420,9 @@ _Avoid_: search (it narrows in place rather than producing results), sidebar vie
 - A targeted Follow-up queue mutation addresses a stable **Follow-up identity** rather than a queue position.
 - Queue-wide state and ordering mutations require the current **Follow-up queue revision**.
 - Repeated submissions with the same **Mutation idempotency key** produce at most one **Follow-up message**.
-- Every **Follow-up message** owns a **Follow-up intent snapshot** containing its text, durable attachments, thinking request, standard or Waggle intent, caller identity, timestamps, and idempotency metadata.
+- Every **Follow-up message** owns a **Follow-up intent snapshot** containing its text, durable attachments, standard or Waggle intent, caller identity, timestamps, and idempotency metadata. It carries no thinking level and no **Run authorization override**: its run uses the **Session thinking level** and the Session's authorization when it starts.
 - A **Run start** combines the selected **Follow-up intent snapshot** with the current **Target execution profile**.
-- Automatic delivery revalidates the originating profile or derived grant before applying a queued **Run authorization override**.
-- If that override is no longer permitted, the message remains queued in a **Follow-up authorization block** with structured `authorization_ceiling_changed` state; delivery never silently downgrades, discards, or starts it.
-- An authorized caller clears a **Follow-up authorization block** by changing the queued override, restoring sufficient authority, or withdrawing the message.
+- Automatic delivery revalidates the originating profile or derived grant before starting a queued **Follow-up message**.
 - A cross-session caller cannot place model, tool, MCP, filesystem, network, approval, or credential overrides inside a **Follow-up intent snapshot**.
 - Cross-session and CLI input enters the target agent loop as user-role input with **Message provenance** outside caller-controlled content.
 - **Message provenance** is visible to the target model and transcript, with a source-session link only when the viewer may discover that session.
