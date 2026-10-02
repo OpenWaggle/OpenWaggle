@@ -78,6 +78,7 @@ describe('QueuedMessages "Send as me"', () => {
     onToast.mockClear()
     queueMock.snapshot.state = 'running'
     queueMock.snapshot.pauseReason = undefined
+    queueMock.snapshot.activeRunId = null
     queueMock.adopt.mockReset().mockResolvedValue(undefined)
   })
 
@@ -125,6 +126,56 @@ describe('QueuedMessages "Send as me"', () => {
     expect(sendAsMe()).toHaveAccessibleDescription(
       'Send this message in its turn under your own access. It keeps showing who queued it.',
     )
+  })
+
+  const SENDS_NOW = 'Send this message now under your own access. It keeps showing who queued it.'
+  const SENDS_IN_TURN =
+    'Send this message in its turn under your own access. It keeps showing who queued it.'
+
+  it.each([undefined, 'profile-revoked'] as const)(
+    'says it sends now when attention paused the queue (%s) and this is the last message needing it',
+    (pauseReason) => {
+      queueNeedingAttention('authority_changed')
+      queueMock.snapshot.state = 'paused'
+      queueMock.snapshot.pauseReason = pauseReason
+      renderQueue()
+
+      expect(sendAsMe()).toHaveAccessibleDescription(SENDS_NOW)
+    },
+  )
+
+  it('says it sends in turn when another message still needs attention', () => {
+    queueNeedingAttention('profile_revoked')
+    const [head] = queueMock.snapshot.items
+    if (!head) throw new Error('expected a queued message')
+    queueMock.snapshot.items = [head, { ...head, id: 'follow-up-2', text: 'and publish' }]
+    queueMock.snapshot.state = 'paused'
+    queueMock.snapshot.pauseReason = 'profile-revoked'
+    renderQueue()
+
+    // Adopting the first leaves the second needing attention, so the Host keeps the queue paused.
+    expect(sendAsMe()).toHaveAccessibleDescription(SENDS_IN_TURN)
+  })
+
+  it('says it sends in turn while the Host reports a Run this window is not streaming', () => {
+    queueNeedingAttention('profile_revoked')
+    queueMock.snapshot.activeRunId = 'run-from-cli'
+    renderQueue()
+
+    expect(sendAsMe()).toHaveAccessibleDescription(SENDS_IN_TURN)
+  })
+
+  it('says it sends in turn for a message that is not first in the queue', () => {
+    queueNeedingAttention('profile_revoked')
+    const [needsAttention] = queueMock.snapshot.items
+    if (!needsAttention) throw new Error('expected a queued message')
+    queueMock.snapshot.items = [
+      { ...needsAttention, id: 'follow-up-0', text: 'first', deliveryState: 'pending' },
+      needsAttention,
+    ]
+    renderQueue()
+
+    expect(sendAsMe()).toHaveAccessibleDescription(SENDS_IN_TURN)
   })
 
   it('does not offer it on a message that can be delivered', () => {

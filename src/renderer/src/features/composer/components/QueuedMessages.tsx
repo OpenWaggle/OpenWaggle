@@ -11,6 +11,7 @@ import { Button } from '@/shared/ui/Button'
 import { useQueueControls } from '../hooks/useQueueControls'
 import { useQueuedMessageArrangement } from '../hooks/useQueuedMessageArrangement'
 import { useQueuedMessageEdit } from '../hooks/useQueuedMessageEdit'
+import { sendAsMeStartsNow } from '../lib/send-as-me'
 import {
   draftBusyReason,
   selectDraftActivity,
@@ -194,12 +195,10 @@ export function QueuedMessages({ sessionId, onSteer, isStreaming, onToast }: Que
     onDropOn: arrangement.onDropOn,
   }
 
-  /*
-   * "Send as me" on the first message starts it at once on an idle Session whose queue runs, or
-   * paused only because that message's access was revoked: the Host resumes the queue for it.
-   */
+  // "Send as me" on the first message starts it at once only when the Host would (`sendAsMeStartsNow`).
+  const headId = queue[0]?.id
   const headSendsNow =
-    !isStreaming && (snapshot.state === 'running' || snapshot.pauseReason === 'profile-revoked')
+    headId !== undefined && sendAsMeStartsNow({ queue: snapshot, followUpId: headId, isStreaming })
   const queueUnavailable = sessionId !== null && error !== null
   const showDock = sessionId !== null && (queue.length > 0 || queueUnavailable)
 
