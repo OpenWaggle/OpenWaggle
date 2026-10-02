@@ -8,8 +8,10 @@ import { cn } from '@/shared/lib/cn'
 import { Button } from '@/shared/ui/Button'
 import { DENSE_MENU_ITEM_CLASS } from '@/shared/ui/menu-styles'
 import { Popover } from '@/shared/ui/Popover'
+import { useUIStore } from '@/shell/ui-store'
 import { THINKING_LEVEL_LABELS } from '../constants/thinking-level-labels'
 import { useComposerModel } from '../hooks/useComposerModel'
+import { useSessionSettingsLock } from '../hooks/useSessionSettingsLock'
 import {
   getThinkingButtonLabel,
   getThinkingButtonTitle,
@@ -19,13 +21,14 @@ import {
 export function ThinkingLevelMenu() {
   const activeSessionId = useChatStore((s) => s.activeSessionId)
   const sessionThinking = useSessionThinkingLevel(activeSessionId)
+  const settingsLock = useSessionSettingsLock(activeSessionId)
   const thinkingMenuOpen = useComposerStore((s) => s.thinkingMenuOpen)
   const openMenu = useComposerStore((s) => s.openMenu)
   const composerModel = useComposerModel().model
   const thinking = useSelectedModelThinkingLevel(composerModel ?? null, sessionThinking.level)
   const hasSelectedModel = Boolean(composerModel?.trim())
   const canOpenThinkingMenu =
-    sessionThinking.canChange &&
+    !settingsLock.locked &&
     thinking.capabilitiesKnown &&
     thinking.availableThinkingLevels.length > 0
   const selectedModelOnlySupportsOff =
@@ -34,7 +37,11 @@ export function ThinkingLevelMenu() {
   async function handleThinkingLevelChange(level: ThinkingLevel) {
     openMenu(null)
     if (level === sessionThinking.level) return
-    await sessionThinking.setLevel(level).catch(() => undefined)
+    // A refused pick is already off screen (the pending level is dropped); say why.
+    await sessionThinking.setLevel(level).catch((error: unknown) => {
+      const reason = error instanceof Error ? error.message : String(error)
+      useUIStore.getState().showToast(`Could not change the thinking level: ${reason}`, 'error')
+    })
   }
 
   return (
@@ -53,14 +60,17 @@ export function ThinkingLevelMenu() {
             thinking.capabilitiesKnown,
             thinking.effectiveThinkingLevel,
           )}
-          title={getThinkingButtonTitle({
-            hasSelectedModel,
-            capabilitiesKnown: thinking.capabilitiesKnown,
-            selectedModelOnlySupportsOff,
-            isAdjustedForModel: thinking.isAdjustedForModel,
-            requestedThinkingLevel: thinking.requestedThinkingLevel,
-            effectiveThinkingLevel: thinking.effectiveThinkingLevel,
-          })}
+          title={
+            settingsLock.reason ??
+            getThinkingButtonTitle({
+              hasSelectedModel,
+              capabilitiesKnown: thinking.capabilitiesKnown,
+              selectedModelOnlySupportsOff,
+              isAdjustedForModel: thinking.isAdjustedForModel,
+              requestedThinkingLevel: thinking.requestedThinkingLevel,
+              effectiveThinkingLevel: thinking.effectiveThinkingLevel,
+            })
+          }
           onToggle={(nextOpen) => openMenu(nextOpen ? 'thinking' : null)}
         />
       }

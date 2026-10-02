@@ -5,6 +5,7 @@ import { useProviderStore } from '@/features/providers/state'
 import { usePreferencesStore } from '@/features/settings/state'
 import { useComposerModel } from '../hooks/useComposerModel'
 import { useModelSwitchNotice } from '../hooks/useModelSwitchNotice'
+import { useSessionSettingsLock } from '../hooks/useSessionSettingsLock'
 
 export function ComposerModelPicker() {
   const settings = usePreferencesStore((s) => s.settings)
@@ -16,11 +17,12 @@ export function ComposerModelPicker() {
   const providerModels = useProviderStore((s) => s.providerModels)
   const composerModel = useComposerModel()
   const switchNotice = useModelSwitchNotice()
+  const settingsLock = useSessionSettingsLock(activeSessionId)
 
   function selectModel(model: SupportedModelId) {
     if (activeSessionId) {
       // A Session pick belongs to that Session; it does not change the project's default for new
-      // Sessions. The write is durable at once and never reaches a Run that is already streaming.
+      // Sessions. The picker is locked while a Run goes; a refused write rolls back with a toast.
       void setSessionModel(activeSessionId, model)
       return
     }
@@ -37,9 +39,9 @@ export function ComposerModelPicker() {
       onChange={selectModel}
       settings={settings}
       providerModels={providerModels}
-      disabled={draftSession?.isMaterializing}
+      disabled={settingsLock.locked || draftSession?.isMaterializing}
       fallbackLabel={composerModel.isSessionModel ? composerModel.model : undefined}
-      title={switchNotice?.title}
+      title={settingsLock.reason ?? switchNotice?.title}
     />
   )
 }

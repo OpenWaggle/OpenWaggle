@@ -2,6 +2,7 @@ import { SessionId, SupportedModelId } from '@shared/types/brand'
 import type { ProviderInfo } from '@shared/types/llm'
 import type { SessionDetail } from '@shared/types/session'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { fromPartial } from '@total-typescript/shoehorn'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -20,6 +21,8 @@ vi.mock('@/shared/lib/ipc', () => ({
     getProviderModels: vi.fn().mockResolvedValue([]),
     setSessionModel: vi.fn().mockResolvedValue(undefined),
     getSessionDetail: vi.fn().mockResolvedValue(null),
+    getDefaultThinkingLevel: vi.fn().mockResolvedValue('medium'),
+    querySessionControl: vi.fn().mockRejectedValue(new Error('No Session Host in this test')),
   },
 }))
 
@@ -94,7 +97,7 @@ const NEXT_MESSAGE_NOTICE =
 
 function renderComposerModelControls() {
   return render(
-    <>
+    <QueryClientProvider client={new QueryClient()}>
       <ComposerHeader
         attachments={fromPartial({
           attachments: [],
@@ -105,7 +108,7 @@ function renderComposerModelControls() {
         onClearVoiceError={vi.fn()}
       />
       <ComposerModelPicker />
-    </>,
+    </QueryClientProvider>,
   )
 }
 
@@ -150,26 +153,18 @@ describe('ComposerModelPicker for an existing Session', () => {
     expect(usePreferencesStore.getState().settings.selectedModel).toBe(CURRENT_MODEL)
   })
 
-  it('leaves the running turn on its model and applies a mid-turn pick to the next message', async () => {
+  it('locks the picker while a Run is active, since the Host refuses a model change then', () => {
     const sessionId = SessionId('session-mid-turn-model')
-    openSession(sessionId, NEXT_MODEL)
+    openSession(sessionId, CURRENT_MODEL)
     useBackgroundRunStore.getState().addActiveRun(sessionId, CURRENT_MODEL)
     renderComposerModelControls()
 
-    expect(screen.queryByText(NEXT_MESSAGE_NOTICE)).not.toBeInTheDocument()
-    pickNextModel()
-
-    await waitFor(() => expect(api.setSessionModel).toHaveBeenCalledWith(sessionId, NEXT_MODEL))
-    const trigger = await screen.findByRole('button', { name: 'Claude Sonnet' })
-    expect(trigger).toHaveAttribute('title', expect.stringContaining('next message'))
-    expect(trigger).toHaveAttribute('title', expect.stringContaining('keeps using GPT 5'))
-    expect(screen.getByText(NEXT_MESSAGE_NOTICE)).toBeInTheDocument()
-    expect(useBackgroundRunStore.getState().runModelBySessionId.get(sessionId)).toBe(CURRENT_MODEL)
-
-    // The next Run starts with the new model, so the pick is no longer pending.
-    useBackgroundRunStore.getState().removeActiveRun(sessionId)
-    useBackgroundRunStore.getState().addActiveRun(sessionId, NEXT_MODEL)
-    await waitFor(() => expect(screen.queryByText(NEXT_MESSAGE_NOTICE)).not.toBeInTheDocument())
+    const trigger = screen.getByRole('button', { name: 'GPT 5' })
+    expect(trigger).toBeDisabled()
+    expect(trigger).toHaveAccessibleDescription('Available when the Run ends')
+    fireEvent.click(trigger)
+    expect(screen.queryByRole('option', { name: 'Claude Sonnet' })).not.toBeInTheDocument()
+    expect(api.setSessionModel).not.toHaveBeenCalled()
   })
 
   it('rolls the pick back and says so when the Session Host rejects it', async () => {
