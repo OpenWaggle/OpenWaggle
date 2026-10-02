@@ -4,6 +4,8 @@ import type { QueuedMessageEdit } from '../state/queued-message-edit-store'
 export interface QueuedMessageRowActions {
   readonly onDismiss: (followUpId: string) => void
   readonly onSteer: (followUpId: string) => void
+  /** Sends a needs-attention Follow-up as the desktop user, under the user's own access. */
+  readonly onAdopt: (followUpId: string) => void
   readonly onEdit: (followUpId: string) => void
   readonly onMove: (followUpId: string, anchor: QueuedMessageAnchor) => void
   /** Drag bookkeeping lives outside React state: re-rendering mid-gesture cancels the drag. */

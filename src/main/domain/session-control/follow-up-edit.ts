@@ -3,8 +3,8 @@
  *
  * An edit replaces a pending Follow-up's intent snapshot in place: same Follow-up identity, same
  * position. Only the caller that queued the Follow-up may edit it, and its provenance (caller,
- * author, acceptance time, idempotency key) and its run settings (thinking level, authorization
- * override, interaction timeout) never change; only the message content does.
+ * author, acceptance time, idempotency key) and interaction timeout never change; only the message
+ * content does. A Follow-up carries no thinking level or Run authorization override.
  *
  * Beginning an edit puts a hold on the item. Delivery stops at a held item: nothing from it onward
  * starts at Run settlement, on resumption, or by steering promotion, and a new message to an idle
@@ -14,8 +14,8 @@
  *
  * Revision rule: a save names the queue revision its edit began at (`baseQueueRevision`), not the
  * queue's current revision. While held, a Follow-up's content can change only through this edit;
- * anything else that changes the item ends the hold (withdrawal, delivery, re-authorization by
- * another caller), and the save is then refused as not held. Reordering, and changes to other
+ * anything else that changes the item ends the hold (withdrawal, delivery, adoption by another
+ * caller), and the save is then refused as not held. Reordering, and changes to other
  * items, do not affect a save.
  */
 import type { InlineVisualizationContext } from '@shared/types/agent'
@@ -163,7 +163,7 @@ function released(
   }
 }
 
-/** The edited intent: new content, everything else (provenance and run settings) unchanged. */
+/** The edited intent: new content, everything else (provenance) unchanged. */
 export function editedIntent(
   intent: SessionControlIntentSnapshot,
   content: FollowUpEditContent,

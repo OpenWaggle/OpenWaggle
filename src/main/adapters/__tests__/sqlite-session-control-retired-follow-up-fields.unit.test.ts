@@ -72,6 +72,8 @@ describe('SQLite Session control: Follow-ups stored with retired Session setting
         text: 'Then list every project.',
         attachmentIds: [],
         callerId: 'gui:local-user',
+        // Who queued it stays as provenance.
+        authorCallerId: 'profile:ci',
         acceptedAt: 1,
         idempotencyKey: 'stored-follow-up',
       },
@@ -95,6 +97,7 @@ describe('SQLite Session control: Follow-ups stored with retired Session setting
       text: 'Then list every project.',
       attachmentIds: [],
       callerId: 'gui:local-user',
+      authorCallerId: 'profile:ci',
       acceptedAt: 1,
       idempotencyKey: 'stored-follow-up',
     })

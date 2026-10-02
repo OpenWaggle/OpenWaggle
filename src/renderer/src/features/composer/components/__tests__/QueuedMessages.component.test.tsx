@@ -35,6 +35,7 @@ const queueMock = vi.hoisted(() => {
     refresh: vi.fn().mockResolvedValue(undefined),
     withdraw: vi.fn().mockResolvedValue(undefined),
     setPaused: vi.fn().mockResolvedValue(undefined),
+    adopt: vi.fn().mockResolvedValue(undefined),
   }
 })
 
@@ -45,6 +46,7 @@ vi.mock('@/features/chat/hooks/useSessionFollowUpQueue', () => ({
     refresh: queueMock.refresh,
     withdraw: queueMock.withdraw,
     setPaused: queueMock.setPaused,
+    adopt: queueMock.adopt,
   }),
 }))
 
@@ -231,7 +233,7 @@ describe('QueuedMessages', () => {
     expect(screen.getByRole('button', { name: 'Resume' })).toBeVisible()
   })
 
-  it('explains blocked delivery, disables steering, and offers no access repair', () => {
+  it('explains blocked delivery, disables steering, and offers to send it as the user', () => {
     queue({
       id: 'follow-up-1',
       text: 'requires current authority',
@@ -244,16 +246,18 @@ describe('QueuedMessages', () => {
 
     expect(
       screen.getByText(
-        'Session authority changed. Restore access and resume the queue, or dismiss this Follow-up.',
+        'The access that queued this message no longer covers this Session. Send it as you, or dismiss it.',
       ),
     ).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Steer' })).toBeDisabled()
     fireEvent.click(screen.getByRole('button', { name: 'Steer' }))
     expect(noOpSteer).not.toHaveBeenCalled()
     // A Follow-up never carries its own access, so there is no override to repair.
-    expect(screen.queryByRole('button', { name: 'Re-submit' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Use current access' })).not.toBeInTheDocument()
     expect(screen.getByTitle('Dismiss')).toBeVisible()
+    queueMock.adopt.mockClear()
+    fireEvent.click(screen.getByRole('button', { name: /Send as me/u }))
+    expect(queueMock.adopt).toHaveBeenCalledWith('follow-up-1')
   })
 
   it('withdraws by durable Follow-up identity and displays attachment-only intent', () => {

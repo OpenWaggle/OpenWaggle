@@ -156,7 +156,8 @@ function QueueHeaderRow({
  * than a separate full-width panel.
  */
 export function QueuedMessages({ sessionId, onSteer, isStreaming, onToast }: QueuedMessagesProps) {
-  const { snapshot, error, refresh, setPaused, withdraw } = useSessionFollowUpQueue(sessionId)
+  const { snapshot, error, refresh, setPaused, withdraw, adopt } =
+    useSessionFollowUpQueue(sessionId)
   const [isChangingQueueState, setIsChangingQueueState] = useState(false)
   const pendingPromotions = useOptimisticSteerStore(selectPendingSteerFollowUps(sessionId))
   // Reserved by a pending steering promotion: hidden from the dock and locked in place.
@@ -181,6 +182,14 @@ export function QueuedMessages({ sessionId, onSteer, isStreaming, onToast }: Que
     }
   }
 
+  async function sendAsUser(followUpId: string) {
+    try {
+      await adopt(followUpId)
+    } catch (error) {
+      onToast(error instanceof Error ? error.message : String(error))
+    }
+  }
+
   // Revision-guarded by the hook; pausing lets the user change Session settings before resuming.
   async function changeQueueState(paused: boolean) {
     setIsChangingQueueState(true)
@@ -196,6 +205,7 @@ export function QueuedMessages({ sessionId, onSteer, isStreaming, onToast }: Que
   const rowActions: QueuedMessageRowActions = {
     onDismiss: (followUpId) => void dismiss(followUpId),
     onSteer: (followUpId) => void onSteer(followUpId),
+    onAdopt: (followUpId) => void sendAsUser(followUpId),
     onEdit: (followUpId) => void queuedEdit.begin(followUpId),
     onMove: arrangement.onMove,
     onDragStart: arrangement.onDragStart,

@@ -10,11 +10,7 @@ export type StoredFollowUpAttentionReason =
 const RETIRED_ATTENTION_REASON = 'authorization_ceiling_changed'
 
 /** Fields a stored Follow-up intent may carry from before a Follow-up stopped carrying them. */
-const RETIRED_INTENT_FIELDS = new Set([
-  'thinkingLevel',
-  'runAuthorizationOverride',
-  'authorCallerId',
-])
+const RETIRED_INTENT_FIELDS = new Set(['thinkingLevel', 'runAuthorizationOverride'])
 
 /**
  * How a stored Follow-up's delivery reads: one blocked only on its retired authorization override

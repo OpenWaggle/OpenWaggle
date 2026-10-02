@@ -54,6 +54,23 @@ describe('Session capability authorization', () => {
     })
   })
 
+  it('treats adopting a Follow-up as an authorization change', () => {
+    const adopt: SessionControlMutationRequest['command'] = {
+      operation: 'queue-adopt',
+      sessionId: 'session-target',
+      followUpId: 'follow-up-target',
+      expectedQueueRevision: 3,
+    }
+
+    expect(requiredSessionControlCapabilities(adopt)).toEqual([
+      'sessions:queue',
+      'sessions:authorization',
+    ])
+    expect(
+      authorizeSessionCapabilities(authority, requiredSessionControlCapabilities(adopt)),
+    ).toMatchObject({ authorized: false, missing: ['sessions:authorization'] })
+  })
+
   it('keeps atomic lifecycle requirements distinct', () => {
     const launch: SessionLifecycleRequest['command'] = {
       operation: 'launch',

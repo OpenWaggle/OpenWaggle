@@ -20,6 +20,7 @@ import type {
   SessionControlInterruptDescendantsCommand,
 } from './session-control-interruption'
 import type {
+  SessionControlQueueAdoptCommand,
   SessionControlQueueEditCommand,
   SessionControlQueueMutationCommand,
 } from './session-control-queue'
@@ -75,5 +76,7 @@ export type SessionControlQueueMutationRequest =
   MutationRequestFor<SessionControlQueueMutationCommand>
 export type SessionControlQueueEditMutationRequest =
   MutationRequestFor<SessionControlQueueEditCommand>
+export type SessionControlQueueAdoptMutationRequest =
+  MutationRequestFor<SessionControlQueueAdoptCommand>
 export type SessionExportCreateMutationRequest = MutationRequestFor<SessionExportCreateCommand>
 export type SessionExportCancelMutationRequest = MutationRequestFor<SessionExportCancelCommand>

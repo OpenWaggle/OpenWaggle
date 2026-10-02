@@ -41,7 +41,8 @@ function loadRegisteredRunContext(input: RegisteredRunInput) {
     const resolvedAttachments = yield* attachments.resolve({
       attachmentIds: input.request.intent.attachmentIds,
       sessionId: input.request.sessionId,
-      ownerCallerId: input.request.intent.callerId,
+      // An adopted Follow-up's attachments stay its author's.
+      ownerCallerId: input.request.intent.authorCallerId ?? input.request.intent.callerId,
     })
     return {
       requestedWaggle,

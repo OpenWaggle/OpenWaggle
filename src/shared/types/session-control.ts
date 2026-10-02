@@ -13,6 +13,7 @@ import type {
   SessionControlInterruptDescendantsCommand,
 } from './session-control-interruption'
 import type {
+  SessionControlQueueAdoptCommand,
   SessionControlQueueEditBeginCommand,
   SessionControlQueueEditCancelCommand,
   SessionControlQueueEditSaveCommand,
@@ -68,6 +69,7 @@ export type {
 } from './session-control-interruption'
 export type {
   SessionControlFollowUpEditInput,
+  SessionControlQueueAdoptCommand,
   SessionControlQueueEditBeginCommand,
   SessionControlQueueEditCancelCommand,
   SessionControlQueueEditCommand,
@@ -86,6 +88,7 @@ export type {
   SessionControlInterruptMutationRequest,
   SessionControlMessageMutationRequest,
   SessionControlPromoteMutationRequest,
+  SessionControlQueueAdoptMutationRequest,
   SessionControlQueueEditMutationRequest,
   SessionControlQueueMutationRequest,
   SessionControlReplaceMutationRequest,
@@ -149,6 +152,7 @@ export const SESSION_CONTROL_MUTATION_OPERATIONS = [
   'unarchive',
   'handoff',
   'promote',
+  'queue-adopt',
   'queue-edit-begin',
   'queue-edit-cancel',
   'queue-edit-save',
@@ -173,6 +177,7 @@ export type SessionControlMutationCommand =
   | SessionAuthorizationSetCommand
   | SessionOrganizationCommand
   | SessionControlPromoteCommand
+  | SessionControlQueueAdoptCommand
   | SessionControlQueueEditBeginCommand
   | SessionControlQueueEditCancelCommand
   | SessionControlQueueEditSaveCommand

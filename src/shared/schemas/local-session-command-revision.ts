@@ -81,6 +81,12 @@ export function isFollowUpEditCommand(payload: LocalSessionCommandPayload) {
 
 export function requiredLocalSessionCommandRevision(payload: LocalSessionCommandPayload) {
   if (isFollowUpEditCommand(payload)) return LOCAL_SESSION_FOLLOW_UP_EDIT_REVISION
+  if (
+    payload.contract === 'session-control-v2' &&
+    payload.request.command.operation === 'queue-adopt'
+  ) {
+    return LOCAL_SESSION_SESSION_SETTINGS_REVISION
+  }
   if (payload.contract === 'local-update-v1') return LOCAL_SESSION_UPDATE_REVISION
   if (payload.contract === 'local-host-v1') return LOCAL_SESSION_HOST_CONTROL_REVISION
   if (payload.contract === 'desktop-service-v1') return LOCAL_SESSION_DESKTOP_SERVICE_REVISION

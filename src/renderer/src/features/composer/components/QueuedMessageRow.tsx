@@ -8,9 +8,9 @@ import type { QueuedMessageRowActions, QueuedMessageRowEditState } from './queue
 
 const ATTENTION_REASON_COPY = {
   profile_revoked:
-    'The submitting access profile was revoked. Restore access or dismiss this Follow-up.',
+    'The access profile that queued this message was revoked. Send it as you, or dismiss it.',
   authority_changed:
-    'Session authority changed. Restore access and resume the queue, or dismiss this Follow-up.',
+    'The access that queued this message no longer covers this Session. Send it as you, or dismiss it.',
 } as const
 
 const ACCESSIBLE_LABEL_LENGTH = 60
@@ -19,7 +19,7 @@ function attentionCopy(item: SessionFollowUpQueueItem) {
   if (item.deliveryState !== 'needs_attention') return undefined
   return item.attentionReason
     ? ATTENTION_REASON_COPY[item.attentionReason]
-    : 'This Follow-up cannot be delivered. Review Session access or dismiss it.'
+    : 'This message cannot be delivered under the access that queued it. Send it as you, or dismiss it.'
 }
 
 function itemLabel(item: SessionFollowUpQueueItem) {

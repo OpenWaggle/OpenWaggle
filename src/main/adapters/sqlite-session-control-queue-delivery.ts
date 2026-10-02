@@ -16,13 +16,14 @@ import { directWorkerRunAdmission } from './sqlite-session-parent-run-admission'
 
 /**
  * Queue changes whose outcome can report the Run they start. After any of them the queue delivers
- * whatever an idle Session could deliver now: a hold withdrawn, reordered past,
+ * whatever an idle Session could deliver now: a hold withdrawn, reordered past, adopted,
  * saved, cancelled, or expired must not leave the Session idle with a runnable queue.
  */
 const DELIVERING_QUEUE_OPERATIONS = new Set<SessionControlMutationCommand['operation']>([
   'queue-withdraw',
   'queue-reorder',
   'queue-resume',
+  'queue-adopt',
   'queue-edit-save',
   'queue-edit-cancel',
 ])
@@ -31,6 +32,7 @@ type DeliveringOperation =
   | 'queue-withdraw'
   | 'queue-reorder'
   | 'queue-resume'
+  | 'queue-adopt'
   | 'queue-edit-save'
   | 'queue-edit-cancel'
 

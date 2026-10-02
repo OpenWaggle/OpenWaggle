@@ -35,6 +35,7 @@ function isQueueMutation(operation: string) {
     operation === 'queue-reorder' ||
     operation === 'queue-pause' ||
     operation === 'queue-resume' ||
+    operation === 'queue-adopt' ||
     operation === 'queue-edit-begin'
   )
 }

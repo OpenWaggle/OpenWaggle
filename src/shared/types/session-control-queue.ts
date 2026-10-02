@@ -61,6 +61,19 @@ export interface SessionControlQueueResumeCommand {
   readonly expectedQueueRevision: number
 }
 
+/**
+ * Re-authors a needs-attention Follow-up (`profile_revoked`, `authority_changed`) as the calling
+ * desktop user, so it can be delivered under the user's own authority. The Follow-up keeps its
+ * content and position; its original author stays as `authorCallerId` for provenance. It carries
+ * no Run authorization override. Desktop app only; revision-guarded like other queue changes.
+ */
+export interface SessionControlQueueAdoptCommand {
+  readonly operation: 'queue-adopt'
+  readonly sessionId: string
+  readonly followUpId: string
+  readonly expectedQueueRevision: number
+}
+
 export type SessionControlQueueMutationCommand =
   | SessionControlQueuePauseCommand
   | SessionControlQueueReorderCommand
@@ -155,6 +168,7 @@ export type SessionControlQueueOutcome =
   | {
       readonly operation:
         | SessionControlQueueMutationCommand['operation']
+        | 'queue-adopt'
         | 'queue-edit-save'
         | 'queue-edit-cancel'
       readonly effect: 'queue-updated'
@@ -173,6 +187,7 @@ export type SessionControlQueueOutcome =
         | 'queue-resume'
         | 'queue-withdraw'
         | 'queue-reorder'
+        | 'queue-adopt'
         | 'queue-edit-save'
         | 'queue-edit-cancel'
       readonly effect: 'started-run'

@@ -24,6 +24,12 @@ export interface SessionControlIntentSnapshot {
   readonly visualizationContext?: InlineVisualizationContext
   readonly interactionTimeoutMs?: number
   readonly callerId: string
+  /**
+   * Who queued the Follow-up, when the desktop user later adopted it (`queue-adopt` makes the
+   * adopter `callerId`). Provenance only: the Run acts under `callerId`. Its attachments stay owned
+   * by this author.
+   */
+  readonly authorCallerId?: string
   readonly acceptedAt: number
   readonly idempotencyKey: string
   /**

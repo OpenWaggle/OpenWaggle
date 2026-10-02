@@ -80,7 +80,7 @@ function repositoryError(operation: string, cause: unknown) {
 
 function decodeRunIntent(raw: string): SessionControlRunIntent {
   const decoded = decodeUnknownExactOrThrow(storedIntentSchema, parseJsonUnknown(raw))
-  const { waggle, authorCallerId: _author, ...intent } = decoded
+  const { waggle, ...intent } = decoded
   return {
     ...intent,
     ...(waggle ? { waggle: toWaggleInvocation(waggle) } : {}),

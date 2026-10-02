@@ -66,6 +66,7 @@ function requestedRunAuthorizationOverride(payload: AuthorizedLocalSessionComman
       'queue-reorder',
       'queue-pause',
       'queue-resume',
+      'queue-adopt',
       'queue-edit-begin',
       'queue-edit-save',
       'queue-edit-cancel',

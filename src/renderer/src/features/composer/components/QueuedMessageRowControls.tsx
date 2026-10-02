@@ -1,4 +1,4 @@
-import { ArrowUp, Pencil, Trash2 } from 'lucide-react'
+import { ArrowUp, Pencil, Send, Trash2 } from 'lucide-react'
 import type { SessionFollowUpQueueItem } from '@/features/chat/hooks'
 import { Button } from '@/shared/ui/Button'
 import type { QueuedMessageRowActions, QueuedMessageRowEditState } from './queued-message-row-types'
@@ -42,6 +42,19 @@ export function QueuedMessageRowControls({
         >
           <ArrowUp className="size-3 text-accent" />
           <span className="text-xs font-semibold text-accent">Steer</span>
+        </Button>
+      ) : null}
+      {attention ? (
+        <Button
+          variant="unstyled"
+          type="button"
+          onClick={() => actions.onAdopt(item.id)}
+          aria-label={`Send as me: ${label}`}
+          title="Send this message under your own access"
+          className="flex items-center gap-1 rounded-md bg-accent/8 px-2 py-1"
+        >
+          <Send className="size-3 text-accent" />
+          <span className="text-xs font-semibold text-accent">Send as me</span>
         </Button>
       ) : null}
       {item.editable ? (

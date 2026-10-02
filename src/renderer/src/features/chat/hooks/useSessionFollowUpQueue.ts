@@ -125,6 +125,23 @@ export function useSessionFollowUpQueue(sessionId: SessionId | null) {
   }
 
   /**
+   * Sends a Follow-up that needs attention (its author's access was revoked or changed) as the
+   * desktop user: the Host re-authors it to this user, keeping who queued it as its author, and
+   * delivers it under this user's access. Revision-guarded by the loaded snapshot.
+   */
+  async function adopt(followUpId: string) {
+    if (!sessionId) return
+    const snapshot = query.data ?? (await readQueue(sessionId))
+    await mutate({
+      operation: 'queue-adopt',
+      sessionId,
+      followUpId,
+      expectedQueueRevision: snapshot.revision,
+    })
+    await refresh()
+  }
+
+  /**
    * Reorders the whole queue. Guarded by `expectedQueueRevision` (default: the loaded snapshot's);
    * a stale guard rejects with `queue_revision_changed`.
    */
@@ -259,6 +276,7 @@ export function useSessionFollowUpQueue(sessionId: SessionId | null) {
     withdraw,
     promote,
     setPaused,
+    adopt,
     reorder,
     beginEdit,
     resumeEdit,

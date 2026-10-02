@@ -155,6 +155,7 @@ const acceptedReportOutcomeSchema = Schema.Struct({
 
 const queueUpdatedOutcomeSchema = Schema.Struct({
   operation: Schema.Literal(
+    'queue-adopt',
     'queue-edit-cancel',
     'queue-edit-save',
     'queue-pause',
@@ -175,6 +176,7 @@ const queueResumeStartedRunOutcomeSchema = Schema.Struct({
     'queue-resume',
     'queue-withdraw',
     'queue-reorder',
+    'queue-adopt',
     'queue-edit-save',
     'queue-edit-cancel',
   ),

@@ -29,7 +29,8 @@ export const LOCAL_SESSION_WAGGLE_REVISION = 3 as const
  * commands is revision-gated too, so none reaches a Host that cannot hold a Follow-up. Revision 20
  * also makes the thinking level Session state: the `sessions:set-thinking-level` and default
  * thinking-level Host UI channels, a Follow-up that carries no thinking level or Run authorization
- * override, `message` accepting both only when it starts a Run, and no `queue-update-authorization`.
+ * override, `message` accepting both only when it starts a Run, no `queue-update-authorization`,
+ * and the desktop-only `queue-adopt` that sends a needs-attention Follow-up as the user.
  */
 export const LOCAL_SESSION_SUPPORTED_REVISIONS = [LOCAL_SESSION_CURRENT_REVISION] as const
 

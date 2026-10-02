@@ -141,6 +141,13 @@ const queueResumeCommandSchema = Schema.Struct({
   expectedQueueRevision: Schema.Number.pipe(Schema.int(), Schema.nonNegative()),
 })
 
+const queueAdoptCommandSchema = Schema.Struct({
+  operation: Schema.Literal('queue-adopt'),
+  sessionId: sessionInputIdSchema,
+  followUpId: sessionInputIdSchema,
+  expectedQueueRevision: Schema.Number.pipe(Schema.int(), Schema.nonNegative()),
+})
+
 const queueEditBeginCommandSchema = Schema.Struct({
   operation: Schema.Literal('queue-edit-begin'),
   sessionId: sessionInputIdSchema,
@@ -209,6 +216,7 @@ export const sessionControlMutationRequestSchema: Schema.Schema<SessionControlMu
       messageCommandSchema,
       ...sessionOrganizationCommandSchemas,
       promoteCommandSchema,
+      queueAdoptCommandSchema,
       queueEditBeginCommandSchema,
       queueEditCancelCommandSchema,
       queueEditSaveCommandSchema,
