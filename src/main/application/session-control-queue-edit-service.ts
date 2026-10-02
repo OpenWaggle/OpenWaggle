@@ -106,7 +106,7 @@ function replayedBegin(
 }
 
 /**
- * Begins, saves, or cancels a Follow-up edit (ADR 0043). Journaled and idempotent like every queue
+ * Begins, saves, or cancels a Follow-up edit (ADR 0044). Journaled and idempotent like every queue
  * mutation. Save and cancel can start the next Follow-up when releasing the hold makes an idle
  * Session's queue runnable. Cancelling a hold that is already gone is an accepted no-op that still
  * lets the queue deliver, which is how an expired hold resumes its queue.

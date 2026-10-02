@@ -26,7 +26,7 @@ const QUEUE_CHANGES = new Set<SessionControlMutationRequest['command']['operatio
 
 /**
  * A Worker whose Run completed while its next Follow-up was out for an edit has its Delegation
- * settlement deferred (ADR 0043). When a queue change ends that wait without starting a Run (the
+ * settlement deferred (ADR 0044). When a queue change ends that wait without starting a Run (the
  * held Follow-up was withdrawn, or released into a paused queue), the deferred settlement runs
  * now, with the same publication and delivery as a Run settlement, so the Delegation cannot stay
  * `working` forever. The repository decides whether the wait is over.

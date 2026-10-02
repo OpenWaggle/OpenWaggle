@@ -37,7 +37,7 @@ export interface OpenWaggleSessionControlApi {
   querySessionControl(request: SessionQueryRequest): Promise<SessionQueryResponse>
   /**
    * Binds a Follow-up edit hold this user already holds to the calling window, so that window
-   * renews it and releases it when it closes (ADR 0043). `false` when the hold is gone.
+   * renews it and releases it when it closes (ADR 0044). `false` when the hold is gone.
    */
   adoptFollowUpEdit(hold: FollowUpEditHoldReference): Promise<boolean>
 }

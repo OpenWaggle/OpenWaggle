@@ -1,5 +1,5 @@
 /**
- * Follow-up edit and Follow-up edit hold (ADR 0043).
+ * Follow-up edit and Follow-up edit hold (ADR 0044).
  *
  * An edit replaces a pending Follow-up's intent snapshot in place: same Follow-up identity, same
  * position. Only the caller that queued the Follow-up may edit it, and its provenance (caller,

@@ -258,7 +258,7 @@ const followUpEditHoldReferenceSchema = Schema.Struct({
   holdId: sessionInputIdSchema,
 })
 
-/** A Follow-up edit hold a desktop window names, e.g. to adopt it (ADR 0043). */
+/** A Follow-up edit hold a desktop window names, e.g. to adopt it (ADR 0044). */
 export function decodeFollowUpEditHoldReference(value: unknown) {
   return decodeUnknownExactOrThrow(followUpEditHoldReferenceSchema, value)
 }

@@ -1,5 +1,5 @@
 /**
- * Follow-up edit hold lease policy (ADR 0043).
+ * Follow-up edit hold lease policy (ADR 0044).
  *
  * A lease is counted in Host sweeps, not clock time: every sweep adds a missed sweep to each hold
  * and a renewal clears it, so a hold expires after `FOLLOW_UP_EDIT_HOLD_LEASE_SWEEPS` sweeps without

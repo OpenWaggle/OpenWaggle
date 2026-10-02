@@ -5,11 +5,11 @@ export const MAX_FOLLOW_UP_QUEUE_ITEMS = 256
 
 /**
  * The only caller that may edit a queued Follow-up: the desktop app's local user, without a
- * profile, editing a Follow-up it queued itself (ADR 0043).
+ * profile, editing a Follow-up it queued itself (ADR 0044).
  */
 export const FOLLOW_UP_EDIT_CALLER_ID = 'gui:local-user'
 
-/** Names one Follow-up edit hold (ADR 0043). */
+/** Names one Follow-up edit hold (ADR 0044). */
 export interface FollowUpEditHoldReference {
   readonly sessionId: string
   readonly followUpId: string

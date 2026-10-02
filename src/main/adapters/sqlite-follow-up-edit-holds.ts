@@ -10,7 +10,7 @@ import type {
 } from '../domain/session-control/message-aggregate'
 
 /**
- * Follow-up edit holds are lease state (ADR 0043). They live in connection-scoped SQLite TEMP
+ * Follow-up edit holds are lease state (ADR 0044). They live in connection-scoped SQLite TEMP
  * tables: the Host's single connection makes them transactional with the queue state they block,
  * they never enter the database file's schema (no migration, nothing for older binaries to
  * refuse), and they disappear when the Host's connection closes, so a Host restart releases every

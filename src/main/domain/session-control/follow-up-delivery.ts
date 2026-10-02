@@ -7,7 +7,7 @@ import type {
 } from './message-aggregate'
 
 /**
- * Queue delivery around Follow-up edit holds (ADR 0043).
+ * Queue delivery around Follow-up edit holds (ADR 0044).
  *
  * An idle Session whose queue could deliver must not stay idle: nothing else would start it, and a
  * later message would queue behind it forever. Holds break that invariant whenever they go away

@@ -50,7 +50,7 @@ const INTERRUPTED_CODES: ReadonlySet<string> = new Set([
 ])
 
 /**
- * Editing a queued message in the composer (ADR 0043). The only adapter to the Follow-up edit
+ * Editing a queued message in the composer (ADR 0044). The only adapter to the Follow-up edit
  * API of `useSessionFollowUpQueue`.
  *
  * Beginning an edit takes a Host hold, sets the composer's draft aside, and loads the queued
@@ -244,7 +244,7 @@ export function useAdoptHeldQueuedMessageEdit(sessionId: SessionId | null) {
     const contextKey = visibleSessionDraftContext(String(sessionId))
     if (!resumed || storedEdit(sessionId) || !contextKey || contextKey.endsWith(':pending')) return
     if (isHoldAbandoned(resumed.holdId)) return
-    // This window now renews the hold and releases it when it closes (ADR 0043).
+    // This window now renews the hold and releases it when it closes (ADR 0044).
     if (!(await queue.adoptEdit(resumed).catch(() => false))) return
     if (storedEdit(sessionId) || visibleSessionDraftContext(String(sessionId)) !== contextKey)
       return

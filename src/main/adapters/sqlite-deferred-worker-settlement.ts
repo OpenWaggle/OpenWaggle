@@ -9,7 +9,7 @@ import { settleWorkerDelegation } from './sqlite-session-control-worker-settleme
 
 /*
  * A Worker whose Run completes while its queue's next Follow-up is out for an edit is not done:
- * its Delegation settles after the Run that Follow-up starts (ADR 0043). The completed Run is kept
+ * its Delegation settles after the Run that Follow-up starts (ADR 0044). The completed Run is kept
  * in a connection-scoped TEMP table (see `sqlite-follow-up-edit-holds.ts`) in case the edit ends
  * without starting one. Like the holds it waits on, it is lost on a Host restart; the Worker then
  * stays `working` until its next Run settles.

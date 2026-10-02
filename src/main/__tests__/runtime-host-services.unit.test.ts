@@ -49,7 +49,7 @@ describe('Host background services', () => {
     // Removes scratch directories of Sessions deleted or archived while no Host ran (ADR 0042).
     expect(started).toContain('scratch sweep')
     expect(started).toContain('tool gateway')
-    // Releases Follow-up edit holds whose lease ran out so their queues deliver again (ADR 0043).
+    // Releases Follow-up edit holds whose lease ran out so their queues deliver again (ADR 0044).
     expect(started).toContain('follow-up edit hold expiry')
   })
 })

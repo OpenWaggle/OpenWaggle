@@ -8,7 +8,7 @@ export interface ExpiredFollowUpEditHold extends FollowUpEditHoldReference {
   readonly holderCallerId: string
 }
 
-/** Lease operations on Follow-up edit holds (ADR 0043). Holds die with the Host. */
+/** Lease operations on Follow-up edit holds (ADR 0044). Holds die with the Host. */
 export interface FollowUpEditHoldRepositoryShape {
   /** Extends a live hold of `holderCallerId`; `false` once the hold is gone. */
   readonly renew: (

@@ -86,7 +86,7 @@ export type LocalSessionCommandPayload =
             }
           | { readonly operation: 'delete'; readonly sessionId: string }
           | {
-              /** Keeps a Follow-up edit hold alive; not journaled (ADR 0043). */
+              /** Keeps a Follow-up edit hold alive; not journaled (ADR 0044). */
               readonly operation: 'renew-follow-up-edit-hold'
               readonly sessionId: string
               readonly followUpId: string

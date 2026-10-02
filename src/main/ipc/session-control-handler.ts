@@ -106,7 +106,7 @@ const windowLeases = new FollowUpEditHoldWindowLeases({
   onError: (message, error) => logger.warn(message, { error: String(error) }),
 })
 
-/** Binds the Follow-up edit holds a window begins to that window (ADR 0043). */
+/** Binds the Follow-up edit holds a window begins to that window (ADR 0044). */
 function trackFollowUpEditHold(
   window: { readonly windowId: number; readonly generation: number | undefined },
   request: SessionControlMutationRequest,

@@ -131,7 +131,7 @@ export function pauseStrandedFollowUps(
     state.run.state !== 'idle' ||
     state.followUpQueue.state !== 'running' ||
     state.followUpQueue.items.length === 0 ||
-    // Not stranded: the queue waits on an open edit, and releasing it delivers (ADR 0043).
+    // Not stranded: the queue waits on an open edit, and releasing it delivers (ADR 0044).
     isFollowUpEditHeld(state.followUpQueue.items[0])
   ) {
     return state

@@ -26,7 +26,7 @@ function repeatWithTimer(callback: () => void, ms: number) {
 }
 
 /**
- * Binds Follow-up edit holds to the desktop window that began them (ADR 0043). The Host owns each
+ * Binds Follow-up edit holds to the desktop window that began them (ADR 0044). The Host owns each
  * hold as a lease that expires unless renewed; this keeps renewing the holds of live windows and
  * releases a window's holds as soon as that window closes or reloads. When the desktop app or its
  * Host connection goes away, renewal stops and the Host lets the leases expire.
