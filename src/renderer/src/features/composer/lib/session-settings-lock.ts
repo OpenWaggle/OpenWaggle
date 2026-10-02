@@ -7,6 +7,9 @@ export const SESSION_SETTINGS_LOCKED_BY_QUEUE_REASON =
 /** Why the Session settings cannot change while a Run is going. */
 export const SESSION_SETTINGS_LOCKED_REASON = 'Available when the Run ends'
 
+/** Why a draft's settings wait while its first message creates the Session. */
+export const SESSION_SETTINGS_MATERIALIZING_REASON = 'Available once the new Session is created'
+
 export interface SessionSettingsLock {
   readonly locked: boolean
   /** A short reason for the tooltip while locked. */
@@ -28,14 +31,21 @@ function queueContinues(queue: QueueState) {
  * while a Run is starting, active, or finishing (`canChange` is false then), so the pickers lock
  * for exactly that time and a refusal never surprises the user. A paused queue or a next message
  * held for an edit keeps the Session idle once its Run ends, which is when they unlock; during a
- * chain of queued Runs the reason says pausing the queue gets there. A draft is never locked.
+ * chain of queued Runs the reason says pausing the queue gets there. A draft is locked only while
+ * its first message creates the Session: a pick then would land on neither the draft nor it.
  */
 export function sessionSettingsLock(input: {
   readonly hasSession: boolean
   readonly canChange: boolean
+  readonly draftMaterializing: boolean
   readonly queue: QueueState
 }): SessionSettingsLock {
-  if (!input.hasSession || input.canChange) return UNLOCKED
+  if (!input.hasSession) {
+    return input.draftMaterializing
+      ? { locked: true, reason: SESSION_SETTINGS_MATERIALIZING_REASON }
+      : UNLOCKED
+  }
+  if (input.canChange) return UNLOCKED
   return {
     locked: true,
     reason: queueContinues(input.queue)

@@ -10,6 +10,7 @@ import {
 import { useBackgroundRunStore, useChatStore } from '@/features/chat/state'
 import { useFirstSendPendingStore } from '@/features/chat/state/first-send-pending-store'
 import { useForegroundSendStore } from '@/features/chat/state/foreground-send-store'
+import { useIsQueuedRunStarting } from '@/features/chat/state/queued-run-start-store'
 import { useIsRunFinishing } from '@/features/chat/state/run-finishing-store'
 import {
   DEFAULT_THINKING_LEVEL_TARGET,
@@ -18,6 +19,7 @@ import {
   writeThinkingLevel,
 } from '@/features/chat/state/session-thinking-level-writes'
 import { api } from '@/shared/lib/ipc'
+import { sessionFollowUpQueueOptions } from './useSessionFollowUpQueue'
 
 export { SessionThinkingLevelRefusedError } from '@/features/chat/state/session-thinking-level-writes'
 
@@ -49,14 +51,18 @@ export function invalidateDefaultThinkingLevel(queryClient: QueryClient) {
 
 /**
  * Whether the Session's settings (its model and thinking level) may change now: never while a Run
- * is starting (the first send, a composer send in flight, a worktree launch), active, or finishing.
- * A Session waiting on its Follow-up queue can change, and so can a draft (`null`). The Host
- * enforces the same rule; this keeps the pickers from offering a change it would refuse.
+ * is starting (the first send, a composer send in flight, a worktree launch, a queue action that
+ * started one), active, or finishing. A Run the Host reports on the Session counts wherever it was
+ * started (the CLI, another window, an agent). A Session waiting on its Follow-up queue can
+ * change, and so can a draft (`null`). The Host enforces the same rule; this keeps the pickers
+ * from offering a change it would refuse.
  */
 export function useSessionSettingsChangeable(sessionId: SessionId | null): boolean {
   const hasActiveRun = useBackgroundRunStore((state) =>
     sessionId ? state.activeRunIds.has(sessionId) : false,
   )
+  const hostRunId = useQuery(sessionFollowUpQueueOptions(sessionId)).data?.activeRunId ?? null
+  const isQueuedRunStarting = useIsQueuedRunStarting(sessionId)
   const isLaunching = useBackgroundRunStore((state) =>
     sessionId ? state.worktreeLaunchBySessionId.get(sessionId)?.status === 'running' : false,
   )
@@ -68,7 +74,15 @@ export function useSessionSettingsChangeable(sessionId: SessionId | null): boole
   )
   const isFinishing = useIsRunFinishing(sessionId)
   if (sessionId === null) return true
-  return !(hasActiveRun || isLaunching || isFirstSendPending || isSending || isFinishing)
+  return !(
+    hasActiveRun ||
+    hostRunId !== null ||
+    isQueuedRunStarting ||
+    isLaunching ||
+    isFirstSendPending ||
+    isSending ||
+    isFinishing
+  )
 }
 
 export interface SessionThinkingLevel {

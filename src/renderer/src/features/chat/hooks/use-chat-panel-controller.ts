@@ -23,6 +23,7 @@ import { useChatPanelEnvironment } from './useChatPanelEnvironment'
 import { useChatSendWorkflow } from './useChatSendWorkflow'
 import { useComposerSection } from './useComposerSection'
 import { useSessionCopyWorkflow } from './useSessionCopyWorkflow'
+import { defaultThinkingLevelQueryOptions } from './useSessionThinkingLevel'
 import { useSteerWorkflow } from './useSteerWorkflow'
 import { useTranscriptSection } from './useTranscriptSection'
 import { useVisualizationFollowUpDispatcher } from './useVisualizationFollowUpDispatcher'
@@ -76,12 +77,15 @@ export function useChatPanelSections(): ChatPanelSections {
     respondAgentInteraction,
   } = useAgentChat(activeSessionId, activeSession, model)
   const followUpQueue = useSessionFollowUpQueue(activeSessionId)
+  // What a draft shows without a pick; first send creates its Session at the level shown.
+  const { data: defaultThinkingLevel } = useQuery(defaultThinkingLevelQueryOptions())
 
   const { handleSend, handleSendText, handleSendWaggle } = useSendMessage({
     activeSessionId,
     model,
     projectPath,
     createSession,
+    defaultThinkingLevel,
     sendMessage,
     sendWaggleMessage,
   })

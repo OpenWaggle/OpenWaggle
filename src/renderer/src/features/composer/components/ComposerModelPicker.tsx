@@ -6,9 +6,6 @@ import { usePreferencesStore } from '@/features/settings/state'
 import { useComposerModel } from '../hooks/useComposerModel'
 import { useSessionSettingsLock } from '../hooks/useSessionSettingsLock'
 
-/** Why the picker waits while a draft's first message creates its Session. */
-const MATERIALIZING_REASON = 'Available once the new Session is created'
-
 export function ComposerModelPicker() {
   const settings = usePreferencesStore((s) => s.settings)
   const setSelectedModel = usePreferencesStore((s) => s.setSelectedModel)
@@ -18,8 +15,8 @@ export function ComposerModelPicker() {
   const draftSession = useChatStore((s) => s.draftSession)
   const providerModels = useProviderStore((s) => s.providerModels)
   const composerModel = useComposerModel()
+  // Also locked while a draft's first message creates its Session.
   const settingsLock = useSessionSettingsLock(activeSessionId)
-  const materializing = draftSession?.isMaterializing === true
 
   function selectModel(model: SupportedModelId) {
     if (activeSessionId) {
@@ -42,9 +39,9 @@ export function ComposerModelPicker() {
       onChange={selectModel}
       settings={settings}
       providerModels={providerModels}
-      disabled={settingsLock.locked || materializing}
+      disabled={settingsLock.locked}
       fallbackLabel={composerModel.isSessionModel ? composerModel.model : undefined}
-      title={settingsLock.reason ?? (materializing ? MATERIALIZING_REASON : undefined)}
+      title={settingsLock.reason ?? undefined}
     />
   )
 }

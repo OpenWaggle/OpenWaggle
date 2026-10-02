@@ -1,26 +1,29 @@
-import { SessionId, SupportedModelId } from '@shared/types/brand'
-import type { ProviderInfo } from '@shared/types/llm'
-import type { SessionDetail } from '@shared/types/session'
-import { DEFAULT_SETTINGS } from '@shared/types/settings'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
-  type SessionFollowUpQueueItem,
-  type SessionFollowUpQueueSnapshot,
-  sessionFollowUpQueueOptions,
-} from '@/features/chat/hooks'
-import { useBackgroundRunStore, useChatStore, useRunFinishingStore } from '@/features/chat/state'
+  useBackgroundRunStore,
+  useChatStore,
+  useQueuedRunStartStore,
+  useRunFinishingStore,
+} from '@/features/chat/state'
 import { useComposerStore } from '@/features/composer/state/composer-store'
-import { useProviderStore } from '@/features/providers/state'
-import { usePreferencesStore } from '@/features/settings/state'
 import { useUIStore } from '@/shell/ui-store'
 import {
   SESSION_SETTINGS_LOCKED_BY_QUEUE_REASON,
   SESSION_SETTINGS_LOCKED_REASON,
+  SESSION_SETTINGS_MATERIALIZING_REASON,
 } from '../../lib/session-settings-lock'
-import { ComposerModelPicker } from '../ComposerModelPicker'
-import { ThinkingLevelMenu } from '../ThinkingLevelMenu'
+import {
+  expectLocked,
+  expectUnlocked,
+  MODEL,
+  openSession,
+  queuedItem,
+  renderPickers,
+  resetPickers,
+  SESSION,
+  seedQueue,
+} from './composer-settings-lock.test-support'
 
 const api = vi.hoisted(() => ({
   getSettings: vi.fn().mockResolvedValue({}),
@@ -36,131 +39,10 @@ const api = vi.hoisted(() => ({
 
 vi.mock('@/shared/lib/ipc', () => ({ api }))
 
-const SESSION = SessionId('session-settings-lock')
-const MODEL = SupportedModelId('openai/gpt-5')
-const PROVIDER_MODELS: ProviderInfo[] = [
-  {
-    provider: 'openai',
-    displayName: 'OpenAI',
-    auth: {
-      configured: true,
-      source: 'api-key',
-      apiKeyConfigured: true,
-      apiKeySource: 'api-key',
-      oauthConnected: false,
-      supportsApiKey: true,
-      supportsOAuth: true,
-    },
-    models: [
-      {
-        id: MODEL,
-        modelId: 'gpt-5',
-        name: 'GPT 5',
-        provider: 'openai',
-        available: true,
-        availableThinkingLevels: ['off', 'low', 'medium', 'high'],
-      },
-    ],
-  },
-]
-
-let queryClient = new QueryClient()
-
-function sessionDetail(): SessionDetail {
-  return {
-    id: SESSION,
-    title: 'Settings lock',
-    projectPath: '/project',
-    messages: [],
-    createdAt: 1,
-    updatedAt: 1,
-    executionModel: MODEL,
-    executionThinkingLevel: 'medium',
-  }
-}
-
-function openSession() {
-  useChatStore.setState({
-    activeSessionId: SESSION,
-    activeSession: sessionDetail(),
-    sessionById: new Map([[SESSION, sessionDetail()]]),
-    refreshSession: vi.fn().mockResolvedValue(undefined),
-  })
-}
-
-function queuedItem(overrides: Partial<SessionFollowUpQueueItem> = {}): SessionFollowUpQueueItem {
-  return {
-    id: 'follow-up-1',
-    text: 'next',
-    attachmentCount: 0,
-    createdAt: 1,
-    deliveryState: 'pending',
-    attachments: [],
-    editable: true,
-    ...overrides,
-  }
-}
-
-function seedQueue(snapshot: Partial<SessionFollowUpQueueSnapshot>) {
-  queryClient.setQueryData(sessionFollowUpQueueOptions(SESSION).queryKey, {
-    state: 'running',
-    revision: 1,
-    activeRunId: null,
-    items: [],
-    waitingOnEdit: false,
-    ...snapshot,
-  })
-}
-
-function renderPickers() {
-  return render(
-    <QueryClientProvider client={queryClient}>
-      <ComposerModelPicker />
-      <ThinkingLevelMenu />
-    </QueryClientProvider>,
-  )
-}
-
-function pickers() {
-  return [
-    screen.getByRole('button', { name: 'GPT 5' }),
-    screen.getByRole('button', { name: /^Thinking level:/ }),
-  ]
-}
-
-function expectLocked(reason: string) {
-  for (const picker of pickers()) {
-    expect(picker).toBeDisabled()
-    expect(picker).toHaveAccessibleDescription(reason)
-  }
-}
-
-function expectUnlocked() {
-  for (const picker of pickers()) {
-    expect(picker).toBeEnabled()
-    expect(picker).not.toHaveAccessibleDescription(SESSION_SETTINGS_LOCKED_REASON)
-    expect(picker).not.toHaveAccessibleDescription(SESSION_SETTINGS_LOCKED_BY_QUEUE_REASON)
-  }
-}
-
 describe('composer Session settings pickers', () => {
   beforeEach(() => {
-    queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    useChatStore.setState(useChatStore.getInitialState())
-    useComposerStore.setState(useComposerStore.getInitialState())
-    useBackgroundRunStore.setState(useBackgroundRunStore.getInitialState())
-    useRunFinishingStore.setState({ ids: new Set() })
-    useUIStore.setState({ toastData: null })
+    resetPickers()
     api.setSessionThinkingLevel.mockReset().mockResolvedValue({ changed: true })
-    usePreferencesStore.setState({
-      ...usePreferencesStore.getInitialState(),
-      settings: { ...DEFAULT_SETTINGS, selectedModel: MODEL, enabledModels: [MODEL] },
-      isLoaded: true,
-    })
-    useProviderStore.setState({
-      ...useProviderStore.getInitialState(),
-      providerModels: PROVIDER_MODELS,
-    })
   })
 
   it('stay enabled for a new Session draft', () => {
@@ -262,16 +144,74 @@ describe('composer Session settings pickers', () => {
     expect(screen.queryByRole('menuitemradio', { name: 'High' })).not.toBeInTheDocument()
   })
 
-  it('explain why the model picker waits while a draft creates its Session', () => {
+  it('lock both pickers while a draft creates its Session, and say why', () => {
     useChatStore.setState({
       activeSessionId: null,
       draftSession: { projectPath: '/project', isMaterializing: true },
     })
     renderPickers()
 
-    const model = screen.getByRole('button', { name: 'GPT 5' })
-    expect(model).toBeDisabled()
-    expect(model).toHaveAccessibleDescription('Available once the new Session is created')
+    expectLocked(SESSION_SETTINGS_MATERIALIZING_REASON)
+    fireEvent.click(screen.getByRole('button', { name: /^Thinking level:/ }))
+    expect(screen.queryByRole('menuitemradio', { name: 'High' })).not.toBeInTheDocument()
+  })
+
+  it('stay disabled while the Host reports a Run this window did not start, such as from the CLI', () => {
+    openSession()
+    seedQueue({ activeRunId: 'run-from-cli' })
+    renderPickers()
+
+    expectLocked(SESSION_SETTINGS_LOCKED_REASON)
+  })
+
+  it('stay disabled from a queue action that started a Run until the Run reports in', () => {
+    openSession()
+    useQueuedRunStartStore.getState().mark(SESSION, 'run-resumed')
+    renderPickers()
+
+    expectLocked(SESSION_SETTINGS_LOCKED_REASON)
+    act(() => useQueuedRunStartStore.getState().settle(SESSION, 'run-resumed'))
+    expectUnlocked()
+  })
+
+  it('return focus to the thinking trigger when the lock closes its menu', async () => {
+    openSession()
+    renderPickers()
+
+    // A keyboard user opens the menu from the focused trigger.
+    const opener = screen.getByRole('button', { name: /^Thinking level:/ })
+    act(() => opener.focus())
+    fireEvent.click(opener)
+    await waitFor(() => expect(screen.getByRole('menuitemradio', { name: 'Medium' })).toHaveFocus())
+    act(() => useBackgroundRunStore.getState().addActiveRun(SESSION, MODEL))
+
+    const trigger = screen.getByRole('button', { name: /^Thinking level:/ })
+    await waitFor(() => expect(trigger).toHaveFocus())
+    expect(trigger).toHaveAccessibleDescription(SESSION_SETTINGS_LOCKED_REASON)
+  })
+
+  it('return focus to the model trigger when the lock closes its list', () => {
+    openSession()
+    renderPickers()
+
+    fireEvent.click(screen.getByRole('button', { name: 'GPT 5' }))
+    const option = screen.getByRole('option', { name: /GPT 5/ })
+    act(() => option.focus())
+    act(() => useBackgroundRunStore.getState().addActiveRun(SESSION, MODEL))
+
+    expect(screen.queryByRole('option', { name: /GPT 5/ })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'GPT 5' })).toHaveFocus()
+  })
+
+  it('leave focus alone when the lock engages with the model list closed', () => {
+    openSession()
+    renderPickers()
+    const elsewhere = screen.getByRole('button', { name: /^Thinking level:/ })
+    act(() => elsewhere.focus())
+
+    act(() => useBackgroundRunStore.getState().addActiveRun(SESSION, MODEL))
+
+    expect(elsewhere).toHaveFocus()
   })
 
   it('keep the level and show a toast when the Host refuses a thinking-level pick', async () => {

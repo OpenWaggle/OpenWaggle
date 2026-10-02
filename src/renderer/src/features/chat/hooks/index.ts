@@ -1,6 +1,3 @@
-export { useChatPanelSections } from './use-chat-panel-controller'
-export { useBackgroundRunMonitor } from './useBackgroundRunMonitor'
-export { useChat } from './useChat'
 export {
   heldEdit,
   isLostFollowUpEdit,
@@ -10,9 +7,11 @@ export {
   type SessionFollowUpEditPayload,
   type SessionFollowUpQueueItem,
   type SessionFollowUpQueueSnapshot,
-  sessionFollowUpQueueOptions,
-  useSessionFollowUpQueue,
-} from './useSessionFollowUpQueue'
+} from './session-follow-up-queue-model'
+export { useChatPanelSections } from './use-chat-panel-controller'
+export { useBackgroundRunMonitor } from './useBackgroundRunMonitor'
+export { useChat } from './useChat'
+export { sessionFollowUpQueueOptions, useSessionFollowUpQueue } from './useSessionFollowUpQueue'
 export {
   defaultThinkingLevelQueryOptions,
   invalidateDefaultThinkingLevel,

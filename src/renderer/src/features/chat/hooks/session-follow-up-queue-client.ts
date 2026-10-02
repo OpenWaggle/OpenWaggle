@@ -5,6 +5,9 @@ import {
   type SessionControlMutationResponse,
 } from '@shared/types/session-control'
 import { api } from '@/shared/lib/ipc'
+import { withForegroundSend } from '../state/foreground-send-store'
+import { useQueuedRunStartStore } from '../state/queued-run-start-store'
+import { settledSessionSettingWrites } from '../state/session-setting-writes'
 import { queueSnapshot, SessionControlRejectedError } from './session-follow-up-queue-model'
 
 /** Reads a Session's Follow-up queue with bodies, as this desktop user sees it. */
@@ -34,6 +37,24 @@ export async function mutate(command: SessionControlMutationCommand) {
   const error = rejected(response)
   if (error) throw error
   return response
+}
+
+/**
+ * Sends a queue change that can start a Run on an idle Session (resuming, sending as the user,
+ * ending an edit, withdrawing the message that blocked delivery). The Host starts that Run with
+ * the Session's model and thinking level, so a pick made just before lands first, and the
+ * Session counts as starting a Run from the request until the Run reports `agent_start`: its
+ * settings stay locked the whole way, so the Host never refuses a pick the user could make.
+ */
+export function mutateMayStartRun(sessionId: SessionId, command: SessionControlMutationCommand) {
+  return withForegroundSend(sessionId, async () => {
+    await settledSessionSettingWrites(sessionId)
+    const response = await mutate(command)
+    if (response.outcome.effect === 'started-run') {
+      useQueuedRunStartStore.getState().mark(sessionId, response.outcome.runId)
+    }
+    return response
+  })
 }
 
 /**

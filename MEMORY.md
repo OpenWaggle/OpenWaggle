@@ -459,11 +459,20 @@ Recording is a main/renderer protocol, not merely a `desktopCapturer` grant: suc
   and extensions cannot set it (the broker refuses `thinkingLevel` in settings patches). A new
   Session starts from Pi's *global* `defaultThinkingLevel`: a project-level Pi default is never
   read, so a draft pick always sticks. Renderer: `useSessionThinkingLevel(sessionId)` returns
-  `{ level, setLevel, canChange }` (a draft, `null`, reads/writes Pi's default and first send
-  flushes the pick to the new Session); `useSessionSettingsChangeable(sessionId)` is the shared
-  picker gate (false while a Run starts: first send, foreground send, worktree launch; runs; or
-  finishes). Sends, enqueues, and draft creates await `settledThinkingLevelWrites` /
-  `settledSessionSettingWrites`.
+  `{ level, setLevel, canChange }` (a draft, `null`, reads/writes Pi's default). First send
+  creates the Session at the level the draft shows (`draftThinkingLevel`: pending pick, else the
+  default query) through the 4th `sessions:create` argument, sent as
+  `specialization.thinkingLevel`, which never writes Pi's default; there is no module-global
+  draft pick to go stale. `useSessionSettingsChangeable(sessionId)` is the shared picker gate:
+  false while a Run starts (first send from the moment `createSession` resolves, foreground send,
+  worktree launch, or a queue action whose outcome was `started-run`, kept in
+  `queued-run-start-store` until that Run's `agent_start`/settlement), while the queue snapshot
+  reports `activeRunId` (Runs started anywhere: CLI, other windows, agents), runs, or finishes
+  (terminal `agent_end` or a failed `auto_retry_end` until the final `run-completed`). Sends,
+  enqueues, draft creates, and every queue change that can start a Run (resume, `queue-adopt`,
+  edit save/cancel, withdrawing a running queue's head) await `settledSessionSettingWrites` inside
+  `withForegroundSend` (`mutateMayStartRun`). Locked pickers use `aria-disabled` plus an
+  `aria-describedby` reason and take focus back from a list or menu the lock closes.
 - Every Host Session already had `$.thinkingLevel` in its execution profile before revision 21
   (written at creation or cutover, and required by `decodeSessionExecutionProfile`), but beta.5 Runs
   used the message's level, so that stored value was stale. Pi's entries hold what each Session last

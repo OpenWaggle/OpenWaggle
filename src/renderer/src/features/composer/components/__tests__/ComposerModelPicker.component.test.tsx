@@ -139,7 +139,7 @@ describe('ComposerModelPicker for an existing Session', () => {
     openSession(sessionId, NEXT_MODEL)
     renderComposerModelControls()
 
-    expect(screen.getByRole('button', { name: 'GPT 5' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'GPT 5' })).not.toHaveAttribute('aria-disabled')
     pickNextModel()
 
     expect(useChatStore.getState().activeSession?.executionModel).toBe(NEXT_MODEL)
@@ -156,7 +156,7 @@ describe('ComposerModelPicker for an existing Session', () => {
     renderComposerModelControls()
 
     const trigger = screen.getByRole('button', { name: 'GPT 5' })
-    expect(trigger).toBeDisabled()
+    expect(trigger).toHaveAttribute('aria-disabled', 'true')
     expect(trigger).toHaveAccessibleDescription('Available when the Run ends')
     fireEvent.click(trigger)
     expect(screen.queryByRole('option', { name: 'Claude Sonnet' })).not.toBeInTheDocument()
@@ -174,7 +174,7 @@ describe('ComposerModelPicker for an existing Session', () => {
     expect(screen.queryByRole('option', { name: 'Claude Sonnet' })).not.toBeInTheDocument()
     act(() => useBackgroundRunStore.getState().removeActiveRun(sessionId))
 
-    expect(screen.getByRole('button', { name: 'GPT 5' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'GPT 5' })).not.toHaveAttribute('aria-disabled')
     expect(screen.queryByRole('option', { name: 'Claude Sonnet' })).not.toBeInTheDocument()
   })
 

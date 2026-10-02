@@ -1,5 +1,6 @@
 import type { ThinkingLevel } from '@shared/types/settings'
 import { Check, ChevronDown, Ellipsis } from 'lucide-react'
+import { useId } from 'react'
 import { useSessionThinkingLevel } from '@/features/chat/hooks'
 import { useChatStore } from '@/features/chat/state'
 import { useComposerStore } from '@/features/composer/state/composer-store'
@@ -98,6 +99,10 @@ interface ThinkingLevelTriggerProps {
   readonly onToggle: (open: boolean) => void
 }
 
+/**
+ * Stays focusable while unavailable (`aria-disabled`), with the reason as its description, so a
+ * keyboard user can reach why; the menu then returns focus here when the lock closes it.
+ */
 function ThinkingLevelTrigger({
   open,
   canOpen,
@@ -105,30 +110,41 @@ function ThinkingLevelTrigger({
   title,
   onToggle,
 }: ThinkingLevelTriggerProps) {
+  const reasonId = useId()
   return (
-    <Button
-      aria-label={`Thinking level: ${label}`}
-      variant="unstyled"
-      type="button"
-      onClick={() => onToggle(!open && canOpen)}
-      disabled={!canOpen}
-      className={cn(
-        'flex h-6.5 items-center gap-1.5 rounded-md border border-button-border px-2.5 transition-colors @max-xl/composer-toolbar:size-6.5 @max-xl/composer-toolbar:justify-center @max-xl/composer-toolbar:gap-0 @max-xl/composer-toolbar:px-0',
-        canOpen ? 'hover:bg-bg-hover' : 'cursor-not-allowed opacity-70',
+    <>
+      <Button
+        aria-label={`Thinking level: ${label}`}
+        variant="unstyled"
+        type="button"
+        onClick={() => {
+          if (canOpen) onToggle(!open)
+        }}
+        aria-disabled={!canOpen || undefined}
+        aria-describedby={canOpen ? undefined : reasonId}
+        className={cn(
+          'flex h-6.5 items-center gap-1.5 rounded-md border border-button-border px-2.5 transition-colors @max-xl/composer-toolbar:size-6.5 @max-xl/composer-toolbar:justify-center @max-xl/composer-toolbar:gap-0 @max-xl/composer-toolbar:px-0',
+          canOpen ? 'hover:bg-bg-hover' : 'cursor-not-allowed opacity-70',
+        )}
+        title={title}
+      >
+        <span className="text-xs text-text-secondary @max-xl/composer-toolbar:hidden">{label}</span>
+        <ChevronDown
+          aria-hidden="true"
+          className="size-3 text-text-tertiary @max-xl/composer-toolbar:hidden"
+        />
+        <Ellipsis
+          aria-hidden="true"
+          className="hidden size-3.5 text-text-tertiary @max-xl/composer-toolbar:block"
+          data-testid="composer-thinking-compact-icon"
+        />
+      </Button>
+      {canOpen ? null : (
+        <span id={reasonId} className="sr-only">
+          {title}
+        </span>
       )}
-      title={title}
-    >
-      <span className="text-xs text-text-secondary @max-xl/composer-toolbar:hidden">{label}</span>
-      <ChevronDown
-        aria-hidden="true"
-        className="size-3 text-text-tertiary @max-xl/composer-toolbar:hidden"
-      />
-      <Ellipsis
-        aria-hidden="true"
-        className="hidden size-3.5 text-text-tertiary @max-xl/composer-toolbar:block"
-        data-testid="composer-thinking-compact-icon"
-      />
-    </Button>
+    </>
   )
 }
 

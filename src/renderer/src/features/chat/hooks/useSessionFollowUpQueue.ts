@@ -6,7 +6,12 @@ import {
   isGuiOnlyComposerCommand,
 } from '@/features/composer/commands'
 import { settledSessionSettingWrites } from '../state/session-setting-writes'
-import { adoptHeldEdit, mutate, readQueue } from './session-follow-up-queue-client'
+import {
+  adoptHeldEdit,
+  mutate,
+  mutateMayStartRun,
+  readQueue,
+} from './session-follow-up-queue-client'
 import {
   EMPTY_SNAPSHOT,
   heldEdit,
@@ -61,6 +66,11 @@ export function useSessionFollowUpQueue(sessionId: SessionId | null) {
     return result.data
   }
 
+  /** The caller's revision guard, else the loaded snapshot's. */
+  async function guardRevision(id: SessionId, expected: number | undefined) {
+    return expected ?? (query.data ?? (await readQueue(id))).revision
+  }
+
   async function enqueue(payload: AgentSendPayload) {
     if (!sessionId) throw new Error('Select a Session before queueing a Follow-up.')
     if (isGuiOnlyComposerCommand(payload.text)) {
@@ -84,10 +94,21 @@ export function useSessionFollowUpQueue(sessionId: SessionId | null) {
     await refresh()
   }
 
+  /**
+   * Withdrawing the head of a running queue (which only waits when it is held or needs attention)
+   * can start the next Follow-up; anything else only changes the queue.
+   */
   async function withdraw(followUpId: string) {
     if (!sessionId) return
-    await mutate({ operation: 'queue-withdraw', sessionId, followUpIds: [followUpId] })
-    await refresh()
+    const command = { operation: 'queue-withdraw', sessionId, followUpIds: [followUpId] } as const
+    const current = query.data
+    const withdrawsHead = current?.state === 'running' && current.items[0]?.id === followUpId
+    try {
+      if (current === undefined || withdrawsHead) await mutateMayStartRun(sessionId, command)
+      else await mutate(command)
+    } finally {
+      await refresh()
+    }
   }
 
   async function promote(followUpId: string) {
@@ -113,32 +134,42 @@ export function useSessionFollowUpQueue(sessionId: SessionId | null) {
     return response.outcome.receipt
   }
 
-  async function setPaused(paused: boolean) {
+  /**
+   * Pauses or resumes delivery. Guarded by `expectedQueueRevision` (default: the loaded
+   * snapshot's); a stale guard rejects with `queue_revision_changed`. Resuming an idle Session
+   * starts its next Follow-up. The queue is re-read either way.
+   */
+  async function setPaused(paused: boolean, expectedQueueRevision?: number) {
     if (!sessionId) return
-    const snapshot = query.data ?? (await readQueue(sessionId))
-    await mutate({
-      operation: paused ? 'queue-pause' : 'queue-resume',
-      sessionId,
-      expectedQueueRevision: snapshot.revision,
-    })
-    await refresh()
+    try {
+      const revision = await guardRevision(sessionId, expectedQueueRevision)
+      const command = { sessionId, expectedQueueRevision: revision }
+      if (paused) await mutate({ operation: 'queue-pause', ...command })
+      else await mutateMayStartRun(sessionId, { operation: 'queue-resume', ...command })
+    } finally {
+      await refresh()
+    }
   }
 
   /**
    * Sends a Follow-up that needs attention (its author's access was revoked or changed) as the
    * desktop user: the Host re-authors it to this user, keeping who queued it as its author, and
-   * delivers it under this user's access. Revision-guarded by the loaded snapshot.
+   * delivers it under this user's access. A queue that paused for it resumes, and on an idle
+   * Session the Host starts it at once. Guarded like `setPaused`; the queue is re-read either way.
    */
-  async function adopt(followUpId: string) {
+  async function adopt(followUpId: string, expectedQueueRevision?: number) {
     if (!sessionId) return
-    const snapshot = query.data ?? (await readQueue(sessionId))
-    await mutate({
-      operation: 'queue-adopt',
-      sessionId,
-      followUpId,
-      expectedQueueRevision: snapshot.revision,
-    })
-    await refresh()
+    try {
+      const revision = await guardRevision(sessionId, expectedQueueRevision)
+      await mutateMayStartRun(sessionId, {
+        operation: 'queue-adopt',
+        sessionId,
+        followUpId,
+        expectedQueueRevision: revision,
+      })
+    } finally {
+      await refresh()
+    }
   }
 
   /**
@@ -147,7 +178,7 @@ export function useSessionFollowUpQueue(sessionId: SessionId | null) {
    */
   async function reorder(orderedFollowUpIds: readonly string[], expectedQueueRevision?: number) {
     if (!sessionId) return
-    const revision = expectedQueueRevision ?? (query.data ?? (await readQueue(sessionId))).revision
+    const revision = await guardRevision(sessionId, expectedQueueRevision)
     await mutate({
       operation: 'queue-reorder',
       sessionId,
@@ -230,7 +261,7 @@ export function useSessionFollowUpQueue(sessionId: SessionId | null) {
       throw new Error(GUI_COMMAND_REQUIRES_IDLE_MESSAGE)
     }
     try {
-      await mutate({
+      await mutateMayStartRun(sessionId, {
         operation: 'queue-edit-save',
         sessionId,
         followUpId: edit.followUpId,
@@ -257,7 +288,7 @@ export function useSessionFollowUpQueue(sessionId: SessionId | null) {
   async function cancelEdit(edit: Pick<SessionFollowUpEdit, 'followUpId' | 'holdId'>) {
     if (!sessionId) return
     try {
-      await mutate({
+      await mutateMayStartRun(sessionId, {
         operation: 'queue-edit-cancel',
         sessionId,
         followUpId: edit.followUpId,

@@ -2,6 +2,7 @@ import type { AgentSendPayload } from '@shared/types/agent'
 import type { SessionId } from '@shared/types/brand'
 import type { SupportedModelId } from '@shared/types/llm'
 import type { SessionWorktreePlan } from '@shared/types/session'
+import type { ThinkingLevel } from '@shared/types/settings'
 import type { WaggleConfig } from '@shared/types/waggle'
 import { FirstSendFailed, MessageNotDelivered } from '@/features/chat/lib'
 import { createOptimisticUserMessage } from '@/features/chat/lib/useAgentChat.utils'
@@ -9,12 +10,14 @@ import { useBackgroundRunStore } from '@/features/chat/state/background-run-stor
 import { useChatStore } from '@/features/chat/state/chat-store'
 import { flushDraftAuthorizationModeToSession } from '@/features/chat/state/draft-authorization-mode-store'
 import { useFirstSendPendingStore } from '@/features/chat/state/first-send-pending-store'
+import { withForegroundSend } from '@/features/chat/state/foreground-send-store'
 import { withInlineVisualizationContext } from '@/features/chat/state/inline-visualization-state'
 import { useOptimisticUserMessageStore } from '@/features/chat/state/optimistic-user-message-store'
 import { usePendingSendStore } from '@/features/chat/state/pending-send-store'
+import { settledSessionSettingWrites } from '@/features/chat/state/session-setting-writes'
 import {
   DEFAULT_THINKING_LEVEL_TARGET,
-  flushDraftThinkingLevelToSession,
+  draftThinkingLevel,
   settledThinkingLevelWrites,
 } from '@/features/chat/state/session-thinking-level-writes'
 import { snapshotDraftWorktreePlan } from '@/features/git'
@@ -34,7 +37,10 @@ interface SendMessageDeps {
   readonly createSession: (
     projectPath: string,
     worktreePlan?: SessionWorktreePlan,
+    thinkingLevel?: ThinkingLevel,
   ) => Promise<SessionId>
+  /** Pi's default thinking level as last read, which a draft shows without a pick; unknown: undefined. */
+  readonly defaultThinkingLevel?: ThinkingLevel
   readonly sendMessage: (payload: AgentSendPayload) => Promise<void>
   readonly sendMessageToSession: (
     sessionId: SessionId,
@@ -78,42 +84,65 @@ export function createSendHandlers(deps: SendMessageDeps): SendMessageHandlers {
     activeSessionId,
     projectPath,
     createSession,
+    defaultThinkingLevel,
     sendMessage,
     sendMessageToSession,
     sendWaggleMessage,
     startWaggleCollaboration,
   } = deps
 
+  /**
+   * Creates the draft's Session and prepares it, then hands it to `deliver` for its first Run.
+   * From the moment the Session exists until that Run reports in, it counts as starting a Run, so
+   * its settings stay locked and the Host never refuses a pick made in between.
+   */
+  async function sendFirstMessage(
+    draftProjectPath: string,
+    deliver: (sessionId: SessionId) => Promise<void>,
+  ) {
+    const worktreePlan = snapshotDraftWorktreePlan(draftProjectPath)
+    const preparationProfileId =
+      worktreePlan?.plan.envMode === 'worktree'
+        ? await validateDraftWorkspacePreparation(
+            draftProjectPath,
+            worktreePlan.plan.preparationProfileId,
+          )
+        : null
+    // The new Session starts at the level the draft shows now, not at whatever the default is
+    // when it is created, and the default is not written again for it.
+    const thinkingLevel = draftThinkingLevel(defaultThinkingLevel)
+    // A pick still being written to Pi's default lands first, so defaults change in pick order.
+    await settledThinkingLevelWrites(DEFAULT_THINKING_LEVEL_TARGET)
+    const sessionId = await createSession(
+      draftProjectPath,
+      sessionWorktreePlan(worktreePlan),
+      thinkingLevel,
+    )
+    await withForegroundSend(sessionId, async () => {
+      try {
+        await flushDraftAuthorizationModeToSession(draftProjectPath, sessionId)
+        if (preparationProfileId)
+          await selectDraftWorkspacePreparation(draftProjectPath, sessionId, preparationProfileId)
+      } catch (error) {
+        throw firstSendFailure(error, sessionId)
+      }
+      await deliver(sessionId)
+    })
+  }
+
   async function handleSend(payload: AgentSendPayload) {
     if (!activeSessionId) {
       if (!projectPath) {
         throw new Error('Select a project before sending.')
-      }
-      const worktreePlan = snapshotDraftWorktreePlan(projectPath)
-      const preparationProfileId =
-        worktreePlan?.plan.envMode === 'worktree'
-          ? await validateDraftWorkspacePreparation(
-              projectPath,
-              worktreePlan.plan.preparationProfileId,
-            )
-          : null
-      // The new Session starts from Pi's default thinking level, so a draft pick lands first.
-      await settledThinkingLevelWrites(DEFAULT_THINKING_LEVEL_TARGET)
-      const sessionId = await createSession(projectPath, sessionWorktreePlan(worktreePlan))
-      try {
-        await flushDraftAuthorizationModeToSession(projectPath, sessionId)
-        await flushDraftThinkingLevelToSession(sessionId)
-        if (preparationProfileId)
-          await selectDraftWorkspacePreparation(projectPath, sessionId, preparationProfileId)
-      } catch (error) {
-        throw firstSendFailure(error, sessionId)
       }
       /*
        * Awaited, and its failure propagates. Dispatching this fire-and-forget meant the caller was told
        * the send had succeeded: a review submitted as a session's first message was cleared and never
        * restored, because the promise that would have signalled the failure was dropped.
        */
-      await sendMessageToSession(sessionId, payload, null)
+      await sendFirstMessage(projectPath, (sessionId) =>
+        sendMessageToSession(sessionId, payload, null),
+      )
       return
     }
     await sendMessage(withInlineVisualizationContext(activeSessionId, payload))
@@ -128,33 +157,16 @@ export function createSendHandlers(deps: SendMessageDeps): SendMessageHandlers {
       if (!projectPath) {
         throw new Error('Select a project before sending.')
       }
-      const worktreePlan = snapshotDraftWorktreePlan(projectPath)
-      const preparationProfileId =
-        worktreePlan?.plan.envMode === 'worktree'
-          ? await validateDraftWorkspacePreparation(
-              projectPath,
-              worktreePlan.plan.preparationProfileId,
-            )
-          : null
-      // The new Session starts from Pi's default thinking level, so a draft pick lands first.
-      await settledThinkingLevelWrites(DEFAULT_THINKING_LEVEL_TARGET)
-      const sessionId = await createSession(projectPath, sessionWorktreePlan(worktreePlan))
-      try {
-        await flushDraftAuthorizationModeToSession(projectPath, sessionId)
-        await flushDraftThinkingLevelToSession(sessionId)
-        if (preparationProfileId)
-          await selectDraftWorkspacePreparation(projectPath, sessionId, preparationProfileId)
-      } catch (error) {
-        throw firstSendFailure(error, sessionId)
-      }
-      startWaggleCollaboration(sessionId, config)
       /*
        * Awaited, and its failure propagates - the same reason the classic path does it. Dispatched
        * fire-and-forget the caller was told the send had succeeded, so a review submitted as a waggle session's
        * first message was cleared and never restored, and the rejection surfaced as an unhandled error instead
        * of reaching the caller that was holding the work.
        */
-      await sendMessageToSession(sessionId, payload, config)
+      await sendFirstMessage(projectPath, async (sessionId) => {
+        startWaggleCollaboration(sessionId, config)
+        await sendMessageToSession(sessionId, payload, config)
+      })
       return
     }
     await sendWaggleMessage(withInlineVisualizationContext(activeSessionId, payload), config)
@@ -170,7 +182,10 @@ interface UseSendMessageOptions {
   readonly createSession: (
     projectPath: string,
     worktreePlan?: SessionWorktreePlan,
+    thinkingLevel?: ThinkingLevel,
   ) => Promise<SessionId>
+  /** Pi's default thinking level as last read (`defaultThinkingLevelQueryOptions`). */
+  readonly defaultThinkingLevel?: ThinkingLevel
   readonly sendMessage: (payload: AgentSendPayload) => Promise<void>
   readonly sendWaggleMessage: (payload: AgentSendPayload, config: WaggleConfig) => Promise<void>
 }
@@ -205,6 +220,8 @@ export function useSendMessage(options: UseSendMessageOptions): SendMessageHandl
     })
 
     try {
+      // The Host starts the Run with the Session's model and thinking level: let any write land.
+      await settledSessionSettingWrites(sessionId)
       /*
        * The report is read, not just awaited. Main recovers every run failure into a value rather than
        * failing the Effect, so this invoke resolves whether the turn ran or was refused - an unresolvable

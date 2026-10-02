@@ -212,11 +212,12 @@ describe("a session's first send", () => {
 
     await handlers.handleSend(PAYLOAD)
 
-    expect(createSession).toHaveBeenCalledWith('/repo', {
-      environmentMode: 'worktree',
-      baseRef: 'main',
-      startFromOrigin: false,
-    })
+    // No default known and no pick: the Host starts the Session from Pi's default.
+    expect(createSession).toHaveBeenCalledWith(
+      '/repo',
+      { environmentMode: 'worktree', baseRef: 'main', startFromOrigin: false },
+      undefined,
+    )
     expect(snapshotDraftWorktreePlanMock.mock.invocationCallOrder[0]).toBeLessThan(
       createSession.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY,
     )

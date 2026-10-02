@@ -10,4 +10,5 @@ export {
   useOptimisticSteerStore,
   userStopCount,
 } from './optimistic-steer-store'
+export { useQueuedRunStartStore } from './queued-run-start-store'
 export { useRunFinishingStore } from './run-finishing-store'

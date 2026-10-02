@@ -2,7 +2,6 @@ import type { SessionId } from '@shared/types/brand'
 import type { SessionThinkingLevelChange } from '@shared/types/session'
 import type { ThinkingLevel } from '@shared/types/settings'
 import { create } from 'zustand'
-import { api } from '@/shared/lib/ipc'
 
 /** A pick for the draft composer, before its Session exists: Pi's global default. */
 export const DEFAULT_THINKING_LEVEL_TARGET = 'default'
@@ -51,13 +50,6 @@ export class SessionThinkingLevelRefusedError extends Error {
 const chains = new Map<ThinkingLevelTarget, Promise<void>>()
 
 /**
- * The level the user last picked in the draft composer, before its Session exists. Pi's global
- * default already holds it; first send also stores it on the new Session explicitly, so the Session
- * keeps the pick even if another window changed the default between the pick and the create.
- */
-let draftPick: ThinkingLevel | undefined
-
-/**
  * Resolves once every thinking-level write already requested for `target` has settled. Await it
  * before anything that starts a Run or creates a Session, since the Host reads the level then.
  */
@@ -76,7 +68,6 @@ interface ThinkingLevelWriteInput {
 
 /** Serializes writes per target so they land in pick order; rejects with the write's failure. */
 export function writeThinkingLevel(input: ThinkingLevelWriteInput): Promise<void> {
-  if (input.target === DEFAULT_THINKING_LEVEL_TARGET) draftPick = input.level
   const store = usePendingThinkingLevelStore.getState()
   store.setPending(input.target, input.level)
   const previous = chains.get(input.target) ?? Promise.resolve()
@@ -96,20 +87,19 @@ export function writeThinkingLevel(input: ThinkingLevelWriteInput): Promise<void
 }
 
 /**
- * Stores the draft composer's pick on the Session first send just created, after the pick's write
- * to Pi's default settled. Without a draft pick the Session keeps the default it started from.
+ * The level the draft composer shows: its pick still being written to Pi's default, else
+ * `defaultLevel` (Pi's default as last read; undefined while unknown). First send creates the
+ * Session at exactly this level, so the Session keeps what the user saw even if another window
+ * changes the default meanwhile, and the default itself is not written again.
  */
-export async function flushDraftThinkingLevelToSession(sessionId: SessionId): Promise<void> {
-  await settledThinkingLevelWrites(DEFAULT_THINKING_LEVEL_TARGET)
-  const level = draftPick
-  if (level === undefined) return
-  const change = await api.setSessionThinkingLevel(sessionId, level)
-  if (!change.changed) throw new SessionThinkingLevelRefusedError(change.code)
-  if (draftPick === level) draftPick = undefined
+export function draftThinkingLevel(defaultLevel: ThinkingLevel | undefined) {
+  return (
+    usePendingThinkingLevelStore.getState().pending.get(DEFAULT_THINKING_LEVEL_TARGET) ??
+    defaultLevel
+  )
 }
 
 export function resetThinkingLevelWritesForTests() {
-  draftPick = undefined
   chains.clear()
   usePendingThinkingLevelStore.setState({ pending: new Map() })
 }
