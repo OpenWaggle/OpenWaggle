@@ -463,10 +463,14 @@ Recording is a main/renderer protocol, not merely a `desktopCapturer` grant: suc
   creates the Session at the level the draft shows (`draftThinkingLevel`: pending pick, else the
   default query) through the 4th `sessions:create` argument, sent as
   `specialization.thinkingLevel`, which never writes Pi's default; there is no module-global
-  draft pick to go stale. `useSessionSettingsChangeable(sessionId)` is the shared picker gate:
+  draft pick to go stale. First send locks the draft (`lockDraftForFirstSend`, `isMaterializing`)
+  before its first await and reads the level only after `settledThinkingLevelWrites`, from the
+  query cache (`readDefaultThinkingLevel`). A 4-argument `sessions:create` needs revision 21
+  (`HOST_UI_REVISION_21_ARGUMENT_COUNTS` in `requiredHostUiRevision`). `useSessionSettingsChangeable(sessionId)` is the shared picker gate:
   false while a Run starts (first send from the moment `createSession` resolves, foreground send,
   worktree launch, or a queue action whose outcome was `started-run`, kept in
-  `queued-run-start-store` until that Run's `agent_start`/settlement), while the queue snapshot
+  `queued-run-start-store` until that Run's `agent_start`/settlement, or until a Host resync
+  re-reads the Session's queue as idle: `reconcileQueuedRunStarts`), while the queue snapshot
   reports `activeRunId` (Runs started anywhere: CLI, other windows, agents), runs, or finishes
   (terminal `agent_end` or a failed `auto_retry_end` until the final `run-completed`). Sends,
   enqueues, draft creates, and every queue change that can start a Run (resume, `queue-adopt`,
@@ -479,11 +483,14 @@ Recording is a main/renderer protocol, not merely a `desktopCapturer` grant: suc
   ran with. `migrateLegacyThinkingLevels` (`adapters/sqlite-legacy-thinking-level-migration.ts`)
   runs first in `startHostBackgroundServices`, before the Host listens: (1) beta.5's desktop pick
   `settings_store.thinkingLevel` becomes Pi's global default if valid and Pi names none
-  (`ThinkingLevelDefaultService.getConfiguredDefault`, unlike `getDefault` which falls back), then
-  the key is deleted, only after the Pi write succeeds; (2) once, gated by the
-  `sessionThinkingLevelsRestored` settings_store marker, every profile's level becomes the last
-  projected `thinking_level_change` on its active path (`last_active_node_id`, else the newest
-  node, where Pi opens the file), else its stored level, else Pi's default. Pi restores exactly that
+  (`ThinkingLevelDefaultService.getConfiguredDefault`, unlike `getDefault` which falls back);
+  (2) once, gated by the `sessionThinkingLevelsRestored` settings_store marker, every profile's
+  level becomes the last projected `thinking_level_change` on its active path
+  (`last_active_node_id`, else the newest node, where Pi opens the file), else its stored level,
+  else Pi's default. Pi records a level after clamping it to the model, so a restored `off` gives
+  way to a higher legacy level (the desktop pick, else the stored level; a desktop pick of `off`
+  keeps `off`), and the pick survives a later switch to a reasoning model (`sessionLevel`); (3) the
+  desktop pick key is deleted only after both succeeded. Pi restores exactly that
   entry when no level is passed (`sdk.js` `hasThinkingEntry`), but every Run now passes the stored
   level, so without the backfill a Session would silently switch levels on its first Run after the
   upgrade. It is not a ledger migration on purpose: a new migration id raises
