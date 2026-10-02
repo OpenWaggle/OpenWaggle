@@ -150,6 +150,7 @@ describe('PanelRail', () => {
     fireEvent.contextMenu(screen.getByRole('button', { name: 'Changes (⌘D)' }))
     fireEvent.click(screen.getByRole('menuitem', { name: 'Reset rail' }))
     expect(actions.reset).toHaveBeenCalledOnce()
+    expect(document.activeElement).toHaveAttribute('data-rail-surface', 'all-panels')
     expect(
       screen.queryByRole('menuitemcheckbox', { name: 'Keep rail visible when panel is closed' }),
     ).not.toBeInTheDocument()

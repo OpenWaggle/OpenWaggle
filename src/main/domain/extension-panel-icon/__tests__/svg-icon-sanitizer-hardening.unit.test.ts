@@ -70,6 +70,7 @@ describe('sanitizeSvgIcon hardening', () => {
     ['a zero width', '0 0 0 24'],
     ['a negative height', '0 0 24 -1'],
     ['Infinity', '0 0 Infinity 24'],
+    ['a trailing decimal point', '0 0 24. 24'],
   ])('rejects a viewBox with %s', (_label, viewBox) => {
     expect(sanitizeSvgIcon(svgDocument(SHAPE, viewBox)).ok).toBe(false)
   })

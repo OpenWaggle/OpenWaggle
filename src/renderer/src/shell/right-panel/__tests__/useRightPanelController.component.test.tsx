@@ -189,6 +189,18 @@ describe('useRightPanelController', () => {
     })
   })
 
+  it('restores once the extension registry failed instead of waiting forever', () => {
+    remember('changes')
+    renderHook(() =>
+      useRightPanelController(
+        model({ extensionRegistryLoaded: false, extensionRegistrySettled: true }),
+        '/repo',
+      ),
+    )
+    act(() => vi.advanceTimersByTime(0))
+    expect(routeOpenPanels()).toEqual(['diff'])
+  })
+
   it('reopens a side Terminal with the Right panel toggle', () => {
     useTerminalStore.getState().createTerminal(terminalSidePanelLayoutKey(SESSION), '/repo')
     useWorkspacePanelStore.getState().showTerminal(SESSION)

@@ -124,6 +124,16 @@ describe('createPanelCommandItems', () => {
       ['notes', true],
       ['off', false],
     ])
+
+    // A turned-off copy listed first does not hide a copy that only needs trust.
+    const [preferred] = extensionSidePanelSurfaces({
+      projectPaths: ['/repo'],
+      entries: [
+        { ...untrusted, eligibility: { ...untrusted.eligibility, enabled: false } },
+        { ...untrusted, eligibility: { ...untrusted.eligibility, trusted: false } },
+      ],
+    })
+    expect(preferred?.cannotRunYet).toBe(true)
     const showSurface = vi.fn()
     const notes = createPanelCommandItems({
       settings: SETTINGS,

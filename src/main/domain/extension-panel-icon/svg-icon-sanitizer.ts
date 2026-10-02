@@ -37,7 +37,7 @@ const LOCAL_URL_REFERENCE = /url\([\t\n\f\r ]*(['"]?)#[\w.:-]+\1[\t\n\f\r ]*\)/g
 /** CSS and XML whitespace: tab, line feed, form feed, carriage return and space. */
 const ASCII_WHITESPACE_CODES = new Set([9, 10, 12, 13, 32])
 /** An SVG number: no hex, no `Infinity`, no empty parts. */
-const SVG_NUMBER = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/u
+const SVG_NUMBER = /^[+-]?(?:\d+(?:\.\d+)?|\.\d+)(?:[eE][+-]?\d+)?$/u
 /**
  * Anything that can still name a resource once local `url(#…)` references are removed: other
  * `url()` forms, image functions, `src()`, escapes, imports and quoted strings.

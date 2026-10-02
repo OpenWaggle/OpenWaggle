@@ -61,9 +61,17 @@ function cannotRunYet(entry: ExtensionContributionRegistryEntry) {
   )
 }
 
+/** Openable first, then a panel that only needs trust or an update, then one that cannot run. */
+const SURFACE_RANK = { OPENABLE: 0, CANNOT_RUN_YET: 1, UNAVAILABLE: 2 } as const
+
+function surfaceRank(surface: Pick<ExtensionSidePanelSurfaceEntry, 'openable' | 'cannotRunYet'>) {
+  if (surface.openable) return SURFACE_RANK.OPENABLE
+  return surface.cannotRunYet ? SURFACE_RANK.CANNOT_RUN_YET : SURFACE_RANK.UNAVAILABLE
+}
+
 /**
  * One entry per extension side panel surface. The registry may list the same panel from several
- * packages or scopes; an openable entry wins over one that cannot run, otherwise the first wins.
+ * packages or scopes; the most usable entry wins (see surfaceRank), otherwise the first wins.
  */
 export function extensionSidePanelSurfaces(
   registry: ExtensionContributionRegistryView | null,
@@ -76,10 +84,15 @@ export function extensionSidePanelSurfaces(
       extensionId: entry.extensionId,
       sidePanelId: entry.contributionId,
     })
-    const openable = isOpenableExtensionSidePanelEntry(entry)
+    const candidate = {
+      surfaceId,
+      entry,
+      openable: isOpenableExtensionSidePanelEntry(entry),
+      cannotRunYet: cannotRunYet(entry),
+    }
     const existing = surfaces.get(surfaceId)
-    if (existing === undefined || (!existing.openable && openable)) {
-      surfaces.set(surfaceId, { surfaceId, entry, openable, cannotRunYet: cannotRunYet(entry) })
+    if (existing === undefined || surfaceRank(candidate) < surfaceRank(existing)) {
+      surfaces.set(surfaceId, candidate)
     }
   }
   return [...surfaces.values()]
