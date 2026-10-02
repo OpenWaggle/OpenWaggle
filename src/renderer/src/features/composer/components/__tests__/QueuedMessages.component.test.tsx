@@ -2,6 +2,7 @@ import { SessionId } from '@shared/types/brand'
 import type { FollowUpQueuePauseReason } from '@shared/types/session-control-queue'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { SessionControlRejectedError } from '@/features/chat/hooks'
 import { QueuedMessages } from '../QueuedMessages'
 
 const CONV_A = SessionId('session-a')
@@ -146,17 +147,21 @@ describe('QueuedMessages', () => {
     expect(pause).toHaveAccessibleDescription(expect.stringContaining('until you resume'))
     fireEvent.click(pause)
 
-    expect(queueMock.setPaused).toHaveBeenCalledWith(true)
+    expect(queueMock.setPaused).toHaveBeenCalledWith(true, 0)
     await waitFor(() => expect(pause).toHaveAttribute('aria-disabled', 'false'))
   })
 
-  it('shows a failed pause through the toast channel', async () => {
+  it('shows a failed pause through the toast channel in words, not the Host code', async () => {
     queue({ id: 'follow-up-1', text: 'next' })
-    queueMock.setPaused.mockRejectedValueOnce(new Error('Queue changed.'))
+    queueMock.setPaused.mockRejectedValueOnce(
+      new SessionControlRejectedError('queue-pause', 'session_not_found'),
+    )
     renderQueue()
 
     fireEvent.click(screen.getByRole('button', { name: 'Pause' }))
-    await waitFor(() => expect(noOpToast).toHaveBeenCalledWith('Queue changed.'))
+    await waitFor(() =>
+      expect(noOpToast).toHaveBeenCalledWith('Could not pause the queue. Try again.'),
+    )
   })
 
   it('offers promotion to steering only while a Run can accept it', () => {
@@ -206,7 +211,7 @@ describe('QueuedMessages', () => {
     expect(screen.getByText('Queue paused')).toBeVisible()
     expect(screen.queryByRole('button', { name: 'Pause' })).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Resume' }))
-    expect(queueMock.setPaused).toHaveBeenCalledWith(false)
+    expect(queueMock.setPaused).toHaveBeenCalledWith(false, 0)
   })
 
   // A bare "Queue paused" after a failed Run read as the app ignoring the messages.
@@ -246,7 +251,8 @@ describe('QueuedMessages', () => {
 
     expect(
       screen.getByText(
-        'The access that queued this message no longer covers this Session. Send it as you, or dismiss it.',
+        // A Run is going, so "Send as me" sends it in its turn rather than now.
+        'The access that queued this message no longer covers this Session. Send it as you to send it in its turn, or dismiss it.',
       ),
     ).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Steer' })).toBeDisabled()
@@ -257,7 +263,7 @@ describe('QueuedMessages', () => {
     expect(screen.getByTitle('Dismiss')).toBeVisible()
     queueMock.adopt.mockClear()
     fireEvent.click(screen.getByRole('button', { name: /Send as me/u }))
-    expect(queueMock.adopt).toHaveBeenCalledWith('follow-up-1')
+    expect(queueMock.adopt).toHaveBeenCalledWith('follow-up-1', 0)
   })
 
   it('withdraws by durable Follow-up identity and displays attachment-only intent', () => {

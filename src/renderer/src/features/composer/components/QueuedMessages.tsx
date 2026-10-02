@@ -1,7 +1,6 @@
 import type { SessionId } from '@shared/types/brand'
 import type { FollowUpQueuePauseReason } from '@shared/types/session-control-queue'
 import { Pause, Play, Timer } from 'lucide-react'
-import { useState } from 'react'
 import { useSessionFollowUpQueue } from '@/features/chat/hooks'
 import {
   selectPendingSteerFollowUps,
@@ -9,6 +8,7 @@ import {
   useOptimisticSteerStore,
 } from '@/features/chat/state'
 import { Button } from '@/shared/ui/Button'
+import { useQueueControls } from '../hooks/useQueueControls'
 import { useQueuedMessageArrangement } from '../hooks/useQueuedMessageArrangement'
 import { useQueuedMessageEdit } from '../hooks/useQueuedMessageEdit'
 import {
@@ -43,7 +43,8 @@ const PAUSE_REASON_COPY = {
   'parent-limit':
     'Paused because the parent Session has as many active Workers as it allows. Resume when one finishes.',
   'host-lost': 'Paused because OpenWaggle stopped during a Run. Resume to send these messages.',
-  'profile-revoked': 'Paused because the access profile that sent these messages was revoked.',
+  'profile-revoked':
+    'Paused because the access profile that sent these messages was revoked. Send the first one as you, or dismiss it.',
 } as const satisfies Record<FollowUpQueuePauseReason, string>
 
 const UNKNOWN_PAUSE_COPY = 'The queue is paused. Resume to send these messages.'
@@ -156,10 +157,8 @@ function QueueHeaderRow({
  * than a separate full-width panel.
  */
 export function QueuedMessages({ sessionId, onSteer, isStreaming, onToast }: QueuedMessagesProps) {
-  const { snapshot, error, refresh, setPaused, withdraw, adopt } =
-    useSessionFollowUpQueue(sessionId)
-  const [isChangingQueueState, setIsChangingQueueState] = useState(false)
-  const [adoptingId, setAdoptingId] = useState<string | null>(null)
+  const { snapshot, error, refresh, withdraw } = useSessionFollowUpQueue(sessionId)
+  const controls = useQueueControls(sessionId, onToast)
   const pendingPromotions = useOptimisticSteerStore(selectPendingSteerFollowUps(sessionId))
   // Reserved by a pending steering promotion: hidden from the dock and locked in place.
   const pendingIds = new Set(pendingPromotions)
@@ -183,33 +182,10 @@ export function QueuedMessages({ sessionId, onSteer, isStreaming, onToast }: Que
     }
   }
 
-  async function sendAsUser(followUpId: string) {
-    setAdoptingId(followUpId)
-    try {
-      await adopt(followUpId)
-    } catch (error) {
-      onToast(error instanceof Error ? error.message : String(error))
-    } finally {
-      setAdoptingId(null)
-    }
-  }
-
-  // Revision-guarded by the hook; pausing lets the user change Session settings before resuming.
-  async function changeQueueState(paused: boolean) {
-    setIsChangingQueueState(true)
-    try {
-      await setPaused(paused)
-    } catch (error) {
-      onToast(error instanceof Error ? error.message : String(error))
-    } finally {
-      setIsChangingQueueState(false)
-    }
-  }
-
   const rowActions: QueuedMessageRowActions = {
     onDismiss: (followUpId) => void dismiss(followUpId),
     onSteer: (followUpId) => void onSteer(followUpId),
-    onAdopt: (followUpId) => void sendAsUser(followUpId),
+    onAdopt: (followUpId) => void controls.sendAsMe(followUpId),
     onEdit: (followUpId) => void queuedEdit.begin(followUpId),
     onMove: arrangement.onMove,
     onDragStart: arrangement.onDragStart,
@@ -218,6 +194,12 @@ export function QueuedMessages({ sessionId, onSteer, isStreaming, onToast }: Que
     onDropOn: arrangement.onDropOn,
   }
 
+  /*
+   * "Send as me" on the first message starts it at once on an idle Session whose queue runs, or
+   * paused only because that message's access was revoked: the Host resumes the queue for it.
+   */
+  const headSendsNow =
+    !isStreaming && (snapshot.state === 'running' || snapshot.pauseReason === 'profile-revoked')
   const queueUnavailable = sessionId !== null && error !== null
   const showDock = sessionId !== null && (queue.length > 0 || queueUnavailable)
 
@@ -243,11 +225,12 @@ export function QueuedMessages({ sessionId, onSteer, isStreaming, onToast }: Que
               <QueueHeader
                 count={queue.length}
                 headNeedsAttention={queue[0]?.deliveryState === 'needs_attention'}
-                isChangingState={isChangingQueueState}
+                isChangingState={controls.isChangingState}
                 queueState={snapshot.state}
                 pauseReason={snapshot.pauseReason}
-                onResume={() => void changeQueueState(false)}
-                onPause={() => void changeQueueState(true)}
+                // Pausing lets the user change Session settings before resuming.
+                onResume={() => void controls.changeQueueState(false)}
+                onPause={() => void controls.changeQueueState(true)}
               />
 
               <ul
@@ -265,7 +248,7 @@ export function QueuedMessages({ sessionId, onSteer, isStreaming, onToast }: Que
                     }}
                     reorderable={queue.length > 1}
                     isStreaming={isStreaming}
-                    isAdopting={adoptingId === item.id}
+                    sendAsMe={{ inFlight: controls.adoptingId === item.id, headSendsNow }}
                     edit={{
                       canBegin: canBeginEdit,
                       phase: queuedEdit.edit?.followUpId === item.id ? queuedEdit.edit.phase : null,

@@ -1,7 +1,8 @@
 import { SessionId } from '@shared/types/brand'
+import type { FollowUpQueuePauseReason } from '@shared/types/session-control-queue'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { SessionFollowUpQueueItem } from '@/features/chat/hooks'
+import { SessionControlRejectedError, type SessionFollowUpQueueItem } from '@/features/chat/hooks'
 import { QueuedMessages } from '../QueuedMessages'
 
 const SESSION = SessionId('session-a')
@@ -9,8 +10,23 @@ const onToast = vi.fn()
 
 const queueMock = vi.hoisted(() => {
   const items: SessionFollowUpQueueItem[] = []
+  const snapshot: {
+    state: 'running' | 'paused'
+    pauseReason: FollowUpQueuePauseReason | undefined
+    revision: number
+    activeRunId: string | null
+    items: SessionFollowUpQueueItem[]
+    waitingOnEdit: boolean
+  } = {
+    state: 'running',
+    pauseReason: undefined,
+    revision: 0,
+    activeRunId: null,
+    items,
+    waitingOnEdit: false,
+  }
   return {
-    snapshot: { state: 'running', revision: 0, activeRunId: null, items, waitingOnEdit: false },
+    snapshot,
     adopt: vi.fn(),
   }
 })
@@ -60,28 +76,55 @@ function sendAsMe() {
 describe('QueuedMessages "Send as me"', () => {
   beforeEach(() => {
     onToast.mockClear()
+    queueMock.snapshot.state = 'running'
+    queueMock.snapshot.pauseReason = undefined
     queueMock.adopt.mockReset().mockResolvedValue(undefined)
   })
 
   it.each([
     [
       'profile_revoked',
-      'The access profile that queued this message was revoked. Send it as you, or dismiss it.',
+      'The access profile that queued this message was revoked. Send it as you to send it now, or dismiss it.',
     ],
     [
       'authority_changed',
-      'The access that queued this message no longer covers this Session. Send it as you, or dismiss it.',
+      'The access that queued this message no longer covers this Session. Send it as you to send it now, or dismiss it.',
     ],
-  ] as const)('offers to send a %s message as the user', (reason, copy) => {
+  ] as const)('offers to send a %s message as the user, now', (reason, copy) => {
     queueNeedingAttention(reason)
     renderQueue()
 
     expect(screen.getByText(copy)).toBeVisible()
     expect(sendAsMe()).toHaveAccessibleDescription(
-      'Deliver this message under your own access. It keeps showing who queued it.',
+      'Send this message now under your own access. It keeps showing who queued it.',
     )
     fireEvent.click(sendAsMe())
-    expect(queueMock.adopt).toHaveBeenCalledWith('follow-up-1')
+    expect(queueMock.adopt).toHaveBeenCalledWith('follow-up-1', 0)
+  })
+
+  it('says it sends in turn while a Run is going', () => {
+    queueNeedingAttention('profile_revoked')
+    renderQueue(true)
+
+    expect(
+      screen.getByText(
+        'The access profile that queued this message was revoked. Send it as you to send it in its turn, or dismiss it.',
+      ),
+    ).toBeVisible()
+    expect(sendAsMe()).toHaveAccessibleDescription(
+      'Send this message in its turn under your own access. It keeps showing who queued it.',
+    )
+  })
+
+  it('says it sends in turn when the queue paused for another reason', () => {
+    queueNeedingAttention('authority_changed')
+    queueMock.snapshot.state = 'paused'
+    queueMock.snapshot.pauseReason = 'requested'
+    renderQueue()
+
+    expect(sendAsMe()).toHaveAccessibleDescription(
+      'Send this message in its turn under your own access. It keeps showing who queued it.',
+    )
   })
 
   it('does not offer it on a message that can be delivered', () => {
@@ -122,12 +165,17 @@ describe('QueuedMessages "Send as me"', () => {
     await waitFor(() => expect(sendAsMe()).toHaveAttribute('aria-disabled', 'false'))
   })
 
-  it('shows a refused send through the toast channel', async () => {
+  it('shows a refused send through the toast channel in words, not the Host code', async () => {
     queueNeedingAttention('profile_revoked')
-    queueMock.adopt.mockRejectedValueOnce(new Error('The queue changed. Try again.'))
+    queueMock.adopt.mockRejectedValueOnce(
+      new SessionControlRejectedError('queue-adopt', 'follow_up_not_found'),
+    )
     renderQueue()
 
     fireEvent.click(sendAsMe())
-    await waitFor(() => expect(onToast).toHaveBeenCalledWith('The queue changed. Try again.'))
+    await waitFor(() =>
+      expect(onToast).toHaveBeenCalledWith('This message is no longer in the queue.'),
+    )
+    expect(onToast).not.toHaveBeenCalledWith(expect.stringContaining('Session Control'))
   })
 })

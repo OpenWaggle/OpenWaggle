@@ -136,4 +136,72 @@ describe('QueuedMessages sources and intent badges', () => {
       'Queued by profile:profile-ci\nCLI profile: ci-bot\nSent as you',
     )
   })
+
+  it('prefers the title the Host resolved for the agent Session', () => {
+    useSessionStore.setState({
+      sessions: [fromPartial({ id: SessionId('session-release'), title: 'Old title' })],
+    })
+    // A Host that resolves the title sends it with the source; read it without trusting its type.
+    const source = {
+      callerId: 'session-agent:session-release:run-1',
+      sessionId: 'session-release',
+      sessionTitle: 'Release prep',
+    }
+    queue({ text: 'from the Host', source })
+    renderQueue()
+
+    expect(screen.getByText('From Release prep')).toHaveAttribute(
+      'title',
+      'Queued by session-agent:session-release:run-1\nSession: Release prep (session-release)',
+    )
+  })
+
+  it('ignores a Host title that is not text', () => {
+    queue({
+      text: 'odd title',
+      source: fromPartial({ callerId: 'session-agent:session-x:run-1', sessionTitle: 42 }),
+    })
+    renderQueue()
+
+    expect(screen.getByText('From another Session')).toBeVisible()
+  })
+
+  it.each([
+    ['archived', 'archivedSessions'],
+    ['Hive', 'hiveSessions'],
+  ] as const)('falls back to an %s Session this window knows', (_kind, list) => {
+    useSessionStore.setState({
+      [list]: [fromPartial({ id: SessionId('session-worker'), title: 'Worker A' })],
+    })
+    queue({
+      text: 'from a worker',
+      source: { callerId: 'session-agent:session-worker:run-1', sessionId: 'session-worker' },
+    })
+    renderQueue()
+
+    expect(screen.getByText('From Worker A')).toBeVisible()
+  })
+
+  it('reads the Session from its caller when the Host did not resolve one, and keeps it on hover', () => {
+    useSessionStore.setState({
+      sessions: [fromPartial({ id: SessionId('session-worker'), title: 'Worker A' })],
+    })
+    queue({ text: 'older Host', source: { callerId: 'session-agent:session-worker:run-9' } })
+    renderQueue()
+
+    expect(screen.getByText('From Worker A')).toHaveAttribute(
+      'title',
+      'Queued by session-agent:session-worker:run-9\nSession: Worker A (session-worker)',
+    )
+  })
+
+  it('says another Session queued it when nothing names that Session', () => {
+    queue({ text: 'unknown', source: { callerId: 'session-agent:session-unknown:run-1' } })
+    renderQueue()
+
+    expect(screen.getByText('From another Session')).toHaveAttribute(
+      'title',
+      'Queued by session-agent:session-unknown:run-1\nSession: session-unknown',
+    )
+  })
 })

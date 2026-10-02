@@ -7,20 +7,30 @@ import { QueueIntentBadges } from './QueueIntentBadges'
 import type { QueuedMessageRowActions, QueuedMessageRowEditState } from './queued-message-row-types'
 
 const ATTENTION_REASON_COPY = {
-  profile_revoked:
-    'The access profile that queued this message was revoked. Send it as you, or dismiss it.',
-  authority_changed:
-    'The access that queued this message no longer covers this Session. Send it as you, or dismiss it.',
+  profile_revoked: 'The access profile that queued this message was revoked.',
+  authority_changed: 'The access that queued this message no longer covers this Session.',
 } as const
 
-const ACCESSIBLE_LABEL_LENGTH = 60
+const UNKNOWN_ATTENTION_COPY = 'This message cannot be delivered under the access that queued it.'
 
-function attentionCopy(item: SessionFollowUpQueueItem) {
+/*
+ * "Send as me" resumes a queue that paused for the message and delivers it under the user's
+ * access, so on the first message of an idle Session it sends now; otherwise it sends in turn.
+ */
+const SEND_AS_ME_COPY = {
+  now: 'Send it as you to send it now, or dismiss it.',
+  inTurn: 'Send it as you to send it in its turn, or dismiss it.',
+} as const
+
+function attentionCopy(item: SessionFollowUpQueueItem, sendsNow: boolean) {
   if (item.deliveryState !== 'needs_attention') return undefined
-  return item.attentionReason
+  const reason = item.attentionReason
     ? ATTENTION_REASON_COPY[item.attentionReason]
-    : 'This message cannot be delivered under the access that queued it. Send it as you, or dismiss it.'
+    : UNKNOWN_ATTENTION_COPY
+  return `${reason} ${sendsNow ? SEND_AS_ME_COPY.now : SEND_AS_ME_COPY.inTurn}`
 }
+
+const ACCESSIBLE_LABEL_LENGTH = 60
 
 function itemLabel(item: SessionFollowUpQueueItem) {
   return item.text || `${String(item.attachmentCount)} attachment(s)`
@@ -38,8 +48,11 @@ interface QueuedMessageRowProps {
   readonly neighbours: { readonly previousId: string | null; readonly nextId: string | null }
   readonly reorderable: boolean
   readonly isStreaming: boolean
-  /** "Send as me" is in flight for this row. */
-  readonly isAdopting: boolean
+  /**
+   * "Send as me": `inFlight` while it runs for this row; `headSendsNow` when the queue would
+   * deliver its first message at once once that message no longer needs attention.
+   */
+  readonly sendAsMe: { readonly inFlight: boolean; readonly headSendsNow: boolean }
   readonly edit: QueuedMessageRowEditState
   readonly actions: QueuedMessageRowActions
 }
@@ -67,14 +80,15 @@ export function QueuedMessageRow({
   neighbours,
   reorderable,
   isStreaming,
-  isAdopting,
+  sendAsMe,
   edit,
   actions,
 }: QueuedMessageRowProps) {
-  const attention = attentionCopy(item)
+  const { previousId, nextId } = neighbours
+  const sendsNow = previousId === null && sendAsMe.headSendsNow
+  const attention = attentionCopy(item, sendsNow)
   const label = itemLabel(item)
   const shortLabel = accessibleLabel(label)
-  const { previousId, nextId } = neighbours
 
   return (
     <li
@@ -131,7 +145,8 @@ export function QueuedMessageRow({
         item={item}
         label={shortLabel}
         isStreaming={isStreaming}
-        isAdopting={isAdopting}
+        isAdopting={sendAsMe.inFlight}
+        sendsNow={sendsNow}
         edit={edit}
         actions={actions}
       />

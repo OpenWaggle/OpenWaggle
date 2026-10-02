@@ -8,6 +8,8 @@ interface QueuedMessageRowControlsProps {
   readonly label: string
   readonly isStreaming: boolean
   readonly isAdopting: boolean
+  /** "Send as me" delivers this message at once: it is next and nothing is running. */
+  readonly sendsNow: boolean
   readonly edit: QueuedMessageRowEditState
   readonly actions: QueuedMessageRowActions
 }
@@ -21,6 +23,7 @@ export function QueuedMessageRowControls({
   label,
   isStreaming,
   isAdopting,
+  sendsNow,
   edit,
   actions,
 }: QueuedMessageRowControlsProps) {
@@ -55,7 +58,11 @@ export function QueuedMessageRowControls({
           }}
           aria-disabled={isAdopting}
           aria-label={`Send as me: ${label}`}
-          title="Deliver this message under your own access. It keeps showing who queued it."
+          title={
+            sendsNow
+              ? 'Send this message now under your own access. It keeps showing who queued it.'
+              : 'Send this message in its turn under your own access. It keeps showing who queued it.'
+          }
           className="flex items-center gap-1 rounded-md bg-accent/8 px-2 py-1 aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
         >
           <Send className="size-3 text-accent" />
