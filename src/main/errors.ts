@@ -42,7 +42,8 @@ export class SessionTitleRepositoryError extends Data.TaggedError('SessionTitleR
 
 /** A Title model request that could not produce a title; the Session keeps its current title. */
 export class SessionTitleGenerationError extends Data.TaggedError('SessionTitleGenerationError')<{
-  readonly reason: 'no-model' | 'request-failed' | 'empty-response'
+  /** `off`: the Title model was turned Off while the request waited for its turn. */
+  readonly reason: 'no-model' | 'request-failed' | 'empty-response' | 'off'
   readonly message: string
   readonly cause?: unknown
 }> {}

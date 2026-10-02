@@ -51,12 +51,17 @@ function refine(sessionId: SessionId) {
     if (!answered) return
     const generated = yield* generateTitle({
       state,
-      titleModel,
       sessionModel: null,
       message: context.message,
       previousTitle: state.title,
       attachments: context.attachments,
-    }).pipe(Effect.catchTag('SessionTitleGenerationError', () => Effect.succeed(null)))
+    }).pipe(
+      Effect.catchTag('SessionTitleGenerationError', (error) =>
+        // Turned Off while queued: the refinement is still owed if the Title model comes back.
+        Effect.succeed(error.reason === 'off' ? ('off' as const) : null),
+      ),
+    )
+    if (generated === 'off') return
     if (!generated || generated.title === state.title) return yield* settle(sessionId)
     const applied = yield* repository.applyGenerated({
       sessionId,

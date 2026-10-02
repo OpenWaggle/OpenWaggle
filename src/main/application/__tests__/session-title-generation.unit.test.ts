@@ -47,7 +47,6 @@ describe('generateTitle', () => {
         const request = (priority: 'background' | 'user') =>
           generateTitle({
             state: STATE,
-            titleModel: 'automatic',
             sessionModel: null,
             message: 'Hello',
             priority,
@@ -69,5 +68,42 @@ describe('generateTitle', () => {
     // Two background permits plus the user request that skipped the queue.
     expect(result.runningBeforeRelease).toBe(3)
     expect(result.peak).toBe(3)
+  })
+
+  it('sends no queued request once the Title model is turned Off', async () => {
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const release = yield* Deferred.make<void>()
+        let sent = 0
+        let settings = DEFAULT_SETTINGS
+        const generator = SessionTitleGenerator.of({
+          generate: () =>
+            Effect.gen(function* () {
+              sent += 1
+              yield* Deferred.await(release)
+              return { text: '{"title":"Done"}', modelRef: SupportedModelId('a/b') }
+            }),
+        })
+        const layer = Layer.mergeAll(
+          Layer.succeed(SessionTitleGenerator, generator),
+          Layer.succeed(SettingsService, fromPartial({ get: () => Effect.sync(() => settings) })),
+        )
+        const request = generateTitle({
+          state: STATE,
+          sessionModel: null,
+          message: 'Hello',
+        }).pipe(Effect.either, Effect.provide(layer))
+        const fibers = yield* Effect.forkAll([request, request, request, request])
+        yield* Effect.sleep('10 millis')
+        settings = { ...DEFAULT_SETTINGS, sessionTitleModel: 'off' }
+        yield* Deferred.succeed(release, undefined)
+        const outcomes = yield* Fiber.join(fibers)
+        return { sent, outcomes: outcomes.map((outcome) => outcome._tag) }
+      }),
+    )
+
+    // The two holding a permit were already sent; the two still queued never were.
+    expect(result.sent).toBe(2)
+    expect(result.outcomes).toEqual(['Right', 'Right', 'Left', 'Left'])
   })
 })

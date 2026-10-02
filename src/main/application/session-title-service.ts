@@ -39,6 +39,7 @@ function generateInitial(input: {
   readonly text: string
   readonly attachments: readonly SessionTitleContextAttachment[]
   readonly model: SupportedModelId | null
+  readonly settleOnFailure: boolean
 }) {
   return Effect.gen(function* () {
     const repository = yield* SessionTitleRepository
@@ -51,7 +52,6 @@ function generateInitial(input: {
       if (titleModel === null) return { kind: 'off' } as const
       const generated = yield* generateTitle({
         state,
-        titleModel,
         sessionModel: input.model,
         message: input.text,
         attachments: input.attachments,
@@ -61,21 +61,26 @@ function generateInitial(input: {
       Effect.retry({
         schedule: INITIAL_TITLE_RETRY,
         while: (error) =>
-          error._tag !== 'SessionTitleGenerationError' || error.reason !== 'no-model',
+          error._tag !== 'SessionTitleGenerationError' ||
+          (error.reason !== 'no-model' && error.reason !== 'off'),
       }),
       // After the retries, a failed request settles like a reply with no usable title, so Host
       // restarts do not spend the same request again on every start.
       Effect.catchTag('SessionTitleGenerationError', (error) =>
         Effect.sync(() => {
+          if (error.reason === 'off') return { kind: 'off' } as const
           logger.warn('Title model request failed; keeping the current title', {
             sessionId: input.sessionId,
             reason: error.reason,
           })
-          return { kind: 'generated', generated: null } as const
+          return { kind: 'failed', generated: null } as const
         }),
       ),
     )
     if (attempt.kind === 'off') return
+    // A request made at creation fails without settling: the first Run asks again, so a Worker
+    // queued behind a rate-limit burst still gets a second chance.
+    if (attempt.kind === 'failed' && !input.settleOnFailure) return
     const { generated } = attempt
     // As in T3 Code, a reply with no usable title keeps the current title and owes a root one
     // refinement, which names the Session once its first turn has an answer. A first message with
@@ -105,6 +110,8 @@ export function generateInitialSessionTitle(input: {
   readonly text: string
   readonly attachments?: readonly SessionTitleContextAttachment[]
   readonly model?: SupportedModelId | null
+  /** False for a request made at creation, before the first Run, which will ask again. */
+  readonly settleOnFailure?: boolean
 }) {
   return Effect.gen(function* () {
     const attachments = input.attachments ?? []
@@ -116,6 +123,7 @@ export function generateInitialSessionTitle(input: {
       text: input.text,
       attachments,
       model: input.model ?? null,
+      settleOnFailure: input.settleOnFailure ?? true,
     }).pipe(
       Effect.catchAllCause((cause) =>
         Effect.sync(() => {
@@ -155,7 +163,6 @@ function regenerate(
     if (!context.message.trim()) return { outcome: 'unavailable', reason: 'empty' } as const
     const generated = yield* generateTitle({
       state,
-      titleModel,
       sessionModel: null,
       message: context.message,
       previousTitle: state.title,
@@ -173,8 +180,9 @@ function regenerate(
       Effect.either,
     )
     if (generated._tag === 'Left') {
-      return generated.left.reason === 'no-model'
-        ? ({ outcome: 'unavailable', reason: 'no-model' } as const)
+      const { reason } = generated.left
+      return reason === 'no-model' || reason === 'off'
+        ? ({ outcome: 'unavailable', reason } as const)
         : ({ outcome: 'failed', message: failureMessage(generated.left) } as const)
     }
     const title = generated.right?.title

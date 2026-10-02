@@ -5,7 +5,9 @@
  * https://github.com/pingdotgg/t3code, MIT License, Copyright (c) 2026 T3 Tools Inc.) per ADR 0043,
  * adapted to say "OpenWaggle session", to write in the user's language, and without linked pull
  * request or issue lookup. The rule for conversational openers comes from OpenCode's title prompt
- * (`packages/opencode/src/agent/prompt/title.txt`, https://github.com/anomalyco/opencode, MIT). Keep the shared editorial rules of the two prompts in sync; the
+ * (`packages/opencode/src/agent/prompt/title.txt`, https://github.com/anomalyco/opencode, MIT
+ * License, Copyright (c) 2025 opencode). Both licenses are reproduced in THIRD_PARTY_NOTICES.md,
+ * which ships with the app. Keep the shared editorial rules of the two prompts in sync; the
  * regeneration prompt intentionally adds guidance for history and the previous title.
  */
 

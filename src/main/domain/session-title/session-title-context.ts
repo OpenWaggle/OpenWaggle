@@ -2,7 +2,8 @@
  * Builds the bounded history a Title refinement or regeneration reads.
  *
  * Ported from T3 Code (`apps/server/src/textGeneration/ThreadTitleContext.ts`,
- * https://github.com/pingdotgg/t3code, MIT License, Copyright (c) 2026 T3 Tools Inc.) per ADR 0043.
+ * https://github.com/pingdotgg/t3code, MIT License, Copyright (c) 2026 T3 Tools Inc.) per ADR 0043;
+ * the license is reproduced in THIRD_PARTY_NOTICES.md.
  * User intent is reserved space before assistant findings, in conversation order.
  */
 

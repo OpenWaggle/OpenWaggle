@@ -142,6 +142,17 @@ describe('refineSessionTitle', () => {
     expect(world().state).toMatchObject({ title: 'Short session titles', source: 'generated' })
   })
 
+  it('leaves an old Session Provisional on a Host restart, however recently it was active', async () => {
+    resetWorld({ title: 'make titles short', source: 'provisional', updatedAt: Date.now() })
+    const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000
+    world().messages = [{ ...text('user', 'make titles short', 'u1'), createdAt: weekAgo }]
+
+    await run(recoverSessionTitleWork)
+
+    expect(world().requests).toEqual([])
+    expect(world().state.source).toBe('provisional')
+  })
+
   it('is resumed after a Host restart', async () => {
     world().messages = [
       text('user', 'look at this', 'u1'),

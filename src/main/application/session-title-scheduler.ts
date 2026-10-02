@@ -39,6 +39,7 @@ export function requestInitialSessionTitle(input: {
   readonly text: string
   readonly attachments?: readonly SessionTitleContextAttachment[]
   readonly model?: SupportedModelId | null
+  readonly settleOnFailure?: boolean
 }) {
   if (!titleRuntime) return
   Runtime.runFork(titleRuntime)(generateInitialSessionTitle(input))
@@ -60,15 +61,22 @@ export function requestLifecycleTitle(
     requestInitialSessionTitle({
       sessionId: SessionId(outcome.sessionId),
       text: command.delegation.objective,
+      settleOnFailure: false,
     })
     return
   }
+  // A launch with attachments is titled by its first Run, which knows the attachment names.
   if (
     outcome.effect === 'launched-root' &&
     command.operation === 'launch' &&
-    command.title === undefined
+    command.title === undefined &&
+    (command.attachmentIds ?? []).length === 0
   ) {
-    requestInitialSessionTitle({ sessionId: SessionId(outcome.sessionId), text: command.objective })
+    requestInitialSessionTitle({
+      sessionId: SessionId(outcome.sessionId),
+      text: command.objective,
+      settleOnFailure: false,
+    })
   }
 }
 

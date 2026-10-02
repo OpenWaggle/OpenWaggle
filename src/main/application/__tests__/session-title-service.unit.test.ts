@@ -116,6 +116,21 @@ describe('generateInitialSessionTitle', () => {
     })
   })
 
+  it('leaves a title requested at creation Provisional when it fails, so the first Run asks again', async () => {
+    resetWorld({ isWorker: true, title: 'Review the auth module' })
+    world().replies.push(new SessionTitleGenerationError({ reason: 'no-model', message: 'none' }))
+
+    await run(
+      generateInitialSessionTitle({
+        sessionId: SESSION_ID,
+        text: 'Review the auth module',
+        settleOnFailure: false,
+      }),
+    )
+
+    expect(world().state).toMatchObject({ title: 'Review the auth module', source: 'provisional' })
+  })
+
   it('retries a failed request twice with backoff before keeping the Provisional title', async () => {
     const failure = () =>
       new SessionTitleGenerationError({ reason: 'request-failed', message: 'overloaded' })

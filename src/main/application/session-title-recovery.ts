@@ -4,7 +4,11 @@ import { toSessionTitleContextMessage } from '../domain/session-title/session-ti
 import { createLogger } from '../logger'
 import { SessionProjectionRepository } from '../ports/session-projection-repository'
 import { SessionTitleRepository } from '../ports/session-title-repository'
-import { enabledTitleModel, TITLE_WORK_WINDOW_MS } from './session-title-generation'
+import {
+  enabledTitleModel,
+  isWithinTitleWorkWindow,
+  TITLE_WORK_WINDOW_MS,
+} from './session-title-generation'
 import { refineSessionTitle } from './session-title-refinement'
 import { generateInitialSessionTitle } from './session-title-service'
 
@@ -24,8 +28,9 @@ function resumeProvisional(sessionId: SessionId) {
   return Effect.gen(function* () {
     const session = yield* (yield* SessionProjectionRepository).getOptional(sessionId)
     const first = session?.messages.find((message) => message.role === 'user')
-    // No first message yet: the first Run's preflight asks for the title itself.
-    if (!first) return
+    // No first message yet: the first Run's preflight asks for the title itself. A first message
+    // older than the window belongs to a Session whose start is long past; it keeps its title.
+    if (!first || !isWithinTitleWorkWindow(first.createdAt, Date.now())) return
     const message = toSessionTitleContextMessage(first)
     yield* generateInitialSessionTitle({
       sessionId,

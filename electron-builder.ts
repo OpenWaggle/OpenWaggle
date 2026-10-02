@@ -97,6 +97,8 @@ const config = {
     { from: 'build/openwaggle-docs', to: 'openwaggle-docs' },
     { from: 'build/session-embedding-model', to: 'session-embedding-model' },
     { from: 'scripts/install.sh', to: 'openwaggle-install.sh' },
+    // MIT notices for code adapted from other projects (generated Session titles, ADR 0043).
+    { from: 'THIRD_PARTY_NOTICES.md', to: 'THIRD_PARTY_NOTICES.md' },
   ],
   mac: {
     // Release builds sign with the Developer ID certificate in CSC_LINK and notarize with the

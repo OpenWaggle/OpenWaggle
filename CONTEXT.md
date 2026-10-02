@@ -291,7 +291,7 @@ The trimmed first message, or a Worker's trimmed Delegation objective, shown as 
 _Avoid_: title seed, fallback title, default title (that is "New session")
 
 **Title refinement**:
-The single automatic regeneration of a generated **Session title** after the first completed turn, allowed only when the first generation flagged the request as too vague to name.
+The single automatic regeneration of a generated **Session title** after the first completed turn, owed when the first generation could not name the request: the model flagged it as too vague, gave no usable title, or failed, or the first message was only an attachment.
 _Avoid_: retitling, title drift, live title
 
 **Title regeneration**:
@@ -1710,7 +1710,7 @@ _Avoid_: search (it narrows in place rather than producing results), sidebar vie
 - The GUI consumes a **Session subscription**, while **Session watch** exposes the same authorized feed through the CLI.
 - **Session discovery** searches title, initial objective, and current preview through **Session discovery text**, while **Transcript search** is an explicit broader operation.
 - A Session without an explicit title receives a generated **Session title**: a root from its first message after showing a **Provisional title**, a Worker from its Delegation objective at Spawn. Only a root may receive **Title refinement**.
-- Title generation is always asynchronous: it never delays a Run, a Spawn, or any other Session operation, and every generated Session shows a **Provisional title** until its generated title lands.
+- Title generation is always asynchronous: it never delays a Run, a Spawn, or any other Session operation, and every generated Session shows a **Provisional title**, or the default title when its first message has no text, until its generated title lands.
 - Changing a **Session title** by generation, **Title refinement**, **Title regeneration**, or rename never changes the Session's sidebar recency.
 - An explicitly given or renamed **Session title** is never replaced by generation, and a fork inherits its source's title marked as a fork or copy.
 - The default **Session discovery mode** is hybrid: exact lexical matches and semantic matches contribute candidates to one ranked result set.

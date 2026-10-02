@@ -52,7 +52,11 @@ export function publishTitleChanged(sessionId: SessionId) {
 
 export type EnabledTitleModel = Exclude<SessionTitleModelSetting, typeof SESSION_TITLE_MODEL_OFF>
 
-/** The current Title model, or null when it is Off. Read before every request, retries included. */
+/**
+ * The current Title model, or null when it is Off. Callers read it before starting title work, and
+ * `generateTitle` reads it again once a request may be sent, so turning the Title model Off stops
+ * queued requests and retries as well.
+ */
 export function enabledTitleModel() {
   return Effect.gen(function* () {
     const settings = yield* (yield* SettingsService).get()
@@ -73,7 +77,6 @@ export function isWithinTitleWorkWindow(at: number, now: number) {
  */
 export function generateTitle(input: {
   readonly state: SessionTitleState
-  readonly titleModel: EnabledTitleModel
   readonly sessionModel: SupportedModelId | null
   readonly message: string
   readonly previousTitle?: string
@@ -87,22 +90,30 @@ export function generateTitle(input: {
       ...(input.previousTitle === undefined ? {} : { previousTitle: input.previousTitle }),
       ...(input.attachments ? { attachments: input.attachments } : {}),
     })
-    const request = generator
-      .generate({
+    const request = Effect.gen(function* () {
+      // A queued request may have waited while the Title model was turned Off or changed. A
+      // setting that cannot be read counts as Off.
+      const titleModel = yield* enabledTitleModel().pipe(Effect.orElseSucceed(() => null))
+      if (titleModel === null) {
+        return yield* Effect.fail(
+          new SessionTitleGenerationError({ reason: 'off', message: 'The Title model is Off.' }),
+        )
+      }
+      return yield* generator.generate({
         sessionModel: input.sessionModel ?? input.state.executionModel,
-        titleModel: input.titleModel,
+        titleModel,
         ...prompt,
       })
-      .pipe(
-        Effect.timeoutFail({
-          duration: TITLE_REQUEST_TIMEOUT,
-          onTimeout: () =>
-            new SessionTitleGenerationError({
-              reason: 'request-failed',
-              message: 'The Title model did not answer in time.',
-            }),
-        }),
-      )
+    }).pipe(
+      Effect.timeoutFail({
+        duration: TITLE_REQUEST_TIMEOUT,
+        onTimeout: () =>
+          new SessionTitleGenerationError({
+            reason: 'request-failed',
+            message: 'The Title model did not answer in time.',
+          }),
+      }),
+    )
     const response = yield* input.priority === 'user'
       ? request
       : titleRequestPermits.withPermits(1)(request)

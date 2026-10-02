@@ -35,6 +35,15 @@ function spawned(replayed = false): SessionLifecycleResponse {
   })
 }
 
+/** The scheduler only captures the runtime; the mocked work needs none of its services. */
+function installHostRuntime() {
+  return Effect.runPromise(
+    fromAny<Effect.Effect<void>, typeof scheduler.installSessionTitleWorker>(
+      scheduler.installSessionTitleWorker,
+    ),
+  )
+}
+
 describe('session title scheduler', () => {
   it('does nothing outside the Session Host and answers regeneration with a failure', async () => {
     scheduler.requestLifecycleTitle(spawnRequest(), spawned())
@@ -46,12 +55,7 @@ describe('session title scheduler', () => {
   })
 
   it('titles a freshly spawned Worker from its objective, and only that', async () => {
-    // The scheduler only captures the runtime; the mocked work needs none of its services.
-    await Effect.runPromise(
-      fromAny<Effect.Effect<void>, typeof scheduler.installSessionTitleWorker>(
-        scheduler.installSessionTitleWorker,
-      ),
-    )
+    await installHostRuntime()
 
     scheduler.requestLifecycleTitle(spawnRequest(), spawned(true))
     scheduler.requestLifecycleTitle(
@@ -64,10 +68,12 @@ describe('session title scheduler', () => {
     expect(generateMock).toHaveBeenCalledWith({
       sessionId: 'worker-1',
       text: 'Review the auth module',
+      settleOnFailure: false,
     })
   })
 
   it('titles an untitled launched root from its objective, but never one launched with a title', async () => {
+    await installHostRuntime()
     generateMock.mockClear()
     const launch = (title?: string): SessionLifecycleRequest =>
       fromPartial({
@@ -83,9 +89,20 @@ describe('session title scheduler', () => {
     })
 
     scheduler.requestLifecycleTitle(launch('Named by caller'), launched)
+    // An attachment's name only reaches the title prompt through the first Run.
+    scheduler.requestLifecycleTitle(
+      fromPartial({
+        command: { operation: 'launch', objective: 'What is this?', attachmentIds: ['a1'] },
+      }),
+      launched,
+    )
     scheduler.requestLifecycleTitle(launch(), launched)
     await vi.waitFor(() => expect(generateMock).toHaveBeenCalledTimes(1))
 
-    expect(generateMock).toHaveBeenCalledWith({ sessionId: 'root-1', text: 'Audit the schema' })
+    expect(generateMock).toHaveBeenCalledWith({
+      sessionId: 'root-1',
+      text: 'Audit the schema',
+      settleOnFailure: false,
+    })
   })
 })

@@ -25,5 +25,5 @@ Two rules hold everywhere:
 ## Consequences
 
 - Titling is a recorded deviation from the Codex parity baseline; future parity work should not "fix" it back.
-- Refinement and regeneration mean a title can change after it is first shown. Both are bounded: refinement fires at most once, early, and only on a flagged title, and regeneration only on request.
+- Refinement and regeneration mean a title can change after it is first shown. Both are bounded: refinement fires at most once, early, and only when the first generation could not name the request (flagged as vague, no usable title, a failed request, or an attachment-only first message), and regeneration only on request.
 - Title writes must stop driving `updated_at`-based recency, or recency must move to a separate activity timestamp.
