@@ -60,7 +60,6 @@ vi.mock('@tanstack/react-router', () => ({
   useRouterState: ({ select }: { select: LocationSelection }) =>
     select({ location: { pathname: shellMocks.pathname } }),
 }))
-
 vi.mock('@/features/chat/hooks/useBackgroundRunMonitor', () => ({
   useBackgroundRunMonitor: () => shellMocks.backgroundRunMonitor(),
 }))
@@ -144,8 +143,7 @@ describe('shell surfaces', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Report a bug' }))
 
     expect(onOpen).toHaveBeenCalledOnce()
-    // openFeedbackModal takes an optional AgentErrorInfo. Forwarding the click
-    // event made it a truthy non-error object and crashed the modal.
+    // A forwarded click event looked like an AgentErrorInfo and crashed the modal.
     expect(onOpen).toHaveBeenCalledWith()
   })
 

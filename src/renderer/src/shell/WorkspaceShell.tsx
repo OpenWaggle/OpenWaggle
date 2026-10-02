@@ -11,6 +11,7 @@ import { Header } from '@/shell/Header'
 import { ToastOverlay } from '@/shell/ToastOverlay'
 import { useUIStore } from '@/shell/ui-store'
 import { useAutoUpdater } from '@/shell/useAutoUpdater'
+import { RightPanelCommandPalette } from './right-panel/RightPanelCommandPalette'
 import { RightPanelHost } from './right-panel/RightPanelHost'
 import { isRightPanelChatPath } from './right-panel/useRightPanelRouteNavigation'
 import { useDesktopNativeAdmissionNotice } from './useDesktopNativeAdmissionNotice'
@@ -18,11 +19,6 @@ import { useWorkspaceLifecycle } from './useWorkspaceLifecycle'
 import { WorkspaceRightPanel } from './WorkspaceRightPanel'
 import { WorkspaceTerminal } from './WorkspaceTerminal'
 
-const LazyGlobalCommandPalette = lazy(() =>
-  import('@/features/command-palette/components/GlobalCommandPalette').then((module) => ({
-    default: module.GlobalCommandPalette,
-  })),
-)
 const LazyFeedbackModal = lazy(() =>
   import('@/features/feedback/components/FeedbackModal').then((module) => ({
     default: module.FeedbackModal,
@@ -89,7 +85,7 @@ export function WorkspaceShell({ children }: WorkspaceShellProps) {
       <ToastOverlay />
       <Suspense fallback={null}>
         {feedbackModalOpen && <LazyFeedbackModal />}
-        {commandSurface === 'commands' && <LazyGlobalCommandPalette />}
+        {commandSurface === 'commands' && <RightPanelCommandPalette chatRoute={chatRoute} />}
         {commandSurface === 'files' && <LazyProjectFilePicker />}
         {commandSurface === 'content' && <LazyProjectContentSearch />}
       </Suspense>

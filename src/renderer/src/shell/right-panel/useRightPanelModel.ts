@@ -1,17 +1,16 @@
 import type { ExtensionContributionIconView } from '@shared/types/extensions'
-import type { ShortcutBinding } from '@shared/types/shortcuts'
 import type { LucideIcon } from 'lucide-react'
 import { useChat } from '@/features/chat/hooks'
 import { useExtensionSidePanelContributions } from '@/features/extensions'
 import { useGit } from '@/features/git/hooks'
 import { useHasActiveProjectActionRun } from '@/features/project-actions'
 import { useProject, useSessions } from '@/features/sessions/hooks'
+import { rightPanelSurfaceShortcut } from '@/features/settings'
 import { usePreferencesStore } from '@/features/settings/state'
 import { terminalOwnerContext } from '@/features/terminal'
 import { BUILT_IN_RIGHT_PANEL_SURFACES } from '@/shared/lib/right-panel-catalog'
 import type { RightPanelSurfaceId } from '@/shared/lib/right-panel-surfaces'
 import { useRightSidebarCoordinator } from '@/shared/lib/right-sidebar-coordinator'
-import { formatShortcutBinding } from '@/shared/lib/shortcut-display'
 import { useWorkspacePanelStore } from '../workspace-panel-store'
 import { type RailExtensionPanel, railExtensionPanels } from './right-panel-extension-panels'
 import { visibleRailOrder } from './right-panel-rail-order'
@@ -74,10 +73,6 @@ function builtInDisabledReason(
   return context.projectPath ? null : NEEDS_PROJECT
 }
 
-function shortcutLabel(binding: ShortcutBinding | null) {
-  return binding === null ? null : formatShortcutBinding(binding)
-}
-
 /** The Right panel's surfaces, rail and current state for the active chat context (ADR 0043). */
 export function useRightPanelModel(enabled = true): RightPanelModel {
   const { activeSession } = useChat()
@@ -89,7 +84,12 @@ export function useRightPanelModel(enabled = true): RightPanelModel {
   const owner = terminalOwnerContext(activeSession ?? null, projectPath ?? null)
   const claim = useRightSidebarCoordinator((state) => state.activeClaim)
   const group = useWorkspacePanelStore((state) => state.groups[owner.ownerKey])
-  const bindings = usePreferencesStore((state) => state.settings.shortcutBindings)
+  const shortcutBindings = usePreferencesStore((state) => state.settings.shortcutBindings)
+  const extensionPanelShortcutBindings = usePreferencesStore(
+    (state) => state.settings.extensionPanelShortcutBindings,
+  )
+  const shortcutLabel = (id: RightPanelSurfaceId) =>
+    rightPanelSurfaceShortcut({ shortcutBindings, extensionPanelShortcutBindings }, id).label
   const railOrder = useRightPanelRailStore((state) => state.order)
   const hidden = useRightPanelRailStore((state) => state.hidden)
   const acknowledged = useRightPanelRailStore((state) => state.acknowledged)
@@ -120,7 +120,7 @@ export function useRightPanelModel(enabled = true): RightPanelModel {
     description: surface.description,
     glyph: { kind: 'lucide', icon: surface.icon },
     group: surface.group,
-    shortcutLabel: shortcutLabel(bindings[surface.command] ?? null),
+    shortcutLabel: shortcutLabel(surface.id),
     disabledReason: builtInDisabledReason(surface.id, context),
     needsLabel: null,
     extension: null,
@@ -134,7 +134,7 @@ export function useRightPanelModel(enabled = true): RightPanelModel {
     description: panel.extensionName,
     glyph: { kind: 'extension', ...(panel.icon ? { icon: panel.icon } : {}) },
     group: 'Extensions',
-    shortcutLabel: null,
+    shortcutLabel: shortcutLabel(panel.id),
     disabledReason: panel.status.kind === 'available' ? null : panel.status.reason,
     needsLabel: panel.status.kind === 'available' ? null : panel.status.label,
     extension: panel,
