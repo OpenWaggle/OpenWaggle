@@ -1,5 +1,6 @@
 import { useEffect, useEffectEvent } from 'react'
 import { useGit } from '@/features/git/hooks'
+import { ProjectActionsBackgroundEffects } from '@/features/project-actions'
 import { usePreferencesStore } from '@/features/settings/state'
 import { PanelRail } from './PanelRail'
 import { useRightPanelRailStore } from './right-panel-rail-store'
@@ -28,17 +29,21 @@ export function RightPanelHost() {
     if (model.extensionRegistryLoaded) initializeExtensions(extensionKey)
   }, [extensionKey, model.extensionRegistryLoaded])
 
-  if (!model.shown.open && !railVisibleWhenClosed) return null
+  const effects = <ProjectActionsBackgroundEffects projectPath={model.projectPath} />
+  if (!model.shown.open && !railVisibleWhenClosed) return effects
   return (
-    <PanelRail
-      model={model}
-      actions={{
-        toggleSurface: controller.toggleSurface,
-        showSurface: controller.showSurface,
-        move: (id, move) => useRightPanelRailStore.getState().move(id, move, model.knownRailIds),
-        unpin: (id) => useRightPanelRailStore.getState().setPinned(id, false),
-        reset: () => useRightPanelRailStore.getState().reset(),
-      }}
-    />
+    <>
+      {effects}
+      <PanelRail
+        model={model}
+        actions={{
+          toggleSurface: controller.toggleSurface,
+          showSurface: controller.showSurface,
+          move: (id, move) => useRightPanelRailStore.getState().move(id, move, model.knownRailIds),
+          unpin: (id) => useRightPanelRailStore.getState().setPinned(id, false),
+          reset: () => useRightPanelRailStore.getState().reset(),
+        }}
+      />
+    </>
   )
 }

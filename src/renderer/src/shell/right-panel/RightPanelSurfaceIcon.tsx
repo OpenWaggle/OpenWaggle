@@ -1,3 +1,4 @@
+import { ExtensionPanelIcon } from '@/features/extensions'
 import { cn } from '@/shared/lib/cn'
 import type { RightPanelSurfaceGlyph } from './useRightPanelModel'
 
@@ -16,14 +17,10 @@ export function RightPanelSurfaceIcon({
     return <Icon aria-hidden="true" className={cn('size-4 shrink-0', className)} />
   }
   return (
-    <span
-      aria-hidden="true"
-      className={cn(
-        'grid size-4 shrink-0 place-items-center rounded-sm bg-bg-hover text-xs font-semibold leading-none text-text-secondary ring-1 ring-border',
-        className,
-      )}
-    >
-      {title.trim().charAt(0).toUpperCase() || '?'}
-    </span>
+    <ExtensionPanelIcon
+      {...(glyph.icon ? { icon: glyph.icon } : {})}
+      title={title}
+      className={className}
+    />
   )
 }

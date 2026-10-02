@@ -7,7 +7,6 @@ export {
 export { ProjectActionConditionBuilder } from './components/ProjectActionConditionBuilder'
 export { ProjectActionGlyph } from './components/ProjectActionGlyph'
 export { ProjectActionsBackgroundEffects } from './components/ProjectActionsBackgroundEffects'
-export { ProjectActionsControl } from './components/ProjectActionsControl'
 export { ProjectActionsSettings } from './components/ProjectActionsSettings'
 export {
   ProjectActionsSurface,

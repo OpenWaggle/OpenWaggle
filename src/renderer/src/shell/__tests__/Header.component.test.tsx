@@ -105,10 +105,6 @@ vi.mock('@/features/git/hooks', () => ({
   }),
 }))
 
-vi.mock('@/features/project-actions', () => ({
-  ProjectActionsControl: () => null,
-}))
-
 vi.mock('@/features/sessions/hooks', () => ({
   useProject: () => ({ projectPath: headerMocks.projectPath }),
   useSessions: () => {
