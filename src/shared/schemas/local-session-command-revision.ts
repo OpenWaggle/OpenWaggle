@@ -9,6 +9,7 @@ import {
   HOST_UI_REVISION_16_REQUIRED_CHANNELS,
   HOST_UI_REVISION_17_REQUIRED_CHANNELS,
   HOST_UI_REVISION_20_REQUIRED_CHANNELS,
+  HOST_UI_REVISION_21_REQUIRED_CHANNELS,
   type HostBackedGuiChannel,
 } from '@shared/types/host-ui-protocol'
 import {
@@ -25,6 +26,7 @@ import {
   LOCAL_SESSION_RESOURCE_HOST_UI_REVISION,
   LOCAL_SESSION_SESSION_SETTINGS_REVISION,
   LOCAL_SESSION_STEERING_RECEIPT_REVISION,
+  LOCAL_SESSION_TITLE_REGENERATION_REVISION,
   LOCAL_SESSION_TURN_DIFF_FILES_REVISION,
   LOCAL_SESSION_UPDATE_REVISION,
   LOCAL_SESSION_WAGGLE_REVISION,
@@ -33,8 +35,11 @@ import {
 } from '@shared/types/local-session-protocol'
 
 export function requiredHostUiRevision(channel: HostBackedGuiChannel) {
-  if (HOST_UI_REVISION_20_REQUIRED_CHANNELS.some((candidate) => candidate === channel)) {
+  if (HOST_UI_REVISION_21_REQUIRED_CHANNELS.some((candidate) => candidate === channel)) {
     return LOCAL_SESSION_SESSION_SETTINGS_REVISION
+  }
+  if (HOST_UI_REVISION_20_REQUIRED_CHANNELS.some((candidate) => candidate === channel)) {
+    return LOCAL_SESSION_TITLE_REGENERATION_REVISION
   }
   if (HOST_UI_REVISION_17_REQUIRED_CHANNELS.some((candidate) => candidate === channel)) {
     return LOCAL_SESSION_NATIVE_ACTIONS_REVISION
@@ -65,7 +70,7 @@ export function requiredHostUiRevision(channel: HostBackedGuiChannel) {
     : LOCAL_SESSION_LEGACY_HOST_UI_REVISION
 }
 
-/** Follow-up edit commands (ADR 0043) need a Host that can hold a Follow-up. */
+/** Follow-up edit commands (ADR 0044) need a Host that can hold a Follow-up. */
 export function isFollowUpEditCommand(payload: LocalSessionCommandPayload) {
   if (payload.contract === 'local-ui-v1') {
     return payload.request.command.operation === 'renew-follow-up-edit-hold'

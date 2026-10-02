@@ -31,6 +31,7 @@ describe('HeaderControls', () => {
       <HeaderLeft
         activeBranchName="feature/test"
         projectPath="/Users/demo/OpenWaggle"
+        sessionId={null}
         sidebarOpen={false}
         title="Working session"
         onToggleSidebar={onToggleSidebar}
@@ -50,6 +51,7 @@ describe('HeaderControls', () => {
       <HeaderLeft
         activeBranchName="main"
         projectPath="/Users/demo/OpenWaggle"
+        sessionId={null}
         sidebarOpen
         title="Migration and recovery"
         sessionIdentity={{ role: 'worker', agentDefinitionName: 'security-reviewer' }}
@@ -72,6 +74,7 @@ describe('HeaderControls', () => {
       <HeaderLeft
         activeBranchName="main"
         projectPath="/Users/demo/OpenWaggle"
+        sessionId={null}
         sidebarOpen
         title="Independent review"
         sessionIdentity={{ agentDefinitionName: 'security-reviewer' }}

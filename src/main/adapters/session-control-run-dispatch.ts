@@ -5,6 +5,7 @@ import type { AgentRunResult } from '../application/agent-run/types'
 import { executeAgentRun } from '../application/agent-run-service'
 import { explicitWaggleTerminalResult } from '../application/explicit-waggle-command-result'
 import { runRegisteredExplicitWaggle } from '../application/explicit-waggle-command-runner'
+import { requestSessionTitleRefinement } from '../application/session-title-scheduler'
 import type { WaggleExecutionContext } from '../application/waggle-run-execution-context'
 import { AgentRequestedWaggleService } from '../ports/agent-requested-waggle-service'
 import { SessionControlAttachmentService } from '../ports/session-control-attachment-service'
@@ -266,6 +267,9 @@ export function executeRegisteredRun(input: RegisteredRunInput) {
       Effect.tapError((error) => Effect.sync(() => publishRunStartFailure(input.request, error))),
     )
     const waggle = input.request.intent.waggle
-    return yield* waggle ? runQueuedWaggle(input, context, waggle) : runClassic(input, context)
+    const ran = yield* waggle ? runQueuedWaggle(input, context, waggle) : runClassic(input, context)
+    // A first turn that answered settles any Title refinement its vague request was owed.
+    requestSessionTitleRefinement(input.request.sessionId)
+    return ran
   })
 }

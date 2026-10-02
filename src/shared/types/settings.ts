@@ -1,3 +1,4 @@
+import { DEFAULT_SESSION_TITLE_MODEL, type SessionTitleModelSetting } from '../session-title-model'
 import {
   type AgentAuthorizationMode,
   DEFAULT_AGENT_AUTHORIZATION_MODE,
@@ -137,6 +138,8 @@ export interface Settings {
   readonly enableAgentBrowserAccess: boolean
   /** Context-window usage percentage at which Pi automatically compacts. */
   readonly compactionThresholdPercent: number
+  /** Title model: Automatic, Off, or the model that generates Session titles. */
+  readonly sessionTitleModel: SessionTitleModelSetting
   /** User overrides layered above the active Appearance package defaults. */
   readonly appearancePreferences: AppearancePreferences
 }
@@ -177,5 +180,6 @@ export const DEFAULT_SETTINGS: Settings = {
   browserAutoShowFloatingPreview: DEFAULT_BROWSER_PREVIEW_AUTO_SHOW_FLOATING,
   enableAgentBrowserAccess: true,
   compactionThresholdPercent: DEFAULT_COMPACTION_THRESHOLD_PERCENT,
+  sessionTitleModel: DEFAULT_SESSION_TITLE_MODEL,
   appearancePreferences: DEFAULT_APPEARANCE_PREFERENCES,
 }

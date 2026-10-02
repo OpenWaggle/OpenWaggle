@@ -1,11 +1,12 @@
 import { ATTACHMENT, BYTES_PER_KIBIBYTE } from '@shared/constants/resource-limits'
 import type { HydratedAgentSendPayload, PreparedAttachment } from '@shared/types/agent'
-import type { SessionId } from '@shared/types/brand'
+import type { SessionId, SupportedModelId } from '@shared/types/brand'
 import type { SessionDetail } from '@shared/types/session'
 import * as Effect from 'effect/Effect'
 import { buildDeterministicTitle } from '../agent/title-generator'
 import { SessionProjectionRepository } from '../ports/session-projection-repository'
 import { hydrateAttachmentSources } from '../utils/attachment-hydration'
+import { requestInitialSessionTitle } from './session-title-scheduler'
 
 const MEBIBYTE = BYTES_PER_KIBIBYTE * BYTES_PER_KIBIBYTE
 
@@ -49,25 +50,36 @@ export async function hydratePayloadAttachments(
   return hydrateAttachmentSources(attachments)
 }
 
-/** Persist a deterministic name for a new projected session from the first user message. */
+/**
+ * On a Session's first message, writes its Provisional title and asks the Session Host to generate
+ * the real one in the background. Only the local write happens on the Run's path; returns the
+ * Provisional title when this call assigned it.
+ */
 export function assignSessionTitleFromUserText(
   sessionId: SessionId,
   session: SessionDetail,
-  text: string,
+  payload: {
+    readonly text: string
+    readonly attachments: readonly PreparedAttachment[]
+    readonly model: SupportedModelId
+  },
 ) {
   return Effect.gen(function* () {
-    if (session.title !== 'New session' || session.messages.length > 0) {
-      return null
-    }
-
-    const trimmed = text.trim()
-    if (!trimmed) {
-      return null
-    }
-
-    const title = buildDeterministicTitle(trimmed)
-    const repo = yield* SessionProjectionRepository
-    yield* repo.updateTitle(sessionId, title)
-    return title
+    if (session.messages.length > 0) return null
+    const trimmed = payload.text.trim()
+    const assigned = trimmed
+      ? yield* (yield* SessionProjectionRepository).assignProvisionalTitle(
+          sessionId,
+          buildDeterministicTitle(trimmed),
+        )
+      : false
+    // A Worker already has its Provisional title, so it is asked for a generated one as well.
+    requestInitialSessionTitle({
+      sessionId,
+      text: trimmed,
+      model: payload.model,
+      attachments: payload.attachments.map(({ id, name, mimeType }) => ({ id, name, mimeType })),
+    })
+    return assigned ? buildDeterministicTitle(trimmed) : null
   })
 }

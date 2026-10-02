@@ -1,3 +1,4 @@
+import type { SessionTitleModelSetting } from '@shared/session-title-model'
 import type { AgentAuthorizationMode } from '@shared/types/agent-authorization'
 import type {
   AppearanceMotionPreference,
@@ -55,6 +56,7 @@ export interface PreferencesState {
   setBrowserAutoShowFloatingPreview: (enabled: boolean) => Promise<void>
   setEnableAgentBrowserAccess: (enabled: boolean) => Promise<void>
   setCompactionThresholdPercent: (percent: number) => Promise<void>
+  setSessionTitleModel: (model: SessionTitleModelSetting) => Promise<void>
   setAppearanceTypography: (typography: Partial<AppearanceTypographyPreferences>) => Promise<void>
   setAppearanceTerminalPalette: (
     palette: Partial<AppearanceTerminalPalettePreferences>,

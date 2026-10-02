@@ -148,11 +148,11 @@ function prepareWaggleRun(input: WaggleRunInput) {
 
 function assignPreparedTitle(input: WaggleRunInput, session: SessionDetail) {
   return Effect.gen(function* () {
-    const title = yield* assignSessionTitleFromUserText(
-      input.sessionId,
-      session,
-      input.payload.text,
-    )
+    const title = yield* assignSessionTitleFromUserText(input.sessionId, session, {
+      text: input.payload.text,
+      attachments: input.payload.attachments,
+      model: input.model,
+    })
     if (title) yield* Effect.sync(() => input.onTitleAssigned?.(title))
     return title ?? undefined
   })

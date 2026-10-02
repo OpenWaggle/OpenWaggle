@@ -8,6 +8,7 @@ import {
   browserPreviewZoomFactorSchema,
 } from '@shared/schemas/browser-preview-controls'
 import { browserProfileIdSchema, browserProfilesSchema } from '@shared/schemas/browser-profile'
+import { parseSessionTitleModelSetting } from '@shared/session-title-model'
 import { AGENT_AUTHORIZATION_MODES } from '@shared/types/agent-authorization'
 import { SESSION_ENVIRONMENT_MODES } from '@shared/types/git'
 import { BROWSER_LINK_TARGETS, DIFF_SYNTAX_THEMES, DIFF_VIEWS } from '@shared/types/settings'
@@ -46,6 +47,13 @@ export const settingsUpdateSchema = Schema.Struct({
   updateChannel: Schema.optional(Schema.Literal(...UPDATE_CHANNELS)),
   compactionThresholdPercent: Schema.optional(
     Schema.Number.pipe(Schema.int(), Schema.between(1, PERCENT_BASE)),
+  ),
+  sessionTitleModel: Schema.optional(
+    Schema.String.pipe(
+      Schema.filter((value) => parseSessionTitleModelSetting(value) !== null, {
+        message: () => 'Title model must be automatic, off, or a provider/model reference.',
+      }),
+    ),
   ),
   recentProjects: Schema.optional(Schema.mutable(Schema.Array(Schema.String))),
   skillTogglesByProject: Schema.optional(

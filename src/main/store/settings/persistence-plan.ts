@@ -1,4 +1,5 @@
 import type { Settings } from '@shared/types/settings'
+import { appendDiffSettingsWrites } from './diff-appearance-settings-snapshot'
 import {
   SETTINGS_KEY_AGENT_DEFINITION_TOGGLES_BY_PROJECT,
   SETTINGS_KEY_APPEARANCE_PREFERENCES,
@@ -14,9 +15,6 @@ import {
   SETTINGS_KEY_DEFAULT_AUTHORIZATION_MODE,
   SETTINGS_KEY_DEFAULT_MODEL,
   SETTINGS_KEY_DEFAULT_SESSION_ENVIRONMENT_MODE,
-  SETTINGS_KEY_DIFF_SYNTAX_THEME,
-  SETTINGS_KEY_DIFF_VIEW,
-  SETTINGS_KEY_DIFF_WRAP_LINES,
   SETTINGS_KEY_ENABLE_AGENT_BROWSER_ACCESS,
   SETTINGS_KEY_ENABLED_MODELS,
   SETTINGS_KEY_FAVORITE_MODELS,
@@ -34,9 +32,9 @@ import {
   SETTINGS_KEY_SHORTCUT_BINDINGS,
   SETTINGS_KEY_SHORTCUT_RULES,
   SETTINGS_KEY_SKILL_TOGGLES_BY_PROJECT,
-  SETTINGS_KEY_SYNTAX_THEME_SELECTIONS,
   SETTINGS_KEY_UPDATE_CHANNEL,
 } from './keys'
+import { appendSessionTitleSettingsWrites } from './session-title-settings'
 
 export type SettingsPatchWrite = { readonly key: string; readonly value: unknown }
 
@@ -219,37 +217,6 @@ function appendGeneralSettingsWrites(
   )
 }
 
-function appendDiffSettingsWrites(
-  writes: SettingsPatchWrite[],
-  partial: Partial<Settings>,
-  next: Settings,
-) {
-  appendChangedSetting(
-    writes,
-    partial.diffSyntaxTheme !== undefined,
-    SETTINGS_KEY_DIFF_SYNTAX_THEME,
-    next.diffSyntaxTheme,
-  )
-  appendChangedSetting(
-    writes,
-    partial.syntaxThemeSelections !== undefined,
-    SETTINGS_KEY_SYNTAX_THEME_SELECTIONS,
-    next.syntaxThemeSelections,
-  )
-  appendChangedSetting(
-    writes,
-    partial.diffView !== undefined,
-    SETTINGS_KEY_DIFF_VIEW,
-    next.diffView,
-  )
-  appendChangedSetting(
-    writes,
-    partial.diffWrapLines !== undefined,
-    SETTINGS_KEY_DIFF_WRAP_LINES,
-    next.diffWrapLines,
-  )
-}
-
 function appendSessionHostSettingsWrites(
   writes: SettingsPatchWrite[],
   partial: Partial<Settings>,
@@ -300,6 +267,7 @@ export function collectSettingsPatchWrites(partial: Partial<Settings>, next: Set
   appendDiffSettingsWrites(writes, partial, next)
   appendSessionHostSettingsWrites(writes, partial, next)
   appendBrowserSettingsWrites(writes, partial, next)
+  appendSessionTitleSettingsWrites(writes, partial, next)
 
   return writes
 }

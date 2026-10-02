@@ -12,6 +12,8 @@ import type { SidebarSessionActions } from '../model'
 import { SessionListItem } from './SessionListItem'
 import { SidebarIconButton, SidebarSectionHead } from './SidebarSectionHead'
 
+const PINNED_SESSION_DRAG_TYPE = 'application/x-openwaggle-pinned-session'
+
 /**
  * Pinned sort options. Deliberately the same labels, icons and popover treatment as the
  * Projects sort control, with `Manual` — the user's dragged order — added as the default.
@@ -202,7 +204,9 @@ function PinnedSessionListItem({
         'data-pinned-session-id': String(row.session.id),
         onDragStart: (event) => {
           event.dataTransfer.effectAllowed = 'move'
-          event.dataTransfer.setData('text/plain', String(row.session.id))
+          // A custom type, so dragging selected text (say, out of the rename field) is never read
+          // as a row move: only a row drag carries it.
+          event.dataTransfer.setData(PINNED_SESSION_DRAG_TYPE, String(row.session.id))
           event.currentTarget.dataset.dragging = 'true'
         },
         onDragEnd: (event) => {
@@ -220,7 +224,7 @@ function PinnedSessionListItem({
         onDrop: (event) => {
           event.preventDefault()
           event.currentTarget.removeAttribute('data-drop-target')
-          const draggedSessionId = event.dataTransfer.getData('text/plain')
+          const draggedSessionId = event.dataTransfer.getData(PINNED_SESSION_DRAG_TYPE)
           if (!draggedSessionId || draggedSessionId === String(row.session.id)) return
           onReorder(SessionId(draggedSessionId), place.index)
         },

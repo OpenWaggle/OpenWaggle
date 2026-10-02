@@ -57,6 +57,7 @@ import {
   type HostUiSessionResourceChannel,
   isHostUiSessionResourceChannel,
 } from './host-ui-session-resource-operation-dispatcher'
+import { regenerateSessionTitleOperation } from './host-ui-session-title-operation'
 
 const TWO_ARGUMENTS = 2
 const THREE_ARGUMENTS = 3
@@ -102,6 +103,7 @@ function dispatchSessionOperation(channel: HostBackedSessionGuiChannel, args: re
     .with('sessions:archive', () => organizeFromArgs(args, 'archive'))
     .with('sessions:unarchive', () => organizeFromArgs(args, 'unarchive'))
     .with('sessions:update-title', () => updateSessionTitle(args))
+    .with('sessions:regenerate-title', () => regenerateSessionTitleOperation(args))
     .with('sessions:set-authorization-mode', () => setAuthorizationMode(args))
     .with('sessions:set-model', () => setSessionModel(args))
     .with('sessions:set-thinking-level', () => setSessionThinkingLevel(args))

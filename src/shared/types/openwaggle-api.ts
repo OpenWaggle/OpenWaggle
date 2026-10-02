@@ -58,6 +58,7 @@ import type {
   SessionWorkspaceSelection,
   SessionWorktreePlan,
 } from './session'
+import type { SessionTitleRegenerationResult } from './session-title'
 import type { Settings, ThinkingLevel } from './settings'
 import type {
   AgentsInstructionStatus,
@@ -178,6 +179,7 @@ export interface OpenWaggleApi
   archiveSession(id: SessionId): Promise<void>
   unarchiveSession(id: SessionId): Promise<void>
   updateSessionTitle(id: SessionId, title: string): Promise<void>
+  regenerateSessionTitle(id: SessionId): Promise<SessionTitleRegenerationResult>
   setSessionAuthorizationMode(id: SessionId, mode: AgentAuthorizationMode | null): Promise<void>
   /** Switch the model the Session's next Run uses; a running Run keeps its model. */
   setSessionModel(id: SessionId, model: SupportedModelId): Promise<void>

@@ -24,6 +24,7 @@ function mergeGeneralSettings(current: Settings, partial: Partial<Settings>) {
       current.compactionThresholdPercent,
       partial.compactionThresholdPercent,
     ),
+    sessionTitleModel: nextSetting(current.sessionTitleModel, partial.sessionTitleModel),
     recentProjects: nextSetting(current.recentProjects, partial.recentProjects),
     skillTogglesByProject: nextSetting(
       current.skillTogglesByProject,

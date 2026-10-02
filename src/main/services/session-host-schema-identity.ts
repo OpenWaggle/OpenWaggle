@@ -22,9 +22,10 @@ export const SESSION_RESOURCE_LOCAL_IMAGE_BACKFILL_MIGRATION_ID = 59
 export const SESSION_HOST_PROJECT_ACTION_MIGRATION_ID = 60
 export const SESSION_HOST_PROJECT_ACTION_RUN_POLLING_MIGRATION_ID = 61
 export const SESSION_HOST_QUEUE_PAUSE_REASON_MIGRATION_ID = 62
+export const SESSION_TITLE_PROVENANCE_MIGRATION_ID = 63
 export const SESSION_HOST_FRESH_REVISION = 'fresh-v16'
 export const SESSION_HOST_CUTOVER_REVISION = 'session-host-v2'
 
 // Older binaries must fail closed when a newer migration has touched the target.
 // Newer binaries may still open the baseline and apply their remaining migrations.
-export const SESSION_HOST_SUPPORTED_MAX_MIGRATION_ID = SESSION_HOST_QUEUE_PAUSE_REASON_MIGRATION_ID
+export const SESSION_HOST_SUPPORTED_MAX_MIGRATION_ID = SESSION_TITLE_PROVENANCE_MIGRATION_ID

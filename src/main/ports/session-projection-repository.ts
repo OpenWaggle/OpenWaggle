@@ -47,10 +47,19 @@ export interface SessionProjectionRepositoryShape {
     readonly SessionSummary[],
     SessionProjectionRepositoryError
   >
+  /** A manual rename: generation never replaces it, and it leaves sidebar recency alone. */
   readonly updateTitle: (
     id: SessionId,
     title: string,
   ) => Effect.Effect<void, SessionProjectionRepositoryError>
+  /**
+   * Turns a still-default title into the Provisional title, without touching recency. Resolves
+   * `false` when the title is no longer the default one.
+   */
+  readonly assignProvisionalTitle: (
+    id: SessionId,
+    title: string,
+  ) => Effect.Effect<boolean, SessionProjectionRepositoryError>
   readonly setWorktreePlan: (
     id: SessionId,
     plan: SessionWorktreePlan,

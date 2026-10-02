@@ -52,6 +52,7 @@ const [
   projectModelPersistenceCapability,
   launchStepsCapability,
   hostStopCapability,
+  titleRegenerationCapability,
   followUpEditCapability,
 ] = LOCAL_SESSION_CAPABILITIES
 
@@ -86,6 +87,7 @@ const currentCapabilitySchema = Schema.Tuple(
   Schema.Literal(projectModelPersistenceCapability),
   Schema.Literal(launchStepsCapability),
   Schema.Literal(hostStopCapability),
+  Schema.Literal(titleRegenerationCapability),
   Schema.Literal(followUpEditCapability),
 )
 

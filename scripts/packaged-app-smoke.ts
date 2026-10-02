@@ -26,6 +26,8 @@ const ALLOWED_OUT_ROOTS = ['/out/main', '/out/preload', '/out/renderer'] as cons
 
 const REQUIRED_ASAR_ROOTS = [NODE_MODULES_DIR, OUT_DIR, PACKAGE_JSON]
 const REQUIRED_DOCS_FILES = ['README.md', 'index.json']
+/** Resources shipped at the top level of the app's resources directory. */
+const REQUIRED_RESOURCE_FILES = ['THIRD_PARTY_NOTICES.md']
 const REQUIRED_SESSION_EMBEDDING_MODEL_FILES = [
   'Xenova/multilingual-e5-small/config.json',
   'Xenova/multilingual-e5-small/tokenizer_config.json',
@@ -261,6 +263,7 @@ async function smokePackagedApp(appPath: string) {
   assertAsarRoots(asarHeader)
   assertAsarEntries(asarHeader)
   await assertRequiredFiles(path.join(resourcesPath, DOCS_DIR), REQUIRED_DOCS_FILES)
+  await assertRequiredFiles(resourcesPath, REQUIRED_RESOURCE_FILES)
   await assertRequiredFiles(
     path.join(resourcesPath, SESSION_EMBEDDING_MODEL_DIR),
     REQUIRED_SESSION_EMBEDDING_MODEL_FILES,

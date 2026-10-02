@@ -25,17 +25,17 @@ const editCommands = [
 ] as const
 
 describe('Follow-up edit wire contract', () => {
-  it.each(editCommands)('requires a revision-20 Host for $operation', (command) => {
+  it.each(editCommands)('requires a revision-21 Host for $operation', (command) => {
     const payload = decodeLocalSessionCommandPayload({
       contract: 'session-control-v2',
       request: { contractVersion: 2, requestId: 'r', idempotencyKey: 'k', command },
     })
-    expect(supportedRevisionsForCommand(payload)).toEqual([20])
-    expect(() => decodeLocalSessionCommandPayloadForRevision(payload, 19)).toThrow(/revision 20/)
-    expect(decodeLocalSessionCommandPayloadForRevision(payload, 20)).toEqual(payload)
+    expect(supportedRevisionsForCommand(payload)).toEqual([21])
+    expect(() => decodeLocalSessionCommandPayloadForRevision(payload, 20)).toThrow(/revision 21/)
+    expect(decodeLocalSessionCommandPayloadForRevision(payload, 21)).toEqual(payload)
   })
 
-  it('requires a revision-20 Host to renew a hold', () => {
+  it('requires a revision-21 Host to renew a hold', () => {
     const payload = decodeLocalSessionCommandPayload({
       contract: 'local-ui-v1',
       request: {
@@ -48,16 +48,16 @@ describe('Follow-up edit wire contract', () => {
         },
       },
     })
-    expect(supportedRevisionsForCommand(payload)).toEqual([20])
-    expect(() => decodeLocalSessionCommandPayloadForRevision(payload, 19)).toThrow(/revision 20/)
+    expect(supportedRevisionsForCommand(payload)).toEqual([21])
+    expect(() => decodeLocalSessionCommandPayloadForRevision(payload, 20)).toThrow(/revision 21/)
   })
 
-  it('advertises the Follow-up edit capability and asks a revision-19 desktop to upgrade', () => {
+  it('advertises the Follow-up edit capability and asks a revision-20 desktop to upgrade', () => {
     expect(
       negotiateLocalSessionProtocol(
         {
           protocol: 'openwaggle-local-session',
-          supportedRevisions: [20],
+          supportedRevisions: [21],
           clientKind: 'gui',
           clientVersion: 'current',
         },
@@ -71,12 +71,12 @@ describe('Follow-up edit wire contract', () => {
       negotiateLocalSessionProtocol(
         {
           protocol: 'openwaggle-local-session',
-          supportedRevisions: [19],
+          supportedRevisions: [20],
           clientKind: 'gui',
           clientVersion: 'previous',
         },
         'host-current',
       ),
-    ).toMatchObject({ accepted: false, supportedRevisions: [20] })
+    ).toMatchObject({ accepted: false, supportedRevisions: [21] })
   })
 })

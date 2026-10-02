@@ -1,5 +1,6 @@
 import type { SessionSummary } from '@shared/types/session'
 import { AlertTriangle, ChevronDown, ChevronRight, MoreHorizontal } from 'lucide-react'
+import { SessionTitleInput, type SessionTitleRenameController } from '@/features/session-title'
 import { cn } from '@/shared/lib/cn'
 import { Button } from '@/shared/ui/Button'
 
@@ -73,19 +74,40 @@ export function SessionRowGlyph({
   )
 }
 
+const TITLE_TEXT_QA = 'sidebar-row-title'
+/** F2 renames the focused row, the platform convention for renaming the selected item. */
+const RENAME_KEY = 'F2'
+
+function isTitleText(target: EventTarget) {
+  return target instanceof HTMLElement && target.dataset.qa === TITLE_TEXT_QA
+}
+
 /** Line one: the title owns the full width. Nothing shares it, nothing hides on hover. */
 export function SessionRowTitle({
   isActive,
   isInFlight,
   session,
+  rename,
   onSelect,
 }: {
   readonly isActive: boolean
   /** In-flight rows recede, so prominence stays with rows that need a human. */
   readonly isInFlight: boolean
   readonly session: SessionSummary
+  readonly rename: SessionTitleRenameController
   readonly onSelect: () => void
 }) {
+  if (rename.isEditing) {
+    return (
+      <span
+        data-qa="sidebar-row-title-line"
+        className="relative z-20 flex h-4.5 min-w-0 items-center"
+      >
+        <SessionTitleInput rename={rename} className="font-medium text-sm leading-normal" />
+      </span>
+    )
+  }
+
   return (
     <span data-qa="sidebar-row-title-line" className="flex h-4.5 min-w-0 items-center">
       {/*
@@ -98,15 +120,30 @@ export function SessionRowTitle({
        * layered above it.
        */}
       <Button
+        ref={rename.returnFocusRef}
         variant="unstyled"
         type="button"
         onClick={onSelect}
+        onDoubleClick={(event) => {
+          if (!isTitleText(event.target)) return
+          event.preventDefault()
+          rename.start()
+        }}
+        onKeyDown={(event) => {
+          if (event.key !== RENAME_KEY) return
+          event.preventDefault()
+          rename.start()
+        }}
         className="min-w-0 flex-1 truncate text-left leading-normal after:absolute after:inset-0 after:content-['']"
       >
+        {/*
+         * The title text sits above the stretched hit area so a double-click on the words, and only
+         * on them, starts a rename. A single click still reaches the button and opens the row.
+         */}
         <span
-          data-qa="sidebar-row-title"
+          data-qa={TITLE_TEXT_QA}
           className={cn(
-            'block w-full truncate font-medium text-sm leading-normal',
+            'relative z-10 block w-fit max-w-full truncate font-medium text-sm leading-normal',
             isActive
               ? 'text-text-primary'
               : isInFlight

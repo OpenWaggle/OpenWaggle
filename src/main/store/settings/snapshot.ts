@@ -9,6 +9,7 @@ import {
   resolveNextBrowserSettings,
   resolveStoredBrowserSettings,
 } from './browser-settings-snapshot'
+import { resolveNextDiffAndAppearanceSettings } from './diff-appearance-settings-snapshot'
 import {
   SETTINGS_KEY_AGENT_DEFINITION_TOGGLES_BY_PROJECT,
   SETTINGS_KEY_APPEARANCE_PREFERENCES,
@@ -31,8 +32,6 @@ import {
   SETTINGS_KEY_UPDATE_CHANNEL,
 } from './keys'
 import {
-  isValidDiffSyntaxTheme,
-  isValidDiffView,
   isValidSessionEnvironmentMode,
   resolveCompactionThresholdPercent,
   resolveDefaultAuthorizationMode,
@@ -65,6 +64,10 @@ import {
   resolveNextSessionHostSettings,
   resolveStoredSessionHostSettings,
 } from './session-host-settings-snapshot'
+import {
+  resolveNextSessionTitleSettings,
+  resolveStoredSessionTitleSettings,
+} from './session-title-settings'
 import { resolveUpdatedSetting, resolveValidatedSetting } from './setting-resolution'
 import { resolveNextShortcutRules } from './shortcut-settings-snapshot'
 import { resolveUpdateChannel } from './update-channel-settings'
@@ -170,33 +173,10 @@ export function buildSettingsSnapshot(storedSettings: Readonly<Record<string, un
       diffWrapLines,
       ...hostSettings,
       compactionThresholdPercent,
+      ...resolveStoredSessionTitleSettings(storedSettings),
       appearancePreferences,
       ...browserSettings,
     } satisfies Settings,
-  }
-}
-
-/** Diff and appearance preferences, split out to keep buildNextSettingsSnapshot within complexity limits. */
-function resolveNextDiffAndAppearanceSettings(current: Settings, partial: Partial<Settings>) {
-  return {
-    diffSyntaxTheme:
-      partial.diffSyntaxTheme !== undefined && isValidDiffSyntaxTheme(partial.diffSyntaxTheme)
-        ? partial.diffSyntaxTheme
-        : current.diffSyntaxTheme,
-    syntaxThemeSelections:
-      partial.syntaxThemeSelections !== undefined
-        ? resolveSyntaxThemeSelections(partial.syntaxThemeSelections)
-        : current.syntaxThemeSelections,
-    diffView:
-      partial.diffView !== undefined && isValidDiffView(partial.diffView)
-        ? partial.diffView
-        : current.diffView,
-    diffWrapLines:
-      typeof partial.diffWrapLines === 'boolean' ? partial.diffWrapLines : current.diffWrapLines,
-    appearancePreferences:
-      partial.appearancePreferences !== undefined
-        ? resolveAppearancePreferences(partial.appearancePreferences)
-        : current.appearancePreferences,
   }
 }
 
@@ -211,6 +191,7 @@ export function buildNextSettingsSnapshot(current: Settings, partial: Partial<Se
       partial.compactionThresholdPercent !== undefined
         ? resolveCompactionThresholdPercent(partial.compactionThresholdPercent)
         : current.compactionThresholdPercent,
+    ...resolveNextSessionTitleSettings(current, partial),
     ...resolveNextDiffAndAppearanceSettings(current, partial),
     ...resolveNextSelectedModels(current, partial),
     ...resolveNextProjectPathAliases(current, partial),

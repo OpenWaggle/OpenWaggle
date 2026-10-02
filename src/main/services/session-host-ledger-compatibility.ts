@@ -22,6 +22,7 @@ import {
   SESSION_HOST_TRANSCRIPT_TERM_NORMALIZATION_MIGRATION_ID,
   SESSION_HOST_TRANSCRIPT_TERM_NORMALIZATION_MIGRATION_NAME,
   SESSION_HOST_TURN_CHECKPOINT_STARTED_AT_MIGRATION_ID,
+  SESSION_TITLE_PROVENANCE_MIGRATION_ID,
 } from './session-host-schema-identity'
 
 export const SESSION_HOST_ALPHA_BASELINE_ID = 26
@@ -82,6 +83,7 @@ const currentIdentities = [
     name: 'project-action-run-polling-indexes',
   },
   { id: SESSION_HOST_QUEUE_PAUSE_REASON_MIGRATION_ID, name: 'session-host-queue-pause-reason' },
+  { id: SESSION_TITLE_PROVENANCE_MIGRATION_ID, name: 'session-title-provenance' },
 ]
 
 export interface MigrationIdentity {

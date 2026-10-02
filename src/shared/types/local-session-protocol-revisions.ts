@@ -1,6 +1,7 @@
-export const LOCAL_SESSION_CURRENT_REVISION = 20 as const
-export const LOCAL_SESSION_FOLLOW_UP_EDIT_REVISION = 20 as const
-export const LOCAL_SESSION_SESSION_SETTINGS_REVISION = 20 as const
+export const LOCAL_SESSION_CURRENT_REVISION = 21 as const
+export const LOCAL_SESSION_FOLLOW_UP_EDIT_REVISION = 21 as const
+export const LOCAL_SESSION_SESSION_SETTINGS_REVISION = 21 as const
+export const LOCAL_SESSION_TITLE_REGENERATION_REVISION = 20 as const
 export const LOCAL_SESSION_HOST_CONTROL_REVISION = 19 as const
 export const LOCAL_SESSION_LAUNCH_STEPS_REVISION = 18 as const
 export const LOCAL_SESSION_NATIVE_ACTIONS_REVISION = 17 as const
@@ -23,10 +24,11 @@ export const LOCAL_SESSION_WAGGLE_REVISION = 3 as const
  * local launches, and their new stages to worktree launch events and Run snapshots, which a
  * revision-17 client decodes exactly and would reject mid-stream; older clients must upgrade.
  * Revision 19 adds the `local-host-v1` stop command used by `openwaggle host stop` (ADR 0039).
- * Revision 20 adds Follow-up edits (ADR 0043): the `queue-edit-begin`, `queue-edit-save`, and
+ * Revision 20 adds the `sessions:regenerate-title` Host UI channel for Title regeneration (ADR 0043).
+ * Revision 21 adds Follow-up edits (ADR 0044): the `queue-edit-begin`, `queue-edit-save`, and
  * `queue-edit-cancel` Session Control operations and the `renew-follow-up-edit-hold` Local UI
- * command. A revision-20 desktop app refuses an older Host at the handshake, and each of these
- * commands is revision-gated too, so none reaches a Host that cannot hold a Follow-up. Revision 20
+ * command. A revision-21 desktop app refuses an older Host at the handshake, and each of these
+ * commands is revision-gated too, so none reaches a Host that cannot hold a Follow-up. Revision 21
  * also makes the thinking level Session state: the `sessions:set-thinking-level` and default
  * thinking-level Host UI channels, a Follow-up that carries no thinking level or Run authorization
  * override, `message` accepting both only when it starts a Run, no `queue-update-authorization`,
@@ -133,7 +135,12 @@ export const LOCAL_SESSION_REVISION_19_CAPABILITIES = [
 
 export const LOCAL_SESSION_REVISION_20_CAPABILITIES = [
   ...LOCAL_SESSION_REVISION_19_CAPABILITIES,
+  'host-ui:session-title-regeneration-v1',
+] as const
+
+export const LOCAL_SESSION_REVISION_21_CAPABILITIES = [
+  ...LOCAL_SESSION_REVISION_20_CAPABILITIES,
   'sessions:follow-up-edit-v1',
 ] as const
 
-export const LOCAL_SESSION_CAPABILITIES = LOCAL_SESSION_REVISION_20_CAPABILITIES
+export const LOCAL_SESSION_CAPABILITIES = LOCAL_SESSION_REVISION_21_CAPABILITIES

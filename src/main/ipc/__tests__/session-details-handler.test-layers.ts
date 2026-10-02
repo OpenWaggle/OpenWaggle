@@ -90,6 +90,7 @@ const TestSessionProjectionRepoLayer = Layer.succeed(
         catch: (cause) =>
           new SessionProjectionRepositoryError({ operation: 'listArchived', cause }),
       }),
+    assignProvisionalTitle: () => Effect.succeed(true),
     updateTitle: (id, title) =>
       Effect.tryPromise({
         try: async () => {

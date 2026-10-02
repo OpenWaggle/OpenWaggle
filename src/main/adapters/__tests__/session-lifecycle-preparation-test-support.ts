@@ -33,6 +33,7 @@ export function makeLifecyclePreparationLayer(
           id TEXT PRIMARY KEY,
           project_path TEXT NOT NULL,
           title TEXT NOT NULL DEFAULT 'Session',
+          title_source TEXT NOT NULL DEFAULT 'manual', title_needs_refinement INTEGER NOT NULL DEFAULT 0,
           pi_session_id TEXT NOT NULL DEFAULT 'pi-source',
           pi_session_file TEXT,
           archived INTEGER NOT NULL DEFAULT 0,
