@@ -1,11 +1,13 @@
 import { createHash } from 'node:crypto'
-import { readFile, realpath, stat } from 'node:fs/promises'
-import path from 'node:path'
+import { readFile, stat } from 'node:fs/promises'
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import { formatErrorMessage, isEnoent } from '@shared/utils/node-error'
 import type { ExtensionDiagnostic, ExtensionDiagnosticCode } from '../../extensions/types'
-import { isPathInside } from '../../utils/paths'
 import { normalizeManifestRelativePath } from './content-hash-input'
+import { readOptionalHashFiles } from './optional-hash-files'
+import { resolvePackageRelativePath, resolveSafePackageFilePath } from './package-relative-paths'
+
+export { resolveSafePackageFilePath } from './package-relative-paths'
 
 export interface ContentHashResult {
   readonly contentHash: string | null
@@ -15,6 +17,8 @@ export interface ContentHashResult {
 export interface ContentHashInput {
   readonly builtArtifacts: readonly string[]
   readonly runtimeFiles: readonly string[]
+  /** Hashed when present, without failing the package when missing (side panel SVG icons). */
+  readonly optionalFiles?: readonly string[]
 }
 
 export interface BuildPlanHashInput {
@@ -92,28 +96,6 @@ async function validateDeclaredFile(
       path: candidatePath,
     }
   }
-}
-
-function resolvePackageRelativePath(packagePath: string, relativePath: string) {
-  const resolvedPackagePath = path.resolve(packagePath)
-  const resolvedCandidatePath = path.resolve(
-    packagePath,
-    normalizeManifestRelativePath(relativePath),
-  )
-  return isPathInside(resolvedPackagePath, resolvedCandidatePath) ? resolvedCandidatePath : null
-}
-
-export async function resolveSafePackageFilePath(packagePath: string, relativePath: string) {
-  const candidatePath = resolvePackageRelativePath(packagePath, relativePath)
-  if (!candidatePath) {
-    return null
-  }
-
-  const [realPackagePath, realCandidatePath] = await Promise.all([
-    realpath(packagePath),
-    realpath(candidatePath),
-  ])
-  return isPathInside(realPackagePath, realCandidatePath) ? realCandidatePath : null
 }
 
 async function fileExists(filePath: string) {
@@ -257,6 +239,14 @@ export async function calculateContentHash(
     hash.update(fileRead.file.relativePath)
     hash.update(FIELD_SEPARATOR)
     hash.update(fileRead.content)
+    hash.update(FIELD_SEPARATOR)
+  }
+  for (const optionalFile of await readOptionalHashFiles(packagePath, input.optionalFiles ?? [])) {
+    hash.update(OPENWAGGLE_EXTENSION.HASH.OPTIONAL_FILE_LABEL)
+    hash.update(FIELD_SEPARATOR)
+    hash.update(optionalFile.relativePath)
+    hash.update(FIELD_SEPARATOR)
+    hash.update(optionalFile.content)
     hash.update(FIELD_SEPARATOR)
   }
 

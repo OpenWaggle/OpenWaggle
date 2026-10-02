@@ -69,6 +69,7 @@
       {
         "id": "github.overview",
         "title": "GitHub Issues Overview",
+        "icon": "ticket",
         "runtime": "federated-module",
         "execution": "host-renderer",
         "entry": "modules/side-panel.js",
@@ -78,6 +79,7 @@
       {
         "id": "github.resources",
         "title": "GitHub Session Resources",
+        "icon": { "svg": "assets/resources-icon.svg" },
         "runtime": "federated-module",
         "execution": "host-renderer",
         "entry": "modules/resources.js",

@@ -1,3 +1,4 @@
+import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import type {
   ExtensionContributionRegistryEntry,
   ExtensionDiagnosticView,
@@ -12,6 +13,7 @@ import type {
   ExtensionDiagnostic,
   ExtensionLifecycleState,
 } from '../extensions/types'
+import { isEntryContribution } from './extension-contribution-family-model'
 import {
   type ContributionRegistrationEntry,
   type ContributionRegistrationResult,
@@ -19,6 +21,7 @@ import {
 } from './extension-contribution-registration-model'
 import { contributionToEntry } from './extension-contribution-registry-entry-model'
 import type {
+  ContributionIconDeclaration,
   ContributionPackageEligibility,
   ContributionRegistryBuildResult,
   ExtensionContributionProjectOverrideLookup,
@@ -113,14 +116,20 @@ function buildPackageEligibility(input: {
   }
 }
 
+function declaredPanelIcon(registration: ContributionRegistrationEntry) {
+  if (registration.family !== OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.SIDE_PANELS) return undefined
+  return isEntryContribution(registration.contribution) ? registration.contribution.icon : undefined
+}
+
 function contributionRegistrationsToEntries(input: {
   readonly extensionPackage: DiscoveredExtensionPackage
   readonly eligibility: ContributionPackageEligibility
   readonly requestedProjectPaths: readonly string[]
   readonly requestedSessionId: string | undefined
   readonly registrations: readonly ContributionRegistrationEntry[]
-}): readonly ExtensionContributionRegistryEntry[] {
+}) {
   const entries: ExtensionContributionRegistryEntry[] = []
+  const iconDeclarations: ContributionIconDeclaration[] = []
 
   for (const registration of input.registrations) {
     const entry = contributionToEntry({
@@ -128,12 +137,13 @@ function contributionRegistrationsToEntries(input: {
       family: registration.family,
       contribution: registration.contribution,
     })
-    if (entry !== null) {
-      entries.push(entry)
-    }
+    if (entry === null) continue
+    entries.push(entry)
+    const icon = declaredPanelIcon(registration)
+    if (icon !== undefined) iconDeclarations.push({ entry, icon })
   }
 
-  return entries
+  return { entries, iconDeclarations }
 }
 
 export function packageToContributionEntriesWithRegistrationResolver(input: {
@@ -148,16 +158,24 @@ export function packageToContributionEntriesWithRegistrationResolver(input: {
 }) {
   const contributions = input.extensionPackage.manifest?.contributions
   if (!contributions) {
-    return { entries: [], diagnostics: [] } satisfies ContributionRegistryBuildResult
+    return {
+      entries: [],
+      diagnostics: [],
+      iconDeclarations: [],
+    } satisfies ContributionRegistryBuildResult
   }
 
   const eligibility = buildPackageEligibility(input)
   if (!eligibility) {
-    return { entries: [], diagnostics: [] } satisfies ContributionRegistryBuildResult
+    return {
+      entries: [],
+      diagnostics: [],
+      iconDeclarations: [],
+    } satisfies ContributionRegistryBuildResult
   }
 
   const registrationResult = input.getRegistrationResult(input.extensionPackage)
-  const entries = contributionRegistrationsToEntries({
+  const built = contributionRegistrationsToEntries({
     extensionPackage: input.extensionPackage,
     eligibility,
     requestedProjectPaths: input.requestedProjectPaths,
@@ -167,12 +185,16 @@ export function packageToContributionEntriesWithRegistrationResolver(input: {
   const validated = validateSessionSummaryActionEntries({
     extensionPackage: input.extensionPackage,
     registrations: registrationResult.registrations,
-    entries,
+    entries: built.entries,
   })
 
+  const validatedEntries = new Set(validated.entries)
   return {
     entries: validated.entries,
     diagnostics: [...registrationResult.diagnostics, ...validated.diagnostics],
+    iconDeclarations: built.iconDeclarations.filter((declaration) =>
+      validatedEntries.has(declaration.entry),
+    ),
   } satisfies ContributionRegistryBuildResult
 }
 

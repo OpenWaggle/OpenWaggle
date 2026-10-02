@@ -88,6 +88,7 @@ const EXTENSION_DIAGNOSTIC_CODE = {
   CONTRIBUTION_REGISTRATION_FAILED: 'contribution-registration-failed',
   LIFECYCLE_STATE_UNAVAILABLE: 'lifecycle-state-unavailable',
   PROJECT_OVERRIDE_UNAVAILABLE: 'project-override-unavailable',
+  PANEL_ICON_INVALID: 'panel-icon-invalid',
   FILESYSTEM_ERROR: 'filesystem-error',
 } as const
 
@@ -268,6 +269,7 @@ export const OPENWAGGLE_EXTENSION = {
     FIELD_SEPARATOR: '\0',
     MANIFEST_LABEL: 'manifest',
     ARTIFACT_LABEL: 'artifact',
+    OPTIONAL_FILE_LABEL: 'optional-file',
     BUILD_PLAN_LABEL: 'build-plan',
     SOURCE_LABEL: 'source',
     BUILD_COMMAND_LABEL: 'build-command',
