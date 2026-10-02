@@ -6,11 +6,17 @@ export {
 } from './components/action-panel/CommandRepairProposalCard'
 export { ProjectActionConditionBuilder } from './components/ProjectActionConditionBuilder'
 export { ProjectActionGlyph } from './components/ProjectActionGlyph'
+export { ProjectActionsBackgroundEffects } from './components/ProjectActionsBackgroundEffects'
 export { ProjectActionsControl } from './components/ProjectActionsControl'
 export { ProjectActionsSettings } from './components/ProjectActionsSettings'
+export {
+  ProjectActionsSurface,
+  type ProjectActionsSurfaceProps,
+} from './components/ProjectActionsSurface'
 export { WorkspaceCleanupFailure } from './components/WorkspaceCleanupFailure'
 export { WorkspacePreparationStatus } from './components/WorkspacePreparationStatus'
 export { WorktreePreparationChoice } from './components/WorktreePreparationChoice'
+export { useHasActiveProjectActionRun } from './hooks/useHasActiveProjectActionRun'
 export { useActionRuns, useActionScope, useNativeActions } from './hooks/useNativeActions'
 export { useProjectActionShortcutCapture } from './hooks/useProjectActionShortcutCapture'
 export {
