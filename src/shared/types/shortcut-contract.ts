@@ -20,6 +20,10 @@ export const SHORTCUT_COMMANDS = [
   'preview.resetZoom',
   'sessionTree.toggle',
   'request.focus',
+  'rightPanel.allPanels',
+  'rightPanel.projectActions',
+  'rightPanel.files',
+  'rightPanel.resources',
 ] as const
 
 export type ShortcutCommand = (typeof SHORTCUT_COMMANDS)[number]

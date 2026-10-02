@@ -1,4 +1,5 @@
 import { SessionId } from '@shared/types/brand'
+import { toggleRightPanelSurface } from '@/shared/lib/right-panel-surfaces'
 import { useNavigate } from '@tanstack/react-router'
 import { useEffect } from 'react'
 import { useChat } from '@/features/chat/hooks'
@@ -182,6 +183,10 @@ export function useWorkspaceLifecycle(): void {
       ...previewShortcutHandlers(terminalOwner.ownerKey, showToast),
       'sessionTree.toggle': toggleSessionTree,
       'request.focus': focusPendingRequest,
+      'rightPanel.allPanels': () => toggleRightPanelSurface('all-panels'),
+      'rightPanel.projectActions': () => toggleRightPanelSurface('project-actions'),
+      'rightPanel.files': () => toggleRightPanelSurface('files'),
+      'rightPanel.resources': () => toggleRightPanelSurface('resources'),
     },
     onRunProjectAction: (action) => void runProjectAction(action),
     shouldHandleBuiltIn: (command) =>

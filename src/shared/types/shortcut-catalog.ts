@@ -176,6 +176,34 @@ export const SHORTCUT_DEFINITIONS: readonly ShortcutDefinition[] = [
     group: 'Workspace',
     scope: 'global',
   },
+  {
+    command: 'rightPanel.allPanels',
+    label: 'Toggle All panels',
+    description: 'Show or hide the list of every Right panel surface',
+    group: 'Workspace',
+    scope: 'application',
+  },
+  {
+    command: 'rightPanel.projectActions',
+    label: 'Toggle Project Actions',
+    description: 'Show or hide Project Actions in the Right panel',
+    group: 'Workspace',
+    scope: 'application',
+  },
+  {
+    command: 'rightPanel.files',
+    label: 'Toggle Files',
+    description: 'Show or hide workspace files in the Right panel',
+    group: 'Workspace',
+    scope: 'application',
+  },
+  {
+    command: 'rightPanel.resources',
+    label: 'Toggle Resources',
+    description: 'Show or hide session resources in the Right panel',
+    group: 'Workspace',
+    scope: 'application',
+  },
 ]
 
 export function shortcutWhenForScope(scope: ShortcutDefinition['scope']) {
