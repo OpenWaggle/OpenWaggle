@@ -17,7 +17,10 @@ export function lockDraftForFirstSend(projectPath: string): () => void {
   return () => {
     if (generation !== draftMaterializationGeneration()) return
     useChatStore.setState((current) => {
-      if (current.draftSession?.projectPath !== projectPath || !current.draftSession.isMaterializing)
+      if (
+        current.draftSession?.projectPath !== projectPath ||
+        !current.draftSession.isMaterializing
+      )
         return {}
       const { isMaterializing: _materializing, ...draftSession } = current.draftSession
       return { draftSession }

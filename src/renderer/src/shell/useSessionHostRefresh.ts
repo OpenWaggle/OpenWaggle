@@ -4,6 +4,7 @@ import { type QueryClient, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef } from 'react'
 import {
   invalidateDefaultThinkingLevel,
+  reconcileQueuedRunStarts,
   sessionFollowUpQueueOptions,
   type useChat,
 } from '@/features/chat/hooks'
@@ -82,6 +83,8 @@ function invalidateSessionHostQueries(
 function invalidateSessionHostResyncQueries(queryClient: QueryClient) {
   const queryKey = sessionFollowUpQueueOptions(null).queryKey.slice(0, SESSION_QUERY_ROOT_SEGMENTS)
   void queryClient.invalidateQueries({ queryKey })
+  // A missed agent_start or settlement cannot be replayed: drop marks the Host reports idle.
+  void reconcileQueuedRunStarts(queryClient)
   void queryClient.invalidateQueries({ queryKey: queryKeys.archivedSessionBranches, exact: true })
   // A missed default change cannot be replayed either.
   void invalidateDefaultThinkingLevel(queryClient)

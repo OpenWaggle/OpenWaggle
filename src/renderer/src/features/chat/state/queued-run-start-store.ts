@@ -22,6 +22,11 @@ interface QueuedRunStartState {
   readonly mark: (sessionId: SessionId, runId: string) => void
   /** The Session's Run reported in (it started or settled), so nothing waits on it any more. */
   readonly settle: (sessionId: SessionId, runId: string | undefined) => void
+  /**
+   * The Host reports the Session idle, so the marked `runId` already settled even if its events
+   * never reached this window. Drops the mark only if it is still for that Run.
+   */
+  readonly settleIdle: (sessionId: SessionId, runId: string) => void
 }
 
 function withReported(
@@ -51,6 +56,16 @@ export const useQueuedRunStartStore = create<QueuedRunStartState>((set) => ({
       const runIdBySessionId = new Map(state.runIdBySessionId)
       runIdBySessionId.delete(sessionId)
       return { runIdBySessionId, reportedRunIds }
+    }),
+  settleIdle: (sessionId, runId) =>
+    set((state) => {
+      if (state.runIdBySessionId.get(sessionId) !== runId) return state
+      const runIdBySessionId = new Map(state.runIdBySessionId)
+      runIdBySessionId.delete(sessionId)
+      return {
+        runIdBySessionId,
+        reportedRunIds: withReported(state.reportedRunIds, sessionId, runId),
+      }
     }),
 }))
 

@@ -1,4 +1,4 @@
-import { renderHook, waitFor } from '@testing-library/react'
+import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it } from 'vitest'
 import {
   getWorkspaceLifecycleMocks,
@@ -43,5 +43,23 @@ describe('useWorkspaceLifecycle Follow-up queue refresh', () => {
         queryKey: ['sessions', 'follow-up-queue', 'session-1'],
       }),
     )
+  })
+
+  it('reconciles queued Run start marks after a resync, once the queues are invalidated', async () => {
+    renderHook(() => useWorkspaceLifecycle())
+    await waitFor(() => expect(lifecycleMocks.loadChatSessions).toHaveBeenCalledOnce())
+    lifecycleMocks.invalidateQueries.mockClear()
+    const resync = lifecycleMocks.getSessionHostResyncHandler()
+    if (!resync) throw new Error('Expected Session Host resync subscription')
+
+    act(() => resync({ reason: 'slow-consumer' }))
+
+    expect(lifecycleMocks.reconcileQueuedRunStarts).toHaveBeenCalledOnce()
+    const queuesInvalidated = lifecycleMocks.invalidateQueries.mock.invocationCallOrder[0]
+    const reconciled = lifecycleMocks.reconcileQueuedRunStarts.mock.invocationCallOrder[0]
+    expect(lifecycleMocks.invalidateQueries).toHaveBeenNthCalledWith(1, {
+      queryKey: ['sessions', 'follow-up-queue'],
+    })
+    expect(queuesInvalidated).toBeLessThan(reconciled ?? 0)
   })
 })
