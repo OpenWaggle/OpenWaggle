@@ -26,10 +26,11 @@ function services(change: SessionThinkingLevelChange = CHANGED) {
   const setModel = vi.fn(() => Effect.succeed(change))
   const setThinkingLevel = vi.fn(() => Effect.succeed(change))
   let defaultLevel: ThinkingLevel = 'medium'
-  const setDefault = vi.fn((level: ThinkingLevel) =>
-    Effect.sync(() => {
-      defaultLevel = level
-    }),
+  const setDefault = vi.fn(
+    (level: ThinkingLevel): Effect.Effect<void, Error> =>
+      Effect.sync(() => {
+        defaultLevel = level
+      }),
   )
   const getDefault = vi.fn(() => Effect.sync(() => defaultLevel))
   return {
@@ -45,7 +46,11 @@ function services(change: SessionThinkingLevelChange = CHANGED) {
         ),
         Effect.provideService(
           ThinkingLevelDefaultService,
-          ThinkingLevelDefaultService.of({ getDefault, setDefault }),
+          ThinkingLevelDefaultService.of({
+            getDefault,
+            getConfiguredDefault: getDefault,
+            setDefault,
+          }),
         ),
       ),
   }
@@ -153,6 +158,41 @@ describe('sessions:set-thinking-level', () => {
     ).resolves.toEqual(RUN_ACTIVE)
     expect(fixture.setDefault).not.toHaveBeenCalled()
     expect(publishSessionHostEventMock).not.toHaveBeenCalled()
+  })
+
+  it('reports the committed Session change when writing the default fails', async () => {
+    const fixture = services()
+    fixture.setDefault.mockImplementation(() =>
+      Effect.fail(new Error('settings.json is read-only')),
+    )
+
+    await expect(
+      run('sessions:set-thinking-level', [SESSION_ID, 'high'], fixture),
+    ).resolves.toEqual(CHANGED)
+    expect(publishSessionHostEventMock).toHaveBeenCalledWith({
+      kind: 'session-list-changed',
+      sessionId: SESSION_ID,
+      change: 'updated',
+    })
+    expect(publishSessionHostEventMock).not.toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'default-thinking-level-changed' }),
+    )
+  })
+
+  it('announces the Session change before writing the default', async () => {
+    const fixture = services()
+    const order: string[] = []
+    publishSessionHostEventMock.mockImplementation((event: { readonly kind: string }) => {
+      order.push(event.kind)
+    })
+    fixture.setDefault.mockImplementation(() =>
+      Effect.sync(() => {
+        order.push('set-default')
+      }),
+    )
+
+    await run('sessions:set-thinking-level', [SESSION_ID, 'low'], fixture)
+    expect(order).toEqual(['session-list-changed', 'set-default', 'default-thinking-level-changed'])
   })
 
   it('rejects a level Pi does not define', async () => {

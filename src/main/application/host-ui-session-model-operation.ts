@@ -1,6 +1,8 @@
 import type { SessionThinkingLevelChange } from '@shared/types/session'
 import { THINKING_LEVELS, type ThinkingLevel } from '@shared/types/settings'
 import * as Effect from 'effect/Effect'
+import { describeError } from '../error-description'
+import { createLogger } from '../logger'
 import { SessionSettingsRepository } from '../ports/session-settings-repository'
 import { ThinkingLevelDefaultService } from '../ports/thinking-level-default-service'
 import { publishSessionHostEvent } from '../session-host/session-host-events'
@@ -12,6 +14,7 @@ import {
 } from './host-ui-session-operation-validation'
 
 const TWO_ARGUMENTS = 2
+const logger = createLogger('host-ui-session-settings')
 
 function validateThinkingLevel(value: unknown): Effect.Effect<ThinkingLevel, Error> {
   const level = THINKING_LEVELS.find((candidate) => candidate === value)
@@ -52,6 +55,10 @@ export function setSessionModel(args: readonly unknown[]) {
  * Session has no active Run, and never changes any other Session. As with Pi's
  * `setThinkingLevel(level, { persist: true })`, the desktop user's choice also becomes Pi's global
  * default, which new Sessions start from.
+ *
+ * The Session change is committed and announced before the default is written. Failing to write
+ * the default is logged and never reported as a failed Session change: the Session already uses
+ * the new level, and only Sessions created later would start elsewhere.
  */
 export function setSessionThinkingLevel(
   args: readonly unknown[],
@@ -66,8 +73,18 @@ export function setSessionThinkingLevel(
     const level = yield* validateThinkingLevel(args[1])
     const change = yield* (yield* SessionSettingsRepository).setThinkingLevel(sessionId, level)
     if (!change.changed) return change
-    yield* setGlobalDefaultThinkingLevel(level)
     publishSessionHostEvent({ kind: 'session-list-changed', sessionId, change: 'updated' })
+    yield* setGlobalDefaultThinkingLevel(level).pipe(
+      Effect.catchAll((error) =>
+        Effect.sync(() => {
+          logger.warn("Set the Session thinking level but could not make it Pi's default", {
+            sessionId,
+            level,
+            error: describeError(error),
+          })
+        }),
+      ),
+    )
     return change
   })
 }
