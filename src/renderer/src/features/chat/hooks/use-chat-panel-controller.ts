@@ -1,5 +1,5 @@
 import type { WaggleCollaborationStatus } from '@shared/types/waggle'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from '@tanstack/react-router'
 import { useAgentChat } from '@/features/chat/hooks/useAgentChat'
 import { useSendMessage } from '@/features/chat/hooks/useSendMessage'
@@ -78,6 +78,7 @@ export function useChatPanelSections(): ChatPanelSections {
   } = useAgentChat(activeSessionId, activeSession, model)
   const followUpQueue = useSessionFollowUpQueue(activeSessionId)
   // What a draft shows without a pick; first send creates its Session at the level shown.
+  const queryClient = useQueryClient()
   const { data: defaultThinkingLevel } = useQuery(defaultThinkingLevelQueryOptions())
 
   const { handleSend, handleSendText, handleSendWaggle } = useSendMessage({
@@ -86,6 +87,8 @@ export function useChatPanelSections(): ChatPanelSections {
     projectPath,
     createSession,
     defaultThinkingLevel,
+    readDefaultThinkingLevel: () =>
+      queryClient.getQueryData(defaultThinkingLevelQueryOptions().queryKey),
     sendMessage,
     sendWaggleMessage,
   })

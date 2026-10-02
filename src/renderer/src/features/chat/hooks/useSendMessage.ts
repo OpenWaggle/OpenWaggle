@@ -9,6 +9,7 @@ import { createOptimisticUserMessage } from '@/features/chat/lib/useAgentChat.ut
 import { useBackgroundRunStore } from '@/features/chat/state/background-run-store'
 import { useChatStore } from '@/features/chat/state/chat-store'
 import { flushDraftAuthorizationModeToSession } from '@/features/chat/state/draft-authorization-mode-store'
+import { lockDraftForFirstSend } from '@/features/chat/state/draft-first-send-lock'
 import { useFirstSendPendingStore } from '@/features/chat/state/first-send-pending-store'
 import { withForegroundSend } from '@/features/chat/state/foreground-send-store'
 import { withInlineVisualizationContext } from '@/features/chat/state/inline-visualization-state'
@@ -41,6 +42,11 @@ interface SendMessageDeps {
   ) => Promise<SessionId>
   /** Pi's default thinking level as last read, which a draft shows without a pick; unknown: undefined. */
   readonly defaultThinkingLevel?: ThinkingLevel
+  /**
+   * Reads Pi's default as cached now, which a settled draft pick has refreshed. First send reads it
+   * after the draft's picks settle; `defaultThinkingLevel` stands in when it reads nothing.
+   */
+  readonly readDefaultThinkingLevel?: () => ThinkingLevel | undefined
   readonly sendMessage: (payload: AgentSendPayload) => Promise<void>
   readonly sendMessageToSession: (
     sessionId: SessionId,
@@ -85,6 +91,7 @@ export function createSendHandlers(deps: SendMessageDeps): SendMessageHandlers {
     projectPath,
     createSession,
     defaultThinkingLevel,
+    readDefaultThinkingLevel,
     sendMessage,
     sendMessageToSession,
     sendWaggleMessage,
@@ -100,34 +107,41 @@ export function createSendHandlers(deps: SendMessageDeps): SendMessageHandlers {
     draftProjectPath: string,
     deliver: (sessionId: SessionId) => Promise<void>,
   ) {
-    const worktreePlan = snapshotDraftWorktreePlan(draftProjectPath)
-    const preparationProfileId =
-      worktreePlan?.plan.envMode === 'worktree'
-        ? await validateDraftWorkspacePreparation(
-            draftProjectPath,
-            worktreePlan.plan.preparationProfileId,
-          )
-        : null
-    // The new Session starts at the level the draft shows now, not at whatever the default is
-    // when it is created, and the default is not written again for it.
-    const thinkingLevel = draftThinkingLevel(defaultThinkingLevel)
-    // A pick still being written to Pi's default lands first, so defaults change in pick order.
-    await settledThinkingLevelWrites(DEFAULT_THINKING_LEVEL_TARGET)
-    const sessionId = await createSession(
-      draftProjectPath,
-      sessionWorktreePlan(worktreePlan),
-      thinkingLevel,
-    )
-    await withForegroundSend(sessionId, async () => {
-      try {
-        await flushDraftAuthorizationModeToSession(draftProjectPath, sessionId)
-        if (preparationProfileId)
-          await selectDraftWorkspacePreparation(draftProjectPath, sessionId, preparationProfileId)
-      } catch (error) {
-        throw firstSendFailure(error, sessionId)
-      }
-      await deliver(sessionId)
-    })
+    // Locked before the first await, so no pick lands after this send has started reading them.
+    const releaseDraft = lockDraftForFirstSend(draftProjectPath)
+    try {
+      const worktreePlan = snapshotDraftWorktreePlan(draftProjectPath)
+      const preparationProfileId =
+        worktreePlan?.plan.envMode === 'worktree'
+          ? await validateDraftWorkspacePreparation(
+              draftProjectPath,
+              worktreePlan.plan.preparationProfileId,
+            )
+          : null
+      // A pick still being written to Pi's default lands first, so defaults change in pick order.
+      await settledThinkingLevelWrites(DEFAULT_THINKING_LEVEL_TARGET)
+      // Read only now: the draft shows a settled pick as the refreshed default, and a failed pick
+      // as the default it left in place. The new Session starts at exactly that level, not at
+      // whatever the default is when it is created, and the default is not written again for it.
+      const thinkingLevel = draftThinkingLevel(readDefaultThinkingLevel?.() ?? defaultThinkingLevel)
+      const sessionId = await createSession(
+        draftProjectPath,
+        sessionWorktreePlan(worktreePlan),
+        thinkingLevel,
+      )
+      await withForegroundSend(sessionId, async () => {
+        try {
+          await flushDraftAuthorizationModeToSession(draftProjectPath, sessionId)
+          if (preparationProfileId)
+            await selectDraftWorkspacePreparation(draftProjectPath, sessionId, preparationProfileId)
+        } catch (error) {
+          throw firstSendFailure(error, sessionId)
+        }
+        await deliver(sessionId)
+      })
+    } finally {
+      releaseDraft()
+    }
   }
 
   async function handleSend(payload: AgentSendPayload) {
@@ -186,6 +200,8 @@ interface UseSendMessageOptions {
   ) => Promise<SessionId>
   /** Pi's default thinking level as last read (`defaultThinkingLevelQueryOptions`). */
   readonly defaultThinkingLevel?: ThinkingLevel
+  /** Reads Pi's default from the query cache now; see `SendMessageDeps`. */
+  readonly readDefaultThinkingLevel?: () => ThinkingLevel | undefined
   readonly sendMessage: (payload: AgentSendPayload) => Promise<void>
   readonly sendWaggleMessage: (payload: AgentSendPayload, config: WaggleConfig) => Promise<void>
 }

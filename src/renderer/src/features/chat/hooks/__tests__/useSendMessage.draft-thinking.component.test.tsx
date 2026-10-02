@@ -1,6 +1,7 @@
 import type { AgentSendPayload } from '@shared/types/agent'
 import { SessionId, SupportedModelId } from '@shared/types/brand'
 import type { SessionDetail } from '@shared/types/session'
+import type { ThinkingLevel } from '@shared/types/settings'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -29,7 +30,10 @@ const foregroundSends = await import('../../state/foreground-send-store')
 const PAYLOAD: AgentSendPayload = { text: 'review body', attachments: [] }
 const CREATED = SessionId('created')
 
-function handlers(defaultThinkingLevel?: 'medium' | 'low') {
+function handlers(
+  defaultThinkingLevel?: ThinkingLevel,
+  readDefaultThinkingLevel?: () => ThinkingLevel | undefined,
+) {
   const createSession = vi.fn(async (..._args: unknown[]) => CREATED)
   const sendMessageToSession = vi.fn(async () => {})
   return {
@@ -40,6 +44,7 @@ function handlers(defaultThinkingLevel?: 'medium' | 'low') {
       projectPath: '/repo',
       createSession,
       ...(defaultThinkingLevel ? { defaultThinkingLevel } : {}),
+      ...(readDefaultThinkingLevel ? { readDefaultThinkingLevel } : {}),
       sendMessage: vi.fn(async () => {}),
       sendMessageToSession,
       startWaggleCollaboration: vi.fn(),
@@ -48,31 +53,47 @@ function handlers(defaultThinkingLevel?: 'medium' | 'low') {
   }
 }
 
-function pickDraftLevel(level: 'low' | 'high') {
-  let finish: (() => void) | undefined
-  void thinkingWrites.writeThinkingLevel({
-    target: thinkingWrites.DEFAULT_THINKING_LEVEL_TARGET,
-    level,
-    write: () =>
-      new Promise<void>((resolve) => {
-        finish = resolve
-      }),
-    refresh: async () => {},
-  })
-  return () => finish?.()
+/** A draft pick whose write to Pi's default is in flight; `finish` lands it (or fails it). */
+function pickDraftLevel(level: ThinkingLevel) {
+  let finish: ((outcome?: 'landed' | 'failed') => void) | undefined
+  void thinkingWrites
+    .writeThinkingLevel({
+      target: thinkingWrites.DEFAULT_THINKING_LEVEL_TARGET,
+      level,
+      write: () =>
+        new Promise<void>((resolve, reject) => {
+          finish = (outcome = 'landed') => {
+            if (outcome === 'failed') {
+              reject(new Error('default write failed'))
+              return
+            }
+            piDefault = level
+            resolve()
+          }
+        }),
+      refresh: async () => {},
+    })
+    .catch(() => undefined)
+  return (outcome?: 'landed' | 'failed') => finish?.(outcome)
 }
+
+/** Pi's default as the query cache holds it; a landed pick refreshes it. */
+let piDefault: ThinkingLevel = 'medium'
+const readPiDefault = () => piDefault
 
 describe("a draft's thinking level on first send", () => {
   beforeEach(() => {
     thinkingWrites.resetThinkingLevelWritesForTests()
     foregroundSends.resetForegroundSendsForTests()
+    useChatStore.setState(useChatStore.getInitialState())
+    piDefault = 'medium'
     setSessionThinkingLevelMock.mockClear()
     sendMessageMock.mockClear()
   })
 
   it('creates the Session at the pick the draft shows, after the pick reached the default', async () => {
     const finishPick = pickDraftLevel('low')
-    const { createSession, sendMessageToSession, send } = handlers('medium')
+    const { createSession, sendMessageToSession, send } = handlers('medium', readPiDefault)
 
     const sent = send.handleSend(PAYLOAD)
     await new Promise((resolve) => setTimeout(resolve, 0))
@@ -104,7 +125,7 @@ describe("a draft's thinking level on first send", () => {
 
   it('does not carry a sent pick over to the next draft', async () => {
     const finishPick = pickDraftLevel('high')
-    const first = handlers('medium')
+    const first = handlers('medium', readPiDefault)
     const sent = first.send.handleSend(PAYLOAD)
     await new Promise((resolve) => setTimeout(resolve, 0))
     finishPick()
@@ -115,6 +136,46 @@ describe("a draft's thinking level on first send", () => {
     const next = handlers('low')
     await next.send.handleSend(PAYLOAD)
     expect(next.createSession).toHaveBeenCalledWith('/repo', undefined, 'low')
+  })
+
+  it('creates the Session at the default the draft falls back to when its pick fails', async () => {
+    const finishPick = pickDraftLevel('high')
+    const { createSession, send } = handlers('medium', readPiDefault)
+
+    const sent = send.handleSend(PAYLOAD)
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    finishPick('failed')
+    await sent
+
+    expect(createSession).toHaveBeenCalledWith('/repo', undefined, 'medium')
+  })
+
+  it("locks the draft's settings from the start of first send, before a pick could land", async () => {
+    useChatStore.getState().startDraftSession('/repo')
+    const finishPick = pickDraftLevel('low')
+    const { createSession, send } = handlers('medium', readPiDefault)
+
+    const sent = send.handleSend(PAYLOAD)
+    // Still waiting on the earlier pick: the draft is already locked, so no later pick can land.
+    expect(useChatStore.getState().draftSession?.isMaterializing).toBe(true)
+    useChatStore.getState().setDraftSelectedModel(SupportedModelId('openai/gpt-5.5'))
+    expect(useChatStore.getState().draftSession?.selectedModel).toBeUndefined()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(createSession).not.toHaveBeenCalled()
+    finishPick()
+    await sent
+
+    expect(createSession).toHaveBeenCalledWith('/repo', undefined, 'low')
+  })
+
+  it('unlocks the draft when first send fails before its Session exists', async () => {
+    useChatStore.getState().startDraftSession('/repo')
+    const { createSession, send } = handlers('medium')
+    createSession.mockRejectedValueOnce(new Error('Host refused'))
+
+    await expect(send.handleSend(PAYLOAD)).rejects.toThrow('Host refused')
+
+    expect(useChatStore.getState().draftSession).toEqual({ projectPath: '/repo' })
   })
 
   it('keeps the new Session locked from its creation until its first send settles', async () => {
@@ -133,9 +194,15 @@ describe("a draft's thinking level on first send", () => {
   it('creates a Waggle draft at the level shown, too', async () => {
     const { createSession, send } = handlers('medium')
 
+    const agent = {
+      label: 'Planner',
+      model: SupportedModelId('openai/gpt-5.5'),
+      roleDescription: 'Plan the work',
+      color: 'blue',
+    } as const
     await send.handleSendWaggle(PAYLOAD, {
       mode: 'sequential',
-      agents: [],
+      agents: [agent, { ...agent, label: 'Reviewer', color: 'amber' }],
       stop: { primary: 'consensus', maxTurnsSafety: 2 },
     })
 
