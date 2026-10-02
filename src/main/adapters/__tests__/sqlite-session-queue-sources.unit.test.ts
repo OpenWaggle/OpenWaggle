@@ -2,6 +2,7 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import * as SqlClient from '@effect/sql/SqlClient'
+import type { LocalSessionProfileAuthority } from '@shared/types/local-session-profile'
 import type { SessionQueryOutcome } from '@shared/types/session-query'
 import * as Effect from 'effect/Effect'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -94,5 +95,75 @@ describe('queue-list Follow-up sources', () => {
       { callerId: 'profile:profile-ci', profileName: 'ci-bot' },
     ])
     expect(queueSources(result.agent.outcome)[2]).toEqual({ callerId: 'profile:profile-ci' })
+  })
+
+  it('titles an agent Session source the caller may see, archived or in another project', async () => {
+    const scoped = (
+      scope: LocalSessionProfileAuthority['scope'],
+    ): LocalSessionProfileAuthority => ({
+      profileId: 'profile-reader',
+      profileName: 'reader',
+      capabilities: ['sessions:read'],
+      scope,
+      authorizationCeiling: 'ask-for-approval',
+    })
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        yield* sql`
+          INSERT INTO sessions (id, project_path, title, archived) VALUES
+            (${'session-release'}, ${'/other-project'}, ${'Release prep'}, ${1})
+        `
+        for (const [position, callerId] of [
+          'session-agent:session-release:run-7',
+          'session-agent:session-deleted:run-2',
+        ].entries()) {
+          yield* sql`
+            INSERT INTO session_follow_ups (
+              id, session_id, position, delivery_state, intent_json, created_at, updated_at
+            ) VALUES (
+              ${`item-${position}`}, ${SESSION}, ${position}, ${'pending'},
+              ${JSON.stringify({
+                text: 'From an agent',
+                attachmentIds: [],
+                acceptedAt: position,
+                idempotencyKey: `key-${position}`,
+                callerId,
+              })},
+              ${1}, ${1}
+            )
+          `
+        }
+        const desktop = yield* readQueue(sql, QUEUE_REQUEST, { callerId: USER, desktopUser: true })
+        const reaching = yield* readQueue(sql, QUEUE_REQUEST, {
+          callerId: 'profile:profile-reader',
+          desktopUser: false,
+          authority: scoped({ projectPaths: ['/project', '/other-project'] }),
+        })
+        const narrow = yield* readQueue(sql, QUEUE_REQUEST, {
+          callerId: 'profile:profile-reader',
+          desktopUser: false,
+          authority: scoped({ projectPaths: ['/project'] }),
+        })
+        return { desktop, reaching, narrow }
+      }).pipe(Effect.provide(followUpEditLayer(tmpRoot, 'titles.sqlite'))),
+    )
+
+    const titled = {
+      callerId: 'session-agent:session-release:run-7',
+      sessionId: 'session-release',
+      sessionTitle: 'Release prep',
+    }
+    const deleted = {
+      callerId: 'session-agent:session-deleted:run-2',
+      sessionId: 'session-deleted',
+    }
+    expect(queueSources(result.desktop.outcome)).toEqual([titled, deleted])
+    expect(queueSources(result.reaching.outcome)).toEqual([titled, deleted])
+    // Out of reach: the Session id stays, its title does not leak.
+    expect(queueSources(result.narrow.outcome)).toEqual([
+      { callerId: titled.callerId, sessionId: titled.sessionId },
+      deleted,
+    ])
   })
 })

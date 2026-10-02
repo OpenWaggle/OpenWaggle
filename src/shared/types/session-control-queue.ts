@@ -140,6 +140,12 @@ export interface SessionFollowUpEditHoldSummary {
 export interface SessionFollowUpSource {
   readonly callerId: string
   readonly sessionId?: string
+  /**
+   * The title of the agent Session in `sessionId`, resolved by the Host when the listing caller
+   * may see that Session, including an archived one or one in another project. Absent when the
+   * Session is gone or out of the caller's reach.
+   */
+  readonly sessionTitle?: string
   readonly profileName?: string
 }
 

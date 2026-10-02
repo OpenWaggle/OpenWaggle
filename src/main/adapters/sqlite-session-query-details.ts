@@ -1,4 +1,5 @@
 import type * as SqlClient from '@effect/sql/SqlClient'
+import type { LocalSessionProfileAuthority } from '@shared/types/local-session-profile'
 import { isFollowUpQueuePauseReason } from '@shared/types/session-control-queue'
 import type { SessionQueryRequest } from '@shared/types/session-query'
 import { returnedSteerProvenance } from '@shared/utils/returned-steer-provenance'
@@ -190,7 +191,10 @@ export function readStatus(sql: SqlClient.SqlClient, request: SessionQueryReques
 export function readQueue(
   sql: SqlClient.SqlClient,
   request: SessionQueryRequest,
-  editContext: QueueListEditContext = { callerId: undefined, desktopUser: false },
+  editContext: QueueListEditContext & {
+    /** The querying profile or Session agent's authority; absent for the desktop user. */
+    readonly authority?: LocalSessionProfileAuthority
+  } = { callerId: undefined, desktopUser: false },
 ) {
   if (request.query.operation !== 'queue-list') throw new Error('Expected queue-list query.')
   const query = request.query
@@ -232,7 +236,11 @@ export function readQueue(
         rows,
         context: editContext,
       })
-      const sources = yield* queueListSources(sql, { rows, desktopUser: editContext.desktopUser })
+      const sources = yield* queueListSources(sql, {
+        rows,
+        desktopUser: editContext.desktopUser,
+        ...(editContext.authority ? { authority: editContext.authority } : {}),
+      })
       return sessionQueryResponse(request, {
         operation: 'queue-list',
         sessionId: query.sessionId,
