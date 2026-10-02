@@ -176,6 +176,7 @@ export default {
         runtime: 'federated-module',
         execution: 'host-renderer',
         entry: 'dist/results.js',
+        icon: 'flask-conical',
         capability: 'openwaggle.resources',
         methods: ['list-resources', 'publish-resource'],
       },
@@ -198,6 +199,8 @@ export default {
   },
 } satisfies OpenWaggleExtensionManifest
 ```
+
+A side panel's optional `icon` is its Panel rail icon. Use a bundled [Lucide](https://lucide.dev/icons/) icon name in kebab-case, such as `'ticket'`, or `{ svg: 'assets/panel-icon.svg' }` for a single-colour SVG file inside the package. The path must be package-relative, must not contain `..` segments, and must end in `.svg`. OpenWaggle uses only the icon's shape and paints it in the rail's colours. A missing or unusable icon falls back to a letter tile and an extension diagnostic. Only side panels accept `icon`; `extensionSidePanelIconSchema` and the `ExtensionSidePanelIcon` type describe the accepted values.
 
 The npm package version and the manifest's `sdk.openwaggle` range are separate contracts. The range above targets OpenWaggle's current `0.1` host SDK and is accepted by extension discovery.
 

@@ -875,6 +875,9 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
                 customMessageNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
                 interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
             }>>;
+            icon: Schema.optional<Schema.Union<[Schema.filter<Schema.filter<typeof Schema.String>>, Schema.Struct<{
+                svg: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            }>]>>;
         }>>>>;
         dialogs: Schema.optional<Schema.Array$<Schema.filter<Schema.Struct<{
             capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
@@ -1134,6 +1137,35 @@ export declare const extensionSlotContributionSchema: Schema.filter<Schema.Struc
         interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
     }>>;
 }>>;
+/**
+ * A side panel's Panel rail icon: a bundled Lucide icon name in kebab-case, or a package-relative
+ * single-colour `.svg` file. OpenWaggle uses only the icon's shape and paints it in its own colours.
+ */
+export declare const extensionSidePanelIconSchema: Schema.Union<[Schema.filter<Schema.filter<typeof Schema.String>>, Schema.Struct<{
+    svg: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+}>]>;
+export declare const extensionSidePanelContributionSchema: Schema.filter<Schema.Struct<{
+    capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    id: Schema.filter<Schema.filter<typeof Schema.String>>;
+    title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
+    execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
+    entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    target: Schema.optional<Schema.Struct<{
+        projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    }>>;
+    matches: Schema.optional<Schema.Struct<{
+        toolNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        customMessageNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    }>>;
+    icon: Schema.optional<Schema.Union<[Schema.filter<Schema.filter<typeof Schema.String>>, Schema.Struct<{
+        svg: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    }>]>>;
+}>>;
 export declare const extensionSessionSummaryActionSchema: Schema.Struct<{
     family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
     contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
@@ -1280,6 +1312,9 @@ export declare const extensionContributionsSchema: Schema.Struct<{
             customMessageNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
             interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
         }>>;
+        icon: Schema.optional<Schema.Union<[Schema.filter<Schema.filter<typeof Schema.String>>, Schema.Struct<{
+            svg: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        }>]>>;
     }>>>>;
     dialogs: Schema.optional<Schema.Array$<Schema.filter<Schema.Struct<{
         capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
@@ -1468,6 +1503,31 @@ export declare const extensionRouteContributionRegistrationSchema: Schema.Struct
         }>>;
     }>>;
 }>;
+export declare const extensionSidePanelContributionRegistrationSchema: Schema.Struct<{
+    family: Schema.Literal<["sidePanels"]>;
+    contribution: Schema.filter<Schema.Struct<{
+        capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
+        entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        target: Schema.optional<Schema.Struct<{
+            projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        matches: Schema.optional<Schema.Struct<{
+            toolNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            customMessageNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        icon: Schema.optional<Schema.Union<[Schema.filter<Schema.filter<typeof Schema.String>>, Schema.Struct<{
+            svg: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        }>]>>;
+    }>>;
+}>;
 export declare const extensionSlotContributionRegistrationSchema: Schema.Struct<{
     family: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
     contribution: Schema.filter<Schema.Struct<{
@@ -1564,6 +1624,30 @@ export declare const extensionContributionRegistrationSchema: Schema.Union<[Sche
         }>>;
     }>>;
 }>, Schema.Struct<{
+    family: Schema.Literal<["sidePanels"]>;
+    contribution: Schema.filter<Schema.Struct<{
+        capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
+        entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        target: Schema.optional<Schema.Struct<{
+            projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        matches: Schema.optional<Schema.Struct<{
+            toolNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            customMessageNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        icon: Schema.optional<Schema.Union<[Schema.filter<Schema.filter<typeof Schema.String>>, Schema.Struct<{
+            svg: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        }>]>>;
+    }>>;
+}>, Schema.Struct<{
     family: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
     contribution: Schema.filter<Schema.Struct<{
         capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
@@ -1631,7 +1715,9 @@ export type ExtensionCommandContribution = SchemaType<typeof extensionCommandCon
 export type ExtensionContributions = SchemaType<typeof extensionContributionsSchema>;
 export type ExtensionContributionRegistration = SchemaType<typeof extensionContributionRegistrationSchema>;
 export type ExtensionContributionUnregistration = SchemaType<typeof extensionContributionUnregistrationSchema>;
-export type ExtensionEntryContribution = SchemaType<typeof extensionRouteContributionSchema> | SchemaType<typeof extensionSlotContributionSchema>;
+export type ExtensionSidePanelIcon = SchemaType<typeof extensionSidePanelIconSchema>;
+export type ExtensionSidePanelContribution = SchemaType<typeof extensionSidePanelContributionSchema>;
+export type ExtensionEntryContribution = SchemaType<typeof extensionRouteContributionSchema> | SchemaType<typeof extensionSlotContributionSchema> | ExtensionSidePanelContribution;
 export type ExtensionSessionSummaryContribution = SchemaType<typeof extensionSessionSummaryContributionSchema>;
 ```
 
@@ -1652,6 +1738,8 @@ export declare const extensionContributionIdSchema: Schema.filter<Schema.filter<
 export declare const extensionSemverVersionSchema: Schema.filter<Schema.filter<typeof Schema.String>>;
 export declare const extensionRelativePathSchema: Schema.filter<Schema.filter<typeof Schema.String>>;
 export declare const extensionContributionEntryPathSchema: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+export declare const extensionLucideIconNameSchema: Schema.filter<Schema.filter<typeof Schema.String>>;
+export declare const extensionSvgIconPathSchema: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
 export declare const extensionCapabilityScopeSchema: Schema.Literal<["app", "project", "session", "branch"]>;
 export declare const extensionContributionRuntimeSchema: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
 export declare const extensionExecutionPlacementSchema: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
@@ -3694,6 +3782,9 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
                 customMessageNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
                 interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
             }>>;
+            icon: Schema.optional<Schema.Union<[Schema.filter<Schema.filter<typeof Schema.String>>, Schema.Struct<{
+                svg: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            }>]>>;
         }>>>>;
         dialogs: Schema.optional<Schema.Array$<Schema.filter<Schema.Struct<{
             capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
@@ -3953,6 +4044,35 @@ export declare const extensionSlotContributionSchema: Schema.filter<Schema.Struc
         interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
     }>>;
 }>>;
+/**
+ * A side panel's Panel rail icon: a bundled Lucide icon name in kebab-case, or a package-relative
+ * single-colour `.svg` file. OpenWaggle uses only the icon's shape and paints it in its own colours.
+ */
+export declare const extensionSidePanelIconSchema: Schema.Union<[Schema.filter<Schema.filter<typeof Schema.String>>, Schema.Struct<{
+    svg: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+}>]>;
+export declare const extensionSidePanelContributionSchema: Schema.filter<Schema.Struct<{
+    capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    id: Schema.filter<Schema.filter<typeof Schema.String>>;
+    title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
+    execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
+    entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    target: Schema.optional<Schema.Struct<{
+        projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    }>>;
+    matches: Schema.optional<Schema.Struct<{
+        toolNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        customMessageNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    }>>;
+    icon: Schema.optional<Schema.Union<[Schema.filter<Schema.filter<typeof Schema.String>>, Schema.Struct<{
+        svg: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    }>]>>;
+}>>;
 export declare const extensionSessionSummaryActionSchema: Schema.Struct<{
     family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
     contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
@@ -4099,6 +4219,9 @@ export declare const extensionContributionsSchema: Schema.Struct<{
             customMessageNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
             interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
         }>>;
+        icon: Schema.optional<Schema.Union<[Schema.filter<Schema.filter<typeof Schema.String>>, Schema.Struct<{
+            svg: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        }>]>>;
     }>>>>;
     dialogs: Schema.optional<Schema.Array$<Schema.filter<Schema.Struct<{
         capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
@@ -4287,6 +4410,31 @@ export declare const extensionRouteContributionRegistrationSchema: Schema.Struct
         }>>;
     }>>;
 }>;
+export declare const extensionSidePanelContributionRegistrationSchema: Schema.Struct<{
+    family: Schema.Literal<["sidePanels"]>;
+    contribution: Schema.filter<Schema.Struct<{
+        capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
+        entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        target: Schema.optional<Schema.Struct<{
+            projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        matches: Schema.optional<Schema.Struct<{
+            toolNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            customMessageNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        icon: Schema.optional<Schema.Union<[Schema.filter<Schema.filter<typeof Schema.String>>, Schema.Struct<{
+            svg: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        }>]>>;
+    }>>;
+}>;
 export declare const extensionSlotContributionRegistrationSchema: Schema.Struct<{
     family: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
     contribution: Schema.filter<Schema.Struct<{
@@ -4383,6 +4531,30 @@ export declare const extensionContributionRegistrationSchema: Schema.Union<[Sche
         }>>;
     }>>;
 }>, Schema.Struct<{
+    family: Schema.Literal<["sidePanels"]>;
+    contribution: Schema.filter<Schema.Struct<{
+        capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
+        entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        target: Schema.optional<Schema.Struct<{
+            projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        matches: Schema.optional<Schema.Struct<{
+            toolNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            customMessageNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        icon: Schema.optional<Schema.Union<[Schema.filter<Schema.filter<typeof Schema.String>>, Schema.Struct<{
+            svg: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        }>]>>;
+    }>>;
+}>, Schema.Struct<{
     family: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
     contribution: Schema.filter<Schema.Struct<{
         capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
@@ -4450,7 +4622,9 @@ export type ExtensionCommandContribution = SchemaType<typeof extensionCommandCon
 export type ExtensionContributions = SchemaType<typeof extensionContributionsSchema>;
 export type ExtensionContributionRegistration = SchemaType<typeof extensionContributionRegistrationSchema>;
 export type ExtensionContributionUnregistration = SchemaType<typeof extensionContributionUnregistrationSchema>;
-export type ExtensionEntryContribution = SchemaType<typeof extensionRouteContributionSchema> | SchemaType<typeof extensionSlotContributionSchema>;
+export type ExtensionSidePanelIcon = SchemaType<typeof extensionSidePanelIconSchema>;
+export type ExtensionSidePanelContribution = SchemaType<typeof extensionSidePanelContributionSchema>;
+export type ExtensionEntryContribution = SchemaType<typeof extensionRouteContributionSchema> | SchemaType<typeof extensionSlotContributionSchema> | ExtensionSidePanelContribution;
 export type ExtensionSessionSummaryContribution = SchemaType<typeof extensionSessionSummaryContributionSchema>;
 ```
 
@@ -4471,6 +4645,8 @@ export declare const extensionContributionIdSchema: Schema.filter<Schema.filter<
 export declare const extensionSemverVersionSchema: Schema.filter<Schema.filter<typeof Schema.String>>;
 export declare const extensionRelativePathSchema: Schema.filter<Schema.filter<typeof Schema.String>>;
 export declare const extensionContributionEntryPathSchema: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+export declare const extensionLucideIconNameSchema: Schema.filter<Schema.filter<typeof Schema.String>>;
+export declare const extensionSvgIconPathSchema: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
 export declare const extensionCapabilityScopeSchema: Schema.Literal<["app", "project", "session", "branch"]>;
 export declare const extensionContributionRuntimeSchema: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
 export declare const extensionExecutionPlacementSchema: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
@@ -6065,6 +6241,9 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
                 customMessageNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
                 interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
             }>>;
+            icon: Schema.optional<Schema.Union<[Schema.filter<Schema.filter<typeof Schema.String>>, Schema.Struct<{
+                svg: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            }>]>>;
         }>>>>;
         dialogs: Schema.optional<Schema.Array$<Schema.filter<Schema.Struct<{
             capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
@@ -6324,6 +6503,35 @@ export declare const extensionSlotContributionSchema: Schema.filter<Schema.Struc
         interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
     }>>;
 }>>;
+/**
+ * A side panel's Panel rail icon: a bundled Lucide icon name in kebab-case, or a package-relative
+ * single-colour `.svg` file. OpenWaggle uses only the icon's shape and paints it in its own colours.
+ */
+export declare const extensionSidePanelIconSchema: Schema.Union<[Schema.filter<Schema.filter<typeof Schema.String>>, Schema.Struct<{
+    svg: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+}>]>;
+export declare const extensionSidePanelContributionSchema: Schema.filter<Schema.Struct<{
+    capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    id: Schema.filter<Schema.filter<typeof Schema.String>>;
+    title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
+    execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
+    entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    target: Schema.optional<Schema.Struct<{
+        projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    }>>;
+    matches: Schema.optional<Schema.Struct<{
+        toolNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        customMessageNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    }>>;
+    icon: Schema.optional<Schema.Union<[Schema.filter<Schema.filter<typeof Schema.String>>, Schema.Struct<{
+        svg: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    }>]>>;
+}>>;
 export declare const extensionSessionSummaryActionSchema: Schema.Struct<{
     family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
     contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
@@ -6470,6 +6678,9 @@ export declare const extensionContributionsSchema: Schema.Struct<{
             customMessageNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
             interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
         }>>;
+        icon: Schema.optional<Schema.Union<[Schema.filter<Schema.filter<typeof Schema.String>>, Schema.Struct<{
+            svg: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        }>]>>;
     }>>>>;
     dialogs: Schema.optional<Schema.Array$<Schema.filter<Schema.Struct<{
         capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
@@ -6658,6 +6869,31 @@ export declare const extensionRouteContributionRegistrationSchema: Schema.Struct
         }>>;
     }>>;
 }>;
+export declare const extensionSidePanelContributionRegistrationSchema: Schema.Struct<{
+    family: Schema.Literal<["sidePanels"]>;
+    contribution: Schema.filter<Schema.Struct<{
+        capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
+        entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        target: Schema.optional<Schema.Struct<{
+            projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        matches: Schema.optional<Schema.Struct<{
+            toolNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            customMessageNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        icon: Schema.optional<Schema.Union<[Schema.filter<Schema.filter<typeof Schema.String>>, Schema.Struct<{
+            svg: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        }>]>>;
+    }>>;
+}>;
 export declare const extensionSlotContributionRegistrationSchema: Schema.Struct<{
     family: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
     contribution: Schema.filter<Schema.Struct<{
@@ -6754,6 +6990,30 @@ export declare const extensionContributionRegistrationSchema: Schema.Union<[Sche
         }>>;
     }>>;
 }>, Schema.Struct<{
+    family: Schema.Literal<["sidePanels"]>;
+    contribution: Schema.filter<Schema.Struct<{
+        capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
+        entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        target: Schema.optional<Schema.Struct<{
+            projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        matches: Schema.optional<Schema.Struct<{
+            toolNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            customMessageNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        icon: Schema.optional<Schema.Union<[Schema.filter<Schema.filter<typeof Schema.String>>, Schema.Struct<{
+            svg: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        }>]>>;
+    }>>;
+}>, Schema.Struct<{
     family: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
     contribution: Schema.filter<Schema.Struct<{
         capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
@@ -6821,7 +7081,9 @@ export type ExtensionCommandContribution = SchemaType<typeof extensionCommandCon
 export type ExtensionContributions = SchemaType<typeof extensionContributionsSchema>;
 export type ExtensionContributionRegistration = SchemaType<typeof extensionContributionRegistrationSchema>;
 export type ExtensionContributionUnregistration = SchemaType<typeof extensionContributionUnregistrationSchema>;
-export type ExtensionEntryContribution = SchemaType<typeof extensionRouteContributionSchema> | SchemaType<typeof extensionSlotContributionSchema>;
+export type ExtensionSidePanelIcon = SchemaType<typeof extensionSidePanelIconSchema>;
+export type ExtensionSidePanelContribution = SchemaType<typeof extensionSidePanelContributionSchema>;
+export type ExtensionEntryContribution = SchemaType<typeof extensionRouteContributionSchema> | SchemaType<typeof extensionSlotContributionSchema> | ExtensionSidePanelContribution;
 export type ExtensionSessionSummaryContribution = SchemaType<typeof extensionSessionSummaryContributionSchema>;
 ```
 
@@ -6842,6 +7104,8 @@ export declare const extensionContributionIdSchema: Schema.filter<Schema.filter<
 export declare const extensionSemverVersionSchema: Schema.filter<Schema.filter<typeof Schema.String>>;
 export declare const extensionRelativePathSchema: Schema.filter<Schema.filter<typeof Schema.String>>;
 export declare const extensionContributionEntryPathSchema: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+export declare const extensionLucideIconNameSchema: Schema.filter<Schema.filter<typeof Schema.String>>;
+export declare const extensionSvgIconPathSchema: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
 export declare const extensionCapabilityScopeSchema: Schema.Literal<["app", "project", "session", "branch"]>;
 export declare const extensionContributionRuntimeSchema: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
 export declare const extensionExecutionPlacementSchema: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
@@ -8347,6 +8611,9 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
                 customMessageNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
                 interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
             }>>;
+            icon: Schema.optional<Schema.Union<[Schema.filter<Schema.filter<typeof Schema.String>>, Schema.Struct<{
+                svg: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            }>]>>;
         }>>>>;
         dialogs: Schema.optional<Schema.Array$<Schema.filter<Schema.Struct<{
             capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
@@ -8801,6 +9068,35 @@ export declare const extensionSlotContributionSchema: Schema.filter<Schema.Struc
         interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
     }>>;
 }>>;
+/**
+ * A side panel's Panel rail icon: a bundled Lucide icon name in kebab-case, or a package-relative
+ * single-colour `.svg` file. OpenWaggle uses only the icon's shape and paints it in its own colours.
+ */
+export declare const extensionSidePanelIconSchema: Schema.Union<[Schema.filter<Schema.filter<typeof Schema.String>>, Schema.Struct<{
+    svg: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+}>]>;
+export declare const extensionSidePanelContributionSchema: Schema.filter<Schema.Struct<{
+    capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    id: Schema.filter<Schema.filter<typeof Schema.String>>;
+    title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
+    execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
+    entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    target: Schema.optional<Schema.Struct<{
+        projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    }>>;
+    matches: Schema.optional<Schema.Struct<{
+        toolNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        customMessageNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    }>>;
+    icon: Schema.optional<Schema.Union<[Schema.filter<Schema.filter<typeof Schema.String>>, Schema.Struct<{
+        svg: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    }>]>>;
+}>>;
 export declare const extensionSessionSummaryActionSchema: Schema.Struct<{
     family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
     contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
@@ -8947,6 +9243,9 @@ export declare const extensionContributionsSchema: Schema.Struct<{
             customMessageNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
             interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
         }>>;
+        icon: Schema.optional<Schema.Union<[Schema.filter<Schema.filter<typeof Schema.String>>, Schema.Struct<{
+            svg: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        }>]>>;
     }>>>>;
     dialogs: Schema.optional<Schema.Array$<Schema.filter<Schema.Struct<{
         capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
@@ -9135,6 +9434,31 @@ export declare const extensionRouteContributionRegistrationSchema: Schema.Struct
         }>>;
     }>>;
 }>;
+export declare const extensionSidePanelContributionRegistrationSchema: Schema.Struct<{
+    family: Schema.Literal<["sidePanels"]>;
+    contribution: Schema.filter<Schema.Struct<{
+        capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
+        entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        target: Schema.optional<Schema.Struct<{
+            projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        matches: Schema.optional<Schema.Struct<{
+            toolNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            customMessageNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        icon: Schema.optional<Schema.Union<[Schema.filter<Schema.filter<typeof Schema.String>>, Schema.Struct<{
+            svg: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        }>]>>;
+    }>>;
+}>;
 export declare const extensionSlotContributionRegistrationSchema: Schema.Struct<{
     family: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
     contribution: Schema.filter<Schema.Struct<{
@@ -9231,6 +9555,30 @@ export declare const extensionContributionRegistrationSchema: Schema.Union<[Sche
         }>>;
     }>>;
 }>, Schema.Struct<{
+    family: Schema.Literal<["sidePanels"]>;
+    contribution: Schema.filter<Schema.Struct<{
+        capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
+        entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        target: Schema.optional<Schema.Struct<{
+            projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        matches: Schema.optional<Schema.Struct<{
+            toolNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            customMessageNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        icon: Schema.optional<Schema.Union<[Schema.filter<Schema.filter<typeof Schema.String>>, Schema.Struct<{
+            svg: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        }>]>>;
+    }>>;
+}>, Schema.Struct<{
     family: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
     contribution: Schema.filter<Schema.Struct<{
         capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
@@ -9298,7 +9646,9 @@ export type ExtensionCommandContribution = SchemaType<typeof extensionCommandCon
 export type ExtensionContributions = SchemaType<typeof extensionContributionsSchema>;
 export type ExtensionContributionRegistration = SchemaType<typeof extensionContributionRegistrationSchema>;
 export type ExtensionContributionUnregistration = SchemaType<typeof extensionContributionUnregistrationSchema>;
-export type ExtensionEntryContribution = SchemaType<typeof extensionRouteContributionSchema> | SchemaType<typeof extensionSlotContributionSchema>;
+export type ExtensionSidePanelIcon = SchemaType<typeof extensionSidePanelIconSchema>;
+export type ExtensionSidePanelContribution = SchemaType<typeof extensionSidePanelContributionSchema>;
+export type ExtensionEntryContribution = SchemaType<typeof extensionRouteContributionSchema> | SchemaType<typeof extensionSlotContributionSchema> | ExtensionSidePanelContribution;
 export type ExtensionSessionSummaryContribution = SchemaType<typeof extensionSessionSummaryContributionSchema>;
 ```
 
@@ -9319,6 +9669,8 @@ export declare const extensionContributionIdSchema: Schema.filter<Schema.filter<
 export declare const extensionSemverVersionSchema: Schema.filter<Schema.filter<typeof Schema.String>>;
 export declare const extensionRelativePathSchema: Schema.filter<Schema.filter<typeof Schema.String>>;
 export declare const extensionContributionEntryPathSchema: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+export declare const extensionLucideIconNameSchema: Schema.filter<Schema.filter<typeof Schema.String>>;
+export declare const extensionSvgIconPathSchema: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
 export declare const extensionCapabilityScopeSchema: Schema.Literal<["app", "project", "session", "branch"]>;
 export declare const extensionContributionRuntimeSchema: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
 export declare const extensionExecutionPlacementSchema: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
@@ -9520,6 +9872,9 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
                 customMessageNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
                 interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
             }>>;
+            icon: Schema.optional<Schema.Union<[Schema.filter<Schema.filter<typeof Schema.String>>, Schema.Struct<{
+                svg: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            }>]>>;
         }>>>>;
         dialogs: Schema.optional<Schema.Array$<Schema.filter<Schema.Struct<{
             capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
@@ -9974,6 +10329,35 @@ export declare const extensionSlotContributionSchema: Schema.filter<Schema.Struc
         interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
     }>>;
 }>>;
+/**
+ * A side panel's Panel rail icon: a bundled Lucide icon name in kebab-case, or a package-relative
+ * single-colour `.svg` file. OpenWaggle uses only the icon's shape and paints it in its own colours.
+ */
+export declare const extensionSidePanelIconSchema: Schema.Union<[Schema.filter<Schema.filter<typeof Schema.String>>, Schema.Struct<{
+    svg: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+}>]>;
+export declare const extensionSidePanelContributionSchema: Schema.filter<Schema.Struct<{
+    capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    id: Schema.filter<Schema.filter<typeof Schema.String>>;
+    title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
+    execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
+    entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    target: Schema.optional<Schema.Struct<{
+        projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    }>>;
+    matches: Schema.optional<Schema.Struct<{
+        toolNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        customMessageNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    }>>;
+    icon: Schema.optional<Schema.Union<[Schema.filter<Schema.filter<typeof Schema.String>>, Schema.Struct<{
+        svg: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    }>]>>;
+}>>;
 export declare const extensionSessionSummaryActionSchema: Schema.Struct<{
     family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
     contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
@@ -10120,6 +10504,9 @@ export declare const extensionContributionsSchema: Schema.Struct<{
             customMessageNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
             interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
         }>>;
+        icon: Schema.optional<Schema.Union<[Schema.filter<Schema.filter<typeof Schema.String>>, Schema.Struct<{
+            svg: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        }>]>>;
     }>>>>;
     dialogs: Schema.optional<Schema.Array$<Schema.filter<Schema.Struct<{
         capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
@@ -10308,6 +10695,31 @@ export declare const extensionRouteContributionRegistrationSchema: Schema.Struct
         }>>;
     }>>;
 }>;
+export declare const extensionSidePanelContributionRegistrationSchema: Schema.Struct<{
+    family: Schema.Literal<["sidePanels"]>;
+    contribution: Schema.filter<Schema.Struct<{
+        capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
+        entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        target: Schema.optional<Schema.Struct<{
+            projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        matches: Schema.optional<Schema.Struct<{
+            toolNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            customMessageNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        icon: Schema.optional<Schema.Union<[Schema.filter<Schema.filter<typeof Schema.String>>, Schema.Struct<{
+            svg: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        }>]>>;
+    }>>;
+}>;
 export declare const extensionSlotContributionRegistrationSchema: Schema.Struct<{
     family: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
     contribution: Schema.filter<Schema.Struct<{
@@ -10404,6 +10816,30 @@ export declare const extensionContributionRegistrationSchema: Schema.Union<[Sche
         }>>;
     }>>;
 }>, Schema.Struct<{
+    family: Schema.Literal<["sidePanels"]>;
+    contribution: Schema.filter<Schema.Struct<{
+        capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
+        entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        target: Schema.optional<Schema.Struct<{
+            projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        matches: Schema.optional<Schema.Struct<{
+            toolNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            customMessageNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        icon: Schema.optional<Schema.Union<[Schema.filter<Schema.filter<typeof Schema.String>>, Schema.Struct<{
+            svg: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        }>]>>;
+    }>>;
+}>, Schema.Struct<{
     family: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
     contribution: Schema.filter<Schema.Struct<{
         capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
@@ -10471,7 +10907,9 @@ export type ExtensionCommandContribution = SchemaType<typeof extensionCommandCon
 export type ExtensionContributions = SchemaType<typeof extensionContributionsSchema>;
 export type ExtensionContributionRegistration = SchemaType<typeof extensionContributionRegistrationSchema>;
 export type ExtensionContributionUnregistration = SchemaType<typeof extensionContributionUnregistrationSchema>;
-export type ExtensionEntryContribution = SchemaType<typeof extensionRouteContributionSchema> | SchemaType<typeof extensionSlotContributionSchema>;
+export type ExtensionSidePanelIcon = SchemaType<typeof extensionSidePanelIconSchema>;
+export type ExtensionSidePanelContribution = SchemaType<typeof extensionSidePanelContributionSchema>;
+export type ExtensionEntryContribution = SchemaType<typeof extensionRouteContributionSchema> | SchemaType<typeof extensionSlotContributionSchema> | ExtensionSidePanelContribution;
 export type ExtensionSessionSummaryContribution = SchemaType<typeof extensionSessionSummaryContributionSchema>;
 ```
 
@@ -10492,6 +10930,8 @@ export declare const extensionContributionIdSchema: Schema.filter<Schema.filter<
 export declare const extensionSemverVersionSchema: Schema.filter<Schema.filter<typeof Schema.String>>;
 export declare const extensionRelativePathSchema: Schema.filter<Schema.filter<typeof Schema.String>>;
 export declare const extensionContributionEntryPathSchema: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+export declare const extensionLucideIconNameSchema: Schema.filter<Schema.filter<typeof Schema.String>>;
+export declare const extensionSvgIconPathSchema: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
 export declare const extensionCapabilityScopeSchema: Schema.Literal<["app", "project", "session", "branch"]>;
 export declare const extensionContributionRuntimeSchema: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
 export declare const extensionExecutionPlacementSchema: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
@@ -12073,6 +12513,9 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
                 customMessageNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
                 interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
             }>>;
+            icon: Schema.optional<Schema.Union<[Schema.filter<Schema.filter<typeof Schema.String>>, Schema.Struct<{
+                svg: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            }>]>>;
         }>>>>;
         dialogs: Schema.optional<Schema.Array$<Schema.filter<Schema.Struct<{
             capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
@@ -12332,6 +12775,35 @@ export declare const extensionSlotContributionSchema: Schema.filter<Schema.Struc
         interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
     }>>;
 }>>;
+/**
+ * A side panel's Panel rail icon: a bundled Lucide icon name in kebab-case, or a package-relative
+ * single-colour `.svg` file. OpenWaggle uses only the icon's shape and paints it in its own colours.
+ */
+export declare const extensionSidePanelIconSchema: Schema.Union<[Schema.filter<Schema.filter<typeof Schema.String>>, Schema.Struct<{
+    svg: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+}>]>;
+export declare const extensionSidePanelContributionSchema: Schema.filter<Schema.Struct<{
+    capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    id: Schema.filter<Schema.filter<typeof Schema.String>>;
+    title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
+    execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
+    entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    target: Schema.optional<Schema.Struct<{
+        projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    }>>;
+    matches: Schema.optional<Schema.Struct<{
+        toolNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        customMessageNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    }>>;
+    icon: Schema.optional<Schema.Union<[Schema.filter<Schema.filter<typeof Schema.String>>, Schema.Struct<{
+        svg: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    }>]>>;
+}>>;
 export declare const extensionSessionSummaryActionSchema: Schema.Struct<{
     family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
     contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
@@ -12478,6 +12950,9 @@ export declare const extensionContributionsSchema: Schema.Struct<{
             customMessageNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
             interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
         }>>;
+        icon: Schema.optional<Schema.Union<[Schema.filter<Schema.filter<typeof Schema.String>>, Schema.Struct<{
+            svg: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        }>]>>;
     }>>>>;
     dialogs: Schema.optional<Schema.Array$<Schema.filter<Schema.Struct<{
         capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
@@ -12666,6 +13141,31 @@ export declare const extensionRouteContributionRegistrationSchema: Schema.Struct
         }>>;
     }>>;
 }>;
+export declare const extensionSidePanelContributionRegistrationSchema: Schema.Struct<{
+    family: Schema.Literal<["sidePanels"]>;
+    contribution: Schema.filter<Schema.Struct<{
+        capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
+        entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        target: Schema.optional<Schema.Struct<{
+            projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        matches: Schema.optional<Schema.Struct<{
+            toolNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            customMessageNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        icon: Schema.optional<Schema.Union<[Schema.filter<Schema.filter<typeof Schema.String>>, Schema.Struct<{
+            svg: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        }>]>>;
+    }>>;
+}>;
 export declare const extensionSlotContributionRegistrationSchema: Schema.Struct<{
     family: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
     contribution: Schema.filter<Schema.Struct<{
@@ -12762,6 +13262,30 @@ export declare const extensionContributionRegistrationSchema: Schema.Union<[Sche
         }>>;
     }>>;
 }>, Schema.Struct<{
+    family: Schema.Literal<["sidePanels"]>;
+    contribution: Schema.filter<Schema.Struct<{
+        capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
+        entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        target: Schema.optional<Schema.Struct<{
+            projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        matches: Schema.optional<Schema.Struct<{
+            toolNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            customMessageNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        icon: Schema.optional<Schema.Union<[Schema.filter<Schema.filter<typeof Schema.String>>, Schema.Struct<{
+            svg: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        }>]>>;
+    }>>;
+}>, Schema.Struct<{
     family: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
     contribution: Schema.filter<Schema.Struct<{
         capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
@@ -12829,7 +13353,9 @@ export type ExtensionCommandContribution = SchemaType<typeof extensionCommandCon
 export type ExtensionContributions = SchemaType<typeof extensionContributionsSchema>;
 export type ExtensionContributionRegistration = SchemaType<typeof extensionContributionRegistrationSchema>;
 export type ExtensionContributionUnregistration = SchemaType<typeof extensionContributionUnregistrationSchema>;
-export type ExtensionEntryContribution = SchemaType<typeof extensionRouteContributionSchema> | SchemaType<typeof extensionSlotContributionSchema>;
+export type ExtensionSidePanelIcon = SchemaType<typeof extensionSidePanelIconSchema>;
+export type ExtensionSidePanelContribution = SchemaType<typeof extensionSidePanelContributionSchema>;
+export type ExtensionEntryContribution = SchemaType<typeof extensionRouteContributionSchema> | SchemaType<typeof extensionSlotContributionSchema> | ExtensionSidePanelContribution;
 export type ExtensionSessionSummaryContribution = SchemaType<typeof extensionSessionSummaryContributionSchema>;
 ```
 
@@ -12850,6 +13376,8 @@ export declare const extensionContributionIdSchema: Schema.filter<Schema.filter<
 export declare const extensionSemverVersionSchema: Schema.filter<Schema.filter<typeof Schema.String>>;
 export declare const extensionRelativePathSchema: Schema.filter<Schema.filter<typeof Schema.String>>;
 export declare const extensionContributionEntryPathSchema: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+export declare const extensionLucideIconNameSchema: Schema.filter<Schema.filter<typeof Schema.String>>;
+export declare const extensionSvgIconPathSchema: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
 export declare const extensionCapabilityScopeSchema: Schema.Literal<["app", "project", "session", "branch"]>;
 export declare const extensionContributionRuntimeSchema: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
 export declare const extensionExecutionPlacementSchema: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
