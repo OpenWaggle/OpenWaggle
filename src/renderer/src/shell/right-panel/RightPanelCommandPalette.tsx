@@ -21,7 +21,11 @@ const LazyGlobalCommandPalette = lazy(() =>
 /** The command palette with each panel's reason it cannot open here (ADR 0043). */
 export function RightPanelCommandPalette({ chatRoute }: { readonly chatRoute: boolean }) {
   const model = useRightPanelModel(chatRoute)
-  const disabledReason = (id: RightPanelSurfaceId) =>
-    chatRoute ? (model.surfaces.find((surface) => surface.id === id)?.disabledReason ?? null) : null
+  const disabledReason = (id: RightPanelSurfaceId) => {
+    if (chatRoute)
+      return model.surfaces.find((surface) => surface.id === id)?.disabledReason ?? null
+    if (isExtensionRightPanelSurfaceId(id) || OPENS_WITHOUT_RIGHT_PANEL.has(id)) return null
+    return OPEN_A_SESSION_FIRST
+  }
   return <LazyGlobalCommandPalette panelDisabledReason={disabledReason} />
 }

@@ -19,7 +19,6 @@ import { usePinnedSessionShortcuts, useSidebarSearchShortcut } from '@/features/
 import { terminalOwnerContext, useTerminalCommands } from '@/features/terminal'
 import { extensionContributionsQueryOptions } from '@/queries/extensions'
 import {
-  type ExtensionRightPanelSurfaceId,
   hasRightPanelController,
   isExtensionRightPanelSurfaceId,
   type RightPanelSurfaceId,

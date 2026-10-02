@@ -56,9 +56,9 @@ function useRouteHasPanel() {
  * later choice or navigate back to the Session it started in.
  */
 function useSurfaceRequests(sessionKey: string | null) {
-  const surfaceRequest = useRef(0)
+  const surfaceRequest = useRef({ sessionKey, request: 0 })
   useEffect(() => {
-    surfaceRequest.current += 1
+    surfaceRequest.current = { sessionKey, request: surfaceRequest.current.request + 1 }
   }, [sessionKey])
   return surfaceRequest
 }
@@ -127,7 +127,7 @@ export function useRightPanelController(model: RightPanelModel, workingPath: str
     const remembered = sessionRightPanelMemory(sessionKey).lastFilePath
     // The check runs before anything closes, so switching to Files never flashes a closed panel.
     void existingWorkspaceFile(workingPath, remembered).then((filePath) => {
-      if (request !== surfaceRequest.current) return
+      if (request !== surfaceRequest.current.request) return
       hideWorkspacePanel()
       if (filePath === null) {
         route.open({ panel: 'file' }, workspaceFileRightSidebarRequest('', null))
@@ -145,8 +145,8 @@ export function useRightPanelController(model: RightPanelModel, workingPath: str
       return
     }
     if (entry.extension !== null) useRightPanelRailStore.getState().acknowledge([id])
-    surfaceRequest.current += 1
-    const request = surfaceRequest.current
+    const request = surfaceRequest.current.request + 1
+    surfaceRequest.current = { ...surfaceRequest.current, request }
     match(id)
       .with('changes', () => {
         hideWorkspacePanel()
