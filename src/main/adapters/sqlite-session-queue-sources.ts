@@ -5,15 +5,20 @@ import * as Effect from 'effect/Effect'
 import { profileId, sourceSessionId } from './session-follow-up-authority-support'
 
 /** The Message provenance fields that name who queued a Follow-up. */
-const intentSourceSchema = Schema.Struct({ callerId: Schema.String })
+const intentSourceSchema = Schema.Struct({
+  callerId: Schema.String,
+  authorCallerId: Schema.optional(Schema.String),
+})
 
 /**
- * Who queued an intent. The source is display-only, like `returnedSteer`, so an intent without
- * one lists without a source instead of failing the whole queue read.
+ * Who queued an intent: its author. Sending a Follow-up as the desktop user (`queue-adopt`) makes
+ * that user its `callerId` and keeps whoever queued it as `authorCallerId`. The source is
+ * display-only, like `returnedSteer`, so an intent without one lists without a source instead of
+ * failing the whole queue read.
  */
-function intentCallerId(intentJson: string) {
+function intentAuthorCallerId(intentJson: string) {
   const decoded = safeDecodeUnknown(intentSourceSchema, parseJsonUnknown(intentJson))
-  return decoded.success ? decoded.data.callerId : undefined
+  return decoded.success ? (decoded.data.authorCallerId ?? decoded.data.callerId) : undefined
 }
 
 function profileNames(sql: SqlClient.SqlClient, ids: readonly string[]) {
@@ -36,7 +41,7 @@ export function queueListSources(
 ) {
   return Effect.gen(function* () {
     const callers = input.rows.flatMap((row) => {
-      const callerId = intentCallerId(row.intent_json)
+      const callerId = intentAuthorCallerId(row.intent_json)
       return callerId ? [[row.id, callerId] as const] : []
     })
     const names = input.desktopUser

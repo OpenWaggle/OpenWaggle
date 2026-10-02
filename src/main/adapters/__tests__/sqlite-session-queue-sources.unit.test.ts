@@ -40,6 +40,8 @@ const queuedFromEverySource = Effect.gen(function* () {
     { id: 'from-profile', callerId: 'profile:profile-ci' },
     { id: 'from-unknown-profile', callerId: 'profile:profile-gone' },
     { id: 'from-mcp', callerId: 'transient-mcp:client-1' },
+    // Sent as the desktop user (queue-adopt): the source stays the profile that queued it.
+    { id: 'adopted', callerId: USER, authorCallerId: 'profile:profile-ci' },
   ]
   for (const [position, intent] of intents.entries()) {
     yield* sql`
@@ -70,7 +72,7 @@ describe('queue-list Follow-up sources', () => {
     if (tmpRoot) await fs.rm(tmpRoot, { recursive: true, force: true })
   })
 
-  it('names the caller, its agent Session, and, for the desktop user, its CLI profile', async () => {
+  it('names the author, its agent Session, and, for the desktop user, its CLI profile', async () => {
     const result = await Effect.runPromise(
       Effect.gen(function* () {
         const sql = yield* queuedFromEverySource
@@ -89,6 +91,7 @@ describe('queue-list Follow-up sources', () => {
       { callerId: 'profile:profile-ci', profileName: 'ci-bot' },
       { callerId: 'profile:profile-gone' },
       { callerId: 'transient-mcp:client-1' },
+      { callerId: 'profile:profile-ci', profileName: 'ci-bot' },
     ])
     expect(queueSources(result.agent.outcome)[2]).toEqual({ callerId: 'profile:profile-ci' })
   })

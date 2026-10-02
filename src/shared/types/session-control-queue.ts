@@ -132,7 +132,8 @@ export interface SessionFollowUpEditHoldSummary {
 }
 
 /**
- * Who queued a Follow-up, from its Message provenance.
+ * Who queued a Follow-up, from its Message provenance: its author, which stays the same when the
+ * desktop user sends it as themselves.
  * `sessionId` is set for an agent Session caller (`session-agent:<session>:<run>`), and
  * `profileName` for a CLI profile caller (`profile:<id>`) when the desktop user lists the queue.
  */
