@@ -1,4 +1,5 @@
 import { lazy } from 'react'
+import { useGit } from '@/features/git/hooks'
 import {
   isExtensionRightPanelSurfaceId,
   type RightPanelSurfaceId,
@@ -22,6 +23,7 @@ const LazyGlobalCommandPalette = lazy(() =>
 /** The command palette with each panel's reason it cannot open here (ADR 0043). */
 export function RightPanelCommandPalette({ chatRoute }: { readonly chatRoute: boolean }) {
   const model = useRightPanelModel(chatRoute)
+  const git = useGit()
   const disabledReason = (id: RightPanelSurfaceId) => {
     if (chatRoute) {
       const surface = model.surfaces.find((entry) => entry.id === id)
@@ -32,5 +34,10 @@ export function RightPanelCommandPalette({ chatRoute }: { readonly chatRoute: bo
     if (isExtensionRightPanelSurfaceId(id) || OPENS_WITHOUT_RIGHT_PANEL.has(id)) return null
     return OPEN_A_SESSION_FIRST
   }
-  return <LazyGlobalCommandPalette panelDisabledReason={disabledReason} />
+  return (
+    <LazyGlobalCommandPalette
+      panelDisabledReason={disabledReason}
+      panelProjectPath={git.workingPath ?? model.projectPath}
+    />
+  )
 }

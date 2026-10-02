@@ -76,9 +76,17 @@ function handlePaletteKeyDown(
 interface GlobalCommandPaletteProps {
   /** Why a Right panel surface cannot be shown now; supplied by the Right panel owner. */
   readonly panelDisabledReason?: RightPanelSurfaceDisabledReason
+  /**
+   * The checkout the Panel rail asks about (a worktree Session's working path), so the palette
+   * lists the same extension panels as the rail. Defaults to the project path.
+   */
+  readonly panelProjectPath?: string | null
 }
 
-export function GlobalCommandPalette({ panelDisabledReason }: GlobalCommandPaletteProps = {}) {
+export function GlobalCommandPalette({
+  panelDisabledReason,
+  panelProjectPath,
+}: GlobalCommandPaletteProps = {}) {
   const { actions, close, projectPath, sessionId, sessions, settings } = useGlobalCommandActions()
   const extensionActions = useGlobalExtensionActions({ projectPath, sessionId })
   const projectActions = useProjectActions(projectPath).data ?? []
@@ -90,6 +98,10 @@ export function GlobalCommandPalette({ panelDisabledReason }: GlobalCommandPalet
   const { data: extensionContributions = null } = useQuery(
     extensionContributionsQueryOptions(projectPath ? [projectPath] : [], { sessionId }),
   )
+  const panelPath = panelProjectPath ?? projectPath
+  const { data: panelContributions = null } = useQuery(
+    extensionContributionsQueryOptions(panelPath ? [panelPath] : [], { sessionId }),
+  )
   const extensionItems = createExtensionCommandItems({
     registry: extensionContributions,
     lowerQuery: '',
@@ -100,7 +112,7 @@ export function GlobalCommandPalette({ panelDisabledReason }: GlobalCommandPalet
   const panelItems = createPanelCommandItems({
     settings,
     // Panels that only need trust or an update are listed too; the Right panel names why.
-    extensionPanels: extensionSidePanelSurfaces(extensionContributions).filter(
+    extensionPanels: extensionSidePanelSurfaces(panelContributions).filter(
       (panel) => panel.openable || panel.cannotRunYet,
     ),
     disabledReason: panelDisabledReason,
