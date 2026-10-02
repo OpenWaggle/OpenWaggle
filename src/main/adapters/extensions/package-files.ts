@@ -4,7 +4,7 @@ import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import { formatErrorMessage, isEnoent } from '@shared/utils/node-error'
 import type { ExtensionDiagnostic, ExtensionDiagnosticCode } from '../../extensions/types'
 import { normalizeManifestRelativePath } from './content-hash-input'
-import { readOptionalHashFiles } from './optional-hash-files'
+import { updateHashWithOptionalFiles } from './optional-hash-files'
 import { resolvePackageRelativePath, resolveSafePackageFilePath } from './package-relative-paths'
 
 export { resolveSafePackageFilePath } from './package-relative-paths'
@@ -241,14 +241,7 @@ export async function calculateContentHash(
     hash.update(fileRead.content)
     hash.update(FIELD_SEPARATOR)
   }
-  for (const optionalFile of await readOptionalHashFiles(packagePath, input.optionalFiles ?? [])) {
-    hash.update(OPENWAGGLE_EXTENSION.HASH.OPTIONAL_FILE_LABEL)
-    hash.update(FIELD_SEPARATOR)
-    hash.update(optionalFile.relativePath)
-    hash.update(FIELD_SEPARATOR)
-    hash.update(optionalFile.content)
-    hash.update(FIELD_SEPARATOR)
-  }
+  await updateHashWithOptionalFiles(hash, packagePath, input.optionalFiles ?? [])
 
   return {
     contentHash: diagnostics.length === 0 ? hash.digest(OPENWAGGLE_EXTENSION.HASH.ENCODING) : null,

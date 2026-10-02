@@ -2,12 +2,15 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { SVG_ICON_MAX_BYTES } from '../../../domain/extension-panel-icon/svg-icon-sanitizer'
 import { getContentHashRelativePaths, getManifestContentHashInput } from '../content-hash-input'
 import { calculateContentHash } from '../package-files'
 
 let tmpRoot = ''
 
 const MANIFEST = '{"manifestVersion":1}'
+/** sha256 of the manifest and artifact fields alone, the encoding used before optional files. */
+const NO_OPTIONAL_FILES_HASH = '9c08bfbe50cd0105cbd7e43aee9e37154fe749b69ac268cac36c3eacc527957d'
 const HASH_INPUT = {
   builtArtifacts: ['dist/index.js'],
   runtimeFiles: [],
@@ -71,5 +74,34 @@ describe('optional files in the extension content hash', () => {
     const edited = await contentHash()
 
     expect(new Set([missing, added, edited]).size).toBe(3)
+  })
+
+  it('keeps marker states apart from file content that spells the marker', async () => {
+    const missing = await contentHash()
+    await writeText('assets/icon.svg', 'missing')
+    const spelledMissing = await contentHash()
+    await writeText('assets/icon.svg', 'x'.repeat(SVG_ICON_MAX_BYTES + 1))
+    const oversized = await contentHash()
+    await writeText('assets/icon.svg', 'oversized')
+    const spelledOversized = await contentHash()
+
+    expect(new Set([missing, spelledMissing, oversized, spelledOversized]).size).toBe(4)
+  })
+
+  it('treats a directory at the optional path as missing', async () => {
+    const missing = await contentHash()
+    await fs.mkdir(path.join(tmpRoot, 'assets/icon.svg'), { recursive: true })
+
+    expect(await contentHash()).toBe(missing)
+  })
+
+  it('leaves the hash of a package without optional files unchanged', async () => {
+    const result = await calculateContentHash(tmpRoot, MANIFEST, {
+      builtArtifacts: ['dist/index.js'],
+      runtimeFiles: [],
+    })
+
+    // Pinned: packages that declare no SVG icon must keep the hash they had before icons existed.
+    expect(result.contentHash).toBe(NO_OPTIONAL_FILES_HASH)
   })
 })
