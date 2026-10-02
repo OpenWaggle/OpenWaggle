@@ -10,6 +10,7 @@ import {
   resolveStoredBrowserSettings,
 } from './browser-settings-snapshot'
 import { resolveNextDiffAndAppearanceSettings } from './diff-appearance-settings-snapshot'
+import { sanitizeExtensionPanelShortcutBindings } from './extension-panel-shortcut-sanitizer'
 import {
   SETTINGS_KEY_AGENT_DEFINITION_TOGGLES_BY_PROJECT,
   SETTINGS_KEY_APPEARANCE_PREFERENCES,
@@ -21,6 +22,7 @@ import {
   SETTINGS_KEY_DIFF_VIEW,
   SETTINGS_KEY_DIFF_WRAP_LINES,
   SETTINGS_KEY_ENABLED_MODELS,
+  SETTINGS_KEY_EXTENSION_PANEL_SHORTCUT_BINDINGS,
   SETTINGS_KEY_FAVORITE_MODELS,
   SETTINGS_KEY_PROJECT_DISPLAY_NAMES,
   SETTINGS_KEY_PROJECT_PATH,
@@ -133,6 +135,9 @@ export function buildSettingsSnapshot(storedSettings: Readonly<Record<string, un
         : shortcutRulesFromBindings(legacyShortcutBindings)),
   )
   const shortcutBindings = shortcutBindingsFromRules(shortcutRules)
+  const extensionPanelShortcutBindings = sanitizeExtensionPanelShortcutBindings(
+    getStoredValue(storedSettings, SETTINGS_KEY_EXTENSION_PANEL_SHORTCUT_BINDINGS),
+  )
   const defaultSessionEnvironmentMode = resolveDefaultSessionEnvironmentMode(
     getStoredValue(storedSettings, SETTINGS_KEY_DEFAULT_SESSION_ENVIRONMENT_MODE),
   )
@@ -177,6 +182,7 @@ export function buildSettingsSnapshot(storedSettings: Readonly<Record<string, un
       ...resolveStoredProjectPathAliases(storedSettings),
       shortcutRules,
       shortcutBindings,
+      extensionPanelShortcutBindings,
       defaultSessionEnvironmentMode,
       defaultAuthorizationMode,
       diffSyntaxTheme,
@@ -265,6 +271,11 @@ function resolveNextCoreSettings(current: Settings, partial: Partial<Settings>) 
   )
   const shortcutRules = shortcutRulesWithDefaults(resolveNextShortcutRules(current, partial))
   const shortcutBindings = shortcutBindingsFromRules(shortcutRules)
+  const extensionPanelShortcutBindings = resolveUpdatedSetting(
+    partial.extensionPanelShortcutBindings,
+    current.extensionPanelShortcutBindings,
+    sanitizeExtensionPanelShortcutBindings,
+  )
   const defaultSessionEnvironmentMode = resolveValidatedSetting(
     partial.defaultSessionEnvironmentMode,
     current.defaultSessionEnvironmentMode,
@@ -288,6 +299,7 @@ function resolveNextCoreSettings(current: Settings, partial: Partial<Settings>) 
     projectDisplayNames,
     shortcutRules,
     shortcutBindings,
+    extensionPanelShortcutBindings,
     defaultSessionEnvironmentMode,
     defaultAuthorizationMode,
   }

@@ -41,6 +41,10 @@ function mergeGeneralSettings(current: Settings, partial: Partial<Settings>) {
     ),
     shortcutRules: nextSetting(current.shortcutRules, partial.shortcutRules),
     shortcutBindings: nextSetting(current.shortcutBindings, partial.shortcutBindings),
+    extensionPanelShortcutBindings: nextSetting(
+      current.extensionPanelShortcutBindings,
+      partial.extensionPanelShortcutBindings,
+    ),
     defaultSessionEnvironmentMode: nextSetting(
       current.defaultSessionEnvironmentMode,
       partial.defaultSessionEnvironmentMode,
@@ -139,6 +143,7 @@ function cloneSettings(settings: Settings): Settings {
       shortcut: { ...rule.shortcut },
     })),
     shortcutBindings: { ...settings.shortcutBindings },
+    extensionPanelShortcutBindings: { ...settings.extensionPanelShortcutBindings },
     sessionHostParentConcurrencyLimitsByProject: {
       ...settings.sessionHostParentConcurrencyLimitsByProject,
     },

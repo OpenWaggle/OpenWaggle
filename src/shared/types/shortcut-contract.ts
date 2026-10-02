@@ -39,6 +39,17 @@ export interface ShortcutBinding {
 
 export type ShortcutBindings = Readonly<Record<ShortcutCommand, ShortcutBinding | null>>
 
+/**
+ * User bindings for extension side panels, keyed by the stable extension Right panel surface id
+ * (`extensionRightPanelSurfaceId`). An absent key is unassigned; extensions cannot declare
+ * defaults, and a binding outlives its extension so a reinstall gets it back (ADR 0043).
+ */
+export type ExtensionPanelShortcutBindings = Readonly<Record<string, ShortcutBinding>>
+
+export const EXTENSION_PANEL_SHORTCUT_LIMITS = {
+  BINDINGS: 256,
+} as const
+
 export const SHORTCUT_RULE_LIMITS = {
   KEY_LENGTH: 64,
   RULES: 256,
