@@ -2,7 +2,7 @@ import { FollowUpId } from '@shared/types/brand'
 import { describe, expect, it } from 'vitest'
 import { adoptFollowUp } from '../follow-up-adopt'
 import { canEditFollowUp } from '../follow-up-edit'
-import { AGENT, followUp, HOLD, state, USER } from './follow-up-edit.test-fixtures'
+import { AGENT, followUp, HOLD, IDLE, state, USER } from './follow-up-edit.test-fixtures'
 
 const PROFILE = 'profile:ci'
 
@@ -100,6 +100,43 @@ describe('adoptFollowUp', () => {
     })
     if (!own.accepted) throw new Error(own.code)
     expect(own.state.followUpQueue.items[1]?.editHold).toMatchObject({ holdId: 'hold-2' })
+  })
+
+  it.each([
+    ['no reason', {}],
+    ['a revoked profile', { pauseReason: 'profile-revoked' as const }],
+  ])(
+    'resumes a queue its attention paused, with %s, once nothing needs attention',
+    (_case, queue) => {
+      const result = adoptFollowUp({
+        state: state([revoked('stuck'), followUp('next')], IDLE, 'paused', queue),
+        followUpId: FollowUpId('stuck'),
+        callerId: USER,
+        expectedQueueRevision: 4,
+      })
+
+      if (!result.accepted) throw new Error(result.code)
+      expect(result.state.followUpQueue.state).toBe('running')
+      expect(result.state.followUpQueue).not.toHaveProperty('pauseReason')
+      expect(result.outcome).toMatchObject({ queueState: 'running', queueRevision: 5 })
+    },
+  )
+
+  it.each([
+    ['the user paused it', [revoked('stuck')], { pauseReason: 'requested' as const }],
+    ['a failed Run paused it', [revoked('stuck')], { pauseReason: 'run-failed' as const }],
+    ['another Follow-up still needs attention', [revoked('stuck'), revoked('other')], {}],
+  ])('keeps the queue paused when %s', (_case, items, queue) => {
+    const result = adoptFollowUp({
+      state: state(items, IDLE, 'paused', queue),
+      followUpId: FollowUpId('stuck'),
+      callerId: USER,
+      expectedQueueRevision: 4,
+    })
+
+    if (!result.accepted) throw new Error(result.code)
+    expect(result.state.followUpQueue).toMatchObject({ state: 'paused', ...queue })
+    expect(result.outcome).toMatchObject({ queueState: 'paused' })
   })
 
   it.each([

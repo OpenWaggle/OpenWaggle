@@ -2,79 +2,19 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import * as SqlClient from '@effect/sql/SqlClient'
-import { SESSION_CONTROL_CONTRACT_VERSION } from '@shared/types/session-control'
-import { FOLLOW_UP_EDIT_CALLER_ID } from '@shared/types/session-control-queue'
 import * as Effect from 'effect/Effect'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { adoptSessionFollowUp } from '../../application/session-control-queue-adopt-service'
-import { submitSessionMessage } from '../../application/session-control-service'
 import { loadSessionControlState } from '../sqlite-session-control-state'
 import { followUpEditLayer, idleQueue } from './sqlite-follow-up-edit-hold.test-support'
+import {
+  adopt,
+  PROFILE,
+  SESSION,
+  STUCK_INTENT,
+  startRunAndQueueStuckFollowUp,
+  USER,
+} from './sqlite-session-control-follow-up-adopt.test-support'
 import { makeSessionControlTestLayer } from './sqlite-session-control-test-layer'
-
-const SESSION = 'session-target'
-const USER = FOLLOW_UP_EDIT_CALLER_ID
-const PROFILE = 'profile:ci'
-
-const STUCK_INTENT = {
-  text: 'Then list every project.',
-  attachmentIds: [],
-  callerId: PROFILE,
-  acceptedAt: 1,
-  idempotencyKey: 'stored-follow-up',
-}
-
-function startRunAndQueueStuckFollowUp() {
-  return Effect.gen(function* () {
-    const sql = yield* SqlClient.SqlClient
-    yield* submitSessionMessage({
-      callerId: USER,
-      request: {
-        contractVersion: SESSION_CONTROL_CONTRACT_VERSION,
-        requestId: 'request-message',
-        idempotencyKey: 'message',
-        command: {
-          operation: 'message',
-          sessionId: SESSION,
-          input: { text: 'Start working.', attachmentIds: [] },
-        },
-      },
-    })
-    yield* sql`
-      INSERT INTO session_follow_ups (
-        id, session_id, position, delivery_state, attention_reason, intent_json,
-        created_at, updated_at
-      ) VALUES (
-        ${'follow-up-stuck'}, ${SESSION}, ${0}, ${'needs_attention'}, ${'profile_revoked'},
-        ${JSON.stringify(STUCK_INTENT)}, ${1}, ${1}
-      )
-    `
-    return (yield* loadSessionControlState(sql, SESSION)).followUpQueue.revision
-  })
-}
-
-function adopt(input: {
-  readonly key: string
-  readonly desktopUser: boolean
-  readonly callerId?: string
-  readonly expectedQueueRevision: number
-}) {
-  return adoptSessionFollowUp({
-    callerId: input.callerId ?? USER,
-    desktopUser: input.desktopUser,
-    request: {
-      contractVersion: SESSION_CONTROL_CONTRACT_VERSION,
-      requestId: `request-${input.key}`,
-      idempotencyKey: input.key,
-      command: {
-        operation: 'queue-adopt',
-        sessionId: SESSION,
-        followUpId: 'follow-up-stuck',
-        expectedQueueRevision: input.expectedQueueRevision,
-      },
-    },
-  })
-}
 
 describe('SQLite Session control: adopting a needs-attention Follow-up', () => {
   let tmpRoot = ''

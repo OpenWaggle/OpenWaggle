@@ -41,6 +41,17 @@ export interface SessionControlIntentSnapshot {
 }
 
 /**
+ * Who owns a Follow-up's attachments: its author. After `queue-adopt` the adopter is `callerId`,
+ * but the attachment rows stay owned by whoever queued it (`authorCallerId`). Every resolve or
+ * release of a Follow-up's attachments must use this owner.
+ */
+export function followUpAttachmentOwner(
+  intent: Pick<SessionControlIntentSnapshot, 'callerId' | 'authorCallerId'>,
+): string {
+  return intent.authorCallerId ?? intent.callerId
+}
+
+/**
  * A Follow-up edit hold: the Host-owned lease that stops queue delivery at this Follow-up while
  * its author edits it. It belongs to the item, so it travels with the item when the queue is
  * reordered. It is lease state, not part of the intent snapshot (see `follow-up-edit.ts`).

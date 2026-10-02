@@ -7,6 +7,7 @@ import { explicitWaggleTerminalResult } from '../application/explicit-waggle-com
 import { runRegisteredExplicitWaggle } from '../application/explicit-waggle-command-runner'
 import { requestSessionTitleRefinement } from '../application/session-title-scheduler'
 import type { WaggleExecutionContext } from '../application/waggle-run-execution-context'
+import { followUpAttachmentOwner } from '../domain/session-control/message-aggregate'
 import { AgentRequestedWaggleService } from '../ports/agent-requested-waggle-service'
 import { SessionControlAttachmentService } from '../ports/session-control-attachment-service'
 import type { SessionControlRunExecutionInput } from '../ports/session-control-run-executor'
@@ -42,8 +43,7 @@ function loadRegisteredRunContext(input: RegisteredRunInput) {
     const resolvedAttachments = yield* attachments.resolve({
       attachmentIds: input.request.intent.attachmentIds,
       sessionId: input.request.sessionId,
-      // An adopted Follow-up's attachments stay its author's.
-      ownerCallerId: input.request.intent.authorCallerId ?? input.request.intent.callerId,
+      ownerCallerId: followUpAttachmentOwner(input.request.intent),
     })
     return {
       requestedWaggle,

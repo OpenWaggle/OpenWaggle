@@ -10,7 +10,10 @@ import {
   applyAcceptedFollowUpPromotion,
   planFollowUpPromotion,
 } from '../domain/session-control/follow-up-promotion'
-import type { SessionControlIntentSnapshot } from '../domain/session-control/message-aggregate'
+import {
+  followUpAttachmentOwner,
+  type SessionControlIntentSnapshot,
+} from '../domain/session-control/message-aggregate'
 import { SessionControlOperationPendingError } from '../errors'
 import { type AgentSteeringInput, AgentSteeringService } from '../ports/agent-steering-service'
 import { SessionControlAttachmentService } from '../ports/session-control-attachment-service'
@@ -79,7 +82,7 @@ function completeClaimedPromotion(input: {
         service.resolve({
           attachmentIds: input.intent.attachmentIds,
           sessionId: input.operation.request.command.sessionId,
-          ownerCallerId: input.intent.callerId,
+          ownerCallerId: followUpAttachmentOwner(input.intent),
         }),
       ),
       Effect.either,
@@ -137,7 +140,7 @@ function completeClaimedPromotion(input: {
           cleanup: releasePromotedAttachments({
             attachmentIds: input.intent.attachmentIds,
             sessionId: input.operation.request.command.sessionId,
-            ownerCallerId: input.intent.callerId,
+            ownerCallerId: followUpAttachmentOwner(input.intent),
           }),
           operation: 'promotion',
           sessionId: input.operation.request.command.sessionId,
