@@ -87,22 +87,25 @@ export function refineSessionTitle(sessionId: SessionId) {
       return
     }
     yield* Effect.gen(function* () {
-      do {
+      let again = true
+      while (again) {
         refineAgain.delete(sessionId)
-        yield* refine(sessionId)
-      } while (refineAgain.has(sessionId))
-    }).pipe(
-      Effect.catchAllCause((cause) =>
-        Effect.sync(() => {
-          logger.warn('Title refinement failed', { sessionId, cause: String(cause) })
-        }),
-      ),
-      Effect.ensuring(
-        Effect.sync(() => {
-          refineAgain.delete(sessionId)
+        yield* refine(sessionId).pipe(
+          Effect.catchAllCause((cause) =>
+            Effect.sync(() => {
+              logger.warn('Title refinement failed', { sessionId, cause: String(cause) })
+            }),
+          ),
+        )
+        // Checking for a trigger and releasing the claim happen in one step, so a trigger that
+        // arrives in between is never left behind a claim nobody holds.
+        again = yield* Effect.sync(() => {
+          if (refineAgain.has(sessionId)) return true
           release()
-        }),
-      ),
-    )
+          return false
+        })
+      }
+      // An interrupted refinement may leave a trigger behind; the next claimant clears it first.
+    }).pipe(Effect.ensuring(Effect.sync(release)))
   })
 }
