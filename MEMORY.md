@@ -422,8 +422,8 @@ Recording is a main/renderer protocol, not merely a `desktopCapturer` grant: suc
 - The selected model is app-DB state, never repo state. `.openwaggle/settings.json` lives inside the
   user's repository, so a personal model pick committed there leaks machine-specific provider config;
   it is stored as `selectedModelsByProject` in the SQLite `settings_store` instead, and the project
-  file writer strips any legacy `preferences.model` on write. `thinkingLevel` and `authorizationMode`
-  stay repo-local by design.
+  file writer strips any legacy `preferences.model` on write. `authorizationMode` stays repo-local by
+  design; `thinkingLevel` is never a project preference (it is Session state, see below).
 - A Session's model lives in its execution profile (`session_execution_profiles.profile_json` `$.modelId`)
   and changes only through the Host-owned `sessions:set-model` channel. Classic and Waggle Runs read it
   once at Run start, so a mid-turn switch reaches only the next Run, including queued follow-ups. The
@@ -433,6 +433,16 @@ Recording is a main/renderer protocol, not merely a `desktopCapturer` grant: suc
   cleared on a terminal `agent_end`, a failed or cancelled `auto_retry_end`, or run completion. Sends and enqueues await
   `settledSessionModelWrites` first, because the Host, not the send payload, picks the model. A Session
   pick never rewrites the project's preferred model for new Sessions.
+- The Session thinking level follows the model (ADR 0043 notes): `$.thinkingLevel` in the execution
+  profile, set through `sessions:set-thinking-level`, read and clamped at Run start, and recorded by Pi
+  as `thinking_level_change`. Messages, queued Follow-ups, and `AgentSendPayload` carry no thinking
+  level, and Follow-ups carry no Run authorization override. `SqliteSessionSettingsRepository`
+  checks the active Run in the same transaction as the write, so a model or thinking change is
+  refused (`session_run_active`) while a Run is starting, active, or stopping, but allowed while
+  the queue waits. A desktop pick also persists Pi's global default; a caller's `thinking` on
+  create or on an idle-start `message`/`start` never does. A new Session starts from Pi's
+  `defaultThinkingLevel`. Renderer reads go through `useSessionThinkingLevel(sessionId)`, which
+  returns `{ level, setLevel, canChange }`; a draft (`null`) reads and writes Pi's default.
 
 ## Tooling Memory
 
