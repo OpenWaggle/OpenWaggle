@@ -122,4 +122,18 @@ describe('QueuedMessages sources and intent badges', () => {
       expect(screen.getByText(label)).toHaveAttribute('title', detail)
     },
   )
+
+  it('keeps naming who queued a message after the user sent it as themselves', () => {
+    queue({
+      text: 'adopted',
+      callerId: 'gui:local-user',
+      source: { callerId: 'profile:profile-ci', profileName: 'ci-bot' },
+    })
+    renderQueue()
+
+    expect(screen.getByText('From CLI profile: ci-bot')).toHaveAttribute(
+      'title',
+      'Queued by profile:profile-ci\nCLI profile: ci-bot\nSent as you',
+    )
+  })
 })

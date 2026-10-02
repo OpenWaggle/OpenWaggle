@@ -7,6 +7,7 @@ interface QueuedMessageRowControlsProps {
   readonly item: SessionFollowUpQueueItem
   readonly label: string
   readonly isStreaming: boolean
+  readonly isAdopting: boolean
   readonly edit: QueuedMessageRowEditState
   readonly actions: QueuedMessageRowActions
 }
@@ -19,6 +20,7 @@ export function QueuedMessageRowControls({
   item,
   label,
   isStreaming,
+  isAdopting,
   edit,
   actions,
 }: QueuedMessageRowControlsProps) {
@@ -37,7 +39,7 @@ export function QueuedMessageRowControls({
           type="button"
           onClick={() => actions.onSteer(item.id)}
           disabled={attention}
-          title={attention ? 'Resolve this Follow-up before steering it.' : undefined}
+          title={attention ? 'Send this message as you before steering it.' : undefined}
           className="flex items-center gap-1 rounded-md bg-accent/8 px-2 py-1"
         >
           <ArrowUp className="size-3 text-accent" />
@@ -48,10 +50,13 @@ export function QueuedMessageRowControls({
         <Button
           variant="unstyled"
           type="button"
-          onClick={() => actions.onAdopt(item.id)}
+          onClick={() => {
+            if (!isAdopting) actions.onAdopt(item.id)
+          }}
+          aria-disabled={isAdopting}
           aria-label={`Send as me: ${label}`}
-          title="Send this message under your own access"
-          className="flex items-center gap-1 rounded-md bg-accent/8 px-2 py-1"
+          title="Deliver this message under your own access. It keeps showing who queued it."
+          className="flex items-center gap-1 rounded-md bg-accent/8 px-2 py-1 aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
         >
           <Send className="size-3 text-accent" />
           <span className="text-xs font-semibold text-accent">Send as me</span>

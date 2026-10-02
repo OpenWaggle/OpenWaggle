@@ -28,7 +28,11 @@ function labelText(source: SessionFollowUpSource, sessionTitle: string | undefin
   return 'From another source'
 }
 
-function detailText(source: SessionFollowUpSource, sessionTitle: string | undefined) {
+function detailText(
+  source: SessionFollowUpSource,
+  sessionTitle: string | undefined,
+  sentAsYou: boolean,
+) {
   const parts = [`Queued by ${source.callerId}`]
   if (source.sessionId) {
     parts.push(
@@ -38,17 +42,24 @@ function detailText(source: SessionFollowUpSource, sessionTitle: string | undefi
     )
   }
   if (source.profileName) parts.push(`CLI profile: ${source.profileName}`)
+  if (sentAsYou) parts.push('Sent as you')
   return parts.join('\n')
 }
 
 /**
  * The "From …" label of a queued message, or `null` for one the user sent from the desktop
  * composer. `sessionTitle` is the title of the agent Session that queued it, when known.
+ * `deliveringCallerId` is whose access delivers it: the desktop user after "Send as me".
  */
 export function queuedMessageSourceLabel(
   source: SessionFollowUpSource | undefined,
   sessionTitle: string | undefined,
+  deliveringCallerId?: string,
 ): QueuedMessageSourceLabel | null {
   if (!source || source.callerId === DESKTOP_USER_CALLER_ID) return null
-  return { label: labelText(source, sessionTitle), detail: detailText(source, sessionTitle) }
+  const sentAsYou = deliveringCallerId === DESKTOP_USER_CALLER_ID
+  return {
+    label: labelText(source, sessionTitle),
+    detail: detailText(source, sessionTitle, sentAsYou),
+  }
 }

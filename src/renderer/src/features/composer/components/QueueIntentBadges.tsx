@@ -21,7 +21,7 @@ export function QueueIntentBadges({ item }: { readonly item: SessionFollowUpQueu
       ? state.sessions.find((session) => String(session.id) === sourceSessionId)?.title
       : undefined,
   )
-  const sourceLabel = queuedMessageSourceLabel(source, sessionTitle)
+  const sourceLabel = queuedMessageSourceLabel(source, sessionTitle, item.callerId)
   if (!item.wagglePresetName && !sourceLabel) return null
   return (
     <div className="flex flex-wrap items-center gap-1">

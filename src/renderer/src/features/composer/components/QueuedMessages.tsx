@@ -159,6 +159,7 @@ export function QueuedMessages({ sessionId, onSteer, isStreaming, onToast }: Que
   const { snapshot, error, refresh, setPaused, withdraw, adopt } =
     useSessionFollowUpQueue(sessionId)
   const [isChangingQueueState, setIsChangingQueueState] = useState(false)
+  const [adoptingId, setAdoptingId] = useState<string | null>(null)
   const pendingPromotions = useOptimisticSteerStore(selectPendingSteerFollowUps(sessionId))
   // Reserved by a pending steering promotion: hidden from the dock and locked in place.
   const pendingIds = new Set(pendingPromotions)
@@ -183,10 +184,13 @@ export function QueuedMessages({ sessionId, onSteer, isStreaming, onToast }: Que
   }
 
   async function sendAsUser(followUpId: string) {
+    setAdoptingId(followUpId)
     try {
       await adopt(followUpId)
     } catch (error) {
       onToast(error instanceof Error ? error.message : String(error))
+    } finally {
+      setAdoptingId(null)
     }
   }
 
@@ -261,6 +265,7 @@ export function QueuedMessages({ sessionId, onSteer, isStreaming, onToast }: Que
                     }}
                     reorderable={queue.length > 1}
                     isStreaming={isStreaming}
+                    isAdopting={adoptingId === item.id}
                     edit={{
                       canBegin: canBeginEdit,
                       phase: queuedEdit.edit?.followUpId === item.id ? queuedEdit.edit.phase : null,

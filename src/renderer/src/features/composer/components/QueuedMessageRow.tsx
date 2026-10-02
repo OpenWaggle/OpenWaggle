@@ -38,6 +38,8 @@ interface QueuedMessageRowProps {
   readonly neighbours: { readonly previousId: string | null; readonly nextId: string | null }
   readonly reorderable: boolean
   readonly isStreaming: boolean
+  /** "Send as me" is in flight for this row. */
+  readonly isAdopting: boolean
   readonly edit: QueuedMessageRowEditState
   readonly actions: QueuedMessageRowActions
 }
@@ -65,6 +67,7 @@ export function QueuedMessageRow({
   neighbours,
   reorderable,
   isStreaming,
+  isAdopting,
   edit,
   actions,
 }: QueuedMessageRowProps) {
@@ -128,6 +131,7 @@ export function QueuedMessageRow({
         item={item}
         label={shortLabel}
         isStreaming={isStreaming}
+        isAdopting={isAdopting}
         edit={edit}
         actions={actions}
       />
