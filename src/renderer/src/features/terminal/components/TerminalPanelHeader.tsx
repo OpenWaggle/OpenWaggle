@@ -10,7 +10,10 @@ import {
 } from '@/shared/lib/shortcut-display'
 import { Button } from '@/shared/ui/Button'
 import { useUIStore } from '@/shell/ui-store'
+import type { ActionOutputView } from '../lib/action-output-view-model'
+import { useActionOutputViewStore } from '../state/action-output-view-store'
 import { type TerminalTabState, useTerminalStore } from '../state/terminal-store'
+import { ActionOutputViewTabs } from './ActionOutputViewTabs'
 import { TerminalTabStrip } from './TerminalTabStrip'
 
 const STACK_ICON = '▤'
@@ -25,6 +28,11 @@ interface TerminalPanelHeaderProps {
     readonly focusedPaneId: string | null
     readonly searchOpen: boolean
     readonly closePanelLabel: string
+    /** Read-only action output views of this drawer, and the one covering it. */
+    readonly actionOutput: {
+      readonly views: readonly ActionOutputView[]
+      readonly shownActionId: string | null
+    }
   }
   readonly actions: {
     readonly setSearchOpen: (update: (open: boolean) => boolean) => void
@@ -48,11 +56,14 @@ export function TerminalPanelHeader(props: TerminalPanelHeaderProps) {
   const renameTab = useTerminalStore((state) => state.renameTab)
   const setActiveTab = useTerminalStore((state) => state.setActiveTab)
   const setSplitDirection = useTerminalStore((state) => state.setSplitDirection)
+  const deactivateOutputView = useActionOutputViewStore((state) => state.deactivate)
+  const showingOutputView = model.actionOutput.shownActionId !== null
   const showToast = useUIStore((state) => state.showToast)
   const shortcutRules = usePreferencesStore((state) => state.settings.shortcutRules)
 
   const newTerminal = () => {
     if (model.defaultCwd === null) return
+    deactivateOutputView(model.ownerKey)
     const terminalId = createTerminal(model.ownerKey, model.defaultCwd)
     if (terminalId !== null) actions.setFocusedPaneId(terminalId)
   }
@@ -65,29 +76,35 @@ export function TerminalPanelHeader(props: TerminalPanelHeaderProps) {
   }
 
   const searchTarget = model.focusedPaneId ?? model.activeTab?.panes[0]?.terminalId ?? null
-  const activeTabId = model.activeTab?.id
-  const onDockActiveTab = actions.onDockActiveTab
-  const dockActiveTab =
-    activeTabId === undefined || onDockActiveTab === undefined
-      ? undefined
-      : () => onDockActiveTab(activeTabId)
+  const dockActiveTab = showingOutputView
+    ? undefined
+    : dockTabHandler(model.activeTab, actions.onDockActiveTab)
 
   return (
     <div className="flex items-center gap-1 border-b border-border px-2 py-1">
       <TerminalTabStrip
         ownerKey={model.runtimeOwnerKey}
         tabs={group?.tabs ?? []}
-        activeTabId={group?.activeTabId ?? null}
+        activeTabId={showingOutputView ? null : (group?.activeTabId ?? null)}
         activity={activity}
-        onSelectTab={(tabId) => setActiveTab(model.ownerKey, tabId)}
+        onSelectTab={(tabId) => {
+          deactivateOutputView(model.ownerKey)
+          setActiveTab(model.ownerKey, tabId)
+        }}
         onCloseTab={(tabId) => {
           const tab = group?.tabs.find((candidate) => candidate.id === tabId)
           if (tab !== undefined) actions.onCloseTab(tab)
         }}
         onRenameTab={(tabId, name) => renameTab(model.ownerKey, tabId, name)}
-      />
+      >
+        <DrawerActionOutputTabs
+          ownerKey={model.ownerKey}
+          coveredTabId={group?.activeTabId ?? null}
+          actionOutput={model.actionOutput}
+        />
+      </TerminalTabStrip>
       <HeaderActions
-        tab={model.activeTab}
+        tab={showingOutputView ? null : model.activeTab}
         paneTools={{
           searchEnabled: searchTarget !== null && !model.searchOpen,
           onToggleSearch: () => actions.setSearchOpen((open) => !open),
@@ -112,6 +129,31 @@ export function TerminalPanelHeader(props: TerminalPanelHeaderProps) {
         shortcutRules={shortcutRules}
       />
     </div>
+  )
+}
+
+function dockTabHandler(
+  tab: TerminalTabState | null,
+  onDockActiveTab: ((tabId: string) => void) | undefined,
+) {
+  if (tab === null || onDockActiveTab === undefined) return undefined
+  return () => onDockActiveTab(tab.id)
+}
+
+function DrawerActionOutputTabs(props: {
+  readonly ownerKey: string
+  readonly coveredTabId: string | null
+  readonly actionOutput: TerminalPanelHeaderProps['model']['actionOutput']
+}) {
+  const activate = useActionOutputViewStore((state) => state.activate)
+  const close = useActionOutputViewStore((state) => state.close)
+  return (
+    <ActionOutputViewTabs
+      views={props.actionOutput.views}
+      shownActionId={props.actionOutput.shownActionId}
+      onSelect={(actionId) => activate(props.ownerKey, actionId, props.coveredTabId)}
+      onClose={(actionId) => close(props.ownerKey, actionId)}
+    />
   )
 }
 
@@ -221,7 +263,7 @@ function HeaderActions(props: HeaderActionsProps) {
         variant="ghost"
         title="Clear terminal"
         aria-label="Clear terminal"
-        disabled={props.paneTools.searchEnabled ? false : props.tab === null}
+        disabled={props.tab === null}
         onClick={props.paneTools.onClear}
       >
         ⌫

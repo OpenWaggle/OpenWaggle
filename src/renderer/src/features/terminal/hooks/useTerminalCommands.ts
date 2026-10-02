@@ -17,6 +17,11 @@ import {
   terminalSidePanelLayoutKey,
   terminalTabTitle,
 } from '../lib/terminal-owner'
+import {
+  hasActionOutputViews,
+  shownActionOutputView,
+  useActionOutputViewStore,
+} from '../state/action-output-view-store'
 import { useTerminalStore } from '../state/terminal-store'
 
 /** Creates, reveals, and selects a terminal in the dedicated right-panel layout bucket. */
@@ -79,7 +84,8 @@ export function useTerminalCommands(): {
         : commandLayoutOwner()
     const group = store.groups[layoutOwnerKey]
     const opening = layoutOwnerKey === owner.ownerKey ? !drawerOpen : !sideTerminalVisible
-    if (opening && (group?.tabs.length ?? 0) === 0) {
+    // A drawer holding action output views opens on them instead of starting a shell.
+    if (opening && (group?.tabs.length ?? 0) === 0 && !hasActionOutputViews(layoutOwnerKey)) {
       store.createTerminal(layoutOwnerKey, owner.defaultCwd)
     }
     store.setPanelOpen(layoutOwnerKey, opening)
@@ -98,6 +104,7 @@ export function useTerminalCommands(): {
     if (owner.defaultCwd === null || owner.ownerKey.length === 0) return
     const layoutOwnerKey = commandLayoutOwner()
     revealLayout(layoutOwnerKey)
+    useActionOutputViewStore.getState().deactivate(layoutOwnerKey)
     useTerminalStore.getState().createTerminal(layoutOwnerKey, owner.defaultCwd)
   }
 
@@ -115,6 +122,7 @@ export function useTerminalCommands(): {
     const store = useTerminalStore.getState()
     const layoutOwnerKey = commandLayoutOwner()
     revealLayout(layoutOwnerKey)
+    useActionOutputViewStore.getState().deactivate(layoutOwnerKey)
     const group = store.groups[layoutOwnerKey]
     const activeTabId = group?.activeTabId ?? group?.tabs[group.tabs.length - 1]?.id ?? null
     if (activeTabId === null) {
@@ -130,6 +138,13 @@ export function useTerminalCommands(): {
     const store = useTerminalStore.getState()
     const layoutOwnerKey = commandLayoutOwner()
     const group = store.groups[layoutOwnerKey]
+    const outputViews = useActionOutputViewStore.getState()
+    const shownView = shownActionOutputView(outputViews, layoutOwnerKey, group?.activeTabId ?? null)
+    // Closing a shown action output view closes only the view; its run keeps going.
+    if (shownView !== null) {
+      outputViews.close(layoutOwnerKey, shownView.actionId)
+      return
+    }
     const tab = group?.tabs.find((candidate) => candidate.id === group.activeTabId)
     const terminalId = tab?.activePaneId
     if (group === undefined || tab === undefined || terminalId === undefined) return

@@ -3,6 +3,11 @@
 // renderer graph. Load them lazily from `@/features/terminal/components`.
 export { useTerminalActivityMonitor } from './hooks/useTerminalActivityMonitor'
 export { createSidePanelTerminal, useTerminalCommands } from './hooks/useTerminalCommands'
+export type { ActionOutputView } from './lib/action-output-view-model'
+export {
+  openActionOutputTerminalView,
+  syncActionOutputViewRuns,
+} from './lib/open-action-output-terminal-view'
 export { reconcileSetupActionTerminal } from './lib/setup-action-terminal'
 export { beginTerminalEventOwnerHandoff } from './lib/terminal-event-owner-alias'
 export {
@@ -28,6 +33,7 @@ export {
 } from './lib/terminal-owner'
 export { matchesTerminalShortcutBinding } from './lib/terminal-shortcuts'
 export { migrateTerminalSurfaceLeases } from './lib/terminal-surface-lease'
+export { useActionOutputViewStore } from './state/action-output-view-store'
 export {
   getRunningTerminalCount,
   getTerminalActivityStatus,
