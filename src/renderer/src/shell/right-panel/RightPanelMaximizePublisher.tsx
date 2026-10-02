@@ -7,11 +7,8 @@ import { useMediaQuery } from '@/shared/hooks/useMediaQuery'
 import { useRightPanelMaximizeStore } from '@/shared/lib/right-panel-maximize'
 import { useRightSidebarCoordinator } from '@/shared/lib/right-sidebar-coordinator'
 import { formatShortcutBinding } from '@/shared/lib/shortcut-display'
-import { RIGHT_PANEL_SIZING } from '@/shared/ui/right-sidebar-sizing-presets'
-import { toggleWorkspacePanelMaximized } from '../workspace-panel-actions'
+import { RIGHT_PANEL_SHEET_QUERY, toggleWorkspacePanelMaximized } from '../workspace-panel-actions'
 import { useWorkspacePanelStore } from '../workspace-panel-store'
-
-const SHEET_QUERY = `(max-width: ${String(RIGHT_PANEL_SIZING.sheetBreakpointPx)}px)`
 
 /**
  * Publishes the Session's maximize state for every Right panel surface header (ADR 0043). Mounted
@@ -24,7 +21,7 @@ export function RightPanelMaximizePublisher() {
   const { ownerKey } = terminalOwnerContext(activeSession ?? null, projectPath ?? null)
   const maximized = useWorkspacePanelStore((state) => state.groups[ownerKey]?.maximized === true)
   const guided = useRightSidebarCoordinator((state) => state.activeClaim?.kind === 'action-panel')
-  const isSheet = useMediaQuery(SHEET_QUERY)
+  const isSheet = useMediaQuery(RIGHT_PANEL_SHEET_QUERY)
   const binding = usePreferencesStore(
     (state) => state.settings.shortcutBindings['rightPanel.toggleMaximized'] ?? null,
   )

@@ -62,6 +62,20 @@ describe('workspace panel shortcut actions', () => {
     expect(useWorkspacePanelStore.getState().groups[OWNER]?.maximized).toBe(false)
   })
 
+  it('keeps a narrow-window sheet at its own width and says why', () => {
+    const matchMedia = vi.fn(() => ({ matches: true }))
+    vi.stubGlobal('matchMedia', matchMedia)
+    try {
+      useRightSidebarCoordinator.getState().claimRoute('diff')
+      expect(rightPanelMaximizeUnavailableReason(OWNER)).toBe(
+        'Widen the window to maximize the panel.',
+      )
+      expect(toggleWorkspacePanelMaximized(OWNER)).toBe(false)
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
   it('leaves the guided action panel at its own width', () => {
     useRightSidebarCoordinator.getState().claimRoute('diff')
     useRightSidebarCoordinator.getState().claimActionPanel()

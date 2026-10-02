@@ -7,6 +7,7 @@ import {
 import { usePreferencesStore } from '@/features/settings/state'
 import { api } from '@/shared/lib/ipc'
 import { useRightSidebarCoordinator } from '@/shared/lib/right-sidebar-coordinator'
+import { RIGHT_PANEL_SIZING } from '@/shared/ui/right-sidebar-sizing-presets'
 import { useUIStore } from './ui-store'
 import { useWorkspacePanelStore } from './workspace-panel-store'
 
@@ -101,12 +102,23 @@ export function toggleWorkspacePanelMaximized(ownerKey: string) {
 
 const OPEN_A_PANEL_FIRST = 'Open a panel first.'
 const GUIDED_PANEL_KEEPS_WIDTH = 'The guided action panel keeps its width.'
+const SHEET_KEEPS_WIDTH = 'Widen the window to maximize the panel.'
+/** Where the Right panel becomes a sheet over the chat, which has no maximized size. */
+export const RIGHT_PANEL_SHEET_QUERY = `(max-width: ${String(RIGHT_PANEL_SIZING.sheetBreakpointPx)}px)`
+
+function rightPanelIsSheet() {
+  return (
+    typeof globalThis.matchMedia === 'function' &&
+    globalThis.matchMedia(RIGHT_PANEL_SHEET_QUERY).matches
+  )
+}
 
 /** Why the Right panel cannot be maximized right now, or null when it can. */
 export function rightPanelMaximizeUnavailableReason(ownerKey: string): string | null {
   if (ownerKey.length === 0) return OPEN_A_PANEL_FIRST
   const claim = useRightSidebarCoordinator.getState().activeClaim
   if (claim?.kind === 'action-panel') return GUIDED_PANEL_KEEPS_WIDTH
+  if (rightPanelIsSheet()) return SHEET_KEEPS_WIDTH
   const group = useWorkspacePanelStore.getState().groups[ownerKey]
   const workspaceOpen = group?.panelOpen === true && group.activeSurface !== null
   return workspaceOpen || claim?.kind === 'route' ? null : OPEN_A_PANEL_FIRST
