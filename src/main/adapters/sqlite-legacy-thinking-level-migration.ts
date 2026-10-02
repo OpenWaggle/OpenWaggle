@@ -30,27 +30,35 @@ function storedSettingValue(valueJson: string) {
 
 /**
  * Moves beta.5's desktop pick (`settings_store.thinkingLevel`) into Pi's global default when Pi
- * names none, then deletes the key. The key is deleted only after Pi's settings are written, so a
- * failed write is retried at the next Host start; once the key is gone this does nothing.
+ * names none, and returns it (undefined when there is none or it is not a level). The key is kept:
+ * the Session restore reads the pick too, and `deleteLegacyDesktopThinkingLevel` drops it once both
+ * are done, so a failed write or restore is retried at the next Host start.
  */
-export function migrateLegacyDesktopThinkingLevel() {
+function moveLegacyDesktopThinkingLevel() {
   return Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
     const rows = yield* sql<{ readonly value_json: string }>`
       SELECT value_json FROM settings_store WHERE key = ${LEGACY_DESKTOP_THINKING_LEVEL_KEY}
     `
     const row = rows[0]
-    if (!row) return
+    if (!row) return undefined
     const level = thinkingLevel(storedSettingValue(row.value_json))
-    if (level) {
-      const defaults = yield* ThinkingLevelDefaultService
-      if ((yield* defaults.getConfiguredDefault()) === undefined) {
-        yield* defaults.setDefault(level)
-        logger.info("Moved the desktop thinking level into Pi's global default", { level })
-      }
+    if (!level) return undefined
+    const defaults = yield* ThinkingLevelDefaultService
+    if ((yield* defaults.getConfiguredDefault()) === undefined) {
+      yield* defaults.setDefault(level)
+      logger.info("Moved the desktop thinking level into Pi's global default", { level })
     }
-    yield* sql`DELETE FROM settings_store WHERE key = ${LEGACY_DESKTOP_THINKING_LEVEL_KEY}`
+    return level
   })
+}
+
+function deleteLegacyDesktopThinkingLevel() {
+  return SqlClient.SqlClient.pipe(
+    Effect.flatMap(
+      (sql) => sql`DELETE FROM settings_store WHERE key = ${LEGACY_DESKTOP_THINKING_LEVEL_KEY}`,
+    ),
+  )
 }
 
 interface SessionThinkingLevelRow {
@@ -103,6 +111,32 @@ function loadSessionThinkingLevels(sql: SqlClient.SqlClient) {
   `
 }
 
+const OFF_RANK = THINKING_LEVELS.indexOf('off')
+
+/**
+ * The level a Session keeps: the one Pi restores from its entries, else its stored level, else
+ * Pi's default.
+ *
+ * Pi records a level after clamping it to the model, so a Session that ran on a model without
+ * reasoning recorded `off` whatever the user picked. Restoring that `off` would lose the pick when
+ * the Session later switches to a reasoning model (a Run clamps the stored level to its model
+ * anyway, so keeping the pick changes nothing while the model has no reasoning). So when the
+ * restored level is `off` and the legacy level is higher, the legacy level wins: beta.5's desktop
+ * pick, which every desktop message carried, or, without one, the Session's stored level. A known
+ * desktop pick of `off` keeps `off`, since that is what the user chose.
+ */
+function sessionLevel(
+  row: SessionThinkingLevelRow,
+  legacyDesktopLevel: ThinkingLevel | undefined,
+  fallback: ThinkingLevel,
+): ThinkingLevel {
+  const restored = thinkingLevel(row.restored_level)
+  const stored = thinkingLevel(row.stored_level)
+  if (restored !== 'off') return restored ?? stored ?? fallback
+  const legacy = legacyDesktopLevel ?? stored
+  return legacy && THINKING_LEVELS.indexOf(legacy) > OFF_RANK ? legacy : restored
+}
+
 /**
  * Makes every existing Session's stored thinking level the one it actually runs with, once.
  *
@@ -112,8 +146,9 @@ function loadSessionThinkingLevels(sql: SqlClient.SqlClient) {
  * every Run passes the stored level, so the stored level must be the restored one or the Session
  * would switch levels silently on its next Run. A Session with no entry keeps its stored level,
  * and one with neither gets Pi's global default, which is what the UI showed for it.
+ * `legacyDesktopLevel` is beta.5's desktop pick, if any (see `sessionLevel`).
  */
-export function restoreSessionThinkingLevels() {
+export function restoreSessionThinkingLevels(legacyDesktopLevel: ThinkingLevel | undefined) {
   return Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
     const done = yield* sql<{ readonly key: string }>`
@@ -127,8 +162,7 @@ export function restoreSessionThinkingLevels() {
         const now = Date.now()
         let restored = 0
         for (const row of rows) {
-          const level =
-            thinkingLevel(row.restored_level) ?? thinkingLevel(row.stored_level) ?? fallback
+          const level = sessionLevel(row, legacyDesktopLevel, fallback)
           if (level === row.stored_level) continue
           yield* sql`
             UPDATE session_execution_profiles
@@ -150,12 +184,14 @@ export function restoreSessionThinkingLevels() {
 
 /**
  * The one-time thinking-level upgrade the Host runs before it serves anyone: beta.5's desktop pick
- * becomes Pi's default first, so a Session with no level of its own gets that default. A failure
- * is logged and leaves the work for the next Host start; it never stops the Host.
+ * becomes Pi's default first, so a Session with no level of its own gets that default, and it
+ * replaces a restored `off` that only records a clamp (`sessionLevel`). The pick is deleted last.
+ * A failure is logged and leaves the work for the next Host start; it never stops the Host.
  */
 export const migrateLegacyThinkingLevels = Effect.gen(function* () {
-  yield* migrateLegacyDesktopThinkingLevel()
-  const restored = yield* restoreSessionThinkingLevels()
+  const legacyDesktopLevel = yield* moveLegacyDesktopThinkingLevel()
+  const restored = yield* restoreSessionThinkingLevels(legacyDesktopLevel)
+  yield* deleteLegacyDesktopThinkingLevel()
   if (restored > 0) {
     logger.info('Restored Session thinking levels from their Pi entries', { restored })
   }

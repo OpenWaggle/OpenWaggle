@@ -211,7 +211,7 @@ describe('legacy thinking level migration', () => {
           profile: { modelId: 'provider/model', thinkingLevel: 'medium' },
           nodes: [
             { id: 'u-root', parentId: null },
-            { id: 'u-change', parentId: 'u-root', thinkingLevel: 'off' },
+            { id: 'u-change', parentId: 'u-root', thinkingLevel: 'minimal' },
           ],
         })
         // Never ran: its stored level is what its first Run will use.
@@ -237,10 +237,60 @@ describe('legacy thinking level migration', () => {
 
     expect(result.first).toEqual({
       'session-branched': 'high',
-      'session-unpositioned': 'off',
+      'session-unpositioned': 'minimal',
       'session-unused': 'low',
       'session-unset': 'xhigh',
     })
     expect(result.second['session-branched']).toBe('max')
+  })
+
+  /** Seeds one Session whose last entry on its active path records `restored`. */
+  function sessionRestoring(id: string, restored: ThinkingLevel, stored?: ThinkingLevel) {
+    return seedSession({
+      id,
+      profile: { modelId: 'provider/model', ...(stored ? { thinkingLevel: stored } : {}) },
+      nodes: [
+        { id: `${id}-root`, parentId: null },
+        { id: `${id}-change`, parentId: `${id}-root`, thinkingLevel: restored },
+      ],
+    })
+  }
+
+  it.each([
+    ['the desktop pick', 'high', 'medium', 'high'],
+    ['the stored level when there is no desktop pick', undefined, 'medium', 'medium'],
+    ['off when the desktop pick was off', 'off', 'medium', 'off'],
+    ['off when no legacy level is higher', undefined, 'off', 'off'],
+  ] as const)(
+    'turns a restored off, which Pi records after clamping to the model, into %s',
+    async (_case, pick, stored, expected) => {
+      const pi = piDefaults('low')
+      const levels = await Effect.runPromise(
+        Effect.gen(function* () {
+          if (pick) yield* legacyPick(pick)
+          yield* sessionRestoring('session-clamped', 'off', stored)
+          yield* migrateLegacyThinkingLevels
+          return yield* storedLevels()
+        }).pipe(Effect.provide(Layer.merge(databaseLayer('clamped.sqlite'), pi.layer))),
+      )
+
+      expect(levels['session-clamped']).toBe(expected)
+    },
+  )
+
+  it('keeps a restored level above off even when the legacy level is higher', async () => {
+    const pi = piDefaults(undefined)
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        yield* legacyPick('max')
+        yield* sessionRestoring('session-low', 'low', 'high')
+        yield* migrateLegacyThinkingLevels
+        return { levels: yield* storedLevels(), keys: yield* settingKeys() }
+      }).pipe(Effect.provide(Layer.merge(databaseLayer('above-off.sqlite'), pi.layer))),
+    )
+
+    expect(result.levels['session-low']).toBe('low')
+    // The desktop pick is deleted only after the Sessions were restored with it.
+    expect(result.keys).toEqual(['sessionThinkingLevelsRestored'])
   })
 })
