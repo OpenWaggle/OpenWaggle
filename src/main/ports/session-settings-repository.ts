@@ -1,4 +1,4 @@
-import type { RunId, SessionId, SupportedModelId } from '@shared/types/brand'
+import type { SessionId, SupportedModelId } from '@shared/types/brand'
 import type { SessionThinkingLevelChange } from '@shared/types/session'
 import type { ThinkingLevel } from '@shared/types/settings'
 import { Context, type Effect } from 'effect'
@@ -21,15 +21,6 @@ export interface SessionSettingsRepositoryShape {
     sessionId: SessionId,
     thinkingLevel: ThinkingLevel,
   ) => Effect.Effect<SessionSettingChange, SessionControlRepositoryError>
-  /**
-   * Sets the Session thinking level a Run was started with (`message` or `start` on an idle
-   * Session), as if chosen in the Session. Applies only while `runId` is the Session's Run.
-   */
-  readonly applyRunStartThinkingLevel: (input: {
-    readonly sessionId: SessionId
-    readonly runId: RunId
-    readonly thinkingLevel: ThinkingLevel
-  }) => Effect.Effect<boolean, SessionControlRepositoryError>
 }
 
 export class SessionSettingsRepository extends Context.Tag('@openwaggle/SessionSettingsRepository')<

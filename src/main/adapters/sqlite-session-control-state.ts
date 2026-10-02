@@ -19,6 +19,7 @@ import type {
 import { SessionControlRepositoryError } from '../errors'
 import { monotonicNowMs } from '../utils/monotonic-clock'
 import { persistFollowUpEditHolds, withFollowUpEditLeaseState } from './sqlite-follow-up-edit-holds'
+import { persistRunStartThinkingLevel } from './sqlite-session-run-start-settings'
 
 const POSITION_INCREMENT = 1
 /** The retired Follow-up authorization block's attention reason; such a Follow-up loads as pending. */
@@ -295,6 +296,7 @@ export function persistSessionControlState(
 ) {
   return Effect.gen(function* () {
     const activeRunId = yield* persistRun(sql, state, now)
+    yield* persistRunStartThinkingLevel(sql, state, now)
     yield* persistFollowUps(sql, state, now)
     yield* persistFollowUpEditHolds(sql, state, monotonicNowMs())
     yield* sql`

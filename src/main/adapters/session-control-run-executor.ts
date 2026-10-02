@@ -32,7 +32,6 @@ import type { SessionRepository } from '../ports/session-repository'
 import type { SessionResourceImageValidator } from '../ports/session-resource-image-validator'
 import type { SessionResourceRepository } from '../ports/session-resource-repository'
 import type { SessionResourceStore } from '../ports/session-resource-store'
-import { SessionSettingsRepository } from '../ports/session-settings-repository'
 import { SettingsService } from '../services/settings-service'
 import { startStreamBuffer } from '../utils/stream-bridge'
 import { executeRegisteredRun } from './session-control-run-dispatch'
@@ -59,7 +58,6 @@ type RunExecutorDependencies =
   | SessionResourceStore
   | SessionOrchestrationUpdateRepository
   | SessionReportRepository
-  | SessionSettingsRepository
   | SqlClient.SqlClient
   | SettingsService
 
@@ -134,18 +132,6 @@ function prepareRun(sql: SqlClient.SqlClient, input: SessionControlRunExecutionI
     )
     if (authorityBlock) {
       return yield* Effect.fail(new Error(`Run authority is no longer valid: ${authorityBlock}.`))
-    }
-    const thinkingLevel = input.intent.thinkingLevel
-    if (thinkingLevel !== undefined) {
-      // A message or start that set a thinking level makes it the Session's, as if chosen there.
-      const applied = yield* (yield* SessionSettingsRepository).applyRunStartThinkingLevel({
-        sessionId: input.sessionId,
-        runId: input.runId,
-        thinkingLevel,
-      })
-      if (!applied) {
-        return yield* Effect.fail(new Error('The Run no longer owns its Session.'))
-      }
     }
     const execution = yield* loadRunExecutionProfile(sql, input)
     const authoritySnapshot = yield* loadSessionAuthoritySnapshot(sql, input.sessionId)

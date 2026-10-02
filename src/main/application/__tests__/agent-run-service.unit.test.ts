@@ -191,6 +191,26 @@ describe('executeAgentRun', () => {
     })
   })
 
+  it("hands Pi the Session's stored thinking level, not one from the message", async () => {
+    // The level a `message` or `start` set is stored with the Run's admission; the Run reads it here.
+    projectionSession = { ...session, executionThinkingLevel: 'high' }
+
+    await Effect.runPromise(
+      executeAgentRun({
+        sessionId,
+        runId: 'run-thinking',
+        payload: { text: 'Think hard', attachments: [] },
+        model,
+        signal: new AbortController().signal,
+        onEvent: () => undefined,
+      }).pipe(Effect.provide(TestLayer)),
+    )
+
+    const kernelInput = runMock.mock.calls.at(-1)?.[0]
+    expect(kernelInput?.session.executionThinkingLevel).toBe('high')
+    expect(kernelInput?.payload).not.toHaveProperty('thinkingLevel')
+  })
+
   it('reports cancellation during first-send worktree creation as aborted', async () => {
     const controller = new AbortController()
     controller.abort()

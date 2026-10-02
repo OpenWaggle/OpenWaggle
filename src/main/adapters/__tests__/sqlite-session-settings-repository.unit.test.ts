@@ -2,7 +2,7 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import * as SqlClient from '@effect/sql/SqlClient'
-import { RunId, SessionId, SupportedModelId } from '@shared/types/brand'
+import { SessionId, SupportedModelId } from '@shared/types/brand'
 import { SESSION_CONTROL_CONTRACT_VERSION } from '@shared/types/session-control'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
@@ -102,7 +102,7 @@ describe('SQLite Session settings', () => {
     expect(result.other).toEqual(PROFILE)
   })
 
-  it('refuses a model or thinking change while a Run is active, and applies a Run start level', async () => {
+  it('refuses a model or thinking change while a Run is active', async () => {
     const result = await Effect.runPromise(
       Effect.gen(function* () {
         yield* seedProfiles()
@@ -110,25 +110,13 @@ describe('SQLite Session settings', () => {
         const settings = yield* SessionSettingsRepository
         const thinking = yield* settings.setThinkingLevel(TARGET, 'high')
         const model = yield* settings.setModel(TARGET, SupportedModelId('openai/gpt-5.5'))
-        const otherRun = yield* settings.applyRunStartThinkingLevel({
-          sessionId: TARGET,
-          runId: RunId('run-other'),
-          thinkingLevel: 'low',
-        })
-        const ownRun = yield* settings.applyRunStartThinkingLevel({
-          sessionId: TARGET,
-          runId: RunId('run-next'),
-          thinkingLevel: 'max',
-        })
-        return { thinking, model, otherRun, ownRun, target: yield* profile(TARGET) }
+        return { thinking, model, target: yield* profile(TARGET) }
       }).pipe(Effect.provide(layer(path.join(temporaryRoot, 'active.sqlite')))),
     )
 
     expect(result.thinking).toEqual({ changed: false, code: 'session_run_active' })
     expect(result.model).toEqual({ changed: false, code: 'session_run_active' })
-    expect(result.otherRun).toBe(false)
-    expect(result.ownRun).toBe(true)
-    expect(result.target).toEqual({ ...PROFILE, thinkingLevel: 'max' })
+    expect(result.target).toEqual(PROFILE)
   })
 
   it('reports a Session without an execution profile', async () => {

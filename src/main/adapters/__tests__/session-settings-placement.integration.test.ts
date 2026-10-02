@@ -3,7 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 import * as SqlClient from '@effect/sql/SqlClient'
 import type { AgentAuthorizationMode } from '@shared/types/agent-authorization'
-import { RunId, SessionId } from '@shared/types/brand'
+import { SessionId } from '@shared/types/brand'
 import {
   SESSION_CONTROL_CONTRACT_VERSION,
   type SessionControlMessageInput,
@@ -116,19 +116,15 @@ describe('Session settings placement on SQLite Session Control', () => {
         yield* seedProfile()
         const settings = yield* SessionSettingsRepository
         const started = yield* message('Start.', { thinkingLevel: 'high' }, 'yolo')
-        // The Run executor makes the started Run's level the Session's when it prepares the Run.
-        const applied = yield* settings.applyRunStartThinkingLevel({
-          sessionId: TARGET,
-          runId: RunId('run-next'),
-          thinkingLevel: 'high',
-        })
+        // Admitting the Run made its level the Session's in the same transaction.
+        const profileAtStart = (yield* storedRows()).profile
         const queuedWithThinking = yield* message('Later with thinking.', { thinkingLevel: 'low' })
         const queuedWithOverride = yield* message('Later with access.', {}, 'ask-for-approval')
         const queued = yield* followUp('Afterwards.')
         const changeWhileActive = yield* settings.setThinkingLevel(TARGET, 'minimal')
         return {
           started: started.outcome,
-          applied,
+          profileAtStart,
           queuedWithThinking: queuedWithThinking.outcome,
           queuedWithOverride: queuedWithOverride.outcome,
           queued: queued.outcome,
@@ -139,7 +135,7 @@ describe('Session settings placement on SQLite Session Control', () => {
     )
 
     expect(result.started).toMatchObject({ operation: 'message', effect: 'started-run' })
-    expect(result.applied).toBe(true)
+    expect(result.profileAtStart).toEqual({ ...PROFILE, thinkingLevel: 'high' })
     expect(result.rows.runIntents).toEqual([
       expect.objectContaining({ thinkingLevel: 'high', runAuthorizationOverride: 'yolo' }),
     ])

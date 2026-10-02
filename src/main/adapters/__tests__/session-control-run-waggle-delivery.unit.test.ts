@@ -134,7 +134,6 @@ describe('Session Control queued Waggle delivery', () => {
         },
         execution: {
           model: SupportedModelId('openai/gpt-5'),
-          thinkingLevel: 'high',
           authorizationCeiling: 'ask-for-approval',
           agentInstructions: 'Read-only reviewer.',
           toolAllowlist: ['read'],

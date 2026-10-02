@@ -7,7 +7,7 @@ import {
   type SessionCapability,
 } from '@shared/types/session-capability'
 import type { ResolvedSessionExecutionProfile } from '@shared/types/session-lifecycle'
-import { THINKING_LEVELS, type ThinkingLevel } from '@shared/types/settings'
+import { THINKING_LEVELS } from '@shared/types/settings'
 import { parseResolvedAgentDefinitionSnapshot } from '../agents/agent-definition-parser'
 
 const JSON_INDENT_SPACES = 2
@@ -34,7 +34,6 @@ export interface SessionRunExecutionProfileRow {
 
 export interface ResolvedSessionRunExecution {
   readonly model: ReturnType<typeof SupportedModelId>
-  readonly thinkingLevel: ThinkingLevel
   readonly authorizationCeiling: AgentAuthorizationMode
   readonly agentInstructions?: string
   readonly toolAllowlist?: readonly string[]
@@ -211,7 +210,6 @@ export function resolveSessionRunExecution(
   )
   return {
     model: SupportedModelId(profile.modelId),
-    thinkingLevel: profile.thinkingLevel,
     authorizationCeiling: row.authorization_ceiling,
     ...(agentSnapshot ? { agentInstructions: agentSnapshot.instructions } : {}),
     ...(profile.tools ? { toolAllowlist: profile.tools } : {}),

@@ -59,31 +59,6 @@ function setProfileField(
     )
 }
 
-function applyRunStartThinkingLevel(
-  sql: SqlClient.SqlClient,
-  input: { readonly sessionId: SessionId; readonly runId: string; readonly thinkingLevel: string },
-) {
-  return sql<{ readonly session_id: string }>`
-    UPDATE session_execution_profiles
-    SET profile_json = json_set(profile_json, '$.thinkingLevel', ${input.thinkingLevel}),
-        updated_at = ${Date.now()}
-    WHERE session_id = ${input.sessionId}
-      AND json_valid(profile_json)
-      AND EXISTS (
-        SELECT 1 FROM session_control_states
-        WHERE session_control_states.session_id = ${input.sessionId}
-          AND session_control_states.active_run_id = ${input.runId}
-      )
-    RETURNING session_id
-  `.pipe(
-    Effect.map((rows) => rows.length > 0),
-    Effect.mapError(
-      (cause) =>
-        new SessionControlRepositoryError({ operation: 'apply-run-start-thinking-level', cause }),
-    ),
-  )
-}
-
 export const SqliteSessionSettingsRepositoryLive = Layer.effect(
   SessionSettingsRepository,
   Effect.gen(function* () {
@@ -92,7 +67,6 @@ export const SqliteSessionSettingsRepositoryLive = Layer.effect(
       setModel: (sessionId, model) => setProfileField(sql, sessionId, '$.modelId', model),
       setThinkingLevel: (sessionId, thinkingLevel) =>
         setProfileField(sql, sessionId, '$.thinkingLevel', thinkingLevel),
-      applyRunStartThinkingLevel: (input) => applyRunStartThinkingLevel(sql, input),
     })
   }),
 )

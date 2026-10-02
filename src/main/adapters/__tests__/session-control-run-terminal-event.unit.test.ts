@@ -106,7 +106,6 @@ function runOnce() {
       },
       execution: {
         model,
-        thinkingLevel: 'high',
         authorizationCeiling: 'yolo',
         sessionCapabilities: [],
         projectPath: '/tmp/project',
