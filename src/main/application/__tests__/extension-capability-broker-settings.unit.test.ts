@@ -95,7 +95,7 @@ describe('invokeExtensionCapability settings capability', () => {
     })
   })
 
-  it("refuses a thinking level, so an extension never changes Pi's global default", async () => {
+  it("ignores a thinking level, so an extension never changes Pi's global default", async () => {
     const extensionPackage = makeSettingsBrokerPackage()
     const harness = makeBrokerHarness({
       packages: [extensionPackage],
@@ -119,13 +119,8 @@ describe('invokeExtensionCapability settings capability', () => {
       payload: {},
     })
 
-    expect(updateResult).toMatchObject({
-      ok: false,
-      error: {
-        code: OPENWAGGLE_EXTENSION_BROKER.FAILURE_CODE.INVALID_PAYLOAD,
-        issues: ['Unsupported payload keys: thinkingLevel.'],
-      },
-    })
+    // Accepted for SDK compatibility, but it has no effect.
+    expect(updateResult).toMatchObject({ ok: true })
     expect(getResult).toMatchObject({
       ok: true,
       value: { settings: { modelPreferences: { thinkingLevel: 'medium' } } },

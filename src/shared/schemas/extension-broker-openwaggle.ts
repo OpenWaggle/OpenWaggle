@@ -128,6 +128,8 @@ export const extensionModelPreferencesSettingsPatchSchema = Schema.Struct({
   selectedModel: Schema.optional(Schema.String),
   favoriteModels: Schema.optional(Schema.mutable(Schema.Array(Schema.String))),
   enabledModels: Schema.optional(Schema.mutable(Schema.Array(Schema.String))),
+  /** Accepted for SDK compatibility and ignored: extensions cannot change the thinking level. */
+  thinkingLevel: Schema.optional(Schema.Literal(...THINKING_LEVELS)),
 })
 
 export const extensionSettingsGetModelPreferencesPayloadSchema = Schema.Struct({
@@ -164,6 +166,8 @@ export const extensionSettingsUpdatePayloadSchema = Schema.Struct({
   selectedModel: Schema.optional(Schema.String),
   favoriteModels: Schema.optional(Schema.mutable(Schema.Array(Schema.String))),
   enabledModels: Schema.optional(Schema.mutable(Schema.Array(Schema.String))),
+  /** Accepted for SDK compatibility and ignored: extensions cannot change the thinking level. */
+  thinkingLevel: Schema.optional(Schema.Literal(...THINKING_LEVELS)),
   projectDisplayNames: Schema.optional(
     Schema.mutable(Schema.Record({ key: Schema.String, value: Schema.String })),
   ),
