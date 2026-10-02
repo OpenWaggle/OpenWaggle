@@ -1,0 +1,55 @@
+import {
+  decodeLocalSessionCommandPayload,
+  decodeLocalSessionCommandPayloadForRevision,
+} from '@shared/schemas/local-session-protocol'
+import { describe, expect, it } from 'vitest'
+
+function hostUiCommand(
+  channel:
+    | 'sessions:regenerate-title'
+    | 'sessions:set-thinking-level'
+    | 'sessions:get-default-thinking-level'
+    | 'sessions:set-default-thinking-level',
+) {
+  return decodeLocalSessionCommandPayload({
+    contract: 'host-ui-v1',
+    request: { contractVersion: 1, requestId: `request-${channel}`, channel, args: [] },
+  })
+}
+
+describe('Session settings and Title regeneration protocol revisions', () => {
+  it('keeps Title regeneration at revision 20', () => {
+    const payload = hostUiCommand('sessions:regenerate-title')
+    expect(() => decodeLocalSessionCommandPayloadForRevision(payload, 19)).toThrow(/revision 20/)
+    expect(decodeLocalSessionCommandPayloadForRevision(payload, 20)).toEqual(payload)
+  })
+
+  it.each([
+    'sessions:set-thinking-level',
+    'sessions:get-default-thinking-level',
+    'sessions:set-default-thinking-level',
+  ] as const)('requires a revision-21 Host for %s', (channel) => {
+    const payload = hostUiCommand(channel)
+    expect(() => decodeLocalSessionCommandPayloadForRevision(payload, 20)).toThrow(/revision 21/)
+    expect(decodeLocalSessionCommandPayloadForRevision(payload, 21)).toEqual(payload)
+  })
+
+  it('requires a revision-21 Host to adopt a Follow-up', () => {
+    const payload = decodeLocalSessionCommandPayload({
+      contract: 'session-control-v2',
+      request: {
+        contractVersion: 2,
+        requestId: 'r',
+        idempotencyKey: 'k',
+        command: {
+          operation: 'queue-adopt',
+          sessionId: 'session-1',
+          followUpId: 'follow-up-1',
+          expectedQueueRevision: 3,
+        },
+      },
+    })
+    expect(() => decodeLocalSessionCommandPayloadForRevision(payload, 20)).toThrow(/revision 21/)
+    expect(decodeLocalSessionCommandPayloadForRevision(payload, 21)).toEqual(payload)
+  })
+})
