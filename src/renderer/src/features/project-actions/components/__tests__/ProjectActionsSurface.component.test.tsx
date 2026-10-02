@@ -74,7 +74,6 @@ function renderSurface(props: { projectPath?: string | null; sessionId?: string 
   return renderWithQueryClient(
     <ProjectActionsSurface
       projectPath={props.projectPath === undefined ? '/repo' : props.projectPath}
-      sessionId={props.sessionId === undefined ? 'session' : props.sessionId}
       onShowRunOutput={onShowRunOutput}
     />,
   )

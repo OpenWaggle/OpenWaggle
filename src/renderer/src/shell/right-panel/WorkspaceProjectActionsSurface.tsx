@@ -1,4 +1,3 @@
-import { useChat } from '@/features/chat/hooks'
 import { ProjectActionsSurface } from '@/features/project-actions'
 import { useProject } from '@/features/sessions/hooks'
 import type { TerminalOwnerContext } from '@/features/terminal'
@@ -10,13 +9,11 @@ export function WorkspaceProjectActionsSurface({
 }: {
   readonly owner: TerminalOwnerContext
 }) {
-  const { activeSession } = useChat()
   const { projectPath } = useProject()
   return (
     <div className="min-h-0 flex-1 overflow-y-auto bg-bg">
       <ProjectActionsSurface
         projectPath={projectPath ?? null}
-        sessionId={activeSession ? String(activeSession.id) : null}
         onShowRunOutput={({ projectPath: runProjectPath, runId }) =>
           useWorkspacePanelStore.getState().showAction(owner.ownerKey, runProjectPath, runId)
         }

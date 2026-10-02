@@ -1,6 +1,7 @@
 import {
   closeRightPanel,
   hasRightPanelController,
+  type RightPanelSurfaceId,
   toggleRightPanel,
   toggleRightPanelSurface,
 } from '@/shared/lib/right-panel-surfaces'
@@ -16,6 +17,17 @@ import {
  * Right panel shortcut handlers. Chat routes route them through the Right panel controller
  * (ADR 0043); elsewhere the workspace panel keeps its previous behaviour.
  */
+export const OPEN_A_SESSION_FIRST = 'Open a session first'
+
+/** Off a Session chat page there is no Panel rail, so the shortcut says why nothing opened. */
+export function toggleOnChatPage(
+  id: RightPanelSurfaceId,
+  showToast: (message: string, type: 'error') => void,
+) {
+  if (hasRightPanelController()) toggleRightPanelSurface(id)
+  else showToast(OPEN_A_SESSION_FIRST, 'error')
+}
+
 export function rightPanelShortcutHandlers(input: {
   readonly ownerKey: string
   readonly newSideTerminal: () => void
@@ -41,10 +53,10 @@ export function rightPanelShortcutHandlers(input: {
       if (hasRightPanelController()) closeRightPanel()
       else closeWorkspaceRightPanel(input.ownerKey)
     },
-    'rightPanel.allPanels': () => toggleRightPanelSurface('all-panels'),
-    'rightPanel.projectActions': () => toggleRightPanelSurface('project-actions'),
-    'rightPanel.files': () => toggleRightPanelSurface('files'),
-    'rightPanel.resources': () => toggleRightPanelSurface('resources'),
+    'rightPanel.allPanels': () => toggleOnChatPage('all-panels', input.showToast),
+    'rightPanel.projectActions': () => toggleOnChatPage('project-actions', input.showToast),
+    'rightPanel.files': () => toggleOnChatPage('files', input.showToast),
+    'rightPanel.resources': () => toggleOnChatPage('resources', input.showToast),
   }
 }
 

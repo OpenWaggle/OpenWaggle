@@ -133,6 +133,11 @@ describe('Action output terminal views', () => {
     useActionOutputViewStore.getState().deactivate(OWNER)
     showLatestActionOutputView(OWNER)
     expect(shown()?.actionId).toBe('lint')
+
+    // A view the user already chose stays shown.
+    useActionOutputViewStore.getState().activate(OWNER, 'dev', null)
+    showLatestActionOutputView(OWNER)
+    expect(shown()?.actionId).toBe('dev')
   })
 
   it('keeps an ended run as the view’s final output', () => {

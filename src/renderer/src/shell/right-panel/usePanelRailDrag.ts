@@ -63,16 +63,26 @@ export function usePanelRailDrag(
     suppressClick.current = false
   }
 
+  // The pointer is still down, so the click that ends this press must not open the icon.
   const onEscape = useEffectEvent((event: KeyboardEvent) => {
     if (event.key !== 'Escape') return
     event.preventDefault()
-    cancel()
+    event.stopPropagation()
+    finish()
   })
   useEffect(() => {
     if (dragging === null) return
     window.addEventListener('keydown', onEscape, true)
     return () => window.removeEventListener('keydown', onEscape, true)
   }, [dragging])
+
+  // A hold still pending when the rail unmounts must not fire.
+  useEffect(() => {
+    const hold = pending
+    return () => {
+      if (hold.current !== null) clearTimeout(hold.current.timer)
+    }
+  }, [])
 
   function onPointerDown(event: PointerEvent<HTMLElement>, id: RightPanelSurfaceId) {
     if (event.button !== 0) return

@@ -8,15 +8,18 @@ import {
   toggleRightPanelSurface,
 } from '@/shared/lib/right-panel-surfaces'
 import { Button } from '@/shared/ui/Button'
+import { useUIStore } from '../ui-store'
 import { useWorkspacePanelStore } from '../workspace-panel-store'
 import { RightPanelSurfaceIcon } from './RightPanelSurfaceIcon'
 import { useRightPanelRailStore } from './right-panel-rail-store'
+import { OPEN_A_SESSION_FIRST } from './right-panel-shortcut-handlers'
 import { type RightPanelSurfaceEntry, useRightPanelModel } from './useRightPanelModel'
 
 function SurfaceRow(props: {
   readonly surface: RightPanelSurfaceEntry
   readonly noRoom: boolean
   readonly onPin: (id: RightPanelSurfaceId, pinned: boolean) => void
+  readonly onShow: (id: RightPanelSurfaceId) => void
 }) {
   const { surface } = props
   const unavailable = surface.disabledReason !== null
@@ -32,7 +35,7 @@ function SurfaceRow(props: {
         )}
         title={surface.disabledReason ?? surface.description}
         aria-disabled={unavailable || undefined}
-        onClick={() => showRightPanelSurface(surface.id)}
+        onClick={() => props.onShow(surface.id)}
       >
         <RightPanelSurfaceIcon glyph={surface.glyph} title={surface.title} />
         <span className="min-w-0 flex-1 truncate">{surface.title}</span>
@@ -91,6 +94,11 @@ export function AllPanelsSurface() {
   const overflowing = useRightPanelRailStore((state) => state.overflowing)
   const setPinned = useRightPanelRailStore((state) => state.setPinned)
   const reset = useRightPanelRailStore((state) => state.reset)
+  const showToast = useUIStore((state) => state.showToast)
+  const showSurface = (id: RightPanelSurfaceId) => {
+    if (hasRightPanelController()) showRightPanelSurface(id)
+    else showToast(OPEN_A_SESSION_FIRST, 'error')
+  }
   const listed = model.surfaces.filter((surface) => surface.id !== 'all-panels')
   const extensions = listed.filter((surface) => surface.group === 'Extensions')
   const row = (surface: RightPanelSurfaceEntry) => (
@@ -99,6 +107,7 @@ export function AllPanelsSurface() {
       surface={surface}
       noRoom={surface.pinned && overflowing.includes(surface.id)}
       onPin={setPinned}
+      onShow={showSurface}
     />
   )
 

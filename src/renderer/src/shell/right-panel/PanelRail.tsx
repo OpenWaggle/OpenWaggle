@@ -4,7 +4,6 @@ import {
   type MouseEvent,
   useEffect,
   useEffectEvent,
-  useLayoutEffect,
   useRef,
   useState,
 } from 'react'
@@ -16,6 +15,7 @@ import { RightPanelSurfaceIcon } from './RightPanelSurfaceIcon'
 import type { RailMove } from './right-panel-rail-order'
 import { useRightPanelRailStore } from './right-panel-rail-store'
 import { usePanelRailDrag } from './usePanelRailDrag'
+import { usePanelRailFocus } from './usePanelRailFocus'
 import type { RightPanelModel, RightPanelSurfaceEntry } from './useRightPanelModel'
 
 /** One rail slot: a 32px icon button plus the 2px gap between slots. */
@@ -48,26 +48,6 @@ function railButtonA11y(surface: RightPanelSurfaceEntry, badgeLabel: string | un
     disabled: surface.disabledReason !== null,
     keyShortcuts: surface.id === 'all-panels' ? undefined : 'Alt+ArrowUp Alt+ArrowDown',
   }
-}
-
-/**
- * Moving a keyed button can blur it (the DOM node is re-inserted), so keyboard reordering puts
- * focus back on the moved icon, or on All panels once the icon no longer fits on the rail.
- */
-function useKeyboardMoveFocus(railKey: string) {
-  const navRef = useRef<HTMLElement | null>(null)
-  const refocus = useRef<RightPanelSurfaceId | null>(null)
-  useLayoutEffect(() => {
-    const id = refocus.current
-    const nav = navRef.current
-    if (id === null || nav === null || railKey === '') return
-    refocus.current = null
-    const button =
-      nav.querySelector<HTMLElement>(`[data-rail-surface="${id}"]`) ??
-      nav.querySelector<HTMLElement>('[data-rail-surface="all-panels"]')
-    button?.focus()
-  }, [railKey])
-  return { navRef, refocus }
 }
 
 function useRailCapacity() {
@@ -193,7 +173,7 @@ export function PanelRail(props: {
     useRightPanelRailStore.getState().setOverflowing(overflowIds),
   )
   useEffect(() => publishOverflow(overflowKey), [overflowKey])
-  const { navRef, refocus } = useKeyboardMoveFocus(`${railIds.join('\n')}|${String(capacity)}`)
+  const { navRef, moveWithFocus, unpinWithFocus } = usePanelRailFocus(railIds, capacity, actions)
   const menuOrigin = useRef<HTMLElement | null>(null)
 
   function activate(id: RightPanelSurfaceId) {
@@ -205,8 +185,7 @@ export function PanelRail(props: {
     if (!event.altKey || event.metaKey || event.ctrlKey) return
     if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return
     event.preventDefault()
-    refocus.current = id
-    actions.move(id, { type: event.key === 'ArrowUp' ? 'up' : 'down' })
+    moveWithFocus(id, event.key === 'ArrowUp' ? 'up' : 'down')
   }
 
   function closeMenu() {
@@ -286,8 +265,8 @@ export function PanelRail(props: {
         <PanelRailMenu
           target={menu}
           onClose={closeMenu}
-          onMove={(id, direction) => actions.move(id, { type: direction })}
-          onUnpin={actions.unpin}
+          onMove={moveWithFocus}
+          onUnpin={unpinWithFocus}
           onShowAllPanels={() => actions.showSurface('all-panels')}
           onReset={actions.reset}
         />

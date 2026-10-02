@@ -29,7 +29,6 @@ const PROJECT_QUERY_PREFIX_LENGTH = 2
 
 export interface ProjectActionsSurfaceProps {
   readonly projectPath: string | null
-  readonly sessionId: string | null
   readonly onShowRunOutput: (input: { projectPath: string; runId: string }) => void
 }
 
@@ -87,14 +86,41 @@ function SurfaceMessage({
   )
 }
 
+/** Session, error, loading and empty notices above the action list. */
+function SurfaceStatus(props: {
+  readonly inSession: boolean
+  readonly error: Error | null
+  readonly loaded: boolean
+  readonly empty: boolean
+}) {
+  return (
+    <>
+      {!props.inSession ? (
+        <SurfaceMessage>Select a session in this project to run actions.</SurfaceMessage>
+      ) : null}
+      {props.error ? <SurfaceMessage alert>{props.error.message}</SurfaceMessage> : null}
+      {!props.error && !props.loaded ? (
+        <div className="flex items-center gap-2 px-3 py-3 text-xs text-text-tertiary">
+          <Spinner size="sm" />
+          Loading actions…
+        </div>
+      ) : null}
+      {props.loaded && props.empty ? (
+        <SurfaceMessage>No saved actions yet. Add one to run it here.</SurfaceMessage>
+      ) : null}
+    </>
+  )
+}
+
 /**
  * The Project Actions Right panel surface (ADR 0043): every saved action with Run and Stop,
  * its run's output and Add action. It replaces the header's former "+ Action" menu.
  */
 export function ProjectActionsSurface(props: ProjectActionsSurfaceProps) {
-  const { projectPath, sessionId, onShowRunOutput } = props
+  const { projectPath, onShowRunOutput } = props
   // The same scope the run hooks use, so a row never offers a run they would refuse.
   const scope = useActionScope(projectPath)
+  const inSession = Boolean(scope?.sessionId)
   const catalog = useNativeActions(scope)
   const runsQuery = useActionRuns(scope)
   const runProjectAction = useRunProjectAction(projectPath)
@@ -125,19 +151,12 @@ export function ProjectActionsSurface(props: ProjectActionsSurfaceProps) {
       <p className="px-3 pt-3 pb-1.5 text-xs font-normal text-text-tertiary">
         Run in this session’s workspace
       </p>
-      {!sessionId ? (
-        <SurfaceMessage>Select a session in this project to run actions.</SurfaceMessage>
-      ) : null}
-      {catalog.error ? <SurfaceMessage alert>{catalog.error.message}</SurfaceMessage> : null}
-      {!catalog.error && !catalog.data ? (
-        <div className="flex items-center gap-2 px-3 py-3 text-xs text-text-tertiary">
-          <Spinner size="sm" />
-          Loading actions…
-        </div>
-      ) : null}
-      {catalog.data && actions.length === 0 ? (
-        <SurfaceMessage>No saved actions yet. Add one to run it here.</SurfaceMessage>
-      ) : null}
+      <SurfaceStatus
+        inSession={inSession}
+        error={catalog.error}
+        loaded={Boolean(catalog.data)}
+        empty={actions.length === 0}
+      />
       {actions.length > 0 ? (
         <ul aria-label="Saved actions" className="flex flex-col">
           {actions.map((entry) => {
@@ -155,8 +174,8 @@ export function ProjectActionsSurface(props: ProjectActionsSurfaceProps) {
                   latestRun: actionRuns[0] ?? null,
                   activeRun: actionRuns.find(isActiveActionRun) ?? null,
                   busy: operations.pending.has(definition.id),
-                  canRun: Boolean(scope?.sessionId),
-                  canOpenTerminal: Boolean(scope?.sessionId),
+                  canRun: inSession,
+                  canOpenTerminal: inSession,
                 }}
                 actions={{
                   onRun: () => run(definition),

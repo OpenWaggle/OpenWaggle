@@ -117,6 +117,11 @@ export function useRightPanelController(model: RightPanelModel, workingPath: str
   }
 
   function closePanel() {
+    // A Files lookup still in flight must not reopen the panel the user just closed.
+    surfaceRequest.current = {
+      ...surfaceRequest.current,
+      request: surfaceRequest.current.request + 1,
+    }
     const coordinator = useRightSidebarCoordinator.getState()
     if (coordinator.activeClaim?.kind === 'action-panel') coordinator.releaseActionPanel()
     if (useRightSidebarCoordinator.getState().activeClaim?.kind === 'route') route.close()

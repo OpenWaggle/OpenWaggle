@@ -14,6 +14,7 @@ vi.mock('@tanstack/react-router', () => ({ useNavigate: () => mocks.navigate }))
 vi.mock('../useRightPanelModel', () => ({ useRightPanelModel: () => mocks.model }))
 vi.mock('@/shared/lib/right-panel-surfaces', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/shared/lib/right-panel-surfaces')>()),
+  hasRightPanelController: () => true,
   showRightPanelSurface: mocks.showSurface,
   toggleRightPanelSurface: vi.fn(),
 }))

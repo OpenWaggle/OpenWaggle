@@ -29,6 +29,7 @@ import { railExtensionPanels } from './right-panel/right-panel-extension-panels'
 import {
   rightPanelCloseIsActive,
   rightPanelShortcutHandlers,
+  toggleOnChatPage,
 } from './right-panel/right-panel-shortcut-handlers'
 import type { ExtensionPanelShortcut } from './unified-shortcut-resolver'
 import { useSessionHostRefresh } from './useSessionHostRefresh'
@@ -239,7 +240,7 @@ export function useWorkspaceLifecycle(): void {
       'request.focus': focusPendingRequest,
     },
     onRunProjectAction: (action) => void runProjectAction(action),
-    onToggleExtensionPanel: toggleRightPanelSurface,
+    onToggleExtensionPanel: (id) => toggleOnChatPage(id, showToast),
     shouldHandleBuiltIn: (command) =>
       command !== 'rightPanel.close' || rightPanelCloseIsActive(terminalOwner.ownerKey),
     terminalOpen: terminalCommands.panelOpen,

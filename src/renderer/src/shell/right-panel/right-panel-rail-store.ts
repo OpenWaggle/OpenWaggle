@@ -139,7 +139,7 @@ export const useRightPanelRailStore = create<RightPanelRailState>()(
       },
       move: (surface, move, known, listed = known) => {
         const { order, hidden } = get()
-        const full = fullRailOrder(order, [...new Set([...known, ...listed])])
+        const full = fullRailOrder(order, listed)
         const visible = visibleRailOrder(order, known, hidden)
         set({ order: moveRailSurface(full, visible, surface, move) })
       },

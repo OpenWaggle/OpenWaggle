@@ -221,9 +221,13 @@ export function hasActionOutputViews(ownerKey: string) {
   return (useActionOutputViewStore.getState().views[ownerKey]?.length ?? 0) > 0
 }
 
-/** Shows the most recently opened view of an owner whose drawer has no terminal tab. */
+/**
+ * Shows a view in an owner's drawer that has no terminal tab: the one already chosen, otherwise
+ * the last tab.
+ */
 export function showLatestActionOutputView(ownerKey: string) {
   const store = useActionOutputViewStore.getState()
+  if (shownActionOutputView(store, ownerKey, null) !== null) return
   const latest = store.views[ownerKey]?.at(-1)
   if (latest !== undefined) store.activate(ownerKey, latest.actionId, null)
 }

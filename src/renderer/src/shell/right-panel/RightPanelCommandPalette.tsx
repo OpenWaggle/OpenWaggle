@@ -3,6 +3,7 @@ import {
   isExtensionRightPanelSurfaceId,
   type RightPanelSurfaceId,
 } from '@/shared/lib/right-panel-surfaces'
+import { OPEN_A_SESSION_FIRST } from './right-panel-shortcut-handlers'
 import { useRightPanelModel } from './useRightPanelModel'
 
 /** Off a Session chat page only these surfaces still have somewhere to open. */
@@ -10,7 +11,7 @@ const OPENS_WITHOUT_RIGHT_PANEL: ReadonlySet<RightPanelSurfaceId> = new Set([
   'changes',
   'session-tree',
 ])
-const OPEN_A_SESSION_FIRST = 'Open a session first'
+const NOT_AVAILABLE_HERE = 'Not available in this session'
 
 const LazyGlobalCommandPalette = lazy(() =>
   import('@/features/command-palette/components/GlobalCommandPalette').then((module) => ({
@@ -22,8 +23,10 @@ const LazyGlobalCommandPalette = lazy(() =>
 export function RightPanelCommandPalette({ chatRoute }: { readonly chatRoute: boolean }) {
   const model = useRightPanelModel(chatRoute)
   const disabledReason = (id: RightPanelSurfaceId) => {
-    if (chatRoute)
-      return model.surfaces.find((surface) => surface.id === id)?.disabledReason ?? null
+    if (chatRoute) {
+      const surface = model.surfaces.find((entry) => entry.id === id)
+      return surface === undefined ? NOT_AVAILABLE_HERE : surface.disabledReason
+    }
     if (isExtensionRightPanelSurfaceId(id) || OPENS_WITHOUT_RIGHT_PANEL.has(id)) return null
     return OPEN_A_SESSION_FIRST
   }
