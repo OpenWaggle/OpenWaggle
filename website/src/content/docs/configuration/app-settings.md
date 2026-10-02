@@ -116,6 +116,8 @@ Expand **API Key Providers** to save a key or **OAuth Providers** to sign in thr
 | A specific model | That model writes every title. Each session's opening message and each Worker's task are sent to that model's provider, and so is the conversation, up to about 8,000 characters, when a title is refined or regenerated. If that model fails, the session's own model is tried instead. |
 | **Off** | No titles are generated. Sessions keep their opening message as the title, and **Regenerate title** is hidden. |
 
+A provider that a project's Pi extension adds is not available for titles. Sessions on such a model keep their opening message as the title unless you choose a specific Title model.
+
 See [Providers and models](/docs/providers/overview) for the full setup.
 
 ## MCP

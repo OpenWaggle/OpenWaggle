@@ -19,7 +19,7 @@ import { useSessionTitleRegenerationStore } from '../state/session-title-regener
 const UNAVAILABLE_MESSAGES = {
   off: 'Title generation is off. Choose a Title model in Settings to regenerate titles.',
   empty: 'This session has nothing to title yet.',
-  'no-model': 'No model is available to generate a title right now.',
+  'no-model': 'No model can write this title. Choose a Title model in Settings › Connections.',
   busy: 'A title is already being generated for this session.',
 } satisfies Record<SessionTitleRegenerationUnavailableReason, string>
 

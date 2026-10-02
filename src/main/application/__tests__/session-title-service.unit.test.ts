@@ -150,6 +150,37 @@ describe('generateInitialSessionTitle', () => {
     expect(world().state.title).toBe('Third time lucky')
   })
 
+  it("runs the first Run's request after a failed creation request, rather than dropping it", async () => {
+    resetWorld({ title: 'Audit the schema', source: 'provisional' })
+    const failure = () =>
+      new SessionTitleGenerationError({ reason: 'request-failed', message: 'rate limited' })
+    world().replies.push(failure(), failure(), failure(), json('Schema audit'))
+
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const creation = yield* Effect.fork(
+          generateInitialSessionTitle({
+            sessionId: SESSION_ID,
+            text: 'Audit the schema',
+            settleOnFailure: false,
+          }),
+        )
+        yield* Effect.yieldNow()
+        // The first Run asks while the creation request is still backing off.
+        const firstRun = yield* Effect.fork(
+          generateInitialSessionTitle({ sessionId: SESSION_ID, text: 'Audit the schema' }),
+        )
+        yield* TestClock.adjust('20 seconds')
+        yield* Fiber.join(firstRun)
+        yield* TestClock.adjust('20 seconds')
+        yield* Fiber.join(creation)
+      }).pipe(Effect.provide(TestLayer), Effect.provide(TestContext.TestContext)),
+    )
+
+    expect(world().requests).toHaveLength(4)
+    expect(world().state).toMatchObject({ title: 'Schema audit', source: 'generated' })
+  })
+
   it('stops retrying once the Title model is turned Off', async () => {
     world().replies.push(
       new SessionTitleGenerationError({ reason: 'request-failed', message: 'overloaded' }),

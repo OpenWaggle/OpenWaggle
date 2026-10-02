@@ -16,7 +16,7 @@ export function deduplicateConsecutiveWords(title: string): string {
  * Controls and bidi overrides would reach the sidebar, header, and window title, and a Worker's
  * objective, which a Provisional title is cut from, can come from another model.
  */
-const UNSAFE_CHARACTERS = /[\p{Cc}\u200e\u200f\u202a-\u202e\u2066-\u2069]/gu
+const UNSAFE_CHARACTERS = /[\p{Cc}\u061c\u200e\u200f\u2028\u2029\u202a-\u202e\u2066-\u2069]/gu
 
 /** Cuts by code point, so an emoji or astral character is never split into a lone surrogate. */
 function truncateTitle(text: string) {
@@ -34,9 +34,19 @@ function truncateTitle(text: string) {
   return `${candidate}...`
 }
 
+/** The first `TITLE.INPUT_MAX_CHARS` UTF-16 units, without splitting a surrogate pair. */
+function boundedInput(text: string) {
+  if (text.length <= TITLE.INPUT_MAX_CHARS) return text
+  let bounded = ''
+  for (const character of text) {
+    if (bounded.length + character.length > TITLE.INPUT_MAX_CHARS) break
+    bounded += character
+  }
+  return bounded
+}
+
 function normalizeTitleInput(text: string) {
-  return text
-    .slice(0, TITLE.INPUT_MAX_CHARS)
+  return boundedInput(text)
     .split(/\r?\n/)
     .map((line) => line.replace(UNSAFE_CHARACTERS, TITLE_WORD_SEPARATOR).trim())
     .filter((line) => line.length > 0)

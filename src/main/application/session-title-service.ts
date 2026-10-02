@@ -101,40 +101,62 @@ function generateInitial(input: {
   })
 }
 
-/**
- * Replaces a default or Provisional title with a generated one. Callers run it in the background
- * so it never delays the Run or Spawn that triggered it; a failure keeps the current title.
- */
-export function generateInitialSessionTitle(input: {
+interface InitialTitleRequest {
   readonly sessionId: SessionId
   readonly text: string
   readonly attachments?: readonly SessionTitleContextAttachment[]
   readonly model?: SupportedModelId | null
   /** False for a request made at creation, before the first Run, which will ask again. */
   readonly settleOnFailure?: boolean
-}) {
+}
+
+/**
+ * The latest request that arrived while another ran for the same Session. A first Run asks while
+ * the request made at creation may still be retrying; it runs once that one ends, and does nothing
+ * if a title landed meanwhile.
+ */
+const initialAgain = new Map<SessionId, InitialTitleRequest>()
+
+function runInitial(input: InitialTitleRequest) {
+  const attachments = input.attachments ?? []
+  if (!input.text.trim() && attachments.length === 0) return Effect.void
+  return generateInitial({
+    sessionId: input.sessionId,
+    text: input.text,
+    attachments,
+    model: input.model ?? null,
+    settleOnFailure: input.settleOnFailure ?? true,
+  }).pipe(
+    Effect.catchAllCause((cause) =>
+      Effect.sync(() => {
+        logger.warn('Title generation failed; keeping the current title', {
+          sessionId: input.sessionId,
+          cause: String(cause),
+        })
+      }),
+    ),
+  )
+}
+
+/**
+ * Replaces a default or Provisional title with a generated one. Callers run it in the background
+ * so it never delays the Run or Spawn that triggered it; a failure keeps the current title.
+ */
+export function generateInitialSessionTitle(input: InitialTitleRequest) {
   return Effect.gen(function* () {
-    const attachments = input.attachments ?? []
-    if (!input.text.trim() && attachments.length === 0) return
     const release = claimTitleWork('initial', input.sessionId)
-    if (!release) return
-    yield* generateInitial({
-      sessionId: input.sessionId,
-      text: input.text,
-      attachments,
-      model: input.model ?? null,
-      settleOnFailure: input.settleOnFailure ?? true,
-    }).pipe(
-      Effect.catchAllCause((cause) =>
-        Effect.sync(() => {
-          logger.warn('Title generation failed; keeping the current title', {
-            sessionId: input.sessionId,
-            cause: String(cause),
-          })
-        }),
-      ),
-      Effect.ensuring(Effect.sync(release)),
-    )
+    if (!release) {
+      initialAgain.set(input.sessionId, input)
+      return
+    }
+    yield* Effect.gen(function* () {
+      let request: InitialTitleRequest | undefined = input
+      while (request) {
+        yield* runInitial(request)
+        request = initialAgain.get(input.sessionId)
+        initialAgain.delete(input.sessionId)
+      }
+    }).pipe(Effect.ensuring(Effect.sync(release)))
   })
 }
 
