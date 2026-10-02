@@ -97,7 +97,7 @@ pin is still allowed, it simply has no shortcut.
 
 ## Session tree
 
-Open the Session Tree from the header tree icon or the global command palette action **Open Session Tree**. When focus is inside the tree:
+Open the Session Tree from **Session tree** on the panel rail, with `Cmd+Shift+Y` / `Ctrl+Shift+Y`, or from **Session Tree** in the command palette's **Panels** section. When focus is inside the tree:
 
 | Action | Shortcut |
 |--------|----------|

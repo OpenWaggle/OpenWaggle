@@ -13,9 +13,9 @@ Conversation branches are not Git branches. Changing the selected conversation p
 
 ## Opening the Session tree
 
-Click the tree icon in the header. You can also press `Cmd+K` on macOS or `Ctrl+K` on Windows and Linux, then choose **Open session tree**.
+Click **Session tree** on the [panel rail](/docs/using-openwaggle/right-panel) or press `Cmd+Shift+Y` on macOS or `Ctrl+Shift+Y` on Windows and Linux. You can also press `Cmd+K` / `Ctrl+K` and choose **Session Tree** under **Panels**.
 
-The tree opens in the right sidebar. It shares that space with Diff and other inspectors, so opening it replaces the current panel.
+The tree opens in the right panel, which shows one panel at a time, so opening it replaces Changes or whatever else was showing.
 
 To try a different approach:
 
