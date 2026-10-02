@@ -700,11 +700,11 @@ The composer-native chooser opened by the stable `@` invocation character to ref
 _Avoid_: project file picker, configurable application shortcut
 
 **Global command palette**:
-The app-wide modal chooser for navigation and product actions, including session creation, project switching, file/content search, settings, session operations, extension surfaces, recent sessions, and feedback. It does not contain prompt skills, Waggle presets, or slash commands.
+The app-wide modal chooser for navigation and product actions, including session creation, project switching, file/content search, settings, session operations, every **Right panel surface** (built-in and extension), recent sessions, and feedback. Choosing a surface always shows it and never closes the **Right panel**. It does not contain prompt skills, Waggle presets, or slash commands.
 _Avoid_: Slash command menu, composer palette
 
 **Shortcut registry**:
-The persisted, conflict-free mapping from product commands to user-recorded cross-platform key combinations. Core navigation commands remain assigned but can be remapped; optional workspace commands can be cleared or reset.
+The persisted, conflict-free mapping from product commands to user-recorded cross-platform key combinations. Core navigation commands remain assigned but can be remapped; optional workspace commands can be cleared or reset. Every **Right panel surface**, **All panels**, and each extension side panel has a command whose binding toggles that surface like its **Panel rail** icon; new panel commands start unassigned, and extensions cannot declare default bindings.
 _Avoid_: component-local shortcut literal, silent shortcut replacement
 
 **Waggle invocation**:
@@ -720,7 +720,7 @@ The transient status toolbar above the composer while a Waggle invocation is pen
 _Avoid_: Waggle mode toolbar, ready banner
 
 **Workspace file surface**:
-The session-scoped place for inspecting one project file from the active Working path.
+The session-scoped place for inspecting one project file from the active Working path. Opened from the **Panel rail** without a target, it reopens the Session's last inspected file, or shows only the workspace navigator when there is none or that file no longer exists.
 _Avoid_: IDE workspace, read-only attachment preview, renderer filesystem access
 
 **Focused file edit**:
@@ -1316,6 +1316,32 @@ _Avoid_: sort mode (ambiguous with the project list's own session sort), filter 
 **Pinned shortcut**:
 The keyboard shortcut opening a Pinned session by its **position** in the Pinned section, first row through ninth. Positional by definition, so it re-derives whenever the Pinned sort reorders the list, and rows past the ninth have none.
 _Avoid_: pin number (implies a number stored on the pin), session shortcut (any session can be opened; only Pinned sessions get a positional one)
+
+### Right panel navigation
+
+**Right panel**:
+The single container beside the chat that shows one **Right panel surface** at a time. The **Right panel toggle** shows or hides it and restores the surface it last showed. Each Session remembers its own open state, shown surface, and maximized state; the **Panel rail** layout and the panel width belong to the user and are shared by every Session and surface. Below a narrow-window threshold it opens as a sheet over the chat.
+_Avoid_: right sidebar, inspector, side panel (an extension contributes a side panel; the container is the Right panel)
+
+**Right panel surface**:
+One thing the **Right panel** can show: a built-in surface such as Changes, Project Actions, Browser, Files, Session Tree, or Resources, an extension-contributed side panel, or Terminal tabs the user moved to the right-side location. User-facing copy calls it a panel. An extension side panel is unmounted while another surface is shown and restores itself from its **Extension contribution instance state**. The Session Hub is not a Right panel surface: it has its own header toggle and appears only while the **Right panel** is closed.
+_Avoid_: tab, view, tool
+
+**Right panel toggle**:
+The single header control that shows or hides the **Right panel**. Showing restores the Session's last surface; a Session with none uses the surface the user showed most recently anywhere, and a user who has never shown one gets **All panels**.
+_Avoid_: panel launcher, sidebar button
+
+**Panel rail**:
+The vertical strip of icons on the **Right panel**'s edge: the fixed **All panels** entry first, then the surfaces the user keeps on the rail in the user's order. Choosing an icon shows that surface, and choosing the shown surface's icon again closes the **Right panel**; pressing and holding one picks it up to reorder. By default the rail stays visible while the **Right panel** is closed; the user can choose to hide it with the panel. A surface opened from elsewhere, such as a file link or a change request, highlights the rail entry it belongs to. The rail appears only beside a Session's chat; a built-in entry that cannot work yet stays in place, disabled with its reason.
+_Avoid_: activity bar, toolbar, dock
+
+**Panel rail icon**:
+The glyph that represents a **Right panel surface** on the **Panel rail** and in **All panels**. An extension side panel may name a bundled Lucide icon or point to a single-colour SVG inside its package; OpenWaggle draws either one in the rail's own colours, as it draws built-in icons, and falls back to a letter tile when the icon is missing or invalid.
+_Avoid_: logo, brand icon, extension image
+
+**All panels**:
+The **Right panel** page, opened from the first **Panel rail** entry, that lists every available **Right panel surface** with its shortcut, including surfaces kept off the rail, surfaces the rail has no room for, and extension surfaces that cannot run yet, labelled with what they need. It is where users discover and learn every surface.
+_Avoid_: launcher, new tab page, home, grid
 
 ### Transcript window
 
@@ -2318,7 +2344,7 @@ One viewport inside the terminal panel showing exactly one Session terminal. Pan
 _Avoid_: terminal window, tab (a tab organizes panes; a pane shows one terminal)
 
 **Terminal panel location**:
-The bottom drawer or right-side panel that currently owns a Terminal tab's viewport layout. Moving a tab changes only its renderer location; it preserves the Session terminal id, PTY, Working path, output stream, and lifecycle owner. The two locations can be open together but never mount the same PTY twice.
+The bottom drawer or right-side panel that currently owns a Terminal tab's viewport layout. Moving a tab changes only its renderer location; it preserves the Session terminal id, PTY, Working path, output stream, and lifecycle owner. The two locations can be open together but never mount the same PTY twice. Terminals have no **Panel rail** entry: the terminal toggle command and its header control are the only way to show or hide them, wherever their tabs currently live.
 _Avoid_: terminal migration (runtime ownership does not change), duplicate terminal panel
 
 **Terminal tab**:
@@ -2424,6 +2450,10 @@ _Avoid_: shared permission (the choice is private), discovery (finding a definit
 **Project action run**:
 One execution of a Project action in a particular Workspace resource.
 _Avoid_: Run (an agent execution), terminal (the output surface is not the execution itself)
+
+**Action output terminal view**:
+A read-only Terminal tab that shows the live and retained output of one existing **Project action run**. It attaches to that run rather than starting a process; closing it closes only the view, and Stop and Restart stay with the run's Project Actions controls. When the run ends, the view keeps the final output and shows the run's outcome. Each Project action has at most one view per Workspace resource; it follows a restart to the replacement run, keeping earlier output above a divider.
+_Avoid_: action terminal (implies the action runs in the terminal), rerun in terminal
 
 **Long-running action**:
 A Project action intended to provide an ongoing process, such as a development server, within a Workspace resource.
