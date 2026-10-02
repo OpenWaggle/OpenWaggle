@@ -43,6 +43,7 @@ function model(overrides: Partial<RightPanelModel> = {}): RightPanelModel {
     surfaces: [allPanels, changes, actions, browser],
     railSurfaces: [changes, actions, browser],
     knownRailIds: ['changes', 'project-actions', 'browser'],
+    listedRailIds: ['changes', 'project-actions', 'browser'],
     extensionPanels: [],
     extensionRegistryLoaded: true,
     ...overrides,
@@ -149,5 +150,80 @@ describe('PanelRail', () => {
     expect(
       screen.queryByRole('menuitemcheckbox', { name: 'Keep rail visible when panel is closed' }),
     ).not.toBeInTheDocument()
+  })
+  it('keeps focus on an icon moved with the keyboard, or on All panels once it leaves the rail', () => {
+    const actions = {
+      toggleSurface: vi.fn(),
+      showSurface: vi.fn(),
+      move: vi.fn(),
+      unpin: vi.fn(),
+      reset: vi.fn(),
+    }
+    const initial = model()
+    const [changes, projectActions, browser] = initial.railSurfaces
+    if (!changes || !projectActions || !browser) throw new Error('fixture rail is incomplete')
+    const { rerender } = render(<PanelRail model={initial} actions={actions} />)
+    const moved = screen.getByRole('button', { name: 'Changes (⌘D)' })
+    moved.focus()
+    fireEvent.keyDown(moved, { key: 'ArrowDown', altKey: true })
+    expect(actions.move).toHaveBeenCalledWith('changes', { type: 'down' })
+    rerender(
+      <PanelRail
+        model={{ ...initial, railSurfaces: [projectActions, changes, browser] }}
+        actions={actions}
+      />,
+    )
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Changes (⌘D)' }))
+
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Changes (⌘D)' }), {
+      key: 'ArrowDown',
+      altKey: true,
+    })
+    rerender(
+      <PanelRail
+        model={{ ...initial, railSurfaces: [projectActions, browser] }}
+        actions={actions}
+      />,
+    )
+    expect(document.activeElement).toHaveAttribute('data-rail-surface', 'all-panels')
+  })
+
+  it('returns focus to the icon when its menu closes', () => {
+    renderRail()
+    const changes = screen.getByRole('button', { name: 'Changes (⌘D)' })
+    fireEvent.contextMenu(changes, { clientX: 10, clientY: 10 })
+    fireEvent.keyDown(screen.getByRole('menu', { name: 'Changes options' }), { key: 'Escape' })
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+    expect(document.activeElement).toBe(changes)
+  })
+
+  it('cancels a drag with Escape or pointercancel without swallowing the next click', () => {
+    const actions = renderRail()
+    const button = screen.getByRole('button', { name: 'Project Actions · running' })
+    button.setPointerCapture = vi.fn()
+
+    fireEvent.pointerDown(button, { button: 0, clientY: 90, pointerId: 1 })
+    act(() => vi.advanceTimersByTime(400))
+    fireEvent.keyDown(window, { key: 'Escape' })
+    fireEvent.pointerUp(button, { clientY: 45, pointerId: 1 })
+    expect(actions.move).not.toHaveBeenCalled()
+
+    fireEvent.pointerDown(button, { button: 0, clientY: 90, pointerId: 2 })
+    act(() => vi.advanceTimersByTime(400))
+    fireEvent.pointerCancel(button, { pointerId: 2 })
+    fireEvent.click(button)
+    expect(actions.toggleSurface).toHaveBeenCalledWith('project-actions')
+  })
+
+  it('does not pick up an icon when the press ends before the hold completes', () => {
+    const actions = renderRail()
+    const button = screen.getByRole('button', { name: 'Project Actions · running' })
+    button.setPointerCapture = vi.fn(() => {
+      throw new DOMException('No active pointer', 'NotFoundError')
+    })
+    fireEvent.pointerDown(button, { button: 0, clientY: 90, pointerId: 1 })
+    expect(() => act(() => vi.advanceTimersByTime(400))).not.toThrow()
+    fireEvent.click(button)
+    expect(actions.toggleSurface).toHaveBeenCalledWith('project-actions')
   })
 })

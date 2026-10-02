@@ -2,11 +2,13 @@ import { useNavigate } from '@tanstack/react-router'
 import { PackageOpen, Pin, PinOff, RotateCcw, X } from 'lucide-react'
 import { cn } from '@/shared/lib/cn'
 import {
+  hasRightPanelController,
   type RightPanelSurfaceId,
   showRightPanelSurface,
   toggleRightPanelSurface,
 } from '@/shared/lib/right-panel-surfaces'
 import { Button } from '@/shared/ui/Button'
+import { useWorkspacePanelStore } from '../workspace-panel-store'
 import { RightPanelSurfaceIcon } from './RightPanelSurfaceIcon'
 import { useRightPanelRailStore } from './right-panel-rail-store'
 import { type RightPanelSurfaceEntry, useRightPanelModel } from './useRightPanelModel'
@@ -117,7 +119,11 @@ export function AllPanelsSurface() {
           variant="ghost"
           aria-label="Close panel"
           title="Close panel"
-          onClick={() => toggleRightPanelSurface('all-panels')}
+          onClick={() => {
+            // Off a chat page there is no Panel rail controller; the workspace panel still closes.
+            if (hasRightPanelController()) toggleRightPanelSurface('all-panels')
+            else useWorkspacePanelStore.getState().hidePanel(model.ownerKey)
+          }}
         >
           <X className="size-3.5" />
         </Button>

@@ -34,7 +34,8 @@ export function DiffToggleButton({
     <Button
       variant="ghost"
       size="none"
-      aria-label="Toggle diff panel"
+      aria-label="Changes"
+      aria-pressed={open}
       onClick={onToggle}
       disabled={disabled}
       className={cn(
@@ -42,11 +43,7 @@ export function DiffToggleButton({
         disabled && 'pointer-events-none opacity-30',
         open && 'opacity-100',
       )}
-      title={
-        status
-          ? `Toggle diff panel: +${status.additions} -${status.deletions}`
-          : 'Toggle diff panel'
-      }
+      title={status ? `Changes: +${status.additions} -${status.deletions}` : 'Changes'}
       data-git-status-state={gitStatusState}
     >
       <FileDiff aria-hidden="true" className="hidden size-3.5 @max-[720px]/header:block" />

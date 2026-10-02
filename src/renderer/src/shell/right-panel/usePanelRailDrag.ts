@@ -1,4 +1,4 @@
-import { type PointerEvent, useRef, useState } from 'react'
+import { type PointerEvent, useEffect, useEffectEvent, useRef, useState } from 'react'
 import type { RightPanelSurfaceId } from '@/shared/lib/right-panel-surfaces'
 import type { RailMove } from './right-panel-rail-order'
 
@@ -17,6 +17,7 @@ export interface RailDropTarget {
 interface PendingHold {
   readonly id: RightPanelSurfaceId
   readonly pointerId: number
+  readonly startX: number
   readonly startY: number
   readonly element: HTMLElement
   readonly timer: ReturnType<typeof setTimeout>
@@ -56,6 +57,23 @@ export function usePanelRailDrag(
     setDrop(null)
   }
 
+  /** Ends a drag without a drop; no click follows, so none is swallowed. */
+  function cancel() {
+    finish()
+    suppressClick.current = false
+  }
+
+  const onEscape = useEffectEvent((event: KeyboardEvent) => {
+    if (event.key !== 'Escape') return
+    event.preventDefault()
+    cancel()
+  })
+  useEffect(() => {
+    if (dragging === null) return
+    window.addEventListener('keydown', onEscape, true)
+    return () => window.removeEventListener('keydown', onEscape, true)
+  }, [dragging])
+
   function onPointerDown(event: PointerEvent<HTMLElement>, id: RightPanelSurfaceId) {
     if (event.button !== 0) return
     cancelHold()
@@ -63,16 +81,33 @@ export function usePanelRailDrag(
     const pointerId = event.pointerId
     const timer = setTimeout(() => {
       pending.current = null
-      element.setPointerCapture(pointerId)
+      // The press can end off the icon before the hold completes; then there is nothing to pick up.
+      try {
+        element.setPointerCapture(pointerId)
+      } catch {
+        return
+      }
       suppressClick.current = true
       setDragging(id)
     }, HOLD_TO_DRAG_MS)
-    pending.current = { id, pointerId, startY: event.clientY, element, timer }
+    pending.current = {
+      id,
+      pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      element,
+      timer,
+    }
   }
 
   function onPointerMove(event: PointerEvent<HTMLElement>) {
     const hold = pending.current
-    if (hold !== null && Math.abs(event.clientY - hold.startY) > HOLD_SLOP_PX) cancelHold()
+    if (
+      hold !== null &&
+      Math.hypot(event.clientX - hold.startX, event.clientY - hold.startY) > HOLD_SLOP_PX
+    ) {
+      cancelHold()
+    }
     if (dragging === null) return
     const rail = event.currentTarget.closest<HTMLElement>('[data-panel-rail]')
     const hit = rail === null ? null : railItemAt(rail, event.clientY)
@@ -102,8 +137,16 @@ export function usePanelRailDrag(
   return {
     dragging,
     drop,
-    cancel: finish,
+    cancel,
     consumeClick,
-    handlers: { onPointerDown, onPointerMove, onPointerUp, onPointerCancel: finish },
+    handlers: {
+      onPointerDown,
+      onPointerMove,
+      onPointerUp,
+      onPointerCancel: cancel,
+      onPointerLeave: () => {
+        if (dragging === null) cancelHold()
+      },
+    },
   }
 }

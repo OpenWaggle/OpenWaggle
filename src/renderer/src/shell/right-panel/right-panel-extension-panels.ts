@@ -28,6 +28,15 @@ export interface RailExtensionPanel {
 
 type EntryVisibility = 'hidden' | RailExtensionPanelStatus
 
+/** Only a federated module with an entry point can be mounted in the Right panel. */
+function isLoadable(entry: ExtensionContributionRegistryEntry) {
+  return (
+    entry.runtime === OPENWAGGLE_EXTENSION.CONTRIBUTION_RUNTIME.FEDERATED_MODULE &&
+    entry.execution !== undefined &&
+    entry.entryPath !== undefined
+  )
+}
+
 function appliesHere(entry: ExtensionContributionRegistryEntry, requested: readonly string[]) {
   const disabled = new Set(entry.eligibility.disabledProjectPaths)
   if (requested.some((projectPath) => disabled.has(projectPath))) return false
@@ -46,6 +55,7 @@ function entryVisibility(
 ): EntryVisibility {
   const { eligibility } = entry
   if (!eligibility.runtimeEnabled || !eligibility.enabled) return 'hidden'
+  if (!isLoadable(entry)) return 'hidden'
   if (!appliesHere(entry, requested)) return 'hidden'
   if (!eligibility.trusted) {
     return {

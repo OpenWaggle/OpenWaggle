@@ -19,6 +19,7 @@ import {
 } from '../lib/terminal-owner'
 import {
   hasActionOutputViews,
+  showLatestActionOutputView,
   shownActionOutputView,
   useActionOutputViewStore,
 } from '../state/action-output-view-store'
@@ -84,9 +85,10 @@ export function useTerminalCommands(): {
         : commandLayoutOwner()
     const group = store.groups[layoutOwnerKey]
     const opening = layoutOwnerKey === owner.ownerKey ? !drawerOpen : !sideTerminalVisible
-    // A drawer holding action output views opens on them instead of starting a shell.
-    if (opening && (group?.tabs.length ?? 0) === 0 && !hasActionOutputViews(layoutOwnerKey)) {
-      store.createTerminal(layoutOwnerKey, owner.defaultCwd)
+    // A drawer holding action output views opens on the latest one instead of starting a shell.
+    if (opening && (group?.tabs.length ?? 0) === 0) {
+      if (hasActionOutputViews(layoutOwnerKey)) showLatestActionOutputView(layoutOwnerKey)
+      else store.createTerminal(layoutOwnerKey, owner.defaultCwd)
     }
     store.setPanelOpen(layoutOwnerKey, opening)
     if (layoutOwnerKey !== owner.ownerKey) {

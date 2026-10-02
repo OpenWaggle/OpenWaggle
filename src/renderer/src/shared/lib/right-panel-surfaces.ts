@@ -8,7 +8,7 @@
 
 import {
   type ExtensionRightPanelSurfaceId,
-  parseExtensionRightPanelSurfaceId,
+  isExtensionRightPanelSurfaceId,
 } from '@shared/types/right-panel-surface-id'
 
 export const BUILT_IN_RIGHT_PANEL_SURFACE_IDS = [
@@ -38,7 +38,7 @@ export function isBuiltInRightPanelSurfaceId(id: string): id is BuiltInRightPane
 }
 
 export function isRightPanelSurfaceId(id: string): id is RightPanelSurfaceId {
-  return isBuiltInRightPanelSurfaceId(id) || parseExtensionRightPanelSurfaceId(id) !== null
+  return isBuiltInRightPanelSurfaceId(id) || isExtensionRightPanelSurfaceId(id)
 }
 
 export interface RightPanelController {

@@ -43,4 +43,4 @@ Every panel, including extension panels, can have a keyboard shortcut. Assign th
 
 ## Narrow windows
 
-Below about 1180 pixels wide the panel opens over the conversation instead of beside it. The rail stays at the edge, and clicking the highlighted icon closes the panel.
+Below about 1180 pixels wide the panel opens over the conversation instead of beside it. The rail stays at the edge, and clicking the icon of the panel that is showing closes it.

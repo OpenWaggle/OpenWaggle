@@ -72,6 +72,8 @@ describe('useWorkspaceLifecycle Right panel shortcuts', () => {
 
   beforeEach(async () => {
     resetWorkspaceLifecycleMocks()
+    // The registry is asked about the Session's checkout, like the Panel rail does.
+    lifecycleMocks.workingPath = '/repo'
     controller.toggleSurface.mockClear()
     controller.showSurface.mockClear()
     ;({ useWorkspaceLifecycle } = await loadUseWorkspaceLifecycle())

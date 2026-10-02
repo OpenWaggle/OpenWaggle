@@ -8,6 +8,7 @@ import { openActionOutputTerminalView } from '../../lib/open-action-output-termi
 import {
   hasActionOutputViews,
   MAX_ACTION_OUTPUT_VIEWS_PER_OWNER,
+  showLatestActionOutputView,
   shownActionOutputView,
   useActionOutputViewStore,
 } from '../action-output-view-store'
@@ -115,6 +116,23 @@ describe('Action output terminal views', () => {
       run('run-3', 'stopped', 3),
     ])
     expect(views()[0]?.runIds).toEqual(['run-1', 'run-2', 'run-3', 'run-4'])
+  })
+
+  it('starts the view over on a concurrent run chosen explicitly', () => {
+    open('run-1')
+    open('run-1')
+    expect(views()[0]?.runIds).toEqual(['run-1'])
+    open('run-2')
+    expect(views()).toHaveLength(1)
+    expect(views()[0]?.runIds).toEqual(['run-2'])
+  })
+
+  it('shows the latest view when the drawer has no terminal tab', () => {
+    open('run-1')
+    open('lint-1', 'lint')
+    useActionOutputViewStore.getState().deactivate(OWNER)
+    showLatestActionOutputView(OWNER)
+    expect(shown()?.actionId).toBe('lint')
   })
 
   it('keeps an ended run as the view’s final output', () => {

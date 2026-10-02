@@ -32,6 +32,15 @@ describe('parseChatRouteSearch', () => {
     expect(parseChatRouteSearch({ panel: 'other' })).toEqual({})
   })
 
+  it('keeps Files without a path as the navigator on its own', () => {
+    expect(parseChatRouteSearch({ panel: 'file' })).toEqual({ panel: 'file' })
+    expect(parseChatRouteSearch({ panel: 'file', filePath: 'src/a.ts', fileLine: '4' })).toEqual({
+      panel: 'file',
+      filePath: 'src/a.ts',
+      fileLine: 4,
+    })
+  })
+
   it('binds a change-request route to the Session that opened it', () => {
     const search = parseChatRouteSearch({
       panel: 'change-request',

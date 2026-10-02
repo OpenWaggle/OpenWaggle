@@ -241,7 +241,7 @@ describe('Header', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Hide Session Summary' }))
     // ADR 0043: Session Tree lives on the Panel rail; the Changes readout opens Changes there.
     expect(screen.queryByRole('button', { name: 'Toggle Session Tree' })).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Toggle diff panel' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Changes' }))
     fireEvent.click(screen.getByRole('button', { name: 'Show right panel' }))
     fireEvent.click(screen.getByRole('button', { name: 'Report a bug' }))
 

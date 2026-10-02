@@ -44,6 +44,8 @@ interface RightPanelRailState extends RightPanelRailPersistedState {
     surface: RightPanelSurfaceId,
     move: RailMove,
     known: readonly RightPanelSurfaceId[],
+    /** Also listed but not on the rail now (needs trust or an update); they keep their slot. */
+    listed?: readonly RightPanelSurfaceId[],
   ) => void
   readonly setPinned: (surface: RightPanelSurfaceId, pinned: boolean) => void
   readonly reset: () => void
@@ -103,7 +105,7 @@ function sanitizeSessions(value: unknown): Record<string, SessionRightPanelMemor
         typeof lastFilePath === 'string' && lastFilePath.length > 0 ? lastFilePath : null,
     }
   }
-  return sessions
+  return Object.fromEntries(Object.entries(sessions).slice(-MAX_REMEMBERED_SESSIONS))
 }
 
 /** Validates persisted rail state; anything unreadable falls back to the defaults. */
@@ -135,9 +137,9 @@ export const useRightPanelRailStore = create<RightPanelRailState>()(
         }
         set({ overflowing: surfaces })
       },
-      move: (surface, move, known) => {
+      move: (surface, move, known, listed = known) => {
         const { order, hidden } = get()
-        const full = fullRailOrder(order, known)
+        const full = fullRailOrder(order, [...new Set([...known, ...listed])])
         const visible = visibleRailOrder(order, known, hidden)
         set({ order: moveRailSurface(full, visible, surface, move) })
       },
@@ -191,6 +193,13 @@ export const useRightPanelRailStore = create<RightPanelRailState>()(
     },
   ),
 )
+
+/** The file a Session's Files surface showed last, kept current as the memory changes. */
+export function useSessionLastFilePath(sessionKey: string | null) {
+  return useRightPanelRailStore((state) =>
+    sessionKey === null ? null : (state.sessions[sessionKey]?.lastFilePath ?? null),
+  )
+}
 
 export function sessionRightPanelMemory(sessionKey: string | null): SessionRightPanelMemory {
   if (sessionKey === null) return EMPTY_SESSION_MEMORY

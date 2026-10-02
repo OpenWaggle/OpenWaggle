@@ -10,7 +10,12 @@ import { Button } from '@/shared/ui/Button'
 import { Spinner } from '@/shared/ui/Spinner'
 import { useUIStore } from '@/shell/ui-store'
 import { useActionAvailability } from '../hooks/useActionAvailability'
-import { actionQueryKey, useActionRuns, useNativeActions } from '../hooks/useNativeActions'
+import {
+  actionQueryKey,
+  useActionRuns,
+  useActionScope,
+  useNativeActions,
+} from '../hooks/useNativeActions'
 import { useRunProjectAction } from '../hooks/useRunProjectAction'
 import { duplicateActionNames, duplicateNameHint } from '../lib/action-names'
 import { continueDraftLabel, isDraftDirty } from '../lib/action-panel-drafts'
@@ -26,12 +31,6 @@ export interface ProjectActionsSurfaceProps {
   readonly projectPath: string | null
   readonly sessionId: string | null
   readonly onShowRunOutput: (input: { projectPath: string; runId: string }) => void
-}
-
-function surfaceScope(projectPath: string | null, sessionId: string | null) {
-  if (!projectPath) return null
-  const scope: ActionManagementScope = { projectPath, ...(sessionId ? { sessionId } : {}) }
-  return scope
 }
 
 /** Newest first, so the first match is the run a row shows and operates on. */
@@ -94,7 +93,8 @@ function SurfaceMessage({
  */
 export function ProjectActionsSurface(props: ProjectActionsSurfaceProps) {
   const { projectPath, sessionId, onShowRunOutput } = props
-  const scope = surfaceScope(projectPath, sessionId)
+  // The same scope the run hooks use, so a row never offers a run they would refuse.
+  const scope = useActionScope(projectPath)
   const catalog = useNativeActions(scope)
   const runsQuery = useActionRuns(scope)
   const runProjectAction = useRunProjectAction(projectPath)
@@ -122,9 +122,9 @@ export function ProjectActionsSurface(props: ProjectActionsSurfaceProps) {
     void operations.perform(definition.id, () => runProjectAction(definition))
   return (
     <section aria-label="Project actions" className="flex min-h-0 flex-col">
-      <h2 className="px-3 pt-3 pb-1.5 text-xs font-normal text-text-tertiary">
+      <p className="px-3 pt-3 pb-1.5 text-xs font-normal text-text-tertiary">
         Run in this session’s workspace
-      </h2>
+      </p>
       {!sessionId ? (
         <SurfaceMessage>Select a session in this project to run actions.</SurfaceMessage>
       ) : null}
@@ -155,8 +155,8 @@ export function ProjectActionsSurface(props: ProjectActionsSurfaceProps) {
                   latestRun: actionRuns[0] ?? null,
                   activeRun: actionRuns.find(isActiveActionRun) ?? null,
                   busy: operations.pending.has(definition.id),
-                  canRun: Boolean(sessionId),
-                  canOpenTerminal: Boolean(sessionId),
+                  canRun: Boolean(scope?.sessionId),
+                  canOpenTerminal: Boolean(scope?.sessionId),
                 }}
                 actions={{
                   onRun: () => run(definition),

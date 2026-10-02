@@ -1,5 +1,13 @@
 import { LayoutGrid } from 'lucide-react'
-import { type KeyboardEvent, type MouseEvent, useEffect, useEffectEvent, useState } from 'react'
+import {
+  type KeyboardEvent,
+  type MouseEvent,
+  useEffect,
+  useEffectEvent,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react'
 import { cn } from '@/shared/lib/cn'
 import type { RightPanelSurfaceId } from '@/shared/lib/right-panel-surfaces'
 import { Button } from '@/shared/ui/Button'
@@ -27,9 +35,39 @@ function surfaceTooltip(surface: RightPanelSurfaceEntry) {
   const parts = [surface.title]
   if (surface.extension !== null) parts.push(surface.extension.extensionName)
   if (surface.running) parts.push('running')
+  if (surface.isNew) parts.push('new')
   const label = parts.join(' · ')
   const withShortcut = surface.shortcutLabel ? `${label} (${surface.shortcutLabel})` : label
   return surface.disabledReason ? `${withShortcut} — ${surface.disabledReason}` : withShortcut
+}
+
+function railButtonA11y(surface: RightPanelSurfaceEntry, badgeLabel: string | undefined) {
+  const tooltip = surfaceTooltip(surface)
+  return {
+    label: badgeLabel ? `${tooltip} · ${badgeLabel}` : tooltip,
+    disabled: surface.disabledReason !== null,
+    keyShortcuts: surface.id === 'all-panels' ? undefined : 'Alt+ArrowUp Alt+ArrowDown',
+  }
+}
+
+/**
+ * Moving a keyed button can blur it (the DOM node is re-inserted), so keyboard reordering puts
+ * focus back on the moved icon, or on All panels once the icon no longer fits on the rail.
+ */
+function useKeyboardMoveFocus(railKey: string) {
+  const navRef = useRef<HTMLElement | null>(null)
+  const refocus = useRef<RightPanelSurfaceId | null>(null)
+  useLayoutEffect(() => {
+    const id = refocus.current
+    const nav = navRef.current
+    if (id === null || nav === null || railKey === '') return
+    refocus.current = null
+    const button =
+      nav.querySelector<HTMLElement>(`[data-rail-surface="${id}"]`) ??
+      nav.querySelector<HTMLElement>('[data-rail-surface="all-panels"]')
+    button?.focus()
+  }, [railKey])
+  return { navRef, refocus }
 }
 
 function useRailCapacity() {
@@ -54,6 +92,8 @@ interface RailButtonState {
   readonly dragging: boolean
   readonly dropEdge: 'before' | 'after' | null
   readonly badge?: string
+  /** What the badge means, for screen readers and the tooltip. */
+  readonly badgeLabel?: string
 }
 
 interface RailButtonEvents {
@@ -73,7 +113,7 @@ function RailButton({
   readonly events: RailButtonEvents
 }) {
   const props = { ...state, ...events, dragHandlers: events.drag }
-  const disabled = surface.disabledReason !== null
+  const { label, disabled, keyShortcuts } = railButtonA11y(surface, props.badgeLabel)
   return (
     <Button
       type="button"
@@ -82,9 +122,9 @@ function RailButton({
       data-active={props.active || undefined}
       aria-pressed={props.active}
       aria-disabled={disabled || undefined}
-      aria-keyshortcuts={surface.id === 'all-panels' ? undefined : 'Alt+ArrowUp Alt+ArrowDown'}
-      aria-label={surfaceTooltip(surface)}
-      title={surfaceTooltip(surface)}
+      aria-keyshortcuts={keyShortcuts}
+      aria-label={label}
+      title={label}
       className={cn(
         'no-drag relative grid size-8 shrink-0 cursor-default touch-none select-none place-items-center rounded-md text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-primary',
         props.active &&
@@ -104,6 +144,7 @@ function RailButton({
       onPointerMove={props.dragHandlers?.onPointerMove}
       onPointerUp={props.dragHandlers?.onPointerUp}
       onPointerCancel={props.dragHandlers?.onPointerCancel}
+      onPointerLeave={props.dragHandlers?.onPointerLeave}
     >
       <RightPanelSurfaceIcon glyph={surface.glyph} title={surface.title} />
       {surface.isNew ? (
@@ -152,6 +193,8 @@ export function PanelRail(props: {
     useRightPanelRailStore.getState().setOverflowing(overflowIds),
   )
   useEffect(() => publishOverflow(overflowKey), [overflowKey])
+  const { navRef, refocus } = useKeyboardMoveFocus(`${railIds.join('\n')}|${String(capacity)}`)
+  const menuOrigin = useRef<HTMLElement | null>(null)
 
   function activate(id: RightPanelSurfaceId) {
     if (drag.consumeClick()) return
@@ -162,12 +205,21 @@ export function PanelRail(props: {
     if (!event.altKey || event.metaKey || event.ctrlKey) return
     if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return
     event.preventDefault()
+    refocus.current = id
     actions.move(id, { type: event.key === 'ArrowUp' ? 'up' : 'down' })
+  }
+
+  function closeMenu() {
+    setMenu(null)
+    const origin = menuOrigin.current
+    menuOrigin.current = null
+    if (origin?.isConnected) origin.focus()
   }
 
   function openMenu(event: MouseEvent<HTMLButtonElement>, surface: RightPanelSurfaceEntry) {
     event.preventDefault()
     drag.cancel()
+    menuOrigin.current = event.currentTarget
     const index = railIds.indexOf(surface.id)
     setMenu({
       id: surface.id,
@@ -181,7 +233,10 @@ export function PanelRail(props: {
 
   return (
     <nav
-      ref={measureRef}
+      ref={(element) => {
+        navRef.current = element
+        measureRef(element)
+      }}
       aria-label="Panels"
       data-panel-rail="true"
       className={cn(
@@ -196,7 +251,12 @@ export function PanelRail(props: {
             active: highlight === 'all-panels',
             dragging: false,
             dropEdge: null,
-            ...(overflow > 0 ? { badge: `+${String(overflow)}` } : {}),
+            ...(overflow > 0
+              ? {
+                  badge: `+${String(overflow)}`,
+                  badgeLabel: `${String(overflow)} more ${overflow === 1 ? 'panel' : 'panels'}`,
+                }
+              : {}),
           }}
           events={{ onActivate: () => activate('all-panels') }}
         />
@@ -225,7 +285,7 @@ export function PanelRail(props: {
       {menu ? (
         <PanelRailMenu
           target={menu}
-          onClose={() => setMenu(null)}
+          onClose={closeMenu}
           onMove={(id, direction) => actions.move(id, { type: direction })}
           onUnpin={actions.unpin}
           onShowAllPanels={() => actions.showSurface('all-panels')}

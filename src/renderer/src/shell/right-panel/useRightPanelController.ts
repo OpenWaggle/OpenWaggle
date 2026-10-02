@@ -1,6 +1,6 @@
 import { match } from '@diegogbrisa/ts-match'
 import { useRouterState } from '@tanstack/react-router'
-import { useEffect, useEffectEvent, useState } from 'react'
+import { useEffect, useEffectEvent, useRef, useState } from 'react'
 import { api } from '@/shared/lib/ipc'
 import {
   parseExtensionRightPanelSurfaceId,
@@ -22,6 +22,8 @@ import type { RightPanelModel } from './useRightPanelModel'
 import { useRightPanelRouteNavigation } from './useRightPanelRouteNavigation'
 
 const FILE_LOOKUP_LIMIT = 50
+/** How long a Session waits for a remembered surface that is still loading before giving up. */
+const RESTORE_WAIT_MS = 3000
 
 async function existingWorkspaceFile(workingPath: string | null, path: string | null) {
   if (workingPath === null || path === null) return null
@@ -42,6 +44,53 @@ function useRouteFileTarget() {
   })
 }
 
+function useRouteHasPanel() {
+  return useRouterState({
+    select: (state) =>
+      state.location.search.panel !== undefined || state.location.search.diff === 1,
+  })
+}
+
+/**
+ * Bumps on every surface request and Session switch, so a slow Files lookup cannot override a
+ * later choice or navigate back to the Session it started in.
+ */
+function useSurfaceRequests(sessionKey: string | null) {
+  const surfaceRequest = useRef(0)
+  useEffect(() => {
+    surfaceRequest.current += 1
+  }, [sessionKey])
+  return surfaceRequest
+}
+
+function openExtensionSurface(input: {
+  readonly id: RightPanelSurfaceId
+  readonly model: RightPanelModel
+  readonly route: ReturnType<typeof useRightPanelRouteNavigation>
+  readonly hideWorkspacePanel: () => void
+}) {
+  const { id, model, route } = input
+  const identity = parseExtensionRightPanelSurfaceId(id)
+  const panel = model.extensionPanels.find((candidate) => candidate.id === id)
+  if (identity === null || panel === undefined) return
+  input.hideWorkspacePanel()
+  route.open(
+    {
+      panel: EXTENSION_SIDE_PANEL_ROUTE_PANEL,
+      sidePanelExtensionId: panel.extensionId,
+      sidePanelId: panel.sidePanelId,
+      sidePanelPackagePath: panel.packagePath,
+      sidePanelContentHash: panel.contentHash,
+    },
+    extensionRightSidebarRequest(
+      panel.extensionId,
+      panel.sidePanelId,
+      panel.packagePath,
+      panel.contentHash,
+    ),
+  )
+}
+
 /**
  * Implements Right panel surface commands for the mounted chat context and keeps each
  * Session's panel memory (ADR 0043). Mounted once, beside the Panel rail.
@@ -50,7 +99,9 @@ export function useRightPanelController(model: RightPanelModel, workingPath: str
   const route = useRightPanelRouteNavigation()
   const showToast = useUIStore((state) => state.showToast)
   const routeFilePath = useRouteFileTarget()
+  const routeHasPanel = useRouteHasPanel()
   const { ownerKey, sessionKey, shown } = model
+  const surfaceRequest = useSurfaceRequests(sessionKey)
 
   function hideWorkspacePanel() {
     if (useWorkspacePanelStore.getState().groups[ownerKey]?.panelOpen === true) {
@@ -58,8 +109,11 @@ export function useRightPanelController(model: RightPanelModel, workingPath: str
     }
   }
 
+  /** Drops a route surface, including one covered by the guided action panel, from the URL. */
   function clearRoutePanel() {
-    if (useRightSidebarCoordinator.getState().activeClaim?.kind === 'route') route.close()
+    const claim = useRightSidebarCoordinator.getState().activeClaim
+    const coveredRoute = claim?.kind === 'action-panel' && claim.previous?.kind === 'route'
+    if (claim?.kind === 'route' || coveredRoute || routeHasPanel) route.close()
   }
 
   function closePanel() {
@@ -69,38 +123,18 @@ export function useRightPanelController(model: RightPanelModel, workingPath: str
     hideWorkspacePanel()
   }
 
-  function openFiles() {
+  function openFiles(request: number) {
     const remembered = sessionRightPanelMemory(sessionKey).lastFilePath
-    hideWorkspacePanel()
+    // The check runs before anything closes, so switching to Files never flashes a closed panel.
     void existingWorkspaceFile(workingPath, remembered).then((filePath) => {
+      if (request !== surfaceRequest.current) return
+      hideWorkspacePanel()
       if (filePath === null) {
         route.open({ panel: 'file' }, workspaceFileRightSidebarRequest('', null))
         return
       }
       route.open({ panel: 'file', filePath }, workspaceFileRightSidebarRequest(filePath, null))
     })
-  }
-
-  function openExtension(id: RightPanelSurfaceId) {
-    const identity = parseExtensionRightPanelSurfaceId(id)
-    const panel = model.extensionPanels.find((candidate) => candidate.id === id)
-    if (identity === null || panel === undefined) return
-    hideWorkspacePanel()
-    route.open(
-      {
-        panel: EXTENSION_SIDE_PANEL_ROUTE_PANEL,
-        sidePanelExtensionId: panel.extensionId,
-        sidePanelId: panel.sidePanelId,
-        sidePanelPackagePath: panel.packagePath,
-        sidePanelContentHash: panel.contentHash,
-      },
-      extensionRightSidebarRequest(
-        panel.extensionId,
-        panel.sidePanelId,
-        panel.packagePath,
-        panel.contentHash,
-      ),
-    )
   }
 
   function showSurface(id: RightPanelSurfaceId) {
@@ -111,6 +145,8 @@ export function useRightPanelController(model: RightPanelModel, workingPath: str
       return
     }
     if (entry.extension !== null) useRightPanelRailStore.getState().acknowledge([id])
+    surfaceRequest.current += 1
+    const request = surfaceRequest.current
     match(id)
       .with('changes', () => {
         hideWorkspacePanel()
@@ -124,7 +160,7 @@ export function useRightPanelController(model: RightPanelModel, workingPath: str
         hideWorkspacePanel()
         route.open({ panel: 'resources', resourceView: 'sources' }, 'resources')
       })
-      .with('files', openFiles)
+      .with('files', () => openFiles(request))
       .with('browser', () => {
         clearRoutePanel()
         showWorkspaceBrowser(ownerKey)
@@ -140,7 +176,7 @@ export function useRightPanelController(model: RightPanelModel, workingPath: str
           .acknowledge(model.extensionPanels.map((panel) => panel.id))
         useWorkspacePanelStore.getState().showIndexSurface(ownerKey, 'all-panels')
       })
-      .otherwise(() => openExtension(id))
+      .otherwise(() => openExtensionSurface({ id, model, route, hideWorkspacePanel }))
   }
 
   function toggleSurface(id: RightPanelSurfaceId) {
@@ -193,27 +229,44 @@ function useSessionPanelMemory(input: {
     routeSessionKey === null || routeSessionKey === model.sessionKey ? model.sessionKey : null
   const { shown } = model
   const [restoredKey, setRestoredKey] = useState<string | null>(null)
-  // Restore once per Session switch, not whenever the surface list re-renders.
-  const restoreSession = useEffectEvent((key: string) => {
-    const memory = sessionRightPanelMemory(key)
+  const memory = useRightPanelRailStore((state) =>
+    sessionKey === null ? undefined : state.sessions[sessionKey],
+  )
+  const remembered =
+    memory?.open === true && memory.surface !== undefined && memory.surface !== null
+      ? model.surfaces.find((surface) => surface.id === memory.surface)
+      : undefined
+  // A remembered extension panel or Session Tree can need a moment to become available.
+  const rememberedReady = remembered !== undefined && remembered.disabledReason === null
+  const restoreSession = useEffectEvent((key: string, show: boolean) => {
+    if (restoredKey === key) return
     const nothingShown = useRightSidebarCoordinator.getState().activeClaim === null
-    if (memory.open && memory.surface !== null && nothingShown) showSurface(memory.surface)
+    const surface = sessionRightPanelMemory(key).surface
+    if (show && nothingShown && surface !== null) showSurface(surface)
     setRestoredKey(key)
   })
 
   useEffect(() => {
     if (sessionKey === null) return
-    // Let the route and workspace claims of the newly selected Session settle first.
-    const timer = setTimeout(() => restoreSession(sessionKey))
+    const nothingToRestore = memory?.open !== true || memory.surface === null
+    // Let the route and workspace claims of the newly selected Session settle first, and give a
+    // remembered surface that is still loading a bounded wait before the Session's memory moves on.
+    const ready = rememberedReady || nothingToRestore
+    const timer = setTimeout(
+      () => restoreSession(sessionKey, rememberedReady),
+      ready ? 0 : RESTORE_WAIT_MS,
+    )
     return () => clearTimeout(timer)
-  }, [sessionKey])
+  }, [memory?.open, memory?.surface, rememberedReady, sessionKey])
 
   useEffect(() => {
     if (sessionKey === null || restoredKey !== sessionKey) return
+    // The guided action panel is not this Session's choice; it must not overwrite its memory.
+    if (shown.kind === 'action-panel') return
     useRightPanelRailStore.getState().rememberSession(sessionKey, {
       open: shown.open,
       ...(shown.highlight !== null ? { surface: shown.highlight } : {}),
       ...(routeFilePath !== null ? { lastFilePath: routeFilePath } : {}),
     })
-  }, [restoredKey, routeFilePath, sessionKey, shown.highlight, shown.open])
+  }, [restoredKey, routeFilePath, sessionKey, shown.highlight, shown.kind, shown.open])
 }

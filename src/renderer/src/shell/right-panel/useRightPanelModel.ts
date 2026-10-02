@@ -53,6 +53,8 @@ export interface RightPanelModel {
   readonly railSurfaces: readonly RightPanelSurfaceEntry[]
   /** Every surface id the rail may show in this context. */
   readonly knownRailIds: readonly RightPanelSurfaceId[]
+  /** Every surface that has a rail slot, including those that cannot run here yet. */
+  readonly listedRailIds: readonly RightPanelSurfaceId[]
   readonly extensionPanels: readonly RailExtensionPanel[]
   readonly extensionRegistryLoaded: boolean
 }
@@ -143,9 +145,11 @@ export function useRightPanelModel(enabled = true): RightPanelModel {
     running: false,
   }))
   const surfaces = [...builtIns, ...extensions]
-  const knownRailIds = surfaces
-    .filter((surface) => surface.id !== 'all-panels' && surface.needsLabel === null)
+  const listed = surfaces.filter((surface) => surface.id !== 'all-panels')
+  const knownRailIds = listed
+    .filter((surface) => surface.needsLabel === null)
     .map((surface) => surface.id)
+  const listedRailIds = listed.map((surface) => surface.id)
   const order = visibleRailOrder(railOrder, knownRailIds, hidden)
   const railSurfaces = order.flatMap((id) => surfaces.find((surface) => surface.id === id) ?? [])
 
@@ -157,6 +161,7 @@ export function useRightPanelModel(enabled = true): RightPanelModel {
     surfaces,
     railSurfaces,
     knownRailIds,
+    listedRailIds,
     extensionPanels,
     extensionRegistryLoaded: sidePanels.registry !== null,
   }

@@ -99,7 +99,7 @@ export function TerminalPanelHeader(props: TerminalPanelHeaderProps) {
       >
         <DrawerActionOutputTabs
           ownerKey={model.ownerKey}
-          coveredTabId={group?.activeTabId ?? null}
+          group={group}
           actionOutput={model.actionOutput}
         />
       </TerminalTabStrip>
@@ -142,16 +142,20 @@ function dockTabHandler(
 
 function DrawerActionOutputTabs(props: {
   readonly ownerKey: string
-  readonly coveredTabId: string | null
+  readonly group:
+    | { readonly activeTabId: string | null; readonly tabs: readonly unknown[] }
+    | undefined
   readonly actionOutput: TerminalPanelHeaderProps['model']['actionOutput']
 }) {
+  const coveredTabId = props.group?.activeTabId ?? null
   const activate = useActionOutputViewStore((state) => state.activate)
   const close = useActionOutputViewStore((state) => state.close)
   return (
     <ActionOutputViewTabs
       views={props.actionOutput.views}
       shownActionId={props.actionOutput.shownActionId}
-      onSelect={(actionId) => activate(props.ownerKey, actionId, props.coveredTabId)}
+      noTerminalTabs={(props.group?.tabs.length ?? 0) === 0}
+      onSelect={(actionId) => activate(props.ownerKey, actionId, coveredTabId)}
       onClose={(actionId) => close(props.ownerKey, actionId)}
     />
   )

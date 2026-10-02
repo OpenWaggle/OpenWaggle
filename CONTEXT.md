@@ -2452,7 +2452,7 @@ One execution of a Project action in a particular Workspace resource.
 _Avoid_: Run (an agent execution), terminal (the output surface is not the execution itself)
 
 **Action output terminal view**:
-A read-only Terminal tab that shows the live and retained output of one existing **Project action run**. It attaches to that run rather than starting a process; closing it closes only the view, and Stop and Restart stay with the run's Project Actions controls. When the run ends, the view keeps the final output and shows the run's outcome. Each Project action has at most one view per Workspace resource; it follows a restart to the replacement run, keeping earlier output above a divider.
+A read-only Terminal tab that shows the live and retained output of one existing **Project action run**. It attaches to that run rather than starting a process; closing it closes only the view, and Stop and Restart stay with the run's Project Actions controls. When the run ends, the view keeps the final output and shows the run's outcome. Each Project action has at most one view per Session; it follows a restart to the replacement run, keeping earlier output above a divider.
 _Avoid_: action terminal (implies the action runs in the terminal), rerun in terminal
 
 **Long-running action**:

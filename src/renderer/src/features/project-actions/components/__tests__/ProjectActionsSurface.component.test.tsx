@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   openView: vi.fn(),
   navigate: vi.fn(),
   toast: vi.fn(),
+  scopeSessionId: ((): string | null => 'session')(),
 }))
 vi.mock('@tanstack/react-router', () => ({ useNavigate: () => mocks.navigate }))
 vi.mock('@/shared/lib/ipc', () => ({ api: { manageProjectActions: mocks.manage } }))
@@ -26,6 +27,10 @@ vi.mock('../../hooks/useNativeActions', () => ({
   useNativeActions: () => ({ data: mocks.catalog ?? undefined, error: mocks.catalogError }),
   useActionRuns: () => ({ data: mocks.runs }),
   useActionDiscovery: () => ({ data: undefined }),
+  useActionScope: (projectPath: string | null) =>
+    projectPath
+      ? { projectPath, ...(mocks.scopeSessionId ? { sessionId: mocks.scopeSessionId } : {}) }
+      : null,
 }))
 vi.mock('../../hooks/useRunProjectAction', () => ({ useRunProjectAction: () => mocks.run }))
 
@@ -65,6 +70,7 @@ function devRun(overrides: Partial<ActionRun> = {}): ActionRun {
 const onShowRunOutput = vi.fn()
 
 function renderSurface(props: { projectPath?: string | null; sessionId?: string | null } = {}) {
+  mocks.scopeSessionId = props.sessionId === undefined ? 'session' : props.sessionId
   return renderWithQueryClient(
     <ProjectActionsSurface
       projectPath={props.projectPath === undefined ? '/repo' : props.projectPath}
@@ -95,7 +101,7 @@ describe('ProjectActionsSurface', () => {
 
   it('lists every action as a panel row with its command, shortcut and Run', () => {
     renderSurface()
-    expect(screen.getByRole('heading', { name: 'Run in this session’s workspace' })).toBeVisible()
+    expect(screen.getByText('Run in this session’s workspace')).toBeVisible()
     expect(screen.queryByRole('menu')).not.toBeInTheDocument()
     const rows = within(screen.getByRole('list', { name: 'Saved actions' })).getAllByRole(
       'listitem',

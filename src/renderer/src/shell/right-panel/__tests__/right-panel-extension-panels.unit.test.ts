@@ -29,6 +29,9 @@ function sidePanel(
     contributionId: id,
     title: `Panel ${id}`,
     label: id,
+    runtime: OPENWAGGLE_EXTENSION.CONTRIBUTION_RUNTIME.FEDERATED_MODULE,
+    execution: OPENWAGGLE_EXTENSION.EXECUTION_PLACEMENT.HOST_RENDERER,
+    entryPath: 'dist/panel.js',
     eligibility: {
       runtimeEnabled: true,
       enabled: true,
@@ -78,6 +81,9 @@ describe('railExtensionPanels', () => {
       list([
         sidePanel('off', {}, { enabled: false }),
         sidePanel('runtime', {}, { runtimeEnabled: false }),
+        sidePanel('unloadable', {
+          runtime: OPENWAGGLE_EXTENSION.CONTRIBUTION_RUNTIME.TRUSTED_RENDERER,
+        }),
         sidePanel('project', {}, { disabledProjectPaths: [PROJECT] }),
         sidePanel('elsewhere', { projectPaths: ['/other'] }),
         { ...sidePanel('route'), family: OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.ROUTES },

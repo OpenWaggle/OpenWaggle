@@ -1,5 +1,5 @@
 import { match } from '@diegogbrisa/ts-match'
-import { lazy, Suspense } from 'react'
+import { type ComponentProps, lazy, Suspense } from 'react'
 import { loadChatDiffPane } from '@/features/chat/components'
 import type { useChatPanelSections } from '@/features/chat/hooks'
 import {
@@ -16,7 +16,7 @@ import {
   WorkspaceFileNavigatorPanel,
   WorkspaceFilePanel,
 } from '@/features/workspace-files/components'
-import { type RightSidebarPanel, sessionRightPanelMemory } from '@/shell'
+import { type RightSidebarPanel, useSessionLastFilePath } from '@/shell'
 import type {
   ChatRightSidebarRouteState,
   ChatRouteSurfaceHandlers,
@@ -25,6 +25,16 @@ import type {
 
 const LazyChatDiffPane = lazy(loadChatDiffPane)
 const LazySessionTreePanel = lazy(loadSessionTreePanel)
+
+function SessionFileNavigator(
+  props: Omit<ComponentProps<typeof WorkspaceFileNavigatorPanel>, 'revealPath'> & {
+    readonly sessionId: string | null
+  },
+) {
+  const { sessionId, ...panel } = props
+  const revealPath = useSessionLastFilePath(sessionId)
+  return <WorkspaceFileNavigatorPanel {...panel} revealPath={revealPath} />
+}
 
 function SidebarFallback() {
   return (
@@ -89,10 +99,10 @@ function renderSidebarPanel(input: ChatRouteSidebarInput) {
     ))
     .with('file', () =>
       rightSidebar.workspaceFile?.path === '' ? (
-        <WorkspaceFileNavigatorPanel
+        <SessionFileNavigator
           key={sections.diff.workingPath ?? 'no-project'}
+          sessionId={workspace.sessionId}
           projectPath={sections.diff.workingPath}
-          revealPath={sessionRightPanelMemory(workspace.sessionId).lastFilePath}
           onClose={() => handlers.handleWorkspaceFileOpenChange(false)}
           onOpenFile={(path, line) => handlers.handleWorkspaceFileOpenChange(true, { path, line })}
         />

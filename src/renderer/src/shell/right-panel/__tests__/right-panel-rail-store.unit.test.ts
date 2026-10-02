@@ -53,6 +53,14 @@ describe('Right panel rail store', () => {
     expect(useRightPanelRailStore.getState()).toMatchObject({ order: null, hidden: [] })
   })
 
+  it('keeps the slot of a panel that cannot run yet when the rail is first reordered', () => {
+    const known = [...DEFAULT_BUILT_IN_RAIL_ORDER]
+    useRightPanelRailStore
+      .getState()
+      .move('resources', { type: 'before', target: 'changes' }, known, [...known, LINEAR])
+    expect(useRightPanelRailStore.getState().order).toContain(LINEAR)
+  })
+
   it('acknowledges the first extension listing silently, then marks later ones new', () => {
     useRightPanelRailStore.getState().initializeExtensions([LINEAR])
     expect(useRightPanelRailStore.getState().acknowledged).toEqual([LINEAR])

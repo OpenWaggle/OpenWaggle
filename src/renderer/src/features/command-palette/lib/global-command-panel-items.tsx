@@ -1,7 +1,6 @@
 import type { ExtensionContributionRegistryEntry } from '@shared/types/extensions'
 import type { Settings } from '@shared/types/settings'
-import { PanelRight } from 'lucide-react'
-import type { ExtensionSidePanelSurfaceEntry } from '@/features/extensions'
+import { ExtensionPanelIcon, type ExtensionSidePanelSurfaceEntry } from '@/features/extensions'
 import { rightPanelSurfaceShortcut } from '@/features/settings'
 import { BUILT_IN_RIGHT_PANEL_SURFACES } from '@/shared/lib/right-panel-catalog'
 import {
@@ -77,7 +76,13 @@ export function createPanelCommandItems(input: PanelCommandItemsInput): CommandP
         panel.entry.extensionName,
         COMMAND_PALETTE.DESCRIPTION_LIMIT,
       ),
-      icon: <PanelRight className="size-3.5" />,
+      icon: (
+        <ExtensionPanelIcon
+          {...(panel.entry.icon ? { icon: panel.entry.icon } : {})}
+          title={panel.entry.title}
+          className="size-3.5"
+        />
+      ),
       trailingBadge: panel.entry.scope.label,
     }),
   )

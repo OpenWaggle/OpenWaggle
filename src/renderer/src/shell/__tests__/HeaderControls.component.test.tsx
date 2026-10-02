@@ -128,7 +128,7 @@ describe('HeaderControls', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Hide terminal' }))
     const summaryButton = screen.getByRole('button', { name: 'Hide Session Summary' })
     fireEvent.click(summaryButton)
-    const diffToggle = screen.getByRole('button', { name: 'Toggle diff panel' })
+    const diffToggle = screen.getByRole('button', { name: 'Changes' })
     expect(diffToggle).toHaveAttribute('data-git-status-state', 'ready')
     fireEvent.click(diffToggle)
 
@@ -174,7 +174,7 @@ describe('HeaderControls', () => {
     )
 
     expect(screen.getByText('Loading diff…')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Toggle diff panel' })).toHaveAttribute(
+    expect(screen.getByRole('button', { name: 'Changes' })).toHaveAttribute(
       'data-git-status-state',
       'loading',
     )
@@ -192,7 +192,7 @@ describe('HeaderControls', () => {
     )
 
     expect(screen.getByText('Git unavailable')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Toggle diff panel' })).toHaveAttribute(
+    expect(screen.getByRole('button', { name: 'Changes' })).toHaveAttribute(
       'data-git-status-state',
       'error',
     )
@@ -221,8 +221,8 @@ describe('HeaderControls', () => {
     )
     fireEvent.click(commit)
     expect(onCommit).toHaveBeenCalledOnce()
-    const diff = screen.getByRole('button', { name: 'Toggle diff panel' })
-    expect(diff).toHaveAttribute('title', 'Toggle diff panel: +12 -3')
+    const diff = screen.getByRole('button', { name: 'Changes' })
+    expect(diff).toHaveAttribute('title', 'Changes: +12 -3')
     expect(diff.querySelector('.lucide-file-diff')).toHaveAttribute('aria-hidden', 'true')
   })
 })

@@ -2,11 +2,10 @@ import { SessionId } from '@shared/types/brand'
 import type { ExtensionPanelShortcutBindings } from '@shared/types/shortcuts'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
 import { useChat } from '@/features/chat/hooks'
 import { focusPendingRequest } from '@/features/chat/lib'
 import { useDiffRouteNavigation } from '@/features/diff-panel/hooks'
-import { openableExtensionSidePanelSurfaceIds } from '@/features/extensions'
 import { useGit, useGitRefresh } from '@/features/git/hooks'
 import { useProjectActions, useRunProjectAction } from '@/features/project-actions'
 import {
@@ -27,6 +26,7 @@ import {
   toggleRightPanelSurface,
 } from '@/shared/lib/right-panel-surfaces'
 import { useUIStore } from '@/shell/ui-store'
+import { railExtensionPanels } from './right-panel/right-panel-extension-panels'
 import {
   rightPanelCloseIsActive,
   rightPanelShortcutHandlers,
@@ -68,7 +68,7 @@ function toggleSurfaceOr(id: RightPanelSurfaceId, legacyToggle: () => void) {
 /** Only bindings of panels that can be shown now take part; any other key passes through. */
 function availableExtensionPanelShortcuts(
   bindings: ExtensionPanelShortcutBindings,
-  available: ReadonlySet<ExtensionRightPanelSurfaceId>,
+  available: ReadonlySet<string>,
 ): readonly ExtensionPanelShortcut[] {
   return Object.entries(bindings).flatMap(([surfaceId, shortcut]) =>
     isExtensionRightPanelSurfaceId(surfaceId) && available.has(surfaceId)
@@ -77,12 +77,24 @@ function availableExtensionPanelShortcuts(
   )
 }
 
+/** Extension panel shortcuts are live exactly when the Panel rail offers the panel here. */
 function useAvailableExtensionPanelShortcuts(projectPath: string | null, sessionId: string | null) {
   const bindings = usePreferencesStore((s) => s.settings.extensionPanelShortcutBindings)
+  // The same paths the Panel rail asks about (useRightPanelModel), so both agree on availability.
+  const workingPath = useGit().workingPath ?? projectPath
+  const projectPaths = workingPath ? [workingPath] : []
   const { data: registry = null } = useQuery(
-    extensionContributionsQueryOptions(projectPath ? [projectPath] : [], { sessionId }),
+    extensionContributionsQueryOptions(projectPaths, { sessionId }),
   )
-  return availableExtensionPanelShortcuts(bindings, openableExtensionSidePanelSurfaceIds(registry))
+  const available = railExtensionPanels(registry, projectPaths)
+    .filter((panel) => panel.status.kind === 'available')
+    .map((panel) => panel.id)
+  const availableKey = available.join('\n')
+  // A stable list keeps the capture effect from re-sending the browser preview bindings.
+  return useMemo(
+    () => availableExtensionPanelShortcuts(bindings, new Set(availableKey.split('\n'))),
+    [availableKey, bindings],
+  )
 }
 
 function previewShortcutHandlers(

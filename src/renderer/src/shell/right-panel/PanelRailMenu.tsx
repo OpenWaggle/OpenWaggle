@@ -5,6 +5,7 @@ import { useMenuKeyboard } from '@/shared/hooks/useMenuKeyboard'
 import type { RightPanelSurfaceId } from '@/shared/lib/right-panel-surfaces'
 import { Button } from '@/shared/ui/Button'
 import { ContextMenu } from '@/shared/ui/ContextMenu'
+import { useUIStore } from '../ui-store'
 
 export interface PanelRailMenuTarget {
   readonly id: RightPanelSurfaceId
@@ -54,6 +55,15 @@ export function PanelRailMenu(props: {
   const menuRef = useRef<HTMLDivElement>(null)
   const railVisible = usePreferencesStore((state) => state.settings.rightPanelRailVisibleWhenClosed)
   const setRailVisible = usePreferencesStore((state) => state.setRightPanelRailVisibleWhenClosed)
+  const showToast = useUIStore((state) => state.showToast)
+  const toggleRailVisible = () => {
+    void setRailVisible(!railVisible).catch((error: unknown) => {
+      showToast(
+        error instanceof Error ? error.message : 'Could not save the right panel setting.',
+        'error',
+      )
+    })
+  }
   const handleKeyDown = useMenuKeyboard({
     enabled: true,
     isOpen: true,
@@ -100,7 +110,7 @@ export function PanelRailMenu(props: {
         <MenuItem
           icon={railVisible ? <Check className="size-3.5" /> : null}
           checked={railVisible}
-          onSelect={select(() => void setRailVisible(!railVisible))}
+          onSelect={select(toggleRailVisible)}
         >
           Keep rail visible when panel is closed
         </MenuItem>

@@ -73,6 +73,15 @@ function ReviewAppearanceSettings() {
 function RightPanelAppearanceSettings() {
   const railVisible = usePreferencesStore((state) => state.settings.rightPanelRailVisibleWhenClosed)
   const setRailVisible = usePreferencesStore((state) => state.setRightPanelRailVisibleWhenClosed)
+  const showToast = useUIStore((state) => state.showToast)
+  const chooseRailVisible = (visible: boolean) => {
+    void setRailVisible(visible).catch((error: unknown) => {
+      showToast(
+        error instanceof Error ? error.message : 'Could not save the right panel setting.',
+        'error',
+      )
+    })
+  }
 
   return (
     <section className="space-y-3" aria-labelledby="right-panel-appearance-heading">
@@ -84,8 +93,8 @@ function RightPanelAppearanceSettings() {
           Right panel
         </h3>
         <p className="mt-1 text-xs leading-5 text-text-tertiary">
-          Reorder and pin panel icons from All panels, or press and hold an icon on the rail and
-          drag it.
+          Pin panels from All panels. To reorder the rail, press and hold an icon and drag it, or
+          use ⌥↑ and ⌥↓.
         </p>
       </div>
       <div className="flex items-center justify-between gap-4 rounded-lg border border-border bg-bg px-4 py-3">
@@ -108,7 +117,7 @@ function RightPanelAppearanceSettings() {
               size="xs"
               variant={railVisible === option.visible ? 'subtle' : 'ghost'}
               aria-pressed={railVisible === option.visible}
-              onClick={() => void setRailVisible(option.visible)}
+              onClick={() => chooseRailVisible(option.visible)}
             >
               {option.label}
             </Button>

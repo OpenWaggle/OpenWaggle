@@ -11,15 +11,19 @@ import { selectAdjacentTerminalTab } from '../lib/terminal-tab-keyboard'
 interface ActionOutputViewTabsProps {
   readonly views: readonly ActionOutputView[]
   readonly shownActionId: string | null
+  /** No terminal tab can take focus, so the first view must be reachable with Tab. */
+  readonly noTerminalTabs?: boolean
   readonly onSelect: (actionId: string) => void
   readonly onClose: (actionId: string) => void
 }
 
 /** Read-only action output tabs, rendered inside the terminal tab strip's tablist. */
 export function ActionOutputViewTabs(props: ActionOutputViewTabsProps) {
-  return props.views.map((view) => {
+  return props.views.map((view, index) => {
     const title = actionOutputViewTitle(view)
     const active = view.actionId === props.shownActionId
+    const focusable =
+      active || (props.shownActionId === null && props.noTerminalTabs === true && index === 0)
     return (
       <div
         key={view.actionId}
@@ -39,7 +43,7 @@ export function ActionOutputViewTabs(props: ActionOutputViewTabsProps) {
           role="tab"
           aria-selected={active}
           aria-label={`${title}, read-only`}
-          tabIndex={active ? 0 : -1}
+          tabIndex={focusable ? 0 : -1}
           onClick={() => props.onSelect(view.actionId)}
           onKeyDown={(event) => {
             if (selectAdjacentTerminalTab(event) || event.key !== 'Delete') return

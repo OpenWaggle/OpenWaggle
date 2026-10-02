@@ -39,7 +39,10 @@ export function RightPanelHost() {
         actions={{
           toggleSurface: controller.toggleSurface,
           showSurface: controller.showSurface,
-          move: (id, move) => useRightPanelRailStore.getState().move(id, move, model.knownRailIds),
+          move: (id, move) =>
+            useRightPanelRailStore
+              .getState()
+              .move(id, move, model.knownRailIds, model.listedRailIds),
           unpin: (id) => useRightPanelRailStore.getState().setPinned(id, false),
           reset: () => useRightPanelRailStore.getState().reset(),
         }}

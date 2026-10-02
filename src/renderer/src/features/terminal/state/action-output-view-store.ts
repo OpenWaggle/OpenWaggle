@@ -7,7 +7,6 @@ import {
   type ActionOutputView,
   followReplacementRuns,
   MAX_FOLLOWED_ACTION_RUNS,
-  withFollowedRun,
 } from '../lib/action-output-view-model'
 import { resolveTerminalStorage } from './terminal-store-persistence'
 
@@ -122,7 +121,9 @@ export const useActionOutputViewStore = create<ActionOutputViewState>()(
           ? {
               ...existing,
               label: input.label,
-              runIds: withFollowedRun(existing.runIds, input.runId),
+              // Choosing a run it doesn't follow yet (a concurrent run of the same action) starts
+              // the view over on that run instead of queueing it behind a run still in progress.
+              runIds: existing.runIds.includes(input.runId) ? existing.runIds : [input.runId],
             }
           : {
               ownerKey: input.ownerKey,
@@ -218,4 +219,11 @@ export function shownActionOutputView(
 
 export function hasActionOutputViews(ownerKey: string) {
   return (useActionOutputViewStore.getState().views[ownerKey]?.length ?? 0) > 0
+}
+
+/** Shows the most recently opened view of an owner whose drawer has no terminal tab. */
+export function showLatestActionOutputView(ownerKey: string) {
+  const store = useActionOutputViewStore.getState()
+  const latest = store.views[ownerKey]?.at(-1)
+  if (latest !== undefined) store.activate(ownerKey, latest.actionId, null)
 }

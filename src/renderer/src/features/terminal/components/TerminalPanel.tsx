@@ -96,7 +96,7 @@ export function TerminalPanel(props: TerminalPanelProps) {
       <div className="relative min-h-0 flex-1">
         {shownView !== null ? (
           <ActionOutputTerminalView
-            key={actionOutputViewTabId(shownView)}
+            key={`${actionOutputViewTabId(shownView)}:${shownView.runIds[0] ?? ''}`}
             view={shownView}
             cwd={options.defaultCwd}
             onSearchAddon={(addon) => setSearchAddon(actionOutputViewTabId(shownView), addon)}

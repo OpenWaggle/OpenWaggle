@@ -143,7 +143,8 @@ describe('GlobalCommandPalette Panels section', () => {
       'FilesBrowse and edit workspace files',
       'Session TreeInspect branches and session historyCtrl + Shift + Y',
       'ResourcesSources and outputs captured in this session',
-      'NotesAcme NotesGlobalCtrl + Shift + G',
+      // The leading N is the extension's letter-tile icon.
+      'NNotesAcme NotesGlobalCtrl + Shift + G',
     ])
     // The surfaces moved into Panels are not repeated elsewhere.
     expect(screen.queryByText('Toggle diff panel')).not.toBeInTheDocument()
