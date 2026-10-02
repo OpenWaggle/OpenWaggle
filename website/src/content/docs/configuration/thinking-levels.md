@@ -11,7 +11,7 @@ A thinking level asks a model how much reasoning effort to spend before answerin
 
 1. Select a model beside the message box.
 2. Open the thinking-level control next to the model controls. It shows the current level, such as **Medium**.
-3. Choose one of the available levels. You can change it while the Session has no Run in progress; the control is unavailable while a Run starts, runs, or stops.
+3. Choose one of the available levels. The control is unavailable while a Run is starting, running, or stopping. You can still change the level while a Session is only waiting on queued messages. In a new conversation that has no Session yet, your choice becomes the default and the Session starts with it.
 
 Start with the current level for ordinary work. Try a higher level when the model misses an important constraint or needs to reason through a difficult problem. Check its work either way.
 
@@ -33,7 +33,9 @@ These are all possible labels, not a list every model provides:
 
 The thinking level belongs to the Session, like its model. Every Run in the Session uses it, including queued messages when their turn comes; a queued message never keeps the level that was selected when you sent it. Changing it never affects your other Sessions.
 
-The level you choose also becomes the default for new Sessions. Pi stores that default in its global settings. Until you choose one, the default is **Medium**. Agents and CLI callers can set a Session's level when they start a Run, but their choice never changes your default.
+The level you choose also becomes the default for new Sessions. Pi keeps that default in its global settings, and every new Session starts from it in every project. OpenWaggle ignores a project-level `defaultThinkingLevel` in `.pi/settings.json` or in the `pi` object of `.openwaggle/settings.json`, and it no longer reads the old `thinkingLevel` project preference. Until you choose a level, the default is **Medium**.
+
+Agents and CLI callers can set a Session's level when they create, launch, or spawn it, or with a message that starts a Run on an idle Session. Their choice applies to that Session only and never changes your default. Extensions can read the default but cannot change it.
 
 Pi, the agent engine included with the app, supplies the supported levels. The model and provider determine what each effort level means. It is not a fixed time limit or token budget.
 

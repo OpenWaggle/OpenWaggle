@@ -457,7 +457,7 @@ A Follow-up message carries its content (text, attachments, skill or Waggle invo
 _Avoid_: steering message, deferred steer
 
 **Session thinking level**:
-The thinking level a Session's next run uses, kept by Pi with the Session like the Session's model. It can be changed only while the Session has no active run, and is never stored as a project preference. Changing it also makes it the default for Sessions created afterwards (Pi's global default), without changing any existing Session.
+The thinking level a Session's next run uses, kept by Pi with the Session like the Session's model. It can be changed only while the Session has no active run, and is never stored as a project preference. When the desktop user changes it, it also becomes the default for Sessions created afterwards (Pi's global default), without changing any existing Session. New Sessions start from that global default only; a project-level Pi default is never used.
 _Avoid_: message thinking level, project thinking preference
 
 **Run start**:
@@ -503,6 +503,10 @@ _Avoid_: steering promotion, replace
 **Follow-up edit**:
 An operation that replaces a pending Follow-up message's intent snapshot while preserving its Follow-up identity and queue position. Only the user who queued a Follow-up message can edit it; its Message provenance never changes.
 _Avoid_: withdraw and re-queue, replace, steer
+
+**Follow-up adoption**:
+An operation by which the desktop user sends a Follow-up message that needs attention because the authority it was queued under was revoked or changed, under the user's own authority. The Follow-up keeps its identity, position, and content; the user becomes its caller and its original author is kept as provenance. An adopted Follow-up carries no Run authorization override and cannot be edited.
+_Avoid_: re-authorize, use current access, approve
 
 **Follow-up edit hold**:
 A Host-owned, leased state that stops Follow-up queue delivery at the Follow-up message being edited, including every message behind it, until the edit is saved or cancelled or the editing window closes. Leaving the Session keeps the hold and shows it as waiting on the user's edit.
@@ -785,7 +789,7 @@ An explicitly chosen Authorization mode at project or session level that replace
 _Avoid_: copied default, session mode snapshot, birth-time mode
 
 **Run authorization override**:
-An Authorization mode requested only for one newly created run and inherited by descendants of that run, always bounded by its Authorization ceiling and never persisted as a session default. A caller requests it only when creating a Session or starting a run on an idle Session; it is refused while a run is active, so a Follow-up message never carries one.
+An Authorization mode requested only for one newly created run and inherited by descendants of that run, always bounded by its Authorization ceiling and never persisted as a session default. A caller requests it only when launching or spawning a Session or starting a run on an idle Session; it is refused while a run is active, so a Follow-up message never carries one.
 _Avoid_: session override, permanent YOLO, caller permission
 
 **Draft authorization override**:
@@ -1442,8 +1446,7 @@ _Avoid_: search (it narrows in place rather than producing results), sidebar vie
 - Setting a session override to **YOLO (Full access)** is stronger than approving one request because it may automatically resolve the current **Authorization request** and subsequent Authorization requests, so `sessions:authorization` is never implied by `sessions:approve`, session ownership, or run ownership.
 - A **Run authorization override** is selected when a command creates a run, applies only to that run and its spawned descendants, and requires no persistent session mutation.
 - A request for a **Run authorization override** above the caller's **Authorization ceiling** fails explicitly rather than silently downgrading or changing the session's persistent mode.
-- The **Sessions CLI** accepts a **Run authorization override** only on `launch`, `spawn`, `start`, `follow-up`, and `replace`, whose successful execution deterministically creates an immediate or future run.
-- Adaptive `sessions message` rejects a **Run authorization override** because its active-target resolution may steer the current run or create a future one; callers that require a specific mode use the corresponding explicit command.
+- The **Sessions CLI** accepts a **Run authorization override** and a **Session thinking level** only on commands that start a run on an idle Session: `launch`, `spawn`, and a `start` or adaptive `message` that starts one (`create` accepts a thinking level but no override, since it starts no run). A `message` that would be queued, and every `follow-up`, `steer`, and `replace`, refuses them with `run_authorization_override_requires_idle_session` or `thinking_level_requires_idle_session`.
 - The **Sessions CLI** uses the canonical Session Control action names and never collapses Message submission, Steering message, Run replacement, and Run interruption into an ambiguous send operation.
 - `sessions launch` atomically returns an independent root session and its initial run identities, while `sessions spawn` returns the child session, initial run, and Delegation Contract identities and later contract operations use the first-class **Delegations CLI**.
 - The **Delegations CLI** exposes `list`, `read`, `submit`, `accept`, `request-revision`, `reopen`, `cancel`, `claim`, `dependency`, `amend`, `conflicts`, and explicit `verify` operations with parent, child, project, state, dependency, and conflict filters where applicable.
