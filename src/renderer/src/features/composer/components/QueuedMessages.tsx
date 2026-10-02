@@ -1,6 +1,6 @@
 import type { SessionId } from '@shared/types/brand'
 import type { FollowUpQueuePauseReason } from '@shared/types/session-control-queue'
-import { Play, Timer } from 'lucide-react'
+import { Pause, Play, Timer } from 'lucide-react'
 import { useState } from 'react'
 import { useSessionFollowUpQueue } from '@/features/chat/hooks'
 import {
@@ -51,26 +51,29 @@ const UNKNOWN_PAUSE_COPY = 'The queue is paused. Resume to send these messages.'
 function QueueHeader({
   count,
   headNeedsAttention,
-  isResuming,
+  isChangingState,
   queueState,
   pauseReason,
   onResume,
+  onPause,
 }: {
   readonly count: number
   readonly headNeedsAttention: boolean
-  readonly isResuming: boolean
+  readonly isChangingState: boolean
   readonly queueState: 'running' | 'paused'
   readonly pauseReason: FollowUpQueuePauseReason | undefined
   readonly onResume: () => void
+  readonly onPause: () => void
 }) {
   return (
     <div className="flex flex-col gap-0.5 px-1">
       <QueueHeaderRow
         count={count}
         headNeedsAttention={headNeedsAttention}
-        isResuming={isResuming}
+        isChangingState={isChangingState}
         queueState={queueState}
         onResume={onResume}
+        onPause={onPause}
       />
       {queueState === 'paused' ? (
         <p className="text-xs leading-normal text-text-tertiary">
@@ -81,18 +84,23 @@ function QueueHeader({
   )
 }
 
+const QUEUE_STATE_BUTTON_CLASS =
+  'ml-auto flex items-center gap-1 rounded-md px-2 py-1 text-accent hover:bg-accent/8 aria-disabled:text-text-muted aria-disabled:opacity-50'
+
 function QueueHeaderRow({
   count,
   headNeedsAttention,
-  isResuming,
+  isChangingState,
   queueState,
   onResume,
+  onPause,
 }: {
   readonly count: number
   readonly headNeedsAttention: boolean
-  readonly isResuming: boolean
+  readonly isChangingState: boolean
   readonly queueState: 'running' | 'paused'
   readonly onResume: () => void
+  readonly onPause: () => void
 }) {
   return (
     <div className="flex items-center gap-1.5">
@@ -108,20 +116,34 @@ function QueueHeaderRow({
           variant="unstyled"
           type="button"
           onClick={() => {
-            if (!isResuming && !headNeedsAttention) onResume()
+            if (!isChangingState && !headNeedsAttention) onResume()
           }}
-          aria-disabled={isResuming || headNeedsAttention}
+          aria-disabled={isChangingState || headNeedsAttention}
           title={
             headNeedsAttention
               ? 'Resolve the first Follow-up before resuming the queue.'
               : 'Resume Follow-up delivery'
           }
-          className="ml-auto flex items-center gap-1 rounded-md px-2 py-1 text-accent hover:bg-accent/8 aria-disabled:text-text-muted aria-disabled:opacity-50"
+          className={QUEUE_STATE_BUTTON_CLASS}
         >
-          <Play className="size-3" />
+          <Play aria-hidden="true" className="size-3" />
           <span className="text-xs font-semibold">Resume</span>
         </Button>
-      ) : null}
+      ) : (
+        <Button
+          variant="unstyled"
+          type="button"
+          onClick={() => {
+            if (!isChangingState) onPause()
+          }}
+          aria-disabled={isChangingState}
+          title="Pause Follow-up delivery: the current Run finishes and nothing more starts until you resume"
+          className={QUEUE_STATE_BUTTON_CLASS}
+        >
+          <Pause aria-hidden="true" className="size-3" />
+          <span className="text-xs font-semibold">Pause</span>
+        </Button>
+      )}
     </div>
   )
 }
@@ -135,7 +157,7 @@ function QueueHeaderRow({
  */
 export function QueuedMessages({ sessionId, onSteer, isStreaming, onToast }: QueuedMessagesProps) {
   const { snapshot, error, refresh, setPaused, withdraw } = useSessionFollowUpQueue(sessionId)
-  const [isResuming, setIsResuming] = useState(false)
+  const [isChangingQueueState, setIsChangingQueueState] = useState(false)
   const pendingPromotions = useOptimisticSteerStore(selectPendingSteerFollowUps(sessionId))
   // Reserved by a pending steering promotion: hidden from the dock and locked in place.
   const pendingIds = new Set(pendingPromotions)
@@ -159,14 +181,15 @@ export function QueuedMessages({ sessionId, onSteer, isStreaming, onToast }: Que
     }
   }
 
-  async function resumeQueue() {
-    setIsResuming(true)
+  // Revision-guarded by the hook; pausing lets the user change Session settings before resuming.
+  async function changeQueueState(paused: boolean) {
+    setIsChangingQueueState(true)
     try {
-      await setPaused(false)
+      await setPaused(paused)
     } catch (error) {
       onToast(error instanceof Error ? error.message : String(error))
     } finally {
-      setIsResuming(false)
+      setIsChangingQueueState(false)
     }
   }
 
@@ -206,10 +229,11 @@ export function QueuedMessages({ sessionId, onSteer, isStreaming, onToast }: Que
               <QueueHeader
                 count={queue.length}
                 headNeedsAttention={queue[0]?.deliveryState === 'needs_attention'}
-                isResuming={isResuming}
+                isChangingState={isChangingQueueState}
                 queueState={snapshot.state}
                 pauseReason={snapshot.pauseReason}
-                onResume={() => void resumeQueue()}
+                onResume={() => void changeQueueState(false)}
+                onPause={() => void changeQueueState(true)}
               />
 
               <ul

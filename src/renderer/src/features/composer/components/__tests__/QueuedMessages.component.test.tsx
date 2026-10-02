@@ -1,6 +1,6 @@
 import { SessionId } from '@shared/types/brand'
 import type { FollowUpQueuePauseReason } from '@shared/types/session-control-queue'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { QueuedMessages } from '../QueuedMessages'
 
@@ -68,6 +68,17 @@ function queue(
   }))
 }
 
+function renderQueue() {
+  return render(
+    <QueuedMessages
+      sessionId={CONV_A}
+      onSteer={noOpSteer}
+      isStreaming={false}
+      onToast={noOpToast}
+    />,
+  )
+}
+
 describe('QueuedMessages', () => {
   beforeEach(() => {
     queue()
@@ -78,7 +89,7 @@ describe('QueuedMessages', () => {
     queueMock.refresh.mockReset().mockResolvedValue(undefined)
     noOpSteer.mockClear()
     queueMock.withdraw.mockClear()
-    queueMock.setPaused.mockClear()
+    queueMock.setPaused.mockReset().mockResolvedValue(undefined)
     noOpToast.mockClear()
   })
 
@@ -124,28 +135,26 @@ describe('QueuedMessages', () => {
     expect(screen.getByText('second message')).toBeInTheDocument()
   })
 
-  it('shows Waggle source and caller metadata, never a per-message thinking level or access', () => {
-    queue({
-      id: 'follow-up-1',
-      text: 'cross-check this',
-      wagglePresetName: 'Release review',
-      waggleSource: 'agent',
-      callerId: 'session-agent:worker:run-1',
-    })
-    render(
-      <QueuedMessages
-        sessionId={CONV_A}
-        onSteer={noOpSteer}
-        isStreaming={false}
-        onToast={noOpToast}
-      />,
-    )
+  it('pauses a running queue through the revision-aware hook so its next Run waits', async () => {
+    queue({ id: 'follow-up-1', text: 'next' })
+    renderQueue()
 
-    expect(screen.getByText('Waggle · Release review')).toBeVisible()
-    expect(screen.getByText('From agent')).toBeVisible()
-    expect(screen.queryByText('YOLO access')).not.toBeInTheDocument()
-    expect(screen.queryByText(/^Thinking ·/)).not.toBeInTheDocument()
-    expect(screen.getByText('From Worker')).toHaveAttribute('title', 'session-agent:worker:run-1')
+    expect(screen.queryByRole('button', { name: 'Resume' })).not.toBeInTheDocument()
+    const pause = screen.getByRole('button', { name: 'Pause' })
+    expect(pause).toHaveAccessibleDescription(expect.stringContaining('until you resume'))
+    fireEvent.click(pause)
+
+    expect(queueMock.setPaused).toHaveBeenCalledWith(true)
+    await waitFor(() => expect(pause).toHaveAttribute('aria-disabled', 'false'))
+  })
+
+  it('shows a failed pause through the toast channel', async () => {
+    queue({ id: 'follow-up-1', text: 'next' })
+    queueMock.setPaused.mockRejectedValueOnce(new Error('Queue changed.'))
+    renderQueue()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Pause' }))
+    await waitFor(() => expect(noOpToast).toHaveBeenCalledWith('Queue changed.'))
   })
 
   it('offers promotion to steering only while a Run can accept it', () => {
@@ -193,6 +202,7 @@ describe('QueuedMessages', () => {
     )
 
     expect(screen.getByText('Queue paused')).toBeVisible()
+    expect(screen.queryByRole('button', { name: 'Pause' })).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Resume' }))
     expect(queueMock.setPaused).toHaveBeenCalledWith(false)
   })
