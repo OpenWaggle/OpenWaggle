@@ -173,6 +173,7 @@ export const useRightPanelRailStore = create<RightPanelRailState>()(
           previous.surface === next.surface &&
           previous.open === next.open &&
           previous.lastFilePath === next.lastFilePath &&
+          previous.terminal === next.terminal &&
           get().sessions[sessionKey] !== undefined
         ) {
           return

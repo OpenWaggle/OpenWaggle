@@ -50,8 +50,8 @@ export function usePanelRailFocus(
 
   /** Reset can move every icon, so focus goes to All panels, which never moves. */
   function resetWithFocus() {
-    refocus.current = 'all-panels'
     actions.reset()
+    navRef.current?.querySelector<HTMLElement>('[data-rail-surface="all-panels"]')?.focus()
   }
 
   return { navRef, moveWithFocus, unpinWithFocus, resetWithFocus }

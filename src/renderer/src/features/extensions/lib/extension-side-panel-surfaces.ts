@@ -14,6 +14,8 @@ export interface ExtensionSidePanelSurfaceEntry {
   readonly entry: ExtensionContributionRegistryEntry
   /** True when the panel can be shown right now (enabled, trusted, compatible, loadable). */
   readonly openable: boolean
+  /** Enabled and loadable here, but waiting for trust or an update before it can run. */
+  readonly cannotRunYet: boolean
 }
 
 function extensionContributionIsEligible(entry: ExtensionContributionRegistryEntry) {
@@ -32,14 +34,30 @@ function isExtensionSidePanelEntry(entry: ExtensionContributionRegistryEntry) {
   return entry.family === OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.SIDE_PANELS
 }
 
-/** A side panel that can be mounted now: federated, with an entry point and eligible to run. */
-function isOpenableExtensionSidePanelEntry(entry: ExtensionContributionRegistryEntry) {
+function isLoadableExtensionSidePanelEntry(entry: ExtensionContributionRegistryEntry) {
   return (
     isExtensionSidePanelEntry(entry) &&
     entry.runtime === OPENWAGGLE_EXTENSION.CONTRIBUTION_RUNTIME.FEDERATED_MODULE &&
     entry.execution !== undefined &&
-    entry.entryPath !== undefined &&
-    extensionContributionIsEligible(entry)
+    entry.entryPath !== undefined
+  )
+}
+
+/** A side panel that can be mounted now: federated, with an entry point and eligible to run. */
+function isOpenableExtensionSidePanelEntry(entry: ExtensionContributionRegistryEntry) {
+  return isLoadableExtensionSidePanelEntry(entry) && extensionContributionIsEligible(entry)
+}
+
+/** The Panel rail lists these disabled with what they need (ADR 0043). */
+function cannotRunYet(entry: ExtensionContributionRegistryEntry) {
+  const { eligibility } = entry
+  return (
+    isLoadableExtensionSidePanelEntry(entry) &&
+    entry.appliesToAllRequestedProjects &&
+    eligibility.runtimeEnabled &&
+    eligibility.enabled &&
+    eligibility.disabledProjectPaths.length === 0 &&
+    (!eligibility.trusted || eligibility.sdkCompatible === false || eligibility.updateAvailable)
   )
 }
 
@@ -61,7 +79,7 @@ export function extensionSidePanelSurfaces(
     const openable = isOpenableExtensionSidePanelEntry(entry)
     const existing = surfaces.get(surfaceId)
     if (existing === undefined || (!existing.openable && openable)) {
-      surfaces.set(surfaceId, { surfaceId, entry, openable })
+      surfaces.set(surfaceId, { surfaceId, entry, openable, cannotRunYet: cannotRunYet(entry) })
     }
   }
   return [...surfaces.values()]

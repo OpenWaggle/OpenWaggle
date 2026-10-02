@@ -38,6 +38,7 @@ vi.mock('../../workspace-panel-actions', async (importOriginal) => ({
   showWorkspaceBrowser: vi.fn(),
 }))
 
+import { terminalSidePanelLayoutKey, useTerminalStore } from '@/features/terminal'
 import { useWorkspacePanelStore } from '../../workspace-panel-store'
 import { useRightPanelRailStore } from '../right-panel-rail-store'
 import { useRightPanelController } from '../useRightPanelController'
@@ -84,6 +85,7 @@ function model(overrides: Partial<RightPanelModel> = {}): RightPanelModel {
     listedRailIds: surfaces.slice(1).map((surface) => surface.id),
     extensionPanels: [],
     extensionRegistryLoaded: true,
+    extensionRegistrySettled: true,
     ...overrides,
   }
 }
@@ -174,7 +176,12 @@ describe('useRightPanelController', () => {
   it('waits for the extension registry before restoring an extension panel', () => {
     const notes = extensionRightPanelSurfaceId({ extensionId: 'acme', sidePanelId: 'notes' })
     remember(notes)
-    renderHook(() => useRightPanelController(model({ extensionRegistryLoaded: false }), '/repo'))
+    renderHook(() =>
+      useRightPanelController(
+        model({ extensionRegistryLoaded: false, extensionRegistrySettled: false }),
+        '/repo',
+      ),
+    )
     act(() => vi.advanceTimersByTime(10_000))
     expect(useRightPanelRailStore.getState().sessions[SESSION]).toMatchObject({
       open: true,
@@ -183,6 +190,7 @@ describe('useRightPanelController', () => {
   })
 
   it('reopens a side Terminal with the Right panel toggle', () => {
+    useTerminalStore.getState().createTerminal(terminalSidePanelLayoutKey(SESSION), '/repo')
     useWorkspacePanelStore.getState().showTerminal(SESSION)
     useWorkspacePanelStore.getState().hidePanel(SESSION)
     useRightPanelRailStore.getState().rememberSession(SESSION, { terminal: true })
@@ -193,6 +201,18 @@ describe('useRightPanelController', () => {
       activeSurface: { kind: 'terminal' },
     })
     expect(mocks.route.open).not.toHaveBeenCalled()
+  })
+
+  it('falls back to the remembered surface once the side Terminal has no tabs', () => {
+    useTerminalStore.setState({ groups: {} })
+    useWorkspacePanelStore.getState().showTerminal(SESSION)
+    useWorkspacePanelStore.getState().hidePanel(SESSION)
+    useRightPanelRailStore
+      .getState()
+      .rememberSession(SESSION, { surface: 'changes', terminal: true })
+    const { result } = renderHook(() => useRightPanelController(model(), '/repo'))
+    act(() => result.current.togglePanel())
+    expect(routeOpenPanels()).toEqual(['diff'])
   })
 
   it('does not record the guided action panel into the Session’s memory', () => {

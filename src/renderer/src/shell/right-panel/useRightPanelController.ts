@@ -1,6 +1,7 @@
 import { match } from '@diegogbrisa/ts-match'
 import { useRouterState } from '@tanstack/react-router'
 import { useEffect, useEffectEvent, useRef, useState } from 'react'
+import { terminalSidePanelLayoutKey, useTerminalStore } from '@/features/terminal'
 import { api } from '@/shared/lib/ipc'
 import {
   isExtensionRightPanelSurfaceId,
@@ -16,7 +17,7 @@ import {
   workspaceFileRightSidebarRequest,
 } from '@/shared/lib/right-sidebar-coordinator'
 import { EXTENSION_SIDE_PANEL_ROUTE_PANEL, useUIStore } from '../ui-store'
-import { showWorkspaceBrowser, toggleWorkspaceRightPanel } from '../workspace-panel-actions'
+import { showWorkspaceBrowser } from '../workspace-panel-actions'
 import { useWorkspacePanelStore } from '../workspace-panel-store'
 import { sessionRightPanelMemory, useRightPanelRailStore } from './right-panel-rail-store'
 import type { RightPanelModel } from './useRightPanelModel'
@@ -43,6 +44,16 @@ function useRouteFileTarget() {
         ? state.location.search.filePath
         : null,
   })
+}
+
+/** The owner's side Terminal is hidden and still has a tab to show. */
+function hiddenSideTerminal(ownerKey: string) {
+  const group = useWorkspacePanelStore.getState().groups[ownerKey]
+  if (group === undefined || group.panelOpen || group.activeSurface?.kind !== 'terminal') {
+    return false
+  }
+  const sideTabs = useTerminalStore.getState().groups[terminalSidePanelLayoutKey(ownerKey)]?.tabs
+  return (sideTabs?.length ?? 0) > 0
 }
 
 function useRouteHasPanel() {
@@ -199,8 +210,11 @@ export function useRightPanelController(model: RightPanelModel, workingPath: str
       return
     }
     const memory = sessionRightPanelMemory(sessionKey)
-    // A side Terminal has no rail icon; the workspace panel brings it back as it was.
-    if (memory.terminal && toggleWorkspaceRightPanel(ownerKey)) return
+    // A side Terminal has no rail icon; bring it back when it still has tabs to show.
+    if (memory.terminal && hiddenSideTerminal(ownerKey)) {
+      useWorkspacePanelStore.getState().showTerminal(ownerKey)
+      return
+    }
     const rail = useRightPanelRailStore.getState()
     const remembered = memory.surface ?? rail.lastSurface
     const target = model.surfaces.find(
@@ -252,7 +266,7 @@ function useSessionPanelMemory(input: {
     memory?.surface !== undefined &&
     memory.surface !== null &&
     isExtensionRightPanelSurfaceId(memory.surface) &&
-    !model.extensionRegistryLoaded
+    !model.extensionRegistrySettled
   /** A Session whose open panel could not be restored keeps that memory until it shows one. */
   const keptMemory = useRef<string | null>(null)
   const restoreSession = useEffectEvent((key: string, show: boolean) => {

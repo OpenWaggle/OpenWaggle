@@ -55,6 +55,15 @@ describe('Right panel rail store', () => {
     expect(useRightPanelRailStore.getState()).toMatchObject({ order: null, hidden: [] })
   })
 
+  it('records a switch to or from a side Terminal even when nothing else changed', () => {
+    const store = useRightPanelRailStore.getState()
+    store.rememberSession('session-a', { surface: 'changes', open: true })
+    store.rememberSession('session-a', { open: true, terminal: true })
+    expect(sessionRightPanelMemory('session-a').terminal).toBe(true)
+    useRightPanelRailStore.getState().rememberSession('session-a', { terminal: false })
+    expect(sessionRightPanelMemory('session-a').terminal).toBe(false)
+  })
+
   it('keeps the slot of a panel that cannot run yet when the rail is first reordered', () => {
     const known = [...DEFAULT_BUILT_IN_RAIL_ORDER]
     useRightPanelRailStore

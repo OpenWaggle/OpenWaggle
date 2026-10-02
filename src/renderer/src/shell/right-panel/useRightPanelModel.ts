@@ -59,6 +59,8 @@ export interface RightPanelModel {
   readonly knownRailIds: readonly RightPanelSurfaceId[]
   /** Every surface with a rail slot, including those that cannot run or are hidden here. */
   readonly listedRailIds: readonly RightPanelSurfaceId[]
+  /** The extension registry answered or failed; either way there is nothing more to wait for. */
+  readonly extensionRegistrySettled: boolean
   readonly extensionPanels: readonly RailExtensionPanel[]
   readonly extensionRegistryLoaded: boolean
 }
@@ -155,10 +157,12 @@ export function useRightPanelModel(enabled = true): RightPanelModel {
   const knownRailIds = listed
     .filter((surface) => surface.needsLabel === null)
     .map((surface) => surface.id)
+  // Built-ins, then every installed extension panel in install order, hidden here or not.
   const listedRailIds = [
     ...new Set([
-      ...listed.map((surface) => surface.id),
+      ...builtIns.filter((surface) => surface.id !== 'all-panels').map((surface) => surface.id),
       ...installedExtensionPanelIds(sidePanels.registry),
+      ...listed.map((surface) => surface.id),
     ]),
   ]
   const order = visibleRailOrder(railOrder, knownRailIds, hidden)
@@ -175,5 +179,6 @@ export function useRightPanelModel(enabled = true): RightPanelModel {
     listedRailIds,
     extensionPanels,
     extensionRegistryLoaded: sidePanels.registry !== null,
+    extensionRegistrySettled: sidePanels.registry !== null || !sidePanels.loading,
   }
 }

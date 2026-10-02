@@ -46,6 +46,7 @@ function model(overrides: Partial<RightPanelModel> = {}): RightPanelModel {
     listedRailIds: ['changes', 'project-actions', 'browser'],
     extensionPanels: [],
     extensionRegistryLoaded: true,
+    extensionRegistrySettled: true,
     ...overrides,
   }
 }

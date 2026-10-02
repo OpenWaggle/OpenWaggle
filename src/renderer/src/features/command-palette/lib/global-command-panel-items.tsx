@@ -13,6 +13,8 @@ import type { CommandPaletteItem } from '../model'
 import { truncateCommandDescription } from './command-palette-text'
 
 const PANELS_SECTION = 'Panels'
+const EXTENSION_PANEL_CANNOT_RUN_YET =
+  'Cannot run yet: trust or update its extension in Settings › Extensions'
 
 /**
  * Why a surface cannot be shown right now, or null when it can. The shell's Right panel owner
@@ -38,7 +40,9 @@ function panelItem(
   },
 ): CommandPaletteItem {
   const { surfaceId, panel, ...rest } = item
-  const reason = (input.disabledReason ?? noDisabledReason)(surfaceId)
+  const reason =
+    (input.disabledReason ?? noDisabledReason)(surfaceId) ??
+    (panel !== undefined && !panel.openable ? EXTENSION_PANEL_CANNOT_RUN_YET : null)
   const shortcut = rightPanelSurfaceShortcut(input.settings, surfaceId)
   return {
     ...rest,

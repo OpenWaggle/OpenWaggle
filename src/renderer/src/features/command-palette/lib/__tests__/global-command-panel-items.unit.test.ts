@@ -107,6 +107,38 @@ describe('createPanelCommandItems', () => {
     expect(showSurface).not.toHaveBeenCalled()
   })
 
+  it('lists a panel that only needs trust as disabled with what it needs', () => {
+    const untrusted = sidePanelEntry()
+    const panels = extensionSidePanelSurfaces({
+      projectPaths: ['/repo'],
+      entries: [
+        { ...untrusted, eligibility: { ...untrusted.eligibility, trusted: false } },
+        {
+          ...untrusted,
+          contributionId: 'off',
+          eligibility: { ...untrusted.eligibility, enabled: false },
+        },
+      ],
+    })
+    expect(panels.map((panel) => [panel.entry.contributionId, panel.cannotRunYet])).toEqual([
+      ['notes', true],
+      ['off', false],
+    ])
+    const showSurface = vi.fn()
+    const notes = createPanelCommandItems({
+      settings: SETTINGS,
+      extensionPanels: panels.filter((panel) => panel.cannotRunYet),
+      showSurface,
+    }).find((item) => item.label === 'Notes')
+
+    expect(notes).toMatchObject({
+      disabled: true,
+      description: expect.stringContaining('Cannot run yet'),
+    })
+    notes?.action()
+    expect(showSurface).not.toHaveBeenCalled()
+  })
+
   it('shows surfaces through the controller and never toggles them', () => {
     const controller = {
       toggleSurface: vi.fn(),
