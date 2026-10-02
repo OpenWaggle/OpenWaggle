@@ -3,7 +3,7 @@ import type { ProviderInfo } from '@shared/types/llm'
 import type { SessionDetail } from '@shared/types/session'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { fromPartial } from '@total-typescript/shoehorn'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useBackgroundRunStore, useChatStore } from '@/features/chat/state'
@@ -92,9 +92,6 @@ function openSession(id: SessionId, storedAfterRefresh: SupportedModelId) {
   })
 }
 
-const NEXT_MESSAGE_NOTICE =
-  'Claude Sonnet applies to your next message. This turn keeps using GPT 5.'
-
 function renderComposerModelControls() {
   return render(
     <QueryClientProvider client={new QueryClient()}>
@@ -149,7 +146,6 @@ describe('ComposerModelPicker for an existing Session', () => {
     expect(useChatStore.getState().sessionById.get(sessionId)?.executionModel).toBe(NEXT_MODEL)
     await waitFor(() => expect(api.setSessionModel).toHaveBeenCalledWith(sessionId, NEXT_MODEL))
     expect(await screen.findByRole('button', { name: 'Claude Sonnet' })).toBeInTheDocument()
-    expect(screen.queryByText(NEXT_MESSAGE_NOTICE)).not.toBeInTheDocument()
     expect(usePreferencesStore.getState().settings.selectedModel).toBe(CURRENT_MODEL)
   })
 
@@ -165,6 +161,38 @@ describe('ComposerModelPicker for an existing Session', () => {
     fireEvent.click(trigger)
     expect(screen.queryByRole('option', { name: 'Claude Sonnet' })).not.toBeInTheDocument()
     expect(api.setSessionModel).not.toHaveBeenCalled()
+  })
+
+  it('closes an open list when a Run starts, so it does not reopen when the Run ends', () => {
+    const sessionId = SessionId('session-run-starts')
+    openSession(sessionId, CURRENT_MODEL)
+    renderComposerModelControls()
+
+    fireEvent.click(screen.getByRole('button', { name: 'GPT 5' }))
+    expect(screen.getByRole('option', { name: 'Claude Sonnet' })).toBeInTheDocument()
+    act(() => useBackgroundRunStore.getState().addActiveRun(sessionId, CURRENT_MODEL))
+    expect(screen.queryByRole('option', { name: 'Claude Sonnet' })).not.toBeInTheDocument()
+    act(() => useBackgroundRunStore.getState().removeActiveRun(sessionId))
+
+    expect(screen.getByRole('button', { name: 'GPT 5' })).toBeEnabled()
+    expect(screen.queryByRole('option', { name: 'Claude Sonnet' })).not.toBeInTheDocument()
+  })
+
+  it('rolls the pick back and says so when the Session Host refuses it during a Run', async () => {
+    const sessionId = SessionId('session-refused-model')
+    openSession(sessionId, CURRENT_MODEL)
+    vi.mocked(api.setSessionModel).mockRejectedValueOnce(
+      new Error('session_run_active: The Session model can change only while no Run is active.'),
+    )
+    renderComposerModelControls()
+
+    pickNextModel()
+
+    expect(await screen.findByRole('button', { name: 'GPT 5' })).toBeInTheDocument()
+    expect(useUIStore.getState().toastData).toMatchObject({
+      message: expect.stringContaining('only while no Run is active'),
+      variant: 'error',
+    })
   })
 
   it('rolls the pick back and says so when the Session Host rejects it', async () => {

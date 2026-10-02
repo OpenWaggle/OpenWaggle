@@ -11,7 +11,10 @@ import { Popover } from '@/shared/ui/Popover'
 import { useUIStore } from '@/shell/ui-store'
 import { THINKING_LEVEL_LABELS } from '../constants/thinking-level-labels'
 import { useComposerModel } from '../hooks/useComposerModel'
-import { useSessionSettingsLock } from '../hooks/useSessionSettingsLock'
+import {
+  useCloseThinkingMenuWhenLocked,
+  useSessionSettingsLock,
+} from '../hooks/useSessionSettingsLock'
 import {
   getThinkingButtonLabel,
   getThinkingButtonTitle,
@@ -22,6 +25,7 @@ export function ThinkingLevelMenu() {
   const activeSessionId = useChatStore((s) => s.activeSessionId)
   const sessionThinking = useSessionThinkingLevel(activeSessionId)
   const settingsLock = useSessionSettingsLock(activeSessionId)
+  useCloseThinkingMenuWhenLocked(settingsLock.locked)
   const thinkingMenuOpen = useComposerStore((s) => s.thinkingMenuOpen)
   const openMenu = useComposerStore((s) => s.openMenu)
   const composerModel = useComposerModel().model

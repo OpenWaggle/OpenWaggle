@@ -4,8 +4,10 @@ import { ModelSelector } from '@/features/providers/components'
 import { useProviderStore } from '@/features/providers/state'
 import { usePreferencesStore } from '@/features/settings/state'
 import { useComposerModel } from '../hooks/useComposerModel'
-import { useModelSwitchNotice } from '../hooks/useModelSwitchNotice'
 import { useSessionSettingsLock } from '../hooks/useSessionSettingsLock'
+
+/** Why the picker waits while a draft's first message creates its Session. */
+const MATERIALIZING_REASON = 'Available once the new Session is created'
 
 export function ComposerModelPicker() {
   const settings = usePreferencesStore((s) => s.settings)
@@ -16,13 +18,14 @@ export function ComposerModelPicker() {
   const draftSession = useChatStore((s) => s.draftSession)
   const providerModels = useProviderStore((s) => s.providerModels)
   const composerModel = useComposerModel()
-  const switchNotice = useModelSwitchNotice()
   const settingsLock = useSessionSettingsLock(activeSessionId)
+  const materializing = draftSession?.isMaterializing === true
 
   function selectModel(model: SupportedModelId) {
     if (activeSessionId) {
-      // A Session pick belongs to that Session; it does not change the project's default for new
-      // Sessions. The picker is locked while a Run goes; a refused write rolls back with a toast.
+      // A Session pick belongs to that Session and is stored through the Session Host, which
+      // refuses it while a Run is starting, active, or finishing. The picker is locked for that
+      // time; a refused write still rolls back with a toast.
       void setSessionModel(activeSessionId, model)
       return
     }
@@ -39,9 +42,9 @@ export function ComposerModelPicker() {
       onChange={selectModel}
       settings={settings}
       providerModels={providerModels}
-      disabled={settingsLock.locked || draftSession?.isMaterializing}
+      disabled={settingsLock.locked || materializing}
       fallbackLabel={composerModel.isSessionModel ? composerModel.model : undefined}
-      title={settingsLock.reason ?? switchNotice?.title}
+      title={settingsLock.reason ?? (materializing ? MATERIALIZING_REASON : undefined)}
     />
   )
 }

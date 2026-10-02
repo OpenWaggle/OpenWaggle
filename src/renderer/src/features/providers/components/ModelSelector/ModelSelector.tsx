@@ -105,6 +105,8 @@ export function ModelSelector({
   title,
 }: ModelSelectorProps) {
   const [isOpen, setIsOpen] = useState(false)
+  // Disabling closes the list rather than hiding it, so it cannot reopen when re-enabled.
+  if (disabled && isOpen) setIsOpen(false)
   const ref = useRef<HTMLDivElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
 

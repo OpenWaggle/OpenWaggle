@@ -3,7 +3,7 @@ import type { ProviderInfo } from '@shared/types/llm'
 import type { SessionDetail } from '@shared/types/session'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   type SessionFollowUpQueueItem,
@@ -231,6 +231,47 @@ describe('composer Session settings pickers', () => {
     renderPickers()
 
     expectLocked(SESSION_SETTINGS_LOCKED_BY_QUEUE_REASON)
+  })
+
+  it('are disabled while a Run is still starting, such as a worktree launch', () => {
+    openSession()
+    useBackgroundRunStore.getState().setWorktreeLaunch(SESSION, {
+      status: 'running',
+      stage: 'preparing-workspace',
+      startedAt: 1,
+      updatedAt: 1,
+      details: [],
+    })
+    renderPickers()
+
+    expectLocked(SESSION_SETTINGS_LOCKED_REASON)
+  })
+
+  it('close an open thinking menu when a Run starts, so it stays closed when the Run ends', () => {
+    openSession()
+    renderPickers()
+
+    fireEvent.click(screen.getByRole('button', { name: /^Thinking level:/ }))
+    expect(screen.getByRole('menuitemradio', { name: 'High' })).toBeInTheDocument()
+    act(() => useBackgroundRunStore.getState().addActiveRun(SESSION, MODEL))
+    expect(screen.queryByRole('menuitemradio', { name: 'High' })).not.toBeInTheDocument()
+    expect(useComposerStore.getState().thinkingMenuOpen).toBe(false)
+    act(() => useBackgroundRunStore.getState().removeActiveRun(SESSION))
+
+    expectUnlocked()
+    expect(screen.queryByRole('menuitemradio', { name: 'High' })).not.toBeInTheDocument()
+  })
+
+  it('explain why the model picker waits while a draft creates its Session', () => {
+    useChatStore.setState({
+      activeSessionId: null,
+      draftSession: { projectPath: '/project', isMaterializing: true },
+    })
+    renderPickers()
+
+    const model = screen.getByRole('button', { name: 'GPT 5' })
+    expect(model).toBeDisabled()
+    expect(model).toHaveAccessibleDescription('Available once the new Session is created')
   })
 
   it('keep the level and show a toast when the Host refuses a thinking-level pick', async () => {
