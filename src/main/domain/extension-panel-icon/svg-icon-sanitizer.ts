@@ -117,8 +117,35 @@ const ALLOWED_ATTRIBUTES = new Set([
 ])
 
 const REFERENCE_ATTRIBUTES = new Set([REFERENCE_ATTRIBUTE, 'xlink:href'])
-/** A `url()` whose target is captured, with optional matching quotes. */
-const CSS_URL_FUNCTION = /url\s*\(\s*(['"]?)([^'"()]*)\1\s*\)/giu
+/**
+ * A `url(#id)` reference to an element of this document, optionally quoted. Every part matches a
+ * disjoint character class, so matching stays linear however long the value is (no backtracking
+ * blow-up), and whitespace is CSS's ASCII whitespace only.
+ */
+const LOCAL_URL_REFERENCE = /url\([\t\n\f\r ]*(['"]?)#[A-Za-z_][\w.:-]*\1[\t\n\f\r ]*\)/gu
+const ASCII_WHITESPACE_EDGES = /^[\t\n\f\r ]+|[\t\n\f\r ]+$/gu
+/** An SVG number: no hex, no `Infinity`, no empty parts. */
+const SVG_NUMBER = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/u
+/** Containers whose children are only referenced, never drawn where they stand. */
+const NON_RENDERING_ELEMENTS = new Set([
+  'defs',
+  'clipPath',
+  'mask',
+  'symbol',
+  'linearGradient',
+  'radialGradient',
+])
+/** What a shape needs before it can draw anything: any one of these attribute sets. */
+const SHAPE_GEOMETRY: Readonly<Record<string, readonly (readonly string[])[]>> = {
+  path: [['d']],
+  circle: [['r']],
+  ellipse: [['rx'], ['ry']],
+  line: [['x1'], ['y1'], ['x2'], ['y2']],
+  polyline: [['points']],
+  polygon: [['points']],
+  rect: [['width', 'height']],
+  use: [[REFERENCE_ATTRIBUTE]],
+}
 /**
  * Anything that can still name a resource once local `url(#…)` references are removed: other
  * `url()` forms, image functions, `src()`, escapes, imports and quoted strings.
@@ -128,23 +155,23 @@ const RESOURCE_CSS =
 const LENGTH_IN_PIXELS = /^\s*(\d+(?:\.\d+)?)(?:px)?\s*$/u
 const VIEW_BOX_SEPARATOR = /[\s,]+/u
 
+function trimAsciiWhitespace(value: string) {
+  return value.replace(ASCII_WHITESPACE_EDGES, '')
+}
+
 function isLocalFragmentReference(value: string) {
-  return value.trim().startsWith('#')
+  return trimAsciiWhitespace(value).startsWith('#')
 }
 
 /** True when the value refers to nothing but fragments inside this document. */
 function referencesOnlyLocalFragments(value: string) {
-  const withoutLocalReferences = value.replace(
-    CSS_URL_FUNCTION,
-    (match, _quote: string, target: string) => (isLocalFragmentReference(target) ? '' : match),
-  )
-  return !RESOURCE_CSS.test(withoutLocalReferences)
+  return !RESOURCE_CSS.test(value.replace(LOCAL_URL_REFERENCE, ''))
 }
 
 function sanitizeAttribute(attribute: SvgMarkupAttribute): readonly SvgMarkupAttribute[] {
   if (REFERENCE_ATTRIBUTES.has(attribute.name)) {
     return isLocalFragmentReference(attribute.value)
-      ? [{ name: REFERENCE_ATTRIBUTE, value: attribute.value.trim() }]
+      ? [{ name: REFERENCE_ATTRIBUTE, value: trimAsciiWhitespace(attribute.value) }]
       : []
   }
   if (!ALLOWED_ATTRIBUTES.has(attribute.name)) return []
@@ -182,9 +209,18 @@ function sanitizeElement(element: SvgMarkupElement): SvgMarkupElement | null {
   }
 }
 
+function drawsSomething(element: SvgMarkupElement) {
+  const alternatives = SHAPE_GEOMETRY[element.name] ?? []
+  return alternatives.some((names) =>
+    names.every((name) => attributeValue(element, name) !== undefined),
+  )
+}
+
+/** A shape that is drawn where it stands and kept the geometry it needs to draw. */
 function containsShape(element: SvgMarkupElement): boolean {
+  if (NON_RENDERING_ELEMENTS.has(element.name)) return false
   return (
-    SHAPE_ELEMENTS.has(element.name) ||
+    drawsSomething(element) ||
     element.children.some((child) => child.kind === 'element' && containsShape(child))
   )
 }
@@ -204,12 +240,13 @@ function attributeValue(element: SvgMarkupElement, name: string) {
   return element.attributes.find((attribute) => attribute.name === name)?.value
 }
 
+/** Four SVG numbers with a positive width and height, as browsers require to draw anything. */
 function isValidViewBox(value: string) {
-  const numbers = value.trim().split(VIEW_BOX_SEPARATOR)
-  return (
-    numbers.length === VIEW_BOX_NUMBER_COUNT &&
-    numbers.every((part) => Number.isFinite(Number(part)))
-  )
+  const numbers = trimAsciiWhitespace(value).split(VIEW_BOX_SEPARATOR)
+  if (numbers.length !== VIEW_BOX_NUMBER_COUNT) return false
+  if (!numbers.every((part) => SVG_NUMBER.test(part))) return false
+  const [, , width, height] = numbers.map(Number)
+  return width !== undefined && height !== undefined && width > 0 && height > 0
 }
 
 function pixelLength(value: string | undefined) {
@@ -221,7 +258,7 @@ function pixelLength(value: string | undefined) {
 /** The root must carry a viewBox so the mask scales; derive one from numeric width/height. */
 function rootViewBox(root: SvgMarkupElement) {
   const declared = attributeValue(root, 'viewBox')
-  if (declared !== undefined) return isValidViewBox(declared) ? declared.trim() : null
+  if (declared !== undefined) return isValidViewBox(declared) ? trimAsciiWhitespace(declared) : null
   const width = pixelLength(attributeValue(root, 'width'))
   const height = pixelLength(attributeValue(root, 'height'))
   return width !== null && height !== null ? `0 0 ${String(width)} ${String(height)}` : null

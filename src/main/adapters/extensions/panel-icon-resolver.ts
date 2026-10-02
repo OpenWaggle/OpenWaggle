@@ -1,4 +1,4 @@
-import { formatErrorMessage, isEnoent } from '@shared/utils/node-error'
+import { formatErrorMessage, isEnoent, isNodeError } from '@shared/utils/node-error'
 import { Effect, Layer } from 'effect'
 import {
   SVG_ICON_MAX_BYTES,
@@ -54,14 +54,26 @@ export async function readPackageIconFile(
     }
     return { ok: true, source: read.content.toString('utf8') }
   } catch (error) {
-    return isEnoent(error)
-      ? deterministicReadFailure('The SVG icon file does not exist.')
-      : {
-          ok: false,
-          message: `The SVG icon could not be read: ${formatErrorMessage(error)}`,
-          retryable: true,
-        }
+    if (isEnoent(error)) return deterministicReadFailure('The SVG icon file does not exist.')
+    // These only change when the package does, and a new package version has a new content hash.
+    if (hasStableErrorCode(error)) {
+      return deterministicReadFailure(
+        `The SVG icon could not be read: ${formatErrorMessage(error)}`,
+      )
+    }
+    return {
+      ok: false,
+      message: `The SVG icon could not be read: ${formatErrorMessage(error)}`,
+      retryable: true,
+    }
   }
+}
+
+/** Read errors that describe the package's files rather than a passing condition. */
+const STABLE_READ_ERROR_CODES = new Set(['ELOOP', 'ENOTDIR', 'EINVAL', 'EISDIR', 'ENAMETOOLONG'])
+
+function hasStableErrorCode(error: unknown) {
+  return isNodeError(error) && error.code !== undefined && STABLE_READ_ERROR_CODES.has(error.code)
 }
 
 function rememberBounded<V>(cache: Map<string, V>, key: string, value: V) {
