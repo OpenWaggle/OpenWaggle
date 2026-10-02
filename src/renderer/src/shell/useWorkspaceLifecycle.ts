@@ -1,9 +1,12 @@
 import { SessionId } from '@shared/types/brand'
+import type { ExtensionPanelShortcutBindings } from '@shared/types/shortcuts'
+import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { useEffect } from 'react'
 import { useChat } from '@/features/chat/hooks'
 import { focusPendingRequest } from '@/features/chat/lib'
 import { useDiffRouteNavigation } from '@/features/diff-panel/hooks'
+import { openableExtensionSidePanelSurfaceIds } from '@/features/extensions'
 import { useGit, useGitRefresh } from '@/features/git/hooks'
 import { useProjectActions, useRunProjectAction } from '@/features/project-actions'
 import {
@@ -15,11 +18,20 @@ import { useSyntaxThemeCatalogStore } from '@/features/settings'
 import { usePreferencesStore } from '@/features/settings/state'
 import { usePinnedSessionShortcuts, useSidebarSearchShortcut } from '@/features/sidebar/hooks'
 import { terminalOwnerContext, useTerminalCommands } from '@/features/terminal'
+import { extensionContributionsQueryOptions } from '@/queries/extensions'
+import {
+  type ExtensionRightPanelSurfaceId,
+  hasRightPanelController,
+  isExtensionRightPanelSurfaceId,
+  type RightPanelSurfaceId,
+  toggleRightPanelSurface,
+} from '@/shared/lib/right-panel-surfaces'
 import { useUIStore } from '@/shell/ui-store'
 import {
   rightPanelCloseIsActive,
   rightPanelShortcutHandlers,
 } from './right-panel/right-panel-shortcut-handlers'
+import type { ExtensionPanelShortcut } from './unified-shortcut-resolver'
 import { useSessionHostRefresh } from './useSessionHostRefresh'
 import {
   type BuiltInShortcutHandlers,
@@ -42,6 +54,37 @@ type PreviewShortcutHandlers = Pick<
   | 'preview.resetZoom'
 >
 
+/**
+ * Routes a surface shortcut through the Right panel controller (ADR 0043). Until the shell
+ * registers one, the legacy panel toggle keeps the shortcut working.
+ */
+function toggleSurfaceOr(id: RightPanelSurfaceId, legacyToggle: () => void) {
+  return () => {
+    if (hasRightPanelController()) toggleRightPanelSurface(id)
+    else legacyToggle()
+  }
+}
+
+/** Only bindings of panels that can be shown now take part; any other key passes through. */
+function availableExtensionPanelShortcuts(
+  bindings: ExtensionPanelShortcutBindings,
+  available: ReadonlySet<ExtensionRightPanelSurfaceId>,
+): readonly ExtensionPanelShortcut[] {
+  return Object.entries(bindings).flatMap(([surfaceId, shortcut]) =>
+    isExtensionRightPanelSurfaceId(surfaceId) && available.has(surfaceId)
+      ? [{ surfaceId, shortcut }]
+      : [],
+  )
+}
+
+function useAvailableExtensionPanelShortcuts(projectPath: string | null, sessionId: string | null) {
+  const bindings = usePreferencesStore((s) => s.settings.extensionPanelShortcutBindings)
+  const { data: registry = null } = useQuery(
+    extensionContributionsQueryOptions(projectPath ? [projectPath] : [], { sessionId }),
+  )
+  return availableExtensionPanelShortcuts(bindings, openableExtensionSidePanelSurfaceIds(registry))
+}
+
 function previewShortcutHandlers(
   ownerKey: string,
   showToast: (message: string, type: 'error') => void,
@@ -52,7 +95,7 @@ function previewShortcutHandlers(
     })
   }
   return {
-    'preview.toggle': () => void toggleWorkspacePreview(ownerKey),
+    'preview.toggle': toggleSurfaceOr('browser', () => void toggleWorkspacePreview(ownerKey)),
     'preview.refresh': () =>
       run(() => refreshWorkspacePreview(ownerKey), 'Preview could not reload.'),
     'preview.focusUrl': () => {
@@ -154,9 +197,14 @@ export function useWorkspaceLifecycle(): void {
   const terminalOwner = terminalOwnerContext(activeSession ?? null, projectPath ?? null)
   const projectActions = useProjectActions(projectPath).data ?? []
   const runProjectAction = useRunProjectAction(projectPath)
+  const extensionPanels = useAvailableExtensionPanelShortcuts(
+    projectPath ?? null,
+    activeSessionId ? String(activeSessionId) : null,
+  )
   useUnifiedShortcutCapture({
     actions: projectActions,
     builtInRules: shortcutRules,
+    extensionPanels,
     handlers: {
       'commandPalette.toggle': () =>
         commandSurface === 'commands' ? closeCommandSurface() : openCommandSurface('commands'),
@@ -174,12 +222,13 @@ export function useWorkspaceLifecycle(): void {
         showToast,
       }),
       'sidebar.toggle': toggleSidebar,
-      'diff.toggle': toggleDiff,
+      'diff.toggle': toggleSurfaceOr('changes', toggleDiff),
       ...previewShortcutHandlers(terminalOwner.ownerKey, showToast),
-      'sessionTree.toggle': toggleSessionTree,
+      'sessionTree.toggle': toggleSurfaceOr('session-tree', toggleSessionTree),
       'request.focus': focusPendingRequest,
     },
     onRunProjectAction: (action) => void runProjectAction(action),
+    onToggleExtensionPanel: toggleRightPanelSurface,
     shouldHandleBuiltIn: (command) =>
       command !== 'rightPanel.close' || rightPanelCloseIsActive(terminalOwner.ownerKey),
     terminalOpen: terminalCommands.panelOpen,

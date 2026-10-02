@@ -80,3 +80,8 @@ export type {
   ResolvedExtensionSidePanelContribution,
 } from './lib/extension-side-panel-resolution'
 export { resolveExtensionSidePanelContribution } from './lib/extension-side-panel-resolution'
+export {
+  type ExtensionSidePanelSurfaceEntry,
+  extensionSidePanelSurfaces,
+  openableExtensionSidePanelSurfaceIds,
+} from './lib/extension-side-panel-surfaces'

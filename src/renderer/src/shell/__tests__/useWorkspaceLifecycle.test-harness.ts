@@ -1,3 +1,4 @@
+import type { ExtensionContributionRegistryView } from '@shared/types/extensions'
 import type { IpcEventChannelMap } from '@shared/types/ipc-events'
 import type { SessionHostEventEnvelope } from '@shared/types/session-host-event'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
@@ -21,6 +22,7 @@ interface WorkspaceLifecycleMocks {
   projectPath: string
   workingPath: string
   activeSessionId: string
+  extensionRegistry: ExtensionContributionRegistryView | null
   readonly loadChatSessions: Mock
   readonly startDraftSession: Mock
   readonly refreshSession: Mock
@@ -59,6 +61,7 @@ const lifecycleMocks: WorkspaceLifecycleMocks = vi.hoisted(() => {
     projectPath: '/repo',
     workingPath: '/repo/.worktrees/session-1',
     activeSessionId: 'session-1',
+    extensionRegistry: null,
     loadChatSessions: vi.fn().mockResolvedValue(undefined),
     startDraftSession: vi.fn(),
     refreshSession: vi.fn().mockResolvedValue(undefined),
@@ -103,6 +106,8 @@ export function getWorkspaceLifecycleMocks(): WorkspaceLifecycleMocks {
 vi.mock('@tanstack/react-query', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@tanstack/react-query')>()),
   useQueryClient: () => ({ invalidateQueries: lifecycleMocks.invalidateQueries }),
+  // The only query the lifecycle reads itself is the extension contribution registry.
+  useQuery: () => ({ data: lifecycleMocks.extensionRegistry ?? undefined }),
 }))
 
 vi.mock('@tanstack/react-hotkeys', () => ({
@@ -242,6 +247,7 @@ export function resetWorkspaceLifecycleMocks() {
   lifecycleMocks.projectPath = '/repo'
   lifecycleMocks.workingPath = '/repo/.worktrees/session-1'
   lifecycleMocks.activeSessionId = 'session-1'
+  lifecycleMocks.extensionRegistry = null
   useSyntaxThemeCatalogStore.setState({ load: lifecycleMocks.loadSyntaxResources })
 }
 

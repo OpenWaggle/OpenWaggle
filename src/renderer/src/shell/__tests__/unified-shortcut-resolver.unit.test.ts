@@ -1,4 +1,5 @@
 import type { ProjectAction } from '@shared/types/project-actions'
+import { extensionRightPanelSurfaceId } from '@shared/types/right-panel-surface-id'
 import type { ShortcutRule } from '@shared/types/shortcuts'
 import { describe, expect, it, vi } from 'vitest'
 import { resolveUnifiedShortcut } from '../unified-shortcut-resolver'
@@ -70,5 +71,35 @@ describe('unified shortcut resolution', () => {
       ),
     ).toBeNull()
     expect(getContext).not.toHaveBeenCalled()
+  })
+
+  it('resolves an extension panel binding only when no rule claims the key outside a terminal', () => {
+    const surfaceId = extensionRightPanelSurfaceId({ extensionId: 'acme', sidePanelId: 'notes' })
+    const panels = [{ surfaceId, shortcut: { key: 'R', mod: true } }]
+
+    expect(resolveUnifiedShortcut(EVENT, [], [], false, () => CONTEXT, panels)).toEqual({
+      kind: 'extension-panel',
+      surfaceId,
+    })
+    expect(
+      resolveUnifiedShortcut(
+        EVENT,
+        [{ command: 'diff.toggle', shortcut: { key: 'R', mod: true } }],
+        [],
+        false,
+        () => CONTEXT,
+        panels,
+      ),
+    ).toMatchObject({ kind: 'builtin' })
+    expect(
+      resolveUnifiedShortcut(
+        EVENT,
+        [],
+        [],
+        false,
+        () => ({ ...CONTEXT, terminalFocus: true }),
+        panels,
+      ),
+    ).toBeNull()
   })
 })

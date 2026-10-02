@@ -74,6 +74,11 @@ export interface PreferencesState {
   setProjectDisplayName: (path: string, name: string) => Promise<void>
   setShortcutBinding: (command: ShortcutCommand, binding: ShortcutBinding | null) => Promise<void>
   setShortcutRules: (rules: ShortcutRules) => Promise<void>
+  /** Assigns or clears (null) the shortcut of one extension side panel surface. */
+  setExtensionPanelShortcutBinding: (
+    surfaceId: string,
+    binding: ShortcutBinding | null,
+  ) => Promise<void>
   resetShortcutBindings: () => Promise<void>
   resetShortcutRules: () => Promise<void>
   clearProjectDisplayName: (path: string) => Promise<void>

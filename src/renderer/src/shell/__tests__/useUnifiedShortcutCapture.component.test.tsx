@@ -54,6 +54,10 @@ function handlers(): BuiltInShortcutHandlers {
     'preview.resetZoom': vi.fn(),
     'sessionTree.toggle': vi.fn(),
     'request.focus': vi.fn(),
+    'rightPanel.allPanels': vi.fn(),
+    'rightPanel.projectActions': vi.fn(),
+    'rightPanel.files': vi.fn(),
+    'rightPanel.resources': vi.fn(),
   }
 }
 

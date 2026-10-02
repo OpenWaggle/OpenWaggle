@@ -6,6 +6,11 @@
  * feature surfaces open panels without importing shell internals.
  */
 
+import {
+  type ExtensionRightPanelSurfaceId,
+  parseExtensionRightPanelSurfaceId,
+} from '@shared/types/right-panel-surface-id'
+
 export const BUILT_IN_RIGHT_PANEL_SURFACE_IDS = [
   'all-panels',
   'changes',
@@ -18,45 +23,15 @@ export const BUILT_IN_RIGHT_PANEL_SURFACE_IDS = [
 
 export type BuiltInRightPanelSurfaceId = (typeof BUILT_IN_RIGHT_PANEL_SURFACE_IDS)[number]
 
-const EXTENSION_SURFACE_PREFIX = 'extension:'
-/** An extension surface id encodes exactly `[extensionId, sidePanelId]`. */
-const EXTENSION_SURFACE_PARTS = 2
-
-export type ExtensionRightPanelSurfaceId = `extension:${string}`
+export {
+  type ExtensionRightPanelSurfaceId,
+  type ExtensionSidePanelIdentity,
+  extensionRightPanelSurfaceId,
+  isExtensionRightPanelSurfaceId,
+  parseExtensionRightPanelSurfaceId,
+} from '@shared/types/right-panel-surface-id'
 
 export type RightPanelSurfaceId = BuiltInRightPanelSurfaceId | ExtensionRightPanelSurfaceId
-
-export interface ExtensionSidePanelIdentity {
-  readonly extensionId: string
-  readonly sidePanelId: string
-}
-
-/** The rail identity of an extension side panel, stable across extension updates. */
-export function extensionRightPanelSurfaceId(
-  identity: ExtensionSidePanelIdentity,
-): ExtensionRightPanelSurfaceId {
-  return `${EXTENSION_SURFACE_PREFIX}${JSON.stringify([identity.extensionId, identity.sidePanelId])}`
-}
-
-export function parseExtensionRightPanelSurfaceId(id: string): ExtensionSidePanelIdentity | null {
-  if (!id.startsWith(EXTENSION_SURFACE_PREFIX)) return null
-  try {
-    const parsed: unknown = JSON.parse(id.slice(EXTENSION_SURFACE_PREFIX.length))
-    if (
-      !Array.isArray(parsed) ||
-      parsed.length !== EXTENSION_SURFACE_PARTS ||
-      typeof parsed[0] !== 'string' ||
-      typeof parsed[1] !== 'string' ||
-      parsed[0].length === 0 ||
-      parsed[1].length === 0
-    ) {
-      return null
-    }
-    return { extensionId: parsed[0], sidePanelId: parsed[1] }
-  } catch {
-    return null
-  }
-}
 
 export function isBuiltInRightPanelSurfaceId(id: string): id is BuiltInRightPanelSurfaceId {
   return BUILT_IN_RIGHT_PANEL_SURFACE_IDS.some((surfaceId) => surfaceId === id)
@@ -86,6 +61,11 @@ export function registerRightPanelController(next: RightPanelController) {
   }
 }
 
+/** False until the shell registers a controller, so callers can keep a legacy fallback. */
+export function hasRightPanelController() {
+  return controller !== null
+}
+
 export function toggleRightPanelSurface(id: RightPanelSurfaceId) {
   controller?.toggleSurface(id)
 }
@@ -100,9 +80,4 @@ export function toggleRightPanel() {
 
 export function closeRightPanel() {
   controller?.closePanel()
-}
-
-/** Whether a Right panel controller is mounted (it is only on chat routes). */
-export function hasRightPanelController() {
-  return controller !== null
 }
