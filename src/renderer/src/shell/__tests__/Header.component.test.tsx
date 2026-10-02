@@ -4,6 +4,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useSessionSummaryUIStore } from '@/features/session-summary'
 import { useTerminalStore } from '@/features/terminal'
+import { registerRightPanelController } from '@/shared/lib/right-panel-surfaces'
 import { Button } from '@/shared/ui/Button'
 import { Header } from '../Header'
 import { useUIStore } from '../ui-store'
@@ -217,6 +218,13 @@ describe('Header', () => {
   })
 
   it('renders session/project context and wires app-level controls', async () => {
+    const controller = {
+      toggleSurface: vi.fn(),
+      showSurface: vi.fn(),
+      togglePanel: vi.fn(),
+      closePanel: vi.fn(),
+    }
+    const unregister = registerRightPanelController(controller)
     render(<Header />)
 
     expect(screen.getByText('Session title')).toBeInTheDocument()
@@ -235,15 +243,18 @@ describe('Header', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Open terminal' }))
     fireEvent.click(screen.getByRole('button', { name: 'Hide Session Summary' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Toggle Session Tree' }))
+    // ADR 0043: Session Tree lives on the Panel rail; the Changes readout opens Changes there.
+    expect(screen.queryByRole('button', { name: 'Toggle Session Tree' })).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Toggle diff panel' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Show right panel' }))
     fireEvent.click(screen.getByRole('button', { name: 'Report a bug' }))
 
     expect(useSessionSummaryUIStore.getState().panels['session-1']?.expanded).toBe(false)
     expect(useTerminalStore.getState().groups['session-1']?.panelOpen).toBe(true)
     expect(useUIStore.getState().feedbackModalOpen).toBe(true)
-    expect(headerMocks.toggleSessionTree).toHaveBeenCalledOnce()
-    expect(headerMocks.toggleDiff).toHaveBeenCalledOnce()
+    expect(controller.toggleSurface).toHaveBeenCalledWith('changes')
+    expect(controller.togglePanel).toHaveBeenCalledOnce()
+    unregister()
 
     fireEvent.click(screen.getByRole('button', { name: 'Open commit dialog' }))
     fireEvent.click(screen.getByRole('button', { name: 'Refresh git' }))

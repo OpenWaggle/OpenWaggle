@@ -120,6 +120,7 @@ export const settingsUpdateSchema = Schema.Struct({
   ),
   diffView: Schema.optional(Schema.Literal(...DIFF_VIEWS)),
   diffWrapLines: Schema.optional(Schema.Boolean),
+  rightPanelRailVisibleWhenClosed: Schema.optional(Schema.Boolean),
   sessionHostParentConcurrencyLimit: Schema.optional(positiveIntegerSchema),
   sessionHostParentConcurrencyLimitsByProject: Schema.optional(
     Schema.mutable(Schema.Record({ key: Schema.String, value: positiveIntegerSchema })),

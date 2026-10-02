@@ -12,8 +12,11 @@ import {
   SessionResourcesPanel,
 } from '@/features/session-summary'
 import { loadSessionTreePanel } from '@/features/session-tree/components'
-import { WorkspaceFilePanel } from '@/features/workspace-files/components'
-import type { RightSidebarPanel } from '@/shell'
+import {
+  WorkspaceFileNavigatorPanel,
+  WorkspaceFilePanel,
+} from '@/features/workspace-files/components'
+import { type RightSidebarPanel, sessionRightPanelMemory } from '@/shell'
 import type {
   ChatRightSidebarRouteState,
   ChatRouteSurfaceHandlers,
@@ -85,7 +88,15 @@ function renderSidebarPanel(input: ChatRouteSidebarInput) {
       />
     ))
     .with('file', () =>
-      rightSidebar.workspaceFile ? (
+      rightSidebar.workspaceFile?.path === '' ? (
+        <WorkspaceFileNavigatorPanel
+          key={sections.diff.workingPath ?? 'no-project'}
+          projectPath={sections.diff.workingPath}
+          revealPath={sessionRightPanelMemory(workspace.sessionId).lastFilePath}
+          onClose={() => handlers.handleWorkspaceFileOpenChange(false)}
+          onOpenFile={(path, line) => handlers.handleWorkspaceFileOpenChange(true, { path, line })}
+        />
+      ) : rightSidebar.workspaceFile ? (
         <WorkspaceFilePanel
           key={sections.diff.workingPath ?? 'no-project'}
           projectPath={sections.diff.workingPath}

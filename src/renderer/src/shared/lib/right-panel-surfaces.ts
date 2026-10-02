@@ -19,6 +19,8 @@ export const BUILT_IN_RIGHT_PANEL_SURFACE_IDS = [
 export type BuiltInRightPanelSurfaceId = (typeof BUILT_IN_RIGHT_PANEL_SURFACE_IDS)[number]
 
 const EXTENSION_SURFACE_PREFIX = 'extension:'
+/** An extension surface id encodes exactly `[extensionId, sidePanelId]`. */
+const EXTENSION_SURFACE_PARTS = 2
 
 export type ExtensionRightPanelSurfaceId = `extension:${string}`
 
@@ -36,15 +38,13 @@ export function extensionRightPanelSurfaceId(
   return `${EXTENSION_SURFACE_PREFIX}${JSON.stringify([identity.extensionId, identity.sidePanelId])}`
 }
 
-export function parseExtensionRightPanelSurfaceId(
-  id: string,
-): ExtensionSidePanelIdentity | null {
+export function parseExtensionRightPanelSurfaceId(id: string): ExtensionSidePanelIdentity | null {
   if (!id.startsWith(EXTENSION_SURFACE_PREFIX)) return null
   try {
     const parsed: unknown = JSON.parse(id.slice(EXTENSION_SURFACE_PREFIX.length))
     if (
       !Array.isArray(parsed) ||
-      parsed.length !== 2 ||
+      parsed.length !== EXTENSION_SURFACE_PARTS ||
       typeof parsed[0] !== 'string' ||
       typeof parsed[1] !== 'string' ||
       parsed[0].length === 0 ||
@@ -71,6 +71,9 @@ export interface RightPanelController {
   readonly toggleSurface: (id: RightPanelSurfaceId) => void
   /** Shows the surface and never closes the Right panel. */
   readonly showSurface: (id: RightPanelSurfaceId) => void
+  /** Shows the Right panel on its remembered surface, or closes it when open. */
+  readonly togglePanel: () => void
+  readonly closePanel: () => void
 }
 
 let controller: RightPanelController | null = null
@@ -89,4 +92,17 @@ export function toggleRightPanelSurface(id: RightPanelSurfaceId) {
 
 export function showRightPanelSurface(id: RightPanelSurfaceId) {
   controller?.showSurface(id)
+}
+
+export function toggleRightPanel() {
+  controller?.togglePanel()
+}
+
+export function closeRightPanel() {
+  controller?.closePanel()
+}
+
+/** Whether a Right panel controller is mounted (it is only on chat routes). */
+export function hasRightPanelController() {
+  return controller !== null
 }

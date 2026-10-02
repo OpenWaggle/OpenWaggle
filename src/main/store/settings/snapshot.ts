@@ -25,6 +25,7 @@ import {
   SETTINGS_KEY_PROJECT_DISPLAY_NAMES,
   SETTINGS_KEY_PROJECT_PATH,
   SETTINGS_KEY_RECENT_PROJECTS,
+  SETTINGS_KEY_RIGHT_PANEL_RAIL_VISIBLE_WHEN_CLOSED,
   SETTINGS_KEY_SHORTCUT_BINDINGS,
   SETTINGS_KEY_SHORTCUT_RULES,
   SETTINGS_KEY_SKILL_TOGGLES_BY_PROJECT,
@@ -32,6 +33,7 @@ import {
   SETTINGS_KEY_THINKING_LEVEL,
   SETTINGS_KEY_UPDATE_CHANNEL,
 } from './keys'
+import { resolveRightPanelRailVisibleWhenClosed } from './right-panel-settings-sanitizer'
 import {
   isValidSessionEnvironmentMode,
   isValidThinkingLevel,
@@ -147,6 +149,9 @@ export function buildSettingsSnapshot(storedSettings: Readonly<Record<string, un
   const diffWrapLines = resolveDiffWrapLines(
     getStoredValue(storedSettings, SETTINGS_KEY_DIFF_WRAP_LINES),
   )
+  const rightPanelRailVisibleWhenClosed = resolveRightPanelRailVisibleWhenClosed(
+    getStoredValue(storedSettings, SETTINGS_KEY_RIGHT_PANEL_RAIL_VISIBLE_WHEN_CLOSED),
+  )
   const hostSettings = resolveStoredSessionHostSettings(storedSettings)
   const compactionThresholdPercent = resolveCompactionThresholdPercent(
     getStoredValue(storedSettings, SETTINGS_KEY_COMPACTION_THRESHOLD_PERCENT),
@@ -178,6 +183,7 @@ export function buildSettingsSnapshot(storedSettings: Readonly<Record<string, un
       syntaxThemeSelections,
       diffView,
       diffWrapLines,
+      rightPanelRailVisibleWhenClosed,
       ...hostSettings,
       compactionThresholdPercent,
       ...resolveStoredSessionTitleSettings(storedSettings),

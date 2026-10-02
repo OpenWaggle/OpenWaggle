@@ -151,6 +151,15 @@ function createWorkspacePanelState(
       })
       useRightSidebarCoordinator.getState().claimWorkspace(ownerKey)
     },
+    showIndexSurface: (ownerKey, kind) => {
+      if (!ownerKey) return
+      setWorkspacePanelGroup(set, get, ownerKey, {
+        ...(get().groups[ownerKey] ?? EMPTY_WORKSPACE_PANEL_GROUP),
+        activeSurface: { kind },
+        panelOpen: true,
+      })
+      useRightSidebarCoordinator.getState().claimWorkspace(ownerKey)
+    },
     showTerminal: (ownerKey) => showTerminal(set, get, ownerKey),
     hideTerminal: (ownerKey) => hideTerminal(set, get, ownerKey),
     hidePanel: (ownerKey) => hidePanel(set, get, ownerKey),

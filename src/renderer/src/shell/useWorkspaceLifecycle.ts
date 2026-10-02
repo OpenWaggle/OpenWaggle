@@ -1,5 +1,4 @@
 import { SessionId } from '@shared/types/brand'
-import { toggleRightPanelSurface } from '@/shared/lib/right-panel-surfaces'
 import { useNavigate } from '@tanstack/react-router'
 import { useEffect } from 'react'
 import { useChat } from '@/features/chat/hooks'
@@ -17,19 +16,19 @@ import { usePreferencesStore } from '@/features/settings/state'
 import { usePinnedSessionShortcuts, useSidebarSearchShortcut } from '@/features/sidebar/hooks'
 import { terminalOwnerContext, useTerminalCommands } from '@/features/terminal'
 import { useUIStore } from '@/shell/ui-store'
+import {
+  rightPanelCloseIsActive,
+  rightPanelShortcutHandlers,
+} from './right-panel/right-panel-shortcut-handlers'
 import { useSessionHostRefresh } from './useSessionHostRefresh'
 import {
   type BuiltInShortcutHandlers,
   useUnifiedShortcutCapture,
 } from './useUnifiedShortcutCapture'
 import {
-  closeWorkspaceRightPanel,
   focusWorkspacePreviewAddress,
-  hasActiveWorkspaceRightPanel,
   refreshWorkspacePreview,
-  toggleWorkspacePanelMaximized,
   toggleWorkspacePreview,
-  toggleWorkspaceRightPanel,
   zoomWorkspacePreview,
 } from './workspace-panel-actions'
 
@@ -169,28 +168,20 @@ export function useWorkspaceLifecycle(): void {
       'terminal.split': terminalCommands.splitTerminal,
       'terminal.splitVertical': terminalCommands.splitTerminalVertical,
       'terminal.close': () => void terminalCommands.closeActiveTerminal(),
-      'rightPanel.toggle': () => {
-        if (!toggleWorkspaceRightPanel(terminalOwner.ownerKey)) terminalCommands.newSideTerminal()
-      },
-      'rightPanel.toggleMaximized': () => {
-        if (!toggleWorkspacePanelMaximized(terminalOwner.ownerKey)) {
-          showToast('Open the workspace right panel first.', 'error')
-        }
-      },
-      'rightPanel.close': () => closeWorkspaceRightPanel(terminalOwner.ownerKey),
+      ...rightPanelShortcutHandlers({
+        ownerKey: terminalOwner.ownerKey,
+        newSideTerminal: terminalCommands.newSideTerminal,
+        showToast,
+      }),
       'sidebar.toggle': toggleSidebar,
       'diff.toggle': toggleDiff,
       ...previewShortcutHandlers(terminalOwner.ownerKey, showToast),
       'sessionTree.toggle': toggleSessionTree,
       'request.focus': focusPendingRequest,
-      'rightPanel.allPanels': () => toggleRightPanelSurface('all-panels'),
-      'rightPanel.projectActions': () => toggleRightPanelSurface('project-actions'),
-      'rightPanel.files': () => toggleRightPanelSurface('files'),
-      'rightPanel.resources': () => toggleRightPanelSurface('resources'),
     },
     onRunProjectAction: (action) => void runProjectAction(action),
     shouldHandleBuiltIn: (command) =>
-      command !== 'rightPanel.close' || hasActiveWorkspaceRightPanel(terminalOwner.ownerKey),
+      command !== 'rightPanel.close' || rightPanelCloseIsActive(terminalOwner.ownerKey),
     terminalOpen: terminalCommands.panelOpen,
   })
 }

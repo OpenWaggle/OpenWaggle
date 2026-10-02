@@ -71,6 +71,14 @@ export function newWorkspaceBrowser(ownerKey: string) {
   }
 }
 
+/** Shows the current browser tab, or a new one when the Session has none (never toggles). */
+export function showWorkspaceBrowser(ownerKey: string) {
+  const previewId = activeBrowserTabId(ownerKey)
+  if (previewId === null) return newWorkspaceBrowser(ownerKey)
+  useWorkspacePanelStore.getState().showBrowser(ownerKey, previewId)
+  return true
+}
+
 export function showWorkspaceSideTerminal(ownerKey: string) {
   useWorkspacePanelStore.getState().showTerminal(ownerKey)
 }
@@ -105,6 +113,8 @@ export function toggleWorkspaceRightPanel(ownerKey: string) {
       store.showAction(ownerKey, projectPath, runId),
     )
     .with({ kind: 'browser' }, ({ previewId }) => store.showBrowser(ownerKey, previewId))
+    .with({ kind: 'project-actions' }, () => store.showIndexSurface(ownerKey, 'project-actions'))
+    .with({ kind: 'all-panels' }, () => store.showIndexSurface(ownerKey, 'all-panels'))
     .exhaustive()
   return true
 }

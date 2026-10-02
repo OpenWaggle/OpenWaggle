@@ -101,6 +101,8 @@ export interface Settings {
   readonly diffView: DiffView
   /** Wrap long diff lines instead of scrolling horizontally. */
   readonly diffWrapLines: boolean
+  /** Keep the Panel rail on the window's right edge while the Right panel is closed (ADR 0043). */
+  readonly rightPanelRailVisibleWhenClosed: boolean
   /** Default maximum number of active direct Worker Runs for one parent Session. */
   readonly sessionHostParentConcurrencyLimit: number
   /** Optional project-specific parent concurrency limits keyed by canonical project path. */
@@ -160,6 +162,7 @@ export const DEFAULT_SETTINGS: Settings = {
   syntaxThemeSelections: DEFAULT_SYNTAX_THEME_SELECTIONS,
   diffView: 'unified',
   diffWrapLines: false,
+  rightPanelRailVisibleWhenClosed: true,
   sessionHostParentConcurrencyLimit: DEFAULT_SESSION_HOST_PARENT_CONCURRENCY_LIMIT,
   sessionHostParentConcurrencyLimitsByProject: {},
   sessionHostRunCeiling: DEFAULT_SESSION_HOST_RUN_CEILING,

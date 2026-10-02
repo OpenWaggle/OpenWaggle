@@ -53,6 +53,7 @@ export interface PreferencesState {
   setSyntaxTheme: (variant: SyntaxAppearanceVariant, themeId: SyntaxThemeId) => Promise<void>
   setDiffView: (view: DiffView) => Promise<void>
   setDiffWrapLines: (wrap: boolean) => Promise<void>
+  setRightPanelRailVisibleWhenClosed: (visible: boolean) => Promise<void>
   setBrowserLinkTarget: (target: BrowserLinkTarget) => Promise<void>
   setBrowserProfiles: (profiles: readonly BrowserProfile[]) => Promise<void>
   setBrowserDefaultProfileId: (profileId: string) => Promise<void>

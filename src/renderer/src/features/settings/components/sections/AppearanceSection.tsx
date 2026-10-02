@@ -70,6 +70,55 @@ function ReviewAppearanceSettings() {
   )
 }
 
+function RightPanelAppearanceSettings() {
+  const railVisible = usePreferencesStore((state) => state.settings.rightPanelRailVisibleWhenClosed)
+  const setRailVisible = usePreferencesStore((state) => state.setRightPanelRailVisibleWhenClosed)
+
+  return (
+    <section className="space-y-3" aria-labelledby="right-panel-appearance-heading">
+      <div>
+        <h3
+          id="right-panel-appearance-heading"
+          className="text-base font-semibold text-text-primary"
+        >
+          Right panel
+        </h3>
+        <p className="mt-1 text-xs leading-5 text-text-tertiary">
+          Reorder and pin panel icons from All panels, or press and hold an icon on the rail and
+          drag it.
+        </p>
+      </div>
+      <div className="flex items-center justify-between gap-4 rounded-lg border border-border bg-bg px-4 py-3">
+        <span>
+          <span className="block text-xs font-medium text-text-primary">
+            When the panel is closed
+          </span>
+          <span className="mt-0.5 block text-xs text-text-muted">
+            Keep the panel rail on the right edge, or hide it together with the panel.
+          </span>
+        </span>
+        <div className="flex rounded-md border border-border bg-bg-secondary p-0.5">
+          {[
+            { visible: true, label: 'Keep rail visible' },
+            { visible: false, label: 'Hide rail' },
+          ].map((option) => (
+            <Button
+              key={option.label}
+              type="button"
+              size="xs"
+              variant={railVisible === option.visible ? 'subtle' : 'ghost'}
+              aria-pressed={railVisible === option.visible}
+              onClick={() => void setRailVisible(option.visible)}
+            >
+              {option.label}
+            </Button>
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+}
+
 function AccessibilityAppearanceSettings() {
   const motion = usePreferencesStore((state) => state.settings.appearancePreferences.motion)
   const setMotion = usePreferencesStore((state) => state.setAppearanceMotion)
@@ -128,6 +177,7 @@ export function AppearanceSection() {
       <SyntaxThemePicker />
       <TerminalPaletteSettings />
       <TypographySettings />
+      <RightPanelAppearanceSettings />
       <ReviewAppearanceSettings />
       <AccessibilityAppearanceSettings />
     </div>

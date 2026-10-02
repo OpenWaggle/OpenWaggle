@@ -1,3 +1,4 @@
+export { sessionRightPanelMemory } from './right-panel/right-panel-rail-store'
 export {
   CHAT_MIN_WIDTH,
   DIFF_PANEL_MAX,

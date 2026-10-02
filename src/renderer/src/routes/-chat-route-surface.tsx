@@ -10,7 +10,8 @@ import { terminalOwnerContext } from '@/features/terminal'
 import { useRightSidebarCoordinator } from '@/shared/lib/right-sidebar-coordinator'
 import { PanelErrorBoundary } from '@/shared/ui/PanelErrorBoundary'
 import { RightSidebarLayout } from '@/shared/ui/RightSidebarLayout'
-import { CHAT_MIN_WIDTH, DIFF_PANEL_MAX, DIFF_PANEL_MIN, useUIStore } from '@/shell'
+import { RIGHT_PANEL_SIZING } from '@/shared/ui/right-sidebar-sizing-presets'
+import { CHAT_MIN_WIDTH, useUIStore } from '@/shell'
 import { useChatRouteEffects } from './-chat-route-effects'
 import { ChatRouteSidebar } from './-chat-route-sidebar'
 import {
@@ -26,18 +27,9 @@ import {
 import { isExtensionRightSidebarPanel, resolveChatRightSidebarPanel } from './-right-sidebar-panel'
 import type { ChatExtensionSidePanelTarget } from './-route-search'
 
-const DIFF_PANEL_DEFAULT_WIDTH = 600
-const DIFF_PANEL_STORAGE_KEY = 'openwaggle:diff-sidebar-width'
-const DIFF_PANEL_SHEET_BREAKPOINT_PX = 1180
 const OVERFLOW_TOLERANCE_PX = 0.5
-const RIGHT_SIDEBAR_SIZING = {
-  defaultWidth: DIFF_PANEL_DEFAULT_WIDTH,
-  mainMinWidth: CHAT_MIN_WIDTH,
-  maxWidth: DIFF_PANEL_MAX,
-  minWidth: DIFF_PANEL_MIN,
-  sheetBreakpointPx: DIFF_PANEL_SHEET_BREAKPOINT_PX,
-  storageKey: DIFF_PANEL_STORAGE_KEY,
-}
+/** Route panels share the Right panel's one width and narrow-window rule (ADR 0043). */
+const RIGHT_SIDEBAR_SIZING = RIGHT_PANEL_SIZING
 
 export interface ChatRouteWorkspaceState {
   readonly branchId: string | null

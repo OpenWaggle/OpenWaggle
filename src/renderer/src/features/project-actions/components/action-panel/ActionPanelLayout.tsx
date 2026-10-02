@@ -1,7 +1,7 @@
 import { lazy, type ReactNode, Suspense, useEffect } from 'react'
 import { useRightSidebarCoordinator } from '@/shared/lib/right-sidebar-coordinator'
 import { RightSidebarLayout } from '@/shared/ui/RightSidebarLayout'
-import { WORKSPACE_SIDE_PANEL_SIZING } from '@/shared/ui/right-sidebar-sizing-presets'
+import { RIGHT_PANEL_SIZING } from '@/shared/ui/right-sidebar-sizing-presets'
 import { useActionPanelStore } from '../../state/action-panel-store'
 
 // The guided editor only renders once a panel request is open, so keep it out of the eager
@@ -10,11 +10,8 @@ const LazyActionPanel = lazy(() =>
   import('./ActionPanel').then((module) => ({ default: module.ActionPanel })),
 )
 
-/** The workspace side panel's sizing, so every right sidebar behaves alike (ADR 0038). */
-const ACTION_PANEL_SIZING = {
-  ...WORKSPACE_SIDE_PANEL_SIZING,
-  storageKey: 'openwaggle:action-panel-width',
-}
+/** The Right panel's shared width, so every right sidebar behaves alike (ADR 0038, ADR 0043). */
+const ACTION_PANEL_SIZING = RIGHT_PANEL_SIZING
 
 /**
  * Docks the guided action panel in the single right-sidebar slot. Opening it replaces the

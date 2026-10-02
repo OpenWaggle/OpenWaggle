@@ -6,7 +6,6 @@ import {
   DiffToggleButton,
   HeaderLeft,
   SessionSummaryButton,
-  SessionTreeButton,
   TerminalButton,
 } from '../HeaderControls'
 
@@ -100,10 +99,9 @@ describe('HeaderControls', () => {
     expect(screen.getByRole('button', { name: 'Open commit dialog' })).toBeDisabled()
   })
 
-  it('delegates enabled terminal, session-summary, session-tree, and diff actions', () => {
+  it('delegates enabled terminal, session-summary and diff actions', () => {
     const onToggleTerminal = vi.fn()
     const onToggleSummary = vi.fn()
-    const onToggleTree = vi.fn()
     const onToggleDiff = vi.fn()
 
     render(
@@ -115,7 +113,6 @@ describe('HeaderControls', () => {
           suppressed={false}
           onToggle={onToggleSummary}
         />
-        <SessionTreeButton hasSessionTree isChatRoute open={false} onToggle={onToggleTree} />
         <DiffToggleButton
           error={null}
           isChatRoute
@@ -131,7 +128,6 @@ describe('HeaderControls', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Hide terminal' }))
     const summaryButton = screen.getByRole('button', { name: 'Hide Session Summary' })
     fireEvent.click(summaryButton)
-    fireEvent.click(screen.getByRole('button', { name: 'Toggle Session Tree' }))
     const diffToggle = screen.getByRole('button', { name: 'Toggle diff panel' })
     expect(diffToggle).toHaveAttribute('data-git-status-state', 'ready')
     fireEvent.click(diffToggle)
@@ -143,7 +139,6 @@ describe('HeaderControls', () => {
     expect(summaryButton).toHaveAttribute('aria-controls', 'session-summary-session-1')
     expect(summaryButton.querySelector('.lucide-layout-list')).toBeInTheDocument()
     expect(onToggleSummary).toHaveBeenCalledOnce()
-    expect(onToggleTree).toHaveBeenCalledOnce()
     expect(onToggleDiff).toHaveBeenCalledOnce()
   })
 

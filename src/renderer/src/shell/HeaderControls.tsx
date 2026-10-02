@@ -2,10 +2,11 @@ import type { SessionId } from '@shared/types/brand'
 import { activeShortcutRuleForCommand } from '@shared/utils/shortcut-rules'
 import {
   ChessQueen,
+  ChevronDown,
+  ChevronUp,
   GitCommitHorizontal,
   Hash,
   LayoutList,
-  ListTree,
   PanelLeft,
   Pickaxe,
   SquareTerminal,
@@ -47,13 +48,6 @@ interface CommitButtonProps {
   readonly isCommitting: boolean
   readonly projectPath: string | null
   readonly onOpen: () => void
-}
-
-interface SessionTreeButtonProps {
-  readonly hasSessionTree: boolean
-  readonly isChatRoute: boolean
-  readonly open: boolean
-  readonly onToggle: () => void
 }
 
 interface SessionSummaryButtonProps {
@@ -201,17 +195,18 @@ export function TerminalButton({ open, projectPath, onToggle }: TerminalButtonPr
       aria-expanded={open}
       onClick={onToggle}
       className={cn(
-        'no-drag h-7 border-button-border px-2.5 @max-[720px]/header:px-2',
+        'no-drag h-7 gap-0.5 border-button-border px-1.5',
         !projectPath && 'pointer-events-none opacity-30',
       )}
       disabled={!projectPath}
       title={terminalTitle(projectPath, open, shortcut)}
     >
       <SquareTerminal className="size-3.5 text-text-secondary" />
-      <span className="text-sm font-medium text-text-primary @max-[720px]/header:hidden">
-        {open ? 'Hide' : 'Open'}
-      </span>
-      <span className="text-xs text-text-tertiary @max-[720px]/header:hidden">&#x2228;</span>
+      {open ? (
+        <ChevronDown aria-hidden="true" className="size-3 text-text-tertiary" />
+      ) : (
+        <ChevronUp aria-hidden="true" className="size-3 text-text-tertiary" />
+      )}
     </Button>
   )
 }
@@ -239,34 +234,6 @@ export function CommitButton({ isCommitting, projectPath, onOpen }: CommitButton
       />
       <span className="text-sm font-semibold text-bg @max-[720px]/header:hidden">Commit</span>
       <span className="text-xs text-bg/50 @max-[720px]/header:hidden">&#x2228;</span>
-    </Button>
-  )
-}
-
-export function SessionTreeButton({
-  hasSessionTree,
-  isChatRoute,
-  open,
-  onToggle,
-}: SessionTreeButtonProps) {
-  const disabled = !hasSessionTree || !isChatRoute
-
-  return (
-    <Button
-      variant={open ? 'subtle' : 'secondary'}
-      size="none"
-      radius="sm"
-      aria-label="Toggle Session Tree"
-      aria-expanded={open}
-      onClick={onToggle}
-      disabled={disabled}
-      className={cn(
-        'no-drag h-7 border-button-border px-2',
-        disabled && 'pointer-events-none opacity-30',
-      )}
-      title={hasSessionTree ? 'Toggle Session Tree' : 'No session tree available'}
-    >
-      <ListTree className="size-3.5 text-text-secondary" />
     </Button>
   )
 }

@@ -11,6 +11,8 @@ import { Header } from '@/shell/Header'
 import { ToastOverlay } from '@/shell/ToastOverlay'
 import { useUIStore } from '@/shell/ui-store'
 import { useAutoUpdater } from '@/shell/useAutoUpdater'
+import { RightPanelHost } from './right-panel/RightPanelHost'
+import { isRightPanelChatPath } from './right-panel/useRightPanelRouteNavigation'
 import { useDesktopNativeAdmissionNotice } from './useDesktopNativeAdmissionNotice'
 import { useWorkspaceLifecycle } from './useWorkspaceLifecycle'
 import { WorkspaceRightPanel } from './WorkspaceRightPanel'
@@ -58,6 +60,9 @@ export function WorkspaceShell({ children }: WorkspaceShellProps) {
   const settingsOpen = useRouterState({
     select: (state) => /^\/settings(?:\/|$)/.test(state.location.pathname),
   })
+  const chatRoute = useRouterState({
+    select: (state) => isRightPanelChatPath(state.location.pathname),
+  })
 
   return (
     <div className="flex size-full overflow-hidden bg-bg">
@@ -65,17 +70,20 @@ export function WorkspaceShell({ children }: WorkspaceShellProps) {
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         {!settingsOpen && <Header />}
-        <ActionPanelLayout>
-          <WorkspaceRightPanel>
-            <div className="relative flex size-full min-h-0 min-w-0 flex-col overflow-hidden">
-              {children}
-              <WorkspaceTerminal />
-              <Suspense fallback={null}>
-                <LazyWorkspaceBrowserFloatingPreview />
-              </Suspense>
-            </div>
-          </WorkspaceRightPanel>
-        </ActionPanelLayout>
+        <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
+          <ActionPanelLayout>
+            <WorkspaceRightPanel>
+              <div className="relative flex size-full min-h-0 min-w-0 flex-col overflow-hidden">
+                {children}
+                <WorkspaceTerminal />
+                <Suspense fallback={null}>
+                  <LazyWorkspaceBrowserFloatingPreview />
+                </Suspense>
+              </div>
+            </WorkspaceRightPanel>
+          </ActionPanelLayout>
+          {chatRoute ? <RightPanelHost /> : null}
+        </div>
       </div>
 
       <ToastOverlay />

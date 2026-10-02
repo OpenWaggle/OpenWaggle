@@ -103,6 +103,10 @@ function mergeAppearanceSettings(current: Settings, partial: Partial<Settings>) 
     ),
     diffView: nextSetting(current.diffView, partial.diffView),
     diffWrapLines: nextSetting(current.diffWrapLines, partial.diffWrapLines),
+    rightPanelRailVisibleWhenClosed: nextSetting(
+      current.rightPanelRailVisibleWhenClosed,
+      partial.rightPanelRailVisibleWhenClosed,
+    ),
     appearancePreferences: nextSetting(
       current.appearancePreferences,
       partial.appearancePreferences,
