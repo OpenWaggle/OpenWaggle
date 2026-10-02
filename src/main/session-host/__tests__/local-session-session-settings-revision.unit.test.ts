@@ -3,6 +3,7 @@ import {
   decodeLocalSessionCommandPayloadForRevision,
 } from '@shared/schemas/local-session-protocol'
 import { describe, expect, it } from 'vitest'
+import { supportedRevisionsForCommand } from '../local-session-client'
 
 function hostUiCommand(
   channel:
@@ -30,6 +31,7 @@ describe('Session settings and Title regeneration protocol revisions', () => {
     'sessions:set-default-thinking-level',
   ] as const)('requires a revision-21 Host for %s', (channel) => {
     const payload = hostUiCommand(channel)
+    expect(supportedRevisionsForCommand(payload)).toEqual([21])
     expect(() => decodeLocalSessionCommandPayloadForRevision(payload, 20)).toThrow(/revision 21/)
     expect(decodeLocalSessionCommandPayloadForRevision(payload, 21)).toEqual(payload)
   })
@@ -49,6 +51,9 @@ describe('Session settings and Title regeneration protocol revisions', () => {
         },
       },
     })
+    // The client offers only the revisions the Host requires, so an older Host is refused before
+    // the command is sent instead of failing to decode it.
+    expect(supportedRevisionsForCommand(payload)).toEqual([21])
     expect(() => decodeLocalSessionCommandPayloadForRevision(payload, 20)).toThrow(/revision 21/)
     expect(decodeLocalSessionCommandPayloadForRevision(payload, 21)).toEqual(payload)
   })
