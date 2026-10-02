@@ -10,19 +10,25 @@ export function clampRunAuthorizationOverride(
 
 /**
  * Caps a Run that this caller's command starts (from `previous`, an idle Session) at the caller's
- * Authorization ceiling, including a Follow-up it resumes. The cap is a Run setting: it never
- * lands on a Follow-up, so a Follow-up the caller queues runs under the Session's authorization,
- * which the caller boundary of whoever queued it still bounds when it starts.
+ * Authorization ceiling, when the Run is the caller's own: its message, or a Follow-up it queued
+ * that its command delivers. A Follow-up someone else queued is not clamped when this caller
+ * withdraws, reorders, or resumes the queue in front of it: its Run is bounded by the caller
+ * boundary of whoever queued it, which delivery checks when it starts. The cap is a Run setting:
+ * it never lands on a Follow-up.
  */
 export function withCallerCeiling(
   previous: SessionControlSessionState,
   state: SessionControlSessionState,
-  callerCeiling: AgentAuthorizationMode | undefined,
+  caller: {
+    readonly callerId: string
+    readonly ceiling: AgentAuthorizationMode | undefined
+  },
 ): SessionControlSessionState {
   if (previous.run.state !== 'idle' || state.run.state !== 'starting') return state
+  if (state.run.intent.callerId !== caller.callerId) return state
   const runAuthorizationOverride = clampRunAuthorizationOverride(
     state.run.intent.runAuthorizationOverride,
-    callerCeiling,
+    caller.ceiling,
   )
   if (runAuthorizationOverride === state.run.intent.runAuthorizationOverride) return state
   return {

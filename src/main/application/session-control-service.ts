@@ -107,7 +107,10 @@ export function submitSessionMessage(input: SubmitSessionMessageInput) {
         return result.accepted
           ? {
               ...result,
-              state: withCallerCeiling(state, result.state, input.callerAuthorizationCeiling),
+              state: withCallerCeiling(state, result.state, {
+                callerId: input.callerId,
+                ceiling: input.callerAuthorizationCeiling,
+              }),
             }
           : {
               accepted: false,
@@ -162,7 +165,10 @@ export function startSessionRun(input: StartSessionRunInput) {
         return result.accepted
           ? {
               ...result,
-              state: withCallerCeiling(state, result.state, input.callerAuthorizationCeiling),
+              state: withCallerCeiling(state, result.state, {
+                callerId: input.callerId,
+                ceiling: input.callerAuthorizationCeiling,
+              }),
             }
           : {
               accepted: false,
@@ -212,7 +218,10 @@ export function queueSessionFollowUp(input: QueueSessionFollowUpInput) {
         return result.accepted
           ? {
               ...result,
-              state: withCallerCeiling(state, result.state, input.callerAuthorizationCeiling),
+              state: withCallerCeiling(state, result.state, {
+                callerId: input.callerId,
+                ceiling: input.callerAuthorizationCeiling,
+              }),
             }
           : {
               accepted: false,
@@ -256,7 +265,10 @@ export function mutateSessionQueue(input: MutateSessionQueueInput) {
         return result.accepted
           ? {
               ...result,
-              state: withCallerCeiling(state, result.state, input.callerAuthorizationCeiling),
+              state: withCallerCeiling(state, result.state, {
+                callerId: input.callerId,
+                ceiling: input.callerAuthorizationCeiling,
+              }),
             }
           : {
               accepted: false,

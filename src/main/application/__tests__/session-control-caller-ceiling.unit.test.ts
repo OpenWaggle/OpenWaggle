@@ -81,8 +81,8 @@ describe('Session Control caller authorization ceiling', () => {
     })
   })
 
-  it('caps the Run an ask-capped caller resumes from the queue', async () => {
-    let state: SessionControlSessionState = {
+  function pausedQueueHeadedBy(callerId: string): SessionControlSessionState {
+    return {
       sessionId: SessionId('session-target'),
       revision: 2,
       run: { state: 'idle' },
@@ -96,7 +96,7 @@ describe('Session Control caller authorization ceiling', () => {
             intent: {
               text: 'Continue.',
               attachmentIds: [],
-              callerId: 'profile:unrestricted',
+              callerId,
               acceptedAt: 1,
               idempotencyKey: 'queued',
             },
@@ -104,7 +104,13 @@ describe('Session Control caller authorization ceiling', () => {
         ],
       },
     }
-    await Effect.runPromise(
+  }
+
+  function resumeAsLimitedCaller(
+    initial: SessionControlSessionState,
+    update: (state: SessionControlSessionState) => void,
+  ) {
+    return Effect.runPromise(
       mutateSessionQueue({
         callerId: 'profile:limited',
         callerAuthorizationCeiling: 'ask-for-approval',
@@ -118,12 +124,29 @@ describe('Session Control caller authorization ceiling', () => {
             expectedQueueRevision: 1,
           },
         },
-      }).pipe(Effect.provide(testLayer(state, (next) => (state = next)))),
+      }).pipe(Effect.provide(testLayer(initial, update))),
     )
+  }
+
+  it('caps the Run when an ask-capped caller resumes its own Follow-up', async () => {
+    let state = pausedQueueHeadedBy('profile:limited')
+    await resumeAsLimitedCaller(state, (next) => (state = next))
     expect(state.run).toMatchObject({
       state: 'starting',
-      intent: { runAuthorizationOverride: 'ask-for-approval' },
+      intent: { callerId: 'profile:limited', runAuthorizationOverride: 'ask-for-approval' },
     })
+  })
+
+  it("does not cap someone else's Follow-up that an ask-capped caller's resume delivers", async () => {
+    let state = pausedQueueHeadedBy('profile:unrestricted')
+    await resumeAsLimitedCaller(state, (next) => (state = next))
+    expect(state.run).toMatchObject({
+      state: 'starting',
+      intent: { callerId: 'profile:unrestricted' },
+    })
+    expect(state.run.state === 'starting' && state.run.intent).not.toHaveProperty(
+      'runAuthorizationOverride',
+    )
   })
 
   it("queues an ask-capped caller's message without putting its cap on the Follow-up", async () => {
