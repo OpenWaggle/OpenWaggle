@@ -8,6 +8,7 @@ import {
   startPayload,
 } from '../application/__tests__/local-session-command-dispatcher.test-support'
 import { authorizeLocalSessionCommand } from '../application/local-session-command-authorization'
+import { sessionInputSchemaV2 } from '../openwaggle-mcp-session-input-v2'
 import { buildMcpSessionPayloadV2, mcpTransientAuthority } from '../openwaggle-mcp-session-tool-v2'
 
 function mcpCaller(
@@ -149,12 +150,27 @@ describe('OpenWaggle MCP Session Run Control v2 adapter', () => {
     })
     const activeRunTargets = [
       { operation: 'follow-up', sessionId: 'worker', message: 'Queue this.' },
+      { operation: 'steer', sessionId: 'worker', expectedRunId: 'run-worker', message: 'Now.' },
       { operation: 'replace', sessionId: 'worker', expectedRunId: 'run-worker', message: 'Again.' },
     ] as const
     for (const target of activeRunTargets) {
-      // The schema offers neither on a Follow-up or a replacement.
-      expect(() => buildMcpSessionPayloadV2({ ...target, thinking: 'high' })).toThrow(/thinking/u)
-      expect(() => buildMcpSessionPayloadV2({ ...target, yolo: true })).toThrow(/yolo/u)
+      // The schema accepts the keys so the caller gets the Host's code, not a schema error.
+      for (const settings of [
+        { thinking: 'high' },
+        { yolo: true },
+        { runAuthorizationOverride: 'ask-for-approval' },
+      ] as const) {
+        expect(sessionInputSchemaV2.safeParse({ ...target, ...settings }).success).toBe(true)
+      }
+      expect(() => buildMcpSessionPayloadV2({ ...target, thinking: 'high' })).toThrow(
+        'thinking_level_requires_idle_session',
+      )
+      expect(() => buildMcpSessionPayloadV2({ ...target, yolo: true })).toThrow(
+        'run_authorization_override_requires_idle_session',
+      )
+      expect(() =>
+        buildMcpSessionPayloadV2({ ...target, runAuthorizationOverride: 'ask-for-approval' }),
+      ).toThrow('run_authorization_override_requires_idle_session')
     }
   })
 

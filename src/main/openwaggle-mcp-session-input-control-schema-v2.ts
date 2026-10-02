@@ -33,6 +33,17 @@ import {
   mcpSessionTextSchemaV2,
 } from './openwaggle-mcp-session-resource-envelope-v2'
 
+/**
+ * follow-up, steer, and replace act on an active Run or queue for one, so they never set the
+ * Session thinking level or a Run authorization override. The keys are accepted here so the Host's
+ * refusal reaches the caller with its code (`thinking_level_requires_idle_session`,
+ * `run_authorization_override_requires_idle_session`) instead of a generic schema error.
+ */
+const refusedRunStartSettings = {
+  thinking: mcpSessionIdSchemaV2.optional(),
+  ...runAuthorization,
+}
+
 export const mcpSessionControlOperationSchemasV2 = [
   operationSchema('message', {
     sessionId: mcpSessionIdSchemaV2.optional(),
@@ -55,6 +66,7 @@ export const mcpSessionControlOperationSchemasV2 = [
     sessionId: mcpSessionIdSchemaV2.optional(),
     message: mcpSessionTextSchemaV2.optional(),
     attachmentPaths: mcpSessionAttachmentPathsSchemaV2.optional(),
+    ...refusedRunStartSettings,
     ...idempotency,
   }),
   operationSchema('steer', {
@@ -62,6 +74,7 @@ export const mcpSessionControlOperationSchemasV2 = [
     expectedRunId: mcpSessionIdSchemaV2.optional(),
     message: mcpSessionTextSchemaV2.optional(),
     attachmentPaths: mcpSessionAttachmentPathsSchemaV2.optional(),
+    ...refusedRunStartSettings,
     ...idempotency,
   }),
   operationSchema('promote', {
@@ -75,6 +88,7 @@ export const mcpSessionControlOperationSchemasV2 = [
     expectedRunId: mcpSessionIdSchemaV2.optional(),
     message: mcpSessionTextSchemaV2.optional(),
     attachmentPaths: mcpSessionAttachmentPathsSchemaV2.optional(),
+    ...refusedRunStartSettings,
     ...idempotency,
   }),
   operationSchema('interrupt', {
