@@ -4,7 +4,7 @@ import type {
   ExtensionContributionRegistryEntry,
   ExtensionContributionRegistryView,
 } from '@shared/types/extensions'
-import { PackageOpen, PanelRight } from 'lucide-react'
+import { PackageOpen } from 'lucide-react'
 import {
   extensionContributionMatches,
   extensionSlashCommandText,
@@ -67,8 +67,6 @@ export type InsertExtensionSlashCommand = (input: ExtensionSlashCommandActionInp
 export interface ExtensionSidePanelActionInput {
   readonly entry: ExtensionContributionRegistryEntry
 }
-
-export type OpenExtensionSidePanel = (input: ExtensionSidePanelActionInput) => void
 
 export function createExtensionCommandItems({
   registry,
@@ -155,69 +153,9 @@ export function createExtensionSlashCommandItems({
   return items
 }
 
-export function createExtensionSidePanelItems({
-  registry,
-  lowerQuery,
-  openSidePanel,
-}: {
-  readonly registry: ExtensionContributionRegistryView | null
-  readonly lowerQuery: string
-  readonly openSidePanel: OpenExtensionSidePanel
-}) {
-  if (registry === null) {
-    return []
-  }
-
-  const items: CommandPaletteItem[] = []
-
-  for (const entry of registry.entries) {
-    if (!isOpenableSidePanelEntry(entry) || !extensionContributionMatches(entry, lowerQuery)) {
-      continue
-    }
-
-    items.push({
-      id: `extension-side-panel:${entry.packagePath}:${entry.contentHash}:${entry.contributionId}`,
-      label: entry.title,
-      description: truncateCommandDescription(
-        `Open side panel from ${entry.extensionName}`,
-        COMMAND_PALETTE.DESCRIPTION_LIMIT,
-      ),
-      icon: <PanelRight className="size-3.5" />,
-      section: entry.category ?? 'Extensions',
-      trailing: entry.extensionName,
-      trailingBadge: entry.scope.label,
-      action: () => openSidePanel({ entry }),
-    })
-  }
-
-  return items
-}
-
 function isExecutableCommandEntry(entry: ExtensionContributionRegistryEntry) {
   return isInvokableExtensionContributionCommand(
     entry,
     OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.COMMANDS,
-  )
-}
-
-function extensionContributionIsEligible(entry: ExtensionContributionRegistryEntry) {
-  const eligibility = entry.eligibility
-  return (
-    eligibility.runtimeEnabled &&
-    eligibility.enabled &&
-    eligibility.trusted &&
-    eligibility.sdkCompatible !== false &&
-    !eligibility.updateAvailable &&
-    eligibility.disabledProjectPaths.length === 0
-  )
-}
-
-function isOpenableSidePanelEntry(entry: ExtensionContributionRegistryEntry) {
-  return (
-    entry.family === OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.SIDE_PANELS &&
-    entry.runtime === OPENWAGGLE_EXTENSION.CONTRIBUTION_RUNTIME.FEDERATED_MODULE &&
-    entry.execution !== undefined &&
-    entry.entryPath !== undefined &&
-    extensionContributionIsEligible(entry)
   )
 }
