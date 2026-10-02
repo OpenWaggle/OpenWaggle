@@ -123,6 +123,9 @@ vi.mock('@tanstack/react-router', () => ({
 }))
 
 vi.mock('@/features/chat/hooks', () => ({
+  invalidateDefaultThinkingLevel: (client: {
+    invalidateQueries: (filters: { queryKey: readonly unknown[] }) => Promise<void>
+  }) => client.invalidateQueries({ queryKey: ['pi-default-thinking-level'] }),
   sessionFollowUpQueueOptions: (sessionId: string | null) => ({
     queryKey: ['sessions', 'follow-up-queue', sessionId],
   }),

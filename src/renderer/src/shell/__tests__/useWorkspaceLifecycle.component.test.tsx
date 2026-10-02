@@ -190,6 +190,10 @@ describe('useWorkspaceLifecycle', () => {
       queryKey: queryKeys.archivedSessionBranches,
       exact: true,
     })
+    // A missed change of Pi's default thinking level cannot be replayed either.
+    expect(lifecycleMocks.invalidateQueries).toHaveBeenCalledWith({
+      queryKey: ['pi-default-thinking-level'],
+    })
   })
 
   it('clears retained runtime status when the Host archives a Session', async () => {
