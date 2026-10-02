@@ -8,8 +8,12 @@ function toError(error: unknown) {
   return error instanceof Error ? error : new Error(String(error))
 }
 
+function configuredThinkingLevel(value: string | undefined): ThinkingLevel | undefined {
+  return THINKING_LEVELS.find((level) => level === value)
+}
+
 function knownThinkingLevel(value: string | undefined): ThinkingLevel {
-  return THINKING_LEVELS.find((level) => level === value) ?? DEFAULT_THINKING_LEVEL
+  return configuredThinkingLevel(value) ?? DEFAULT_THINKING_LEVEL
 }
 
 /**
@@ -29,6 +33,14 @@ export async function writePiDefaultThinkingLevel(level: ThinkingLevel) {
 
 export const PiThinkingLevelDefaultLive = Layer.succeed(ThinkingLevelDefaultService, {
   getDefault: () => Effect.try({ try: () => readPiDefaultThinkingLevel(), catch: toError }),
+  getConfiguredDefault: () =>
+    Effect.try({
+      try: () =>
+        configuredThinkingLevel(
+          createOpenWaggleGlobalPiSettingsManager().getDefaultThinkingLevel(),
+        ),
+      catch: toError,
+    }),
   setDefault: (level) =>
     Effect.tryPromise({ try: () => writePiDefaultThinkingLevel(level), catch: toError }),
 })

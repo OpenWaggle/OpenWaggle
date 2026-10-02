@@ -157,6 +157,7 @@ export function makeThinkingLevelDefaultLayer(initial: ThinkingLevel = DEFAULT_T
   let current = initial
   return Layer.succeed(ThinkingLevelDefaultService, {
     getDefault: () => Effect.sync(() => current),
+    getConfiguredDefault: () => Effect.sync(() => current),
     setDefault: (level) =>
       Effect.sync(() => {
         current = level

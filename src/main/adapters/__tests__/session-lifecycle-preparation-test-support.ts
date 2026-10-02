@@ -143,6 +143,7 @@ export function makeLifecyclePreparationLayer(
     }),
     Layer.succeed(ThinkingLevelDefaultService, {
       getDefault: () => Effect.succeed(defaultThinkingLevel),
+      getConfiguredDefault: () => Effect.succeed(defaultThinkingLevel),
       setDefault: () => Effect.void,
     }),
   )
