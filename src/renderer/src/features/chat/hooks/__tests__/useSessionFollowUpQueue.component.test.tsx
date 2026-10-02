@@ -1,5 +1,9 @@
 import { act, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  resetThinkingLevelWritesForTests,
+  writeThinkingLevel,
+} from '@/features/chat/state/session-thinking-level-writes'
 import { renderHookWithQueryClient } from '@/test-utils/query-test-utils'
 import { useSessionFollowUpQueue } from '../useSessionFollowUpQueue'
 import { PAYLOAD, queueResponse, SESSION_ID } from './session-follow-up-queue.test-fixtures'
@@ -61,6 +65,35 @@ describe('useSessionFollowUpQueue', () => {
         },
       }),
     )
+  })
+
+  it('queues a Follow-up only after a thinking pick made just before has landed', async () => {
+    resetThinkingLevelWritesForTests()
+    let finishWrite: (() => void) | undefined
+    void writeThinkingLevel({
+      target: SESSION_ID,
+      level: 'low',
+      write: () =>
+        new Promise<void>((resolve) => {
+          finishWrite = resolve
+        }),
+      refresh: async () => {},
+    })
+    const { result } = renderHookWithQueryClient(() => useSessionFollowUpQueue(SESSION_ID))
+    await waitFor(() => expect(result.current.snapshot.items).toHaveLength(1))
+
+    let queued: Promise<void> | undefined
+    act(() => {
+      queued = result.current.enqueue(PAYLOAD)
+    })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(apiMocks.mutateSessionControl).not.toHaveBeenCalled()
+
+    await act(async () => {
+      finishWrite?.()
+      await queued
+    })
+    expect(apiMocks.mutateSessionControl).toHaveBeenCalledTimes(1)
   })
 
   it('promotes one durable Follow-up into the exact active Run', async () => {

@@ -6,7 +6,12 @@ import type { SessionDetail } from '@shared/types/session'
 import { act, renderHook } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { isReportableSendFailure, MessageNotDelivered } from '../../lib/message-delivery'
+import { useForegroundSendStore } from '../../state/foreground-send-store'
 import { userStopCount } from '../../state/optimistic-steer-store'
+import {
+  resetThinkingLevelWritesForTests,
+  writeThinkingLevel,
+} from '../../state/session-thinking-level-writes'
 import {
   apiMock,
   createDeferred,
@@ -281,5 +286,50 @@ describe('useAgentChat foreground run', () => {
     // Not an error state: the run this would have torn down may be the one that replaced it.
     expect(result.current.status).not.toBe('error')
     expect(result.current.error).toBeUndefined()
+  })
+
+  it('dispatches only after a thinking pick has landed, and marks the Session as starting', async () => {
+    resetThinkingLevelWritesForTests()
+    const sessionId = SessionId('session-1')
+    let finishWrite: (() => void) | undefined
+    void writeThinkingLevel({
+      target: sessionId,
+      level: 'low',
+      write: () =>
+        new Promise<void>((resolve) => {
+          finishWrite = resolve
+        }),
+      refresh: async () => {},
+    })
+    const { result } = renderHook(() =>
+      useAgentChat(
+        sessionId,
+        createSessionWithId(sessionId),
+        SupportedModelId('claude-sonnet-4-5'),
+      ),
+    )
+
+    let sendPromise: Promise<void> | null = null
+    await act(async () => {
+      sendPromise = result.current.sendMessage(SEND_PAYLOAD)
+      await Promise.resolve()
+    })
+    // The Host reads the Session thinking level when the Run starts.
+    expect(apiMock.sendMessage).not.toHaveBeenCalled()
+    // The pickers must not offer another change while this Run is starting.
+    expect(useForegroundSendStore.getState().counts.has(sessionId)).toBe(true)
+
+    await act(async () => {
+      finishWrite?.()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(apiMock.sendMessage).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      emitRunCompleted({ sessionId })
+      await sendPromise
+    })
+    expect(useForegroundSendStore.getState().counts.has(sessionId)).toBe(false)
   })
 })

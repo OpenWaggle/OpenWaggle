@@ -12,6 +12,11 @@ import { useFirstSendPendingStore } from '@/features/chat/state/first-send-pendi
 import { withInlineVisualizationContext } from '@/features/chat/state/inline-visualization-state'
 import { useOptimisticUserMessageStore } from '@/features/chat/state/optimistic-user-message-store'
 import { usePendingSendStore } from '@/features/chat/state/pending-send-store'
+import {
+  DEFAULT_THINKING_LEVEL_TARGET,
+  flushDraftThinkingLevelToSession,
+  settledThinkingLevelWrites,
+} from '@/features/chat/state/session-thinking-level-writes'
 import { snapshotDraftWorktreePlan } from '@/features/git'
 import {
   selectDraftWorkspacePreparation,
@@ -92,9 +97,12 @@ export function createSendHandlers(deps: SendMessageDeps): SendMessageHandlers {
               worktreePlan.plan.preparationProfileId,
             )
           : null
+      // The new Session starts from Pi's default thinking level, so a draft pick lands first.
+      await settledThinkingLevelWrites(DEFAULT_THINKING_LEVEL_TARGET)
       const sessionId = await createSession(projectPath, sessionWorktreePlan(worktreePlan))
       try {
         await flushDraftAuthorizationModeToSession(projectPath, sessionId)
+        await flushDraftThinkingLevelToSession(sessionId)
         if (preparationProfileId)
           await selectDraftWorkspacePreparation(projectPath, sessionId, preparationProfileId)
       } catch (error) {
@@ -128,9 +136,12 @@ export function createSendHandlers(deps: SendMessageDeps): SendMessageHandlers {
               worktreePlan.plan.preparationProfileId,
             )
           : null
+      // The new Session starts from Pi's default thinking level, so a draft pick lands first.
+      await settledThinkingLevelWrites(DEFAULT_THINKING_LEVEL_TARGET)
       const sessionId = await createSession(projectPath, sessionWorktreePlan(worktreePlan))
       try {
         await flushDraftAuthorizationModeToSession(projectPath, sessionId)
+        await flushDraftThinkingLevelToSession(sessionId)
         if (preparationProfileId)
           await selectDraftWorkspacePreparation(projectPath, sessionId, preparationProfileId)
       } catch (error) {

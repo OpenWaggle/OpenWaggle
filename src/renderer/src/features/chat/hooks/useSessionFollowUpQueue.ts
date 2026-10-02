@@ -5,7 +5,7 @@ import {
   GUI_COMMAND_REQUIRES_IDLE_MESSAGE,
   isGuiOnlyComposerCommand,
 } from '@/features/composer/commands'
-import { settledSessionModelWrites } from '../state/session-model-writes'
+import { settledSessionSettingWrites } from '../state/session-setting-writes'
 import { adoptHeldEdit, mutate, readQueue } from './session-follow-up-queue-client'
 import {
   EMPTY_SNAPSHOT,
@@ -66,9 +66,9 @@ export function useSessionFollowUpQueue(sessionId: SessionId | null) {
     if (isGuiOnlyComposerCommand(payload.text)) {
       throw new Error(GUI_COMMAND_REQUIRES_IDLE_MESSAGE)
     }
-    // A queued follow-up runs with the Session model current when its Run starts; store a pick made
-    // just before queueing first so the follow-up cannot start ahead of it.
-    await settledSessionModelWrites(sessionId)
+    // A queued follow-up runs with the Session model and thinking level current when its Run
+    // starts; store a pick made just before queueing first so the follow-up cannot start ahead of it.
+    await settledSessionSettingWrites(sessionId)
     await mutate({
       operation: 'follow-up',
       sessionId,
