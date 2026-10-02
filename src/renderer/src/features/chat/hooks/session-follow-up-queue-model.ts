@@ -5,6 +5,7 @@ import type { InlineVisualizationContext } from '@shared/types/agent'
 import type {
   FollowUpQueuePauseReason,
   SessionFollowUpAttachmentDescriptor,
+  SessionFollowUpSource,
 } from '@shared/types/session-control-queue'
 import type { SessionQueryOutcome } from '@shared/types/session-query'
 import type { WaggleInvocation } from '@shared/types/waggle'
@@ -25,6 +26,8 @@ export interface SessionFollowUpQueueItem {
   readonly visualizationContext?: InlineVisualizationContext
   /** Chips for the queued attachments, in message order (no paths or bytes). */
   readonly attachments: readonly SessionFollowUpAttachmentDescriptor[]
+  /** Who queued it (its Message provenance), as the Host resolved it. */
+  readonly source?: SessionFollowUpSource
   /** This user queued the item and may begin a Follow-up edit on it. */
   readonly editable: boolean
   /** Present while a Follow-up edit holds the item; delivery waits here until it ends. */
@@ -217,6 +220,7 @@ function queueItem(item: QueueListItem): SessionFollowUpQueueItem {
     deliveryState: item.deliveryState,
     ...(item.attentionReason ? { attentionReason: item.attentionReason } : {}),
     attachments: item.attachments ?? [],
+    ...(item.source ? { source: item.source } : {}),
     editable: item.editable === true,
     ...(item.editHold
       ? {

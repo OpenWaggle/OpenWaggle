@@ -16,6 +16,7 @@ import {
   sessionQuerySummary,
 } from './sqlite-session-query-support'
 import { type QueueListEditContext, queueListEditFields } from './sqlite-session-queue-edit-fields'
+import { queueListSources } from './sqlite-session-queue-sources'
 
 export function readSession(sql: SqlClient.SqlClient, request: SessionQueryRequest) {
   const sessionId = 'sessionId' in request.query ? request.query.sessionId : ''
@@ -231,6 +232,7 @@ export function readQueue(
         rows,
         context: editContext,
       })
+      const sources = yield* queueListSources(sql, { rows, desktopUser: editContext.desktopUser })
       return sessionQueryResponse(request, {
         operation: 'queue-list',
         sessionId: query.sessionId,
@@ -245,6 +247,7 @@ export function readQueue(
           createdAt: row.created_at,
           ...followUpDeliveryView(row),
           ...(query.includeBodies ? { intent: followUpIntentView(row.intent_json) } : {}),
+          ...sources.get(row.id),
           editable: false,
           ...editFields.get(row.id),
         })),

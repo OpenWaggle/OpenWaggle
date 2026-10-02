@@ -1,10 +1,6 @@
 import type { AgentLoopInteraction } from './agent-loop-interaction'
 import type { DelegationState } from './session-collaboration'
-import type {
-  FollowUpQueuePauseReason,
-  SessionFollowUpAttachmentDescriptor,
-  SessionFollowUpEditHoldSummary,
-} from './session-control-queue'
+import type { FollowUpQueuePauseReason, SessionFollowUpListing } from './session-control-queue'
 import type {
   DelegationConflictKind,
   DelegationConflictStatus,
@@ -244,7 +240,7 @@ export type SessionQueryOutcome =
       readonly queuePauseReason?: FollowUpQueuePauseReason
       readonly queueRevision: number
       readonly activeRunId: string | null
-      readonly items: readonly {
+      readonly items: readonly (SessionFollowUpListing & {
         readonly followUpId: string
         readonly position: number
         readonly createdAt: number
@@ -256,13 +252,7 @@ export type SessionQueryOutcome =
          */
         readonly returnedSteer?: { readonly runId: string; readonly idempotencyKey: string }
         readonly intent?: unknown
-        /** The calling user queued this Follow-up and may begin a Follow-up edit on it. */
-        readonly editable: boolean
-        /** Present while a Follow-up edit holds this item (and stops delivery here). */
-        readonly editHold?: SessionFollowUpEditHoldSummary
-        /** With bodies: descriptors of the intent's attachments, in intent order. Never binary. */
-        readonly attachments?: readonly SessionFollowUpAttachmentDescriptor[]
-      }[]
+      })[]
       readonly omittedBodyCount: number
     }
   | {

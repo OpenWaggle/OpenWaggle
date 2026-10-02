@@ -118,6 +118,29 @@ export interface SessionFollowUpEditHoldSummary {
   readonly leaseExpiresAt: number
 }
 
+/**
+ * Who queued a Follow-up, from its Message provenance.
+ * `sessionId` is set for an agent Session caller (`session-agent:<session>:<run>`), and
+ * `profileName` for a CLI profile caller (`profile:<id>`) when the desktop user lists the queue.
+ */
+export interface SessionFollowUpSource {
+  readonly callerId: string
+  readonly sessionId?: string
+  readonly profileName?: string
+}
+
+/** What a queue-list tells its caller about one listed Follow-up beyond its queue fields. */
+export interface SessionFollowUpListing {
+  /** Who queued this Follow-up (its Message provenance), resolved for display. */
+  readonly source?: SessionFollowUpSource
+  /** The calling user queued this Follow-up and may begin a Follow-up edit on it. */
+  readonly editable: boolean
+  /** Present while a Follow-up edit holds this item (and stops delivery here). */
+  readonly editHold?: SessionFollowUpEditHoldSummary
+  /** With bodies: descriptors of the intent's attachments, in intent order. Never binary. */
+  readonly attachments?: readonly SessionFollowUpAttachmentDescriptor[]
+}
+
 /** What a composer needs to show a queued attachment again: no path, text, or bytes. */
 export interface SessionFollowUpAttachmentDescriptor {
   readonly id: string
