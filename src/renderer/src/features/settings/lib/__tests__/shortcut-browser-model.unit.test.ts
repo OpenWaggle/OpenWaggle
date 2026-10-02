@@ -1,6 +1,8 @@
+import { extensionRightPanelSurfaceId } from '@shared/types/right-panel-surface-id'
 import { DEFAULT_SHORTCUT_RULES } from '@shared/types/shortcuts'
 import { describe, expect, it } from 'vitest'
-import { buildShortcutBrowserRows } from '../shortcut-browser-model'
+import { extensionPanelConflictSources } from '../panel-shortcut-model'
+import { buildShortcutBrowserRows, shortcutBrowserConflictLabels } from '../shortcut-browser-model'
 
 const ACTIONS = [
   {
@@ -49,5 +51,38 @@ describe('shortcut browser model', () => {
       buildShortcutBrowserRows(DEFAULT_SHORTCUT_RULES, ACTIONS, 'terminalFocus').length,
     ).toBeGreaterThan(0)
     expect(buildShortcutBrowserRows(DEFAULT_SHORTCUT_RULES, ACTIONS, 'no such binding')).toEqual([])
+  })
+
+  it('labels reserved combinations whatever the key case', () => {
+    expect(
+      shortcutBrowserConflictLabels([], {
+        rowId: 'new',
+        binding: { key: 'f', mod: true },
+        when: '',
+      }),
+    ).toEqual(['Filter sessions'])
+  })
+
+  it('labels a rule that collides with an extension panel shortcut', () => {
+    const notes = extensionRightPanelSurfaceId({ extensionId: 'acme.notes', sidePanelId: 'notes' })
+    const sources = [
+      ...buildShortcutBrowserRows(DEFAULT_SHORTCUT_RULES, []),
+      ...extensionPanelConflictSources([], { [notes]: { key: 'G', mod: true, shift: true } }),
+    ]
+
+    expect(
+      shortcutBrowserConflictLabels(sources, {
+        rowId: 'new',
+        binding: { key: 'G', mod: true, shift: true },
+        when: '',
+      }),
+    ).toEqual(['notes (acme.notes)'])
+    expect(
+      shortcutBrowserConflictLabels(sources, {
+        rowId: 'new',
+        binding: { key: 'G', mod: true, shift: true },
+        when: 'terminalFocus',
+      }),
+    ).toEqual([])
   })
 })
