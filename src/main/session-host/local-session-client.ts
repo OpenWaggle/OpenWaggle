@@ -46,7 +46,9 @@ function unsupportedRevisionMessage(payload: LocalSessionCommandPayload) {
       : 'The connected Session Host does not support steering delivery receipts.'
   }
   if (payload.contract === 'host-ui-v1') {
-    return 'The connected Session Host does not support Host UI requests.'
+    return payload.request.channel === 'sessions:create'
+      ? 'The connected Session Host does not support creating a Session at a thinking level.'
+      : 'The connected Session Host does not support Host UI requests.'
   }
   return payload.contract === 'local-compaction-v1' ||
     payload.contract === 'local-compaction-cancel-v1'

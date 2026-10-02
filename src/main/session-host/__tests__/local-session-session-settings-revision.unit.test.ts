@@ -57,4 +57,34 @@ describe('Session settings and Title regeneration protocol revisions', () => {
     expect(() => decodeLocalSessionCommandPayloadForRevision(payload, 20)).toThrow(/revision 21/)
     expect(decodeLocalSessionCommandPayloadForRevision(payload, 21)).toEqual(payload)
   })
+
+  function createCommand(args: readonly unknown[]) {
+    return decodeLocalSessionCommandPayload({
+      contract: 'host-ui-v1',
+      request: {
+        contractVersion: 1,
+        requestId: 'request-create',
+        channel: 'sessions:create',
+        args: args.map((value) =>
+          value === undefined ? { kind: 'undefined' } : { kind: 'value', value },
+        ),
+      },
+    })
+  }
+
+  it('requires a revision-21 Host to create a Session at a thinking level', () => {
+    const payload = createCommand(['/repo', undefined, undefined, 'high'])
+    expect(supportedRevisionsForCommand(payload)).toEqual([21])
+    expect(() => decodeLocalSessionCommandPayloadForRevision(payload, 20)).toThrow(/revision 21/)
+    expect(decodeLocalSessionCommandPayloadForRevision(payload, 21)).toEqual(payload)
+  })
+
+  it.each([
+    [['/repo']],
+    [['/repo', { environmentMode: 'local', baseRef: null, startFromOrigin: false }]],
+    [['/repo', undefined, 'openai/gpt-5.5']],
+  ])('still sends a create without a thinking level to a revision-20 Host (%j)', (args) => {
+    const payload = createCommand(args)
+    expect(decodeLocalSessionCommandPayloadForRevision(payload, 20)).toEqual(payload)
+  })
 })

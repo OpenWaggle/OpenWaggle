@@ -9,8 +9,10 @@ import {
   HOST_UI_REVISION_16_REQUIRED_CHANNELS,
   HOST_UI_REVISION_17_REQUIRED_CHANNELS,
   HOST_UI_REVISION_20_REQUIRED_CHANNELS,
+  HOST_UI_REVISION_21_ARGUMENT_COUNTS,
   HOST_UI_REVISION_21_REQUIRED_CHANNELS,
   type HostBackedGuiChannel,
+  type HostUiV1Request,
 } from '@shared/types/host-ui-protocol'
 import {
   LOCAL_SESSION_AUTHORIZATION_GRANTS_REVISION,
@@ -34,8 +36,20 @@ import {
   type LocalSessionCommandPayload,
 } from '@shared/types/local-session-protocol'
 
-export function requiredHostUiRevision(channel: HostBackedGuiChannel) {
-  if (HOST_UI_REVISION_21_REQUIRED_CHANNELS.some((candidate) => candidate === channel)) {
+/** Whether the request passes an argument its channel gained in revision 21. */
+function usesRevision21Argument(request: Pick<HostUiV1Request, 'channel' | 'args'>) {
+  const counts: Partial<Record<HostBackedGuiChannel, number>> = HOST_UI_REVISION_21_ARGUMENT_COUNTS
+  const count = counts[request.channel]
+  return count !== undefined && request.args.length >= count
+}
+
+/** The revision a Host UI request needs: its channel's, or later for an argument added since. */
+export function requiredHostUiRevision(request: Pick<HostUiV1Request, 'channel' | 'args'>) {
+  const { channel } = request
+  if (
+    HOST_UI_REVISION_21_REQUIRED_CHANNELS.some((candidate) => candidate === channel) ||
+    usesRevision21Argument(request)
+  ) {
     return LOCAL_SESSION_SESSION_SETTINGS_REVISION
   }
   if (HOST_UI_REVISION_20_REQUIRED_CHANNELS.some((candidate) => candidate === channel)) {
@@ -102,7 +116,7 @@ export function requiredLocalSessionCommandRevision(payload: LocalSessionCommand
   ) {
     return LOCAL_SESSION_STEERING_RECEIPT_REVISION
   }
-  if (payload.contract === 'host-ui-v1') return requiredHostUiRevision(payload.request.channel)
+  if (payload.contract === 'host-ui-v1') return requiredHostUiRevision(payload.request)
   if (
     payload.contract === 'local-compaction-v1' ||
     payload.contract === 'local-compaction-cancel-v1'
