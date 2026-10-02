@@ -16,6 +16,7 @@ export {
   ExtensionDialogSurfaceContent,
 } from './components/ExtensionDialogSurface'
 export { ExtensionFederatedModuleHost } from './components/ExtensionFederatedModuleHost'
+export { ExtensionPanelIcon } from './components/ExtensionPanelIcon'
 export { ExtensionRouteSurface } from './components/ExtensionRouteSurface'
 export { ExtensionRouteView } from './components/ExtensionRouteView'
 export {
