@@ -1,7 +1,7 @@
 import { SessionId } from '@shared/types/brand'
 import type { SessionFollowUpSource } from '@shared/types/session-control-queue'
 import { render, screen } from '@testing-library/react'
-import { fromPartial } from '@total-typescript/shoehorn'
+import { fromAny, fromPartial } from '@total-typescript/shoehorn'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SessionFollowUpQueueItem } from '@/features/chat/hooks'
 import { useSessionStore } from '@/features/sessions/state'
@@ -159,7 +159,11 @@ describe('QueuedMessages sources and intent badges', () => {
   it('ignores a Host title that is not text', () => {
     queue({
       text: 'odd title',
-      source: fromPartial({ callerId: 'session-agent:session-x:run-1', sessionTitle: 42 }),
+      // Intentionally invalid: the value crosses a process boundary, so the type cannot be trusted.
+      source: fromAny<SessionFollowUpSource, unknown>({
+        callerId: 'session-agent:session-x:run-1',
+        sessionTitle: 42,
+      }),
     })
     renderQueue()
 

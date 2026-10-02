@@ -22,6 +22,7 @@ function makeDeps(overrides: Partial<SendDeps> = {}): SendDeps {
     activeSessionId: null,
     projectPath: '/test/project',
     createSession: vi.fn<SendDeps['createSession']>().mockResolvedValue(SessionId('new-session')),
+    defaultThinkingLevel: 'medium',
     sendMessage: vi.fn<(p: AgentSendPayload) => Promise<void>>().mockResolvedValue(undefined),
     sendMessageToSession: vi.fn<SendDeps['sendMessageToSession']>().mockResolvedValue(undefined),
     sendWaggleMessage: vi
@@ -57,7 +58,7 @@ describe('createSendHandlers', () => {
 
       await handleSend(payload)
 
-      expect(deps.createSession).toHaveBeenCalledWith('/test/project', undefined)
+      expect(deps.createSession).toHaveBeenCalledWith('/test/project', undefined, 'medium')
       expect(deps.sendMessageToSession).toHaveBeenCalledWith('new-session', payload, null)
       expect(deps.sendMessage).not.toHaveBeenCalled()
     })
@@ -143,7 +144,7 @@ describe('createSendHandlers', () => {
 
       await handleSendWaggle(payload, config)
 
-      expect(deps.createSession).toHaveBeenCalledWith('/test/project', undefined)
+      expect(deps.createSession).toHaveBeenCalledWith('/test/project', undefined, 'medium')
       expect(deps.sendMessageToSession).toHaveBeenCalledWith('new-session', payload, config)
       expect(deps.startWaggleCollaboration).toHaveBeenCalledWith('new-session', config)
       expect(deps.sendWaggleMessage).not.toHaveBeenCalled()
