@@ -8,9 +8,12 @@ export type BoundedFileRead =
 
 /**
  * Non-blocking so that opening a FIFO cannot hang; regular files read normally. Windows has no
- * `O_NONBLOCK`, where the constant is undefined and the flag drops out of the bitwise OR.
+ * `O_NONBLOCK`, where the constant is undefined and the flag drops out of the bitwise OR. Read on
+ * use rather than at import, so modules that only import this file never touch `fs.constants`.
  */
-const OPEN_FLAGS = constants.O_RDONLY | constants.O_NONBLOCK
+function openFlags() {
+  return constants.O_RDONLY | constants.O_NONBLOCK
+}
 
 /**
  * Reads a file of at most `maxBytes` bytes. The size check and the read use one file descriptor,
@@ -21,7 +24,7 @@ export async function readBoundedFile(
   filePath: string,
   maxBytes: number,
 ): Promise<BoundedFileRead> {
-  const handle = await open(filePath, OPEN_FLAGS)
+  const handle = await open(filePath, openFlags())
   try {
     const fileStat = await handle.stat()
     if (!fileStat.isFile()) return { kind: 'not-file' }
