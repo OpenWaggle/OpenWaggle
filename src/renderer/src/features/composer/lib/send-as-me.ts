@@ -17,7 +17,7 @@ type SendAsMeQueue = Pick<
 
 /**
  * Whether "Send as me" on `followUpId` starts it at once, mirroring the Host (`adoptFollowUp` and
- * its `resumesAttentionPause`): the message must be the queue's first, the Session idle, and the
+ * its `resumesAttentionPause`): the message must be the queue's first and not held for an edit, the Session idle, and the
  * queue running after the adoption, either because it already runs or because it was paused only
  * for attention and this message is the last one that needs it. Otherwise it waits its turn.
  */
@@ -30,6 +30,8 @@ export function sendAsMeStartsNow(input: {
   const { queue, followUpId } = input
   if (input.isStreaming || queue.activeRunId !== null) return false
   if (queue.items[0]?.id !== followUpId) return false
+  // The Host never delivers a held head, and adopting keeps the adopter's own edit hold.
+  if (queue.items[0]?.editHold !== undefined) return false
   if (queue.state === 'running') return true
   if (!ATTENTION_PAUSE_REASONS.includes(queue.pauseReason)) return false
   return queue.items.every(

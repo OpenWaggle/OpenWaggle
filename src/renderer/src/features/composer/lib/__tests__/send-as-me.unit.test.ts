@@ -43,6 +43,14 @@ describe('sendAsMeStartsNow mirrors the Host adoption rule', () => {
     expect(startsNow({ state: 'running' })).toBe(true)
   })
 
+  it('waits when the head is held for an edit, which the Host never delivers', () => {
+    const held: SessionFollowUpQueueItem = {
+      ...item('a', 'needs_attention'),
+      editHold: { heldByCurrentUser: true, acquiredAt: 1, leaseExpiresAt: 2 },
+    }
+    expect(startsNow({ state: 'running', items: [held] })).toBe(false)
+  })
+
   it.each([undefined, 'profile-revoked'] as const)(
     'resumes a queue attention paused (%s) when this is the only message needing attention',
     (pauseReason) => {
