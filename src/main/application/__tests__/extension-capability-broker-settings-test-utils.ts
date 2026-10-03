@@ -23,6 +23,7 @@ function mergeGeneralSettings(current: Settings, partial: Partial<Settings>) {
       current.compactionThresholdPercent,
       partial.compactionThresholdPercent,
     ),
+    sessionTitleModel: nextSetting(current.sessionTitleModel, partial.sessionTitleModel),
     recentProjects: nextSetting(current.recentProjects, partial.recentProjects),
     skillTogglesByProject: nextSetting(
       current.skillTogglesByProject,
@@ -44,6 +45,10 @@ function mergeGeneralSettings(current: Settings, partial: Partial<Settings>) {
     ),
     shortcutRules: nextSetting(current.shortcutRules, partial.shortcutRules),
     shortcutBindings: nextSetting(current.shortcutBindings, partial.shortcutBindings),
+    extensionPanelShortcutBindings: nextSetting(
+      current.extensionPanelShortcutBindings,
+      partial.extensionPanelShortcutBindings,
+    ),
     defaultSessionEnvironmentMode: nextSetting(
       current.defaultSessionEnvironmentMode,
       partial.defaultSessionEnvironmentMode,
@@ -106,6 +111,10 @@ function mergeAppearanceSettings(current: Settings, partial: Partial<Settings>) 
     ),
     diffView: nextSetting(current.diffView, partial.diffView),
     diffWrapLines: nextSetting(current.diffWrapLines, partial.diffWrapLines),
+    rightPanelRailVisibleWhenClosed: nextSetting(
+      current.rightPanelRailVisibleWhenClosed,
+      partial.rightPanelRailVisibleWhenClosed,
+    ),
     appearancePreferences: nextSetting(
       current.appearancePreferences,
       partial.appearancePreferences,
@@ -138,6 +147,7 @@ function cloneSettings(settings: Settings): Settings {
       shortcut: { ...rule.shortcut },
     })),
     shortcutBindings: { ...settings.shortcutBindings },
+    extensionPanelShortcutBindings: { ...settings.extensionPanelShortcutBindings },
     sessionHostParentConcurrencyLimitsByProject: {
       ...settings.sessionHostParentConcurrencyLimitsByProject,
     },

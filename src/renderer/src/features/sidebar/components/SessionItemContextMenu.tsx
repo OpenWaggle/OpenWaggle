@@ -1,5 +1,17 @@
 import type { SessionId } from '@shared/types/brand'
-import { Archive, ArrowDown, ArrowUp, Copy, Eye, Pin, PinOff, Trash2 } from 'lucide-react'
+import {
+  Archive,
+  ArrowDown,
+  ArrowUp,
+  Copy,
+  Edit3,
+  Eye,
+  Pin,
+  PinOff,
+  Sparkles,
+  Trash2,
+} from 'lucide-react'
+import { useSessionTitleRegeneration } from '@/features/session-title'
 import { api } from '@/shared/lib/ipc'
 import { Button } from '@/shared/ui/Button'
 import { ContextMenu } from '@/shared/ui/ContextMenu'
@@ -11,6 +23,14 @@ interface SessionItemContextMenuProps {
   readonly sessionId: SessionId
   readonly isPinned: boolean
   readonly actions: SidebarSessionActions
+  readonly commands: SessionRowMenuCommands
+  readonly onClose: () => void
+}
+
+/** Commands that act on this row rather than on the Session alone. */
+export interface SessionRowMenuCommands {
+  /** Put the row's title into its inline rename field. */
+  readonly rename: () => void
   /**
    * Keyboard route for reordering a pinned row, null when the move does not apply.
    *
@@ -18,28 +38,30 @@ interface SessionItemContextMenuProps {
    * SC 2.1.1 Keyboard and SC 2.5.7 Dragging Movements. This menu opens from the keyboard, so these
    * give reordering a route that needs no sustained gesture.
    */
-  readonly onMoveUp?: (() => void) | null
-  readonly onMoveDown?: (() => void) | null
-  readonly onClose: () => void
+  readonly moveUp?: (() => void) | null
+  readonly moveDown?: (() => void) | null
 }
 
 function SessionMenuButton({
   icon: Icon,
   label,
   danger = false,
+  disabled = false,
   onClick,
 }: {
   readonly icon: typeof Eye
   readonly label: string
   readonly danger?: boolean
+  readonly disabled?: boolean
   readonly onClick: () => void
 }) {
   return (
     <Button
       variant="unstyled"
       type="button"
+      disabled={disabled}
       onClick={onClick}
-      className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-text-secondary transition-colors hover:bg-bg-hover${danger ? ' hover:text-error' : ''}`}
+      className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-text-secondary transition-colors enabled:hover:bg-bg-hover disabled:cursor-not-allowed disabled:opacity-50${danger ? ' hover:text-error' : ''}`}
     >
       <Icon className="size-3 shrink-0" />
       <span>{label}</span>
@@ -53,10 +75,12 @@ export function SessionItemContextMenu({
   sessionId,
   isPinned,
   actions,
-  onMoveUp,
-  onMoveDown,
+  commands,
   onClose,
 }: SessionItemContextMenuProps) {
+  const { moveUp, moveDown } = commands
+  const titleRegeneration = useSessionTitleRegeneration(sessionId)
+
   function closeAfter(action: () => void) {
     action()
     onClose()
@@ -76,14 +100,27 @@ export function SessionItemContextMenu({
         label={isPinned ? 'Unpin session' : 'Pin session'}
         onClick={() => closeAfter(() => actions.togglePin(sessionId))}
       />
-      {onMoveUp ? (
-        <SessionMenuButton icon={ArrowUp} label="Move up" onClick={() => closeAfter(onMoveUp)} />
+      {moveUp ? (
+        <SessionMenuButton icon={ArrowUp} label="Move up" onClick={() => closeAfter(moveUp)} />
       ) : null}
-      {onMoveDown ? (
+      {moveDown ? (
         <SessionMenuButton
           icon={ArrowDown}
           label="Move down"
-          onClick={() => closeAfter(onMoveDown)}
+          onClick={() => closeAfter(moveDown)}
+        />
+      ) : null}
+      <SessionMenuButton
+        icon={Edit3}
+        label="Rename session"
+        onClick={() => closeAfter(commands.rename)}
+      />
+      {titleRegeneration.available ? (
+        <SessionMenuButton
+          icon={Sparkles}
+          label={titleRegeneration.isRegenerating ? 'Regenerating title…' : 'Regenerate title'}
+          disabled={titleRegeneration.isRegenerating}
+          onClick={() => closeAfter(titleRegeneration.regenerate)}
         />
       ) : null}
       <SessionMenuButton

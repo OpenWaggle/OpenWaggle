@@ -282,6 +282,26 @@ _Avoid_: replaying the run, restarting the session, best-effort continuation
 The CLI presentation of a Session subscription as a continuous human-readable or structured event stream.
 _Avoid_: wait, tailing session files
 
+**Session title**:
+The short, stable recognition label a person uses to find a Session again, set near its start and changed afterwards only by an explicit user rename or **Title regeneration**.
+_Avoid_: topic summary, live summary, first prompt, session name (Pi's term for the same field)
+
+**Provisional title**:
+The trimmed first message, or a Worker's trimmed Delegation objective, shown as a **Session title** until a generated one replaces it, and kept when generation is unavailable or fails.
+_Avoid_: title seed, fallback title, default title (that is "New session")
+
+**Title refinement**:
+The single automatic regeneration of a generated **Session title** after the first completed turn, owed when the first generation could not name the request: the model flagged it as too vague, gave no usable title, or failed, or the first message was only an attachment.
+_Avoid_: retitling, title drift, live title
+
+**Title regeneration**:
+A user-requested generation of a new **Session title** from the Session's whole history, applied directly and superseded if the title changes while it runs.
+_Avoid_: title suggestion, auto-retitle, refresh title
+
+**Title model**:
+The model that generates **Session titles**: Automatic by default, meaning the cheapest available model from the Session's own provider; a model the user selects; or Off, which leaves **Provisional titles** in place.
+_Avoid_: small model, utility model, text generation model
+
 **Session discovery text**:
 The compact searchable description of a session formed from its title, initial objective, and current preview.
 _Avoid_: transcript, full session content, hydrated session
@@ -680,11 +700,11 @@ The composer-native chooser opened by the stable `@` invocation character to ref
 _Avoid_: project file picker, configurable application shortcut
 
 **Global command palette**:
-The app-wide modal chooser for navigation and product actions, including session creation, project switching, file/content search, settings, session operations, extension surfaces, recent sessions, and feedback. It does not contain prompt skills, Waggle presets, or slash commands.
+The app-wide modal chooser for navigation and product actions, including session creation, project switching, file/content search, settings, session operations, every **Right panel surface** (built-in and extension), recent sessions, and feedback. Choosing a surface always shows it and never closes the **Right panel**. It does not contain prompt skills, Waggle presets, or slash commands.
 _Avoid_: Slash command menu, composer palette
 
 **Shortcut registry**:
-The persisted, conflict-free mapping from product commands to user-recorded cross-platform key combinations. Core navigation commands remain assigned but can be remapped; optional workspace commands can be cleared or reset.
+The persisted, conflict-free mapping from product commands to user-recorded cross-platform key combinations. Core navigation commands remain assigned but can be remapped; optional workspace commands can be cleared or reset. Every **Right panel surface**, **All panels**, and each extension side panel has a command whose binding toggles that surface like its **Panel rail** icon; new panel commands start unassigned, and extensions cannot declare default bindings.
 _Avoid_: component-local shortcut literal, silent shortcut replacement
 
 **Waggle invocation**:
@@ -700,7 +720,7 @@ The transient status toolbar above the composer while a Waggle invocation is pen
 _Avoid_: Waggle mode toolbar, ready banner
 
 **Workspace file surface**:
-The session-scoped place for inspecting one project file from the active Working path.
+The session-scoped place for inspecting one project file from the active Working path. Opened from the **Panel rail** without a target, it reopens the Session's last inspected file, or shows only the workspace navigator when there is none or that file no longer exists.
 _Avoid_: IDE workspace, read-only attachment preview, renderer filesystem access
 
 **Focused file edit**:
@@ -1297,6 +1317,32 @@ _Avoid_: sort mode (ambiguous with the project list's own session sort), filter 
 The keyboard shortcut opening a Pinned session by its **position** in the Pinned section, first row through ninth. Positional by definition, so it re-derives whenever the Pinned sort reorders the list, and rows past the ninth have none.
 _Avoid_: pin number (implies a number stored on the pin), session shortcut (any session can be opened; only Pinned sessions get a positional one)
 
+### Right panel navigation
+
+**Right panel**:
+The single container beside the chat that shows one **Right panel surface** at a time. The **Right panel toggle** shows or hides it and restores the surface it last showed. Each Session remembers its own open state, shown surface, and maximized state; the **Panel rail** layout and the panel width belong to the user and are shared by every Session and surface. Below a narrow-window threshold it opens as a sheet over the chat.
+_Avoid_: right sidebar, inspector, side panel (an extension contributes a side panel; the container is the Right panel)
+
+**Right panel surface**:
+One thing the **Right panel** can show: a built-in surface such as Changes, Project Actions, Browser, Files, Session Tree, or Resources, an extension-contributed side panel, or Terminal tabs the user moved to the right-side location. User-facing copy calls it a panel. An extension side panel is unmounted while another surface is shown and restores itself from its **Extension contribution instance state**. The Session Hub is not a Right panel surface: it has its own header toggle and appears only while the **Right panel** is closed.
+_Avoid_: tab, view, tool
+
+**Right panel toggle**:
+The single header control that shows or hides the **Right panel**. Showing restores the Session's last surface; a Session with none uses the surface the user showed most recently anywhere, and a user who has never shown one gets **All panels**.
+_Avoid_: panel launcher, sidebar button
+
+**Panel rail**:
+The vertical strip of icons on the **Right panel**'s edge: the fixed **All panels** entry first, then the surfaces the user keeps on the rail in the user's order. Choosing an icon shows that surface, and choosing the shown surface's icon again closes the **Right panel**; pressing and holding one picks it up to reorder. By default the rail stays visible while the **Right panel** is closed; the user can choose to hide it with the panel. A surface opened from elsewhere, such as a file link or a change request, highlights the rail entry it belongs to. The rail appears only beside a Session's chat; a built-in entry that cannot work yet stays in place, disabled with its reason.
+_Avoid_: activity bar, toolbar, dock
+
+**Panel rail icon**:
+The glyph that represents a **Right panel surface** on the **Panel rail** and in **All panels**. An extension side panel may name a bundled Lucide icon or point to a single-colour SVG inside its package; OpenWaggle draws either one in the rail's own colours, as it draws built-in icons, and falls back to a letter tile when the icon is missing or invalid.
+_Avoid_: logo, brand icon, extension image
+
+**All panels**:
+The **Right panel** page, opened from the first **Panel rail** entry, that lists every available **Right panel surface** with its shortcut, including surfaces kept off the rail, surfaces the rail has no room for, and extension surfaces that cannot run yet, labelled with what they need. It is where users discover and learn every surface.
+_Avoid_: launcher, new tab page, home, grid
+
 ### Transcript window
 
 **Transcript window** is the slice of a session's rows the chat builds on open: the newest 40. **Load earlier** expands it by 100 rows. The window is not a scroll position and is never persisted; it resets to the newest rows whenever the open session changes. See `docs/adr/0022-transcript-opens-from-its-newest-end.md`.
@@ -1689,6 +1735,10 @@ _Avoid_: search (it narrows in place rather than producing results), sidebar vie
 - A **Session wait** wakes when the first target reaches a requested condition and does not wake for every streaming event.
 - The GUI consumes a **Session subscription**, while **Session watch** exposes the same authorized feed through the CLI.
 - **Session discovery** searches title, initial objective, and current preview through **Session discovery text**, while **Transcript search** is an explicit broader operation.
+- A Session without an explicit title receives a generated **Session title**: a root from its first message after showing a **Provisional title**, a Worker from its Delegation objective at Spawn. Only a root may receive **Title refinement**.
+- Title generation is always asynchronous: it never delays a Run, a Spawn, or any other Session operation, and every generated Session shows a **Provisional title**, or the default title when its first message has no text, until its generated title lands.
+- Changing a **Session title** by generation, **Title refinement**, **Title regeneration**, or rename never changes the Session's sidebar recency.
+- An explicitly given or renamed **Session title** is never replaced by generation, and a fork inherits its source's title marked as a fork or copy.
 - The default **Session discovery mode** is hybrid: exact lexical matches and semantic matches contribute candidates to one ranked result set.
 - A lexical **Session discovery mode** remains available for exact and deterministic automation, while a semantic mode permits concept-only retrieval.
 - Hybrid **Session discovery** falls back to lexical retrieval when its local semantic model or vector index is unavailable and reports that degradation to the caller.
@@ -2239,6 +2289,7 @@ _Avoid_: search (it narrows in place rather than producing results), sidebar vie
 
 - "notification" was used for both an announcement the agent sends and a request that holds the run. Resolved: an **Agent notification** can never be answered and lives in the **Notification stack**; an **Authorization request** or user-input request holds the run and docks to the composer.
 - "composer-adjacent notifications" was chosen from a design prototype and later reversed on purpose. Resolved: notifications float clear of the composer so that everything docked to the composer is something the user must answer.
+- "title" was used both for a stable label and for a summary that tracks the conversation. Resolved: a **Session title** is a stable recognition label; it changes after its start only by rename, **Title regeneration**, or one bounded **Title refinement**. Titling deliberately follows T3Code rather than the **Codex parity baseline** (ADR 0043).
 
 - "MCP extension" can imply that MCP lifecycle belongs to a Pi or OpenWaggle extension package. Resolved: use **OpenWaggle MCP integration** for the product and **MCP runtime** for the per-session client lifecycle.
 - "MCP enabled" can mean desired configuration or applied runtime state. Resolved: use **MCP desired state** for the user's request and report separately whether the safe boundary has applied it.
@@ -2293,7 +2344,7 @@ One viewport inside the terminal panel showing exactly one Session terminal. Pan
 _Avoid_: terminal window, tab (a tab organizes panes; a pane shows one terminal)
 
 **Terminal panel location**:
-The bottom drawer or right-side panel that currently owns a Terminal tab's viewport layout. Moving a tab changes only its renderer location; it preserves the Session terminal id, PTY, Working path, output stream, and lifecycle owner. The two locations can be open together but never mount the same PTY twice.
+The bottom drawer or right-side panel that currently owns a Terminal tab's viewport layout. Moving a tab changes only its renderer location; it preserves the Session terminal id, PTY, Working path, output stream, and lifecycle owner. The two locations can be open together but never mount the same PTY twice. Terminals have no **Panel rail** entry: the terminal toggle command and its header control are the only way to show or hide them, wherever their tabs currently live.
 _Avoid_: terminal migration (runtime ownership does not change), duplicate terminal panel
 
 **Terminal tab**:
@@ -2399,6 +2450,10 @@ _Avoid_: shared permission (the choice is private), discovery (finding a definit
 **Project action run**:
 One execution of a Project action in a particular Workspace resource.
 _Avoid_: Run (an agent execution), terminal (the output surface is not the execution itself)
+
+**Action output terminal view**:
+A read-only Terminal tab that shows the live and retained output of one existing **Project action run**. It attaches to that run rather than starting a process; closing it closes only the view, and Stop and Restart stay with the run's Project Actions controls. When the run ends, the view keeps the final output and shows the run's outcome. Each Project action has at most one view per Session; it follows a restart to the replacement run, keeping earlier output above a divider.
+_Avoid_: action terminal (implies the action runs in the terminal), rerun in terminal
 
 **Long-running action**:
 A Project action intended to provide an ongoing process, such as a development server, within a Workspace resource.

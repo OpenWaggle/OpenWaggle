@@ -130,7 +130,10 @@ export function parseChatRouteSearch(search: Record<string, unknown>): ChatRoute
   if (panel === 'file') {
     const filePath = parseSearchToken(search.filePath)
     const fileLine = parseFileLine(search.fileLine)
-    return filePath ? { ...base, panel, filePath, ...(fileLine ? { fileLine } : {}) } : base
+    // Files without a path is the navigator on its own (ADR 0043).
+    return filePath
+      ? { ...base, panel, filePath, ...(fileLine ? { fileLine } : {}) }
+      : { ...base, panel }
   }
 
   if (panel === 'resources') {

@@ -34,8 +34,6 @@ export const CONSENSUS = {
 export const TITLE = {
   /** Max characters of input for title generation */
   INPUT_MAX_CHARS: 500,
-  /** Max tokens for generated title */
-  MAX_TOKENS: 60,
   /** Fallback title length */
   FALLBACK_LENGTH: 60,
 } as const

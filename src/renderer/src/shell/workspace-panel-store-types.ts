@@ -1,6 +1,10 @@
 import type { BrowserPreviewOpenRequest } from '@shared/types/browser-preview-owner'
 import type { StoreApi } from 'zustand'
-import type { BrowserPreviewTabState, WorkspacePanelGroupState } from './workspace-panel-model'
+import type {
+  BrowserPreviewTabState,
+  WorkspacePanelGroupState,
+  WorkspacePanelIndexSurfaceKind,
+} from './workspace-panel-model'
 
 export interface WorkspacePanelState {
   readonly groups: Record<string, WorkspacePanelGroupState>
@@ -26,6 +30,7 @@ export interface WorkspacePanelState {
   closeBrowsers: (ownerKey: string, previewIds: readonly string[]) => void
   showBrowser: (ownerKey: string, previewId: string) => void
   showAction: (ownerKey: string, projectPath: string, runId: string) => void
+  showIndexSurface: (ownerKey: string, kind: WorkspacePanelIndexSurfaceKind) => void
   showTerminal: (ownerKey: string) => void
   hideTerminal: (ownerKey: string) => void
   hidePanel: (ownerKey: string) => void

@@ -1,12 +1,14 @@
 import type { ProjectAction } from '@shared/types/project-actions'
 import { DEFAULT_SETTINGS, type Settings } from '@shared/types/settings'
 import { DEFAULT_SHORTCUT_RULES, shortcutBindingsFromRules } from '@shared/types/shortcuts'
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { renderWithQueryClient as render } from '@/test-utils/query-test-utils'
 
 const apiMock = vi.hoisted(() => ({
   getSettings: vi.fn(),
   updateSettings: vi.fn(),
+  listExtensionContributions: vi.fn(),
 }))
 const projectMocks = vi.hoisted(() => {
   const actions: ProjectAction[] = []
@@ -64,6 +66,7 @@ describe('ShortcutsSection', () => {
       return { ok: true }
     })
     apiMock.getSettings.mockImplementation(async () => persistedSettings)
+    apiMock.listExtensionContributions.mockResolvedValue({ projectPaths: ['/repo'], entries: [] })
   })
 
   it('searches built-in and every Project Action binding in one surface', () => {

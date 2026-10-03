@@ -2,6 +2,7 @@ import type { ExtensionContributionRegistryEntry } from '@shared/types/extension
 import { useQuery } from '@tanstack/react-query'
 import { Search } from 'lucide-react'
 import { type KeyboardEvent, useEffect, useRef, useState } from 'react'
+import { extensionSidePanelSurfaces } from '@/features/extensions'
 import {
   createProjectActionCommandItems,
   useProjectActions,
@@ -9,13 +10,13 @@ import {
 } from '@/features/project-actions'
 import { useRunningTerminalCounts } from '@/features/terminal'
 import { extensionContributionsQueryOptions } from '@/queries/extensions'
+import type { RightPanelSurfaceId } from '@/shared/lib/right-panel-surfaces'
 import { CommandDialog } from '@/shared/ui/CommandDialog'
 import { TextInput } from '@/shared/ui/TextInput'
 import { useGlobalCommandActions } from '../hooks/useGlobalCommandActions'
 import { useGlobalExtensionActions } from '../hooks/useGlobalExtensionActions'
 import {
   createExtensionCommandItems,
-  createExtensionSidePanelItems,
   resolveExtensionCommandInvocationScope,
 } from '../lib/extension-command-items'
 import {
@@ -23,6 +24,11 @@ import {
   createRecentProjectItems,
   createRecentSessionItems,
 } from '../lib/global-command-core-items'
+import {
+  createPanelCommandItems,
+  type RightPanelSurfaceDisabledReason,
+  showPanelSurface,
+} from '../lib/global-command-panel-items'
 import type { CommandPaletteItem } from '../model'
 import { CommandPaletteList } from './CommandPaletteList'
 
@@ -62,11 +68,25 @@ function handlePaletteKeyDown(
   }
   if (event.key === 'Enter') {
     event.preventDefault()
-    input.items[input.selectedIndex]?.action()
+    const item = input.items[input.selectedIndex]
+    if (item !== undefined && item.disabled !== true) item.action()
   }
 }
 
-export function GlobalCommandPalette() {
+interface GlobalCommandPaletteProps {
+  /** Why a Right panel surface cannot be shown now; supplied by the Right panel owner. */
+  readonly panelDisabledReason?: RightPanelSurfaceDisabledReason
+  /**
+   * The checkout the Panel rail asks about (a worktree Session's working path), so the palette
+   * lists the same extension panels as the rail. Defaults to the project path.
+   */
+  readonly panelProjectPath?: string | null
+}
+
+export function GlobalCommandPalette({
+  panelDisabledReason,
+  panelProjectPath,
+}: GlobalCommandPaletteProps = {}) {
   const { actions, close, projectPath, sessionId, sessions, settings } = useGlobalCommandActions()
   const extensionActions = useGlobalExtensionActions({ projectPath, sessionId })
   const projectActions = useProjectActions(projectPath).data ?? []
@@ -78,20 +98,32 @@ export function GlobalCommandPalette() {
   const { data: extensionContributions = null } = useQuery(
     extensionContributionsQueryOptions(projectPath ? [projectPath] : [], { sessionId }),
   )
-  const extensionItems = [
-    ...createExtensionSidePanelItems({
-      registry: extensionContributions,
-      lowerQuery: '',
-      openSidePanel: extensionActions.openExtensionPanel,
-    }),
-    ...createExtensionCommandItems({
-      registry: extensionContributions,
-      lowerQuery: '',
-      invokeCommand: extensionActions.invokeExtensionCommand,
-      canInvokeCommand: (entry: ExtensionContributionRegistryEntry) =>
-        resolveExtensionCommandInvocationScope({ entry, projectPath, sessionId }) !== null,
-    }),
-  ]
+  const panelPath = panelProjectPath ?? projectPath
+  const { data: panelContributions = null } = useQuery(
+    extensionContributionsQueryOptions(panelPath ? [panelPath] : [], { sessionId }),
+  )
+  const extensionItems = createExtensionCommandItems({
+    registry: extensionContributions,
+    lowerQuery: '',
+    invokeCommand: extensionActions.invokeExtensionCommand,
+    canInvokeCommand: (entry: ExtensionContributionRegistryEntry) =>
+      resolveExtensionCommandInvocationScope({ entry, projectPath, sessionId }) !== null,
+  })
+  const panelItems = createPanelCommandItems({
+    settings,
+    // Panels that only need trust or an update are listed too; the Right panel names why.
+    extensionPanels: extensionSidePanelSurfaces(panelContributions).filter(
+      (panel) => panel.openable || panel.cannotRunYet,
+    ),
+    disabledReason: panelDisabledReason,
+    showSurface: (id: RightPanelSurfaceId, panel) => {
+      close()
+      showPanelSurface(id, panel, {
+        openBuiltInPanel: actions.openBuiltInPanel,
+        openExtensionPanel: (entry) => extensionActions.openExtensionPanel({ entry }),
+      })
+    },
+  })
   const projectActionItems = createProjectActionCommandItems(
     projectActions,
     settings.shortcutRules,
@@ -102,6 +134,7 @@ export function GlobalCommandPalette() {
   )
   const items = [
     ...createCoreCommandItems(projectPath, settings, actions),
+    ...panelItems,
     ...projectActionItems,
     ...createRecentProjectItems(settings, sessions, actions),
     ...createRecentSessionItems(sessions, actions, runningTerminalCounts),

@@ -1,7 +1,6 @@
 import type { ActionManagementScope } from '@shared/types/action-management'
 import { type ActionRun, isActiveActionRun } from '@shared/types/action-runs'
-import { actionExecutionKey } from '@shared/utils/action-execution-key'
-import { Copy, ExternalLink, RotateCw, Sparkles, Square } from 'lucide-react'
+import { Copy, ExternalLink, RotateCw, Sparkles, Square, SquareTerminal } from 'lucide-react'
 import { useState } from 'react'
 import { setComposerTextValue } from '@/features/chat/lib'
 import { useComposerStore } from '@/features/composer/state'
@@ -10,26 +9,11 @@ import { api } from '@/shared/lib/ipc'
 import { Button } from '@/shared/ui/Button'
 import { useUIStore } from '@/shell/ui-store'
 import { openWorkspaceAction, openWorkspacePreview } from '@/shell/workspace-panel-actions'
+import { restartActionRun, stopActionRun } from '../lib/action-run-operations'
 import { resolvedActionCommand } from '../lib/native-action-display'
+import { openActionRunInTerminal } from '../lib/open-action-run-in-terminal'
 
 const REPAIR_OUTPUT_CHARACTERS = 12_000
-
-async function restartCurrentAction(scope: ActionManagementScope, run: ActionRun) {
-  const catalog = await api.manageProjectActions({ scope, operation: { type: 'catalog' } })
-  if (catalog.type !== 'catalog') throw new Error('Could not load the current action.')
-  const current = catalog.catalog.actions.find(({ definition }) => definition.id === run.action.id)
-  if (!current) throw new Error('This action is no longer available.')
-  return api.manageProjectActions({
-    scope,
-    operation: {
-      type: 'start',
-      actionId: current.definition.id,
-      expectedExecutionKey: actionExecutionKey(current.definition),
-      requestId: crypto.randomUUID(),
-      restartRunId: run.id,
-    },
-  })
-}
 
 export function ActionRunControls(props: {
   readonly scope: ActionManagementScope
@@ -52,9 +36,7 @@ export function ActionRunControls(props: {
   }
   async function operate(operation: 'stop' | 'restart') {
     const result =
-      operation === 'restart'
-        ? await restartCurrentAction(scope, run)
-        : await api.manageProjectActions({ scope, operation: { type: 'stop', runId: run.id } })
+      operation === 'restart' ? await restartActionRun(scope, run) : await stopActionRun(scope, run)
     if (result.type === 'run' && scope.sessionId)
       openWorkspaceAction(scope.sessionId, scope.projectPath, result.run.id)
   }
@@ -104,6 +86,18 @@ export function ActionRunControls(props: {
           >
             <ExternalLink className="size-3.5" />
             Open preview
+          </Button>
+        ) : null}
+        {scope.sessionId ? (
+          <Button
+            variant="ghost"
+            className="min-h-10"
+            disabled={!output && !isActiveActionRun(run)}
+            title="Open this output as a read-only terminal tab"
+            onClick={() => openActionRunInTerminal(scope, run)}
+          >
+            <SquareTerminal className="size-3.5" />
+            Open in terminal
           </Button>
         ) : null}
         <Button

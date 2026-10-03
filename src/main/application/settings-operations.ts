@@ -1,15 +1,22 @@
 import { safeDecodeUnknown } from '@shared/schema'
 import { settingsUpdateSchema } from '@shared/schemas/settings'
+import { parseSessionTitleModelSetting } from '@shared/session-title-model'
 import { SupportedModelId } from '@shared/types/brand'
+import type { Settings } from '@shared/types/settings'
 import {
+  type ExtensionPanelShortcutBindings,
   isMandatoryShortcutCommand,
   SHORTCUT_COMMANDS,
   type ShortcutBinding,
   type ShortcutBindings,
   type ShortcutCommand,
+  type ShortcutRules,
   shortcutBindingKey,
+  shortcutRulesFromBindings,
+  shortcutRulesWithDefaults,
   shortcutScopesOverlap,
 } from '@shared/types/shortcuts'
+import { extensionPanelShortcutUpdateError } from '@shared/utils/extension-panel-shortcuts'
 import * as Effect from 'effect/Effect'
 import { createLogger } from '../logger'
 import { ActiveProjectChangeService } from '../ports/active-project-change-service'
@@ -90,6 +97,75 @@ function validateShortcutBindingsUpdate(
   return { ok: true, value: candidate }
 }
 
+/**
+ * Extension panel shortcuts share the conflict-free contract of the Shortcut registry: an update
+ * may not give an extension panel a combination that a built-in rule, a reserved combination or
+ * another extension panel already uses, in either direction (ADR 0043).
+ */
+function validateExtensionPanelShortcutUpdate(
+  current: Settings,
+  patch: {
+    readonly shortcutRules?: ShortcutRules
+    readonly shortcutBindings?: ShortcutBindings
+    readonly extensionPanelShortcutBindings?: ExtensionPanelShortcutBindings
+  },
+) {
+  const rules =
+    patch.shortcutRules !== undefined
+      ? shortcutRulesWithDefaults(patch.shortcutRules)
+      : patch.shortcutBindings !== undefined
+        ? shortcutRulesWithDefaults(shortcutRulesFromBindings(patch.shortcutBindings))
+        : current.shortcutRules
+  return extensionPanelShortcutUpdateError(
+    { rules: current.shortcutRules, bindings: current.extensionPanelShortcutBindings },
+    {
+      rules,
+      bindings: patch.extensionPanelShortcutBindings ?? current.extensionPanelShortcutBindings,
+    },
+  )
+}
+
+type ShortcutSettingsPatch = Pick<
+  Partial<Settings>,
+  'shortcutRules' | 'shortcutBindings' | 'extensionPanelShortcutBindings'
+>
+
+/** Built-in bindings and extension panel bindings are validated against the saved settings. */
+function validateShortcutSettingsUpdate(patch: ShortcutSettingsPatch) {
+  return Effect.gen(function* () {
+    if (
+      patch.shortcutBindings === undefined &&
+      patch.shortcutRules === undefined &&
+      patch.extensionPanelShortcutBindings === undefined
+    ) {
+      return { ok: true as const, shortcutBindings: undefined }
+    }
+    const current = yield* (yield* SettingsService).get()
+    let shortcutBindings: ShortcutBindings | undefined
+    if (patch.shortcutBindings !== undefined) {
+      const validated = validateShortcutBindingsUpdate(
+        current.shortcutBindings,
+        patch.shortcutBindings,
+      )
+      if (!validated.ok) {
+        logger.warn('Invalid shortcut bindings update', { error: validated.error })
+        return { ok: false as const, error: validated.error }
+      }
+      shortcutBindings = validated.value
+    }
+    const error = validateExtensionPanelShortcutUpdate(current, {
+      shortcutRules: patch.shortcutRules,
+      shortcutBindings,
+      extensionPanelShortcutBindings: patch.extensionPanelShortcutBindings,
+    })
+    if (error !== null) {
+      logger.warn('Invalid extension panel shortcut update', { error })
+      return { ok: false as const, error }
+    }
+    return { ok: true as const, shortcutBindings }
+  })
+}
+
 export function getSettingsOperation() {
   return SettingsService.pipe(Effect.flatMap((settings) => settings.get()))
 }
@@ -112,19 +188,11 @@ export function updateSettingsOperation(raw: unknown) {
     }
     const recentProjects = yield* validateRecentProjectPaths(result.data.recentProjects)
     const settings = yield* SettingsService
-    let shortcutBindings: ShortcutBindings | undefined
-    if (result.data.shortcutBindings !== undefined) {
-      const current = yield* settings.get()
-      const validated = validateShortcutBindingsUpdate(
-        current.shortcutBindings,
-        result.data.shortcutBindings,
-      )
-      if (!validated.ok) {
-        logger.warn('Invalid shortcut bindings update', { error: validated.error })
-        return { ok: false, error: validated.error } satisfies { ok: false; error: string }
-      }
-      shortcutBindings = validated.value
+    const shortcuts = yield* validateShortcutSettingsUpdate(result.data)
+    if (!shortcuts.ok) {
+      return { ok: false, error: shortcuts.error } satisfies { ok: false; error: string }
     }
+    const shortcutBindings = shortcuts.shortcutBindings
     yield* settings.update({
       ...result.data,
       projectPath: result.data.projectPath !== undefined ? projectPathValidation.value : undefined,
@@ -132,6 +200,10 @@ export function updateSettingsOperation(raw: unknown) {
       selectedModel:
         result.data.selectedModel !== undefined
           ? SupportedModelId(result.data.selectedModel)
+          : undefined,
+      sessionTitleModel:
+        result.data.sessionTitleModel !== undefined
+          ? (parseSessionTitleModelSetting(result.data.sessionTitleModel) ?? undefined)
           : undefined,
       favoriteModels: result.data.favoriteModels?.map(SupportedModelId),
       enabledModels: result.data.enabledModels?.map(SupportedModelId),

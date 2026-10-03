@@ -3,6 +3,7 @@ import { RefreshCw, X } from 'lucide-react'
 import { DiffPanel } from '@/features/diff-panel/components'
 import { Button } from '@/shared/ui/Button'
 import { PanelErrorBoundary } from '@/shared/ui/PanelErrorBoundary'
+import { RightPanelMaximizeButton } from '@/shared/ui/RightPanelMaximizeButton'
 import { useUIStore } from '@/shell/ui-store'
 import type { ChatDiffSectionState } from '../model'
 
@@ -47,6 +48,7 @@ export function ChatDiffPane({ section, onClose }: ChatDiffPaneProps) {
           >
             <RefreshCw className="size-3.5" />
           </Button>
+          <RightPanelMaximizeButton />
           <Button
             variant="unstyled"
             type="button"

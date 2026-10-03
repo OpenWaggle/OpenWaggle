@@ -120,9 +120,9 @@ To rename or delete a Git branch or set its upstream, use the [built-in terminal
 
 ## Diff panel
 
-Toggle the diff panel with `Cmd+D` / `Ctrl+D` or by clicking the diff stats in the header. It appears in the right sidebar. Drag its edge to resize between 360 and 900 px; the width is remembered between launches.
+Toggle the diff panel with `Cmd+D` / `Ctrl+D`, by clicking the diff stats in the header, or with **Changes** on the [panel rail](/docs/using-openwaggle/right-panel). It appears in the right panel. Drag its edge to resize between 360 and 900 px; every right panel shares that width, and it is remembered between launches.
 
-The diff panel and the [Session Tree](/docs/using-openwaggle/session-tree) share the same right-sidebar slot, so opening one closes the other.
+The right panel shows one panel at a time, so opening the diff replaces the [Session Tree](/docs/using-openwaggle/session-tree), Browser or any other panel that was showing.
 
 ### Diff scope
 

@@ -1,6 +1,6 @@
 {
   "name": "openwaggle",
-  "version": "1.0.0-beta.4",
+  "version": "1.0.0-beta.6",
   "description": "Desktop coding agent with multi-model waggle mode",
   "main": "./out/main/index.js",
   "engines": {
@@ -11,6 +11,7 @@
     "prepare:native:electron": "tsx scripts/rebuild-native-deps.ts electron",
     "prepare:semantic-model": "tsx scripts/prepare-session-embedding-model.ts",
     "benchmark:session-embedding": "tsx scripts/benchmark-session-embedding.ts",
+    "evaluate:session-titles": "tsx scripts/evaluate-session-titles.ts",
     "benchmark:session-vector-index": "tsx scripts/benchmark-session-vector-index.ts",
     "benchmark:session-database": "tsx scripts/benchmark-session-discovery-database.ts",
     "benchmark:session-performance": "pnpm benchmark:session-embedding && pnpm benchmark:session-vector-index && pnpm benchmark:session-database --migration-scale",

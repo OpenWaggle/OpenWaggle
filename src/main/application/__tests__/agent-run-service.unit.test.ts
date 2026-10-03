@@ -51,9 +51,11 @@ const TestSessionProjectionLayer = Layer.succeed(SessionProjectionRepository, {
   archive: () => Effect.void,
   unarchive: () => Effect.void,
   listArchived: () => Effect.succeed([]),
-  updateTitle: (id, title) =>
+  updateTitle: () => Effect.void,
+  assignProvisionalTitle: (id, title) =>
     Effect.sync(() => {
       updateTitleMock(id, title)
+      return true
     }),
   setWorktreePlan: () => Effect.void,
   setAuthorizationMode: () => Effect.void,

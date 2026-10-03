@@ -18,10 +18,6 @@ import { FilesystemSessionResourceStoreLive } from './adapters/filesystem-sessio
 import { FilesystemWorkspaceFileLive } from './adapters/filesystem-workspace-file-service'
 import { GitSessionWorkspaceHandoffServiceLive } from './adapters/git-session-workspace-handoff-service'
 import { LocalSessionCredentialVerifierLive } from './adapters/local-session-credential-verifier'
-import { EncryptedMcpSecretVaultServiceLive } from './adapters/mcp/encrypted-mcp-secret-vault-service'
-import { FilesystemMcpConfigServiceLive } from './adapters/mcp/filesystem-mcp-config-service'
-import { FirstPartyMcpRuntimeServiceLive } from './adapters/mcp/first-party-mcp-runtime-service'
-import { McpTurnStateServiceLive } from './adapters/mcp/mcp-turn-state-service'
 import { PiAgentKernelLive } from './adapters/pi/pi-agent-kernel-adapter'
 import { PiAgentSteeringServiceLive } from './adapters/pi/pi-agent-steering-adapter'
 import { registerPiBundledOAuthFlows } from './adapters/pi/pi-bundled-oauth'
@@ -79,6 +75,8 @@ import {
 import { DesktopServicesLive } from './runtime-desktop-services'
 import { HiveWorkerCleanupServicesLive } from './runtime-hive-cleanup-services'
 import { startHostBackgroundServices } from './runtime-host-services'
+import { McpServicesLive } from './runtime-mcp-services'
+import { SessionTitleServicesLive } from './runtime-session-title-services'
 import { AppDatabaseLive } from './services/database-service'
 import { AppLogger } from './services/logger-service'
 import { SettingsService } from './services/settings-service'
@@ -115,11 +113,6 @@ const ProviderServiceWithExtensionSelectionLive = ProviderServiceLive.pipe(
 const PiProviderProbeWithExtensionSelectionLive = PiProviderProbeLive.pipe(
   Layer.provide(ExtensionRuntimeSelectionLive),
 )
-const McpServicesLive = Layer.mergeAll(
-  FilesystemMcpConfigServiceLive,
-  EncryptedMcpSecretVaultServiceLive,
-  FirstPartyMcpRuntimeServiceLive.pipe(Layer.provide(EncryptedMcpSecretVaultServiceLive)),
-).pipe(Layer.provide(McpTurnStateServiceLive))
 const PiAgentKernelWithExtensionSelectionLive = PiAgentKernelLive.pipe(
   Layer.provide(
     Layer.mergeAll(
@@ -259,6 +252,7 @@ const AppLayer = Layer.mergeAll(
   SharpSessionResourceThumbnailerLive,
   SqliteSessionProjectionRepositoryLive,
   SqliteSessionRepositoryLive,
+  SessionTitleServicesLive,
   FilesystemStandardsLive,
   PiAgentKernelWithExtensionSelectionLive,
   McpServicesLive,

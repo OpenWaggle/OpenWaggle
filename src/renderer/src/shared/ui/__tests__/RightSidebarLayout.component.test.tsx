@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { Button } from '../Button'
 import { RightSidebarLayout, sidebarWidthValue } from '../RightSidebarLayout'
 import type { WidthAcceptanceContext } from '../right-sidebar-layout-types'
+import { useSidebarWidthStore } from '../right-sidebar-width-store'
 
 import {
   ACCEPTED_WIDTH,
@@ -24,6 +25,7 @@ import {
 describe('RightSidebarLayout', () => {
   beforeEach(() => {
     window.localStorage.clear()
+    useSidebarWidthStore.setState({ widths: {} })
     installMatchMedia(false)
     vi.restoreAllMocks()
   })

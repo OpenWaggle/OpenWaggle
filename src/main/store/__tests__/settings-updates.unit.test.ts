@@ -1,4 +1,5 @@
 import { SupportedModelId } from '@shared/types/brand'
+import { extensionRightPanelSurfaceId } from '@shared/types/right-panel-surface-id'
 import { describe, expect, it } from 'vitest'
 import {
   dropSettingsStoreForFailureTest,
@@ -6,6 +7,12 @@ import {
   loadSettingsModule,
   writeRawSetting,
 } from './settings-test-harness'
+
+const PANEL_ID = extensionRightPanelSurfaceId({ extensionId: 'acme.notes', sidePanelId: 'notes' })
+const OTHER_PANEL_ID = extensionRightPanelSurfaceId({
+  extensionId: 'acme.board',
+  sidePanelId: 'board',
+})
 
 describe('settings store updates', () => {
   installSettingsStoreTestLifecycle()
@@ -196,6 +203,70 @@ describe('settings store updates', () => {
     })
     expect(getSettings().skillTogglesByProject).toEqual({
       '/tmp/repo': { 'code-review': true, 'frontend-design': false },
+    })
+  })
+
+  it('persists extension panel shortcuts by stable surface id across a store reload', async () => {
+    const {
+      flushSettingsStoreForTests,
+      getSettings,
+      initializeSettingsStore,
+      resetSettingsStoreForTests,
+      updateSettings,
+    } = await loadSettingsModule()
+    updateSettings({
+      extensionPanelShortcutBindings: {
+        [PANEL_ID]: { key: 'G', mod: true, shift: true },
+        [OTHER_PANEL_ID]: { key: 'H', mod: true, alt: true },
+      },
+    })
+    await flushSettingsStoreForTests()
+    await resetSettingsStoreForTests()
+    await initializeSettingsStore()
+
+    expect(getSettings().extensionPanelShortcutBindings).toEqual({
+      [PANEL_ID]: { key: 'G', mod: true, shift: true },
+      [OTHER_PANEL_ID]: { key: 'H', mod: true, alt: true },
+    })
+  })
+
+  it('sanitizes extension panel shortcut updates: drops non-canonical ids and malformed bindings, trims keys', async () => {
+    const { getSettings, updateSettings } = await loadSettingsModule()
+    updateSettings({
+      extensionPanelShortcutBindings: {
+        [PANEL_ID]: { key: ' g ', mod: true, shift: false },
+        '/packages/acme:hash:notes': { key: 'J', mod: true },
+        'extension:["acme.notes"]': { key: 'K', mod: true },
+        [OTHER_PANEL_ID]: { key: '' },
+      },
+    })
+
+    expect(getSettings().extensionPanelShortcutBindings).toEqual({
+      [PANEL_ID]: { key: 'g', mod: true },
+    })
+  })
+
+  it('fails closed when saved extension panel shortcuts use an invalid surface id', async () => {
+    await writeRawSetting('extensionPanelShortcutBindings', {
+      'not-a-surface': { key: 'G', mod: true },
+    })
+
+    const { getSettings } = await loadSettingsModule()
+
+    expect(() => getSettings()).toThrow(
+      /Saved settings are invalid.*extensionPanelShortcutBindings/su,
+    )
+  })
+
+  it('loads saved extension panel shortcuts for panels whose extension is no longer installed', async () => {
+    await writeRawSetting('extensionPanelShortcutBindings', {
+      [PANEL_ID]: { key: 'G', mod: true, shift: true },
+    })
+
+    const { getSettings } = await loadSettingsModule()
+
+    expect(getSettings().extensionPanelShortcutBindings).toEqual({
+      [PANEL_ID]: { key: 'G', mod: true, shift: true },
     })
   })
 })

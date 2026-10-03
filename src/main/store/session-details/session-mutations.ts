@@ -253,32 +253,62 @@ export async function unarchiveSession(id: SessionId): Promise<void> {
   await updateArchivedState(id, false)
 }
 
+/** Write the Provisional title of a still-untitled Session; false once it has any other title. */
+export async function assignProvisionalSessionTitle(
+  id: SessionId,
+  title: string,
+): Promise<boolean> {
+  const boundedTitle = assertSessionTitle(title)
+  return runStoreEffect(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      return yield* sql.withTransaction(
+        Effect.gen(function* () {
+          const rows = yield* sql<{ readonly id: string }>`
+            UPDATE sessions
+            SET title = ${boundedTitle}, title_source = ${'provisional'}, title_needs_refinement = ${0}
+            WHERE id = ${id} AND title_source = ${'default'}
+            RETURNING id
+          `
+          if (rows.length === 0) return false
+          yield* upsertSessionTitleReference(sql, id, boundedTitle)
+          return true
+        }),
+      )
+    }),
+  )
+}
+
+function upsertSessionTitleReference(sql: SqlClient.SqlClient, id: SessionId, title: string) {
+  const normalizedTitle = normalizeSessionReportReference(title)
+  if (normalizedTitle.length === 0) {
+    return sql`
+      DELETE FROM session_report_references
+      WHERE session_id = ${id} AND kind = ${'title'}
+    `
+  }
+  return sql`
+    INSERT INTO session_report_references (session_id, kind, normalized_reference)
+    SELECT id, ${'title'}, ${normalizedTitle} FROM sessions WHERE id = ${id}
+    ON CONFLICT (session_id, kind) DO UPDATE SET
+      normalized_reference = excluded.normalized_reference
+  `
+}
+
 export async function updateSessionTitle(id: SessionId, title: string): Promise<void> {
   const boundedTitle = assertSessionTitle(title)
   await runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
-      const normalizedTitle = normalizeSessionReportReference(boundedTitle)
       yield* sql.withTransaction(
         Effect.gen(function* () {
+          // A direct title write is a manual rename and leaves recency alone (ADR 0043).
           yield* sql`
             UPDATE sessions
-            SET title = ${boundedTitle}, updated_at = ${Date.now()}
+            SET title = ${boundedTitle}, title_source = ${'manual'}, title_needs_refinement = ${0}
             WHERE id = ${id}
           `
-          if (normalizedTitle.length === 0) {
-            yield* sql`
-              DELETE FROM session_report_references
-              WHERE session_id = ${id} AND kind = ${'title'}
-            `
-            return
-          }
-          yield* sql`
-            INSERT INTO session_report_references (session_id, kind, normalized_reference)
-            SELECT id, ${'title'}, ${normalizedTitle} FROM sessions WHERE id = ${id}
-            ON CONFLICT (session_id, kind) DO UPDATE SET
-              normalized_reference = excluded.normalized_reference
-          `
+          yield* upsertSessionTitleReference(sql, id, boundedTitle)
         }),
       )
     }),

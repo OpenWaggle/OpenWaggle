@@ -1,5 +1,13 @@
 import type { Settings } from '@shared/types/settings'
 import { resolveAppearancePreferences } from './appearance-preferences-sanitizer'
+import {
+  SETTINGS_KEY_DIFF_SYNTAX_THEME,
+  SETTINGS_KEY_DIFF_VIEW,
+  SETTINGS_KEY_DIFF_WRAP_LINES,
+  SETTINGS_KEY_RIGHT_PANEL_RAIL_VISIBLE_WHEN_CLOSED,
+  SETTINGS_KEY_SYNTAX_THEME_SELECTIONS,
+} from './keys'
+import type { SettingsPatchWrite } from './persistence-plan'
 import { isValidDiffSyntaxTheme, isValidDiffView, resolveSyntaxThemeSelections } from './sanitizers'
 
 /** Diff and appearance preferences, split out to keep buildNextSettingsSnapshot within complexity limits. */
@@ -22,9 +30,38 @@ export function resolveNextDiffAndAppearanceSettings(
         : current.diffView,
     diffWrapLines:
       typeof partial.diffWrapLines === 'boolean' ? partial.diffWrapLines : current.diffWrapLines,
+    rightPanelRailVisibleWhenClosed:
+      typeof partial.rightPanelRailVisibleWhenClosed === 'boolean'
+        ? partial.rightPanelRailVisibleWhenClosed
+        : current.rightPanelRailVisibleWhenClosed,
     appearancePreferences:
       partial.appearancePreferences !== undefined
         ? resolveAppearancePreferences(partial.appearancePreferences)
         : current.appearancePreferences,
+  }
+}
+
+export function appendDiffSettingsWrites(
+  writes: SettingsPatchWrite[],
+  partial: Partial<Settings>,
+  next: Settings,
+) {
+  if (partial.diffSyntaxTheme !== undefined) {
+    writes.push({ key: SETTINGS_KEY_DIFF_SYNTAX_THEME, value: next.diffSyntaxTheme })
+  }
+  if (partial.syntaxThemeSelections !== undefined) {
+    writes.push({ key: SETTINGS_KEY_SYNTAX_THEME_SELECTIONS, value: next.syntaxThemeSelections })
+  }
+  if (partial.diffView !== undefined) {
+    writes.push({ key: SETTINGS_KEY_DIFF_VIEW, value: next.diffView })
+  }
+  if (partial.diffWrapLines !== undefined) {
+    writes.push({ key: SETTINGS_KEY_DIFF_WRAP_LINES, value: next.diffWrapLines })
+  }
+  if (partial.rightPanelRailVisibleWhenClosed !== undefined) {
+    writes.push({
+      key: SETTINGS_KEY_RIGHT_PANEL_RAIL_VISIBLE_WHEN_CLOSED,
+      value: next.rightPanelRailVisibleWhenClosed,
+    })
   }
 }

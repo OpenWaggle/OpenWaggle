@@ -71,4 +71,15 @@ describe('buildDeterministicTitle', () => {
   it('falls back to New session for empty input', () => {
     expect(buildDeterministicTitle('   ')).toBe('New session')
   })
+
+  it('strips control and bidi characters and never splits an emoji', () => {
+    expect(buildDeterministicTitle('\u202efix\u202c the\u0000 bug')).toBe('fix the bug')
+    const title = buildDeterministicTitle('😀'.repeat(40))
+    expect(title.isWellFormed()).toBe(true)
+    expect(title.endsWith('...')).toBe(true)
+    // Bounding long input must not split a pair either, even when the title ends up short: the
+    // emoji would straddle the input bound, so it is left out whole.
+    const short = buildDeterministicTitle(`Fix${'\n'.repeat(496)}😀 more`)
+    expect(short).toBe('Fix')
+  })
 })

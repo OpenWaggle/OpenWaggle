@@ -18,8 +18,11 @@ export function useMenuKeyboard(input: {
   readonly isOpen: boolean
   readonly panelRef: React.RefObject<HTMLElement | null>
   readonly onClose: () => void
+  /** Open on the checked item (a choice menu) rather than the first (an action menu). */
+  readonly focusChecked?: boolean
 }) {
   const { enabled, isOpen, panelRef, onClose } = input
+  const focusChecked = input.focusChecked ?? true
   const restoreFocusRef = useRef<HTMLElement | null>(null)
 
   /** The panel's enabled items, in document order. */
@@ -51,9 +54,11 @@ export function useMenuKeyboard(input: {
       document.activeElement instanceof HTMLElement ? document.activeElement : null
     const list = items()
     if (list.length === 0) return
-    const checkedIndex = list.findIndex((item) => item.getAttribute('aria-checked') === 'true')
+    const checkedIndex = focusChecked
+      ? list.findIndex((item) => item.getAttribute('aria-checked') === 'true')
+      : -1
     focusItemAt(list, checkedIndex === -1 ? 0 : checkedIndex)
-  }, [enabled, isOpen, items, focusItemAt])
+  }, [enabled, isOpen, items, focusItemAt, focusChecked])
 
   /*
    * Focus returns to whatever opened the menu, but only when the menu still held it.

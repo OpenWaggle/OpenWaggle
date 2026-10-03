@@ -6,6 +6,8 @@ import {
 } from '@/features/browser-preview'
 import { usePreferencesStore } from '@/features/settings/state'
 import { api } from '@/shared/lib/ipc'
+import { useRightSidebarCoordinator } from '@/shared/lib/right-sidebar-coordinator'
+import { RIGHT_PANEL_SIZING } from '@/shared/ui/right-sidebar-sizing-presets'
 import { useUIStore } from './ui-store'
 import { useWorkspacePanelStore } from './workspace-panel-store'
 
@@ -71,6 +73,14 @@ export function newWorkspaceBrowser(ownerKey: string) {
   }
 }
 
+/** Shows the current browser tab, or a new one when the Session has none (never toggles). */
+export function showWorkspaceBrowser(ownerKey: string) {
+  const previewId = activeBrowserTabId(ownerKey)
+  if (previewId === null) return newWorkspaceBrowser(ownerKey)
+  useWorkspacePanelStore.getState().showBrowser(ownerKey, previewId)
+  return true
+}
+
 export function showWorkspaceSideTerminal(ownerKey: string) {
   useWorkspacePanelStore.getState().showTerminal(ownerKey)
 }
@@ -79,15 +89,39 @@ export function hideWorkspaceSideTerminal(ownerKey: string) {
   useWorkspacePanelStore.getState().hideTerminal(ownerKey)
 }
 
-/** Toggles the retained workspace panel without opening a surface implicitly. */
+/**
+ * Maximizes or restores the open Right panel, whichever surface it shows (ADR 0043). The state
+ * belongs to the Session and is kept with its workspace panel group. Nothing opens implicitly.
+ */
 export function toggleWorkspacePanelMaximized(ownerKey: string) {
+  if (rightPanelMaximizeUnavailableReason(ownerKey) !== null) return false
   const store = useWorkspacePanelStore.getState()
-  const group = store.groups[ownerKey]
-  if (ownerKey.length === 0 || group?.panelOpen !== true || group.activeSurface === null) {
-    return false
-  }
-  store.setMaximized(ownerKey, !group.maximized)
+  store.setMaximized(ownerKey, store.groups[ownerKey]?.maximized !== true)
   return true
+}
+
+const OPEN_A_PANEL_FIRST = 'Open a panel first.'
+const GUIDED_PANEL_KEEPS_WIDTH = 'The guided action panel keeps its width.'
+const SHEET_KEEPS_WIDTH = 'Widen the window to maximize the panel.'
+/** Where the Right panel becomes a sheet over the chat, which has no maximized size. */
+export const RIGHT_PANEL_SHEET_QUERY = `(max-width: ${String(RIGHT_PANEL_SIZING.sheetBreakpointPx)}px)`
+
+function rightPanelIsSheet() {
+  return (
+    typeof globalThis.matchMedia === 'function' &&
+    globalThis.matchMedia(RIGHT_PANEL_SHEET_QUERY).matches
+  )
+}
+
+/** Why the Right panel cannot be maximized right now, or null when it can. */
+export function rightPanelMaximizeUnavailableReason(ownerKey: string): string | null {
+  if (ownerKey.length === 0) return OPEN_A_PANEL_FIRST
+  const claim = useRightSidebarCoordinator.getState().activeClaim
+  if (claim?.kind === 'action-panel') return GUIDED_PANEL_KEEPS_WIDTH
+  if (rightPanelIsSheet()) return SHEET_KEEPS_WIDTH
+  const group = useWorkspacePanelStore.getState().groups[ownerKey]
+  const workspaceOpen = group?.panelOpen === true && group.activeSurface !== null
+  return workspaceOpen || claim?.kind === 'route' ? null : OPEN_A_PANEL_FIRST
 }
 
 /** Toggles the retained panel and preserves whichever surface was selected last. */
@@ -105,6 +139,8 @@ export function toggleWorkspaceRightPanel(ownerKey: string) {
       store.showAction(ownerKey, projectPath, runId),
     )
     .with({ kind: 'browser' }, ({ previewId }) => store.showBrowser(ownerKey, previewId))
+    .with({ kind: 'project-actions' }, () => store.showIndexSurface(ownerKey, 'project-actions'))
+    .with({ kind: 'all-panels' }, () => store.showIndexSurface(ownerKey, 'all-panels'))
     .exhaustive()
   return true
 }

@@ -7,7 +7,6 @@ import { useChat } from '@/features/chat/hooks'
 import { useDiffRouteNavigation } from '@/features/diff-panel/hooks'
 import { CommitDialog } from '@/features/git/components'
 import { useGit } from '@/features/git/hooks'
-import { ProjectActionsControl } from '@/features/project-actions'
 import {
   isSessionSummaryPanelVisible,
   type SessionSummaryPanelState,
@@ -16,16 +15,18 @@ import {
 import { useProject, useSessions } from '@/features/sessions/hooks'
 import { useTerminalCommands } from '@/features/terminal'
 import { cn } from '@/shared/lib/cn'
+import { toggleRightPanelSurface } from '@/shared/lib/right-panel-surfaces'
+import { useRightSidebarCoordinator } from '@/shared/lib/right-sidebar-coordinator'
 import { useUIStore } from '@/shell/ui-store'
 import {
   CommitButton,
   DiffToggleButton,
   HeaderLeft,
   SessionSummaryButton,
-  SessionTreeButton,
   TerminalButton,
 } from './HeaderControls'
 import { FeedbackButton } from './HeaderFeedbackButton'
+import { RightPanelToggleButton } from './right-panel/RightPanelToggleButton'
 
 function sessionIdentity(sessions: readonly SessionSummary[], activeSessionId: SessionId | null) {
   const lineage = sessions.find((session) => session.id === activeSessionId)?.lineage
@@ -148,8 +149,8 @@ export function Header() {
   const { git, commitOpen, setCommitOpen, handleRefreshGit, handleCommitGit } =
     useHeaderGit(activeSessionId)
   const { panelOpen: terminalOpen, toggleTerminal } = useTerminalCommands()
-  const { diffOpen, isChatRoute, sessionTreeOpen, toggleDiff, toggleSessionTree } =
-    useDiffRouteNavigation()
+  const { diffOpen, isChatRoute } = useDiffRouteNavigation()
+  const rightPanelOpen = useRightSidebarCoordinator((state) => state.activeClaim !== null)
   const activeSessionKey = activeSession ? String(activeSession.id) : null
   const sessionSummaryPanel = useSessionSummaryUIStore((state) =>
     activeSessionKey ? state.panels[activeSessionKey] : undefined,
@@ -175,6 +176,7 @@ export function Header() {
           activeBranchName={git.status?.branch ?? null}
           projectPath={projectPath}
           sidebarOpen={sidebarOpen}
+          sessionId={activeSessionId}
           title={title}
           sessionIdentity={currentSessionIdentity}
           onToggleSidebar={toggleSidebar}
@@ -184,7 +186,6 @@ export function Header() {
           data-qa="header-actions"
           className="flex shrink-0 items-center gap-2 @max-[720px]/header:gap-1"
         >
-          <ProjectActionsControl projectPath={projectPath} />
           <TerminalButton open={terminalOpen} projectPath={projectPath} onToggle={toggleTerminal} />
           <CommitButton
             isCommitting={git.isCommitting}
@@ -201,12 +202,6 @@ export function Header() {
             />
           ) : null}
           <div className="w-px h-5 bg-border" />
-          <SessionTreeButton
-            hasSessionTree={Boolean(activeSessionTree)}
-            isChatRoute={isChatRoute}
-            open={sessionTreeOpen}
-            onToggle={toggleSessionTree}
-          />
           <DiffToggleButton
             error={git.error}
             isChatRoute={isChatRoute}
@@ -214,8 +209,9 @@ export function Header() {
             open={diffOpen}
             projectPath={projectPath}
             status={git.status}
-            onToggle={toggleDiff}
+            onToggle={() => toggleRightPanelSurface('changes')}
           />
+          <RightPanelToggleButton open={rightPanelOpen} disabled={!isChatRoute} />
         </div>
       </header>
 

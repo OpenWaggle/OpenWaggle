@@ -26,6 +26,8 @@ export type {
   ExtensionContributionUnregistration,
   ExtensionEntryContribution,
   ExtensionSessionSummaryContribution,
+  ExtensionSidePanelContribution,
+  ExtensionSidePanelIcon,
 } from './extension-contributions'
 export {
   extensionCapabilityDeclarationSchema,
@@ -49,6 +51,9 @@ export {
   extensionSessionSummaryDisclosureSchema,
   extensionSessionSummaryRowSchema,
   extensionSessionSummaryStateSchema,
+  extensionSidePanelContributionRegistrationSchema,
+  extensionSidePanelContributionSchema,
+  extensionSidePanelIconSchema,
   extensionSlotContributionFamilySchema,
   extensionSlotContributionRegistrationSchema,
   extensionSlotContributionSchema,

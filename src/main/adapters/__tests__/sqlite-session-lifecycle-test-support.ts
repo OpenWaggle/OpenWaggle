@@ -23,7 +23,9 @@ export function makeSessionLifecycleTestLayer(filename: string) {
       yield* sql.unsafe(`
         CREATE TABLE sessions (
           id TEXT PRIMARY KEY, pi_session_id TEXT NOT NULL UNIQUE, pi_session_file TEXT,
-          project_path TEXT, title TEXT NOT NULL, archived INTEGER NOT NULL DEFAULT 0,
+          project_path TEXT, title TEXT NOT NULL,
+          title_source TEXT NOT NULL DEFAULT 'manual', title_needs_refinement INTEGER NOT NULL DEFAULT 0,
+          archived INTEGER NOT NULL DEFAULT 0,
           waggle_config_json TEXT,
           created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL,
           last_active_node_id TEXT, last_active_branch_id TEXT,

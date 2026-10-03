@@ -33,6 +33,7 @@ import {
 } from '../host-ui-session-operation-dispatcher'
 
 const EXPECTED_SESSION_CHANNELS = [
+  'sessions:regenerate-title',
   'sessions:set-model',
   'sessions:resources:list',
   'sessions:resources:page',

@@ -1,10 +1,12 @@
+import type { SessionId } from '@shared/types/brand'
 import { activeShortcutRuleForCommand } from '@shared/utils/shortcut-rules'
 import {
   ChessQueen,
+  ChevronDown,
+  ChevronUp,
   GitCommitHorizontal,
   Hash,
   LayoutList,
-  ListTree,
   PanelLeft,
   Pickaxe,
   SquareTerminal,
@@ -18,6 +20,7 @@ import {
   usesAppleShortcuts,
 } from '@/shared/lib/shortcut-display'
 import { Button } from '@/shared/ui/Button'
+import { HeaderSessionTitle } from './HeaderSessionTitle'
 
 export { DiffToggleButton } from './HeaderDiffToggleButton'
 
@@ -25,6 +28,8 @@ interface HeaderLeftProps {
   readonly activeBranchName: string | null
   readonly projectPath: string | null
   readonly sidebarOpen: boolean
+  /** The selected Session, null for a new-session draft whose title cannot be renamed yet. */
+  readonly sessionId: SessionId | null
   readonly title: string
   readonly sessionIdentity?: {
     readonly role?: 'queen' | 'worker'
@@ -45,13 +50,6 @@ interface CommitButtonProps {
   readonly onOpen: () => void
 }
 
-interface SessionTreeButtonProps {
-  readonly hasSessionTree: boolean
-  readonly isChatRoute: boolean
-  readonly open: boolean
-  readonly onToggle: () => void
-}
-
 interface SessionSummaryButtonProps {
   readonly open: boolean
   readonly panelId: string
@@ -59,20 +57,58 @@ interface SessionSummaryButtonProps {
   readonly onToggle: () => void
 }
 
+/** The quiet second line naming the Session's Hive role and Agent definition. */
+function HeaderSessionIdentity({
+  sessionIdentity,
+}: {
+  readonly sessionIdentity: NonNullable<HeaderLeftProps['sessionIdentity']>
+}) {
+  const SessionIdentityIcon =
+    sessionIdentity.role === 'queen'
+      ? ChessQueen
+      : sessionIdentity.role === 'worker'
+        ? Pickaxe
+        : undefined
+
+  return (
+    <div
+      className="no-drag mt-0.5 ml-5 flex min-h-4 items-center gap-1.5 text-xs text-text-tertiary"
+      data-qa="header-session-identity"
+      title={
+        sessionIdentity.role === 'queen'
+          ? 'Queen Session: coordinates this Hive'
+          : sessionIdentity.role === 'worker'
+            ? 'Worker Session: reports through its Hive lineage'
+            : `Agent definition: ${sessionIdentity.agentDefinitionName ?? 'default'}`
+      }
+    >
+      {SessionIdentityIcon ? (
+        <>
+          <SessionIdentityIcon className="size-3 shrink-0 text-accent" />
+          <span className="font-medium text-text-secondary">
+            {sessionIdentity.role === 'queen' ? 'Queen' : 'Worker'}
+          </span>
+        </>
+      ) : null}
+      {sessionIdentity.agentDefinitionName ? (
+        <>
+          {SessionIdentityIcon ? <span className="text-border-strong">·</span> : null}
+          <span className="truncate">{sessionIdentity.agentDefinitionName}</span>
+        </>
+      ) : null}
+    </div>
+  )
+}
+
 export function HeaderLeft({
   activeBranchName,
   projectPath,
   sidebarOpen,
+  sessionId,
   title,
   sessionIdentity,
   onToggleSidebar,
 }: HeaderLeftProps) {
-  const SessionIdentityIcon =
-    sessionIdentity?.role === 'queen'
-      ? ChessQueen
-      : sessionIdentity?.role === 'worker'
-        ? Pickaxe
-        : undefined
   const currentProjectName = projectName(projectPath)
 
   return (
@@ -97,13 +133,7 @@ export function HeaderLeft({
       <div className="min-w-0 flex-1 overflow-hidden">
         <div className="flex min-w-0 items-center gap-2" data-qa="header-session-main">
           <Hash className="no-drag size-3.5 shrink-0 text-text-tertiary" />
-          <span
-            data-qa="header-session-title"
-            className="no-drag min-w-0 truncate text-sm font-medium text-text-primary"
-            title={title}
-          >
-            {title}
-          </span>
+          <HeaderSessionTitle key={String(sessionId)} sessionId={sessionId} title={title} />
           {activeBranchName ? (
             <span
               className="no-drag min-w-0 max-w-40 shrink truncate text-xs text-text-tertiary"
@@ -119,34 +149,7 @@ export function HeaderLeft({
             <span className="truncate">{currentProjectName}</span>
           </span>
         </div>
-        {sessionIdentity ? (
-          <div
-            className="no-drag mt-0.5 ml-5 flex min-h-4 items-center gap-1.5 text-xs text-text-tertiary"
-            data-qa="header-session-identity"
-            title={
-              sessionIdentity.role === 'queen'
-                ? 'Queen Session: coordinates this Hive'
-                : sessionIdentity.role === 'worker'
-                  ? 'Worker Session: reports through its Hive lineage'
-                  : `Agent definition: ${sessionIdentity.agentDefinitionName ?? 'default'}`
-            }
-          >
-            {SessionIdentityIcon ? (
-              <>
-                <SessionIdentityIcon className="size-3 shrink-0 text-accent" />
-                <span className="font-medium text-text-secondary">
-                  {sessionIdentity.role === 'queen' ? 'Queen' : 'Worker'}
-                </span>
-              </>
-            ) : null}
-            {sessionIdentity.agentDefinitionName ? (
-              <>
-                {SessionIdentityIcon ? <span className="text-border-strong">·</span> : null}
-                <span className="truncate">{sessionIdentity.agentDefinitionName}</span>
-              </>
-            ) : null}
-          </div>
-        ) : null}
+        {sessionIdentity ? <HeaderSessionIdentity sessionIdentity={sessionIdentity} /> : null}
       </div>
     </div>
   )
@@ -192,17 +195,18 @@ export function TerminalButton({ open, projectPath, onToggle }: TerminalButtonPr
       aria-expanded={open}
       onClick={onToggle}
       className={cn(
-        'no-drag h-7 border-button-border px-2.5 @max-[720px]/header:px-2',
+        'no-drag h-7 gap-0.5 border-button-border px-1.5',
         !projectPath && 'pointer-events-none opacity-30',
       )}
       disabled={!projectPath}
       title={terminalTitle(projectPath, open, shortcut)}
     >
       <SquareTerminal className="size-3.5 text-text-secondary" />
-      <span className="text-sm font-medium text-text-primary @max-[720px]/header:hidden">
-        {open ? 'Hide' : 'Open'}
-      </span>
-      <span className="text-xs text-text-tertiary @max-[720px]/header:hidden">&#x2228;</span>
+      {open ? (
+        <ChevronDown aria-hidden="true" className="size-3 text-text-tertiary" />
+      ) : (
+        <ChevronUp aria-hidden="true" className="size-3 text-text-tertiary" />
+      )}
     </Button>
   )
 }
@@ -230,34 +234,6 @@ export function CommitButton({ isCommitting, projectPath, onOpen }: CommitButton
       />
       <span className="text-sm font-semibold text-bg @max-[720px]/header:hidden">Commit</span>
       <span className="text-xs text-bg/50 @max-[720px]/header:hidden">&#x2228;</span>
-    </Button>
-  )
-}
-
-export function SessionTreeButton({
-  hasSessionTree,
-  isChatRoute,
-  open,
-  onToggle,
-}: SessionTreeButtonProps) {
-  const disabled = !hasSessionTree || !isChatRoute
-
-  return (
-    <Button
-      variant={open ? 'subtle' : 'secondary'}
-      size="none"
-      radius="sm"
-      aria-label="Toggle Session Tree"
-      aria-expanded={open}
-      onClick={onToggle}
-      disabled={disabled}
-      className={cn(
-        'no-drag h-7 border-button-border px-2',
-        disabled && 'pointer-events-none opacity-30',
-      )}
-      title={hasSessionTree ? 'Toggle Session Tree' : 'No session tree available'}
-    >
-      <ListTree className="size-3.5 text-text-secondary" />
     </Button>
   )
 }

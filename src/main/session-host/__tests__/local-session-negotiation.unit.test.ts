@@ -12,14 +12,14 @@ describe('Local Session protocol negotiation', () => {
   it('selects the highest mutually supported revision and its exact capabilities', () => {
     const hello = decodeLocalSessionClientHello({
       protocol: 'openwaggle-local-session',
-      supportedRevisions: [19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4],
+      supportedRevisions: [20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5],
       clientKind: 'cli',
       clientVersion: '0.4.0-alpha.1',
     })
 
     expect(negotiateLocalSessionProtocol(hello, 'host-current')).toMatchObject({
       accepted: true,
-      revision: 19,
+      revision: 20,
       hostInstanceId: 'host-current',
       capabilities: expect.arrayContaining([
         'waggle:run-v1',
@@ -38,6 +38,7 @@ describe('Local Session protocol negotiation', () => {
         'host-ui:native-actions-v1',
         'events:launch-steps-v1',
         'host:stop-v1',
+        'host-ui:session-title-regeneration-v1',
       ]),
     })
   })
@@ -59,7 +60,7 @@ describe('Local Session protocol negotiation', () => {
         accepted: false,
         protocol: 'openwaggle-local-session',
         code: 'incompatible_protocol',
-        supportedRevisions: [19],
+        supportedRevisions: [20],
       })
     },
   )
@@ -69,7 +70,7 @@ describe('Local Session protocol negotiation', () => {
       negotiateLocalSessionProtocol(
         {
           protocol: 'openwaggle-local-session',
-          supportedRevisions: [21, 20],
+          supportedRevisions: [22, 21],
           clientKind: 'gui',
           clientVersion: 'future',
         },
@@ -128,7 +129,7 @@ describe('Local Session protocol negotiation', () => {
       accepted: false,
       protocol: 'openwaggle-local-session',
       code: 'incompatible_protocol',
-      supportedRevisions: [19],
+      supportedRevisions: [20],
     })
     expect(() =>
       decodeLocalSessionNegotiationResult({

@@ -1,4 +1,5 @@
 import type { Settings } from '@shared/types/settings'
+import { appendDiffSettingsWrites } from './diff-appearance-settings-snapshot'
 import {
   SETTINGS_KEY_AGENT_DEFINITION_TOGGLES_BY_PROJECT,
   SETTINGS_KEY_APPEARANCE_PREFERENCES,
@@ -14,11 +15,9 @@ import {
   SETTINGS_KEY_DEFAULT_AUTHORIZATION_MODE,
   SETTINGS_KEY_DEFAULT_MODEL,
   SETTINGS_KEY_DEFAULT_SESSION_ENVIRONMENT_MODE,
-  SETTINGS_KEY_DIFF_SYNTAX_THEME,
-  SETTINGS_KEY_DIFF_VIEW,
-  SETTINGS_KEY_DIFF_WRAP_LINES,
   SETTINGS_KEY_ENABLE_AGENT_BROWSER_ACCESS,
   SETTINGS_KEY_ENABLED_MODELS,
+  SETTINGS_KEY_EXTENSION_PANEL_SHORTCUT_BINDINGS,
   SETTINGS_KEY_FAVORITE_MODELS,
   SETTINGS_KEY_MULTI_AGENT_ENABLED,
   SETTINGS_KEY_MULTI_AGENT_ENABLED_BY_PROJECT,
@@ -34,9 +33,9 @@ import {
   SETTINGS_KEY_SHORTCUT_BINDINGS,
   SETTINGS_KEY_SHORTCUT_RULES,
   SETTINGS_KEY_SKILL_TOGGLES_BY_PROJECT,
-  SETTINGS_KEY_SYNTAX_THEME_SELECTIONS,
   SETTINGS_KEY_UPDATE_CHANNEL,
 } from './keys'
+import { appendSessionTitleSettingsWrites } from './session-title-settings'
 import { appendChangedSetting, type SettingsPatchWrite } from './settings-patch-writes'
 import { appendThinkingLevelWrite } from './thinking-level-persistence'
 import { appendUsageStatisticsSettingsWrites } from './usage-statistics-settings'
@@ -192,6 +191,12 @@ function appendGeneralSettingsWrites(
   )
   appendChangedSetting(
     writes,
+    partial.extensionPanelShortcutBindings !== undefined,
+    SETTINGS_KEY_EXTENSION_PANEL_SHORTCUT_BINDINGS,
+    next.extensionPanelShortcutBindings,
+  )
+  appendChangedSetting(
+    writes,
     partial.defaultSessionEnvironmentMode !== undefined,
     SETTINGS_KEY_DEFAULT_SESSION_ENVIRONMENT_MODE,
     next.defaultSessionEnvironmentMode,
@@ -213,37 +218,6 @@ function appendGeneralSettingsWrites(
     partial.appearancePreferences !== undefined,
     SETTINGS_KEY_APPEARANCE_PREFERENCES,
     next.appearancePreferences,
-  )
-}
-
-function appendDiffSettingsWrites(
-  writes: SettingsPatchWrite[],
-  partial: Partial<Settings>,
-  next: Settings,
-) {
-  appendChangedSetting(
-    writes,
-    partial.diffSyntaxTheme !== undefined,
-    SETTINGS_KEY_DIFF_SYNTAX_THEME,
-    next.diffSyntaxTheme,
-  )
-  appendChangedSetting(
-    writes,
-    partial.syntaxThemeSelections !== undefined,
-    SETTINGS_KEY_SYNTAX_THEME_SELECTIONS,
-    next.syntaxThemeSelections,
-  )
-  appendChangedSetting(
-    writes,
-    partial.diffView !== undefined,
-    SETTINGS_KEY_DIFF_VIEW,
-    next.diffView,
-  )
-  appendChangedSetting(
-    writes,
-    partial.diffWrapLines !== undefined,
-    SETTINGS_KEY_DIFF_WRAP_LINES,
-    next.diffWrapLines,
   )
 }
 
@@ -298,6 +272,7 @@ export function collectSettingsPatchWrites(partial: Partial<Settings>, next: Set
   appendSessionHostSettingsWrites(writes, partial, next)
   appendBrowserSettingsWrites(writes, partial, next)
   appendUsageStatisticsSettingsWrites(writes, partial, next)
+  appendSessionTitleSettingsWrites(writes, partial, next)
 
   return writes
 }

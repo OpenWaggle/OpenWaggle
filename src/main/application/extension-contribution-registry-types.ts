@@ -1,3 +1,4 @@
+import type { ExtensionSidePanelIcon } from '@shared/schemas/extensions'
 import type {
   ExtensionContributionEligibilityView,
   ExtensionContributionFamily,
@@ -36,7 +37,14 @@ export interface ContributionEntryInput {
     | ManifestSessionSummaryContribution
 }
 
+/** A side panel entry whose declared Panel rail icon still has to be resolved by the host. */
+export interface ContributionIconDeclaration {
+  readonly entry: ExtensionContributionRegistryEntry
+  readonly icon: ExtensionSidePanelIcon
+}
+
 export interface ContributionRegistryBuildResult {
   readonly entries: readonly ExtensionContributionRegistryEntry[]
   readonly diagnostics: readonly ExtensionDiagnostic[]
+  readonly iconDeclarations: readonly ContributionIconDeclaration[]
 }

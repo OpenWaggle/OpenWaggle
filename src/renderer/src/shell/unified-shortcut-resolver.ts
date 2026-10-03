@@ -1,5 +1,7 @@
 import type { ProjectAction } from '@shared/types/project-actions'
-import type { ShortcutRule, ShortcutRules } from '@shared/types/shortcuts'
+import type { ExtensionRightPanelSurfaceId } from '@shared/types/right-panel-surface-id'
+import type { ShortcutBinding, ShortcutRule, ShortcutRules } from '@shared/types/shortcuts'
+import { EXTENSION_PANEL_SHORTCUT_WHEN } from '@shared/utils/extension-panel-shortcuts'
 import {
   orderedProjectActionShortcuts,
   type ProjectActionShortcutContext,
@@ -10,6 +12,13 @@ import {
 export type UnifiedShortcutMatch =
   | { readonly kind: 'builtin'; readonly rule: ShortcutRule }
   | { readonly kind: 'project'; readonly action: ProjectAction }
+  | { readonly kind: 'extension-panel'; readonly surfaceId: ExtensionRightPanelSurfaceId }
+
+/** A user binding for an extension side panel that is available right now. */
+export interface ExtensionPanelShortcut {
+  readonly surfaceId: ExtensionRightPanelSurfaceId
+  readonly shortcut: ShortcutBinding
+}
 
 interface ShortcutEvent {
   readonly key: string
@@ -32,13 +41,18 @@ export function workspaceShortcutContext(event: KeyboardEvent): ProjectActionSho
   }
 }
 
-/** Project rules form the final project-scoped overlay after global built-in rules. */
+/**
+ * Project rules form the final project-scoped overlay after global built-in rules. Extension panel
+ * shortcuts are conflict-free with built-in rules when saved, so they are only consulted when no
+ * other rule claims the key.
+ */
 export function resolveUnifiedShortcut(
   event: ShortcutEvent,
   builtInRules: ShortcutRules,
   actions: readonly ProjectAction[],
   applePlatform: boolean,
   getContext: () => ProjectActionShortcutContext,
+  extensionPanels: readonly ExtensionPanelShortcut[] = [],
 ): UnifiedShortcutMatch | null {
   let context: ProjectActionShortcutContext | null = null
   const contextForMatch = () => {
@@ -60,12 +74,19 @@ export function resolveUnifiedShortcut(
     if (!projectActionShortcutMatches(event, rule.shortcut, applePlatform)) continue
     if (projectActionWhenMatches(rule.when, contextForMatch())) return { kind: 'builtin', rule }
   }
+  for (const panel of extensionPanels) {
+    if (!projectActionShortcutMatches(event, panel.shortcut, applePlatform)) continue
+    if (projectActionWhenMatches(EXTENSION_PANEL_SHORTCUT_WHEN, contextForMatch())) {
+      return { kind: 'extension-panel', surfaceId: panel.surfaceId }
+    }
+  }
   return null
 }
 
 export function hasModifierFreeUnifiedShortcut(
   builtInRules: ShortcutRules,
   actions: readonly ProjectAction[],
+  extensionPanels: readonly ExtensionPanelShortcut[] = [],
 ) {
   const isModifierFree = (rule: { readonly shortcut: ShortcutRule['shortcut'] }) =>
     rule.shortcut.mod !== true &&
@@ -75,7 +96,8 @@ export function hasModifierFreeUnifiedShortcut(
     rule.shortcut.meta !== true
   return (
     builtInRules.some(isModifierFree) ||
-    orderedProjectActionShortcuts(actions).some((entry) => isModifierFree(entry.rule))
+    orderedProjectActionShortcuts(actions).some((entry) => isModifierFree(entry.rule)) ||
+    extensionPanels.some(isModifierFree)
   )
 }
 

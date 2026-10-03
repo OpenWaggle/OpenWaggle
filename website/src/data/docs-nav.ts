@@ -22,6 +22,7 @@ export const docsNav: NavSection[] = [
     items: [
       { title: 'Conversations and context', slug: 'using-openwaggle/chat-and-tools' },
       { title: 'Files, images, and voice', slug: 'using-openwaggle/attachments-voice' },
+      { title: 'Right panel', slug: 'using-openwaggle/right-panel' },
       { title: 'Reviewing changes and Git', slug: 'developer-workflow/git-integration' },
       { title: 'Browser preview', slug: 'developer-workflow/browser-preview' },
       { title: 'Terminal', slug: 'developer-workflow/built-in-terminal' },

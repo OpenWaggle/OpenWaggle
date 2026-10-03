@@ -26,6 +26,11 @@ export const DEFAULT_SHORTCUT_BINDINGS = {
   // answering it: no key is ever bound to a grant, because a mistyped chord must not be able to
   // grant a capability.
   'request.focus': { key: 'A', mod: true, shift: true },
+  // Panel commands added with the Panel rail (ADR 0043) start unassigned.
+  'rightPanel.allPanels': null,
+  'rightPanel.projectActions': null,
+  'rightPanel.files': null,
+  'rightPanel.resources': null,
 } satisfies ShortcutBindings
 
 /** T3's relevant defaults in the same precedence order, followed by OpenWaggle-only commands. */

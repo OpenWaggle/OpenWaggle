@@ -1,3 +1,4 @@
+import type { SessionTitleModelSetting } from '@shared/session-title-model'
 import type { AgentAuthorizationMode } from '@shared/types/agent-authorization'
 import type {
   AppearanceMotionPreference,
@@ -53,6 +54,7 @@ export interface PreferencesState {
   setSyntaxTheme: (variant: SyntaxAppearanceVariant, themeId: SyntaxThemeId) => Promise<void>
   setDiffView: (view: DiffView) => Promise<void>
   setDiffWrapLines: (wrap: boolean) => Promise<void>
+  setRightPanelRailVisibleWhenClosed: (visible: boolean) => Promise<void>
   setBrowserLinkTarget: (target: BrowserLinkTarget) => Promise<void>
   setBrowserProfiles: (profiles: readonly BrowserProfile[]) => Promise<void>
   setBrowserDefaultProfileId: (profileId: string) => Promise<void>
@@ -63,6 +65,7 @@ export interface PreferencesState {
   setBrowserAutoShowFloatingPreview: (enabled: boolean) => Promise<void>
   setEnableAgentBrowserAccess: (enabled: boolean) => Promise<void>
   setCompactionThresholdPercent: (percent: number) => Promise<void>
+  setSessionTitleModel: (model: SessionTitleModelSetting) => Promise<void>
   setAppearanceTypography: (typography: Partial<AppearanceTypographyPreferences>) => Promise<void>
   setAppearanceTerminalPalette: (
     palette: Partial<AppearanceTerminalPalettePreferences>,
@@ -72,6 +75,11 @@ export interface PreferencesState {
   setProjectDisplayName: (path: string, name: string) => Promise<void>
   setShortcutBinding: (command: ShortcutCommand, binding: ShortcutBinding | null) => Promise<void>
   setShortcutRules: (rules: ShortcutRules) => Promise<void>
+  /** Assigns or clears (null) the shortcut of one extension side panel surface. */
+  setExtensionPanelShortcutBinding: (
+    surfaceId: string,
+    binding: ShortcutBinding | null,
+  ) => Promise<void>
   resetShortcutBindings: () => Promise<void>
   resetShortcutRules: () => Promise<void>
   clearProjectDisplayName: (path: string) => Promise<void>

@@ -5,7 +5,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useComposerStore } from '@/features/composer/state'
 import { actionCatalog, TEST_ACTION } from './native-action-fixtures'
 
-const mocks = vi.hoisted(() => ({ manage: vi.fn(), draft: vi.fn(), open: vi.fn(), copy: vi.fn() }))
+const mocks = vi.hoisted(() => ({
+  manage: vi.fn(),
+  draft: vi.fn(),
+  open: vi.fn(),
+  copy: vi.fn(),
+  openView: vi.fn(),
+}))
+vi.mock('@/features/terminal', () => ({ openActionOutputTerminalView: mocks.openView }))
 vi.mock('@/shared/lib/ipc', () => ({
   api: { manageProjectActions: mocks.manage, copyToClipboard: mocks.copy },
 }))
@@ -70,6 +77,18 @@ describe('Action run controls', () => {
       await waitFor(() => expect(mocks.copy).toHaveBeenLastCalledWith('quoted task passed'))
     },
   )
+  it('opens the run as a read-only terminal view without touching the run', () => {
+    render(<ActionRunControls scope={scope} run={run} output="ready" />)
+    fireEvent.click(screen.getByRole('button', { name: 'Open in terminal' }))
+    expect(mocks.openView).toHaveBeenCalledExactlyOnceWith({
+      ownerKey: 'session',
+      projectPath: '/repo',
+      actionId: TEST_ACTION.id,
+      runId: 'run-one',
+      label: TEST_ACTION.name,
+    })
+    expect(mocks.manage).not.toHaveBeenCalled()
+  })
   it('allows Stop to be retried after the owning process has not confirmed termination', async () => {
     mocks.manage
       .mockRejectedValueOnce(new Error('Still stopping'))

@@ -8,7 +8,6 @@ import type { ExtensionInvokeFailure } from '@shared/types/extension-broker'
 import type { ExtensionListContributionsInput } from '@shared/types/extensions'
 import * as Effect from 'effect/Effect'
 import { invokeExtensionCapability } from './extension-capability-broker-service'
-import { listExtensionContributionRegistryView } from './extension-contribution-registry-service'
 import {
   acceptExtensionUpdate,
   approveExtensionBuild,
@@ -24,6 +23,7 @@ import {
   proposeExtensionPackageWrite,
   removeExtensionPackage,
 } from './extension-package-workflow-service'
+import { listExtensionContributionRegistryViewWithPanelIcons } from './extension-panel-icon-service'
 import { isExtensionRuntimeModuleAccessAllowed } from './extension-runtime-module-access-service'
 import {
   decodeHostUiExtensionListContributionsInput,
@@ -58,7 +58,10 @@ export function listHostUiExtensionContributionsWith<A, E, R>(
 }
 
 export function listHostUiExtensionContributions(input?: unknown) {
-  return listHostUiExtensionContributionsWith(input, listExtensionContributionRegistryView)
+  return listHostUiExtensionContributionsWith(
+    input,
+    listExtensionContributionRegistryViewWithPanelIcons,
+  )
 }
 
 const runtimeModuleAccessSchema = Schema.Struct({

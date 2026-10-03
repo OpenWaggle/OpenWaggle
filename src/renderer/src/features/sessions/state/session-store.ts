@@ -1,5 +1,6 @@
 import type { SessionId, SessionNodeId } from '@shared/types/brand'
 import type {
+  SessionSummary,
   SessionTree,
   SessionWorkspace,
   SessionWorkspaceSelection,
@@ -23,6 +24,37 @@ function handleStoreError(err: unknown, action: string, setError: (message: stri
   setError(`Failed to ${action}: ${message}`)
 }
 
+function retitleSummaries(
+  summaries: readonly SessionSummary[],
+  sessionId: SessionId,
+  title: string,
+) {
+  if (!summaries.some((summary) => summary.id === sessionId && summary.title !== title)) {
+    return summaries
+  }
+  return summaries.map((summary) => (summary.id === sessionId ? { ...summary, title } : summary))
+}
+
+function retitleTree(tree: SessionTree | null, sessionId: SessionId, title: string) {
+  if (tree?.session.id !== sessionId || tree.session.title === title) return tree
+  return { ...tree, session: { ...tree.session, title } }
+}
+
+function applySessionTitleToState(state: SessionState, sessionId: SessionId, title: string) {
+  const activeWorkspace = state.activeWorkspace
+  const workspaceTree = activeWorkspace ? retitleTree(activeWorkspace.tree, sessionId, title) : null
+  return {
+    sessions: retitleSummaries(state.sessions, sessionId, title),
+    archivedSessions: retitleSummaries(state.archivedSessions, sessionId, title),
+    hiveSessions: retitleSummaries(state.hiveSessions, sessionId, title),
+    activeSessionTree: retitleTree(state.activeSessionTree, sessionId, title),
+    activeWorkspace:
+      activeWorkspace && workspaceTree && workspaceTree !== activeWorkspace.tree
+        ? { ...activeWorkspace, tree: workspaceTree }
+        : activeWorkspace,
+  }
+}
+
 export interface DraftBranchState {
   readonly sessionId: SessionId
   readonly sourceNodeId: SessionNodeId
@@ -42,6 +74,11 @@ interface SessionState extends SessionCatalogState {
   setActiveWorkspace: (workspace: SessionWorkspace | null) => void
   setDraftBranch: (draftBranch: DraftBranchState | null) => void
   clearDraftBranchForSession: (sessionId: SessionId) => void
+  /**
+   * Patch one Session's title wherever this store holds it, without reloading or touching
+   * `updatedAt`, so a title change never moves the Session in the sidebar.
+   */
+  applySessionTitle: (sessionId: SessionId, title: string) => void
   refreshSessionsAndTree: (sessionId: SessionId | null) => Promise<void>
   refreshSessionsAndWorkspace: (
     sessionId: SessionId | null,
@@ -123,6 +160,10 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     set((state) => ({
       draftBranch: state.draftBranch?.sessionId === sessionId ? null : state.draftBranch,
     }))
+  },
+
+  applySessionTitle(sessionId, title) {
+    set((state) => applySessionTitleToState(state, sessionId, title))
   },
 
   async refreshSessionsAndTree(sessionId) {

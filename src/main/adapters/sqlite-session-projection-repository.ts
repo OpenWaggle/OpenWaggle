@@ -38,6 +38,7 @@ type RepoOperation =
   | 'unarchive'
   | 'listArchived'
   | 'updateTitle'
+  | 'assignProvisionalTitle'
   | 'setWorktreePlan'
   | 'resetWorktreeSetup'
   | 'setAuthorizationMode'
@@ -176,6 +177,9 @@ export const SqliteSessionProjectionRepositoryLive = Effect.gen(function* () {
 
         updateTitle: (id, title) =>
           repoOp('updateTitle', () => store.updateSessionTitle(id, title)),
+
+        assignProvisionalTitle: (id, title) =>
+          repoOp('assignProvisionalTitle', () => store.assignProvisionalSessionTitle(id, title)),
 
         setWorktreePlan: (id, plan) =>
           repoOp('setWorktreePlan', () =>

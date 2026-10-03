@@ -28,6 +28,7 @@ import {
   type ExtensionContributionProjectOverrideLookup,
   packageToContributionEntriesWithRegistrationResolver,
 } from './extension-contribution-registry-model'
+import type { ContributionIconDeclaration } from './extension-contribution-registry-types'
 import {
   appendExtensionDiagnostic,
   makeDiscoveryFailurePackage,
@@ -38,6 +39,7 @@ import {
 interface ContributionRegistryPackageResult {
   readonly entries: readonly ExtensionContributionRegistryEntry[]
   readonly diagnostics: readonly ExtensionDiagnostic[]
+  readonly iconDeclarations: readonly ContributionIconDeclaration[]
 }
 
 function normalizeProjectPaths(projectPaths: readonly string[] | undefined) {
@@ -237,6 +239,7 @@ function packageToContributionEntriesSafely(input: {
         ({
           entries: result.entries,
           diagnostics: result.diagnostics,
+          iconDeclarations: result.iconDeclarations,
         }) satisfies ContributionRegistryPackageResult,
     ),
     Effect.catchAll((error) =>
@@ -250,12 +253,17 @@ function packageToContributionEntriesSafely(input: {
             path: input.extensionPackage.manifestPath,
           }),
         ],
+        iconDeclarations: [],
       } satisfies ContributionRegistryPackageResult),
     ),
   )
 }
 
-export function listExtensionContributionRegistryView(input: ExtensionListContributionsInput = {}) {
+/**
+ * Builds the registry view together with the side panel icons it still has to resolve. Icon
+ * resolution reads package files, so only surfaces that draw icons pay for it.
+ */
+export function buildExtensionContributionRegistry(input: ExtensionListContributionsInput = {}) {
   return Effect.gen(function* () {
     const projectPaths = normalizeProjectPaths(input.projectPaths)
     const packages = yield* loadContributionPackages(projectPaths)
@@ -286,14 +294,22 @@ export function listExtensionContributionRegistryView(input: ExtensionListContri
             ...projectOverrides.flatMap((projectOverride) => projectOverride.diagnostics),
             ...registryPackageResult.diagnostics,
           ],
+          iconDeclarations: registryPackageResult.iconDeclarations,
         } satisfies ContributionRegistryPackageResult
       }),
     )
 
     return {
-      projectPaths,
-      entries: packageResults.flatMap((result) => result.entries),
-      diagnostics: diagnosticsToView(packageResults.flatMap((result) => result.diagnostics)),
-    } satisfies ExtensionContributionRegistryView
+      view: {
+        projectPaths,
+        entries: packageResults.flatMap((result) => result.entries),
+        diagnostics: diagnosticsToView(packageResults.flatMap((result) => result.diagnostics)),
+      } satisfies ExtensionContributionRegistryView,
+      iconDeclarations: packageResults.flatMap((result) => result.iconDeclarations),
+    }
   })
+}
+
+export function listExtensionContributionRegistryView(input: ExtensionListContributionsInput = {}) {
+  return buildExtensionContributionRegistry(input).pipe(Effect.map((registry) => registry.view))
 }

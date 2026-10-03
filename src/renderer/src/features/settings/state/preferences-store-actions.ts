@@ -148,6 +148,19 @@ async function persistShortcutRules(shortcutRules: ShortcutRules, set: Preferenc
   })
 }
 
+async function persistExtensionPanelShortcutBindings(
+  extensionPanelShortcutBindings: Settings['extensionPanelShortcutBindings'],
+  set: PreferencesSet,
+) {
+  const result = await api.updateSettings({ extensionPanelShortcutBindings })
+  if (!result.ok) throw new Error(result.error)
+
+  const persistedSettings = await api.getSettings()
+  mergeSettings(set, {
+    extensionPanelShortcutBindings: persistedSettings.extensionPanelShortcutBindings,
+  })
+}
+
 function assertSettingsUpdateSucceeded(result: Awaited<ReturnType<typeof api.updateSettings>>) {
   if (!result.ok) throw new Error(result.error)
 }
@@ -266,6 +279,13 @@ export function createPreferencesActions(
       await persistShortcutBindings(shortcutBindings, set)
     },
     setShortcutRules: (shortcutRules: ShortcutRules) => persistShortcutRules(shortcutRules, set),
+    setExtensionPanelShortcutBinding: async (surfaceId, binding) => {
+      const { [surfaceId]: _previous, ...others } = get().settings.extensionPanelShortcutBindings
+      await persistExtensionPanelShortcutBindings(
+        binding === null ? others : { ...others, [surfaceId]: binding },
+        set,
+      )
+    },
     resetShortcutBindings: async () => {
       await persistShortcutBindings(DEFAULT_SETTINGS.shortcutBindings, set)
     },

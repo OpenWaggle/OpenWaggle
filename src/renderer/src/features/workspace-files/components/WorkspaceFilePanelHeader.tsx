@@ -12,6 +12,7 @@ import {
 } from 'lucide-react'
 import { Button } from '@/shared/ui/Button'
 import { Popover } from '@/shared/ui/Popover'
+import { RightPanelMaximizeButton } from '@/shared/ui/RightPanelMaximizeButton'
 import type { WorkspaceMutationAction } from '../lib/workspace-file-layout'
 import { WorkspaceExternalEditorPicker } from './WorkspaceExternalEditorPicker'
 
@@ -152,6 +153,7 @@ export function WorkspaceFilePanelHeader({
         <ListOrdered className="size-3.5" />
       </Button>
       <WorkspaceFileActions state={state} actions={actions} />
+      <RightPanelMaximizeButton />
       <Button
         variant="ghost"
         size="icon-sm"

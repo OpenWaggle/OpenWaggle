@@ -87,7 +87,7 @@ Preview defaults include **Viewport**, **Zoom**, **Appearance**, **Recording**, 
 
 Use **Settings > Project actions** to save commands such as tests and builds, or a dev server that keeps running. Choose a discovered project script or enter a custom command. New definitions are saved for **Just me** in that project by default; **Everyone working on this project** saves a shareable `.openwaggle/actions.json` file.
 
-Launch actions from **+ Action** in the session header. They run in that session's workspace, which may be a separate worktree. Inspect output, stop or restart a run, and open its ready preview from Session Summary. Choosing an already-running action normally opens its output rather than starting another copy.
+Launch actions from **Project Actions** on the right panel rail. They run in that session's workspace, which may be a separate worktree. Inspect output, stop or restart a run, and open its ready preview from the Project Actions panel or Session Summary. A running action shows Stop, Restart and its output instead of starting another copy.
 
 The separate **Workspace preparation** section configures setup and cleanup for preparation profiles. Enabled setup must finish before the first agent turn in a new managed worktree. Existing checkouts only run it when you choose **Run setup**. Shared preparation commands need local review and enablement. See [Project actions](/docs/configuration/project-actions) for the full workflow.
 
@@ -109,6 +109,16 @@ If configured cleanup fails, the worktree stays in the list with its output and 
 ## Connections
 
 Expand **API Key Providers** to save a key or **OAuth Providers** to sign in through a browser. Under **Available Models**, enable the models you want beside the message box. The selector shows models that are both enabled and available through their provider.
+
+**Title model** chooses the model that writes [session titles](/docs/using-openwaggle/chat-and-tools#session-titles):
+
+| Choice | What happens |
+|---|---|
+| **Automatic** (default) | The cheapest available model from each session's own provider and model family writes its title, using the same sign-in and region. |
+| A specific model | That model writes every title. Each session's opening message and each Worker's task are sent to that model's provider, and so is the conversation, up to about 8,000 characters, when a title is refined or regenerated. If that model fails, the session's own model is tried instead. |
+| **Off** | No titles are generated. Sessions keep their opening message as the title, and **Regenerate title** is hidden. |
+
+A provider that a project's Pi extension adds is not available for titles. Sessions on such a model keep their opening message as the title unless you choose a specific Title model.
 
 See [Providers and models](/docs/providers/overview) for the full setup.
 

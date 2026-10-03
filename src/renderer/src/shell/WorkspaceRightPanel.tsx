@@ -7,11 +7,10 @@ import {
   terminalSidePanelLayoutKey,
   useTerminalStore,
 } from '@/features/terminal'
-import { useMediaQuery } from '@/shared/hooks/useMediaQuery'
 import { api } from '@/shared/lib/ipc'
 import { useRightSidebarCoordinator } from '@/shared/lib/right-sidebar-coordinator'
 import { RightSidebarLayout } from '@/shared/ui/RightSidebarLayout'
-import { WORKSPACE_SIDE_PANEL_SIZING } from '@/shared/ui/right-sidebar-sizing-presets'
+import { RIGHT_PANEL_SIZING } from '@/shared/ui/right-sidebar-sizing-presets'
 import { useUIStore } from './ui-store'
 import { useBrowserPreviewOwnerRegistration } from './useBrowserPreviewOwnerRegistration'
 import { WorkspacePanelContent } from './WorkspacePanelContent'
@@ -25,11 +24,10 @@ import {
   type WorkspacePanelSurface,
 } from './workspace-panel-store'
 
-const SIDE_PANEL_SHEET_BREAKPOINT_PX = WORKSPACE_SIDE_PANEL_SIZING.sheetBreakpointPx
-const SIDE_PANEL_STORAGE_KEY = 'openwaggle:workspace-side-panel-width'
-
 interface WorkspaceRightPanelProps {
   readonly children: ReactNode
+  /** Settings pages show no Right panel; the Session's panel comes back when the user returns. */
+  readonly hidden?: boolean
 }
 
 function hasOpenTerminalGroup(
@@ -53,37 +51,34 @@ function activeBrowserForSurface(
  * runtime owner, so it can coexist with the bottom drawer without duplicate
  * PTY viewports or split lifecycle ownership.
  */
-export function WorkspaceRightPanel({ children }: WorkspaceRightPanelProps) {
+export function WorkspaceRightPanel({ children, hidden = false }: WorkspaceRightPanelProps) {
   const panel = useWorkspaceRightPanelModel()
-  const isSheet = useMediaQuery(`(max-width: ${String(SIDE_PANEL_SHEET_BREAKPOINT_PX)}px)`)
 
   return (
     <RightSidebarLayout
       maximized={panel.maximized}
-      open={panel.activeSurface !== null}
-      sizing={{ ...WORKSPACE_SIDE_PANEL_SIZING, storageKey: SIDE_PANEL_STORAGE_KEY }}
+      open={!hidden && panel.activeSurface !== null}
+      sizing={RIGHT_PANEL_SIZING}
       sidebar={
         <div className="flex size-full min-h-0 flex-col" data-testid="workspace-right-panel">
-          <WorkspaceSurfaceTabs
-            model={{
-              activeSurface: panel.activeSurface,
-              browserTabs: panel.browserTabs,
-              canCreateTerminal: panel.owner.defaultCwd !== null,
-              canMaximize: !isSheet,
-              hasTerminal: panel.hasTerminal,
-              maximized: panel.maximized,
-            }}
-            actions={{
-              closeBrowsers: panel.closeBrowsers,
-              closePanel: panel.hidePanel,
-              newBrowser: panel.newBrowser,
-              newTerminal: panel.newSideTerminal,
-              selectBrowser: panel.showBrowser,
-              selectTerminal: panel.showTerminal,
-              setBrowserAudioMuted: panel.setBrowserAudioMuted,
-              toggleMaximized: panel.toggleMaximized,
-            }}
-          />
+          {showsSurfaceHeader(panel.activeSurface) ? (
+            <WorkspaceSurfaceTabs
+              model={{
+                activeSurface: panel.activeSurface,
+                browserTabs: panel.browserTabs,
+                canCreateTerminal: panel.owner.defaultCwd !== null,
+                ...surfaceTitle(panel.activeSurface, panel.showProjectActions),
+              }}
+              actions={{
+                closeBrowsers: panel.closeBrowsers,
+                closePanel: panel.hidePanel,
+                newBrowser: panel.newBrowser,
+                newTerminal: panel.newSideTerminal,
+                selectBrowser: panel.showBrowser,
+                setBrowserAudioMuted: panel.setBrowserAudioMuted,
+              }}
+            />
+          ) : null}
           <WorkspacePanelContent
             activeBrowser={panel.activeBrowser}
             activeSurface={panel.activeSurface}
@@ -101,6 +96,26 @@ export function WorkspaceRightPanel({ children }: WorkspaceRightPanelProps) {
       {children}
     </RightSidebarLayout>
   )
+}
+
+/** All panels draws its own header; the other workspace surfaces share this one. */
+function showsSurfaceHeader(surface: WorkspacePanelSurface) {
+  return surface !== null && surface.kind !== 'all-panels'
+}
+
+function surfaceTitle(surface: WorkspacePanelSurface, showProjectActions: () => void) {
+  if (surface?.kind === 'project-actions') return { title: { label: 'Project Actions' } }
+  if (surface?.kind === 'terminal') return { title: { label: 'Terminal' } }
+  if (surface?.kind === 'action') {
+    return {
+      title: {
+        label: 'Action output',
+        backLabel: 'Project Actions',
+        onBack: showProjectActions,
+      },
+    }
+  }
+  return {}
 }
 
 function useWorkspaceRightPanelModel() {
@@ -147,8 +162,6 @@ function useWorkspaceRightPanelModel() {
   const hidePanel = () => useWorkspacePanelStore.getState().hidePanel(owner.ownerKey)
   const newBrowser = () => void newWorkspaceBrowser(owner.ownerKey)
   const newSideTerminal = () => createSidePanelTerminal(owner.ownerKey, owner.defaultCwd)
-  const toggleMaximized = () =>
-    useWorkspacePanelStore.getState().setMaximized(owner.ownerKey, !maximized)
   const setBrowserAudioMuted = (previewId: string, audioMuted: boolean) => {
     void api
       .setBrowserPreviewAudioMuted(previewId, audioMuted)
@@ -185,8 +198,9 @@ function useWorkspaceRightPanelModel() {
     showBrowser: (previewId: string) =>
       useWorkspacePanelStore.getState().showBrowser(owner.ownerKey, previewId),
     showTerminal: () => useWorkspacePanelStore.getState().showTerminal(owner.ownerKey),
+    showProjectActions: () =>
+      useWorkspacePanelStore.getState().showIndexSurface(owner.ownerKey, 'project-actions'),
     sidePanelKey,
-    toggleMaximized,
   }
 }
 
@@ -233,7 +247,13 @@ function resolveActiveSurface(
     readonly hasTerminal: boolean
   },
 ): WorkspacePanelSurface {
-  if (requested?.kind === 'action') return requested
+  if (
+    requested?.kind === 'action' ||
+    requested?.kind === 'project-actions' ||
+    requested?.kind === 'all-panels'
+  ) {
+    return requested
+  }
   if (requested?.kind === 'terminal' && available.hasTerminal) return requested
   if (
     requested?.kind === 'browser' &&

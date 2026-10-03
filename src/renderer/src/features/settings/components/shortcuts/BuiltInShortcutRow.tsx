@@ -16,14 +16,14 @@ import {
 } from '@/shared/ui/ShortcutRecorder'
 import {
   type BuiltInShortcutBrowserRow,
-  type ShortcutBrowserRow,
+  type ShortcutConflictSource,
   shortcutBrowserConflictLabels,
 } from '../../lib/shortcut-browser-model'
 import { ShortcutSourceBadge } from './ShortcutRowParts'
 
 interface BuiltInShortcutRowProps {
   readonly row: BuiltInShortcutBrowserRow
-  readonly rows: readonly ShortcutBrowserRow[]
+  readonly rows: readonly ShortcutConflictSource[]
   readonly saving: boolean
   readonly onError: (message: string | null) => void
   readonly onRemove: (rule: ShortcutRule) => Promise<boolean>

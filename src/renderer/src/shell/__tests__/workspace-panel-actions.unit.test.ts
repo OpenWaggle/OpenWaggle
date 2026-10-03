@@ -6,6 +6,7 @@ import {
   hasActiveWorkspaceRightPanel,
   openWorkspacePreviewWithResult,
   refreshWorkspacePreview,
+  rightPanelMaximizeUnavailableReason,
   toggleWorkspacePanelMaximized,
   toggleWorkspacePreview,
   toggleWorkspaceRightPanel,
@@ -45,6 +46,44 @@ describe('workspace panel shortcut actions', () => {
     closeWorkspaceRightPanel(OWNER)
     expect(hasActiveWorkspaceRightPanel(OWNER)).toBe(false)
     expect(useWorkspacePanelStore.getState().groups[OWNER]?.panelOpen).toBe(false)
+  })
+
+  it('maximizes a route-backed surface such as Changes for the Session', () => {
+    expect(toggleWorkspacePanelMaximized(OWNER)).toBe(false)
+    useRightSidebarCoordinator.getState().claimRoute('diff')
+
+    expect(toggleWorkspacePanelMaximized(OWNER)).toBe(true)
+    expect(useWorkspacePanelStore.getState().groups[OWNER]).toMatchObject({
+      maximized: true,
+      activeSurface: null,
+      panelOpen: false,
+    })
+    expect(toggleWorkspacePanelMaximized(OWNER)).toBe(true)
+    expect(useWorkspacePanelStore.getState().groups[OWNER]?.maximized).toBe(false)
+  })
+
+  it('keeps a narrow-window sheet at its own width and says why', () => {
+    const matchMedia = vi.fn(() => ({ matches: true }))
+    vi.stubGlobal('matchMedia', matchMedia)
+    try {
+      useRightSidebarCoordinator.getState().claimRoute('diff')
+      expect(rightPanelMaximizeUnavailableReason(OWNER)).toBe(
+        'Widen the window to maximize the panel.',
+      )
+      expect(toggleWorkspacePanelMaximized(OWNER)).toBe(false)
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it('leaves the guided action panel at its own width', () => {
+    useRightSidebarCoordinator.getState().claimRoute('diff')
+    useRightSidebarCoordinator.getState().claimActionPanel()
+    expect(rightPanelMaximizeUnavailableReason(OWNER)).toBe(
+      'The guided action panel keeps its width.',
+    )
+    expect(toggleWorkspacePanelMaximized(OWNER)).toBe(false)
+    expect(useWorkspacePanelStore.getState().groups[OWNER]).toBeUndefined()
   })
 
   it('selects the latest preview and routes refresh and zoom through typed IPC', async () => {

@@ -1,7 +1,6 @@
 import type { ProjectAction, ProjectActionShortcutRule } from '@shared/types/project-actions'
 import {
   DEFAULT_SHORTCUT_RULES,
-  RESERVED_SHORTCUT_KEYS,
   SHORTCUT_DEFINITIONS,
   type ShortcutBinding,
   type ShortcutCommand,
@@ -10,6 +9,10 @@ import {
   shortcutBindingKey,
   shortcutRuleIdentity,
 } from '@shared/types/shortcuts'
+import {
+  reservedShortcutLabel,
+  shortcutConditionsMayOverlap,
+} from '@shared/utils/extension-panel-shortcuts'
 import {
   orderedProjectActionShortcuts,
   projectActionShortcutRules,
@@ -46,6 +49,14 @@ export interface ProjectShortcutBrowserRow extends ShortcutBrowserRowBase {
 
 export type ShortcutBrowserRow = BuiltInShortcutBrowserRow | ProjectShortcutBrowserRow
 
+/** Anything that owns a binding a new rule could collide with. */
+export interface ShortcutConflictSource {
+  readonly id: string
+  readonly label: string
+  readonly binding: ShortcutBinding
+  readonly when: string
+}
+
 function exactDefaultRule(rule: ShortcutRule) {
   const identity = shortcutRuleIdentity(rule)
   return DEFAULT_SHORTCUT_RULES.find((candidate) => shortcutRuleIdentity(candidate) === identity)
@@ -72,12 +83,8 @@ function commandMetadata(command: ShortcutCommand) {
   }
 }
 
-function conditionsMayOverlap(left: string, right: string) {
-  return left.length === 0 || right.length === 0 || left === right
-}
-
 export function shortcutBrowserConflictLabels(
-  rows: readonly ShortcutBrowserRow[],
+  rows: readonly ShortcutConflictSource[],
   input: {
     readonly rowId: string
     readonly binding: ShortcutBinding | null
@@ -87,13 +94,13 @@ export function shortcutBrowserConflictLabels(
   if (input.binding === null) return []
   const key = shortcutBindingKey(input.binding)
   const labels: string[] = []
-  const reserved = RESERVED_SHORTCUT_KEYS[key]
-  if (reserved !== undefined) labels.push(reserved)
+  const reserved = reservedShortcutLabel(input.binding)
+  if (reserved !== null) labels.push(reserved)
   for (const candidate of rows) {
     if (
       candidate.id !== input.rowId &&
       shortcutBindingKey(candidate.binding) === key &&
-      conditionsMayOverlap(input.when, candidate.when)
+      shortcutConditionsMayOverlap(input.when, candidate.when)
     ) {
       labels.push(candidate.label)
     }

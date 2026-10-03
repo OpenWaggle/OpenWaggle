@@ -5,22 +5,44 @@ order: 7
 section: "Customize"
 ---
 
-Project actions are commands you save for a project, such as tests, builds, or a development server. Run them from the **+ Action** menu in the session header. Their status, output, and controls appear under **Actions** in [Session Summary](/docs/using-openwaggle/session-summary), not in an ordinary terminal tab. Open it with **Open Session Summary** in the header.
+Project actions are commands you save for a project, such as tests, builds, or a development server. Run them from **Project Actions** in the right panel: choose its icon on the panel rail along the right edge of the window. The icon shows a dot while one of the session's actions is running. Running and recent runs also appear under **Actions** in [Session Summary](/docs/using-openwaggle/session-summary).
 
 Actions run in the selected session's workspace. For a worktree session, that means its worktree, not the original checkout. A command can also use a directory inside that workspace. Check the selected session before running anything that changes files. You can save a definition from an empty new-session draft, but launching it requires an existing session in that project.
 
+## The Project Actions panel
+
+The panel lists every saved action under **Run in this session’s workspace**. Each row shows the action's icon and name, the command or script it runs, its keyboard shortcut if it has one, and the state of its latest run, such as **Running**, **Ready**, **Completed**, or **Failed**.
+
+- **Run** starts the action in the selected session's workspace. A row is disabled, with the reason beside it, when its script no longer exists in this workspace.
+- While an action runs, **Stop** ends that run and **Restart** replaces it using the current definition. An action allowed to run several copies keeps **Run** and offers **Stop** for its latest run.
+- **Show output** opens the latest run's output, status, and controls in the panel.
+- The terminal icon, **Open in terminal**, shows the same output as a read-only tab in the bottom terminal drawer. See [Follow output in the terminal](#follow-output-in-the-terminal).
+- **Add action** and **Continue new action** (or **Continue editing**) open the action panel described below. **Manage actions** opens **Settings > Project actions**.
+
+The panel asks you to open a project when none is open, and to select a session in the project before running anything. Narrow panels move a row's controls below its name.
+
+## Follow output in the terminal
+
+**Open in terminal** in the Project Actions panel, or in a run's output view, opens a read-only tab in the bottom terminal drawer, labelled like **dev · action output** with a lock icon. It shows the run's retained and live output with the same rendering as your terminals, so colours, scrollback, search, links, and copying work as they do there. It attaches to the existing run; it does not start a shell or run the command again, and it does not accept typing.
+
+- Each action has one such tab per session. Choosing **Open in terminal** again focuses it.
+- When the action restarts, from the panel, a shortcut, or an agent, the tab follows the new run. Earlier output stays above a **restarted** divider.
+- When a run ends, the tab keeps its final output and shows how it ended, such as `dev failed · exit 1`.
+- Closing the tab closes only the view. The action keeps running; use **Stop** in Project Actions to end it. Stop and Restart are not in the terminal tab.
+- Action output tabs come back with the terminal drawer after you restart OpenWaggle, and reconnect to the run's retained output.
+
 ## Save and run a command
 
-1. Open **+ Action > Add action**, or **Settings > Project actions > Add action**. A panel opens on the right. It names the project it saves to; Settings has its own project picker, and the panel says so when that project differs from your current session's.
+1. Open **Add action** in the Project Actions panel, or **Settings > Project actions > Add action**. A panel opens on the right. It names the project it saves to; Settings has its own project picker, and the panel says so when that project differs from your current session's.
 2. Answer **What should it run?** Choose **A script from this project** and pick one, or choose **A command I type myself** and type it, such as `pnpm test`.
 3. Answer **What should it be called?** Picking a script suggests a readable name, such as **Run tests**. Each name must be different from the project's other actions, ignoring letter case.
-4. Click **Save action**. Saving does not run the command. When you saved from **+ Action** in a session, the confirmation offers **Run now** for that session. Saving from Settings instead highlights the new action in the list.
+4. Click **Save action**. Saving does not run the command. When you saved from Project Actions in a session, the confirmation offers **Run now** for that session. Saving from Settings instead highlights the new action in the list.
 
 Everything under **Optional settings** already has a sensible default, shown in plain words next to each question. Click **Change** only when the default is wrong. The line above **Save action** summarises what will happen; click it to read the full sentence.
 
 The panel docks beside your work like the other right sidebars. Drag its left edge to resize it; on narrow windows it opens over the app instead. Opening it replaces the sidebar you had open, and closing it brings that sidebar back.
 
-You don't have to finish in one go. Closing the panel, or opening another sidebar, keeps what you have so far, even after a restart. **+ Action** then offers **Continue new action** or **Continue editing** the action. A project keeps one unfinished action at a time: starting another first asks whether to continue the one you had or discard it. **Cancel** discards it, and asks first if you had changed anything.
+You don't have to finish in one go. Closing the panel, or opening another sidebar, keeps what you have so far, even after a restart. The Project Actions panel then offers **Continue new action** or **Continue editing** the action. A project keeps one unfinished action at a time: starting another first asks whether to continue the one you had or discard it. **Cancel** discards it, and asks first if you had changed anything.
 
 The output view shows the command, working directory, status, and exit result. Use **Copy output** or **Copy command** when you need to share a failure. Commands run with the access available to their process, not in a separate sandbox.
 
@@ -125,7 +147,7 @@ In **Settings > Project actions**, click **Edit** beside an action and finish wi
 
 **Remove this action**, at the bottom of the panel, explains what removal means before anything is removed. For a locally overridden action it is **Restore shared version** instead. Removing a definition does not undo commands already run; use the run's **Stop** control to end an active process.
 
-Two actions with the same name keep working, for example when a teammate shares one called the same as yours. The + Action menu tells them apart with a grey hint, and Settings offers **Rename**.
+Two actions with the same name keep working, for example when a teammate shares one called the same as yours. The Project Actions panel tells them apart with a grey hint, and Settings offers **Rename**.
 
 If a failed or interrupted run offers **Fix with agent**, it adds a repair request to your message draft. Review and send it. The agent proposes a compatible command, and its reply shows **Review and save**. That opens the panel with the proposal and what it changes; nothing changes until you save. Custom shell commands may need changes to work on another operating system.
 
