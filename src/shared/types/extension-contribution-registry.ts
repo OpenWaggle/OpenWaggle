@@ -78,6 +78,15 @@ export interface ExtensionSessionSummaryView {
   readonly rows: readonly ExtensionSessionSummaryRowView[]
 }
 
+/**
+ * A side panel's rail icon resolved by the host (ADR 0043). `svg` is complete, host-validated
+ * standalone SVG markup used only as a single-colour mask; it is never inserted into the DOM.
+ */
+export interface ExtensionContributionIconView {
+  readonly source: 'lucide' | 'svg'
+  readonly svg: string
+}
+
 export interface ExtensionContributionRegistryEntry {
   readonly extensionId: string
   readonly extensionName: string
@@ -107,6 +116,8 @@ export interface ExtensionContributionRegistryEntry {
   readonly execution?: ExtensionExecutionPlacement
   readonly entryPath?: string
   readonly sessionSummary?: ExtensionSessionSummaryView
+  /** Only side panels carry an icon; absent when the manifest declares none or it was invalid. */
+  readonly icon?: ExtensionContributionIconView
   readonly eligibility: ExtensionContributionEligibilityView
   readonly diagnostics: readonly ExtensionDiagnosticView[]
 }

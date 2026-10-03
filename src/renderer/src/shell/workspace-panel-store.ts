@@ -85,8 +85,10 @@ function setMaximized(
   ownerKey: string,
   maximized: boolean,
 ) {
-  const group = get().groups[ownerKey]
-  if (group === undefined || group.maximized === maximized) return
+  if (ownerKey.length === 0) return
+  // Route-backed surfaces have no workspace group yet; the Session's maximize state still lives here.
+  const group = get().groups[ownerKey] ?? EMPTY_WORKSPACE_PANEL_GROUP
+  if (group.maximized === maximized) return
   setWorkspacePanelGroup(set, get, ownerKey, { ...group, maximized })
 }
 
@@ -147,6 +149,15 @@ function createWorkspacePanelState(
       setWorkspacePanelGroup(set, get, ownerKey, {
         ...(get().groups[ownerKey] ?? EMPTY_WORKSPACE_PANEL_GROUP),
         activeSurface: { kind: 'action', projectPath, runId },
+        panelOpen: true,
+      })
+      useRightSidebarCoordinator.getState().claimWorkspace(ownerKey)
+    },
+    showIndexSurface: (ownerKey, kind) => {
+      if (!ownerKey) return
+      setWorkspacePanelGroup(set, get, ownerKey, {
+        ...(get().groups[ownerKey] ?? EMPTY_WORKSPACE_PANEL_GROUP),
+        activeSurface: { kind },
         panelOpen: true,
       })
       useRightSidebarCoordinator.getState().claimWorkspace(ownerKey)

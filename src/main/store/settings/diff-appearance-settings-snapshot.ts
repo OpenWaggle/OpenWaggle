@@ -4,6 +4,7 @@ import {
   SETTINGS_KEY_DIFF_SYNTAX_THEME,
   SETTINGS_KEY_DIFF_VIEW,
   SETTINGS_KEY_DIFF_WRAP_LINES,
+  SETTINGS_KEY_RIGHT_PANEL_RAIL_VISIBLE_WHEN_CLOSED,
   SETTINGS_KEY_SYNTAX_THEME_SELECTIONS,
 } from './keys'
 import type { SettingsPatchWrite } from './persistence-plan'
@@ -29,6 +30,10 @@ export function resolveNextDiffAndAppearanceSettings(
         : current.diffView,
     diffWrapLines:
       typeof partial.diffWrapLines === 'boolean' ? partial.diffWrapLines : current.diffWrapLines,
+    rightPanelRailVisibleWhenClosed:
+      typeof partial.rightPanelRailVisibleWhenClosed === 'boolean'
+        ? partial.rightPanelRailVisibleWhenClosed
+        : current.rightPanelRailVisibleWhenClosed,
     appearancePreferences:
       partial.appearancePreferences !== undefined
         ? resolveAppearancePreferences(partial.appearancePreferences)
@@ -52,5 +57,11 @@ export function appendDiffSettingsWrites(
   }
   if (partial.diffWrapLines !== undefined) {
     writes.push({ key: SETTINGS_KEY_DIFF_WRAP_LINES, value: next.diffWrapLines })
+  }
+  if (partial.rightPanelRailVisibleWhenClosed !== undefined) {
+    writes.push({
+      key: SETTINGS_KEY_RIGHT_PANEL_RAIL_VISIBLE_WHEN_CLOSED,
+      value: next.rightPanelRailVisibleWhenClosed,
+    })
   }
 }

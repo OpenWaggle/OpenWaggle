@@ -251,7 +251,7 @@ export function sanitizeProjectDisplayNames(raw: unknown) {
   return result
 }
 
-function sanitizeShortcutBinding(raw: unknown): ShortcutBinding | null {
+export function sanitizeShortcutBinding(raw: unknown): ShortcutBinding | null {
   if (!isObjectRecord(raw) || typeof raw.key !== 'string') return null
   const key = raw.key.trim()
   if (!key || key.length > SHORTCUT_RULE_LIMITS.KEY_LENGTH) return null

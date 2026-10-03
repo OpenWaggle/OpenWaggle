@@ -1,5 +1,6 @@
 import { ListTree, X } from 'lucide-react'
 import { Button } from '@/shared/ui/Button'
+import { RightPanelMaximizeButton } from '@/shared/ui/RightPanelMaximizeButton'
 import type { SessionTreePanelProps } from '../model'
 
 export function SessionTreePanelHeader({ onClose }: SessionTreePanelProps) {
@@ -9,15 +10,18 @@ export function SessionTreePanelHeader({ onClose }: SessionTreePanelProps) {
         <ListTree className="size-4 shrink-0 text-text-tertiary" />
         <h2 className="truncate text-sm font-semibold text-text-primary">Session Tree</h2>
       </div>
-      <Button
-        variant="unstyled"
-        type="button"
-        aria-label="Close Session Tree"
-        onClick={onClose}
-        className="rounded p-1 text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-secondary"
-      >
-        <X className="size-4" />
-      </Button>
+      <div className="flex items-center gap-1">
+        <RightPanelMaximizeButton />
+        <Button
+          variant="unstyled"
+          type="button"
+          aria-label="Close Session Tree"
+          onClick={onClose}
+          className="rounded p-1 text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-secondary"
+        >
+          <X className="size-4" />
+        </Button>
+      </div>
     </div>
   )
 }

@@ -3,14 +3,9 @@ import { useMediaQuery } from '@/shared/hooks/useMediaQuery'
 import { RightSidebarFrame } from './RightSidebarFrame'
 import { RightSidebarResizeRail } from './RightSidebarResizeRail'
 import { RightSidebarSheet } from './RightSidebarSheet'
-import {
-  clampWidth,
-  persistWidth,
-  pixelValue,
-  readStoredWidth,
-  sidebarWidthValue,
-} from './right-sidebar-layout-sizing'
+import { clampWidth, pixelValue, sidebarWidthValue } from './right-sidebar-layout-sizing'
 import type { RightSidebarLayoutProps } from './right-sidebar-layout-types'
+import { initialStoredWidth, useSidebarWidthStore } from './right-sidebar-width-store'
 
 export { sidebarWidthValue } from './right-sidebar-layout-sizing'
 
@@ -23,19 +18,18 @@ function useStoredSidebarWidth({
   RightSidebarLayoutProps['sizing'],
   'defaultWidth' | 'maxWidth' | 'minWidth' | 'storageKey'
 >) {
-  const [width, setWidth] = useState(() =>
-    clampWidth(readStoredWidth(storageKey, defaultWidth), minWidth, maxWidth),
-  )
+  const sharedWidth = useSidebarWidthStore((state) => state.widths[storageKey])
+  const [initialWidth] = useState(() => initialStoredWidth(storageKey, defaultWidth))
+  const width = clampWidth(sharedWidth ?? initialWidth, minWidth, maxWidth)
   const widthRef = useRef(width)
 
   function commitWidth(nextWidth: number) {
     const clampedWidth = clampWidth(nextWidth, minWidth, maxWidth)
     widthRef.current = clampedWidth
-    setWidth(clampedWidth)
-    persistWidth(storageKey, clampedWidth)
+    useSidebarWidthStore.getState().setWidth(storageKey, clampedWidth)
   }
 
-  return { commitWidth, setWidth, width, widthRef }
+  return { commitWidth, width, widthRef }
 }
 
 export function RightSidebarLayout({

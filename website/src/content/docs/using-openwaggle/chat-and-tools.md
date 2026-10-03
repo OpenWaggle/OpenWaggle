@@ -126,7 +126,9 @@ Selecting a skill or preset replaces only the slash token, keeping the rest of y
 
 ## Global command palette
 
-Press `Cmd+K` on macOS or `Ctrl+K` on Windows and Linux to find app actions. The palette includes new sessions, project selection, recent sessions, settings, view controls, file and content search, and extension actions. Use the message box's `/` menu for skills and Waggle presets.
+Press `Cmd+K` on macOS or `Ctrl+K` on Windows and Linux to find app actions. The palette includes new sessions, project selection, recent sessions, settings, view controls, file and content search, panels, and extension actions. Use the message box's `/` menu for skills and Waggle presets.
+
+The **Panels** section lists every panel the right panel can show: All panels, Changes, Project Actions, Browser, Files, Session Tree, Resources, and each extension side panel that can run, with its extension's name beside it. Each entry shows its shortcut when it has one. Choosing a panel shows it in the right panel and never closes the right panel, even when that panel is already showing. To give a panel a shortcut, see [Panel shortcuts](/docs/getting-started/keyboard-shortcuts#panel-shortcuts).
 
 The commands `/compact`, `/fork`, and `/clone` require the session to be idle. If work is running, wait for it to finish and submit the command again. OpenWaggle keeps your draft and attachments when it refuses one of these commands. Ordinary messages, skill prompts, and Pi extension commands can still wait as follow-ups.
 

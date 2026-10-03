@@ -31,7 +31,14 @@ export type WorkspacePanelSurface =
   | { readonly kind: 'action'; readonly projectPath: string; readonly runId: string }
   | { readonly kind: 'terminal' }
   | { readonly kind: 'browser'; readonly previewId: string }
+  /** The Project Actions list on the Panel rail (ADR 0043). */
+  | { readonly kind: 'project-actions' }
+  /** The All panels index on the Panel rail (ADR 0043). */
+  | { readonly kind: 'all-panels' }
   | null
+
+/** Workspace surfaces that are shown without any per-surface payload. */
+export type WorkspacePanelIndexSurfaceKind = 'project-actions' | 'all-panels'
 
 export interface WorkspacePanelGroupState {
   readonly browserTabs: readonly BrowserPreviewTabState[]

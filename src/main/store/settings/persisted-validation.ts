@@ -20,6 +20,7 @@ import {
   CURRENT_SETTINGS_KEYS,
   SETTINGS_KEY_APPEARANCE_PREFERENCES,
   SETTINGS_KEY_DIFF_WRAP_LINES,
+  SETTINGS_KEY_RIGHT_PANEL_RAIL_VISIBLE_WHEN_CLOSED,
   SETTINGS_KEY_SHORTCUT_BINDINGS,
 } from './keys'
 
@@ -43,6 +44,10 @@ function migratePersistedSettingsForValidation(storedSettings: Readonly<Record<s
   const diffWrapLines = migrated[SETTINGS_KEY_DIFF_WRAP_LINES]
   if (diffWrapLines === 'true' || diffWrapLines === 'false') {
     migrated[SETTINGS_KEY_DIFF_WRAP_LINES] = diffWrapLines === 'true'
+  }
+  const railVisible = migrated[SETTINGS_KEY_RIGHT_PANEL_RAIL_VISIBLE_WHEN_CLOSED]
+  if (railVisible === 'true' || railVisible === 'false') {
+    migrated[SETTINGS_KEY_RIGHT_PANEL_RAIL_VISIBLE_WHEN_CLOSED] = railVisible === 'true'
   }
 
   const bindings = migrated[SETTINGS_KEY_SHORTCUT_BINDINGS]

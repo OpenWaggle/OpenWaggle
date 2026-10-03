@@ -139,9 +139,10 @@ export function ChatIndexRouteView() {
           extensionSidePanel: extensionSidePanelTargetFromSearch(search),
           resourcesTarget: resourceBrowserTargetFromSearch(search),
           sessionTreeOpen: search.panel === 'session-tree',
+          // Files without a path is the navigator on its own (ADR 0043).
           workspaceFile:
-            search.panel === 'file' && search.filePath
-              ? { path: search.filePath, line: search.fileLine ?? null }
+            search.panel === 'file'
+              ? { path: search.filePath ?? '', line: search.fileLine ?? null }
               : null,
         }}
         rightSidebarActions={actions}

@@ -16,6 +16,7 @@ export {
   ExtensionDialogSurfaceContent,
 } from './components/ExtensionDialogSurface'
 export { ExtensionFederatedModuleHost } from './components/ExtensionFederatedModuleHost'
+export { ExtensionPanelIcon } from './components/ExtensionPanelIcon'
 export { ExtensionRouteSurface } from './components/ExtensionRouteSurface'
 export { ExtensionRouteView } from './components/ExtensionRouteView'
 export {
@@ -79,3 +80,8 @@ export type {
   ResolvedExtensionSidePanelContribution,
 } from './lib/extension-side-panel-resolution'
 export { resolveExtensionSidePanelContribution } from './lib/extension-side-panel-resolution'
+export {
+  type ExtensionSidePanelSurfaceEntry,
+  extensionSidePanelSurfaces,
+  openableExtensionSidePanelSurfaceIds,
+} from './lib/extension-side-panel-surfaces'

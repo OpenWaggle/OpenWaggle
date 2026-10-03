@@ -14,6 +14,7 @@ type BrowserAndScalarActions = Pick<
   | 'setDiffSyntaxTheme'
   | 'setDiffView'
   | 'setDiffWrapLines'
+  | 'setRightPanelRailVisibleWhenClosed'
   | 'setCompactionThresholdPercent'
   | 'setSessionTitleModel'
   | 'setBrowserLinkTarget'
@@ -73,6 +74,8 @@ export function createBrowserAndScalarPreferencesActions(
     setDiffSyntaxTheme: (value) => persistSetting('diffSyntaxTheme', value, set),
     setDiffView: (value) => persistSetting('diffView', value, set),
     setDiffWrapLines: (value) => persistSetting('diffWrapLines', value, set),
+    setRightPanelRailVisibleWhenClosed: (value) =>
+      persistSetting('rightPanelRailVisibleWhenClosed', value, set),
     setCompactionThresholdPercent: (value) =>
       persistSetting('compactionThresholdPercent', value, set),
     setSessionTitleModel: (value) => persistSetting('sessionTitleModel', value, set),

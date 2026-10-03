@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   showSideTerminal: vi.fn(),
   showToast: vi.fn(),
   togglePanelMaximized: vi.fn(),
+  maximizeUnavailable: vi.fn((): string | null => null),
 }))
 
 vi.mock('@/features/chat/hooks', () => ({ useChat: () => ({ activeSession: null }) }))
@@ -22,6 +23,7 @@ vi.mock('@/features/sessions/hooks', () => ({
 }))
 vi.mock('@/shell/workspace-panel-actions', () => ({
   hideWorkspaceSideTerminal: mocks.hideSideTerminal,
+  rightPanelMaximizeUnavailableReason: mocks.maximizeUnavailable,
   showWorkspaceSideTerminal: mocks.showSideTerminal,
   toggleWorkspacePanelMaximized: mocks.togglePanelMaximized,
   useWorkspaceSideTerminalVisible: () => mocks.sideTerminalVisible,
@@ -119,12 +121,15 @@ describe('useTerminalCommands focused layout routing', () => {
     expect(useTerminalStore.getState().groups[OWNER]).toBeUndefined()
   })
 
-  it('reports when the workspace panel cannot be maximized', () => {
-    mocks.togglePanelMaximized.mockReturnValue(false)
+  it('reports why the Right panel cannot be maximized, and maximizes it otherwise', () => {
+    mocks.maximizeUnavailable.mockReturnValueOnce('Open a panel first.')
     const { result } = renderHook(() => useTerminalCommands())
 
     act(() => result.current.toggleSidePanelMaximized())
+    expect(mocks.showToast).toHaveBeenCalledWith('Open a panel first.', 'error')
+    expect(mocks.togglePanelMaximized).not.toHaveBeenCalled()
 
-    expect(mocks.showToast).toHaveBeenCalledWith('Open the workspace side panel first.', 'error')
+    act(() => result.current.toggleSidePanelMaximized())
+    expect(mocks.togglePanelMaximized).toHaveBeenCalledWith(OWNER)
   })
 })

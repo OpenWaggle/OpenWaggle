@@ -19,7 +19,7 @@ import {
 } from '@/shared/ui/ShortcutRecorder'
 import {
   type ProjectShortcutBrowserRow,
-  type ShortcutBrowserRow,
+  type ShortcutConflictSource,
   shortcutBrowserConflictLabels,
 } from '../../lib/shortcut-browser-model'
 import type { UpdateProjectShortcutRules } from './AddShortcutBinding'
@@ -30,7 +30,7 @@ export { AddShortcutBinding } from './AddShortcutBinding'
 
 interface ProjectShortcutRowProps {
   readonly row: ProjectShortcutBrowserRow
-  readonly rows: readonly ShortcutBrowserRow[]
+  readonly rows: readonly ShortcutConflictSource[]
   readonly saving: boolean
   readonly onError: (message: string | null) => void
   readonly onUpdate: UpdateProjectShortcutRules

@@ -35,8 +35,8 @@ export function createTerminalCommandItems(
     },
     {
       id: 'toggle-side-panel-maximized',
-      label: 'Toggle side panel size',
-      description: 'Maximize or restore the workspace side panel',
+      label: 'Maximize right panel',
+      description: 'Maximize or restore the right panel, whichever panel it shows',
       icon: <PanelRightOpen className="size-3.5" />,
       section: 'View',
       action: () => actions.finish(actions.toggleSidePanelMaximized),

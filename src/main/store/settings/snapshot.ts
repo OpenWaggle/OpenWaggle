@@ -10,6 +10,7 @@ import {
   resolveStoredBrowserSettings,
 } from './browser-settings-snapshot'
 import { resolveNextDiffAndAppearanceSettings } from './diff-appearance-settings-snapshot'
+import { sanitizeExtensionPanelShortcutBindings } from './extension-panel-shortcut-sanitizer'
 import {
   SETTINGS_KEY_AGENT_DEFINITION_TOGGLES_BY_PROJECT,
   SETTINGS_KEY_APPEARANCE_PREFERENCES,
@@ -21,16 +22,19 @@ import {
   SETTINGS_KEY_DIFF_VIEW,
   SETTINGS_KEY_DIFF_WRAP_LINES,
   SETTINGS_KEY_ENABLED_MODELS,
+  SETTINGS_KEY_EXTENSION_PANEL_SHORTCUT_BINDINGS,
   SETTINGS_KEY_FAVORITE_MODELS,
   SETTINGS_KEY_PROJECT_DISPLAY_NAMES,
   SETTINGS_KEY_PROJECT_PATH,
   SETTINGS_KEY_RECENT_PROJECTS,
+  SETTINGS_KEY_RIGHT_PANEL_RAIL_VISIBLE_WHEN_CLOSED,
   SETTINGS_KEY_SHORTCUT_BINDINGS,
   SETTINGS_KEY_SHORTCUT_RULES,
   SETTINGS_KEY_SKILL_TOGGLES_BY_PROJECT,
   SETTINGS_KEY_SYNTAX_THEME_SELECTIONS,
   SETTINGS_KEY_UPDATE_CHANNEL,
 } from './keys'
+import { resolveRightPanelRailVisibleWhenClosed } from './right-panel-settings-sanitizer'
 import {
   isValidSessionEnvironmentMode,
   resolveCompactionThresholdPercent,
@@ -125,6 +129,9 @@ export function buildSettingsSnapshot(storedSettings: Readonly<Record<string, un
         : shortcutRulesFromBindings(legacyShortcutBindings)),
   )
   const shortcutBindings = shortcutBindingsFromRules(shortcutRules)
+  const extensionPanelShortcutBindings = sanitizeExtensionPanelShortcutBindings(
+    getStoredValue(storedSettings, SETTINGS_KEY_EXTENSION_PANEL_SHORTCUT_BINDINGS),
+  )
   const defaultSessionEnvironmentMode = resolveDefaultSessionEnvironmentMode(
     getStoredValue(storedSettings, SETTINGS_KEY_DEFAULT_SESSION_ENVIRONMENT_MODE),
   )
@@ -140,6 +147,9 @@ export function buildSettingsSnapshot(storedSettings: Readonly<Record<string, un
   const diffView = resolveDiffView(getStoredValue(storedSettings, SETTINGS_KEY_DIFF_VIEW))
   const diffWrapLines = resolveDiffWrapLines(
     getStoredValue(storedSettings, SETTINGS_KEY_DIFF_WRAP_LINES),
+  )
+  const rightPanelRailVisibleWhenClosed = resolveRightPanelRailVisibleWhenClosed(
+    getStoredValue(storedSettings, SETTINGS_KEY_RIGHT_PANEL_RAIL_VISIBLE_WHEN_CLOSED),
   )
   const hostSettings = resolveStoredSessionHostSettings(storedSettings)
   const compactionThresholdPercent = resolveCompactionThresholdPercent(
@@ -165,12 +175,14 @@ export function buildSettingsSnapshot(storedSettings: Readonly<Record<string, un
       ...resolveStoredProjectPathAliases(storedSettings),
       shortcutRules,
       shortcutBindings,
+      extensionPanelShortcutBindings,
       defaultSessionEnvironmentMode,
       defaultAuthorizationMode,
       diffSyntaxTheme,
       syntaxThemeSelections,
       diffView,
       diffWrapLines,
+      rightPanelRailVisibleWhenClosed,
       ...hostSettings,
       compactionThresholdPercent,
       ...resolveStoredSessionTitleSettings(storedSettings),
@@ -247,6 +259,11 @@ function resolveNextCoreSettings(current: Settings, partial: Partial<Settings>) 
   )
   const shortcutRules = shortcutRulesWithDefaults(resolveNextShortcutRules(current, partial))
   const shortcutBindings = shortcutBindingsFromRules(shortcutRules)
+  const extensionPanelShortcutBindings = resolveUpdatedSetting(
+    partial.extensionPanelShortcutBindings,
+    current.extensionPanelShortcutBindings,
+    sanitizeExtensionPanelShortcutBindings,
+  )
   const defaultSessionEnvironmentMode = resolveValidatedSetting(
     partial.defaultSessionEnvironmentMode,
     current.defaultSessionEnvironmentMode,
@@ -269,6 +286,7 @@ function resolveNextCoreSettings(current: Settings, partial: Partial<Settings>) 
     projectDisplayNames,
     shortcutRules,
     shortcutBindings,
+    extensionPanelShortcutBindings,
     defaultSessionEnvironmentMode,
     defaultAuthorizationMode,
   }

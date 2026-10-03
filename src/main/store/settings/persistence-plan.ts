@@ -17,6 +17,7 @@ import {
   SETTINGS_KEY_DEFAULT_SESSION_ENVIRONMENT_MODE,
   SETTINGS_KEY_ENABLE_AGENT_BROWSER_ACCESS,
   SETTINGS_KEY_ENABLED_MODELS,
+  SETTINGS_KEY_EXTENSION_PANEL_SHORTCUT_BINDINGS,
   SETTINGS_KEY_FAVORITE_MODELS,
   SETTINGS_KEY_MULTI_AGENT_ENABLED,
   SETTINGS_KEY_MULTI_AGENT_ENABLED_BY_PROJECT,
@@ -190,6 +191,12 @@ function appendGeneralSettingsWrites(
     partial.shortcutBindings !== undefined || partial.shortcutRules !== undefined,
     SETTINGS_KEY_SHORTCUT_RULES,
     next.shortcutRules,
+  )
+  appendChangedSetting(
+    writes,
+    partial.extensionPanelShortcutBindings !== undefined,
+    SETTINGS_KEY_EXTENSION_PANEL_SHORTCUT_BINDINGS,
+    next.extensionPanelShortcutBindings,
   )
   appendChangedSetting(
     writes,

@@ -22,6 +22,7 @@ import { DEFAULT_BROWSER_PROFILE_ID } from './browser-profile'
 import type { SessionEnvironmentMode } from './git'
 import {
   DEFAULT_SHORTCUT_RULES,
+  type ExtensionPanelShortcutBindings,
   type ShortcutBindings,
   type ShortcutRules,
   shortcutBindingsFromRules,
@@ -94,6 +95,8 @@ export interface Settings {
   readonly shortcutRules: ShortcutRules
   /** Derived compatibility view for surfaces that display one representative binding. */
   readonly shortcutBindings: ShortcutBindings
+  /** User shortcuts for extension side panels keyed by stable Right panel surface id (ADR 0043). */
+  readonly extensionPanelShortcutBindings: ExtensionPanelShortcutBindings
   /** Default Session environment mode applied to new sessions (ADR 0010). */
   readonly defaultSessionEnvironmentMode: SessionEnvironmentMode
   /** Default authorization mode applied to new sessions unless a project default overrides it. */
@@ -106,6 +109,8 @@ export interface Settings {
   readonly diffView: DiffView
   /** Wrap long diff lines instead of scrolling horizontally. */
   readonly diffWrapLines: boolean
+  /** Keep the Panel rail on the window's right edge while the Right panel is closed (ADR 0043). */
+  readonly rightPanelRailVisibleWhenClosed: boolean
   /** Default maximum number of active direct Worker Runs for one parent Session. */
   readonly sessionHostParentConcurrencyLimit: number
   /** Optional project-specific parent concurrency limits keyed by canonical project path. */
@@ -158,12 +163,14 @@ export const DEFAULT_SETTINGS: Settings = {
   projectPathAliases: {},
   shortcutRules: DEFAULT_SHORTCUT_RULES,
   shortcutBindings: shortcutBindingsFromRules(DEFAULT_SHORTCUT_RULES),
+  extensionPanelShortcutBindings: {},
   defaultSessionEnvironmentMode: 'local',
   defaultAuthorizationMode: DEFAULT_AGENT_AUTHORIZATION_MODE,
   diffSyntaxTheme: 'pierre-dark',
   syntaxThemeSelections: DEFAULT_SYNTAX_THEME_SELECTIONS,
   diffView: 'unified',
   diffWrapLines: false,
+  rightPanelRailVisibleWhenClosed: true,
   sessionHostParentConcurrencyLimit: DEFAULT_SESSION_HOST_PARENT_CONCURRENCY_LIMIT,
   sessionHostParentConcurrencyLimitsByProject: {},
   sessionHostRunCeiling: DEFAULT_SESSION_HOST_RUN_CEILING,
