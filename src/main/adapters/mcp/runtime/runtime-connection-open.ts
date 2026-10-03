@@ -1,7 +1,9 @@
 import type { McpTurnSnapshot, McpTurnSnapshotServer } from '@shared/types/mcp'
 import { Deferred, Effect, SynchronizedRef } from 'effect'
 import { resolveMcpRuntimeNamespace } from '../../../domain/mcp/runtime-namespace'
+import { usageStatisticsMcpServerIdentifier } from '../../../domain/usage-statistics/usage-statistics-mcp'
 import { type McpRuntimeFailure, toMcpRuntimeError } from '../../../ports/mcp-errors'
+import { recordUsageStatistics } from '../../../usage-statistics/usage-statistics-recorder'
 import type {
   ConnectionAttempt,
   ConnectionCell,
@@ -57,6 +59,10 @@ function runConnect(
         }).pipe(
           Effect.flatMap((current) => {
             if (current) {
+              recordUsageStatistics({
+                kind: 'mcp-server',
+                identifier: usageStatisticsMcpServerIdentifier(server),
+              })
               return ctx
                 .onConnected(resolveMcpRuntimeNamespace(snapshot), server.instanceId)
                 .pipe(Effect.zipRight(Deferred.succeed(cell.deferred, connection)))

@@ -36,7 +36,11 @@ it('excludes project/user extensions but retains trusted built-ins during automa
   expect(services.modelRuntime.getProvider(providerId)).toBeUndefined()
   expect(inlineFactory).not.toHaveBeenCalled()
   expect(trustedFactory).toHaveBeenCalledOnce()
-  expect(createOpenWaggleGlobalPiResourceLoaderOptions()).toEqual({ noExtensions: true })
+  // Only OpenWaggle's provider attribution loads beside the trusted built-ins.
+  expect(createOpenWaggleGlobalPiResourceLoaderOptions()).toEqual({
+    noExtensions: true,
+    extensionFactories: [expect.any(Function)],
+  })
   expect(
     createOpenWagglePiResourceLoaderOptions(projectPath, {
       enabledOpenWaggleExtensionPackagePaths: [projectPath],
@@ -45,7 +49,7 @@ it('excludes project/user extensions but retains trusted built-ins during automa
     }),
   ).toMatchObject({
     additionalExtensionPaths: [],
-    extensionFactories: [trustedFactory],
+    extensionFactories: [expect.any(Function), trustedFactory],
     noExtensions: true,
   })
 })

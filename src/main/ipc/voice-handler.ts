@@ -13,6 +13,7 @@ import {
 } from '@shared/types/voice'
 import * as Effect from 'effect/Effect'
 import { app } from 'electron'
+import { recordUsageStatisticsObservation } from '../application/usage-statistics-recording'
 import { typedHandle } from './typed-ipc'
 
 const PCM16_SIGNED_NORMALIZATION_FACTOR = 32768
@@ -265,6 +266,7 @@ export function registerVoiceHandlers(): void {
         catch: (error) => new Error(mapTranscriptionError(error)),
       })
       markModelUsed(model)
+      yield* recordUsageStatisticsObservation({ kind: 'feature', flag: 'voice' })
       const text = extractTranscriptionText(rawResult)
       const response: VoiceTranscriptionResult = { text, model }
       return response

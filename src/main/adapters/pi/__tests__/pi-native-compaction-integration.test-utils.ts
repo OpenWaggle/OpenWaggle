@@ -65,6 +65,8 @@ export async function createNativeSession(options: {
   blockImages?: boolean
   contextTransform?: (messages: ContextEvent['messages']) => ContextEvent['messages']
   enableDefaultTools?: boolean
+  /** Further inline extensions, loaded after the fixture's own. */
+  extensionFactories?: readonly ExtensionFactory[]
 }) {
   const faux = fauxProvider({
     api: 'openai-responses',
@@ -198,7 +200,7 @@ export async function createNativeSession(options: {
     cwd: options.directory,
     agentDir: options.directory,
     settingsManager,
-    extensionFactories: [extension],
+    extensionFactories: [extension, ...(options.extensionFactories ?? [])],
     systemPrompt: options.systemPrompt,
     noSkills: true,
     noPromptTemplates: true,

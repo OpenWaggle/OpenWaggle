@@ -42,6 +42,10 @@ const envSchema = Schema.Struct({
   OPENWAGGLE_AGENT_RUN: Schema.optional(Schema.Literal('1')),
   /** The Host's own temp directory, preserved in agent tool processes whose TMPDIR is a scratch dir. */
   OPENWAGGLE_HOST_TMPDIR: Schema.optional(Schema.String),
+  /** Usage statistics opt-outs (ADR 0046), interpreted by `resolveUsageStatisticsEnablement`. */
+  DO_NOT_TRACK: Schema.optional(Schema.String),
+  PI_TELEMETRY: Schema.optional(Schema.String),
+  CI: Schema.optional(Schema.String),
   SystemRoot: Schema.optional(Schema.String),
   TEMP: Schema.optional(Schema.String),
   TMP: Schema.optional(Schema.String),

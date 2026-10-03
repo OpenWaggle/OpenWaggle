@@ -12,6 +12,7 @@ import type { AgentTransportEvent } from '@shared/types/stream'
 import type { WaggleStreamMetadata } from '@shared/types/waggle'
 import type { PiModel } from '../pi-provider-catalog'
 import { buildPiRunAssistantMessages } from '../pi-run-result'
+import { notePiRunForUsageStatistics } from '../pi-usage-statistics'
 import { logger } from './constants'
 import { registerPiLiveRun } from './pi-live-run-registry'
 import { createPiRunSessionRuntime, runSubscribedPiOperation } from './run-lifecycle'
@@ -225,6 +226,7 @@ export async function runPiWaggle(input: PiWaggleKernelRunInput) {
       : {}),
   })
 
+  notePiRunForUsageStatistics(input, model, session)
   const unregisterLiveRun = registerPiLiveRun({
     runId: input.runId,
     session,

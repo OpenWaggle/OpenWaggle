@@ -6,6 +6,7 @@ const TEST_FILES = [
   'packages/**/*.test.{ts,tsx}',
   'packages/**/__tests__/**/*.{ts,tsx}',
   'scripts/**/*.test.ts',
+  'functions/**/__tests__/**/*.ts',
   'website/**/*.test.{ts,tsx}',
   'website/**/__tests__/**/*.{ts,tsx}',
 ]

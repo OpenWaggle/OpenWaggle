@@ -6,6 +6,7 @@ import { runSessionExportRecoveryBackground } from './application/session-export
 import { installSessionTitleWorker } from './application/session-title-scheduler'
 import { installAppSessionToolGateway } from './session-host/session-tool-gateway-installer'
 import { runTranscriptTermRepairBackground } from './store/session-details/snapshot-transcript-term-projection'
+import { runUsageStatisticsReporterBackground } from './usage-statistics/usage-statistics-reporter-background'
 
 export const startHostBackgroundServices = Effect.gen(function* () {
   yield* installAppSessionToolGateway
@@ -13,6 +14,7 @@ export const startHostBackgroundServices = Effect.gen(function* () {
   yield* runSessionScratchSweepBackground
   yield* runSessionSemanticDiscoveryBackground
   yield* runTranscriptTermRepairBackground
+  yield* runUsageStatisticsReporterBackground
   yield* installSessionTitleWorker
   yield* activateTrustedMainExtensionsForActiveProjectSafely()
 })
