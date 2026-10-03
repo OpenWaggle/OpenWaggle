@@ -177,22 +177,22 @@ export function AllPanelsSurface() {
             ))
           )}
         </div>
-        <div className="mt-3 flex flex-wrap gap-1 border-t border-border pt-2">
-          <Button type="button" size="xs" variant="ghost" onClick={reset}>
-            <RotateCcw className="size-3.5" aria-hidden="true" />
-            Reset rail
-          </Button>
-          <Button
-            type="button"
-            size="xs"
-            variant="ghost"
-            onClick={() => void navigate({ to: '/settings/$tab', params: { tab: 'extensions' } })}
-          >
-            <PackageOpen className="size-3.5" aria-hidden="true" />
-            Manage extensions
-          </Button>
-        </div>
       </div>
+      <footer className="flex shrink-0 flex-wrap gap-1 border-t border-border bg-bg px-2 py-2">
+        <Button type="button" size="xs" variant="ghost" onClick={reset}>
+          <RotateCcw className="size-3.5" aria-hidden="true" />
+          Reset rail
+        </Button>
+        <Button
+          type="button"
+          size="xs"
+          variant="ghost"
+          onClick={() => void navigate({ to: '/settings/$tab', params: { tab: 'extensions' } })}
+        >
+          <PackageOpen className="size-3.5" aria-hidden="true" />
+          Manage extensions
+        </Button>
+      </footer>
     </section>
   )
 }

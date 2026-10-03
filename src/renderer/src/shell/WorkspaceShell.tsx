@@ -69,7 +69,7 @@ export function WorkspaceShell({ children }: WorkspaceShellProps) {
         {!settingsOpen && <Header />}
         <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
           <ActionPanelLayout>
-            <WorkspaceRightPanel>
+            <WorkspaceRightPanel hidden={settingsOpen}>
               <div className="relative flex size-full min-h-0 min-w-0 flex-col overflow-hidden">
                 {children}
                 <WorkspaceTerminal />

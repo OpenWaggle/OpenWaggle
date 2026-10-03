@@ -26,6 +26,8 @@ import {
 
 interface WorkspaceRightPanelProps {
   readonly children: ReactNode
+  /** Settings pages show no Right panel; the Session's panel comes back when the user returns. */
+  readonly hidden?: boolean
 }
 
 function hasOpenTerminalGroup(
@@ -49,13 +51,13 @@ function activeBrowserForSurface(
  * runtime owner, so it can coexist with the bottom drawer without duplicate
  * PTY viewports or split lifecycle ownership.
  */
-export function WorkspaceRightPanel({ children }: WorkspaceRightPanelProps) {
+export function WorkspaceRightPanel({ children, hidden = false }: WorkspaceRightPanelProps) {
   const panel = useWorkspaceRightPanelModel()
 
   return (
     <RightSidebarLayout
       maximized={panel.maximized}
-      open={panel.activeSurface !== null}
+      open={!hidden && panel.activeSurface !== null}
       sizing={RIGHT_PANEL_SIZING}
       sidebar={
         <div className="flex size-full min-h-0 flex-col" data-testid="workspace-right-panel">
