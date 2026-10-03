@@ -23,6 +23,8 @@ interface UseVoiceCaptureOptions {
   readonly disabled?: boolean
   insertText: (text: string) => void
   sendComposed: (text: string) => boolean | Promise<boolean>
+  /** When set, stop-and-send inserts the transcript and calls this instead of `sendComposed`. */
+  sendAfterInsert?: (() => void) | null
 }
 
 export interface VoiceCaptureController {
@@ -48,6 +50,7 @@ export function useVoiceCapture({
   disabled = false,
   insertText,
   sendComposed,
+  sendAfterInsert = null,
 }: UseVoiceCaptureOptions): VoiceCaptureController {
   const [error, setError] = useState<string | null>(null)
   const [isTranscribing, setIsTranscribing] = useState(false)
@@ -133,14 +136,20 @@ export function useVoiceCapture({
         return
       }
 
-      if (action === 'send') {
-        const store = useComposerStore.getState()
-        const composedText = [store.input.trim(), transcript].filter(Boolean).join(' ')
-        const submitted = await sendComposed(composedText)
-        if (!submitted && isCurrentDraft()) {
-          insertTranscriptAtCursor(transcript)
-        }
-      } else {
+      if (action !== 'send') {
+        insertTranscriptAtCursor(transcript)
+        return
+      }
+      if (sendAfterInsert) {
+        // Editing a queued message: the transcript joins the edit, then the edit is saved.
+        insertTranscriptAtCursor(transcript)
+        sendAfterInsert()
+        return
+      }
+      const store = useComposerStore.getState()
+      const composedText = [store.input.trim(), transcript].filter(Boolean).join(' ')
+      const submitted = await sendComposed(composedText)
+      if (!submitted && isCurrentDraft()) {
         insertTranscriptAtCursor(transcript)
       }
     } catch (transcriptionError) {

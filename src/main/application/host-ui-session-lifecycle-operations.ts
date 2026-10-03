@@ -4,6 +4,7 @@ import { SessionId } from '@shared/types/brand'
 import { SESSION_CONTROL_CONTRACT_VERSION } from '@shared/types/session-control'
 import { SESSION_LIFECYCLE_CONTRACT_VERSION } from '@shared/types/session-lifecycle'
 import type { SessionOrganizationCommand } from '@shared/types/session-organization'
+import { THINKING_LEVELS, type ThinkingLevel } from '@shared/types/settings'
 import * as Effect from 'effect/Effect'
 import { cleanupSessionRun } from '../agent/session-cleanup'
 import { SessionProjectionRepository } from '../ports/session-projection-repository'
@@ -24,6 +25,17 @@ import { dispatchLocalSessionCommand } from './local-session-command-dispatcher'
 
 const TWO_ARGUMENTS = 2
 const THREE_ARGUMENTS = 3
+const FOUR_ARGUMENTS = 4
+
+function validateOptionalThinkingLevel(
+  value: unknown,
+): Effect.Effect<ThinkingLevel | undefined, Error> {
+  if (value === undefined) return Effect.succeed(undefined)
+  const level = THINKING_LEVELS.find((candidate) => candidate === value)
+  return level
+    ? Effect.succeed(level)
+    : invalid(`Thinking level must be one of ${THINKING_LEVELS.join(', ')}.`)
+}
 
 export function mutateLocalUiSession(
   command: Extract<
@@ -46,13 +58,19 @@ export function mutateLocalUiSession(
   })
 }
 
+/**
+ * Creates a desktop Session: `[projectPath, worktreePlan?, model?, thinkingLevel?]`. The thinking
+ * level is the one the draft showed, stored on the new Session alone as its specialization; it
+ * never writes Pi's global default.
+ */
 export function createSession(args: readonly unknown[]) {
   return Effect.gen(function* () {
-    yield* requireOptionalArgCount(args, 1, THREE_ARGUMENTS)
+    yield* requireOptionalArgCount(args, 1, FOUR_ARGUMENTS)
     const projectPath = yield* requiredString(args[0], 'Project path')
     const normalizedProjectPath = yield* validateRequiredProjectPath(projectPath)
     const worktreePlan = yield* validateWorktreePlan(args[1])
     const model = yield* validateOptionalModel(args[TWO_ARGUMENTS])
+    const thinkingLevel = yield* validateOptionalThinkingLevel(args[THREE_ARGUMENTS])
     const settings = yield* (yield* SettingsService).get()
     const environmentMode = worktreePlan?.environmentMode ?? settings.defaultSessionEnvironmentMode
     const result = yield* dispatchLocalSessionCommand({
@@ -76,7 +94,14 @@ export function createSession(args: readonly unknown[]) {
                       : {}),
                   }
                 : { mode: 'local' },
-            ...(model ? { specialization: { modelId: model } } : {}),
+            ...(model || thinkingLevel
+              ? {
+                  specialization: {
+                    ...(model ? { modelId: model } : {}),
+                    ...(thinkingLevel ? { thinkingLevel } : {}),
+                  },
+                }
+              : {}),
           },
         },
       },

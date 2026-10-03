@@ -40,6 +40,8 @@ const SETTLING_CONTROL_OPERATIONS: ReadonlySet<string> = new Set([
   'request-respond',
   'approval-respond',
   'queue-pause',
+  // Releasing a Follow-up edit hold ends work; during a drain it does not start the next Run.
+  'queue-edit-cancel',
   'export-cancel',
 ])
 const SETTLING_ACTION_OPERATIONS: ReadonlySet<string> = new Set(['stop', 'stop-setup', 'output'])
@@ -92,6 +94,10 @@ export function isAdmittedWhileDraining(payload: unknown) {
     return typeof operation === 'string' && SETTLING_CONTROL_OPERATIONS.has(operation)
   }
   if (contract === 'session-query-v2') return admitsQuery(request)
+  // Renewing a Follow-up edit hold changes only its lease; refusing it would expire an open edit.
+  if (contract === 'local-ui-v1') {
+    return field(field(request, 'command'), 'operation') === 'renew-follow-up-edit-hold'
+  }
   if (contract === 'host-ui-v1') return admitsHostUiRequest(request)
   return false
 }

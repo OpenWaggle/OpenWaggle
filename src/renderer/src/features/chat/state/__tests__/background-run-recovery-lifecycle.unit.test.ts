@@ -58,7 +58,7 @@ function deliveredSession() {
 
 function setRecovery(text: string) {
   useBackgroundRunStore.getState().setFirstSendRecovery(SESSION_ID, {
-    payload: { text, thinkingLevel: 'medium', attachments: [] },
+    payload: { text, attachments: [] },
     waggleConfig: null,
     model: MODEL,
   })

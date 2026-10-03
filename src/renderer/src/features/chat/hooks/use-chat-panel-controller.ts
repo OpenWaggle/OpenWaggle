@@ -1,5 +1,5 @@
 import type { WaggleCollaborationStatus } from '@shared/types/waggle'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from '@tanstack/react-router'
 import { useAgentChat } from '@/features/chat/hooks/useAgentChat'
 import { useSendMessage } from '@/features/chat/hooks/useSendMessage'
@@ -23,6 +23,7 @@ import { useChatPanelEnvironment } from './useChatPanelEnvironment'
 import { useChatSendWorkflow } from './useChatSendWorkflow'
 import { useComposerSection } from './useComposerSection'
 import { useSessionCopyWorkflow } from './useSessionCopyWorkflow'
+import { defaultThinkingLevelQueryOptions } from './useSessionThinkingLevel'
 import { useSteerWorkflow } from './useSteerWorkflow'
 import { useTranscriptSection } from './useTranscriptSection'
 import { useVisualizationFollowUpDispatcher } from './useVisualizationFollowUpDispatcher'
@@ -56,7 +57,6 @@ export function useChatPanelSections(): ChatPanelSections {
     recentProjects,
     refreshSessionWorkspace,
     showToast,
-    thinkingLevel,
   } = env
 
   const {
@@ -75,15 +75,20 @@ export function useChatPanelSections(): ChatPanelSections {
     agentCustomMessages,
     agentInteractionEvents,
     respondAgentInteraction,
-  } = useAgentChat(activeSessionId, activeSession, model, thinkingLevel)
+  } = useAgentChat(activeSessionId, activeSession, model)
   const followUpQueue = useSessionFollowUpQueue(activeSessionId)
+  // What a draft shows without a pick; first send creates its Session at the level shown.
+  const queryClient = useQueryClient()
+  const { data: defaultThinkingLevel } = useQuery(defaultThinkingLevelQueryOptions())
 
   const { handleSend, handleSendText, handleSendWaggle } = useSendMessage({
     activeSessionId,
     model,
     projectPath,
-    thinkingLevel,
     createSession,
+    defaultThinkingLevel,
+    readDefaultThinkingLevel: () =>
+      queryClient.getQueryData(defaultThinkingLevelQueryOptions().queryKey),
     sendMessage,
     sendWaggleMessage,
   })

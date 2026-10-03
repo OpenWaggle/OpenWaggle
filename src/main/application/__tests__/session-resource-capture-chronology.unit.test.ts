@@ -15,7 +15,6 @@ describe('session resource capture chronology', () => {
         runId: 'run-1',
         payload: {
           text: 'Review [the source](https://user.example/source)',
-          thinkingLevel: 'medium',
           attachments: [],
         },
         messages: [

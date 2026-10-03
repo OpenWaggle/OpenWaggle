@@ -1,7 +1,8 @@
 import { SessionId } from '@shared/types/brand'
 import type { FollowUpQueuePauseReason } from '@shared/types/session-control-queue'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { SessionControlRejectedError } from '@/features/chat/hooks'
 import { QueuedMessages } from '../QueuedMessages'
 
 const CONV_A = SessionId('session-a')
@@ -13,14 +14,9 @@ interface QueuedMessageFixture {
   readonly attachmentCount: number
   readonly createdAt: number
   readonly deliveryState: 'pending' | 'needs_attention'
-  readonly attentionReason?:
-    | 'authorization_ceiling_changed'
-    | 'profile_revoked'
-    | 'authority_changed'
+  readonly attentionReason?: 'profile_revoked' | 'authority_changed'
   readonly wagglePresetName?: string
   readonly waggleSource?: 'user' | 'agent'
-  readonly authorizationMode?: 'yolo' | 'ask-for-approval'
-  readonly thinkingLevel?: 'low' | 'high'
   readonly callerId?: string
 }
 
@@ -39,8 +35,8 @@ const queueMock = vi.hoisted(() => {
     error,
     refresh: vi.fn().mockResolvedValue(undefined),
     withdraw: vi.fn().mockResolvedValue(undefined),
-    resubmitWithCurrentAccess: vi.fn().mockResolvedValue(undefined),
     setPaused: vi.fn().mockResolvedValue(undefined),
+    adopt: vi.fn().mockResolvedValue(undefined),
   }
 })
 
@@ -50,8 +46,8 @@ vi.mock('@/features/chat/hooks/useSessionFollowUpQueue', () => ({
     error: queueMock.error,
     refresh: queueMock.refresh,
     withdraw: queueMock.withdraw,
-    resubmitWithCurrentAccess: queueMock.resubmitWithCurrentAccess,
     setPaused: queueMock.setPaused,
+    adopt: queueMock.adopt,
   }),
 }))
 
@@ -61,11 +57,9 @@ function queue(
     text: string
     attachmentCount?: number
     deliveryState?: 'pending' | 'needs_attention'
-    attentionReason?: 'authorization_ceiling_changed' | 'profile_revoked' | 'authority_changed'
+    attentionReason?: 'profile_revoked' | 'authority_changed'
     wagglePresetName?: string
     waggleSource?: 'user' | 'agent'
-    authorizationMode?: 'yolo' | 'ask-for-approval'
-    thinkingLevel?: 'low' | 'high'
     callerId?: string
   }[]
 ) {
@@ -75,6 +69,17 @@ function queue(
     deliveryState: 'pending' as const,
     ...item,
   }))
+}
+
+function renderQueue() {
+  return render(
+    <QueuedMessages
+      sessionId={CONV_A}
+      onSteer={noOpSteer}
+      isStreaming={false}
+      onToast={noOpToast}
+    />,
+  )
 }
 
 describe('QueuedMessages', () => {
@@ -87,8 +92,7 @@ describe('QueuedMessages', () => {
     queueMock.refresh.mockReset().mockResolvedValue(undefined)
     noOpSteer.mockClear()
     queueMock.withdraw.mockClear()
-    queueMock.resubmitWithCurrentAccess.mockClear()
-    queueMock.setPaused.mockClear()
+    queueMock.setPaused.mockReset().mockResolvedValue(undefined)
     noOpToast.mockClear()
   })
 
@@ -134,30 +138,30 @@ describe('QueuedMessages', () => {
     expect(screen.getByText('second message')).toBeInTheDocument()
   })
 
-  it('shows Waggle source and authorization metadata for queued intent', () => {
-    queue({
-      id: 'follow-up-1',
-      text: 'cross-check this',
-      wagglePresetName: 'Release review',
-      waggleSource: 'agent',
-      authorizationMode: 'yolo',
-      thinkingLevel: 'high',
-      callerId: 'session-agent:worker:run-1',
-    })
-    render(
-      <QueuedMessages
-        sessionId={CONV_A}
-        onSteer={noOpSteer}
-        isStreaming={false}
-        onToast={noOpToast}
-      />,
-    )
+  it('pauses a running queue through the revision-aware hook so its next Run waits', async () => {
+    queue({ id: 'follow-up-1', text: 'next' })
+    renderQueue()
 
-    expect(screen.getByText('Waggle · Release review')).toBeVisible()
-    expect(screen.getByText('From agent')).toBeVisible()
-    expect(screen.getByText('YOLO access')).toBeVisible()
-    expect(screen.getByText('Thinking · high')).toBeVisible()
-    expect(screen.getByText('From Worker')).toHaveAttribute('title', 'session-agent:worker:run-1')
+    expect(screen.queryByRole('button', { name: 'Resume' })).not.toBeInTheDocument()
+    const pause = screen.getByRole('button', { name: 'Pause' })
+    expect(pause).toHaveAccessibleDescription(expect.stringContaining('until you resume'))
+    fireEvent.click(pause)
+
+    expect(queueMock.setPaused).toHaveBeenCalledWith(true, 0)
+    await waitFor(() => expect(pause).toHaveAttribute('aria-disabled', 'false'))
+  })
+
+  it('shows a failed pause through the toast channel in words, not the Host code', async () => {
+    queue({ id: 'follow-up-1', text: 'next' })
+    queueMock.setPaused.mockRejectedValueOnce(
+      new SessionControlRejectedError('queue-pause', 'session_not_found'),
+    )
+    renderQueue()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Pause' }))
+    await waitFor(() =>
+      expect(noOpToast).toHaveBeenCalledWith('Could not pause the queue. Try again.'),
+    )
   })
 
   it('offers promotion to steering only while a Run can accept it', () => {
@@ -205,8 +209,9 @@ describe('QueuedMessages', () => {
     )
 
     expect(screen.getByText('Queue paused')).toBeVisible()
+    expect(screen.queryByRole('button', { name: 'Pause' })).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Resume' }))
-    expect(queueMock.setPaused).toHaveBeenCalledWith(false)
+    expect(queueMock.setPaused).toHaveBeenCalledWith(false, 0)
   })
 
   // A bare "Queue paused" after a failed Run read as the app ignoring the messages.
@@ -233,7 +238,7 @@ describe('QueuedMessages', () => {
     expect(screen.getByRole('button', { name: 'Resume' })).toBeVisible()
   })
 
-  it('explains blocked delivery and disables steering until attention is resolved', () => {
+  it('explains blocked delivery, disables steering, and offers to send it as the user', () => {
     queue({
       id: 'follow-up-1',
       text: 'requires current authority',
@@ -246,14 +251,19 @@ describe('QueuedMessages', () => {
 
     expect(
       screen.getByText(
-        'Session authority changed. Re-submit with current access or dismiss this Follow-up.',
+        // A Run is going, so "Send as me" sends it in its turn rather than now.
+        'The access that queued this message no longer covers this Session. Send it as you to send it in its turn, or dismiss it.',
       ),
     ).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Steer' })).toBeDisabled()
     fireEvent.click(screen.getByRole('button', { name: 'Steer' }))
     expect(noOpSteer).not.toHaveBeenCalled()
-    fireEvent.click(screen.getByRole('button', { name: 'Re-submit' }))
-    expect(queueMock.resubmitWithCurrentAccess).toHaveBeenCalledWith('follow-up-1')
+    // A Follow-up never carries its own access, so there is no override to repair.
+    expect(screen.queryByRole('button', { name: 'Use current access' })).not.toBeInTheDocument()
+    expect(screen.getByTitle('Dismiss')).toBeVisible()
+    queueMock.adopt.mockClear()
+    fireEvent.click(screen.getByRole('button', { name: /Send as me/u }))
+    expect(queueMock.adopt).toHaveBeenCalledWith('follow-up-1', 0)
   })
 
   it('withdraws by durable Follow-up identity and displays attachment-only intent', () => {
@@ -269,48 +279,5 @@ describe('QueuedMessages', () => {
     expect(screen.getByText('2 attachment(s)')).toBeInTheDocument()
     fireEvent.click(screen.getByTitle('Dismiss'))
     expect(queueMock.withdraw).toHaveBeenCalledWith('follow-up-1')
-  })
-
-  it('shows failed remediation through the existing toast channel', async () => {
-    queue({
-      id: 'follow-up-1',
-      text: 'requires current authority',
-      deliveryState: 'needs_attention',
-      attentionReason: 'authorization_ceiling_changed',
-    })
-    queueMock.resubmitWithCurrentAccess.mockRejectedValueOnce(new Error('Access changed again.'))
-    render(
-      <QueuedMessages sessionId={CONV_A} onSteer={noOpSteer} isStreaming onToast={noOpToast} />,
-    )
-
-    fireEvent.click(screen.getByRole('button', { name: 'Use current access' }))
-    await waitFor(() => expect(noOpToast).toHaveBeenCalledWith('Access changed again.'))
-  })
-
-  it('keeps remediation focus while the request is in flight', async () => {
-    queue({
-      id: 'follow-up-1',
-      text: 'requires current authority',
-      deliveryState: 'needs_attention',
-      attentionReason: 'authority_changed',
-    })
-    let finishRemediation: (() => void) | undefined
-    queueMock.resubmitWithCurrentAccess.mockReturnValueOnce(
-      new Promise<void>((resolve) => {
-        finishRemediation = resolve
-      }),
-    )
-    render(
-      <QueuedMessages sessionId={CONV_A} onSteer={noOpSteer} isStreaming onToast={noOpToast} />,
-    )
-    const remediation = screen.getByRole('button', { name: 'Re-submit' })
-    remediation.focus()
-    fireEvent.click(remediation)
-
-    await waitFor(() => expect(remediation).toHaveAttribute('aria-disabled', 'true'))
-    expect(remediation).toHaveFocus()
-    expect(remediation).not.toBeDisabled()
-    await act(async () => finishRemediation?.())
-    await waitFor(() => expect(remediation).toHaveAttribute('aria-disabled', 'false'))
   })
 })

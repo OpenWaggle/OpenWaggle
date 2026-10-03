@@ -136,6 +136,9 @@ export const sessionsToolParameters = Type.Union([
     action: Type.Literal('message'),
     sessionId: Type.String(),
     text: Type.String({ minLength: 1 }),
+    authorization: Type.Optional(
+      Type.Union([Type.Literal('ask-for-approval'), Type.Literal('yolo')]),
+    ),
     thinking: Type.Optional(Type.String()),
     attachmentPaths,
   }),
@@ -156,10 +159,6 @@ export const sessionsToolParameters = Type.Union([
     action: Type.Literal('follow_up'),
     sessionId: Type.String(),
     text: Type.String({ minLength: 1 }),
-    authorization: Type.Optional(
-      Type.Union([Type.Literal('ask-for-approval'), Type.Literal('yolo')]),
-    ),
-    thinking: Type.Optional(Type.String()),
     attachmentPaths,
   }),
   Type.Object({
@@ -174,10 +173,6 @@ export const sessionsToolParameters = Type.Union([
     sessionId: Type.String(),
     text: Type.String({ minLength: 1 }),
     expectedRunId: Type.String(),
-    authorization: Type.Optional(
-      Type.Union([Type.Literal('ask-for-approval'), Type.Literal('yolo')]),
-    ),
-    thinking: Type.Optional(Type.String()),
     attachmentPaths,
   }),
   Type.Object({

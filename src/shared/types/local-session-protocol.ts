@@ -85,6 +85,13 @@ export type LocalSessionCommandPayload =
               }
             }
           | { readonly operation: 'delete'; readonly sessionId: string }
+          | {
+              /** Keeps a Follow-up edit hold alive; not journaled (ADR 0044). */
+              readonly operation: 'renew-follow-up-edit-hold'
+              readonly sessionId: string
+              readonly followUpId: string
+              readonly holdId: string
+            }
       }
     }
   | {
@@ -138,8 +145,12 @@ export type LocalSessionCommandResult =
           | 'branch-restored'
           | 'tree-ui-state-updated'
           | 'session-deleted'
+          | 'follow-up-edit-hold-renewed'
+          | 'follow-up-edit-hold-lost'
         readonly sessionId: string
         readonly navigation?: { readonly editorText?: string; readonly cancelled: boolean }
+        /** For a renewed Follow-up edit hold: its new expiry (Host clock). */
+        readonly leaseExpiresAt?: number
       }
     }
   | {

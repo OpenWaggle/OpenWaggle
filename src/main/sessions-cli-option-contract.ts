@@ -1,4 +1,5 @@
 import type { ParsedArguments } from './mcp-cli-arguments'
+import { refuseRunSettingsOnActiveRunCommand } from './sessions-cli-arguments'
 import { validateSessionsCliCombinations } from './sessions-cli-option-combinations'
 import { validateSessionsCliPositionals } from './sessions-cli-positional-contract'
 
@@ -64,7 +65,14 @@ const DIRECT_COMMAND_OPTIONS: Readonly<Record<string, readonly string[]>> = {
     'resource',
     ...IDEMPOTENCY,
   ],
-  message: [...MESSAGE_INPUT_OPTIONS, 'attach', 'thinking', ...IDEMPOTENCY],
+  message: [
+    ...MESSAGE_INPUT_OPTIONS,
+    'attach',
+    'thinking',
+    'authorization',
+    'yolo',
+    ...IDEMPOTENCY,
+  ],
   start: [
     ...MESSAGE_INPUT_OPTIONS,
     'attach',
@@ -74,24 +82,9 @@ const DIRECT_COMMAND_OPTIONS: Readonly<Record<string, readonly string[]>> = {
     'interaction-timeout-ms',
     ...IDEMPOTENCY,
   ],
-  'follow-up': [
-    ...MESSAGE_INPUT_OPTIONS,
-    'attach',
-    'thinking',
-    'authorization',
-    'yolo',
-    ...IDEMPOTENCY,
-  ],
+  'follow-up': [...MESSAGE_INPUT_OPTIONS, 'attach', ...IDEMPOTENCY],
   steer: [...MESSAGE_INPUT_OPTIONS, 'attach', 'expected-run', ...IDEMPOTENCY],
-  replace: [
-    ...MESSAGE_INPUT_OPTIONS,
-    'attach',
-    'expected-run',
-    'thinking',
-    'authorization',
-    'yolo',
-    ...IDEMPOTENCY,
-  ],
+  replace: [...MESSAGE_INPUT_OPTIONS, 'attach', 'expected-run', ...IDEMPOTENCY],
   interrupt: ['expected-run', ...IDEMPOTENCY],
   'interrupt-descendants': [...IDEMPOTENCY],
   rename: [...IDEMPOTENCY],
@@ -146,7 +139,6 @@ const GROUPED_COMMAND_OPTIONS: Readonly<Record<string, readonly string[]>> = {
   'queue:reorder': ['queue-revision', ...IDEMPOTENCY],
   'queue:pause': ['queue-revision', ...IDEMPOTENCY],
   'queue:resume': ['queue-revision', ...IDEMPOTENCY],
-  'queue:update-authorization': ['authorization', ...IDEMPOTENCY],
   'requests:list': [],
   'requests:respond': ['response-json', 'approve', ...IDEMPOTENCY],
   'delegation:submit': ['evidence-json', ...IDEMPOTENCY],
@@ -267,6 +259,7 @@ export function validateSessionsCliOptions(command: string, arguments_: ParsedAr
         .join(', ')}.`,
     )
   }
+  refuseRunSettingsOnActiveRunCommand(route, arguments_)
   const unsupported = [...arguments_.options.keys()].filter((name) => !allowed.has(name)).sort()
   if (unsupported.length > 0) {
     throw new Error(

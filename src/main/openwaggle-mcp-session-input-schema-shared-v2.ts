@@ -5,7 +5,7 @@ import {
   SESSION_COLLABORATION_COLLECTION_LIMIT,
 } from '@shared/session-collaboration-collections'
 import { DELEGATION_STATES } from '@shared/types/session-collaboration'
-import { MAX_FOLLOW_UP_QUEUE_ITEMS } from '@shared/types/session-control-queue'
+import { MAX_FOLLOW_UP_QUEUE_LISTED_ITEMS } from '@shared/types/session-control-returned-steers'
 import {
   SESSION_QUERY_DISCOVERY_LIMIT,
   SESSION_QUERY_MAX_CURSOR_LENGTH,
@@ -98,7 +98,7 @@ export const evidence = z
   .refine(hasUniqueCollaborationStructures, 'Delegation evidence items must be unique.')
 export const followUpIds = z
   .array(mcpSessionIdSchemaV2)
-  .max(MAX_FOLLOW_UP_QUEUE_ITEMS)
+  .max(MAX_FOLLOW_UP_QUEUE_LISTED_ITEMS)
   .refine((items) => new Set(items).size === items.length, 'Follow-up IDs must be unique.')
 export const targetSessionIds = z
   .array(mcpSessionIdSchemaV2)

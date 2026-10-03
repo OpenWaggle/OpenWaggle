@@ -133,7 +133,7 @@ describe('createSessionListener', () => {
   it('forwards Pi agent-end stop reason and token usage', () => {
     const emitted: AgentTransportEvent[] = []
     const listener = createSessionListener(
-      makeRunInput((event) => emitted.push(event)),
+      { ...makeRunInput((event) => emitted.push(event)), sessionEntries: null },
       'run-1',
     )
 
@@ -171,7 +171,7 @@ describe('createSessionListener', () => {
   it('forwards Pi session queue, compaction, and auto-retry events', () => {
     const emitted: AgentTransportEvent[] = []
     const listener = createSessionListener(
-      makeRunInput((event) => emitted.push(event)),
+      { ...makeRunInput((event) => emitted.push(event)), sessionEntries: null },
       'run-1',
     )
 
@@ -229,7 +229,7 @@ describe('createSessionListener', () => {
   it('forwards Pi tool-call and tool-execution lifecycle events without losing result state', () => {
     const emitted: AgentTransportEvent[] = []
     const listener = createSessionListener(
-      makeRunInput((event) => emitted.push(event)),
+      { ...makeRunInput((event) => emitted.push(event)), sessionEntries: null },
       'run-1',
     )
     const assistantMessage: MessageStartEvent['message'] = {

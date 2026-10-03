@@ -58,6 +58,7 @@ import type {
   SessionControlMutationRequest,
   SessionControlMutationResponse,
 } from './session-control'
+import type { FollowUpEditHoldReference } from './session-control-queue'
 import type { SessionQueryRequest, SessionQueryResponse } from './session-query'
 import type { Settings } from './settings'
 
@@ -99,6 +100,10 @@ export interface IpcCoreInvokeChannelMap
   'session-control:query': {
     args: [request: SessionQueryRequest]
     return: SessionQueryResponse
+  }
+  'session-control:adopt-follow-up-edit': {
+    args: [hold: FollowUpEditHoldReference]
+    return: boolean
   }
   'agent:send-message': {
     args: [sessionId: SessionId, payload: AgentSendPayload, model: SupportedModelId]

@@ -22,6 +22,11 @@ function topmostEnabledEscapeId() {
   return null
 }
 
+/** Some Escape handler on the shared stack is live, so it owns the next Escape. */
+export function hasEnabledEscapeHandler() {
+  return topmostEnabledEscapeId() !== null
+}
+
 interface EscapeHotkeyOptions {
   readonly enabled?: boolean
   /** Defer without cancelling the key's native default, such as a foreground dialog's Escape. */

@@ -7,6 +7,7 @@ import { explicitWaggleTerminalResult } from '../application/explicit-waggle-com
 import { runRegisteredExplicitWaggle } from '../application/explicit-waggle-command-runner'
 import { requestSessionTitleRefinement } from '../application/session-title-scheduler'
 import type { WaggleExecutionContext } from '../application/waggle-run-execution-context'
+import { followUpAttachmentOwner } from '../domain/session-control/message-aggregate'
 import { AgentRequestedWaggleService } from '../ports/agent-requested-waggle-service'
 import { SessionControlAttachmentService } from '../ports/session-control-attachment-service'
 import type { SessionControlRunExecutionInput } from '../ports/session-control-run-executor'
@@ -42,7 +43,7 @@ function loadRegisteredRunContext(input: RegisteredRunInput) {
     const resolvedAttachments = yield* attachments.resolve({
       attachmentIds: input.request.intent.attachmentIds,
       sessionId: input.request.sessionId,
-      ownerCallerId: input.request.intent.callerId,
+      ownerCallerId: followUpAttachmentOwner(input.request.intent),
     })
     return {
       requestedWaggle,
@@ -142,7 +143,6 @@ function runQueuedWaggle(
 ) {
   const payload = {
     text: input.request.intent.text,
-    thinkingLevel: input.request.intent.thinkingLevel ?? input.execution.thinkingLevel,
     attachments: context.preparedAttachments,
     waggle,
     ...(input.request.intent.visualizationContext
@@ -175,7 +175,6 @@ function runClassic(input: RegisteredRunInput, context: RegisteredRunContext) {
   return Effect.gen(function* () {
     const payload = {
       text: input.request.intent.text,
-      thinkingLevel: input.request.intent.thinkingLevel ?? input.execution.thinkingLevel,
       attachments: context.preparedAttachments,
       ...(input.request.intent.visualizationContext
         ? { visualizationContext: input.request.intent.visualizationContext }
@@ -252,7 +251,6 @@ function runClassic(input: RegisteredRunInput, context: RegisteredRunContext) {
         runId: input.request.runId,
         messages: result.newMessages,
         model: input.execution.model,
-        thinkingLevel: input.request.intent.thinkingLevel ?? input.execution.thinkingLevel,
         controller: input.controller,
         // The classic Run already delivered its reports and updates; the Waggle inherits only
         // who it acts for and what it may do.

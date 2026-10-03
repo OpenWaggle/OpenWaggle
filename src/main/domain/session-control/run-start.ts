@@ -1,5 +1,6 @@
 import type { RunId } from '@shared/types/brand'
 import type { SessionControlIntentSnapshot, SessionControlSessionState } from './message-aggregate'
+import { type RunStartSettings, withRunStartSettings } from './run-start-settings'
 
 const STATE_REVISION_INCREMENT = 1
 
@@ -26,6 +27,7 @@ export interface ApplyRunStartInput {
   readonly state: SessionControlSessionState
   readonly runId: RunId
   readonly intent: SessionControlIntentSnapshot
+  readonly runSettings?: RunStartSettings
 }
 
 export function applyRunStart(input: ApplyRunStartInput): ApplyRunStartResult {
@@ -44,7 +46,11 @@ export function applyRunStart(input: ApplyRunStartInput): ApplyRunStartResult {
     state: {
       ...input.state,
       revision: nextRevision,
-      run: { state: 'starting', runId: input.runId, intent: input.intent },
+      run: {
+        state: 'starting',
+        runId: input.runId,
+        intent: withRunStartSettings(input.intent, input.runSettings),
+      },
     },
     outcome: {
       operation: 'start',

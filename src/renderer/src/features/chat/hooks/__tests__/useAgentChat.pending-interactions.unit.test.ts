@@ -36,12 +36,7 @@ describe('useAgentChat pending interaction hydration', () => {
     })
 
     const { result } = renderHook(() =>
-      useAgentChat(
-        SessionId('session-1'),
-        createSession(),
-        SupportedModelId('claude-sonnet-4-5'),
-        'medium',
-      ),
+      useAgentChat(SessionId('session-1'), createSession(), SupportedModelId('claude-sonnet-4-5')),
     )
 
     await waitFor(() => {

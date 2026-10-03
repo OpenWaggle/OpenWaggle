@@ -72,7 +72,6 @@ export function createSessionWithIdAndMessages(
 
 export const SEND_PAYLOAD: AgentSendPayload = {
   text: 'Hello world',
-  thinkingLevel: 'medium',
   attachments: [],
 }
 

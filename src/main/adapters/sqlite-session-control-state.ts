@@ -12,12 +12,18 @@ import * as Effect from 'effect/Effect'
 import type {
   SessionControlFollowUp,
   SessionControlIntentSnapshot,
+  SessionControlRunIntent,
   SessionControlRunState,
   SessionControlSessionState,
 } from '../domain/session-control/message-aggregate'
 import { SessionControlRepositoryError } from '../errors'
+import { monotonicNowMs } from '../utils/monotonic-clock'
+import { persistFollowUpEditHolds, withFollowUpEditLeaseState } from './sqlite-follow-up-edit-holds'
+import { persistRunStartThinkingLevel } from './sqlite-session-run-start-settings'
 
 const POSITION_INCREMENT = 1
+/** The retired Follow-up authorization block's attention reason; such a Follow-up loads as pending. */
+const LEGACY_AUTHORIZATION_BLOCK_REASON = 'authorization_ceiling_changed'
 const EMPTY_QUEUE_POSITION = -1
 
 interface SessionControlStateRow {
@@ -42,33 +48,54 @@ interface SessionFollowUpRow {
   readonly intent_json: string
 }
 
-const intentSnapshotSchema = Schema.Struct({
+const followUpIntentFields = {
   text: Schema.String,
   attachmentIds: Schema.Array(Schema.String),
-  thinkingLevel: Schema.optional(Schema.Literal(...THINKING_LEVELS)),
   waggle: Schema.optional(waggleInvocationSchema),
   visualizationContext: Schema.optional(inlineVisualizationContextSchema),
-  runAuthorizationOverride: Schema.optional(Schema.Literal(...AGENT_AUTHORIZATION_MODES)),
   interactionTimeoutMs: Schema.optional(
     Schema.Number.pipe(Schema.int(), Schema.between(0, MAX_NODE_TIMER_DELAY_MS)),
   ),
   callerId: Schema.String,
-  authorCallerId: Schema.optional(Schema.String),
   acceptedAt: Schema.Number.pipe(Schema.int(), Schema.nonNegative()),
   idempotencyKey: Schema.String,
+  returnedSteer: Schema.optional(Schema.Struct({ runId: Schema.String })),
+}
+
+/**
+ * A starting Run's intent: its Follow-up intent snapshot plus the settings it was started with
+ * (`thinkingLevel`, `runAuthorizationOverride`), which only a Run started on an idle Session has.
+ * A stored Follow-up decodes with the same schema, and `decodeFollowUpIntent` drops those two
+ * settings from it. `authorCallerId` is kept: it names who queued a Follow-up the desktop user
+ * adopted (`queue-adopt`), for provenance and as the owner of its attachments.
+ */
+const storedIntentSchema = Schema.Struct({
+  ...followUpIntentFields,
+  thinkingLevel: Schema.optional(Schema.Literal(...THINKING_LEVELS)),
+  runAuthorizationOverride: Schema.optional(Schema.Literal(...AGENT_AUTHORIZATION_MODES)),
+  authorCallerId: Schema.optional(Schema.String),
 })
 
 function repositoryError(operation: string, cause: unknown) {
   return new SessionControlRepositoryError({ operation, cause })
 }
 
-function decodeIntent(raw: string) {
-  const decoded = decodeUnknownExactOrThrow(intentSnapshotSchema, parseJsonUnknown(raw))
+function decodeRunIntent(raw: string): SessionControlRunIntent {
+  const decoded = decodeUnknownExactOrThrow(storedIntentSchema, parseJsonUnknown(raw))
   const { waggle, ...intent } = decoded
   return {
     ...intent,
     ...(waggle ? { waggle: toWaggleInvocation(waggle) } : {}),
-  } satisfies SessionControlIntentSnapshot
+  }
+}
+
+function decodeFollowUpIntent(raw: string): SessionControlIntentSnapshot {
+  const {
+    thinkingLevel: _thinkingLevel,
+    runAuthorizationOverride: _runAuthorizationOverride,
+    ...intent
+  } = decodeRunIntent(raw)
+  return intent
 }
 
 function decodeQueueState(raw: string): 'running' | 'paused' {
@@ -86,7 +113,7 @@ function decodeRun(row: SessionRunRow | undefined): SessionControlRunState {
   if (!row) return { state: 'idle' }
   if (row.status === 'starting') {
     if (row.intent_json === null) throw new Error(`Starting Run ${row.id} has no intent snapshot.`)
-    return { state: 'starting', runId: RunId(row.id), intent: decodeIntent(row.intent_json) }
+    return { state: 'starting', runId: RunId(row.id), intent: decodeRunIntent(row.intent_json) }
   }
   if (row.status === 'active') return { state: 'active', runId: RunId(row.id) }
   if (row.status === 'stopping') return { state: 'stopping', runId: RunId(row.id) }
@@ -94,24 +121,27 @@ function decodeRun(row: SessionRunRow | undefined): SessionControlRunState {
 }
 
 function decodeFollowUp(row: SessionFollowUpRow): SessionControlFollowUp {
-  if (row.delivery_state === 'pending' && row.attention_reason === null) {
+  // A Follow-up blocked on an authorization override it no longer carries is simply pending.
+  if (
+    (row.delivery_state === 'pending' && row.attention_reason === null) ||
+    (row.delivery_state === 'needs_attention' &&
+      row.attention_reason === LEGACY_AUTHORIZATION_BLOCK_REASON)
+  ) {
     return {
       id: FollowUpId(row.id),
       deliveryState: 'pending',
-      intent: decodeIntent(row.intent_json),
+      intent: decodeFollowUpIntent(row.intent_json),
     }
   }
   if (
     row.delivery_state === 'needs_attention' &&
-    (row.attention_reason === 'authorization_ceiling_changed' ||
-      row.attention_reason === 'profile_revoked' ||
-      row.attention_reason === 'authority_changed')
+    (row.attention_reason === 'profile_revoked' || row.attention_reason === 'authority_changed')
   ) {
     return {
       id: FollowUpId(row.id),
       deliveryState: 'needs_attention',
       attentionReason: row.attention_reason,
-      intent: decodeIntent(row.intent_json),
+      intent: decodeFollowUpIntent(row.intent_json),
     }
   }
   throw new Error(
@@ -147,7 +177,7 @@ export function loadSessionControlState(sql: SqlClient.SqlClient, sessionId: str
       ORDER BY position ASC, id ASC
     `
 
-    return yield* Effect.try({
+    const state = yield* Effect.try({
       try: (): SessionControlSessionState => {
         const queueState = decodeQueueState(stateRow.queue_state)
         return {
@@ -164,6 +194,7 @@ export function loadSessionControlState(sql: SqlClient.SqlClient, sessionId: str
       },
       catch: (cause) => repositoryError('decode-session-state', cause),
     })
+    return yield* withFollowUpEditLeaseState(sql, state)
   })
 }
 
@@ -267,7 +298,9 @@ export function persistSessionControlState(
 ) {
   return Effect.gen(function* () {
     const activeRunId = yield* persistRun(sql, state, now)
+    yield* persistRunStartThinkingLevel(sql, state, now)
     yield* persistFollowUps(sql, state, now)
+    yield* persistFollowUpEditHolds(sql, state, monotonicNowMs())
     yield* sql`
       UPDATE session_control_states
       SET state_revision = ${state.revision},

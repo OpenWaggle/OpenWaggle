@@ -9,6 +9,7 @@ import { SessionControlRunLifecycleRepository } from '../../ports/session-contro
 import { SessionOrchestrationUpdateDeliveryService } from '../../ports/session-orchestration-update-delivery-service'
 import { installSessionHostEventPublisher } from '../../session-host/session-host-events'
 import { coordinateSessionRuns } from '../session-control-run-coordinator'
+import { NoSteeringLayer } from './agent-steering-test-layer'
 
 describe('Session Control Run coordinator settlement event', () => {
   // Settlement learns when the Run was seen to end, and clients learn which Run settled and how.
@@ -54,6 +55,7 @@ describe('Session Control Run coordinator settlement event', () => {
             failure: { code: 'persist-failed' },
           }),
       }),
+      NoSteeringLayer,
       Layer.succeed(SessionOrchestrationUpdateDeliveryService, {
         deliverPendingToActiveRun: () => Effect.succeed(false),
         deliverPendingSpecificationsToActiveRun: () => Effect.succeed(false),

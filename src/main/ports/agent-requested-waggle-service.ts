@@ -1,6 +1,5 @@
 import type { Message } from '@shared/types/agent'
 import type { SessionId, SupportedModelId } from '@shared/types/brand'
-import type { ThinkingLevel } from '@shared/types/settings'
 import { Context, type Effect } from 'effect'
 import type { AgentKernelRunInput } from './agent-kernel-service'
 
@@ -28,7 +27,6 @@ export interface AgentRequestedWaggleServiceShape {
     readonly runId: string
     readonly messages: readonly Message[]
     readonly model: SupportedModelId
-    readonly thinkingLevel: ThinkingLevel
     readonly controller: AbortController
     readonly authority?: Partial<RequestedWaggleAuthority>
   }) => Effect.Effect<boolean, Error>

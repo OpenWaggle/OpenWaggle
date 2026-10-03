@@ -58,6 +58,7 @@ describe('Session Control promotion and replacement', () => {
       text: 'Steer this now.',
       attachments: [],
       requireDurableDelivery: true,
+      delivery: { kind: 'promoted-follow-up', followUpId: 'follow-up-next' },
       visualizationContext: {
         title: 'Service map',
         sourcePath: '/repo/service-map.html',
@@ -203,7 +204,6 @@ describe('Session Control promotion and replacement', () => {
             operation: 'replace',
             sessionId: 'session-target',
             expectedRunId: 'run-active',
-            runAuthorizationOverride: 'yolo',
             input: { text: 'Use the replacement.', attachmentIds: [] },
           },
         },
@@ -229,7 +229,7 @@ describe('Session Control promotion and replacement', () => {
       run: {
         state: 'starting',
         runId: RunId('run-replacement'),
-        intent: { text: 'Use the replacement.', runAuthorizationOverride: 'yolo' },
+        intent: { text: 'Use the replacement.' },
       },
     })
     expect(response.outcome).toMatchObject({

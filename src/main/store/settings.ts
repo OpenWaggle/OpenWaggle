@@ -8,7 +8,7 @@ import { createLogger } from '../logger'
 import { collectInitialDefaultWrites } from './settings/initial-default-writes'
 import { CURRENT_SETTINGS_KEYS } from './settings/keys'
 import { validatePersistedSettings } from './settings/persisted-validation'
-import { collectSettingsPatchWrites, getInvalidThinkingLevel } from './settings/persistence-plan'
+import { collectSettingsPatchWrites } from './settings/persistence-plan'
 import {
   buildNextSettingsSnapshot,
   buildSettingsSnapshot,
@@ -191,11 +191,6 @@ export function updateSettings(partial: Partial<Settings>): void {
   for (const write of collectSettingsPatchWrites(partial, nextSettings)) {
     void queueStoredSettingWrite(write.key, write.value).catch(() => undefined)
   }
-
-  const invalidThinkingLevel = getInvalidThinkingLevel(partial)
-  if (invalidThinkingLevel !== undefined) {
-    logger.warn('Skipping invalid thinkingLevel', { value: invalidThinkingLevel })
-  }
 }
 
 function updateProjectToggleMapDurably(
@@ -311,9 +306,4 @@ export async function persistSettingsPatch(partial: Partial<Settings>): Promise<
   // writing. Re-apply only this patch to the latest cache instead of
   // publishing the older full snapshot.
   settingsCache = buildNextSettingsSnapshot(settingsCache, partial)
-
-  const invalidThinkingLevel = getInvalidThinkingLevel(partial)
-  if (invalidThinkingLevel !== undefined) {
-    logger.warn('Skipping invalid thinkingLevel', { value: invalidThinkingLevel })
-  }
 }

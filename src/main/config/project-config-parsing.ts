@@ -4,17 +4,14 @@ import type { AgentAuthorizationMode } from '@shared/types/agent-authorization'
 import type { ScopedAuthorizationGrant } from '@shared/types/agent-authorization-grants'
 import type { JsonObject } from '@shared/types/json'
 import type { ProjectAction } from '@shared/types/project-actions'
-import type { ThinkingLevel } from '@shared/types/settings'
 
 export interface ProjectPreferences {
   readonly model?: string
-  readonly thinkingLevel?: ThinkingLevel
   readonly authorizationMode?: AgentAuthorizationMode
 }
 
 /** A preference write to the repo-local settings file, where `null` deletes the key and `undefined` leaves it alone. */
 export interface ProjectPreferencesUpdate {
-  readonly thinkingLevel?: ThinkingLevel | null
   readonly authorizationMode?: AgentAuthorizationMode | null
 }
 
@@ -37,12 +34,10 @@ function parseProjectPreferences(
   settings: ParsedProjectSettingsFile | null,
 ): ProjectPreferences | undefined {
   const model = settings?.preferences?.model
-  const thinkingLevel = settings?.preferences?.thinkingLevel
   const authorizationMode = settings?.preferences?.authorizationMode
-  if (!model && !thinkingLevel && !authorizationMode) return undefined
+  if (!model && !authorizationMode) return undefined
   return {
     ...(model ? { model } : {}),
-    ...(thinkingLevel ? { thinkingLevel } : {}),
     ...(authorizationMode ? { authorizationMode } : {}),
   }
 }

@@ -23,7 +23,7 @@ const BILLING_ERROR = '402 This request requires more credits'
 const QUEUED_PAYLOAD = { ...SEND_PAYLOAD, text: 'Try again' }
 
 function renderChat() {
-  return renderHook(() => useAgentChat(SESSION_ID, createSession(), MODEL, 'medium'))
+  return renderHook(() => useAgentChat(SESSION_ID, createSession(), MODEL))
 }
 
 function failRun(runId: string) {
@@ -172,5 +172,49 @@ describe('useAgentChat send that the Host queued', () => {
     expect(result.current.isLoading).toBe(false)
     expect(result.current.status).toBe('error')
     expect(result.current.error?.message).toBe(BILLING_ERROR)
+  })
+
+  it('keeps a queued send the Host already started as the next Run', async () => {
+    const { result } = renderChat()
+    await act(async () => {
+      void result.current.sendMessage(SEND_PAYLOAD).catch(() => undefined)
+    })
+    await act(async () => {
+      emitAgentEvent({
+        sessionId: SESSION_ID,
+        event: { type: 'agent_start', runId: 'run-1', model: MODEL, timestamp: 1 },
+      })
+    })
+
+    const queuedReport = createDeferred<{ readonly outcome: 'queued' }>()
+    apiMock.sendMessage.mockReturnValueOnce(queuedReport.promise)
+    let queuedSend: Promise<void> | null = null
+    await act(async () => {
+      queuedSend = result.current.sendMessage(QUEUED_PAYLOAD)
+    })
+    // The Follow-up starts as the next Run before the Host's queued report reaches the renderer.
+    await act(async () => {
+      emitAgentEvent({
+        sessionId: SESSION_ID,
+        event: {
+          type: 'message_start',
+          messageId: 'run-2:user',
+          role: 'user',
+          userMessage: {
+            parts: [{ type: 'text', text: QUEUED_PAYLOAD.text }],
+            sessionNodeCreatedOrder: 2,
+          },
+          timestamp: 3,
+        },
+      })
+    })
+    await act(async () => {
+      queuedReport.resolve({ outcome: 'queued' })
+      await queuedSend
+    })
+
+    expect(
+      visibleUserTexts(result.current.messages).filter((text) => text === QUEUED_PAYLOAD.text),
+    ).toHaveLength(1)
   })
 })

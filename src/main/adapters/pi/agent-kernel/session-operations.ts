@@ -54,6 +54,7 @@ export async function compactPiSession(
           createSessionListener(
             {
               model: input.model,
+              sessionEntries: null,
               getContextWindow: (provider, modelId) => {
                 const activeModel = session.model
                 return activeModel?.provider === provider && activeModel.id === modelId

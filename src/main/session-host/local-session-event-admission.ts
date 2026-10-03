@@ -1,5 +1,8 @@
 import { LOCAL_SESSION_WORKTREE_LAUNCH_REVISION } from '@shared/types/local-session-protocol-revisions'
-import type { SessionHostEventEnvelope } from '@shared/types/session-host-event'
+import {
+  isSessionlessHostEvent,
+  type SessionHostEventEnvelope,
+} from '@shared/types/session-host-event'
 import { snapshotAuthorizesSessionCapabilities } from '../domain/session-control/session-capability-authorization'
 import { requiredCapabilityForSessionEvent } from '../domain/session-control/session-event-capability'
 import type { AuthenticatedLocalSessionCaller } from './local-session-server'
@@ -22,7 +25,7 @@ export function createLocalSessionEventAdmissionFilter(
     ) {
       return false
     }
-    if (event.payload.kind === 'semantic-discovery-readiness-changed') {
+    if (isSessionlessHostEvent(event.payload)) {
       return requested === undefined && !authority
     }
     const sessionId = event.payload.sessionId

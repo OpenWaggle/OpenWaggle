@@ -4,9 +4,9 @@ import { usePreferencesStore } from '@/features/settings/state'
 /**
  * The model the composer's next prompt uses.
  *
- * For an existing Session that is the Session's own durable model, which the user can switch at any
- * time. A switch never reaches a Run that is already streaming: that Run keeps `runningModel`, the
- * model it started with, and the pick applies from the next prompt on (`appliesToNextMessage`).
+ * For an existing Session that is the Session's own durable model. It can change only while the
+ * Session has no Run starting, active, or finishing (the Host refuses it otherwise), so a running
+ * Run's model is the Session's; `runningModel` is the model that Run reported when it started.
  * A draft uses its own pick, then the project's preferred model for new Sessions.
  */
 export function useComposerModel() {
@@ -18,11 +18,5 @@ export function useComposerModel() {
     activeSessionId ? state.runModelBySessionId.get(activeSessionId) : undefined,
   )
   const model = activeSessionId === null ? (draftModel ?? preferredModel) : sessionModel
-  return {
-    model,
-    runningModel,
-    appliesToNextMessage:
-      runningModel !== undefined && model !== undefined && runningModel !== model,
-    isSessionModel: activeSessionId !== null,
-  }
+  return { model, runningModel, isSessionModel: activeSessionId !== null }
 }

@@ -1,5 +1,8 @@
 import type { LocalSessionProfileAuthority } from '@shared/types/local-session-profile'
-import type { SessionHostEventDelivery } from '@shared/types/session-host-event'
+import {
+  isSessionlessHostEvent,
+  type SessionHostEventDelivery,
+} from '@shared/types/session-host-event'
 import type {
   SessionQueryRequest,
   SessionQueryResponse,
@@ -130,15 +133,14 @@ function throwIfAborted(signal?: AbortSignal) {
 function isTargetDelivery(request: WaitRequest, delivery: SessionHostEventDelivery) {
   if (delivery.status !== 'event') return false
   const payload = delivery.event.payload
-  if (payload.kind === 'semantic-discovery-readiness-changed') return false
+  if (isSessionlessHostEvent(payload)) return false
   return request.query.targets.some((target) => target.sessionId === payload.sessionId)
 }
 
 function targetEventFilter(request: WaitRequest) {
   const targetSessionIds = new Set(request.query.targets.map((target) => target.sessionId))
   return (event: Extract<SessionHostEventDelivery, { readonly status: 'event' }>['event']) =>
-    event.payload.kind !== 'semantic-discovery-readiness-changed' &&
-    targetSessionIds.has(event.payload.sessionId)
+    !isSessionlessHostEvent(event.payload) && targetSessionIds.has(event.payload.sessionId)
 }
 
 function closeWaitSubscription(

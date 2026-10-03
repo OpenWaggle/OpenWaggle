@@ -193,7 +193,8 @@ export function beginForegroundRun(
  * The Host kept the message as a Follow-up rather than starting a Run - the Session still had a Run
  * settling, or Follow-ups waiting in a queue a failed Run paused. Nothing will complete for this
  * send, so the Session goes back to what it was showing, and the message leaves the transcript: it
- * is a queued Follow-up now, shown in the queue with a way to resume it.
+ * is a queued Follow-up now, shown in the queue with a way to resume it. If the Host has already
+ * started it as the next Run, its row is that Run's incorporated user message and stays.
  */
 export function forgetQueuedSend(input: {
   readonly refs: ForegroundRunRefs
@@ -210,7 +211,13 @@ export function forgetQueuedSend(input: {
     setters.setMessagesBySessionId,
     setters.setRunRenderMessages,
     targetSessionId,
-    (currentMessages) => currentMessages.filter((message) => message.id !== optimisticMessageId),
+    // A row that took a log order is a message the Host already started as the next Run's input.
+    (currentMessages) =>
+      currentMessages.filter(
+        (message) =>
+          message.id !== optimisticMessageId ||
+          message.metadata?.sessionNodeCreatedOrder !== undefined,
+      ),
     { cacheRunSnapshot: true },
   )
 }

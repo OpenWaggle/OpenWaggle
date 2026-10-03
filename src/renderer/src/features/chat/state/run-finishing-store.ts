@@ -29,8 +29,13 @@ export const useRunFinishingStore = create<RunFinishingState>((set) => ({
     }),
 }))
 
-/** Whether an event ends the agent's work in a Run, as opposed to a turn or a retried attempt. */
+/**
+ * Whether an event ends the agent's work in a Run, as opposed to a turn or a retried attempt. A
+ * stopped or exhausted retry wait (`auto_retry_end` without success) ends it with no further
+ * `agent_end`, and the Host still settles the Run after it.
+ */
 function endsAgentRun(event: AgentTransportEvent) {
+  if (event.type === 'auto_retry_end') return !event.success
   return event.type === 'agent_end' && event.reason !== 'toolUse' && event.willRetry !== true
 }
 

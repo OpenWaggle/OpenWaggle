@@ -55,23 +55,4 @@ describe('OpenWaggle MCP Session v2 option contract', () => {
       }),
     ).toThrow('baseRef and startFromOrigin require workspace new-worktree')
   })
-
-  it('maps queue authorization repair through the singular Follow-up identity', () => {
-    expect(
-      buildMcpSessionPayloadV2({
-        operation: 'queue-update-authorization',
-        sessionId: 'session-1',
-        followUpId: 'follow-up-1',
-        runAuthorizationOverride: 'inherit',
-      }),
-    ).toMatchObject({
-      request: {
-        command: {
-          operation: 'queue-update-authorization',
-          sessionId: 'session-1',
-          followUpId: 'follow-up-1',
-        },
-      },
-    })
-  })
 })

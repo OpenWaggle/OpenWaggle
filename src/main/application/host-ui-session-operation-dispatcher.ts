@@ -13,7 +13,9 @@ import type { SessionResourceImageValidator } from '../ports/session-resource-im
 import type { SessionResourceRepository } from '../ports/session-resource-repository'
 import type { SessionResourceStore } from '../ports/session-resource-store'
 import type { SessionResourceThumbnailer } from '../ports/session-resource-thumbnailer'
+import type { SessionSettingsRepository } from '../ports/session-settings-repository'
 import type { TerminalService } from '../ports/terminal-service'
+import type { ThinkingLevelDefaultService } from '../ports/thinking-level-default-service'
 import type { SettingsService } from '../services/settings-service'
 import {
   listArchivedSessionBranchCatalogPage,
@@ -31,7 +33,12 @@ import {
   organizeSession,
   setAuthorizationMode,
 } from './host-ui-session-lifecycle-operations'
-import { setSessionModel } from './host-ui-session-model-operation'
+import {
+  getDefaultThinkingLevel,
+  setDefaultThinkingLevel,
+  setSessionModel,
+  setSessionThinkingLevel,
+} from './host-ui-session-model-operation'
 import {
   invalid,
   requireArgCount,
@@ -62,6 +69,8 @@ type SessionOperationServices =
   | SessionProjectionRepository
   | SessionRepository
   | SettingsService
+  | SessionSettingsRepository
+  | ThinkingLevelDefaultService
   | InlineVisualizationService
   | TerminalService
   | DesktopServiceBroker
@@ -97,6 +106,9 @@ function dispatchSessionOperation(channel: HostBackedSessionGuiChannel, args: re
     .with('sessions:regenerate-title', () => regenerateSessionTitleOperation(args))
     .with('sessions:set-authorization-mode', () => setAuthorizationMode(args))
     .with('sessions:set-model', () => setSessionModel(args))
+    .with('sessions:set-thinking-level', () => setSessionThinkingLevel(args))
+    .with('sessions:get-default-thinking-level', () => getDefaultThinkingLevel(args))
+    .with('sessions:set-default-thinking-level', () => setDefaultThinkingLevel(args))
     .with('sessions:list-by-ids', () => listSessionsByIds(args))
     .with('sessions:list-page', () => listSessionCatalogPage(args))
     .with('sessions:list-projects', () => listSessionProjectPage(args))

@@ -103,7 +103,6 @@ describe('appendMissingOptimisticUserMessages', () => {
     )
     const optimistic = createOptimisticUserMessage({
       text: 'Fix this layout',
-      thinkingLevel: 'medium',
       attachments: [attachment],
     })
     const persisted = sessionToUIMessages({

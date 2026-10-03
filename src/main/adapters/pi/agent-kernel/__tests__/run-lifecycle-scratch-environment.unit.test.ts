@@ -24,7 +24,7 @@ vi.mock('../session-manager', () => ({
 }))
 vi.mock('../pi-run-control', () => ({ createPiRunControl: vi.fn() }))
 vi.mock('../../pi-provider-catalog', () => ({
-  getPiModelAvailableThinkingLevels: vi.fn(() => ['medium']),
+  getPiModelAvailableThinkingLevels: vi.fn(() => ['off', 'low', 'medium', 'high']),
 }))
 
 const { createPiRunSessionRuntime } = await import('../run-lifecycle')
@@ -36,7 +36,7 @@ function runtimeInput() {
     session: fromPartial({ id: SessionId('session'), projectPath: '/repo' }),
     projectPath: '/repo',
     runId: 'run',
-    payload: fromPartial({ text: 'Go.', thinkingLevel: 'medium', attachments: [] }),
+    payload: fromPartial({ text: 'Go.', attachments: [] }),
     modelReference: SupportedModelId('provider/model'),
     signal: new AbortController().signal,
     onEvent: vi.fn(),
@@ -70,5 +70,23 @@ describe('Pi run session scratch environment', () => {
     expect(mocks.createPiSessionForRun).toHaveBeenLastCalledWith(
       expect.objectContaining({ scratchDirectory: SCRATCH }),
     )
+  })
+
+  it('starts Pi with the Session thinking level, clamped to the model', async () => {
+    const input = runtimeInput()
+    await createPiRunSessionRuntime({
+      ...input,
+      session: { ...input.session, executionThinkingLevel: 'max' },
+    })
+
+    expect(mocks.createPiSessionForRun).toHaveBeenCalledWith(
+      expect.objectContaining({ thinkingLevel: 'high' }),
+    )
+  })
+
+  it("lets Pi restore the Session's own level when the Session stores none", async () => {
+    await createPiRunSessionRuntime(runtimeInput())
+
+    expect(mocks.createPiSessionForRun.mock.calls[0]?.[0]).not.toHaveProperty('thinkingLevel')
   })
 })

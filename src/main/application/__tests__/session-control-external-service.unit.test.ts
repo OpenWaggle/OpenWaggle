@@ -1,4 +1,4 @@
-import { RunId, SessionId } from '@shared/types/brand'
+import { FollowUpId, ReportCorrelationId, ReportId, RunId, SessionId } from '@shared/types/brand'
 import { SESSION_CONTROL_CONTRACT_VERSION } from '@shared/types/session-control'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
@@ -15,8 +15,11 @@ import {
   AgentSteeringService,
 } from '../../ports/agent-steering-service'
 import { SessionControlAttachmentService } from '../../ports/session-control-attachment-service'
+import { SessionControlIdentityService } from '../../ports/session-control-identity-service'
 import { SessionControlOperationJournal } from '../../ports/session-control-operation-journal'
-import { interruptSessionRun, steerSessionRun } from '../session-control-external-service'
+import { interruptSessionRun } from '../session-control-external-service'
+import { steerSessionRun } from '../session-control-steering-service'
+import { noUndeliveredSteers } from './agent-steering-test-layer'
 
 const request = {
   contractVersion: SESSION_CONTROL_CONTRACT_VERSION,
@@ -57,10 +60,14 @@ function makeLayer(input: {
           }),
         complete: (completeInput) =>
           Effect.sync(() => {
-            completedOutcome = completeInput.outcome
             if (completeInput.finalizeState) {
               currentState = completeInput.finalizeState(currentState)
             }
+            const outcome = completeInput.outcomeForFinalState
+              ? completeInput.outcomeForFinalState(currentState)
+              : completeInput.outcome
+            completedOutcome = outcome
+            return outcome
           }),
       }),
       Layer.succeed(SessionControlAttachmentService, {
@@ -72,6 +79,14 @@ function makeLayer(input: {
       }),
       Layer.succeed(AgentSteeringService, {
         steer: (steeringInput) => Effect.promise(() => input.steer(steeringInput)),
+        ...noUndeliveredSteers,
+      }),
+      Layer.succeed(SessionControlIdentityService, {
+        nextRunId: Effect.succeed(RunId('run-unused')),
+        nextFollowUpId: Effect.succeed(FollowUpId('follow-up-returnable')),
+        nextReportId: Effect.succeed(ReportId('report-unused')),
+        nextReportCorrelationId: Effect.succeed(ReportCorrelationId('correlation-unused')),
+        now: Effect.succeed(4242),
       }),
       Layer.succeed(AgentRunInterruptionService, {
         requestInterrupt: (interruptionInput) =>
@@ -107,6 +122,21 @@ describe('Session Control external command service', () => {
       runId: 'run-active',
       text: 'Use the corrected migration order.',
       attachments: [],
+      delivery: {
+        kind: 'steer',
+        followUp: {
+          id: FollowUpId('follow-up-returnable'),
+          deliveryState: 'pending',
+          intent: {
+            text: 'Use the corrected migration order.',
+            attachmentIds: [],
+            callerId: 'local-user',
+            acceptedAt: 4242,
+            idempotencyKey: 'idempotency-steer',
+            returnedSteer: { runId: 'run-active' },
+          },
+        },
+      },
     })
     expect(response).toEqual({
       contractVersion: 2,
@@ -123,6 +153,31 @@ describe('Session Control external command service', () => {
       },
     })
     expect(setup.completedOutcome()).toEqual(response.outcome)
+    // A queued steer may return to the Follow-up queue if its Run stops, so it keeps attachments.
+    expect(setup.release).not.toHaveBeenCalled()
+  })
+
+  it('releases the attachments of a steer an extension handled', async () => {
+    const steer = vi.fn(
+      async (): Promise<AgentSteeringResult> => ({
+        accepted: true,
+        receipt: { delivery: 'handled' },
+      }),
+    )
+    const setup = makeLayer({
+      state: {
+        sessionId: SessionId('session-target'),
+        revision: 7,
+        run: { state: 'active', runId: RunId('run-active') },
+        followUpQueue: { state: 'running', revision: 0, items: [] },
+      },
+      steer,
+    })
+
+    await Effect.runPromise(
+      steerSessionRun({ callerId: 'local-user', request }).pipe(Effect.provide(setup.layer)),
+    )
+
     expect(setup.release).toHaveBeenCalledWith({
       attachmentIds: [],
       sessionId: 'session-target',

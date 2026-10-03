@@ -255,7 +255,6 @@ describe('InlineVisualization brokers', () => {
       )
       expect(send).toHaveBeenCalledWith({
         text: 'Investigate the selected service.',
-        thinkingLevel: expect.any(String),
         attachments: [],
         visualizationContext: {
           title: 'Follow-up map',

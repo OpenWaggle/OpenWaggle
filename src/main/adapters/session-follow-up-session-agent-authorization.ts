@@ -15,7 +15,6 @@ import {
   loadProfile,
   profileAuthority,
   profileId,
-  type QueuedFollowUpProfileRow,
   sourceSessionId,
   type TargetRow,
   targetDescriptor,
@@ -62,23 +61,6 @@ function sourceRelationshipBlockReason(
     `
     return relationship[0]?.allowed === 1 ? undefined : ('authority_changed' as const)
   })
-}
-
-function sourceCeilingChanged(
-  requiresYolo: boolean,
-  source: SourceRow,
-  target: TargetRow,
-  originProfile: QueuedFollowUpProfileRow | undefined,
-  targetGrantCeiling: SourceRow['target_grant_authorization_ceiling'],
-) {
-  if (!requiresYolo) return false
-  return (
-    target.authorization_ceiling !== 'yolo' ||
-    source.authorization_ceiling !== 'yolo' ||
-    source.grant_authorization_ceiling === 'ask-for-approval' ||
-    targetGrantCeiling === 'ask-for-approval' ||
-    originProfile?.authorization_ceiling === 'ask-for-approval'
-  )
 }
 
 function resolveOriginAuthority(
@@ -136,7 +118,6 @@ export function sessionAgentBlockReason(
   sql: SqlClient.SqlClient,
   callerId: string,
   target: TargetRow,
-  requiresYolo: boolean,
 ) {
   const sourceId = sourceSessionId(callerId)
   if (!sourceId) return Effect.succeed<AttentionReason | undefined>(undefined)
@@ -221,17 +202,6 @@ export function sessionAgentBlockReason(
       ['sessions:message'],
     )
     if (!authorization.authorized) return 'authority_changed' as const
-    if (
-      sourceCeilingChanged(
-        requiresYolo,
-        source,
-        target,
-        origin.originProfile,
-        'derived' in authorization ? authorization.derived.authorizationCeiling : null,
-      )
-    ) {
-      return 'authorization_ceiling_changed' as const
-    }
     return undefined
   })
 }

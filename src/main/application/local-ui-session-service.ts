@@ -1,8 +1,14 @@
 import { matchBy } from '@diegogbrisa/ts-match'
 import { SessionBranchId, SessionId, SessionNodeId, SupportedModelId } from '@shared/types/brand'
 import type { LocalSessionCallerIdentity } from '@shared/types/local-session-profile'
-import type { LocalSessionCommandPayload } from '@shared/types/local-session-protocol'
+import type {
+  LocalSessionCommandPayload,
+  LocalSessionCommandResult,
+} from '@shared/types/local-session-protocol'
 import * as Effect from 'effect/Effect'
+import * as Option from 'effect/Option'
+import { FOLLOW_UP_EDIT_HOLD_LEASE_MS } from '../domain/session-control/follow-up-edit-lease'
+import { FollowUpEditHoldRepository } from '../ports/follow-up-edit-hold-repository'
 import { SessionControlAttachmentService } from '../ports/session-control-attachment-service'
 import { SessionProjectionRepository } from '../ports/session-projection-repository'
 import { SessionRepository } from '../ports/session-repository'
@@ -51,7 +57,42 @@ function updateTreeUiState(
     .pipe(Effect.as({ effect: 'tree-ui-state-updated' as const }))
 }
 
-function executeLocalUiMutation(command: LocalUiPayload['request']['command']) {
+type LocalUiCommand = LocalUiPayload['request']['command']
+type LocalUiResult = Extract<LocalSessionCommandResult, { contract: 'local-ui-v1' }>
+type RenewFollowUpEditHoldCommand = Extract<
+  LocalUiCommand,
+  { operation: 'renew-follow-up-edit-hold' }
+>
+
+/**
+ * Renews a Follow-up edit hold of the desktop user. It changes only the lease, so it is neither
+ * journaled nor published: renewal runs every few seconds while an edit is open.
+ */
+function renewFollowUpEditHold(
+  caller: LocalSessionCallerIdentity,
+  command: RenewFollowUpEditHoldCommand,
+) {
+  return Effect.gen(function* () {
+    const holds = yield* Effect.serviceOption(FollowUpEditHoldRepository)
+    const renewed = Option.isSome(holds)
+      ? yield* holds.value.renew({
+          sessionId: command.sessionId,
+          followUpId: command.followUpId,
+          holdId: command.holdId,
+          holderCallerId: caller.callerId,
+        })
+      : false
+    return renewed
+      ? ({
+          effect: 'follow-up-edit-hold-renewed',
+          // The lease runs on the Host's monotonic clock; this is its wall-clock estimate.
+          leaseExpiresAt: Date.now() + FOLLOW_UP_EDIT_HOLD_LEASE_MS,
+        } as const)
+      : ({ effect: 'follow-up-edit-hold-lost' } as const)
+  })
+}
+
+function executeLocalUiMutation(command: Exclude<LocalUiCommand, RenewFollowUpEditHoldCommand>) {
   return Effect.gen(function* () {
     const sessionId = SessionId(command.sessionId)
     const projection = yield* SessionProjectionRepository
@@ -128,12 +169,21 @@ export function executeLocalUiSessionCommand(input: {
 }) {
   return Effect.gen(function* () {
     yield* requireLocalUser(input.caller, 'Local UI commands')
-    const outcome = yield* executeLocalUiMutation(input.payload.request.command)
-    const sessionId = input.payload.request.command.sessionId
+    const command = input.payload.request.command
+    const sessionId = command.sessionId
+    if (command.operation === 'renew-follow-up-edit-hold') {
+      const renewal = yield* renewFollowUpEditHold(input.caller, command)
+      const renewed: LocalUiResult = {
+        contract: 'local-ui-v1',
+        response: { requestId: input.payload.request.requestId, sessionId, ...renewal },
+      }
+      return renewed
+    }
+    const outcome = yield* executeLocalUiMutation(command)
     if (outcome.effect !== 'session-deleted') {
       publishSessionHostEvent({ kind: 'session-list-changed', sessionId, change: 'updated' })
     }
-    return {
+    const result: LocalUiResult = {
       contract: 'local-ui-v1',
       response: {
         requestId: input.payload.request.requestId,
@@ -141,7 +191,8 @@ export function executeLocalUiSessionCommand(input: {
         sessionId,
         ...('navigation' in outcome ? { navigation: outcome.navigation } : {}),
       },
-    } as const
+    }
+    return result
   })
 }
 

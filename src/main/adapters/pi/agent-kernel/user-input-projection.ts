@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import type { AgentSession } from '@earendil-works/pi-coding-agent'
+import type { AgentSession, SessionEntry } from '@earendil-works/pi-coding-agent'
 import { Schema, safeDecodeUnknown } from '@shared/schema'
 import { preparedAttachmentSchema } from '@shared/schemas/validation'
 import type { MessagePart } from '@shared/types/agent'
@@ -124,6 +124,25 @@ export function decodeUserInputProjection(value: unknown): readonly MessagePart[
   return decodeProjection(value)?.parts ?? null
 }
 
-export function decodeUserInputProjectionDigest(value: unknown) {
-  return decodeProjection(value)?.durableTextSha256 ?? null
+/**
+ * The display projection recorded for the user message whose parent is `parentId`: the nearest
+ * projection entry above it, without crossing another message.
+ */
+export function findUserInputProjection(
+  parentId: string | null,
+  entryById: ReadonlyMap<string, SessionEntry>,
+) {
+  let currentId = parentId
+  while (currentId) {
+    const entry = entryById.get(currentId)
+    if (!entry || entry.type === 'message') return null
+    if (entry.type === 'custom' && entry.customType === OPENWAGGLE_USER_INPUT_CUSTOM_TYPE) {
+      const projection = decodeProjection(entry.data)
+      return projection
+        ? { parts: projection.parts, durableTextSha256: projection.durableTextSha256 ?? null }
+        : null
+    }
+    currentId = entry.parentId
+  }
+  return null
 }

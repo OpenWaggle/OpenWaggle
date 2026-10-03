@@ -39,7 +39,7 @@ async function capturedImages(details: JsonObject) {
     captureSuccessfulRunResources({
       sessionId: SessionId('session-1'),
       runId: 'run-mcp-screenshot',
-      payload: { text: '', thinkingLevel: 'medium', attachments: [] },
+      payload: { text: '', attachments: [] },
       messages: [
         assistantToolResultMessage(false, {
           name: 'mcp_chrome-devtools_take_screenshot_bd31d9df',
@@ -101,7 +101,7 @@ describe('MCP gateway Session Resource capture', () => {
       captureSuccessfulRunResources({
         sessionId: SessionId('session-1'),
         runId: 'run-mcp-orchestration',
-        payload: { text: '', thinkingLevel: 'medium', attachments: [] },
+        payload: { text: '', attachments: [] },
         messages: [
           assistantToolResultMessage(false, {
             name: 'mcp_run',

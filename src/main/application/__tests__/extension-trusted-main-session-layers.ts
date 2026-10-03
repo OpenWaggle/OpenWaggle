@@ -5,10 +5,12 @@ import { SessionProjectionRepository } from '../../ports/session-projection-repo
 import { SessionRepository } from '../../ports/session-repository'
 import { SessionResourceRepository } from '../../ports/session-resource-repository'
 import { makeSessionDetail } from './extension-capability-broker-session-test-utils'
+import { makeThinkingLevelDefaultLayer } from './extension-capability-broker-settings-test-utils'
 import { emptySessionCatalogMethods } from './session-repository-test-support'
 
 export function makeTrustedMainSessionLayers(projectPath: string) {
   return Layer.mergeAll(
+    makeThinkingLevelDefaultLayer(),
     Layer.succeed(SessionProjectionRepository, {
       get: () => Effect.succeed(makeSessionDetail(projectPath)),
       getOptional: () => Effect.succeed(null),
@@ -24,7 +26,6 @@ export function makeTrustedMainSessionLayers(projectPath: string) {
       assignProvisionalTitle: () => Effect.succeed(true),
       setWorktreePlan: () => Effect.void,
       setAuthorizationMode: () => Effect.void,
-      setExecutionModel: () => Effect.succeed(true),
       listTurnCheckpoints: () => Effect.succeed([]),
       getTurnDiff: () => Effect.succeed(null),
       getTurnDiffFiles: () => Effect.succeed([]),

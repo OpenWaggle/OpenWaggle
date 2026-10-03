@@ -1,8 +1,6 @@
 import { safeDecodeUnknown } from '@shared/schema'
 import { projectPreferencesUpdateSchema } from '@shared/schemas/validation'
 import { isAgentAuthorizationMode } from '@shared/types/agent-authorization'
-import { THINKING_LEVELS } from '@shared/types/settings'
-import { includes } from '@shared/utils/validation'
 import * as Effect from 'effect/Effect'
 import {
   getProjectPreferencesStrict,
@@ -36,17 +34,12 @@ function validateProjectPreferences(preferences: unknown) {
   }
 
   const model = result.data.model === null ? null : result.data.model?.trim()
-  const { thinkingLevel, authorizationMode } = result.data
+  const { authorizationMode } = result.data
   const failure =
     validatePreferenceField(
       model,
       isCanonicalModelRef,
       'Project preference model must be a provider/model ref.',
-    ) ??
-    validatePreferenceField(
-      thinkingLevel,
-      (level) => includes(THINKING_LEVELS, level),
-      'Project preference thinking level is invalid.',
     ) ??
     validatePreferenceField(
       authorizationMode,
@@ -61,7 +54,6 @@ function validateProjectPreferences(preferences: unknown) {
   }>({
     model,
     filePreferences: {
-      ...(thinkingLevel !== undefined ? { thinkingLevel } : {}),
       ...(authorizationMode !== undefined ? { authorizationMode } : {}),
     },
   })
@@ -104,7 +96,8 @@ export function getProjectPreferencesOperation(rawProjectPath: unknown) {
  * The selected model never goes into the project settings file: that file lives inside the
  * repository, so committing a personal model pick would leak machine-specific provider config into
  * shared source. The model therefore lands in the app's SQLite settings store instead, keyed by
- * project path; only thinkingLevel and authorizationMode remain repo-local.
+ * project path; only authorizationMode remains repo-local. The thinking level is never a project
+ * preference: it is Session state, and new Sessions start from Pi's global default.
  *
  * Legacy handling: upgraded projects may still carry a `model` in the settings file. The file
  * writer strips it on every write, so before any strip this operation first makes the DB own the
@@ -131,11 +124,7 @@ export function setProjectPreferencesOperation(rawProjectPath: unknown, rawPrefe
     // still carries one must rewrite it — a model-only set would otherwise leave the stale value
     // committed in the repo. Projects without a legacy file model only touch the DB.
     const rewritesLegacyFileModel = model !== undefined && filePrefs?.model !== undefined
-    if (
-      rewritesLegacyFileModel ||
-      filePreferences.thinkingLevel !== undefined ||
-      filePreferences.authorizationMode !== undefined
-    ) {
+    if (rewritesLegacyFileModel || filePreferences.authorizationMode !== undefined) {
       yield* Effect.promise(() => setProjectPreferences(projectPath, filePreferences))
     }
 

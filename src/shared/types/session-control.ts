@@ -13,11 +13,14 @@ import type {
   SessionControlInterruptDescendantsCommand,
 } from './session-control-interruption'
 import type {
-  SessionControlQueueMutationCommand,
+  SessionControlQueueAdoptCommand,
+  SessionControlQueueEditBeginCommand,
+  SessionControlQueueEditCancelCommand,
+  SessionControlQueueEditSaveCommand,
+  SessionControlQueueOutcome,
   SessionControlQueuePauseCommand,
   SessionControlQueueReorderCommand,
   SessionControlQueueResumeCommand,
-  SessionControlQueueUpdateAuthorizationCommand,
   SessionControlQueueWithdrawCommand,
 } from './session-control-queue'
 import type {
@@ -65,11 +68,16 @@ export type {
   SessionControlInterruptDescendantsCommand,
 } from './session-control-interruption'
 export type {
+  SessionControlFollowUpEditInput,
+  SessionControlQueueAdoptCommand,
+  SessionControlQueueEditBeginCommand,
+  SessionControlQueueEditCancelCommand,
+  SessionControlQueueEditCommand,
+  SessionControlQueueEditSaveCommand,
   SessionControlQueueMutationCommand,
   SessionControlQueuePauseCommand,
   SessionControlQueueReorderCommand,
   SessionControlQueueResumeCommand,
-  SessionControlQueueUpdateAuthorizationCommand,
   SessionControlQueueWithdrawCommand,
 } from './session-control-queue'
 export type {
@@ -80,6 +88,8 @@ export type {
   SessionControlInterruptMutationRequest,
   SessionControlMessageMutationRequest,
   SessionControlPromoteMutationRequest,
+  SessionControlQueueAdoptMutationRequest,
+  SessionControlQueueEditMutationRequest,
   SessionControlQueueMutationRequest,
   SessionControlReplaceMutationRequest,
   SessionControlReportMutationRequest,
@@ -142,10 +152,13 @@ export const SESSION_CONTROL_MUTATION_OPERATIONS = [
   'unarchive',
   'handoff',
   'promote',
+  'queue-adopt',
+  'queue-edit-begin',
+  'queue-edit-cancel',
+  'queue-edit-save',
   'queue-pause',
   'queue-reorder',
   'queue-resume',
-  'queue-update-authorization',
   'queue-withdraw',
   'report',
   'replace',
@@ -164,10 +177,13 @@ export type SessionControlMutationCommand =
   | SessionAuthorizationSetCommand
   | SessionOrganizationCommand
   | SessionControlPromoteCommand
+  | SessionControlQueueAdoptCommand
+  | SessionControlQueueEditBeginCommand
+  | SessionControlQueueEditCancelCommand
+  | SessionControlQueueEditSaveCommand
   | SessionControlQueuePauseCommand
   | SessionControlQueueReorderCommand
   | SessionControlQueueResumeCommand
-  | SessionControlQueueUpdateAuthorizationCommand
   | SessionControlQueueWithdrawCommand
   | SessionControlReplaceCommand
   | SessionControlStartCommand
@@ -249,24 +265,7 @@ export type SessionControlMutationOutcome =
       readonly runId: string
       readonly stateRevision: number
     }
-  | {
-      readonly operation: SessionControlQueueMutationCommand['operation']
-      readonly effect: 'queue-updated'
-      readonly sessionId: string
-      readonly queueState: 'running' | 'paused'
-      readonly queueRevision: number
-      readonly followUpIds: readonly string[]
-      readonly stateRevision: number
-    }
-  | {
-      readonly operation: 'queue-resume'
-      readonly effect: 'started-run'
-      readonly sessionId: string
-      readonly runId: string
-      readonly followUpId: string
-      readonly queueRevision: number
-      readonly stateRevision: number
-    }
+  | SessionControlQueueOutcome
   | {
       readonly operation: 'message'
       readonly effect: 'queued-follow-up'

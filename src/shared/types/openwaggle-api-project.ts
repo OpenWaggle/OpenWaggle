@@ -12,7 +12,6 @@ import type { AgentAuthorizationMode } from './agent-authorization'
 /** Wire shape of the per-project agent overrides carried over IPC. */
 export interface ProjectPreferencesPayload {
   model?: string
-  thinkingLevel?: string
   authorizationMode?: AgentAuthorizationMode
 }
 
@@ -24,7 +23,6 @@ export interface ProjectPreferencesPayload {
  */
 export interface ProjectPreferencesUpdatePayload {
   model?: string | null
-  thinkingLevel?: string | null
   authorizationMode?: AgentAuthorizationMode | null
 }
 

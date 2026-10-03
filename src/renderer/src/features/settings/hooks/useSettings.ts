@@ -81,7 +81,6 @@ export function usePreferences() {
   const toggleFavoriteModel = usePreferencesStore((s) => s.toggleFavoriteModel)
   const setEnabledModels = usePreferencesStore((s) => s.setEnabledModels)
   const setProjectPath = usePreferencesStore((s) => s.setProjectPath)
-  const setThinkingLevel = usePreferencesStore((s) => s.setThinkingLevel)
   const pushRecentProject = usePreferencesStore((s) => s.pushRecentProject)
   const retryLoad = usePreferencesStore((s) => s.retryLoad)
 
@@ -93,7 +92,6 @@ export function usePreferences() {
     toggleFavoriteModel,
     setEnabledModels,
     setProjectPath,
-    setThinkingLevel,
     pushRecentProject,
     retryLoad,
   }

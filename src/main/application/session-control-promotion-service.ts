@@ -10,7 +10,10 @@ import {
   applyAcceptedFollowUpPromotion,
   planFollowUpPromotion,
 } from '../domain/session-control/follow-up-promotion'
-import type { SessionControlIntentSnapshot } from '../domain/session-control/message-aggregate'
+import {
+  followUpAttachmentOwner,
+  type SessionControlIntentSnapshot,
+} from '../domain/session-control/message-aggregate'
 import { SessionControlOperationPendingError } from '../errors'
 import { type AgentSteeringInput, AgentSteeringService } from '../ports/agent-steering-service'
 import { SessionControlAttachmentService } from '../ports/session-control-attachment-service'
@@ -36,6 +39,7 @@ function releasePromotedAttachments(input: {
 
 function promotedSteeringInput(
   runId: string,
+  followUpId: FollowUpId,
   intent: SessionControlIntentSnapshot,
   attachments: AgentSteeringInput['attachments'],
 ): AgentSteeringInput {
@@ -44,6 +48,7 @@ function promotedSteeringInput(
     text: intent.text,
     attachments,
     requireDurableDelivery: true,
+    delivery: { kind: 'promoted-follow-up', followUpId },
     ...(intent.visualizationContext ? { visualizationContext: intent.visualizationContext } : {}),
   }
 }
@@ -77,7 +82,7 @@ function completeClaimedPromotion(input: {
         service.resolve({
           attachmentIds: input.intent.attachmentIds,
           sessionId: input.operation.request.command.sessionId,
-          ownerCallerId: input.intent.callerId,
+          ownerCallerId: followUpAttachmentOwner(input.intent),
         }),
       ),
       Effect.either,
@@ -88,7 +93,12 @@ function completeClaimedPromotion(input: {
         : yield* AgentSteeringService.pipe(
             Effect.flatMap((service) =>
               service.steer(
-                promotedSteeringInput(input.expectedRunId, input.intent, attachments.right),
+                promotedSteeringInput(
+                  input.expectedRunId,
+                  input.followUpId,
+                  input.intent,
+                  attachments.right,
+                ),
               ),
             ),
             Effect.catchAll(() =>
@@ -130,7 +140,7 @@ function completeClaimedPromotion(input: {
           cleanup: releasePromotedAttachments({
             attachmentIds: input.intent.attachmentIds,
             sessionId: input.operation.request.command.sessionId,
-            ownerCallerId: input.intent.callerId,
+            ownerCallerId: followUpAttachmentOwner(input.intent),
           }),
           operation: 'promotion',
           sessionId: input.operation.request.command.sessionId,
@@ -167,7 +177,12 @@ export function promoteSessionFollowUp(input: PromoteSessionFollowUpInput) {
             }))
             .with('stopping', (run) => ({ state: 'stopping', runId: run.runId }))
             .exhaustive(),
-          followUpQueue: { items: state.followUpQueue.items.map((item) => item.id) },
+          followUpQueue: {
+            items: state.followUpQueue.items.map((item) => item.id),
+            heldItems: state.followUpQueue.items
+              .filter((item) => item.editHold)
+              .map((item) => item.id),
+          },
         })
         if (!plan.accepted) {
           return {

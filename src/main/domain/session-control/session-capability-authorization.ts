@@ -52,9 +52,12 @@ export function requiredSessionControlCapabilities(
       .with('queue-withdraw', 'queue-reorder', 'queue-pause', 'queue-resume', () => [
         'sessions:queue',
       ])
-      // Re-authorizing someone else's Follow-up clears a revocation or authority pause and can
-      // raise its mode, so it is an authorization change like authorization-set.
-      .with('queue-update-authorization', () => ['sessions:queue', 'sessions:authorization'])
+      // Follow-up edits are also limited to the desktop user by the edit service.
+      .with('queue-edit-begin', 'queue-edit-save', 'queue-edit-cancel', () => ['sessions:queue'])
+      // Adopting another caller's Follow-up resumes it under new authority, so it is an
+      // authorization change like authorization-set; the adopt service also limits it to the
+      // desktop user.
+      .with('queue-adopt', () => ['sessions:queue', 'sessions:authorization'])
       .exhaustive()
   )
 }

@@ -53,7 +53,6 @@ const REQUIRED_CAPABILITIES = new Map<string, readonly SessionCapability[]>([
   ['queue_reorder', ['sessions:queue']],
   ['queue_pause', ['sessions:queue']],
   ['queue_resume', ['sessions:queue']],
-  ['queue_update_authorization', ['sessions:queue', 'sessions:authorization']],
   ['items', ['sessions:read']],
   ['export', ['sessions:export', 'sessions:read']],
   ['export_create', ['sessions:export', 'sessions:read']],

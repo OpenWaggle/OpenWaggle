@@ -59,9 +59,7 @@ export const sessionExportManifestSchema: Schema.Schema<SessionExportManifest> =
         position: Schema.Number.pipe(Schema.int(), Schema.nonNegative()),
         createdAt: Schema.Number.pipe(Schema.int(), Schema.nonNegative()),
         deliveryState: Schema.Literal('pending', 'needs_attention'),
-        attentionReason: Schema.optional(
-          Schema.Literal('authorization_ceiling_changed', 'profile_revoked', 'authority_changed'),
-        ),
+        attentionReason: Schema.optional(Schema.Literal('profile_revoked', 'authority_changed')),
         intent: Schema.optional(Schema.Unknown),
       }),
     ),

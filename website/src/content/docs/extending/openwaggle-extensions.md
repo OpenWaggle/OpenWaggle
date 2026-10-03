@@ -522,7 +522,7 @@ The state model is:
 
 - OpenWaggle state is read-only through typed capabilities such as `openWaggle.state.get(scope)`.
 - OpenWaggle mutations use typed action capabilities such as `openWaggle.actions.selectProject(scope, projectPath)`.
-- Settings access uses typed settings capabilities such as `openWaggle.settings.get(scope)` and `openWaggle.settings.update(scope, settings)`.
+- Settings access uses typed settings capabilities such as `openWaggle.settings.get(scope)` and `openWaggle.settings.update(scope, settings)`. Model preferences report Pi's global default thinking level as `thinkingLevel`, but an update cannot set it: the thinking level is a Session setting that only the user changes.
 - Session resource access uses bounded `openWaggle.resources.list(scope, { limit, cursor })` pages and `openWaggle.resources.publish(scope, resource)` for the mounted Session only.
 - Extension package state is extension-owned and can be shared by every contribution from the same package.
 - `storage.packageState.global` and `storage.packageState.project` are for persistent package state.

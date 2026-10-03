@@ -7,7 +7,7 @@ import {
 } from '../../state/inline-visualization-state'
 import { enqueueIfAllowed } from '../ChatComposerStack'
 
-const PAYLOAD: AgentSendPayload = { text: 'do the thing', thinkingLevel: 'off', attachments: [] }
+const PAYLOAD: AgentSendPayload = { text: 'do the thing', attachments: [] }
 
 describe('enqueueIfAllowed', () => {
   it('refuses to queue a message the send gate would block, and says why', async () => {

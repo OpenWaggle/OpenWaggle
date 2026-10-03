@@ -44,7 +44,6 @@ describe('attachments:prepare-from-text', () => {
     expect(() =>
       decodeUnknownExactOrThrow(agentSendPayloadSchema, {
         text: '',
-        thinkingLevel: 'off',
         attachments: [result],
       }),
     ).not.toThrow()

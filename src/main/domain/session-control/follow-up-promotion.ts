@@ -8,6 +8,8 @@ export interface FollowUpPromotionInput {
   readonly run: SteeringRunSnapshot
   readonly followUpQueue: {
     readonly items: readonly FollowUpId[]
+    /** Follow-ups out for a Follow-up edit: steering one would deliver the text being rewritten. */
+    readonly heldItems?: readonly FollowUpId[]
   }
 }
 
@@ -21,7 +23,12 @@ export type FollowUpPromotionPlan =
     }
   | {
       readonly accepted: false
-      readonly code: 'run_not_active' | 'run_changed' | 'run_not_steerable' | 'follow_up_not_found'
+      readonly code:
+        | 'run_not_active'
+        | 'run_changed'
+        | 'run_not_steerable'
+        | 'follow_up_not_found'
+        | 'follow_up_edit_held'
       readonly currentRunId?: RunId
     }
 
@@ -34,6 +41,9 @@ export function planFollowUpPromotion(input: FollowUpPromotionInput): FollowUpPr
 
   if (!input.followUpQueue.items.includes(input.followUpId)) {
     return { accepted: false, code: 'follow_up_not_found' }
+  }
+  if (input.followUpQueue.heldItems?.includes(input.followUpId)) {
+    return { accepted: false, code: 'follow_up_edit_held' }
   }
 
   return {

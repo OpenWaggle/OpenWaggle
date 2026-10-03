@@ -32,13 +32,11 @@ import {
   SETTINGS_KEY_SHORTCUT_RULES,
   SETTINGS_KEY_SKILL_TOGGLES_BY_PROJECT,
   SETTINGS_KEY_SYNTAX_THEME_SELECTIONS,
-  SETTINGS_KEY_THINKING_LEVEL,
   SETTINGS_KEY_UPDATE_CHANNEL,
 } from './keys'
 import { resolveRightPanelRailVisibleWhenClosed } from './right-panel-settings-sanitizer'
 import {
   isValidSessionEnvironmentMode,
-  isValidThinkingLevel,
   resolveCompactionThresholdPercent,
   resolveDefaultAuthorizationMode,
   resolveDefaultSessionEnvironmentMode,
@@ -52,7 +50,6 @@ import {
   resolveSelectedModel,
   resolveSkillTogglesByProject,
   resolveSyntaxThemeSelections,
-  resolveThinkingLevel,
   sanitizeEnabledModels,
   sanitizeFavoriteModels,
   sanitizeProjectDisplayNames,
@@ -90,9 +87,6 @@ function getStoredValue(storedSettings: Readonly<Record<string, unknown>>, key: 
 }
 
 export function buildSettingsSnapshot(storedSettings: Readonly<Record<string, unknown>>) {
-  const thinkingLevel = resolveThinkingLevel(
-    getStoredValue(storedSettings, SETTINGS_KEY_THINKING_LEVEL),
-  )
   const updateChannel = resolveUpdateChannel(
     getStoredValue(storedSettings, SETTINGS_KEY_UPDATE_CHANNEL),
   )
@@ -172,7 +166,6 @@ export function buildSettingsSnapshot(storedSettings: Readonly<Record<string, un
       favoriteModels,
       enabledModels,
       projectPath: resolveProjectPath(getStoredValue(storedSettings, SETTINGS_KEY_PROJECT_PATH)),
-      thinkingLevel,
       updateChannel,
       recentProjects,
       skillTogglesByProject,
@@ -239,11 +232,6 @@ function resolveNextCoreSettings(current: Settings, partial: Partial<Settings>) 
     current.projectPath,
     (value) => value,
   )
-  const thinkingLevel = resolveValidatedSetting(
-    partial.thinkingLevel,
-    current.thinkingLevel,
-    isValidThinkingLevel,
-  )
   const updateChannel = resolveUpdatedSetting(
     partial.updateChannel,
     current.updateChannel,
@@ -291,7 +279,6 @@ function resolveNextCoreSettings(current: Settings, partial: Partial<Settings>) 
     favoriteModels,
     enabledModels,
     projectPath,
-    thinkingLevel,
     updateChannel,
     recentProjects,
     skillTogglesByProject,

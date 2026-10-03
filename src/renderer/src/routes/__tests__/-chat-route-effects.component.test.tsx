@@ -66,7 +66,6 @@ describe('useChatRouteEffects', () => {
         favoriteModels: [],
         enabledModels: [],
         projectPath: '/old-project',
-        thinkingLevel: 'medium',
         recentProjects: [],
         skillTogglesByProject: {},
         projectDisplayNames: {},

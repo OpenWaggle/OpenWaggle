@@ -5,6 +5,7 @@ import type { SessionBranchId, SessionId, SessionNodeId } from './brand'
 import type { SessionEnvironmentMode } from './git'
 import type { SupportedModelId } from './llm'
 import type { DelegationState } from './session-collaboration'
+import type { ThinkingLevel } from './settings'
 import type { WaggleConfig } from './waggle'
 
 export type SessionNodeKind =
@@ -81,6 +82,11 @@ export interface SessionSummary {
   readonly pendingInteractionAt?: number
   /** Host time when the pending-interaction set was sampled, including when it was empty. */
   readonly pendingInteractionSnapshotAt?: number
+  /**
+   * Acquisition time of the earliest live Follow-up edit hold: the queue is waiting on the user's
+   * edit (sidebar: "Waiting on your edit"). Sampled with the pending-interaction set.
+   */
+  readonly followUpEditHeldAt?: number
 }
 
 /** Opaque keyset page used by the GUI Session catalog. */
@@ -134,9 +140,22 @@ export interface SessionDetail {
   readonly authorizationMode?: AgentAuthorizationMode
   /** Immutable model selected by this Session's persisted execution profile. */
   readonly executionModel?: SupportedModelId
+  /**
+   * The Session thinking level its next Run uses (clamped to the model when the Run starts). It
+   * changes only while no Run is active, and never changes another Session.
+   */
+  readonly executionThinkingLevel?: ThinkingLevel
   /** Conversation position the Session resumes from; see {@link SessionResumePosition}. */
   readonly resumePosition?: SessionResumePosition
 }
+
+/**
+ * The outcome of setting a Session's thinking level. It changes only while the Session has no
+ * starting, active, or stopping Run; `session_run_active` refuses it otherwise.
+ */
+export type SessionThinkingLevelChange =
+  | { readonly changed: true }
+  | { readonly changed: false; readonly code: 'session_run_active' | 'session_profile_not_found' }
 
 /**
  * The conversation position selected in the projection (the active branch head, or the node a

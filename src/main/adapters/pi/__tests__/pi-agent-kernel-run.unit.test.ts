@@ -113,7 +113,7 @@ describe('runPiAgentKernel', () => {
         messages: [],
       },
       runId: 'run-1',
-      payload: { text: 'Coordinate workers', thinkingLevel: 'medium', attachments: [] },
+      payload: { text: 'Coordinate workers', attachments: [] },
       model: SupportedModelId('openai/gpt-5.4'),
       signal: new AbortController().signal,
       onEvent: vi.fn(),
@@ -197,7 +197,7 @@ describe('runPiAgentKernel', () => {
     const input = fromPartial<AgentKernelRunInput>({
       session: { id: SessionId('session-waggle'), projectPath: '/repo', messages: [] },
       runId: 'run-waggle',
-      payload: { text: 'Coordinate workers', thinkingLevel: 'medium', attachments: [] },
+      payload: { text: 'Coordinate workers', attachments: [] },
       model: SupportedModelId('openai/gpt-5.4'),
       signal: new AbortController().signal,
       onEvent: vi.fn(),

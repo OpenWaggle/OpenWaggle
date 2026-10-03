@@ -14,18 +14,14 @@ const PROFILE_JSON = '{"modelId":"provider/model","thinkingLevel":"medium"}'
 /** Twenty round trips of Follow-ups between two roots: far more hops than there are Sessions. */
 const ROUND_TRIP_HOPS = 40
 
-/**
- * Runs `run-0` ... `run-<hops>` alternating between roots `a` and `b`, each started by the last.
- * With `authoredByPrevious`, each is also a re-authorized Follow-up the previous Run wrote.
- */
-function pingPong(hops: number, firstInitiator: string, authoredByPrevious = false) {
+/** Runs `run-0` ... `run-<hops>` alternating between roots `a` and `b`, each started by the last. */
+function pingPong(hops: number, firstInitiator: string) {
   return Array.from({ length: hops + 1 }, (_, index) => {
     const previous = `session-agent:${(index - 1) % 2 === 0 ? 'a' : 'b'}:run-${index - 1}`
     return {
       runId: `run-${index}`,
       sessionId: index % 2 === 0 ? 'a' : 'b',
       callerId: index === 0 ? firstInitiator : previous,
-      ...(authoredByPrevious && index > 0 ? { authorCallerId: previous } : {}),
     }
   })
 }
@@ -47,7 +43,6 @@ describe('Run initiator chains between two roots', () => {
       runId: string
       sessionId: string
       callerId: string
-      authorCallerId?: string
       /** The Queen of this Run's Session, which makes that Session a Worker. */
       queenSessionId?: string
       /** Who created this Run's Session; the desktop user unless set. */
@@ -121,11 +116,7 @@ describe('Run initiator chains between two roots', () => {
           }
           yield* sql`INSERT INTO session_runs (id, session_id, intent_json) VALUES (
             ${run.runId}, ${run.sessionId}, ${
-              run.rawIntentJson ??
-              JSON.stringify({
-                callerId: run.callerId,
-                ...(run.authorCallerId ? { authorCallerId: run.authorCallerId } : {}),
-              })
+              run.rawIntentJson ?? JSON.stringify({ callerId: run.callerId })
             }
           )`
         }
@@ -168,14 +159,6 @@ describe('Run initiator chains between two roots', () => {
     await expect(
       judge(pingPong(MAX_RUN_INITIATOR_CHAIN_HOPS - 1, 'gui:local-user')),
     ).resolves.toEqual({ reach: true, ceiling: 'yolo' })
-  })
-
-  it('decides a chain where every Run has both an initiator and an author', async () => {
-    // Each Run forks the walk in two; the walk reads each Run once (see run-initiator-walk tests).
-    await expect(judge(pingPong(ROUND_TRIP_HOPS, 'gui:local-user', true))).resolves.toEqual({
-      reach: true,
-      ceiling: 'yolo',
-    })
   })
 
   it("does not let a Queen Run that its Worker's Follow-up started reach every project", async () => {

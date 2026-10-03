@@ -8,6 +8,7 @@ import {
   startToolExecution,
   updateToolExecution,
 } from './chat-stream-tool-events'
+import { applyIncorporatedUserMessage } from './chat-stream-user-messages'
 
 export function applyAgentTransportEvent(
   messages: readonly UIMessage[],
@@ -17,11 +18,13 @@ export function applyAgentTransportEvent(
 
   return matchBy(event, 'type')
     .with('agent_start', 'agent_end', 'turn_start', 'turn_end', cloneMessages)
-    .with('message_start', (value) =>
-      value.role === 'assistant'
-        ? ensureAssistantMessage(messages, value.messageId)
-        : cloneMessages(),
-    )
+    .with('message_start', (value) => {
+      if (value.role === 'assistant') return ensureAssistantMessage(messages, value.messageId)
+      const { userMessage } = value
+      return value.role === 'user' && userMessage
+        ? applyIncorporatedUserMessage(messages, { ...value, userMessage })
+        : cloneMessages()
+    })
     .with('message_update', (value) => applyAssistantMessageEvent(messages, value))
     .with('message_end', 'context_usage', cloneMessages)
     .with('tool_execution_start', (value) => startToolExecution(messages, value))

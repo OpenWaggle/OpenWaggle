@@ -45,7 +45,12 @@ export async function createPiSessionForRun(input: {
   readonly services: AgentSessionServices
   readonly model: PiModel
   readonly sessionManager: SessionManager
-  readonly thinkingLevel: ThinkingLevel
+  /**
+   * The Session thinking level, already clamped to the model. Pi records it in the Session's
+   * `thinking_level_change` entries. Without one (a Session that has no execution profile) Pi
+   * restores the level those entries hold, or starts from its global default.
+   */
+  readonly thinkingLevel?: ThinkingLevel
   readonly openWaggleUi: OpenWaggleAgentSessionOptions['openWaggleUi']
 }) {
   const windows = process.platform === 'win32'
@@ -91,8 +96,10 @@ export async function createPiSessionForRun(input: {
     sessionManager: input.sessionManager,
     openWaggleUi: input.openWaggleUi,
     customTools,
-    ...(!hasExistingMessages ? { thinkingLevel: input.thinkingLevel } : {}),
+    ...(!hasExistingMessages && input.thinkingLevel ? { thinkingLevel: input.thinkingLevel } : {}),
   })
-  if (hasExistingMessages) result.session.setThinkingLevel(input.thinkingLevel)
+  if (hasExistingMessages && input.thinkingLevel) {
+    result.session.setThinkingLevel(input.thinkingLevel)
+  }
   return result
 }

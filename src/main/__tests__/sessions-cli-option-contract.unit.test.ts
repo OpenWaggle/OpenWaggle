@@ -165,6 +165,9 @@ describe('Sessions CLI option contract', () => {
       ]),
     ).not.toThrow()
     expect(
+      validate(['message', 'session', '--text', 'go', '--thinking', 'high', '--yolo']),
+    ).not.toThrow()
+    expect(
       validate([
         'queue',
         'update-authorization',
@@ -173,7 +176,13 @@ describe('Sessions CLI option contract', () => {
         '--authorization',
         'yolo',
       ]),
-    ).not.toThrow()
+    ).toThrow()
+    expect(validate(['follow-up', 'session', '--text', 'later', '--thinking', 'high'])).toThrow(
+      'thinking_level_requires_idle_session',
+    )
+    expect(
+      validate(['replace', 'session', '--text', 'again', '--expected-run', 'run', '--yolo']),
+    ).toThrow('run_authorization_override_requires_idle_session')
     expect(
       validate([
         'delegation',

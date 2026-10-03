@@ -1,20 +1,38 @@
 import type { SessionFollowUpQueueItem } from '@/features/chat/hooks'
+import { useSessionStore } from '@/features/sessions/state'
+import {
+  queuedMessageSourceLabel,
+  queuedMessageSourceSessionId,
+  queuedMessageSourceTitle,
+} from '../lib/queued-message-source'
 
-function queueCallerLabel(callerId: string | undefined) {
-  if (!callerId) return undefined
-  if (callerId.startsWith('session-agent:')) return 'From Worker'
-  if (callerId.startsWith('profile:')) return 'From profile'
-  if (callerId.startsWith('transient-mcp:')) return 'From MCP'
-  if (callerId === 'gui:local-user') return 'From OpenWaggle'
-  if (callerId.startsWith('local-user:')) return 'From CLI'
-  return 'From agent'
+/** The source the Host resolved, or the intent's caller from a Host that does not resolve one. */
+function itemSource(item: SessionFollowUpQueueItem) {
+  if (item.source) return item.source
+  return item.callerId ? { callerId: item.callerId } : undefined
 }
 
+/**
+ * What a queued message carries besides its text: a Waggle invocation (message content) and
+ * where it came from. Thinking level and access are Session settings, not message state, and a
+ * message the user sent from this composer has no source label.
+ */
 export function QueueIntentBadges({ item }: { readonly item: SessionFollowUpQueueItem }) {
-  if (!item.wagglePresetName && !item.authorizationMode && !item.thinkingLevel && !item.callerId) {
-    return null
-  }
-  const callerLabel = queueCallerLabel(item.callerId)
+  const source = itemSource(item)
+  const sourceSessionId = queuedMessageSourceSessionId(source)
+  // The Host's title first, then whatever this window has loaded: open, archived, or Hive Sessions.
+  const knownTitle = useSessionStore((state) => {
+    if (!sourceSessionId) return undefined
+    const matches = (session: { readonly id: unknown }) => String(session.id) === sourceSessionId
+    return (
+      state.sessions.find(matches)?.title ??
+      state.archivedSessions.find(matches)?.title ??
+      state.hiveSessions.find(matches)?.title
+    )
+  })
+  const sessionTitle = queuedMessageSourceTitle(source) ?? knownTitle
+  const sourceLabel = queuedMessageSourceLabel(source, sessionTitle, item.callerId)
+  if (!item.wagglePresetName && !sourceLabel) return null
   return (
     <div className="flex flex-wrap items-center gap-1">
       {item.wagglePresetName ? (
@@ -22,27 +40,12 @@ export function QueueIntentBadges({ item }: { readonly item: SessionFollowUpQueu
           Waggle · {item.wagglePresetName}
         </span>
       ) : null}
-      {item.waggleSource ? (
-        <span className="rounded bg-bg-hover px-1.5 py-0.5 text-xs text-text-tertiary">
-          {item.waggleSource === 'agent' ? 'From agent' : 'From user'}
-        </span>
-      ) : null}
-      {item.authorizationMode ? (
-        <span className="rounded bg-bg-hover px-1.5 py-0.5 text-xs text-text-tertiary">
-          {item.authorizationMode === 'yolo' ? 'YOLO access' : 'Ask for approval'}
-        </span>
-      ) : null}
-      {item.thinkingLevel ? (
-        <span className="rounded bg-bg-hover px-1.5 py-0.5 text-xs text-text-tertiary">
-          Thinking · {item.thinkingLevel}
-        </span>
-      ) : null}
-      {callerLabel ? (
+      {sourceLabel ? (
         <span
           className="rounded bg-bg-hover px-1.5 py-0.5 text-xs text-text-tertiary"
-          title={item.callerId}
+          title={sourceLabel.detail}
         >
-          {callerLabel}
+          {sourceLabel.label}
         </span>
       ) : null}
     </div>

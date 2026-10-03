@@ -1,5 +1,5 @@
 import { ATTACHMENT } from '@shared/constants/resource-limits'
-import { MAX_FOLLOW_UP_QUEUE_ITEMS } from '@shared/types/session-control-queue'
+import { MAX_FOLLOW_UP_QUEUE_LISTED_ITEMS } from '@shared/types/session-control-returned-steers'
 import { describe, expect, it } from 'vitest'
 import { decodeSessionControlMutationRequest } from '../session-control'
 import { decodeSessionLifecycleRequest } from '../session-lifecycle'
@@ -103,6 +103,25 @@ describe('Session command collection boundaries', () => {
   it.each([
     ['queue-withdraw', 'followUpIds'],
     ['queue-reorder', 'orderedFollowUpIds'],
+  ] as const)(
+    'accepts a %s of a queue that returned steers pushed past capacity',
+    (operation, field) => {
+      expect(() =>
+        decodeSessionControlMutationRequest(
+          controlRequest({
+            operation,
+            sessionId: 'session-target',
+            ...(operation === 'queue-reorder' ? { expectedQueueRevision: 1 } : {}),
+            [field]: followUpIds(MAX_FOLLOW_UP_QUEUE_LISTED_ITEMS),
+          }),
+        ),
+      ).not.toThrow()
+    },
+  )
+
+  it.each([
+    ['queue-withdraw', 'followUpIds'],
+    ['queue-reorder', 'orderedFollowUpIds'],
   ] as const)('rejects oversized %s collections', (operation, field) => {
     expect(() =>
       decodeSessionControlMutationRequest(
@@ -110,7 +129,7 @@ describe('Session command collection boundaries', () => {
           operation,
           sessionId: 'session-target',
           ...(operation === 'queue-reorder' ? { expectedQueueRevision: 1 } : {}),
-          [field]: followUpIds(MAX_FOLLOW_UP_QUEUE_ITEMS + 1),
+          [field]: followUpIds(MAX_FOLLOW_UP_QUEUE_LISTED_ITEMS + 1),
         }),
       ),
     ).toThrow()

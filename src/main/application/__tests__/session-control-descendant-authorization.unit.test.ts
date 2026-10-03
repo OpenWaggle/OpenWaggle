@@ -80,7 +80,7 @@ describe('Session descendant interruption authorization', () => {
             states.set(input.request.command.sessionId, next)
             return { status: 'claimed', stateRevision: next.revision } as const
           }),
-        complete: () => Effect.void,
+        complete: (input) => Effect.succeed(input.outcome),
       }),
     )
 
@@ -135,7 +135,10 @@ describe('Session descendant interruption authorization', () => {
         runInputWidensReach: () => Effect.succeed(false),
         listLiveDerivedAuthorities: () => Effect.succeed([]),
       }),
-      Layer.succeed(SessionControlOperationJournal, { claim, complete: () => Effect.void }),
+      Layer.succeed(SessionControlOperationJournal, {
+        claim,
+        complete: (input) => Effect.succeed(input.outcome),
+      }),
       Layer.succeed(AgentRunInterruptionService, { requestInterrupt: interrupt, interrupt }),
     )
 

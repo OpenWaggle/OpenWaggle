@@ -135,7 +135,7 @@ describe('refreshFirstRunBranch', () => {
         ...(extra.environmentMode ? { environmentMode: extra.environmentMode } : {}),
       },
       runId: 'run-1',
-      payload: { text: 'Do the work', thinkingLevel: 'medium', attachments: [] },
+      payload: { text: 'Do the work', attachments: [] },
       model: SupportedModelId('openai/gpt-5.4'),
       signal: new AbortController().signal,
       onEvent: vi.fn(),

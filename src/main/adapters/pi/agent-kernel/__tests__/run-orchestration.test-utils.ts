@@ -115,7 +115,7 @@ export function payload(
   text = 'Review the architecture',
   overrides: Partial<HydratedAgentSendPayload> = {},
 ): HydratedAgentSendPayload {
-  return { text, thinkingLevel: 'high', attachments: [], ...overrides }
+  return { text, attachments: [], ...overrides }
 }
 
 export function sessionDetail() {

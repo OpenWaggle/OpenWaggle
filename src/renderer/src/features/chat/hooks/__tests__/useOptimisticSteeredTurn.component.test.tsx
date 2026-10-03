@@ -14,7 +14,6 @@ const { webcrypto } = await vi.importActual<{ webcrypto: Crypto }>('node:crypto'
 const SESSION_ID = SessionId('session-1')
 const FIRST_PAYLOAD: AgentSendPayload = {
   text: 'continue',
-  thinkingLevel: 'medium',
   attachments: [],
 }
 const SECOND_PAYLOAD = { ...FIRST_PAYLOAD }

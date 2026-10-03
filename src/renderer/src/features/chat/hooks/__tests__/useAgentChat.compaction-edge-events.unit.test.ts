@@ -16,7 +16,7 @@ type AgentTransportEvent = IpcEventChannelMap['agent:event']['payload']['event']
 
 function renderAgentChat() {
   return renderHook(() =>
-    useAgentChat(SESSION_ID, createSession(), SupportedModelId('claude-sonnet-4-5'), 'medium'),
+    useAgentChat(SESSION_ID, createSession(), SupportedModelId('claude-sonnet-4-5')),
   )
 }
 

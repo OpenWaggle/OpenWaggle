@@ -19,12 +19,7 @@ describe('useAgentChat streaming', () => {
 
   it('applies stream text immediately as chunks arrive', async () => {
     const { result } = renderHook(() =>
-      useAgentChat(
-        SessionId('session-1'),
-        createSession(),
-        SupportedModelId('claude-sonnet-4-5'),
-        'medium',
-      ),
+      useAgentChat(SessionId('session-1'), createSession(), SupportedModelId('claude-sonnet-4-5')),
     )
 
     let sendPromise: Promise<void> | null = null
@@ -82,12 +77,7 @@ describe('useAgentChat streaming', () => {
 
   it('uses canonical tool input from toolcall_start without waiting for follow-up events', async () => {
     const { result } = renderHook(() =>
-      useAgentChat(
-        SessionId('session-1'),
-        createSession(),
-        SupportedModelId('claude-sonnet-4-5'),
-        'medium',
-      ),
+      useAgentChat(SessionId('session-1'), createSession(), SupportedModelId('claude-sonnet-4-5')),
     )
 
     let sendPromise: Promise<void> | null = null
@@ -155,12 +145,7 @@ describe('useAgentChat streaming', () => {
 
   it('tracks pending Pi interactions and submits typed responses', async () => {
     const { result } = renderHook(() =>
-      useAgentChat(
-        SessionId('session-1'),
-        createSession(),
-        SupportedModelId('claude-sonnet-4-5'),
-        'medium',
-      ),
+      useAgentChat(SessionId('session-1'), createSession(), SupportedModelId('claude-sonnet-4-5')),
     )
 
     await act(async () => {
@@ -236,7 +221,6 @@ describe('useAgentChat streaming', () => {
           sessionId,
           createSessionWithId(sessionId),
           SupportedModelId('claude-sonnet-4-5'),
-          'medium',
         ),
       { initialProps: { sessionId: sessionA } },
     )

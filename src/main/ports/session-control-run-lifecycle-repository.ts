@@ -1,7 +1,8 @@
 import type { FollowUpId, RunId, SessionId } from '@shared/types/brand'
 import type { SessionRunTerminalStatus } from '@shared/types/session-host-event'
 import { Context, type Effect } from 'effect'
-import type { SessionControlIntentSnapshot } from '../domain/session-control/message-aggregate'
+import type { SessionControlRunIntent } from '../domain/session-control/message-aggregate'
+import type { UndeliveredSteer } from '../domain/session-control/undelivered-steering'
 import type { SessionControlRepositoryError } from '../errors'
 
 export type SessionControlTerminalRunStatus = SessionRunTerminalStatus
@@ -10,7 +11,7 @@ export type SessionControlRunActivationResult =
   | {
       readonly accepted: true
       readonly stateRevision: number
-      readonly intent: SessionControlIntentSnapshot
+      readonly intent: SessionControlRunIntent
     }
   | {
       readonly accepted: false
@@ -43,26 +44,36 @@ export type SessionControlRunSettlementResult =
       readonly scheduled?: {
         readonly followUpId: FollowUpId
         readonly runId: RunId
-        readonly intent: SessionControlIntentSnapshot
+        readonly intent: SessionControlRunIntent
       }
     }
   | {
       readonly accepted: false
       readonly code: 'run_not_starting' | 'run_not_active' | 'run_changed'
+      /**
+       * Set when this Run no longer owned the Session (a replacement took over) but settlement
+       * still returned its Undelivered steering messages to the queue, at this state revision.
+       */
+      readonly stateRevision?: number
     }
+
+export type SessionControlWorkerSettlementUpdate = Pick<
+  Extract<SessionControlRunSettlementResult, { readonly accepted: true }>,
+  'delegationUpdate' | 'orchestrationUpdate'
+>
 
 export interface SessionControlRunLifecycleRepositoryShape {
   readonly startExternal?: (input: {
     readonly sessionId: SessionId
     readonly runId: RunId
-    readonly intent: SessionControlIntentSnapshot
+    readonly intent: SessionControlRunIntent
     readonly hostRunCeiling?: number
   }) => Effect.Effect<SessionControlRunActivationResult, SessionControlRepositoryError>
   readonly replaceWithExternal?: (input: {
     readonly sessionId: SessionId
     readonly previousRunId?: RunId
     readonly runId: RunId
-    readonly intent: SessionControlIntentSnapshot
+    readonly intent: SessionControlRunIntent
     readonly hostRunCeiling?: number
   }) => Effect.Effect<SessionControlRunActivationResult, SessionControlRepositoryError>
   readonly activate: (input: {
@@ -82,7 +93,22 @@ export interface SessionControlRunLifecycleRepositoryShape {
     readonly terminalEventAt?: number
     readonly finalResponse?: string
     readonly suppressFollowUpScheduling?: boolean
+    /**
+     * Steering messages the Run ended without incorporating, in steering order. Settlement
+     * returns them to the front of the Follow-up queue before it pauses or schedules the queue.
+     */
+    readonly undeliveredSteers?: readonly UndeliveredSteer[]
   }) => Effect.Effect<SessionControlRunSettlementResult, SessionControlRepositoryError>
+  /**
+   * Settles a Worker's Delegation that a held Follow-up deferred, once the Session is idle and its
+   * queue no longer waits on that edit. Resolves to the updates to publish, if any.
+   */
+  readonly settleDeferredWorkerDelegation?: (input: {
+    readonly sessionId: SessionId
+  }) => Effect.Effect<
+    SessionControlWorkerSettlementUpdate | undefined,
+    SessionControlRepositoryError
+  >
   readonly recoverHostLoss: Effect.Effect<
     readonly { readonly sessionId: SessionId; readonly runId: RunId }[],
     SessionControlRepositoryError

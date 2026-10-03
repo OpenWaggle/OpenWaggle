@@ -19,7 +19,7 @@ Options:
     [--workspace-id <id>] [--base-ref <ref>] [--start-from-origin]
   --agent <name>                 Use an Agent definition
   --model <provider/model>       Model for this Session
-  --thinking <level>             Thinking level for this Run
+  --thinking <level>             Thinking level the new Session starts with
   --authorization ask-for-approval|yolo, --yolo
   --interaction-timeout-ms <ms>  Stop waiting for an unanswered question after <ms>
   --jsonl                        Print Session Host event records instead of text

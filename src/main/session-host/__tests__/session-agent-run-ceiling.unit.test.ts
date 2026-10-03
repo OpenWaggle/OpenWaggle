@@ -16,8 +16,6 @@ interface RunRow {
   readonly status?: string
   /** The Session's own origin; `profile:<id>` binds it to that profile's live ceiling. */
   readonly origin?: string
-  /** Who wrote the Run's input when someone else re-authorized it. */
-  readonly author?: string
   /** A Worker of this Session; its grant is revoked when `grantRevoked` is set. */
   readonly parent?: string
   readonly grantRevoked?: boolean
@@ -78,7 +76,6 @@ describe('runInitiatorCeiling', () => {
             VALUES (${run.runId}, ${run.sessionId}, ${run.status ?? 'active'},
               ${JSON.stringify({
                 callerId: run.callerId,
-                ...(run.author ? { authorCallerId: run.author } : {}),
               })}, ${index})`
           if (run.parent) {
             yield* sql`INSERT OR IGNORE INTO session_spawn_lineage (child_session_id, parent_session_id)
@@ -158,13 +155,6 @@ describe('runInitiatorCeiling', () => {
 
   it('treats a Run it cannot find as ask-for-approval', async () => {
     await expect(ceiling([], 's', 'missing')).resolves.toBe('ask-for-approval')
-  })
-
-  it('needs the writer of a re-authorized Follow-up to allow yolo as well', async () => {
-    const reauthorized = [
-      { sessionId: 's', runId: 'r', callerId: 'gui:local-user', author: 'profile:asker' },
-    ]
-    await expect(ceiling(reauthorized, 's', 'r')).resolves.toBe('ask-for-approval')
   })
 
   it('treats an initiating Worker with a revoked grant as ask-for-approval', async () => {

@@ -1,4 +1,4 @@
-import { ArrowUp, Square } from 'lucide-react'
+import { ArrowUp, Check, Square } from 'lucide-react'
 import { cn } from '@/shared/lib/cn'
 import { Button } from '@/shared/ui/Button'
 
@@ -8,6 +8,8 @@ interface ComposerSendControlsProps {
   readonly isFinishing?: boolean
   readonly canSend: boolean
   readonly sendTitle?: string
+  /** Save a queued-message edit rather than send a new message. */
+  readonly savesEdit?: boolean
   readonly onSend: () => void
   readonly onCancel: () => void
 }
@@ -17,6 +19,7 @@ export function ComposerSendControls({
   isFinishing = false,
   canSend,
   sendTitle,
+  savesEdit = false,
   onSend,
   onCancel,
 }: ComposerSendControlsProps) {
@@ -25,7 +28,8 @@ export function ComposerSendControls({
       {isFinishing ? <FinishingRunNotice /> : null}
       {isLoading && !isFinishing ? <CancelRunButton onCancel={onCancel} /> : null}
       <SendMessageButton
-        isLoading={isLoading}
+        isLoading={isLoading && !savesEdit}
+        savesEdit={savesEdit}
         canSend={canSend}
         sendTitle={sendTitle}
         onSend={onSend}
@@ -71,10 +75,18 @@ interface SendMessageButtonProps {
   readonly isLoading: boolean
   readonly canSend: boolean
   readonly sendTitle?: string
+  readonly savesEdit: boolean
   readonly onSend: () => void
 }
 
-function SendMessageButton({ isLoading, canSend, sendTitle, onSend }: SendMessageButtonProps) {
+function SendMessageButton({
+  isLoading,
+  canSend,
+  sendTitle,
+  savesEdit,
+  onSend,
+}: SendMessageButtonProps) {
+  const Icon = savesEdit ? Check : ArrowUp
   return (
     <Button
       variant="unstyled"
@@ -87,7 +99,7 @@ function SendMessageButton({ isLoading, canSend, sendTitle, onSend }: SendMessag
       )}
       title={sendTitle ?? (isLoading ? 'Add message' : 'Send message')}
     >
-      <ArrowUp className={cn('size-4', canSend ? getSendIconTone(isLoading) : 'text-text-muted')} />
+      <Icon className={cn('size-4', canSend ? getSendIconTone(isLoading) : 'text-text-muted')} />
     </Button>
   )
 }

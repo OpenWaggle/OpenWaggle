@@ -15,6 +15,7 @@ import type {
 import * as Effect from 'effect/Effect'
 import { SessionProjectionRepository } from '../ports/session-projection-repository'
 import { SessionRepository } from '../ports/session-repository'
+import { ThinkingLevelDefaultService } from '../ports/thinking-level-default-service'
 import { SettingsService } from '../services/settings-service'
 import { auditedSuccess } from './extension-capability-broker-audit'
 import type { BrokerRouteInput } from './extension-capability-broker-openwaggle-common'
@@ -81,7 +82,10 @@ function loadOpenWaggleStateSnapshot(input: BrokerRouteInput) {
           ? toBranchView(tree, input.invocation.scope.branchId)
           : null,
       recentProjects: [...settings.recentProjects],
-      modelPreferences: toExtensionModelPrefs(settings),
+      modelPreferences: toExtensionModelPrefs(
+        settings,
+        yield* (yield* ThinkingLevelDefaultService).getDefault(),
+      ),
     } satisfies OpenWaggleStateSnapshot
   })
 }

@@ -6,6 +6,7 @@ import { useAgentLoopEventStore } from '@/features/chat/state/agent-loop-event-s
 import { useBackgroundRunStore } from '@/features/chat/state/background-run-store'
 import { useChatStore } from '@/features/chat/state/chat-store'
 import { useFirstSendPendingStore } from '@/features/chat/state/first-send-pending-store'
+import { useQueuedRunStartStore } from '@/features/chat/state/queued-run-start-store'
 import { trackRunFinishing, useRunFinishingStore } from '@/features/chat/state/run-finishing-store'
 import { api } from '@/shared/lib/ipc'
 
@@ -50,6 +51,7 @@ export function useBackgroundRunMonitor(): void {
       if (payload.event.type === 'agent_start') {
         compactionOnlySessionIds.delete(payload.sessionId)
         useFirstSendPendingStore.getState().clear(payload.sessionId)
+        useQueuedRunStartStore.getState().settle(payload.sessionId, payload.event.runId)
         const runModel = payload.event.model?.trim()
         addActiveRun(payload.sessionId, runModel ? SupportedModelId(runModel) : undefined)
       }
@@ -68,16 +70,24 @@ export function useBackgroundRunMonitor(): void {
       }
       if (isTerminalTransportEvent(payload.event) && !isRetryingAttemptEnd(payload.event)) {
         useFirstSendPendingStore.getState().clear(payload.sessionId)
+        useQueuedRunStartStore
+          .getState()
+          .settle(
+            payload.sessionId,
+            payload.event.type === 'agent_end' ? payload.event.runId : undefined,
+          )
         removeActiveRun(payload.sessionId)
       }
-      // A stopped retry delay ends the Run without another agent_end.
+      // A stopped retry delay ends the Run without another agent_end; it finishes until it settles.
       if (payload.event.type === 'auto_retry_end' && !payload.event.success) {
         useFirstSendPendingStore.getState().clear(payload.sessionId)
+        useQueuedRunStartStore.getState().settle(payload.sessionId, undefined)
         removeActiveRun(payload.sessionId)
       }
     })
 
     const unsubCompleted = api.onRunCompleted((payload) => {
+      useQueuedRunStartStore.getState().settle(payload.sessionId, payload.runId)
       // The Session went straight on to a queued Follow-up; it is still running.
       if (payload.continues) return
       useRunFinishingStore.getState().clear(payload.sessionId)

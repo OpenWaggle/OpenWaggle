@@ -38,12 +38,7 @@ function loadDerivedAuthority(sql: SqlClient.SqlClient, callerId: string, sessio
   })
 }
 
-function directProfileBlockReason(
-  sql: SqlClient.SqlClient,
-  callerId: string,
-  target: TargetRow,
-  requiresYolo: boolean,
-) {
+function directProfileBlockReason(sql: SqlClient.SqlClient, callerId: string, target: TargetRow) {
   return Effect.gen(function* () {
     const row = yield* loadProfile(sql, callerId)
     if (!row || row.revoked_at !== null) return 'profile_revoked' as const
@@ -70,16 +65,6 @@ function directProfileBlockReason(
       ['sessions:message'],
     )
     if (!authorization.authorized) return 'authority_changed' as const
-    const derivedCeiling =
-      'derived' in authorization ? authorization.derived.authorizationCeiling : null
-    if (
-      requiresYolo &&
-      (authority.authorizationCeiling !== 'yolo' ||
-        target.authorization_ceiling !== 'yolo' ||
-        derivedCeiling === 'ask-for-approval')
-    ) {
-      return 'authorization_ceiling_changed' as const
-    }
     return undefined
   })
 }
@@ -100,16 +85,13 @@ function blockReason(
     if (!target) return 'authority_changed' as const
     const fromProfile = profileId(followUp.intent.callerId) !== undefined
     const fromSessionAgent = sourceSessionId(followUp.intent.callerId) !== undefined
-    const requiresYolo = followUp.intent.runAuthorizationOverride === 'yolo'
     if (fromProfile) {
-      return yield* directProfileBlockReason(sql, followUp.intent.callerId, target, requiresYolo)
+      return yield* directProfileBlockReason(sql, followUp.intent.callerId, target)
     }
     if (fromSessionAgent) {
-      return yield* sessionAgentBlockReason(sql, followUp.intent.callerId, target, requiresYolo)
+      return yield* sessionAgentBlockReason(sql, followUp.intent.callerId, target)
     }
-    return requiresYolo && target.authorization_ceiling !== 'yolo'
-      ? ('authorization_ceiling_changed' as const)
-      : undefined
+    return undefined
   })
 }
 

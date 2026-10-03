@@ -473,7 +473,12 @@ _Avoid_: Pi queue, renderer queue, steering queue
 **Follow-up message**:
 Input retained outside the active run in the Follow-up queue for later delivery as a new run.
 If the intended active run settles immediately before an explicit Follow-up is admitted, Session Control atomically starts that input as the next run instead of leaving it stranded in an otherwise runnable queue.
+A Follow-up message carries its content (text, attachments, skill or Waggle invocation), not the Session's model or thinking level; its run uses the Session's settings when it starts.
 _Avoid_: steering message, deferred steer
+
+**Session thinking level**:
+The thinking level a Session's next run uses, kept by Pi with the Session like the Session's model. It can be changed only while the Session has no active run, and is never stored as a project preference. When the desktop user changes it, it also becomes the default for Sessions created afterwards (Pi's global default), without changing any existing Session. New Sessions start from that global default only; a project-level Pi default is never used.
+_Avoid_: message thinking level, project thinking preference
 
 **Run start**:
 An operation that begins a new run from submitted input while the target session is idle.
@@ -490,6 +495,10 @@ _Avoid_: replacement prompt, queued follow-up, cancel-and-restart steering
 **Steering promotion**:
 An operation that converts one selected Follow-up message into a Steering message for the targeted active run.
 _Avoid_: queue promotion, move to front
+
+**Undelivered steering message**:
+A Steering message its active run has accepted but not yet incorporated. If that run is stopped before incorporating it, it returns to the front of the Follow-up queue as a Follow-up message.
+_Avoid_: queued steer, pending follow-up, sent message
 
 **Run replacement**:
 An explicit operation that cancels a targeted active run and starts a new run from replacement input.
@@ -511,6 +520,18 @@ _Avoid_: interrupt, dismiss notification
 An operation that changes the relative delivery order of pending Follow-up messages.
 _Avoid_: steering promotion, replace
 
+**Follow-up edit**:
+An operation that replaces a pending Follow-up message's intent snapshot while preserving its Follow-up identity and queue position. Only the user who queued a Follow-up message can edit it; its Message provenance never changes.
+_Avoid_: withdraw and re-queue, replace, steer
+
+**Follow-up adoption**:
+An operation by which the desktop user sends a Follow-up message that needs attention because the authority it was queued under was revoked or changed, under the user's own authority. The Follow-up keeps its identity, position, and content; the user becomes its caller and its original author is kept as provenance. An adopted Follow-up carries no Run authorization override and cannot be edited.
+_Avoid_: re-authorize, use current access, approve
+
+**Follow-up edit hold**:
+A Host-owned, leased state that stops Follow-up queue delivery at the Follow-up message being edited, including every message behind it, until the edit is saved or cancelled or the editing window closes. Leaving the Session keeps the hold and shows it as waiting on the user's edit.
+_Avoid_: queue pause, skip, lock
+
 **Follow-up queue pause**:
 A state that retains pending Follow-up messages while preventing their automatic delivery.
 _Avoid_: interrupt, clear queue
@@ -518,10 +539,6 @@ _Avoid_: interrupt, clear queue
 **Follow-up queue resumption**:
 An explicit operation that makes a paused Follow-up queue eligible to deliver its next message.
 _Avoid_: run start, retry
-
-**Follow-up authorization block**:
-The needs-attention state of a Follow-up message whose requested Run authorization override is no longer permitted when delivery is about to create its run.
-_Avoid_: silent downgrade, failed message, expired follow-up
 
 **Expected run identity**:
 The caller-supplied identity of the active run that a run-control operation is allowed to mutate.
@@ -540,7 +557,7 @@ The caller-selected retry identity that makes repeated execution of the same aut
 _Avoid_: follow-up identity, request identity, request timestamp
 
 **Follow-up intent snapshot**:
-The durable non-authority message content and turn intent captured when a Follow-up message is accepted.
+The durable non-authority message content and turn intent captured when a Follow-up message is accepted, and replaced only by a Follow-up edit.
 _Avoid_: queue payload, execution profile snapshot
 
 **Target execution profile**:
@@ -708,7 +725,7 @@ The persisted, conflict-free mapping from product commands to user-recorded cros
 _Avoid_: component-local shortcut literal, silent shortcut replacement
 
 **Waggle invocation**:
-An explicit, one-shot user or standard-agent request to run a saved Waggle preset for one prompt. A Waggle invocation cannot start another Waggle while collaboration is already active.
+An explicit, one-shot user or standard-agent request to run a saved Waggle preset for one prompt. Like a skill invocation, a user's Waggle invocation is part of the prompt's content, so editing a queued Follow-up message can add or remove it. A Waggle invocation cannot start another Waggle while collaboration is already active.
 _Avoid_: hidden mode toggle, implicit collaboration
 
 **Waggle handoff**:
@@ -792,7 +809,7 @@ An explicitly chosen Authorization mode at project or session level that replace
 _Avoid_: copied default, session mode snapshot, birth-time mode
 
 **Run authorization override**:
-An Authorization mode requested only for one newly created run and inherited by descendants of that run, always bounded by its Authorization ceiling and never persisted as a session default.
+An Authorization mode requested only for one newly created run and inherited by descendants of that run, always bounded by its Authorization ceiling and never persisted as a session default. A caller requests it only when launching or spawning a Session or starting a run on an idle Session; it is refused while a run is active, so a Follow-up message never carries one.
 _Avoid_: session override, permanent YOLO, caller permission
 
 **Draft authorization override**:
@@ -1453,11 +1470,9 @@ _Avoid_: search (it narrows in place rather than producing results), sidebar vie
 - A targeted Follow-up queue mutation addresses a stable **Follow-up identity** rather than a queue position.
 - Queue-wide state and ordering mutations require the current **Follow-up queue revision**.
 - Repeated submissions with the same **Mutation idempotency key** produce at most one **Follow-up message**.
-- Every **Follow-up message** owns a **Follow-up intent snapshot** containing its text, durable attachments, thinking request, standard or Waggle intent, caller identity, timestamps, and idempotency metadata.
+- Every **Follow-up message** owns a **Follow-up intent snapshot** containing its text, durable attachments, standard or Waggle intent, caller identity, timestamps, and idempotency metadata. It carries no thinking level and no **Run authorization override**: its run uses the **Session thinking level** and the Session's authorization when it starts.
 - A **Run start** combines the selected **Follow-up intent snapshot** with the current **Target execution profile**.
-- Automatic delivery revalidates the originating profile or derived grant before applying a queued **Run authorization override**.
-- If that override is no longer permitted, the message remains queued in a **Follow-up authorization block** with structured `authorization_ceiling_changed` state; delivery never silently downgrades, discards, or starts it.
-- An authorized caller clears a **Follow-up authorization block** by changing the queued override, restoring sufficient authority, or withdrawing the message.
+- Automatic delivery revalidates the originating profile or derived grant before starting a queued **Follow-up message**.
 - A cross-session caller cannot place model, tool, MCP, filesystem, network, approval, or credential overrides inside a **Follow-up intent snapshot**.
 - Cross-session and CLI input enters the target agent loop as user-role input with **Message provenance** outside caller-controlled content.
 - **Message provenance** is visible to the target model and transcript, with a source-session link only when the viewer may discover that session.
@@ -1477,8 +1492,7 @@ _Avoid_: search (it narrows in place rather than producing results), sidebar vie
 - Setting a session override to **YOLO (Full access)** is stronger than approving one request because it may automatically resolve the current **Authorization request** and subsequent Authorization requests, so `sessions:authorization` is never implied by `sessions:approve`, session ownership, or run ownership.
 - A **Run authorization override** is selected when a command creates a run, applies only to that run and its spawned descendants, and requires no persistent session mutation.
 - A request for a **Run authorization override** above the caller's **Authorization ceiling** fails explicitly rather than silently downgrading or changing the session's persistent mode.
-- The **Sessions CLI** accepts a **Run authorization override** only on `launch`, `spawn`, `start`, `follow-up`, and `replace`, whose successful execution deterministically creates an immediate or future run.
-- Adaptive `sessions message` rejects a **Run authorization override** because its active-target resolution may steer the current run or create a future one; callers that require a specific mode use the corresponding explicit command.
+- The **Sessions CLI** accepts a **Run authorization override** and a **Session thinking level** only on commands that start a run on an idle Session: `launch`, `spawn`, and a `start` or adaptive `message` that starts one (`create` accepts a thinking level but no override, since it starts no run). A `message` that would be queued, and every `follow-up`, `steer`, and `replace`, refuses them with `run_authorization_override_requires_idle_session` or `thinking_level_requires_idle_session`.
 - The **Sessions CLI** uses the canonical Session Control action names and never collapses Message submission, Steering message, Run replacement, and Run interruption into an ambiguous send operation.
 - `sessions launch` atomically returns an independent root session and its initial run identities, while `sessions spawn` returns the child session, initial run, and Delegation Contract identities and later contract operations use the first-class **Delegations CLI**.
 - The **Delegations CLI** exposes `list`, `read`, `submit`, `accept`, `request-revision`, `reopen`, `cancel`, `claim`, `dependency`, `amend`, `conflicts`, and explicit `verify` operations with parent, child, project, state, dependency, and conflict filters where applicable.

@@ -45,10 +45,10 @@ describe('project config integration', () => {
       'utf-8',
     )
 
-    await setProjectPreferences(projectPath, { thinkingLevel: 'high' })
+    await setProjectPreferences(projectPath, { authorizationMode: 'ask-for-approval' })
 
     const config = await loadProjectConfig(projectPath)
-    expect(config.preferences).toEqual({ thinkingLevel: 'high' })
+    expect(config.preferences).toEqual({ authorizationMode: 'ask-for-approval' })
     expect(config.pi).toEqual({ compaction: { enabled: false } })
   })
 })

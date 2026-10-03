@@ -83,23 +83,15 @@ describe('Sessions tool capability schema', () => {
     expect(exportOnly).not.toContain('exports_wait')
   })
 
-  it('offers queue_update_authorization only with the authorization capability', () => {
-    const queueOnly = exposedActions(
-      sessionsToolSchemaForCapabilities({
-        capabilities: ['sessions:queue'],
-        modelMultiAgentEnabled: true,
-      }),
-    )
-    expect(queueOnly).toContain('queue_pause')
-    expect(queueOnly).not.toContain('queue_update_authorization')
-
+  it('offers no queue authorization repair: a Follow-up carries no authorization override', () => {
     const withAuthorization = exposedActions(
       sessionsToolSchemaForCapabilities({
         capabilities: ['sessions:queue', 'sessions:authorization'],
         modelMultiAgentEnabled: true,
       }),
     )
-    expect(withAuthorization).toContain('queue_update_authorization')
+    expect(withAuthorization).toContain('queue_pause')
+    expect(withAuthorization).not.toContain('queue_update_authorization')
   })
 
   it('removes model spawning without disabling unrelated Session operations', () => {

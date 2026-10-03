@@ -26,21 +26,15 @@ export function runInputWidensReach(
     }
     if (!(yield* callerReachesEveryProject(sql, input.callerId))) return true
     if (input.followUpId === undefined) return false
-    const rows = yield* sql<{
-      readonly caller_id: string | null
-      readonly author_caller_id: string | null
-    }>`
-      SELECT json_extract(intent_json, '$.callerId') AS caller_id,
-        json_extract(intent_json, '$.authorCallerId') AS author_caller_id
+    const rows = yield* sql<{ readonly caller_id: string | null }>`
+      SELECT json_extract(intent_json, '$.callerId') AS caller_id
       FROM session_follow_ups
       WHERE id = ${input.followUpId} AND session_id = ${input.sessionId}
       LIMIT 1
     `
-    const followUp = rows[0]
-    if (!followUp) return false
-    for (const author of [followUp.caller_id, followUp.author_caller_id]) {
-      if (author !== null && !(yield* callerReachesEveryProject(sql, author))) return true
-    }
+    const author = rows[0]?.caller_id
+    if (author === undefined) return false
+    if (author !== null && !(yield* callerReachesEveryProject(sql, author))) return true
     return false
   })
 }

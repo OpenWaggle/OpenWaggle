@@ -16,10 +16,9 @@ const prepared = {
 describe('Agent Run pre-hydrated attachments', () => {
   it('uses the immutable prepared source without reopening the original path', async () => {
     const result = await Effect.runPromise(
-      hydrateAgentRunPayload(
-        { text: 'Inspect this.', thinkingLevel: 'high', attachments: [prepared] },
-        [{ ...prepared, source: { type: 'data', value: 'AQID', mimeType: 'image/png' } }],
-      ),
+      hydrateAgentRunPayload({ text: 'Inspect this.', attachments: [prepared] }, [
+        { ...prepared, source: { type: 'data', value: 'AQID', mimeType: 'image/png' } },
+      ]),
     )
 
     expect(result.attachments[0]?.source).toMatchObject({ value: 'AQID' })
@@ -28,16 +27,13 @@ describe('Agent Run pre-hydrated attachments', () => {
   it('rejects a pre-hydrated source that does not match the authorized payload', async () => {
     await expect(
       Effect.runPromise(
-        hydrateAgentRunPayload(
-          { text: 'Inspect this.', thinkingLevel: 'high', attachments: [prepared] },
-          [
-            {
-              ...prepared,
-              id: 'attachment-other',
-              source: { type: 'data', value: 'AQID', mimeType: 'image/png' },
-            },
-          ],
-        ),
+        hydrateAgentRunPayload({ text: 'Inspect this.', attachments: [prepared] }, [
+          {
+            ...prepared,
+            id: 'attachment-other',
+            source: { type: 'data', value: 'AQID', mimeType: 'image/png' },
+          },
+        ]),
       ),
     ).rejects.toThrow('do not match')
   })

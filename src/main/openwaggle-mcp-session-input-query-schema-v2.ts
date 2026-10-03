@@ -65,9 +65,7 @@ const sessionExportManifestSchemaV2 = z
               position: revision,
               createdAt: revision,
               deliveryState: z.enum(['pending', 'needs_attention']),
-              attentionReason: z
-                .enum(['authorization_ceiling_changed', 'profile_revoked', 'authority_changed'])
-                .optional(),
+              attentionReason: z.enum(['profile_revoked', 'authority_changed']).optional(),
               intent: z.unknown().optional(),
             })
             .strict(),

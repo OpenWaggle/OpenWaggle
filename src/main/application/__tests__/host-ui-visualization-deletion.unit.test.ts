@@ -14,6 +14,14 @@ import {
   type SessionProjectionRepositoryShape,
 } from '../../ports/session-projection-repository'
 import { SessionRepository, type SessionRepositoryShape } from '../../ports/session-repository'
+import {
+  SessionSettingsRepository,
+  type SessionSettingsRepositoryShape,
+} from '../../ports/session-settings-repository'
+import {
+  ThinkingLevelDefaultService,
+  type ThinkingLevelDefaultServiceShape,
+} from '../../ports/thinking-level-default-service'
 import { installSessionHostEventPublisher } from '../../session-host/session-host-events'
 import { hasAnyActiveRun, reserveActiveSessionRun } from '../active-session-runs'
 import { dispatchHostBackedSessionGuiOperation } from '../host-ui-session-operation-dispatcher'
@@ -41,6 +49,8 @@ async function prepareDeletion(
     UnboundWorkspaceTestLayer,
     NoopSessionDesktopLayer,
     settingsLayer,
+    Layer.succeed(SessionSettingsRepository, fromPartial<SessionSettingsRepositoryShape>({})),
+    Layer.succeed(ThinkingLevelDefaultService, fromPartial<ThinkingLevelDefaultServiceShape>({})),
     Layer.succeed(InlineVisualizationService, visualizations),
     Layer.succeed(
       SessionRepository,

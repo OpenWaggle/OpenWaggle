@@ -1,6 +1,7 @@
 import { matchBy } from '@diegogbrisa/ts-match'
 import type { RunId } from '@shared/types/brand'
 import type { SessionControlSessionState } from './message-aggregate'
+import { pauseStrandedFollowUps } from './undelivered-steering'
 
 const STATE_REVISION_INCREMENT = 1
 
@@ -82,9 +83,11 @@ export function releaseRejectedRunInterruption(
   expectedRunId: RunId,
 ): SessionControlSessionState {
   if (state.run.state !== 'stopping' || state.run.runId !== expectedRunId) return state
-  return {
+  // The Run was already gone, so its settlement (and any steers it returned) happened without a
+  // successor. Its Follow-ups would otherwise wait in a running queue nothing schedules.
+  return pauseStrandedFollowUps({
     ...state,
     revision: state.revision + STATE_REVISION_INCREMENT,
     run: { state: 'idle' },
-  }
+  })
 }

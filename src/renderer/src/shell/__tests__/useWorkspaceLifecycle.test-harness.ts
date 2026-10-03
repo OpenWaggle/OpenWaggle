@@ -48,6 +48,7 @@ interface WorkspaceLifecycleMocks {
   readonly onSessionHostEvent: Mock
   readonly onSessionHostResyncRequired: Mock
   readonly invalidateQueries: Mock
+  readonly reconcileQueuedRunStarts: Mock
 }
 
 const lifecycleMocks: WorkspaceLifecycleMocks = vi.hoisted(() => {
@@ -96,6 +97,7 @@ const lifecycleMocks: WorkspaceLifecycleMocks = vi.hoisted(() => {
       return vi.fn()
     }),
     invalidateQueries: vi.fn().mockResolvedValue(undefined),
+    reconcileQueuedRunStarts: vi.fn().mockResolvedValue(undefined),
   }
 })
 
@@ -128,6 +130,10 @@ vi.mock('@tanstack/react-router', () => ({
 }))
 
 vi.mock('@/features/chat/hooks', () => ({
+  invalidateDefaultThinkingLevel: (client: {
+    invalidateQueries: (filters: { queryKey: readonly unknown[] }) => Promise<void>
+  }) => client.invalidateQueries({ queryKey: ['pi-default-thinking-level'] }),
+  reconcileQueuedRunStarts: lifecycleMocks.reconcileQueuedRunStarts,
   sessionFollowUpQueueOptions: (sessionId: string | null) => ({
     queryKey: ['sessions', 'follow-up-queue', sessionId],
   }),
@@ -224,6 +230,7 @@ export function resetWorkspaceLifecycleMocks() {
     phases: new Map(),
   })
   lifecycleMocks.loadChatSessions.mockClear()
+  lifecycleMocks.reconcileQueuedRunStarts.mockClear()
   lifecycleMocks.startDraftSession.mockClear()
   lifecycleMocks.loadSessionTrees.mockClear()
   lifecycleMocks.refreshCatalogSessions.mockClear()

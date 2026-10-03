@@ -10,7 +10,6 @@ describe('Session Control explicit Follow-up', () => {
     const intent = {
       text: 'Run the verification matrix next.',
       attachmentIds: [],
-      runAuthorizationOverride: 'ask-for-approval',
       callerId: 'local-user',
       acceptedAt: 3456,
       idempotencyKey: 'follow-up-one',

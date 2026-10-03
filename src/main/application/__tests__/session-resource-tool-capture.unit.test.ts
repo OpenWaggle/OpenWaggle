@@ -16,7 +16,7 @@ describe('production Session Resource tool capture', () => {
       captureSuccessfulRunResources({
         sessionId: SessionId('session-1'),
         runId: 'run-1',
-        payload: { text: '', thinkingLevel: 'medium', attachments: [] },
+        payload: { text: '', attachments: [] },
         messages: [assistantToolResultMessage()],
         nodeIdByMessageId: { 'assistant-tool-message': 'persisted-tool-node' },
         branchIdByMessageId: { 'assistant-tool-message': 'branch-feature' },
@@ -49,7 +49,7 @@ describe('production Session Resource tool capture', () => {
       captureSuccessfulRunResources({
         sessionId: SessionId('session-1'),
         runId: 'run-failed-tool',
-        payload: { text: '', thinkingLevel: 'medium', attachments: [] },
+        payload: { text: '', attachments: [] },
         messages: [assistantToolResultMessage(true)],
       }).pipe(Effect.provide(sessionResourceTestLayer(upserts))),
     )
@@ -64,7 +64,7 @@ describe('production Session Resource tool capture', () => {
       captureSuccessfulRunResources({
         sessionId: SessionId('session-1'),
         runId: 'run-read',
-        payload: { text: '', thinkingLevel: 'medium', attachments: [] },
+        payload: { text: '', attachments: [] },
         messages: [
           assistantToolResultMessage(false, {
             name: 'read',
@@ -101,7 +101,7 @@ describe('production Session Resource tool capture', () => {
       captureSuccessfulRunResources({
         sessionId: SessionId('session-1'),
         runId: 'run-relative-read',
-        payload: { text: '', thinkingLevel: 'medium', attachments: [] },
+        payload: { text: '', attachments: [] },
         messages: [
           assistantToolResultMessage(false, {
             name: 'read',
@@ -130,7 +130,7 @@ describe('production Session Resource tool capture', () => {
       captureSuccessfulRunResources({
         sessionId: SessionId('session-1'),
         runId: 'run-write',
-        payload: { text: '', thinkingLevel: 'medium', attachments: [] },
+        payload: { text: '', attachments: [] },
         messages: [
           assistantToolResultMessage(false, {
             name: 'write',
@@ -168,7 +168,7 @@ describe('production Session Resource tool capture', () => {
       captureSuccessfulRunResources({
         sessionId: SessionId('session-1'),
         runId: 'run-external-read',
-        payload: { text: '', thinkingLevel: 'medium', attachments: [] },
+        payload: { text: '', attachments: [] },
         messages: [
           assistantToolResultMessage(false, {
             name: 'read',

@@ -12,7 +12,10 @@ import {
   browserAttachmentMetadataJson,
   parseBrowserAttachmentMetadata,
 } from '../utils/browser-attachment-metadata'
+import { monotonicNowMs } from '../utils/monotonic-clock'
+import { referencedSessionAttachmentIds } from './session-control-attachment-references'
 import type { AttachmentStoragePolicy } from './session-control-attachment-service'
+import { retainedFollowUpEditAttachmentIds } from './sqlite-follow-up-edit-holds'
 
 interface PreparedAttachmentRow {
   readonly id: string
@@ -29,9 +32,6 @@ interface PreparedAttachmentRow {
 
 interface StoredBytesRow {
   readonly bytes: number
-}
-interface AttachmentIntentRow {
-  readonly intent_json: string
 }
 
 function cleanupExpiredAttachments(sql: SqlClient.SqlClient, now: number) {
@@ -140,32 +140,14 @@ function bindAttachments(
   )
 }
 
-function referencedAttachmentIds(rows: readonly AttachmentIntentRow[]) {
-  const referenced = new Set<string>()
-  for (const row of rows) {
-    const intent: unknown = JSON.parse(row.intent_json)
-    if (typeof intent !== 'object' || intent === null || !('attachmentIds' in intent))
-      throw new Error('A retained Session intent has no attachment capability list.')
-    const attachmentIds = intent.attachmentIds
-    if (!Array.isArray(attachmentIds) || !attachmentIds.every((id) => typeof id === 'string'))
-      throw new Error('A retained Session intent has an invalid attachment capability list.')
-    for (const id of attachmentIds) referenced.add(id)
-  }
-  return referenced
-}
-
 function cleanupUnreferenced(sql: SqlClient.SqlClient, sessionId: string) {
   return sql.withTransaction(
     Effect.gen(function* () {
-      const rows = yield* sql<AttachmentIntentRow>`
-      SELECT intent_json FROM session_runs WHERE session_id = ${sessionId}
-        AND status IN (${'starting'}, ${'active'}, ${'stopping'}) AND intent_json IS NOT NULL
-      UNION ALL SELECT intent_json FROM session_follow_ups WHERE session_id = ${sessionId}
-    `
-      const referenced = yield* Effect.try({
-        try: () => referencedAttachmentIds(rows),
-        catch: (cause) => (cause instanceof Error ? cause : new Error(String(cause))),
-      })
+      const intentReferenced = yield* referencedSessionAttachmentIds(sql, sessionId)
+      // Attachments a Follow-up edit named stay a while longer, so a retried save or a lost edit
+      // queued as a new message can still bind them.
+      const retained = yield* retainedFollowUpEditAttachmentIds(sql, sessionId, monotonicNowMs())
+      const referenced = new Set([...intentReferenced, ...retained])
       if (referenced.size === 0) {
         yield* sql`DELETE FROM session_prepared_attachments WHERE session_id = ${sessionId}`
         return

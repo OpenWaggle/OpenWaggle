@@ -12,7 +12,9 @@ import { isModelActionable } from '@/features/providers/state'
 import { usePreferencesStore } from '@/features/settings/state'
 import { api } from '@/shared/lib/ipc'
 import { createOptimisticUserMessage } from '../lib/useAgentChat.utils'
-import { settledSessionModelWrites } from '../state/session-model-writes'
+import { withForegroundSend } from '../state/foreground-send-store'
+import { useOptimisticSteerStore } from '../state/optimistic-steer-store'
+import { settledSessionSettingWrites } from '../state/session-setting-writes'
 import {
   beginForegroundRun,
   forgetQueuedSend,
@@ -173,9 +175,8 @@ export function createAgentRunControls(params: AgentRunControlParams) {
     const targetSessionId = sessionId
     const run = beginForegroundRun(refs, params, targetSessionId)
     const runPromise = run.promise
-    // The Host resolves the Run's model from the Session when the Run starts, so a model the user
-    // just picked must be stored before the prompt that should use it is dispatched.
-    await settledSessionModelWrites(targetSessionId)
+    // The Host reads the Session's model and thinking level at Run start: store a fresh pick first.
+    await settledSessionSettingWrites(targetSessionId)
     const sendPromise = waggleConfig
       ? api.sendWaggleMessage(targetSessionId, payload, model, waggleConfig)
       : api.sendMessage(targetSessionId, payload, model)
@@ -258,7 +259,8 @@ export function createAgentRunControls(params: AgentRunControlParams) {
     }
     // Transcript retries and diff follow-ups bypass the composer gate; validate before the
     // optimistic turn is appended, so a refused send leaves no phantom message behind.
-    if (!isModelActionable(usePreferencesStore.getState().settings.enabledModels, params.model)) {
+    const model = params.model
+    if (!isModelActionable(usePreferencesStore.getState().settings.enabledModels, model)) {
       params.setError(new Error('Select a model before sending.'))
       return
     }
@@ -268,7 +270,7 @@ export function createAgentRunControls(params: AgentRunControlParams) {
       params.setFirstSendRecovery(sessionId, {
         payload,
         waggleConfig,
-        model: params.model,
+        model,
       })
     }
     params.addOptimisticUserMessage(sessionId, optimisticUserMessage)
@@ -280,7 +282,9 @@ export function createAgentRunControls(params: AgentRunControlParams) {
       (currentMessages) => [...currentMessages, optimisticUserMessage],
       { cacheRunSnapshot: true },
     )
-    await dispatchAgentSend(payload, waggleConfig, params.model, optimisticUserMessage.id)
+    await withForegroundSend(sessionId, () =>
+      dispatchAgentSend(payload, waggleConfig, model, optimisticUserMessage.id),
+    )
     if (params.isFirstMessage) {
       params.setFirstSendRecovery(sessionId, null)
     }
@@ -288,6 +292,8 @@ export function createAgentRunControls(params: AgentRunControlParams) {
 
   function stop() {
     if (sessionId) {
+      // A promotion this Stop rejects is the user's doing, not a steering failure.
+      useOptimisticSteerStore.getState().noteUserStop(sessionId)
       void api.cancelAgent(sessionId).catch((cancelError: unknown) => {
         const normalizedError = normalizeError(cancelError)
         params.setError(normalizedError)

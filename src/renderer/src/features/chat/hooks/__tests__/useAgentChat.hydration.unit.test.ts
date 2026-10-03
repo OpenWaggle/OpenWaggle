@@ -18,12 +18,7 @@ describe('useAgentChat hydration', () => {
     const session = createSession()
 
     const { result } = renderHook(() =>
-      useAgentChat(
-        SessionId('session-1'),
-        session,
-        SupportedModelId('claude-sonnet-4-5'),
-        'medium',
-      ),
+      useAgentChat(SessionId('session-1'), session, SupportedModelId('claude-sonnet-4-5')),
     )
 
     await waitFor(() => {
@@ -90,12 +85,7 @@ describe('useAgentChat hydration', () => {
 
     const { result, rerender } = renderHook(
       ({ session }: { session: SessionDetail }) =>
-        useAgentChat(
-          SessionId('session-1'),
-          session,
-          SupportedModelId('claude-sonnet-4-5'),
-          'medium',
-        ),
+        useAgentChat(SessionId('session-1'), session, SupportedModelId('claude-sonnet-4-5')),
       {
         initialProps: { session: initialSession },
       },

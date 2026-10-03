@@ -9,6 +9,7 @@ import type {
   SessionNavigateTreeOptions,
   SessionProjectPage,
   SessionSummary,
+  SessionThinkingLevelChange,
   SessionTree,
   SessionTreeUiStatePatch,
   SessionWorkspace,
@@ -16,11 +17,21 @@ import type {
   SessionWorktreePlan,
 } from './session'
 import type { SessionTitleRegenerationResult } from './session-title'
+import type { ThinkingLevel } from './settings'
 
 export interface IpcSessionInvokeChannelMap {
   'sessions:get-detail': { args: [id: SessionId]; return: SessionDetail | null }
   'sessions:create': {
-    args: [projectPath: string, worktreePlan?: SessionWorktreePlan, model?: SupportedModelId]
+    /**
+     * `thinkingLevel` is the level the new Session starts at, stored on it alone: unlike a
+     * desktop pick on an existing Session it never changes Pi's global default.
+     */
+    args: [
+      projectPath: string,
+      worktreePlan?: SessionWorktreePlan,
+      model?: SupportedModelId,
+      thinkingLevel?: ThinkingLevel,
+    ]
     return: SessionDetail
   }
   'sessions:fork-to-new': {
@@ -49,8 +60,20 @@ export interface IpcSessionInvokeChannelMap {
     args: [id: SessionId, mode: AgentAuthorizationMode | null]
     return: undefined
   }
-  /** Switch the model the Session's next Run uses; a running Run keeps its model. */
+  /** Switch the model the Session's next Run uses; refused while a Run is active. */
   'sessions:set-model': { args: [id: SessionId, model: SupportedModelId]; return: undefined }
+  /**
+   * Set the Session thinking level its next Run uses, as the desktop user: refused while a Run is
+   * active, and also made Pi's global default for new Sessions.
+   */
+  'sessions:set-thinking-level': {
+    args: [id: SessionId, level: ThinkingLevel]
+    return: SessionThinkingLevelChange
+  }
+  /** Pi's global default thinking level, where every new Session starts (never a project one). */
+  'sessions:get-default-thinking-level': { args: []; return: ThinkingLevel }
+  /** Set Pi's global default thinking level, for a Session that does not exist yet. */
+  'sessions:set-default-thinking-level': { args: [level: ThinkingLevel]; return: undefined }
   'sessions:list-by-ids': { args: [sessionIds: SessionId[]]; return: SessionSummary[] }
   'sessions:list-page': {
     args: [archived: boolean, limit: number, cursor?: string]

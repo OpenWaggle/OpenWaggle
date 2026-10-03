@@ -92,12 +92,7 @@ describe('useAgentChat Waggle stop', () => {
 
     const { result, rerender } = renderHook(
       ({ session }: { readonly session: SessionDetail }) =>
-        useAgentChat(
-          SessionId('session-1'),
-          session,
-          SupportedModelId('claude-sonnet-4-5'),
-          'medium',
-        ),
+        useAgentChat(SessionId('session-1'), session, SupportedModelId('claude-sonnet-4-5')),
       { initialProps: { session: createSessionWithMessages(1, []) } },
     )
 

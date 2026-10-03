@@ -150,11 +150,13 @@ describe('Host-backed project preferences', () => {
     expect(mocks.setPreferences).toHaveBeenCalledWith(projectPath, {})
   })
 
-  it('still persists thinkingLevel in the project settings file', async () => {
-    await run(setProjectPreferencesOperation('/project', { thinkingLevel: 'high' }))
+  it('never stores a thinking level as a project preference', async () => {
+    await expect(
+      run(setProjectPreferencesOperation('/project', { thinkingLevel: 'high' })),
+    ).resolves.toBe('/project')
 
     expect(updates).toEqual([])
-    expect(mocks.setPreferences).toHaveBeenCalledWith('/project', { thinkingLevel: 'high' })
+    expect(mocks.setPreferences).not.toHaveBeenCalled()
   })
 
   it('clears the DB model entry without touching the file when no legacy model exists', async () => {
@@ -182,13 +184,17 @@ describe('Host-backed project preferences', () => {
     await writeLegacyModelFile(projectPath)
     projectModelMigrations = []
 
-    await run(setProjectPreferencesOperation(projectPath, { thinkingLevel: 'high' }))
+    await run(
+      setProjectPreferencesOperation(projectPath, { authorizationMode: 'ask-for-approval' }),
+    )
 
     // The legacy override must survive the strip: it moves into the DB via the atomic
     // insert-if-absent writer, which never overwrites an existing entry.
     expect(projectModelMigrations).toEqual([[projectPath, 'legacy/file']])
     expect(storedModels).toEqual({ [projectPath]: 'legacy/file' })
-    expect(mocks.setPreferences).toHaveBeenCalledWith(projectPath, { thinkingLevel: 'high' })
+    expect(mocks.setPreferences).toHaveBeenCalledWith(projectPath, {
+      authorizationMode: 'ask-for-approval',
+    })
   })
 
   it('does not resurrect a cleared override when a stale legacy file read migrates', async () => {
@@ -198,7 +204,9 @@ describe('Host-backed project preferences', () => {
     // A queued explicit clear already wrote its tombstone when this write's legacy read started.
     storedModels = { [projectPath]: '' }
 
-    await run(setProjectPreferencesOperation(projectPath, { thinkingLevel: 'high' }))
+    await run(
+      setProjectPreferencesOperation(projectPath, { authorizationMode: 'ask-for-approval' }),
+    )
 
     // The insert-if-absent writer sees the tombstone and leaves the cleared override cleared.
     expect(projectModelMigrations).toEqual([[projectPath, 'legacy/file']])
@@ -211,10 +219,14 @@ describe('Host-backed project preferences', () => {
     await writeLegacyModelFile(projectPath)
     projectModelMigrations = []
 
-    await run(setProjectPreferencesOperation(projectPath, { thinkingLevel: 'high' }))
+    await run(
+      setProjectPreferencesOperation(projectPath, { authorizationMode: 'ask-for-approval' }),
+    )
 
     expect(storedModels).toEqual({ [projectPath]: 'db/newer' })
-    expect(mocks.setPreferences).toHaveBeenCalledWith(projectPath, { thinkingLevel: 'high' })
+    expect(mocks.setPreferences).toHaveBeenCalledWith(projectPath, {
+      authorizationMode: 'ask-for-approval',
+    })
   })
 })
 
@@ -258,11 +270,11 @@ describe('getProjectPreferencesOperation', () => {
 
   it('returns the DB model, which wins over a legacy file value', async () => {
     storedModels = { [projectPath]: 'db/provider' }
-    await writeSettingsFile({ model: 'legacy/file', thinkingLevel: 'high' })
+    await writeSettingsFile({ model: 'legacy/file', authorizationMode: 'yolo' })
 
     await expect(run(projectPath)).resolves.toEqual({
       model: 'db/provider',
-      thinkingLevel: 'high',
+      authorizationMode: 'yolo',
     })
   })
 
@@ -274,11 +286,11 @@ describe('getProjectPreferencesOperation', () => {
 
   it('suppresses the legacy file model when a clear tombstone exists', async () => {
     storedModels = { [projectPath]: '' }
-    await writeSettingsFile({ model: 'legacy/file', thinkingLevel: 'high' })
+    await writeSettingsFile({ model: 'legacy/file', authorizationMode: 'yolo' })
 
     // The tombstone is presence-checked, not truthiness-checked: the cleared override must not
     // fall back to the legacy file value.
-    await expect(run(projectPath)).resolves.toEqual({ thinkingLevel: 'high' })
+    await expect(run(projectPath)).resolves.toEqual({ authorizationMode: 'yolo' })
   })
 
   it('returns null when a tombstone exists and the file carries only a legacy model', async () => {

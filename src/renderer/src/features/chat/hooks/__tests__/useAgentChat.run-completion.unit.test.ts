@@ -21,7 +21,7 @@ const MODEL = SupportedModelId('openrouter/anthropic/claude-haiku-4.5')
 const BILLING_ERROR = 'This request requires more credits'
 
 function renderChat() {
-  return renderHook(() => useAgentChat(SESSION_ID, createSession(), MODEL, 'medium'))
+  return renderHook(() => useAgentChat(SESSION_ID, createSession(), MODEL))
 }
 
 function trackOutcome(send: Promise<void>) {

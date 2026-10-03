@@ -3,14 +3,24 @@ import type { SessionId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
 import { create } from 'zustand'
 
+/** What the user row a steer becomes shows: its typed text and how many attachments it carries. */
+export interface SteerIncorporatedContent {
+  readonly text: string
+  readonly attachmentCount: number
+}
+
 export interface OptimisticSteerPreview {
   readonly id: string
   readonly content: string
+  /** Display-only pairing while a promotion awaits its receipt; the receipt alone records it. */
+  readonly incorporatedContent: SteerIncorporatedContent
   readonly durableContent: string
   /** null waits for the Host receipt; undefined uses the locally known prompt text. */
   readonly receipt?: Extract<AgentSteerDeliveryReceipt, { delivery: 'queued' }> | null
   readonly baselineLength: number
   readonly baselineUserMessageIds: ReadonlySet<string>
+  /** The highest native log order the transcript held when the preview began, or -1. */
+  readonly baselineMaxCreatedOrder: number
   readonly message: UIMessage
   readonly durableMessageId?: string
   readonly durableMessageCreatedOrder?: number
@@ -19,6 +29,9 @@ export interface OptimisticSteerPreview {
 interface OptimisticSteerState {
   readonly previews: Map<SessionId, readonly OptimisticSteerPreview[]>
   readonly pendingPromotions: Map<SessionId, readonly string[]>
+  /** How many times the user has stopped each Session's Run from this window. */
+  readonly userStops: Map<SessionId, number>
+  readonly noteUserStop: (sessionId: SessionId) => void
   readonly beginPromotion: (sessionId: SessionId, followUpId: string) => boolean
   readonly finishPromotion: (sessionId: SessionId, followUpId: string) => void
   readonly add: (sessionId: SessionId, preview: OptimisticSteerPreview) => void
@@ -38,6 +51,11 @@ interface OptimisticSteerState {
 
 const EMPTY_PREVIEWS: readonly OptimisticSteerPreview[] = []
 const EMPTY_PROMOTIONS: readonly string[] = []
+
+/** The user's Stop count for a Session, to tell a Stop apart from a failed promotion. */
+export function userStopCount(sessionId: SessionId) {
+  return useOptimisticSteerStore.getState().userStops.get(sessionId) ?? 0
+}
 
 export function selectPendingSteerFollowUps(sessionId: SessionId | null) {
   return (state: OptimisticSteerState) =>
@@ -62,6 +80,14 @@ export function selectOptimisticSteerPreviews(sessionId: SessionId | null) {
 export const useOptimisticSteerStore = create<OptimisticSteerState>((set) => ({
   previews: new Map(),
   pendingPromotions: new Map(),
+  userStops: new Map(),
+  noteUserStop(sessionId) {
+    set((state) => {
+      const userStops = new Map(state.userStops)
+      userStops.set(sessionId, (state.userStops.get(sessionId) ?? 0) + 1)
+      return { userStops }
+    })
+  },
   beginPromotion(sessionId, followUpId) {
     let started = false
     set((state) => {

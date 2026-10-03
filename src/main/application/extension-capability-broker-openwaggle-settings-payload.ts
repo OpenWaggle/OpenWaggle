@@ -11,6 +11,8 @@ const SETTINGS_UPDATE_KEYS = new Set([
   'selectedModel',
   'favoriteModels',
   'enabledModels',
+  // Accepted for SDK compatibility and ignored: the thinking level is Session state that only the
+  // desktop user changes (CONTEXT.md, Session thinking level).
   'thinkingLevel',
   'projectDisplayNames',
 ])

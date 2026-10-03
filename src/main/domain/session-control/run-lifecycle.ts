@@ -1,6 +1,10 @@
 import { matchBy } from '@diegogbrisa/ts-match'
 import type { FollowUpId, RunId } from '@shared/types/brand'
-import type { SessionControlIntentSnapshot, SessionControlSessionState } from './message-aggregate'
+import type {
+  SessionControlIntentSnapshot,
+  SessionControlRunIntent,
+  SessionControlSessionState,
+} from './message-aggregate'
 
 const STATE_REVISION_INCREMENT = 1
 const QUEUE_REVISION_INCREMENT = 1
@@ -42,7 +46,7 @@ export function activateStartingRun(
 export function startExternalSessionRun(
   state: SessionControlSessionState,
   runId: RunId,
-  intent: SessionControlIntentSnapshot,
+  intent: SessionControlRunIntent,
 ): RunLifecycleTransitionResult {
   if (state.run.state !== 'idle') {
     return { accepted: false, code: 'run_not_active', state }
@@ -61,7 +65,7 @@ export function replaceWithExternalSessionRun(
   state: SessionControlSessionState,
   previousRunId: RunId | undefined,
   runId: RunId,
-  intent: SessionControlIntentSnapshot,
+  intent: SessionControlRunIntent,
 ): RunLifecycleTransitionResult {
   if (state.run.state === 'idle') return startExternalSessionRun(state, runId, intent)
   if (!previousRunId || state.run.runId !== previousRunId) {
@@ -116,7 +120,8 @@ export function settleAndScheduleNextFollowUp(
   if (
     state.followUpQueue.state === 'paused' ||
     !nextFollowUp ||
-    nextFollowUp.deliveryState !== 'pending'
+    nextFollowUp.deliveryState !== 'pending' ||
+    nextFollowUp.editHold
   ) {
     return settled
   }

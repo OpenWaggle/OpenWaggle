@@ -16,7 +16,6 @@ import { FilesystemSessionExportArtifactWriterLive } from './adapters/filesystem
 import { FilesystemSessionExportResourceResolverLive } from './adapters/filesystem-session-export-resource-resolver'
 import { FilesystemSessionResourceStoreLive } from './adapters/filesystem-session-resource-store'
 import { FilesystemWorkspaceFileLive } from './adapters/filesystem-workspace-file-service'
-import { GitSessionWorkspaceHandoffServiceLive } from './adapters/git-session-workspace-handoff-service'
 import { LocalSessionCredentialVerifierLive } from './adapters/local-session-credential-verifier'
 import { EncryptedMcpSecretVaultServiceLive } from './adapters/mcp/encrypted-mcp-secret-vault-service'
 import { FilesystemMcpConfigServiceLive } from './adapters/mcp/filesystem-mcp-config-service'
@@ -32,6 +31,7 @@ import { ProviderServiceLive } from './adapters/pi/pi-provider-service'
 import { PiSessionOrchestrationUpdateDeliveryServiceLive } from './adapters/pi/pi-session-orchestration-update-delivery-service'
 import { PiSessionReportDeliveryServiceLive } from './adapters/pi/pi-session-report-delivery-service'
 import { PiSessionTreePreferencesLive } from './adapters/pi/pi-session-tree-preferences-service'
+import { PiThinkingLevelDefaultLive } from './adapters/pi/pi-thinking-level-default-service'
 import { SecureSessionResourceImageFetcherLive } from './adapters/secure-session-resource-image-fetcher'
 import { LiveSessionControlAttachmentService } from './adapters/session-control-attachment-service'
 import { SessionControlIdentityServiceLive } from './adapters/session-control-identity-service'
@@ -41,30 +41,13 @@ import { SessionLifecyclePreparationServiceLive } from './adapters/session-lifec
 import { SettingsWagglePresetsRepositoryLive } from './adapters/settings-waggle-presets-repository'
 import { SharpSessionResourceImageValidatorLive } from './adapters/sharp-session-resource-image-validator'
 import { SharpSessionResourceThumbnailerLive } from './adapters/sharp-session-resource-thumbnailer'
-import { SqliteExplicitWaggleOperationJournalLive } from './adapters/sqlite-explicit-waggle-operation-journal'
 import { SqliteExtensionLifecycleRepositoryLive } from './adapters/sqlite-extension-lifecycle-repository'
 import { SqliteExtensionProjectOverridesRepositoryLive } from './adapters/sqlite-extension-project-overrides-repository'
 import { SqliteExtensionStorageRepositoryLive } from './adapters/sqlite-extension-storage-repository'
-import { SqliteLocalSessionProfileRepositoryLive } from './adapters/sqlite-local-session-profile-repository'
-import { SqliteSessionAuthorizationTargetRepositoryLive } from './adapters/sqlite-session-authorization-target-repository'
-import { SqliteSessionControlOperationJournalLive } from './adapters/sqlite-session-control-operation-journal'
-import { SqliteSessionControlRepositoryLive } from './adapters/sqlite-session-control-repository'
-import { SqliteSessionControlRunLifecycleRepositoryLive } from './adapters/sqlite-session-control-run-lifecycle-repository'
-import { SqliteSessionDelegationRepositoryLive } from './adapters/sqlite-session-delegation-repository'
-import { SqliteSessionDescendantRunRepositoryLive } from './adapters/sqlite-session-descendant-run-repository'
-import { SqliteSessionExportLiveAuthorityLive } from './adapters/sqlite-session-export-live-authority'
-import { SqliteSessionExportOperationRepositoryLive } from './adapters/sqlite-session-export-operation-repository'
-import { SqliteSessionHostRecoveryRepositoryLive } from './adapters/sqlite-session-host-recovery-repository'
-import { SqliteSessionLifecycleRepositoryLive } from './adapters/sqlite-session-lifecycle-repository'
-import { SqliteSessionOrchestrationUpdateRepositoryLive } from './adapters/sqlite-session-orchestration-update-repository'
-import { SqliteSessionOrganizationRepositoryLive } from './adapters/sqlite-session-organization-repository'
 import { SqliteSessionOutputRetryRepositoryLive } from './adapters/sqlite-session-output-retry-repository'
-import { SqliteSessionQueryRepositoryLive } from './adapters/sqlite-session-query-repository'
-import { SqliteSessionReportRepositoryLive } from './adapters/sqlite-session-report-repository'
 import { SqliteSessionRepositoryLive } from './adapters/sqlite-session-repository'
 import { SqliteSessionResourceCleanupRepositoryLive } from './adapters/sqlite-session-resource-cleanup-repository'
 import { SqliteSessionResourceRepositoryLive } from './adapters/sqlite-session-resource-repository'
-import { SqliteSessionWorkspaceResourceRepositoryLive } from './adapters/sqlite-session-workspace-resource-repository'
 import { FilesystemStandardsLive } from './adapters/standards-adapter'
 import { WorkspaceProjectAuthorizationLive } from './adapters/workspace-project-authorization'
 import { ActiveProjectChangeServiceLive } from './application/active-project-change-service'
@@ -78,6 +61,7 @@ import {
 import { DesktopServicesLive } from './runtime-desktop-services'
 import { HiveWorkerCleanupServicesLive } from './runtime-hive-cleanup-services'
 import { startHostBackgroundServices } from './runtime-host-services'
+import { SessionControlPersistenceLive } from './runtime-session-control-persistence'
 import { SessionTitleServicesLive } from './runtime-session-title-services'
 import { AppDatabaseLive } from './services/database-service'
 import { AppLogger } from './services/logger-service'
@@ -144,31 +128,12 @@ const ActiveProjectChangeDependenciesLive = Layer.mergeAll(
   SharpSessionResourceImageValidatorLive,
   SqliteSessionProjectionRepositoryLive,
   SqliteSessionRepositoryLive,
+  PiThinkingLevelDefaultLive,
 )
 const ActiveProjectChangeWithDependenciesLive = ActiveProjectChangeServiceLive.pipe(
   Layer.provide(ActiveProjectChangeDependenciesLive),
 )
 
-const SessionControlPersistenceLive = Layer.mergeAll(
-  GitSessionWorkspaceHandoffServiceLive,
-  SqliteLocalSessionProfileRepositoryLive,
-  SqliteSessionAuthorizationTargetRepositoryLive,
-  SqliteSessionControlOperationJournalLive,
-  SqliteExplicitWaggleOperationJournalLive,
-  SqliteSessionControlRepositoryLive,
-  SqliteSessionControlRunLifecycleRepositoryLive,
-  SqliteSessionHostRecoveryRepositoryLive,
-  SqliteSessionLifecycleRepositoryLive,
-  SqliteSessionQueryRepositoryLive,
-  SqliteSessionReportRepositoryLive,
-  SqliteSessionOrchestrationUpdateRepositoryLive,
-  SqliteSessionOrganizationRepositoryLive,
-  SqliteSessionDelegationRepositoryLive,
-  SqliteSessionDescendantRunRepositoryLive,
-  SqliteSessionExportOperationRepositoryLive,
-  SqliteSessionExportLiveAuthorityLive,
-  SqliteSessionWorkspaceResourceRepositoryLive,
-).pipe(Layer.provide(AppDatabaseLive))
 const SessionExportResourceResolverWithDatabaseLive =
   FilesystemSessionExportResourceResolverLive.pipe(Layer.provide(AppDatabaseLive))
 const SessionControlAttachmentWithDatabaseLive = LiveSessionControlAttachmentService.pipe(
@@ -176,7 +141,12 @@ const SessionControlAttachmentWithDatabaseLive = LiveSessionControlAttachmentSer
 )
 const SessionLifecyclePreparationWithDependenciesLive = SessionLifecyclePreparationServiceLive.pipe(
   Layer.provide(
-    Layer.mergeAll(AppDatabaseLive, SettingsService.Live, PiAgentKernelWithExtensionSelectionLive),
+    Layer.mergeAll(
+      AppDatabaseLive,
+      SettingsService.Live,
+      PiAgentKernelWithExtensionSelectionLive,
+      PiThinkingLevelDefaultLive,
+    ),
   ),
 )
 const SessionWaitWithDependenciesLive = SessionWaitServiceLive.pipe(
@@ -268,6 +238,7 @@ const AppLayer = Layer.mergeAll(
   PiProviderOAuthLive,
   ProviderServiceWithExtensionSelectionLive,
   PiSessionTreePreferencesLive,
+  PiThinkingLevelDefaultLive,
   SettingsWagglePresetsRepositoryLive,
   FilesystemWorkspaceFileLive,
   OperationAdapterLive,

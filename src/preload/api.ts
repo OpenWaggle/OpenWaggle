@@ -18,6 +18,7 @@ export const api: OpenWaggleApi = {
   manageAccessProfiles: invoke('access-profiles:manage'),
   mutateSessionControl: invoke('session-control:mutate'),
   querySessionControl: invoke('session-control:query'),
+  adoptFollowUpEdit: invoke('session-control:adopt-follow-up-edit'),
   // Agent
   sendMessage: invoke('agent:send-message'),
   cancelAgent: invoke('agent:cancel'),
@@ -145,6 +146,9 @@ export const api: OpenWaggleApi = {
   regenerateSessionTitle: invoke('sessions:regenerate-title'),
   setSessionAuthorizationMode: invoke('sessions:set-authorization-mode'),
   setSessionModel: invoke('sessions:set-model'),
+  setSessionThinkingLevel: invoke('sessions:set-thinking-level'),
+  getDefaultThinkingLevel: invoke('sessions:get-default-thinking-level'),
+  setDefaultThinkingLevel: invoke('sessions:set-default-thinking-level'),
   listArchivedSessionBranches: invoke('sessions:list-archived-branches'),
   getSessionTree: invoke('sessions:get-tree'),
   getSessionWorkspace: invoke('sessions:get-workspace'),

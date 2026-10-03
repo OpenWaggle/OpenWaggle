@@ -116,7 +116,9 @@ describe('CLI-started Host and attached GUI project writes', () => {
       const addedKey = { ...originalKey, requesterId: 'server-b' }
       const pendingOwnerWrite =
         writer === 'preferences'
-          ? ownerConfig.setProjectPreferences(projectPath, { thinkingLevel: 'high' })
+          ? ownerConfig.setProjectPreferences(projectPath, {
+              authorizationMode: 'ask-for-approval',
+            })
           : ownerGrants.grantForProject(projectPath, addedKey)
       await stagedWrite.promise
       const guiKey = edit === 'revoke' ? originalKey : { ...originalKey, requesterId: 'server-c' }
@@ -132,7 +134,7 @@ describe('CLI-started Host and attached GUI project writes', () => {
 
       const config = await ownerConfig.loadProjectConfig(projectPath)
       expect(config.preferences).toEqual(
-        writer === 'preferences' ? { thinkingLevel: 'high' } : undefined,
+        writer === 'preferences' ? { authorizationMode: 'ask-for-approval' } : undefined,
       )
       const expectedKeys = [
         ...(edit === 'grant' ? [originalKey] : []),

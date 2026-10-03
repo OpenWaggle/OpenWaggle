@@ -6,6 +6,12 @@ import type { SessionDetail } from '@shared/types/session'
 import { act, renderHook } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { isReportableSendFailure, MessageNotDelivered } from '../../lib/message-delivery'
+import { useForegroundSendStore } from '../../state/foreground-send-store'
+import { userStopCount } from '../../state/optimistic-steer-store'
+import {
+  resetThinkingLevelWritesForTests,
+  writeThinkingLevel,
+} from '../../state/session-thinking-level-writes'
 import {
   apiMock,
   createDeferred,
@@ -25,12 +31,7 @@ describe('useAgentChat foreground run', () => {
   it('retains the exact first turn until a blank session run completes', async () => {
     const model = SupportedModelId('claude-sonnet-4-5')
     const { result } = renderHook(() =>
-      useAgentChat(
-        SessionId('session-1'),
-        createSessionWithId(SessionId('session-1')),
-        model,
-        'medium',
-      ),
+      useAgentChat(SessionId('session-1'), createSessionWithId(SessionId('session-1')), model),
     )
 
     let sendPromise: Promise<void> | null = null
@@ -53,12 +54,7 @@ describe('useAgentChat foreground run', () => {
 
   it('streams optimistic user and assistant text through OpenWaggle runtime events', async () => {
     const { result } = renderHook(() =>
-      useAgentChat(
-        SessionId('session-1'),
-        createSession(),
-        SupportedModelId('claude-sonnet-4-5'),
-        'medium',
-      ),
+      useAgentChat(SessionId('session-1'), createSession(), SupportedModelId('claude-sonnet-4-5')),
     )
 
     let sendPromise: Promise<void> | null = null
@@ -123,12 +119,7 @@ describe('useAgentChat foreground run', () => {
     apiMock.sendMessage.mockRejectedValueOnce(failure)
 
     const { result } = renderHook(() =>
-      useAgentChat(
-        SessionId('session-1'),
-        createSession(),
-        SupportedModelId('claude-sonnet-4-5'),
-        'medium',
-      ),
+      useAgentChat(SessionId('session-1'), createSession(), SupportedModelId('claude-sonnet-4-5')),
     )
 
     await act(async () => {
@@ -144,12 +135,7 @@ describe('useAgentChat foreground run', () => {
 
   it('settles a foreground send when the run is cancelled', async () => {
     const { result } = renderHook(() =>
-      useAgentChat(
-        SessionId('session-1'),
-        createSession(),
-        SupportedModelId('claude-sonnet-4-5'),
-        'medium',
-      ),
+      useAgentChat(SessionId('session-1'), createSession(), SupportedModelId('claude-sonnet-4-5')),
     )
 
     let sendPromise: Promise<void> | null = null
@@ -157,12 +143,14 @@ describe('useAgentChat foreground run', () => {
       sendPromise = result.current.sendMessage(SEND_PAYLOAD)
     })
 
+    const stopsBefore = userStopCount(SessionId('session-1'))
     await act(async () => {
       result.current.stop()
       await sendPromise
     })
 
     expect(apiMock.cancelAgent).toHaveBeenCalledWith(SessionId('session-1'))
+    expect(userStopCount(SessionId('session-1'))).toBe(stopsBefore + 1)
     expect(result.current.status).toBe('ready')
   })
 
@@ -178,7 +166,7 @@ describe('useAgentChat foreground run', () => {
       }: {
         readonly sessionId: SessionId
         readonly session: SessionDetail
-      }) => useAgentChat(sessionId, session, SupportedModelId('claude-sonnet-4-5'), 'medium'),
+      }) => useAgentChat(sessionId, session, SupportedModelId('claude-sonnet-4-5')),
       {
         initialProps: {
           sessionId: SessionId('session-1'),
@@ -223,7 +211,7 @@ describe('useAgentChat foreground run', () => {
       }: {
         readonly sessionId: SessionId
         readonly session: SessionDetail
-      }) => useAgentChat(sessionId, session, SupportedModelId('claude-sonnet-4-5'), 'medium'),
+      }) => useAgentChat(sessionId, session, SupportedModelId('claude-sonnet-4-5')),
       {
         initialProps: {
           sessionId: sessionA,
@@ -273,7 +261,6 @@ describe('useAgentChat foreground run', () => {
         SessionId('session-1'),
         createSessionWithId(SessionId('session-1')),
         SupportedModelId('claude-sonnet-4-5'),
-        'medium',
       ),
     )
 
@@ -299,5 +286,50 @@ describe('useAgentChat foreground run', () => {
     // Not an error state: the run this would have torn down may be the one that replaced it.
     expect(result.current.status).not.toBe('error')
     expect(result.current.error).toBeUndefined()
+  })
+
+  it('dispatches only after a thinking pick has landed, and marks the Session as starting', async () => {
+    resetThinkingLevelWritesForTests()
+    const sessionId = SessionId('session-1')
+    let finishWrite: (() => void) | undefined
+    void writeThinkingLevel({
+      target: sessionId,
+      level: 'low',
+      write: () =>
+        new Promise<void>((resolve) => {
+          finishWrite = resolve
+        }),
+      refresh: async () => {},
+    })
+    const { result } = renderHook(() =>
+      useAgentChat(
+        sessionId,
+        createSessionWithId(sessionId),
+        SupportedModelId('claude-sonnet-4-5'),
+      ),
+    )
+
+    let sendPromise: Promise<void> | null = null
+    await act(async () => {
+      sendPromise = result.current.sendMessage(SEND_PAYLOAD)
+      await Promise.resolve()
+    })
+    // The Host reads the Session thinking level when the Run starts.
+    expect(apiMock.sendMessage).not.toHaveBeenCalled()
+    // The pickers must not offer another change while this Run is starting.
+    expect(useForegroundSendStore.getState().counts.has(sessionId)).toBe(true)
+
+    await act(async () => {
+      finishWrite?.()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(apiMock.sendMessage).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      emitRunCompleted({ sessionId })
+      await sendPromise
+    })
+    expect(useForegroundSendStore.getState().counts.has(sessionId)).toBe(false)
   })
 })

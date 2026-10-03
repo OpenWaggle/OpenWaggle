@@ -12,6 +12,7 @@ import { AgentRunInterruptionService } from '../../ports/agent-run-interruption-
 import { AgentSteeringService } from '../../ports/agent-steering-service'
 import { SessionControlAttachmentService } from '../../ports/session-control-attachment-service'
 import { organizeSession } from '../session-organization-service'
+import { noUndeliveredSteers } from './agent-steering-test-layer'
 import {
   archived,
   archiveStateJournal,
@@ -57,6 +58,7 @@ function reviveWorkerRun(sql: SqlClient.SqlClient) {
 function withLiveRunServices<A, E, R>(effect: Effect.Effect<A, E, R>) {
   return effect.pipe(
     Effect.provideService(AgentSteeringService, {
+      ...noUndeliveredSteers,
       steer: () =>
         Effect.succeed({
           accepted: true,

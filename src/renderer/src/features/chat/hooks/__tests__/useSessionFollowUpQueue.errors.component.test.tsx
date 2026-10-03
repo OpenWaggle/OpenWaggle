@@ -70,9 +70,9 @@ describe('useSessionFollowUpQueue errors', () => {
       const { result } = renderHookWithQueryClient(() => useSessionFollowUpQueue(SESSION_ID))
       await waitFor(() => expect(result.current.snapshot.items[0]?.text).toBe(text))
 
-      await expect(
-        result.current.enqueue({ text, thinkingLevel: 'off', attachments: [] }),
-      ).rejects.toThrow('Wait for the active Run to finish')
+      await expect(result.current.enqueue({ text, attachments: [] })).rejects.toThrow(
+        'Wait for the active Run to finish',
+      )
       await expect(result.current.promote('follow-up-recovered')).rejects.toThrow(
         'This command cannot steer a Run.',
       )

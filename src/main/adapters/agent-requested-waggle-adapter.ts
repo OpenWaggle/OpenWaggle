@@ -1,7 +1,6 @@
 import { matchBy } from '@diegogbrisa/ts-match'
 import type { Message } from '@shared/types/agent'
 import type { SessionId, SupportedModelId } from '@shared/types/brand'
-import type { ThinkingLevel } from '@shared/types/settings'
 import type { AgentTransportEvent } from '@shared/types/stream'
 import type { WaggleHandoffRequest, WaggleInvocation } from '@shared/types/waggle'
 import * as Effect from 'effect/Effect'
@@ -68,7 +67,6 @@ interface RequestedWaggleInput {
   readonly runId: string
   readonly messages: readonly Message[]
   readonly model: SupportedModelId
-  readonly thinkingLevel: ThinkingLevel
   readonly controller: AbortController
   readonly authority?: Partial<RequestedWaggleAuthority>
 }
@@ -116,7 +114,6 @@ export function runRequestedWaggleWith(
       runId,
       payload: {
         text: handoff.prompt,
-        thinkingLevel: input.thinkingLevel,
         attachments: [],
         waggle: waggleInvocation,
       },

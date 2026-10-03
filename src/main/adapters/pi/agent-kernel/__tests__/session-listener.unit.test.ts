@@ -18,6 +18,7 @@ describe('createSessionListener Pi compatibility', () => {
     const listener = createSessionListener(
       {
         model: SupportedModelId('spark/GLM-5.3-Flash-EXL3'),
+        sessionEntries: null,
         onEvent: (event) => emitted.push(event),
       },
       'run-1',
@@ -58,6 +59,7 @@ describe('createSessionListener Pi compatibility', () => {
     const listener = createSessionListener(
       {
         model: SupportedModelId('openrouter/anthropic/claude-haiku-4.5'),
+        sessionEntries: null,
         onEvent: (event) => emitted.push(event),
       },
       'run-1',
@@ -99,6 +101,7 @@ describe('createSessionListener Pi compatibility', () => {
     const listener = createSessionListener(
       {
         model: SupportedModelId('openai/gpt-5.4'),
+        sessionEntries: null,
         onEvent: (event) => emitted.push(event),
       },
       'run-1',
@@ -125,6 +128,7 @@ describe('createSessionListener Pi compatibility', () => {
     const listener = createSessionListener(
       {
         model: SupportedModelId('openai/gpt-5.4'),
+        sessionEntries: null,
         getContextWindow: (provider, model) =>
           provider === 'openai' && model === 'gpt-5.4' ? 100_000 : undefined,
         onEvent: (event) => emitted.push(event),
@@ -162,6 +166,7 @@ describe('createSessionListener Pi compatibility', () => {
       const listener = createSessionListener(
         {
           model: SupportedModelId('openai/gpt-5.4'),
+          sessionEntries: null,
           getContextWindow: () => 100_000,
           onEvent: (event) => emitted.push(event),
         },
@@ -190,6 +195,7 @@ describe('createSessionListener Pi compatibility', () => {
     const listener = createSessionListener(
       {
         model: SupportedModelId('openai/gpt-5.4'),
+        sessionEntries: null,
         getContextWindow: () => 100_000,
         onEvent: (event) => emitted.push(event),
       },
@@ -222,6 +228,7 @@ describe('createSessionListener Pi compatibility', () => {
     const listener = createSessionListener(
       {
         model: SupportedModelId('openai/gpt-5.4'),
+        sessionEntries: null,
         getContextWindow: (provider, model) =>
           provider === 'anthropic' && model === 'claude-sonnet-4-6' ? 1_000_000 : undefined,
         onEvent: (event) => emitted.push(event),

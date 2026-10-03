@@ -139,6 +139,7 @@ export async function runPiSession(
     createSessionListener(
       {
         ...input,
+        sessionEntries: session.sessionManager,
         getContextWindow: (provider, modelId) => {
           const activeModel = session.model
           return activeModel?.provider === provider && activeModel.id === modelId

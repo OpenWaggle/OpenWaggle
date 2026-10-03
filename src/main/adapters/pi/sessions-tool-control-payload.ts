@@ -43,13 +43,36 @@ function controlRequest(
   }
 }
 
-function sessionInput(input: { readonly text: string; readonly thinking?: string }) {
+function messageInput(input: { readonly text: string; readonly thinking?: string }) {
   const thinkingLevel = sessionsToolThinkingLevel(input.thinking)
   return {
     text: input.text,
     attachmentIds: [],
     ...(thinkingLevel ? { thinkingLevel } : {}),
   }
+}
+
+/**
+ * follow_up, steer, and replace act on an active Run or queue for one, so they never set the
+ * Session thinking level or a Run authorization override. The flat provider schema still lists
+ * those properties for other actions, so refuse them here with the Host's codes instead of
+ * dropping them silently.
+ */
+function refuseRunSettings(input: object, action: string) {
+  if (Reflect.get(input, 'thinking') !== undefined) {
+    throw new Error(
+      `thinking_level_requires_idle_session: ${action} does not accept thinking. The Session thinking level can change only when no Run is active; pass thinking to message or start on an idle Session.`,
+    )
+  }
+  if (Reflect.get(input, 'authorization') !== undefined) {
+    throw new Error(
+      `run_authorization_override_requires_idle_session: ${action} does not accept authorization. A Run authorization override applies only to a Run started on an idle Session; pass it to message or start.`,
+    )
+  }
+}
+
+function followUpInput(input: { readonly text: string }) {
+  return { text: input.text, attachmentIds: [] }
 }
 
 function runControlCommand(
@@ -67,35 +90,33 @@ function runControlCommand(
     }
   }
   if (input.action === 'steer') {
+    refuseRunSettings(input, input.action)
     return {
       operation: 'steer',
       sessionId: input.sessionId,
       expectedRunId: input.expectedRunId,
-      input: sessionInput(input),
+      input: followUpInput(input),
     }
   }
   if (input.action === 'replace') {
+    refuseRunSettings(input, input.action)
     return {
       operation: 'replace',
       sessionId: input.sessionId,
       expectedRunId: input.expectedRunId,
-      ...(input.authorization ? { runAuthorizationOverride: input.authorization } : {}),
-      input: sessionInput(input),
+      input: followUpInput(input),
     }
+  }
+  if (input.action === 'follow_up') {
+    refuseRunSettings(input, input.action)
+    return { operation: 'follow-up', sessionId: input.sessionId, input: followUpInput(input) }
   }
   if (input.action === 'message') {
     return {
       operation: 'message',
       sessionId: input.sessionId,
-      input: sessionInput(input),
-    }
-  }
-  if (input.action === 'follow_up') {
-    return {
-      operation: 'follow-up',
-      sessionId: input.sessionId,
       ...(input.authorization ? { runAuthorizationOverride: input.authorization } : {}),
-      input: sessionInput(input),
+      input: messageInput(input),
     }
   }
   return {
@@ -105,7 +126,7 @@ function runControlCommand(
     ...(input.interactionTimeoutMs !== undefined
       ? { interactionTimeoutMs: input.interactionTimeoutMs }
       : {}),
-    input: sessionInput(input),
+    input: messageInput(input),
   }
 }
 

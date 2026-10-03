@@ -31,7 +31,7 @@ const MODEL = SupportedModelId('openai/gpt-5.5')
 type SendWorkflowParams = Parameters<typeof useChatSendWorkflow>[0]
 
 function payload(text: string): AgentSendPayload {
-  return { text, thinkingLevel: 'medium', attachments: [] }
+  return { text, attachments: [] }
 }
 
 function extensionSlashEntry(

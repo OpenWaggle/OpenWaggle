@@ -13,6 +13,7 @@ import { activeRuns } from '../active-session-runs'
 import { SessionHostEventHub } from '../session-host-event-hub'
 import { SessionHostLiveness } from '../session-host-liveness'
 import { dispatchAcceptedLifecycleRun } from '../session-lifecycle-command-service'
+import { NoSteeringLayer } from './agent-steering-test-layer'
 
 function launchedResponse(replayed = false): SessionLifecycleResponse {
   return {
@@ -75,6 +76,7 @@ describe('Session lifecycle command dispatch', () => {
             return { terminalStatus: 'completed' as const }
           }),
       }),
+      NoSteeringLayer,
       Layer.succeed(SessionOrchestrationUpdateDeliveryService, {
         deliverPendingToActiveRun: () => Effect.succeed(false),
         deliverPendingSpecificationsToActiveRun: () => Effect.succeed(false),
@@ -126,6 +128,7 @@ describe('Session lifecycle command dispatch', () => {
       Layer.succeed(SessionControlRunExecutor, {
         execute: () => Effect.die('must not execute'),
       }),
+      NoSteeringLayer,
       Layer.succeed(SessionOrchestrationUpdateDeliveryService, {
         deliverPendingToActiveRun: () => Effect.succeed(false),
         deliverPendingSpecificationsToActiveRun: () => Effect.succeed(false),
@@ -177,6 +180,7 @@ describe('Session lifecycle command dispatch', () => {
       Layer.succeed(SessionControlRunExecutor, {
         execute: () => Effect.succeed({ terminalStatus: 'completed' as const }),
       }),
+      NoSteeringLayer,
       Layer.succeed(SessionOrchestrationUpdateDeliveryService, {
         deliverPendingToActiveRun: () => Effect.succeed(false),
         deliverPendingSpecificationsToActiveRun: () => Effect.succeed(false),

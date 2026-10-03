@@ -126,6 +126,12 @@ export const localSessionCommandPayloadSchema: Schema.Schema<LocalSessionCommand
           }),
           Schema.Struct({ operation: Schema.Literal('delete'), sessionId: sessionInputIdSchema }),
           Schema.Struct({
+            operation: Schema.Literal('renew-follow-up-edit-hold'),
+            sessionId: sessionInputIdSchema,
+            followUpId: sessionInputIdSchema,
+            holdId: sessionInputIdSchema,
+          }),
+          Schema.Struct({
             operation: Schema.Literal('dismiss-interrupted-run'),
             sessionId: sessionInputIdSchema,
             runId: sessionInputIdSchema,

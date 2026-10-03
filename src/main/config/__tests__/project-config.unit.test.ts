@@ -37,6 +37,7 @@ describe('loadProjectConfig', () => {
       JSON.stringify({
         preferences: {
           model: 'openai-codex/gpt-5.4',
+          // The thinking level is Session state, never a project preference: it is dropped.
           thinkingLevel: 'xhigh',
         },
         pi: {
@@ -47,10 +48,7 @@ describe('loadProjectConfig', () => {
     )
 
     const config = await loadProjectConfig(tmpDir)
-    expect(config.preferences).toEqual({
-      model: 'openai-codex/gpt-5.4',
-      thinkingLevel: 'xhigh',
-    })
+    expect(config.preferences).toEqual({ model: 'openai-codex/gpt-5.4' })
     expect(config.pi).toEqual({ compaction: { enabled: false } })
   })
 
@@ -179,10 +177,10 @@ describe('loadProjectConfig', () => {
       'utf-8',
     )
 
-    await setProjectPreferences(tmpDir, { thinkingLevel: 'high' })
+    await setProjectPreferences(tmpDir, { authorizationMode: 'ask-for-approval' })
 
     const config = await loadProjectConfig(tmpDir)
-    expect(config.preferences).toEqual({ thinkingLevel: 'high' })
+    expect(config.preferences).toEqual({ authorizationMode: 'ask-for-approval' })
     expect(config.pi).toEqual({ compaction: { enabled: true } })
   })
 
@@ -197,11 +195,11 @@ describe('loadProjectConfig', () => {
       'utf-8',
     )
 
-    await setProjectPreferences(tmpDir, { thinkingLevel: 'medium' })
+    await setProjectPreferences(tmpDir, { authorizationMode: 'yolo' })
 
     const config = await loadProjectConfig(tmpDir)
     expect(config.pi).toEqual({ compaction: { enabled: false } })
-    expect(config.preferences).toEqual({ thinkingLevel: 'medium' })
+    expect(config.preferences).toEqual({ authorizationMode: 'yolo' })
   })
 
   it('strips legacy model overrides from the file on write', async () => {
@@ -211,11 +209,11 @@ describe('loadProjectConfig', () => {
       'utf-8',
     )
 
-    await setProjectPreferences(tmpDir, { thinkingLevel: 'high' })
+    await setProjectPreferences(tmpDir, { authorizationMode: 'ask-for-approval' })
 
     const config = await loadProjectConfig(tmpDir)
     // The selected model is app-DB state; the repo-local file must never keep it.
-    expect(config.preferences).toEqual({ thinkingLevel: 'high' })
+    expect(config.preferences).toEqual({ authorizationMode: 'ask-for-approval' })
   })
 
   it('migrates the legacy model through the installed hook on every config write', async () => {
@@ -248,12 +246,12 @@ describe('loadProjectConfig', () => {
       'utf-8',
     )
 
-    await setProjectPreferences(tmpDir, { thinkingLevel: 'high' })
+    await setProjectPreferences(tmpDir, { authorizationMode: 'ask-for-approval' })
 
     // Strip only after a safe migration: a failed DB write must not lose the override.
     expect((await loadProjectConfig(tmpDir)).preferences).toEqual({
       model: 'openai/gpt-4.1',
-      thinkingLevel: 'high',
+      authorizationMode: 'ask-for-approval',
     })
   })
 
@@ -280,7 +278,7 @@ describe('loadProjectConfig', () => {
         ...current,
         preferences: {
           ...current.preferences,
-          thinkingLevel: 'high',
+          authorizationMode: 'yolo',
         },
       })),
     ).rejects.toThrow()
