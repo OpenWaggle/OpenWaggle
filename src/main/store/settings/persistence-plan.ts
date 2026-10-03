@@ -37,18 +37,11 @@ import {
   SETTINGS_KEY_SYNTAX_THEME_SELECTIONS,
   SETTINGS_KEY_UPDATE_CHANNEL,
 } from './keys'
+import { appendChangedSetting, type SettingsPatchWrite } from './settings-patch-writes'
 import { appendThinkingLevelWrite } from './thinking-level-persistence'
+import { appendUsageStatisticsSettingsWrites } from './usage-statistics-settings'
 
-export type SettingsPatchWrite = { readonly key: string; readonly value: unknown }
-
-function appendChangedSetting(
-  writes: SettingsPatchWrite[],
-  changed: boolean,
-  key: string,
-  value: unknown,
-) {
-  if (changed) writes.push({ key, value })
-}
+export type { SettingsPatchWrite } from './settings-patch-writes'
 
 export { getInvalidThinkingLevel } from './thinking-level-persistence'
 
@@ -304,6 +297,7 @@ export function collectSettingsPatchWrites(partial: Partial<Settings>, next: Set
   appendDiffSettingsWrites(writes, partial, next)
   appendSessionHostSettingsWrites(writes, partial, next)
   appendBrowserSettingsWrites(writes, partial, next)
+  appendUsageStatisticsSettingsWrites(writes, partial, next)
 
   return writes
 }

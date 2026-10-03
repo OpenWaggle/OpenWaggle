@@ -17,6 +17,8 @@ export default defineConfig({
       'src/**/*.unit.test.ts',
       'packages/**/*.unit.test.ts',
       'scripts/**/*.unit.test.ts',
+      'functions/**/*.unit.test.ts',
+      'website/src/lib/**/*.unit.test.ts',
       'e2e/support/**/*.unit.test.ts',
     ],
     /*

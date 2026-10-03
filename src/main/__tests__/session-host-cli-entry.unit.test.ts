@@ -48,6 +48,7 @@ vi.mock('electron', () => ({
   app: {
     exit: mocks.exit,
     getPath: vi.fn(() => '/tmp/openwaggle-profile'),
+    getVersion: vi.fn(() => '1.0.0'),
     whenReady: vi.fn(async () => undefined),
     setActivationPolicy: vi.fn(),
   },
@@ -60,6 +61,7 @@ vi.mock('../installer-update-channel-intent', () => ({
   applyInstallerUpdateChannelIntent: mocks.applyInstallerIntent,
 }))
 vi.mock('../session-data', () => ({ configureAppStoragePaths: vi.fn() }))
+vi.mock('../usage-statistics/usage-statistics-recorder')
 vi.mock('../logger', async (importOriginal) => {
   const original = await importOriginal<typeof import('../logger')>()
   const createLogger = (name: string) =>

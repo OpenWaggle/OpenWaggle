@@ -5,6 +5,7 @@ import { isRecord } from '@shared/utils/validation'
 import * as Effect from 'effect/Effect'
 import { SettingsStoreReadError } from '../errors'
 import { createLogger } from '../logger'
+import { publishSettingsStoreState, resetHostSnapshotForTests } from './authoritative-settings'
 import { collectInitialDefaultWrites } from './settings/initial-default-writes'
 import { CURRENT_SETTINGS_KEYS } from './settings/keys'
 import { validatePersistedSettings } from './settings/persisted-validation'
@@ -36,6 +37,13 @@ let settingsCache = createDefaultSettingsSnapshot()
 let initializationPromise: Promise<void> | null = null
 let settingsReadError: SettingsStoreReadError | null = null
 let settingsReady = false
+
+/** Every snapshot or readiness change is published as this process's authoritative Settings. */
+function publishSettingsState(next: { cache?: Settings; ready?: boolean; fromHost?: true }) {
+  if (next.cache) settingsCache = next.cache
+  if (next.ready !== undefined) settingsReady = next.ready
+  publishSettingsStoreState(settingsReady, settingsCache, next.fromHost === true)
+}
 
 async function listStoredSettings() {
   const rows = await runStoreEffect(
@@ -97,14 +105,14 @@ export async function initializeSettingsStore(): Promise<void> {
       const built = buildSettingsSnapshot(storedSettings)
       settingsCache = built.settings
       settingsReadError = null
-      settingsReady = true
+      publishSettingsState({ ready: true })
 
       for (const write of collectInitialDefaultWrites(storedSettings, built.settings)) {
         void queueStoredSettingWrite(write.key, write.value).catch(() => undefined)
       }
     } catch (error) {
       settingsReadError = toSettingsReadError(error)
-      settingsReady = false
+      publishSettingsState({ ready: false })
       const { operation, key, message } = settingsReadError
       logger.error('Failed to initialize settings cache from SQLite', {
         operation,
@@ -128,10 +136,10 @@ export function refreshSettingsStore(): Promise<void> {
       validatePersistedSettings(storedSettings)
       settingsCache = buildSettingsSnapshot(storedSettings).settings
       settingsReadError = null
-      settingsReady = true
+      publishSettingsState({ ready: true })
     } catch (error) {
       settingsReadError = toSettingsReadError(error)
-      settingsReady = false
+      publishSettingsState({ ready: false })
       initializationPromise = null
       throw settingsReadError
     }
@@ -153,7 +161,7 @@ export function hydrateSettingsStoreFromHost(snapshot: unknown): void {
   validatePersistedSettings(snapshot)
   settingsCache = buildSettingsSnapshot(snapshot).settings
   settingsReadError = null
-  settingsReady = true
+  publishSettingsState({ ready: true, fromHost: true })
   initializationPromise ??= Promise.resolve()
 }
 
@@ -174,8 +182,9 @@ export async function resetSettingsStoreForTests(): Promise<void> {
   await flushWriteQueue()
   initializationPromise = null
   settingsReadError = null
-  settingsReady = false
   settingsCache = createDefaultSettingsSnapshot()
+  resetHostSnapshotForTests()
+  publishSettingsState({ ready: false })
 }
 
 export function getSettings(): Settings {
@@ -186,7 +195,7 @@ export function getSettings(): Settings {
 export function updateSettings(partial: Partial<Settings>): void {
   assertSettingsReady()
   const nextSettings = buildNextSettingsSnapshot(settingsCache, partial)
-  settingsCache = nextSettings
+  publishSettingsState({ cache: nextSettings })
 
   for (const write of collectSettingsPatchWrites(partial, nextSettings)) {
     void queueStoredSettingWrite(write.key, write.value).catch(() => undefined)
@@ -310,7 +319,7 @@ export async function persistSettingsPatch(partial: Partial<Settings>): Promise<
   // A normal settings update may have changed another field while SQLite was
   // writing. Re-apply only this patch to the latest cache instead of
   // publishing the older full snapshot.
-  settingsCache = buildNextSettingsSnapshot(settingsCache, partial)
+  publishSettingsState({ cache: buildNextSettingsSnapshot(settingsCache, partial) })
 
   const invalidThinkingLevel = getInvalidThinkingLevel(partial)
   if (invalidThinkingLevel !== undefined) {

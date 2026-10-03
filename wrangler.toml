@@ -1,3 +1,42 @@
 name = "openwaggle-website"
 pages_build_output_dir = "./website/dist"
 compatibility_date = "2025-01-01"
+
+# Pages Functions in ./functions serve https://openwaggle.ai/api/v1/* (ADR 0045): the Usage
+# statistics endpoint (/events), the error-report tunnel (/errors), website page views (/web),
+# and the daily job's snapshot and flush (/snapshot, /flush). Every setting is optional for the
+# deployment, but each route needs its own to do anything:
+#
+#   /events    needs STATS_KV; without it answers 503, which the app retries later. It stores
+#              requests in STATS_KV and never calls PostHog itself.
+#   /flush     needs STATS_SNAPSHOT_TOKEN, STATS_KV and POSTHOG_PROJECT_KEY; without one answers
+#              503 {"skipped": ...} and leaves the buffered statistics in place. It is meant to run
+#              only from the usage-stats workflow, whose concurrency group runs one job at a time;
+#              a best-effort KV lease makes an overlapping call answer 409 and publish nothing.
+#   /snapshot  needs the same three; without one answers 503 {"skipped": ...} and stores nothing.
+#   /web       needs POSTHOG_PROJECT_KEY, else answers 202 and drops the page view; then needs
+#              STATS_KV, else answers 503.
+#   /errors    needs SENTRY_DSN, else answers 204 and drops the report.
+# A POSTHOG_HOST other than https://eu.i.posthog.com, or a SENTRY_DSN outside Sentry's EU region
+# (*.de.sentry.io), turns forwarding off: those routes answer 503 instead of sending anywhere else.
+#
+# Secrets, set with `wrangler pages secret put <NAME> --project-name openwaggle-website` or in
+# the dashboard, never in this file:
+#   POSTHOG_PROJECT_KEY   PostHog project API key (EU project).
+#   SENTRY_DSN            Real DSN of the EU Sentry project behind /api/v1/errors.
+#   STATS_SNAPSHOT_TOKEN  Bearer token shared with the usage-stats GitHub workflow.
+#
+# Plain setting, with the only value the code accepts, which is also its default:
+#   POSTHOG_HOST          "https://eu.i.posthog.com"
+#
+# KV namespace for buffered app statistics, the flush's lease, manifest and tombstones (kept until
+# the flush sends them, at most 45 days after their day), the daily website salt and the
+# snapshot's last forwarded totals. Writes are what limit the Free plan: Workers KV Free allows
+# 1,000 writes and 1,000 deletes a day. Every app report is one write and, once flushed, one
+# delete; each flush call adds two writes (lease and manifest) and a delete, and each website
+# salt one write a day. Free therefore carries several hundred app reports a day; beyond that,
+# use Workers Paid. Create it with
+# `wrangler kv namespace create STATS_KV`, then uncomment this block with the id it prints:
+# [[kv_namespaces]]
+# binding = "STATS_KV"
+# id = "<namespace id>"

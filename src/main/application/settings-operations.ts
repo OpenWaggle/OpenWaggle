@@ -18,6 +18,7 @@ import { validateProjectPath } from '../utils/project-path-validation'
 import { resolveEffectiveAuthorizationMode } from './agent-authorization-mode'
 import { grantPendingAuthorizationsWhereFullAccess } from './agent-loop-authorization-grants'
 import { testCredentials } from './provider-test-service'
+import { recordUsageStatisticsObservation } from './usage-statistics-recording'
 
 const logger = createLogger('ipc-settings')
 const MAX_SHORTCUT_KEY_LENGTH = 20
@@ -137,6 +138,9 @@ export function updateSettingsOperation(raw: unknown) {
       shortcutBindings,
     })
     if (result.data.projectPath !== undefined) {
+      if (projectPathValidation.value !== null) {
+        yield* recordUsageStatisticsObservation({ kind: 'project-opened' })
+      }
       const projectChanges = yield* ActiveProjectChangeService
       yield* projectChanges.reconcileTrustedMainExtensions(projectPathValidation.value)
     }

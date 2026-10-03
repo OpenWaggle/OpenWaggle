@@ -90,4 +90,46 @@ describe('main-process layer boundaries', () => {
 
     expect(messages).toHaveLength(0)
   })
+
+  it('reports application, IPC and store code importing the Usage statistics recorder directly', () => {
+    const importer = "import { recordUsageStatistics } from '../usage-statistics/usage-statistics-recorder'\nexport const value = recordUsageStatistics\n"
+
+    for (const filename of [
+      'src/main/application/example.ts',
+      'src/main/ipc/example.ts',
+      'src/main/store/example.ts',
+    ]) {
+      const messages = lint(importer, 'openwaggle/main-architecture-boundaries', filename)
+      expect(messages.map((message) => message.message)).toEqual([
+        expect.stringContaining('through the UsageStatisticsRecorder port'),
+      ])
+    }
+  })
+
+  it('keeps Usage statistics infrastructure out of IPC handlers and application services', () => {
+    const messages = lint(
+      "import { coordinate } from '../application/example'\nexport const value = coordinate\n",
+      'openwaggle/main-architecture-boundaries',
+      'src/main/usage-statistics/example.ts',
+    )
+
+    expect(messages.map((message) => message.message)).toEqual([
+      expect.stringContaining('src/main/usage-statistics/ is infrastructure'),
+    ])
+  })
+
+  it('allows adapters and tests to use Usage statistics infrastructure', () => {
+    const importer = "import { recordUsageStatistics } from '../usage-statistics/usage-statistics-recorder'\nexport const value = recordUsageStatistics\n"
+
+    expect(
+      lint(importer, 'openwaggle/main-architecture-boundaries', 'src/main/adapters/example.ts'),
+    ).toHaveLength(0)
+    expect(
+      lint(
+        "import { recordUsageStatistics } from '../../usage-statistics/usage-statistics-recorder'\nexport const value = recordUsageStatistics\n",
+        'openwaggle/main-architecture-boundaries',
+        'src/main/application/__tests__/example.unit.test.ts',
+      ),
+    ).toHaveLength(0)
+  })
 })

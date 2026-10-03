@@ -1,4 +1,7 @@
 # ── Security headers (all responses) ──
+# connect-src 'self' admits the site's only request, the statistics beacon to /api/v1/web on this
+# origin; no third-party analytics origin is allowed. script-src keeps 'self' and 'unsafe-inline'
+# for Astro's bundled and inlined page scripts, including the beacon script in BaseLayout.astro.
 /*
   X-Frame-Options: DENY
   X-Content-Type-Options: nosniff

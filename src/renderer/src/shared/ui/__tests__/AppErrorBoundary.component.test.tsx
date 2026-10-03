@@ -5,10 +5,12 @@ import { AppErrorBoundary } from '../AppErrorBoundary'
 const loggerMock = vi.hoisted(() => ({
   error: vi.fn(),
 }))
+const errorReportingMock = vi.hoisted(() => ({ reportRendererError: vi.fn() }))
 
 vi.mock('@/shared/lib/logger', () => ({
   createRendererLogger: () => loggerMock,
 }))
+vi.mock('@/shared/lib/error-reporting', () => errorReportingMock)
 
 function ThrowingChild(): never {
   throw new Error('Renderer exploded')
@@ -17,6 +19,7 @@ function ThrowingChild(): never {
 describe('AppErrorBoundary', () => {
   afterEach(() => {
     loggerMock.error.mockClear()
+    errorReportingMock.reportRendererError.mockClear()
   })
 
   it('renders children until a child throws', () => {
@@ -45,7 +48,20 @@ describe('AppErrorBoundary', () => {
       'Unhandled render error',
       expect.objectContaining({ message: 'Renderer exploded' }),
     )
+    expect(errorReportingMock.reportRendererError).toHaveBeenCalledWith(
+      expect.objectContaining({ message: 'Renderer exploded' }),
+    )
 
     consoleError.mockRestore()
+  })
+
+  it('reports nothing while its children render', () => {
+    render(
+      <AppErrorBoundary>
+        <p>Healthy app</p>
+      </AppErrorBoundary>,
+    )
+
+    expect(errorReportingMock.reportRendererError).not.toHaveBeenCalled()
   })
 })

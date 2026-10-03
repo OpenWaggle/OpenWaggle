@@ -73,6 +73,8 @@ export interface Settings {
   readonly thinkingLevel: ThinkingLevel
   /** Release channel followed by both desktop and CLI update checks. */
   readonly updateChannel: UpdateChannel
+  /** Whether this install sends anonymous Usage statistics and error reports (ADR 0046). */
+  readonly usageStatisticsEnabled: boolean
   readonly recentProjects: readonly string[]
   readonly skillTogglesByProject: Readonly<Record<string, Readonly<Record<string, boolean>>>>
   /** Named Agent definitions are enabled by default; false disables that name for one project. */
@@ -143,6 +145,7 @@ export const DEFAULT_SETTINGS: Settings = {
   projectPath: null,
   thinkingLevel: 'medium',
   updateChannel: DEFAULT_UPDATE_CHANNEL,
+  usageStatisticsEnabled: true,
   recentProjects: [],
   skillTogglesByProject: {},
   agentDefinitionTogglesByProject: {},

@@ -66,6 +66,7 @@ import { SqliteSessionResourceCleanupRepositoryLive } from './adapters/sqlite-se
 import { SqliteSessionResourceRepositoryLive } from './adapters/sqlite-session-resource-repository'
 import { SqliteSessionWorkspaceResourceRepositoryLive } from './adapters/sqlite-session-workspace-resource-repository'
 import { FilesystemStandardsLive } from './adapters/standards-adapter'
+import { UsageStatisticsServicesLive } from './adapters/usage-statistics-recorder-live'
 import { WorkspaceProjectAuthorizationLive } from './adapters/workspace-project-authorization'
 import { ActiveProjectChangeServiceLive } from './application/active-project-change-service'
 import { SessionWaitServiceLive } from './application/session-wait-service'
@@ -273,6 +274,7 @@ const AppLayer = Layer.mergeAll(
   WorkspaceProjectAuthorizationLive,
   FilesystemInlineVisualizationLive,
   DesktopServicesLive,
+  UsageStatisticsServicesLive,
 )
 
 let currentRuntime = ManagedRuntime.make(AppLayer)

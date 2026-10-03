@@ -50,6 +50,7 @@ export const settingsUpdateSchema = Schema.Struct({
   projectPath: Schema.optional(Schema.NullOr(Schema.String)),
   thinkingLevel: Schema.optional(Schema.Literal(...THINKING_LEVELS)),
   updateChannel: Schema.optional(Schema.Literal(...UPDATE_CHANNELS)),
+  usageStatisticsEnabled: Schema.optional(Schema.Boolean),
   compactionThresholdPercent: Schema.optional(
     Schema.Number.pipe(Schema.int(), Schema.between(1, PERCENT_BASE)),
   ),

@@ -14,7 +14,7 @@ Before working on sensitive code:
 - Review MCP servers, extensions, browser profiles, and saved approvals before using them with the project.
 - Keep secrets out of messages, committed configuration, and shared logs. Review the diff before committing changes.
 
-A local model endpoint may keep inference on your machine. Tools, extensions, browser pages, and MCP services can still access the network. OpenWaggle does not guarantee an offline workflow simply because its sessions are local.
+A local model endpoint may keep inference on your machine. Tools, extensions, browser pages, and MCP services can still access the network. OpenWaggle does not guarantee an offline workflow simply because its sessions are local. OpenWaggle itself also contacts the network, as described in [Usage statistics and update checks](#usage-statistics-and-update-checks).
 
 ## Local data
 
@@ -28,6 +28,12 @@ Waggle presets use separate files:
 Provider credentials are separate from the session database. They can come from Pi's default `~/.pi/agent/auth.json`, environment variables, or custom provider configuration. `PI_CODING_AGENT_DIR` changes the default Pi directory. The credential file is JSON, not OpenWaggle's encrypted MCP vault; protect it as a secret file. Other Pi clients using that directory share the stored credentials.
 
 MCP definitions and user-owned trust, secrets, and OAuth state have their own storage. See [MCP configuration](/docs/configuration/mcp#configuration-files). For an older installation's database recovery copy, see [Session recovery](/docs/configuration/session-recovery).
+
+## Usage statistics and update checks
+
+Released builds send anonymous usage statistics and error reports to OpenWaggle, from the first launch. Statistics never include prompts, code, file paths, project names, or any identifier for you or your install. Turn both off in **Settings > General** or with `DO_NOT_TRACK=1`. [Usage statistics and error reports](/docs/configuration/usage-statistics) lists every field, where the data goes, and your rights under the GDPR.
+
+Released builds also ask GitHub for updates a few seconds after launch and every 4 hours, so GitHub receives your IP address. The statistics switch does not stop these checks. See [Update checks](/docs/configuration/usage-statistics#update-checks).
 
 ## Voice
 

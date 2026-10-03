@@ -57,6 +57,7 @@ export const docsNav: NavSection[] = [
     items: [
       { title: 'Troubleshooting and recovery', slug: 'configuration/session-recovery' },
       { title: 'Privacy and data', slug: 'configuration/security-privacy' },
+      { title: 'Usage statistics', slug: 'configuration/usage-statistics' },
     ],
   },
 ];

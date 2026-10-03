@@ -13,7 +13,7 @@ Most settings apply across the app. Sections with a project picker let you inspe
 
 | Section | Use it to |
 |---------|-----------|
-| General | Choose where links open, adjust automatic context compaction, and check for updates. |
+| General | Choose where links open, adjust automatic context compaction, check for updates, and turn off usage statistics. |
 | Browser | Manage browser profiles, agent browser access, cookie imports, and preview defaults. |
 | Project actions | Save project tasks and services, choose local or shared storage, and configure workspace setup and cleanup. |
 | Shortcuts | View and customize keyboard bindings. |
@@ -54,6 +54,8 @@ Below the controls, select a project to read its agent definitions or enable and
 **About & Updates** shows your installed version and update channel. Stable is the default. Beta also accepts release candidate and Stable releases; Alpha accepts Alpha, Beta, release candidate, and Stable releases. Entering Alpha requires confirmation. Changing the channel saves it and immediately checks for an eligible update, but never authorizes a downgrade.
 
 Use **Check now** to check again. A downloaded update installs only when you choose **Restart to update**. OpenWaggle rechecks that it is still eligible for your channel before restarting; ordinary app exit does not install it. The app and `openwaggle update` share the channel setting.
+
+**Share anonymous usage statistics and error reports**, below the update channel, is on by default in released builds. Turning it off stops both and deletes statistics that have not been sent yet. **What is sent** opens [Usage statistics and error reports](/docs/configuration/usage-statistics), which lists every field and the other ways to turn them off.
 
 ### Command-line availability
 

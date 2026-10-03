@@ -8,6 +8,7 @@ import type {
 } from '@shared/types/terminal'
 import { terminalKeyOf } from '@shared/types/terminal'
 import * as Effect from 'effect/Effect'
+import { recordUsageStatisticsObservation } from '../application/usage-statistics-recording'
 import { createLogger } from '../logger'
 import { TerminalService, type TerminalServiceShape } from '../ports/terminal-service'
 import { runAppEffect } from '../runtime'
@@ -75,7 +76,9 @@ function registerTerminalLifecycleHandlers() {
         terminalKeyOf(decoded.ownerKey, decoded.terminalId),
         event.sender.id,
       )
-      return yield* service.open(decoded)
+      const opened = yield* service.open(decoded)
+      yield* recordUsageStatisticsObservation({ kind: 'feature', flag: 'terminal' })
+      return opened
     }),
   )
 

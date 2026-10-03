@@ -15,6 +15,10 @@ import {
 } from './active-session-runs'
 import { requestHiveWorkerCleanup } from './hive-worker-cleanup-request'
 import { acquireSessionHostRunLease, type SessionHostRunLease } from './session-host-run-admission'
+import {
+  recordRunFinishedForUsageStatistics,
+  recordRunStartedForUsageStatistics,
+} from './usage-statistics-recording'
 
 export interface CoordinateSessionRunsInput {
   readonly sessionId: SessionId
@@ -63,6 +67,11 @@ function coordinateLiveSessionRuns(input: CoordinateSessionRunsInput) {
             stateRevision: activation.stateRevision,
             operation: 'run-activated',
           })
+          yield* recordRunStartedForUsageStatistics({
+            sessionId: input.sessionId,
+            runId,
+            intent: activation.intent,
+          })
         }
 
         const execution: SessionControlRunExecutionResult = activation.accepted
@@ -77,6 +86,13 @@ function coordinateLiveSessionRuns(input: CoordinateSessionRunsInput) {
           : { terminalStatus: 'interrupted' as const }
         results.push({ runId, terminalStatus: execution.terminalStatus })
         settledExecution = execution
+        if (activation.accepted) {
+          yield* recordRunFinishedForUsageStatistics({
+            runId,
+            intent: activation.intent,
+            terminalStatus: execution.terminalStatus,
+          })
+        }
 
         const nextRunId = yield* identities.nextRunId
         return yield* lifecycle.settle({
