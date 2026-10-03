@@ -8,8 +8,9 @@ import {
   extensionContributionIdSchema,
   extensionContributionRuntimeSchema,
   extensionExecutionPlacementSchema,
+  extensionLucideIconNameSchema,
   extensionNonEmptyStringSchema,
-  extensionSlotContributionFamilySchema,
+  extensionSvgIconPathSchema,
   validateBrokerCapabilityDeclaration,
 } from './manifest-primitives.js'
 import type { SchemaType } from './schema.js'
@@ -60,7 +61,7 @@ export const extensionCommandContributionSchema = Schema.Struct({
   ...brokerBindingSchema,
 })
 
-export const extensionRouteContributionSchema = Schema.Struct({
+const entryContributionFields = {
   id: extensionContributionIdSchema,
   title: extensionNonEmptyStringSchema.pipe(
     Schema.maxLength(OPENWAGGLE_EXTENSION.LIMITS.NAME_MAX_LENGTH),
@@ -71,9 +72,29 @@ export const extensionRouteContributionSchema = Schema.Struct({
   target: Schema.optional(targetSchema),
   matches: Schema.optional(matchSchema),
   ...brokerBindingSchema,
-}).pipe(Schema.filter(validateEntryRuntime))
+}
+
+export const extensionRouteContributionSchema = Schema.Struct(entryContributionFields).pipe(
+  Schema.filter(validateEntryRuntime),
+)
 
 export const extensionSlotContributionSchema = extensionRouteContributionSchema
+
+/**
+ * A side panel's Panel rail icon: a bundled Lucide icon name in kebab-case, or a package-relative
+ * single-colour `.svg` file. OpenWaggle uses only the icon's shape and paints it in its own colours.
+ */
+export const extensionSidePanelIconSchema = Schema.Union(
+  extensionLucideIconNameSchema,
+  Schema.Struct({ svg: extensionSvgIconPathSchema }).annotations({
+    parseOptions: { onExcessProperty: 'error' },
+  }),
+)
+
+export const extensionSidePanelContributionSchema = Schema.Struct({
+  ...entryContributionFields,
+  icon: Schema.optional(extensionSidePanelIconSchema),
+}).pipe(Schema.filter(validateEntryRuntime))
 
 export const extensionSessionSummaryActionSchema = Schema.Struct({
   family: Schema.Literal('commands', 'sidePanels', 'dialogs'),
@@ -155,7 +176,7 @@ export const extensionContributionsSchema = Schema.Struct({
   slashCommands: Schema.optional(Schema.Array(extensionCommandContributionSchema)),
   routes: Schema.optional(Schema.Array(extensionRouteContributionSchema)),
   settingsSections: Schema.optional(Schema.Array(extensionSlotContributionSchema)),
-  sidePanels: Schema.optional(Schema.Array(extensionSlotContributionSchema)),
+  sidePanels: Schema.optional(Schema.Array(extensionSidePanelContributionSchema)),
   dialogs: Schema.optional(Schema.Array(extensionSlotContributionSchema)),
   transcriptRenderers: Schema.optional(Schema.Array(extensionSlotContributionSchema)),
   toolRenderers: Schema.optional(Schema.Array(extensionSlotContributionSchema)),
@@ -173,8 +194,27 @@ export const extensionRouteContributionRegistrationSchema = Schema.Struct({
   family: Schema.Literal(OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.ROUTES),
   contribution: extensionRouteContributionSchema,
 })
+export const extensionSidePanelContributionRegistrationSchema = Schema.Struct({
+  family: Schema.Literal(OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.SIDE_PANELS),
+  contribution: extensionSidePanelContributionSchema,
+})
+const { CONTRIBUTION_FAMILY } = OPENWAGGLE_EXTENSION
+
+/**
+ * Side panels register only through the side panel schema, so a side panel whose `icon` is invalid
+ * is rejected instead of matching the slot schema with its icon silently stripped. Every other
+ * slot contribution family registers here.
+ */
 export const extensionSlotContributionRegistrationSchema = Schema.Struct({
-  family: extensionSlotContributionFamilySchema,
+  family: Schema.Literal(
+    CONTRIBUTION_FAMILY.SETTINGS_SECTIONS,
+    CONTRIBUTION_FAMILY.DIALOGS,
+    CONTRIBUTION_FAMILY.TRANSCRIPT_RENDERERS,
+    CONTRIBUTION_FAMILY.TOOL_RENDERERS,
+    CONTRIBUTION_FAMILY.CUSTOM_MESSAGE_RENDERERS,
+    CONTRIBUTION_FAMILY.INTERACTION_RENDERERS,
+    CONTRIBUTION_FAMILY.STATUS_WIDGETS,
+  ),
   contribution: extensionSlotContributionSchema,
 })
 export const extensionSessionSummaryContributionRegistrationSchema = Schema.Struct({
@@ -184,6 +224,7 @@ export const extensionSessionSummaryContributionRegistrationSchema = Schema.Stru
 export const extensionContributionRegistrationSchema = Schema.Union(
   extensionCommandContributionRegistrationSchema,
   extensionRouteContributionRegistrationSchema,
+  extensionSidePanelContributionRegistrationSchema,
   extensionSlotContributionRegistrationSchema,
   extensionSessionSummaryContributionRegistrationSchema,
 )
@@ -201,9 +242,12 @@ export type ExtensionContributionRegistration = SchemaType<
 export type ExtensionContributionUnregistration = SchemaType<
   typeof extensionContributionUnregistrationSchema
 >
+export type ExtensionSidePanelIcon = SchemaType<typeof extensionSidePanelIconSchema>
+export type ExtensionSidePanelContribution = SchemaType<typeof extensionSidePanelContributionSchema>
 export type ExtensionEntryContribution =
   | SchemaType<typeof extensionRouteContributionSchema>
   | SchemaType<typeof extensionSlotContributionSchema>
+  | ExtensionSidePanelContribution
 export type ExtensionSessionSummaryContribution = SchemaType<
   typeof extensionSessionSummaryContributionSchema
 >

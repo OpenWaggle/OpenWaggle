@@ -1,6 +1,8 @@
 import { SessionId } from '@shared/types/brand'
+import type { ExtensionPanelShortcutBindings } from '@shared/types/shortcuts'
+import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
 import { useChat } from '@/features/chat/hooks'
 import { focusPendingRequest } from '@/features/chat/lib'
 import { useDiffRouteNavigation } from '@/features/diff-panel/hooks'
@@ -15,20 +17,30 @@ import { useSyntaxThemeCatalogStore } from '@/features/settings'
 import { usePreferencesStore } from '@/features/settings/state'
 import { usePinnedSessionShortcuts, useSidebarSearchShortcut } from '@/features/sidebar/hooks'
 import { terminalOwnerContext, useTerminalCommands } from '@/features/terminal'
+import { extensionContributionsQueryOptions } from '@/queries/extensions'
+import {
+  hasRightPanelController,
+  isExtensionRightPanelSurfaceId,
+  type RightPanelSurfaceId,
+  toggleRightPanelSurface,
+} from '@/shared/lib/right-panel-surfaces'
 import { useUIStore } from '@/shell/ui-store'
+import { railExtensionPanels } from './right-panel/right-panel-extension-panels'
+import {
+  rightPanelCloseIsActive,
+  rightPanelShortcutHandlers,
+  toggleOnChatPage,
+} from './right-panel/right-panel-shortcut-handlers'
+import type { ExtensionPanelShortcut } from './unified-shortcut-resolver'
 import { useSessionHostRefresh } from './useSessionHostRefresh'
 import {
   type BuiltInShortcutHandlers,
   useUnifiedShortcutCapture,
 } from './useUnifiedShortcutCapture'
 import {
-  closeWorkspaceRightPanel,
   focusWorkspacePreviewAddress,
-  hasActiveWorkspaceRightPanel,
   refreshWorkspacePreview,
-  toggleWorkspacePanelMaximized,
   toggleWorkspacePreview,
-  toggleWorkspaceRightPanel,
   zoomWorkspacePreview,
 } from './workspace-panel-actions'
 
@@ -42,6 +54,49 @@ type PreviewShortcutHandlers = Pick<
   | 'preview.resetZoom'
 >
 
+/**
+ * Routes a surface shortcut through the Right panel controller (ADR 0043). Until the shell
+ * registers one, the legacy panel toggle keeps the shortcut working.
+ */
+function toggleSurfaceOr(id: RightPanelSurfaceId, legacyToggle: () => void) {
+  return () => {
+    if (hasRightPanelController()) toggleRightPanelSurface(id)
+    else legacyToggle()
+  }
+}
+
+/** Only bindings of panels that can be shown now take part; any other key passes through. */
+function availableExtensionPanelShortcuts(
+  bindings: ExtensionPanelShortcutBindings,
+  available: ReadonlySet<string>,
+): readonly ExtensionPanelShortcut[] {
+  return Object.entries(bindings).flatMap(([surfaceId, shortcut]) =>
+    isExtensionRightPanelSurfaceId(surfaceId) && available.has(surfaceId)
+      ? [{ surfaceId, shortcut }]
+      : [],
+  )
+}
+
+/** Extension panel shortcuts are live exactly when the Panel rail offers the panel here. */
+function useAvailableExtensionPanelShortcuts(projectPath: string | null, sessionId: string | null) {
+  const bindings = usePreferencesStore((s) => s.settings.extensionPanelShortcutBindings)
+  // The same paths the Panel rail asks about (useRightPanelModel), so both agree on availability.
+  const workingPath = useGit().workingPath ?? projectPath
+  const projectPaths = workingPath ? [workingPath] : []
+  const { data: registry = null } = useQuery(
+    extensionContributionsQueryOptions(projectPaths, { sessionId }),
+  )
+  const available = railExtensionPanels(registry, projectPaths)
+    .filter((panel) => panel.status.kind === 'available')
+    .map((panel) => panel.id)
+  const availableKey = available.join('\n')
+  // A stable list keeps the capture effect from re-sending the browser preview bindings.
+  return useMemo(
+    () => availableExtensionPanelShortcuts(bindings, new Set(availableKey.split('\n'))),
+    [availableKey, bindings],
+  )
+}
+
 function previewShortcutHandlers(
   ownerKey: string,
   showToast: (message: string, type: 'error') => void,
@@ -52,7 +107,7 @@ function previewShortcutHandlers(
     })
   }
   return {
-    'preview.toggle': () => void toggleWorkspacePreview(ownerKey),
+    'preview.toggle': toggleSurfaceOr('browser', () => void toggleWorkspacePreview(ownerKey)),
     'preview.refresh': () =>
       run(() => refreshWorkspacePreview(ownerKey), 'Preview could not reload.'),
     'preview.focusUrl': () => {
@@ -154,9 +209,14 @@ export function useWorkspaceLifecycle(): void {
   const terminalOwner = terminalOwnerContext(activeSession ?? null, projectPath ?? null)
   const projectActions = useProjectActions(projectPath).data ?? []
   const runProjectAction = useRunProjectAction(projectPath)
+  const extensionPanels = useAvailableExtensionPanelShortcuts(
+    projectPath ?? null,
+    activeSessionId ? String(activeSessionId) : null,
+  )
   useUnifiedShortcutCapture({
     actions: projectActions,
     builtInRules: shortcutRules,
+    extensionPanels,
     handlers: {
       'commandPalette.toggle': () =>
         commandSurface === 'commands' ? closeCommandSurface() : openCommandSurface('commands'),
@@ -168,24 +228,21 @@ export function useWorkspaceLifecycle(): void {
       'terminal.split': terminalCommands.splitTerminal,
       'terminal.splitVertical': terminalCommands.splitTerminalVertical,
       'terminal.close': () => void terminalCommands.closeActiveTerminal(),
-      'rightPanel.toggle': () => {
-        if (!toggleWorkspaceRightPanel(terminalOwner.ownerKey)) terminalCommands.newSideTerminal()
-      },
-      'rightPanel.toggleMaximized': () => {
-        if (!toggleWorkspacePanelMaximized(terminalOwner.ownerKey)) {
-          showToast('Open the workspace right panel first.', 'error')
-        }
-      },
-      'rightPanel.close': () => closeWorkspaceRightPanel(terminalOwner.ownerKey),
+      ...rightPanelShortcutHandlers({
+        ownerKey: terminalOwner.ownerKey,
+        newSideTerminal: terminalCommands.newSideTerminal,
+        showToast,
+      }),
       'sidebar.toggle': toggleSidebar,
-      'diff.toggle': toggleDiff,
+      'diff.toggle': toggleSurfaceOr('changes', toggleDiff),
       ...previewShortcutHandlers(terminalOwner.ownerKey, showToast),
-      'sessionTree.toggle': toggleSessionTree,
+      'sessionTree.toggle': toggleSurfaceOr('session-tree', toggleSessionTree),
       'request.focus': focusPendingRequest,
     },
     onRunProjectAction: (action) => void runProjectAction(action),
+    onToggleExtensionPanel: (id) => toggleOnChatPage(id, showToast),
     shouldHandleBuiltIn: (command) =>
-      command !== 'rightPanel.close' || hasActiveWorkspaceRightPanel(terminalOwner.ownerKey),
+      command !== 'rightPanel.close' || rightPanelCloseIsActive(terminalOwner.ownerKey),
     terminalOpen: terminalCommands.panelOpen,
   })
 }

@@ -4,6 +4,7 @@ import { Image, X } from 'lucide-react'
 import { useRef, useState } from 'react'
 import { api } from '@/shared/lib/ipc'
 import { Button } from '@/shared/ui/Button'
+import { RightPanelMaximizeButton } from '@/shared/ui/RightPanelMaximizeButton'
 import { useSessionResourceBranchNames } from '../hooks/useSessionResourceBranchNames'
 import {
   invalidateSessionResourceQueries,
@@ -33,9 +34,12 @@ function ResourcesPanelHeader({ onClose }: { readonly onClose: () => void }) {
         <Image className="size-4 text-text-tertiary" />
         <h2 className="truncate text-sm font-semibold text-text-primary">Sources & outputs</h2>
       </div>
-      <Button variant="ghost" size="icon-sm" aria-label="Close resources" onClick={onClose}>
-        <X className="size-4" />
-      </Button>
+      <div className="flex items-center gap-1">
+        <RightPanelMaximizeButton />
+        <Button variant="ghost" size="icon-sm" aria-label="Close resources" onClick={onClose}>
+          <X className="size-4" />
+        </Button>
+      </div>
     </header>
   )
 }

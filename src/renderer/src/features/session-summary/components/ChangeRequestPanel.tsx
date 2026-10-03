@@ -1,6 +1,7 @@
 import type { WorkingPath } from '@shared/types/brand'
 import { GitPullRequest, RefreshCw, X } from 'lucide-react'
 import { Button } from '@/shared/ui/Button'
+import { RightPanelMaximizeButton } from '@/shared/ui/RightPanelMaximizeButton'
 import { ChangeRequestPanelContent } from './ChangeRequestPanelContent'
 import {
   type ChangeRequestPanelController,
@@ -42,6 +43,7 @@ function ChangeRequestPanelHeader({
       >
         <RefreshCw className="size-4" aria-hidden="true" />
       </Button>
+      <RightPanelMaximizeButton />
       <Button variant="ghost" size="icon-sm" aria-label="Close change request" onClick={onClose}>
         <X className="size-4" aria-hidden="true" />
       </Button>

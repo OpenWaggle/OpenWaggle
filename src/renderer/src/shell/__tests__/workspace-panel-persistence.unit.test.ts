@@ -101,6 +101,15 @@ describe('workspace panel persistence', () => {
     ).toBe(false)
   })
 
+  it('keeps a group that only remembers a maximized Right panel, and drops an empty one', () => {
+    const groups = sanitizeWorkspacePanelGroups({
+      'session-1': { browserTabs: [], activeSurface: null, maximized: true, panelOpen: false },
+      'session-2': { browserTabs: [], activeSurface: null, maximized: false, panelOpen: false },
+    })
+    expect(groups['session-1']).toMatchObject({ maximized: true, activeSurface: null })
+    expect(groups['session-2']).toBeUndefined()
+  })
+
   it('restores empty launchers without materializing native views or stale agent control', () => {
     expect(
       sanitizeWorkspacePanelGroups({

@@ -58,6 +58,10 @@ export function shortcutBindingsFromRules(rules: ShortcutRules): ShortcutBinding
     'preview.resetZoom': null,
     'sessionTree.toggle': null,
     'request.focus': null,
+    'rightPanel.allPanels': null,
+    'rightPanel.projectActions': null,
+    'rightPanel.files': null,
+    'rightPanel.resources': null,
   }
   for (const rule of rules) bindings[rule.command] = rule.shortcut
   return bindings

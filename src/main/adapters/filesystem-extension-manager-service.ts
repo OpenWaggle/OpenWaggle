@@ -5,8 +5,9 @@ import { ExtensionDiscoveryError } from '../errors'
 import { ExtensionManagerService } from '../ports/extension-manager-service'
 import { discoverExtensionPackages } from './extensions/discovery'
 import { getGlobalExtensionRoot } from './extensions/extension-paths'
+import { FilesystemExtensionPanelIconResolverLive } from './extensions/panel-icon-resolver'
 
-export const FilesystemExtensionManagerLive = Layer.succeed(
+const FilesystemExtensionPackageDiscoveryLive = Layer.succeed(
   ExtensionManagerService,
   ExtensionManagerService.of({
     listPackages: (input) =>
@@ -20,4 +21,10 @@ export const FilesystemExtensionManagerLive = Layer.succeed(
         catch: (cause) => new ExtensionDiscoveryError({ operation: 'list-packages', cause }),
       }),
   }),
+)
+
+/** Filesystem-backed extension package discovery plus side panel icon files from those packages. */
+export const FilesystemExtensionManagerLive = Layer.merge(
+  FilesystemExtensionPackageDiscoveryLive,
+  FilesystemExtensionPanelIconResolverLive,
 )

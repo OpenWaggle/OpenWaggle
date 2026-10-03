@@ -9,10 +9,14 @@ import {
   type ShortcutRules,
 } from '@shared/types/shortcuts'
 import { removeShortcutRule, upsertShortcutRule } from '@shared/utils/shortcut-rules'
+import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
+import { extensionSidePanelSurfaces } from '@/features/extensions'
 import { useProjectActionMutations, useProjectActions } from '@/features/project-actions'
 import { usePreferencesStore } from '@/features/settings/state'
+import { extensionContributionsQueryOptions } from '@/queries/extensions'
 import { useUIStore } from '@/shell/ui-store'
+import { extensionPanelConflictSources } from '../../lib/panel-shortcut-model'
 import {
   buildShortcutBrowserRows,
   projectActionBindingCount,
@@ -23,6 +27,13 @@ export function ShortcutsSection() {
   const projectPath = usePreferencesStore((state) => state.settings.projectPath)
   const shortcutRules = usePreferencesStore((state) => state.settings.shortcutRules)
   const setShortcutRules = usePreferencesStore((state) => state.setShortcutRules)
+  const extensionPanelBindings = usePreferencesStore(
+    (state) => state.settings.extensionPanelShortcutBindings,
+  )
+  const { data: extensionContributions = null } = useQuery(
+    extensionContributionsQueryOptions(projectPath ? [projectPath] : []),
+  )
+  const panels = extensionSidePanelSurfaces(extensionContributions)
   const showToast = useUIStore((state) => state.showToast)
   const projectScope = projectPath ? { projectPath } : null
   const actionsQuery = useProjectActions(projectPath, projectScope)
@@ -87,6 +98,11 @@ export function ShortcutsSection() {
       model={{
         actions,
         rows,
+        conflictSources: [
+          ...rows,
+          ...extensionPanelConflictSources(panels, extensionPanelBindings),
+        ],
+        panels,
         visibleRows,
         query,
         adding,

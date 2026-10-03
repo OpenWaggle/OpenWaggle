@@ -133,6 +133,7 @@ describe('settings appearance, shortcuts, and Pi preferences', () => {
   })
 
   it('accepts ordered conditional shortcut rules with intentional overlaps', async () => {
+    getSettingsMock.mockReturnValue(DEFAULT_SETTINGS)
     registerSettingsHandlers()
     const shortcutRules = [
       { command: 'terminal.close', shortcut: { key: 'W', mod: true }, when: 'terminalFocus' },

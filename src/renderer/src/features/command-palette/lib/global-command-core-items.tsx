@@ -9,10 +9,8 @@ import {
   GitFork,
   LayoutList,
   MessageSquarePlus,
-  Network,
   PackageOpen,
   PanelLeft,
-  PanelRight,
   Settings as SettingsIcon,
   Waypoints,
 } from 'lucide-react'
@@ -97,7 +95,7 @@ function createProjectItems(
   ]
 }
 
-function createSessionItems(settings: Settings, actions: CoreCommandActions): CommandPaletteItem[] {
+function createSessionItems(actions: CoreCommandActions): CommandPaletteItem[] {
   return [
     {
       id: 'compact-session',
@@ -108,15 +106,6 @@ function createSessionItems(settings: Settings, actions: CoreCommandActions): Co
       action: () => {
         actions.finish(() => void actions.compactSession())
       },
-    },
-    {
-      id: 'open-session-tree',
-      label: 'Open session tree',
-      description: 'Inspect branches and session history',
-      icon: <Network className="size-3.5" />,
-      section: 'Session',
-      trailing: formatShortcutBinding(settings.shortcutBindings['sessionTree.toggle']),
-      action: () => actions.finish(() => actions.openBuiltInPanel('session-tree')),
     },
     {
       id: 'fork-session',
@@ -142,14 +131,6 @@ function createViewAndOpenItems(
   actions: CoreCommandActions,
 ): CommandPaletteItem[] {
   return [
-    {
-      id: 'toggle-diff',
-      label: 'Toggle diff panel',
-      icon: <PanelRight className="size-3.5" />,
-      section: 'View',
-      trailing: formatShortcutBinding(settings.shortcutBindings['diff.toggle']),
-      action: () => actions.finish(() => actions.openBuiltInPanel('diff')),
-    },
     {
       id: 'toggle-sidebar',
       label: 'Toggle sidebar',
@@ -212,7 +193,7 @@ export function createCoreCommandItems(
 ) {
   return [
     ...createProjectItems(projectPath, settings, actions),
-    ...createSessionItems(settings, actions),
+    ...createSessionItems(actions),
     ...createViewAndOpenItems(settings, actions),
   ]
 }

@@ -5,12 +5,16 @@ interface ManifestEntryContribution {
   readonly entry: string
 }
 
+interface ManifestSidePanelContribution extends ManifestEntryContribution {
+  readonly icon?: string | { readonly svg: string }
+}
+
 export interface ManifestContentHashSource {
   readonly builtArtifacts: readonly string[]
   readonly contributions?: {
     readonly routes?: readonly ManifestEntryContribution[]
     readonly settingsSections?: readonly ManifestEntryContribution[]
-    readonly sidePanels?: readonly ManifestEntryContribution[]
+    readonly sidePanels?: readonly ManifestSidePanelContribution[]
     readonly dialogs?: readonly ManifestEntryContribution[]
     readonly transcriptRenderers?: readonly ManifestEntryContribution[]
     readonly toolRenderers?: readonly ManifestEntryContribution[]
@@ -73,9 +77,15 @@ export function getManifestContentHashInput(manifest: ManifestContentHashSource)
     pushIfPresent(runtimeFiles, requirement.command)
   }
 
+  const optionalFiles: string[] = []
+  for (const sidePanel of manifest.contributions?.sidePanels ?? []) {
+    if (typeof sidePanel.icon === 'object') optionalFiles.push(sidePanel.icon.svg)
+  }
+
   return {
     builtArtifacts: manifest.builtArtifacts,
     runtimeFiles,
+    ...(optionalFiles.length > 0 ? { optionalFiles } : {}),
   }
 }
 

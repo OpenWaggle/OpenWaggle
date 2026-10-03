@@ -5,6 +5,7 @@ import type { ReactNode } from 'react'
 import { formatDisplayPathsInText } from '@/shared/lib/display-path'
 import { Button } from '@/shared/ui/Button'
 import { PanelErrorBoundary } from '@/shared/ui/PanelErrorBoundary'
+import { RightPanelMaximizeButton } from '@/shared/ui/RightPanelMaximizeButton'
 import type {
   ExtensionSidePanelResolution,
   ExtensionSidePanelTarget,
@@ -33,6 +34,7 @@ function ExtensionSidePanelShell({
           </p>
           <h2 className="truncate text-sm font-semibold text-text-primary">{title}</h2>
         </div>
+        <RightPanelMaximizeButton />
         <Button
           aria-label="Close extension side panel"
           className="size-7 rounded-md p-0 text-text-tertiary hover:bg-bg-hover hover:text-text-secondary"

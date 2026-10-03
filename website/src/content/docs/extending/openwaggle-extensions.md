@@ -76,6 +76,7 @@ Create the manifest first:
       {
         "id": "example.panel",
         "title": "Example Panel",
+        "icon": "ticket",
         "runtime": "federated-module",
         "execution": "host-renderer",
         "entry": "modules/side-panel.js",
@@ -183,6 +184,34 @@ Choose the surface by the job the extension is doing, not by the framework used 
 - `sessionSummarySections` augment the opened session's floating Summary with host-rendered declarative rows. They appear in the opened Summary when their package and session scope are eligible, and disappear with the Summary while the right sidebar is open. Rows can display a value, badge, count, or session resource, and can reference a separately declared command, dialog, or side panel from the same extension package. They must not display authorization controls, infer another session, or replace host-owned Environment, Hive, Outputs, or Sources sections.
 
 The same extension can contribute to multiple surfaces. Shared package state can coordinate those live surfaces, while the transcript remains the durable audit trail for agent-loop activity.
+
+## Side panel icons
+
+A side panel can declare an optional `icon`, which OpenWaggle shows on the Panel rail and in All panels. Only `sidePanels` accept it. Use one of two forms:
+
+- A bundled [Lucide](https://lucide.dev/icons/) icon name in kebab-case, such as `"ticket"` or `"git-pull-request"`. OpenWaggle checks the name against the Lucide version it ships.
+- `{ "svg": "assets/panel-icon.svg" }`, a path to an SVG file inside the extension package. The path must be relative to the package root (no leading `/` or `\` and no drive letter), must not contain empty, `.` or `..` segments, must not have leading or trailing whitespace or NUL bytes, must be at most 260 characters, and must end in `.svg`.
+
+```json
+{
+  "sidePanels": [
+    {
+      "id": "example.board",
+      "title": "Board",
+      "icon": { "svg": "assets/board.svg" },
+      "runtime": "federated-module",
+      "execution": "host-renderer",
+      "entry": "modules/board.js"
+    }
+  ]
+}
+```
+
+OpenWaggle draws only the icon's shape and paints it in the rail's own colours, the way it draws built-in icons, so colours and gradients in the file are ignored. Draw a single-colour shape on a transparent background with a `viewBox`; 24 × 24 matches Lucide. Keep the file under 32 KiB. OpenWaggle reads it once per installed package content and keeps only shapes. It rejects a file with `<script>` or `<foreignObject>` elements, characters XML does not allow, or no shapes left after cleaning. It drops `<style>` elements, `style` and `class` attributes, event handlers, external `href` references, embedded images and attribute values that name any resource other than a `url(#id)` inside the file. The SVG file counts as package content: editing it changes the package's content hash like any other package file.
+
+A side panel registered at runtime with `context.sdk.runtime.registerContribution` may use a Lucide name, or an SVG file that a side panel in the manifest already declares. Only manifest-declared SVG files are part of the content hash, so a registration that names any other SVG file fails, as does a registration whose `icon` does not match the icon schema.
+
+When the icon is missing, names an unknown Lucide icon or points to an unusable file, the panel shows a letter tile with the first letter of its title, and Settings › Extensions lists a `panel-icon-invalid` warning under the contribution registry diagnostics.
 
 ## Session Summary sections and resources
 

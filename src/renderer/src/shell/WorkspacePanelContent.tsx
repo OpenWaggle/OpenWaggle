@@ -2,6 +2,8 @@ import { lazy, Suspense } from 'react'
 import { ActionRunPanel } from '@/features/project-actions'
 import type { TerminalOwnerContext } from '@/features/terminal'
 import { PanelErrorBoundary } from '@/shared/ui/PanelErrorBoundary'
+import { AllPanelsSurface } from './right-panel/AllPanelsSurface'
+import { WorkspaceProjectActionsSurface } from './right-panel/WorkspaceProjectActionsSurface'
 import { useUIStore } from './ui-store'
 import {
   type BrowserPreviewTabState,
@@ -32,6 +34,10 @@ interface WorkspacePanelContentProps {
 export function WorkspacePanelContent(props: WorkspacePanelContentProps) {
   const updateBrowser = useWorkspacePanelStore((state) => state.updateBrowser)
   const showToast = useUIStore((state) => state.showToast)
+  if (props.activeSurface?.kind === 'all-panels') return <AllPanelsSurface />
+  if (props.activeSurface?.kind === 'project-actions') {
+    return <WorkspaceProjectActionsSurface owner={props.owner} />
+  }
   if (props.activeSurface?.kind === 'action')
     return (
       <ActionRunPanel

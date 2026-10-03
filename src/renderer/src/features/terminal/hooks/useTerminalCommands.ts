@@ -3,6 +3,7 @@ import { useProject } from '@/features/sessions/hooks'
 import { useUIStore } from '@/shell/ui-store'
 import {
   hideWorkspaceSideTerminal,
+  rightPanelMaximizeUnavailableReason,
   showWorkspaceSideTerminal,
   toggleWorkspacePanelMaximized,
   useWorkspaceSideTerminalVisible,
@@ -17,6 +18,12 @@ import {
   terminalSidePanelLayoutKey,
   terminalTabTitle,
 } from '../lib/terminal-owner'
+import {
+  hasActionOutputViews,
+  showLatestActionOutputView,
+  shownActionOutputView,
+  useActionOutputViewStore,
+} from '../state/action-output-view-store'
 import { useTerminalStore } from '../state/terminal-store'
 
 /** Creates, reveals, and selects a terminal in the dedicated right-panel layout bucket. */
@@ -79,8 +86,10 @@ export function useTerminalCommands(): {
         : commandLayoutOwner()
     const group = store.groups[layoutOwnerKey]
     const opening = layoutOwnerKey === owner.ownerKey ? !drawerOpen : !sideTerminalVisible
+    // A drawer holding action output views opens on the latest one instead of starting a shell.
     if (opening && (group?.tabs.length ?? 0) === 0) {
-      store.createTerminal(layoutOwnerKey, owner.defaultCwd)
+      if (hasActionOutputViews(layoutOwnerKey)) showLatestActionOutputView(layoutOwnerKey)
+      else store.createTerminal(layoutOwnerKey, owner.defaultCwd)
     }
     store.setPanelOpen(layoutOwnerKey, opening)
     if (layoutOwnerKey !== owner.ownerKey) {
@@ -98,6 +107,7 @@ export function useTerminalCommands(): {
     if (owner.defaultCwd === null || owner.ownerKey.length === 0) return
     const layoutOwnerKey = commandLayoutOwner()
     revealLayout(layoutOwnerKey)
+    useActionOutputViewStore.getState().deactivate(layoutOwnerKey)
     useTerminalStore.getState().createTerminal(layoutOwnerKey, owner.defaultCwd)
   }
 
@@ -106,8 +116,9 @@ export function useTerminalCommands(): {
   }
 
   const toggleSidePanelMaximized = () => {
-    if (toggleWorkspacePanelMaximized(owner.ownerKey)) return
-    showToast('Open the workspace side panel first.', 'error')
+    const unavailable = rightPanelMaximizeUnavailableReason(owner.ownerKey)
+    if (unavailable === null) toggleWorkspacePanelMaximized(owner.ownerKey)
+    else showToast(unavailable, 'error')
   }
 
   const splitTerminalInDirection = (direction: 'side-by-side' | 'stacked') => {
@@ -115,6 +126,7 @@ export function useTerminalCommands(): {
     const store = useTerminalStore.getState()
     const layoutOwnerKey = commandLayoutOwner()
     revealLayout(layoutOwnerKey)
+    useActionOutputViewStore.getState().deactivate(layoutOwnerKey)
     const group = store.groups[layoutOwnerKey]
     const activeTabId = group?.activeTabId ?? group?.tabs[group.tabs.length - 1]?.id ?? null
     if (activeTabId === null) {
@@ -130,6 +142,13 @@ export function useTerminalCommands(): {
     const store = useTerminalStore.getState()
     const layoutOwnerKey = commandLayoutOwner()
     const group = store.groups[layoutOwnerKey]
+    const outputViews = useActionOutputViewStore.getState()
+    const shownView = shownActionOutputView(outputViews, layoutOwnerKey, group?.activeTabId ?? null)
+    // Closing a shown action output view closes only the view; its run keeps going.
+    if (shownView !== null) {
+      outputViews.close(layoutOwnerKey, shownView.actionId)
+      return
+    }
     const tab = group?.tabs.find((candidate) => candidate.id === group.activeTabId)
     const terminalId = tab?.activePaneId
     if (group === undefined || tab === undefined || terminalId === undefined) return

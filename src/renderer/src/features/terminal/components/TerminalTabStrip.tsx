@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from 'react'
+import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { cn } from '@/shared/lib/cn'
 import { Button } from '@/shared/ui/Button'
 import { terminalTabTitle } from '../lib/terminal-owner'
+import { selectAdjacentTerminalTab } from '../lib/terminal-tab-keyboard'
 import type { TerminalTabState } from '../state/terminal-store'
 
 export interface TerminalTabStripProps {
@@ -12,6 +13,8 @@ export interface TerminalTabStripProps {
   readonly onSelectTab: (tabId: string) => void
   readonly onCloseTab: (tabId: string) => void
   readonly onRenameTab: (tabId: string, name: string | null) => void
+  /** Further tabs in the same tablist, such as read-only action output views. */
+  readonly children?: ReactNode
 }
 
 /** Tab strip across the panel header: one entry per terminal tab of the session. */
@@ -45,6 +48,7 @@ export function TerminalTabStrip(props: TerminalTabStripProps) {
           }}
         />
       ))}
+      {props.children}
     </div>
   )
 }
@@ -143,19 +147,7 @@ function TabButton(props: TabButtonProps) {
             props.handlers.onClose()
             return
           }
-          if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
-          event.preventDefault()
-          const tablist = event.currentTarget.closest('[role="tablist"]')
-          const tabs = [...(tablist?.querySelectorAll<HTMLButtonElement>('[role="tab"]') ?? [])]
-          const current = tabs.indexOf(event.currentTarget)
-          const nextIndex =
-            event.key === 'Home'
-              ? 0
-              : event.key === 'End'
-                ? tabs.length - 1
-                : (current + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length
-          tabs[nextIndex]?.focus()
-          tabs[nextIndex]?.click()
+          selectAdjacentTerminalTab(event)
         }}
       >
         {title}

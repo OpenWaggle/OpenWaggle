@@ -1,7 +1,7 @@
-import { Activity, Globe2, Maximize2, Minimize2, SquareTerminal, X } from 'lucide-react'
+import { ArrowLeft, Globe2, SquareTerminal, X } from 'lucide-react'
 import { useState } from 'react'
-import { cn } from '@/shared/lib/cn'
 import { Button } from '@/shared/ui/Button'
+import { RightPanelMaximizeButton } from '@/shared/ui/RightPanelMaximizeButton'
 import { WorkspaceBrowserSurfaceTab } from './WorkspaceBrowserSurfaceTab'
 import { WorkspaceBrowserTabContextMenu } from './WorkspaceBrowserTabContextMenu'
 import type { BrowserPreviewTabState } from './workspace-panel-model'
@@ -11,16 +11,17 @@ interface WorkspaceSurfaceTabsProps {
   readonly model: {
     readonly activeSurface: WorkspacePanelSurface
     readonly browserTabs: readonly BrowserPreviewTabState[]
-    readonly hasTerminal: boolean
     readonly canCreateTerminal: boolean
-    readonly canMaximize: boolean
-    readonly maximized: boolean
+    /** A title replaces the browser tab strip for non-browser surfaces. */
+    readonly title?: {
+      readonly label: string
+      readonly backLabel?: string
+      readonly onBack?: () => void
+    }
   }
   readonly actions: {
     readonly newBrowser: () => void
     readonly newTerminal: () => void
-    readonly toggleMaximized: () => void
-    readonly selectTerminal: () => void
     readonly selectBrowser: (previewId: string) => void
     readonly closeBrowsers: (previewIds: readonly string[]) => void
     readonly closePanel: () => void
@@ -37,57 +38,52 @@ export function WorkspaceSurfaceTabs(props: WorkspaceSurfaceTabsProps) {
   } | null>(null)
   return (
     <div className="flex h-9 shrink-0 items-center gap-1 border-b border-border bg-bg px-1.5">
-      <div
-        role="tablist"
-        aria-label="Side panel surfaces"
-        className="flex min-w-0 flex-1 gap-1 overflow-x-auto"
-      >
-        {model.activeSurface?.kind === 'action' ? (
-          <Button
-            role="tab"
-            aria-selected
-            size="xs"
-            variant="ghost"
-            className="h-7 shrink-0 gap-1.5 bg-bg-hover px-2 text-text-primary"
+      {model.title ? (
+        <div className="flex min-w-0 flex-1 items-center gap-1">
+          {model.title.onBack ? (
+            <Button
+              size="icon-sm"
+              variant="ghost"
+              aria-label={`Back to ${model.title.backLabel ?? 'previous panel'}`}
+              title={`Back to ${model.title.backLabel ?? 'previous panel'}`}
+              onClick={model.title.onBack}
+            >
+              <ArrowLeft className="size-3.5" />
+            </Button>
+          ) : null}
+          <h2
+            tabIndex={-1}
+            data-right-sidebar-focus-target="true"
+            className="truncate px-1 text-sm font-medium text-text-primary outline-none"
           >
-            <Activity className="size-3.5" />
-            Action
-          </Button>
-        ) : null}
-        {model.hasTerminal && (
-          <Button
-            role="tab"
-            aria-selected={model.activeSurface?.kind === 'terminal'}
-            size="xs"
-            variant="ghost"
-            className={cn(
-              'h-7 shrink-0 gap-1.5 px-2',
-              model.activeSurface?.kind === 'terminal' && 'bg-bg-hover text-text-primary',
-            )}
-            onClick={actions.selectTerminal}
-          >
-            <SquareTerminal className="size-3.5" />
-            Terminal
-          </Button>
-        )}
-        {model.browserTabs.map((tab) => {
-          const active =
-            model.activeSurface?.kind === 'browser' && model.activeSurface.previewId === tab.id
-          return (
-            <WorkspaceBrowserSurfaceTab
-              key={tab.id}
-              active={active}
-              tab={tab}
-              onSelect={() => actions.selectBrowser(tab.id)}
-              onToggleMuted={() => actions.setBrowserAudioMuted(tab.id, !tab.audioMuted)}
-              onClose={() => actions.closeBrowsers([tab.id])}
-              onOpenContextMenu={({ x, y }) => {
-                setContextMenu({ tabId: tab.id, x, y })
-              }}
-            />
-          )
-        })}
-      </div>
+            {model.title.label}
+          </h2>
+        </div>
+      ) : (
+        <div
+          role="tablist"
+          aria-label="Browser tabs"
+          className="flex min-w-0 flex-1 gap-1 overflow-x-auto"
+        >
+          {model.browserTabs.map((tab) => {
+            const active =
+              model.activeSurface?.kind === 'browser' && model.activeSurface.previewId === tab.id
+            return (
+              <WorkspaceBrowserSurfaceTab
+                key={tab.id}
+                active={active}
+                tab={tab}
+                onSelect={() => actions.selectBrowser(tab.id)}
+                onToggleMuted={() => actions.setBrowserAudioMuted(tab.id, !tab.audioMuted)}
+                onClose={() => actions.closeBrowsers([tab.id])}
+                onOpenContextMenu={({ x, y }) => {
+                  setContextMenu({ tabId: tab.id, x, y })
+                }}
+              />
+            )
+          })}
+        </div>
+      )}
       <WorkspacePanelToolbar {...props} />
       {contextMenu !== null ? (
         <WorkspaceBrowserTabContextMenu
@@ -116,45 +112,34 @@ function WorkspacePanelToolbar({ model, actions }: WorkspaceSurfaceTabsProps) {
   return (
     <>
       {' '}
-      <Button
-        size="icon-sm"
-        variant="ghost"
-        aria-label="New browser tab"
-        title="New browser tab"
-        onClick={actions.newBrowser}
-      >
-        <Globe2 className="size-3.5" />
-      </Button>
-      <Button
-        size="icon-sm"
-        variant="ghost"
-        aria-label="New terminal in side panel"
-        disabled={!model.canCreateTerminal}
-        title={
-          model.canCreateTerminal
-            ? 'New terminal in side panel'
-            : 'Open a project to use a terminal'
-        }
-        onClick={actions.newTerminal}
-      >
-        <SquareTerminal className="size-3.5" />
-      </Button>
-      {model.canMaximize && (
+      {model.activeSurface?.kind === 'browser' ? (
         <Button
           size="icon-sm"
           variant="ghost"
-          aria-label={model.maximized ? 'Restore side panel' : 'Maximize side panel'}
-          aria-pressed={model.maximized}
-          title={model.maximized ? 'Restore side panel' : 'Maximize side panel'}
-          onClick={actions.toggleMaximized}
+          aria-label="New browser tab"
+          title="New browser tab"
+          onClick={actions.newBrowser}
         >
-          {model.maximized ? (
-            <Minimize2 className="size-3.5" />
-          ) : (
-            <Maximize2 className="size-3.5" />
-          )}
+          <Globe2 className="size-3.5" />
         </Button>
-      )}
+      ) : null}
+      {model.activeSurface?.kind === 'terminal' ? (
+        <Button
+          size="icon-sm"
+          variant="ghost"
+          aria-label="New terminal in side panel"
+          disabled={!model.canCreateTerminal}
+          title={
+            model.canCreateTerminal
+              ? 'New terminal in side panel'
+              : 'Open a project to use a terminal'
+          }
+          onClick={actions.newTerminal}
+        >
+          <SquareTerminal className="size-3.5" />
+        </Button>
+      ) : null}
+      <RightPanelMaximizeButton />
       <Button
         size="icon-sm"
         variant="ghost"

@@ -168,6 +168,35 @@ export const extensionRelativePathSchema = Schema.String.pipe(
 export const extensionContributionEntryPathSchema = extensionRelativePathSchema.pipe(
   Schema.filter(isNotRuntimeModuleContextEntryPath),
 )
+
+const LUCIDE_ICON_NAME_MAX_LENGTH = 64
+const LUCIDE_ICON_NAME_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/u
+const SVG_ICON_FILE_EXTENSION = '.svg'
+
+function isLucideIconName(value: string) {
+  if (value.length > LUCIDE_ICON_NAME_MAX_LENGTH) {
+    return `Must be at most ${LUCIDE_ICON_NAME_MAX_LENGTH} characters.`
+  }
+  return (
+    LUCIDE_ICON_NAME_PATTERN.test(value) ||
+    'Use a Lucide icon name in kebab-case, such as "ticket" or "git-pull-request".'
+  )
+}
+
+function hasSvgFileExtension(value: string) {
+  return (
+    value.toLowerCase().endsWith(SVG_ICON_FILE_EXTENSION) ||
+    `Must point to a ${SVG_ICON_FILE_EXTENSION} file.`
+  )
+}
+
+export const extensionLucideIconNameSchema = Schema.String.pipe(
+  Schema.minLength(1),
+  Schema.filter(isLucideIconName),
+)
+export const extensionSvgIconPathSchema = extensionRelativePathSchema.pipe(
+  Schema.filter(hasSvgFileExtension),
+)
 export const extensionCapabilityScopeSchema = Schema.Literal(
   ...OPENWAGGLE_EXTENSION.CAPABILITY_SCOPES,
 )

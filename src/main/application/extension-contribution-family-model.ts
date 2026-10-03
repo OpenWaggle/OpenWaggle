@@ -3,6 +3,7 @@ import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import type {
   ExtensionContributions,
   ExtensionSessionSummaryContribution,
+  ExtensionSidePanelIcon,
 } from '@shared/schemas/extensions'
 import type {
   ExtensionContributionFamily,
@@ -33,6 +34,8 @@ export interface ManifestEntryContribution {
   readonly capability?: string
   readonly method?: string
   readonly methods?: readonly string[]
+  /** Declared only by side panels (ADR 0043). */
+  readonly icon?: ExtensionSidePanelIcon
 }
 
 export type ManifestSessionSummaryContribution = ExtensionSessionSummaryContribution

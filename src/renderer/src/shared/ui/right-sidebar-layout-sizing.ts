@@ -4,7 +4,12 @@ export const RESIZE_MOVE_THRESHOLD_PX = 2
 export const RESIZE_RAIL_HALF_WIDTH_PX = 8
 export const RESIZE_BODY_CLASS = 'right-sidebar-resizing'
 export const SHEET_MAX_WIDTH_PX = 820
-export const SHEET_VIEWPORT_WIDTH = '100vw'
+/**
+ * Set by the Panel rail while it is on screen, so a narrow-window sheet opens beside the rail
+ * instead of covering it (ADR 0043).
+ */
+export const RIGHT_PANEL_RAIL_INSET_VAR = '--right-panel-rail-inset'
+export const SHEET_VIEWPORT_WIDTH = `calc(100vw - var(${RIGHT_PANEL_RAIL_INSET_VAR}, 0px))`
 const ZERO_WIDTH_PX = 0
 const STORAGE_RADIX = 10
 

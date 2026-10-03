@@ -1,16 +1,22 @@
 import type { ProjectAction, ProjectActionShortcutRule } from '@shared/types/project-actions'
 import { type ShortcutRule, shortcutBindingKey } from '@shared/types/shortcuts'
 import { Plus, RotateCcw, Search } from 'lucide-react'
+import type { ExtensionSidePanelSurfaceEntry } from '@/features/extensions'
 import { usesAppleShortcuts } from '@/shared/lib/shortcut-display'
 import { Button } from '@/shared/ui/Button'
 import { TextInput } from '@/shared/ui/TextInput'
-import type { ShortcutBrowserRow } from '../../lib/shortcut-browser-model'
+import type { ShortcutBrowserRow, ShortcutConflictSource } from '../../lib/shortcut-browser-model'
 import { BuiltInShortcutRow } from '../shortcuts/BuiltInShortcutRow'
+import { PanelShortcutsGroup } from '../shortcuts/PanelShortcutsGroup'
 import { AddShortcutBinding, ProjectShortcutRow } from '../shortcuts/ProjectShortcutRows'
 
 export interface ShortcutsSectionModel {
   readonly actions: readonly ProjectAction[]
   readonly rows: readonly ShortcutBrowserRow[]
+  /** Rule rows plus extension panel bindings, for conflict labels. */
+  readonly conflictSources: readonly ShortcutConflictSource[]
+  /** Extension side panels the registry knows about, one per surface. */
+  readonly panels: readonly ExtensionSidePanelSurfaceEntry[]
   readonly visibleRows: readonly ShortcutBrowserRow[]
   readonly query: string
   readonly adding: boolean
@@ -108,7 +114,7 @@ function ShortcutRuleList(props: {
           <BuiltInShortcutRow
             key={`${row.id}:${shortcutBindingKey(row.binding)}:${row.when}`}
             row={row}
-            rows={props.model.rows}
+            rows={props.model.conflictSources}
             saving={props.model.saving}
             onError={props.actions.onError}
             onRemove={props.actions.onBuiltInRemove}
@@ -118,7 +124,7 @@ function ShortcutRuleList(props: {
           <ProjectShortcutRow
             key={`${row.id}:${shortcutBindingKey(row.binding)}:${row.when}`}
             row={row}
-            rows={props.model.rows}
+            rows={props.model.conflictSources}
             saving={props.model.saving}
             onError={props.actions.onError}
             onUpdate={props.actions.onProjectUpdate}
@@ -140,7 +146,7 @@ export function ShortcutsSectionContent(props: {
       {props.model.adding ? (
         <AddShortcutBinding
           actions={props.model.actions}
-          rows={props.model.rows}
+          rows={props.model.conflictSources}
           saving={props.model.saving}
           onClose={props.actions.onAddClose}
           onError={props.actions.onError}
@@ -158,6 +164,12 @@ export function ShortcutsSectionContent(props: {
           Project bindings could not be loaded: {props.model.projectError}
         </p>
       ) : null}
+      <PanelShortcutsGroup
+        panels={props.model.panels}
+        ruleRows={props.model.rows}
+        query={props.model.query}
+        onError={props.actions.onError}
+      />
       <div className="flex items-center justify-between text-xs text-text-muted">
         <span>
           {String(props.model.builtInCount)} built-in · {String(props.model.projectCount)} project

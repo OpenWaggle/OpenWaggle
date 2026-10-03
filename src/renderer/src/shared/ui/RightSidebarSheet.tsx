@@ -1,7 +1,11 @@
 import { type ReactNode, type RefObject, useEffect, useRef } from 'react'
 import { cn } from '@/shared/lib/cn'
 import { Button } from './Button'
-import { SHEET_MAX_WIDTH_PX, SHEET_VIEWPORT_WIDTH } from './right-sidebar-layout-sizing'
+import {
+  RIGHT_PANEL_RAIL_INSET_VAR,
+  SHEET_MAX_WIDTH_PX,
+  SHEET_VIEWPORT_WIDTH,
+} from './right-sidebar-layout-sizing'
 
 interface RightSidebarSheetProps {
   readonly children: ReactNode
@@ -96,9 +100,11 @@ export function RightSidebarSheet({
       inert={!open}
       aria-hidden={!open}
       className={cn(
-        'fixed inset-0 z-50 transition-opacity duration-200 ease-out',
+        'fixed inset-y-0 left-0 z-50 transition-opacity duration-200 ease-out',
         open ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0',
       )}
+      // The Panel rail stays usable at the window edge (ADR 0043).
+      style={{ right: `var(${RIGHT_PANEL_RAIL_INSET_VAR}, 0px)` }}
     >
       <Button
         variant="unstyled"

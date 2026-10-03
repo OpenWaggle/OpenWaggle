@@ -60,7 +60,6 @@ vi.mock('@tanstack/react-router', () => ({
   useRouterState: ({ select }: { select: LocationSelection }) =>
     select({ location: { pathname: shellMocks.pathname } }),
 }))
-
 vi.mock('@/features/chat/hooks/useBackgroundRunMonitor', () => ({
   useBackgroundRunMonitor: () => shellMocks.backgroundRunMonitor(),
 }))
@@ -111,6 +110,7 @@ vi.mock('@/shared/lib/ipc', () => ({
 }))
 
 vi.mock('../Header', () => ({ Header: () => <header>Header</header> }))
+vi.mock('../right-panel/RightPanelHost', () => ({ RightPanelHost: () => null }))
 vi.mock('../ToastOverlay', () => ({ ToastOverlay: () => <div>Toasts</div> }))
 vi.mock('../useAutoUpdater', () => ({ useAutoUpdater: () => shellMocks.autoUpdater() }))
 vi.mock('../useWorkspaceLifecycle', () => ({
@@ -143,8 +143,7 @@ describe('shell surfaces', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Report a bug' }))
 
     expect(onOpen).toHaveBeenCalledOnce()
-    // openFeedbackModal takes an optional AgentErrorInfo. Forwarding the click
-    // event made it a truthy non-error object and crashed the modal.
+    // A forwarded click event looked like an AgentErrorInfo and crashed the modal.
     expect(onOpen).toHaveBeenCalledWith()
   })
 
@@ -282,14 +281,14 @@ describe('shell surfaces', () => {
     const main = routeContent.closest('[data-right-sidebar-main="true"]')
     const shell = await screen.findByTestId('workspace-right-panel')
     const sidebar = shell.closest('[data-right-sidebar-shell="true"]')
-    fireEvent.click(within(shell).getByRole('button', { name: 'Maximize side panel' }))
+    fireEvent.click(within(shell).getByRole('button', { name: 'Maximize panel', pressed: false }))
 
     expect(screen.getByText('Route content')).toBe(routeContent)
     expect(main).toHaveAttribute('inert')
     expect(sidebar).toHaveStyle({ width: '100%' })
     expect(useWorkspacePanelStore.getState().groups['draft:/repo']?.maximized).toBe(true)
 
-    fireEvent.click(within(shell).getByRole('button', { name: 'Restore side panel' }))
+    fireEvent.click(within(shell).getByRole('button', { name: 'Maximize panel', pressed: true }))
 
     expect(screen.getByText('Route content')).toBe(routeContent)
     expect(main).not.toHaveAttribute('inert')

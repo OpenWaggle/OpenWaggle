@@ -2,12 +2,15 @@ import type { SearchAddon } from '@xterm/addon-search'
 import { useRef, useState } from 'react'
 import { Button } from '@/shared/ui/Button'
 import { useTerminalPanelCloseActions } from '../hooks/useTerminalPanelActions'
+import { type ActionOutputView, actionOutputViewTabId } from '../lib/action-output-view-model'
 import type { TerminalContextProvenance } from '../lib/terminal-context'
+import { shownActionOutputView, useActionOutputViewStore } from '../state/action-output-view-store'
 import {
   type TerminalGroupState,
   type TerminalTabState,
   useTerminalStore,
 } from '../state/terminal-store'
+import { ActionOutputTerminalView } from './ActionOutputTerminalView'
 import { TerminalPaneGrid } from './TerminalPaneGrid'
 import { TerminalPanelHeader } from './TerminalPanelHeader'
 import { TerminalSearchBar } from './TerminalSearchBar'
@@ -35,11 +38,18 @@ export function TerminalPanel(props: TerminalPanelProps) {
   )
   const panelRef = useRef<HTMLDivElement>(null)
   const activeTab = resolveActiveTab(group)
-  const focusedPaneId = activeTab?.activePaneId ?? null
+  const { outputViews, shownView, shownViewKey, shownActionId } = useDrawerActionOutputViews(
+    options.ownerKey,
+    options.runtimeOwnerKey,
+    group?.activeTabId ?? null,
+  )
+  const focusedPaneId = shownViewKey ?? activeTab?.activePaneId ?? null
 
   // A stale focus (pane unmounted after a tab switch) must not enable search
   // against a missing addon: resolve within the active tab's panes only.
-  const searchTargetPane = resolveSearchTarget(activeTab, focusedPaneId)
+  const searchTargetPane = shownViewKey ?? resolveSearchTarget(activeTab, focusedPaneId)
+  const setSearchAddon = (key: string, addon: SearchAddon | null) =>
+    setSearchAddons((current) => withSearchAddon(current, key, addon))
   const closeActions = useTerminalPanelCloseActions({
     group,
     ownerKey: options.ownerKey,
@@ -47,12 +57,8 @@ export function TerminalPanel(props: TerminalPanelProps) {
   })
   if (options.ownerKey.length === 0 || options.defaultCwd === null) return <TerminalUnavailable />
 
-  const restoreTerminalFocus = () => {
-    const pane = [
-      ...(panelRef.current?.querySelectorAll<HTMLElement>('[data-terminal-pane]') ?? []),
-    ].find((candidate) => candidate.dataset.terminalPane === searchTargetPane)
-    pane?.querySelector<HTMLTextAreaElement>('textarea.xterm-helper-textarea')?.focus()
-  }
+  const restoreTerminalFocus = () =>
+    focusTerminalSurface(panelRef.current, shownView === null ? searchTargetPane : null)
 
   return (
     <div ref={panelRef} className="flex h-full flex-col overflow-hidden bg-bg">
@@ -65,6 +71,7 @@ export function TerminalPanel(props: TerminalPanelProps) {
           focusedPaneId,
           searchOpen,
           closePanelLabel: options.closePanelLabel,
+          actionOutput: { views: outputViews, shownActionId },
         }}
         actions={{
           setSearchOpen,
@@ -87,8 +94,19 @@ export function TerminalPanel(props: TerminalPanelProps) {
         />
       )}
       <div className="relative min-h-0 flex-1">
-        {activeTab === null ? (
-          <TerminalEmptyState ownerKey={options.ownerKey} defaultCwd={options.defaultCwd} />
+        {shownView !== null ? (
+          <ActionOutputTerminalView
+            key={`${actionOutputViewTabId(shownView)}:${shownView.runIds[0] ?? ''}`}
+            view={shownView}
+            cwd={options.defaultCwd}
+            onSearchAddon={(addon) => setSearchAddon(actionOutputViewTabId(shownView), addon)}
+          />
+        ) : activeTab === null ? (
+          <TerminalEmptyState
+            ownerKey={options.ownerKey}
+            defaultCwd={options.defaultCwd}
+            hasOutputViews={outputViews.length > 0}
+          />
         ) : (
           <TerminalPaneGrid
             model={{
@@ -101,25 +119,58 @@ export function TerminalPanel(props: TerminalPanelProps) {
             focusedPaneId={focusedPaneId}
             onFocusPane={(terminalId) => setActivePane(options.ownerKey, activeTab.id, terminalId)}
             onClosePane={(terminalId) => void closeActions.closeOnePane(terminalId)}
-            onSearchAddon={(terminalId, addon) => {
-              setSearchAddons((current) => {
-                if (
-                  current.get(terminalId) === addon ||
-                  (addon === null && !current.has(terminalId))
-                ) {
-                  return current
-                }
-                const next = new Map(current)
-                if (addon === null) next.delete(terminalId)
-                else next.set(terminalId, addon)
-                return next
-              })
-            }}
+            onSearchAddon={setSearchAddon}
           />
         )}
       </div>
     </div>
   )
+}
+
+const NO_OUTPUT_VIEWS: readonly ActionOutputView[] = []
+
+function withSearchAddon(
+  current: ReadonlyMap<string, SearchAddon>,
+  key: string,
+  addon: SearchAddon | null,
+): ReadonlyMap<string, SearchAddon> {
+  if (current.get(key) === addon || (addon === null && !current.has(key))) return current
+  const next = new Map(current)
+  if (addon === null) next.delete(key)
+  else next.set(key, addon)
+  return next
+}
+
+/** Refocuses a terminal pane by id, or the shown action output view when paneId is null. */
+function focusTerminalSurface(panel: HTMLElement | null, paneId: string | null) {
+  const surface =
+    paneId === null
+      ? panel?.querySelector<HTMLElement>('[data-action-output-view]')
+      : [...(panel?.querySelectorAll<HTMLElement>('[data-terminal-pane]') ?? [])].find(
+          (candidate) => candidate.dataset.terminalPane === paneId,
+        )
+  surface?.querySelector<HTMLTextAreaElement>('textarea.xterm-helper-textarea')?.focus()
+}
+
+/** Action output views live only in the Session's bottom drawer, not the side-panel bucket. */
+function useDrawerActionOutputViews(
+  ownerKey: string,
+  runtimeOwnerKey: string,
+  activeTabId: string | null,
+) {
+  const drawer = ownerKey === runtimeOwnerKey
+  const outputViews = useActionOutputViewStore((state) =>
+    drawer ? (state.views[ownerKey] ?? NO_OUTPUT_VIEWS) : NO_OUTPUT_VIEWS,
+  )
+  const shownView = useActionOutputViewStore((state) =>
+    drawer ? shownActionOutputView(state, ownerKey, activeTabId) : null,
+  )
+  return {
+    outputViews,
+    shownView,
+    shownViewKey: shownView === null ? null : actionOutputViewTabId(shownView),
+    shownActionId: shownView === null ? null : shownView.actionId,
+  }
 }
 
 function normalizePanelProps(props: TerminalPanelProps) {
@@ -160,7 +211,11 @@ function TerminalUnavailable() {
   )
 }
 
-function TerminalEmptyState(props: { readonly ownerKey: string; readonly defaultCwd: string }) {
+function TerminalEmptyState(props: {
+  readonly ownerKey: string
+  readonly defaultCwd: string
+  readonly hasOutputViews: boolean
+}) {
   const createTerminal = useTerminalStore((state) => state.createTerminal)
   const onNewTerminal = () => {
     const terminalId = createTerminal(props.ownerKey, props.defaultCwd)
@@ -168,7 +223,11 @@ function TerminalEmptyState(props: { readonly ownerKey: string; readonly default
   }
   return (
     <div className="flex h-full flex-col items-center justify-center gap-2 text-text-muted">
-      <p className="text-sm">No terminal for this session yet</p>
+      <p className="text-sm">
+        {props.hasOutputViews
+          ? 'Choose an action output tab, or start a terminal'
+          : 'No terminal for this session yet'}
+      </p>
       <p className="text-xs">
         New terminals run in <span className="text-text-secondary">{props.defaultCwd}</span>
       </p>
