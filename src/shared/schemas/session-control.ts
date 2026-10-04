@@ -6,7 +6,7 @@ import {
   type SessionControlMutationRequest,
   type SessionControlMutationResponse,
 } from '@shared/types/session-control'
-import { MAX_FOLLOW_UP_QUEUE_ITEMS } from '@shared/types/session-control-queue'
+import { MAX_FOLLOW_UP_QUEUE_LISTED_ITEMS } from '@shared/types/session-control-returned-steers'
 import { THINKING_LEVELS } from '@shared/types/settings'
 import { agentLoopResponseSchema } from './agent-loop-interaction'
 import { sessionAttachmentIdsSchema } from './session-attachment'
@@ -42,17 +42,23 @@ const steeringInputSchema = Schema.Struct({
 })
 
 const uniqueFollowUpIdsSchema = Schema.Array(sessionInputIdSchema).pipe(
-  Schema.maxItems(MAX_FOLLOW_UP_QUEUE_ITEMS),
+  Schema.maxItems(MAX_FOLLOW_UP_QUEUE_LISTED_ITEMS),
   Schema.filter(
     (followUpIds) =>
       new Set(followUpIds).size === followUpIds.length || 'Follow-up IDs must be unique.',
   ),
 )
 
-const messageInputSchema = Schema.Struct({
+/** What a Follow-up message carries: content only, never a thinking level or authorization. */
+const followUpInputSchema = Schema.Struct({
   ...steeringInputSchema.fields,
-  thinkingLevel: Schema.optional(Schema.Literal(...THINKING_LEVELS)),
   waggle: Schema.optional(waggleInvocationSchema),
+})
+
+/** A Run-starting input may also set the Session thinking level (see `SessionControlMessageInput`). */
+const messageInputSchema = Schema.Struct({
+  ...followUpInputSchema.fields,
+  thinkingLevel: Schema.optional(Schema.Literal(...THINKING_LEVELS)),
 })
 
 const steerCommandSchema = Schema.Struct({
@@ -65,6 +71,7 @@ const steerCommandSchema = Schema.Struct({
 const messageCommandSchema = Schema.Struct({
   operation: Schema.Literal('message'),
   sessionId: sessionInputIdSchema,
+  runAuthorizationOverride: Schema.optional(Schema.Literal(...AGENT_AUTHORIZATION_MODES)),
   input: messageInputSchema,
 })
 
@@ -81,16 +88,14 @@ const startCommandSchema = Schema.Struct({
 const followUpCommandSchema = Schema.Struct({
   operation: Schema.Literal('follow-up'),
   sessionId: sessionInputIdSchema,
-  runAuthorizationOverride: Schema.optional(Schema.Literal(...AGENT_AUTHORIZATION_MODES)),
-  input: messageInputSchema,
+  input: followUpInputSchema,
 })
 
 const replaceCommandSchema = Schema.Struct({
   operation: Schema.Literal('replace'),
   sessionId: sessionInputIdSchema,
   expectedRunId: sessionInputIdSchema,
-  runAuthorizationOverride: Schema.optional(Schema.Literal(...AGENT_AUTHORIZATION_MODES)),
-  input: messageInputSchema,
+  input: followUpInputSchema,
 })
 
 const interruptCommandSchema = Schema.Struct({
@@ -136,11 +141,36 @@ const queueResumeCommandSchema = Schema.Struct({
   expectedQueueRevision: Schema.Number.pipe(Schema.int(), Schema.nonNegative()),
 })
 
-const queueUpdateAuthorizationCommandSchema = Schema.Struct({
-  operation: Schema.Literal('queue-update-authorization'),
+const queueAdoptCommandSchema = Schema.Struct({
+  operation: Schema.Literal('queue-adopt'),
   sessionId: sessionInputIdSchema,
   followUpId: sessionInputIdSchema,
-  runAuthorizationOverride: Schema.NullOr(Schema.Literal(...AGENT_AUTHORIZATION_MODES)),
+  expectedQueueRevision: Schema.Number.pipe(Schema.int(), Schema.nonNegative()),
+})
+
+const queueEditBeginCommandSchema = Schema.Struct({
+  operation: Schema.Literal('queue-edit-begin'),
+  sessionId: sessionInputIdSchema,
+  followUpId: sessionInputIdSchema,
+})
+
+/** A Follow-up edit carries the fields a new Follow-up carries. */
+const followUpEditInputSchema = followUpInputSchema
+
+const queueEditSaveCommandSchema = Schema.Struct({
+  operation: Schema.Literal('queue-edit-save'),
+  sessionId: sessionInputIdSchema,
+  followUpId: sessionInputIdSchema,
+  holdId: sessionInputIdSchema,
+  expectedQueueRevision: Schema.Number.pipe(Schema.int(), Schema.nonNegative()),
+  input: followUpEditInputSchema,
+})
+
+const queueEditCancelCommandSchema = Schema.Struct({
+  operation: Schema.Literal('queue-edit-cancel'),
+  sessionId: sessionInputIdSchema,
+  followUpId: sessionInputIdSchema,
+  holdId: sessionInputIdSchema,
 })
 
 const interactionResponseCommandSchema = Schema.Struct({
@@ -186,10 +216,13 @@ export const sessionControlMutationRequestSchema: Schema.Schema<SessionControlMu
       messageCommandSchema,
       ...sessionOrganizationCommandSchemas,
       promoteCommandSchema,
+      queueAdoptCommandSchema,
+      queueEditBeginCommandSchema,
+      queueEditCancelCommandSchema,
+      queueEditSaveCommandSchema,
       queuePauseCommandSchema,
       queueReorderCommandSchema,
       queueResumeCommandSchema,
-      queueUpdateAuthorizationCommandSchema,
       queueWithdrawCommandSchema,
       reportCommandSchema,
       replaceCommandSchema,
@@ -217,4 +250,15 @@ export function decodeSessionControlMutationResponse(value: unknown) {
 
 export function decodeSessionControlMutationOutcome(value: unknown) {
   return decodeUnknownExactOrThrow(sessionControlMutationOutcomeSchema, value)
+}
+
+const followUpEditHoldReferenceSchema = Schema.Struct({
+  sessionId: sessionInputIdSchema,
+  followUpId: sessionInputIdSchema,
+  holdId: sessionInputIdSchema,
+})
+
+/** A Follow-up edit hold a desktop window names, e.g. to adopt it (ADR 0044). */
+export function decodeFollowUpEditHoldReference(value: unknown) {
+  return decodeUnknownExactOrThrow(followUpEditHoldReferenceSchema, value)
 }

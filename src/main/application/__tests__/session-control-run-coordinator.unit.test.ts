@@ -15,6 +15,7 @@ import { SessionOrchestrationUpdateDeliveryService } from '../../ports/session-o
 import { activeRuns, interruptExactSessionRun } from '../active-session-runs'
 import { dispatchAcceptedSessionControlRun } from '../session-control-command-service'
 import { coordinateSessionRuns } from '../session-control-run-coordinator'
+import { NoSteeringLayer } from './agent-steering-test-layer'
 
 describe('Session Control Run coordinator', () => {
   it('executes queued Follow-ups one at a time after the active Run settles', async () => {
@@ -116,6 +117,7 @@ describe('Session Control Run coordinator', () => {
             return { terminalStatus: 'completed' as const }
           }),
       }),
+      NoSteeringLayer,
       Layer.succeed(SessionOrchestrationUpdateDeliveryService, {
         deliverPendingToActiveRun: ({ parentSessionId }) =>
           Effect.sync(() => {
@@ -189,6 +191,7 @@ describe('Session Control Run coordinator', () => {
             return { terminalStatus: 'completed' as const }
           }),
       }),
+      NoSteeringLayer,
       Layer.succeed(SessionOrchestrationUpdateDeliveryService, {
         deliverPendingToActiveRun: () => Effect.succeed(false),
         deliverPendingSpecificationsToActiveRun: () => Effect.succeed(false),
@@ -238,6 +241,7 @@ describe('Session Control Run coordinator', () => {
       Layer.succeed(SessionControlRunExecutor, {
         execute: () => Effect.die('an interrupted starting Run must not execute'),
       }),
+      NoSteeringLayer,
       Layer.succeed(SessionOrchestrationUpdateDeliveryService, {
         deliverPendingToActiveRun: () => Effect.succeed(false),
         deliverPendingSpecificationsToActiveRun: () => Effect.succeed(false),

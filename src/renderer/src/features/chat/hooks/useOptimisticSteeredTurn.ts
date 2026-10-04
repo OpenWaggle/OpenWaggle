@@ -4,10 +4,14 @@ import type { UIMessage, UIMessageMetadata } from '@shared/types/chat-ui'
 import { buildAgentPromptText } from '@shared/utils/agent-prompt-text'
 import { useEffect } from 'react'
 import {
-  type OptimisticSteerPreview,
+  type SteerIncorporatedContent,
   selectOptimisticSteerPreviews,
   useOptimisticSteerStore,
 } from '@/features/chat/state'
+import {
+  insertOptimisticSteeredUserTurn,
+  matchSteeredUserTurns,
+} from '../lib/steer-preview-matching'
 import { useSteerReceiptReconciliation } from './useSteerReceiptReconciliation'
 
 export type SteerDeliveryState = NonNullable<UIMessageMetadata['steerDelivery']>
@@ -21,11 +25,12 @@ export interface OptimisticSteerPreviewController {
   readonly setDeliveryState: (state: SteerDeliveryState) => void
 }
 
-interface OptimisticSteeredTurnReturn {
+export interface OptimisticSteeredTurnReturn {
   readonly visibleMessages: UIMessage[]
   readonly previewSteeredUserTurn: (
     payload: AgentSendPayload,
     deliveryState: SteerDeliveryState,
+    incorporatedContent?: SteerIncorporatedContent,
   ) => OptimisticSteerPreviewController
 }
 
@@ -51,7 +56,14 @@ export function useOptimisticSteeredTurn(
   const matchedOptimisticTurns = matchSteeredUserTurns(hydratedMessages, optimisticSteeredUserTurns)
   const reconciledOptimisticTurns = optimisticSteeredUserTurns.map((turn) => {
     const match = matchedOptimisticTurns.get(turn.id)
-    return match && !turn.durableMessageId ? { ...turn, durableMessageId: match.messageId } : turn
+    if (!match || match.provisional || turn.durableMessageId) return turn
+    return {
+      ...turn,
+      durableMessageId: match.messageId,
+      ...(match.createdOrder === undefined
+        ? {}
+        : { durableMessageCreatedOrder: match.createdOrder }),
+    }
   })
   const allOptimisticTurnsAreDurable =
     reconciledOptimisticTurns.length > 0 &&
@@ -67,9 +79,10 @@ export function useOptimisticSteeredTurn(
       .reconcile(sessionId, reconciledOptimisticTurns, allOptimisticTurnsAreDurable)
   }, [allOptimisticTurnsAreDurable, hasNewDurableMatch, reconciledOptimisticTurns, sessionId])
 
-  // A steer preview only represents delivery within the active run. Stop clears Pi's pending
-  // steering queue, so any preview that did not project into the transcript must disappear when
-  // that run settles. The store is session-scoped, which preserves previews across navigation.
+  // A steer preview only represents delivery within the active run. A steer that run never
+  // incorporated returns to the Follow-up queue when it settles, so any preview that did not
+  // project into the transcript must disappear then. The store is session-scoped, which preserves
+  // previews across navigation.
   useEffect(() => {
     if (!sessionId || !isSessionIdle) return
     useOptimisticSteerStore.getState().clearSession(sessionId)
@@ -82,7 +95,14 @@ export function useOptimisticSteeredTurn(
 
   return {
     visibleMessages,
-    previewSteeredUserTurn: (payload: AgentSendPayload, deliveryState: SteerDeliveryState) => {
+    previewSteeredUserTurn: (
+      payload: AgentSendPayload,
+      deliveryState: SteerDeliveryState,
+      incorporatedContent: SteerIncorporatedContent = {
+        text: payload.text.trim(),
+        attachmentCount: payload.attachments.length,
+      },
+    ) => {
       const content = buildClientUserMessage(payload)
       const optimisticTurnId = createOptimisticTurnId()
       if (!sessionId) {
@@ -96,8 +116,15 @@ export function useOptimisticSteeredTurn(
       useOptimisticSteerStore.getState().add(sessionId, {
         id: optimisticTurnId,
         content,
+        incorporatedContent,
         durableContent: buildAgentPromptText(payload),
         baselineLength: messagesRef.current.length,
+        baselineMaxCreatedOrder: Math.max(
+          -1,
+          ...messagesRef.current.flatMap(
+            (message) => message.metadata?.sessionNodeCreatedOrder ?? [],
+          ),
+        ),
         baselineUserMessageIds: new Set(
           messagesRef.current.flatMap((message) => (message.role === 'user' ? [message.id] : [])),
         ),
@@ -152,111 +179,4 @@ function createOptimisticUserMessage(
     createdAt: new Date(),
     metadata: { steerDelivery: deliveryState },
   }
-}
-
-function getUIMessagePrimaryText(message: UIMessage) {
-  return message.parts.find(
-    (part): part is Extract<(typeof message.parts)[number], { type: 'text' }> =>
-      part.type === 'text',
-  )?.content
-}
-
-function indexSteerCandidateMessages(messages: UIMessage[]) {
-  const messageIndexById = new Map(messages.map((message, index) => [message.id, index]))
-  const userMessageIndexesByContent = new Map<string, number[]>()
-  for (const [index, message] of messages.entries()) {
-    if (message.role !== 'user') continue
-    const content = getUIMessagePrimaryText(message)
-    if (content === undefined) continue
-    const indexes = userMessageIndexesByContent.get(content) ?? []
-    indexes.push(index)
-    userMessageIndexesByContent.set(content, indexes)
-  }
-  return { messageIndexById, userMessageIndexesByContent }
-}
-
-function firstAvailableMessageIndex(
-  candidates: readonly number[],
-  messages: readonly UIMessage[],
-  baselineUserMessageIds: ReadonlySet<string>,
-  consumedMessageIndexes: ReadonlySet<number>,
-) {
-  return candidates.find(
-    (candidateIndex) =>
-      !baselineUserMessageIds.has(messages[candidateIndex]?.id ?? '') &&
-      !consumedMessageIndexes.has(candidateIndex),
-  )
-}
-
-function matchSteeredUserTurns(
-  messages: UIMessage[],
-  optimisticSteeredUserTurns: readonly OptimisticSteerPreview[],
-): ReadonlyMap<string, { readonly index: number | null; readonly messageId: string }> {
-  const matches = new Map<string, { readonly index: number | null; readonly messageId: string }>()
-  if (optimisticSteeredUserTurns.length === 0) return matches
-  const consumedMessageIndexes = new Set<number>()
-  const { messageIndexById, userMessageIndexesByContent } = indexSteerCandidateMessages(messages)
-
-  for (const turn of optimisticSteeredUserTurns) {
-    if (!turn.durableMessageId) continue
-    const durableIndex =
-      turn.durableMessageCreatedOrder === undefined
-        ? (messageIndexById.get(turn.durableMessageId) ?? -1)
-        : messages.findIndex(
-            (message) =>
-              message.metadata?.sessionNodeCreatedOrder === turn.durableMessageCreatedOrder,
-          )
-    if (durableIndex >= 0) consumedMessageIndexes.add(durableIndex)
-    matches.set(turn.id, {
-      index: durableIndex >= 0 ? durableIndex : null,
-      messageId: turn.durableMessageId,
-    })
-  }
-
-  for (const turn of optimisticSteeredUserTurns) {
-    if (turn.durableMessageId) continue
-    if (turn.receipt !== undefined) continue
-    const matchingIndex = firstAvailableMessageIndex(
-      userMessageIndexesByContent.get(turn.durableContent) ?? [],
-      messages,
-      turn.baselineUserMessageIds,
-      consumedMessageIndexes,
-    )
-    if (matchingIndex === undefined) continue
-    const matchingMessage = messages[matchingIndex]
-    if (!matchingMessage) continue
-    matches.set(turn.id, { index: matchingIndex, messageId: matchingMessage.id })
-    consumedMessageIndexes.add(matchingIndex)
-  }
-
-  return matches
-}
-
-function insertOptimisticSteeredUserTurn(
-  messages: UIMessage[],
-  optimisticSteeredUserTurns: readonly OptimisticSteerPreview[],
-): UIMessage[] {
-  if (optimisticSteeredUserTurns.length === 0) {
-    return messages
-  }
-  const matches = matchSteeredUserTurns(messages, optimisticSteeredUserTurns)
-  let insertedCount = 0
-  let insertionFloor = 0
-
-  return optimisticSteeredUserTurns.reduce<UIMessage[]>((current, turn) => {
-    const match = matches.get(turn.id)
-    if (match) {
-      if (match.index !== null) {
-        insertionFloor = Math.max(insertionFloor, match.index + insertedCount + 1)
-      }
-      return current
-    }
-    const insertionIndex = Math.min(
-      Math.max(insertionFloor, turn.baselineLength + insertedCount),
-      current.length,
-    )
-    insertedCount += 1
-    insertionFloor = insertionIndex + 1
-    return [...current.slice(0, insertionIndex), turn.message, ...current.slice(insertionIndex)]
-  }, messages)
 }

@@ -46,7 +46,6 @@ describe('useAgentChat active run cache', () => {
         sessionId,
         createSessionWithIdAndMessages(sessionId, 1, []),
         SupportedModelId('claude-sonnet-4-5'),
-        'medium',
       ),
     )
     await waitFor(() => expect(result.current.backgroundStreaming).toBe(true))
@@ -107,7 +106,7 @@ describe('useAgentChat active run cache', () => {
 
     const { result, rerender } = renderHook(
       ({ session }: { readonly session: SessionDetail }) =>
-        useAgentChat(sessionId, session, SupportedModelId('claude-sonnet-4-5'), 'medium'),
+        useAgentChat(sessionId, session, SupportedModelId('claude-sonnet-4-5')),
       { initialProps: { session: initialSession } },
     )
 
@@ -211,7 +210,7 @@ describe('useAgentChat active run cache', () => {
       }: {
         readonly sessionId: SessionId
         readonly session: SessionDetail
-      }) => useAgentChat(sessionId, session, SupportedModelId('claude-sonnet-4-5'), 'medium'),
+      }) => useAgentChat(sessionId, session, SupportedModelId('claude-sonnet-4-5')),
       {
         initialProps: {
           sessionId: sessionA,

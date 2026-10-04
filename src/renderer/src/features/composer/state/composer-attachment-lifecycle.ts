@@ -6,6 +6,13 @@ import type { ComposerState } from './composer-store-types'
 
 const logger = createRendererLogger('composer-attachments')
 const submittedAttachmentIds = new Set<string>()
+/*
+ * Attachments a queued Follow-up already references on the Host, loaded back into the composer by a
+ * Follow-up edit. The composer never owns them: removing their chip, cancelling the edit, or
+ * restoring the set-aside draft must not discard what the queued message still delivers. Each id
+ * is released when its chip leaves the composer.
+ */
+const hostReferencedAttachmentIds = new Set<string>()
 
 function ownedAttachments(state: ComposerState) {
   const attachments = new Map<string, PreparedAttachment>()
@@ -37,6 +44,14 @@ export function markAttachmentsSubmitted(attachments: readonly PreparedAttachmen
   for (const attachment of attachments) submittedAttachmentIds.add(attachment.id)
 }
 
+export function retainHostReferencedAttachments(attachments: readonly { readonly id: string }[]) {
+  for (const attachment of attachments) hostReferencedAttachmentIds.add(attachment.id)
+}
+
+export function isHostReferencedAttachment(attachment: { readonly id: string }) {
+  return hostReferencedAttachmentIds.has(attachment.id)
+}
+
 export function unmarkAttachmentsSubmitted(attachments: readonly PreparedAttachment[]) {
   for (const attachment of attachments) submittedAttachmentIds.delete(attachment.id)
 }
@@ -66,7 +81,10 @@ export function releaseAbandonedSessionResourceAttachments(
   }
   const abandoned = abandonedAttachments(previous, current)
   for (const attachment of abandoned) {
-    if (submittedAttachmentIds.delete(attachment.id)) continue
+    // Leaving the composer ends both protections: a removed chip or a sent draft is let go of here.
+    const hostReferenced = hostReferencedAttachmentIds.delete(attachment.id)
+    const submitted = submittedAttachmentIds.delete(attachment.id)
+    if (hostReferenced || submitted) continue
     if (attachment.origin === 'session-resource') discardSessionResourceAttachments([attachment])
     else releaseAttachmentPreviewUrls([attachment])
   }

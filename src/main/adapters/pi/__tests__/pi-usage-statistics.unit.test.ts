@@ -114,7 +114,8 @@ describe('Pi Usage statistics hooks', () => {
     notePiRunForUsageStatistics(
       {
         runId: 'run-1',
-        payload: { text: '/skill:visualize chart it', thinkingLevel: 'high' },
+        payload: { text: '/skill:visualize chart it' },
+        session: { executionThinkingLevel: 'high' },
         enabledOpenWaggleExtensionPackages: [{}, {}],
       },
       { provider: 'acme-gateway', id: 'secret-model' },
@@ -125,6 +126,24 @@ describe('Pi Usage statistics hooks', () => {
     expect(recorded.observations).toEqual([
       { kind: 'extensions-enabled', count: 2 },
       { kind: 'skill', identifier: 'visualize' },
+    ])
+  })
+
+  it('falls back to the Session thinking level, then the default, when Pi reports none', () => {
+    notePiRunForUsageStatistics(
+      { runId: 'run-2', payload: { text: 'hi' }, session: { executionThinkingLevel: 'high' } },
+      { provider: 'anthropic', id: 'claude-sonnet-4-5' },
+      { thinkingLevel: undefined },
+    )
+    notePiRunForUsageStatistics(
+      { runId: 'run-3', payload: { text: 'hi' }, session: {} },
+      { provider: 'anthropic', id: 'claude-sonnet-4-5' },
+      { thinkingLevel: 'not-a-level' },
+    )
+
+    expect(recorded.models).toEqual([
+      ['run-2', { provider: 'anthropic', model: 'claude-sonnet-4-5' }, 'high'],
+      ['run-3', { provider: 'anthropic', model: 'claude-sonnet-4-5' }, 'medium'],
     ])
   })
 

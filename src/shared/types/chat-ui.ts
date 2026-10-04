@@ -90,6 +90,11 @@ export interface UIMessageMetadata {
   readonly compactionSummary?: ChatCompactionSummaryMetadata
   readonly waggleInvocation?: WaggleInvocationMetadata
   readonly steerDelivery?: 'waiting-for-compaction' | 'sending'
+  /**
+   * A user row the Run published when it incorporated the message, before its node was persisted:
+   * its id is a stream id, not a Session node id.
+   */
+  readonly liveIncorporated?: true
 }
 
 export interface UIMessage {

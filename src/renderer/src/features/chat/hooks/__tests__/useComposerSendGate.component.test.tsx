@@ -26,7 +26,6 @@ const { useComposerSendGate } = await import('../useComposerSendGate')
 
 const PAYLOAD: AgentSendPayload = {
   text: 'do the thing',
-  thinkingLevel: 'off',
   attachments: [],
 }
 

@@ -15,7 +15,6 @@ import * as Schedule from 'effect/Schedule'
 import { afterEach, beforeEach } from 'vitest'
 import { makeHiveWorkerCleanupTestLayer } from '../../adapters/__tests__/hive-worker-cleanup-fixture'
 import { AgentRunInterruptionService } from '../../ports/agent-run-interruption-service'
-import { AgentSteeringService } from '../../ports/agent-steering-service'
 import { SessionAuthorizationTargetRepository } from '../../ports/session-authorization-target-repository'
 import { SessionControlAttachmentService } from '../../ports/session-control-attachment-service'
 import { SessionControlIdentityService } from '../../ports/session-control-identity-service'
@@ -36,6 +35,7 @@ import { makeHiveWorkerCleanupLayer } from '../hive-worker-cleanup-service'
 import { executeSessionControlMutation } from '../session-control-command-service'
 import { startSessionRun } from '../session-control-service'
 import { executeSessionDelegationMutation } from '../session-delegation-service'
+import { NoSteeringLayer } from './agent-steering-test-layer'
 
 export function hiveHostLayer(databasePath: string) {
   const store = makeHiveWorkerCleanupTestLayer(databasePath)
@@ -55,6 +55,7 @@ export function hiveHostLayer(databasePath: string) {
       deliverPendingToActiveRun: () => Effect.succeed(false),
       deliverPendingSpecificationsToActiveRun: () => Effect.succeed(false),
     }),
+    NoSteeringLayer,
   )
   const cleanup = makeHiveWorkerCleanupLayer('inline').pipe(Layer.provide(store))
   return Layer.mergeAll(store, supportLayer, cleanup)
@@ -69,7 +70,6 @@ export function commandHostLayer(databasePath: string) {
         Effect.succeed({ terminalStatus: 'completed' as const, finalResponse: 'Done.' }),
     }),
     Layer.succeed(AgentRunInterruptionService, fromPartial({})),
-    Layer.succeed(AgentSteeringService, fromPartial({})),
     Layer.succeed(SessionAuthorizationTargetRepository, fromPartial({})),
     Layer.succeed(SessionControlAttachmentService, fromPartial({})),
     Layer.succeed(SessionDescendantRunRepository, fromPartial({})),

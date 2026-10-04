@@ -4,7 +4,11 @@ import {
   registerAttachmentPreviewUrls,
   takeAttachmentPreviewUrl,
 } from '@/shared/lib/attachment-preview-urls'
-import { markAttachmentsSubmitted } from '../composer-attachment-lifecycle'
+import {
+  isHostReferencedAttachment,
+  markAttachmentsSubmitted,
+  retainHostReferencedAttachments,
+} from '../composer-attachment-lifecycle'
 import { useComposerStore } from '../composer-store'
 
 const discardPreparedAttachment = vi.hoisted(() => vi.fn().mockResolvedValue(undefined))
@@ -87,5 +91,28 @@ describe('composer Session resource attachment lifecycle', () => {
     useComposerStore.getState().setInput('Describe this diagram')
 
     expect(discardPreparedAttachment).not.toHaveBeenCalled()
+  })
+
+  it('never discards a Host-referenced chip, and lets go of it once the chip is removed', () => {
+    retainHostReferencedAttachments([viewerImage])
+    useComposerStore.getState().addAttachments([viewerImage])
+    useComposerStore.getState().removeAttachment(viewerImage.id)
+
+    expect(discardPreparedAttachment).not.toHaveBeenCalled()
+    expect(isHostReferencedAttachment(viewerImage)).toBe(false)
+    // Once released it is an ordinary chip again.
+    useComposerStore.getState().addAttachments([viewerImage])
+    useComposerStore.getState().removeAttachment(viewerImage.id)
+    expect(discardPreparedAttachment).toHaveBeenCalledExactlyOnceWith(viewerImage)
+  })
+
+  it('lets go of a sent attachment when the draft that sent it is cleared', () => {
+    useComposerStore.getState().addAttachments([viewerImage])
+    markAttachmentsSubmitted([viewerImage])
+    useComposerStore.getState().reset()
+    useComposerStore.getState().addAttachments([viewerImage])
+    useComposerStore.getState().removeAttachment(viewerImage.id)
+
+    expect(discardPreparedAttachment).toHaveBeenCalledExactlyOnceWith(viewerImage)
   })
 })

@@ -11,7 +11,7 @@
 import path from 'node:path'
 import { match } from '@diegogbrisa/ts-match'
 import type { AgentAuthorizationMode } from '@shared/types/agent-authorization'
-import { THINKING_LEVELS, type ThinkingLevel } from '@shared/types/settings'
+import { DEFAULT_THINKING_LEVEL, THINKING_LEVELS, type ThinkingLevel } from '@shared/types/settings'
 import {
   USAGE_STATISTICS_CATALOG_PROVIDER_MODELS,
   USAGE_STATISTICS_CATALOG_SKILLS,
@@ -99,7 +99,8 @@ function toThinkingLevel(value: unknown): ThinkingLevel | undefined {
 export function notePiRunForUsageStatistics(
   run: {
     readonly runId: string
-    readonly payload: { readonly text: string; readonly thinkingLevel: ThinkingLevel }
+    readonly payload: { readonly text: string }
+    readonly session: { readonly executionThinkingLevel?: ThinkingLevel }
     readonly enabledOpenWaggleExtensionPackages?: readonly unknown[]
   },
   model: { readonly provider: string; readonly id: string },
@@ -109,7 +110,9 @@ export function notePiRunForUsageStatistics(
   noteUsageStatisticsRunModel(
     run.runId,
     piBuiltinCatalogIdentity(model.provider, model.id),
-    toThinkingLevel(session.thinkingLevel) ?? run.payload.thinkingLevel,
+    toThinkingLevel(session.thinkingLevel) ??
+      run.session.executionThinkingLevel ??
+      DEFAULT_THINKING_LEVEL,
   )
   recordUsageStatistics({
     kind: 'extensions-enabled',

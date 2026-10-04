@@ -2,6 +2,7 @@ import { FollowUpId, ReportCorrelationId, ReportId, RunId, SessionId } from '@sh
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import { describe, expect, it } from 'vitest'
+import { AgentSteeringService } from '../../ports/agent-steering-service'
 import { SessionControlIdentityService } from '../../ports/session-control-identity-service'
 import { SessionControlRunExecutor } from '../../ports/session-control-run-executor'
 import { SessionControlRunLifecycleRepository } from '../../ports/session-control-run-lifecycle-repository'
@@ -70,6 +71,11 @@ function coordinatorLayer(input: {
     }),
     Layer.succeed(SessionControlRunExecutor, {
       execute: () => record('executed').pipe(Effect.as({ terminalStatus: 'completed' as const })),
+    }),
+    Layer.succeed(AgentSteeringService, {
+      steer: () => Effect.die('No steering in this test.'),
+      readUndelivered: () => Effect.succeed([]),
+      forgetUndelivered: () => Effect.void,
     }),
     Layer.succeed(SessionOrchestrationUpdateDeliveryService, {
       deliverPendingToActiveRun: () => Effect.succeed(false),

@@ -7,11 +7,7 @@ import { parseJsonUnknown } from '@shared/schema'
 import type { ProjectedSessionNodeInput } from '../../../ports/session-repository'
 import { OPENWAGGLE_RUN_BOUNDARY_CUSTOM_TYPE } from '../run-attribution-extension'
 import { projectionForPiEntry } from './entry-projections'
-import {
-  decodeUserInputProjection,
-  decodeUserInputProjectionDigest,
-  OPENWAGGLE_USER_INPUT_CUSTOM_TYPE,
-} from './user-input-projection'
+import { findUserInputProjection } from './user-input-projection'
 
 interface PiSessionSnapshotSource {
   readonly sessionManager: Pick<AgentSession['sessionManager'], 'getEntries' | 'getLeafId'>
@@ -146,21 +142,7 @@ function runIdForEntry(input: {
 }
 
 function userDisplayProjection(entry: SessionEntry, entryById: ReadonlyMap<string, SessionEntry>) {
-  if (!isUserMessageEntry(entry)) return null
-
-  let parentId = entry.parentId
-  while (parentId) {
-    const parent = entryById.get(parentId)
-    if (!parent || parent.type === 'message') return null
-    if (parent.type === 'custom' && parent.customType === OPENWAGGLE_USER_INPUT_CUSTOM_TYPE) {
-      const parts = decodeUserInputProjection(parent.data)
-      return parts
-        ? { parts, durableTextSha256: decodeUserInputProjectionDigest(parent.data) }
-        : null
-    }
-    parentId = parent.parentId
-  }
-  return null
+  return isUserMessageEntry(entry) ? findUserInputProjection(entry.parentId, entryById) : null
 }
 
 function projectPiEntry(input: {

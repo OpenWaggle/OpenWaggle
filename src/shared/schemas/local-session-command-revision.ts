@@ -9,12 +9,16 @@ import {
   HOST_UI_REVISION_16_REQUIRED_CHANNELS,
   HOST_UI_REVISION_17_REQUIRED_CHANNELS,
   HOST_UI_REVISION_20_REQUIRED_CHANNELS,
+  HOST_UI_REVISION_21_ARGUMENT_COUNTS,
+  HOST_UI_REVISION_21_REQUIRED_CHANNELS,
   type HostBackedGuiChannel,
+  type HostUiV1Request,
 } from '@shared/types/host-ui-protocol'
 import {
   LOCAL_SESSION_AUTHORIZATION_GRANTS_REVISION,
   LOCAL_SESSION_COMPACTION_REVISION,
   LOCAL_SESSION_DESKTOP_SERVICE_REVISION,
+  LOCAL_SESSION_FOLLOW_UP_EDIT_REVISION,
   LOCAL_SESSION_HOST_CONTROL_REVISION,
   LOCAL_SESSION_LEGACY_HOST_UI_REVISION,
   LOCAL_SESSION_MCP_AUTH_REVISION,
@@ -22,6 +26,7 @@ import {
   LOCAL_SESSION_NATIVE_ACTIONS_REVISION,
   LOCAL_SESSION_PROJECT_CATALOG_REVISION,
   LOCAL_SESSION_RESOURCE_HOST_UI_REVISION,
+  LOCAL_SESSION_SESSION_SETTINGS_REVISION,
   LOCAL_SESSION_STEERING_RECEIPT_REVISION,
   LOCAL_SESSION_TITLE_REGENERATION_REVISION,
   LOCAL_SESSION_TURN_DIFF_FILES_REVISION,
@@ -31,7 +36,22 @@ import {
   type LocalSessionCommandPayload,
 } from '@shared/types/local-session-protocol'
 
-export function requiredHostUiRevision(channel: HostBackedGuiChannel) {
+/** Whether the request passes an argument its channel gained in revision 21. */
+function usesRevision21Argument(request: Pick<HostUiV1Request, 'channel' | 'args'>) {
+  const counts: Partial<Record<HostBackedGuiChannel, number>> = HOST_UI_REVISION_21_ARGUMENT_COUNTS
+  const count = counts[request.channel]
+  return count !== undefined && request.args.length >= count
+}
+
+/** The revision a Host UI request needs: its channel's, or later for an argument added since. */
+export function requiredHostUiRevision(request: Pick<HostUiV1Request, 'channel' | 'args'>) {
+  const { channel } = request
+  if (
+    HOST_UI_REVISION_21_REQUIRED_CHANNELS.some((candidate) => candidate === channel) ||
+    usesRevision21Argument(request)
+  ) {
+    return LOCAL_SESSION_SESSION_SETTINGS_REVISION
+  }
   if (HOST_UI_REVISION_20_REQUIRED_CHANNELS.some((candidate) => candidate === channel)) {
     return LOCAL_SESSION_TITLE_REGENERATION_REVISION
   }
@@ -64,7 +84,28 @@ export function requiredHostUiRevision(channel: HostBackedGuiChannel) {
     : LOCAL_SESSION_LEGACY_HOST_UI_REVISION
 }
 
+/** Follow-up edit commands (ADR 0044) need a Host that can hold a Follow-up. */
+export function isFollowUpEditCommand(payload: LocalSessionCommandPayload) {
+  if (payload.contract === 'local-ui-v1') {
+    return payload.request.command.operation === 'renew-follow-up-edit-hold'
+  }
+  if (payload.contract !== 'session-control-v2') return false
+  const { operation } = payload.request.command
+  return (
+    operation === 'queue-edit-begin' ||
+    operation === 'queue-edit-save' ||
+    operation === 'queue-edit-cancel'
+  )
+}
+
 export function requiredLocalSessionCommandRevision(payload: LocalSessionCommandPayload) {
+  if (isFollowUpEditCommand(payload)) return LOCAL_SESSION_FOLLOW_UP_EDIT_REVISION
+  if (
+    payload.contract === 'session-control-v2' &&
+    payload.request.command.operation === 'queue-adopt'
+  ) {
+    return LOCAL_SESSION_SESSION_SETTINGS_REVISION
+  }
   if (payload.contract === 'local-update-v1') return LOCAL_SESSION_UPDATE_REVISION
   if (payload.contract === 'local-host-v1') return LOCAL_SESSION_HOST_CONTROL_REVISION
   if (payload.contract === 'desktop-service-v1') return LOCAL_SESSION_DESKTOP_SERVICE_REVISION
@@ -75,7 +116,7 @@ export function requiredLocalSessionCommandRevision(payload: LocalSessionCommand
   ) {
     return LOCAL_SESSION_STEERING_RECEIPT_REVISION
   }
-  if (payload.contract === 'host-ui-v1') return requiredHostUiRevision(payload.request.channel)
+  if (payload.contract === 'host-ui-v1') return requiredHostUiRevision(payload.request)
   if (
     payload.contract === 'local-compaction-v1' ||
     payload.contract === 'local-compaction-cancel-v1'

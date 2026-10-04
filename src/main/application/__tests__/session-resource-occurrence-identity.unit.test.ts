@@ -62,7 +62,6 @@ describe('session resource occurrence identity', () => {
         runId: 'live-run-id',
         payload: {
           text: 'Review [reference](https://user.example/reference)',
-          thinkingLevel: 'medium',
           attachments: [attachment],
         },
         messages,

@@ -42,7 +42,6 @@ describe('useAgentChat reconnect', () => {
         SessionId('session-1'),
         createSessionWithMessages(1, []),
         SupportedModelId('claude-sonnet-4-5'),
-        'medium',
       ),
     )
 
@@ -71,7 +70,6 @@ describe('useAgentChat reconnect', () => {
         SessionId('session-1'),
         createSessionWithMessages(1, []),
         SupportedModelId('claude-sonnet-4-5'),
-        'medium',
       ),
     )
 
@@ -147,7 +145,6 @@ describe('useAgentChat reconnect', () => {
         SessionId('session-1'),
         createSessionWithMessages(1, []),
         SupportedModelId('claude-sonnet-4-5'),
-        'medium',
       ),
     )
 
@@ -199,7 +196,6 @@ describe('useAgentChat reconnect', () => {
         SessionId('session-1'),
         createSessionWithMessages(1, []),
         SupportedModelId('claude-sonnet-4-5'),
-        'medium',
       ),
     )
 

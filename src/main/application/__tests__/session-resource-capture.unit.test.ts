@@ -16,7 +16,6 @@ describe('captureSuccessfulRunResources', () => {
     const storedAttachmentSha256: Array<string | undefined> = []
     const payload: AgentSendPayload = {
       text: 'Review [reference](https://user.example/reference)',
-      thinkingLevel: 'medium',
       attachments: [
         {
           id: 'attachment-1',
@@ -84,7 +83,6 @@ describe('captureSuccessfulRunResources', () => {
         runId: 'run-missing-attachment',
         payload: {
           text: 'Review the attachment.',
-          thinkingLevel: 'medium',
           attachments: [
             {
               id: 'attachment-missing',
@@ -194,7 +192,6 @@ describe('captureSuccessfulRunResources', () => {
         runId: 'run-1',
         payload: {
           text: 'Review [reference](https://user.example/reference)',
-          thinkingLevel: 'medium',
           attachments: [],
         },
         messages: resourceMessages(),
@@ -232,7 +229,6 @@ describe('captureSuccessfulRunResources', () => {
         runId: 'run-remote-image',
         payload: {
           text: 'Show the image.',
-          thinkingLevel: 'medium',
           attachments: [],
         },
         messages: [
@@ -275,7 +271,7 @@ describe('captureSuccessfulRunResources', () => {
       captureSuccessfulRunResources({
         sessionId: SessionId('session-1'),
         runId: 'run-many-remote-images',
-        payload: { text: '', thinkingLevel: 'medium', attachments: [] },
+        payload: { text: '', attachments: [] },
         messages: [
           {
             id: MessageId('assistant-many-images'),
@@ -303,7 +299,7 @@ describe('captureSuccessfulRunResources', () => {
       captureSuccessfulRunResources({
         sessionId: SessionId('session-1'),
         runId: 'run-shared',
-        payload: { text: '', thinkingLevel: 'medium', attachments: [] },
+        payload: { text: '', attachments: [] },
         messages: [first, second],
       }).pipe(Effect.provide(sessionResourceTestLayer(upserts))),
     )

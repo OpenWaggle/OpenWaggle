@@ -50,7 +50,7 @@ describe('session resource capture validation', () => {
       captureSuccessfulRunResources({
         sessionId: SessionId('session-1'),
         runId: 'run-1',
-        payload: { text: '', thinkingLevel: 'medium', attachments: [] },
+        payload: { text: '', attachments: [] },
         messages: invalidMessages,
       }).pipe(Effect.provide(sessionResourceTestLayer(upserts))),
     )
@@ -80,7 +80,6 @@ describe('session resource capture validation', () => {
         runId: `run-${fixture.name}`,
         payload: {
           text: '',
-          thinkingLevel: 'medium',
           attachments: [
             {
               id: fixture.name,
@@ -118,7 +117,6 @@ describe('session resource capture validation', () => {
         runId: 'run-duplicate',
         payload: {
           text: '',
-          thinkingLevel: 'medium',
           attachments: [
             {
               id: 'duplicate',

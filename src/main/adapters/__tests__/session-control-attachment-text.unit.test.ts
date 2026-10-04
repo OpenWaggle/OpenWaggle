@@ -56,7 +56,6 @@ it('submits a bounded paste preview while resolving the full immutable Host snap
         }
         const submission = decodeUnknownExactOrThrow(agentSendPayloadSchema, {
           text: '',
-          thinkingLevel: 'off',
           attachments: decoded.response.attachments.map((attachment) => ({
             ...attachment,
             name: 'Pasted Text 1.md',

@@ -97,7 +97,6 @@ it('sends a browser annotation with a real Host capability and immutable provena
     // This is the actual composer send boundary: it submits capability IDs, not GUI blobs.
     const submission = decodeUnknownExactOrThrow(agentSendPayloadSchema, {
       text: 'Apply the annotated change.',
-      thinkingLevel: 'medium',
       attachments: [annotation],
     })
     await fs.writeFile(screenshot.path, Buffer.from([9, 9, 9]))

@@ -4,7 +4,6 @@ import type { SessionId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
 import type { SupportedModelId } from '@shared/types/llm'
 import type { SessionDetail } from '@shared/types/session'
-import type { ThinkingLevel } from '@shared/types/settings'
 import type { WaggleConfig } from '@shared/types/waggle'
 import { useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { useAgentLoopEventStore } from '@/features/chat/state/agent-loop-event-store'
@@ -59,7 +58,6 @@ export function useAgentChat(
   sessionId: SessionId | null,
   session: SessionDetail | null,
   model: SupportedModelId | undefined,
-  _thinkingLevel: ThinkingLevel,
 ): AgentChatReturn {
   const upsertSession = useChatStore((state) => state.upsertSession)
   const hasActiveRun = useBackgroundRunStore((state) => state.hasActiveRun)

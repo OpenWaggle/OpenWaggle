@@ -1,6 +1,8 @@
 import type { AgentAuthorizationMode } from '@shared/types/agent-authorization'
 import type { SessionId } from '@shared/types/brand'
+import type { SupportedModelId } from '@shared/types/llm'
 import type { SessionDetail, SessionWorktreePlan } from '@shared/types/session'
+import type { ThinkingLevel } from '@shared/types/settings'
 import { useComposerStore } from '@/features/composer/state'
 import { useDiffScopeStore } from '@/features/diff-panel'
 import { prepareDraftWorktreePlan } from '@/features/git/state'
@@ -72,11 +74,25 @@ async function loadSessions(set: ChatSet, get: ChatGet) {
   }
 }
 
+/** Sends only the trailing arguments that are set: the Host refuses an extra `undefined`. */
+function requestSession(
+  projectPath: string,
+  worktreePlan: SessionWorktreePlan | undefined,
+  model: SupportedModelId | undefined,
+  thinkingLevel: ThinkingLevel | undefined,
+) {
+  if (thinkingLevel) return api.createSession(projectPath, worktreePlan, model, thinkingLevel)
+  if (model) return api.createSession(projectPath, worktreePlan, model)
+  if (worktreePlan) return api.createSession(projectPath, worktreePlan)
+  return api.createSession(projectPath)
+}
+
 async function createSession(
   projectPath: string,
   set: ChatSet,
   get: ChatGet,
   worktreePlan?: SessionWorktreePlan,
+  thinkingLevel?: ThinkingLevel,
 ) {
   const initial = get()
   const generation = draftMaterializationGeneration()
@@ -87,11 +103,7 @@ async function createSession(
   if (createsCurrentDraft && initial.draftSession)
     set({ draftSession: { ...initial.draftSession, isMaterializing: true } })
   try {
-    const session = selectedModel
-      ? await api.createSession(projectPath, worktreePlan, selectedModel)
-      : worktreePlan
-        ? await api.createSession(projectPath, worktreePlan)
-        : await api.createSession(projectPath)
+    const session = await requestSession(projectPath, worktreePlan, selectedModel, thinkingLevel)
     const shouldActivate =
       generation === draftMaterializationGeneration() &&
       get().activeSessionId === initial.activeSessionId
@@ -269,8 +281,8 @@ function updateSessionTitle(id: SessionId, title: string, set: ChatSet, get: Cha
 export function createChatActions(set: ChatSet, get: ChatGet): ChatActions {
   return {
     loadSessions: () => loadSessions(set, get),
-    createSession: (projectPath, worktreePlan) =>
-      createSession(projectPath, set, get, worktreePlan),
+    createSession: (projectPath, worktreePlan, thinkingLevel) =>
+      createSession(projectPath, set, get, worktreePlan, thinkingLevel),
     startDraftSession: (projectPath = null) => {
       invalidateDraftMaterialization()
       const state = get()

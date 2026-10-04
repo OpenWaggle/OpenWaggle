@@ -16,19 +16,8 @@ export type SessionControlQueueMutation =
   | ReorderFollowUps
   | PauseFollowUpQueue
   | ResumeFollowUpQueue
-  | {
-      readonly type: 'update-authorization'
-      readonly followUpId: FollowUpId
-      readonly callerId: string
-      readonly runAuthorizationOverride: 'yolo' | 'ask-for-approval' | null
-    }
 
-type QueueMutationOperation =
-  | 'queue-withdraw'
-  | 'queue-reorder'
-  | 'queue-pause'
-  | 'queue-resume'
-  | 'queue-update-authorization'
+type QueueMutationOperation = 'queue-withdraw' | 'queue-reorder' | 'queue-pause' | 'queue-resume'
 
 export type ApplyQueueMutationResult =
   | {
@@ -84,68 +73,10 @@ function operationForMutation(mutation: SessionControlQueueMutation): QueueMutat
     .with('reorder', () => 'queue-reorder')
     .with('pause', () => 'queue-pause')
     .with('resume', () => 'queue-resume')
-    .with('update-authorization', () => 'queue-update-authorization')
     .exhaustive()
 }
 
-function applyAuthorizationUpdate(
-  input: ApplyQueueMutationInput,
-  mutation: Extract<SessionControlQueueMutation, { type: 'update-authorization' }>,
-): ApplyQueueMutationResult {
-  const itemIndex = input.state.followUpQueue.items.findIndex(
-    (item) => item.id === mutation.followUpId,
-  )
-  const selected = input.state.followUpQueue.items[itemIndex]
-  if (!selected) {
-    return {
-      accepted: false,
-      code: 'follow_up_not_found',
-      currentRevision: input.state.followUpQueue.revision,
-      state: input.state,
-    }
-  }
-  const { runAuthorizationOverride: _previous, ...baseIntent } = selected.intent
-  const { attentionReason: _reason, ...baseFollowUp } = selected
-  const authorCallerId = baseIntent.authorCallerId ?? baseIntent.callerId
-  const items = [...input.state.followUpQueue.items]
-  items[itemIndex] = {
-    ...baseFollowUp,
-    deliveryState: 'pending',
-    intent: {
-      ...baseIntent,
-      callerId: mutation.callerId,
-      ...(authorCallerId !== mutation.callerId ? { authorCallerId } : {}),
-      ...(mutation.runAuthorizationOverride
-        ? { runAuthorizationOverride: mutation.runAuthorizationOverride }
-        : {}),
-    },
-  }
-  const queueRevision = input.state.followUpQueue.revision + STATE_REVISION_INCREMENT
-  const stateRevision = input.state.revision + STATE_REVISION_INCREMENT
-  const state = {
-    ...input.state,
-    revision: stateRevision,
-    followUpQueue: { ...input.state.followUpQueue, revision: queueRevision, items },
-  }
-  return {
-    accepted: true,
-    state,
-    outcome: {
-      operation: 'queue-update-authorization',
-      effect: 'queue-updated',
-      sessionId: state.sessionId,
-      queueState: state.followUpQueue.state,
-      queueRevision,
-      followUpIds: items.map((item) => item.id),
-      stateRevision,
-    },
-  }
-}
-
 export function applyQueueMutation(input: ApplyQueueMutationInput): ApplyQueueMutationResult {
-  if (input.mutation.type === 'update-authorization') {
-    return applyAuthorizationUpdate(input, input.mutation)
-  }
   const queueResult = mutateFollowUpQueue(input.state.followUpQueue, input.mutation)
   if (!queueResult.accepted) return { ...queueResult, state: input.state }
 
@@ -154,7 +85,8 @@ export function applyQueueMutation(input: ApplyQueueMutationInput): ApplyQueueMu
   if (
     input.mutation.type === 'resume' &&
     input.state.run.state === 'idle' &&
-    nextFollowUp?.deliveryState === 'pending'
+    nextFollowUp?.deliveryState === 'pending' &&
+    !nextFollowUp.editHold
   ) {
     const queueRevision = queueResult.queue.revision + STATE_REVISION_INCREMENT
     return {

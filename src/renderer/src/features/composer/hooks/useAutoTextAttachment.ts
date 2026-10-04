@@ -2,6 +2,7 @@ import { PERCENT_BASE } from '@shared/constants/math'
 import type { PreparedAttachment } from '@shared/types/agent'
 import { useEffect, useRef, useState } from 'react'
 import { api } from '@/shared/lib/ipc'
+import { trackAttachmentPreparation } from '../state/composer-activity-store'
 import { useComposerInputGuard } from './useComposerInputGuard'
 
 const LONG_PROMPT_THRESHOLD = 12_000
@@ -83,8 +84,8 @@ export function useAutoTextAttachment({
       return
     }
 
-    const autoAttachment = await prepareAttachmentFromText(trimmedPastedText, operationId).catch(
-      () => null,
+    const autoAttachment = await trackAttachmentPreparation(
+      prepareAttachmentFromText(trimmedPastedText, operationId).catch(() => null),
     )
     if (!isCurrentDraft()) {
       clearPendingChip(operationId)

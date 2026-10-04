@@ -1,6 +1,6 @@
 import type { RunId, SessionId } from '@shared/types/brand'
 import * as Effect from 'effect/Effect'
-import type { SessionControlIntentSnapshot } from '../domain/session-control/message-aggregate'
+import type { SessionControlRunIntent } from '../domain/session-control/message-aggregate'
 import { SessionControlIdentityService } from '../ports/session-control-identity-service'
 import {
   SessionControlRunLifecycleRepository,
@@ -9,11 +9,12 @@ import {
 import { SessionOrchestrationUpdateDeliveryService } from '../ports/session-orchestration-update-delivery-service'
 import { publishSessionHostEvent } from '../session-host/session-host-events'
 import { requestHiveWorkerCleanup } from './hive-worker-cleanup-request'
+import { settleWithUndeliveredSteers } from './undelivered-steering-settlement'
 
 export function startExternalSessionRun(input: {
   readonly sessionId: SessionId
   readonly runId: RunId
-  readonly intent: SessionControlIntentSnapshot
+  readonly intent: SessionControlRunIntent
   readonly hostRunCeiling?: number
 }) {
   return Effect.gen(function* () {
@@ -38,7 +39,7 @@ export function prepareExternalSessionRunReplacement(input: {
   readonly sessionId: SessionId
   readonly previousRunId?: RunId
   readonly runId: RunId
-  readonly intent: SessionControlIntentSnapshot
+  readonly intent: SessionControlRunIntent
   readonly hostRunCeiling?: number
 }) {
   return Effect.gen(function* () {
@@ -80,12 +81,18 @@ export function settleExternalSessionRun(input: {
     const lifecycle = yield* SessionControlRunLifecycleRepository
     const updateDelivery = yield* SessionOrchestrationUpdateDeliveryService
     const nextRunId = yield* identities.nextRunId
-    const settlement = yield* lifecycle.settle({
+    const settlement = yield* settleWithUndeliveredSteers({
       sessionId: input.sessionId,
       runId: input.runId,
-      nextRunId,
-      terminalStatus: input.terminalStatus,
-      ...(input.finalResponse ? { finalResponse: input.finalResponse } : {}),
+      settle: (undeliveredSteers) =>
+        lifecycle.settle({
+          sessionId: input.sessionId,
+          runId: input.runId,
+          nextRunId,
+          terminalStatus: input.terminalStatus,
+          ...(input.finalResponse ? { finalResponse: input.finalResponse } : {}),
+          ...(undeliveredSteers.length > 0 ? { undeliveredSteers } : {}),
+        }),
     })
     if (!settlement.accepted) return settlement
     publishSessionHostEvent({

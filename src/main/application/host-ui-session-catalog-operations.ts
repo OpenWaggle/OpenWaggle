@@ -5,6 +5,8 @@ import type {
   SessionSummary,
 } from '@shared/types/session'
 import * as Effect from 'effect/Effect'
+import * as Option from 'effect/Option'
+import { FollowUpEditHoldRepository } from '../ports/follow-up-edit-hold-repository'
 import { SessionRepository } from '../ports/session-repository'
 import { SettingsService } from '../services/settings-service'
 import { listPendingAgentLoopInteractions } from './agent-loop-interaction-broker'
@@ -17,7 +19,24 @@ const MAX_IDS = 100
 const TWO_ARGUMENTS = 2
 const THREE_ARGUMENTS = 3
 
-function attachPendingInteractions(sessions: readonly SessionSummary[]) {
+const NO_HELD_SESSIONS: ReadonlyMap<string, number> = new Map()
+
+/**
+ * Sessions whose queue waits on the user's Follow-up edit. Optional: a runtime without Session
+ * Control persistence has no holds, and a failed read must not hide the catalog.
+ */
+const followUpEditHeldSessions = Effect.serviceOption(FollowUpEditHoldRepository).pipe(
+  Effect.flatMap((holds) =>
+    Option.isSome(holds)
+      ? holds.value.heldSessions().pipe(Effect.orElseSucceed(() => NO_HELD_SESSIONS))
+      : Effect.succeed(NO_HELD_SESSIONS),
+  ),
+)
+
+function attachPendingInteractions(
+  sessions: readonly SessionSummary[],
+  heldAtBySessionId: ReadonlyMap<string, number> = NO_HELD_SESSIONS,
+) {
   const pendingAtBySessionId = new Map<string, number>()
   for (const interaction of listPendingAgentLoopInteractions()) {
     const sessionId = String(interaction.sessionId)
@@ -29,23 +48,31 @@ function attachPendingInteractions(sessions: readonly SessionSummary[]) {
   const pendingInteractionSnapshotAt = Date.now()
   return sessions.map((session) => {
     const pendingInteractionAt = pendingAtBySessionId.get(String(session.id))
+    const followUpEditHeldAt = heldAtBySessionId.get(String(session.id))
     return {
       ...session,
       pendingInteractionSnapshotAt,
       ...(pendingInteractionAt === undefined ? {} : { pendingInteractionAt }),
+      ...(followUpEditHeldAt === undefined ? {} : { followUpEditHeldAt }),
     }
   })
 }
 
-function attachCatalogPendingInteractions(page: SessionCatalogPage): SessionCatalogPage {
-  return { ...page, sessions: attachPendingInteractions(page.sessions) }
+function attachCatalogPendingInteractions(
+  page: SessionCatalogPage,
+  heldAtBySessionId: ReadonlyMap<string, number>,
+): SessionCatalogPage {
+  return { ...page, sessions: attachPendingInteractions(page.sessions, heldAtBySessionId) }
 }
 
-function attachHivePendingInteractions(page: HiveSessionCatalogPage): HiveSessionCatalogPage {
+function attachHivePendingInteractions(
+  page: HiveSessionCatalogPage,
+  heldAtBySessionId: ReadonlyMap<string, number>,
+): HiveSessionCatalogPage {
   return {
     ...page,
-    context: attachPendingInteractions(page.context),
-    workers: attachPendingInteractions(page.workers),
+    context: attachPendingInteractions(page.context, heldAtBySessionId),
+    workers: attachPendingInteractions(page.workers, heldAtBySessionId),
   }
 }
 
@@ -70,7 +97,8 @@ export function listSessionsByIds(args: readonly unknown[]) {
     }
     const ids = yield* Effect.forEach(args[0], validateSessionId)
     const repository = yield* SessionRepository
-    return attachPendingInteractions(yield* repository.listByIds(ids))
+    const sessions = yield* repository.listByIds(ids)
+    return attachPendingInteractions(sessions, yield* followUpEditHeldSessions)
   })
 }
 
@@ -83,9 +111,8 @@ export function listSessionCatalogPage(args: readonly unknown[]) {
     const limit = yield* validateLimit(args[1])
     const cursor = yield* validateCursor(args[TWO_ARGUMENTS])
     const repository = yield* SessionRepository
-    return attachCatalogPendingInteractions(
-      yield* repository.listCatalogPage(args[0], limit, cursor),
-    )
+    const page = yield* repository.listCatalogPage(args[0], limit, cursor)
+    return attachCatalogPendingInteractions(page, yield* followUpEditHeldSessions)
   })
 }
 
@@ -125,9 +152,8 @@ export function listHiveSessionCatalogPage(args: readonly unknown[]) {
     const limit = yield* validateLimit(args[1])
     const cursor = yield* validateCursor(args[TWO_ARGUMENTS])
     const repository = yield* SessionRepository
-    return attachHivePendingInteractions(
-      yield* repository.listHiveCatalogPage(sessionId, limit, cursor),
-    )
+    const page = yield* repository.listHiveCatalogPage(sessionId, limit, cursor)
+    return attachHivePendingInteractions(page, yield* followUpEditHeldSessions)
   })
 }
 

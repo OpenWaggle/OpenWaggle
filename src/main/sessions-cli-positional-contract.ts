@@ -42,7 +42,6 @@ const GROUPED: Readonly<Record<string, CommandCliArgumentContract>> = {
   'queue:reorder': { minimum: 3 },
   'queue:pause': { minimum: 2, maximum: 2 },
   'queue:resume': { minimum: 2, maximum: 2 },
-  'queue:update-authorization': { minimum: 3, maximum: 3 },
   'requests:list': { minimum: 2, maximum: 2 },
   'requests:respond': { minimum: 4, maximum: 4 },
   'delegation:submit': { minimum: 4 },

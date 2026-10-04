@@ -1,13 +1,16 @@
 import { SupportedModelId } from '@shared/types/brand'
 import type { ProviderInfo } from '@shared/types/llm'
-import { DEFAULT_SETTINGS } from '@shared/types/settings'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { DEFAULT_SETTINGS, type ThinkingLevel } from '@shared/types/settings'
+import { fireEvent, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { defaultThinkingLevelQueryOptions } from '@/features/chat/hooks'
 import { useChatStore } from '@/features/chat/state'
 import { useComposerStore } from '@/features/composer/state/composer-store'
 import { useProviderStore } from '@/features/providers/state'
 import { usePreferencesStore } from '@/features/settings/state'
+import { createRendererQueryClient } from '@/queries/query-client'
 import { Button } from '@/shared/ui/Button'
+import { renderWithQueryClient } from '@/test-utils/query-test-utils'
 import { ComposerToolbar } from '../ComposerToolbar'
 
 vi.mock('@/shared/lib/ipc', () => ({
@@ -15,6 +18,7 @@ vi.mock('@/shared/lib/ipc', () => ({
     getSettings: vi.fn().mockResolvedValue({}),
     updateSettings: vi.fn().mockResolvedValue({ ok: true }),
     getProviderModels: vi.fn().mockResolvedValue([]),
+    getDefaultThinkingLevel: vi.fn().mockResolvedValue('medium'),
   },
 }))
 
@@ -45,7 +49,10 @@ const PROVIDER_MODELS: ProviderInfo[] = [
   },
 ]
 
-function renderToolbar(overrides: Partial<Parameters<typeof ComposerToolbar>[0]> = {}) {
+function renderToolbar(
+  overrides: Partial<Parameters<typeof ComposerToolbar>[0]> = {},
+  defaultThinkingLevel: ThinkingLevel = 'medium',
+) {
   const fileInputRef: React.RefObject<HTMLInputElement | null> = { current: null }
   const defaults = {
     submission: {
@@ -58,7 +65,10 @@ function renderToolbar(overrides: Partial<Parameters<typeof ComposerToolbar>[0]>
     voiceMode: 'idle' as const,
     fileInputRef,
   }
-  return render(<ComposerToolbar {...defaults} {...overrides} />)
+  // A draft composer (no Session) shows Pi's default thinking level for new Sessions.
+  const client = createRendererQueryClient()
+  client.setQueryData(defaultThinkingLevelQueryOptions().queryKey, defaultThinkingLevel)
+  return renderWithQueryClient(<ComposerToolbar {...defaults} {...overrides} />, client)
 }
 
 function submission(overrides: Partial<Parameters<typeof ComposerToolbar>[0]['submission']> = {}) {
@@ -174,14 +184,7 @@ describe('ComposerToolbar', () => {
         },
       ],
     })
-    usePreferencesStore.setState({
-      settings: {
-        ...usePreferencesStore.getState().settings,
-        thinkingLevel: 'max',
-      },
-    })
-
-    renderToolbar()
+    renderToolbar({}, 'max')
 
     expect(screen.getByRole('button', { name: 'Thinking level: Max' })).toBeInTheDocument()
     fireEvent.click(screen.getByTitle('Select thinking level'))
@@ -210,14 +213,7 @@ describe('ComposerToolbar', () => {
   })
 
   it('shows the selected model effective thinking level instead of unsupported xhigh', () => {
-    usePreferencesStore.setState({
-      settings: {
-        ...usePreferencesStore.getState().settings,
-        thinkingLevel: 'xhigh',
-      },
-    })
-
-    renderToolbar()
+    renderToolbar({}, 'xhigh')
 
     expect(screen.getByRole('button', { name: /high/i })).toBeInTheDocument()
     fireEvent.click(screen.getByTitle('Extra High is not available for this model; using High'))

@@ -1,4 +1,3 @@
-import { matchBy } from '@diegogbrisa/ts-match'
 import { RunId } from '@shared/types/brand'
 import type { LocalSessionCallerIdentity } from '@shared/types/local-session-profile'
 import type {
@@ -6,20 +5,15 @@ import type {
   SessionControlInterruptMutationRequest,
   SessionControlMutationOutcome,
   SessionControlMutationResponse,
-  SessionControlSteerMutationRequest,
 } from '@shared/types/session-control'
 import * as Effect from 'effect/Effect'
 import {
   applyRunInterruption,
   releaseRejectedRunInterruption,
 } from '../domain/session-control/run-interruption'
-import { planSteeringMessage } from '../domain/session-control/steering'
 import { SessionControlOperationPendingError } from '../errors'
-import { AgentSteeringService } from '../ports/agent-steering-service'
-import { SessionControlAttachmentService } from '../ports/session-control-attachment-service'
 import { SessionControlOperationJournal } from '../ports/session-control-operation-journal'
 import { SessionDescendantRunRepository } from '../ports/session-descendant-run-repository'
-import { releaseSessionControlAttachments } from './session-attachment-cleanup'
 import { authorizeDescendantInterruptionSnapshot } from './session-control-descendant-authorization'
 import {
   interruptRunWithBoundedSettlement,
@@ -27,11 +21,6 @@ import {
 } from './session-control-interruption-settlement'
 
 const DESCENDANT_INTERRUPTION_CONCURRENCY = 8
-
-export interface SteerSessionRunInput {
-  readonly callerId: string
-  readonly request: SessionControlSteerMutationRequest
-}
 
 export interface InterruptSessionRunInput {
   readonly callerId: string
@@ -41,7 +30,6 @@ export interface InterruptSessionRunInput {
 
 function response(
   request:
-    | SessionControlSteerMutationRequest
     | SessionControlInterruptMutationRequest
     | SessionControlInterruptDescendantsMutationRequest,
   replayed: boolean,
@@ -129,112 +117,6 @@ export function interruptSessionDescendants(input: {
       stateRevision: claim.stateRevision,
     }
     yield* journal.complete({ callerId: input.callerId, request: input.request, outcome })
-    return response(input.request, false, outcome)
-  })
-}
-
-export function steerSessionRun(input: SteerSessionRunInput) {
-  return Effect.gen(function* () {
-    const journal = yield* SessionControlOperationJournal
-    const claim = yield* journal.claim({
-      callerId: input.callerId,
-      request: input.request,
-      decide: (state) => {
-        const plan = planSteeringMessage({
-          requestedRunId: RunId(input.request.command.expectedRunId),
-          run: matchBy(state.run, 'state')
-            .with('idle', () => ({ state: 'idle' }) as const)
-            .with('starting', (run) => ({
-              state: 'active',
-              runId: run.runId,
-              acceptsSteering: false,
-            }))
-            .with('active', (run) => ({
-              state: 'active',
-              runId: run.runId,
-              acceptsSteering: true,
-            }))
-            .with('stopping', (run) => ({ state: 'stopping', runId: run.runId }))
-            .exhaustive(),
-        })
-        return plan.accepted
-          ? { accepted: true }
-          : {
-              accepted: false,
-              outcome: {
-                operation: 'steer',
-                effect: 'rejected',
-                sessionId: state.sessionId,
-                code: plan.code,
-              },
-            }
-      },
-    })
-
-    if (claim.status === 'completed') {
-      return response(input.request, claim.replayed, claim.outcome)
-    }
-    if (claim.status === 'pending') {
-      return yield* Effect.fail(
-        new SessionControlOperationPendingError({
-          operation: 'steer',
-          sessionId: input.request.command.sessionId,
-          idempotencyKey: input.request.idempotencyKey,
-        }),
-      )
-    }
-
-    const attachments = yield* SessionControlAttachmentService.pipe(
-      Effect.flatMap((service) =>
-        service.resolve({
-          attachmentIds: input.request.command.input.attachmentIds,
-          sessionId: input.request.command.sessionId,
-          ownerCallerId: input.callerId,
-        }),
-      ),
-      Effect.either,
-    )
-    const steering =
-      attachments._tag === 'Left'
-        ? ({ accepted: false, code: 'attachment_resolution_failed' } as const)
-        : yield* AgentSteeringService.pipe(
-            Effect.flatMap((service) =>
-              service.steer({
-                runId: input.request.command.expectedRunId,
-                text: input.request.command.input.text,
-                attachments: attachments.right,
-                ...(input.request.command.input.visualizationContext
-                  ? { visualizationContext: input.request.command.input.visualizationContext }
-                  : {}),
-              }),
-            ),
-            Effect.catchAll(() =>
-              Effect.succeed({ accepted: false, code: 'steering_failed' } as const),
-            ),
-          )
-    const outcome: SessionControlMutationOutcome = steering.accepted
-      ? {
-          operation: 'steer',
-          effect: 'steered-run',
-          receipt: steering.receipt,
-          sessionId: input.request.command.sessionId,
-          runId: input.request.command.expectedRunId,
-          stateRevision: claim.stateRevision,
-        }
-      : {
-          operation: 'steer',
-          effect: 'rejected',
-          sessionId: input.request.command.sessionId,
-          code: steering.code,
-        }
-    yield* journal.complete({ callerId: input.callerId, request: input.request, outcome })
-    if (steering.accepted) {
-      yield* releaseSessionControlAttachments({
-        attachmentIds: input.request.command.input.attachmentIds,
-        sessionId: input.request.command.sessionId,
-        ownerCallerId: input.callerId,
-      })
-    }
     return response(input.request, false, outcome)
   })
 }

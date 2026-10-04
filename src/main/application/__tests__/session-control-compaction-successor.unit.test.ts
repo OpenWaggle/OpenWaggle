@@ -29,6 +29,7 @@ import {
 import { dispatchAcceptedSessionControlRun } from '../session-control-command-service'
 import { SessionHostEventHub } from '../session-host-event-hub'
 import { SessionHostLiveness } from '../session-host-liveness'
+import { NoSteeringLayer } from './agent-steering-test-layer'
 
 describe('Session Control Run dispatch behind compaction', () => {
   afterEach(() => cancelAllSessionRuns())
@@ -86,6 +87,7 @@ describe('Session Control Run dispatch behind compaction', () => {
         nextReportCorrelationId: Effect.succeed(ReportCorrelationId('unused-correlation')),
         now: Effect.succeed(2_000),
       }),
+      NoSteeringLayer,
       Layer.succeed(SessionOrchestrationUpdateDeliveryService, {
         deliverPendingToActiveRun: () => Effect.succeed(false),
         deliverPendingSpecificationsToActiveRun: () => Effect.succeed(false),
@@ -168,6 +170,7 @@ describe('Session Control Run dispatch behind compaction', () => {
           nextReportCorrelationId: Effect.succeed(ReportCorrelationId('unused-correlation')),
           now: Effect.succeed(2_000),
         }),
+        NoSteeringLayer,
         Layer.succeed(SessionOrchestrationUpdateDeliveryService, {
           deliverPendingToActiveRun: () => Effect.succeed(false),
           deliverPendingSpecificationsToActiveRun: () => Effect.succeed(false),

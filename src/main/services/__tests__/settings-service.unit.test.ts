@@ -155,7 +155,7 @@ describe('SettingsService.Live', () => {
       Effect.runPromise(
         Effect.gen(function* () {
           const service = yield* SettingsService
-          yield* service.update({ thinkingLevel: 'high' })
+          yield* service.update({ updateChannel: 'beta' })
         }).pipe(Effect.provide(SettingsService.Live)),
       ),
     ).rejects.toThrow('Settings database unavailable')

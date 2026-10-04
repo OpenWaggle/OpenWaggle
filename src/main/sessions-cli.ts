@@ -1,3 +1,4 @@
+import { isSessionlessHostEvent } from '@shared/types/session-host-event'
 import { writeCliStdout } from './cli-stdout'
 import { validateImplicitCliHelp } from './command-cli-option-contract'
 import { createLocalSessionCliClientInput } from './local-session-cli-client'
@@ -54,8 +55,7 @@ async function runWatchCommand(
       onEvent: async (event) => {
         if (
           sessionIds.size > 0 &&
-          (event.payload.kind === 'semantic-discovery-readiness-changed' ||
-            !sessionIds.has(event.payload.sessionId))
+          (isSessionlessHostEvent(event.payload) || !sessionIds.has(event.payload.sessionId))
         ) {
           await writeCursor(event.cursor)
           return

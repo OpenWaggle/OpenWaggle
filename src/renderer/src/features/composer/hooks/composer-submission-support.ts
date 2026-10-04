@@ -81,7 +81,6 @@ export function queuedSubmissionKey(snapshot: ComposerDraftSnapshot, payload: Ag
     attachments: snapshot.attachmentIds,
     wagglePresetId: snapshot.wagglePresetId,
     submittedText: payload.text,
-    thinkingLevel: payload.thinkingLevel,
   })
 }
 

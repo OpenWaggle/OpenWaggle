@@ -51,7 +51,7 @@ vi.mock('@/shared/lib/ipc', () => ({
 
 const { createSendHandlers, useSendMessage } = await import('../useSendMessage')
 
-const PAYLOAD: AgentSendPayload = { text: 'review body', thinkingLevel: 'off', attachments: [] }
+const PAYLOAD: AgentSendPayload = { text: 'review body', attachments: [] }
 const WAGGLE_CONFIG: WaggleConfig = {
   mode: 'sequential',
   agents: [
@@ -96,7 +96,6 @@ describe("a session's first send", () => {
     const handlers = createSendHandlers({
       activeSessionId: null,
       projectPath: '/repo',
-      thinkingLevel: 'off',
       createSession: vi.fn(async () => SessionId('created')),
       sendMessage: vi.fn(async () => {}),
       sendMessageToSession,
@@ -125,7 +124,6 @@ describe("a session's first send", () => {
       const handlers = createSendHandlers({
         activeSessionId: null,
         projectPath: '/repo',
-        thinkingLevel: 'off',
         createSession,
         sendMessage: vi.fn(async () => {}),
         sendMessageToSession,
@@ -155,7 +153,6 @@ describe("a session's first send", () => {
       const handlers = createSendHandlers({
         activeSessionId: null,
         projectPath: '/repo',
-        thinkingLevel: 'off',
         createSession: vi.fn(async () => SessionId('created')),
         sendMessage: vi.fn(async () => {}),
         sendMessageToSession,
@@ -186,7 +183,6 @@ describe("a session's first send", () => {
     const handlers = createSendHandlers({
       activeSessionId: null,
       projectPath: '/repo',
-      thinkingLevel: 'off',
       createSession,
       sendMessage: vi.fn(async () => {}),
       sendMessageToSession: vi.fn(async () => {}),
@@ -207,7 +203,6 @@ describe("a session's first send", () => {
     const handlers = createSendHandlers({
       activeSessionId: null,
       projectPath: '/repo',
-      thinkingLevel: 'off',
       createSession,
       sendMessage: vi.fn(async () => {}),
       sendMessageToSession,
@@ -217,11 +212,12 @@ describe("a session's first send", () => {
 
     await handlers.handleSend(PAYLOAD)
 
-    expect(createSession).toHaveBeenCalledWith('/repo', {
-      environmentMode: 'worktree',
-      baseRef: 'main',
-      startFromOrigin: false,
-    })
+    // No default known and no pick: the Host starts the Session from Pi's default.
+    expect(createSession).toHaveBeenCalledWith(
+      '/repo',
+      { environmentMode: 'worktree', baseRef: 'main', startFromOrigin: false },
+      undefined,
+    )
     expect(snapshotDraftWorktreePlanMock.mock.invocationCallOrder[0]).toBeLessThan(
       createSession.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY,
     )
@@ -240,7 +236,6 @@ describe("a session's first send", () => {
     const handlers = createSendHandlers({
       activeSessionId: null,
       projectPath: '/repo',
-      thinkingLevel: 'off',
       createSession: vi.fn(async () => SessionId('session-a')),
       sendMessage: vi.fn(async () => {}),
       sendMessageToSession: vi.fn(async () => {
@@ -271,7 +266,6 @@ describe("a session's first send", () => {
         activeSessionId: null,
         model: staleRenderModel,
         projectPath: '/repo',
-        thinkingLevel: 'off',
         createSession: vi.fn(async () => {
           useChatStore.setState({ sessionById: new Map([[sessionId, createdSession]]) })
           return sessionId
@@ -297,7 +291,6 @@ describe("a session's first send", () => {
     const handlers = createSendHandlers({
       activeSessionId: null,
       projectPath: '/repo',
-      thinkingLevel: 'off',
       createSession: vi.fn(async () => SessionId('created-session')),
       sendMessage: vi.fn(async () => {}),
       sendMessageToSession,

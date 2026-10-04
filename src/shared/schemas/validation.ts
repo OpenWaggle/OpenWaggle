@@ -17,7 +17,6 @@ import {
   BROWSER_PREVIEW_CAPTURE_LIMITS,
 } from '@shared/types/browser-preview-controls'
 import type { JsonArray, JsonObject, JsonValue } from '@shared/types/json'
-import { THINKING_LEVELS } from '@shared/types/settings'
 import { storedProjectActionsSchema } from './project-actions'
 import {
   sessionInputIdSchema,
@@ -172,7 +171,6 @@ export const inlineVisualizationContextSchema = Schema.Struct({
 
 export const agentSendPayloadSchema = Schema.Struct({
   text: sessionInputTextSchema,
-  thinkingLevel: Schema.Literal(...THINKING_LEVELS),
   attachments: Schema.mutable(
     Schema.Array(preparedAttachmentSchema).pipe(Schema.maxItems(ATTACHMENT.MAX_COUNT)),
   ),
@@ -185,7 +183,6 @@ export function toAgentSendPayload(
 ): AgentSendPayload {
   return {
     text: input.text,
-    thinkingLevel: input.thinkingLevel,
     attachments: input.attachments,
     ...(input.waggle ? { waggle: toWaggleInvocation(input.waggle) } : {}),
     ...(input.visualizationContext ? { visualizationContext: input.visualizationContext } : {}),
@@ -194,14 +191,12 @@ export function toAgentSendPayload(
 
 export const projectPreferencesSchema = Schema.Struct({
   model: Schema.optional(Schema.String),
-  thinkingLevel: Schema.optional(Schema.Literal(...THINKING_LEVELS)),
   authorizationMode: Schema.optional(Schema.Literal(...AGENT_AUTHORIZATION_MODES)),
 })
 
 /** A preference write where `null` clears the key. Distinct from the read schema, which has no nulls. */
 export const projectPreferencesUpdateSchema = Schema.Struct({
   model: Schema.optional(Schema.NullOr(Schema.String)),
-  thinkingLevel: Schema.optional(Schema.NullOr(Schema.Literal(...THINKING_LEVELS))),
   authorizationMode: Schema.optional(Schema.NullOr(Schema.Literal(...AGENT_AUTHORIZATION_MODES))),
 })
 

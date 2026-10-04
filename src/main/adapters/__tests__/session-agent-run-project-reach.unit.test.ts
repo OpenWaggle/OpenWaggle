@@ -18,8 +18,6 @@ interface RootSession {
   readonly origin: string
   /** Who started its Run `run-<id>`. */
   readonly initiator: string
-  /** Who wrote the Run's input when someone else re-authorized it. */
-  readonly author?: string
   readonly parent?: string
 }
 
@@ -27,7 +25,6 @@ interface QueuedFollowUp {
   readonly id: string
   readonly sessionId: string
   readonly callerId: string
-  readonly authorCallerId?: string
 }
 
 describe('sessionAgentRunReachesEveryProject', () => {
@@ -75,7 +72,6 @@ describe('sessionAgentRunReachesEveryProject', () => {
           yield* sql`INSERT INTO session_follow_ups (id, session_id, intent_json) VALUES (
             ${followUp.id}, ${followUp.sessionId}, ${JSON.stringify({
               callerId: followUp.callerId,
-              ...(followUp.authorCallerId ? { authorCallerId: followUp.authorCallerId } : {}),
             })}
           )`
         }
@@ -89,7 +85,6 @@ describe('sessionAgentRunReachesEveryProject', () => {
           yield* sql`INSERT INTO session_runs (id, session_id, intent_json) VALUES (
             ${`run-${session.id}`}, ${session.id}, ${JSON.stringify({
               callerId: session.initiator,
-              ...(session.author ? { authorCallerId: session.author } : {}),
             })}
           )`
           yield* sql`INSERT INTO session_execution_profiles (
@@ -177,18 +172,6 @@ describe('sessionAgentRunReachesEveryProject', () => {
       ),
     ).resolves.toBe(false)
   })
-
-  it('needs the author of a re-authorized Follow-up to reach every project too', async () => {
-    const laundered = [
-      {
-        id: 's',
-        origin: 'gui:local-user',
-        initiator: 'gui:local-user',
-        author: 'profile:project',
-      },
-    ]
-    await expect(reaches(laundered, 's')).resolves.toBe(false)
-  })
 })
 
 describe('runInputWidensReach', () => {
@@ -252,7 +235,6 @@ describe('runInputWidensReach', () => {
           yield* sql`INSERT INTO session_follow_ups (id, session_id, intent_json) VALUES (
             ${followUp.id}, ${followUp.sessionId}, ${JSON.stringify({
               callerId: followUp.callerId,
-              ...(followUp.authorCallerId ? { authorCallerId: followUp.authorCallerId } : {}),
             })}
           )`
         }
@@ -274,16 +256,6 @@ describe('runInputWidensReach', () => {
   it('accepts any caller into a Run that stays in its project', async () => {
     const projectRun = [{ id: 's', origin: 'gui:local-user', initiator: 'profile:project' }]
     await expect(widens(projectRun, { callerId: 'profile:project' })).resolves.toBe(false)
-  })
-
-  it('refuses promoting a re-authorized Follow-up whose writer lacks the reach', async () => {
-    // The desktop user re-authorized a project-scoped profile's Follow-up.
-    const followUps = [
-      { id: 'f', sessionId: 's', callerId: 'gui:local-user', authorCallerId: 'profile:project' },
-    ]
-    await expect(
-      widens(desktopRun, { callerId: 'gui:local-user', followUpId: 'f' }, followUps),
-    ).resolves.toBe(true)
   })
 
   it('judges a promoted Follow-up by its author as well as by the promoter', async () => {

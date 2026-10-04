@@ -5,7 +5,7 @@ import {
   type AgentAuthorizationMode,
   isAgentAuthorizationMode,
 } from '@shared/types/agent-authorization'
-import { DEFAULT_SETTINGS, THINKING_LEVELS } from '@shared/types/settings'
+import { DEFAULT_SETTINGS, DEFAULT_THINKING_LEVEL, THINKING_LEVELS } from '@shared/types/settings'
 import { sessionWorktreeBranchForId } from '@shared/utils/worktree'
 import { resolveWorkspaceWorktreePath } from '../services/git/session-worktree-path'
 import {
@@ -71,7 +71,7 @@ function legacyExecutionDefaults(database: DatabaseSync) {
       typeof selectedModel === 'string' && selectedModel.trim()
         ? selectedModel
         : String(DEFAULT_SETTINGS.selectedModel),
-    thinkingLevel: resolvedThinkingLevel ?? DEFAULT_SETTINGS.thinkingLevel,
+    thinkingLevel: resolvedThinkingLevel ?? DEFAULT_THINKING_LEVEL,
   }
 }
 

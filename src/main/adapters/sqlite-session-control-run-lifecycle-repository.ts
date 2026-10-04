@@ -3,22 +3,32 @@ import type { SessionId } from '@shared/types/brand'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
+import { waitsOnHeldNextFollowUp } from '../domain/session-control/follow-up-delivery'
 import {
   activateStartingRun,
   replaceWithExternalSessionRun,
   startExternalSessionRun,
 } from '../domain/session-control/run-lifecycle'
+import { returnUndeliveredSteersReportingDrops } from '../domain/session-control/undelivered-steering'
 import { SessionControlRepositoryError } from '../errors'
 import {
   SessionControlRunLifecycleRepository,
   type SessionControlRunLifecycleRepositoryShape,
 } from '../ports/session-control-run-lifecycle-repository'
+import { reportDroppedReturnedSteers } from './returned-steer-drop-report'
+import { releaseDeliveredSteerAttachments } from './session-control-attachment-references'
 import { applyCurrentFollowUpAuthorization } from './session-follow-up-authorization'
+import {
+  deferWorkerSettlement,
+  settleDeferredWorkerDelegation,
+  takeDeferredWorkerSettlement,
+} from './sqlite-deferred-worker-settlement'
 import { recoverSessionControlHostLoss } from './sqlite-session-control-host-loss-recovery'
 import {
   planRunSettlement,
   replacementIsPending,
   type SettleInput,
+  settleDisplacedRun,
 } from './sqlite-session-control-run-settlement'
 import { loadSessionControlState, persistSessionControlState } from './sqlite-session-control-state'
 import { settleWorkerDelegation } from './sqlite-session-control-worker-settlement'
@@ -187,6 +197,7 @@ function settle(
   input: SettleInput,
   promotionRetriesRemaining = PROMOTION_SETTLEMENT_RETRY_LIMIT,
 ): ReturnType<SessionControlRunLifecycleRepositoryShape['settle']> {
+  let droppedSteers: ReturnType<typeof returnUndeliveredSteersReportingDrops>['dropped'] = []
   return sql
     .withTransaction(
       Effect.gen(function* () {
@@ -197,12 +208,18 @@ function settle(
         const reservedIds = yield* reservedFollowUpIds(sql, input.sessionId)
         if (reservedIds.size > 0) return { status: 'promotion-pending' } as const
         const loadedState = yield* loadSessionControlState(sql, input.sessionId)
-        const state = yield* applyCurrentFollowUpAuthorization(sql, loadedState)
+        const steerReturn = returnUndeliveredSteersReportingDrops(
+          loadedState,
+          input.undeliveredSteers ?? [],
+        )
+        const returned = steerReturn.state
+        droppedSteers = steerReturn.dropped
+        const state = yield* applyCurrentFollowUpAuthorization(sql, returned)
         const replacementPending = yield* replacementIsPending(sql, state, input)
         if (replacementPending) {
           return {
             status: 'settled',
-            result: { accepted: false, code: 'run_not_active' },
+            result: yield* settleDisplacedRun(sql, { loadedState, returned, input }),
           } as const
         }
         const parentAdmission = input.suppressFollowUpScheduling
@@ -210,7 +227,17 @@ function settle(
           : yield* directWorkerRunAdmission(sql, input.sessionId)
         const deferForParentLimit = !parentAdmission.admitted
         const result = planRunSettlement(state, input, deferForParentLimit)
-        if (!result.accepted) return { status: 'settled', result } as const
+        if (!result.accepted) {
+          return {
+            status: 'settled',
+            result: yield* settleDisplacedRun(sql, {
+              loadedState,
+              returned,
+              input,
+              code: result.code,
+            }),
+          } as const
+        }
         const { scheduled } = result
         const now = Date.now()
         yield* sql`
@@ -218,17 +245,34 @@ function settle(
           SET status = ${input.terminalStatus}, updated_at = ${now}
           WHERE id = ${input.runId} AND session_id = ${input.sessionId}
         `
+        // A newer settlement supersedes a Delegation settlement an edit deferred.
+        yield* takeDeferredWorkerSettlement(sql, input.sessionId)
+        // The queue's next Follow-up is out for an edit and is delivered once the edit ends, so the
+        // Worker is not done yet: its Delegation settles after that Run, or when the edit ends
+        // without one (see `settleDeferredWorkerDelegation`).
+        const waitsOnEdit = scheduled === undefined && waitsOnHeldNextFollowUp(result.state)
         const workerUpdate = input.suppressFollowUpScheduling
           ? undefined
-          : yield* settleWorkerDelegation(sql, input, scheduled !== undefined, now)
+          : yield* settleWorkerDelegation(sql, input, scheduled !== undefined || waitsOnEdit, now)
+        if (
+          !input.suppressFollowUpScheduling &&
+          waitsOnEdit &&
+          input.terminalStatus === 'completed'
+        ) {
+          yield* deferWorkerSettlement(sql, input.sessionId, {
+            runId: input.runId,
+            ...(input.finalResponse ? { finalResponse: input.finalResponse } : {}),
+          })
+        }
         yield* persistSessionControlState(sql, result.state, now)
+        yield* releaseDeliveredSteerAttachments(sql, input)
         return settledRunResponse(result, workerUpdate)
       }),
     )
     .pipe(
       Effect.flatMap((outcome) =>
         outcome.status === 'settled'
-          ? Effect.succeed(outcome.result)
+          ? reportDroppedReturnedSteers(input, droppedSteers).pipe(Effect.as(outcome.result))
           : promotionRetriesRemaining <= 0
             ? Effect.fail(
                 repositoryError('settle-run-promotion-pending', {
@@ -257,6 +301,8 @@ export const SqliteSessionControlRunLifecycleRepositoryLive = Layer.effect(
       replaceWithExternal: (input) => replaceWithExternal(sql, input),
       activate: (input) => activate(sql, input),
       settle: (input) => settle(sql, input),
+      settleDeferredWorkerDelegation: (input) =>
+        settleDeferredWorkerDelegation(sql, input.sessionId),
       recoverHostLoss: recoverSessionControlHostLoss(sql),
     })
   }),

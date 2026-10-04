@@ -222,7 +222,6 @@ describe('useBackgroundRunStore', () => {
     const recovery = {
       payload: {
         text: 'Keep this prompt',
-        thinkingLevel: 'medium' as const,
         attachments: [],
       },
       waggleConfig: null,
@@ -247,7 +246,6 @@ describe('useBackgroundRunStore', () => {
     useBackgroundRunStore.getState().setFirstSendRecovery(SESSION_A, {
       payload: {
         text: 'Review the attachment',
-        thinkingLevel: 'medium',
         attachments: [
           {
             id: 'attachment-1',

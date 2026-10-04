@@ -16,7 +16,7 @@ describe('production Session Resource web and site capture', () => {
       captureSuccessfulRunResources({
         sessionId: SessionId('session-1'),
         runId: 'run-web-search',
-        payload: { text: '', thinkingLevel: 'medium', attachments: [] },
+        payload: { text: '', attachments: [] },
         messages: [
           assistantToolResultMessage(false, {
             name: 'web',
@@ -59,7 +59,7 @@ describe('production Session Resource web and site capture', () => {
       captureSuccessfulRunResources({
         sessionId: SessionId('session-1'),
         runId: 'run-native-web-search',
-        payload: { text: '', thinkingLevel: 'medium', attachments: [] },
+        payload: { text: '', attachments: [] },
         messages: [
           assistantToolResultMessage(false, {
             name: 'web_search',
@@ -88,7 +88,7 @@ describe('production Session Resource web and site capture', () => {
       captureSuccessfulRunResources({
         sessionId: SessionId('session-1'),
         runId: 'run-site',
-        payload: { text: '', thinkingLevel: 'medium', attachments: [] },
+        payload: { text: '', attachments: [] },
         messages: [
           assistantToolResultMessage(false, {
             name: 'publish_site',
@@ -135,7 +135,7 @@ describe('production Session Resource web and site capture', () => {
       captureSuccessfulRunResources({
         sessionId: SessionId('session-1'),
         runId: 'run-mcp-tool',
-        payload: { text: '', thinkingLevel: 'medium', attachments: [] },
+        payload: { text: '', attachments: [] },
         messages: [
           assistantToolResultMessage(false, {
             name: 'mcp',
@@ -178,7 +178,7 @@ describe('production Session Resource web and site capture', () => {
       captureSuccessfulRunResources({
         sessionId: SessionId('session-1'),
         runId: 'run-tool-resource-link',
-        payload: { text: '', thinkingLevel: 'medium', attachments: [] },
+        payload: { text: '', attachments: [] },
         messages: [
           assistantToolResultMessage(false, {
             name: 'lookup_documentation',
@@ -223,7 +223,7 @@ describe('production Session Resource web and site capture', () => {
       captureSuccessfulRunResources({
         sessionId: SessionId('session-1'),
         runId: 'run-partial-orchestration',
-        payload: { text: '', thinkingLevel: 'medium', attachments: [] },
+        payload: { text: '', attachments: [] },
         messages: [
           assistantToolResultMessage(true, {
             name: 'mcp_run',

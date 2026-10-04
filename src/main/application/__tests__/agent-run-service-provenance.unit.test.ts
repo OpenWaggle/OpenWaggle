@@ -103,7 +103,7 @@ describe('executeAgentRun resource provenance', () => {
       executeAgentRun({
         sessionId: runServiceSessionId,
         runId: 'run-provenance-read-failure',
-        payload: { text: 'Implement the next slice', thinkingLevel: 'medium', attachments: [] },
+        payload: { text: 'Implement the next slice', attachments: [] },
         model,
         signal: new AbortController().signal,
         onEvent: () => undefined,

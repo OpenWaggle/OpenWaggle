@@ -1,3 +1,4 @@
+import { isSessionlessHostEvent } from '@shared/types/session-host-event'
 import { describe, expect, it, vi } from 'vitest'
 import { SessionHostEventHub } from '../../application/session-host-event-hub'
 import { pumpLocalSessionSubscription } from '../local-session-subscription-pump'
@@ -8,8 +9,7 @@ describe('Local Session subscription pump', () => {
     const result = hub.subscribeAfter(
       hub.cursor(),
       (event) =>
-        event.payload.kind !== 'semantic-discovery-readiness-changed' &&
-        event.payload.sessionId === 'visible-session',
+        !isSessionlessHostEvent(event.payload) && event.payload.sessionId === 'visible-session',
       { advanceFilteredCursor: true },
     )
     if (result.status !== 'ready') throw new Error('Expected a ready subscription.')

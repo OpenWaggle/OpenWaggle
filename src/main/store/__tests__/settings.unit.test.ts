@@ -46,9 +46,18 @@ describe('settings store loading', () => {
     expect(getSettings()).toMatchObject({
       projectPath: null,
       browserLinkTarget: 'system',
-      thinkingLevel: 'medium',
       updateChannel: 'stable',
     })
+    // The thinking level is Session state with Pi's default, never an app setting.
+    expect(getSettings()).not.toHaveProperty('thinkingLevel')
+  })
+
+  it('ignores a stored thinkingLevel, which is no longer an app setting', async () => {
+    await writeRawSetting('thinkingLevel', 'ultra')
+
+    const { getSettings } = await loadSettingsModule()
+
+    expect(getSettings()).not.toHaveProperty('thinkingLevel')
   })
 
   it('accepts the explicit legacy diff-wrap and pre-terminal-palette formats', async () => {
@@ -69,11 +78,11 @@ describe('settings store loading', () => {
   })
 
   it('fails closed when a present current setting has an invalid value', async () => {
-    await writeRawSetting('thinkingLevel', 'ultra')
+    await writeRawSetting('browserLinkTarget', 'ultra')
 
     const { getSettings } = await loadSettingsModule()
 
-    expect(() => getSettings()).toThrow(/Saved settings are invalid.*thinkingLevel/u)
+    expect(() => getSettings()).toThrow(/Saved settings are invalid.*browserLinkTarget/u)
   })
 
   it('fails closed on an unknown persisted update channel', async () => {
@@ -243,7 +252,7 @@ describe('settings store loading', () => {
 
     await expect(settingsModule.refreshSettingsStore()).rejects.toThrow(/sessionHostRunCeiling/u)
     expect(() => settingsModule.getSettings()).toThrow(/sessionHostRunCeiling/u)
-    expect(() => settingsModule.updateSettings({ thinkingLevel: 'high' })).toThrow()
+    expect(() => settingsModule.updateSettings({ updateChannel: 'beta' })).toThrow()
     await writeRawSetting('sessionHostRunCeiling', 72)
     await settingsModule.refreshSettingsStore()
     expect(settingsModule.getSettings().sessionHostRunCeiling).toBe(72)
@@ -274,16 +283,16 @@ describe('settings store loading', () => {
   })
 
   it('blocks writes while the saved settings snapshot is unreadable', async () => {
-    await writeRawSetting('thinkingLevel', 'ultra')
+    await writeRawSetting('browserLinkTarget', 'ultra')
     const settingsModule = await loadSettingsModule()
 
-    expect(() => settingsModule.updateSettings({ thinkingLevel: 'high' })).toThrow(
+    expect(() => settingsModule.updateSettings({ updateChannel: 'beta' })).toThrow(
       /Saved settings are invalid/u,
     )
-    await writeRawSetting('thinkingLevel', 'low')
+    await writeRawSetting('browserLinkTarget', 'app')
     await settingsModule.initializeSettingsStore()
 
-    expect(settingsModule.getSettings().thinkingLevel).toBe('low')
+    expect(settingsModule.getSettings().browserLinkTarget).toBe('app')
   })
 
   it('preserves concurrent skill toggles for the same project', async () => {

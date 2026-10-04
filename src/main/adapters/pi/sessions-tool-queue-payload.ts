@@ -9,12 +9,7 @@ import type { SessionsToolParameters } from './sessions-tool-parameters'
 type QueueInput = Extract<
   SessionsToolParameters,
   {
-    action:
-      | 'queue_withdraw'
-      | 'queue_reorder'
-      | 'queue_pause'
-      | 'queue_resume'
-      | 'queue_update_authorization'
+    action: 'queue_withdraw' | 'queue_reorder' | 'queue_pause' | 'queue_resume'
   }
 >
 
@@ -37,25 +32,17 @@ export function buildSessionsToolQueuePayload(input: QueueInput): LocalSessionCo
             expectedQueueRevision: input.queueRevision,
             orderedFollowUpIds: [...new Set(input.followUpIds)],
           }
-        : input.action === 'queue_update_authorization'
+        : input.action === 'queue_pause'
           ? {
-              operation: 'queue-update-authorization' as const,
+              operation: 'queue-pause',
               sessionId: input.sessionId,
-              followUpId: input.followUpId,
-              runAuthorizationOverride:
-                input.authorization === 'inherit' ? null : input.authorization,
+              expectedQueueRevision: input.queueRevision,
             }
-          : input.action === 'queue_pause'
-            ? {
-                operation: 'queue-pause',
-                sessionId: input.sessionId,
-                expectedQueueRevision: input.queueRevision,
-              }
-            : {
-                operation: 'queue-resume',
-                sessionId: input.sessionId,
-                expectedQueueRevision: input.queueRevision,
-              }
+          : {
+              operation: 'queue-resume',
+              sessionId: input.sessionId,
+              expectedQueueRevision: input.queueRevision,
+            }
   return {
     contract: 'session-control-v2',
     request: {

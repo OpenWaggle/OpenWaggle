@@ -91,26 +91,48 @@ function buildExistingUserQueuesByText(existingMessages: readonly UIMessage[]) {
   return existingUserQueuesByText
 }
 
-export function retainSnapshotMessageOrder(current: UIMessage, snapshot: UIMessage): UIMessage {
-  const sessionNodeCreatedOrder = snapshot.metadata?.sessionNodeCreatedOrder
-  const sessionNodeId = snapshot.metadata?.sessionNodeId ?? snapshot.id
-  const durableTextSha256 = snapshot.metadata?.durableTextSha256
-  if (
-    current.metadata?.sessionNodeCreatedOrder === sessionNodeCreatedOrder &&
-    current.metadata?.sessionNodeId === sessionNodeId &&
-    current.metadata?.durableTextSha256 === durableTextSha256
-  ) {
-    return current
-  }
+interface SnapshotLogIdentity {
+  readonly sessionNodeId?: string
+  readonly sessionNodeCreatedOrder?: number
+  readonly durableTextSha256?: string
+  readonly liveIncorporated?: true
+}
+
+function snapshotLogIdentity(current: UIMessage, snapshot: UIMessage): SnapshotLogIdentity {
+  const snapshotIsLive = snapshot.metadata?.liveIncorporated === true
+  const sessionNodeId =
+    snapshot.metadata?.sessionNodeId ??
+    (snapshotIsLive ? current.metadata?.sessionNodeId : snapshot.id)
+  const { sessionNodeCreatedOrder, durableTextSha256 } = snapshot.metadata ?? {}
   return {
-    ...current,
-    metadata: {
-      ...current.metadata,
-      sessionNodeId,
-      ...(sessionNodeCreatedOrder === undefined ? {} : { sessionNodeCreatedOrder }),
-      ...(durableTextSha256 === undefined ? {} : { durableTextSha256 }),
-    },
+    ...(sessionNodeId === undefined ? {} : { sessionNodeId }),
+    ...(sessionNodeCreatedOrder === undefined ? {} : { sessionNodeCreatedOrder }),
+    ...(durableTextSha256 === undefined ? {} : { durableTextSha256 }),
+    // Still only live: no persisted node is known yet, so the row's id must not become one later.
+    ...(snapshotIsLive && sessionNodeId === undefined ? { liveIncorporated: true } : {}),
   }
+}
+
+function hasLogIdentity(message: UIMessage, identity: SnapshotLogIdentity) {
+  const metadata = message.metadata
+  return (
+    metadata?.sessionNodeCreatedOrder === identity.sessionNodeCreatedOrder &&
+    metadata?.sessionNodeId === identity.sessionNodeId &&
+    metadata?.durableTextSha256 === identity.durableTextSha256 &&
+    metadata?.liveIncorporated === identity.liveIncorporated
+  )
+}
+
+/**
+ * Gives a row the log identity of the snapshot row it stands for. A persisted snapshot row names
+ * its Session node by id; a live incorporated row has only a stream id, so it contributes its log
+ * order and digest but never a node id.
+ */
+export function retainSnapshotMessageOrder(current: UIMessage, snapshot: UIMessage): UIMessage {
+  const identity = snapshotLogIdentity(current, snapshot)
+  if (hasLogIdentity(current, identity)) return current
+  const { liveIncorporated: _live, sessionNodeId: _nodeId, ...metadata } = current.metadata ?? {}
+  return { ...current, metadata: { ...metadata, ...identity } }
 }
 
 /**

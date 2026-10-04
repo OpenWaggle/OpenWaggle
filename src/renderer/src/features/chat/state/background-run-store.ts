@@ -47,7 +47,7 @@ export interface FirstSendRecovery {
 
 interface BackgroundRunState {
   activeRunIds: Set<SessionId>
-  /** The model each busy Session's current Run started with; a mid-turn switch never changes it. */
+  /** The model each busy Session's current Run reported when it started. */
   runModelBySessionId: Map<SessionId, SupportedModelId>
   renderSnapshotsBySessionId: Map<SessionId, ActiveRunRenderSnapshot>
   worktreeLaunchBySessionId: Map<SessionId, WorktreeLaunchSnapshot>

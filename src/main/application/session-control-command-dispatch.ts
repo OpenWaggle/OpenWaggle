@@ -12,6 +12,8 @@ import type {
   SessionControlMutationRequest,
   SessionControlMutationResponse,
   SessionControlPromoteMutationRequest,
+  SessionControlQueueAdoptMutationRequest,
+  SessionControlQueueEditMutationRequest,
   SessionControlQueueMutationRequest,
   SessionControlReplaceMutationRequest,
   SessionControlStartMutationRequest,
@@ -47,9 +49,10 @@ import { setSessionAuthorization } from './session-authorization-service'
 import {
   interruptSessionDescendants,
   interruptSessionRun,
-  steerSessionRun,
 } from './session-control-external-service'
 import { promoteSessionFollowUp } from './session-control-promotion-service'
+import { adoptSessionFollowUp } from './session-control-queue-adopt-service'
+import { editSessionFollowUp, FOLLOW_UP_EDIT_CALLER_ID } from './session-control-queue-edit-service'
 import { replaceSessionRun } from './session-control-replacement-service'
 import { executeResourceSessionControlCommand } from './session-control-resource-command-dispatch'
 import {
@@ -58,6 +61,7 @@ import {
   startSessionRun,
   submitSessionMessage,
 } from './session-control-service'
+import { steerSessionRun } from './session-control-steering-service'
 import { respondToSessionInteraction } from './session-interaction-service'
 
 interface ExecuteCommandInput {
@@ -66,6 +70,8 @@ interface ExecuteCommandInput {
   readonly request: SessionControlMutationRequest
   readonly authority?: LocalSessionProfileAuthority
   readonly hostRunCeiling?: number
+  /** False while the Host drains: queue changes apply but do not start the next Follow-up. */
+  readonly queueDeliveryAdmitted?: boolean
 }
 
 export type SessionControlCommandDependencies =
@@ -100,6 +106,15 @@ type Commands<Operation extends Command['operation']> = Extract<
   { readonly operation: Operation }
 >
 
+/** The desktop user without a profile: the only caller that may edit or adopt a Follow-up. */
+function isDesktopUserCaller(input: ExecuteCommandInput) {
+  return (
+    input.callerId === FOLLOW_UP_EDIT_CALLER_ID &&
+    input.authority === undefined &&
+    input.caller?.profileAuthority === undefined
+  )
+}
+
 function executeRunOrQueueCommand(
   input: ExecuteCommandInput,
   command: Commands<
@@ -110,7 +125,10 @@ function executeRunOrQueueCommand(
     | 'queue-reorder'
     | 'queue-pause'
     | 'queue-resume'
-    | 'queue-update-authorization'
+    | 'queue-adopt'
+    | 'queue-edit-begin'
+    | 'queue-edit-save'
+    | 'queue-edit-cancel'
   >,
 ) {
   const { authority, callerId, request, hostRunCeiling } = input
@@ -139,26 +157,32 @@ function executeRunOrQueueCommand(
         request: { ...request, command } satisfies SessionControlFollowUpMutationRequest,
       }),
     )
-    .with(
-      'queue-withdraw',
-      'queue-reorder',
-      'queue-pause',
-      'queue-resume',
-      'queue-update-authorization',
-      (command) =>
-        mutateSessionQueue({
-          callerId,
-          ...(authority ? { callerAuthorizationCeiling: authority.authorizationCeiling } : {}),
-          ...(hostRunCeiling ? { hostRunCeiling } : {}),
-          request: {
-            ...request,
-            command:
-              command.operation === 'queue-update-authorization' &&
-              authority?.authorizationCeiling === 'ask-for-approval'
-                ? { ...command, runAuthorizationOverride: 'ask-for-approval' as const }
-                : command,
-          } satisfies SessionControlQueueMutationRequest,
-        }),
+    .with('queue-withdraw', 'queue-reorder', 'queue-pause', 'queue-resume', (command) =>
+      mutateSessionQueue({
+        callerId,
+        ...(authority ? { callerAuthorizationCeiling: authority.authorizationCeiling } : {}),
+        ...(hostRunCeiling ? { hostRunCeiling } : {}),
+        ...(input.queueDeliveryAdmitted === false ? { queueDeliveryAdmitted: false } : {}),
+        request: { ...request, command } satisfies SessionControlQueueMutationRequest,
+      }),
+    )
+    .with('queue-adopt', (command) =>
+      adoptSessionFollowUp({
+        callerId,
+        desktopUser: isDesktopUserCaller(input),
+        ...(hostRunCeiling ? { hostRunCeiling } : {}),
+        ...(input.queueDeliveryAdmitted === false ? { queueDeliveryAdmitted: false } : {}),
+        request: { ...request, command } satisfies SessionControlQueueAdoptMutationRequest,
+      }),
+    )
+    .with('queue-edit-begin', 'queue-edit-save', 'queue-edit-cancel', (command) =>
+      editSessionFollowUp({
+        callerId,
+        desktopUser: isDesktopUserCaller(input),
+        ...(hostRunCeiling ? { hostRunCeiling } : {}),
+        ...(input.queueDeliveryAdmitted === false ? { queueDeliveryAdmitted: false } : {}),
+        request: { ...request, command } satisfies SessionControlQueueEditMutationRequest,
+      }),
     )
     .exhaustive()
 }
@@ -240,7 +264,10 @@ export function executeUnserializedSessionControlCommand(
       'queue-reorder',
       'queue-pause',
       'queue-resume',
-      'queue-update-authorization',
+      'queue-adopt',
+      'queue-edit-begin',
+      'queue-edit-save',
+      'queue-edit-cancel',
       (command) => executeRunOrQueueCommand(input, command),
     )
     .with(

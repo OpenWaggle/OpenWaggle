@@ -21,6 +21,16 @@ function repositoryError(operation: string, cause: unknown) {
   return new SessionControlRepositoryError({ operation, cause })
 }
 
+function decodeCompletedOutcome(outcomeJson: string | null) {
+  return Effect.try({
+    try: () => {
+      if (outcomeJson === null) throw new Error('Completed operation has no outcome.')
+      return decodeStoredSessionControlMutationOutcome(outcomeJson)
+    },
+    catch: (cause) => repositoryError('decode-completed-outcome', cause),
+  })
+}
+
 function pendingPromotionReservation(
   sql: SqlClient.SqlClient,
   input: Parameters<SessionControlOperationJournalShape['claim']>[0],
@@ -154,12 +164,14 @@ function completeExternalOperation(
           return yield* Effect.fail(repositoryError('idempotency-key-reused', { operation }))
         }
         if (existing.status === 'completed') {
-          if (existing.outcome_json !== outcomeJson) {
+          // An outcome derived from the final state cannot be rebuilt; the stored one stands.
+          if (!input.outcomeForFinalState && existing.outcome_json !== outcomeJson) {
             return yield* Effect.fail(repositoryError('operation-outcome-conflict', { operation }))
           }
-          return
+          return yield* decodeCompletedOutcome(existing.outcome_json)
         }
         const now = Date.now()
+        let recordedOutcome = input.outcome
         if (input.finalizeState) {
           const state = yield* loadSessionControlState(sql, targetScope)
           const finalizedState = input.finalizeState(state)
@@ -182,16 +194,21 @@ function completeExternalOperation(
             `
           }
           yield* persistSessionControlState(sql, finalizedState, now)
+          if (input.outcomeForFinalState) {
+            recordedOutcome = input.outcomeForFinalState(finalizedState)
+          }
         }
         yield* sql`
           UPDATE session_operations
-          SET status = ${'completed'}, outcome_json = ${outcomeJson}, updated_at = ${now}
+          SET status = ${'completed'}, outcome_json = ${JSON.stringify(recordedOutcome)},
+            updated_at = ${now}
           WHERE caller_id = ${input.callerId}
             AND operation = ${operation}
             AND target_scope = ${targetScope}
             AND idempotency_key = ${input.request.idempotencyKey}
             AND status = ${'pending'}
         `
+        return recordedOutcome
       }),
     )
     .pipe(

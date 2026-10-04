@@ -30,6 +30,16 @@ function repositoryError(operation: string, cause: unknown) {
   return new SessionQueryRepositoryError({ operation, cause })
 }
 
+/** Who lists a queue: the desktop user has no profile authority; everyone else lists under one. */
+function queueListCaller(
+  callerId: string | undefined,
+  authority: LocalSessionProfileAuthority | undefined,
+) {
+  return authority === undefined
+    ? { callerId, desktopUser: true }
+    : { callerId, desktopUser: false, authority }
+}
+
 function queryProgram(
   sql: SqlClient.SqlClient,
   authority: LocalSessionProfileAuthority | undefined,
@@ -85,7 +95,7 @@ function queryProgram(
   if (request.query.operation === 'wait' || request.query.operation === 'exports-wait') {
     throw new Error('Session wait must be executed by SessionWaitService.')
   }
-  return readQueue(sql, request)
+  return readQueue(sql, request, queueListCaller(callerId, authority))
 }
 
 function execute(

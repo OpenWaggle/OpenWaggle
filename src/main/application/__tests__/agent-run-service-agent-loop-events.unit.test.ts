@@ -44,7 +44,6 @@ const TestSessionProjectionLayer = Layer.succeed(SessionProjectionRepository, {
   assignProvisionalTitle: () => Effect.succeed(true),
   setWorktreePlan: () => Effect.void,
   setAuthorizationMode: () => Effect.void,
-  setExecutionModel: () => Effect.succeed(true),
   listTurnCheckpoints: () => Effect.succeed([]),
   getTurnDiff: () => Effect.succeed(null),
   getTurnDiffFiles: () => Effect.succeed([]),
@@ -218,7 +217,7 @@ describe('executeAgentRun agent-loop event durability', () => {
       executeAgentRun({
         sessionId,
         runId: 'run-agent-loop-1',
-        payload: { text: 'Run extension tool', thinkingLevel: 'medium', attachments: [] },
+        payload: { text: 'Run extension tool', attachments: [] },
         model,
         signal: new AbortController().signal,
         onEvent: () => undefined,
@@ -260,7 +259,7 @@ describe('executeAgentRun agent-loop event durability', () => {
       executeAgentRun({
         sessionId,
         runId: 'run-worktree-launch',
-        payload: { text: 'Start in a worktree', thinkingLevel: 'medium', attachments: [] },
+        payload: { text: 'Start in a worktree', attachments: [] },
         model,
         signal: new AbortController().signal,
         onEvent: () => undefined,
@@ -296,7 +295,7 @@ describe('executeAgentRun agent-loop event durability', () => {
       executeAgentRun({
         sessionId,
         runId: 'run-without-agent-loop-events',
-        payload: { text: 'Continue without extensions', thinkingLevel: 'medium', attachments: [] },
+        payload: { text: 'Continue without extensions', attachments: [] },
         model,
         signal: new AbortController().signal,
         onEvent: () => undefined,

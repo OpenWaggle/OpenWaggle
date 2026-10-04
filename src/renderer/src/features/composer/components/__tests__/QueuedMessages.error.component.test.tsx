@@ -23,7 +23,6 @@ const queueMock = vi.hoisted(() => {
     error: noQueueError(),
     refresh: vi.fn().mockResolvedValue(undefined),
     withdraw: vi.fn().mockResolvedValue(undefined),
-    resubmitWithCurrentAccess: vi.fn().mockResolvedValue(undefined),
     setPaused: vi.fn().mockResolvedValue(undefined),
   }
 })
@@ -34,7 +33,6 @@ vi.mock('@/features/chat/hooks/useSessionFollowUpQueue', () => ({
     error: queueMock.error,
     refresh: queueMock.refresh,
     withdraw: queueMock.withdraw,
-    resubmitWithCurrentAccess: queueMock.resubmitWithCurrentAccess,
     setPaused: queueMock.setPaused,
   }),
 }))

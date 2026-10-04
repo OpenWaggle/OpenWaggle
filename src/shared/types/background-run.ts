@@ -2,7 +2,7 @@ import type { MessagePart } from './agent'
 import type { SessionId } from './brand'
 import type { JsonObject } from './json'
 import type { SupportedModelId } from './llm'
-import type { AgentTransportEvent } from './stream'
+import type { AgentTransportEvent, AgentTransportUserMessage } from './stream'
 
 export const WORKTREE_CREATED_CUSTOM_EVENT = 'openwaggle.worktree-created'
 
@@ -120,10 +120,20 @@ export interface ActiveCompactionInfo {
 
 export type ActiveRunInfo = ActiveAgentRunInfo | ActiveCompactionInfo
 
+/** A user message the active Run has incorporated, retained so a reconnect still shows it. */
+export interface BackgroundRunUserMessage extends AgentTransportUserMessage {
+  readonly messageId: string
+  /** When the Run incorporated the message. */
+  readonly timestamp: number
+  /** The assistant message the snapshot was streaming when the Run incorporated this one. */
+  readonly afterAssistantMessageId?: string
+}
+
 /** Full snapshot including accumulated message parts for reconnection. */
 export interface BackgroundRunSnapshot extends ActiveAgentRunInfo {
   readonly messageId?: string
   readonly parts: readonly MessagePart[]
+  readonly userMessages?: readonly BackgroundRunUserMessage[]
   readonly degraded?: {
     readonly reason: 'content-limit'
     readonly omittedBytes: number

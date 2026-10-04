@@ -126,7 +126,6 @@ describe('agent-requested Waggle after a classic Run', () => {
         },
         execution: {
           model: SupportedModelId('openrouter/anthropic/claude-haiku-4.5'),
-          thinkingLevel: 'high',
           authorizationCeiling: 'yolo',
           sessionCapabilities: ['sessions:read'],
           toolAllowlist: ['read'],

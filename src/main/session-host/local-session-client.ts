@@ -1,40 +1,13 @@
 import { randomUUID } from 'node:crypto'
+import {
+  isFollowUpEditCommand,
+  requiredLocalSessionCommandRevision,
+} from '@shared/schemas/local-session-command-revision'
 import { decodeLocalSessionCommandPayload } from '@shared/schemas/local-session-protocol'
 import {
-  HOST_BACKED_MCP_GUI_CHANNELS,
-  HOST_UI_REVISION_7_REQUIRED_CHANNELS,
-  HOST_UI_REVISION_9_REQUIRED_CHANNELS,
-  HOST_UI_REVISION_10_REQUIRED_CHANNELS,
-  HOST_UI_REVISION_11_REQUIRED_CHANNELS,
-  HOST_UI_REVISION_12_REQUIRED_CHANNELS,
-  HOST_UI_REVISION_13_REQUIRED_CHANNELS,
-  HOST_UI_REVISION_16_REQUIRED_CHANNELS,
-  HOST_UI_REVISION_17_REQUIRED_CHANNELS,
-  HOST_UI_REVISION_20_REQUIRED_CHANNELS,
-  type HostBackedGuiChannel,
-} from '@shared/types/host-ui-protocol'
-import type {
-  LocalSessionCommandPayload,
-  LocalSessionCommandResult,
-} from '@shared/types/local-session-protocol'
-import {
-  LOCAL_SESSION_AUTHORIZATION_GRANTS_REVISION,
-  LOCAL_SESSION_COMPACTION_REVISION,
-  LOCAL_SESSION_DESKTOP_SERVICE_REVISION,
-  LOCAL_SESSION_HOST_CONTROL_REVISION,
-  LOCAL_SESSION_LEGACY_HOST_UI_REVISION,
-  LOCAL_SESSION_MCP_AUTH_REVISION,
-  LOCAL_SESSION_MCP_HOST_UI_REVISION,
-  LOCAL_SESSION_NATIVE_ACTIONS_REVISION,
-  LOCAL_SESSION_PROJECT_CATALOG_REVISION,
-  LOCAL_SESSION_RESOURCE_HOST_UI_REVISION,
-  LOCAL_SESSION_STEERING_RECEIPT_REVISION,
   LOCAL_SESSION_SUPPORTED_REVISIONS,
-  LOCAL_SESSION_TITLE_REGENERATION_REVISION,
-  LOCAL_SESSION_TURN_DIFF_FILES_REVISION,
-  LOCAL_SESSION_UPDATE_REVISION,
-  LOCAL_SESSION_WAGGLE_REVISION,
-  LOCAL_SESSION_WORKSPACE_AUTHORIZATION_REVISION,
+  type LocalSessionCommandPayload,
+  type LocalSessionCommandResult,
 } from '@shared/types/local-session-protocol'
 import {
   LOCAL_SESSION_DEFAULT_CLIENT_TIMEOUT_MS,
@@ -55,66 +28,10 @@ export {
 
 const LONG_RUNNING_COMMAND_GRACE_MS = 5_000
 
-function minimumHostUiRevision(channel: HostBackedGuiChannel) {
-  if (HOST_UI_REVISION_20_REQUIRED_CHANNELS.some((candidate) => candidate === channel)) {
-    return LOCAL_SESSION_TITLE_REGENERATION_REVISION
-  }
-  if (HOST_UI_REVISION_17_REQUIRED_CHANNELS.some((candidate) => candidate === channel)) {
-    return LOCAL_SESSION_NATIVE_ACTIONS_REVISION
-  }
-  if (HOST_UI_REVISION_16_REQUIRED_CHANNELS.some((candidate) => candidate === channel)) {
-    return LOCAL_SESSION_RESOURCE_HOST_UI_REVISION
-  }
-  if (HOST_UI_REVISION_13_REQUIRED_CHANNELS.some((candidate) => candidate === channel)) {
-    return LOCAL_SESSION_TURN_DIFF_FILES_REVISION
-  }
-  if (HOST_UI_REVISION_12_REQUIRED_CHANNELS.some((candidate) => candidate === channel)) {
-    return LOCAL_SESSION_PROJECT_CATALOG_REVISION
-  }
-  if (HOST_UI_REVISION_11_REQUIRED_CHANNELS.some((candidate) => candidate === channel)) {
-    return LOCAL_SESSION_DESKTOP_SERVICE_REVISION
-  }
-  if (HOST_UI_REVISION_10_REQUIRED_CHANNELS.some((candidate) => candidate === channel)) {
-    return LOCAL_SESSION_AUTHORIZATION_GRANTS_REVISION
-  }
-  if (HOST_UI_REVISION_9_REQUIRED_CHANNELS.some((candidate) => candidate === channel)) {
-    return LOCAL_SESSION_WORKSPACE_AUTHORIZATION_REVISION
-  }
-  if (HOST_UI_REVISION_7_REQUIRED_CHANNELS.some((candidate) => candidate === channel)) {
-    return LOCAL_SESSION_MCP_AUTH_REVISION
-  }
-  return HOST_BACKED_MCP_GUI_CHANNELS.some((candidate) => candidate === channel)
-    ? LOCAL_SESSION_MCP_HOST_UI_REVISION
-    : LOCAL_SESSION_LEGACY_HOST_UI_REVISION
-}
-
-function minimumProtocolRevision(payload: LocalSessionCommandPayload) {
-  if (payload.contract === 'local-update-v1') return LOCAL_SESSION_UPDATE_REVISION
-  if (payload.contract === 'local-host-v1') return LOCAL_SESSION_HOST_CONTROL_REVISION
-  if (payload.contract === 'desktop-service-v1') return LOCAL_SESSION_DESKTOP_SERVICE_REVISION
-  if (
-    payload.contract === 'session-control-v2' &&
-    (payload.request.command.operation === 'steer' ||
-      payload.request.command.operation === 'promote')
-  ) {
-    return LOCAL_SESSION_STEERING_RECEIPT_REVISION
-  }
-  if (
-    payload.contract === 'local-compaction-v1' ||
-    payload.contract === 'local-compaction-cancel-v1'
-  ) {
-    return LOCAL_SESSION_COMPACTION_REVISION
-  }
-  if (payload.contract === 'host-ui-v1') {
-    return minimumHostUiRevision(payload.request.channel)
-  }
-  if (payload.contract === 'session-waggle-v1' || payload.contract === 'session-waggle-cancel-v1') {
-    return LOCAL_SESSION_WAGGLE_REVISION
-  }
-  return undefined
-}
-
 function unsupportedRevisionMessage(payload: LocalSessionCommandPayload) {
+  if (isFollowUpEditCommand(payload)) {
+    return 'The connected Session Host does not support editing queued messages.'
+  }
   if (payload.contract === 'local-update-v1') {
     return 'The connected Session Host does not support update channel commands.'
   }
@@ -124,10 +41,14 @@ function unsupportedRevisionMessage(payload: LocalSessionCommandPayload) {
   if (payload.contract === 'desktop-service-v1')
     return 'The connected Session Host does not support desktop services.'
   if (payload.contract === 'session-control-v2') {
-    return 'The connected Session Host does not support steering delivery receipts.'
+    return payload.request.command.operation === 'queue-adopt'
+      ? 'The connected Session Host does not support sending a queued message as yourself.'
+      : 'The connected Session Host does not support steering delivery receipts.'
   }
   if (payload.contract === 'host-ui-v1') {
-    return 'The connected Session Host does not support Host UI requests.'
+    return payload.request.channel === 'sessions:create'
+      ? 'The connected Session Host does not support creating a Session at a thinking level.'
+      : 'The connected Session Host does not support Host UI requests.'
   }
   return payload.contract === 'local-compaction-v1' ||
     payload.contract === 'local-compaction-cancel-v1'
@@ -135,8 +56,12 @@ function unsupportedRevisionMessage(payload: LocalSessionCommandPayload) {
     : 'The connected Session Host does not support explicit Waggle commands.'
 }
 
+/**
+ * The revisions this client offers for a command: those at or above the revision the Host requires
+ * to decode it (`requiredLocalSessionCommandRevision`, the rule the Host itself applies).
+ */
 export function supportedRevisionsForCommand(payload: LocalSessionCommandPayload) {
-  const minimum = minimumProtocolRevision(payload)
+  const minimum = requiredLocalSessionCommandRevision(payload)
   if (minimum === undefined) return undefined
   return LOCAL_SESSION_SUPPORTED_REVISIONS.filter((revision) => revision >= minimum)
 }
@@ -188,7 +113,7 @@ export async function executeLocalSessionCommand(input: {
     ...(supportedRevisions ? { supportedRevisions } : {}),
   })
   try {
-    const minimumRevision = minimumProtocolRevision(input.payload)
+    const minimumRevision = requiredLocalSessionCommandRevision(input.payload)
     if (minimumRevision !== undefined && negotiation.revision < minimumRevision) {
       throw new Error(unsupportedRevisionMessage(input.payload))
     }

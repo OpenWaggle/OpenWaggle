@@ -134,7 +134,7 @@ describe('createExtensionBrokerSdk OpenWaggle helpers', () => {
 
     await sdk.openWaggle.actions.selectProject(APP_SCOPE, PROJECT_SCOPE.projectPath)
     await sdk.openWaggle.settings.update(APP_SCOPE, {
-      thinkingLevel: 'high',
+      favoriteModels: ['openai/gpt-5.5'],
       projectDisplayNames: { [PROJECT_SCOPE.projectPath]: 'OpenWaggle' },
     })
     await sdk.openWaggle.settings.setProjectDisplayName(
@@ -143,7 +143,7 @@ describe('createExtensionBrokerSdk OpenWaggle helpers', () => {
       'OpenWaggle',
     )
     await sdk.openWaggle.settings.updateModelPreferences(APP_SCOPE, {
-      thinkingLevel: 'minimal',
+      enabledModels: ['openai/gpt-5.5'],
     })
 
     expect(transport).toHaveBeenNthCalledWith(1, {
@@ -161,7 +161,7 @@ describe('createExtensionBrokerSdk OpenWaggle helpers', () => {
       method: OPENWAGGLE_EXTENSION_BROKER.METHOD.UPDATE_SETTINGS,
       scope: APP_SCOPE,
       payload: {
-        thinkingLevel: 'high',
+        favoriteModels: ['openai/gpt-5.5'],
         projectDisplayNames: { [PROJECT_SCOPE.projectPath]: 'OpenWaggle' },
       },
     })
@@ -186,7 +186,7 @@ describe('createExtensionBrokerSdk OpenWaggle helpers', () => {
       payload: {
         key: OPENWAGGLE_EXTENSION_BROKER.SETTING_KEY.MODEL_PREFERENCES,
         value: {
-          thinkingLevel: 'minimal',
+          enabledModels: ['openai/gpt-5.5'],
         },
       },
     })

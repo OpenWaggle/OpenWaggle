@@ -33,6 +33,9 @@ import {
 } from '../host-ui-session-operation-dispatcher'
 
 const EXPECTED_SESSION_CHANNELS = [
+  'sessions:set-thinking-level',
+  'sessions:get-default-thinking-level',
+  'sessions:set-default-thinking-level',
   'sessions:regenerate-title',
   'sessions:set-model',
   'sessions:resources:list',

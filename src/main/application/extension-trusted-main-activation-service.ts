@@ -16,6 +16,7 @@ import type { ExtensionStorageRepository } from '../ports/extension-storage-repo
 import type { SessionProjectionRepository } from '../ports/session-projection-repository'
 import type { SessionRepository } from '../ports/session-repository'
 import type { SessionResourceRepository } from '../ports/session-resource-repository'
+import type { ThinkingLevelDefaultService } from '../ports/thinking-level-default-service'
 import { AppLogger } from '../services/logger-service'
 import { SettingsService } from '../services/settings-service'
 import { invokeExtensionCapability } from './extension-capability-broker-service'
@@ -51,6 +52,7 @@ export type TrustedMainActivationBaseServices =
   | SessionRepository
   | SessionResourceRepository
   | SettingsService
+  | ThinkingLevelDefaultService
 
 export type TrustedMainActivationServices =
   | TrustedMainActivationBaseServices

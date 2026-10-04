@@ -1,15 +1,5 @@
 import type { UIMessage } from '@shared/types/chat-ui'
-import {
-  Check,
-  Clock3,
-  Copy,
-  FileDown,
-  FileText,
-  GitBranch,
-  GitFork,
-  Image,
-  Waypoints,
-} from 'lucide-react'
+import { Check, Copy, FileDown, FileText, GitBranch, GitFork, Image, Waypoints } from 'lucide-react'
 import { Children, cloneElement, isValidElement, type ReactNode, useEffect } from 'react'
 import type { Components } from 'react-markdown'
 import ReactMarkdown from 'react-markdown'
@@ -26,6 +16,7 @@ import { Button } from '@/shared/ui/Button'
 import { useChatDisplayTextFormatter } from './ChatDisplayPathContext'
 import { renderTextWithMentions } from './MentionText'
 import { OptimisticMessageImages } from './OptimisticMessageImages'
+import { SteerDeliveryStatus } from './SteerDeliveryStatus'
 
 const USER_REMARK_PLUGINS = [remarkGfm]
 
@@ -180,7 +171,12 @@ function UserMessageContent({
   const formatDisplayText = useChatDisplayTextFormatter()
   if (contentParts.length === 0) return null
   return (
-    <div className="prose prose-user min-w-0 flex-1 max-w-none break-words [overflow-wrap:anywhere]">
+    <div
+      className={cn(
+        'prose prose-user min-w-0 flex-1 max-w-none break-words [overflow-wrap:anywhere]',
+        message.metadata?.steerDelivery !== undefined && 'text-text-secondary',
+      )}
+    >
       {contentParts.map((part) => (
         <ReactMarkdown
           key={`${message.id}-text-${part.content}`}
@@ -233,8 +229,8 @@ export function UserMessageBubble({
     ...capturedImages,
     ...optimisticImages,
   ])
-  const isSteerPreview = message.metadata?.steerDelivery !== undefined
-  const isWaitingForCompaction = message.metadata?.steerDelivery === 'waiting-for-compaction'
+  const steerDelivery = message.metadata?.steerDelivery
+  const isSteerPreview = steerDelivery !== undefined
 
   function handleCopy() {
     copy(contentParts.map((p) => p.content).join('\n'))
@@ -244,9 +240,13 @@ export function UserMessageBubble({
     <div className="group/user-msg flex justify-end w-full">
       <div
         className={cn(
-          'relative min-w-0 max-w-full rounded-2xl rounded-br-xs',
-          'border border-border-light bg-bg-hover px-3.5 py-2.5',
+          'relative min-w-0 max-w-full rounded-2xl rounded-br-xs border px-3.5 py-2.5',
+          // A steer the agent has not read yet is not part of the conversation so far.
+          isSteerPreview
+            ? 'border-dashed border-border bg-transparent'
+            : 'border-border-light bg-bg-hover',
         )}
+        data-steer-delivery={steerDelivery}
       >
         <SessionMessageImages messageId={messageNodeId} attachmentNames={attachmentNames} />
         {capturedImages.length === 0 ? <OptimisticMessageImages message={message} /> : null}
@@ -268,12 +268,7 @@ export function UserMessageBubble({
         ) : (
           <UserMessageContent message={message} contentParts={contentParts} />
         )}
-        {isWaitingForCompaction ? (
-          <div className="mt-1.5 flex items-center justify-end gap-1 text-xs text-text-tertiary">
-            <Clock3 className="size-3" />
-            <span>Will send after compaction</span>
-          </div>
-        ) : null}
+        {steerDelivery ? <SteerDeliveryStatus delivery={steerDelivery} /> : null}
         <div className="absolute -bottom-7 right-0 flex items-center gap-2 opacity-0 group-hover/user-msg:opacity-100 transition-opacity">
           {onBranchFromMessage && !isSteerPreview ? (
             <Button

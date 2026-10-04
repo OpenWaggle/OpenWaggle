@@ -3,6 +3,7 @@ import { useRef, useState } from 'react'
 import { registerAttachmentPreviewUrls } from '@/shared/lib/attachment-preview-urls'
 import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
+import { trackAttachmentPreparation } from '../state/composer-activity-store'
 import { useComposerInputGuard } from './useComposerInputGuard'
 
 const logger = createRendererLogger('file-attachment')
@@ -54,7 +55,7 @@ async function prepareAndAttach(
 ) {
   try {
     setAttachmentError(null)
-    const prepared = await api.prepareAttachments(projectPath, files)
+    const prepared = await trackAttachmentPreparation(api.prepareAttachments(projectPath, files))
     if (!isCurrentDraft()) return
     if (prepared.length === 0) return
     registerAttachmentPreviewUrls(prepared, files)

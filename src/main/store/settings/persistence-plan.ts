@@ -37,12 +37,9 @@ import {
 } from './keys'
 import { appendSessionTitleSettingsWrites } from './session-title-settings'
 import { appendChangedSetting, type SettingsPatchWrite } from './settings-patch-writes'
-import { appendThinkingLevelWrite } from './thinking-level-persistence'
 import { appendUsageStatisticsSettingsWrites } from './usage-statistics-settings'
 
 export type { SettingsPatchWrite } from './settings-patch-writes'
-
-export { getInvalidThinkingLevel } from './thinking-level-persistence'
 
 function appendBrowserSettingsWrites(
   writes: SettingsPatchWrite[],
@@ -128,7 +125,6 @@ function appendGeneralSettingsWrites(
     SETTINGS_KEY_PROJECT_PATH,
     next.projectPath,
   )
-  appendThinkingLevelWrite(writes, partial, next)
   appendChangedSetting(
     writes,
     partial.updateChannel !== undefined,

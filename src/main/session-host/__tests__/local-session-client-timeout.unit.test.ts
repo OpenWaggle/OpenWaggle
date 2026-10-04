@@ -53,7 +53,7 @@ describe('Local Session client command timeout', () => {
           requestId: 'request-waggle',
           idempotencyKey: 'idempotency-waggle',
           sessionId: 'session-target',
-          payload: { text: 'Review.', thinkingLevel: 'medium', attachments: [] },
+          payload: { text: 'Review.', attachments: [] },
           model: 'openai/gpt-5.4',
           config: {
             mode: 'sequential',

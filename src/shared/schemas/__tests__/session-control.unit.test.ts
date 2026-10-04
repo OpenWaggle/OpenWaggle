@@ -51,22 +51,6 @@ describe('Session Control v2 boundary', () => {
     })
   })
 
-  it('rejects a Run authorization override on adaptive message submission', () => {
-    expect(() =>
-      decodeSessionControlMutationRequest({
-        contractVersion: SESSION_CONTROL_CONTRACT_VERSION,
-        requestId: 'request-message-mode',
-        idempotencyKey: 'idempotency-message-mode',
-        command: {
-          operation: 'message',
-          sessionId: 'session-target',
-          runAuthorizationOverride: 'yolo',
-          input: { text: 'Continue.', attachmentIds: [] },
-        },
-      }),
-    ).toThrow(/runAuthorizationOverride/)
-  })
-
   it('decodes explicit Run start with a per-Run authorization override', () => {
     const request = decodeSessionControlMutationRequest({
       contractVersion: SESSION_CONTROL_CONTRACT_VERSION,
@@ -104,7 +88,6 @@ describe('Session Control v2 boundary', () => {
       command: {
         operation: 'follow-up',
         sessionId: 'session-target',
-        runAuthorizationOverride: 'ask-for-approval',
         input: { text: 'Run the full verification matrix next.', attachmentIds: [] },
       },
     })
@@ -112,7 +95,6 @@ describe('Session Control v2 boundary', () => {
     expect(request.command).toEqual({
       operation: 'follow-up',
       sessionId: 'session-target',
-      runAuthorizationOverride: 'ask-for-approval',
       input: { text: 'Run the full verification matrix next.', attachmentIds: [] },
     })
   })
@@ -126,7 +108,6 @@ describe('Session Control v2 boundary', () => {
         operation: 'replace',
         sessionId: 'session-target',
         expectedRunId: 'run-active',
-        runAuthorizationOverride: 'yolo',
         input: { text: 'Stop that approach and implement this one.', attachmentIds: [] },
       },
     })
@@ -135,7 +116,6 @@ describe('Session Control v2 boundary', () => {
       operation: 'replace',
       sessionId: 'session-target',
       expectedRunId: 'run-active',
-      runAuthorizationOverride: 'yolo',
       input: { text: 'Stop that approach and implement this one.', attachmentIds: [] },
     })
   })

@@ -12,6 +12,7 @@ import type {
   SessionControlMutationRequest,
   SessionControlMutationResponse,
 } from './session-control'
+import type { FollowUpEditHoldReference } from './session-control-queue'
 import type { SessionQueryRequest, SessionQueryResponse } from './session-query'
 
 export interface OpenWaggleSessionControlApi {
@@ -34,4 +35,9 @@ export interface OpenWaggleSessionControlApi {
   ): Promise<SessionControlMutationResponse>
   /** Read the canonical Session Host projection used by GUI/CLI/MCP. */
   querySessionControl(request: SessionQueryRequest): Promise<SessionQueryResponse>
+  /**
+   * Binds a Follow-up edit hold this user already holds to the calling window, so that window
+   * renews it and releases it when it closes (ADR 0044). `false` when the hold is gone.
+   */
+  adoptFollowUpEdit(hold: FollowUpEditHoldReference): Promise<boolean>
 }

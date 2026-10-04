@@ -10,9 +10,13 @@ import {
 } from './message-parts'
 import { decodeUserInputProjection } from './user-input-projection'
 
-export function visibleWaggleUserMessageProjection(
-  entry: Extract<SessionEntry, { type: 'custom_message' }>,
-): PiEntryProjection {
+type VisibleWaggleUserEntry = Pick<
+  Extract<SessionEntry, { type: 'custom_message' }>,
+  'customType' | 'content' | 'display' | 'details'
+>
+
+/** The display parts and invocation a visible Waggle user request shows in the transcript. */
+export function visibleWaggleUserMessageDisplay(entry: VisibleWaggleUserEntry) {
   const details = toJsonValue(entry.details ?? null)
   const detailsRecord =
     typeof details === 'object' && details !== null && !Array.isArray(details) ? details : null
@@ -21,19 +25,27 @@ export function visibleWaggleUserMessageProjection(
     : null
   const displayParts = detailsRecord ? decodeUserInputProjection(detailsRecord.userInput) : null
   return {
+    details,
+    parts: displayParts ?? piTextAndImageContentToParts(entry.content),
+    waggleInvocation: decodedInvocation?.success ? decodedInvocation.data : null,
+  }
+}
+
+export function visibleWaggleUserMessageProjection(
+  entry: Extract<SessionEntry, { type: 'custom_message' }>,
+): PiEntryProjection {
+  const display = visibleWaggleUserMessageDisplay(entry)
+  return {
     kind: 'user_message',
     role: 'user',
-    contentJson: buildMessageNodeContentJson(
-      displayParts ?? piTextAndImageContentToParts(entry.content),
-      null,
-    ),
+    contentJson: buildMessageNodeContentJson(display.parts, null),
     metadataJson: buildRawNodeContentJson(
-      decodedInvocation?.success
-        ? { waggleInvocation: decodedInvocation.data }
+      display.waggleInvocation
+        ? { waggleInvocation: display.waggleInvocation }
         : {
             customType: entry.customType,
             display: entry.display,
-            details,
+            details: display.details,
           },
     ),
   }

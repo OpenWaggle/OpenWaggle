@@ -33,11 +33,7 @@ const exportSnapshotManifest = Type.Object({
         createdAt: Type.Integer({ minimum: 0 }),
         deliveryState: Type.Union([Type.Literal('pending'), Type.Literal('needs_attention')]),
         attentionReason: Type.Optional(
-          Type.Union([
-            Type.Literal('authorization_ceiling_changed'),
-            Type.Literal('profile_revoked'),
-            Type.Literal('authority_changed'),
-          ]),
+          Type.Union([Type.Literal('profile_revoked'), Type.Literal('authority_changed')]),
         ),
         intent: Type.Optional(Type.Unknown()),
       }),

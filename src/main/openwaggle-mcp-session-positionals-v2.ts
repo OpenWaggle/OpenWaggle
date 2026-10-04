@@ -64,9 +64,6 @@ function queuePositionals(input: SessionToolInputV2) {
   if (input.operation === 'queue-reorder')
     return ['reorder', ...direct, ...new Set(input.followUpIds ?? [])]
   if (input.operation === 'queue-pause') return ['pause', ...direct]
-  if (input.operation === 'queue-update-authorization') {
-    return ['update-authorization', ...direct, ...(input.followUpId ? [input.followUpId] : [])]
-  }
   return input.operation === 'queue-resume' ? ['resume', ...direct] : undefined
 }
 

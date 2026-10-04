@@ -12,12 +12,7 @@ import { parseSessionTitleModelSetting } from '@shared/session-title-model'
 import { AGENT_AUTHORIZATION_MODES } from '@shared/types/agent-authorization'
 import { SESSION_ENVIRONMENT_MODES } from '@shared/types/git'
 import { isExtensionRightPanelSurfaceId } from '@shared/types/right-panel-surface-id'
-import {
-  BROWSER_LINK_TARGETS,
-  DIFF_SYNTAX_THEMES,
-  DIFF_VIEWS,
-  THINKING_LEVELS,
-} from '@shared/types/settings'
+import { BROWSER_LINK_TARGETS, DIFF_SYNTAX_THEMES, DIFF_VIEWS } from '@shared/types/settings'
 import {
   EXTENSION_PANEL_SHORTCUT_LIMITS,
   SHORTCUT_COMMANDS,
@@ -74,7 +69,6 @@ export const settingsUpdateSchema = Schema.Struct({
   favoriteModels: Schema.optional(Schema.mutable(Schema.Array(Schema.String))),
   enabledModels: Schema.optional(Schema.mutable(Schema.Array(Schema.String))),
   projectPath: Schema.optional(Schema.NullOr(Schema.String)),
-  thinkingLevel: Schema.optional(Schema.Literal(...THINKING_LEVELS)),
   updateChannel: Schema.optional(Schema.Literal(...UPDATE_CHANNELS)),
   usageStatisticsEnabled: Schema.optional(Schema.Boolean),
   compactionThresholdPercent: Schema.optional(

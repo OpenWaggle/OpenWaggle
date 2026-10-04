@@ -59,7 +59,6 @@ const TestSessionProjectionLayer = Layer.succeed(SessionProjectionRepository, {
     }),
   setWorktreePlan: () => Effect.void,
   setAuthorizationMode: () => Effect.void,
-  setExecutionModel: () => Effect.succeed(true),
   listTurnCheckpoints: () => Effect.succeed([]),
   getTurnDiff: () => Effect.succeed(null),
   getTurnDiffFiles: () => Effect.succeed([]),
@@ -167,7 +166,7 @@ describe('executeAgentRun', () => {
       executeAgentRun({
         sessionId,
         runId: 'run-standard-1',
-        payload: { text: 'Implement the next slice', thinkingLevel: 'medium', attachments: [] },
+        payload: { text: 'Implement the next slice', attachments: [] },
         model,
         signal: new AbortController().signal,
         onEvent: () => undefined,
@@ -194,6 +193,26 @@ describe('executeAgentRun', () => {
     })
   })
 
+  it("hands Pi the Session's stored thinking level, not one from the message", async () => {
+    // The level a `message` or `start` set is stored with the Run's admission; the Run reads it here.
+    projectionSession = { ...session, executionThinkingLevel: 'high' }
+
+    await Effect.runPromise(
+      executeAgentRun({
+        sessionId,
+        runId: 'run-thinking',
+        payload: { text: 'Think hard', attachments: [] },
+        model,
+        signal: new AbortController().signal,
+        onEvent: () => undefined,
+      }).pipe(Effect.provide(TestLayer)),
+    )
+
+    const kernelInput = runMock.mock.calls.at(-1)?.[0]
+    expect(kernelInput?.session.executionThinkingLevel).toBe('high')
+    expect(kernelInput?.payload).not.toHaveProperty('thinkingLevel')
+  })
+
   it('reports cancellation during first-send worktree creation as aborted', async () => {
     const controller = new AbortController()
     controller.abort()
@@ -203,7 +222,7 @@ describe('executeAgentRun', () => {
       executeAgentRun({
         sessionId,
         runId: 'run-cancelled-worktree',
-        payload: { text: 'Start in a worktree', thinkingLevel: 'medium', attachments: [] },
+        payload: { text: 'Start in a worktree', attachments: [] },
         model,
         signal: controller.signal,
         onEvent: () => undefined,
@@ -230,7 +249,6 @@ describe('executeAgentRun', () => {
         runId: 'run-title-1',
         payload: {
           text: 'Draft a one-page summary of this app',
-          thinkingLevel: 'medium',
           attachments: [],
         },
         model,

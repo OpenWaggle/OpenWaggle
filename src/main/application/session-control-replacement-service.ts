@@ -18,7 +18,6 @@ import { SessionControlOperationJournal } from '../ports/session-control-operati
 import { lendSessionAttachmentTransitionToSettlingRun } from './session-attachment-cleanup'
 import { fenceFailedClaimedSessionOperation } from './session-control-claimed-operation-recovery'
 import { toSessionControlIntentMessage } from './session-control-message-input'
-import { clampRunAuthorizationOverride } from './session-control-run-authorization'
 
 export interface ReplaceSessionRunInput {
   readonly callerId: string
@@ -49,16 +48,9 @@ export function replaceSessionRun(input: ReplaceSessionRunInput) {
     const acceptedAt = yield* identities.now
     const replacementIntent = {
       ...toSessionControlIntentMessage(input.request.command.input),
-      ...(clampRunAuthorizationOverride(
-        input.request.command.runAuthorizationOverride,
-        input.callerAuthorizationCeiling,
-      )
-        ? {
-            runAuthorizationOverride: clampRunAuthorizationOverride(
-              input.request.command.runAuthorizationOverride,
-              input.callerAuthorizationCeiling,
-            ),
-          }
+      // A replacement names no override; an ask-for-approval caller's Run still asks.
+      ...(input.callerAuthorizationCeiling === 'ask-for-approval'
+        ? { runAuthorizationOverride: 'ask-for-approval' as const }
         : {}),
       callerId: input.callerId,
       acceptedAt,
@@ -113,22 +105,23 @@ export function replaceSessionRun(input: ReplaceSessionRunInput) {
           ),
         ),
       })
+      const replacedOutcome = (stateRevision: number): SessionControlMutationOutcome => ({
+        operation: 'replace',
+        effect: 'replaced-run',
+        sessionId: input.request.command.sessionId,
+        interruptedRunId,
+        runId: replacementRunId,
+        stateRevision,
+      })
       const outcome: SessionControlMutationOutcome = interruption.accepted
-        ? {
-            operation: 'replace',
-            effect: 'replaced-run',
-            sessionId: input.request.command.sessionId,
-            interruptedRunId,
-            runId: replacementRunId,
-            stateRevision: claim.stateRevision + 1,
-          }
+        ? replacedOutcome(claim.stateRevision + 1)
         : {
             operation: 'replace',
             effect: 'rejected',
             sessionId: input.request.command.sessionId,
             code: interruption.code,
           }
-      yield* journal.complete({
+      const recorded = yield* journal.complete({
         callerId: input.callerId,
         request: input.request,
         outcome,
@@ -136,8 +129,13 @@ export function replaceSessionRun(input: ReplaceSessionRunInput) {
           ? (state) =>
               startClaimedReplacement(state, interruptedRunId, replacementRunId, replacementIntent)
           : (state) => releaseRejectedRunInterruption(state, interruptedRunId),
+        // The interrupted Run's settlement can change the state in between (it returns its
+        // Undelivered steering messages), so the replacement reports the revision it produced.
+        ...(interruption.accepted
+          ? { outcomeForFinalState: (state) => replacedOutcome(state.revision) }
+          : {}),
       })
-      return response(input, false, outcome)
+      return response(input, false, recorded)
     }).pipe(
       Effect.onError(() => fenceFailedClaimedSessionOperation(input.request.command.sessionId)),
     )

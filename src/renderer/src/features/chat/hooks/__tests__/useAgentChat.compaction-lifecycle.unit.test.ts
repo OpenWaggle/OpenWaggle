@@ -22,19 +22,13 @@ describe('useAgentChat compaction lifecycle', () => {
     const send = createDeferred<AgentSendReport>()
     apiMock.sendMessage.mockReturnValueOnce(send.promise)
     const { result } = renderHook(() =>
-      useAgentChat(
-        SessionId('session-1'),
-        createSession(),
-        SupportedModelId('claude-sonnet-4-5'),
-        'medium',
-      ),
+      useAgentChat(SessionId('session-1'), createSession(), SupportedModelId('claude-sonnet-4-5')),
     )
 
     let sendPromise: Promise<void> | null = null
     await act(async () => {
       sendPromise = result.current.sendMessage({
         text: 'Hello',
-        thinkingLevel: 'medium',
         attachments: [],
       })
       await Promise.resolve()
@@ -72,12 +66,7 @@ describe('useAgentChat compaction lifecycle', () => {
 
   it('surfaces compaction lifecycle events as foreground activity', async () => {
     const { result } = renderHook(() =>
-      useAgentChat(
-        SessionId('session-1'),
-        createSession(),
-        SupportedModelId('claude-sonnet-4-5'),
-        'medium',
-      ),
+      useAgentChat(SessionId('session-1'), createSession(), SupportedModelId('claude-sonnet-4-5')),
     )
 
     await act(async () => {
@@ -160,12 +149,7 @@ describe('useAgentChat compaction lifecycle', () => {
       },
     ])
     const { result } = renderHook(() =>
-      useAgentChat(
-        SessionId('session-1'),
-        session,
-        SupportedModelId('claude-sonnet-4-5'),
-        'medium',
-      ),
+      useAgentChat(SessionId('session-1'), session, SupportedModelId('claude-sonnet-4-5')),
     )
 
     await act(async () => {
@@ -191,12 +175,7 @@ describe('useAgentChat compaction lifecycle', () => {
 
   it('preserves a completed compaction marker through automatic retry', async () => {
     const { result } = renderHook(() =>
-      useAgentChat(
-        SessionId('session-1'),
-        createSession(),
-        SupportedModelId('claude-sonnet-4-5'),
-        'medium',
-      ),
+      useAgentChat(SessionId('session-1'), createSession(), SupportedModelId('claude-sonnet-4-5')),
     )
 
     await act(async () => {
@@ -255,7 +234,6 @@ describe('useAgentChat compaction lifecycle', () => {
         SessionId('session-1'),
         createSession(),
         SupportedModelId('spark/GLM-5.3-Flash-EXL3'),
-        'medium',
       ),
     )
 

@@ -15,7 +15,6 @@ describe('successful run resource invalidation', () => {
     const upserts: UpsertSessionResourceInput[] = []
     const payload: AgentSendPayload = {
       text: 'Review [reference](https://user.example/reference)',
-      thinkingLevel: 'medium',
       attachments: [],
     }
 

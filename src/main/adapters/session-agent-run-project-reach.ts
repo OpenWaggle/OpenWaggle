@@ -19,7 +19,6 @@ import { decodeSessionAuthoritySnapshot } from '../session-host/session-authorit
 
 interface RunSourceRow {
   readonly initiator_caller_id: string | null
-  readonly author_caller_id: string | null
   readonly authority_origin_caller_id: string
   readonly authority_scope_snapshot_json: string | null
   readonly parent_session_id: string | null
@@ -100,7 +99,6 @@ function runReachStep(
   return Effect.gen(function* () {
     const rows = yield* sql<RunSourceRow>`
       SELECT json_extract(session_runs.intent_json, '$.callerId') AS initiator_caller_id,
-        json_extract(session_runs.intent_json, '$.authorCallerId') AS author_caller_id,
         session_execution_profiles.authority_origin_caller_id,
         session_execution_profiles.authority_scope_snapshot_json,
         COALESCE(session_spawn_lineage.parent_session_id, session_lineage.parent_session_id)
@@ -134,16 +132,8 @@ function runReachStep(
       }),
     ).pipe(Effect.orElseSucceed(() => false))
     if (!ownReach) return NO_REACH
-    // A re-authorized Follow-up keeps its author, who must reach every project as well.
-    const callers = [row.initiator_caller_id, row.author_caller_id].filter(
-      (caller): caller is string => caller !== null,
-    )
-    const followRuns: RunReference[] = []
-    for (const caller of callers) {
-      const reach = yield* callerReach(sql, caller)
-      if (reach === false) return NO_REACH
-      if (reach !== true) followRuns.push(reach)
-    }
-    return { verdict: true, followRuns }
+    const reach = yield* callerReach(sql, row.initiator_caller_id)
+    if (reach === false) return NO_REACH
+    return { verdict: true, followRuns: reach === true ? [] : [reach] }
   })
 }

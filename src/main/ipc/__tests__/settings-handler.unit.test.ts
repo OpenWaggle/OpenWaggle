@@ -85,11 +85,11 @@ describe('registerSettingsHandlers', () => {
     it('validates and applies a valid settings update', async () => {
       const handler = getRegisteredSettingsUpdateHandler(registerSettingsHandlers)
 
-      const result = await handler?.({}, { thinkingLevel: 'high' })
+      const result = await handler?.({}, { updateChannel: 'beta' })
       expect(result).toEqual({ ok: true })
       expect(updateSettingsMock).toHaveBeenCalledOnce()
       expect(updateSettingsMock).toHaveBeenCalledWith(
-        expect.objectContaining({ thinkingLevel: 'high' }),
+        expect.objectContaining({ updateChannel: 'beta' }),
       )
     })
 
@@ -129,7 +129,7 @@ describe('registerSettingsHandlers', () => {
     it('rejects an invalid settings payload and returns error', async () => {
       const handler = getRegisteredSettingsUpdateHandler(registerSettingsHandlers)
 
-      const result = await handler?.({}, { thinkingLevel: 'invalid-mode' })
+      const result = await handler?.({}, { updateChannel: 'invalid-mode' })
       expect(result).toEqual({ ok: false, error: expect.any(String) })
       expect(updateSettingsMock).not.toHaveBeenCalled()
     })
@@ -245,7 +245,7 @@ describe('registerSettingsHandlers', () => {
     it('does not reconcile trusted main extensions for unrelated settings updates', async () => {
       const handler = getRegisteredSettingsUpdateHandler(registerSettingsHandlers)
 
-      const result = await handler?.({}, { thinkingLevel: 'high' })
+      const result = await handler?.({}, { updateChannel: 'beta' })
 
       expect(result).toEqual({ ok: true })
       expect(reconcileTrustedMainExtensionsMock).not.toHaveBeenCalled()

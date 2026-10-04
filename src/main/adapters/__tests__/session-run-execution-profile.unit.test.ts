@@ -48,9 +48,10 @@ function row(
 describe('Session run execution profile', () => {
   it('resolves persisted runtime restrictions and authoritative Worker identity', () => {
     const resolved = resolveSessionRunExecution(row(), 'run-1')
+    // The Run reads its thinking level from the Session it loads, not from this profile view.
+    expect(resolved).not.toHaveProperty('thinkingLevel')
     expect(resolved).toMatchObject({
       model: 'openai/gpt-5.5',
-      thinkingLevel: 'high',
       authorizationCeiling: 'ask-for-approval',
       agentInstructions: 'Review the implementation.',
       toolAllowlist: ['read', 'sessions'],

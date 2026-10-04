@@ -48,6 +48,9 @@ describe('registerSessionDetailsHandlers', () => {
       'sessions:set-authorization-mode',
       'sessions:regenerate-title',
       'sessions:set-model',
+      'sessions:set-thinking-level',
+      'sessions:get-default-thinking-level',
+      'sessions:set-default-thinking-level',
     ])
   })
 

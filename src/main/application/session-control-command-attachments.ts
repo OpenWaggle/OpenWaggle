@@ -1,6 +1,9 @@
 import type { LocalSessionCallerIdentity } from '@shared/types/local-session-profile'
 import type { LocalSessionCommandPayload } from '@shared/types/local-session-protocol'
+import { FOLLOW_UP_EDIT_CALLER_ID } from '@shared/types/session-control-queue'
 import * as Effect from 'effect/Effect'
+import * as Option from 'effect/Option'
+import { FollowUpEditHoldRepository } from '../ports/follow-up-edit-hold-repository'
 import { SessionControlAttachmentService } from '../ports/session-control-attachment-service'
 
 function controlAttachmentIds(
@@ -14,27 +17,51 @@ function controlAttachmentIds(
     command.operation === 'start' ||
     command.operation === 'follow-up' ||
     command.operation === 'steer' ||
-    command.operation === 'replace'
+    command.operation === 'replace' ||
+    command.operation === 'queue-edit-save'
   ) {
     return command.input.attachmentIds
   }
   return []
 }
 
+/**
+ * A Follow-up edit's attachments are retained past a rejected save, so the draft can be saved
+ * again or queued as a new message. Optional: a runtime without holds has nothing to retain.
+ */
+function retainFollowUpEditAttachments(sessionId: string, attachmentIds: readonly string[]) {
+  return Effect.serviceOption(FollowUpEditHoldRepository).pipe(
+    Effect.flatMap((holds) =>
+      Option.isSome(holds)
+        ? holds.value.retainAttachments({ sessionId, attachmentIds })
+        : Effect.void,
+    ),
+  )
+}
+
 export function bindSessionControlAttachments(
   caller: LocalSessionCallerIdentity,
   payload: Extract<LocalSessionCommandPayload, { contract: 'session-control-v2' }>,
 ) {
-  const attachmentIds = controlAttachmentIds(payload.request.command)
-  return attachmentIds.length === 0
-    ? Effect.void
-    : SessionControlAttachmentService.pipe(
-        Effect.flatMap((service) =>
-          service.bind({
-            attachmentIds,
-            sessionId: payload.request.command.sessionId,
-            ownerCallerId: caller.callerId,
-          }),
-        ),
-      )
+  const command = payload.request.command
+  const attachmentIds = controlAttachmentIds(command)
+  if (attachmentIds.length === 0) return Effect.void
+  const bind = SessionControlAttachmentService.pipe(
+    Effect.flatMap((service) =>
+      service.bind({
+        attachmentIds,
+        sessionId: command.sessionId,
+        ownerCallerId: caller.callerId,
+      }),
+    ),
+  )
+  // Only the desktop user can save an edit; any other caller's save is refused before it binds
+  // anything worth keeping, so it gets no retention it could use to pin attachments.
+  const desktopEdit =
+    command.operation === 'queue-edit-save' &&
+    caller.callerId === FOLLOW_UP_EDIT_CALLER_ID &&
+    caller.profileAuthority === undefined
+  return desktopEdit
+    ? bind.pipe(Effect.zipRight(retainFollowUpEditAttachments(command.sessionId, attachmentIds)))
+    : bind
 }

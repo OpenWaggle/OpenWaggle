@@ -15,6 +15,7 @@ import {
 } from './active-session-runs'
 import { requestHiveWorkerCleanup } from './hive-worker-cleanup-request'
 import { acquireSessionHostRunLease, type SessionHostRunLease } from './session-host-run-admission'
+import { settleWithUndeliveredSteers } from './undelivered-steering-settlement'
 import {
   recordRunFinishedForUsageStatistics,
   recordRunStartedForUsageStatistics,
@@ -95,16 +96,22 @@ function coordinateLiveSessionRuns(input: CoordinateSessionRunsInput) {
         }
 
         const nextRunId = yield* identities.nextRunId
-        return yield* lifecycle.settle({
+        return yield* settleWithUndeliveredSteers({
           sessionId: input.sessionId,
           runId,
-          nextRunId,
-          terminalStatus: execution.terminalStatus,
-          ...(execution.terminalEventAt === undefined
-            ? {}
-            : { terminalEventAt: execution.terminalEventAt }),
-          suppressFollowUpScheduling: hasClaimedSessionWriterSuccessor(input.sessionId, runId),
-          ...(execution.finalResponse ? { finalResponse: execution.finalResponse } : {}),
+          settle: (undeliveredSteers) =>
+            lifecycle.settle({
+              sessionId: input.sessionId,
+              runId,
+              nextRunId,
+              terminalStatus: execution.terminalStatus,
+              ...(execution.terminalEventAt === undefined
+                ? {}
+                : { terminalEventAt: execution.terminalEventAt }),
+              suppressFollowUpScheduling: hasClaimedSessionWriterSuccessor(input.sessionId, runId),
+              ...(execution.finalResponse ? { finalResponse: execution.finalResponse } : {}),
+              ...(undeliveredSteers.length > 0 ? { undeliveredSteers } : {}),
+            }),
         })
       }).pipe(Effect.ensuring(Effect.sync(reservation.release)))
       if (!settlement) return results

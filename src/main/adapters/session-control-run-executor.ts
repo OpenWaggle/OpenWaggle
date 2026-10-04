@@ -10,6 +10,7 @@ import {
 import { captureRunResultResources } from '../application/session-resource-run-result'
 import { runAndCaptureWithRetainedScratch } from '../application/session-scratch-retention'
 import { loadProjectConfigStrict } from '../config/project-config'
+import { followUpAttachmentOwner } from '../domain/session-control/message-aggregate'
 import { resolveSessionHostProjectPolicy } from '../domain/session-control/session-host-policy'
 import type { AgentKernelService } from '../ports/agent-kernel-service'
 import type { AgentRequestedWaggleService } from '../ports/agent-requested-waggle-service'
@@ -245,7 +246,7 @@ function executeRun(input: SessionControlRunExecutionInput) {
       attachmentIds: input.intent.attachmentIds,
       sessionId: input.sessionId,
       runId: input.runId,
-      ownerCallerId: input.intent.callerId,
+      ownerCallerId: followUpAttachmentOwner(input.intent),
     })
   })
 }

@@ -1,3 +1,5 @@
+import type { AttachmentRecord } from '@shared/types/agent'
+import { buildAgentPromptText } from '@shared/utils/agent-prompt-text'
 import { describe, expect, it } from 'vitest'
 import { buildAtomicVisualizationPrompt } from '../../pi-runtime-input'
 import {
@@ -6,7 +8,20 @@ import {
   piAssistantContentToParts,
   piTextAndImageContentToParts,
   piToolResultContentToPart,
+  piUserContentToDisplayParts,
 } from '../message-parts'
+
+function attachment(name: string, extractedText: string): AttachmentRecord {
+  return {
+    id: name,
+    kind: 'text',
+    name,
+    path: `/tmp/${name}`,
+    mimeType: 'text/plain',
+    sizeBytes: 1,
+    extractedText,
+  }
+}
 
 describe('Pi message part projection helpers', () => {
   it('hides atomic visualization context from the durable user transcript', () => {
@@ -36,6 +51,27 @@ describe('Pi message part projection helpers', () => {
     expect(piTextAndImageContentToParts([{ type: 'text', text: ordinaryPrompt }])).toEqual([
       { type: 'text', text: ordinaryPrompt },
     ])
+  })
+
+  it('strips only genuine synthesized attachment blocks from a user message without a projection', () => {
+    const synthesized = buildAgentPromptText({
+      text: 'Compare these',
+      attachments: [
+        attachment('notes [v2].txt', 'First\n\n[Attachment: inside]\nbody'),
+        attachment('image.png', ''),
+      ],
+    })
+    expect(piUserContentToDisplayParts(synthesized)).toEqual([
+      { type: 'text', text: 'Compare these' },
+    ])
+    // Typed text that only mentions the marker, mid-line or without closing the line, is kept.
+    for (const typed of [
+      'Keep this\n\n[Attachment: notes.txt] is where I put it',
+      'Keep this\n\n[Attachment: unfinished',
+      'Inline [Attachment: notes.txt]\nstays',
+    ]) {
+      expect(piUserContentToDisplayParts(typed)).toEqual([{ type: 'text', text: typed }])
+    }
   })
 
   it('projects Pi user text and image content into renderer-safe text parts', () => {

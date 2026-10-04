@@ -111,7 +111,6 @@ describe('Session Control worktree progress', () => {
         },
         execution: {
           model,
-          thinkingLevel: 'high',
           authorizationCeiling: 'yolo',
           sessionCapabilities: [],
           projectPath: '/tmp/project',
@@ -168,7 +167,6 @@ describe('Session Control worktree progress', () => {
         },
         execution: {
           model: SupportedModelId('openai/gpt-5'),
-          thinkingLevel: 'high',
           authorizationCeiling: 'yolo',
           sessionCapabilities: [],
           projectPath: '/tmp/project',

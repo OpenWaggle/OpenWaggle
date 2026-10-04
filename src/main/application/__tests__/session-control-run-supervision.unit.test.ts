@@ -12,6 +12,7 @@ import { activeRuns } from '../active-session-runs'
 import { dispatchAcceptedSessionControlRun } from '../session-control-command-service'
 import { SessionHostEventHub } from '../session-host-event-hub'
 import { SessionHostLiveness } from '../session-host-liveness'
+import { NoSteeringLayer } from './agent-steering-test-layer'
 
 function runLayer(failurePoint: 'activate' | 'settle') {
   return Layer.mergeAll(
@@ -56,6 +57,7 @@ function runLayer(failurePoint: 'activate' | 'settle') {
     Layer.succeed(SessionControlRunExecutor, {
       execute: () => Effect.succeed({ terminalStatus: 'completed' as const }),
     }),
+    NoSteeringLayer,
     Layer.succeed(SessionOrchestrationUpdateDeliveryService, {
       deliverPendingToActiveRun: () => Effect.succeed(false),
       deliverPendingSpecificationsToActiveRun: () => Effect.succeed(false),

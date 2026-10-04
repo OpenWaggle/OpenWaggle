@@ -42,6 +42,8 @@ function isLocalUiResponse(
       'branch-restored',
       'tree-ui-state-updated',
       'session-deleted',
+      'follow-up-edit-hold-renewed',
+      'follow-up-edit-hold-lost',
     ].includes(value.effect) &&
     typeof value.sessionId === 'string' &&
     (value.navigation === undefined ||

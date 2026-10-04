@@ -1,6 +1,6 @@
 import type { AgentLoopInteraction } from './agent-loop-interaction'
 import type { DelegationState } from './session-collaboration'
-import type { FollowUpQueuePauseReason } from './session-control-queue'
+import type { FollowUpQueuePauseReason, SessionFollowUpListing } from './session-control-queue'
 import type {
   DelegationConflictKind,
   DelegationConflictStatus,
@@ -229,6 +229,8 @@ export type SessionQueryOutcome =
       readonly activeRunId: string | null
       readonly activeRunStatus?: string
       readonly pendingFollowUpCount: number
+      /** Earliest live Follow-up edit hold: the queue is waiting on the user's edit. */
+      readonly followUpEditHeldAt?: number
     }
   | {
       readonly operation: 'queue-list'
@@ -238,17 +240,19 @@ export type SessionQueryOutcome =
       readonly queuePauseReason?: FollowUpQueuePauseReason
       readonly queueRevision: number
       readonly activeRunId: string | null
-      readonly items: readonly {
+      readonly items: readonly (SessionFollowUpListing & {
         readonly followUpId: string
         readonly position: number
         readonly createdAt: number
         readonly deliveryState: 'pending' | 'needs_attention'
-        readonly attentionReason?:
-          | 'authorization_ceiling_changed'
-          | 'profile_revoked'
-          | 'authority_changed'
+        readonly attentionReason?: 'profile_revoked' | 'authority_changed'
+        /**
+         * Set when a direct steer became this Follow-up because its Run stopped before
+         * incorporating it. `idempotencyKey` is the steer's, so its caller can recognise it.
+         */
+        readonly returnedSteer?: { readonly runId: string; readonly idempotencyKey: string }
         readonly intent?: unknown
-      }[]
+      })[]
       readonly omittedBodyCount: number
     }
   | {

@@ -191,7 +191,6 @@ describe('executeWaggleRun', () => {
         ...runInput(waggleConfig, 'run-waggle-host-attachment'),
         payload: {
           text: 'Review the immutable evidence.',
-          thinkingLevel: 'medium',
           attachments: [HOST_RESOLVED_PUBLIC_ATTACHMENT],
         },
         hydratedAttachments: [HOST_RESOLVED_ATTACHMENT],

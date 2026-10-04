@@ -11,7 +11,6 @@ describe('accepted steer resource capture', () => {
     const upserts: UpsertSessionResourceInput[] = []
     const steerPayload: AgentSendPayload = {
       text: 'Inspect this image',
-      thinkingLevel: 'medium',
       attachments: [
         {
           id: 'steered-image',
@@ -46,7 +45,7 @@ describe('accepted steer resource capture', () => {
       captureSuccessfulRunResources({
         sessionId: SessionId('session-1'),
         runId: 'run-steer',
-        payload: { text: 'Start', thinkingLevel: 'medium', attachments: [] },
+        payload: { text: 'Start', attachments: [] },
         messages,
         nodeIdByMessageId: {
           'initial-user': 'initial-node',
@@ -78,7 +77,7 @@ describe('accepted steer resource capture', () => {
       captureSuccessfulRunResources({
         sessionId: SessionId('session-1'),
         runId: 'run-unmatched-steer',
-        payload: { text: 'Start', thinkingLevel: 'medium', attachments: [] },
+        payload: { text: 'Start', attachments: [] },
         messages: [
           {
             id: MessageId('initial-user'),
@@ -98,7 +97,6 @@ describe('accepted steer resource capture', () => {
             durableText: 'Missing steer',
             payload: {
               text: 'Missing steer',
-              thinkingLevel: 'medium',
               attachments: [
                 {
                   id: 'unmatched-image',
@@ -125,7 +123,7 @@ describe('accepted steer resource capture', () => {
       captureSuccessfulRunResources({
         sessionId: SessionId('session-1'),
         runId: 'run-host-steer',
-        payload: { text: 'Start', thinkingLevel: 'medium', attachments: [] },
+        payload: { text: 'Start', attachments: [] },
         messages: [
           {
             id: MessageId('initial-user'),

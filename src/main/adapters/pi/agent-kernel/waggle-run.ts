@@ -238,6 +238,7 @@ export async function runPiWaggle(input: PiWaggleKernelRunInput) {
     createSessionListener(
       {
         ...input,
+        sessionEntries: session.sessionManager,
         model: initialRuntimeModel,
         getContextWindow: (provider, modelId) => {
           const activeModel = session.model

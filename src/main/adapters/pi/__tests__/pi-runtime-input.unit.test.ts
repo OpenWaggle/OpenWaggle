@@ -31,7 +31,6 @@ function makeModels() {
 function makePayload(overrides?: Partial<HydratedAgentSendPayload>): HydratedAgentSendPayload {
   return {
     text: 'Inspect these files',
-    thinkingLevel: 'medium',
     attachments: [
       {
         id: 'img-1',

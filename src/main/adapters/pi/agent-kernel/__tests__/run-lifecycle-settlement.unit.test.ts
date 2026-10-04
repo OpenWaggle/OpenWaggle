@@ -98,7 +98,6 @@ function assistantMessage(text: string): PiAgentMessage {
 function payload(): HydratedAgentSendPayload {
   return {
     text: 'Continue',
-    thinkingLevel: 'high',
     attachments: [],
   }
 }

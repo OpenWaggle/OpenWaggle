@@ -112,7 +112,6 @@ export function persistProjectPreference(
   projectPath: string | null,
   prefs: {
     model?: string
-    thinkingLevel?: string
     authorizationMode?: AgentAuthorizationMode | null
   },
   set?: PreferencesSet,

@@ -2,7 +2,8 @@ import { SessionId, SupportedModelId } from '@shared/types/brand'
 import type { ProviderInfo } from '@shared/types/llm'
 import type { SessionDetail } from '@shared/types/session'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { fromPartial } from '@total-typescript/shoehorn'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useBackgroundRunStore, useChatStore } from '@/features/chat/state'
@@ -20,6 +21,8 @@ vi.mock('@/shared/lib/ipc', () => ({
     getProviderModels: vi.fn().mockResolvedValue([]),
     setSessionModel: vi.fn().mockResolvedValue(undefined),
     getSessionDetail: vi.fn().mockResolvedValue(null),
+    getDefaultThinkingLevel: vi.fn().mockResolvedValue('medium'),
+    querySessionControl: vi.fn().mockRejectedValue(new Error('No Session Host in this test')),
   },
 }))
 
@@ -89,12 +92,9 @@ function openSession(id: SessionId, storedAfterRefresh: SupportedModelId) {
   })
 }
 
-const NEXT_MESSAGE_NOTICE =
-  'Claude Sonnet applies to your next message. This turn keeps using GPT 5.'
-
 function renderComposerModelControls() {
   return render(
-    <>
+    <QueryClientProvider client={new QueryClient()}>
       <ComposerHeader
         attachments={fromPartial({
           attachments: [],
@@ -105,7 +105,7 @@ function renderComposerModelControls() {
         onClearVoiceError={vi.fn()}
       />
       <ComposerModelPicker />
-    </>,
+    </QueryClientProvider>,
   )
 }
 
@@ -139,37 +139,60 @@ describe('ComposerModelPicker for an existing Session', () => {
     openSession(sessionId, NEXT_MODEL)
     renderComposerModelControls()
 
-    expect(screen.getByRole('button', { name: 'GPT 5' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'GPT 5' })).not.toHaveAttribute('aria-disabled')
     pickNextModel()
 
     expect(useChatStore.getState().activeSession?.executionModel).toBe(NEXT_MODEL)
     expect(useChatStore.getState().sessionById.get(sessionId)?.executionModel).toBe(NEXT_MODEL)
     await waitFor(() => expect(api.setSessionModel).toHaveBeenCalledWith(sessionId, NEXT_MODEL))
     expect(await screen.findByRole('button', { name: 'Claude Sonnet' })).toBeInTheDocument()
-    expect(screen.queryByText(NEXT_MESSAGE_NOTICE)).not.toBeInTheDocument()
     expect(usePreferencesStore.getState().settings.selectedModel).toBe(CURRENT_MODEL)
   })
 
-  it('leaves the running turn on its model and applies a mid-turn pick to the next message', async () => {
+  it('locks the picker while a Run is active, since the Host refuses a model change then', () => {
     const sessionId = SessionId('session-mid-turn-model')
-    openSession(sessionId, NEXT_MODEL)
+    openSession(sessionId, CURRENT_MODEL)
     useBackgroundRunStore.getState().addActiveRun(sessionId, CURRENT_MODEL)
     renderComposerModelControls()
 
-    expect(screen.queryByText(NEXT_MESSAGE_NOTICE)).not.toBeInTheDocument()
+    const trigger = screen.getByRole('button', { name: 'GPT 5' })
+    expect(trigger).toHaveAttribute('aria-disabled', 'true')
+    expect(trigger).toHaveAccessibleDescription('Available when the Run ends')
+    fireEvent.click(trigger)
+    expect(screen.queryByRole('option', { name: 'Claude Sonnet' })).not.toBeInTheDocument()
+    expect(api.setSessionModel).not.toHaveBeenCalled()
+  })
+
+  it('closes an open list when a Run starts, so it does not reopen when the Run ends', () => {
+    const sessionId = SessionId('session-run-starts')
+    openSession(sessionId, CURRENT_MODEL)
+    renderComposerModelControls()
+
+    fireEvent.click(screen.getByRole('button', { name: 'GPT 5' }))
+    expect(screen.getByRole('option', { name: 'Claude Sonnet' })).toBeInTheDocument()
+    act(() => useBackgroundRunStore.getState().addActiveRun(sessionId, CURRENT_MODEL))
+    expect(screen.queryByRole('option', { name: 'Claude Sonnet' })).not.toBeInTheDocument()
+    act(() => useBackgroundRunStore.getState().removeActiveRun(sessionId))
+
+    expect(screen.getByRole('button', { name: 'GPT 5' })).not.toHaveAttribute('aria-disabled')
+    expect(screen.queryByRole('option', { name: 'Claude Sonnet' })).not.toBeInTheDocument()
+  })
+
+  it('rolls the pick back and says so when the Session Host refuses it during a Run', async () => {
+    const sessionId = SessionId('session-refused-model')
+    openSession(sessionId, CURRENT_MODEL)
+    vi.mocked(api.setSessionModel).mockRejectedValueOnce(
+      new Error('session_run_active: The Session model can change only while no Run is active.'),
+    )
+    renderComposerModelControls()
+
     pickNextModel()
 
-    await waitFor(() => expect(api.setSessionModel).toHaveBeenCalledWith(sessionId, NEXT_MODEL))
-    const trigger = await screen.findByRole('button', { name: 'Claude Sonnet' })
-    expect(trigger).toHaveAttribute('title', expect.stringContaining('next message'))
-    expect(trigger).toHaveAttribute('title', expect.stringContaining('keeps using GPT 5'))
-    expect(screen.getByText(NEXT_MESSAGE_NOTICE)).toBeInTheDocument()
-    expect(useBackgroundRunStore.getState().runModelBySessionId.get(sessionId)).toBe(CURRENT_MODEL)
-
-    // The next Run starts with the new model, so the pick is no longer pending.
-    useBackgroundRunStore.getState().removeActiveRun(sessionId)
-    useBackgroundRunStore.getState().addActiveRun(sessionId, NEXT_MODEL)
-    await waitFor(() => expect(screen.queryByText(NEXT_MESSAGE_NOTICE)).not.toBeInTheDocument())
+    expect(await screen.findByRole('button', { name: 'GPT 5' })).toBeInTheDocument()
+    expect(useUIStore.getState().toastData).toMatchObject({
+      message: expect.stringContaining('only while no Run is active'),
+      variant: 'error',
+    })
   })
 
   it('rolls the pick back and says so when the Session Host rejects it', async () => {

@@ -31,7 +31,7 @@ describe('useAgentChat session switching', () => {
     const activeSession = createSessionWithIdAndMessages(activeId, 1, [])
     const idleSession = createSessionWithIdAndMessages(idleId, 1, [])
     const { result, rerender } = renderHook(
-      ({ session }) => useAgentChat(session.id, session, SupportedModelId('test-model'), 'off'),
+      ({ session }) => useAgentChat(session.id, session, SupportedModelId('test-model')),
       { initialProps: { session: activeSession } },
     )
     await waitFor(() => expect(result.current.isLoading).toBe(true))
@@ -88,7 +88,7 @@ describe('useAgentChat session switching', () => {
       }: {
         readonly sessionId: SessionId
         readonly session: SessionDetail
-      }) => useAgentChat(sessionId, session, SupportedModelId('claude-sonnet-4-5'), 'medium'),
+      }) => useAgentChat(sessionId, session, SupportedModelId('claude-sonnet-4-5')),
       {
         initialProps: {
           sessionId: sessionA,
@@ -151,7 +151,7 @@ describe('useAgentChat session switching', () => {
       }: {
         readonly sessionId: SessionId
         readonly session: SessionDetail
-      }) => useAgentChat(sessionId, session, SupportedModelId('claude-sonnet-4-5'), 'medium'),
+      }) => useAgentChat(sessionId, session, SupportedModelId('claude-sonnet-4-5')),
       {
         initialProps: {
           sessionId: sessionA,

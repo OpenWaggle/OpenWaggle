@@ -184,7 +184,6 @@ describe('Session Control application service', () => {
           command: {
             operation: 'follow-up',
             sessionId,
-            runAuthorizationOverride: 'ask-for-approval',
             input: {
               text: 'Run verification next.',
               attachmentIds: [],

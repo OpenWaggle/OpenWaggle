@@ -212,7 +212,7 @@ describe('GUI Session Host command client', () => {
             requestId: 'gui-waggle-reset',
             idempotencyKey: 'gui-waggle-once',
             sessionId: 'session-1',
-            payload: { text: 'Review.', thinkingLevel: 'medium', attachments: [] },
+            payload: { text: 'Review.', attachments: [] },
             model: 'openai/gpt-5.4',
             config: {
               mode: 'sequential',

@@ -1,4 +1,4 @@
-import { MAX_FOLLOW_UP_QUEUE_ITEMS } from '@shared/types/session-control-queue'
+import { MAX_FOLLOW_UP_QUEUE_LISTED_ITEMS } from '@shared/types/session-control-returned-steers'
 import { describe, expect, it } from 'vitest'
 import { buildMcpSessionPayloadV2, sessionInputSchemaV2 } from '../openwaggle-mcp-session-tool-v2'
 
@@ -18,13 +18,13 @@ describe('OpenWaggle MCP Session Follow-up ID contract', () => {
       expect(
         sessionInputSchemaV2.safeParse({
           ...base,
-          followUpIds: ids(MAX_FOLLOW_UP_QUEUE_ITEMS),
+          followUpIds: ids(MAX_FOLLOW_UP_QUEUE_LISTED_ITEMS),
         }).success,
       ).toBe(true)
       expect(
         sessionInputSchemaV2.safeParse({
           ...base,
-          followUpIds: ids(MAX_FOLLOW_UP_QUEUE_ITEMS + 1),
+          followUpIds: ids(MAX_FOLLOW_UP_QUEUE_LISTED_ITEMS + 1),
         }).success,
       ).toBe(false)
       expect(

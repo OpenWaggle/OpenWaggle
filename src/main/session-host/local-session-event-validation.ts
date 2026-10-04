@@ -1,6 +1,8 @@
 import { decodeUnknownExactOrThrow, Schema } from '@shared/schema'
+import { agentTransportUserMessageSchema } from '@shared/schemas/agent-transport-user-message'
 import { worktreeLaunchProgressSchema } from '@shared/schemas/background-run'
 import type { SessionHostEventEnvelope } from '@shared/types/session-host-event'
+import { THINKING_LEVELS } from '@shared/types/settings'
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -17,25 +19,36 @@ const worktreeLaunchEventSchema = Schema.Union(
   Schema.Struct({ type: Schema.Literal('failure'), errorMessage: Schema.String }),
 )
 
-function isWorktreeLaunchEvent(value: unknown) {
+function decodes(schema: Schema.Schema.AnyNoContext, value: unknown) {
   try {
-    decodeUnknownExactOrThrow(worktreeLaunchEventSchema, value)
+    decodeUnknownExactOrThrow(schema, value)
     return true
   } catch {
     return false
   }
 }
 
+/** A transport event; a user message it carries must be display content, never model input. */
+function isTransportEvent(value: unknown) {
+  if (!isRecord(value)) return false
+  if (value.type !== 'message_start' || value.userMessage === undefined) return true
+  return value.role === 'user' && decodes(agentTransportUserMessageSchema, value.userMessage)
+}
+
+function isWorktreeLaunchEvent(value: unknown) {
+  return decodes(worktreeLaunchEventSchema, value)
+}
+
 const sessionEventValidators: Readonly<
   Record<string, (value: Record<string, unknown>) => boolean>
 > = {
-  'session-transport': (value) => isRecord(value.event),
+  'session-transport': (value) => isTransportEvent(value.event),
   'session-worktree-launch': (value) =>
     typeof value.model === 'string' &&
     typeof value.mode === 'string' &&
     RUN_MODES.has(value.mode) &&
     isWorktreeLaunchEvent(value.event),
-  'session-waggle-transport': (value) => isRecord(value.event) && isRecord(value.meta),
+  'session-waggle-transport': (value) => isTransportEvent(value.event) && isRecord(value.meta),
   'session-waggle-turn': (value) => isRecord(value.event),
   'session-export-changed': (value) =>
     typeof value.exportOperationId === 'string' &&
@@ -50,6 +63,9 @@ const sessionEventValidators: Readonly<
 function isEventPayload(value: Record<string, unknown>) {
   if (value.kind === 'semantic-discovery-readiness-changed') {
     return isRecord(value.readiness) && typeof value.readiness.status === 'string'
+  }
+  if (value.kind === 'default-thinking-level-changed') {
+    return THINKING_LEVELS.some((level) => level === value.level)
   }
   if (typeof value.kind !== 'string' || typeof value.sessionId !== 'string') return false
   return sessionEventValidators[value.kind]?.(value) ?? false

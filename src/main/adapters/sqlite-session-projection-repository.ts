@@ -42,7 +42,6 @@ type RepoOperation =
   | 'setWorktreePlan'
   | 'resetWorktreeSetup'
   | 'setAuthorizationMode'
-  | 'setExecutionModel'
   | 'listTurnCheckpoints'
   | 'getTurnDiff'
   | 'getTurnDiffFiles'
@@ -201,9 +200,6 @@ export const SqliteSessionProjectionRepositoryLive = Effect.gen(function* () {
 
         setAuthorizationMode: (id, mode) =>
           repoOp('setAuthorizationMode', () => store.setSessionAuthorizationMode(id, mode)),
-
-        setExecutionModel: (id, model) =>
-          repoOp('setExecutionModel', () => store.setSessionExecutionModel(id, model)),
 
         listTurnCheckpoints: (id) =>
           repoOp('listTurnCheckpoints', () => turnCheckpoints.listTurnCheckpoints(id)),

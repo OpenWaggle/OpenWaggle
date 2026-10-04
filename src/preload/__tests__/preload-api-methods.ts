@@ -19,6 +19,7 @@ export const PRELOAD_API_METHODS: readonly (keyof OpenWaggleApi)[] = [
   'manageAccessProfiles',
   'mutateSessionControl',
   'querySessionControl',
+  'adoptFollowUpEdit',
   // Agent
   'sendMessage',
   'cancelAgent',
@@ -125,6 +126,9 @@ export const PRELOAD_API_METHODS: readonly (keyof OpenWaggleApi)[] = [
   'regenerateSessionTitle',
   'setSessionAuthorizationMode',
   'setSessionModel',
+  'setSessionThinkingLevel',
+  'getDefaultThinkingLevel',
+  'setDefaultThinkingLevel',
   'listArchivedSessionBranches',
   'getSessionTree',
   'getSessionWorkspace',

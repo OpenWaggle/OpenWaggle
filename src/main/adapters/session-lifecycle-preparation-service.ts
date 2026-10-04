@@ -13,6 +13,10 @@ import {
   type PrepareSessionLifecycleInput,
   SessionLifecyclePreparationService,
 } from '../ports/session-lifecycle-preparation-service'
+import {
+  ThinkingLevelDefaultService,
+  type ThinkingLevelDefaultServiceShape,
+} from '../ports/thinking-level-default-service'
 import { SettingsService } from '../services/settings-service'
 import {
   buildLifecycleExecutionProfile,
@@ -157,12 +161,43 @@ function lifecycleAgentToggles(
   return Effect.promise(() => agentDefinitionTogglesForProject(byProject, projectPath))
 }
 
+function loadLifecyclePolicy(
+  settings: Parameters<typeof resolveSessionHostProjectPolicy>[0],
+  projectPath: string,
+) {
+  return Effect.tryPromise({
+    try: () => loadProjectConfigStrict(projectPath),
+    catch: (cause) =>
+      new SessionLifecyclePreparationError({
+        operation: 'load-project-session-host-policy',
+        cause,
+      }),
+  }).pipe(
+    Effect.map((projectConfig) =>
+      resolveSessionHostProjectPolicy(settings, projectPath, projectConfig.sessionHost),
+    ),
+  )
+}
+
+/** A new Session starts from Pi's global default thinking level, never a project-level one. */
+function defaultThinkingLevel(defaults: ThinkingLevelDefaultServiceShape) {
+  return defaults
+    .getDefault()
+    .pipe(
+      Effect.mapError(
+        (cause) =>
+          new SessionLifecyclePreparationError({ operation: 'read-default-thinking-level', cause }),
+      ),
+    )
+}
+
 export const SessionLifecyclePreparationServiceLive = Layer.effect(
   SessionLifecyclePreparationService,
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
     const kernel = yield* AgentKernelService
     const settingsService = yield* SettingsService
+    const thinkingLevelDefaults = yield* ThinkingLevelDefaultService
     return SessionLifecyclePreparationService.of({
       prepare: (input) =>
         Effect.suspend(() => {
@@ -177,19 +212,7 @@ export const SessionLifecyclePreparationServiceLive = Layer.effect(
             })
             const projectPath = yield* projectPathForLifecycleCommand(sql, input.request.command)
             const settings = yield* settingsService.get()
-            const projectConfig = yield* Effect.tryPromise({
-              try: () => loadProjectConfigStrict(projectPath),
-              catch: (cause) =>
-                new SessionLifecyclePreparationError({
-                  operation: 'load-project-session-host-policy',
-                  cause,
-                }),
-            })
-            const policy = resolveSessionHostProjectPolicy(
-              settings,
-              projectPath,
-              projectConfig.sessionHost,
-            )
+            const policy = yield* loadLifecyclePolicy(settings, projectPath)
             const { parent, definition } = yield* resolveLifecycleExecutionContext(
               sql,
               projectPath,
@@ -201,7 +224,10 @@ export const SessionLifecyclePreparationServiceLive = Layer.effect(
             const command = input.request.command
             const profile = buildLifecycleExecutionProfile({
               command,
-              settings,
+              defaults: {
+                selectedModel: settings.selectedModel,
+                thinkingLevel: yield* defaultThinkingLevel(thinkingLevelDefaults),
+              },
               parent,
               definition,
             })

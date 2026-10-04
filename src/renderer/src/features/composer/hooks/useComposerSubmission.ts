@@ -2,10 +2,10 @@ import type { AgentSendPayload, PreparedAttachment } from '@shared/types/agent'
 import type { WagglePreset } from '@shared/types/waggle'
 import type { LexicalEditor } from 'lexical'
 import type { RefObject } from 'react'
-import { useSelectedModelThinkingLevel } from '@/features/providers/hooks'
 import { GUI_COMMAND_REQUIRES_IDLE_MESSAGE, isGuiOnlyComposerCommand } from '../commands'
 import { clearEditor, setEditorDraft } from '../lib/lexical-utils'
 import { consumeSendResult } from '../lib/send-result'
+import { trackComposerSubmission } from '../state/composer-activity-store'
 import {
   discardSessionResourceAttachments,
   markAttachmentsSubmitted,
@@ -40,6 +40,11 @@ interface UseComposerSubmissionInput {
   readonly clearOnSubmit: boolean
   readonly recordHistory: boolean
   readonly allowEnqueue: boolean
+  /**
+   * Queue an explicit Waggle even when idle: the queue waits on a Follow-up edit, and starting the
+   * Waggle now would overtake the held message.
+   */
+  readonly enqueueWaggle?: boolean
   readonly onToast?: (message: string) => void
   readonly editorRef: RefObject<LexicalEditor | null>
   readonly projectPath: string | null
@@ -110,6 +115,7 @@ export function useComposerSubmission({
   clearOnSubmit,
   recordHistory,
   allowEnqueue,
+  enqueueWaggle = false,
   onToast,
   editorRef,
   projectPath,
@@ -121,7 +127,6 @@ export function useComposerSubmission({
   const reset = useComposerStore((s) => s.reset)
   const pushHistory = useComposerStore((s) => s.pushHistory)
   const selectedModel = useComposerModel().model
-  const { effectiveThinkingLevel } = useSelectedModelThinkingLevel(selectedModel ?? null)
 
   function clearComposerInput(snapshot?: ComposerDraftSnapshot) {
     if (snapshot && !isCurrentComposerDraft(snapshot)) {
@@ -141,7 +146,7 @@ export function useComposerSubmission({
       if (block.type === 'toast') onToast?.(block.message)
       return { type: 'blocked' } satisfies DispatchResult
     }
-    if (isLoading && allowEnqueue) {
+    if (allowEnqueue && (isLoading || (enqueueWaggle && payload.waggle !== undefined))) {
       if (isGuiOnlyComposerCommand(payload.text)) {
         onToast?.(GUI_COMMAND_REQUIRES_IDLE_MESSAGE)
         return { type: 'blocked' } satisfies DispatchResult
@@ -203,6 +208,8 @@ export function useComposerSubmission({
       () => false,
     )
     pendingQueuedSubmissions.set(pendingKey, result)
+    // A Follow-up edit waits for this: acknowledgement clears the draft that submitted it.
+    trackComposerSubmission(draftSnapshot.activeDraftContextKey, result)
     void result.then(() => {
       if (pendingQueuedSubmissions.get(pendingKey) === result) {
         pendingQueuedSubmissions.delete(pendingKey)
@@ -222,7 +229,6 @@ export function useComposerSubmission({
   function handleSubmit(text?: string) {
     return submitPayload({
       text: (text ?? input).trim(),
-      thinkingLevel: effectiveThinkingLevel,
       attachments,
       ...(selectedWagglePreset
         ? {
@@ -241,7 +247,6 @@ export function useComposerSubmission({
     const state = useComposerStore.getState()
     return submitPayload({
       text,
-      thinkingLevel: effectiveThinkingLevel,
       attachments: state.attachments,
       ...(state.selectedWagglePreset
         ? {
@@ -260,7 +265,6 @@ export function useComposerSubmission({
     const state = useComposerStore.getState()
     submitPayload({
       text: state.input.trim(),
-      thinkingLevel: effectiveThinkingLevel,
       attachments: state.attachments,
       ...(state.selectedWagglePreset
         ? {

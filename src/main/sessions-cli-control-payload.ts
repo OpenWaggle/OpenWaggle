@@ -9,6 +9,7 @@ import { hasFlag, option, type ParsedArguments } from './mcp-cli-arguments'
 import {
   nonNegativeInteger,
   positiveInteger,
+  refuseRunSettingsOnActiveRunCommand,
   required,
   runAuthorization,
   thinkingLevel,
@@ -25,6 +26,11 @@ function messageInput(text: string, arguments_: ParsedArguments) {
     attachmentIds: [],
     ...(resolvedThinkingLevel ? { thinkingLevel: resolvedThinkingLevel } : {}),
   }
+}
+
+/** A message for a Run that is active or queued: no thinking level (see the option contract). */
+function followUpInput(text: string) {
+  return { text, attachmentIds: [] }
 }
 
 function organizationCommand(
@@ -107,15 +113,13 @@ function messagingCommand(
   arguments_: ParsedArguments,
 ): SessionControlMutationCommand {
   const text = required(option(arguments_, 'text'), 'Message input')
+  refuseRunSettingsOnActiveRunCommand(command, arguments_)
   if (command === 'steer') {
-    if (hasFlag(arguments_, 'yolo') || option(arguments_, 'authorization')) {
-      throw new Error('Steer does not accept Run authorization; use replace to start a new Run.')
-    }
     return {
       operation: command,
       sessionId,
       expectedRunId: required(option(arguments_, 'expected-run'), '--expected-run'),
-      input: { text, attachmentIds: [] },
+      input: followUpInput(text),
     }
   }
   if (command === 'replace') {
@@ -123,19 +127,18 @@ function messagingCommand(
       operation: command,
       sessionId,
       expectedRunId: required(option(arguments_, 'expected-run'), '--expected-run'),
-      ...(runAuthorization(arguments_)
-        ? { runAuthorizationOverride: runAuthorization(arguments_) }
-        : {}),
-      input: messageInput(text, arguments_),
+      input: followUpInput(text),
     }
   }
-  if (command === 'start' || command === 'follow-up') {
+  if (command === 'follow-up') {
+    return { operation: command, sessionId, input: followUpInput(text) }
+  }
+  if (command === 'start' || command === 'message') {
+    const runAuthorizationOverride = runAuthorization(arguments_)
     return {
       operation: command,
       sessionId,
-      ...(runAuthorization(arguments_)
-        ? { runAuthorizationOverride: runAuthorization(arguments_) }
-        : {}),
+      ...(runAuthorizationOverride ? { runAuthorizationOverride } : {}),
       ...(command === 'start' && option(arguments_, 'interaction-timeout-ms') !== undefined
         ? {
             interactionTimeoutMs: positiveInteger(
@@ -146,14 +149,6 @@ function messagingCommand(
         : {}),
       input: messageInput(text, arguments_),
     }
-  }
-  if (command === 'message') {
-    if (hasFlag(arguments_, 'yolo') || option(arguments_, 'authorization')) {
-      throw new Error(
-        'Adaptive message does not accept Run authorization; use start or follow-up explicitly.',
-      )
-    }
-    return { operation: command, sessionId, input: messageInput(text, arguments_) }
   }
   throw new Error(`Unsupported messaging command: ${command}.`)
 }
@@ -225,22 +220,6 @@ function queueCommand(arguments_: ParsedArguments): SessionControlMutationComman
       operation: 'queue-withdraw',
       sessionId,
       followUpIds: arguments_.positionals.slice(QUEUE_ITEM_POSITIONAL_START),
-    }
-  }
-  if (action === 'update-authorization') {
-    const authorization = required(option(arguments_, 'authorization'), '--authorization')
-    if (
-      authorization !== 'inherit' &&
-      authorization !== 'ask-for-approval' &&
-      authorization !== 'yolo'
-    ) {
-      throw new Error('--authorization must be inherit, ask-for-approval, or yolo.')
-    }
-    return {
-      operation: 'queue-update-authorization',
-      sessionId,
-      followUpId: required(arguments_.positionals[QUEUE_ITEM_POSITIONAL_START], 'Follow-up ID'),
-      runAuthorizationOverride: authorization === 'inherit' ? null : authorization,
     }
   }
   const expectedQueueRevision = nonNegativeInteger(

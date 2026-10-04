@@ -24,7 +24,7 @@ describe('SQLite Session queued Run authorization', () => {
     await fs.rm(temporaryRoot, { recursive: true, force: true })
   })
 
-  it('keeps a queued YOLO Follow-up visible when its current Session ceiling is lower', async () => {
+  it('delivers a queued Follow-up under the Session authorization, with no override of its own', async () => {
     const layer = makeSessionControlRunLifecycleTestLayer(
       path.join(temporaryRoot, 'ceiling-change.sqlite'),
     )
@@ -52,7 +52,6 @@ describe('SQLite Session queued Run authorization', () => {
             command: {
               operation: 'follow-up',
               sessionId: 'session-target',
-              runAuthorizationOverride: 'yolo',
               input: { text: 'Continue without approval.', attachmentIds: [] },
             },
           },
@@ -79,15 +78,16 @@ describe('SQLite Session queued Run authorization', () => {
       }).pipe(Effect.provide(layer)),
     )
 
+    // A Follow-up never carries a Run authorization override, so no ceiling change can block it.
     expect(result).toMatchObject({
-      settlement: { accepted: true },
-      state: { active_run_id: null, queue_state: 'paused' },
-      followUp: {
-        delivery_state: 'needs_attention',
-        attention_reason: 'authorization_ceiling_changed',
-      },
+      settlement: { accepted: true, scheduled: { runId: 'run-after' } },
+      state: { active_run_id: 'run-after', queue_state: 'running' },
     })
-    expect(result.settlement).not.toHaveProperty('scheduled')
+    expect(result.followUp).toBeUndefined()
+    if (!result.settlement.accepted || !result.settlement.scheduled) {
+      throw new Error('Expected the queued Follow-up to be scheduled.')
+    }
+    expect(result.settlement.scheduled.intent).not.toHaveProperty('runAuthorizationOverride')
   })
 
   it('runs an omitted-authorization profile Follow-up under the Ask ceiling', async () => {

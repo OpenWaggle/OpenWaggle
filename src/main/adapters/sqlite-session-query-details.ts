@@ -1,13 +1,23 @@
 import type * as SqlClient from '@effect/sql/SqlClient'
+import type { LocalSessionProfileAuthority } from '@shared/types/local-session-profile'
 import { isFollowUpQueuePauseReason } from '@shared/types/session-control-queue'
 import type { SessionQueryRequest } from '@shared/types/session-query'
+import { returnedSteerProvenance } from '@shared/utils/returned-steer-provenance'
 import * as Effect from 'effect/Effect'
+import { listFollowUpEditHeldSessions } from './sqlite-follow-up-edit-holds'
+import {
+  followUpDeliveryView,
+  followUpIntentView,
+  type StoredFollowUpAttentionReason,
+} from './sqlite-session-follow-up-view'
 import {
   parseSessionJson,
   type SessionQuerySummaryRow,
   sessionQueryResponse,
   sessionQuerySummary,
 } from './sqlite-session-query-support'
+import { type QueueListEditContext, queueListEditFields } from './sqlite-session-queue-edit-fields'
+import { queueListSources } from './sqlite-session-queue-sources'
 
 export function readSession(sql: SqlClient.SqlClient, request: SessionQueryRequest) {
   const sessionId = 'sessionId' in request.query ? request.query.sessionId : ''
@@ -162,6 +172,7 @@ export function readStatus(sql: SqlClient.SqlClient, request: SessionQueryReques
         error: { code: 'session_not_found', message: 'Session not found.' },
       })
     }
+    const followUpEditHeldAt = (yield* listFollowUpEditHeldSessions(sql)).get(query.sessionId)
     return sessionQueryResponse(request, {
       operation: 'status',
       sessionId: query.sessionId,
@@ -172,11 +183,19 @@ export function readStatus(sql: SqlClient.SqlClient, request: SessionQueryReques
       activeRunId: row.active_run_id,
       ...(row.active_run_status ? { activeRunStatus: row.active_run_status } : {}),
       pendingFollowUpCount: row.pending_follow_up_count,
+      ...(followUpEditHeldAt === undefined ? {} : { followUpEditHeldAt }),
     })
   })
 }
 
-export function readQueue(sql: SqlClient.SqlClient, request: SessionQueryRequest) {
+export function readQueue(
+  sql: SqlClient.SqlClient,
+  request: SessionQueryRequest,
+  editContext: QueueListEditContext & {
+    /** The querying profile or Session agent's authority; absent for the desktop user. */
+    readonly authority?: LocalSessionProfileAuthority
+  } = { callerId: undefined, desktopUser: false },
+) {
   if (request.query.operation !== 'queue-list') throw new Error('Expected queue-list query.')
   const query = request.query
   return sql.withTransaction(
@@ -202,11 +221,7 @@ export function readQueue(sql: SqlClient.SqlClient, request: SessionQueryRequest
         id: string
         position: number
         delivery_state: 'pending' | 'needs_attention'
-        attention_reason:
-          | 'authorization_ceiling_changed'
-          | 'profile_revoked'
-          | 'authority_changed'
-          | null
+        attention_reason: StoredFollowUpAttentionReason | null
         intent_json: string
         created_at: number
       }>`
@@ -215,6 +230,17 @@ export function readQueue(sql: SqlClient.SqlClient, request: SessionQueryRequest
         WHERE session_id = ${query.sessionId}
         ORDER BY position, id
       `
+      const editFields = yield* queueListEditFields(sql, {
+        sessionId: query.sessionId,
+        includeBodies: query.includeBodies === true,
+        rows,
+        context: editContext,
+      })
+      const sources = yield* queueListSources(sql, {
+        rows,
+        desktopUser: editContext.desktopUser,
+        ...(editContext.authority ? { authority: editContext.authority } : {}),
+      })
       return sessionQueryResponse(request, {
         operation: 'queue-list',
         sessionId: query.sessionId,
@@ -223,12 +249,15 @@ export function readQueue(sql: SqlClient.SqlClient, request: SessionQueryRequest
         queueRevision: state.queue_revision,
         activeRunId: state.active_run_id,
         items: rows.map((row) => ({
+          ...returnedSteerProvenance(parseSessionJson(row.intent_json)),
           followUpId: row.id,
           position: row.position,
           createdAt: row.created_at,
-          deliveryState: row.delivery_state,
-          ...(row.attention_reason ? { attentionReason: row.attention_reason } : {}),
-          ...(query.includeBodies ? { intent: parseSessionJson(row.intent_json) } : {}),
+          ...followUpDeliveryView(row),
+          ...(query.includeBodies ? { intent: followUpIntentView(row.intent_json) } : {}),
+          ...sources.get(row.id),
+          editable: false,
+          ...editFields.get(row.id),
         })),
         omittedBodyCount: query.includeBodies ? 0 : rows.length,
       })

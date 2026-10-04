@@ -169,3 +169,52 @@ it('does not name an evidence directory the Run could not prepare', async () => 
     'OPENWAGGLE_EVIDENCE_DIR',
   )
 })
+
+it.each([
+  {
+    label: 'a new Pi session starts with the Session thinking level',
+    messages: [],
+    thinkingLevel: 'high' as const,
+    created: { thinkingLevel: 'high' },
+    applied: undefined,
+  },
+  {
+    label: 'an existing Pi session records the Session thinking level with setThinkingLevel',
+    messages: [{ role: 'user' }],
+    thinkingLevel: 'low' as const,
+    created: {},
+    applied: 'low',
+  },
+  {
+    label: 'without a Session thinking level Pi keeps what its entries restore',
+    messages: [{ role: 'user' }],
+    thinkingLevel: undefined,
+    created: {},
+    applied: undefined,
+  },
+])('$label', async ({ messages, thinkingLevel, created, applied }) => {
+  const setThinkingLevel = vi.fn()
+  mocks.createSession.mockResolvedValue({ session: { setThinkingLevel } })
+
+  await createPiSessionForRun(
+    fromPartial({
+      projectRoot: '/project',
+      workspacePath: '/workspace',
+      services: { cwd: '/workspace' },
+      sessionManager: { buildSessionContext: () => ({ messages }) },
+      ...(thinkingLevel ? { thinkingLevel } : {}),
+    }),
+  )
+
+  const options: unknown = mocks.createSession.mock.calls.at(-1)?.[0]
+  if ('thinkingLevel' in created) {
+    expect(options).toMatchObject(created)
+  } else {
+    expect(options).not.toHaveProperty('thinkingLevel')
+  }
+  if (applied) {
+    expect(setThinkingLevel).toHaveBeenCalledWith(applied)
+  } else {
+    expect(setThinkingLevel).not.toHaveBeenCalled()
+  }
+})

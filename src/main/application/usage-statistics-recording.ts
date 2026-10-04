@@ -3,10 +3,11 @@
  * {@link UsageStatisticsRecorder} port, never fail, and do nothing in a runtime without one.
  */
 import type { SessionId } from '@shared/types/brand'
-import { DEFAULT_SETTINGS } from '@shared/types/settings'
+import { DEFAULT_THINKING_LEVEL } from '@shared/types/settings'
 import * as Effect from 'effect/Effect'
 import * as Option from 'effect/Option'
 import type { SessionControlIntentSnapshot } from '../domain/session-control/message-aggregate'
+import type { RunStartSettings } from '../domain/session-control/run-start-settings'
 import type { UsageStatisticsObservation } from '../domain/usage-statistics/usage-statistics-observations'
 import {
   UsageStatisticsRecorder,
@@ -28,9 +29,9 @@ export function recordUsageStatisticsObservation(observation: UsageStatisticsObs
 
 type RunIntent = Pick<
   SessionControlIntentSnapshot,
-  'callerId' | 'authorCallerId' | 'waggle' | 'attachmentIds' | 'thinkingLevel'
+  'callerId' | 'authorCallerId' | 'waggle' | 'attachmentIds'
 > &
-  Partial<Pick<SessionControlIntentSnapshot, 'runAuthorizationOverride'>>
+  RunStartSettings
 
 /** The caller whose request started the Run: its author when someone else re-authorized it. */
 function runOriginCallerId(intent: RunIntent) {
@@ -66,7 +67,7 @@ export function recordRunFinishedForUsageStatistics(input: {
       runId: input.runId,
       originCallerId: runOriginCallerId(input.intent),
       waggle: input.waggle ?? input.intent.waggle !== undefined,
-      thinkingLevel: input.intent.thinkingLevel ?? DEFAULT_SETTINGS.thinkingLevel,
+      thinkingLevel: input.intent.thinkingLevel ?? DEFAULT_THINKING_LEVEL,
       terminalStatus: input.terminalStatus,
     }),
   )

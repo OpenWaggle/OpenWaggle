@@ -4,6 +4,7 @@ import type {
   ComposerSet,
   ComposerState,
 } from './composer-store-types'
+import { abandonQueuedMessageEdits } from './queued-message-edit-abandon'
 
 export function normalizeScopedDraft(draft: ComposerScopedDraft) {
   return {
@@ -142,8 +143,11 @@ function clearMatchingScopedDrafts(
 ) {
   const nextDrafts = { ...state.scopedDrafts }
   const editedPendingDrafts = { ...state.editedPendingDrafts }
+  // A queued-message edit in a cleared draft has nowhere left to go: end it and drop its stash.
+  const abandonedStashKeys = new Set(abandonQueuedMessageEdits(matchesContext))
   for (const contextKey of Object.keys(nextDrafts)) {
-    if (matchesContext(contextKey)) delete nextDrafts[contextKey]
+    if (matchesContext(contextKey) || abandonedStashKeys.has(contextKey))
+      delete nextDrafts[contextKey]
   }
   for (const contextKey of Object.keys(editedPendingDrafts)) {
     if (matchesContext(contextKey)) delete editedPendingDrafts[contextKey]

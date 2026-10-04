@@ -1,6 +1,10 @@
 import { SESSION_EXPORT_SCHEMA_VERSION } from '@shared/types/session-export'
 import type { SessionQueryRequest } from '@shared/types/session-query'
-import { parseSessionJson } from './sqlite-session-query-support'
+import {
+  followUpDeliveryView,
+  followUpIntentView,
+  type StoredFollowUpAttentionReason,
+} from './sqlite-session-follow-up-view'
 
 type ExportRequest = SessionQueryRequest & {
   readonly query: Extract<SessionQueryRequest['query'], { operation: 'export' }>
@@ -19,11 +23,7 @@ interface ExportQueueItem {
   readonly id: string
   readonly position: number
   readonly delivery_state: 'pending' | 'needs_attention'
-  readonly attention_reason:
-    | 'authorization_ceiling_changed'
-    | 'profile_revoked'
-    | 'authority_changed'
-    | null
+  readonly attention_reason: StoredFollowUpAttentionReason | null
   readonly intent_json: string
   readonly created_at: number
 }
@@ -71,9 +71,8 @@ export function exportBaseOutcome(input: {
           followUpId: row.id,
           position: row.position,
           createdAt: row.created_at,
-          deliveryState: row.delivery_state,
-          ...(row.attention_reason ? { attentionReason: row.attention_reason } : {}),
-          ...(query.includeQueueBodies ? { intent: parseSessionJson(row.intent_json) } : {}),
+          ...followUpDeliveryView(row),
+          ...(query.includeQueueBodies ? { intent: followUpIntentView(row.intent_json) } : {}),
         })),
       },
     },

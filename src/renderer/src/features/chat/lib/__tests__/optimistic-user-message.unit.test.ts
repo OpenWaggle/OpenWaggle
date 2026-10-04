@@ -10,7 +10,6 @@ describe('isOptimisticUserMessageId', () => {
   it('recognises the optimistic copy of a send and nothing else', () => {
     const optimistic = createOptimisticUserMessage({
       text: 'Fix this layout',
-      thinkingLevel: 'medium',
       attachments: [],
     })
     expect(isOptimisticUserMessageId(optimistic.id)).toBe(true)

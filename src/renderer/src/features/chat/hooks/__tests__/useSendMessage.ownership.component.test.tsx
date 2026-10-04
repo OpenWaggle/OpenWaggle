@@ -80,7 +80,6 @@ describe('useSendMessage Waggle ownership', () => {
         activeSessionId: null,
         model: MODEL,
         projectPath: '/project',
-        thinkingLevel: 'medium',
         createSession: vi.fn().mockResolvedValue(SESSION_A),
         sendMessage: vi.fn().mockResolvedValue(undefined),
         sendWaggleMessage: vi.fn().mockResolvedValue(undefined),
@@ -104,7 +103,6 @@ describe('useSendMessage Waggle ownership', () => {
         activeSessionId: null,
         model: MODEL,
         projectPath: '/project',
-        thinkingLevel: 'medium',
         createSession: vi.fn().mockResolvedValue(SESSION_A),
         sendMessage: vi.fn().mockResolvedValue(undefined),
         sendWaggleMessage: vi.fn().mockResolvedValue(undefined),
@@ -121,7 +119,6 @@ describe('useSendMessage Waggle ownership', () => {
       .handleSendWaggle(
         {
           text: 'Review this',
-          thinkingLevel: 'medium',
           attachments: [],
         },
         CONFIG,

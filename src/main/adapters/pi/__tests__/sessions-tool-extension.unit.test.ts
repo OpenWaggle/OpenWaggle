@@ -54,18 +54,24 @@ describe('Pi-native Sessions tool', () => {
           sessionId: 'session-worker',
           expectedRunId: 'run-worker',
           text: 'Restart with this direction.',
-          authorization: 'ask-for-approval',
         },
         { sessionId: 'session-queen', runId: 'run-current' },
       ),
     ).toMatchObject({
-      request: {
-        command: {
-          operation: 'replace',
-          expectedRunId: 'run-worker',
-          runAuthorizationOverride: 'ask-for-approval',
+      request: { command: { operation: 'replace', expectedRunId: 'run-worker' } },
+    })
+    expect(
+      buildSessionsToolPayload(
+        {
+          action: 'message',
+          sessionId: 'session-worker',
+          text: 'Start with full access.',
+          authorization: 'yolo',
         },
-      },
+        { sessionId: 'session-queen', runId: 'run-current' },
+      ),
+    ).toMatchObject({
+      request: { command: { operation: 'message', runAuthorizationOverride: 'yolo' } },
     })
     expect(
       buildSessionsToolPayload(

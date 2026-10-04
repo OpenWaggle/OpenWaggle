@@ -124,7 +124,7 @@ ${LOCAL_IMAGE_MARKDOWN}
       captureSuccessfulRunResources({
         sessionId: SessionId('session-1'),
         runId: 'run-local-image',
-        payload: { text: '', thinkingLevel: 'medium', attachments: [] },
+        payload: { text: '', attachments: [] },
         messages: [assistantLocalImageMessage()],
       }).pipe(Effect.provide(sessionResourceTestLayer(upserts, { storedByteFiles }))),
     )

@@ -1,6 +1,10 @@
 import type { MessagePart } from '@shared/types/agent'
-import type { BackgroundRunActivityEvent } from '@shared/types/background-run'
+import type {
+  BackgroundRunActivityEvent,
+  BackgroundRunUserMessage,
+} from '@shared/types/background-run'
 import type { JsonValue } from '@shared/types/json'
+import type { AgentTransportMessageStartEvent } from '@shared/types/stream'
 import { retainedBytesAfterTextAppend, retainedPartsBytes } from './stream-buffer-byte-accounting'
 import {
   appendReasoningPart,
@@ -119,4 +123,34 @@ export function updateStreamBufferActivityEvents(
     return { buffer, retainedDelta: 0 }
   }
   return { buffer: { ...buffer, activityEvents, activityEventsBytes }, retainedDelta }
+}
+
+/** Retains a user message the Run incorporated; one that does not fit is left to the snapshot. */
+export function appendStreamBufferUserMessage(
+  buffer: ActiveStreamBuffer,
+  event: AgentTransportMessageStartEvent,
+  totalRetainedBytes: number,
+): StreamBufferUpdate {
+  if (!event.userMessage) return { buffer, retainedDelta: 0 }
+  const userMessage: BackgroundRunUserMessage = {
+    ...event.userMessage,
+    messageId: event.messageId,
+    timestamp: event.timestamp,
+    // A steer incorporated after the buffered answer's tools follows that answer.
+    ...(buffer.messageId ? { afterAssistantMessageId: buffer.messageId } : {}),
+  }
+  const existing = buffer.userMessages ?? []
+  if (existing.some((message) => message.messageId === userMessage.messageId)) {
+    return { buffer, retainedDelta: 0 }
+  }
+  const userMessages = [...existing, userMessage]
+  const userMessagesBytes = Buffer.byteLength(JSON.stringify(userMessages), 'utf8')
+  const retainedDelta = userMessagesBytes - (buffer.userMessagesBytes ?? 0)
+  if (
+    retainedStreamBufferBytes(buffer) + retainedDelta > MAX_ACTIVE_STREAM_BUFFER_BYTES ||
+    totalRetainedBytes + retainedDelta > MAX_TOTAL_STREAM_BUFFER_BYTES
+  ) {
+    return { buffer, retainedDelta: 0 }
+  }
+  return { buffer: { ...buffer, userMessages, userMessagesBytes }, retainedDelta }
 }

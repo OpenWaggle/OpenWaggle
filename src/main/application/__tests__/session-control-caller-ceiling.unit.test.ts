@@ -81,8 +81,8 @@ describe('Session Control caller authorization ceiling', () => {
     })
   })
 
-  it('clamps a queued YOLO Follow-up when an ask-capped caller resumes it', async () => {
-    let state: SessionControlSessionState = {
+  function pausedQueueHeadedBy(callerId: string): SessionControlSessionState {
+    return {
       sessionId: SessionId('session-target'),
       revision: 2,
       run: { state: 'idle' },
@@ -96,8 +96,7 @@ describe('Session Control caller authorization ceiling', () => {
             intent: {
               text: 'Continue.',
               attachmentIds: [],
-              runAuthorizationOverride: 'yolo',
-              callerId: 'profile:unrestricted',
+              callerId,
               acceptedAt: 1,
               idempotencyKey: 'queued',
             },
@@ -105,7 +104,13 @@ describe('Session Control caller authorization ceiling', () => {
         ],
       },
     }
-    await Effect.runPromise(
+  }
+
+  function resumeAsLimitedCaller(
+    initial: SessionControlSessionState,
+    update: (state: SessionControlSessionState) => void,
+  ) {
+    return Effect.runPromise(
       mutateSessionQueue({
         callerId: 'profile:limited',
         callerAuthorizationCeiling: 'ask-for-approval',
@@ -119,11 +124,127 @@ describe('Session Control caller authorization ceiling', () => {
             expectedQueueRevision: 1,
           },
         },
+      }).pipe(Effect.provide(testLayer(initial, update))),
+    )
+  }
+
+  it('caps the Run when an ask-capped caller resumes its own Follow-up', async () => {
+    let state = pausedQueueHeadedBy('profile:limited')
+    await resumeAsLimitedCaller(state, (next) => (state = next))
+    expect(state.run).toMatchObject({
+      state: 'starting',
+      intent: { callerId: 'profile:limited', runAuthorizationOverride: 'ask-for-approval' },
+    })
+  })
+
+  it("does not cap someone else's Follow-up that an ask-capped caller's resume delivers", async () => {
+    let state = pausedQueueHeadedBy('profile:unrestricted')
+    await resumeAsLimitedCaller(state, (next) => (state = next))
+    expect(state.run).toMatchObject({
+      state: 'starting',
+      intent: { callerId: 'profile:unrestricted' },
+    })
+    expect(state.run.state === 'starting' && state.run.intent).not.toHaveProperty(
+      'runAuthorizationOverride',
+    )
+  })
+
+  it("queues an ask-capped caller's message without putting its cap on the Follow-up", async () => {
+    let state: SessionControlSessionState = {
+      sessionId: SessionId('session-target'),
+      revision: 2,
+      run: { state: 'active', runId: RunId('run-current') },
+      followUpQueue: { state: 'running', revision: 0, items: [] },
+    }
+    const response = await Effect.runPromise(
+      submitSessionMessage({
+        callerId: 'profile:limited',
+        callerAuthorizationCeiling: 'ask-for-approval',
+        request: {
+          contractVersion: SESSION_CONTROL_CONTRACT_VERSION,
+          requestId: 'request-message',
+          idempotencyKey: 'idempotency-message',
+          command: {
+            operation: 'message',
+            sessionId: 'session-target',
+            input: { text: 'Later.', attachmentIds: [] },
+          },
+        },
+      }).pipe(Effect.provide(testLayer(state, (next) => (state = next)))),
+    )
+    expect(response.outcome).toMatchObject({ effect: 'queued-follow-up' })
+    expect(state.followUpQueue.items[0]?.intent).not.toHaveProperty('runAuthorizationOverride')
+    expect(state.run).toEqual({ state: 'active', runId: 'run-current' })
+  })
+
+  it.each([
+    [{ thinkingLevel: 'high' as const }, {}, 'thinking_level_requires_idle_session'],
+    [
+      {},
+      { runAuthorizationOverride: 'yolo' as const },
+      'run_authorization_override_requires_idle_session',
+    ],
+  ])(
+    'refuses a message that would be queued with Session settings',
+    async (input, command, code) => {
+      let state: SessionControlSessionState = {
+        sessionId: SessionId('session-target'),
+        revision: 2,
+        run: { state: 'active', runId: RunId('run-current') },
+        followUpQueue: { state: 'running', revision: 0, items: [] },
+      }
+      const response = await Effect.runPromise(
+        submitSessionMessage({
+          callerId: 'local-user',
+          request: {
+            contractVersion: SESSION_CONTROL_CONTRACT_VERSION,
+            requestId: 'request-message',
+            idempotencyKey: 'idempotency-message',
+            command: {
+              operation: 'message',
+              sessionId: 'session-target',
+              ...command,
+              input: { text: 'Later.', attachmentIds: [], ...input },
+            },
+          },
+        }).pipe(Effect.provide(testLayer(state, (next) => (state = next)))),
+      )
+      expect(response.outcome).toEqual({
+        operation: 'message',
+        effect: 'rejected',
+        sessionId: 'session-target',
+        code,
+      })
+      expect(state.followUpQueue.items).toEqual([])
+    },
+  )
+
+  it('starts a Run with the thinking level and override a message asked for on an idle Session', async () => {
+    let state: SessionControlSessionState = {
+      sessionId: SessionId('session-target'),
+      revision: 0,
+      run: { state: 'idle' },
+      followUpQueue: { state: 'running', revision: 0, items: [] },
+    }
+    await Effect.runPromise(
+      submitSessionMessage({
+        callerId: 'local-user',
+        request: {
+          contractVersion: SESSION_CONTROL_CONTRACT_VERSION,
+          requestId: 'request-message',
+          idempotencyKey: 'idempotency-message',
+          command: {
+            operation: 'message',
+            sessionId: 'session-target',
+            runAuthorizationOverride: 'yolo',
+            input: { text: 'Go.', attachmentIds: [], thinkingLevel: 'high' },
+          },
+        },
       }).pipe(Effect.provide(testLayer(state, (next) => (state = next)))),
     )
     expect(state.run).toMatchObject({
       state: 'starting',
-      intent: { runAuthorizationOverride: 'ask-for-approval' },
+      intent: { text: 'Go.', thinkingLevel: 'high', runAuthorizationOverride: 'yolo' },
     })
   })
 })

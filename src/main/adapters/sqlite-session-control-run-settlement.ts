@@ -1,6 +1,10 @@
 import type * as SqlClient from '@effect/sql/SqlClient'
 import type { FollowUpQueuePauseReason } from '@shared/types/session-control-queue'
 import * as Effect from 'effect/Effect'
+import {
+  deliverIdleQueueHead,
+  isFollowUpEditHeld,
+} from '../domain/session-control/follow-up-delivery'
 import type {
   SessionControlFollowUp,
   SessionControlSessionState,
@@ -10,7 +14,10 @@ import {
   settleAndScheduleNextFollowUp,
   settleSessionRun,
 } from '../domain/session-control/run-lifecycle'
+import { pauseStrandedFollowUps } from '../domain/session-control/undelivered-steering'
 import type { SessionControlRunLifecycleRepositoryShape } from '../ports/session-control-run-lifecycle-repository'
+import { releaseDeliveredSteerAttachments } from './session-control-attachment-references'
+import { persistSessionControlState } from './sqlite-session-control-state'
 import { hasPendingReplacementForRun } from './sqlite-session-follow-up-reservation'
 
 const QUEUE_REVISION_INCREMENT = 1
@@ -75,9 +82,22 @@ function settleUnsuccessfulRun(
         PAUSE_REASON_BY_TERMINAL_STATUS[input.terminalStatus],
       )
     : settled.state
-  const retry = items.find(isRetry)
-  if (!retry || retry.deliveryState !== 'pending') {
+  const retryIndex = items.findIndex(isRetry)
+  const retry = items[retryIndex]
+  if (retry?.deliveryState !== 'pending') {
     return { accepted: true as const, state: next, scheduled: undefined }
+  }
+  // A Follow-up edit hold stops delivery at the held item, so a retry behind one waits for the
+  // hold to end; `deliverIdleQueueHead` starts it then.
+  if (terminalEventAt !== undefined && items.slice(0, retryIndex + 1).some(isFollowUpEditHeld)) {
+    return {
+      accepted: true as const,
+      state: {
+        ...next,
+        followUpQueue: { ...next.followUpQueue, deferredRetryAfter: terminalEventAt },
+      },
+      scheduled: undefined,
+    }
   }
   return {
     accepted: true as const,
@@ -112,8 +132,40 @@ export function planRunSettlement(
     }
   }
   const { terminalStatus } = input
-  if (terminalStatus === 'completed') {
-    return settleAndScheduleNextFollowUp(state, input.runId, input.nextRunId)
-  }
-  return settleUnsuccessfulRun(state, { ...input, terminalStatus })
+  const result =
+    terminalStatus === 'completed'
+      ? settleAndScheduleNextFollowUp(state, input.runId, input.nextRunId)
+      : settleUnsuccessfulRun(state, { ...input, terminalStatus })
+  if (!result.accepted || result.scheduled) return result
+  // Whatever an idle queue could deliver now is delivered, so it never waits with nothing to wake it.
+  const delivery = deliverIdleQueueHead(result.state, input.nextRunId)
+  return delivery.delivered
+    ? { accepted: true as const, state: delivery.state, scheduled: delivery.delivered }
+    : { ...result, state: delivery.state }
+}
+
+/**
+ * Settle a Run that no longer owns its Session: a pending replacement is taking over (`stopping`
+ * with a replace operation in flight), or another writer already displaced it. The Session state
+ * is not this Run's to change, but its Undelivered steering messages still return to the queue,
+ * with their own state revision, which the result reports so the change is published. A queue left
+ * running on a Session with no Run is paused, since nothing would schedule it.
+ */
+export function settleDisplacedRun(
+  sql: SqlClient.SqlClient,
+  input: {
+    readonly loadedState: SessionControlSessionState
+    readonly returned: SessionControlSessionState
+    readonly input: SettleInput
+    readonly code?: 'run_not_starting' | 'run_not_active' | 'run_changed'
+  },
+) {
+  return Effect.gen(function* () {
+    const code = input.code ?? 'run_not_active'
+    if (input.returned === input.loadedState) return { accepted: false, code } as const
+    const state = pauseStrandedFollowUps(input.returned)
+    yield* persistSessionControlState(sql, state, Date.now())
+    yield* releaseDeliveredSteerAttachments(sql, input.input)
+    return { accepted: false, code, stateRevision: state.revision } as const
+  })
 }
