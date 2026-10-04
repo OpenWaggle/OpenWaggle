@@ -146,7 +146,7 @@ describe('POST /api/v1/web', () => {
 
   it.each([
     ['another site', { Origin: 'https://evil.example' }],
-    ['a preview deployment', { Origin: 'https://abc.openwaggle-website.pages.dev' }],
+    ['a preview deployment', { Origin: 'https://abc.openwaggle.pages.dev' }],
     ['a loopback page calling production', { Origin: 'http://localhost:4321' }],
     ['an opaque origin', { Origin: 'null' }],
   ])('refuses a beacon from %s', async (_label, headers) => {

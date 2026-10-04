@@ -1,4 +1,4 @@
-name = "openwaggle-website"
+name = "openwaggle"
 pages_build_output_dir = "./website/dist"
 compatibility_date = "2025-01-01"
 
@@ -20,7 +20,7 @@ compatibility_date = "2025-01-01"
 # A POSTHOG_HOST other than https://eu.i.posthog.com, or a SENTRY_DSN outside Sentry's EU region
 # (*.de.sentry.io), turns forwarding off: those routes answer 503 instead of sending anywhere else.
 #
-# Secrets, set with `wrangler pages secret put <NAME> --project-name openwaggle-website` or in
+# Secrets, set with `wrangler pages secret put <NAME> --project-name openwaggle` or in
 # the dashboard, never in this file:
 #   POSTHOG_PROJECT_KEY   PostHog project API key (EU project).
 #   SENTRY_DSN            Real DSN of the EU Sentry project behind /api/v1/errors.

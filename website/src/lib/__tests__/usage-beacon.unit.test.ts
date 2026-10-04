@@ -94,7 +94,7 @@ describe('website beacons', () => {
   it('reports only from openwaggle.ai and local development', () => {
     expect(usageBeaconAllowed('openwaggle.ai', {})).toBe(true);
     expect(usageBeaconAllowed('localhost', {})).toBe(true);
-    expect(usageBeaconAllowed('abc.openwaggle-website.pages.dev', {})).toBe(false);
+    expect(usageBeaconAllowed('abc.openwaggle.pages.dev', {})).toBe(false);
     expect(usageBeaconAllowed('www.openwaggle.ai', {})).toBe(false);
   });
 
