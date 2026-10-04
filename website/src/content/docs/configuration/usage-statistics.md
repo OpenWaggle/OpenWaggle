@@ -285,11 +285,11 @@ When a processor or one of its subprocessors handles data outside the EU, the tr
 ### Retention
 
 - On your machine, a day of statistics waits at most 35 days to be sent. Turning statistics off deletes it.
-- The endpoint never stores your IP address. It holds it only while it handles your request. Cloudflare keeps rate-limit counters only for the counting period, and keeps blocked-request events for the retention its plan sets, currently **[TODO: Cloudflare security events retention]**.
+- The endpoint never stores your IP address. It holds it only while it handles your request. Cloudflare keeps rate-limit counters only for the counting period, and keeps blocked-request events for the retention its plan sets, currently 31 days.
 - Cloudflare KV keeps each buffered statistics entry until the daily job publishes it, and at most 45 days after its day ends. Its `flushed:` marker and the flush manifest expire at the same time.
 - Nobody can recompute a website visitor key after its day. The endpoint never uses a salt after its day ends, and Cloudflare deletes it at the next UTC midnight, or at most a minute later.
-- PostHog keeps the statistics totals for the longest period the PostHog plan allows, currently **[TODO: period]**. They identify no one, so OpenWaggle sets no shorter limit.
-- Sentry keeps error reports for the period its plan sets, currently **[TODO: period, with the reason if it is longer than debugging needs]**.
+- PostHog keeps the statistics totals for the longest period the PostHog plan allows, currently 1 year. They identify no one, so OpenWaggle sets no shorter limit.
+- Sentry keeps error reports for the period its plan sets, currently 30 days.
 
 ### Your rights
 

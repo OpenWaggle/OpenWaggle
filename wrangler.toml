@@ -35,8 +35,7 @@ compatibility_date = "2025-01-01"
 # 1,000 writes and 1,000 deletes a day. Every app report is one write and, once flushed, one
 # delete; each flush call adds two writes (lease and manifest) and a delete, and each website
 # salt one write a day. Free therefore carries several hundred app reports a day; beyond that,
-# use Workers Paid. Create it with
-# `wrangler kv namespace create STATS_KV`, then uncomment this block with the id it prints:
-# [[kv_namespaces]]
-# binding = "STATS_KV"
-# id = "<namespace id>"
+# use Workers Paid. Created with `wrangler kv namespace create STATS_KV`.
+[[kv_namespaces]]
+binding = "STATS_KV"
+id = "bec4e1063bf945c783a2d414e1ece740"

@@ -21,7 +21,10 @@ Do the steps in order. Steps 1, 2 and 8 are release blockers: statistics are on 
 
 ## 2. Processing agreements
 
-Accept the data processing agreement of each processor before you send it data, and keep a copy:
+Accept the data processing agreement of each processor before a release sends it real user data, and keep a copy. Sign in the name of whoever is the controller at release: you in person, or the company if one exists by then. A company formed later has to sign its own DPAs, so you can leave this step until the controller is settled, as long as it is done before release.
+
+The agreements:
+
 - Cloudflare: its Data Processing Addendum, which forms part of the self-serve subscription terms. Download a copy from Cloudflare's Trust Hub for your records.
 - PostHog: the DPA generated in the app (step 3.5).
 - Sentry: its DPA (<https://sentry.io/legal/dpa/>), accepted for your organization.
@@ -36,7 +39,7 @@ Accept the data processing agreement of each processor before you send it data, 
 3. In **Settings > Project**:
    - Rename the project to `OpenWaggle`.
    - Under **IP data capture configuration**, check that **Discard client IP data** is on. It is the default for new EU projects. Every event the endpoint sends is already personless (`$process_person_profile: false`) and has GeoIP disabled.
-4. Turn off PostHog AI in its AI settings. It sends project data to third-party model providers that the notice does not list.
+4. Turn off PostHog AI. It sends project data to third-party model providers that the notice does not list. In **Settings > Organization > General**, switch off **PostHog AI data analysis**, and also switch off **Enable AI training on anonymized data**. Both need an organization admin; a project-scoped API key cannot read or change them.
 5. Get the DPA (step 2): open <https://app.posthog.com/legal>, click **+ New > Data Processing Agreement (DPA)**, enter the controller's name, click **Send for signature**, and sign the PandaDoc email. Only this generated copy is valid; <https://posthog.com/dpa> is a preview.
 6. Choose the plan, and put its retention in the notice (step 1). The free plan keeps events 1 year and stops at its monthly limit, so it cannot bill you. A paid plan keeps them 7 years; if you add a card, set a billing limit on each product in the organization's **Billing** settings.
 7. Copy the **project token** (`phc_...`). PostHog treats it as public, but keep it out of the repository; it goes into Cloudflare in step 5.
@@ -58,13 +61,19 @@ Other events in the same project:
 
 1. Create the organization in Sentry's **EU (Germany)** data region. The endpoint accepts only DSNs on `*.de.sentry.io`.
 2. Create a project with the **Electron** platform, named `openwaggle`.
-3. In **Project settings > Security & Privacy**:
+3. In **Organization settings > Security & Privacy**, or per project in **Project settings > Security & Privacy**:
    - Turn on **Prevent storing of IP addresses**.
    - Keep **Data scrubber** and **Use default scrubbers** on.
-4. In the subscription settings, keep the pay-as-you-go budget at zero (or a small cap) so a burst of reports cannot create costs.
-5. Note the retention your plan gives errors, for the notice (step 1).
-6. Copy the DSN from **Client Keys (DSN)**. It must look like `https://<key>@o<org>.ingest.de.sentry.io/<project>`. You need it in step 5.
-7. Optional, later: upload source maps from the release workflow so renderer stack traces are readable. That needs `SENTRY_AUTH_TOKEN` in GitHub and a release-workflow change, which is not part of this feature.
+   An organization-wide setting overrides the project one, so the project switch can stay off when the organization switch is on.
+   - Under **Advanced Data Scrubbing**, add the rule `[Remove] [Anything] from [$user.geo.**]`. Sentry derives a location from the sending address even with IP storage off, and here that address is Cloudflare's edge near the user. The rule can take a few minutes to apply. The same rule from a terminal:
+     ```bash
+     sentry api /projects/<org>/openwaggle/ --method PUT --data '{"relayPiiConfig":"{\"rules\":{\"remove-user-geo\":{\"type\":\"anything\",\"redaction\":{\"method\":\"remove\"}}},\"applications\":{\"$user.geo.**\":[\"remove-user-geo\"]}}"}'
+     ```
+4. In **Organization settings > General**, turn off **Show Generative AI Features**. Seer would otherwise scan new issues automatically and send them to AI subprocessors that the privacy notice does not list.
+5. In the subscription settings, keep the pay-as-you-go budget at zero (or a small cap) so a burst of reports cannot create costs.
+6. Note the retention your plan gives errors, for the notice (step 1). A new organization starts on a 14-day trial with 90 days, then drops to the free Developer plan with 30 days unless you pick a paid plan. `sentry api /customers/<org>/` shows the current plan and `retentionDays`.
+7. Copy the DSN from **Client Keys (DSN)**. It must look like `https://<key>@o<org>.ingest.de.sentry.io/<project>`. You need it in step 5.
+8. Optional, later: upload source maps from the release workflow so renderer stack traces are readable. That needs `SENTRY_AUTH_TOKEN` in GitHub and a release-workflow change, which is not part of this feature.
 
 ## 5. Cloudflare (the endpoint)
 
@@ -74,7 +83,7 @@ The endpoint is the Pages Function in `functions/`, deployed with the website by
    ```bash
    npx wrangler kv namespace create STATS_KV
    ```
-2. In `wrangler.toml`, uncomment the `[[kv_namespaces]]` block, paste the printed `id`, and merge that change. When `wrangler.toml` declares `pages_build_output_dir`, Cloudflare reads bindings from the file and does not let you add them in the dashboard.
+2. In `wrangler.toml`, uncomment the `[[kv_namespaces]]` block, paste the printed `id`, and merge that change. When `wrangler.toml` declares `pages_build_output_dir`, Cloudflare reads bindings from the file and does not let you add them in the dashboard. Done for the current account: the namespace id is in `wrangler.toml`.
 3. Generate the job token:
    ```bash
    openssl rand -hex 32
@@ -87,11 +96,16 @@ The endpoint is the Pages Function in `functions/`, deployed with the website by
    npx wrangler pages secret put STATS_SNAPSHOT_TOKEN --project-name openwaggle
    ```
    `POSTHOG_HOST` is optional, and its only accepted value is the default, `https://eu.i.posthog.com`.
-5. Keep persistent request logging off for this project. Leave **Workers Logs** and **Logpush** off; the live tail (`npx wrangler pages deployment tail`) is enough to debug.
-6. Add a rate-limiting rule under **Security > WAF > Rate limiting rules**:
-   - Match: `URI Path starts with /api/v1/`.
-   - Limit: on the Free plan the period and block duration are fixed at 10 seconds, so use for example 20 requests per 10 seconds per IP with a 10-second block. Paid plans allow longer periods.
-   The rule processes client IP addresses for abuse protection, and Cloudflare lists blocked requests in **Security > Events**. The privacy notice already discloses this; keep it that way if you change the rule.
+5. Keep persistent request logging off for this project. Pages Functions logs are not stored: they exist only while `npx wrangler pages deployment tail` or the dashboard stream is open, which is enough to debug. Do not add a Logpush job for the project.
+6. Add a rate-limiting rule. Wrangler's login cannot write security rules, so this is a dashboard step:
+   - Open the zone `openwaggle.ai`, go to **Security rules**, and choose **Create rule > Rate limiting rules**.
+   - Rule name: `Statistics endpoint`.
+   - Match: field **URI Path**, operator **starts with**, value `/api/v1/`.
+   - With the same characteristics: **IP**, the only choice on Free.
+   - When rate exceeds: 20 requests per 10 seconds. Free fixes the period at 10 seconds.
+   - Then take action: **Block**, duration 10 seconds, also fixed on Free.
+   - Click **Deploy**.
+   The rule processes client IP addresses for abuse protection, and Cloudflare lists blocked requests under **Analytics > Events** for up to 31 days. The privacy notice already discloses this; keep it that way if you change the rule.
 7. Check the KV limits for your plan. On the free plan, writes per day are limited, and each app report costs one write plus a delete at flush time. Move to Workers Paid when the install base grows.
 8. Deploy the website as you do today. A Git-connected Pages project redeploys on merge. Otherwise, run `pnpm website:build` and then `npx wrangler pages deploy`.
 
