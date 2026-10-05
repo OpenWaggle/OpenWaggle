@@ -41,11 +41,19 @@ Platform trust for v1:
   electron-builder config (`scripts/mac-signing.ts`) only chooses how to sign and never fails,
   because every electron-builder command, including `postinstall`, loads it. When configured,
   the release workflow verifies each app with `codesign`, `stapler`, and `spctl` before upload.
-- Notarization depends on the runner's network while notarytool waits for Apple's verdict. When
-  `scripts/notarization-failure.ts` identifies a failure as notarytool losing its connection to
-  Apple (a transport error or an Apple 5xx), the macOS build rebuilds and resubmits once. A
-  rejected submission, a credential error, or any other failure fails the first attempt. A second
-  lost connection fails the job; rerun the failed jobs, which reuses the version job's result.
+- The macOS build depends on the GitHub runner: notarytool needs its network while it waits for
+  Apple's verdict, and `hdiutil` needs a working disk-image device to create the DMG. When
+  `scripts/macos-build-failure.ts` identifies a failure as notarytool losing its connection to
+  Apple (a transport error or an Apple 5xx) or as an `hdiutil` device error (`Device not
+  configured`, `Resource busy`), the macOS build rebuilds and resubmits, up to three attempts in
+  total. Because `hdiutil` fails under concurrent disk activity on hosted runners, the job turns
+  off Spotlight indexing and stops XProtect before each attempt. Before that full rebuild,
+  `patches/dmg-builder@26.17.0.patch` retries only the failed `dmgbuild` call, up to four times,
+  for the same `hdiutil` device errors. A DMG retry takes seconds and does not notarize again.
+  Re-create the patch when `dmg-builder` changes version. A rejected submission, a
+  credential error, or any other failure fails the first attempt. A third runner failure fails
+  the job; rerun the failed jobs, which reuses the version job's result. A rerun uses the
+  workflow as it was at the release commit, so a workflow fix only reaches the next release.
 - Windows code signing does not block `1.0.0`; it is tracked as post-v1 work. Unsigned Windows installers show a SmartScreen warning on first install.
 - Linux AppImage artifacts are not signed.
 

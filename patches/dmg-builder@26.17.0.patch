@@ -1,0 +1,49 @@
+diff --git a/out/dmgUtil.js b/out/dmgUtil.js
+index 490d088acde7a303001a013390dbe445fc15d5e5..3a2ec332bbd0d080507b47044563cfdbcbeeb760 100644
+--- a/out/dmgUtil.js
++++ b/out/dmgUtil.js
+@@ -55,6 +55,29 @@ async function getDmgVendorPath() {
+     });
+     return path.resolve(file, "dmgbuild");
+ }
++// OpenWaggle patch: GitHub-hosted macOS runners intermittently fail hdiutil with a device error
++// while dmgbuild creates or attaches the image (actions/runner-images#7522; OpenWaggle
++// 1.0.0-beta.8 release run 37285929256 failed three times this way). Retry only that failure,
++// and wait outside the toolset lock so a concurrent DMG target is not starved of it.
++const TRANSIENT_DMGBUILD_HDIUTIL_ERROR = /hdiutil: (?:create|attach|detach|convert|resize) failed - (?:Device not configured|Resource busy|Resource temporarily unavailable)/;
++const DMGBUILD_ATTEMPTS = 4;
++const DMGBUILD_RETRY_DELAY_MS = 15000;
++async function execDmgbuildWithRetry(file, args, artifactPath, options) {
++    for (let attempt = 1;; attempt++) {
++        try {
++            return await (0, toolsetLock_1.withToolsetLock)(() => (0, builder_util_1.exec)(file, args, options));
++        }
++        catch (error) {
++            const output = String((error === null || error === void 0 ? void 0 : error.message) || "");
++            if (attempt >= DMGBUILD_ATTEMPTS || !TRANSIENT_DMGBUILD_HDIUTIL_ERROR.test(output)) {
++                throw error;
++            }
++            builder_util_1.log.warn({ attempt, attempts: DMGBUILD_ATTEMPTS, file: artifactPath }, "dmgbuild hit a transient hdiutil error, retrying");
++            await (0, fs_extra_1.remove)(artifactPath).catch(() => undefined);
++            await new Promise((resolve) => setTimeout(resolve, attempt * DMGBUILD_RETRY_DELAY_MS));
++        }
++    }
++}
+ async function attachAndExecute(dmgPath, readWrite, forceDetach, task) {
+     //noinspection SpellCheckingInspection
+     const args = ["attach", "-noverify", "-noautoopen"];
+@@ -191,12 +214,12 @@ async function customizeDmg({ appPath, artifactPath, volumeName, specification,
+     const settingsFile = await packager.getTempFile(".json");
+     await (0, fs_extra_1.writeFile)(settingsFile, JSON.stringify(settings, null, 2));
+     const dmgbuild = await getDmgVendorPath();
+-    await (0, toolsetLock_1.withToolsetLock)(() => (0, builder_util_1.exec)(dmgbuild, ["-s", settingsFile, path.basename(volumePath), artifactPath], {
++    await execDmgbuildWithRetry(dmgbuild, ["-s", settingsFile, path.basename(volumePath), artifactPath], artifactPath, {
+         env: {
+             ...process.env,
+             PYTHONIOENCODING: "utf8",
+         },
+-    }));
++    });
+     // effectiveOptionComputed, when present, is purely for verifying result during test execution
+     return (packager.packagerOptions.effectiveOptionComputed == null ||
+         (await attachAndExecute(artifactPath, false, true, async (volumePath) => {

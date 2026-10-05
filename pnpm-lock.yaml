@@ -47,6 +47,7 @@ overrides:
 patchedDependencies:
   '@earendil-works/pi-ai@0.87.1': 3e2a8d56f9782c68a09337cf5f00e6a8cf0a188c7a12fa30e03a77671e528b26
   '@earendil-works/pi-coding-agent@0.87.1': 40aa7e6a546b3dfcf51374cf843cfebe46d6e0fde7e9cfe0f684f9e321018b0e
+  dmg-builder@26.17.0: 074432ec1856f4d5bb7e0c17ea14f922829a959a740f02e150a1d9ddbbc7a30b
   node-pty@1.1.0: 74077b861173245cdcb2d2f92715b7a5a2195e447f964a73b65f6f7292b7d0fe
 
 importers:
@@ -11614,7 +11615,7 @@ snapshots:
       chromium-pickle-js: 0.2.0
       ci-info: 4.3.1
       debug: 4.4.3(supports-color@7.2.0)
-      dmg-builder: 26.17.0(electron-builder-squirrel-windows@26.17.0)(supports-color@7.2.0)
+      dmg-builder: 26.17.0(patch_hash=074432ec1856f4d5bb7e0c17ea14f922829a959a740f02e150a1d9ddbbc7a30b)(electron-builder-squirrel-windows@26.17.0)(supports-color@7.2.0)
       dotenv: 16.6.1
       dotenv-expand: 11.0.7
       ejs: 3.1.10
@@ -12298,7 +12299,7 @@ snapshots:
       minimatch: 3.1.5
       p-limit: 3.1.0
 
-  dmg-builder@26.17.0(electron-builder-squirrel-windows@26.17.0)(supports-color@7.2.0):
+  dmg-builder@26.17.0(patch_hash=074432ec1856f4d5bb7e0c17ea14f922829a959a740f02e150a1d9ddbbc7a30b)(electron-builder-squirrel-windows@26.17.0)(supports-color@7.2.0):
     dependencies:
       app-builder-lib: 26.17.0(dmg-builder@26.17.0)(electron-builder-squirrel-windows@26.17.0)(supports-color@7.2.0)
       builder-util: 26.16.0(supports-color@7.2.0)
@@ -12399,7 +12400,7 @@ snapshots:
       builder-util-runtime: 9.7.0(supports-color@7.2.0)
       chalk: 4.1.2
       ci-info: 4.4.0
-      dmg-builder: 26.17.0(electron-builder-squirrel-windows@26.17.0)(supports-color@7.2.0)
+      dmg-builder: 26.17.0(patch_hash=074432ec1856f4d5bb7e0c17ea14f922829a959a740f02e150a1d9ddbbc7a30b)(electron-builder-squirrel-windows@26.17.0)(supports-color@7.2.0)
       fs-extra: 10.1.0
       lazy-val: 1.0.5
       simple-update-notifier: 2.0.0

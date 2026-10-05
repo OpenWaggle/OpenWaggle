@@ -609,22 +609,34 @@ jobs:
 
       - run: pnpm build
 
-      # Notarization waits minutes on Apple while notarytool polls over the runner's network. One
-      # lost connection (1.0.0-beta.1, run 36695614844) must not fail the release, so only that
-      # failure rebuilds once; a rejection or any other failure still fails the first attempt.
+      # A runner blip must not fail the release: notarytool losing Apple while it polls
+      # (1.0.0-beta.1, run 36695614844) or hdiutil failing to create or attach the DMG with a
+      # device error (1.0.0-beta.8, run 37285929256, three attempts). Only those failures
+      # rebuild, at most twice; a rejection or any other failure still fails the first attempt.
+      # hdiutil breaks under concurrent disk activity on hosted runners (actions/runner-images
+      # #7522), so Spotlight indexing is off and XProtect is stopped before every attempt. The
+      # dmg-builder patch (patches/dmg-builder@*.patch) first retries only the failed DMG, so a
+      # full rebuild with fresh notarization is the last resort.
       - name: Build macOS artifacts (arm64 + x64)
         shell: bash
         run: |
           set -uo pipefail
           BUILD_LOG="$RUNNER_TEMP/electron-builder-mac.log"
-          for BUILD_ATTEMPT in 1 2; do
+          sudo mdutil -a -i off >/dev/null 2>&1 || true
+          for BUILD_ATTEMPT in 1 2 3; do
+            sudo pkill -9 XProtect >/dev/null 2>&1 || true
             if pnpm exec electron-builder --mac --arm64 --x64 --publish never 2>&1 | tee "$BUILD_LOG"; then
               exit 0
             fi
-            if [ "$BUILD_ATTEMPT" -eq 2 ] || ! node scripts/notarization-failure.ts "$BUILD_LOG"; then
+            if [ "$BUILD_ATTEMPT" -eq 3 ] || ! FAILURE_REASON="$(node scripts/macos-build-failure.ts "$BUILD_LOG")"; then
               exit 1
             fi
-            echo "::warning::Notarization lost its connection to Apple; rebuilding and resubmitting once."
+            echo "::warning::${FAILURE_REASON}; rebuilding macOS artifacts (attempt $((BUILD_ATTEMPT + 1)) of 3)."
+            # A failed dmgbuild can leave its read-write image attached; detach it before rebuilding.
+            for volume in /Volumes/OpenWaggle*; do
+              [ -d "$volume" ] && hdiutil detach "$volume" -force >/dev/null 2>&1 || true
+            done
+            sync
           done
         env:
           # Unset secrets keep Alpha/Beta builds unsigned; RC and Stable fail closed without them.
