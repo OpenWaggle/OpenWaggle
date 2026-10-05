@@ -81,9 +81,10 @@ describe('Worker Session transcript opened from another running Session', () => 
         timestamp: 1,
       }),
     )
+    const initialProps: ChatProps = { sessionId: OTHER_ID, session: OTHER_DETAIL }
     const chat = renderHook(
       ({ sessionId, session }: ChatProps) => useAgentChat(sessionId, session, MODEL),
-      { initialProps: { sessionId: OTHER_ID, session: OTHER_DETAIL } },
+      { initialProps },
     )
     await waitFor(() => expect(chat.result.current.backgroundStreaming).toBe(true))
 
