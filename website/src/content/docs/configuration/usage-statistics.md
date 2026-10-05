@@ -260,7 +260,7 @@ The rest of this section covers them.
 
 ### Controller
 
-The controller is the OpenWaggle maintainer, **[TODO: maintainer's full name]**, acting in person until a company exists. Write to [privacy@openwaggle.ai](mailto:privacy@openwaggle.ai) about anything on this page.
+The controller is the OpenWaggle maintainer, Diego Garcia Brisa, acting in person until a company exists. Write to [privacy@openwaggle.ai](mailto:privacy@openwaggle.ai) about anything on this page.
 
 ### Purposes and legal basis
 
