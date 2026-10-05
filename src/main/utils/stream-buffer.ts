@@ -13,11 +13,13 @@ import type { AgentTransportEvent } from '@shared/types/stream'
 import { upsertToolCallPart } from './stream-buffer-message-parts'
 import {
   type ActiveStreamBuffer,
+  emptyActiveStreamBuffer,
   MAX_ACTIVE_STREAM_BUFFER_BYTES,
   MAX_DEGRADED_TOOL_CALL_IDS,
   MAX_TOTAL_STREAM_BUFFER_BYTES,
   restoreStreamBufferSnapshots,
   retainedStreamBufferBytes,
+  startsAnotherRun,
   toStreamBufferSnapshot,
   withoutRetainedStreamContent,
   withWorktreeLaunchSnapshot,
@@ -214,17 +216,15 @@ export function applyEventToStreamBuffer(sessionId: SessionId, event: AgentTrans
     .exhaustive()
 }
 
-export function startStreamBuffer(sessionId: SessionId, model: SupportedModelId, mode: RunMode) {
+export function startStreamBuffer(
+  sessionId: SessionId,
+  model: SupportedModelId,
+  mode: RunMode,
+  runId?: string,
+) {
   clearStreamBuffer(sessionId)
   activeBuffers.set(sessionId, {
-    model,
-    mode,
-    startedAt: Date.now(),
-    parts: [],
-    retainedBytes: 0,
-    omittedBytes: 0,
-    degradedToolCallIds: new Set(),
-    degradedToolCallIdsBytes: 0,
+    ...emptyActiveStreamBuffer({ model, mode, startedAt: Date.now(), runId }),
     activityEvents: [],
   })
 }
@@ -246,25 +246,17 @@ export function startStreamBufferFromAgentStart(
   sessionId: SessionId,
   event: Extract<AgentTransportEvent, { type: 'agent_start' }>,
 ) {
+  const previous = activeBuffers.get(sessionId)
+  if (previous && startsAnotherRun(previous, event.runId)) clearStreamBuffer(sessionId)
   const existing = activeBuffers.get(sessionId)
-  const model = event.model
-    ? SupportedModelId(event.model)
-    : (existing?.model ?? SupportedModelId(''))
+  const fallbackModel = existing?.model ?? previous?.model ?? SupportedModelId('')
+  const model = event.model ? SupportedModelId(event.model) : fallbackModel
   const mode = existing?.mode ?? (event.runId.startsWith('waggle-') ? 'waggle' : 'classic')
   activeBuffers.set(
     sessionId,
     existing
-      ? { ...existing, model, mode }
-      : {
-          model,
-          mode,
-          startedAt: event.timestamp,
-          parts: [],
-          retainedBytes: 0,
-          omittedBytes: 0,
-          degradedToolCallIds: new Set(),
-          degradedToolCallIdsBytes: 0,
-        },
+      ? { ...existing, runId: event.runId, model, mode }
+      : emptyActiveStreamBuffer({ model, mode, startedAt: event.timestamp, runId: event.runId }),
   )
 }
 

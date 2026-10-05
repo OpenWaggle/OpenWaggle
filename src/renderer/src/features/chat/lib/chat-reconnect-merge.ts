@@ -10,6 +10,10 @@ import {
   countUserMessagesByText,
   getNonEmptyUserMessageText,
 } from './chat-message-text'
+import {
+  placeAnchoredReconnectMessages,
+  placeCurrentOnlyMessages,
+} from './chat-reconnect-placement'
 
 function isAssistantMessage(
   message: UIMessage,
@@ -17,17 +21,24 @@ function isAssistantMessage(
   return message.role === 'assistant'
 }
 
-function mergeTextContent(snapshotContent: string, currentContent: string) {
-  return match({ snapshotContent, currentContent })
-    .when(
-      (value) => value.snapshotContent.includes(value.currentContent),
-      (value) => value.snapshotContent,
-    )
-    .when(
-      (value) => value.currentContent.includes(value.snapshotContent),
-      (value) => value.currentContent,
-    )
-    .otherwise((value) => `${value.snapshotContent}${value.currentContent}`)
+/**
+ * The text of a part both sides hold. `baseline` is what this renderer showed of it when the
+ * reconnect read the buffer: the buffer has the whole text up to then, so the merge takes it and
+ * adds only what streamed in since. Without one (or once the shown text no longer extends it) the
+ * longer text that contains the other wins, and otherwise the reconnect's: putting both side by
+ * side repeated a text that lost a delta in a stall for the rest of the Run.
+ */
+function mergeTextContent(snapshotContent: string, currentContent: string, baseline?: string) {
+  if (baseline !== undefined && currentContent.startsWith(baseline)) {
+    return `${snapshotContent}${currentContent.slice(baseline.length)}`
+  }
+  if (snapshotContent.includes(currentContent)) return snapshotContent
+  if (currentContent.includes(snapshotContent)) return currentContent
+  return snapshotContent
+}
+
+function partText(part: UIMessagePart | undefined) {
+  return part?.type === 'text' || part?.type === 'thinking' ? part.content : undefined
 }
 
 function toolStateRank(state: string) {
@@ -98,13 +109,17 @@ function findMergeablePartIndex(parts: readonly UIMessagePart[], part: UIMessage
     .exhaustive()
 }
 
-function mergeMessagePart(snapshotPart: UIMessagePart, currentPart: UIMessagePart): UIMessagePart {
+function mergeMessagePart(
+  snapshotPart: UIMessagePart,
+  currentPart: UIMessagePart,
+  baseline?: string,
+): UIMessagePart {
   return match({ snapshotPart, currentPart })
     .with(
       { snapshotPart: { type: 'text' }, currentPart: { type: 'text' } },
       (value): UIMessagePart => ({
         type: 'text',
-        content: mergeTextContent(value.snapshotPart.content, value.currentPart.content),
+        content: mergeTextContent(value.snapshotPart.content, value.currentPart.content, baseline),
       }),
     )
     .with(
@@ -113,7 +128,11 @@ function mergeMessagePart(snapshotPart: UIMessagePart, currentPart: UIMessagePar
         const stepId = value.currentPart.stepId ?? value.snapshotPart.stepId
         return {
           type: 'thinking',
-          content: mergeTextContent(value.snapshotPart.content, value.currentPart.content),
+          content: mergeTextContent(
+            value.snapshotPart.content,
+            value.currentPart.content,
+            baseline,
+          ),
           ...(stepId ? { stepId } : {}),
         }
       },
@@ -128,9 +147,11 @@ function mergeMessagePart(snapshotPart: UIMessagePart, currentPart: UIMessagePar
     .otherwise((value) => value.currentPart)
 }
 
+/** `baselineParts`: the shown parts of the message the buffer streams, when it was read. */
 function mergeAssistantParts(
   snapshotParts: readonly UIMessagePart[],
   currentParts: readonly UIMessagePart[],
+  baselineParts?: readonly UIMessagePart[],
 ): UIMessagePart[] {
   const mergedParts = [...snapshotParts]
   for (const currentPart of currentParts) {
@@ -140,7 +161,10 @@ function mergeAssistantParts(
       mergedParts.push(currentPart)
       continue
     }
-    mergedParts[partIndex] = mergeMessagePart(existingPart, currentPart)
+    const baseline = baselineParts
+      ? (partText(baselineParts[findMergeablePartIndex(baselineParts, currentPart)]) ?? '')
+      : undefined
+    mergedParts[partIndex] = mergeMessagePart(existingPart, currentPart, baseline)
   }
   return mergedParts
 }
@@ -171,60 +195,26 @@ function reconnectUserOrdersOf(messages: readonly UIMessage[]) {
   return orders
 }
 
-/**
- * Places the messages only the current transcript holds. Each keeps its place after the shared
- * message it followed there; ones before the first shared message stay before it. Appending them
- * put a Run's earlier answers, streamed while its Session was not shown, below the answer the
- * reconnect buffer still holds. With no shared message at all they are appended. One pass over
- * each list: a transcript can hold thousands of messages and this runs on every open.
- */
-function placeCurrentOnlyMessages(
-  mergedMessages: UIMessage[],
-  currentMessages: readonly UIMessage[],
-  reconnectMessageIds: ReadonlySet<string>,
-  isRepresented: (message: UIMessage) => boolean,
-): UIMessage[] {
-  const leading: UIMessage[] = []
-  const followersByAnchorId = new Map<string, UIMessage[]>()
-  let anchorId: string | null = null
-  let firstSharedId: string | null = null
-  for (const currentMessage of currentMessages) {
-    if (reconnectMessageIds.has(currentMessage.id)) {
-      anchorId = currentMessage.id
-      firstSharedId ??= currentMessage.id
-      continue
-    }
-    if (isRepresented(currentMessage)) continue
-    if (anchorId === null) {
-      leading.push(currentMessage)
-      continue
-    }
-    const followers = followersByAnchorId.get(anchorId)
-    if (followers) followers.push(currentMessage)
-    else followersByAnchorId.set(anchorId, [currentMessage])
+interface ReconnectMergeContext {
+  /**
+   * Ids of the reconnect's messages that precede every message only the current transcript holds:
+   * the persisted transcript's, and the user messages the Run incorporated before its first answer.
+   */
+  readonly earlierMessageIds?: ReadonlySet<string>
+  /** For each user message the reconnect buffer retained, the answer it followed. */
+  readonly userMessageAnchors?: ReadonlyMap<string, string>
+  /** The answer the buffer streams, as this renderer showed it when the buffer was read. */
+  readonly streamingBaseline?: {
+    readonly messageId: string
+    readonly parts: readonly UIMessagePart[]
   }
-  if (leading.length === 0 && followersByAnchorId.size === 0) return mergedMessages
-  if (firstSharedId === null) return [...mergedMessages, ...leading]
-
-  const placed: UIMessage[] = []
-  for (const message of mergedMessages) {
-    if (message.id === firstSharedId) {
-      placed.push(...leading)
-      firstSharedId = null
-    }
-    placed.push(message)
-    const followers = followersByAnchorId.get(message.id)
-    if (followers) {
-      placed.push(...followers)
-      followersByAnchorId.delete(message.id)
-    }
-  }
-  return placed
 }
 
+/** Merges a reconnect (the persisted transcript, and the Run's buffer) into the current one. */
 export function mergeBackgroundReconnectMessages(
   reconnectMessages: UIMessage[],
   currentMessages: UIMessage[],
+  context: ReconnectMergeContext = {},
 ): UIMessage[] {
   const reconciledMessages = reconcileSnapshotUserMessages(reconnectMessages, currentMessages)
   const currentMessagesById = new Map(currentMessages.map((message) => [message.id, message]))
@@ -241,7 +231,13 @@ export function mergeBackgroundReconnectMessages(
             isAssistantMessage,
             (assistantMessage): UIMessage => ({
               ...assistantMessage,
-              parts: mergeAssistantParts(assistantMessage.parts, currentAssistantMessage.parts),
+              parts: mergeAssistantParts(
+                assistantMessage.parts,
+                currentAssistantMessage.parts,
+                context.streamingBaseline?.messageId === assistantMessage.id
+                  ? context.streamingBaseline.parts
+                  : undefined,
+              ),
               createdAt: currentAssistantMessage.createdAt ?? assistantMessage.createdAt,
               metadata: currentAssistantMessage.metadata ?? assistantMessage.metadata,
             }),
@@ -251,7 +247,19 @@ export function mergeBackgroundReconnectMessages(
       .otherwise((value) => retainSnapshotMessageOrder(value, message))
   })
 
-  return placeCurrentOnlyMessages(mergedMessages, currentMessages, reconnectMessageIds, (message) =>
-    isRepresentedByReconnectUser(message, reconnectUserCountsByText, reconnectUserOrders),
+  const currentMessageIds = new Set(currentMessagesById.keys())
+  const placed = placeCurrentOnlyMessages({
+    mergedMessages,
+    currentMessages,
+    reconnectMessageIds,
+    currentMessageIds,
+    earlierMessageIds: context.earlierMessageIds,
+    isRepresented: (message) =>
+      isRepresentedByReconnectUser(message, reconnectUserCountsByText, reconnectUserOrders),
+  })
+  return placeAnchoredReconnectMessages(
+    placed,
+    context.userMessageAnchors ?? new Map(),
+    currentMessageIds,
   )
 }

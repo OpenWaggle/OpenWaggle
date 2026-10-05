@@ -10,6 +10,11 @@ import type { SessionId, SupportedModelId } from '@shared/types/brand'
 import { retainedPartsBytes } from './stream-buffer-byte-accounting'
 
 export interface ActiveStreamBuffer {
+  /**
+   * The Run this buffer holds: set where the Host starts the Run, carried through snapshots, and
+   * updated by the `agent_start` the replica projects. Unknown only for buffers from an older Host.
+   */
+  readonly runId?: string
   readonly model: SupportedModelId
   readonly mode: RunMode
   readonly startedAt: number
@@ -51,6 +56,45 @@ function retainedSideChannelBytes(buffer: ActiveStreamBuffer) {
 
 export function retainedStreamBufferBytes(buffer: ActiveStreamBuffer) {
   return buffer.retainedBytes + buffer.degradedToolCallIdsBytes + retainedSideChannelBytes(buffer)
+}
+
+/**
+ * Whether an `agent_start` begins another Run than the one the buffer holds. A queued Follow-up the
+ * Host went straight on to starts without the settled Run's buffer being cleared here; the Host starts
+ * that Run's buffer empty, and a replica that kept the settled Run's last answer showed it twice on a
+ * reconnect, once more above the Follow-up, since the transcript then holds it under its Pi entry id.
+ * An auto-retry starts the same Run again and keeps what it streamed.
+ */
+export function startsAnotherRun(existing: ActiveStreamBuffer, runId: string) {
+  return existing.runId !== undefined && existing.runId !== runId
+}
+
+export function emptyActiveStreamBuffer(input: {
+  readonly model: SupportedModelId
+  readonly mode: RunMode
+  readonly startedAt: number
+  readonly runId?: string | undefined
+}): ActiveStreamBuffer {
+  return {
+    ...(input.runId ? { runId: input.runId } : {}),
+    model: input.model,
+    mode: input.mode,
+    startedAt: input.startedAt,
+    parts: [],
+    retainedBytes: 0,
+    omittedBytes: 0,
+    degradedToolCallIds: new Set(),
+    degradedToolCallIdsBytes: 0,
+  }
+}
+
+/** Snapshot fields a restored buffer keeps only when the snapshot has them. */
+function restoredOptionalFields(snapshot: BackgroundRunSnapshot) {
+  return {
+    ...(snapshot.runId ? { runId: snapshot.runId } : {}),
+    ...(snapshot.messageId ? { messageId: snapshot.messageId } : {}),
+    ...(snapshot.worktreeLaunch ? { worktreeLaunch: snapshot.worktreeLaunch } : {}),
+  }
 }
 
 export function withoutRetainedStreamContent(buffer: ActiveStreamBuffer): ActiveStreamBuffer {
@@ -131,6 +175,7 @@ export function toStreamBufferSnapshot(
   return {
     activity: 'agent-run',
     sessionId,
+    ...(buffer.runId ? { runId: buffer.runId } : {}),
     model: buffer.model,
     mode: buffer.mode,
     startedAt: buffer.startedAt,
@@ -225,10 +270,10 @@ export function restoreStreamBufferSnapshots(
       totalRetainedBytes,
     })
     buffers.set(snapshot.sessionId, {
+      ...restoredOptionalFields(snapshot),
       model: snapshot.model,
       mode: snapshot.mode,
       startedAt: snapshot.startedAt,
-      ...(snapshot.messageId ? { messageId: snapshot.messageId } : {}),
       parts: accepted ? [...snapshot.parts] : [],
       ...activity,
       ...userMessages,
@@ -236,7 +281,6 @@ export function restoreStreamBufferSnapshots(
       omittedBytes: (snapshot.degraded?.omittedBytes ?? 0) + (accepted ? 0 : retainedBytes),
       degradedToolCallIds: degradedToolCallIds.toolCallIds,
       degradedToolCallIdsBytes: degradedToolCallIds.retainedBytes,
-      ...(snapshot.worktreeLaunch ? { worktreeLaunch: snapshot.worktreeLaunch } : {}),
     })
     totalRetainedBytes +=
       acceptedRetainedBytes +

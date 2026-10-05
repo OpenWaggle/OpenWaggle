@@ -38,6 +38,7 @@ const apiMock = vi.hoisted(() => {
     runCompletedHandlers,
     onAgentEvent: vi.fn(subscribe(agentEventHandlers)),
     onRunCompleted: vi.fn(subscribe(runCompletedHandlers)),
+    onSessionHostResyncRequired: vi.fn((_handler: () => void) => () => {}),
     listActiveRuns: vi.fn(async () => []),
     getBackgroundRun: vi.fn(
       async (_sessionId: string): Promise<BackgroundRunSnapshot | null> => null,

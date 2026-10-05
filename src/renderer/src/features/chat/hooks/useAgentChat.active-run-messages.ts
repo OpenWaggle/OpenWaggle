@@ -38,7 +38,9 @@ export function activeRunHydrationMessages(
   )
   return {
     messages: cachedMessages
-      ? mergeBackgroundReconnectMessages([...persistedMessages], [...cachedMessages])
+      ? mergeBackgroundReconnectMessages([...persistedMessages], [...cachedMessages], {
+          earlierMessageIds: new Set(input.session.messages.map((message) => String(message.id))),
+        })
       : reconcileSnapshotUserMessages(
           persistedMessages,
           getMessagesForSession(context.messagesBySessionIdRef, input.sessionId),

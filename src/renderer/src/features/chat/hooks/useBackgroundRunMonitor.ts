@@ -6,6 +6,7 @@ import { useAgentLoopEventStore } from '@/features/chat/state/agent-loop-event-s
 import { useBackgroundRunStore } from '@/features/chat/state/background-run-store'
 import { useChatStore } from '@/features/chat/state/chat-store'
 import { useFirstSendPendingStore } from '@/features/chat/state/first-send-pending-store'
+import { useOptimisticSteerStore } from '@/features/chat/state/optimistic-steer-store'
 import { useQueuedRunStartStore } from '@/features/chat/state/queued-run-start-store'
 import { trackRunFinishing, useRunFinishingStore } from '@/features/chat/state/run-finishing-store'
 import { api } from '@/shared/lib/ipc'
@@ -93,6 +94,9 @@ export function useBackgroundRunMonitor(): void {
 
     const unsubCompleted = api.onRunCompleted((payload) => {
       useQueuedRunStartStore.getState().settle(payload.sessionId, payload.runId)
+      // A promoted steer the Run never incorporated went back to the queue; one it did shows as
+      // its own row. Its preview goes even when no route shows the Session to see it go idle.
+      useOptimisticSteerStore.getState().clearSession(payload.sessionId)
       // The snapshot holds the settled Run now; the next Run's start must not keep its answers.
       noteRunRenderSnapshotRunSettled(payload.sessionId, payload.runId)
       // The Session went straight on to a queued Follow-up; it is still running.

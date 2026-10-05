@@ -90,6 +90,7 @@ const {
         runCompletedHandlers.push(handler)
         return () => {}
       }),
+      onSessionHostResyncRequired: vi.fn((_handler: () => void) => () => {}),
       getBackgroundRun: vi.fn(async (): Promise<BackgroundRunSnapshot | null> => null),
       getSessionDetail: vi.fn(async (): Promise<SessionDetail | null> => null),
       /*

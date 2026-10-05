@@ -172,9 +172,10 @@ describe('useAgentChat background reconnect', () => {
               state: 'input-complete',
             },
           },
+          // The main process buffered the delta it sent before answering the read.
           {
             type: 'text',
-            text: 'Earlier',
+            text: 'Earlier later',
           },
         ],
       })

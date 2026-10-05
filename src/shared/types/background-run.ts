@@ -131,6 +131,8 @@ export interface BackgroundRunUserMessage extends AgentTransportUserMessage {
 
 /** Full snapshot including accumulated message parts for reconnection. */
 export interface BackgroundRunSnapshot extends ActiveAgentRunInfo {
+  /** The Run the snapshot belongs to; absent from older Hosts. */
+  readonly runId?: string
   readonly messageId?: string
   readonly parts: readonly MessagePart[]
   readonly userMessages?: readonly BackgroundRunUserMessage[]

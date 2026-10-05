@@ -52,6 +52,8 @@ interface BackgroundRunState {
   renderSnapshotsBySessionId: Map<SessionId, RunRenderSnapshot>
   worktreeLaunchBySessionId: Map<SessionId, WorktreeLaunchSnapshot>
   firstSendRecoveryBySessionId: Map<SessionId, FirstSendRecovery>
+  /** Counts restores of the activity in progress when the renderer started (`initialize`). */
+  activityRestoreRevision: number
   addActiveRun: (id: SessionId, model?: SupportedModelId) => void
   removeActiveRun: (id: SessionId) => void
   hasActiveRun: (id: SessionId) => boolean
@@ -175,6 +177,7 @@ function initialBackgroundRunState() {
     renderSnapshotsBySessionId: new Map<SessionId, RunRenderSnapshot>(),
     worktreeLaunchBySessionId: new Map<SessionId, WorktreeLaunchSnapshot>(),
     firstSendRecoveryBySessionId: new Map<SessionId, FirstSendRecovery>(),
+    activityRestoreRevision: 0,
   }
 }
 
@@ -187,6 +190,7 @@ function mergeCurrentActivityState(
   persistRecoveryState(next.worktreeLaunchBySessionId, next.firstSendRecoveryBySessionId)
   return {
     ...next,
+    activityRestoreRevision: state.activityRestoreRevision + 1,
     renderSnapshotsBySessionId: restoreCompactionSnapshots(
       state,
       current.compactions,

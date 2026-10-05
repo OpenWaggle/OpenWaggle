@@ -65,20 +65,41 @@ function decodeUserMessageSnapshots(value: unknown): Pick<BackgroundRunSnapshot,
   return userMessages.length > 0 ? { userMessages } : {}
 }
 
+function isOptionalString(value: unknown) {
+  return value === undefined || typeof value === 'string'
+}
+
+interface ActiveRunSnapshotCandidate extends Record<string, unknown> {
+  readonly activity: 'agent-run'
+  readonly sessionId: string
+  readonly model: string
+  readonly mode: 'classic' | 'waggle'
+  readonly startedAt: number
+  readonly parts: readonly unknown[]
+  readonly messageId?: string
+  readonly runId?: string
+}
+
+function hasActiveRunSnapshotShape(
+  candidate: Record<string, unknown>,
+): candidate is ActiveRunSnapshotCandidate {
+  return (
+    candidate.activity === 'agent-run' &&
+    typeof candidate.sessionId === 'string' &&
+    typeof candidate.model === 'string' &&
+    (candidate.mode === 'classic' || candidate.mode === 'waggle') &&
+    typeof candidate.startedAt === 'number' &&
+    Array.isArray(candidate.parts) &&
+    isOptionalString(candidate.messageId) &&
+    isOptionalString(candidate.runId)
+  )
+}
+
 /** Decodes the active Run snapshots a Local Session Host subscription opens with. */
 export function decodeActiveRunSnapshots(value: unknown): BackgroundRunSnapshot[] {
   if (!Array.isArray(value)) throw new Error('Local Session Host returned an invalid Run snapshot.')
   return value.map((candidate) => {
-    if (
-      !isRecord(candidate) ||
-      candidate.activity !== 'agent-run' ||
-      typeof candidate.sessionId !== 'string' ||
-      typeof candidate.model !== 'string' ||
-      (candidate.mode !== 'classic' && candidate.mode !== 'waggle') ||
-      typeof candidate.startedAt !== 'number' ||
-      !Array.isArray(candidate.parts) ||
-      (candidate.messageId !== undefined && typeof candidate.messageId !== 'string')
-    ) {
+    if (!isRecord(candidate) || !hasActiveRunSnapshotShape(candidate)) {
       throw new Error('Local Session Host returned an invalid active Run snapshot.')
     }
     const degraded = decodeDegradedSnapshot(candidate.degraded)
@@ -90,6 +111,7 @@ export function decodeActiveRunSnapshots(value: unknown): BackgroundRunSnapshot[
         candidate.activityEvents,
       ),
       sessionId: SessionId(candidate.sessionId),
+      ...(typeof candidate.runId === 'string' ? { runId: candidate.runId } : {}),
       model: SupportedModelId(candidate.model),
       mode: candidate.mode,
       startedAt: candidate.startedAt,

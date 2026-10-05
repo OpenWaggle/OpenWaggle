@@ -123,6 +123,10 @@ export interface SessionHydrationContext {
   readonly lastHydratedOptimisticKeyRef: MutableValueRef<string | null>
   readonly backgroundStreamingRef: MutableValueRef<boolean>
   readonly backgroundReconnectSessionIdRef: MutableValueRef<SessionId | null>
+  /** Counts reconnects; only the latest one's result may merge. */
+  readonly reconnectGenerationRef: MutableValueRef<number>
+  /** The Host event-stream resync the transcript last recovered from. */
+  readonly lastHydratedResyncRevisionRef: MutableValueRef<number>
   readonly messagesBySessionIdRef: MutableValueRef<Map<SessionId, UIMessage[]>>
   readonly setMessagesBySessionId: SetMessagesBySessionId
   readonly setRunRenderMessages: SetRunRenderMessages
@@ -144,6 +148,10 @@ export interface SessionHydrationInput {
   /** Ids of cached messages a settled Run left, persisted under other ids once the Session saved it. */
   readonly cachedSettledMessageIds?: ReadonlySet<string>
   readonly cachedCompactionStatus: AgentCompactionStatus | null
+  /** Counts Host event-stream resyncs: events may have been lost before each. */
+  readonly resyncRevision: number
+  /** Counts restores of the activity in progress when the renderer started. */
+  readonly activityRestoreRevision: number
 }
 
 export interface SessionHydrationKeys {

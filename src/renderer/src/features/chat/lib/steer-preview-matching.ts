@@ -213,6 +213,14 @@ export function matchSteeredUserTurns(
   return context.matches
 }
 
+/**
+ * Shows each steer preview the transcript does not hold yet after everything it holds, in the order
+ * they were promoted. Pi incorporates a steer at the next turn boundary, after the answer streaming
+ * now and its tools, so that is where the message will be. A preview placed at the transcript
+ * length when it began moved into older history whenever the transcript above it was rebuilt while
+ * it waited (a reconnect, a settled Run reloaded under its Pi entry ids with tool results as
+ * messages of their own, a compaction summary).
+ */
 export function insertOptimisticSteeredUserTurn(
   messages: UIMessage[],
   optimisticSteeredUserTurns: readonly OptimisticSteerPreview[],
@@ -221,23 +229,8 @@ export function insertOptimisticSteeredUserTurn(
     return messages
   }
   const matches = matchSteeredUserTurns(messages, optimisticSteeredUserTurns)
-  let insertedCount = 0
-  let insertionFloor = 0
-
-  return optimisticSteeredUserTurns.reduce<UIMessage[]>((current, turn) => {
-    const match = matches.get(turn.id)
-    if (match) {
-      if (match.index !== null) {
-        insertionFloor = Math.max(insertionFloor, match.index + insertedCount + 1)
-      }
-      return current
-    }
-    const insertionIndex = Math.min(
-      Math.max(insertionFloor, turn.baselineLength + insertedCount),
-      current.length,
-    )
-    insertedCount += 1
-    insertionFloor = insertionIndex + 1
-    return [...current.slice(0, insertionIndex), turn.message, ...current.slice(insertionIndex)]
-  }, messages)
+  const pending = optimisticSteeredUserTurns.flatMap((turn) =>
+    matches.has(turn.id) ? [] : [turn.message],
+  )
+  return pending.length === 0 ? messages : [...messages, ...pending]
 }

@@ -17,7 +17,6 @@ function preview(id: string): OptimisticSteerPreview {
     content: id,
     incorporatedContent: { text: id, attachmentCount: 0 },
     durableContent: id,
-    baselineLength: 0,
     baselineUserMessageIds: new Set<string>(),
     baselineMaxCreatedOrder: -1,
     message,

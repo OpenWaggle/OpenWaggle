@@ -1,7 +1,11 @@
 import type { UIMessage } from '@shared/types/chat-ui'
 import { describe, expect, it } from 'vitest'
 import type { AgentCompactionStatus } from '../compaction-lifecycle'
-import { placeUnsettledRunMessages, unsettledRunMessages } from '../seeded-run-messages'
+import {
+  placeUnsettledRunMessages,
+  unsettledRunMessages,
+  withoutSavedRunAnswers,
+} from '../seeded-run-messages'
 
 function message(id: string, role: UIMessage['role'], order?: number): UIMessage {
   return {
@@ -71,6 +75,81 @@ describe('unsettledRunMessages', () => {
         }),
       ),
     ).toEqual(['stream-a2'])
+  })
+
+  it('keeps answers a fresh transcript lacks: their Run failed to save', () => {
+    const persistedMessages = [message('p1', 'user', 1)]
+    expect(
+      ids(
+        unsettledRunMessages({
+          persistedMessages,
+          cachedMessages: CACHED,
+          settledMessageIds: SETTLED,
+          fetchedAfterSettlement: true,
+        }),
+      ),
+    ).toEqual(['live-u1', 'stream-a1', 'live-u2', 'stream-a2'])
+  })
+
+  it('leaves answers a fresh transcript saved under Pi ids to it', () => {
+    const persistedMessages = [
+      message('p1', 'user', 1),
+      message('n-u1', 'user', 3),
+      {
+        ...message('n-a1', 'assistant', 4),
+        parts: [{ type: 'text' as const, content: 'stream-a1' }],
+      },
+    ]
+    expect(
+      ids(
+        unsettledRunMessages({
+          persistedMessages,
+          cachedMessages: CACHED,
+          settledMessageIds: SETTLED,
+          fetchedAfterSettlement: true,
+        }),
+      ),
+    ).toEqual(['live-u2', 'stream-a2'])
+  })
+
+  it('keeps a settled answer only an earlier Run saved the same text of', () => {
+    const answer = (id: string, order?: number): UIMessage => ({
+      ...message(id, 'assistant', order),
+      parts: [{ type: 'text', content: 'ok' }],
+    })
+    const run = [message('live-u1', 'user', 3), answer('stream-a1')]
+    expect(
+      ids(
+        unsettledRunMessages({
+          persistedMessages: [message('p1', 'user', 1), answer('n-old', 2)],
+          cachedMessages: run,
+          settledMessageIds: new Set(run.map((entry) => entry.id)),
+          fetchedAfterSettlement: true,
+        }),
+      ),
+    ).toEqual(['live-u1', 'stream-a1'])
+  })
+
+  it('leaves a settled answer listed after a later user row to its saved copy', () => {
+    const done = (id: string, order?: number): UIMessage => ({
+      ...message(id, 'assistant', order),
+      parts: [{ type: 'text', content: 'done' }],
+    })
+    const persistedMessages = [
+      message('p1', 'user', 1),
+      done('n-a1', 2),
+      message('n-u2', 'user', 3),
+    ]
+    expect(
+      ids(
+        unsettledRunMessages({
+          persistedMessages,
+          cachedMessages: [...persistedMessages, done('stream-a1')],
+          settledMessageIds: new Set(['p1', 'stream-a1']),
+          fetchedAfterSettlement: true,
+        }),
+      ),
+    ).toEqual(['n-a1', 'n-u2'])
   })
 
   it('has nothing to leave without settled ids', () => {
@@ -151,5 +230,32 @@ describe('placeUnsettledRunMessages', () => {
 
     expect(ids(placed?.messages ?? null)).toEqual(['p1', 'n-u1', 'n-a1'])
     expect(placed?.compactionStatus).toMatchObject({ timeline: [{ messageCountAtStart: 3 }] })
+  })
+})
+
+describe('withoutSavedRunAnswers', () => {
+  const answer = (id: string, content: string, order?: number): UIMessage => ({
+    ...message(id, 'assistant', order),
+    parts: [{ type: 'text', content }],
+  })
+  const shown = [message('p1', 'user', 1), answer('old', 'Done'), answer('stream-a1', 'Done')]
+
+  it('drops a streamed answer the transcript saved under a Pi id, once per saved copy', () => {
+    const persisted = [message('p1', 'user', 1), answer('old', 'Done'), answer('n-a1', 'Done', 4)]
+    const scope = { shownIds: new Set(shown.map((entry) => entry.id)) }
+    expect(ids(withoutSavedRunAnswers(shown, persisted, scope))).toEqual(['p1', 'old'])
+  })
+
+  it('keeps a streamed answer whose content only an answer it shows holds', () => {
+    const persisted = [message('p1', 'user', 1), answer('old', 'Done')]
+    const scope = { shownIds: new Set(shown.map((entry) => entry.id)) }
+    expect(ids(withoutSavedRunAnswers(shown, persisted, scope))).toEqual(['p1', 'old', 'stream-a1'])
+  })
+
+  it('matches only answers saved from the Run start on', () => {
+    const persisted = [answer('n-old', 'Done', 2)]
+    expect(
+      ids(withoutSavedRunAnswers([answer('stream-a1', 'Done')], persisted, { fromOrder: 3 })),
+    ).toEqual(['stream-a1'])
   })
 })
