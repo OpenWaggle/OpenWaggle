@@ -1,4 +1,9 @@
-import { CANONICAL_EXECUTABLE_NAME, resolveBuildIdentity, resolveIconBasePath } from './scripts/build-identity'
+import {
+  CANONICAL_EXECUTABLE_NAME,
+  resolveBuildIdentity,
+  resolveIconBasePath,
+  resolveMacIconPath,
+} from './scripts/build-identity'
 import { resolveMacSigning } from './scripts/mac-signing'
 
 /**
@@ -14,15 +19,15 @@ const identity = resolveBuildIdentity()
 const buildResourcesDir = 'build'
 
 const stableIcons = {
-  mac: 'build/icon.icns',
   win: 'build/icon.ico',
   linux: 'build/icon.png',
 }
 const channelIcon = resolveIconBasePath(identity.channel, buildResourcesDir)
-const icons =
-  identity.channel === 'stable'
-    ? stableIcons
-    : { mac: channelIcon, win: channelIcon, linux: channelIcon }
+const icons = {
+  // Every channel has its own generated rounded-square macOS icon (scripts/generate-macos-icons.ts).
+  mac: resolveMacIconPath(identity.channel, buildResourcesDir),
+  ...(identity.channel === 'stable' ? stableIcons : { win: channelIcon, linux: channelIcon }),
+}
 
 const config = {
   appId: identity.appId,
