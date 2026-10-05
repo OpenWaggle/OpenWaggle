@@ -6,6 +6,7 @@ type BrowserAndScalarActions = Pick<
   PreferencesActions,
   | 'setDefaultAuthorizationMode'
   | 'setUpdateChannel'
+  | 'setUsageStatisticsEnabled'
   | 'setDefaultSessionEnvironmentMode'
   | 'setMultiAgentEnabled'
   | 'setSessionHostParentConcurrencyLimit'
@@ -62,6 +63,7 @@ export function createBrowserAndScalarPreferencesActions(
       await persistSetting('updateChannel', value, set)
       await api.checkForUpdates(value)
     },
+    setUsageStatisticsEnabled: (value) => persistSetting('usageStatisticsEnabled', value, set),
     setDefaultAuthorizationMode: (value) => persistSetting('defaultAuthorizationMode', value, set),
     setDefaultSessionEnvironmentMode: (value) =>
       persistSetting('defaultSessionEnvironmentMode', value, set),

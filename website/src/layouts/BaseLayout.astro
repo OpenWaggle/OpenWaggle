@@ -40,5 +40,11 @@ const {
       <slot />
     </main>
     <Footer />
+    <script>
+      // Anonymous page-view and download-click beacons to /api/v1/web; see lib/usage-beacon.ts.
+      import { browserBeaconEnvironment, startUsageBeacon } from '../lib/usage-beacon';
+
+      startUsageBeacon(browserBeaconEnvironment());
+    </script>
   </body>
 </html>

@@ -5,6 +5,10 @@ import { decodeUnknownOrThrow, type SchemaType } from '@shared/schema'
 import { jsonObjectSchema, projectSettingsFileSchema } from '@shared/schemas/validation'
 import type { JsonObject, JsonValue } from '@shared/types/json'
 import {
+  withReportedInstallTelemetry,
+  withStoredInstallTelemetry,
+} from './openwaggle-pi-settings-install-telemetry'
+import {
   withoutExcludedPackageEntries,
   withoutExcludedPackages,
   withoutSyntheticExcludedExtensionPatterns,
@@ -214,7 +218,7 @@ function createOpenWagglePiSettingsStorage(
       )
       const nextWithoutSyntheticPatterns = withoutSyntheticExcludedExtensionPatterns(
         current,
-        fn(visibleCurrent),
+        withStoredInstallTelemetry(current, fn(withReportedInstallTelemetry(visibleCurrent))),
         options.excludedProjectPackageSources,
       )
       const nextWithRestoredRuntimePackages = withRestoredExcludedNpmPackageEntries(
@@ -246,7 +250,7 @@ function withGlobalPiSettingsLock(
   )
   const nextWithoutSyntheticPatterns = withoutSyntheticExcludedExtensionPatterns(
     current,
-    fn(visibleCurrent),
+    withStoredInstallTelemetry(current, fn(withReportedInstallTelemetry(visibleCurrent))),
     options.excludedGlobalPackageSources,
   )
   const nextWithRestoredRuntimePackages = withRestoredExcludedNpmPackageEntries(

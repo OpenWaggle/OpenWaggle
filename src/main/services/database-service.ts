@@ -5,6 +5,11 @@ import { SqliteClient } from '@effect/sql-sqlite-node'
 import { Context, Effect, Layer } from 'effect'
 import { app } from 'electron'
 import { DatabaseBootstrapError } from '../errors'
+import {
+  type AppDatabaseAccess,
+  isAppDatabaseClientIsolated,
+  setAppDatabaseAccessMode,
+} from './database-access-mode'
 import { SQLITE_PREPARE_CACHE_SIZE } from './database-constants'
 import { runMigrations } from './database-migration-runner'
 import { normalizeSessionSummaryMigrationLedger } from './database-summary-migration-compatibility'
@@ -23,20 +28,16 @@ function getDatabasePath() {
   return join(app.getPath('userData'), 'session-host', 'session-host.sqlite')
 }
 
-export type AppDatabaseAccess = 'owner' | 'client-isolated'
+export type { AppDatabaseAccess } from './database-access-mode'
+export { isAppDatabaseClientIsolated } from './database-access-mode'
 
-let configuredAccess: AppDatabaseAccess = 'owner'
 let databaseLayerCreated = false
 
 export function configureAppDatabaseAccess(access: AppDatabaseAccess) {
   if (databaseLayerCreated) {
     throw new Error('App database access must be configured before runtime initialization.')
   }
-  configuredAccess = access
-}
-
-export function isAppDatabaseClientIsolated() {
-  return configuredAccess === 'client-isolated'
+  setAppDatabaseAccessMode(access)
 }
 
 const createMigrationsTable = Effect.gen(function* () {
@@ -59,7 +60,7 @@ export const runAppDatabaseMigrations = Effect.gen(function* () {
 
 const makeDatabaseLayer = Effect.gen(function* () {
   databaseLayerCreated = true
-  const databasePath = configuredAccess === 'client-isolated' ? ':memory:' : getDatabasePath()
+  const databasePath = isAppDatabaseClientIsolated() ? ':memory:' : getDatabasePath()
 
   yield* Effect.tryPromise({
     try: () => mkdir(dirname(databasePath), { recursive: true }),

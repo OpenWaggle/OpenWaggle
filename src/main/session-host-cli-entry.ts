@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs'
 import { app } from 'electron'
 import { flushCliOutput } from './cli-output-flush'
 import { env } from './env'
+import { flushErrorReporting, reportError, startErrorReporting } from './error-reporting'
 import { applyInstallerUpdateChannelIntent } from './installer-update-channel-intent'
 import { createLogger, drainFileLogger, initFileLogger, SESSION_HOST_LOG_FILE_STEM } from './logger'
 import { configureAppStoragePaths } from './session-data'
@@ -18,6 +19,10 @@ import {
   sessionHostTargetExists,
 } from './session-host/session-host-cutover'
 import { acquireSessionHostOwnership } from './session-host/session-host-ownership'
+import {
+  configureUsageStatisticsHostRecorder,
+  flushUsageStatistics,
+} from './usage-statistics/usage-statistics-recorder'
 import { describeError } from './utils/describe-error'
 
 const FAILURE_EXIT_CODE = 1
@@ -81,9 +86,16 @@ export function startSessionHostCliIfRequested(argv: readonly string[]) {
         try {
           await runtime.initializeAppRuntime()
           await settings.initializeSettingsStore()
+          // Settings decide whether errors are reported, so reporting starts once they load.
+          void startErrorReporting('session-host')
           await applyInstallerUpdateChannelIntent(app.getPath('userData'), (channel) =>
             settings.updateSettingsDurably({ updateChannel: channel }),
           )
+          // The Session Host is the only process that sends Usage statistics.
+          configureUsageStatisticsHostRecorder({
+            userDataDirectory: app.getPath('userData'),
+            appVersion: app.getVersion(),
+          })
           const host = await startAppSessionHost({
             paths,
             externalOwnership: ownership,
@@ -109,6 +121,7 @@ export function startSessionHostCliIfRequested(argv: readonly string[]) {
             stopWatchingEndpoint()
           }
         } finally {
+          await flushUsageStatistics()
           await runtime.disposeAppRuntime()
         }
       } finally {
@@ -116,6 +129,7 @@ export function startSessionHostCliIfRequested(argv: readonly string[]) {
       }
       await drainFileLogger()
       await flushCliOutput()
+      await flushErrorReporting()
       app.exit(0)
     })
     .catch(async (error: unknown) => {
@@ -123,9 +137,11 @@ export function startSessionHostCliIfRequested(argv: readonly string[]) {
       logger.error('Session Host stopped on an unrecoverable error', {
         error: describeError(error),
       })
+      reportError(error)
       process.stderr.write(`error: ${error instanceof Error ? error.message : String(error)}\n`)
       await drainFileLogger().catch(() => undefined)
       await flushCliOutput().catch(() => undefined)
+      await flushErrorReporting()
       app.exit(FAILURE_EXIT_CODE)
     })
   return true

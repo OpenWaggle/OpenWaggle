@@ -47,6 +47,7 @@
       "src/**",
       "packages/**",
       "fixtures/**",
+      "functions/**",
       "!src/renderer/src/routeTree.gen.ts",
       "!packages/**/dist/**",
       "!packages/**/dist-cjs/**",

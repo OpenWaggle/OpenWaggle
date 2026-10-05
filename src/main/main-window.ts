@@ -2,6 +2,7 @@ import { join } from 'node:path'
 import { installDevToolsShortcut } from './application-menu'
 import { createBrowserWindow, getAllBrowserWindows, isAutomationMode } from './desktop-ui'
 import { focusWindow, revealWindow } from './desktop-window-policy'
+import { errorReportingRendererArguments } from './error-reporting'
 import { openExternalFromRenderer } from './external-navigation'
 import { isTrustedRendererDocument } from './renderer-document-trust'
 import {
@@ -30,6 +31,8 @@ export function createMainWindow(input: {
 }) {
   const webPreferences = {
     preload: join(__dirname, '../preload/index.js'),
+    // Tells the preload to expose the error-report bridge; empty unless this process reports errors.
+    additionalArguments: [...errorReportingRendererArguments()],
     ...SECURE_WEB_PREFERENCES,
   }
   assertSecureWebPreferences(webPreferences)

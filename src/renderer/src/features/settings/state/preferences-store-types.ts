@@ -34,6 +34,7 @@ export interface PreferencesState {
   pushRecentProject: (path: string) => Promise<void>
   removeRecentProject: (path: string) => Promise<void>
   setUpdateChannel: (channel: UpdateChannel) => Promise<void>
+  setUsageStatisticsEnabled: (enabled: boolean) => Promise<void>
   setDefaultAuthorizationMode: (mode: AgentAuthorizationMode) => Promise<void>
   setDefaultSessionEnvironmentMode: (mode: SessionEnvironmentMode) => Promise<void>
   setMultiAgentEnabled: (enabled: boolean) => Promise<void>

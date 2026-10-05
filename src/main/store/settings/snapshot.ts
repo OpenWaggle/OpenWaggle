@@ -75,12 +75,9 @@ import {
 import { resolveUpdatedSetting, resolveValidatedSetting } from './setting-resolution'
 import { resolveNextShortcutRules } from './shortcut-settings-snapshot'
 import { resolveUpdateChannel } from './update-channel-settings'
+import * as usageStatisticsSettings from './usage-statistics-settings'
 
-export function createDefaultSettingsSnapshot() {
-  return {
-    ...DEFAULT_SETTINGS,
-  }
-}
+export const createDefaultSettingsSnapshot = (): Settings => ({ ...DEFAULT_SETTINGS })
 
 function getStoredValue(storedSettings: Readonly<Record<string, unknown>>, key: string) {
   return Object.hasOwn(storedSettings, key) ? storedSettings[key] : undefined
@@ -167,6 +164,7 @@ export function buildSettingsSnapshot(storedSettings: Readonly<Record<string, un
       enabledModels,
       projectPath: resolveProjectPath(getStoredValue(storedSettings, SETTINGS_KEY_PROJECT_PATH)),
       updateChannel,
+      ...usageStatisticsSettings.resolveStoredUsageStatisticsSettings(storedSettings),
       recentProjects,
       skillTogglesByProject,
       agentDefinitionTogglesByProject,
@@ -208,6 +206,7 @@ export function buildNextSettingsSnapshot(current: Settings, partial: Partial<Se
     ...resolveNextSelectedModels(current, partial),
     ...resolveNextProjectPathAliases(current, partial),
     ...resolveNextBrowserSettings(current, partial),
+    ...usageStatisticsSettings.resolveNextUsageStatisticsSettings(current, partial),
   } satisfies Settings
 }
 

@@ -19,6 +19,8 @@ import { getAllBrowserWindows, isAutomationMode } from './desktop-ui'
 import { configureDesktopUiAfterReady, prepareDesktopUi } from './desktop-window-policy'
 import { env, installDesktopShellEnvironment } from './env'
 import { describeError } from './error-description'
+import { startErrorReporting } from './error-reporting'
+import { exitAfterBootstrapFailure } from './gui-bootstrap-failure'
 import { installInlineVisualizationNavigationGuard } from './inline-visualization-navigation'
 import { applyInstallerUpdateChannelIntent } from './installer-update-channel-intent'
 import { createLogger, initFileLogger } from './logger'
@@ -28,7 +30,7 @@ import {
   configureInlineVisualizationProcessIsolation,
   registerRendererScheme,
 } from './renderer-protocol'
-import { beginAppCliShimSetup, waitForCliSetupBeforeExit } from './services/cli-shim-startup'
+import { beginAppCliShimSetupWhen } from './services/cli-shim-startup'
 import { configureAppStoragePaths } from './session-data'
 import {
   type GuiSessionHostLifecycle,
@@ -40,7 +42,6 @@ const FAILURE_EXIT_CODE = 1
 const STARTUP_TIMINGS_SWITCH = 'openwaggle-startup-timings'
 const STARTUP_TIMING_PRECISION = 1
 const AUTOMATION_SECOND_INSTANCE_EXIT_GRACE_MS = 5_000
-const CLI_FATAL_SETUP_WAIT_MS = 5_000
 const AUTOMATION_SINGLE_INSTANCE_LOCK_DENIED_MARKER_SWITCH =
   'openwaggle-automation-single-instance-lock-denied-marker'
 const AUTOMATION_SINGLE_INSTANCE_LOCK_DENIED_MARKER_CONTENT = 'single-instance-lock-denied\n'
@@ -117,15 +118,18 @@ async function registerIpcHandlersOnce() {
     return
   }
 
-  const [ipcHandlersModule, agentHandlerModule] = await Promise.all([
+  const [ipcHandlersModule, agentHandlerModule, usageStatisticsModule] = await Promise.all([
     importIpcHandlersModule(),
     importAgentHandlerModule(),
+    import('./usage-statistics/usage-statistics-gui'),
   ])
 
   ipcHandlersRegistered = true
   cleanupTerminalsOnce = ipcHandlersModule.cleanupTerminals
   persistAllActiveRunsOnce = agentHandlerModule.persistAllActiveRuns
 
+  // Settings are hydrated from the Host by now; handlers record GUI-only observations here.
+  usageStatisticsModule.startGuiUsageStatistics()
   ipcHandlersModule.registerAllIpcHandlers()
 }
 
@@ -205,6 +209,8 @@ async function bootstrapServicesAndWindow() {
   if (!settings.handled) throw new Error('Attached GUI lost its Session Host settings route.')
   settingsStoreModule.hydrateSettingsStoreFromHost(settings.result)
   startupMark('settings-store-hydrated-from-host')
+  // Settings decide whether errors are reported; the main window must know before it opens.
+  const errorReportingStart = startErrorReporting('gui')
 
   const { startAppGuiDesktopServices } = await import('./gui-desktop-services')
   cleanupDesktopServicesOnce = await startAppGuiDesktopServices({
@@ -227,6 +233,7 @@ async function bootstrapServicesAndWindow() {
   })
   startupMark('protocol-handlers-registered')
 
+  await errorReportingStart
   createMainWindowWithVisualizationGuard()
   mainWindowCreated = true
   startupMark('main-window-created')
@@ -257,32 +264,16 @@ function registerAppLifecycle() {
       void initFileLogger(app.getPath('logs'))
 
       // CLI recovery must remain available even if the Session Host or window cannot start.
-      const cliSetup =
-        app.isPackaged && !isAutomationMode()
-          ? beginAppCliShimSetup()
-              .then((result) => {
-                if (!result.ok)
-                  logger.warn('Could not make the bundled CLI available', { detail: result.error })
-              })
-              .catch((error: unknown) => logger.warn('CLI setup failed', describeError(error)))
-          : Promise.resolve()
+      const cliSetup = beginAppCliShimSetupWhen(app.isPackaged && !isAutomationMode())
 
-      void bootstrapServicesAndWindow().catch(async (error: unknown) => {
-        logger.error('Bootstrap failed; quitting for safety', describeError(error))
-        // Do not terminate the process while CLI recovery is still being installed.
-        if (!(await waitForCliSetupBeforeExit(cliSetup, CLI_FATAL_SETUP_WAIT_MS))) {
-          logger.warn('CLI setup did not finish before fatal startup cleanup')
-        }
-        try {
-          await cleanupDesktopServicesOnce?.()
-        } catch (cleanupError) {
-          logger.error(
-            'Bootstrap native cleanup failed; ownership remains quarantined',
-            describeError(cleanupError),
-          )
-        }
-        app.exit(FAILURE_EXIT_CODE)
-      })
+      void bootstrapServicesAndWindow().catch((error: unknown) =>
+        exitAfterBootstrapFailure({
+          error,
+          cliSetup,
+          cleanupDesktopServices: async () => cleanupDesktopServicesOnce?.(),
+          exit: (code) => app.exit(code),
+        }),
+      )
 
       app.on('activate', () => {
         if (getAllBrowserWindows().length === 0) {

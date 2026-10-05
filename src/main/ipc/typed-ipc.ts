@@ -164,6 +164,11 @@ export function hostHandle<C extends HostBackedGuiChannel>(
       event: IpcMainInvokeEvent,
       ...args: IpcInvokeArgs<C>
     ) => readonly unknown[] | Promise<readonly unknown[]>
+    /** Runs after the Session Host handled the call; a failure is logged, never returned. */
+    readonly afterRemote?: (
+      result: unknown,
+      ...args: IpcInvokeArgs<C>
+    ) => EffectType<void, unknown, AppServices>
   } = {},
 ): void {
   if (!HOST_BACKED_GUI_CHANNELS.some((candidate) => candidate === channel)) {
@@ -174,7 +179,17 @@ export function hostHandle<C extends HostBackedGuiChannel>(
       ? await options.prepareRemoteArgs(event, ...args)
       : args
     const remote = await invokeConfiguredHostUiRaw(channel, remoteArgs)
-    if (remote.handled) return remote.result
+    if (remote.handled) {
+      if (options.afterRemote) {
+        await runAppEffect(options.afterRemote(remote.result, ...args)).catch((error: unknown) => {
+          logger.warn('Host-backed IPC follow-up failed', {
+            channel,
+            error: error instanceof Error ? error.message : String(error),
+          })
+        })
+      }
+      return remote.result
+    }
     const exit = await runAppEffectExit(handler(event, ...args))
     if (Exit.isSuccess(exit)) return exit.value
     const failure = Cause.failureOption(exit.cause)

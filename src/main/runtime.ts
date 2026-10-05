@@ -17,10 +17,6 @@ import { FilesystemSessionExportResourceResolverLive } from './adapters/filesyst
 import { FilesystemSessionResourceStoreLive } from './adapters/filesystem-session-resource-store'
 import { FilesystemWorkspaceFileLive } from './adapters/filesystem-workspace-file-service'
 import { LocalSessionCredentialVerifierLive } from './adapters/local-session-credential-verifier'
-import { EncryptedMcpSecretVaultServiceLive } from './adapters/mcp/encrypted-mcp-secret-vault-service'
-import { FilesystemMcpConfigServiceLive } from './adapters/mcp/filesystem-mcp-config-service'
-import { FirstPartyMcpRuntimeServiceLive } from './adapters/mcp/first-party-mcp-runtime-service'
-import { McpTurnStateServiceLive } from './adapters/mcp/mcp-turn-state-service'
 import { PiAgentKernelLive } from './adapters/pi/pi-agent-kernel-adapter'
 import { PiAgentSteeringServiceLive } from './adapters/pi/pi-agent-steering-adapter'
 import { registerPiBundledOAuthFlows } from './adapters/pi/pi-bundled-oauth'
@@ -49,6 +45,7 @@ import { SqliteSessionRepositoryLive } from './adapters/sqlite-session-repositor
 import { SqliteSessionResourceCleanupRepositoryLive } from './adapters/sqlite-session-resource-cleanup-repository'
 import { SqliteSessionResourceRepositoryLive } from './adapters/sqlite-session-resource-repository'
 import { FilesystemStandardsLive } from './adapters/standards-adapter'
+import { UsageStatisticsServicesLive } from './adapters/usage-statistics-recorder-live'
 import { WorkspaceProjectAuthorizationLive } from './adapters/workspace-project-authorization'
 import { ActiveProjectChangeServiceLive } from './application/active-project-change-service'
 import { SessionWaitServiceLive } from './application/session-wait-service'
@@ -61,6 +58,7 @@ import {
 import { DesktopServicesLive } from './runtime-desktop-services'
 import { HiveWorkerCleanupServicesLive } from './runtime-hive-cleanup-services'
 import { startHostBackgroundServices } from './runtime-host-services'
+import { McpServicesLive } from './runtime-mcp-services'
 import { SessionControlPersistenceLive } from './runtime-session-control-persistence'
 import { SessionTitleServicesLive } from './runtime-session-title-services'
 import { AppDatabaseLive } from './services/database-service'
@@ -99,11 +97,6 @@ const ProviderServiceWithExtensionSelectionLive = ProviderServiceLive.pipe(
 const PiProviderProbeWithExtensionSelectionLive = PiProviderProbeLive.pipe(
   Layer.provide(ExtensionRuntimeSelectionLive),
 )
-const McpServicesLive = Layer.mergeAll(
-  FilesystemMcpConfigServiceLive,
-  EncryptedMcpSecretVaultServiceLive,
-  FirstPartyMcpRuntimeServiceLive.pipe(Layer.provide(EncryptedMcpSecretVaultServiceLive)),
-).pipe(Layer.provide(McpTurnStateServiceLive))
 const PiAgentKernelWithExtensionSelectionLive = PiAgentKernelLive.pipe(
   Layer.provide(
     Layer.mergeAll(
@@ -246,6 +239,7 @@ const AppLayer = Layer.mergeAll(
   WorkspaceProjectAuthorizationLive,
   FilesystemInlineVisualizationLive,
   DesktopServicesLive,
+  UsageStatisticsServicesLive,
 )
 
 let currentRuntime = ManagedRuntime.make(AppLayer)

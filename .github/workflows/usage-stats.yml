@@ -1,0 +1,60 @@
+# Daily GitHub and npm snapshot for Usage statistics (ADR 0045).
+#
+# Reads release download counts, repository traffic and npm downloads and posts them to the
+# statistics endpoint (https://openwaggle.ai/api/v1/snapshot), which forwards only what grew
+# since the previous snapshot. Then, even when the snapshot failed, it calls
+# https://openwaggle.ai/api/v1/flush until no buffered app statistics are left, so the day's
+# totals reach PostHog; it fails if either step failed or a flush could not delete what it sent.
+# It reads the repository and never writes to it: read-only token, no persisted git
+# credentials, no commits.
+#
+# Repository secrets:
+# - STATS_SNAPSHOT_TOKEN: the endpoint's bearer token, also set as the Pages secret. Without it
+#   the job logs a notice and succeeds without reading or sending anything.
+# - STATS_GITHUB_TOKEN (optional): fine-grained token for this repository with
+#   Administration: read, used only for the traffic API. Without it, or when GitHub refuses it,
+#   the snapshot carries no repository traffic. Releases are read with the workflow token.
+name: Usage Statistics Snapshot
+
+on:
+  schedule:
+    # 05:23 UTC daily (off the top of the hour; GitHub delays on-the-hour crons).
+    - cron: "23 5 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# The endpoint stores what it forwarded after each run, so two runs must not overlap.
+concurrency:
+  group: usage-stats-snapshot
+  cancel-in-progress: false
+
+jobs:
+  snapshot:
+    name: GitHub and npm snapshot
+    if: github.repository == 'OpenWaggle/OpenWaggle'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          version: 11.15.1
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: 24.14.0
+          cache: pnpm
+
+      - uses: ./.github/actions/pnpm-install
+
+      - name: Send snapshot
+        env:
+          STATS_SNAPSHOT_TOKEN: ${{ secrets.STATS_SNAPSHOT_TOKEN }}
+          STATS_GITHUB_TOKEN: ${{ secrets.STATS_GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: pnpm exec tsx scripts/usage-stats-snapshot.ts

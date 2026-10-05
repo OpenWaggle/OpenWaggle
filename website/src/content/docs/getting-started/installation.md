@@ -7,6 +7,8 @@ section: "Getting started"
 
 Download an installer from [GitHub Releases](https://github.com/OpenWaggle/OpenWaggle/releases). Choose the version and platform you intend to use; prereleases are marked on GitHub. You do not need Node.js or a source checkout to run the installed app.
 
+Released builds send anonymous usage statistics and error reports, from the first launch. Statistics never include prompts, code, file paths, or any identifier for you or your install. See [Usage statistics and error reports](/docs/configuration/usage-statistics) for every field and how to turn them off.
+
 ## Supported platforms
 
 - macOS on Intel or Apple silicon
@@ -113,6 +115,9 @@ release candidate starts on Beta; Stable remains the default otherwise. The app 
 and checks a newly selected channel immediately. OpenWaggle never downgrades automatically when
 channels change, and **Restart to update** re-reads the shared channel before installing an
 already-downloaded release.
+
+Released builds also check for updates a few seconds after launch and every 4 hours. These checks
+contact GitHub. See [Update checks](/docs/configuration/usage-statistics#update-checks).
 
 ## System requirements
 

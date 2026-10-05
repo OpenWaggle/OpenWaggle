@@ -12,6 +12,10 @@ import {
   getPiAssistantStopReason,
 } from '../pi-run-result'
 import { disposeOpenWagglePiSession } from '../pi-session-lifecycle'
+import {
+  notePiRunProjectDefaultForUsageStatistics,
+  withUsageStatisticsAccessMode,
+} from '../pi-usage-statistics'
 import { logger } from './constants'
 import { createPiRunControl } from './pi-run-control'
 import { createPiSessionForRun } from './pi-run-session'
@@ -96,6 +100,9 @@ function resolvePiRuntimeThinkingLevel(
 export async function createPiRunSessionRuntime(
   input: CreatePiRunSessionRuntimeInput,
 ): Promise<PiRunSessionRuntime> {
+  // Not awaited: Usage statistics never delay a Run. Authorization state belongs to the
+  // repository, so this is the Session's project, not the run cwd.
+  void notePiRunProjectDefaultForUsageStatistics(input.runId, input.session.projectPath)
   const runtimeOptions = {
     projectPath: input.projectPath,
     modelReference: input.modelReference,
@@ -123,12 +130,13 @@ export async function createPiRunSessionRuntime(
     // Deliberately the session's project, not `input.projectPath`: the latter is the run cwd, which
     // for a worktree session is the worktree. Authorization state belongs to the repository.
     authorizationProjectPath: input.session.projectPath,
-    resolveAuthorizationMode: () =>
+    resolveAuthorizationMode: withUsageStatisticsAccessMode(input.runId, () =>
       resolveEffectiveAuthorizationMode(
         input.session.id,
         input.runAuthorizationOverride,
         input.authorityCallerId,
       ),
+    ),
     signal: input.signal,
     onEvent: input.onEvent,
   }

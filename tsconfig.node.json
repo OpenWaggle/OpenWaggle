@@ -29,6 +29,8 @@
     "src/shared/**/*",
     "packages/**/*.ts",
     "scripts/**/*.ts",
+    "functions/**/*.ts",
+    "website/src/lib/**/*.ts",
     "doctor.config.ts",
     "eslint.config.ts",
     "electron.vite.config.ts",

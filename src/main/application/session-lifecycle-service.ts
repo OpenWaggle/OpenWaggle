@@ -15,6 +15,7 @@ import {
   SessionLifecyclePreparationService,
 } from '../ports/session-lifecycle-preparation-service'
 import { SessionLifecycleRepository } from '../ports/session-lifecycle-repository'
+import { recordUsageStatisticsObservation } from './usage-statistics-recording'
 
 const logger = createLogger('session-lifecycle-service')
 
@@ -126,6 +127,9 @@ export function executeSessionLifecycle(
         reason: response.replayed ? 'replayed' : 'rejected',
       })
     } else {
+      if (response.outcome.effect === 'forked-session') {
+        yield* recordUsageStatisticsObservation({ kind: 'feature', flag: 'fork_or_handoff' })
+      }
       yield* preparation.commit({ attempt }).pipe(
         Effect.catchAllCause((cause) =>
           Effect.sync(() => {

@@ -118,6 +118,21 @@ export function getTypedEffectInvokeHandler(name: string) {
   return (...args: unknown[]) => Effect.runPromise(Effect.provide(handler(...args), TestLayer))
 }
 
+/** The `afterRemote` follow-up a Host-backed registration passed, run against the test layer. */
+export function getHostAfterRemote(name: string) {
+  const call = typedHandleMock.mock.calls.find(
+    (candidate: readonly unknown[]) => candidate[0] === name,
+  )
+  const options: unknown = call?.[2]
+  if (typeof options !== 'object' || options === null || !('afterRemote' in options)) {
+    return undefined
+  }
+  const afterRemote: unknown = options.afterRemote
+  if (typeof afterRemote !== 'function') return undefined
+  return (...args: unknown[]) =>
+    Effect.runPromise(Effect.provide(Reflect.apply(afterRemote, undefined, args), TestLayer))
+}
+
 export function resetSettingsHandlerMocks() {
   typedHandleMock.mockReset()
   getSettingsMock.mockReset()

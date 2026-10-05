@@ -73,6 +73,7 @@ vi.mock('../../session-host/session-host-events', () => ({
 import { ExplicitWaggleOperationJournal } from '../../ports/explicit-waggle-operation-journal'
 import { SessionControlAttachmentService } from '../../ports/session-control-attachment-service'
 import { SessionProjectionRepository } from '../../ports/session-projection-repository'
+import { UsageStatisticsRecorder } from '../../ports/usage-statistics-recorder'
 import { cancelAllSessionRuns } from '../active-session-runs'
 import { executeExplicitWaggleCommand } from '../explicit-waggle-command-service'
 
@@ -221,5 +222,60 @@ describe('explicit Waggle resource capture', () => {
     await vi.waitFor(async () => {
       await expect(fs.access(directory)).rejects.toMatchObject({ code: 'ENOENT' })
     })
+  })
+
+  it('records the Waggle as a Run started and finished by the caller who wrote it', async () => {
+    const events: unknown[] = []
+    activateMock.mockReturnValue(
+      Effect.succeed({
+        accepted: true,
+        stateRevision: 3,
+        intent: {
+          text: 'Run Waggle',
+          attachmentIds: ['attachment-1'],
+          thinkingLevel: 'low',
+          callerId: 'gui:local-user',
+          acceptedAt: 1,
+          idempotencyKey: 'idempotency-1',
+        },
+      }),
+    )
+    executeWaggleRunMock.mockReturnValue(
+      Effect.sync(() => {
+        events.push('waggle ran')
+        return { outcome: 'success', newMessages: [], resourceMessages: [] }
+      }),
+    )
+    const recorder = UsageStatisticsRecorder.of({
+      record: () => Effect.void,
+      runStarted: (start) => Effect.sync(() => void events.push({ runStarted: start })),
+      runFinished: (finish) => Effect.sync(() => void events.push({ runFinished: finish })),
+    })
+
+    await Effect.runPromise(
+      fromAny<Effect.Effect<unknown, Error, never>, unknown>(
+        waggleCommand().pipe(Effect.provideService(UsageStatisticsRecorder, recorder)),
+      ),
+    )
+
+    expect(events).toEqual([
+      {
+        runStarted: expect.objectContaining({
+          sessionId: SESSION_ID,
+          originCallerId: 'gui:local-user',
+          waggle: true,
+          attachments: true,
+        }),
+      },
+      'waggle ran',
+      {
+        runFinished: expect.objectContaining({
+          originCallerId: 'gui:local-user',
+          waggle: true,
+          thinkingLevel: 'low',
+          terminalStatus: 'completed',
+        }),
+      },
+    ])
   })
 })
