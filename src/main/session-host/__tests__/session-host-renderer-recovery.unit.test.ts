@@ -94,41 +94,53 @@ describe('remote Session Host renderer recovery', () => {
     expect(wait).not.toHaveBeenCalled()
   })
 
-  it('stops and logs a terminal Host recovery failure without retrying it', async () => {
-    let reportTerminalFailure: (() => void) | undefined
-    const terminalFailureReported = new Promise<void>((resolve) => {
-      reportTerminalFailure = resolve
-    })
-    const recoveryError = localSessionClientProtocolError(
+  it('keeps recovering when Host ensure fails with a non-retryable handshake timeout', async () => {
+    // An older Host that outlived a GUI update reports a handshake timeout under load as
+    // non-retryable. Stopping on it left every Session without live events until a restart.
+    const handshakeTimeout = localSessionClientProtocolError(
       {
-        code: 'host_launch_not_permitted',
-        message: 'Host launch is not permitted',
+        kind: 'error',
+        code: 'handshake_timeout',
+        message: 'Local Session handshake timed out.',
         retryable: false,
       },
-      'Host launch is not permitted',
+      'Local Session authentication failed.',
     )
-    const recoveryLog = recoveryLogger()
-    recoveryLog.error.mockImplementation(() => reportTerminalFailure?.())
-    const watch = vi.fn(async () => {
-      throw Object.assign(new Error('connection reset'), { code: 'ECONNRESET' })
+    let reportResubscribed: (() => void) | undefined
+    const resubscribed = new Promise<void>((resolve) => {
+      reportResubscribed = resolve
     })
-    const ensure = vi.fn(async () => Promise.reject(recoveryError))
+    const recoveryLog = recoveryLogger()
+    const watch = vi.fn(async (input: LocalSessionWatchInput): Promise<LocalSessionWatchResult> => {
+      if (watch.mock.calls.length <= 3) {
+        throw Object.assign(new Error('connection reset'), { code: 'ECONNRESET' })
+      }
+      await input.onSnapshot?.([])
+      reportResubscribed?.()
+      return new Promise<LocalSessionWatchResult>(() => {})
+    })
+    const ensure = vi
+      .fn<() => Promise<undefined>>()
+      .mockRejectedValueOnce(handshakeTimeout)
+      .mockRejectedValueOnce(handshakeTimeout)
+      .mockResolvedValue(undefined)
     const wait = vi.fn(async (_milliseconds: number) => undefined)
     const stop = startRemoteSessionHostRendererBridge(
       { paths, clientVersion: 'test' },
       { watch, ensure, wait, logger: recoveryLog },
     )
 
-    await terminalFailureReported
+    await resubscribed
     await stop()
 
-    expect(watch).toHaveBeenCalledOnce()
-    expect(ensure).toHaveBeenCalledOnce()
-    expect(wait).not.toHaveBeenCalled()
-    expect(recoveryLog.error).toHaveBeenCalledWith(
-      'Remote Session Host renderer recovery stopped after a terminal failure.',
-      { error: recoveryError.message },
+    expect(watch).toHaveBeenCalledTimes(4)
+    expect(ensure).toHaveBeenCalledTimes(3)
+    expect(wait.mock.calls.map(([delay]) => delay)).toEqual([250, 500, 1_000])
+    expect(recoveryLog.warn).toHaveBeenCalledWith(
+      'Remote Session Host renderer connection is degraded; retrying.',
+      { attempt: 1, delayMs: 250, error: handshakeTimeout.message },
     )
+    expect(recoveryLog.error).not.toHaveBeenCalled()
   })
 
   it('waits for a replacement snapshot subscription before asking the renderer to resync', async () => {

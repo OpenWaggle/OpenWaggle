@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { localSessionClientProtocolError } from '../local-session-client-protocol-error'
 import type { LocalSessionWatchInput } from '../local-session-event-client'
 import type { LocalSessionHostPaths } from '../local-session-paths'
 import {
@@ -66,7 +67,12 @@ describe('remote Session Host renderer retry loop', () => {
     expect(watch).toHaveBeenCalledTimes(7)
     expect(ensure).toHaveBeenCalledTimes(6)
     expect(wait.mock.calls.map(([delay]) => delay)).toEqual([250, 500, 1_000, 2_000, 4_000, 4_000])
-    expect(recoveryLog.warn).toHaveBeenCalledTimes(6)
+    // Attempts 1, 2 and 4 log; attempt 3 is counted into attempt 4's warning.
+    expect(recoveryLog.warn.mock.calls.map(([, details]) => details)).toEqual([
+      { attempt: 1, delayMs: 250, error: 'connection refused' },
+      { attempt: 2, delayMs: 500, error: 'connection refused' },
+      { attempt: 4, delayMs: 2_000, error: 'connection refused', suppressedWarnings: 1 },
+    ])
     expect(recoveryLog.error).not.toHaveBeenCalled()
   })
 
@@ -98,6 +104,53 @@ describe('remote Session Host renderer retry loop', () => {
     expect(watch).toHaveBeenCalledTimes(2)
     expect(ensure).toHaveBeenCalledOnce()
     expect(wait).toHaveBeenCalledWith(250, abortController.signal)
+  })
+
+  it('reconnects after a Host connection failure marked non-retryable', async () => {
+    // A busy Host answers a late hello with this frame. Older Hosts mark it non-retryable;
+    // stopping on it left every Session without live events until OpenWaggle restarted.
+    const handshakeTimeout = localSessionClientProtocolError(
+      {
+        kind: 'error',
+        code: 'handshake_timeout',
+        message: 'Local Session handshake timed out.',
+        retryable: false,
+      },
+      'Local Session authentication failed.',
+    )
+    const abortController = new AbortController()
+    const handlers = recoveryHandlers()
+    const watch = vi.fn(async (input: LocalSessionWatchInput) => {
+      if (watch.mock.calls.length <= 2) throw handshakeTimeout
+      await input.onSnapshot?.([])
+      abortController.abort()
+      return { status: 'closed' as const }
+    })
+    const ensure = vi.fn(async () => undefined)
+    const wait = vi.fn(async (_milliseconds: number) => undefined)
+    const recoveryLog = recoveryLogger()
+
+    await runRemoteSessionHostRendererPump({
+      paths,
+      clientVersion: 'test',
+      dependencies: {
+        watch,
+        ensure,
+        refreshPaths: async (candidate) => candidate,
+        wait,
+        logger: recoveryLog,
+      },
+      signal: abortController.signal,
+      handlers,
+    })
+
+    expect(watch).toHaveBeenCalledTimes(3)
+    expect(ensure).toHaveBeenCalledTimes(2)
+    expect(handlers.onSnapshot).toHaveBeenCalledOnce()
+    expect(recoveryLog.error).not.toHaveBeenCalledWith(
+      'Remote Session Host renderer subscription stopped after a terminal failure.',
+      expect.anything(),
+    )
   })
 
   it('refreshes a rotated endpoint before reconnecting the event subscription', async () => {

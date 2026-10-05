@@ -59,6 +59,18 @@ export class LocalSessionInboundByteBudget {
   }
 }
 
+/**
+ * The Host-wide authentication throttle, tripped by failed attempts from any local client. It
+ * says nothing about the presented profile, so the Host may tell the peer to retry later; the
+ * per-profile throttle stays an ordinary authentication failure.
+ */
+export class LocalSessionGlobalAuthenticationThrottledError extends Error {
+  constructor() {
+    super('Local Session authentication is temporarily throttled.')
+    this.name = 'LocalSessionGlobalAuthenticationThrottledError'
+  }
+}
+
 interface AuthenticationWaiter {
   readonly resolve: () => void
   readonly reject: (error: Error) => void
@@ -133,7 +145,7 @@ export class LocalSessionAuthenticationBudget {
   private assertNotThrottled(key: string | undefined) {
     const now = this.now()
     if (this.globalFailures?.blockedUntil && this.globalFailures.blockedUntil > now) {
-      throw new Error('Local Session authentication is temporarily throttled.')
+      throw new LocalSessionGlobalAuthenticationThrottledError()
     }
     if (this.globalFailures && now - this.globalFailures.windowStartedAt >= this.failureWindowMs) {
       this.globalFailures = undefined

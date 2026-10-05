@@ -1,11 +1,13 @@
 import { SessionHostEventHub } from '../application/session-host-event-hub'
 import { SessionHostLiveness } from '../application/session-host-liveness'
 import { createLogger } from '../logger'
+import { LocalSessionInflightCommands } from './local-session-inflight-commands'
 import {
   type LocalSessionServerDependencies,
   type LocalSessionServerHandle,
   listenLocalSessionServer,
 } from './local-session-server'
+import { monitorSessionHostEventLoop } from './session-host-event-loop-monitor'
 import { installSessionHostEventRuntime } from './session-host-events'
 import { acquireSessionHostOwnership, type SessionHostOwnership } from './session-host-ownership'
 
@@ -65,7 +67,7 @@ export class LocalSessionHostRuntime {
     private readonly ownership: SessionHostOwnership,
     private readonly releaseOwnershipOnStop: boolean,
     private readonly releaseEventPublisher: () => void,
-    private readonly releaseSettingsObserver: () => void = () => undefined,
+    private readonly releaseBackgroundObservers: () => void = () => undefined,
     private readonly stopOwnedServices: () => Promise<void> = () => Promise.resolve(),
   ) {
     this.stoppedPromise = new Promise((resolve) => {
@@ -107,7 +109,7 @@ export class LocalSessionHostRuntime {
       await collectStopError(errors, () => this.flushOutboundBeforeDrainStop())
       await collectStopError(errors, () => this.server.close(false))
       await collectStopError(errors, this.stopOwnedServices)
-      await collectStopError(errors, this.releaseSettingsObserver)
+      await collectStopError(errors, this.releaseBackgroundObservers)
       await collectStopError(errors, this.releaseEventPublisher)
       await collectStopError(errors, () => this.eventHub.close())
       await collectStopError(errors, () => this.liveness.close())
@@ -159,7 +161,7 @@ async function cleanupFailedStartup(input: {
   readonly runtime: LocalSessionHostRuntime | null
   readonly ownedServicesStartAttempted: boolean
   readonly stopOwnedServices: () => Promise<void>
-  readonly releaseSettingsObserver: () => void
+  readonly releaseBackgroundObservers: () => void
   readonly releaseEventPublisher: () => void
   readonly eventHub: SessionHostEventHub
   readonly liveness: SessionHostLiveness
@@ -174,7 +176,7 @@ async function cleanupFailedStartup(input: {
   if (input.ownedServicesStartAttempted) {
     await collectStopError(errors, input.stopOwnedServices)
   }
-  await collectStopError(errors, input.releaseSettingsObserver)
+  await collectStopError(errors, input.releaseBackgroundObservers)
   await collectStopError(errors, input.releaseEventPublisher)
   await collectStopError(errors, () => input.eventHub.close())
   await collectStopError(errors, () => input.liveness.close())
@@ -191,10 +193,12 @@ function createServerDependencies(input: {
   readonly host: StartLocalSessionHostInput
   readonly eventHub: SessionHostEventHub
   readonly liveness: SessionHostLiveness
+  readonly inflightCommands: LocalSessionInflightCommands
 }): LocalSessionServerDependencies {
-  const { host, eventHub, liveness } = input
+  const { host, eventHub, liveness, inflightCommands } = input
   return {
     hostInstanceId: eventHub.hostInstanceId,
+    inflightCommands,
     ...(host.authenticateServer ? { authenticateServer: host.authenticateServer } : {}),
     eventHub,
     liveness,
@@ -232,7 +236,10 @@ export async function startLocalSessionHost(
     requestShutdown: () => runtime?.stop(),
   })
   let releaseEventPublisher: () => void = () => undefined
-  let releaseSettingsObserver: () => void = () => undefined
+  const inflightCommands = new LocalSessionInflightCommands()
+  // Started before recovery and owned services, whose startup work can block the loop too.
+  const releaseStallMonitor = monitorSessionHostEventLoop(liveness, inflightCommands)
+  let releaseBackgroundObservers: () => void = releaseStallMonitor
   let ownedServicesStartAttempted = false
 
   try {
@@ -243,15 +250,19 @@ export async function startLocalSessionHost(
       await input.startOwnedServices()
     }
     if (input.readIdleGracePeriod) {
-      releaseSettingsObserver = observeIdleGracePeriod({
+      const releaseIdleGraceObserver = observeIdleGracePeriod({
         liveness,
         read: input.readIdleGracePeriod,
         intervalMs: input.settingsRefreshIntervalMs ?? SESSION_HOST_SETTINGS_REFRESH_INTERVAL_MS,
       })
+      releaseBackgroundObservers = () => {
+        releaseStallMonitor()
+        releaseIdleGraceObserver()
+      }
     }
     const server = await listenLocalSessionServer(
       input.endpoint,
-      createServerDependencies({ host: input, eventHub, liveness }),
+      createServerDependencies({ host: input, eventHub, liveness, inflightCommands }),
     )
     runtime = new LocalSessionHostRuntime(
       eventHub,
@@ -260,7 +271,7 @@ export async function startLocalSessionHost(
       ownership,
       releaseOwnershipOnStop,
       releaseEventPublisher,
-      releaseSettingsObserver,
+      releaseBackgroundObservers,
       input.stopOwnedServices,
     )
     liveness.armIdleShutdown(
@@ -274,7 +285,7 @@ export async function startLocalSessionHost(
         runtime,
         ownedServicesStartAttempted,
         stopOwnedServices: input.stopOwnedServices ?? (() => Promise.resolve()),
-        releaseSettingsObserver,
+        releaseBackgroundObservers,
         releaseEventPublisher,
         eventHub,
         liveness,

@@ -4,9 +4,6 @@ import type {
   LocalSessionClientFrame,
   LocalSessionServerFrame,
 } from '@shared/types/local-session-protocol'
-import * as Cause from 'effect/Cause'
-import * as Option from 'effect/Option'
-import * as Runtime from 'effect/Runtime'
 import { createLogger } from '../logger'
 import { LocalSessionAdmissionGate } from './local-session-admission-gate'
 import {
@@ -19,6 +16,7 @@ import { bindLocalSessionConnectionInput } from './local-session-connection-inpu
 import { LocalSessionConnectionSubscriptions } from './local-session-connection-subscriptions'
 import type { LocalSessionEventCursorProjection } from './local-session-event-cursor-projection'
 import { establishLocalSessionHandshake } from './local-session-handshake'
+import { LocalSessionHandshakeDeadline } from './local-session-handshake-deadline'
 import { LocalSessionInboundRetention } from './local-session-inbound-retention'
 import type { LocalSessionOutboundByteBudget } from './local-session-outbound-budget'
 import { LocalSessionOutboundWriter } from './local-session-outbound-writer'
@@ -38,16 +36,6 @@ import type {
 
 const logger = createLogger('session-host/connection')
 
-/** The failure code only; the error may carry the presented credential. */
-function authenticationFailureCode(error: unknown) {
-  const failure: unknown = Runtime.isFiberFailure(error)
-    ? Option.getOrUndefined(Cause.failureOption(error[Runtime.FiberFailureCauseId]))
-    : error
-  const code: unknown =
-    typeof failure === 'object' && failure !== null ? Reflect.get(failure, 'code') : undefined
-  return typeof code === 'string' ? code : 'unknown'
-}
-
 const DEFAULT_HANDSHAKE_TIMEOUT_MS = 5000
 
 export class LocalSessionConnection {
@@ -60,7 +48,9 @@ export class LocalSessionConnection {
   private serverAuthenticated: boolean
   private releaseClientLiveness: (() => void) | null = null
   private closed = false
-  private readonly handshakeTimer: ReturnType<typeof setTimeout>
+  /** A connection-level failure was reported; the socket is ending. */
+  private failing = false
+  private readonly handshakeDeadline: LocalSessionHandshakeDeadline
   private readonly authenticationController = new AbortController()
   private readonly outbound: LocalSessionOutboundWriter
   private readonly invalidationCloser = new LocalSessionInvalidationCloser()
@@ -93,9 +83,9 @@ export class LocalSessionConnection {
     })
     this.serverAuthenticated = dependencies.authenticateServer === undefined
     const timeout = dependencies.handshakeTimeoutMs ?? DEFAULT_HANDSHAKE_TIMEOUT_MS
-    this.handshakeTimer = setTimeout(() => {
-      void this.fail(undefined, 'handshake_timeout', 'Local Session handshake timed out.')
-    }, timeout)
+    this.handshakeDeadline = new LocalSessionHandshakeDeadline(timeout, () => {
+      void this.fail('handshake_timeout', 'Local Session handshake timed out.', true)
+    })
   }
 
   start(): void {
@@ -104,7 +94,7 @@ export class LocalSessionConnection {
       inbound: this.inbound,
       closed: () => this.closed,
       handleValue: (value) => this.handleValue(value),
-      failed: (code, message) => this.fail(undefined, code, message),
+      failed: (code, message) => this.fail(code, message),
     })
     this.socket.once('close', () => this.close())
     this.socket.once('error', () => this.close())
@@ -180,11 +170,15 @@ export class LocalSessionConnection {
   }
 
   private async handleValue(value: unknown): Promise<void> {
+    const authenticated = this.caller !== null && this.negotiatedRevision !== null
+    // The connection already answered handshake_timeout and is ending.
+    if (!authenticated && this.handshakeDeadline.expired) return
     if (!this.serverAuthenticated) {
       await this.handleServerAuthentication(value)
       return
     }
-    if (!this.caller || this.negotiatedRevision === null) {
+    if (!authenticated) {
+      this.handshakeDeadline.markHelloReceived()
       await this.handleHello(value)
       return
     }
@@ -207,21 +201,22 @@ export class LocalSessionConnection {
       budget: this.authenticationBudget,
       signal: this.authenticationController.signal,
       send: (frame) => this.send(frame),
-      // Why authentication failed stays in the Host log: telling an unauthenticated peer
-      // whether a profile exists or was revoked would let it probe for profile names.
-      authenticationFailed: (error) => {
-        logger.warn('Local Session authentication failed', {
-          reason: authenticationFailureCode(error),
-        })
-        return this.fail(undefined, 'authentication_failed', 'Local Session authentication failed.')
+      authenticationFailed: (failure) => {
+        logger.warn('Local Session authentication failed', { reason: failure.reason })
+        return this.fail(failure.code, failure.message, failure.retryable)
       },
     })
     if (result.status === 'closed') return
+    if (this.closed || this.handshakeDeadline.expired) {
+      // Authentication outlived the deadline or the peer; admitting it would leak liveness.
+      this.socket.end()
+      return
+    }
     this.caller = result.caller
     this.negotiatedRevision = result.revision
     this.inbound.markAuthenticated()
     this.releaseClientLiveness = this.dependencies.liveness.acquire('client')
-    clearTimeout(this.handshakeTimer)
+    this.handshakeDeadline.clear()
     await this.send(result.negotiation)
   }
 
@@ -237,6 +232,7 @@ export class LocalSessionConnection {
     const controller = new AbortController()
     const activeCommand = { controller, abortOnProfileFence: false }
     this.commandControllers.set(frame.requestId, activeCommand)
+    const untrack = this.dependencies.inflightCommands?.track(frame.payload)
     try {
       while (!this.closed) {
         await this.admission.waitUntilReady()
@@ -281,20 +277,17 @@ export class LocalSessionConnection {
         return
       }
     } finally {
+      untrack?.()
       this.commandControllers.delete(frame.requestId)
     }
   }
 
-  private async fail(requestId: string | undefined, code: string, message: string) {
-    if (this.closed) return
+  /** Reports a connection-level failure, then ends the connection. */
+  private async fail(code: string, message: string, retryable = false) {
+    if (this.closed || this.failing) return
+    this.failing = true
     try {
-      await this.send({
-        kind: 'error',
-        ...(requestId ? { requestId } : {}),
-        code,
-        message,
-        retryable: false,
-      })
+      await this.send({ kind: 'error', code, message, retryable })
     } finally {
       this.socket.end()
     }
@@ -306,7 +299,7 @@ export class LocalSessionConnection {
     this.admission.close()
     this.authenticationController.abort()
     this.inbound.releasePendingFrame()
-    clearTimeout(this.handshakeTimer)
+    this.handshakeDeadline.clear()
     this.invalidationCloser.close()
     for (const command of this.commandControllers.values()) {
       command.controller.abort(new Error('Local Session client disconnected.'))

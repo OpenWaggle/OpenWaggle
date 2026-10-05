@@ -6,6 +6,7 @@ import type {
 } from '@shared/types/session-host-event'
 import { createLogger } from '../logger'
 import { broadcastToWindows } from '../utils/broadcast'
+import { startEventLoopStallMonitor } from '../utils/event-loop-stall-monitor'
 import {
   clearAgentPhase,
   clearStreamBuffer,
@@ -207,6 +208,11 @@ export function startRemoteSessionHostRendererBridge(
     ...dependencyOverrides,
   }
   const abortController = new AbortController()
+  // The same timeouts follow a stall in this process as in the Host; this tells them apart.
+  const stopStallMonitor = startEventLoopStallMonitor({
+    logger,
+    message: 'Desktop main process event loop stalled; Session Host requests may have timed out.',
+  })
   const pumpPromise = runRemoteSessionHostRendererPump({
     paths: input.paths,
     clientVersion: input.clientVersion,
@@ -219,6 +225,7 @@ export function startRemoteSessionHostRendererBridge(
     },
   })
   return async () => {
+    stopStallMonitor()
     abortController.abort()
     await pumpPromise
   }
