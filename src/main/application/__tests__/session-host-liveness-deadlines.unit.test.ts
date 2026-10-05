@@ -266,6 +266,20 @@ describe('Session Host idle and stop deadlines', () => {
     expect(requestShutdown).toHaveBeenCalledTimes(2)
   })
 
+  it('applies a changed grace over the startup grace while background work runs', async () => {
+    vi.useFakeTimers()
+    const requestShutdown = vi.fn()
+    const liveness = new SessionHostLiveness({ idleGracePeriodMs: 60_000, requestShutdown })
+    liveness.armIdleShutdown(60_000)
+    const releasePreparation = liveness.acquire('semantic-preparation')
+
+    liveness.updateIdleGracePeriod(0)
+    releasePreparation()
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(requestShutdown).toHaveBeenCalledOnce()
+  })
+
   it('rejects an invalid deadline without starting a drain', () => {
     const liveness = new SessionHostLiveness({ idleGracePeriodMs: 1000, requestShutdown: vi.fn() })
 

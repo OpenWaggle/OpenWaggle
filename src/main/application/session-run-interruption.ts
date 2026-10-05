@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import type { SessionId } from '@shared/types/brand'
 import { SESSION_CONTROL_CONTRACT_VERSION } from '@shared/types/session-control'
 import { SESSION_QUERY_CONTRACT_VERSION } from '@shared/types/session-query'
+import * as Cause from 'effect/Cause'
 import * as Effect from 'effect/Effect'
 import { createLogger } from '../logger'
 import { listHostUiActiveActivities } from './host-ui-agent-operation'
@@ -84,7 +85,7 @@ export function interruptAllSessionRuns() {
         interruptSessionRun(sessionId).pipe(
           Effect.catchAllCause((cause) =>
             Effect.sync(() =>
-              logger.warn('Could not interrupt a Run', { sessionId, cause: String(cause) }),
+              logger.warn('Could not interrupt a Run', { sessionId, cause: Cause.pretty(cause) }),
             ),
           ),
         ),

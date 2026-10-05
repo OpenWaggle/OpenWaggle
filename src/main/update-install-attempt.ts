@@ -135,7 +135,7 @@ export function updateInstallOutcome(input: {
     type: 'failed',
     version: attempt.toVersion,
     message: stillRunning
-      ? `Version ${attempt.toVersion} was not installed because another OpenWaggle process was still running, such as openwaggle mcp serve for another agent or an openwaggle command in a terminal. Close it, then choose Restart to update again.`
+      ? `Version ${attempt.toVersion} was not installed because OpenWaggle was still running: it was opened again before the update finished, or another OpenWaggle process was open, such as openwaggle mcp serve or a command in a terminal. Close it, then choose Restart to update again.`
       : `Version ${attempt.toVersion} did not finish installing. Restart to update to try again.`,
   }
 }

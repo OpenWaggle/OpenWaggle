@@ -4,7 +4,7 @@ import { invokeConfiguredHostUi } from './application/gui-session-command-router
 import { describeError } from './error-description'
 import { createLogger } from './logger'
 
-const logger = createLogger('main/index')
+const logger = createLogger('gui-auto-updater')
 
 let started: { readonly dispose: () => void; readonly releasesHost: () => boolean } | null = null
 

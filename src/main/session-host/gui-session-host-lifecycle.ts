@@ -1,5 +1,6 @@
 import { LOCAL_SESSION_CURRENT_REVISION } from '@shared/types/local-session-protocol'
 import { configureGuiSessionCommandClient } from '../application/local-session-command-dispatcher'
+import { createLogger } from '../logger'
 import { releaseSessionHostForUpdate } from './gui-session-host-release'
 import { prepareGuiSessionHostStartup } from './gui-session-host-startup'
 import { setGuiAttachedToRemoteSessionHost } from './gui-session-host-state'
@@ -12,6 +13,8 @@ import {
 import type { LocalSessionHostPaths } from './local-session-paths'
 import { refreshLocalSessionHostEndpoint } from './local-session-paths'
 import { startRemoteSessionHostRendererBridge } from './session-host-renderer-bridge'
+
+const logger = createLogger('gui-session-host')
 
 function guiRemoteClient(paths: LocalSessionHostPaths, clientVersion: string) {
   return { paths, clientVersion, supportedRevisions: [LOCAL_SESSION_CURRENT_REVISION] }
@@ -101,7 +104,10 @@ export async function prepareGuiSessionHostLifecycle(input: {
         configureGuiSessionCommandClient(null)
         setGuiAttachedToRemoteSessionHost(false)
         // Detached first, so nothing in this app can start a new Host while the old one stops.
-        if (options.releaseHostForUpdate) await releaseSessionHostForUpdate(remoteClient)
+        if (options.releaseHostForUpdate) {
+          const outcome = await releaseSessionHostForUpdate(remoteClient)
+          logger.info('Released the Session Host for an update', { outcome })
+        }
       }
     },
   }

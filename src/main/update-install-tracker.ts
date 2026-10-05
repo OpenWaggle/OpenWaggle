@@ -24,8 +24,9 @@ export const UPDATE_INSTALL_WATCHDOG_MS = 180_000
 
 let installingVersion: string | null = null
 /**
- * Set once an update has been handed to the installer, which may still quit the app later (even
- * after the watchdog); only an installer error clears it.
+ * Set while an update is handed to the installer. The watchdog and an installer error clear it,
+ * and any quit the installer starts later sets it again (`markUpdateQuit`), so an ordinary quit
+ * never stops the Host.
  */
 let releaseHostOnQuit = false
 let watchdog: ReturnType<typeof setTimeout> | null = null
@@ -88,7 +89,8 @@ export async function beginUpdateInstall(version: string) {
   watchdog = setTimeout(() => {
     watchdog = null
     installingVersion = null
-    // Squirrel may still finish and quit the app, so a later quit still releases the Host.
+    // Squirrel may still finish; its quit announces itself with before-quit-for-update.
+    releaseHostOnQuit = false
     const message = `Version ${version} is taking longer than expected to install. Restart to update to try again.`
     logger.warn('Update install is taking longer than expected', { version })
     previousFailure = { version, message }
@@ -110,7 +112,11 @@ export async function beginUpdateInstall(version: string) {
  */
 export function failUpdateInstall(error: Error): boolean {
   const version = installingVersion
-  if (!version) return false
+  if (!version) {
+    // A late installer error after the watchdog: nothing shows as installing any more.
+    releaseHostOnQuit = false
+    return false
+  }
   stopUpdateInstallWatchdog()
   installingVersion = null
   releaseHostOnQuit = false

@@ -20,6 +20,6 @@ Restart to update shows **Installing** at once and records the attempt. If the i
 ## Consequences
 
 - ADR 0039 refused the desktop app's caller. It may now stop the Host, only with the deadline. The desktop app's caller is any local-user client that says it is the desktop app, so a CLI could ask for the same bounded stop; that is the same person, who can already stop the Host, and named profiles and agents are still refused.
-- A Run that starts between Restart when idle seeing no active Run and the Host's drain is interrupted at the deadline instead of finishing. The drain refuses new Runs, so that window lasts only as long as macOS takes to unpack the update.
+- A Run that starts while the update shows as installing, between Restart to update seeing no active Run and the Host's drain, is interrupted at the deadline instead of finishing. The drain refuses new Runs, so that window lasts only as long as macOS takes to unpack the update, and the app shows that it is restarting.
 - An `openwaggle` command still running from the bundle, such as `openwaggle mcp serve` for another agent or `openwaggle sessions wait` in a terminal, still makes macOS refuse the install. The app reports it on the next launch instead of failing silently.
 - Updating from a version without this change still runs that version's Restart to update, which leaves its Host running. Users on those versions should run `openwaggle host stop` before Restart to update, or quit and use the installer script.

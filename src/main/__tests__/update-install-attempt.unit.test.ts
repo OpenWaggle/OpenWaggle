@@ -75,7 +75,7 @@ describe('update install attempts', () => {
 
     expect(outcome).toMatchObject({ type: 'failed', version: '1.0.0-beta.9' })
     expect(outcome.type === 'failed' && outcome.message).toContain(
-      'another OpenWaggle process was still running',
+      'opened again before the update finished, or another OpenWaggle process was open',
     )
   })
 

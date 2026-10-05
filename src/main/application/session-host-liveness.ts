@@ -295,7 +295,7 @@ export class SessionHostLiveness {
     this.assertGracePeriod(idleGracePeriodMs)
     if (idleGracePeriodMs === this.idleGracePeriodMs) return
     this.idleGracePeriodMs = idleGracePeriodMs
-    if (this.draining || this.totalOwners() > 0 || this.shutdownRequested) return
+    if (this.draining || this.shutdownRequested || this.hasActivityOwners()) return
     this.startupFloorAt = null
     this.scheduleIdleShutdown()
   }

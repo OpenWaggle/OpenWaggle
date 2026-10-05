@@ -15,13 +15,15 @@ import { refreshLocalSessionHostEndpoint } from './local-session-paths'
 const logger = createLogger('session-host-release')
 
 /** Time the Host takes from the end of its drain to exiting: flushes, runtime dispose, logs. */
-export const SESSION_HOST_EXIT_BUDGET_MS = 7_000
+const SESSION_HOST_EXIT_BUDGET_MS = 7_000
 /** The Host's whole update stop: its drain deadline, the Run settle, and its exit. */
 export const SESSION_HOST_UPDATE_RELEASE_TIMEOUT_MS =
   DESKTOP_UPDATE_HOST_STOP_DEADLINE_MS +
   SESSION_HOST_DRAIN_DEADLINE_SETTLE_MS +
   SESSION_HOST_EXIT_BUDGET_MS
 const RELEASE_POLL_INTERVAL_MS = 200
+/** A Host that is exiting can take the full connect timeout to refuse; the release cannot. */
+const PROBE_TIMEOUT_MS = 1_000
 
 export type SessionHostReleaseOutcome =
   | 'not-running'
@@ -60,6 +62,17 @@ function processExists(processId: number) {
   }
 }
 
+function withProbeTimeout<T>(probe: Promise<T>) {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(
+      () => reject(new Error('The Session Host did not answer the probe in time.')),
+      PROBE_TIMEOUT_MS,
+    )
+  })
+  return Promise.race([probe, timeout]).finally(() => clearTimeout(timer))
+}
+
 function defaultDependencies(client: {
   readonly paths: LocalSessionHostPaths
   readonly clientVersion: string
@@ -84,11 +97,13 @@ function defaultDependencies(client: {
     },
     probe: async () => {
       try {
-        const negotiation = await probeLocalSessionHost({
-          paths: await refreshLocalSessionHostEndpoint(client.paths),
-          clientKind: 'gui',
-          clientVersion: client.clientVersion,
-        })
+        const negotiation = await withProbeTimeout(
+          probeLocalSessionHost({
+            paths: await refreshLocalSessionHostEndpoint(client.paths),
+            clientKind: 'gui',
+            clientVersion: client.clientVersion,
+          }),
+        )
         return { state: 'running', hostInstanceId: negotiation.hostInstanceId }
       } catch (error) {
         // An older Host handing over is still a running process from this app bundle.
@@ -143,8 +158,9 @@ export async function releaseSessionHostForUpdate(
     host = await dependencies.requestStop()
   } catch (error) {
     if (isLocalSessionHostUnavailable(error)) return 'not-running'
-    // An older Host refuses the desktop app's stop. Quit anyway; the next launch reports the result.
-    logger.warn('The Session Host did not accept the update stop', describeError(error))
+    // An older Host refuses the desktop app's stop, and a stuck one may not answer. Quit anyway;
+    // the next launch reports the result.
+    logger.warn('The Session Host did not accept or answer the update stop', describeError(error))
     return 'refused'
   }
   if (dependencies.platform !== 'darwin') return 'stop-requested'

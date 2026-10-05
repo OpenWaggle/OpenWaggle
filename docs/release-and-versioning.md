@@ -195,8 +195,10 @@ differential. `builder-debug.yml` is a local build dump and is not published.
 
 Updates download automatically in the background; installing is always a user action.
 
-- An update restart never silently interrupts an agent run. When the user chooses **Restart to
-  update** and the Session Host has active runs in any session (window, Worker, or CLI-started),
+- An update restart never silently interrupts an agent run. The one exception is a run that starts
+  while the update already shows as installing, the seconds macOS takes to unpack it before the app
+  quits; the Session Host interrupts it at its stop deadline (ADR 0047). When the user chooses
+  **Restart to update** and the Session Host has active runs in any session (window, Worker, or CLI-started),
   the app offers **Restart when idle** (default), **Restart now**, and **Cancel**.
 - Active runs include standalone compactions; a Session counts once.
 - **Restart when idle** installs once the Session Host has no active run. Runs started after the
