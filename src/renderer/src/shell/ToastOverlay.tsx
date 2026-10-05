@@ -29,11 +29,11 @@ export function ToastOverlay() {
       className={cn(
         'pointer-events-auto fixed right-5 top-16 z-[9999] flex max-w-md items-center gap-2 rounded-lg border px-3.5 py-2.5 text-sm text-text-secondary shadow-lg',
         isSuccess && 'border-success/30 bg-success/8',
-        isError && 'border-error/30 bg-error/8 text-error',
+        isError && 'border-error/30 bg-error/8 text-error-text',
         !isSuccess && !isError && 'border-border-light bg-bg-secondary',
       )}
     >
-      <span>{displayMessage}</span>
+      <span className="min-w-0 break-words">{displayMessage}</span>
       {toastData.action && (
         <Button
           variant="unstyled"

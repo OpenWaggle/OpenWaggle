@@ -1,8 +1,12 @@
 import { describe, expect, it, vi } from 'vitest'
+import { SESSION_HOST_DRAIN_DEADLINE_SETTLE_MS } from '../../application/session-host-liveness'
 import {
   releaseSessionHostForUpdate,
+  SESSION_HOST_EXIT_BUDGET_MS,
+  SESSION_HOST_UPDATE_RELEASE_TIMEOUT_MS,
   type SessionHostReleaseDependencies,
 } from '../gui-session-host-release'
+import { DESKTOP_UPDATE_HOST_STOP_DEADLINE_MS } from '../local-host-command'
 
 const client = {
   paths: {
@@ -60,7 +64,29 @@ describe('releasing the Session Host for an update', () => {
     expect(requestStop).toHaveBeenCalledOnce()
     expect(processExists).toHaveBeenCalledTimes(3)
     expect(processExists).toHaveBeenCalledWith(4242)
-    expect(probe).not.toHaveBeenCalled()
+    // The closed socket alone never counted as stopped; one probe after the exit names a replacement.
+    expect(probe).toHaveBeenCalledOnce()
+  })
+
+  it('waits longer than the Host can take to drain, settle and exit', () => {
+    expect(SESSION_HOST_UPDATE_RELEASE_TIMEOUT_MS).toBe(
+      DESKTOP_UPDATE_HOST_STOP_DEADLINE_MS +
+        SESSION_HOST_DRAIN_DEADLINE_SETTLE_MS +
+        SESSION_HOST_EXIT_BUDGET_MS,
+    )
+  })
+
+  it('names a replacement Host that started from the old bundle after the process exited', async () => {
+    await expect(
+      releaseSessionHostForUpdate(
+        client,
+        {},
+        dependencies({
+          processExists: () => false,
+          probe: async () => ({ state: 'running', hostInstanceId: 'host-2' }),
+        }),
+      ),
+    ).resolves.toBe('replaced')
   })
 
   it('falls back to the endpoint when the Host does not report its process', async () => {

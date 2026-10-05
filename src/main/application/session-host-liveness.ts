@@ -55,10 +55,14 @@ export class SessionHostLiveness {
   private idleTimer: ReturnType<typeof setTimeout> | null = null
   /** When the Host last became idle; `null` while it owns work. */
   private idleSince: number | null = null
-  /** The earliest idle shutdown whatever the grace: the startup grace or a client handoff. */
-  private idleFloorAt: number | null = null
+  /** The earliest idle shutdown whatever the grace, set by the startup grace. */
+  private startupFloorAt: number | null = null
+  /** The earliest idle shutdown after the last client left, so it can reconnect. */
+  private handoffFloorAt: number | null = null
   private drainDeadlineAt: number | null = null
+  /** The drain deadline, then the Run settle after it. */
   private drainTimer: ReturnType<typeof setTimeout> | null = null
+  private drainRetryTimer: ReturnType<typeof setTimeout> | null = null
   /** Past the deadline: Runs were interrupted and get the settle, nothing else holds the Host. */
   private drainDeadlineReached = false
   private drainDeadlinePassed = false
@@ -105,7 +109,11 @@ export class SessionHostLiveness {
     this.shutdownRequested = false
     // A drain retries on its own timer, so a client that connects meanwhile cannot cancel it.
     if (this.draining) {
-      this.setDrainTimer(SHUTDOWN_RETRY_DELAY_MS, () => this.requestShutdownWhenDrained())
+      if (this.drainRetryTimer) clearTimeout(this.drainRetryTimer)
+      this.drainRetryTimer = setTimeout(() => {
+        this.drainRetryTimer = null
+        this.requestShutdownWhenDrained()
+      }, SHUTDOWN_RETRY_DELAY_MS)
       return
     }
     this.cancelIdleTimer()
@@ -127,9 +135,9 @@ export class SessionHostLiveness {
     }
   }
 
-  private raiseIdleFloor(delayMs: number) {
-    const floorAt = Date.now() + delayMs
-    this.idleFloorAt = Math.max(this.idleFloorAt ?? floorAt, floorAt)
+  private static raised(floorAt: number | null, delayMs: number) {
+    const next = Date.now() + delayMs
+    return Math.max(floorAt ?? next, next)
   }
 
   /** Shut down once the Host has been idle for the grace period, and not before the floor. */
@@ -138,7 +146,11 @@ export class SessionHostLiveness {
     this.cancelIdleTimer()
     const now = Date.now()
     this.idleSince ??= now
-    const shutdownAt = Math.max(this.idleFloorAt ?? 0, this.idleSince + this.idleGracePeriodMs)
+    const shutdownAt = Math.max(
+      this.startupFloorAt ?? 0,
+      this.handoffFloorAt ?? 0,
+      this.idleSince + this.idleGracePeriodMs,
+    )
     this.idleTimer = setTimeout(
       () => {
         this.idleTimer = null
@@ -214,7 +226,8 @@ export class SessionHostLiveness {
     this.cancelIdleTimer()
     if (!IDLE_CLOCK_NEUTRAL_KINDS.has(kind)) {
       this.idleSince = null
-      this.idleFloorAt = null
+      this.startupFloorAt = null
+      this.handoffFloorAt = null
     }
     this.owners.set(kind, (this.owners.get(kind) ?? 0) + 1)
     if (kind === 'client') this.acceptedClient = true
@@ -228,7 +241,12 @@ export class SessionHostLiveness {
       // The Host is idle from the end of its last real work, even if background work outlasts it.
       if (!IDLE_CLOCK_NEUTRAL_KINDS.has(kind) && !this.hasActivityOwners()) {
         this.idleSince ??= Date.now()
-        if (kind === 'client') this.raiseIdleFloor(this.clientHandoffGracePeriodMs)
+        if (kind === 'client') {
+          this.handoffFloorAt = SessionHostLiveness.raised(
+            this.handoffFloorAt,
+            this.clientHandoffGracePeriodMs,
+          )
+        }
       }
       if (this.draining) this.requestShutdownWhenDrained()
       else this.scheduleIdleShutdown()
@@ -262,21 +280,23 @@ export class SessionHostLiveness {
   /** Shut down once idle for the grace period, and not before `delayMs` from now. */
   armIdleShutdown(delayMs = this.idleGracePeriodMs): void {
     this.assertGracePeriod(delayMs)
-    if (this.totalOwners() > 0) return
-    this.raiseIdleFloor(delayMs)
+    // Recorded even while background work runs, so its end does not skip the startup grace.
+    this.startupFloorAt = SessionHostLiveness.raised(this.startupFloorAt, delayMs)
+    if (!this.hasActivityOwners()) this.idleSince ??= Date.now()
     this.scheduleIdleShutdown()
   }
 
   /**
    * The Host re-reads this setting every second. Only a changed value reschedules an idle Host.
-   * The time it has already been idle counts, and the new value replaces any startup grace.
+   * The time it has already been idle counts, and the new value replaces the startup grace; a
+   * client that just left keeps its handoff grace.
    */
   updateIdleGracePeriod(idleGracePeriodMs: number): void {
     this.assertGracePeriod(idleGracePeriodMs)
     if (idleGracePeriodMs === this.idleGracePeriodMs) return
     this.idleGracePeriodMs = idleGracePeriodMs
     if (this.draining || this.totalOwners() > 0 || this.shutdownRequested) return
-    this.idleFloorAt = null
+    this.startupFloorAt = null
     this.scheduleIdleShutdown()
   }
 
@@ -297,7 +317,9 @@ export class SessionHostLiveness {
     this.closed = true
     this.cancelIdleTimer()
     if (this.drainTimer) clearTimeout(this.drainTimer)
+    if (this.drainRetryTimer) clearTimeout(this.drainRetryTimer)
     this.drainTimer = null
+    this.drainRetryTimer = null
     this.owners.clear()
   }
 }

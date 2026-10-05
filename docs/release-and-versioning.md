@@ -216,7 +216,7 @@ Updates download automatically in the background; installing is always a user ac
   ("App Still Running"). The desktop app asks the Host to stop, and the Host gives that stop a
   10-second deadline. At the deadline it interrupts any Run still active, which ends as
   interrupted, and gives it 3 seconds to settle; running Actions, CLI waits, and exports end with
-  the Host. On macOS the app waits up to 15 seconds for the Host process to exit. On Windows and
+  the Host. On macOS the app waits up to 20 seconds for the Host process to exit. On Windows and
   Linux it only requests the stop, because those installers replace the app themselves. An
   ordinary quit leaves the Host running.
 - The app shows **Installing** as soon as the restart begins, because macOS unpacks and verifies

@@ -1,6 +1,8 @@
 import { LOCAL_HOST_CONTRACT_VERSION } from '@shared/types/local-host'
+import { SESSION_HOST_DRAIN_DEADLINE_SETTLE_MS } from '../application/session-host-liveness'
 import { describeError } from '../error-description'
 import { createLogger } from '../logger'
+import { DESKTOP_UPDATE_HOST_STOP_DEADLINE_MS } from './local-host-command'
 import {
   executeLocalSessionCommand,
   LocalSessionHostUpgradePendingError,
@@ -12,11 +14,13 @@ import { refreshLocalSessionHostEndpoint } from './local-session-paths'
 
 const logger = createLogger('session-host-release')
 
-/**
- * The Host's update drain ends 10 seconds after the stop (DESKTOP_UPDATE_HOST_STOP_DEADLINE_MS),
- * plus up to 3 seconds for interrupted Runs to settle; this leaves time for it to exit.
- */
-export const SESSION_HOST_UPDATE_RELEASE_TIMEOUT_MS = 15_000
+/** Time the Host takes from the end of its drain to exiting: flushes, runtime dispose, logs. */
+export const SESSION_HOST_EXIT_BUDGET_MS = 7_000
+/** The Host's whole update stop: its drain deadline, the Run settle, and its exit. */
+export const SESSION_HOST_UPDATE_RELEASE_TIMEOUT_MS =
+  DESKTOP_UPDATE_HOST_STOP_DEADLINE_MS +
+  SESSION_HOST_DRAIN_DEADLINE_SETTLE_MS +
+  SESSION_HOST_EXIT_BUDGET_MS
 const RELEASE_POLL_INTERVAL_MS = 200
 
 export type SessionHostReleaseOutcome =
@@ -104,18 +108,17 @@ function defaultDependencies(client: {
 
 /** Whether the stopping Host is gone. The process itself is the proof; its socket closes first. */
 async function hostHasExited(host: StoppingHost, dependencies: SessionHostReleaseDependencies) {
-  if (host.processId !== undefined) {
-    return dependencies.processExists(host.processId) ? 'running' : 'stopped'
-  }
+  if (host.processId !== undefined && dependencies.processExists(host.processId)) return 'running'
   const answer = await dependencies.probe().catch((error: unknown) => {
     // A Host shutting down refuses even new connections; that is progress, not failure.
     logger.debug('Session Host probe failed while it stops', describeError(error))
     return null
   })
-  if (answer?.state === 'not-running') return 'stopped'
   if (answer?.state === 'running' && answer.hostInstanceId !== host.hostInstanceId) {
     return 'replaced'
   }
+  // With a process id, its exit is the proof; the probe above only names a replacement Host.
+  if (host.processId !== undefined || answer?.state === 'not-running') return 'stopped'
   return 'running'
 }
 

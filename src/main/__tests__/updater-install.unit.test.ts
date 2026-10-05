@@ -41,6 +41,7 @@ vi.mock('../logger', () => ({
   createLogger: () => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }),
 }))
 
+import { shouldReleaseHostOnQuit } from '../update-install-tracker'
 import {
   checkForUpdates,
   disposeAutoUpdater,
@@ -150,8 +151,21 @@ describe('Restart to update', () => {
       type: 'downloaded',
       version: '1.2.3',
       installFailure:
-        'Version 1.2.3 could not be installed: the installer did not start. Restart to update to try again.',
+        'Version 1.2.3 is taking longer than expected to install. Restart to update to try again.',
     })
+    // Squirrel may still finish and quit the app; that quit must still release the Host.
+    expect(shouldReleaseHostOnQuit()).toBe(true)
+  })
+
+  it('stops releasing the Host on quit once the installer reports an error', async () => {
+    initAutoUpdater('stable')
+    emitter().emit('update-downloaded', { version: '1.2.3' })
+    await installUpdate()
+    expect(shouldReleaseHostOnQuit()).toBe(true)
+
+    emitter().emit('error', new Error('code signature mismatch'))
+
+    expect(shouldReleaseHostOnQuit()).toBe(false)
   })
 
   it('explains why the last Restart to update did not install that version', async () => {

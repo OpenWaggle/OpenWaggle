@@ -18,18 +18,33 @@ export interface UpdaterInstallEnvironment {
 const logger = createLogger('updater')
 /**
  * Squirrel.Mac unpacks and verifies the update before the app quits. If it neither quits nor
- * reports an error in this time, the restart is reported as failed so it can be tried again.
+ * reports an error in this time, the update shows as ready again with that explanation.
  */
 export const UPDATE_INSTALL_WATCHDOG_MS = 180_000
 
 let installingVersion: string | null = null
+/**
+ * Set once an update has been handed to the installer, which may still quit the app later (even
+ * after the watchdog); only an installer error clears it.
+ */
+let releaseHostOnQuit = false
 let watchdog: ReturnType<typeof setTimeout> | null = null
 let environment: UpdaterInstallEnvironment | null = null
 let previousFailure: { readonly version: string; readonly message: string } | null = null
 
-/** Whether the app is quitting to install an update, so the quit must also release the Host. */
+/** Whether Restart to update is in progress, so the status shows it and checks wait. */
 export function isInstallingUpdate(): boolean {
   return installingVersion !== null
+}
+
+/** Whether a quit now installs an update, so it must also release the Session Host. */
+export function shouldReleaseHostOnQuit(): boolean {
+  return releaseHostOnQuit
+}
+
+/** The installer is quitting the app (Electron's `before-quit-for-update`). */
+export function markUpdateQuit() {
+  releaseHostOnQuit = true
 }
 
 export function downloadedUpdateStatus(version: string): DownloadedUpdateStatus {
@@ -43,6 +58,7 @@ export function resetUpdateInstall(next: UpdaterInstallEnvironment | null) {
   stopUpdateInstallWatchdog()
   environment = next
   installingVersion = null
+  releaseHostOnQuit = false
   previousFailure = null
   if (!next) return
   void settleUpdateInstallAttempt(next).then((outcome) => {
@@ -65,12 +81,18 @@ export function resetUpdateInstall(next: UpdaterInstallEnvironment | null) {
  */
 export async function beginUpdateInstall(version: string) {
   installingVersion = version
+  releaseHostOnQuit = true
   previousFailure = null
   setUpdateStatus({ type: 'installing', version })
   stopUpdateInstallWatchdog()
   watchdog = setTimeout(() => {
     watchdog = null
-    failUpdateInstall(new Error('the installer did not start'))
+    installingVersion = null
+    // Squirrel may still finish and quit the app, so a later quit still releases the Host.
+    const message = `Version ${version} is taking longer than expected to install. Restart to update to try again.`
+    logger.warn('Update install is taking longer than expected', { version })
+    previousFailure = { version, message }
+    setUpdateStatus(downloadedUpdateStatus(version))
   }, UPDATE_INSTALL_WATCHDOG_MS)
   if (environment) {
     await recordUpdateInstallAttempt(environment.userDataDirectory, {
@@ -91,6 +113,7 @@ export function failUpdateInstall(error: Error): boolean {
   if (!version) return false
   stopUpdateInstallWatchdog()
   installingVersion = null
+  releaseHostOnQuit = false
   const reason = error.message.replace(/\.+$/, '')
   const message = `Version ${version} could not be installed: ${reason}. Restart to update to try again.`
   logger.error('Update install failed', { version, message: error.message })

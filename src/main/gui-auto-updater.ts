@@ -1,12 +1,12 @@
 import { APP_ID } from '@shared/build-identity-runtime'
-import { app } from 'electron'
+import { app, autoUpdater as nativeAutoUpdater } from 'electron'
 import { invokeConfiguredHostUi } from './application/gui-session-command-router'
 import { describeError } from './error-description'
 import { createLogger } from './logger'
 
 const logger = createLogger('main/index')
 
-let started: { readonly dispose: () => void; readonly isInstalling: () => boolean } | null = null
+let started: { readonly dispose: () => void; readonly releasesHost: () => boolean } | null = null
 
 /**
  * Starts the desktop app's updater once the main window exists. It is imported lazily to keep it
@@ -14,8 +14,12 @@ let started: { readonly dispose: () => void; readonly isInstalling: () => boolea
  */
 export async function startGuiAutoUpdater() {
   try {
-    const { disposeAutoUpdater, initAutoUpdater, isInstallingUpdate } = await import('./updater')
-    started = { dispose: disposeAutoUpdater, isInstalling: isInstallingUpdate }
+    const { disposeAutoUpdater, initAutoUpdater } = await import('./updater')
+    const { markUpdateQuit, shouldReleaseHostOnQuit } = await import('./update-install-tracker')
+    started = { dispose: disposeAutoUpdater, releasesHost: shouldReleaseHostOnQuit }
+    // Squirrel.Mac and the Windows installer announce the quit they start, even one that comes
+    // after the install watchdog gave up waiting.
+    nativeAutoUpdater.on('before-quit-for-update', markUpdateQuit)
     const { getSettings, hydrateSettingsStoreFromHost } = await import('./store/settings')
     initAutoUpdater(
       getSettings().updateChannel,
@@ -42,5 +46,5 @@ export function disposeGuiAutoUpdater() {
 
 /** Whether this quit installs an update, so it must also release the Session Host (ADR 0047). */
 export function isGuiInstallingUpdate() {
-  return started?.isInstalling() === true
+  return started?.releasesHost() === true
 }
