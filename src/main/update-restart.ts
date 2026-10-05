@@ -1,7 +1,8 @@
 /**
  * Update restart policy (docs/release-and-versioning.md, "Update restart and relaunch").
  *
- * An update restart never silently interrupts an agent run. With no active run the update installs
+ * An update restart never silently interrupts an agent run, except one that starts while the update
+ * already shows as installing (ADR 0047). With no active run the update installs
  * immediately. Otherwise the user chooses to restart when the Session Host is idle (the default),
  * to restart now, or to cancel. Restarting now stops the active runs through normal cancellation
  * and waits a bounded time for them to settle before installing.

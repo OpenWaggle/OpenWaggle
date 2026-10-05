@@ -128,7 +128,7 @@ Alpha  -> alpha, beta, rc, stable
 ## Update restart and relaunch
 
 - Check automatically; download in the background; installing is always a user action.
-- An update restart never silently interrupts an agent run. With active runs anywhere in the Session Host, offer **Restart when idle** (default), **Restart now**, and **Cancel**. Restart when idle waits with no timeout and counts runs started later; the update action shows how many runs it waits for and keeps **Restart now** available. Restart now records runs as interrupted.
+- An update restart never silently interrupts an agent run, except one started while the update already shows as installing, which the Host interrupts at its stop deadline (ADR 0047). With active runs anywhere in the Session Host, offer **Restart when idle** (default), **Restart now**, and **Cancel**. Restart when idle waits with no timeout and counts runs started later; the update action shows how many runs it waits for and keeps **Restart now** available. Restart now records runs as interrupted.
 - With no active runs, restart immediately without a dialog.
 - Restart now stops active runs and compactions through normal cancellation (30 s settle wait) before installing. Restart when idle survives update re-checks.
 - Every update restart stops the detached Session Host before the app quits (ADR 0047): it runs from the bundle, and Squirrel.Mac refuses ("App Still Running") while any bundle process lives. The Host gives the desktop app's `local-host-v1` stop a 10 s deadline, then interrupts remaining Runs (3 s settle) and exits. On macOS the quit waits up to 20 s (10 + 3 + 7 s exit budget) for the Host process (its pid comes back in the stop response); Windows and Linux only request the stop. A normal quit keeps the Host.

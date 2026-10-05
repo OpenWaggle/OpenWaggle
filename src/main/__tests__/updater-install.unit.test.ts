@@ -159,12 +159,24 @@ describe('Restart to update', () => {
     expect(shouldReleaseHostOnQuit()).toBe(true)
   })
 
-  it('clears the release on a late installer error after the watchdog', async () => {
+  it('keeps releasing the Host once the installer has started the quit', async () => {
     initAutoUpdater('stable')
     emitter().emit('update-downloaded', { version: '1.2.3' })
     await installUpdate()
     await vi.advanceTimersByTimeAsync(3 * 60 * 1000)
     markUpdateQuit()
+
+    // A check failing while the app quits must not cancel the release.
+    emitter().emit('error', new Error('net::ERR_NETWORK_CHANGED'))
+
+    expect(shouldReleaseHostOnQuit()).toBe(true)
+  })
+
+  it('clears the release on a late installer error after the watchdog', async () => {
+    initAutoUpdater('stable')
+    emitter().emit('update-downloaded', { version: '1.2.3' })
+    await installUpdate()
+    await vi.advanceTimersByTimeAsync(3 * 60 * 1000)
 
     emitter().emit('error', new Error('code signature mismatch'))
 

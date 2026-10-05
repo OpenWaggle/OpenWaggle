@@ -29,6 +29,8 @@ let installingVersion: string | null = null
  * never stops the Host.
  */
 let releaseHostOnQuit = false
+/** The installer has started the quit; nothing may cancel the release from here. */
+let installerQuitAnnounced = false
 let watchdog: ReturnType<typeof setTimeout> | null = null
 let environment: UpdaterInstallEnvironment | null = null
 let previousFailure: { readonly version: string; readonly message: string } | null = null
@@ -46,6 +48,7 @@ export function shouldReleaseHostOnQuit(): boolean {
 /** The installer is quitting the app (Electron's `before-quit-for-update`). */
 export function markUpdateQuit() {
   releaseHostOnQuit = true
+  installerQuitAnnounced = true
 }
 
 export function downloadedUpdateStatus(version: string): DownloadedUpdateStatus {
@@ -60,6 +63,7 @@ export function resetUpdateInstall(next: UpdaterInstallEnvironment | null) {
   environment = next
   installingVersion = null
   releaseHostOnQuit = false
+  installerQuitAnnounced = false
   previousFailure = null
   if (!next) return
   void settleUpdateInstallAttempt(next).then((outcome) => {
@@ -90,7 +94,7 @@ export async function beginUpdateInstall(version: string) {
     watchdog = null
     installingVersion = null
     // Squirrel may still finish; its quit announces itself with before-quit-for-update.
-    releaseHostOnQuit = false
+    if (!installerQuitAnnounced) releaseHostOnQuit = false
     const message = `Version ${version} is taking longer than expected to install. Restart to update to try again.`
     logger.warn('Update install is taking longer than expected', { version })
     previousFailure = { version, message }
@@ -113,8 +117,8 @@ export async function beginUpdateInstall(version: string) {
 export function failUpdateInstall(error: Error): boolean {
   const version = installingVersion
   if (!version) {
-    // A late installer error after the watchdog: nothing shows as installing any more.
-    releaseHostOnQuit = false
+    // A late installer error after the watchdog; once the installer quits the app, nothing clears it.
+    if (!installerQuitAnnounced) releaseHostOnQuit = false
     return false
   }
   stopUpdateInstallWatchdog()

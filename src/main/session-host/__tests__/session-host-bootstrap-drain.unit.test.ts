@@ -1,3 +1,5 @@
+import { LOCAL_HOST_CONTRACT_VERSION } from '@shared/types/local-host'
+import { LOCAL_SESSION_CURRENT_REVISION } from '@shared/types/local-session-protocol'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import { fromAny } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
@@ -54,5 +56,33 @@ describe('Session Host bootstrap', () => {
 
     expect(ranEffects.at(-1)).toBe(mocks.interruptAllSessionRuns)
     expect(Effect.isEffect(ranEffects[0])).toBe(true)
+  })
+
+  it('tells the desktop app which process to wait for when it stops the Host', async () => {
+    mocks.startLocalSessionHost.mockClear()
+    await startAppSessionHost({
+      paths,
+      runEffect: async <A, E, R>(_effect: Effect.Effect<A, E, R>) =>
+        fromAny<A, unknown>(DEFAULT_SETTINGS),
+      startOwnedServices: async () => undefined,
+      stopOwnedServices: async () => undefined,
+    })
+    const input = mocks.startLocalSessionHost.mock.calls[0]?.[0]
+    const dispatch = Reflect.get(Object(input), 'dispatch')
+
+    const result = await Reflect.apply(dispatch, undefined, [
+      {
+        caller: { callerId: 'gui:local-user' },
+        negotiatedRevision: LOCAL_SESSION_CURRENT_REVISION,
+        payload: {
+          contract: 'local-host-v1',
+          request: { contractVersion: LOCAL_HOST_CONTRACT_VERSION, operation: 'stop' },
+        },
+        requestHostStop: () => ({ hostInstanceId: 'host-1', runningActions: 0 }),
+      },
+    ])
+
+    // macOS counts the Host until this process exits, which is after its socket closes.
+    expect(result).toMatchObject({ response: { processId: process.pid } })
   })
 })
