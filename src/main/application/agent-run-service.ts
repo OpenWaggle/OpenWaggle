@@ -37,6 +37,9 @@ const logger = createLogger('agent-run-service')
 /** The persisted assistant node with the greatest created order (the run's final assistant turn). */
 export function resolveLatestAssistantNodeId(
   nodes: readonly ProjectedSessionNodeInput[],
+  persistedNodes?:
+    | readonly { readonly id: string; readonly createdOrder: number; readonly role?: string }[]
+    | null,
 ): string | null {
   let latest: ProjectedSessionNodeInput | null = null
   for (const node of nodes) {
@@ -44,7 +47,18 @@ export function resolveLatestAssistantNodeId(
       latest = node
     }
   }
-  return latest?.id ?? null
+  if (!latest || !persistedNodes) return latest?.id ?? null
+  /*
+   * Saving can rename an entry whose id another Session already held (ADR 0045); the saved node
+   * keeps the snapshot's created order. Anchoring to the snapshot's id would name the other
+   * Session's node.
+   */
+  const anchor = latest
+  if (persistedNodes.some((node) => node.id === anchor.id)) return anchor.id
+  const renamed = persistedNodes.find(
+    (node) => node.createdOrder === anchor.createdOrder && node.role === 'assistant',
+  )
+  return renamed?.id ?? anchor.id
 }
 
 /**
@@ -134,7 +148,7 @@ export function executeAgentRun(input: AgentRunInput) {
 
     // WS6b: anchor this turn's checkpoint to the run's final assistant node so
     // the transcript can reveal its Turn diff (no-op when no checkpoint/anchor).
-    const anchorNodeId = resolveLatestAssistantNodeId(sessionSnapshot.nodes)
+    const anchorNodeId = resolveLatestAssistantNodeId(sessionSnapshot.nodes, persistedTree?.nodes)
     if (anchorNodeId) {
       yield* sessionProjectionRepo.setTurnCheckpointAnchor(
         input.sessionId,
