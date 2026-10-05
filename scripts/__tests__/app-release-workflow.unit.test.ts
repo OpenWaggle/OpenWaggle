@@ -306,7 +306,6 @@ describe('desktop app release workflow', () => {
     expect(build).toContain('hdiutil detach "$volume" -force')
   })
 
-
   it('prepares compatible update metadata for every published platform channel', () => {
     expect(WORKFLOW).toContain(
       'prepare-update-channel-metadata.ts dist "$OPENWAGGLE_RELEASE_CHANNEL" mac',

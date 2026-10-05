@@ -609,12 +609,12 @@ jobs:
 
       - run: pnpm build
 
-      # A runner blip must not fail the release: notarytool losing Apple while it polls
-      # (1.0.0-beta.1, run 36695614844) or hdiutil failing to create or attach the DMG with a
-      # device error (1.0.0-beta.8, run 37285929256, three attempts). Only those failures
-      # rebuild, at most twice; a rejection or any other failure still fails the first attempt.
-      # hdiutil breaks under concurrent disk activity on hosted runners (actions/runner-images
-      # #7522), so Spotlight indexing is off and XProtect is stopped before every attempt. The
+      # A runner blip must not fail the release. Two are known: notarytool losing Apple while it
+      # polls (1.0.0-beta.1, run 36695614844), and hdiutil failing a dmgbuild call with a device
+      # error (1.0.0-beta.8, run 37285929256, all three attempts). Only those failures rebuild,
+      # at most twice. A rejection or any other failure still fails the first attempt. hdiutil
+      # breaks under concurrent disk activity on hosted runners (actions/runner-images#7522), so
+      # Spotlight indexing is turned off once and XProtect is stopped before every attempt. The
       # dmg-builder patch (patches/dmg-builder@*.patch) first retries only the failed DMG, so a
       # full rebuild with fresh notarization is the last resort.
       - name: Build macOS artifacts (arm64 + x64)

@@ -1,16 +1,17 @@
 /**
  * Separates macOS packaging failures caused by the GitHub runner, not by OpenWaggle, from all
- * other failures. The release job rebuilds once for a runner failure so a blip does not fail the
- * release (docs/release-and-versioning.md, "macOS signing and notarization").
+ * other failures. The release job rebuilds at most twice for a runner failure so a blip does
+ * not fail the release (docs/release-and-versioning.md, "Platform trust for v1").
  *
  * Two runner failures are retried:
  * - notarytool losing its connection to Apple while it waits for a verdict (1.0.0-beta.1, run
  *   36695614844);
- * - `hdiutil` failing to create or mount the DMG disk image with a device error (1.0.0-beta.8,
- *   run 37285929256: `hdiutil: create failed - Device not configured` after both apps notarized).
+ * - `hdiutil` failing a dmgbuild call with a device error (1.0.0-beta.8, run 37285929256:
+ *   `hdiutil: create failed - Device not configured` after both apps notarized).
  *
  * A rejected submission, a signing error, or any other failure is not transient and still fails
- * the job on the first attempt.
+ * the job on the first attempt, even when the same log also has a transient error from the
+ * other architecture's concurrent build.
  *
  * Dependency-free on purpose: the release job runs it with Node's built-in type stripping.
  *
@@ -31,21 +32,29 @@ const TRANSIENT_NOTARY_ERROR =
 /**
  * GitHub's macOS runners intermittently fail disk-image operations with a device error (see
  * actions/runner-images#7522). A full disk or a bad dmgbuild setting reports a different error.
+ * `patches/dmg-builder@*.patch` retries the same pattern per DMG; keep the two identical.
+ * Detach is left out because dmgbuild already retries it and reports it in a different format.
  */
-const TRANSIENT_HDIUTIL_ERROR =
-  /hdiutil: (?:create|attach|detach|convert|resize) failed - (?:Device not configured|Resource busy|Resource temporarily unavailable)/u
+export const TRANSIENT_HDIUTIL_ERROR =
+  /hdiutil: (?:create|attach|convert|resize) failed - (?:Device not configured|Resource busy|Resource temporarily unavailable)/u
+/**
+ * Only an hdiutil error inside the failing dmgbuild report counts, so a recovered hdiutil warning
+ * elsewhere in the log cannot turn an unrelated failure into a retry. electron-builder prints
+ * the dmgbuild output between `dmgbuild process failed` and the `failedTask=` trailer.
+ */
+const FAILED_DMGBUILD_HDIUTIL_ERROR = new RegExp(
+  `dmgbuild process failed(?:(?!failedTask=)[\\s\\S])*?(?:${TRANSIENT_HDIUTIL_ERROR.source})`,
+  'u',
+)
 const LOG_PATH_INDEX = 2
 
 export type TransientMacosBuildFailure = 'notarization-connection' | 'disk-image-device'
 
 export function transientMacosBuildFailure(log: string): TransientMacosBuildFailure | null {
-  if (log.includes(NOTARYTOOL_FAILURE) && TRANSIENT_NOTARY_ERROR.test(log)) {
-    return 'notarization-connection'
+  if (log.includes(NOTARYTOOL_FAILURE)) {
+    return TRANSIENT_NOTARY_ERROR.test(log) ? 'notarization-connection' : null
   }
-  if (TRANSIENT_HDIUTIL_ERROR.test(log)) {
-    return 'disk-image-device'
-  }
-  return null
+  return FAILED_DMGBUILD_HDIUTIL_ERROR.test(log) ? 'disk-image-device' : null
 }
 
 const REASON_MESSAGES: Record<TransientMacosBuildFailure, string> = {

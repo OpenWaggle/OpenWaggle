@@ -41,19 +41,21 @@ Platform trust for v1:
   electron-builder config (`scripts/mac-signing.ts`) only chooses how to sign and never fails,
   because every electron-builder command, including `postinstall`, loads it. When configured,
   the release workflow verifies each app with `codesign`, `stapler`, and `spctl` before upload.
-- The macOS build depends on the GitHub runner: notarytool needs its network while it waits for
-  Apple's verdict, and `hdiutil` needs a working disk-image device to create the DMG. When
-  `scripts/macos-build-failure.ts` identifies a failure as notarytool losing its connection to
-  Apple (a transport error or an Apple 5xx) or as an `hdiutil` device error (`Device not
-  configured`, `Resource busy`), the macOS build rebuilds and resubmits, up to three attempts in
-  total. Because `hdiutil` fails under concurrent disk activity on hosted runners, the job turns
-  off Spotlight indexing and stops XProtect before each attempt. Before that full rebuild,
-  `patches/dmg-builder@26.17.0.patch` retries only the failed `dmgbuild` call, up to four times,
-  for the same `hdiutil` device errors. A DMG retry takes seconds and does not notarize again.
-  Re-create the patch when `dmg-builder` changes version. A rejected submission, a
-  credential error, or any other failure fails the first attempt. A third runner failure fails
-  the job; rerun the failed jobs, which reuses the version job's result. A rerun uses the
-  workflow as it was at the release commit, so a workflow fix only reaches the next release.
+- The macOS build depends on the GitHub runner. notarytool needs its network while it waits for
+  Apple's verdict, and `hdiutil` needs a working disk-image device to build the DMG.
+  `patches/dmg-builder@26.17.0.patch` handles the `hdiutil` case first: when a `dmgbuild` call
+  fails with `Device not configured`, `Resource busy`, or `Resource temporarily unavailable`, it
+  retries that call alone, up to five attempts with 30 s to 4 min of backoff, and does not
+  notarize again. Re-create the patch when `dmg-builder` changes version.
+- When `scripts/macos-build-failure.ts` identifies a failed macOS build as notarytool losing its
+  connection to Apple (a transport error or an Apple 5xx) or as one of those `hdiutil` errors
+  failing `dmgbuild`, the whole build rebuilds and resubmits, up to three attempts in total. The
+  job turns off Spotlight indexing once and stops XProtect before each attempt, because `hdiutil`
+  fails under concurrent disk activity on hosted runners. A rejected submission, a credential
+  error, or any other failure fails the first attempt, even if the log also has a transient
+  error. A third runner failure fails the job. Rerunning the failed jobs reuses the version job's
+  result, but a rerun uses the workflow as it was at the release commit. A workflow fix only
+  reaches the next release.
 - Windows code signing does not block `1.0.0`; it is tracked as post-v1 work. Unsigned Windows installers show a SmartScreen warning on first install.
 - Linux AppImage artifacts are not signed.
 
