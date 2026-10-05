@@ -136,6 +136,29 @@ export function retainSnapshotMessageOrder(current: UIMessage, snapshot: UIMessa
 }
 
 /**
+ * The row of `candidates` (same text, in transcript order) that may stand for `message`. Two rows
+ * the Session log places at different orders are different prompts, however alike their text: a
+ * repeated "continue" must not take the identity of the first one. A row at the same order wins
+ * over one the Host has not recorded yet (an optimistic send).
+ */
+function matchingUserMessageIndex(candidates: readonly UIMessage[], message: UIMessage) {
+  const order = message.metadata?.sessionNodeCreatedOrder
+  if (order === undefined) return candidates.length > 0 ? 0 : -1
+  const sameOrderIndex = candidates.findIndex(
+    (candidate) => candidate.metadata?.sessionNodeCreatedOrder === order,
+  )
+  if (sameOrderIndex >= 0) return sameOrderIndex
+  return candidates.findIndex(
+    (candidate) => candidate.metadata?.sessionNodeCreatedOrder === undefined,
+  )
+}
+
+function takeMatchingUserMessage(candidates: UIMessage[], message: UIMessage) {
+  const index = matchingUserMessageIndex(candidates, message)
+  return index < 0 ? undefined : candidates.splice(index, 1)[0]
+}
+
+/**
  * Replaces persisted user rows with matching in-memory optimistic rows so React row
  * identity remains stable across the post-run snapshot refresh.
  */
@@ -158,7 +181,8 @@ export function reconcileSnapshotUserMessages(
       return message
     }
 
-    const replacement = existingUserQueuesByText.get(text)?.shift()
+    const candidates = existingUserQueuesByText.get(text)
+    const replacement = candidates ? takeMatchingUserMessage(candidates, message) : undefined
     if (!replacement) {
       return message
     }

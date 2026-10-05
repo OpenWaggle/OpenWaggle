@@ -6,7 +6,6 @@ import type { SupportedModelId } from '@shared/types/llm'
 import type { AgentTransportEvent } from '@shared/types/stream'
 import type { WaggleConfig } from '@shared/types/waggle'
 import { create } from 'zustand'
-import { applyAgentTransportEvent } from '@/features/chat/lib/chat-stream-state'
 import type { AgentCompactionStatus } from '@/features/chat/lib/compaction-lifecycle'
 import { api } from '@/shared/lib/ipc'
 import {
@@ -21,7 +20,6 @@ import {
   restoreCompactionSnapshots,
   retainUnchangedActivities,
 } from './background-run-activity-restore'
-import { applyCompactionSnapshotEvent } from './background-run-compaction'
 import {
   interruptedFirstSendLaunch,
   launchesFromSnapshots,
@@ -31,13 +29,15 @@ import {
   loadRecoverableBackgroundRuns,
   persistRecoverableBackgroundRuns,
 } from './background-run-recovery-storage'
-import { withoutRunRenderSnapshot, withRunCompactionStatus } from './background-run-render-state'
-
-interface ActiveRunRenderSnapshot {
-  readonly messages: readonly UIMessage[]
-  readonly compactionStatus: AgentCompactionStatus | null
-  readonly updatedAt: number
-}
+import {
+  type RunRenderSnapshot,
+  withoutRunRenderSnapshot,
+  withoutSettledRunRenderSnapshot,
+  withRunCompactionStatus,
+  withRunRenderEvent,
+  withRunRenderMessages,
+  withSettledRunRenderSnapshot,
+} from './background-run-render-state'
 
 export interface FirstSendRecovery {
   readonly payload: AgentSendPayload
@@ -49,17 +49,21 @@ interface BackgroundRunState {
   activeRunIds: Set<SessionId>
   /** The model each busy Session's current Run reported when it started. */
   runModelBySessionId: Map<SessionId, SupportedModelId>
-  renderSnapshotsBySessionId: Map<SessionId, ActiveRunRenderSnapshot>
+  renderSnapshotsBySessionId: Map<SessionId, RunRenderSnapshot>
   worktreeLaunchBySessionId: Map<SessionId, WorktreeLaunchSnapshot>
   firstSendRecoveryBySessionId: Map<SessionId, FirstSendRecovery>
   addActiveRun: (id: SessionId, model?: SupportedModelId) => void
   removeActiveRun: (id: SessionId) => void
   hasActiveRun: (id: SessionId) => boolean
-  getRunRenderSnapshot: (id: SessionId) => ActiveRunRenderSnapshot | null
+  getRunRenderSnapshot: (id: SessionId) => RunRenderSnapshot | null
   setRunRenderMessages: (id: SessionId, messages: readonly UIMessage[]) => void
   setRunCompactionStatus: (id: SessionId, status: AgentCompactionStatus | null) => void
   applyRunRenderEvent: (id: SessionId, event: AgentTransportEvent) => void
   clearRunRenderSnapshot: (id: SessionId) => void
+  /** A Run settled: the snapshot holds it, so the next Run's start reseeds it. */
+  noteRunRenderSnapshotRunSettled: (id: SessionId, runId: string | undefined) => void
+  /** The settled Run's Session refreshed: drops the snapshot unless a later Run seeded it. */
+  clearSettledRunRenderSnapshot: (id: SessionId) => void
   getWorktreeLaunch: (id: SessionId) => WorktreeLaunchSnapshot | null
   setWorktreeLaunch: (id: SessionId, launch: WorktreeLaunchSnapshot | null) => void
   setFirstSendRecovery: (id: SessionId, recovery: FirstSendRecovery | null) => void
@@ -168,7 +172,7 @@ function initialBackgroundRunState() {
   return {
     activeRunIds: new Set<SessionId>(),
     runModelBySessionId: new Map<SessionId, SupportedModelId>(),
-    renderSnapshotsBySessionId: new Map<SessionId, ActiveRunRenderSnapshot>(),
+    renderSnapshotsBySessionId: new Map<SessionId, RunRenderSnapshot>(),
     worktreeLaunchBySessionId: new Map<SessionId, WorktreeLaunchSnapshot>(),
     firstSendRecoveryBySessionId: new Map<SessionId, FirstSendRecovery>(),
   }
@@ -213,15 +217,7 @@ export const useBackgroundRunStore = create<BackgroundRunState>((set, get) => ({
   },
 
   setRunRenderMessages(id: SessionId, messages: readonly UIMessage[]) {
-    set((state) => {
-      const next = new Map(state.renderSnapshotsBySessionId)
-      next.set(id, {
-        messages: [...messages],
-        compactionStatus: state.renderSnapshotsBySessionId.get(id)?.compactionStatus ?? null,
-        updatedAt: Date.now(),
-      })
-      return { renderSnapshotsBySessionId: next }
-    })
+    set((state) => withRunRenderMessages(state, id, messages))
   },
 
   setRunCompactionStatus(id: SessionId, status: AgentCompactionStatus | null) {
@@ -229,28 +225,19 @@ export const useBackgroundRunStore = create<BackgroundRunState>((set, get) => ({
   },
 
   applyRunRenderEvent(id: SessionId, event: AgentTransportEvent) {
-    set((state) => {
-      const existing = state.renderSnapshotsBySessionId.get(id)
-      if (!existing && event.type !== 'compaction_start') {
-        return state
-      }
-      const snapshot = existing ?? { messages: [], compactionStatus: null, updatedAt: Date.now() }
-      const next = new Map(state.renderSnapshotsBySessionId)
-      next.set(id, {
-        messages: applyAgentTransportEvent([...snapshot.messages], event),
-        compactionStatus: applyCompactionSnapshotEvent(
-          snapshot.compactionStatus,
-          event,
-          snapshot.messages,
-        ),
-        updatedAt: Date.now(),
-      })
-      return { renderSnapshotsBySessionId: next }
-    })
+    set((state) => withRunRenderEvent(state, id, event))
   },
 
   clearRunRenderSnapshot(id: SessionId) {
     set((state) => withoutRunRenderSnapshot(state, id))
+  },
+
+  noteRunRenderSnapshotRunSettled(id: SessionId, runId: string | undefined) {
+    set((state) => withSettledRunRenderSnapshot(state, id, runId))
+  },
+
+  clearSettledRunRenderSnapshot(id: SessionId) {
+    set((state) => withoutSettledRunRenderSnapshot(state, id))
   },
 
   getWorktreeLaunch(id: SessionId) {

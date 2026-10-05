@@ -145,6 +145,83 @@ function mergeAssistantParts(
   return mergedParts
 }
 
+/**
+ * Whether a user row only the current transcript holds is already shown by a reconnect user row
+ * with its text (an optimistic send the reconnect recorded under another id). A row the Session log
+ * placed at an order no such reconnect row has is a different prompt and is kept.
+ */
+function isRepresentedByReconnectUser(
+  message: UIMessage,
+  reconnectUserCountsByText: Map<string, number>,
+  reconnectUserOrders: ReadonlySet<number>,
+) {
+  const text = getNonEmptyUserMessageText(message)
+  if (!text) return false
+  const order = message.metadata?.sessionNodeCreatedOrder
+  if (order !== undefined && !reconnectUserOrders.has(order)) return false
+  return consumeUserMessageTextCount(reconnectUserCountsByText, text)
+}
+
+function reconnectUserOrdersOf(messages: readonly UIMessage[]) {
+  const orders = new Set<number>()
+  for (const message of messages) {
+    const order = message.role === 'user' ? message.metadata?.sessionNodeCreatedOrder : undefined
+    if (order !== undefined) orders.add(order)
+  }
+  return orders
+}
+
+/**
+ * Places the messages only the current transcript holds. Each keeps its place after the shared
+ * message it followed there; ones before the first shared message stay before it. Appending them
+ * put a Run's earlier answers, streamed while its Session was not shown, below the answer the
+ * reconnect buffer still holds. With no shared message at all they are appended. One pass over
+ * each list: a transcript can hold thousands of messages and this runs on every open.
+ */
+function placeCurrentOnlyMessages(
+  mergedMessages: UIMessage[],
+  currentMessages: readonly UIMessage[],
+  reconnectMessageIds: ReadonlySet<string>,
+  isRepresented: (message: UIMessage) => boolean,
+): UIMessage[] {
+  const leading: UIMessage[] = []
+  const followersByAnchorId = new Map<string, UIMessage[]>()
+  let anchorId: string | null = null
+  let firstSharedId: string | null = null
+  for (const currentMessage of currentMessages) {
+    if (reconnectMessageIds.has(currentMessage.id)) {
+      anchorId = currentMessage.id
+      firstSharedId ??= currentMessage.id
+      continue
+    }
+    if (isRepresented(currentMessage)) continue
+    if (anchorId === null) {
+      leading.push(currentMessage)
+      continue
+    }
+    const followers = followersByAnchorId.get(anchorId)
+    if (followers) followers.push(currentMessage)
+    else followersByAnchorId.set(anchorId, [currentMessage])
+  }
+  if (leading.length === 0 && followersByAnchorId.size === 0) return mergedMessages
+  if (firstSharedId === null) return [...mergedMessages, ...leading]
+
+  const placed: UIMessage[] = []
+  for (const message of mergedMessages) {
+    if (message.id === firstSharedId) {
+      placed.push(...leading)
+      firstSharedId = null
+    }
+    placed.push(message)
+    const followers = followersByAnchorId.get(message.id)
+    if (followers) {
+      placed.push(...followers)
+      followersByAnchorId.delete(message.id)
+    }
+  }
+  return placed
+}
+
 export function mergeBackgroundReconnectMessages(
   reconnectMessages: UIMessage[],
   currentMessages: UIMessage[],
@@ -153,6 +230,7 @@ export function mergeBackgroundReconnectMessages(
   const currentMessagesById = new Map(currentMessages.map((message) => [message.id, message]))
   const reconnectMessageIds = new Set(reconciledMessages.map((message) => message.id))
   const reconnectUserCountsByText = countUserMessagesByText(reconciledMessages)
+  const reconnectUserOrders = reconnectUserOrdersOf(reconciledMessages)
   const mergedMessages = reconciledMessages.map((message) => {
     const currentMessage = currentMessagesById.get(message.id)
     return match(currentMessage)
@@ -173,18 +251,7 @@ export function mergeBackgroundReconnectMessages(
       .otherwise((value) => retainSnapshotMessageOrder(value, message))
   })
 
-  for (const currentMessage of currentMessages) {
-    if (!reconnectMessageIds.has(currentMessage.id)) {
-      const currentUserText = getNonEmptyUserMessageText(currentMessage)
-      if (
-        currentUserText &&
-        consumeUserMessageTextCount(reconnectUserCountsByText, currentUserText)
-      ) {
-        continue
-      }
-      mergedMessages.push(currentMessage)
-    }
-  }
-
-  return mergedMessages
+  return placeCurrentOnlyMessages(mergedMessages, currentMessages, reconnectMessageIds, (message) =>
+    isRepresentedByReconnectUser(message, reconnectUserCountsByText, reconnectUserOrders),
+  )
 }

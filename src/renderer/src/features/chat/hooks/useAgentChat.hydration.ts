@@ -4,6 +4,7 @@ import type { SessionDetail } from '@shared/types/session'
 import { api } from '@/shared/lib/ipc'
 import { placeReconnectedRunMessages } from '../lib/chat-stream-user-messages'
 import { acknowledgeCompactionStatus } from '../lib/compaction-lifecycle'
+import { unsettledRunMessages } from '../lib/seeded-run-messages'
 import {
   appendMissingOptimisticUserMessages,
   appendUnpersistedAssistantTail,
@@ -12,6 +13,7 @@ import {
   reconcileSnapshotUserMessages,
   sessionToUIMessages,
 } from '../lib/useAgentChat.utils'
+import { activeRunHydrationMessages } from './useAgentChat.active-run-messages'
 import {
   buildOptimisticMessagesKey,
   buildSessionSnapshotKey,
@@ -43,6 +45,10 @@ export function resetMissingSessionHydration(context: SessionHydrationContext) {
     resolvePendingForegroundRun(context)
   }
   clearForegroundRunState(context)
+  // No Session renders, so none streams in the background here either; the next one hydrates anew.
+  context.setBackgroundStreaming(false)
+  context.backgroundStreamingRef.current = false
+  context.backgroundReconnectSessionIdRef.current = null
   context.streamSignalVersionRef.current = 0
   context.lastHydratedSessionIdRef.current = null
   context.lastHydratedSnapshotKeyRef.current = null
@@ -115,13 +121,19 @@ function shouldSkipActiveRunHydration(
   )
 }
 
+/**
+ * Merges the reconnect into the transcript shown. The rows a settled Run left there are left to
+ * the freshly fetched transcript once it holds that Run: hydration may have used an older one that
+ * did not, and merging them would put the persisted copy next to them.
+ */
 function handleActiveRunReconnectResult(
   capturedSessionId: SessionId,
-  nextMessages: UIMessage[] | null,
+  reconnect: ReconnectedRun,
+  settledMessageIds: ReadonlySet<string> | undefined,
   context: SessionHydrationContext,
 ) {
+  const nextMessages = reconnect.messages
   if (
-    !nextMessages ||
     context.currentSessionIdRef.current !== capturedSessionId ||
     context.backgroundReconnectSessionIdRef.current !== capturedSessionId
   ) {
@@ -132,7 +144,15 @@ function handleActiveRunReconnectResult(
     context.setMessagesBySessionId,
     context.setRunRenderMessages,
     capturedSessionId,
-    (currentMessages) => mergeBackgroundReconnectMessages(nextMessages, currentMessages),
+    (currentMessages) =>
+      mergeBackgroundReconnectMessages(
+        nextMessages,
+        unsettledRunMessages({
+          persistedMessages: reconnect.persistedMessages,
+          cachedMessages: currentMessages,
+          settledMessageIds,
+        }) ?? currentMessages,
+      ),
     { cacheRunSnapshot: true },
   )
 }
@@ -162,16 +182,7 @@ function hydrateActiveRunSession(
     return
   }
 
-  const persistedMessages = mergeSessionAndOptimisticMessages(
-    input.session,
-    input.optimisticUserMessages,
-  )
-  const nextMessages = input.cachedRenderMessages
-    ? mergeBackgroundReconnectMessages([...persistedMessages], [...input.cachedRenderMessages])
-    : reconcileSnapshotUserMessages(
-        persistedMessages,
-        getMessagesForSession(context.messagesBySessionIdRef, input.sessionId),
-      )
+  const { messages: nextMessages, compactionStatus } = activeRunHydrationMessages(input, context)
   setMessagesForSession(
     context.messagesBySessionIdRef,
     context.setMessagesBySessionId,
@@ -188,18 +199,20 @@ function hydrateActiveRunSession(
   const durableSummaryIds = nextMessages.flatMap((message) =>
     message.metadata?.compactionSummary === undefined ? [] : [message.id],
   )
-  const acknowledgedStatus = acknowledgeCompactionStatus(
-    input.cachedCompactionStatus,
-    durableSummaryIds,
-  )
+  const acknowledgedStatus = acknowledgeCompactionStatus(compactionStatus, durableSummaryIds)
   if (acknowledgedStatus && acknowledgedStatus.type !== 'retrying') {
     context.compactionSummaryCountAtStartRef.current = acknowledgedStatus.summaryCountAtStart
   }
   context.setCompactionStatus(acknowledgedStatus)
   context.setRunCompactionStatus(input.sessionId, acknowledgedStatus)
   void reconnectToBackgroundRun(input.sessionId, input.session, input.optimisticUserMessages)
-    .then((nextReconnectMessages) =>
-      handleActiveRunReconnectResult(input.sessionId, nextReconnectMessages, context),
+    .then((reconnect) =>
+      handleActiveRunReconnectResult(
+        input.sessionId,
+        reconnect,
+        input.cachedSettledMessageIds,
+        context,
+      ),
     )
     .catch((reconnectError: unknown) =>
       handleActiveRunReconnectError(input.sessionId, reconnectError, context),
@@ -267,21 +280,30 @@ export function hydrateSessionMessages(
   hydrateIdleSession(input, keys, context)
 }
 
+interface ReconnectedRun {
+  /** The fetched transcript with the Run's reconnect buffer placed in it. */
+  readonly messages: UIMessage[]
+  /** The fetched persisted transcript alone. */
+  readonly persistedMessages: readonly UIMessage[]
+}
+
 async function reconnectToBackgroundRun(
   sessionId: SessionId,
   session: SessionDetail,
   optimisticUserMessages: readonly UIMessage[],
-) {
-  const latestSession = await api.getSessionDetail(sessionId)
+): Promise<ReconnectedRun> {
+  const latestSession = (await api.getSessionDetail(sessionId)) ?? session
   const snapshot = await api.getBackgroundRun(sessionId)
   const historicalMessages = mergeSessionAndOptimisticMessages(
-    latestSession ?? session,
+    latestSession,
     optimisticUserMessages,
   )
-  if (!snapshot) {
-    return historicalMessages
-  }
+  const persistedMessages = sessionToUIMessages(latestSession)
+  if (!snapshot) return { messages: historicalMessages, persistedMessages }
 
   const partialAssistant = buildPartialAssistantMessage(snapshot.parts, snapshot.messageId)
-  return placeReconnectedRunMessages(historicalMessages, snapshot, partialAssistant)
+  return {
+    messages: placeReconnectedRunMessages(historicalMessages, snapshot, partialAssistant),
+    persistedMessages,
+  }
 }

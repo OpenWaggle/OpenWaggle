@@ -139,6 +139,10 @@ export interface SessionHydrationInput {
   readonly optimisticUserMessages: readonly UIMessage[]
   readonly hasActiveRun: boolean
   readonly cachedRenderMessages: readonly UIMessage[] | null
+  /** The cached messages are a seeded snapshot's: only the active Run's, none persisted yet. */
+  readonly cachedRenderSeeded: boolean
+  /** Ids of cached messages a settled Run left, persisted under other ids once the Session saved it. */
+  readonly cachedSettledMessageIds?: ReadonlySet<string>
   readonly cachedCompactionStatus: AgentCompactionStatus | null
 }
 

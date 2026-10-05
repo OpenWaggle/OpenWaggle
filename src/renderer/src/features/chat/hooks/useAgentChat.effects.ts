@@ -28,6 +28,8 @@ interface UseSessionHydrationEffectsParams {
   readonly getRunRenderSnapshot: (sessionId: SessionId) => {
     readonly messages: readonly UIMessage[]
     readonly compactionStatus: AgentCompactionStatus | null
+    readonly seededByRunId?: string
+    readonly settledMessageIds?: ReadonlySet<string>
   } | null
   readonly removeMatchedOptimisticUserMessages: (
     sessionId: SessionId,
@@ -155,6 +157,8 @@ export function useSessionHydrationEffects(params: UseSessionHydrationEffectsPar
         optimisticUserMessages,
         hasActiveRun: activeRun,
         cachedRenderMessages: activeRun ? (cachedRenderSnapshot?.messages ?? null) : null,
+        cachedRenderSeeded: activeRun && cachedRenderSnapshot?.seededByRunId !== undefined,
+        cachedSettledMessageIds: cachedRenderSnapshot?.settledMessageIds,
         cachedCompactionStatus: cachedRenderSnapshot?.compactionStatus ?? null,
       },
       context,

@@ -32,8 +32,13 @@ export function useBackgroundRunMonitor(): void {
   const applyAgentLoopEvent = useAgentLoopEventStore((s) => s.applyEvent)
   const addActiveRun = useBackgroundRunStore((s) => s.addActiveRun)
   const applyRunRenderEvent = useBackgroundRunStore((s) => s.applyRunRenderEvent)
-  const clearRunRenderSnapshot = useBackgroundRunStore((s) => s.clearRunRenderSnapshot)
+  const clearSettledRunRenderSnapshot = useBackgroundRunStore(
+    (s) => s.clearSettledRunRenderSnapshot,
+  )
   const hasActiveRun = useBackgroundRunStore((s) => s.hasActiveRun)
+  const noteRunRenderSnapshotRunSettled = useBackgroundRunStore(
+    (s) => s.noteRunRenderSnapshotRunSettled,
+  )
   const removeActiveRun = useBackgroundRunStore((s) => s.removeActiveRun)
   const initialize = useBackgroundRunStore((s) => s.initialize)
   const refreshSession = useChatStore((s) => s.refreshSession)
@@ -88,13 +93,15 @@ export function useBackgroundRunMonitor(): void {
 
     const unsubCompleted = api.onRunCompleted((payload) => {
       useQueuedRunStartStore.getState().settle(payload.sessionId, payload.runId)
+      // The snapshot holds the settled Run now; the next Run's start must not keep its answers.
+      noteRunRenderSnapshotRunSettled(payload.sessionId, payload.runId)
       // The Session went straight on to a queued Follow-up; it is still running.
       if (payload.continues) return
       useRunFinishingStore.getState().clear(payload.sessionId)
       useFirstSendPendingStore.getState().clear(payload.sessionId)
       removeActiveRun(payload.sessionId)
       void refreshSession(payload.sessionId).finally(() => {
-        clearRunRenderSnapshot(payload.sessionId)
+        clearSettledRunRenderSnapshot(payload.sessionId)
       })
     })
 
@@ -106,8 +113,9 @@ export function useBackgroundRunMonitor(): void {
     addActiveRun,
     applyAgentLoopEvent,
     applyRunRenderEvent,
-    clearRunRenderSnapshot,
+    clearSettledRunRenderSnapshot,
     hasActiveRun,
+    noteRunRenderSnapshotRunSettled,
     refreshSession,
     removeActiveRun,
   ])
