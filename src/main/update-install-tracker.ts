@@ -29,7 +29,10 @@ let installingVersion: string | null = null
  * never stops the Host.
  */
 let releaseHostOnQuit = false
-/** The installer has started the quit; nothing may cancel the release from here. */
+/**
+ * The installer has started the quit. Until a new attempt or an installer error while installing,
+ * neither the watchdog nor an update-check error may cancel the release.
+ */
 let installerQuitAnnounced = false
 let watchdog: ReturnType<typeof setTimeout> | null = null
 let environment: UpdaterInstallEnvironment | null = null
@@ -87,6 +90,8 @@ export function resetUpdateInstall(next: UpdaterInstallEnvironment | null) {
 export async function beginUpdateInstall(version: string) {
   installingVersion = version
   releaseHostOnQuit = true
+  // A new attempt: its own installer quit announces itself again.
+  installerQuitAnnounced = false
   previousFailure = null
   setUpdateStatus({ type: 'installing', version })
   stopUpdateInstallWatchdog()
@@ -117,13 +122,15 @@ export async function beginUpdateInstall(version: string) {
 export function failUpdateInstall(error: Error): boolean {
   const version = installingVersion
   if (!version) {
-    // A late installer error after the watchdog; once the installer quits the app, nothing clears it.
+    // A late error after the watchdog, from the installer or a check; an announced quit keeps it.
     if (!installerQuitAnnounced) releaseHostOnQuit = false
     return false
   }
   stopUpdateInstallWatchdog()
   installingVersion = null
+  // Checks wait while installing, so this error is the installer's own: the app stays open.
   releaseHostOnQuit = false
+  installerQuitAnnounced = false
   const reason = error.message.replace(/\.+$/, '')
   const message = `Version ${version} could not be installed: ${reason}. Restart to update to try again.`
   logger.error('Update install failed', { version, message: error.message })

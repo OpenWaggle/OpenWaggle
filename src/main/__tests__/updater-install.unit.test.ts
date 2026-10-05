@@ -172,6 +172,21 @@ describe('Restart to update', () => {
     expect(shouldReleaseHostOnQuit()).toBe(true)
   })
 
+  it('lets the watchdog clear the release again on a later attempt', async () => {
+    initAutoUpdater('stable')
+    emitter().emit('update-downloaded', { version: '1.2.3' })
+    await installUpdate()
+    // The installer announced a quit that did not happen, so the update is offered again.
+    markUpdateQuit()
+    emitter().emit('error', new Error('relaunch failed'))
+    emitter().emit('update-downloaded', { version: '1.2.3' })
+
+    await installUpdate()
+    await vi.advanceTimersByTimeAsync(3 * 60 * 1000)
+
+    expect(shouldReleaseHostOnQuit()).toBe(false)
+  })
+
   it('clears the release on a late installer error after the watchdog', async () => {
     initAutoUpdater('stable')
     emitter().emit('update-downloaded', { version: '1.2.3' })
