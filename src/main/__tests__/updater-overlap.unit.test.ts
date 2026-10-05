@@ -241,7 +241,7 @@ describe('updater overlapping checks', () => {
 
     expect(Reflect.get(updaterRef.current ?? {}, 'autoInstallOnAppQuit')).toBe(false)
     expect(getUpdateStatus()).toEqual({ type: 'downloaded', version: '0.5.0' })
-    installUpdate()
+    await installUpdate()
     expect(Reflect.get(updaterRef.current ?? {}, 'quitAndInstall')).toHaveBeenCalledWith(true, true)
   })
 

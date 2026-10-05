@@ -1,13 +1,31 @@
 import type { LocalHostCommandPayload, LocalHostCommandResult } from '@shared/types/local-host'
 import { LOCAL_HOST_CONTRACT_VERSION } from '@shared/types/local-host'
 import type { LocalSessionCallerIdentity } from '@shared/types/local-session-profile'
+import type { SessionHostDrainOptions } from '../application/session-host-liveness'
 import { LocalSessionCommandAuthorizationError } from '../errors'
 
-/** Only the local user may stop the Host; named profiles and agents may not. */
-function authorizeLocalHostCaller(caller: LocalSessionCallerIdentity) {
-  if (caller.profileAuthority || !caller.callerId.startsWith('local-user:')) {
+const DESKTOP_APP_CALLER_ID = 'gui:local-user'
+
+/**
+ * How long the Host drains when the desktop app stops it to install an update (ADR 0047). Restart
+ * to update has already let Runs finish or stopped them, so this only bounds work such as a running
+ * Action, a CLI wait, or an export that would otherwise keep the old version running.
+ */
+export const DESKTOP_UPDATE_HOST_STOP_DEADLINE_MS = 10_000
+
+/**
+ * Only the local user may stop the Host: the CLI, or the desktop app when it installs an update.
+ * Named profiles and agents may not.
+ */
+function hostStopOptions(caller: LocalSessionCallerIdentity): SessionHostDrainOptions {
+  if (caller.profileAuthority) {
     throw new LocalSessionCommandAuthorizationError({ code: 'capability_denied' })
   }
+  if (caller.callerId === DESKTOP_APP_CALLER_ID) {
+    return { deadlineMs: DESKTOP_UPDATE_HOST_STOP_DEADLINE_MS }
+  }
+  if (caller.callerId.startsWith('local-user:')) return {}
+  throw new LocalSessionCommandAuthorizationError({ code: 'capability_denied' })
 }
 
 /**
@@ -19,15 +37,15 @@ export async function dispatchLocalHostCommand(input: {
   readonly caller: LocalSessionCallerIdentity
   readonly payload: LocalHostCommandPayload
   readonly countBlockingRuns: () => Promise<number>
-  readonly requestHostStop: () => {
+  readonly requestHostStop: (options: SessionHostDrainOptions) => {
     readonly hostInstanceId: string
     readonly runningActions: number
   }
 }): Promise<LocalHostCommandResult> {
-  authorizeLocalHostCaller(input.caller)
+  const options = hostStopOptions(input.caller)
   // Stop first, so no Run can be admitted between the count and the drain. The count only
   // informs the reply; failing to read it must not cancel the stop.
-  const stopping = input.requestHostStop()
+  const stopping = input.requestHostStop(options)
   const blockingRuns = await input.countBlockingRuns().catch(() => null)
   return {
     contract: 'local-host-v1',

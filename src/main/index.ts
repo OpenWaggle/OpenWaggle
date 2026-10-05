@@ -20,6 +20,11 @@ import { configureDesktopUiAfterReady, prepareDesktopUi } from './desktop-window
 import { env, installDesktopShellEnvironment } from './env'
 import { describeError } from './error-description'
 import { startErrorReporting } from './error-reporting'
+import {
+  disposeGuiAutoUpdater,
+  isGuiInstallingUpdate,
+  startGuiAutoUpdater,
+} from './gui-auto-updater'
 import { exitAfterBootstrapFailure } from './gui-bootstrap-failure'
 import { installInlineVisualizationNavigationGuard } from './inline-visualization-navigation'
 import { applyInstallerUpdateChannelIntent } from './installer-update-channel-intent'
@@ -50,7 +55,6 @@ const importAgentHandlerModule = () => import('./ipc/agent-handler')
 const importIpcHandlersModule = () => import('./ipc/handlers')
 const importRuntimeModule = () => import('./runtime')
 const importSettingsStoreModule = () => import('./store/settings')
-const importUpdaterModule = () => import('./updater')
 
 type AgentHandlerModule = Awaited<ReturnType<typeof importAgentHandlerModule>>
 type IpcHandlersModule = Awaited<ReturnType<typeof importIpcHandlersModule>>
@@ -68,12 +72,14 @@ if (app.isPackaged) {
 const appIconPath = is.dev
   ? join(__dirname, '../../build/icon-dev.png')
   : join(process.resourcesPath, 'icon.png')
+// Unpackaged builds have no bundle icon, so macOS takes their Dock icon at runtime; use the
+// generated rounded-square macOS icon rather than the free-form window icon.
+const devDockIconPath = join(__dirname, '../../build/icon-dev-macos.png')
 const logger = createLogger('main/index')
 const startupStartedAt = performance.now()
 let ipcHandlersRegistered = false
 let mainWindowCreated = false
 let cleanupTerminalsOnce: IpcHandlersModule['cleanupTerminals'] | null = null
-let disposeAutoUpdaterOnce: (() => void) | null = null
 let persistAllActiveRunsOnce: AgentHandlerModule['persistAllActiveRuns'] | null = null
 let runtimeModulePromise: Promise<RuntimeModule> | null = null
 let sessionHostLifecycleOnce: GuiSessionHostLifecycle | null = null
@@ -131,22 +137,6 @@ async function registerIpcHandlersOnce() {
   // Settings are hydrated from the Host by now; handlers record GUI-only observations here.
   usageStatisticsModule.startGuiUsageStatistics()
   ipcHandlersModule.registerAllIpcHandlers()
-}
-
-async function initializeAutoUpdaterAfterWindow() {
-  try {
-    const { disposeAutoUpdater, initAutoUpdater } = await importUpdaterModule()
-    disposeAutoUpdaterOnce = disposeAutoUpdater
-    const { getSettings, hydrateSettingsStoreFromHost } = await importSettingsStoreModule()
-    initAutoUpdater(getSettings().updateChannel, async () => {
-      const settings = await invokeConfiguredHostUi('settings:get', [])
-      if (!settings.handled) throw new Error('Attached GUI lost its Session Host settings route.')
-      hydrateSettingsStoreFromHost(settings.result)
-      return getSettings().updateChannel
-    })
-  } catch (error) {
-    logger.warn('Failed to initialize auto-updater', describeError(error))
-  }
 }
 
 async function persistActiveRunsBeforeQuit() {
@@ -238,7 +228,7 @@ async function bootstrapServicesAndWindow() {
   mainWindowCreated = true
   startupMark('main-window-created')
 
-  if (!isAutomationMode()) void initializeAutoUpdaterAfterWindow()
+  if (!isAutomationMode()) void startGuiAutoUpdater()
 }
 
 /** A later launch focuses the window, or creates one after startup as the Dock icon does. */
@@ -258,7 +248,7 @@ function registerAppLifecycle() {
     .whenReady()
     .then(() => {
       electronApp.setAppUserModelId('com.openwaggle.app')
-      configureDesktopUiAfterReady(app, appIconPath)
+      configureDesktopUiAfterReady(app, devDockIconPath)
 
       // Initialize file logger now that app paths are available
       void initFileLogger(app.getPath('logs'))
@@ -293,7 +283,7 @@ function registerAppLifecycle() {
   })
 
   registerAppQuitCleanup({
-    disposeAutoUpdater: () => disposeAutoUpdaterOnce?.(),
+    disposeAutoUpdater: disposeGuiAutoUpdater,
     persistActiveRuns: persistActiveRunsBeforeQuit,
     cleanupTerminals: async () => {
       if (cleanupDesktopServicesOnce) await cleanupDesktopServicesOnce()
@@ -301,7 +291,10 @@ function registerAppLifecycle() {
     },
     disposeRuntime: async () => {
       try {
-        await sessionHostLifecycleOnce?.stop()
+        // The installer cannot replace the app while its detached Host still runs (ADR 0047).
+        await sessionHostLifecycleOnce?.stop({
+          releaseHostForUpdate: isGuiInstallingUpdate(),
+        })
       } finally {
         try {
           await (await getRuntimeModule()).disposeAppRuntime()

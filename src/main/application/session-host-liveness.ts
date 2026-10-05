@@ -11,8 +11,25 @@ export const SESSION_HOST_LIVENESS_KINDS = [
 ] as const
 
 export type SessionHostLivenessKind = (typeof SESSION_HOST_LIVENESS_KINDS)[number]
+
+/**
+ * Background maintenance that polls on its own schedule. It holds the Host open while it works but
+ * is not activity: the idle grace keeps counting from the last real work, or a poll every few
+ * seconds would keep an idle Host alive forever.
+ */
+const IDLE_CLOCK_NEUTRAL_KINDS: ReadonlySet<SessionHostLivenessKind> = new Set([
+  'semantic-preparation',
+])
 export type SessionHostDrainReason = 'recovery' | 'upgrade' | 'stop'
 const SHUTDOWN_RETRY_DELAY_MS = 250
+
+export interface SessionHostDrainOptions {
+  /**
+   * Stop the Host this long after the drain starts even if work still holds it. Work still running
+   * then ends with the Host, as it would if the process were killed.
+   */
+  readonly deadlineMs?: number
+}
 
 export interface SessionHostLivenessOptions {
   readonly idleGracePeriodMs: number
@@ -24,6 +41,11 @@ export class SessionHostLiveness {
   private readonly owners = new Map<SessionHostLivenessKind, number>()
   private idleGracePeriodMs: number
   private idleTimer: ReturnType<typeof setTimeout> | null = null
+  /** When the Host last became idle; `null` while it owns work. */
+  private idleSince: number | null = null
+  private drainDeadlineAt: number | null = null
+  private drainDeadlineTimer: ReturnType<typeof setTimeout> | null = null
+  private drainDeadlinePassed = false
   private closed = false
   private shutdownRequested = false
   private draining = false
@@ -82,13 +104,20 @@ export class SessionHostLiveness {
     }
   }
 
+  /** Shut down once the Host has been idle for `delayMs`, counting time it is already idle. */
   private scheduleIdleShutdown(delayMs = this.idleGracePeriodMs) {
     if (this.closed || this.shutdownRequested || this.totalOwners() > 0 || this.idleTimer) return
-    this.idleTimer = setTimeout(() => {
-      this.idleTimer = null
-      if (this.closed || this.shutdownRequested || this.totalOwners() > 0) return
-      this.requestShutdownSafely()
-    }, delayMs)
+    const now = Date.now()
+    const idleForMs = this.idleSince === null ? 0 : now - this.idleSince
+    this.idleSince ??= now
+    this.idleTimer = setTimeout(
+      () => {
+        this.idleTimer = null
+        if (this.closed || this.shutdownRequested || this.totalOwners() > 0) return
+        this.requestShutdownSafely()
+      },
+      Math.max(0, delayMs - idleForMs),
+    )
   }
 
   private hasBlockingDrainOwners() {
@@ -98,10 +127,28 @@ export class SessionHostLiveness {
   }
 
   private requestShutdownWhenDrained() {
-    if (this.closed || this.shutdownRequested || !this.draining || this.hasBlockingDrainOwners()) {
-      return
-    }
+    if (this.closed || this.shutdownRequested || !this.draining) return
+    if (this.hasBlockingDrainOwners() && !this.drainDeadlinePassed) return
     this.requestShutdownSafely()
+  }
+
+  private armDrainDeadline(deadlineMs: number) {
+    this.assertGracePeriod(deadlineMs)
+    const deadlineAt = Date.now() + deadlineMs
+    // A later stop may shorten a drain, never extend it.
+    if (this.drainDeadlineAt !== null && this.drainDeadlineAt <= deadlineAt) return
+    this.clearDrainDeadline()
+    this.drainDeadlineAt = deadlineAt
+    this.drainDeadlineTimer = setTimeout(() => {
+      this.drainDeadlineTimer = null
+      this.drainDeadlinePassed = true
+      this.requestShutdownWhenDrained()
+    }, deadlineMs)
+  }
+
+  private clearDrainDeadline() {
+    if (this.drainDeadlineTimer) clearTimeout(this.drainDeadlineTimer)
+    this.drainDeadlineTimer = null
   }
 
   /**
@@ -116,6 +163,7 @@ export class SessionHostLiveness {
       )
     }
     this.cancelIdleTimer()
+    if (!IDLE_CLOCK_NEUTRAL_KINDS.has(kind)) this.idleSince = null
     this.owners.set(kind, (this.owners.get(kind) ?? 0) + 1)
     if (kind === 'client') this.acceptedClient = true
     let released = false
@@ -136,11 +184,17 @@ export class SessionHostLiveness {
     }
   }
 
-  requestDrain(reason: SessionHostDrainReason = 'recovery'): void {
-    if (this.closed || this.draining) return
-    this.draining = true
-    this.activeDrainReason = reason
-    this.cancelIdleTimer()
+  requestDrain(
+    reason: SessionHostDrainReason = 'recovery',
+    options: SessionHostDrainOptions = {},
+  ): void {
+    if (this.closed) return
+    if (!this.draining) {
+      this.draining = true
+      this.activeDrainReason = reason
+      this.cancelIdleTimer()
+    }
+    if (options.deadlineMs !== undefined) this.armDrainDeadline(options.deadlineMs)
     this.requestShutdownWhenDrained()
   }
 
@@ -157,13 +211,17 @@ export class SessionHostLiveness {
     this.scheduleIdleShutdown(delayMs)
   }
 
+  /**
+   * The Host re-reads this setting every second. Only a changed value reschedules an idle Host,
+   * and the time it has already been idle counts, so a refresh never postpones the shutdown.
+   */
   updateIdleGracePeriod(idleGracePeriodMs: number): void {
     this.assertGracePeriod(idleGracePeriodMs)
+    if (idleGracePeriodMs === this.idleGracePeriodMs) return
     this.idleGracePeriodMs = idleGracePeriodMs
-    if (this.totalOwners() === 0 && !this.shutdownRequested) {
-      this.cancelIdleTimer()
-      this.scheduleIdleShutdown()
-    }
+    if (this.draining || this.totalOwners() > 0 || this.shutdownRequested) return
+    this.cancelIdleTimer()
+    this.scheduleIdleShutdown()
   }
 
   ownerCount(kind?: SessionHostLivenessKind): number {
@@ -182,6 +240,7 @@ export class SessionHostLiveness {
     if (this.closed) return
     this.closed = true
     this.cancelIdleTimer()
+    this.clearDrainDeadline()
     this.owners.clear()
   }
 }

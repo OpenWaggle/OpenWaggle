@@ -1,3 +1,4 @@
+import { PRODUCT_NAME } from '@shared/build-identity-runtime'
 import type { UpdateStatus } from '@shared/types/updater'
 import { useEffect, useRef } from 'react'
 import { api } from '@/shared/lib/ipc'
@@ -10,8 +11,15 @@ type DownloadedUpdateStatus = Extract<UpdateStatus, { readonly type: 'downloaded
 
 interface UpdaterToast {
   readonly message: string
-  readonly actionLabel: string
-  readonly run: () => Promise<void>
+  readonly variant: 'success' | 'neutral' | 'error'
+  readonly action?: { readonly label: string; readonly run: () => Promise<void> }
+}
+
+function installingToast(version: string): UpdaterToast {
+  return {
+    message: `Installing update v${version}. ${PRODUCT_NAME} will reopen when it is done.`,
+    variant: 'neutral',
+  }
 }
 
 function updaterToast(status: DownloadedUpdateStatus): UpdaterToast {
@@ -20,14 +28,21 @@ function updaterToast(status: DownloadedUpdateStatus): UpdaterToast {
     const runs = waitingForRuns === 1 ? '1 agent run' : `${waitingForRuns} agent runs`
     return {
       message: `Update v${status.version} will install when ${runs} finish${waitingForRuns === 1 ? 'es' : ''}`,
-      actionLabel: 'Restart now',
-      run: () => api.installUpdateNow(),
+      variant: 'success',
+      action: { label: 'Restart now', run: () => api.installUpdateNow() },
+    }
+  }
+  if (status.installFailure) {
+    return {
+      message: status.installFailure,
+      variant: 'error',
+      action: { label: 'Restart to update', run: () => api.installUpdate() },
     }
   }
   return {
     message: `Update v${status.version} ready`,
-    actionLabel: 'Restart to update',
-    run: () => api.installUpdate(),
+    variant: 'success',
+    action: { label: 'Restart to update', run: () => api.installUpdate() },
   }
 }
 
@@ -45,7 +60,7 @@ export function useAutoUpdater(): void {
       const visibleToast = useUIStore.getState().toastData
       if (
         visibleToast?.message === shown.message &&
-        visibleToast.action?.label === shown.actionLabel
+        visibleToast.action?.label === shown.action?.label
       ) {
         clearToast()
       }
@@ -53,23 +68,29 @@ export function useAutoUpdater(): void {
     }
 
     const unsubscribe = api.onUpdateStatus((status: UpdateStatus) => {
-      if (status.type === 'downloaded') {
-        const next = updaterToast(status)
+      if (status.type === 'downloaded' || status.type === 'installing') {
+        const next =
+          status.type === 'installing' ? installingToast(status.version) : updaterToast(status)
         if (shownToastRef.current?.message === next.message) return
         clearShownToast()
         shownToastRef.current = next
+        const action = next.action
         showPersistentToast({
           message: next.message,
-          variant: 'success',
+          variant: next.variant,
           persistent: true,
-          action: {
-            label: next.actionLabel,
-            onClick: () => {
-              next.run().catch((err: unknown) => {
-                logger.warn('Failed to install update', { error: String(err) })
-              })
-            },
-          },
+          ...(action
+            ? {
+                action: {
+                  label: action.label,
+                  onClick: () => {
+                    action.run().catch((err: unknown) => {
+                      logger.warn('Failed to install update', { error: String(err) })
+                    })
+                  },
+                },
+              }
+            : {}),
         })
         return
       }

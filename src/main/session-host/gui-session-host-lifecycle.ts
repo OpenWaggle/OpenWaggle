@@ -1,5 +1,6 @@
 import { LOCAL_SESSION_CURRENT_REVISION } from '@shared/types/local-session-protocol'
 import { configureGuiSessionCommandClient } from '../application/local-session-command-dispatcher'
+import { releaseSessionHostForUpdate } from './gui-session-host-release'
 import { prepareGuiSessionHostStartup } from './gui-session-host-startup'
 import { setGuiAttachedToRemoteSessionHost } from './gui-session-host-state'
 import { LocalSessionHostUpgradePendingError, probeLocalSessionHost } from './local-session-client'
@@ -16,10 +17,15 @@ function guiRemoteClient(paths: LocalSessionHostPaths, clientVersion: string) {
   return { paths, clientVersion, supportedRevisions: [LOCAL_SESSION_CURRENT_REVISION] }
 }
 
+export interface GuiSessionHostStopOptions {
+  /** Also stop the detached Host and wait for it to exit, because an update is installing. */
+  readonly releaseHostForUpdate?: boolean
+}
+
 export interface GuiSessionHostLifecycle {
   readonly client: { readonly paths: LocalSessionHostPaths; readonly clientVersion: string }
   readonly start: () => Promise<void>
-  readonly stop: () => Promise<void>
+  readonly stop: (options?: GuiSessionHostStopOptions) => Promise<void>
 }
 
 async function attachToRemoteSessionHost(input: {
@@ -85,7 +91,7 @@ export async function prepareGuiSessionHostLifecycle(input: {
       }
       input.startupMark('session-host-listening')
     },
-    stop: async () => {
+    stop: async (options = {}) => {
       stopping = true
       const stopBridge = stopRendererBridge
       stopRendererBridge = null
@@ -94,6 +100,8 @@ export async function prepareGuiSessionHostLifecycle(input: {
       } finally {
         configureGuiSessionCommandClient(null)
         setGuiAttachedToRemoteSessionHost(false)
+        // Detached first, so nothing in this app can start a new Host while the old one stops.
+        if (options.releaseHostForUpdate) await releaseSessionHostForUpdate(remoteClient)
       }
     },
   }

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
+  releaseSessionHostForUpdateMock,
   configureGuiSessionCommandClientMock,
   ensureLocalSessionHostMock,
   prepareLocalSessionHostPathsMock,
@@ -8,6 +9,7 @@ const {
   startRemoteSessionHostRendererBridgeMock,
   stopRendererBridgeMock,
 } = vi.hoisted(() => ({
+  releaseSessionHostForUpdateMock: vi.fn(async () => 'stopped'),
   configureGuiSessionCommandClientMock: vi.fn(),
   ensureLocalSessionHostMock: vi.fn(async () => undefined),
   prepareLocalSessionHostPathsMock: vi.fn(async (paths: object) => paths),
@@ -47,6 +49,9 @@ vi.mock('../session-host-cutover', () => ({
 vi.mock('../legacy-session-writer-fence', () => ({
   withLegacySessionWriterFence: (operation: () => Promise<unknown>) => operation(),
 }))
+vi.mock('../gui-session-host-release', () => ({
+  releaseSessionHostForUpdate: releaseSessionHostForUpdateMock,
+}))
 vi.mock('../session-host-renderer-bridge', () => ({
   startRemoteSessionHostRendererBridge: startRemoteSessionHostRendererBridgeMock,
 }))
@@ -66,6 +71,43 @@ describe('GUI Session Host lifecycle', () => {
     probeLocalSessionHostMock.mockReset().mockResolvedValue(undefined)
     startRemoteSessionHostRendererBridgeMock.mockReset().mockReturnValue(stopRendererBridgeMock)
     stopRendererBridgeMock.mockReset()
+    releaseSessionHostForUpdateMock.mockClear()
+  })
+
+  it('leaves the detached Host running on a normal quit', async () => {
+    const lifecycle = await prepareGuiSessionHostLifecycle({
+      userDataRoot: '/tmp/openwaggle-test',
+      clientVersion: 'test',
+      startupMark: vi.fn(),
+    })
+    await lifecycle.start()
+
+    await lifecycle.stop()
+
+    expect(releaseSessionHostForUpdateMock).not.toHaveBeenCalled()
+  })
+
+  it('stops the detached Host only after detaching from it when an update installs', async () => {
+    const lifecycle = await prepareGuiSessionHostLifecycle({
+      userDataRoot: '/tmp/openwaggle-test',
+      clientVersion: 'test',
+      startupMark: vi.fn(),
+    })
+    await lifecycle.start()
+    releaseSessionHostForUpdateMock.mockImplementationOnce(async () => {
+      // Nothing in the app may route to, or restart, the Host while it stops.
+      expect(stopRendererBridgeMock).toHaveBeenCalledOnce()
+      expect(configureGuiSessionCommandClientMock).toHaveBeenLastCalledWith(null)
+      expect(isGuiAttachedToRemoteSessionHost()).toBe(false)
+      return 'stopped'
+    })
+
+    await lifecycle.stop({ releaseHostForUpdate: true })
+
+    expect(releaseSessionHostForUpdateMock).toHaveBeenCalledOnce()
+    expect(releaseSessionHostForUpdateMock).toHaveBeenCalledWith(
+      expect.objectContaining({ clientVersion: 'test' }),
+    )
   })
 
   it('attaches to an existing detached Host and awaits bridge shutdown before detaching', async () => {

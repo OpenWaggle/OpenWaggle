@@ -1,7 +1,10 @@
 import type { LocalSessionCallerIdentity } from '@shared/types/local-session-profile'
 import { fromPartial } from '@total-typescript/shoehorn'
 import { describe, expect, it, vi } from 'vitest'
-import { dispatchLocalHostCommand } from '../local-host-command'
+import {
+  DESKTOP_UPDATE_HOST_STOP_DEADLINE_MS,
+  dispatchLocalHostCommand,
+} from '../local-host-command'
 
 const payload = {
   contract: 'local-host-v1',
@@ -34,6 +37,25 @@ describe('Session Host stop command', () => {
       },
     })
     expect(requestHostStop).toHaveBeenCalledTimes(1)
+    expect(requestHostStop).toHaveBeenCalledWith({})
+  })
+
+  it('lets the desktop app stop the Host to install an update, within a deadline', async () => {
+    const requestHostStop = vi.fn(() => ({ hostInstanceId: 'host-1', runningActions: 1 }))
+
+    await expect(
+      dispatchLocalHostCommand({
+        caller: caller({ callerId: 'gui:local-user' }),
+        payload,
+        countBlockingRuns: async () => 0,
+        requestHostStop,
+      }),
+    ).resolves.toMatchObject({ response: { hostInstanceId: 'host-1', blockingActions: 1 } })
+    // A Restart to update already let Runs finish or stopped them; an Action such as a dev server
+    // must not keep the old version's Host, and with it the update, waiting.
+    expect(requestHostStop).toHaveBeenCalledWith({
+      deadlineMs: DESKTOP_UPDATE_HOST_STOP_DEADLINE_MS,
+    })
   })
 
   it('still stops when the Runs it waits for cannot be counted', async () => {
@@ -62,7 +84,15 @@ describe('Session Host stop command', () => {
         ),
       },
     ],
-    ['the desktop app', { callerId: 'gui:local-user' }],
+    [
+      'the desktop app with a named profile',
+      {
+        callerId: 'gui:local-user',
+        profileAuthority: fromPartial<NonNullable<LocalSessionCallerIdentity['profileAuthority']>>(
+          {},
+        ),
+      },
+    ],
     ['an agent', { callerId: 'session-agent:s-1:r-1' }],
   ] satisfies [string, Partial<LocalSessionCallerIdentity>][])(
     'refuses %s without stopping anything',

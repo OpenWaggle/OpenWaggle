@@ -77,4 +77,41 @@ describe('auto-updater notification', () => {
       'Update v1.0.0 will install when 1 agent run finishes',
     )
   })
+
+  it('replaces Restart to update with a progress notice once the restart begins', () => {
+    renderHook(useAutoUpdater)
+    act(() => mocks.listener.current?.({ type: 'downloaded', version: '1.0.0' }))
+
+    act(() => mocks.listener.current?.({ type: 'installing', version: '1.0.0' }))
+
+    const toast = useUIStore.getState().toastData
+    expect(toast?.message).toMatch(
+      /^Installing update v1\.0\.0\. .* will reopen when it is done\.$/,
+    )
+    expect(toast?.action).toBeUndefined()
+    expect(toast?.persistent).toBe(true)
+
+    act(() => mocks.listener.current?.({ type: 'error', message: 'signature mismatch' }))
+    expect(useUIStore.getState().toastData).toBeNull()
+  })
+
+  it('says why the last restart did not install and lets the user try again', () => {
+    renderHook(useAutoUpdater)
+
+    act(() =>
+      mocks.listener.current?.({
+        type: 'downloaded',
+        version: '1.0.0',
+        installFailure: 'Version 1.0.0 did not finish installing. Restart to update to try again.',
+      }),
+    )
+
+    const toast = useUIStore.getState().toastData
+    expect(toast?.message).toBe(
+      'Version 1.0.0 did not finish installing. Restart to update to try again.',
+    )
+    expect(toast?.variant).toBe('error')
+    act(() => toast?.action?.onClick?.())
+    expect(mocks.installUpdate).toHaveBeenCalledOnce()
+  })
 })
