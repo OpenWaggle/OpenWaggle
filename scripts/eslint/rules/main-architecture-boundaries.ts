@@ -16,6 +16,7 @@ const MAIN_APPLICATION_PREFIX = 'src/main/application/'
 const MAIN_STORE_PREFIX = 'src/main/store/'
 const MAIN_ADAPTERS_PREFIX = 'src/main/adapters/'
 const MAIN_DOMAIN_PREFIX = 'src/main/domain/'
+const MAIN_USAGE_STATISTICS_PREFIX = 'src/main/usage-statistics/'
 const RENDERER_PREFIX = 'src/renderer/'
 const SHARED_PREFIX = 'src/shared/'
 const SHARED_DOMAIN_PREFIX = 'src/shared/domain/'
@@ -184,6 +185,34 @@ function mainLayerBoundaryReason(projectPath: string, resolvedImport: string | n
     : null
 }
 
+/** Layers that record Usage statistics only through the UsageStatisticsRecorder port. */
+const USAGE_STATISTICS_PORT_LAYERS = [
+  MAIN_APPLICATION_PREFIX,
+  MAIN_IPC_PREFIX,
+  MAIN_STORE_PREFIX,
+  MAIN_DOMAIN_PREFIX,
+]
+
+/*
+ * src/main/usage-statistics/ is infrastructure, like an adapter: it owns process-global recorder
+ * state, files and timers. Application, IPC, store and domain code reach it through the
+ * UsageStatisticsRecorder port, and it never reaches back into IPC handlers or application
+ * services. Tests may import both sides to check the wiring.
+ */
+function usageStatisticsBoundaryReason(projectPath: string, resolvedImport: string | null) {
+  if (isTestFilename(projectPath) || !resolvedImport) return null
+  if (
+    resolvedImport.startsWith(MAIN_USAGE_STATISTICS_PREFIX) &&
+    USAGE_STATISTICS_PORT_LAYERS.some((prefix) => projectPath.startsWith(prefix))
+  ) {
+    return 'Application, IPC, store and domain code must record Usage statistics through the UsageStatisticsRecorder port, not src/main/usage-statistics/.'
+  }
+  return projectPath.startsWith(MAIN_USAGE_STATISTICS_PREFIX) &&
+    (resolvedImport.startsWith(MAIN_IPC_PREFIX) || resolvedImport.startsWith(MAIN_APPLICATION_PREFIX))
+    ? 'src/main/usage-statistics/ is infrastructure and must not depend on IPC handlers or application services.'
+    : null
+}
+
 function reasonForInvalidImport(importPath: string, projectPath: string) {
   const resolvedImport = resolveRelativeImport(importPath, projectPath)
 
@@ -193,6 +222,7 @@ function reasonForInvalidImport(importPath: string, projectPath: string) {
     piWaggleDesktopRootImportReason(importPath, projectPath) ??
     piSdkBoundaryReason(importPath, projectPath) ??
     mainLayerBoundaryReason(projectPath, resolvedImport) ??
+    usageStatisticsBoundaryReason(projectPath, resolvedImport) ??
     (isDomainFile(projectPath) && isDomainInfrastructureImport(importPath)
       ? 'Domain modules must not import infrastructure packages.'
       : null)

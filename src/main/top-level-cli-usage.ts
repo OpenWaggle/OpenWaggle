@@ -1,3 +1,5 @@
+import { USAGE_STATISTICS_DOCS_URL } from '@shared/constants/usage-statistics'
+
 export function topLevelCliUsage(version: string) {
   return `OpenWaggle ${version}
 
@@ -26,6 +28,14 @@ Options:
 Commands run in the background Session Host, which starts on demand and keeps
 running while work is active. Sessions started from the terminal appear in the
 desktop app whenever it is open.
+
+Released builds send anonymous usage statistics (Runs, features, provider and
+model) and error reports, described at
+${USAGE_STATISTICS_DOCS_URL}
+Turn them off with the switch in the desktop app's Settings. DO_NOT_TRACK=1
+turns them off only for the processes started with it, including a Session
+Host that such a command starts. A Session Host that is already running, or
+one the desktop app starts, keeps its own environment.
 
 Run 'openwaggle help <command>' or 'openwaggle <command> --help' for details.`
 }

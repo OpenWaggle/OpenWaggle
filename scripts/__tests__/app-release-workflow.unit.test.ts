@@ -290,17 +290,20 @@ describe('desktop app release workflow', () => {
     expect(WORKFLOW.match(/run: pnpm packaged-app:smoke/gu)).toHaveLength(3)
   })
 
-  it('rebuilds macOS once only when notarization lost its connection to Apple', () => {
+  it('rebuilds macOS at most twice, only for a transient runner failure', () => {
     const build = WORKFLOW.slice(
       WORKFLOW.indexOf('name: Build macOS artifacts (arm64 + x64)'),
       WORKFLOW.indexOf('name: Verify macOS signing and notarization'),
     )
-    expect(build).toContain('for BUILD_ATTEMPT in 1 2; do')
+    expect(build).toContain('for BUILD_ATTEMPT in 1 2 3; do')
+    expect(build).toContain('sudo mdutil -a -i off')
+    expect(build).toContain('sudo pkill -9 XProtect')
     expect(build).toContain('--publish never 2>&1 | tee "$BUILD_LOG"; then')
     expect(build).toContain('set -uo pipefail')
     expect(build).toContain(
-      'if [ "$BUILD_ATTEMPT" -eq 2 ] || ! node scripts/notarization-failure.ts "$BUILD_LOG"; then',
+      'if [ "$BUILD_ATTEMPT" -eq 3 ] || ! FAILURE_REASON="$(node scripts/macos-build-failure.ts "$BUILD_LOG")"; then',
     )
+    expect(build).toContain('hdiutil detach "$volume" -force')
   })
 
   it('prepares compatible update metadata for every published platform channel', () => {

@@ -19,9 +19,22 @@ function validateTreeFilterMode(value: unknown) {
   return Effect.fail(new Error('Invalid tree filter mode'))
 }
 
+/**
+ * The attached GUI reads Usage statistics enablement from its Host-hydrated settings cache, so a
+ * change to the switch must reach that cache now rather than at the next unrelated settings read:
+ * error reports from this process must stop as soon as the user turns statistics off.
+ */
+function rehydrateAfterUsageStatisticsChange(result: unknown, raw: unknown) {
+  if (!isMatching({ ok: true }, result)) return Effect.void
+  if (!isMatching({ usageStatisticsEnabled: P.boolean }, raw)) return Effect.void
+  return Effect.asVoid(getSettingsOperation())
+}
+
 function registerSettingsCrudHandlers() {
   hostHandle('settings:get', () => getSettingsOperation())
-  hostHandle('settings:update', (_event, raw: unknown) => updateSettingsOperation(raw))
+  hostHandle('settings:update', (_event, raw: unknown) => updateSettingsOperation(raw), {
+    afterRemote: rehydrateAfterUsageStatisticsChange,
+  })
   hostHandle('settings:set-enabled-models', (_event, models: unknown) =>
     setEnabledModelsOperation(models),
   )

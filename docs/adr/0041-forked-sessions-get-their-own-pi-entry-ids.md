@@ -4,7 +4,7 @@ Status: accepted
 
 Date: 2026-09-30
 
-Amended by: [ADR 0045](0045-pi-entry-ids-are-full-uuids.md). Independent Sessions did collide, so Pi now mints full UUID entry ids, and an entry that reuses another Session's node id is renamed when its Session is saved.
+Amended by: [ADR 0047](0047-pi-entry-ids-are-full-uuids.md). Independent Sessions did collide, so Pi now mints full UUID entry ids, and an entry that reuses another Session's node id is renamed when its Session is saved.
 
 ## Context
 

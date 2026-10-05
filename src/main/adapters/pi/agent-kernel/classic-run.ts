@@ -5,6 +5,7 @@ import { createDelegationSpecificationUpdateExtension } from '../delegation-spec
 import { createOrchestrationUpdateExtension } from '../orchestration-update-extension'
 import { createPeerAgentReportExtension } from '../peer-agent-report-extension'
 import { buildPiRunNewMessages } from '../pi-run-result'
+import { notePiRunForUsageStatistics } from '../pi-usage-statistics'
 import { createRunAttributionExtension } from '../run-attribution-extension'
 import { registerPiLiveRun } from './pi-live-run-registry'
 import {
@@ -129,6 +130,7 @@ export async function runPiSession(
     ...runtimeResources(input, extensionFactories),
   })
 
+  notePiRunForUsageStatistics(input, model, session)
   const unregisterLiveRun = registerPiLiveRun({
     runId: input.runId,
     session,

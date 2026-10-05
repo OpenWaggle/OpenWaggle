@@ -24,6 +24,7 @@ import {
   getGuiBrowserProfiles,
   updateGuiBrowserProfiles,
 } from '../application/gui-browser-profile-settings'
+import { recordUsageStatisticsObservation } from '../application/usage-statistics-recording'
 import { createBrowserCookieImporter } from '../browser-import/browser-cookie-importer'
 import { openBrowserImportFullDiskAccessSettings } from '../browser-import/browser-import-system-settings'
 import { createGuidedBrowserImporter } from '../browser-import/guided-browser-import'
@@ -70,7 +71,9 @@ function registerBrowserPreviewNavigationHandlers() {
   typedHandle('browser-preview:open', (event, input: unknown) =>
     Effect.gen(function* () {
       const decoded = yield* decode(browserPreviewOpenInputSchema, input)
-      return yield* Effect.sync(() => browserPreviewManager.open(event.sender, decoded))
+      const opened = yield* Effect.sync(() => browserPreviewManager.open(event.sender, decoded))
+      yield* recordUsageStatisticsObservation({ kind: 'feature', flag: 'browser_preview' })
+      return opened
     }),
   )
 

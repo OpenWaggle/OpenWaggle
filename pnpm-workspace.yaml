@@ -198,4 +198,5 @@ allowBuilds:
 patchedDependencies:
   '@earendil-works/pi-ai@0.87.1': patches/@earendil-works__pi-ai@0.87.1.patch
   '@earendil-works/pi-coding-agent@0.87.1': patches/@earendil-works__pi-coding-agent@0.87.1.patch
+  dmg-builder@26.17.0: patches/dmg-builder@26.17.0.patch
   node-pty@1.1.0: patches/node-pty@1.1.0.patch

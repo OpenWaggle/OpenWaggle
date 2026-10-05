@@ -17,6 +17,7 @@ import type { SessionWorkspaceResourceRepository } from '../ports/session-worksp
 import type { TerminalService } from '../ports/terminal-service'
 import { withSessionActionRelease } from './action-workspace-release'
 import { withSessionDesktopRemoval } from './session-desktop-removal'
+import { recordUsageStatisticsObservation } from './usage-statistics-recording'
 
 const HANDOFF_RECOVERY_RETRY_COUNT = 2
 const HANDOFF_RECOVERY_RETRY_DELAY_MS = 25
@@ -105,6 +106,12 @@ export function organizeSession(input: {
           SessionId(input.request.command.sessionId),
           organizeSessionWithoutArchive(input),
           'after',
+        ).pipe(
+          Effect.tap((response) =>
+            !response.replayed && response.outcome.effect === 'session-handed-off'
+              ? recordUsageStatisticsObservation({ kind: 'feature', flag: 'fork_or_handoff' })
+              : Effect.void,
+          ),
         )
       : organizeSessionWithoutArchive(input)
   })

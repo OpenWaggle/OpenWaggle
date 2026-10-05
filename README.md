@@ -28,6 +28,8 @@ curl -fsSL https://raw.githubusercontent.com/OpenWaggle/OpenWaggle/main/scripts/
 
 See [Installation](https://openwaggle.ai/docs/getting-started/installation) for platform-specific steps, unsigned-app warnings, and updates.
 
+Released builds send anonymous usage statistics and error reports. Statistics never include prompts, code, file paths, or any identifier for you or your install. [Usage statistics](https://openwaggle.ai/docs/configuration/usage-statistics) lists every field and how to turn both off.
+
 ## Get started
 
 Connect your provider in **Settings → Connections**, enable a model, and open a project folder. Start by asking about the code, then request a small change and inspect the diff.

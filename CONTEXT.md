@@ -2540,3 +2540,21 @@ _Avoid_: local build (a dev build may be copied to another machine), debug build
 
 - Released builds follow the user's saved **Update channel**, not their own **Build channel**. A **Dev build** never auto-updates.
 - **Update detection** (seeing that a newer build exists on the Update channel) is independent of **Update installation** (replacing the running app). Detection needs only a reachable feed; unattended installation additionally needs a signed, and on macOS notarized, build.
+
+### Usage statistics
+
+**Usage statistics**:
+Anonymous counts that a released OpenWaggle install reports about itself, carrying nothing that identifies the install or links one report to another.
+_Avoid_: telemetry (suggests continuous monitoring), analytics, tracking
+
+**Install**:
+One OpenWaggle installation on one machine, the only unit **Usage statistics** can count.
+_Avoid_: user, person (one person with two machines is two installs)
+
+**Active install**:
+An **Install** that started at least one Run on a given day, from any entry point.
+_Avoid_: active user, daily user, opened app (opening the app without a Run does not make an Install active)
+
+- **Usage statistics** never carry a persistent identifier, so every number they produce counts **Installs**, never people.
+- A future account-based service identifies its user for that service only; **Usage statistics** stay anonymous for signed-in users and are never joined to an account.
+- An **Install** counts as an **Active install** at most once per day, however many windows, CLI commands or Worker Sessions started Runs; Runs inside CI never count.

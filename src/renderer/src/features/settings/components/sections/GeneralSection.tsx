@@ -11,6 +11,7 @@ import { Button } from '@/shared/ui/Button'
 import { NumberStepper } from '@/shared/ui/NumberStepper'
 import { CliAvailabilityNotice } from './CliAvailabilityNotice'
 import { UpdateChannelSetting } from './UpdateChannelSetting'
+import { UsageStatisticsSetting } from './UsageStatisticsSetting'
 
 const logger = createRendererLogger('settings')
 
@@ -246,6 +247,7 @@ export function GeneralSection() {
           </div>
 
           <UpdateChannelSetting />
+          <UsageStatisticsSetting />
 
           {/* Row 2 — Latest version / status */}
           <div className="flex h-14 items-center justify-between px-5">

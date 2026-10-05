@@ -34,6 +34,7 @@ import type { SessionResourceImageValidator } from '../ports/session-resource-im
 import type { SessionResourceRepository } from '../ports/session-resource-repository'
 import type { SessionResourceStore } from '../ports/session-resource-store'
 import { SettingsService } from '../services/settings-service'
+import { noteUsageStatisticsRunProjectDefault } from '../usage-statistics/usage-statistics-runs'
 import { startStreamBuffer } from '../utils/stream-bridge'
 import { executeRegisteredRun } from './session-control-run-dispatch'
 import { loadRunExecutionProfile } from './session-control-run-executor-profile'
@@ -89,13 +90,23 @@ export function withRunAttachmentCleanup<A, E, R>(input: {
   })
 }
 
-function modelMultiAgentEnabled(settings: Settings, execution: ResolvedSessionRunExecution) {
+function modelMultiAgentEnabled(
+  settings: Settings,
+  execution: ResolvedSessionRunExecution,
+  runId: string,
+) {
   const projectPath = execution.projectPath
   if (!projectPath) return Effect.succeed(settings.multiAgentEnabled)
   return Effect.tryPromise({
     try: () => loadProjectConfigStrict(projectPath),
     catch: (cause) => (cause instanceof Error ? cause : new Error(String(cause))),
   }).pipe(
+    // The project's authorization default rides along for Usage statistics at no extra read.
+    Effect.tap((config) =>
+      Effect.sync(() =>
+        noteUsageStatisticsRunProjectDefault(runId, config.preferences?.authorizationMode ?? null),
+      ),
+    ),
     Effect.map((config) =>
       resolveSessionHostProjectPolicy(settings, projectPath, config.sessionHost),
     ),
@@ -140,6 +151,7 @@ function prepareRun(sql: SqlClient.SqlClient, input: SessionControlRunExecutionI
     const allowModelMultiAgent = yield* modelMultiAgentEnabled(
       yield* settingsService.get(),
       execution,
+      input.runId,
     )
     return { execution, authoritySnapshot, allowModelMultiAgent }
   })

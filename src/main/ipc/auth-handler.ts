@@ -1,6 +1,7 @@
 import type { OAuthFlowStatus } from '@shared/types/auth'
 import { isOAuthProvider } from '@shared/types/auth'
 import * as Effect from 'effect/Effect'
+import { recordUsageStatisticsObservation } from '../application/usage-statistics-recording'
 import {
   cancelOAuth,
   disconnect,
@@ -12,9 +13,13 @@ import {
 import { getAllBrowserWindows } from '../desktop-ui'
 import { ProviderAuthService } from '../ports/provider-auth-service'
 import { ProviderOAuthService } from '../ports/provider-oauth-service'
+import { runAppEffect } from '../runtime'
 import { typedHandle } from './typed-ipc'
 
 function broadcastOAuthStatus(status: OAuthFlowStatus) {
+  if (status.type === 'success') {
+    void runAppEffect(recordUsageStatisticsObservation({ kind: 'provider-connected' }))
+  }
   for (const window of getAllBrowserWindows()) {
     window.webContents.send('auth:oauth-status', status)
   }
@@ -67,6 +72,7 @@ export function registerAuthHandlers(): void {
     Effect.gen(function* () {
       const providerAuth = yield* ProviderAuthService
       yield* providerAuth.setApiKey(provider, apiKey)
+      if (apiKey.trim()) yield* recordUsageStatisticsObservation({ kind: 'provider-connected' })
     }),
   )
 

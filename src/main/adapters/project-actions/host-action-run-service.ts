@@ -9,6 +9,7 @@ import { ActionRunService } from '../../ports/action-run-service'
 import { WorkspaceExecutionAdmission } from '../../ports/workspace-execution-admission'
 import { WorkspacePreparationService } from '../../ports/workspace-preparation-service'
 import { getSessionHostEventRuntime } from '../../session-host/session-host-events'
+import { recordUsageStatistics } from '../../usage-statistics/usage-statistics-recorder'
 import { makeTerminalHistoryStore } from '../terminal/terminal-history-store'
 import { cleanupDeletedActionHistory } from './action-history-cleanup'
 import { type ActionProcessRunner, createActionProcessRunner } from './action-process'
@@ -59,12 +60,18 @@ export const HostActionRunServiceLive = Layer.scoped(
     let recovery: Promise<void> | null = null
     return {
       start: (input) =>
-        admission.withWorkspaceMutation(
-          input.workspace.workspaceId,
-          admission
-            .requireActive(input.workspace)
-            .pipe(Effect.zipRight(attempt(() => runs.start(input)))),
-        ),
+        admission
+          .withWorkspaceMutation(
+            input.workspace.workspaceId,
+            admission
+              .requireActive(input.workspace)
+              .pipe(Effect.zipRight(attempt(() => runs.start(input)))),
+          )
+          .pipe(
+            Effect.tap(() =>
+              Effect.sync(() => recordUsageStatistics({ kind: 'feature', flag: 'project_action' })),
+            ),
+          ),
       withWorkspaceMutation: admission.withWorkspaceMutation,
       list: (workspaceId) => attempt(() => runs.list(workspaceId)),
       output: (workspaceId, runId, afterOffset) =>

@@ -4,11 +4,17 @@ import type { IpcMainInvokeEvent } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ValidationIssuesError } from '../../errors'
 
-const { invokeConfiguredHostUiRawMock, ipcMainHandleMock, ipcMainOnMock } = vi.hoisted(() => ({
-  invokeConfiguredHostUiRawMock: vi.fn(),
-  ipcMainHandleMock: vi.fn(),
-  ipcMainOnMock: vi.fn(),
-}))
+const { invokeConfiguredHostUiRawMock, ipcMainHandleMock, ipcMainOnMock, warnings } = vi.hoisted(
+  () => {
+    const logged: { readonly message: string; readonly data: unknown }[] = []
+    return {
+      invokeConfiguredHostUiRawMock: vi.fn(),
+      ipcMainHandleMock: vi.fn(),
+      ipcMainOnMock: vi.fn(),
+      warnings: logged,
+    }
+  },
+)
 
 vi.mock('../../application/local-session-command-dispatcher', () => ({
   invokeConfiguredHostUiRaw: invokeConfiguredHostUiRawMock,
@@ -25,7 +31,7 @@ vi.mock('../../logger', () => ({
   createLogger: () => ({
     debug: vi.fn(),
     info: vi.fn(),
-    warn: vi.fn(),
+    warn: (message: string, data: unknown) => warnings.push({ message, data }),
     error: vi.fn(),
   }),
 }))
@@ -177,5 +183,55 @@ describe('hostHandle', () => {
       { path: '/worktree' },
     ])
     expect(localHandler).not.toHaveBeenCalled()
+  })
+})
+
+describe('hostHandle follow-up after the Session Host answered', () => {
+  beforeEach(() => {
+    invokeConfiguredHostUiRawMock.mockReset()
+    ipcMainHandleMock.mockReset()
+    warnings.length = 0
+  })
+
+  it('runs the follow-up with the Host result and the original arguments', async () => {
+    invokeConfiguredHostUiRawMock.mockResolvedValue({ handled: true, result: { ok: true } })
+    const followUps: unknown[] = []
+    hostHandle('settings:update', () => Effect.succeed(okResult()), {
+      afterRemote: (result, update) => Effect.sync(() => void followUps.push({ result, update })),
+    })
+    const registeredHandler = ipcMainHandleMock.mock.calls[0][1]
+
+    await expect(
+      registeredHandler({ sender: {} }, { usageStatisticsEnabled: false }),
+    ).resolves.toEqual({ ok: true })
+    expect(followUps).toEqual([{ result: { ok: true }, update: { usageStatisticsEnabled: false } }])
+  })
+
+  it('returns the Host result and logs the channel when the follow-up fails', async () => {
+    invokeConfiguredHostUiRawMock.mockResolvedValue({ handled: true, result: { ok: true } })
+    hostHandle('settings:update', () => Effect.succeed(okResult()), {
+      afterRemote: () => Effect.fail(new Error('Session Host went away')),
+    })
+    const registeredHandler = ipcMainHandleMock.mock.calls[0][1]
+
+    await expect(registeredHandler({ sender: {} }, {})).resolves.toEqual({ ok: true })
+    expect(warnings).toEqual([
+      {
+        message: 'Host-backed IPC follow-up failed',
+        data: { channel: 'settings:update', error: 'Session Host went away' },
+      },
+    ])
+  })
+
+  it('runs no follow-up when this GUI handled the call itself', async () => {
+    invokeConfiguredHostUiRawMock.mockResolvedValue({ handled: false })
+    const followUps: unknown[] = []
+    hostHandle('settings:update', () => Effect.succeed(okResult()), {
+      afterRemote: (result) => Effect.sync(() => void followUps.push(result)),
+    })
+    const registeredHandler = ipcMainHandleMock.mock.calls[0][1]
+
+    await expect(registeredHandler({ sender: {} }, {})).resolves.toEqual({ ok: true })
+    expect(followUps).toEqual([])
   })
 })

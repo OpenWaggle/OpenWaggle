@@ -36,17 +36,10 @@ import {
   SETTINGS_KEY_UPDATE_CHANNEL,
 } from './keys'
 import { appendSessionTitleSettingsWrites } from './session-title-settings'
+import { appendChangedSetting, type SettingsPatchWrite } from './settings-patch-writes'
+import { appendUsageStatisticsSettingsWrites } from './usage-statistics-settings'
 
-export type SettingsPatchWrite = { readonly key: string; readonly value: unknown }
-
-function appendChangedSetting(
-  writes: SettingsPatchWrite[],
-  changed: boolean,
-  key: string,
-  value: unknown,
-) {
-  if (changed) writes.push({ key, value })
-}
+export type { SettingsPatchWrite } from './settings-patch-writes'
 
 function appendBrowserSettingsWrites(
   writes: SettingsPatchWrite[],
@@ -274,6 +267,7 @@ export function collectSettingsPatchWrites(partial: Partial<Settings>, next: Set
   appendDiffSettingsWrites(writes, partial, next)
   appendSessionHostSettingsWrites(writes, partial, next)
   appendBrowserSettingsWrites(writes, partial, next)
+  appendUsageStatisticsSettingsWrites(writes, partial, next)
   appendSessionTitleSettingsWrites(writes, partial, next)
 
   return writes

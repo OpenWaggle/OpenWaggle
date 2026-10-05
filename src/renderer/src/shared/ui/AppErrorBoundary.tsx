@@ -1,6 +1,7 @@
 import { AlertTriangle, RefreshCw } from 'lucide-react'
 import { Component, type ErrorInfo, type ReactNode } from 'react'
 import { formatDisplayPathsInText } from '@/shared/lib/display-path'
+import { reportRendererError } from '@/shared/lib/error-reporting'
 import { createRendererLogger } from '@/shared/lib/logger'
 import { Button } from './Button'
 
@@ -33,6 +34,8 @@ export class AppErrorBoundary extends Component<AppErrorBoundaryProps, AppErrorB
       message: error.message,
       stack: errorInfo.componentStack,
     })
+    // The boundary catches render errors, so the SDK's global handlers never see them.
+    reportRendererError(error)
   }
 
   private readonly handleReload = () => {

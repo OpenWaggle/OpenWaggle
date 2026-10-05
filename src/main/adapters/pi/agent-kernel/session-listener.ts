@@ -6,6 +6,11 @@ import type { AgentTransportUserMessage } from '@shared/types/stream'
 import { classifyAgentError } from '../../../agent/error-classifier'
 import { userFacingErrorDetail } from '../../../utils/describe-error'
 import { createStreamingMessageId, toJsonValue } from '../pi-message-mapper'
+import {
+  observePiAssistantMessageForUsageStatistics,
+  observePiCompactionForUsageStatistics,
+  observePiToolUseForUsageStatistics,
+} from '../pi-usage-statistics'
 import { getAgentEndError, getAgentEndReason, getAgentEndUsage } from './agent-end-events'
 import { handleMessageStart, handleMessageUpdate } from './assistant-events'
 import type {
@@ -45,6 +50,7 @@ function handleToolExecutionStart(
 ) {
   const toolInput = toJsonValue(event.args)
   state.toolCallInputs.set(event.toolCallId, toolInput)
+  observePiToolUseForUsageStatistics(event.toolName, event.args)
   emitEvent(state.input.onEvent, {
     type: 'tool_execution_start',
     toolCallId: event.toolCallId,
@@ -130,6 +136,7 @@ function handleMessageEnd(state: SessionListenerState, event: MessageEndSessionE
   if (!state.currentMessageId || event.message.role !== 'assistant') {
     return
   }
+  observePiAssistantMessageForUsageStatistics(state.runId, event.message)
 
   emitEvent(state.input.onEvent, {
     type: 'message_end',
@@ -183,6 +190,7 @@ function compactionTransportResult(event: CompactionEndSessionEvent) {
 }
 
 function emitCompactionEnd(state: SessionListenerState, event: CompactionEndSessionEvent) {
+  observePiCompactionForUsageStatistics(event)
   emitEvent(state.input.onEvent, {
     type: 'compaction_end',
     reason: event.reason,
