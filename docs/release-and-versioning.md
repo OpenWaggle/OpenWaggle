@@ -43,7 +43,7 @@ Platform trust for v1:
   the release workflow verifies each app with `codesign`, `stapler`, and `spctl` before upload.
 - The macOS build depends on the GitHub runner. notarytool needs its network while it waits for
   Apple's verdict, and `hdiutil` needs a working disk-image device to build the DMG.
-  `patches/dmg-builder@26.17.0.patch` handles the `hdiutil` case first: when a `dmgbuild` call
+  `patches/dmg-builder@26.17.0.patch` handles the `hdiutil` case first. When a `dmgbuild` call
   fails with `Device not configured`, `Resource busy`, or `Resource temporarily unavailable`, it
   retries that call alone, up to five attempts with 30 s to 4 min of backoff, and does not
   notarize again. Re-create the patch when `dmg-builder` changes version.
@@ -52,10 +52,11 @@ Platform trust for v1:
   failing `dmgbuild`, the whole build rebuilds and resubmits, up to three attempts in total. The
   job turns off Spotlight indexing once and stops XProtect before each attempt, because `hdiutil`
   fails under concurrent disk activity on hosted runners. A rejected submission, a credential
-  error, or any other failure fails the first attempt, even if the log also has a transient
-  error. A third runner failure fails the job. Rerunning the failed jobs reuses the version job's
-  result, but a rerun uses the workflow as it was at the release commit. A workflow fix only
-  reaches the next release.
+  error, or any other failure fails the first attempt. A notary rejection or credential error
+  fails it even if the log also has a transient error from the other architecture. A third
+  runner failure fails the job. Rerunning the failed jobs reuses the version job's result, but a
+  rerun uses the workflow as it was at the release commit. A workflow fix only reaches the next
+  release.
 - Windows code signing does not block `1.0.0`; it is tracked as post-v1 work. Unsigned Windows installers show a SmartScreen warning on first install.
 - Linux AppImage artifacts are not signed.
 

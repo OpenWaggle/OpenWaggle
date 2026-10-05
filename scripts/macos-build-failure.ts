@@ -10,8 +10,8 @@
  *   `hdiutil: create failed - Device not configured` after both apps notarized).
  *
  * A rejected submission, a signing error, or any other failure is not transient and still fails
- * the job on the first attempt, even when the same log also has a transient error from the
- * other architecture's concurrent build.
+ * the job on the first attempt. A notary rejection or credential error does so even when the
+ * same log also has a transient error from the other architecture's concurrent build.
  *
  * Dependency-free on purpose: the release job runs it with Node's built-in type stripping.
  *
