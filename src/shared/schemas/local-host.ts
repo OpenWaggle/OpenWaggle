@@ -16,6 +16,7 @@ export const localHostResponseSchema: Schema.Schema<LocalHostResponse> = Schema.
   hostInstanceId: Schema.String,
   blockingRuns: Schema.NullOr(Schema.Number.pipe(Schema.int(), Schema.nonNegative())),
   blockingActions: Schema.Number.pipe(Schema.int(), Schema.nonNegative()),
+  processId: Schema.optional(Schema.Number.pipe(Schema.int(), Schema.positive())),
 })
 
 export function decodeLocalHostResponse(value: unknown) {

@@ -32,16 +32,38 @@ function dependencies(
   overrides: Partial<SessionHostReleaseDependencies>,
 ): SessionHostReleaseDependencies {
   return {
-    requestStop: async () => 'host-1',
+    requestStop: async () => ({ hostInstanceId: 'host-1', processId: 4242 }),
     probe: async () => ({ state: 'not-running' }),
+    processExists: () => false,
+    platform: 'darwin',
     ...fakeClock(),
     ...overrides,
   }
 }
 
 describe('releasing the Session Host for an update', () => {
-  it('asks the Host to stop and waits until its process is gone', async () => {
-    const requestStop = vi.fn(async () => 'host-1')
+  it('waits for the Host process itself, which outlives its closed socket', async () => {
+    const requestStop = vi.fn(async () => ({ hostInstanceId: 'host-1', processId: 4242 }))
+    const processExists = vi
+      .fn<(processId: number) => boolean>()
+      .mockReturnValueOnce(true)
+      .mockReturnValueOnce(true)
+      .mockReturnValue(false)
+    // The socket is already gone; ShipIt still counts the process until it exits.
+    const probe = vi.fn<SessionHostReleaseDependencies['probe']>(async () => ({
+      state: 'not-running',
+    }))
+
+    await expect(
+      releaseSessionHostForUpdate(client, {}, dependencies({ requestStop, processExists, probe })),
+    ).resolves.toBe('stopped')
+    expect(requestStop).toHaveBeenCalledOnce()
+    expect(processExists).toHaveBeenCalledTimes(3)
+    expect(processExists).toHaveBeenCalledWith(4242)
+    expect(probe).not.toHaveBeenCalled()
+  })
+
+  it('falls back to the endpoint when the Host does not report its process', async () => {
     const probe = vi
       .fn<SessionHostReleaseDependencies['probe']>()
       .mockResolvedValueOnce({ state: 'running', hostInstanceId: 'host-1' })
@@ -49,14 +71,17 @@ describe('releasing the Session Host for an update', () => {
       .mockResolvedValueOnce({ state: 'not-running' })
 
     await expect(
-      releaseSessionHostForUpdate(client, {}, dependencies({ requestStop, probe })),
+      releaseSessionHostForUpdate(
+        client,
+        {},
+        dependencies({ requestStop: async () => ({ hostInstanceId: 'host-1' }), probe }),
+      ),
     ).resolves.toBe('stopped')
-    expect(requestStop).toHaveBeenCalledOnce()
     expect(probe).toHaveBeenCalledTimes(3)
   })
 
   it('has nothing to wait for when no Host is running', async () => {
-    const probe = vi.fn<SessionHostReleaseDependencies['probe']>()
+    const processExists = vi.fn<(processId: number) => boolean>()
 
     await expect(
       releaseSessionHostForUpdate(
@@ -66,11 +91,11 @@ describe('releasing the Session Host for an update', () => {
           requestStop: async () => {
             throw Object.assign(new Error('no socket'), { code: 'ENOENT' })
           },
-          probe,
+          processExists,
         }),
       ),
     ).resolves.toBe('not-running')
-    expect(probe).not.toHaveBeenCalled()
+    expect(processExists).not.toHaveBeenCalled()
   })
 
   it('lets the app quit when an older Host refuses the stop', async () => {
@@ -94,10 +119,7 @@ describe('releasing the Session Host for an update', () => {
       releaseSessionHostForUpdate(
         client,
         { timeoutMs: 1_000 },
-        dependencies({
-          ...clock,
-          probe: async () => ({ state: 'running', hostInstanceId: 'host-1' }),
-        }),
+        dependencies({ ...clock, processExists: () => true }),
       ),
     ).resolves.toBe('timed-out')
     expect(clock.now()).toBeGreaterThanOrEqual(1_000)
@@ -108,8 +130,29 @@ describe('releasing the Session Host for an update', () => {
       releaseSessionHostForUpdate(
         client,
         {},
-        dependencies({ probe: async () => ({ state: 'running', hostInstanceId: 'host-2' }) }),
+        dependencies({
+          requestStop: async () => ({ hostInstanceId: 'host-1' }),
+          probe: async () => ({ state: 'running', hostInstanceId: 'host-2' }),
+        }),
       ),
     ).resolves.toBe('replaced')
   })
+
+  it.each(['win32', 'linux'] as const)(
+    'only requests the stop on %s, where the installer replaces the app itself',
+    async (platform) => {
+      const requestStop = vi.fn(async () => ({ hostInstanceId: 'host-1', processId: 4242 }))
+      const processExists = vi.fn(() => true)
+
+      await expect(
+        releaseSessionHostForUpdate(
+          client,
+          {},
+          dependencies({ platform, requestStop, processExists }),
+        ),
+      ).resolves.toBe('stop-requested')
+      expect(requestStop).toHaveBeenCalledOnce()
+      expect(processExists).not.toHaveBeenCalled()
+    },
+  )
 })

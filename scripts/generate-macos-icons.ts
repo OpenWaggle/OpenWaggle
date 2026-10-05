@@ -113,6 +113,12 @@ export function continuousSquarePath(origin: number, size: number, r: number) {
 
 /** The mark's own SVG, nested unchanged; its element ids do not collide with the tile's. */
 function nestedMark(markSvg: string) {
+  // Inherited presentation attributes on the root, such as fill="none" for the stroke-only
+  // antennae, must carry over, or those paths fill black.
+  const root = /^[\s\S]*?<svg([^>]*)>/.exec(markSvg)?.[1] ?? ''
+  const rootPresentation = [...root.matchAll(/\s(fill|stroke)="([^"]*)"/g)]
+    .map(([, name, value]) => `${name}="${value}"`)
+    .join(' ')
   const body = markSvg
     .replace(/^[\s\S]*?<svg[^>]*>/, '')
     .replace(/<\/svg>\s*$/, '')
@@ -120,7 +126,7 @@ function nestedMark(markSvg: string) {
     .replace(/<desc[\s\S]*?<\/desc>/, '')
   return (
     `<svg x="${MARK_ORIGIN}" y="${MARK_ORIGIN}" width="${MARK_SIZE}" height="${MARK_SIZE}" ` +
-    `viewBox="0 0 ${MARK_VIEWBOX} ${MARK_VIEWBOX}" overflow="visible">${body}</svg>`
+    `viewBox="0 0 ${MARK_VIEWBOX} ${MARK_VIEWBOX}" ${rootPresentation} overflow="visible">${body}</svg>`
   )
 }
 
@@ -205,7 +211,13 @@ async function writeIcns(icon: Buffer, output: string) {
   }
 }
 
-const CHANNELS: readonly BuildChannel[] = ['stable', 'alpha', 'beta', 'rc', 'dev']
+// Every channel with a badge, plus Stable, so a new channel cannot be left without an icon.
+const CHANNELS: readonly BuildChannel[] = [
+  'stable',
+  ...Object.keys(CHANNEL_BADGES).filter(
+    (channel): channel is keyof typeof CHANNEL_BADGES => channel in CHANNEL_BADGES,
+  ),
+]
 
 async function generate(buildDir: string) {
   const markSvg = await readFile(

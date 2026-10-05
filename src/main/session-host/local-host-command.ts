@@ -41,6 +41,7 @@ export async function dispatchLocalHostCommand(input: {
     readonly hostInstanceId: string
     readonly runningActions: number
   }
+  readonly processId?: number
 }): Promise<LocalHostCommandResult> {
   const options = hostStopOptions(input.caller)
   // Stop first, so no Run can be admitted between the count and the drain. The count only
@@ -55,6 +56,9 @@ export async function dispatchLocalHostCommand(input: {
       hostInstanceId: stopping.hostInstanceId,
       blockingRuns,
       blockingActions: stopping.runningActions,
+      ...(input.caller.callerId === DESKTOP_APP_CALLER_ID && input.processId !== undefined
+        ? { processId: input.processId }
+        : {}),
     },
   }
 }

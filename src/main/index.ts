@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import './apply-build-identity'
 import './restore-host-temporary-directory' // before any module caches a temp path
 import { electronApp, is } from '@electron-toolkit/utils'
+import { MAC_DEV_DOCK_ICON_FILE } from '@shared/build-identity-runtime'
 import { app } from 'electron'
 import {
   configureDefaultSessionEmbeddingModelForPackagedRuntime,
@@ -74,7 +75,7 @@ const appIconPath = is.dev
   : join(process.resourcesPath, 'icon.png')
 // Unpackaged builds have no bundle icon, so macOS takes their Dock icon at runtime; use the
 // generated rounded-square macOS icon rather than the free-form window icon.
-const devDockIconPath = join(__dirname, '../../build/icon-dev-macos.png')
+const devDockIconPath = join(__dirname, '../../build', MAC_DEV_DOCK_ICON_FILE)
 const logger = createLogger('main/index')
 const startupStartedAt = performance.now()
 let ipcHandlersRegistered = false

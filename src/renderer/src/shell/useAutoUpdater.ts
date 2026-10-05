@@ -1,9 +1,10 @@
+import { matchBy } from '@diegogbrisa/ts-match'
 import { PRODUCT_NAME } from '@shared/build-identity-runtime'
 import type { UpdateStatus } from '@shared/types/updater'
 import { useEffect, useRef } from 'react'
 import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
-import { useUIStore } from '@/shell/ui-store'
+import { type ToastData, useUIStore } from '@/shell/ui-store'
 
 const logger = createRendererLogger('updater')
 
@@ -11,13 +12,13 @@ type DownloadedUpdateStatus = Extract<UpdateStatus, { readonly type: 'downloaded
 
 interface UpdaterToast {
   readonly message: string
-  readonly variant: 'success' | 'neutral' | 'error'
+  readonly variant: NonNullable<ToastData['variant']>
   readonly action?: { readonly label: string; readonly run: () => Promise<void> }
 }
 
 function installingToast(version: string): UpdaterToast {
   return {
-    message: `Installing update v${version}. ${PRODUCT_NAME} will reopen when it is done.`,
+    message: `Installing v${version}. ${PRODUCT_NAME} reopens when it is done`,
     variant: 'neutral',
   }
 }
@@ -46,6 +47,20 @@ function updaterToast(status: DownloadedUpdateStatus): UpdaterToast {
   }
 }
 
+/** The toast a status shows, or whether it clears the updater's toast or leaves it as it is. */
+function toastFor(status: UpdateStatus): UpdaterToast | 'clear' | 'keep' {
+  return matchBy(status, 'type')
+    .with('downloaded', (downloaded) => updaterToast(downloaded))
+    .with('installing', (installing) => installingToast(installing.version))
+    .with('idle', () => 'clear' as const)
+    .with('not-available', () => 'clear' as const)
+    .with('error', () => 'clear' as const)
+    .with('checking', () => 'keep' as const)
+    .with('available', () => 'keep' as const)
+    .with('downloading', () => 'keep' as const)
+    .exhaustive()
+}
+
 export function useAutoUpdater(): void {
   const showPersistentToast = useUIStore((s) => s.showPersistentToast)
   const clearToast = useUIStore((s) => s.clearToast)
@@ -68,9 +83,12 @@ export function useAutoUpdater(): void {
     }
 
     const unsubscribe = api.onUpdateStatus((status: UpdateStatus) => {
-      if (status.type === 'downloaded' || status.type === 'installing') {
-        const next =
-          status.type === 'installing' ? installingToast(status.version) : updaterToast(status)
+      const next = toastFor(status)
+      if (next === 'clear') {
+        clearShownToast()
+        return
+      }
+      if (next !== 'keep') {
         if (shownToastRef.current?.message === next.message) return
         clearShownToast()
         shownToastRef.current = next
@@ -92,10 +110,6 @@ export function useAutoUpdater(): void {
               }
             : {}),
         })
-        return
-      }
-      if (status.type === 'idle' || status.type === 'not-available' || status.type === 'error') {
-        clearShownToast()
       }
     })
 

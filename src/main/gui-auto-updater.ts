@@ -1,3 +1,4 @@
+import { APP_ID } from '@shared/build-identity-runtime'
 import { app } from 'electron'
 import { invokeConfiguredHostUi } from './application/gui-session-command-router'
 import { describeError } from './error-description'
@@ -24,7 +25,11 @@ export async function startGuiAutoUpdater() {
         hydrateSettingsStoreFromHost(settings.result)
         return getSettings().updateChannel
       },
-      { userDataDirectory: app.getPath('userData'), currentVersion: app.getVersion() },
+      {
+        userDataDirectory: app.getPath('userData'),
+        currentVersion: app.getVersion(),
+        bundleIdentifier: APP_ID,
+      },
     )
   } catch (error) {
     logger.warn('Failed to initialize auto-updater', describeError(error))

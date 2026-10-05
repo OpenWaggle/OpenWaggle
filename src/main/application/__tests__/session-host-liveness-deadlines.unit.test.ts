@@ -51,6 +51,22 @@ describe('Session Host idle and stop deadlines', () => {
     expect(requestShutdown).toHaveBeenCalledOnce()
   })
 
+  it('counts idle time from the last real work even while preparation outlasts it', async () => {
+    vi.useFakeTimers()
+    const requestShutdown = vi.fn()
+    const liveness = new SessionHostLiveness({ idleGracePeriodMs: 1000, requestShutdown })
+    const releasePreparation = liveness.acquire('semantic-preparation')
+    liveness.acquire('client')()
+
+    await vi.advanceTimersByTimeAsync(600)
+    releasePreparation()
+    await vi.advanceTimersByTimeAsync(399)
+    expect(requestShutdown).not.toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(1)
+
+    expect(requestShutdown).toHaveBeenCalledOnce()
+  })
+
   it('restarts the idle grace after real work', async () => {
     vi.useFakeTimers()
     const requestShutdown = vi.fn()
@@ -99,7 +115,7 @@ describe('Session Host idle and stop deadlines', () => {
     vi.useFakeTimers()
     const requestShutdown = vi.fn()
     const liveness = new SessionHostLiveness({ idleGracePeriodMs: 60_000, requestShutdown })
-    liveness.acquire('run')
+    liveness.acquire('wait')
     liveness.requestDrain('stop')
     await vi.advanceTimersByTimeAsync(10_000)
     expect(requestShutdown).not.toHaveBeenCalled()
@@ -108,6 +124,97 @@ describe('Session Host idle and stop deadlines', () => {
     await vi.advanceTimersByTimeAsync(500)
 
     expect(requestShutdown).toHaveBeenCalledOnce()
+  })
+
+  it('interrupts Runs at the deadline and stops as soon as they end', async () => {
+    vi.useFakeTimers()
+    const requestShutdown = vi.fn()
+    let releaseRun: () => void = () => undefined
+    const interruptRunsAtDrainDeadline = vi.fn(() => releaseRun())
+    const liveness = new SessionHostLiveness({
+      idleGracePeriodMs: 60_000,
+      requestShutdown,
+      interruptRunsAtDrainDeadline,
+    })
+    releaseRun = liveness.acquire('run')
+    liveness.acquire('action-run')
+
+    liveness.requestDrain('stop', { deadlineMs: 1000 })
+    await vi.advanceTimersByTimeAsync(999)
+    expect(interruptRunsAtDrainDeadline).not.toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(1)
+
+    // The Run ended as interrupted; the Action alone no longer holds the Host past its deadline.
+    expect(interruptRunsAtDrainDeadline).toHaveBeenCalledOnce()
+    expect(requestShutdown).toHaveBeenCalledOnce()
+  })
+
+  it('stops after the settle when an interrupted Run does not end', async () => {
+    vi.useFakeTimers()
+    const requestShutdown = vi.fn()
+    const liveness = new SessionHostLiveness({
+      idleGracePeriodMs: 60_000,
+      requestShutdown,
+      interruptRunsAtDrainDeadline: vi.fn(),
+      drainDeadlineSettleMs: 500,
+    })
+    liveness.acquire('run')
+
+    liveness.requestDrain('stop', { deadlineMs: 1000 })
+    await vi.advanceTimersByTimeAsync(1499)
+    expect(requestShutdown).not.toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(1)
+
+    expect(requestShutdown).toHaveBeenCalledOnce()
+  })
+
+  it('retries a failed deadline shutdown even while a client connects', async () => {
+    vi.useFakeTimers()
+    const requestShutdown = vi
+      .fn<() => Promise<void>>()
+      .mockRejectedValueOnce(new Error('endpoint cleanup failed'))
+      .mockResolvedValue(undefined)
+    const liveness = new SessionHostLiveness({ idleGracePeriodMs: 60_000, requestShutdown })
+    liveness.acquire('action-run')
+    liveness.requestDrain('stop', { deadlineMs: 100 })
+    await vi.advanceTimersByTimeAsync(100)
+    expect(requestShutdown).toHaveBeenCalledOnce()
+
+    liveness.acquire('client')
+    await vi.advanceTimersByTimeAsync(250)
+
+    expect(requestShutdown).toHaveBeenCalledTimes(2)
+  })
+
+  it('keeps the startup grace and client handoff through background polls', async () => {
+    vi.useFakeTimers()
+    const requestShutdown = vi.fn()
+    const liveness = new SessionHostLiveness({
+      idleGracePeriodMs: 0,
+      clientHandoffGracePeriodMs: 500,
+      requestShutdown,
+    })
+    liveness.armIdleShutdown(1000)
+    for (let elapsed = 0; elapsed < 900; elapsed += 100) {
+      liveness.acquire('semantic-preparation')()
+      await vi.advanceTimersByTimeAsync(100)
+    }
+    expect(requestShutdown).not.toHaveBeenCalled()
+
+    liveness.acquire('client')()
+    liveness.acquire('semantic-preparation')()
+    await vi.advanceTimersByTimeAsync(499)
+    expect(requestShutdown).not.toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(1)
+
+    expect(requestShutdown).toHaveBeenCalledOnce()
+  })
+
+  it('rejects an invalid deadline without starting a drain', () => {
+    const liveness = new SessionHostLiveness({ idleGracePeriodMs: 1000, requestShutdown: vi.fn() })
+
+    expect(() => liveness.requestDrain('stop', { deadlineMs: -1 })).toThrow('drain deadline')
+    expect(liveness.isDraining()).toBe(false)
   })
 
   it('finishes a bounded drain early once its work ends', async () => {

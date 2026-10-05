@@ -25,6 +25,7 @@ describe('Session Host stop command', () => {
         payload,
         countBlockingRuns: async () => 2,
         requestHostStop,
+        processId: 4242,
       }),
     ).resolves.toEqual({
       contract: 'local-host-v1',
@@ -49,8 +50,12 @@ describe('Session Host stop command', () => {
         payload,
         countBlockingRuns: async () => 0,
         requestHostStop,
+        processId: 4242,
       }),
-    ).resolves.toMatchObject({ response: { hostInstanceId: 'host-1', blockingActions: 1 } })
+    ).resolves.toMatchObject({
+      // The desktop app waits for this process, because macOS still counts it after its socket closes.
+      response: { hostInstanceId: 'host-1', blockingActions: 1, processId: 4242 },
+    })
     // A Restart to update already let Runs finish or stopped them; an Action such as a dev server
     // must not keep the old version's Host, and with it the update, waiting.
     expect(requestHostStop).toHaveBeenCalledWith({

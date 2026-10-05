@@ -95,9 +95,9 @@ const config = {
     '!node_modules/onnxruntime-web/dist/ort-training*',
   ],
   extraResources: [
-    // Ship the channel icon as the runtime icon resource so the dock icon set at
-    // runtime (app.dock.setIcon on macOS) and the Windows/Linux window icon match
-    // the channel, not just the packaged bundle icon (docs/adr/0032).
+    // Ship the channel icon as the runtime icon resource so the Windows/Linux
+    // window icon matches the channel, not just the packaged bundle icon
+    // (docs/adr/0032). Packaged macOS builds take their Dock icon from the bundle.
     { from: channelIcon, to: 'icon.png' },
     { from: 'build/openwaggle-docs', to: 'openwaggle-docs' },
     { from: 'build/session-embedding-model', to: 'session-embedding-model' },

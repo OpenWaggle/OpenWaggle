@@ -306,6 +306,8 @@ export function initAutoUpdater(
 }
 
 export function disposeAutoUpdater(): void {
+  // The app is quitting; an install in progress stays in progress for the quit to release the Host.
+  install.stopUpdateInstallWatchdog()
   updateCheckRequestGeneration += 1
   checkGeneration += 1
   activeUpdateCancellation?.cancel()

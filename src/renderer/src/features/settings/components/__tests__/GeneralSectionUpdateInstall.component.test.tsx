@@ -43,7 +43,9 @@ describe('GeneralSection update install', () => {
 
     render(<GeneralSection />)
 
-    expect(await screen.findByText(/Installing v0\.3\.0… .* reopens when it is done/)).toBeVisible()
+    expect(
+      await screen.findByText(/^Installing v0\.3\.0\. .* reopens when it is done$/),
+    ).toBeVisible()
     expect(screen.queryByRole('button', { name: /restart to update/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /check now/i })).not.toBeInTheDocument()
   })

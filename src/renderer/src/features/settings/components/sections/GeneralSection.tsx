@@ -152,7 +152,11 @@ function getStatusRow(status: UpdateStatus) {
         }
       }
       if (s.installFailure) {
-        return { subtitle: s.installFailure, subtitleClass: 'text-warning', dotClass: 'bg-warning' }
+        return {
+          subtitle: s.installFailure,
+          subtitleClass: 'text-error-text',
+          dotClass: 'bg-error',
+        }
       }
       return {
         subtitle: `v${s.version} ready to install`,
@@ -161,7 +165,7 @@ function getStatusRow(status: UpdateStatus) {
       }
     })
     .with('installing', (s) => ({
-      subtitle: `Installing v${s.version}… ${PRODUCT_NAME} reopens when it is done`,
+      subtitle: `Installing v${s.version}. ${PRODUCT_NAME} reopens when it is done`,
       subtitleClass: 'text-info-text',
       dotClass: null,
     }))
@@ -237,7 +241,6 @@ export function GeneralSection() {
   const isWaitingForRuns =
     status.type === 'downloaded' && status.waitingForRuns !== undefined && status.waitingForRuns > 0
   const isChecking = status.type === 'checking'
-  const isInstalling = status.type === 'installing'
 
   return (
     <div className="space-y-6">
@@ -265,11 +268,11 @@ export function GeneralSection() {
           <UsageStatisticsSetting />
 
           {/* Row 2 — Latest version / status */}
-          <div className="flex h-14 items-center justify-between px-5">
-            <div className="flex items-center gap-2">
+          <div className="flex min-h-14 items-center justify-between gap-4 px-5 py-3">
+            <div className="flex min-w-0 items-center gap-2">
               {statusRow.dotClass ? (
                 <div className={`size-2 shrink-0 rounded-full ${statusRow.dotClass}`} />
-              ) : isChecking || isInstalling ? (
+              ) : isChecking || status.type === 'installing' ? (
                 <Loader2 className="size-3 shrink-0 animate-spin text-text-tertiary" />
               ) : null}
               <div className="flex flex-col gap-0.5">
@@ -277,7 +280,7 @@ export function GeneralSection() {
                 <span className={`text-xs ${statusRow.subtitleClass}`}>{statusRow.subtitle}</span>
               </div>
             </div>
-            <div>
+            <div className="shrink-0">
               {canCheck && (
                 <Button
                   variant="secondary"

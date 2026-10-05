@@ -16,6 +16,11 @@ export interface LocalHostStopResponse {
   readonly blockingRuns: number | null
   /** Running Actions, such as dev servers, the Host also waits for. */
   readonly blockingActions: number
+  /**
+   * The Host's process id, sent only to the desktop app, which waits for that process to exit
+   * before an update installs (ADR 0047).
+   */
+  readonly processId?: number
 }
 
 export type LocalHostResponse = LocalHostStopResponse

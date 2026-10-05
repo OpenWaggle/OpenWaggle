@@ -1,9 +1,5 @@
 import { createLogger } from './logger'
-import {
-  recordUpdateInstallAttempt,
-  settleUpdateInstallAttempt,
-  takeUpdateInstallAttempt,
-} from './update-install-attempt'
+import { recordUpdateInstallAttempt, settleUpdateInstallAttempt } from './update-install-attempt'
 import { type DownloadedUpdateStatus, getUpdateStatus, setUpdateStatus } from './update-status'
 
 /**
@@ -15,11 +11,19 @@ import { type DownloadedUpdateStatus, getUpdateStatus, setUpdateStatus } from '.
 export interface UpdaterInstallEnvironment {
   readonly userDataDirectory: string
   readonly currentVersion: string
+  /** Names macOS Squirrel's log directory. */
+  readonly bundleIdentifier: string
 }
 
 const logger = createLogger('updater')
+/**
+ * Squirrel.Mac unpacks and verifies the update before the app quits. If it neither quits nor
+ * reports an error in this time, the restart is reported as failed so it can be tried again.
+ */
+export const UPDATE_INSTALL_WATCHDOG_MS = 180_000
 
 let installingVersion: string | null = null
+let watchdog: ReturnType<typeof setTimeout> | null = null
 let environment: UpdaterInstallEnvironment | null = null
 let previousFailure: { readonly version: string; readonly message: string } | null = null
 
@@ -36,6 +40,7 @@ export function downloadedUpdateStatus(version: string): DownloadedUpdateStatus 
 
 /** Starts a new updater session and reports whether the last Restart to update installed. */
 export function resetUpdateInstall(next: UpdaterInstallEnvironment | null) {
+  stopUpdateInstallWatchdog()
   environment = next
   installingVersion = null
   previousFailure = null
@@ -62,6 +67,11 @@ export async function beginUpdateInstall(version: string) {
   installingVersion = version
   previousFailure = null
   setUpdateStatus({ type: 'installing', version })
+  stopUpdateInstallWatchdog()
+  watchdog = setTimeout(() => {
+    watchdog = null
+    failUpdateInstall(new Error('the installer did not start'))
+  }, UPDATE_INSTALL_WATCHDOG_MS)
   if (environment) {
     await recordUpdateInstallAttempt(environment.userDataDirectory, {
       fromVersion: environment.currentVersion,
@@ -79,11 +89,20 @@ export async function beginUpdateInstall(version: string) {
 export function failUpdateInstall(error: Error): boolean {
   const version = installingVersion
   if (!version) return false
+  stopUpdateInstallWatchdog()
   installingVersion = null
-  const message = `Version ${version} could not be installed: ${error.message}. Restart to update to try again.`
+  const reason = error.message.replace(/\.+$/, '')
+  const message = `Version ${version} could not be installed: ${reason}. Restart to update to try again.`
   logger.error('Update install failed', { version, message: error.message })
-  if (environment) void takeUpdateInstallAttempt(environment.userDataDirectory)
+  // The attempt record stays: it is true that this version did not install, and a retry
+  // overwrites it.
   previousFailure = { version, message }
   setUpdateStatus(downloadedUpdateStatus(version))
   return true
+}
+
+/** The app has started quitting; from here only the next launch can tell how the install went. */
+export function stopUpdateInstallWatchdog() {
+  if (watchdog) clearTimeout(watchdog)
+  watchdog = null
 }

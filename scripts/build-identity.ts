@@ -130,5 +130,4 @@ export function resolveMacIconPath(channel: BuildChannel, buildResourcesDir: str
   return path.posix.join(buildResourcesDir, file)
 }
 
-/** The PNG a dev build sets as its Dock icon at runtime, matching its generated macOS icon. */
-export const MAC_DEV_DOCK_ICON = 'icon-dev-macos.png'
+export { MAC_DEV_DOCK_ICON_FILE as MAC_DEV_DOCK_ICON } from '../src/shared/build-identity-runtime'

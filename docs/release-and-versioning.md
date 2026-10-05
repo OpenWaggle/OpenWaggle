@@ -213,13 +213,18 @@ Updates download automatically in the background; installing is always a user ac
 - With no active runs, the restart installs immediately without a dialog.
 - The restart releases the Session Host before the app quits (ADR 0047). The Host runs from the app
   bundle, and macOS Squirrel refuses to replace a bundle while any process from it is running
-  ("App Still Running"). The desktop app asks the Host to stop with a 10-second deadline, which
-  ends running Actions, CLI waits, and exports, and waits up to 15 seconds for it to exit. An
+  ("App Still Running"). The desktop app asks the Host to stop, and the Host gives that stop a
+  10-second deadline. At the deadline it interrupts any Run still active, which ends as
+  interrupted, and gives it 3 seconds to settle; running Actions, CLI waits, and exports end with
+  the Host. On macOS the app waits up to 15 seconds for the Host process to exit. On Windows and
+  Linux it only requests the stop, because those installers replace the app themselves. An
   ordinary quit leaves the Host running.
 - The app shows **Installing** as soon as the restart begins, because macOS unpacks and verifies
-  the update before it quits; relaunching the old version meanwhile makes the install fail. The
-  next launch reports an update that did not install, and says when another OpenWaggle process,
-  such as `openwaggle mcp serve` or `openwaggle sessions wait`, was the reason.
+  the update before it quits; relaunching the old version meanwhile makes the install fail. If the
+  installer reports an error, or the app has not quit after 3 minutes, the update shows as ready
+  again with the reason. After the next launch, when the same update is ready again, the app says
+  that it did not install, and says when another OpenWaggle process, such as
+  `openwaggle mcp serve` or `openwaggle sessions wait`, was the reason.
 - The app relaunches automatically after installing an update, and after a fresh install where an
   installer runs. This follows `pingdotgg/t3code`:
   - In-app updates install silently and force a relaunch on every platform
