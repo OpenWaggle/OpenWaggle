@@ -108,7 +108,10 @@ async function installExactVersion(parsed: ParsedArguments, tag: string, checkOn
   if (isDesktopAppRunning(app)) throw new Error(DESKTOP_OPEN_EXACT_VERSION_MESSAGE)
   if (process.platform === 'win32') {
     const installer = await prepareWindowsInstaller(tag)
-    await stopSessionHostBeforeInstall(parsed)
+    await stopSessionHostBeforeInstall(parsed).catch(async (error: unknown) => {
+      await installer.discard()
+      throw error
+    })
     await installer.launch()
     await writeCliStdout(`Installing OpenWaggle ${release.tag_name}…\n`)
     return { exitCode: EXIT.SUCCESS, updaterOwnsExit: false }

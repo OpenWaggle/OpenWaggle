@@ -24,6 +24,7 @@ function dependencies(input: {
   readonly runCounts: readonly (number | null)[]
   readonly choice?: UpdateRunChoice
   readonly desktopOpen?: boolean | readonly boolean[]
+  readonly handingOver?: boolean
 }) {
   const counts = [...input.runCounts]
   const desktop = typeof input.desktopOpen === 'object' ? [...input.desktopOpen] : []
@@ -33,9 +34,10 @@ function dependencies(input: {
       const open = input.desktopOpen ?? false
       return typeof open === 'boolean' ? open : (desktop.shift() ?? false)
     }),
-    countActiveRuns: vi.fn(async () =>
-      counts.length > 1 ? (counts.shift() ?? null) : (counts[0] ?? null),
-    ),
+    countActiveRuns: vi.fn(async () => {
+      const count = counts.length > 1 ? (counts.shift() ?? null) : (counts[0] ?? null)
+      return count === null ? null : { activeRuns: count, handingOver: input.handingOver ?? false }
+    }),
     chooseRunHandling: vi.fn(async () => input.choice ?? 'when-idle'),
     release: vi.fn<HostUpdateStopDependencies['release']>(async () => 'stopped'),
     progress: (text: string) => {
@@ -121,6 +123,33 @@ describe('stopping the Session Host for an update from the CLI', () => {
     expect(value.release).toHaveBeenCalledTimes(2)
   })
 
+  it('asks about the Runs of a Host started again before stopping it', async () => {
+    const { value } = dependencies({ runCounts: [0, 2], choice: 'cancel' })
+    value.release.mockResolvedValueOnce('replaced')
+
+    await expect(stopSessionHostForUpdate(value)).resolves.toEqual({
+      state: 'cancelled',
+      activeRuns: 2,
+    })
+    expect(value.chooseRunHandling).toHaveBeenCalledWith(2)
+    expect(value.release).toHaveBeenCalledOnce()
+  })
+
+  it('reports a Host that keeps being started again after the second stop', async () => {
+    const { value } = dependencies({ runCounts: [0] })
+    value.release.mockResolvedValue('replaced')
+
+    await expect(stopSessionHostForUpdate(value)).resolves.toMatchObject({ state: 'replaced' })
+    expect(value.release).toHaveBeenCalledTimes(2)
+  })
+
+  it('waits for an older Host that hands over, which cannot be told to stop its Runs', async () => {
+    const { value } = dependencies({ runCounts: [1, null], handingOver: true })
+
+    await expect(stopSessionHostForUpdate(value)).resolves.toMatchObject({ state: 'not-running' })
+    expect(value.chooseRunHandling).not.toHaveBeenCalled()
+  })
+
   it('leaves the Host alone when the app was opened while it waited for Runs', async () => {
     const { value } = dependencies({ runCounts: [1, 0], desktopOpen: [false, true] })
 
@@ -146,7 +175,7 @@ describe('stopping the Session Host for an update from the CLI', () => {
 
     expect(electronApp.exit).toHaveBeenCalledWith(130)
     expect(process.stderr.write).toHaveBeenCalledWith(
-      '\nUpdate cancelled. OpenWaggle was not changed.\n',
+      '\nUpdate cancelled. OpenWaggle was not updated.\n',
     )
   })
 

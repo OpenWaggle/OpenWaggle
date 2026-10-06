@@ -41,12 +41,7 @@ printf '{\\n  "type": "response",\\n  "result": {\\n    "state": "${input.state}
 }
 
 /** Runs the installer section with the commands it needs from the rest of install.sh stubbed. */
-async function runSection(
-  command: string,
-  args: readonly string[],
-  platform = 'mac',
-  searchPath = process.env.PATH ?? '',
-) {
+async function runSection(command: string, args: readonly string[], platform = 'mac') {
   const source = await fs.readFile('scripts/install.sh', 'utf8')
   const start = source.indexOf(SECTION_START)
   const end = source.indexOf(SECTION_END)
@@ -64,7 +59,7 @@ QUIT_MAC_APP="1"
 ${source.slice(start + SECTION_START.length, end)}
 ${command} "$@"`
   const child = execFileAsync('bash', ['-c', script, 'installer-host-stop-test', ...args], {
-    env: { PATH: searchPath },
+    env: { PATH: process.env.PATH ?? '', TMPDIR: directory },
   })
   // The rest of a piped install script must never reach the CLI.
   child.child.stdin?.end('rest of the install script\n')
@@ -116,26 +111,31 @@ describe('quick installer Session Host stop', () => {
     expect(await calls()).toEqual([])
   })
 
-  it('bounds the CLI of a Linux AppImage whose version is not recorded', async () => {
-    const executable = await fakeCli({ help: 'update', state: 'stopped' })
-    const bin = path.join(directory, 'bin')
-    await fs.mkdir(bin)
-    // A coreutils timeout that records its bound and runs the command.
+  it('reads the version of an AppImage installed before the version file existed', async () => {
+    const appimage = path.join(directory, 'OpenWaggle.AppImage')
+    // Like the AppImage runtime: --appimage-extract writes matching files under ./squashfs-root.
     await fs.writeFile(
-      path.join(bin, 'timeout'),
-      `#!/bin/sh\nprintf 'timeout %s\\n' "$1" >> "${directory}/calls"\nshift\nexec "$@"\n`,
+      appimage,
+      `#!/bin/sh
+printf '%s\\n' "$*" >> "${directory}/calls"
+[ "$1" = "--appimage-extract" ] || exit 1
+mkdir -p squashfs-root
+printf '[Desktop Entry]\\nName=OpenWaggle\\nX-AppImage-Version=1.0.0-beta.9\\n' > squashfs-root/openwaggle.desktop
+`,
       { mode: 0o755 },
     )
 
-    const result = await runSection(
-      'session_host_update_stop_state',
-      ['linux', executable, ''],
-      'linux',
-      `${bin}:${process.env.PATH ?? ''}`,
-    )
+    const result = await runSection('appimage_version', [appimage], 'linux')
 
-    expect(result.stdout).toBe('stopped')
-    expect(await calls()).toEqual(['timeout 30', 'host --help', 'host stop --update --json'])
+    expect(result.stdout).toBe('1.0.0-beta.9')
+    expect(await calls()).toEqual(['--appimage-extract *.desktop'])
+  })
+
+  it('never runs a CLI whose version is unknown', async () => {
+    const executable = await fakeCli({ help: 'update', state: 'stopped' })
+
+    await expect(stopState('linux', executable, '')).resolves.toBe('unsupported')
+    expect(await calls()).toEqual([])
   })
 
   it('has nothing to stop on a first install', async () => {
@@ -148,7 +148,7 @@ describe('quick installer Session Host stop', () => {
     const result = await runSection('stop_session_host_for_update', [executable, CURRENT_VERSION])
 
     expect(result.exitCode).toBe(1)
-    expect(result.stdout).toContain('error: Update cancelled. OpenWaggle was not changed.')
+    expect(result.stdout).toContain('error: Update cancelled. OpenWaggle was not updated.')
     expect(await calls()).toEqual([
       'host --help',
       'host stop --update --json',

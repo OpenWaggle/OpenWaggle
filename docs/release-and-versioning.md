@@ -254,7 +254,8 @@ app never installs a downloaded update.
   then replaces the bundle. If the user cancels there, it reopens the app and changes nothing. An
   installed version older than `--update` gets a plain `host stop --wait`, bounded to 20 seconds;
   one before 1.0.0-beta.1 has no `host` command and is never run (the script reads its version
-  from `Info.plist`, or from the `version` file it writes beside the AppImage).
+  from `Info.plist`, from the `version` file it writes beside the AppImage, or from the
+  AppImage's own desktop entry).
   On Linux the installer stops the Host the same way before it replaces the AppImage atomically.
   A running app keeps running, and keeps its Host; the installer tells the user to quit it and run
   `openwaggle host stop --update`, because a quit alone leaves the old Host for the new app.

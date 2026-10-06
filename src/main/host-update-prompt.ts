@@ -28,22 +28,24 @@ function runsPhrase(activeRuns: number) {
 /** The controlling terminal as TTY streams, which close cleanly unlike a file read of /dev/tty. */
 function openControllingTerminal(): PromptTerminal | null {
   if (process.platform === 'win32') return null
-  let inputDescriptor: number | undefined
+  const descriptors: number[] = []
   try {
-    inputDescriptor = openSync('/dev/tty', 'r')
-    const input = new ReadStream(inputDescriptor)
-    const output = new WriteStream(openSync('/dev/tty', 'w'))
-    return {
-      input,
-      output,
-      close: () => {
-        input.destroy()
-        output.destroy()
-      },
-    }
+    // Both before either stream, which then owns its descriptor.
+    descriptors.push(openSync('/dev/tty', 'r'), openSync('/dev/tty', 'w'))
   } catch {
-    if (inputDescriptor !== undefined) closeSync(inputDescriptor)
+    for (const descriptor of descriptors) closeSync(descriptor)
     return null
+  }
+  const [inputDescriptor = -1, outputDescriptor = -1] = descriptors
+  const input = new ReadStream(inputDescriptor)
+  const output = new WriteStream(outputDescriptor)
+  return {
+    input,
+    output,
+    close: () => {
+      input.destroy()
+      output.destroy()
+    },
   }
 }
 
@@ -69,7 +71,7 @@ export async function askRunHandling(
   notice: (text: string) => void,
 ): Promise<UpdateRunChoice> {
   if (!terminal) {
-    notice(`${runsPhrase(activeRuns)} still working; waiting for them to finish (Ctrl-C cancels).`)
+    notice(`${runsPhrase(activeRuns)} still working; waiting for them to finish.`)
     return 'when-idle'
   }
   const question = `${runsPhrase(activeRuns)} still working. Wait until they finish [W], stop them now [n], or cancel [c]? `

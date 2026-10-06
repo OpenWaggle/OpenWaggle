@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process'
 import { createHash, randomUUID } from 'node:crypto'
-import { writeFile } from 'node:fs/promises'
+import { rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { decodeUnknownOrThrow, Schema } from '@shared/schema'
@@ -76,5 +76,8 @@ export async function prepareWindowsInstaller(tag: string) {
     throw new Error(`Release ${tag} failed checksum verification.`)
   const destination = path.join(tmpdir(), `openwaggle-update-${randomUUID()}.exe`)
   await writeFile(destination, contents, { mode: WINDOWS_INSTALLER_MODE })
-  return { launch: () => launchExternalApplication(destination, ['/S']) }
+  return {
+    launch: () => launchExternalApplication(destination, ['/S']),
+    discard: () => rm(destination, { force: true }),
+  }
 }

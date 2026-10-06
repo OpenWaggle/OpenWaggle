@@ -379,9 +379,6 @@ quit_running_mac_app() {
 
 # BEGIN TESTABLE SESSION HOST STOP
 HOST_STOP_FALLBACK_TIMEOUT_MS=20000
-# A version without the `host` command (before 1.0.0-beta.1) opens its window for any unknown
-# command, so it is never asked; one of unknown version gets this long to answer.
-UNKNOWN_VERSION_CLI_TIMEOUT_SECONDS=30
 
 # Runs the installed CLI without letting it read stdin: under `curl … | bash` that is the rest of
 # this script. Questions go to the terminal. The AppImage writes noise to stdout, so its CLI output
@@ -396,19 +393,24 @@ run_installed_cli() {
   fi
 }
 
-# Prints the help of the installed `host` command, or nothing when the version predates it.
+# The version of an installed AppImage, from the desktop entry electron-builder puts inside it.
+# Extracting one file runs nothing from the app.
+appimage_version() {
+  local appimage="$1" scratch
+  [ -x "${appimage}" ] || return 0
+  scratch="$(mktemp -d "${TMPDIR:-/tmp}/openwaggle-appimage.XXXXXX")" || return 0
+  (cd "${scratch}" && "${appimage}" --appimage-extract '*.desktop' >/dev/null 2>&1 </dev/null) || true
+  sed -n 's/^X-AppImage-Version=//p' "${scratch}"/squashfs-root/*.desktop 2>/dev/null | head -1
+  rm -rf "${scratch}"
+}
+
+# Prints the help of the installed `host` command, or nothing when the version predates it or is
+# unknown. A version before 1.0.0-beta.1 has no `host` command and opens its window for any
+# command it does not know, so it is never run.
 installed_host_help() {
   local platform="$1" executable="$2" version="$3"
   case "${version}" in
-    0.*) return 0 ;;
-    '')
-      if command -v timeout >/dev/null 2>&1; then
-        timeout "${UNKNOWN_VERSION_CLI_TIMEOUT_SECONDS}" \
-          bash -c "$(declare -f run_installed_cli); run_installed_cli \"\$@\"" _ \
-          "${platform}" "${executable}" host --help 2>/dev/null || true
-      fi
-      return 0
-      ;;
+    ''|0.*) return 0 ;;
   esac
   run_installed_cli "${platform}" "${executable}" host --help 2>/dev/null || true
 }
@@ -447,14 +449,14 @@ stop_session_host_for_update() {
   local state
   info "Stopping the OpenWaggle Session Host…"
   # Ctrl-C while it waits for agent runs cancels the update, not the installed app.
-  trap 'restore_installed_app; error "Update cancelled. OpenWaggle was not changed."' INT TERM
+  trap 'restore_installed_app; error "Update cancelled. OpenWaggle was not updated."' INT TERM
   state="$(session_host_update_stop_state "${PLATFORM}" "$1" "$2")"
   trap - INT TERM
   case "${state}" in
     stopped|not-running|not-installed) ;;
     cancelled)
       restore_installed_app
-      error "Update cancelled. OpenWaggle was not changed."
+      error "Update cancelled. OpenWaggle was not updated."
       ;;
     desktop-open)
       if [ "${PLATFORM}" = "mac" ]; then
@@ -668,7 +670,9 @@ elif [ "${PLATFORM}" = "linux" ]; then
   DESKTOP_DIR="${HOME}/.local/share/applications"
   DESKTOP_PATH="${DESKTOP_DIR}/openwaggle.desktop"
   # An open app keeps running, and keeps its Host, until the user quits it and stops the Host.
-  stop_session_host_for_update "${APPIMAGE_PATH}" "$(cat "${APPIMAGE_VERSION_PATH}" 2>/dev/null || true)"
+  INSTALLED_APPIMAGE_VERSION="$(cat "${APPIMAGE_VERSION_PATH}" 2>/dev/null || true)"
+  [ -n "${INSTALLED_APPIMAGE_VERSION}" ] || INSTALLED_APPIMAGE_VERSION="$(appimage_version "${APPIMAGE_PATH}")"
+  stop_session_host_for_update "${APPIMAGE_PATH}" "${INSTALLED_APPIMAGE_VERSION}"
   install_executable_atomically "${DOWNLOAD_PATH}" "${APPIMAGE_PATH}"
   printf '%s\n' "${VERSION#v}" > "${APPIMAGE_VERSION_PATH}"
   ESCAPED_APPIMAGE_PATH="$(printf '%s' "${APPIMAGE_PATH}" | sed "s/'/'\"'\"'/g")"

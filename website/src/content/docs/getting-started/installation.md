@@ -119,7 +119,7 @@ already open, the command leaves the update to the app instead: open **Settings 
 interrupted without asking. An exact `--version` install asks you to quit OpenWaggle first. Before
 it installs, the command stops OpenWaggle's background Session Host as **Restart to update** does:
 if agent work is still running, it asks whether to wait for it, stop it, or cancel. Without a
-terminal to ask on, as on Windows, it waits for that work; press Ctrl-C to cancel. Choosing `--channel` is persistent; choosing
+terminal to ask on, as on Windows, it waits for that work. Choosing `--channel` is persistent; choosing
 `--version` is a one-time install and can target an exact Stable or prerelease version. Release
 candidates (RC) are not a separate channel; Beta and Alpha receive them automatically. On a first
 launch with no saved preference, an Alpha or Beta build starts on its matching channel and a

@@ -54,7 +54,7 @@ describe('asking about active Runs before an update', () => {
 
     await expect(askRunHandling(3, null, notice)).resolves.toBe('when-idle')
     expect(notice).toHaveBeenCalledWith(
-      '3 agent runs are still working; waiting for them to finish (Ctrl-C cancels).',
+      '3 agent runs are still working; waiting for them to finish.',
     )
   })
 })

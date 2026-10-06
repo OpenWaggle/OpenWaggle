@@ -226,7 +226,10 @@ describe('host stop --update', () => {
   function updateStop(state: 'stopped' | 'cancelled' | 'desktop-open' | 'timed-out' | 'refused') {
     return () => ({
       desktopAppRunning: () => state === 'desktop-open',
-      countActiveRuns: async () => (state === 'cancelled' ? 1 : 0),
+      countActiveRuns: async () => ({
+        activeRuns: state === 'cancelled' ? 1 : 0,
+        handingOver: false,
+      }),
       chooseRunHandling: async () => 'cancel' as const,
       release: async () =>
         state === 'timed-out' || state === 'refused' ? state : ('stopped' as const),
