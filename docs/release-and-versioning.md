@@ -193,7 +193,9 @@ differential. `builder-debug.yml` is a local build dump and is not published.
 
 ### Update restart and relaunch
 
-Updates download automatically in the background; installing is always a user action.
+Updates download automatically in the background; installing is always a user action: **Restart
+to update** in the app, `openwaggle update`, or the install script (`curl … | bash`). Quitting the
+app never installs a downloaded update.
 
 - An update restart never silently interrupts an agent run. The one exception is a run that starts
   while the update already shows as installing, the seconds macOS takes to unpack it before the app

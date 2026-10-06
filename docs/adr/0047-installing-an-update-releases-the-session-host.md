@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 ---
 
 # Installing an update releases the Session Host
@@ -15,7 +15,7 @@ Restart to update shows **Installing** at once and records the attempt. If the i
 - **Stop the Host in the installer, not the app.** Squirrel.Mac has no such hook, and killing the process marks every active Run `interrupted-by-host-loss`.
 - **A stop with no deadline.** A dev server started as an Action never ends on its own, so the Host would never exit and the update would never install.
 - **A new `local-host-v1` request field for the deadline.** It would be more explicit, but a desktop app newer than its Host would send a field the Host rejects. Tying the deadline to the desktop app's caller works with every Host that has the stop command; an older Host refuses the desktop app, which then quits and lets the next launch report the outcome. The process id is an optional response field that only the desktop app receives, so no older client ever decodes it.
-- **Stage the update with Squirrel as soon as it downloads**, so Restart to update quits at once (as VS Code does). Then any quit installs the update, which ADR 0040 rules out, because installing is always a user action and the Update channel is re-read just before.
+- **Stage the update with Squirrel as soon as it downloads**, so Restart to update quits at once (as VS Code does). Then any quit installs the update. An update installs only through one of three user actions: **Restart to update** in the app, `openwaggle update`, or the install script (`curl … | bash`). An ordinary quit is none of them, and Restart to update re-reads the Update channel just before it installs.
 
 ## Consequences
 
