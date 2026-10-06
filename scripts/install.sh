@@ -26,6 +26,7 @@ READY_CURSOR_BLINK_DELAY_SECONDS="0.12"
 READY_CURSOR_BLINK_CYCLES=2
 MAC_APP_ID="com.openwaggle.app"
 APP_QUIT_WAIT_SECONDS=30
+QUIT_MAC_APP=""
 
 info()  { printf '\033[1;34m==>\033[0m %s\n' "$*"; }
 error() { printf '\033[1;31merror:\033[0m %s\n' "$*" >&2; exit 1; }
@@ -360,12 +361,13 @@ running_mac_gui_pids() {
 }
 
 # Quit the running desktop app through Electron's normal quit path (SIGTERM emits before-quit), so
-# it saves state before its bundle is replaced. The Session Host keeps running and hands over to
-# the new version through its own drain.
+# it saves state before its bundle is replaced. Its Session Host keeps running; the installer stops
+# it next, after asking about active agent runs.
 quit_running_mac_app() {
   local pids pid waited
   pids="$(running_mac_gui_pids)"
   [ -n "${pids}" ] || return 0
+  QUIT_MAC_APP="1"
   info "Quitting the running OpenWaggle…"
   for pid in ${pids}; do kill -TERM "${pid}" 2>/dev/null || true; done
   for ((waited = 0; waited < APP_QUIT_WAIT_SECONDS; waited++)); do
@@ -373,6 +375,58 @@ quit_running_mac_app() {
     sleep 1
   done
   error "OpenWaggle is still running. Quit it, then run the installer again."
+}
+
+# BEGIN TESTABLE SESSION HOST STOP
+HOST_STOP_FALLBACK_TIMEOUT_MS=20000
+
+# Runs the installed CLI without letting it read stdin: under `curl … | bash` that is the rest of
+# this script. Questions go to the terminal. The AppImage writes noise to stdout, so its CLI output
+# uses a separate descriptor, as the `openwaggle` shim does.
+run_installed_cli() {
+  local platform="$1" executable="$2"
+  shift 2
+  if [ "${platform}" = "linux" ]; then
+    env OPENWAGGLE_CLI_OUTPUT_FD=3 "${executable}" "$@" 3>&1 1>/dev/null </dev/null
+  else
+    "${executable}" "$@" </dev/null
+  fi
+}
+
+# Stops the installed version's Session Host before its app is replaced, as Restart to update does
+# (ADR 0047). If agent runs are active the CLI asks whether to wait for them, stop them, or cancel.
+# Prints the outcome state, or nothing when it is unknown. An older CLI without `host stop --update`
+# gets a plain stop, which waits for active work instead of asking.
+session_host_update_stop_state() {
+  local platform="$1" executable="$2" output
+  [ -x "${executable}" ] || { printf '%s\n' "not-installed"; return 0; }
+  if run_installed_cli "${platform}" "${executable}" host --help 2>/dev/null | grep -q -- '--update'; then
+    output="$(run_installed_cli "${platform}" "${executable}" host stop --update --json || true)"
+  else
+    output="$(run_installed_cli "${platform}" "${executable}" host stop --wait \
+      --timeout-ms "${HOST_STOP_FALLBACK_TIMEOUT_MS}" --json || true)"
+  fi
+  printf '%s\n' "${output}" | sed -n 's/.*"state": *"\([a-z-]*\)".*/\1/p' | head -1
+}
+# END TESTABLE SESSION HOST STOP
+
+stop_session_host_for_update() {
+  local state
+  state="$(session_host_update_stop_state "${PLATFORM}" "$1")"
+  case "${state}" in
+    stopped|not-running|replaced|not-installed) ;;
+    cancelled)
+      [ -n "${MOUNT_POINT:-}" ] && hdiutil detach "${MOUNT_POINT}" -quiet 2>/dev/null || true
+      rm -f "${DOWNLOAD_PATH}"
+      if [ "${QUIT_MAC_APP}" = "1" ] && [ -z "$(launch_skip_reason "${PLATFORM}")" ]; then
+        open "${INSTALLED_APP_PATH}" 2>/dev/null || true
+      fi
+      error "Update cancelled. OpenWaggle was not changed."
+      ;;
+    desktop-open) info "OpenWaggle is open, so it keeps its Session Host until you restart it." ;;
+    timed-out) info "The Session Host is still stopping. Restart OpenWaggle once its work ends." ;;
+    *) info "Could not stop the Session Host. Run \`openwaggle host stop --wait\` before you reopen OpenWaggle." ;;
+  esac
 }
 
 launch_installed_app() {
@@ -520,9 +574,11 @@ if [ "${PLATFORM}" = "mac" ]; then
   MOUNT_POINT="$(hdiutil attach -nobrowse -readonly "${DOWNLOAD_PATH}" 2>/dev/null | tail -1 | awk -F'\t' '{print $NF}')"
   APP_PATH="$(find "${MOUNT_POINT}" -maxdepth 1 -name '*.app' | head -1)"
   [ -z "${APP_PATH}" ] && error "No .app bundle found in DMG"
-  quit_running_mac_app
-  mkdir -p "${APPLICATIONS_DIR}"
   INSTALLED_APP_PATH="${APPLICATIONS_DIR}/$(basename "${APP_PATH}")"
+  # Quit the window first: stopping the Host under an open app would only make it start another.
+  quit_running_mac_app
+  stop_session_host_for_update "${INSTALLED_APP_PATH}/Contents/MacOS/OpenWaggle"
+  mkdir -p "${APPLICATIONS_DIR}"
   rm -rf "${INSTALLED_APP_PATH}"
   cp -R "${APP_PATH}" "${APPLICATIONS_DIR}/"
   hdiutil detach "${MOUNT_POINT}" -quiet 2>/dev/null || true
@@ -558,6 +614,8 @@ elif [ "${PLATFORM}" = "linux" ]; then
   APPIMAGE_PATH="${APP_DIR}/OpenWaggle.AppImage"
   DESKTOP_DIR="${HOME}/.local/share/applications"
   DESKTOP_PATH="${DESKTOP_DIR}/openwaggle.desktop"
+  # An open app keeps running, and keeps its Host, until the user restarts it.
+  stop_session_host_for_update "${APPIMAGE_PATH}"
   install_executable_atomically "${DOWNLOAD_PATH}" "${APPIMAGE_PATH}"
   ESCAPED_APPIMAGE_PATH="$(printf '%s' "${APPIMAGE_PATH}" | sed "s/'/'\"'\"'/g")"
   SHIM_TEMP_PATH="$(mktemp "${INSTALL_DIR}/.openwaggle-cli.XXXXXX")"

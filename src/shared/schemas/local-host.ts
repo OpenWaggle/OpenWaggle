@@ -8,6 +8,7 @@ import {
 export const localHostRequestSchema: Schema.Schema<LocalHostRequest> = Schema.Struct({
   contractVersion: Schema.Literal(LOCAL_HOST_CONTRACT_VERSION),
   operation: Schema.Literal('stop'),
+  purpose: Schema.optional(Schema.Literal('update')),
 })
 
 export const localHostResponseSchema: Schema.Schema<LocalHostResponse> = Schema.Struct({

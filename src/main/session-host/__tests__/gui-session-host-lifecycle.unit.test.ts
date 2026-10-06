@@ -49,7 +49,7 @@ vi.mock('../session-host-cutover', () => ({
 vi.mock('../legacy-session-writer-fence', () => ({
   withLegacySessionWriterFence: (operation: () => Promise<unknown>) => operation(),
 }))
-vi.mock('../gui-session-host-release', () => ({
+vi.mock('../session-host-update-release', () => ({
   releaseSessionHostForUpdate: releaseSessionHostForUpdateMock,
 }))
 vi.mock('../session-host-renderer-bridge', () => ({
@@ -105,8 +105,9 @@ describe('GUI Session Host lifecycle', () => {
     await lifecycle.stop({ releaseHostForUpdate: true })
 
     expect(releaseSessionHostForUpdateMock).toHaveBeenCalledOnce()
+    // As the desktop app, which the Host lets stop it only for an update.
     expect(releaseSessionHostForUpdateMock).toHaveBeenCalledWith(
-      expect.objectContaining({ clientVersion: 'test' }),
+      expect.objectContaining({ clientVersion: 'test', clientKind: 'gui' }),
     )
   })
 

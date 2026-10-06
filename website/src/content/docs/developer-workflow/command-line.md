@@ -96,10 +96,15 @@ An agent running inside OpenWaggle must pass an access profile with `--profile`,
 ```sh
 openwaggle host stop
 openwaggle host stop --wait --timeout-ms 60000
+openwaggle host stop --update
 ```
 
-The Session Host exits on its own a few minutes after its last work ends, and **Restart to update** in the desktop app stops it before installing, so stopping it is rarely needed. `host stop` makes it refuse new work at once and exit as soon as its active Runs, running Actions, exports, and other owned work finish. It never interrupts a Run. Follow-ups already queued behind an active Run still run first; pause the queue with `openwaggle sessions queue pause <session-id> --queue-revision <n>` to stop sooner (`openwaggle sessions queue list <session-id>` shows the revision). The command says what the Host is waiting for.
+The Session Host exits on its own a few minutes after its last work ends, and every update stops it before installing, so stopping it is rarely needed. `host stop` makes it refuse new work at once and exit as soon as its active Runs, running Actions, exports, and other owned work finish. It never interrupts a Run. Follow-ups already queued behind an active Run still run first; pause the queue with `openwaggle sessions queue pause <session-id> --queue-revision <n>` to stop sooner (`openwaggle sessions queue list <session-id>` shows the revision). The command says what the Host is waiting for.
 
 While it stops, the Host still answers the commands that end work: you can read Sessions (but not wait on them), answer a Run's questions and approvals, interrupt a Run with `openwaggle sessions interrupt <session-id> --expected-run <run-id>` (`openwaggle status` lists both IDs), and stop an Action in the desktop app, which keeps showing your Sessions. Commands that start work fail with a message that the Host is stopping.
 
-With `--wait` the command returns once the Host has exited, or exits with status 7 if its work outlasts the timeout (2 minutes by default). If the desktop app is open, it starts a new Host the next time it needs one. Only you can stop the Host; named access profiles and agents cannot. `openwaggle host status` is the same as `openwaggle status`. Checking the status counts as activity, so an idle Host waits a little longer before it exits.
+With `--wait` the command returns once the Host has exited, or exits with status 7 if its work outlasts the timeout (2 minutes by default). If the desktop app is open, it starts a new Host the next time it needs one. Only you can stop the Host; named access profiles and agents cannot.
+
+`host stop --update` is the stop an update uses. **Restart to update**, `openwaggle update`, and the install script all stop the Host this way before they replace the app. If agent Runs are active, it asks whether to wait until they finish (the default), stop them now, or cancel. Then the Host gets 10 seconds to finish its other work, interrupts any Run still active, which is recorded as interrupted, and exits. The command returns once the Host process is gone. It asks on the terminal, so it also works under `curl … | bash`; without a terminal it waits for the Runs. While the desktop app is open it leaves the Host alone, because the app owns it then. It exits with status 6 when you cancel or the app is open, and 7 if the Host has not exited after 20 seconds.
+
+`openwaggle host status` is the same as `openwaggle status`. Checking the status counts as activity, so an idle Host waits a little longer before it exits.

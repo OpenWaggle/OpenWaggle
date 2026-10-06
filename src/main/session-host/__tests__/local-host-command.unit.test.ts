@@ -1,14 +1,15 @@
 import type { LocalSessionCallerIdentity } from '@shared/types/local-session-profile'
 import { fromPartial } from '@total-typescript/shoehorn'
 import { describe, expect, it, vi } from 'vitest'
-import {
-  DESKTOP_UPDATE_HOST_STOP_DEADLINE_MS,
-  dispatchLocalHostCommand,
-} from '../local-host-command'
+import { dispatchLocalHostCommand, UPDATE_HOST_STOP_DEADLINE_MS } from '../local-host-command'
 
 const payload = {
   contract: 'local-host-v1',
   request: { contractVersion: 1, operation: 'stop' },
+} as const
+const updatePayload = {
+  contract: 'local-host-v1',
+  request: { contractVersion: 1, operation: 'stop', purpose: 'update' },
 } as const
 
 function caller(identity: Partial<LocalSessionCallerIdentity>) {
@@ -41,8 +42,31 @@ describe('Session Host stop command', () => {
     expect(requestHostStop).toHaveBeenCalledWith({})
   })
 
-  it('lets the desktop app stop the Host to install an update, within a deadline', async () => {
+  it.each([
+    ['the desktop app', 'gui:local-user'],
+    ['openwaggle update or the install script', 'local-user:ada'],
+  ])('lets %s stop the Host for an update, within a deadline', async (_label, callerId) => {
     const requestHostStop = vi.fn(() => ({ hostInstanceId: 'host-1', runningActions: 1 }))
+
+    await expect(
+      dispatchLocalHostCommand({
+        caller: caller({ callerId }),
+        payload: updatePayload,
+        countBlockingRuns: async () => 0,
+        requestHostStop,
+        processId: 4242,
+      }),
+    ).resolves.toMatchObject({
+      // The installer waits for this process, because macOS still counts it after its socket closes.
+      response: { hostInstanceId: 'host-1', blockingActions: 1, processId: 4242 },
+    })
+    // The update already let Runs finish or asked the user; an Action such as a dev server must
+    // not keep the old version's Host, and with it the update, waiting.
+    expect(requestHostStop).toHaveBeenCalledWith({ deadlineMs: UPDATE_HOST_STOP_DEADLINE_MS })
+  })
+
+  it('refuses a desktop-app stop that is not for an update', async () => {
+    const requestHostStop = vi.fn(() => ({ hostInstanceId: 'host-1', runningActions: 0 }))
 
     await expect(
       dispatchLocalHostCommand({
@@ -50,17 +74,9 @@ describe('Session Host stop command', () => {
         payload,
         countBlockingRuns: async () => 0,
         requestHostStop,
-        processId: 4242,
       }),
-    ).resolves.toMatchObject({
-      // The desktop app waits for this process, because macOS still counts it after its socket closes.
-      response: { hostInstanceId: 'host-1', blockingActions: 1, processId: 4242 },
-    })
-    // A Restart to update already let Runs finish or stopped them; an Action such as a dev server
-    // must not keep the old version's Host, and with it the update, waiting.
-    expect(requestHostStop).toHaveBeenCalledWith({
-      deadlineMs: DESKTOP_UPDATE_HOST_STOP_DEADLINE_MS,
-    })
+    ).rejects.toMatchObject({ code: 'capability_denied' })
+    expect(requestHostStop).not.toHaveBeenCalled()
   })
 
   it('still stops when the Runs it waits for cannot be counted', async () => {
@@ -107,7 +123,7 @@ describe('Session Host stop command', () => {
       await expect(
         dispatchLocalHostCommand({
           caller: caller(identity),
-          payload,
+          payload: updatePayload,
           countBlockingRuns: async () => 0,
           requestHostStop,
         }),

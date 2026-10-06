@@ -2,14 +2,13 @@ import { LOCAL_HOST_CONTRACT_VERSION } from '@shared/types/local-host'
 import { SESSION_HOST_DRAIN_DEADLINE_SETTLE_MS } from '../application/session-host-liveness'
 import { describeError } from '../error-description'
 import { createLogger } from '../logger'
-import { DESKTOP_UPDATE_HOST_STOP_DEADLINE_MS } from './local-host-command'
+import { UPDATE_HOST_STOP_DEADLINE_MS } from './local-host-command'
 import {
   executeLocalSessionCommand,
   LocalSessionHostUpgradePendingError,
   probeLocalSessionHost,
 } from './local-session-client'
 import { isLocalSessionHostUnavailable } from './local-session-host-launcher'
-import type { LocalSessionHostPaths } from './local-session-paths'
 import { refreshLocalSessionHostEndpoint } from './local-session-paths'
 
 const logger = createLogger('session-host-release')
@@ -18,9 +17,7 @@ const logger = createLogger('session-host-release')
 const SESSION_HOST_EXIT_BUDGET_MS = 7_000
 /** The Host's whole update stop: its drain deadline, the Run settle, and its exit. */
 export const SESSION_HOST_UPDATE_RELEASE_TIMEOUT_MS =
-  DESKTOP_UPDATE_HOST_STOP_DEADLINE_MS +
-  SESSION_HOST_DRAIN_DEADLINE_SETTLE_MS +
-  SESSION_HOST_EXIT_BUDGET_MS
+  UPDATE_HOST_STOP_DEADLINE_MS + SESSION_HOST_DRAIN_DEADLINE_SETTLE_MS + SESSION_HOST_EXIT_BUDGET_MS
 const RELEASE_POLL_INTERVAL_MS = 200
 /** A Host that is exiting can take the full connect timeout to refuse; the release cannot. */
 const PROBE_TIMEOUT_MS = 1_000
@@ -73,35 +70,56 @@ function withProbeTimeout<T>(probe: Promise<T>) {
   return Promise.race([probe, timeout]).finally(() => clearTimeout(timer))
 }
 
-function defaultDependencies(client: {
-  readonly paths: LocalSessionHostPaths
-  readonly clientVersion: string
-}): SessionHostReleaseDependencies {
+/** Who asks: the desktop app, or the CLI that `openwaggle update` and the install script run. */
+export type SessionHostReleaseClient = Omit<
+  Parameters<typeof executeLocalSessionCommand>[0],
+  'payload'
+>
+
+async function sendStop(client: SessionHostReleaseClient, forUpdate: boolean) {
+  const result = await executeLocalSessionCommand({
+    ...client,
+    paths: await refreshLocalSessionHostEndpoint(client.paths),
+    payload: {
+      contract: 'local-host-v1',
+      request: {
+        contractVersion: LOCAL_HOST_CONTRACT_VERSION,
+        operation: 'stop',
+        ...(forUpdate ? { purpose: 'update' as const } : {}),
+      },
+    },
+  })
+  if (result.contract !== 'local-host-v1') {
+    throw new Error('The Session Host returned an unexpected response to stop.')
+  }
+  const { hostInstanceId, processId } = result.response
+  return processId === undefined ? { hostInstanceId } : { hostInstanceId, processId }
+}
+
+export function defaultReleaseDependencies(
+  client: SessionHostReleaseClient,
+): SessionHostReleaseDependencies {
   return {
     // Bounded by the client's default 10 s response timeout; the Host answers a stop at once.
     requestStop: async () => {
-      const result = await executeLocalSessionCommand({
-        paths: await refreshLocalSessionHostEndpoint(client.paths),
-        clientKind: 'gui',
-        clientVersion: client.clientVersion,
-        payload: {
-          contract: 'local-host-v1',
-          request: { contractVersion: LOCAL_HOST_CONTRACT_VERSION, operation: 'stop' },
-        },
-      })
-      if (result.contract !== 'local-host-v1') {
-        throw new Error('The Session Host returned an unexpected response to stop.')
+      try {
+        return await sendStop(client, true)
+      } catch (error) {
+        if (isLocalSessionHostUnavailable(error)) throw error
+        // A Host older than update stops rejects the purpose; the CLI can still stop it plainly,
+        // without the deadline. The desktop app's plain stop is refused, as before.
+        logger.debug('The Session Host refused an update stop; asking for a plain stop', {
+          message: error instanceof Error ? error.message : String(error),
+        })
+        return await sendStop(client, false)
       }
-      const { hostInstanceId, processId } = result.response
-      return processId === undefined ? { hostInstanceId } : { hostInstanceId, processId }
     },
     probe: async () => {
       try {
         const negotiation = await withProbeTimeout(
           probeLocalSessionHost({
+            ...client,
             paths: await refreshLocalSessionHostEndpoint(client.paths),
-            clientKind: 'gui',
-            clientVersion: client.clientVersion,
           }),
         )
         return { state: 'running', hostInstanceId: negotiation.hostInstanceId }
@@ -141,15 +159,16 @@ async function hostHasExited(host: StoppingHost, dependencies: SessionHostReleas
  * Stop the detached Session Host before an update installs.
  *
  * The Host runs from the app bundle. macOS Squirrel refuses to replace the bundle while any process
- * from it is running ("App Still Running"), so on macOS this waits for the Host process to exit. The
- * Windows installer and the AppImage updater replace the app themselves, and a slow quit only
- * delays them, so there the stop is only requested (ADR 0047). Never throws: a Host that cannot be
- * stopped must not keep the app from quitting.
+ * from it is running ("App Still Running"), so the desktop app waits for the Host process to exit on
+ * macOS. On Windows and Linux the desktop app only requests the stop: their installers replace the
+ * app themselves, and a slow quit only delays them. `openwaggle update` and the install script
+ * install only after this returns, so they always wait (`waitForExit`, ADR 0047). Never throws: a
+ * Host that cannot be stopped must not keep the app from quitting.
  */
 export async function releaseSessionHostForUpdate(
-  client: { readonly paths: LocalSessionHostPaths; readonly clientVersion: string },
-  options: { readonly timeoutMs?: number } = {},
-  dependencies: SessionHostReleaseDependencies = defaultDependencies(client),
+  client: SessionHostReleaseClient,
+  options: { readonly timeoutMs?: number; readonly waitForExit?: boolean } = {},
+  dependencies: SessionHostReleaseDependencies = defaultReleaseDependencies(client),
 ): Promise<SessionHostReleaseOutcome> {
   const timeoutMs = options.timeoutMs ?? SESSION_HOST_UPDATE_RELEASE_TIMEOUT_MS
   const startedAt = dependencies.now()
@@ -163,7 +182,7 @@ export async function releaseSessionHostForUpdate(
     logger.warn('The Session Host did not accept or answer the update stop', describeError(error))
     return 'refused'
   }
-  if (dependencies.platform !== 'darwin') return 'stop-requested'
+  if (!(options.waitForExit ?? dependencies.platform === 'darwin')) return 'stop-requested'
   while (dependencies.now() - startedAt < timeoutMs) {
     const state = await hostHasExited(host, dependencies)
     if (state !== 'running') return state

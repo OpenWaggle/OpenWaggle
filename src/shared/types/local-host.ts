@@ -4,6 +4,11 @@ export const LOCAL_HOST_CONTRACT_VERSION = 1 as const
 export interface LocalHostStopRequest {
   readonly contractVersion: typeof LOCAL_HOST_CONTRACT_VERSION
   readonly operation: 'stop'
+  /**
+   * `update`: the stop that installing an update sends, from the desktop app, `openwaggle update`
+   * or the install script (ADR 0047). It has a deadline and answers with the Host's process id.
+   */
+  readonly purpose?: 'update'
 }
 
 export type LocalHostRequest = LocalHostStopRequest
@@ -17,8 +22,8 @@ export interface LocalHostStopResponse {
   /** Running Actions, such as dev servers, the Host also waits for. */
   readonly blockingActions: number
   /**
-   * The Host's process id, sent only to the desktop app, which waits for that process to exit
-   * before an update installs (ADR 0047).
+   * The Host's process id, sent only for an update stop, so the installer can wait for that
+   * process to exit (ADR 0047).
    */
   readonly processId?: number
 }

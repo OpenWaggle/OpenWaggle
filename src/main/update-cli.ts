@@ -9,8 +9,10 @@ import { app } from 'electron'
 import { autoUpdater } from 'electron-updater'
 import { writeCliStdout } from './cli-stdout'
 import { isDesktopAppRunning } from './desktop-instance-probe'
+import { stopHostForUpdate } from './host-cli'
+import { formatHostUpdateStopReport } from './host-update-stop'
 import { createLocalSessionCliClientInput } from './local-session-cli-client'
-import { hasFlag, option, parseMcpCliArguments } from './mcp-cli-arguments'
+import { hasFlag, option, type ParsedArguments, parseMcpCliArguments } from './mcp-cli-arguments'
 import { executeLocalSessionCommand } from './session-host/local-session-client'
 import { releaseForTag, runBundledInstaller, runWindowsInstaller } from './update-cli-installers'
 import { configureUpdaterFeed, isVersionEligibleForChannel } from './update-feed'
@@ -77,7 +79,21 @@ function normalizeVersion(value: string) {
 const DESKTOP_OPEN_EXACT_VERSION_MESSAGE =
   'OpenWaggle is open. Quit it first so its active agent runs are not interrupted, then run this command again.'
 
-async function installExactVersion(tag: string, checkOnly: boolean) {
+/**
+ * Stop the Session Host before the installer replaces the app, as Restart to update does (ADR
+ * 0047): active Runs are waited for, stopped, or the update is cancelled. On macOS and for an exact
+ * Linux version the bundled install script does this itself.
+ */
+async function stopSessionHostBeforeInstall(parsed: ParsedArguments) {
+  const report = await stopHostForUpdate(parsed)
+  if (report.state === 'cancelled') throw new Error('Update cancelled. OpenWaggle was not changed.')
+  if (report.state === 'desktop-open') throw new Error(DESKTOP_OPEN_EXACT_VERSION_MESSAGE)
+  if (report.state === 'timed-out' || report.state === 'refused') {
+    process.stderr.write(`${formatHostUpdateStopReport(report)}\n`)
+  }
+}
+
+async function installExactVersion(parsed: ParsedArguments, tag: string, checkOnly: boolean) {
   const release = await releaseForTag(tag)
   if (checkOnly) {
     await writeCliStdout(`OpenWaggle ${release.tag_name} is available.\n`)
@@ -86,6 +102,7 @@ async function installExactVersion(tag: string, checkOnly: boolean) {
   // Installing over a running app would stop its active agent runs without asking.
   if (isDesktopAppRunning(app)) throw new Error(DESKTOP_OPEN_EXACT_VERSION_MESSAGE)
   if (process.platform === 'win32') {
+    await stopSessionHostBeforeInstall(parsed)
     await runWindowsInstaller(tag)
     await writeCliStdout(`Installing OpenWaggle ${release.tag_name}…\n`)
     return { exitCode: EXIT.SUCCESS, updaterOwnsExit: false }
@@ -154,6 +171,7 @@ async function installAvailableUpdate(input: {
   readonly version: string
   readonly channel: UpdateChannel
   readonly downloaded: ReturnType<typeof createDownloadWaiter> | null
+  readonly parsed: ParsedArguments
 }) {
   const { mode, version, channel } = input
   if (mode === 'check') {
@@ -174,13 +192,18 @@ async function installAvailableUpdate(input: {
   }
   await writeCliStdout(`Downloading OpenWaggle ${version} from the ${channel} channel…\n`)
   await input.downloaded?.promise
+  await stopSessionHostBeforeInstall(input.parsed)
   await writeCliStdout(`Installing OpenWaggle ${version}…\n`)
   // Windows and Linux honor this: install silently without opening a window.
   autoUpdater.quitAndInstall(true, false)
   return { exitCode: EXIT.SUCCESS, updaterOwnsExit: true }
 }
 
-async function updateFromChannel(channel: UpdateChannel, checkOnly: boolean) {
+async function updateFromChannel(
+  parsed: ParsedArguments,
+  channel: UpdateChannel,
+  checkOnly: boolean,
+) {
   const mode = channelInstallMode(checkOnly)
   const reportOnly = mode !== 'updater'
   await configureUpdater(channel, reportOnly)
@@ -202,7 +225,7 @@ async function updateFromChannel(channel: UpdateChannel, checkOnly: boolean) {
     void result.downloadPromise?.catch(() => undefined)
     throw new Error(`OpenWaggle ${version} is not eligible for the ${channel} update channel.`)
   }
-  return installAvailableUpdate({ mode, version, channel, downloaded })
+  return installAvailableUpdate({ mode, version, channel, downloaded, parsed })
 }
 
 async function readAndUpdateChannel(
@@ -247,9 +270,9 @@ export async function runUpdateCli(args: readonly string[]) {
     }
     const version = option(parsed, 'version')
     if (version)
-      return await installExactVersion(normalizeVersion(version), hasFlag(parsed, 'check'))
+      return await installExactVersion(parsed, normalizeVersion(version), hasFlag(parsed, 'check'))
     const channel = await readAndUpdateChannel(parsed, parseChannel(option(parsed, 'channel')))
-    return await updateFromChannel(channel, hasFlag(parsed, 'check'))
+    return await updateFromChannel(parsed, channel, hasFlag(parsed, 'check'))
   } catch (error) {
     process.stderr.write(`error: ${error instanceof Error ? error.message : String(error)}\n`)
     return {

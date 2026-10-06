@@ -3,6 +3,13 @@ import type { LocalSessionCommandResult } from '@shared/types/local-session-prot
 import { writeCliStdout } from './cli-stdout'
 import { validateCommandCliOptions } from './command-cli-option-contract'
 import { env } from './env'
+import {
+  defaultCliHostUpdateStopDependencies,
+  formatHostUpdateStopReport,
+  type HostUpdateStopDependencies,
+  type HostUpdateStopReport,
+  stopSessionHostForUpdate,
+} from './host-update-stop'
 import type { LocalSessionCliClientInput } from './local-session-cli-client'
 import { hasFlag, option, type ParsedArguments, parseMcpCliArguments } from './mcp-cli-arguments'
 import { SESSION_CLI_EXIT, sessionCliExitCodeForError } from './session-cli-exit-status'
@@ -26,6 +33,7 @@ on demand and exits on its own a few minutes after its last work ends.
 Usage:
   openwaggle host status [--json]
   openwaggle host stop [--wait [--timeout-ms <ms>]] [--json]
+  openwaggle host stop --update [--json]
 
 'host status' is the same as 'openwaggle status'.
 
@@ -34,13 +42,19 @@ already queued behind them, finish before the Host exits.
 With --wait it returns only once the Host has exited (default timeout: 2 minutes).
 If the desktop app is open it starts a new Host when it next needs one.
 
+'host stop --update' is the stop that installing an update uses. If agent Runs are active it
+asks whether to wait for them, stop them now, or cancel. Then the Host gets 10 seconds to finish
+its work, interrupts any Run still active, and exits; the command returns once its process is
+gone. It does nothing while the desktop app is open, because the app stops its own Host when it
+installs an update.
+
 Only the local user can stop the Host; access profiles cannot.
 
 Options:
   -h, --help`
 
-const STOP_OPTIONS = ['wait', 'timeout-ms', 'json'] as const
-const BOOLEAN_OPTIONS = new Set(['wait', 'json'])
+const STOP_OPTIONS = ['wait', 'timeout-ms', 'json', 'update'] as const
+const BOOLEAN_OPTIONS = new Set(['wait', 'json', 'update'])
 export const HOST_STOP_DEFAULT_TIMEOUT_MS = 120_000
 const HOST_STOP_POLL_INTERVAL_MS = 250
 
@@ -48,6 +62,7 @@ type ClientInput = LocalSessionCliClientInput
 
 export interface HostCliDependencies {
   readonly status: StatusCliDependencies
+  readonly updateStop: (client: ClientInput) => HostUpdateStopDependencies
   readonly execute: (
     input: ClientInput & {
       readonly payload: Parameters<typeof executeLocalSessionCommand>[0]['payload']
@@ -60,6 +75,7 @@ export interface HostCliDependencies {
 
 const defaultDependencies: HostCliDependencies = {
   status: defaultStatusCliDependencies,
+  updateStop: defaultCliHostUpdateStopDependencies,
   execute: async (input) =>
     executeLocalSessionCommand({
       ...input,
@@ -217,6 +233,44 @@ export function formatHostStopReport(report: HostStopReport) {
   return SETTLED_STOP_MESSAGES[report.state]
 }
 
+/** `host stop --update`: the stop `openwaggle update` and the install script use (ADR 0047). */
+export async function stopHostForUpdate(
+  parsed: ParsedArguments,
+  dependencies: HostCliDependencies = defaultDependencies,
+  profile: string | undefined = env.OPENWAGGLE_PROFILE,
+): Promise<HostUpdateStopReport> {
+  if (parsed.options.has('wait') || parsed.options.has('timeout-ms')) {
+    throw new Error(
+      '--update does not accept --wait or --timeout-ms; it always waits for the Host to exit.',
+    )
+  }
+  if (profile) {
+    throw new Error(
+      "'host stop' requires the local user's authorization and cannot use an access profile. Unset OPENWAGGLE_PROFILE and try again.",
+    )
+  }
+  const client = await dependencies.status.prepareClientInput(parsed)
+  return stopSessionHostForUpdate(dependencies.updateStop(client))
+}
+
+async function runHostUpdateStop(
+  parsed: ParsedArguments,
+  json: boolean,
+  dependencies: HostCliDependencies,
+) {
+  const report = await stopHostForUpdate(parsed, dependencies)
+  await dependencies.writeStdout(
+    json
+      ? sessionsCliResponseText('host-stop', report, true)
+      : `${formatHostUpdateStopReport(report)}\n`,
+  )
+  if (report.state === 'timed-out') return SESSION_CLI_EXIT.TIMEOUT
+  if (report.state === 'cancelled' || report.state === 'desktop-open') {
+    return SESSION_CLI_EXIT.CONFLICT
+  }
+  return SESSION_CLI_EXIT.SUCCESS
+}
+
 async function runHostStop(args: readonly string[], dependencies: HostCliDependencies) {
   const parsed = parseMcpCliArguments(args)
   const json = hasFlag(parsed, 'json')
@@ -229,6 +283,7 @@ async function runHostStop(args: readonly string[], dependencies: HostCliDepende
       booleanOptions: BOOLEAN_OPTIONS,
       argumentsByRoute: { stop: { minimum: 0, maximum: 0 } },
     })
+    if (hasFlag(parsed, 'update')) return await runHostUpdateStop(parsed, json, dependencies)
     const report = await stopHost(parsed, dependencies)
     await dependencies.writeStdout(
       json

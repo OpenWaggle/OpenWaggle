@@ -7,25 +7,32 @@ import { LocalSessionCommandAuthorizationError } from '../errors'
 const DESKTOP_APP_CALLER_ID = 'gui:local-user'
 
 /**
- * How long the Host drains when the desktop app stops it to install an update (ADR 0047). Restart
- * to update has already let Runs finish or stopped them, so this only bounds work such as a running
- * Action, a CLI wait, or an export that would otherwise keep the old version running.
+ * How long the Host drains when it stops for an update (ADR 0047). Installing an update has
+ * already let Runs finish or asked the user, so this bounds the rest: a Run still active is
+ * interrupted, and a running Action, CLI wait or export ends with the Host.
  */
-export const DESKTOP_UPDATE_HOST_STOP_DEADLINE_MS = 10_000
+export const UPDATE_HOST_STOP_DEADLINE_MS = 10_000
 
 /**
- * Only the local user may stop the Host: the CLI, or the desktop app when it installs an update.
- * Named profiles and agents may not.
+ * Only the local user may stop the Host: the CLI, and the desktop app or an installer when an
+ * update installs. Named profiles and agents may not. The desktop app only stops it for updates.
  */
-function hostStopOptions(caller: LocalSessionCallerIdentity): SessionHostDrainOptions {
+function hostStopOptions(
+  caller: LocalSessionCallerIdentity,
+  payload: LocalHostCommandPayload,
+): SessionHostDrainOptions {
   if (caller.profileAuthority) {
     throw new LocalSessionCommandAuthorizationError({ code: 'capability_denied' })
   }
-  if (caller.callerId === DESKTOP_APP_CALLER_ID) {
-    return { deadlineMs: DESKTOP_UPDATE_HOST_STOP_DEADLINE_MS }
+  const forUpdate = payload.request.purpose === 'update'
+  const isDesktopApp = caller.callerId === DESKTOP_APP_CALLER_ID
+  if (!isDesktopApp && !caller.callerId.startsWith('local-user:')) {
+    throw new LocalSessionCommandAuthorizationError({ code: 'capability_denied' })
   }
-  if (caller.callerId.startsWith('local-user:')) return {}
-  throw new LocalSessionCommandAuthorizationError({ code: 'capability_denied' })
+  if (isDesktopApp && !forUpdate) {
+    throw new LocalSessionCommandAuthorizationError({ code: 'capability_denied' })
+  }
+  return forUpdate ? { deadlineMs: UPDATE_HOST_STOP_DEADLINE_MS } : {}
 }
 
 /**
@@ -43,7 +50,7 @@ export async function dispatchLocalHostCommand(input: {
   }
   readonly processId?: number
 }): Promise<LocalHostCommandResult> {
-  const options = hostStopOptions(input.caller)
+  const options = hostStopOptions(input.caller, input.payload)
   // Stop first, so no Run can be admitted between the count and the drain. The count only
   // informs the reply; failing to read it must not cancel the stop.
   const stopping = input.requestHostStop(options)
@@ -56,7 +63,7 @@ export async function dispatchLocalHostCommand(input: {
       hostInstanceId: stopping.hostInstanceId,
       blockingRuns,
       blockingActions: stopping.runningActions,
-      ...(input.caller.callerId === DESKTOP_APP_CALLER_ID && input.processId !== undefined
+      ...(input.payload.request.purpose === 'update' && input.processId !== undefined
         ? { processId: input.processId }
         : {}),
     },

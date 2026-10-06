@@ -10,6 +10,7 @@ const {
   requestSingleInstanceLockMock,
   releaseSingleInstanceLockMock,
   spawnMock,
+  stopHostForUpdateMock,
   updater,
 } = vi.hoisted(() => {
   const updater: {
@@ -41,6 +42,7 @@ const {
     requestSingleInstanceLockMock: vi.fn(() => true),
     releaseSingleInstanceLockMock: vi.fn(),
     spawnMock: vi.fn(),
+    stopHostForUpdateMock: vi.fn(),
     updater,
   }
 })
@@ -71,6 +73,8 @@ vi.mock('../local-session-cli-client', () => ({
   createLocalSessionCliClientInput: createClientMock,
 }))
 vi.mock('../cli-stdout', () => ({ writeCliStdout: writeCliStdoutMock }))
+vi.mock('../host-cli', () => ({ stopHostForUpdate: stopHostForUpdateMock }))
+vi.mock('../host-update-stop', () => ({ formatHostUpdateStopReport: () => 'Session Host report' }))
 
 import { runUpdateCli } from '../update-cli'
 
@@ -94,6 +98,7 @@ describe('update CLI', () => {
     checkForUpdatesMock.mockResolvedValue(null)
     configureUpdaterFeedMock.mockReset()
     requestSingleInstanceLockMock.mockReturnValue(true)
+    stopHostForUpdateMock.mockResolvedValue({ state: 'stopped', activeRuns: 0 })
   })
 
   afterEach(() => {

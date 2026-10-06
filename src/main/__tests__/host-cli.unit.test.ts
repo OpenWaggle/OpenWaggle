@@ -27,6 +27,7 @@ function dependencies(input: {
   readonly blockingRuns?: number
   readonly blockingActions?: number
   readonly output?: string[]
+  readonly updateStop?: HostCliDependencies['updateStop']
 }) {
   const probes = [...input.probes]
   const execute = vi.fn(
@@ -59,6 +60,7 @@ function dependencies(input: {
       query: async () => fromPartial({}),
       writeStdout: async () => undefined,
     },
+    updateStop: input.updateStop ?? (() => fromPartial({})),
     execute,
     now: () => time,
     wait: async (milliseconds) => {
@@ -215,5 +217,52 @@ describe('openwaggle host stop', () => {
     statusOutput.length = 0
     expect(await runHostCli(['status', '--help'], status)).toBe(0)
     expect(statusOutput.join('')).toContain('openwaggle status [--json]')
+  })
+})
+
+describe('host stop --update', () => {
+  function updateStop(state: 'stopped' | 'cancelled' | 'desktop-open' | 'timed-out') {
+    return () => ({
+      desktopAppRunning: () => state === 'desktop-open',
+      countActiveRuns: async () => (state === 'cancelled' ? 1 : 0),
+      chooseRunHandling: async () => 'cancel' as const,
+      release: async () => (state === 'timed-out' ? ('timed-out' as const) : ('stopped' as const)),
+      progress: () => undefined,
+      wait: async () => undefined,
+    })
+  }
+
+  it.each([
+    ['stopped', 0, 'Session Host stopped for the update.'],
+    ['cancelled', 6, 'Update cancelled; the Session Host keeps running.'],
+    ['desktop-open', 6, 'OpenWaggle is open, so it keeps its Session Host.'],
+    ['timed-out', 7, 'Session Host is still stopping'],
+  ] as const)('reports %s with exit code %i', async (state, exitCode, message) => {
+    const output: string[] = []
+    const { value } = dependencies({ probes: ['running'], output, updateStop: updateStop(state) })
+
+    await expect(runHostCli(['stop', '--update'], value)).resolves.toBe(exitCode)
+    expect(output.join('')).toContain(message)
+  })
+
+  it('reports the state for the install script as JSON', async () => {
+    const output: string[] = []
+    const { value } = dependencies({
+      probes: ['running'],
+      output,
+      updateStop: updateStop('stopped'),
+    })
+
+    await expect(runHostCli(['stop', '--update', '--json'], value)).resolves.toBe(0)
+    expect(JSON.parse(output.join(''))).toMatchObject({
+      command: 'host-stop',
+      result: { state: 'stopped', activeRuns: 0 },
+    })
+  })
+
+  it('always waits, so it refuses --wait and --timeout-ms', async () => {
+    const { value } = dependencies({ probes: ['running'], updateStop: updateStop('stopped') })
+
+    await expect(runHostCli(['stop', '--update', '--wait'], value)).resolves.toBe(2)
   })
 })

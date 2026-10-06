@@ -58,7 +58,7 @@ describe('Session Host bootstrap', () => {
     expect(Effect.isEffect(ranEffects[0])).toBe(true)
   })
 
-  it('tells the desktop app which process to wait for when it stops the Host', async () => {
+  it('tells an update stop which process to wait for', async () => {
     mocks.startLocalSessionHost.mockClear()
     await startAppSessionHost({
       paths,
@@ -76,7 +76,11 @@ describe('Session Host bootstrap', () => {
         negotiatedRevision: LOCAL_SESSION_CURRENT_REVISION,
         payload: {
           contract: 'local-host-v1',
-          request: { contractVersion: LOCAL_HOST_CONTRACT_VERSION, operation: 'stop' },
+          request: {
+            contractVersion: LOCAL_HOST_CONTRACT_VERSION,
+            operation: 'stop',
+            purpose: 'update',
+          },
         },
         requestHostStop: () => ({ hostInstanceId: 'host-1', runningActions: 0 }),
       },

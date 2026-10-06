@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
 import { SESSION_HOST_DRAIN_DEADLINE_SETTLE_MS } from '../../application/session-host-liveness'
+import { UPDATE_HOST_STOP_DEADLINE_MS } from '../local-host-command'
 import {
   releaseSessionHostForUpdate,
   SESSION_HOST_UPDATE_RELEASE_TIMEOUT_MS,
   type SessionHostReleaseDependencies,
-} from '../gui-session-host-release'
-import { DESKTOP_UPDATE_HOST_STOP_DEADLINE_MS } from '../local-host-command'
+} from '../session-host-update-release'
 
 const client = {
   paths: {
@@ -68,8 +68,7 @@ describe('releasing the Session Host for an update', () => {
   })
 
   it('waits longer than the Host drains, leaving it seconds to shut down', () => {
-    const longestDrain =
-      DESKTOP_UPDATE_HOST_STOP_DEADLINE_MS + SESSION_HOST_DRAIN_DEADLINE_SETTLE_MS
+    const longestDrain = UPDATE_HOST_STOP_DEADLINE_MS + SESSION_HOST_DRAIN_DEADLINE_SETTLE_MS
     // Its exit after the drain flushes logs, statistics and error reports.
     expect(SESSION_HOST_UPDATE_RELEASE_TIMEOUT_MS - longestDrain).toBeGreaterThanOrEqual(5_000)
   })
@@ -179,4 +178,20 @@ describe('releasing the Session Host for an update', () => {
       expect(processExists).not.toHaveBeenCalled()
     },
   )
+
+  it('waits for the exit on any platform when the CLI installs the update after it', async () => {
+    const processExists = vi
+      .fn<(processId: number) => boolean>()
+      .mockReturnValueOnce(true)
+      .mockReturnValue(false)
+
+    await expect(
+      releaseSessionHostForUpdate(
+        client,
+        { waitForExit: true },
+        dependencies({ platform: 'linux', processExists }),
+      ),
+    ).resolves.toBe('stopped')
+    expect(processExists).toHaveBeenCalledTimes(2)
+  })
 })
