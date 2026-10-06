@@ -2,11 +2,14 @@ import { is } from '@electron-toolkit/utils'
 import { BUILD_CHANNEL } from '@shared/build-identity-runtime'
 import { UPDATER_TIMING } from '@shared/constants/time'
 import { type UpdateChannel, updaterFeedChannel } from '@shared/types/update-channel'
-import type { UpdateStatus } from '@shared/types/updater'
 import { autoUpdater } from 'electron-updater'
 import { createLogger } from './logger'
 import { configureUpdaterFeed, isVersionEligibleForChannel } from './update-feed'
-import { broadcastToWindows } from './utils/broadcast'
+import * as install from './update-install-tracker'
+import { getUpdateStatus, setUpdateStatus as setStatus } from './update-status'
+
+export { isInstallingUpdate, type UpdaterInstallEnvironment } from './update-install-tracker'
+export { getUpdateStatus, setUpdateWaitingForRuns } from './update-status'
 
 const logger = createLogger('updater')
 
@@ -14,7 +17,6 @@ function updatesDisabled() {
   return is.dev || BUILD_CHANNEL === 'dev'
 }
 
-let currentStatus: UpdateStatus = { type: 'idle' }
 let checkInterval: ReturnType<typeof setInterval> | null = null
 let currentChannel: UpdateChannel = 'stable'
 let readAuthoritativeChannel: (() => Promise<UpdateChannel>) | null = null
@@ -34,21 +36,6 @@ function configureUpdateChannel(channel: UpdateChannel) {
   // The channel setter enables downgrade support. OpenWaggle channels may widen
   // eligibility, but they must never replace a newer installed version with an older one.
   autoUpdater.allowDowngrade = false
-}
-
-function setStatus(status: UpdateStatus) {
-  currentStatus = status
-  broadcastToWindows('updater:status-changed', status)
-}
-
-export function getUpdateStatus(): UpdateStatus {
-  return currentStatus
-}
-
-export function setUpdateWaitingForRuns(activeRuns: number | null) {
-  if (currentStatus.type !== 'downloaded') return
-  const { waitingForRuns: _previous, ...downloaded } = currentStatus
-  setStatus(activeRuns === null ? downloaded : { ...downloaded, waitingForRuns: activeRuns })
 }
 
 function logUpdateCheckError(error: unknown) {
@@ -136,11 +123,8 @@ function checkConfiguredChannel(channel: UpdateChannel) {
     activeUpdateVersion = null
     acceptUpdaterEvents = false
     autoUpdater.autoInstallOnAppQuit = false
-    if (
-      currentStatus.type === 'available' ||
-      currentStatus.type === 'downloading' ||
-      currentStatus.type === 'downloaded'
-    ) {
+    const status = getUpdateStatus().type
+    if (status === 'available' || status === 'downloading' || status === 'downloaded') {
       setStatus({ type: 'idle' })
     }
   }
@@ -158,6 +142,7 @@ export function checkForUpdates(channel?: UpdateChannel): void {
     logger.info('Skipping update check', { channel: BUILD_CHANNEL, dev: is.dev })
     return
   }
+  if (install.isInstallingUpdate()) return
   const requestGeneration = ++updateCheckRequestGeneration
   if (channel || !readAuthoritativeChannel) {
     checkConfiguredChannel(channel ?? currentChannel)
@@ -176,11 +161,12 @@ export function checkForUpdates(channel?: UpdateChannel): void {
 }
 
 export async function installUpdate(): Promise<void> {
-  if (currentStatus.type !== 'downloaded') {
+  const downloaded = getUpdateStatus()
+  if (downloaded.type !== 'downloaded') {
     logger.warn('Ignoring install request without a channel-eligible downloaded update')
     return
   }
-  const requestedVersion = currentStatus.version
+  const requestedVersion = downloaded.version
   const requestGeneration = updateCheckRequestGeneration
   autoUpdater.autoInstallOnAppQuit = false
   let authoritativeChannel = currentChannel
@@ -193,10 +179,11 @@ export async function installUpdate(): Promise<void> {
       return
     }
   }
+  const current = getUpdateStatus()
   if (
     requestGeneration !== updateCheckRequestGeneration ||
-    currentStatus.type !== 'downloaded' ||
-    currentStatus.version !== requestedVersion
+    current.type !== 'downloaded' ||
+    current.version !== requestedVersion
   ) {
     logger.warn('Ignoring install request after updater state changed')
     return
@@ -214,18 +201,24 @@ export async function installUpdate(): Promise<void> {
     logger.warn('Ignoring install request for an update outside the authoritative channel')
     return
   }
+  // The app is quitting from here: no check may change the status or start a download.
+  checkGeneration += 1
+  acceptUpdaterEvents = false
+  await install.beginUpdateInstall(requestedVersion)
   autoUpdater.quitAndInstall(true, true) // silent install + relaunch, as pingdotgg/t3code does
 }
 
 export function initAutoUpdater(
   channel: UpdateChannel,
   readChannel?: () => Promise<UpdateChannel>,
+  environment?: install.UpdaterInstallEnvironment,
 ): void {
   if (updatesDisabled()) {
     logger.info('Auto-updater disabled', { channel: BUILD_CHANNEL, dev: is.dev })
     return
   }
 
+  install.resetUpdateInstall(environment ?? null)
   configureUpdateChannel(channel)
   readAuthoritativeChannel = readChannel ?? null
   acceptUpdaterEvents = true
@@ -290,10 +283,12 @@ export function initAutoUpdater(
     activeUpdateVersion = null
     autoUpdater.autoInstallOnAppQuit = false
     logger.info('Update downloaded', { version: info.version })
-    setStatus({ type: 'downloaded', version: info.version })
+    setStatus(install.downloadedUpdateStatus(info.version))
   })
 
   autoUpdater.on('error', (error) => {
+    // Squirrel.Mac unpacks and verifies the update only after Restart to update.
+    if (install.failUpdateInstall(error)) return
     if (!acceptUpdaterEvents) return
     activeUpdateCancellation = null
     activeUpdateVersion = null
@@ -311,6 +306,8 @@ export function initAutoUpdater(
 }
 
 export function disposeAutoUpdater(): void {
+  // The app is quitting; an install in progress stays in progress for the quit to release the Host.
+  install.stopUpdateInstallWatchdog()
   updateCheckRequestGeneration += 1
   checkGeneration += 1
   activeUpdateCancellation?.cancel()

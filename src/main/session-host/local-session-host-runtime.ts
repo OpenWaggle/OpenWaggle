@@ -45,6 +45,8 @@ export interface StartLocalSessionHostInput {
   readonly authorizeActiveRun?: LocalSessionServerDependencies['authorizeActiveRun']
   readonly dispatch: LocalSessionServerDependencies['dispatch']
   readonly describeUpgradeBlockers?: LocalSessionServerDependencies['describeUpgradeBlockers']
+  /** Interrupts active Runs when a drain reaches its deadline (ADR 0047). */
+  readonly interruptRunsAtDrainDeadline?: () => Promise<void>
 }
 
 const DRAIN_STOP_EVENT_GRACE_MS = 100
@@ -234,6 +236,9 @@ export async function startLocalSessionHost(
     idleGracePeriodMs: input.idleGracePeriodMs,
     clientHandoffGracePeriodMs: SESSION_HOST_CLIENT_HANDOFF_GRACE_PERIOD_MS,
     requestShutdown: () => runtime?.stop(),
+    ...(input.interruptRunsAtDrainDeadline
+      ? { interruptRunsAtDrainDeadline: input.interruptRunsAtDrainDeadline }
+      : {}),
   })
   let releaseEventPublisher: () => void = () => undefined
   const inflightCommands = new LocalSessionInflightCommands()

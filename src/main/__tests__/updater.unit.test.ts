@@ -148,10 +148,10 @@ describe('updater service', () => {
   })
 
   describe('installUpdate', () => {
-    it('installs silently and forces the app to relaunch', () => {
+    it('installs silently and forces the app to relaunch', async () => {
       initAutoUpdater('stable')
       emitter().emit('update-downloaded', { version: '1.2.3' })
-      installUpdate()
+      await installUpdate()
       expect(mockQuitAndInstall).toHaveBeenCalledWith(true, true)
     })
   })

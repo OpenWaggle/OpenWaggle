@@ -47,8 +47,17 @@ Alpha when no Stable release is available in the release list.
   command in `~/.local/bin`, and creates a `.desktop` entry.
 
 When it finishes, the script opens OpenWaggle. On macOS, if OpenWaggle is already open, the script
-quits it first and opens the new version. On Linux, restart an already open OpenWaggle to use the
-new version. The script does not open the app over SSH, in CI, or on Linux without a display. To
+quits it first and opens the new version.
+
+When it updates an existing install, the script first stops OpenWaggle's background Session Host,
+as **Restart to update** does. If agent work is still running, it asks whether to wait for it, stop
+it, or cancel. Cancelling, or pressing Ctrl-C while it waits, leaves the installed version as it was
+and reopens the app if the script quit it. An installed version that predates this cannot ask, so
+the script waits up to 20 seconds for that work, then installs anyway. On Linux an open OpenWaggle
+keeps running with its Session Host: quit it, run `openwaggle host stop --update`, then open it to
+use the new version.
+
+The script does not open the app over SSH, in CI, or on Linux without a display. To
 install without opening it, set `OPENWAGGLE_NO_LAUNCH=1` or pass `--no-launch`:
 
 ```bash
@@ -107,7 +116,10 @@ openwaggle update --version 0.4.0
 downloads and installs the newest eligible release without opening the app. If OpenWaggle is
 already open, the command leaves the update to the app instead: open **Settings → General → About
 & Updates**, choose **Check now**, then **Restart to update**, so running agent work is not
-interrupted without asking. An exact `--version` install asks you to quit OpenWaggle first. Choosing `--channel` is persistent; choosing
+interrupted without asking. An exact `--version` install asks you to quit OpenWaggle first. Before
+it installs, the command stops OpenWaggle's background Session Host as **Restart to update** does:
+if agent work is still running, it asks whether to wait for it, stop it, or cancel. Without a
+terminal to ask on, as on Windows, it waits for that work. Choosing `--channel` is persistent; choosing
 `--version` is a one-time install and can target an exact Stable or prerelease version. Release
 candidates (RC) are not a separate channel; Beta and Alpha receive them automatically. On a first
 launch with no saved preference, an Alpha or Beta build starts on its matching channel and a

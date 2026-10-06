@@ -2,7 +2,9 @@ import type { LocalSessionCommandResult } from '@shared/types/local-session-prot
 import { fromPartial } from '@total-typescript/shoehorn'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('electron', () => ({ app: { getPath: () => '/tmp', getVersion: () => '1.2.3' } }))
+vi.mock('electron', () => ({
+  app: { getPath: () => '/tmp', getVersion: () => '1.2.3', once: vi.fn(), off: vi.fn() },
+}))
 vi.mock('../local-session-cli-client', () => ({ prepareLocalSessionCliClientInput: vi.fn() }))
 vi.mock('../session-host/local-session-client', async () => ({
   executeLocalSessionCommand: vi.fn(),
@@ -27,6 +29,7 @@ function dependencies(input: {
   readonly blockingRuns?: number
   readonly blockingActions?: number
   readonly output?: string[]
+  readonly updateStop?: HostCliDependencies['updateStop']
 }) {
   const probes = [...input.probes]
   const execute = vi.fn(
@@ -59,6 +62,7 @@ function dependencies(input: {
       query: async () => fromPartial({}),
       writeStdout: async () => undefined,
     },
+    updateStop: input.updateStop ?? (() => fromPartial({})),
     execute,
     now: () => time,
     wait: async (milliseconds) => {
@@ -215,5 +219,57 @@ describe('openwaggle host stop', () => {
     statusOutput.length = 0
     expect(await runHostCli(['status', '--help'], status)).toBe(0)
     expect(statusOutput.join('')).toContain('openwaggle status [--json]')
+  })
+})
+
+describe('host stop --update', () => {
+  function updateStop(state: 'stopped' | 'cancelled' | 'desktop-open' | 'timed-out' | 'refused') {
+    return () => ({
+      desktopAppRunning: () => state === 'desktop-open',
+      countActiveRuns: async () => ({
+        activeRuns: state === 'cancelled' ? 1 : 0,
+        handingOver: false,
+      }),
+      chooseRunHandling: async () => 'cancel' as const,
+      release: async () =>
+        state === 'timed-out' || state === 'refused' ? state : ('stopped' as const),
+      progress: () => undefined,
+      wait: async () => undefined,
+    })
+  }
+
+  it.each([
+    ['stopped', 0, 'Session Host stopped for the update.'],
+    ['cancelled', 6, 'Update cancelled; the Session Host keeps running.'],
+    ['desktop-open', 6, 'OpenWaggle is open, so it keeps its Session Host.'],
+    ['timed-out', 7, 'Session Host is still stopping'],
+    ['refused', 1, 'did not accept the update stop'],
+  ] as const)('reports %s with exit code %i', async (state, exitCode, message) => {
+    const output: string[] = []
+    const { value } = dependencies({ probes: ['running'], output, updateStop: updateStop(state) })
+
+    await expect(runHostCli(['stop', '--update'], value)).resolves.toBe(exitCode)
+    expect(output.join('')).toContain(message)
+  })
+
+  it('reports the state for the install script as JSON', async () => {
+    const output: string[] = []
+    const { value } = dependencies({
+      probes: ['running'],
+      output,
+      updateStop: updateStop('stopped'),
+    })
+
+    await expect(runHostCli(['stop', '--update', '--json'], value)).resolves.toBe(0)
+    expect(JSON.parse(output.join(''))).toMatchObject({
+      command: 'host-stop',
+      result: { state: 'stopped', activeRuns: 0 },
+    })
+  })
+
+  it('always waits, so it refuses --wait and --timeout-ms', async () => {
+    const { value } = dependencies({ probes: ['running'], updateStop: updateStop('stopped') })
+
+    await expect(runHostCli(['stop', '--update', '--wait'], value)).resolves.toBe(2)
   })
 })

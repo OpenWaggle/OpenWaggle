@@ -27,13 +27,13 @@ export function ToastOverlay() {
   return (
     <div
       className={cn(
-        'pointer-events-auto fixed right-5 top-16 z-[9999] flex items-center gap-2 rounded-lg border px-3.5 py-2.5 text-sm text-text-secondary shadow-lg',
+        'pointer-events-auto fixed right-5 top-16 z-[9999] flex max-w-md items-center gap-2 rounded-lg border px-3.5 py-2.5 text-sm text-text-secondary shadow-lg',
         isSuccess && 'border-success/30 bg-success/8',
-        isError && 'border-error/30 bg-error/8 text-error',
+        isError && 'border-error/30 bg-error/8 text-error-text',
         !isSuccess && !isError && 'border-border-light bg-bg-secondary',
       )}
     >
-      <span>{displayMessage}</span>
+      <span className="min-w-0 break-words">{displayMessage}</span>
       {toastData.action && (
         <Button
           variant="unstyled"
@@ -49,7 +49,7 @@ export function ToastOverlay() {
             }
             clearToast()
           }}
-          className="inline-flex cursor-pointer items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium text-accent transition-colors hover:bg-accent/10"
+          className="inline-flex shrink-0 cursor-pointer items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium text-accent transition-colors hover:bg-accent/10"
         >
           {toastData.action.label}
           {toastData.action.url && <ExternalLink className="size-3" />}
@@ -60,7 +60,7 @@ export function ToastOverlay() {
           variant="unstyled"
           type="button"
           onClick={clearToast}
-          className="rounded p-0.5 text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-secondary"
+          className="shrink-0 rounded p-0.5 text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-secondary"
           title="Dismiss"
         >
           <X className="size-3.5" />

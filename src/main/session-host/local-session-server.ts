@@ -7,7 +7,10 @@ import type {
   SessionHostEventEnvelope,
 } from '@shared/types/session-host-event'
 import type { SessionHostEventHub } from '../application/session-host-event-hub'
-import type { SessionHostLiveness } from '../application/session-host-liveness'
+import type {
+  SessionHostDrainOptions,
+  SessionHostLiveness,
+} from '../application/session-host-liveness'
 import { LocalSessionConnection } from './local-session-connection'
 import {
   isWindowsPipe,
@@ -56,7 +59,7 @@ export interface LocalSessionServerDependencies {
     readonly signal: AbortSignal
     readonly releaseAdmissionReader: () => void
     /** Begin a graceful stop; returns the stopping Host and the Actions it waits for. */
-    readonly requestHostStop: () => {
+    readonly requestHostStop: (options?: SessionHostDrainOptions) => {
       readonly hostInstanceId: string
       readonly runningActions: number
     }

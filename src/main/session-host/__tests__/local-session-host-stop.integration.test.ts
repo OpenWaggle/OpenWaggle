@@ -84,4 +84,54 @@ describe('stopping a live Session Host', () => {
     await expect(stopped(runtime)).resolves.toBe('stopped')
     client.socket.destroy()
   })
+
+  it('exits at the stop deadline even while an Action still holds it', async () => {
+    const endpoint = path.join(temporaryRoot, 'host.sock')
+    runtime = await startLocalSessionHost({
+      endpoint,
+      databasePath: path.join(temporaryRoot, 'session-host.sqlite'),
+      idleGracePeriodMs: 60_000,
+      authenticate: async () => ({ callerId: 'gui:local-user' }),
+      dispatch: async (input) => ({ stopping: input.requestHostStop({ deadlineMs: 200 }) }),
+    })
+    // A dev server started as a project Action never ends on its own.
+    runtime.liveness.acquire('action-run')
+    const client = await negotiatedClient(endpoint)
+
+    await expect(client.send({ contract: 'local-host-v1' })).resolves.toMatchObject({
+      kind: 'response',
+      payload: { stopping: { runningActions: 1 } },
+    })
+
+    await expect(stopped(runtime)).resolves.toBe('stopped')
+    client.socket.destroy()
+  })
+
+  it('interrupts its Runs at the stop deadline and exits once they end', async () => {
+    const endpoint = path.join(temporaryRoot, 'host.sock')
+    let releaseRun: () => void = () => undefined
+    let interrupted = 0
+    runtime = await startLocalSessionHost({
+      endpoint,
+      databasePath: path.join(temporaryRoot, 'session-host.sqlite'),
+      idleGracePeriodMs: 60_000,
+      authenticate: async () => ({ callerId: 'gui:local-user' }),
+      dispatch: async (input) => ({ stopping: input.requestHostStop({ deadlineMs: 100 }) }),
+      // The Session Host bootstrap passes interruptAllSessionRuns here.
+      interruptRunsAtDrainDeadline: async () => {
+        interrupted += 1
+        releaseRun()
+      },
+    })
+    releaseRun = runtime.liveness.acquire('run')
+    const client = await negotiatedClient(endpoint)
+
+    await expect(client.send({ contract: 'local-host-v1' })).resolves.toMatchObject({
+      kind: 'response',
+    })
+
+    await expect(stopped(runtime)).resolves.toBe('stopped')
+    expect(interrupted).toBe(1)
+    client.socket.destroy()
+  })
 })

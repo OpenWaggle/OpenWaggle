@@ -34,6 +34,8 @@ const activeActivitiesSchema = Schema.Array(Schema.Struct({ sessionId: Schema.St
 
 function updateRestartState(status: UpdateStatus): UpdateRestartState {
   if (status.type === 'downloaded') return 'installable'
+  // Already handed over to the installer; a further Restart to update has nothing to do.
+  if (status.type === 'installing') return 'none'
   // A failed re-check is usually transient; the next check restores the downloaded update.
   if (
     status.type === 'checking' ||

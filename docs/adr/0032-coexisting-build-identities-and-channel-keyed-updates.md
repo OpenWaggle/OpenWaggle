@@ -47,8 +47,9 @@ for the About view and the updater/userData decisions.
   labelled ribbon badge). No install-base migration is required.
 - **Per-channel icons** (canonical / alpha / beta / rc / dev), a bounded set of
   committed assets, shipped both as the packaged bundle icon and as the runtime
-  `icon.png` resource (so the runtime dock icon set via `app.dock.setIcon`
-  matches the channel).
+  `icon.png` resource (so the runtime window icon matches the channel). Since
+  ADR 0047's release, macOS uses separately generated rounded-square `.icns`
+  icons, and only unpackaged dev builds set their Dock icon at runtime.
 - **Updater follows a user-selected release channel.** Stable maps to
   `latest*.yml`; Beta and Alpha map to their corresponding metadata files.
   Release packaging creates the cross-channel aliases that electron-builder's

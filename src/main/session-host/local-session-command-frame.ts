@@ -99,8 +99,8 @@ export async function executeLocalSessionCommandFrame(input: {
         payload: input.frame.payload,
         signal: input.signal,
         releaseAdmissionReader: () => input.releaseAdmissionReader?.(),
-        requestHostStop: () => {
-          input.dependencies.liveness.requestDrain('stop')
+        requestHostStop: (options) => {
+          input.dependencies.liveness.requestDrain('stop', options)
           return {
             hostInstanceId: input.dependencies.hostInstanceId,
             runningActions: input.dependencies.liveness.ownerCount('action-run'),
