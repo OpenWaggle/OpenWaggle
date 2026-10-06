@@ -1492,9 +1492,15 @@ after 1/8 growth or max(50 ms, 10x the last parse time). Block stop and the term
 paths still parse the full JSON, so final arguments stay exact. A 217 KB call in 20-byte deltas
 went from 14.5 s of parsing (10,884 parses, 4.5 s event-loop lag end to end) to 51 ms (436
 parses, 48 ms lag). `pi-bedrock-streaming-tool-arguments.unit.test.ts` drives Pi's real Bedrock
-stream against a loopback AWS event-stream server. Mistral and `pi-messages` still parse per
-delta. OpenWaggle's own `toolcall_delta` projection still copies the full input into every
-emitted event, which is O(n) per delta downstream.
+stream against a loopback AWS event-stream server (`bedrock-event-stream.test-utils.ts`). Mistral
+and `pi-messages` use the helper too.
+OpenWaggle's own projection copied the whole input into every `toolcall_delta` transport event,
+and each copy is stringified for the Host socket, parsed by the GUI, cloned over IPC, and
+re-stringified by the renderer: about 1.2 GB for that one call. `emitToolCallDeltaUpdate` now
+emits a `toolcall_delta` only when Pi replaced the call's `arguments` object (a re-parse); held
+raw deltas ride on the next emitted event, and the tail after the last re-parse is superseded by
+`toolcall_end`'s exact input. That cut it to 436 events and 4 MB (renderer apply 830 ms -> 4 ms).
+A Pi provider that mutated `arguments` in place would freeze the live preview until the call ends.
 
 ### A replace must not wait on its Run while holding the attachment transition
 

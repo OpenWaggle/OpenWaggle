@@ -87,6 +87,39 @@ index 44e3f13e808f0665a44e34437e173743f81bd51f..420ce9fdee38e32ba824003019ccb24d
      // partialJson is only a streaming scratch buffer; never persist it.
      delete block.partialJson;
      flushRedactedContent(block);
+diff --git a/dist/api/mistral-conversations.js b/dist/api/mistral-conversations.js
+index 3106c5d470dc3610c05d8ee153026df20f86f66e..1fa91886a5bca9639dc04dd1bed2c2d63fb33f79 100644
+--- a/dist/api/mistral-conversations.js
++++ b/dist/api/mistral-conversations.js
+@@ -2,7 +2,7 @@ import { calculateCost, clampThinkingLevel } from "../models.js";
+ import { AssistantMessageEventStream } from "../utils/event-stream.js";
+ import { shortHash } from "../utils/hash.js";
+ import { headersToRecord } from "../utils/headers.js";
+-import { parseStreamingJson } from "../utils/json-parse.js";
++import { parseStreamingJson, parseStreamingToolArguments } from "../utils/json-parse.js";
+ import { getPiUserAgent } from "../utils/pi-user-agent.js";
+ import { sanitizeSurrogates } from "../utils/sanitize-unicode.js";
+ import { getSystemMessageText, renderSystemMessageUpdate } from "../utils/text.js";
+@@ -49,6 +49,10 @@ export const stream = (model, context, options) => {
+         }
+         catch (error) {
+             for (const block of output.content) {
++                // Delta parsing is rate-limited, so bring unfinished arguments up to date first.
++                if (block.type === "toolCall" && block.partialArgs !== undefined) {
++                    block.arguments = parseStreamingJson(block.partialArgs);
++                }
+                 // partialArgs is only a streaming scratch buffer; never persist it.
+                 delete block.partialArgs;
+             }
+@@ -541,7 +545,7 @@ async function consumeChatStream(model, output, stream, mistralStream) {
+                 ? toolCall.function.arguments
+                 : JSON.stringify(toolCall.function.arguments || {});
+             block.partialArgs = (block.partialArgs || "") + argsDelta;
+-            block.arguments = parseStreamingJson(block.partialArgs);
++            block.arguments = parseStreamingToolArguments(block, block.partialArgs);
+             stream.push({
+                 type: "toolcall_delta",
+                 contentIndex: toolBlocksByKey.get(key),
 diff --git a/dist/api/openai-codex-responses.js b/dist/api/openai-codex-responses.js
 index dfdb6ec3651febbba6b8788f16118ecbf4b38fa8..3d560722a13af1d52b02c757d173f7ef05ea8ff4 100644
 --- a/dist/api/openai-codex-responses.js
@@ -344,6 +377,46 @@ index 1396c8d57ffb0e300382281a026d878e6a96b43a..05971b666193652a1ce9a019162cd451
          dangerouslyAllowBrowser: true,
          fetch,
          defaultHeaders: headers,
+diff --git a/dist/api/pi-messages.js b/dist/api/pi-messages.js
+index ad5f4605e8e157f12b8948e88e0c66e8a5494fc4..9ddb70d2df664760ba7a911e9112535968c1a14c 100644
+--- a/dist/api/pi-messages.js
++++ b/dist/api/pi-messages.js
+@@ -11,7 +11,7 @@
+ import { appendAssistantMessageDiagnostic, createAssistantMessageDiagnostic } from "../utils/diagnostics.js";
+ import { AssistantMessageEventStream } from "../utils/event-stream.js";
+ import { headersToRecord, providerHeadersToRecord } from "../utils/headers.js";
+-import { parseStreamingJson } from "../utils/json-parse.js";
++import { parseStreamingJson, parseStreamingToolArguments } from "../utils/json-parse.js";
+ import { getProviderEnvValue } from "../utils/provider-env.js";
+ export class PiMessagesResponseError extends Error {
+     code;
+@@ -91,7 +91,17 @@ function createEventConverter(model) {
+         timestamp: Date.now(),
+     };
+     const toolJson = new Map();
++    // Delta parsing is rate-limited, so bring unfinished arguments up to date at the end.
++    const finishToolJson = () => {
++        for (const [contentIndex, json] of toolJson) {
++            partial.content[contentIndex].arguments = parseStreamingJson(json);
++        }
++        toolJson.clear();
++    };
+     return (event) => {
++        if (event.type === "done" || event.type === "error") {
++            finishToolJson();
++        }
+         switch (event.type) {
+             case "done":
+                 Object.assign(partial, {
+@@ -156,7 +166,7 @@ function createEventConverter(model) {
+                 const json = `${toolJson.get(event.contentIndex) ?? ""}${event.delta}`;
+                 toolJson.set(event.contentIndex, json);
+                 partial.content[event.contentIndex].arguments =
+-                    parseStreamingJson(json);
++                    parseStreamingToolArguments(partial.content[event.contentIndex], json);
+                 break;
+             }
+             case "toolcall_end":
 diff --git a/dist/providers/openai-codex.models.js b/dist/providers/openai-codex.models.js
 index c53dcaa13ee7106a07383697302e63962bb23f9d..d2be610a021040efdc35722564b8dfe5df7c82db 100644
 --- a/dist/providers/openai-codex.models.js
