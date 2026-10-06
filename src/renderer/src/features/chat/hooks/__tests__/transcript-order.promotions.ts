@@ -9,40 +9,59 @@ import { entryKey, textDigest } from './transcript-order.persisted'
  * shows it, and the Host answers the promotion with its receipt once Pi delivered the steer.
  */
 export function createPromotions(host: HostModel) {
-  const previews = new Map<string, OptimisticSteerPreviewController>()
+  /**
+   * Each promotion, with the count of user messages of its text the log holds once Pi took it in:
+   * Pi takes promoted steers in promotion order, so several may wait with the same text.
+   */
+  const previews: Array<{
+    readonly text: string
+    readonly controller: OptimisticSteerPreviewController
+    readonly needed: number
+  }> = []
+  const isIncorporated = (promotion: (typeof previews)[number]) =>
+    host.userOrders(promotion.text).length >= promotion.needed
   return {
-    /** Promoted steers Pi has not incorporated yet. */
+    /** Promoted steers Pi has not incorporated yet: a prompt with the same text is not one. */
     pendingKeys: () =>
-      [...previews.keys()]
-        .filter((text) => !host.hasUserMessage(text))
-        .map((text) => entryKey({ role: 'user', text })),
+      previews
+        .filter((promotion) => !isIncorporated(promotion))
+        .map(({ text }) => entryKey({ role: 'user', text })),
     promote(chat: AgentChatReturn, text: string) {
       act(() => {
         const content = { text, attachmentCount: 0 }
-        const preview = chat.previewSteeredUserTurn({ text, attachments: [] }, 'sending', content)
-        preview.setReceipt(null)
-        previews.set(text, preview)
+        const controller = chat.previewSteeredUserTurn(
+          { text, attachments: [] },
+          'sending',
+          content,
+        )
+        controller.setReceipt(null)
+        const waiting = previews.filter(
+          (promotion) => promotion.text === text && !isIncorporated(promotion),
+        ).length
+        previews.push({ text, controller, needed: host.userOrders(text).length + waiting + 1 })
+        host.rendererActedAt(Date.now())
       })
     },
     /** A Run ended without incorporating them: they return to the queue. */
     forgetUndelivered() {
-      for (const text of [...previews.keys()]) {
-        if (!host.hasUserMessage(text)) previews.delete(text)
-      }
+      const delivered = previews.filter(isIncorporated)
+      previews.splice(0, previews.length, ...delivered)
     },
+    /** The Host answers the earliest promotion of `text` with its receipt. */
     answer(text: string) {
-      const preview = previews.get(text)
-      if (!preview) throw new Error(`No promotion of ${text}`)
-      const order = host.userOrder(text) ?? host.nextOrder()
+      const index = previews.findIndex((promotion) => promotion.text === text)
+      const promotion = previews[index]
+      if (!promotion) throw new Error(`No promotion of ${text}`)
+      const order = host.userOrders(text)[promotion.needed - 1] ?? host.nextOrder()
       act(() => {
-        preview.setReceipt({
+        promotion.controller.setReceipt({
           delivery: 'queued',
           durableTextSha256: textDigest(text),
           minimumCreatedOrder: order - 1,
         })
-        preview.setDeliveryState('sending')
+        promotion.controller.setDeliveryState('sending')
       })
-      previews.delete(text)
+      previews.splice(index, 1)
     },
   }
 }

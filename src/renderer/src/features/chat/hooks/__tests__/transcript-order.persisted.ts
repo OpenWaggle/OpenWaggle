@@ -1,5 +1,6 @@
 import type { Message, MessagePart } from '@shared/types/agent'
 import { MessageId, SessionId, SupportedModelId, ToolCallId } from '@shared/types/brand'
+import type { AgentTransportEvent } from '@shared/types/stream'
 
 export const SESSION_ID = SessionId('order-session')
 export const MODEL = SupportedModelId('claude-sonnet-4-5')
@@ -90,4 +91,21 @@ export function persistedMessages(entry: TruthEntry): Message[] {
       : { sessionNodeCreatedOrder: entry.order },
   }
   return [assistant, ...entry.toolCallIds.map((id, index) => toolResultMessage(entry, id, index))]
+}
+
+/** The events of the tools an assistant entry ran, each started then ended (`tick`: Host time). */
+export function toolEventsOf(entry: TruthEntry, tick: () => number): AgentTransportEvent[] {
+  return entry.toolCallIds.flatMap((toolCallId) => {
+    const tool = { toolCallId, toolName: 'bash' }
+    return [
+      {
+        type: 'tool_execution_start',
+        ...tool,
+        args: { command: toolCallId },
+        parentMessageId: entry.liveId,
+        timestamp: tick(),
+      },
+      { type: 'tool_execution_end', ...tool, result: 'ok', isError: false, timestamp: tick() },
+    ] as const
+  })
 }

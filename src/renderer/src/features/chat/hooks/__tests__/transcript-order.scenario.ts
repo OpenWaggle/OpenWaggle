@@ -28,11 +28,17 @@ export function assertTranscriptOrder(
   label: string,
   trace: string[],
 ) {
-  const shown = harness.shownKeys()
-  trace.push(`${label}: ${shown.join(' | ')}`)
+  trace.push(`${label}: ${harness.shownKeys().join(' | ')}`)
   const violations = [
-    ...transcriptOrderViolations(shown, harness.truthKeys(), harness.pendingPreviewKeys()),
+    ...transcriptOrderViolations(
+      harness.checkedKeys(),
+      harness.truthKeys(),
+      harness.pendingPreviewKeys(),
+    ),
     ...harness.missingKeys(),
+    // Once nothing is held back, whether the chat shows as running must match the Host.
+    ...(harness.stillRunning() ? ['shown as running after its Run settled'] : []),
+    ...(harness.idleWhileRunning() ? ['shown idle while its Run runs'] : []),
   ]
   if (violations.length === 0) return
   throw new Error(
@@ -50,10 +56,7 @@ export async function expectCompleteTranscript(
   for (const [index, step] of steps.entries()) {
     await step(harness)
     await harness.settle()
-    // While a Host read is held the transcript shows hydration's placement; the reconnect must
-    // leave it right, which the step releasing it checks.
-    if (harness.holdsHostReads()) trace.push(`step ${String(index)}: (reconnect in flight)`)
-    else assertTranscriptOrder(harness, `step ${String(index)}`, trace)
+    assertTranscriptOrder(harness, `step ${String(index)}`, trace)
   }
   expect(harness.shownKeys()).toEqual(harness.truthKeys())
 }

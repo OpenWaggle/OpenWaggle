@@ -2,6 +2,7 @@ import type { MessagePart } from '@shared/types/agent'
 import type { BackgroundRunSnapshot } from '@shared/types/background-run'
 import type { SessionDetail } from '@shared/types/session'
 import type { AgentTransportEvent } from '@shared/types/stream'
+import type { RunEndTail } from './transcript-order.harness-support'
 import {
   entryKey,
   MODEL,
@@ -9,6 +10,7 @@ import {
   SESSION_ID,
   type TruthEntry,
   textDigest,
+  toolEventsOf,
 } from './transcript-order.persisted'
 import { emptyBuffer, projectEvent } from './transcript-order.stream-buffer'
 
@@ -46,6 +48,7 @@ export function createHostModel(publish: (event: AgentTransportEvent) => void) {
   const persistedRunIds = new Set<string>()
   let nextOrder = 3
   let clock = EPOCH
+  let retainsUsers = true
   let revision = 1
   let buffer: BackgroundRunSnapshot | null = null
   let activeRunId: string | null = null
@@ -78,26 +81,7 @@ export function createHostModel(publish: (event: AgentTransportEvent) => void) {
   }
 
   function runTools(entry: TruthEntry) {
-    for (const toolCallId of entry.toolCallIds) {
-      const parentMessageId = entry.liveId
-      const args = { command: toolCallId }
-      emit({
-        type: 'tool_execution_start',
-        toolCallId,
-        toolName: 'bash',
-        args,
-        parentMessageId,
-        timestamp: tick(),
-      })
-      emit({
-        type: 'tool_execution_end',
-        toolCallId,
-        toolName: 'bash',
-        result: 'ok',
-        isError: false,
-        timestamp: tick(),
-      })
-    }
+    for (const event of toolEventsOf(entry, tick)) emit(event)
   }
 
   function appendSummary(runId: string) {
@@ -117,7 +101,19 @@ export function createHostModel(publish: (event: AgentTransportEvent) => void) {
     })
   }
 
-  function compactionEnd(reason: 'threshold' | 'manual') {
+  /** An attempt fails and Pi waits to retry it. */
+  function retryStarts(runId: string) {
+    emit({ type: 'agent_end', runId, reason: 'error', willRetry: true, timestamp: tick() })
+    const retryStart = { attempt: 1, maxAttempts: 3, delayMs: 1, errorMessage: 'overloaded' }
+    emit({ type: 'auto_retry_start', ...retryStart, timestamp: tick() })
+  }
+  /** An automatic compaction: Pi appends its summary entry to the log. */
+  function compaction(runId: string, reason: 'threshold' | 'overflow') {
+    emit({ type: 'compaction_start', reason, timestamp: tick() })
+    appendSummary(runId)
+    compactionEnd(reason)
+  }
+  function compactionEnd(reason: 'threshold' | 'manual' | 'overflow') {
     const result = { tokensBefore: 100 }
     emit({
       type: 'compaction_end',
@@ -135,14 +131,26 @@ export function createHostModel(publish: (event: AgentTransportEvent) => void) {
     entryForLiveId: (messageId: string) => truth.find((entry) => entry.liveId === messageId),
     isPersisted: (entry: TruthEntry) => persistedRunIds.has(entry.runId),
     entries: () => [...truth],
-    hasUserMessage: (text: string) =>
-      truth.some((entry) => entry.role === 'user' && entry.text === text),
-    userOrder: (text: string) =>
-      truth.find((entry) => entry.role === 'user' && entry.text === text)?.order,
+    /** The log orders of the user messages with `text`, in log order. */
+    userOrders: (text: string) =>
+      truth.flatMap((entry) => (entry.role === 'user' && entry.text === text ? [entry.order] : [])),
     nextOrder: () => nextOrder,
     now: () => clock,
+    /**
+     * The renderer acted at `time` on the one wall clock (a send): what the Host does in response
+     * is stamped after it, though events it publishes in a burst are stamped before they arrive.
+     */
+    rendererActedAt(time: number) {
+      clock = Math.max(clock, time)
+    },
     activeRunId: () => activeRunId,
-    buffer: () => (buffer ? structuredClone(buffer) : null),
+    buffer: () =>
+      buffer ? { ...structuredClone(buffer), ...(retainsUsers ? {} : { userMessages: [] }) } : null,
+    /** The Run's buffer stops retaining user messages: an older Host, one over the size cap. */
+    dropRetainedUsers() {
+      retainsUsers = false
+    },
+    retainsUsers: () => retainsUsers,
     /** The detail's `updatedAt` moves only when the Session changes (a Run persisted, `touch`). */
     detail(): SessionDetail {
       return {
@@ -163,21 +171,24 @@ export function createHostModel(publish: (event: AgentTransportEvent) => void) {
     startRun(runId: string) {
       activeRunId = runId
       buffer = emptyBuffer(runId, clock)
+      retainsUsers = true
       emit({ type: 'agent_start', runId, model: String(MODEL), timestamp: tick() })
     },
     /** The attempt fails and Pi retries it: the same Run starts again, keeping its buffer. */
     retry() {
       const runId = requireRun()
-      emit({ type: 'agent_end', runId, reason: 'error', willRetry: true, timestamp: tick() })
-      emit({
-        type: 'auto_retry_start',
-        attempt: 1,
-        maxAttempts: 3,
-        delayMs: 1,
-        errorMessage: 'overloaded',
-        timestamp: tick(),
-      })
+      retryStarts(runId)
       emit({ type: 'auto_retry_end', success: true, attempt: 1, timestamp: tick() })
+      emit({ type: 'agent_start', runId, model: String(MODEL), timestamp: tick() })
+    },
+    /**
+     * Pi continues the Run's prompt after its end (an overflow compaction's recovery, a steer queued
+     * as the loop finished): `agent_end` with no retry, `agent_start` under the same id, no settling.
+     */
+    continueRun(compact: boolean) {
+      const runId = requireRun()
+      emit({ type: 'agent_end', runId, reason: 'stop', timestamp: tick() })
+      if (compact) compaction(runId, 'overflow')
       emit({ type: 'agent_start', runId, model: String(MODEL), timestamp: tick() })
     },
     /** Pi incorporates a user message (a prompt, a steer, a promoted Follow-up). */
@@ -245,9 +256,7 @@ export function createHostModel(publish: (event: AgentTransportEvent) => void) {
     },
     /** An automatic compaction between turns: Pi appends its summary entry to the log. */
     compact() {
-      emit({ type: 'compaction_start', reason: 'threshold', timestamp: tick() })
-      appendSummary(requireRun())
-      compactionEnd('threshold')
+      compaction(requireRun(), 'threshold')
     },
     /** A manual compaction of an idle Session starts; the returned call ends it, persisted. */
     compactManually() {
@@ -261,13 +270,24 @@ export function createHostModel(publish: (event: AgentTransportEvent) => void) {
       }
     },
     /** The Run ends (Stop: `aborted`) and is persisted; its buffer stays until it settles. */
-    finishRun(reason: 'stop' | 'aborted' = 'stop') {
+    finishRun(reason: 'stop' | 'aborted' = 'stop', after?: RunEndTail, settled = false) {
       const runId = requireRun()
-      emit({ type: 'agent_end', runId, reason, timestamp: tick() })
+      if (after === 'stoppedRetry') {
+        retryStarts(runId)
+        emit({ type: 'auto_retry_end', success: false, attempt: 1, timestamp: tick() })
+      } else emit({ type: 'agent_end', runId, reason, timestamp: tick() })
+      if (after === 'compaction') compaction(runId, 'threshold')
       persistedRunIds.add(runId)
       revision += 1
       activeRunId = null
+      // The Host settles it at once: its buffer is cleared before `run-completed` is relayed.
+      if (settled) buffer = null
       return runId
+    },
+    /** A Run that fails before Pi starts: the Host publishes its end only, then settles it. */
+    failBeforeStart(runId: string) {
+      const error = { message: 'invalid model', code: 'invalid-model' }
+      emit({ type: 'agent_end', runId, reason: 'error', error, timestamp: tick() })
     },
     /** The finished Run settles: its buffer is cleared. */
     settleRun() {

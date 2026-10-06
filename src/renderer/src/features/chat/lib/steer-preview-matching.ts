@@ -66,7 +66,7 @@ function receiptMessageIndex(
 }
 
 /** What a user row shows, split as a steer preview knows it: typed text and attachment count. */
-function incorporatedContentOf(message: UIMessage): SteerIncorporatedContent {
+export function incorporatedContentOf(message: UIMessage): SteerIncorporatedContent {
   const textParts = message.parts.flatMap((part) => (part.type === 'text' ? [part.content] : []))
   const attachments = textParts.filter((text) => text.startsWith(ATTACHMENT_TEXT_PREFIX))
   return {
@@ -76,6 +76,26 @@ function incorporatedContentOf(message: UIMessage): SteerIncorporatedContent {
       .trim(),
     attachmentCount: attachments.length,
   }
+}
+
+/**
+ * The row a preview's steer became, once it is known (`incorporatedRowId`): only that row, by id or
+ * by log order once saved, is it. Another steer with the same text, taken later, is not.
+ */
+function incorporatedRowIndex(
+  messages: readonly UIMessage[],
+  turn: OptimisticSteerPreview,
+  consumedMessageIndexes: ReadonlySet<number>,
+) {
+  const index = messages.findIndex(
+    (message, candidateIndex) =>
+      message.role === 'user' &&
+      !consumedMessageIndexes.has(candidateIndex) &&
+      (message.id === turn.incorporatedRowId ||
+        (turn.incorporatedOrder !== undefined &&
+          message.metadata?.sessionNodeCreatedOrder === turn.incorporatedOrder)),
+  )
+  return index >= 0 ? index : undefined
 }
 
 /**
@@ -91,6 +111,9 @@ function awaitingReceiptMessageIndex(
   consumedMessageIndexes: ReadonlySet<number>,
 ) {
   const expected = turn.incorporatedContent
+  if (turn.incorporatedRowId !== undefined) {
+    return incorporatedRowIndex(messages, turn, consumedMessageIndexes)
+  }
   const index = messages.findIndex((message, candidateIndex) => {
     const createdOrder = message.metadata?.sessionNodeCreatedOrder
     if (
@@ -197,7 +220,9 @@ export function matchSteeredUserTurns(
     recordMatch(
       context,
       turn,
-      receiptMessageIndex(messages, turn.receipt, context.consumedMessageIndexes),
+      turn.incorporatedRowId === undefined
+        ? receiptMessageIndex(messages, turn.receipt, context.consumedMessageIndexes)
+        : incorporatedRowIndex(messages, turn, context.consumedMessageIndexes),
     )
   }
   matchLocallyKnownTurns(context, turns)
@@ -219,7 +244,9 @@ export function matchSteeredUserTurns(
  * now and its tools, so that is where the message will be. A preview placed at the transcript
  * length when it began moved into older history whenever the transcript above it was rebuilt while
  * it waited (a reconnect, a settled Run reloaded under its Pi entry ids with tool results as
- * messages of their own, a compaction summary).
+ * messages of their own, a compaction summary). A preview whose steer Pi already incorporated
+ * (`incorporatedAt`) stands in for the row it became when that row is not shown: above the first
+ * message that started after it, by Host time.
  */
 export function insertOptimisticSteeredUserTurn(
   messages: UIMessage[],
@@ -229,8 +256,21 @@ export function insertOptimisticSteeredUserTurn(
     return messages
   }
   const matches = matchSteeredUserTurns(messages, optimisticSteeredUserTurns)
-  const pending = optimisticSteeredUserTurns.flatMap((turn) =>
-    matches.has(turn.id) ? [] : [turn.message],
+  const unmatched = optimisticSteeredUserTurns.filter((turn) => !matches.has(turn.id))
+  if (unmatched.length === 0) return messages
+  const placed = [...messages]
+  const pending: UIMessage[] = []
+  for (const turn of unmatched) {
+    const index =
+      turn.incorporatedAt === undefined ? -1 : firstMessageAfter(placed, turn.incorporatedAt)
+    if (index < 0) pending.push(turn.message)
+    else placed.splice(index, 0, turn.message)
+  }
+  return [...placed, ...pending]
+}
+
+function firstMessageAfter(messages: readonly UIMessage[], time: number) {
+  return messages.findIndex(
+    (message) => message.createdAt !== undefined && new Date(message.createdAt).getTime() > time,
   )
-  return pending.length === 0 ? messages : [...messages, ...pending]
 }

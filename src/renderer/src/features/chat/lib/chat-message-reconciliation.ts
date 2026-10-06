@@ -238,9 +238,24 @@ export function appendUnpersistedAssistantTail(
   }
 
   const snapshotMessageIds = new Set(snapshotMessages.map((message) => message.id))
+  const lastSnapshotOrder = Math.max(
+    -1,
+    ...snapshotMessages.map((message) => message.metadata?.sessionNodeCreatedOrder ?? -1),
+  )
+  // A user message Pi incorporated (it has a log order) after all the snapshot holds is the unsaved
+  // Run's too: a prompt repeating an earlier text aligned with nothing to keep it. One the snapshot
+  // holds entries after was never saved (Pi took it, then lost it), so the saved Session wins.
+  const isUnsavedIncorporatedUser = (message: UIMessage) => {
+    const order = message.metadata?.sessionNodeCreatedOrder
+    return message.role === 'user' && order !== undefined && order > lastSnapshotOrder
+  }
   const tail = existingMessages
     .slice(alignedEndIndex + 1)
-    .filter((message) => message.role === 'assistant' && !snapshotMessageIds.has(message.id))
+    .filter(
+      (message) =>
+        (message.role === 'assistant' || isUnsavedIncorporatedUser(message)) &&
+        !snapshotMessageIds.has(message.id),
+    )
 
   return tail.length > 0 ? [...snapshotMessages, ...tail] : snapshotMessages
 }

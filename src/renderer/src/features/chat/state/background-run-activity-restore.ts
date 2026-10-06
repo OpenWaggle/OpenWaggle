@@ -102,13 +102,31 @@ export function restoreCompactionSnapshots(
   return snapshots
 }
 
+/** The Run each Session had in progress when this renderer last restored activity, by its id. */
+const restoredRunIds = new Map<SessionId, string>()
+
+/**
+ * The Run a Session had in progress when the renderer started, whose start it never saw; taken
+ * once, by the next start or settlement of a Run in that Session.
+ */
+export function takeRestoredRunId(sessionId: SessionId) {
+  const runId = restoredRunIds.get(sessionId)
+  restoredRunIds.delete(sessionId)
+  return runId
+}
+
 export async function loadActiveActivityState() {
   const activities = await api.listActiveRuns()
   const runs = activities.filter(isAgentRun)
+  const snapshots = await Promise.all(runs.map((run) => api.getBackgroundRun(run.sessionId)))
+  restoredRunIds.clear()
+  for (const snapshot of snapshots) {
+    if (snapshot?.runId) restoredRunIds.set(snapshot.sessionId, snapshot.runId)
+  }
   return {
     ids: new Set<SessionId>(activities.map((activity) => activity.sessionId)),
     runs,
     compactions: activities.filter(isActiveCompaction),
-    snapshots: await Promise.all(runs.map((run) => api.getBackgroundRun(run.sessionId))),
+    snapshots,
   }
 }

@@ -1,18 +1,21 @@
+import type { UIMessage } from '@shared/types/chat-ui'
 import type { SessionDetail } from '@shared/types/session'
 import type { AgentTransportEvent } from '@shared/types/stream'
 import type { HostModel } from './transcript-order.host-model'
 import { entryKey } from './transcript-order.persisted'
+import { messageKey } from './transcript-order.violations'
 
 /*
  * What the renderer must show: every message it has been told about. A message streamed while the
  * renderer tracked the Run (a render snapshot held it); a user message of the active Run (its
- * reconnect buffer retains them) or of the detail the chat shows; and an answer of that detail
- * once its Run settled. An answer lost in a stall can be missing until the Run ends, and a settled
- * Run the renderer never received until the chat store refetches; one it received must never
- * disappear.
+ * reconnect buffer retains them); and a message of the detail the chat shows once the renderer
+ * learned its Run settled (a Run the chat follows keeps its live transcript until then, as through
+ * a Follow-up chain). A message lost in a stall can be missing until then, and a settled Run the
+ * chat never showed until the chat store refetches; a message it showed must never disappear.
  */
 export function createTranscriptKnowledge(host: HostModel) {
   const received = new Set<string>()
+  const receivedUnseen = new Set<string>()
   const settledRunIds = new Set<string>()
   return {
     /**
@@ -23,16 +26,25 @@ export function createTranscriptKnowledge(host: HostModel) {
       for (const entry of host.entries())
         if (host.isPersisted(entry)) settledRunIds.add(entry.runId)
     },
-    /** An event the renderer received; `tracked` when a render snapshot was there to hold it. */
-    noteDelivered(event: AgentTransportEvent, tracked: boolean) {
-      if (event.type === 'message_start' && tracked) received.add(event.messageId)
+    /**
+     * An event the renderer received; `tracked` when a render snapshot was there to hold it, and
+     * `shown` when the chat showed the Session. An unseen Session's snapshot holds only its active
+     * Run: a settled one is the detail's to show, once the chat store refetches it.
+     */
+    noteDelivered(event: AgentTransportEvent, tracked: boolean, shown: boolean) {
+      if (event.type !== 'message_start' || !tracked) return
+      ;(shown ? received : receivedUnseen).add(event.messageId)
     },
     /** A renderer reload forgets what it received. */
     forget() {
       received.clear()
+      receivedUnseen.clear()
     },
     /** The messages the chat must show now, in log order. */
-    /** `stalled`: the active Run's user messages since the stall cannot be known yet. */
+    /**
+     * `stalled`: the active Run's user messages since the stall cannot be known yet; nor can they
+     * when its buffer retains none.
+     */
     requiredKeys(detail: SessionDetail | null, stalled = false) {
       const shownNodeIds = new Set(detail?.messages.map((message) => String(message.id)) ?? [])
       return host
@@ -40,8 +52,11 @@ export function createTranscriptKnowledge(host: HostModel) {
         .filter(
           (entry) =>
             received.has(entry.liveId) ||
+            (receivedUnseen.has(entry.liveId) && entry.runId === host.activeRunId()) ||
             (entry.role === 'user' &&
-              ((!stalled && entry.runId === host.activeRunId()) || shownNodeIds.has(entry.piId))) ||
+              !stalled &&
+              host.retainsUsers() &&
+              entry.runId === host.activeRunId()) ||
             (shownNodeIds.has(entry.piId) && settledRunIds.has(entry.runId)),
         )
         .map(entryKey)
@@ -57,5 +72,26 @@ export function missingMessages(shown: readonly string[], required: readonly str
     const count = shownCounts.get(key) ?? 0
     shownCounts.set(key, count - 1)
     return count > 0 ? [] : [`missing: ${key}`]
+  })
+}
+
+/**
+ * The shown keys the invariant checks. While a Host read is in flight, the one tolerated case: the
+ * stream copy of a saved Run's answer the chat also shows under its Pi entry id. Hydration cannot
+ * tell whether the route's detail predates that Run's save, so it keeps the stream copy rather than
+ * risk losing an answer whose save failed; the reconnect's own fresh read decides
+ * (`fetchedAfterSettlement`), and the check once it lands sees the transcript whole.
+ */
+export function checkedShownKeys(
+  messages: readonly UIMessage[],
+  host: HostModel,
+  readInFlight: boolean,
+) {
+  const shownIds = new Set(messages.map((message) => message.id))
+  return messages.flatMap((message) => {
+    const entry = readInFlight ? host.entryForLiveId(message.id) : undefined
+    const savedCopyShown =
+      entry?.role === 'assistant' && host.isPersisted(entry) && shownIds.has(entry.piId)
+    return savedCopyShown ? [] : (messageKey(message) ?? [])
   })
 }

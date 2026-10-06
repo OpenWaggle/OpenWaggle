@@ -36,6 +36,19 @@ function isUnrecordedUserMessage(message: UIMessage) {
   return message.role === 'user' && message.metadata?.sessionNodeCreatedOrder === undefined
 }
 
+/** The transcript row of a user message the Run has started incorporating. */
+export function incorporatedUserRow(
+  event: AgentTransportMessageStartEvent & { readonly userMessage: AgentTransportUserMessage },
+): UIMessage {
+  return {
+    id: event.messageId,
+    role: 'user',
+    parts: event.userMessage.parts.flatMap(messagePartToUIParts),
+    createdAt: new Date(event.timestamp),
+    metadata: { ...incorporatedUserMetadata(event.userMessage), liveIncorporated: true },
+  }
+}
+
 /**
  * Shows a user message the Run has started incorporating. A send the renderer already shows
  * optimistically takes the message's log identity instead of being repeated, and a message the
@@ -46,13 +59,7 @@ export function applyIncorporatedUserMessage(
   event: AgentTransportMessageStartEvent & { readonly userMessage: AgentTransportUserMessage },
 ): UIMessage[] {
   const { userMessage } = event
-  const incorporated: UIMessage = {
-    id: event.messageId,
-    role: 'user',
-    parts: userMessage.parts.flatMap(messagePartToUIParts),
-    createdAt: new Date(event.timestamp),
-    metadata: { ...incorporatedUserMetadata(userMessage), liveIncorporated: true },
-  }
+  const incorporated = incorporatedUserRow(event)
   const alreadyShown = messages.some(
     (message) =>
       message.id === event.messageId ||

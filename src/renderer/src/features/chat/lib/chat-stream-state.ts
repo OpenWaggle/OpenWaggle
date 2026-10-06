@@ -11,22 +11,21 @@ import {
 import { applyIncorporatedUserMessage } from './chat-stream-user-messages'
 
 /**
- * An update starts its message when the message's start was lost: the message then takes the
- * update's Host time, as `ensureAssistantMessage` gives a started one.
+ * An update (a text delta, a tool's start) starts its message when the message's start was lost:
+ * the message then takes the update's Host time, as `ensureAssistantMessage` gives a started one,
+ * not this renderer's clock.
  */
 function stampStartedMessage(
   before: readonly UIMessage[],
   after: UIMessage[],
-  event: { readonly messageId: string; readonly timestamp: number },
+  event: { readonly timestamp: number },
 ) {
-  // Most updates add text to a shown message: only a longer list can hold a started one.
+  // Most updates change a shown message: only a longer list can hold a started one.
   if (after.length <= before.length) return after
-  const index = after.findIndex((message) => message.id === event.messageId)
-  const message = after[index]
-  if (!message || before.some((candidate) => candidate.id === event.messageId)) return after
-  const stamped = [...after]
-  stamped[index] = { ...message, createdAt: new Date(event.timestamp) }
-  return stamped
+  const shownIds = new Set(before.map((message) => message.id))
+  return after.map((message) =>
+    shownIds.has(message.id) ? message : { ...message, createdAt: new Date(event.timestamp) },
+  )
 }
 
 /**
@@ -55,9 +54,15 @@ export function applyAgentTransportEvent<Messages extends readonly UIMessage[]>(
       stampStartedMessage(messages, applyAssistantMessageEvent(messages, value), value),
     )
     .with('message_end', 'context_usage', unchanged)
-    .with('tool_execution_start', (value) => startToolExecution(messages, value))
-    .with('tool_execution_update', (value) => updateToolExecution(messages, value))
-    .with('tool_execution_end', (value) => finishToolExecution(messages, value))
+    .with('tool_execution_start', (value) =>
+      stampStartedMessage(messages, startToolExecution(messages, value), value),
+    )
+    .with('tool_execution_update', (value) =>
+      stampStartedMessage(messages, updateToolExecution(messages, value), value),
+    )
+    .with('tool_execution_end', (value) =>
+      stampStartedMessage(messages, finishToolExecution(messages, value), value),
+    )
     .with(
       'queue_update',
       'compaction_start',

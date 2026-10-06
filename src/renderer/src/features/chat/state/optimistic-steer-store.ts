@@ -2,6 +2,7 @@ import type { AgentSteerDeliveryReceipt } from '@shared/types/agent'
 import type { SessionId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
 import { create } from 'zustand'
+import { withIncorporatedPreview } from '@/features/chat/lib/steer-preview-incorporation'
 
 /** What the user row a steer becomes shows: its typed text and how many attachments it carries. */
 export interface SteerIncorporatedContent {
@@ -23,6 +24,15 @@ export interface OptimisticSteerPreview {
   readonly message: UIMessage
   readonly durableMessageId?: string
   readonly durableMessageCreatedOrder?: number
+  /**
+   * When Pi incorporated the steer (the Host time of the user row it became, once seen): should
+   * that row leave the transcript (rebuilt from a detail that lacks it), the preview stands in
+   * for it there, not below the answers after it.
+   */
+  readonly incorporatedAt?: number
+  /** The user row `incorporatedAt` came from, and its log order: the preview is that row only. */
+  readonly incorporatedRowId?: string
+  readonly incorporatedOrder?: number
 }
 
 interface OptimisticSteerState {
@@ -41,6 +51,8 @@ interface OptimisticSteerState {
   ) => void
   readonly remove: (sessionId: SessionId, previewId: string) => void
   readonly clearSession: (sessionId: SessionId) => void
+  /** Pi incorporated a user message: the waiting preview it is records when (`incorporatedAt`). */
+  readonly noteIncorporated: (sessionId: SessionId, userRow: UIMessage) => void
   readonly reconcile: (
     sessionId: SessionId,
     observedPreviews: readonly OptimisticSteerPreview[],
@@ -148,6 +160,14 @@ export const useOptimisticSteerStore = create<OptimisticSteerState>((set) => ({
       const next = new Map(state.previews)
       next.delete(sessionId)
       return { previews: next }
+    })
+  },
+  noteIncorporated(sessionId, userRow) {
+    set((state) => {
+      const current = state.previews.get(sessionId)
+      const noted = current ? withIncorporatedPreview(current, userRow) : current
+      if (!current || noted === current) return state
+      return { previews: new Map(state.previews).set(sessionId, noted ?? current) }
     })
   },
   reconcile(sessionId, observedPreviews, allObservedAreDurable) {

@@ -1,3 +1,14 @@
+import {
+  awaitingPromotion,
+  canSettle,
+  ended,
+  idle,
+  type ModelAction,
+  type ModelState,
+  nextRunId,
+  nextText,
+  repeatableText,
+} from './transcript-order.model-state'
 import type { TranscriptOrderHarness } from './transcript-order.test-harness'
 
 /*
@@ -8,80 +19,13 @@ import type { TranscriptOrderHarness } from './transcript-order.test-harness'
  * Held Host reads and late settlements may span anything.
  */
 
-export interface ModelState {
-  running: boolean
-  /** The Host settled a Run the renderer has not been told about yet. */
-  settling: boolean
-  viewing: 'session' | 'other'
-  stalled: boolean
-  holding: boolean
-  runs: number
-  texts: number
-  promoted: string | null
-  promotionIncorporated: boolean
-}
-
-interface ModelAction {
-  readonly name: string
-  readonly enabled: (state: ModelState) => boolean
-  readonly run: (harness: TranscriptOrderHarness, state: ModelState) => unknown
-}
-
-export function initialModelState(viewing: ModelState['viewing']): ModelState {
-  return {
-    running: false,
-    settling: false,
-    viewing,
-    stalled: false,
-    holding: false,
-    runs: 0,
-    texts: 0,
-    promoted: null,
-    promotionIncorporated: false,
-  }
-}
-
-function awaitingPromotion(state: ModelState) {
-  return state.promoted !== null && !state.promotionIncorporated
-}
-
-function idle(state: ModelState) {
-  return !state.running && !state.settling
-}
-
-function canSettle(state: ModelState) {
-  return state.running && !state.stalled
-}
-
-function nextText(state: ModelState, prefix: string) {
-  state.texts += 1
-  return `${prefix} ${String(state.texts)}`
-}
-
-/**
- * Every few answers say just "ok", and every few steers repeat one: within a Run and across Runs,
- * matching by content must not merge two messages with the same text.
- */
-function repeatableText(state: ModelState, prefix: string, every: number, repeated: string) {
-  const text = nextText(state, prefix)
-  return state.texts % every === 0 ? repeated : text
-}
-
-function nextRunId(state: ModelState, prefix = 'run') {
-  state.runs += 1
-  return `${prefix}-${String(state.runs)}`
-}
-
-/** A Run ended; a steer Pi never incorporated went back to the queue. */
-function ended(state: ModelState) {
-  state.running = false
-  if (awaitingPromotion(state)) state.promoted = null
-}
+export { initialModelState, type ModelState } from './transcript-order.model-state'
 
 const RUN_ACTIONS: readonly ModelAction[] = [
   {
     name: 'send',
-    enabled: (s) => idle(s) && s.viewing === 'session' && !s.stalled && !s.holding,
+    // Also before the earlier Run's settlement reaches the renderer.
+    enabled: (s) => !s.running && s.viewing === 'session' && !s.stalled && !s.holding,
     run: (h, s) => {
       s.running = true
       const runId = nextRunId(s)
@@ -91,7 +35,7 @@ const RUN_ACTIONS: readonly ModelAction[] = [
   },
   {
     name: 'startRun',
-    enabled: idle,
+    enabled: (s) => !s.running,
     run: (h, s) => {
       s.running = true
       const runId = nextRunId(s, s.runs % 3 === 2 ? 'waggle' : 'run')
@@ -116,33 +60,36 @@ const RUN_ACTIONS: readonly ModelAction[] = [
   },
   {
     name: 'steer',
-    enabled: (s) => s.running && s.promoted === null,
+    enabled: (s) => s.running && s.promotions.length === 0,
     run: (h, s) => h.steer(repeatableText(s, 'steer', 4, 'keep going')),
   },
   {
     name: 'promote',
-    enabled: (s) => s.running && s.promoted === null && s.viewing === 'session' && !s.stalled,
+    // Also while the stream stalls; up to three wait at once, and every few repeat a prompt text.
+    enabled: (s) => s.running && s.promotions.length < 3 && s.viewing === 'session',
     run: (h, s) => {
-      s.promoted = nextText(s, 'promoted')
-      s.promotionIncorporated = false
-      h.promote(s.promoted)
+      const text = repeatableText(s, 'promoted', 3, 'continue')
+      s.promotions.push({ text, incorporated: false })
+      h.promote(text)
     },
   },
   {
     name: 'deliverPromotion',
     enabled: (s) => s.running && awaitingPromotion(s),
     run: (h, s) => {
-      s.promotionIncorporated = true
-      h.steer(s.promoted ?? '')
+      // Pi takes promoted steers in the order they were promoted.
+      const promotion = s.promotions.find((candidate) => !candidate.incorporated)
+      if (!promotion) return
+      promotion.incorporated = true
+      h.steer(promotion.text)
     },
   },
   {
     name: 'answerPromotion',
-    enabled: (s) => !s.stalled && s.promoted !== null && s.promotionIncorporated,
+    enabled: (s) => !s.stalled && s.promotions[0]?.incorporated === true,
     run: (h, s) => {
-      const text = s.promoted ?? ''
-      s.promoted = null
-      h.answerPromotion(text)
+      const promotion = s.promotions.shift()
+      if (promotion) h.answerPromotion(promotion.text)
     },
   },
   { name: 'compact', enabled: (s) => s.running, run: (h) => h.compact() },
@@ -156,7 +103,7 @@ const RUN_ACTIONS: readonly ModelAction[] = [
     enabled: (s) => canSettle(s) && !awaitingPromotion(s),
     run: (h, s) => {
       ended(s)
-      return h.endRun()
+      return h.endRun(s.runs % 4 === 1 ? { after: 'compaction' } : {})
     },
   },
   {
@@ -164,8 +111,30 @@ const RUN_ACTIONS: readonly ModelAction[] = [
     enabled: canSettle,
     run: (h, s) => {
       ended(s)
-      return h.endRun({ stop: true })
+      return h.endRun({ stop: true, ...(s.runs % 3 === 1 ? { after: 'stoppedRetry' } : {}) })
     },
+  },
+  {
+    name: 'endRunWithRequestedWaggle',
+    enabled: (s) => canSettle(s) && !awaitingPromotion(s),
+    run: (h, s) => {
+      ended(s)
+      return h.endRunWithRequestedWaggle(nextText(s, 'waggle answer'))
+    },
+  },
+  {
+    name: 'continueRun',
+    // A promoted steer waiting through it is still Pi's to take: it may deliver it after.
+    enabled: (s) => s.running,
+    run: (h, s) => {
+      const steer = s.texts % 2 === 0 ? nextText(s, 'steer') : undefined
+      return h.continueRun({ compact: s.texts % 3 === 0, ...(steer ? { steer } : {}) })
+    },
+  },
+  {
+    name: 'failBeforeStart',
+    enabled: (s) => idle(s) && !s.stalled,
+    run: (h, s) => h.failBeforeStart(nextRunId(s)),
   },
   {
     name: 'endRunSettlingLate',
@@ -173,7 +142,7 @@ const RUN_ACTIONS: readonly ModelAction[] = [
     run: (h, s) => {
       ended(s)
       s.settling = true
-      return h.endRun({ settleLater: true })
+      return h.endRun({ settleLater: true, hostSettled: s.runs % 2 === 0 })
     },
   },
   {
@@ -211,7 +180,7 @@ const DISTURBANCES: readonly ModelAction[] = [
       s.viewing = 'session'
       // Cached, still loading, or, mid-Run, the chat store's detail from before its last refetch.
       const variant = s.texts % 3
-      const stale = variant === 1 && s.running
+      const stale = variant === 1 && s.running && h.hasLastDetail()
       return h.view('session', variant === 0 ? { cached: false } : { stale })
     },
   },
@@ -263,12 +232,13 @@ const DISTURBANCES: readonly ModelAction[] = [
   },
   {
     name: 'reloadRenderer',
-    enabled: (s) => !s.stalled && !s.holding && !s.settling && s.promoted === null,
+    enabled: (s) => !s.stalled && !s.holding && !s.settling && s.promotions.length === 0,
     run: (h, s) => h.reloadRenderer(s.viewing),
   },
   {
     name: 'restartHost',
-    enabled: (s) => s.running && !s.stalled && !s.holding && s.promoted === null,
+    // A Host restart drops the settlements it had in flight; none is pending here.
+    enabled: (s) => canSettle(s) && !s.holding && s.promotions.length === 0,
     run: (h, s) => {
       s.running = false
       return h.restartHost()
@@ -290,10 +260,10 @@ export async function finishModelRun(
   if (state.stalled) await harness.resume()
   if (state.holding) await harness.releaseReconnects()
   if (state.settling) await harness.settleRun()
-  if (state.promoted !== null) {
-    if (!state.promotionIncorporated) harness.steer(state.promoted)
-    harness.answerPromotion(state.promoted)
+  for (const promotion of state.promotions) {
+    if (!promotion.incorporated) harness.steer(promotion.text)
   }
+  for (const promotion of state.promotions.splice(0)) harness.answerPromotion(promotion.text)
   if (state.running) await harness.endRun()
   if (state.viewing === 'other') await harness.view('session')
   check('ended')

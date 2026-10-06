@@ -1,11 +1,8 @@
 import type { UIMessage } from '@shared/types/chat-ui'
 import { describe, expect, it } from 'vitest'
 import type { AgentCompactionStatus } from '../compaction-lifecycle'
-import {
-  placeUnsettledRunMessages,
-  unsettledRunMessages,
-  withoutSavedRunAnswers,
-} from '../seeded-run-messages'
+import { withoutSavedRunAnswers } from '../saved-run-answers'
+import { placeUnsettledRunMessages, unsettledRunMessages } from '../seeded-run-messages'
 
 function message(id: string, role: UIMessage['role'], order?: number): UIMessage {
   return {
@@ -152,6 +149,40 @@ describe('unsettledRunMessages', () => {
     ).toEqual(['n-a1', 'n-u2'])
   })
 
+  it('keeps a later same-text answer whose save failed when the earlier one is shown by id', () => {
+    const ok = (id: string, order?: number): UIMessage => ({
+      ...message(id, 'assistant', order),
+      parts: [{ type: 'text', content: 'ok' }],
+    })
+    const persistedMessages = [message('p1', 'user', 1), ok('n-a1', 2)]
+    const cachedMessages = [...persistedMessages, ok('stream-a2')]
+    expect(
+      ids(
+        unsettledRunMessages({
+          persistedMessages,
+          cachedMessages,
+          settledMessageIds: new Set(cachedMessages.map((entry) => entry.id)),
+          fetchedAfterSettlement: true,
+        }),
+      ),
+    ).toEqual(['stream-a2'])
+  })
+
+  it('leaves an unrecorded send to the prompt the transcript saved with its text', () => {
+    const send = {
+      ...message('optimistic-u2', 'user'),
+      parts: [{ type: 'text' as const, content: 'continue' }],
+    }
+    const saved = { ...message('n-u2', 'user', 3), parts: send.parts }
+    const cachedMessages = [message('p1', 'user', 1), send]
+    const settledMessageIds = new Set(cachedMessages.map((entry) => entry.id))
+    const unsettled = (persistedMessages: UIMessage[]) =>
+      ids(unsettledRunMessages({ persistedMessages, cachedMessages, settledMessageIds }))
+    expect(unsettled([message('p1', 'user', 1), saved])).toEqual([])
+    // Not saved yet: it may be queued.
+    expect(unsettled([message('p1', 'user', 1)])).toEqual(['optimistic-u2'])
+  })
+
   it('has nothing to leave without settled ids', () => {
     expect(
       unsettledRunMessages({
@@ -179,6 +210,34 @@ function completedCompaction(anchors: readonly number[]): AgentCompactionStatus 
 }
 
 describe('placeUnsettledRunMessages', () => {
+  it('shows a send once when the Run it followed is saved but not vouched for', () => {
+    // Run 1's prompt was lost in a stall and its answer streamed; the next send was shown before
+    // the Host recorded it, and the detail now holds Run 1 and that send's saved prompt.
+    const said = (id: string, role: UIMessage['role'], content: string, order?: number) => ({
+      ...message(id, role, order),
+      parts: [{ type: 'text' as const, content }],
+    })
+    const persistedMessages = [
+      said('p-u0', 'user', 'Fix', 1),
+      said('p-a0', 'assistant', 'done', 2),
+      said('p-u1', 'user', 'Run 1 prompt', 3),
+      said('p-a1', 'assistant', 'ok', 4),
+      said('p-u2', 'user', 'continue', 5),
+    ]
+    const cachedMessages = [
+      ...persistedMessages.slice(0, 2),
+      said('stream-a1', 'assistant', 'ok'),
+      said('optimistic-u2', 'user', 'continue'),
+    ]
+    const placed = placeUnsettledRunMessages({
+      persistedMessages,
+      cachedMessages,
+      settledMessageIds: new Set(cachedMessages.map((entry) => entry.id)),
+      compactionStatus: null,
+    })
+    expect(ids(placed?.messages ?? null)).toEqual(['p-u0', 'p-a0', 'p-u1', 'p-a1', 'p-u2'])
+  })
+
   it('keeps a settled user row not persisted yet and leaves the rest of the Run', () => {
     // An optimistic Follow-up the route showed when the previous Run settled.
     const placed = placeUnsettledRunMessages({

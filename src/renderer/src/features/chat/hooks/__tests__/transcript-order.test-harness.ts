@@ -21,10 +21,15 @@ import {
   transcriptOrderChatStoreMock as chatStoreMock,
   type RunCompletedPayload,
 } from './transcript-order.ipc-mock'
-import { createTranscriptKnowledge, missingMessages } from './transcript-order.knowledge'
+import {
+  checkedShownKeys,
+  createTranscriptKnowledge,
+  missingMessages,
+} from './transcript-order.knowledge'
 import { MODEL, SESSION_ID } from './transcript-order.persisted'
 import { createPromotions } from './transcript-order.promotions'
 import { createRouteStore } from './transcript-order.route-store'
+import { createRunKinds } from './transcript-order.run-kinds'
 import { messageKey } from './transcript-order.violations'
 
 vi.mock('@/shared/lib/ipc', async () => ({
@@ -36,9 +41,7 @@ vi.mock('@/features/chat/state/chat-store', async () => ({
 
 /*
  * The renderer side of the transcript-order harness: the real monitor and chat hook over a mocked
- * IPC bridge, driven by the Host model, with what disturbs a transcript injected: delivery lag,
- * Session switches, refetches, a Host event stream that stalls and resyncs, slow Host reads, a
- * late settlement, renderer reloads and Host restarts.
+ * IPC bridge, driven by the Host model, with what disturbs a transcript injected.
  */
 
 export async function loadTranscriptOrderHooks() {
@@ -63,7 +66,7 @@ export function createTranscriptOrderHarness(hooks: Hooks, options: { lagMs?: nu
     if (dropping) return
     const tracked = useBackgroundRunStore.getState().renderSnapshotsBySessionId.has(SESSION_ID)
     for (const handler of [...apiMock.agentEventHandlers]) handler({ sessionId: SESSION_ID, event })
-    knowledge.noteDelivered(event, tracked)
+    knowledge.noteDelivered(event, tracked, viewSession())
   }
   const host = createHostModel(deliver)
   const reads = installHostReads(host, route)
@@ -79,30 +82,42 @@ export function createTranscriptOrderHarness(hooks: Hooks, options: { lagMs?: nu
   let monitor: { readonly unmount: () => void } | null = null
   const notifySettled = (payload: Omit<RunCompletedPayload, 'sessionId'>) =>
     inAct(() => {
-      // A Follow-up the Host goes straight on to keeps the transcript live until the chain ends.
-      if (!payload.continues) knowledge.noteSettled()
+      // A Follow-up or a Run started before this settlement keeps the transcript live till it ends.
+      if (!payload.continues && !host.activeRunId()) knowledge.noteSettled()
       for (const handler of [...apiMock.runCompletedHandlers]) {
         handler({ sessionId: SESSION_ID, ...payload })
       }
     })
   const startRun = (runId: string, prompt: string) =>
     act(() => {
+      promotions.forgetUndelivered()
       host.startRun(runId)
       missedRunStart = dropping ? runId : null
       host.incorporateUser(prompt)
     })
   const viewSession = () => route.get().sessionId === SESSION_ID && route.get().detail !== null
+  const quiet = () => viewSession() && !dropping && !reads.pending()
+  const isLoading = () => chat.result.current.isLoading
+  const refresh = async () => {
+    if (route.get().sessionId !== SESSION_ID) return
+    await inAct(() => route.set({ sessionId: SESSION_ID, detail: host.detail() }))
+    await settle()
+  }
 
   const harness = {
     shownKeys: () => chat.result.current.messages.flatMap((message) => messageKey(message) ?? []),
+    checkedKeys: () => checkedShownKeys(chat.result.current.messages, host, reads.pending()),
     truthKeys: () => host.truthKeys(),
-    holdsHostReads: () => reads.holding(),
+    holdsHostReads: () => reads.pending(),
+    hasLastDetail: () => route.lastDetail(SESSION_ID) !== null,
+    stillRunning: () => quiet() && !pendingSettlement && !host.activeRunId() && isLoading(),
+    idleWhileRunning: () => quiet() && host.activeRunId() !== null && !isLoading(),
+    ...createRunKinds({ host, notifySettled, refreshDetail: (): Promise<void> => refresh() }),
     /** The messages the chat must show now, or none while events or Host reads are held back. */
     missingKeys: () =>
-      viewSession() && !reads.holding()
+      viewSession() && !reads.pending()
         ? missingMessages(harness.shownKeys(), knowledge.requiredKeys(route.get().detail, dropping))
         : [],
-    /** Promoted steers Pi has not incorporated yet. */
     pendingPreviewKeys: () => promotions.pendingKeys(),
     settle,
     async mount(view: 'session' | 'other' = 'session') {
@@ -110,7 +125,6 @@ export function createTranscriptOrderHarness(hooks: Hooks, options: { lagMs?: nu
       await settle()
       await harness.view(view)
     },
-    /** Opens a Session; `cached: false` renders none while its detail loads. */
     async view(view: 'session' | 'other', viewOptions: ViewOptions = {}) {
       const loading = view === 'session' && viewOptions.cached === false
       const detail = viewOptions.stale ? route.lastDetail(SESSION_ID) : host.detail()
@@ -119,16 +133,14 @@ export function createTranscriptOrderHarness(hooks: Hooks, options: { lagMs?: nu
       await settle()
     },
     /** The chat store refetches the shown Session; `touched` when the Session changed meanwhile. */
-    async refreshDetail(refresh: { readonly touched?: boolean } = {}) {
-      if (refresh.touched) host.touch()
-      if (route.get().sessionId !== SESSION_ID) return
-      await inAct(() => route.set({ sessionId: SESSION_ID, detail: host.detail() }))
-      await settle()
+    async refreshDetail(options: { readonly touched?: boolean } = {}) {
+      if (options.touched) host.touch()
+      await refresh()
     },
-    /** The user sends from the composer; the Host starts `runId` with the message. */
     async send(text: string, runId: string) {
       apiMock.sendMessage.mockImplementationOnce(async () => {
         await Promise.resolve()
+        host.rendererActedAt(Date.now())
         startRun(runId, text)
         return { outcome: 'delivered' as const, runId }
       })
@@ -137,10 +149,8 @@ export function createTranscriptOrderHarness(hooks: Hooks, options: { lagMs?: nu
       })
       await settle()
     },
-    /** A Run the renderer did not start: a Worker's, or one the Host started from a queue. */
     startRun,
     retry: () => act(() => host.retry()),
-    /** Pi incorporates a steer (or a promoted Follow-up) at a turn boundary. */
     steer: (text: string) => act(() => host.incorporateUser(text)),
     answer: (text: string, answer?: { readonly tools?: number; readonly open?: boolean }) =>
       act(() => host.answer(text, answer)),
@@ -158,7 +168,7 @@ export function createTranscriptOrderHarness(hooks: Hooks, options: { lagMs?: nu
       await harness.resume()
     },
     compact: () => act(() => host.compact()),
-    /** A manual compaction of the idle Session, which the bridge settles with no run id. */
+    dropRetainedUsers: () => host.dropRetainedUsers(),
     async compactManually() {
       let finish = () => {}
       act(() => {
@@ -169,19 +179,18 @@ export function createTranscriptOrderHarness(hooks: Hooks, options: { lagMs?: nu
       await notifySettled({})
       await harness.refreshDetail()
     },
-    /** The user promotes a queued Follow-up to a steer; its receipt comes after delivery. */
     promote: (text: string) => promotions.promote(chat.result.current, text),
     answerPromotion: (text: string) => promotions.answer(text),
     /** The Run ends; `continues` names the queued Follow-up's Run the Host goes straight on to. */
     async endRun(end: EndRunOptions = {}) {
       let runId = ''
       act(() => {
-        runId = host.finishRun(end.stop ? 'aborted' : 'stop')
+        runId = host.finishRun(end.stop ? 'aborted' : 'stop', end.after, end.hostSettled)
       })
-      // A steer Pi never incorporated returns to the queue; its preview leaves once idle.
-      if (!end.continues) promotions.forgetUndelivered()
       const settlement = async () => {
         act(() => host.settleRun())
+        // The Host puts a steer Pi never incorporated back in the queue as the Run settles.
+        if (!end.continues && !host.activeRunId()) promotions.forgetUndelivered()
         const next = end.continues
         const terminalStatus = end.stop ? 'interrupted' : 'completed'
         if (dropping) missedSettlement = true
@@ -194,14 +203,12 @@ export function createTranscriptOrderHarness(hooks: Hooks, options: { lagMs?: nu
       if (end.settleLater) pendingSettlement = settlement
       else await settlement()
     },
-    /** The settlement of a Run ended with `settleLater` reaches the renderer. */
     async settleRun() {
       const settlement = pendingSettlement
       pendingSettlement = null
       await settlement?.()
     },
     settlementPending: () => pendingSettlement !== null,
-    /** The Host event stream stalls: events are lost; the Host's buffer still has them. */
     stall() {
       dropping = true
     },
@@ -224,12 +231,10 @@ export function createTranscriptOrderHarness(hooks: Hooks, options: { lagMs?: nu
       })
       await harness.refreshDetail()
     },
-    /** The bridge announces a resync while the chat store's refetch is still on its way. */
     resync: () =>
       inAct(() => {
         for (const handler of [...apiMock.resyncHandlers]) handler()
       }),
-    /** Host detail reads wait for release (`installHostReads`). */
     holdReconnects: (hold: { readonly onRelease?: boolean } = {}) =>
       reads.hold(hold.onRelease ?? false),
     async releaseReconnects(release: { readonly newestFirst?: boolean } = {}) {
@@ -239,21 +244,17 @@ export function createTranscriptOrderHarness(hooks: Hooks, options: { lagMs?: nu
       })
       await settle()
     },
-    /** The renderer reloads: every store is lost; the Host still reports the active Run. */
     async reloadRenderer(view: 'session' | 'other' = 'session') {
       await harness.unmount()
       resetRendererState()
       knowledge.forget()
-      // The reloaded renderer reads every persisted Run from the detail.
       knowledge.noteSettled()
       reads.reportActiveRun()
-      // The restored route renders its Session at once, before the monitor learns the Run.
       await inAct(() => route.set(routeView(view, host.detail())))
       chat = mountChat()
       monitor = renderHook(() => hooks.useBackgroundRunMonitor())
       await settle()
     },
-    /** The Host restarts mid-Run; the reconnected bridge reports the Session idle. */
     async restartHost() {
       dropping = false
       missedSettlement = false

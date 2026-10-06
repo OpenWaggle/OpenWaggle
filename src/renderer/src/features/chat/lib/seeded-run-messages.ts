@@ -4,6 +4,7 @@ import {
   type AgentCompactionTimelineItem,
   getTimelineCompactionStatus,
 } from './compaction-lifecycle'
+import { createSavedAnswerMatcher, type SavedAnswerMatcher } from './saved-run-answers'
 
 interface PlacedRunMessages {
   readonly messages: UIMessage[]
@@ -140,7 +141,7 @@ function rebaseRunCompaction(
 
 /**
  * The cached messages without the rows a settled Run left, or `null` while the persisted transcript
- * does not hold that Run yet.
+ * does not hold that Run yet (no settled answer has a saved copy in its Run's span).
  *
  * A route that watched a Session go straight on to a queued Follow-up still shows the settled Run
  * under stream ids, and writes them back into the render snapshot during the next Run. Once that
@@ -158,9 +159,9 @@ export function unsettledRunMessages(input: {
    * The persisted transcript was fetched after those Runs settled, so it holds what they saved: a
    * Run is persisted before it settles. An assistant row needs no user row to vouch for its Run
    * then, and is left to the persisted transcript when that holds an answer of its own Run with
-   * its content (not an earlier Run's with the same text), each saved answer once; without this, a Run whose prompt the renderer never
-   * saw (it reloaded mid-Run) kept its answers under stream ids next to their persisted copies.
-   * One it lacks (a save that failed) is kept.
+   * its content (not an earlier Run's with the same text), each saved answer once; without this,
+   * a Run whose prompt the renderer never saw (it reloaded mid-Run) kept its answers under stream
+   * ids next to their persisted copies. One it lacks (a save that failed) is kept.
    */
   readonly fetchedAfterSettlement?: boolean
 }): UIMessage[] | null {
@@ -170,72 +171,63 @@ export function unsettledRunMessages(input: {
   const savedAnswers = createSavedAnswerMatcher(persistedMessages)
   let unknownSettledRows = 0
   let vouchingUserRows = 0
+  const savedIds = new Set<string>()
   const unsettled: UIMessage[] = []
   for (const message of cachedMessages) {
     if (!settledMessageIds.has(message.id)) {
       unsettled.push(message)
       continue
     }
-    savedAnswers.pass(message)
     const persistence = settledRowPersistence(message, persisted)
-    const savedElsewhere = persistence !== 'unknown' || savedAnswers.take(message)
-    if (persistence === 'unpersisted' || (input.fetchedAfterSettlement && !savedElsewhere)) {
-      unsettled.push(message)
-    }
+    savedAnswers.pass(message, persistence === 'persisted')
+    const saved = takesSavedCopy(message, persistence, savedAnswers)
+    if (saved) savedIds.add(message.id)
+    if (keepsSettledRow(persistence, saved, input.fetchedAfterSettlement)) unsettled.push(message)
     if (persistence === 'vouches') vouchingUserRows += 1
     if (persistence === 'unknown') unknownSettledRows += 1
   }
-  return unknownSettledRows === 0 || vouchingUserRows > 0 || input.fetchedAfterSettlement === true
-    ? unsettled
-    : null
+  if (unknownSettledRows === 0 || vouchingUserRows > 0 || input.fetchedAfterSettlement === true) {
+    return unsettled
+  }
+  // The transcript may not hold the Run yet: its rows stay, but not an answer or send it holds a
+  // saved copy of in that Run's span, which showed twice until the Run after it settled.
+  return savedIds.size === 0 ? null : cachedMessages.filter((message) => !savedIds.has(message.id))
+}
+
+/**
+ * Whether the transcript holds a saved copy of a settled answer, or of a send the renderer showed
+ * before the Host recorded it (it has no log order), in its Run's span. Taken whatever the row's
+ * fate: a match moves the span on for the rows after it.
+ */
+function takesSavedCopy(
+  message: UIMessage,
+  persistence: ReturnType<typeof settledRowPersistence>,
+  savedAnswers: SavedAnswerMatcher,
+) {
+  const unrecordedSend =
+    persistence === 'unpersisted' && message.metadata?.sessionNodeCreatedOrder === undefined
+  return (persistence === 'unknown' || unrecordedSend) && savedAnswers.take(message)
+}
+
+/**
+ * Whether a settled row stays: one the persisted transcript does not hold yet, unless it is a send
+ * the renderer showed before the Host recorded it and the transcript holds a prompt with its text
+ * in its Run's span (`saved`; until then it may be queued); and, with a fresh transcript, an
+ * answer it holds no saved copy of (a save that failed).
+ */
+function keepsSettledRow(
+  persistence: ReturnType<typeof settledRowPersistence>,
+  saved: boolean,
+  fetchedAfterSettlement: boolean | undefined,
+) {
+  if (persistence === 'unpersisted') return !saved
+  return persistence === 'unknown' && fetchedAfterSettlement === true && !saved
 }
 
 interface PersistedIndex {
   readonly ids: ReadonlySet<string>
   readonly userOrders: ReadonlySet<number>
   readonly summaryCount: number
-}
-
-/**
- * Matches the settled answers, in order, with the persisted answers of their own Run: one with the
- * same content saved after the last settled user row before it (`pass`) and after the previous
- * match, each once. An earlier Run's answer with the same text is before that user row. Only
- * settled rows bound it: the rows of the Run going on may sit anywhere among them. An answer with
- * no content has nothing to lose.
- */
-function createSavedAnswerMatcher(persistedMessages: readonly UIMessage[]) {
-  const unmatched: Array<{ readonly key: string; readonly order: number }> = []
-  for (const message of persistedMessages) {
-    const order = message.metadata?.sessionNodeCreatedOrder
-    if (message.role === 'assistant' && order !== undefined) {
-      unmatched.push({ key: answerContentKey(message), order })
-    }
-  }
-  let floor = Number.NEGATIVE_INFINITY
-  return {
-    pass(message: UIMessage) {
-      const order = message.metadata?.sessionNodeCreatedOrder
-      if (message.role === 'user' && order !== undefined) floor = Math.max(floor, order)
-    },
-    take(message: UIMessage) {
-      const key = answerContentKey(message)
-      if (key === '') return true
-      const index = unmatched.findIndex((saved) => saved.key === key && saved.order > floor)
-      if (index < 0) return false
-      floor = unmatched[index]?.order ?? floor
-      unmatched.splice(index, 1)
-      return true
-    },
-  }
-}
-
-/** An answer's text and the tool calls it made: the same streamed and persisted. */
-export function answerContentKey(message: UIMessage) {
-  return message.parts
-    .flatMap((part) =>
-      part.type === 'text' ? [part.content] : part.type === 'tool-call' ? [`tool:${part.id}`] : [],
-    )
-    .join('\n')
 }
 
 function indexPersistedMessages(messages: readonly UIMessage[]): PersistedIndex {
@@ -260,36 +252,4 @@ function settledRowPersistence(message: UIMessage, persisted: PersistedIndex) {
   if (message.role !== 'user') return 'unknown'
   const order = message.metadata?.sessionNodeCreatedOrder
   return order !== undefined && persisted.userOrders.has(order) ? 'vouches' : 'unpersisted'
-}
-
-/**
- * The messages without the answers the persisted transcript already holds under Pi entry ids
- * while this renderer shows them under stream ids: a compaction in the middle of the Run, or the
- * Run's end before it settled, saved them. An answer is matched by its content among the persisted
- * answers the messages do not show by id (`shownIds`), from `fromOrder` on, each match once.
- */
-export function withoutSavedRunAnswers(
-  messages: readonly UIMessage[],
-  persistedMessages: readonly UIMessage[],
-  scope: { readonly shownIds?: ReadonlySet<string>; readonly fromOrder?: number },
-): UIMessage[] {
-  const persistedIds = new Set<string>()
-  const savedAnswers = new Map<string, number>()
-  for (const message of persistedMessages) {
-    persistedIds.add(message.id)
-    const order = message.metadata?.sessionNodeCreatedOrder
-    if (message.role !== 'assistant' || scope.shownIds?.has(message.id)) continue
-    if (scope.fromOrder !== undefined && (order === undefined || order < scope.fromOrder)) continue
-    const key = answerContentKey(message)
-    if (key) savedAnswers.set(key, (savedAnswers.get(key) ?? 0) + 1)
-  }
-  if (savedAnswers.size === 0) return [...messages]
-  return messages.filter((message) => {
-    if (message.role !== 'assistant' || persistedIds.has(message.id)) return true
-    const key = answerContentKey(message)
-    const count = savedAnswers.get(key) ?? 0
-    if (count === 0) return true
-    savedAnswers.set(key, count - 1)
-    return false
-  })
 }

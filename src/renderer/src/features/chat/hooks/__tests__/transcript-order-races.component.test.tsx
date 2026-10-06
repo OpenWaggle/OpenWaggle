@@ -270,24 +270,3 @@ describe('transcript order through Run kinds', () => {
     expect(harness.shownKeys()).toEqual(harness.truthKeys())
   })
 })
-
-describe('transcript order with repeated texts', () => {
-  beforeEach(resetTranscriptOrderState)
-  afterEach(cleanupTranscriptOrder)
-
-  it('keeps the next Run its own answer when it repeats the settled Run answer', async () => {
-    await expectCompleteTranscript([
-      (h) => h.mount('session'),
-      (h) => h.send('Fix the cache', 'run-1'),
-      (h) => h.answer('ok'),
-      (h) => h.endRun({ continues: 'run-2', followUp: 'Now the docs', refetchLater: true }),
-      (h) => h.answer('ok'),
-      (h) => h.steer('use the new API'),
-      (h) => h.answer('writing the docs', { open: true }),
-      (h) => h.view('other'),
-      // The chat store still holds the detail from before Run 1 was saved.
-      (h) => h.view('session', { stale: true }),
-      (h) => h.endRun(),
-    ])
-  })
-})

@@ -1,15 +1,12 @@
 import type { BackgroundRunSnapshot } from '@shared/types/background-run'
 import type { SessionId } from '@shared/types/brand'
 import type { UIMessage, UIMessagePart } from '@shared/types/chat-ui'
-import type { SessionDetail } from '@shared/types/session'
+import { useOptimisticSteerStore } from '@/features/chat/state/optimistic-steer-store'
 import { api } from '@/shared/lib/ipc'
-import { placeReconnectedRunMessages } from '../lib/chat-stream-user-messages'
-import {
-  reconnectedRunStartOrder,
-  runStartOrderOf,
-  withoutShownRunAnswers,
-} from '../lib/reconnect-run-scope'
-import { unsettledRunMessages, withoutSavedRunAnswers } from '../lib/seeded-run-messages'
+import { incorporatedUserRow, placeReconnectedRunMessages } from '../lib/chat-stream-user-messages'
+import { reconnectedRunScope, runScopeOf, withoutShownRunAnswers } from '../lib/reconnect-run-scope'
+import { withoutSavedRunAnswers } from '../lib/saved-run-answers'
+import { unsettledRunMessages } from '../lib/seeded-run-messages'
 import {
   buildPartialAssistantMessage,
   mergeBackgroundReconnectMessages,
@@ -49,26 +46,22 @@ export function reconnectActiveRun(
     generation: context.reconnectGenerationRef.current,
   }
   const shownMessages = () => getMessagesForSession(context.messagesBySessionIdRef, input.sessionId)
+  const merge = (result: ReconnectedRun | null) => {
+    if (result)
+      handleActiveRunReconnectResult(request, result, input.cachedSettledMessageIds, context)
+  }
   const reconnect =
     follow === 'background'
-      ? reconnectToBackgroundRun(
-          input.sessionId,
-          input.session,
-          input.optimisticUserMessages,
-          shownMessages,
-        )
-      : reconnectToForegroundRun(input.sessionId, shownMessages)
-  void reconnect
-    .then((result) => {
-      if (result)
-        handleActiveRunReconnectResult(request, result, input.cachedSettledMessageIds, context)
-    })
-    .catch((reconnectError: unknown) => {
-      // A send's own Run reports its failures; a recovery that could not read the buffer is moot.
-      if (follow === 'background' && isCurrent(request, context)) {
-        handleActiveRunReconnectError(reconnectError, context)
-      }
-    })
+      ? reconnectToBackgroundRun(input, shownMessages)
+      : api
+          .getBackgroundRun(input.sessionId)
+          .then((snapshot) => bufferOnly(input.sessionId, snapshot, shownMessages))
+  void reconnect.then(merge).catch((reconnectError: unknown) => {
+    // A send's own Run reports its failures; a recovery that could not read the buffer is moot.
+    if (follow === 'background' && isCurrent(request, context)) {
+      handleActiveRunReconnectError(reconnectError, context)
+    }
+  })
 }
 
 interface ReconnectRequest {
@@ -128,11 +121,7 @@ function handleActiveRunReconnectResult(
               reconnect.persistedMessages,
               {
                 shownIds: new Set(currentMessages.map((message) => message.id)),
-                fromOrder: reconnectedRunStartOrder({
-                  ...reconnect,
-                  currentMessages,
-                  settledMessageIds,
-                }),
+                ...reconnectedRunScope({ ...reconnect, currentMessages }),
               },
             ),
         {
@@ -240,12 +229,11 @@ function partialAssistantOf(snapshot: BackgroundRunSnapshot) {
  * both showed every answer twice.
  */
 async function reconnectToBackgroundRun(
-  sessionId: SessionId,
-  session: SessionDetail,
-  optimisticUserMessages: readonly UIMessage[],
+  { sessionId, session, optimisticUserMessages }: SessionHydrationInput,
   shownMessages: () => readonly UIMessage[],
 ): Promise<ReconnectedRun | null> {
   const before = await api.getBackgroundRun(sessionId)
+  noteRetainedUserMessages(sessionId, before)
   const fetchedSession = await api.getSessionDetail(sessionId)
   const latestSession = fetchedSession ?? session
   const snapshot = await api.getBackgroundRun(sessionId)
@@ -262,9 +250,8 @@ async function reconnectToBackgroundRun(
   if (before && before.runId !== undefined && before.runId !== snapshot.runId) return null
   const partialAssistant = partialAssistantOf(snapshot)
   const unsavedPartial = partialAssistant
-    ? (withoutSavedRunAnswers([partialAssistant], persistedMessages, {
-        fromOrder: runStartOrderOf(snapshot) ?? Number.POSITIVE_INFINITY,
-      })[0] ?? null)
+    ? (withoutSavedRunAnswers([partialAssistant], persistedMessages, runScopeOf(snapshot))[0] ??
+      null)
     : null
   return {
     messages: placeReconnectedRunMessages(historicalMessages, snapshot, unsavedPartial),
@@ -277,12 +264,13 @@ async function reconnectToBackgroundRun(
 }
 
 /** The foreground reconnect: only the buffer's rows, which the stream may have lost. */
-async function reconnectToForegroundRun(
+function bufferOnly(
   sessionId: SessionId,
+  snapshot: BackgroundRunSnapshot | null,
   shownMessages: () => readonly UIMessage[],
-): Promise<ReconnectedRun | null> {
-  const snapshot = await api.getBackgroundRun(sessionId)
+): ReconnectedRun | null {
   if (!snapshot) return null
+  noteRetainedUserMessages(sessionId, snapshot)
   const streamingBaseline = streamingBaselineOf(snapshot, shownMessages)
   return {
     messages: placeReconnectedRunMessages([], snapshot, partialAssistantOf(snapshot)),
@@ -290,5 +278,25 @@ async function reconnectToForegroundRun(
     persistedFetched: false,
     snapshot,
     ...(streamingBaseline ? { streamingBaseline } : {}),
+  }
+}
+
+/**
+ * The buffer's user messages tell a promoted steer's preview when Pi incorporated it, as their
+ * events would have (`useBackgroundRunMonitor`): the stream may have lost them, and the preview
+ * then stands in for the row at that time while the rest of the reconnect is read.
+ */
+function noteRetainedUserMessages(sessionId: SessionId, snapshot: BackgroundRunSnapshot | null) {
+  const steers = useOptimisticSteerStore.getState()
+  for (const retained of snapshot?.userMessages ?? []) {
+    const { messageId, timestamp, afterAssistantMessageId: _after, ...userMessage } = retained
+    const event = {
+      type: 'message_start',
+      messageId,
+      role: 'user',
+      userMessage,
+      timestamp,
+    } as const
+    steers.noteIncorporated(sessionId, incorporatedUserRow(event))
   }
 }

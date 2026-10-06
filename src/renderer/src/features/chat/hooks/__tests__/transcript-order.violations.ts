@@ -25,13 +25,21 @@ export function transcriptOrderViolations(
   truth: readonly string[],
   pending: readonly string[] = [],
 ) {
-  const pendingCount = shown.filter((key) => pending.includes(key)).length
-  const delivered = shown.slice(0, shown.length - pendingCount)
-  if (shown.slice(delivered.length).some((key) => !pending.includes(key))) {
-    return [`a pending steer is not last: ${shown.join(' | ')}`]
+  const truthCounts = countKeys(truth)
+  // The pending previews end the list; one with a delivered message's text (a prompt) may repeat it.
+  const pendingLeft = countKeys(pending)
+  let end = shown.length
+  for (let key = shown[end - 1]; key !== undefined && (pendingLeft.get(key) ?? 0) > 0; ) {
+    pendingLeft.set(key, (pendingLeft.get(key) ?? 0) - 1)
+    end -= 1
+    key = shown[end - 1]
   }
-  const truthCounts = new Map<string, number>()
-  for (const key of truth) truthCounts.set(key, (truthCounts.get(key) ?? 0) + 1)
+  const delivered = shown.slice(0, end)
+  const deliveredCounts = countKeys(delivered)
+  const misplaced = [...pendingLeft].some(
+    ([key, left]) => left > 0 && (deliveredCounts.get(key) ?? 0) > (truthCounts.get(key) ?? 0),
+  )
+  if (misplaced) return [`a pending steer is not last: ${shown.join(' | ')}`]
   const shownCounts = new Map<string, number>()
   const violations: string[] = []
   let previous = -1
@@ -55,4 +63,10 @@ export function transcriptOrderViolations(
     previous = index
   }
   return violations
+}
+
+function countKeys(keys: readonly string[]) {
+  const counts = new Map<string, number>()
+  for (const key of keys) counts.set(key, (counts.get(key) ?? 0) + 1)
+  return counts
 }

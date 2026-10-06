@@ -49,6 +49,8 @@ export function installHostReads(host: HostModel, route: ReturnType<typeof creat
   })
   return {
     holding: () => holding,
+    /** Whether a held read is in flight: what it answers has not reached the renderer yet. */
+    pending: () => held.length > 0,
     /**
      * Detail reads are answered only on release: with what the Host held when asked (the answer
      * was slow to arrive), or with `onRelease`, what it holds then (the Host was slow to read).

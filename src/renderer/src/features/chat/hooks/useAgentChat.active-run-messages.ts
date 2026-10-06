@@ -1,6 +1,10 @@
 import type { UIMessage } from '@shared/types/chat-ui'
 import type { AgentCompactionStatus } from '../lib/compaction-lifecycle'
-import { placeSeededRunMessages, placeUnsettledRunMessages } from '../lib/seeded-run-messages'
+import {
+  placeSeededRunMessages,
+  placeUnsettledRunMessages,
+  unsettledRunMessages,
+} from '../lib/seeded-run-messages'
 import {
   appendMissingOptimisticUserMessages,
   mergeBackgroundReconnectMessages,
@@ -25,7 +29,7 @@ export function activeRunHydrationMessages(
   context: SessionHydrationContext,
 ): { readonly messages: UIMessage[]; readonly compactionStatus: AgentCompactionStatus | null } {
   const cachedMessages = input.cachedRenderMessages
-  const placed = cachedMessages ? placeCachedRunMessages(input, cachedMessages) : null
+  const placed = cachedMessages ? placeCachedRunMessages(input, cachedMessages, context) : null
   if (placed) {
     return {
       messages: appendMissingOptimisticUserMessages(placed.messages, input.optimisticUserMessages),
@@ -52,12 +56,13 @@ export function activeRunHydrationMessages(
 function placeCachedRunMessages(
   input: SessionHydrationInput,
   cachedMessages: readonly UIMessage[],
+  context: SessionHydrationContext,
 ) {
   const persistedMessages = sessionToUIMessages(input.session)
   const compactionStatus = input.cachedCompactionStatus
   if (input.cachedRenderSeeded) {
     return placeSeededRunMessages({
-      persistedMessages,
+      persistedMessages: withUnsavedSettledRows(input, persistedMessages, context),
       seededMessages: cachedMessages,
       compactionStatus,
     })
@@ -68,4 +73,27 @@ function placeCachedRunMessages(
     settledMessageIds: input.cachedSettledMessageIds,
     compactionStatus,
   })
+}
+
+/**
+ * The persisted history with the rows of the settled Run a seed carried (`settledMessageIds`) that
+ * it does not hold yet, as the transcript last showed them: the seed keeps only their ids, and a
+ * detail from before that Run was saved (its refetch still on the way) would lose the whole Run.
+ */
+function withUnsavedSettledRows(
+  input: SessionHydrationInput,
+  persistedMessages: readonly UIMessage[],
+  context: SessionHydrationContext,
+) {
+  const settledMessageIds = input.cachedSettledMessageIds
+  if (!settledMessageIds || settledMessageIds.size === 0) return persistedMessages
+  const settledRows = getMessagesForSession(context.messagesBySessionIdRef, input.sessionId).filter(
+    (message) => settledMessageIds.has(message.id),
+  )
+  if (settledRows.length === 0) return persistedMessages
+  const unsaved =
+    unsettledRunMessages({ persistedMessages, cachedMessages: settledRows, settledMessageIds }) ??
+    settledRows
+  const persistedIds = new Set(persistedMessages.map((message) => message.id))
+  return [...persistedMessages, ...unsaved.filter((message) => !persistedIds.has(message.id))]
 }

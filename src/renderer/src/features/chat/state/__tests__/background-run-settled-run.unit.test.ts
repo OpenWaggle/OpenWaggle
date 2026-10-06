@@ -23,6 +23,16 @@ function snapshot() {
   return useBackgroundRunStore.getState().getRunRenderSnapshot(SESSION)
 }
 
+/** An answer streamed into the snapshot, as the monitor applies its events first. */
+function streamAnswer(store: ReturnType<typeof useBackgroundRunStore.getState>, id: string) {
+  store.applyRunRenderEvent(SESSION, {
+    type: 'message_start',
+    messageId: id,
+    role: 'assistant',
+    timestamp: 2,
+  })
+}
+
 describe('background run render snapshots of a settled Run', () => {
   beforeEach(() => {
     useBackgroundRunStore.setState({
@@ -69,6 +79,8 @@ describe('background run render snapshots of a settled Run', () => {
     store.noteRunRenderSnapshotRunSettled(SESSION, 'run-1')
     store.applyRunRenderEvent(SESSION, { type: 'agent_start', runId: 'run-2', timestamp: 1 })
     expect(snapshot()?.settledMessageIds).toEqual(new Set(['p1', 'stream-a1']))
+    // Run 2's answer reaches the snapshot before the route renders it.
+    streamAnswer(store, 'stream-a2')
 
     // The route still rendering the Session writes its whole transcript, settled rows included.
     store.setRunRenderMessages(SESSION, [
@@ -135,6 +147,7 @@ describe('background run render snapshots of a settled Run', () => {
     store.setRunRenderMessages(SESSION, [message('p1', 'user'), message('stream-a1', 'assistant')])
     store.noteRunRenderSnapshotRunSettled(SESSION, 'run-1')
     store.applyRunRenderEvent(SESSION, { type: 'agent_start', runId: 'run-2', timestamp: 1 })
+    streamAnswer(store, 'stream-a2')
     // The route rendering the Session writes its transcript, Run 2's rows included.
     store.setRunRenderMessages(SESSION, [
       message('p1', 'user'),

@@ -6,7 +6,15 @@ import {
   type AgentCompactionStatus,
   getTimelineCompactionStatus,
 } from '@/features/chat/lib/compaction-lifecycle'
+import { settlingRunId } from '@/features/chat/lib/run-ids'
 import { applyCompactionSnapshotEvent } from './background-run-compaction'
+import {
+  seededSnapshotForRunStart,
+  seedRunRenderSnapshot,
+  startedRunOf,
+  withEndedRunNamed,
+  withSettledEarlierMessages,
+} from './background-run-started-run'
 
 export interface RunRenderSnapshot {
   readonly messages: readonly UIMessage[]
@@ -18,6 +26,8 @@ export interface RunRenderSnapshot {
    * Session writes its whole transcript and drops it; so does that Run's settlement.
    */
   readonly seededByRunId?: string
+  /** When the seeding Run started, by Host time, if its start named it. */
+  readonly seededAt?: number
   /**
    * The Run that last settled while the snapshot held it (`settledRunMark`). Its answers are
    * persisted under Pi entry ids by then, so the next Run's start reseeds the snapshot instead of
@@ -32,6 +42,12 @@ export interface RunRenderSnapshot {
    * transcript once it holds that Run (`unsettledRunMessages`).
    */
   readonly settledMessageIds?: ReadonlySet<string>
+  /**
+   * The Run that last started while a route owned the snapshot, and the messages it held then. A
+   * settlement of an earlier Run that arrives after that start settles only those: the rest are
+   * the started Run's, which every event it streams needs.
+   */
+  readonly startedRun?: { readonly runId: string; readonly earlierMessageIds: ReadonlySet<string> }
 }
 
 /**
@@ -48,40 +64,8 @@ export const UNNAMED_RUN_SEED = 'unnamed-run'
 const SETTLED_UNNAMED_RUN = 'settled-unnamed-run'
 
 /** Whether a seed's Run is in progress but its real id is not known yet. */
-function isUnnamedRunSeed(runId: string | undefined) {
+export function isUnnamedRunSeed(runId: string | undefined) {
   return runId === UNNAMED_RUN_SEED || runId?.startsWith(REMOTE_SNAPSHOT_RUN_ID_PREFIX) === true
-}
-
-function seedRunRenderSnapshot(
-  runId: string,
-  settledMessageIds?: ReadonlySet<string>,
-): RunRenderSnapshot {
-  return {
-    messages: [],
-    compactionStatus: null,
-    updatedAt: Date.now(),
-    seededByRunId: runId,
-    ...(settledMessageIds ? { settledMessageIds } : {}),
-  }
-}
-
-function seededSnapshotForRunStart(
-  existing: RunRenderSnapshot | undefined,
-  runId: string,
-): RunRenderSnapshot {
-  if (existing === undefined) return seedRunRenderSnapshot(runId)
-  // The snapshot holds a settled Run, persisted before this one started.
-  if (existing.settledRunId !== undefined) {
-    return seedRunRenderSnapshot(runId, existing.settledMessageIds)
-  }
-  // A route renders the Session and owns the snapshot, or this Run starts again for an auto-retry.
-  if (existing.seededByRunId === undefined || existing.seededByRunId === runId) return existing
-  // The real id of the in-progress Run the seed could not name: its answers are not persisted yet.
-  if (isUnnamedRunSeed(existing.seededByRunId) && !isUnnamedRunSeed(runId)) {
-    return { ...existing, seededByRunId: runId }
-  }
-  // Another Run, so the seeded one was persisted before it started.
-  return seedRunRenderSnapshot(runId, existing.settledMessageIds)
 }
 
 /**
@@ -100,13 +84,16 @@ export function runRenderSnapshotForEvent(
   existing: RunRenderSnapshot | undefined,
   event: AgentTransportEvent,
 ): RunRenderSnapshot | null {
-  if (event.type === 'agent_start') return seededSnapshotForRunStart(existing, event.runId)
+  if (event.type === 'agent_start') {
+    return seededSnapshotForRunStart(existing, event.runId, event.timestamp)
+  }
+  if (existing && event.type === 'agent_end') return withEndedRunNamed(existing, event.runId)
   if (existing) return existing
   if (event.type === 'compaction_start') return seedRunRenderSnapshot(UNNAMED_RUN_SEED)
   return null
 }
 
-interface RenderSnapshotState {
+export interface RenderSnapshotState {
   readonly renderSnapshotsBySessionId: Map<SessionId, RunRenderSnapshot>
 }
 
@@ -148,7 +135,11 @@ export function withRunRenderMessages(
   messages: readonly UIMessage[],
 ) {
   const existing = state.renderSnapshotsBySessionId.get(id)
-  const settledMessageIds = settledIdsStillShown(existing?.settledMessageIds, messages)
+  const startedRun = startedRunOf(existing, messages)
+  const settledMessageIds = settledIdsStillShown(
+    new Set([...(existing?.settledMessageIds ?? []), ...(startedRun?.earlierMessageIds ?? [])]),
+    messages,
+  )
   const next = new Map(state.renderSnapshotsBySessionId)
   next.set(id, {
     messages: [...messages],
@@ -156,6 +147,7 @@ export function withRunRenderMessages(
     updatedAt: Date.now(),
     ...(existing?.settledRunId === undefined ? {} : { settledRunId: existing.settledRunId }),
     ...(settledMessageIds ? { settledMessageIds } : {}),
+    ...(startedRun ? { startedRun } : {}),
   })
   return { renderSnapshotsBySessionId: next }
 }
@@ -238,9 +230,13 @@ export function withSettledRunRenderSnapshot(
   const existing = state.renderSnapshotsBySessionId.get(id)
   if (!existing) return state
   if (settledRunId !== undefined && isSeededByAnotherRun(existing, settledRunId)) return state
+  const started = existing.startedRun
+  if (settledRunId !== undefined && started && isAnotherNamedRun(started.runId, settledRunId)) {
+    return withSettledEarlierMessages(state, id, existing, started.earlierMessageIds)
+  }
   const settledMessageIds = new Set(existing.settledMessageIds)
   for (const message of existing.messages) settledMessageIds.add(message.id)
-  const { seededByRunId: _settledSeed, ...unseeded } = existing
+  const { seededByRunId: _settledSeed, startedRun: _started, ...unseeded } = existing
   const next = new Map(state.renderSnapshotsBySessionId)
   next.set(id, {
     ...unseeded,
@@ -252,7 +248,12 @@ export function withSettledRunRenderSnapshot(
 
 function isSeededByAnotherRun(snapshot: RunRenderSnapshot, runId: string) {
   const seed = snapshot.seededByRunId
-  return seed !== undefined && seed !== runId && !isUnnamedRunSeed(seed)
+  return seed !== undefined && isAnotherNamedRun(seed, runId)
+}
+
+/** Whether a Run is another named one than a settled Run (a requested Waggle settles as its own). */
+function isAnotherNamedRun(runId: string, settledRunId: string) {
+  return settlingRunId(runId) !== settlingRunId(settledRunId) && !isUnnamedRunSeed(runId)
 }
 
 /**
