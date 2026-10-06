@@ -1,5 +1,5 @@
 diff --git a/dist/api/anthropic-messages.js b/dist/api/anthropic-messages.js
-index 5dd85f19db51b73dcd0c5c4cd8c28ad99e09ee6f..6ae7fc5cd3e5004a53e79a51c6998a2ff9ddc453 100644
+index 5dd85f19db51b73dcd0c5c4cd8c28ad99e09ee6f..d6979a5a98a2b62c9c72e0e8a382be528b773742 100644
 --- a/dist/api/anthropic-messages.js
 +++ b/dist/api/anthropic-messages.js
 @@ -3,7 +3,7 @@ import { calculateCost } from "../models.js";
@@ -7,7 +7,7 @@ index 5dd85f19db51b73dcd0c5c4cd8c28ad99e09ee6f..6ae7fc5cd3e5004a53e79a51c6998a2f
  import { AssistantMessageEventStream } from "../utils/event-stream.js";
  import { headersToRecord } from "../utils/headers.js";
 -import { parseJsonWithRepair, parseStreamingJson } from "../utils/json-parse.js";
-+import { parseJsonWithRepair, parseStreamingJson, parseStreamingToolArguments } from "../utils/json-parse.js";
++import { finishStreamingToolCalls, parseJsonWithRepair, parseStreamingJson, parseStreamingToolArguments, } from "../utils/json-parse.js";
  import { getPiUserAgent } from "../utils/pi-user-agent.js";
  import { getProviderEnvValue } from "../utils/provider-env.js";
  import { retryProviderRequest } from "../utils/provider-retry.js";
@@ -20,7 +20,15 @@ index 5dd85f19db51b73dcd0c5c4cd8c28ad99e09ee6f..6ae7fc5cd3e5004a53e79a51c6998a2f
                              stream.push({
                                  type: "toolcall_delta",
                                  contentIndex: index,
-@@ -627,6 +627,10 @@ export const stream = (model, context, options) => {
+@@ -621,12 +621,18 @@ export const stream = (model, context, options) => {
+                     },
+                 });
+             }
++            // A tool block the stream never stopped still holds rate-limited arguments.
++            finishStreamingToolCalls(output.content);
+             stream.push({ type: "done", reason: output.stopReason, message: output });
+             stream.end();
+         }
          catch (error) {
              for (const block of output.content) {
                  delete block.index;
@@ -177,14 +185,14 @@ index fc8e89382b75f259eb4f041b522840b0d603c033..a43d79c68fbf2dd2535bd49c501ee559
                  delete block.partialArgs;
                  delete block.customInput;
 diff --git a/dist/api/openai-responses-shared.js b/dist/api/openai-responses-shared.js
-index 53597d2c3becdd2c03d4fd265c213a36b403f26b..a0032e5b68c915b8e67a7979b34ab4caa0553082 100644
+index 53597d2c3becdd2c03d4fd265c213a36b403f26b..e01c200a9ce2e0276d4b7879f30cf22b9f34dcc0 100644
 --- a/dist/api/openai-responses-shared.js
 +++ b/dist/api/openai-responses-shared.js
 @@ -1,6 +1,6 @@
  import { calculateCost } from "../models.js";
  import { shortHash } from "../utils/hash.js";
 -import { parseStreamingJson } from "../utils/json-parse.js";
-+import { parseStreamingJson, parseStreamingToolArguments } from "../utils/json-parse.js";
++import { finishStreamingToolCalls, parseStreamingJson, parseStreamingToolArguments } from "../utils/json-parse.js";
  import { sanitizeSurrogates } from "../utils/sanitize-unicode.js";
  import { getSystemMessageText, renderSystemMessageUpdate } from "../utils/text.js";
  import { resolveTranscript, resolveTranscriptTools } from "../utils/transcript.js";
@@ -208,6 +216,15 @@ index 53597d2c3becdd2c03d4fd265c213a36b403f26b..a0032e5b68c915b8e67a7979b34ab4ca
              pushToolCallDelta(slot, event.delta);
          }
          else if (event.type === "response.function_call_arguments.done") {
+@@ -656,6 +658,8 @@ export async function processResponsesStream(openaiStream, output, stream, model
+     if (!sawTerminalResponseEvent) {
+         throw new Error("OpenAI Responses stream ended before a terminal response event");
+     }
++    // A function call the response never finished still holds rate-limited arguments.
++    finishStreamingToolCalls(output.content);
+ }
+ function mapStopReason(status, incompleteReason) {
+     if (!status)
 diff --git a/dist/api/openai-responses.d.ts b/dist/api/openai-responses.d.ts
 index 41267bd50904069aa0879cc8634ea94bc1045236..7b431baee4581266a093653615b4f6515903ca59 100644
 --- a/dist/api/openai-responses.d.ts
@@ -483,10 +500,10 @@ index 5915ca64b161bc7bcebdb14d2ad1a2c18cde942e..8c92cbbfe94788aea88109058e10eb25
      supportsDeveloperRole?: boolean;
      /** Whether the exact model accepts developer or system messages after the conversation has started. When false, later system messages are folded into the leading system message. Default: false; the generated model catalog enables it for verified models. */
 diff --git a/dist/utils/json-parse.d.ts b/dist/utils/json-parse.d.ts
-index 6d7935322c2e60d425188d9c4c94809208073fe3..6dcaec980f8df722d11494d36d33262dd6f44d9d 100644
+index 6d7935322c2e60d425188d9c4c94809208073fe3..aae95e3e186e7f75a19c28e77e5e0b2115b9006c 100644
 --- a/dist/utils/json-parse.d.ts
 +++ b/dist/utils/json-parse.d.ts
-@@ -13,4 +13,14 @@ export declare function parseJsonWithRepair<T>(json: string): T;
+@@ -13,4 +13,19 @@ export declare function parseJsonWithRepair<T>(json: string): T;
   * @returns Parsed object or empty object if parsing fails
   */
  export declare function parseStreamingJson<T = Record<string, unknown>>(partialJson: string | undefined): T;
@@ -500,13 +517,18 @@ index 6d7935322c2e60d425188d9c4c94809208073fe3..6dcaec980f8df722d11494d36d33262d
 +export declare function parseStreamingToolArguments<T = Record<string, unknown>>(block: {
 +    arguments: T;
 +}, partialJson: string | undefined): T;
++/**
++ * Parses the complete JSON of every tool call in `content` that still holds its streaming
++ * buffer under `bufferKey` (default `partialJson`), then drops the buffer.
++ */
++export declare function finishStreamingToolCalls(content: readonly object[], bufferKey?: string): void;
  //# sourceMappingURL=json-parse.d.ts.map
 \ No newline at end of file
 diff --git a/dist/utils/json-parse.js b/dist/utils/json-parse.js
-index 82e105cb676a2f4be16167023243aa73dd8cb2e4..4bb8beab80e1ad70ecdbdc1c82cbf28a3598a890 100644
+index 82e105cb676a2f4be16167023243aa73dd8cb2e4..b69b65805e7034b2e7f62095c8dc91d4d9ec400a 100644
 --- a/dist/utils/json-parse.js
 +++ b/dist/utils/json-parse.js
-@@ -110,4 +110,47 @@ export function parseStreamingJson(partialJson) {
+@@ -110,4 +110,61 @@ export function parseStreamingJson(partialJson) {
          }
      }
  }
@@ -552,6 +574,20 @@ index 82e105cb676a2f4be16167023243aa73dd8cb2e4..4bb8beab80e1ad70ecdbdc1c82cbf28a
 +    const parsedAt = streamingParseClock();
 +    streamingToolArgumentsState.set(block, { length, parsedAt, parseMs: parsedAt - now });
 +    return value;
++}
++/**
++ * Parses the complete JSON of every tool call in `content` that still holds its streaming
++ * buffer under `bufferKey`, then drops the buffer. `parseStreamingToolArguments` may have
++ * skipped the latest deltas, so a stream that ends without closing a tool block must call
++ * this before it hands the message out.
++ */
++export function finishStreamingToolCalls(content, bufferKey = "partialJson") {
++    for (const block of content) {
++        if (block.type !== "toolCall" || typeof block[bufferKey] !== "string")
++            continue;
++        block.arguments = parseStreamingJson(block[bufferKey]);
++        delete block[bufferKey];
++    }
 +}
  //# sourceMappingURL=json-parse.js.map
 \ No newline at end of file

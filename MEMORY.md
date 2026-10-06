@@ -1486,14 +1486,22 @@ reproduced. Measured against a 565 MB user DB copy: `persistSessionSnapshot` too
 heavy I/O, so SQLite work does not explain multi-second stalls. Pi's Bedrock tool-call streaming
 reparses the whole partial JSON on every delta, which is quadratic: a 190 KB call costs 3 to 11 s
 of CPU. The largest stored assistant message was only 38 KB, though. The pi-ai patch now rate-limits
-that parse (`parseStreamingToolArguments` in `dist/utils/json-parse.js`, used by the Bedrock,
-Anthropic, OpenAI Responses and OpenAI Completions delta paths): every delta up to 8 KiB, then
-after 1/8 growth or max(50 ms, 10x the last parse time). Block stop and the terminal/error
-paths still parse the full JSON, so final arguments stay exact. A 217 KB call in 20-byte deltas
+that parse (`parseStreamingToolArguments` in `dist/utils/json-parse.js`, used by the delta paths
+of Bedrock, Anthropic, OpenAI Responses/Azure/Codex, OpenAI Completions, Mistral and the
+`pi-messages` client): every delta up to 8 KiB, then after 1/8 growth or max(50 ms, 10x the last
+parse time). A block's `arguments` therefore lag its raw JSON, and every terminal path must parse
+the full JSON itself: block stop, `done`, `error` and abort. Streams can end normally without
+closing the tool block (Anthropic `message_stop` without `content_block_stop`, Responses
+`response.completed` without `output_item.done`, Bedrock without `contentBlockStop`, pi-messages
+`done` without `toolcall_end`); the first patch missed the Anthropic and Responses success paths,
+so a `write` tool ran with 63,536 of 65,562 bytes. `finishStreamingToolCalls` now closes those
+paths, and `pi-streaming-tool-arguments-terminal-paths.unit.test.ts` streams every patched
+provider through a loopback server, ending normally without a close and failing after the
+deltas, and checks the final arguments are exact. Any new provider path that pushes `done` or
+`error` needs the same. A 217 KB call in 20-byte deltas
 went from 14.5 s of parsing (10,884 parses, 4.5 s event-loop lag end to end) to 51 ms (436
 parses, 48 ms lag). `pi-bedrock-streaming-tool-arguments.unit.test.ts` drives Pi's real Bedrock
-stream against a loopback AWS event-stream server (`bedrock-event-stream.test-utils.ts`). Mistral
-and `pi-messages` use the helper too.
+stream against a loopback AWS event-stream server (`bedrock-event-stream.test-utils.ts`).
 OpenWaggle's own projection copied the whole input into every `toolcall_delta` transport event,
 and each copy is stringified for the Host socket, parsed by the GUI, cloned over IPC, and
 re-stringified by the renderer: about 1.2 GB for that one call. `emitToolCallDeltaUpdate` now

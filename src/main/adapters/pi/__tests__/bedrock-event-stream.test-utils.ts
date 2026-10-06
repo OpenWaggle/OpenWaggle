@@ -1,4 +1,4 @@
-import { createServer, type Server } from 'node:http'
+import { createServer } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { crc32 } from 'node:zlib'
 import type { AssistantMessageEvent } from '@earendil-works/pi-ai'
@@ -28,7 +28,7 @@ function eventStreamHeader(name: string, value: string) {
 }
 
 /** One `application/vnd.amazon.eventstream` message, as Bedrock sends it. */
-function eventFrame(eventType: string, payload: unknown) {
+export function bedrockEventFrame(eventType: string, payload: unknown) {
   const headers = Buffer.concat([
     eventStreamHeader(':event-type', eventType),
     eventStreamHeader(':content-type', 'application/json'),
@@ -70,46 +70,52 @@ export function toolCallFrames(
   options: { readonly stopBlock: boolean },
 ) {
   return [
-    eventFrame('messageStart', { role: 'assistant' }),
-    eventFrame('contentBlockStart', {
+    bedrockEventFrame('messageStart', { role: 'assistant' }),
+    bedrockEventFrame('contentBlockStart', {
       contentBlockIndex: 0,
       start: { toolUse: { toolUseId: 'tool-1', name: 'write' } },
     }),
     ...deltas.map((input) =>
-      eventFrame('contentBlockDelta', { contentBlockIndex: 0, delta: { toolUse: { input } } }),
+      bedrockEventFrame('contentBlockDelta', {
+        contentBlockIndex: 0,
+        delta: { toolUse: { input } },
+      }),
     ),
-    ...(options.stopBlock ? [eventFrame('contentBlockStop', { contentBlockIndex: 0 })] : []),
-    eventFrame('messageStop', { stopReason: 'tool_use' }),
-    eventFrame('metadata', {
+    ...(options.stopBlock ? [bedrockEventFrame('contentBlockStop', { contentBlockIndex: 0 })] : []),
+    bedrockEventFrame('messageStop', { stopReason: 'tool_use' }),
+    bedrockEventFrame('metadata', {
       usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
       metrics: { latencyMs: 1 },
     }),
   ]
 }
 
-async function listen(frames: readonly Buffer[]) {
-  const body = Buffer.concat(frames)
+/**
+ * Serves `body` with `contentType` to every request on a loopback port, runs `run` against
+ * that base URL, and closes the server afterwards.
+ */
+export async function withLoopbackServer<T>(
+  body: Buffer | string,
+  contentType: string,
+  run: (baseUrl: string) => Promise<T>,
+) {
   const server = createServer((request, response) => {
     request.resume()
     request.on('end', () => {
-      response.writeHead(200, {
-        'content-type': 'application/vnd.amazon.eventstream',
-        'x-amzn-requestid': 'request-1',
-      })
+      response.writeHead(200, { 'content-type': contentType, 'x-amzn-requestid': 'request-1' })
       response.end(body)
     })
   })
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
-  const address: AddressInfo | string | null = server.address()
-  if (address === null || typeof address === 'string') {
-    server.close()
-    throw new Error('Loopback Bedrock server has no TCP address')
+  try {
+    const address: AddressInfo | string | null = server.address()
+    if (address === null || typeof address === 'string') {
+      throw new Error('Loopback provider server has no TCP address')
+    }
+    return await run(`http://127.0.0.1:${address.port}`)
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()))
   }
-  return { server, baseUrl: `http://127.0.0.1:${address.port}` }
-}
-
-function close(server: Server) {
-  return new Promise<void>((resolve) => server.close(() => resolve()))
 }
 
 /**
@@ -120,27 +126,28 @@ export async function streamBedrockFrames(
   frames: readonly Buffer[],
   onEvent: (event: AssistantMessageEvent) => void,
 ) {
-  const { server, baseUrl } = await listen(frames)
-  try {
-    const events = streamBedrock(
-      { ...BEDROCK_MODEL, baseUrl },
-      normalizeContext({ messages: [{ role: 'user', content: 'write the file', timestamp: 0 }] }),
-      {
-        region: 'eu-west-1',
-        maxRetries: 0,
-        env: {
-          AWS_BEDROCK_SKIP_AUTH: '1',
-          AWS_BEDROCK_FORCE_HTTP1: '1',
-          no_proxy: '127.0.0.1',
-          NO_PROXY: '127.0.0.1',
+  return withLoopbackServer(
+    Buffer.concat(frames),
+    'application/vnd.amazon.eventstream',
+    async (baseUrl) => {
+      const events = streamBedrock(
+        { ...BEDROCK_MODEL, baseUrl },
+        normalizeContext({ messages: [{ role: 'user', content: 'write the file', timestamp: 0 }] }),
+        {
+          region: 'eu-west-1',
+          maxRetries: 0,
+          env: {
+            AWS_BEDROCK_SKIP_AUTH: '1',
+            AWS_BEDROCK_FORCE_HTTP1: '1',
+            no_proxy: '127.0.0.1',
+            NO_PROXY: '127.0.0.1',
+          },
         },
-      },
-    )
-    for await (const event of events) {
-      onEvent(event)
-    }
-    return await events.result()
-  } finally {
-    await close(server)
-  }
+      )
+      for await (const event of events) {
+        onEvent(event)
+      }
+      return await events.result()
+    },
+  )
 }
