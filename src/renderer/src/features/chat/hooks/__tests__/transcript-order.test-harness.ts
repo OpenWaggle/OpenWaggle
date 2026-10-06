@@ -21,11 +21,7 @@ import {
   transcriptOrderChatStoreMock as chatStoreMock,
   type RunCompletedPayload,
 } from './transcript-order.ipc-mock'
-import {
-  checkedShownKeys,
-  createTranscriptKnowledge,
-  missingMessages,
-} from './transcript-order.knowledge'
+import { createTranscriptKnowledge, missingMessages } from './transcript-order.knowledge'
 import { MODEL, SESSION_ID } from './transcript-order.persisted'
 import { createPromotions } from './transcript-order.promotions'
 import { createRouteStore } from './transcript-order.route-store'
@@ -59,7 +55,8 @@ export function createTranscriptOrderHarness(hooks: Hooks, options: { lagMs?: nu
   let dropping = false
   let missedSettlement = false
   let missedRunStart: string | null = null
-  let pendingSettlement: (() => Promise<void>) | null = null
+  // The settlements on their way, oldest first: the bridge relays them in order.
+  const pendingSettlements: Array<() => Promise<void>> = []
   const deliver = (event: AgentTransportEvent) => {
     // One clock: the renderer's runs `lagMs` behind the Host's, whether or not the event arrives.
     vi.setSystemTime(Math.max(Date.now(), event.timestamp + lagMs))
@@ -106,14 +103,15 @@ export function createTranscriptOrderHarness(hooks: Hooks, options: { lagMs?: nu
 
   const harness = {
     shownKeys: () => chat.result.current.messages.flatMap((message) => messageKey(message) ?? []),
-    checkedKeys: () => checkedShownKeys(chat.result.current.messages, host, reads.pending()),
     truthKeys: () => host.truthKeys(),
     holdsHostReads: () => reads.pending(),
     hasLastDetail: () => route.lastDetail(SESSION_ID) !== null,
-    stillRunning: () => quiet() && !pendingSettlement && !host.activeRunId() && isLoading(),
+    stillRunning: () =>
+      quiet() && pendingSettlements.length === 0 && !host.activeRunId() && isLoading(),
     idleWhileRunning: () => quiet() && host.activeRunId() !== null && !isLoading(),
     ...createRunKinds({ host, notifySettled, refreshDetail: (): Promise<void> => refresh() }),
     /** The messages the chat must show now, or none while events or Host reads are held back. */
+    noteShown: () => knowledge.noteShown(chat.result.current.messages.map((message) => message.id)),
     missingKeys: () =>
       viewSession() && !reads.pending()
         ? missingMessages(harness.shownKeys(), knowledge.requiredKeys(route.get().detail, dropping))
@@ -200,15 +198,12 @@ export function createTranscriptOrderHarness(hooks: Hooks, options: { lagMs?: nu
         if (!dropping && !end.refetchLater) await harness.refreshDetail()
         await settle()
       }
-      if (end.settleLater) pendingSettlement = settlement
+      if (end.settleLater) pendingSettlements.push(settlement)
       else await settlement()
     },
-    async settleRun() {
-      const settlement = pendingSettlement
-      pendingSettlement = null
-      await settlement?.()
-    },
-    settlementPending: () => pendingSettlement !== null,
+    /** The oldest settlement on its way reaches the renderer. */
+    settleRun: async () => pendingSettlements.shift()?.(),
+    settlementPending: () => pendingSettlements.length > 0,
     stall() {
       dropping = true
     },
@@ -237,6 +232,7 @@ export function createTranscriptOrderHarness(hooks: Hooks, options: { lagMs?: nu
       }),
     holdReconnects: (hold: { readonly onRelease?: boolean } = {}) =>
       reads.hold(hold.onRelease ?? false),
+    serveHeldReads: () => reads.serve(),
     async releaseReconnects(release: { readonly newestFirst?: boolean } = {}) {
       const answers = reads.release(release.newestFirst ?? false)
       await inAct(() => {

@@ -86,7 +86,9 @@ function inRunScope(message: UIMessage, order: number | undefined, scope: SavedA
  * The messages without the answers the persisted transcript already holds under Pi entry ids
  * while this renderer shows them under stream ids: a compaction in the middle of the Run, or the
  * Run's end before it settled, saved them. An answer is matched by its content among the persisted
- * answers the messages do not show by id (`shownIds`), from `fromOrder` on, each match once.
+ * answers the messages do not show by id (`shownIds`), from `fromOrder` on, each match once. One
+ * after a user row at a log order the persisted transcript does not hold is kept: it came
+ * later than all that transcript saved, so a saved answer with its text is an earlier Run's.
  */
 export function withoutSavedRunAnswers(
   messages: readonly UIMessage[],
@@ -94,18 +96,28 @@ export function withoutSavedRunAnswers(
   scope: SavedAnswerScope,
 ): UIMessage[] {
   const persistedIds = new Set<string>()
+  const persistedUserOrders = new Set<number>()
   const savedAnswers = new Map<string, number>()
   for (const message of persistedMessages) {
     persistedIds.add(message.id)
     const order = message.metadata?.sessionNodeCreatedOrder
+    if (message.role === 'user' && order !== undefined) persistedUserOrders.add(order)
     if (message.role !== 'assistant' || scope.shownIds?.has(message.id)) continue
     if (!inRunScope(message, order, scope)) continue
     const key = answerContentKey(message)
     if (key) savedAnswers.set(key, (savedAnswers.get(key) ?? 0) + 1)
   }
   if (savedAnswers.size === 0) return [...messages]
+  let afterUnsavedUser = false
   return messages.filter((message) => {
-    if (message.role !== 'assistant' || persistedIds.has(message.id)) return true
+    if (message.role === 'user' && !persistedIds.has(message.id)) {
+      const order = message.metadata?.sessionNodeCreatedOrder
+      // A send the Host has not recorded (no log order) may be saved all the same.
+      afterUnsavedUser ||= order !== undefined && !persistedUserOrders.has(order)
+    }
+    if (message.role !== 'assistant' || persistedIds.has(message.id) || afterUnsavedUser) {
+      return true
+    }
     const key = answerContentKey(message)
     const count = savedAnswers.get(key) ?? 0
     if (count === 0) return true

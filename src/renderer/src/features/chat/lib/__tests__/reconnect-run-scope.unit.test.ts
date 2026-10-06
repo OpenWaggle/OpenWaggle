@@ -74,6 +74,18 @@ describe('reconnectedRunScope', () => {
     expect(kept.map((message) => message.id)).toEqual(['n-u1', 'n-a1', 'live-u2'])
   })
 
+  it('keeps a live answer after a user row the saved transcript lacks, though its text is saved', () => {
+    const saved = [...persistedMessages, answer('n-a1', 2)]
+    const currentMessages = [user('n-u1', 1), user('live-u2', 4), answer('stream-a2')]
+    const kept = withoutSavedRunAnswers(currentMessages, saved, { fromOrder: 1 })
+    expect(kept.map((message) => message.id)).toEqual(['n-u1', 'live-u2', 'stream-a2'])
+    // Before that row, the same answer is the saved one's stream copy.
+    const copy = withoutSavedRunAnswers([user('n-u1', 1), answer('stream-a1')], saved, {
+      fromOrder: 1,
+    })
+    expect(copy.map((message) => message.id)).toEqual(['n-u1'])
+  })
+
   it('scopes no answer when the transcript shows no such row', () => {
     expect(
       reconnectedRunScope({
@@ -82,6 +94,23 @@ describe('reconnectedRunScope', () => {
         currentMessages: [user('n-u1', 1)],
       }),
     ).toEqual({ fromOrder: Number.POSITIVE_INFINITY })
+  })
+
+  it('scopes by the buffer read before the detail when the Run settled before the next read', () => {
+    const settledBuffer: BackgroundRunSnapshot = {
+      ...SNAPSHOT,
+      userMessages: [
+        { messageId: 'live-u2', parts: [], sessionNodeCreatedOrder: 4, timestamp: 1_500 },
+      ],
+    }
+    expect(
+      reconnectedRunScope({
+        snapshot: null,
+        settledBuffer,
+        persistedMessages,
+        currentMessages: [user('n-u1', 1)],
+      }),
+    ).toEqual({ fromOrder: 4 })
   })
 
   it('scopes a buffer that retains no user messages from the Run start by Host time', () => {

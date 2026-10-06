@@ -52,6 +52,20 @@ export function createStartedRuns() {
       return last !== undefined && !isUnnamedRunStart(runId) && !isUnnamedRunStart(last)
     },
     /**
+     * A Run ended: the last one started unnamed (the bridge's start) is named by its end, so the
+     * next start tells another Run from Pi continuing this one. A Run the bridge re-announced
+     * after its named start is already listed, so it is not listed twice: a second entry would make
+     * its own settlement look like an earlier Run's and leave the Session shown as running.
+     */
+    end(sessionId: SessionId, runId: string | undefined) {
+      const started = bySession.get(sessionId)
+      if (runId !== undefined && started && isUnnamedRunStart(started.at(-1) ?? '')) {
+        const named = settlingRunId(runId)
+        const rest = started.slice(0, -1)
+        bySession.set(sessionId, rest.at(-1) === named ? rest : [...rest, named])
+      }
+    },
+    /**
      * A Run settled (`undefined`: a settlement naming none, which settles the Session): whether it
      * is an earlier one than the Run started last. Forgets it and the Runs started before it.
      */

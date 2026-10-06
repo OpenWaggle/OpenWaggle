@@ -202,4 +202,29 @@ describe('transcript order when a settlement arrives after the next Run started'
       (h) => h.view('session'),
     ])
   })
+
+  // A reconnect read the buffer of Run A, then the Host served its detail after A ended and before
+  // Run B started; B answered the same text live and settled at the Host before that answer
+  // landed. B's live answer is not the saved answer of A's.
+  for (const aPromptShown of [false, true]) {
+    it(`keeps a later Run's answer repeating a saved one (A's prompt shown: ${String(aPromptShown)})`, async () => {
+      await expectCompleteTranscript([
+        (h) => h.mount('session'),
+        (h) => (aPromptShown ? h.startRun('run-1', 'prompt A') : undefined),
+        (h) => h.stall(),
+        (h) => (aPromptShown ? undefined : h.startRun('run-1', 'prompt A')),
+        (h) => h.answer('ok'),
+        (h) => h.holdReconnects({ onRelease: true }),
+        (h) => h.resume(),
+        (h) => h.endRun({ settleLater: true, hostSettled: true }),
+        (h) => h.serveHeldReads(),
+        (h) => h.startRun('run-2', 'prompt B'),
+        (h) => h.answer('ok'),
+        (h) => h.endRun({ settleLater: true, hostSettled: true }),
+        (h) => h.releaseReconnects(),
+        (h) => h.settleRun(),
+        (h) => h.settleRun(),
+      ])
+    })
+  }
 })

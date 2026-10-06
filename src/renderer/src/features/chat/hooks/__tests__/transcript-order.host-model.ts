@@ -127,8 +127,6 @@ export function createHostModel(publish: (event: AgentTransportEvent) => void) {
 
   return {
     truthKeys: () => truth.map(entryKey),
-    /** The truth entry a transport message id streams. */
-    entryForLiveId: (messageId: string) => truth.find((entry) => entry.liveId === messageId),
     isPersisted: (entry: TruthEntry) => persistedRunIds.has(entry.runId),
     entries: () => [...truth],
     /** The log orders of the user messages with `text`, in log order. */

@@ -29,9 +29,10 @@ export function assertTranscriptOrder(
   trace: string[],
 ) {
   trace.push(`${label}: ${harness.shownKeys().join(' | ')}`)
+  harness.noteShown()
   const violations = [
     ...transcriptOrderViolations(
-      harness.checkedKeys(),
+      harness.shownKeys(),
       harness.truthKeys(),
       harness.pendingPreviewKeys(),
     ),

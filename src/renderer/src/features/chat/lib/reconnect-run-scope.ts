@@ -25,19 +25,24 @@ export function runScopeOf(snapshot: BackgroundRunSnapshot): SavedAnswerScope {
 }
 
 /**
- * The span of the reconnected Run: its buffer's (`runScopeOf`) or, without a buffer, from the first
- * user row the transcript shows under a stream or optimistic id. A prompt keeps such an id once
- * reconciled with its saved copy, so a row at a saved log order is an earlier Run's when that Run's
- * answers follow it under Pi entry ids, before the next such row; the reconnected Run's own saved
- * prompt is followed by its answers under stream ids. Whether a row is settled does not tell: a
- * route-owned snapshot judges every row it holds at a Run's start as settled, the starting Run's own
- * prompt among them. With no row left, no answer is in scope.
+ * The span of the reconnected Run: from the buffer read before the detail when its Run settled
+ * before the second read (the transcript may never have shown its start: it started in a stall;
+ * the next Run's buffer, if any, starts later); its buffer's (`runScopeOf`); or, without any
+ * buffer, from the first user row the transcript shows under
+ * a stream or optimistic id. A prompt keeps such an id once reconciled with its saved copy, so a
+ * row at a saved log order is an earlier Run's when that Run's answers follow it under Pi entry
+ * ids, before the next such row; the reconnected Run's own saved prompt is followed by its answers
+ * under stream ids. Whether a row is settled does not tell: a route-owned snapshot judges every row
+ * it holds at a Run's start as settled, the starting Run's own prompt among them. With no row
+ * left, no answer is in scope.
  */
 export function reconnectedRunScope(input: {
   readonly snapshot: BackgroundRunSnapshot | null
+  readonly settledBuffer?: BackgroundRunSnapshot
   readonly persistedMessages: readonly UIMessage[] | null
   readonly currentMessages: readonly UIMessage[]
 }): SavedAnswerScope {
+  if (input.settledBuffer) return runScopeOf(input.settledBuffer)
   if (input.snapshot) return runScopeOf(input.snapshot)
   const persistedIds = new Set<string>()
   const persistedUserOrders = new Set<number>()

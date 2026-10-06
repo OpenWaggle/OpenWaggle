@@ -159,6 +159,8 @@ interface ReconnectedRun {
   readonly persistedFetched: boolean
   /** `null` when the Run's buffer was gone: the persisted transcript alone is merged. */
   readonly snapshot: BackgroundRunSnapshot | null
+  /** The buffer read before the detail when its Run settled before the second buffer read. */
+  readonly settledBuffer?: BackgroundRunSnapshot
   /**
    * The buffer held the same Run before and after the detail read: the Run has not settled, so
    * its rows still belong in the transcript even if it ended (and stopped being followed)
@@ -221,33 +223,44 @@ function partialAssistantOf(snapshot: BackgroundRunSnapshot) {
 }
 
 /**
+ * The buffer, the detail, the buffer again, and the detail once more when the first buffer's Run
+ * settled after that read (no buffer left, or the next Run's): the Host saved what the read may
+ * lack (that Run's user messages, its start lost in a stall), before the next Run started.
+ */
+async function readAroundDetail(sessionId: SessionId, shownMessages: () => readonly UIMessage[]) {
+  const before = await api.getBackgroundRun(sessionId)
+  noteRetainedUserMessages(sessionId, before)
+  const fetchedSession = await api.getSessionDetail(sessionId)
+  const snapshot = await api.getBackgroundRun(sessionId)
+  const streamingBaseline = snapshot ? streamingBaselineOf(snapshot, shownMessages) : undefined
+  const sameRun = before?.runId !== undefined && before.runId === snapshot?.runId
+  const read = { snapshot, sameRunBuffered: sameRun, streamingBaseline, settledBuffer: undefined }
+  if (!before || sameRun || (snapshot && before.runId === undefined))
+    return { ...read, fetchedSession }
+  return { ...read, fetchedSession: await api.getSessionDetail(sessionId), settledBuffer: before }
+}
+
+/**
  * The background reconnect: the buffer, the persisted transcript (a slow Host read), the buffer
- * again. `null` when another Run's buffer replaced the first meanwhile: the transcript may predate
- * the first Run's save, and that Run's rows would land below the next Run's prompt. Answers the
- * transcript saved while this renderer shows them under stream ids (a compaction mid-Run, the
- * Run's end before it settles) are left to the saved copy (`withoutSavedRunAnswers`): merging
- * both showed every answer twice.
+ * again (`readAroundDetail`). Answers the transcript saved while this renderer shows them under
+ * stream ids (a compaction mid-Run, the Run's end before it settles) are left to the saved copy
+ * (`withoutSavedRunAnswers`): merging both showed every answer twice.
  */
 async function reconnectToBackgroundRun(
   { sessionId, session, optimisticUserMessages }: SessionHydrationInput,
   shownMessages: () => readonly UIMessage[],
-): Promise<ReconnectedRun | null> {
-  const before = await api.getBackgroundRun(sessionId)
-  noteRetainedUserMessages(sessionId, before)
-  const fetchedSession = await api.getSessionDetail(sessionId)
+): Promise<ReconnectedRun> {
+  const { fetchedSession, snapshot, sameRunBuffered, streamingBaseline, settledBuffer } =
+    await readAroundDetail(sessionId, shownMessages)
   const latestSession = fetchedSession ?? session
-  const snapshot = await api.getBackgroundRun(sessionId)
   const persistedMessages = sessionToUIMessages(latestSession)
   const historicalMessages = mergeSessionAndOptimisticMessages(
     latestSession,
     optimisticUserMessages,
   )
-  const persistedFetched = fetchedSession !== null
-  if (!snapshot) {
-    return { messages: historicalMessages, persistedMessages, persistedFetched, snapshot: null }
-  }
-  const streamingBaseline = streamingBaselineOf(snapshot, shownMessages)
-  if (before && before.runId !== undefined && before.runId !== snapshot.runId) return null
+  const settled = settledBuffer ? { settledBuffer } : {}
+  const read = { persistedMessages, persistedFetched: fetchedSession !== null, ...settled }
+  if (!snapshot) return { messages: historicalMessages, ...read, snapshot: null }
   const partialAssistant = partialAssistantOf(snapshot)
   const unsavedPartial = partialAssistant
     ? (withoutSavedRunAnswers([partialAssistant], persistedMessages, runScopeOf(snapshot))[0] ??
@@ -255,10 +268,9 @@ async function reconnectToBackgroundRun(
     : null
   return {
     messages: placeReconnectedRunMessages(historicalMessages, snapshot, unsavedPartial),
-    persistedMessages,
-    persistedFetched,
+    ...read,
     snapshot,
-    sameRunBuffered: before?.runId !== undefined && before.runId === snapshot.runId,
+    sameRunBuffered,
     ...(streamingBaseline ? { streamingBaseline } : {}),
   }
 }

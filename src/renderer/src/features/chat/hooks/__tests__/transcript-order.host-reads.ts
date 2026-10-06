@@ -26,14 +26,20 @@ export function routeView(view: 'session' | 'other', detail: SessionDetail | nul
 export function installHostReads(host: HostModel, route: ReturnType<typeof createRouteStore>) {
   let holding = false
   let answeredOnRelease = false
-  const held: Array<() => void> = []
+  const held: Array<{ readonly deliver: () => void; readonly serve: () => void }> = []
   apiMock.getSessionDetail.mockImplementation(async (sessionId: string) => {
-    const answer = sessionId === SESSION_ID ? host.detail() : OTHER_DETAIL
+    let answer = sessionId === SESSION_ID ? host.detail() : OTHER_DETAIL
     if (!holding) return answer
+    let served = !answeredOnRelease
     return new Promise<SessionDetail>((resolve) =>
-      held.push(() =>
-        resolve(sessionId === SESSION_ID && answeredOnRelease ? host.detail() : answer),
-      ),
+      held.push({
+        deliver: () => resolve(sessionId === SESSION_ID && !served ? host.detail() : answer),
+        serve: () => {
+          if (served || sessionId !== SESSION_ID) return
+          answer = host.detail()
+          served = true
+        },
+      }),
     )
   })
   apiMock.getBackgroundRun.mockImplementation(async (sessionId: string) =>
@@ -59,10 +65,14 @@ export function installHostReads(host: HostModel, route: ReturnType<typeof creat
       holding = true
       answeredOnRelease = onRelease
     },
+    /** The Host reads the held detail requests now; their answers are still on their way. */
+    serve() {
+      for (const read of held) read.serve()
+    },
     /** The held answers, in the order they are delivered. */
     release(newestFirst: boolean) {
       holding = false
-      const answers = held.splice(0)
+      const answers = held.splice(0).map((read) => read.deliver)
       return newestFirst ? answers.reverse() : answers
     },
     /** The Host's active Run, as a reloaded renderer lists it. */

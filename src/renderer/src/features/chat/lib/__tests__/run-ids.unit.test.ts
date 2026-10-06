@@ -43,6 +43,25 @@ describe('createStartedRuns', () => {
     expect(runs.settle(SESSION, 'run-2')).toBe(false)
   })
 
+  it('names a Run started unnamed by its end, so the next start is another Run', () => {
+    const runs = createStartedRuns()
+    runs.start(SESSION, 'remote-snapshot:session-1')
+    runs.end(SESSION, 'run-1')
+    expect(runs.start(SESSION, 'run-2')).toBe(true)
+    expect(runs.settle(SESSION, 'run-1')).toBe(true)
+  })
+
+  it('settles a Run the bridge re-announced after it started named, at its own settlement', () => {
+    const runs = createStartedRuns()
+    runs.start(SESSION, 'run-w')
+    runs.start(SESSION, 'run-x')
+    expect(runs.settle(SESSION, 'run-w')).toBe(true)
+    // The bridge re-announces X after a reconnect found the replica without its buffer.
+    runs.start(SESSION, 'remote-snapshot:session-1')
+    runs.end(SESSION, 'run-x')
+    expect(runs.settle(SESSION, 'run-x')).toBe(false)
+  })
+
   it('names the classic Run a requested Waggle settles as', () => {
     expect(settlingRunId('waggle-of-run-1')).toBe('run-1')
     expect(settlingRunId('waggle-3')).toBe('waggle-3')

@@ -223,6 +223,11 @@ const DISTURBANCES: readonly ModelAction[] = [
     },
   },
   {
+    name: 'serveHeldReads',
+    enabled: (s) => s.holding,
+    run: (h) => h.serveHeldReads(),
+  },
+  {
     name: 'releaseReconnects',
     enabled: (s) => s.holding,
     run: (h, s) => {

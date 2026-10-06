@@ -87,12 +87,9 @@ export function useBackgroundRunMonitor(): void {
       }
       if (isTerminalTransportEvent(payload.event) && !isRetryingAttemptEnd(payload.event)) {
         useFirstSendPendingStore.getState().clear(payload.sessionId)
-        useQueuedRunStartStore
-          .getState()
-          .settle(
-            payload.sessionId,
-            payload.event.type === 'agent_end' ? payload.event.runId : undefined,
-          )
+        const endedRunId = payload.event.type === 'agent_end' ? payload.event.runId : undefined
+        useQueuedRunStartStore.getState().settle(payload.sessionId, endedRunId)
+        startedRuns.end(payload.sessionId, endedRunId)
         removeActiveRun(payload.sessionId)
       }
       // A stopped retry delay ends the Run without another agent_end; it finishes until it settles.
