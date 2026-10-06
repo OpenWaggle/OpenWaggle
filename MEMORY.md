@@ -1485,7 +1485,16 @@ reproduced. Measured against a 565 MB user DB copy: `persistSessionSnapshot` too
 (7,929-node Session), `getSessionTree` 0.14 s, lexical search 0.37 s, and a WAL commit 30 ms under
 heavy I/O, so SQLite work does not explain multi-second stalls. Pi's Bedrock tool-call streaming
 reparses the whole partial JSON on every delta, which is quadratic: a 190 KB call costs 3 to 11 s
-of CPU. The largest stored assistant message was only 38 KB, though.
+of CPU. The largest stored assistant message was only 38 KB, though. The pi-ai patch now rate-limits
+that parse (`parseStreamingToolArguments` in `dist/utils/json-parse.js`, used by the Bedrock,
+Anthropic, OpenAI Responses and OpenAI Completions delta paths): every delta up to 8 KiB, then
+after 1/8 growth or max(50 ms, 10x the last parse time). Block stop and the terminal/error
+paths still parse the full JSON, so final arguments stay exact. A 217 KB call in 20-byte deltas
+went from 14.5 s of parsing (10,884 parses, 4.5 s event-loop lag end to end) to 51 ms (436
+parses, 48 ms lag). `pi-bedrock-streaming-tool-arguments.unit.test.ts` drives Pi's real Bedrock
+stream against a loopback AWS event-stream server. Mistral and `pi-messages` still parse per
+delta. OpenWaggle's own `toolcall_delta` projection still copies the full input into every
+emitted event, which is O(n) per delta downstream.
 
 ### A replace must not wait on its Run while holding the attachment transition
 
