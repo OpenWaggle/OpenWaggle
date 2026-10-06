@@ -4,6 +4,7 @@ import { writeCliStdout } from './cli-stdout'
 import { validateCommandCliOptions } from './command-cli-option-contract'
 import { env } from './env'
 import {
+  cancelUpdateOnInterrupt,
   defaultCliHostUpdateStopDependencies,
   formatHostUpdateStopReport,
   type HostUpdateStopDependencies,
@@ -250,7 +251,7 @@ export async function stopHostForUpdate(
     )
   }
   const client = await dependencies.status.prepareClientInput(parsed)
-  return stopSessionHostForUpdate(dependencies.updateStop(client))
+  return cancelUpdateOnInterrupt(() => stopSessionHostForUpdate(dependencies.updateStop(client)))
 }
 
 async function runHostUpdateStop(
@@ -265,10 +266,14 @@ async function runHostUpdateStop(
       : `${formatHostUpdateStopReport(report)}\n`,
   )
   if (report.state === 'timed-out') return SESSION_CLI_EXIT.TIMEOUT
-  if (report.state === 'cancelled' || report.state === 'desktop-open') {
+  if (
+    report.state === 'cancelled' ||
+    report.state === 'desktop-open' ||
+    report.state === 'replaced'
+  ) {
     return SESSION_CLI_EXIT.CONFLICT
   }
-  return SESSION_CLI_EXIT.SUCCESS
+  return report.state === 'refused' ? SESSION_CLI_EXIT.FAILURE : SESSION_CLI_EXIT.SUCCESS
 }
 
 async function runHostStop(args: readonly string[], dependencies: HostCliDependencies) {

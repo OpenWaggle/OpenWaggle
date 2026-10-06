@@ -8,6 +8,7 @@ import {
   LocalSessionHostUpgradePendingError,
   probeLocalSessionHost,
 } from './local-session-client'
+import { LocalSessionClientProtocolError } from './local-session-client-protocol-error'
 import { isLocalSessionHostUnavailable } from './local-session-host-launcher'
 import { refreshLocalSessionHostEndpoint } from './local-session-paths'
 
@@ -96,6 +97,11 @@ async function sendStop(client: SessionHostReleaseClient, forUpdate: boolean) {
   return processId === undefined ? { hostInstanceId } : { hostInstanceId, processId }
 }
 
+/** How a Host that predates `purpose` answers it: its exact decoder fails the command. */
+function isRejectedUpdatePurpose(error: unknown): error is LocalSessionClientProtocolError {
+  return error instanceof LocalSessionClientProtocolError && error.code === 'command_failed'
+}
+
 export function defaultReleaseDependencies(
   client: SessionHostReleaseClient,
 ): SessionHostReleaseDependencies {
@@ -105,11 +111,15 @@ export function defaultReleaseDependencies(
       try {
         return await sendStop(client, true)
       } catch (error) {
-        if (isLocalSessionHostUnavailable(error)) throw error
+        // An older Host already hands over once its Runs end; waiting for it is the stop.
+        if (error instanceof LocalSessionHostUpgradePendingError) {
+          return { hostInstanceId: error.hostInstanceId }
+        }
+        if (!isRejectedUpdatePurpose(error)) throw error
         // A Host older than update stops rejects the purpose; the CLI can still stop it plainly,
         // without the deadline. The desktop app's plain stop is refused, as before.
         logger.debug('The Session Host refused an update stop; asking for a plain stop', {
-          message: error instanceof Error ? error.message : String(error),
+          message: error.message,
         })
         return await sendStop(client, false)
       }

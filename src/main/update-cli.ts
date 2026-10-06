@@ -14,7 +14,11 @@ import { formatHostUpdateStopReport } from './host-update-stop'
 import { createLocalSessionCliClientInput } from './local-session-cli-client'
 import { hasFlag, option, type ParsedArguments, parseMcpCliArguments } from './mcp-cli-arguments'
 import { executeLocalSessionCommand } from './session-host/local-session-client'
-import { releaseForTag, runBundledInstaller, runWindowsInstaller } from './update-cli-installers'
+import {
+  prepareWindowsInstaller,
+  releaseForTag,
+  runBundledInstaller,
+} from './update-cli-installers'
 import { configureUpdaterFeed, isVersionEligibleForChannel } from './update-feed'
 
 const EXIT = { SUCCESS: 0, FAILURE: 1, USAGE: 2 } as const
@@ -88,7 +92,8 @@ async function stopSessionHostBeforeInstall(parsed: ParsedArguments) {
   const report = await stopHostForUpdate(parsed)
   if (report.state === 'cancelled') throw new Error('Update cancelled. OpenWaggle was not changed.')
   if (report.state === 'desktop-open') throw new Error(DESKTOP_OPEN_EXACT_VERSION_MESSAGE)
-  if (report.state === 'timed-out' || report.state === 'refused') {
+  // The Windows installer closes what is left, and an AppImage is replaced as one file.
+  if (report.state === 'timed-out' || report.state === 'refused' || report.state === 'replaced') {
     process.stderr.write(`${formatHostUpdateStopReport(report)}\n`)
   }
 }
@@ -102,8 +107,9 @@ async function installExactVersion(parsed: ParsedArguments, tag: string, checkOn
   // Installing over a running app would stop its active agent runs without asking.
   if (isDesktopAppRunning(app)) throw new Error(DESKTOP_OPEN_EXACT_VERSION_MESSAGE)
   if (process.platform === 'win32') {
+    const installer = await prepareWindowsInstaller(tag)
     await stopSessionHostBeforeInstall(parsed)
-    await runWindowsInstaller(tag)
+    await installer.launch()
     await writeCliStdout(`Installing OpenWaggle ${release.tag_name}…\n`)
     return { exitCode: EXIT.SUCCESS, updaterOwnsExit: false }
   }
@@ -116,7 +122,9 @@ async function configureUpdater(channel: UpdateChannel, checkOnly: boolean) {
   autoUpdater.allowPrerelease = channel !== 'stable'
   autoUpdater.allowDowngrade = false
   autoUpdater.autoDownload = !checkOnly
-  autoUpdater.autoInstallOnAppQuit = true
+  // Installs only through quitAndInstall below. Installing on quit would let a Ctrl-C while the
+  // Session Host stops install the update under it.
+  autoUpdater.autoInstallOnAppQuit = false
   autoUpdater.logger = null
   await configureUpdaterFeed(autoUpdater, channel)
 }

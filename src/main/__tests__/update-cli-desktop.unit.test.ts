@@ -11,6 +11,7 @@ const {
   releaseSingleInstanceLockMock,
   spawnMock,
   stopHostForUpdateMock,
+  appOnMock,
   updater,
 } = vi.hoisted(() => {
   const updater: {
@@ -43,6 +44,7 @@ const {
     releaseSingleInstanceLockMock: vi.fn(),
     spawnMock: vi.fn(),
     stopHostForUpdateMock: vi.fn(),
+    appOnMock: vi.fn(),
     updater,
   }
 })
@@ -54,6 +56,8 @@ vi.mock('electron', () => ({
     getAppPath: () => '/workspace/OpenWaggle',
     requestSingleInstanceLock: requestSingleInstanceLockMock,
     releaseSingleInstanceLock: releaseSingleInstanceLockMock,
+    on: appOnMock,
+    off: vi.fn(),
   },
 }))
 vi.mock('electron-updater', () => ({
@@ -167,6 +171,8 @@ describe('update CLI with the desktop app', () => {
     expect(quitAndInstallMock).not.toHaveBeenCalled()
     // The install script stops the Host itself, after it quits the app.
     expect(stopHostForUpdateMock).not.toHaveBeenCalled()
+    // Ctrl-C reaches the install script, which cancels; this process waits for its status.
+    expect(appOnMock).toHaveBeenCalledWith('before-quit', expect.any(Function))
     expect(spawnMock).toHaveBeenCalledWith(
       'bash',
       [expect.stringMatching(/install\.sh$/u)],

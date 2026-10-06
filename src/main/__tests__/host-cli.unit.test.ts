@@ -2,7 +2,9 @@ import type { LocalSessionCommandResult } from '@shared/types/local-session-prot
 import { fromPartial } from '@total-typescript/shoehorn'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('electron', () => ({ app: { getPath: () => '/tmp', getVersion: () => '1.2.3' } }))
+vi.mock('electron', () => ({
+  app: { getPath: () => '/tmp', getVersion: () => '1.2.3', once: vi.fn(), off: vi.fn() },
+}))
 vi.mock('../local-session-cli-client', () => ({ prepareLocalSessionCliClientInput: vi.fn() }))
 vi.mock('../session-host/local-session-client', async () => ({
   executeLocalSessionCommand: vi.fn(),
@@ -221,12 +223,13 @@ describe('openwaggle host stop', () => {
 })
 
 describe('host stop --update', () => {
-  function updateStop(state: 'stopped' | 'cancelled' | 'desktop-open' | 'timed-out') {
+  function updateStop(state: 'stopped' | 'cancelled' | 'desktop-open' | 'timed-out' | 'refused') {
     return () => ({
       desktopAppRunning: () => state === 'desktop-open',
       countActiveRuns: async () => (state === 'cancelled' ? 1 : 0),
       chooseRunHandling: async () => 'cancel' as const,
-      release: async () => (state === 'timed-out' ? ('timed-out' as const) : ('stopped' as const)),
+      release: async () =>
+        state === 'timed-out' || state === 'refused' ? state : ('stopped' as const),
       progress: () => undefined,
       wait: async () => undefined,
     })
@@ -237,6 +240,7 @@ describe('host stop --update', () => {
     ['cancelled', 6, 'Update cancelled; the Session Host keeps running.'],
     ['desktop-open', 6, 'OpenWaggle is open, so it keeps its Session Host.'],
     ['timed-out', 7, 'Session Host is still stopping'],
+    ['refused', 1, 'did not accept the update stop'],
   ] as const)('reports %s with exit code %i', async (state, exitCode, message) => {
     const output: string[] = []
     const { value } = dependencies({ probes: ['running'], output, updateStop: updateStop(state) })

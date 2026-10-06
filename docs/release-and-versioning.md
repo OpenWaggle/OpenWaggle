@@ -227,7 +227,9 @@ app never installs a downloaded update.
   leaves the Host running.
 - In a terminal, `openwaggle host stop --update` is that stop. With active agent runs it asks
   whether to wait for them (default), stop them now, or cancel, mirroring **Restart when idle**,
-  **Restart now**, and **Cancel**. It asks on the terminal, so it works under `curl … | bash`;
+  **Restart now**, and **Cancel**. Stop now leaves them to the Host's 10-second deadline, so they
+  end interrupted within 13 seconds instead of at once. Ctrl-C cancels; `openwaggle update` never
+  installs on quit, only through its explicit install. It asks on the terminal, so it works under `curl … | bash`;
   without one it waits for the runs. It leaves a Host alone while the desktop app is open.
 - The app shows **Installing** as soon as the restart begins, because macOS unpacks and verifies
   the update before it quits; relaunching the old version meanwhile makes the install fail. If the
@@ -250,9 +252,15 @@ app never installs a downloaded update.
   and CLI processes share the bundle id but are `UIElement`) with `SIGTERM`, which Electron handles
   as a normal quit. Then it runs the installed version's `openwaggle host stop --update`, and only
   then replaces the bundle. If the user cancels there, it reopens the app and changes nothing. An
-  installed version older than `--update` gets a plain `host stop --wait`, bounded to 20 seconds.
+  installed version older than `--update` gets a plain `host stop --wait`, bounded to 20 seconds;
+  one before 1.0.0-beta.1 has no `host` command and is never run (the script reads its version
+  from `Info.plist`, or from the `version` file it writes beside the AppImage).
   On Linux the installer stops the Host the same way before it replaces the AppImage atomically.
-  A running app keeps running, and keeps its Host; the installer tells the user to restart it.
+  A running app keeps running, and keeps its Host; the installer tells the user to quit it and run
+  `openwaggle host stop --update`, because a quit alone leaves the old Host for the new app.
+  Ctrl-C while the stop waits cancels the update and reopens a quit app. If another process, such
+  as `openwaggle mcp serve`, starts a Host again after a second stop, the macOS script does not
+  replace the bundle; the Linux script and `openwaggle update` warn and continue.
 - `openwaggle update` never opens a window the user did not have open and never installs under a
   running desktop app. If the app is running, a channel update only reports the available version
   and tells the user to install it from **Settings > General > About & Updates**, where **Check

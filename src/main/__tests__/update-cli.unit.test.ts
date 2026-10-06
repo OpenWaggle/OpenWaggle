@@ -11,6 +11,7 @@ const {
   releaseSingleInstanceLockMock,
   spawnMock,
   stopHostForUpdateMock,
+  appOnMock,
   updater,
 } = vi.hoisted(() => {
   const updater: {
@@ -43,6 +44,7 @@ const {
     releaseSingleInstanceLockMock: vi.fn(),
     spawnMock: vi.fn(),
     stopHostForUpdateMock: vi.fn(),
+    appOnMock: vi.fn(),
     updater,
   }
 })
@@ -54,6 +56,8 @@ vi.mock('electron', () => ({
     getAppPath: () => '/workspace/OpenWaggle',
     requestSingleInstanceLock: requestSingleInstanceLockMock,
     releaseSingleInstanceLock: releaseSingleInstanceLockMock,
+    on: appOnMock,
+    off: vi.fn(),
   },
 }))
 vi.mock('electron-updater', () => ({

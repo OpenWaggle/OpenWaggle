@@ -2,16 +2,20 @@ import type { LocalSessionCommandResult } from '@shared/types/local-session-prot
 import { fromPartial } from '@total-typescript/shoehorn'
 import { describe, expect, it, vi } from 'vitest'
 
-vi.mock('../local-session-client', () => ({
+vi.mock('../local-session-client', async () => ({
   executeLocalSessionCommand: vi.fn(),
-  LocalSessionHostUpgradePendingError: class extends Error {},
+  LocalSessionHostUpgradePendingError: (await import('../local-session-client-connection'))
+    .LocalSessionHostUpgradePendingError,
   probeLocalSessionHost: vi.fn(),
 }))
 vi.mock('../local-session-paths', () => ({
   refreshLocalSessionHostEndpoint: async (paths: unknown) => paths,
 }))
 
-const { executeLocalSessionCommand } = await import('../local-session-client')
+const { executeLocalSessionCommand, LocalSessionHostUpgradePendingError } = await import(
+  '../local-session-client'
+)
+const { LocalSessionClientProtocolError } = await import('../local-session-client-protocol-error')
 const { defaultReleaseDependencies } = await import('../session-host-update-release')
 
 const stopped = (processId?: number): LocalSessionCommandResult =>
@@ -47,7 +51,10 @@ describe('the update stop request', () => {
   it('stops an older Host that rejects the update purpose with a plain stop', async () => {
     vi.mocked(executeLocalSessionCommand)
       .mockReset()
-      .mockRejectedValueOnce(new Error('Invalid request'))
+      // How beta.9 answers a field its exact decoder does not know.
+      .mockRejectedValueOnce(
+        new LocalSessionClientProtocolError('command_failed', 'Expected never'),
+      )
       .mockResolvedValueOnce(stopped())
 
     await expect(defaultReleaseDependencies(client).requestStop()).resolves.toEqual({
@@ -63,5 +70,24 @@ describe('the update stop request', () => {
 
     await expect(defaultReleaseDependencies(client).requestStop()).rejects.toThrow('gone')
     expect(sentPurposes()).toEqual(['update'])
+  })
+
+  it('does not retry a stop the Host refused for another reason', async () => {
+    vi.mocked(executeLocalSessionCommand)
+      .mockReset()
+      .mockRejectedValueOnce(new LocalSessionClientProtocolError('host_draining', 'Stopping'))
+
+    await expect(defaultReleaseDependencies(client).requestStop()).rejects.toThrow('Stopping')
+    expect(sentPurposes()).toEqual(['update'])
+  })
+
+  it('waits for an older Host that is already handing over', async () => {
+    vi.mocked(executeLocalSessionCommand)
+      .mockReset()
+      .mockRejectedValueOnce(new LocalSessionHostUpgradePendingError('host-old', [], []))
+
+    await expect(defaultReleaseDependencies(client).requestStop()).resolves.toEqual({
+      hostInstanceId: 'host-old',
+    })
   })
 })

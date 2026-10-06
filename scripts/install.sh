@@ -379,6 +379,9 @@ quit_running_mac_app() {
 
 # BEGIN TESTABLE SESSION HOST STOP
 HOST_STOP_FALLBACK_TIMEOUT_MS=20000
+# A version without the `host` command (before 1.0.0-beta.1) opens its window for any unknown
+# command, so it is never asked; one of unknown version gets this long to answer.
+UNKNOWN_VERSION_CLI_TIMEOUT_SECONDS=30
 
 # Runs the installed CLI without letting it read stdin: under `curl … | bash` that is the rest of
 # this script. Questions go to the terminal. The AppImage writes noise to stdout, so its CLI output
@@ -393,41 +396,87 @@ run_installed_cli() {
   fi
 }
 
+# Prints the help of the installed `host` command, or nothing when the version predates it.
+installed_host_help() {
+  local platform="$1" executable="$2" version="$3"
+  case "${version}" in
+    0.*) return 0 ;;
+    '')
+      if command -v timeout >/dev/null 2>&1; then
+        timeout "${UNKNOWN_VERSION_CLI_TIMEOUT_SECONDS}" \
+          bash -c "$(declare -f run_installed_cli); run_installed_cli \"\$@\"" _ \
+          "${platform}" "${executable}" host --help 2>/dev/null || true
+      fi
+      return 0
+      ;;
+  esac
+  run_installed_cli "${platform}" "${executable}" host --help 2>/dev/null || true
+}
+
 # Stops the installed version's Session Host before its app is replaced, as Restart to update does
 # (ADR 0047). If agent runs are active the CLI asks whether to wait for them, stop them, or cancel.
 # Prints the outcome state, or nothing when it is unknown. An older CLI without `host stop --update`
-# gets a plain stop, which waits for active work instead of asking.
+# gets a plain stop, which waits up to 20 seconds for active work instead of asking.
 session_host_update_stop_state() {
-  local platform="$1" executable="$2" output
+  local platform="$1" executable="$2" version="$3" help output
   [ -x "${executable}" ] || { printf '%s\n' "not-installed"; return 0; }
-  if run_installed_cli "${platform}" "${executable}" host --help 2>/dev/null | grep -q -- '--update'; then
-    output="$(run_installed_cli "${platform}" "${executable}" host stop --update --json || true)"
-  else
-    output="$(run_installed_cli "${platform}" "${executable}" host stop --wait \
-      --timeout-ms "${HOST_STOP_FALLBACK_TIMEOUT_MS}" --json || true)"
-  fi
+  help="$(installed_host_help "${platform}" "${executable}" "${version}")"
+  case "${help}" in
+    *--update*)
+      output="$(run_installed_cli "${platform}" "${executable}" host stop --update --json || true)"
+      ;;
+    *"host stop"*)
+      output="$(run_installed_cli "${platform}" "${executable}" host stop --wait \
+        --timeout-ms "${HOST_STOP_FALLBACK_TIMEOUT_MS}" --json || true)"
+      ;;
+    *) printf '%s\n' "unsupported"; return 0 ;;
+  esac
   printf '%s\n' "${output}" | sed -n 's/.*"state": *"\([a-z-]*\)".*/\1/p' | head -1
 }
-# END TESTABLE SESSION HOST STOP
+
+# Leaves the installed app as it was: the mounted image detached, the window reopened if the
+# installer quit it.
+restore_installed_app() {
+  if [ -n "${MOUNT_POINT:-}" ]; then hdiutil detach "${MOUNT_POINT}" -quiet 2>/dev/null || true; fi
+  rm -f "${DOWNLOAD_PATH:-}"
+  # Reopened even with --no-launch: the installer quit it, so this puts it back as it was.
+  if [ "${QUIT_MAC_APP:-}" = "1" ]; then open "${INSTALLED_APP_PATH}" 2>/dev/null || true; fi
+}
 
 stop_session_host_for_update() {
   local state
-  state="$(session_host_update_stop_state "${PLATFORM}" "$1")"
+  info "Stopping the OpenWaggle Session Host…"
+  # Ctrl-C while it waits for agent runs cancels the update, not the installed app.
+  trap 'restore_installed_app; error "Update cancelled. OpenWaggle was not changed."' INT TERM
+  state="$(session_host_update_stop_state "${PLATFORM}" "$1" "$2")"
+  trap - INT TERM
   case "${state}" in
-    stopped|not-running|replaced|not-installed) ;;
+    stopped|not-running|not-installed) ;;
     cancelled)
-      [ -n "${MOUNT_POINT:-}" ] && hdiutil detach "${MOUNT_POINT}" -quiet 2>/dev/null || true
-      rm -f "${DOWNLOAD_PATH}"
-      if [ "${QUIT_MAC_APP}" = "1" ] && [ -z "$(launch_skip_reason "${PLATFORM}")" ]; then
-        open "${INSTALLED_APP_PATH}" 2>/dev/null || true
-      fi
+      restore_installed_app
       error "Update cancelled. OpenWaggle was not changed."
       ;;
-    desktop-open) info "OpenWaggle is open, so it keeps its Session Host until you restart it." ;;
+    desktop-open)
+      if [ "${PLATFORM}" = "mac" ]; then
+        restore_installed_app
+        error "OpenWaggle was opened again while the installer waited. Quit it, then run the installer again."
+      fi
+      info "OpenWaggle is open, so it keeps its Session Host. Quit it, then run \`openwaggle host stop --update\`."
+      ;;
+    replaced)
+      # macOS would replace the bundle under a running Host; an AppImage is replaced as one file.
+      if [ "${PLATFORM}" = "mac" ]; then
+        restore_installed_app
+        error "Another OpenWaggle process, such as \`openwaggle mcp serve\`, keeps starting a Session Host. Close it, then run the installer again."
+      fi
+      info "Another OpenWaggle process keeps a Session Host running. Close it, then run \`openwaggle host stop --update\`."
+      ;;
     timed-out) info "The Session Host is still stopping. Restart OpenWaggle once its work ends." ;;
+    unsupported) info "This OpenWaggle version cannot stop its Session Host. Run \`openwaggle host stop --update\` after the install." ;;
     *) info "Could not stop the Session Host. Run \`openwaggle host stop --wait\` before you reopen OpenWaggle." ;;
   esac
 }
+# END TESTABLE SESSION HOST STOP
 
 launch_installed_app() {
   local skip_reason
@@ -445,7 +494,7 @@ launch_installed_app() {
     else
       nohup "${APPIMAGE_PATH}" >/dev/null 2>&1 < /dev/null &
     fi
-    info "If OpenWaggle was already open, restart it to use ${VERSION}."
+    info "If OpenWaggle was already open, quit it, run \`openwaggle host stop --update\`, then open it to use ${VERSION}."
   fi
 }
 
@@ -577,7 +626,9 @@ if [ "${PLATFORM}" = "mac" ]; then
   INSTALLED_APP_PATH="${APPLICATIONS_DIR}/$(basename "${APP_PATH}")"
   # Quit the window first: stopping the Host under an open app would only make it start another.
   quit_running_mac_app
-  stop_session_host_for_update "${INSTALLED_APP_PATH}/Contents/MacOS/OpenWaggle"
+  stop_session_host_for_update "${INSTALLED_APP_PATH}/Contents/MacOS/OpenWaggle" \
+    "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' \
+      "${INSTALLED_APP_PATH}/Contents/Info.plist" 2>/dev/null || true)"
   mkdir -p "${APPLICATIONS_DIR}"
   rm -rf "${INSTALLED_APP_PATH}"
   cp -R "${APP_PATH}" "${APPLICATIONS_DIR}/"
@@ -612,11 +663,14 @@ elif [ "${PLATFORM}" = "linux" ]; then
   mkdir -p "${APP_DIR}"
   INSTALL_PATH="${INSTALL_DIR}/openwaggle"
   APPIMAGE_PATH="${APP_DIR}/OpenWaggle.AppImage"
+  # The AppImage's version, so a later install knows what its CLI supports without running it.
+  APPIMAGE_VERSION_PATH="${APP_DIR}/version"
   DESKTOP_DIR="${HOME}/.local/share/applications"
   DESKTOP_PATH="${DESKTOP_DIR}/openwaggle.desktop"
-  # An open app keeps running, and keeps its Host, until the user restarts it.
-  stop_session_host_for_update "${APPIMAGE_PATH}"
+  # An open app keeps running, and keeps its Host, until the user quits it and stops the Host.
+  stop_session_host_for_update "${APPIMAGE_PATH}" "$(cat "${APPIMAGE_VERSION_PATH}" 2>/dev/null || true)"
   install_executable_atomically "${DOWNLOAD_PATH}" "${APPIMAGE_PATH}"
+  printf '%s\n' "${VERSION#v}" > "${APPIMAGE_VERSION_PATH}"
   ESCAPED_APPIMAGE_PATH="$(printf '%s' "${APPIMAGE_PATH}" | sed "s/'/'\"'\"'/g")"
   SHIM_TEMP_PATH="$(mktemp "${INSTALL_DIR}/.openwaggle-cli.XXXXXX")"
   {

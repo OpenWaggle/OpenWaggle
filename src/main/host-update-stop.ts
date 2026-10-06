@@ -1,8 +1,11 @@
-import { openSync } from 'node:fs'
-import { createInterface } from 'node:readline/promises'
-import { ReadStream, WriteStream } from 'node:tty'
 import { app } from 'electron'
 import { isDesktopAppRunning } from './desktop-instance-probe'
+import {
+  askRunHandling,
+  openPromptTerminal,
+  runsNoun,
+  type UpdateRunChoice,
+} from './host-update-prompt'
 import type { LocalSessionCliClientInput } from './local-session-cli-client'
 import {
   releaseSessionHostForUpdate,
@@ -16,7 +19,7 @@ import { defaultStatusCliDependencies, probeRunningHost } from './status-cli'
  * interrupts an agent Run without asking, and the old version's Host never outlives the install.
  */
 
-export type UpdateRunChoice = 'when-idle' | 'now' | 'cancel'
+export type { UpdateRunChoice } from './host-update-prompt'
 
 export type HostUpdateStopState =
   | Exclude<SessionHostReleaseOutcome, 'stop-requested'>
@@ -42,69 +45,23 @@ export interface HostUpdateStopDependencies {
 
 /** Like the desktop app's Restart when idle: poll, and count Runs started meanwhile. */
 const RUN_POLL_INTERVAL_MS = 3_000
-
-const RUN_PROMPT_ANSWERS: Readonly<Record<string, UpdateRunChoice>> = {
-  '': 'when-idle',
-  w: 'when-idle',
-  n: 'now',
-  c: 'cancel',
-}
-
-function runsNoun(activeRuns: number) {
-  return activeRuns === 1 ? '1 agent run' : `${activeRuns} agent runs`
-}
-
-function runsPhrase(activeRuns: number) {
-  return `${runsNoun(activeRuns)} ${activeRuns === 1 ? 'is' : 'are'}`
-}
+/** The shell's status for a command ended by Ctrl-C (128 + SIGINT). */
+const INTERRUPTED_EXIT_CODE = 130
 
 /**
- * Asks on the terminal itself, not stdin: `curl … | bash` gives the installer the script as its
- * stdin. Without a terminal it waits for the Runs, as Restart when idle does by default.
+ * Ctrl-C, closing the terminal or SIGTERM quits Electron gracefully with status 0, which would
+ * read as a finished stop and let an installer go on. While the Host stops, they cancel the update.
  */
-export async function askRunHandlingOnTerminal(activeRuns: number): Promise<UpdateRunChoice> {
-  const question = `${runsPhrase(activeRuns)} still working. Wait until they finish [W], stop them now [n], or cancel [c]? `
-  const terminal = process.stdin.isTTY
-    ? { input: process.stdin, output: process.stderr, close: () => undefined }
-    : openTerminal()
-  if (!terminal) {
-    process.stderr.write(
-      `${runsPhrase(activeRuns)} still working; waiting for them to finish (Ctrl-C cancels).\n`,
-    )
-    return 'when-idle'
+export async function cancelUpdateOnInterrupt<T>(task: () => Promise<T>): Promise<T> {
+  const cancel = () => {
+    process.stderr.write('\nUpdate cancelled. OpenWaggle was not changed.\n')
+    app.exit(INTERRUPTED_EXIT_CODE)
   }
-  const prompt = createInterface({ input: terminal.input, output: terminal.output })
-  // Ctrl-C or Ctrl-D at the question cancels the update, as it would cancel the installer.
-  const aborted = new AbortController()
-  prompt.once('SIGINT', () => aborted.abort())
+  app.once('before-quit', cancel)
   try {
-    while (true) {
-      const answer = await prompt.question(question, { signal: aborted.signal }).catch(() => 'c')
-      const choice = RUN_PROMPT_ANSWERS[answer.trim().toLowerCase().slice(0, 1)]
-      if (choice) return choice
-    }
+    return await task()
   } finally {
-    prompt.close()
-    terminal.close()
-  }
-}
-
-/** The controlling terminal as TTY streams, which close cleanly unlike a file read of /dev/tty. */
-function openTerminal() {
-  if (process.platform === 'win32') return null
-  try {
-    const input = new ReadStream(openSync('/dev/tty', 'r'))
-    const output = new WriteStream(openSync('/dev/tty', 'w'))
-    return {
-      input,
-      output,
-      close: () => {
-        input.destroy()
-        output.destroy()
-      },
-    }
-  } catch {
-    return null
+    app.off('before-quit', cancel)
   }
 }
 
@@ -132,18 +89,24 @@ export async function stopSessionHostForUpdate(
     }
     // Stop them now: the Host's update deadline interrupts Runs still active, recorded as such.
   }
-  const outcome = await dependencies.release()
+  // The wait can be long, and the user may have opened the app meanwhile to watch the Runs.
+  if (dependencies.desktopAppRunning()) return { state: 'desktop-open', activeRuns }
+  let outcome = await dependencies.release()
+  // Another client, such as `openwaggle mcp serve`, started a Host from the old version again.
+  if (outcome === 'replaced') outcome = await dependencies.release()
   return { state: outcome === 'stop-requested' ? 'stopped' : outcome, activeRuns }
 }
 
 const HOST_UPDATE_STOP_MESSAGES: Readonly<Record<HostUpdateStopState, string>> = {
   'not-running': 'Session Host is not running.',
   stopped: 'Session Host stopped for the update.',
-  replaced: 'Session Host stopped; another client has already started a new one.',
+  replaced:
+    'Another OpenWaggle process, such as `openwaggle mcp serve`, keeps starting a Session Host. Close it and try again.',
   refused: 'The Session Host did not accept the update stop; it keeps running.',
   'timed-out': 'Session Host is still stopping; restart OpenWaggle after the update.',
   cancelled: 'Update cancelled; the Session Host keeps running.',
-  'desktop-open': 'OpenWaggle is open, so it keeps its Session Host. Quit OpenWaggle to stop it.',
+  'desktop-open':
+    'OpenWaggle is open, so it keeps its Session Host. Quit OpenWaggle, then run `openwaggle host stop --update`.',
 }
 
 export function formatHostUpdateStopReport(report: HostUpdateStopReport) {
@@ -158,11 +121,15 @@ export function defaultCliHostUpdateStopDependencies(
   return {
     desktopAppRunning: () => isDesktopAppRunning(app),
     countActiveRuns: async () => {
-      if ((await probeRunningHost(client, status.probe)).state === 'not-running') return null
+      const host = await probeRunningHost(client, status.probe)
+      if (host.state === 'not-running') return null
+      // An older Host hands over once its Runs end and answers nothing else meanwhile.
+      if (host.state === 'upgrade-pending') return host.blockingRuns
       // One Session counts once, as in the desktop app.
       return new Set((await status.snapshotActiveRuns(client)).map((run) => run.sessionId)).size
     },
-    chooseRunHandling: askRunHandlingOnTerminal,
+    chooseRunHandling: (activeRuns) =>
+      askRunHandling(activeRuns, openPromptTerminal(), (text) => process.stderr.write(`${text}\n`)),
     release: () => releaseSessionHostForUpdate(client, { waitForExit: true }),
     progress: (text) => process.stderr.write(`${text}\n`),
     wait: (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),

@@ -29,15 +29,23 @@ export async function runBundledInstaller(tag: string) {
   const installerPath = app.isPackaged
     ? path.join(process.resourcesPath, 'openwaggle-install.sh')
     : path.join(app.getAppPath(), 'scripts', 'install.sh')
-  return await new Promise<number>((resolve, reject) => {
-    // A terminal update runs with the desktop app closed and must not open a window.
-    const child = spawn('bash', [installerPath], {
-      stdio: 'inherit',
-      env: getEnvWithOverrides({ OPENWAGGLE_RELEASE_TAG: tag, OPENWAGGLE_NO_LAUNCH: '1' }),
+  // Ctrl-C reaches the installer too, which cancels and restores the app; this process must not
+  // quit first with status 0, so the installer's own status is the result.
+  const holdQuit = (event: Electron.Event) => event.preventDefault()
+  app.on('before-quit', holdQuit)
+  try {
+    return await new Promise<number>((resolve, reject) => {
+      // A terminal update runs with the desktop app closed and must not open a window.
+      const child = spawn('bash', [installerPath], {
+        stdio: 'inherit',
+        env: getEnvWithOverrides({ OPENWAGGLE_RELEASE_TAG: tag, OPENWAGGLE_NO_LAUNCH: '1' }),
+      })
+      child.once('error', reject)
+      child.once('exit', (code) => resolve(code ?? INSTALLER_FAILURE_EXIT_CODE))
     })
-    child.once('error', reject)
-    child.once('exit', (code) => resolve(code ?? INSTALLER_FAILURE_EXIT_CODE))
-  })
+  } finally {
+    app.off('before-quit', holdQuit)
+  }
 }
 
 async function download(url: string) {
@@ -46,7 +54,8 @@ async function download(url: string) {
   return Buffer.from(await response.arrayBuffer())
 }
 
-export async function runWindowsInstaller(tag: string) {
+/** Downloads and verifies the NSIS installer; returns a launcher, so nothing stops until it is ready. */
+export async function prepareWindowsInstaller(tag: string) {
   const release = await releaseForTag(tag)
   const installer = release.assets.find((asset) => /-x64\.exe$/u.test(asset.name))
   const checksums = release.assets.find((asset) => asset.name === 'SHA256SUMS.txt')
@@ -67,5 +76,5 @@ export async function runWindowsInstaller(tag: string) {
     throw new Error(`Release ${tag} failed checksum verification.`)
   const destination = path.join(tmpdir(), `openwaggle-update-${randomUUID()}.exe`)
   await writeFile(destination, contents, { mode: WINDOWS_INSTALLER_MODE })
-  await launchExternalApplication(destination, ['/S'])
+  return { launch: () => launchExternalApplication(destination, ['/S']) }
 }
