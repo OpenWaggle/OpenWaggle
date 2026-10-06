@@ -1,4 +1,3 @@
-import { matchBy } from '@diegogbrisa/ts-match'
 import { PRODUCT_NAME } from '@shared/build-identity-runtime'
 import type { UpdateStatus } from '@shared/types/updater'
 import { Loader2, RefreshCw, RotateCcw } from 'lucide-react'
@@ -12,6 +11,7 @@ import { NumberStepper } from '@/shared/ui/NumberStepper'
 import { CliAvailabilityNotice } from './CliAvailabilityNotice'
 import { UpdateChannelSetting } from './UpdateChannelSetting'
 import { UsageStatisticsSetting } from './UsageStatisticsSetting'
+import { getStatusRow } from './update-status-row'
 
 const logger = createRendererLogger('settings')
 
@@ -51,18 +51,6 @@ function useUpdateStatus() {
   }, [])
 
   return status
-}
-
-interface StatusRow {
-  subtitle: string
-  subtitleClass: string
-  dotClass: string | null
-}
-
-const UP_TO_DATE: StatusRow = {
-  subtitle: 'You are up to date',
-  subtitleClass: 'text-text-tertiary',
-  dotClass: null,
 }
 
 function BrowserLinkTargetSettings() {
@@ -122,41 +110,6 @@ function BrowserLinkTargetSettings() {
       </div>
     </div>
   )
-}
-
-function getStatusRow(status: UpdateStatus) {
-  return matchBy(status, 'type')
-    .with('idle', () => UP_TO_DATE)
-    .with('not-available', () => UP_TO_DATE)
-    .with('checking', () => ({
-      subtitle: 'Checking for updates…',
-      subtitleClass: 'text-text-tertiary',
-      dotClass: null,
-    }))
-    .with('available', (s) => ({
-      subtitle: `Downloading v${s.version}…`,
-      subtitleClass: 'text-info-text',
-      dotClass: 'bg-info',
-    }))
-    .with('downloading', (s) => ({
-      subtitle: `Downloading v${s.version}… ${Math.round(s.percent)}%`,
-      subtitleClass: 'text-info-text',
-      dotClass: 'bg-info',
-    }))
-    .with('downloaded', (s) => ({
-      subtitle:
-        s.waitingForRuns !== undefined && s.waitingForRuns > 0
-          ? `v${s.version} will install when ${s.waitingForRuns === 1 ? '1 agent run finishes' : `${s.waitingForRuns} agent runs finish`}`
-          : `v${s.version} ready to install`,
-      subtitleClass: 'text-success',
-      dotClass: 'bg-success',
-    }))
-    .with('error', () => ({
-      subtitle: 'Update check failed',
-      subtitleClass: 'text-error-text',
-      dotClass: 'bg-error',
-    }))
-    .exhaustive()
 }
 
 function CompactionThresholdSetting() {
@@ -250,19 +203,21 @@ export function GeneralSection() {
           <UsageStatisticsSetting />
 
           {/* Row 2 — Latest version / status */}
-          <div className="flex h-14 items-center justify-between px-5">
-            <div className="flex items-center gap-2">
+          <div className="flex min-h-14 items-center justify-between gap-4 px-5 py-3">
+            <div className="flex min-w-0 items-center gap-2">
               {statusRow.dotClass ? (
                 <div className={`size-2 shrink-0 rounded-full ${statusRow.dotClass}`} />
-              ) : isChecking ? (
+              ) : isChecking || status.type === 'installing' ? (
                 <Loader2 className="size-3 shrink-0 animate-spin text-text-tertiary" />
               ) : null}
-              <div className="flex flex-col gap-0.5">
+              <div className="flex min-w-0 flex-col gap-0.5">
                 <span className="text-xs font-medium text-text-primary">Latest version</span>
-                <span className={`text-xs ${statusRow.subtitleClass}`}>{statusRow.subtitle}</span>
+                <span className={`break-words text-xs ${statusRow.subtitleClass}`}>
+                  {statusRow.subtitle}
+                </span>
               </div>
             </div>
-            <div>
+            <div className="shrink-0">
               {canCheck && (
                 <Button
                   variant="secondary"

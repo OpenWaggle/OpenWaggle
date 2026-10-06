@@ -2,7 +2,14 @@ import { existsSync } from 'node:fs'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 
-import { resolveBuildChannel, resolveBuildIdentity, resolveDevSlug, resolveIconBasePath } from '../build-identity'
+import {
+  MAC_DEV_DOCK_ICON,
+  resolveBuildChannel,
+  resolveBuildIdentity,
+  resolveDevSlug,
+  resolveIconBasePath,
+  resolveMacIconPath,
+} from '../build-identity'
 import electronBuilderConfig from '../../electron-builder'
 
 const CWD = process.cwd()
@@ -103,7 +110,16 @@ describe('icon path', () => {
     for (const channel of ['stable', 'alpha', 'beta', 'rc', 'dev'] as const) {
       const iconPath = path.join(repoRoot, resolveIconBasePath(channel, 'build'))
       expect(existsSync(iconPath), `${iconPath} is missing`).toBe(true)
+      const macIconPath = path.join(repoRoot, resolveMacIconPath(channel, 'build'))
+      expect(existsSync(macIconPath), `${macIconPath} is missing`).toBe(true)
     }
+    expect(existsSync(path.join(repoRoot, 'build', MAC_DEV_DOCK_ICON))).toBe(true)
+  })
+
+  it('gives every channel its own rounded-square macOS icon', () => {
+    expect(resolveMacIconPath('stable', 'build')).toBe('build/icon.icns')
+    expect(resolveMacIconPath('beta', 'build')).toBe('build/icon-beta.icns')
+    expect(electronBuilderConfig.mac.icon).toBe(resolveMacIconPath(resolveBuildChannel(), 'build'))
   })
 })
 

@@ -193,10 +193,14 @@ differential. `builder-debug.yml` is a local build dump and is not published.
 
 ### Update restart and relaunch
 
-Updates download automatically in the background; installing is always a user action.
+Updates download automatically in the background; installing is always a user action: **Restart
+to update** in the app, `openwaggle update`, or the install script (`curl … | bash`). Quitting the
+app never installs a downloaded update.
 
-- An update restart never silently interrupts an agent run. When the user chooses **Restart to
-  update** and the Session Host has active runs in any session (window, Worker, or CLI-started),
+- An update restart never silently interrupts an agent run. The one exception is a run that starts
+  while the update already shows as installing, the seconds macOS takes to unpack it before the app
+  quits; the Session Host interrupts it at its stop deadline (ADR 0047). When the user chooses
+  **Restart to update** and the Session Host has active runs in any session (window, Worker, or CLI-started),
   the app offers **Restart when idle** (default), **Restart now**, and **Cancel**.
 - Active runs include standalone compactions; a Session counts once.
 - **Restart when idle** installs once the Session Host has no active run. Runs started after the
@@ -209,9 +213,30 @@ Updates download automatically in the background; installing is always a user ac
   **Restart now**.
 - **Restart now** stops active runs and compactions through normal cancellation, recording them as
   interrupted, waits up to 30 seconds for them to settle, and then installs. A run that does not
-  stop in that time, such as a queued Follow-up that starts meanwhile, is ended by the restart. The
-  Session Host itself is released through its existing drain and handoff to the newer version.
+  stop in that time, such as a queued Follow-up that starts meanwhile, is ended by the restart.
 - With no active runs, the restart installs immediately without a dialog.
+- Every install releases the Session Host before the app is replaced, the same way for all three
+  actions (ADR 0047). The Host runs from the app bundle, and macOS Squirrel refuses to replace a
+  bundle while any process from it is running ("App Still Running"); a Host left running would
+  also keep serving the old version's code. The installer sends the Host an update stop, and the
+  Host gives it a 10-second deadline. At the deadline it interrupts any Run still active, which
+  ends as interrupted, and gives it 3 seconds to settle; running Actions, CLI waits, and exports
+  end with the Host. The desktop app waits up to 20 seconds for the Host process to exit on
+  macOS; on Windows and Linux it only requests the stop, because those installers replace the app
+  themselves. `openwaggle update` and the install script always wait for it. An ordinary quit
+  leaves the Host running.
+- In a terminal, `openwaggle host stop --update` is that stop. With active agent runs it asks
+  whether to wait for them (default), stop them now, or cancel, mirroring **Restart when idle**,
+  **Restart now**, and **Cancel**. Stop now leaves them to the Host's 10-second deadline, so they
+  end interrupted within 13 seconds instead of at once. Ctrl-C cancels; `openwaggle update` never
+  installs on quit, only through its explicit install. It asks on the terminal, so it works under `curl … | bash`;
+  without one it waits for the runs. It leaves a Host alone while the desktop app is open.
+- The app shows **Installing** as soon as the restart begins, because macOS unpacks and verifies
+  the update before it quits; relaunching the old version meanwhile makes the install fail. If the
+  installer reports an error, or the app has not quit after 3 minutes, the update shows as ready
+  again with the reason. After the next launch, when the same update is ready again, the app says
+  that it did not install, and says when another OpenWaggle process, such as
+  `openwaggle mcp serve` or `openwaggle sessions wait`, was the reason.
 - The app relaunches automatically after installing an update, and after a fresh install where an
   installer runs. This follows `pingdotgg/t3code`:
   - In-app updates install silently and force a relaunch on every platform
@@ -225,14 +250,25 @@ Updates download automatically in the background; installing is always a user ac
   `$WAYLAND_DISPLAY`), with `--no-launch`, or with `OPENWAGGLE_NO_LAUNCH=1`. On macOS it quits the
   running desktop window process (the app's only `Foreground` process; the detached Session Host
   and CLI processes share the bundle id but are `UIElement`) with `SIGTERM`, which Electron handles
-  as a normal quit, before replacing the bundle. On Linux the AppImage is replaced atomically and a
-  running app keeps running; the installer tells the user to restart it.
+  as a normal quit. Then it runs the installed version's `openwaggle host stop --update`, and only
+  then replaces the bundle. If the user cancels there, it reopens the app and changes nothing. An
+  installed version older than `--update` gets a plain `host stop --wait`, bounded to 20 seconds;
+  one before 1.0.0-beta.1 has no `host` command and is never run (the script reads its version
+  from `Info.plist`, from the `version` file it writes beside the AppImage, or from the
+  AppImage's own desktop entry).
+  On Linux the installer stops the Host the same way before it replaces the AppImage atomically.
+  A running app keeps running, and keeps its Host; the installer tells the user to quit it and run
+  `openwaggle host stop --update`, because a quit alone leaves the old Host for the new app.
+  Ctrl-C while the stop waits cancels the update and reopens a quit app. If another process, such
+  as `openwaggle mcp serve`, starts a Host again after a second stop, the macOS script does not
+  replace the bundle; the Linux script and `openwaggle update` warn and continue.
 - `openwaggle update` never opens a window the user did not have open and never installs under a
   running desktop app. If the app is running, a channel update only reports the available version
   and tells the user to install it from **Settings > General > About & Updates**, where **Check
   now** and **Restart to update** protect active runs and relaunch the app. An exact `--version`
-  install refuses while the app is open. With the app closed, Windows and Linux install silently
-  without launching it. macOS installs through the bundled installer, because Squirrel.Mac always
+  install refuses while the app is open. With the app closed, Windows and Linux stop the Session
+  Host as `host stop --update` does, then install silently without launching it. macOS installs
+  through the bundled install script, which stops the Host itself, because Squirrel.Mac always
   relaunches the app after an in-app install. The desktop-app check uses the single-instance lock,
   so it cannot see an app started with `OPENWAGGLE_DISABLE_SINGLE_INSTANCE=1` (automation only).
 

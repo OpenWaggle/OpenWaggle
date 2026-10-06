@@ -10,6 +10,8 @@ const {
   requestSingleInstanceLockMock,
   releaseSingleInstanceLockMock,
   spawnMock,
+  stopHostForUpdateMock,
+  appOnMock,
   updater,
 } = vi.hoisted(() => {
   const updater: {
@@ -41,6 +43,8 @@ const {
     requestSingleInstanceLockMock: vi.fn(() => true),
     releaseSingleInstanceLockMock: vi.fn(),
     spawnMock: vi.fn(),
+    stopHostForUpdateMock: vi.fn(),
+    appOnMock: vi.fn(),
     updater,
   }
 })
@@ -52,6 +56,8 @@ vi.mock('electron', () => ({
     getAppPath: () => '/workspace/OpenWaggle',
     requestSingleInstanceLock: requestSingleInstanceLockMock,
     releaseSingleInstanceLock: releaseSingleInstanceLockMock,
+    on: appOnMock,
+    off: vi.fn(),
   },
 }))
 vi.mock('electron-updater', () => ({
@@ -71,6 +77,8 @@ vi.mock('../local-session-cli-client', () => ({
   createLocalSessionCliClientInput: createClientMock,
 }))
 vi.mock('../cli-stdout', () => ({ writeCliStdout: writeCliStdoutMock }))
+vi.mock('../host-cli', () => ({ stopHostForUpdate: stopHostForUpdateMock }))
+vi.mock('../host-update-stop', () => ({ formatHostUpdateStopReport: () => 'Session Host report' }))
 
 import { runUpdateCli } from '../update-cli'
 
@@ -94,6 +102,7 @@ describe('update CLI with the desktop app', () => {
     checkForUpdatesMock.mockResolvedValue(null)
     configureUpdaterFeedMock.mockReset()
     requestSingleInstanceLockMock.mockReturnValue(true)
+    stopHostForUpdateMock.mockResolvedValue({ state: 'stopped', activeRuns: 0 })
   })
 
   afterEach(() => {
@@ -116,7 +125,32 @@ describe('update CLI with the desktop app', () => {
 
     expect(updater.autoDownload).toBe(true)
     expect(releaseSingleInstanceLockMock).toHaveBeenCalledOnce()
+    // The old version's Host stops first, as it does for Restart to update.
+    expect(stopHostForUpdateMock).toHaveBeenCalledOnce()
+    expect(stopHostForUpdateMock.mock.invocationCallOrder[0]).toBeLessThan(
+      quitAndInstallMock.mock.invocationCallOrder[0] ?? 0,
+    )
     expect(quitAndInstallMock).toHaveBeenCalledWith(true, false)
+  })
+
+  it('does not install when the user cancels because agent runs are active', async () => {
+    vi.spyOn(process, 'platform', 'get').mockReturnValue('linux')
+    vi.spyOn(process.stderr, 'write').mockReturnValue(true)
+    updater.once.mockImplementation((event: string, listener: () => void) => {
+      if (event === 'update-downloaded') queueMicrotask(listener)
+      return updater
+    })
+    checkForUpdatesMock.mockResolvedValue({
+      isUpdateAvailable: true,
+      updateInfo: { version: '0.4.1' },
+    })
+    stopHostForUpdateMock.mockResolvedValue({ state: 'cancelled', activeRuns: 1 })
+
+    await expect(runUpdateCli([])).resolves.toEqual({ exitCode: 1, updaterOwnsExit: false })
+    expect(process.stderr.write).toHaveBeenCalledWith(
+      'error: Update cancelled. OpenWaggle was not changed.\n',
+    )
+    expect(quitAndInstallMock).not.toHaveBeenCalled()
   })
 
   it('installs through the bundled installer on macOS, where Squirrel always relaunches', async () => {
@@ -135,6 +169,10 @@ describe('update CLI with the desktop app', () => {
 
     expect(updater.autoDownload).toBe(false)
     expect(quitAndInstallMock).not.toHaveBeenCalled()
+    // The install script stops the Host itself, after it quits the app.
+    expect(stopHostForUpdateMock).not.toHaveBeenCalled()
+    // Ctrl-C reaches the install script, which cancels; this process waits for its status.
+    expect(appOnMock).toHaveBeenCalledWith('before-quit', expect.any(Function))
     expect(spawnMock).toHaveBeenCalledWith(
       'bash',
       [expect.stringMatching(/install\.sh$/u)],

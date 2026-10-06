@@ -17,6 +17,7 @@ const BUILD_IDENTITY = resolveBuildIdentity()
 const BUILD_DEFINE = {
   __OW_BUILD_CHANNEL__: JSON.stringify(BUILD_IDENTITY.channel),
   __OW_PRODUCT_NAME__: JSON.stringify(BUILD_IDENTITY.productName),
+  __OW_APP_ID__: JSON.stringify(BUILD_IDENTITY.appId),
 }
 
 const ALWAYS_EXTERNAL = ['electron', 'bufferutil', 'utf-8-validate', 'node-pty']

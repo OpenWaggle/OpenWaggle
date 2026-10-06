@@ -1,4 +1,9 @@
-import { CANONICAL_EXECUTABLE_NAME, resolveBuildIdentity, resolveIconBasePath } from './scripts/build-identity'
+import {
+  CANONICAL_EXECUTABLE_NAME,
+  resolveBuildIdentity,
+  resolveIconBasePath,
+  resolveMacIconPath,
+} from './scripts/build-identity'
 import { resolveMacSigning } from './scripts/mac-signing'
 
 /**
@@ -14,15 +19,15 @@ const identity = resolveBuildIdentity()
 const buildResourcesDir = 'build'
 
 const stableIcons = {
-  mac: 'build/icon.icns',
   win: 'build/icon.ico',
   linux: 'build/icon.png',
 }
 const channelIcon = resolveIconBasePath(identity.channel, buildResourcesDir)
-const icons =
-  identity.channel === 'stable'
-    ? stableIcons
-    : { mac: channelIcon, win: channelIcon, linux: channelIcon }
+const icons = {
+  // Every channel has its own generated rounded-square macOS icon (scripts/generate-macos-icons.ts).
+  mac: resolveMacIconPath(identity.channel, buildResourcesDir),
+  ...(identity.channel === 'stable' ? stableIcons : { win: channelIcon, linux: channelIcon }),
+}
 
 const config = {
   appId: identity.appId,
@@ -90,9 +95,9 @@ const config = {
     '!node_modules/onnxruntime-web/dist/ort-training*',
   ],
   extraResources: [
-    // Ship the channel icon as the runtime icon resource so the dock icon set at
-    // runtime (app.dock.setIcon on macOS) and the Windows/Linux window icon match
-    // the channel, not just the packaged bundle icon (docs/adr/0032).
+    // Ship the channel icon as the runtime icon resource so the Windows/Linux
+    // window icon matches the channel, not just the packaged bundle icon
+    // (docs/adr/0032). Packaged macOS builds take their Dock icon from the bundle.
     { from: channelIcon, to: 'icon.png' },
     { from: 'build/openwaggle-docs', to: 'openwaggle-docs' },
     { from: 'build/session-embedding-model', to: 'session-embedding-model' },

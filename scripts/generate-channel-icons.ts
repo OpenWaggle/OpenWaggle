@@ -22,15 +22,26 @@ const PILL_STROKE_RATIO = 0.03
 const PILL_OPACITY = 0.92
 const HALF = 2
 
-const CHANNELS: Record<Exclude<BuildChannel, 'stable'>, { color: string; label: string }> = {
+export const CHANNEL_BADGES: Record<
+  Exclude<BuildChannel, 'stable'>,
+  { readonly color: string; readonly label: string }
+> = {
   alpha: { color: '#B4713C', label: 'ALPHA' },
   beta: { color: '#6E56C8', label: 'BETA' },
   rc: { color: '#2C8AA0', label: 'RC' },
   dev: { color: '#5B6675', label: 'DEV' },
 }
 
-function pillSvg(width: number, height: number, color: string, label: string) {
-  const pillHeight = Math.round(height * PILL_HEIGHT_RATIO)
+/** A channel pill centred horizontally, its bottom edge at `bottom`. */
+export function channelPillSvg(input: {
+  readonly width: number
+  readonly height: number
+  readonly pillHeight: number
+  readonly bottom: number
+  readonly color: string
+  readonly label: string
+}) {
+  const { width, height, pillHeight, color, label } = input
   const fontSize = Math.round(pillHeight * PILL_FONT_RATIO)
   const letterSpacing = fontSize * PILL_LETTER_SPACING_RATIO
   const padX = pillHeight * PILL_PAD_X_RATIO
@@ -38,7 +49,7 @@ function pillSvg(width: number, height: number, color: string, label: string) {
     label.length * fontSize * PILL_CHAR_WIDTH_RATIO + (label.length - 1) * letterSpacing
   const pillWidth = Math.round(textWidth + padX + padX)
   const pillX = Math.round((width - pillWidth) / HALF)
-  const pillY = Math.round(height - height * PILL_BOTTOM_MARGIN_RATIO - pillHeight)
+  const pillY = Math.round(input.bottom - pillHeight)
   const radius = pillHeight / HALF
   const strokeWidth = pillHeight * PILL_STROKE_RATIO
   const textY = pillY + pillHeight / HALF
@@ -59,8 +70,10 @@ async function generate(buildDir: string): Promise<void> {
   const { width, height } = await sharp(source).metadata()
   if (!width || !height) throw new Error(`Could not read dimensions of ${source}`)
 
-  for (const [channel, { color, label }] of Object.entries(CHANNELS)) {
-    const pill = Buffer.from(pillSvg(width, height, color, label))
+  for (const [channel, { color, label }] of Object.entries(CHANNEL_BADGES)) {
+    const pillHeight = Math.round(height * PILL_HEIGHT_RATIO)
+    const bottom = height - height * PILL_BOTTOM_MARGIN_RATIO
+    const pill = Buffer.from(channelPillSvg({ width, height, pillHeight, bottom, color, label }))
     const out = path.join(buildDir, `icon-${channel}.png`)
     await sharp(source).composite([{ input: pill, top: 0, left: 0 }]).png().toFile(out)
     console.log(`wrote ${out}`)

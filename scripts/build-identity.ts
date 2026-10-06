@@ -119,3 +119,15 @@ export function resolveIconBasePath(channel: BuildChannel, buildResourcesDir: st
   const file = channel === 'stable' ? 'icon.png' : `icon-${channel}.png`
   return path.posix.join(buildResourcesDir, file)
 }
+
+/**
+ * macOS icon path for a channel, relative to the repo `build/` directory. macOS draws app icons on
+ * a fixed rounded-square grid, so its icons are generated separately from the free-form Windows and
+ * Linux icons (scripts/generate-macos-icons.ts). POSIX separators, as above.
+ */
+export function resolveMacIconPath(channel: BuildChannel, buildResourcesDir: string): string {
+  const file = channel === 'stable' ? 'icon.icns' : `icon-${channel}.icns`
+  return path.posix.join(buildResourcesDir, file)
+}
+
+export { MAC_DEV_DOCK_ICON_FILE as MAC_DEV_DOCK_ICON } from '../src/shared/build-identity-runtime'

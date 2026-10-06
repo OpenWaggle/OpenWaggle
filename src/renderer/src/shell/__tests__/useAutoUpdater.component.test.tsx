@@ -77,4 +77,49 @@ describe('auto-updater notification', () => {
       'Update v1.0.0 will install when 1 agent run finishes',
     )
   })
+
+  it('replaces Restart to update with a progress notice, then offers it again if the install fails', () => {
+    renderHook(useAutoUpdater)
+    act(() => mocks.listener.current?.({ type: 'downloaded', version: '1.0.0' }))
+
+    act(() => mocks.listener.current?.({ type: 'installing', version: '1.0.0' }))
+
+    const installing = useUIStore.getState().toastData
+    expect(installing?.message).toMatch(/^Installing v1\.0\.0\. .* reopens when it is done$/)
+    expect(installing?.action).toBeUndefined()
+    expect(installing?.persistent).toBe(true)
+
+    // The app did not quit: the main process puts the download back with the reason.
+    act(() =>
+      mocks.listener.current?.({
+        type: 'downloaded',
+        version: '1.0.0',
+        installFailure: 'Version 1.0.0 could not be installed: signature mismatch.',
+      }),
+    )
+    const failed = useUIStore.getState().toastData
+    expect(failed?.message).toBe('Version 1.0.0 could not be installed: signature mismatch.')
+    expect(failed?.variant).toBe('error')
+    expect(failed?.action?.label).toBe('Restart to update')
+  })
+
+  it('says why the last restart did not install and lets the user try again', () => {
+    renderHook(useAutoUpdater)
+
+    act(() =>
+      mocks.listener.current?.({
+        type: 'downloaded',
+        version: '1.0.0',
+        installFailure: 'Version 1.0.0 did not finish installing. Restart to update to try again.',
+      }),
+    )
+
+    const toast = useUIStore.getState().toastData
+    expect(toast?.message).toBe(
+      'Version 1.0.0 did not finish installing. Restart to update to try again.',
+    )
+    expect(toast?.variant).toBe('error')
+    act(() => toast?.action?.onClick?.())
+    expect(mocks.installUpdate).toHaveBeenCalledOnce()
+  })
 })

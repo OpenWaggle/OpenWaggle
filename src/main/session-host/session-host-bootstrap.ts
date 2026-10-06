@@ -7,6 +7,7 @@ import {
 } from '../application/local-session-command-dispatcher'
 import { refreshNamedProfileCaller } from '../application/local-session-derived-authority'
 import { authenticateLocalSessionProfile } from '../application/local-session-profile-authentication'
+import { interruptAllSessionRuns } from '../application/session-run-interruption'
 import { LocalSessionProfileRepository } from '../ports/local-session-profile-repository'
 import type { AppServices } from '../runtime'
 import { SettingsService } from '../services/settings-service'
@@ -89,6 +90,7 @@ export async function startAppSessionHost(input: {
       input.runEffect(authorizeLocalSessionActiveRun(caller, snapshot.sessionId)),
     recover: () => input.runEffect(recoverHostState()),
     describeUpgradeBlockers: async () => readSessionHostUpgradeBlockers(input.paths.databasePath),
+    interruptRunsAtDrainDeadline: () => input.runEffect(interruptAllSessionRuns()),
     startOwnedServices: input.startOwnedServices,
     stopOwnedServices: input.stopOwnedServices,
     dispatch: async ({
@@ -113,6 +115,7 @@ export async function startAppSessionHost(input: {
           countBlockingRuns: async () =>
             (await readSessionHostUpgradeBlockers(input.paths.databasePath)).blockingRuns.length,
           requestHostStop,
+          processId: process.pid,
         })
       }
       const cursorResolution = resolveLocalSessionCommandCursor(decodedPayload, resolveEventCursor)

@@ -13,5 +13,9 @@ export type UpdateStatus =
       readonly version: string
       /** Set while Restart when idle waits for this many active agent runs to finish. */
       readonly waitingForRuns?: number
+      /** Why the previous Restart to update did not install this version, if it did not. */
+      readonly installFailure?: string
     }
+  /** Restart to update is quitting the app; the installer reopens it on the new version. */
+  | { readonly type: 'installing'; readonly version: string }
   | { readonly type: 'error'; readonly message: string }

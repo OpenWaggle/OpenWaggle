@@ -8,6 +8,7 @@ import {
 export const localHostRequestSchema: Schema.Schema<LocalHostRequest> = Schema.Struct({
   contractVersion: Schema.Literal(LOCAL_HOST_CONTRACT_VERSION),
   operation: Schema.Literal('stop'),
+  purpose: Schema.optional(Schema.Literal('update')),
 })
 
 export const localHostResponseSchema: Schema.Schema<LocalHostResponse> = Schema.Struct({
@@ -16,6 +17,7 @@ export const localHostResponseSchema: Schema.Schema<LocalHostResponse> = Schema.
   hostInstanceId: Schema.String,
   blockingRuns: Schema.NullOr(Schema.Number.pipe(Schema.int(), Schema.nonNegative())),
   blockingActions: Schema.Number.pipe(Schema.int(), Schema.nonNegative()),
+  processId: Schema.optional(Schema.Number.pipe(Schema.int(), Schema.positive())),
 })
 
 export function decodeLocalHostResponse(value: unknown) {
