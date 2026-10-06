@@ -28,15 +28,16 @@ function runsPhrase(activeRuns: number) {
 /** The controlling terminal as TTY streams, which close cleanly unlike a file read of /dev/tty. */
 function openControllingTerminal(): PromptTerminal | null {
   if (process.platform === 'win32') return null
-  const descriptors: number[] = []
+  let inputDescriptor: number | undefined
+  let outputDescriptor: number
   try {
     // Both before either stream, which then owns its descriptor.
-    descriptors.push(openSync('/dev/tty', 'r'), openSync('/dev/tty', 'w'))
+    inputDescriptor = openSync('/dev/tty', 'r')
+    outputDescriptor = openSync('/dev/tty', 'w')
   } catch {
-    for (const descriptor of descriptors) closeSync(descriptor)
+    if (inputDescriptor !== undefined) closeSync(inputDescriptor)
     return null
   }
-  const [inputDescriptor = -1, outputDescriptor = -1] = descriptors
   const input = new ReadStream(inputDescriptor)
   const output = new WriteStream(outputDescriptor)
   return {
