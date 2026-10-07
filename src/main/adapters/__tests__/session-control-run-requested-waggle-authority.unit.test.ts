@@ -131,6 +131,7 @@ describe('agent-requested Waggle after a classic Run', () => {
           toolAllowlist: ['read'],
           projectPath: '/tmp/project',
           identityContext: '',
+          runIdentityContext: '',
         },
         controller: new AbortController(),
         allowModelMultiAgent: false,

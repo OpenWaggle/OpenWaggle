@@ -101,6 +101,7 @@ export async function runPiSession(
       ? [
           createAgentRunContextExtension({
             sessionIdentityContext: input.sessionIdentityContext,
+            ...(input.runIdentityContext ? { runIdentityContext: input.runIdentityContext } : {}),
             ...(input.agentInstructions ? { agentInstructions: input.agentInstructions } : {}),
             ...(input.toolAllowlist ? { toolAllowlist: input.toolAllowlist } : {}),
           }),

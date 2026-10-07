@@ -48,6 +48,7 @@ function runContextOptions(input: AgentRunInput) {
     ...(input.sessionIdentityContext
       ? { sessionIdentityContext: input.sessionIdentityContext }
       : {}),
+    ...(input.runIdentityContext ? { runIdentityContext: input.runIdentityContext } : {}),
     ...runDeliveryContextOptions(input),
     ...(input.toolAllowlist ? { toolAllowlist: input.toolAllowlist } : {}),
     ...(input.skillAllowlist ? { skillAllowlist: input.skillAllowlist } : {}),

@@ -54,6 +54,8 @@ export interface AgentKernelRunInput {
   readonly authorityCallerId?: string
   readonly agentInstructions?: string
   readonly sessionIdentityContext?: string
+  /** Run-scoped Host identity, delivered per Run outside the cacheable system prompt. */
+  readonly runIdentityContext?: string
   readonly peerAgentReports?: readonly PeerAgentReportContext[]
   readonly onPeerAgentReportsDelivered?: (reportIds: readonly string[]) => void
   readonly orchestrationUpdates?: readonly PendingSessionOrchestrationUpdate[]
