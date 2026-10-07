@@ -5,7 +5,6 @@ import {
   HOME,
   LEGACY_STATE,
   MIGRATION_RECORD,
-  memoryFs,
   NOW,
   OPENWAGGLE_GLOBAL,
   recordingLogger,
