@@ -120,6 +120,51 @@ function createDiscoveredSession(session: DiscoveredPiSession) {
   })
 }
 
+/** The first wait before a file that could not be listed is tried again, doubling each time. */
+const FAILED_FILE_FIRST_RETRY_MS = 60_000
+const FAILED_FILE_MAX_RETRY_MS = 60 * 60_000
+const FAILED_FILE_RETRY_GROWTH = 2
+
+interface FailedFile {
+  readonly size: number
+  readonly updatedAt: number
+  readonly failures: number
+  readonly retryAt: number
+}
+
+/**
+ * Files whose listing failed, such as one in a project whose settings file is broken. Without
+ * this a broken file is retried every pass. Keyed by the version of the file, so a file written
+ * again is retried at once; an unchanged one waits, doubling up to an hour, in case what broke
+ * it was outside the file. Memory only: a Host restart tries each one again once.
+ */
+const failedFiles = new Map<string, FailedFile>()
+
+function isBackedOff(session: DiscoveredPiSession, now: number) {
+  const failed = failedFiles.get(session.piSessionFile)
+  if (!failed) return false
+  if (failed.size !== session.size || failed.updatedAt !== session.updatedAt) {
+    failedFiles.delete(session.piSessionFile)
+    return false
+  }
+  return now < failed.retryAt
+}
+
+function recordListingFailure(session: DiscoveredPiSession, now: number) {
+  const previous = failedFiles.get(session.piSessionFile)
+  const failures = (previous?.failures ?? 0) + 1
+  const delay = Math.min(
+    FAILED_FILE_FIRST_RETRY_MS * FAILED_FILE_RETRY_GROWTH ** (failures - 1),
+    FAILED_FILE_MAX_RETRY_MS,
+  )
+  failedFiles.set(session.piSessionFile, {
+    size: session.size,
+    updatedAt: session.updatedAt,
+    failures,
+    retryAt: now + delay,
+  })
+}
+
 /** Pi writes a session in bursts; a file is listed once it has been quiet this long. */
 const NEW_FILE_QUIET_PERIOD_MS = 5_000
 
@@ -139,12 +184,14 @@ export function discoverPiSessions(options: { readonly now?: number } = {}) {
       projectPaths,
       isKnownFile: (file) => scope.knownPiSessionFiles.has(file),
     })
-    const quietBefore = (options.now ?? Date.now()) - NEW_FILE_QUIET_PERIOD_MS
+    const now = options.now ?? Date.now()
     const pending = discovered
       .filter((session) => !scope.knownPiSessionIds.has(session.piSessionId))
-      .filter((session) => session.updatedAt <= quietBefore)
+      .filter((session) => session.updatedAt <= now - NEW_FILE_QUIET_PERIOD_MS)
+      .filter((session) => !isBackedOff(session, now))
       .sort((left, right) => right.updatedAt - left.updatedAt)
     const listed: SessionId[] = []
+    // Only Sessions actually listed count against the cap, so failing files cannot use it up.
     for (const session of pending) {
       if (listed.length >= MAX_SESSIONS_LISTED_PER_PASS) break
       const sessionId = yield* createDiscoveredSession(session).pipe(
@@ -158,7 +205,12 @@ export function discoverPiSessions(options: { readonly now?: number } = {}) {
           }),
         ),
       )
-      if (sessionId) listed.push(sessionId)
+      if (sessionId) {
+        failedFiles.delete(session.piSessionFile)
+        listed.push(sessionId)
+      } else {
+        recordListingFailure(session, now)
+      }
     }
     const last = listed.at(-1)
     // One notice per pass: the lifecycle announced each new Session, and this one makes the

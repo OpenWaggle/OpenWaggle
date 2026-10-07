@@ -173,4 +173,28 @@ describe('Pi session discovery', () => {
     expect(listed).toEqual([])
     expect(await sessionCount()).toBe(0)
   })
+
+  it('backs off a file it cannot list without holding up other projects', async () => {
+    const broken = path.join(fixture.root, 'projects', 'broken')
+    const settings = path.join(broken, '.openwaggle', 'settings.json')
+    const { mkdir, writeFile } = await import('node:fs/promises')
+    await mkdir(path.dirname(settings), { recursive: true })
+    await writeFile(settings, '{ not json')
+    await registerProjects([broken, fixture.project])
+    createPiCliSession(broken, 'Blocked by broken settings')
+    createPiCliSession(fixture.project, 'Healthy project')
+    const { discoverPiSessions } = await import('../../../application/pi-session-discovery')
+    const startedAt = Date.now()
+
+    const first = await run(discoverPiSessions({ now: startedAt }))
+    expect(first).toHaveLength(1)
+    expect((await sessionDetail(String(first[0])))?.projectPath).toBe(fixture.project)
+
+    await writeFile(settings, '{}')
+    // The file is unchanged, so it waits out its back-off before it is tried again.
+    expect(await run(discoverPiSessions({ now: startedAt + 1_000 }))).toEqual([])
+    const later = await run(discoverPiSessions({ now: startedAt + 10 * 60_000 }))
+    expect(later).toHaveLength(1)
+    expect((await sessionDetail(String(later[0])))?.projectPath).toBe(broken)
+  })
 })
