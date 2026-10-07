@@ -89,6 +89,40 @@ describe('MCP server inspection for Settings', () => {
   })
 })
 
+describe('MCP server inspection when a value cannot be resolved', () => {
+  it('reports a missing ${NAME} or vault secret as that server failing, not the whole check', async () => {
+    configure({
+      env: {
+        command: process.execPath,
+        args: ['-e', SERVER],
+        env: { KEY: '${OW_NOT_SET_ANYWHERE}' },
+      },
+      vault: {
+        url: 'https://v.example/mcp',
+        headers: { Authorization: { secret: 'OW_NO_SUCH_SECRET' } },
+      },
+    })
+
+    const env = await inspectMcpServer({ projectPath: null, name: 'env' }, roots)
+    const vault = await inspectMcpServer({ projectPath: null, name: 'vault' }, roots)
+
+    expect(env).toEqual(
+      expect.objectContaining({
+        name: 'env',
+        state: 'failed',
+        error: expect.stringContaining('OW_NOT_SET_ANYWHERE'),
+      }),
+    )
+    expect(vault).toEqual(
+      expect.objectContaining({
+        name: 'vault',
+        state: 'failed',
+        error: expect.stringContaining('vault secret "OW_NO_SUCH_SECRET"'),
+      }),
+    )
+  })
+})
+
 describe('MCP server state for Settings without connecting', () => {
   function pool() {
     return new McpSessionConnectionPool({ hooks: openWaggleMcpConnectionHooks })

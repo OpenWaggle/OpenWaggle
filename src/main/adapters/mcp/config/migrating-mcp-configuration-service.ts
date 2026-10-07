@@ -32,3 +32,27 @@ export function migrateBeforeEachCall(
     onChange: (listener) => service.onChange(listener),
   }
 }
+
+/**
+ * Adds what only the runtime configuration knows to the view, such as a vault secret that cannot
+ * be read (that server is left out of every Run), so Settings and `openwaggle mcp doctor` show it.
+ */
+export function withRuntimeConfigErrors(
+  service: McpConfigurationServiceShape,
+  runtimeErrors: (projectPath: string | null) => Promise<readonly string[]>,
+): McpConfigurationServiceShape {
+  return {
+    ...service,
+    getView: (input) =>
+      Effect.gen(function* () {
+        const view = yield* service.getView(input)
+        const extra = yield* Effect.promise(() =>
+          runtimeErrors(input.projectPath).catch((error: unknown) => [
+            error instanceof Error ? error.message : String(error),
+          ]),
+        )
+        const errors = [...view.errors, ...extra.filter((error) => !view.errors.includes(error))]
+        return { ...view, errors }
+      }),
+  }
+}

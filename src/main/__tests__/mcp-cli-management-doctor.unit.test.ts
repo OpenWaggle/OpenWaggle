@@ -73,6 +73,21 @@ describe('openwaggle mcp doctor', () => {
     expect(result.calls[0]?.input).toEqual({ projectPath: '/work/project' })
   })
 
+  it('reports a server whose check fails outright and still checks the others', async () => {
+    const result = await run('doctor', [], {
+      'mcp:get-configuration': () => view([server({ name: 'vaulted' }), server({ name: 'files' })]),
+      'mcp:inspect-server': ({ name }) => {
+        if (name === 'vaulted') throw new Error('vault secret "GONE" could not be read')
+        return { name, state: 'connected', tools: [] }
+      },
+    })
+
+    expect(result.exitCode).toBe(1)
+    expect(result.logs).toContain('  vaulted: failed (global, /home/.openwaggle/mcp.json)')
+    expect(result.logs).toContain('    vault secret "GONE" could not be read')
+    expect(result.logs).toContain('  files: connected, 0 tools')
+  })
+
   it('takes no positional arguments', async () => {
     const result = await run('doctor', ['files'], {})
 

@@ -10,6 +10,7 @@ import {
   type McpManagementCommandInput,
   type McpManagementExit,
 } from './mcp-cli-management-context'
+import { inspectEnabledServers } from './mcp-cli-management-inspect'
 
 /**
  * `openwaggle mcp doctor`: which MCP files exist, what Pi could not read in them, and the state
@@ -96,16 +97,8 @@ export async function doctorCommand({
     throw new McpCliUsageError('Usage: openwaggle mcp doctor [--json] [-l]')
   }
   const view = await context.host.invoke('mcp:get-configuration', { projectPath })
-  const servers = await Promise.all(
-    view.servers.map(async (server) =>
-      doctorServer(
-        server,
-        server.enabled
-          ? await context.host.invoke('mcp:inspect-server', { projectPath, name: server.name })
-          : undefined,
-      ),
-    ),
-  )
+  const inspections = await inspectEnabledServers(context, projectPath, view.servers)
+  const servers = view.servers.map((server) => doctorServer(server, inspections.get(server.name)))
   const ok =
     view.errors.length === 0 &&
     servers.every((server) => !server.enabled || server.state === 'connected')

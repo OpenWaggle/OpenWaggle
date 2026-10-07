@@ -125,6 +125,21 @@ describe('openwaggle mcp list', () => {
     expect(result.exitCode).toBe(0)
   })
 
+  it('lists every server when one check fails outright, and exits 1', async () => {
+    const result = await run('list', [], {
+      'mcp:get-configuration': () => view([server({ name: 'bad' }), server({ name: 'docs' })]),
+      'mcp:inspect-server': (input) => {
+        if (input.name === 'bad') throw new Error('MCP_TOKEN is not set')
+        return { name: input.name, state: 'connected', tools: [] }
+      },
+    })
+
+    expect(result.logs).toContain('bad: failed')
+    expect(result.logs).toContain('MCP_TOKEN is not set')
+    expect(result.logs).toContain('docs: connected, 0 tools')
+    expect(result.exitCode).toBe(1)
+  })
+
   it('reports sign-in, errors, and config errors as JSON and exits 1', async () => {
     const result = await run('list', ['--json'], {
       'mcp:get-configuration': () =>

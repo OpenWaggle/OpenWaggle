@@ -10,6 +10,7 @@ import {
   type McpManagementCommandInput,
   type McpManagementExit,
 } from './mcp-cli-management-context'
+import { inspectEnabledServers } from './mcp-cli-management-inspect'
 
 /** `openwaggle mcp list`: connects to every enabled server and prints what `pi mcp list` prints. */
 
@@ -78,16 +79,8 @@ export async function listCommand({
   if (args.positional.length > 0)
     throw new McpCliUsageError('Usage: openwaggle mcp list [--json] [-l]')
   const view = await context.host.invoke('mcp:get-configuration', { projectPath })
-  const reports = await Promise.all(
-    view.servers.map(async (server) =>
-      server.enabled
-        ? report(
-            server,
-            await context.host.invoke('mcp:inspect-server', { projectPath, name: server.name }),
-          )
-        : report(server),
-    ),
-  )
+  const inspections = await inspectEnabledServers(context, projectPath, view.servers)
+  const reports = view.servers.map((server) => report(server, inspections.get(server.name)))
   const failed =
     view.errors.length > 0 || reports.some((entry) => entry.enabled && entry.state !== 'connected')
   if (args.flags.has('json')) {

@@ -43,6 +43,8 @@ export interface McpRuntimeConfig {
   readonly transports: ReadonlyMap<string, McpTransportKind>
   /** The merge before secret resolution, with file ids, for management views. */
   readonly merged: McpMergedConfig
+  /** Servers left out because a vault secret could not be read, with why. */
+  readonly unavailable: ReadonlyMap<string, string>
 }
 
 export type McpSecretResolver = (name: string) => Promise<string>
@@ -151,10 +153,12 @@ export async function loadMcpRuntimeConfig(
   const errors = [...merged.errors]
   const servers: McpRuntimeServerEntry[] = []
   const transports = new Map<string, McpTransportKind>()
+  const unavailable = new Map<string, string>()
   for (const server of selected) {
     const resolved = await resolveServer(server, input.resolveSecret)
     if (!resolved.ok) {
       errors.push(resolved.error)
+      unavailable.set(server.name, resolved.error)
       continue
     }
     servers.push(runtimeEntry(server, resolved.config))
@@ -171,5 +175,6 @@ export async function loadMcpRuntimeConfig(
     },
     transports,
     merged,
+    unavailable,
   }
 }

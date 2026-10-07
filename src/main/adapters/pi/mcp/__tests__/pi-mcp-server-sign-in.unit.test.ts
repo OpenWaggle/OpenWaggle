@@ -36,6 +36,7 @@ vi.mock('../../../mcp/config/mcp-runtime-config', () => ({
       errors: [],
     },
     transports: new Map(),
+    unavailable: new Map(),
   }),
 }))
 vi.mock('../openwaggle-mcp-credentials', () => ({

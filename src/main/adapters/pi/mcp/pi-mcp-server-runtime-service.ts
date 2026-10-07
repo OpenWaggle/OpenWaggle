@@ -49,10 +49,11 @@ async function findServer(input: McpServerScopeInput, roots: PiMcpServerRuntimeR
     resolveSecret: resolveMcpVaultSecret,
   })
   const entry = config.loaded.servers.find((server) => server.name === input.name)
+  const unavailable = config.unavailable.get(input.name)
   if (!entry) {
     throw new McpConfigurationError({
-      reason: 'not-found',
-      message: `No MCP server named "${input.name}" is configured.`,
+      reason: unavailable ? 'validation' : 'not-found',
+      message: unavailable ?? `No MCP server named "${input.name}" is configured.`,
     })
   }
   const transport = config.transports.get(entry.name) ?? ('url' in entry.config ? 'http' : 'stdio')
@@ -91,7 +92,15 @@ export async function inspectMcpServer(
   input: McpServerScopeInput,
   roots: PiMcpServerRuntimeRoots = defaultMcpServerRuntimeRoots(),
 ): Promise<McpServerInspection> {
-  const { entry, transport } = await findServer(input, roots)
+  let found: Awaited<ReturnType<typeof findServer>>
+  try {
+    found = await findServer(input, roots)
+  } catch (error) {
+    // A vault secret that cannot be read fails this server's check, not the whole list.
+    if (!(error instanceof McpConfigurationError) || error.reason !== 'validation') throw error
+    return { name: input.name, state: 'failed', tools: [], error: error.message }
+  }
+  const { entry, transport } = found
   const inspection = await connectAndList(entry, transport, input.projectPath ?? homedir())
   recordMcpServerCheck(mcpServerIdentity(entry.name, entry.config), inspection)
   return inspection
@@ -117,23 +126,25 @@ async function connectAndList(
         onChallenge: () => {},
       })
     : undefined
-  const upstream = openPiMcpUpstream({
-    entry,
-    transport,
-    cwd,
-    authProvider: hardenedMcpAuthProvider(entry, authProvider),
-  })
   const client = new McpClient({
     name: 'openwaggle',
     version: '1',
     requestTimeoutMs: INSPECT_TIMEOUT_MS,
   })
+  let upstream: ReturnType<typeof openPiMcpUpstream> | undefined
   try {
+    // Inside the try: a `${NAME}` that does not resolve fails this server's check.
+    upstream = openPiMcpUpstream({
+      entry,
+      transport,
+      cwd,
+      authProvider: hardenedMcpAuthProvider(entry, authProvider),
+    })
     await client.connect(upstream.transport)
     const tools = client.serverCapabilities?.tools ? await client.listTools() : []
     return { ...base, state: 'connected', tools: toolViews(entry, tools) }
   } catch (error) {
-    const stderrTail = upstream.stderrTail?.()
+    const stderrTail = upstream?.stderrTail?.()
     return {
       ...base,
       state: needsSignIn(error) ? 'needs-sign-in' : 'failed',
@@ -143,6 +154,7 @@ async function connectAndList(
     }
   } finally {
     await client.close().catch(() => undefined)
+    await upstream?.close?.().catch(() => undefined)
     await authProvider?.settled()
   }
 }

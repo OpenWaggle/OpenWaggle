@@ -11,7 +11,10 @@ import { McpConfigurationService } from '../../../../ports/mcp-configuration-ser
 import { WorkspaceProjectAuthorization } from '../../../../ports/workspace-project-authorization'
 import { migrateOpenWaggleMcpFiles } from '../../migration/migrate-openwaggle-mcp-files'
 import { createFilesystemMcpConfigurationService } from '../filesystem-mcp-configuration-service'
-import { migrateBeforeEachCall } from '../migrating-mcp-configuration-service'
+import {
+  migrateBeforeEachCall,
+  withRuntimeConfigErrors,
+} from '../migrating-mcp-configuration-service'
 
 let root: string
 let homeDir: string
@@ -86,5 +89,29 @@ describe('MCP configuration reads and writes from Settings and the CLI', () => {
       url: 'https://docs.example/mcp',
       exposure: 'direct',
     })
+  })
+})
+
+describe('the MCP configuration view', () => {
+  it('reports a server left out of every Run because its vault secret cannot be read', async () => {
+    write(path.join(homeDir, '.openwaggle', 'mcp.json'), {
+      mcpServers: {
+        docs: { url: 'https://d.example', headers: { Authorization: { secret: 'GONE' } } },
+      },
+    })
+    const service = createFilesystemMcpConfigurationService({
+      homeDir,
+      piAgentDir: path.join(homeDir, '.pi', 'agent'),
+    })
+    const vaultError = 'mcp.json: server "docs": headers "Authorization" names vault secret "GONE"'
+    const merged = (await Effect.runPromise(service.getView({ projectPath: null }))).errors
+
+    const view = await Effect.runPromise(
+      withRuntimeConfigErrors(service, async () => [...merged, vaultError]).getView({
+        projectPath: null,
+      }),
+    )
+
+    expect(view.errors).toEqual([...merged, vaultError])
   })
 })
