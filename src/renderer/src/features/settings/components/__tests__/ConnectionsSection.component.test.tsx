@@ -293,4 +293,16 @@ describe('ConnectionsSection', () => {
 
     expect(screen.getByText(/no providers or models were reported/i)).toBeInTheDocument()
   })
+
+  it('says no sign-in providers are available without naming the runtime', () => {
+    useProviderStore.setState({
+      ...useProviderStore.getInitialState(),
+      providerModels: PROVIDER_MODELS.filter((info) => !info.auth.supportsOAuth),
+    })
+
+    render(<ConnectionsSection />)
+    fireEvent.click(screen.getByRole('button', { name: /OAuth Providers/i }))
+
+    expect(screen.getByText('No sign-in providers are available.')).toBeInTheDocument()
+  })
 })

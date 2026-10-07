@@ -120,7 +120,7 @@ export function ConnectionsSection() {
         count={oauthProviders.length}
         isOpen={oauthOpen}
         icon={ShieldCheck}
-        emptyText={isLoading ? loadingText : 'Pi did not report any OAuth providers.'}
+        emptyText={isLoading ? loadingText : 'No sign-in providers are available.'}
         onToggle={() => setOauthOpen((open) => !open)}
       >
         {oauthProviders.map((providerInfo, index) => (
