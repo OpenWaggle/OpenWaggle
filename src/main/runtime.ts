@@ -20,6 +20,8 @@ import { LocalSessionCredentialVerifierLive } from './adapters/local-session-cre
 import { idleCacheWarming } from './adapters/pi/agent-kernel/pi-idle-cache-warming'
 import { EncryptedMcpSecretVaultServiceLive } from './adapters/mcp/encrypted-mcp-secret-vault-service'
 import { mcpSessionConnectionPool } from './adapters/mcp/pool/mcp-connection-pool-instance'
+import { forgetMcpAppTools } from './adapters/pi/mcp/mcp-app-registry'
+import { PiMcpAppRuntimeServiceLive } from './adapters/pi/mcp/pi-mcp-app-runtime-service'
 import { PiAgentKernelLive } from './adapters/pi/pi-agent-kernel-adapter'
 import { PiAgentSteeringServiceLive } from './adapters/pi/pi-agent-steering-adapter'
 import { registerPiBundledOAuthFlows } from './adapters/pi/pi-bundled-oauth'
@@ -232,6 +234,7 @@ const AppLayer = Layer.mergeAll(
   FilesystemStandardsLive,
   PiAgentKernelWithExtensionSelectionLive,
   EncryptedMcpSecretVaultServiceLive,
+  PiMcpAppRuntimeServiceLive,
   PiProviderAuthLive,
   PiProviderProbeWithExtensionSelectionLive,
   PiProviderOAuthLive,
@@ -266,13 +269,17 @@ function installStoreEffectRunner() {
   setStoreEffectRunner((effect) => getAppRuntime().runPromise(effect))
 }
 
-let unregisterMcpSessionRemoval: (() => void) | null = null
+let mcpSessionRemovalInstalled = false
 
 export async function initializeAppRuntime(): Promise<void> {
   // Archiving or deleting a Session, including Hive cleanup of a Worker, closes its MCP servers.
-  unregisterMcpSessionRemoval ??= onSessionRemoved((sessionId) =>
-    mcpSessionConnectionPool.closeSession(sessionId),
-  )
+  if (!mcpSessionRemovalInstalled) {
+    mcpSessionRemovalInstalled = true
+    onSessionRemoved((sessionId) => {
+      forgetMcpAppTools(sessionId)
+      return mcpSessionConnectionPool.closeSession(sessionId)
+    })
+  }
   await getAppRuntime().runPromise(Effect.void)
 }
 

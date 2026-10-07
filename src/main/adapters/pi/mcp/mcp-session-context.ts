@@ -2,6 +2,7 @@ import { safeDecodeUnknown } from '@shared/schema'
 import { mcpConfigValueSchema } from '@shared/schemas/mcp'
 import type { McpJsonValue } from '@shared/types/mcp'
 import type { McpConnectionHooks } from '../../mcp/pool/mcp-session-connection-pool'
+import { recordMcpAppTools } from './mcp-app-registry'
 import type { McpRuntimeInteractions } from './mcp-interaction-types'
 
 /**
@@ -71,6 +72,10 @@ export function openWaggleMcpConnectionHooks(
 ): McpConnectionHooks {
   return {
     augmentInitializeParams: withOpenWaggleClientCapabilities,
+    // Pi drops a tool's `_meta`, where an MCP App names its `ui://` resource, so it is read here.
+    observeResult: (method, _params, result) => {
+      if (method === 'tools/list') recordMcpAppTools(sessionId, serverName, result)
+    },
     handleServerRequest: ({ method, params, signal }) => {
       if (method === 'sampling/createMessage') {
         return Promise.resolve().then(() => {

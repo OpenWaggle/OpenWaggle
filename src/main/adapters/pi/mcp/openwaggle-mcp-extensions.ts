@@ -19,6 +19,7 @@ import {
 import { mcpConnectionFingerprint, mcpServerIdentity } from '../../mcp/pool/mcp-server-identity'
 import { createPiMcpRuntimeInteractions } from '../mcp-client-interactions'
 import { getPiAgentDir } from '../pi-provider-catalog'
+import { mcpAppDescriptor } from './mcp-app-registry'
 import { attachSessionMcpContext, openWaggleMcpConnectionHooks } from './mcp-session-context'
 import { approveMcpToolCall } from './mcp-tool-approval'
 import { getOpenWaggleMcpCredentials, openWaggleMcpLogPath } from './openwaggle-mcp-credentials'
@@ -69,6 +70,65 @@ function serverOfTool(pi: ExtensionAPI, config: McpRuntimeConfig, toolName: stri
   return { name: namespace.replace(/^mcp__/, ''), identity: `mcp-extension:${namespace}` }
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+/**
+ * Adds the MCP App a tool result opens to the result's details, so the renderer's MCP App host
+ * can show it under the tool call. Pi's MCP tools put `{ server, tool }` in their details and the
+ * whole `CallToolResult` (without `_meta`) in `structuredContent`.
+ */
+function withMcpApp(
+  sessionId: string,
+  config: McpRuntimeConfig,
+  event: {
+    readonly toolName: string
+    readonly details: unknown
+    readonly structuredContent?: unknown
+  },
+) {
+  const details = event.details
+  if (
+    !isRecord(details) ||
+    typeof details.server !== 'string' ||
+    typeof details.tool !== 'string'
+  ) {
+    return undefined
+  }
+  const server = config.loaded.servers.find((entry) => entry.name === details.server)
+  if (!server) return undefined
+  const descriptor = mcpAppDescriptor({
+    sessionId,
+    serverName: server.name,
+    serverIdentity: mcpServerIdentity(server.name, server.config),
+    toolName: details.tool,
+    piToolName: event.toolName,
+  })
+  if (!descriptor) return undefined
+  const result = isRecord(event.structuredContent) ? event.structuredContent : {}
+  return {
+    details: {
+      ...details,
+      mcpApp: {
+        descriptor,
+        toolResult: {
+          content: result.content ?? [],
+          ...(result.structuredContent === undefined
+            ? {}
+            : { structuredContent: result.structuredContent }),
+          isError: result.isError === true,
+          attribution: {
+            serverInstanceId: descriptor.serverInstanceId,
+            serverLabel: descriptor.serverLabel,
+            toolName: descriptor.toolName,
+          },
+        },
+      },
+    },
+  }
+}
+
 function companionExtension(input: OpenWaggleMcpSessionInput, config: McpRuntimeConfig) {
   const servers = serverIdentities(config)
   return (pi: ExtensionAPI) => {
@@ -84,6 +144,9 @@ function companionExtension(input: OpenWaggleMcpSessionInput, config: McpRuntime
       detach?.()
       detach = undefined
     })
+    pi.on('tool_result', (event) =>
+      event.toolName.startsWith('mcp__') ? withMcpApp(input.sessionId, config, event) : undefined,
+    )
     pi.on('tool_call', async (event, ctx) => {
       if (!event.toolName.startsWith('mcp__')) return undefined
       const server = serverOfTool(pi, config, event.toolName)

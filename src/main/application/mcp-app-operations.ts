@@ -1,21 +1,90 @@
+import { decodeUnknownOrThrow } from '@shared/schema'
+import { mcpConfigValueSchema } from '@shared/schemas/mcp'
+import type { McpAppToolCallResult, McpResourceResult } from '@shared/types/mcp-apps'
+import { Schema } from 'effect'
 import * as Effect from 'effect/Effect'
+import { McpAppRuntimeService } from '../ports/mcp-app-runtime-service'
 
 /**
- * MCP Apps read their `ui://` resources and call their tools through Pi's MCP runtime (ADR 0048).
- * OpenWaggle's own client is gone and the transport layer that replaces it is not wired in yet,
- * so both operations fail with a message the MCP App host can show.
+ * MCP Apps read their `ui://` resources and call their server's tools over the Session's MCP
+ * connection (ADR 0048). `serverInstanceId` is the Session's server name and `serverConfigHash`
+ * the server identity the App was opened with.
  */
-export const MCP_APPS_UNAVAILABLE_MESSAGE =
-  "MCP Apps are moving to Pi's MCP runtime and are unavailable in this build."
-
-function mcpAppsUnavailable() {
-  return Effect.fail(new Error(MCP_APPS_UNAVAILABLE_MESSAGE))
+const appServerFields = {
+  projectPath: Schema.optional(Schema.NullOr(Schema.String)),
+  sessionId: Schema.optional(Schema.NullOr(Schema.String)),
+  serverInstanceId: Schema.String,
+  serverConfigHash: Schema.optional(Schema.String),
 }
 
-export function readMcpResourceOperation(_raw: unknown) {
-  return mcpAppsUnavailable()
+const readResourceInputSchema = Schema.Struct({ ...appServerFields, uri: Schema.String })
+
+const callToolInputSchema = Schema.Struct({
+  ...appServerFields,
+  toolName: Schema.String,
+  arguments: Schema.Record({ key: Schema.String, value: mcpConfigValueSchema }),
+})
+
+function decode<A, I>(schema: Schema.Schema<A, I>, raw: unknown) {
+  return Effect.try({
+    try: () => decodeUnknownOrThrow(schema, raw),
+    catch: () => new Error('Invalid MCP App request.'),
+  })
 }
 
-export function callMcpAppToolOperation(_raw: unknown) {
-  return mcpAppsUnavailable()
+function serverInput(input: {
+  readonly projectPath?: string | null
+  readonly sessionId?: string | null
+  readonly serverInstanceId: string
+  readonly serverConfigHash?: string
+}) {
+  if (!input.sessionId) {
+    return Effect.fail(new Error('MCP Apps need the Session whose tool result opened them.'))
+  }
+  if (!input.serverConfigHash) {
+    return Effect.fail(
+      new Error('This MCP App was opened by an older OpenWaggle; run the tool again.'),
+    )
+  }
+  return Effect.succeed({
+    projectPath: input.projectPath ?? null,
+    sessionId: input.sessionId,
+    serverName: input.serverInstanceId,
+    serverIdentity: input.serverConfigHash,
+  })
+}
+
+export function readMcpResourceOperation(raw: unknown) {
+  return Effect.gen(function* () {
+    const input = yield* decode(readResourceInputSchema, raw)
+    const server = yield* serverInput(input)
+    const contents = yield* (yield* McpAppRuntimeService).readResource({
+      ...server,
+      uri: input.uri,
+    })
+    return {
+      contents,
+      attribution: { serverInstanceId: server.serverName, serverLabel: server.serverName },
+    } satisfies McpResourceResult
+  })
+}
+
+export function callMcpAppToolOperation(raw: unknown) {
+  return Effect.gen(function* () {
+    const input = yield* decode(callToolInputSchema, raw)
+    const server = yield* serverInput(input)
+    const result = yield* (yield* McpAppRuntimeService).callTool({
+      ...server,
+      toolName: input.toolName,
+      arguments: input.arguments,
+    })
+    return {
+      ...result,
+      attribution: {
+        serverInstanceId: server.serverName,
+        serverLabel: server.serverName,
+        toolName: input.toolName,
+      },
+    } satisfies McpAppToolCallResult
+  })
 }

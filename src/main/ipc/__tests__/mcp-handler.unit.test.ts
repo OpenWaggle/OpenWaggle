@@ -3,7 +3,10 @@ import { fromPartial } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { MCP_APPS_UNAVAILABLE_MESSAGE } from '../../application/mcp-app-operations'
+import {
+  McpAppRuntimeService,
+  type McpAppRuntimeServiceShape,
+} from '../../ports/mcp-app-runtime-service'
 import {
   McpSecretVaultService,
   type McpSecretVaultServiceShape,
@@ -26,7 +29,22 @@ function makeTestLayer() {
     set: setSecret,
     remove: removeSecret,
   })
-  return { layer: Layer.succeed(McpSecretVaultService, vault), setSecret, removeSecret }
+  const readResource = vi.fn<McpAppRuntimeServiceShape['readResource']>(() =>
+    Effect.succeed([{ uri: 'ui://app', text: '<p>app</p>' }]),
+  )
+  const callTool = vi.fn<McpAppRuntimeServiceShape['callTool']>(() =>
+    Effect.succeed({ content: [], isError: false }),
+  )
+  return {
+    layer: Layer.merge(
+      Layer.succeed(McpSecretVaultService, vault),
+      Layer.succeed(McpAppRuntimeService, { readResource, callTool }),
+    ),
+    setSecret,
+    removeSecret,
+    readResource,
+    callTool,
+  }
 }
 
 function getRegisteredHandler(name: string, layer: ReturnType<typeof makeTestLayer>['layer']) {
@@ -74,14 +92,42 @@ describe('MCP IPC handlers', () => {
     expect(test.setSecret).not.toHaveBeenCalled()
   })
 
-  it.each(['mcp:read-resource', 'mcp:call-app-tool'])(
-    'fails %s until MCP Apps run on Pi',
-    async (channel) => {
-      const test = makeTestLayer()
+  it("reads an MCP App's ui:// resource over the Session's connection to its server", async () => {
+    const test = makeTestLayer()
 
-      await expect(getRegisteredHandler(channel, test.layer)({}, {})).rejects.toThrow(
-        MCP_APPS_UNAVAILABLE_MESSAGE,
-      )
-    },
-  )
+    const result = await getRegisteredHandler('mcp:read-resource', test.layer)(
+      {},
+      {
+        projectPath: '/p',
+        sessionId: 's1',
+        serverInstanceId: 'figma',
+        serverConfigHash: 'mcp-server:abc',
+        uri: 'ui://app',
+      },
+    )
+
+    expect(test.readResource).toHaveBeenCalledWith({
+      projectPath: '/p',
+      sessionId: 's1',
+      serverName: 'figma',
+      serverIdentity: 'mcp-server:abc',
+      uri: 'ui://app',
+    })
+    expect(result).toEqual({
+      contents: [{ uri: 'ui://app', text: '<p>app</p>' }],
+      attribution: { serverInstanceId: 'figma', serverLabel: 'figma' },
+    })
+  })
+
+  it('refuses an MCP App request without the Session that opened it', async () => {
+    const test = makeTestLayer()
+
+    await expect(
+      getRegisteredHandler('mcp:call-app-tool', test.layer)(
+        {},
+        { serverInstanceId: 'figma', serverConfigHash: 'x', toolName: 't', arguments: {} },
+      ),
+    ).rejects.toThrow('MCP Apps need the Session whose tool result opened them.')
+    expect(test.callTool).not.toHaveBeenCalled()
+  })
 })
