@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { migrateOpenWaggleMcpFiles } from '../migrate-openwaggle-mcp-files'
-import { NOW, oldFingerprint } from './migration-fixtures'
+import { allConnectedState, NOW, oldFingerprint } from './migration-fixtures'
 
 const roots: string[] = []
 
@@ -31,7 +31,7 @@ describe('migrateOpenWaggleMcpFiles on disk', () => {
     const projectFile = path.join(projectPath, '.openwaggle', 'mcp.json')
     const normalized = { command: 'npx', args: ['tools-mcp'] }
     await writeJson(piGlobal, { mcpServers: { tools: { command: 'npx', args: ['tools-mcp'] } } })
-    await writeJson(openwaggleGlobal, {
+    const openwaggleGlobalContent = {
       mcpServers: {
         tools: {
           ...normalized,
@@ -43,8 +43,18 @@ describe('migrateOpenWaggleMcpFiles on disk', () => {
           },
         },
       },
-    })
-    await writeJson(projectFile, { mcpServers: { local: { command: 'local', required: true } } })
+    }
+    const projectContent = { mcpServers: { local: { command: 'local', required: true } } }
+    await writeJson(openwaggleGlobal, openwaggleGlobalContent)
+    await writeJson(projectFile, projectContent)
+    // MCP was on and both servers were turned on, so the migration keeps them on.
+    await writeJson(
+      path.join(homeDir, '.openwaggle', 'mcp', 'state.json'),
+      allConnectedState({
+        [openwaggleGlobal]: openwaggleGlobalContent,
+        [projectFile]: projectContent,
+      }),
+    )
 
     const first = await migrateOpenWaggleMcpFiles({
       homeDir,

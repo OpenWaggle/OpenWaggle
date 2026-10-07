@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { migrateOpenWaggleMcpFiles } from '../migrate-openwaggle-mcp-files'
 import {
+  allConnectedState,
+  connectedFs,
   HOME,
   LEGACY_STATE,
   legacyState,
@@ -29,7 +31,7 @@ function globalServers(fs: ReturnType<typeof memoryFs>) {
 describe('migrating Pi copies in ~/.openwaggle/mcp.json', () => {
   it('keeps a copy edited after import as a full entry without its Pi provenance', async () => {
     const copy = piCopy(PI_GLOBAL, 'tools', TOOLS_NORMALIZED)
-    const fs = memoryFs({
+    const fs = connectedFs({
       [PI_GLOBAL]: { mcpServers: { tools: { command: 'tools-mcp', args: ['--stdio'] } } },
       [OPENWAGGLE_GLOBAL]: {
         mcpServers: {
@@ -58,7 +60,7 @@ describe('migrating Pi copies in ~/.openwaggle/mcp.json', () => {
   })
 
   it('keeps an orphaned copy whose Pi entry was removed', async () => {
-    const fs = memoryFs({
+    const fs = connectedFs({
       [PI_GLOBAL]: { mcpServers: {} },
       [OPENWAGGLE_GLOBAL]: { mcpServers: { tools: piCopy(PI_GLOBAL, 'tools', TOOLS_NORMALIZED) } },
     })
@@ -69,7 +71,7 @@ describe('migrating Pi copies in ~/.openwaggle/mcp.json', () => {
   })
 
   it('keeps a copy whose Pi entry changed after import', async () => {
-    const fs = memoryFs({
+    const fs = connectedFs({
       [PI_GLOBAL]: { mcpServers: { tools: { command: 'tools-mcp', args: ['--http'] } } },
       [OPENWAGGLE_GLOBAL]: { mcpServers: { tools: piCopy(PI_GLOBAL, 'tools', TOOLS_NORMALIZED) } },
     })
@@ -81,7 +83,7 @@ describe('migrating Pi copies in ~/.openwaggle/mcp.json', () => {
 
   it('keeps a copy imported from a Pi file that is no longer read live', async () => {
     const legacyPiFile = `${HOME}/.config/mcp/mcp.json`
-    const fs = memoryFs({
+    const fs = connectedFs({
       [legacyPiFile]: { mcpServers: { tools: { command: 'tools-mcp', args: ['--stdio'] } } },
       [OPENWAGGLE_GLOBAL]: {
         mcpServers: { tools: piCopy(legacyPiFile, 'tools', TOOLS_NORMALIZED) },
@@ -94,7 +96,7 @@ describe('migrating Pi copies in ~/.openwaggle/mcp.json', () => {
   })
 
   it('turns a directTools list on a removed copy into a toolExposure override', async () => {
-    const fs = memoryFs({
+    const fs = connectedFs({
       [PI_GLOBAL]: {
         mcpServers: {
           docs: { url: 'https://docs.example.com/mcp', toolExposure: { delete_page: 'hidden' } },
@@ -115,7 +117,7 @@ describe('migrating Pi copies in ~/.openwaggle/mcp.json', () => {
   })
 
   it('removes the copy entirely when the Pi entry already exposes its tools directly', async () => {
-    const fs = memoryFs({
+    const fs = connectedFs({
       [PI_GLOBAL]: {
         mcpServers: { tools: { command: 'tools-mcp', args: ['--stdio'], exposure: 'direct' } },
       },
@@ -131,9 +133,14 @@ describe('migrating Pi copies in ~/.openwaggle/mcp.json', () => {
     expect(globalServers(fs)).toEqual({})
   })
 
-  it('carries a server the user turned off into the entry or its override', async () => {
+  it('keeps servers that connected on and turns off every server that did not', async () => {
     const fs = memoryFs({
-      [PI_GLOBAL]: { mcpServers: { tools: { command: 'tools-mcp', args: ['--stdio'] } } },
+      [PI_GLOBAL]: {
+        mcpServers: {
+          tools: { command: 'tools-mcp', args: ['--stdio'] },
+          piOnly: { command: 'pi-only-mcp' },
+        },
+      },
       [OPENWAGGLE_GLOBAL]: {
         mcpServers: {
           tools: piCopy(PI_GLOBAL, 'tools', TOOLS_NORMALIZED),
@@ -142,10 +149,11 @@ describe('migrating Pi copies in ~/.openwaggle/mcp.json', () => {
         },
       },
       [LEGACY_STATE]: legacyState({
+        globalState: 'on',
         servers: {
           [oldIdentityKey(OPENWAGGLE_GLOBAL, 'tools')]: {
             instanceId: 'a',
-            enabled: false,
+            enabled: true,
             trustedConfigHash: 'h1',
           },
           [oldIdentityKey(OPENWAGGLE_GLOBAL, 'local')]: {
@@ -153,10 +161,40 @@ describe('migrating Pi copies in ~/.openwaggle/mcp.json', () => {
             enabled: false,
             trustedConfigHash: 'h2',
           },
-          // Never enabled: the old trust gate's default, not a user choice.
+          // Never turned on: it never passed the old trust step, so it never connected.
           [oldIdentityKey(OPENWAGGLE_GLOBAL, 'neverEnabled')]: { instanceId: 'c', enabled: false },
         },
       }),
+    })
+
+    const report = await migrate(fs)
+
+    // `piOnly` was never read by the old code, so it did not connect either.
+    expect(globalServers(fs)).toEqual({
+      local: { command: 'local-mcp', enabled: false },
+      neverEnabled: { command: 'other-mcp', enabled: false },
+      piOnly: { enabled: false },
+    })
+    expect(report.files[0]?.changes).toContainEqual({
+      server: 'neverEnabled',
+      action: 'disabled-by-state',
+      details: ['turned off because it was not turned on in OpenWaggle'],
+    })
+  })
+
+  it('turns every server off when MCP was off in OpenWaggle', async () => {
+    const files = {
+      [PI_GLOBAL]: { mcpServers: { tools: { command: 'tools-mcp', args: ['--stdio'] } } },
+      [OPENWAGGLE_GLOBAL]: {
+        mcpServers: {
+          tools: piCopy(PI_GLOBAL, 'tools', TOOLS_NORMALIZED),
+          local: { command: 'local-mcp' },
+        },
+      },
+    }
+    const fs = memoryFs({
+      ...files,
+      [LEGACY_STATE]: { ...allConnectedState(files), globalState: 'off' },
     })
 
     await migrate(fs)
@@ -164,7 +202,15 @@ describe('migrating Pi copies in ~/.openwaggle/mcp.json', () => {
     expect(globalServers(fs)).toEqual({
       tools: { enabled: false },
       local: { command: 'local-mcp', enabled: false },
-      neverEnabled: { command: 'other-mcp' },
     })
+  })
+
+  it('leaves Pi servers on for someone who never set up MCP in OpenWaggle', async () => {
+    const fs = memoryFs({ [PI_GLOBAL]: { mcpServers: { tools: { command: 'tools-mcp' } } } })
+
+    const report = await migrate(fs)
+
+    expect(fs.files.has(OPENWAGGLE_GLOBAL)).toBe(false)
+    expect(report.files).toEqual([{ path: OPENWAGGLE_GLOBAL, status: 'unchanged', changes: [] }])
   })
 })

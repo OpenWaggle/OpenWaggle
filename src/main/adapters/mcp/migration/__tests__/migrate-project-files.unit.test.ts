@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { migrateOpenWaggleMcpFiles } from '../migrate-openwaggle-mcp-files'
 import {
+  allConnectedState,
   HOME,
   LEGACY_STATE,
   legacyState,
@@ -52,6 +53,7 @@ describe('migrating <project>/.openwaggle/mcp.json', () => {
     const fs = memoryFs({
       [OPENWAGGLE_GLOBAL]: { mcpServers: { lint: LINT, docs: { command: 'docs-mcp' } } },
       [LEGACY_STATE]: legacyState({
+        globalState: 'on',
         projectServerStates: { [PROJECT]: { 'lint-id': 'off', 'docs-id': 'on' } },
         servers: {
           [oldIdentityKey(OPENWAGGLE_GLOBAL, 'lint')]: { instanceId: 'lint-id', enabled: true },
@@ -75,6 +77,7 @@ describe('migrating <project>/.openwaggle/mcp.json', () => {
       [PI_GLOBAL]: { mcpServers: { lint: LINT } },
       [OPENWAGGLE_GLOBAL]: { mcpServers: { lint: piCopy(PI_GLOBAL, 'lint', LINT) } },
       [LEGACY_STATE]: legacyState({
+        globalState: 'on',
         projectServerStates: { [PROJECT]: { 'lint-id': 'off' } },
         servers: {
           [oldIdentityKey(OPENWAGGLE_GLOBAL, 'lint')]: { instanceId: 'lint-id', enabled: true },
@@ -89,20 +92,29 @@ describe('migrating <project>/.openwaggle/mcp.json', () => {
   })
 
   it('turns every server visible in a project off when MCP was off for that project', async () => {
-    const fs = memoryFs({
+    const files = {
       [PI_GLOBAL]: { mcpServers: { piServer: { command: 'pi-mcp' } } },
       [OPENWAGGLE_GLOBAL]: { mcpServers: { owServer: { command: 'ow-mcp' } } },
       [PROJECT_MCP_JSON]: { mcpServers: { shared: { command: 'shared-mcp' } } },
-      [PROJECT_FILE]: { mcpServers: { local: { command: 'local-mcp', required: true } } },
-      [LEGACY_STATE]: legacyState({ projectStates: { [PROJECT]: 'off', '/work/other': 'on' } }),
+      [PROJECT_FILE]: { mcpServers: { local: { command: 'local-mcp' } } },
+    }
+    const fs = memoryFs({
+      ...files,
+      [LEGACY_STATE]: {
+        ...allConnectedState(files),
+        projectStates: { [PROJECT]: 'off', '/work/other': 'on' },
+      },
     })
 
     await migrate(fs)
 
+    // Pi's file was never read before, so its server is off everywhere.
+    expect(fs.json(OPENWAGGLE_GLOBAL)).toEqual({
+      mcpServers: { owServer: { command: 'ow-mcp' }, piServer: { enabled: false } },
+    })
     expect(fs.json(PROJECT_FILE)).toEqual({
       mcpServers: {
         local: { command: 'local-mcp', enabled: false },
-        piServer: { enabled: false },
         owServer: { enabled: false },
         shared: { enabled: false },
       },
@@ -110,11 +122,70 @@ describe('migrating <project>/.openwaggle/mcp.json', () => {
     expect(fs.files.has('/work/other/.openwaggle/mcp.json')).toBe(false)
   })
 
+  it('keeps a server on in a project where MCP was on although it was off elsewhere', async () => {
+    const files = { [OPENWAGGLE_GLOBAL]: { mcpServers: { owServer: { command: 'ow-mcp' } } } }
+    const fs = memoryFs({
+      ...files,
+      [LEGACY_STATE]: {
+        ...allConnectedState(files),
+        globalState: 'off',
+        projectStates: { [PROJECT]: 'on' },
+      },
+    })
+
+    const report = await migrate(fs)
+
+    expect(fs.json(OPENWAGGLE_GLOBAL)).toEqual({
+      mcpServers: { owServer: { command: 'ow-mcp', enabled: false } },
+    })
+    expect(fs.json(PROJECT_FILE)).toEqual({ mcpServers: { owServer: { enabled: true } } })
+    expect(report.files[1]?.changes).toEqual([
+      {
+        server: 'owServer',
+        action: 'enabled-by-state',
+        details: ['kept on, as it connected before'],
+      },
+    ])
+  })
+
+  it('leaves projects OpenWaggle did not know at the first run to the new behaviour', async () => {
+    const fs = memoryFs({
+      [OPENWAGGLE_GLOBAL]: { mcpServers: {} },
+      [LEGACY_STATE]: legacyState({ globalState: 'on' }),
+    })
+    await migrate(fs, [])
+    fs.files.set(PROJECT_PI, `${JSON.stringify({ mcpServers: { lint: LINT } })}\n`)
+
+    await migrate(fs, [PROJECT])
+
+    expect(fs.files.has(PROJECT_FILE)).toBe(false)
+  })
+
+  it('keeps the on/off state of every project OpenWaggle knew at the first run', async () => {
+    const fs = memoryFs({
+      [OPENWAGGLE_GLOBAL]: { mcpServers: {} },
+      [PROJECT_PI]: { mcpServers: { lint: LINT } },
+      [LEGACY_STATE]: legacyState({ globalState: 'on' }),
+    })
+
+    await migrateOpenWaggleMcpFiles({
+      homeDir: HOME,
+      projectPaths: [],
+      knownProjectPaths: () => Promise.resolve([PROJECT]),
+      now: () => NOW,
+      fs,
+    })
+    await migrate(fs, [PROJECT])
+
+    expect(fs.json(PROJECT_FILE)).toEqual({ mcpServers: { lint: { enabled: false } } })
+  })
+
   it('carries a .mcp.json server the user turned off as an override and never writes .mcp.json', async () => {
     const mcpJson = `${JSON.stringify({ mcpServers: { shared: { command: 'shared-mcp' } } })}\n`
     const fs = memoryFs({
       [PROJECT_MCP_JSON]: mcpJson,
       [LEGACY_STATE]: legacyState({
+        globalState: 'on',
         servers: {
           [oldIdentityKey(PROJECT_MCP_JSON, 'shared')]: {
             instanceId: 'shared-id',
@@ -132,7 +203,7 @@ describe('migrating <project>/.openwaggle/mcp.json', () => {
     expect(fs.writes).not.toContain(PROJECT_MCP_JSON)
   })
 
-  it('reports the dropped session switches and the ignored global switch', async () => {
+  it('reports the dropped session switches', async () => {
     const fs = memoryFs({
       [LEGACY_STATE]: legacyState({
         globalState: 'on',
@@ -142,7 +213,6 @@ describe('migrating <project>/.openwaggle/mcp.json', () => {
 
     const report = await migrate(fs, [])
 
-    expect(report.ignoredGlobalState).toBe('on')
     expect(report.droppedSessionStates).toBe(2)
   })
 

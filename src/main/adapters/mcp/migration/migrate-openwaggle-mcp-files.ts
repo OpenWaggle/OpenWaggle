@@ -41,6 +41,11 @@ export interface MigrateOpenWaggleMcpFilesInput {
   readonly homeDir: string
   /** Known OpenWaggle projects; projects named in the old state.json are added. */
   readonly projectPaths: readonly string[]
+  /**
+   * Every project OpenWaggle knows, read once on the first run. Their servers keep the on/off
+   * state the old code gave them; projects added later get the new behaviour.
+   */
+  readonly knownProjectPaths?: () => Promise<readonly string[]>
   readonly now: () => Date
   readonly fs?: McpMigrationFs
   readonly logger?: Logger
@@ -61,8 +66,6 @@ export interface McpFileMigrationReport {
 export interface McpMigrationReport {
   readonly files: readonly McpFileMigrationReport[]
   readonly oauth: readonly McpOAuthMigrationResult[]
-  /** The old global MCP switch. It defaulted to off for everyone, so it is not carried over. */
-  readonly ignoredGlobalState?: string
   /** Session-level MCP switches in the old state; Session state now lives in the Host. */
   readonly droppedSessionStates: number
   /** Set when the migration could not start (unreadable record or old state). */
@@ -134,8 +137,35 @@ class McpFileMigrator {
 
 async function loadStart(fs: McpMigrationFs, homeDir: string) {
   const record = await McpMigrationRecord.load(fs, homeDir)
-  const state = parseLegacyState(await fs.readText(globalMcpPaths(homeDir).legacyState))
-  return { record, state }
+  const stateText = await fs.readText(globalMcpPaths(homeDir).legacyState)
+  return { record, state: parseLegacyState(stateText), stateExists: stateText !== undefined }
+}
+
+/**
+ * The projects whose servers keep their old on/off state, decided once. Null when OpenWaggle had
+ * no MCP setup (no old state and no global file): nothing connected before, but nothing was set
+ * up either, so Pi's servers simply work.
+ */
+async function legacyProjects(
+  input: MigrateOpenWaggleMcpFilesInput,
+  start: Awaited<ReturnType<typeof loadStart>>,
+  fs: McpMigrationFs,
+) {
+  const { record, state } = start
+  if (record.legacyProjects !== undefined) return record.legacyProjects
+  const hadGlobalFile =
+    (await fs.readText(globalMcpPaths(input.homeDir).openwaggleGlobal)) !== undefined
+  if (!start.stateExists && !hadGlobalFile) {
+    record.setLegacyProjects(null)
+    return null
+  }
+  const known = input.knownProjectPaths ? await input.knownProjectPaths() : []
+  const projects = [...known, ...input.projectPaths, ...legacyStateProjects(state)]
+    .filter((projectPath) => projectPath.trim().length > 0)
+    .map(normalizeLegacyProjectPath)
+  const unique = [...new Set(projects)]
+  record.setLegacyProjects(unique)
+  return unique
 }
 
 function knownProjects(input: MigrateOpenWaggleMcpFilesInput, state: LegacyStateFile) {
@@ -152,8 +182,10 @@ export async function migrateOpenWaggleMcpFiles(
   const fs = input.fs ?? nodeMcpMigrationFs
   const logger = input.logger ?? defaultLogger
   let start: Awaited<ReturnType<typeof loadStart>>
+  let kept: readonly string[] | null
   try {
     start = await loadStart(fs, input.homeDir)
+    kept = await legacyProjects(input, start, fs)
   } catch (error) {
     logger.error('MCP migration could not read its record or the old MCP state', {
       homeDir: input.homeDir,
@@ -168,7 +200,8 @@ export async function migrateOpenWaggleMcpFiles(
   const files: McpFileMigrationReport[] = [
     await migrator.run({
       path: paths.openwaggleGlobal,
-      compute: (original) => computeGlobalFile({ sources, state, original }),
+      compute: (original) =>
+        computeGlobalFile({ sources, state, original, preserveEnablement: kept !== null }),
     }),
   ]
   const projects = knownProjects(input, state)
@@ -176,7 +209,14 @@ export async function migrateOpenWaggleMcpFiles(
     files.push(
       await migrator.run({
         path: projectMcpPaths(projectPath).openwaggle,
-        compute: (original) => computeProjectFile({ sources, state, projectPath, original }),
+        compute: (original) =>
+          computeProjectFile({
+            sources,
+            state,
+            projectPath,
+            original,
+            preserveEnablement: kept?.includes(projectPath) === true,
+          }),
       }),
     )
   }
@@ -194,7 +234,6 @@ export async function migrateOpenWaggleMcpFiles(
   return {
     files,
     oauth,
-    ...(state.globalState === undefined ? {} : { ignoredGlobalState: state.globalState }),
     droppedSessionStates: Object.keys(state.sessionStates).length,
   }
 }

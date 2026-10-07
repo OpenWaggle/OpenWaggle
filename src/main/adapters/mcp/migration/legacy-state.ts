@@ -45,16 +45,6 @@ export function parseLegacyState(rawJson: string | undefined): LegacyStateFile {
   return decodeUnknownOrThrow(legacyStateFileSchema, parsed)
 }
 
-/**
- * Whether the old state records a user's choice to turn the server off. The
- * old code created every newly seen server as `enabled: false` until the user
- * enabled it, and enabling was the trust action (ADR 0035), so `enabled: false`
- * without a trust record is the removed trust gate's default, not a choice.
- */
-export function isUserDisabled(state: LegacyServerState | undefined) {
-  return state?.enabled === false && typeof state.trustedConfigHash === 'string'
-}
-
 /** The project paths the old state names (project switches and per-project server switches). */
 export function legacyStateProjects(state: LegacyStateFile) {
   return [...Object.keys(state.projectStates), ...Object.keys(state.projectServerStates)]

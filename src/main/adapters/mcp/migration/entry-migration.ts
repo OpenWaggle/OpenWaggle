@@ -16,11 +16,13 @@ import {
   legacyDefinitionHash,
   legacyImportFingerprint,
   legacyNormalizeImportedServer,
-  legacyServerIdentityKey,
 } from './legacy-pi-import'
-import { isUserDisabled, type LegacyStateFile } from './legacy-state'
 
-export type McpServerMigrationAction = 'replaced-by-pi-entry' | 'converted' | 'disabled-by-state'
+export type McpServerMigrationAction =
+  | 'replaced-by-pi-entry'
+  | 'converted'
+  | 'disabled-by-state'
+  | 'enabled-by-state'
 
 export interface McpServerMigrationChange {
   readonly server: string
@@ -34,9 +36,6 @@ export interface McpLayerServers {
 }
 
 export interface EntryMigrationContext {
-  /** The OpenWaggle file being migrated (the old state keys servers by it). */
-  readonly filePath: string
-  readonly state: LegacyStateFile
   /** Pi files that the new loader reads live below this file, keyed by absolute path. */
   readonly livePiConfigs: ReadonlyMap<string, Record<string, unknown>>
   /** Files below this one in the merge order, lowest first, with their current servers. */
@@ -117,14 +116,9 @@ export function migrateLegacyEntry(
   context: EntryMigrationContext,
 ): MigratedEntry {
   if (!isRecord(value)) return { entry: value }
-  const serverState = context.state.servers[legacyServerIdentityKey(context.filePath, name)]
-  const disabled = isUserDisabled(serverState) ? { enabled: false } : {}
   const decision = decidePiCopy(name, value, context)
   if (decision.kind === 'live') {
-    const override = {
-      ...directToolsOverride(value.directTools, liveExposureOf(decision.entry)),
-      ...disabled,
-    }
+    const override = directToolsOverride(value.directTools, liveExposureOf(decision.entry))
     const kept = Object.keys(override)
     return {
       entry: kept.length > 0 ? override : undefined,
@@ -138,11 +132,10 @@ export function migrateLegacyEntry(
   const converted = convertKeptLegacyEntry(value, {
     dropProvenance: piProvenance(value) !== undefined,
   })
-  const entry = { ...converted.entry, ...disabled }
+  const entry = converted.entry
   const details = [
     ...(decision.kind === 'kept' ? [`kept because ${decision.reason}`] : []),
     ...converted.notes,
-    ...(disabled.enabled === false ? ['disabled, as in the old settings'] : []),
   ]
   const changed = JSON.stringify(entry) !== JSON.stringify(value)
   return changed || details.length > 0

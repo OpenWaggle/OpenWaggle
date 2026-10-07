@@ -235,6 +235,20 @@ transport target (command and arguments, or URL), so a different server reusing 
 inherit grants. Pi's resource tools are read-only and are not gated. Access modes answer these
 requests exactly as before (full access answers without emitting anything).
 
+## Migration
+
+`adapters/mcp/migration/` runs once per file, silently, with a `.pre-adr-0048.bak` backup, and
+records what it did in `~/.openwaggle/mcp/migration.json`. Unchanged copies of Pi entries are
+removed, `directTools` becomes `exposure`/`toolExposure`, and OpenWaggle-only fields are converted
+or dropped. It also keeps every server as on or off as it was (`legacy-enablement.ts`): the old
+code read only `~/.openwaggle/mcp.json`, `.mcp.json`, and the project's `.openwaggle/mcp.json`, and
+connected a server only when MCP was on (project switch, else the global switch, default off), its
+state record said `enabled: true`, and it was not muted for the project. Where the new merge would
+differ, the migration writes `enabled` into OpenWaggle's global file (a project that inherits
+everything) and into each project's file. This covers projects OpenWaggle knew on the first run
+(settings and the old state); projects added later, and users with no old state and no global
+file, get the new behaviour.
+
 ## Removed
 
 Per-server trust and its records, capability grants, trust tiers, the stdio sandbox, the `mcp`

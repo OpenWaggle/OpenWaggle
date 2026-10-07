@@ -16,10 +16,10 @@ import {
   serializeJsonDocument,
   withTopLevelKey,
 } from './json-document'
+import { preserveLegacyEnablement } from './legacy-enablement'
 import { type LegacyStateFile, legacyServerMap } from './legacy-state'
 import type { McpMigrationFs } from './migration-fs'
 import { globalMcpPaths, migrationBackupPath, projectMcpPaths } from './migration-paths'
-import { applyProjectStateOverrides } from './project-state-overrides'
 
 export interface FileComputation {
   /** The new file text, or undefined when the file stays as it is. */
@@ -97,37 +97,50 @@ function finish(
   return { text: serializeJsonDocument({ ...document, value: nextValue }), changes }
 }
 
-export async function computeGlobalFile(input: {
-  readonly sources: McpFileSources
-  readonly state: LegacyStateFile
-  readonly original: string | undefined
-}): Promise<FileComputation> {
-  const paths = globalMcpPaths(input.sources.homeDir)
-  if (input.original === undefined) return { text: undefined, changes: [] }
-  const document = parseJsonDocument(paths.openwaggleGlobal, input.original)
-  const piGlobal = await input.sources.readOnlyConfig(paths.piGlobal)
-  const migrated = migrateServers(legacyServerMap(document.value), {
-    filePath: paths.openwaggleGlobal,
-    state: input.state,
-    livePiConfigs: new Map(piGlobal ? [[paths.piGlobal, piGlobal]] : []),
-    lowerLayers: [{ path: paths.piGlobal, servers: piServers(piGlobal) }],
-  })
-  return finish(document, migrated.servers, migrated.changes)
+const EMPTY_DOCUMENT: JsonDocument = { value: {}, indent: '  ' }
+
+function documentFor(filePath: string, original: string | undefined) {
+  return original === undefined ? EMPTY_DOCUMENT : parseJsonDocument(filePath, original)
 }
 
-export async function computeProjectFile(input: {
+export interface FileComputationInput {
   readonly sources: McpFileSources
   readonly state: LegacyStateFile
-  readonly projectPath: string
   readonly original: string | undefined
-}): Promise<FileComputation> {
-  const { sources } = input
+  /** Write `enabled` overrides so each server stays as on or off as it was (see legacy-enablement). */
+  readonly preserveEnablement: boolean
+}
+
+export async function computeGlobalFile(input: FileComputationInput): Promise<FileComputation> {
+  const paths = globalMcpPaths(input.sources.homeDir)
+  if (input.original === undefined && !input.preserveEnablement) {
+    return { text: undefined, changes: [] }
+  }
+  const document = documentFor(paths.openwaggleGlobal, input.original)
+  const piGlobal = await input.sources.readOnlyConfig(paths.piGlobal)
+  const lowerLayers = [{ path: paths.piGlobal, servers: piServers(piGlobal) }]
+  const legacyServers = legacyServerMap(document.value)
+  const migrated = migrateServers(legacyServers, {
+    livePiConfigs: new Map(piGlobal ? [[paths.piGlobal, piGlobal]] : []),
+    lowerLayers,
+  })
+  if (!input.preserveEnablement) return finish(document, migrated.servers, migrated.changes)
+  const preserved = preserveLegacyEnablement({
+    scope: {
+      state: input.state,
+      projectPath: null,
+      legacyLayers: [{ path: paths.openwaggleGlobal, servers: legacyServers }],
+    },
+    lowerLayers,
+    ownPath: paths.openwaggleGlobal,
+    servers: migrated.servers,
+  })
+  return finish(document, preserved.servers, [...migrated.changes, ...preserved.changes])
+}
+
+async function projectLayers(sources: McpFileSources, projectPath: string) {
   const global = globalMcpPaths(sources.homeDir)
-  const project = projectMcpPaths(input.projectPath)
-  const document =
-    input.original === undefined
-      ? { value: {}, indent: '  ' }
-      : parseJsonDocument(project.openwaggle, input.original)
+  const project = projectMcpPaths(projectPath)
   const [piGlobal, projectPi, mcpJson, openwaggleGlobal, legacyGlobal] = await Promise.all([
     sources.readOnlyConfig(global.piGlobal),
     sources.readOnlyConfig(project.pi),
@@ -147,28 +160,34 @@ export async function computeProjectFile(input: {
   const livePiConfigs = new Map<string, JsonObject>()
   if (piGlobal) livePiConfigs.set(global.piGlobal, piGlobal)
   if (projectPi) livePiConfigs.set(project.pi, projectPi)
-  const projectServers = legacyServerMap(document.value)
-  const migrated = migrateServers(projectServers, {
-    filePath: project.openwaggle,
-    state: input.state,
-    livePiConfigs,
-    lowerLayers,
-  })
-  const overridden = applyProjectStateOverrides(
-    {
-      projectPath: input.projectPath,
-      state: input.state,
-      legacyLayers: {
-        openwaggleGlobal: {
-          path: global.openwaggleGlobal,
-          servers: legacyGlobal ? legacyServerMap(legacyGlobal) : {},
-        },
-        mcpJson: { path: project.mcpJson, servers: mcpJson ? legacyServerMap(mcpJson) : {} },
-        openwaggleProject: { path: project.openwaggle, servers: projectServers },
-      },
-      lowerLayers,
-    },
-    migrated.servers,
+  const oldLayers: McpLayerServers[] = [
+    { path: global.openwaggleGlobal, servers: legacyGlobal ? legacyServerMap(legacyGlobal) : {} },
+    { path: project.mcpJson, servers: mcpJson ? legacyServerMap(mcpJson) : {} },
+  ]
+  return { lowerLayers, livePiConfigs, oldLayers }
+}
+
+export async function computeProjectFile(
+  input: FileComputationInput & { readonly projectPath: string },
+): Promise<FileComputation> {
+  const projectFile = projectMcpPaths(input.projectPath).openwaggle
+  const document = documentFor(projectFile, input.original)
+  const { lowerLayers, livePiConfigs, oldLayers } = await projectLayers(
+    input.sources,
+    input.projectPath,
   )
-  return finish(document, overridden.servers, [...migrated.changes, ...overridden.changes])
+  const projectServers = legacyServerMap(document.value)
+  const migrated = migrateServers(projectServers, { livePiConfigs, lowerLayers })
+  if (!input.preserveEnablement) return finish(document, migrated.servers, migrated.changes)
+  const preserved = preserveLegacyEnablement({
+    scope: {
+      state: input.state,
+      projectPath: input.projectPath,
+      legacyLayers: [...oldLayers, { path: projectFile, servers: projectServers }],
+    },
+    lowerLayers,
+    ownPath: projectFile,
+    servers: migrated.servers,
+  })
+  return finish(document, preserved.servers, [...migrated.changes, ...preserved.changes])
 }

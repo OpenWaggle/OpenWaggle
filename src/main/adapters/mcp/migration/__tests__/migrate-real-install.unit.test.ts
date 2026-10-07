@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { migrateOpenWaggleMcpFiles } from '../migrate-openwaggle-mcp-files'
 import { jsonText, MemoryMigrationFs } from './memory-migration-fs'
+import { allConnectedState } from './migration-fixtures'
 
 /**
  * Sanitized copy of a real pre-ADR-0048 install: servers imported from Pi's
@@ -11,6 +12,7 @@ const HOME = '/Users/diego.garciabrisa'
 const PI_GLOBAL = `${HOME}/.pi/agent/mcp.json`
 const OPENWAGGLE_GLOBAL = `${HOME}/.openwaggle/mcp.json`
 const MIGRATION_RECORD = `${HOME}/.openwaggle/mcp/migration.json`
+const LEGACY_STATE = `${HOME}/.openwaggle/mcp/state.json`
 const NOW = new Date('2026-10-01T12:00:00.000Z')
 
 function piImportProvenance(fingerprint: string) {
@@ -69,10 +71,12 @@ const REAL_OPENWAGGLE_GLOBAL = {
   },
 }
 
+/** MCP was on and every imported server was turned on, so all of them connected. */
 function realInstall() {
   return new MemoryMigrationFs({
     [PI_GLOBAL]: jsonText(REAL_PI_GLOBAL),
     [OPENWAGGLE_GLOBAL]: jsonText(REAL_OPENWAGGLE_GLOBAL),
+    [LEGACY_STATE]: jsonText(allConnectedState({ [OPENWAGGLE_GLOBAL]: REAL_OPENWAGGLE_GLOBAL })),
   })
 }
 
@@ -143,6 +147,7 @@ describe('migrateOpenWaggleMcpFiles on a real pre-ADR-0048 install', () => {
         },
       },
       oauth: {},
+      legacyProjects: [],
     })
   })
 })

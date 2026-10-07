@@ -82,3 +82,39 @@ export function memoryFs(files: Record<string, unknown>) {
     ),
   )
 }
+
+function serverNames(value: unknown) {
+  if (typeof value !== 'object' || value === null) return []
+  const config: { mcpServers?: unknown; servers?: unknown } = value
+  const servers = config.mcpServers ?? config.servers
+  return typeof servers === 'object' && servers !== null ? Object.keys(servers) : []
+}
+
+/**
+ * The old state of a user whose servers all connected: MCP on, and every server in the files the
+ * old code read (OpenWaggle's files and `.mcp.json`) turned on.
+ */
+export function allConnectedState(files: Record<string, unknown>) {
+  const servers: Record<string, unknown> = {}
+  for (const [filePath, value] of Object.entries(files)) {
+    if (!filePath.endsWith('/.openwaggle/mcp.json') && !filePath.endsWith('/.mcp.json')) continue
+    const parsed: unknown = typeof value === 'string' ? safeParse(value) : value
+    for (const name of serverNames(parsed)) {
+      servers[oldIdentityKey(filePath, name)] = { instanceId: `${name}-id`, enabled: true }
+    }
+  }
+  return legacyState({ globalState: 'on', servers })
+}
+
+function safeParse(text: string): unknown {
+  try {
+    return JSON.parse(text)
+  } catch {
+    return undefined
+  }
+}
+
+/** `memoryFs` for a user whose servers all connected before the migration. */
+export function connectedFs(files: Record<string, unknown>) {
+  return memoryFs({ [LEGACY_STATE]: allConnectedState(files), ...files })
+}

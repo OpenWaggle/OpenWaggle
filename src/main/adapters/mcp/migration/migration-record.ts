@@ -30,6 +30,11 @@ const migrationRecordSchema = Schema.Struct({
   oauth: Schema.optionalWith(Schema.Record({ key: Schema.String, value: oauthRecordSchema }), {
     default: () => ({}),
   }),
+  /**
+   * Decided on the first run: the projects whose on/off state the migration keeps, or null when
+   * OpenWaggle had no MCP setup to keep (no old state.json and no ~/.openwaggle/mcp.json).
+   */
+  legacyProjects: Schema.optional(Schema.NullOr(Schema.Array(Schema.String))),
 })
 
 export type McpMigrationFileRecord = typeof fileRecordSchema.Type
@@ -46,15 +51,32 @@ export class McpMigrationRecord {
     private readonly filePath: string,
     private readonly files: Record<string, McpMigrationFileRecord>,
     private readonly oauth: Record<string, McpMigrationOAuthRecord>,
+    private legacy: readonly string[] | null | undefined,
   ) {}
 
   static async load(fs: McpMigrationFs, homeDir: string) {
     const filePath = migrationRecordPath(homeDir)
     const text = await fs.readText(filePath)
-    if (!text?.trim()) return new McpMigrationRecord(fs, filePath, {}, {})
+    if (!text?.trim()) return new McpMigrationRecord(fs, filePath, {}, {}, undefined)
     const parsed: unknown = JSON.parse(text)
     const decoded = decodeUnknownOrThrow(migrationRecordSchema, parsed)
-    return new McpMigrationRecord(fs, filePath, { ...decoded.files }, { ...decoded.oauth })
+    return new McpMigrationRecord(
+      fs,
+      filePath,
+      { ...decoded.files },
+      { ...decoded.oauth },
+      decoded.legacyProjects,
+    )
+  }
+
+  /** Undefined until the first run decides it; see `legacyProjects` in the schema. */
+  get legacyProjects() {
+    return this.legacy
+  }
+
+  /** Kept in memory and saved with the next handled file, so a failed run decides again. */
+  setLegacyProjects(projects: readonly string[] | null) {
+    this.legacy = projects
   }
 
   isFileMigrated(filePath: string) {
@@ -77,7 +99,12 @@ export class McpMigrationRecord {
   }
 
   private persist() {
-    const value = { version: RECORD_FORMAT_VERSION, files: this.files, oauth: this.oauth }
+    const value = {
+      version: RECORD_FORMAT_VERSION,
+      files: this.files,
+      oauth: this.oauth,
+      ...(this.legacy === undefined ? {} : { legacyProjects: this.legacy }),
+    }
     return this.fs.writeTextAtomic(this.filePath, `${JSON.stringify(value, null, JSON_INDENT)}\n`)
   }
 }

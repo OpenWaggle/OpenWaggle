@@ -4,6 +4,19 @@ import { migrateOpenWaggleMcpFiles } from '../../mcp/migration/migrate-openwaggl
 import { writeOpenWaggleMcpOAuthState } from './openwaggle-mcp-credentials'
 
 const migrations = new Map<string, Promise<unknown>>()
+/** Runs migrations one at a time: they share the migration record and the global file. */
+let migrationQueue: Promise<unknown> = Promise.resolve()
+
+/** The projects OpenWaggle knows, so the first run keeps their servers' old on/off state. */
+async function knownProjectPaths() {
+  const { getSettings } = await import('../../../store/settings')
+  const settings = getSettings()
+  return [
+    ...(settings.projectPath ? [settings.projectPath] : []),
+    ...settings.recentProjects,
+    ...Object.keys(settings.projectDisplayNames),
+  ]
+}
 
 /**
  * Runs the one-time silent migration of OpenWaggle's pre-ADR-0048 MCP files (global and this
@@ -14,15 +27,19 @@ export function migrateOpenWaggleMcpFilesOnce(projectPath: string | null) {
   const key = projectPath ?? ''
   let migration = migrations.get(key)
   if (!migration) {
-    migration = migrateOpenWaggleMcpFiles({
-      homeDir: homedir(),
-      projectPaths: projectPath ? [projectPath] : [],
-      now: () => new Date(),
-      oauth: {
-        readOld: (name) => resolveMcpVaultSecret(name).catch(() => undefined),
-        write: (stateKey, state) => writeOpenWaggleMcpOAuthState(stateKey, state),
-      },
-    }).catch(() => undefined)
+    const run = () =>
+      migrateOpenWaggleMcpFiles({
+        homeDir: homedir(),
+        projectPaths: projectPath ? [projectPath] : [],
+        knownProjectPaths,
+        now: () => new Date(),
+        oauth: {
+          readOld: (name) => resolveMcpVaultSecret(name).catch(() => undefined),
+          write: (stateKey, state) => writeOpenWaggleMcpOAuthState(stateKey, state),
+        },
+      }).catch(() => undefined)
+    migration = migrationQueue.then(run)
+    migrationQueue = migration
     migrations.set(key, migration)
   }
   return migration

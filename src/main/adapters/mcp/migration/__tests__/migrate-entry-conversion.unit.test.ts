@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { migrateOpenWaggleMcpFiles } from '../migrate-openwaggle-mcp-files'
 import {
+  connectedFs,
   HOME,
   LEGACY_STATE,
   MIGRATION_RECORD,
@@ -12,7 +13,7 @@ import {
 
 describe('converting OpenWaggle-only fields to Pi entries', () => {
   it('converts transports, OAuth scopes, and direct tools, and removes fields Pi has no use for', async () => {
-    const fs = memoryFs({
+    const fs = connectedFs({
       [OPENWAGGLE_GLOBAL]: {
         mcpServers: {
           events: {
@@ -80,7 +81,7 @@ describe('converting OpenWaggle-only fields to Pi entries', () => {
       '}',
       '',
     ].join('\n')
-    const fs = memoryFs({ [OPENWAGGLE_GLOBAL]: original })
+    const fs = connectedFs({ [OPENWAGGLE_GLOBAL]: original })
 
     await migrateOpenWaggleMcpFiles({ homeDir: HOME, projectPaths: [], now: () => NOW, fs })
 
@@ -99,7 +100,7 @@ describe('converting OpenWaggle-only fields to Pi entries', () => {
 
   it('leaves a file that is already in Pi format untouched and makes no backup', async () => {
     const original = '{"mcpServers":{"local":{"command":"local-mcp"}}}'
-    const fs = memoryFs({ [OPENWAGGLE_GLOBAL]: original })
+    const fs = connectedFs({ [OPENWAGGLE_GLOBAL]: original })
 
     const report = await migrateOpenWaggleMcpFiles({
       homeDir: HOME,
@@ -115,7 +116,7 @@ describe('converting OpenWaggle-only fields to Pi entries', () => {
 
   it('never overwrites an existing backup', async () => {
     const backupPath = `${OPENWAGGLE_GLOBAL}.pre-adr-0048.bak`
-    const fs = memoryFs({
+    const fs = connectedFs({
       [OPENWAGGLE_GLOBAL]: { mcpServers: { local: { command: 'local-mcp', required: true } } },
       [backupPath]: 'earlier backup',
     })
@@ -129,7 +130,7 @@ describe('converting OpenWaggle-only fields to Pi entries', () => {
 
 describe('migration failures', () => {
   it('logs an unreadable file, leaves it intact, and retries on the next run', async () => {
-    const fs = memoryFs({ [OPENWAGGLE_GLOBAL]: '{ "mcpServers": ' })
+    const fs = connectedFs({ [OPENWAGGLE_GLOBAL]: '{ "mcpServers": ' })
     const logger = recordingLogger()
 
     const report = await migrateOpenWaggleMcpFiles({
@@ -165,7 +166,7 @@ describe('migration failures', () => {
 
   it('leaves the original in place when writing the migrated file fails', async () => {
     const original = `${JSON.stringify({ mcpServers: { a: { command: 'a', required: true } } })}\n`
-    const fs = memoryFs({ [OPENWAGGLE_GLOBAL]: original })
+    const fs = connectedFs({ [OPENWAGGLE_GLOBAL]: original })
     fs.failWritesTo = OPENWAGGLE_GLOBAL
 
     const report = await migrateOpenWaggleMcpFiles({
@@ -183,7 +184,7 @@ describe('migration failures', () => {
 
   it('does not start when the old state cannot be read, so no choice is lost', async () => {
     const original = `${JSON.stringify({ mcpServers: { a: { command: 'a', required: true } } })}\n`
-    const fs = memoryFs({ [OPENWAGGLE_GLOBAL]: original, [LEGACY_STATE]: '{ broken' })
+    const fs = connectedFs({ [OPENWAGGLE_GLOBAL]: original, [LEGACY_STATE]: '{ broken' })
     const logger = recordingLogger()
 
     const report = await migrateOpenWaggleMcpFiles({
