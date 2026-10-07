@@ -26,6 +26,9 @@ vi.mock('../adapters/session-scratch-sweep-background', () => ({
 vi.mock('../application/follow-up-edit-hold-expiry', () => ({
   runFollowUpEditHoldExpiryBackground: recorded('follow-up edit hold expiry'),
 }))
+vi.mock('../application/pi-session-discovery', () => ({
+  runPiSessionDiscoveryBackground: recorded('pi session discovery'),
+}))
 vi.mock('../adapters/session-semantic-discovery-background', () => ({
   runSessionSemanticDiscoveryBackground: recorded('semantic discovery'),
 }))
@@ -64,5 +67,7 @@ describe('Host background services', () => {
     expect(started.indexOf('provider credentials')).toBeLessThan(started.indexOf('tool gateway'))
     expect(started).toContain('provider references')
     expect(started).toContain('provider credentials')
+    // Lists `pi` CLI sessions created in OpenWaggle projects (ADR 0048).
+    expect(started).toContain('pi session discovery')
   })
 })
