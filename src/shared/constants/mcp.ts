@@ -1,35 +1,31 @@
-import type { McpServerDefinition } from '../types/mcp'
+import type { McpServerEntryInput } from '../types/mcp-configuration-operations'
 
 export const MCP_LATEST_PROTOCOL_VERSION = '2026-07-28'
 
+export interface McpCatalogServer {
+  /** The server name its entry is saved under. */
+  readonly name: string
+  readonly title: string
+  readonly description: string
+  /** An ordinary Pi `mcpServers` entry. */
+  readonly entry: McpServerEntryInput
+}
+
 /** Curated first-party catalog: a one-click install of an ordinary entry (ADR 0048). */
-export const MCP_CATALOG_SERVERS: readonly {
-  name: string
-  title: string
-  description: string
-  definition: McpServerDefinition
-}[] = [
+export const MCP_CATALOG_SERVERS: readonly McpCatalogServer[] = [
   {
     name: 'playwright',
     title: 'Playwright MCP',
     description: 'Browser automation and accessibility-tree inspection by Microsoft.',
-    definition: {
-      command: 'npx',
-      args: ['@playwright/mcp@latest'],
-      provenance: { source: 'catalog' },
-    },
+    entry: { command: 'npx', args: ['@playwright/mcp@latest'] },
   },
   {
     name: 'chrome-devtools',
     title: 'Chrome DevTools MCP',
     description: 'Chrome DevTools debugging, performance traces, and network inspection by Google.',
-    definition: {
-      command: 'npx',
-      args: ['chrome-devtools-mcp@latest'],
-      provenance: { source: 'catalog' },
-    },
+    entry: { command: 'npx', args: ['chrome-devtools-mcp@latest'] },
   },
-] as const
+]
 
 export const MCP_MODERN_PROTOCOL_VERSIONS = [MCP_LATEST_PROTOCOL_VERSION] as const
 

@@ -1,4 +1,5 @@
-export const LOCAL_SESSION_CURRENT_REVISION = 21 as const
+export const LOCAL_SESSION_CURRENT_REVISION = 22 as const
+export const LOCAL_SESSION_MCP_CONFIGURATION_REVISION = 22 as const
 export const LOCAL_SESSION_FOLLOW_UP_EDIT_REVISION = 21 as const
 export const LOCAL_SESSION_SESSION_SETTINGS_REVISION = 21 as const
 export const LOCAL_SESSION_TITLE_REGENERATION_REVISION = 20 as const
@@ -33,6 +34,10 @@ export const LOCAL_SESSION_WAGGLE_REVISION = 3 as const
  * thinking-level Host UI channels, a Follow-up that carries no thinking level or Run authorization
  * override, `message` accepting both only when it starts a Run, no `queue-update-authorization`,
  * and the desktop-only `queue-adopt` that sends a needs-attention Follow-up as the user.
+ * Revision 22 adds the MCP configuration Host UI channels behind Settings > MCP and the
+ * `openwaggle mcp` management commands (ADR 0048): reading the merged configuration, enabling
+ * and exposure changes, adding, removing, and installing servers, inspecting a server, signing in
+ * and out, and importing from other tools.
  */
 export const LOCAL_SESSION_SUPPORTED_REVISIONS = [LOCAL_SESSION_CURRENT_REVISION] as const
 
@@ -143,4 +148,9 @@ export const LOCAL_SESSION_REVISION_21_CAPABILITIES = [
   'sessions:follow-up-edit-v1',
 ] as const
 
-export const LOCAL_SESSION_CAPABILITIES = LOCAL_SESSION_REVISION_21_CAPABILITIES
+export const LOCAL_SESSION_REVISION_22_CAPABILITIES = [
+  ...LOCAL_SESSION_REVISION_21_CAPABILITIES,
+  'host-ui:mcp-configuration-v1',
+] as const
+
+export const LOCAL_SESSION_CAPABILITIES = LOCAL_SESSION_REVISION_22_CAPABILITIES

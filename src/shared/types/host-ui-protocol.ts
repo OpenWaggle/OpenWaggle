@@ -1,6 +1,23 @@
 import type { IpcInvokeChannel } from './ipc'
 
 export const HOST_UI_CONTRACT_VERSION = 1 as const
+/**
+ * Settings > MCP and the `openwaggle mcp` management commands over Pi's MCP files (ADR 0048)
+ * ship with revision 22.
+ */
+export const HOST_UI_REVISION_22_REQUIRED_CHANNELS = [
+  'mcp:get-configuration',
+  'mcp:set-server-enabled',
+  'mcp:set-server-exposure',
+  'mcp:add-server',
+  'mcp:remove-server',
+  'mcp:inspect-server',
+  'mcp:sign-in',
+  'mcp:sign-out',
+  'mcp:install-catalog-server',
+  'mcp:preview-imports',
+  'mcp:apply-imports',
+] as const satisfies readonly IpcInvokeChannel[]
 /** Session settings channels (thinking level as Session state) ship with revision 21. */
 export const HOST_UI_REVISION_21_REQUIRED_CHANNELS = [
   'sessions:set-thinking-level',
@@ -75,11 +92,11 @@ export const HOST_UI_REVISION_7_NEW_CHANNELS = [
 ] as const satisfies readonly IpcInvokeChannel[]
 
 /**
- * MCP operations the Session Host still owns after ADR 0048: the secret vault, and the MCP App
- * resource read and tool call (unavailable until Pi's MCP runtime backs them). Every channel
- * dates from revision 6.
+ * MCP operations the Session Host owns after ADR 0048: the secret vault and the MCP App resource
+ * read and tool call (revision 6), and the MCP configuration operations (revision 22).
  */
 export const HOST_BACKED_MCP_GUI_CHANNELS = [
+  ...HOST_UI_REVISION_22_REQUIRED_CHANNELS,
   'mcp:list-secrets',
   'mcp:set-secret',
   'mcp:remove-secret',

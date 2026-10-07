@@ -110,6 +110,9 @@ describe('commands a draining Session Host still accepts', () => {
       }),
       hostUi('agent:get-context-usage', ['s-1']),
       hostUi('providers:get-models', ['/repo']),
+      hostUi('mcp:inspect-server', [{ projectPath: null, name: 'docs' }]),
+      hostUi('mcp:add-server', [{ projectPath: null, name: 'docs', scope: 'global', entry: {} }]),
+      hostUi('mcp:sign-in', [{ projectPath: null, name: 'docs' }]),
       hostUi('agent-definitions:manage', [{ command: { operation: 'refresh-plan' } }]),
       control('message'),
       control('follow-up'),
@@ -149,6 +152,8 @@ describe('commands a draining Session Host still accepts', () => {
       'extensions:list-packages',
       'extensions:list-contributions',
       'mcp:list-secrets',
+      'mcp:get-configuration',
+      'mcp:preview-imports',
       'docs:discover',
       'skills:list',
       'skills:get-preview',
@@ -158,6 +163,7 @@ describe('commands a draining Session Host still accepts', () => {
     const refused = new Set<HostBackedGuiChannel>([
       'agent:get-context-usage',
       'providers:get-models',
+      'mcp:inspect-server',
     ])
 
     expect(new Set([...admitted, ...refused])).toEqual(READ_ONLY_HOST_UI_CHANNELS)

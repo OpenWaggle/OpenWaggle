@@ -3,6 +3,19 @@ import {
   readMcpResourceOperation,
 } from '../application/mcp-app-operations'
 import {
+  addMcpServerOperation,
+  applyMcpImportsOperation,
+  getMcpConfigurationOperation,
+  inspectMcpServerOperation,
+  installMcpCatalogServerOperation,
+  previewMcpImportsOperation,
+  removeMcpServerOperation,
+  setMcpServerEnabledOperation,
+  setMcpServerExposureOperation,
+  signInMcpServerOperation,
+  signOutMcpServerOperation,
+} from '../application/mcp-configuration-operations'
+import {
   listMcpSecretsOperation,
   removeMcpSecretOperation,
   setMcpSecretOperation,
@@ -10,6 +23,21 @@ import {
 import { hostHandle } from './typed-ipc'
 
 export function registerMcpHandlers(): void {
+  hostHandle('mcp:get-configuration', (_event, raw: unknown) => getMcpConfigurationOperation(raw))
+  hostHandle('mcp:set-server-enabled', (_event, raw: unknown) => setMcpServerEnabledOperation(raw))
+  hostHandle('mcp:set-server-exposure', (_event, raw: unknown) =>
+    setMcpServerExposureOperation(raw),
+  )
+  hostHandle('mcp:add-server', (_event, raw: unknown) => addMcpServerOperation(raw))
+  hostHandle('mcp:remove-server', (_event, raw: unknown) => removeMcpServerOperation(raw))
+  hostHandle('mcp:install-catalog-server', (_event, raw: unknown) =>
+    installMcpCatalogServerOperation(raw),
+  )
+  hostHandle('mcp:inspect-server', (_event, raw: unknown) => inspectMcpServerOperation(raw))
+  hostHandle('mcp:sign-in', (_event, raw: unknown) => signInMcpServerOperation(raw))
+  hostHandle('mcp:sign-out', (_event, raw: unknown) => signOutMcpServerOperation(raw))
+  hostHandle('mcp:preview-imports', (_event, raw: unknown) => previewMcpImportsOperation(raw))
+  hostHandle('mcp:apply-imports', (_event, raw: unknown) => applyMcpImportsOperation(raw))
   hostHandle('mcp:list-secrets', () => listMcpSecretsOperation())
   hostHandle('mcp:set-secret', (_event, raw: unknown) => setMcpSecretOperation(raw))
   hostHandle('mcp:remove-secret', (_event, raw: unknown) => removeMcpSecretOperation(raw))

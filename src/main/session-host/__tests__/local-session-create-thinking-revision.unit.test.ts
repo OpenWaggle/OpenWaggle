@@ -83,7 +83,7 @@ describe('creating a Session at a thinking level', () => {
     ).rejects.toThrow('stop after negotiation')
 
     expect(openLocalSessionConnection).toHaveBeenCalledWith(
-      expect.objectContaining({ supportedRevisions: [21] }),
+      expect.objectContaining({ supportedRevisions: [22] }),
     )
   })
 })

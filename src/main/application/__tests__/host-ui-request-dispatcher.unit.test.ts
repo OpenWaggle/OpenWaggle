@@ -1,8 +1,9 @@
 import { HOST_UI_REVISION_11_REQUIRED_CHANNELS } from '@shared/types/host-ui-protocol'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
-import { fromAny } from '@total-typescript/shoehorn'
+import { fromAny, fromPartial } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
 import { describe, expect, it } from 'vitest'
+import { McpConfigurationService } from '../../ports/mcp-configuration-service'
 import { McpSecretVaultService } from '../../ports/mcp-secret-vault-service'
 import { SettingsService } from '../../services/settings-service'
 import { dispatchHostUiRequest } from '../host-ui-request-dispatcher'
@@ -157,6 +158,35 @@ describe('Host UI request dispatcher', () => {
         result: { kind: 'value', value: [] },
       },
     })
+  })
+
+  it('lets the local-machine CLI read the MCP configuration, but not a named profile', async () => {
+    const view = { projectPath: null, files: [], servers: [], errors: [] }
+    const configuration = McpConfigurationService.of(
+      fromPartial({ getView: () => Effect.succeed(view) }),
+    )
+    const mcpRequest = {
+      contractVersion: 1,
+      requestId: 'request-mcp-configuration',
+      channel: 'mcp:get-configuration',
+      args: [{ kind: 'value', value: { projectPath: null } }],
+    } as const
+
+    const result = await runWithoutRequirements(
+      dispatchHostUiRequest({
+        caller: { callerId: 'local-user:machine' },
+        request: mcpRequest,
+      }).pipe(Effect.provideService(McpConfigurationService, configuration)),
+    )
+    expect(result).toMatchObject({ response: { result: { kind: 'value', value: view } } })
+    await expect(
+      runWithoutRequirements(
+        dispatchHostUiRequest({
+          caller: { callerId: 'local-user:machine', profileAuthority: fromPartial({}) },
+          request: mcpRequest,
+        }).pipe(Effect.provideService(McpConfigurationService, configuration)),
+      ),
+    ).rejects.toThrow('only available to the local OpenWaggle GUI')
   })
 
   it('validates the Host transport argument count before executing an operation', async () => {
