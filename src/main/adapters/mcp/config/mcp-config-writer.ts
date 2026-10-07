@@ -16,6 +16,12 @@ export interface McpServerSettingsPatch {
   readonly exposure?: McpExposure
   /** Per-tool exposure to set; `null` removes a tool's entry. */
   readonly toolExposure?: Readonly<Record<string, McpExposure | null>>
+  /**
+   * The rules an entry without its own `toolExposure` inherits: an override's `toolExposure`
+   * replaces the one below it, so the first per-tool change under an override starts from the
+   * merged rules instead of dropping them.
+   */
+  readonly inheritedToolExposure?: Readonly<Record<string, McpExposure>>
 }
 
 type JsonRecord = Record<string, unknown>
@@ -23,8 +29,9 @@ type JsonRecord = Record<string, unknown>
 function applyToolExposure(
   server: JsonRecord,
   patch: Readonly<Record<string, McpExposure | null>>,
+  inherited: Readonly<Record<string, McpExposure>> = {},
 ) {
-  const current = isJsonRecord(server.toolExposure) ? { ...server.toolExposure } : {}
+  const current = isJsonRecord(server.toolExposure) ? { ...server.toolExposure } : { ...inherited }
   for (const [tool, exposure] of Object.entries(patch)) {
     if (exposure === null) delete current[tool]
     else current[tool] = exposure
@@ -61,7 +68,9 @@ export function updateMcpServerSettings(
       if (patch.exposure === 'codemode' && !keepDefaults) delete server.exposure
       else server.exposure = patch.exposure
     }
-    if (patch.toolExposure) applyToolExposure(server, patch.toolExposure)
+    if (patch.toolExposure) {
+      applyToolExposure(server, patch.toolExposure, patch.inheritedToolExposure)
+    }
     return true
   })
 }

@@ -156,6 +156,9 @@ function setExposure(context: ServiceContext, input: McpSetServerExposureInput) 
     {
       ...(input.exposure ? { exposure: input.exposure } : {}),
       ...(input.toolExposure ? { toolExposure: input.toolExposure } : {}),
+      ...(server.override && server.config.toolExposure
+        ? { inheritedToolExposure: server.config.toolExposure }
+        : {}),
     },
     { override: server.override !== undefined },
   )
