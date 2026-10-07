@@ -182,18 +182,16 @@ index 2a6b4e408498e33fd7685471559fbd4696755f0a..0e82f7e90c54538ef4369660ac9c7b75
          fetch,
          defaultHeaders: headers,
 diff --git a/dist/providers/openai-codex.models.js b/dist/providers/openai-codex.models.js
-index 9a584e73fefc749226d29f78000564b41cf214bb..a191f7d14f8aa84be7d4065010d675a0930a31ce 100644
+index 9a584e73fefc749226d29f78000564b41cf214bb..754e89a678b6c809b0fa1a1d7ef84034545c420c 100644
 --- a/dist/providers/openai-codex.models.js
 +++ b/dist/providers/openai-codex.models.js
-@@ -2,7 +2,29 @@
+@@ -2,7 +2,27 @@
  // Do not edit manually - run 'npm run generate-models' to update
  import values from "./data/openai-codex.json" with { type: "json" };
  import { flattenChatModelCatalog, flattenClassifierModelCatalog, flattenImageModelCatalog } from "../model-catalog.js";
 -export const OPENAI_CODEX_MODELS = flattenChatModelCatalog("openai-codex", values);
 +const COMPACTION_CAPABLE_MODEL_IDS = new Set([
 +    "gpt-5.3-codex-spark",
-+    "gpt-5.4",
-+    "gpt-5.4-mini",
 +    "gpt-5.5",
 +    "gpt-5.6-luna",
 +    "gpt-5.6-sol",

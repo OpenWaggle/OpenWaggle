@@ -1,5 +1,5 @@
 diff --git a/dist/core/agent-session.d.ts b/dist/core/agent-session.d.ts
-index 03f811e3c72562fa52d51eef2f92e6026661d63c..7a027b3b2df90344c9911b97db8035b258850686 100644
+index 03f811e3c72562fa52d51eef2f92e6026661d63c..8798aaf1124d19e0938ce32d8e20aae2d1c4058d 100644
 --- a/dist/core/agent-session.d.ts
 +++ b/dist/core/agent-session.d.ts
 @@ -110,6 +110,10 @@ export type AgentSessionEvent = WithParentToolCallId<Exclude<AgentEvent, {
@@ -22,16 +22,15 @@ index 03f811e3c72562fa52d51eef2f92e6026661d63c..7a027b3b2df90344c9911b97db8035b2
  }
  /** Options for model/thinking mutations. */
  export interface ModelMutationOptions {
-@@ -218,6 +224,8 @@ export declare class AgentSession {
+@@ -218,6 +224,7 @@ export declare class AgentSession {
      private _unsubscribeAgent?;
      private _eventListeners;
      private _isAgentRunActive;
 +    private _requestRequiresReconstructionFit;
-+    private _requestRequiresReconstructionFit;
      private _agentRunAbortRequested;
      private _idleWaitPromise;
      private _resolveIdleWait;
-@@ -284,6 +292,8 @@ export declare class AgentSession {
+@@ -284,6 +291,8 @@ export declare class AgentSession {
      private _extensionErrorListener?;
      private _extensionErrorUnsubscriber?;
      private _modelRuntime;
@@ -40,7 +39,7 @@ index 03f811e3c72562fa52d51eef2f92e6026661d63c..7a027b3b2df90344c9911b97db8035b2
      private _cacheWarmer?;
      private _toolRegistry;
      /** Created on the first `ctx.executeTool()` call. */
-@@ -300,6 +310,9 @@ export declare class AgentSession {
+@@ -300,6 +309,9 @@ export declare class AgentSession {
      get modelRuntime(): ModelRuntime;
      private _getRequiredRequestAuth;
      private _getSummarizationRequestAuth;
@@ -50,7 +49,7 @@ index 03f811e3c72562fa52d51eef2f92e6026661d63c..7a027b3b2df90344c9911b97db8035b2
      /**
       * The model whose limits apply to `message`, or undefined when the message came from another
       * model. Under a virtual selection, that is the physical model that produced it.
-@@ -511,6 +524,7 @@ export declare class AgentSession {
+@@ -511,6 +523,7 @@ export declare class AgentSession {
       */
      private _restoreToolsFromTranscript;
      private _runAgentPrompt;
@@ -58,7 +57,7 @@ index 03f811e3c72562fa52d51eef2f92e6026661d63c..7a027b3b2df90344c9911b97db8035b2
      private _handlePostAgentRun;
      private _runBeforeSettleBoundary;
      private _runInputHandlers;
-@@ -524,7 +538,8 @@ export declare class AgentSession {
+@@ -524,7 +537,8 @@ export declare class AgentSession {
       * @throws Error if streaming and no streamingBehavior specified
       * @throws Error if no model selected or no API key available (when not streaming)
       */
@@ -68,7 +67,7 @@ index 03f811e3c72562fa52d51eef2f92e6026661d63c..7a027b3b2df90344c9911b97db8035b2
      /**
       * Try to execute an extension command. Returns true if command was found and executed.
       */
-@@ -548,6 +563,11 @@ export declare class AgentSession {
+@@ -548,6 +562,11 @@ export declare class AgentSession {
      steer(text: string, images?: ImageContent[], options?: {
          source?: InputSource;
      }): Promise<QueuedInputDisposition>;
