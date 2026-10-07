@@ -34,7 +34,7 @@ import {
 import { createWorktreeLaunchEventCollector } from './agent-run/worktree-launch-event'
 import { resolveLatestAssistantNodeId } from './agent-run-service'
 import { listRuntimeEnabledOpenWaggleExtensionPackagePaths } from './extension-runtime-service'
-import { loadSessionForRun } from './pi-session-discovery'
+import { loadSessionForRun } from './pi-session-projection-refresh'
 import { assignSessionTitleFromUserText, hydratePayloadAttachments } from './run-handler-utils'
 import { mapPersistedRunResourceNodes } from './session-resource-node-mapping'
 import { extractFilePath } from './waggle-run/metadata'

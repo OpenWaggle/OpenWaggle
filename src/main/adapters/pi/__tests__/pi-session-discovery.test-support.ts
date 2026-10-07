@@ -1,0 +1,135 @@
+import fs from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
+import type { AssistantMessage } from '@earendil-works/pi-ai'
+import { SessionManager } from '@earendil-works/pi-coding-agent'
+import { SessionId } from '@shared/types/brand'
+import * as Effect from 'effect/Effect'
+import { afterEach, beforeEach, expect, vi } from 'vitest'
+import type { AppServices } from '../../../runtime'
+
+export interface PiDiscoveryFixture {
+  root: string
+  project: string
+}
+
+/**
+ * A temporary user-data directory and Pi agent directory per test, with a project inside them.
+ * `state` is the hoisted object the test's `electron` mock reads the user-data path from.
+ */
+export function setUpPiDiscoveryFixture(state: { userDataDir: string }): PiDiscoveryFixture {
+  const fixture: PiDiscoveryFixture = { root: '', project: '' }
+  beforeEach(async () => {
+    fixture.root = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'ow-pi-discovery-')))
+    state.userDataDir = path.join(fixture.root, 'user-data')
+    fixture.project = path.join(fixture.root, 'projects', 'app')
+    await fs.mkdir(path.join(fixture.project, 'packages', 'core'), { recursive: true })
+    vi.stubEnv('PI_CODING_AGENT_DIR', path.join(fixture.root, 'pi-agent'))
+    const { resetAppRuntimeForTests } = await import('../../../runtime')
+    await resetAppRuntimeForTests()
+  })
+  afterEach(async () => {
+    const { resetAppRuntimeForTests } = await import('../../../runtime')
+    await resetAppRuntimeForTests()
+    vi.unstubAllEnvs()
+    await fs.rm(fixture.root, { recursive: true, force: true })
+  })
+  return fixture
+}
+
+function assistantReply(text: string): AssistantMessage {
+  return {
+    role: 'assistant',
+    content: [{ type: 'text', text }],
+    api: 'openai-completions',
+    provider: 'test',
+    model: 'test-model',
+    usage: {
+      input: 1,
+      output: 1,
+      cacheRead: 0,
+      cacheWrite: 0,
+      totalTokens: 2,
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+    },
+    stopReason: 'stop',
+    timestamp: Date.now(),
+  }
+}
+
+/** What the `pi` CLI leaves behind after one exchange in `cwd`. */
+export function createPiCliSession(cwd: string, prompt: string) {
+  const sessionManager = SessionManager.create(cwd)
+  sessionManager.appendMessage({
+    role: 'user',
+    content: [{ type: 'text', text: prompt }],
+    timestamp: Date.now(),
+  })
+  sessionManager.appendMessage(assistantReply(`Answer to: ${prompt}`))
+  const file = sessionManager.getSessionFile()
+  if (!file) throw new Error('Pi did not create a session file.')
+  return { id: sessionManager.getSessionId(), file }
+}
+
+/** The CLI continuing the same session, as `pi --resume` would. */
+export function continuePiCliSession(file: string, prompt: string) {
+  const sessionManager = SessionManager.open(file)
+  sessionManager.appendMessage({
+    role: 'user',
+    content: [{ type: 'text', text: prompt }],
+    timestamp: Date.now(),
+  })
+  sessionManager.appendMessage(assistantReply(`Answer to: ${prompt}`))
+}
+
+export async function run<A, E>(effect: Effect.Effect<A, E, AppServices>) {
+  const { runAppEffect } = await import('../../../runtime')
+  return runAppEffect(effect)
+}
+
+export async function registerProjects(projectPaths: readonly string[]) {
+  const { SettingsService } = await import('../../../services/settings-service')
+  await run(
+    Effect.flatMap(SettingsService, (settings) =>
+      settings.update({ recentProjects: [...projectPaths] }),
+    ),
+  )
+}
+
+export async function discover() {
+  const { discoverPiSessions } = await import('../../../application/pi-session-discovery')
+  return run(discoverPiSessions())
+}
+
+/** The Session one discovery pass listed. */
+export async function discoverOne() {
+  const listed = await discover()
+  expect(listed).toHaveLength(1)
+  const [sessionId] = listed
+  if (!sessionId) throw new Error('Discovery listed no Session.')
+  return sessionId
+}
+
+export async function openSession(sessionId: string) {
+  const { refreshPiSessionProjection } = await import(
+    '../../../application/pi-session-projection-refresh'
+  )
+  return run(refreshPiSessionProjection(SessionId(sessionId), 'reader'))
+}
+
+export async function sessionDetail(sessionId: string) {
+  const { SessionProjectionRepository } = await import(
+    '../../../ports/session-projection-repository'
+  )
+  return run(
+    Effect.flatMap(SessionProjectionRepository, (repository) =>
+      repository.getOptional(SessionId(sessionId)),
+    ),
+  )
+}
+
+export function messageTexts(detail: Awaited<ReturnType<typeof sessionDetail>>) {
+  return (detail?.messages ?? []).flatMap((message) =>
+    message.parts.flatMap((part) => (part.type === 'text' ? [part.text] : [])),
+  )
+}

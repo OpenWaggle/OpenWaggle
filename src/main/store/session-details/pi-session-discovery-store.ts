@@ -1,13 +1,10 @@
 import * as SqlClient from '@effect/sql/SqlClient'
 import { SessionId } from '@shared/types/brand'
 import * as Effect from 'effect/Effect'
+import type { AdoptDiscoveredPiSessionInput } from '../../ports/pi-session-discovery'
 import { piProjectionFingerprint, piProjectionRevision } from '../pi-session-file-freshness'
 import { runStoreEffect } from '../store-runtime'
 import { isAgentLoopAuditNode } from './agent-loop-audit-node'
-import {
-  type DiscoveredPiSessionInsert,
-  insertDiscoveredPiSessionWithSql,
-} from './session-creation'
 
 export interface PiSessionDiscoveryScopeRows {
   readonly knownPiSessionIds: ReadonlySet<string>
@@ -61,38 +58,42 @@ export async function readPiSessionDiscoveryScope(): Promise<PiSessionDiscoveryS
   )
 }
 
-function isKnownWithSql(sql: SqlClient.SqlClient, row: DiscoveredPiSessionInsert) {
-  return Effect.map(
-    sql<{ readonly known: number }>`
-      SELECT EXISTS (
-        SELECT 1 FROM sessions
-        WHERE id = ${row.piSessionId} OR pi_session_id = ${row.piSessionId}
-          OR pi_session_file = ${row.piSessionFile}
-      ) OR EXISTS (
-        SELECT 1 FROM session_deletion_operations
-        WHERE session_id = ${row.piSessionId} OR pi_session_file = ${row.piSessionFile}
-      ) AS known
-    `,
-    (rows) => rows[0]?.known === 1,
-  )
-}
-
-/** Lists each discovered Pi session once; a row already known by id or file is left alone. */
-export async function insertDiscoveredPiSessions(
-  rows: readonly DiscoveredPiSessionInsert[],
-): Promise<readonly SessionId[]> {
-  if (rows.length === 0) return []
+/**
+ * Points a Session the Session Host just created at a discovered Pi session file, in place of the
+ * empty Pi session it was created with (Pi writes that one only after its first reply, so there is
+ * no file to remove). Refused when another Session already has the file or its id, or once the
+ * Session holds a transcript of its own.
+ */
+export async function adoptDiscoveredPiSession(
+  input: AdoptDiscoveredPiSessionInput,
+): Promise<boolean> {
   return runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
       return yield* sql.withTransaction(
         Effect.gen(function* () {
-          const inserted: SessionId[] = []
-          for (const row of rows) {
-            if (yield* isKnownWithSql(sql, row)) continue
-            inserted.push(yield* insertDiscoveredPiSessionWithSql(sql, row))
-          }
-          return inserted
+          const blocked = yield* sql<{ readonly blocked: number }>`
+            SELECT EXISTS (
+              SELECT 1 FROM sessions
+              WHERE id <> ${input.sessionId}
+                AND (pi_session_id = ${input.piSessionId} OR pi_session_file = ${input.piSessionFile})
+            ) OR EXISTS (
+              SELECT 1 FROM session_deletion_operations
+              WHERE pi_session_file = ${input.piSessionFile}
+            ) OR EXISTS (
+              SELECT 1 FROM session_nodes WHERE session_id = ${input.sessionId}
+            ) OR NOT EXISTS (
+              SELECT 1 FROM sessions WHERE id = ${input.sessionId}
+            ) AS blocked
+          `
+          if (blocked[0]?.blocked !== 0) return false
+          yield* sql`
+            UPDATE sessions
+            SET pi_session_id = ${input.piSessionId}, pi_session_file = ${input.piSessionFile},
+                created_at = ${input.createdAt}, updated_at = ${input.updatedAt}
+            WHERE id = ${input.sessionId}
+          `
+          return true
         }),
       )
     }),

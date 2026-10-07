@@ -5,7 +5,7 @@ import { agentDefinitionTogglesForProject } from '../../agents/agent-definition-
 import { ProviderService } from '../../ports/provider-service'
 import { SettingsService } from '../../services/settings-service'
 import { listRuntimeEnabledOpenWaggleExtensionPackagePaths } from '../extension-runtime-service'
-import { loadSessionForRun } from '../pi-session-discovery'
+import { loadSessionForRun } from '../pi-session-projection-refresh'
 import { assignSessionTitleFromUserText } from '../run-handler-utils'
 import type { AgentRunInput, AgentRunResult } from './types'
 

@@ -72,11 +72,11 @@ export interface PiSessionDiscoveryScope {
   readonly sessionProjectPaths: readonly string[]
 }
 
-export interface DiscoveredPiSessionRow {
+export interface AdoptDiscoveredPiSessionInput {
+  /** A Session the Session Host just created in the discovered session's project. */
+  readonly sessionId: SessionId
   readonly piSessionId: string
   readonly piSessionFile: string
-  readonly projectPath: string
-  readonly title: string
   readonly createdAt: number
   readonly updatedAt: number
 }
@@ -104,10 +104,13 @@ export interface PersistExternalPiProjectionInput {
 
 export interface PiSessionDiscoveryRepositoryShape {
   readonly readScope: () => Effect.Effect<PiSessionDiscoveryScope, SessionProjectionRepositoryError>
-  /** Inserts each row as a new Session unless one already has its id or file; returns the new ids. */
-  readonly insertDiscovered: (
-    rows: readonly DiscoveredPiSessionRow[],
-  ) => Effect.Effect<readonly SessionId[], SessionProjectionRepositoryError>
+  /**
+   * Points a newly created, still empty Session at the discovered Pi file. False when another
+   * Session already has the file or its id, or the Session already has a transcript.
+   */
+  readonly adoptDiscovered: (
+    input: AdoptDiscoveredPiSessionInput,
+  ) => Effect.Effect<boolean, SessionProjectionRepositoryError>
   readonly getProjectionState: (
     sessionId: SessionId,
   ) => Effect.Effect<PiSessionProjectionState | null, SessionProjectionRepositoryError>

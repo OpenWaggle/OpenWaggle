@@ -1,28 +1,22 @@
+import { randomUUID } from 'node:crypto'
 import { boundGeneratedSessionTitle } from '@shared/session-title'
 import { DEFAULT_SESSION_TITLE } from '@shared/session-title-source'
-import type { SessionId } from '@shared/types/brand'
+import { SessionId } from '@shared/types/brand'
+import { SESSION_LIFECYCLE_CONTRACT_VERSION } from '@shared/types/session-lifecycle'
 import { formatErrorMessage } from '@shared/utils/node-error'
 import * as Cause from 'effect/Cause'
 import * as Effect from 'effect/Effect'
-import * as Option from 'effect/Option'
-import * as Runtime from 'effect/Runtime'
 import * as Schedule from 'effect/Schedule'
 import { buildDeterministicTitle } from '../agent/title-generator'
 import { createLogger } from '../logger'
 import {
   type DiscoveredPiSession,
-  type DiscoveredPiSessionRow,
   PiSessionDiscoveryRepository,
-  type PiSessionFileFingerprint,
   PiSessionFiles,
 } from '../ports/pi-session-discovery'
-import { SessionProjectionRepository } from '../ports/session-projection-repository'
-import { SessionRepository } from '../ports/session-repository'
 import { SettingsService } from '../services/settings-service'
 import { publishSessionHostEvent } from '../session-host/session-host-events'
-import { hasAnyActiveRun, isSessionRemovalFenced } from './active-session-runs'
-import { appendDurableAgentLoopEvents } from './agent-run/agent-loop-events'
-import { validateSessionId } from './host-ui-session-operation-validation'
+import { dispatchLocalSessionCommand } from './local-session-command-dispatcher'
 
 /**
  * Pi session discovery (ADR 0048). Pi sessions the `pi` CLI created in an OpenWaggle project, or
@@ -38,8 +32,8 @@ const logger = createLogger('pi-session-discovery')
 
 /** How often the Host looks for new Pi sessions while it runs. */
 const DISCOVERY_INTERVAL_MS = 10_000
-/** The fixed run id an external projection passes; it records no agent-loop events. */
-const EXTERNAL_PROJECTION_RUN_ID = 'pi-session-discovery'
+/** Bounds one pass, so a project with years of `pi` history fills its sidebar over a few passes. */
+const MAX_SESSIONS_LISTED_PER_PASS = 100
 
 /** The projects whose Pi sessions are listed: every folder the sidebar shows as a project. */
 function openWaggleProjectPaths(sessionProjectPaths: readonly string[]) {
@@ -66,18 +60,65 @@ function discoveredTitle(session: DiscoveredPiSession) {
   return DEFAULT_SESSION_TITLE
 }
 
-function discoveredRow(session: DiscoveredPiSession): DiscoveredPiSessionRow {
-  return {
-    piSessionId: session.piSessionId,
-    piSessionFile: session.piSessionFile,
-    projectPath: session.projectPath,
-    title: discoveredTitle(session),
-    createdAt: Math.floor(Math.min(session.createdAt, session.updatedAt)),
-    updatedAt: Math.floor(session.updatedAt),
-  }
+/**
+ * A discovered session becomes a Session the way the desktop user creates one, through the Session
+ * Host's lifecycle, so it gets the project's Workspace, an execution profile, and its queue. The
+ * idempotency key is the Pi session, so a pass interrupted before the file was attached replays the
+ * same Session instead of creating another.
+ */
+function createDiscoveredSession(session: DiscoveredPiSession) {
+  return Effect.gen(function* () {
+    const result = yield* dispatchLocalSessionCommand({
+      caller: { callerId: 'gui:local-user', workingDirectory: session.projectPath },
+      payload: {
+        contract: 'session-lifecycle-v2',
+        request: {
+          contractVersion: SESSION_LIFECYCLE_CONTRACT_VERSION,
+          requestId: randomUUID(),
+          idempotencyKey: `pi-session-discovery:${session.piSessionId}`,
+          command: {
+            operation: 'create',
+            projectPath: session.projectPath,
+            title: discoveredTitle(session),
+            workspace: { mode: 'local' },
+          },
+        },
+      },
+    })
+    if (
+      result.contract !== 'session-lifecycle-v2' ||
+      result.response.outcome.effect !== 'created-root'
+    ) {
+      return null
+    }
+    const sessionId = SessionId(result.response.outcome.sessionId)
+    const adopted = yield* (yield* PiSessionDiscoveryRepository).adoptDiscovered({
+      sessionId,
+      piSessionId: session.piSessionId,
+      piSessionFile: session.piSessionFile,
+      createdAt: Math.floor(Math.min(session.createdAt, session.updatedAt)),
+      updatedAt: Math.floor(session.updatedAt),
+    })
+    if (!adopted) return null
+    publishSessionHostEvent({ kind: 'session-list-changed', sessionId, change: 'updated' })
+    return sessionId
+  }).pipe(
+    Effect.catchAllCause((cause) =>
+      Effect.sync(() => {
+        logger.warn('Could not list a Pi session', {
+          piSessionFile: session.piSessionFile,
+          error: formatErrorMessage(Cause.squash(cause)),
+        })
+        return null
+      }),
+    ),
+  )
 }
 
-/** Lists the Pi sessions in OpenWaggle projects that have no Session yet; returns the new ids. */
+/**
+ * Lists the Pi sessions in OpenWaggle projects that have no Session yet, most recently used first
+ * and a bounded number per pass; returns the new Session ids.
+ */
 export function discoverPiSessions() {
   return Effect.gen(function* () {
     const repository = yield* PiSessionDiscoveryRepository
@@ -88,154 +129,18 @@ export function discoverPiSessions() {
       projectPaths,
       isKnownFile: (file) => scope.knownPiSessionFiles.has(file),
     })
-    const rows = discovered
+    const pending = discovered
       .filter((session) => !scope.knownPiSessionIds.has(session.piSessionId))
-      .map(discoveredRow)
-    const inserted = yield* repository.insertDiscovered(rows)
-    for (const sessionId of inserted) {
-      publishSessionHostEvent({ kind: 'session-list-changed', sessionId, change: 'created' })
+      .sort((left, right) => right.updatedAt - left.updatedAt)
+      .slice(0, MAX_SESSIONS_LISTED_PER_PASS)
+    const listed: SessionId[] = []
+    for (const session of pending) {
+      const sessionId = yield* createDiscoveredSession(session)
+      if (sessionId) listed.push(sessionId)
     }
-    if (inserted.length > 0) logger.info('Listed Pi sessions', { count: inserted.length })
-    return inserted
+    if (listed.length > 0) logger.info('Listed Pi sessions', { count: listed.length })
+    return listed
   })
-}
-
-export type PiSessionProjectionRefresh =
-  /** The Session has no Pi file yet, or no longer exists. */
-  | 'missing'
-  /** The file is as it was when it was last projected. */
-  | 'fresh'
-  /** The file changed but holds the projected entries; the projection was kept. */
-  | 'unchanged'
-  | 'projected'
-  /** Another writer owns the Session; its own snapshot will include the file. */
-  | 'busy'
-  /** A snapshot landed while the file was read, so the read was dropped. */
-  | 'superseded'
-
-/**
- * Who asks: a reader opening the Session yields to any writer, while a Run that already owns the
- * Session's writer refreshes its projection before it starts.
- */
-export type PiSessionProjectionRefreshOwner = 'reader' | 'run'
-
-function sameFingerprint(left: PiSessionFileFingerprint, right: PiSessionFileFingerprint) {
-  return left.size === right.size && left.mtimeMs === right.mtimeMs
-}
-
-function refreshProjection(sessionId: SessionId, owner: PiSessionProjectionRefreshOwner) {
-  return Effect.gen(function* () {
-    const busy = () =>
-      owner === 'reader' && (hasAnyActiveRun(sessionId) || isSessionRemovalFenced(sessionId))
-    if (busy()) return 'busy' satisfies PiSessionProjectionRefresh
-    const repository = yield* PiSessionDiscoveryRepository
-    const files = yield* PiSessionFiles
-    const state = yield* repository.getProjectionState(sessionId)
-    if (!state?.piSessionFile || !state.projectPath) return 'missing'
-    const fingerprint = yield* files.fingerprint(state.piSessionFile)
-    if (!fingerprint) return 'missing'
-    if (state.fingerprint && sameFingerprint(state.fingerprint, fingerprint)) return 'fresh'
-
-    const snapshot = yield* files.readSnapshot(state.piSessionFile, state.projectPath)
-    if (snapshot.entryCount === state.projectedPiEntryCount) {
-      // The projection was taken from these entries; keep it, and the branch the user selected.
-      yield* repository.recordUnchanged({
-        sessionId,
-        expectedRevision: state.revision,
-        fingerprint: snapshot.fingerprint,
-      })
-      return 'unchanged'
-    }
-    if (busy()) return 'busy'
-
-    const existingTree = yield* (yield* SessionRepository).getTree(sessionId)
-    const persisted = yield* repository.persistExternal({
-      sessionId,
-      expectedRevision: state.revision,
-      piSessionId: snapshot.piSessionId,
-      piSessionFile: snapshot.piSessionFile,
-      fingerprint: snapshot.fingerprint,
-      sessionSnapshot: appendDurableAgentLoopEvents({
-        snapshot: snapshot.sessionSnapshot,
-        events: [],
-        runId: EXTERNAL_PROJECTION_RUN_ID,
-        existingNodes: existingTree?.nodes ?? [],
-      }),
-    })
-    if (!persisted) return 'superseded'
-    publishSessionHostEvent({ kind: 'session-list-changed', sessionId, change: 'updated' })
-    return 'projected'
-  })
-}
-
-/** Refreshes started for a Session, per owner; a concurrent caller waits for the same one. */
-const refreshesInFlight = new Map<string, Promise<PiSessionProjectionRefresh>>()
-
-/**
- * Projects a Session's Pi file again when it changed outside OpenWaggle, or for the first time
- * after discovery. One `stat` when nothing changed; the file is read only when it did.
- */
-export function refreshPiSessionProjection(
-  sessionId: SessionId,
-  owner: PiSessionProjectionRefreshOwner,
-) {
-  return Effect.gen(function* () {
-    const key = `${owner}:${sessionId}`
-    const pending = refreshesInFlight.get(key)
-    if (pending) return yield* Effect.promise(() => pending)
-    const runtime = yield* Effect.runtime<
-      PiSessionDiscoveryRepository | PiSessionFiles | SessionRepository
-    >()
-    const refresh = Runtime.runPromise(runtime)(refreshProjection(sessionId, owner)).finally(() =>
-      refreshesInFlight.delete(key),
-    )
-    refreshesInFlight.set(key, refresh)
-    return yield* Effect.promise(() => refresh)
-  })
-}
-
-/**
- * The best-effort refresh a Session read or a Run start performs. It never fails the caller: a
- * runtime without discovery skips it, and a failed read leaves the current projection in place.
- */
-export function refreshPiSessionProjectionSafely(
-  sessionId: SessionId,
-  owner: PiSessionProjectionRefreshOwner,
-) {
-  return Effect.gen(function* () {
-    const repository = yield* Effect.serviceOption(PiSessionDiscoveryRepository)
-    const files = yield* Effect.serviceOption(PiSessionFiles)
-    const sessions = yield* Effect.serviceOption(SessionRepository)
-    if (Option.isNone(repository) || Option.isNone(files) || Option.isNone(sessions)) return
-    yield* refreshPiSessionProjection(sessionId, owner).pipe(
-      Effect.provideService(PiSessionDiscoveryRepository, repository.value),
-      Effect.provideService(PiSessionFiles, files.value),
-      Effect.provideService(SessionRepository, sessions.value),
-      Effect.catchAllCause((cause) =>
-        Effect.sync(() => {
-          logger.warn('Could not project a Pi session file that changed outside OpenWaggle', {
-            sessionId,
-            error: formatErrorMessage(Cause.squash(cause)),
-          })
-        }),
-      ),
-    )
-  })
-}
-
-/** A Session read: the Session is shown as its Pi file is now (ADR 0048). */
-export function openedSessionId(value: unknown) {
-  return Effect.tap(validateSessionId(value), (sessionId) =>
-    refreshPiSessionProjectionSafely(sessionId, 'reader'),
-  )
-}
-
-/** A Run's Session, after taking in what the Pi CLI added since it was last projected. */
-export function loadSessionForRun(sessionId: SessionId) {
-  return Effect.zipRight(
-    refreshPiSessionProjectionSafely(sessionId, 'run'),
-    Effect.flatMap(SessionProjectionRepository, (repository) => repository.getOptional(sessionId)),
-  )
 }
 
 export const runPiSessionDiscoveryBackground = Effect.forkScoped(

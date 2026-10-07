@@ -58,7 +58,7 @@ import {
   isHostUiSessionResourceChannel,
 } from './host-ui-session-resource-operation-dispatcher'
 import { regenerateSessionTitleOperation } from './host-ui-session-title-operation'
-import { openedSessionId } from './pi-session-discovery'
+import { openedSessionId } from './pi-session-projection-refresh'
 
 const TWO_ARGUMENTS = 2
 const THREE_ARGUMENTS = 3
