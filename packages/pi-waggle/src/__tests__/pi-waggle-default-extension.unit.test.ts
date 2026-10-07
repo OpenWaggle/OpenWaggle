@@ -2,6 +2,7 @@ import type {
   AgentEndEvent,
   ExtensionAPI,
   ExtensionCommandContext,
+  ExtensionToolContext,
   InputEvent,
   TurnEndEvent,
 } from '@earendil-works/pi-coding-agent'
@@ -129,7 +130,7 @@ function createHarness(input: { readonly branchEntries?: readonly unknown[] } = 
     setModel,
   })
   const currentModel = modelFor(PRIMARY_MODEL)
-  const ctx = fromPartial<ExtensionCommandContext>({
+  const ctx = fromPartial<ExtensionCommandContext & ExtensionToolContext>({
     cwd: '/repo',
     hasUI: true,
     isIdle: () => true,

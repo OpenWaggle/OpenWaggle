@@ -1,6 +1,6 @@
 import type {
   ExtensionAPI,
-  ExtensionContext,
+  ExtensionToolContext,
   ToolDefinition,
 } from '@earendil-works/pi-coding-agent'
 import { SessionId } from '@shared/types/brand'
@@ -58,8 +58,8 @@ async function registeredTools() {
   return tools
 }
 
-function context(confirm: ExtensionContext['ui']['confirm']) {
-  return fromPartial<ExtensionContext>({ hasUI: true, ui: { confirm } })
+function context(confirm: ExtensionToolContext['ui']['confirm']) {
+  return fromPartial<ExtensionToolContext>({ hasUI: true, ui: { confirm } })
 }
 
 describe('Pi browser preview automation extension', () => {
@@ -108,7 +108,7 @@ describe('Pi browser preview automation extension', () => {
 
   it('reports status without requesting page-control authority', async () => {
     const tools = await registeredTools()
-    const confirm = vi.fn<ExtensionContext['ui']['confirm']>()
+    const confirm = vi.fn<ExtensionToolContext['ui']['confirm']>()
 
     const result = await tools
       .get('preview_status')
@@ -175,7 +175,7 @@ describe('Pi browser preview automation extension', () => {
   it('resizes through one object schema and still enforces each mode contract', async () => {
     const tools = await registeredTools()
     const resize = tools.get('preview_resize')
-    const confirm = vi.fn<ExtensionContext['ui']['confirm']>(async () => true)
+    const confirm = vi.fn<ExtensionToolContext['ui']['confirm']>(async () => true)
     const scope = { sessionId: SessionId('session-1'), workingPath: '/project' }
 
     expect(JSON.parse(JSON.stringify(resize?.parameters))).toMatchObject({

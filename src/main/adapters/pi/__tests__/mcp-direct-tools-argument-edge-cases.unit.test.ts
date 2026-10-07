@@ -1,4 +1,4 @@
-import type { ExtensionContext } from '@earendil-works/pi-coding-agent'
+import type { ExtensionToolContext } from '@earendil-works/pi-coding-agent'
 import type { McpJsonValue } from '@shared/types/mcp'
 import { fromPartial } from '@total-typescript/shoehorn'
 import { describe, expect, it } from 'vitest'
@@ -156,7 +156,10 @@ describe('repaired MCP direct tools at the edges', () => {
       type: 'object',
       anyOf: [{ $ref: '#' }, { properties: { a: { type: 'string' } } }],
     })
-    const ctx = fromPartial<ExtensionContext>({ hasUI: true, ui: { confirm: async () => true } })
+    const ctx = fromPartial<ExtensionToolContext>({
+      hasUI: true,
+      ui: { confirm: async () => true },
+    })
 
     await expect(
       definition.execute('call-1', { a: 'x' }, undefined, undefined, ctx),

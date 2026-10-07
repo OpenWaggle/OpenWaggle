@@ -1,6 +1,6 @@
 import type {
   ExtensionAPI,
-  ExtensionContext,
+  ExtensionToolContext,
   ToolDefinition,
 } from '@earendil-works/pi-coding-agent'
 import type { ActionDefinition } from '@shared/types/action-definitions'
@@ -31,7 +31,7 @@ function registrationWith(saved: ActionDefinition) {
   let tool: ToolDefinition | undefined
   const authorize = vi.fn(async () => true)
   const start = vi.fn()
-  const ctx = fromPartial<ExtensionContext>({
+  const ctx = fromPartial<ExtensionToolContext>({
     hasUI: true,
     ui: Object.assign({ confirm: async () => false }, { [OPENWAGGLE_AUTHORIZE_KEY]: authorize }),
   })

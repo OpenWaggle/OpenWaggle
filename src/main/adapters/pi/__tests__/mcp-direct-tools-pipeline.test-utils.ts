@@ -2,7 +2,7 @@ import type { ToolCall } from '@earendil-works/pi-ai/compat'
 import { validateToolArguments } from '@earendil-works/pi-ai/utils/validation'
 import type {
   ExtensionAPI,
-  ExtensionContext,
+  ExtensionToolContext,
   ToolDefinition,
 } from '@earendil-works/pi-coding-agent'
 import type { McpGatewayInput, McpGatewayResult, McpJsonValue } from '@shared/types/mcp'
@@ -89,7 +89,7 @@ export async function throughRepairedTool(
   arguments_: ToolCall['arguments'],
 ): Promise<Outcome> {
   const { definition, executeGateway } = register(schema)
-  const ctx = fromPartial<ExtensionContext>({ hasUI: true, ui: { confirm: async () => true } })
+  const ctx = fromPartial<ExtensionToolContext>({ hasUI: true, ui: { confirm: async () => true } })
   try {
     const validated: Record<string, unknown> = validateToolArguments(
       definition,

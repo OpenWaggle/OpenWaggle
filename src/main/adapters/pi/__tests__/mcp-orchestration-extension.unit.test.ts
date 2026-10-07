@@ -1,6 +1,6 @@
 import type {
   ExtensionAPI,
-  ExtensionContext,
+  ExtensionToolContext,
   ToolDefinition,
 } from '@earendil-works/pi-coding-agent'
 import type { McpGatewayInput, McpGatewayResult } from '@shared/types/mcp'
@@ -21,8 +21,8 @@ function describeResult(handle: string): McpGatewayResult {
   }
 }
 
-function context(confirm: ExtensionContext['ui']['confirm']) {
-  return fromPartial<ExtensionContext>({ hasUI: true, ui: { confirm } })
+function context(confirm: ExtensionToolContext['ui']['confirm']) {
+  return fromPartial<ExtensionToolContext>({ hasUI: true, ui: { confirm } })
 }
 
 function register(
@@ -56,7 +56,7 @@ describe('Pi MCP orchestration extension', () => {
       expect(request.arguments).toEqual({ previous: 7 })
       return { operation: 'call' as const, text: 'second', result: { value: 'chosen' } }
     })
-    const confirm = vi.fn<ExtensionContext['ui']['confirm']>(async () => true)
+    const confirm = vi.fn<ExtensionToolContext['ui']['confirm']>(async () => true)
     const tool = register(executeGateway)
 
     const result = await tool.execute(
@@ -166,7 +166,7 @@ describe('Pi MCP orchestration extension', () => {
       active -= 1
       return { operation: 'call' as const, text: 'completed', result: { ok: true } }
     })
-    const confirm = vi.fn<ExtensionContext['ui']['confirm']>(async () => true)
+    const confirm = vi.fn<ExtensionToolContext['ui']['confirm']>(async () => true)
     const tool = register(executeGateway)
     const names = Array.from({ length: 10 }, (_, index) => `result_${String(index)}`)
     const calls = Array.from(

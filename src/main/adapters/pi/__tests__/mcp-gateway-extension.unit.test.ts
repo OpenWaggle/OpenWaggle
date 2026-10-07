@@ -1,6 +1,6 @@
 import type {
   ExtensionAPI,
-  ExtensionContext,
+  ExtensionToolContext,
   ToolDefinition,
 } from '@earendil-works/pi-coding-agent'
 import type {
@@ -37,8 +37,8 @@ async function registeredTools(
   return tools
 }
 
-function context(confirm: ExtensionContext['ui']['confirm']) {
-  return fromPartial<ExtensionContext>({
+function context(confirm: ExtensionToolContext['ui']['confirm']) {
+  return fromPartial<ExtensionToolContext>({
     hasUI: true,
     ui: { confirm },
   })
@@ -81,7 +81,7 @@ describe('Pi MCP gateway extension', () => {
             result: { matches: 1 },
           },
     )
-    const confirm = vi.fn<ExtensionContext['ui']['confirm']>(async () => true)
+    const confirm = vi.fn<ExtensionToolContext['ui']['confirm']>(async () => true)
     const tools = await registeredTools(executeGateway)
     const gateway = tools.get('mcp')
 
@@ -130,7 +130,7 @@ describe('Pi MCP gateway extension', () => {
         ? describeResult(request.handle ?? '')
         : { operation: 'call' as const, text: 'completed', result: { ok: true } },
     )
-    const confirm = vi.fn<ExtensionContext['ui']['confirm']>(async () => true)
+    const confirm = vi.fn<ExtensionToolContext['ui']['confirm']>(async () => true)
     const tools = await registeredTools(executeGateway)
 
     const result = await tools.get('mcp_run')?.execute(
@@ -172,7 +172,7 @@ describe('Pi MCP gateway extension', () => {
       },
       serverLabel: 'Documentation',
     } satisfies McpDirectToolDescriptor
-    const confirm = vi.fn<ExtensionContext['ui']['confirm']>(async () => true)
+    const confirm = vi.fn<ExtensionToolContext['ui']['confirm']>(async () => true)
     const tools = await registeredTools(executeGateway, [directTool])
     const registered = tools.get(directTool.modelName)
 

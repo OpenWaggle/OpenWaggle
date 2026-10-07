@@ -1,3 +1,4 @@
+import type { ImageContent } from '@earendil-works/pi-ai'
 import type { AgentSession } from '@earendil-works/pi-coding-agent'
 import type { AgentKernelRunControl } from '../../../ports/agent-kernel-service'
 import {
@@ -18,7 +19,12 @@ interface PiSteeringSession {
     | { readonly input: readonly NonNullable<AgentSession['model']>['input'][number][] }
     | undefined
   readonly prompt?: AgentSession['prompt']
-  readonly steer: AgentSession['steer']
+  /** Pi's expanded-text steering contract: resolves to the exact queued text, or undefined when handled. */
+  readonly steer: (
+    text: string,
+    images: ImageContent[] | undefined,
+    transformExpandedText: (expandedText: string) => string,
+  ) => Promise<string | undefined>
 }
 
 interface PiRunControlOptions {
@@ -64,6 +70,8 @@ export function createPiRunControl(
         ? (expandedText: string) =>
             buildAtomicVisualizationPrompt(visualizationContext, expandedText)
         : undefined
+      const transformSteeringText =
+        transformExpandedText ?? ((expandedText: string) => expandedText)
       const text = promptInput.text
       const images = promptInput.images.length > 0 ? [...promptInput.images] : undefined
       const minimumCreatedOrder = session.sessionManager.getEntries().length
@@ -78,9 +86,7 @@ export function createPiRunControl(
             streamingBehavior: 'steer',
           })
         } else {
-          durableText = transformExpandedText
-            ? await session.steer(text, images, transformExpandedText)
-            : await session.steer(text, images)
+          durableText = await session.steer(text, images, transformSteeringText)
         }
         if (durableText === undefined) {
           cancelProjection()

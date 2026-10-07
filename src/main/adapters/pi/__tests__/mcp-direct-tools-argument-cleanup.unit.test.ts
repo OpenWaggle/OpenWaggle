@@ -1,6 +1,6 @@
 import type { ToolCall } from '@earendil-works/pi-ai/compat'
 import { validateToolArguments } from '@earendil-works/pi-ai/utils/validation'
-import type { ExtensionContext } from '@earendil-works/pi-coding-agent'
+import type { ExtensionToolContext } from '@earendil-works/pi-coding-agent'
 import { fromPartial } from '@total-typescript/shoehorn'
 import { describe, expect, it, vi } from 'vitest'
 import {
@@ -63,7 +63,7 @@ describe('repaired MCP direct tools at call time', () => {
       oneOf: [{ required: ['n'] }],
     })
     const confirm = vi.fn(async () => true)
-    const ctx = fromPartial<ExtensionContext>({ hasUI: true, ui: { confirm } })
+    const ctx = fromPartial<ExtensionToolContext>({ hasUI: true, ui: { confirm } })
 
     await expect(
       definition.execute('call-1', { n: 'many' }, undefined, undefined, ctx),

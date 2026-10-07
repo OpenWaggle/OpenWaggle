@@ -1,7 +1,7 @@
 import type {
   AgentToolResult,
   ExtensionAPI,
-  ExtensionContext,
+  ExtensionToolContext,
   ToolDefinition,
 } from '@earendil-works/pi-coding-agent'
 import { estimateTokens } from '@earendil-works/pi-coding-agent'
@@ -76,7 +76,7 @@ export async function registeredTools(
 }
 
 export function approvingContext() {
-  return fromPartial<ExtensionContext>({ hasUI: true, ui: { confirm: async () => true } })
+  return fromPartial<ExtensionToolContext>({ hasUI: true, ui: { confirm: async () => true } })
 }
 
 export function modelTokenEstimate(result: AgentToolResult<unknown>) {

@@ -3,7 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 import type {
   ExtensionAPI,
-  ExtensionContext,
+  ExtensionToolContext,
   ToolDefinition,
 } from '@earendil-works/pi-coding-agent'
 import { fromPartial } from '@total-typescript/shoehorn'
@@ -42,7 +42,7 @@ describe('Pi-native Sessions export scope', () => {
       },
     }))
     const authorize = vi.fn(async () => true)
-    const context = fromPartial<ExtensionContext>({ hasUI: true, ui: fromPartial({}) })
+    const context = fromPartial<ExtensionToolContext>({ hasUI: true, ui: fromPartial({}) })
     Reflect.set(context.ui, OPENWAGGLE_AUTHORIZE_KEY, authorize)
     releaseGateway = installSessionToolGateway(gateway)
     let tool: ToolDefinition | undefined
@@ -113,7 +113,7 @@ describe('Pi-native Sessions export scope', () => {
       async (request: { scopeKey: { capability: string } }) =>
         request.scopeKey.capability === 'sessions.export-write',
     )
-    const context = fromPartial<ExtensionContext>({ hasUI: true, ui: fromPartial({}) })
+    const context = fromPartial<ExtensionToolContext>({ hasUI: true, ui: fromPartial({}) })
     Reflect.set(context.ui, OPENWAGGLE_AUTHORIZE_KEY, authorize)
 
     const result = await tool?.execute(

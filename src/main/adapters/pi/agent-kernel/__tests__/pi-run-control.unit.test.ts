@@ -25,9 +25,9 @@ function nativeSteering() {
     steer: vi.fn(
       async (
         text: string,
-        _images?: unknown[],
-        transformExpandedText?: (expandedText: string) => string,
-      ) => transformExpandedText?.(text) ?? text,
+        _images: unknown[] | undefined,
+        transformExpandedText: (expandedText: string) => string,
+      ) => transformExpandedText(text),
     ),
   }
 }
@@ -45,7 +45,11 @@ describe('Pi native run control', () => {
 
     await control.steer(payload('Take the safer path'))
 
-    expect(session.steer).toHaveBeenCalledWith('Take the safer path', undefined)
+    expect(session.steer).toHaveBeenCalledWith(
+      'Take the safer path',
+      undefined,
+      expect.any(Function),
+    )
   })
 
   it('routes Waggle steering through the input hook before queueing', async () => {
@@ -122,7 +126,7 @@ describe('Pi native run control', () => {
 
     const result = await control.steer(payload('/skill:review-pr'))
 
-    expect(session.steer).toHaveBeenCalledWith('/skill:review-pr', undefined)
+    expect(session.steer).toHaveBeenCalledWith('/skill:review-pr', undefined, expect.any(Function))
     expect(result).toEqual({
       delivery: 'queued',
       durableText: 'Expanded review skill',
@@ -201,7 +205,11 @@ describe('Pi native run control', () => {
 
     expect(session.sessionManager.appendCustomEntry).toHaveBeenCalledOnce()
     expect(session.steer).toHaveBeenCalledOnce()
-    expect(session.steer).toHaveBeenCalledWith('Continue after the checkpoint', undefined)
+    expect(session.steer).toHaveBeenCalledWith(
+      'Continue after the checkpoint',
+      undefined,
+      expect.any(Function),
+    )
   })
 
   it('queues visualization context and the user request as one steering message', async () => {
@@ -310,6 +318,7 @@ describe('Pi native run control', () => {
     expect(session.steer).toHaveBeenCalledWith(
       expect.stringMatching(/Inspect this[\s\S]*\[Attachment: diagram\.png\][\s\S]*Diagram/),
       expect.arrayContaining([expect.objectContaining({ type: 'image', data: 'base64-image' })]),
+      expect.any(Function),
     )
   })
 })

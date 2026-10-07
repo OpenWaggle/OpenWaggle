@@ -1,6 +1,6 @@
 import type {
   ExtensionAPI,
-  ExtensionContext,
+  ExtensionToolContext,
   ToolDefinition,
 } from '@earendil-works/pi-coding-agent'
 import { SessionId } from '@shared/types/brand'
@@ -220,7 +220,7 @@ describe('tool schemas OpenWaggle hands to Pi', () => {
 
 describe('repaired MCP direct tools keep their argument semantics', () => {
   function context() {
-    return fromPartial<ExtensionContext>({ hasUI: true, ui: { confirm: async () => true } })
+    return fromPartial<ExtensionToolContext>({ hasUI: true, ui: { confirm: async () => true } })
   }
 
   async function registered(tool: McpDirectToolDescriptor) {
