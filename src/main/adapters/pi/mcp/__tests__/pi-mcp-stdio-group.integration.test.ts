@@ -2,7 +2,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { McpClient } from '@earendil-works/pi-mcp'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, it } from 'vitest'
 import { McpSessionConnectionPool } from '../../../mcp/pool/mcp-session-connection-pool'
 import { openPiMcpUpstream } from '../pi-mcp-upstream'
 

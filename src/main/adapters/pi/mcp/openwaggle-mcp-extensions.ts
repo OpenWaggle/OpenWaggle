@@ -8,8 +8,6 @@ import {
   mcpNamespace,
 } from '@earendil-works/pi-coding-agent'
 import { isRecord } from '@shared/utils/validation'
-import { openExternal } from '../../../desktop-ui'
-import { createLogger } from '../../../logger'
 import { createMcpUpdateConfig } from '../../mcp/config/mcp-config-writer'
 import { loadMcpRuntimeConfig, type McpRuntimeConfig } from '../../mcp/config/mcp-runtime-config'
 import { resolveMcpVaultSecret } from '../../mcp/encrypted-mcp-secret-vault-service'
@@ -28,8 +26,6 @@ import { approveMcpToolCall } from './mcp-tool-approval'
 import { getOpenWaggleMcpCredentials, openWaggleMcpLogPath } from './openwaggle-mcp-credentials'
 import { migrateOpenWaggleMcpFilesOnce } from './openwaggle-mcp-migration'
 import { openPiMcpUpstream } from './pi-mcp-upstream'
-
-const logger = createLogger('mcp-extension')
 
 /** Only servers with `direct` tools can delay a message, and by at most this long (ADR 0048). */
 export const MCP_STARTUP_WAIT_MS = 1_500
