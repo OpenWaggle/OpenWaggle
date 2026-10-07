@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import type { Logger } from '@shared/types/logger'
-import { vi } from 'vitest'
+import { type Mock, vi } from 'vitest'
 import { MemoryMigrationFs } from './memory-migration-fs'
 
 export const HOME = '/home/user'
@@ -64,13 +64,12 @@ export function legacyState(overrides: Record<string, unknown> = {}) {
   }
 }
 
-export function recordingLogger() {
-  return {
-    debug: vi.fn(),
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-  } satisfies Logger
+export interface RecordingLogger extends Logger {
+  readonly error: Mock<Logger['error']>
+}
+
+export function recordingLogger(): RecordingLogger {
+  return { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn<Logger['error']>() }
 }
 
 export function memoryFs(files: Record<string, unknown>) {
