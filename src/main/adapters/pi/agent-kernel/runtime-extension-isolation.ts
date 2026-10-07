@@ -1,5 +1,5 @@
 import { matchBy } from '@diegogbrisa/ts-match'
-import type { ExtensionFactory } from '@earendil-works/pi-coding-agent'
+import type { ExtensionFactory, InlineExtension } from '@earendil-works/pi-coding-agent'
 import { DEFAULT_COMPACTION_THRESHOLD_PERCENT } from '@shared/types/settings'
 import { loadWithRuntimeFailureIsolation } from '../../../extensions/runtime-load-isolation'
 import {
@@ -32,7 +32,7 @@ export interface PiProjectRuntimeIsolationOptions {
   readonly compactionThresholdPercent?: number
   readonly skillToggles?: Readonly<Record<string, boolean>>
   readonly skillAllowlist?: readonly string[]
-  readonly extensionFactories?: readonly ExtensionFactory[]
+  readonly extensionFactories?: readonly InlineExtension[]
   readonly trustedExtensionFactories?: readonly ExtensionFactory[]
   readonly systemPromptAppendices?: readonly string[]
   readonly visualizationDirectory?: string

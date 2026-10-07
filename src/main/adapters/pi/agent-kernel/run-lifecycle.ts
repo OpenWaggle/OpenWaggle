@@ -1,4 +1,8 @@
-import type { AgentSession, ExtensionFactory } from '@earendil-works/pi-coding-agent'
+import type {
+  AgentSession,
+  ExtensionFactory,
+  InlineExtension,
+} from '@earendil-works/pi-coding-agent'
 import type { HydratedAgentSendPayload, Message } from '@shared/types/agent'
 import type { ThinkingLevel } from '@shared/types/settings'
 import { clampThinkingLevel } from '@shared/utils/thinking-levels'
@@ -60,7 +64,7 @@ interface CreatePiRunSessionRuntimeInput extends PiRuntimeExtensionIsolationInpu
   readonly onControlAvailable?: AgentKernelRunInput['onControlAvailable']
   readonly skillToggles?: Readonly<Record<string, boolean>>
   readonly skillAllowlist?: readonly string[]
-  readonly extensionFactories?: readonly ExtensionFactory[]
+  readonly extensionFactories?: readonly InlineExtension[]
   readonly trustedExtensionFactories?: readonly ExtensionFactory[]
   readonly systemPromptAppendices?: readonly string[]
   readonly visualizationDirectory?: string

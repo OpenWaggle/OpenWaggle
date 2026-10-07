@@ -1,4 +1,4 @@
-import type { ExtensionFactory } from '@earendil-works/pi-coding-agent'
+import type { ExtensionFactory, InlineExtension } from '@earendil-works/pi-coding-agent'
 import type { AgentKernelRunInput } from '../../../ports/agent-kernel-service'
 import { createAgentRunContextExtension } from '../agent-run-context-extension'
 import { createDelegationSpecificationUpdateExtension } from '../delegation-specification-update-extension'
@@ -37,7 +37,7 @@ function runtimeResources(
     readonly trustedExtensionFactories?: readonly ExtensionFactory[]
     readonly systemPromptAppendices?: readonly string[]
   },
-  extensionFactories: readonly ExtensionFactory[],
+  extensionFactories: readonly InlineExtension[],
 ) {
   return {
     ...(input.preparedEnvironment ? { preparedEnvironment: input.preparedEnvironment } : {}),
@@ -68,7 +68,7 @@ export async function runPiSession(
       readonly visualizationDirectory?: string
       readonly scratchDirectory?: string
       readonly sessionsExtensionFactory?: ExtensionFactory
-      readonly extensionFactories?: readonly ExtensionFactory[]
+      readonly extensionFactories?: readonly InlineExtension[]
       readonly trustedExtensionFactories?: readonly ExtensionFactory[]
       readonly systemPromptAppendices?: readonly string[]
     },
@@ -107,7 +107,7 @@ export async function runPiSession(
           }),
         ]
       : []),
-  ].filter((factory): factory is ExtensionFactory => factory !== undefined)
+  ].filter((factory): factory is InlineExtension => factory !== undefined)
   const { model, session } = await createPiRunSessionRuntime({
     session: input.session,
     projectPath,

@@ -4,7 +4,7 @@ import { pathToFileURL } from 'node:url'
 import {
   createMcpExtension,
   type ExtensionAPI,
-  type ExtensionFactory,
+  type InlineExtension,
   mcpNamespace,
 } from '@earendil-works/pi-coding-agent'
 import { openExternal } from '../../../desktop-ui'
@@ -175,11 +175,12 @@ function openUrl(url: string) {
 /**
  * Pi's built-in MCP extension with OpenWaggle's plug-in points, plus OpenWaggle's companion
  * extension (approval, sampling and elicitation context). Every Pi session OpenWaggle creates
- * for a Run loads these; codemode and tool search are loaded beside them.
+ * for a Run loads these. Like codemode and tool search (`pi-built-in-extensions.ts`), MCP is the
+ * `builtin:mcp` extension, so Pi's `-builtin:mcp` in the `extensions` setting turns it off.
  */
 export async function createOpenWaggleMcpExtensions(
   input: OpenWaggleMcpSessionInput,
-): Promise<readonly ExtensionFactory[]> {
+): Promise<readonly InlineExtension[]> {
   await migrateOpenWaggleMcpFilesOnce(input.projectPath)
   const config = await loadMcpRuntimeConfig({
     roots: { homeDir: homedir(), piAgentDir: getPiAgentDir(), projectPath: input.projectPath },
@@ -207,5 +208,8 @@ export async function createOpenWaggleMcpExtensions(
     updateConfig: createMcpUpdateConfig((filePath) => input.onConfigChanged?.(filePath)),
     startupWaitMs: MCP_STARTUP_WAIT_MS,
   })
-  return [mcp, companionExtension(input, config)]
+  return [
+    { name: 'mcp', factory: mcp, replaceable: true, builtin: true },
+    companionExtension(input, config),
+  ]
 }

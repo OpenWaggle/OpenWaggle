@@ -25,7 +25,7 @@ export interface PiRuntimeServicesOptions {
   readonly compactionThresholdPercent?: number
   readonly enabledOpenWaggleExtensionPackagePaths?: readonly string[]
   readonly enabledOpenWaggleExtensionResourceRoots?: readonly OpenWaggleExtensionPiResourceRoot[]
-  readonly extensionFactories?: readonly ExtensionFactory[]
+  readonly extensionFactories?: readonly InlineExtension[]
   readonly trustedExtensionFactories?: readonly ExtensionFactory[]
   readonly systemPromptAppendices?: readonly string[]
   readonly visualizationDirectory?: string
@@ -189,15 +189,33 @@ function configuredExtensionFactories(
   ]
 }
 
+/**
+ * `builtin:<name>` paths of the configured built-in extensions beyond codemode and tool search,
+ * such as the Run's MCP extension when automation allows first-party extensions.
+ */
+function extraBuiltInExtensionPaths(extensions: readonly InlineExtension[]) {
+  const known = new Set(openWagglePiBuiltInExtensionPaths())
+  return extensions
+    .flatMap((extension) =>
+      typeof extension !== 'function' && extension.builtin ? [`builtin:${extension.name}`] : [],
+    )
+    .filter((extensionPath) => !known.has(extensionPath))
+}
+
 function configuredResourcePaths(
   projectPath: string,
   options: PiRuntimeServicesOptions,
   settingsManager: SettingsManager | undefined,
   builtInSkillPaths: readonly string[],
   disableExtensions: boolean,
+  extensions: readonly InlineExtension[],
 ) {
   const builtInExtensionPaths = disableExtensions
-    ? [...openWagglePiBuiltInExtensionPaths(), ...automationQaExtensionPaths()]
+    ? [
+        ...openWagglePiBuiltInExtensionPaths(),
+        ...extraBuiltInExtensionPaths(extensions),
+        ...automationQaExtensionPaths(),
+      ]
     : []
   if (settingsManager) {
     return {
@@ -244,6 +262,7 @@ export function createOpenWagglePiResourceLoaderOptions(
       settingsManager,
       builtInSkillPaths,
       disableExtensions,
+      extensionFactories,
     ),
     skillsOverride: (base) =>
       filterDisabledCatalogSkills(projectPath, skillToggles, base, options.skillAllowlist),

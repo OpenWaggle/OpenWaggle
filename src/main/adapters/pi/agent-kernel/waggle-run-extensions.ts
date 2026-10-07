@@ -1,4 +1,4 @@
-import type { ExtensionFactory } from '@earendil-works/pi-coding-agent'
+import type { ExtensionFactory, InlineExtension } from '@earendil-works/pi-coding-agent'
 import type {
   AgentKernelRunInput,
   AgentKernelWaggleRunOptions,
@@ -22,7 +22,7 @@ export type PiWaggleKernelRunInput = AgentKernelRunInput & {
   readonly visualizationDirectory?: string
   readonly scratchDirectory?: string
   readonly sessionsExtensionFactory?: ExtensionFactory
-  readonly extensionFactories?: readonly ExtensionFactory[]
+  readonly extensionFactories?: readonly InlineExtension[]
   readonly trustedExtensionFactories?: readonly ExtensionFactory[]
   readonly systemPromptAppendices?: readonly string[]
 } & PiRuntimeExtensionIsolationInput

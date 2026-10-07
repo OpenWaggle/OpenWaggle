@@ -4,6 +4,7 @@ import {
   createAgentSessionServices,
   type ExtensionFactory,
   getAgentDir,
+  type InlineExtension,
   ModelRuntime,
 } from '@earendil-works/pi-coding-agent'
 import { createModelRef } from '@shared/types/llm'
@@ -266,7 +267,7 @@ export async function createPiProjectModelRuntime(input: {
   readonly skillAllowlist?: readonly string[]
   readonly enabledOpenWaggleExtensionPackagePaths?: readonly string[]
   readonly enabledOpenWaggleExtensionResourceRoots?: PiRuntimeServicesOptions['enabledOpenWaggleExtensionResourceRoots']
-  readonly extensionFactories?: readonly ExtensionFactory[]
+  readonly extensionFactories?: readonly InlineExtension[]
   readonly trustedExtensionFactories?: readonly ExtensionFactory[]
   readonly systemPromptAppendices?: readonly string[]
   readonly visualizationDirectory?: string

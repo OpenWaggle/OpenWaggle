@@ -101,6 +101,26 @@ it('allows host-owned inline extensions without enabling discovered extensions d
   }
 })
 
+it("loads the Run's built-in MCP extension by its builtin path during live QA", async () => {
+  const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-pi-live-qa-mcp-'))
+  const mcpFactory: ExtensionFactory = vi.fn()
+  const mcp = { name: 'mcp', factory: mcpFactory, replaceable: true, builtin: true }
+  Object.assign(env, { OPENWAGGLE_AUTOMATION_FIRST_PARTY_EXTENSIONS: '1' })
+
+  try {
+    expect(
+      createOpenWagglePiResourceLoaderOptions(projectPath, { extensionFactories: [mcp] }),
+    ).toMatchObject({
+      additionalExtensionPaths: ['builtin:codemode', 'builtin:tool-search', 'builtin:mcp'],
+      noExtensions: true,
+    })
+    await createPiRuntimeServices(projectPath, { extensionFactories: [mcp] })
+    expect(mcpFactory).toHaveBeenCalledOnce()
+  } finally {
+    Reflect.deleteProperty(env, 'OPENWAGGLE_AUTOMATION_FIRST_PARTY_EXTENSIONS')
+  }
+})
+
 it('loads only the Pi extension files a QA run names explicitly during automation', async () => {
   const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-pi-qa-extension-'))
   const providerId = 'automation-qa-fixture-provider'
