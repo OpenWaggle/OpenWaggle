@@ -16,12 +16,21 @@ const BEFORE_PATCH_PATH_CAPTURE = 1
 const AFTER_PATCH_PATH_CAPTURE = 2
 const EXPECTED_PATCH_PATHS = {
   'pi-ai': [
+    'dist/api/anthropic-messages.js',
+    'dist/api/azure-openai-responses.js',
+    'dist/api/bedrock-converse-stream.js',
+    'dist/api/mistral-conversations.js',
+    'dist/api/openai-codex-responses.js',
+    'dist/api/openai-completions.js',
     'dist/api/openai-responses-shared.js',
     'dist/api/openai-responses.d.ts',
     'dist/api/openai-responses.js',
+    'dist/api/pi-messages.js',
     'dist/providers/openai-codex.models.js',
     'dist/providers/openai.models.js',
     'dist/types.d.ts',
+    'dist/utils/json-parse.d.ts',
+    'dist/utils/json-parse.js',
     'dist/utils/provider-retry.d.ts',
     'dist/utils/provider-retry.js',
     'dist/utils/retry.d.ts',
