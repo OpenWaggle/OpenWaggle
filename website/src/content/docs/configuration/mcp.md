@@ -92,7 +92,7 @@ Secret references only work in `~/.openwaggle/mcp.json` and `.openwaggle/mcp.jso
 
 Select a server in **Settings > MCP** to see where it is defined, whether it is connected, its tools, and any error, including the last lines a local server printed. From there you can:
 
-- turn it on or off, everywhere or **only in this project**;
+- turn it on or off everywhere, or only in this project with **Turn off in this project** or **Turn on in this project**;
 - choose how its tools reach the agent (see below), for the whole server or tool by tool;
 - sign in or sign out;
 - remove it.
@@ -152,9 +152,10 @@ openwaggle mcp add --local tools -- uvx tools-mcp
 openwaggle mcp disable docs
 openwaggle mcp login sentry
 openwaggle mcp import --from codex,cursor
+openwaggle mcp import --from codex,cursor --apply
 ```
 
-New servers go to `~/.openwaggle/mcp.json`, or to `.openwaggle/mcp.json` in the current project with `--local`. The project must already be open in OpenWaggle.
+New servers go to `~/.openwaggle/mcp.json`, or to `.openwaggle/mcp.json` in the current project with `--local`. The project must already be open in OpenWaggle. `mcp import` lists what it found; add `--apply` to import it.
 
 ## OpenWaggle as an MCP server
 
