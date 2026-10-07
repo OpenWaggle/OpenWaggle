@@ -11,6 +11,10 @@ import {
   McpSecretVaultService,
   type McpSecretVaultServiceShape,
 } from '../../ports/mcp-secret-vault-service'
+import {
+  SessionProjectionRepository,
+  type SessionProjectionRepositoryShape,
+} from '../../ports/session-projection-repository'
 
 const { hostHandleMock, typedHandleMock } = vi.hoisted(() => ({
   hostHandleMock: vi.fn(),
@@ -35,14 +39,28 @@ function makeTestLayer() {
   const callTool = vi.fn<McpAppRuntimeServiceShape['callTool']>(() =>
     Effect.succeed({ content: [], isError: false }),
   )
+  const listCatalog = vi.fn<McpAppRuntimeServiceShape['listCatalog']>(() =>
+    Effect.succeed({ resources: [{ uri: 'file:///a', name: 'a' }], prompts: [] }),
+  )
+  // The Session works in a worktree, so its servers start there.
+  const sessions = fromPartial<SessionProjectionRepositoryShape>({
+    getOptional: (id: string) =>
+      Effect.succeed(
+        id === 's1'
+          ? fromPartial({ id, projectPath: '/p', environmentMode: 'worktree', worktreePath: '/wt' })
+          : null,
+      ),
+  })
   return {
-    layer: Layer.merge(
+    layer: Layer.mergeAll(
       Layer.succeed(McpSecretVaultService, vault),
-      Layer.succeed(McpAppRuntimeService, { readResource, callTool }),
+      Layer.succeed(McpAppRuntimeService, { readResource, listCatalog, callTool }),
+      Layer.succeed(SessionProjectionRepository, sessions),
     ),
     setSecret,
     removeSecret,
     readResource,
+    listCatalog,
     callTool,
   }
 }
@@ -98,7 +116,7 @@ describe('MCP IPC handlers', () => {
     const result = await getRegisteredHandler('mcp:read-resource', test.layer)(
       {},
       {
-        projectPath: '/p',
+        projectPath: '/somewhere-else',
         sessionId: 's1',
         serverInstanceId: 'figma',
         serverConfigHash: 'mcp-server:abc',
@@ -106,8 +124,10 @@ describe('MCP IPC handlers', () => {
       },
     )
 
+    // The project and working path are the Session's own, not what the request says.
     expect(test.readResource).toHaveBeenCalledWith({
       projectPath: '/p',
+      workingPath: '/wt',
       sessionId: 's1',
       serverName: 'figma',
       serverIdentity: 'mcp-server:abc',
@@ -117,6 +137,35 @@ describe('MCP IPC handlers', () => {
       contents: [{ uri: 'ui://app', text: '<p>app</p>' }],
       attribution: { serverInstanceId: 'figma', serverLabel: 'figma' },
     })
+  })
+
+  it("lists an MCP App server's resources and prompts for the App", async () => {
+    const test = makeTestLayer()
+
+    const result = await getRegisteredHandler('mcp:list-app-catalog', test.layer)(
+      {},
+      { sessionId: 's1', serverInstanceId: 'figma', serverConfigHash: 'mcp-server:abc' },
+    )
+
+    expect(test.listCatalog).toHaveBeenCalledWith(
+      expect.objectContaining({ sessionId: 's1', serverName: 'figma', workingPath: '/wt' }),
+    )
+    expect(result).toEqual({
+      resources: [{ uri: 'file:///a', name: 'a' }],
+      prompts: [],
+      attribution: { serverInstanceId: 'figma', serverLabel: 'figma' },
+    })
+  })
+
+  it('refuses an MCP App request for a Session that does not exist', async () => {
+    const test = makeTestLayer()
+
+    await expect(
+      getRegisteredHandler('mcp:read-resource', test.layer)(
+        {},
+        { sessionId: 'gone', serverInstanceId: 'figma', serverConfigHash: 'x', uri: 'ui://app' },
+      ),
+    ).rejects.toThrow('The Session of this MCP App is gone.')
   })
 
   it('refuses an MCP App request without the Session that opened it', async () => {

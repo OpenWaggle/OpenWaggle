@@ -1,9 +1,16 @@
 import { decodeUnknownOrThrow } from '@shared/schema'
 import { mcpConfigValueSchema } from '@shared/schemas/mcp'
-import type { McpAppToolCallResult, McpResourceResult } from '@shared/types/mcp-apps'
+import { SessionId } from '@shared/types/brand'
+import type {
+  McpAppCatalogResult,
+  McpAppToolCallResult,
+  McpResourceResult,
+} from '@shared/types/mcp-apps'
+import { resolveSessionWorkingDir } from '@shared/utils/worktree'
 import { Schema } from 'effect'
 import * as Effect from 'effect/Effect'
 import { McpAppRuntimeService } from '../ports/mcp-app-runtime-service'
+import { SessionProjectionRepository } from '../ports/session-projection-repository'
 
 /**
  * MCP Apps read their `ui://` resources and call their server's tools over the Session's MCP
@@ -11,11 +18,14 @@ import { McpAppRuntimeService } from '../ports/mcp-app-runtime-service'
  * the server identity the App was opened with.
  */
 const appServerFields = {
+  // Accepted for older renderers; the Session's own project is used.
   projectPath: Schema.optional(Schema.NullOr(Schema.String)),
   sessionId: Schema.optional(Schema.NullOr(Schema.String)),
   serverInstanceId: Schema.String,
   serverConfigHash: Schema.optional(Schema.String),
 }
+
+const catalogInputSchema = Schema.Struct(appServerFields)
 
 const readResourceInputSchema = Schema.Struct({ ...appServerFields, uri: Schema.String })
 
@@ -32,25 +42,51 @@ function decode<A, I>(schema: Schema.Schema<A, I>, raw: unknown) {
   })
 }
 
+/**
+ * The App's server in its Session. The project and working path come from the Session, not the
+ * request, so a cold connection starts where the Session's Runs do and matches their connection.
+ */
 function serverInput(input: {
-  readonly projectPath?: string | null
   readonly sessionId?: string | null
   readonly serverInstanceId: string
   readonly serverConfigHash?: string
 }) {
-  if (!input.sessionId) {
-    return Effect.fail(new Error('MCP Apps need the Session whose tool result opened them.'))
-  }
-  if (!input.serverConfigHash) {
-    return Effect.fail(
-      new Error('This MCP App was opened by an older OpenWaggle; run the tool again.'),
-    )
-  }
-  return Effect.succeed({
-    projectPath: input.projectPath ?? null,
-    sessionId: input.sessionId,
-    serverName: input.serverInstanceId,
-    serverIdentity: input.serverConfigHash,
+  return Effect.gen(function* () {
+    const { sessionId, serverConfigHash } = input
+    if (!sessionId) {
+      return yield* Effect.fail(
+        new Error('MCP Apps need the Session whose tool result opened them.'),
+      )
+    }
+    if (!serverConfigHash) {
+      return yield* Effect.fail(
+        new Error('This MCP App was opened by an older OpenWaggle; run the tool again.'),
+      )
+    }
+    const sessions = yield* SessionProjectionRepository
+    const session = yield* sessions
+      .getOptional(SessionId(sessionId))
+      .pipe(Effect.mapError(() => new Error('The Session of this MCP App could not be read.')))
+    if (!session) return yield* Effect.fail(new Error('The Session of this MCP App is gone.'))
+    return {
+      projectPath: session.projectPath,
+      workingPath: resolveSessionWorkingDir(session, session.projectPath) ?? null,
+      sessionId,
+      serverName: input.serverInstanceId,
+      serverIdentity: serverConfigHash,
+    }
+  })
+}
+
+function attribution(serverName: string) {
+  return { serverInstanceId: serverName, serverLabel: serverName }
+}
+
+export function listMcpAppCatalogOperation(raw: unknown) {
+  return Effect.gen(function* () {
+    const server = yield* serverInput(yield* decode(catalogInputSchema, raw))
+    const catalog = yield* (yield* McpAppRuntimeService).listCatalog(server)
+    return { ...catalog, attribution: attribution(server.serverName) } satisfies McpAppCatalogResult
   })
 }
 
@@ -62,10 +98,7 @@ export function readMcpResourceOperation(raw: unknown) {
       ...server,
       uri: input.uri,
     })
-    return {
-      contents,
-      attribution: { serverInstanceId: server.serverName, serverLabel: server.serverName },
-    } satisfies McpResourceResult
+    return { contents, attribution: attribution(server.serverName) } satisfies McpResourceResult
   })
 }
 

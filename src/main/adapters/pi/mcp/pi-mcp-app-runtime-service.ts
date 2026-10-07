@@ -5,6 +5,7 @@ import { createMcpAuthProvider } from '@earendil-works/pi-coding-agent'
 import { safeDecodeUnknown } from '@shared/schema'
 import { mcpConfigValueSchema } from '@shared/schemas/mcp'
 import type { McpJsonValue } from '@shared/types/mcp'
+import { isRecord } from '@shared/utils/validation'
 import { Effect, Layer } from 'effect'
 import {
   McpAppRuntimeService,
@@ -17,25 +18,20 @@ import { mcpConnectionFingerprint, mcpServerIdentity } from '../../mcp/pool/mcp-
 import { getPiAgentDir } from '../pi-provider-catalog'
 import { mcpAppTool } from './mcp-app-registry'
 import { getOpenWaggleMcpCredentials } from './openwaggle-mcp-credentials'
+import { mcpOAuthSettings, mcpOAuthUrl } from './pi-mcp-server-oauth'
 import { openPiMcpUpstream } from './pi-mcp-upstream'
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
+/** How long an App's request may take, like Pi's own MCP request timeout. */
+export const MCP_APP_REQUEST_TIMEOUT_MS = 60_000
 
-function oauthUrl(config: {
-  readonly url: string
-  readonly headers?: Record<string, string>
-  readonly auth?: unknown
-}) {
-  if (config.auth) return undefined
-  const hasAuthorization = Object.keys(config.headers ?? {}).some(
-    (header) => header.toLowerCase() === 'authorization',
-  )
-  return hasAuthorization ? undefined : config.url
-}
+/** JSON-RPC "method not found": a server without resources or prompts. */
+const METHOD_NOT_FOUND = -32601
 
-/** The Session's connection to the App's server, opened with its current configuration if closed. */
+/**
+ * The Session's connection to the App's server, opened with its current configuration if closed.
+ * A cold connection is made exactly like a Run's (the Session's working path for `cwd` and roots,
+ * Pi's OAuth settings, the server identity), so the Run that comes next reuses it.
+ */
 async function appConnection(input: McpAppServerInput) {
   const warm = mcpSessionConnectionPool.connection(input.sessionId, input.serverName)
   const config = await loadMcpRuntimeConfig({
@@ -43,7 +39,8 @@ async function appConnection(input: McpAppServerInput) {
     resolveSecret: resolveMcpVaultSecret,
   })
   const entry = config.loaded.servers.find((server) => server.name === input.serverName)
-  if (!entry || mcpServerIdentity(entry.name, entry.config) !== input.serverIdentity) {
+  const identity = entry ? mcpServerIdentity(entry.name, entry.config) : undefined
+  if (!entry || identity !== input.serverIdentity) {
     throw new Error(
       `The MCP server "${input.serverName}" this App belongs to was changed or removed.`,
     )
@@ -53,22 +50,42 @@ async function appConnection(input: McpAppServerInput) {
     throw new Error(`The MCP server "${input.serverName}" is turned off.`)
   }
   const transport = config.transports.get(entry.name) ?? ('url' in entry.config ? 'http' : 'stdio')
-  const cwd = input.projectPath ?? homedir()
-  const url = 'url' in entry.config ? oauthUrl(entry.config) : undefined
+  const cwd = input.workingPath ?? input.projectPath ?? homedir()
+  const url = mcpOAuthUrl(entry)
   const authProvider = url
     ? createMcpAuthProvider({
         serverUrl: url,
         store: getOpenWaggleMcpCredentials().forServer(entry.name, url),
-        settings: () => ({}),
+        settings: () => mcpOAuthSettings(entry),
         onChallenge: () => {},
       })
     : undefined
   return mcpSessionConnectionPool.connectionFor(input.sessionId, {
     name: entry.name,
     fingerprint: mcpConnectionFingerprint({ config: entry.config, transport, cwd }),
+    identity,
     open: () => openPiMcpUpstream({ entry, transport, cwd, authProvider }),
     roots: () => [{ uri: pathToFileURL(cwd).href, name: path.basename(cwd) }],
   })
+}
+
+/** One request of an App over the Session's connection, bounded in time. */
+async function appRequest(input: McpAppServerInput, method: string, params: unknown) {
+  const connection = await appConnection(input)
+  const abort = new AbortController()
+  const timer = setTimeout(() => abort.abort(), MCP_APP_REQUEST_TIMEOUT_MS)
+  try {
+    return await connection.request(method, params, { signal: abort.signal })
+  } catch (error) {
+    if (abort.signal.aborted) {
+      throw new Error(`The MCP server "${input.serverName}" did not answer ${method} in time.`, {
+        cause: error,
+      })
+    }
+    throw error
+  } finally {
+    clearTimeout(timer)
+  }
 }
 
 function json(value: unknown): McpJsonValue {
@@ -79,9 +96,25 @@ function json(value: unknown): McpJsonValue {
 
 async function readResource(input: McpAppServerInput & { readonly uri: string }) {
   if (!input.uri.startsWith('ui://')) throw new Error('MCP Apps may only read ui:// resources.')
-  const connection = await appConnection(input)
-  const result = await connection.request('resources/read', { uri: input.uri })
+  const result = await appRequest(input, 'resources/read', { uri: input.uri })
   return json(isRecord(result) ? result.contents : [])
+}
+
+/** A list the server may not offer at all; a server without the method lists nothing. */
+async function optionalList(input: McpAppServerInput, method: string, key: string) {
+  try {
+    const result = await appRequest(input, method, {})
+    return json(isRecord(result) ? (result[key] ?? []) : [])
+  } catch (error) {
+    if (isRecord(error) && error.code === METHOD_NOT_FOUND) return json([])
+    throw error
+  }
+}
+
+async function listCatalog(input: McpAppServerInput) {
+  const resources = await optionalList(input, 'resources/list', 'resources')
+  const prompts = await optionalList(input, 'prompts/list', 'prompts')
+  return { resources, prompts }
 }
 
 async function callTool(
@@ -92,15 +125,13 @@ async function callTool(
 ) {
   // An App may call only tools its server advertised in this Session.
   if (!mcpAppTool(input.sessionId, input.serverName, input.toolName)) {
-    const connection = await appConnection(input)
-    const listed = await connection.request('tools/list', {})
+    const listed = await appRequest(input, 'tools/list', {})
     const tools = isRecord(listed) && Array.isArray(listed.tools) ? listed.tools : []
     if (!tools.some((tool) => isRecord(tool) && tool.name === input.toolName)) {
       throw new Error('The MCP App requested a tool that its server did not advertise.')
     }
   }
-  const connection = await appConnection(input)
-  const result = await connection.request('tools/call', {
+  const result = await appRequest(input, 'tools/call', {
     name: input.toolName,
     arguments: input.arguments,
   })
@@ -123,5 +154,6 @@ function attempt<A>(operation: () => Promise<A>) {
 
 export const PiMcpAppRuntimeServiceLive = Layer.succeed(McpAppRuntimeService, {
   readResource: (input) => attempt(() => readResource(input)),
+  listCatalog: (input) => attempt(() => listCatalog(input)),
   callTool: (input) => attempt(() => callTool(input)),
 })
