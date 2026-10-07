@@ -53,14 +53,20 @@ export function useContextUsageSnapshot({
 
             if (event.type === 'context_usage') {
               receivedLiveUpdate = true
-              setRequestState({
-                key: currentRequestKey,
-                snapshot: {
-                  tokens: event.tokens,
-                  contextWindow: event.contextWindow,
-                  percent: (event.tokens / event.contextWindow) * PERCENT_MULTIPLIER,
-                },
-                failed: false,
+              // Live usage carries no Session totals; the last read ones stay until the next read.
+              setRequestState((current) => {
+                const session =
+                  current.key === currentRequestKey ? current.snapshot?.session : undefined
+                return {
+                  key: currentRequestKey,
+                  snapshot: {
+                    tokens: event.tokens,
+                    contextWindow: event.contextWindow,
+                    percent: (event.tokens / event.contextWindow) * PERCENT_MULTIPLIER,
+                    ...(session ? { session } : {}),
+                  },
+                  failed: false,
+                }
               })
               return
             }

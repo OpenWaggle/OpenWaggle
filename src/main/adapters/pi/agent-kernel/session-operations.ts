@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { type ContextUsage, SessionManager } from '@earendil-works/pi-coding-agent'
-import type { ContextUsageSnapshot } from '@shared/types/context-usage'
+import type { ContextUsageSnapshot, SessionUsageSummary } from '@shared/types/context-usage'
 import {
   AgentKernelMissingEntryError,
   type AgentKernelSessionInput,
@@ -15,12 +15,16 @@ import {
 import { writeRekeyedForkedSession } from './fork-entry-identity'
 import { type PiEntryNodeIds, piEntryNodeIds } from './pi-entry-node-ids'
 import { piResponseUsageInput } from './pi-response-usage'
+import { summarizePiSessionUsage } from './pi-session-usage'
 import type { PiRuntimeExtensionIsolationInput } from './runtime-extension-isolation'
 import { createSessionListener } from './session-listener'
 import { projectPiSessionSnapshot } from './session-projection'
 import { createPiSessionRuntime, withPiSession } from './session-runtime'
 
-function toContextUsageSnapshot(usage: ContextUsage | undefined): ContextUsageSnapshot | null {
+function toContextUsageSnapshot(
+  usage: ContextUsage | undefined,
+  session: SessionUsageSummary,
+): ContextUsageSnapshot | null {
   if (!usage) {
     return null
   }
@@ -29,13 +33,16 @@ function toContextUsageSnapshot(usage: ContextUsage | undefined): ContextUsageSn
     tokens: usage.tokens,
     contextWindow: usage.contextWindow,
     percent: usage.percent,
+    ...(session.models.length > 0 ? { session } : {}),
   }
 }
 
 export async function getPiContextUsage(
   input: AgentKernelSessionInput & PiRuntimeExtensionIsolationInput,
 ) {
-  return withPiSession(input, (session) => toContextUsageSnapshot(session.getContextUsage()))
+  return withPiSession(input, (session) =>
+    toContextUsageSnapshot(session.getContextUsage(), summarizePiSessionUsage(session)),
+  )
 }
 
 export async function getPiSessionSnapshot(

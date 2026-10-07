@@ -26,6 +26,7 @@ interface FakeSession {
     options: { readonly summarize: boolean; readonly customInstructions?: string },
   ) => Promise<{ readonly editorText?: string; readonly cancelled: boolean }>
   readonly subscribe: (listener: unknown) => () => void
+  readonly sessionManager: { readonly getEntries: () => unknown[] }
 }
 
 type SessionOperation = (session: FakeSession) => unknown
@@ -89,6 +90,7 @@ function createSession(overrides: Partial<FakeSession> = {}): FakeSession {
     getContextUsage: vi.fn(() => ({ tokens: 40, contextWindow: 100, percent: 40 })),
     navigateTree: vi.fn(async () => ({ editorText: 'selected prompt', cancelled: false })),
     subscribe: vi.fn(() => vi.fn()),
+    sessionManager: { getEntries: () => [] },
     ...overrides,
   }
 }
@@ -123,6 +125,35 @@ describe('Pi session operations', () => {
       piSessionId: 'pi-session-1',
       piSessionFile: '/repo/session.jsonl',
       sessionSnapshot: { activeNodeId: 'node-2', nodes: [] },
+    })
+  })
+
+  it("adds the Session's cost per answering model to its context usage", async () => {
+    session = createSession({
+      sessionManager: {
+        getEntries: () => [
+          {
+            type: 'message',
+            message: {
+              role: 'assistant',
+              provider: 'openai',
+              model: 'gpt-6-luna',
+              usage: { input: 30, output: 10, cacheRead: 0, cacheWrite: 0, cost: { total: 0.2 } },
+            },
+          },
+        ],
+      },
+    })
+
+    await expect(getPiContextUsage(input())).resolves.toEqual({
+      tokens: 40,
+      contextWindow: 100,
+      percent: 40,
+      session: {
+        tokens: 40,
+        cost: 0.2,
+        models: [{ model: 'openai/gpt-6-luna', tokens: 40, cost: 0.2 }],
+      },
     })
   })
 

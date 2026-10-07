@@ -121,6 +121,50 @@ describe('useContextUsageSnapshot', () => {
     expect(result.current.snapshot).toEqual({ tokens: 50_000, contextWindow: 200_000, percent: 25 })
   })
 
+  it('keeps the Session cost totals while live usage replaces the context numbers', async () => {
+    const session = {
+      tokens: 9_000,
+      cost: 0.1,
+      models: [{ model: MODEL_ID, tokens: 9_000, cost: 0.1 }],
+    }
+    ipcMocks.getContextUsage.mockResolvedValue({
+      tokens: 10_000,
+      contextWindow: 100_000,
+      percent: 10,
+      session,
+    })
+    const { result } = renderHook(() =>
+      useContextUsageSnapshot({
+        activeSessionId: SESSION_ID,
+        selectedModel: MODEL_ID,
+        requestKey: 'session-1:openai/gpt-5.4:v1',
+      }),
+    )
+
+    await waitFor(() => expect(result.current.snapshot?.session).toEqual(session))
+    const handler = ipcMocks.onAgentEvent.mock.calls[0]?.[0]
+    if (!handler) throw new Error('Expected context meter event subscription')
+    act(() => {
+      handler({
+        sessionId: SESSION_ID,
+        event: {
+          type: 'context_usage',
+          tokens: 20_000,
+          contextWindow: 100_000,
+          timestamp: 1,
+          model: MODEL_ID,
+        },
+      })
+    })
+
+    expect(result.current.snapshot).toEqual({
+      tokens: 20_000,
+      contextWindow: 100_000,
+      percent: 20,
+      session,
+    })
+  })
+
   it('marks usage unknown immediately after successful compaction', async () => {
     const { result } = renderHook(() =>
       useContextUsageSnapshot({
