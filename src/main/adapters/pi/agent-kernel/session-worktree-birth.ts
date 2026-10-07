@@ -14,7 +14,7 @@ import {
 } from '../../../store/session-details'
 import { createGitWorktree } from '../../git/worktree'
 import { resolveFreshWorktreeBaseRef } from './session-branch-freshness'
-import { requireSessionProjectPath } from './session-manager'
+import { requireSessionProjectPath, resolveLocalWorkingPath } from './session-manager'
 import { validateWorkspaceBirthAuthority } from './session-worktree-birth-authority'
 import {
   applyPendingHandoffSeed,
@@ -39,7 +39,7 @@ export async function ensureSessionWorktreeProjectPath(
   options: SessionWorktreeBirthOptions = {},
 ): Promise<string> {
   const primaryPath = requireSessionProjectPath(session)
-  if (session.environmentMode !== 'worktree') return primaryPath
+  if (session.environmentMode !== 'worktree') return resolveLocalWorkingPath(session, primaryPath)
   const workspace =
     (await getBoundWorkspaceResource(session.id)) ?? fallbackWorkspace(session, primaryPath)
   const key = workspace.id

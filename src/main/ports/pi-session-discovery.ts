@@ -47,6 +47,10 @@ export interface PiSessionFileSnapshot {
   /** Taken before the file was read, so a write during the read is seen next time. */
   readonly fingerprint: PiSessionFileFingerprint
   readonly sessionSnapshot: AgentKernelSessionSnapshot
+  /** The model the session last used, as `provider/model`, which `pi --resume` continues with. */
+  readonly lastModel?: string
+  /** The thinking level the session last used, which `pi --resume` continues with. */
+  readonly lastThinkingLevel?: string
 }
 
 /**
@@ -97,6 +101,8 @@ export interface AdoptDiscoveredPiSessionInput {
   readonly sessionId: SessionId
   readonly piSessionId: string
   readonly piSessionFile: string
+  /** The working directory in the session header, inside the project. */
+  readonly cwd: string
   readonly createdAt: number
   readonly updatedAt: number
 }

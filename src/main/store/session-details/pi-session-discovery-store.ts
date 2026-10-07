@@ -117,8 +117,8 @@ export async function adoptDiscoveredPiSession(
             WHERE id = ${input.sessionId}
           `
           yield* sql`
-            INSERT INTO pi_session_adoptions (session_id, adopted_at)
-            VALUES (${input.sessionId}, ${Date.now()})
+            INSERT INTO pi_session_adoptions (session_id, adopted_at, cwd)
+            VALUES (${input.sessionId}, ${Date.now()}, ${input.cwd})
           `
           return true
         }),

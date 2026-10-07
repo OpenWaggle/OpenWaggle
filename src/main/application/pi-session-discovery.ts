@@ -111,6 +111,7 @@ function createDiscoveredSession(session: DiscoveredPiSession) {
       sessionId,
       piSessionId: session.piSessionId,
       piSessionFile: session.piSessionFile,
+      cwd: session.cwd,
       createdAt: Math.floor(Math.min(session.createdAt, session.updatedAt)),
       updatedAt: Math.floor(session.updatedAt),
     })

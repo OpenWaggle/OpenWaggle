@@ -153,6 +153,11 @@ export interface SessionDetail {
    * Session's (a `pi` CLI fork copies them) and OpenWaggle never rewrites it.
    */
   readonly piEntryNodeIdPrefix?: string
+  /**
+   * The working directory a discovered Pi session ran in, when it is a folder inside the project.
+   * Runs continue there, as `pi --resume` would; the Workspace is still the project (ADR 0048).
+   */
+  readonly piSessionCwd?: string
 }
 
 /**

@@ -25,6 +25,8 @@ export interface SessionRow {
   readonly execution_thinking_level: string | null
   /** 1 when the Session uses a discovered Pi session file (ADR 0048). */
   readonly pi_adopted?: number
+  /** The working directory a discovered Pi session ran in (ADR 0048). */
+  readonly pi_cwd?: string | null
 }
 
 export interface SessionSummaryRow {

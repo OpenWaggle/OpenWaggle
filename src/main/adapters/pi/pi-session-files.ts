@@ -64,6 +64,7 @@ async function readSnapshot(
   if (holdsOnlyProjectedEntries(entries, input.projectedPiEntryCount)) {
     return { kind: 'unchanged', fingerprint }
   }
+  const context = sessionManager.buildSessionContext()
   return {
     kind: 'changed',
     piSessionId: sessionManager.getSessionId(),
@@ -74,6 +75,8 @@ async function readSnapshot(
       { sessionManager },
       piEntryNodeIdsWithPrefix(input.piEntryNodeIdPrefix),
     ),
+    ...(context.model ? { lastModel: `${context.model.provider}/${context.model.modelId}` } : {}),
+    ...(context.thinkingLevel ? { lastThinkingLevel: context.thinkingLevel } : {}),
   }
 }
 

@@ -1,4 +1,5 @@
 import { existsSync } from 'node:fs'
+import path from 'node:path'
 import { SessionManager } from '@earendil-works/pi-coding-agent'
 import type { SessionDetail } from '@shared/types/session'
 import { resolvePiSessionDirectory } from '../pi-session-directory'
@@ -19,6 +20,23 @@ export function requireSessionProjectPath(session: SessionDetail): string {
   return projectPath
 }
 
+function isInsideProject(candidate: string, projectPath: string) {
+  const relative = path.relative(path.resolve(projectPath), path.resolve(candidate))
+  return !path.isAbsolute(relative) && relative !== '..' && !relative.startsWith(`..${path.sep}`)
+}
+
+/**
+ * Where a local-mode Session's agent works: the opened checkout, or, for a Pi session discovered
+ * from the `pi` CLI, the folder inside it the CLI ran in, so it continues there as
+ * `pi --resume` would (ADR 0048). A folder that is gone or outside the project falls back to the
+ * checkout.
+ */
+export function resolveLocalWorkingPath(session: SessionDetail, projectPath: string) {
+  const cwd = session.piSessionCwd
+  if (!cwd || !isInsideProject(cwd, projectPath) || !existsSync(cwd)) return projectPath
+  return path.resolve(cwd)
+}
+
 /**
  * The working tree a Pi agent for this session must run in.
  *
@@ -34,7 +52,7 @@ export function requireSessionProjectPath(session: SessionDetail): string {
  */
 export function resolveSessionWorkingPath(session: SessionDetail): string {
   const projectPath = requireSessionProjectPath(session)
-  if (session.environmentMode !== 'worktree') return projectPath
+  if (session.environmentMode !== 'worktree') return resolveLocalWorkingPath(session, projectPath)
 
   const worktreePath = session.worktreePath?.trim()
   if (!worktreePath) return projectPath
