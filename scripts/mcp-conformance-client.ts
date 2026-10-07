@@ -1,125 +1,65 @@
-import { resolve } from 'node:path'
-import { MCP_SUPPORTED_PROTOCOL_VERSIONS } from '@shared/constants/mcp'
-import type { McpRuntimeInteractions } from '../src/main/ports/mcp-runtime-service'
-import { createFirstPartyMcpConnectionFactory } from '../src/main/adapters/mcp/runtime/sdk-client-connection'
-import type { McpTurnSnapshot, McpTurnSnapshotServer } from '../src/shared/types/mcp'
+/**
+ * Client for the official MCP conformance suite (`pnpm test:mcp:conformance`).
+ *
+ * OpenWaggle no longer has its own MCP client (ADR 0048), so this drives the MCP SDK client
+ * directly over Streamable HTTP for the `2025-11-25` scenarios. It will move onto Pi's MCP client
+ * through OpenWaggle's transport layer once that lands. Revisions newer than `2025-11-25` are not
+ * negotiated by Pi's client and are not exercised here.
+ */
+import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client'
 
+const SUPPORTED_PROTOCOL_VERSION = '2025-11-25'
 const SCENARIO = process.env.MCP_CONFORMANCE_SCENARIO
-const PROTOCOL_VERSION = process.env.MCP_CONFORMANCE_PROTOCOL_VERSION
+const PROTOCOL_VERSION = process.env.MCP_CONFORMANCE_PROTOCOL_VERSION ?? SUPPORTED_PROTOCOL_VERSION
 const SERVER_URL = process.argv[2]
 const CONFORMANCE_ADDEND_A = 2
 const CONFORMANCE_ADDEND_B = 3
 
-function assertInputs() {
+function requireServerUrl() {
   if (!SCENARIO || !SERVER_URL) {
     throw new Error(
       'Usage: MCP_CONFORMANCE_SCENARIO=<scenario> tsx scripts/mcp-conformance-client.ts <server-url>',
     )
   }
-  if (
-    PROTOCOL_VERSION &&
-    !MCP_SUPPORTED_PROTOCOL_VERSIONS.some((version) => version === PROTOCOL_VERSION)
-  ) {
+  if (PROTOCOL_VERSION !== SUPPORTED_PROTOCOL_VERSION) {
     throw new Error(`Unsupported MCP conformance protocol version: ${PROTOCOL_VERSION}`)
   }
+  return new URL(SERVER_URL)
 }
 
-function fixture(serverUrl: URL) {
-  const definition: McpTurnSnapshotServer = {
-    instanceId: 'official-conformance-server',
-    name: 'Official MCP conformance server',
-    sourcePath: 'official-conformance',
-    configHash: `official-conformance-${PROTOCOL_VERSION ?? 'auto'}`,
-    allowUnsandboxed: false,
-    permissions: { readRoots: [], writeRoots: [], allowNetwork: true },
-    definition: {
-      url: serverUrl.toString(),
-      transport: 'streamable-http',
-      ...(PROTOCOL_VERSION ? { protocolVersion: PROTOCOL_VERSION } : {}),
-      security: {
-        networkDomains: [serverUrl.hostname],
-        oauthDomains: [serverUrl.hostname],
-        allowInsecurePrivateNetwork: true,
-      },
-      clientCapabilities: {
-        elicitation: 'form-and-url',
-        roots: true,
-        sampling: true,
-      },
+async function connect(serverUrl: URL) {
+  const client = new Client(
+    { name: 'openwaggle-conformance', version: 'conformance' },
+    {
+      supportedProtocolVersions: [PROTOCOL_VERSION],
+      versionNegotiation: { mode: 'legacy' },
     },
-  }
-  const projectPath = resolve('.')
-  const snapshot: McpTurnSnapshot = {
-    id: 'official-conformance-turn',
-    sessionId: 'official-conformance-session',
-    projectPath,
-    revision: definition.configHash,
-    createdAt: Date.now(),
-    effectiveState: 'on',
-    servers: [definition],
-  }
-  return { definition, snapshot }
+  )
+  await client.connect(new StreamableHTTPClientTransport(serverUrl))
+  return client
 }
 
-const interactions: McpRuntimeInteractions = {
-  elicit: async () => ({ action: 'accept', content: {} }),
-  sample: async () => ({
-    model: 'openwaggle/conformance',
-    role: 'assistant',
-    content: { type: 'text', text: 'OpenWaggle conformance sampling response' },
-    stopReason: 'endTurn',
-  }),
-}
-
-async function callFirstTool(input: {
-  readonly connection: Awaited<ReturnType<ReturnType<typeof createFirstPartyMcpConnectionFactory>>>
-  readonly arguments?: Readonly<Record<string, unknown>>
-}) {
-  const [tool] = await input.connection.listTools()
+async function callFirstTool(client: Client) {
+  const { tools } = await client.listTools()
+  const [tool] = tools
   if (!tool) throw new Error('The official conformance server did not advertise a tool.')
-  return input.connection.callTool({
+  await client.callTool({
     name: tool.name,
-    arguments: input.arguments ?? { a: CONFORMANCE_ADDEND_A, b: CONFORMANCE_ADDEND_B },
-    interactions,
+    arguments: { a: CONFORMANCE_ADDEND_A, b: CONFORMANCE_ADDEND_B },
   })
 }
 
 async function runScenario() {
-  assertInputs()
-  const serverUrl = new URL(SERVER_URL ?? '')
-  const { definition, snapshot } = fixture(serverUrl)
-  const factory = createFirstPartyMcpConnectionFactory({
-    clientVersion: 'conformance',
-    resolveSecret: async (name) => {
-      throw new Error(`Official conformance attempted to resolve unexpected secret ${name}.`)
-    },
-  })
-  const connection = await factory({ snapshot, server: definition })
+  const client = await connect(requireServerUrl())
   try {
     if (SCENARIO === 'initialize') return
     if (SCENARIO === 'tools_call') {
-      await callFirstTool({ connection })
-      return
-    }
-    if (SCENARIO === 'request-metadata') return
-    if (SCENARIO === 'json-schema-ref-no-deref') {
-      await connection.listTools()
-      return
-    }
-    if (SCENARIO === 'json-schema-2020-12-preservation') {
-      const tools = await connection.listTools()
-      const schemaTool = tools.find((tool) => tool.name === 'json_schema_2020_12_tool')
-      if (!schemaTool) throw new Error('The JSON Schema conformance tool was not advertised.')
-      await connection.callTool({
-        name: 'json_schema_echo',
-        arguments: { schema: schemaTool.inputSchema },
-        interactions,
-      })
+      await callFirstTool(client)
       return
     }
     throw new Error(`OpenWaggle has no conformance behavior for scenario ${SCENARIO}.`)
   } finally {
-    await connection.close()
+    await client.close()
   }
 }
 
