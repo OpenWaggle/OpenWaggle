@@ -1,0 +1,117 @@
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
+import { Effect, Exit } from 'effect'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import type { McpAddServerInput } from '../../../../ports/mcp-configuration-service'
+import { createFilesystemMcpConfigurationService } from '../filesystem-mcp-configuration-service'
+
+let root: string
+let homeDir: string
+let projectPath: string
+
+beforeEach(() => {
+  root = mkdtempSync(path.join(tmpdir(), 'ow-mcp-guards-'))
+  homeDir = path.join(root, 'home')
+  projectPath = path.join(root, 'project')
+  mkdirSync(projectPath, { recursive: true })
+})
+
+afterEach(() => {
+  rmSync(root, { recursive: true, force: true })
+})
+
+function write(filePath: string, value: unknown) {
+  mkdirSync(path.dirname(filePath), { recursive: true })
+  writeFileSync(filePath, JSON.stringify(value, null, 2))
+}
+
+const piGlobal = () => path.join(homeDir, '.pi', 'agent', 'mcp.json')
+const owGlobal = () => path.join(homeDir, '.openwaggle', 'mcp.json')
+
+function service() {
+  return createFilesystemMcpConfigurationService({
+    homeDir,
+    piAgentDir: path.join(homeDir, '.pi', 'agent'),
+  })
+}
+
+async function failure(effect: Effect.Effect<void, unknown>) {
+  const exit = await Effect.runPromiseExit(effect)
+  if (Exit.isSuccess(exit)) return 'succeeded'
+  return JSON.stringify(exit.cause)
+}
+
+function add(input: Partial<McpAddServerInput> & Pick<McpAddServerInput, 'name' | 'entry'>) {
+  return service().addServer({ projectPath, scope: 'global', ...input })
+}
+
+describe('adding MCP servers', () => {
+  it('refuses a name another file already uses, also as a - / _ variant', async () => {
+    write(piGlobal(), { mcpServers: { 'dev-radius': { command: 'dr' } } })
+
+    expect(await failure(add({ name: 'dev-radius', entry: { command: 'x' } }))).toContain(
+      'already configured',
+    )
+    expect(await failure(add({ name: 'dev_radius', entry: { command: 'x' } }))).toContain(
+      'already configured',
+    )
+  })
+
+  it('replaces an entry only when asked to, and never a look-alike name', async () => {
+    write(owGlobal(), { mcpServers: { 'my-docs': { url: 'https://old.example' } } })
+
+    const unasked = await failure(add({ name: 'my-docs', entry: { url: 'https://new.example' } }))
+    await Effect.runPromise(
+      add({ name: 'my-docs', entry: { url: 'https://new.example' }, replace: true }),
+    )
+    const lookAlike = await failure(
+      add({ name: 'my_docs', entry: { command: 'x' }, replace: true }),
+    )
+
+    expect(unasked).toContain('already configured')
+    expect(JSON.parse(readFileSync(owGlobal(), 'utf8')).mcpServers['my-docs']).toEqual({
+      url: 'https://new.example',
+    })
+    expect(lookAlike).toContain('already configured')
+  })
+
+  it('refuses a destination of the other scope and auth in a project file', async () => {
+    const wrongScope = await failure(
+      add({
+        name: 'a',
+        entry: { command: 'a' },
+        scope: 'global',
+        destination: 'project-openwaggle',
+      }),
+    )
+    const projectAuth = await failure(
+      add({
+        name: 'b',
+        scope: 'project',
+        entry: { url: 'https://b.example', auth: { provider: 'github' } },
+      }),
+    )
+
+    expect(wrongScope).toContain('is a project file')
+    expect(projectAuth).toContain('auth is only allowed in a global mcp.json')
+  })
+})
+
+describe('switching a server for one project', () => {
+  it('refuses to save the switch to a global file', async () => {
+    write(piGlobal(), { mcpServers: { fs: { command: 'fs' } } })
+
+    const result = await failure(
+      service().setServerEnabled({
+        projectPath,
+        name: 'fs',
+        enabled: false,
+        target: 'project',
+        destination: 'openwaggle-global',
+      }),
+    )
+
+    expect(result).toContain('is a global file')
+  })
+})

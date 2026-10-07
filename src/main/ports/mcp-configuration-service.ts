@@ -40,6 +40,8 @@ export interface McpAddServerInput extends McpConfigurationScopeInput {
   /** Defaults to OpenWaggle's file for `scope`. */
   readonly destination?: McpWriteDestination
   readonly scope: 'global' | 'project'
+  /** Write over an entry of the same exact name (an import's "replace"); never a look-alike. */
+  readonly replace?: boolean
 }
 
 export interface McpRemoveServerInput extends McpConfigurationScopeInput {

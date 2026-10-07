@@ -29,6 +29,30 @@ function recordingWriter() {
 }
 
 describe('applying MCP imports through the config writer', () => {
+  it('treats a name from another MCP file, or a - / _ variant of it, as taken', async () => {
+    const preview = await cursorPreview({ dev_radius: { command: 'dr' } })
+    const fingerprints = preview.candidates.map((candidate) => candidate.fingerprint)
+    const apply = (conflictPolicy: 'skip' | 'rename' | 'replace') => {
+      const writer = recordingWriter()
+      return applyMcpImports({
+        preview,
+        fingerprints,
+        target: 'global',
+        targetServers: {},
+        otherServerNames: ['dev-radius'],
+        conflictPolicy,
+        now: () => NOW,
+        write: writer.write,
+      }).then(() =>
+        writer.calls.flatMap((call) => call.writes.map((write) => [write.name, write.replace])),
+      )
+    }
+
+    expect(await apply('skip')).toEqual([])
+    expect(await apply('rename')).toEqual([['dev_radius-2', false]])
+    expect(await apply('replace')).toEqual([['dev-radius', true]])
+  })
+
   it('writes selected candidates as Pi entries with provenance, and nothing else', async () => {
     const preview = await cursorPreview({
       files: { command: 'files-mcp' },

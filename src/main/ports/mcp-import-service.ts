@@ -11,6 +11,8 @@ import type { McpConfigurationError } from './mcp-configuration-service'
 export interface McpImportWriteEntry {
   readonly name: string
   readonly entry: Readonly<Record<string, unknown>>
+  /** True when the entry is written over a configured server of that exact name. */
+  readonly replace: boolean
 }
 
 /** Saves imported entries to OpenWaggle's file for `target`, one server at a time. */

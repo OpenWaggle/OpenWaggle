@@ -28,6 +28,12 @@ import {
   nodeMcpConfigFileReader,
 } from './mcp-config-files'
 import {
+  assertDestinationInScope,
+  assertNameFree,
+  assertNoProjectAuth,
+  assertProjectDestination,
+} from './mcp-config-write-guards'
+import {
   addMcpServerEntry,
   removeMcpServerEntry,
   updateMcpServerSettings,
@@ -124,6 +130,7 @@ function buildView(
 
 function setEnabled(context: ServiceContext, input: McpSetServerEnabledInput) {
   const server = findServer(context, input, input.name)
+  if (input.target === 'project' && input.destination) assertProjectDestination(input.destination)
   if (input.target === 'project' && server.scope === 'global') {
     const projectOverride =
       server.override && mcpConfigFileScope(server.override.fileId) === 'project'
@@ -168,6 +175,10 @@ function setExposure(context: ServiceContext, input: McpSetServerExposureInput) 
 function addServer(context: ServiceContext, input: McpAddServerInput) {
   const destination: McpWriteDestination =
     input.destination ?? (input.scope === 'global' ? 'openwaggle-global' : 'project-openwaggle')
+  assertDestinationInScope(destination, input.scope)
+  assertNoProjectAuth(destination, input.entry)
+  const merged = loadMcpMergedConfig(context.roots(input), context.reader)
+  assertNameFree(merged.servers, input.name, { replace: input.replace === true })
   const validated = validateMcpServerEntry(input.name, input.entry, {
     allowSecretReferences: isOpenWaggleMcpConfigFile(destination),
   })

@@ -33,6 +33,8 @@ export interface ApplyMcpImportsInput {
   readonly target: McpImportTarget
   /** Servers currently in the target file. */
   readonly targetServers: Readonly<Record<string, unknown>>
+  /** Names configured in the other MCP files; an import must not take one of them either. */
+  readonly otherServerNames?: readonly string[]
   readonly conflictPolicy: McpImportConflictPolicy
   readonly now: () => Date
   readonly write: McpImportWriter
@@ -106,7 +108,7 @@ export async function applyMcpImports(
   const byFingerprint = new Map(
     input.preview.candidates.map((candidate) => [candidate.fingerprint, candidate]),
   )
-  const names = Object.keys(input.targetServers)
+  const names = [...Object.keys(input.targetServers), ...(input.otherServerNames ?? [])]
   const importedAt = input.now().toISOString()
   const writes: McpImportWrite[] = []
   const imported: ExternalMcpImportApplyResult['imported'][number][] = []

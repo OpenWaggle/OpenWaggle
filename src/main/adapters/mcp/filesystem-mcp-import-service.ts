@@ -20,6 +20,7 @@ import {
   nodeMcpConfigFileReader,
   openWaggleMcpConfigPath,
 } from './config/mcp-config-files'
+import { loadMcpMergedConfig } from './config/mcp-runtime-config'
 import { applyMcpImports } from './import/import-apply'
 import { type McpImportTargetServers, previewMcpImports } from './import/import-preview'
 import type { ExternalMcpImportCandidate, ExternalMcpImportPreview } from './import/import-types'
@@ -129,6 +130,9 @@ export function createFilesystemMcpImportService(
       fingerprints: input.fingerprints,
       target: input.target,
       targetServers: targetServers(reader, roots(input.projectPath))[input.target] ?? {},
+      otherServerNames: loadMcpMergedConfig(roots(input.projectPath), reader).servers.map(
+        (server) => server.name,
+      ),
       conflictPolicy: input.conflictPolicy,
       now: options.now ?? (() => new Date()),
       write: async (target, writes) => {

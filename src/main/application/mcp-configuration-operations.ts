@@ -198,6 +198,7 @@ export function applyMcpImportsOperation(raw: unknown) {
               name: write.name,
               entry: write.entry,
               scope: target,
+              replace: write.replace,
             }),
           { discard: true },
         ),
