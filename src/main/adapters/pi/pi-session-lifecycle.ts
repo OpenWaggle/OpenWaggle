@@ -46,7 +46,8 @@ export async function createOpenWaggleAgentSessionFromServices(
   }
 }
 
-export async function disposeOpenWagglePiSession(
+/** Lets the session's extensions release what they hold, such as MCP connections. */
+export async function emitOpenWagglePiSessionShutdown(
   session: AgentSession,
   reason: SessionShutdownEvent['reason'] = 'quit',
 ): Promise<void> {
@@ -57,6 +58,15 @@ export async function disposeOpenWagglePiSession(
     logger.warn('Pi session shutdown hook failed during disposal', {
       error: error instanceof Error ? error.message : String(error),
     })
+  }
+}
+
+export async function disposeOpenWagglePiSession(
+  session: AgentSession,
+  reason: SessionShutdownEvent['reason'] = 'quit',
+): Promise<void> {
+  try {
+    await emitOpenWagglePiSessionShutdown(session, reason)
   } finally {
     session.dispose()
   }

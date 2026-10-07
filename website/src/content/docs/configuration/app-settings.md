@@ -33,7 +33,7 @@ Most settings apply across the app. Sections with a project picker let you inspe
 **Settings > General > Agent tools** holds two settings that OpenWaggle passes to Pi, the agent runtime. OpenWaggle keeps them in its own settings and does not change your Pi settings files, so the Pi command line keeps its own choices.
 
 - **Codemode** lets the agent write short scripts that call several tools in one step. It is on by default. See [Codemode](/docs/using-openwaggle/codemode).
-- **Keep prompt caches warm** decides whether Pi refreshes the provider's prompt cache during long tool calls, so the next request does not pay to rebuild it. **While working** (the default) refreshes only when Pi expects the refresh to save more than it costs. **Off** never refreshes. Refreshes count toward the session's usage. Pi's third choice, warming between runs, is not offered because OpenWaggle closes the runtime session when a run ends, so there would be nothing left to keep warm.
+- **Keep prompt caches warm** decides whether Pi refreshes the provider's prompt cache during long tool calls, so the next request does not pay to rebuild it. **While working** (the default) refreshes only when Pi expects the refresh to save more than it costs. **Off** never refreshes. **Between runs** also keeps refreshing for up to 30 minutes after the agent finishes, in case you reply. Pi expects a reply less often than a next tool call, so it refreshes less often than while working. Starting a new run, compacting, branching, archiving, or deleting the session stops these refreshes, and so does quitting OpenWaggle. Refreshes count toward the session's usage and show in the context meter's session cost the next time it is read.
 
 ## Agents and permissions
 

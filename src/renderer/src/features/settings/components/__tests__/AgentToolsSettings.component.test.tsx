@@ -63,4 +63,18 @@ describe('AgentToolsSettings', () => {
       expect(screen.getByRole('radio', { name: 'Off' })).toHaveAttribute('aria-checked', 'true')
     })
   })
+
+  it('offers keeping the cache warm between Runs', async () => {
+    render(<AgentToolsSettings />)
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Between runs' }))
+
+    await waitFor(() => {
+      expect(updateSettingsMock).toHaveBeenCalledWith({ cacheWarming: 'idle' })
+      expect(screen.getByRole('radio', { name: 'Between runs' })).toHaveAttribute(
+        'aria-checked',
+        'true',
+      )
+    })
+  })
 })

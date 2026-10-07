@@ -11,13 +11,10 @@ const logger = createRendererLogger('settings/agent-tools')
 const CODEMODE_LABEL = 'Codemode'
 const CACHE_WARMING_LABEL = 'Keep prompt caches warm'
 
-/**
- * Pi keeps a cache warm between Runs only while its session stays open. OpenWaggle opens a Pi
- * session for each Run, so "between runs" (`idle`) is not offered: it would warm nothing more.
- */
 const CACHE_WARMING_CHOICES = [
   ['off', 'Off'],
   ['streaming', 'While working'],
+  ['idle', 'Between runs'],
 ] as const satisfies ReadonlyArray<readonly [PiCacheWarmingMode, string]>
 
 function useSavingAction<T>(action: (value: T) => Promise<void>, failure: string) {
@@ -63,15 +60,16 @@ function CacheWarmingSetting() {
   const mode = usePreferencesStore((state) => state.settings.cacheWarming)
   const setCacheWarming = usePreferencesStore((state) => state.setCacheWarming)
   const { saving, run } = useSavingAction(setCacheWarming, 'Failed to update cache warming')
-  const selected = mode === 'off' ? 'off' : 'streaming'
+  const selected = mode
 
   return (
     <div className="flex min-h-14 items-center justify-between gap-4 px-5 py-3">
       <div className="min-w-0">
         <div className="text-xs font-medium text-text-primary">{CACHE_WARMING_LABEL}</div>
         <div className="mt-0.5 text-xs text-text-tertiary">
-          During long tool calls, resend the conversation so the provider keeps it cached, when that
-          saves more than it costs. Refreshes count toward the Session's usage.
+          During long tool calls, or also for a while after the agent finishes, resend the
+          conversation so the provider keeps it cached, when that saves more than it costs.
+          Refreshes count toward the Session's usage.
         </div>
       </div>
       <div

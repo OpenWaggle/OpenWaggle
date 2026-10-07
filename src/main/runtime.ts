@@ -17,6 +17,7 @@ import { FilesystemSessionExportResourceResolverLive } from './adapters/filesyst
 import { FilesystemSessionResourceStoreLive } from './adapters/filesystem-session-resource-store'
 import { FilesystemWorkspaceFileLive } from './adapters/filesystem-workspace-file-service'
 import { LocalSessionCredentialVerifierLive } from './adapters/local-session-credential-verifier'
+import { idleCacheWarming } from './adapters/pi/agent-kernel/pi-idle-cache-warming'
 import { PiAgentKernelLive } from './adapters/pi/pi-agent-kernel-adapter'
 import { PiAgentSteeringServiceLive } from './adapters/pi/pi-agent-steering-adapter'
 import { registerPiBundledOAuthFlows } from './adapters/pi/pi-bundled-oauth'
@@ -305,6 +306,7 @@ export async function startSessionHostOwnedServices(): Promise<void> {
 export async function stopSessionHostOwnedServices(): Promise<void> {
   const stop = stopHostOwnedServices
   if (stop) await stop()
+  await idleCacheWarming.releaseAll()
 }
 
 export async function resetAppRuntimeForTests(): Promise<void> {

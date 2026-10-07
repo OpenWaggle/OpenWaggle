@@ -18,6 +18,7 @@ import {
 } from '../pi-usage-statistics'
 import { logger } from './constants'
 import { type PiEntryNodeIds, piEntryNodeIds } from './pi-entry-node-ids'
+import { idleCacheWarming } from './pi-idle-cache-warming'
 import { createPiRunControl } from './pi-run-control'
 import { createPiSessionForRun } from './pi-run-session'
 import {
@@ -101,6 +102,8 @@ function resolvePiRuntimeThinkingLevel(
 export async function createPiRunSessionRuntime(
   input: CreatePiRunSessionRuntimeInput,
 ): Promise<PiRunSessionRuntime> {
+  // Before this Run opens the Session's Pi file, so the warming session never writes beside it.
+  await idleCacheWarming.release(input.session.id)
   // Not awaited: Usage statistics never delay a Run. Authorization state belongs to the
   // repository, so this is the Session's project, not the run cwd.
   void notePiRunProjectDefaultForUsageStatistics(input.runId, input.session.projectPath)
@@ -303,6 +306,8 @@ export async function runSubscribedPiOperation(input: {
   } finally {
     input.runInput.signal.removeEventListener('abort', abortListener)
     input.unsubscribe()
-    await disposeOpenWagglePiSession(input.session)
+    await idleCacheWarming.settle(input.runInput.session.id, input.session, {
+      aborted: input.runInput.signal.aborted,
+    })
   }
 }

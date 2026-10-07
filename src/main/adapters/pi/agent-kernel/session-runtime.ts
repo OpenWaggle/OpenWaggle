@@ -13,6 +13,7 @@ import {
   createOpenWaggleAgentSessionFromServices,
   disposeOpenWagglePiSession,
 } from '../pi-session-lifecycle'
+import { idleCacheWarming } from './pi-idle-cache-warming'
 import {
   createIsolatedPiProjectRuntime,
   createPiProjectModelRuntimeWithoutOpenWaggleExtensions,
@@ -68,6 +69,7 @@ export async function withPiSession<T>(
   input: AgentKernelSessionInput & PiRuntimeExtensionIsolationInput,
   operation: PiSessionOperation<T>,
 ) {
+  await idleCacheWarming.release(input.session.id)
   const projectPath = resolveSessionWorkingPath(input.session)
   const { session } = await createSessionWithActivationIsolation({
     operation: 'Pi session initialization',
@@ -99,6 +101,7 @@ export async function withPiSession<T>(
 export async function createPiSessionRuntime(
   input: AgentKernelSessionInput & PiRuntimeExtensionIsolationInput,
 ) {
+  await idleCacheWarming.release(input.session.id)
   const projectPath = resolveSessionWorkingPath(input.session)
   const initialSessionManager = createSessionManagerForSession(input.session, projectPath)
   const createRuntime: CreateAgentSessionRuntimeFactory = async (options) => {

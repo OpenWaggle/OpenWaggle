@@ -23,6 +23,7 @@ import { completeJournaledSessionFileDeletion } from '../store/session-details/f
 import type { SessionDeletionRecord } from '../store/session-details/session-deletion-journal'
 import type { CheckpointRefSnapshot } from './git/turn-checkpoint-refs'
 import type { removeGitWorktree } from './git/worktree'
+import { idleCacheWarming } from './pi/agent-kernel/pi-idle-cache-warming'
 
 interface SessionDeletionStore {
   readonly abandonSessionDeletion: typeof abandonSessionDeletion
@@ -167,6 +168,8 @@ async function deleteSessionDurably(
     }
     await input.store.markSessionDeletionExternalCleanupComplete(id)
   }
+  // A warming session would write the Pi file again after it is removed.
+  idleCacheWarming.close(String(id))
   const cleanup =
     deletion.phase === 'pi-file-cleanup-pending'
       ? deletion

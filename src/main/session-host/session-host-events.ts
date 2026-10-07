@@ -1,5 +1,6 @@
 import { SessionId } from '@shared/types/brand'
 import type { SessionHostEventPayload } from '@shared/types/session-host-event'
+import { idleCacheWarming } from '../adapters/pi/agent-kernel/pi-idle-cache-warming'
 import type { SessionHostEventHub } from '../application/session-host-event-hub'
 import type { SessionHostLiveness } from '../application/session-host-liveness'
 import { createLogger } from '../logger'
@@ -45,14 +46,20 @@ function notifySemanticDiscoverySourceObservers() {
   }
 }
 
-/** Scratch files are disposable, so an archived or deleted Session gives its directory up. */
-function releaseSessionScratchDirectory(payload: SessionHostEventPayload) {
+/**
+ * Scratch files are disposable, so an archived or deleted Session gives its directory up, and its
+ * prompt cache warming.
+ */
+function releaseClosedSessionResources(payload: SessionHostEventPayload) {
   if (payload.kind !== 'session-list-changed') return
   if (payload.change === 'unarchived') {
+    idleCacheWarming.reopen(payload.sessionId)
     keepSessionScratchDirectory(payload.sessionId)
     return
   }
   if (payload.change !== 'archived' && payload.change !== 'deleted') return
+  // An archived Session is not about to continue, so keeping its prompt cache warm only costs.
+  idleCacheWarming.close(payload.sessionId)
   void removeSessionScratchDirectory(payload.sessionId).catch((error: unknown) => {
     logger.warn('Could not remove the session scratch directory', {
       sessionId: payload.sessionId,
@@ -62,7 +69,7 @@ function releaseSessionScratchDirectory(payload: SessionHostEventPayload) {
 }
 
 function projectHostOwnedRunState(payload: SessionHostEventPayload) {
-  releaseSessionScratchDirectory(payload)
+  releaseClosedSessionResources(payload)
   if (payload.kind === 'session-transport') {
     const sessionId = SessionId(payload.sessionId)
     if (payload.event.type === 'agent_start') {

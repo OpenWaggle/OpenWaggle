@@ -1,5 +1,9 @@
 import { randomUUID } from 'node:crypto'
-import { type ContextUsage, SessionManager } from '@earendil-works/pi-coding-agent'
+import {
+  type AgentSession,
+  type ContextUsage,
+  SessionManager,
+} from '@earendil-works/pi-coding-agent'
 import type { ContextUsageSnapshot, SessionUsageSummary } from '@shared/types/context-usage'
 import {
   AgentKernelMissingEntryError,
@@ -14,6 +18,7 @@ import {
 } from '../pi-session-lifecycle'
 import { writeRekeyedForkedSession } from './fork-entry-identity'
 import { type PiEntryNodeIds, piEntryNodeIds } from './pi-entry-node-ids'
+import { idleCacheWarming } from './pi-idle-cache-warming'
 import { piResponseUsageInput } from './pi-response-usage'
 import { summarizePiSessionUsage } from './pi-session-usage'
 import type { PiRuntimeExtensionIsolationInput } from './runtime-extension-isolation'
@@ -37,10 +42,23 @@ function toContextUsageSnapshot(
   }
 }
 
+/**
+ * Reads use the Session's warming session while it has one: it holds the Session's Pi file, and
+ * opening that file again would end it.
+ */
+async function readPiSession<T>(
+  input: AgentKernelSessionInput & PiRuntimeExtensionIsolationInput,
+  read: (session: AgentSession) => T,
+) {
+  const warming = idleCacheWarming.borrow(input.session.id)
+  if (warming && warming.sessionFile === input.session.piSessionFile) return read(warming)
+  return withPiSession(input, read)
+}
+
 export async function getPiContextUsage(
   input: AgentKernelSessionInput & PiRuntimeExtensionIsolationInput,
 ) {
-  return withPiSession(input, (session) =>
+  return readPiSession(input, (session) =>
     toContextUsageSnapshot(session.getContextUsage(), summarizePiSessionUsage(session)),
   )
 }
@@ -48,7 +66,7 @@ export async function getPiContextUsage(
 export async function getPiSessionSnapshot(
   input: AgentKernelSessionInput & PiRuntimeExtensionIsolationInput,
 ) {
-  return withPiSession(input, (session) => ({
+  return readPiSession(input, (session) => ({
     piSessionId: session.sessionId,
     piSessionFile: session.sessionFile,
     sessionSnapshot: projectPiSessionSnapshot(session, piEntryNodeIds(input.session)),

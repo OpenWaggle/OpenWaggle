@@ -44,6 +44,8 @@ export interface OpenWagglePiSessionOptions {
   readonly authorizationMode?: AgentAuthorizationMode
   readonly models?: readonly FauxModelDefinition[]
   readonly onEvent?: (event: AgentTransportEvent) => void
+  /** Prompt cache lifetime, in seconds, of every faux model, so Pi can keep its cache warm. */
+  readonly promptCacheSeconds?: number
   /** The model the Session selects, such as a virtual model; the first faux model by default. */
   readonly selectedModel?: { readonly provider: string; readonly id: string }
 }
@@ -65,6 +67,9 @@ export async function createOpenWagglePiSession(options: OpenWagglePiSessionOpti
     ...(options.extensionFactories ? { extensionFactories: options.extensionFactories } : {}),
     ...(options.appSettings ? { appSettings: options.appSettings } : {}),
   })
+  if (options.promptCacheSeconds !== undefined) {
+    for (const model of faux.models) model.promptCache = { short: options.promptCacheSeconds }
+  }
   services.modelRuntime.registerNativeProvider(faux.provider)
   await services.modelRuntime.setRuntimeApiKey(faux.provider.id, 'test-key')
   const events: AgentTransportEvent[] = []
