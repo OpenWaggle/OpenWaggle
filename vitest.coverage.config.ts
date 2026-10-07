@@ -63,6 +63,10 @@ export default defineConfig({
           name: 'node',
           environment: 'node',
           include: ['src/**/*.unit.test.ts', 'src/**/*.integration.test.ts', 'scripts/**/*.unit.test.ts'],
+          setupFiles: [
+            'scripts/test-support/isolate-user-home.ts',
+            'src/main/test-support/isolate-user-mcp-files.ts',
+          ],
         },
       },
       {
@@ -71,7 +75,7 @@ export default defineConfig({
           name: 'component',
           environment: 'jsdom',
           include: ['src/**/*.component.test.tsx'],
-          setupFiles: ['src/renderer/src/test-setup.ts'],
+          setupFiles: ['scripts/test-support/isolate-user-home.ts', 'src/renderer/src/test-setup.ts'],
         },
       },
     ],

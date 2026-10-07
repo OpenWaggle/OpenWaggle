@@ -13,6 +13,10 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
+    setupFiles: [
+      'scripts/test-support/isolate-user-home.ts',
+      'src/main/test-support/isolate-user-mcp-files.ts',
+    ],
     include: ['src/**/*.test.ts', 'src/**/*.test.tsx', 'packages/**/*.test.ts'],
     exclude: ['src/**/*.component.test.tsx'],
     coverage: {

@@ -48,7 +48,7 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     include: ['src/**/*.component.test.tsx', 'packages/**/*.component.test.tsx'],
-    setupFiles: ['src/renderer/src/test-setup.ts'],
+    setupFiles: ['scripts/test-support/isolate-user-home.ts', 'src/renderer/src/test-setup.ts'],
     coverage: {
       enabled: false,
     },
