@@ -41,7 +41,11 @@ describe('Pi live Run registry', () => {
           .digest('hex'),
       },
     })
-    expect(steer).toHaveBeenCalledWith('Use the corrected migration order.', undefined, expect.any(Function))
+    expect(steer).toHaveBeenCalledWith(
+      'Use the corrected migration order.',
+      undefined,
+      expect.any(Function),
+    )
   })
 
   it('wraps untrusted visualization state into the exact steering message', async () => {
