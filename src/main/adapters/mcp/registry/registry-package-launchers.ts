@@ -1,11 +1,11 @@
 import type { McpRegistryPackageType } from '@shared/types/mcp-registry'
+import { piLiteralMap } from '../../../domain/mcp/config/mcp-pi-literal'
 import { installVerifiedMcpb } from './registry-mcpb'
 import { type OciImageResolver, resolveOciImageWithDocker } from './registry-oci-resolver'
 import type { RegistryResourceFetcher } from './registry-secure-download'
 import {
   arrayValue,
   declaredRegistryValues,
-  piLiteralMap,
   type RegistryEntryValue,
   stringValue,
 } from './registry-values'

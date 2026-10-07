@@ -3,6 +3,7 @@ import {
   type McpMergedServer,
   mergeMcpConfigLayers,
 } from '../../../domain/mcp/config/mcp-config-merge'
+import { piLiteral } from '../../../domain/mcp/config/mcp-pi-literal'
 import type {
   McpConfiguredValue,
   McpServerConfig,
@@ -78,7 +79,8 @@ async function resolveValues(
       continue
     }
     try {
-      resolved[key] = await resolveSecret(value.secret)
+      // A secret is data: Pi must never read it as `${VAR}` or run it as `!command`.
+      resolved[key] = piLiteral(await resolveSecret(value.secret))
     } catch (error) {
       return {
         ok: false,

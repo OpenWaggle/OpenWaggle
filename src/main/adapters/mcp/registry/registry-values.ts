@@ -1,4 +1,5 @@
 import { isRecord } from '@shared/utils/validation'
+import { piLiteral } from '../../../domain/mcp/config/mcp-pi-literal'
 
 /** An `env` or `headers` value in an OpenWaggle MCP file: a literal or a vault reference. */
 export type RegistryEntryValue = string | { readonly secret: string }
@@ -13,21 +14,6 @@ export function stringValue(value: unknown) {
 
 export function arrayValue(value: unknown): readonly unknown[] {
   return Array.isArray(value) ? value.map((entry: unknown) => entry) : []
-}
-
-/**
- * Pi reads `$NAME`, `${NAME}`, and a leading `!command` in `env` and `headers` values. Values that
- * come from the Registry or a bundle manifest are data, so they are written so Pi reads them back
- * literally: `$$` is a literal `$`, and `$!` a literal `!`.
- */
-export function piLiteral(value: string) {
-  const escaped = value.replaceAll('$', () => '$$')
-  return escaped.startsWith('!') ? `$${escaped}` : escaped
-}
-
-export function piLiteralMap(values: Readonly<Record<string, string>> | undefined) {
-  if (!values) return undefined
-  return Object.fromEntries(Object.entries(values).map(([name, value]) => [name, piLiteral(value)]))
 }
 
 function secretReference(name: string): RegistryEntryValue {
