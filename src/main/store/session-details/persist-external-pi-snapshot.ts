@@ -3,12 +3,11 @@ import * as Effect from 'effect/Effect'
 import type { PersistSessionSnapshotInput } from '../../ports/session-repository'
 import {
   type PiSessionFileState,
-  piProjectionRevision,
-  recordPiProjection,
+  readPiProjectionFreshnessWithSql,
 } from '../pi-session-file-freshness'
 import { withSessionLock } from '../session-lock'
 import { runStoreEffect } from '../store-runtime'
-import { persistSessionSnapshotWithSql } from './persist-snapshot'
+import { persistPiSessionSnapshotWithSql } from './persist-snapshot'
 
 export interface PersistExternalPiSnapshotInput extends PersistSessionSnapshotInput {
   readonly expectedRevision: number
@@ -26,19 +25,20 @@ export async function persistExternalPiSnapshot(
   input: PersistExternalPiSnapshotInput,
 ): Promise<boolean> {
   return withSessionLock(input.sessionId, async () => {
-    if (piProjectionRevision(input.sessionId) !== input.expectedRevision) return false
     const now = Date.now()
-    const persisted = await runStoreEffect(
+    return runStoreEffect(
       Effect.gen(function* () {
         const sql = yield* SqlClient.SqlClient
         return yield* sql.withTransaction(
           Effect.gen(function* () {
+            const freshness = yield* readPiProjectionFreshnessWithSql(sql, input.sessionId)
+            if (freshness.revision !== input.expectedRevision) return false
             const rows = yield* sql<{ readonly updated_at: number }>`
               SELECT updated_at FROM sessions WHERE id = ${input.sessionId} LIMIT 1
             `
             const previous = rows[0]
             if (!previous) return false
-            yield* persistSessionSnapshotWithSql(sql, input, now)
+            yield* persistPiSessionSnapshotWithSql(sql, input, now, input.fingerprint)
             yield* sql`
               UPDATE sessions
               SET updated_at = ${Math.max(previous.updated_at, Math.floor(input.fingerprint.mtimeMs))}
@@ -49,7 +49,5 @@ export async function persistExternalPiSnapshot(
         )
       }),
     )
-    if (persisted) recordPiProjection(input.sessionId, input.fingerprint)
-    return persisted
   })
 }

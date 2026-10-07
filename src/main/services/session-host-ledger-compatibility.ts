@@ -4,6 +4,7 @@ import {
 } from './database-session-resource-migrations'
 import {
   PI_SESSION_ADOPTION_MIGRATION_ID,
+  PI_SESSION_FILE_STATE_MIGRATION_ID,
   SESSION_HOST_BASELINE_MIGRATION_ID,
   SESSION_HOST_BASELINE_MIGRATION_NAME,
   SESSION_HOST_BROWSER_ATTACHMENT_MIGRATION_ID,
@@ -86,6 +87,7 @@ const currentIdentities = [
   { id: SESSION_HOST_QUEUE_PAUSE_REASON_MIGRATION_ID, name: 'session-host-queue-pause-reason' },
   { id: SESSION_TITLE_PROVENANCE_MIGRATION_ID, name: 'session-title-provenance' },
   { id: PI_SESSION_ADOPTION_MIGRATION_ID, name: 'pi-session-adoption' },
+  { id: PI_SESSION_FILE_STATE_MIGRATION_ID, name: 'pi-session-file-state' },
 ]
 
 export interface MigrationIdentity {

@@ -6,6 +6,7 @@ import {
   SESSION_RESOURCE_MIGRATIONS,
 } from './database-session-resource-migrations'
 import { PI_SESSION_ADOPTION_MIGRATION } from './pi-session-adoption-migration'
+import { PI_SESSION_FILE_STATE_MIGRATION } from './pi-session-file-state-migration'
 import { PINNED_SESSIONS_MIGRATION } from './pinned-sessions-migration'
 import { PROJECT_ACTION_MIGRATIONS } from './project-action-migration'
 import { SESSION_HOST_APP_MIGRATIONS } from './session-host-app-migrations'
@@ -292,4 +293,5 @@ export const APP_MIGRATIONS: readonly AppMigration[] = [
   SESSION_HOST_QUEUE_PAUSE_REASON_MIGRATION,
   SESSION_TITLE_PROVENANCE_MIGRATION,
   PI_SESSION_ADOPTION_MIGRATION,
+  PI_SESSION_FILE_STATE_MIGRATION,
 ]

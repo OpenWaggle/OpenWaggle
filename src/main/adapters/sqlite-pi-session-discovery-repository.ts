@@ -29,7 +29,9 @@ export const SqlitePiSessionDiscoveryRepositoryLive = Layer.succeed(PiSessionDis
       getPiSessionProjectionState(sessionId),
     ),
   recordUnchanged: ({ sessionId, expectedRevision, fingerprint }) =>
-    Effect.sync(() => recordUnchangedPiProjection(sessionId, expectedRevision, fingerprint)),
+    repositoryOperation('recordUnchangedPiProjection', () =>
+      recordUnchangedPiProjection(sessionId, expectedRevision, fingerprint),
+    ),
   persistExternal: (input) =>
     repositoryOperation('persistExternalPiSnapshot', () =>
       persistExternalPiSnapshot({

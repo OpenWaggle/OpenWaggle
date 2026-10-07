@@ -1,5 +1,9 @@
-import { stat } from 'node:fs/promises'
-import { type SessionEntry, SessionManager } from '@earendil-works/pi-coding-agent'
+import { readFile, stat } from 'node:fs/promises'
+import {
+  parseSessionEntries,
+  type SessionEntry,
+  SessionManager,
+} from '@earendil-works/pi-coding-agent'
 import { Effect, Layer } from 'effect'
 import {
   type PiSessionFileFingerprint,
@@ -39,8 +43,11 @@ function holdsOnlyProjectedEntries(
 }
 
 /**
- * Reads a Pi session file as Pi does, for a projection outside a Run. The fingerprint is taken
- * first: a write that lands while the file is read leaves it stale, so the next check reads again.
+ * Reads a Pi session file for viewing, without changing it. `SessionManager.open` upgrades a file
+ * in an older Pi format by rewriting it; the file is parsed and loaded into an in-memory manager
+ * instead, so only a Run, which continues the session as `pi --resume` would, writes to it.
+ * The fingerprint is taken first: a write that lands while the file is read leaves it stale, so
+ * the next check reads again. Reading is asynchronous; only the parse runs on the event loop.
  */
 async function readSnapshot(
   input: Parameters<PiSessionFilesShape['readSnapshot']>[0],
@@ -48,7 +55,11 @@ async function readSnapshot(
   const file = input.piSessionFile
   const fingerprint = await fingerprintOf(file)
   if (!fingerprint) throw new Error(`Pi session file is missing: ${file}`)
-  const sessionManager = SessionManager.open(file, undefined, input.cwd)
+  const fileEntries = parseSessionEntries(await readFile(file, 'utf8'))
+  if (!fileEntries.some((entry) => entry.type === 'session')) {
+    throw new Error(`Pi session file has no session header: ${file}`)
+  }
+  const sessionManager = SessionManager.inMemory(input.cwd, undefined, fileEntries)
   const entries = sessionManager.getEntries()
   if (holdsOnlyProjectedEntries(entries, input.projectedPiEntryCount)) {
     return { kind: 'unchanged', fingerprint }

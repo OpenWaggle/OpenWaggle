@@ -2,7 +2,7 @@ import * as SqlClient from '@effect/sql/SqlClient'
 import { SessionId } from '@shared/types/brand'
 import * as Effect from 'effect/Effect'
 import type { AdoptDiscoveredPiSessionInput } from '../../ports/pi-session-discovery'
-import { piProjectionFingerprint, piProjectionRevision } from '../pi-session-file-freshness'
+import { readPiProjectionFreshnessWithSql } from '../pi-session-file-freshness'
 import { runStoreEffect } from '../store-runtime'
 import { isAgentLoopAuditNode } from './agent-loop-audit-node'
 import { discoveredPiEntryNodeIdPrefix } from './discovered-pi-entry-node-ids'
@@ -131,9 +131,6 @@ export interface PiSessionProjectionStateRow {
 export async function getPiSessionProjectionState(
   sessionId: SessionId,
 ): Promise<PiSessionProjectionStateRow | null> {
-  // Read before the rows, so a snapshot persisted during the read makes this state stale.
-  const revision = piProjectionRevision(sessionId)
-  const fingerprint = piProjectionFingerprint(sessionId)
   return runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
@@ -148,6 +145,7 @@ export async function getPiSessionProjectionState(
       `
       const session = sessions[0]
       if (!session) return null
+      const { revision, fingerprint } = yield* readPiProjectionFreshnessWithSql(sql, sessionId)
       const counts = yield* sql<{ readonly node_count: number }>`
         SELECT COUNT(*) AS node_count FROM session_nodes WHERE session_id = ${sessionId}
       `

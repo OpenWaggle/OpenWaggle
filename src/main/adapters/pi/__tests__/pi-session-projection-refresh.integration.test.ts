@@ -52,6 +52,20 @@ describe('Pi session projection refresh', () => {
     expect(await openSession(sessionId)).toBe('fresh')
   })
 
+  it('remembers what it projected across a Host restart', async () => {
+    await registerProjects([fixture.project])
+    createPiCliSession(fixture.project, 'Survive a restart')
+    const sessionId = await discoverOne()
+    await openSession(sessionId)
+
+    // A new Host process: nothing held in memory survives, only the database.
+    const { disposeAppRuntime } = await import('../../../runtime')
+    await disposeAppRuntime()
+    vi.resetModules()
+
+    expect(await openSession(sessionId)).toBe('fresh')
+  })
+
   it('projects again after the Pi CLI continued the session', async () => {
     await registerProjects([fixture.project])
     const cli = createPiCliSession(fixture.project, 'First question')

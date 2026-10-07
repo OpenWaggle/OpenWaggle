@@ -139,7 +139,7 @@ export interface PiSessionDiscoveryRepositoryShape {
     readonly sessionId: SessionId
     readonly expectedRevision: number
     readonly fingerprint: PiSessionFileFingerprint
-  }) => Effect.Effect<boolean>
+  }) => Effect.Effect<boolean, SessionProjectionRepositoryError>
   /** Replaces the projection with the file's; false when a snapshot landed meanwhile. */
   readonly persistExternal: (
     input: PersistExternalPiProjectionInput,
