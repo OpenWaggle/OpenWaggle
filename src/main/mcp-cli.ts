@@ -1,5 +1,6 @@
 import path from 'node:path'
 import { app } from 'electron'
+import { resolveCliProjectPath } from './cli-project-path'
 import { writeCliStdout } from './cli-stdout'
 import {
   formatMcpCliOutput,
@@ -12,6 +13,9 @@ import {
   serveAuthorizationCeiling,
   validateMcpCliOptions,
 } from './mcp-cli-arguments'
+import { runMcpManagementCommand } from './mcp-cli-management'
+import { isMcpManagementCommand } from './mcp-cli-management-arguments'
+import { createMcpCliHost } from './mcp-cli-management-host'
 import {
   OPENWAGGLE_MCP_SERVE_GRANTS,
   type OpenWaggleMcpServeGrant,
@@ -25,6 +29,14 @@ function usage() {
   return `OpenWaggle MCP
 
 Usage:
+  openwaggle mcp add <server> [options] -- <command> [args...]
+  openwaggle mcp add <server> [options] --url <url>
+  openwaggle mcp remove <server> [-l]
+  openwaggle mcp list [--json] [-l]
+  openwaggle mcp enable|disable <server> [-l] [--in-project]
+  openwaggle mcp login|logout <server> [-l]
+  openwaggle mcp import [--from <tools>] [--apply] [--server <name>]...
+                        [--conflict skip|replace|rename] [--json] [-l]
   openwaggle mcp serve --stdio [--profile <name>] [--grant <capability>]...
                        [--authorization-ceiling ask-for-approval|yolo]
                        [--workspace <path>]... [--session <id>]...
@@ -39,7 +51,36 @@ Usage:
                        [--session <id>]... [--origin-session <id>]
 
 Server scope: at least one --workspace <path> or --session <id> is required.
-Unexpected positional and -- passthrough input fail before the server starts.`
+Unexpected positional and -- passthrough input fail before the server starts.
+
+Servers are read from ~/.pi/agent/mcp.json and ~/.openwaggle/mcp.json, and with -l
+(or --project <path>) also from the project's .mcp.json, .pi/mcp.json, and
+.openwaggle/mcp.json. New servers go to OpenWaggle's file: ~/.openwaggle/mcp.json, or
+.openwaggle/mcp.json with -l. Changes to a server are saved to the file that defines it.
+
+Options for add:
+  --url <url>                    Streamable HTTP server URL (instead of a command)
+  --env <KEY=VALUE>              Environment variable for a stdio server (repeatable)
+  --env-secret <KEY=NAME>        Environment variable from the vault (OpenWaggle files only)
+  --cwd <dir>                    Working directory for a stdio server
+  --header <KEY=VALUE>           HTTP header (repeatable)
+  --header-secret <KEY=NAME>     HTTP header from the vault (OpenWaggle files only)
+  --bearer-token-env-var <NAME>  Send "Authorization: Bearer \${NAME}"
+  --oauth-client-id <id>, --oauth-client-secret <secret>,
+  --oauth-callback-port <port>, --oauth-client-name <name>
+  --exposure <mode>              codemode (default), deferred, direct, or hidden
+  --description <text>           What the server offers
+  --file <file>                  pi-global, openwaggle-global, project-mcp-json,
+                                 project-pi, or project-openwaggle
+
+Options for enable and disable:
+  --in-project                   Switch a global server for this project only
+
+Options for import:
+  --from <tools>                 codex, claude-code, claude-desktop, cursor, vscode,
+                                 opencode, zed, windsurf (comma-separated)
+  --apply                        Import new servers, or those named with --server
+`
 }
 
 function parseServeGrants(values: readonly string[] | undefined) {
@@ -142,6 +183,24 @@ export function getMcpCliArguments(argv: readonly string[]) {
 }
 
 export async function runMcpCli(args: readonly string[]) {
+  const [first, ...rest] = args
+  if (isMcpManagementCommand(first)) {
+    const end = rest.indexOf('--')
+    const options = end < 0 ? rest : rest.slice(0, end)
+    if (options.includes('--help') || options.includes('-h')) {
+      await writeOutput(usage(), false)
+      return EXIT.SUCCESS
+    }
+    return runMcpManagementCommand(first, rest, {
+      host: createMcpCliHost(),
+      output: {
+        log: (text) => void writeCliStdout(`${text}\n`),
+        error: (text) => process.stderr.write(`${text}\n`),
+      },
+      workingDirectory: process.cwd(),
+      resolveProjectPath: resolveCliProjectPath,
+    })
+  }
   const parsed = parseMcpCliArguments(args)
   const command = parsed.positionals[0]
   const commandArguments = { ...parsed, positionals: parsed.positionals.slice(1) }

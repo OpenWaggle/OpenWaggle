@@ -44,7 +44,7 @@ describe('MCP CLI arguments', () => {
     expect(() => validateMcpCliOptions('help', parseMcpCliArguments([]))).not.toThrow()
   })
 
-  it.each(['add', 'list', 'get', 'remove', 'import', 'registry', 'doctor', 'unknown'])(
+  it.each(['get', 'trust', 'auth', 'registry', 'doctor', 'unknown'])(
     'rejects the %s command, which `openwaggle mcp` no longer offers',
     (command) => {
       expect(() => validateMcpCliOptions(command, parseMcpCliArguments([]))).toThrow(
