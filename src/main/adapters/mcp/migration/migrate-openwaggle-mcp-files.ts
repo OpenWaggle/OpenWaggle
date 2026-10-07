@@ -26,7 +26,12 @@ import {
   parseLegacyState,
 } from './legacy-state'
 import { type McpMigrationFs, nodeMcpMigrationFs } from './migration-fs'
-import { globalMcpPaths, migrationBackupPath, projectMcpPaths } from './migration-paths'
+import {
+  defaultPiAgentDir,
+  globalMcpPaths,
+  migrationBackupPath,
+  projectMcpPaths,
+} from './migration-paths'
 import { MCP_FILE_MIGRATION_VERSION, McpMigrationRecord } from './migration-record'
 import {
   type McpOAuthMigrationResult,
@@ -39,6 +44,8 @@ export type { McpOAuthMigrationResult, McpOAuthMigrationSink } from './oauth-sta
 
 export interface MigrateOpenWaggleMcpFilesInput {
   readonly homeDir: string
+  /** Pi's agent directory (`getPiAgentDir()`); defaults to `~/.pi/agent`. */
+  readonly piAgentDir?: string
   /** Known OpenWaggle projects; projects named in the old state.json are added. */
   readonly projectPaths: readonly string[]
   /**
@@ -195,8 +202,9 @@ export async function migrateOpenWaggleMcpFiles(
   }
   const { record, state } = start
   const migrator = new McpFileMigrator(fs, record, input.now, logger)
-  const sources = new McpFileSources(fs, input.homeDir)
-  const paths = globalMcpPaths(input.homeDir)
+  const piAgentDir = input.piAgentDir ?? defaultPiAgentDir(input.homeDir)
+  const sources = new McpFileSources(fs, input.homeDir, piAgentDir)
+  const paths = globalMcpPaths(input.homeDir, piAgentDir)
   const files: McpFileMigrationReport[] = [
     await migrator.run({
       path: paths.openwaggleGlobal,

@@ -115,7 +115,7 @@ async function oauthCandidates(input: {
   readonly state: LegacyStateFile
   readonly projects: readonly string[]
 }) {
-  const global = globalMcpPaths(input.sources.homeDir)
+  const global = globalMcpPaths(input.sources.homeDir, input.sources.piAgentDir)
   const files = [
     {
       path: global.openwaggleGlobal,

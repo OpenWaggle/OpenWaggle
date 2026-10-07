@@ -162,6 +162,31 @@ describe('migrating Pi copies in ~/.openwaggle/mcp.json', () => {
     expect(globalServers(fs)).toEqual({})
   })
 
+  it("reads Pi's global file from PI_CODING_AGENT_DIR when Pi is set up there", async () => {
+    const piAgentDir = '/custom/pi-agent'
+    const piGlobal = `${piAgentDir}/mcp.json`
+    const fs = connectedFs({
+      [piGlobal]: {
+        mcpServers: { tools: { command: 'tools-mcp', args: ['--stdio'], exposure: 'direct' } },
+      },
+      [OPENWAGGLE_GLOBAL]: {
+        mcpServers: {
+          tools: { ...piCopy(piGlobal, 'tools', TOOLS_NORMALIZED), directTools: true },
+        },
+      },
+    })
+
+    await migrateOpenWaggleMcpFiles({
+      homeDir: HOME,
+      piAgentDir,
+      projectPaths: [],
+      now: () => NOW,
+      fs,
+    })
+
+    expect(globalServers(fs)).toEqual({})
+  })
+
   it('keeps servers that connected on and turns off every server that did not', async () => {
     const fs = memoryFs({
       [PI_GLOBAL]: {

@@ -2,9 +2,14 @@ import path from 'node:path'
 
 export const MCP_MIGRATION_BACKUP_SUFFIX = '.pre-adr-0048.bak'
 
-export function globalMcpPaths(homeDir: string) {
+/** Pi's agent directory when PI_CODING_AGENT_DIR does not move it. */
+export function defaultPiAgentDir(homeDir: string) {
+  return path.join(homeDir, '.pi', 'agent')
+}
+
+export function globalMcpPaths(homeDir: string, piAgentDir = defaultPiAgentDir(homeDir)) {
   return {
-    piGlobal: path.join(homeDir, '.pi', 'agent', 'mcp.json'),
+    piGlobal: path.join(piAgentDir, 'mcp.json'),
     openwaggleGlobal: path.join(homeDir, '.openwaggle', 'mcp.json'),
     legacyState: path.join(homeDir, '.openwaggle', 'mcp', 'state.json'),
   }

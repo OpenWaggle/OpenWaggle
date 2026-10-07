@@ -40,6 +40,8 @@ export class McpFileSources {
   constructor(
     private readonly fs: McpMigrationFs,
     readonly homeDir: string,
+    /** Pi's agent directory (PI_CODING_AGENT_DIR), where its global mcp.json is. */
+    readonly piAgentDir: string,
   ) {}
 
   /** A file the migration only reads. Throws when it exists but is not a JSON object. */
@@ -112,7 +114,7 @@ export interface FileComputationInput {
 }
 
 export async function computeGlobalFile(input: FileComputationInput): Promise<FileComputation> {
-  const paths = globalMcpPaths(input.sources.homeDir)
+  const paths = globalMcpPaths(input.sources.homeDir, input.sources.piAgentDir)
   if (input.original === undefined && !input.preserveEnablement) {
     return { text: undefined, changes: [] }
   }
@@ -139,7 +141,7 @@ export async function computeGlobalFile(input: FileComputationInput): Promise<Fi
 }
 
 async function projectLayers(sources: McpFileSources, projectPath: string) {
-  const global = globalMcpPaths(sources.homeDir)
+  const global = globalMcpPaths(sources.homeDir, sources.piAgentDir)
   const project = projectMcpPaths(projectPath)
   const [piGlobal, projectPi, mcpJson, openwaggleGlobal, legacyGlobal] = await Promise.all([
     sources.readOnlyConfig(global.piGlobal),

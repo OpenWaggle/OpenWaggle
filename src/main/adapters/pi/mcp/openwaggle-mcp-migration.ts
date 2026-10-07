@@ -1,6 +1,7 @@
 import { homedir } from 'node:os'
 import { resolveMcpVaultSecret } from '../../mcp/encrypted-mcp-secret-vault-service'
 import { migrateOpenWaggleMcpFiles } from '../../mcp/migration/migrate-openwaggle-mcp-files'
+import { getPiAgentDir } from '../pi-provider-catalog'
 import { writeOpenWaggleMcpOAuthState } from './openwaggle-mcp-credentials'
 
 const migrations = new Map<string, Promise<unknown>>()
@@ -30,6 +31,7 @@ export function migrateOpenWaggleMcpFilesOnce(projectPath: string | null) {
     const run = () =>
       migrateOpenWaggleMcpFiles({
         homeDir: homedir(),
+        piAgentDir: getPiAgentDir(),
         projectPaths: projectPath ? [projectPath] : [],
         knownProjectPaths,
         now: () => new Date(),
