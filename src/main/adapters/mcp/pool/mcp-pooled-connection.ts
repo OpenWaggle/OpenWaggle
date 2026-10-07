@@ -285,10 +285,14 @@ export class McpPooledConnection {
       return
     }
     if (pending.lease.isDetached) return
-    if ('result' in message) {
-      this.options.observeResult?.(pending.method, pending.params, message.result)
+    if (!('result' in message)) {
+      pending.lease.deliver({ ...message, id: pending.id })
+      return
     }
-    pending.lease.deliver({ ...message, id: pending.id })
+    this.options.observeResult?.(pending.method, pending.params, message.result)
+    const adapt = this.options.adaptResult
+    const result = adapt ? adapt(pending.method, message.result) : message.result
+    pending.lease.deliver({ ...message, id: pending.id, result })
   }
 
   private handleServerNotification(notification: JsonRpcNotification) {

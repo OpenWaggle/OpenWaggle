@@ -36,7 +36,7 @@ export interface McpPooledServerSpec {
 
 export type McpConnectionHooks = Pick<
   McpPooledConnectionOptions,
-  'augmentInitializeParams' | 'handleServerRequest' | 'observeResult'
+  'augmentInitializeParams' | 'handleServerRequest' | 'observeResult' | 'adaptResult'
 >
 
 export interface McpSessionConnectionPoolOptions {

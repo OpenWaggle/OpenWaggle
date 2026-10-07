@@ -32,6 +32,8 @@ export interface McpPooledConnectionOptions {
   readonly roots?: () => readonly { readonly uri: string; readonly name?: string }[]
   /** Sees every successful result of a client request, such as `tools/list` for MCP Apps. */
   readonly observeResult?: (method: string, params: unknown, result: unknown) => void
+  /** Replaces a successful result before the client sees it, such as repaired tool schemas. */
+  readonly adaptResult?: (method: string, result: unknown) => unknown
   /** Called once the connection is closed, by whichever side. */
   readonly onClosed: () => void
 }

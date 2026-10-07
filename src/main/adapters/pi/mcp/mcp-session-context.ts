@@ -4,6 +4,7 @@ import type { McpJsonValue } from '@shared/types/mcp'
 import type { McpConnectionHooks } from '../../mcp/pool/mcp-session-connection-pool'
 import { recordMcpAppTools } from './mcp-app-registry'
 import type { McpRuntimeInteractions } from './mcp-interaction-types'
+import { repairMcpToolListResult } from './mcp-tool-schema-repair'
 
 /**
  * What a Session's pooled connections need from its current Run: who may answer sampling and
@@ -76,6 +77,7 @@ export function openWaggleMcpConnectionHooks(
     observeResult: (method, _params, result) => {
       if (method === 'tools/list') recordMcpAppTools(sessionId, serverName, result)
     },
+    adaptResult: (method, result) => repairMcpToolListResult(serverName, method, result),
     handleServerRequest: ({ method, params, signal }) => {
       if (method === 'sampling/createMessage') {
         return Promise.resolve().then(() => {

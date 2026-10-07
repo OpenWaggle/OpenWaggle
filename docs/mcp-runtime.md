@@ -192,6 +192,15 @@ Session's pooled connection for that server.
 | Notifications (`tools/list_changed`, `resources/list_changed`, `message`, …) | Broadcast to attached leases. Dropped when none is attached; the next lease lists tools again anyway. |
 | `notifications/progress` | Routed to the lease that owns the progress token. |
 
+### Tool schemas
+
+Pi registers each MCP tool's `inputSchema` as its parameters and only forces an object root, but
+Bedrock and OpenAI refuse a root `anyOf`/`oneOf`/`$ref`, and OpenAI-completions providers send
+empty arguments for one. The layer rewrites every `tools/list` result (`adaptResult`,
+`adapters/pi/mcp/mcp-tool-schema-repair.ts`) with the same `providerToolParameters` repair as
+OpenWaggle's own tools before Pi's client reads it. Codemode, deferred, and direct tools all get the
+repaired schema; the server still validates the arguments it receives.
+
 ### MCP Apps
 
 The layer watches `tools/list` results passing through and records, per Session and server, which

@@ -88,7 +88,7 @@ Load `.agents/skills/pi-integration/SKILL.md` for details.
 - Approval: the companion extension's `tool_call` handler raises an authorization for every `mcp__*` call, including codemode children (`parentToolCallId`), keyed `{ requesterId: mcpServerIdentity(name, command|url), resource: Pi tool name }`. Pi's resource tools are not gated (read-only).
 - Sampling and elicitation are answered in the pool (`handleServerRequest`) through the interactions of the Session's live Pi session (attached at `session_start`); between Runs they are refused. MCP Apps: Pi strips `_meta` from tools and results, so the pool's `observeResult` records `tools/list` `_meta.ui.resourceUri` per Session and server, the companion `tool_result` handler adds `details.mcpApp`, and `mcp:read-resource`/`mcp:call-app-tool` go over the Session's pooled connection (opened on demand with the current config). The App descriptor's `serverInstanceId` is the server name and `serverConfigHash` the server identity.
 - `pnpm test:mcp:conformance` drives pi-mcp's `McpClient` through a pool lease and OpenWaggle's hardened fetch. The script is `.mts` because pi-mcp and pi-coding-agent are ESM-only and tsx loads `.ts` scripts as CommonJS; it must not import modules that import `@earendil-works/pi-coding-agent`.
-- The hardened HTTP fetch (`mcp-server-fetch.ts`) pins DNS per request and bounds bodies and SSE events at pi-mcp's 16 MiB; the configured server may be plain HTTP or private (Pi parity), other hosts (OAuth endpoints) must be public HTTPS, and redirects may not change host. Pi's MCP tool registration only forces an object root (`toParameters`); OpenWaggle's provider schema repair no longer runs for MCP tools.
+- The hardened HTTP fetch (`mcp-server-fetch.ts`) pins DNS per request and bounds bodies and SSE events at pi-mcp's 16 MiB; the configured server may be plain HTTP or private (Pi parity), other hosts (OAuth endpoints) must be public HTTPS, and redirects may not change host. Pi's MCP tool registration only forces an object root (`toParameters`), so the transport layer's `adaptResult` hook rewrites every `tools/list` result with `providerToolParameters` (`adapters/pi/mcp/mcp-tool-schema-repair.ts`) before Pi's client reads it; `pi-mcp-tool-schemas.integration.test.ts` pushes a root-`anyOf` server tool through Pi's real Bedrock and OpenAI request builders.
 - Never serialize MCP binary payloads into model-facing tool text. Base64 tokenizes at ~1.6 characters per token, so one Chrome DevTools screenshot (433,816 characters) added ~271k tokens and overflowed a 458,752-token window in a single tool step; Pi's chars/4 estimate predicted only ~108k, so the pre-sampling threshold could not catch it. MCP tool results forward images as native Pi image content (bounded per result, numbered markers in the text; Pi downgrades them for text-only models) and replace audio, blob, data-URI, and opaque base64 data with size markers (`src/shared/utils/mcp-binary-payload.ts`, also used for MCP App draft text). `details` keeps the complete result for attribution, MCP Apps, and the UI; Session Resource capture scans only that MCP copy so a screenshot is cataloged once.
 
 ## Electron Runtime Memory
@@ -1317,11 +1317,10 @@ server in the user's config already served object roots. Every tool parameter ro
 `provider-tool-schemas.unit.test.ts` pushes every OpenWaggle tool through Pi's real Bedrock and
 OpenAI-completions request builders (`onPayload` throws before the network) and checks that rule.
 MCP tools are now registered by Pi's MCP extension (ADR 0048), which only forces an object root,
-so the old OpenWaggle relaxation of third-party MCP schemas (and its call-time re-validation) is
-gone (`provider-tool-parameter-relaxation.ts` was deleted); `providerToolParameters` still
-repairs MCP sampling tools, which Pi does not validate. If a provider
-rejects an MCP tool's root union again, the fix belongs at a `before_provider_request` boundary,
-because the tool definitions are Pi's.
+so OpenWaggle repairs MCP input schemas in its transport layer instead: `tools/list` results are
+rewritten with `providerToolParameters` before Pi's MCP client sees them (the server still
+validates the arguments; the old call-time re-validation in `provider-tool-parameter-relaxation.ts`
+is gone). `providerToolParameters` also repairs MCP sampling tools, which Pi does not validate.
 
 For managed-worktree cleanup, a retained preparation snapshot belongs to a directory generation,
 not merely a project and worktree path. Pin the worktree directory's device, inode and birth time

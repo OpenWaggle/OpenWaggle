@@ -123,6 +123,23 @@ describe("Pi's MCP client over OpenWaggle's transport layer", () => {
     await second.close()
   })
 
+  it('never shares a server process between two Sessions', async () => {
+    const pool = createPool()
+
+    const first = await connectPiClient(pool, 's1')
+    const second = await connectPiClient(pool, 's2')
+    const one = JSON.parse(text(await first.callTool('whoami', {})))
+    const two = JSON.parse(text(await second.callTool('whoami', {})))
+
+    expect(one.pid).not.toBe(two.pid)
+    expect([one.initializes, two.initializes]).toEqual([1, 1])
+    await pool.closeSession('s1')
+    await waitUntil(() => !isRunning(one.pid))
+    expect(isRunning(two.pid)).toBe(true)
+    await first.close()
+    await second.close()
+  })
+
   it('terminates the package runner and the server it started when the Session closes', async () => {
     const pool = createPool()
     const client = await connectPiClient(pool, 's1')
@@ -154,7 +171,7 @@ describe("Pi's MCP client over OpenWaggle's transport layer", () => {
 })
 
 describe("Pi's MCP extension in successive sessions of one OpenWaggle Session", () => {
-  it('registers the server tools in each Run and connects the server once', async () => {
+  it('registers the server tools in each Run of the same Session and connects the server once', async () => {
     const agentDir = mkdtempSync(path.join(tmpdir(), 'ow-mcp-agent-'))
     const pool = createPool()
     let opened = 0
