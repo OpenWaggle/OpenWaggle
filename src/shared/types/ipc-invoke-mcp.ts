@@ -1,4 +1,6 @@
 import type {
+  McpAppCatalogInput,
+  McpAppCatalogResult,
   McpAppToolCallInput,
   McpAppToolCallResult,
   McpReadResourceInput,
@@ -81,6 +83,7 @@ export interface IpcMcpInvokeChannelMap {
     return: readonly McpSecretSummary[]
   }
   'mcp:read-resource': { args: [input: McpReadResourceInput]; return: McpResourceResult }
+  'mcp:list-app-catalog': { args: [input: McpAppCatalogInput]; return: McpAppCatalogResult }
   'mcp:call-app-tool': {
     args: [input: McpAppToolCallInput]
     return: McpAppToolCallResult

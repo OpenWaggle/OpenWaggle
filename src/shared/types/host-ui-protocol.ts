@@ -3,7 +3,8 @@ import type { IpcInvokeChannel } from './ipc'
 export const HOST_UI_CONTRACT_VERSION = 1 as const
 /**
  * Settings > MCP and the `openwaggle mcp` management commands over Pi's MCP files (ADR 0048),
- * including MCP Registry search and install, ship with revision 22.
+ * including MCP Registry search and install and MCP App resource and prompt listing, ship with
+ * revision 22.
  */
 export const HOST_UI_REVISION_22_REQUIRED_CHANNELS = [
   'mcp:get-configuration',
@@ -21,6 +22,7 @@ export const HOST_UI_REVISION_22_REQUIRED_CHANNELS = [
   'mcp:search-registry',
   'mcp:get-registry-server',
   'mcp:install-registry-server',
+  'mcp:list-app-catalog',
 ] as const satisfies readonly IpcInvokeChannel[]
 /** Session settings channels (thinking level as Session state) ship with revision 21. */
 export const HOST_UI_REVISION_21_REQUIRED_CHANNELS = [

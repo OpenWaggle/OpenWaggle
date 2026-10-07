@@ -18,5 +18,6 @@ export const PRELOAD_MCP_METHODS = [
   'setMcpSecret',
   'removeMcpSecret',
   'readMcpResource',
+  'listMcpAppCatalog',
   'callMcpAppTool',
 ] as const

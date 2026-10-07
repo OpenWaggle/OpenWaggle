@@ -1,5 +1,6 @@
 import {
   callMcpAppToolOperation,
+  listMcpAppCatalogOperation,
   readMcpResourceOperation,
 } from '../application/mcp-app-operations'
 import {
@@ -58,5 +59,6 @@ export function registerMcpHandlers(): void {
   hostHandle('mcp:set-secret', (_event, raw: unknown) => setMcpSecretOperation(raw))
   hostHandle('mcp:remove-secret', (_event, raw: unknown) => removeMcpSecretOperation(raw))
   hostHandle('mcp:read-resource', (_event, raw: unknown) => readMcpResourceOperation(raw))
+  hostHandle('mcp:list-app-catalog', (_event, raw: unknown) => listMcpAppCatalogOperation(raw))
   hostHandle('mcp:call-app-tool', (_event, raw: unknown) => callMcpAppToolOperation(raw))
 }

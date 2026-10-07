@@ -5,7 +5,11 @@ import {
   type HostBackedMcpGuiChannel,
 } from '@shared/types/host-ui-protocol'
 import * as Effect from 'effect/Effect'
-import { callMcpAppToolOperation, readMcpResourceOperation } from './mcp-app-operations'
+import {
+  callMcpAppToolOperation,
+  listMcpAppCatalogOperation,
+  readMcpResourceOperation,
+} from './mcp-app-operations'
 import {
   addMcpServerOperation,
   applyMcpImportsOperation,
@@ -76,6 +80,7 @@ export function dispatchMcpHostUiOperation(
     .with('mcp:set-secret', () => oneInput(args, setMcpSecretOperation))
     .with('mcp:remove-secret', () => oneInput(args, removeMcpSecretOperation))
     .with('mcp:read-resource', () => oneInput(args, readMcpResourceOperation))
+    .with('mcp:list-app-catalog', () => oneInput(args, listMcpAppCatalogOperation))
     .with('mcp:call-app-tool', () => oneInput(args, callMcpAppToolOperation))
     .exhaustive()
 }

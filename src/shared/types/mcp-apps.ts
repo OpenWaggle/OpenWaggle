@@ -41,6 +41,18 @@ export interface McpAppToolCallResult {
   }
 }
 
+/** The server of an open MCP App, for listing what else it offers (`resources/list`, `prompts/list`). */
+export interface McpAppCatalogInput extends McpAppRequestScope {
+  readonly serverInstanceId: string
+  readonly serverConfigHash?: string
+}
+
+export interface McpAppCatalogResult {
+  readonly resources: McpJsonValue
+  readonly prompts: McpJsonValue
+  readonly attribution: { readonly serverInstanceId: string; readonly serverLabel: string }
+}
+
 export interface McpReadResourceInput extends McpAppRequestScope {
   readonly serverInstanceId: string
   readonly serverConfigHash?: string

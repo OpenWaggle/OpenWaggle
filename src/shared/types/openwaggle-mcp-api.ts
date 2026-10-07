@@ -1,4 +1,6 @@
 import type {
+  McpAppCatalogInput,
+  McpAppCatalogResult,
   McpAppToolCallInput,
   McpAppToolCallResult,
   McpReadResourceInput,
@@ -54,5 +56,6 @@ export interface OpenWaggleMcpApi {
   setMcpSecret(input: McpSetSecretInput): Promise<readonly McpSecretSummary[]>
   removeMcpSecret(input: McpRemoveSecretInput): Promise<readonly McpSecretSummary[]>
   readMcpResource(input: McpReadResourceInput): Promise<McpResourceResult>
+  listMcpAppCatalog(input: McpAppCatalogInput): Promise<McpAppCatalogResult>
   callMcpAppTool(input: McpAppToolCallInput): Promise<McpAppToolCallResult>
 }

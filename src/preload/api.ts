@@ -64,6 +64,7 @@ export const api: OpenWaggleApi = {
   setMcpSecret: invoke('mcp:set-secret'),
   removeMcpSecret: invoke('mcp:remove-secret'),
   readMcpResource: invoke('mcp:read-resource'),
+  listMcpAppCatalog: invoke('mcp:list-app-catalog'),
   callMcpAppTool: invoke('mcp:call-app-tool'),
   listExtensionPackages: invoke('extensions:list-packages'),
   listExtensionContributions: invoke('extensions:list-contributions'),
