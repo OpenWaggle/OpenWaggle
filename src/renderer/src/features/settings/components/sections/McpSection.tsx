@@ -15,8 +15,8 @@ export function McpSection() {
             <h2 className="text-xl font-semibold text-text-primary">MCP</h2>
           </div>
           <p className="max-w-190 text-xs leading-5 text-text-tertiary">
-            MCP servers give the model more tools. OpenWaggle uses the same files as Pi, so servers
-            you set up for Pi work here too.
+            MCP servers give the model more tools. Each server shows the file it comes from; changes
+            are saved back to that file.
           </p>
         </div>
         <ProjectPicker

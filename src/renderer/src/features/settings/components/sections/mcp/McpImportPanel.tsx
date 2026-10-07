@@ -133,8 +133,8 @@ export function McpImportPanel({
           Import from other apps
         </h3>
         <p className="mt-0.5 text-xs text-text-tertiary">
-          Copies servers into OpenWaggle&apos;s file. Pi&apos;s files and .mcp.json are already
-          read.
+          Copies servers into OpenWaggle&apos;s file. Files OpenWaggle already reads, such as
+          .mcp.json, are not listed.
         </p>
       </div>
       {imports.isLoading ? (
