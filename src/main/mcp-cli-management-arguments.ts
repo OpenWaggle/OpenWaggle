@@ -9,7 +9,8 @@ import {
 } from '@shared/types/mcp-configuration-operations'
 
 /**
- * Arguments of `openwaggle mcp add|remove|list|enable|disable|login|logout|import`. They follow
+ * Arguments of `openwaggle mcp add|remove|list|enable|disable|login|logout|import|registry|doctor`.
+ * They follow
  * `pi mcp` (Pi's `docs/cli.md`, "MCP commands"): `--` or the second positional ends the options of
  * `add`, so a server command keeps its own flags, and `-l`/`--local` selects the project. New
  * servers go to OpenWaggle's file for the scope unless `--file` names another (ADR 0048).
@@ -24,6 +25,8 @@ export const MCP_MANAGEMENT_COMMANDS = [
   'login',
   'logout',
   'import',
+  'registry',
+  'doctor',
 ] as const
 
 export type McpManagementCommand = (typeof MCP_MANAGEMENT_COMMANDS)[number]
@@ -81,6 +84,17 @@ const COMMAND_OPTIONS: Readonly<
     conflict: 'value',
     json: 'flag',
   },
+  registry: {
+    ...PROJECT_OPTIONS,
+    name: 'value',
+    package: 'value',
+    registry: 'value',
+    scope: 'value',
+    version: 'value',
+    exposure: 'value',
+    json: 'flag',
+  },
+  doctor: { ...PROJECT_OPTIONS, json: 'flag' },
 }
 
 /** Parses `--name value` options; `--`, or reaching `maxPositionals`, ends them. */

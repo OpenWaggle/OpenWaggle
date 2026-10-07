@@ -1,0 +1,128 @@
+import type { McpRegistryServerView } from '@shared/types/mcp-registry'
+import { describe, expect, it } from 'vitest'
+import { CWD, run, view } from './mcp-cli-management.test-fixtures'
+
+const WEATHER: McpRegistryServerView = {
+  name: 'io.github.example/weather',
+  version: '2.0.0',
+  description: 'Weather forecasts.',
+  suggestedName: 'weather',
+  installOptions: [
+    { method: 'remote', target: 'https://weather.example/mcp' },
+    { method: 'npm', target: '@example/weather@1.2.3' },
+  ],
+}
+
+function installed(name: string, secrets: readonly string[] = []) {
+  return { name, filePath: '/home/.openwaggle/mcp.json', secrets, view: view([]) }
+}
+
+describe('openwaggle mcp registry', () => {
+  it('searches the Registry through the Host and shows how each server runs', async () => {
+    const result = await run('registry', ['search', 'weather', 'radar'], {
+      'mcp:search-registry': () => ({ servers: [WEATHER] }),
+    })
+
+    expect(result.exitCode).toBe(0)
+    expect(result.calls).toEqual([
+      { channel: 'mcp:search-registry', input: { query: 'weather radar' } },
+    ])
+    expect(result.logs).toContain('io.github.example/weather (2.0.0): Weather forecasts.')
+    expect(result.logs).toContain(
+      'runs as: remote https://weather.example/mcp, npm @example/weather@1.2.3',
+    )
+  })
+
+  it('looks up one version with get, and passes another registry with --registry', async () => {
+    const result = await run(
+      'registry',
+      [
+        'get',
+        'io.github.example/weather',
+        '--version',
+        '2.0.0',
+        '--registry',
+        'https://mirror.example',
+        '--json',
+      ],
+      { 'mcp:get-registry-server': () => WEATHER },
+    )
+
+    expect(result.calls[0]?.input).toEqual({
+      registryName: 'io.github.example/weather',
+      version: '2.0.0',
+      registryUrl: 'https://mirror.example',
+    })
+    expect(JSON.parse(result.logs)).toEqual(WEATHER)
+  })
+
+  it("adds a server to OpenWaggle's global file and names the secrets it needs", async () => {
+    const result = await run('registry', ['add', 'io.github.example/weather'], {
+      'mcp:install-registry-server': () => installed('weather', ['WEATHER_KEY']),
+    })
+
+    expect(result.exitCode).toBe(0)
+    expect(result.calls[0]?.input).toEqual({
+      projectPath: null,
+      scope: 'global',
+      registryName: 'io.github.example/weather',
+    })
+    expect(result.logs).toContain(
+      'Installed global MCP server "weather" from the MCP Registry in /home/.openwaggle/mcp.json.',
+    )
+    expect(result.logs).toContain('vault secret WEATHER_KEY')
+  })
+
+  it('installs a chosen package under another name for the current project', async () => {
+    const result = await run(
+      'registry',
+      [
+        'add',
+        'io.github.example/weather',
+        '-l',
+        '--package',
+        'npm',
+        '--name',
+        'forecast',
+        '--exposure',
+        'direct',
+      ],
+      { 'mcp:install-registry-server': () => installed('forecast') },
+    )
+
+    expect(result.calls[0]?.input).toEqual({
+      projectPath: CWD,
+      scope: 'project',
+      registryName: 'io.github.example/weather',
+      method: 'npm',
+      serverName: 'forecast',
+      exposure: 'direct',
+    })
+    expect(result.logs).toContain('openwaggle mcp list -l')
+  })
+
+  it('keeps the old --scope flag', async () => {
+    const result = await run(
+      'registry',
+      ['add', 'io.github.example/weather', '--scope', 'project'],
+      {
+        'mcp:install-registry-server': () => installed('weather'),
+      },
+    )
+
+    expect(result.calls[0]?.input).toMatchObject({ projectPath: CWD, scope: 'project' })
+  })
+
+  it.each([
+    [['add'], /Usage: openwaggle mcp registry/],
+    [['add', 'io.github.example/weather', '--package', 'cargo'], /--package must be one of/],
+    [['add', 'io.github.example/weather', '--trust'], /Unknown option --trust/],
+    [['remove', 'io.github.example/weather'], /Usage: openwaggle mcp registry/],
+  ])('refuses %j as a usage error', async (args, message) => {
+    const result = await run('registry', args, {})
+
+    expect(result.exitCode).toBe(2)
+    expect(result.errors).toMatch(message)
+    expect(result.calls).toEqual([])
+  })
+})

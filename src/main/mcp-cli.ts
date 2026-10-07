@@ -37,6 +37,12 @@ Usage:
   openwaggle mcp login|logout <server> [-l]
   openwaggle mcp import [--from <tools>] [--apply] [--server <name>]...
                         [--conflict skip|replace|rename] [--json] [-l]
+  openwaggle mcp registry search [<query>] [--json]
+  openwaggle mcp registry get <name> [--version <version>] [--json]
+  openwaggle mcp registry add <name> [--package npm|pypi|nuget|oci|mcpb]
+                              [--name <server>] [--version <version>]
+                              [--scope global|project] [--exposure <mode>] [-l]
+  openwaggle mcp doctor [--json] [-l]
   openwaggle mcp serve --stdio [--profile <name>] [--grant <capability>]...
                        [--authorization-ceiling ask-for-approval|yolo]
                        [--workspace <path>]... [--session <id>]...
@@ -80,6 +86,16 @@ Options for import:
   --from <tools>                 codex, claude-code, claude-desktop, cursor, vscode,
                                  opencode, zed, windsurf (comma-separated)
   --apply                        Import new servers, or those named with --server
+
+Options for registry:
+  --package <type>               Run a package instead of the hosted URL
+  --name <server>                Name in the MCP file (default: the last part of <name>)
+  --registry <url>               Another MCP Registry (HTTPS)
+  Registry servers are saved to OpenWaggle's file like any other new server. Bundles
+  (mcpb) are checked against their SHA-256 and unpacked under ~/.openwaggle/mcp.
+
+doctor lists the MCP files, the errors found in them, and each server's state,
+connecting to every enabled server.
 `
 }
 

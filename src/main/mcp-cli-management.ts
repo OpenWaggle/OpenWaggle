@@ -17,16 +17,18 @@ import {
   type McpManagementContext,
   type McpManagementExit,
 } from './mcp-cli-management-context'
+import { doctorCommand } from './mcp-cli-management-doctor'
 import { importCommand } from './mcp-cli-management-import'
 import { listCommand } from './mcp-cli-management-list'
+import { registryCommand } from './mcp-cli-management-registry'
 
 export type { McpCliHost, McpCliOutput, McpManagementContext } from './mcp-cli-management-context'
 export { MCP_MANAGEMENT_EXIT } from './mcp-cli-management-context'
 
 /**
- * `openwaggle mcp add|remove|list|enable|disable|login|logout|import`, mirroring `pi mcp`. Every
- * command runs in the Session Host through the MCP Host UI channels, so the CLI and Settings > MCP
- * change the same files the same way.
+ * `openwaggle mcp add|remove|list|enable|disable|login|logout|import`, mirroring `pi mcp`, plus
+ * `registry` and `doctor`. Every command runs in the Session Host through the MCP Host UI
+ * channels, so the CLI and Settings > MCP change the same files the same way.
  */
 
 function scopeOf(destination: McpWriteDestination): McpConfigFileScope {
@@ -169,6 +171,8 @@ const COMMANDS: Readonly<
   login: loginCommand,
   logout: logoutCommand,
   import: importCommand,
+  registry: registryCommand,
+  doctor: doctorCommand,
 }
 
 export async function runMcpManagementCommand(
