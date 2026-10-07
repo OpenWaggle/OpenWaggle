@@ -19,12 +19,12 @@ import { FilesystemWorkspaceFileLive } from './adapters/filesystem-workspace-fil
 import { LocalSessionCredentialVerifierLive } from './adapters/local-session-credential-verifier'
 import { idleCacheWarming } from './adapters/pi/agent-kernel/pi-idle-cache-warming'
 import { EncryptedMcpSecretVaultServiceLive } from './adapters/mcp/encrypted-mcp-secret-vault-service'
+import { FilesystemMcpImportServiceLive } from './adapters/mcp/filesystem-mcp-import-service'
 import { mcpSessionConnectionPool } from './adapters/mcp/pool/mcp-connection-pool-instance'
 import { forgetMcpAppTools } from './adapters/pi/mcp/mcp-app-registry'
+import { OpenWaggleMcpConfigurationServiceLive } from './adapters/pi/mcp/openwaggle-mcp-configuration'
 import { PiMcpAppRuntimeServiceLive } from './adapters/pi/mcp/pi-mcp-app-runtime-service'
-import { FilesystemMcpConfigurationServiceLive } from './adapters/mcp/filesystem-mcp-configuration-service-live'
-import { FilesystemMcpImportServiceLive } from './adapters/mcp/filesystem-mcp-import-service'
-import { UnavailableMcpServerRuntimeServiceLive } from './adapters/mcp/unavailable-mcp-server-runtime-service'
+import { PiMcpServerRuntimeServiceLive } from './adapters/pi/mcp/pi-mcp-server-runtime-service'
 import { PiAgentKernelLive } from './adapters/pi/pi-agent-kernel-adapter'
 import { PiAgentSteeringServiceLive } from './adapters/pi/pi-agent-steering-adapter'
 import { registerPiBundledOAuthFlows } from './adapters/pi/pi-bundled-oauth'
@@ -237,10 +237,10 @@ const AppLayer = Layer.mergeAll(
   FilesystemStandardsLive,
   PiAgentKernelWithExtensionSelectionLive,
   EncryptedMcpSecretVaultServiceLive,
-  PiMcpAppRuntimeServiceLive,
-  FilesystemMcpConfigurationServiceLive,
+  OpenWaggleMcpConfigurationServiceLive,
   FilesystemMcpImportServiceLive,
-  UnavailableMcpServerRuntimeServiceLive,
+  PiMcpServerRuntimeServiceLive,
+  PiMcpAppRuntimeServiceLive,
   PiProviderAuthLive,
   PiProviderProbeWithExtensionSelectionLive,
   PiProviderOAuthLive,

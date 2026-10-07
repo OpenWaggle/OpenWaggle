@@ -1,11 +1,11 @@
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { MCP_RUNTIME_UNAVAILABLE_MESSAGE } from '../../adapters/mcp/unavailable-mcp-server-runtime-service'
 import {
   applyMcpImportsOperation,
   inspectMcpServerOperation,
   previewMcpImportsOperation,
   signInMcpServerOperation,
+  signOutMcpServerOperation,
 } from '../mcp-configuration-operations'
 import { createMcpOperationsHarness } from './mcp-configuration-operations.test-harness'
 
@@ -55,17 +55,22 @@ describe('MCP import and runtime operations', () => {
     ).resolves.toMatch(/sources/)
   })
 
-  it('reports the temporary runtime as not connected and sign-in as unavailable', async () => {
+  it('passes inspection, sign-in, and sign-out to the MCP runtime after decoding them', async () => {
     await expect(
       run(inspectMcpServerOperation({ projectPath: null, name: 'docs' })),
-    ).resolves.toEqual({
-      name: 'docs',
-      state: 'not-connected',
-      tools: [],
-      error: MCP_RUNTIME_UNAVAILABLE_MESSAGE,
-    })
+    ).resolves.toMatchObject({ name: 'docs', state: 'connected' })
     await expect(
-      failureMessage(signInMcpServerOperation({ projectPath: null, name: 'docs' })),
-    ).resolves.toMatch(/not available yet/)
+      run(signInMcpServerOperation({ projectPath: '/project', name: 'docs' })),
+    ).resolves.toEqual({ signedIn: false, authorizationUrl: 'https://auth.example/start' })
+    await run(signOutMcpServerOperation({ projectPath: null, name: 'docs' }))
+    await expect(
+      failureMessage(signInMcpServerOperation({ projectPath: null, name: '' })),
+    ).resolves.toMatch(/name/)
+
+    expect(harness.state.runtimeCalls).toEqual([
+      { operation: 'inspect', input: { projectPath: null, name: 'docs' } },
+      { operation: 'sign-in', input: { projectPath: '/project', name: 'docs' } },
+      { operation: 'sign-out', input: { projectPath: null, name: 'docs' } },
+    ])
   })
 })

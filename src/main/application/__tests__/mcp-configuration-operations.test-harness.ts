@@ -5,10 +5,12 @@ import { Cause, Effect, Exit, Layer, Option } from 'effect'
 import { afterEach, beforeEach } from 'vitest'
 import { createFilesystemMcpConfigurationService } from '../../adapters/mcp/config/filesystem-mcp-configuration-service'
 import { createFilesystemMcpImportService } from '../../adapters/mcp/filesystem-mcp-import-service'
-import { UnavailableMcpServerRuntimeServiceLive } from '../../adapters/mcp/unavailable-mcp-server-runtime-service'
 import { McpConfigurationService } from '../../ports/mcp-configuration-service'
 import { McpImportService } from '../../ports/mcp-import-service'
-import type { McpServerRuntimeService } from '../../ports/mcp-server-runtime-service'
+import {
+  McpServerRuntimeService,
+  type McpServerScopeInput,
+} from '../../ports/mcp-server-runtime-service'
 
 type Services = McpConfigurationService | McpImportService | McpServerRuntimeService
 
@@ -20,7 +22,32 @@ export function createMcpOperationsHarness() {
     piAgentDir: '',
     projectPath: '',
     sourceFiles: new Map<string, string>(),
+    runtimeCalls: [] as { readonly operation: string; readonly input: McpServerScopeInput }[],
   }
+
+  /** Stands in for Pi's MCP runtime: connected, and sign-in reports the page it could not open. */
+  const runtime = McpServerRuntimeService.of({
+    inspectServer: (input) =>
+      Effect.sync(() => {
+        state.runtimeCalls.push({ operation: 'inspect', input })
+        return {
+          name: input.name,
+          state: 'connected' as const,
+          tools: [{ name: 'search', exposure: 'codemode' as const, hasApp: false }],
+        }
+      }),
+    signIn: (input) =>
+      Effect.sync(() => {
+        state.runtimeCalls.push({ operation: 'sign-in', input })
+        return { signedIn: false, authorizationUrl: 'https://auth.example/start' }
+      }),
+    signOut: (input) =>
+      Effect.sync(() => {
+        state.runtimeCalls.push({ operation: 'sign-out', input })
+      }),
+    getSessionMcpEnabled: () => Effect.succeed(true),
+    setSessionMcpEnabled: () => Effect.void,
+  })
 
   beforeEach(() => {
     state.root = mkdtempSync(path.join(tmpdir(), 'ow-mcp-operations-'))
@@ -29,6 +56,7 @@ export function createMcpOperationsHarness() {
     state.projectPath = path.join(state.root, 'project')
     mkdirSync(state.projectPath, { recursive: true })
     state.sourceFiles = new Map()
+    state.runtimeCalls = []
   })
 
   afterEach(() => {
@@ -54,7 +82,7 @@ export function createMcpOperationsHarness() {
           now: () => new Date('2026-10-07T00:00:00Z'),
         }),
       ),
-      UnavailableMcpServerRuntimeServiceLive,
+      Layer.succeed(McpServerRuntimeService, runtime),
     )
   }
 
