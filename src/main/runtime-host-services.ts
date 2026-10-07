@@ -1,6 +1,8 @@
 import * as Effect from 'effect/Effect'
+import { migrateLegacyProviderCredentialsOnHostStart } from './adapters/pi/pi-legacy-provider-credentials'
 import { runSessionScratchSweepBackground } from './adapters/session-scratch-sweep-background'
 import { runSessionSemanticDiscoveryBackground } from './adapters/session-semantic-discovery-background'
+import { migrateLegacyProviderReferences } from './adapters/sqlite-legacy-provider-rename-migration'
 import { migrateLegacyThinkingLevels } from './adapters/sqlite-legacy-thinking-level-migration'
 import { activateTrustedMainExtensionsForActiveProjectSafely } from './application/extension-trusted-main-activation-service'
 import { runFollowUpEditHoldExpiryBackground } from './application/follow-up-edit-hold-expiry'
@@ -13,6 +15,10 @@ import { runUsageStatisticsReporterBackground } from './usage-statistics/usage-s
 export const startHostBackgroundServices = Effect.gen(function* () {
   // Before anything reads a Session's thinking level or starts a Run.
   yield* migrateLegacyThinkingLevels
+  // Before anything resolves a stored model reference or provider credential (Pi 1.0.3 renamed
+  // `azure-openai-responses` to `azure` without migrating them).
+  yield* migrateLegacyProviderReferences
+  yield* migrateLegacyProviderCredentialsOnHostStart
   yield* installAppSessionToolGateway
   yield* runSessionExportRecoveryBackground
   yield* runSessionScratchSweepBackground

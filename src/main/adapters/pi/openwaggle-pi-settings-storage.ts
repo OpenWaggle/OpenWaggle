@@ -20,6 +20,7 @@ import {
   PI_CONFIG_DIR,
   withOpenWaggleResourcePrecedence,
 } from './openwaggle-pi-settings-resources'
+import { renameLegacyProviderPiSettings } from './pi-provider-renames'
 
 const JSON_INDENT_SPACES = 2
 const OPENWAGGLE_CONFIG_DIR = '.openwaggle'
@@ -105,6 +106,14 @@ function serializeJsonObject(value: JsonObject) {
   return `${JSON.stringify(value, null, JSON_INDENT_SPACES)}\n`
 }
 
+/** Pi settings content as Pi reads it, with providers Pi renamed under their new ids. */
+function withRenamedLegacyProviders(content: string | undefined) {
+  if (content === undefined || content.trim().length === 0) return content
+  const settings = parseJsonObject(content)
+  const renamed = renameLegacyProviderPiSettings(settings)
+  return renamed === settings ? content : serializeJsonObject(renamed)
+}
+
 function serializeOpenWaggleSettings(value: ParsedProjectSettingsFile) {
   return `${JSON.stringify(value, null, JSON_INDENT_SPACES)}\n`
 }
@@ -165,7 +174,11 @@ function readProjectPiSettings(projectPath: string, options: OpenWagglePiSetting
     ? mergeJsonObjects(piProjectSettings, openWagglePiSettings)
     : piProjectSettings
   return withOpenWaggleCompactionThreshold(
-    withOpenWaggleResourcePrecedence(projectPath, mergedSettings, options),
+    withOpenWaggleResourcePrecedence(
+      projectPath,
+      renameLegacyProviderPiSettings(mergedSettings),
+      options,
+    ),
     options.compactionThresholdPercent,
   )
 }
@@ -250,7 +263,10 @@ function withGlobalPiSettingsLock(
   )
   const nextWithoutSyntheticPatterns = withoutSyntheticExcludedExtensionPatterns(
     current,
-    withStoredInstallTelemetry(current, fn(withReportedInstallTelemetry(visibleCurrent))),
+    withStoredInstallTelemetry(
+      current,
+      fn(withReportedInstallTelemetry(withRenamedLegacyProviders(visibleCurrent))),
+    ),
     options.excludedGlobalPackageSources,
   )
   const nextWithRestoredRuntimePackages = withRestoredExcludedNpmPackageEntries(

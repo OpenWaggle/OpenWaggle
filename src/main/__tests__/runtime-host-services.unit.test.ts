@@ -36,6 +36,13 @@ vi.mock('../application/extension-trusted-main-activation-service', () => ({
   activateTrustedMainExtensionsForActiveProjectSafely: () => recorded('trusted extensions'),
 }))
 
+vi.mock('../adapters/sqlite-legacy-provider-rename-migration', () => ({
+  migrateLegacyProviderReferences: recorded('provider references'),
+}))
+vi.mock('../adapters/pi/pi-legacy-provider-credentials', () => ({
+  migrateLegacyProviderCredentialsOnHostStart: recorded('provider credentials'),
+}))
+
 const { startHostBackgroundServices } = await import('../runtime-host-services')
 
 describe('Host background services', () => {
@@ -51,5 +58,11 @@ describe('Host background services', () => {
     expect(started).toContain('tool gateway')
     // Releases Follow-up edit holds whose lease ran out so their queues deliver again (ADR 0044).
     expect(started).toContain('follow-up edit hold expiry')
+    // Carries stored model references and credentials across Pi 1.0.3's Azure provider rename
+    // before any service resolves them.
+    expect(started.indexOf('provider references')).toBeLessThan(started.indexOf('tool gateway'))
+    expect(started.indexOf('provider credentials')).toBeLessThan(started.indexOf('tool gateway'))
+    expect(started).toContain('provider references')
+    expect(started).toContain('provider credentials')
   })
 })
