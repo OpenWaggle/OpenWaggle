@@ -80,7 +80,7 @@ index 03f811e3c72562fa52d51eef2f92e6026661d63c..8798aaf1124d19e0938ce32d8e20aae2
       * Queue a follow-up message to be processed after the agent finishes.
       * Delivered only when agent has no more tool calls or steering messages.
 diff --git a/dist/core/agent-session.js b/dist/core/agent-session.js
-index ec5f44ee70d8fd75496cd2dc490563b8fa2c703e..e52ff4039ea5891805fbad367f8b6d9811cbc8b0 100644
+index ec5f44ee70d8fd75496cd2dc490563b8fa2c703e..750810fcb8d3ffa8ed859f1bd45030c2aa8ea066 100644
 --- a/dist/core/agent-session.js
 +++ b/dist/core/agent-session.js
 @@ -25,7 +25,7 @@ import { normalizeToolResultImages } from "../utils/tool-result-images.js";
@@ -620,25 +620,25 @@ index ec5f44ee70d8fd75496cd2dc490563b8fa2c703e..e52ff4039ea5891805fbad367f8b6d98
          }
          else if (this.isStreaming) {
              // Appending now would put the message between an assistant tool call and its
-@@ -1939,14 +2116,27 @@ export class AgentSession {
+@@ -1939,14 +2116,29 @@ export class AgentSession {
       * Persists to global defaults only when options.persist is true.
       * @throws Error if no auth is configured for the model
       */
 -    async setModel(model, options = {}) {
--        if (!(await this._modelRuntime.checkAuth(model.provider))) {
--            throw new Error(`No API key for ${model.provider}/${model.id}`);
 +    /**
 +     * Resolve the credential-bound request model for a selection. Virtual selections are routed per
 +     * request, so they keep Pi's provider check and stay in agent state unresolved.
 +     */
 +    async _requestModelForSelection(model) {
-+        if (isVirtualModel(model)) {
-+            if (!(await this._modelRuntime.checkAuth(model.provider))) {
-+                throw new Error(`No API key for ${model.provider}/${model.id}`);
-+            }
-+            return model;
++        // Pi's own provider check first: a provider can be configured without an API key or
++        // headers (Amazon Bedrock through AWS_PROFILE, an ECS task role, or web identity).
+         if (!(await this._modelRuntime.checkAuth(model.provider))) {
+             throw new Error(`No API key for ${model.provider}/${model.id}`);
          }
-+        return (await this._getRequiredRequestAuth(model)).model;
++        if (isVirtualModel(model))
++            return model;
++        const { model: requestModel, resolution } = await this._modelRuntime.prepareModelRequest(model);
++        return withNativeCredentialFingerprint(requestModel, resolution.auth.apiKey, withoutDeletedHeaders(resolution.auth.headers));
 +    }
 +    async setModel(model, options = {}) {
 +        const requestModel = await this._requestModelForSelection(model);
@@ -652,7 +652,7 @@ index ec5f44ee70d8fd75496cd2dc490563b8fa2c703e..e52ff4039ea5891805fbad367f8b6d98
          if (options.persist) {
              this.settingsManager.setDefaultModelAndProvider(model.provider, model.id);
              this._addPersistedDefaultToNonEmptyScope(model);
-@@ -1955,7 +2145,7 @@ export class AgentSession {
+@@ -1955,7 +2147,7 @@ export class AgentSession {
          // Per-model thinking level overrides take priority over the global default.
          // Model persistence does not implicitly rewrite the global thinking default.
          this.setThinkingLevel(thinkingLevel);
@@ -661,7 +661,7 @@ index ec5f44ee70d8fd75496cd2dc490563b8fa2c703e..e52ff4039ea5891805fbad367f8b6d98
      }
      _addPersistedDefaultToNonEmptyScope(model) {
          if (this._scopedModels.length === 0)
-@@ -1995,10 +2185,13 @@ export class AgentSession {
+@@ -1995,10 +2187,13 @@ export class AgentSession {
          const len = scopedModels.length;
          const nextIndex = direction === "forward" ? (currentIndex + 1) % len : (currentIndex - 1 + len) % len;
          const next = scopedModels[nextIndex];
@@ -676,7 +676,7 @@ index ec5f44ee70d8fd75496cd2dc490563b8fa2c703e..e52ff4039ea5891805fbad367f8b6d98
          if (options.persist) {
              this.settingsManager.setDefaultModelAndProvider(next.model.provider, next.model.id);
              this._addPersistedDefaultToNonEmptyScope(next.model);
-@@ -2009,8 +2202,8 @@ export class AgentSession {
+@@ -2009,8 +2204,8 @@ export class AgentSession {
          // setThinkingLevel clamps to model capabilities.
          // Model persistence does not implicitly rewrite the global thinking default.
          this.setThinkingLevel(thinkingLevel);
@@ -687,7 +687,7 @@ index ec5f44ee70d8fd75496cd2dc490563b8fa2c703e..e52ff4039ea5891805fbad367f8b6d98
      }
      async _cycleAvailableModel(direction, options) {
          const availableModels = this._modelRuntime.getAvailableSnapshot();
-@@ -2023,9 +2216,12 @@ export class AgentSession {
+@@ -2023,9 +2218,12 @@ export class AgentSession {
          const len = availableModels.length;
          const nextIndex = direction === "forward" ? (currentIndex + 1) % len : (currentIndex - 1 + len) % len;
          const nextModel = availableModels[nextIndex];
@@ -701,7 +701,7 @@ index ec5f44ee70d8fd75496cd2dc490563b8fa2c703e..e52ff4039ea5891805fbad367f8b6d98
          if (options.persist) {
              this.settingsManager.setDefaultModelAndProvider(nextModel.provider, nextModel.id);
              this._addPersistedDefaultToNonEmptyScope(nextModel);
-@@ -2033,8 +2229,8 @@ export class AgentSession {
+@@ -2033,8 +2231,8 @@ export class AgentSession {
          // Apply thinking level for the new model.
          // Model persistence does not implicitly rewrite the global thinking default.
          this.setThinkingLevel(thinkingLevel);
@@ -712,7 +712,7 @@ index ec5f44ee70d8fd75496cd2dc490563b8fa2c703e..e52ff4039ea5891805fbad367f8b6d98
      }
      // =========================================================================
      // Thinking Level Management
-@@ -2137,10 +2333,42 @@ export class AgentSession {
+@@ -2137,10 +2335,42 @@ export class AgentSession {
      // Compaction
      // =========================================================================
      /** Generate Pi's built-in compaction summary for manual and automatic compaction. */
@@ -759,7 +759,7 @@ index ec5f44ee70d8fd75496cd2dc490563b8fa2c703e..e52ff4039ea5891805fbad367f8b6d98
      }
      _clearManualCompactionState() {
          this._compactionAbortController = undefined;
-@@ -2172,9 +2400,26 @@ export class AgentSession {
+@@ -2172,9 +2402,26 @@ export class AgentSession {
              if (!model) {
                  throw new Error(formatNoModelSelectedMessage());
              }
@@ -788,7 +788,7 @@ index ec5f44ee70d8fd75496cd2dc490563b8fa2c703e..e52ff4039ea5891805fbad367f8b6d98
              if (!preparation) {
                  // Check why we can't compact
                  const lastEntry = pathEntries[pathEntries.length - 1];
-@@ -2218,7 +2463,7 @@ export class AgentSession {
+@@ -2218,7 +2465,7 @@ export class AgentSession {
              }
              else {
                  // Shared default summary generator, also used by automatic compaction.
@@ -797,7 +797,7 @@ index ec5f44ee70d8fd75496cd2dc490563b8fa2c703e..e52ff4039ea5891805fbad367f8b6d98
                  summary = result.summary;
                  firstKeptEntryId = result.firstKeptEntryId;
                  tokensBefore = result.tokensBefore;
-@@ -2228,12 +2473,11 @@ export class AgentSession {
+@@ -2228,12 +2475,11 @@ export class AgentSession {
              if (this._compactionAbortController.signal.aborted) {
                  throw new Error("Compaction cancelled");
              }
@@ -814,7 +814,7 @@ index ec5f44ee70d8fd75496cd2dc490563b8fa2c703e..e52ff4039ea5891805fbad367f8b6d98
              if (this._extensionRunner && savedCompactionEntry) {
                  await this._extensionRunner.emit({
                      type: "session_compact",
-@@ -2244,6 +2488,7 @@ export class AgentSession {
+@@ -2244,6 +2490,7 @@ export class AgentSession {
                  });
              }
              const compactionResult = {
@@ -822,7 +822,7 @@ index ec5f44ee70d8fd75496cd2dc490563b8fa2c703e..e52ff4039ea5891805fbad367f8b6d98
                  summary,
                  firstKeptEntryId,
                  tokensBefore,
-@@ -2322,7 +2567,7 @@ export class AgentSession {
+@@ -2322,7 +2569,7 @@ export class AgentSession {
       * @param skipAbortedCheck If false, include aborted messages (for pre-prompt check). Default: true
       * @returns Whether the post-run loop should call `agent.continue()` for overflow recovery or queued messages
       */
@@ -831,7 +831,7 @@ index ec5f44ee70d8fd75496cd2dc490563b8fa2c703e..e52ff4039ea5891805fbad367f8b6d98
          const settings = this.settingsManager.getCompactionSettings(this.model);
          if (!settings.enabled)
              return false;
-@@ -2348,7 +2593,7 @@ export class AgentSession {
+@@ -2348,7 +2595,7 @@ export class AgentSession {
          // Automatic cases 1 and 2: context overflow.
          // A length stop is recoverable when output ended below the model's original desired limit,
          // independent of the configured context size or any context-clamped provider request limit.
@@ -840,7 +840,7 @@ index ec5f44ee70d8fd75496cd2dc490563b8fa2c703e..e52ff4039ea5891805fbad367f8b6d98
          const assistantEntryId = this._findPersistedMessageEntryId(assistantMessage);
          const assistantIsProjected = assistantEntryId === undefined ||
              currentProjection.entries.some((entry) => entry.sourceEntry.id === assistantEntryId &&
-@@ -2374,7 +2619,10 @@ export class AgentSession {
+@@ -2374,7 +2621,10 @@ export class AgentSession {
              // Case 2: the response completed successfully. Compact, but do not retry because
              // agent.continue() cannot continue from a completed assistant response.
              if (!willRetry) {
@@ -852,7 +852,7 @@ index ec5f44ee70d8fd75496cd2dc490563b8fa2c703e..e52ff4039ea5891805fbad367f8b6d98
              }
              if (this._overflowRecoveryAttempted) {
                  const errorMessage = contextOverflow
-@@ -2399,8 +2647,9 @@ export class AgentSession {
+@@ -2399,8 +2649,9 @@ export class AgentSession {
              }
              // Persistently omit the selected final attempt before post-run recovery compaction.
              this._overflowRecoveryAttempted = true;
@@ -863,7 +863,7 @@ index ec5f44ee70d8fd75496cd2dc490563b8fa2c703e..e52ff4039ea5891805fbad367f8b6d98
              if (retry)
                  this._failedResponse = assistantMessage;
              return retry;
-@@ -2437,8 +2686,8 @@ export class AgentSession {
+@@ -2437,8 +2688,8 @@ export class AgentSession {
          else {
              contextTokens = directContextTokens;
          }
@@ -874,7 +874,7 @@ index ec5f44ee70d8fd75496cd2dc490563b8fa2c703e..e52ff4039ea5891805fbad367f8b6d98
          }
          return false;
      }
-@@ -2452,27 +2701,42 @@ export class AgentSession {
+@@ -2452,27 +2703,42 @@ export class AgentSession {
       * @param willRetry Whether to continue the interrupted turn after overflow compaction
       * @returns Whether the post-run loop should call `agent.continue()`
       */
@@ -925,7 +925,7 @@ index ec5f44ee70d8fd75496cd2dc490563b8fa2c703e..e52ff4039ea5891805fbad367f8b6d98
              let extensionCompaction;
              if (this._extensionRunner.hasHandlers("session_before_compact")) {
                  const extensionResult = (await this._extensionRunner.emit({
-@@ -2509,7 +2773,7 @@ export class AgentSession {
+@@ -2509,7 +2775,7 @@ export class AgentSession {
              }
              else {
                  // Shared default summary generator, also used by manual compaction.
@@ -934,7 +934,7 @@ index ec5f44ee70d8fd75496cd2dc490563b8fa2c703e..e52ff4039ea5891805fbad367f8b6d98
                  summary = compactResult.summary;
                  firstKeptEntryId = compactResult.firstKeptEntryId;
                  tokensBefore = compactResult.tokensBefore;
-@@ -2517,12 +2781,12 @@ export class AgentSession {
+@@ -2517,12 +2783,12 @@ export class AgentSession {
                  details = compactResult.details;
              }
              abortController.signal.throwIfAborted();
@@ -952,7 +952,7 @@ index ec5f44ee70d8fd75496cd2dc490563b8fa2c703e..e52ff4039ea5891805fbad367f8b6d98
              if (this._extensionRunner && savedCompactionEntry) {
                  await this._extensionRunner.emit({
                      type: "session_compact",
-@@ -2533,6 +2797,7 @@ export class AgentSession {
+@@ -2533,6 +2799,7 @@ export class AgentSession {
                  });
              }
              const result = {
@@ -960,7 +960,7 @@ index ec5f44ee70d8fd75496cd2dc490563b8fa2c703e..e52ff4039ea5891805fbad367f8b6d98
                  summary,
                  firstKeptEntryId,
                  tokensBefore,
-@@ -2575,10 +2840,16 @@ export class AgentSession {
+@@ -2575,10 +2842,16 @@ export class AgentSession {
              return false;
          }
          finally {
@@ -980,7 +980,7 @@ index ec5f44ee70d8fd75496cd2dc490563b8fa2c703e..e52ff4039ea5891805fbad367f8b6d98
          }
      }
      /**
-@@ -2671,7 +2942,7 @@ export class AgentSession {
+@@ -2671,7 +2944,7 @@ export class AgentSession {
          if (!refreshedModel || refreshedModel === currentModel) {
              return;
          }
@@ -989,7 +989,7 @@ index ec5f44ee70d8fd75496cd2dc490563b8fa2c703e..e52ff4039ea5891805fbad367f8b6d98
      }
      _bindExtensionCore(runner) {
          const getCommands = () => {
-@@ -3265,7 +3536,7 @@ export class AgentSession {
+@@ -3265,7 +3538,7 @@ export class AgentSession {
                  const signal = this._branchSummaryAbortController.signal;
                  const branchSummarySettings = this.settingsManager.getBranchSummarySettings();
                  const result = await generateBranchSummary(entriesToSummarize, {
@@ -998,7 +998,7 @@ index ec5f44ee70d8fd75496cd2dc490563b8fa2c703e..e52ff4039ea5891805fbad367f8b6d98
                      signal,
                      customInstructions,
                      replaceInstructions,
-@@ -3440,7 +3711,7 @@ export class AgentSession {
+@@ -3440,7 +3713,7 @@ export class AgentSession {
          // After compaction, the last assistant usage reflects pre-compaction context size.
          // We can only trust usage from an assistant that responded after the latest compaction.
          // If no such assistant exists, context token count is unknown until the next LLM response.
