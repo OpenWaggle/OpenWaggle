@@ -6,6 +6,7 @@ import type { SessionId } from '@shared/types/brand'
 import * as Effect from 'effect/Effect'
 import { describe, expect, it, vi } from 'vitest'
 import {
+  agePiFile,
   continuePiCliSession,
   createPiCliSession,
   discover,
@@ -86,6 +87,7 @@ async function writeVersion2PiSession(cwd: string) {
   ]
   const content = `${lines.map((line) => JSON.stringify(line)).join('\n')}\n`
   await fs.writeFile(file, content)
+  agePiFile(file)
   return { file, content }
 }
 

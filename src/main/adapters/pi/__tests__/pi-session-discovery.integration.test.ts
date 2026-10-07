@@ -7,9 +7,17 @@ import {
   discoverOne,
   registerProjects,
   run,
+  runSql,
   sessionDetail,
   setUpPiDiscoveryFixture,
 } from './pi-session-discovery.test-support'
+
+async function sessionCount() {
+  const rows = await runSql(
+    (sql) => sql<{ readonly count: number }>`SELECT COUNT(*) AS count FROM sessions`,
+  )
+  return rows[0]?.count
+}
 
 /**
  * Pi session discovery (ADR 0048): a session the `pi` CLI created inside an OpenWaggle project is
@@ -104,5 +112,65 @@ describe('Pi session discovery', () => {
     )
 
     expect(await discover()).toEqual([])
+  })
+
+  it('waits while a new file is still being written', async () => {
+    await registerProjects([fixture.project])
+    const cli = createPiCliSession(fixture.project, 'Just written')
+    const now = new Date()
+    const { utimes } = await import('node:fs/promises')
+    await utimes(cli.file, now, now)
+
+    expect(await discover()).toEqual([])
+  })
+
+  it('leaves a Pi file to the fork or copy that is still preparing it', async () => {
+    await registerProjects([fixture.project])
+    const cli = createPiCliSession(fixture.project, 'Fork in preparation')
+    await runSql(
+      (sql) => sql`
+        INSERT INTO session_lifecycle_preparation_attempts (
+          attempt_id, session_id, pi_session_file, created_at, updated_at
+        ) VALUES (${'attempt-1'}, ${'fork-session'}, ${cli.file}, ${1}, ${1})
+      `,
+    )
+
+    expect(await discover()).toEqual([])
+    expect(await sessionCount()).toBe(0)
+  })
+
+  it('removes the Session it created when the file was claimed meanwhile', async () => {
+    await registerProjects([fixture.project])
+    const cli = createPiCliSession(fixture.project, 'Claimed during listing')
+    const { PiSessionDiscoveryRepository } = await import('../../../ports/pi-session-discovery')
+    const { discoverPiSessions } = await import('../../../application/pi-session-discovery')
+    await runSql(
+      (sql) => sql`
+        INSERT INTO session_lifecycle_preparation_attempts (
+          attempt_id, session_id, pi_session_file, created_at, updated_at
+        ) VALUES (${'attempt-2'}, ${'fork-session'}, ${cli.file}, ${1}, ${1})
+      `,
+    )
+
+    // The scope was read before the fork recorded its file; only adoption sees the claim.
+    const listed = await run(
+      Effect.gen(function* () {
+        const repository = yield* PiSessionDiscoveryRepository
+        const scopeBeforeClaim = {
+          knownPiSessionIds: new Set<string>(),
+          knownPiSessionFiles: new Set<string>(),
+          sessionProjectPaths: [],
+        }
+        return yield* discoverPiSessions().pipe(
+          Effect.provideService(PiSessionDiscoveryRepository, {
+            ...repository,
+            readScope: () => Effect.succeed(scopeBeforeClaim),
+          }),
+        )
+      }),
+    )
+
+    expect(listed).toEqual([])
+    expect(await sessionCount()).toBe(0)
   })
 })

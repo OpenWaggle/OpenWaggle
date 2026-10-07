@@ -1,8 +1,10 @@
+import { utimesSync } from 'node:fs'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import type { AssistantMessage } from '@earendil-works/pi-ai'
 import { SessionManager } from '@earendil-works/pi-coding-agent'
+import * as SqlClient from '@effect/sql/SqlClient'
 import { SessionId } from '@shared/types/brand'
 import * as Effect from 'effect/Effect'
 import { afterEach, beforeEach, expect, vi } from 'vitest'
@@ -57,6 +59,22 @@ function assistantReply(text: string): AssistantMessage {
   }
 }
 
+/** How long ago the helpers date a CLI write: past discovery's quiet period for new files. */
+const CLI_WRITE_AGE_MS = 60_000
+
+/** Dates a Pi file's last write a minute back, as if the CLI wrote it a while ago. */
+export function agePiFile(file: string) {
+  const past = new Date(Date.now() - CLI_WRITE_AGE_MS)
+  utimesSync(file, past, past)
+}
+
+/** Runs SQL against the app database, for fixtures and checks the ports do not expose. */
+export function runSql<A>(query: (sql: SqlClient.SqlClient) => Effect.Effect<A, unknown>) {
+  return import('../../../store/store-runtime').then(({ runStoreEffect }) =>
+    runStoreEffect(Effect.flatMap(SqlClient.SqlClient, query)),
+  )
+}
+
 /** What the `pi` CLI leaves behind after one exchange in `cwd`. */
 export function createPiCliSession(cwd: string, prompt: string) {
   const sessionManager = SessionManager.create(cwd)
@@ -68,6 +86,7 @@ export function createPiCliSession(cwd: string, prompt: string) {
   sessionManager.appendMessage(assistantReply(`Answer to: ${prompt}`))
   const file = sessionManager.getSessionFile()
   if (!file) throw new Error('Pi did not create a session file.')
+  agePiFile(file)
   return { id: sessionManager.getSessionId(), file }
 }
 
@@ -80,6 +99,7 @@ export function continuePiCliSession(file: string, prompt: string) {
     timestamp: Date.now(),
   })
   sessionManager.appendMessage(assistantReply(`Answer to: ${prompt}`))
+  agePiFile(file)
 }
 
 export async function run<A, E>(effect: Effect.Effect<A, E, AppServices>) {

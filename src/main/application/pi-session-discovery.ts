@@ -14,6 +14,7 @@ import {
   PiSessionDiscoveryRepository,
   PiSessionFiles,
 } from '../ports/pi-session-discovery'
+import { SessionProjectionRepository } from '../ports/session-projection-repository'
 import { SettingsService } from '../services/settings-service'
 import { publishSessionHostEvent } from '../session-host/session-host-events'
 import { dispatchLocalSessionCommand } from './local-session-command-dispatcher'
@@ -61,10 +62,24 @@ function discoveredTitle(session: DiscoveredPiSession) {
 }
 
 /**
+ * A Session the lifecycle created for a file another writer claimed meanwhile, such as a fork or
+ * copy whose preparation recorded the file after discovery read its scope. It is still empty and
+ * was never shown with a transcript, so it is deleted rather than left as a stray "New session".
+ */
+function removeUnadoptedSession(sessionId: SessionId) {
+  return Effect.gen(function* () {
+    const projection = yield* SessionProjectionRepository
+    if (!(yield* projection.getOptional(sessionId))) return
+    yield* projection.delete(sessionId)
+  })
+}
+
+/**
  * A discovered session becomes a Session the way the desktop user creates one, through the Session
  * Host's lifecycle, so it gets the project's Workspace, an execution profile, and its queue. The
- * idempotency key is the Pi session, so a pass interrupted before the file was attached replays the
- * same Session instead of creating another.
+ * idempotency key names the version of the file that was read, so a pass interrupted before the
+ * file was attached replays the same Session instead of creating another, while a file refused
+ * once and written again since gets a fresh attempt.
  */
 function createDiscoveredSession(session: DiscoveredPiSession) {
   return Effect.gen(function* () {
@@ -75,7 +90,7 @@ function createDiscoveredSession(session: DiscoveredPiSession) {
         request: {
           contractVersion: SESSION_LIFECYCLE_CONTRACT_VERSION,
           requestId: randomUUID(),
-          idempotencyKey: `pi-session-discovery:${session.piSessionId}`,
+          idempotencyKey: `pi-session-discovery:${session.piSessionId}:${session.size}:${session.updatedAt}`,
           command: {
             operation: 'create',
             projectPath: session.projectPath,
@@ -99,27 +114,22 @@ function createDiscoveredSession(session: DiscoveredPiSession) {
       createdAt: Math.floor(Math.min(session.createdAt, session.updatedAt)),
       updatedAt: Math.floor(session.updatedAt),
     })
-    if (!adopted) return null
-    publishSessionHostEvent({ kind: 'session-list-changed', sessionId, change: 'updated' })
-    return sessionId
-  }).pipe(
-    Effect.catchAllCause((cause) =>
-      Effect.sync(() => {
-        logger.warn('Could not list a Pi session', {
-          piSessionFile: session.piSessionFile,
-          error: formatErrorMessage(Cause.squash(cause)),
-        })
-        return null
-      }),
-    ),
-  )
+    if (adopted) return sessionId
+    yield* removeUnadoptedSession(sessionId)
+    return null
+  })
 }
+
+/** Pi writes a session in bursts; a file is listed once it has been quiet this long. */
+const NEW_FILE_QUIET_PERIOD_MS = 5_000
 
 /**
  * Lists the Pi sessions in OpenWaggle projects that have no Session yet, most recently used first
- * and a bounded number per pass; returns the new Session ids.
+ * and a bounded number per pass; returns the new Session ids. A file written in the last few
+ * seconds waits for the next pass: a fork or copy OpenWaggle is preparing writes its file before
+ * it records it, and the CLI writes a new session in more than one step.
  */
-export function discoverPiSessions() {
+export function discoverPiSessions(options: { readonly now?: number } = {}) {
   return Effect.gen(function* () {
     const repository = yield* PiSessionDiscoveryRepository
     const files = yield* PiSessionFiles
@@ -129,16 +139,34 @@ export function discoverPiSessions() {
       projectPaths,
       isKnownFile: (file) => scope.knownPiSessionFiles.has(file),
     })
+    const quietBefore = (options.now ?? Date.now()) - NEW_FILE_QUIET_PERIOD_MS
     const pending = discovered
       .filter((session) => !scope.knownPiSessionIds.has(session.piSessionId))
+      .filter((session) => session.updatedAt <= quietBefore)
       .sort((left, right) => right.updatedAt - left.updatedAt)
-      .slice(0, MAX_SESSIONS_LISTED_PER_PASS)
     const listed: SessionId[] = []
     for (const session of pending) {
-      const sessionId = yield* createDiscoveredSession(session)
+      if (listed.length >= MAX_SESSIONS_LISTED_PER_PASS) break
+      const sessionId = yield* createDiscoveredSession(session).pipe(
+        Effect.catchAllCause((cause) =>
+          Effect.sync(() => {
+            logger.warn('Could not list a Pi session', {
+              piSessionFile: session.piSessionFile,
+              error: formatErrorMessage(Cause.squash(cause)),
+            })
+            return null
+          }),
+        ),
+      )
       if (sessionId) listed.push(sessionId)
     }
-    if (listed.length > 0) logger.info('Listed Pi sessions', { count: listed.length })
+    const last = listed.at(-1)
+    // One notice per pass: the lifecycle announced each new Session, and this one makes the
+    // sidebar read the adopted titles and times once.
+    if (last) {
+      publishSessionHostEvent({ kind: 'session-list-changed', sessionId: last, change: 'updated' })
+      logger.info('Listed Pi sessions', { count: listed.length })
+    }
     return listed
   })
 }

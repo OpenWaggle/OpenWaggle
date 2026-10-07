@@ -50,6 +50,12 @@ export async function readPiSessionDiscoveryScope(): Promise<PiSessionDiscoveryS
         knownPiSessionIds.add(row.session_id)
         if (row.pi_session_file) knownPiSessionFiles.add(row.pi_session_file)
       }
+      // A fork or copy still being prepared has written its Pi file before its Session exists.
+      const preparing = yield* sql<{ readonly pi_session_file: string }>`
+        SELECT pi_session_file FROM session_lifecycle_preparation_attempts
+        WHERE pi_session_file IS NOT NULL
+      `
+      for (const row of preparing) knownPiSessionFiles.add(row.pi_session_file)
       const dismissals = yield* sql<{
         readonly pi_session_id: string
         readonly pi_session_file: string
@@ -89,6 +95,9 @@ export async function adoptDiscoveredPiSession(
                 AND (pi_session_id = ${input.piSessionId} OR pi_session_file = ${input.piSessionFile})
             ) OR EXISTS (
               SELECT 1 FROM session_deletion_operations
+              WHERE pi_session_file = ${input.piSessionFile}
+            ) OR EXISTS (
+              SELECT 1 FROM session_lifecycle_preparation_attempts
               WHERE pi_session_file = ${input.piSessionFile}
             ) OR EXISTS (
               SELECT 1 FROM pi_session_dismissals

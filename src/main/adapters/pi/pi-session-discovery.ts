@@ -149,9 +149,10 @@ async function readHeader(file: string): Promise<PiSessionFileHeader | null> {
   }
 }
 
-async function lastModified(file: string) {
+async function fileState(file: string) {
   try {
-    return (await stat(file)).mtimeMs
+    const stats = await stat(file)
+    return { size: stats.size, mtimeMs: stats.mtimeMs }
   } catch {
     return null
   }
@@ -191,8 +192,8 @@ export function createPiSessionDiscoveryScanner(
     const header = await headerOf(file)
     const projectPath = header ? owningProject(header.cwd, projectPaths) : null
     if (!header || !projectPath) return null
-    const updatedAt = await lastModified(file)
-    if (updatedAt === null) return null
+    const state = await fileState(file)
+    if (state === null) return null
     return {
       piSessionId: header.id,
       piSessionFile: file,
@@ -201,7 +202,8 @@ export function createPiSessionDiscoveryScanner(
       name: header.name,
       firstUserMessage: header.firstUserMessage,
       createdAt: header.createdAt,
-      updatedAt,
+      updatedAt: state.mtimeMs,
+      size: state.size,
     }
   }
 

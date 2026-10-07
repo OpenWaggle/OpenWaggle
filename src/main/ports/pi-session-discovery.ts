@@ -27,8 +27,10 @@ export interface DiscoveredPiSession {
   /** The first user message's text, when one was found. */
   readonly firstUserMessage: string | null
   readonly createdAt: number
-  /** When the session was last used. */
+  /** When the session was last used: the file's last modification. */
   readonly updatedAt: number
+  /** The file's size, which with `updatedAt` identifies the version of the file that was read. */
+  readonly size: number
 }
 
 export interface PiSessionDiscoveryInput {
