@@ -5,7 +5,6 @@ import {
   createMcpExtension,
   type ExtensionAPI,
   type InlineExtension,
-  mcpNamespace,
 } from '@earendil-works/pi-coding-agent'
 import { isRecord } from '@shared/utils/validation'
 import { mcpShellEnvironmentReady } from '../../../mcp-shell-environment'
@@ -24,6 +23,8 @@ import { hardenedMcpAuthProvider } from './mcp-hardened-auth-provider'
 import { attachSessionMcpContext, openWaggleMcpConnectionHooks } from './mcp-session-context'
 import { createRunSignInOpener } from './mcp-sign-in-page'
 import { approveMcpToolCall } from './mcp-tool-approval'
+import { mcpServerEntryOfNamespace, mcpToolNamespace } from './mcp-tool-server'
+import { registerMcpUsageStatistics } from './mcp-usage-statistics'
 import { getOpenWaggleMcpCredentials, openWaggleMcpLogPath } from './openwaggle-mcp-credentials'
 import { migrateOpenWaggleMcpFilesOnce } from './openwaggle-mcp-migration'
 import { withShellResolvedClientSecrets } from './pi-mcp-server-oauth'
@@ -46,8 +47,6 @@ export interface OpenWaggleMcpSessionInput {
   readonly onConfigChanged?: (filePath: string) => void
 }
 
-const MCP_TOOL_NAME = /^mcp__(.+?)__/
-
 function serverIdentities(config: McpRuntimeConfig) {
   return new Map(
     config.loaded.servers.map((server) => [
@@ -63,11 +62,9 @@ function serverOfTool(
   config: Pick<McpRuntimeConfig, 'loaded'>,
   toolName: string,
 ) {
-  const namespace =
-    pi.getAllTools().find((tool) => tool.name === toolName)?.namespace?.name ??
-    (MCP_TOOL_NAME.exec(toolName)?.[1] ? `mcp__${MCP_TOOL_NAME.exec(toolName)?.[1]}` : undefined)
+  const namespace = mcpToolNamespace(pi, toolName)
   if (!namespace) return undefined
-  const server = config.loaded.servers.find((entry) => mcpNamespace(entry.name) === namespace)
+  const server = mcpServerEntryOfNamespace(config, namespace)
   if (server) {
     return { name: server.name, identity: mcpServerIdentity(server.name, server.config) }
   }
@@ -149,6 +146,7 @@ function companionExtension(input: OpenWaggleMcpSessionInput, config: McpRuntime
       event.toolName.startsWith('mcp__') ? withMcpApp(input.sessionId, config, event) : undefined,
     )
     registerMcpToolApproval(pi, config)
+    registerMcpUsageStatistics(pi, config)
   }
 }
 

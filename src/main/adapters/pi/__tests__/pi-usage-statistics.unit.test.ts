@@ -153,12 +153,12 @@ describe('Pi Usage statistics hooks', () => {
     observePiToolUseForUsageStatistics('read', { path: '/repo/.agents/skills/qa/SKILL.md' })
     observePiToolUseForUsageStatistics('read', { path: '/repo/src/index.ts' })
     observePiToolUseForUsageStatistics('bash', { command: 'ls' })
-    observePiToolUseForUsageStatistics('mcp__acme-internal__lookup', {})
+    // MCP tools are counted by the MCP extension, which knows the server's configuration.
+    observePiToolUseForUsageStatistics('mcp__chrome_devtools__take_screenshot', {})
 
     expect(recorded.observations).toEqual([
       { kind: 'feature', flag: 'browser_agent_driven' },
       { kind: 'skill', identifier: 'custom' },
-      { kind: 'mcp-server', identifier: 'custom' },
     ])
   })
 

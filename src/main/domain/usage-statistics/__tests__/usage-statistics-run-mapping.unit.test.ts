@@ -1,4 +1,3 @@
-import { USAGE_STATISTICS_CATALOG_MCP_SERVERS } from '@shared/usage-statistics/catalog.generated'
 import { describe, expect, it } from 'vitest'
 import { usageStatisticsMcpServerIdentifier } from '../usage-statistics-mcp'
 import {
@@ -83,22 +82,39 @@ describe('Usage statistics Run mapping', () => {
 })
 
 describe('Usage statistics MCP server identifiers', () => {
-  const catalog = USAGE_STATISTICS_CATALOG_MCP_SERVERS[0]
+  const devtools = { command: 'npx', args: ['chrome-devtools-mcp@latest'] }
 
-  it('names the curated catalog server a Pi MCP tool belongs to', () => {
-    expect(catalog).toBeDefined()
-    if (!catalog) return
-    expect(usageStatisticsMcpServerIdentifier(`mcp__${catalog}__search`)).toBe(catalog)
+  it('names a catalog server that launches as the catalog installs it, under either spelling', () => {
+    expect(usageStatisticsMcpServerIdentifier({ name: 'chrome-devtools', launch: devtools })).toBe(
+      'chrome-devtools',
+    )
+    // Pi puts `chrome_devtools` in the tool name; a server saved under that name is the same one.
+    expect(usageStatisticsMcpServerIdentifier({ name: 'chrome_devtools', launch: devtools })).toBe(
+      'chrome-devtools',
+    )
   })
 
-  it('reports every other server as custom', () => {
-    expect(usageStatisticsMcpServerIdentifier('mcp__acme-internal__lookup')).toBe('custom')
+  it("reports a user's own server that only shares a catalog name as custom", () => {
+    expect(
+      usageStatisticsMcpServerIdentifier({
+        name: 'chrome-devtools',
+        launch: { command: 'node', args: ['/home/me/devtools-fork.js'] },
+      }),
+    ).toBe('custom')
+    expect(
+      usageStatisticsMcpServerIdentifier({
+        name: 'playwright',
+        launch: { url: 'https://internal.example/mcp' },
+      }),
+    ).toBe('custom')
   })
 
-  it('ignores tools that are not MCP server tools', () => {
-    expect(usageStatisticsMcpServerIdentifier('bash')).toBeUndefined()
-    expect(usageStatisticsMcpServerIdentifier('mcp')).toBeUndefined()
-    expect(usageStatisticsMcpServerIdentifier('mcp__github')).toBeUndefined()
-    expect(usageStatisticsMcpServerIdentifier('mcp____tool')).toBeUndefined()
+  it('reports every other server, and servers whose config is unknown, as custom', () => {
+    expect(usageStatisticsMcpServerIdentifier({ name: 'acme-internal', launch: devtools })).toBe(
+      'custom',
+    )
+    expect(usageStatisticsMcpServerIdentifier({ name: 'chrome-devtools', launch: undefined })).toBe(
+      'custom',
+    )
   })
 })

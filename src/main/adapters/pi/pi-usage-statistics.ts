@@ -160,16 +160,22 @@ export function withUsageStatisticsAccessMode(
   }
 }
 
+/** A Run's tool call reached an MCP server (counted where the server's configuration is known). */
+export function observePiMcpServerUseForUsageStatistics(
+  server: Parameters<typeof usageStatisticsMcpServerIdentifier>[0],
+): void {
+  if (!isUsageStatisticsEnabled()) return
+  recordUsageStatistics({
+    kind: 'mcp-server',
+    identifier: usageStatisticsMcpServerIdentifier(server),
+  })
+}
+
 /** Pi started a tool for the Run. */
 export function observePiToolUseForUsageStatistics(toolName: string, args: unknown): void {
   if (!isUsageStatisticsEnabled()) return
   if (toolName.startsWith(BROWSER_PREVIEW_TOOL_PREFIX)) {
     recordUsageStatistics({ kind: 'feature', flag: 'browser_agent_driven' })
-    return
-  }
-  const mcpServer = usageStatisticsMcpServerIdentifier(toolName)
-  if (mcpServer) {
-    recordUsageStatistics({ kind: 'mcp-server', identifier: mcpServer })
     return
   }
   if (toolName !== READ_TOOL_NAME || !isRecord(args) || typeof args.path !== 'string') return
