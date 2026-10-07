@@ -99,17 +99,6 @@ const config: DoctorConfig = {
         rules: ['deslop/unused-dev-dependency'],
       },
       {
-        /*
-         * This file is the MCP orchestration-expression security boundary. The rule
-         * matches the string literal 'WebSocket' on line 11, which is an entry in
-         * FORBIDDEN_ORCHESTRATION_IDENTIFIERS - a deny-list the parsers consult to
-         * *reject* those identifiers (see mcp-orchestration-parser.ts). There is no
-         * bridge here; the flagged token exists precisely to forbid one.
-         */
-        files: ['src/main/adapters/pi/mcp-orchestration-expression-parser.ts'],
-        rules: ['react-doctor/local-rpc-native-bridge-risk'],
-      },
-      {
         // `String.prototype.includes`, not `Array.prototype.includes`: these do
         // substring matching (a free-text tree-filter query, and error-message
         // fragment matching). A Set gives O(1) equality lookups and cannot

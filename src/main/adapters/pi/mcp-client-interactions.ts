@@ -3,13 +3,13 @@ import type { ExtensionContext } from '@earendil-works/pi-coding-agent'
 import { Type } from 'typebox'
 import { openExternal } from '../../desktop-ui'
 import { createLogger } from '../../logger'
+import { getOpenWaggleAuthorize } from './agent-kernel/openwaggle-authorize-channel'
 import type {
   McpElicitationResult,
   McpRuntimeInteractions,
   McpSamplingContent,
   McpSamplingResult,
-} from '../../ports/mcp-runtime-service'
-import { getOpenWaggleAuthorize } from './agent-kernel/openwaggle-authorize-channel'
+} from './mcp/mcp-interaction-types'
 import { parseElicitationContent } from './mcp-elicitation-content'
 import {
   declaredConfirm,

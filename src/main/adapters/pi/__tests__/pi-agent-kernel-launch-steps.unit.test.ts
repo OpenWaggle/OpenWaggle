@@ -4,7 +4,6 @@ import { fromPartial } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AgentKernelRunInput } from '../../../ports/agent-kernel-service'
-import { server, snapshot, waitingFor } from '../../mcp/__tests__/mcp-runtime-test-utils'
 import { runPiAgentKernel } from '../pi-agent-kernel-run'
 
 const runMocks = vi.hoisted(() => ({
@@ -101,12 +100,6 @@ describe('runPiAgentKernel launch steps', () => {
         terminal: fromPartial({}),
         browserPreviewAutomation: fromPartial({}),
         enableBrowserPreviewAutomation: false,
-        mcpConfig: fromPartial({ createTurnSnapshot: () => Effect.succeed(null) }),
-        mcpRuntime: fromPartial({
-          prepareTurn: () => Effect.void,
-          completeTurn: () => Effect.void,
-          disposeSession: () => Effect.void,
-        }),
         inlineVisualization: fromPartial({
           prepareSession: () => Effect.succeed('/visualizations/session-local'),
         }),
@@ -119,7 +112,7 @@ describe('runPiAgentKernel launch steps', () => {
     )
   })
 
-  it('reports a local first run step by step and syncs the branch while MCP connects', async () => {
+  it('reports a local first run step by step and starts the task after the pull', async () => {
     runMocks.runPiSession.mockResolvedValue({
       newMessages: [],
       piSessionId: 'pi-session',
@@ -128,17 +121,6 @@ describe('runPiAgentKernel launch steps', () => {
     const pull = Promise.withResolvers<{ ok: boolean; message: string }>()
     runMocks.pullCurrentBranchFastForward.mockReturnValue(pull.promise)
     const onWorktreeLaunch = vi.fn()
-    const prepareTurn = vi.fn(() => Effect.void)
-    const turn = snapshot({
-      servers: [
-        server({ instanceId: 'docs-id', name: 'docs', definition: { command: 'docs' } }),
-        server({
-          instanceId: 'atlassian-id',
-          name: 'atlassian',
-          definition: { command: 'atlassian', directTools: true },
-        }),
-      ],
-    })
     const input = fromPartial<AgentKernelRunInput>({
       session: { id: SessionId('session-local'), projectPath: '/repo', messages: [] },
       runId: 'run-local',
@@ -156,21 +138,13 @@ describe('runPiAgentKernel launch steps', () => {
         terminal: fromPartial({}),
         browserPreviewAutomation: fromPartial({}),
         enableBrowserPreviewAutomation: false,
-        mcpConfig: fromPartial({ createTurnSnapshot: () => Effect.succeed(turn) }),
-        mcpRuntime: fromPartial({
-          prepareTurn,
-          listDirectTools: waitingFor(['atlassian'], Effect.succeed([])),
-          completeTurn: () => Effect.void,
-          disposeSession: () => Effect.void,
-        }),
         inlineVisualization: fromPartial({
           prepareSession: () => Effect.succeed('/visualizations/session-local'),
         }),
       }),
     )
 
-    // MCP preparation starts while the pull is still waiting on the network.
-    await vi.waitFor(() => expect(prepareTurn).toHaveBeenCalledOnce())
+    await vi.waitFor(() => expect(runMocks.pullCurrentBranchFastForward).toHaveBeenCalledOnce())
     expect(runMocks.runPiSession).not.toHaveBeenCalled()
     pull.resolve({ ok: true, message: 'Pulled latest changes.' })
     await running
@@ -185,18 +159,10 @@ describe('runPiAgentKernel launch steps', () => {
           label: 'Pulling latest changes for main',
           details: ['Pulling origin/main into main'],
         },
-        {
-          stage: 'connecting-tools',
-          environment: 'local',
-          parallel: true,
-          label: 'Connecting MCP servers: atlassian',
-          details: ['Connecting atlassian'],
-        },
-        { stage: 'connecting-tools', environment: 'local', completesStep: true, details: [] },
         { stage: 'syncing-branch', environment: 'local', completesStep: true, details: [] },
       ]),
     )
-    // The pull finishes after MCP connected; the task starts only once both are done.
+    // The task starts only once the pull is done.
     expect(reported.at(-2)).toMatchObject({ stage: 'syncing-branch', completesStep: true })
     expect(reported.at(-1)).toEqual({
       stage: 'starting-task',
@@ -212,9 +178,6 @@ describe('runPiAgentKernel launch steps', () => {
       sessionSnapshot: { nodes: [], activeNodeId: null },
     })
     const onWorktreeLaunch = vi.fn()
-    const turn = snapshot({
-      servers: [server({ name: 'atlassian', definition: { command: 'a', directTools: true } })],
-    })
     await Effect.runPromise(
       runPiAgentKernel(
         fromPartial<AgentKernelRunInput>({
@@ -236,74 +199,10 @@ describe('runPiAgentKernel launch steps', () => {
           terminal: fromPartial({}),
           browserPreviewAutomation: fromPartial({}),
           enableBrowserPreviewAutomation: false,
-          mcpConfig: fromPartial({ createTurnSnapshot: () => Effect.succeed(turn) }),
-          mcpRuntime: fromPartial({
-            prepareTurn: () => Effect.void,
-            listDirectTools: () => Effect.succeed([]),
-            completeTurn: () => Effect.void,
-            disposeSession: () => Effect.void,
-          }),
           inlineVisualization: fromPartial({ prepareSession: () => Effect.succeed(undefined) }),
         },
       ),
     )
     expect(onWorktreeLaunch).not.toHaveBeenCalled()
-  })
-
-  it('stops the pull, releases MCP, and reports nothing late when MCP fails mid-launch', async () => {
-    const pull = Promise.withResolvers<{ ok: boolean; message: string }>()
-    let pullSignal: AbortSignal | undefined
-    runMocks.pullCurrentBranchFastForward.mockImplementation(
-      (_path: string, options?: { readonly signal?: AbortSignal }) => {
-        pullSignal = options?.signal
-        return pull.promise
-      },
-    )
-    const onWorktreeLaunch = vi.fn()
-    const disposeSession = vi.fn(() => Effect.void)
-    const turn = snapshot({
-      servers: [server({ name: 'atlassian', definition: { command: 'a', directTools: true } })],
-    })
-    const exit = await Effect.runPromiseExit(
-      runPiAgentKernel(
-        fromPartial<AgentKernelRunInput>({
-          session: { id: SessionId('session-local'), projectPath: '/repo', messages: [] },
-          runId: 'run-failing',
-          payload: { text: 'Do the work', attachments: [] },
-          model: SupportedModelId('openai/gpt-5.4'),
-          signal: new AbortController().signal,
-          onEvent: vi.fn(),
-          onWorktreeLaunch,
-        }),
-        {
-          runtimeExtensionIsolation: {},
-          ...actionWorkspaceDependencies(),
-          terminal: fromPartial({}),
-          browserPreviewAutomation: fromPartial({}),
-          enableBrowserPreviewAutomation: false,
-          mcpConfig: fromPartial({ createTurnSnapshot: () => Effect.succeed(turn) }),
-          mcpRuntime: fromPartial({
-            prepareTurn: () => Effect.void,
-            listDirectTools: waitingFor(
-              ['atlassian'],
-              Effect.fail(new Error('atlassian is unavailable')),
-            ),
-            completeTurn: () => Effect.void,
-            disposeSession,
-          }),
-          inlineVisualization: fromPartial({ prepareSession: () => Effect.succeed(undefined) }),
-        },
-      ),
-    )
-
-    expect(exit._tag).toBe('Failure')
-    expect(pullSignal?.aborted).toBe(true)
-    expect(disposeSession).toHaveBeenCalled()
-    pull.resolve({ ok: false, message: 'aborted' })
-    await new Promise((resolve) => setTimeout(resolve, 0))
-    const reported = onWorktreeLaunch.mock.calls.map(([progress]) => progress)
-    // The failed MCP step stays open so the failure lands on it; nothing completes afterwards.
-    expect(reported.filter((progress) => progress.completesStep)).toEqual([])
-    expect(runMocks.runPiSession).not.toHaveBeenCalled()
   })
 })

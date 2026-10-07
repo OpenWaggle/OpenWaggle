@@ -16,8 +16,6 @@ import { ExtensionLifecycleRepository } from '../../ports/extension-lifecycle-re
 import { ExtensionManagerService } from '../../ports/extension-manager-service'
 import { ExtensionProjectOverridesRepository } from '../../ports/extension-project-overrides-repository'
 import { InlineVisualizationService } from '../../ports/inline-visualization-service'
-import { McpConfigService } from '../../ports/mcp-config-service'
-import { McpRuntimeService } from '../../ports/mcp-runtime-service'
 import { SessionWorkspaceResourceRepository } from '../../ports/session-workspace-resource-repository'
 import { TerminalService } from '../../ports/terminal-service'
 import { WorkspacePreparationService } from '../../ports/workspace-preparation-service'
@@ -37,8 +35,6 @@ import {
 } from './openwaggle-pi-extension-selection'
 import { recordRuntimeLoadFailure } from './openwaggle-pi-runtime-failure-recording'
 import { runPiAgentKernel } from './pi-agent-kernel-run'
-
-export { prepareMcpTurn } from './pi-agent-kernel-run'
 
 const logger = createLogger('pi-agent-kernel')
 
@@ -108,8 +104,6 @@ export const PiAgentKernelLive = Layer.effect(
       lifecycleRepository: yield* ExtensionLifecycleRepository,
       projectOverridesRepository: yield* ExtensionProjectOverridesRepository,
     } satisfies OpenWagglePiExtensionSelectionServices
-    const mcpConfigService = yield* McpConfigService
-    const mcpRuntimeService = yield* McpRuntimeService
     const inlineVisualizationService = yield* InlineVisualizationService
     const projectActions = {
       catalog: yield* ActionCatalogService,
@@ -140,8 +134,6 @@ export const PiAgentKernelLive = Layer.effect(
             runtimeExtensionIsolation,
             projectActions,
             preparation,
-            mcpConfig: mcpConfigService,
-            mcpRuntime: mcpRuntimeService,
             inlineVisualization: inlineVisualizationService,
             terminal: terminalService,
             browserPreviewAutomation: browserPreviewAutomationService,

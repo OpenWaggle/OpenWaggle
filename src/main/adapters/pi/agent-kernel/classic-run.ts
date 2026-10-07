@@ -67,7 +67,6 @@ export async function runPiSession(
       readonly workingPath: string
       readonly visualizationDirectory?: string
       readonly scratchDirectory?: string
-      readonly mcpExtensionFactory?: ExtensionFactory
       readonly sessionsExtensionFactory?: ExtensionFactory
       readonly extensionFactories?: readonly ExtensionFactory[]
       readonly trustedExtensionFactories?: readonly ExtensionFactory[]
@@ -97,7 +96,6 @@ export async function runPiSession(
     orchestrationUpdates.factory,
     specificationUpdates.factory,
     input.sessionsExtensionFactory,
-    input.mcpExtensionFactory,
     ...(input.extensionFactories ?? []),
     ...(input.sessionIdentityContext
       ? [
