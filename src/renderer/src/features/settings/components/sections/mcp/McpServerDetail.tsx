@@ -1,11 +1,12 @@
 import { ArrowLeft, RefreshCw } from 'lucide-react'
 import type { ReactNode } from 'react'
+import { formatRelativeTime } from '@/shared/lib/format'
 import { Button } from '@/shared/ui/Button'
 import { PlainTextBlock } from '@/shared/ui/PlainTextBlock'
 import { useMcpConfigurationActions } from '../../../hooks/useMcpConfiguration'
 import type { McpServerRow } from '../../../lib/mcp-server-model'
 import { McpExposureEditor } from './McpExposureEditor'
-import { McpFileLabel, McpStatusPill } from './McpLabels'
+import { McpFileLabel, McpInlineError, McpStatusPill } from './McpLabels'
 import { McpRemoveServer, McpServerSignIn, McpServerSwitches } from './McpServerActions'
 
 function Fact({ label, children }: { readonly label: string; readonly children: ReactNode }) {
@@ -37,6 +38,26 @@ function ServerProblem({ row }: { readonly row: McpServerRow }) {
   )
 }
 
+/** Where the shown state comes from, so a remembered state is not mistaken for a live one. */
+function StateSource({ row }: { readonly row: McpServerRow }) {
+  if (!row.server.enabled || row.status === 'checking') return null
+  if (row.source === 'live') {
+    return <p className="text-xs text-text-tertiary">A session is connected to this server.</p>
+  }
+  if (row.source === 'last-check' && row.checkedAt !== undefined) {
+    return (
+      <p className="text-xs text-text-tertiary">
+        Last checked {formatRelativeTime(row.checkedAt)}.
+      </p>
+    )
+  }
+  return (
+    <p className="text-xs text-text-tertiary">
+      OpenWaggle connects only when a session uses the server or you check the connection.
+    </p>
+  )
+}
+
 export function McpServerDetail({
   projectPath,
   row,
@@ -63,8 +84,8 @@ export function McpServerDetail({
           variant="ghost"
           size="xs"
           leftIcon={<RefreshCw className="size-3" />}
-          disabled={!server.enabled}
-          onClick={() => void actions.recheck(server.name)}
+          disabled={!server.enabled || row.status === 'checking'}
+          onClick={() => actions.recheck(server.name)}
         >
           Check connection
         </Button>
@@ -77,6 +98,8 @@ export function McpServerDetail({
         {server.description ? (
           <p className="text-xs text-text-tertiary">{server.description}</p>
         ) : null}
+        <StateSource row={row} />
+        <McpInlineError message={actions.error} />
       </div>
       <dl className="space-y-1.5">
         <Fact label="Starts with">
@@ -100,7 +123,7 @@ export function McpServerDetail({
           projectPath={projectPath}
           server={server}
           status={row.status}
-          signedIn={row.inspection?.signedIn}
+          signedIn={row.signedIn}
         />
       </div>
       <McpExposureEditor

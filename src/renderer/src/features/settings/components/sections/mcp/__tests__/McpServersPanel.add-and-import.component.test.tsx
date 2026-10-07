@@ -6,6 +6,7 @@ import { mcpServer, mcpView, PROJECT } from './mcp-section.test-fixtures'
 const api = vi.hoisted(() => ({
   getMcpConfiguration: vi.fn(),
   inspectMcpServer: vi.fn(),
+  getMcpServerStatuses: vi.fn(),
   addMcpServer: vi.fn(),
   installMcpCatalogServer: vi.fn(),
   previewMcpImports: vi.fn(),
@@ -34,7 +35,7 @@ describe('Settings > MCP: adding servers', () => {
   beforeEach(() => {
     vi.resetAllMocks()
     api.getMcpConfiguration.mockResolvedValue(mcpView([]))
-    api.inspectMcpServer.mockResolvedValue({ name: 'x', state: 'connected', tools: [] })
+    api.getMcpServerStatuses.mockResolvedValue([])
     api.listMcpSecrets.mockResolvedValue([{ name: 'docs-token', createdAt: 1, updatedAt: 1 }])
     api.addMcpServer.mockResolvedValue(mcpView([mcpServer('files')]))
   })

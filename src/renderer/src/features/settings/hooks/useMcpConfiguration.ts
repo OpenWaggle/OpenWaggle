@@ -2,72 +2,58 @@ import type {
   McpConfigFileScope,
   McpConfigurationView,
   McpServerExposure,
-  McpServerInspection,
 } from '@shared/types/mcp-configuration'
 import type {
   McpAddServerRequest,
   McpSignInResultView,
 } from '@shared/types/mcp-configuration-operations'
-import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useMutationState, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import {
   mcpConfigurationQueryOptions,
   mcpQueryKeys,
-  mcpServerInspectionQueryOptions,
+  mcpServerStatusesQueryOptions,
 } from '@/queries/mcp-configuration'
 import { api } from '@/shared/lib/ipc'
 import { ipcErrorMessage } from '@/shared/lib/ipc-error-message'
-import {
-  type McpServerRow,
-  mcpServerStatus,
-  sortMcpServersByAttention,
-} from '../lib/mcp-server-model'
+import { mcpServerRow, sortMcpServersByAttention } from '../lib/mcp-server-model'
 
-/** Settings > MCP reads and changes Pi's MCP files through the Session Host. */
+/**
+ * Settings > MCP reads and changes Pi's MCP files through the Session Host. Opening it reads the
+ * files and every server's known state; only "Check connection" connects to a server.
+ */
 
-function failedInspection(name: string, error: unknown): McpServerInspection {
-  return { name, state: 'failed', tools: [], error: ipcErrorMessage(error) }
+/** The servers whose "Check connection" is running. */
+function useCheckingServers(projectPath: string | null) {
+  const names = useMutationState({
+    filters: { mutationKey: mcpQueryKeys.checks(projectPath), status: 'pending' },
+    select: (mutation) => mutation.state.variables,
+  })
+  return new Set(names.filter((name): name is string => typeof name === 'string'))
 }
 
-/** The merged configuration and, for every enabled server, its live state. */
+/** The merged configuration and what is known about each server's state. */
 export function useMcpConfiguration(projectPath: string | null) {
   const configuration = useQuery(mcpConfigurationQueryOptions(projectPath))
-  const servers = configuration.data?.servers ?? []
-  const enabled = servers.filter((server) => server.enabled)
-  const inspections = useQueries({
-    queries: enabled.map((server) => mcpServerInspectionQueryOptions(projectPath, server)),
-  })
-  const byName = new Map<string, McpServerInspection>()
-  enabled.forEach((server, index) => {
-    const query = inspections[index]
-    if (query?.data) {
-      byName.set(server.name, query.data)
-      return
-    }
-    if (query?.error) byName.set(server.name, failedInspection(server.name, query.error))
-  })
-  const rows: McpServerRow[] = sortMcpServersByAttention(
-    servers.map((server) => {
-      const inspection = byName.get(server.name)
-      return {
-        server,
-        status: mcpServerStatus(server, inspection),
-        ...(inspection ? { inspection } : {}),
-      }
-    }),
+  const statuses = useQuery(mcpServerStatusesQueryOptions(projectPath))
+  const checking = useCheckingServers(projectPath)
+  const known = new Map((statuses.data ?? []).map((status) => [status.name, status]))
+  const rows = sortMcpServersByAttention(
+    (configuration.data?.servers ?? []).map((server) =>
+      mcpServerRow(server, known.get(server.name), checking.has(server.name)),
+    ),
   )
+  const failure = configuration.error ?? statuses.error
   return {
     view: configuration.data ?? null,
     rows,
-    isLoading: configuration.isPending,
-    loadError: configuration.error ? ipcErrorMessage(configuration.error) : null,
+    isLoading: configuration.isPending || statuses.isPending,
+    loadError: failure ? ipcErrorMessage(failure) : null,
   }
 }
 
 interface ChangeVariables {
   readonly run: () => Promise<McpConfigurationView>
-  /** The server whose live state the change affects. */
-  readonly server?: string
 }
 
 /** Configuration changes. Each answers with the files as they are afterwards. */
@@ -78,12 +64,19 @@ export function useMcpConfigurationActions(projectPath: string | null) {
     mutationFn: (variables: ChangeVariables) => variables.run(),
     onMutate: () => setError(null),
     onError: (failure) => setError(ipcErrorMessage(failure)),
-    onSuccess: async (view, variables) => {
+    onSuccess: async (view) => {
       queryClient.setQueryData(mcpQueryKeys.configuration(projectPath), view)
-      await queryClient.invalidateQueries({
-        queryKey: mcpQueryKeys.inspections(projectPath, variables.server),
-      })
+      await queryClient.invalidateQueries({ queryKey: mcpQueryKeys.statuses(projectPath) })
     },
+  })
+  // The one action that connects; the Host remembers the result as the server's last check.
+  const check = useMutation({
+    mutationKey: mcpQueryKeys.checks(projectPath),
+    mutationFn: (name: string) => api.inspectMcpServer({ projectPath, name }),
+    onMutate: () => setError(null),
+    onError: (failure) => setError(ipcErrorMessage(failure)),
+    onSettled: () =>
+      queryClient.invalidateQueries({ queryKey: mcpQueryKeys.statuses(projectPath) }),
   })
   const apply = async (variables: ChangeVariables) => {
     try {
@@ -99,29 +92,22 @@ export function useMcpConfigurationActions(projectPath: string | null) {
     clearError: () => setError(null),
     pending: change.isPending,
     setEnabled: (name: string, enabled: boolean, target: 'server' | 'project' = 'server') =>
-      apply({
-        server: name,
-        run: () => api.setMcpServerEnabled({ projectPath, name, enabled, target }),
-      }),
+      apply({ run: () => api.setMcpServerEnabled({ projectPath, name, enabled, target }) }),
     setExposure: (
       name: string,
       input: {
         readonly exposure?: McpServerExposure
         readonly toolExposure?: Readonly<Record<string, McpServerExposure | null>>
       },
-    ) =>
-      apply({ server: name, run: () => api.setMcpServerExposure({ projectPath, name, ...input }) }),
+    ) => apply({ run: () => api.setMcpServerExposure({ projectPath, name, ...input }) }),
     addServer: (request: Omit<McpAddServerRequest, 'projectPath'>) =>
-      apply({ server: request.name, run: () => api.addMcpServer({ projectPath, ...request }) }),
+      apply({ run: () => api.addMcpServer({ projectPath, ...request }) }),
     removeServer: (name: string) =>
-      apply({ server: name, run: () => api.removeMcpServer({ projectPath, name }) }),
+      apply({ run: () => api.removeMcpServer({ projectPath, name }) }),
     installCatalogServer: (catalogName: string, scope: McpConfigFileScope) =>
-      apply({
-        server: catalogName,
-        run: () => api.installMcpCatalogServer({ projectPath, catalogName, scope }),
-      }),
-    recheck: (name: string) =>
-      queryClient.invalidateQueries({ queryKey: mcpQueryKeys.inspections(projectPath, name) }),
+      apply({ run: () => api.installMcpCatalogServer({ projectPath, catalogName, scope }) }),
+    /** "Check connection": connects to the server, lists its tools, and disconnects. */
+    recheck: (name: string) => check.mutate(name),
   }
 }
 
@@ -131,7 +117,7 @@ export function useMcpSignIn(projectPath: string | null, name: string) {
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<McpSignInResultView | null>(null)
   const refreshState = () =>
-    queryClient.invalidateQueries({ queryKey: mcpQueryKeys.inspections(projectPath, name) })
+    queryClient.invalidateQueries({ queryKey: mcpQueryKeys.statuses(projectPath) })
   const signIn = useMutation({
     mutationFn: () => api.signInMcpServer({ projectPath, name }),
     onMutate: () => {

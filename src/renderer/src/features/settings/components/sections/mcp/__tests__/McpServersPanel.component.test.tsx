@@ -2,11 +2,12 @@ import type { McpServerInspection } from '@shared/types/mcp-configuration'
 import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { renderWithQueryClient } from '@/test-utils/query-test-utils'
-import { mcpServer, mcpView, PROJECT } from './mcp-section.test-fixtures'
+import { lastChecked, mcpServer, mcpView, PROJECT } from './mcp-section.test-fixtures'
 
 const api = vi.hoisted(() => ({
   getMcpConfiguration: vi.fn(),
   inspectMcpServer: vi.fn(),
+  getMcpServerStatuses: vi.fn(),
   setMcpServerEnabled: vi.fn(),
   setMcpServerExposure: vi.fn(),
   addMcpServer: vi.fn(),
@@ -70,9 +71,7 @@ describe('Settings > MCP servers', () => {
   beforeEach(() => {
     vi.resetAllMocks()
     api.getMcpConfiguration.mockResolvedValue(mcpView(SERVERS))
-    api.inspectMcpServer.mockImplementation(({ name }: { name: string }) =>
-      Promise.resolve(INSPECTIONS[name]),
-    )
+    api.getMcpServerStatuses.mockResolvedValue(lastChecked(Object.values(INSPECTIONS)))
     api.listMcpSecrets.mockResolvedValue([])
   })
 
@@ -91,7 +90,7 @@ describe('Settings > MCP servers', () => {
     expect(within(github).getByText('Pi, all projects')).toBeInTheDocument()
     expect(within(github).getByText('~/.pi/agent/mcp.json')).toBeInTheDocument()
     expect(within(list).getByRole('button', { name: 'Open off' })).toHaveTextContent('Off')
-    expect(api.inspectMcpServer).not.toHaveBeenCalledWith({ projectPath: PROJECT, name: 'off' })
+    expect(api.inspectMcpServer).not.toHaveBeenCalled()
   })
 
   it('shows configuration errors as Pi reports them', async () => {
@@ -114,12 +113,16 @@ describe('Settings > MCP servers', () => {
   })
 
   it('shows a server the runtime cannot reach yet as not connected', async () => {
-    api.inspectMcpServer.mockResolvedValue({
-      name: 'broken',
-      state: 'not-connected',
-      tools: [],
-      error: 'Connecting to MCP servers is not available in this build yet.',
-    })
+    api.getMcpServerStatuses.mockResolvedValue(
+      lastChecked([
+        {
+          name: 'broken',
+          state: 'not-connected',
+          tools: [],
+          error: 'Connecting to MCP servers is not available in this build yet.',
+        },
+      ]),
+    )
     renderPanel()
     await openServer('broken')
 

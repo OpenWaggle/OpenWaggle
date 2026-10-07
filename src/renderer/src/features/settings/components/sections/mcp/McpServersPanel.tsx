@@ -64,7 +64,7 @@ export function McpServersPanel({ projectPath }: { readonly projectPath: string 
                   queryKey: mcpQueryKeys.configuration(projectPath),
                 })
                 void queryClient.invalidateQueries({
-                  queryKey: mcpQueryKeys.inspections(projectPath),
+                  queryKey: mcpQueryKeys.statuses(projectPath),
                 })
               }}
             >

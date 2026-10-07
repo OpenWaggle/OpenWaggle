@@ -6,6 +6,8 @@ import type {
   McpServerConnectionStateView,
   McpServerExposure,
   McpServerInspection,
+  McpServerStatusSource,
+  McpServerStatusView,
   McpWriteDestination,
 } from '@shared/types/mcp-configuration'
 import type {
@@ -73,8 +75,11 @@ export const MCP_IMPORT_STATUS_LABELS: Readonly<Record<McpImportCandidateStatus,
   'name-taken': 'Name in use',
 }
 
-/** The row state: the server's live state, or `checking` while it is being inspected. */
-export type McpServerStatus = McpServerConnectionStateView | 'checking'
+/**
+ * The row state: the server's known state, `checking` while "Check connection" runs, or
+ * `not-checked` when nothing is known yet. Settings never connects on its own.
+ */
+export type McpServerStatus = McpServerConnectionStateView | 'checking' | 'not-checked'
 
 export type McpStatusTone = 'neutral' | 'good' | 'warning' | 'error'
 
@@ -86,6 +91,7 @@ export const MCP_STATUS_COPY: Readonly<
   'not-connected': { label: 'Not connected', tone: 'neutral' },
   connecting: { label: 'Connecting…', tone: 'neutral' },
   checking: { label: 'Checking…', tone: 'neutral' },
+  'not-checked': { label: 'Not checked yet', tone: 'neutral' },
   connected: { label: 'Connected', tone: 'good' },
   disabled: { label: 'Off', tone: 'neutral' },
 }
@@ -97,22 +103,47 @@ const ATTENTION_RANK: Readonly<Record<McpServerStatus, number>> = {
   'not-connected': 2,
   connecting: 3,
   checking: 3,
+  'not-checked': 4,
   connected: 4,
   disabled: 5,
 }
 
 export function mcpServerStatus(
   server: McpConfiguredServerView,
-  inspection: McpServerInspection | undefined,
+  known: McpServerStatusView | undefined,
+  checking: boolean,
 ): McpServerStatus {
   if (!server.enabled) return 'disabled'
-  return inspection?.state ?? 'checking'
+  if (checking) return 'checking'
+  return known?.inspection?.state ?? 'not-checked'
 }
 
 export interface McpServerRow {
   readonly server: McpConfiguredServerView
   readonly status: McpServerStatus
   readonly inspection?: McpServerInspection
+  /** Where the state comes from; absent while nothing is known. */
+  readonly source?: McpServerStatusSource
+  /** When the last check happened, for a state that is not live. */
+  readonly checkedAt?: number
+  readonly signedIn?: boolean
+}
+
+/** Joins a server with what is known about its state. */
+export function mcpServerRow(
+  server: McpConfiguredServerView,
+  known: McpServerStatusView | undefined,
+  checking: boolean,
+): McpServerRow {
+  const signedIn = known?.signedIn ?? known?.inspection?.signedIn
+  return {
+    server,
+    status: mcpServerStatus(server, known, checking),
+    ...(known?.inspection ? { inspection: known.inspection } : {}),
+    ...(known && known.source !== 'not-checked' ? { source: known.source } : {}),
+    ...(known?.checkedAt === undefined ? {} : { checkedAt: known.checkedAt }),
+    ...(signedIn === undefined ? {} : { signedIn }),
+  }
 }
 
 export function sortMcpServersByAttention(rows: readonly McpServerRow[]): McpServerRow[] {

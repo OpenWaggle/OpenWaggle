@@ -124,6 +124,8 @@ OAuth options such as a registered client id, a fixed callback port, or scopes g
 
 A server connects in the background when a session sends a message, and only servers with direct tools can delay a message, by at most 1.5 seconds. The connection stays open for that session's later messages, so a server keeps its state through a conversation. Each session has its own connections; a Worker or a fork starts its own.
 
+Opening **Settings > MCP** starts no server. Each server shows what is already known: the state of a session that is connected to it, otherwise the result of the last check, otherwise **Not checked yet**. Choose **Check connection** on a server to connect to it, list its tools, and disconnect; `openwaggle mcp list` checks every enabled server the same way.
+
 A session's servers stop after 5 minutes without a new message, when the session is archived or deleted, and when OpenWaggle quits. When many sessions have servers running, the one used least recently stops first. Stopping a local server also stops any program it was started through, such as `npx` or `uvx`.
 
 ## Apps, sampling, and input requests
