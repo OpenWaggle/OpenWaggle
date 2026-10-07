@@ -1,7 +1,7 @@
 import type { MessagePart } from '@shared/types/agent'
 import type { BackgroundRunSnapshot, BackgroundRunUserMessage } from '@shared/types/background-run'
 import { ToolCallId } from '@shared/types/brand'
-import type { AgentTransportEvent } from '@shared/types/stream'
+import type { AgentAssistantMessageEvent, AgentTransportEvent } from '@shared/types/stream'
 import { MODEL, SESSION_ID } from './transcript-order.persisted'
 
 /*
@@ -24,11 +24,42 @@ export function emptyBuffer(runId: string, startedAt: number): BackgroundRunSnap
   }
 }
 
-function appendText(parts: readonly MessagePart[], delta: string): MessagePart[] {
+function appendText(parts: readonly MessagePart[], delta: string, contentIndex: number) {
   const last = parts.at(-1)
-  if (last?.type === 'text')
-    return [...parts.slice(0, -1), { type: 'text', text: last.text + delta }]
-  return [...parts, { type: 'text', text: delta }]
+  if (last?.type === 'text') return [...parts.slice(0, -1), { ...last, text: last.text + delta }]
+  return [...parts, { type: 'text' as const, text: delta, contentIndex }]
+}
+
+function withToolCall(parts: readonly MessagePart[], toolCallId: string): MessagePart[] {
+  const has = parts.some((part) => part.type === 'tool-call' && part.toolCall.id === toolCallId)
+  if (has) return [...parts]
+  return [
+    ...parts,
+    { type: 'tool-call', toolCall: { id: ToolCallId(toolCallId), name: 'bash', args: {} } },
+  ]
+}
+
+/**
+ * An answer's event as `src/main/utils/stream-buffer.ts` keeps it, split as the live view splits
+ * it: a thought opens at its start and takes its own deltas, text goes on in the last text part,
+ * each named by its content block.
+ */
+function withAssistantEvent(parts: readonly MessagePart[], event: AgentAssistantMessageEvent) {
+  if (event.type === 'thinking_start') return withReasoning(parts, event.contentIndex, '')
+  if (event.type === 'thinking_delta') return withReasoning(parts, event.contentIndex, event.delta)
+  if (event.type === 'text_delta') return appendText(parts, event.delta, event.contentIndex)
+  if (event.type === 'toolcall_start') return withToolCall(parts, event.toolCallId)
+  return [...parts]
+}
+
+function withReasoning(parts: readonly MessagePart[], contentIndex: number, delta: string) {
+  const index = parts.findIndex(
+    (part) => part.type === 'reasoning' && part.contentIndex === contentIndex,
+  )
+  const part = parts[index]
+  if (part?.type !== 'reasoning')
+    return [...parts, { type: 'reasoning' as const, text: delta, contentIndex }]
+  return parts.map((other, at) => (at === index ? { ...part, text: part.text + delta } : other))
 }
 
 /**
@@ -77,27 +108,26 @@ export function projectEvent(buffer: BackgroundRunSnapshot, event: AgentTranspor
     }
     return { ...buffer, userMessages: [...(buffer.userMessages ?? []), userMessage] }
   }
-  if (event.type === 'message_update' && event.assistantMessageEvent.type === 'text_delta') {
-    return { ...buffer, parts: appendText(buffer.parts, event.assistantMessageEvent.delta) }
+  if (event.type === 'message_update') {
+    return { ...buffer, parts: withAssistantEvent(buffer.parts, event.assistantMessageEvent) }
   }
   if (event.type === 'tool_execution_end') {
-    const toolCall: MessagePart = {
-      type: 'tool-call',
-      toolCall: { id: ToolCallId(event.toolCallId), name: event.toolName, args: {} },
-    }
-    return { ...buffer, parts: [...buffer.parts, toolCall] }
+    return { ...buffer, parts: withToolCall(buffer.parts, event.toolCallId) }
   }
   return buffer
 }
 
-/** What the Host's buffer holds: all of it, user messages alone (an older Host), or neither. */
-export type Retention = 'all' | 'users' | 'none'
+/**
+ * What the Host's buffer holds of the Run: all of it, no finished answers (its history budget
+ * left them out), or neither those nor its user messages (over the size cap).
+ */
+export type Retention = 'all' | 'noHistory' | 'none'
 
 export function withRetention(
   buffer: BackgroundRunSnapshot,
   retention: Retention,
 ): BackgroundRunSnapshot {
   if (retention === 'all') return buffer
-  const { assistantMessages: _answers, messageStartedAt: _startedAt, ...older } = buffer
-  return retention === 'users' ? older : { ...older, userMessages: [] }
+  const { assistantMessages: _answers, ...withoutHistory } = buffer
+  return retention === 'noHistory' ? withoutHistory : { ...withoutHistory, userMessages: [] }
 }

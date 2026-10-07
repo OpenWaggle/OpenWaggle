@@ -1,13 +1,18 @@
 import type { UIMessage } from '@shared/types/chat-ui'
+import { segmentsKey } from './transcript-order.answers'
 
 /**
  * The display key of a rendered message: its role and text, as the Pi log names it. A persisted
  * tool result has none; it renders inside the assistant message that called the tool.
  */
 export function messageKey(message: UIMessage) {
-  const text = message.parts
-    .flatMap((part) => (part.type === 'text' ? [part.content] : []))
-    .join(' ')
+  const text = segmentsKey(
+    message.parts.flatMap((part) =>
+      part.type === 'text' || part.type === 'thinking'
+        ? [{ kind: part.type, content: part.content }]
+        : [],
+    ),
+  )
   if (!text && message.parts.every((part) => part.type === 'tool-result')) return null
   return `${message.role}:${text}`
 }

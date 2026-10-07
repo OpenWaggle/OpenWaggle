@@ -98,4 +98,24 @@ describe('decodeActiveRunSnapshots', () => {
       decodeActiveRunSnapshots([{ ...snapshot, assistantMessages: [{ messageId: 'x' }] }]),
     ).toThrow()
   })
+
+  // A newer Host keeps each text and reasoning part's content block; an older one sends none.
+  it('keeps the content block of the text and reasoning parts', () => {
+    const parts = [
+      { type: 'reasoning', text: '', contentIndex: 0 },
+      { type: 'text', text: 'Final answer', contentIndex: 1 },
+    ]
+    const [decoded] = decodeActiveRunSnapshots([{ ...snapshot, parts }])
+    expect(decoded?.parts).toEqual(parts)
+    expect(decodeActiveRunSnapshots([snapshot])[0]?.parts).toEqual(snapshot.parts)
+  })
+
+  it('keeps whether the caps cut the streaming message', () => {
+    const degraded = { reason: 'content-limit', omittedBytes: 10, messageCutShort: false }
+    expect(decodeActiveRunSnapshots([{ ...snapshot, degraded }])[0]?.degraded).toEqual(degraded)
+    const unsaid = { reason: 'content-limit', omittedBytes: 10 }
+    expect(decodeActiveRunSnapshots([{ ...snapshot, degraded: unsaid }])[0]).not.toHaveProperty(
+      'degraded',
+    )
+  })
 })

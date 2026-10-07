@@ -86,15 +86,16 @@ function restoreUserMessages(
 
 /**
  * What the caps omitted from a snapshot's buffer (`droppedBytes`: its parts, when they did not
- * fit here). Its omissions do not say which message they cut: the one streaming counts as cut short
- * then (`retainFinishedAssistantMessage` leaves it out of the history).
+ * fit here). The streaming message counts as cut short when the snapshot says the caps cut it or
+ * its parts did not fit here (`retainFinishedAssistantMessage` leaves it out of the history).
  */
 function restoredOmission(snapshot: BackgroundRunSnapshot, droppedBytes: number) {
   const omittedBytes = (snapshot.degraded?.omittedBytes ?? 0) + droppedBytes
+  const cutShort = droppedBytes > 0 || snapshot.degraded?.messageCutShort === true
   return {
     omittedBytes,
     messageOmittedBytes: omittedBytes,
-    ...(omittedBytes > 0 ? { messageCutShort: true as const } : {}),
+    ...(cutShort ? { messageCutShort: true as const } : {}),
   }
 }
 

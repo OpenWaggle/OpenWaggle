@@ -1,6 +1,7 @@
 import type { Message, MessagePart } from '@shared/types/agent'
 import { MessageId, SessionId, SupportedModelId, ToolCallId } from '@shared/types/brand'
 import type { AgentTransportEvent } from '@shared/types/stream'
+import { type AnswerSegment, inlineToolCallIds, segmentParts } from './transcript-order.answers'
 
 export const SESSION_ID = SessionId('order-session')
 export const MODEL = SupportedModelId('claude-sonnet-4-5')
@@ -20,6 +21,8 @@ export interface TruthEntry {
   readonly runId: string
   readonly timestamp: number
   readonly toolCallIds: readonly string[]
+  /** An answer's thoughts, texts and the tool calls between them, in order. */
+  readonly segments?: readonly AnswerSegment[]
   /** A compaction summary: persisted with its Run, never streamed as a message. */
   readonly compactionSummary?: true
 }
@@ -74,16 +77,23 @@ export function persistedMessages(entry: TruthEntry): Message[] {
       },
     ]
   }
-  const toolCalls = entry.toolCallIds.map(
-    (id): MessagePart => ({
-      type: 'tool-call',
-      toolCall: { id: ToolCallId(id), name: 'bash', args: { command: id } },
-    }),
-  )
+  // A tool call the answer made between its segments is one of them.
+  const inline = new Set(inlineToolCallIds(entry.segments ?? []))
+  const toolCalls = entry.toolCallIds
+    .filter((id) => !inline.has(id))
+    .map(
+      (id): MessagePart => ({
+        type: 'tool-call',
+        toolCall: { id: ToolCallId(id), name: 'bash', args: { command: id } },
+      }),
+    )
   const assistant: Message = {
     id: MessageId(entry.piId),
     role: 'assistant',
-    parts: [textPart(entry.text), ...toolCalls],
+    parts: [
+      ...(entry.segments ? segmentParts(entry.segments) : [textPart(entry.text)]),
+      ...toolCalls,
+    ],
     createdAt: entry.timestamp,
     // A compaction summary is a structural message: it carries no log order.
     metadata: entry.compactionSummary

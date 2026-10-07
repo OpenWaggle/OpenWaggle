@@ -16,7 +16,7 @@ describe('Session Host stop wire contract', () => {
   it('requires a revision-nineteen Host on both the client and the Host', () => {
     const payload = decodeLocalSessionCommandPayload(stopPayload)
 
-    expect(supportedRevisionsForCommand(payload)).toEqual([21])
+    expect(supportedRevisionsForCommand(payload)).toEqual([22])
     expect(() => decodeLocalSessionCommandPayloadForRevision(payload, 18)).toThrow(/revision 19/)
     expect(decodeLocalSessionCommandPayloadForRevision(payload, 19)).toEqual(payload)
   })
@@ -86,7 +86,7 @@ describe('Session Host stop wire contract', () => {
           },
           'host-current',
         ),
-      ).toMatchObject({ accepted: false, supportedRevisions: [21] })
+      ).toMatchObject({ accepted: false, supportedRevisions: [22] })
     },
   )
 })

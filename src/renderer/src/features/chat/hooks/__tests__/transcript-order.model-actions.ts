@@ -1,7 +1,9 @@
 import {
+  answerWithShape,
   awaitingPromotion,
   canSettle,
   ended,
+  gapAnswerOf,
   idle,
   type ModelAction,
   type ModelState,
@@ -43,8 +45,8 @@ const RUN_ACTIONS: readonly ModelAction[] = [
     },
   },
   { name: 'retry', enabled: (s) => s.running, run: (h) => h.retry() },
-  // The Run's Host keeps user messages but no finished answers nor start times: an older Host.
-  { name: 'olderHost', enabled: (s) => s.running, run: (h) => h.olderHost() },
+  // The Run's buffer keeps no finished answers: its history budget left them out.
+  { name: 'dropHistory', enabled: (s) => s.running, run: (h) => h.dropHistory() },
   {
     name: 'answer',
     enabled: (s) => s.running,
@@ -53,12 +55,14 @@ const RUN_ACTIONS: readonly ModelAction[] = [
       return h.answer(text, { tools: text === 'ok' ? 0 : s.texts % 3 })
     },
   },
+  { name: 'answerWithReasoning', enabled: (s) => s.running, run: answerWithShape },
   {
     name: 'answerWithGap',
     // Only the Session shown reconnects on the resync, while the answer still streams; an unseen
     // Session's answer keeps the words it lost until its Run ends.
     enabled: (s) => s.running && s.viewing === 'session' && !s.stalled && !s.holding,
-    run: (h, s) => h.answerWithGap(`${nextText(s, 'answer')} streamed word by word`),
+    run: (h, s) =>
+      h.answerWithGap(`${nextText(s, 'answer')} streamed word by word`, gapAnswerOf(s)),
   },
   {
     name: 'steer',

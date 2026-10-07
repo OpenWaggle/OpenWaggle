@@ -13,6 +13,11 @@ export type MessageRole = 'user' | 'assistant' | 'system'
 export interface TextPart {
   readonly type: 'text'
   readonly text: string
+  /**
+   * The content block it streamed from, kept by the Host stream buffer only (absent from older
+   * Hosts and persisted messages): the renderer matches buffered and shown parts by it.
+   */
+  readonly contentIndex?: number
 }
 
 export type AttachmentKind = 'text' | 'image' | 'pdf'
@@ -70,6 +75,8 @@ export interface ToolResultPart {
 export interface ReasoningPart {
   readonly type: 'reasoning'
   readonly text: string
+  /** The content block it streamed from, as `TextPart.contentIndex`. */
+  readonly contentIndex?: number
 }
 
 export type MessagePart = TextPart | AttachmentPart | ToolCallPart | ToolResultPart | ReasoningPart

@@ -103,7 +103,7 @@ export function appendTextDelta(messages: readonly UIMessage[], messageId: strin
   })
 }
 
-function makeThinkingStepId(messageId: string, contentIndex: number) {
+export function makeThinkingStepId(messageId: string, contentIndex: number) {
   return `${messageId}:thinking:${String(contentIndex)}`
 }
 

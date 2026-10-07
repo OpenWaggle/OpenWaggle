@@ -92,9 +92,10 @@ function appendBufferedToolCallDelta(
   )
 }
 
-function appendBufferedText(sessionId: SessionId, type: 'text' | 'reasoning', delta: string) {
+type BufferedText = Parameters<typeof appendStreamBufferText>[1]
+function appendBufferedText(sessionId: SessionId, text: BufferedText) {
   applyBufferedUpdate(sessionId, (buffer) =>
-    appendStreamBufferText(buffer, type, delta, totalRetainedBytes),
+    appendStreamBufferText(buffer, text, totalRetainedBytes),
   )
 }
 
@@ -129,12 +130,17 @@ function applyMessageUpdateToStreamBuffer(
 ) {
   updateBufferedAssistantMessageId(sessionId, value.messageId)
   matchBy(value.assistantMessageEvent, 'type')
-    .with('text_start', 'text_end', 'thinking_start', 'thinking_end', () => undefined)
-    .with('text_delta', (assistantEvent) => {
-      appendBufferedText(sessionId, 'text', assistantEvent.delta)
+    .with('text_start', 'text_end', 'thinking_end', () => undefined)
+    // A thinking block opens its part at its start, as the live view does: one with no text (a
+    // reasoning item with no summary, redacted thinking) still separates the texts around it.
+    .with('thinking_start', ({ contentIndex }) => {
+      appendBufferedText(sessionId, { type: 'reasoning', delta: '', contentIndex })
     })
-    .with('thinking_delta', (assistantEvent) => {
-      appendBufferedText(sessionId, 'reasoning', assistantEvent.delta)
+    .with('text_delta', ({ delta, contentIndex }) => {
+      appendBufferedText(sessionId, { type: 'text', delta, contentIndex })
+    })
+    .with('thinking_delta', ({ delta, contentIndex }) => {
+      appendBufferedText(sessionId, { type: 'reasoning', delta, contentIndex })
     })
     .with('toolcall_start', ({ toolCallId, toolName, input }) => {
       upsertBufferedToolCall(sessionId, { toolCallId, toolName, args: input })

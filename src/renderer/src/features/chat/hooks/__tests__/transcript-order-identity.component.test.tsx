@@ -44,7 +44,7 @@ describe('transcript order with a buffer that retains no user messages', () => {
       (h) => h.stall(),
       (h) => h.resume(),
       (h) => h.answer('done'),
-      // An older Host, or a user message over the buffer's size cap.
+      // A user message over the buffer's size cap.
       (h) => h.dropRetainedUsers(),
       (h) => h.endRun({ settleLater: true }),
       (h) => h.releaseReconnects(),

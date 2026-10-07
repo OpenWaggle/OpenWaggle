@@ -76,3 +76,19 @@ export function earlierAnswersOf(snapshot: BackgroundRunSnapshot): UIMessage[] {
     return message ? [{ ...message, createdAt: new Date(answer.timestamp) }] : []
   })
 }
+
+/**
+ * What the transcript shows of the answer the buffer streams. Read when the buffer's answer
+ * arrives: the main process sends the events it buffered before that answer, in order.
+ */
+export function streamingBaselineOf(
+  snapshot: BackgroundRunSnapshot,
+  shownMessages: () => readonly UIMessage[],
+) {
+  const messageId = snapshot.messageId
+  if (messageId === undefined) return undefined
+  const shown = shownMessages().find((message) => message.id === messageId)
+  // Only a cut in this answer: an earlier one's leaves the buffer holding all of this one.
+  const degraded = snapshot.degraded?.messageCutShort === true
+  return { messageId, parts: shown?.parts ?? [], degraded }
+}

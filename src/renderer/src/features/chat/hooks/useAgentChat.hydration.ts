@@ -6,6 +6,7 @@ import {
   reconcileSnapshotUserMessages,
   sessionToUIMessages,
 } from '../lib/useAgentChat.utils'
+import { useOptimisticSteerStore } from '../state/optimistic-steer-store'
 import { activeRunHydrationMessages } from './useAgentChat.active-run-messages'
 import {
   buildOptimisticMessagesKey,
@@ -204,6 +205,10 @@ export function hydrateSessionMessages(
 ) {
   const resynced = context.lastHydratedResyncRevisionRef.current !== input.resyncRevision
   context.lastHydratedResyncRevisionRef.current = input.resyncRevision
+  // With no Run active after a resync, a Run the subscription missed (it started and settled
+  // unseen) returned the promoted steers it never took to the queue: their previews go.
+  if (resynced && !input.hasActiveRun)
+    useOptimisticSteerStore.getState().clearSession(input.sessionId)
   // Only a Run can have lost events to recover: an idle Session rebuilt from a detail that may
   // not hold its just-finished Run yet would drop that Run's rows until the refetch landed.
   const keys = getSessionHydrationKeys(input, context, resynced && input.hasActiveRun)

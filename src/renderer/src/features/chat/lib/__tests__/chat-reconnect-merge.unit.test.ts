@@ -80,3 +80,18 @@ describe('mergeBackgroundReconnectMessages placement of cached-only messages', (
     expect(merged.map((message) => message.id)).toEqual(current.map((message) => message.id))
   })
 })
+
+describe("mergeBackgroundReconnectMessages of an answer's parts", () => {
+  const answer = (parts: UIMessage['parts']): UIMessage => ({ id: 'a1', role: 'assistant', parts })
+  const merge = (buffered: UIMessage['parts'], shown: UIMessage['parts']) =>
+    mergeBackgroundReconnectMessages([answer(buffered)], [answer(shown)])[0]?.parts
+
+  it('keeps each text segment around a tool call, though one contains the other', () => {
+    const parts: UIMessage['parts'] = [
+      { type: 'text', content: 'I will run the tests, then report.' },
+      { type: 'tool-call', id: 'call-1', name: 'bash', arguments: '{}', state: 'complete' },
+      { type: 'text', content: 'report.' },
+    ]
+    expect(merge(parts, parts)).toEqual(parts)
+  })
+})

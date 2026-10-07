@@ -63,13 +63,23 @@ function savedKey(message: UIMessage) {
   return `${message.role}:${answerContentKey(message)}`
 }
 
-/** An answer's text and the tool calls it made: the same streamed and persisted. */
+/**
+ * An answer's text and the tool calls it made: the same streamed and persisted, however its text
+ * is split. The text between two tool calls reads as one, its blocks (and any thought between
+ * them) aside: the live view joins two text blocks in a row that Pi saves as two parts.
+ */
 export function answerContentKey(message: UIMessage) {
-  return message.parts
-    .flatMap((part) =>
-      part.type === 'text' ? [part.content] : part.type === 'tool-call' ? [`tool:${part.id}`] : [],
-    )
-    .join('\n')
+  const segments: string[] = []
+  let text: string | undefined
+  for (const part of message.parts) {
+    if (part.type === 'text') text = (text ?? '') + part.content
+    if (part.type !== 'tool-call') continue
+    if (text !== undefined) segments.push(text)
+    segments.push(`tool:${part.id}`)
+    text = undefined
+  }
+  if (text !== undefined) segments.push(text)
+  return segments.join('\n')
 }
 
 export type SavedAnswerMatcher = ReturnType<typeof createSavedAnswerMatcher>

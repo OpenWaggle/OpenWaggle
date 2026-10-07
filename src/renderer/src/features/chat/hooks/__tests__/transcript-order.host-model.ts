@@ -2,6 +2,12 @@ import type { MessagePart } from '@shared/types/agent'
 import type { BackgroundRunSnapshot } from '@shared/types/background-run'
 import type { SessionDetail } from '@shared/types/session'
 import type { AgentTransportEvent } from '@shared/types/stream'
+import {
+  type AnswerShape,
+  answerContent,
+  answerEvents,
+  streamAnswer,
+} from './transcript-order.answers'
 import type { RunEndTail } from './transcript-order.harness-support'
 import { HISTORY_RUN_ID, historyEntries, summaryEntry } from './transcript-order.history'
 import {
@@ -34,16 +40,16 @@ function textPart(text: string): MessagePart {
   return { type: 'text', text }
 }
 
-/** An answer's text as the model streams it: word by word. */
-function deltasOf(text: string) {
-  return text.split(/(?= )/)
-}
-
-interface AnswerOptions {
+export interface AnswerOptions {
   readonly tools?: number
+  /** Reasoning before each of its text segments: the `reasoning` shape. */
+  readonly reasoning?: boolean
+  readonly shape?: AnswerShape
   readonly open?: boolean
   /** Called before each text delta: the harness can stall the stream mid-answer. */
   readonly beforeDelta?: (index: number, count: number) => void
+  /** Its last events stream only when the returned call does (after a resync). */
+  readonly holdLast?: number
 }
 
 export type HostModel = ReturnType<typeof createHostModel>
@@ -138,15 +144,15 @@ export function createHostModel(publish: (event: AgentTransportEvent) => void) {
     activeRunId: () => activeRunId,
     buffer: () => (buffer ? withRetention(structuredClone(buffer), retention) : null),
     /**
-     * The Run's buffer stops retaining user messages and finished answers: an older Host, or one
-     * over the size cap.
+     * The Run's buffer stops retaining user messages and finished answers: they are over its size
+     * cap.
      */
     dropRetainedUsers() {
       retention = 'none'
     },
-    /** The Run's buffer keeps user messages but no finished answers nor start times: an older Host. */
-    olderHost() {
-      if (retention === 'all') retention = 'users'
+    /** The Run's buffer keeps no finished answers: its history budget left them out. */
+    dropHistory() {
+      if (retention === 'all') retention = 'noHistory'
     },
     retainsUsers: () => retention !== 'none',
     /** The detail's `updatedAt` moves only when the Session changes (a Run persisted, `touch`). */
@@ -218,39 +224,35 @@ export function createHostModel(publish: (event: AgentTransportEvent) => void) {
     /** One assistant turn: its text word by word, then the tools it ran; `open` keeps it streaming. */
     answer(text: string, options: AnswerOptions = {}) {
       const index = String(truth.length)
-      const toolCallIds = Array.from(
-        { length: options.tools ?? 0 },
-        (_, tool) => `tool-${index}-${String(tool)}`,
-      )
+      const content = answerContent(text, index, options)
       const entry = append(
         {
           role: 'assistant',
-          text,
           liveId: `live-assistant-${index}`,
           piId: `pi-assistant-${index}`,
-          toolCallIds,
+          ...content,
         },
-        1 + toolCallIds.length,
+        1 + content.toolCallIds.length,
       )
       const messageId = entry.liveId
       emit({ type: 'turn_start', turnIndex: truth.length, timestamp: entry.timestamp })
       emit({ type: 'message_start', messageId, role: 'assistant', timestamp: entry.timestamp })
-      const deltas = deltasOf(text)
-      for (const [deltaIndex, delta] of deltas.entries()) {
-        options.beforeDelta?.(deltaIndex, deltas.length)
-        const assistantMessageEvent = { type: 'text_delta' as const, contentIndex: 0, delta }
-        emit({
-          type: 'message_update',
-          messageId,
-          role: 'assistant',
-          assistantMessageEvent,
-          timestamp: tick(),
-        })
-      }
-      if (options.open) return
-      emit({ type: 'message_end', messageId, role: 'assistant', timestamp: tick() })
-      runTools(entry)
-      emit({ type: 'turn_end', turnIndex: truth.length, timestamp: tick() })
+      return streamAnswer(answerEvents(content.segments), {
+        ...options,
+        update: (assistantMessageEvent) =>
+          emit({
+            type: 'message_update',
+            messageId,
+            role: 'assistant',
+            assistantMessageEvent,
+            timestamp: tick(),
+          }),
+        end: () => {
+          emit({ type: 'message_end', messageId, role: 'assistant', timestamp: tick() })
+          runTools(entry)
+          emit({ type: 'turn_end', turnIndex: truth.length, timestamp: tick() })
+        },
+      })
     },
     /** History from before the test, saved and compacted: texts later Runs repeat, then a marker. */
     seedHistory() {

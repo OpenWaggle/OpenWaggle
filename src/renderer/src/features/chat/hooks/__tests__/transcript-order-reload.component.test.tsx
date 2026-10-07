@@ -54,14 +54,14 @@ describe('transcript order across a renderer reload mid-Run', () => {
     ])
   })
 
-  // An older Host buffers the Run's user messages but neither its finished answers nor when the
-  // streaming one started: the reload shows the prompt, the steer and the streaming answer, and
-  // the earlier answers return with the Run's persisted messages.
-  it('places the steers and streaming answer an older Host buffers after a reload', async () => {
+  // A buffer whose history budget left out the Run's finished answers: the reload shows the
+  // prompt, the steers and the streaming answer, and the earlier answers return with the Run's
+  // persisted messages.
+  it('places the steers and streaming answer of a buffer without history after a reload', async () => {
     await expectCompleteTranscript([
       (h) => h.mount('session'),
       (h) => h.send('Fix the cache', 'run-1'),
-      (h) => h.olderHost(),
+      (h) => h.dropHistory(),
       (h) => h.answer('reading the store', { tools: 1 }),
       (h) => h.steer('also the tests'),
       (h) => h.answer('third', { open: true }),

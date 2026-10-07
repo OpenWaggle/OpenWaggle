@@ -8,6 +8,7 @@ import {
   earlierAnswersOf,
   earlierReconnectMessageIds,
   partialAssistantOf,
+  streamingBaselineOf,
   userMessageAnchorsOf,
 } from '../lib/reconnect-buffer-anchors'
 import { reconnectedRunScope, runScopeOf, withoutShownRunAnswers } from '../lib/reconnect-run-scope'
@@ -176,21 +177,8 @@ interface ReconnectedRun {
   readonly streamingBaseline?: {
     readonly messageId: string
     readonly parts: readonly UIMessagePart[]
+    readonly degraded: boolean
   }
-}
-
-/**
- * What the transcript shows of the answer the buffer streams. Read when the buffer's answer
- * arrives: the main process sends the events it buffered before that answer, in order.
- */
-function streamingBaselineOf(
-  snapshot: BackgroundRunSnapshot,
-  shownMessages: () => readonly UIMessage[],
-) {
-  const messageId = snapshot.messageId
-  if (messageId === undefined) return undefined
-  const shown = shownMessages().find((message) => message.id === messageId)
-  return { messageId, parts: shown?.parts ?? [] }
 }
 
 /**

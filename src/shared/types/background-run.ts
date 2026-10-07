@@ -157,8 +157,11 @@ export interface BackgroundRunSnapshot extends ActiveAgentRunInfo {
   readonly assistantMessages?: readonly BackgroundRunAssistantMessage[]
   readonly degraded?: {
     readonly reason: 'content-limit'
+    /** All the caps omitted over the Run. */
     readonly omittedBytes: number
     readonly toolCallIds?: readonly string[]
+    /** Whether the caps cut the message `parts` streams; the omissions may be an earlier one's. */
+    readonly messageCutShort: boolean
   }
   readonly worktreeLaunch?: WorktreeLaunchSnapshot
 }

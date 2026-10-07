@@ -1,6 +1,5 @@
-import { match, matchBy } from '@diegogbrisa/ts-match'
-import { TOOL_STATE_RANK } from '@shared/constants/tool-state'
-import type { UIMessage, UIMessagePart } from '@shared/types/chat-ui'
+import { match } from '@diegogbrisa/ts-match'
+import type { UIMessage } from '@shared/types/chat-ui'
 import {
   reconcileSnapshotUserMessages,
   retainSnapshotMessageOrder,
@@ -10,6 +9,7 @@ import {
   countUserMessagesByText,
   getNonEmptyUserMessageText,
 } from './chat-message-text'
+import { mergeReconnectedAnswerParts, type StreamingPartsBaseline } from './chat-reconnect-parts'
 import {
   placeAnchoredReconnectMessages,
   placeCurrentOnlyMessages,
@@ -19,154 +19,6 @@ function isAssistantMessage(
   message: UIMessage,
 ): message is UIMessage & { readonly role: 'assistant' } {
   return message.role === 'assistant'
-}
-
-/**
- * The text of a part both sides hold. `baseline` is what this renderer showed of it when the
- * reconnect read the buffer: the buffer has the whole text up to then, so the merge takes it and
- * adds only what streamed in since. Without one (or once the shown text no longer extends it) the
- * longer text that contains the other wins, and otherwise the reconnect's: putting both side by
- * side repeated a text that lost a delta in a stall for the rest of the Run.
- */
-function mergeTextContent(snapshotContent: string, currentContent: string, baseline?: string) {
-  if (baseline !== undefined && currentContent.startsWith(baseline)) {
-    return `${snapshotContent}${currentContent.slice(baseline.length)}`
-  }
-  if (snapshotContent.includes(currentContent)) return snapshotContent
-  if (currentContent.includes(snapshotContent)) return currentContent
-  return snapshotContent
-}
-
-function partText(part: UIMessagePart | undefined) {
-  return part?.type === 'text' || part?.type === 'thinking' ? part.content : undefined
-}
-
-function toolStateRank(state: string) {
-  return match(state)
-    .with('complete', 'error', 'output-available', () => TOOL_STATE_RANK.TERMINAL)
-    .with('executing', () => TOOL_STATE_RANK.EXECUTING)
-    .with('input-complete', () => TOOL_STATE_RANK.INPUT_COMPLETE)
-    .with('input-streaming', () => TOOL_STATE_RANK.INPUT_STREAMING)
-    .otherwise(() => TOOL_STATE_RANK.UNKNOWN)
-}
-
-function findLastTextPartIndex(parts: readonly UIMessagePart[]) {
-  for (let index = parts.length - 1; index >= 0; index -= 1) {
-    if (parts[index]?.type === 'text') {
-      return index
-    }
-  }
-  return -1
-}
-
-function findLastThinkingPartIndex(parts: readonly UIMessagePart[], stepId?: string) {
-  for (let index = parts.length - 1; index >= 0; index -= 1) {
-    const part = parts[index]
-    if (part?.type !== 'thinking') {
-      continue
-    }
-    if (!stepId || part.stepId === stepId) {
-      return index
-    }
-  }
-  return -1
-}
-
-function findMergeablePartIndex(parts: readonly UIMessagePart[], part: UIMessagePart) {
-  return matchBy(part, 'type')
-    .with('text', () => findLastTextPartIndex(parts))
-    .with('thinking', (value) => findLastThinkingPartIndex(parts, value.stepId))
-    .with('tool-call', (value) =>
-      parts.findIndex((candidate) => candidate.type === 'tool-call' && candidate.id === value.id),
-    )
-    .with('tool-result', (value) =>
-      parts.findIndex(
-        (candidate) =>
-          candidate.type === 'tool-result' && candidate.toolCallId === value.toolCallId,
-      ),
-    )
-    .with('image', (value) =>
-      parts.findIndex(
-        (candidate) => candidate.type === 'image' && candidate.source.value === value.source.value,
-      ),
-    )
-    .with('audio', (value) =>
-      parts.findIndex(
-        (candidate) => candidate.type === 'audio' && candidate.source.value === value.source.value,
-      ),
-    )
-    .with('video', (value) =>
-      parts.findIndex(
-        (candidate) => candidate.type === 'video' && candidate.source.value === value.source.value,
-      ),
-    )
-    .with('document', (value) =>
-      parts.findIndex(
-        (candidate) =>
-          candidate.type === 'document' && candidate.source.value === value.source.value,
-      ),
-    )
-    .exhaustive()
-}
-
-function mergeMessagePart(
-  snapshotPart: UIMessagePart,
-  currentPart: UIMessagePart,
-  baseline?: string,
-): UIMessagePart {
-  return match({ snapshotPart, currentPart })
-    .with(
-      { snapshotPart: { type: 'text' }, currentPart: { type: 'text' } },
-      (value): UIMessagePart => ({
-        type: 'text',
-        content: mergeTextContent(value.snapshotPart.content, value.currentPart.content, baseline),
-      }),
-    )
-    .with(
-      { snapshotPart: { type: 'thinking' }, currentPart: { type: 'thinking' } },
-      (value): UIMessagePart => {
-        const stepId = value.currentPart.stepId ?? value.snapshotPart.stepId
-        return {
-          type: 'thinking',
-          content: mergeTextContent(
-            value.snapshotPart.content,
-            value.currentPart.content,
-            baseline,
-          ),
-          ...(stepId ? { stepId } : {}),
-        }
-      },
-    )
-    .with(
-      { snapshotPart: { type: 'tool-call' }, currentPart: { type: 'tool-call' } },
-      (value): UIMessagePart =>
-        toolStateRank(value.currentPart.state) >= toolStateRank(value.snapshotPart.state)
-          ? value.currentPart
-          : value.snapshotPart,
-    )
-    .otherwise((value) => value.currentPart)
-}
-
-/** `baselineParts`: the shown parts of the message the buffer streams, when it was read. */
-function mergeAssistantParts(
-  snapshotParts: readonly UIMessagePart[],
-  currentParts: readonly UIMessagePart[],
-  baselineParts?: readonly UIMessagePart[],
-): UIMessagePart[] {
-  const mergedParts = [...snapshotParts]
-  for (const currentPart of currentParts) {
-    const partIndex = findMergeablePartIndex(mergedParts, currentPart)
-    const existingPart = partIndex >= 0 ? mergedParts[partIndex] : undefined
-    if (!existingPart) {
-      mergedParts.push(currentPart)
-      continue
-    }
-    const baseline = baselineParts
-      ? (partText(baselineParts[findMergeablePartIndex(baselineParts, currentPart)]) ?? '')
-      : undefined
-    mergedParts[partIndex] = mergeMessagePart(existingPart, currentPart, baseline)
-  }
-  return mergedParts
 }
 
 /**
@@ -204,10 +56,7 @@ interface ReconnectMergeContext {
   /** For each user message the reconnect buffer retained, the answer it followed. */
   readonly userMessageAnchors?: ReadonlyMap<string, string>
   /** The answer the buffer streams, as this renderer showed it when the buffer was read. */
-  readonly streamingBaseline?: {
-    readonly messageId: string
-    readonly parts: readonly UIMessagePart[]
-  }
+  readonly streamingBaseline?: StreamingPartsBaseline & { readonly messageId: string }
 }
 
 /** Merges a reconnect (the persisted transcript, and the Run's buffer) into the current one. */
@@ -231,11 +80,11 @@ export function mergeBackgroundReconnectMessages(
             isAssistantMessage,
             (assistantMessage): UIMessage => ({
               ...assistantMessage,
-              parts: mergeAssistantParts(
+              parts: mergeReconnectedAnswerParts(
                 assistantMessage.parts,
                 currentAssistantMessage.parts,
                 context.streamingBaseline?.messageId === assistantMessage.id
-                  ? context.streamingBaseline.parts
+                  ? context.streamingBaseline
                   : undefined,
               ),
               createdAt: currentAssistantMessage.createdAt ?? assistantMessage.createdAt,

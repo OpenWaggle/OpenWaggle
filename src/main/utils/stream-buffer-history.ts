@@ -1,6 +1,6 @@
 import type { BackgroundRunAssistantMessage } from '@shared/types/background-run'
 import { durableSessionRunId } from '../domain/session-control/root-session-project-reach'
-import type { ActiveStreamBuffer } from './stream-buffer-snapshots'
+import { type ActiveStreamBuffer, isMessageCutShort } from './stream-buffer-snapshots'
 
 /*
  * The Run's finished assistant messages a stream buffer keeps beside the one streaming: a Run's
@@ -72,10 +72,7 @@ export function retainFinishedAssistantMessage(
   totalHistoryBytes: number,
 ) {
   const { messageId } = buffer
-  const cutShort =
-    buffer.messageCutShort === true ||
-    buffer.omittedBytes !== (buffer.messageOmittedBytes ?? 0) ||
-    buffer.degradedToolCallIds.size > 0
+  const cutShort = isMessageCutShort(buffer)
   const existing = buffer.assistantMessages ?? []
   const unchanged = { buffer, historyDelta: 0 }
   if (messageId === undefined || buffer.parts.length === 0 || cutShort) return unchanged

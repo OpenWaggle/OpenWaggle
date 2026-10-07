@@ -30,6 +30,11 @@ import {
   SEED_430057,
   SEED_430218,
   SEED_455984,
+  SEED_530421,
+  SEED_531523,
+  SEED_561547,
+  SEED_562217,
+  SEED_564032,
 } from './transcript-order.replays'
 import { assertTranscriptOrder, createScenarioHarness } from './transcript-order.scenario'
 import { cleanupTranscriptOrder, resetTranscriptOrderState } from './transcript-order.test-harness'
@@ -171,6 +176,26 @@ describe('transcript order, model-based', () => {
 
   it('reads the transcript on a resync after a whole Run went by in a stall', async () => {
     await replayRun('seed 430218', 'other', SEED_430218)
+  })
+
+  it('dedupes the answer of a Run a stall hid the end of, before the next Run', async () => {
+    await replayRun('seed 531523', 'other', SEED_531523)
+  })
+
+  it('dedupes the answer of a Run whose prompt a stall lost, with no buffer left', async () => {
+    await replayRun('seed 530421', 'other', SEED_530421)
+  })
+
+  it('matches a reasoning answer with its saved copy however its text is split', async () => {
+    await replayRun('seed 562217', 'session', SEED_562217)
+  })
+
+  it('matches a reasoning answer of a continued Run with its saved copy', async () => {
+    await replayRun('seed 564032', 'session', SEED_564032)
+  })
+
+  it('drops the steer preview of a Run a stall hid when the resync finds the Session idle', async () => {
+    await replayRun('seed 561547', 'other', SEED_561547)
   })
 
   it('holds an earlier Run prompt the transcript holds at its log order', async () => {

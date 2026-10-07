@@ -89,7 +89,7 @@ describe('stream-buffer assistant messages', () => {
           messageId: 'assistant-1',
           timestamp: 10,
           parts: [
-            { type: 'text', text: 'reading the store' },
+            { type: 'text', text: 'reading the store', contentIndex: 0 },
             { type: 'tool-call', toolCall: expect.objectContaining({ id: 'tool-1' }) },
             { type: 'tool-result', toolResult: expect.objectContaining({ id: 'tool-1' }) },
           ],
@@ -103,7 +103,11 @@ describe('stream-buffer assistant messages', () => {
     apply(assistantStart('assistant-3', 30))
     expect(getStreamBuffer(SESSION_ID)?.assistantMessages).toEqual([
       expect.objectContaining({ messageId: 'assistant-1', timestamp: 10 }),
-      { messageId: 'assistant-2', timestamp: 20, parts: [{ type: 'text', text: 'done' }] },
+      {
+        messageId: 'assistant-2',
+        timestamp: 20,
+        parts: [{ type: 'text', text: 'done', contentIndex: 0 }],
+      },
     ])
   })
 
@@ -129,7 +133,9 @@ describe('stream-buffer assistant messages', () => {
     apply(assistantStart('live', turns))
     apply(text('live', 'a'.repeat(200 * KIB)))
     const snapshot = getStreamBuffer(SESSION_ID)
-    expect(snapshot?.parts).toEqual([{ type: 'text', text: 'a'.repeat(200 * KIB) }])
+    expect(snapshot?.parts).toEqual([
+      { type: 'text', text: 'a'.repeat(200 * KIB), contentIndex: 0 },
+    ])
     expect(snapshot?.degraded).toBeUndefined()
     const history = snapshot?.assistantMessages ?? []
     // The newest finished messages, in order, within the history budget.
@@ -234,7 +240,7 @@ describe('stream-buffer assistant messages', () => {
         messageId: 'assistant-1',
         messageStartedAt: 2,
         parts: [{ type: 'text', text: 'the part that fit' }],
-        degraded: { reason: 'content-limit', omittedBytes: 64 },
+        degraded: { reason: 'content-limit', omittedBytes: 64, messageCutShort: true },
       },
     ])
     apply(assistantStart('assistant-2', 10))

@@ -157,6 +157,15 @@ export function retainDegradedToolCallId(
   }
 }
 
+/** Whether the live caps cut the message the buffer streams (not only an earlier one). */
+export function isMessageCutShort(buffer: ActiveStreamBuffer) {
+  return (
+    buffer.messageCutShort === true ||
+    buffer.omittedBytes !== (buffer.messageOmittedBytes ?? 0) ||
+    buffer.degradedToolCallIds.size > 0
+  )
+}
+
 export function toStreamBufferSnapshot(
   sessionId: SessionId,
   buffer: ActiveStreamBuffer | undefined,
@@ -187,6 +196,7 @@ export function toStreamBufferSnapshot(
             ...(buffer.degradedToolCallIds.size > 0
               ? { toolCallIds: [...buffer.degradedToolCallIds] }
               : {}),
+            messageCutShort: isMessageCutShort(buffer),
           },
         }
       : {}),

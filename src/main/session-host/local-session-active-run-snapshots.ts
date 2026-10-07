@@ -22,7 +22,8 @@ function decodeDegradedSnapshot(value: unknown): BackgroundRunSnapshot['degraded
   if (
     !isRecord(value) ||
     value.reason !== 'content-limit' ||
-    typeof value.omittedBytes !== 'number'
+    typeof value.omittedBytes !== 'number' ||
+    typeof value.messageCutShort !== 'boolean'
   ) {
     return undefined
   }
@@ -32,6 +33,7 @@ function decodeDegradedSnapshot(value: unknown): BackgroundRunSnapshot['degraded
     reason: 'content-limit',
     omittedBytes: value.omittedBytes,
     ...(toolCallIds.length > 0 ? { toolCallIds } : {}),
+    messageCutShort: value.messageCutShort,
   }
 }
 
@@ -158,7 +160,11 @@ export function decodeActiveRunSnapshots(value: unknown): BackgroundRunSnapshot[
 
 const jsonObjectSchema = Schema.Record({ key: Schema.String, value: jsonValueSchema })
 const messagePartSchema = Schema.Union(
-  Schema.Struct({ type: Schema.Literal('text', 'reasoning'), text: Schema.String }),
+  Schema.Struct({
+    type: Schema.Literal('text', 'reasoning'),
+    text: Schema.String,
+    contentIndex: Schema.optional(Schema.Number),
+  }),
   Schema.Struct({
     type: Schema.Literal('attachment'),
     attachment: Schema.Struct({

@@ -219,12 +219,57 @@ export const SEED_430218 = 'viewSession send stall endRun startRun endRun startR
 )
 
 /*
- * Seed 455984 at 70 steps: an older Host (no finished answers in its buffer) ran the next Run while
+ * Seed 455984 at 70 steps: a buffer holding no finished answers ran the next Run while
  * a stall hid the send's Run ending; the earlier Run's prompt, shown under its optimistic id and
  * held by the transcript at its log order, was taken for a row only this renderer showed, and the
  * next Run's live answer landed above that Run's prompt.
  */
 export const SEED_455984 = (
-  'send stall endRunSettlingLate startRun holdReconnects olderHost resume answer answer ' +
+  'send stall endRunSettlingLate startRun holdReconnects dropHistory resume answer answer ' +
   'releaseReconnects'
+).split(' ')
+
+/*
+ * Seed 531523 at 45 steps: a stall hid a Run's end and the next Run's start; a held detail read
+ * landed with the Run saved while the transcript still streamed its answer, but the dedupe looked
+ * only in the next Run's span, and the answer showed twice.
+ */
+export const SEED_531523 = (
+  'startRun restartHost failBeforeStart holdHostReads viewSession compactManually startRun continues ' +
+  'answerWithReasoning stall serveHeldReads continues releaseReconnects'
+).split(' ')
+
+/*
+ * Seed 530421 at 70 steps: as 531523, but the stall lost the Run's prompt too and no buffer was
+ * left: the dedupe span starts after the last row shown under its Pi id.
+ */
+export const SEED_530421 = (
+  'startRun stop viewSession send stop startRun restartHost startRun continues ' +
+  'holdHostReads endRun stall startRun resume answerWithReasoning stall endRunWithRequestedWaggle releaseReconnects'
+).split(' ')
+
+/*
+ * Seeds 562217 and 564032 at 100 steps (review parts-v3): the model rebuilt an older Host's buffer,
+ * which joined the texts around an empty thought into one part; matched by content with its saved
+ * copy (two parts) it showed twice once the Run settled. A revision-22 GUI never reads such a
+ * buffer, so the model no longer builds it; an answer's content key now reads the text between two
+ * tool calls as one however it is split (`answer-content-key.unit.test.ts`).
+ */
+export const SEED_562217 = (
+  'holdHostReads stall startRun resume dropHistory continueRun answer answer ' +
+  'answerWithReasoning endRunSettlingLate'
+).split(' ')
+export const SEED_564032 = (
+  'holdReconnects startRun steer answerWithReasoning continueRun dropHistory answerWithReasoning ' +
+  'touch viewOther endRunSettlingLate viewSession'
+).split(' ')
+
+/*
+ * Seed 561547 at 100 steps: a Run started, took a promoted steer and settled inside a stall, so
+ * the renderer never saw it; the resync found the Session idle but kept the steer's preview, which
+ * then claimed the row of a later steer with the same text and showed beside it.
+ */
+export const SEED_561547 = (
+  'startRun answerWithReasoning answerWithReasoning endRun viewSession stall startRun promote answer ' +
+  'continueRun deliverPromotion endRun resume send promote deliverPromotion'
 ).split(' ')

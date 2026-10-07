@@ -15,7 +15,7 @@ import {
   settle,
   type ViewOptions,
 } from './transcript-order.harness-support'
-import { createHostModel } from './transcript-order.host-model'
+import { type AnswerOptions, createHostModel } from './transcript-order.host-model'
 import { installHostReads, routeView } from './transcript-order.host-reads'
 import {
   transcriptOrderApiMock as apiMock,
@@ -160,24 +160,25 @@ export function createTranscriptOrderHarness(hooks: Hooks, options: { lagMs?: nu
     startRun,
     retry: () => act(() => host.retry()),
     steer: (text: string) => act(() => host.incorporateUser(text)),
-    answer: (text: string, answer?: { readonly tools?: number; readonly open?: boolean }) =>
-      act(() => host.answer(text, answer)),
-    /** An answer whose middle text deltas are lost in a stall; the stream then resyncs. */
-    async answerWithGap(text: string, answer: { readonly tools?: number } = {}) {
-      act(() =>
-        host.answer(text, {
+    answer: (...answer: Parameters<typeof host.answer>) => act(() => host.answer(...answer)),
+    /** An answer whose middle events a stall loses, then a resync; `holdLast` stream after it. */
+    async answerWithGap(text: string, answer: Omit<AnswerOptions, 'beforeDelta'> = {}) {
+      let finish: (() => void) | undefined
+      act(() => {
+        finish = host.answer(text, {
           ...answer,
           beforeDelta: (index, count) => {
-            dropping = index > 0 && index < count - 1
+            dropping = index > 0 && index < count - 1 - (answer.holdLast ?? 0)
           },
-        }),
-      )
+        })
+      })
       dropping = false
       await harness.resume()
+      if (finish) act(finish)
     },
     compact: () => act(() => host.compact()),
     dropRetainedUsers: () => host.dropRetainedUsers(),
-    olderHost: () => host.olderHost(),
+    dropHistory: () => host.dropHistory(),
     async compactManually() {
       let finish = () => {}
       act(() => {

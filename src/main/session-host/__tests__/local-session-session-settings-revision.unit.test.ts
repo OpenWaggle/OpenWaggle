@@ -31,7 +31,7 @@ describe('Session settings and Title regeneration protocol revisions', () => {
     'sessions:set-default-thinking-level',
   ] as const)('requires a revision-21 Host for %s', (channel) => {
     const payload = hostUiCommand(channel)
-    expect(supportedRevisionsForCommand(payload)).toEqual([21])
+    expect(supportedRevisionsForCommand(payload)).toEqual([22])
     expect(() => decodeLocalSessionCommandPayloadForRevision(payload, 20)).toThrow(/revision 21/)
     expect(decodeLocalSessionCommandPayloadForRevision(payload, 21)).toEqual(payload)
   })
@@ -53,7 +53,7 @@ describe('Session settings and Title regeneration protocol revisions', () => {
     })
     // The client offers only the revisions the Host requires, so an older Host is refused before
     // the command is sent instead of failing to decode it.
-    expect(supportedRevisionsForCommand(payload)).toEqual([21])
+    expect(supportedRevisionsForCommand(payload)).toEqual([22])
     expect(() => decodeLocalSessionCommandPayloadForRevision(payload, 20)).toThrow(/revision 21/)
     expect(decodeLocalSessionCommandPayloadForRevision(payload, 21)).toEqual(payload)
   })
@@ -74,7 +74,7 @@ describe('Session settings and Title regeneration protocol revisions', () => {
 
   it('requires a revision-21 Host to create a Session at a thinking level', () => {
     const payload = createCommand(['/repo', undefined, undefined, 'high'])
-    expect(supportedRevisionsForCommand(payload)).toEqual([21])
+    expect(supportedRevisionsForCommand(payload)).toEqual([22])
     expect(() => decodeLocalSessionCommandPayloadForRevision(payload, 20)).toThrow(/revision 21/)
     expect(decodeLocalSessionCommandPayloadForRevision(payload, 21)).toEqual(payload)
   })

@@ -3,6 +3,7 @@ import type { MessageMetadata, MessagePart } from '@shared/types/agent'
 import type { UIMessage, UIMessageMetadata } from '@shared/types/chat-ui'
 import type { SessionDetail } from '@shared/types/session'
 import { formatAttachmentPreview } from './chat-attachment-preview'
+import { makeThinkingStepId } from './chat-stream-state-helpers'
 
 /**
  * Convert a persisted agent message part into renderer UI parts.
@@ -78,17 +79,34 @@ export function sessionToUIMessages(session: SessionDetail): UIMessage[] {
   }))
 }
 
+/**
+ * A part of the Host stream buffer: a reasoning part it kept the content block of is named like
+ * the thinking step the live view streamed it into, so a reconnect matches the two.
+ */
+function bufferedPartToUIParts(part: MessagePart, messageId: string): UIMessage['parts'] {
+  if (part.type !== 'reasoning' || part.contentIndex === undefined)
+    return messagePartToUIParts(part)
+  return [
+    {
+      type: 'thinking',
+      content: part.text,
+      stepId: makeThinkingStepId(messageId, part.contentIndex),
+    },
+  ]
+}
+
 export function buildPartialAssistantMessage(
   parts: readonly MessagePart[],
   messageId?: string,
 ): UIMessage | null {
-  const uiParts: UIMessage['parts'] = parts.flatMap(messagePartToUIParts)
+  const id = messageId ?? `bg-stream-${Date.now()}`
+  const uiParts: UIMessage['parts'] = parts.flatMap((part) => bufferedPartToUIParts(part, id))
   if (uiParts.length === 0) {
     return null
   }
 
   return {
-    id: messageId ?? `bg-stream-${Date.now()}`,
+    id,
     role: 'assistant',
     parts: uiParts,
     createdAt: new Date(),

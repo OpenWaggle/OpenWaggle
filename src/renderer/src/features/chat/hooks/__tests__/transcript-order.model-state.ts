@@ -80,3 +80,24 @@ export function ended(state: ModelState) {
   state.running = false
   state.promotions = state.promotions.filter((promotion) => promotion.incorporated)
 }
+
+const SHAPES = ['reasoning', 'emptyThought', 'toolBetween'] as const
+
+/** An answer's shape (`answerSegments`): two text segments around a thought or a tool call. */
+export function shapeOf(state: ModelState) {
+  return SHAPES[state.texts % SHAPES.length]
+}
+
+/**
+ * An answer a stall cuts the middle of (a thought or tool call between its texts with it), every
+ * other one going on streaming after the resync.
+ */
+export function gapAnswerOf(state: ModelState) {
+  const shape = (['plain', ...SHAPES] as const)[state.texts % (SHAPES.length + 1)]
+  return { shape, holdLast: state.runs % 2 }
+}
+
+/** An answer of two text segments around a thought or tool call (`answerSegments`). */
+export function answerWithShape(harness: TranscriptOrderHarness, state: ModelState) {
+  return harness.answer(repeatableText(state, 'reasoned', 3, 'ok'), { shape: shapeOf(state) })
+}
