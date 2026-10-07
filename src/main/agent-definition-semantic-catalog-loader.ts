@@ -1,6 +1,5 @@
-import { randomUUID } from 'node:crypto'
 import * as Effect from 'effect/Effect'
-import { createFilesystemMcpConfigService } from './adapters/mcp/service-factory'
+import { listConfiguredMcpServerNames } from './adapters/mcp/config/mcp-server-names'
 import { loadAgentDefinitionPiProjectServices } from './adapters/pi/agent-definition-semantic-catalog-services'
 import type { OpenWagglePiExtensionSelectionServices } from './adapters/pi/openwaggle-pi-extension-selection'
 import type { AgentDefinitionSemanticCatalog } from './agents/agent-definition-semantic-validation'
@@ -18,8 +17,6 @@ const BUILTIN_AND_NATIVE_TOOL_NAMES = [
   'find',
   'ls',
   'sessions',
-  'mcp',
-  'mcp_run',
 ] as const
 
 export interface LoadAgentDefinitionSemanticCatalogInput {
@@ -72,12 +69,13 @@ export async function loadAgentDefinitionSemanticCatalog(
   }
 
   try {
-    const service = createFilesystemMcpConfigService({
+    const configured = await listConfiguredMcpServerNames({
       homeDir: input.userHome,
-      createId: randomUUID,
+      projectPath: input.projectPath,
     })
-    const view = await service.getView({ projectPath: input.projectPath })
-    mcpServers = view.servers.flatMap((server) => [server.name, server.instanceId])
+    // An unreadable file leaves the list incomplete; checking names against it would misreport.
+    if (configured.errors.length === 0) mcpServers = configured.names
+    else loadDiagnostics.push(...configured.errors)
   } catch (error) {
     loadDiagnostics.push(`MCP project resources failed to load: ${message(error)}`)
   }
