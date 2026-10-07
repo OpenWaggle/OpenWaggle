@@ -22,6 +22,7 @@ import {
   refreshNamedProfileCaller,
 } from './local-session-command-authorization'
 import { authorizeTargetForCaller } from './local-session-derived-authority'
+import { refreshBeforeSessionQuery } from './pi-session-projection-refresh'
 
 function resolveAuthorizedSessionQueryCaller(
   caller: LocalSessionCallerIdentity,
@@ -225,6 +226,7 @@ export function dispatchSessionRepositoryQuery(
         ...(authority ? { authority } : {}),
         request,
       })
+    yield* refreshBeforeSessionQuery(payload.request.query)
     let response = yield* execute(payload.request)
     if (
       isFreshnessBlockingSearch(payload) &&

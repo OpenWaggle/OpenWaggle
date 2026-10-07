@@ -1,4 +1,5 @@
-import { type SessionId, SupportedModelId } from '@shared/types/brand'
+import { SessionId, SupportedModelId } from '@shared/types/brand'
+import type { SessionQuery } from '@shared/types/session-query'
 import { THINKING_LEVELS } from '@shared/types/settings'
 import { formatErrorMessage } from '@shared/utils/node-error'
 import * as Cause from 'effect/Cause'
@@ -216,4 +217,16 @@ export function loadSessionForRun(sessionId: SessionId) {
     refreshPiSessionProjectionSafely(sessionId, 'run'),
     Effect.flatMap(SessionProjectionRepository, (repository) => repository.getOptional(sessionId)),
   )
+}
+
+/**
+ * A Session read through the Sessions tool or `openwaggle sessions` shows the Pi file as it is
+ * now, like the sidebar does (ADR 0048). It runs once the caller is resolved; projecting a file
+ * only refreshes what the query would read anyway and returns nothing to the caller.
+ */
+export function refreshBeforeSessionQuery(query: SessionQuery) {
+  if (query.operation !== 'read' && query.operation !== 'turns' && query.operation !== 'items') {
+    return Effect.void
+  }
+  return refreshPiSessionProjectionSafely(SessionId(query.sessionId), 'reader')
 }
