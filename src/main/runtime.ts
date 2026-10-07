@@ -277,14 +277,17 @@ function installStoreEffectRunner() {
   setStoreEffectRunner((effect) => getAppRuntime().runPromise(effect))
 }
 
-let mcpSessionRemovalInstalled = false
+let sessionRemovalHooksInstalled = false
 
 export async function initializeAppRuntime(): Promise<void> {
-  // Archiving or deleting a Session, including Hive cleanup of a Worker, closes its MCP servers.
-  if (!mcpSessionRemovalInstalled) {
-    mcpSessionRemovalInstalled = true
+  // Archiving or deleting a Session, including Hive cleanup of a Worker, closes its MCP servers
+  // and ends its prompt cache warming.
+  if (!sessionRemovalHooksInstalled) {
+    sessionRemovalHooksInstalled = true
     onSessionRemoved((sessionId) => {
       forgetMcpAppTools(sessionId)
+      // Hooks run before the Pi file is archived or deleted, so no warming session writes to it.
+      idleCacheWarming.close(sessionId)
       return mcpSessionConnectionPool.closeSession(sessionId)
     })
   }

@@ -16,7 +16,7 @@ function warmingPiSession() {
   })
 }
 
-describe('prompt cache warming of an archived Session', () => {
+describe('prompt cache warming of an unarchived Session', () => {
   let releaseRuntime: (() => void) | undefined
   let liveness: SessionHostLiveness | undefined
   let sessionId = ''
@@ -39,25 +39,14 @@ describe('prompt cache warming of an archived Session', () => {
     await idleCacheWarming.releaseAll()
   })
 
-  it.each(['archived', 'deleted'] as const)('stops when the Session is %s', async (change) => {
-    const session = warmingPiSession()
-    await idleCacheWarming.settle(sessionId, session, { aborted: false })
-
-    publishSessionHostEvent({ kind: 'session-list-changed', sessionId, change })
-
-    expect(idleCacheWarming.borrow(sessionId)).toBeUndefined()
-    expect(session.dispose).toHaveBeenCalledOnce()
-  })
-
-  it('does not start for a Run that ends after its Session was archived, until it is unarchived', async () => {
-    publishSessionHostEvent({ kind: 'session-list-changed', sessionId, change: 'archived' })
-    const afterArchive = warmingPiSession()
-
+  it('lets a Session warm again once it is unarchived', async () => {
+    idleCacheWarming.close(sessionId)
     await expect(
-      idleCacheWarming.settle(sessionId, afterArchive, { aborted: false }),
+      idleCacheWarming.settle(sessionId, warmingPiSession(), { aborted: false }),
     ).resolves.toBe('disposed')
 
     publishSessionHostEvent({ kind: 'session-list-changed', sessionId, change: 'unarchived' })
+
     await expect(
       idleCacheWarming.settle(sessionId, warmingPiSession(), { aborted: false }),
     ).resolves.toBe('warming')
