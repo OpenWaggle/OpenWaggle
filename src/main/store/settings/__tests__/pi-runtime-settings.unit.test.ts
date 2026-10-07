@@ -7,6 +7,7 @@ import {
 } from '../keys'
 import { validatePersistedSettings } from '../persisted-validation'
 import { collectSettingsPatchWrites } from '../persistence-plan'
+import { configurePiUserRuntimeSettingsReader } from '../pi-runtime-settings'
 import { buildNextSettingsSnapshot, buildSettingsSnapshot } from '../snapshot'
 
 describe('Pi runtime settings', () => {
@@ -42,5 +43,38 @@ describe('Pi runtime settings', () => {
 
   it('rejects a cache warming mode Pi does not know', () => {
     expect(() => validatePersistedSettings({ [SETTINGS_KEY_CACHE_WARMING]: 'always' })).toThrow()
+  })
+
+  it("follow the user's own Pi values until the user chooses in OpenWaggle", () => {
+    const restore = configurePiUserRuntimeSettingsReader(() => ({
+      codemodeEnabled: false,
+      cacheWarming: 'idle',
+    }))
+    try {
+      expect(buildSettingsSnapshot({}).settings).toMatchObject({
+        codemodeEnabled: false,
+        cacheWarming: 'idle',
+      })
+      expect(
+        buildSettingsSnapshot({
+          [SETTINGS_KEY_CODEMODE_ENABLED]: true,
+          [SETTINGS_KEY_CACHE_WARMING]: 'off',
+        }).settings,
+      ).toMatchObject({ codemodeEnabled: true, cacheWarming: 'off' })
+    } finally {
+      restore()
+    }
+  })
+
+  it("use OpenWaggle's defaults when the Pi settings have no value", () => {
+    const restore = configurePiUserRuntimeSettingsReader(() => ({}))
+    try {
+      expect(buildSettingsSnapshot({}).settings).toMatchObject({
+        codemodeEnabled: true,
+        cacheWarming: 'streaming',
+      })
+    } finally {
+      restore()
+    }
   })
 })

@@ -26,6 +26,7 @@ import { forgetMcpAppTools } from './adapters/pi/mcp/mcp-app-registry'
 import { OpenWaggleMcpConfigurationServiceLive } from './adapters/pi/mcp/openwaggle-mcp-configuration'
 import { PiMcpAppRuntimeServiceLive } from './adapters/pi/mcp/pi-mcp-app-runtime-service'
 import { PiMcpServerRuntimeServiceLive } from './adapters/pi/mcp/pi-mcp-server-runtime-service'
+import { installPiUserAppSettingsFallback } from './adapters/pi/openwaggle-pi-app-settings'
 import { PiAgentKernelLive } from './adapters/pi/pi-agent-kernel-adapter'
 import { PiAgentSteeringServiceLive } from './adapters/pi/pi-agent-steering-adapter'
 import { registerPiBundledOAuthFlows } from './adapters/pi/pi-bundled-oauth'
@@ -276,6 +277,9 @@ function getAppRuntime() {
 function installStoreEffectRunner() {
   setStoreEffectRunner((effect) => getAppRuntime().runPromise(effect))
 }
+
+// Settings OpenWaggle shares with Pi fall back to the user's own Pi values until chosen here.
+installPiUserAppSettingsFallback()
 
 let sessionRemovalHooksInstalled = false
 

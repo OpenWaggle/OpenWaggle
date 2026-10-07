@@ -1,7 +1,8 @@
 import { decodeUnknownOrThrow } from '@shared/schema'
 import { jsonObjectSchema } from '@shared/schemas/validation'
 import type { JsonObject, JsonValue } from '@shared/types/json'
-import type { PiCacheWarmingMode } from '@shared/types/settings'
+import { PI_CACHE_WARMING_MODES, type PiCacheWarmingMode } from '@shared/types/settings'
+import { includes } from '@shared/utils/validation'
 
 /**
  * OpenWaggle settings that have a Pi equivalent. OpenWaggle stores them in its own Settings and
@@ -16,7 +17,7 @@ export interface OpenWagglePiAppSettings {
 }
 
 const JSON_INDENT_SPACES = 2
-const CODEMODE_DEFAULT_TOOL = '+codemode'
+const CODEMODE_TOOL = 'codemode'
 
 function parseSettings(content: string | undefined): JsonObject {
   if (!content || content.trim().length === 0) return {}
@@ -33,12 +34,52 @@ function stringEntries(value: JsonValue | undefined): readonly JsonValue[] | und
 }
 
 /**
- * Pi resolves `defaultTools` in list order, so the OpenWaggle entry goes first: a Pi user's own
- * `-codemode`, in the same list or a project list, still turns codemode off.
+ * Pi resolves `defaultTools` in list order, so OpenWaggle's entry goes last: the user's choice in
+ * OpenWaggle (or their own Pi value, which it already reflects) wins over the global list. A
+ * project list that names plain tools still replaces it, as Pi documents.
  */
-function defaultToolsWithCodemode(stored: JsonValue | undefined): JsonValue[] {
+function defaultToolsWithCodemode(stored: JsonValue | undefined, enabled: boolean): JsonValue[] {
   const entries = stringEntries(stored) ?? []
-  return [CODEMODE_DEFAULT_TOOL, ...entries]
+  return [...entries, `${enabled ? '+' : '-'}${CODEMODE_TOOL}`]
+}
+
+function safeParseSettings(content: string | undefined): JsonObject {
+  try {
+    return parseSettings(content)
+  } catch {
+    return {}
+  }
+}
+
+/**
+ * Whether the user's own `defaultTools` turn codemode on or off, resolved as Pi does (plain names
+ * replace the defaults, then `+name` and `-name` in order). Undefined unless they name codemode.
+ */
+function piUserCodemode(defaultTools: JsonValue | undefined): boolean | undefined {
+  const entries = (stringEntries(defaultTools) ?? []).filter(
+    (entry): entry is string => typeof entry === 'string',
+  )
+  const modifier = (entry: string) => entry.startsWith('+') || entry.startsWith('-')
+  if (!entries.some((entry) => entry.replace(/^[+-]/u, '') === CODEMODE_TOOL)) return undefined
+  let enabled = entries.some((entry) => !modifier(entry) && entry === CODEMODE_TOOL)
+  for (const entry of entries) {
+    if (entry === `+${CODEMODE_TOOL}`) enabled = true
+    if (entry === `-${CODEMODE_TOOL}`) enabled = false
+  }
+  return enabled
+}
+
+/** The user's own Pi values for OpenWaggle's settings, from their global Pi settings content. */
+export function piUserAppSettings(content: string | undefined): Partial<OpenWagglePiAppSettings> {
+  const settings = safeParseSettings(content)
+  const codemodeEnabled = piUserCodemode(settings.defaultTools)
+  const cacheWarming = settings.cacheWarming
+  return {
+    ...(codemodeEnabled === undefined ? {} : { codemodeEnabled }),
+    ...(typeof cacheWarming === 'string' && includes(PI_CACHE_WARMING_MODES, cacheWarming)
+      ? { cacheWarming }
+      : {}),
+  }
 }
 
 /** The global Pi settings content Pi reads: OpenWaggle's choices applied, whatever is stored. */
@@ -49,9 +90,7 @@ export function withOpenWagglePiAppSettings(
   const settings = parseSettings(content)
   return serializeSettings({
     ...settings,
-    ...(app.codemodeEnabled
-      ? { defaultTools: defaultToolsWithCodemode(settings.defaultTools) }
-      : {}),
+    defaultTools: defaultToolsWithCodemode(settings.defaultTools, app.codemodeEnabled),
     cacheWarming: app.cacheWarming,
   })
 }

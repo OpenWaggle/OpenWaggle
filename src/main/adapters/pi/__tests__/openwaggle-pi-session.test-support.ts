@@ -7,7 +7,12 @@ import type { AgentAuthorizationMode } from '@shared/types/agent-authorization'
 import { SessionId } from '@shared/types/brand'
 import type { AgentTransportEvent } from '@shared/types/stream'
 import { vi } from 'vitest'
+import { buildSettingsSnapshot } from '../../../store/settings/snapshot'
 import type { PiInteractionUiContextInput } from '../agent-kernel/interaction-ui-context'
+import {
+  installPiUserAppSettingsFallback,
+  openWagglePiAppSettingsFrom,
+} from '../openwaggle-pi-app-settings'
 import type { OpenWagglePiAppSettings } from '../openwaggle-pi-settings-app-overlay'
 import { createPiRuntimeServices } from '../pi-provider-catalog'
 import { createOpenWaggleAgentSessionFromServices } from '../pi-session-lifecycle'
@@ -36,9 +41,24 @@ function isolatePiAgentDirectory(globalSettings: object | undefined) {
   return agentDir
 }
 
+function resolvedAppSettings(stored: Readonly<Record<string, unknown>> | undefined) {
+  if (!stored) return undefined
+  const removeFallback = installPiUserAppSettingsFallback()
+  try {
+    return openWagglePiAppSettingsFrom(buildSettingsSnapshot(stored).settings)
+  } finally {
+    removeFallback()
+  }
+}
+
 export interface OpenWagglePiSessionOptions {
   readonly extensionFactories?: readonly ExtensionFactory[]
   readonly appSettings?: OpenWagglePiAppSettings
+  /**
+   * The user's stored OpenWaggle Settings, by key. The app settings are then resolved the way the
+   * Host resolves them, falling back to the user's Pi settings for anything not chosen.
+   */
+  readonly openWaggleSettings?: Readonly<Record<string, unknown>>
   /** Contents of the user's global Pi `settings.json`. */
   readonly piGlobalSettings?: object
   readonly authorizationMode?: AgentAuthorizationMode
@@ -63,9 +83,10 @@ export async function createOpenWagglePiSession(options: OpenWagglePiSessionOpti
       ...(options.models ?? [{ id: 'test-model', contextWindow: 100_000, maxTokens: 10_000 }]),
     ],
   })
+  const appSettings = options.appSettings ?? resolvedAppSettings(options.openWaggleSettings)
   const services = await createPiRuntimeServices(projectPath, {
     ...(options.extensionFactories ? { extensionFactories: options.extensionFactories } : {}),
-    ...(options.appSettings ? { appSettings: options.appSettings } : {}),
+    ...(appSettings ? { appSettings } : {}),
   })
   if (options.promptCacheSeconds !== undefined) {
     for (const model of faux.models) model.promptCache = { short: options.promptCacheSeconds }

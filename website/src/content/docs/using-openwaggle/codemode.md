@@ -13,10 +13,14 @@ Codemode comes from Pi, the agent runtime under OpenWaggle. It works the same wa
 
 Codemode is on in every session by default, whether or not you use MCP servers. The agent decides when a script helps. Most turns still use ordinary tool calls.
 
-To turn it off, open **Settings > General > Agent tools** and switch off **Codemode**. New runs stop offering it. Two exceptions keep it available:
+To turn it off, open **Settings > General > Agent tools** and switch off **Codemode**. New runs stop offering it.
+
+If you also use Pi on its own, OpenWaggle follows your Pi settings until you choose in OpenWaggle: when `~/.pi/agent/settings.json` names codemode in `defaultTools` (for example `"defaultTools": ["-codemode"]`), the switch starts in that position. Once you flip the switch, your OpenWaggle choice wins over that file, and OpenWaggle never writes it there.
+
+Two exceptions still apply:
 
 - MCP servers whose tools are set to the `codemode` exposure still turn it on, because their tools can only be called from scripts. See [MCP](/docs/configuration/mcp).
-- If your Pi settings remove it (`"defaultTools": ["-codemode"]` in `~/.pi/agent/settings.json` or a project's `.pi/settings.json`), it stays off even while the OpenWaggle switch is on.
+- A project's `.pi/settings.json` that lists its own tools by name replaces the tool list, as Pi documents, so a project without codemode in that list runs without it.
 
 ## What the agent can do in a script
 

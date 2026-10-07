@@ -43,12 +43,22 @@ describe('codemode in an OpenWaggle Pi session', () => {
     )
   })
 
-  it("keeps a Pi user's own choice to remove codemode from the default tools", async () => {
+  it("follows a Pi user's own choice to remove codemode until they choose in OpenWaggle", async () => {
     const { session } = await createOpenWagglePiSession({
       piGlobalSettings: { defaultTools: ['-codemode'] },
+      openWaggleSettings: {},
     })
 
     expect(session.getActiveToolNames()).not.toContain('codemode')
+  })
+
+  it("keeps codemode on when the user turned it on in OpenWaggle, whatever Pi's settings say", async () => {
+    const { session } = await createOpenWagglePiSession({
+      piGlobalSettings: { defaultTools: ['-codemode'] },
+      openWaggleSettings: { codemodeEnabled: true },
+    })
+
+    expect(session.getActiveToolNames()).toContain('codemode')
   })
 
   it('does not record OpenWaggle choices in the Pi settings file', async () => {

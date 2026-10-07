@@ -2,20 +2,53 @@
  * OpenWaggle Settings with a Pi equivalent: codemode (on by default, ADR 0048) and Pi's prompt
  * cache warming. They are stored here and handed to Pi in memory by the Pi adapter
  * (adapters/pi/openwaggle-pi-settings-app-overlay.ts), so Pi's own files never record them.
+ *
+ * OpenWaggle first, then Pi: a value the user chose in OpenWaggle wins; until they choose, the
+ * user's own Pi value applies, and OpenWaggle's default only when Pi has none.
  */
 import { DEFAULT_SETTINGS, PI_CACHE_WARMING_MODES, type Settings } from '@shared/types/settings'
 import { includes } from '@shared/utils/validation'
 import { SETTINGS_KEY_CACHE_WARMING, SETTINGS_KEY_CODEMODE_ENABLED } from './keys'
 import { appendChangedSetting, type SettingsPatchWrite } from './settings-patch-writes'
 
-function resolveCodemodeEnabled(raw: unknown) {
-  return typeof raw === 'boolean' ? raw : DEFAULT_SETTINGS.codemodeEnabled
+/** The user's own Pi values for these settings, from their global Pi settings. */
+export interface PiUserRuntimeSettings {
+  readonly codemodeEnabled?: boolean
+  readonly cacheWarming?: Settings['cacheWarming']
 }
 
-function resolveCacheWarming(raw: unknown) {
+type PiUserRuntimeSettingsReader = () => PiUserRuntimeSettings
+
+const readNoPiUserSettings: PiUserRuntimeSettingsReader = () => ({})
+let readPiUserRuntimeSettings = readNoPiUserSettings
+
+/** Installed by the Host, which can read Pi's settings. Returns the function that removes it. */
+export function configurePiUserRuntimeSettingsReader(reader: PiUserRuntimeSettingsReader) {
+  readPiUserRuntimeSettings = reader
+  return () => {
+    if (readPiUserRuntimeSettings === reader) readPiUserRuntimeSettings = readNoPiUserSettings
+  }
+}
+
+function piUserRuntimeSettings(): PiUserRuntimeSettings {
+  try {
+    return readPiUserRuntimeSettings()
+  } catch {
+    return {}
+  }
+}
+
+function resolveCodemodeEnabled(raw: unknown, fallback: () => boolean | undefined) {
+  return typeof raw === 'boolean' ? raw : (fallback() ?? DEFAULT_SETTINGS.codemodeEnabled)
+}
+
+function resolveCacheWarming(
+  raw: unknown,
+  fallback: () => Settings['cacheWarming'] | undefined,
+): Settings['cacheWarming'] {
   return typeof raw === 'string' && includes(PI_CACHE_WARMING_MODES, raw)
     ? raw
-    : DEFAULT_SETTINGS.cacheWarming
+    : (fallback() ?? DEFAULT_SETTINGS.cacheWarming)
 }
 
 function storedValue(storedSettings: Readonly<Record<string, unknown>>, key: string) {
@@ -23,11 +56,20 @@ function storedValue(storedSettings: Readonly<Record<string, unknown>>, key: str
 }
 
 export function resolveStoredPiRuntimeSettings(storedSettings: Readonly<Record<string, unknown>>) {
+  let piUser: PiUserRuntimeSettings | undefined
+  const fromPi = () => {
+    piUser ??= piUserRuntimeSettings()
+    return piUser
+  }
   return {
     codemodeEnabled: resolveCodemodeEnabled(
       storedValue(storedSettings, SETTINGS_KEY_CODEMODE_ENABLED),
+      () => fromPi().codemodeEnabled,
     ),
-    cacheWarming: resolveCacheWarming(storedValue(storedSettings, SETTINGS_KEY_CACHE_WARMING)),
+    cacheWarming: resolveCacheWarming(
+      storedValue(storedSettings, SETTINGS_KEY_CACHE_WARMING),
+      () => fromPi().cacheWarming,
+    ),
   }
 }
 
@@ -36,11 +78,11 @@ export function resolveNextPiRuntimeSettings(current: Settings, partial: Partial
     codemodeEnabled:
       partial.codemodeEnabled === undefined
         ? current.codemodeEnabled
-        : resolveCodemodeEnabled(partial.codemodeEnabled),
+        : resolveCodemodeEnabled(partial.codemodeEnabled, () => current.codemodeEnabled),
     cacheWarming:
       partial.cacheWarming === undefined
         ? current.cacheWarming
-        : resolveCacheWarming(partial.cacheWarming),
+        : resolveCacheWarming(partial.cacheWarming, () => current.cacheWarming),
   }
 }
 
