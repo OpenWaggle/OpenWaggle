@@ -90,7 +90,9 @@ function fileFor(
   if (!file) {
     throw new McpConfigurationError({
       reason: 'validation',
-      message: 'A project is required for a project MCP file.',
+      message: context.roots(input).projectPath
+        ? 'This project is your home folder, so its .openwaggle/mcp.json is the global file. Change the server for every project instead.'
+        : 'A project is required for a project MCP file.',
     })
   }
   return file.path

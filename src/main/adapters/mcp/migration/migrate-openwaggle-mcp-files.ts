@@ -1,3 +1,4 @@
+import path from 'node:path'
 /**
  * The one-time, silent migration of OpenWaggle's pre-ADR-0048 MCP files to
  * Pi's entry format (ADR 0048, "One-time silent migration").
@@ -214,6 +215,11 @@ export async function migrateOpenWaggleMcpFiles(
   ]
   const projects = knownProjects(input, state)
   for (const projectPath of projects) {
+    // A project that is the home folder has the global file as its project file; it is migrated once.
+    if (
+      path.resolve(projectMcpPaths(projectPath).openwaggle) === path.resolve(paths.openwaggleGlobal)
+    )
+      continue
     files.push(
       await migrator.run({
         path: projectMcpPaths(projectPath).openwaggle,

@@ -187,6 +187,22 @@ describe('migrating Pi copies in ~/.openwaggle/mcp.json', () => {
     expect(globalServers(fs)).toEqual({})
   })
 
+  it('migrates the global file once when a project is the home folder', async () => {
+    const fs = connectedFs({
+      [PI_GLOBAL]: { mcpServers: { tools: { command: 'tools-mcp', args: ['--stdio'] } } },
+      [OPENWAGGLE_GLOBAL]: { mcpServers: { own: { command: 'own-mcp' } } },
+    })
+
+    const report = await migrateOpenWaggleMcpFiles({
+      homeDir: HOME,
+      projectPaths: [HOME],
+      now: () => NOW,
+      fs,
+    })
+
+    expect(report.files.map((file) => file.path)).toEqual([OPENWAGGLE_GLOBAL])
+  })
+
   it('keeps servers that connected on and turns off every server that did not', async () => {
     const fs = memoryFs({
       [PI_GLOBAL]: {

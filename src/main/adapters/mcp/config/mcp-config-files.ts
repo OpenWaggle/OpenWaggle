@@ -28,8 +28,22 @@ function location(fileId: McpConfigFileId, filePath: string): McpConfigFileLocat
   return { fileId, path: filePath, scope: mcpConfigFileScope(fileId) }
 }
 
-/** The ADR 0048 file set in precedence order, lowest first. */
+/**
+ * The ADR 0048 file set in precedence order, lowest first. A file reached twice (a project that
+ * is the home folder has `~/.openwaggle/mcp.json` as its project file) is read once, in its first
+ * place.
+ */
 export function mcpConfigFileLocations(roots: McpConfigFileRoots): McpConfigFileLocation[] {
+  const seen = new Set<string>()
+  return allLocations(roots).filter((file) => {
+    const key = path.resolve(file.path)
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
+
+function allLocations(roots: McpConfigFileRoots): McpConfigFileLocation[] {
   const global = [
     location('pi-global', path.join(roots.piAgentDir, MCP_FILE_NAME)),
     location('openwaggle-global', path.join(roots.homeDir, '.openwaggle', MCP_FILE_NAME)),

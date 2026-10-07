@@ -115,3 +115,34 @@ describe('switching a server for one project', () => {
     expect(result).toContain('is a global file')
   })
 })
+
+describe('a project that is the home folder', () => {
+  it('reads ~/.openwaggle/mcp.json once, as the global file', async () => {
+    write(owGlobal(), { mcpServers: { fs: { command: 'fs' } } })
+
+    const view = await Effect.runPromise(service().getView({ projectPath: homeDir }))
+
+    expect(
+      view.files.filter((file) => file.path === owGlobal()).map((file) => file.fileId),
+    ).toEqual(['openwaggle-global'])
+    expect(view.servers.map((server) => [server.name, server.source.fileId])).toEqual([
+      ['fs', 'openwaggle-global'],
+    ])
+    expect(view.errors).toEqual([])
+  })
+
+  it('refuses a per-project write to the file that is also the global file', async () => {
+    write(piGlobal(), { mcpServers: { fs: { command: 'fs' } } })
+
+    const result = await failure(
+      service().setServerEnabled({
+        projectPath: homeDir,
+        name: 'fs',
+        enabled: false,
+        target: 'project',
+      }),
+    )
+
+    expect(result).toContain('home folder')
+  })
+})
