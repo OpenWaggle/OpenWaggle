@@ -46,6 +46,37 @@ describe('createModelPickerComponent', () => {
     expect(done).toHaveBeenCalledWith('openai/omega')
   })
 
+  it('keeps spaces typed into the search, plain and Kitty-encoded', () => {
+    const { component } = createComponent()
+
+    for (const key of ['o', 'm', 'e', 'g', 'a', ' ', 'M', '\u001b[32u', 'o']) {
+      component.handleInput(key)
+    }
+
+    expect(component.render(120)[1]).toBe('Search: omega M o')
+  })
+
+  it('fits a short fullscreen terminal, keeping its details and key help visible', () => {
+    const component = createModelPickerComponent({
+      items: Array.from({ length: 20 }, (_, index) => ({
+        provider: 'p',
+        id: `m${String(index)}`,
+        name: `Model ${String(index)}`,
+        reference: `p/m${String(index)}`,
+      })),
+      currentModelReference: null,
+      done: vi.fn(),
+      requestRender: vi.fn(),
+      availableRows: () => 14,
+    })
+
+    const rendered = component.render(60)
+
+    expect(rendered).toHaveLength(14)
+    expect(rendered).toContain('Reference: p/m0')
+    expect(rendered.at(-1)).toContain('enter pin model')
+  })
+
   it('reserves stable blank slots for the full result window', () => {
     const { component } = createComponent()
 
