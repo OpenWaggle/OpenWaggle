@@ -1,102 +1,21 @@
-import { useMcpSectionController } from '@/features/settings/hooks/useMcpSectionController'
-import { usePreferences } from '@/features/settings/hooks/useSettings'
-import { projectName } from '@/shared/lib/format'
-import { McpCapabilitiesPanel } from './McpCapabilitiesPanel'
-import { McpCatalogPanel } from './McpCatalogPanel'
-import { McpMigrationPanel } from './McpMigrationPanel'
-import { McpProjectControl } from './McpProjectControl'
-import {
-  McpDoctorPanel,
-  McpErrorAlert,
-  McpNoticesPanel,
-  McpSecretVault,
-  McpSectionHeading,
-  McpServersPanel,
-  McpSourcesPanel,
-} from './McpSectionPanels'
-import { McpSourceEditor } from './McpSourceEditor'
+import { Network } from 'lucide-react'
 
-interface McpSectionProps {
-  readonly sessionId: string | null
-}
-
-export function McpSection({ sessionId }: McpSectionProps) {
-  const { settings } = usePreferences()
-  const controller = useMcpSectionController(settings.projectPath, sessionId)
-  const sources = controller.view?.sources ?? []
-  const servers = controller.view?.servers ?? []
-  const projectLabel = (projectPath: string) =>
-    settings.projectDisplayNames[projectPath]?.trim() || projectName(projectPath)
-
+/**
+ * Placeholder while MCP moves onto Pi's built-in MCP runtime (ADR 0048). The previous Settings >
+ * MCP panels drove OpenWaggle's own MCP client, which is gone; the new panels are rebuilt over
+ * the Host's MCP configuration operations.
+ */
+export function McpSection() {
   return (
-    <div className="space-y-6">
-      <McpSectionHeading
-        view={controller.view}
-        busy={controller.busy}
-        onRefresh={() => void controller.refresh()}
-      />
-      <McpErrorAlert message={controller.error} />
-      <McpProjectControl
-        view={controller.view}
-        busy={controller.busy}
-        recentProjects={settings.recentProjects}
-        projectLabel={projectLabel}
-        onSetGlobal={(on) => void controller.setScopeState('global', on ? 'on' : 'off')}
-        onChanged={() => void controller.refresh()}
-      />
-      <McpNoticesPanel
-        notices={controller.view?.notices ?? []}
-        projectPath={settings.projectPath}
-      />
-      <McpMigrationPanel
-        projectPath={settings.projectPath}
-        settingsBusy={controller.busy}
-        onImported={controller.refresh}
-        autoScan={controller.view !== null && servers.length === 0}
-      />
-      <McpCatalogPanel
-        servers={servers}
-        busy={controller.busy}
-        onInstall={(name) => void controller.installCatalogServer(name)}
-      />
-      <McpServersPanel
-        servers={servers}
-        busy={controller.busy}
-        onToggleServer={(server) => void controller.toggleServer(server)}
-        onTrustServer={(server, trusted, allowUnsandboxed) =>
-          void controller.setServerTrust(server, trusted, allowUnsandboxed)
-        }
-        onRemoveServer={(server) => void controller.removeServer(server)}
-        onAuthorizeServer={(server) => void controller.authorizeServer(server)}
-        onLogoutServer={(server) => void controller.logoutServer(server)}
-      />
-      <McpCapabilitiesPanel
-        projectPath={settings.projectPath}
-        sessionId={sessionId}
-        enabled={controller.view?.integration.desired.effective === 'on'}
-        servers={servers}
-      />
-      <McpSourcesPanel
-        sources={sources}
-        selectedSource={controller.selectedSource}
-        projectPath={settings.projectPath}
-        onSelectSource={controller.selectSource}
-      />
-      <McpSourceEditor
-        selectedSource={controller.selectedSource}
-        projectPath={settings.projectPath}
-        rawJson={controller.rawJson}
-        busy={controller.busy}
-        onSave={() => void controller.saveSelectedSource()}
-        onRawJsonChange={controller.updateRawJson}
-      />
-      <McpSecretVault
-        secrets={controller.secrets}
-        busy={controller.busy}
-        onSave={controller.saveSecret}
-        onRemove={(name) => void controller.removeSecret(name)}
-      />
-      <McpDoctorPanel doctor={controller.doctor} />
+    <div className="space-y-2">
+      <div className="flex items-center gap-2">
+        <Network className="size-5 text-accent" />
+        <h2 className="text-xl font-semibold text-text-primary">MCP</h2>
+      </div>
+      <p className="max-w-190 text-xs leading-5 text-text-tertiary">
+        MCP servers are moving to a new runtime. Server settings return here in a later build; until
+        then, sessions do not use MCP tools.
+      </p>
     </div>
   )
 }

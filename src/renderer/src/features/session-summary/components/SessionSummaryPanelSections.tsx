@@ -11,12 +11,10 @@ import {
   ResourceSummarySection,
   SessionChangeRequestsSection,
 } from './SessionSummarySections'
-import { SessionSummarySubscriptions } from './SessionSummarySubscriptions'
 import type { SessionSummaryHubInput } from './session-summary-hub-types'
 import type { SessionSummaryHubController } from './use-session-summary-hub-controller'
 
 const SESSION_SUMMARY_SECTION_IDENTITIES = [
-  { id: 'subscriptions', label: 'Subscriptions' },
   { id: 'environment', label: 'Environment' },
   { id: 'actions', label: 'Actions' },
   { id: 'preparation', label: 'Workspace preparation' },
@@ -74,15 +72,6 @@ export function createSessionSummaryPanelSections(context: SessionSummarySection
   const { disclosures, git, resources } = controller
 
   return composeSections({
-    subscriptions: (
-      <SessionSummarySubscriptions
-        sessionId={session.id}
-        projectPath={session.projectPath}
-        visible={controller.panel.visible}
-        expanded={disclosures.subscriptions.expanded}
-        onExpandedChange={disclosures.subscriptions.setExpanded}
-      />
-    ),
     preparation: session.projectPath ? (
       <WorkspacePreparationStatus
         key={session.id}

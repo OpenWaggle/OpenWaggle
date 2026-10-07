@@ -1,10 +1,5 @@
 import { AppBridge, PostMessageTransport } from '@modelcontextprotocol/ext-apps/app-bridge'
-import {
-  CallToolResultSchema,
-  ListPromptsResultSchema,
-  ListResourcesResultSchema,
-  ReadResourceResultSchema,
-} from '@modelcontextprotocol/sdk/types.js'
+import { CallToolResultSchema, ReadResourceResultSchema } from '@modelcontextprotocol/sdk/types.js'
 import { decodeUnknownOrThrow } from '@shared/schema'
 import { mcpConfigValueSchema } from '@shared/schemas/mcp'
 import type { McpAppDescriptor, McpAppToolCallResult, McpJsonValue } from '@shared/types/mcp'
@@ -18,6 +13,8 @@ import type { ParsedMcpAppResource } from './mcp-app-resource'
 
 const JSON_INDENT_SPACES = 2
 const MAX_FRAME_HEIGHT = 800
+const MCP_APP_LISTING_UNAVAILABLE =
+  "MCP Apps are moving to Pi's MCP runtime; listing a server's resources and prompts is unavailable."
 
 function jsonValue(value: unknown): McpJsonValue {
   const serialized = JSON.stringify(value)
@@ -109,21 +106,12 @@ function registerServerHandlers(bridge: AppBridge, input: McpAppBridgeInput) {
     })
     return ReadResourceResultSchema.parse({ contents: result.contents })
   }
+  // Resource and prompt listing went through OpenWaggle's own MCP client, which ADR 0048 removed.
   bridge.onlistresources = async () => {
-    const catalog = await api.listMcpCapabilities({
-      ...context,
-      serverInstanceId: input.descriptor.serverInstanceId,
-      serverConfigHash: input.descriptor.serverConfigHash,
-    })
-    return ListResourcesResultSchema.parse({ resources: catalog.resources })
+    throw new Error(MCP_APP_LISTING_UNAVAILABLE)
   }
   bridge.onlistprompts = async () => {
-    const catalog = await api.listMcpCapabilities({
-      ...context,
-      serverInstanceId: input.descriptor.serverInstanceId,
-      serverConfigHash: input.descriptor.serverConfigHash,
-    })
-    return ListPromptsResultSchema.parse({ prompts: catalog.prompts })
+    throw new Error(MCP_APP_LISTING_UNAVAILABLE)
   }
 }
 

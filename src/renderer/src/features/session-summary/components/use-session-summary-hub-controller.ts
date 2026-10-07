@@ -200,7 +200,6 @@ function useSessionSummaryResourceController(
 export function useSessionSummaryHubController(input: SessionSummaryHubInput) {
   const sessionId = input.session ? String(input.session.id) : 'none'
   const panel = useSessionSummaryPanelLifecycle(input, sessionId)
-  const subscriptions = usePersistedSummaryDisclosure(sessionId, 'subscriptions', true)
   const environment = usePersistedSummaryDisclosure(sessionId, 'environment', true)
   const changeRequests = usePersistedSummaryDisclosure(sessionId, 'change-requests', true)
   const outputs = usePersistedSummaryDisclosure(sessionId, 'outputs', false)
@@ -217,7 +216,7 @@ export function useSessionSummaryHubController(input: SessionSummaryHubInput) {
   return {
     sessionId,
     panel,
-    disclosures: { subscriptions, environment, changeRequests, outputs, sources },
+    disclosures: { environment, changeRequests, outputs, sources },
     git,
     resources,
   }
