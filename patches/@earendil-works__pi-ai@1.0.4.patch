@@ -1,5 +1,5 @@
 diff --git a/dist/api/openai-responses-shared.js b/dist/api/openai-responses-shared.js
-index f413fe5..e2bfed4 100644
+index f413fe5f2a1abcac39c38bbd4a77b38c349a5918..e2bfed419ee2d422708be7ebbc902f12380042d1 100644
 --- a/dist/api/openai-responses-shared.js
 +++ b/dist/api/openai-responses-shared.js
 @@ -177,7 +177,9 @@ export function convertResponsesMessages(model, context, allowedToolCallProvider
@@ -14,7 +14,7 @@ index f413fe5..e2bfed4 100644
                  }
                  else if (block.type === "text") {
 diff --git a/dist/api/openai-responses.d.ts b/dist/api/openai-responses.d.ts
-index 41267bd..7b431ba 100644
+index 41267bd50904069aa0879cc8634ea94bc1045236..704ac20ba0429b4408caaf7de149f2c52f93faa8 100644
 --- a/dist/api/openai-responses.d.ts
 +++ b/dist/api/openai-responses.d.ts
 @@ -1,5 +1,6 @@
@@ -26,7 +26,7 @@ index 41267bd..7b431ba 100644
  export interface OpenAIResponsesOptions extends StreamOptions {
      reasoningEffort?: "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
      reasoningSummary?: "auto" | "detailed" | "concise" | null;
-@@ -11,4 +12,9 @@ export interface OpenAIResponsesOptions extends StreamOptions {
+@@ -11,4 +12,11 @@ export interface OpenAIResponsesOptions extends StreamOptions {
   */
  export declare const stream: StreamFunction<"openai-responses", OpenAIResponsesOptions>;
  export declare const streamSimple: StreamFunction<"openai-responses", SimpleStreamOptions>;
@@ -34,11 +34,13 @@ index 41267bd..7b431ba 100644
 +    retryPolicy?: RetryPolicy;
 +    retryCallbacks?: RetryCallbacks;
 +}
++/** Whether a request is a Sign in with ChatGPT login rather than an OpenAI API key. */
++export declare function isChatGPTSignInRequest(model: Model<any>, apiKey: string | undefined): boolean;
 +export declare function compactResponses(model: Model<"openai-responses" | "azure-openai-responses" | "openai-codex-responses">, context: Context, options?: CompactResponsesOptions): Promise<CompactedResponse>;
  //# sourceMappingURL=openai-responses.d.ts.map
 \ No newline at end of file
 diff --git a/dist/api/openai-responses.js b/dist/api/openai-responses.js
-index 2a6b4e4..6b51e73 100644
+index 2a6b4e408498e33fd7685471559fbd4696755f0a..0e82f7e90c54538ef4369660ac9c7b7593340f9f 100644
 --- a/dist/api/openai-responses.js
 +++ b/dist/api/openai-responses.js
 @@ -6,13 +6,15 @@ import { headersToRecord } from "../utils/headers.js";
@@ -58,7 +60,18 @@ index 2a6b4e4..6b51e73 100644
  // OpenAI Responses rejects max_output_tokens below 16: https://github.com/earendil-works/pi/issues/6265
  const OPENAI_RESPONSES_MIN_OUTPUT_TOKENS = 16;
  const CHATGPT_USAGE_URL = "https://chatgpt.com/settings/usage";
-@@ -43,6 +45,24 @@ function getClientApiKey(provider, apiKey, headers) {
+@@ -20,6 +22,10 @@ const CHATGPT_USAGE_URL = "https://chatgpt.com/settings/usage";
+  * OpenAI API keys start with `sk-`; a different credential sent directly to OpenAI
+  * is a Sign in with ChatGPT access token.
+  */
++/** Whether a request is a Sign in with ChatGPT login rather than an OpenAI API key. */
++export function isChatGPTSignInRequest(model, apiKey) {
++    return isChatGPTSignIn(model, apiKey);
++}
+ function isChatGPTSignIn(model, apiKey) {
+     return (model.provider === "openai" &&
+         model.baseUrl === "https://api.openai.com/v1" &&
+@@ -43,6 +49,24 @@ function getClientApiKey(provider, apiKey, headers) {
          return "unused";
      throw new Error(`No API key for provider: ${provider}`);
  }
@@ -83,7 +96,7 @@ index 2a6b4e4..6b51e73 100644
  function detectSessionAffinityFormat(model) {
      return model.provider === "openrouter" || model.baseUrl.includes("openrouter.ai") ? "openrouter" : "openai";
  }
-@@ -61,6 +81,7 @@ function resolveCacheRetention(cacheRetention, env) {
+@@ -61,6 +85,7 @@ function resolveCacheRetention(cacheRetention, env) {
  }
  function getCompat(model) {
      return {
@@ -91,7 +104,7 @@ index 2a6b4e4..6b51e73 100644
          supportsDeveloperRole: model.compat?.supportsDeveloperRole ?? true,
          supportsMidConvoSystemMessages: model.compat?.supportsMidConvoSystemMessages ?? false,
          sessionAffinityFormat: model.compat?.sessionAffinityFormat ?? detectSessionAffinityFormat(model),
-@@ -187,7 +208,52 @@ export const streamSimple = (model, context, options) => {
+@@ -187,7 +212,52 @@ export const streamSimple = (model, context, options) => {
          reasoningEffort,
      });
  };
@@ -119,7 +132,7 @@ index 2a6b4e4..6b51e73 100644
 +        instructions: getCurrentSystemPrompt(transcript.messages) || undefined,
 +        prompt_cache_key: cacheRetention === "none" ? undefined : clampOpenAIPromptCacheKey(options?.sessionId),
 +        // Sign in with ChatGPT rejects this request field, as it does for streamed responses.
-+        prompt_cache_retention: isChatGPTSignIn(model, apiKey) ? undefined : getPromptCacheRetention(compat, cacheRetention),
++        prompt_cache_retention: isChatGPTSignIn(model, options?.apiKey) ? undefined : getPromptCacheRetention(compat, cacheRetention),
 +    };
 +    const nextParams = await options?.onPayload?.(params, model);
 +    if (nextParams !== undefined) {
@@ -145,7 +158,7 @@ index 2a6b4e4..6b51e73 100644
      const compat = getCompat(model);
      const headers = { "User-Agent": getPiUserAgent(), ...model.headers };
      if (model.provider === "github-copilot") {
-@@ -213,9 +279,21 @@ function createClient(model, context, apiKey, optionsHeaders, fetch, sessionId)
+@@ -213,9 +283,21 @@ function createClient(model, context, apiKey, optionsHeaders, fetch, sessionId)
      if (optionsHeaders) {
          Object.assign(headers, optionsHeaders);
      }
@@ -169,7 +182,7 @@ index 2a6b4e4..6b51e73 100644
          fetch,
          defaultHeaders: headers,
 diff --git a/dist/providers/openai-codex.models.js b/dist/providers/openai-codex.models.js
-index 9a584e7..a191f7d 100644
+index 9a584e73fefc749226d29f78000564b41cf214bb..a191f7d14f8aa84be7d4065010d675a0930a31ce 100644
 --- a/dist/providers/openai-codex.models.js
 +++ b/dist/providers/openai-codex.models.js
 @@ -2,7 +2,29 @@
@@ -205,7 +218,7 @@ index 9a584e7..a191f7d 100644
  //# sourceMappingURL=openai-codex.models.js.map
 \ No newline at end of file
 diff --git a/dist/providers/openai.models.js b/dist/providers/openai.models.js
-index d1a99cf..34cc4ca 100644
+index d1a99cf32531f99472ad88352fb4c329132a335b..34cc4ca5343eed7078d6cb27854d95a14dcb5d82 100644
 --- a/dist/providers/openai.models.js
 +++ b/dist/providers/openai.models.js
 @@ -2,7 +2,11 @@
@@ -223,7 +236,7 @@ index d1a99cf..34cc4ca 100644
  //# sourceMappingURL=openai.models.js.map
 \ No newline at end of file
 diff --git a/dist/types.d.ts b/dist/types.d.ts
-index 252d3bb..c0128f6 100644
+index 252d3bbc9792d80b1ae4574ba52ffae2509312cb..c0128f6cb4e548069822065404269ef6f779f823 100644
 --- a/dist/types.d.ts
 +++ b/dist/types.d.ts
 @@ -690,6 +690,10 @@ export interface OpenAICompletionsCompat {
@@ -238,7 +251,7 @@ index 252d3bb..c0128f6 100644
      supportsDeveloperRole?: boolean;
      /** Whether the exact model accepts developer or system messages after the conversation has started. When false, later system messages are folded into the leading system message. Default: false; the generated model catalog enables it for verified models. */
 diff --git a/dist/utils/provider-retry.d.ts b/dist/utils/provider-retry.d.ts
-index 1872cd2..4fab69c 100644
+index 1872cd204eba7d413f452ccc747fa28a920b3ac7..4fab69c6db737275bfc951b974b0b1fbb00bedc6 100644
 --- a/dist/utils/provider-retry.d.ts
 +++ b/dist/utils/provider-retry.d.ts
 @@ -1,7 +1,11 @@
@@ -254,7 +267,7 @@ index 1872cd2..4fab69c 100644
  /**
   * Reproduce the retry behavior used by the OpenAI and Anthropic SDKs while making
 diff --git a/dist/utils/provider-retry.js b/dist/utils/provider-retry.js
-index 5c7fb71..a56ecfa 100644
+index 5c7fb7195f09ce5719a7bd60636d431de65cba26..a56ecfa5507b31ff7e8b5bce523ee9adccfe623a 100644
 --- a/dist/utils/provider-retry.js
 +++ b/dist/utils/provider-retry.js
 @@ -1,3 +1,4 @@
@@ -319,7 +332,7 @@ index 5c7fb71..a56ecfa 100644
      }
  }
 diff --git a/dist/utils/retry.d.ts b/dist/utils/retry.d.ts
-index f59c2ec..35d05a8 100644
+index f59c2eca472e81072afe7eddf87c5823cffe50eb..35d05a8678dfffc4a2c0b8df366070cd15427666 100644
 --- a/dist/utils/retry.d.ts
 +++ b/dist/utils/retry.d.ts
 @@ -55,4 +55,8 @@ export declare function retryAssistantCall(produce: () => Promise<AssistantMessa
@@ -333,7 +346,7 @@ index f59c2ec..35d05a8 100644
  //# sourceMappingURL=retry.d.ts.map
 \ No newline at end of file
 diff --git a/dist/utils/retry.js b/dist/utils/retry.js
-index d3cb8e1..1d7bed0 100644
+index d3cb8e1ccbc38d5b91f9911dd4ee5692183b945f..1d7bed0cc148033bb9caecc286d66df954c1bbe0 100644
 --- a/dist/utils/retry.js
 +++ b/dist/utils/retry.js
 @@ -186,8 +186,13 @@ export async function retryAssistantCall(produce, policy, signal, callbacks) {

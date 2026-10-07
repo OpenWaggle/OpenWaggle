@@ -1087,7 +1087,7 @@ index 04416da43184fce4dc2fc33afeb920e2edddedc9..b90908774b8ba2116736f3ef76a1f9bb
  //# sourceMappingURL=compaction.d.ts.map
 \ No newline at end of file
 diff --git a/dist/core/compaction/compaction.js b/dist/core/compaction/compaction.js
-index e4992e8d2bff8aa6d2a4b044c9cf571d9e7f2fa2..fe1c08191e639090d199fe97df51a63b49a692ea 100644
+index e4992e8d2bff8aa6d2a4b044c9cf571d9e7f2fa2..cffebc371c8a9dccf6ac6d3a331ce507bf1a8a46 100644
 --- a/dist/core/compaction/compaction.js
 +++ b/dist/core/compaction/compaction.js
 @@ -4,10 +4,11 @@
@@ -1096,7 +1096,7 @@ index e4992e8d2bff8aa6d2a4b044c9cf571d9e7f2fa2..fe1c08191e639090d199fe97df51a63b
   */
 -import { contentText, getCurrentSystemMessage, normalizeContext, retryAssistantCall, uuidv7, } from "@earendil-works/pi-ai";
 +import { calculateCost, contentText, getCurrentSystemMessage, normalizeContext, retryAssistantCall, uuidv7, } from "@earendil-works/pi-ai";
-+import { compactResponses } from "@earendil-works/pi-ai/api/openai-responses";
++import { compactResponses, isChatGPTSignInRequest } from "@earendil-works/pi-ai/api/openai-responses";
  import { completeSimple } from "@earendil-works/pi-ai/compat";
  import { convertToLlm } from "../messages.js";
 -import { buildSessionProjection, sessionEntryToContextMessages, } from "../session-manager.js";
@@ -1431,7 +1431,7 @@ index e4992e8d2bff8aa6d2a4b044c9cf571d9e7f2fa2..fe1c08191e639090d199fe97df51a63b
  // ============================================================================
  // Main compaction function
  // ============================================================================
-@@ -673,7 +684,110 @@ Create a concise checkpoint of the user's request and the progress shown above.
+@@ -673,7 +684,118 @@ Create a concise checkpoint of the user's request and the progress shown above.
  ## Context Needed to Continue
  - [Information from these messages needed to understand the later work]
  
@@ -1535,15 +1535,23 @@ index e4992e8d2bff8aa6d2a4b044c9cf571d9e7f2fa2..fe1c08191e639090d199fe97df51a63b
 +    return isRecord(item) && (isNativeCompactionItem(item) || isNativeReplacementMessage(item));
 +}
 +const NATIVE_ENDPOINT_UNAVAILABLE_STATUSES = new Set([404, 405, 501]);
-+function isNativeEndpointUnavailable(error) {
-+    return (isRecord(error) &&
-+        typeof error.status === "number" &&
-+        NATIVE_ENDPOINT_UNAVAILABLE_STATUSES.has(error.status));
++/**
++ * A Sign in with ChatGPT token is a subscription credential the public Responses Compaction
++ * endpoint may refuse. A refusal means this login cannot compact natively, not that the request is
++ * wrong, so it falls back to the portable mechanism, which uses the same credential and still
++ * surfaces a genuine authentication failure.
++ */
++const CHATGPT_SIGN_IN_REFUSED_STATUSES = new Set([400, 401, 403]);
++function isNativeEndpointUnavailable(error, model, apiKey) {
++    if (!isRecord(error) || typeof error.status !== "number")
++        return false;
++    return (NATIVE_ENDPOINT_UNAVAILABLE_STATUSES.has(error.status) ||
++        (CHATGPT_SIGN_IN_REFUSED_STATUSES.has(error.status) && isChatGPTSignInRequest(model, apiKey)));
 +}
  /**
   * Generate summaries for compaction using prepared data.
   * Returns CompactionResult - SessionManager adds uuid/parentUuid when saving.
-@@ -682,8 +796,72 @@ Only summarize information explicitly present above. Do not infer or recreate la
+@@ -682,8 +804,72 @@ Only summarize information explicitly present above. Do not infer or recreate la
   * @param customInstructions - Optional custom focus for the summary
   * @param sessionId - Optional routing session ID forwarded without enabling prompt caching
   */
@@ -1603,7 +1611,7 @@ index e4992e8d2bff8aa6d2a4b044c9cf571d9e7f2fa2..fe1c08191e639090d199fe97df51a63b
 +            };
 +        }
 +        catch (error) {
-+            if (signal?.aborted || !isNativeEndpointUnavailable(error) || !preparation.portableFallback) {
++            if (signal?.aborted || !isNativeEndpointUnavailable(error, model, apiKey) || !preparation.portableFallback) {
 +                throw error;
 +            }
 +            selectedPreparation = transformPreparation
@@ -1618,7 +1626,7 @@ index e4992e8d2bff8aa6d2a4b044c9cf571d9e7f2fa2..fe1c08191e639090d199fe97df51a63b
      // Generate summaries and merge into one
      let summary;
      let summaryUsage;
-@@ -717,7 +895,13 @@ export async function compact(preparation, model, apiKey, headers, customInstruc
+@@ -717,7 +903,13 @@ export async function compact(preparation, model, apiKey, headers, customInstruc
          firstKeptEntryId,
          tokensBefore,
          usage: summaryUsage,
@@ -2450,3 +2458,4 @@ index c48934f78d61fd5f5f8008bc9e09d8c4558d330a..7ce07d11a573f8ac9db7820bebf6168e
 +export { getMcpToolExposure, isMcpToolName, mcpNamespace, validateMcpServerConfig } from "./core/mcp-servers.js";
 +export { resolveConfigValueOrThrow, resolveHeadersOrThrow } from "./core/resolve-config-value.js";
  //# sourceMappingURL=index.js.map
+\ No newline at end of file
