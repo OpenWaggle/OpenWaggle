@@ -20,6 +20,16 @@ Only add servers you trust. A server can run a program on your computer or send 
 
 The server connects the next time you send a message. **Recommended servers** installs Playwright MCP or Chrome DevTools MCP in one click.
 
+### From the MCP Registry
+
+The [MCP Registry](https://registry.modelcontextprotocol.io) lists published servers. Under **MCP Registry** in **Settings > MCP**, search by name, pick **All projects** or **This project**, and choose **Install**. When a server can run more than one way, for example as a hosted server at a URL or from an npm package, pick one first.
+
+Installing adds an ordinary entry to OpenWaggle's file, so the server then works like any other. A few details:
+
+- Packages are pinned to the exact version the Registry lists. Docker images are pinned to the image Docker downloaded.
+- MCP bundles (`.mcpb`) are downloaded, checked against the checksum the Registry publishes, and unpacked under `~/.openwaggle/mcp/registry-cache`. A bundle that fails the check installs nothing.
+- If the server needs an API key or token, the entry refers to a secret by name (see [Secrets](#secrets)). OpenWaggle tells you which ones to add; the server does not start until they exist.
+
 To bring servers over from another app, choose **Import**. OpenWaggle reads Codex, Claude's desktop and command-line apps, Cursor, VS Code, OpenCode, Zed, and Windsurf, shows what it found, and adds the servers you pick to OpenWaggle's file. Servers you configured for Pi do not need importing; OpenWaggle reads Pi's files directly.
 
 ## Where servers are configured
@@ -140,6 +150,8 @@ Open **Settings > MCP** and select the server. Its error and the last lines it p
 
 Files that cannot be read and entries that are not valid are listed at the top of **Settings > MCP**; other servers keep working.
 
+`openwaggle mcp doctor` prints the same in a terminal: which of the five files exist, the errors found in them, and each server's state with the last lines it printed. It connects to every enabled server to check it. Add `--local` to include the current project's files, or `--json` for a machine-readable report.
+
 MCP versions from `2024-11-05` to `2025-11-25` are supported. Servers that only speak a newer or older version cannot connect yet.
 
 ## Command line
@@ -155,9 +167,13 @@ openwaggle mcp disable docs
 openwaggle mcp login sentry
 openwaggle mcp import --from codex,cursor
 openwaggle mcp import --from codex,cursor --apply
+openwaggle mcp registry search weather
+openwaggle mcp registry add io.github.example/weather
+openwaggle mcp registry add --local io.github.example/weather --package npm --name forecast
+openwaggle mcp doctor --local
 ```
 
-New servers go to `~/.openwaggle/mcp.json`, or to `.openwaggle/mcp.json` in the current project with `--local`. The project must already be open in OpenWaggle. `mcp import` lists what it found; add `--apply` to import it.
+New servers go to `~/.openwaggle/mcp.json`, or to `.openwaggle/mcp.json` in the current project with `--local`. The project must already be open in OpenWaggle. `mcp import` lists what it found; add `--apply` to import it. `mcp registry add` connects to the server's hosted URL when it has one; `--package npm`, `pypi`, `nuget`, `oci`, or `mcpb` picks a package instead, and `--name` changes the name it gets.
 
 ## OpenWaggle as an MCP server
 

@@ -43,8 +43,9 @@ Pi AgentSession (one per Run, disposed by withPiSession)
 | `src/main/adapters/mcp/pool/` | adapter | Pooled connections, leases, handshake cache, id remapping, lifecycle (idle, LRU, archive, Host stop), upstream transports. |
 | `src/main/adapters/mcp/migration/` | adapter | The one-time silent migration of OpenWaggle's pre-ADR-0048 files. |
 | `src/main/adapters/mcp/import/` | adapter | Import from tools that are not read live (Codex, Claude Desktop, Cursor, VS Code, OpenCode, Zed). |
+| `src/main/adapters/mcp/registry/` | adapter | MCP Registry search and install: package launchers, OCI digest pinning, verified MCPB bundles. |
 | `src/main/adapters/pi/mcp/` | Pi adapter | The extension factories every Pi session loads, the companion extension, approval, interactions. |
-| `src/main/ports/mcp-*.ts` | ports | `McpConfigService`, `McpConnectionPool`, `McpSecretVaultService`. |
+| `src/main/ports/mcp-*.ts` | ports | `McpConfigService`, `McpConnectionPool`, `McpSecretVaultService`, `McpRegistryService`. |
 | `src/main/application/mcp-*.ts` | application | Settings and CLI operations over the ports. |
 | `src/renderer/src/features/settings/.../mcp/` | renderer | Settings > MCP, a thin view over the Host's data. |
 | `src/renderer/src/features/mcp/` | renderer | The MCP App host (`McpAppHost`) and its bridge. |
@@ -119,7 +120,7 @@ off gets no servers, and an allowlist drops every server it does not name. Neith
 | --- | --- |
 | Enable/disable, exposure, tool exposure of an existing server | The entry's `override` if it has one, else its `source`. |
 | Enable/disable a global server for one project | Override-only entry in `<project>/.openwaggle/mcp.json`. |
-| New server (Settings add, catalog install, import) | `~/.openwaggle/mcp.json` or `<project>/.openwaggle/mcp.json` by scope, unless the user picks another file. |
+| New server (Settings add, catalog install, Registry install, import) | `~/.openwaggle/mcp.json` or `<project>/.openwaggle/mcp.json` by scope, unless the user picks another file. |
 | Remove server | The defining file (and its OpenWaggle override, if any). |
 | Session-level MCP off | Session state in the Host. No file. |
 
@@ -130,6 +131,34 @@ they were. Pi's own writer re-serializes the whole file, so it is not used. `ena
 `exposure: "codemode"` remove the key in full entries, as Pi does; overrides keep explicit
 values. Pi's `updateConfig` option calls the same writer, so `/mcp` changes made inside a Run
 land in the same place as Settings changes.
+
+## Registry Install
+
+Settings > MCP and `openwaggle mcp registry` search the MCP Registry
+(`registry.modelcontextprotocol.io`, `/v0.1/servers`) and install a server through the Host
+channels `mcp:search-registry`, `mcp:get-registry-server`, and `mcp:install-registry-server`
+(Host UI revision 22). `McpRegistryService.prepareEntry` turns one Registry server into an
+ordinary Pi entry, and the application operation saves it with `McpConfigurationService.addServer`
+to OpenWaggle's file for the chosen scope. A name already configured in any file (with Pi's
+`-`/`_` equivalence) is refused rather than shadowed.
+
+| Registry option | Pi entry |
+| --- | --- |
+| Remote `streamable-http` / `sse` | `url`, plus `"type": "sse"` for SSE. URLs with `{variables}` are not offered. |
+| `npm` / `pypi` / `nuget` | `npx --yes <id>@<version>`, `uvx <id>==<version>`, `dnx <id>@<version> --yes`. Exact versions only. |
+| `oci` | `docker run --rm -i [-e NAME]… <repo>@sha256:…`, the digest Docker reports after `docker pull`. No Docker options from the Registry. |
+| `mcpb` | Downloaded from a GitHub/GitLab release URL, SHA-256 checked, unpacked into `~/.openwaggle/mcp/registry-cache/mcpb/<sha256>` (paths, symlinks, sizes bounded); `command`/`args` from the manifest, `cwd` = the bundle. |
+
+Without a chosen method the hosted URL wins, then the first stdio package. Declared secrets (and
+values without a default) become `{ "secret": NAME }` references, which is why the install only
+writes OpenWaggle's files; the result lists them so the UI can ask for them. Registry and
+manifest literals are escaped (`$` → `$$`, leading `!` → `$!`) so Pi never reads them as `${VAR}`
+or `!command`. Downloads go through the hardened fetch with size and time bounds. Nothing about
+the Registry is written into the entry except `description`.
+
+`openwaggle mcp doctor` composes `mcp:get-configuration` and `mcp:inspect-server`: the files and
+which exist, the errors Pi reports for them, and every enabled server's state with its stderr
+tail.
 
 ## Credentials
 
