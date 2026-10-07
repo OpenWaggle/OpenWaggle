@@ -1,4 +1,4 @@
-import { MCP_CATALOG_SERVERS } from '@shared/constants/mcp'
+import { USAGE_STATISTICS_CATALOG_MCP_SERVERS } from '@shared/usage-statistics/catalog.generated'
 import { describe, expect, it } from 'vitest'
 import { usageStatisticsMcpServerIdentifier } from '../usage-statistics-mcp'
 import {
@@ -83,30 +83,22 @@ describe('Usage statistics Run mapping', () => {
 })
 
 describe('Usage statistics MCP server identifiers', () => {
-  const catalog = MCP_CATALOG_SERVERS[0]
+  const catalog = USAGE_STATISTICS_CATALOG_MCP_SERVERS[0]
 
-  it('names a server installed from the curated catalog', () => {
+  it('names the curated catalog server a Pi MCP tool belongs to', () => {
     expect(catalog).toBeDefined()
     if (!catalog) return
-    expect(usageStatisticsMcpServerIdentifier(catalog)).toBe(catalog.name)
-    expect(
-      usageStatisticsMcpServerIdentifier({
-        name: catalog.name,
-        definition: { ...catalog.definition, provenance: { source: 'codex' } },
-      }),
-    ).toBe(catalog.name)
+    expect(usageStatisticsMcpServerIdentifier(`mcp__${catalog}__search`)).toBe(catalog)
   })
 
-  it('reports every other server as custom, even under a catalog name', () => {
-    expect(usageStatisticsMcpServerIdentifier({ name: 'acme-internal', definition: {} })).toBe(
-      'custom',
-    )
-    if (!catalog) return
-    expect(
-      usageStatisticsMcpServerIdentifier({
-        name: catalog.name,
-        definition: { command: 'node', args: ['./my-own-server.js'] },
-      }),
-    ).toBe('custom')
+  it('reports every other server as custom', () => {
+    expect(usageStatisticsMcpServerIdentifier('mcp__acme-internal__lookup')).toBe('custom')
+  })
+
+  it('ignores tools that are not MCP server tools', () => {
+    expect(usageStatisticsMcpServerIdentifier('bash')).toBeUndefined()
+    expect(usageStatisticsMcpServerIdentifier('mcp')).toBeUndefined()
+    expect(usageStatisticsMcpServerIdentifier('mcp__github')).toBeUndefined()
+    expect(usageStatisticsMcpServerIdentifier('mcp____tool')).toBeUndefined()
   })
 })

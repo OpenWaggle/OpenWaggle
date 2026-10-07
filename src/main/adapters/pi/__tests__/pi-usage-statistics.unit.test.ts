@@ -153,10 +153,12 @@ describe('Pi Usage statistics hooks', () => {
     observePiToolUseForUsageStatistics('read', { path: '/repo/.agents/skills/qa/SKILL.md' })
     observePiToolUseForUsageStatistics('read', { path: '/repo/src/index.ts' })
     observePiToolUseForUsageStatistics('bash', { command: 'ls' })
+    observePiToolUseForUsageStatistics('mcp__acme-internal__lookup', {})
 
     expect(recorded.observations).toEqual([
       { kind: 'feature', flag: 'browser_agent_driven' },
       { kind: 'skill', identifier: 'custom' },
+      { kind: 'mcp-server', identifier: 'custom' },
     ])
   })
 

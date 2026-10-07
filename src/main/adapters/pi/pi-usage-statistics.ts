@@ -1,7 +1,7 @@
 /**
  * Usage statistics hooks inside the Pi adapter. Pi details are reduced here to published values:
  * provider and model only when they are Pi built-in catalog identifiers, built-in skill names,
- * feature flags and token counts. Everything else becomes `custom` or is not recorded.
+ * curated MCP catalog server names, feature flags and token counts. Everything else becomes `custom` or is not recorded.
  *
  * Catalog identifiers come from src/shared/usage-statistics/catalog.generated.ts, the same file
  * the statistics endpoint enforces, so the app and the endpoint cannot disagree on what is
@@ -20,6 +20,7 @@ import { USAGE_STATISTICS_CUSTOM_IDENTIFIER } from '@shared/usage-statistics/con
 import { containsInlineVisualizationReference } from '@shared/utils/inline-visualization'
 import { includes, isRecord } from '@shared/utils/validation'
 import { getProjectPreferencesStrict } from '../../config/project-config'
+import { usageStatisticsMcpServerIdentifier } from '../../domain/usage-statistics/usage-statistics-mcp'
 import { isUsageStatisticsEnabled } from '../../usage-statistics/usage-statistics-enablement'
 import { recordUsageStatistics } from '../../usage-statistics/usage-statistics-recorder'
 import {
@@ -164,6 +165,11 @@ export function observePiToolUseForUsageStatistics(toolName: string, args: unkno
   if (!isUsageStatisticsEnabled()) return
   if (toolName.startsWith(BROWSER_PREVIEW_TOOL_PREFIX)) {
     recordUsageStatistics({ kind: 'feature', flag: 'browser_agent_driven' })
+    return
+  }
+  const mcpServer = usageStatisticsMcpServerIdentifier(toolName)
+  if (mcpServer) {
+    recordUsageStatistics({ kind: 'mcp-server', identifier: mcpServer })
     return
   }
   if (toolName !== READ_TOOL_NAME || !isRecord(args) || typeof args.path !== 'string') return
