@@ -9,6 +9,7 @@ import { McpAddServerForm } from './McpAddServerForm'
 import { McpCatalogPanel } from './McpCatalogPanel'
 import { McpImportPanel } from './McpImportPanel'
 import { McpInlineError } from './McpLabels'
+import { McpRegistryPanel } from './McpRegistryPanel'
 import { McpSecretsPanel } from './McpSecretsPanel'
 import { McpServerDetail } from './McpServerDetail'
 import { McpServerList } from './McpServerList'
@@ -110,6 +111,7 @@ export function McpServersPanel({ projectPath }: { readonly projectPath: string 
         )}
       </section>
       {view ? <McpCatalogPanel view={view} /> : null}
+      <McpRegistryPanel projectPath={projectPath} />
       <McpSecretsPanel />
     </div>
   )

@@ -1,7 +1,6 @@
 import { Network } from 'lucide-react'
 import { useResourceProject } from '@/features/settings/hooks/useResourceProject'
 import { ProjectPicker } from '@/shared/ui/ProjectPicker'
-import { McpRegistryPanel } from './mcp/McpRegistryPanel'
 import { McpServersPanel } from './mcp/McpServersPanel'
 
 /** Settings > MCP: a view over Pi's MCP files and servers, read and changed through the Host. */
@@ -36,7 +35,6 @@ export function McpSection() {
         </p>
       ) : null}
       <McpServersPanel key={project.projectPath} projectPath={project.projectPath} />
-      <McpRegistryPanel key={`registry:${project.projectPath}`} projectPath={project.projectPath} />
     </div>
   )
 }

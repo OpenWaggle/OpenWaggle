@@ -31,9 +31,7 @@ export function useMcpRegistry(projectPath: string | null) {
     onSuccess: async (result) => {
       setInstalled(result)
       queryClient.setQueryData(mcpQueryKeys.configuration(projectPath), result.view)
-      await queryClient.invalidateQueries({
-        queryKey: mcpQueryKeys.inspections(projectPath, result.name),
-      })
+      await queryClient.invalidateQueries({ queryKey: mcpQueryKeys.statuses(projectPath) })
     },
   })
   return {
