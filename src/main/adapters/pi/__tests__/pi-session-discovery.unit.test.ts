@@ -166,4 +166,46 @@ describe('Pi session discovery scanner', () => {
       ),
     ).toEqual([['in-sibling', outer]])
   })
+
+  it('finds the header past blank and malformed lines, as Pi does', async () => {
+    const project = path.join(root, 'app')
+    const directory = path.join(sessionsRoot, piSessionDirName(project))
+    await fs.mkdir(directory, { recursive: true })
+    const header = { type: 'session', version: 3, id: 'late-header', timestamp: '', cwd: project }
+    await fs.writeFile(
+      path.join(directory, 'late.jsonl'),
+      `\n{ truncated\n${JSON.stringify(header)}\n`,
+    )
+
+    const scanner = createPiSessionDiscoveryScanner({ sessionsRoot })
+    const found = await scanner.scan({ projectPaths: [project], isKnownFile: () => false })
+
+    expect(found.map((session) => session.piSessionId)).toEqual(['late-header'])
+  })
+
+  it('reads a headerless file again only after it changes', async () => {
+    const project = path.join(root, 'app')
+    const directory = path.join(sessionsRoot, piSessionDirName(project))
+    await fs.mkdir(directory, { recursive: true })
+    const file = path.join(directory, 'pending.jsonl')
+    const header = JSON.stringify({ type: 'session', id: 'abcd', timestamp: '', cwd: project })
+    await fs.writeFile(file, ' '.repeat(header.length + 1))
+    const unchanged = new Date('2026-01-01T00:00:00.000Z')
+    await fs.utimes(file, unchanged, unchanged)
+    const scanner = createPiSessionDiscoveryScanner({ sessionsRoot })
+    expect(await scanner.scan({ projectPaths: [project], isKnownFile: () => false })).toEqual([])
+
+    // Same size and modification time: the scanner trusts what it read before.
+    await fs.writeFile(file, `${header}\n`)
+    await fs.utimes(file, unchanged, unchanged)
+    expect(await scanner.scan({ projectPaths: [project], isKnownFile: () => false })).toEqual([])
+
+    const changed = new Date('2026-01-02T00:00:00.000Z')
+    await fs.utimes(file, changed, changed)
+    expect(
+      (await scanner.scan({ projectPaths: [project], isKnownFile: () => false })).map(
+        (session) => session.piSessionId,
+      ),
+    ).toEqual(['abcd'])
+  })
 })

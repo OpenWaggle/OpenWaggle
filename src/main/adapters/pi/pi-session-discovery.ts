@@ -18,7 +18,8 @@ import type { DiscoveredPiSession, PiSessionDiscoveryInput } from '../../ports/p
 
 /** How much of a new session file is read for its header, name, and first message. */
 const DISCOVERY_PREFIX_BYTES = 64 * 1024
-const FIRST_LINE_INDEX = 0
+/** Pi's own bound for finding a header past blank or malformed lines (`readSessionHeader`). */
+const MAX_HEADER_SCAN_BYTES = 1024 * 1024
 const PI_SESSION_FILE_SUFFIX = '.jsonl'
 /** Enough of the first message for a title, without remembering whole pasted prompts. */
 const MAX_REMEMBERED_MESSAGE_LENGTH = 1024
@@ -68,15 +69,43 @@ function parseLine(line: string): unknown {
   }
 }
 
-async function readPrefix(file: string) {
+/** The complete lines of the file's first `limit` bytes; a cut-off last line is dropped. */
+async function readLines(file: string, limit: number) {
   const handle = await open(file, 'r')
   try {
-    const buffer = Buffer.alloc(DISCOVERY_PREFIX_BYTES)
-    const { bytesRead } = await handle.read(buffer, 0, DISCOVERY_PREFIX_BYTES, 0)
-    return buffer.subarray(0, bytesRead).toString('utf8')
+    const buffer = Buffer.alloc(limit)
+    const { bytesRead } = await handle.read(buffer, 0, limit, 0)
+    const lines = buffer.subarray(0, bytesRead).toString('utf8').split('\n')
+    if (bytesRead === limit) lines.pop()
+    return { lines, complete: bytesRead < limit }
   } finally {
     await handle.close()
   }
+}
+
+type HeaderSearch =
+  | {
+      readonly kind: 'header'
+      readonly header: { readonly [key: string]: unknown }
+      readonly index: number
+    }
+  | { readonly kind: 'not-a-session' }
+  | { readonly kind: 'not-found' }
+
+/**
+ * Mirrors Pi's `readSessionHeader`: blank and malformed lines are skipped, and the first entry
+ * that parses decides. A session header makes the file a session; anything else means it is not.
+ */
+function findHeader(lines: readonly string[]): HeaderSearch {
+  for (const [index, line] of lines.entries()) {
+    const entry = parseLine(line)
+    if (entry === null) continue
+    if (isRecord(entry) && entry.type === 'session' && typeof entry.id === 'string') {
+      return { kind: 'header', header: entry, index }
+    }
+    return { kind: 'not-a-session' }
+  }
+  return { kind: 'not-found' }
 }
 
 function userMessageText(entry: { readonly [key: string]: unknown }) {
@@ -102,15 +131,15 @@ interface PiSessionPrefix {
   readonly firstUserMessage: string | null
 }
 
-function parsePrefix(text: string): PiSessionPrefix | null {
-  const lines = text.split('\n')
-  const header = parseLine(lines[FIRST_LINE_INDEX] ?? '')
-  if (!isRecord(header) || header.type !== 'session') return null
+function parsePrefix(lines: readonly string[]): PiSessionPrefix | null {
+  const search = findHeader(lines)
+  if (search.kind !== 'header') return null
+  const header = search.header
   if (typeof header.id !== 'string' || !header.id) return null
   if (typeof header.cwd !== 'string' || !header.cwd) return null
   let name: string | null = null
   let firstUserMessage: string | null = null
-  for (const line of lines.slice(FIRST_LINE_INDEX + 1)) {
+  for (const line of lines.slice(search.index + 1)) {
     const entry = parseLine(line)
     if (!isRecord(entry)) continue
     if (entry.type === 'session_info') {
@@ -127,15 +156,22 @@ function parsePrefix(text: string): PiSessionPrefix | null {
   }
 }
 
+/** The file's leading lines: 64 KiB, or up to Pi's 1 MiB header bound when no entry parsed. */
+async function readLeadingLines(file: string) {
+  const prefix = await readLines(file, DISCOVERY_PREFIX_BYTES)
+  if (prefix.complete || findHeader(prefix.lines).kind !== 'not-found') return prefix.lines
+  return (await readLines(file, MAX_HEADER_SCAN_BYTES)).lines
+}
+
 interface PiSessionFileHeader extends PiSessionPrefix {
   readonly createdAt: number
 }
 
-/** Null while the file has no complete Pi header yet (it may still be being written). */
+/** Null when the file is not a Pi session, or has no header yet (it may still be being written). */
 async function readHeader(file: string): Promise<PiSessionFileHeader | null> {
   try {
-    const [prefix, stats] = await Promise.all([readPrefix(file), stat(file)])
-    const parsed = parsePrefix(prefix)
+    const [lines, stats] = await Promise.all([readLeadingLines(file), stat(file)])
+    const parsed = parsePrefix(lines)
     if (!parsed) return null
     const createdAt = parsed.timestamp ? Date.parse(parsed.timestamp) : Number.NaN
     return {
@@ -167,7 +203,8 @@ async function readDirectoryNames(directory: string) {
 }
 
 /**
- * A file's header never changes, so the scanner reads each file once and remembers it. A file of
+ * A file's header never changes, so the scanner reads each file once and remembers it, and a file
+ * without one is read again only after it changes. A file of
  * a sibling directory that shares the project's prefix, or of a session OpenWaggle lists under
  * another path, is then never read again; a project added later is matched against what is
  * already known.
@@ -176,12 +213,24 @@ export function createPiSessionDiscoveryScanner(
   options: { readonly sessionsRoot?: string } = {},
 ): PiSessionDiscoveryScanner {
   const headers = new Map<string, PiSessionFileHeader>()
+  /** Files without a Pi header, by the version read: read again only once they change. */
+  const headerless = new Map<string, { readonly size: number; readonly mtimeMs: number }>()
 
-  const headerOf = async (file: string) => {
+  const headerOf = async (
+    file: string,
+    state: { readonly size: number; readonly mtimeMs: number },
+  ) => {
     const remembered = headers.get(file)
     if (remembered) return remembered
+    const skipped = headerless.get(file)
+    if (skipped?.size === state.size && skipped.mtimeMs === state.mtimeMs) return null
     const header = await readHeader(file)
-    if (header) headers.set(file, header)
+    if (header) {
+      headers.set(file, header)
+      headerless.delete(file)
+    } else {
+      headerless.set(file, state)
+    }
     return header
   }
 
@@ -189,11 +238,11 @@ export function createPiSessionDiscoveryScanner(
     file: string,
     projectPaths: readonly string[],
   ): Promise<DiscoveredPiSession | null> => {
-    const header = await headerOf(file)
-    const projectPath = header ? owningProject(header.cwd, projectPaths) : null
-    if (!header || !projectPath) return null
     const state = await fileState(file)
     if (state === null) return null
+    const header = await headerOf(file, state)
+    const projectPath = header ? owningProject(header.cwd, projectPaths) : null
+    if (!header || !projectPath) return null
     return {
       piSessionId: header.id,
       piSessionFile: file,
