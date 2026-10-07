@@ -7,9 +7,6 @@ import { isRecord } from '@shared/utils/validation'
 
 export type JsonEntry = Record<string, unknown>
 
-/** Keys a Pi override-only entry may carry. */
-const OVERRIDE_KEYS = new Set(['enabled', 'exposure', 'toolExposure'])
-
 /** OpenWaggle-only fields that have no Pi meaning and are removed. */
 const REMOVED_FIELDS = [
   'transport',
