@@ -4,14 +4,16 @@ import type { UIMessage, UIMessagePart } from '@shared/types/chat-ui'
 import { useOptimisticSteerStore } from '@/features/chat/state/optimistic-steer-store'
 import { api } from '@/shared/lib/ipc'
 import { incorporatedUserRow, placeReconnectedRunMessages } from '../lib/chat-stream-user-messages'
+import {
+  earlierAnswersOf,
+  earlierReconnectMessageIds,
+  partialAssistantOf,
+  userMessageAnchorsOf,
+} from '../lib/reconnect-buffer-anchors'
 import { reconnectedRunScope, runScopeOf, withoutShownRunAnswers } from '../lib/reconnect-run-scope'
 import { withoutSavedRunAnswers } from '../lib/saved-run-answers'
 import { unsettledRunMessages } from '../lib/seeded-run-messages'
-import {
-  buildPartialAssistantMessage,
-  mergeBackgroundReconnectMessages,
-  sessionToUIMessages,
-} from '../lib/useAgentChat.utils'
+import { mergeBackgroundReconnectMessages, sessionToUIMessages } from '../lib/useAgentChat.utils'
 import {
   getMessagesForSession,
   mergeSessionAndOptimisticMessages,
@@ -33,11 +35,14 @@ type ReconnectFollow = 'background' | 'foreground'
  * Fetches the Run's reconnect buffer (and, in the background, the persisted transcript) and merges
  * them into the shown transcript while the Run is still followed the same way and no later
  * reconnect started. A resync is rebroadcast on every failed re-subscribe; the latest one wins.
+ * `withTranscript`: a send's reconnect also reads the persisted transcript, its Run having settled
+ * (a resync relayed that settlement), so the transcript may lack what it saved.
  */
 export function reconnectActiveRun(
   input: SessionHydrationInput,
   context: SessionHydrationContext,
   follow: ReconnectFollow,
+  withTranscript = follow === 'background',
 ) {
   context.reconnectGenerationRef.current += 1
   const request = {
@@ -50,12 +55,11 @@ export function reconnectActiveRun(
     if (result)
       handleActiveRunReconnectResult(request, result, input.cachedSettledMessageIds, context)
   }
-  const reconnect =
-    follow === 'background'
-      ? reconnectToBackgroundRun(input, shownMessages)
-      : api
-          .getBackgroundRun(input.sessionId)
-          .then((snapshot) => bufferOnly(input.sessionId, snapshot, shownMessages))
+  const reconnect = withTranscript
+    ? reconnectToBackgroundRun(input, shownMessages)
+    : api
+        .getBackgroundRun(input.sessionId)
+        .then((snapshot) => bufferOnly(input.sessionId, snapshot, shownMessages))
   void reconnect.then(merge).catch((reconnectError: unknown) => {
     // A send's own Run reports its failures; a recovery that could not read the buffer is moot.
     if (follow === 'background' && isCurrent(request, context)) {
@@ -104,11 +108,9 @@ function handleActiveRunReconnectResult(
     context.setMessagesBySessionId,
     context.setRunRenderMessages,
     request.sessionId,
-    (currentMessages) =>
-      mergeBackgroundReconnectMessages(
-        reconnect.snapshot
-          ? withoutShownRunAnswers(reconnect.messages, reconnect.snapshot, currentMessages)
-          : reconnect.messages,
+    (currentMessages) => {
+      // The rows only this renderer still shows: not those the persisted transcript saved.
+      const unsaved =
         reconnect.persistedMessages === null
           ? currentMessages
           : withoutSavedRunAnswers(
@@ -123,12 +125,14 @@ function handleActiveRunReconnectResult(
                 shownIds: new Set(currentMessages.map((message) => message.id)),
                 ...reconnectedRunScope({ ...reconnect, currentMessages }),
               },
-            ),
+            )
+      return mergeBackgroundReconnectMessages(
+        reconnect.snapshot
+          ? withoutShownRunAnswers(reconnect.messages, reconnect.snapshot, currentMessages)
+          : reconnect.messages,
+        unsaved,
         {
-          earlierMessageIds: new Set([
-            ...(reconnect.persistedMessages ?? []).map((message) => message.id),
-            ...(reconnect.snapshot ? leadingUserMessageIdsOf(reconnect.snapshot) : []),
-          ]),
+          earlierMessageIds: earlierReconnectMessageIds(reconnect, unsaved, settledMessageIds),
           userMessageAnchors: reconnect.snapshot
             ? userMessageAnchorsOf(reconnect.snapshot)
             : new Map(),
@@ -136,7 +140,8 @@ function handleActiveRunReconnectResult(
             ? { streamingBaseline: reconnect.streamingBaseline }
             : {}),
         },
-      ),
+      )
+    },
     { cacheRunSnapshot: true },
   )
 }
@@ -174,26 +179,6 @@ interface ReconnectedRun {
   }
 }
 
-function leadingUserMessageIdsOf(snapshot: BackgroundRunSnapshot) {
-  return (snapshot.userMessages ?? []).flatMap((userMessage) =>
-    userMessage.afterAssistantMessageId === undefined ? [userMessage.messageId] : [],
-  )
-}
-
-/**
- * The answer each user message the Run incorporated followed: the one the buffer was streaming.
- * A message incorporated before the Run's first answer has none; it is a leading one.
- */
-function userMessageAnchorsOf(snapshot: BackgroundRunSnapshot) {
-  const anchors = new Map<string, string>()
-  for (const userMessage of snapshot.userMessages ?? []) {
-    if (userMessage.afterAssistantMessageId !== undefined) {
-      anchors.set(userMessage.messageId, userMessage.afterAssistantMessageId)
-    }
-  }
-  return anchors
-}
-
 /**
  * What the transcript shows of the answer the buffer streams. Read when the buffer's answer
  * arrives: the main process sends the events it buffered before that answer, in order.
@@ -206,20 +191,6 @@ function streamingBaselineOf(
   if (messageId === undefined) return undefined
   const shown = shownMessages().find((message) => message.id === messageId)
   return { messageId, parts: shown?.parts ?? [] }
-}
-
-/**
- * The answer the buffer streams, dated by Host time like the answers the stream started: no
- * earlier than the Run's start and the user messages it incorporated before the answer. The
- * renderer's own clock, when the reconnect lands, would date it after steers Pi took later.
- */
-function partialAssistantOf(snapshot: BackgroundRunSnapshot) {
-  const partial = buildPartialAssistantMessage(snapshot.parts, snapshot.messageId)
-  if (!partial) return null
-  const before = (snapshot.userMessages ?? []).flatMap((userMessage) =>
-    userMessage.afterAssistantMessageId === snapshot.messageId ? [] : [userMessage.timestamp],
-  )
-  return { ...partial, createdAt: new Date(Math.max(snapshot.startedAt, ...before)) }
 }
 
 /**
@@ -262,12 +233,22 @@ async function reconnectToBackgroundRun(
   const read = { persistedMessages, persistedFetched: fetchedSession !== null, ...settled }
   if (!snapshot) return { messages: historicalMessages, ...read, snapshot: null }
   const partialAssistant = partialAssistantOf(snapshot)
-  const unsavedPartial = partialAssistant
-    ? (withoutSavedRunAnswers([partialAssistant], persistedMessages, runScopeOf(snapshot))[0] ??
-      null)
-    : null
+  // The Run's answers the persisted transcript holds already (its end before it settled) are left
+  // to their saved copies, each saved answer once.
+  const answers = withoutSavedRunAnswers(
+    [...earlierAnswersOf(snapshot), ...(partialAssistant ? [partialAssistant] : [])],
+    persistedMessages,
+    runScopeOf(snapshot),
+  )
+  const unsavedPartial = answers.find((answer) => answer.id === partialAssistant?.id) ?? null
+  const earlierAnswers = answers.filter((answer) => answer !== unsavedPartial)
   return {
-    messages: placeReconnectedRunMessages(historicalMessages, snapshot, unsavedPartial),
+    messages: placeReconnectedRunMessages(
+      historicalMessages,
+      snapshot,
+      unsavedPartial,
+      earlierAnswers,
+    ),
     ...read,
     snapshot,
     sameRunBuffered,
@@ -285,7 +266,12 @@ function bufferOnly(
   noteRetainedUserMessages(sessionId, snapshot)
   const streamingBaseline = streamingBaselineOf(snapshot, shownMessages)
   return {
-    messages: placeReconnectedRunMessages([], snapshot, partialAssistantOf(snapshot)),
+    messages: placeReconnectedRunMessages(
+      [],
+      snapshot,
+      partialAssistantOf(snapshot),
+      earlierAnswersOf(snapshot),
+    ),
     persistedMessages: null,
     persistedFetched: false,
     snapshot,

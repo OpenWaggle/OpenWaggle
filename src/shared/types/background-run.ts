@@ -129,13 +129,32 @@ export interface BackgroundRunUserMessage extends AgentTransportUserMessage {
   readonly afterAssistantMessageId?: string
 }
 
+/**
+ * An assistant message the active Run finished streaming, retained so a reconnect (a renderer
+ * reload) still shows it: a Run's messages reach the persisted transcript only when it ends.
+ */
+export interface BackgroundRunAssistantMessage {
+  readonly messageId: string
+  /** When the message started streaming (Host time). */
+  readonly timestamp: number
+  /** Its text, reasoning, tool calls and tool results, as `parts` holds the streaming one's. */
+  readonly parts: readonly MessagePart[]
+}
+
 /** Full snapshot including accumulated message parts for reconnection. */
 export interface BackgroundRunSnapshot extends ActiveAgentRunInfo {
   /** The Run the snapshot belongs to; absent from older Hosts. */
   readonly runId?: string
   readonly messageId?: string
+  /** When the message `parts` streams started (Host time); absent from older Hosts. */
+  readonly messageStartedAt?: number
   readonly parts: readonly MessagePart[]
   readonly userMessages?: readonly BackgroundRunUserMessage[]
+  /**
+   * The Run's earlier assistant messages, complete, in order, before the one `parts` streams. One
+   * the byte caps cannot hold, or one cut short by them, is left out. Absent from older Hosts.
+   */
+  readonly assistantMessages?: readonly BackgroundRunAssistantMessage[]
   readonly degraded?: {
     readonly reason: 'content-limit'
     readonly omittedBytes: number

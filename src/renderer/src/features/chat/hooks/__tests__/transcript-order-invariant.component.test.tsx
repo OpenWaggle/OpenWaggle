@@ -267,9 +267,4 @@ describe('transcript order', () => {
       (h) => h.refreshDetail(),
     ])
   })
-
-  // A stall that loses a Run's settlement and the next Run's start leaves the settled Run's rows
-  // under stream ids beside their persisted copies until the active Run ends: nothing tells the
-  // renderer which of them were persisted.
-  it.todo('shows a Run settled during a stall once while the next Run streams')
 })

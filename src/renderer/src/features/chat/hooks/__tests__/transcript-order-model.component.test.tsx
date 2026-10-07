@@ -25,6 +25,11 @@ import {
   SEED_350207_FULL,
   SEED_370043,
   SEED_380015,
+  SEED_392631,
+  SEED_430033,
+  SEED_430057,
+  SEED_430218,
+  SEED_455984,
 } from './transcript-order.replays'
 import { assertTranscriptOrder, createScenarioHarness } from './transcript-order.scenario'
 import { cleanupTranscriptOrder, resetTranscriptOrderState } from './transcript-order.test-harness'
@@ -150,6 +155,26 @@ describe('transcript order, model-based', () => {
 
   it('scopes a reconnect by the buffer it read first when the Run settled meanwhile', async () => {
     await replayRun('seed 340281', 'other', SEED_340281)
+  })
+
+  it('leaves an active Run answer the detail saved to its saved copy after a stall', async () => {
+    await replayRun('seed 392631', 'other', SEED_392631)
+  })
+
+  it('reads the transcript on a resync after the send Run handed off in a stall', async () => {
+    await replayRun('seed 430033', 'session', SEED_430033)
+  })
+
+  it('reads the transcript on a resync after a continuation steer and hand-off', async () => {
+    await replayRun('seed 430057', 'session', SEED_430057)
+  })
+
+  it('reads the transcript on a resync after a whole Run went by in a stall', async () => {
+    await replayRun('seed 430218', 'other', SEED_430218)
+  })
+
+  it('holds an earlier Run prompt the transcript holds at its log order', async () => {
+    await replayRun('seed 455984', 'session', SEED_455984)
   })
 
   it('takes a late settlement of the Run restored at reload for an earlier Run', async () => {

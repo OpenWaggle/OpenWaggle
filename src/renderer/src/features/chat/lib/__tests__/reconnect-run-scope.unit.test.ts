@@ -86,6 +86,21 @@ describe('reconnectedRunScope', () => {
     expect(copy.map((message) => message.id)).toEqual(['n-u1'])
   })
 
+  it('leaves a stream copy with no content to its saved copy, and keeps one with none', () => {
+    const thinking = (id: string, order?: number): UIMessage => ({
+      ...answer(id, order),
+      parts: [{ type: 'thinking', content: 'pondering', stepId: `${id}:thinking:0` }],
+    })
+    const saved = [...persistedMessages, thinking('n-a1', 2)]
+    const shown = [user('n-u1', 1), thinking('stream-a1')]
+    expect(
+      withoutSavedRunAnswers(shown, saved, { fromOrder: 1 }).map((message) => message.id),
+    ).toEqual(['n-u1'])
+    expect(
+      withoutSavedRunAnswers(shown, persistedMessages, { fromOrder: 1 }).map((m) => m.id),
+    ).toEqual(['n-u1', 'stream-a1'])
+  })
+
   it('scopes no answer when the transcript shows no such row', () => {
     expect(
       reconnectedRunScope({

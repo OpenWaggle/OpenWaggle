@@ -49,7 +49,7 @@ export function resolveLatestAssistantNodeId(
   }
   if (!latest || !persistedNodes) return latest?.id ?? null
   /*
-   * Saving can rename an entry whose id another Session already held (ADR 0047); the saved node
+   * Saving can rename an entry whose id another Session already held (ADR 0049); the saved node
    * keeps the snapshot's created order. Anchoring to the snapshot's id would name the other
    * Session's node.
    */

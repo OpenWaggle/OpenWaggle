@@ -8,7 +8,11 @@ export interface ModelState {
   settling: boolean
   viewing: 'session' | 'other'
   stalled: boolean
+  /** The Run started in a stall: the renderer has not seen it start. */
+  runUnseen: boolean
   holding: boolean
+  /** The Session held saved, compacted history before its first Run. */
+  history: boolean
   runs: number
   texts: number
   /** Promoted steers, in promotion order; several may wait, and with the same text. */
@@ -27,7 +31,9 @@ export function initialModelState(viewing: ModelState['viewing']): ModelState {
     settling: false,
     viewing,
     stalled: false,
+    runUnseen: false,
     holding: false,
+    history: false,
     runs: 0,
     texts: 0,
     promotions: [],
@@ -42,9 +48,15 @@ export function idle(state: ModelState) {
   return !state.running && !state.settling
 }
 
-/** A Run's settlement cannot overtake an earlier one the renderer has not been told about. */
+/**
+ * A Run's settlement cannot overtake an earlier one the renderer has not been told about. One
+ * lost in a stall is relayed by the resync, except for a Run the renderer never saw start: no
+ * bridge knows of it, and a steer promoted into it (the renderer shows the Session idle, so the
+ * user could not) would wait forever.
+ */
 export function canSettle(state: ModelState) {
-  return state.running && !state.stalled && !state.settling
+  const unseenWithPromotion = state.stalled && state.runUnseen && awaitingPromotion(state)
+  return state.running && !state.settling && !unseenWithPromotion
 }
 
 export function nextText(state: ModelState, prefix: string) {

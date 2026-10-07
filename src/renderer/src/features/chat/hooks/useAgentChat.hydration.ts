@@ -209,8 +209,13 @@ export function hydrateSessionMessages(
   const keys = getSessionHydrationKeys(input, context, resynced && input.hasActiveRun)
   if (shouldKeepForegroundHydration(input, keys, context)) {
     // The Run this renderer follows keeps streaming into its transcript; only what it missed is
-    // merged in from the reconnect buffer.
-    if (resynced) reconnectActiveRun(input, context, 'foreground')
+    // merged in from the reconnect buffer. Once the send's own Run settled (the Session went on to
+    // the next Run, perhaps in a stall the resync relayed), the transcript may lack what Runs saved
+    // meanwhile: it is read again too.
+    if (resynced) {
+      const sendSettled = context.pendingRunWaiterRef.current === null
+      reconnectActiveRun(input, context, 'foreground', sendSettled)
+    }
     return
   }
   resetSessionChangedState(keys, context)

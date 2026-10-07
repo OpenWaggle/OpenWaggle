@@ -1,6 +1,7 @@
 import type { SessionId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
 import { create } from 'zustand'
+import { savedSendIds } from '@/features/chat/lib/chat-message-text'
 import { releaseMessageImagePreviewUrls } from '@/shared/lib/attachment-preview-urls'
 
 const EMPTY_MESSAGES: readonly UIMessage[] = []
@@ -13,45 +14,15 @@ interface OptimisticUserMessageState {
   readonly clear: (sessionId: SessionId) => void
 }
 
-function getTextContent(message: UIMessage) {
-  return message.parts.flatMap((part) => (part.type === 'text' ? [part.content] : [])).join('\n\n')
-}
-
-function buildUserTextCounts(messages: readonly UIMessage[]) {
-  const counts = new Map<string, number>()
-  for (const message of messages) {
-    if (message.role !== 'user') {
-      continue
-    }
-    const text = getTextContent(message)
-    if (!text) {
-      continue
-    }
-    counts.set(text, (counts.get(text) ?? 0) + 1)
-  }
-  return counts
-}
-
+/** The sends the persisted transcript does not hold yet: one saved before a send is another. */
 function removeMatchedMessages(
   optimisticMessages: readonly UIMessage[],
   persistedMessages: readonly UIMessage[],
 ) {
-  const persistedCounts = buildUserTextCounts(persistedMessages)
-  if (persistedCounts.size === 0) {
-    return optimisticMessages
-  }
-
-  const remaining: UIMessage[] = []
-  for (const message of optimisticMessages) {
-    const text = getTextContent(message)
-    const count = persistedCounts.get(text) ?? 0
-    if (count > 0) {
-      persistedCounts.set(text, count - 1)
-      continue
-    }
-    remaining.push(message)
-  }
-  return remaining
+  const saved = savedSendIds(persistedMessages, optimisticMessages)
+  return saved.size === 0
+    ? optimisticMessages
+    : optimisticMessages.filter((message) => !saved.has(message.id))
 }
 
 const nullSelector = (_state: OptimisticUserMessageState) => EMPTY_MESSAGES

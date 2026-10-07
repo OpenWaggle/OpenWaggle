@@ -38,6 +38,12 @@ export function createRunKinds({ host, notifySettled, refreshDetail }: RunKindDe
         host.continueRun(options.compact ?? false)
         if (options.steer) host.incorporateUser(options.steer)
       }),
+    /** The Session holds saved, compacted history: texts later Runs repeat, above a marker. */
+    async seedHistory() {
+      act(() => host.seedHistory())
+      await notifySettled({})
+      await refreshDetail()
+    },
     /** A Run that fails before Pi starts (an invalid model): its end, then its settlement. */
     async failBeforeStart(runId: string) {
       act(() => host.failBeforeStart(runId))

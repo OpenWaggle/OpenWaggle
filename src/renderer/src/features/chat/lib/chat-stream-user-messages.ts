@@ -102,25 +102,62 @@ function applyRetainedUserMessages(
 }
 
 /**
- * Rebuilds a reconnected Run's live tail: the user messages it already incorporated, around the
- * answer it is still streaming. A message incorporated after that answer's tools follows it.
+ * Rebuilds a reconnected Run's live tail: the user messages it already incorporated and the
+ * answers it already finished (`earlierAnswers`, in order), around the answer it is still
+ * streaming. A message incorporated after that answer's tools follows it.
  */
 export function placeReconnectedRunMessages(
   historicalMessages: readonly UIMessage[],
   snapshot: Pick<BackgroundRunSnapshot, 'messageId' | 'userMessages'>,
   partialAssistant: UIMessage | null,
+  earlierAnswers: readonly UIMessage[] = [],
 ): UIMessage[] {
   const userMessages = snapshot.userMessages ?? []
   const followsPartial = (userMessage: BackgroundRunUserMessage) =>
     partialAssistant !== null &&
     snapshot.messageId !== undefined &&
     userMessage.afterAssistantMessageId === snapshot.messageId
-  const earlier = applyRetainedUserMessages(
+  const earlier = placeEarlierRunMessages(
     historicalMessages,
     userMessages.filter((userMessage) => !followsPartial(userMessage)),
+    earlierAnswers,
   )
   return applyRetainedUserMessages(
     partialAssistant ? [...earlier, partialAssistant] : earlier,
     userMessages.filter(followsPartial),
   )
+}
+
+/**
+ * The Run's user messages and finished answers in the order Pi took them: each user message right
+ * after the answer it followed, or (that answer left out of the buffer) after the last one that
+ * started before it; one that followed none leads.
+ */
+function placeEarlierRunMessages(
+  messages: readonly UIMessage[],
+  userMessages: readonly BackgroundRunUserMessage[],
+  answers: readonly UIMessage[],
+) {
+  if (answers.length === 0) return applyRetainedUserMessages(messages, userMessages)
+  const answerIndex = new Map(answers.map((answer, index) => [answer.id, index]))
+  const slotOf = (userMessage: BackgroundRunUserMessage) => {
+    const anchor = userMessage.afterAssistantMessageId
+    if (anchor === undefined) return 0
+    const index = answerIndex.get(anchor)
+    if (index !== undefined) return index + 1
+    const next = answers.findIndex(
+      // Same millisecond: Pi takes the user message in before it starts the answer after it.
+      (answer) => (answer.createdAt?.getTime() ?? 0) >= userMessage.timestamp,
+    )
+    return next < 0 ? answers.length : next
+  }
+  let placed = [...messages]
+  for (const [slot, answer] of [...answers, undefined].entries()) {
+    placed = applyRetainedUserMessages(
+      placed,
+      userMessages.filter((userMessage) => slotOf(userMessage) === slot),
+    )
+    if (answer && !placed.some((message) => message.id === answer.id)) placed.push(answer)
+  }
+  return placed
 }

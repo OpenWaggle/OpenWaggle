@@ -3,6 +3,7 @@ import type { BackgroundRunSnapshot } from '@shared/types/background-run'
 import type { SessionDetail } from '@shared/types/session'
 import type { AgentTransportEvent } from '@shared/types/stream'
 import type { RunEndTail } from './transcript-order.harness-support'
+import { HISTORY_RUN_ID, historyEntries, summaryEntry } from './transcript-order.history'
 import {
   entryKey,
   MODEL,
@@ -12,7 +13,12 @@ import {
   textDigest,
   toolEventsOf,
 } from './transcript-order.persisted'
-import { emptyBuffer, projectEvent } from './transcript-order.stream-buffer'
+import {
+  projectEvent,
+  type Retention,
+  startedBuffer,
+  withRetention,
+} from './transcript-order.stream-buffer'
 
 /*
  * The Host side of the transcript-order harness: the Pi log of one Session (the truth), the
@@ -48,7 +54,7 @@ export function createHostModel(publish: (event: AgentTransportEvent) => void) {
   const persistedRunIds = new Set<string>()
   let nextOrder = 3
   let clock = EPOCH
-  let retainsUsers = true
+  let retention: Retention = 'all'
   let revision = 1
   let buffer: BackgroundRunSnapshot | null = null
   let activeRunId: string | null = null
@@ -85,20 +91,8 @@ export function createHostModel(publish: (event: AgentTransportEvent) => void) {
   }
 
   function appendSummary(runId: string) {
-    const index = String(truth.length)
-    const order = nextOrder
+    truth.push(summaryEntry(truth.length, { order: nextOrder, runId, timestamp: tick() }))
     nextOrder += 1
-    truth.push({
-      role: 'assistant',
-      text: `Compaction summary\n\nsummary ${index}`,
-      liveId: `live-summary-${index}`,
-      piId: `pi-summary-${index}`,
-      order,
-      runId,
-      timestamp: tick(),
-      toolCallIds: [],
-      compactionSummary: true,
-    })
   }
 
   /** An attempt fails and Pi waits to retry it. */
@@ -142,13 +136,19 @@ export function createHostModel(publish: (event: AgentTransportEvent) => void) {
       clock = Math.max(clock, time)
     },
     activeRunId: () => activeRunId,
-    buffer: () =>
-      buffer ? { ...structuredClone(buffer), ...(retainsUsers ? {} : { userMessages: [] }) } : null,
-    /** The Run's buffer stops retaining user messages: an older Host, one over the size cap. */
+    buffer: () => (buffer ? withRetention(structuredClone(buffer), retention) : null),
+    /**
+     * The Run's buffer stops retaining user messages and finished answers: an older Host, or one
+     * over the size cap.
+     */
     dropRetainedUsers() {
-      retainsUsers = false
+      retention = 'none'
     },
-    retainsUsers: () => retainsUsers,
+    /** The Run's buffer keeps user messages but no finished answers nor start times: an older Host. */
+    olderHost() {
+      if (retention === 'all') retention = 'users'
+    },
+    retainsUsers: () => retention !== 'none',
     /** The detail's `updatedAt` moves only when the Session changes (a Run persisted, `touch`). */
     detail(): SessionDetail {
       return {
@@ -168,8 +168,8 @@ export function createHostModel(publish: (event: AgentTransportEvent) => void) {
     },
     startRun(runId: string) {
       activeRunId = runId
-      buffer = emptyBuffer(runId, clock)
-      retainsUsers = true
+      buffer = startedBuffer(buffer, runId, clock)
+      retention = 'all'
       emit({ type: 'agent_start', runId, model: String(MODEL), timestamp: tick() })
     },
     /** The attempt fails and Pi retries it: the same Run starts again, keeping its buffer. */
@@ -251,6 +251,15 @@ export function createHostModel(publish: (event: AgentTransportEvent) => void) {
       emit({ type: 'message_end', messageId, role: 'assistant', timestamp: tick() })
       runTools(entry)
       emit({ type: 'turn_end', turnIndex: truth.length, timestamp: tick() })
+    },
+    /** History from before the test, saved and compacted: texts later Runs repeat, then a marker. */
+    seedHistory() {
+      activeRunId = HISTORY_RUN_ID
+      for (const entry of historyEntries()) append(entry)
+      appendSummary(HISTORY_RUN_ID)
+      activeRunId = null
+      persistedRunIds.add(HISTORY_RUN_ID)
+      revision += 1
     },
     /** An automatic compaction between turns: Pi appends its summary entry to the log. */
     compact() {

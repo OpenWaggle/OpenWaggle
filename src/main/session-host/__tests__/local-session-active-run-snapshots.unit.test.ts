@@ -63,4 +63,39 @@ describe('decodeActiveRunSnapshots', () => {
   ])('rejects a user message with %s', (_case, invalid) => {
     expect(() => decodeActiveRunSnapshots([{ ...snapshot, userMessages: [invalid] }])).toThrow()
   })
+
+  /*
+   * A newer Host keeps the Run's finished assistant messages (and when the streaming one started);
+   * an older Host sends neither, and fields a later Host adds to a message are not read.
+   */
+  it('keeps the earlier assistant messages of the active Run, from any Host', () => {
+    const earlier = {
+      messageId: 'assistant-1',
+      timestamp: 4,
+      parts: [{ type: 'text', text: 'Earlier answer' }],
+      laterField: true,
+    }
+    expect(
+      decodeActiveRunSnapshots([
+        { ...snapshot, messageStartedAt: 9, assistantMessages: [earlier] },
+      ]),
+    ).toEqual([
+      expect.objectContaining({
+        messageStartedAt: 9,
+        assistantMessages: [
+          {
+            messageId: 'assistant-1',
+            timestamp: 4,
+            parts: [{ type: 'text', text: 'Earlier answer' }],
+          },
+        ],
+      }),
+    ])
+    const [older] = decodeActiveRunSnapshots([snapshot])
+    expect(older).not.toHaveProperty('assistantMessages')
+    expect(older).not.toHaveProperty('messageStartedAt')
+    expect(() =>
+      decodeActiveRunSnapshots([{ ...snapshot, assistantMessages: [{ messageId: 'x' }] }]),
+    ).toThrow()
+  })
 })

@@ -1,5 +1,5 @@
 import { existsSync, readdirSync, statSync } from 'node:fs'
-import { dirname, join, resolve } from 'node:path'
+import { basename, dirname, join, resolve } from 'node:path'
 import { getAgentDir, SessionManager } from '@earendil-works/pi-coding-agent'
 import type { SessionDetail, SessionResumePosition } from '@shared/types/session'
 import { isRecord } from '@shared/utils/validation'
@@ -67,10 +67,11 @@ function resumeSelectedPosition(
 }
 
 function piSessionFilesIn(directory: string, piSessionId: string) {
-  const suffix = `_${piSessionId}.jsonl`
   try {
+    // Exact id match: Pi allows `_` in session ids, so `<time>_review_<id>.jsonl` also ends with
+    // `_<id>.jsonl` but belongs to another Pi session.
     return readdirSync(directory)
-      .filter((name) => name.endsWith(suffix))
+      .filter((name) => piSessionIdOfFile(name) === piSessionId)
       .map((name) => join(directory, name))
   } catch (error) {
     if (!(isRecord(error) && error.code === 'ENOENT')) {
@@ -99,6 +100,52 @@ export function piSessionDirectoryFor(cwd: string) {
   return join(getAgentDir(), 'sessions', safePath)
 }
 
+type PiSessionFileLocation = Pick<
+  SessionDetail,
+  'piSessionFile' | 'piSessionId' | 'projectPath' | 'worktreePath'
+>
+
+const PI_SESSION_FILE_EXTENSION = '.jsonl'
+
+/**
+ * The Pi session id a Pi session file belongs to, read from its name.
+ *
+ * Pi names every session file `<creation time>_<Pi session id>.jsonl`, and the creation time holds
+ * no underscore. A path that does not follow that convention identifies no Pi session.
+ */
+export function piSessionIdOfFile(file: string) {
+  const name = basename(file)
+  if (!name.endsWith(PI_SESSION_FILE_EXTENSION)) return undefined
+  const separator = name.indexOf('_')
+  if (separator < 0) return undefined
+  const piSessionId = name.slice(separator + 1, -PI_SESSION_FILE_EXTENSION.length)
+  return piSessionId || undefined
+}
+
+/**
+ * Every file that holds a transcript of the Session's Pi session id, newest first.
+ *
+ * Looks in the run directory's Pi session directory, the recorded path's directory, and the
+ * directories of the Session's checkout and worktree, in case the Session moved between them.
+ * See {@link findExistingPiSessionFile} for why a transcript can live outside the recorded path.
+ * Only files named for the Session's own Pi session id are returned, never another session's.
+ */
+export function findPiSessionFiles(session: PiSessionFileLocation, runDirectory?: string) {
+  const piSessionId = session.piSessionId
+  if (!piSessionId) return []
+  const directories = new Set<string>()
+  if (runDirectory) directories.add(piSessionDirectoryFor(runDirectory))
+  if (session.piSessionFile) directories.add(dirname(session.piSessionFile))
+  if (session.projectPath) directories.add(piSessionDirectoryFor(session.projectPath))
+  const worktreePath = session.worktreePath?.trim()
+  if (worktreePath) directories.add(piSessionDirectoryFor(worktreePath))
+  const candidates = [...directories].flatMap((directory) =>
+    piSessionFilesIn(directory, piSessionId),
+  )
+  // The newest file is the one the last run wrote; earlier ones are abandoned copies.
+  return candidates.sort((left, right) => modifiedAt(right) - modifiedAt(left))
+}
+
 /**
  * Finds the Pi file a Session's transcript lives in when the recorded path does not exist.
  *
@@ -110,26 +157,11 @@ export function piSessionDirectoryFor(cwd: string) {
  * during that first run, or a run whose snapshot is not saved, leaves the Session pointing at a
  * file that was never written while its transcript sits in another file with the same Pi session
  * id. Starting a fresh manager then silently drops the whole conversation, so look for that file
- * first: in the run directory's Pi session directory, the recorded path's directory, and the
- * directories of the Session's checkout and worktree, in case the Session moved between them.
+ * first, with {@link findPiSessionFiles}.
  */
-export function findExistingPiSessionFile(
-  session: Pick<SessionDetail, 'piSessionFile' | 'piSessionId' | 'projectPath' | 'worktreePath'>,
-  runDirectory: string,
-) {
+export function findExistingPiSessionFile(session: PiSessionFileLocation, runDirectory: string) {
   if (session.piSessionFile && existsSync(session.piSessionFile)) return session.piSessionFile
-  const piSessionId = session.piSessionId
-  if (!piSessionId) return undefined
-  const directories = new Set([piSessionDirectoryFor(runDirectory)])
-  if (session.piSessionFile) directories.add(dirname(session.piSessionFile))
-  if (session.projectPath) directories.add(piSessionDirectoryFor(session.projectPath))
-  const worktreePath = session.worktreePath?.trim()
-  if (worktreePath) directories.add(piSessionDirectoryFor(worktreePath))
-  const candidates = [...directories].flatMap((directory) =>
-    piSessionFilesIn(directory, piSessionId),
-  )
-  // The newest file is the one the last run wrote; earlier ones are abandoned copies.
-  return candidates.sort((left, right) => modifiedAt(right) - modifiedAt(left))[0]
+  return findPiSessionFiles(session, runDirectory)[0]
 }
 
 const sessionsWarnedForLostTranscript = new Set<string>()

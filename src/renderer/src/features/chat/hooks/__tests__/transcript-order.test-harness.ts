@@ -7,6 +7,7 @@ import { useBackgroundRunStore } from '../../state/background-run-store'
 import { useOptimisticSteerStore } from '../../state/optimistic-steer-store'
 import { useOptimisticUserMessageStore } from '../../state/optimistic-user-message-store'
 import { useRunFinishingStore } from '../../state/run-finishing-store'
+import { createBridgeModel } from './transcript-order.bridge'
 import {
   DEFAULT_LAG_MS,
   type EndRunOptions,
@@ -53,14 +54,16 @@ export function createTranscriptOrderHarness(hooks: Hooks, options: { lagMs?: nu
   const lagMs = options.lagMs ?? DEFAULT_LAG_MS
   const route = createRouteStore()
   let dropping = false
-  let missedSettlement = false
-  let missedRunStart: string | null = null
+  const bridge = createBridgeModel()
+  // The Host put steers Pi never took back in the queue; the renderer learns of it once told.
+  const forgetPromotions = () => promotions.forgetUndelivered(dropping)
   // The settlements on their way, oldest first: the bridge relays them in order.
   const pendingSettlements: Array<() => Promise<void>> = []
   const deliver = (event: AgentTransportEvent) => {
     // One clock: the renderer's runs `lagMs` behind the Host's, whether or not the event arrives.
     vi.setSystemTime(Math.max(Date.now(), event.timestamp + lagMs))
     if (dropping) return
+    if (event.type === 'agent_start') bridge.started(event.runId)
     const tracked = useBackgroundRunStore.getState().renderSnapshotsBySessionId.has(SESSION_ID)
     for (const handler of [...apiMock.agentEventHandlers]) handler({ sessionId: SESSION_ID, event })
     knowledge.noteDelivered(event, tracked, viewSession())
@@ -79,17 +82,19 @@ export function createTranscriptOrderHarness(hooks: Hooks, options: { lagMs?: nu
   let monitor: { readonly unmount: () => void } | null = null
   const notifySettled = (payload: Omit<RunCompletedPayload, 'sessionId'>) =>
     inAct(() => {
+      // Lost in a stall: the resync relays it.
+      if (dropping) return
       // A Follow-up or a Run started before this settlement keeps the transcript live till it ends.
       if (!payload.continues && !host.activeRunId()) knowledge.noteSettled()
+      bridge.settled(payload)
       for (const handler of [...apiMock.runCompletedHandlers]) {
         handler({ sessionId: SESSION_ID, ...payload })
       }
     })
   const startRun = (runId: string, prompt: string) =>
     act(() => {
-      promotions.forgetUndelivered()
+      forgetPromotions()
       host.startRun(runId)
-      missedRunStart = dropping ? runId : null
       host.incorporateUser(prompt)
     })
   const viewSession = () => route.get().sessionId === SESSION_ID && route.get().detail !== null
@@ -109,7 +114,12 @@ export function createTranscriptOrderHarness(hooks: Hooks, options: { lagMs?: nu
     stillRunning: () =>
       quiet() && pendingSettlements.length === 0 && !host.activeRunId() && isLoading(),
     idleWhileRunning: () => quiet() && host.activeRunId() !== null && !isLoading(),
-    ...createRunKinds({ host, notifySettled, refreshDetail: (): Promise<void> => refresh() }),
+    // The shell refetches on the settlement event, which a stall loses.
+    ...createRunKinds({
+      host,
+      notifySettled,
+      refreshDetail: () => (dropping ? settle() : refresh()),
+    }),
     /** The messages the chat must show now, or none while events or Host reads are held back. */
     noteShown: () => knowledge.noteShown(chat.result.current.messages.map((message) => message.id)),
     missingKeys: () =>
@@ -167,6 +177,7 @@ export function createTranscriptOrderHarness(hooks: Hooks, options: { lagMs?: nu
     },
     compact: () => act(() => host.compact()),
     dropRetainedUsers: () => host.dropRetainedUsers(),
+    olderHost: () => host.olderHost(),
     async compactManually() {
       let finish = () => {}
       act(() => {
@@ -188,11 +199,10 @@ export function createTranscriptOrderHarness(hooks: Hooks, options: { lagMs?: nu
       const settlement = async () => {
         act(() => host.settleRun())
         // The Host puts a steer Pi never incorporated back in the queue as the Run settles.
-        if (!end.continues && !host.activeRunId()) promotions.forgetUndelivered()
+        if (!end.continues && !host.activeRunId()) forgetPromotions()
         const next = end.continues
         const terminalStatus = end.stop ? 'interrupted' : 'completed'
-        if (dropping) missedSettlement = true
-        else await notifySettled({ runId, terminalStatus, ...(next ? { continues: true } : {}) })
+        await notifySettled({ runId, terminalStatus, ...(next ? { continues: true } : {}) })
         if (next) startRun(next, end.followUp ?? `${next} prompt`)
         // The shell refetches the shown Session on its settlement event (`useSessionHostRefresh`).
         if (!dropping && !end.refetchLater) await harness.refreshDetail()
@@ -206,24 +216,17 @@ export function createTranscriptOrderHarness(hooks: Hooks, options: { lagMs?: nu
     settlementPending: () => pendingSettlements.length > 0,
     stall() {
       dropping = true
+      promotions.stalled(true)
     },
-    /** A resync: the bridge settles or announces the Runs it missed; the store refetches. */
+    /** A resync: the bridge relays the settlement it missed and announces the Run going on. */
     async resume() {
+      // The settlements on their way when the stream stalled are lost: the Host settled them.
+      for (const settlement of pendingSettlements.splice(0)) await settlement()
       dropping = false
-      const activeRunId = host.activeRunId()
-      if (missedSettlement && !activeRunId) await notifySettled({})
-      const buffer = host.buffer()
-      if (missedRunStart !== null && missedRunStart === activeRunId && buffer) {
-        const runId = `remote-snapshot:${SESSION_ID}`
-        act(() =>
-          deliver({ type: 'agent_start', runId, model: MODEL, timestamp: buffer.startedAt }),
-        )
-      }
-      missedSettlement = false
-      missedRunStart = null
-      await inAct(() => {
-        for (const handler of [...apiMock.resyncHandlers]) handler()
-      })
+      promotions.stalled(false)
+      await bridge.relayResync(host, notifySettled, (event) => act(() => deliver(event)))
+      promotions.forgetDeferred()
+      await harness.resync()
       await harness.refreshDetail()
     },
     resync: () =>
@@ -253,10 +256,10 @@ export function createTranscriptOrderHarness(hooks: Hooks, options: { lagMs?: nu
     },
     async restartHost() {
       dropping = false
-      missedSettlement = false
       host.restart()
       promotions.forgetUndelivered()
-      await notifySettled({})
+      // The resync after it finds no Run: the bridge settles the one it relayed, naming it.
+      await notifySettled(bridge.resync(null).settlement ?? {})
       await harness.refreshDetail()
     },
     async unmount() {

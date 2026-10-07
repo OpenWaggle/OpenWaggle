@@ -1,13 +1,14 @@
 import type { MessagePart } from '@shared/types/agent'
 import type {
   BackgroundRunActivityEvent,
+  BackgroundRunAssistantMessage,
   BackgroundRunSnapshot,
   BackgroundRunUserMessage,
   RunMode,
   WorktreeLaunchSnapshot,
 } from '@shared/types/background-run'
 import type { SessionId, SupportedModelId } from '@shared/types/brand'
-import { retainedPartsBytes } from './stream-buffer-byte-accounting'
+import { durableSessionRunId } from '../domain/session-control/root-session-project-reach'
 
 export interface ActiveStreamBuffer {
   /**
@@ -19,7 +20,17 @@ export interface ActiveStreamBuffer {
   readonly mode: RunMode
   readonly startedAt: number
   readonly messageId?: string
+  /**
+   * When the message `parts` streams started, and how much the caps had omitted by then; or, from
+   * a snapshot that reported omissions, that the caps may have cut it.
+   */
+  readonly messageStartedAt?: number
+  readonly messageOmittedBytes?: number
+  readonly messageCutShort?: true
   readonly parts: readonly MessagePart[]
+  /** The Run's finished assistant messages, and the JSON size of each (`stream-buffer-history`). */
+  readonly assistantMessages?: readonly BackgroundRunAssistantMessage[]
+  readonly assistantMessageBytes?: readonly number[]
   readonly activityEvents?: readonly BackgroundRunActivityEvent[]
   readonly activityEventsBytes?: number
   readonly userMessages?: readonly BackgroundRunUserMessage[]
@@ -54,6 +65,7 @@ function retainedSideChannelBytes(buffer: ActiveStreamBuffer) {
   return (buffer.activityEventsBytes ?? 0) + (buffer.userMessagesBytes ?? 0)
 }
 
+/** The live content's bytes: the Run's finished-message history has its own budget. */
 export function retainedStreamBufferBytes(buffer: ActiveStreamBuffer) {
   return buffer.retainedBytes + buffer.degradedToolCallIdsBytes + retainedSideChannelBytes(buffer)
 }
@@ -63,10 +75,14 @@ export function retainedStreamBufferBytes(buffer: ActiveStreamBuffer) {
  * Host went straight on to starts without the settled Run's buffer being cleared here; the Host starts
  * that Run's buffer empty, and a replica that kept the settled Run's last answer showed it twice on a
  * reconnect, once more above the Follow-up, since the transcript then holds it under its Pi entry id.
- * An auto-retry starts the same Run again and keeps what it streamed.
+ * An auto-retry starts the same Run again and keeps what it streamed, as does a Waggle the agent
+ * requested (`waggle-of-<X>`), which goes on with Run X.
  */
 export function startsAnotherRun(existing: ActiveStreamBuffer, runId: string) {
-  return existing.runId !== undefined && existing.runId !== runId
+  return (
+    existing.runId !== undefined &&
+    durableSessionRunId(existing.runId) !== durableSessionRunId(runId)
+  )
 }
 
 export function emptyActiveStreamBuffer(input: {
@@ -88,18 +104,16 @@ export function emptyActiveStreamBuffer(input: {
   }
 }
 
-/** Snapshot fields a restored buffer keeps only when the snapshot has them. */
-function restoredOptionalFields(snapshot: BackgroundRunSnapshot) {
+/** The buffer for the next message, which started at `startedAt`, without the last one's parts. */
+export function withoutRetainedStreamContent(
+  buffer: ActiveStreamBuffer,
+  startedAt?: number,
+): ActiveStreamBuffer {
+  const { messageCutShort: _cutShort, ...next } = buffer
   return {
-    ...(snapshot.runId ? { runId: snapshot.runId } : {}),
-    ...(snapshot.messageId ? { messageId: snapshot.messageId } : {}),
-    ...(snapshot.worktreeLaunch ? { worktreeLaunch: snapshot.worktreeLaunch } : {}),
-  }
-}
-
-export function withoutRetainedStreamContent(buffer: ActiveStreamBuffer): ActiveStreamBuffer {
-  return {
-    ...buffer,
+    ...next,
+    ...(startedAt === undefined ? {} : { messageStartedAt: startedAt }),
+    messageOmittedBytes: buffer.omittedBytes,
     parts: [],
     retainedBytes: 0,
     degradedToolCallIds: new Set(),
@@ -143,30 +157,6 @@ export function retainDegradedToolCallId(
   }
 }
 
-function restoreDegradedToolCallIds(input: {
-  readonly toolCallIds: readonly string[]
-  readonly retainedPartsBytes: number
-  readonly totalRetainedBytes: number
-}) {
-  const toolCallIds = new Set<string>()
-  let retainedBytes = 0
-  for (const toolCallId of input.toolCallIds) {
-    const retainedDelta = degradedToolCallIdRetainedDelta(toolCallIds, toolCallId)
-    if (retainedDelta === null) break
-    if (retainedDelta === 0) continue
-    if (
-      input.retainedPartsBytes + retainedBytes + retainedDelta > MAX_ACTIVE_STREAM_BUFFER_BYTES ||
-      input.totalRetainedBytes + input.retainedPartsBytes + retainedBytes + retainedDelta >
-        MAX_TOTAL_STREAM_BUFFER_BYTES
-    ) {
-      continue
-    }
-    toolCallIds.add(toolCallId)
-    retainedBytes += retainedDelta
-  }
-  return { toolCallIds, retainedBytes }
-}
-
 export function toStreamBufferSnapshot(
   sessionId: SessionId,
   buffer: ActiveStreamBuffer | undefined,
@@ -180,9 +170,13 @@ export function toStreamBufferSnapshot(
     mode: buffer.mode,
     startedAt: buffer.startedAt,
     ...(buffer.messageId ? { messageId: buffer.messageId } : {}),
+    ...(buffer.messageStartedAt === undefined ? {} : { messageStartedAt: buffer.messageStartedAt }),
     parts: [...buffer.parts],
     ...(buffer.userMessages && buffer.userMessages.length > 0
       ? { userMessages: [...buffer.userMessages] }
+      : {}),
+    ...(buffer.assistantMessages && buffer.assistantMessages.length > 0
+      ? { assistantMessages: [...buffer.assistantMessages] }
       : {}),
     activityEvents: [...(buffer.activityEvents ?? [])],
     ...(buffer.omittedBytes > 0
@@ -208,85 +202,4 @@ export function withWorktreeLaunchSnapshot(
   if (snapshot !== null) return { ...buffer, worktreeLaunch: snapshot }
   const { worktreeLaunch: _worktreeLaunch, ...withoutLaunch } = buffer
   return withoutLaunch
-}
-
-function restoreActivityEvents(
-  activityEvents: readonly BackgroundRunActivityEvent[],
-  retainedPartsBytes: number,
-  totalRetainedBytes: number,
-) {
-  const retainedBytes =
-    activityEvents.length > 0 ? Buffer.byteLength(JSON.stringify(activityEvents), 'utf8') : 0
-  const accepted =
-    retainedPartsBytes + retainedBytes <= MAX_ACTIVE_STREAM_BUFFER_BYTES &&
-    totalRetainedBytes + retainedPartsBytes + retainedBytes <= MAX_TOTAL_STREAM_BUFFER_BYTES
-  return {
-    activityEvents: accepted ? [...activityEvents] : [],
-    activityEventsBytes: accepted ? retainedBytes : 0,
-  }
-}
-
-function restoreUserMessages(
-  userMessages: readonly BackgroundRunUserMessage[],
-  retainedBytesBefore: number,
-  totalRetainedBytes: number,
-) {
-  const retainedBytes =
-    userMessages.length > 0 ? Buffer.byteLength(JSON.stringify(userMessages), 'utf8') : 0
-  const accepted =
-    retainedBytes > 0 &&
-    retainedBytesBefore + retainedBytes <= MAX_ACTIVE_STREAM_BUFFER_BYTES &&
-    totalRetainedBytes + retainedBytesBefore + retainedBytes <= MAX_TOTAL_STREAM_BUFFER_BYTES
-  return accepted ? { userMessages: [...userMessages], userMessagesBytes: retainedBytes } : {}
-}
-
-export function restoreStreamBufferSnapshots(
-  buffers: Map<SessionId, ActiveStreamBuffer>,
-  snapshots: readonly BackgroundRunSnapshot[],
-) {
-  const previousSessionIds = [...buffers.keys()]
-  buffers.clear()
-  let totalRetainedBytes = 0
-  for (const snapshot of snapshots) {
-    const retainedBytes = retainedPartsBytes(snapshot.parts)
-    const accepted =
-      retainedBytes <= MAX_ACTIVE_STREAM_BUFFER_BYTES &&
-      totalRetainedBytes + retainedBytes <= MAX_TOTAL_STREAM_BUFFER_BYTES
-    const acceptedRetainedBytes = accepted ? retainedBytes : 0
-    const activity = restoreActivityEvents(
-      snapshot.activityEvents ?? [],
-      acceptedRetainedBytes,
-      totalRetainedBytes,
-    )
-    const userMessages = restoreUserMessages(
-      snapshot.userMessages ?? [],
-      acceptedRetainedBytes + activity.activityEventsBytes,
-      totalRetainedBytes,
-    )
-    const userMessagesBytes = userMessages.userMessagesBytes ?? 0
-    const degradedToolCallIds = restoreDegradedToolCallIds({
-      toolCallIds: snapshot.degraded?.toolCallIds ?? [],
-      retainedPartsBytes: acceptedRetainedBytes + activity.activityEventsBytes + userMessagesBytes,
-      totalRetainedBytes,
-    })
-    buffers.set(snapshot.sessionId, {
-      ...restoredOptionalFields(snapshot),
-      model: snapshot.model,
-      mode: snapshot.mode,
-      startedAt: snapshot.startedAt,
-      parts: accepted ? [...snapshot.parts] : [],
-      ...activity,
-      ...userMessages,
-      retainedBytes: acceptedRetainedBytes,
-      omittedBytes: (snapshot.degraded?.omittedBytes ?? 0) + (accepted ? 0 : retainedBytes),
-      degradedToolCallIds: degradedToolCallIds.toolCallIds,
-      degradedToolCallIdsBytes: degradedToolCallIds.retainedBytes,
-    })
-    totalRetainedBytes +=
-      acceptedRetainedBytes +
-      degradedToolCallIds.retainedBytes +
-      activity.activityEventsBytes +
-      userMessagesBytes
-  }
-  return { previousSessionIds, totalRetainedBytes }
 }

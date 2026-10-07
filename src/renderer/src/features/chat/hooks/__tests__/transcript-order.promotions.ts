@@ -20,12 +20,24 @@ export function createPromotions(host: HostModel) {
   }> = []
   const isIncorporated = (promotion: (typeof previews)[number]) =>
     host.userOrders(promotion.text).length >= promotion.needed
+  const deferred: Array<(typeof previews)[number]> = []
+  // In a stall: the promotions the renderer still waits on, whatever Pi took meanwhile.
+  let stalledPending: Set<(typeof previews)[number]> | null = null
+  const forget = (promotions: ReadonlyArray<(typeof previews)[number]>) => {
+    const forgotten = new Set(promotions)
+    const kept = previews.filter((item) => !forgotten.has(item) || isIncorporated(item))
+    previews.splice(0, previews.length, ...kept)
+  }
   return {
     /** Promoted steers Pi has not incorporated yet: a prompt with the same text is not one. */
     pendingKeys: () =>
       previews
-        .filter((promotion) => !isIncorporated(promotion))
+        .filter((promotion) => stalledPending?.has(promotion) ?? !isIncorporated(promotion))
         .map(({ text }) => entryKey({ role: 'user', text })),
+    /** The stream stalls (`true`) or resumes: what Pi takes in a stall the renderer learns later. */
+    stalled(stalled: boolean) {
+      stalledPending = stalled ? new Set(previews.filter((item) => !isIncorporated(item))) : null
+    },
     promote(chat: AgentChatReturn, text: string) {
       act(() => {
         const content = { text, attachmentCount: 0 }
@@ -35,18 +47,27 @@ export function createPromotions(host: HostModel) {
           content,
         )
         controller.setReceipt(null)
+        // One back in the Host's queue (its Run ended in a stall) waits for Pi no longer.
         const waiting = previews.filter(
-          (promotion) => promotion.text === text && !isIncorporated(promotion),
+          (promotion) =>
+            promotion.text === text && !isIncorporated(promotion) && !deferred.includes(promotion),
         ).length
-        previews.push({ text, controller, needed: host.userOrders(text).length + waiting + 1 })
+        const promotion = { text, controller, needed: host.userOrders(text).length + waiting + 1 }
+        previews.push(promotion)
+        stalledPending?.add(promotion)
         host.rendererActedAt(Date.now())
       })
     },
-    /** A Run ended without incorporating them: they return to the queue. */
-    forgetUndelivered() {
-      const delivered = previews.filter(isIncorporated)
-      previews.splice(0, previews.length, ...delivered)
+    /**
+     * A Run ended without incorporating them: they return to the queue. In a stall the renderer
+     * learns of it only at the resync (`forgetDeferred`).
+     */
+    forgetUndelivered(stalled = false) {
+      const undelivered = previews.filter((promotion) => !isIncorporated(promotion))
+      if (stalled) deferred.push(...undelivered)
+      else forget(undelivered)
     },
+    forgetDeferred: () => forget(deferred.splice(0)),
     /** The Host answers the earliest promotion of `text` with its receipt. */
     answer(text: string) {
       const index = previews.findIndex((promotion) => promotion.text === text)

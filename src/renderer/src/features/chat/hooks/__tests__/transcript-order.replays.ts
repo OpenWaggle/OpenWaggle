@@ -195,3 +195,36 @@ export const SEED_196 = (
   'touch holdReconnects touch viewSession startRun answer stall resume endRunSettlingLate ' +
   'startRun releaseReconnects answerWithGap'
 ).split(' ')
+
+/*
+ * Seed 392631 at 100 steps: a Run ended and was saved while a stall hid its end and settlement;
+ * a held read then rehydrated the "active" Run from a detail holding its saved answer, which showed
+ * under both ids.
+ */
+export const SEED_392631 = (
+  'viewSession send holdHostReads endRunWithRequestedWaggle startRun answer stall endRun ' +
+  'releaseReconnects'
+).split(' ')
+
+/*
+ * Seeds 430033, 430057 and 430218 at 100 steps (review r11): a stall covered the settlement of the
+ * Run a send started (a Follow-up, a continuation's steer, a whole Run after it); the resync relayed
+ * it, but the send's reconnect read only the buffer, and the rows Runs saved meanwhile stayed
+ * missing until the Session went idle.
+ */
+export const SEED_430033 = 'send stall continues continues resume'.split(' ')
+export const SEED_430057 = 'send stall continueRun continues resume'.split(' ')
+export const SEED_430218 = 'viewSession send stall endRun startRun endRun startRun resume'.split(
+  ' ',
+)
+
+/*
+ * Seed 455984 at 70 steps: an older Host (no finished answers in its buffer) ran the next Run while
+ * a stall hid the send's Run ending; the earlier Run's prompt, shown under its optimistic id and
+ * held by the transcript at its log order, was taken for a row only this renderer showed, and the
+ * next Run's live answer landed above that Run's prompt.
+ */
+export const SEED_455984 = (
+  'send stall endRunSettlingLate startRun holdReconnects olderHost resume answer answer ' +
+  'releaseReconnects'
+).split(' ')

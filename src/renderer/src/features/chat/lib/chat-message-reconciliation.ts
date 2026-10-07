@@ -1,25 +1,5 @@
 import type { UIMessage } from '@shared/types/chat-ui'
-import {
-  consumeUserMessageTextCount,
-  countUserMessagesByText,
-  getNonEmptyUserMessageText,
-  getUIMessageText,
-} from './chat-message-text'
-
-function findMissingOptimisticUserMessages(
-  snapshotUserCountsByText: Map<string, number>,
-  optimisticUserMessages: readonly UIMessage[],
-) {
-  const missingMessages: UIMessage[] = []
-  for (const message of optimisticUserMessages) {
-    const text = getNonEmptyUserMessageText(message)
-    if (!text || consumeUserMessageTextCount(snapshotUserCountsByText, text)) {
-      continue
-    }
-    missingMessages.push(message)
-  }
-  return missingMessages
-}
+import { getNonEmptyUserMessageText, getUIMessageText, savedSendIds } from './chat-message-text'
 
 function messageCreatedAtMs(message: UIMessage) {
   if (!(message.createdAt instanceof Date)) return null
@@ -49,7 +29,8 @@ function mergeMissingOptimisticMessagesByTime(
 
 /**
  * Keeps optimistic user rows visible until the persisted session snapshot catches up.
- * Matching is text-based because optimistic and persisted IDs are intentionally different.
+ * Matching is text-based because optimistic and persisted IDs are intentionally different, and
+ * takes only a saved prompt as new as the send (`savedSendIds`).
  * Missing rows use their client timestamp so a newer replacement snapshot cannot move an
  * older optimistic turn below the assistant reply that followed it.
  */
@@ -61,9 +42,9 @@ export function appendMissingOptimisticUserMessages(
     return snapshotMessages
   }
 
-  const missingOptimisticMessages = findMissingOptimisticUserMessages(
-    countUserMessagesByText(snapshotMessages),
-    optimisticUserMessages,
+  const saved = savedSendIds(snapshotMessages, optimisticUserMessages)
+  const missingOptimisticMessages = optimisticUserMessages.filter(
+    (message) => getNonEmptyUserMessageText(message) !== null && !saved.has(message.id),
   )
 
   return missingOptimisticMessages.length > 0
@@ -206,22 +187,33 @@ function messagesRepresentSameTurn(snapshotMessage: UIMessage, existingMessage: 
   return snapshotText.length > 0 && snapshotText === getUIMessageText(existingMessage)
 }
 
+/**
+ * Where the last snapshot message sits among the existing ones, each matched after the one before
+ * it; `null` when one has no match. One forward scan: a transcript holds a Session's whole history.
+ */
 function findAlignedSnapshotEndIndex(
   snapshotMessages: readonly UIMessage[],
   existingMessages: readonly UIMessage[],
 ) {
-  let existingIndex = -1
+  let cursor = 0
   for (const snapshotMessage of snapshotMessages) {
-    const nextIndex = existingMessages.findIndex(
-      (existingMessage, index) =>
-        index > existingIndex && messagesRepresentSameTurn(snapshotMessage, existingMessage),
-    )
-    if (nextIndex < 0) {
+    const index = indexOfTurnFrom(existingMessages, snapshotMessage, cursor)
+    if (index < 0) {
       return null
     }
-    existingIndex = nextIndex
+    cursor = index + 1
   }
-  return existingIndex
+  return cursor - 1
+}
+
+function indexOfTurnFrom(messages: readonly UIMessage[], message: UIMessage, from: number) {
+  for (let index = from; index < messages.length; index += 1) {
+    const candidate = messages[index]
+    if (candidate && messagesRepresentSameTurn(message, candidate)) {
+      return index
+    }
+  }
+  return -1
 }
 
 export function appendUnpersistedAssistantTail(
@@ -238,9 +230,9 @@ export function appendUnpersistedAssistantTail(
   }
 
   const snapshotMessageIds = new Set(snapshotMessages.map((message) => message.id))
-  const lastSnapshotOrder = Math.max(
+  const lastSnapshotOrder = snapshotMessages.reduce(
+    (last, message) => Math.max(last, message.metadata?.sessionNodeCreatedOrder ?? -1),
     -1,
-    ...snapshotMessages.map((message) => message.metadata?.sessionNodeCreatedOrder ?? -1),
   )
   // A user message Pi incorporated (it has a log order) after all the snapshot holds is the unsaved
   // Run's too: a prompt repeating an earlier text aligned with nothing to keep it. One the snapshot

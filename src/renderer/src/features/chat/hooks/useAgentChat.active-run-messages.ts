@@ -1,5 +1,7 @@
 import type { UIMessage } from '@shared/types/chat-ui'
 import type { AgentCompactionStatus } from '../lib/compaction-lifecycle'
+import { reconnectedRunScope } from '../lib/reconnect-run-scope'
+import { withoutSavedRunAnswers } from '../lib/saved-run-answers'
 import {
   placeSeededRunMessages,
   placeUnsettledRunMessages,
@@ -55,10 +57,11 @@ export function activeRunHydrationMessages(
 
 function placeCachedRunMessages(
   input: SessionHydrationInput,
-  cachedMessages: readonly UIMessage[],
+  shownMessages: readonly UIMessage[],
   context: SessionHydrationContext,
 ) {
   const persistedMessages = sessionToUIMessages(input.session)
+  const cachedMessages = withoutSavedActiveRunAnswers(shownMessages, persistedMessages)
   const compactionStatus = input.cachedCompactionStatus
   if (input.cachedRenderSeeded) {
     return placeSeededRunMessages({
@@ -72,6 +75,21 @@ function placeCachedRunMessages(
     cachedMessages,
     settledMessageIds: input.cachedSettledMessageIds,
     compactionStatus,
+  })
+}
+
+/**
+ * The cached rows without the active Run's answers the persisted transcript already holds under Pi
+ * entry ids: the Run ended and was saved, its end and settlement lost to this renderer (a
+ * disconnect). Matched by content within that Run's span (`reconnectedRunScope`), each once.
+ */
+function withoutSavedActiveRunAnswers(
+  cachedMessages: readonly UIMessage[],
+  persistedMessages: readonly UIMessage[],
+) {
+  return withoutSavedRunAnswers(cachedMessages, persistedMessages, {
+    shownIds: new Set(cachedMessages.map((message) => message.id)),
+    ...reconnectedRunScope({ snapshot: null, persistedMessages, currentMessages: cachedMessages }),
   })
 }
 

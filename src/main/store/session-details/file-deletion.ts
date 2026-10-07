@@ -13,3 +13,10 @@ export async function completeJournaledSessionFileDeletion(
   }
   await rm(stagedPath, { force: true })
 }
+
+/** Removes files outright; files already gone are not an error, so a retry can repeat it. */
+export async function removeSessionFiles(filePaths: readonly string[]): Promise<void> {
+  for (const filePath of filePaths) {
+    await rm(filePath, { force: true })
+  }
+}

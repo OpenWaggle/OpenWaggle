@@ -585,8 +585,12 @@ The Pi-owned strategy used for one compaction: Native compaction when the active
 _Avoid_: user-selected provider implementation, hidden quality equivalence
 
 **Compaction projection**:
-The replaceable, model-compatible active context produced by a Compaction mechanism from the authoritative append-only Pi session branch. It never deletes or becomes the only representation of the original session entries.
+The replaceable, model-compatible active context produced by a Compaction mechanism from the authoritative append-only Pi session branch. It never deletes or becomes the only representation of the original session entries, and it is never what the transcript shows.
 _Avoid_: canonical session record, destructive transcript rewrite
+
+**Compaction marker**:
+The transcript row for one durable Pi `compaction` entry ("Context compacted" or "Context automatically compacted"), shown where Pi appended the entry. The transcript keeps the whole conversation before it and every earlier marker; only the model's context starts from the latest compaction's checkpoint.
+_Avoid_: compaction divider that hides history, transcript truncation, working-context transcript
 
 **Compaction compatibility identity**:
 The model-runtime and transport declaration that determines whether an opaque Native compaction projection can be replayed by the active model. Equality permits replay; a missing or different identity requires Target-model reconstruction.

@@ -11,18 +11,27 @@ import type { UIMessage } from '@shared/types/chat-ui'
  * their own Run: one with the same role and content saved after the last settled user row before
  * it (`pass`) and after the previous match or settled row shown by its Pi id or log order, each
  * once. An earlier Run's message with the same text is before that user row. Only settled rows
- * bound it: the rows of the Run going on may sit anywhere among them. An answer with no content
- * has nothing to lose.
+ * bound it: the rows of the Run going on may sit anywhere among them. A settled answer with no
+ * content (only thinking, an attempt that failed) has nothing to lose: it is taken saved or not,
+ * where `withoutSavedRunAnswers` leaves a live one unless a saved copy of it is there.
+ *
+ * `since` bounds the matches from the start, before any settled user row with a log order did:
+ * the transcript holds the compacted history too, and an old "continue" / "Done." is no copy.
  */
-export function createSavedAnswerMatcher(persistedMessages: readonly UIMessage[]) {
+export function createSavedAnswerMatcher(
+  persistedMessages: readonly UIMessage[],
+  since: SavedAnswerSince = {},
+) {
   const unmatched: Array<{ readonly id: string; readonly key: string; readonly order: number }> = []
+  const notBefore = since.createdAt ?? Number.NEGATIVE_INFINITY
   for (const message of persistedMessages) {
     const order = message.metadata?.sessionNodeCreatedOrder
-    if (message.role !== 'system' && order !== undefined) {
+    const createdAt = message.createdAt?.getTime() ?? Number.POSITIVE_INFINITY
+    if (message.role !== 'system' && order !== undefined && !(createdAt < notBefore)) {
       unmatched.push({ id: message.id, key: savedKey(message), order })
     }
   }
-  let floor = Number.NEGATIVE_INFINITY
+  let floor = since.afterOrder ?? Number.NEGATIVE_INFINITY
   return {
     /** A settled row; `byId` when it is a persisted row itself, which retires its saved copy. */
     pass(message: UIMessage, byId: boolean) {
@@ -65,6 +74,15 @@ export function answerContentKey(message: UIMessage) {
 
 export type SavedAnswerMatcher = ReturnType<typeof createSavedAnswerMatcher>
 
+/**
+ * Where the settled Runs start: after the last persisted row shown before them (its log order),
+ * and no earlier than a send of theirs the Host had not recorded (the Host saves it later).
+ */
+export interface SavedAnswerSince {
+  readonly afterOrder?: number
+  readonly createdAt?: number
+}
+
 export interface SavedAnswerScope {
   readonly shownIds?: ReadonlySet<string>
   /** The Run's first Session log order. */
@@ -105,7 +123,9 @@ export function withoutSavedRunAnswers(
     if (message.role !== 'assistant' || scope.shownIds?.has(message.id)) continue
     if (!inRunScope(message, order, scope)) continue
     const key = answerContentKey(message)
-    if (key) savedAnswers.set(key, (savedAnswers.get(key) ?? 0) + 1)
+    // An answer with no text nor tool calls (only thinking, an attempt that failed) is matched
+    // like any other, each saved copy once: kept, its stream copy showed twice beside it.
+    savedAnswers.set(key, (savedAnswers.get(key) ?? 0) + 1)
   }
   if (savedAnswers.size === 0) return [...messages]
   let afterUnsavedUser = false

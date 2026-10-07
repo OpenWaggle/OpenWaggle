@@ -6,8 +6,9 @@ import { MODEL, SESSION_ID } from './transcript-order.persisted'
 
 /*
  * The reconnect stream buffer as `src/main/utils/stream-buffer.ts` keeps it: the Run it belongs to,
- * the user messages the Run incorporated (each with the answer it followed), and only the answer
- * streaming now. Every Run starts it empty; an auto-retry of the same Run keeps it.
+ * the user messages the Run incorporated (each with the answer it followed), the answers it
+ * finished, and the answer streaming now. Every Run starts it empty; an auto-retry of the same Run
+ * keeps it.
  */
 
 export function emptyBuffer(runId: string, startedAt: number): BackgroundRunSnapshot {
@@ -30,10 +31,42 @@ function appendText(parts: readonly MessagePart[], delta: string): MessagePart[]
   return [...parts, { type: 'text', text: delta }]
 }
 
+/**
+ * The buffer a Run starts with: a Waggle the agent requested (`waggle-of-<X>`) goes on with Run X,
+ * keeping its start, user messages and finished answers; any other Run starts empty.
+ */
+export function startedBuffer(
+  previous: BackgroundRunSnapshot | null,
+  runId: string,
+  startedAt: number,
+) {
+  if (!previous?.runId || runId !== `waggle-of-${previous.runId}`)
+    return emptyBuffer(runId, startedAt)
+  const { userMessages, assistantMessages } = withFinishedAnswer(previous)
+  return {
+    ...emptyBuffer(runId, previous.startedAt),
+    ...(userMessages ? { userMessages } : {}),
+    ...(assistantMessages ? { assistantMessages } : {}),
+  }
+}
+
+/** The buffer with the answer it streamed retained as finished, as the next one starts. */
+function withFinishedAnswer(buffer: BackgroundRunSnapshot): BackgroundRunSnapshot {
+  const { messageId, parts } = buffer
+  if (!messageId || parts.length === 0) return buffer
+  const finished = { messageId, timestamp: buffer.messageStartedAt ?? buffer.startedAt, parts }
+  return { ...buffer, assistantMessages: [...(buffer.assistantMessages ?? []), finished] }
+}
+
 /** What the stream buffer keeps of an event. */
 export function projectEvent(buffer: BackgroundRunSnapshot, event: AgentTransportEvent) {
   if (event.type === 'message_start' && event.role === 'assistant') {
-    return { ...buffer, messageId: event.messageId, parts: [] }
+    return {
+      ...withFinishedAnswer(buffer),
+      messageId: event.messageId,
+      messageStartedAt: event.timestamp,
+      parts: [],
+    }
   }
   if (event.type === 'message_start' && event.role === 'user' && event.userMessage) {
     const userMessage: BackgroundRunUserMessage = {
@@ -55,4 +88,16 @@ export function projectEvent(buffer: BackgroundRunSnapshot, event: AgentTranspor
     return { ...buffer, parts: [...buffer.parts, toolCall] }
   }
   return buffer
+}
+
+/** What the Host's buffer holds: all of it, user messages alone (an older Host), or neither. */
+export type Retention = 'all' | 'users' | 'none'
+
+export function withRetention(
+  buffer: BackgroundRunSnapshot,
+  retention: Retention,
+): BackgroundRunSnapshot {
+  if (retention === 'all') return buffer
+  const { assistantMessages: _answers, messageStartedAt: _startedAt, ...older } = buffer
+  return retention === 'users' ? older : { ...older, userMessages: [] }
 }

@@ -14,9 +14,8 @@ import type { TranscriptOrderHarness } from './transcript-order.test-harness'
 /*
  * The model of what can happen to a Session, for seeded exploration of the transcript-order
  * invariant. Preconditions keep it to what the Host does: a steer waits for no event a Run cannot
- * send meanwhile, a queued Follow-up does not start while a promoted steer waits, and a stall never
- * spans a Run's settlement (the `it.todo` in `transcript-order-invariant.component.test.tsx`).
- * Held Host reads and late settlements may span anything.
+ * send meanwhile, and a queued Follow-up does not start while a promoted steer waits. Stalls, held
+ * Host reads and late settlements may span anything.
  */
 
 export { initialModelState, type ModelState } from './transcript-order.model-state'
@@ -38,11 +37,14 @@ const RUN_ACTIONS: readonly ModelAction[] = [
     enabled: (s) => !s.running,
     run: (h, s) => {
       s.running = true
+      s.runUnseen = s.stalled
       const runId = nextRunId(s, s.runs % 3 === 2 ? 'waggle' : 'run')
       h.startRun(runId, s.runs % 5 === 0 ? 'continue' : `host prompt ${runId}`)
     },
   },
   { name: 'retry', enabled: (s) => s.running, run: (h) => h.retry() },
+  // The Run's Host keeps user messages but no finished answers nor start times: an older Host.
+  { name: 'olderHost', enabled: (s) => s.running, run: (h) => h.olderHost() },
   {
     name: 'answer',
     enabled: (s) => s.running,
@@ -93,6 +95,15 @@ const RUN_ACTIONS: readonly ModelAction[] = [
     },
   },
   { name: 'compact', enabled: (s) => s.running, run: (h) => h.compact() },
+  {
+    // Before the first Run: the history the chat shows above its compaction marker.
+    name: 'seedHistory',
+    enabled: (s) => s.runs === 0 && !s.history && idle(s) && !s.stalled,
+    run: (h, s) => {
+      s.history = true
+      return h.seedHistory()
+    },
+  },
   {
     name: 'compactManually',
     enabled: (s) => idle(s) && !s.stalled,
@@ -147,7 +158,7 @@ const RUN_ACTIONS: readonly ModelAction[] = [
   },
   {
     name: 'deliverSettlement',
-    enabled: (s) => s.settling && !s.stalled,
+    enabled: (s) => s.settling,
     run: (h, s) => {
       s.settling = false
       return h.settleRun()
@@ -203,6 +214,9 @@ const DISTURBANCES: readonly ModelAction[] = [
     enabled: (s) => s.stalled,
     run: (h, s) => {
       s.stalled = false
+      s.runUnseen = false
+      // A settlement on its way when the stream stalled was lost; the resync relays it.
+      s.settling = false
       return h.resume()
     },
   },

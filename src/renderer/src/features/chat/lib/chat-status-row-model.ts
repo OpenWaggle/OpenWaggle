@@ -1,4 +1,3 @@
-import type { AgentTransportCustomEvent } from '@shared/types/stream'
 import type { StreamingPhaseState } from '../hooks/useStreamingPhase'
 import type { AgentCompactionStatus } from './compaction-lifecycle'
 import type { ChatRow } from './types-chat-row'
@@ -64,11 +63,4 @@ export function appendStatusRows(rows: ChatRow[], input: StatusRowInput) {
       sessionId: input.sessionId,
     })
   }
-}
-
-export function appendCustomMessageRows(
-  rows: ChatRow[],
-  customMessages: readonly AgentTransportCustomEvent[],
-) {
-  for (const event of customMessages) rows.push({ type: 'agent-loop-custom-message', event })
 }

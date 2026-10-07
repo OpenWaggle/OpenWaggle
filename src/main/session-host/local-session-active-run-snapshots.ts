@@ -65,6 +65,34 @@ function decodeUserMessageSnapshots(value: unknown): Pick<BackgroundRunSnapshot,
   return userMessages.length > 0 ? { userMessages } : {}
 }
 
+/**
+ * The Run's earlier assistant messages, from a Host that retains them. Fields a later Host adds to
+ * one are not read; a malformed one fails the snapshot as a malformed part does.
+ */
+function decodeAssistantMessageSnapshots(
+  value: unknown,
+): Pick<BackgroundRunSnapshot, 'assistantMessages'> {
+  if (value === undefined) return {}
+  if (!Array.isArray(value))
+    throw new Error('Local Session Host returned invalid assistant messages.')
+  const assistantMessages = value.map((candidate) => {
+    if (
+      !isRecord(candidate) ||
+      typeof candidate.messageId !== 'string' ||
+      typeof candidate.timestamp !== 'number' ||
+      !Array.isArray(candidate.parts)
+    ) {
+      throw new Error('Local Session Host returned an invalid assistant message.')
+    }
+    return {
+      messageId: candidate.messageId,
+      timestamp: candidate.timestamp,
+      parts: candidate.parts.map(decodeMessagePart),
+    }
+  })
+  return assistantMessages.length > 0 ? { assistantMessages } : {}
+}
+
 function isOptionalString(value: unknown) {
   return value === undefined || typeof value === 'string'
 }
@@ -116,8 +144,12 @@ export function decodeActiveRunSnapshots(value: unknown): BackgroundRunSnapshot[
       mode: candidate.mode,
       startedAt: candidate.startedAt,
       ...(candidate.messageId ? { messageId: candidate.messageId } : {}),
+      ...(typeof candidate.messageStartedAt === 'number'
+        ? { messageStartedAt: candidate.messageStartedAt }
+        : {}),
       parts: candidate.parts.map(decodeMessagePart),
       ...decodeUserMessageSnapshots(candidate.userMessages),
+      ...decodeAssistantMessageSnapshots(candidate.assistantMessages),
       ...(degraded ? { degraded } : {}),
       ...(worktreeLaunch ? { worktreeLaunch } : {}),
     }

@@ -4,7 +4,11 @@ import {
   type AgentCompactionTimelineItem,
   getTimelineCompactionStatus,
 } from './compaction-lifecycle'
-import { createSavedAnswerMatcher, type SavedAnswerMatcher } from './saved-run-answers'
+import {
+  createSavedAnswerMatcher,
+  type SavedAnswerMatcher,
+  type SavedAnswerSince,
+} from './saved-run-answers'
 
 interface PlacedRunMessages {
   readonly messages: UIMessage[]
@@ -168,7 +172,10 @@ export function unsettledRunMessages(input: {
   const { persistedMessages, cachedMessages, settledMessageIds } = input
   if (!settledMessageIds || settledMessageIds.size === 0) return null
   const persisted = indexPersistedMessages(persistedMessages)
-  const savedAnswers = createSavedAnswerMatcher(persistedMessages)
+  const savedAnswers = createSavedAnswerMatcher(
+    persistedMessages,
+    settledRunsSince(cachedMessages, settledMessageIds, persisted),
+  )
   let unknownSettledRows = 0
   let vouchingUserRows = 0
   const savedIds = new Set<string>()
@@ -222,6 +229,32 @@ function keepsSettledRow(
 ) {
   if (persistence === 'unpersisted') return !saved
   return persistence === 'unknown' && fetchedAfterSettlement === true && !saved
+}
+
+/** Where the settled Runs start in the Session log (`SavedAnswerSince`). */
+function settledRunsSince(
+  cachedMessages: readonly UIMessage[],
+  settledMessageIds: ReadonlySet<string>,
+  persisted: PersistedIndex,
+): SavedAnswerSince {
+  const firstSettled = cachedMessages.findIndex((message) => settledMessageIds.has(message.id))
+  let afterOrder: number | undefined
+  for (const message of cachedMessages.slice(0, Math.max(firstSettled, 0))) {
+    const order = message.metadata?.sessionNodeCreatedOrder
+    if (order !== undefined && persisted.ids.has(message.id)) afterOrder = order
+  }
+  const sendTimes = cachedMessages.flatMap((message) =>
+    settledMessageIds.has(message.id) &&
+    message.role === 'user' &&
+    message.metadata?.sessionNodeCreatedOrder === undefined &&
+    !persisted.ids.has(message.id)
+      ? (message.createdAt?.getTime() ?? [])
+      : [],
+  )
+  return {
+    ...(afterOrder === undefined ? {} : { afterOrder }),
+    ...(sendTimes.length === 0 ? {} : { createdAt: Math.min(...sendTimes) }),
+  }
 }
 
 interface PersistedIndex {

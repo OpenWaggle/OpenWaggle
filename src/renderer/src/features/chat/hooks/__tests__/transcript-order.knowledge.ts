@@ -5,12 +5,13 @@ import { entryKey } from './transcript-order.persisted'
 
 /*
  * What the renderer must show: every message it has been told about. A message streamed while the
- * renderer tracked the Run (a render snapshot held it); a user message of the active Run (its
- * reconnect buffer retains them) or of the detail the chat shows; and any other message of that
+ * renderer tracked the Run (a render snapshot held it); a message of the active Run its reconnect
+ * buffer holds (its user messages, its finished answers and the one streaming), even after a
+ * renderer reload; a user message of the detail the chat shows; and any other message of that
  * detail once the renderer learned its Run settled (a Run the chat follows keeps its live
  * transcript until then, as through a Follow-up chain). A message lost in a stall can be missing
- * until then, and a settled Run the chat never showed until the chat store refetches; a message it
- * showed must never disappear.
+ * until then (a user message the detail shows aside), and a settled Run the chat never showed until
+ * the chat store refetches; a message it showed must never disappear.
  */
 export function createTranscriptKnowledge(host: HostModel) {
   const received = new Set<string>()
@@ -53,11 +54,13 @@ export function createTranscriptKnowledge(host: HostModel) {
      */
     requiredKeys(detail: SessionDetail | null, stalled = false) {
       const shownNodeIds = new Set(detail?.messages.map((message) => String(message.id)) ?? [])
+      const buffered = stalled ? new Set<string>() : bufferedMessageIds(host)
       return host
         .entries()
         .filter(
           (entry) =>
             received.has(entry.liveId) ||
+            buffered.has(entry.liveId) ||
             (receivedUnseen.has(entry.liveId) && entry.runId === host.activeRunId()) ||
             (entry.role === 'user' &&
               ((!stalled && host.retainsUsers() && entry.runId === host.activeRunId()) ||
@@ -67,6 +70,16 @@ export function createTranscriptKnowledge(host: HostModel) {
         .map(entryKey)
     },
   }
+}
+
+/** The messages of the active Run its reconnect buffer holds. */
+function bufferedMessageIds(host: HostModel) {
+  const buffer = host.buffer()
+  if (!buffer || !host.activeRunId()) return new Set<string>()
+  return new Set([
+    ...(buffer.assistantMessages ?? []).map((message) => message.messageId),
+    ...(buffer.messageId && buffer.parts.length > 0 ? [buffer.messageId] : []),
+  ])
 }
 
 /** The required messages the shown transcript lacks. */
