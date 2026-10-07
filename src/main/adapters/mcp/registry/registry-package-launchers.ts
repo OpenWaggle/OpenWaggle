@@ -26,11 +26,19 @@ export interface RegistryPackageLauncher {
 
 type PackageEntry = Readonly<Record<string, unknown>>
 
-function positionalArguments(value: unknown) {
+/**
+ * Registry arguments as command-line words (server.json `Argument`): a positional argument is its
+ * value, and a named one is the `--flag={value}` the schema describes, or the bare flag when it
+ * has no value. An argument without what it needs is left out.
+ */
+function commandLineArguments(value: unknown) {
   return arrayValue(value).flatMap((argument: unknown) => {
     if (typeof argument !== 'object' || argument === null) return []
     const resolved = stringValue(Reflect.get(argument, 'value'))
-    return resolved ? [resolved] : []
+    if (Reflect.get(argument, 'type') !== 'named') return resolved ? [resolved] : []
+    const name = stringValue(Reflect.get(argument, 'name'))
+    if (!name) return []
+    return [resolved ? `${name}=${resolved}` : name]
   })
 }
 
@@ -80,7 +88,7 @@ function assertRuntimeHint(entry: PackageEntry, expected: string) {
 
 /** Runner flags are limited to ones that cannot change what is installed or where it runs. */
 function runtimeArguments(entry: PackageEntry, allowed: ReadonlySet<string>) {
-  const args = positionalArguments(entry.runtimeArguments)
+  const args = commandLineArguments(entry.runtimeArguments)
   const unsupported = args.find((argument) => !allowed.has(argument))
   if (unsupported) {
     throw new Error(
@@ -125,7 +133,7 @@ function npmLauncher(entry: PackageEntry): RegistryPackageLauncher {
     args: [
       ...(confirmed ? runnerArgs : ['--yes', ...runnerArgs]),
       `${identifier}@${version}`,
-      ...positionalArguments(entry.packageArguments),
+      ...commandLineArguments(entry.packageArguments),
     ],
   })
 }
@@ -140,7 +148,7 @@ function pypiLauncher(entry: PackageEntry): RegistryPackageLauncher {
     args: [
       ...runtimeArguments(entry, new Set(['--quiet', '--no-cache'])),
       `${identifier}==${version}`,
-      ...positionalArguments(entry.packageArguments),
+      ...commandLineArguments(entry.packageArguments),
     ],
   })
 }
@@ -156,7 +164,7 @@ function nugetLauncher(entry: PackageEntry): RegistryPackageLauncher {
       ...runtimeArguments(entry, new Set(['-y', '--yes'])),
       `${identifier}@${version}`,
       '--yes',
-      ...positionalArguments(entry.packageArguments),
+      ...commandLineArguments(entry.packageArguments),
     ],
   })
 }
@@ -167,7 +175,7 @@ async function ociLauncher(
   resolveOciImage: OciImageResolver,
 ): Promise<RegistryPackageLauncher> {
   const identifier = packageIdentifier(entry.identifier, 'oci')
-  if (positionalArguments(entry.runtimeArguments).length > 0) {
+  if (commandLineArguments(entry.runtimeArguments).length > 0) {
     throw new Error('Registry OCI packages may not pass Docker options.')
   }
   const resolved = await resolveOciImage(identifier)
@@ -186,7 +194,7 @@ async function ociLauncher(
       '-i',
       ...Object.keys(env ?? {}).flatMap((name) => ['-e', name]),
       resolved.coordinate,
-      ...positionalArguments(entry.packageArguments),
+      ...commandLineArguments(entry.packageArguments),
     ],
     ...(env ? { env } : {}),
   }
@@ -197,7 +205,7 @@ async function mcpbLauncher(
   input: RegistryPackageLauncherInput,
 ): Promise<RegistryPackageLauncher> {
   const identifier = packageIdentifier(entry.identifier, 'mcpb')
-  if (positionalArguments(entry.runtimeArguments).length > 0) {
+  if (commandLineArguments(entry.runtimeArguments).length > 0) {
     throw new Error(
       'Registry MCPB packages start as their manifest says; runtime arguments are not accepted.',
     )
@@ -212,7 +220,7 @@ async function mcpbLauncher(
   const env = { ...piLiteralMap(installed.env), ...environment(entry) }
   return {
     command: installed.command,
-    args: [...installed.args, ...positionalArguments(entry.packageArguments)],
+    args: [...installed.args, ...commandLineArguments(entry.packageArguments)],
     cwd: installed.cwd,
     ...(Object.keys(env).length > 0 ? { env } : {}),
   }

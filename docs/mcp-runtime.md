@@ -168,6 +168,10 @@ to OpenWaggle's file for the chosen scope. A name already configured in any file
 | `oci` | `docker run --rm -i [-e NAME]… <repo>@sha256:…`, the digest Docker reports after `docker pull`. No Docker options from the Registry. |
 | `mcpb` | Downloaded from a GitHub/GitLab release URL, SHA-256 checked, unpacked into `~/.openwaggle/mcp/registry-cache/mcpb/<sha256>` (paths, symlinks, sizes bounded); `command`/`args` from the manifest, `cwd` = the bundle. |
 
+Package arguments follow the package: a `positional` argument is its value, and a `named` one is
+`--flag=value` as the server.json schema describes it (`NamedArgument`), or the bare flag when it
+has no value. Runner arguments are checked in the same form, so a flag cannot pass as a value.
+
 Without a chosen method the hosted URL wins, then the first stdio package. Declared secrets (and
 values without a default) become `{ "secret": NAME }` references, which is why the install only
 writes OpenWaggle's files; the result lists them so the UI can ask for them. Registry and
