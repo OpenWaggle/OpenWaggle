@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
+import { mcpFileWriteTargetAsync } from '../config/mcp-file-write-target'
 
 /** The file operations the migration needs; injectable for tests. */
 export interface McpMigrationFs {
@@ -27,7 +28,9 @@ export const nodeMcpMigrationFs: McpMigrationFs = {
       throw error
     }
   },
-  async writeTextAtomic(filePath, content) {
+  async writeTextAtomic(linkOrFile, content) {
+    // A symbolic link stays a link: the file it points to is replaced.
+    const filePath = await mcpFileWriteTargetAsync(linkOrFile)
     await mkdir(path.dirname(filePath), { recursive: true })
     const tempPath = `${filePath}.${randomUUID()}.tmp`
     try {

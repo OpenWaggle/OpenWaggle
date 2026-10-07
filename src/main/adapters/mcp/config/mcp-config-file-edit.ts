@@ -17,6 +17,7 @@ import {
 import path from 'node:path'
 import { applyEdits, type FormattingOptions, type JSONPath, modify } from 'jsonc-parser'
 import { isJsonRecord } from '../../../domain/mcp/config/mcp-server-config'
+import { mcpFileWriteTarget } from './mcp-file-write-target'
 
 type JsonRecord = Record<string, unknown>
 
@@ -81,7 +82,8 @@ function editedText(text: string, before: JsonRecord | undefined, after: JsonRec
   )
 }
 
-function writeAtomically(filePath: string, content: string) {
+function writeAtomically(linkOrFile: string, content: string) {
+  const filePath = mcpFileWriteTarget(linkOrFile)
   mkdirSync(path.dirname(filePath), { recursive: true })
   const mode = existsSync(filePath) ? statSync(filePath).mode % PERMISSION_MODULUS : NEW_FILE_MODE
   const temporaryPath = `${filePath}.${randomUUID()}.tmp`
