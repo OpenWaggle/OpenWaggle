@@ -10,6 +10,7 @@ function warmingPiSession() {
     cacheWarmingStatus: { state: 'scheduled', nextWarmAt: Date.now() + 60_000 },
     extensionRunner: { emit: vi.fn(async () => undefined) },
     dispose: vi.fn(),
+    sessionManager: { appendUsage: vi.fn() },
   })
 }
 
@@ -65,6 +66,7 @@ describe('a Session closed while its Run is ending', () => {
         }),
       },
       dispose: vi.fn(),
+      sessionManager: { appendUsage: vi.fn() },
     })
 
     await expect(

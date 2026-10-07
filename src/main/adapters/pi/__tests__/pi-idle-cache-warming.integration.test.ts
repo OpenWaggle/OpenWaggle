@@ -1,5 +1,10 @@
+import { readFileSync } from 'node:fs'
 import { fauxAssistantMessage } from '@earendil-works/pi-ai'
-import type { AgentSession, ExtensionAPI } from '@earendil-works/pi-coding-agent'
+import {
+  type AgentSession,
+  type ExtensionAPI,
+  SessionManager,
+} from '@earendil-works/pi-coding-agent'
 import { SessionId, SupportedModelId } from '@shared/types/brand'
 import type { SessionDetail } from '@shared/types/session'
 import { fromPartial } from '@total-typescript/shoehorn'
@@ -24,6 +29,7 @@ const REFRESH_WAIT_MS = 1_600
 
 async function sessionAfterRun(cacheWarming: 'idle' | 'streaming') {
   const created = await createOpenWagglePiSession({
+    persistSessionFile: true,
     appSettings: { codemodeEnabled: true, cacheWarming },
     extensionFactories: [alwaysWarm],
     promptCacheSeconds: PROMPT_CACHE_SECONDS,
@@ -50,6 +56,26 @@ function warmUsageEntries(session: AgentSession) {
   return session.sessionManager
     .getEntries()
     .flatMap((entry) => (entry.type === 'usage' && entry.kind === 'cache_warm' ? [entry] : []))
+}
+
+/** What `pi --resume` writes when the user continues the Session in the terminal meanwhile. */
+function continueInTheTerminal(file: string) {
+  SessionManager.open(file).appendMessage({
+    role: 'user',
+    content: [{ type: 'text', text: 'Continued in pi --resume' }],
+    timestamp: Date.now(),
+  })
+}
+
+function lastFileEntry(file: string) {
+  const lines = readFileSync(file, 'utf8').trim().split('\n')
+  return JSON.parse(lines.at(-1) ?? '{}')
+}
+
+function sessionFile(session: AgentSession) {
+  const file = session.sessionFile
+  if (!file) throw new Error('The test session has no Pi file')
+  return file
 }
 
 function wait(ms: number) {
@@ -157,7 +183,11 @@ describe('keeping a prompt cache warm between Runs', () => {
     await wait(REFRESH_WAIT_MS)
 
     const usage = await getPiContextUsage({
-      session: fromPartial<SessionDetail>({ id: sessionId, projectPath: '/unused' }),
+      session: fromPartial<SessionDetail>({
+        id: sessionId,
+        projectPath: '/unused',
+        piSessionFile: sessionFile(session),
+      }),
       model: SupportedModelId('test-provider/cached-model'),
     })
     await idleCacheWarming.release(sessionId)
@@ -180,5 +210,53 @@ describe('keeping a prompt cache warm between Runs', () => {
       .reduce((total, message) => total + tokens(message.usage), 0)
     expect(warmTokens).toBeGreaterThan(0)
     expect(usage?.session?.tokens).toBe(answerTokens + warmTokens)
+  })
+
+  it('stops once another writer continues the Session, at the next check', async () => {
+    const { session } = await sessionAfterRun('idle')
+    const warming = createIdleCacheWarming({ pollMs: 50 })
+    await warming.settle('session-a', session, { aborted: false })
+
+    continueInTheTerminal(sessionFile(session))
+    await wait(200)
+
+    expect(warming.borrow('session-a')).toBeUndefined()
+    await wait(REFRESH_WAIT_MS)
+    expect(lastFileEntry(sessionFile(session))).toMatchObject({ type: 'message' })
+  })
+
+  it('does not write a refresh after another writer continued the Session', async () => {
+    const { session } = await sessionAfterRun('idle')
+    // No check runs before Pi's first refresh, so only the write guard can stop it.
+    const warming = createIdleCacheWarming({ pollMs: 60_000 })
+    await warming.settle('session-a', session, { aborted: false })
+
+    continueInTheTerminal(sessionFile(session))
+    await wait(REFRESH_WAIT_MS)
+
+    expect(lastFileEntry(sessionFile(session))).toMatchObject({ type: 'message' })
+    expect(warming.borrow('session-a')).toBeUndefined()
+  })
+
+  it('keeps warming across its own refreshes', async () => {
+    const { session } = await sessionAfterRun('idle')
+    const warming = createIdleCacheWarming({ pollMs: 50 })
+    await warming.settle('session-a', session, { aborted: false })
+
+    await wait(REFRESH_WAIT_MS)
+
+    expect(lastFileEntry(sessionFile(session))).toMatchObject({ type: 'usage', kind: 'cache_warm' })
+    expect(warming.borrow('session-a')).toBe(session)
+    await warming.releaseAll()
+  })
+
+  it('is not lent to a read once another writer continued the Session', async () => {
+    const { session } = await sessionAfterRun('idle')
+    const warming = createIdleCacheWarming({ pollMs: 60_000 })
+    await warming.settle('session-a', session, { aborted: false })
+
+    continueInTheTerminal(sessionFile(session))
+
+    expect(warming.borrow('session-a') === undefined).toBe(true)
   })
 })

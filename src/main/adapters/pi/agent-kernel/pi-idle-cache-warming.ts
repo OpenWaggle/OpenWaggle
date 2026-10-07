@@ -1,3 +1,4 @@
+import { statSync } from 'node:fs'
 import type { AgentSession } from '@earendil-works/pi-coding-agent'
 import { onAuthoritativeSettingsChange } from '../../../store/authoritative-settings'
 import {
@@ -13,9 +14,38 @@ import { logger } from './constants'
  * extensions are shut down (so it holds no MCP connection), it never runs another Run, and it is
  * ended before anything else opens the Session's Pi file, so two writers never share that file.
  */
+interface PiFileState {
+  readonly size: number
+  readonly mtimeMs: number
+}
+
 interface WarmingSession {
   readonly session: AgentSession
   readonly settledAt: number
+  /** The Pi file as the Run, then this session's own refreshes, left it. */
+  fileState: PiFileState | null
+}
+
+function piFileState(file: string | undefined): PiFileState | null {
+  if (!file) return null
+  try {
+    const stats = statSync(file)
+    return { size: stats.size, mtimeMs: stats.mtimeMs }
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Another writer, such as `pi --resume`, continued the Session. A refresh would then be parented
+ * on this session's stale leaf and become the file's last entry, so the next resume would continue
+ * the old branch, and the prompt it keeps warm is no longer the one the Session will send.
+ */
+function fileChangedElsewhere(warming: WarmingSession) {
+  const current = piFileState(warming.session.sessionFile)
+  const left = warming.fileState
+  if (!current || !left) return current !== left
+  return current.size !== left.size || current.mtimeMs !== left.mtimeMs
 }
 
 interface IdleCacheWarmingClock {
@@ -80,7 +110,13 @@ export function createIdleCacheWarming(options: IdleCacheWarmingOptions = {}) {
   function endStoppedSessions() {
     const now = clock.now()
     for (const [sessionId, warming] of [...warmingBySessionId]) {
-      if (!isWarming(warming.session) || now - warming.settledAt >= maxIdleMs) end(sessionId)
+      if (
+        !isWarming(warming.session) ||
+        now - warming.settledAt >= maxIdleMs ||
+        fileChangedElsewhere(warming)
+      ) {
+        end(sessionId)
+      }
     }
   }
 
@@ -88,8 +124,30 @@ export function createIdleCacheWarming(options: IdleCacheWarmingOptions = {}) {
     return enabled && !run.aborted && !closedSessionIds.has(sessionId) && isWarming(session)
   }
 
+  /** Pi records each refresh with `appendUsage`; it is refused once another writer appended. */
+  function guardRefreshWrites(sessionId: string, warming: WarmingSession) {
+    const manager = warming.session.sessionManager
+    const appendUsage = manager.appendUsage.bind(manager)
+    manager.appendUsage = (...args) => {
+      if (fileChangedElsewhere(warming)) {
+        end(sessionId)
+        // Pi's warmer treats a failed refresh as best effort and records nothing.
+        throw new Error('The Pi session file changed outside its warming session.')
+      }
+      const entry = appendUsage(...args)
+      warming.fileState = piFileState(warming.session.sessionFile)
+      return entry
+    }
+  }
+
   function keep(sessionId: string, session: AgentSession) {
-    warmingBySessionId.set(sessionId, { session, settledAt: clock.now() })
+    const warming: WarmingSession = {
+      session,
+      settledAt: clock.now(),
+      fileState: piFileState(session.sessionFile),
+    }
+    guardRefreshWrites(sessionId, warming)
+    warmingBySessionId.set(sessionId, warming)
     for (const oldest of warmingBySessionId.keys()) {
       if (warmingBySessionId.size <= maxSessions) break
       end(oldest)
@@ -125,7 +183,14 @@ export function createIdleCacheWarming(options: IdleCacheWarmingOptions = {}) {
     },
     /** The warming session, for reads that would otherwise open the Session's Pi file again. */
     borrow(sessionId: string): AgentSession | undefined {
-      return warmingBySessionId.get(sessionId)?.session
+      const warming = warmingBySessionId.get(sessionId)
+      if (!warming) return undefined
+      // Its view of the file is stale once another writer continued the Session.
+      if (fileChangedElsewhere(warming)) {
+        end(sessionId)
+        return undefined
+      }
+      return warming.session
     },
     setEnabled(next: boolean) {
       enabled = next

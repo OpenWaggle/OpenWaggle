@@ -64,6 +64,8 @@ export interface OpenWagglePiSessionOptions {
   readonly authorizationMode?: AgentAuthorizationMode
   readonly models?: readonly FauxModelDefinition[]
   readonly onEvent?: (event: AgentTransportEvent) => void
+  /** Write the session to a Pi session file, as a Run does, instead of keeping it in memory. */
+  readonly persistSessionFile?: boolean
   /** Prompt cache lifetime, in seconds, of every faux model, so Pi can keep its cache warm. */
   readonly promptCacheSeconds?: number
   /** The model the Session selects, such as a virtual model; the first faux model by default. */
@@ -112,7 +114,9 @@ export async function createOpenWagglePiSession(options: OpenWagglePiSessionOpti
   const { session } = await createOpenWaggleAgentSessionFromServices({
     services,
     model: selected,
-    sessionManager: SessionManager.inMemory(projectPath),
+    sessionManager: options.persistSessionFile
+      ? SessionManager.create(projectPath, temporaryDirectory('pi-sessions'))
+      : SessionManager.inMemory(projectPath),
     openWaggleUi,
   })
   cleanups.push(() => session.dispose())

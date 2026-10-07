@@ -13,6 +13,7 @@ function warmingPiSession() {
     cacheWarmingStatus: { state: 'scheduled', nextWarmAt: Date.now() + 60_000 },
     extensionRunner: { emit: vi.fn(async () => undefined) },
     dispose: vi.fn(),
+    sessionManager: { appendUsage: vi.fn() },
   })
 }
 

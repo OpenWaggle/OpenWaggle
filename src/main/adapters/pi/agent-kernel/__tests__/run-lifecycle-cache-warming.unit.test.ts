@@ -45,6 +45,7 @@ describe('a Run whose prompt cache Pi keeps warm between runs', () => {
         getEntries: vi.fn(() => []),
         getBranch: vi.fn(() => []),
         getLeafId: vi.fn(() => null),
+        appendUsage: vi.fn(),
       },
       abort: vi.fn(async () => undefined),
       isCompacting: false,
