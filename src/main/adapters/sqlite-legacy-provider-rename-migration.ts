@@ -2,6 +2,7 @@ import * as SqlClient from '@effect/sql/SqlClient'
 import { parseJsonUnknown } from '@shared/schema'
 import * as Cause from 'effect/Cause'
 import * as Effect from 'effect/Effect'
+import { renameLegacyProviderModelReference } from '../domain/legacy-provider-renames'
 import { createLogger } from '../logger'
 import {
   SETTINGS_KEY_DEFAULT_MODEL,
@@ -10,7 +11,6 @@ import {
   SETTINGS_KEY_SELECTED_MODELS_BY_PROJECT,
   SETTINGS_KEY_SESSION_TITLE_MODEL,
 } from '../store/settings/keys'
-import { renameLegacyProviderModelReference } from './pi/pi-provider-renames'
 
 const logger = createLogger('legacy-provider-rename-migration')
 
