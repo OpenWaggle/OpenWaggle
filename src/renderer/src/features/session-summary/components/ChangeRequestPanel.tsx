@@ -1,8 +1,15 @@
 import type { WorkingPath } from '@shared/types/brand'
 import { GitPullRequest, RefreshCw, X } from 'lucide-react'
+import { useFocusHandoff } from '@/shared/hooks/useFocusHandoff'
 import { Button } from '@/shared/ui/Button'
 import { RightPanelMaximizeButton } from '@/shared/ui/RightPanelMaximizeButton'
-import { ChangeRequestPanelContent } from './ChangeRequestPanelContent'
+import { providerSiteLabel } from '../model/change-request-attention'
+import { ChangeRequestPanelContent, ChangeRequestWebsiteButton } from './ChangeRequestPanelContent'
+import { SourceControlAttentionNotice } from './SourceControlAttentionNotice'
+
+/** The request title, else the first remaining action (a still-failing load's Retry). */
+const REQUEST_TITLE_SELECTOR = 'h3[tabindex="-1"], button'
+
 import {
   type ChangeRequestPanelController,
   useChangeRequestPanelController,
@@ -51,6 +58,48 @@ function ChangeRequestPanelHeader({
   )
 }
 
+function ChangeRequestPanelFailure({
+  controller,
+}: {
+  readonly controller: ChangeRequestPanelController
+}) {
+  const result = controller.result
+  const attention = result && !result.ok ? result.attention : undefined
+  const refetch = () => void controller.query.refetch()
+  if (attention) {
+    return (
+      <div className="p-4">
+        <SourceControlAttentionNotice
+          label="Change request inspector setup"
+          attention={attention}
+          terminal={controller.terminal}
+          websiteUrl={controller.requestUrl}
+          onRecheck={controller.recheckSourceControl}
+        />
+      </div>
+    )
+  }
+  return (
+    <div className="space-y-3 p-4 text-sm">
+      <p role="alert" className="text-error-text">
+        {result?.ok === false ? result.message : 'Could not load this request.'}
+      </p>
+      <div className="flex flex-wrap gap-2">
+        <Button variant="secondary" onClick={refetch}>
+          Retry
+        </Button>
+        {controller.requestUrl ? (
+          <ChangeRequestWebsiteButton
+            ownerKey={controller.ownerKey}
+            url={controller.requestUrl}
+            label={providerSiteLabel(null, controller.requestUrl)}
+          />
+        ) : null}
+      </div>
+    </div>
+  )
+}
+
 function ChangeRequestPanelBody({
   controller,
   onSelectRequest,
@@ -75,20 +124,7 @@ function ChangeRequestPanelBody({
     )
   }
   if (!controller.result?.ok) {
-    return (
-      <div className="p-4 text-sm">
-        <p role="alert" className="text-error-text">
-          {controller.result?.message ?? 'Could not load this request.'}
-        </p>
-        <Button
-          className="mt-3"
-          variant="secondary"
-          onClick={() => void controller.query.refetch()}
-        >
-          Retry
-        </Button>
-      </div>
-    )
+    return <ChangeRequestPanelFailure controller={controller} />
   }
   return (
     <ChangeRequestPanelContent
@@ -114,14 +150,18 @@ function BoundChangeRequestPanel({
     requestUrl,
     open,
   })
+  // A source-control fix replaces the focused notice with the request itself.
+  const bodyFocus = useFocusHandoff<HTMLDivElement>({ target: REQUEST_TITLE_SELECTOR })
   return (
     <section className="flex size-full min-h-0 flex-col bg-diff-bg" aria-label="Change request">
       <ChangeRequestPanelHeader controller={controller} onClose={onClose} />
-      <ChangeRequestPanelBody
-        controller={controller}
-        onSelectRequest={onSelectRequest}
-        onOpenDiff={onOpenDiff}
-      />
+      <div ref={bodyFocus} className="flex min-h-0 flex-1 flex-col">
+        <ChangeRequestPanelBody
+          controller={controller}
+          onSelectRequest={onSelectRequest}
+          onOpenDiff={onOpenDiff}
+        />
+      </div>
     </section>
   )
 }

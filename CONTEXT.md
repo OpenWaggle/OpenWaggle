@@ -1132,6 +1132,14 @@ _Avoid_: git remote (that is the plain URL), forge
 The provider-neutral concept that a GitHub pull request or a GitLab merge request instantiates.
 _Avoid_: PR (as the neutral term), MR (as the neutral term)
 
+**Source control host**:
+One hostname recognised as an instance of a **Source control provider**, whether public, enterprise, or self-hosted. Its provider comes from the user's own choice, then an approved project declaration, then detection; none of it is Session state.
+_Avoid_: enterprise account (an account signs in to a host), forge instance, server
+
+**Provider account**:
+One identity signed in to a **Source control host** through that provider's CLI; a host may hold several, and the one able to see a repository is remembered privately for that repository across all its checkouts and Sessions.
+_Avoid_: enterprise account, CLI user, token
+
 The Session Summary's Environment section uses provider-specific language and exposes separate change, environment, branch, Git-action, and Change request rows while delegating mutations to the existing guarded Git workflows.
 
 **Change request composer**:
@@ -1141,6 +1149,10 @@ _Avoid_: full review dialog, immediate unreviewable change-request creation
 **Change request inspector**:
 The Session-bound right-sidebar view for an existing GitHub pull request or GitLab merge request. It shows bounded provider lifecycle detail and only the current-branch request or additional requests recorded as Outputs by that Session. Browser opening remains explicit. A merge is confirmed and then revalidated against the Session working path, repository/request identity, provider availability, merge state, and exact head commit before the provider CLI runs.
 _Avoid_: browser-only request row, repository-wide request feed
+
+**Change request open destination**:
+The choice of where activating a Change request row in the Session Summary goes: the **Change request inspector** (default) or the provider's own web page, opened wherever web links open. It is set user-wide and may be overridden per project, never per Session. The other destination always stays one explicit action away on the same row.
+_Avoid_: PR link target, web link target (that setting chooses which browser, not inspector versus web page)
 
 **Stacked git action**:
 A single composite git intent that runs an ordered set of steps — for example commit, then push, then open a change request — as one user action.

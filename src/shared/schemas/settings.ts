@@ -18,6 +18,10 @@ import {
   SHORTCUT_COMMANDS,
   SHORTCUT_RULE_LIMITS,
 } from '@shared/types/shortcuts'
+import {
+  CHANGE_REQUEST_OPEN_DESTINATIONS,
+  isSourceControlHostName,
+} from '@shared/types/source-control'
 import { UPDATE_CHANNELS } from '@shared/types/update-channel'
 import { parseProjectActionWhenExpression } from '@shared/utils/project-action-shortcuts'
 
@@ -61,6 +65,56 @@ const extensionPanelShortcutBindingsSchema = Schema.Record({
 )
 
 const positiveIntegerSchema = Schema.Number.pipe(Schema.int(), Schema.positive())
+
+/** Upper bounds on the per-host and per-repository source-control maps. */
+const SOURCE_CONTROL_SETTINGS_LIMITS = {
+  ENTRIES: 500,
+  KEY_LENGTH: 512,
+} as const
+
+const sourceControlProviderIdSchema = Schema.Literal('github', 'gitlab')
+const changeRequestOpenDestinationSchema = Schema.Literal(...CHANGE_REQUEST_OPEN_DESTINATIONS)
+
+/** A lowercase hostname, optionally with a port, as every per-host setting is keyed. */
+function isSourceControlHostKey(key: string) {
+  return (
+    key.length > 0 &&
+    key.length <= SOURCE_CONTROL_SETTINGS_LIMITS.KEY_LENGTH &&
+    key === key.toLowerCase() &&
+    isSourceControlHostName(key)
+  )
+}
+
+function boundedRecordSchema<V extends Schema.Schema.Any>(
+  value: V,
+  isValidKey: (key: string) => boolean,
+  label: string,
+) {
+  return Schema.Record({ key: Schema.String, value }).pipe(
+    Schema.filter((record) => Object.keys(record).every(isValidKey), {
+      message: () => `${label} has an invalid key.`,
+    }),
+    Schema.filter(
+      (record) => Object.keys(record).length <= SOURCE_CONTROL_SETTINGS_LIMITS.ENTRIES,
+      { message: () => `${label} has too many entries.` },
+    ),
+  )
+}
+
+function isBoundedKey(key: string) {
+  return key.trim().length > 0 && key.length <= SOURCE_CONTROL_SETTINGS_LIMITS.KEY_LENGTH
+}
+
+const sourceControlHostProvidersSchema = boundedRecordSchema(
+  sourceControlProviderIdSchema,
+  isSourceControlHostKey,
+  'Source control host providers',
+)
+
+const sourceControlProjectDeclarationSchema = Schema.Struct({
+  approved: sourceControlHostProvidersSchema,
+  declined: sourceControlHostProvidersSchema,
+})
 const nonNegativeIntegerSchema = Schema.Number.pipe(Schema.int(), Schema.nonNegative())
 
 /** Runtime contract shared by IPC patches and persisted settings decoding. */
@@ -161,6 +215,61 @@ export const settingsUpdateSchema = Schema.Struct({
   browserAutoShowFloatingPreview: Schema.optional(Schema.Boolean),
   enableAgentBrowserAccess: Schema.optional(Schema.Boolean),
   appearancePreferences: Schema.optional(appearancePreferencesSchema),
+  changeRequestOpenDestination: Schema.optional(Schema.NullOr(changeRequestOpenDestinationSchema)),
+  changeRequestOpenDestinationByProject: Schema.optional(
+    Schema.mutable(
+      boundedRecordSchema(
+        changeRequestOpenDestinationSchema,
+        isBoundedKey,
+        'Change request open destinations',
+      ),
+    ),
+  ),
+  sourceControlHostProviders: Schema.optional(
+    Schema.mutable(
+      boundedRecordSchema(
+        Schema.Literal('github', 'gitlab', 'unsupported'),
+        isSourceControlHostKey,
+        'Source control host choices',
+      ),
+    ),
+  ),
+  sourceControlDetectedHostProviders: Schema.optional(
+    Schema.mutable(sourceControlHostProvidersSchema),
+  ),
+  sourceControlRepositoryAccounts: Schema.optional(
+    Schema.mutable(
+      boundedRecordSchema(
+        Schema.String.pipe(
+          Schema.minLength(1),
+          Schema.maxLength(SOURCE_CONTROL_SETTINGS_LIMITS.KEY_LENGTH),
+        ),
+        isBoundedKey,
+        'Source control repository accounts',
+      ),
+    ),
+  ),
+  sourceControlChangeRequestRepositories: Schema.optional(
+    Schema.mutable(
+      boundedRecordSchema(
+        Schema.String.pipe(
+          Schema.minLength(1),
+          Schema.maxLength(SOURCE_CONTROL_SETTINGS_LIMITS.KEY_LENGTH),
+        ),
+        isBoundedKey,
+        'Source control change request repositories',
+      ),
+    ),
+  ),
+  sourceControlProjectDeclarations: Schema.optional(
+    Schema.mutable(
+      boundedRecordSchema(
+        sourceControlProjectDeclarationSchema,
+        isBoundedKey,
+        'Source control project declarations',
+      ),
+    ),
+  ),
   shortcutBindings: Schema.optional(
     Schema.mutable(
       Schema.Record({

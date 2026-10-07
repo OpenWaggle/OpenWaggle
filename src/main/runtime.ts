@@ -49,6 +49,7 @@ import { UsageStatisticsServicesLive } from './adapters/usage-statistics-recorde
 import { WorkspaceProjectAuthorizationLive } from './adapters/workspace-project-authorization'
 import { ActiveProjectChangeServiceLive } from './application/active-project-change-service'
 import { SessionWaitServiceLive } from './application/session-wait-service'
+import { makeSourceControlSettingsAccess } from './application/source-control-settings-access'
 import { OperationAdapterLive } from './operation-adapter-layer'
 import {
   ActionKernelServicesLive,
@@ -64,6 +65,7 @@ import { SessionTitleServicesLive } from './runtime-session-title-services'
 import { AppDatabaseLive } from './services/database-service'
 import { AppLogger } from './services/logger-service'
 import { SettingsService } from './services/settings-service'
+import { configureSourceControlSettingsAccess } from './services/source-control/source-control-runtime'
 import { setStoreEffectRunner } from './store/store-runtime'
 
 const ExtensionLifecycleRepositoryLive = SqliteExtensionLifecycleRepositoryLive.pipe(
@@ -261,7 +263,12 @@ function installStoreEffectRunner() {
 }
 
 export async function initializeAppRuntime(): Promise<void> {
-  await getAppRuntime().runPromise(Effect.void)
+  await getAppRuntime().runPromise(
+    Effect.gen(function* () {
+      const settings = yield* SettingsService
+      configureSourceControlSettingsAccess(makeSourceControlSettingsAccess(settings))
+    }),
+  )
 }
 
 export async function disposeAppRuntime(): Promise<void> {

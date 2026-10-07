@@ -19,6 +19,7 @@ import {
 } from './browser-preview-controls'
 import type { BrowserProfile } from './browser-profile'
 import { DEFAULT_BROWSER_PROFILE_ID } from './browser-profile'
+import type { SourceControlProviderId } from './change-request'
 import type { SessionEnvironmentMode } from './git'
 import {
   DEFAULT_SHORTCUT_RULES,
@@ -27,6 +28,11 @@ import {
   type ShortcutRules,
   shortcutBindingsFromRules,
 } from './shortcuts'
+import type {
+  ChangeRequestOpenDestination,
+  SourceControlHostChoice,
+  SourceControlProjectDeclarationRecord,
+} from './source-control'
 import { DEFAULT_SYNTAX_THEME_SELECTIONS, type SyntaxThemeSelections } from './syntax'
 import { DEFAULT_UPDATE_CHANNEL, type UpdateChannel } from './update-channel'
 
@@ -149,6 +155,24 @@ export interface Settings {
   readonly sessionTitleModel: SessionTitleModelSetting
   /** User overrides layered above the active Appearance package defaults. */
   readonly appearancePreferences: AppearancePreferences
+  /** User-wide Change request open destination; null means the user never chose one. */
+  readonly changeRequestOpenDestination: ChangeRequestOpenDestination | null
+  /** Private per-project Change request open destination overrides, keyed by project path. */
+  readonly changeRequestOpenDestinationByProject: Readonly<
+    Record<string, ChangeRequestOpenDestination>
+  >
+  /** The user's own provider choice per Source control host (lowercase hostname). */
+  readonly sourceControlHostProviders: Readonly<Record<string, SourceControlHostChoice>>
+  /** Providers learned from a remote's change-request refs, cached per host. */
+  readonly sourceControlDetectedHostProviders: Readonly<Record<string, SourceControlProviderId>>
+  /** Provider account login that can see each repository (`host/owner/repo`). */
+  readonly sourceControlRepositoryAccounts: Readonly<Record<string, string>>
+  /** Repository holding a fork's change requests (`host/owner/repo` → `host/owner/repo`). */
+  readonly sourceControlChangeRequestRepositories: Readonly<Record<string, string>>
+  /** The user's local decision on each project's shared host declarations. */
+  readonly sourceControlProjectDeclarations: Readonly<
+    Record<string, SourceControlProjectDeclarationRecord>
+  >
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -192,4 +216,11 @@ export const DEFAULT_SETTINGS: Settings = {
   compactionThresholdPercent: DEFAULT_COMPACTION_THRESHOLD_PERCENT,
   sessionTitleModel: DEFAULT_SESSION_TITLE_MODEL,
   appearancePreferences: DEFAULT_APPEARANCE_PREFERENCES,
+  changeRequestOpenDestination: null,
+  changeRequestOpenDestinationByProject: {},
+  sourceControlHostProviders: {},
+  sourceControlDetectedHostProviders: {},
+  sourceControlRepositoryAccounts: {},
+  sourceControlChangeRequestRepositories: {},
+  sourceControlProjectDeclarations: {},
 }

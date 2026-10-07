@@ -33,6 +33,7 @@ import {
   type ProjectActionToolServices,
 } from './project-actions-tool-extension'
 import { createSessionsToolExtension } from './sessions-tool-extension'
+import { createSourceControlToolExtension } from './source-control-tool-extension'
 
 export function createBrowserPreviewRuntimeResources(input: {
   readonly enabled: boolean
@@ -228,6 +229,10 @@ function runPiAgentKernelTurn(
         ...dependencies.projectActions,
         sessionId: input.session.id,
         runId: input.runId,
+      }),
+      createSourceControlToolExtension({
+        sessionId: input.session.id,
+        workspaces: dependencies.projectActions.workspaces,
       }),
     ]
     launchReporter.reportTaskStarting(executionPath)

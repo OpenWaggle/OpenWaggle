@@ -208,6 +208,10 @@ export const api: OpenWaggleApi = {
   checkoutChangeRequest: invoke('git:change-request:checkout'),
   getChangeRequestPanel: invoke('git:change-request:panel'),
   mergeChangeRequest: invoke('git:change-request:merge'),
+  getSourceControlHosts: invoke('source-control:hosts'),
+  getChangeRequestOpenDestination: invoke('source-control:open-destination'),
+  configureSourceControl: invoke('source-control:configure'),
+  refreshSourceControlStatus: invoke('source-control:refresh-status'),
 
   // Attachments
   prepareAttachments: prepareSelectedAttachments,

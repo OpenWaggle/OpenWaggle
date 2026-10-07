@@ -1,4 +1,5 @@
-export const LOCAL_SESSION_CURRENT_REVISION = 21 as const
+export const LOCAL_SESSION_CURRENT_REVISION = 22 as const
+export const LOCAL_SESSION_SOURCE_CONTROL_REVISION = 22 as const
 export const LOCAL_SESSION_FOLLOW_UP_EDIT_REVISION = 21 as const
 export const LOCAL_SESSION_SESSION_SETTINGS_REVISION = 21 as const
 export const LOCAL_SESSION_TITLE_REGENERATION_REVISION = 20 as const
@@ -33,6 +34,9 @@ export const LOCAL_SESSION_WAGGLE_REVISION = 3 as const
  * thinking-level Host UI channels, a Follow-up that carries no thinking level or Run authorization
  * override, `message` accepting both only when it starts a Run, no `queue-update-authorization`,
  * and the desktop-only `queue-adopt` that sends a needs-attention Follow-up as the user.
+ * Revision 22 moves Session-coupled source-control work to the Host (ADR 0048): the Change request
+ * inspector, merge validation and the confirmed merge, Session working-path checks, and Git Output
+ * recording, because the desktop window's database is isolated and cannot see Sessions.
  */
 export const LOCAL_SESSION_SUPPORTED_REVISIONS = [LOCAL_SESSION_CURRENT_REVISION] as const
 
@@ -143,4 +147,9 @@ export const LOCAL_SESSION_REVISION_21_CAPABILITIES = [
   'sessions:follow-up-edit-v1',
 ] as const
 
-export const LOCAL_SESSION_CAPABILITIES = LOCAL_SESSION_REVISION_21_CAPABILITIES
+export const LOCAL_SESSION_REVISION_22_CAPABILITIES = [
+  ...LOCAL_SESSION_REVISION_21_CAPABILITIES,
+  'host-ui:source-control-v1',
+] as const
+
+export const LOCAL_SESSION_CAPABILITIES = LOCAL_SESSION_REVISION_22_CAPABILITIES

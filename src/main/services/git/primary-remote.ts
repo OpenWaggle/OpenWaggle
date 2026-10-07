@@ -1,4 +1,4 @@
-import { runGit } from './shared'
+import { runGit } from '../../adapters/git/run-git'
 
 export interface PrimaryRemote {
   readonly name: string

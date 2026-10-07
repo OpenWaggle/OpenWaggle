@@ -6,7 +6,11 @@ import {
   resetGitHandlerMocks,
   showMessageBoxMock,
 } from './git-handler.test-harness'
-import type { GitCallback } from './git-handler-stacked-gates.test-harness'
+import {
+  answerResolverReadAsUnconfigured,
+  type GitCallback,
+  isSourceControlResolverRead,
+} from './git-handler-stacked-gates.test-harness'
 
 describe('stacked action destination safety gates', () => {
   let registerGitHandlers: Awaited<ReturnType<typeof loadGitHandlers>>['registerGitHandlers']
@@ -23,6 +27,7 @@ describe('stacked action destination safety gates', () => {
     execFileMock.mockImplementation(
       (_command: string, args: string[], _options: unknown, callback: GitCallback) => {
         const joined = args.join(' ')
+        if (isSourceControlResolverRead(joined)) return answerResolverReadAsUnconfigured(callback)
         if (joined === 'rev-parse --is-inside-work-tree') return callback(null, 'true\n', '')
         if (joined === 'symbolic-ref --quiet --short HEAD') {
           headReads += 1
@@ -85,6 +90,7 @@ describe('stacked action destination safety gates', () => {
     execFileMock.mockImplementation(
       (_command: string, args: string[], _options: unknown, callback: GitCallback) => {
         const joined = args.join(' ')
+        if (isSourceControlResolverRead(joined)) return answerResolverReadAsUnconfigured(callback)
         if (joined === 'rev-parse --is-inside-work-tree') return callback(null, 'true\n', '')
         if (joined === 'symbolic-ref --quiet --short HEAD') {
           return callback(null, 'feature/session\n', '')
@@ -161,6 +167,7 @@ describe('stacked action destination safety gates', () => {
     execFileMock.mockImplementation(
       (_command: string, args: string[], _options: unknown, callback: GitCallback) => {
         const joined = args.join(' ')
+        if (isSourceControlResolverRead(joined)) return answerResolverReadAsUnconfigured(callback)
         if (joined === 'rev-parse --is-inside-work-tree') return callback(null, 'true\n', '')
         if (joined === 'symbolic-ref --quiet --short HEAD') return callback(null, 'main\n', '')
         if (joined === 'remote get-url origin') {
@@ -224,6 +231,7 @@ describe('stacked action destination safety gates', () => {
     execFileMock.mockImplementation(
       (_command: string, args: string[], _options: unknown, callback: GitCallback) => {
         const joined = args.join(' ')
+        if (isSourceControlResolverRead(joined)) return answerResolverReadAsUnconfigured(callback)
         if (joined === 'rev-parse --is-inside-work-tree') return callback(null, 'true\n', '')
         if (joined === 'symbolic-ref --quiet --short HEAD') {
           return callback(null, 'feature/session\n', '')

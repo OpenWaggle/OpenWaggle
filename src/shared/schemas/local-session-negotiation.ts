@@ -54,6 +54,7 @@ const [
   hostStopCapability,
   titleRegenerationCapability,
   followUpEditCapability,
+  sourceControlCapability,
 ] = LOCAL_SESSION_CAPABILITIES
 
 const supportedRevisionListSchema = Schema.Array(
@@ -89,6 +90,7 @@ const currentCapabilitySchema = Schema.Tuple(
   Schema.Literal(hostStopCapability),
   Schema.Literal(titleRegenerationCapability),
   Schema.Literal(followUpEditCapability),
+  Schema.Literal(sourceControlCapability),
 )
 
 export const localSessionNegotiationResultSchema: Schema.Schema<LocalSessionNegotiationResult> =

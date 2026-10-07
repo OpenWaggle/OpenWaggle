@@ -74,6 +74,10 @@ import {
 } from './session-title-settings'
 import { resolveUpdatedSetting, resolveValidatedSetting } from './setting-resolution'
 import { resolveNextShortcutRules } from './shortcut-settings-snapshot'
+import {
+  resolveNextSourceControlSettings,
+  resolveStoredSourceControlSettings,
+} from './source-control-settings'
 import { resolveUpdateChannel } from './update-channel-settings'
 import * as usageStatisticsSettings from './usage-statistics-settings'
 
@@ -186,6 +190,7 @@ export function buildSettingsSnapshot(storedSettings: Readonly<Record<string, un
       ...resolveStoredSessionTitleSettings(storedSettings),
       appearancePreferences,
       ...browserSettings,
+      ...resolveStoredSourceControlSettings(storedSettings),
     } satisfies Settings,
   }
 }
@@ -207,6 +212,7 @@ export function buildNextSettingsSnapshot(current: Settings, partial: Partial<Se
     ...resolveNextProjectPathAliases(current, partial),
     ...resolveNextBrowserSettings(current, partial),
     ...usageStatisticsSettings.resolveNextUsageStatisticsSettings(current, partial),
+    ...resolveNextSourceControlSettings(current, partial),
   } satisfies Settings
 }
 

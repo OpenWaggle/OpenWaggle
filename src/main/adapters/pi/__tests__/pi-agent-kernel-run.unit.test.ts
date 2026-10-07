@@ -164,6 +164,13 @@ describe('runPiAgentKernel', () => {
       }),
     )
     // The Run holds its scratch directory until it ends, so an archive mid-Run cannot delete it.
+    const registeredTools: string[] = []
+    const trusted: unknown = runMocks.runPiSession.mock.calls[0]?.[0]?.trustedExtensionFactories
+    for (const factory of Array.isArray(trusted) ? trusted : []) {
+      if (typeof factory !== 'function') continue
+      factory({ registerTool: (tool: { name: string }) => registeredTools.push(tool.name) })
+    }
+    expect(registeredTools).toEqual(expect.arrayContaining(['project_actions', 'source_control']))
     expect(runMocks.retainSessionScratchDirectory).toHaveBeenCalledWith('session-1')
     expect(runMocks.releaseScratchDirectory).toHaveBeenCalledTimes(1)
     expect(runMocks.releaseScratchDirectory.mock.invocationCallOrder[0]).toBeGreaterThan(
