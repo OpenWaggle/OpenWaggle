@@ -3,9 +3,9 @@ import * as Effect from 'effect/Effect'
 import { makeErrorInfo } from '../../agent/error-classifier'
 import { agentDefinitionTogglesForProject } from '../../agents/agent-definition-toggle-settings'
 import { ProviderService } from '../../ports/provider-service'
-import { SessionProjectionRepository } from '../../ports/session-projection-repository'
 import { SettingsService } from '../../services/settings-service'
 import { listRuntimeEnabledOpenWaggleExtensionPackagePaths } from '../extension-runtime-service'
+import { loadSessionForRun } from '../pi-session-discovery'
 import { assignSessionTitleFromUserText } from '../run-handler-utils'
 import type { AgentRunInput, AgentRunResult } from './types'
 
@@ -26,8 +26,7 @@ interface AgentRunPreflightFailure {
 
 export function loadAgentRunPreflight(input: AgentRunInput) {
   return Effect.gen(function* () {
-    const sessionProjectionRepo = yield* SessionProjectionRepository
-    const session = yield* sessionProjectionRepo.getOptional(input.sessionId)
+    const session = yield* loadSessionForRun(input.sessionId)
     if (!session) return sessionNotFound()
 
     const providerService = yield* ProviderService

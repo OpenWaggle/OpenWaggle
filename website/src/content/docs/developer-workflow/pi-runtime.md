@@ -22,6 +22,12 @@ When you send a message:
 
 Pi executes the tools enabled for the run. OpenWaggle renders their events in the transcript and applies its session policy through the Pi adapter.
 
+## Session files
+
+OpenWaggle keeps each session in a normal Pi session file under Pi's agent directory (`~/.pi/agent/sessions/`, one folder per working directory). The SQLite projection is a read model built from that file.
+
+The Session Host also lists Pi sessions that other programs, such as the `pi` CLI, created in an OpenWaggle project or a folder inside it. Every few seconds it reads the first lines of new files in the matching folders: the header, an early `/name`, and the first user message. It never reads whole transcripts to build the list. A listed session is projected the first time it is opened. Before it is shown or continued, OpenWaggle compares the file's size and modification time with the last projection and reads it again if another program appended to it. Runs open the same file, so `pi --resume` continues the same history. Nothing locks the file between programs.
+
 ## Tool surface
 
 The default built-in coding tools are:

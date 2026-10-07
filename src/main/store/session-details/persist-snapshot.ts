@@ -1,6 +1,7 @@
 import * as SqlClient from '@effect/sql/SqlClient'
 import * as Effect from 'effect/Effect'
 import type { PersistSessionSnapshotInput } from '../../ports/session-repository'
+import { recordPiProjectionOfCurrentFile } from '../pi-session-file-freshness'
 import { runStoreEffect } from '../store-runtime'
 import { deriveBranchHints, deriveSessionBranchesForSnapshot } from './branch-derivation'
 import { replaceSnapshotProjection } from './persist-snapshot-projection'
@@ -59,4 +60,6 @@ export async function persistSessionSnapshot(input: PersistSessionSnapshotInput)
       yield* sql.withTransaction(persistSessionSnapshotWithSql(sql, input, now))
     }),
   )
+  // Pi has written the file this snapshot was read from, so its current state is the projected one.
+  recordPiProjectionOfCurrentFile(input.sessionId, input.piSessionFile)
 }

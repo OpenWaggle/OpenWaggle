@@ -22,6 +22,10 @@ _Avoid_: Pi MCP extension, MCP plugin
 The promise that OpenWaggle is the GUI for the Pi ecosystem: everything a Pi coding-agent user carries, including configuration, logins, MCP servers, extensions and packages, skills, prompts, context files, and existing Pi sessions, works in OpenWaggle unchanged, and OpenWaggle supports every capability the Pi coding agent supports.
 _Avoid_: Pi import, Pi compatibility mode, partial Pi support
 
+**Discovered Pi session**:
+A Pi session created outside OpenWaggle, such as by the `pi` CLI, whose working directory is an OpenWaggle project or a folder inside it, listed in that project as an ordinary Session that keeps using the same Pi session file.
+_Avoid_: imported session, Pi session import, Session discovery (which is search)
+
 **Pi MCP parity**:
 The guarantee that a user or project already configured for Pi's MCP support works unchanged in OpenWaggle: the same configuration files, server and tool names, exposure meanings, and model-facing tools.
 _Avoid_: MCP import, Pi-compatible MCP, partial parity

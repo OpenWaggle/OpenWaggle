@@ -58,6 +58,7 @@ import {
   isHostUiSessionResourceChannel,
 } from './host-ui-session-resource-operation-dispatcher'
 import { regenerateSessionTitleOperation } from './host-ui-session-title-operation'
+import { openedSessionId } from './pi-session-discovery'
 
 const TWO_ARGUMENTS = 2
 const THREE_ARGUMENTS = 3
@@ -136,9 +137,7 @@ function dispatchSessionOperation(channel: HostBackedSessionGuiChannel, args: re
 function getSessionDetail(args: readonly unknown[]) {
   return Effect.gen(function* () {
     yield* requireArgCount(args, 1)
-    return yield* (yield* SessionProjectionRepository).getOptional(
-      yield* validateSessionId(args[0]),
-    )
+    return yield* (yield* SessionProjectionRepository).getOptional(yield* openedSessionId(args[0]))
   })
 }
 
@@ -165,14 +164,14 @@ function updateSessionTitle(args: readonly unknown[]) {
 function getSessionTree(args: readonly unknown[]) {
   return Effect.gen(function* () {
     yield* requireArgCount(args, 1)
-    return yield* (yield* SessionRepository).getTree(yield* validateSessionId(args[0]))
+    return yield* (yield* SessionRepository).getTree(yield* openedSessionId(args[0]))
   })
 }
 
 function getSessionWorkspace(args: readonly unknown[]) {
   return Effect.gen(function* () {
     yield* requireOptionalArgCount(args, 1, TWO_ARGUMENTS)
-    const sessionId = yield* validateSessionId(args[0])
+    const sessionId = yield* openedSessionId(args[0])
     const selection = yield* validateWorkspaceSelection(args[1])
     return yield* (yield* SessionRepository).getWorkspace(sessionId, selection)
   })

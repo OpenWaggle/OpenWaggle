@@ -34,6 +34,7 @@ import {
 import { createWorktreeLaunchEventCollector } from './agent-run/worktree-launch-event'
 import { resolveLatestAssistantNodeId } from './agent-run-service'
 import { listRuntimeEnabledOpenWaggleExtensionPackagePaths } from './extension-runtime-service'
+import { loadSessionForRun } from './pi-session-discovery'
 import { assignSessionTitleFromUserText, hydratePayloadAttachments } from './run-handler-utils'
 import { mapPersistedRunResourceNodes } from './session-resource-node-mapping'
 import { extractFilePath } from './waggle-run/metadata'
@@ -112,8 +113,7 @@ function prepareWaggleRun(input: WaggleRunInput) {
 
     const settingsService = yield* SettingsService
     const settings = yield* settingsService.get()
-    const sessionProjectionRepo = yield* SessionProjectionRepository
-    const session = yield* sessionProjectionRepo.getOptional(input.sessionId)
+    const session = yield* loadSessionForRun(input.sessionId)
     if (!session) return { ok: false as const, outcome: waggleSessionNotFoundOutcome() }
     if (!session.projectPath) return { ok: false as const, outcome: waggleNoProjectOutcome() }
 

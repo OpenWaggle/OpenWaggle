@@ -122,3 +122,43 @@ export async function createSession(input: CreateSessionInput): Promise<SessionD
 
   return session
 }
+
+export interface DiscoveredPiSessionInsert {
+  readonly piSessionId: string
+  readonly piSessionFile: string
+  readonly projectPath: string
+  readonly title: string
+  readonly createdAt: number
+  readonly updatedAt: number
+}
+
+/**
+ * Lists a Pi session created outside OpenWaggle as a Session (ADR 0048), with the canonical empty
+ * `main` branch every Session needs before a Run. Its transcript is projected when it is opened.
+ * The title is copied from Pi, like a fork's, so it is `manual` and generation never replaces it.
+ */
+export function insertDiscoveredPiSessionWithSql(
+  sql: SqlClient.SqlClient,
+  input: DiscoveredPiSessionInsert,
+) {
+  const sessionId = SessionId(input.piSessionId)
+  const branchId = mainBranchId(String(sessionId))
+  return Effect.gen(function* () {
+    yield* sql`
+      INSERT INTO sessions (
+        id, pi_session_id, pi_session_file, project_path, title, title_source, archived,
+        waggle_config_json, created_at, updated_at, last_active_node_id, last_active_branch_id,
+        environment_mode, authorization_mode_override
+      )
+      VALUES (
+        ${sessionId}, ${input.piSessionId}, ${input.piSessionFile}, ${input.projectPath},
+        ${input.title}, ${'manual'}, ${0}, ${null}, ${input.createdAt}, ${input.updatedAt},
+        ${null}, ${branchId}, ${'local'}, ${null}
+      )
+    `
+    yield* insertMainBranchRow(sql, sessionId, branchId, input.createdAt)
+    yield* insertInitialBranchState(sql, branchId, input.updatedAt)
+    yield* insertInitialTreeUiState(sql, sessionId, input.updatedAt)
+    return sessionId
+  })
+}

@@ -6,6 +6,7 @@ import { migrateLegacyProviderReferences } from './adapters/sqlite-legacy-provid
 import { migrateLegacyThinkingLevels } from './adapters/sqlite-legacy-thinking-level-migration'
 import { activateTrustedMainExtensionsForActiveProjectSafely } from './application/extension-trusted-main-activation-service'
 import { runFollowUpEditHoldExpiryBackground } from './application/follow-up-edit-hold-expiry'
+import { runPiSessionDiscoveryBackground } from './application/pi-session-discovery'
 import { runSessionExportRecoveryBackground } from './application/session-export-recovery'
 import { installSessionTitleWorker } from './application/session-title-scheduler'
 import { installAppSessionToolGateway } from './session-host/session-tool-gateway-installer'
@@ -23,6 +24,7 @@ export const startHostBackgroundServices = Effect.gen(function* () {
   yield* runSessionExportRecoveryBackground
   yield* runSessionScratchSweepBackground
   yield* runFollowUpEditHoldExpiryBackground
+  yield* runPiSessionDiscoveryBackground
   yield* runSessionSemanticDiscoveryBackground
   yield* runTranscriptTermRepairBackground
   yield* runUsageStatisticsReporterBackground
