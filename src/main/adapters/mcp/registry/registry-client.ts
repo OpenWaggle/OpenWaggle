@@ -8,7 +8,8 @@ import { arrayValue, stringValue } from './registry-values'
 /** The official MCP Registry. Another registry with the same API can be named per request. */
 export const DEFAULT_MCP_REGISTRY_URL = 'https://registry.modelcontextprotocol.io'
 const REGISTRY_RESPONSE_LIMIT_BYTES = 2_000_000
-const REGISTRY_TIMEOUT_MS = 15_000
+/** The public Registry sometimes takes over 10 seconds to answer a search. */
+const REGISTRY_TIMEOUT_MS = 30_000
 const DEFAULT_REGISTRY_RESULT_LIMIT = 20
 const MAX_REGISTRY_RESULT_LIMIT = 100
 

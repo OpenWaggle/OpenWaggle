@@ -92,6 +92,20 @@ describe('MCP Registry integrity boundaries', () => {
     ).rejects.toThrow('safety limit')
   })
 
+  it('says which host did not answer when a request times out', async () => {
+    await expect(
+      fetchBoundedRegistryResource({
+        url: new URL('https://registry.modelcontextprotocol.io/v0.1/servers'),
+        limitBytes: 100,
+        timeoutMs: 30_000,
+        accept: 'application/json',
+        fetchResource: async () => {
+          throw new DOMException('The operation was aborted due to timeout', 'TimeoutError')
+        },
+      }),
+    ).rejects.toThrow('registry.modelcontextprotocol.io did not answer within 30 seconds.')
+  })
+
   it('pulls and inspects a tagged OCI image before returning its digest coordinate', async () => {
     const digest = `sha256:${'c'.repeat(64)}`
     const runCommand = vi

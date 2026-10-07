@@ -1,5 +1,7 @@
 import { createSecureMcpFetch } from '../runtime/secure-fetch'
 
+const MS_PER_SECOND = 1000
+
 export type RegistryResourceFetcher = (url: URL, init: RequestInit) => Promise<Response>
 
 function declaredContentLength(response: Response) {
@@ -60,7 +62,16 @@ export async function fetchBoundedRegistryResource(input: {
     if (!response.ok) {
       throw new Error(`MCP Registry download failed with HTTP ${String(response.status)}.`)
     }
-    return readBoundedBody(response, input.limitBytes)
+    // Read the body before the finally block closes the connection it streams from.
+    return await readBoundedBody(response, input.limitBytes)
+  } catch (error) {
+    if (error instanceof Error && error.name === 'TimeoutError') {
+      throw new Error(
+        `${input.url.host} did not answer within ${String(Math.round(input.timeoutMs / MS_PER_SECOND))} seconds. Try again.`,
+        { cause: error },
+      )
+    }
+    throw error
   } finally {
     await secureFetch?.close()
   }
