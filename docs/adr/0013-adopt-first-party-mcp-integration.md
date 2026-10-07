@@ -2,6 +2,8 @@
 
 Status: accepted
 
+Superseded in part by [ADR 0048](0048-openwaggle-is-the-gui-for-the-pi-ecosystem.md): MCP runs on Pi's built-in MCP extension; the gateway, `mcp_run`, trust, sandbox, and off-by-default clauses no longer apply. The `openwaggle mcp serve` clauses stand.
+
 Superseded in part by [ADR 0042](0042-cross-project-session-reach-and-session-scratch-directories.md): internal root Session agents with the desktop user's authority reach Sessions in every project, not only their own.
 
 OpenWaggle will replace the `pi-mcp-adapter` package extension with a first-party MCP integration owned by OpenWaggle. Pi remains the only agent/model loop. OpenWaggle owns MCP configuration, lifecycle, protocol negotiation, transports, authentication, trust, authorization, context policy, persistence, user experience, client behavior, and optional server behavior. A first-party inline Pi extension factory exposes the selected OpenWaggle MCP tools to Pi without copying a package, mutating Pi settings, or installing an extension.

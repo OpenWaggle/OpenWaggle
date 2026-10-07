@@ -71,6 +71,8 @@ Load `.agents/skills/pi-integration/SKILL.md` for details.
 
 ## MCP Runtime Memory
 
+- ADR 0048 (October 2026) moves MCP onto Pi 1.0's built-in MCP extension with OpenWaggle-supplied `loadConfig`, `createTransport`, `credentials`, `openUrl`, and `updateConfig`, and removes the gateway, `mcp_run`, trust, grants, and the stdio sandbox. Until it is implemented, the notes below describe the current OpenWaggle MCP client. Two constraints found while deciding it: OpenWaggle creates and disposes a Pi `AgentSession` per Run (`withPiSession`), so Pi's MCP would reconnect every server each Run unless connections are kept below the transport; and the Host-authored identity block that `agent-run-context-extension.ts` returns as a full `systemPrompt` contains the `runId`, so the leading system prompt changes every Run and invalidates the provider prompt cache for the whole conversation.
+
 - MCP is an OpenWaggle-owned runtime capability, not a Pi extension. Keep protocol lifecycle, configuration, transport, trust, authentication, capability discovery, and server hosting behind OpenWaggle ports/adapters; Pi receives only the compact gateway tools for an active turn.
 - MCP activation resolves session → project → global and defaults off globally. Disabled servers must not connect, inject instructions/capabilities, or remain attached after the safe turn boundary; the UI must distinguish desired, applied, and pending state.
 - Interoperate with current MCP (`2026-07-28`) and the supported legacy revisions (`2025-11-25`, `2025-06-18`, `2025-03-26`, `2024-11-05`, `2024-10-07`) across both client and hosted-server paths. Preserve protocol/transport negotiation diagnostics instead of silently dropping older servers.
