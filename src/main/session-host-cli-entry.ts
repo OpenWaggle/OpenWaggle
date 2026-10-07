@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs'
 import { app } from 'electron'
 import { flushCliOutput } from './cli-output-flush'
+import { installAutomationDesktopUiBlockers } from './desktop-ui'
 import { env } from './env'
 import { flushErrorReporting, reportError, startErrorReporting } from './error-reporting'
 import { applyInstallerUpdateChannelIntent } from './installer-update-channel-intent'
@@ -53,6 +54,9 @@ export function startSessionHostCliIfRequested(argv: readonly string[]) {
   if (argv[0] !== 'session-host-internal') return false
   // A detached Host owns no windows and must never register in the macOS Dock.
   if (process.platform === 'darwin') app.setActivationPolicy('accessory')
+  // The Host inherits OPENWAGGLE_AUTOMATION from the app that started it, so it blocks native UI
+  // (dialogs, the browser) the same way, for example a sign-in page an MCP server asks to open.
+  installAutomationDesktopUiBlockers()
   configureAppStoragePaths(app, env.OPENWAGGLE_USER_DATA_DIR)
   void app
     .whenReady()

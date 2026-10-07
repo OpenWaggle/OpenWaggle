@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => {
     startErrorReporting: vi.fn(async (_process: string) => void order.push('start-reporting')),
     reportError: vi.fn((_error: unknown) => void order.push('report-error')),
     flushErrorReporting: vi.fn(async () => void order.push('flush-reports')),
+    installDesktopUiBlockers: vi.fn(),
     startHost: vi.fn(async () => ({
       liveness: { ownerCount: () => 1, hasAcceptedClient: () => true },
       stop: vi.fn(async () => undefined),
@@ -29,6 +30,9 @@ vi.mock('electron', () => ({
 }))
 vi.mock('node:fs', () => ({ existsSync: vi.fn(() => true) }))
 vi.mock('../env', () => ({ env: {} }))
+vi.mock('../desktop-ui', () => ({
+  installAutomationDesktopUiBlockers: mocks.installDesktopUiBlockers,
+}))
 vi.mock('../error-reporting', () => ({
   startErrorReporting: mocks.startErrorReporting,
   reportError: mocks.reportError,
@@ -82,6 +86,20 @@ vi.mock('../runtime', () => ({
 vi.mock('../store/settings', () => ({ initializeSettingsStore: mocks.initializeSettings }))
 
 import { startSessionHostCliIfRequested } from '../session-host-cli-entry'
+
+describe('Session Host desktop UI', () => {
+  // The Host inherits OPENWAGGLE_AUTOMATION, so it must block native UI like the GUI does, for
+  // example an MCP sign-in page that would otherwise open the user's browser during automation.
+  it('installs the automation desktop UI blockers before anything else starts', async () => {
+    vi.clearAllMocks()
+    expect(startSessionHostCliIfRequested(['session-host-internal'])).toBe(true)
+    await vi.waitFor(() => expect(mocks.exit).toHaveBeenCalledWith(0))
+
+    const [installed] = mocks.installDesktopUiBlockers.mock.invocationCallOrder
+    const [settings] = mocks.initializeSettings.mock.invocationCallOrder
+    expect(installed).toBeLessThan(settings ?? 0)
+  })
+})
 
 describe('Session Host error reporting', () => {
   beforeEach(() => {
