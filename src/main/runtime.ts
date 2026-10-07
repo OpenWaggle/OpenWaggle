@@ -19,6 +19,7 @@ import { FilesystemWorkspaceFileLive } from './adapters/filesystem-workspace-fil
 import { LocalSessionCredentialVerifierLive } from './adapters/local-session-credential-verifier'
 import { idleCacheWarming } from './adapters/pi/agent-kernel/pi-idle-cache-warming'
 import { EncryptedMcpSecretVaultServiceLive } from './adapters/mcp/encrypted-mcp-secret-vault-service'
+import { mcpSessionConnectionPool } from './adapters/mcp/pool/mcp-connection-pool-instance'
 import { PiAgentKernelLive } from './adapters/pi/pi-agent-kernel-adapter'
 import { PiAgentSteeringServiceLive } from './adapters/pi/pi-agent-steering-adapter'
 import { registerPiBundledOAuthFlows } from './adapters/pi/pi-bundled-oauth'
@@ -52,6 +53,7 @@ import { FilesystemStandardsLive } from './adapters/standards-adapter'
 import { UsageStatisticsServicesLive } from './adapters/usage-statistics-recorder-live'
 import { WorkspaceProjectAuthorizationLive } from './adapters/workspace-project-authorization'
 import { ActiveProjectChangeServiceLive } from './application/active-project-change-service'
+import { onSessionRemoved } from './application/session-removal-hooks'
 import { SessionWaitServiceLive } from './application/session-wait-service'
 import { OperationAdapterLive } from './operation-adapter-layer'
 import {
@@ -264,12 +266,20 @@ function installStoreEffectRunner() {
   setStoreEffectRunner((effect) => getAppRuntime().runPromise(effect))
 }
 
+let unregisterMcpSessionRemoval: (() => void) | null = null
+
 export async function initializeAppRuntime(): Promise<void> {
+  // Archiving or deleting a Session, including Hive cleanup of a Worker, closes its MCP servers.
+  unregisterMcpSessionRemoval ??= onSessionRemoved((sessionId) =>
+    mcpSessionConnectionPool.closeSession(sessionId),
+  )
   await getAppRuntime().runPromise(Effect.void)
 }
 
 export async function disposeAppRuntime(): Promise<void> {
   await stopSessionHostOwnedServices()
+  // Stdio MCP servers must not outlive the Host.
+  await mcpSessionConnectionPool.closeAll()
   await getAppRuntime().dispose()
 }
 
