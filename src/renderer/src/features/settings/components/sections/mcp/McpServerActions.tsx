@@ -7,10 +7,9 @@ import { useMcpConfigurationActions, useMcpSignIn } from '../../../hooks/useMcpC
 import {
   canSwitchForProject,
   hasProjectOverride,
-  MCP_FILE_LABELS,
   type McpServerStatus,
 } from '../../../lib/mcp-server-model'
-import { McpInlineError } from './McpLabels'
+import { McpFileName, McpInlineError } from './McpLabels'
 
 interface ServerActionProps {
   readonly projectPath: string | null
@@ -27,9 +26,8 @@ export function McpServerSwitches({ projectPath, server }: ServerActionProps) {
         <div>
           <p className="text-xs font-medium text-text-primary">On</p>
           <p className="text-xs text-text-tertiary">
-            {hasProjectOverride(server)
-              ? `Applies to this project. Saved to ${MCP_FILE_LABELS[savedIn.fileId]}.`
-              : `Saved to ${MCP_FILE_LABELS[savedIn.fileId]}.`}
+            {hasProjectOverride(server) ? 'Applies to this project. ' : null}
+            Saved to <McpFileName fileId={savedIn.fileId} />.
           </p>
         </div>
         <ToggleSwitch
@@ -136,7 +134,7 @@ export function McpRemoveServer({
     <div className="space-y-1.5">
       <div className="flex flex-wrap items-center gap-1.5">
         <span className="text-xs text-error-text">
-          Remove {server.name} from {MCP_FILE_LABELS[server.source.fileId]}?
+          Remove {server.name} from <McpFileName fileId={server.source.fileId} />?
         </span>
         <Button
           variant="danger"

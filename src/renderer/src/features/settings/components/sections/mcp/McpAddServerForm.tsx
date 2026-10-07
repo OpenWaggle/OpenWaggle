@@ -13,13 +13,9 @@ import {
   emptyMcpAddServerDraft,
   type McpAddServerDraft,
 } from '../../../lib/mcp-add-server-form'
-import {
-  MCP_FILE_LABELS,
-  mcpDefaultDestination,
-  mcpDestinationFiles,
-} from '../../../lib/mcp-server-model'
+import { mcpDefaultDestination, mcpDestinationFiles } from '../../../lib/mcp-server-model'
 import { McpKeyValueRows } from './McpKeyValueRows'
-import { McpInlineError } from './McpLabels'
+import { McpFileName, McpInlineError } from './McpLabels'
 
 const ARGUMENT_ROWS = 3
 
@@ -88,7 +84,7 @@ function DestinationFields({
           >
             {files.map((file) => (
               <option key={file.fileId} value={file.fileId}>
-                {MCP_FILE_LABELS[file.fileId]}
+                <McpFileName fileId={file.fileId} />
                 {file.openWaggleOwned ? ' (recommended)' : ''}
               </option>
             ))}

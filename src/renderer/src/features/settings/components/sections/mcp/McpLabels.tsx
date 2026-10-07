@@ -1,12 +1,8 @@
 import { match } from '@diegogbrisa/ts-match'
-import type { McpServerFileReference } from '@shared/types/mcp-configuration'
+import type { McpConfigFileKind, McpServerFileReference } from '@shared/types/mcp-configuration'
 import { cn } from '@/shared/lib/cn'
 import { tildifyPath } from '@/shared/lib/tildify-path'
-import {
-  MCP_FILE_LABELS,
-  MCP_STATUS_COPY,
-  type McpServerStatus,
-} from '../../../lib/mcp-server-model'
+import { MCP_STATUS_COPY, type McpServerStatus } from '../../../lib/mcp-server-model'
 
 export function McpStatusPill({ status }: { readonly status: McpServerStatus }) {
   const copy = MCP_STATUS_COPY[status]
@@ -23,11 +19,25 @@ export function McpStatusPill({ status }: { readonly status: McpServerStatus }) 
   )
 }
 
+/**
+ * A file in plain words. Pi's files are named as Pi's: OpenWaggle is the GUI for the Pi ecosystem
+ * (ADR 0048), so naming Pi for a resource Pi owns is allowed, and the visible-copy guard checks it.
+ */
+export function McpFileName({ fileId }: { readonly fileId: McpConfigFileKind }) {
+  return match(fileId)
+    .with('pi-global', () => <>Pi, all projects</>)
+    .with('openwaggle-global', () => <>OpenWaggle, all projects</>)
+    .with('project-mcp-json', () => <>Project .mcp.json</>)
+    .with('project-pi', () => <>Pi, this project</>)
+    .with('project-openwaggle', () => <>OpenWaggle, this project</>)
+    .exhaustive()
+}
+
 /** A file in plain words, with its path beside it. */
 export function McpFileLabel({ file }: { readonly file: McpServerFileReference }) {
   return (
     <span className="min-w-0 truncate" title={file.path}>
-      {MCP_FILE_LABELS[file.fileId]}
+      <McpFileName fileId={file.fileId} />
       <span className="ml-1.5 font-mono text-text-muted">{tildifyPath(file.path)}</span>
     </span>
   )

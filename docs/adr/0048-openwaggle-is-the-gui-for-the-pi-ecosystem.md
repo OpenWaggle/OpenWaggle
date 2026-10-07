@@ -20,6 +20,7 @@ Pi 1.0 made MCP, codemode, tool search, virtual models, and related features par
 - **Pi sessions are discovered, not imported.** Pi sessions whose working directory is inside an OpenWaggle project appear in its sidebar, load when first opened, and continue in the same Pi session file. The file is re-read before a Run if it changed outside OpenWaggle; there is no cross-application locking.
 - **Everything else in the Pi coding agent is supported in v1**, including virtual models (with the routed model shown, and the context meter using the limits of the model that answered), cache warming, image and classifier models, mid-conversation system messages, and new sign-in methods. Terminal-only features count as supported when the GUI offers the same capability. `pi-waggle` supports them literally.
 - **Pi Durable is outside v1.** It is a developer library with nothing for a user to carry. OpenWaggle's later relationship to it is a client that attaches to and steers Pi Durable apps, not a replacement for the Pi coding-agent kernel.
+- **The UI may name Pi for Pi-owned resources**, such as Pi's files, sessions, settings, and ecosystem ("Pi, all projects", `~/.pi/agent/mcp.json`); it still never names Pi as the runtime doing something.
 - **Release gate.** All of this lands on `main` before the v1 RC, delivered as beta builds. Pi versions follow the existing 7-day minimum release age, and the version on `main` at RC is the one v1 ships with.
 
 ## Considered Options

@@ -351,6 +351,7 @@ Recording is a main/renderer protocol, not merely a `desktopCapturer` grant: suc
 
 - The Session Summary is a floating overlay, never a layout column. It must not add transcript or composer padding. The host auto-hides it when the chat container has less than 840px or the right sidebar opens, while the Summary toggle remains available so an explicit open can overlay the chat at any width.
 - Pi-native sidebar navigation is Projects-only. Do not add a global projectless Chats section.
+- The UI may name Pi only for resources Pi owns (ADR 0048): "Pi, all projects", Pi sessions, Pi's settings, `~/.pi/agent/mcp.json`. `renderer-visible-identifiers.unit.test.ts` scans JSX text and label attributes only, so a label kept in a string map (`Record<Kind, string>`) is invisible to it; Settings > MCP's file names became the `McpFileName` component for that reason. Ternary attribute values (`emptyText={x ? a : 'Pi did…'}`) are not scanned either.
 - Waggle mode must run inside Pi as extension/runtime behavior, not as an OpenWaggle application loop that calls Pi once per agent turn.
 - Waggle currently supports exactly two agents. Third-agent JSON edits must be rejected at core, Pi extension, shared schema, store schema, and application-service boundaries until N-agent turn policy, prompts, consensus, and UI are implemented first-class.
 - Waggle and standard mode share session, branch, draft, archive, transcript, active-run, composer, settings, diff, and git semantics unless Pi imposes a narrow technical constraint.

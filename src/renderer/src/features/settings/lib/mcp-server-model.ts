@@ -46,14 +46,6 @@ export const MCP_EXPOSURE_COPY: Readonly<
   },
 }
 
-export const MCP_FILE_LABELS: Readonly<Record<McpConfigFileKind, string>> = {
-  'pi-global': 'Pi, all projects',
-  'openwaggle-global': 'OpenWaggle, all projects',
-  'project-mcp-json': 'Project .mcp.json',
-  'project-pi': 'Pi, this project',
-  'project-openwaggle': 'OpenWaggle, this project',
-}
-
 /** Assembled so the repository check for legacy agent references does not match a product name. */
 const CLAUDE_CODE_LABEL = ['Claude', 'Code'].join(' ')
 
