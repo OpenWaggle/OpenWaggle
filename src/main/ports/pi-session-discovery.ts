@@ -47,18 +47,34 @@ export interface PiSessionFileSnapshot {
   readonly sessionSnapshot: AgentKernelSessionSnapshot
 }
 
+/**
+ * A read of a Pi file against its projection. `unchanged` when the file holds the projected
+ * entries and at most usage entries after them (cache refreshes, which a transcript does not
+ * show), so nothing needs projecting.
+ */
+export type PiSessionFileRead =
+  | ({ readonly kind: 'changed' } & PiSessionFileSnapshot)
+  | {
+      readonly kind: 'unchanged'
+      readonly fingerprint: PiSessionFileFingerprint
+    }
+
 export interface PiSessionFilesShape {
   readonly discover: (
     input: PiSessionDiscoveryInput,
   ) => Effect.Effect<readonly DiscoveredPiSession[], Error>
   /** Null when the file does not exist (yet). */
   readonly fingerprint: (piSessionFile: string) => Effect.Effect<PiSessionFileFingerprint | null>
-  /** `piEntryNodeIdPrefix` is the Session's, for a discovered Pi session (ADR 0048). */
+  /**
+   * `piEntryNodeIdPrefix` is the Session's, for a discovered Pi session (ADR 0048).
+   * `projectedPiEntryCount` is how many of the file's entries the projection already holds.
+   */
   readonly readSnapshot: (input: {
     readonly piSessionFile: string
     readonly cwd: string
     readonly piEntryNodeIdPrefix?: string
-  }) => Effect.Effect<PiSessionFileSnapshot, Error>
+    readonly projectedPiEntryCount?: number
+  }) => Effect.Effect<PiSessionFileRead, Error>
 }
 
 export class PiSessionFiles extends Context.Tag('@openwaggle/PiSessionFiles')<

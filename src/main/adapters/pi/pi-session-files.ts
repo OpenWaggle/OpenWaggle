@@ -1,8 +1,9 @@
 import { stat } from 'node:fs/promises'
-import { SessionManager } from '@earendil-works/pi-coding-agent'
+import { type SessionEntry, SessionManager } from '@earendil-works/pi-coding-agent'
 import { Effect, Layer } from 'effect'
 import {
   type PiSessionFileFingerprint,
+  type PiSessionFileRead,
   PiSessionFiles,
   type PiSessionFilesShape,
 } from '../../ports/pi-session-discovery'
@@ -25,18 +26,38 @@ async function fingerprintOf(file: string): Promise<PiSessionFileFingerprint | n
 }
 
 /**
+ * The file holds the projected entries and, after them, at most usage entries: the cost records a
+ * warming session appends for each prompt cache refresh. They change no transcript node a Session
+ * shows, so projecting them would only move the Session in the sidebar.
+ */
+function holdsOnlyProjectedEntries(
+  entries: readonly SessionEntry[],
+  projectedPiEntryCount: number | undefined,
+) {
+  if (projectedPiEntryCount === undefined || entries.length < projectedPiEntryCount) return false
+  return entries.slice(projectedPiEntryCount).every((entry) => entry.type === 'usage')
+}
+
+/**
  * Reads a Pi session file as Pi does, for a projection outside a Run. The fingerprint is taken
  * first: a write that lands while the file is read leaves it stale, so the next check reads again.
  */
-async function readSnapshot(input: Parameters<PiSessionFilesShape['readSnapshot']>[0]) {
+async function readSnapshot(
+  input: Parameters<PiSessionFilesShape['readSnapshot']>[0],
+): Promise<PiSessionFileRead> {
   const file = input.piSessionFile
   const fingerprint = await fingerprintOf(file)
   if (!fingerprint) throw new Error(`Pi session file is missing: ${file}`)
   const sessionManager = SessionManager.open(file, undefined, input.cwd)
+  const entries = sessionManager.getEntries()
+  if (holdsOnlyProjectedEntries(entries, input.projectedPiEntryCount)) {
+    return { kind: 'unchanged', fingerprint }
+  }
   return {
+    kind: 'changed',
     piSessionId: sessionManager.getSessionId(),
     piSessionFile: file,
-    entryCount: sessionManager.getEntries().length,
+    entryCount: entries.length,
     fingerprint,
     sessionSnapshot: projectPiSessionSnapshot(
       { sessionManager },

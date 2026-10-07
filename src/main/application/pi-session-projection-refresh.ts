@@ -68,9 +68,11 @@ function refreshProjection(sessionId: SessionId, owner: PiSessionProjectionRefre
       piSessionFile: state.piSessionFile,
       cwd: state.projectPath,
       ...(state.piEntryNodeIdPrefix ? { piEntryNodeIdPrefix: state.piEntryNodeIdPrefix } : {}),
+      projectedPiEntryCount: state.projectedPiEntryCount,
     })
-    if (snapshot.entryCount === state.projectedPiEntryCount) {
-      // The projection was taken from these entries; keep it, and the branch the user selected.
+    if (snapshot.kind === 'unchanged') {
+      // The projection was taken from these entries (cache refreshes since add nothing to show);
+      // keep it, the branch the user selected, and the Session's place in the sidebar.
       yield* repository.recordUnchanged({
         sessionId,
         expectedRevision: state.revision,

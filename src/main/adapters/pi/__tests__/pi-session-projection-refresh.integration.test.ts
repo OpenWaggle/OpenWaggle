@@ -179,4 +179,38 @@ describe('Pi session projection refresh', () => {
       writer.release()
     }
   })
+
+  it('keeps the projection and the Session order when only cache refreshes were appended', async () => {
+    await registerProjects([fixture.project])
+    const cli = createPiCliSession(fixture.project, 'Keep my place in the sidebar')
+    const sessionId = await discoverOne()
+    await openSession(sessionId)
+    const before = await sessionDetail(sessionId)
+    appendCacheRefresh(cli.file)
+    appendCacheRefresh(cli.file)
+
+    expect(await openSession(sessionId)).toBe('unchanged')
+    const after = await sessionDetail(sessionId)
+    expect(after?.updatedAt).toBe(before?.updatedAt)
+    expect(messageTexts(after)).toEqual(messageTexts(before))
+    expect(await openSession(sessionId)).toBe('fresh')
+
+    continuePiCliSession(cli.file, 'A real turn after the refreshes')
+    expect(await openSession(sessionId)).toBe('projected')
+    expect(messageTexts(await sessionDetail(sessionId))).toContain(
+      'A real turn after the refreshes',
+    )
+  })
 })
+
+/** What a warming session writes: a usage entry for one prompt cache refresh. */
+function appendCacheRefresh(file: string) {
+  SessionManager.open(file).appendUsage('cache_warm', 'test-provider', 'test-model', {
+    input: 0,
+    output: 1,
+    cacheRead: 1200,
+    cacheWrite: 0,
+    totalTokens: 1201,
+    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+  })
+}
