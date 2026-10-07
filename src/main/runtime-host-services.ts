@@ -1,4 +1,5 @@
 import * as Effect from 'effect/Effect'
+import { migrateOpenWaggleMcpFilesAtHostStart } from './adapters/pi/mcp/openwaggle-mcp-migration'
 import { migrateLegacyProviderCredentialsOnHostStart } from './adapters/pi/pi-legacy-provider-credentials'
 import { runSessionScratchSweepBackground } from './adapters/session-scratch-sweep-background'
 import { runSessionSemanticDiscoveryBackground } from './adapters/session-semantic-discovery-background'
@@ -20,6 +21,8 @@ export const startHostBackgroundServices = Effect.gen(function* () {
   // `azure-openai-responses` to `azure` without migrating them).
   yield* migrateLegacyProviderReferences
   yield* migrateLegacyProviderCredentialsOnHostStart
+  // Before Settings, the CLI, or a Run reads MCP configuration (ADR 0048 migration).
+  yield* Effect.promise(() => migrateOpenWaggleMcpFilesAtHostStart())
   yield* installAppSessionToolGateway
   yield* runSessionExportRecoveryBackground
   yield* runSessionScratchSweepBackground

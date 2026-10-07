@@ -9,4 +9,5 @@ import { vi } from 'vitest'
  */
 vi.mock('../adapters/pi/mcp/openwaggle-mcp-migration', () => ({
   migrateOpenWaggleMcpFilesOnce: async () => undefined,
+  migrateOpenWaggleMcpFilesAtHostStart: async () => undefined,
 }))

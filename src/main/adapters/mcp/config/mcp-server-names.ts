@@ -8,15 +8,19 @@ import { isRecord } from '@shared/utils/validation'
  */
 export function mcpConfigFilePaths(input: {
   readonly homeDir: string
+  /** Pi's agent directory (`PI_CODING_AGENT_DIR`); defaults to `~/.pi/agent`. */
+  readonly piAgentDir?: string
   readonly projectPath: string
 }) {
-  return [
-    path.join(input.homeDir, '.pi', 'agent', 'mcp.json'),
+  const paths = [
+    path.join(input.piAgentDir ?? path.join(input.homeDir, '.pi', 'agent'), 'mcp.json'),
     path.join(input.homeDir, '.openwaggle', 'mcp.json'),
     path.join(input.projectPath, '.mcp.json'),
     path.join(input.projectPath, '.pi', 'mcp.json'),
     path.join(input.projectPath, '.openwaggle', 'mcp.json'),
   ]
+  // A project at the home folder has the global OpenWaggle file as its project file.
+  return [...new Set(paths.map((filePath) => path.resolve(filePath)))]
 }
 
 function isMissingFile(error: unknown) {
@@ -51,6 +55,7 @@ function describe(error: unknown) {
  */
 export async function listConfiguredMcpServerNames(input: {
   readonly homeDir: string
+  readonly piAgentDir?: string
   readonly projectPath: string
 }) {
   const names = new Set<string>()

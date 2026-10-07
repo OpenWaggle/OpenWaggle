@@ -1,8 +1,12 @@
+import { homedir } from 'node:os'
+import path from 'node:path'
 import * as Effect from 'effect/Effect'
 import { listConfiguredMcpServerNames } from './adapters/mcp/config/mcp-server-names'
 import { loadAgentDefinitionPiProjectServices } from './adapters/pi/agent-definition-semantic-catalog-services'
+import { migrateOpenWaggleMcpFilesOnce } from './adapters/pi/mcp/openwaggle-mcp-migration'
 import type { OpenWagglePiExtensionSelectionServices } from './adapters/pi/openwaggle-pi-extension-selection'
 import type { AgentDefinitionSemanticCatalog } from './agents/agent-definition-semantic-validation'
+import { getEnvWithOverrides } from './env'
 import { ExtensionLifecycleRepository } from './ports/extension-lifecycle-repository'
 import { ExtensionManagerService } from './ports/extension-manager-service'
 import { ExtensionProjectOverridesRepository } from './ports/extension-project-overrides-repository'
@@ -22,7 +26,16 @@ const BUILTIN_AND_NATIVE_TOOL_NAMES = [
 export interface LoadAgentDefinitionSemanticCatalogInput {
   readonly projectPath: string
   readonly userHome: string
+  /** Pi's agent directory; defaults to `PI_CODING_AGENT_DIR` for the real home, else `~/.pi/agent`. */
+  readonly piAgentDir?: string
   readonly extensionSelectionServices?: OpenWagglePiExtensionSelectionServices
+}
+
+function piAgentDirFor(input: LoadAgentDefinitionSemanticCatalogInput) {
+  if (input.piAgentDir) return input.piAgentDir
+  const configured =
+    input.userHome === homedir() ? getEnvWithOverrides({}).PI_CODING_AGENT_DIR : undefined
+  return configured ?? path.join(input.userHome, '.pi', 'agent')
 }
 
 function message(error: unknown) {
@@ -69,8 +82,11 @@ export async function loadAgentDefinitionSemanticCatalog(
   }
 
   try {
+    // The names must be the migrated ones, as Settings and Runs see them.
+    await migrateOpenWaggleMcpFilesOnce(input.projectPath)
     const configured = await listConfiguredMcpServerNames({
       homeDir: input.userHome,
+      piAgentDir: piAgentDirFor(input),
       projectPath: input.projectPath,
     })
     // An unreadable file leaves the list incomplete; checking names against it would misreport.

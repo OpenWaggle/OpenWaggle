@@ -1,4 +1,3 @@
-import { migrateOpenWaggleMcpFilesOnce } from './adapters/pi/mcp/openwaggle-mcp-migration'
 import { installMcpSessionRemoval } from './mcp-session-removal'
 import { loadMcpShellEnvironment } from './mcp-shell-environment'
 
@@ -8,6 +7,4 @@ export function startMcpHostServices() {
   installMcpSessionRemoval()
   // MCP `${NAME}` values resolve from the user's login shell too; read it once, in the background.
   void loadMcpShellEnvironment()
-  // Settings, the CLI, and Runs then all see the migrated MCP files.
-  void migrateOpenWaggleMcpFilesOnce(null)
 }

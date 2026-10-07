@@ -42,6 +42,11 @@ vi.mock('../application/extension-trusted-main-activation-service', () => ({
 vi.mock('../adapters/sqlite-legacy-provider-rename-migration', () => ({
   migrateLegacyProviderReferences: recorded('provider references'),
 }))
+vi.mock('../adapters/pi/mcp/openwaggle-mcp-migration', () => ({
+  migrateOpenWaggleMcpFilesAtHostStart: async () => {
+    started.push('mcp files')
+  },
+}))
 vi.mock('../adapters/pi/pi-legacy-provider-credentials', () => ({
   migrateLegacyProviderCredentialsOnHostStart: recorded('provider credentials'),
 }))
@@ -67,6 +72,9 @@ describe('Host background services', () => {
     expect(started.indexOf('provider credentials')).toBeLessThan(started.indexOf('tool gateway'))
     expect(started).toContain('provider references')
     expect(started).toContain('provider credentials')
+    // Migrates pre-ADR-0048 MCP files before Settings, the CLI, or a Run reads them.
+    expect(started.indexOf('mcp files')).toBeGreaterThanOrEqual(0)
+    expect(started.indexOf('mcp files')).toBeLessThan(started.indexOf('tool gateway'))
     // Lists `pi` CLI sessions created in OpenWaggle projects (ADR 0048).
     expect(started).toContain('pi session discovery')
   })
