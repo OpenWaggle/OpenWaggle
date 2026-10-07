@@ -1,5 +1,10 @@
 import { AUTH_TIMEOUT } from '@shared/constants/time'
-import type { OAuthAccountInfo, OAuthFlowStatus, OAuthProvider } from '@shared/types/auth'
+import type {
+  OAuthAccountInfo,
+  OAuthFlowStatus,
+  OAuthInputPrompt,
+  OAuthProvider,
+} from '@shared/types/auth'
 import * as Effect from 'effect/Effect'
 import { openExternal } from '../desktop-ui'
 import { createLogger } from '../logger'
@@ -105,13 +110,23 @@ async function runOAuthFlow(
   signal: AbortSignal,
 ) {
   emitStatus({ type: 'in-progress', provider })
+  // The latest sign-in link and its instructions, shown with every later prompt so a user whose
+  // browser runs elsewhere (copy-code sign-in) can open it there.
+  let link: { readonly authUrl: string; readonly instructions?: string } | null = null
+  const awaitingInput = (prompt?: OAuthInputPrompt): OAuthFlowStatus => ({
+    type: 'awaiting-code',
+    provider,
+    ...(link ?? {}),
+    ...(prompt ? { prompt } : {}),
+  })
 
   try {
     await runAppEffect(
       Effect.gen(function* () {
         const authService = yield* ProviderOAuthService
         yield* authService.login(provider, {
-          onAuthUrl: (url, usesCallbackServer) => {
+          onAuthUrl: (url, usesCallbackServer, instructions) => {
+            link = { authUrl: url, ...(instructions ? { instructions } : {}) }
             void openExternal(url).catch((error) => {
               logger.warn('Failed to open OAuth URL', {
                 provider,
@@ -119,7 +134,7 @@ async function runOAuthFlow(
               })
             })
             if (usesCallbackServer) {
-              emitStatus({ type: 'awaiting-code', provider })
+              emitStatus(awaitingInput())
             }
           },
           onDeviceCode: (deviceCode) => {
@@ -136,15 +151,15 @@ async function runOAuthFlow(
             emitStatus({ type: 'awaiting-selection', provider, selection })
             return createOAuthInputPromise(provider)
           },
-          onPrompt: async () => {
-            emitStatus({ type: 'awaiting-code', provider })
+          onPrompt: async (prompt) => {
+            emitStatus(awaitingInput(prompt))
             return createOAuthInputPromise(provider)
           },
           onProgress: () => {
             emitStatus({ type: 'in-progress', provider })
           },
-          onManualCodeInput: () => {
-            emitStatus({ type: 'awaiting-code', provider })
+          onManualCodeInput: (prompt) => {
+            emitStatus(awaitingInput(prompt))
             return createOAuthInputPromise(provider)
           },
           signal,

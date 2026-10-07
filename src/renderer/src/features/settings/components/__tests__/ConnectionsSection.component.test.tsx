@@ -172,6 +172,55 @@ describe('ConnectionsSection', () => {
     expect(cancelOAuth).toHaveBeenCalledWith('openai-codex')
   })
 
+  it("shows a copy-code sign-in's own prompt and the link to open in another browser", () => {
+    useAuthStore.setState({
+      authAccounts: {
+        'openai-codex': { provider: 'openai-codex', connected: false, label: 'Not connected' },
+      },
+      oauthStatuses: {
+        'openai-codex': {
+          type: 'awaiting-code',
+          provider: 'openai-codex',
+          authUrl: 'https://example.test/authorize',
+          instructions: 'Open the link in any browser, then paste the code it shows.',
+          prompt: { message: 'Paste the authorization code', placeholder: 'code#state' },
+        },
+      },
+    })
+
+    render(<ConnectionsSection />)
+    fireEvent.click(screen.getByRole('button', { name: /OAuth Providers/i }))
+
+    expect(
+      screen.getByText('Open the link in any browser, then paste the code it shows.'),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Copy sign-in link' })).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'Paste the authorization code' })).toHaveAttribute(
+      'placeholder',
+      'code#state',
+    )
+  })
+
+  it('masks a secret the sign-in asks for', () => {
+    useAuthStore.setState({
+      authAccounts: {
+        'openai-codex': { provider: 'openai-codex', connected: false, label: 'Not connected' },
+      },
+      oauthStatuses: {
+        'openai-codex': {
+          type: 'awaiting-code',
+          provider: 'openai-codex',
+          prompt: { message: 'Paste your token', secret: true },
+        },
+      },
+    })
+
+    render(<ConnectionsSection />)
+    fireEvent.click(screen.getByRole('button', { name: /OAuth Providers/i }))
+
+    expect(screen.getByLabelText('Paste your token')).toHaveAttribute('type', 'password')
+  })
+
   it('keeps OAuth error text at full contrast', () => {
     useAuthStore.setState({
       oauthStatuses: {

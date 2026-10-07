@@ -21,22 +21,38 @@ export interface OAuthSelectPrompt {
   }[]
 }
 
+/** A text the provider's sign-in asks for, in the provider's own words. */
+export interface OAuthInputPrompt {
+  readonly message: string
+  readonly placeholder?: string
+  /** Mask the input, such as for a token. */
+  readonly secret?: boolean
+}
+
+/** What a sign-in that is waiting for the user shows: Pi's prompt and the link to open. */
+export interface OAuthAwaitingInput {
+  readonly prompt?: OAuthInputPrompt
+  /** The sign-in link, to copy when the browser runs on another machine. */
+  readonly authUrl?: string
+  readonly instructions?: string
+}
+
 // ─── OAuth Flow Status ──────────────────────────────────────────────
 
 export type OAuthFlowStatus =
   | { readonly type: 'idle' }
   | { readonly type: 'in-progress' }
-  | { readonly type: 'awaiting-code'; readonly deviceCode?: OAuthDeviceCode }
+  | ({ readonly type: 'awaiting-code'; readonly deviceCode?: OAuthDeviceCode } & OAuthAwaitingInput)
   | { readonly type: 'awaiting-selection'; readonly selection: OAuthSelectPrompt }
   | { readonly type: 'code-received' }
   | { readonly type: 'success' }
   | { readonly type: 'error'; readonly message: string }
   | { readonly type: 'in-progress'; readonly provider: OAuthProvider }
-  | {
+  | ({
       readonly type: 'awaiting-code'
       readonly provider: OAuthProvider
       readonly deviceCode?: OAuthDeviceCode
-    }
+    } & OAuthAwaitingInput)
   | {
       readonly type: 'awaiting-selection'
       readonly provider: OAuthProvider

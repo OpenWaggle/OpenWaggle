@@ -1,18 +1,20 @@
 import type {
   OAuthAccountInfo,
   OAuthDeviceCode,
+  OAuthInputPrompt,
   OAuthProvider,
   OAuthSelectPrompt,
 } from '@shared/types/auth'
 import { Context, type Effect } from 'effect'
 
 export interface OAuthLoginHandlers {
-  readonly onAuthUrl: (url: string, usesCallbackServer: boolean) => void
+  /** `instructions` is the provider's own text, such as how to finish a copy-code sign-in. */
+  readonly onAuthUrl: (url: string, usesCallbackServer: boolean, instructions?: string) => void
   readonly onDeviceCode: (params: OAuthDeviceCode) => void
   readonly onSelect: (params: OAuthSelectPrompt) => Promise<string | undefined>
-  readonly onPrompt: () => Promise<string>
+  readonly onPrompt: (prompt: OAuthInputPrompt) => Promise<string>
   readonly onProgress: () => void
-  readonly onManualCodeInput: () => Promise<string>
+  readonly onManualCodeInput: (prompt: Omit<OAuthInputPrompt, 'secret'>) => Promise<string>
   readonly signal: AbortSignal
 }
 

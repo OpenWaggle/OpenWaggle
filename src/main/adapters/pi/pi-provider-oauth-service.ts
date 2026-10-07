@@ -22,7 +22,7 @@ function listOAuthProviders(modelRuntime: ModelRuntime) {
 
 function notifyOAuthHandlers(event: AuthEvent, handlers: OAuthLoginHandlers) {
   return matchBy(event, 'type')
-    .with('auth_url', (event) => handlers.onAuthUrl(event.url, false))
+    .with('auth_url', (event) => handlers.onAuthUrl(event.url, false, event.instructions))
     .with('device_code', (event) =>
       handlers.onDeviceCode({
         userCode: event.userCode,
@@ -49,8 +49,19 @@ function respondToOAuthPrompt(prompt: AuthPrompt, handlers: OAuthLoginHandlers) 
       }
       return response
     })
-    .with('manual_code', () => handlers.onManualCodeInput())
-    .with('text', 'secret', () => handlers.onPrompt())
+    .with('manual_code', (prompt) =>
+      handlers.onManualCodeInput({
+        message: prompt.message,
+        ...(prompt.placeholder === undefined ? {} : { placeholder: prompt.placeholder }),
+      }),
+    )
+    .with('text', 'secret', (prompt) =>
+      handlers.onPrompt({
+        message: prompt.message,
+        ...(prompt.placeholder === undefined ? {} : { placeholder: prompt.placeholder }),
+        secret: prompt.type === 'secret',
+      }),
+    )
     .exhaustive()
 }
 

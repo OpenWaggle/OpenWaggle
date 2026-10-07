@@ -1,13 +1,12 @@
 import type { OAuthAccountInfo, OAuthFlowStatus } from '@shared/types/auth'
 import type { ProviderInfo } from '@shared/types/llm'
 import { AlertTriangle, Check, Loader2 } from 'lucide-react'
-import { useState } from 'react'
 import { useAuth } from '@/features/settings/hooks/useSettings'
 import { cn } from '@/shared/lib/cn'
 import { Button } from '@/shared/ui/Button'
-import { TextInput } from '@/shared/ui/TextInput'
 import { ToggleSwitch } from '@/shared/ui/ToggleSwitch'
 import { getProviderMeta } from './meta'
+import { OAuthManualCodePrompt } from './OAuthManualCodePrompt'
 
 interface OAuthProviderRowProps {
   readonly providerInfo: ProviderInfo
@@ -127,68 +126,6 @@ function OAuthStatusIndicator({ rowState }: { readonly rowState: OAuthRowState }
       <span className={cn('text-xs font-medium', rowState.statusClassName)}>
         {rowState.statusText}
       </span>
-    </div>
-  )
-}
-
-function OAuthManualCodePrompt({
-  provider,
-  oauthStatus,
-  submitAuthCode,
-}: {
-  readonly provider: string
-  readonly oauthStatus: OAuthFlowStatus
-  readonly submitAuthCode: (provider: string, code: string) => Promise<void>
-}) {
-  const [pasteValue, setPasteValue] = useState('')
-  const deviceCode = oauthStatus.type === 'awaiting-code' ? oauthStatus.deviceCode : undefined
-
-  function handleSubmitCode() {
-    const trimmed = pasteValue.trim()
-    if (trimmed) {
-      void submitAuthCode(provider, trimmed)
-      setPasteValue('')
-    }
-  }
-
-  return (
-    <div className="mx-5 mb-3 space-y-2">
-      {deviceCode ? (
-        <div className="space-y-1 rounded-lg border border-border-light bg-bg-secondary px-3 py-2">
-          <p className="text-xs text-text-tertiary">Enter this code in the browser window:</p>
-          <p className="font-mono text-base font-semibold tracking-normal text-text-primary">
-            {deviceCode.userCode}
-          </p>
-          <p className="break-all text-xs text-text-muted">{deviceCode.verificationUri}</p>
-        </div>
-      ) : (
-        <p className="text-xs text-text-tertiary">
-          Waiting for the browser callback. If it does not finish automatically, paste the OAuth
-          code or callback URL here.
-        </p>
-      )}
-      <div className="flex items-center gap-2">
-        <TextInput
-          type="text"
-          value={pasteValue}
-          onChange={(e) => setPasteValue(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') handleSubmitCode()
-          }}
-          placeholder="Paste OAuth code or callback URL"
-          monospace
-          className="flex-1 rounded-lg border-border-light text-xs placeholder:text-text-muted focus:border-border-light"
-        />
-        <Button
-          variant="primary"
-          size="md"
-          onClick={handleSubmitCode}
-          disabled={!pasteValue.trim()}
-          className="text-xs"
-        >
-          Connect
-        </Button>
-      </div>
     </div>
   )
 }
