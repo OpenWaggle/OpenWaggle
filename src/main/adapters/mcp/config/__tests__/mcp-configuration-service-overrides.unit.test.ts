@@ -63,4 +63,34 @@ describe('MCP overrides', () => {
     })
     expect(view.servers[0]?.toolExposure).toEqual({ 'drop_*': 'hidden', query: 'deferred' })
   })
+
+  it('removes the server with its overrides in OpenWaggle files and reports the ones it leaves', async () => {
+    const projectPi = path.join(projectPath, '.pi', 'mcp.json')
+    const projectOw = path.join(projectPath, '.openwaggle', 'mcp.json')
+    write(piGlobal(), { mcpServers: { fs: { command: 'fs-mcp' }, keep: { command: 'k' } } })
+    write(owGlobal(), { mcpServers: { fs: { enabled: false }, keep: { enabled: false } } })
+    write(projectPi, { mcpServers: { fs: { exposure: 'direct' } } })
+    write(projectOw, { mcpServers: { fs: { enabled: true } } })
+
+    await Effect.runPromise(service().removeServer({ projectPath, name: 'fs' }))
+    const view = await Effect.runPromise(service().getView({ projectPath }))
+
+    expect(json(piGlobal())).toEqual({ mcpServers: { keep: { command: 'k' } } })
+    expect(json(owGlobal())).toEqual({ mcpServers: { keep: { enabled: false } } })
+    expect(json(projectOw)).toEqual({ mcpServers: {} })
+    // Pi's own project file is left as it is; its now-orphaned override is reported.
+    expect(json(projectPi)).toEqual({ mcpServers: { fs: { exposure: 'direct' } } })
+    expect(view.errors.join('\n')).toContain(`${projectPi}: server "fs" needs "command" or "url"`)
+  })
+
+  it('keeps the overrides when an earlier file still defines the server', async () => {
+    write(piGlobal(), { mcpServers: { fs: { command: 'pi-fs' } } })
+    const projectOw = path.join(projectPath, '.openwaggle', 'mcp.json')
+    write(path.join(projectPath, '.mcp.json'), { mcpServers: { fs: { command: 'shared-fs' } } })
+    write(projectOw, { mcpServers: { fs: { enabled: false } } })
+
+    await Effect.runPromise(service().removeServer({ projectPath, name: 'fs' }))
+
+    expect(json(projectOw)).toEqual({ mcpServers: { fs: { enabled: false } } })
+  })
 })
