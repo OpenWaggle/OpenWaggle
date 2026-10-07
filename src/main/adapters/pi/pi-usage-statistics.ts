@@ -183,25 +183,39 @@ function usageNumber(usage: Readonly<Record<string, unknown>>, key: string) {
   return typeof value === 'number' && Number.isFinite(value) ? value : 0
 }
 
+function addRunTokens(runId: string, usage: unknown) {
+  if (!isRecord(usage)) return
+  addUsageStatisticsRunTokens(
+    runId,
+    usageNumber(usage, 'input') +
+      usageNumber(usage, 'cacheRead') +
+      usageNumber(usage, 'cacheWrite'),
+    usageNumber(usage, 'output'),
+  )
+}
+
 /** One assistant response completed. Input counts every prompt token, cached or not. */
 export function observePiAssistantMessageForUsageStatistics(
   runId: string,
   message: { readonly usage?: unknown; readonly content?: unknown },
 ): void {
   if (!isUsageStatisticsEnabled()) return
-  if (isRecord(message.usage)) {
-    const usage = message.usage
-    addUsageStatisticsRunTokens(
-      runId,
-      usageNumber(usage, 'input') +
-        usageNumber(usage, 'cacheRead') +
-        usageNumber(usage, 'cacheWrite'),
-      usageNumber(usage, 'output'),
-    )
-  }
+  addRunTokens(runId, message.usage)
   if (containsInlineVisualizationReference(assistantText(message.content))) {
     recordUsageStatistics({ kind: 'feature', flag: 'inline_visualization' })
   }
+}
+
+/**
+ * A tool result completed. Pi puts the usage of models a tool ran itself on it, such as codemode's
+ * `models.classify()` and `models.generateImages()`, so those tokens count like a response's.
+ */
+export function observePiToolResultForUsageStatistics(
+  runId: string,
+  message: { readonly usage?: unknown; readonly content?: unknown },
+): void {
+  if (!isUsageStatisticsEnabled()) return
+  addRunTokens(runId, message.usage)
 }
 
 /** A compaction finished. Pi's portable mechanism is the published `fallback`. */

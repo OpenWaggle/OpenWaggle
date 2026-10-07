@@ -1,11 +1,13 @@
 import type { SessionId } from '@shared/types/brand'
 import type { ChatNestedToolCall, UIMessage } from '@shared/types/chat-ui'
 import type { ExtensionContributionRegistryView } from '@shared/types/extensions'
+import { CODEMODE_TOOL_NAME } from '@/features/chat/lib/codemode-tool-view'
 import { resolveNestedToolCalls } from '@/features/chat/lib/nested-tool-call-view'
 import { parseToolArgs } from '@/features/chat/lib/tool-args'
 import { ExtensionAgentLoopSurface } from '@/features/extensions'
 import { getMcpAppLaunch, McpAppHost } from '@/features/mcp'
 import { CommandRepairProposalCard, commandRepairProposalFrom } from '@/features/project-actions'
+import { CodemodeToolCallBlock } from './CodemodeToolCallBlock'
 import { WithNestedToolCalls } from './NestedToolCallList'
 import { ToolCallBlock } from './ToolCallBlock'
 
@@ -69,12 +71,19 @@ export function ToolCallRouter({
       ? undefined
       : { content: part.partialOutput, state: 'partial' })
 
-  const toolCallBlock = (
-    <WithNestedToolCalls
-      parentName={part.name}
-      calls={resolveNestedToolCalls(part.nestedCalls, finalResult?.nestedCalls)}
-      isStreaming={isStreaming}
-    >
+  const nestedCalls = resolveNestedToolCalls(part.nestedCalls, finalResult?.nestedCalls)
+  // A codemode card shows the script, its output, images and model calls; the tool calls the
+  // script made come from Pi's nested call events and record, like any other tool's.
+  const ownCard =
+    part.name === CODEMODE_TOOL_NAME ? (
+      <CodemodeToolCallBlock
+        args={part.arguments}
+        state={part.state}
+        result={visibleResult}
+        isStreaming={isStreaming}
+        nestedCallsShown={nestedCalls.length > 0}
+      />
+    ) : (
       <ToolCallBlock
         name={part.name}
         args={part.arguments}
@@ -83,6 +92,10 @@ export function ToolCallRouter({
         isStreaming={isStreaming}
         onBranchFromMessage={onBranchFromMessage}
       />
+    )
+  const toolCallBlock = (
+    <WithNestedToolCalls parentName={part.name} calls={nestedCalls} isStreaming={isStreaming}>
+      {ownCard}
     </WithNestedToolCalls>
   )
   const appLaunch = finalResult

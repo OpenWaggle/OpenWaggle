@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs'
+import { copyFileSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import { fauxAssistantMessage, fauxToolCall } from '@earendil-works/pi-ai'
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'
@@ -17,6 +17,7 @@ import {
   cleanupOpenWagglePiSessions,
   createOpenWagglePiSession,
 } from './openwaggle-pi-session.test-support'
+import { autoRouterExtension } from './virtual-model.test-support'
 
 afterEach(cleanupOpenWagglePiSessions)
 
@@ -197,5 +198,24 @@ describe('approval of codemode child calls', () => {
 
     expect(authorizationRequests(events)).toEqual([])
     expect(stopped).toEqual(['run-a', 'run-b'])
+  })
+})
+
+describe('codemode images', () => {
+  it('shows an image file a script reads', async () => {
+    const { session, faux, projectPath } = await createOpenWagglePiSession({
+      extensionFactories: [autoRouterExtension('test-model')],
+      selectedModel: { provider: 'router', id: 'auto' },
+    })
+    copyFileSync('build/icon-beta.png', path.join(projectPath, 'icon.png'))
+    faux.setResponses(codemodeTurn("image(await tools.read({ path: 'icon.png' }))"))
+
+    await session.prompt('Show the icon')
+
+    const result = session.messages.find((message) => message.role === 'toolResult')
+    expect(result?.isError).toBe(false)
+    expect(result?.content).toContainEqual(
+      expect.objectContaining({ type: 'image', mimeType: 'image/png' }),
+    )
   })
 })

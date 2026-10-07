@@ -31,6 +31,7 @@ import {
   notePiRunForUsageStatistics,
   observePiAssistantMessageForUsageStatistics,
   observePiCompactionForUsageStatistics,
+  observePiToolResultForUsageStatistics,
   observePiToolUseForUsageStatistics,
   piBuiltinCatalogIdentity,
   piSkillCommandIdentifier,
@@ -167,6 +168,17 @@ describe('Pi Usage statistics hooks', () => {
 
     expect(recorded.tokens).toEqual([['run-1', 1050, 40]])
     expect(recorded.observations).toEqual([{ kind: 'feature', flag: 'inline_visualization' }])
+  })
+
+  it("counts the tokens of a tool's own model calls, such as codemode's models.classify()", () => {
+    observePiToolResultForUsageStatistics('run-1', {
+      usage: { input: 30, cacheRead: 0, cacheWrite: 0, output: 2 },
+      content: [{ type: 'text', text: 'visualize{"path":"/tmp/v/chart.html"}' }],
+    })
+    observePiToolResultForUsageStatistics('run-1', { content: [] })
+
+    expect(recorded.tokens).toEqual([['run-1', 30, 2]])
+    expect(recorded.observations).toEqual([])
   })
 
   it('reports native and portable compaction, and ignores aborted ones', () => {

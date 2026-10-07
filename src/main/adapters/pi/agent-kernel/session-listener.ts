@@ -9,6 +9,7 @@ import { createStreamingMessageId, toJsonValue } from '../pi-message-mapper'
 import {
   observePiAssistantMessageForUsageStatistics,
   observePiCompactionForUsageStatistics,
+  observePiToolResultForUsageStatistics,
   observePiToolUseForUsageStatistics,
 } from '../pi-usage-statistics'
 import { getAgentEndError, getAgentEndReason, getAgentEndUsage } from './agent-end-events'
@@ -141,6 +142,10 @@ function handleIncorporatedUserMessage(
 
 function handleMessageEnd(state: SessionListenerState, event: MessageEndSessionEvent) {
   if (handleIncorporatedUserMessage(state, event.message)) return
+  if (event.message.role === 'toolResult') {
+    observePiToolResultForUsageStatistics(state.runId, event.message)
+    return
+  }
   if (!state.currentMessageId || event.message.role !== 'assistant') {
     return
   }
