@@ -35,6 +35,7 @@ import {
   SEED_561547,
   SEED_562217,
   SEED_564032,
+  SEED_582014,
 } from './transcript-order.replays'
 import { assertTranscriptOrder, createScenarioHarness } from './transcript-order.scenario'
 import { cleanupTranscriptOrder, resetTranscriptOrderState } from './transcript-order.test-harness'
@@ -196,6 +197,10 @@ describe('transcript order, model-based', () => {
 
   it('drops the steer preview of a Run a stall hid when the resync finds the Session idle', async () => {
     await replayRun('seed 561547', 'other', SEED_561547)
+  })
+
+  it('drops the steer preview of a Run a stall hid once another Run starts', async () => {
+    await replayRun('seed 582014', 'session', SEED_582014)
   })
 
   it('holds an earlier Run prompt the transcript holds at its log order', async () => {

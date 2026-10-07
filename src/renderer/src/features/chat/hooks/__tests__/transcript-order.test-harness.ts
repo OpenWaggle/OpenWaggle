@@ -288,7 +288,7 @@ function resetRendererState() {
   })
   useAgentLoopEventStore.setState({ sessionsById: new Map() })
   useOptimisticUserMessageStore.setState({ messagesBySessionId: new Map() })
-  useOptimisticSteerStore.getState().clearSession(SESSION_ID)
+  useOptimisticSteerStore.setState({ previews: new Map(), runIds: new Map() })
   useRunFinishingStore.getState().clear(SESSION_ID)
 }
 

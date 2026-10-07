@@ -22,8 +22,7 @@ function decodeDegradedSnapshot(value: unknown): BackgroundRunSnapshot['degraded
   if (
     !isRecord(value) ||
     value.reason !== 'content-limit' ||
-    typeof value.omittedBytes !== 'number' ||
-    typeof value.messageCutShort !== 'boolean'
+    typeof value.omittedBytes !== 'number'
   ) {
     return undefined
   }
@@ -33,7 +32,9 @@ function decodeDegradedSnapshot(value: unknown): BackgroundRunSnapshot['degraded
     reason: 'content-limit',
     omittedBytes: value.omittedBytes,
     ...(toolCallIds.length > 0 ? { toolCallIds } : {}),
-    messageCutShort: value.messageCutShort,
+    // One that does not say whether the caps cut the streaming message counts as cut: its parts
+    // must not pass for the whole message over a longer shown copy.
+    messageCutShort: value.messageCutShort !== false,
   }
 }
 

@@ -68,6 +68,7 @@ export function useBackgroundRunMonitor(): void {
         if (startedRuns.start(payload.sessionId, payload.event.runId, restored)) {
           useOptimisticSteerStore.getState().clearSession(payload.sessionId)
         }
+        useOptimisticSteerStore.getState().noteRunStarted(payload.sessionId, payload.event.runId)
         const runModel = payload.event.model?.trim()
         addActiveRun(payload.sessionId, runModel ? SupportedModelId(runModel) : undefined)
       }

@@ -114,8 +114,9 @@ describe('decodeActiveRunSnapshots', () => {
     const degraded = { reason: 'content-limit', omittedBytes: 10, messageCutShort: false }
     expect(decodeActiveRunSnapshots([{ ...snapshot, degraded }])[0]?.degraded).toEqual(degraded)
     const unsaid = { reason: 'content-limit', omittedBytes: 10 }
-    expect(decodeActiveRunSnapshots([{ ...snapshot, degraded: unsaid }])[0]).not.toHaveProperty(
-      'degraded',
-    )
+    expect(decodeActiveRunSnapshots([{ ...snapshot, degraded: unsaid }])[0]?.degraded).toEqual({
+      ...unsaid,
+      messageCutShort: true,
+    })
   })
 })

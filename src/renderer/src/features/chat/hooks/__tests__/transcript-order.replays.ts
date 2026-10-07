@@ -273,3 +273,14 @@ export const SEED_561547 = (
   'startRun answerWithReasoning answerWithReasoning endRun viewSession stall startRun promote answer ' +
   'continueRun deliverPromotion endRun resume send promote deliverPromotion'
 ).split(' ')
+
+/*
+ * Seed 582014 at 100 steps: a steer was promoted into a Run a stall hid; the resync found another
+ * Run active, so the preview stayed, and a later steer with the same text showed twice beside it.
+ * A preview names the Run it was promoted into, and goes once another Run starts.
+ */
+export const SEED_582014 = (
+  'startRun steer endRunWithRequestedWaggle startRun steer answer stop stall startRun ' +
+  'continues continueRun steer answer steer promote deliverPromotion endRunWithRequestedWaggle ' +
+  'startRun endRunSettlingLate startRun continueRun resume promote deliverPromotion'
+).split(' ')
