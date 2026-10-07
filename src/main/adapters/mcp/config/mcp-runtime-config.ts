@@ -1,0 +1,173 @@
+import {
+  type McpMergedConfig,
+  type McpMergedServer,
+  mergeMcpConfigLayers,
+} from '../../../domain/mcp/config/mcp-config-merge'
+import type {
+  McpConfiguredValue,
+  McpServerConfig,
+  McpServerTransport,
+} from '../../../domain/mcp/config/mcp-server-config'
+import {
+  type McpConfigFileReader,
+  type McpConfigFileRoots,
+  mcpConfigFileLocations,
+  openWaggleMcpConfigPath,
+  readMcpConfigLayers,
+} from './mcp-config-files'
+
+/** One server as Pi's MCP extension receives it (`McpServerEntry`). */
+export interface McpRuntimeServerEntry {
+  name: string
+  config: McpServerConfig
+  /** The config file that defines the server. */
+  source: string
+  scope?: 'global' | 'project' | 'extension'
+  /** The file whose override-only entry changes the server's enabled state or exposure. */
+  override?: string
+}
+
+/** What Pi's `loadConfig` returns (`LoadedMcpConfig`). */
+export interface McpRuntimeLoadedConfig {
+  servers: McpRuntimeServerEntry[]
+  autoEnableCodemode?: boolean
+  errors: string[]
+  /** Where Pi writes "enable/disable in this project": OpenWaggle's project file. */
+  projectConfig?: string
+}
+
+export interface McpRuntimeConfig {
+  readonly loaded: McpRuntimeLoadedConfig
+  /** The real transport of each server, for servers Pi sees as plain URL entries. */
+  readonly transports: ReadonlyMap<string, McpServerTransport>
+  /** The merge before secret resolution, with file ids, for management views. */
+  readonly merged: McpMergedConfig
+}
+
+export type McpSecretResolver = (name: string) => Promise<string>
+
+export interface LoadMcpRuntimeConfigInput {
+  readonly roots: McpConfigFileRoots
+  readonly resolveSecret: McpSecretResolver
+  /** Session-level MCP off gives the Session no servers. Defaults to on. */
+  readonly sessionMcpEnabled?: boolean
+  /** An Agent definition's MCP allowlist: servers it does not name are left out. */
+  readonly serverAllowlist?: readonly string[]
+  readonly reader?: McpConfigFileReader
+}
+
+function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error)
+}
+
+type ResolvedValues =
+  | { readonly ok: true; readonly values: Record<string, string> | undefined }
+  | { readonly ok: false; readonly error: string }
+
+async function resolveValues(
+  server: McpMergedServer,
+  field: 'env' | 'headers',
+  values: Readonly<Record<string, McpConfiguredValue>> | undefined,
+  resolveSecret: McpSecretResolver,
+): Promise<ResolvedValues> {
+  if (!values) return { ok: true, values: undefined }
+  const resolved: Record<string, string> = {}
+  for (const [key, value] of Object.entries(values)) {
+    if (typeof value === 'string') {
+      resolved[key] = value
+      continue
+    }
+    try {
+      resolved[key] = await resolveSecret(value.secret)
+    } catch (error) {
+      return {
+        ok: false,
+        error: `${server.source.path}: server "${server.name}": ${field} "${key}" names vault secret "${value.secret}", which could not be read: ${errorMessage(error)}`,
+      }
+    }
+  }
+  return { ok: true, values: resolved }
+}
+
+type ResolvedServer =
+  | { readonly ok: true; readonly config: McpServerConfig }
+  | { readonly ok: false; readonly error: string }
+
+async function resolveServer(
+  server: McpMergedServer,
+  resolveSecret: McpSecretResolver,
+): Promise<ResolvedServer> {
+  const { config } = server
+  if ('url' in config) {
+    const { headers, ...rest } = config
+    const resolved = await resolveValues(server, 'headers', headers, resolveSecret)
+    if (!resolved.ok) return resolved
+    return {
+      ok: true,
+      config: { ...rest, ...(resolved.values ? { headers: resolved.values } : {}) },
+    }
+  }
+  const { env, ...rest } = config
+  const resolved = await resolveValues(server, 'env', env, resolveSecret)
+  if (!resolved.ok) return resolved
+  return { ok: true, config: { ...rest, ...(resolved.values ? { env: resolved.values } : {}) } }
+}
+
+function runtimeEntry(server: McpMergedServer, config: McpServerConfig): McpRuntimeServerEntry {
+  return {
+    name: server.name,
+    config,
+    source: server.source.path,
+    scope: server.scope,
+    ...(server.override ? { override: server.override.path } : {}),
+  }
+}
+
+export function loadMcpMergedConfig(
+  roots: McpConfigFileRoots,
+  reader?: McpConfigFileReader,
+): McpMergedConfig {
+  return mergeMcpConfigLayers(readMcpConfigLayers(mcpConfigFileLocations(roots), reader))
+}
+
+/**
+ * The configuration one Pi session receives: the merged file set with vault references resolved,
+ * narrowed by the Session's MCP switch and an Agent definition's allowlist.
+ */
+export async function loadMcpRuntimeConfig(
+  input: LoadMcpRuntimeConfigInput,
+): Promise<McpRuntimeConfig> {
+  const merged = loadMcpMergedConfig(input.roots, input.reader)
+  const projectConfig = input.roots.projectPath
+    ? openWaggleMcpConfigPath(input.roots, 'project')
+    : undefined
+  const allowlist = input.serverAllowlist ? new Set(input.serverAllowlist) : undefined
+  const selected =
+    input.sessionMcpEnabled === false
+      ? []
+      : merged.servers.filter((server) => !allowlist || allowlist.has(server.name))
+  const errors = [...merged.errors]
+  const servers: McpRuntimeServerEntry[] = []
+  const transports = new Map<string, McpServerTransport>()
+  for (const server of selected) {
+    const resolved = await resolveServer(server, input.resolveSecret)
+    if (!resolved.ok) {
+      errors.push(resolved.error)
+      continue
+    }
+    servers.push(runtimeEntry(server, resolved.config))
+    transports.set(server.name, server.transport)
+  }
+  return {
+    loaded: {
+      servers,
+      errors,
+      ...(merged.autoEnableCodemode === undefined
+        ? {}
+        : { autoEnableCodemode: merged.autoEnableCodemode }),
+      ...(projectConfig ? { projectConfig } : {}),
+    },
+    transports,
+    merged,
+  }
+}
