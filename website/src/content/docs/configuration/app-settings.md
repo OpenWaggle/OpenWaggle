@@ -23,7 +23,7 @@ Most settings apply across the app. Sections with a project picker let you inspe
 | Skills | Browse skills for a selected project. |
 | Agents | Configure agent-created Workers and browse Markdown agent definitions. |
 | Permissions | Set default and project access modes, and revoke saved approvals. |
-| MCP | Connect external tools and services, review their access, and diagnose connection problems. |
+| MCP | Connect external tools and services, choose how the agent reaches their tools, and diagnose connection problems. |
 | Worktrees | Choose the default checkout mode and manage Git worktrees. |
 | Archived items | Restore archived sessions or conversation branches, and permanently delete archived sessions. |
 | Connections | Connect provider accounts and choose which models appear beside the message box. |
@@ -133,9 +133,7 @@ See [Providers and models](/docs/providers/overview) for the full setup.
 
 ## MCP
 
-MCP connects the agent to tools and services outside its built-in file and command tools. It starts globally off. In **Settings > MCP**, review each server's definition and requested access before trusting or enabling it.
-
-Activation can differ by session and project. Changes during agent work may remain pending until the turn finishes. Turning a server off does not prove a job already submitted to a remote service has stopped. See [Model Context Protocol](/docs/configuration/mcp) for setup, credentials, and cancellation limits.
+MCP connects the agent to tools and services outside its built-in file and command tools. OpenWaggle reads the same MCP files as Pi, so servers you set up for Pi appear in **Settings > MCP** too. Add, turn off, or sign in to servers there. See [Model Context Protocol](/docs/configuration/mcp) for setup and credentials.
 
 ## Archived items
 
@@ -156,9 +154,9 @@ Other files have separate locations:
 | User Waggle presets | `~/.pi/agent/waggle-presets.json` |
 | Project Waggle presets | `<project>/.pi/waggle-presets.json` |
 | Provider credentials saved through Pi | `~/.pi/agent/auth.json` |
-| Global MCP definitions | `~/.openwaggle/mcp.json` |
-| Project MCP definitions | `<project>/.mcp.json` and `<project>/.openwaggle/mcp.json` |
-| User-owned MCP trust, secret references, OAuth state, and remote task records | `~/.openwaggle/mcp/` |
+| Global MCP servers | `~/.pi/agent/mcp.json` and `~/.openwaggle/mcp.json` |
+| Project MCP servers | `<project>/.mcp.json`, `<project>/.pi/mcp.json`, and `<project>/.openwaggle/mcp.json` |
+| MCP secrets and sign-ins (encrypted) | `~/.openwaggle/mcp/` |
 
 Credentials may also come from environment variables or custom provider configuration. Do not treat the session database as a complete backup of credentials or project files.
 

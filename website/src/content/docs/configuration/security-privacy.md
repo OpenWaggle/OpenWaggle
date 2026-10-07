@@ -27,7 +27,7 @@ Waggle presets use separate files:
 
 Provider credentials are separate from the session database. They can come from Pi's default `~/.pi/agent/auth.json`, environment variables, or custom provider configuration. `PI_CODING_AGENT_DIR` changes the default Pi directory. The credential file is JSON, not OpenWaggle's encrypted MCP vault; protect it as a secret file. Other Pi clients using that directory share the stored credentials.
 
-MCP definitions and user-owned trust, secrets, and OAuth state have their own storage. See [MCP configuration](/docs/configuration/mcp#configuration-files). For an older installation's database recovery copy, see [Session recovery](/docs/configuration/session-recovery).
+MCP server files, secrets, and sign-ins have their own storage. Sign-ins are encrypted; Pi's own `mcp-auth.json` is read but never changed. See [MCP configuration](/docs/configuration/mcp#where-servers-are-configured). For an older installation's database recovery copy, see [Session recovery](/docs/configuration/session-recovery).
 
 ## Usage statistics and update checks
 

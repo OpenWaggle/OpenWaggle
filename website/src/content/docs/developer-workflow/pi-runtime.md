@@ -51,13 +51,9 @@ Pi documents its default tool controls in the [coding-agent README](https://gith
 
 ## MCP integration
 
-OpenWaggle owns MCP configuration, trust, authentication, protocol negotiation, transports, lifecycle, and capability policy behind `McpConfigService` and `McpRuntimeService`. The first-party runtime negotiates the current MCP revision and supported legacy revisions, then exposes a compact `mcp` gateway, confined `mcp_run` orchestration, and explicitly opted-in direct tools to Pi through an internal extension factory.
+MCP runs on Pi's built-in MCP extension. Pi's SDK sessions do not load built-in extensions, so OpenWaggle adds Pi's MCP, codemode, and tool-search extensions to every session it creates, and supplies the extension's plug-in points: the configuration files it reads, the transports it connects with, the store for sign-ins, how the sign-in page opens, and where changes are saved.
 
-`mcp_run` parses a documented JavaScript-like DSL; it never evaluates JavaScript or exposes Node/Electron authority. The DSL supports immutable variables, sequential calls, bounded parallel groups, result-property flow, conditions, and return values. Its wall-time, step, call-count, depth, memory, output, and concurrency budgets are hard limits, and every child call keeps its own approval and provenance. See [Bounded `mcp_run` orchestration](/docs/configuration/mcp#bounded-mcp_run-orchestration) for the exact grammar and limits.
-
-The bundled Pi model contract does not expose a per-model tool-support flag. `Model<Api>` is the tool-capable chat-model contract: `Context` carries tools, Pi's coding agent supplies them by default, and all installed built-in API implementations consume them. OpenWaggle therefore gates agent MCP tools on successful `ModelRegistry` resolution and never guesses from provider or model names. A custom API registered as a Pi model must honor the same tool and tool-call event contract or its run fails visibly.
-
-The turn snapshot is immutable. Scope or server changes made during an active turn apply at the next safe boundary. Pi remains the agent/model loop and OpenWaggle does not create a second agent runtime; MCP calls are infrastructure used by the Pi-backed run.
+Underneath Pi's MCP client, OpenWaggle keeps each session's server connections open between messages, answers server requests for sampling and input, and serves MCP Apps. Every MCP and codemode child call passes through Pi's `tool_call` hook, where OpenWaggle asks for approval. See [Model Context Protocol](/docs/configuration/mcp) for what users see, and `docs/mcp-runtime.md` in the repository for the internals.
 
 ## Context and compaction
 
