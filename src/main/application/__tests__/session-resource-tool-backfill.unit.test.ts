@@ -14,10 +14,7 @@ import {
   capturedResource,
   sessionResourceTestLayer,
 } from './session-resource-capture.fixtures'
-import {
-  failedOrchestrationMessages,
-  toolMessages,
-} from './session-resource-tool-backfill.fixtures'
+import { toolMessages } from './session-resource-tool-backfill.fixtures'
 
 describe('production Session Resource tool projection', () => {
   it('reconstructs semantic tool and file resources from an existing projected transcript', async () => {
@@ -92,50 +89,6 @@ describe('production Session Resource tool projection', () => {
     })
   })
 
-  it('reconstructs a completed child from a partially failed MCP orchestration', async () => {
-    const upserts: UpsertSessionResourceInput[] = []
-
-    await Effect.runPromise(
-      captureProjectedSessionResources({
-        sessionId: SessionId('session-1'),
-        messages: [
-          assistantToolResultMessage(true, {
-            name: 'mcp_run',
-            details: {
-              kind: 'orchestration',
-              result: [
-                {
-                  id: 'issue',
-                  handle: 'opaque-issue',
-                  status: 'completed',
-                  provenance: {
-                    handle: 'opaque-issue',
-                    serverInstanceId: 'github-1',
-                    serverLabel: 'GitHub',
-                    toolName: 'get_issue',
-                  },
-                  result: { operation: 'call', text: 'Found issue.' },
-                },
-              ],
-            },
-          }),
-        ],
-      }).pipe(Effect.provide(sessionResourceTestLayer(upserts))),
-    )
-
-    expect(upserts).toContainEqual(
-      expect.objectContaining({
-        canonicalKey: 'tool:github-1:get_issue',
-        occurrence: expect.objectContaining({
-          id: 'session-1:assistant-tool-message:read:tool:tool-call-1:child:0:issue',
-          actor: 'tool',
-          activity: 'read',
-          label: 'get_issue · GitHub',
-        }),
-      }),
-    )
-  })
-
   it('bounds completed tool projection work for one successful run', async () => {
     const upserts: UpsertSessionResourceInput[] = []
     const messages = toolMessages('assistant-tool', 'tool')
@@ -180,30 +133,18 @@ describe('production Session Resource tool projection', () => {
     expect(secondPass.fullyProjected).toBe(true)
   })
 
-  it('advances past bounded failed orchestrations whose completed children were persisted', async () => {
-    const messages = failedOrchestrationMessages()
-    const firstUpserts: UpsertSessionResourceInput[] = []
+  it('records nothing for a failed tool, so backfill does not wait on it', async () => {
+    const upserts: UpsertSessionResourceInput[] = []
 
-    const firstPass = await Effect.runPromise(
-      captureProjectedSessionResources({ sessionId: SessionId('session-1'), messages }).pipe(
-        Effect.provide(sessionResourceTestLayer(firstUpserts)),
-      ),
-    )
-    const secondUpserts: UpsertSessionResourceInput[] = []
-    const secondPass = await Effect.runPromise(
-      captureProjectedSessionResources({ sessionId: SessionId('session-1'), messages }).pipe(
-        Effect.provide(
-          sessionResourceTestLayer(secondUpserts, {
-            listedResources: firstUpserts.map(capturedResource),
-          }),
-        ),
-      ),
+    const pass = await Effect.runPromise(
+      captureProjectedSessionResources({
+        sessionId: SessionId('session-1'),
+        messages: [assistantToolResultMessage(true, { name: 'grep' })],
+      }).pipe(Effect.provide(sessionResourceTestLayer(upserts))),
     )
 
-    expect(firstPass.fullyProjected).toBe(false)
-    expect(firstUpserts).toHaveLength(SESSION_TOOL_CAPTURE_LIMIT)
-    expect(secondUpserts).toHaveLength(8)
-    expect(secondPass.fullyProjected).toBe(true)
+    expect(upserts.filter((resource) => resource.kind === 'tool')).toEqual([])
+    expect(pass.fullyProjected).toBe(true)
   })
 
   it('retries assistant metadata after tool, site, file, or web-search persistence fails', async () => {
