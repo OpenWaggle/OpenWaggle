@@ -7,6 +7,7 @@ import {
   type InlineExtension,
   mcpNamespace,
 } from '@earendil-works/pi-coding-agent'
+import { isRecord } from '@shared/utils/validation'
 import { openExternal } from '../../../desktop-ui'
 import { createLogger } from '../../../logger'
 import { createMcpUpdateConfig } from '../../mcp/config/mcp-config-writer'
@@ -74,10 +75,6 @@ function serverOfTool(
   }
   // A server an extension registered: still asked about, under its namespace.
   return { name: namespace.replace(/^mcp__/, ''), identity: `mcp-extension:${namespace}` }
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 /**

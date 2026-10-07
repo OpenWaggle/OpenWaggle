@@ -1,7 +1,7 @@
+import { isRecord } from '@shared/utils/validation'
 import type { McpConnectionLease } from './mcp-connection-lease'
 import {
   isJsonRpcId,
-  isRecord,
   type JsonRpcId,
   type JsonRpcResponse,
   type McpWireTransport,

@@ -1,6 +1,7 @@
 import { safeDecodeUnknown } from '@shared/schema'
 import { mcpConfigValueSchema } from '@shared/schemas/mcp'
 import type { McpJsonValue } from '@shared/types/mcp'
+import { isRecord } from '@shared/utils/validation'
 import type { McpConnectionHooks } from '../../mcp/pool/mcp-session-connection-pool'
 import { recordMcpAppTools } from './mcp-app-registry'
 import type { McpRuntimeInteractions } from './mcp-interaction-types'
@@ -29,10 +30,6 @@ export function attachSessionMcpContext(sessionId: string, context: SessionMcpCo
 
 const UI_EXTENSION = 'io.modelcontextprotocol/ui'
 const MCP_APP_MIME_TYPE = 'text/html;profile=mcp-app'
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
 
 /** Declares what OpenWaggle answers on Pi's behalf: sampling, elicitation, and MCP Apps. */
 export function withOpenWaggleClientCapabilities(params: unknown) {

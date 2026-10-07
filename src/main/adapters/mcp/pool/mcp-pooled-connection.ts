@@ -1,3 +1,4 @@
+import { isRecord } from '@shared/utils/validation'
 import { McpClientRequestLedger } from './mcp-client-request-ledger'
 import { McpConnectionHandshake } from './mcp-connection-handshake'
 import { McpConnectionLease } from './mcp-connection-lease'
@@ -16,7 +17,6 @@ import { McpServerRequestRouter } from './mcp-server-request-router'
 import {
   isJsonRpcNotification,
   isJsonRpcRequest,
-  isRecord,
   JSON_RPC_ERROR_CODES,
   type JsonRpcMessage,
   type JsonRpcNotification,

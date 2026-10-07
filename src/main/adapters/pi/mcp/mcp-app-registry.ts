@@ -1,4 +1,5 @@
 import type { McpAppDescriptor } from '@shared/types/mcp-apps'
+import { isRecord } from '@shared/utils/validation'
 
 /**
  * The MCP App tools each Session's servers offer, learned from the `tools/list` results that pass
@@ -15,10 +16,6 @@ const registry = new Map<string, ReadonlyMap<string, McpAppTool>>()
 
 function key(sessionId: string, serverName: string) {
   return `${sessionId}\u0000${serverName}`
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 /** A tool's `ui://` resource: `_meta.ui.resourceUri`, or the older `_meta["ui/resourceUri"]`. */

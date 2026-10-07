@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 import { chmod, lstat, mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
+import { isRecord } from '@shared/utils/validation'
 import { extractMcpbArchive } from './registry-mcpb-archive'
 import { loadMcpbLauncher, type McpbCachedLauncher } from './registry-mcpb-manifest'
 import {
@@ -23,10 +24,6 @@ const ARTIFACT_REDIRECT_DOMAINS = [
 /** A verified bundle's launcher; it runs from the bundle's own directory. */
 export interface InstalledMcpbLauncher extends McpbCachedLauncher {
   readonly cwd: string
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 function nodeErrorCode(value: unknown) {

@@ -2,6 +2,7 @@ import type {
   McpServerConnectionStateView,
   McpServerInspection,
 } from '@shared/types/mcp-configuration'
+import { isRecord } from '@shared/utils/validation'
 
 /**
  * The last known state of each MCP server, kept in memory by server identity so Settings > MCP
@@ -40,10 +41,6 @@ function remember(identity: string, state: McpKnownServerState) {
     if (oldest === undefined) return
     known.delete(oldest)
   }
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 /** A tool's `ui://` resource: `_meta.ui.resourceUri`, or the older `_meta["ui/resourceUri"]`. */

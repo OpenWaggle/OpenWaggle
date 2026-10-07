@@ -1,3 +1,4 @@
+import { isRecord } from '@shared/utils/validation'
 import type { McpConnectionLease } from './mcp-connection-lease'
 import {
   errorResponse,
@@ -7,7 +8,6 @@ import {
   INTERNAL_PROTOCOL_VERSION,
 } from './mcp-connection-support'
 import {
-  isRecord,
   JSON_RPC_ERROR_CODES,
   type JsonRpcId,
   type JsonRpcMessage,

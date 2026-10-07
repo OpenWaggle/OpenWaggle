@@ -4,6 +4,7 @@ import { homedir } from 'node:os'
 import path from 'node:path'
 import { MCP_CONFIG } from '@shared/constants/mcp'
 import type { McpSecretSummary } from '@shared/types/mcp'
+import { isRecord } from '@shared/utils/validation'
 import { Effect, Layer } from 'effect'
 import { safeStorage } from 'electron'
 import { McpVaultError, toMcpVaultError } from '../../ports/mcp-errors'
@@ -38,10 +39,6 @@ function validateSecretName(name: string) {
     })
   }
   return normalized
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 function parseVaultEntry(name: string, value: unknown): VaultEntry {

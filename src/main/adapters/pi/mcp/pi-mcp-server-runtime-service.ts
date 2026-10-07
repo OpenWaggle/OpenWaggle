@@ -8,6 +8,7 @@ import {
 } from '@earendil-works/pi-coding-agent'
 import { McpClient } from '@earendil-works/pi-mcp'
 import type { McpServerInspection, McpServerToolView } from '@shared/types/mcp-configuration'
+import { isRecord } from '@shared/utils/validation'
 import { Effect, Layer } from 'effect'
 import type { McpTransportKind } from '../../../domain/mcp/config/mcp-server-config'
 import { McpConfigurationError } from '../../../ports/mcp-configuration-service'
@@ -53,10 +54,6 @@ async function findServer(input: McpServerScopeInput, roots: PiMcpServerRuntimeR
   }
   const transport = config.transports.get(entry.name) ?? ('url' in entry.config ? 'http' : 'stdio')
   return { entry, transport }
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 function needsSignIn(error: unknown) {

@@ -2,6 +2,7 @@ import { createHash, randomUUID } from 'node:crypto'
 import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { isDeepStrictEqual } from 'node:util'
+import { isRecord } from '@shared/utils/validation'
 
 /**
  * Storage for Pi's MCP OAuth state (`McpOAuthCredentialStore`), keyed as Pi keys it
@@ -48,10 +49,6 @@ const STORE_VERSION = 1
 const FILE_MODE = 0o600
 const DIRECTORY_MODE = 0o700
 const JSON_INDENT = 2
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
 
 function isMissing(error: unknown) {
   return error instanceof Error && 'code' in error && error.code === 'ENOENT'

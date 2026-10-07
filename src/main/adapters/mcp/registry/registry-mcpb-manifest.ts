@@ -1,5 +1,6 @@
 import { lstat, readFile, realpath } from 'node:fs/promises'
 import path from 'node:path'
+import { isRecord } from '@shared/utils/validation'
 
 const MCPB_MANIFEST_LIMIT_BYTES = 1_000_000
 const SUPPORTED_MANIFEST_VERSIONS = new Set(['0.3', '0.4'])
@@ -25,10 +26,6 @@ interface McpbManifest {
   readonly manifestVersion: string
   readonly server: Readonly<Record<string, unknown>>
   readonly raw: Readonly<Record<string, unknown>>
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 function nonemptyString(value: unknown) {
