@@ -3,6 +3,7 @@ import path from 'node:path'
 import type {
   CreateAgentSessionServicesOptions,
   ExtensionFactory,
+  InlineExtension,
   SettingsManager,
 } from '@earendil-works/pi-coding-agent'
 import { normalizeSkillId } from '@shared/utils/skill-id'
@@ -10,7 +11,12 @@ import { env } from '../../env'
 import { isUsageStatisticsEnabled } from '../../usage-statistics/usage-statistics-enablement'
 import { isPathInside } from '../../utils/paths'
 import { preparedSessionEvidenceDirectory } from '../../utils/session-evidence-directory'
+import type { OpenWagglePiAppSettings } from './openwaggle-pi-settings-app-overlay'
 import type { OpenWaggleExtensionPiResourceRoot } from './openwaggle-pi-settings-resources'
+import {
+  openWagglePiBuiltInExtensionPaths,
+  openWagglePiBuiltInExtensions,
+} from './pi-built-in-extensions'
 import { createProviderAttributionExtension } from './provider-attribution-extension'
 
 export interface PiRuntimeServicesOptions {
@@ -23,6 +29,8 @@ export interface PiRuntimeServicesOptions {
   readonly trustedExtensionFactories?: readonly ExtensionFactory[]
   readonly systemPromptAppendices?: readonly string[]
   readonly visualizationDirectory?: string
+  /** OpenWaggle settings with a Pi equivalent; the current Settings when absent. */
+  readonly appSettings?: OpenWagglePiAppSettings
 }
 
 type PiResourceLoaderOptions = NonNullable<
@@ -162,9 +170,10 @@ function providerAttributionExtensionFactory() {
 function configuredExtensionFactories(
   options: PiRuntimeServicesOptions,
   disableExtensions: boolean,
-) {
+): InlineExtension[] {
   return [
     providerAttributionExtensionFactory(),
+    ...openWagglePiBuiltInExtensions(),
     ...(!disableExtensions || allowFirstPartyExtensionFactoriesForAutomation()
       ? (options.extensionFactories ?? [])
       : []),
@@ -179,9 +188,10 @@ function configuredResourcePaths(
   builtInSkillPaths: readonly string[],
   disableExtensions: boolean,
 ) {
+  const builtInExtensionPaths = disableExtensions ? openWagglePiBuiltInExtensionPaths() : []
   if (settingsManager) {
     return {
-      additionalExtensionPaths: [],
+      additionalExtensionPaths: builtInExtensionPaths,
       additionalSkillPaths: [...builtInSkillPaths],
       additionalPromptTemplatePaths: [],
       additionalThemePaths: [],
@@ -189,7 +199,7 @@ function configuredResourcePaths(
   }
   return {
     additionalExtensionPaths: disableExtensions
-      ? []
+      ? builtInExtensionPaths
       : getEnabledOpenWaggleExtensionPackagePaths(options.enabledOpenWaggleExtensionPackagePaths),
     additionalSkillPaths: [
       ...builtInSkillPaths,

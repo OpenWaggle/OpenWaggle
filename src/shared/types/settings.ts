@@ -72,6 +72,10 @@ export const DEFAULT_SESSION_HOST_RUN_CEILING = 16
 export const DEFAULT_SESSION_HOST_IDLE_GRACE_PERIOD_MS = 300_000
 export const DEFAULT_COMPACTION_THRESHOLD_PERCENT = 80
 
+/** Pi's `cacheWarming` setting: keep provider prompt caches warm while a Run works, or never. */
+export const PI_CACHE_WARMING_MODES = ['off', 'streaming', 'idle'] as const
+export type PiCacheWarmingMode = (typeof PI_CACHE_WARMING_MODES)[number]
+
 export interface Settings {
   readonly selectedModel: SupportedModelId
   readonly favoriteModels: readonly SupportedModelId[]
@@ -145,6 +149,10 @@ export interface Settings {
   readonly enableAgentBrowserAccess: boolean
   /** Context-window usage percentage at which Pi automatically compacts. */
   readonly compactionThresholdPercent: number
+  /** Whether every Session offers Pi's codemode tool, which runs scripts that call several tools. */
+  readonly codemodeEnabled: boolean
+  /** When Pi keeps provider prompt caches warm (Pi's `cacheWarming`). */
+  readonly cacheWarming: PiCacheWarmingMode
   /** Title model: Automatic, Off, or the model that generates Session titles. */
   readonly sessionTitleModel: SessionTitleModelSetting
   /** User overrides layered above the active Appearance package defaults. */
@@ -190,6 +198,8 @@ export const DEFAULT_SETTINGS: Settings = {
   browserAutoShowFloatingPreview: DEFAULT_BROWSER_PREVIEW_AUTO_SHOW_FLOATING,
   enableAgentBrowserAccess: true,
   compactionThresholdPercent: DEFAULT_COMPACTION_THRESHOLD_PERCENT,
+  codemodeEnabled: true,
+  cacheWarming: 'streaming',
   sessionTitleModel: DEFAULT_SESSION_TITLE_MODEL,
   appearancePreferences: DEFAULT_APPEARANCE_PREFERENCES,
 }

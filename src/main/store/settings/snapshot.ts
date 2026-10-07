@@ -34,6 +34,7 @@ import {
   SETTINGS_KEY_SYNTAX_THEME_SELECTIONS,
   SETTINGS_KEY_UPDATE_CHANNEL,
 } from './keys'
+import { resolveNextPiRuntimeSettings, resolveStoredPiRuntimeSettings } from './pi-runtime-settings'
 import { resolveRightPanelRailVisibleWhenClosed } from './right-panel-settings-sanitizer'
 import {
   isValidSessionEnvironmentMode,
@@ -183,6 +184,7 @@ export function buildSettingsSnapshot(storedSettings: Readonly<Record<string, un
       rightPanelRailVisibleWhenClosed,
       ...hostSettings,
       compactionThresholdPercent,
+      ...resolveStoredPiRuntimeSettings(storedSettings),
       ...resolveStoredSessionTitleSettings(storedSettings),
       appearancePreferences,
       ...browserSettings,
@@ -201,6 +203,7 @@ export function buildNextSettingsSnapshot(current: Settings, partial: Partial<Se
       partial.compactionThresholdPercent !== undefined
         ? resolveCompactionThresholdPercent(partial.compactionThresholdPercent)
         : current.compactionThresholdPercent,
+    ...resolveNextPiRuntimeSettings(current, partial),
     ...resolveNextSessionTitleSettings(current, partial),
     ...resolveNextDiffAndAppearanceSettings(current, partial),
     ...resolveNextSelectedModels(current, partial),

@@ -48,10 +48,26 @@ it('excludes project/user extensions but retains trusted built-ins during automa
       trustedExtensionFactories: [trustedFactory],
     }),
   ).toMatchObject({
-    additionalExtensionPaths: [],
-    extensionFactories: [expect.any(Function), trustedFactory],
+    additionalExtensionPaths: ['builtin:codemode', 'builtin:tool-search'],
+    extensionFactories: [
+      expect.any(Function),
+      expect.objectContaining({ name: 'codemode', builtin: true }),
+      expect.objectContaining({ name: 'tool-search', builtin: true }),
+      trustedFactory,
+    ],
     noExtensions: true,
   })
+})
+
+it("keeps Pi's built-in codemode and tool search during automation", async () => {
+  const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-pi-automation-'))
+
+  const services = await createPiRuntimeServices(projectPath)
+
+  const tools = services.resourceLoader
+    .getExtensions()
+    .extensions.flatMap((extension) => [...extension.tools.keys()])
+  expect(tools).toEqual(expect.arrayContaining(['codemode', 'tool_search']))
 })
 
 it('retains trusted append-system-prompt guidance during automation', () => {

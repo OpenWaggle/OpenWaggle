@@ -10,6 +10,7 @@ import { createModelRef } from '@shared/types/llm'
 import { withNpmCompatibleProcessEnv } from '../../env'
 import { createLogger } from '../../logger'
 import { LEGACY_PI_MCP_ADAPTER_PACKAGE_SOURCES } from '../../migrations/legacy-pi-mcp-adapter'
+import { currentOpenWagglePiAppSettings } from './openwaggle-pi-app-settings'
 import { OPENWAGGLE_EXCLUDED_PI_NPM_PACKAGE_NAMES } from './openwaggle-pi-package-policy'
 import {
   createOpenWaggleGlobalPiSettingsManager,
@@ -179,6 +180,7 @@ export async function createPiRuntimeServices(
     excludedGlobalPackageSources: LEGACY_PI_MCP_ADAPTER_PACKAGE_SOURCES,
     excludedProjectPackageSources: LEGACY_PI_MCP_ADAPTER_PACKAGE_SOURCES,
     runtimeExcludedNpmPackageNames: OPENWAGGLE_EXCLUDED_PI_NPM_PACKAGE_NAMES,
+    appSettings: options.appSettings ?? currentOpenWagglePiAppSettings(),
   })
   const services = await withNpmCompatibleProcessEnv(() =>
     createAgentSessionServices({

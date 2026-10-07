@@ -40,6 +40,8 @@ export const SETTINGS_KEY_BROWSER_DEFAULT_APPEARANCE = 'browserDefaultAppearance
 export const SETTINGS_KEY_BROWSER_RECORDING_FRAME_RATE = 'browserRecordingFrameRate'
 export const SETTINGS_KEY_BROWSER_AUTO_SHOW_FLOATING_PREVIEW = 'browserAutoShowFloatingPreview'
 export const SETTINGS_KEY_ENABLE_AGENT_BROWSER_ACCESS = 'enableAgentBrowserAccess'
+export const SETTINGS_KEY_CODEMODE_ENABLED = 'codemodeEnabled'
+export const SETTINGS_KEY_CACHE_WARMING = 'cacheWarming'
 
 /** Known persisted fields. Unknown retired keys are ignored until an explicit migration removes them. */
 export const CURRENT_SETTINGS_KEYS = [
@@ -83,4 +85,6 @@ export const CURRENT_SETTINGS_KEYS = [
   SETTINGS_KEY_BROWSER_RECORDING_FRAME_RATE,
   SETTINGS_KEY_BROWSER_AUTO_SHOW_FLOATING_PREVIEW,
   SETTINGS_KEY_ENABLE_AGENT_BROWSER_ACCESS,
+  SETTINGS_KEY_CODEMODE_ENABLED,
+  SETTINGS_KEY_CACHE_WARMING,
 ] as const
