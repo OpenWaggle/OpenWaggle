@@ -179,3 +179,12 @@ export async function getPiSessionProjectionState(
     }),
   )
 }
+
+export async function undismissPiSessionFile(piSessionFile: string): Promise<void> {
+  await runStoreEffect(
+    Effect.flatMap(
+      SqlClient.SqlClient,
+      (sql) => sql`DELETE FROM pi_session_dismissals WHERE pi_session_file = ${piSessionFile}`,
+    ),
+  )
+}

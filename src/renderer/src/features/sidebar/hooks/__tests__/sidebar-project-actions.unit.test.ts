@@ -214,10 +214,10 @@ describe('sidebar project actions over paged catalogs', () => {
 
     await vi.waitFor(() => expect(apiMocks.deleteSession).toHaveBeenCalledTimes(2))
     expect(apiMocks.cancelAgent).toHaveBeenCalledWith(queenId)
-    expect(apiMocks.deleteSession).toHaveBeenNthCalledWith(1, workerId)
+    expect(apiMocks.deleteSession).toHaveBeenNthCalledWith(1, workerId, { removingProject: true })
     expect(apiMocks.unregisterBrowserPreviewOwner).toHaveBeenCalledWith(String(workerId))
     expect(apiMocks.unregisterBrowserPreviewOwner).toHaveBeenCalledWith(String(queenId))
-    expect(apiMocks.deleteSession).toHaveBeenNthCalledWith(2, queenId)
+    expect(apiMocks.deleteSession).toHaveBeenNthCalledWith(2, queenId, { removingProject: true })
     expect(actionDeps.removeProjectReferences).toHaveBeenCalledWith(PROJECT_PATH)
   })
 

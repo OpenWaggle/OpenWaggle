@@ -190,8 +190,8 @@ async function removeProject(deps: SidebarProjectActionDeps, path: string) {
   const projectSessions = await listProjectSessionSummaries(path)
   const sessionCount = projectSessions.length
   const confirmed = await api.showConfirm(
-    `Remove ${deps.displayProjectName(path)} and permanently delete ${sessionCount} session${sessionCount === 1 ? '' : 's'}?`,
-    `Project: ${deps.displayProjectName(path)}\nThis cannot be undone.`,
+    `Remove ${deps.displayProjectName(path)} and delete its ${sessionCount} session${sessionCount === 1 ? '' : 's'}?`,
+    `Project: ${deps.displayProjectName(path)}\nSessions started in OpenWaggle are deleted permanently. Sessions from the pi command keep their Pi files and come back if you add the folder again.`,
   )
   if (!confirmed) return
 
@@ -212,7 +212,7 @@ async function removeProject(deps: SidebarProjectActionDeps, path: string) {
       (run) => api.cancelAgent(run.sessionId),
     )
     await deleteProjectSessionsChildrenFirst(currentSessions, async (id) => {
-      await api.deleteSession(id)
+      await api.deleteSession(id, { removingProject: true })
       clearComposerDraftForSession(id)
       await deleteWorkspaceOwner(String(id))
     })

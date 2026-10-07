@@ -22,6 +22,7 @@ import {
   validateWorktreePlan,
 } from './host-ui-session-operation-validation'
 import { dispatchLocalSessionCommand } from './local-session-command-dispatcher'
+import { deleteSessionForProjectRemoval } from './pi-session-project-removal'
 
 const TWO_ARGUMENTS = 2
 const THREE_ARGUMENTS = 3
@@ -221,11 +222,33 @@ export function dismissInterruptedRun(args: readonly unknown[]) {
   })
 }
 
+function validateDeleteOptions(value: unknown) {
+  if (value === undefined) return Effect.succeed({ removingProject: false })
+  const removingProject =
+    typeof value === 'object' && value !== null && 'removingProject' in value
+      ? value.removingProject
+      : undefined
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return invalid('Session delete options are invalid.')
+  }
+  if (removingProject !== undefined && typeof removingProject !== 'boolean') {
+    return invalid('Session delete option removingProject must be a boolean.')
+  }
+  return Effect.succeed({ removingProject: removingProject === true })
+}
+
+/**
+ * Deleting a discovered Pi session on its own removes it from OpenWaggle and keeps it from being
+ * listed again; removing its project keeps the file listable for when the folder is added back
+ * (ADR 0048). Either way the Pi file stays.
+ */
 export function deleteSession(args: readonly unknown[]) {
   return Effect.gen(function* () {
-    yield* requireArgCount(args, 1)
+    yield* requireOptionalArgCount(args, 1, TWO_ARGUMENTS)
     const sessionId = yield* validateSessionId(args[0])
-    yield* mutateLocalUiSession({ operation: 'delete', sessionId })
+    const options = yield* validateDeleteOptions(args[1])
+    const deletion = mutateLocalUiSession({ operation: 'delete', sessionId })
+    yield* options.removingProject ? deleteSessionForProjectRemoval(sessionId, deletion) : deletion
     yield* Effect.sync(() => {
       clearAgentPhase(sessionId)
       clearStreamBuffer(sessionId)

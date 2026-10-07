@@ -148,6 +148,10 @@ export interface PiSessionDiscoveryRepositoryShape {
     readonly expectedRevision: number
     readonly fingerprint: PiSessionFileFingerprint
   }) => Effect.Effect<boolean, SessionProjectionRepositoryError>
+  /** Lets discovery list a dismissed file again, as when its project is removed and re-added. */
+  readonly undismiss: (
+    piSessionFile: string,
+  ) => Effect.Effect<void, SessionProjectionRepositoryError>
   /** Replaces the projection with the file's; false when a snapshot landed meanwhile. */
   readonly persistExternal: (
     input: PersistExternalPiProjectionInput,

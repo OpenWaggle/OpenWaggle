@@ -176,7 +176,8 @@ export interface OpenWaggleApi
     model: SupportedModelId,
     targetNodeId: SessionNodeId,
   ): Promise<SessionCopyToNewResult>
-  deleteSession(id: SessionId): Promise<void>
+  /** `removingProject` keeps a discovered Pi session listable if its folder is added back. */
+  deleteSession(id: SessionId, options?: { readonly removingProject?: boolean }): Promise<void>
   archiveSession(id: SessionId): Promise<void>
   unarchiveSession(id: SessionId): Promise<void>
   updateSessionTitle(id: SessionId, title: string): Promise<void>

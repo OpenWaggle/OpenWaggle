@@ -180,4 +180,33 @@ describe('Discovered Pi session ownership', () => {
       writer.release()
     }
   })
+
+  it("lists a removed project's Pi sessions again when the folder is added back", async () => {
+    await registerProjects([fixture.project])
+    const cli = createPiCliSession(fixture.project, 'Back again')
+    const sessionId = await discoverOne()
+    await openSession(sessionId)
+    const { deleteSessionForProjectRemoval } = await import(
+      '../../../application/pi-session-project-removal'
+    )
+    const { SessionProjectionRepository } = await import(
+      '../../../ports/session-projection-repository'
+    )
+
+    await run(
+      deleteSessionForProjectRemoval(
+        sessionId,
+        Effect.flatMap(SessionProjectionRepository, (repository) => repository.delete(sessionId)),
+      ),
+    )
+
+    expect(existsSync(cli.file)).toBe(true)
+    // The project is still listed until its removal finishes; discovery leaves it alone meanwhile.
+    expect(await discover()).toEqual([])
+    await registerProjects([])
+    expect(await discover()).toEqual([])
+    await registerProjects([fixture.project])
+    const listedAgain = await discoverOne()
+    expect((await sessionDetail(listedAgain))?.piSessionFile).toBe(cli.file)
+  })
 })

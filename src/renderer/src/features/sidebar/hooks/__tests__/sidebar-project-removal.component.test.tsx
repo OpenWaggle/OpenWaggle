@@ -4,6 +4,9 @@ import { QueryClient } from '@tanstack/react-query'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createSidebarProjectActions } from '../sidebar-project-actions'
 
+/** Removing a project keeps discovered Pi sessions listable if the folder is added back. */
+const REMOVING_PROJECT = { removingProject: true }
+
 const api = vi.hoisted(() => ({
   querySessionControl: vi.fn(),
   listSessionsByIds: vi.fn(),
@@ -92,9 +95,9 @@ describe('project removal preflight and failure recovery', () => {
     actions.remove('/project')
     await vi.waitFor(() => expect(deps.removeProjectReferences).toHaveBeenCalledWith('/project'))
     expect(api.deleteSession.mock.calls).toEqual([
-      [SessionId('first')],
-      [SessionId('second')],
-      [SessionId('new')],
+      [SessionId('first'), REMOVING_PROJECT],
+      [SessionId('second'), REMOVING_PROJECT],
+      [SessionId('new'), REMOVING_PROJECT],
     ])
   })
 
@@ -121,7 +124,10 @@ describe('project removal preflight and failure recovery', () => {
     await vi.waitFor(() =>
       expect(deps.showToast).toHaveBeenCalledWith(expect.stringContaining('Now active')),
     )
-    expect(api.deleteSession.mock.calls).toEqual([[SessionId('first')], [SessionId('second')]])
+    expect(api.deleteSession.mock.calls).toEqual([
+      [SessionId('first'), REMOVING_PROJECT],
+      [SessionId('second'), REMOVING_PROJECT],
+    ])
     expect(deps.loadChatSessions).toHaveBeenCalled()
     expect(deps.loadSessionTrees).toHaveBeenCalled()
     expect(deps.removeProjectReferences).not.toHaveBeenCalled()

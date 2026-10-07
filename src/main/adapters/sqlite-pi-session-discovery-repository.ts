@@ -11,6 +11,7 @@ import {
   adoptDiscoveredPiSession,
   getPiSessionProjectionState,
   readPiSessionDiscoveryScope,
+  undismissPiSessionFile,
 } from '../store/session-details/pi-session-discovery-store'
 
 function repositoryOperation<T>(operation: string, task: () => Promise<T>) {
@@ -32,6 +33,8 @@ export const SqlitePiSessionDiscoveryRepositoryLive = Layer.succeed(PiSessionDis
     repositoryOperation('recordUnchangedPiProjection', () =>
       recordUnchangedPiProjection(sessionId, expectedRevision, fingerprint),
     ),
+  undismiss: (piSessionFile) =>
+    repositoryOperation('undismissPiSessionFile', () => undismissPiSessionFile(piSessionFile)),
   persistExternal: (input) =>
     repositoryOperation('persistExternalPiSnapshot', () =>
       persistExternalPiSnapshot({

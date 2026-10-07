@@ -18,6 +18,7 @@ import { SessionProjectionRepository } from '../ports/session-projection-reposit
 import { SettingsService } from '../services/settings-service'
 import { publishSessionHostEvent } from '../session-host/session-host-events'
 import { dispatchLocalSessionCommand } from './local-session-command-dispatcher'
+import { unpausedProjects } from './pi-session-discovery-pauses'
 
 /**
  * Pi session discovery (ADR 0048). Pi sessions the `pi` CLI created in an OpenWaggle project, or
@@ -81,7 +82,7 @@ function removeUnadoptedSession(sessionId: SessionId) {
  * file was attached replays the same Session instead of creating another, while a file refused
  * once and written again since gets a fresh attempt.
  */
-function createDiscoveredSession(session: DiscoveredPiSession) {
+function dispatchDiscoveredSessionCreate(session: DiscoveredPiSession, idempotencyKey: string) {
   return Effect.gen(function* () {
     const result = yield* dispatchLocalSessionCommand({
       caller: { callerId: 'gui:local-user', workingDirectory: session.projectPath },
@@ -90,7 +91,7 @@ function createDiscoveredSession(session: DiscoveredPiSession) {
         request: {
           contractVersion: SESSION_LIFECYCLE_CONTRACT_VERSION,
           requestId: randomUUID(),
-          idempotencyKey: `pi-session-discovery:${session.piSessionId}:${session.size}:${session.updatedAt}`,
+          idempotencyKey,
           command: {
             operation: 'create',
             projectPath: session.projectPath,
@@ -106,7 +107,35 @@ function createDiscoveredSession(session: DiscoveredPiSession) {
     ) {
       return null
     }
-    const sessionId = SessionId(result.response.outcome.sessionId)
+    return {
+      sessionId: SessionId(result.response.outcome.sessionId),
+      replayed: result.response.replayed,
+    }
+  })
+}
+
+/**
+ * Creates the Session for a discovered file. A replay names the Session an earlier pass created
+ * for this version of the file; if that Session was deleted since, as when the project was
+ * removed and added back, a new one is created instead.
+ */
+function createSessionForFile(session: DiscoveredPiSession) {
+  return Effect.gen(function* () {
+    const key = `pi-session-discovery:${session.piSessionId}:${session.size}:${session.updatedAt}`
+    const created = yield* dispatchDiscoveredSessionCreate(session, key)
+    if (!created?.replayed) return created?.sessionId ?? null
+    if (yield* (yield* SessionProjectionRepository).getOptional(created.sessionId)) {
+      return created.sessionId
+    }
+    const recreated = yield* dispatchDiscoveredSessionCreate(session, `${key}:${randomUUID()}`)
+    return recreated?.sessionId ?? null
+  })
+}
+
+function createDiscoveredSession(session: DiscoveredPiSession) {
+  return Effect.gen(function* () {
+    const sessionId = yield* createSessionForFile(session)
+    if (!sessionId) return null
     const adopted = yield* (yield* PiSessionDiscoveryRepository).adoptDiscovered({
       sessionId,
       piSessionId: session.piSessionId,
@@ -180,7 +209,10 @@ export function discoverPiSessions(options: { readonly now?: number } = {}) {
     const repository = yield* PiSessionDiscoveryRepository
     const files = yield* PiSessionFiles
     const scope = yield* repository.readScope()
-    const projectPaths = yield* openWaggleProjectPaths(scope.sessionProjectPaths)
+    const projectPaths = unpausedProjects(
+      yield* openWaggleProjectPaths(scope.sessionProjectPaths),
+      options.now,
+    )
     const discovered = yield* files.discover({
       projectPaths,
       isKnownFile: (file) => scope.knownPiSessionFiles.has(file),
