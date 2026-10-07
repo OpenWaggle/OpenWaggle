@@ -100,6 +100,7 @@
     "@diegogbrisa/ts-match": "1.6.2",
     "@earendil-works/pi-ai": "catalog:pi-runtime",
     "@earendil-works/pi-coding-agent": "catalog:pi-runtime",
+    "@earendil-works/pi-mcp": "catalog:pi-runtime",
     "@headless-tree/core": "1.7.0",
     "@headless-tree/react": "1.7.0",
     "@huggingface/transformers": "4.3.0",

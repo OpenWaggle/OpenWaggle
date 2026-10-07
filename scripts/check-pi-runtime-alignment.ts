@@ -6,12 +6,15 @@ const PI_PACKAGES = [
   'pi-agent-core',
   'pi-ai',
   'pi-client',
+  'pi-codemode',
   'pi-coding-agent',
+  'pi-mcp',
   'pi-protocol',
   'pi-telemetry',
   'pi-tui',
 ] as const
 const PATCHED_PI_PACKAGES = ['pi-ai', 'pi-coding-agent'] as const
+const ROOT_PINNED_PI_PACKAGES = ['pi-ai', 'pi-coding-agent', 'pi-mcp'] as const
 const BEFORE_PATCH_PATH_CAPTURE = 1
 const AFTER_PATCH_PATH_CAPTURE = 2
 const EXPECTED_PATCH_PATHS = {
@@ -94,7 +97,7 @@ function versionsFor(lockfile: string, packageName: string) {
 function directPinProblems(input: PiRuntimeAlignmentInput) {
   const problems: string[] = []
   const catalogSpecifier = `catalog:${PI_CATALOG}`
-  for (const packageName of ['pi-ai', 'pi-coding-agent'] as const) {
+  for (const packageName of ROOT_PINNED_PI_PACKAGES) {
     if (input.rootDependencies[packageRef(packageName)] !== catalogSpecifier) {
       problems.push(`package.json must pin ${packageRef(packageName)} through ${catalogSpecifier}.`)
     }
@@ -180,7 +183,7 @@ export function collectPiRuntimeAlignmentProblems(input: PiRuntimeAlignmentInput
     (ageEntries.length !== expectedAgeEntries.length ||
       expectedAgeEntries.some((entry) => !ageEntries.includes(entry)))
   ) {
-    problems.push(`minimumReleaseAgeExclude must be empty or contain the seven matched Pi packages at ${version}.`)
+    problems.push(`minimumReleaseAgeExclude must be empty or contain the ${PI_PACKAGES.length} matched Pi packages at ${version}.`)
   }
 
   for (const packageName of PI_PACKAGES) {

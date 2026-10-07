@@ -4,17 +4,27 @@ import {
   type PiRuntimeAlignmentInput,
 } from '../check-pi-runtime-alignment'
 
-const version = '0.87.1'
+const version = '1.0.4'
 const packages = [
   'pi-agent-core',
   'pi-ai',
   'pi-client',
+  'pi-codemode',
   'pi-coding-agent',
+  'pi-mcp',
   'pi-protocol',
   'pi-telemetry',
   'pi-tui',
 ]
-const installedPackages = ['pi-agent-core', 'pi-ai', 'pi-coding-agent', 'pi-telemetry', 'pi-tui']
+const installedPackages = [
+  'pi-agent-core',
+  'pi-ai',
+  'pi-codemode',
+  'pi-coding-agent',
+  'pi-mcp',
+  'pi-telemetry',
+  'pi-tui',
+]
 
 function alignedInput(): PiRuntimeAlignmentInput {
   const packageRef = (name: string) => `@earendil-works/${name}`
@@ -42,6 +52,7 @@ patchedDependencies:
     rootDependencies: {
       [packageRef('pi-ai')]: 'catalog:pi-runtime',
       [packageRef('pi-coding-agent')]: 'catalog:pi-runtime',
+      [packageRef('pi-mcp')]: 'catalog:pi-runtime',
     },
     piWaggleDevDependencies: {
       [packageRef('pi-coding-agent')]: 'catalog:pi-runtime',
@@ -71,7 +82,7 @@ describe('Pi runtime alignment', () => {
         ...input,
         workspace: input.workspace.replace(`"@earendil-works/pi-tui": ${version}`, '"@earendil-works/pi-tui": 0.86.0'),
       }),
-      expected: 'must use 0.87.1 in catalogs.pi-runtime',
+      expected: 'must use 1.0.4 in catalogs.pi-runtime',
     },
     {
       drift: 'direct pin',
@@ -82,12 +93,20 @@ describe('Pi runtime alignment', () => {
       expected: 'package.json must pin @earendil-works/pi-ai through catalog:pi-runtime',
     },
     {
+      drift: 'pi-mcp direct pin',
+      breakInput: (input: PiRuntimeAlignmentInput) => ({
+        ...input,
+        rootDependencies: { ...input.rootDependencies, '@earendil-works/pi-mcp': version },
+      }),
+      expected: 'package.json must pin @earendil-works/pi-mcp through catalog:pi-runtime',
+    },
+    {
       drift: 'release-age exclusion',
       breakInput: (input: PiRuntimeAlignmentInput) => ({
         ...input,
         workspace: input.workspace.replace(`  - @earendil-works/pi-tui@${version}\n`, ''),
       }),
-      expected: 'minimumReleaseAgeExclude must be empty or contain the seven matched Pi packages',
+      expected: 'minimumReleaseAgeExclude must be empty or contain the 9 matched Pi packages',
     },
     {
       drift: 'lockfile version',
@@ -98,7 +117,7 @@ describe('Pi runtime alignment', () => {
           '@earendil-works/pi-telemetry@0.86.0',
         ),
       }),
-      expected: '@earendil-works/pi-telemetry lockfile versions must align at 0.87.1',
+      expected: '@earendil-works/pi-telemetry lockfile versions must align at 1.0.4',
     },
     {
       drift: 'multiple lockfile versions',
@@ -106,7 +125,7 @@ describe('Pi runtime alignment', () => {
         ...input,
         lockfile: `${input.lockfile}\n@earendil-works/pi-ai@0.86.0`,
       }),
-      expected: '@earendil-works/pi-ai lockfile versions must align at 0.87.1',
+      expected: '@earendil-works/pi-ai lockfile versions must align at 1.0.4',
     },
     {
       drift: 'unexpected patch path',
@@ -141,7 +160,7 @@ describe('Pi runtime alignment', () => {
           'patches/@earendil-works__pi-ai@0.86.0.patch',
         ),
       }),
-      expected: 'pnpm-workspace.yaml must register the 0.87.1 pi-ai patch',
+      expected: 'pnpm-workspace.yaml must register the 1.0.4 pi-ai patch',
     },
   ])('detects $drift drift', ({ breakInput, expected }) => {
     expect(collectPiRuntimeAlignmentProblems(breakInput(alignedInput()))).toContainEqual(
