@@ -24,11 +24,15 @@ Pi executes the tools enabled for the run. OpenWaggle renders their events in th
 
 ## Session files
 
-OpenWaggle keeps each session in a normal Pi session file under Pi's agent directory (`~/.pi/agent/sessions/`, one folder per working directory). The SQLite projection is a read model built from that file.
+OpenWaggle keeps each session in a normal Pi session file where the `pi` CLI keeps them: by default under Pi's agent directory (`~/.pi/agent/sessions/`, one folder per working directory), or in the directory named by `PI_CODING_AGENT_SESSION_DIR` or the `sessionDir` setting in the project's `.pi/settings.json` or the global Pi settings. The SQLite projection is a read model built from that file.
 
-The Session Host also lists Pi sessions that other programs, such as the `pi` CLI, created in an OpenWaggle project or a folder inside it. Every few seconds it reads the first lines of new files in the matching folders: the header, an early `/name`, and the first user message. It never reads whole transcripts to build the list. A listed session is projected the first time it is opened. Before it is shown or continued, OpenWaggle compares the file's size and modification time with the last projection and reads it again if another program appended to it. Runs open the same file, so `pi --resume` continues the same history. Nothing locks the file between programs.
+The Session Host also lists Pi sessions that other programs, such as the `pi` CLI, created in an OpenWaggle project or a folder inside it. Every few seconds it looks in those directories for files it does not know and reads only their first lines: the header, an early `/name`, and the first user message. It finds the header the way Pi does, skipping blank or malformed lines, and does not read a file without one again until the file changes. A file written in the last few seconds waits for the next pass. A file whose Session cannot be created, for example because the project's settings file is broken, is tried again after a minute, then less often.
 
-OpenWaggle never rewrites a listed file. A `pi` CLI fork copies the entry ids of the session it came from, so the projection stores a listed session's entries under ids prefixed with its Session id, and translates them back whenever it hands an entry to Pi. Deleting a listed session removes it from OpenWaggle and records the file as dismissed, so it is not listed again; the file stays.
+A listed session is projected the first time it is opened. OpenWaggle keeps the size and modification time of the file each projection came from, so before a session is shown, read through the Sessions tool, or continued, one `stat` tells it whether another program changed the file; if so, it reads the file again. Nothing locks the file between programs.
+
+Viewing a listed session never changes its file. A Run continues the file through Pi, as `pi --resume` would, so a file in an older Pi format is upgraded to Pi's current format when you first continue it. Runs work in the folder the session ran in when that folder is inside the project, and start with the model and thinking level the session last used.
+
+A `pi` CLI fork copies the entry ids of the session it came from, and OpenWaggle stores every Session's nodes under one key. The projection therefore stores a listed session's entries under ids prefixed with its Session id, and translates them back whenever it hands an entry to Pi. Deleting a listed session removes it from OpenWaggle and records the file as dismissed, so it is not listed again; the file stays. Removing the project deletes its sessions from OpenWaggle without dismissing their files, so they are listed again if the folder is added back.
 
 ## Tool surface
 
