@@ -51,6 +51,8 @@ const EXPECTED_PATCH_PATHS = {
 
 export interface PiRuntimeAlignmentInput {
   readonly lockfile: string
+  /** The current time, to retire temporary release-age exclusions. */
+  readonly now: Date
   readonly patchContents: Readonly<Record<string, string>>
   readonly patchFiles: readonly string[]
   readonly piWaggleDevDependencies: Readonly<Record<string, string>>
@@ -145,6 +147,31 @@ function piWasmPackageProblems(input: PiRuntimeAlignmentInput) {
   return problems
 }
 
+/**
+ * Temporary Pi entries in `minimumReleaseAgeExclude` must name the day the excluded release
+ * passes pnpm's seven-day minimum release age, and the check fails from that day on, so the
+ * exceptions cannot linger after they stop being needed.
+ */
+const RELEASE_AGE_EXPIRY_MARKER = 'pi-runtime-release-age-exclusions-expire'
+
+function releaseAgeExclusionExpiryProblems(input: PiRuntimeAlignmentInput, version: string) {
+  const match = input.workspace.match(
+    new RegExp(`^\\s*# ${RELEASE_AGE_EXPIRY_MARKER}: (\\d{4}-\\d{2}-\\d{2})$`, 'm'),
+  )
+  const expiry = match?.[1]
+  if (!expiry) {
+    return [
+      `Temporary Pi minimumReleaseAgeExclude entries need a "# ${RELEASE_AGE_EXPIRY_MARKER}: YYYY-MM-DD" line naming the day ${version} is seven days old.`,
+    ]
+  }
+  if (input.now.getTime() >= Date.parse(`${expiry}T00:00:00Z`)) {
+    return [
+      `Remove the temporary Pi minimumReleaseAgeExclude entries and their ${RELEASE_AGE_EXPIRY_MARKER} line: Pi ${version} passed pnpm's seven-day minimum release age on ${expiry}.`,
+    ]
+  }
+  return []
+}
+
 function changedPatchPaths(patch: string) {
   const paths: string[] = []
   for (const match of patch.matchAll(/^diff --git a\/(\S+) b\/(\S+)$/gm)) {
@@ -219,6 +246,7 @@ export function collectPiRuntimeAlignmentProblems(input: PiRuntimeAlignmentInput
   ) {
     problems.push(`minimumReleaseAgeExclude must be empty or contain the ${PI_PACKAGES.length} matched Pi packages at ${version}.`)
   }
+  if (ageEntries.length > 0) problems.push(...releaseAgeExclusionExpiryProblems(input, version))
 
   for (const packageName of PI_PACKAGES) {
     const versions = versionsFor(input.lockfile, packageName)
@@ -248,6 +276,7 @@ async function main() {
   )
   const problems = collectPiRuntimeAlignmentProblems({
     lockfile,
+    now: new Date(),
     patchContents,
     patchFiles,
     piWaggleDevDependencies: manifestDependencies(piWagglePackageText, 'devDependencies'),

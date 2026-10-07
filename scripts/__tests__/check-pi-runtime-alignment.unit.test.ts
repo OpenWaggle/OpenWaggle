@@ -35,6 +35,7 @@ function alignedInput(): PiRuntimeAlignmentInput {
   pi-runtime:
 ${packages.map((name) => `    "${packageRef(name)}": ${version}`).join('\n')}
 minimumReleaseAgeExclude:
+  # pi-runtime-release-age-exclusions-expire: 2026-10-12
 ${packages.map((name) => `  - ${packageRef(name)}@${version}`).join('\n')}
 patchedDependencies:
   '${packageRef('pi-ai')}@${version}': patches/@earendil-works__pi-ai@${version}.patch
@@ -58,6 +59,7 @@ patchedDependencies:
       'quickjs-wasi': '3.6.2',
       '@silvia-odwyer/photon-node': '0.3.4',
     },
+    now: new Date('2026-10-07T12:00:00Z'),
     piWaggleDevDependencies: {
       [packageRef('pi-coding-agent')]: 'catalog:pi-runtime',
       [packageRef('pi-tui')]: 'catalog:pi-runtime',
@@ -77,6 +79,26 @@ describe('Pi runtime alignment', () => {
       '',
     )
     expect(collectPiRuntimeAlignmentProblems({ ...input, workspace })).toEqual([])
+  })
+
+  it('fails once the temporary release-age exclusions are no longer needed', () => {
+    expect(
+      collectPiRuntimeAlignmentProblems({ ...alignedInput(), now: new Date('2026-10-12T00:00:00Z') }),
+    ).toContainEqual(
+      expect.stringContaining('Remove the temporary Pi minimumReleaseAgeExclude entries'),
+    )
+  })
+
+  it('requires temporary release-age exclusions to say when they expire', () => {
+    const input = alignedInput()
+    const workspace = input.workspace.replace(
+      '  # pi-runtime-release-age-exclusions-expire: 2026-10-12\n',
+      '',
+    )
+
+    expect(collectPiRuntimeAlignmentProblems({ ...input, workspace })).toContainEqual(
+      expect.stringContaining('pi-runtime-release-age-exclusions-expire'),
+    )
   })
 
   it.each([
