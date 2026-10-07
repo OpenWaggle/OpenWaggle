@@ -219,10 +219,11 @@ it.each([
   }
 })
 
-it("keeps OpenWaggle's own Pi package directory out of both Pi shell tools", async () => {
+it("gives both Pi shell tools the user's PI_PACKAGE_DIR, not OpenWaggle's own", async () => {
   const { applyPiPackageDirectoryTo } = await import('../../../../pi-package-directory-environment')
   const bundledPi = '/app.asar/node_modules/@earendil-works/pi-coding-agent'
-  applyPiPackageDirectoryTo(bundledPi, {})
+  const hostEnvironment: NodeJS.ProcessEnv = { PI_PACKAGE_DIR: '/nix/store/pi' }
+  applyPiPackageDirectoryTo(bundledPi, hostEnvironment)
   await createPiSessionForRun(
     fromPartial({
       projectRoot: '/project',
@@ -238,9 +239,9 @@ it("keeps OpenWaggle's own Pi package directory out of both Pi shell tools", asy
     const spawned = hook({
       command: 'pi --version',
       cwd: '/workspace',
-      env: { PI_PACKAGE_DIR: bundledPi, KEEP: 'value' },
+      env: { ...hostEnvironment, KEEP: 'value' },
     })
-    expect(spawned.env.PI_PACKAGE_DIR).toBeUndefined()
+    expect(spawned.env.PI_PACKAGE_DIR).toBe('/nix/store/pi')
     expect(spawned.env.KEEP).toBe('value')
   }
 })

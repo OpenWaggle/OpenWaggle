@@ -12,7 +12,7 @@ import {
   type PreparedEnvironment,
   withoutWorkspaceContext,
 } from '../../../domain/prepared-environment'
-import { withoutInjectedPiPackageDirectory } from '../../../pi-package-directory-environment'
+import { withShellPiPackageDirectory } from '../../../pi-package-directory-environment'
 import {
   preparedSessionEvidenceDirectory,
   SESSION_EVIDENCE_DIRECTORY_ENV,
@@ -70,7 +70,7 @@ export async function createPiSessionForRun(input: {
       ...withoutInheritedEvidenceDirectory(
         applyPreparedEnvironment(
           applyPreparedEnvironment(
-            withoutWorkspaceContext(withoutInjectedPiPackageDirectory(context.env)),
+            withoutWorkspaceContext(withShellPiPackageDirectory(context.env)),
             withoutWorkspaceContext(input.preparedEnvironment ?? {}),
             windows,
           ),

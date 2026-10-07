@@ -12,7 +12,7 @@ import {
 } from './environment-paths'
 import {
   applyPiPackageDirectoryTo,
-  withoutInjectedPiPackageDirectory,
+  withShellPiPackageDirectory,
 } from './pi-package-directory-environment'
 
 const optionalUrlSchema = Schema.optional(
@@ -152,7 +152,7 @@ export function getWindowsSecurityChildEnv(): Record<string, string | undefined>
  */
 export function getSessionHostChildEnv(): Record<string, string | undefined> {
   const childEnvironment: NodeJS.ProcessEnv = {
-    ...process.env,
+    ...withShellPiPackageDirectory(process.env),
     PATH: getNpmCompatiblePath(),
   }
   delete childEnvironment.ELECTRON_RUN_AS_NODE
@@ -218,7 +218,7 @@ export function getInteractiveTerminalEnv(
     inherited[key] = value
   }
 
-  const terminalEnv = stripAppImageRuntimeEnv(withoutInjectedPiPackageDirectory(inherited))
+  const terminalEnv = stripAppImageRuntimeEnv(withShellPiPackageDirectory(inherited))
   setEnvironmentValue(
     terminalEnv,
     'PATH',
