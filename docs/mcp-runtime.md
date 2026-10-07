@@ -283,7 +283,10 @@ through a pool lease and OpenWaggle's hardened fetch.
 Stdio servers run through pi-mcp's `StdioTransport` in their own process group (POSIX) and are
 closed by closing stdin, then SIGTERM and SIGKILL to the whole group, or `taskkill /T /F` on
 Windows. That terminates a package runner (`npx`, `pnpm dlx`, `bunx`, `uvx`) together with the
-server it launched. Child processes get the user's environment (`{ ...process.env }`, as Pi
+server it launched. pi-mcp skips all of that when the process it started has already exited,
+so after the transport closes OpenWaggle signals the whole group anyway (SIGTERM, then SIGKILL),
+and a server a launcher left behind does not survive (POSIX; Windows relies on pi-mcp's
+`taskkill /T`). Child processes get the user's environment (`{ ...process.env }`, as Pi
 does) with the packaged app's npm-compatible `PATH`, plus the entry's resolved `env`.
 
 ## Settings state without connecting
@@ -313,7 +316,10 @@ every MCP server tool (`mcp__<server>__<tool>`), whether the model called it dir
 `{ capability: 'mcp.tool-call', requesterId: <server identity>, requester: <server name>,
 resource: <MCP tool name> }`, where the server identity hashes the server name with its
 transport target (command and arguments, or URL), so a different server reusing a name does not
-inherit grants. Pi's resource tools are read-only and are not gated. Access modes answer these
+inherit grants. The server is found through the tool's namespace (`mcpNamespace`, which maps
+`-` and `_` alike); the merge refuses a second server whose name maps to a namespace already
+taken (`server "a_b" conflicts with "a-b"`), so a grant can never resolve to the wrong one of two
+look-alike servers. Pi's resource tools are read-only and are not gated. Access modes answer these
 requests exactly as before (full access answers without emitting anything).
 
 ## Migration

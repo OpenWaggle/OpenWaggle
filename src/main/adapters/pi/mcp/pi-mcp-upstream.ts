@@ -52,7 +52,34 @@ function openStdio(entry: McpServerEntry, cwd: string): McpUpstream {
     inheritEnv: false,
     stderr: 'pipe',
   })
-  return { transport, stderrTail: () => transport.stderr.trim().slice(-STDERR_TAIL_CHARS) }
+  return {
+    transport,
+    stderrTail: () => transport.stderr.trim().slice(-STDERR_TAIL_CHARS),
+    close: () => stopProcessGroup(transport.pid),
+  }
+}
+
+/** Time the rest of a process group gets after SIGTERM before SIGKILL, as in pi-mcp. */
+const GROUP_KILL_GRACE_MS = 2_000
+
+/**
+ * pi-mcp's `close()` returns early when the process it started has already exited, so a server a
+ * launcher left running in the group would survive. After the transport closes, the whole group
+ * is stopped anyway. POSIX only: Windows has no process groups, and pi-mcp's `taskkill /T` covers
+ * the tree while the launcher is alive.
+ */
+async function stopProcessGroup(pid: number | undefined) {
+  if (pid === undefined || process.platform === 'win32') return
+  const signalGroup = (signal: NodeJS.Signals) => {
+    try {
+      process.kill(-pid, signal)
+      return true
+    } catch {
+      return false
+    }
+  }
+  if (!signalGroup('SIGTERM')) return
+  setTimeout(() => signalGroup('SIGKILL'), GROUP_KILL_GRACE_MS).unref()
 }
 
 function urlOf(entry: McpServerEntry) {
