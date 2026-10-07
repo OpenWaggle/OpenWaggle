@@ -93,6 +93,8 @@ Load `.agents/skills/pi-integration/SKILL.md` for details.
 
 ## Electron Runtime Memory
 
+- Hidden QA with a scratch `HOME` (to keep MCP or Pi files away from the real ones) hangs the Session Host on macOS: `safeStorage` looks for the login keychain under `$HOME/Library/Keychains`, finds none, and blocks the main thread in a synchronous `AuthorizationCopyRights` XPC call, so every Host UI request times out ("Timed out waiting for the Local Session Host") while the process sits at 0% CPU. Symlink `$HOME/Library/Keychains` to the real `~/Library/Keychains` before `start-electron-qa.ts`, and pick a free `OPENWAGGLE_QA_CDP_PORT` when 9223 is taken. `sample <pid>` shows the stack.
+
 Load `.agents/skills/electron-runtime/SKILL.md` for details.
 
 - Native addons have separate Node and Electron ABI targets. Rebuild with the repo scripts before blaming app code.
