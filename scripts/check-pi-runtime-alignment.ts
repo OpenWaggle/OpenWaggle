@@ -13,6 +13,8 @@ const PI_PACKAGES = [
   'pi-telemetry',
   'pi-tui',
 ] as const
+/** Pi publishes `chord` with the catalog packages as one matched release; it has no catalog pin. */
+const PI_RELEASE_SET = [...PI_PACKAGES, 'chord'] as const
 const PATCHED_PI_PACKAGES = ['pi-ai', 'pi-coding-agent'] as const
 const ROOT_PINNED_PI_PACKAGES = ['pi-ai', 'pi-coding-agent', 'pi-mcp'] as const
 const BEFORE_PATCH_PATH_CAPTURE = 1
@@ -154,6 +156,38 @@ function piWasmPackageProblems(input: PiRuntimeAlignmentInput) {
  */
 const RELEASE_AGE_EXPIRY_MARKER = 'pi-runtime-release-age-exclusions-expire'
 
+/**
+ * Temporary exceptions cover exactly the matched-release packages the lockfile resolves (with
+ * `chord`): one for a package nothing installs exempts nothing and only lingers.
+ */
+function releaseAgeExclusionProblems(input: PiRuntimeAlignmentInput, version: string) {
+  const ageEntries = new Set(
+    [
+      ...input.workspace.matchAll(
+        /^ {2}- ["']?(@earendil-works\/(?:pi-[^"'\s@]+|chord)@[^"'\s]+)["']?$/gm,
+      ),
+    ].map((match) => match[1]),
+  )
+  if (ageEntries.size === 0) return []
+  const expected = new Set(
+    PI_RELEASE_SET.filter((packageName) => versionsFor(input.lockfile, packageName).size > 0).map(
+      (packageName) => `${packageRef(packageName)}@${version}`,
+    ),
+  )
+  const missing = [...expected].filter((entry) => !ageEntries.has(entry))
+  const unneeded = [...ageEntries].filter((entry) => !expected.has(entry))
+  const problems: string[] = []
+  if (missing.length > 0 || unneeded.length > 0) {
+    problems.push(
+      `minimumReleaseAgeExclude must be empty or contain exactly the ${expected.size} matched Pi packages the lockfile resolves at ${version}: ${[
+        ...missing.map((entry) => `missing ${entry}`),
+        ...unneeded.map((entry) => `unneeded ${entry}`),
+      ].join(', ')}.`,
+    )
+  }
+  return [...problems, ...releaseAgeExclusionExpiryProblems(input, version)]
+}
+
 function releaseAgeExclusionExpiryProblems(input: PiRuntimeAlignmentInput, version: string) {
   const match = input.workspace.match(
     new RegExp(`^\\s*# ${RELEASE_AGE_EXPIRY_MARKER}: (\\d{4}-\\d{2}-\\d{2})$`, 'm'),
@@ -235,20 +269,9 @@ export function collectPiRuntimeAlignmentProblems(input: PiRuntimeAlignmentInput
   problems.push(...directPinProblems(input))
   problems.push(...piWasmPackageProblems(input))
 
-  const ageEntries = [...input.workspace.matchAll(/^ {2}- ["']?(@earendil-works\/pi-[^"'\s]+@[^"'\s]+)["']?$/gm)].map(
-    (match) => match[1],
-  )
-  const expectedAgeEntries = PI_PACKAGES.map((packageName) => `${packageRef(packageName)}@${version}`)
-  if (
-    ageEntries.length > 0 &&
-    (ageEntries.length !== expectedAgeEntries.length ||
-      expectedAgeEntries.some((entry) => !ageEntries.includes(entry)))
-  ) {
-    problems.push(`minimumReleaseAgeExclude must be empty or contain the ${PI_PACKAGES.length} matched Pi packages at ${version}.`)
-  }
-  if (ageEntries.length > 0) problems.push(...releaseAgeExclusionExpiryProblems(input, version))
+  problems.push(...releaseAgeExclusionProblems(input, version))
 
-  for (const packageName of PI_PACKAGES) {
+  for (const packageName of PI_RELEASE_SET) {
     const versions = versionsFor(input.lockfile, packageName)
     if (versions.size > 0 && (versions.size !== 1 || !versions.has(version))) {
       problems.push(`${packageRef(packageName)} lockfile versions must align at ${version}.`)

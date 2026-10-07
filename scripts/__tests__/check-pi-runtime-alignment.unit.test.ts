@@ -16,7 +16,9 @@ const packages = [
   'pi-telemetry',
   'pi-tui',
 ]
+/** The matched release packages the lockfile resolves (pi-client and pi-protocol are not). */
 const installedPackages = [
+  'chord',
   'pi-agent-core',
   'pi-ai',
   'pi-codemode',
@@ -36,7 +38,7 @@ function alignedInput(): PiRuntimeAlignmentInput {
 ${packages.map((name) => `    "${packageRef(name)}": ${version}`).join('\n')}
 minimumReleaseAgeExclude:
   # pi-runtime-release-age-exclusions-expire: 2026-10-12
-${packages.map((name) => `  - ${packageRef(name)}@${version}`).join('\n')}
+${installedPackages.map((name) => `  - ${packageRef(name)}@${version}`).join('\n')}
 patchedDependencies:
   '${packageRef('pi-ai')}@${version}': patches/@earendil-works__pi-ai@${version}.patch
   '${packageRef('pi-coding-agent')}@${version}': patches/@earendil-works__pi-coding-agent@${version}.patch
@@ -75,7 +77,7 @@ describe('Pi runtime alignment', () => {
   it('accepts all release-age exclusions being removed after they expire', () => {
     const input = alignedInput()
     const workspace = input.workspace.replace(
-      packages.map((name) => `  - @earendil-works/${name}@${version}`).join('\n'),
+      installedPackages.map((name) => `  - @earendil-works/${name}@${version}`).join('\n'),
       '',
     )
     expect(collectPiRuntimeAlignmentProblems({ ...input, workspace })).toEqual([])
@@ -156,7 +158,37 @@ describe('Pi runtime alignment', () => {
         ...input,
         workspace: input.workspace.replace(`  - @earendil-works/pi-tui@${version}\n`, ''),
       }),
-      expected: 'minimumReleaseAgeExclude must be empty or contain the 9 matched Pi packages',
+      expected: 'minimumReleaseAgeExclude must be empty or contain exactly the 8 matched Pi packages',
+    },
+    {
+      drift: 'release-age exclusion for a package the lockfile does not resolve',
+      breakInput: (input: PiRuntimeAlignmentInput) => ({
+        ...input,
+        workspace: input.workspace.replace(
+          `  - @earendil-works/pi-tui@${version}\n`,
+          `  - @earendil-works/pi-tui@${version}\n  - @earendil-works/pi-client@${version}\n`,
+        ),
+      }),
+      expected: 'unneeded @earendil-works/pi-client@1.0.4',
+    },
+    {
+      drift: 'missing chord release-age exclusion',
+      breakInput: (input: PiRuntimeAlignmentInput) => ({
+        ...input,
+        workspace: input.workspace.replace(`  - @earendil-works/chord@${version}\n`, ''),
+      }),
+      expected: 'missing @earendil-works/chord@1.0.4',
+    },
+    {
+      drift: 'chord lockfile version',
+      breakInput: (input: PiRuntimeAlignmentInput) => ({
+        ...input,
+        lockfile: input.lockfile.replace(
+          `@earendil-works/chord@${version}`,
+          '@earendil-works/chord@0.87.1',
+        ),
+      }),
+      expected: '@earendil-works/chord lockfile versions must align at 1.0.4',
     },
     {
       drift: 'lockfile version',
