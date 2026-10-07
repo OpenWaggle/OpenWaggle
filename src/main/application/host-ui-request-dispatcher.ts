@@ -115,7 +115,7 @@ function dispatchHostUiChannel(
   if (isHostBackedSessionGuiChannel(channel))
     return dispatchHostBackedSessionGuiOperation(channel, args)
   if (McpHostUi.isMcpHostUiChannel(channel))
-    return McpHostUi.dispatchMcpHostUiOperation(channel, args, negotiatedRevision)
+    return McpHostUi.dispatchMcpHostUiOperation(channel, args)
   if (isSettingsChannel(channel)) {
     return dispatchSettingsOperation(channel, args)
   }

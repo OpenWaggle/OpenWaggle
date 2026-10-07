@@ -65,49 +65,26 @@ export const HOST_UI_REVISION_9_REQUIRED_CHANNELS = [
   'inline-visualization:prepare-source',
 ] as const satisfies readonly IpcInvokeChannel[]
 
-export const HOST_BACKED_MCP_GUI_CHANNELS_REVISION_6 = [
-  'mcp:get-settings',
-  'mcp:set-scope-state',
-  'mcp:set-server-enabled',
-  'mcp:set-project-server-enabled',
-  'mcp:write-source-config',
-  'mcp:set-server-trust',
-  'mcp:remove-server',
-  'mcp:logout-server',
-  'mcp:add-server',
-  'mcp:preview-imports',
-  'mcp:apply-imports',
-  'mcp:install-catalog-server',
-  'mcp:doctor',
-  'mcp:list-secrets',
-  'mcp:set-secret',
-  'mcp:remove-secret',
-  'mcp:list-capabilities',
-  'mcp:get-prompt',
-  'mcp:read-resource',
-  'mcp:review-remote-skill',
-  'mcp:operate-task',
-  'mcp:call-app-tool',
-  'mcp:set-event-subscription',
-  'mcp:list-events',
-  'mcp:list-event-subscriptions',
-] as const satisfies readonly IpcInvokeChannel[]
-
 export const HOST_UI_REVISION_7_REQUIRED_CHANNELS = [
   'agent:list-active-runs',
-  'mcp:logout-server',
-  'mcp:authorize-server',
 ] as const satisfies readonly IpcInvokeChannel[]
 
 /** Channels introduced in revision 7. Changed channels may still have a legacy dispatcher. */
 export const HOST_UI_REVISION_7_NEW_CHANNELS = [
   'agent:list-active-runs',
-  'mcp:authorize-server',
 ] as const satisfies readonly IpcInvokeChannel[]
 
+/**
+ * MCP operations the Session Host still owns after ADR 0048: the secret vault, and the MCP App
+ * resource read and tool call (unavailable until Pi's MCP runtime backs them). Every channel
+ * dates from revision 6.
+ */
 export const HOST_BACKED_MCP_GUI_CHANNELS = [
-  ...HOST_BACKED_MCP_GUI_CHANNELS_REVISION_6,
-  'mcp:authorize-server',
+  'mcp:list-secrets',
+  'mcp:set-secret',
+  'mcp:remove-secret',
+  'mcp:read-resource',
+  'mcp:call-app-tool',
 ] as const satisfies readonly IpcInvokeChannel[]
 
 /**

@@ -121,7 +121,7 @@ const mcpProvenanceSchema: Schema.Schema<McpServerProvenance> = Schema.Struct(
   mcpConfigObjectRestSchema,
 )
 
-export const mcpServerDefinitionSchema = Schema.Struct(
+const mcpServerDefinitionSchema = Schema.Struct(
   {
     command: Schema.optional(Schema.String),
     args: Schema.optional(Schema.mutable(Schema.Array(Schema.String))),
@@ -152,7 +152,7 @@ export const mcpServerDefinitionSchema = Schema.Struct(
   mcpConfigObjectRestSchema,
 )
 
-export const mcpServerMapSchema = Schema.mutable(
+const mcpServerMapSchema = Schema.mutable(
   Schema.Record({ key: Schema.String, value: mcpServerDefinitionSchema }),
 )
 

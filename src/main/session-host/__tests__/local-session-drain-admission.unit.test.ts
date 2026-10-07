@@ -108,7 +108,6 @@ describe('commands a draining Session Host still accepts', () => {
         requireFresh: true,
         waitTimeoutMs: 60_000,
       }),
-      hostUi('mcp:list-capabilities', [undefined]),
       hostUi('agent:get-context-usage', ['s-1']),
       hostUi('providers:get-models', ['/repo']),
       hostUi('agent-definitions:manage', [{ command: { operation: 'refresh-plan' } }]),
@@ -150,9 +149,6 @@ describe('commands a draining Session Host still accepts', () => {
       'extensions:list-packages',
       'extensions:list-contributions',
       'mcp:list-secrets',
-      'mcp:list-events',
-      'mcp:list-event-subscriptions',
-      'mcp:preview-imports',
       'docs:discover',
       'skills:list',
       'skills:get-preview',
@@ -160,7 +156,6 @@ describe('commands a draining Session Host still accepts', () => {
       'agent-definitions:get-preview',
     ])
     const refused = new Set<HostBackedGuiChannel>([
-      'mcp:list-capabilities',
       'agent:get-context-usage',
       'providers:get-models',
     ])
@@ -191,9 +186,5 @@ describe('commands a draining Session Host still accepts', () => {
         true,
       ])
     }
-    expect(isAdmittedWhileDraining(hostUi('mcp:get-settings', []))).toBe(true)
-    expect(isAdmittedWhileDraining(hostUi('mcp:get-settings', [{ reconcileRuntime: true }]))).toBe(
-      false,
-    )
   })
 })

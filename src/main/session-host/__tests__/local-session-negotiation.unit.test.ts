@@ -262,7 +262,7 @@ describe('Local Session protocol negotiation', () => {
       request: {
         contractVersion: 1,
         requestId: 'request-mcp-host-ui',
-        channel: 'mcp:get-settings',
+        channel: 'mcp:list-secrets',
         args: [],
       },
     }

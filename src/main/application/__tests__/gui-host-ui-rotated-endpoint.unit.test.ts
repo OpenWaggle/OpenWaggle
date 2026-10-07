@@ -4,7 +4,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   ensureHost: vi.fn(),
   executeHostUi: vi.fn(),
-  reconcileMcp: vi.fn(),
   refreshPaths: vi.fn(),
 }))
 
@@ -19,9 +18,6 @@ vi.mock('../../session-host/local-session-paths', async (importOriginal) => ({
 vi.mock('../configured-host-ui-client', () => ({
   executeConfiguredHostUi: mocks.executeHostUi,
 }))
-vi.mock('../mcp-owner-runtime-reconciliation', () => ({
-  reconcileMcpOwnerRuntime: mocks.reconcileMcp,
-}))
 
 import { resolveLocalSessionHostPaths } from '../../session-host/local-session-paths'
 import {
@@ -29,7 +25,6 @@ import {
   dispatchConfiguredGuiSessionCommand,
   GuiSessionHostRetiredForUpgradeError,
   invokeConfiguredHostUiRaw,
-  reconcileConfiguredMcpOwnerRuntime,
   retireGuiSessionCommandClientForUpgrade,
 } from '../gui-session-command-router'
 
@@ -40,7 +35,6 @@ describe('GUI Host UI endpoint refresh', () => {
   beforeEach(() => {
     mocks.ensureHost.mockReset().mockResolvedValue(undefined)
     mocks.executeHostUi.mockReset().mockResolvedValue({ theme: 'dark' })
-    mocks.reconcileMcp.mockReset().mockResolvedValue(undefined)
     mocks.refreshPaths.mockReset().mockImplementation(async (paths) => ({
       ...paths,
       endpoint: newEndpoint,
@@ -55,16 +49,14 @@ describe('GUI Host UI endpoint refresh', () => {
   })
   afterEach(() => configureGuiSessionCommandClient(null))
 
-  it('uses the current protected endpoint for Host UI reads and MCP reconciliation', async () => {
+  it('uses the current protected endpoint for Host UI reads', async () => {
     await expect(invokeConfiguredHostUiRaw('settings:get', [])).resolves.toEqual({
       handled: true,
       result: { theme: 'dark' },
     })
-    await expect(reconcileConfiguredMcpOwnerRuntime('/project')).resolves.toBe(true)
 
     expect(mocks.executeHostUi.mock.calls[0]?.[0].client.paths.endpoint).toBe(newEndpoint)
-    expect(mocks.reconcileMcp.mock.calls[0]?.[0].paths.endpoint).toBe(newEndpoint)
-    expect(mocks.refreshPaths).toHaveBeenCalledTimes(2)
+    expect(mocks.refreshPaths).toHaveBeenCalledTimes(1)
   })
 
   it('does not dispatch after the GUI route is retired during endpoint refresh', async () => {
@@ -79,14 +71,13 @@ describe('GUI Host UI endpoint refresh', () => {
     expect(mocks.executeHostUi).not.toHaveBeenCalled()
   })
 
-  it('keeps concurrent Host UI and MCP operations valid when a command refreshes the same route', async () => {
+  it('keeps a concurrent Host UI operation valid when a command refreshes the same route', async () => {
     const gate = Promise.withResolvers<void>()
     mocks.refreshPaths.mockImplementation(async (paths) => {
       await gate.promise
       return { ...paths, endpoint: newEndpoint }
     })
     const hostUi = invokeConfiguredHostUiRaw('settings:get', [])
-    const mcp = reconcileConfiguredMcpOwnerRuntime('/project')
     const execute = vi.fn().mockResolvedValue({ contract: 'session-query-v2' })
     const command = dispatchConfiguredGuiSessionCommand(
       {
@@ -110,9 +101,7 @@ describe('GUI Host UI endpoint refresh', () => {
     gate.resolve()
 
     await expect(hostUi).resolves.toEqual({ handled: true, result: { theme: 'dark' } })
-    await expect(mcp).resolves.toBe(true)
     expect(mocks.executeHostUi).toHaveBeenCalledOnce()
-    expect(mocks.reconcileMcp).toHaveBeenCalledOnce()
   })
 
   it('recovers and retries a replay-safe Host UI read after the Host exits', async () => {
@@ -144,13 +133,7 @@ describe('GUI Host UI endpoint refresh', () => {
   )
 
   it.each([
-    ['mcp:get-settings', []],
-    ['mcp:get-settings', [{ projectPath: '/project', reconcileRuntime: false }]],
     ['mcp:list-secrets', []],
-    ['mcp:list-capabilities', [{ projectPath: '/project' }]],
-    ['mcp:list-events', [{ sessionId: 'session-1' }]],
-    ['mcp:list-event-subscriptions', [{ sessionId: 'session-1' }]],
-    ['mcp:preview-imports', [{ projectPath: '/project', sources: ['codex'] }]],
     [
       'project-actions:manage',
       [{ scope: { projectPath: '/project' }, operation: { type: 'discover' } }],
@@ -194,12 +177,12 @@ describe('GUI Host UI endpoint refresh', () => {
     expect(mocks.executeHostUi).toHaveBeenCalledTimes(2)
   })
 
-  it('does not replay MCP settings reconciliation after an ambiguous Host failure', async () => {
+  it('does not replay an MCP secret write after an ambiguous Host failure', async () => {
     const unavailable = Object.assign(new Error('Host exited'), { code: 'ECONNRESET' })
     mocks.executeHostUi.mockRejectedValueOnce(unavailable)
 
     await expect(
-      invokeConfiguredHostUiRaw('mcp:get-settings', [{ reconcileRuntime: true }]),
+      invokeConfiguredHostUiRaw('mcp:set-secret', [{ name: 'TOKEN', value: 'secret' }]),
     ).rejects.toBe(unavailable)
     expect(mocks.ensureHost).not.toHaveBeenCalled()
     expect(mocks.executeHostUi).toHaveBeenCalledOnce()

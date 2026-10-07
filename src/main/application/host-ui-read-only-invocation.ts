@@ -29,10 +29,6 @@ export const READ_ONLY_HOST_UI_CHANNELS: ReadonlySet<HostBackedGuiChannel> =
     'extensions:list-packages',
     'extensions:list-contributions',
     'mcp:list-secrets',
-    'mcp:list-capabilities',
-    'mcp:list-events',
-    'mcp:list-event-subscriptions',
-    'mcp:preview-imports',
     'providers:get-models',
     'docs:discover',
     'skills:list',
@@ -45,14 +41,6 @@ function isReplaySafeAgentDefinitionInvocation(args: readonly unknown[]) {
   if (args.length !== 1 || !isRecord(args[0]) || !isRecord(args[0].command)) return false
   const operation = args[0].command.operation
   return operation === 'list' || operation === 'import-plan' || operation === 'refresh-plan'
-}
-
-function isReplaySafeMcpSettingsInvocation(args: readonly unknown[]) {
-  if (args.length === 0 || (args.length === 1 && args[0] === undefined)) return true
-  if (args.length !== 1 || !args[0] || typeof args[0] !== 'object' || Array.isArray(args[0])) {
-    return false
-  }
-  return !('reconcileRuntime' in args[0]) || args[0].reconcileRuntime === false
 }
 
 /**
@@ -75,6 +63,5 @@ export function isReadOnlyHostUiInvocation(
     )
   }
   if (channel === 'agent-definitions:manage') return isReplaySafeAgentDefinitionInvocation(args)
-  if (channel === 'mcp:get-settings') return isReplaySafeMcpSettingsInvocation(args)
   return READ_ONLY_HOST_UI_CHANNELS.has(channel)
 }

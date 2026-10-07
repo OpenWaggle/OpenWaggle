@@ -6,7 +6,7 @@ import {
 } from '../../../shared/schemas/local-session-protocol'
 import { supportedRevisionsForCommand } from '../local-session-client'
 
-function hostUiCommand(channel: 'mcp:get-settings' | 'mcp:logout-server' | 'mcp:authorize-server') {
+function hostUiCommand(channel: string) {
   return decodeLocalSessionCommandPayload({
     contract: 'host-ui-v1',
     request: {
@@ -53,19 +53,21 @@ describe('Local Session MCP authority protocol revision', () => {
     ).toThrow()
   })
 
-  it('accepts legacy logout while rejecting the authorization command added in revision seven', () => {
-    const logout = hostUiCommand('mcp:logout-server')
-    expect(decodeLocalSessionCommandPayloadForRevision(logout, 6)).toEqual(logout)
-    expect(decodeLocalSessionCommandPayloadForRevision(logout, 7)).toEqual(logout)
-
-    const authorize = hostUiCommand('mcp:authorize-server')
-    expect(() => decodeLocalSessionCommandPayloadForRevision(authorize, 6)).toThrow(/revision 7/)
-    expect(decodeLocalSessionCommandPayloadForRevision(authorize, 7)).toEqual(authorize)
+  it('routes the remaining MCP Host operations through any supported Host revision', () => {
+    for (const channel of ['mcp:list-secrets', 'mcp:read-resource', 'mcp:call-app-tool']) {
+      const command = hostUiCommand(channel)
+      expect(decodeLocalSessionCommandPayloadForRevision(command, 6)).toEqual(command)
+      expect(supportedRevisionsForCommand(command)).toEqual([21])
+    }
   })
 
-  it('forces changed authority commands to upgrade a revision-six Host', () => {
-    expect(supportedRevisionsForCommand(hostUiCommand('mcp:get-settings'))).toEqual([21])
-    expect(supportedRevisionsForCommand(hostUiCommand('mcp:logout-server'))).toEqual([21])
-    expect(supportedRevisionsForCommand(hostUiCommand('mcp:authorize-server'))).toEqual([21])
+  it.each([
+    'mcp:get-settings',
+    'mcp:logout-server',
+    'mcp:authorize-server',
+    'mcp:list-capabilities',
+    'mcp:list-events',
+  ])('no longer accepts the removed %s Host operation', (channel) => {
+    expect(() => hostUiCommand(channel)).toThrow()
   })
 })
