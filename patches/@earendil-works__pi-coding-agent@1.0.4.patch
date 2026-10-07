@@ -1,5 +1,5 @@
 diff --git a/dist/core/agent-session.d.ts b/dist/core/agent-session.d.ts
-index 03f811e..7a027b3 100644
+index 03f811e3c72562fa52d51eef2f92e6026661d63c..7a027b3b2df90344c9911b97db8035b258850686 100644
 --- a/dist/core/agent-session.d.ts
 +++ b/dist/core/agent-session.d.ts
 @@ -110,6 +110,10 @@ export type AgentSessionEvent = WithParentToolCallId<Exclude<AgentEvent, {
@@ -81,7 +81,7 @@ index 03f811e..7a027b3 100644
       * Queue a follow-up message to be processed after the agent finishes.
       * Delivered only when agent has no more tool calls or steering messages.
 diff --git a/dist/core/agent-session.js b/dist/core/agent-session.js
-index ec5f44e..e52ff40 100644
+index ec5f44ee70d8fd75496cd2dc490563b8fa2c703e..e52ff4039ea5891805fbad367f8b6d9811cbc8b0 100644
 --- a/dist/core/agent-session.js
 +++ b/dist/core/agent-session.js
 @@ -25,7 +25,7 @@ import { normalizeToolResultImages } from "../utils/tool-result-images.js";
@@ -1009,7 +1009,7 @@ index ec5f44e..e52ff40 100644
          const latestCompaction = getLatestCompactionEntry(branch);
          if (latestCompaction) {
 diff --git a/dist/core/compaction/compaction.d.ts b/dist/core/compaction/compaction.d.ts
-index 04416da..b909087 100644
+index 04416da43184fce4dc2fc33afeb920e2edddedc9..b90908774b8ba2116736f3ef76a1f9bb086abce4 100644
 --- a/dist/core/compaction/compaction.d.ts
 +++ b/dist/core/compaction/compaction.d.ts
 @@ -6,7 +6,7 @@
@@ -1087,7 +1087,7 @@ index 04416da..b909087 100644
  //# sourceMappingURL=compaction.d.ts.map
 \ No newline at end of file
 diff --git a/dist/core/compaction/compaction.js b/dist/core/compaction/compaction.js
-index e4992e8..fe1c081 100644
+index e4992e8d2bff8aa6d2a4b044c9cf571d9e7f2fa2..fe1c08191e639090d199fe97df51a63b49a692ea 100644
 --- a/dist/core/compaction/compaction.js
 +++ b/dist/core/compaction/compaction.js
 @@ -4,10 +4,11 @@
@@ -1634,7 +1634,7 @@ index e4992e8..fe1c081 100644
  }
  /**
 diff --git a/dist/core/messages.d.ts b/dist/core/messages.d.ts
-index 9cdda75..2f06a8b 100644
+index 9cdda75154578d3460d6507715ae59b2c7704873..2f06a8ba569081ca949dd695cd3ba6b0b051c312 100644
 --- a/dist/core/messages.d.ts
 +++ b/dist/core/messages.d.ts
 @@ -47,6 +47,8 @@ export interface CompactionSummaryMessage {
@@ -1656,7 +1656,7 @@ index 9cdda75..2f06a8b 100644
  export declare function createCustomMessage(customType: string, content: string | (TextContent | ImageContent)[], display: boolean, details: unknown | undefined, timestamp: string): CustomMessage;
  /**
 diff --git a/dist/core/messages.js b/dist/core/messages.js
-index bcaeaae..c136d20 100644
+index bcaeaae631aa9992e07cfc43baca2edbe4d6ab30..c136d2007445beb13113807b903c7682f1b04fb6 100644
 --- a/dist/core/messages.js
 +++ b/dist/core/messages.js
 @@ -45,11 +45,13 @@ export function createBranchSummaryMessage(summary, fromId, timestamp) {
@@ -1707,7 +1707,7 @@ index bcaeaae..c136d20 100644
                      role: "user",
                      content: [
 diff --git a/dist/core/model-runtime.d.ts b/dist/core/model-runtime.d.ts
-index 5bf6433..21e9317 100644
+index 5bf6433f7061292741966e0b424574730510c765..21e93175f09552b4226da45c4e441931642ca405 100644
 --- a/dist/core/model-runtime.d.ts
 +++ b/dist/core/model-runtime.d.ts
 @@ -52,6 +52,7 @@ export declare class ModelRuntime implements Models {
@@ -1730,7 +1730,7 @@ index 5bf6433..21e9317 100644
      stream<TApi extends Api>(model: Model<TApi>, context: Context, options?: ModelsApiStreamOptions<TApi>): AssistantMessageEventStream;
      complete<TApi extends Api>(model: Model<TApi>, context: Context, options?: ModelsApiStreamOptions<TApi>): Promise<AssistantMessage>;
 diff --git a/dist/core/model-runtime.js b/dist/core/model-runtime.js
-index 1fa738d..4b7bf50 100644
+index 1fa738daf73d2888e0891c68d377e50b0c631bfd..4b7bf50715699dd780882169803952e9feb7e402 100644
 --- a/dist/core/model-runtime.js
 +++ b/dist/core/model-runtime.js
 @@ -64,6 +64,7 @@ export class ModelRuntime {
@@ -1778,7 +1778,7 @@ index 1fa738d..4b7bf50 100644
              throw new ModelsError("auth", `Provider is not configured: ${model.provider}`);
          const { transformHeaders, ...rawProviderOptions } = options ?? {};
 diff --git a/dist/core/sdk.js b/dist/core/sdk.js
-index e90db35..fae6f67 100644
+index e90db353dad6fa7e60526b48d25a0a864f8752ce..fae6f67f923ac6e070d30f106c455cf46a89dd7e 100644
 --- a/dist/core/sdk.js
 +++ b/dist/core/sdk.js
 @@ -13,7 +13,7 @@ import { findInitialModel } from "./model-resolver.js";
@@ -1875,7 +1875,7 @@ index e90db35..fae6f67 100644
          settingsManager,
          cwd,
 diff --git a/dist/core/session-manager.d.ts b/dist/core/session-manager.d.ts
-index 3f6104e..af2247a 100644
+index 3f6104e19f4bdf82e5513af1cb6d84bf9f8b9d07..af2247af94a7925a43a04da59ccae215a00b142b 100644
 --- a/dist/core/session-manager.d.ts
 +++ b/dist/core/session-manager.d.ts
 @@ -1,5 +1,5 @@
@@ -1977,7 +1977,7 @@ index 3f6104e..af2247a 100644
       * Get session header.
       */
 diff --git a/dist/core/session-manager.js b/dist/core/session-manager.js
-index 62b469b..d3f316c 100644
+index 62b469b5dc3fcea2aa8f52218cbdfe892d9abed4..d3f316c0d83574e788c9f6f9fd0b12be2717f4a3 100644
 --- a/dist/core/session-manager.js
 +++ b/dist/core/session-manager.js
 @@ -1,5 +1,5 @@
@@ -2338,7 +2338,7 @@ index 62b469b..d3f316c 100644
      /**
       * Get session header.
 diff --git a/dist/core/settings-manager.d.ts b/dist/core/settings-manager.d.ts
-index b7b8684..e4e6e9e 100644
+index b7b868430e1f263740d10af1bd97e4c97eef6155..e4e6e9e70103a946323028639983f0ea12595389 100644
 --- a/dist/core/settings-manager.d.ts
 +++ b/dist/core/settings-manager.d.ts
 @@ -9,6 +9,7 @@ export interface CompactionSettings {
@@ -2364,7 +2364,7 @@ index b7b8684..e4e6e9e 100644
      getBranchSummarySettings(): {
          reserveTokens: number;
 diff --git a/dist/core/settings-manager.js b/dist/core/settings-manager.js
-index 3cf1268..95d24c6 100644
+index 3cf126878b05d0cbcd7b7f45b19df1673fd5543b..95d24c6f650d2308342ef73067b4204972824a1c 100644
 --- a/dist/core/settings-manager.js
 +++ b/dist/core/settings-manager.js
 @@ -628,12 +628,16 @@ export class SettingsManager {
@@ -2385,7 +2385,7 @@ index 3cf1268..95d24c6 100644
      }
      getBranchSummarySettings() {
 diff --git a/dist/index.d.ts b/dist/index.d.ts
-index 9f9bd73..1cd9b0d 100644
+index 9f9bd7370e5ecc288de58d20e81b2a0aadb6ea4b..857be609fc3bc07a0c00c4c7200dcce09b7f3872 100644
 --- a/dist/index.d.ts
 +++ b/dist/index.d.ts
 @@ -3,7 +3,7 @@ export { CONFIG_DIR_NAME, getAgentDir, getDocsPath, getExamplesPath, getPackageD
@@ -2406,8 +2406,19 @@ index 9f9bd73..1cd9b0d 100644
  export { type CacheWarmingMode, type CompactionModelOverride, type CompactionSettings, type DefaultProjectTrust, type FullscreenExitOutput, type ImageSettings, type PackageSource, type QuietStartup, type RetrySettings, SettingsManager, type SettingsManagerCreateOptions, type TuiMode, } from "./core/settings-manager.ts";
  export { formatSkillsForPrompt, type LoadSkillsFromDirOptions, type LoadSkillsResult, loadSkills, loadSkillsFromDir, type Skill, type SkillFrontmatter, } from "./core/skills.ts";
  export { createSyntheticSourceInfo } from "./core/source-info.ts";
+@@ -41,4 +41,9 @@ export { convertToPng } from "./utils/image-convert.ts";
+ export { formatDimensionNote, type ResizedImage, resizeImage } from "./utils/image-resize.ts";
+ export { detectSupportedImageMimeTypeFromFile } from "./utils/mime.ts";
+ export { getPowerShellConfig, getShellConfig } from "./utils/shell.ts";
++// OpenWaggle: exports only, so OpenWaggle reuses Pi's MCP validation, value resolution, and sign-in code (ADR 0048).
++export type { AuthStorageBackend } from "./core/auth-storage.ts";
++export { createMcpAuthProvider, type McpAuthProvider, McpOAuthCredentialStore, type McpOAuthServerStore, type McpOAuthSettings, McpSignInCancelledError, type McpSignInPrompt, signInMcpServer, } from "./extensions/mcp/oauth.ts";
++export { getMcpToolExposure, isMcpToolName, mcpNamespace, validateMcpServerConfig } from "./core/mcp-servers.ts";
++export { resolveConfigValueOrThrow, resolveHeadersOrThrow } from "./core/resolve-config-value.ts";
+ //# sourceMappingURL=index.d.ts.map
+\ No newline at end of file
 diff --git a/dist/index.js b/dist/index.js
-index c48934f..2b8cfda 100644
+index c48934f78d61fd5f5f8008bc9e09d8c4558d330a..7ce07d11a573f8ac9db7820bebf6168e4f9ce2da 100644
 --- a/dist/index.js
 +++ b/dist/index.js
 @@ -5,7 +5,7 @@ export { CONFIG_DIR_NAME, getAgentDir, getDocsPath, getExamplesPath, getPackageD
@@ -2428,3 +2439,14 @@ index c48934f..2b8cfda 100644
  export { SettingsManager, } from "./core/settings-manager.js";
  // Skills
  export { formatSkillsForPrompt, loadSkills, loadSkillsFromDir, } from "./core/skills.js";
+@@ -50,4 +50,10 @@ export { formatDimensionNote, resizeImage } from "./utils/image-resize.js";
+ export { detectSupportedImageMimeTypeFromFile } from "./utils/mime.js";
+ // Shell utilities
+ export { getPowerShellConfig, getShellConfig } from "./utils/shell.js";
++// OpenWaggle: exports only, no behaviour change. OpenWaggle supplies the MCP extension's plug-in
++// points (ADR 0048) and reuses Pi's own server validation, value resolution, and OAuth sign-in
++// code instead of reimplementing them.
++export { createMcpAuthProvider, McpOAuthCredentialStore, McpSignInCancelledError, signInMcpServer } from "./extensions/mcp/oauth.js";
++export { getMcpToolExposure, isMcpToolName, mcpNamespace, validateMcpServerConfig } from "./core/mcp-servers.js";
++export { resolveConfigValueOrThrow, resolveHeadersOrThrow } from "./core/resolve-config-value.js";
+ //# sourceMappingURL=index.js.map
