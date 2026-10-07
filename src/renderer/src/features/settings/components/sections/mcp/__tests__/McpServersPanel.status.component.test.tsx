@@ -61,7 +61,7 @@ describe('Settings > MCP server state', () => {
         }),
     )
     renderPanel()
-    fireEvent.click(await screen.findByRole('button', { name: 'Open docs' }))
+    fireEvent.click(await screen.findByRole('button', { name: /^Open docs / }))
 
     fireEvent.click(await screen.findByRole('button', { name: 'Check connection' }))
 
@@ -84,7 +84,7 @@ describe('Settings > MCP server state', () => {
       { name: 'files', source: 'not-checked' },
     ])
     renderPanel()
-    fireEvent.click(await screen.findByRole('button', { name: 'Open docs' }))
+    fireEvent.click(await screen.findByRole('button', { name: /^Open docs / }))
 
     expect(await screen.findByText('Connected')).toBeInTheDocument()
     expect(screen.getByText('A session is connected to this server.')).toBeInTheDocument()

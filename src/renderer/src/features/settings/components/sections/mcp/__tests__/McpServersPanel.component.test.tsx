@@ -64,7 +64,7 @@ function renderPanel() {
 }
 
 async function openServer(name: string) {
-  fireEvent.click(await screen.findByRole('button', { name: `Open ${name}` }))
+  fireEvent.click(await screen.findByRole('button', { name: new RegExp(`^Open ${name} `) }))
 }
 
 describe('Settings > MCP servers', () => {
@@ -83,13 +83,13 @@ describe('Settings > MCP servers', () => {
     const list = screen.getByRole('list', { name: 'MCP servers' })
     const names = within(list)
       .getAllByRole('button')
-      .map((row) => row.getAttribute('aria-label'))
-    expect(names).toEqual(['Open sentry', 'Open broken', 'Open github', 'Open off'])
-    const github = within(list).getByRole('button', { name: 'Open github' })
+      .map((row) => /^Open (\S+)/.exec(row.textContent ?? '')?.[1])
+    expect(names).toEqual(['sentry', 'broken', 'github', 'off'])
+    const github = within(list).getByRole('button', { name: /^Open github / })
     expect(within(github).getByText('Connected')).toBeInTheDocument()
     expect(within(github).getByText('Pi, all projects')).toBeInTheDocument()
     expect(within(github).getByText('~/.pi/agent/mcp.json')).toBeInTheDocument()
-    expect(within(list).getByRole('button', { name: 'Open off' })).toHaveTextContent('Off')
+    expect(within(list).getByRole('button', { name: /^Open off / })).toHaveTextContent('Off')
     expect(api.inspectMcpServer).not.toHaveBeenCalled()
   })
 
@@ -236,7 +236,7 @@ describe('Settings > MCP servers', () => {
 
     await screen.findByRole('list', { name: 'MCP servers' })
     expect(api.removeMcpServer).toHaveBeenCalledWith({ projectPath: PROJECT, name: 'broken' })
-    expect(screen.queryByRole('button', { name: 'Open broken' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^Open broken / })).not.toBeInTheDocument()
   })
 
   it('never talks about trust, sandboxes, grants, or a global MCP switch', async () => {

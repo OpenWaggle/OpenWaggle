@@ -36,7 +36,7 @@ describe('Settings > MCP', () => {
   it("reads the selected project's MCP files together with the global ones", async () => {
     renderWithQueryClient(<McpSection />)
 
-    expect(await screen.findByRole('button', { name: 'Open docs' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: /^Open docs / })).toBeInTheDocument()
     expect(api.getMcpConfiguration).toHaveBeenCalledWith({ projectPath: PROJECT })
     expect(screen.getByRole('heading', { name: 'MCP' })).toBeInTheDocument()
   })

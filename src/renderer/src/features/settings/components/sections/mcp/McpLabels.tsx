@@ -37,8 +37,8 @@ export function McpFileName({ fileId }: { readonly fileId: McpConfigFileKind }) 
 export function McpFileLabel({ file }: { readonly file: McpServerFileReference }) {
   return (
     <span className="min-w-0 truncate" title={file.path}>
-      <McpFileName fileId={file.fileId} />
-      <span className="ml-1.5 font-mono text-text-muted">{tildifyPath(file.path)}</span>
+      <McpFileName fileId={file.fileId} />{' '}
+      <span className="ml-1 font-mono text-text-muted">{tildifyPath(file.path)}</span>
     </span>
   )
 }

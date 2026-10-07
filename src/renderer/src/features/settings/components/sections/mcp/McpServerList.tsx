@@ -16,24 +16,32 @@ function McpServerListRow({
 }) {
   const { server } = row
   const toolCount = mcpToolCountLabel(row)
+  // The row is named by what it shows, so a screen reader hears the state and file too. The
+  // spaces between pieces are for that name; flex layout does not render them.
   return (
     <li className="border-b border-border last:border-b-0">
       <Button
         variant="row"
         align="between"
         className="gap-4 px-4 py-3"
-        aria-label={`Open ${server.name}`}
         onClick={() => onOpen(server.name)}
       >
         <span className="min-w-0 space-y-1">
           <span className="flex flex-wrap items-center gap-1.5">
-            <span className="text-sm font-medium text-text-primary">{server.name}</span>
-            <McpStatusPill status={row.status} />
-            {toolCount ? <span className="text-xs text-text-tertiary">{toolCount}</span> : null}
+            <span className="text-sm font-medium text-text-primary">
+              <span className="sr-only">Open</span> {server.name}
+            </span>{' '}
+            <McpStatusPill status={row.status} />{' '}
+            {toolCount ? (
+              <>
+                <span className="text-xs text-text-tertiary">{toolCount}</span>{' '}
+              </>
+            ) : null}
             <span className="text-xs text-text-tertiary">
-              · {MCP_EXPOSURE_COPY[server.exposure].label}
+              <span aria-hidden="true">· </span>
+              {MCP_EXPOSURE_COPY[server.exposure].label}
             </span>
-          </span>
+          </span>{' '}
           <span className="flex text-xs text-text-tertiary">
             <McpFileLabel file={server.source} />
           </span>

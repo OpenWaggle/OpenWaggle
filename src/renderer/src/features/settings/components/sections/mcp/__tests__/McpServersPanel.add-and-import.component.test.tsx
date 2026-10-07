@@ -203,6 +203,6 @@ describe('Settings > MCP: importing from other apps', () => {
       }),
     )
     expect(await screen.findByRole('status')).toHaveTextContent('Imported 1.')
-    expect(await screen.findByRole('button', { name: 'Open linear' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: /^Open linear / })).toBeInTheDocument()
   })
 })
