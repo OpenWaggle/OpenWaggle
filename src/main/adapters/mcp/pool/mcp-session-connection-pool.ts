@@ -152,6 +152,15 @@ export class McpSessionConnectionPool {
     await Promise.all(connections.map((connection) => connection.close()))
   }
 
+  /** Closes one server's connections in every Session, for example after signing out of it. */
+  async closeServer(serverName: string) {
+    const connections = [...this.sessions.values()].flatMap((session) => {
+      const server = session.servers.get(serverName)
+      return server ? [server.connection] : []
+    })
+    await Promise.all(connections.map((connection) => connection.close()))
+  }
+
   /** Closes everything, waiting a bounded time for servers to exit. */
   async closeAll() {
     const closing = Promise.all([...this.sessions.keys()].map((id) => this.closeSession(id)))

@@ -9,6 +9,7 @@ import type { BrowserPreviewAutomationServiceShape } from '../../ports/browser-p
 import type { InlineVisualizationServiceShape } from '../../ports/inline-visualization-service'
 import type { TerminalServiceShape } from '../../ports/terminal-service'
 import type { WorkspacePreparationServiceShape } from '../../ports/workspace-preparation-service'
+import { isSessionMcpEnabled } from '../mcp/mcp-session-switch'
 import { mcpSessionConnectionPool } from '../mcp/pool/mcp-connection-pool-instance'
 import { runPiSession } from './agent-kernel/classic-run'
 import type { PiRuntimeExtensionIsolationInput } from './agent-kernel/runtime-extension-isolation'
@@ -16,6 +17,7 @@ import { refreshFirstRunBranch } from './agent-kernel/session-branch-freshness'
 import { runPiWaggle } from './agent-kernel/waggle-run'
 import { createBrowserPreviewAutomationExtension } from './browser-preview-automation-extension'
 import { BROWSER_PREVIEW_AUTOMATION_SYSTEM_PROMPT } from './browser-preview-automation-system-prompt'
+import { getOpenWaggleMcpConfigurationService } from './mcp/openwaggle-mcp-configuration'
 import { createOpenWaggleMcpExtensions } from './mcp/openwaggle-mcp-extensions'
 import {
   createWorktreeLaunchReporter,
@@ -40,6 +42,8 @@ function prepareMcpExtensions(input: AgentKernelRunInput, projectPath: string) {
     createOpenWaggleMcpExtensions({
       sessionId: input.session.id,
       projectPath,
+      sessionMcpEnabled: isSessionMcpEnabled(input.session.id),
+      onConfigChanged: (filePath) => getOpenWaggleMcpConfigurationService().changed(filePath),
       ...(input.mcpServerAllowlist ? { serverAllowlist: input.mcpServerAllowlist } : {}),
     }),
   ).pipe(

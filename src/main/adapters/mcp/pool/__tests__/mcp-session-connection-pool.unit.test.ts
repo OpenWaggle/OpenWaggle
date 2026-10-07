@@ -103,6 +103,18 @@ describe('MCP Session connection pool', () => {
     expect(pool.warmSessions()).toEqual(['s2'])
   })
 
+  it('closes one server in every Session, for example after signing out of it', async () => {
+    const upstreams: FakeUpstream[] = []
+    const pool = new McpSessionConnectionPool({ clock: new FakeClock() })
+    await useServer(pool, 's1', server('sentry', upstreams))
+    await useServer(pool, 's1', server('fs', upstreams))
+    await useServer(pool, 's2', server('sentry', upstreams))
+
+    await pool.closeServer('sentry')
+
+    expect(upstreams.map((upstream) => upstream.closed)).toEqual([true, false, true])
+  })
+
   it('replaces a connection whose definition changed', async () => {
     const upstreams: FakeUpstream[] = []
     const pool = new McpSessionConnectionPool({ clock: new FakeClock() })
