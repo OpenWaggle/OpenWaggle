@@ -15,6 +15,7 @@ import {
   openSession,
   registerProjects,
   run,
+  runSql,
   sessionDetail,
   setUpPiDiscoveryFixture,
 } from './pi-session-discovery.test-support'
@@ -206,6 +207,24 @@ describe('Discovered Pi session ownership', () => {
     await registerProjects([])
     expect(await discover()).toEqual([])
     await registerProjects([fixture.project])
+    const listedAgain = await discoverOne()
+    expect((await sessionDetail(listedAgain))?.piSessionFile).toBe(cli.file)
+  })
+
+  it('lists the file again after a deletion that did not go ahead', async () => {
+    await registerProjects([fixture.project])
+    const cli = createPiCliSession(fixture.project, 'Deletion abandoned')
+    const sessionId = await discoverOne()
+    const { abandonSessionDeletion, prepareSessionDeletion } = await import(
+      '../../../store/session-details'
+    )
+    await prepareSessionDeletion(sessionId)
+    await abandonSessionDeletion(sessionId)
+
+    // The Session stayed, so its file must not stay dismissed: once the Session is gone some
+    // other way, discovery lists the file again.
+    await runSql((sql) => sql`DELETE FROM sessions WHERE id = ${sessionId}`)
+
     const listedAgain = await discoverOne()
     expect((await sessionDetail(listedAgain))?.piSessionFile).toBe(cli.file)
   })

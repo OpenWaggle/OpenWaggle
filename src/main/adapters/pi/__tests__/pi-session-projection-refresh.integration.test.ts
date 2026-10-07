@@ -90,9 +90,15 @@ describe('Pi session projection refresh', () => {
     await openSession(sessionId)
     continuePiCliSession(cli.file, 'Asked from OpenWaggle')
 
-    // What a Run persists after Pi wrote its turn to the file.
+    // What a Run persists after Pi wrote its turn to the file, under the Session's node ids.
     const { projectPiSessionSnapshot } = await import('../agent-kernel/session-projection')
-    const snapshot = projectPiSessionSnapshot({ sessionManager: SessionManager.open(cli.file) })
+    const { piEntryNodeIds } = await import('../agent-kernel/pi-entry-node-ids')
+    const detail = await sessionDetail(sessionId)
+    if (!detail?.piEntryNodeIdPrefix) throw new Error('A discovered Session has a node id prefix.')
+    const snapshot = projectPiSessionSnapshot(
+      { sessionManager: SessionManager.open(cli.file) },
+      piEntryNodeIds(detail),
+    )
     const { SessionRepository } = await import('../../../ports/session-repository')
     await run(
       Effect.flatMap(SessionRepository, (repository) =>
@@ -107,6 +113,7 @@ describe('Pi session projection refresh', () => {
     )
 
     expect(await openSession(sessionId)).toBe('fresh')
+    expect(messageTexts(await sessionDetail(sessionId))).toHaveLength(4)
   })
 
   it('shows the transcript when the sidebar opens a discovered Session', async () => {
