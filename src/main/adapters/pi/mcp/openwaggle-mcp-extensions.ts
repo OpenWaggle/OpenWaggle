@@ -8,6 +8,7 @@ import {
   mcpNamespace,
 } from '@earendil-works/pi-coding-agent'
 import { isRecord } from '@shared/utils/validation'
+import { mcpShellEnvironmentReady } from '../../../mcp-shell-environment'
 import { createMcpUpdateConfig } from '../../mcp/config/mcp-config-writer'
 import { loadMcpRuntimeConfig, type McpRuntimeConfig } from '../../mcp/config/mcp-runtime-config'
 import { resolveMcpVaultSecret } from '../../mcp/encrypted-mcp-secret-vault-service'
@@ -25,6 +26,7 @@ import { createRunSignInOpener } from './mcp-sign-in-page'
 import { approveMcpToolCall } from './mcp-tool-approval'
 import { getOpenWaggleMcpCredentials, openWaggleMcpLogPath } from './openwaggle-mcp-credentials'
 import { migrateOpenWaggleMcpFilesOnce } from './openwaggle-mcp-migration'
+import { withShellResolvedClientSecrets } from './pi-mcp-server-oauth'
 import { openPiMcpUpstream } from './pi-mcp-upstream'
 
 /** Only servers with `direct` tools can delay a message, and by at most this long (ADR 0048). */
@@ -183,7 +185,7 @@ export function registerMcpToolApproval(
 export async function createOpenWaggleMcpExtensions(
   input: OpenWaggleMcpSessionInput,
 ): Promise<readonly InlineExtension[]> {
-  await migrateOpenWaggleMcpFilesOnce(input.projectPath)
+  await Promise.all([migrateOpenWaggleMcpFilesOnce(input.projectPath), mcpShellEnvironmentReady()])
   const config = await loadMcpRuntimeConfig({
     roots: { homeDir: homedir(), piAgentDir: getPiAgentDir(), projectPath: input.projectPath },
     resolveSecret: resolveMcpVaultSecret,
@@ -193,7 +195,7 @@ export async function createOpenWaggleMcpExtensions(
     ...(input.serverAllowlist ? { serverAllowlist: input.serverAllowlist } : {}),
   })
   const mcp = createMcpExtension({
-    loadConfig: () => config.loaded,
+    loadConfig: () => withShellResolvedClientSecrets(config.loaded),
     createTransport: (entry, cwd, authProvider) => {
       const transport =
         config.transports.get(entry.name) ?? ('url' in entry.config ? 'http' : 'stdio')

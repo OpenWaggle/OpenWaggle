@@ -7,7 +7,8 @@ import {
 } from '@earendil-works/pi-coding-agent'
 import { type AuthProvider, StdioTransport, StreamableHttpTransport } from '@earendil-works/pi-mcp'
 import type { McpTransportKind } from '../../../domain/mcp/config/mcp-server-config'
-import { getEnvWithOverrides, getNpmCompatiblePath } from '../../../env'
+import { getNpmCompatiblePath } from '../../../env'
+import { mcpValueEnvironment } from '../../../mcp-shell-environment'
 import type { McpUpstream } from '../../mcp/pool/mcp-connection-support'
 import { DeferredTransport } from '../../mcp/pool/mcp-deferred-transport'
 import { McpSdkTransportAdapter } from '../../mcp/pool/mcp-sdk-transport-adapter'
@@ -41,14 +42,19 @@ function openStdio(entry: McpServerEntry, cwd: string): McpUpstream {
   const { config } = entry
   const env: Record<string, string> = {}
   for (const [key, value] of Object.entries(config.env ?? {})) {
-    env[key] = resolveConfigValueOrThrow(value, `MCP server "${entry.name}" env "${key}"`)
+    env[key] = resolveConfigValueOrThrow(
+      value,
+      `MCP server "${entry.name}" env "${key}"`,
+      mcpValueEnvironment(),
+    )
   }
   const transport = new StdioTransport({
     command: expandHome(config.command),
     ...(config.args ? { args: config.args.map(expandHome) } : {}),
     cwd: path.resolve(cwd, expandHome(config.cwd ?? '.')),
-    // Pi gives servers the user's environment; the packaged app's PATH also finds npx and uvx.
-    env: stringEnv(getEnvWithOverrides({ PATH: getNpmCompatiblePath(), ...env })),
+    // Pi gives servers the user's environment (the login shell's, for a Dock-launched app); the
+    // packaged app's PATH also finds npx and uvx.
+    env: stringEnv({ ...mcpValueEnvironment(), PATH: getNpmCompatiblePath(), ...env }),
     inheritEnv: false,
     stderr: 'pipe',
   })
@@ -119,7 +125,8 @@ function openHttp(
   authProvider: AuthProvider | undefined,
 ): McpUpstream {
   const config = urlOf(entry)
-  const headers = resolveHeadersOrThrow(config.headers, `MCP server "${entry.name}"`) ?? {}
+  const headers =
+    resolveHeadersOrThrow(config.headers, `MCP server "${entry.name}"`, mcpValueEnvironment()) ?? {}
   if (kind === 'websocket') {
     return {
       transport: new McpSdkTransportAdapter(

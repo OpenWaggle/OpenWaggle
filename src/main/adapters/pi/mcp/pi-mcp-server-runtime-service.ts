@@ -11,6 +11,7 @@ import type { McpServerInspection, McpServerToolView } from '@shared/types/mcp-c
 import { isRecord } from '@shared/utils/validation'
 import { Effect, Layer } from 'effect'
 import type { McpTransportKind } from '../../../domain/mcp/config/mcp-server-config'
+import { mcpShellEnvironmentReady } from '../../../mcp-shell-environment'
 import { McpConfigurationError } from '../../../ports/mcp-configuration-service'
 import {
   McpServerRuntimeService,
@@ -41,6 +42,7 @@ function defaultMcpServerRuntimeRoots(): PiMcpServerRuntimeRoots {
 }
 
 async function findServer(input: McpServerScopeInput, roots: PiMcpServerRuntimeRoots) {
+  await mcpShellEnvironmentReady()
   const config = await loadMcpRuntimeConfig({
     roots: { ...roots, projectPath: input.projectPath },
     resolveSecret: resolveMcpVaultSecret,

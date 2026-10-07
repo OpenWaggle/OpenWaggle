@@ -7,6 +7,7 @@ import { mcpConfigValueSchema } from '@shared/schemas/mcp'
 import type { McpJsonValue } from '@shared/types/mcp'
 import { isRecord } from '@shared/utils/validation'
 import { Effect, Layer } from 'effect'
+import { mcpShellEnvironmentReady } from '../../../mcp-shell-environment'
 import {
   McpAppRuntimeService,
   type McpAppServerInput,
@@ -35,6 +36,7 @@ const METHOD_NOT_FOUND = -32601
  */
 async function appConnection(input: McpAppServerInput) {
   const warm = mcpSessionConnectionPool.connection(input.sessionId, input.serverName)
+  await mcpShellEnvironmentReady()
   const config = await loadMcpRuntimeConfig({
     roots: { homeDir: homedir(), piAgentDir: getPiAgentDir(), projectPath: input.projectPath },
     resolveSecret: resolveMcpVaultSecret,

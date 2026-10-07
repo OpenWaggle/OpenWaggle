@@ -62,6 +62,7 @@ import { ActiveProjectChangeServiceLive } from './application/active-project-cha
 import { onSessionRemoved } from './application/session-removal-hooks'
 import { SessionWaitServiceLive } from './application/session-wait-service'
 import { installMcpSessionRemoval } from './mcp-session-removal'
+import { loadMcpShellEnvironment } from './mcp-shell-environment'
 import { OperationAdapterLive } from './operation-adapter-layer'
 import {
   ActionKernelServicesLive,
@@ -295,6 +296,8 @@ export async function initializeAppRuntime(): Promise<void> {
       return Promise.resolve()
     })
   }
+  // MCP `${NAME}` values resolve from the user's login shell too; read it once, in the background.
+  void loadMcpShellEnvironment()
   await getAppRuntime().runPromise(Effect.void)
 }
 
