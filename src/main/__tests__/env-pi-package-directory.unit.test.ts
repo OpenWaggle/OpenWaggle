@@ -33,6 +33,7 @@ describe('Pi package directory environment', () => {
     vi.stubEnv('PI_PACKAGE_DIR', undefined)
     const {
       applyPiPackageDirectory,
+      getEnvWithOverrides,
       getInteractiveTerminalEnv,
       getSessionHostChildEnv,
       withShellPiPackageDirectory,
@@ -40,6 +41,9 @@ describe('Pi package directory environment', () => {
     applyPiPackageDirectory(BUNDLED_PI)
 
     expect(getInteractiveTerminalEnv('1.0.0').PI_PACKAGE_DIR).toBeUndefined()
+    // Stdio MCP servers, git, and the updater start from this environment.
+    expect(getEnvWithOverrides({ EXTRA: '1' })).not.toHaveProperty('PI_PACKAGE_DIR')
+    expect(getEnvWithOverrides({ EXTRA: '1' }).EXTRA).toBe('1')
     // The detached Session Host sets its own value again, from the environment the user had.
     expect(getSessionHostChildEnv().PI_PACKAGE_DIR).toBeUndefined()
     expect(withShellPiPackageDirectory({ PI_PACKAGE_DIR: BUNDLED_PI, KEEP: '1' })).toEqual({
@@ -51,6 +55,7 @@ describe('Pi package directory environment', () => {
     vi.stubEnv('PI_PACKAGE_DIR', USER_PI)
     const {
       applyPiPackageDirectory,
+      getEnvWithOverrides,
       getInteractiveTerminalEnv,
       getSessionHostChildEnv,
       withShellPiPackageDirectory,
@@ -58,6 +63,7 @@ describe('Pi package directory environment', () => {
     applyPiPackageDirectory(BUNDLED_PI)
 
     expect(getInteractiveTerminalEnv('1.0.0').PI_PACKAGE_DIR).toBe(USER_PI)
+    expect(getEnvWithOverrides({}).PI_PACKAGE_DIR).toBe(USER_PI)
     expect(getSessionHostChildEnv().PI_PACKAGE_DIR).toBe(USER_PI)
     expect(withShellPiPackageDirectory({ PI_PACKAGE_DIR: BUNDLED_PI })).toEqual({
       PI_PACKAGE_DIR: USER_PI,

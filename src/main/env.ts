@@ -280,7 +280,7 @@ export function getSourceControlCliEnv(): Record<string, string | undefined> {
 export function getEnvWithOverrides(
   overrides: Readonly<Record<string, string>>,
 ): Record<string, string | undefined> {
-  return { ...process.env, ...overrides }
+  return { ...withShellPiPackageDirectory(process.env), ...overrides }
 }
 
 export function getNpmCompatiblePath(): string {
