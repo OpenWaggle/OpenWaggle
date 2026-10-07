@@ -9,15 +9,12 @@ import { type AuthProvider, StdioTransport, StreamableHttpTransport } from '@ear
 import type { McpTransportKind } from '../../../domain/mcp/config/mcp-server-config'
 import { getEnvWithOverrides, getNpmCompatiblePath } from '../../../env'
 import type { McpUpstream } from '../../mcp/pool/mcp-connection-support'
+import { DeferredTransport } from '../../mcp/pool/mcp-deferred-transport'
 import { McpSdkTransportAdapter } from '../../mcp/pool/mcp-sdk-transport-adapter'
 import { createMcpServerFetch, MCP_MAX_MESSAGE_BYTES } from '../../mcp/pool/mcp-server-fetch'
-import {
-  type JsonRpcMessage,
-  type McpWireTransport,
-  WireTransportEvents,
-} from '../../mcp/pool/mcp-wire'
 import { createLegacySseClientTransport } from '../../mcp/runtime/legacy-sse-client-transport'
 import { LegacyWebSocketClientTransport } from '../../mcp/runtime/websocket-transport'
+import { createMcpAuthorizedFetch } from './mcp-authorized-fetch'
 
 /** Characters of a failed stdio server's stderr shown with its error, as in Pi. */
 const STDERR_TAIL_CHARS = 2_000
@@ -63,38 +60,29 @@ function urlOf(entry: McpServerEntry) {
   return entry.config
 }
 
-/** A transport created when it starts, for the SDK transports that load asynchronously. */
-class DeferredTransport extends WireTransportEvents implements McpWireTransport {
-  private inner: McpWireTransport | undefined
-  private protocolVersion: string | undefined
-
-  constructor(private readonly create: () => Promise<McpWireTransport>) {
-    super()
-  }
-
-  async start() {
-    const inner = await this.create()
-    this.inner = inner
-    inner.onMessage((message) => this.emitMessage(message))
-    inner.onError((error) => this.emitError(error))
-    inner.onClose(() => this.emitClose())
-    if (this.protocolVersion) inner.setProtocolVersion?.(this.protocolVersion)
-    await inner.start()
-  }
-
-  send(message: JsonRpcMessage) {
-    if (!this.inner) return Promise.reject(new Error('MCP transport is not started'))
-    return this.inner.send(message)
-  }
-
-  async close() {
-    if (this.inner) await this.inner.close()
-    this.emitClose()
-  }
-
-  setProtocolVersion(version: string) {
-    this.protocolVersion = version
-    this.inner?.setProtocolVersion?.(version)
+function openSse(
+  config: { readonly url: string },
+  headers: Record<string, string>,
+  authProvider: AuthProvider | undefined,
+): McpUpstream {
+  const fetch = createMcpServerFetch(config.url)
+  const authorized = authProvider
+    ? createMcpAuthorizedFetch({ fetch, authProvider, serverUrl: new URL(config.url) })
+    : undefined
+  const sseFetch = authorized ?? fetch
+  return {
+    transport: new DeferredTransport(
+      async () => {
+        const sdk = await createLegacySseClientTransport(new URL(config.url), {
+          fetch: sseFetch,
+          requestInit: { headers },
+          eventSourceInit: { fetch: sseFetch },
+        })
+        return new McpSdkTransportAdapter(sdk)
+      },
+      () => authorized?.authFailure(),
+    ),
+    close: () => fetch.close(),
   }
 }
 
@@ -112,19 +100,8 @@ function openHttp(
       ),
     }
   }
+  if (kind === 'sse') return openSse(config, headers, authProvider)
   const fetch = createMcpServerFetch(config.url)
-  if (kind === 'sse') {
-    return {
-      transport: new DeferredTransport(async () => {
-        const sdk = await createLegacySseClientTransport(new URL(config.url), {
-          fetch,
-          requestInit: { headers },
-          eventSourceInit: { fetch },
-        })
-        return new McpSdkTransportAdapter(sdk)
-      }),
-    }
-  }
   return {
     transport: new StreamableHttpTransport({
       url: config.url,
@@ -133,6 +110,7 @@ function openHttp(
       maxMessageBytes: MCP_MAX_MESSAGE_BYTES,
       ...(authProvider ? { authProvider } : {}),
     }),
+    close: () => fetch.close(),
   }
 }
 
