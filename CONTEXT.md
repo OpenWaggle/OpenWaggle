@@ -34,17 +34,9 @@ _Avoid_: MCP import, Pi-compatible MCP, partial parity
 Pi's built-in MCP extension running inside each OpenWaggle Pi session, with OpenWaggle supplying its transports, credential store, browser opening, and configuration writes.
 _Avoid_: MCP agent loop, OpenWaggle MCP client, second MCP implementation
 
-**MCP desired state**:
-The user's global, project, or session request for MCP to be on, off, or inherited, independent from the currently applied runtime state.
-_Avoid_: extension enabled flag
-
 **MCP effective configuration**:
-The fully resolved server, scope, policy, authentication, and capability configuration with provenance for every contributing source.
+The server list Pi's MCP extension receives after merging the five MCP files, with the file that defines each server and the file that overrides it.
 _Avoid_: merged mcp.json, Pi settings
-
-**MCP turn snapshot**:
-The immutable MCP effective configuration, credentials, grants, and capability negotiation used by one agent turn.
-_Avoid_: live mutable MCP config
 
 **Codemode**:
 Pi's sandboxed script tool through which the model calls several tools in one step, with only the script's output entering model context and every child call passing the normal tool approval. It is on by default for every Session, not only when MCP servers are configured, and the user can turn it off.
@@ -65,14 +57,6 @@ _Avoid_: silent legacy fallback
 **MCP catalog**:
 The curated first-party list of recommended servers offered for one-click install into the user's Pi MCP configuration.
 _Avoid_: marketplace, plugin store, trust tier
-
-**MCP Task**:
-A durable OpenWaggle record of asynchronous MCP work that can be inspected, resumed, cancelled when supported, or completed without holding an agent turn open.
-_Avoid_: long-running tool call
-
-**MCP Event Inbox**:
-The opt-in attributed queue for proactive external MCP events, separate from standard state subscriptions and agent context.
-_Avoid_: automatic server prompt
 
 **MCP App host**:
 The sandboxed OpenWaggle-owned container and JSON-RPC bridge for standard `ui://` MCP Apps.
@@ -392,7 +376,7 @@ _Avoid_: silent secret filtering, read authorization, lossy format
 
 **Session export operation**:
 The durable Session Host work record that produces a destination file or bundle independently of the initiating client connection.
-_Avoid_: stdout stream, MCP Task, agent run
+_Avoid_: stdout stream, agent run
 
 **Sessions CLI**:
 The stable `openwaggle sessions` command family through which people and external agentic tools invoke Session Control.
@@ -2306,7 +2290,7 @@ _Avoid_: search (it narrows in place rather than producing results), sidebar vie
 - "title" was used both for a stable label and for a summary that tracks the conversation. Resolved: a **Session title** is a stable recognition label; it changes after its start only by rename, **Title regeneration**, or one bounded **Title refinement**. Titling deliberately follows T3Code rather than the **Codex parity baseline** (ADR 0043).
 
 - "MCP extension" can imply that MCP lifecycle belongs to a Pi or OpenWaggle extension package. Resolved: use **OpenWaggle MCP integration** for the product and **MCP runtime** for the per-session client lifecycle. Since Pi 1.0 the **MCP runtime** is Pi's built-in MCP extension, loaded by OpenWaggle rather than by the Pi CLI.
-- "MCP enabled" can mean desired configuration or applied runtime state. Resolved: use **MCP desired state** for the user's request and report separately whether the safe boundary has applied it.
+- "MCP enabled" can mean MCP as a whole or one server. Resolved: there is no MCP-wide switch; a server is on or off through `enabled` in the file that defines or overrides it, and a Session can turn MCP off for itself as Session state.
 - "trusted MCP server" implied a per-server approval layered on top of Pi. Resolved: there is no server trust; adding a project to OpenWaggle is the trust decision for everything the project configures, matching Pi's single project trust.
 - "everything Pi supports" could include every package Earendil ships. Resolved: **Pi portability** covers the Pi coding agent and what its users carry; Pi Durable is a developer library with nothing for a user to carry, so OpenWaggle's relationship to it is a later attach-and-steer client, not a v1 runtime.
 - "Code Mode" can imply arbitrary code or a provider feature. Resolved: use **Codemode** for Pi's sandboxed multi-call script tool; the earlier OpenWaggle **MCP orchestration** (`mcp_run`) and **MCP gateway** are retired in favour of **Codemode** and **Tool search**.
