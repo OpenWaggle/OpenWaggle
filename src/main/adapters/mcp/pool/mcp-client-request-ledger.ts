@@ -99,10 +99,23 @@ export class McpClientRequestLedger {
       .map(([id]) => id)
   }
 
-  rejectInternal(error: Error) {
+  /** Whether any request, a client's or OpenWaggle's, still waits for its response. */
+  get hasPending() {
+    return this.pending.size > 0
+  }
+
+  /**
+   * Fails every open request: OpenWaggle's are rejected, and each client gets an error response
+   * under its own id, so no caller waits for a connection that is gone.
+   */
+  failAll(error: Error, respond: (lease: McpConnectionLease, id: JsonRpcId) => void) {
     for (const [id, pending] of [...this.pending]) {
-      this.pending.delete(id)
-      if (pending.kind === 'internal') pending.reject(error)
+      this.forget(id)
+      if (pending.kind === 'internal') {
+        pending.reject(error)
+        continue
+      }
+      if (!pending.lease.isDetached) respond(pending.lease, pending.id)
     }
     this.progress.clear()
   }

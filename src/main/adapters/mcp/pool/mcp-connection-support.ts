@@ -11,6 +11,8 @@ export interface McpUpstream {
   readonly transport: McpWireTransport
   /** Recent stderr of a stdio server, for error messages and Settings. */
   readonly stderrTail?: () => string
+  /** Releases what the transport does not own, such as an HTTP server's pinned-DNS fetch. */
+  readonly close?: () => Promise<void>
 }
 
 export interface McpServerRequest {

@@ -1,4 +1,5 @@
 import { McpClientRequestLedger } from './mcp-client-request-ledger'
+import { McpConnectionHandshake } from './mcp-connection-handshake'
 import { McpConnectionLease } from './mcp-connection-lease'
 import {
   CANCELLED,
@@ -6,8 +7,6 @@ import {
   errorResponse,
   INITIALIZE,
   INITIALIZED,
-  INTERNAL_CLIENT_INFO,
-  INTERNAL_PROTOCOL_VERSION,
   type McpPooledConnectionOptions,
   McpServerError,
   type McpUpstream,
@@ -19,13 +18,15 @@ import {
   isJsonRpcRequest,
   isRecord,
   JSON_RPC_ERROR_CODES,
-  type JsonRpcId,
   type JsonRpcMessage,
   type JsonRpcNotification,
   type JsonRpcRequest,
   type JsonRpcResponse,
   toError,
 } from './mcp-wire'
+
+/** How long a retiring connection waits for its open requests before it closes anyway. */
+const RETIRE_GRACE_MS = 30_000
 
 /**
  * One server connection of one Session, shared by the Pi clients of that Session's successive
@@ -36,17 +37,23 @@ import {
 export class McpPooledConnection {
   private upstream: McpUpstream | undefined
   private starting: Promise<void> | undefined
-  private initializing: Promise<unknown> | undefined
-  private handshake: { readonly result: unknown } | undefined
-  private initializedSent = false
   private closed = false
+  /** No longer offered to new clients; closes once its open requests are answered. */
+  private retiring = false
+  private released: Promise<void> | undefined
   private lastErrorValue: string | undefined
   private readonly ledger = new McpClientRequestLedger()
   private readonly leases = new Set<McpConnectionLease>()
-  private readonly initializeWaiters = new Map<McpConnectionLease, JsonRpcId>()
+  private readonly handshake: McpConnectionHandshake
   private readonly router: McpServerRequestRouter
 
   constructor(private readonly options: McpPooledConnectionOptions) {
+    this.handshake = new McpConnectionHandshake({
+      request: (method, params) => this.sendInternal(method, params),
+      notify: (message) => this.sendUpstream(message),
+      augmentParams: options.augmentInitializeParams,
+      onProtocolVersion: (version) => this.upstream?.transport.setProtocolVersion?.(version),
+    })
     this.router = new McpServerRequestRouter({
       send: (message) => this.sendUpstream(message),
       leases: () => this.leases,
@@ -58,13 +65,14 @@ export class McpPooledConnection {
     return this.options.serverName
   }
 
+  /** Closed, or going away: either way no new client or request may use it. */
   get isClosed() {
-    return this.closed
+    return this.closed || this.retiring
   }
 
   /** Open and past its handshake. */
   get isReady() {
-    return !this.closed && this.handshake !== undefined
+    return !this.isClosed && this.handshake.isDone
   }
 
   get attachedLeases() {
@@ -81,7 +89,7 @@ export class McpPooledConnection {
 
   /** A new client attaches; the connection opens on its `start()` if it is not open yet. */
   attach() {
-    if (this.closed) throw this.closedConnectionError()
+    if (this.isClosed) throw this.closedConnectionError()
     const lease = new McpConnectionLease({
       start: () => this.start(),
       send: (from, message) => this.sendFromLease(from, message),
@@ -95,14 +103,41 @@ export class McpPooledConnection {
   /** An OpenWaggle request over the connection, initializing it first when no client has. */
   async request(method: string, params?: unknown, options: { signal?: AbortSignal } = {}) {
     await this.start()
-    await this.ensureInitialized()
+    await this.handshake.ensureInitialized()
     return this.sendInternal(method, params, options.signal)
   }
 
   async close() {
-    if (this.closed) return
-    this.markClosed(new Error(`MCP server "${this.serverName}" connection closed`))
-    await this.upstream?.transport.close().catch(() => undefined)
+    if (!this.closed)
+      this.markClosed(new Error(`MCP server "${this.serverName}" connection closed`))
+    await this.releaseUpstream()
+  }
+
+  /** Closes the transport, then what the upstream holds beside it; once. */
+  private releaseUpstream() {
+    const upstream = this.upstream
+    this.released ??= upstream
+      ? upstream.transport
+          .close()
+          .catch(() => undefined)
+          .then(() => upstream.close?.())
+          .catch(() => undefined)
+      : Promise.resolve()
+    return this.released
+  }
+
+  /**
+   * After an error that makes the upstream unusable (an expired HTTP session, a needed sign-in),
+   * the connection takes no new clients, lets the requests already sent settle, then closes.
+   */
+  private retire() {
+    if (this.retiring) return
+    this.retiring = true
+    if (!this.ledger.hasPending) {
+      void this.close()
+      return
+    }
+    setTimeout(() => void this.close(), RETIRE_GRACE_MS).unref()
   }
 
   private closedConnectionError() {
@@ -110,7 +145,7 @@ export class McpPooledConnection {
   }
 
   private start() {
-    if (this.closed) return Promise.reject(this.closedConnectionError())
+    if (this.isClosed) return Promise.reject(this.closedConnectionError())
     this.starting ??= this.openUpstream()
     return this.starting
   }
@@ -134,7 +169,7 @@ export class McpPooledConnection {
       const failure = this.withStderr(toError(error))
       this.lastErrorValue = failure.message
       this.markClosed(failure)
-      await this.upstream?.transport.close().catch(() => undefined)
+      await this.releaseUpstream()
       throw failure
     }
   }
@@ -144,44 +179,12 @@ export class McpPooledConnection {
     return stderr ? new Error(`${error.message}\n${stderr}`) : error
   }
 
-  private ensureHandshake(params: unknown) {
-    if (this.handshake) return Promise.resolve(this.handshake.result)
-    this.initializing ??= this.sendInternal(
-      INITIALIZE,
-      this.options.augmentInitializeParams?.(params) ?? params,
-    ).then(
-      (result) => {
-        this.handshake = { result }
-        if (isRecord(result) && typeof result.protocolVersion === 'string') {
-          this.upstream?.transport.setProtocolVersion?.(result.protocolVersion)
-        }
-        return result
-      },
-      (error: unknown) => {
-        this.initializing = undefined
-        throw error
-      },
-    )
-    return this.initializing
-  }
-
-  private async ensureInitialized() {
-    await this.ensureHandshake({
-      protocolVersion: INTERNAL_PROTOCOL_VERSION,
-      capabilities: {},
-      clientInfo: INTERNAL_CLIENT_INFO,
-    })
-    if (this.initializedSent) return
-    this.initializedSent = true
-    await this.sendUpstream({ jsonrpc: '2.0', method: INITIALIZED })
-  }
-
   private sendUpstream(message: JsonRpcMessage) {
     const upstream = this.upstream
     if (!upstream || this.closed) return Promise.reject(this.closedConnectionError())
     return upstream.transport.send(message).catch((error: unknown) => {
       const failure = toError(error)
-      if (DISCARDING_ERRORS.has(failure.name)) void this.close()
+      if (DISCARDING_ERRORS.has(failure.name)) this.retire()
       throw failure
     })
   }
@@ -209,7 +212,8 @@ export class McpPooledConnection {
 
   private async sendFromLease(lease: McpConnectionLease, message: JsonRpcMessage) {
     if (isJsonRpcRequest(message)) {
-      if (message.method === INITIALIZE) return this.answerInitialize(lease, message)
+      if (this.retiring) throw this.closedConnectionError()
+      if (message.method === INITIALIZE) return this.handshake.answer(lease, message)
       const upstreamRequest = this.ledger.trackLease(lease, message)
       return this.sendUpstream(upstreamRequest).catch((error: unknown) => {
         this.ledger.forget(upstreamRequest.id)
@@ -222,26 +226,8 @@ export class McpPooledConnection {
     return this.sendUpstream(message)
   }
 
-  private async answerInitialize(lease: McpConnectionLease, message: JsonRpcRequest) {
-    this.initializeWaiters.set(lease, message.id)
-    try {
-      const result = await this.ensureHandshake(message.params)
-      lease.deliver({ jsonrpc: '2.0', id: message.id, result })
-    } catch (error) {
-      lease.deliver(
-        errorResponse(message.id, JSON_RPC_ERROR_CODES.internalError, toError(error).message),
-      )
-    } finally {
-      this.initializeWaiters.delete(lease)
-    }
-  }
-
   private async forwardLeaseNotification(lease: McpConnectionLease, message: JsonRpcNotification) {
-    if (message.method === INITIALIZED) {
-      if (this.initializedSent) return
-      this.initializedSent = true
-      return this.sendUpstream(message)
-    }
+    if (message.method === INITIALIZED) return this.handshake.initialized(message)
     if (message.method === CANCELLED) {
       const params = isRecord(message.params) ? message.params : {}
       const upstreamId = this.ledger.upstreamId(lease, params.requestId)
@@ -278,6 +264,11 @@ export class McpPooledConnection {
   }
 
   private handleResponse(message: JsonRpcResponse) {
+    this.deliverResponse(message)
+    if (this.retiring && !this.ledger.hasPending) void this.close()
+  }
+
+  private deliverResponse(message: JsonRpcResponse) {
     const pending = this.ledger.forget(message.id)
     if (!pending) return
     if (pending.kind === 'internal') {
@@ -310,13 +301,12 @@ export class McpPooledConnection {
     if (this.closed) return
     this.closed = true
     this.router.close()
-    this.ledger.rejectInternal(error)
-    // A client still waiting for its handshake learns why, stderr included, before it sees the close.
-    for (const [lease, id] of this.initializeWaiters) {
-      lease.deliver(errorResponse(id, JSON_RPC_ERROR_CODES.internalError, error.message))
-    }
-    this.initializeWaiters.clear()
+    this.ledger.failAll(error, (lease, id) =>
+      lease.deliver(errorResponse(id, JSON_RPC_ERROR_CODES.internalError, error.message)),
+    )
+    this.handshake.fail(error)
     for (const lease of [...this.leases]) lease.detach()
     this.options.onClosed()
+    void this.releaseUpstream()
   }
 }
