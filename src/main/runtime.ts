@@ -23,7 +23,6 @@ import { mcpSessionConnectionPool } from './adapters/mcp/pool/mcp-connection-poo
 import { McpRegistryServiceLive } from './adapters/mcp/registry/mcp-registry-service'
 import { idleCacheWarming } from './adapters/pi/agent-kernel/pi-idle-cache-warming'
 import { OpenWaggleMcpConfigurationServiceLive } from './adapters/pi/mcp/openwaggle-mcp-configuration'
-import { migrateOpenWaggleMcpFilesOnce } from './adapters/pi/mcp/openwaggle-mcp-migration'
 import { PiMcpAppRuntimeServiceLive } from './adapters/pi/mcp/pi-mcp-app-runtime-service'
 import { PiMcpServerRuntimeServiceLive } from './adapters/pi/mcp/pi-mcp-server-runtime-service'
 import { installPiUserAppSettingsFallback } from './adapters/pi/openwaggle-pi-app-settings'
@@ -62,8 +61,7 @@ import { WorkspaceProjectAuthorizationLive } from './adapters/workspace-project-
 import { ActiveProjectChangeServiceLive } from './application/active-project-change-service'
 import { onSessionRemoved } from './application/session-removal-hooks'
 import { SessionWaitServiceLive } from './application/session-wait-service'
-import { installMcpSessionRemoval } from './mcp-session-removal'
-import { loadMcpShellEnvironment } from './mcp-shell-environment'
+import { startMcpHostServices } from './mcp-host-start'
 import { OperationAdapterLive } from './operation-adapter-layer'
 import {
   ActionKernelServicesLive,
@@ -286,9 +284,8 @@ installPiUserAppSettingsFallback()
 let sessionRemovalHooksInstalled = false
 
 export async function initializeAppRuntime(): Promise<void> {
-  // Archiving or deleting a Session, including Hive cleanup of a Worker, closes its MCP servers
-  // and ends its prompt cache warming.
-  installMcpSessionRemoval()
+  startMcpHostServices()
+  // Archiving or deleting a Session, including Hive cleanup of a Worker, ends its cache warming.
   if (!sessionRemovalHooksInstalled) {
     sessionRemovalHooksInstalled = true
     // Hooks run before the Pi file is archived or deleted, so no warming session writes to it.
@@ -297,10 +294,6 @@ export async function initializeAppRuntime(): Promise<void> {
       return Promise.resolve()
     })
   }
-  // MCP `${NAME}` values resolve from the user's login shell too; read it once, in the background.
-  void loadMcpShellEnvironment()
-  // Settings, the CLI, and Runs then all see the migrated MCP files.
-  void migrateOpenWaggleMcpFilesOnce(null)
   await getAppRuntime().runPromise(Effect.void)
 }
 
