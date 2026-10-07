@@ -39,6 +39,10 @@ import {
   type McpOAuthMigrationSink,
   migrateLegacyOAuthStates,
 } from './oauth-state-migration'
+import {
+  type McpSessionSwitchMigrationSink,
+  migrateLegacySessionSwitches,
+} from './session-switch-migration'
 
 export type { McpServerMigrationChange } from './entry-migration'
 export type { McpOAuthMigrationResult, McpOAuthMigrationSink } from './oauth-state-migration'
@@ -59,6 +63,8 @@ export interface MigrateOpenWaggleMcpFilesInput {
   readonly logger?: Logger
   /** Old encrypted OAuth state and Pi's credential store; OAuth is skipped without it. */
   readonly oauth?: McpOAuthMigrationSink
+  /** Switches MCP off for a Session in the Host; old per-Session switches are dropped without it. */
+  readonly sessionMcpSwitch?: McpSessionSwitchMigrationSink
 }
 
 export type McpFileMigrationStatus = 'migrated' | 'unchanged' | 'already-migrated' | 'failed'
@@ -74,7 +80,7 @@ export interface McpFileMigrationReport {
 export interface McpMigrationReport {
   readonly files: readonly McpFileMigrationReport[]
   readonly oauth: readonly McpOAuthMigrationResult[]
-  /** Session-level MCP switches in the old state; Session state now lives in the Host. */
+  /** Old per-Session MCP switches not carried over to the Host ('on' and 'inherit' need none). */
   readonly droppedSessionStates: number
   /** Set when the migration could not start (unreadable record or old state). */
   readonly error?: string
@@ -245,9 +251,12 @@ export async function migrateOpenWaggleMcpFiles(
         logger,
       })
     : []
-  return {
-    files,
-    oauth,
-    droppedSessionStates: Object.keys(state.sessionStates).length,
-  }
+  const droppedSessionStates = await migrateLegacySessionSwitches({
+    state,
+    record,
+    sink: input.sessionMcpSwitch,
+    now: input.now,
+    logger,
+  })
+  return { files, oauth, droppedSessionStates }
 }

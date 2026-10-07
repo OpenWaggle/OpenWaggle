@@ -1,7 +1,6 @@
 import { SessionId } from '@shared/types/brand'
 import * as Effect from 'effect/Effect'
-import { afterEach, describe, expect, it } from 'vitest'
-import { isSessionMcpEnabled, setSessionMcpEnabled } from '../adapters/mcp/mcp-session-switch'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   FakeUpstream,
   flush,
@@ -10,6 +9,13 @@ import {
 import { mcpSessionConnectionPool } from '../adapters/mcp/pool/mcp-connection-pool-instance'
 import { runSessionRemovalHooks } from '../application/session-removal-hooks'
 import { installMcpSessionRemoval } from '../mcp-session-removal'
+
+const { forgetSessionMcpSwitch } = vi.hoisted(() => ({
+  forgetSessionMcpSwitch: vi.fn(async (_sessionId: string) => undefined),
+}))
+
+// The switch is Host database state; `session-mcp-switch.integration.test.ts` covers the store.
+vi.mock('../store/session-mcp-switch', () => ({ forgetSessionMcpSwitch }))
 
 afterEach(async () => {
   await mcpSessionConnectionPool.closeAll()
@@ -35,13 +41,13 @@ describe("removing a Session (archive, delete, a Worker's cleanup)", () => {
     installMcpSessionRemoval()
     const removed = await warmConnection('removed')
     const kept = await warmConnection('kept')
-    setSessionMcpEnabled('removed', false)
 
     await Effect.runPromise(runSessionRemovalHooks(SessionId('removed')))
 
     expect(removed.closed).toBe(true)
     expect(kept.closed).toBe(false)
     expect(mcpSessionConnectionPool.warmSessions()).toEqual(['kept'])
-    expect(isSessionMcpEnabled('removed')).toBe(true)
+    expect(forgetSessionMcpSwitch).toHaveBeenCalledWith('removed')
+    expect(forgetSessionMcpSwitch).not.toHaveBeenCalledWith('kept')
   })
 })

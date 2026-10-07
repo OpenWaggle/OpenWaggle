@@ -13,9 +13,9 @@ import {
   type McpAppServerInput,
 } from '../../../ports/mcp-app-runtime-service'
 import { readSessionMcpServerAllowlist } from '../../../store/session-details/session-mcp-server-allowlist'
+import { isSessionMcpEnabled } from '../../../store/session-mcp-switch'
 import { loadMcpRuntimeConfig } from '../../mcp/config/mcp-runtime-config'
 import { resolveMcpVaultSecret } from '../../mcp/encrypted-mcp-secret-vault-service'
-import { isSessionMcpEnabled } from '../../mcp/mcp-session-switch'
 import { mcpSessionConnectionPool } from '../../mcp/pool/mcp-connection-pool-instance'
 import { mcpConnectionFingerprint, mcpServerIdentity } from '../../mcp/pool/mcp-server-identity'
 import { getPiAgentDir } from '../pi-provider-catalog'
@@ -39,7 +39,7 @@ const METHOD_NOT_FOUND = -32601
  */
 /** What a Run of the Session may use: its MCP switch and its Agent definition's server list. */
 async function assertSessionMayUse(input: McpAppServerInput) {
-  if (!isSessionMcpEnabled(input.sessionId)) {
+  if (!(await isSessionMcpEnabled(input.sessionId))) {
     throw new Error('MCP is turned off for this Session.')
   }
   const allowlist = await readSessionMcpServerAllowlist(input.sessionId)

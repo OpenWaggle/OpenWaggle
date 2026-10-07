@@ -1,7 +1,7 @@
-import { forgetSessionMcpSwitch } from './adapters/mcp/mcp-session-switch'
 import { mcpSessionConnectionPool } from './adapters/mcp/pool/mcp-connection-pool-instance'
 import { forgetMcpAppTools } from './adapters/pi/mcp/mcp-app-registry'
 import { onSessionRemoved } from './application/session-removal-hooks'
+import { forgetSessionMcpSwitch } from './store/session-mcp-switch'
 
 let installed = false
 
@@ -12,9 +12,11 @@ let installed = false
 export function installMcpSessionRemoval() {
   if (installed) return
   installed = true
-  onSessionRemoved((sessionId) => {
+  onSessionRemoved(async (sessionId) => {
     forgetMcpAppTools(sessionId)
-    forgetSessionMcpSwitch(sessionId)
-    return mcpSessionConnectionPool.closeSession(sessionId)
+    await Promise.all([
+      forgetSessionMcpSwitch(sessionId),
+      mcpSessionConnectionPool.closeSession(sessionId),
+    ])
   })
 }

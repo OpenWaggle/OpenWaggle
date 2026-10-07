@@ -24,12 +24,19 @@ const oauthRecordSchema = Schema.Struct({
   reason: Schema.optional(Schema.String),
 })
 
+const sessionSwitchRecordSchema = Schema.Struct({ migratedAt: Schema.String })
+
 const migrationRecordSchema = Schema.Struct({
   version: Schema.Number,
   files: Schema.Record({ key: Schema.String, value: fileRecordSchema }),
   oauth: Schema.optionalWith(Schema.Record({ key: Schema.String, value: oauthRecordSchema }), {
     default: () => ({}),
   }),
+  /** Sessions whose old MCP-off switch was written to the Host. */
+  sessionSwitches: Schema.optionalWith(
+    Schema.Record({ key: Schema.String, value: sessionSwitchRecordSchema }),
+    { default: () => ({}) },
+  ),
   /**
    * Decided on the first run: the projects whose on/off state the migration keeps, or null when
    * OpenWaggle had no MCP setup to keep (no old state.json and no ~/.openwaggle/mcp.json).
@@ -39,6 +46,7 @@ const migrationRecordSchema = Schema.Struct({
 
 export type McpMigrationFileRecord = typeof fileRecordSchema.Type
 export type McpMigrationOAuthRecord = typeof oauthRecordSchema.Type
+export type McpMigrationSessionSwitchRecord = typeof sessionSwitchRecordSchema.Type
 
 export function migrationRecordPath(homeDir: string) {
   return path.join(homeDir, '.openwaggle', 'mcp', 'migration.json')
@@ -51,13 +59,14 @@ export class McpMigrationRecord {
     private readonly filePath: string,
     private readonly files: Record<string, McpMigrationFileRecord>,
     private readonly oauth: Record<string, McpMigrationOAuthRecord>,
+    private readonly sessionSwitches: Record<string, McpMigrationSessionSwitchRecord>,
     private legacy: readonly string[] | null | undefined,
   ) {}
 
   static async load(fs: McpMigrationFs, homeDir: string) {
     const filePath = migrationRecordPath(homeDir)
     const text = await fs.readText(filePath)
-    if (!text?.trim()) return new McpMigrationRecord(fs, filePath, {}, {}, undefined)
+    if (!text?.trim()) return new McpMigrationRecord(fs, filePath, {}, {}, {}, undefined)
     const parsed: unknown = JSON.parse(text)
     const decoded = decodeUnknownOrThrow(migrationRecordSchema, parsed)
     return new McpMigrationRecord(
@@ -65,6 +74,7 @@ export class McpMigrationRecord {
       filePath,
       { ...decoded.files },
       { ...decoded.oauth },
+      { ...decoded.sessionSwitches },
       decoded.legacyProjects,
     )
   }
@@ -88,6 +98,15 @@ export class McpMigrationRecord {
     return this.oauth[key] !== undefined
   }
 
+  isSessionSwitchHandled(sessionId: string) {
+    return this.sessionSwitches[sessionId] !== undefined
+  }
+
+  async recordSessionSwitch(sessionId: string, record: McpMigrationSessionSwitchRecord) {
+    this.sessionSwitches[sessionId] = record
+    await this.persist()
+  }
+
   async recordFile(filePath: string, record: McpMigrationFileRecord) {
     this.files[filePath] = record
     await this.persist()
@@ -103,6 +122,9 @@ export class McpMigrationRecord {
       version: RECORD_FORMAT_VERSION,
       files: this.files,
       oauth: this.oauth,
+      ...(Object.keys(this.sessionSwitches).length === 0
+        ? {}
+        : { sessionSwitches: this.sessionSwitches }),
       ...(this.legacy === undefined ? {} : { legacyProjects: this.legacy }),
     }
     return this.fs.writeTextAtomic(this.filePath, `${JSON.stringify(value, null, JSON_INDENT)}\n`)

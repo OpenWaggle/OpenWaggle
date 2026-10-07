@@ -33,6 +33,9 @@ vi.mock('../../../../store/session-details/session-mcp-server-allowlist', () => 
   readSessionMcpServerAllowlist: async (sessionId: string) =>
     sessionId === 'narrowed-session' ? ['docs'] : undefined,
 }))
+vi.mock('../../../../store/session-mcp-switch', () => ({
+  isSessionMcpEnabled: async (sessionId: string) => sessionId !== 'switched-off',
+}))
 vi.mock('../../pi-provider-catalog', () => ({ getPiAgentDir: () => '/home/user/.pi/agent' }))
 vi.mock('../../../mcp/config/mcp-runtime-config', () => ({
   loadMcpRuntimeConfig: async () => ({
@@ -53,7 +56,6 @@ vi.mock('../pi-mcp-upstream', () => ({
 }))
 
 import { McpAppRuntimeService } from '../../../../ports/mcp-app-runtime-service'
-import { setSessionMcpEnabled } from '../../../mcp/mcp-session-switch'
 import { mcpSessionConnectionPool } from '../../../mcp/pool/mcp-connection-pool-instance'
 import { mcpServerIdentity } from '../../../mcp/pool/mcp-server-identity'
 import {
@@ -136,8 +138,6 @@ describe("MCP Apps over the Session's connection", () => {
   })
 
   it("refuses a server the Session's MCP switch or Agent definition rules out", async () => {
-    setSessionMcpEnabled('switched-off', false)
-
     const off = run((runtime) =>
       runtime.readResource({ ...APP, sessionId: 'switched-off', uri: 'ui://app' }),
     )
@@ -148,6 +148,5 @@ describe("MCP Apps over the Session's connection", () => {
     await expect(off).rejects.toThrow('MCP is turned off for this Session.')
     await expect(narrowed).rejects.toThrow('does not use the MCP server "figma"')
     expect(mocks.open).not.toHaveBeenCalled()
-    setSessionMcpEnabled('switched-off', true)
   })
 })

@@ -39,6 +39,8 @@ export function migrateOpenWaggleMcpFilesOnce(projectPath: string | null) {
           readOld: (name) => resolveMcpVaultSecret(name).catch(() => undefined),
           write: (stateKey, state) => writeOpenWaggleMcpOAuthState(stateKey, state),
         },
+        sessionMcpSwitch: async (sessionId) =>
+          (await import('../../../store/session-mcp-switch')).disableSessionMcp(sessionId),
       }).catch(() => undefined)
     migration = migrationQueue.then(run)
     migrationQueue = migration

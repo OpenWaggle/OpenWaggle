@@ -18,9 +18,9 @@ import {
   type McpServerScopeInput,
   type McpSignInResult,
 } from '../../../ports/mcp-server-runtime-service'
+import { isSessionMcpEnabled, setSessionMcpEnabled } from '../../../store/session-mcp-switch'
 import { loadMcpRuntimeConfig } from '../../mcp/config/mcp-runtime-config'
 import { resolveMcpVaultSecret } from '../../mcp/encrypted-mcp-secret-vault-service'
-import { isSessionMcpEnabled, setSessionMcpEnabled } from '../../mcp/mcp-session-switch'
 import { mcpSessionConnectionPool } from '../../mcp/pool/mcp-connection-pool-instance'
 import { mcpServerIdentity } from '../../mcp/pool/mcp-server-identity'
 import { getPiAgentDir } from '../pi-provider-catalog'
@@ -254,10 +254,10 @@ export const PiMcpServerRuntimeServiceLive = Layer.succeed(McpServerRuntimeServi
     }),
   signIn: (input) => attempt(() => signIn(input)),
   signOut: (input) => attempt(() => signOut(input)),
-  getSessionMcpEnabled: (sessionId) => Effect.sync(() => isSessionMcpEnabled(sessionId)),
+  getSessionMcpEnabled: (sessionId) => Effect.promise(() => isSessionMcpEnabled(sessionId)),
   setSessionMcpEnabled: (sessionId, enabled) =>
     Effect.promise(async () => {
-      setSessionMcpEnabled(sessionId, enabled)
+      await setSessionMcpEnabled(sessionId, enabled)
       // A Session switched off keeps no servers running.
       if (!enabled) await mcpSessionConnectionPool.closeSession(sessionId)
     }),

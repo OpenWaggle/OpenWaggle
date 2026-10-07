@@ -24,6 +24,7 @@ import {
   SESSION_HOST_TRANSCRIPT_TERM_NORMALIZATION_MIGRATION_ID,
   SESSION_HOST_TRANSCRIPT_TERM_NORMALIZATION_MIGRATION_NAME,
   SESSION_HOST_TURN_CHECKPOINT_STARTED_AT_MIGRATION_ID,
+  SESSION_MCP_SWITCH_MIGRATION_ID,
   SESSION_TITLE_PROVENANCE_MIGRATION_ID,
 } from './session-host-schema-identity'
 
@@ -88,6 +89,7 @@ const currentIdentities = [
   { id: SESSION_TITLE_PROVENANCE_MIGRATION_ID, name: 'session-title-provenance' },
   { id: PI_SESSION_ADOPTION_MIGRATION_ID, name: 'pi-session-adoption' },
   { id: PI_SESSION_FILE_STATE_MIGRATION_ID, name: 'pi-session-file-state' },
+  { id: SESSION_MCP_SWITCH_MIGRATION_ID, name: 'session-mcp-switch' },
 ]
 
 export interface MigrationIdentity {
