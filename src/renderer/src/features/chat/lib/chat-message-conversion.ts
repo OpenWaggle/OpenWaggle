@@ -27,6 +27,18 @@ function nestedCallsToUI(nestedCalls: NestedToolCalls | undefined) {
     : {}
 }
 
+/** The active Run buffer's record of a call still running: an unfinished nested call is live. */
+function liveNestedCallsToUI(nestedCalls: NestedToolCalls | undefined) {
+  return nestedCalls && nestedCalls.calls.length > 0
+    ? {
+        nestedCalls: nestedCalls.calls.map((record) => {
+          const call = nestedCallToUI(record)
+          return call.state === 'unfinished' ? { ...call, state: 'executing' as const } : call
+        }),
+      }
+    : {}
+}
+
 /**
  * Convert a persisted agent message part into renderer UI parts.
  * This is the boundary between storage transport shapes and chat presentation state.
@@ -41,6 +53,7 @@ export function messagePartToUIParts(part: MessagePart): UIMessage['parts'] {
         name: value.toolCall.name,
         arguments: JSON.stringify(value.toolCall.args),
         state: value.toolCall.state ?? 'input-complete',
+        ...liveNestedCallsToUI(value.toolCall.nestedCalls),
       },
     ])
     .with('tool-result', (value): UIMessage['parts'] => [

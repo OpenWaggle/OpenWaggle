@@ -22,7 +22,10 @@ import {
   withoutRetainedStreamContent,
   withWorktreeLaunchSnapshot,
 } from './stream-buffer-snapshots'
-import { applyToolExecutionEndToParts } from './stream-buffer-tool-parts'
+import {
+  applyToolExecutionEndToParts,
+  applyToolExecutionStartToParts,
+} from './stream-buffer-tool-parts'
 import {
   appendStreamBufferText,
   appendStreamBufferToolCallDelta,
@@ -167,20 +170,11 @@ export function applyEventToStreamBuffer(sessionId: SessionId, event: AgentTrans
     .with('message_update', (value) => applyMessageUpdateToStreamBuffer(sessionId, value))
     .with('message_end', 'context_usage', () => undefined)
     .with('tool_execution_start', 'tool_execution_update', (value) => {
-      // Nested calls (Pi ctx.executeTool()) have no transcript entry; they never become parts.
-      if (value.parentToolCallId) return
-      if (activeBuffers.get(sessionId)?.degradedToolCallIds.has(value.toolCallId)) return
-      updateBufferedParts(sessionId, (parts) =>
-        upsertToolCallPart({
-          parts,
-          toolCallId: value.toolCallId,
-          toolName: value.toolName,
-          args: value.args,
-        }),
-      )
+      const degraded = activeBuffers.get(sessionId)?.degradedToolCallIds.has(value.toolCallId)
+      if (degraded && !value.parentToolCallId) return
+      updateBufferedParts(sessionId, (parts) => applyToolExecutionStartToParts(parts, value))
     })
     .with('tool_execution_end', (value) => {
-      if (value.parentToolCallId) return
       const preserveArgs = activeBuffers.get(sessionId)?.degradedToolCallIds.has(value.toolCallId)
       updateBufferedParts(sessionId, (parts) =>
         applyToolExecutionEndToParts(parts, value, preserveArgs),

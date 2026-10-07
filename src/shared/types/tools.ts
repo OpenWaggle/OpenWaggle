@@ -6,6 +6,8 @@ export interface ToolCallRequest {
   readonly name: string
   readonly args: Readonly<JsonObject>
   readonly state?: 'input-complete'
+  /** Nested calls seen live while the call ran, kept in the active Run buffer for reconnects. */
+  readonly nestedCalls?: NestedToolCalls
 }
 
 /**

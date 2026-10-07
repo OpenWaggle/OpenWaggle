@@ -3,6 +3,40 @@ import { describe, expect, it } from 'vitest'
 import { messagePartToUIParts } from '../chat-message-conversion'
 
 describe('messagePartToUIParts', () => {
+  it('restores the live nested calls of a running tool call from the active Run buffer', () => {
+    const parts = messagePartToUIParts({
+      type: 'tool-call',
+      toolCall: {
+        id: ToolCallId('code-1'),
+        name: 'codemode',
+        args: {},
+        state: 'input-complete',
+        nestedCalls: {
+          calls: [
+            { id: 'code-1/1', name: 'read', args: { path: 'a.ts' }, status: 'ok' },
+            { id: 'code-1/2', name: 'bash', argsBytes: 9000, status: 'unfinished' },
+          ],
+          complete: false,
+        },
+      },
+    })
+
+    expect(parts).toEqual([
+      {
+        type: 'tool-call',
+        id: 'code-1',
+        name: 'codemode',
+        arguments: '{}',
+        state: 'input-complete',
+        nestedCalls: [
+          { id: 'code-1/1', name: 'read', arguments: '{"path":"a.ts"}', state: 'complete' },
+          // Still running when the renderer reconnected.
+          { id: 'code-1/2', name: 'bash', state: 'executing' },
+        ],
+      },
+    ])
+  })
+
   it('carries the nested calls Pi recorded on a persisted tool result', () => {
     expect(
       messagePartToUIParts({

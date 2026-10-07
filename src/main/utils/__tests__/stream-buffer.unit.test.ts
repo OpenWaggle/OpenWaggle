@@ -188,51 +188,6 @@ describe('stream-buffer', () => {
     })
   })
 
-  it('never buffers nested tool calls as parts of their own', () => {
-    startStreamBuffer(SESSION_ID, MODEL, 'classic')
-    applyEventToStreamBuffer(SESSION_ID, {
-      type: 'tool_execution_start',
-      toolCallId: 'code-1',
-      toolName: 'codemode',
-      args: {},
-      timestamp: 1,
-    })
-    applyEventToStreamBuffer(SESSION_ID, {
-      type: 'tool_execution_start',
-      toolCallId: 'code-1/1',
-      toolName: 'read',
-      args: { path: 'a.ts' },
-      parentToolCallId: 'code-1',
-      timestamp: 2,
-    })
-    applyEventToStreamBuffer(SESSION_ID, {
-      type: 'tool_execution_update',
-      toolCallId: 'code-1/1',
-      toolName: 'read',
-      args: { path: 'a.ts' },
-      partialResult: 'partial',
-      parentToolCallId: 'code-1',
-      timestamp: 3,
-    })
-    applyEventToStreamBuffer(SESSION_ID, {
-      type: 'tool_execution_end',
-      toolCallId: 'code-1/1',
-      toolName: 'read',
-      args: { path: 'a.ts' },
-      result: 'file contents',
-      isError: false,
-      parentToolCallId: 'code-1',
-      timestamp: 4,
-    })
-
-    expect(getStreamBuffer(SESSION_ID)?.parts).toEqual([
-      {
-        type: 'tool-call',
-        toolCall: { id: 'code-1', name: 'codemode', args: {}, state: 'input-complete' },
-      },
-    ])
-  })
-
   it('accounts for long text streams without serializing the accumulated payload per delta', () => {
     startStreamBuffer(SESSION_ID, MODEL, 'classic')
     const stringifySpy = vi.spyOn(JSON, 'stringify')
