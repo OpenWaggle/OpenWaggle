@@ -227,6 +227,11 @@ function getLiveVault() {
   return liveVault
 }
 
+/** Resolves a `{ "secret": name }` reference in OpenWaggle's MCP files before Pi sees them. */
+export function resolveMcpVaultSecret(name: string) {
+  return getLiveVault().resolve(name)
+}
+
 function toVaultError(error: unknown): McpVaultError {
   return error instanceof McpVaultError ? error : toMcpVaultError('io', error)
 }

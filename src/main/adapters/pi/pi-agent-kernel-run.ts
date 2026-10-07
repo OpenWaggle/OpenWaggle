@@ -1,5 +1,6 @@
 import * as Effect from 'effect/Effect'
 import { withRetainedScratchDirectory } from '../../application/session-scratch-retention'
+import { createLogger } from '../../logger'
 import type {
   AgentKernelRunInput,
   AgentKernelWaggleRunOptions,
@@ -8,12 +9,14 @@ import type { BrowserPreviewAutomationServiceShape } from '../../ports/browser-p
 import type { InlineVisualizationServiceShape } from '../../ports/inline-visualization-service'
 import type { TerminalServiceShape } from '../../ports/terminal-service'
 import type { WorkspacePreparationServiceShape } from '../../ports/workspace-preparation-service'
+import { mcpSessionConnectionPool } from '../mcp/pool/mcp-connection-pool-instance'
 import { runPiSession } from './agent-kernel/classic-run'
 import type { PiRuntimeExtensionIsolationInput } from './agent-kernel/runtime-extension-isolation'
 import { refreshFirstRunBranch } from './agent-kernel/session-branch-freshness'
 import { runPiWaggle } from './agent-kernel/waggle-run'
 import { createBrowserPreviewAutomationExtension } from './browser-preview-automation-extension'
 import { BROWSER_PREVIEW_AUTOMATION_SYSTEM_PROMPT } from './browser-preview-automation-system-prompt'
+import { createOpenWaggleMcpExtensions } from './mcp/openwaggle-mcp-extensions'
 import {
   createWorktreeLaunchReporter,
   prepareScratchDirectory,
@@ -25,6 +28,32 @@ import {
   type ProjectActionToolServices,
 } from './project-actions-tool-extension'
 import { createSessionsToolExtension } from './sessions-tool-extension'
+
+const logger = createLogger('pi-agent-kernel-run')
+
+/**
+ * Pi's MCP extension for this Run. A configuration that cannot be prepared is logged and the Run
+ * goes ahead without MCP, rather than failing the user's message.
+ */
+function prepareMcpExtensions(input: AgentKernelRunInput, projectPath: string) {
+  return Effect.tryPromise(() =>
+    createOpenWaggleMcpExtensions({
+      sessionId: input.session.id,
+      projectPath,
+      ...(input.mcpServerAllowlist ? { serverAllowlist: input.mcpServerAllowlist } : {}),
+    }),
+  ).pipe(
+    Effect.catchAll((error) =>
+      Effect.sync(() => {
+        logger.error('MCP could not be prepared for the Run', {
+          sessionId: input.session.id,
+          error: error.message,
+        })
+        return []
+      }),
+    ),
+  )
+}
 
 export function createBrowserPreviewRuntimeResources(input: {
   readonly enabled: boolean
@@ -88,7 +117,12 @@ export function runPiAgentKernel(
     readonly enableBrowserPreviewAutomation: boolean
   },
 ) {
-  return withRetainedScratchDirectory(input.session.id, runPiAgentKernelTurn(input, dependencies))
+  // A Session's MCP connections stay warm while it has a Run and close 5 minutes after its last.
+  return Effect.acquireUseRelease(
+    Effect.sync(() => mcpSessionConnectionPool.beginRun(input.session.id)),
+    () => withRetainedScratchDirectory(input.session.id, runPiAgentKernelTurn(input, dependencies)),
+    (endRun) => Effect.sync(endRun),
+  )
 }
 
 function runPiAgentKernelTurn(
@@ -101,11 +135,12 @@ function runPiAgentKernelTurn(
       launchReporter.runInput,
       { workspaces: dependencies.projectActions.workspaces, preparation: dependencies.preparation },
     )
-    const [, visualizationDirectory, scratchDirectory] = yield* Effect.all(
+    const [, visualizationDirectory, scratchDirectory, extensionFactories] = yield* Effect.all(
       [
         refreshFirstRunBranch(input, executionPath, launchReporter.report),
         prepareVisualizationDirectory(dependencies.inlineVisualization, input.session.id),
         prepareScratchDirectory(input.session.id),
+        prepareMcpExtensions(input, projectPath),
       ],
       { concurrency: 'unbounded' },
     ).pipe(Effect.onError(() => Effect.sync(() => launchReporter.close())))
@@ -134,6 +169,7 @@ function runPiAgentKernelTurn(
               workingPath: executionPath,
               preparedEnvironment,
               sessionsExtensionFactory,
+              extensionFactories,
               ...(visualizationDirectory ? { visualizationDirectory } : {}),
               ...(scratchDirectory ? { scratchDirectory } : {}),
               ...browserPreviewResources,
@@ -145,6 +181,7 @@ function runPiAgentKernelTurn(
               workingPath: executionPath,
               preparedEnvironment,
               sessionsExtensionFactory,
+              extensionFactories,
               ...(visualizationDirectory ? { visualizationDirectory } : {}),
               ...(scratchDirectory ? { scratchDirectory } : {}),
               ...browserPreviewResources,

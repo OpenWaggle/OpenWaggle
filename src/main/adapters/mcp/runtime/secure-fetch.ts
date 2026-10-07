@@ -138,6 +138,8 @@ export async function validateMcpNetworkTarget(input: {
   readonly allowedHosts: ReadonlySet<string>
   readonly allowInsecurePrivateNetwork: boolean
   readonly allowLoopback?: boolean
+  /** Plain `http:` to any host: only for an endpoint the user configured, as Pi allows. */
+  readonly allowPlainHttp?: boolean
   readonly websocket?: boolean
   readonly resolveHostname?: HostnameResolver
 }) {
@@ -145,7 +147,9 @@ export async function validateMcpNetworkTarget(input: {
     throw new Error('MCP network URLs cannot contain credentials.')
   }
   assertLoopbackAllowed(input.url, input.allowLoopback)
-  assertSecureMcpProtocol(input.url, input.websocket === true)
+  if (!(input.allowPlainHttp === true && input.url.protocol === 'http:')) {
+    assertSecureMcpProtocol(input.url, input.websocket === true)
+  }
   if (!isAllowedMcpHostname(input.allowedHosts, input.url.hostname)) {
     throw new Error(`MCP redirect target is not allowlisted: ${input.url.hostname}.`)
   }
@@ -254,6 +258,7 @@ export function createSecureMcpFetch(input: {
   readonly allowPublicRedirects?: boolean
   readonly allowInsecurePrivateNetwork?: boolean
   readonly allowLoopback?: boolean
+  readonly allowPlainHttp?: boolean
   readonly maxResponseBytes?: number
   readonly fetchFn?: PinnedFetch
   readonly resolveHostname?: HostnameResolver
@@ -282,6 +287,7 @@ export function createSecureMcpFetch(input: {
           allowedHosts,
           allowInsecurePrivateNetwork: input.allowInsecurePrivateNetwork === true,
           ...(input.allowLoopback !== undefined ? { allowLoopback: input.allowLoopback } : {}),
+          ...(input.allowPlainHttp ? { allowPlainHttp: true } : {}),
           ...(input.resolveHostname ? { resolveHostname: input.resolveHostname } : {}),
         })
         const response = await (input.fetchFn ?? pinnedFetch)(url, init, target)
