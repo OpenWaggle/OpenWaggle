@@ -6,7 +6,7 @@ import {
 import type {
   McpConfiguredValue,
   McpServerConfig,
-  McpServerTransport,
+  McpTransportKind,
 } from '../../../domain/mcp/config/mcp-server-config'
 import {
   type McpConfigFileReader,
@@ -39,7 +39,7 @@ export interface McpRuntimeLoadedConfig {
 export interface McpRuntimeConfig {
   readonly loaded: McpRuntimeLoadedConfig
   /** The real transport of each server, for servers Pi sees as plain URL entries. */
-  readonly transports: ReadonlyMap<string, McpServerTransport>
+  readonly transports: ReadonlyMap<string, McpTransportKind>
   /** The merge before secret resolution, with file ids, for management views. */
   readonly merged: McpMergedConfig
 }
@@ -148,7 +148,7 @@ export async function loadMcpRuntimeConfig(
       : merged.servers.filter((server) => !allowlist || allowlist.has(server.name))
   const errors = [...merged.errors]
   const servers: McpRuntimeServerEntry[] = []
-  const transports = new Map<string, McpServerTransport>()
+  const transports = new Map<string, McpTransportKind>()
   for (const server of selected) {
     const resolved = await resolveServer(server, input.resolveSecret)
     if (!resolved.ok) {

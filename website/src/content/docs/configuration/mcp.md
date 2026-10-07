@@ -20,7 +20,7 @@ Only add servers you trust. A server can run a program on your computer or send 
 
 The server connects the next time you send a message. **Recommended servers** installs Playwright MCP or Chrome DevTools MCP in one click.
 
-To bring servers over from another app, choose **Import**. OpenWaggle reads Codex, Claude Desktop, Claude Code, Cursor, VS Code, OpenCode, Zed, and Windsurf, shows what it found, and adds the servers you pick to OpenWaggle's file. Servers you configured for Pi do not need importing; OpenWaggle reads Pi's files directly.
+To bring servers over from another app, choose **Import**. OpenWaggle reads Codex, Claude's desktop and command-line apps, Cursor, VS Code, OpenCode, Zed, and Windsurf, shows what it found, and adds the servers you pick to OpenWaggle's file. Servers you configured for Pi do not need importing; OpenWaggle reads Pi's files directly.
 
 ## Where servers are configured
 
@@ -151,7 +151,7 @@ openwaggle mcp add docs --url https://example.com/mcp
 openwaggle mcp add --local tools -- uvx tools-mcp
 openwaggle mcp disable docs
 openwaggle mcp login sentry
-openwaggle mcp import --from codex,claude-code
+openwaggle mcp import --from codex,cursor
 ```
 
 New servers go to `~/.openwaggle/mcp.json`, or to `.openwaggle/mcp.json` in the current project with `--local`.

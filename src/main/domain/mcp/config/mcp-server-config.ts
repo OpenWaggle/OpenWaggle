@@ -18,15 +18,15 @@ const MCP_EXPOSURE_ALIASES: Readonly<Record<string, McpExposure>> = {
   'codemode-deferred': 'codemode',
 }
 
-export type McpServerTransport = 'stdio' | 'http' | 'sse' | 'websocket'
+export type McpTransportKind = 'stdio' | 'http' | 'sse' | 'websocket'
 
 /** A value OpenWaggle resolves from its encrypted vault before Pi sees the config. */
-export interface McpSecretReference {
+export interface McpVaultSecretReference {
   readonly secret: string
 }
 
 /** An `env` or `headers` value as configured: plain text, or a vault reference in OpenWaggle's files. */
-export type McpConfiguredValue = string | McpSecretReference
+export type McpConfiguredValue = string | McpVaultSecretReference
 
 export interface McpServerConfigBase {
   exposure?: McpExposure
@@ -71,7 +71,7 @@ export type McpServerConfig = McpServerConfigOf<string>
 
 export interface McpValidatedServer {
   readonly config: McpConfiguredServerConfig
-  readonly transport: McpServerTransport
+  readonly transport: McpTransportKind
 }
 
 export type McpServerValidation =

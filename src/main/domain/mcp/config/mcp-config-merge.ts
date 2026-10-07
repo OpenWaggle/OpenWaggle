@@ -15,7 +15,7 @@ import {
   isMcpOverrideEntry,
   MCP_OVERRIDE_KEYS,
   type McpConfiguredServerConfig,
-  type McpServerTransport,
+  type McpTransportKind,
   mcpNamespace,
 } from './mcp-server-config'
 import { validateMcpServerEntry } from './mcp-server-entry-validation'
@@ -60,7 +60,7 @@ export interface McpConfigFileReference {
 export interface McpMergedServer {
   readonly name: string
   readonly config: McpConfiguredServerConfig
-  readonly transport: McpServerTransport
+  readonly transport: McpTransportKind
   /** The file whose full entry defines the server. */
   readonly source: McpConfigFileReference
   readonly scope: McpConfigScope

@@ -13,12 +13,12 @@ import {
   type McpConfiguredValue,
   type McpExposure,
   type McpHttpServerConfigOf,
-  type McpSecretReference,
   type McpServerConfigBase,
-  type McpServerTransport,
   type McpServerValidation,
   type McpServerValidationOptions,
   type McpStdioServerConfigOf,
+  type McpTransportKind,
+  type McpVaultSecretReference,
   resolveMcpExposureAlias,
 } from './mcp-server-config'
 
@@ -30,7 +30,7 @@ function failure(name: string, message: string): Failure {
 
 const EXPOSURE_LIST = MCP_EXPOSURES.map((exposure) => `"${exposure}"`).join(', ')
 
-function isSecretReference(value: unknown): value is McpSecretReference {
+function isSecretReference(value: unknown): value is McpVaultSecretReference {
   return (
     isJsonRecord(value) &&
     typeof value.secret === 'string' &&
@@ -124,7 +124,7 @@ function validateBase(name: string, value: JsonRecord): BaseResult {
   }
 }
 
-type UrlTransport = McpServerTransport | 'invalid' | 'unsupported'
+type UrlTransport = McpTransportKind | 'invalid' | 'unsupported'
 
 const HTTP_PROTOCOLS = ['http:', 'https:']
 const WEBSOCKET_PROTOCOLS = ['ws:', 'wss:']

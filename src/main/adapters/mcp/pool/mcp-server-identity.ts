@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import type {
   McpServerConfig,
-  McpServerTransport,
+  McpTransportKind,
 } from '../../../domain/mcp/config/mcp-server-config'
 
 const IDENTITY_HASH_LENGTH = 16
@@ -40,7 +40,7 @@ export function mcpServerIdentity(name: string, config: McpServerConfig) {
  */
 export function mcpConnectionFingerprint(input: {
   readonly config: McpServerConfig
-  readonly transport: McpServerTransport
+  readonly transport: McpTransportKind
   readonly cwd: string
 }) {
   const {
