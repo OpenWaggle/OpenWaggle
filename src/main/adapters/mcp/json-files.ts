@@ -6,9 +6,34 @@ import { decodeUnknownOrThrow, Schema } from '@shared/schema'
 import { mcpConfigFileSchema } from '@shared/schemas/mcp'
 import type { McpConfigFile } from '@shared/types/mcp'
 import { createLogger } from '../../logger'
-import type { McpUserStateFile } from './config-types'
 
 const logger = createLogger('mcp-files')
+
+/**
+ * OpenWaggle's pre-ADR-0048 MCP state file (`~/.openwaggle/mcp-state.json`): on/off scope state
+ * and per-server enabled, trust, and permission records. Only the one-time migration reads it.
+ */
+export interface McpUserStateFile {
+  readonly version: number
+  readonly globalState: 'on' | 'off'
+  readonly projectStates: Readonly<Record<string, 'inherit' | 'on' | 'off'>>
+  readonly sessionStates: Readonly<Record<string, 'inherit' | 'on' | 'off'>>
+  /** Per-project server overrides, keyed by project path then server instance id. */
+  readonly projectServerStates: Readonly<Record<string, Readonly<Record<string, 'on' | 'off'>>>>
+  readonly servers: Readonly<Record<string, McpServerUserState>>
+}
+
+export interface McpServerUserState {
+  readonly instanceId: string
+  readonly enabled: boolean
+  readonly trustedConfigHash?: string
+  readonly allowUnsandboxed?: boolean
+  readonly permissions?: {
+    readonly readRoots: readonly string[]
+    readonly writeRoots: readonly string[]
+    readonly allowNetwork: boolean
+  }
+}
 
 const mcpServerPermissionGrantSchema = Schema.Struct({
   readRoots: Schema.Array(Schema.String),

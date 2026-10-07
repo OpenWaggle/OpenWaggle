@@ -18,6 +18,7 @@ import { FilesystemSessionResourceStoreLive } from './adapters/filesystem-sessio
 import { FilesystemWorkspaceFileLive } from './adapters/filesystem-workspace-file-service'
 import { LocalSessionCredentialVerifierLive } from './adapters/local-session-credential-verifier'
 import { idleCacheWarming } from './adapters/pi/agent-kernel/pi-idle-cache-warming'
+import { EncryptedMcpSecretVaultServiceLive } from './adapters/mcp/encrypted-mcp-secret-vault-service'
 import { PiAgentKernelLive } from './adapters/pi/pi-agent-kernel-adapter'
 import { PiAgentSteeringServiceLive } from './adapters/pi/pi-agent-steering-adapter'
 import { registerPiBundledOAuthFlows } from './adapters/pi/pi-bundled-oauth'
@@ -61,7 +62,6 @@ import {
 import { DesktopServicesLive } from './runtime-desktop-services'
 import { HiveWorkerCleanupServicesLive } from './runtime-hive-cleanup-services'
 import { startHostBackgroundServices } from './runtime-host-services'
-import { McpServicesLive } from './runtime-mcp-services'
 import { SessionControlPersistenceLive } from './runtime-session-control-persistence'
 import { SessionTitleServicesLive } from './runtime-session-title-services'
 import { AppDatabaseLive } from './services/database-service'
@@ -104,7 +104,6 @@ const PiAgentKernelWithExtensionSelectionLive = PiAgentKernelLive.pipe(
   Layer.provide(
     Layer.mergeAll(
       ExtensionRuntimeSelectionLive,
-      McpServicesLive,
       ActionKernelServicesLive,
       FilesystemInlineVisualizationLive,
       DesktopServicesLive,
@@ -230,7 +229,7 @@ const AppLayer = Layer.mergeAll(
   SessionTitleServicesLive,
   FilesystemStandardsLive,
   PiAgentKernelWithExtensionSelectionLive,
-  McpServicesLive,
+  EncryptedMcpSecretVaultServiceLive,
   PiProviderAuthLive,
   PiProviderProbeWithExtensionSelectionLive,
   PiProviderOAuthLive,

@@ -5,15 +5,27 @@ import {
   MCP_LEGACY_PROTOCOL_VERSIONS,
   MCP_SUPPORTED_PROTOCOL_VERSIONS,
 } from '@shared/constants/mcp'
-import type { McpTurnSnapshotServer } from '@shared/types/mcp'
 
 type ProtocolOptions = Pick<ClientOptions, 'supportedProtocolVersions' | 'versionNegotiation'>
+
+/**
+ * The fields of a server entry that pick its protocol revisions. Only the hosted
+ * `openwaggle mcp serve` tests use this now, to connect a client of each protocol era; Pi's MCP
+ * client negotiates its own revisions (ADR 0048).
+ */
+interface McpProtocolSelection {
+  readonly definition: {
+    readonly compatibility?: string
+    readonly transport?: string
+    readonly protocolVersion?: string
+  }
+}
 
 function isLegacyRevision(version: string) {
   return MCP_LEGACY_PROTOCOL_VERSIONS.some((candidate) => candidate === version)
 }
 
-export function getMcpProtocolOptions(server: McpTurnSnapshotServer): ProtocolOptions {
+export function getMcpProtocolOptions(server: McpProtocolSelection): ProtocolOptions {
   const profile =
     server.definition.compatibility ??
     (server.definition.transport === 'sse'
