@@ -68,6 +68,7 @@ describe('Pi native run control', () => {
 
     expect(session.prompt).toHaveBeenCalledWith('/skill:review-pr', {
       streamingBehavior: 'steer',
+      streamingOnly: true,
     })
     expect(session.steer).not.toHaveBeenCalled()
     expect(result).toEqual({
@@ -93,6 +94,7 @@ describe('Pi native run control', () => {
 
     expect(session.prompt).toHaveBeenCalledWith('/registered-command', {
       streamingBehavior: 'steer',
+      streamingOnly: true,
     })
     expect(session.steer).not.toHaveBeenCalled()
     expect(result).toEqual({ delivery: 'handled' })
@@ -274,6 +276,7 @@ describe('Pi native run control', () => {
 
     expect(session.prompt).toHaveBeenCalledWith('/skill:review-pr', {
       streamingBehavior: 'steer',
+      streamingOnly: true,
       transformExpandedText: expect.any(Function),
     })
     expect(result).toEqual({

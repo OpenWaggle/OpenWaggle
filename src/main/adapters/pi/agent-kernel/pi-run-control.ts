@@ -9,6 +9,7 @@ import {
 import { enqueueUserInputProjection } from './user-input-projection'
 
 const PI_STEER_READY_POLL_MS = 20
+const NOT_READY_FOR_STEERING = 'The active Pi session is not ready for steering.'
 
 interface PiSteeringSession {
   readonly sessionManager: Pick<AgentSession['sessionManager'], 'appendCustomEntry' | 'getEntries'>
@@ -52,6 +53,39 @@ async function waitForCompaction(session: PiSteeringSession, signal: AbortSignal
   }
 }
 
+/** Pi's code for a `streamingOnly` prompt that arrived after the active turn ended. */
+const AGENT_NOT_STREAMING = 'agent_not_streaming'
+
+function isAgentNotStreaming(cause: unknown) {
+  return cause instanceof Error && 'code' in cause && cause.code === AGENT_NOT_STREAMING
+}
+
+/**
+ * Routes steering through Pi's input hook into the active turn only. Pi decides after its input
+ * handlers ran, so the turn can end in between; `streamingOnly` makes Pi refuse then, rather than
+ * start a new turn and report the steer as handled.
+ */
+async function promptIntoActiveTurn(
+  session: Pick<PiSteeringSession, 'prompt'>,
+  text: string,
+  options: Omit<
+    NonNullable<Parameters<AgentSession['prompt']>[1]>,
+    'streamingBehavior' | 'streamingOnly'
+  >,
+) {
+  try {
+    if (!session.prompt) throw new Error('The active Pi session cannot route steering input.')
+    return await session.prompt(text, {
+      ...options,
+      streamingBehavior: 'steer',
+      streamingOnly: true,
+    })
+  } catch (cause) {
+    if (isAgentNotStreaming(cause)) throw new Error(NOT_READY_FOR_STEERING, { cause })
+    throw cause
+  }
+}
+
 export function createPiRunControl(
   session: PiSteeringSession,
   signal: AbortSignal,
@@ -62,7 +96,7 @@ export function createPiRunControl(
       await waitForCompaction(session, signal)
       if (signal.aborted) throw abortError()
       if (!session.isStreaming) {
-        throw new Error('The active Pi session is not ready for steering.')
+        throw new Error(NOT_READY_FOR_STEERING)
       }
       const promptInput = buildPiPromptInput({ input: session.model?.input ?? ['text'] }, payload)
       const visualizationContext = promptInput.visualizationContext
@@ -79,11 +113,9 @@ export function createPiRunControl(
       try {
         let durableText: string | undefined
         if (options.routeThroughInputHook) {
-          if (!session.prompt) throw new Error('The active Pi session cannot route steering input.')
-          durableText = await session.prompt(text, {
+          durableText = await promptIntoActiveTurn(session, text, {
             ...(images ? { images } : {}),
             ...(transformExpandedText ? { transformExpandedText } : {}),
-            streamingBehavior: 'steer',
           })
         } else {
           durableText = await session.steer(text, images, transformSteeringText)

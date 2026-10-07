@@ -112,7 +112,10 @@ describe('Pi live Run registry', () => {
       accepted: true,
       receipt: { delivery: 'handled' },
     })
-    expect(prompt).toHaveBeenCalledWith('/handled', { streamingBehavior: 'steer' })
+    expect(prompt).toHaveBeenCalledWith('/handled', {
+      streamingBehavior: 'steer',
+      streamingOnly: true,
+    })
     expect(steer).not.toHaveBeenCalled()
   })
 
