@@ -1,8 +1,8 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
-import type { AddressInfo } from 'node:net'
 import type { AuthProvider } from '@earendil-works/pi-mcp'
 import { McpClient } from '@earendil-works/pi-mcp'
 import { afterEach, describe, expect, it } from 'vitest'
+import { WebSocketServer } from 'ws'
 import { McpSessionConnectionPool } from '../../../mcp/pool/mcp-session-connection-pool'
 import { openPiMcpUpstream } from '../pi-mcp-upstream'
 
@@ -50,10 +50,14 @@ function legacySseServer() {
 }
 
 const servers: Server[] = []
+const socketServers: WebSocketServer[] = []
 const pools: McpSessionConnectionPool[] = []
 
 afterEach(async () => {
   await Promise.all(pools.splice(0).map((pool) => pool.closeAll()))
+  await Promise.all(
+    socketServers.splice(0).map((server) => new Promise((resolve) => server.close(resolve))),
+  )
   for (const server of servers.splice(0)) server.closeAllConnections()
   await Promise.all(servers.map((server) => new Promise((resolve) => server.close(resolve))))
 })
@@ -62,18 +66,23 @@ async function listen() {
   const fixture = legacySseServer()
   servers.push(fixture.server)
   await new Promise<void>((resolve) => fixture.server.listen(0, '127.0.0.1', resolve))
-  const { port } = fixture.server.address() as AddressInfo
+  const address = fixture.server.address()
+  const port = typeof address === 'object' && address ? address.port : 0
   return { ...fixture, url: `http://127.0.0.1:${String(port)}/sse` }
 }
 
-async function connect(url: string, authProvider: AuthProvider) {
+async function connect(
+  url: string,
+  authProvider: AuthProvider | undefined,
+  transport: 'sse' | 'websocket' = 'sse',
+) {
   const pool = new McpSessionConnectionPool()
   pools.push(pool)
-  const entry = { name: 'sse', config: { url }, source: 'test' }
+  const entry = { name: transport, config: { url }, source: 'test' }
   const lease = pool.lease('s1', {
-    name: 'sse',
+    name: transport,
     fingerprint: 'v1',
-    open: () => openPiMcpUpstream({ entry, transport: 'sse', cwd: process.cwd(), authProvider }),
+    open: () => openPiMcpUpstream({ entry, transport, cwd: process.cwd(), authProvider }),
   })
   const client = new McpClient({ name: 'pi', version: '1' })
   await client.connect(lease)
@@ -120,5 +129,39 @@ describe('legacy SSE servers that need a sign-in, through the pool', () => {
 
     expect(failure).toBeInstanceOf(Error)
     expect(failure).toMatchObject({ name: 'McpAuthRequiredError' })
+  })
+})
+
+/** A legacy WebSocket MCP server: JSON-RPC messages as text frames. */
+async function webSocketServer() {
+  const server = new WebSocketServer({ host: '127.0.0.1', port: 0 })
+  socketServers.push(server)
+  server.on('connection', (socket) => {
+    socket.on('message', (data) => {
+      const message: { id?: number; method: string } = JSON.parse(data.toString())
+      if (message.id === undefined) return
+      const result =
+        message.method === 'initialize'
+          ? {
+              protocolVersion: '2024-11-05',
+              capabilities: { tools: {} },
+              serverInfo: { name: 'ws', version: '1' },
+            }
+          : { tools: [{ name: 'ping', inputSchema: { type: 'object' } }] }
+      socket.send(JSON.stringify({ jsonrpc: '2.0', id: message.id, result }))
+    })
+  })
+  await new Promise<void>((resolve) => server.once('listening', resolve))
+  const address = server.address()
+  return `ws://127.0.0.1:${String(typeof address === 'object' && address ? address.port : 0)}/mcp`
+}
+
+describe('legacy WebSocket servers, through the pool', () => {
+  it('connects and lists tools', async () => {
+    const url = await webSocketServer()
+
+    const first = await connect(url, undefined, 'websocket')
+    await expect(first.listTools()).resolves.toEqual([expect.objectContaining({ name: 'ping' })])
+    await first.close()
   })
 })

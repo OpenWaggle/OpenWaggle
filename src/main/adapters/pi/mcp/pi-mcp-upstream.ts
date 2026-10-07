@@ -96,7 +96,13 @@ function openHttp(
   if (kind === 'websocket') {
     return {
       transport: new McpSdkTransportAdapter(
-        new LegacyWebSocketClientTransport({ url: new URL(config.url), headers }),
+        // The configured server may be plain ws:// or on a private network, as HTTP servers may.
+        new LegacyWebSocketClientTransport({
+          url: new URL(config.url),
+          headers,
+          allowInsecurePrivateNetwork: true,
+          allowPlainWebSocket: true,
+        }),
       ),
     }
   }

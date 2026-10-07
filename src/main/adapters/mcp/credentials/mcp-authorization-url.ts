@@ -12,7 +12,7 @@ import {
   assertSecureMcpProtocol,
   isAllowedMcpHostname,
   normalizeMcpAllowedHosts,
-} from '../runtime/secure-fetch'
+} from '../runtime/mcp-network-hosts'
 
 export interface McpAuthorizationOrigin {
   readonly serverUrl: string

@@ -2,6 +2,12 @@ import { lookup } from 'node:dns/promises'
 import { BlockList, isIP, type LookupFunction } from 'node:net'
 import type { FetchLike } from '@modelcontextprotocol/client'
 import { Agent, Dispatcher1Wrapper } from 'undici'
+import {
+  assertSecureMcpProtocol,
+  isAllowedMcpHostname,
+  isLoopbackMcpHostname,
+  normalizeMcpAllowedHosts,
+} from './mcp-network-hosts'
 import { limitMcpResponseBytes } from './response-byte-limit'
 import { assertResolvedLoopbackAllowed, isLoopbackAddress } from './secure-fetch-loopback'
 
@@ -74,41 +80,6 @@ for (const [network, prefix] of [
   blockedIpv6Addresses.addSubnet(network, prefix, 'ipv6')
 }
 
-export function isLoopbackMcpHostname(hostname: string) {
-  const normalized = hostname.toLowerCase().replace(/^\[|\]$/g, '')
-  return normalized === 'localhost' || normalized === '127.0.0.1' || normalized === '::1'
-}
-
-function normalizedAllowedHostname(value: string) {
-  const trimmed = value.trim()
-  if (!trimmed) return null
-  try {
-    const url = new URL(trimmed.includes('://') ? trimmed : `https://${trimmed}`)
-    if (!['https:', 'wss:', 'http:', 'ws:'].includes(url.protocol)) return null
-    if (url.username || url.password || url.pathname !== '/' || url.search || url.hash) return null
-    return url.hostname.toLowerCase()
-  } catch {
-    return null
-  }
-}
-
-export function normalizeMcpAllowedHosts(values: readonly string[]) {
-  return new Set(
-    values
-      .map(normalizedAllowedHostname)
-      .filter((hostname): hostname is string => hostname !== null),
-  )
-}
-
-export function isAllowedMcpHostname(allowedHosts: ReadonlySet<string>, hostname: string) {
-  const normalized = hostname.toLowerCase()
-  if (allowedHosts.has(normalized)) return true
-  for (const allowed of allowedHosts) {
-    if (allowed.startsWith('*.') && normalized.endsWith(allowed.slice(1))) return true
-  }
-  return false
-}
-
 function isPrivateAddress(address: string) {
   const family = isIP(address)
   if (family === IP_FAMILY_V4) return blockedIpv4Addresses.check(address, 'ipv4')
@@ -133,12 +104,22 @@ function assertLoopbackAllowed(url: URL, allowLoopback: boolean | undefined) {
   }
 }
 
+function assertProtocolAllowed(input: {
+  readonly url: URL
+  readonly allowPlainHttp?: boolean
+  readonly websocket?: boolean
+}) {
+  const plain = ['http:', 'ws:'].includes(input.url.protocol)
+  if (input.allowPlainHttp === true && plain) return
+  assertSecureMcpProtocol(input.url, input.websocket === true)
+}
+
 export async function validateMcpNetworkTarget(input: {
   readonly url: URL
   readonly allowedHosts: ReadonlySet<string>
   readonly allowInsecurePrivateNetwork: boolean
   readonly allowLoopback?: boolean
-  /** Plain `http:` to any host: only for an endpoint the user configured, as Pi allows. */
+  /** Plain `http:` (or `ws:`) to any host: only for an endpoint the user configured, as Pi allows. */
   readonly allowPlainHttp?: boolean
   readonly websocket?: boolean
   readonly resolveHostname?: HostnameResolver
@@ -147,9 +128,7 @@ export async function validateMcpNetworkTarget(input: {
     throw new Error('MCP network URLs cannot contain credentials.')
   }
   assertLoopbackAllowed(input.url, input.allowLoopback)
-  if (!(input.allowPlainHttp === true && input.url.protocol === 'http:')) {
-    assertSecureMcpProtocol(input.url, input.websocket === true)
-  }
+  assertProtocolAllowed(input)
   if (!isAllowedMcpHostname(input.allowedHosts, input.url.hostname)) {
     throw new Error(`MCP redirect target is not allowlisted: ${input.url.hostname}.`)
   }
@@ -218,16 +197,6 @@ function dispatcherFor(
 }
 
 export type SecureMcpFetch = FetchLike & { readonly close: () => Promise<void> }
-
-export function assertSecureMcpProtocol(url: URL, websocket: boolean) {
-  const secureProtocol = websocket ? 'wss:' : 'https:'
-  if (url.protocol === secureProtocol) return
-  const loopbackProtocol = websocket ? 'ws:' : 'http:'
-  if (url.protocol === loopbackProtocol && isLoopbackMcpHostname(url.hostname)) return
-  throw new Error(
-    `MCP network connections require ${secureProtocol} except for explicit loopback URLs.`,
-  )
-}
 
 function redirectRequestInit(status: number, init: RequestInit): RequestInit {
   if (

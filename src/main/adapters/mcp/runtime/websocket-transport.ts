@@ -2,9 +2,10 @@ import type { JSONRPCMessage, Transport, TransportSendOptions } from '@modelcont
 import { parseJSONRPCMessage } from '@modelcontextprotocol/client'
 import { MCP_CONFIG } from '@shared/constants/mcp'
 import WebSocket from 'ws'
+import { normalizeMcpAllowedHosts } from './mcp-network-hosts'
 import {
   createPinnedMcpLookup,
-  normalizeMcpAllowedHosts,
+  type HostnameResolver,
   validateMcpNetworkTarget,
 } from './secure-fetch'
 
@@ -16,6 +17,8 @@ export class LegacyWebSocketClientTransport implements Transport {
   readonly headers: Readonly<Record<string, string>>
   readonly allowedHosts: ReadonlySet<string>
   readonly allowInsecurePrivateNetwork: boolean
+  readonly allowPlainWebSocket: boolean
+  private readonly resolveHostname: HostnameResolver | undefined
   private socket: WebSocket | null = null
 
   onclose?: () => void
@@ -27,6 +30,9 @@ export class LegacyWebSocketClientTransport implements Transport {
     readonly headers: Readonly<Record<string, string>>
     readonly allowedDomains?: readonly string[]
     readonly allowInsecurePrivateNetwork?: boolean
+    /** Plain `ws:` to any host: only for an endpoint the user configured, as Pi allows `http:`. */
+    readonly allowPlainWebSocket?: boolean
+    readonly resolveHostname?: HostnameResolver
   }) {
     this.url = input.url
     this.headers = input.headers
@@ -35,6 +41,8 @@ export class LegacyWebSocketClientTransport implements Transport {
       ...(input.allowedDomains ?? []),
     ])
     this.allowInsecurePrivateNetwork = input.allowInsecurePrivateNetwork === true
+    this.allowPlainWebSocket = input.allowPlainWebSocket === true
+    this.resolveHostname = input.resolveHostname
   }
 
   async start() {
@@ -43,7 +51,9 @@ export class LegacyWebSocketClientTransport implements Transport {
       url: this.url,
       allowedHosts: this.allowedHosts,
       allowInsecurePrivateNetwork: this.allowInsecurePrivateNetwork,
+      allowPlainHttp: this.allowPlainWebSocket,
       websocket: true,
+      ...(this.resolveHostname ? { resolveHostname: this.resolveHostname } : {}),
     })
 
     await new Promise<void>((resolve, reject) => {
@@ -72,7 +82,9 @@ export class LegacyWebSocketClientTransport implements Transport {
           return
         }
         try {
-          this.onmessage?.(parseJSONRPCMessage(data.toString('utf8')))
+          // The SDK parses a decoded value, not text.
+          const decoded: unknown = JSON.parse(data.toString('utf8'))
+          this.onmessage?.(parseJSONRPCMessage(decoded))
         } catch (error) {
           this.onerror?.(error instanceof Error ? error : new Error(String(error)))
         }
