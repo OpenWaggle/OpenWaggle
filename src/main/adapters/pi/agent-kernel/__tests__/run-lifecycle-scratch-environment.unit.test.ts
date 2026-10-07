@@ -33,7 +33,7 @@ const SCRATCH = '/tmp/ow-scratch-501/37a8eec1/0123456789ab'
 
 function runtimeInput() {
   return fromPartial<Parameters<typeof createPiRunSessionRuntime>[0]>({
-    session: fromPartial({ id: SessionId('session'), projectPath: '/repo' }),
+    session: fromPartial({ id: SessionId('session'), projectPath: '/repo', messages: [] }),
     projectPath: '/repo',
     runId: 'run',
     payload: fromPartial({ text: 'Go.', attachments: [] }),

@@ -22,6 +22,7 @@ import {
   type PiRuntimeExtensionIsolationInput,
 } from './runtime-extension-isolation'
 import { createSessionManagerForSession, resolveSessionWorkingPath } from './session-manager'
+import { sessionFallbackModelReference } from './session-model-fallback'
 
 export type PiSessionOperation<T> = (session: AgentSession) => T | Promise<T>
 
@@ -77,6 +78,7 @@ export async function withPiSession<T>(
     runtimeOptions: {
       projectPath,
       modelReference: input.model,
+      ...sessionFallbackModelReference(input.session),
       compactionThresholdPercent:
         input.compactionThresholdPercent ?? DEFAULT_COMPACTION_THRESHOLD_PERCENT,
       ...(input.skillToggles ? { skillToggles: input.skillToggles } : {}),
@@ -108,6 +110,7 @@ export async function createPiSessionRuntime(
     const runtimeOptions = {
       projectPath: options.cwd,
       modelReference: input.model,
+      ...sessionFallbackModelReference(input.session),
       compactionThresholdPercent:
         input.compactionThresholdPercent ?? DEFAULT_COMPACTION_THRESHOLD_PERCENT,
       ...(input.skillToggles ? { skillToggles: input.skillToggles } : {}),

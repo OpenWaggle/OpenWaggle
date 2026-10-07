@@ -40,6 +40,7 @@ import {
   type PiRuntimeExtensionIsolationInput,
 } from './runtime-extension-isolation'
 import { createSessionManagerForSession, requireSessionProjectPath } from './session-manager'
+import { sessionFallbackModelReference } from './session-model-fallback'
 import { projectPiSessionSnapshot } from './session-projection'
 
 export { promptPiSession } from './run-prompt'
@@ -114,6 +115,7 @@ export async function createPiRunSessionRuntime(
   const runtimeOptions = {
     projectPath: input.projectPath,
     modelReference: input.modelReference,
+    ...sessionFallbackModelReference(input.session),
     compactionThresholdPercent: input.compactionThresholdPercent,
     ...(input.skillToggles ? { skillToggles: input.skillToggles } : {}),
     ...(input.skillAllowlist ? { skillAllowlist: input.skillAllowlist } : {}),

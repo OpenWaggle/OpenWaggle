@@ -259,9 +259,26 @@ export async function setPiProviderApiKey(providerId: string, apiKey: string) {
   await modelRuntime.logout(provider)
 }
 
+function fallbackModel(
+  modelRuntime: PiProjectModelRuntime['services']['modelRuntime'],
+  input: { readonly modelReference: string; readonly fallbackModelReference?: string },
+) {
+  if (!input.fallbackModelReference) return undefined
+  const model = findPiToolCapableModel(modelRuntime, input.fallbackModelReference)
+  if (model) {
+    logger.warn('Selected model is unavailable; continuing on the model that answered last', {
+      modelReference: input.modelReference,
+      fallbackModelReference: input.fallbackModelReference,
+    })
+  }
+  return model
+}
+
 export async function createPiProjectModelRuntime(input: {
   readonly projectPath: string
   readonly modelReference: string
+  /** Used when `modelReference` no longer resolves, such as a removed virtual model. */
+  readonly fallbackModelReference?: string
   readonly compactionThresholdPercent?: number
   readonly skillToggles?: Readonly<Record<string, boolean>>
   readonly skillAllowlist?: readonly string[]
@@ -295,7 +312,9 @@ export async function createPiProjectModelRuntime(input: {
       ? { visualizationDirectory: input.visualizationDirectory }
       : {}),
   })
-  const model = findPiToolCapableModel(services.modelRuntime, input.modelReference)
+  const model =
+    findPiToolCapableModel(services.modelRuntime, input.modelReference) ??
+    fallbackModel(services.modelRuntime, input)
   if (!model) {
     throw new Error(`Pi model registry could not resolve model ${input.modelReference}`)
   }

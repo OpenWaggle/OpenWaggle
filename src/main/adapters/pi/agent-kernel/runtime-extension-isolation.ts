@@ -29,6 +29,7 @@ type RuntimeExtensionSelection = RuntimePackageSelection | RuntimePackagePathSel
 export interface PiProjectRuntimeIsolationOptions {
   readonly projectPath: string
   readonly modelReference: string
+  readonly fallbackModelReference?: string
   readonly compactionThresholdPercent?: number
   readonly skillToggles?: Readonly<Record<string, boolean>>
   readonly skillAllowlist?: readonly string[]
@@ -125,6 +126,9 @@ export async function createPiProjectModelRuntimeWithoutOpenWaggleExtensions(
   return createPiProjectModelRuntime({
     projectPath: options.projectPath,
     modelReference: options.modelReference,
+    ...(options.fallbackModelReference
+      ? { fallbackModelReference: options.fallbackModelReference }
+      : {}),
     compactionThresholdPercent:
       options.compactionThresholdPercent ?? DEFAULT_COMPACTION_THRESHOLD_PERCENT,
     ...(options.skillToggles ? { skillToggles: options.skillToggles } : {}),
@@ -159,6 +163,9 @@ export async function createIsolatedPiProjectRuntime(input: {
       const runtime = await createPiProjectModelRuntime({
         projectPath: input.options.projectPath,
         modelReference: input.options.modelReference,
+        ...(input.options.fallbackModelReference
+          ? { fallbackModelReference: input.options.fallbackModelReference }
+          : {}),
         compactionThresholdPercent:
           input.options.compactionThresholdPercent ?? DEFAULT_COMPACTION_THRESHOLD_PERCENT,
         ...(input.options.skillToggles ? { skillToggles: input.options.skillToggles } : {}),
