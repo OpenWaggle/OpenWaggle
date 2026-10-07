@@ -9,7 +9,6 @@ import {
 import { McpClient } from '@earendil-works/pi-mcp'
 import type { McpServerInspection, McpServerToolView } from '@shared/types/mcp-configuration'
 import { Effect, Layer } from 'effect'
-import { openExternal } from '../../../desktop-ui'
 import type { McpTransportKind } from '../../../domain/mcp/config/mcp-server-config'
 import { McpConfigurationError } from '../../../ports/mcp-configuration-service'
 import {
@@ -24,6 +23,7 @@ import { mcpSessionConnectionPool } from '../../mcp/pool/mcp-connection-pool-ins
 import { mcpServerIdentity } from '../../mcp/pool/mcp-server-identity'
 import { getPiAgentDir } from '../pi-provider-catalog'
 import { forgetKnownMcpServerState, recordMcpServerCheck } from './mcp-server-status-registry'
+import { showSignInPage } from './mcp-sign-in-page'
 import { getOpenWaggleMcpCredentials } from './openwaggle-mcp-credentials'
 import { mcpOAuthSettings, mcpOAuthUrl, mcpSignedIn } from './pi-mcp-server-oauth'
 import { getMcpServerStatuses, type PiMcpServerRuntimeRoots } from './pi-mcp-server-status'
@@ -162,7 +162,7 @@ async function signIn(input: McpServerScopeInput): Promise<McpSignInResult> {
   }
   const abort = new AbortController()
   let authorizationUrl: string | undefined
-  let openFailed = false
+  let refused: Error | undefined
   const timeout = setTimeout(() => abort.abort(), SIGN_IN_TIMEOUT_MS)
   try {
     await signInMcpServer({
@@ -171,11 +171,18 @@ async function signIn(input: McpServerScopeInput): Promise<McpSignInResult> {
       settings: mcpOAuthSettings(entry),
       prompt: {
         showAuthorizationUrl: (page) => {
-          authorizationUrl = page.href
-          void openExternal(page.href).catch(() => {
-            openFailed = true
-            abort.abort()
-          })
+          void showSignInPage(entry, page.href).then(
+            (outcome) => {
+              if (outcome.kind === 'opened') return
+              if (outcome.kind === 'not-opened') authorizationUrl = outcome.href
+              else refused = outcome.error
+              abort.abort()
+            },
+            (error: unknown) => {
+              refused = error instanceof Error ? error : new Error(String(error))
+              abort.abort()
+            },
+          )
         },
         // There is no paste box; the flow ends when the browser returns or the wait is aborted.
         promptForRedirectUrl: (signal) =>
@@ -187,8 +194,9 @@ async function signIn(input: McpServerScopeInput): Promise<McpSignInResult> {
       },
     })
   } catch (error) {
+    if (refused) throw refused
     if (error instanceof McpSignInCancelledError) {
-      return { signedIn: false, ...(openFailed && authorizationUrl ? { authorizationUrl } : {}) }
+      return { signedIn: false, ...(authorizationUrl ? { authorizationUrl } : {}) }
     }
     throw error
   } finally {

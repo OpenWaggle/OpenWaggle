@@ -21,6 +21,7 @@ import { createPiMcpRuntimeInteractions } from '../mcp-client-interactions'
 import { getPiAgentDir } from '../pi-provider-catalog'
 import { mcpAppDescriptor } from './mcp-app-registry'
 import { attachSessionMcpContext, openWaggleMcpConnectionHooks } from './mcp-session-context'
+import { createRunSignInOpener } from './mcp-sign-in-page'
 import { approveMcpToolCall } from './mcp-tool-approval'
 import { getOpenWaggleMcpCredentials, openWaggleMcpLogPath } from './openwaggle-mcp-credentials'
 import { migrateOpenWaggleMcpFilesOnce } from './openwaggle-mcp-migration'
@@ -164,14 +165,6 @@ function companionExtension(input: OpenWaggleMcpSessionInput, config: McpRuntime
   }
 }
 
-function openUrl(url: string) {
-  void openExternal(url).catch((error: unknown) => {
-    logger.warn('Could not open the MCP sign-in page', {
-      error: error instanceof Error ? error.message : String(error),
-    })
-  })
-}
-
 /**
  * Pi's built-in MCP extension with OpenWaggle's plug-in points, plus OpenWaggle's companion
  * extension (approval, sampling and elicitation context). Every Pi session OpenWaggle creates
@@ -205,7 +198,7 @@ export async function createOpenWaggleMcpExtensions(
     },
     credentials: getOpenWaggleMcpCredentials(),
     logPath: openWaggleMcpLogPath(),
-    openUrl,
+    openUrl: createRunSignInOpener(() => config.loaded.servers),
     updateConfig: createMcpUpdateConfig((filePath) => input.onConfigChanged?.(filePath)),
     startupWaitMs: MCP_STARTUP_WAIT_MS,
   })
