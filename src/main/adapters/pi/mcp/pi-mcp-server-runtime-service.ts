@@ -22,6 +22,7 @@ import { isSessionMcpEnabled, setSessionMcpEnabled } from '../../mcp/mcp-session
 import { mcpSessionConnectionPool } from '../../mcp/pool/mcp-connection-pool-instance'
 import { mcpServerIdentity } from '../../mcp/pool/mcp-server-identity'
 import { getPiAgentDir } from '../pi-provider-catalog'
+import { hardenedMcpAuthProvider } from './mcp-hardened-auth-provider'
 import { forgetKnownMcpServerState, recordMcpServerCheck } from './mcp-server-status-registry'
 import { showSignInPage } from './mcp-sign-in-page'
 import { getOpenWaggleMcpCredentials } from './openwaggle-mcp-credentials'
@@ -120,7 +121,7 @@ async function connectAndList(
     entry,
     transport,
     cwd,
-    authProvider,
+    authProvider: hardenedMcpAuthProvider(entry, authProvider),
   })
   const client = new McpClient({
     name: 'openwaggle',

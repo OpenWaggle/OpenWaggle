@@ -181,8 +181,21 @@ Pi stores OAuth state (client registration, tokens, PKCE verifier) keyed by
   `mcpNamespace`, `getMcpToolExposure`, `resolveConfigValueOrThrow`, `resolveHeadersOrThrow`).
 
 Interactive sign-in stays Host-owned: Settings and the CLI ask the Host, which runs Pi's
-`signInMcpServer` against the same store and opens the authorization URL with `openUrl`. During
-non-disruptive automation `openUrl` never opens OS UI; the sign-in reports the URL instead.
+`signInMcpServer` against the same store. A Run's `/mcp` sign-in goes through Pi's `openUrl`.
+Both open a page only after `checkMcpAuthorizationUrl` (`adapters/mcp/credentials/`) accepts it:
+`https:` (or `http:` on loopback), no credentials, and the host of the server, of the
+authorization server Pi discovered and saved for it, of that server's authorization endpoint, or
+of the configured `oauth.authServerMetadataUrl`; pi-mcp itself only refuses `javascript:`,
+`data:`, and `vbscript:`. Pi's `openUrl` receives only the URL, so the page is matched to its
+server by the pending sign-in's `state`. During non-disruptive automation the GUI and the
+detached Session Host both install the desktop UI blockers, so nothing opens; the Host-owned
+sign-in reports the URL instead.
+
+Token refreshes go through the hardened fetch: OpenWaggle sends the stored token as it is, and
+an expired one gets the server's 401, after which Pi refreshes through the fetch the transport
+hands to `onUnauthorized` (`mcp-hardened-auth-provider.ts`). Pi's `signInMcpServer` (discovery,
+dynamic client registration, the code exchange) and its proactive refresh accept no fetch, so
+the sign-in itself still uses `globalThis.fetch`; the page check above is what guards it.
 
 ## Transport Layer
 
@@ -207,9 +220,15 @@ Session's pooled connection for that server.
 - `close()` detaches the lease: its in-flight requests are cancelled upstream and its listeners
   get `onClose`. The upstream stays open. This is what makes the connection survive the per-Run
   disposal of the Pi session.
-- An upstream that closes, errors fatally, or reports an expired HTTP session (404) or a
-  required sign-in is discarded and every attached lease is closed, so Pi's own reconnect creates
-  a fresh upstream.
+- An upstream that closes or errors fatally is discarded and every attached lease is closed, so
+  Pi's own reconnect creates a fresh upstream. After an expired HTTP session (404) or a required
+  sign-in the connection retires: it takes no new leases or requests, closes once the requests
+  already sent are answered (or after 30 s), and any request still open then gets an error
+  response. Closing also closes what the upstream holds beside its transport (the pinned-DNS
+  fetch of HTTP and SSE servers).
+- Legacy SSE servers get the Pi auth provider through a wrapped fetch (bearer token, one retry
+  after `onUnauthorized`, then `McpAuthRequiredError`). Legacy WebSocket servers follow the HTTP
+  rules: plain `ws:` and private addresses are allowed for the configured server.
 - A connection is never shared across Sessions, Workers, or forks: the Session id is part of the
   key and a fork or Worker is a different Session.
 
@@ -239,7 +258,10 @@ tools declare a `ui://` resource (`_meta.ui.resourceUri`) and their allowed netw
 companion extension's `tool_result` handler adds an MCP App descriptor to the details of such
 tools' results. The renderer's `McpAppHost` reads the `ui://` resource and makes app tool calls
 through Host operations that send internal requests over the same pooled connection; a missing
-connection is opened on demand with the Session's current configuration. The descriptor's
+connection is opened on demand exactly like a Run's (the Session's working path for `cwd` and
+roots, Pi's OAuth settings, the server identity), so the next Run reuses it. Apps can also list the
+server's resources and prompts (`mcp:list-app-catalog`); every App request gives up after 60 s.
+The descriptor's
 `serverInstanceId` is the server name and its `serverConfigHash` the server identity, so an App
 opened for a server that was since replaced is refused.
 
@@ -255,14 +277,14 @@ through a pool lease and OpenWaggle's hardened fetch.
 | Idle timer fires | Closes all the Session's connections. |
 | Session archived or deleted (including Worker auto-archive by Hive cleanup) | Closes all the Session's connections immediately (`withSessionDesktopRemoval`). |
 | A Session opens its first connection while 8 Sessions hold warm connections | Closes the least recently used Session that has no active Run. |
-| Signing out of a server, or switching a Session's MCP off | Closes that server's connections in every Session, or the Session's connections. |
+| Signing in to or out of a server, or switching a Session's MCP off | Closes the connections to that server identity (name plus command or URL) in every Session, or the Session's connections. |
 | Session Host stops | Closes everything and waits (bounded) for stdio servers to exit. |
 
 Stdio servers run through pi-mcp's `StdioTransport` in their own process group (POSIX) and are
 closed by closing stdin, then SIGTERM and SIGKILL to the whole group, or `taskkill /T /F` on
 Windows. That terminates a package runner (`npx`, `pnpm dlx`, `bunx`, `uvx`) together with the
-server it launched. Child processes get OpenWaggle's child-process environment (packaged-app
-`PATH`), not a spread of `process.env`.
+server it launched. Child processes get the user's environment (`{ ...process.env }`, as Pi
+does) with the packaged app's npm-compatible `PATH`, plus the entry's resolved `env`.
 
 ## Settings state without connecting
 

@@ -20,6 +20,7 @@ import { mcpConnectionFingerprint, mcpServerIdentity } from '../../mcp/pool/mcp-
 import { createPiMcpRuntimeInteractions } from '../mcp-client-interactions'
 import { getPiAgentDir } from '../pi-provider-catalog'
 import { mcpAppDescriptor } from './mcp-app-registry'
+import { hardenedMcpAuthProvider } from './mcp-hardened-auth-provider'
 import { attachSessionMcpContext, openWaggleMcpConnectionHooks } from './mcp-session-context'
 import { createRunSignInOpener } from './mcp-sign-in-page'
 import { approveMcpToolCall } from './mcp-tool-approval'
@@ -192,7 +193,13 @@ export async function createOpenWaggleMcpExtensions(
         name: entry.name,
         fingerprint: mcpConnectionFingerprint({ config: entry.config, transport, cwd }),
         identity: mcpServerIdentity(entry.name, entry.config),
-        open: () => openPiMcpUpstream({ entry, transport, cwd, authProvider }),
+        open: () =>
+          openPiMcpUpstream({
+            entry,
+            transport,
+            cwd,
+            authProvider: hardenedMcpAuthProvider(entry, authProvider),
+          }),
         roots: () => [{ uri: pathToFileURL(cwd).href, name: path.basename(cwd) }],
       })
     },

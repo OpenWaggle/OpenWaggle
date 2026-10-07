@@ -17,6 +17,7 @@ import { mcpSessionConnectionPool } from '../../mcp/pool/mcp-connection-pool-ins
 import { mcpConnectionFingerprint, mcpServerIdentity } from '../../mcp/pool/mcp-server-identity'
 import { getPiAgentDir } from '../pi-provider-catalog'
 import { mcpAppTool } from './mcp-app-registry'
+import { hardenedMcpAuthProvider } from './mcp-hardened-auth-provider'
 import { getOpenWaggleMcpCredentials } from './openwaggle-mcp-credentials'
 import { mcpOAuthSettings, mcpOAuthUrl } from './pi-mcp-server-oauth'
 import { openPiMcpUpstream } from './pi-mcp-upstream'
@@ -52,14 +53,17 @@ async function appConnection(input: McpAppServerInput) {
   const transport = config.transports.get(entry.name) ?? ('url' in entry.config ? 'http' : 'stdio')
   const cwd = input.workingPath ?? input.projectPath ?? homedir()
   const url = mcpOAuthUrl(entry)
-  const authProvider = url
-    ? createMcpAuthProvider({
-        serverUrl: url,
-        store: getOpenWaggleMcpCredentials().forServer(entry.name, url),
-        settings: () => mcpOAuthSettings(entry),
-        onChallenge: () => {},
-      })
-    : undefined
+  const authProvider = hardenedMcpAuthProvider(
+    entry,
+    url
+      ? createMcpAuthProvider({
+          serverUrl: url,
+          store: getOpenWaggleMcpCredentials().forServer(entry.name, url),
+          settings: () => mcpOAuthSettings(entry),
+          onChallenge: () => {},
+        })
+      : undefined,
+  )
   return mcpSessionConnectionPool.connectionFor(input.sessionId, {
     name: entry.name,
     fingerprint: mcpConnectionFingerprint({ config: entry.config, transport, cwd }),
