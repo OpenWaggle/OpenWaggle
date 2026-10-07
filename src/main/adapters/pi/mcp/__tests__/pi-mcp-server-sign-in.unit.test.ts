@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   openExternal: vi.fn(async (_url: string) => undefined),
   page: 'https://docs.example.com/authorize',
-  closeServer: vi.fn(async () => undefined),
+  closeServerIdentity: vi.fn(async () => undefined),
 }))
 
 vi.mock('@earendil-works/pi-coding-agent', async (importOriginal) => {
@@ -45,7 +45,7 @@ vi.mock('../openwaggle-mcp-credentials', () => ({
   }),
 }))
 vi.mock('../../../mcp/pool/mcp-connection-pool-instance', () => ({
-  mcpSessionConnectionPool: { closeServer: mocks.closeServer },
+  mcpSessionConnectionPool: { closeServerIdentity: mocks.closeServerIdentity },
 }))
 
 import { McpServerRuntimeService } from '../../../../ports/mcp-server-runtime-service'

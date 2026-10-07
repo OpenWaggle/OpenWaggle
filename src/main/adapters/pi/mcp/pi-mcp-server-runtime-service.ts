@@ -204,8 +204,9 @@ async function signIn(input: McpServerScopeInput): Promise<McpSignInResult> {
   }
   // Warm connections of this server pick the new sign-in up when they reconnect, and the last
   // check (probably "needs sign-in") no longer says anything true.
-  await mcpSessionConnectionPool.closeServer(entry.name)
-  forgetKnownMcpServerState(mcpServerIdentity(entry.name, entry.config))
+  const identity = mcpServerIdentity(entry.name, entry.config)
+  await mcpSessionConnectionPool.closeServerIdentity(identity)
+  forgetKnownMcpServerState(identity)
   return { signedIn: true }
 }
 
@@ -213,8 +214,9 @@ async function signOut(input: McpServerScopeInput) {
   const { entry } = await findServer(input, defaultMcpServerRuntimeRoots())
   const url = mcpOAuthUrl(entry)
   if (url) getOpenWaggleMcpCredentials().remove(entry.name, url)
-  await mcpSessionConnectionPool.closeServer(entry.name)
-  forgetKnownMcpServerState(mcpServerIdentity(entry.name, entry.config))
+  const identity = mcpServerIdentity(entry.name, entry.config)
+  await mcpSessionConnectionPool.closeServerIdentity(identity)
+  forgetKnownMcpServerState(identity)
 }
 
 function toConfigurationError(error: unknown) {

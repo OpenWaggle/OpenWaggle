@@ -43,7 +43,7 @@ function server(name: string, upstreams: FakeUpstream[], fingerprint = 'v1') {
 async function useServer(
   pool: McpSessionConnectionPool,
   sessionId: string,
-  spec: ReturnType<typeof server>,
+  spec: ReturnType<typeof server> & { readonly identity?: string },
 ) {
   const lease = pool.lease(sessionId, spec)
   await lease.start()
@@ -103,16 +103,18 @@ describe('MCP Session connection pool', () => {
     expect(pool.warmSessions()).toEqual(['s2'])
   })
 
-  it('closes one server in every Session, for example after signing out of it', async () => {
+  it('closes one server identity in every Session, for example after signing out of it', async () => {
     const upstreams: FakeUpstream[] = []
     const pool = new McpSessionConnectionPool({ clock: new FakeClock() })
-    await useServer(pool, 's1', server('sentry', upstreams))
-    await useServer(pool, 's1', server('fs', upstreams))
-    await useServer(pool, 's2', server('sentry', upstreams))
+    await useServer(pool, 's1', { ...server('sentry', upstreams), identity: 'id-sentry' })
+    await useServer(pool, 's1', { ...server('fs', upstreams), identity: 'id-fs' })
+    await useServer(pool, 's2', { ...server('sentry', upstreams), identity: 'id-sentry' })
+    // Another project's server that happens to share the name is a different server.
+    await useServer(pool, 's3', { ...server('sentry', upstreams), identity: 'id-other-sentry' })
 
-    await pool.closeServer('sentry')
+    await pool.closeServerIdentity('id-sentry')
 
-    expect(upstreams.map((upstream) => upstream.closed)).toEqual([true, false, true])
+    expect(upstreams.map((upstream) => upstream.closed)).toEqual([true, false, true, false])
   })
 
   it('replaces a connection whose definition changed', async () => {
