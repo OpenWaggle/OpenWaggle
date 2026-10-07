@@ -28,6 +28,7 @@ import { hardenedMcpAuthProvider } from './mcp-hardened-auth-provider'
 import { forgetKnownMcpServerState, recordMcpServerCheck } from './mcp-server-status-registry'
 import { showSignInPage } from './mcp-sign-in-page'
 import { getOpenWaggleMcpCredentials } from './openwaggle-mcp-credentials'
+import { migrateOpenWaggleMcpFilesOnce } from './openwaggle-mcp-migration'
 import { mcpOAuthSettings, mcpOAuthUrl, mcpSignedIn } from './pi-mcp-server-oauth'
 import { getMcpServerStatuses, type PiMcpServerRuntimeRoots } from './pi-mcp-server-status'
 import { openPiMcpUpstream } from './pi-mcp-upstream'
@@ -42,7 +43,7 @@ function defaultMcpServerRuntimeRoots(): PiMcpServerRuntimeRoots {
 }
 
 async function findServer(input: McpServerScopeInput, roots: PiMcpServerRuntimeRoots) {
-  await mcpShellEnvironmentReady()
+  await Promise.all([mcpShellEnvironmentReady(), migrateOpenWaggleMcpFilesOnce(input.projectPath)])
   const config = await loadMcpRuntimeConfig({
     roots: { ...roots, projectPath: input.projectPath },
     resolveSecret: resolveMcpVaultSecret,
@@ -235,7 +236,10 @@ function attempt<A>(operation: () => Promise<A>) {
 export const PiMcpServerRuntimeServiceLive = Layer.succeed(McpServerRuntimeService, {
   inspectServer: (input) => attempt(() => inspectMcpServer(input)),
   getServerStatuses: (input) =>
-    attempt(() => getMcpServerStatuses(input, defaultMcpServerRuntimeRoots())),
+    attempt(async () => {
+      await migrateOpenWaggleMcpFilesOnce(input.projectPath)
+      return getMcpServerStatuses(input, defaultMcpServerRuntimeRoots())
+    }),
   signIn: (input) => attempt(() => signIn(input)),
   signOut: (input) => attempt(() => signOut(input)),
   getSessionMcpEnabled: (sessionId) => Effect.sync(() => isSessionMcpEnabled(sessionId)),

@@ -20,6 +20,7 @@ import { getPiAgentDir } from '../pi-provider-catalog'
 import { mcpAppTool } from './mcp-app-registry'
 import { hardenedMcpAuthProvider } from './mcp-hardened-auth-provider'
 import { getOpenWaggleMcpCredentials } from './openwaggle-mcp-credentials'
+import { migrateOpenWaggleMcpFilesOnce } from './openwaggle-mcp-migration'
 import { mcpOAuthSettings, mcpOAuthUrl } from './pi-mcp-server-oauth'
 import { openPiMcpUpstream } from './pi-mcp-upstream'
 
@@ -36,7 +37,7 @@ const METHOD_NOT_FOUND = -32601
  */
 async function appConnection(input: McpAppServerInput) {
   const warm = mcpSessionConnectionPool.connection(input.sessionId, input.serverName)
-  await mcpShellEnvironmentReady()
+  await Promise.all([mcpShellEnvironmentReady(), migrateOpenWaggleMcpFilesOnce(input.projectPath)])
   const config = await loadMcpRuntimeConfig({
     roots: { homeDir: homedir(), piAgentDir: getPiAgentDir(), projectPath: input.projectPath },
     resolveSecret: resolveMcpVaultSecret,

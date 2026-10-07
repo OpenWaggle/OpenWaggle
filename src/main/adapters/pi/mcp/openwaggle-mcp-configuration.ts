@@ -5,7 +5,9 @@ import {
   type McpConfigurationServiceShape,
 } from '../../../ports/mcp-configuration-service'
 import { createFilesystemMcpConfigurationService } from '../../mcp/config/filesystem-mcp-configuration-service'
+import { migrateBeforeEachCall } from '../../mcp/config/migrating-mcp-configuration-service'
 import { getPiAgentDir } from '../pi-provider-catalog'
+import { migrateOpenWaggleMcpFilesOnce } from './openwaggle-mcp-migration'
 
 let service: McpConfigurationServiceShape | undefined
 
@@ -14,10 +16,10 @@ let service: McpConfigurationServiceShape | undefined
  * saved from Settings reach the same listeners.
  */
 export function getOpenWaggleMcpConfigurationService() {
-  service ??= createFilesystemMcpConfigurationService({
-    homeDir: homedir(),
-    piAgentDir: getPiAgentDir(),
-  })
+  service ??= migrateBeforeEachCall(
+    createFilesystemMcpConfigurationService({ homeDir: homedir(), piAgentDir: getPiAgentDir() }),
+    migrateOpenWaggleMcpFilesOnce,
+  )
   return service
 }
 

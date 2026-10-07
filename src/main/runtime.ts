@@ -23,6 +23,7 @@ import { mcpSessionConnectionPool } from './adapters/mcp/pool/mcp-connection-poo
 import { McpRegistryServiceLive } from './adapters/mcp/registry/mcp-registry-service'
 import { idleCacheWarming } from './adapters/pi/agent-kernel/pi-idle-cache-warming'
 import { OpenWaggleMcpConfigurationServiceLive } from './adapters/pi/mcp/openwaggle-mcp-configuration'
+import { migrateOpenWaggleMcpFilesOnce } from './adapters/pi/mcp/openwaggle-mcp-migration'
 import { PiMcpAppRuntimeServiceLive } from './adapters/pi/mcp/pi-mcp-app-runtime-service'
 import { PiMcpServerRuntimeServiceLive } from './adapters/pi/mcp/pi-mcp-server-runtime-service'
 import { installPiUserAppSettingsFallback } from './adapters/pi/openwaggle-pi-app-settings'
@@ -298,6 +299,8 @@ export async function initializeAppRuntime(): Promise<void> {
   }
   // MCP `${NAME}` values resolve from the user's login shell too; read it once, in the background.
   void loadMcpShellEnvironment()
+  // Settings, the CLI, and Runs then all see the migrated MCP files.
+  void migrateOpenWaggleMcpFilesOnce(null)
   await getAppRuntime().runPromise(Effect.void)
 }
 
