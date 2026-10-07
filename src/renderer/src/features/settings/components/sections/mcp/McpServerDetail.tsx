@@ -66,7 +66,7 @@ export function McpServerDetail({
           disabled={!server.enabled}
           onClick={() => void actions.recheck(server.name)}
         >
-          Check again
+          Check connection
         </Button>
       </div>
       <div className="space-y-1">
