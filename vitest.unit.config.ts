@@ -13,6 +13,7 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
+    setupFiles: ['src/main/test-support/isolate-user-mcp-files.ts'],
     include: [
       'src/**/*.unit.test.ts',
       'packages/**/*.unit.test.ts',

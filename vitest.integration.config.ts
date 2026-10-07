@@ -13,6 +13,7 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
+    setupFiles: ['src/main/test-support/isolate-user-mcp-files.ts'],
     include: ['src/**/*.integration.test.ts', 'scripts/**/*.integration.test.ts'],
     // Real-Git integration tests shell out to `git` many times (worktree add, commit,
     // prune). Under the suite's parallel execution those subprocesses contend for CPU and
