@@ -72,7 +72,7 @@ describe('MCP configuration operations', () => {
         entry: {
           url: 'https://mcp.sentry.dev/mcp',
           timeout: 30,
-          oauth: { clientName: 'Claude Code', callbackPort: 8765 },
+          oauth: { clientName: 'Example Client', callbackPort: 8765 },
         },
       }),
     )
@@ -80,7 +80,7 @@ describe('MCP configuration operations', () => {
     expect(servers(owGlobal()).sentry).toEqual({
       url: 'https://mcp.sentry.dev/mcp',
       timeout: 30,
-      oauth: { clientName: 'Claude Code', callbackPort: 8765 },
+      oauth: { clientName: 'Example Client', callbackPort: 8765 },
     })
   })
 

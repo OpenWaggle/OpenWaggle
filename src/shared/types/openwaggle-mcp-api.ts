@@ -16,7 +16,7 @@ import type {
   McpImportPreviewRequest,
   McpImportPreviewView,
   McpInstallCatalogServerRequest,
-  McpServerRequest,
+  McpServerNameRequest,
   McpSetServerEnabledRequest,
   McpSetServerExposureRequest,
   McpSignInResultView,
@@ -27,11 +27,11 @@ export interface OpenWaggleMcpApi {
   setMcpServerEnabled(input: McpSetServerEnabledRequest): Promise<McpConfigurationView>
   setMcpServerExposure(input: McpSetServerExposureRequest): Promise<McpConfigurationView>
   addMcpServer(input: McpAddServerRequest): Promise<McpConfigurationView>
-  removeMcpServer(input: McpServerRequest): Promise<McpConfigurationView>
+  removeMcpServer(input: McpServerNameRequest): Promise<McpConfigurationView>
   installMcpCatalogServer(input: McpInstallCatalogServerRequest): Promise<McpConfigurationView>
-  inspectMcpServer(input: McpServerRequest): Promise<McpServerInspection>
-  signInMcpServer(input: McpServerRequest): Promise<McpSignInResultView>
-  signOutMcpServer(input: McpServerRequest): Promise<void>
+  inspectMcpServer(input: McpServerNameRequest): Promise<McpServerInspection>
+  signInMcpServer(input: McpServerNameRequest): Promise<McpSignInResultView>
+  signOutMcpServer(input: McpServerNameRequest): Promise<void>
   previewMcpImports(input: McpImportPreviewRequest): Promise<McpImportPreviewView>
   applyMcpImports(input: McpImportApplyRequest): Promise<McpImportApplyResultView>
   listMcpSecrets(): Promise<readonly McpSecretSummary[]>

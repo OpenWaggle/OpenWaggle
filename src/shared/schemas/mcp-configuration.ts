@@ -7,7 +7,7 @@ import {
   type McpImportApplyRequest,
   type McpImportPreviewRequest,
   type McpInstallCatalogServerRequest,
-  type McpServerRequest,
+  type McpServerNameRequest,
   type McpSetServerEnabledRequest,
   type McpSetServerExposureRequest,
 } from '@shared/types/mcp-configuration-operations'
@@ -37,7 +37,7 @@ const importSource = Schema.Literal(...MCP_IMPORT_SOURCE_IDS)
 export const mcpConfigurationScopeRequestSchema: Schema.Schema<McpConfigurationScopeRequest> =
   Schema.Struct({ projectPath })
 
-export const mcpServerRequestSchema: Schema.Schema<McpServerRequest> = Schema.Struct({
+export const mcpServerNameRequestSchema: Schema.Schema<McpServerNameRequest> = Schema.Struct({
   projectPath,
   name: serverName,
 })

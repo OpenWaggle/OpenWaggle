@@ -6,7 +6,7 @@ import {
   mcpImportApplyRequestSchema,
   mcpImportPreviewRequestSchema,
   mcpInstallCatalogServerRequestSchema,
-  mcpServerRequestSchema,
+  mcpServerNameRequestSchema,
   mcpSetServerEnabledRequestSchema,
   mcpSetServerExposureRequestSchema,
 } from '@shared/schemas/mcp-configuration'
@@ -84,7 +84,7 @@ export function addMcpServerOperation(raw: unknown) {
 
 export function removeMcpServerOperation(raw: unknown) {
   return Effect.gen(function* () {
-    const input = yield* decode(mcpServerRequestSchema, raw, 'remove server')
+    const input = yield* decode(mcpServerNameRequestSchema, raw, 'remove server')
     const service = yield* McpConfigurationService
     return yield* writeThenView(input.projectPath, service.removeServer(input))
   })
@@ -117,7 +117,7 @@ export function installMcpCatalogServerOperation(raw: unknown) {
 
 export function inspectMcpServerOperation(raw: unknown) {
   return Effect.gen(function* () {
-    const input = yield* decode(mcpServerRequestSchema, raw, 'inspect server')
+    const input = yield* decode(mcpServerNameRequestSchema, raw, 'inspect server')
     const runtime = yield* McpServerRuntimeService
     return yield* runtime.inspectServer(input)
   })
@@ -125,7 +125,7 @@ export function inspectMcpServerOperation(raw: unknown) {
 
 export function signInMcpServerOperation(raw: unknown) {
   return Effect.gen(function* () {
-    const input = yield* decode(mcpServerRequestSchema, raw, 'sign-in')
+    const input = yield* decode(mcpServerNameRequestSchema, raw, 'sign-in')
     const runtime = yield* McpServerRuntimeService
     return yield* runtime.signIn(input)
   })
@@ -133,7 +133,7 @@ export function signInMcpServerOperation(raw: unknown) {
 
 export function signOutMcpServerOperation(raw: unknown) {
   return Effect.gen(function* () {
-    const input = yield* decode(mcpServerRequestSchema, raw, 'sign-out')
+    const input = yield* decode(mcpServerNameRequestSchema, raw, 'sign-out')
     const runtime = yield* McpServerRuntimeService
     yield* Effect.uninterruptible(runtime.signOut(input))
   })

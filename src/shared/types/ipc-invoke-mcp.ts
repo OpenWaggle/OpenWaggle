@@ -16,7 +16,7 @@ import type {
   McpImportPreviewRequest,
   McpImportPreviewView,
   McpInstallCatalogServerRequest,
-  McpServerRequest,
+  McpServerNameRequest,
   McpSetServerEnabledRequest,
   McpSetServerExposureRequest,
   McpSignInResultView,
@@ -36,14 +36,14 @@ export interface IpcMcpInvokeChannelMap {
     return: McpConfigurationView
   }
   'mcp:add-server': { args: [input: McpAddServerRequest]; return: McpConfigurationView }
-  'mcp:remove-server': { args: [input: McpServerRequest]; return: McpConfigurationView }
+  'mcp:remove-server': { args: [input: McpServerNameRequest]; return: McpConfigurationView }
   'mcp:install-catalog-server': {
     args: [input: McpInstallCatalogServerRequest]
     return: McpConfigurationView
   }
-  'mcp:inspect-server': { args: [input: McpServerRequest]; return: McpServerInspection }
-  'mcp:sign-in': { args: [input: McpServerRequest]; return: McpSignInResultView }
-  'mcp:sign-out': { args: [input: McpServerRequest]; return: undefined }
+  'mcp:inspect-server': { args: [input: McpServerNameRequest]; return: McpServerInspection }
+  'mcp:sign-in': { args: [input: McpServerNameRequest]; return: McpSignInResultView }
+  'mcp:sign-out': { args: [input: McpServerNameRequest]; return: undefined }
   'mcp:preview-imports': { args: [input: McpImportPreviewRequest]; return: McpImportPreviewView }
   'mcp:apply-imports': { args: [input: McpImportApplyRequest]; return: McpImportApplyResultView }
   'mcp:list-secrets': { args: []; return: readonly McpSecretSummary[] }

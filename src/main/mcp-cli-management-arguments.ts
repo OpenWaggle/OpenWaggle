@@ -4,7 +4,7 @@ import {
 } from '@shared/types/mcp-configuration'
 import {
   MCP_IMPORT_SOURCE_IDS,
-  type McpImportConflictPolicy,
+  type McpImportNameConflictPolicy,
   type McpImportSourceId,
 } from '@shared/types/mcp-configuration-operations'
 
@@ -274,7 +274,7 @@ export function mcpCliImportSources(
   })
 }
 
-export function mcpCliConflictPolicy(args: McpManagementArguments): McpImportConflictPolicy {
+export function mcpCliConflictPolicy(args: McpManagementArguments): McpImportNameConflictPolicy {
   const value = args.values.get('conflict') ?? 'skip'
   if (value === 'skip' || value === 'replace' || value === 'rename') return value
   throw new McpCliUsageError(`--conflict must be skip, replace, or rename; got "${value}".`)

@@ -16,18 +16,18 @@ export interface McpConfigurationScopeRequest {
   readonly projectPath: string | null
 }
 
-export interface McpServerRequest extends McpConfigurationScopeRequest {
+export interface McpServerNameRequest extends McpConfigurationScopeRequest {
   readonly name: string
 }
 
-export interface McpSetServerEnabledRequest extends McpServerRequest {
+export interface McpSetServerEnabledRequest extends McpServerNameRequest {
   readonly enabled: boolean
   /** `project` switches a global server for this project only. */
   readonly target: 'server' | 'project'
   readonly destination?: McpWriteDestination
 }
 
-export interface McpSetServerExposureRequest extends McpServerRequest {
+export interface McpSetServerExposureRequest extends McpServerNameRequest {
   readonly exposure?: McpServerExposure
   /** Per-tool exposure; `null` removes a tool's own setting. */
   readonly toolExposure?: Readonly<Record<string, McpServerExposure | null>>
@@ -36,7 +36,7 @@ export interface McpSetServerExposureRequest extends McpServerRequest {
 /** A Pi `mcpServers` entry as JSON. */
 export type McpServerEntryInput = Readonly<Record<string, McpJsonValue>>
 
-export interface McpAddServerRequest extends McpServerRequest {
+export interface McpAddServerRequest extends McpServerNameRequest {
   readonly scope: McpConfigFileScope
   /** Defaults to OpenWaggle's file for `scope`. */
   readonly destination?: McpWriteDestination
@@ -72,7 +72,7 @@ export type McpImportSourceId = (typeof MCP_IMPORT_SOURCE_IDS)[number]
 
 export type McpImportCandidateStatus = 'new' | 'imported' | 'source-changed' | 'name-taken'
 
-export type McpImportConflictPolicy = 'skip' | 'replace' | 'rename'
+export type McpImportNameConflictPolicy = 'skip' | 'replace' | 'rename'
 
 export interface McpImportCandidateView {
   readonly source: McpImportSourceId
@@ -109,7 +109,7 @@ export interface McpImportApplyRequest extends McpImportPreviewRequest {
   readonly fingerprints: readonly string[]
   /** OpenWaggle's file for this scope receives the servers. */
   readonly target: McpConfigFileScope
-  readonly conflictPolicy: McpImportConflictPolicy
+  readonly conflictPolicy: McpImportNameConflictPolicy
 }
 
 export interface McpImportApplyResultView {
