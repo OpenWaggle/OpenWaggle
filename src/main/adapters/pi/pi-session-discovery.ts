@@ -2,6 +2,7 @@ import { open, readdir, stat } from 'node:fs/promises'
 import path from 'node:path'
 import { getAgentDir } from '@earendil-works/pi-coding-agent'
 import type { DiscoveredPiSession, PiSessionDiscoveryInput } from '../../ports/pi-session-discovery'
+import { resolvePiSessionDirectory } from './pi-session-directory'
 
 /**
  * Pi session discovery (ADR 0048): finds Pi sessions the `pi` CLI created inside an OpenWaggle
@@ -210,7 +211,10 @@ async function readDirectoryNames(directory: string) {
  * already known.
  */
 export function createPiSessionDiscoveryScanner(
-  options: { readonly sessionsRoot?: string } = {},
+  options: {
+    readonly sessionsRoot?: string
+    readonly resolveSessionDirectory?: (projectPath: string) => string | undefined
+  } = {},
 ): PiSessionDiscoveryScanner {
   const headers = new Map<string, PiSessionFileHeader>()
   /** Files without a Pi header, by the version read: read again only once they change. */
@@ -256,24 +260,52 @@ export function createPiSessionDiscoveryScanner(
     }
   }
 
+  const scanDirectory = async (
+    directory: string,
+    projectPaths: readonly string[],
+    isKnownFile: (file: string) => boolean,
+  ) => {
+    const discovered: DiscoveredPiSession[] = []
+    for (const name of await readDirectoryNames(directory)) {
+      if (!name.endsWith(PI_SESSION_FILE_SUFFIX)) continue
+      const file = path.join(directory, name)
+      if (isKnownFile(file)) continue
+      const session = await discoveredSession(file, projectPaths)
+      if (session) discovered.push(session)
+    }
+    return discovered
+  }
+
   return {
     scan: async ({ projectPaths, isKnownFile }) => {
       if (projectPaths.length === 0) return []
+      const resolveDirectory = options.resolveSessionDirectory ?? resolvePiSessionDirectory
+      const defaultProjects: string[] = []
+      const projectsByCustomDirectory = new Map<string, string[]>()
+      for (const projectPath of projectPaths) {
+        const custom = resolveDirectory(projectPath)
+        if (!custom) {
+          defaultProjects.push(projectPath)
+          continue
+        }
+        projectsByCustomDirectory.set(custom, [
+          ...(projectsByCustomDirectory.get(custom) ?? []),
+          projectPath,
+        ])
+      }
+      const discovered: DiscoveredPiSession[] = []
+      for (const [directory, projects] of projectsByCustomDirectory) {
+        discovered.push(...(await scanDirectory(directory, projects, isKnownFile)))
+      }
+      if (defaultProjects.length === 0) return discovered
       const sessionsRoot = options.sessionsRoot ?? path.join(getAgentDir(), 'sessions')
-      const prefixes = projectPaths.map(encodedPathPrefix)
+      const prefixes = defaultProjects.map(encodedPathPrefix)
       const directories = (await readDirectoryNames(sessionsRoot)).filter((name) =>
         prefixes.some((prefix) => sessionDirectoryMayBelongTo(name, prefix)),
       )
-      const discovered: DiscoveredPiSession[] = []
       for (const directory of directories) {
         const directoryPath = path.join(sessionsRoot, directory)
-        for (const name of await readDirectoryNames(directoryPath)) {
-          if (!name.endsWith(PI_SESSION_FILE_SUFFIX)) continue
-          const file = path.join(directoryPath, name)
-          if (isKnownFile(file)) continue
-          const session = await discoveredSession(file, projectPaths)
-          if (session) discovered.push(session)
-        }
+        discovered.push(...(await scanDirectory(directoryPath, defaultProjects, isKnownFile)))
       }
       return discovered
     },

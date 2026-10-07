@@ -9,6 +9,7 @@ import {
 import { DEFAULT_COMPACTION_THRESHOLD_PERCENT } from '@shared/types/settings'
 import type { AgentKernelSessionInput } from '../../../ports/agent-kernel-service'
 import { getPiAgentDir, type PiModel } from '../pi-provider-catalog'
+import { resolvePiSessionDirectory } from '../pi-session-directory'
 import {
   createOpenWaggleAgentSessionFromServices,
   disposeOpenWagglePiSession,
@@ -160,7 +161,8 @@ export async function createPiSessionRuntime(
 }
 
 export async function createPiSession(projectPath: string) {
-  const sessionManager = SessionManager.create(projectPath)
+  // Where `pi --resume` looks for this folder's sessions, so it can continue this one too.
+  const sessionManager = SessionManager.create(projectPath, resolvePiSessionDirectory(projectPath))
   return {
     piSessionId: sessionManager.getSessionId(),
     piSessionFile: sessionManager.getSessionFile(),

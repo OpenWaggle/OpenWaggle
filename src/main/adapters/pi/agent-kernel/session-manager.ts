@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs'
 import { SessionManager } from '@earendil-works/pi-coding-agent'
 import type { SessionDetail } from '@shared/types/session'
+import { resolvePiSessionDirectory } from '../pi-session-directory'
 import { piEntryNodeIds } from './pi-entry-node-ids'
 
 /**
@@ -74,7 +75,7 @@ export function createSessionManagerForSession(session: SessionDetail, projectPa
     return sessionManager
   }
 
-  const sessionManager = SessionManager.create(projectPath)
+  const sessionManager = SessionManager.create(projectPath, resolvePiSessionDirectory(projectPath))
   if (session.piSessionId) {
     sessionManager.newSession({ id: session.piSessionId })
   }

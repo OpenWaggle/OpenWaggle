@@ -17,6 +17,9 @@ afterEach(async () => {
   await fs.rm(root, { recursive: true, force: true })
 })
 
+/** Pi's default layout: no `sessionDir` setting, so one folder per working directory. */
+const piDefault = () => undefined
+
 /** The directory name Pi gives a working directory's sessions. */
 function piSessionDirName(cwd: string) {
   return `--${cwd.replace(/^[/\\]/, '').replace(/[/\\:]/g, '-')}--`
@@ -63,7 +66,10 @@ describe('Pi session discovery scanner', () => {
     await writePiSession({ id: 'sibling', cwd: path.join(root, 'work', 'app-other') })
     await writePiSession({ id: 'elsewhere', cwd: path.join(root, 'elsewhere') })
 
-    const scanner = createPiSessionDiscoveryScanner({ sessionsRoot })
+    const scanner = createPiSessionDiscoveryScanner({
+      sessionsRoot,
+      resolveSessionDirectory: piDefault,
+    })
     const found = await scanner.scan({ projectPaths: [project], isKnownFile: () => false })
 
     expect(found.map((session) => session.piSessionId).sort()).toEqual([
@@ -87,7 +93,10 @@ describe('Pi session discovery scanner', () => {
     const inner = path.join(outer, 'app')
     await writePiSession({ id: 'nested', cwd: path.join(inner, 'src') })
 
-    const scanner = createPiSessionDiscoveryScanner({ sessionsRoot })
+    const scanner = createPiSessionDiscoveryScanner({
+      sessionsRoot,
+      resolveSessionDirectory: piDefault,
+    })
     const found = await scanner.scan({ projectPaths: [outer, inner], isKnownFile: () => false })
 
     expect(found).toEqual([expect.objectContaining({ piSessionId: 'nested', projectPath: inner })])
@@ -98,7 +107,10 @@ describe('Pi session discovery scanner', () => {
     const known = await writePiSession({ id: 'known', cwd: project })
     await writePiSession({ id: 'new', cwd: project, timestamp: '2026-01-03T00:00:00.000Z' })
 
-    const scanner = createPiSessionDiscoveryScanner({ sessionsRoot })
+    const scanner = createPiSessionDiscoveryScanner({
+      sessionsRoot,
+      resolveSessionDirectory: piDefault,
+    })
     const found = await scanner.scan({
       projectPaths: [project],
       isKnownFile: (file) => file === known,
@@ -118,7 +130,10 @@ describe('Pi session discovery scanner', () => {
       ],
     })
 
-    const scanner = createPiSessionDiscoveryScanner({ sessionsRoot })
+    const scanner = createPiSessionDiscoveryScanner({
+      sessionsRoot,
+      resolveSessionDirectory: piDefault,
+    })
     const [found] = await scanner.scan({ projectPaths: [project], isKnownFile: () => false })
 
     expect(found).toMatchObject({ name: 'Login fix', firstUserMessage: 'Fix the flaky login test' })
@@ -132,7 +147,10 @@ describe('Pi session discovery scanner', () => {
     await fs.writeFile(path.join(directory, 'other.jsonl'), '{"type":"message"}\n')
     await writePiSession({ id: 'real', cwd: project })
 
-    const scanner = createPiSessionDiscoveryScanner({ sessionsRoot })
+    const scanner = createPiSessionDiscoveryScanner({
+      sessionsRoot,
+      resolveSessionDirectory: piDefault,
+    })
 
     expect(
       (await scanner.scan({ projectPaths: [project], isKnownFile: () => false })).map(
@@ -145,6 +163,7 @@ describe('Pi session discovery scanner', () => {
   it('finds nothing when Pi has no sessions directory yet', async () => {
     const scanner = createPiSessionDiscoveryScanner({
       sessionsRoot: path.join(root, 'missing', 'sessions'),
+      resolveSessionDirectory: piDefault,
     })
 
     expect(
@@ -157,7 +176,10 @@ describe('Pi session discovery scanner', () => {
     const project = path.join(outer, 'app')
     await writePiSession({ id: 'in-sibling', cwd: path.join(root, 'work', 'app-docs') })
 
-    const scanner = createPiSessionDiscoveryScanner({ sessionsRoot })
+    const scanner = createPiSessionDiscoveryScanner({
+      sessionsRoot,
+      resolveSessionDirectory: piDefault,
+    })
     expect(await scanner.scan({ projectPaths: [project], isKnownFile: () => false })).toEqual([])
 
     expect(
@@ -177,7 +199,10 @@ describe('Pi session discovery scanner', () => {
       `\n{ truncated\n${JSON.stringify(header)}\n`,
     )
 
-    const scanner = createPiSessionDiscoveryScanner({ sessionsRoot })
+    const scanner = createPiSessionDiscoveryScanner({
+      sessionsRoot,
+      resolveSessionDirectory: piDefault,
+    })
     const found = await scanner.scan({ projectPaths: [project], isKnownFile: () => false })
 
     expect(found.map((session) => session.piSessionId)).toEqual(['late-header'])
@@ -192,7 +217,10 @@ describe('Pi session discovery scanner', () => {
     await fs.writeFile(file, ' '.repeat(header.length + 1))
     const unchanged = new Date('2026-01-01T00:00:00.000Z')
     await fs.utimes(file, unchanged, unchanged)
-    const scanner = createPiSessionDiscoveryScanner({ sessionsRoot })
+    const scanner = createPiSessionDiscoveryScanner({
+      sessionsRoot,
+      resolveSessionDirectory: piDefault,
+    })
     expect(await scanner.scan({ projectPaths: [project], isKnownFile: () => false })).toEqual([])
 
     // Same size and modification time: the scanner trusts what it read before.
@@ -207,5 +235,33 @@ describe('Pi session discovery scanner', () => {
         (session) => session.piSessionId,
       ),
     ).toEqual(['abcd'])
+  })
+
+  it('reads a custom Pi session directory, matching files by the working directory they name', async () => {
+    const appProject = path.join(root, 'app')
+    const docsProject = path.join(root, 'docs')
+    const custom = path.join(root, 'custom-sessions')
+    await fs.mkdir(custom, { recursive: true })
+    const write = async (id: string, cwd: string) => {
+      const header = { type: 'session', version: 3, id, timestamp: '', cwd }
+      await fs.writeFile(path.join(custom, `${id}.jsonl`), `${JSON.stringify(header)}\n`)
+    }
+    await write('app-session', path.join(appProject, 'src'))
+    await write('docs-session', docsProject)
+    await write('elsewhere', path.join(root, 'elsewhere'))
+
+    const scanner = createPiSessionDiscoveryScanner({
+      sessionsRoot,
+      resolveSessionDirectory: () => custom,
+    })
+    const found = await scanner.scan({
+      projectPaths: [appProject, docsProject],
+      isKnownFile: () => false,
+    })
+
+    expect(found.map((session) => [session.piSessionId, session.projectPath]).sort()).toEqual([
+      ['app-session', appProject],
+      ['docs-session', docsProject],
+    ])
   })
 })
