@@ -135,3 +135,30 @@ it('loads only the Pi extension files a QA run names explicitly during automatio
     Reflect.deleteProperty(env, 'OPENWAGGLE_AUTOMATION_PI_EXTENSIONS')
   }
 })
+
+it('ignores the QA extension files outside automation', async () => {
+  const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-pi-not-automation-'))
+  // Outside the project and the Pi agent directory, so only the QA variable could load it.
+  const fixtureRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-pi-qa-fixture-'))
+  const providerId = 'not-automation-qa-fixture-provider'
+  const fixturePath = await writeProviderExtension(fixtureRoot, providerId)
+  vi.stubEnv(
+    'PI_CODING_AGENT_DIR',
+    await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-pi-agent-')),
+  )
+  Reflect.deleteProperty(env, 'OPENWAGGLE_AUTOMATION')
+  Object.assign(env, { OPENWAGGLE_AUTOMATION_PI_EXTENSIONS: fixturePath })
+
+  try {
+    const services = await createPiRuntimeServices(projectPath)
+
+    expect(services.modelRuntime.getProvider(providerId)).toBeUndefined()
+    expect(
+      createOpenWagglePiResourceLoaderOptions(projectPath).additionalExtensionPaths,
+    ).not.toContain(fixturePath)
+  } finally {
+    Object.assign(env, { OPENWAGGLE_AUTOMATION: '1' })
+    Reflect.deleteProperty(env, 'OPENWAGGLE_AUTOMATION_PI_EXTENSIONS')
+    vi.unstubAllEnvs()
+  }
+})
