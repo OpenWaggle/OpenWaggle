@@ -64,7 +64,11 @@ function refreshProjection(sessionId: SessionId, owner: PiSessionProjectionRefre
     if (!fingerprint) return 'missing'
     if (state.fingerprint && sameFingerprint(state.fingerprint, fingerprint)) return 'fresh'
 
-    const snapshot = yield* files.readSnapshot(state.piSessionFile, state.projectPath)
+    const snapshot = yield* files.readSnapshot({
+      piSessionFile: state.piSessionFile,
+      cwd: state.projectPath,
+      ...(state.piEntryNodeIdPrefix ? { piEntryNodeIdPrefix: state.piEntryNodeIdPrefix } : {}),
+    })
     if (snapshot.entryCount === state.projectedPiEntryCount) {
       // The projection was taken from these entries; keep it, and the branch the user selected.
       yield* repository.recordUnchanged({

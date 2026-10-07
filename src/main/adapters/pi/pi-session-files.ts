@@ -6,6 +6,7 @@ import {
   PiSessionFiles,
   type PiSessionFilesShape,
 } from '../../ports/pi-session-discovery'
+import { piEntryNodeIdsWithPrefix } from './agent-kernel/pi-entry-node-ids'
 import { projectPiSessionSnapshot } from './agent-kernel/session-projection'
 import { createPiSessionDiscoveryScanner } from './pi-session-discovery'
 
@@ -27,16 +28,20 @@ async function fingerprintOf(file: string): Promise<PiSessionFileFingerprint | n
  * Reads a Pi session file as Pi does, for a projection outside a Run. The fingerprint is taken
  * first: a write that lands while the file is read leaves it stale, so the next check reads again.
  */
-async function readSnapshot(file: string, cwd: string) {
+async function readSnapshot(input: Parameters<PiSessionFilesShape['readSnapshot']>[0]) {
+  const file = input.piSessionFile
   const fingerprint = await fingerprintOf(file)
   if (!fingerprint) throw new Error(`Pi session file is missing: ${file}`)
-  const sessionManager = SessionManager.open(file, undefined, cwd)
+  const sessionManager = SessionManager.open(file, undefined, input.cwd)
   return {
     piSessionId: sessionManager.getSessionId(),
     piSessionFile: file,
     entryCount: sessionManager.getEntries().length,
     fingerprint,
-    sessionSnapshot: projectPiSessionSnapshot({ sessionManager }),
+    sessionSnapshot: projectPiSessionSnapshot(
+      { sessionManager },
+      piEntryNodeIdsWithPrefix(input.piEntryNodeIdPrefix),
+    ),
   }
 }
 
@@ -45,8 +50,7 @@ export function createPiSessionFiles(options: { readonly sessionsRoot?: string }
   return {
     discover: (input) => Effect.tryPromise({ try: () => scanner.scan(input), catch: toError }),
     fingerprint: (file) => Effect.promise(() => fingerprintOf(file)),
-    readSnapshot: (file, cwd) =>
-      Effect.tryPromise({ try: () => readSnapshot(file, cwd), catch: toError }),
+    readSnapshot: (input) => Effect.tryPromise({ try: () => readSnapshot(input), catch: toError }),
   } satisfies PiSessionFilesShape
 }
 

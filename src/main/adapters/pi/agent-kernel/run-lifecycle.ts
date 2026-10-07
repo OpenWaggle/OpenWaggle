@@ -17,6 +17,7 @@ import {
   withUsageStatisticsAccessMode,
 } from '../pi-usage-statistics'
 import { logger } from './constants'
+import { type PiEntryNodeIds, piEntryNodeIds } from './pi-entry-node-ids'
 import { createPiRunControl } from './pi-run-control'
 import { createPiSessionForRun } from './pi-run-session'
 import {
@@ -202,6 +203,7 @@ async function abortPiSession(session: AgentSession, warning: string) {
 
 function buildSuccessfulRunResult(input: {
   readonly session: AgentSession
+  readonly nodeIds: PiEntryNodeIds
   readonly payload: HydratedAgentSendPayload
   readonly appended: readonly unknown[]
   readonly aborted: boolean
@@ -213,19 +215,23 @@ function buildSuccessfulRunResult(input: {
     newMessages: buildPiRunNewMessages(input.payload, input.appended),
     piSessionId: input.session.sessionId,
     piSessionFile: input.session.sessionFile,
-    sessionSnapshot: projectPiSessionSnapshot(input.session),
+    sessionSnapshot: projectPiSessionSnapshot(input.session, input.nodeIds),
     ...(stopReason === 'aborted' || input.aborted ? { aborted: true } : {}),
     ...(terminalError ? { terminalError } : {}),
   }
 }
 
-async function abortPreCancelledRun(session: AgentSession, warning: string) {
+async function abortPreCancelledRun(
+  session: AgentSession,
+  nodeIds: PiEntryNodeIds,
+  warning: string,
+) {
   await abortPiSession(session, warning)
   return {
     newMessages: [],
     piSessionId: session.sessionId,
     piSessionFile: session.sessionFile,
-    sessionSnapshot: projectPiSessionSnapshot(session),
+    sessionSnapshot: projectPiSessionSnapshot(session, nodeIds),
     aborted: true,
   } satisfies AgentKernelRunResult
 }
@@ -244,7 +250,11 @@ export async function runSubscribedPiOperation(input: {
   let settlementAttempted = false
 
   if (input.runInput.signal.aborted) {
-    const result = await abortPreCancelledRun(input.session, input.preAbortWarning)
+    const result = await abortPreCancelledRun(
+      input.session,
+      piEntryNodeIds(input.runInput.session),
+      input.preAbortWarning,
+    )
     input.unsubscribe()
     await disposeOpenWagglePiSession(input.session)
     return result
@@ -275,6 +285,7 @@ export async function runSubscribedPiOperation(input: {
 
     return buildSuccessfulRunResult({
       session: input.session,
+      nodeIds: piEntryNodeIds(input.runInput.session),
       payload: input.runInput.payload,
       appended,
       aborted: operationAborted,

@@ -1,3 +1,4 @@
+import { matchBy } from '@diegogbrisa/ts-match'
 import type { AgentSession, SessionEntry } from '@earendil-works/pi-coding-agent'
 import {
   PI_WAGGLE_TURN_CUSTOM_TYPE,
@@ -7,6 +8,7 @@ import { parseJsonUnknown } from '@shared/schema'
 import type { ProjectedSessionNodeInput } from '../../../ports/session-repository'
 import { OPENWAGGLE_RUN_BOUNDARY_CUSTOM_TYPE } from '../run-attribution-extension'
 import { projectionForPiEntry } from './entry-projections'
+import { type PiEntryNodeIds, piEntryNodeIdsWithPrefix } from './pi-entry-node-ids'
 import { findUserInputProjection } from './user-input-projection'
 
 interface PiSessionSnapshotSource {
@@ -145,16 +147,41 @@ function userDisplayProjection(entry: SessionEntry, entryById: ReadonlyMap<strin
   return isUserMessageEntry(entry) ? findUserInputProjection(entry.parentId, entryById) : null
 }
 
+/** The entry with the ids it names expressed as node ids, for the content the projection keeps. */
+function withNodeReferences(entry: SessionEntry, nodeIds: PiEntryNodeIds): SessionEntry {
+  return matchBy(entry, 'type')
+    .with(
+      'compaction',
+      (compaction): SessionEntry => ({
+        ...compaction,
+        firstKeptEntryId: nodeIds.toNodeId(compaction.firstKeptEntryId),
+      }),
+    )
+    .with(
+      'branch_summary',
+      (summary): SessionEntry => ({
+        ...summary,
+        fromId: nodeIds.toNodeId(summary.fromId),
+      }),
+    )
+    .with(
+      'label',
+      (label): SessionEntry => ({ ...label, targetId: nodeIds.toNodeId(label.targetId) }),
+    )
+    .otherwise((other) => other)
+}
+
 function projectPiEntry(input: {
   readonly entry: SessionEntry
   readonly entryById: ReadonlyMap<string, SessionEntry>
   readonly createdOrder: number
   readonly pathDepth: number
   readonly runId: string | null
+  readonly nodeIds: PiEntryNodeIds
 }): ProjectedSessionNodeInput {
   const timestampMs = parsePiEntryTimestamp(input.entry.timestamp)
   const displayProjection = userDisplayProjection(input.entry, input.entryById)
-  const projection = projectionForPiEntry(input.entry, {
+  const projection = projectionForPiEntry(withNodeReferences(input.entry, input.nodeIds), {
     ...(displayProjection ? { userDisplayParts: displayProjection.parts } : {}),
   })
   const waggleMetadata = isAssistantEntry(input.entry)
@@ -162,8 +189,8 @@ function projectPiEntry(input: {
     : null
 
   return {
-    id: input.entry.id,
-    parentId: input.entry.parentId,
+    id: input.nodeIds.toNodeId(input.entry.id),
+    parentId: input.entry.parentId === null ? null : input.nodeIds.toNodeId(input.entry.parentId),
     piEntryType: input.entry.type,
     kind: projection.kind,
     role: projection.role,
@@ -209,14 +236,22 @@ function getPiEntryDepth(input: {
   return depth
 }
 
-export function projectPiSessionSnapshot(session: PiSessionSnapshotSource) {
+/**
+ * `nodeIds` maps entry ids to the Session's node ids; a discovered Pi session keys them under a
+ * per-Session prefix (ADR 0048). Sessions OpenWaggle created use their entry ids unchanged.
+ */
+export function projectPiSessionSnapshot(
+  session: PiSessionSnapshotSource,
+  nodeIds: PiEntryNodeIds = piEntryNodeIdsWithPrefix(undefined),
+) {
   const entries = session.sessionManager.getEntries()
   const entryById = new Map(entries.map((entry) => [entry.id, entry]))
   const depthById = new Map<string, number>()
   const runIdByEntryId = new Map<string, string | null>()
+  const leafId = session.sessionManager.getLeafId()
 
   return {
-    activeNodeId: session.sessionManager.getLeafId(),
+    activeNodeId: leafId === null ? null : nodeIds.toNodeId(leafId),
     nodes: entries.map((entry, index) =>
       projectPiEntry({
         entry,
@@ -224,6 +259,7 @@ export function projectPiSessionSnapshot(session: PiSessionSnapshotSource) {
         createdOrder: index,
         pathDepth: getPiEntryDepth({ entryId: entry.id, entryById, depthById }),
         runId: runIdForEntry({ entryId: entry.id, entryById, runIdByEntryId }),
+        nodeIds,
       }),
     ),
   }

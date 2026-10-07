@@ -147,6 +147,12 @@ export interface SessionDetail {
   readonly executionThinkingLevel?: ThinkingLevel
   /** Conversation position the Session resumes from; see {@link SessionResumePosition}. */
   readonly resumePosition?: SessionResumePosition
+  /**
+   * Set for a Pi session OpenWaggle discovered rather than created (ADR 0048): its node ids are
+   * its Pi entry ids under this prefix, because such a file may share entry ids with another
+   * Session's (a `pi` CLI fork copies them) and OpenWaggle never rewrites it.
+   */
+  readonly piEntryNodeIdPrefix?: string
 }
 
 /**

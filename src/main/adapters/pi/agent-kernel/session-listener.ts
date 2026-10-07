@@ -192,9 +192,10 @@ function emitCompactionStart(state: SessionListenerState, event: CompactionStart
   })
 }
 
-function compactionTransportResult(event: CompactionEndSessionEvent) {
+function compactionTransportResult(state: SessionListenerState, event: CompactionEndSessionEvent) {
   const entryId = event.result?.entryId
-  return typeof entryId === 'string' ? { entryId } : null
+  if (typeof entryId !== 'string') return null
+  return { entryId: state.input.nodeIds ? state.input.nodeIds.toNodeId(entryId) : entryId }
 }
 
 function emitCompactionEnd(state: SessionListenerState, event: CompactionEndSessionEvent) {
@@ -202,7 +203,7 @@ function emitCompactionEnd(state: SessionListenerState, event: CompactionEndSess
   emitEvent(state.input.onEvent, {
     type: 'compaction_end',
     reason: event.reason,
-    result: compactionTransportResult(event),
+    result: compactionTransportResult(state, event),
     aborted: event.aborted,
     willRetry: event.willRetry,
     ...(event.errorMessage ? { errorMessage: event.errorMessage } : {}),

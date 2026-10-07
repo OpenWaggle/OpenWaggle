@@ -5,6 +5,7 @@ import type { AdoptDiscoveredPiSessionInput } from '../../ports/pi-session-disco
 import { piProjectionFingerprint, piProjectionRevision } from '../pi-session-file-freshness'
 import { runStoreEffect } from '../store-runtime'
 import { isAgentLoopAuditNode } from './agent-loop-audit-node'
+import { discoveredPiEntryNodeIdPrefix } from './discovered-pi-entry-node-ids'
 
 export interface PiSessionDiscoveryScopeRows {
   readonly knownPiSessionIds: ReadonlySet<string>
@@ -49,6 +50,14 @@ export async function readPiSessionDiscoveryScope(): Promise<PiSessionDiscoveryS
         knownPiSessionIds.add(row.session_id)
         if (row.pi_session_file) knownPiSessionFiles.add(row.pi_session_file)
       }
+      const dismissals = yield* sql<{
+        readonly pi_session_id: string
+        readonly pi_session_file: string
+      }>`SELECT pi_session_id, pi_session_file FROM pi_session_dismissals`
+      for (const row of dismissals) {
+        knownPiSessionIds.add(row.pi_session_id)
+        knownPiSessionFiles.add(row.pi_session_file)
+      }
       return {
         knownPiSessionIds,
         knownPiSessionFiles,
@@ -62,7 +71,8 @@ export async function readPiSessionDiscoveryScope(): Promise<PiSessionDiscoveryS
  * Points a Session the Session Host just created at a discovered Pi session file, in place of the
  * empty Pi session it was created with (Pi writes that one only after its first reply, so there is
  * no file to remove). Refused when another Session already has the file or its id, or once the
- * Session holds a transcript of its own.
+ * Session holds a transcript of its own. The adoption marks the Session as discovered: its nodes
+ * are keyed under a per-Session prefix, and deleting it keeps the file.
  */
 export async function adoptDiscoveredPiSession(
   input: AdoptDiscoveredPiSessionInput,
@@ -81,6 +91,10 @@ export async function adoptDiscoveredPiSession(
               SELECT 1 FROM session_deletion_operations
               WHERE pi_session_file = ${input.piSessionFile}
             ) OR EXISTS (
+              SELECT 1 FROM pi_session_dismissals
+              WHERE pi_session_file = ${input.piSessionFile}
+                OR pi_session_id = ${input.piSessionId}
+            ) OR EXISTS (
               SELECT 1 FROM session_nodes WHERE session_id = ${input.sessionId}
             ) OR NOT EXISTS (
               SELECT 1 FROM sessions WHERE id = ${input.sessionId}
@@ -93,6 +107,10 @@ export async function adoptDiscoveredPiSession(
                 created_at = ${input.createdAt}, updated_at = ${input.updatedAt}
             WHERE id = ${input.sessionId}
           `
+          yield* sql`
+            INSERT INTO pi_session_adoptions (session_id, adopted_at)
+            VALUES (${input.sessionId}, ${Date.now()})
+          `
           return true
         }),
       )
@@ -104,6 +122,7 @@ export interface PiSessionProjectionStateRow {
   readonly sessionId: SessionId
   readonly piSessionFile: string | null
   readonly projectPath: string | null
+  readonly piEntryNodeIdPrefix?: string
   readonly projectedPiEntryCount: number
   readonly revision: number
   readonly fingerprint: { readonly size: number; readonly mtimeMs: number } | null
@@ -121,7 +140,12 @@ export async function getPiSessionProjectionState(
       const sessions = yield* sql<{
         readonly pi_session_file: string | null
         readonly project_path: string | null
-      }>`SELECT pi_session_file, project_path FROM sessions WHERE id = ${sessionId} LIMIT 1`
+        readonly adopted: number
+      }>`
+        SELECT pi_session_file, project_path,
+          EXISTS (SELECT 1 FROM pi_session_adoptions WHERE session_id = sessions.id) AS adopted
+        FROM sessions WHERE id = ${sessionId} LIMIT 1
+      `
       const session = sessions[0]
       if (!session) return null
       const counts = yield* sql<{ readonly node_count: number }>`
@@ -138,6 +162,9 @@ export async function getPiSessionProjectionState(
         sessionId: SessionId(String(sessionId)),
         piSessionFile: session.pi_session_file,
         projectPath: session.project_path,
+        ...(session.adopted === 1
+          ? { piEntryNodeIdPrefix: discoveredPiEntryNodeIdPrefix(sessionId) }
+          : {}),
         projectedPiEntryCount: (counts[0]?.node_count ?? 0) - auditNodes,
         revision,
         fingerprint,

@@ -11,6 +11,7 @@ import { attachSessionLineage, loadSessionLineageRows } from '../sessions/sessio
 import { runStoreEffect } from '../store-runtime'
 import { isAgentLoopAuditNode } from './agent-loop-audit-node'
 import { EMPTY_INDEX, MESSAGE_ENTRY_TYPE } from './constants'
+import { discoveredPiEntryNodeIdPrefix } from './discovered-pi-entry-node-ids'
 import { hydrateWaggleConfig, parseJsonValue } from './json'
 import {
   getActivePathRows,
@@ -84,6 +85,9 @@ function hydrateSessionDetail(sessionRow: SessionRow, nodeRows: readonly Session
         : {}),
       ...sessionThinkingLevel(sessionRow.execution_thinking_level),
       ...(position ? { resumePosition: position } : {}),
+      ...(sessionRow.pi_adopted === 1
+        ? { piEntryNodeIdPrefix: discoveredPiEntryNodeIdPrefix(sessionRow.id) }
+        : {}),
     }
   } catch (error) {
     logSessionHydrationFailure(sessionRow, error)
@@ -116,7 +120,8 @@ function selectSessionRow(sql: SqlClient.SqlClient, id: SessionId) {
       sessions.authorization_mode_override,
       json_extract(session_execution_profiles.profile_json, '$.modelId') AS execution_model_id,
       json_extract(session_execution_profiles.profile_json, '$.thinkingLevel')
-        AS execution_thinking_level
+        AS execution_thinking_level,
+      EXISTS (SELECT 1 FROM pi_session_adoptions WHERE session_id = sessions.id) AS pi_adopted
     FROM sessions
     LEFT JOIN session_execution_profiles
       ON session_execution_profiles.session_id = sessions.id

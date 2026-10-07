@@ -13,6 +13,7 @@ import {
   withOpenWagglePiSessionLifecycleContext,
 } from '../pi-session-lifecycle'
 import { writeRekeyedForkedSession } from './fork-entry-identity'
+import { type PiEntryNodeIds, piEntryNodeIds } from './pi-entry-node-ids'
 import type { PiRuntimeExtensionIsolationInput } from './runtime-extension-isolation'
 import { createSessionListener } from './session-listener'
 import { projectPiSessionSnapshot } from './session-projection'
@@ -42,7 +43,7 @@ export async function getPiSessionSnapshot(
   return withPiSession(input, (session) => ({
     piSessionId: session.sessionId,
     piSessionFile: session.sessionFile,
-    sessionSnapshot: projectPiSessionSnapshot(session),
+    sessionSnapshot: projectPiSessionSnapshot(session, piEntryNodeIds(input.session)),
   }))
 }
 export async function compactPiSession(
@@ -55,6 +56,7 @@ export async function compactPiSession(
             {
               model: input.model,
               sessionEntries: null,
+              nodeIds: piEntryNodeIds(input.session),
               getContextWindow: (provider, modelId) => {
                 const activeModel = session.model
                 return activeModel?.provider === provider && activeModel.id === modelId
@@ -80,11 +82,11 @@ export async function compactPiSession(
       const result = await session.compact(input.customInstructions)
       return {
         summary: result.summary,
-        firstKeptEntryId: result.firstKeptEntryId,
+        firstKeptEntryId: piEntryNodeIds(input.session).toNodeId(result.firstKeptEntryId),
         tokensBefore: result.tokensBefore,
         piSessionId: session.sessionId,
         piSessionFile: session.sessionFile,
-        sessionSnapshot: projectPiSessionSnapshot(session),
+        sessionSnapshot: projectPiSessionSnapshot(session, piEntryNodeIds(input.session)),
       }
     } finally {
       input.signal?.removeEventListener('abort', abortListener)
@@ -96,21 +98,23 @@ export async function compactPiSession(
 export async function navigatePiSessionTree(
   input: NavigateAgentKernelSessionInput & PiRuntimeExtensionIsolationInput,
 ) {
+  const nodeIds = piEntryNodeIds(input.session)
   return withPiSession(input, async (session) => {
+    const targetEntryId = nodeIds.toEntryId(input.targetNodeId)
     try {
-      const result = await session.navigateTree(input.targetNodeId, {
+      const result = await session.navigateTree(targetEntryId, {
         summarize: input.summarize ?? false,
         customInstructions: input.customInstructions,
       })
       return {
         piSessionId: session.sessionId,
         piSessionFile: session.sessionFile,
-        sessionSnapshot: projectPiSessionSnapshot(session),
+        sessionSnapshot: projectPiSessionSnapshot(session, nodeIds),
         editorText: result.editorText,
         cancelled: result.cancelled,
       }
     } catch (error) {
-      if (error instanceof Error && error.message === `Entry ${input.targetNodeId} not found`) {
+      if (error instanceof Error && error.message === `Entry ${targetEntryId} not found`) {
         throw new AgentKernelMissingEntryError(input.targetNodeId)
       }
       throw error
@@ -122,8 +126,18 @@ export async function navigatePiSessionTree(
  * Pi's fork keeps the copied entry ids, so the fork is written again with ids of its own before it
  * is projected, after the runtime that created it is disposed.
  */
-async function projectForkedSession(fork: ForkedPiSession, cwd: string) {
-  const sourceNodeIdByNodeId = await writeRekeyedForkedSession(fork.sessionFile, fork.lines)
+async function projectForkedSession(
+  fork: ForkedPiSession,
+  cwd: string,
+  sourceNodeIds: PiEntryNodeIds,
+) {
+  // The fork is a new file OpenWaggle wrote, so its own nodes use its entry ids unchanged.
+  const sourceEntryIdByNodeId = await writeRekeyedForkedSession(fork.sessionFile, fork.lines)
+  const sourceNodeIdByNodeId = new Map(
+    [...sourceEntryIdByNodeId].map(
+      ([nodeId, sourceEntryId]) => [nodeId, sourceNodeIds.toNodeId(sourceEntryId)] as const,
+    ),
+  )
   const sessionManager = SessionManager.open(fork.sessionFile, undefined, cwd)
   return {
     piSessionId: sessionManager.getSessionId(),
@@ -155,18 +169,20 @@ function forkedPiSession(
 export async function forkPiSession(
   input: ForkAgentKernelSessionInput & PiRuntimeExtensionIsolationInput,
 ) {
+  const sourceNodeIds = piEntryNodeIds(input.session)
+  const targetEntryId = sourceNodeIds.toEntryId(input.targetNodeId)
   const runtime = await createPiSessionRuntime(input)
   let forked: ForkedPiSession | undefined
   try {
     const result = await withOpenWagglePiSessionLifecycleContext(runtime.session, () =>
-      runtime.fork(input.targetNodeId, { position: input.position }),
+      runtime.fork(targetEntryId, { position: input.position }),
     )
     if (result.cancelled) {
       return {
         cancelled: true,
         piSessionId: runtime.session.sessionId,
         piSessionFile: runtime.session.sessionFile,
-        sessionSnapshot: projectPiSessionSnapshot(runtime.session),
+        sessionSnapshot: projectPiSessionSnapshot(runtime.session, sourceNodeIds),
       }
     }
     forked = forkedPiSession(runtime.session, result.selectedText)
@@ -174,7 +190,7 @@ export async function forkPiSession(
     if (
       error instanceof Error &&
       (error.message === 'Invalid entry ID for forking' ||
-        error.message === `Entry ${input.targetNodeId} not found`)
+        error.message === `Entry ${targetEntryId} not found`)
     ) {
       throw new AgentKernelMissingEntryError(input.targetNodeId)
     }
@@ -185,7 +201,7 @@ export async function forkPiSession(
 
   return {
     cancelled: false,
-    ...(await projectForkedSession(forked, runtime.cwd)),
+    ...(await projectForkedSession(forked, runtime.cwd, sourceNodeIds)),
     ...(forked.editorText ? { editorText: forked.editorText } : {}),
   }
 }

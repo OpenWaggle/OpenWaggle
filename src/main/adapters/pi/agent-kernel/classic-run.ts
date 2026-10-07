@@ -7,6 +7,7 @@ import { createPeerAgentReportExtension } from '../peer-agent-report-extension'
 import { buildPiRunNewMessages } from '../pi-run-result'
 import { notePiRunForUsageStatistics } from '../pi-usage-statistics'
 import { createRunAttributionExtension } from '../run-attribution-extension'
+import { piEntryNodeIds } from './pi-entry-node-ids'
 import { registerPiLiveRun } from './pi-live-run-registry'
 import {
   createPiRunSessionRuntime,
@@ -143,6 +144,7 @@ export async function runPiSession(
       {
         ...input,
         sessionEntries: session.sessionManager,
+        nodeIds: piEntryNodeIds(input.session),
         getContextWindow: (provider, modelId) => {
           const activeModel = session.model
           return activeModel?.provider === provider && activeModel.id === modelId

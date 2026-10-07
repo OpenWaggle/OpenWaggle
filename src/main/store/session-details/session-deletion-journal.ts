@@ -1,10 +1,10 @@
-import { randomUUID } from 'node:crypto'
 import { isMatching, P } from '@diegogbrisa/ts-match'
 import * as SqlClient from '@effect/sql/SqlClient'
 import { SessionId } from '@shared/types/brand'
 import * as Effect from 'effect/Effect'
 import { runStoreEffect } from '../store-runtime'
 import { EMPTY_INDEX } from './constants'
+import * as PiSessionDismissals from './pi-session-dismissals'
 
 export type SessionDeletionPhase =
   | 'prepared'
@@ -167,6 +167,7 @@ export async function prepareSessionDeletion(id: SessionId): Promise<SessionDele
           const session = sessions[EMPTY_INDEX]
           if (!session) throw new Error(`Session ${id} does not exist.`)
           const now = Date.now()
+          yield* PiSessionDismissals.dismissDiscoveredPiSession(sql, id, now)
           yield* sql`
             INSERT INTO session_deletion_operations (
               session_id, phase, project_path, worktree_project_path, worktree_path,
@@ -254,7 +255,7 @@ export async function prepareSessionPiFileCleanup(
   return runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
-      const stagedPiSessionFile = piSessionFile ? `${piSessionFile}.${randomUUID()}.delete` : null
+      const stagedPiSessionFile = yield* PiSessionDismissals.stagedPiSessionFile(sql, piSessionFile)
       yield* sql`
         UPDATE session_deletion_operations
         SET phase = ${'pi-file-cleanup-pending'}, pi_session_file = ${piSessionFile},
@@ -299,7 +300,7 @@ export async function abandonSessionDeletion(id: SessionId): Promise<void> {
   await runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
-      yield* sql`DELETE FROM session_deletion_operations WHERE session_id = ${id}`
+      yield* PiSessionDismissals.abandonSessionDeletionWithSql(sql, id)
     }),
   )
 }

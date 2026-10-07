@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs'
 import { SessionManager } from '@earendil-works/pi-coding-agent'
-import type { SessionDetail, SessionResumePosition } from '@shared/types/session'
+import type { SessionDetail } from '@shared/types/session'
+import { piEntryNodeIds } from './pi-entry-node-ids'
 
 /**
  * The opened checkout for a session.
@@ -50,17 +51,15 @@ export function resolveSessionWorkingPath(session: SessionDetail): string {
  * branch switch or a retry from an earlier message is a separate Pi operation from the run that
  * follows it, so without this the run would continue whichever branch was written last: the
  * message lands on another branch than the one the user is looking at, and the model answers
- * from that other branch's context. See {@link SessionResumePosition} for the freshness rule.
+ * from that other branch's context. See `SessionResumePosition` for the freshness rule.
  */
-function resumeSelectedPosition(
-  sessionManager: SessionManager,
-  position: SessionResumePosition | undefined,
-) {
+function resumeSelectedPosition(sessionManager: SessionManager, session: SessionDetail) {
+  const position = session.resumePosition
   if (!position) return
   if (sessionManager.getEntries().length !== position.piEntryCount) return
-  const nodeId = String(position.nodeId)
-  if (sessionManager.getLeafId() === nodeId || !sessionManager.getEntry(nodeId)) return
-  sessionManager.branch(nodeId)
+  const entryId = piEntryNodeIds(session).toEntryId(String(position.nodeId))
+  if (sessionManager.getLeafId() === entryId || !sessionManager.getEntry(entryId)) return
+  sessionManager.branch(entryId)
 }
 
 export function createSessionManagerForSession(session: SessionDetail, projectPath: string) {
@@ -71,7 +70,7 @@ export function createSessionManagerForSession(session: SessionDetail, projectPa
    */
   if (session.piSessionFile && existsSync(session.piSessionFile)) {
     const sessionManager = SessionManager.open(session.piSessionFile, undefined, projectPath)
-    resumeSelectedPosition(sessionManager, session.resumePosition)
+    resumeSelectedPosition(sessionManager, session)
     return sessionManager
   }
 

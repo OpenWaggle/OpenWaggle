@@ -23,6 +23,8 @@ export interface SessionRow {
   readonly authorization_mode_override: string | null
   readonly execution_model_id: string | null
   readonly execution_thinking_level: string | null
+  /** 1 when the Session uses a discovered Pi session file (ADR 0048). */
+  readonly pi_adopted?: number
 }
 
 export interface SessionSummaryRow {

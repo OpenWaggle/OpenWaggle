@@ -50,7 +50,8 @@ A few things to know:
 - The title is the name you gave it with `/name` in Pi, or its first message. OpenWaggle does not generate a new one.
 - OpenWaggle runs the agent from the project folder, even when you started the `pi` session in a folder inside it.
 - Sessions from folders that aren't an OpenWaggle project stay hidden. Add the folder as a project and its `pi` sessions appear.
-- Deleting the session in OpenWaggle deletes its Pi session file too, so it is also gone from `pi --resume`. Archive it instead if you only want it out of the sidebar.
+- Deleting the session in OpenWaggle removes it from OpenWaggle only. The Pi session file stays, so `pi --resume` still has it, and OpenWaggle doesn't list it again. Sessions you started in OpenWaggle are deleted completely, as before.
+- A session you forked with `/fork` in Pi shows up as its own session, next to the one it came from.
 
 ## Reading the sidebar
 

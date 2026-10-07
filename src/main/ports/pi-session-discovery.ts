@@ -53,10 +53,12 @@ export interface PiSessionFilesShape {
   ) => Effect.Effect<readonly DiscoveredPiSession[], Error>
   /** Null when the file does not exist (yet). */
   readonly fingerprint: (piSessionFile: string) => Effect.Effect<PiSessionFileFingerprint | null>
-  readonly readSnapshot: (
-    piSessionFile: string,
-    cwd: string,
-  ) => Effect.Effect<PiSessionFileSnapshot, Error>
+  /** `piEntryNodeIdPrefix` is the Session's, for a discovered Pi session (ADR 0048). */
+  readonly readSnapshot: (input: {
+    readonly piSessionFile: string
+    readonly cwd: string
+    readonly piEntryNodeIdPrefix?: string
+  }) => Effect.Effect<PiSessionFileSnapshot, Error>
 }
 
 export class PiSessionFiles extends Context.Tag('@openwaggle/PiSessionFiles')<
@@ -85,6 +87,8 @@ export interface PiSessionProjectionState {
   readonly sessionId: SessionId
   readonly piSessionFile: string | null
   readonly projectPath: string | null
+  /** Set for a discovered Pi session, whose node ids carry it before each Pi entry id. */
+  readonly piEntryNodeIdPrefix?: string
   /** The Pi entries the projection holds (durable agent-loop nodes are not Pi entries). */
   readonly projectedPiEntryCount: number
   /** Advances on every persisted snapshot, so a projection read earlier can tell it is stale. */

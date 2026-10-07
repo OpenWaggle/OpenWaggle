@@ -1,0 +1,139 @@
+import { existsSync } from 'node:fs'
+import { SessionManager } from '@earendil-works/pi-coding-agent'
+import type { SessionId } from '@shared/types/brand'
+import * as Effect from 'effect/Effect'
+import { describe, expect, it, vi } from 'vitest'
+import {
+  continuePiCliSession,
+  createPiCliSession,
+  discover,
+  discoverOne,
+  messageTexts,
+  openSession,
+  registerProjects,
+  run,
+  sessionDetail,
+  setUpPiDiscoveryFixture,
+} from './pi-session-discovery.test-support'
+
+/**
+ * A discovered Pi session stays the user's file in the program that made it (ADR 0048): removing
+ * it from OpenWaggle keeps the file, and a `pi` CLI fork, which copies its source's entry ids, is
+ * projected and continued without colliding with the source's nodes (ADR 0041).
+ */
+
+const { state, getPathMock } = vi.hoisted(() => ({
+  state: { userDataDir: '' },
+  getPathMock: vi.fn(() => ''),
+}))
+
+getPathMock.mockImplementation(() => state.userDataDir)
+
+vi.mock('electron', () => ({
+  app: { getPath: getPathMock },
+  safeStorage: {
+    isEncryptionAvailable: () => false,
+    encryptString: (value: string) => Buffer.from(value, 'utf8'),
+    decryptString: (value: Buffer) => value.toString('utf8'),
+  },
+}))
+
+const fixture = setUpPiDiscoveryFixture(state)
+
+/** The durable deletion the sidebar's Delete runs once its Session Host checks pass. */
+async function deleteSession(sessionId: SessionId) {
+  const { SessionProjectionRepository } = await import(
+    '../../../ports/session-projection-repository'
+  )
+  await run(
+    Effect.flatMap(SessionProjectionRepository, (repository) => repository.delete(sessionId)),
+  )
+}
+
+/** What `pi` leaves behind after `/fork` from a session: a new file with the same entry ids. */
+function forkPiCliSession(sourceFile: string, cwd: string) {
+  const fork = SessionManager.forkFrom(sourceFile, cwd)
+  const file = fork.getSessionFile()
+  if (!file) throw new Error('Pi did not create the fork file.')
+  return { id: fork.getSessionId(), file }
+}
+
+describe('Discovered Pi session ownership', () => {
+  it('keeps the Pi file when the user deletes the discovered Session, and does not list it again', async () => {
+    await registerProjects([fixture.project])
+    const cli = createPiCliSession(fixture.project, 'Keep my history')
+    const sessionId = await discoverOne()
+    await openSession(sessionId)
+
+    await deleteSession(sessionId)
+
+    expect(await sessionDetail(sessionId)).toBeNull()
+    expect(existsSync(cli.file)).toBe(true)
+    expect(await discover()).toEqual([])
+  })
+
+  it('still deletes the Pi file of a Session OpenWaggle created', async () => {
+    await registerProjects([fixture.project])
+    const own = createPiCliSession(fixture.project, 'Created in OpenWaggle')
+    const { SessionProjectionRepository } = await import(
+      '../../../ports/session-projection-repository'
+    )
+    const created = await run(
+      Effect.flatMap(SessionProjectionRepository, (repository) =>
+        repository.create({
+          projectPath: fixture.project,
+          piSessionId: own.id,
+          piSessionFile: own.file,
+        }),
+      ),
+    )
+
+    await deleteSession(created.id)
+
+    expect(existsSync(own.file)).toBe(false)
+  })
+
+  it('projects a pi CLI fork next to its source and continues it', async () => {
+    await registerProjects([fixture.project])
+    const source = createPiCliSession(fixture.project, 'Shared start')
+    const sourceSessionId = await discoverOne()
+    await openSession(sourceSessionId)
+    const fork = forkPiCliSession(source.file, fixture.project)
+    continuePiCliSession(fork.file, 'Only in the fork')
+    const forkSessionId = await discoverOne()
+
+    expect(await openSession(forkSessionId)).toBe('projected')
+
+    expect(messageTexts(await sessionDetail(sourceSessionId))).toEqual([
+      'Shared start',
+      'Answer to: Shared start',
+    ])
+    expect(messageTexts(await sessionDetail(forkSessionId))).toEqual([
+      'Shared start',
+      'Answer to: Shared start',
+      'Only in the fork',
+      'Answer to: Only in the fork',
+    ])
+    // The fork file itself is never rewritten: Pi still finds its own entry ids in it.
+    const forkEntryIds = SessionManager.open(fork.file)
+      .getEntries()
+      .map((entry) => entry.id)
+    const sourceEntryIds = SessionManager.open(source.file)
+      .getEntries()
+      .map((entry) => entry.id)
+    expect(forkEntryIds.slice(0, sourceEntryIds.length)).toEqual(sourceEntryIds)
+
+    continuePiCliSession(fork.file, 'Continued in the terminal')
+    const { reserveSessionTreeMutation } = await import('../../../application/active-session-runs')
+    const { loadSessionForRun } = await import('../../../application/pi-session-projection-refresh')
+    const writer = reserveSessionTreeMutation(forkSessionId)
+    try {
+      const session = await run(loadSessionForRun(forkSessionId))
+      expect(messageTexts(session).at(-1)).toBe('Answer to: Continued in the terminal')
+      // A Run resumes the position the projection selected, translated back to Pi's entry id.
+      expect(session?.resumePosition?.piEntryCount).toBe(forkEntryIds.length + 2)
+    } finally {
+      writer.release()
+    }
+  })
+})
