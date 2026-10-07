@@ -16,7 +16,7 @@ Commands:
   delegations  List, review, and resolve Worker Delegations
   agents       List, validate, and manage Agent definitions
   access       Manage named access profiles for agents and scripts
-  mcp          Manage MCP servers, or serve OpenWaggle over MCP
+  mcp          Serve OpenWaggle over MCP
   update       Check for and install OpenWaggle updates
   recovery     Inspect or restore the pre-migration database copy
   help         Show help for a command

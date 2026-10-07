@@ -12,7 +12,6 @@ import {
   serveAuthorizationCeiling,
   validateMcpCliOptions,
 } from './mcp-cli-arguments'
-import { runMcpManagementCommand } from './mcp-cli-management'
 import {
   OPENWAGGLE_MCP_SERVE_GRANTS,
   type OpenWaggleMcpServeGrant,
@@ -26,14 +25,6 @@ function usage() {
   return `OpenWaggle MCP
 
 Usage:
-  openwaggle mcp add <name> --url <https-url> [--scope global|project]
-  openwaggle mcp add <name> [options] -- <command> [args...]
-  openwaggle mcp list|get|enable|disable|trust|remove <name> [options]
-  openwaggle mcp auth <name> [--secret <name>] [--secret-stdin]
-  openwaggle mcp logout <name>
-  openwaggle mcp import [--from codex,claude-code,opencode,pi,vscode] [--apply]
-  openwaggle mcp registry search|get|add <query-or-name> [--package npm|pypi|nuget|oci|mcpb]
-  openwaggle mcp doctor
   openwaggle mcp serve --stdio [--profile <name>] [--grant <capability>]...
                        [--authorization-ceiling ask-for-approval|yolo]
                        [--workspace <path>]... [--session <id>]...
@@ -48,9 +39,7 @@ Usage:
                        [--session <id>]... [--origin-session <id>]
 
 Server scope: at least one --workspace <path> or --session <id> is required.
-Common options: --project <path>, --scope global|project, --json
-Unexpected positional and -- passthrough input fail before configuration changes; only mcp add
-accepts passthrough after -- as the configured server command and arguments.`
+Unexpected positional and -- passthrough input fail before the server starts.`
 }
 
 function parseServeGrants(values: readonly string[] | undefined) {
@@ -138,16 +127,12 @@ function exitCodeForError(message: string) {
   const usagePrefixes = [
     'Usage:',
     'Unknown option',
-    'Unsupported MCP scope',
-    'Unsupported MCP transport',
-    'Unsupported MCP compatibility',
     'Unsupported MCP command',
     'MCP ',
     'Missing value',
   ]
   if (usagePrefixes.some((prefix) => message.startsWith(prefix))) return EXIT.USAGE
-  if (message.includes('requires a server name')) return EXIT.USAGE
-  if (message.includes('Cannot trust') || message.includes('require')) return EXIT.POLICY
+  if (message.includes('require')) return EXIT.POLICY
   return EXIT.FAILURE
 }
 
@@ -167,11 +152,7 @@ export async function runMcpCli(args: readonly string[]) {
       await writeOutput(usage(), false)
       return EXIT.SUCCESS
     }
-    const result =
-      command === 'serve'
-        ? await runServeCommand(commandArguments)
-        : await runMcpManagementCommand(command, commandArguments)
-    if (command !== 'serve') await writeOutput(result, json)
+    await runServeCommand(commandArguments)
     return EXIT.SUCCESS
   } catch (error) {
     writeError(error, command === 'serve' ? false : json)

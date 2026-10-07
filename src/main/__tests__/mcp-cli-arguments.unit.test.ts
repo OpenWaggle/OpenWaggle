@@ -1,22 +1,16 @@
 import { describe, expect, it } from 'vitest'
 import {
-  addDefinition,
   parseMcpCliArguments,
   requireServeScope,
   serveAuthorizationCeiling,
-  target,
   validateMcpCliOptions,
 } from '../mcp-cli-arguments'
-import {
-  partitionLogoutSecretReferences,
-  partitionServerLogoutSecretReferences,
-} from '../mcp-cli-secret-references'
 
 describe('MCP CLI arguments', () => {
   it('rejects unknown options for the selected command', () => {
-    const arguments_ = parseMcpCliArguments(['docs', '--scpoe', 'global', '--', 'docs-mcp'])
+    const arguments_ = parseMcpCliArguments(['--stdio', '--scpoe', 'global'])
 
-    expect(() => validateMcpCliOptions('add', arguments_)).toThrow('Unknown option: --scpoe.')
+    expect(() => validateMcpCliOptions('serve', arguments_)).toThrow('Unknown option: --scpoe.')
   })
 
   it('accepts immutable origin-session provenance for hosted server profiles', () => {
@@ -40,27 +34,28 @@ describe('MCP CLI arguments', () => {
     ).toThrow('Unsupported MCP authorization ceiling "unrestricted"')
   })
 
-  it('enforces management positional and passthrough contracts before adapters run', () => {
-    expect(() =>
-      validateMcpCliOptions('remove', parseMcpCliArguments(['server', 'accidental-extra'])),
-    ).toThrow('received unexpected positional arguments')
-    expect(() =>
-      validateMcpCliOptions('list', parseMcpCliArguments(['--', 'accidental-command'])),
-    ).toThrow('does not accept arguments after --')
-    expect(() =>
-      validateMcpCliOptions(
-        'add',
-        parseMcpCliArguments(['server', '--', 'server-command', '--safe-argument']),
-      ),
-    ).not.toThrow()
-    expect(() => validateMcpCliOptions('unknown', parseMcpCliArguments([]))).toThrow(
-      'Unsupported MCP command',
+  it('enforces positional and passthrough contracts before the server starts', () => {
+    expect(() => validateMcpCliOptions('serve', parseMcpCliArguments(['extra']))).toThrow(
+      'received unexpected positional arguments',
     )
+    expect(() =>
+      validateMcpCliOptions('serve', parseMcpCliArguments(['--stdio', '--', 'command'])),
+    ).toThrow('does not accept arguments after --')
+    expect(() => validateMcpCliOptions('help', parseMcpCliArguments([]))).not.toThrow()
   })
 
+  it.each(['add', 'list', 'get', 'remove', 'import', 'registry', 'doctor', 'unknown'])(
+    'rejects the %s command, which `openwaggle mcp` no longer offers',
+    (command) => {
+      expect(() => validateMcpCliOptions(command, parseMcpCliArguments([]))).toThrow(
+        'Unsupported MCP command',
+      )
+    },
+  )
+
   it('rejects values assigned to MCP boolean flags', () => {
-    expect(() => validateMcpCliOptions('import', parseMcpCliArguments(['--apply=false']))).toThrow(
-      '--apply do not accept values',
+    expect(() => validateMcpCliOptions('serve', parseMcpCliArguments(['--stdio=false']))).toThrow(
+      '--stdio do not accept values',
     )
   })
 
@@ -85,128 +80,11 @@ describe('MCP CLI arguments', () => {
   })
 
   it.each(['workspace', 'session', 'origin-session', 'grant', 'authorization-ceiling'])(
-    'rejects serve-only --%s on management commands',
+    'rejects serve-only --%s on help',
     (name) => {
       const arguments_ = parseMcpCliArguments([`--${name}`, 'value'])
 
-      expect(() => validateMcpCliOptions('list', arguments_)).toThrow(`Unknown option: --${name}.`)
+      expect(() => validateMcpCliOptions('help', arguments_)).toThrow(`Unknown option: --${name}.`)
     },
   )
-
-  it('rejects an invalid scope instead of falling back to project', () => {
-    const arguments_ = parseMcpCliArguments(['--scope', 'glboal'])
-
-    expect(() => target(arguments_)).toThrow('Unsupported MCP scope "glboal"')
-    expect(() => validateMcpCliOptions('import', arguments_)).toThrow(
-      'Unsupported MCP scope "glboal"',
-    )
-  })
-
-  it('accepts both supported scopes', () => {
-    expect(target(parseMcpCliArguments([]))).toBe('project')
-    expect(target(parseMcpCliArguments(['--scope', 'project']))).toBe('project')
-    expect(target(parseMcpCliArguments(['--scope', 'global']))).toBe('global')
-  })
-
-  it.each([
-    ['transport', 'stdioo', 'Unsupported MCP transport "stdioo"'],
-    ['compatibility', 'legacy', 'Unsupported MCP compatibility profile "legacy"'],
-  ])('rejects an invalid --%s value', (option, value, message) => {
-    const arguments_ = parseMcpCliArguments([
-      '--url',
-      'https://example.com/mcp',
-      `--${option}`,
-      value,
-    ])
-
-    expect(() => addDefinition(arguments_)).toThrow(message)
-  })
-
-  it('accepts supported transport and compatibility values', () => {
-    const definition = addDefinition(
-      parseMcpCliArguments([
-        '--url',
-        'https://example.com/mcp',
-        '--transport',
-        'streamable-http',
-        '--compatibility',
-        'modern-only',
-      ]),
-    )
-
-    expect(definition).toMatchObject({
-      transport: 'streamable-http',
-      compatibility: 'modern-only',
-    })
-  })
-
-  it('retains vault references that are still used by another server during logout', () => {
-    const partition = partitionLogoutSecretReferences(
-      ['only-alpha', 'shared'],
-      [
-        {
-          env: { TOKEN: { secret: 'shared' } },
-          headers: { Authorization: { secret: 'only-beta' } },
-        },
-      ],
-    )
-
-    expect(partition).toEqual({ removable: ['only-alpha'], retained: ['shared'] })
-  })
-
-  it('retains references from shadowed config sources and fails closed on unreadable sources', () => {
-    const sharedInput = {
-      references: ['shared', 'only-alpha'],
-      target: { name: 'alpha', sourceId: 'project-standard' },
-      sources: [
-        {
-          id: 'global-openwaggle',
-          label: 'Global',
-          rawJson: JSON.stringify({
-            mcpServers: { alpha: { env: { TOKEN: { secret: 'shared' } } } },
-          }),
-        },
-        {
-          id: 'project-standard',
-          label: 'Project',
-          rawJson: JSON.stringify({
-            mcpServers: {
-              alpha: {
-                env: {
-                  TOKEN: { secret: 'shared' },
-                  PRIVATE: { secret: 'only-alpha' },
-                },
-              },
-            },
-          }),
-        },
-      ],
-    } as const
-
-    expect(partitionServerLogoutSecretReferences(sharedInput)).toEqual({
-      removable: ['only-alpha'],
-      retained: ['shared'],
-      retainedUnverified: [],
-      unreadableSources: [],
-    })
-    expect(
-      partitionServerLogoutSecretReferences({
-        ...sharedInput,
-        sources: [
-          ...sharedInput.sources,
-          {
-            id: 'project-openwaggle',
-            label: 'Unreadable project config',
-            rawJson: '{',
-            parseError: 'Invalid JSON',
-          },
-        ],
-      }),
-    ).toEqual({
-      removable: [],
-      retained: ['shared'],
-      retainedUnverified: ['only-alpha'],
-      unreadableSources: ['Unreadable project config'],
-    })
-  })
 })

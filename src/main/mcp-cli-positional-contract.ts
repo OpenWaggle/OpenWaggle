@@ -7,19 +7,7 @@ const COMMAND_ARGUMENTS: Readonly<
   >
 > = {
   help: { minimum: 0, maximum: 0 },
-  add: { minimum: 1, maximum: 1, allowPassthrough: true },
-  auth: { minimum: 1, maximum: 1 },
-  disable: { minimum: 1, maximum: 1 },
-  doctor: { minimum: 0, maximum: 0 },
-  enable: { minimum: 1, maximum: 1 },
-  get: { minimum: 1, maximum: 1 },
-  import: { minimum: 0, maximum: 0 },
-  list: { minimum: 0, maximum: 0 },
-  logout: { minimum: 1, maximum: 1 },
-  registry: { minimum: 2, maximum: 2 },
-  remove: { minimum: 1, maximum: 1 },
   serve: { minimum: 0, maximum: 0 },
-  trust: { minimum: 1, maximum: 1 },
 }
 
 export function validateMcpCliPositionals(command: string, arguments_: ParsedArguments) {
