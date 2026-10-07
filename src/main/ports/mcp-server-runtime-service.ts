@@ -1,4 +1,4 @@
-import type { McpServerInspection } from '@shared/types/mcp-configuration'
+import type { McpServerInspection, McpServerStatusView } from '@shared/types/mcp-configuration'
 import { Context, type Effect } from 'effect'
 import type { McpConfigurationError, McpConfigurationScopeInput } from './mcp-configuration-service'
 
@@ -17,14 +17,24 @@ export interface McpSignInResult {
 }
 
 /**
- * The live side of Settings > MCP and the MCP CLI: connecting to a server to show its state and
- * tools, the Host-owned OAuth sign-in shared by GUI and CLI, and a Session's MCP switch.
+ * The live side of Settings > MCP and the MCP CLI: a server's state without connecting,
+ * connecting to it on request to show its state and tools, the Host-owned OAuth sign-in shared by GUI and CLI, and a Session's MCP switch.
  */
 export interface McpServerRuntimeServiceShape {
-  /** Connects to the server outside any Session, lists its tools, and disconnects. */
+  /**
+   * Connects to the server outside any Session, lists its tools, and disconnects. The result is
+   * remembered as the server's last check.
+   */
   readonly inspectServer: (
     input: McpServerScopeInput,
   ) => Effect.Effect<McpServerInspection, McpConfigurationError>
+  /**
+   * Every configured server's state without connecting: a Session's warm connection when one
+   * exists, otherwise the last check, otherwise not checked. Starts no server and sends nothing.
+   */
+  readonly getServerStatuses: (
+    input: McpConfigurationScopeInput,
+  ) => Effect.Effect<readonly McpServerStatusView[], McpConfigurationError>
   readonly signIn: (
     input: McpServerScopeInput,
   ) => Effect.Effect<McpSignInResult, McpConfigurationError>

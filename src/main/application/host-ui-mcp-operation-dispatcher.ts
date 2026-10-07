@@ -10,6 +10,7 @@ import {
   addMcpServerOperation,
   applyMcpImportsOperation,
   getMcpConfigurationOperation,
+  getMcpServerStatusesOperation,
   inspectMcpServerOperation,
   installMcpCatalogServerOperation,
   previewMcpImportsOperation,
@@ -58,6 +59,7 @@ export function dispatchMcpHostUiOperation(
     .with('mcp:remove-server', () => oneInput(args, removeMcpServerOperation))
     .with('mcp:install-catalog-server', () => oneInput(args, installMcpCatalogServerOperation))
     .with('mcp:inspect-server', () => oneInput(args, inspectMcpServerOperation))
+    .with('mcp:get-server-statuses', () => oneInput(args, getMcpServerStatusesOperation))
     .with('mcp:sign-in', () => oneInput(args, signInMcpServerOperation))
     .with('mcp:sign-out', () => oneInput(args, signOutMcpServerOperation))
     .with('mcp:preview-imports', () => oneInput(args, previewMcpImportsOperation))

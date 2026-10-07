@@ -62,6 +62,11 @@ export class McpPooledConnection {
     return this.closed
   }
 
+  /** Open and past its handshake. */
+  get isReady() {
+    return !this.closed && this.handshake !== undefined
+  }
+
   get attachedLeases() {
     return this.leases.size
   }

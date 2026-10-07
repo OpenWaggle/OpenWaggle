@@ -235,6 +235,25 @@ Windows. That terminates a package runner (`npx`, `pnpm dlx`, `bunx`, `uvx`) tog
 server it launched. Child processes get OpenWaggle's child-process environment (packaged-app
 `PATH`), not a spread of `process.env`.
 
+## Settings state without connecting
+
+Opening Settings > MCP calls `mcp:get-server-statuses` (`McpServerRuntimeService.getServerStatuses`),
+which starts no server and sends no request. For each configured server it reports, in order:
+
+1. **`live`**: a Session holds an open connection with the same server identity
+   (`mcpServerIdentity`). The pool's `connectionStates(identity)` reads `ready` and the last error
+   without touching recency or handing the connection out; tools are the ones the Session's Run
+   listed. Nothing is sent over another Session's lease.
+2. **`last-check`**: the in-memory last known state per server identity
+   (`adapters/pi/mcp/mcp-server-status-registry.ts`). `inspectServer` ("Check connection",
+   `openwaggle mcp list`) records its result, and the connection hooks' `observeResult` records
+   every `tools/list` result a Run receives. Tool exposure is applied from the current
+   configuration when read. Signing in or out forgets the server's entry.
+3. **`not-checked`**: nothing is known; the UI says "Not checked yet".
+
+`mcp:inspect-server` connects outside any Session and runs only on **Check connection** and in the
+CLI's `list`. The state is in memory only, so it starts empty after the Host restarts.
+
 ## Approval
 
 The companion extension's `tool_call` handler raises an OpenWaggle authorization request for

@@ -2,16 +2,15 @@ import { homedir } from 'node:os'
 import {
   createMcpAuthProvider,
   getMcpToolExposure,
-  type McpOAuthSettings,
   type McpServerEntry,
   McpSignInCancelledError,
-  resolveConfigValueOrThrow,
   signInMcpServer,
 } from '@earendil-works/pi-coding-agent'
 import { McpClient } from '@earendil-works/pi-mcp'
 import type { McpServerInspection, McpServerToolView } from '@shared/types/mcp-configuration'
 import { Effect, Layer } from 'effect'
 import { openExternal } from '../../../desktop-ui'
+import type { McpTransportKind } from '../../../domain/mcp/config/mcp-server-config'
 import { McpConfigurationError } from '../../../ports/mcp-configuration-service'
 import {
   McpServerRuntimeService,
@@ -22,8 +21,12 @@ import { loadMcpRuntimeConfig } from '../../mcp/config/mcp-runtime-config'
 import { resolveMcpVaultSecret } from '../../mcp/encrypted-mcp-secret-vault-service'
 import { isSessionMcpEnabled, setSessionMcpEnabled } from '../../mcp/mcp-session-switch'
 import { mcpSessionConnectionPool } from '../../mcp/pool/mcp-connection-pool-instance'
+import { mcpServerIdentity } from '../../mcp/pool/mcp-server-identity'
 import { getPiAgentDir } from '../pi-provider-catalog'
+import { forgetKnownMcpServerState, recordMcpServerCheck } from './mcp-server-status-registry'
 import { getOpenWaggleMcpCredentials } from './openwaggle-mcp-credentials'
+import { mcpOAuthSettings, mcpOAuthUrl, mcpSignedIn } from './pi-mcp-server-oauth'
+import { getMcpServerStatuses, type PiMcpServerRuntimeRoots } from './pi-mcp-server-status'
 import { openPiMcpUpstream } from './pi-mcp-upstream'
 
 /** How long Settings waits for a server to connect and list its tools. */
@@ -31,12 +34,7 @@ const INSPECT_TIMEOUT_MS = 30_000
 /** How long a Host-owned sign-in waits for the browser to come back. */
 const SIGN_IN_TIMEOUT_MS = 300_000
 
-export interface PiMcpServerRuntimeRoots {
-  readonly homeDir: string
-  readonly piAgentDir: string
-}
-
-function defaultRoots(): PiMcpServerRuntimeRoots {
+function defaultMcpServerRuntimeRoots(): PiMcpServerRuntimeRoots {
   return { homeDir: homedir(), piAgentDir: getPiAgentDir() }
 }
 
@@ -54,45 +52,6 @@ async function findServer(input: McpServerScopeInput, roots: PiMcpServerRuntimeR
   }
   const transport = config.transports.get(entry.name) ?? ('url' in entry.config ? 'http' : 'stdio')
   return { entry, transport }
-}
-
-/** The URL a server signs in for, when it uses OAuth (Pi's rule). */
-function oauthUrl(entry: McpServerEntry) {
-  const { config } = entry
-  if (!('url' in config) || config.auth) return undefined
-  const hasAuthorization = Object.keys(config.headers ?? {}).some(
-    (header) => header.toLowerCase() === 'authorization',
-  )
-  return hasAuthorization ? undefined : config.url
-}
-
-function oauthSettings(entry: McpServerEntry): McpOAuthSettings {
-  const oauth = 'url' in entry.config ? entry.config.oauth : undefined
-  if (!oauth) return {}
-  return {
-    ...(oauth.clientId ? { clientId: oauth.clientId } : {}),
-    ...(oauth.clientSecret
-      ? {
-          clientSecret: resolveConfigValueOrThrow(
-            oauth.clientSecret,
-            `MCP server "${entry.name}" oauth.clientSecret`,
-          ),
-        }
-      : {}),
-    ...(oauth.callbackPort ? { callbackPort: oauth.callbackPort } : {}),
-    ...(oauth.callbackUrl ? { callbackUrl: oauth.callbackUrl } : {}),
-    ...(oauth.scope ? { scope: oauth.scope } : {}),
-    ...(oauth.clientName ? { clientName: oauth.clientName } : {}),
-    ...(oauth.clientRegistration ? { clientRegistration: oauth.clientRegistration } : {}),
-    ...(oauth.authServerMetadataUrl
-      ? { authServerMetadataUrl: new URL(oauth.authServerMetadataUrl) }
-      : {}),
-  }
-}
-
-function signedIn(entry: McpServerEntry) {
-  const url = oauthUrl(entry)
-  return url ? getOpenWaggleMcpCredentials().tokens(entry.name, url) !== undefined : undefined
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -123,31 +82,44 @@ function toolViews(
   })
 }
 
-/** Connects outside any Session, lists the tools, and disconnects, like `pi mcp list`. */
+/**
+ * Connects outside any Session, lists the tools, and disconnects, like `pi mcp list`. The result
+ * becomes the server's last check, which Settings shows on open without connecting again.
+ */
 export async function inspectMcpServer(
   input: McpServerScopeInput,
-  roots: PiMcpServerRuntimeRoots = defaultRoots(),
+  roots: PiMcpServerRuntimeRoots = defaultMcpServerRuntimeRoots(),
 ): Promise<McpServerInspection> {
   const { entry, transport } = await findServer(input, roots)
-  const signedInState = signedIn(entry)
+  const inspection = await connectAndList(entry, transport, input.projectPath ?? homedir())
+  recordMcpServerCheck(mcpServerIdentity(entry.name, entry.config), inspection)
+  return inspection
+}
+
+async function connectAndList(
+  entry: McpServerEntry,
+  transport: McpTransportKind,
+  cwd: string,
+): Promise<McpServerInspection> {
+  const signedInState = mcpSignedIn(entry)
   const base = {
     name: entry.name,
     ...(signedInState === undefined ? {} : { signedIn: signedInState }),
   }
   if (entry.config.enabled === false) return { ...base, state: 'disabled', tools: [] }
-  const url = oauthUrl(entry)
+  const url = mcpOAuthUrl(entry)
   const authProvider = url
     ? createMcpAuthProvider({
         serverUrl: url,
         store: getOpenWaggleMcpCredentials().forServer(entry.name, url),
-        settings: () => oauthSettings(entry),
+        settings: () => mcpOAuthSettings(entry),
         onChallenge: () => {},
       })
     : undefined
   const upstream = openPiMcpUpstream({
     entry,
     transport,
-    cwd: input.projectPath ?? homedir(),
+    cwd,
     authProvider,
   })
   const client = new McpClient({
@@ -180,8 +152,8 @@ export async function inspectMcpServer(
  * page cannot be opened (non-disruptive automation), it gives up at once and returns the URL.
  */
 async function signIn(input: McpServerScopeInput): Promise<McpSignInResult> {
-  const { entry } = await findServer(input, defaultRoots())
-  const url = oauthUrl(entry)
+  const { entry } = await findServer(input, defaultMcpServerRuntimeRoots())
+  const url = mcpOAuthUrl(entry)
   if (!url) {
     throw new McpConfigurationError({
       reason: 'validation',
@@ -196,7 +168,7 @@ async function signIn(input: McpServerScopeInput): Promise<McpSignInResult> {
     await signInMcpServer({
       serverUrl: url,
       store: getOpenWaggleMcpCredentials().forServer(entry.name, url),
-      settings: oauthSettings(entry),
+      settings: mcpOAuthSettings(entry),
       prompt: {
         showAuthorizationUrl: (page) => {
           authorizationUrl = page.href
@@ -222,16 +194,19 @@ async function signIn(input: McpServerScopeInput): Promise<McpSignInResult> {
   } finally {
     clearTimeout(timeout)
   }
-  // Warm connections of this server pick the new sign-in up when they reconnect.
+  // Warm connections of this server pick the new sign-in up when they reconnect, and the last
+  // check (probably "needs sign-in") no longer says anything true.
   await mcpSessionConnectionPool.closeServer(entry.name)
+  forgetKnownMcpServerState(mcpServerIdentity(entry.name, entry.config))
   return { signedIn: true }
 }
 
 async function signOut(input: McpServerScopeInput) {
-  const { entry } = await findServer(input, defaultRoots())
-  const url = oauthUrl(entry)
+  const { entry } = await findServer(input, defaultMcpServerRuntimeRoots())
+  const url = mcpOAuthUrl(entry)
   if (url) getOpenWaggleMcpCredentials().remove(entry.name, url)
   await mcpSessionConnectionPool.closeServer(entry.name)
+  forgetKnownMcpServerState(mcpServerIdentity(entry.name, entry.config))
 }
 
 function toConfigurationError(error: unknown) {
@@ -249,6 +224,8 @@ function attempt<A>(operation: () => Promise<A>) {
 
 export const PiMcpServerRuntimeServiceLive = Layer.succeed(McpServerRuntimeService, {
   inspectServer: (input) => attempt(() => inspectMcpServer(input)),
+  getServerStatuses: (input) =>
+    attempt(() => getMcpServerStatuses(input, defaultMcpServerRuntimeRoots())),
   signIn: (input) => attempt(() => signIn(input)),
   signOut: (input) => attempt(() => signOut(input)),
   getSessionMcpEnabled: (sessionId) => Effect.sync(() => isSessionMcpEnabled(sessionId)),

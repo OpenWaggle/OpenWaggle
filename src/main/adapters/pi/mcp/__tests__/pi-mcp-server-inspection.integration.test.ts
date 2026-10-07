@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -6,6 +6,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 vi.mock('electron', () => ({ safeStorage: { isEncryptionAvailable: () => false }, shell: {} }))
 
 const { inspectMcpServer } = await import('../pi-mcp-server-runtime-service')
+const { getMcpServerStatuses } = await import('../pi-mcp-server-status')
+const { forgetKnownMcpServerStates } = await import('../mcp-server-status-registry')
+const { openWaggleMcpConnectionHooks } = await import('../mcp-session-context')
+const { McpSessionConnectionPool } = await import('../../../mcp/pool/mcp-session-connection-pool')
+const { mcpServerIdentity } = await import('../../../mcp/pool/mcp-server-identity')
+const { FakeUpstream, flush, initializeRequest } = await import(
+  '../../../mcp/pool/__tests__/fake-upstream'
+)
 
 const SERVER = `
 const readline = require('node:readline')
@@ -26,6 +34,7 @@ let roots: { homeDir: string; piAgentDir: string }
 beforeEach(() => {
   root = mkdtempSync(path.join(tmpdir(), 'ow-mcp-inspect-'))
   roots = { homeDir: path.join(root, 'home'), piAgentDir: path.join(root, 'home', '.pi', 'agent') }
+  forgetKnownMcpServerStates()
 })
 
 afterEach(() => {
@@ -77,5 +86,95 @@ describe('MCP server inspection for Settings', () => {
     expect(broken).toEqual(
       expect.objectContaining({ name: 'broken', state: 'failed', stderrTail: 'missing API key' }),
     )
+  })
+})
+
+describe('MCP server state for Settings without connecting', () => {
+  function pool() {
+    return new McpSessionConnectionPool({ hooks: openWaggleMcpConnectionHooks })
+  }
+
+  it('starts no server: a server never checked is not checked yet', async () => {
+    const started = path.join(root, 'started')
+    configure({
+      fixture: {
+        command: process.execPath,
+        args: ['-e', `require('node:fs').writeFileSync(${JSON.stringify(started)}, '')`],
+      },
+      off: { command: 'never-run', enabled: false },
+    })
+
+    const statuses = await getMcpServerStatuses({ projectPath: null }, roots, pool())
+    await new Promise((resolve) => setTimeout(resolve, 200))
+
+    expect(statuses).toEqual([
+      { name: 'fixture', source: 'not-checked' },
+      { name: 'off', source: 'not-checked' },
+    ])
+    expect(existsSync(started)).toBe(false)
+  })
+
+  it('shows the last check, with exposure from the current configuration', async () => {
+    configure({ fixture: { command: process.execPath, args: ['-e', SERVER] } })
+    await inspectMcpServer({ projectPath: null, name: 'fixture' }, roots)
+    configure({
+      fixture: {
+        command: process.execPath,
+        args: ['-e', SERVER],
+        toolExposure: { search: 'hidden' },
+      },
+    })
+
+    const [status] = await getMcpServerStatuses({ projectPath: null }, roots, pool())
+
+    expect(status).toEqual({
+      name: 'fixture',
+      source: 'last-check',
+      checkedAt: expect.any(Number),
+      inspection: {
+        name: 'fixture',
+        state: 'connected',
+        tools: [
+          { name: 'search', description: 'Search', exposure: 'hidden', hasApp: false },
+          { name: 'show', exposure: 'codemode', hasApp: true },
+        ],
+      },
+    })
+  })
+
+  it('shows a Session’s warm connection and the tools its Run listed, sending it nothing', async () => {
+    const config = { command: process.execPath, args: ['-e', SERVER] }
+    configure({ fixture: config })
+    const sessions = pool()
+    const upstream = new FakeUpstream((request) =>
+      request.method === 'tools/list'
+        ? { tools: [{ name: 'search', inputSchema: { type: 'object' } }] }
+        : undefined,
+    )
+    const lease = sessions.lease('run-session', {
+      name: 'fixture',
+      fingerprint: 'v1',
+      identity: mcpServerIdentity('fixture', config),
+      open: () => ({ transport: upstream }),
+    })
+    lease.onMessage(() => {})
+    await lease.start()
+    await lease.send(initializeRequest(1))
+    await lease.send({ jsonrpc: '2.0', id: 2, method: 'tools/list', params: {} })
+    await flush()
+    const sent = upstream.received.length
+
+    const [status] = await getMcpServerStatuses({ projectPath: null }, roots, sessions)
+
+    expect(status).toEqual({
+      name: 'fixture',
+      source: 'live',
+      inspection: {
+        name: 'fixture',
+        state: 'connected',
+        tools: [{ name: 'search', exposure: 'codemode', hasApp: false }],
+      },
+    })
+    expect(upstream.received).toHaveLength(sent)
   })
 })

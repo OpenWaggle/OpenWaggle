@@ -4,6 +4,7 @@ import type { McpJsonValue } from '@shared/types/mcp'
 import type { McpConnectionHooks } from '../../mcp/pool/mcp-session-connection-pool'
 import { recordMcpAppTools } from './mcp-app-registry'
 import type { McpRuntimeInteractions } from './mcp-interaction-types'
+import { recordMcpServerToolsListing } from './mcp-server-status-registry'
 import { repairMcpToolListResult } from './mcp-tool-schema-repair'
 
 /**
@@ -70,12 +71,16 @@ function requireContext(sessionId: string, serverName: string) {
 export function openWaggleMcpConnectionHooks(
   sessionId: string,
   serverName: string,
+  identity?: string,
 ): McpConnectionHooks {
   return {
     augmentInitializeParams: withOpenWaggleClientCapabilities,
     // Pi drops a tool's `_meta`, where an MCP App names its `ui://` resource, so it is read here.
-    observeResult: (method, _params, result) => {
-      if (method === 'tools/list') recordMcpAppTools(sessionId, serverName, result)
+    // The same listing is what Settings > MCP shows for the server without connecting to it.
+    observeResult: (method, params, result) => {
+      if (method !== 'tools/list') return
+      recordMcpAppTools(sessionId, serverName, result)
+      if (identity) recordMcpServerToolsListing(identity, params, result)
     },
     adaptResult: (method, result) => repairMcpToolListResult(serverName, method, result),
     handleServerRequest: ({ method, params, signal }) => {

@@ -12,6 +12,7 @@ export const HOST_UI_REVISION_22_REQUIRED_CHANNELS = [
   'mcp:add-server',
   'mcp:remove-server',
   'mcp:inspect-server',
+  'mcp:get-server-statuses',
   'mcp:sign-in',
   'mcp:sign-out',
   'mcp:install-catalog-server',

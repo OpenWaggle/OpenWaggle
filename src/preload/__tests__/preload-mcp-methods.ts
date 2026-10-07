@@ -6,6 +6,7 @@ export const PRELOAD_MCP_METHODS = [
   'removeMcpServer',
   'installMcpCatalogServer',
   'inspectMcpServer',
+  'getMcpServerStatuses',
   'signInMcpServer',
   'signOutMcpServer',
   'previewMcpImports',

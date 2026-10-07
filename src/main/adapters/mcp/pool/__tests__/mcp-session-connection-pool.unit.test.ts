@@ -166,4 +166,27 @@ describe('MCP Session connection pool', () => {
 
     expect(pool.status('s1')).toEqual([{ name: 'a', clients: 1, stderrTail: 'starting…' }])
   })
+
+  it('tells Settings a warm connection’s state without using it or keeping it warm', async () => {
+    const upstreams: FakeUpstream[] = []
+    const pool = new McpSessionConnectionPool({ clock: new FakeClock() })
+    const figma = { ...server('figma', upstreams), identity: 'mcp-server:figma' }
+    await useServer(pool, 'run', figma)
+    const opening = pool.lease('other', {
+      ...server('docs', upstreams),
+      identity: 'mcp-server:docs',
+    })
+    await opening.start()
+    const sent = upstreams.map((upstream) => upstream.received.length)
+    const recency = pool.warmSessions()
+
+    expect(pool.connectionStates('mcp-server:figma')).toEqual([{ ready: true }])
+    expect(pool.connectionStates('mcp-server:docs')).toEqual([{ ready: false }])
+    expect(pool.connectionStates('mcp-server:unknown')).toEqual([])
+    expect(upstreams.map((upstream) => upstream.received.length)).toEqual(sent)
+    expect(pool.warmSessions()).toEqual(recency)
+
+    upstreams[0]?.crash()
+    expect(pool.connectionStates('mcp-server:figma')).toEqual([])
+  })
 })

@@ -88,5 +88,23 @@ export interface McpServerInspection {
   readonly signedIn?: boolean
 }
 
+/**
+ * Where a server state read without connecting comes from: a Session's warm connection, the last
+ * check ("Check connection", `openwaggle mcp list`, or a Run listing its tools), or nothing yet.
+ */
+export type McpServerStatusSource = 'live' | 'last-check' | 'not-checked'
+
+/** A server's state as Settings > MCP shows it on open. Reading it never starts a server. */
+export interface McpServerStatusView {
+  readonly name: string
+  readonly source: McpServerStatusSource
+  /** The state and tools; absent when the server was never checked. */
+  readonly inspection?: McpServerInspection
+  /** When the last check happened (epoch milliseconds), for `last-check`. */
+  readonly checkedAt?: number
+  /** Whether OpenWaggle holds a sign-in, for OAuth servers. Read from the store, not the server. */
+  readonly signedIn?: boolean
+}
+
 /** Where a new server, a per-project switch, or an install goes. */
 export type McpWriteDestination = McpConfigFileKind

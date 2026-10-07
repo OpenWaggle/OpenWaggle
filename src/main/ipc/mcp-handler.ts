@@ -6,6 +6,7 @@ import {
   addMcpServerOperation,
   applyMcpImportsOperation,
   getMcpConfigurationOperation,
+  getMcpServerStatusesOperation,
   inspectMcpServerOperation,
   installMcpCatalogServerOperation,
   previewMcpImportsOperation,
@@ -34,6 +35,9 @@ export function registerMcpHandlers(): void {
     installMcpCatalogServerOperation(raw),
   )
   hostHandle('mcp:inspect-server', (_event, raw: unknown) => inspectMcpServerOperation(raw))
+  hostHandle('mcp:get-server-statuses', (_event, raw: unknown) =>
+    getMcpServerStatusesOperation(raw),
+  )
   hostHandle('mcp:sign-in', (_event, raw: unknown) => signInMcpServerOperation(raw))
   hostHandle('mcp:sign-out', (_event, raw: unknown) => signOutMcpServerOperation(raw))
   hostHandle('mcp:preview-imports', (_event, raw: unknown) => previewMcpImportsOperation(raw))

@@ -150,6 +150,15 @@ export function inspectMcpServerOperation(raw: unknown) {
   })
 }
 
+/** Settings > MCP on open: every server's state without connecting to any of them. */
+export function getMcpServerStatusesOperation(raw: unknown) {
+  return Effect.gen(function* () {
+    const input = yield* decode(mcpConfigurationScopeRequestSchema, raw, 'server statuses')
+    const runtime = yield* McpServerRuntimeService
+    return yield* runtime.getServerStatuses(input)
+  })
+}
+
 export function signInMcpServerOperation(raw: unknown) {
   return Effect.gen(function* () {
     const input = yield* decode(mcpServerNameRequestSchema, raw, 'sign-in')

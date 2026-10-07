@@ -7,7 +7,11 @@ import type {
   McpSecretSummary,
   McpSetSecretInput,
 } from './mcp'
-import type { McpConfigurationView, McpServerInspection } from './mcp-configuration'
+import type {
+  McpConfigurationView,
+  McpServerInspection,
+  McpServerStatusView,
+} from './mcp-configuration'
 import type {
   McpAddServerRequest,
   McpConfigurationScopeRequest,
@@ -42,6 +46,10 @@ export interface IpcMcpInvokeChannelMap {
     return: McpConfigurationView
   }
   'mcp:inspect-server': { args: [input: McpServerNameRequest]; return: McpServerInspection }
+  'mcp:get-server-statuses': {
+    args: [input: McpConfigurationScopeRequest]
+    return: readonly McpServerStatusView[]
+  }
   'mcp:sign-in': { args: [input: McpServerNameRequest]; return: McpSignInResultView }
   'mcp:sign-out': { args: [input: McpServerNameRequest]; return: undefined }
   'mcp:preview-imports': { args: [input: McpImportPreviewRequest]; return: McpImportPreviewView }

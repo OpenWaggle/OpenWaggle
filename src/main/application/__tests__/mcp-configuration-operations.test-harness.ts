@@ -5,7 +5,10 @@ import { Cause, Effect, Exit, Layer, Option } from 'effect'
 import { afterEach, beforeEach } from 'vitest'
 import { createFilesystemMcpConfigurationService } from '../../adapters/mcp/config/filesystem-mcp-configuration-service'
 import { createFilesystemMcpImportService } from '../../adapters/mcp/filesystem-mcp-import-service'
-import { McpConfigurationService } from '../../ports/mcp-configuration-service'
+import {
+  type McpConfigurationScopeInput,
+  McpConfigurationService,
+} from '../../ports/mcp-configuration-service'
 import { McpImportService } from '../../ports/mcp-import-service'
 import {
   McpServerRuntimeService,
@@ -21,7 +24,10 @@ type Services =
 
 /** A home directory, Pi agent directory, and project in a temporary folder, with real services. */
 export function createMcpOperationsHarness() {
-  const runtimeCalls: { readonly operation: string; readonly input: McpServerScopeInput }[] = []
+  const runtimeCalls: {
+    readonly operation: string
+    readonly input: McpServerScopeInput | McpConfigurationScopeInput
+  }[] = []
   const state = {
     root: '',
     homeDir: '',
@@ -41,6 +47,11 @@ export function createMcpOperationsHarness() {
           state: 'connected' as const,
           tools: [{ name: 'search', exposure: 'codemode' as const, hasApp: false }],
         }
+      }),
+    getServerStatuses: (input) =>
+      Effect.sync(() => {
+        state.runtimeCalls.push({ operation: 'statuses', input })
+        return [{ name: 'docs', source: 'not-checked' as const }]
       }),
     signIn: (input) =>
       Effect.sync(() => {

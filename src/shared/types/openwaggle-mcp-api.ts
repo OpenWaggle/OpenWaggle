@@ -7,7 +7,11 @@ import type {
   McpSecretSummary,
   McpSetSecretInput,
 } from './mcp'
-import type { McpConfigurationView, McpServerInspection } from './mcp-configuration'
+import type {
+  McpConfigurationView,
+  McpServerInspection,
+  McpServerStatusView,
+} from './mcp-configuration'
 import type {
   McpAddServerRequest,
   McpConfigurationScopeRequest,
@@ -30,6 +34,7 @@ export interface OpenWaggleMcpApi {
   removeMcpServer(input: McpServerNameRequest): Promise<McpConfigurationView>
   installMcpCatalogServer(input: McpInstallCatalogServerRequest): Promise<McpConfigurationView>
   inspectMcpServer(input: McpServerNameRequest): Promise<McpServerInspection>
+  getMcpServerStatuses(input: McpConfigurationScopeRequest): Promise<readonly McpServerStatusView[]>
   signInMcpServer(input: McpServerNameRequest): Promise<McpSignInResultView>
   signOutMcpServer(input: McpServerNameRequest): Promise<void>
   previewMcpImports(input: McpImportPreviewRequest): Promise<McpImportPreviewView>

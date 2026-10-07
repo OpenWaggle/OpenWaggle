@@ -153,6 +153,8 @@ describe('commands a draining Session Host still accepts', () => {
       'extensions:list-contributions',
       'mcp:list-secrets',
       'mcp:get-configuration',
+      // Reads the files and the warm connections' last state; it never connects.
+      'mcp:get-server-statuses',
       'mcp:preview-imports',
       'docs:discover',
       'skills:list',

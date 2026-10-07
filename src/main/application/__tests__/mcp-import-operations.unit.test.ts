@@ -2,6 +2,8 @@ import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
   applyMcpImportsOperation,
+  getMcpConfigurationOperation,
+  getMcpServerStatusesOperation,
   inspectMcpServerOperation,
   previewMcpImportsOperation,
   signInMcpServerOperation,
@@ -78,5 +80,23 @@ describe('MCP import and runtime operations', () => {
       ),
     ).resolves.toMatch(/Open this project in OpenWaggle/)
     expect(harness.state.runtimeCalls).toHaveLength(3)
+  })
+
+  it('opens Settings with the files and every server state without connecting to a server', async () => {
+    harness.writeJson(harness.piGlobal(), { mcpServers: { docs: { command: 'docs-mcp' } } })
+
+    const view = await run(getMcpConfigurationOperation({ projectPath: harness.state.projectPath }))
+    const statuses = await run(
+      getMcpServerStatusesOperation({ projectPath: harness.state.projectPath }),
+    )
+
+    expect(view.servers.map((server) => server.name)).toEqual(['docs'])
+    expect(statuses).toEqual([{ name: 'docs', source: 'not-checked' }])
+    expect(harness.state.runtimeCalls).toEqual([
+      { operation: 'statuses', input: { projectPath: harness.state.projectPath } },
+    ])
+    await expect(
+      failureMessage(getMcpServerStatusesOperation({ projectPath: '/not-a-known-project' })),
+    ).resolves.toMatch(/Open this project in OpenWaggle/)
   })
 })

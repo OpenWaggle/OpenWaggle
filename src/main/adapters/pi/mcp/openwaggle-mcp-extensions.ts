@@ -198,6 +198,7 @@ export async function createOpenWaggleMcpExtensions(
       return mcpSessionConnectionPool.lease(input.sessionId, {
         name: entry.name,
         fingerprint: mcpConnectionFingerprint({ config: entry.config, transport, cwd }),
+        identity: mcpServerIdentity(entry.name, entry.config),
         open: () => openPiMcpUpstream({ entry, transport, cwd, authProvider }),
         roots: () => [{ uri: pathToFileURL(cwd).href, name: path.basename(cwd) }],
       })

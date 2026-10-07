@@ -30,6 +30,8 @@ export interface McpPooledServerSpec {
   readonly name: string
   /** Hash of what the connection is made of; a changed definition is a different connection. */
   readonly fingerprint: string
+  /** The server identity (`mcpServerIdentity`), so Settings can find a warm connection's state. */
+  readonly identity?: string
   readonly open: () => McpUpstream
   readonly roots?: McpPooledConnectionOptions['roots']
 }
@@ -45,11 +47,16 @@ export interface McpSessionConnectionPoolOptions {
   readonly maxWarmSessions?: number
   readonly closeAllTimeoutMs?: number
   /** OpenWaggle's additions for one Session's server: capabilities, sampling, elicitation, Apps. */
-  readonly hooks?: (sessionId: string, serverName: string) => McpConnectionHooks
+  readonly hooks?: (
+    sessionId: string,
+    serverName: string,
+    identity: string | undefined,
+  ) => McpConnectionHooks
 }
 
 interface PooledServer {
   readonly fingerprint: string
+  readonly identity: string | undefined
   readonly connection: McpPooledConnection
 }
 
@@ -64,6 +71,13 @@ export interface McpPoolServerStatus {
   readonly clients: number
   readonly lastError?: string
   readonly stderrTail: string
+}
+
+/** What Settings may know about a warm connection without using it. */
+export interface McpPoolConnectionState {
+  /** The handshake is done, so the server is connected. */
+  readonly ready: boolean
+  readonly lastError?: string
 }
 
 /**
@@ -112,14 +126,18 @@ export class McpSessionConnectionPool {
       serverName: spec.name,
       open: spec.open,
       ...(spec.roots ? { roots: spec.roots } : {}),
-      ...this.options.hooks?.(sessionId, spec.name),
+      ...this.options.hooks?.(sessionId, spec.name, spec.identity),
       onClosed: () => {
         if (session.servers.get(spec.name)?.connection === connection) {
           session.servers.delete(spec.name)
         }
       },
     })
-    session.servers.set(spec.name, { fingerprint: spec.fingerprint, connection })
+    session.servers.set(spec.name, {
+      fingerprint: spec.fingerprint,
+      identity: spec.identity,
+      connection,
+    })
     if (session.activeRuns === 0) this.scheduleIdleClose(sessionId, session)
     if (!wasWarm) this.evictLeastRecentlyUsed(sessionId)
     return connection
@@ -188,6 +206,21 @@ export class McpSessionConnectionPool {
       ...(connection.lastError ? { lastError: connection.lastError } : {}),
       stderrTail: connection.stderrTail,
     }))
+  }
+
+  /**
+   * The open connections to one server identity across Sessions, read without sending anything,
+   * touching recency, or handing a connection out: a connection stays its Session's alone.
+   */
+  connectionStates(identity: string): McpPoolConnectionState[] {
+    return [...this.sessions.values()].flatMap((session) =>
+      [...session.servers.values()]
+        .filter((server) => server.identity === identity && !server.connection.isClosed)
+        .map(({ connection }) => ({
+          ready: connection.isReady,
+          ...(connection.lastError ? { lastError: connection.lastError } : {}),
+        })),
+    )
   }
 
   private touch(sessionId: string) {
