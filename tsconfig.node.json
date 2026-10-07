@@ -29,6 +29,7 @@
     "src/shared/**/*",
     "packages/**/*.ts",
     "scripts/**/*.ts",
+    "scripts/mcp-conformance-client.mts",
     "functions/**/*.ts",
     "website/src/lib/**/*.ts",
     "doctor.config.ts",

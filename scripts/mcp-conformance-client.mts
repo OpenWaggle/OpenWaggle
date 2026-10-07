@@ -1,0 +1,78 @@
+/**
+ * Client for the official MCP conformance suite (`pnpm test:mcp:conformance`).
+ *
+ * Drives Pi's MCP client (`@earendil-works/pi-mcp`, the one Pi's MCP extension uses) through
+ * OpenWaggle's MCP transport layer: a pooled connection lease over streamable HTTP with
+ * OpenWaggle's hardened fetch and client capabilities (ADR 0048). Pi's client negotiates
+ * `2024-11-05` to `2025-11-25`; newer revisions are not exercised.
+ */
+import { McpClient, StreamableHttpTransport } from '@earendil-works/pi-mcp'
+import { McpSessionConnectionPool } from '../src/main/adapters/mcp/pool/mcp-session-connection-pool'
+import { withOpenWaggleClientCapabilities } from '../src/main/adapters/pi/mcp/mcp-session-context'
+import { createMcpServerFetch, MCP_MAX_MESSAGE_BYTES } from '../src/main/adapters/mcp/pool/mcp-server-fetch'
+
+const SUPPORTED_PROTOCOL_VERSION = '2025-11-25'
+const SCENARIO = process.env.MCP_CONFORMANCE_SCENARIO
+const PROTOCOL_VERSION = process.env.MCP_CONFORMANCE_PROTOCOL_VERSION ?? SUPPORTED_PROTOCOL_VERSION
+const SERVER_URL = process.argv[2]
+const CONFORMANCE_ADDEND_A = 2
+const CONFORMANCE_ADDEND_B = 3
+const SESSION_ID = 'conformance'
+
+function requireServerUrl() {
+  if (!SCENARIO || !SERVER_URL) {
+    throw new Error(
+      'Usage: MCP_CONFORMANCE_SCENARIO=<scenario> tsx scripts/mcp-conformance-client.ts <server-url>',
+    )
+  }
+  if (PROTOCOL_VERSION !== SUPPORTED_PROTOCOL_VERSION) {
+    throw new Error(`Unsupported MCP conformance protocol version: ${PROTOCOL_VERSION}`)
+  }
+  return SERVER_URL
+}
+
+async function connect(pool: McpSessionConnectionPool, url: string) {
+  // The same transport `openPiMcpUpstream` opens for an HTTP server.
+  const lease = pool.lease(SESSION_ID, {
+    name: 'conformance',
+    fingerprint: url,
+    open: () => ({
+      transport: new StreamableHttpTransport({
+        url,
+        fetch: createMcpServerFetch(url),
+        maxMessageBytes: MCP_MAX_MESSAGE_BYTES,
+      }),
+    }),
+  })
+  const client = new McpClient({ name: 'openwaggle-conformance', version: 'conformance' })
+  await client.connect(lease)
+  return client
+}
+
+async function callFirstTool(client: McpClient) {
+  const [tool] = await client.listTools()
+  if (!tool) throw new Error('The official conformance server did not advertise a tool.')
+  await client.callTool(tool.name, { a: CONFORMANCE_ADDEND_A, b: CONFORMANCE_ADDEND_B })
+}
+
+async function runScenario() {
+  const pool = new McpSessionConnectionPool({
+    hooks: () => ({ augmentInitializeParams: withOpenWaggleClientCapabilities }),
+  })
+  try {
+    const client = await connect(pool, requireServerUrl())
+    if (SCENARIO === 'initialize') return
+    if (SCENARIO === 'tools_call') {
+      await callFirstTool(client)
+      return
+    }
+    throw new Error(`OpenWaggle has no conformance behavior for scenario ${SCENARIO}.`)
+  } finally {
+    await pool.closeAll()
+  }
+}
+
+runScenario().catch((error: unknown) => {
+  console.error(error instanceof Error ? error.message : String(error))
+  process.exitCode = 1
+})
