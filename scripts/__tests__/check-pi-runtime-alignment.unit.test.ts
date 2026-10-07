@@ -41,6 +41,7 @@ patchedDependencies:
   '${packageRef('pi-coding-agent')}@${version}': patches/@earendil-works__pi-coding-agent@${version}.patch
 `,
     lockfile: `${installedPackages.map((name) => `${packageRef(name)}@${version}`).join('\n')}
+  quickjs-wasi@3.6.2:
   '${packageRef('pi-ai')}@${version}': abc123
   '${packageRef('pi-coding-agent')}@${version}': def456
 `,
@@ -53,6 +54,7 @@ patchedDependencies:
       [packageRef('pi-ai')]: 'catalog:pi-runtime',
       [packageRef('pi-coding-agent')]: 'catalog:pi-runtime',
       [packageRef('pi-mcp')]: 'catalog:pi-runtime',
+      'quickjs-wasi': '3.6.2',
     },
     piWaggleDevDependencies: {
       [packageRef('pi-coding-agent')]: 'catalog:pi-runtime',
@@ -99,6 +101,22 @@ describe('Pi runtime alignment', () => {
         rootDependencies: { ...input.rootDependencies, '@earendil-works/pi-mcp': version },
       }),
       expected: 'package.json must pin @earendil-works/pi-mcp through catalog:pi-runtime',
+    },
+    {
+      drift: 'QuickJS wasm version',
+      breakInput: (input: PiRuntimeAlignmentInput) => ({
+        ...input,
+        rootDependencies: { ...input.rootDependencies, 'quickjs-wasi': '3.6.1' },
+      }),
+      expected: "package.json must pin quickjs-wasi at Pi codemode's 3.6.2",
+    },
+    {
+      drift: 'second QuickJS version',
+      breakInput: (input: PiRuntimeAlignmentInput) => ({
+        ...input,
+        lockfile: `${input.lockfile}  quickjs-wasi@3.7.0:\n`,
+      }),
+      expected: 'pnpm-lock.yaml must resolve exactly one quickjs-wasi version',
     },
     {
       drift: 'release-age exclusion',

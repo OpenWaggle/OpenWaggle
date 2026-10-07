@@ -112,6 +112,27 @@ function directPinProblems(input: PiRuntimeAlignmentInput) {
   return problems
 }
 
+const QUICKJS_PACKAGE = 'quickjs-wasi'
+
+/**
+ * OpenWaggle's main bundle runs Pi's codemode worker with the QuickJS JavaScript bundled from Pi's
+ * own dependency, but reads the wasm from the root `quickjs-wasi` (see
+ * `scripts/vite/pi-codemode-worker.ts`). Both halves must be the same QuickJS build.
+ */
+function quickJsProblems(input: PiRuntimeAlignmentInput) {
+  const versions = new Set(
+    [...input.lockfile.matchAll(/^ {2}quickjs-wasi@(\d+\.\d+\.\d+):/gm)].map((match) => match[1]),
+  )
+  if (versions.size !== 1) {
+    return [`pnpm-lock.yaml must resolve exactly one ${QUICKJS_PACKAGE} version, found ${versions.size}.`]
+  }
+  const [version] = versions
+  if (input.rootDependencies[QUICKJS_PACKAGE] !== version) {
+    return [`package.json must pin ${QUICKJS_PACKAGE} at Pi codemode's ${version}.`]
+  }
+  return []
+}
+
 function changedPatchPaths(patch: string) {
   const paths: string[] = []
   for (const match of patch.matchAll(/^diff --git a\/(\S+) b\/(\S+)$/gm)) {
@@ -173,6 +194,7 @@ export function collectPiRuntimeAlignmentProblems(input: PiRuntimeAlignmentInput
   }
 
   problems.push(...directPinProblems(input))
+  problems.push(...quickJsProblems(input))
 
   const ageEntries = [...input.workspace.matchAll(/^ {2}- ["']?(@earendil-works\/pi-[^"'\s]+@[^"'\s]+)["']?$/gm)].map(
     (match) => match[1],

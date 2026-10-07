@@ -52,7 +52,13 @@ const config = {
   },
   // sharp dlopens libvips (libvips-cpp.so on Linux) from its native package; a
   // dlopen cannot read a shared library trapped inside app.asar, so unpack them.
-  asarUnpack: ['**/node_modules/sharp/**', '**/node_modules/@img/**'],
+  asarUnpack: [
+    '**/node_modules/sharp/**',
+    '**/node_modules/@img/**',
+    // Pi codemode: the sandbox worker beside the main bundle and the QuickJS wasm it runs.
+    'out/main/codemode-worker.js',
+    '**/node_modules/quickjs-wasi/**',
+  ],
   files: [
     'out/main/**/*',
     'out/preload/**/*',

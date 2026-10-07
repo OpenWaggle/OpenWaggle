@@ -167,6 +167,9 @@ importers:
       proper-lockfile:
         specifier: 4.1.2
         version: 4.1.2
+      quickjs-wasi:
+        specifier: 3.6.2
+        version: 3.6.2
       remark-parse:
         specifier: 11.0.0
         version: 11.0.0(supports-color@7.2.0)
