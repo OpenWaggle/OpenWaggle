@@ -98,7 +98,26 @@ In `.openwaggle` files only (ids `openwaggle-global`, `project-openwaggle`), an 
 vault before Pi sees the config. A secret reference in any other file is a config error for that
 entry, because Pi and other clients read those files. Plaintext values and Pi's `${VAR}` and
 `!command` values are allowed everywhere and are resolved like Pi does, when the transport is
-created.
+created. The resolved vault value is passed to Pi escaped (`piLiteral`), so a secret that contains
+`$` or starts with `!` stays literal.
+
+`${VAR}` in `env`, `headers`, and `oauth.clientSecret` is resolved against the login shell's
+environment (`mcp-shell-environment.ts`: `env -0` in a login shell, or PowerShell on Windows,
+captured once at startup), with the process environment winning. This matters for an app opened
+from the Dock, whose own environment lacks the shell profile's variables. It applies to MCP only.
+`url`, `command`, `args`, and `cwd` are not interpolated, because Pi does not interpolate them.
+A value that cannot be resolved fails that server's check or connection only; inspection,
+`openwaggle mcp list`, and `doctor` report it per server, and the configuration view lists vault
+errors with the other config errors.
+
+Imports from other tools convert only the variable syntax that tool really expands (Claude's CLI
+`${VAR}`, Cursor/VS Code/Windsurf `${env:VAR}`, OpenCode `{env:VAR}`, VS Code `${input:id}`) to
+`${VAR}`; every other `$` and a leading `!` are escaped.
+
+Writes resolve a symbolic link and replace the file it points to (temporary file beside it). Pi's
+global file is `getPiAgentDir()/mcp.json` (honouring `PI_CODING_AGENT_DIR`) for the migration as
+for the loader. File locations are de-duplicated by path, so a project at the home folder reads
+`~/.openwaggle/mcp.json` once, as the global file.
 
 ### What Pi receives
 
@@ -287,7 +306,8 @@ server it launched. pi-mcp skips all of that when the process it started has alr
 so after the transport closes OpenWaggle signals the whole group anyway (SIGTERM, then SIGKILL),
 and a server a launcher left behind does not survive (POSIX; Windows relies on pi-mcp's
 `taskkill /T`). Child processes get the user's environment (`{ ...process.env }`, as Pi
-does) with the packaged app's npm-compatible `PATH`, plus the entry's resolved `env`.
+does) with the packaged app's npm-compatible `PATH`, plus the entry's resolved `env` (resolved
+against the login-shell environment as above).
 
 ## Settings state without connecting
 

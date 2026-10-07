@@ -7,16 +7,16 @@ section: "Customize"
 
 Model Context Protocol, or MCP, connects the agent to external tools and services. An MCP server might search your issue tracker, read documentation, or drive a browser. You do not need MCP for ordinary file editing or terminal commands.
 
-OpenWaggle runs MCP the way the Pi coding agent does. A server you set up for Pi works in OpenWaggle without changes, with the same names, settings, and sign-ins.
+OpenWaggle runs MCP the way the Pi coding agent does. A server you set up for Pi works in OpenWaggle without changes, with the same names, settings, and sign-ins. That includes `${NAME}` values: OpenWaggle reads them from your login shell's environment, as a `pi` command started in a terminal would, even when the app was opened from the Dock or Start menu.
 
 Only add servers you trust. A server can run a program on your computer or send requests to an outside service, and its tools may change data there. Adding a project to OpenWaggle trusts the servers that project configures.
 
 ## Add a server
 
 1. Open **Settings > MCP** and choose **Add server**.
-2. Give it a name (letters, digits, `-`, and `_`).
+2. Give it a name (letters, digits, `-`, and `_`). The name must not be in use in any of the five files below. Names that differ only in `-` and `_`, such as `my-docs` and `my_docs`, count as the same name, because their tools would share one name.
 3. For a local server, enter the command and its arguments, for example `npx` with `-y @modelcontextprotocol/server-filesystem .`. For a remote server, enter its URL.
-4. Choose where to save it. New servers go to OpenWaggle's file for that scope: `~/.openwaggle/mcp.json` for all projects, or `.openwaggle/mcp.json` in the project. You can pick a Pi file instead if you also use the `pi` command.
+4. Choose where to save it. New servers go to OpenWaggle's file for that scope: `~/.openwaggle/mcp.json` for all projects, or `.openwaggle/mcp.json` in the project. You can pick a Pi file instead if you also use the `pi` command. A server for all projects goes to a global file, and a project's server to a project file. Sign-in through a model provider (`auth`) only works in a global file.
 
 The server connects the next time you send a message. **Recommended servers** installs Playwright MCP or Chrome DevTools MCP in one click.
 
@@ -32,6 +32,8 @@ Installing adds an ordinary entry to OpenWaggle's file, so the server then works
 
 To bring servers over from another app, choose **Import**. OpenWaggle reads Codex, Claude's desktop and command-line apps, Cursor, VS Code, OpenCode, Zed, and Windsurf, shows what it found, and adds the servers you pick to OpenWaggle's file. Servers you configured for Pi do not need importing; OpenWaggle reads Pi's files directly.
 
+Imported values keep the meaning they had in the other app. Variables that app fills in, such as `${env:NAME}` in Cursor, VS Code, and Windsurf, `{env:NAME}` in OpenCode, or `${NAME}` in Claude's command-line app, become `${NAME}`. Any other `$` or leading `!` is kept as plain text, so an imported value never runs a command. Passwords and tokens written out in the other app are not copied: OpenWaggle names a secret for you to add instead.
+
 ## Where servers are configured
 
 OpenWaggle reads five files, in this order:
@@ -45,6 +47,8 @@ OpenWaggle reads five files, in this order:
 | `<project>/.openwaggle/mcp.json` | OpenWaggle's servers for the project |
 
 When two files define a server with the same name, the project file wins over the global one, and a later file wins over an earlier one.
+
+Pi's global file moves with Pi's agent folder: if you set `PI_CODING_AGENT_DIR`, OpenWaggle reads `mcp.json` there. If a project is your home folder, its `.openwaggle/mcp.json` is the global `~/.openwaggle/mcp.json`; OpenWaggle reads it once, as the global file. If a file is a symbolic link, for example into a dotfiles repository, OpenWaggle saves changes to the file the link points to and leaves the link in place.
 
 Every file uses the same format:
 
@@ -67,7 +71,8 @@ Every file uses the same format:
 - `command` is one program and `args` its arguments. It is not run through a shell.
 - `env` sets environment variables for a local server; `cwd` sets its working folder.
 - `url` connects to a remote server over HTTP. Older servers that only offer Server-Sent Events need `"type": "sse"`; WebSocket servers use a `ws://` or `wss://` URL.
-- `${NAME}` in `env` or `headers` uses an environment variable, and a value starting with `!` runs a command, as in Pi.
+- `${NAME}` or `$NAME` in `env`, `headers`, or an OAuth client secret uses an environment variable from your login shell, and a value starting with `!` runs a command, as in Pi. Write `$$` for a literal `$`. `url`, `command`, and `args` are used as written; Pi does not fill variables in there.
+- If a value cannot be filled in, for example a missing variable or secret, that server reports the error and the others still connect.
 - `enabled: false` keeps a server without connecting to it.
 - `timeout` is how long a request may take, in seconds (default 60).
 
@@ -107,7 +112,19 @@ Select a server in **Settings > MCP** to see where it is defined, whether it is 
 - sign in or sign out;
 - remove it.
 
-A change to an existing server is saved to the file that defines it. Turning a global server on or off for one project is saved to `.openwaggle/mcp.json` in that project.
+A change to an existing server is saved to the file that defines it. Turning a global server on or off for one project is saved in that project, never in a global file. If the project already changes that server in one of its files, for example with an entry in `.pi/mcp.json`, that entry is updated. Otherwise the change goes to `.openwaggle/mcp.json`.
+
+Removing a server also removes the entries in OpenWaggle's files that only changed it. Entries like that in Pi's files or in `.mcp.json` are left as they are and listed as errors, so you can remove them yourself.
+
+### After upgrading from an older OpenWaggle
+
+The first time a new version starts, OpenWaggle converts its older MCP files to the format above and keeps a copy of each file it changes, ending in `.pre-adr-0048.bak`. Servers stay on or off as they were:
+
+- If MCP was off in OpenWaggle, every server is turned off.
+- Otherwise, servers that connected before stay on, and the others are turned off.
+- This applies to every project OpenWaggle knew about when it upgraded. Projects added later, and people who never set up MCP in OpenWaggle, start with servers on as their files say.
+
+Copies OpenWaggle made of your Pi servers are removed when they still match Pi's entry, so the server is defined once; a setting you changed in OpenWaggle, such as direct tools, stays as an entry that changes Pi's server. A copy you edited, or one that reads a secret from the encrypted store, is kept.
 
 ## How tools reach the agent
 
