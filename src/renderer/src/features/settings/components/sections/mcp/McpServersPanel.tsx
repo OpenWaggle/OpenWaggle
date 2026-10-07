@@ -1,0 +1,116 @@
+import { useQueryClient } from '@tanstack/react-query'
+import { Download, Plus, RefreshCw } from 'lucide-react'
+import { useState } from 'react'
+import { mcpQueryKeys } from '@/queries/mcp-configuration'
+import { Button } from '@/shared/ui/Button'
+import { PlainTextBlock } from '@/shared/ui/PlainTextBlock'
+import { useMcpConfiguration } from '../../../hooks/useMcpConfiguration'
+import { McpAddServerForm } from './McpAddServerForm'
+import { McpCatalogPanel } from './McpCatalogPanel'
+import { McpImportPanel } from './McpImportPanel'
+import { McpInlineError } from './McpLabels'
+import { McpSecretsPanel } from './McpSecretsPanel'
+import { McpServerDetail } from './McpServerDetail'
+import { McpServerList } from './McpServerList'
+
+type OpenPanel = 'add' | 'import' | null
+
+function ConfigErrors({ errors }: { readonly errors: readonly string[] }) {
+  if (errors.length === 0) return null
+  return (
+    <div className="space-y-1.5">
+      <p className="text-xs font-medium text-error-text">
+        Some MCP configuration could not be read:
+      </p>
+      <PlainTextBlock reason="error" ariaLabel="Configuration errors">
+        {errors.join('\n')}
+      </PlainTextBlock>
+    </div>
+  )
+}
+
+export function McpServersPanel({ projectPath }: { readonly projectPath: string | null }) {
+  const queryClient = useQueryClient()
+  const configuration = useMcpConfiguration(projectPath)
+  const [selected, setSelected] = useState<string | null>(null)
+  const [panel, setPanel] = useState<OpenPanel>(null)
+  const selectedRow = configuration.rows.find((row) => row.server.name === selected)
+  const { view } = configuration
+
+  if (selectedRow) {
+    return (
+      <McpServerDetail
+        projectPath={projectPath}
+        row={selectedRow}
+        onBack={() => setSelected(null)}
+      />
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      <section aria-labelledby="mcp-servers-heading" className="space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <h3 id="mcp-servers-heading" className="text-sm font-semibold text-text-primary">
+            Servers
+          </h3>
+          <div className="flex gap-1.5">
+            <Button
+              variant="ghost"
+              size="xs"
+              leftIcon={<RefreshCw className="size-3" />}
+              onClick={() => {
+                void queryClient.invalidateQueries({
+                  queryKey: mcpQueryKeys.configuration(projectPath),
+                })
+                void queryClient.invalidateQueries({
+                  queryKey: mcpQueryKeys.inspections(projectPath),
+                })
+              }}
+            >
+              Refresh
+            </Button>
+            <Button
+              variant="secondary"
+              size="xs"
+              leftIcon={<Download className="size-3" />}
+              onClick={() => setPanel(panel === 'import' ? null : 'import')}
+            >
+              Import
+            </Button>
+            <Button
+              variant="secondary"
+              size="xs"
+              leftIcon={<Plus className="size-3" />}
+              disabled={!view}
+              onClick={() => setPanel(panel === 'add' ? null : 'add')}
+            >
+              Add server
+            </Button>
+          </div>
+        </div>
+        {panel === 'add' && view ? (
+          <McpAddServerForm
+            view={view}
+            onDone={(name) => {
+              setPanel(null)
+              if (name) setSelected(name)
+            }}
+          />
+        ) : null}
+        {panel === 'import' ? (
+          <McpImportPanel projectPath={projectPath} onClose={() => setPanel(null)} />
+        ) : null}
+        <McpInlineError message={configuration.loadError} />
+        <ConfigErrors errors={view?.errors ?? []} />
+        {configuration.isLoading ? (
+          <p className="text-xs text-text-tertiary">Loading servers…</p>
+        ) : (
+          <McpServerList rows={configuration.rows} onOpen={setSelected} />
+        )}
+      </section>
+      {view ? <McpCatalogPanel view={view} /> : null}
+      <McpSecretsPanel />
+    </div>
+  )
+}
