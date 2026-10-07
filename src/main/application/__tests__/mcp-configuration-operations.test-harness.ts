@@ -16,13 +16,14 @@ type Services = McpConfigurationService | McpImportService | McpServerRuntimeSer
 
 /** A home directory, Pi agent directory, and project in a temporary folder, with real services. */
 export function createMcpOperationsHarness() {
+  const runtimeCalls: { readonly operation: string; readonly input: McpServerScopeInput }[] = []
   const state = {
     root: '',
     homeDir: '',
     piAgentDir: '',
     projectPath: '',
     sourceFiles: new Map<string, string>(),
-    runtimeCalls: [] as { readonly operation: string; readonly input: McpServerScopeInput }[],
+    runtimeCalls,
   }
 
   /** Stands in for Pi's MCP runtime: connected, and sign-in reports the page it could not open. */
@@ -56,7 +57,7 @@ export function createMcpOperationsHarness() {
     state.projectPath = path.join(state.root, 'project')
     mkdirSync(state.projectPath, { recursive: true })
     state.sourceFiles = new Map()
-    state.runtimeCalls = []
+    state.runtimeCalls.length = 0
   })
 
   afterEach(() => {
