@@ -63,11 +63,6 @@ export function isFullEntry(value: unknown): value is JsonEntry {
   return isRecord(value) && !isOverrideOnlyEntry(value)
 }
 
-/** Keys of an override-only entry that Pi does not accept there. */
-export function invalidOverrideKeys(entry: JsonEntry) {
-  return Object.keys(entry).filter((key) => !OVERRIDE_KEYS.has(key))
-}
-
 function resolveExposure(value: unknown) {
   if (typeof value !== 'string') return undefined
   const resolved = EXPOSURE_ALIASES[value] ?? value
