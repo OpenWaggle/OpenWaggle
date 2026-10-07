@@ -65,6 +65,15 @@ function disabledInPiFile(config: Record<string, unknown>, name: string) {
   return openwaggle.disabledMcpServers[name] !== undefined
 }
 
+/** Whether any `env` or `headers` value is a `{ secret }` vault reference. */
+function holdsVaultSecret(entry: JsonEntry) {
+  return [entry.env, entry.headers].some(
+    (values) =>
+      isRecord(values) &&
+      Object.values(values).some((value) => isRecord(value) && typeof value.secret === 'string'),
+  )
+}
+
 function winningLowerLayer(context: EntryMigrationContext, name: string) {
   return context.lowerLayers.findLast((layer) => isFullEntry(layer.servers[name]))?.path
 }
@@ -76,6 +85,10 @@ function decidePiCopy(
 ): PiCopyDecision {
   const provenance = piProvenance(entry)
   if (!provenance) return { kind: 'not-a-pi-copy' }
+  // The Pi entry reads those values from the environment, which a Dock-launched app may lack.
+  if (holdsVaultSecret(entry)) {
+    return { kind: 'kept', reason: 'the copy reads vault secrets, which the Pi entry does not.' }
+  }
   const sourcePath = path.resolve(provenance.sourcePath)
   const config = context.livePiConfigs.get(sourcePath)
   if (!config) return { kind: 'kept', reason: `${provenance.sourcePath} is not read live here.` }

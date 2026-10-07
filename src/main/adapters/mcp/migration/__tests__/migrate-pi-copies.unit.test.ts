@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { legacyNormalizeImportedServer } from '../legacy-pi-import'
 import { migrateOpenWaggleMcpFiles } from '../migrate-openwaggle-mcp-files'
 import {
   allConnectedState,
@@ -35,7 +36,7 @@ describe('migrating Pi copies in ~/.openwaggle/mcp.json', () => {
       [PI_GLOBAL]: { mcpServers: { tools: { command: 'tools-mcp', args: ['--stdio'] } } },
       [OPENWAGGLE_GLOBAL]: {
         mcpServers: {
-          tools: { ...copy, env: { TOKEN: { secret: 'TOOLS_TOKEN' } }, directTools: true },
+          tools: { ...copy, args: ['--stdio', '--verbose'], directTools: true },
         },
       },
     })
@@ -43,12 +44,7 @@ describe('migrating Pi copies in ~/.openwaggle/mcp.json', () => {
     const report = await migrate(fs)
 
     expect(globalServers(fs)).toEqual({
-      tools: {
-        command: 'tools-mcp',
-        args: ['--stdio'],
-        env: { TOKEN: { secret: 'TOOLS_TOKEN' } },
-        exposure: 'direct',
-      },
+      tools: { command: 'tools-mcp', args: ['--stdio', '--verbose'], exposure: 'direct' },
     })
     expect(report.files[0]?.changes).toEqual([
       {
@@ -56,6 +52,39 @@ describe('migrating Pi copies in ~/.openwaggle/mcp.json', () => {
         action: 'converted',
         details: ['kept because the copy was edited after import.'],
       },
+    ])
+  })
+
+  it('keeps a copy that holds vault secrets, because the Pi entry needs shell variables', async () => {
+    // The old importer turned Pi's ${GITHUB_TOKEN} into a vault secret; dropping the copy would
+    // leave a Dock-launched app with only the Pi entry, and no GITHUB_TOKEN to resolve it from.
+    const piEntry = {
+      command: 'npx',
+      args: ['-y', '@modelcontextprotocol/server-github'],
+      env: { GITHUB_PERSONAL_ACCESS_TOKEN: '${GITHUB_TOKEN}' },
+    }
+    const normalized = legacyNormalizeImportedServer('github', piEntry)
+    expect(normalized).toMatchObject({
+      env: { GITHUB_PERSONAL_ACCESS_TOKEN: { secret: 'GITHUB_TOKEN' } },
+    })
+    const fs = connectedFs({
+      [PI_GLOBAL]: { mcpServers: { github: piEntry } },
+      [OPENWAGGLE_GLOBAL]: {
+        mcpServers: { github: piCopy(PI_GLOBAL, 'github', normalized ?? {}) },
+      },
+    })
+
+    const report = await migrate(fs)
+
+    expect(globalServers(fs)).toEqual({
+      github: {
+        command: 'npx',
+        args: ['-y', '@modelcontextprotocol/server-github'],
+        env: { GITHUB_PERSONAL_ACCESS_TOKEN: { secret: 'GITHUB_TOKEN' } },
+      },
+    })
+    expect(report.files[0]?.changes[0]?.details).toEqual([
+      'kept because the copy reads vault secrets, which the Pi entry does not.',
     ])
   })
 
