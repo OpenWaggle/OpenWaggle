@@ -69,6 +69,10 @@ export function electronEnvironment(
     ...(callerEnvironment.OPENWAGGLE_AUTOMATION_FIRST_PARTY_EXTENSIONS === '1'
       ? { OPENWAGGLE_AUTOMATION_FIRST_PARTY_EXTENSIONS: '1' }
       : {}),
+    // A QA fixture extension (a fake provider or a router), named explicitly by the caller.
+    ...(callerEnvironment.OPENWAGGLE_AUTOMATION_PI_EXTENSIONS
+      ? { OPENWAGGLE_AUTOMATION_PI_EXTENSIONS: callerEnvironment.OPENWAGGLE_AUTOMATION_PI_EXTENSIONS }
+      : {}),
   })
 }
 

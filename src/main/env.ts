@@ -19,8 +19,7 @@ const optionalUrlSchema = Schema.optional(
   Schema.String.pipe(
     Schema.filter((value) => {
       try {
-        // URL constructor normalizes and validates the shape for us.
-        new URL(value)
+        new URL(value) // Throws unless the value is a valid URL.
         return true
       } catch {
         return 'Must be a valid URL.'
@@ -35,6 +34,7 @@ const envSchema = Schema.Struct({
   ELECTRON_RENDERER_URL: optionalUrlSchema,
   OPENWAGGLE_AUTOMATION: Schema.optional(Schema.Literal('1')),
   OPENWAGGLE_AUTOMATION_FIRST_PARTY_EXTENSIONS: Schema.optional(Schema.Literal('1')),
+  OPENWAGGLE_AUTOMATION_PI_EXTENSIONS: Schema.optional(Schema.String), // Hidden QA Pi fixtures
   OPENWAGGLE_AUTOMATION_LEASE_TOKEN: Schema.optional(Schema.String),
   OPENWAGGLE_AUTOMATION_PROJECT_PATH: Schema.optional(Schema.String),
   OPENWAGGLE_USER_DATA_DIR: Schema.optional(Schema.String),

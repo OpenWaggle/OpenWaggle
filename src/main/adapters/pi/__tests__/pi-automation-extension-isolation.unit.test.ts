@@ -100,3 +100,18 @@ it('allows host-owned inline extensions without enabling discovered extensions d
     Reflect.deleteProperty(env, 'OPENWAGGLE_AUTOMATION_FIRST_PARTY_EXTENSIONS')
   }
 })
+
+it('loads only the Pi extension files a QA run names explicitly during automation', async () => {
+  const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-pi-qa-extension-'))
+  const providerId = 'automation-qa-fixture-provider'
+  const fixturePath = await writeProviderExtension(projectPath, providerId)
+  Object.assign(env, { OPENWAGGLE_AUTOMATION_PI_EXTENSIONS: fixturePath })
+
+  try {
+    const services = await createPiRuntimeServices(projectPath)
+
+    expect(services.modelRuntime.getProvider(providerId)).toBeDefined()
+  } finally {
+    Reflect.deleteProperty(env, 'OPENWAGGLE_AUTOMATION_PI_EXTENSIONS')
+  }
+})

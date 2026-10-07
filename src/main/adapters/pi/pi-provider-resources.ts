@@ -124,6 +124,14 @@ function allowFirstPartyExtensionFactoriesForAutomation() {
   return env.OPENWAGGLE_AUTOMATION_FIRST_PARTY_EXTENSIONS === '1'
 }
 
+/** Pi extension files a QA run names, the only executable extensions automation loads. */
+function automationQaExtensionPaths() {
+  return (env.OPENWAGGLE_AUTOMATION_PI_EXTENSIONS ?? '')
+    .split(path.delimiter)
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0)
+}
+
 /**
  * Host-authored scratch guidance. TMPDIR alone does not help when the model types a literal
  * `/tmp/push.log`, which is how two concurrent Sessions read each other's push output.
@@ -188,7 +196,9 @@ function configuredResourcePaths(
   builtInSkillPaths: readonly string[],
   disableExtensions: boolean,
 ) {
-  const builtInExtensionPaths = disableExtensions ? openWagglePiBuiltInExtensionPaths() : []
+  const builtInExtensionPaths = disableExtensions
+    ? [...openWagglePiBuiltInExtensionPaths(), ...automationQaExtensionPaths()]
+    : []
   if (settingsManager) {
     return {
       additionalExtensionPaths: builtInExtensionPaths,
