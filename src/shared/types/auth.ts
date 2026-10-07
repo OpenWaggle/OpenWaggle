@@ -27,6 +27,8 @@ export interface OAuthInputPrompt {
   readonly placeholder?: string
   /** Mask the input, such as for a token. */
   readonly secret?: boolean
+  /** A blank answer is a valid one, such as GitHub Copilot's "blank for github.com". */
+  readonly allowEmpty?: boolean
 }
 
 /** What a sign-in that is waiting for the user shows: Pi's prompt and the link to open. */

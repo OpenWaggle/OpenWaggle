@@ -1,11 +1,15 @@
-import type { OAuthDeviceCode, OAuthFlowStatus } from '@shared/types/auth'
+import type { OAuthDeviceCode, OAuthFlowStatus, OAuthInputPrompt } from '@shared/types/auth'
 import { Clipboard } from 'lucide-react'
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { useCopyToClipboard } from '@/shared/hooks/useCopyToClipboard'
 import { Button } from '@/shared/ui/Button'
 import { TextInput } from '@/shared/ui/TextInput'
 
+type OAuthAwaitingStatus = Extract<OAuthFlowStatus, { readonly type: 'awaiting-code' }>
+
 const DEFAULT_CODE_PROMPT = 'Paste OAuth code or callback URL'
+const CALLBACK_HINT =
+  'Waiting for the browser callback. If it does not finish automatically, paste the OAuth code or callback URL here.'
 
 function OAuthDeviceCodeCard({ deviceCode }: { readonly deviceCode: OAuthDeviceCode }) {
   return (
@@ -30,6 +34,69 @@ function OAuthSignInLink({ authUrl }: { readonly authUrl: string }) {
   )
 }
 
+/** The device code to enter, or what the sign-in says to do while it waits. */
+function OAuthAwaitingGuidance({ awaiting }: { readonly awaiting: OAuthAwaitingStatus }) {
+  if (awaiting.deviceCode) return <OAuthDeviceCodeCard deviceCode={awaiting.deviceCode} />
+  // The callback hint only applies while the browser sign-in runs and nothing else is asked.
+  const hint =
+    awaiting.instructions ?? (awaiting.authUrl && !awaiting.prompt ? CALLBACK_HINT : undefined)
+  return hint ? <p className="text-xs text-text-tertiary">{hint}</p> : null
+}
+
+/** The answer field, labelled with the provider's own question when it asked one. */
+function OAuthAnswerField({
+  prompt,
+  onSubmit,
+}: {
+  readonly prompt: OAuthInputPrompt | undefined
+  readonly onSubmit: (answer: string) => void
+}) {
+  const [value, setValue] = useState('')
+  const inputId = useId()
+  // A text question may be answered with nothing; a code or secret may not.
+  const canSubmit = value.trim().length > 0 || prompt?.allowEmpty === true
+
+  function submit() {
+    if (!canSubmit) return
+    onSubmit(value.trim())
+    setValue('')
+  }
+
+  return (
+    <>
+      {prompt && (
+        <label htmlFor={inputId} className="block text-xs font-medium text-text-secondary">
+          {prompt.message}
+        </label>
+      )}
+      <div className="flex items-center gap-2">
+        <TextInput
+          id={inputId}
+          type={prompt?.secret ? 'password' : 'text'}
+          {...(prompt ? {} : { 'aria-label': DEFAULT_CODE_PROMPT })}
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') submit()
+          }}
+          placeholder={prompt ? prompt.placeholder : DEFAULT_CODE_PROMPT}
+          monospace
+          className="flex-1 rounded-lg border-border-light text-xs placeholder:text-text-muted focus:border-border-light"
+        />
+        <Button
+          variant="primary"
+          size="md"
+          onClick={submit}
+          disabled={!canSubmit}
+          className="text-xs"
+        >
+          Connect
+        </Button>
+      </div>
+    </>
+  )
+}
+
 /** What a sign-in waiting for the user asks for, in the provider's words, and its link. */
 export function OAuthManualCodePrompt({
   provider,
@@ -40,56 +107,17 @@ export function OAuthManualCodePrompt({
   readonly oauthStatus: OAuthFlowStatus
   readonly submitAuthCode: (provider: string, code: string) => Promise<void>
 }) {
-  const [pasteValue, setPasteValue] = useState('')
   const awaiting = oauthStatus.type === 'awaiting-code' ? oauthStatus : undefined
-  const deviceCode = awaiting?.deviceCode
-  const prompt = awaiting?.prompt
-  const authUrl = awaiting?.authUrl
-  const instructions = awaiting?.instructions
-  const label = prompt?.message ?? DEFAULT_CODE_PROMPT
-
-  function handleSubmitCode() {
-    const trimmed = pasteValue.trim()
-    if (trimmed) {
-      void submitAuthCode(provider, trimmed)
-      setPasteValue('')
-    }
-  }
-
   return (
     <div className="mx-5 mb-3 space-y-2">
-      {deviceCode ? (
-        <OAuthDeviceCodeCard deviceCode={deviceCode} />
-      ) : (
-        <p className="text-xs text-text-tertiary">
-          {instructions ??
-            'Waiting for the browser callback. If it does not finish automatically, paste the OAuth code or callback URL here.'}
-        </p>
-      )}
-      {authUrl && <OAuthSignInLink authUrl={authUrl} />}
-      <div className="flex items-center gap-2">
-        <TextInput
-          type={prompt?.secret ? 'password' : 'text'}
-          aria-label={label}
-          value={pasteValue}
-          onChange={(e) => setPasteValue(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') handleSubmitCode()
-          }}
-          placeholder={prompt?.placeholder ?? label}
-          monospace
-          className="flex-1 rounded-lg border-border-light text-xs placeholder:text-text-muted focus:border-border-light"
-        />
-        <Button
-          variant="primary"
-          size="md"
-          onClick={handleSubmitCode}
-          disabled={!pasteValue.trim()}
-          className="text-xs"
-        >
-          Connect
-        </Button>
-      </div>
+      {awaiting && <OAuthAwaitingGuidance awaiting={awaiting} />}
+      {awaiting?.authUrl && <OAuthSignInLink authUrl={awaiting.authUrl} />}
+      <OAuthAnswerField
+        prompt={awaiting?.prompt}
+        onSubmit={(answer) => {
+          void submitAuthCode(provider, answer)
+        }}
+      />
     </div>
   )
 }

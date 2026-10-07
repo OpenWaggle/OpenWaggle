@@ -60,6 +60,8 @@ function respondToOAuthPrompt(prompt: AuthPrompt, handlers: OAuthLoginHandlers) 
         message: prompt.message,
         ...(prompt.placeholder === undefined ? {} : { placeholder: prompt.placeholder }),
         secret: prompt.type === 'secret',
+        // A text prompt may be answered with nothing; a code or secret may not.
+        ...(prompt.type === 'text' ? { allowEmpty: true } : {}),
       }),
     )
     .exhaustive()

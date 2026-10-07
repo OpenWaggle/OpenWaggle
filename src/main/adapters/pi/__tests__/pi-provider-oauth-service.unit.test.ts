@@ -78,7 +78,7 @@ describe('Pi provider sign-in', () => {
     expect(answers).toEqual(['pasted-code'])
   })
 
-  it('asks for text and secrets with their own wording, masking secrets', async () => {
+  it('asks for text and secrets with their own wording, masking secrets and allowing blank text', async () => {
     runtime.login = async (_provider, _type, interaction) => {
       await interaction.prompt({ type: 'text', message: 'Radius workspace URL' })
       await interaction.prompt({ type: 'secret', message: 'Paste your token' })
@@ -90,6 +90,7 @@ describe('Pi provider sign-in', () => {
     expect(loginHandlers.onPrompt).toHaveBeenNthCalledWith(1, {
       message: 'Radius workspace URL',
       secret: false,
+      allowEmpty: true,
     })
     expect(loginHandlers.onPrompt).toHaveBeenNthCalledWith(2, {
       message: 'Paste your token',
