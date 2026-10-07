@@ -281,22 +281,14 @@ export class McpPooledConnection {
     const pending = this.ledger.forget(message.id)
     if (!pending) return
     if (pending.kind === 'internal') {
-      if ('result' in message) pending.resolve(message.result)
-      else {
-        pending.reject(
-          new McpServerError(message.error.message, message.error.code, message.error.data),
-        )
-      }
-      return
+      if ('result' in message) return pending.resolve(message.result)
+      const { message: text, code, data } = message.error
+      return pending.reject(new McpServerError(text, code, data))
     }
     if (pending.lease.isDetached) return
-    if (!('result' in message)) {
-      pending.lease.deliver({ ...message, id: pending.id })
-      return
-    }
+    if (!('result' in message)) return pending.lease.deliver({ ...message, id: pending.id })
     this.options.observeResult?.(pending.method, pending.params, message.result)
-    const adapt = this.options.adaptResult
-    const result = adapt ? adapt(pending.method, message.result) : message.result
+    const result = this.options.adaptResult?.(pending.method, message.result) ?? message.result
     pending.lease.deliver({ ...message, id: pending.id, result })
   }
 
