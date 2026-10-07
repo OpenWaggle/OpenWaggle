@@ -205,7 +205,7 @@ describe('previewing MCP imports as Pi entries', () => {
           api: {
             command: 'api-mcp',
             args: ['--api-key', 'sk-plaintext', '--verbose'],
-            env: { API_TOKEN: 'sk-plaintext', FROM_ENV: `\${API_SECRET}`, MODE: 'fast' },
+            env: { API_TOKEN: 'sk-plaintext', FROM_ENV: `\${env:API_SECRET}`, MODE: 'fast' },
           },
         },
       },

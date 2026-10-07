@@ -5,6 +5,8 @@
  * references the user fills in.
  */
 import { isRecord } from '@shared/utils/validation'
+import { piLiteral } from '../../../domain/mcp/config/mcp-pi-literal'
+import type { ExternalMcpImportSource } from './import-types'
 
 const SENSITIVE_NAME_PATTERN =
   /(api[-_]?key|token|secret|password|credential|authorization|cookie|private[-_]?key)/i
@@ -13,6 +15,7 @@ const OPENCODE_ENV_PATTERN = /\{env:([A-Za-z_][A-Za-z0-9_]*)\}/g
 const REFERENCE_PATTERN = /\$\{[^}]+\}/
 
 export interface ImportValueContext {
+  readonly source: ExternalMcpImportSource
   readonly serverName: string
   readonly warnings: string[]
 }
@@ -44,6 +47,65 @@ function isResolvedLater(value: string) {
   return REFERENCE_PATTERN.test(value) || value.startsWith('!')
 }
 
+const NAME = '[A-Za-z_][A-Za-z0-9_]*'
+const ENV_REFERENCE = `\\$\\{env:(${NAME})\\}`
+
+/**
+ * The variable syntaxes each tool really expands in `env` and `headers` values, with the Pi
+ * variable each one becomes. Everything else is literal text there: Claude Desktop, Codex, and Zed
+ * pass values as written.
+ */
+const SOURCE_VARIABLES: Readonly<Record<ExternalMcpImportSource, RegExp | undefined>> = {
+  'claude-code': new RegExp(`\\$\\{(${NAME})(:-[^}]*)?\\}`, 'g'),
+  cursor: new RegExp(ENV_REFERENCE, 'g'),
+  vscode: new RegExp(`\\$\\{(?:env:(${NAME})|input:([^}]+))\\}`, 'g'),
+  windsurf: new RegExp(ENV_REFERENCE, 'g'),
+  opencode: new RegExp(`\\{env:(${NAME})\\}`, 'g'),
+  'claude-desktop': undefined,
+  codex: undefined,
+  zed: undefined,
+}
+
+function variableName(match: RegExpMatchArray, location: string, context: ImportValueContext) {
+  const [, name, second] = match
+  if (context.source === 'vscode' && second !== undefined) {
+    const variable = environmentName(second)
+    context.warnings.push(
+      `${location} asked for VS Code input ${second}; set environment variable ${variable} instead.`,
+    )
+    return variable
+  }
+  if (context.source === 'claude-code' && second !== undefined) {
+    context.warnings.push(`${location} had a default for ${name ?? ''}, which Pi does not support.`)
+  }
+  return name ?? ''
+}
+
+/**
+ * An `env`, `headers`, or OAuth secret value as Pi will read it: the variables the source tool
+ * expands become Pi's `${NAME}`, and everything else stays literal (`$` → `$$`, a leading `!` →
+ * `$!`), so a value from another tool is never run as a command or read as a variable it was not.
+ */
+export function piValueFrom(value: string, location: string, context: ImportValueContext) {
+  const pattern = SOURCE_VARIABLES[context.source]
+  if (!pattern) return { value: piLiteral(value), references: false }
+  let result = ''
+  let last = 0
+  let references = false
+  for (const match of value.matchAll(pattern)) {
+    result += escapeDollars(value.slice(last, match.index))
+    result += `\${${variableName(match, location, context)}}`
+    last = match.index + match[0].length
+    references = true
+  }
+  result += escapeDollars(value.slice(last))
+  return { value: result.startsWith('!') ? `$${result}` : result, references }
+}
+
+function escapeDollars(text: string) {
+  return text.replaceAll('$', () => '$$')
+}
+
 function credentialValue(
   fieldName: string,
   value: unknown,
@@ -54,8 +116,8 @@ function credentialValue(
     context.warnings.push(`${location} was ignored because its value is not a string.`)
     return undefined
   }
-  const portable = portableString(value, location, context)
-  if (isResolvedLater(portable) || !SENSITIVE_NAME_PATTERN.test(fieldName)) return portable
+  const pi = piValueFrom(value, location, context)
+  if (pi.references || !SENSITIVE_NAME_PATTERN.test(fieldName)) return pi.value
   const name = secretName(context.serverName, fieldName)
   context.warnings.push(
     `${location} contains a plaintext credential. Its value was not imported; save it as vault secret ${name}.`,

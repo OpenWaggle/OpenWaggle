@@ -9,6 +9,7 @@ import {
   credentialMap,
   type ImportValueContext,
   nonEmptyString,
+  piValueFrom,
   portableArgs,
   portableString,
   stringArray,
@@ -130,7 +131,10 @@ function credentialFields(
 
 function oauthValue(key: string, entry: unknown, context: ImportValueContext) {
   if (PI_OAUTH_STRING_FIELDS.includes(key) && typeof entry === 'string') {
-    return portableString(entry, `oauth.${key}`, context)
+    // Pi resolves `${NAME}` and `!command` only in the client secret; the rest is taken as written.
+    return key === 'clientSecret'
+      ? piValueFrom(entry, `oauth.${key}`, context).value
+      : portableString(entry, `oauth.${key}`, context)
   }
   if (key === 'scope' && typeof entry === 'string') return entry
   if (key === 'scope' && Array.isArray(entry)) return (stringArray(entry) ?? []).join(' ')
@@ -206,7 +210,7 @@ export function normalizeImportedEntry(
   value: unknown,
 ): NormalizedImport | undefined {
   if (!isRecord(value)) return undefined
-  const context: ImportValueContext = { serverName: name, warnings: [] }
+  const context: ImportValueContext = { source, serverName: name, warnings: [] }
   const shaped = reshape(source, value)
   const entry: PiMcpEntry = {
     ...endpointFields(shaped, context),
