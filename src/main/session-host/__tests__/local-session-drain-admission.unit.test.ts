@@ -156,6 +156,8 @@ describe('commands a draining Session Host still accepts', () => {
       // Reads the files and the warm connections' last state; it never connects.
       'mcp:get-server-statuses',
       'mcp:preview-imports',
+      'mcp:search-registry',
+      'mcp:get-registry-server',
       'docs:discover',
       'skills:list',
       'skills:get-preview',

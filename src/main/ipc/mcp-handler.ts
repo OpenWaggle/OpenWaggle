@@ -17,6 +17,11 @@ import {
   signOutMcpServerOperation,
 } from '../application/mcp-configuration-operations'
 import {
+  getMcpRegistryServerOperation,
+  installMcpRegistryServerOperation,
+  searchMcpRegistryOperation,
+} from '../application/mcp-registry-operations'
+import {
   listMcpSecretsOperation,
   removeMcpSecretOperation,
   setMcpSecretOperation,
@@ -42,6 +47,13 @@ export function registerMcpHandlers(): void {
   hostHandle('mcp:sign-out', (_event, raw: unknown) => signOutMcpServerOperation(raw))
   hostHandle('mcp:preview-imports', (_event, raw: unknown) => previewMcpImportsOperation(raw))
   hostHandle('mcp:apply-imports', (_event, raw: unknown) => applyMcpImportsOperation(raw))
+  hostHandle('mcp:search-registry', (_event, raw: unknown) => searchMcpRegistryOperation(raw))
+  hostHandle('mcp:get-registry-server', (_event, raw: unknown) =>
+    getMcpRegistryServerOperation(raw),
+  )
+  hostHandle('mcp:install-registry-server', (_event, raw: unknown) =>
+    installMcpRegistryServerOperation(raw),
+  )
   hostHandle('mcp:list-secrets', () => listMcpSecretsOperation())
   hostHandle('mcp:set-secret', (_event, raw: unknown) => setMcpSecretOperation(raw))
   hostHandle('mcp:remove-secret', (_event, raw: unknown) => removeMcpSecretOperation(raw))

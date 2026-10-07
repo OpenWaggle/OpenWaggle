@@ -21,6 +21,11 @@ import {
   signOutMcpServerOperation,
 } from './mcp-configuration-operations'
 import {
+  getMcpRegistryServerOperation,
+  installMcpRegistryServerOperation,
+  searchMcpRegistryOperation,
+} from './mcp-registry-operations'
+import {
   listMcpSecretsOperation,
   removeMcpSecretOperation,
   setMcpSecretOperation,
@@ -64,6 +69,9 @@ export function dispatchMcpHostUiOperation(
     .with('mcp:sign-out', () => oneInput(args, signOutMcpServerOperation))
     .with('mcp:preview-imports', () => oneInput(args, previewMcpImportsOperation))
     .with('mcp:apply-imports', () => oneInput(args, applyMcpImportsOperation))
+    .with('mcp:search-registry', () => oneInput(args, searchMcpRegistryOperation))
+    .with('mcp:get-registry-server', () => oneInput(args, getMcpRegistryServerOperation))
+    .with('mcp:install-registry-server', () => oneInput(args, installMcpRegistryServerOperation))
     .with('mcp:list-secrets', () => noInput(args, listMcpSecretsOperation))
     .with('mcp:set-secret', () => oneInput(args, setMcpSecretOperation))
     .with('mcp:remove-secret', () => oneInput(args, removeMcpSecretOperation))

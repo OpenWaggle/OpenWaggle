@@ -21,6 +21,7 @@ import { idleCacheWarming } from './adapters/pi/agent-kernel/pi-idle-cache-warmi
 import { EncryptedMcpSecretVaultServiceLive } from './adapters/mcp/encrypted-mcp-secret-vault-service'
 import { FilesystemMcpImportServiceLive } from './adapters/mcp/filesystem-mcp-import-service'
 import { mcpSessionConnectionPool } from './adapters/mcp/pool/mcp-connection-pool-instance'
+import { McpRegistryServiceLive } from './adapters/mcp/registry/mcp-registry-service'
 import { forgetMcpAppTools } from './adapters/pi/mcp/mcp-app-registry'
 import { OpenWaggleMcpConfigurationServiceLive } from './adapters/pi/mcp/openwaggle-mcp-configuration'
 import { PiMcpAppRuntimeServiceLive } from './adapters/pi/mcp/pi-mcp-app-runtime-service'
@@ -239,6 +240,7 @@ const AppLayer = Layer.mergeAll(
   EncryptedMcpSecretVaultServiceLive,
   OpenWaggleMcpConfigurationServiceLive,
   FilesystemMcpImportServiceLive,
+  McpRegistryServiceLive,
   PiMcpServerRuntimeServiceLive,
   PiMcpAppRuntimeServiceLive,
   PiProviderAuthLive,

@@ -25,6 +25,14 @@ import type {
   McpSetServerExposureRequest,
   McpSignInResultView,
 } from './mcp-configuration-operations'
+import type {
+  McpRegistryInstallRequest,
+  McpRegistryInstallResultView,
+  McpRegistrySearchRequest,
+  McpRegistrySearchResultView,
+  McpRegistryServerRequest,
+  McpRegistryServerView,
+} from './mcp-registry'
 
 export interface IpcMcpInvokeChannelMap {
   'mcp:get-configuration': {
@@ -54,6 +62,18 @@ export interface IpcMcpInvokeChannelMap {
   'mcp:sign-out': { args: [input: McpServerNameRequest]; return: undefined }
   'mcp:preview-imports': { args: [input: McpImportPreviewRequest]; return: McpImportPreviewView }
   'mcp:apply-imports': { args: [input: McpImportApplyRequest]; return: McpImportApplyResultView }
+  'mcp:search-registry': {
+    args: [input: McpRegistrySearchRequest]
+    return: McpRegistrySearchResultView
+  }
+  'mcp:get-registry-server': {
+    args: [input: McpRegistryServerRequest]
+    return: McpRegistryServerView
+  }
+  'mcp:install-registry-server': {
+    args: [input: McpRegistryInstallRequest]
+    return: McpRegistryInstallResultView
+  }
   'mcp:list-secrets': { args: []; return: readonly McpSecretSummary[] }
   'mcp:set-secret': { args: [input: McpSetSecretInput]; return: readonly McpSecretSummary[] }
   'mcp:remove-secret': {

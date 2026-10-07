@@ -33,6 +33,8 @@ export const READ_ONLY_HOST_UI_CHANNELS: ReadonlySet<HostBackedGuiChannel> =
     'mcp:inspect-server',
     'mcp:get-server-statuses',
     'mcp:preview-imports',
+    'mcp:search-registry',
+    'mcp:get-registry-server',
     'providers:get-models',
     'docs:discover',
     'skills:list',

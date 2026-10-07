@@ -25,6 +25,14 @@ import type {
   McpSetServerExposureRequest,
   McpSignInResultView,
 } from './mcp-configuration-operations'
+import type {
+  McpRegistryInstallRequest,
+  McpRegistryInstallResultView,
+  McpRegistrySearchRequest,
+  McpRegistrySearchResultView,
+  McpRegistryServerRequest,
+  McpRegistryServerView,
+} from './mcp-registry'
 
 export interface OpenWaggleMcpApi {
   getMcpConfiguration(input: McpConfigurationScopeRequest): Promise<McpConfigurationView>
@@ -39,6 +47,9 @@ export interface OpenWaggleMcpApi {
   signOutMcpServer(input: McpServerNameRequest): Promise<void>
   previewMcpImports(input: McpImportPreviewRequest): Promise<McpImportPreviewView>
   applyMcpImports(input: McpImportApplyRequest): Promise<McpImportApplyResultView>
+  searchMcpRegistry(input: McpRegistrySearchRequest): Promise<McpRegistrySearchResultView>
+  getMcpRegistryServer(input: McpRegistryServerRequest): Promise<McpRegistryServerView>
+  installMcpRegistryServer(input: McpRegistryInstallRequest): Promise<McpRegistryInstallResultView>
   listMcpSecrets(): Promise<readonly McpSecretSummary[]>
   setMcpSecret(input: McpSetSecretInput): Promise<readonly McpSecretSummary[]>
   removeMcpSecret(input: McpRemoveSecretInput): Promise<readonly McpSecretSummary[]>

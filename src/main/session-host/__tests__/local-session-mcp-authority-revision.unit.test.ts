@@ -76,6 +76,16 @@ describe('Local Session MCP authority protocol revision', () => {
     },
   )
 
+  it('ships MCP Registry search and install with the revision-22 configuration channels', () => {
+    expect(HOST_UI_REVISION_22_REQUIRED_CHANNELS).toEqual(
+      expect.arrayContaining([
+        'mcp:search-registry',
+        'mcp:get-registry-server',
+        'mcp:install-registry-server',
+      ]),
+    )
+  })
+
   it('advertises the MCP configuration capability at revision 22 only', () => {
     expect(LOCAL_SESSION_REVISION_21_CAPABILITIES).not.toContain('host-ui:mcp-configuration-v1')
     expect(LOCAL_SESSION_REVISION_22_CAPABILITIES).toContain('host-ui:mcp-configuration-v1')

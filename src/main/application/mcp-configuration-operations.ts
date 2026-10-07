@@ -207,3 +207,5 @@ export function applyMcpImportsOperation(raw: unknown) {
     return { ...result, view } satisfies McpImportApplyResultView
   })
 }
+
+export { decode as decodeMcpProjectRequest, decodePayload as decodeMcpRequest }
