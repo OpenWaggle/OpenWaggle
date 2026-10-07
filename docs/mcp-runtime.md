@@ -142,7 +142,12 @@ Pi stores OAuth state (client registration, tokens, PKCE verifier) keyed by
   a tombstone holding the hash of Pi's value; the tombstone hides that value until Pi's file
   changes it (a sign-in in the `pi` CLI), so signing out in OpenWaggle never edits Pi's file and
   a later Pi sign-in still shows through.
-- The refresh lock directory is in OpenWaggle's data directory.
+- The refresh lock directory is `~/.openwaggle/mcp/locks`. A token from Pi's file that
+  OpenWaggle refreshes is stored in OpenWaggle's layer only, so a server that rotates refresh
+  tokens invalidates the copy the `pi` CLI still holds; that CLI then signs in again.
+- The classes come from the pi-coding-agent patch, which only adds root exports
+  (`McpOAuthCredentialStore`, `signInMcpServer`, `createMcpAuthProvider`, `validateMcpServerConfig`,
+  `mcpNamespace`, `getMcpToolExposure`, `resolveConfigValueOrThrow`, `resolveHeadersOrThrow`).
 
 Interactive sign-in stays Host-owned: Settings and the CLI ask the Host, which runs Pi's
 `signInMcpServer` against the same store and opens the authorization URL with `openUrl`. During
@@ -194,7 +199,12 @@ tools declare a `ui://` resource (`_meta.ui.resourceUri`) and their allowed netw
 companion extension's `tool_result` handler adds an MCP App descriptor to the details of such
 tools' results. The renderer's `McpAppHost` reads the `ui://` resource and makes app tool calls
 through Host operations that send internal requests over the same pooled connection; a missing
-connection is opened on demand with the Session's current configuration.
+connection is opened on demand with the Session's current configuration. The descriptor's
+`serverInstanceId` is the server name and its `serverConfigHash` the server identity, so an App
+opened for a server that was since replaced is refused.
+
+`pnpm test:mcp:conformance` runs the official MCP conformance scenarios with pi-mcp's client
+through a pool lease and OpenWaggle's hardened fetch.
 
 ## Lifecycle
 
@@ -204,7 +214,8 @@ connection is opened on demand with the Session's current configuration.
 | Run ends (`endRun`) | When the Session has no other active Run, starts a 5-minute idle timer. |
 | Idle timer fires | Closes all the Session's connections. |
 | Session archived or deleted (including Worker auto-archive by Hive cleanup) | Closes all the Session's connections immediately (`withSessionDesktopRemoval`). |
-| A Session opens its first connection while the cap is reached | Closes the least recently used Session that has no active Run (LRU cap on Sessions holding warm connections). |
+| A Session opens its first connection while 8 Sessions hold warm connections | Closes the least recently used Session that has no active Run. |
+| Signing out of a server, or switching a Session's MCP off | Closes that server's connections in every Session, or the Session's connections. |
 | Session Host stops | Closes everything and waits (bounded) for stdio servers to exit. |
 
 Stdio servers run through pi-mcp's `StdioTransport` in their own process group (POSIX) and are
