@@ -44,6 +44,8 @@ export interface OpenWagglePiSessionOptions {
   readonly authorizationMode?: AgentAuthorizationMode
   readonly models?: readonly FauxModelDefinition[]
   readonly onEvent?: (event: AgentTransportEvent) => void
+  /** The model the Session selects, such as a virtual model; the first faux model by default. */
+  readonly selectedModel?: { readonly provider: string; readonly id: string }
 }
 
 /**
@@ -77,12 +79,16 @@ export async function createOpenWagglePiSession(options: OpenWagglePiSessionOpti
       options.onEvent?.(event)
     },
   }
+  const selected = options.selectedModel
+    ? services.modelRuntime.getModel(options.selectedModel.provider, options.selectedModel.id)
+    : faux.getModel()
+  if (!selected) throw new Error('The selected test model is not in the catalog')
   const { session } = await createOpenWaggleAgentSessionFromServices({
     services,
-    model: faux.getModel(),
+    model: selected,
     sessionManager: SessionManager.inMemory(projectPath),
     openWaggleUi,
   })
   cleanups.push(() => session.dispose())
-  return { session, faux, model: faux.getModel(), events, projectPath, agentDir }
+  return { session, services, faux, model: faux.getModel(), events, projectPath, agentDir }
 }

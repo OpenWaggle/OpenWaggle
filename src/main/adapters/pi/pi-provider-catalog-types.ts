@@ -14,6 +14,8 @@ export interface ProviderModelRecord {
   readonly contextWindow: number
   readonly maxTokens: number
   readonly api: string
+  /** A virtual model routes each request to a physical model (Pi virtual models). */
+  readonly virtual: boolean
 }
 
 export interface ProviderCatalogRecord {

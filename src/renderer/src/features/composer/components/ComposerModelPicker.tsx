@@ -4,6 +4,7 @@ import { ModelSelector } from '@/features/providers/components'
 import { useProviderStore } from '@/features/providers/state'
 import { usePreferencesStore } from '@/features/settings/state'
 import { useComposerModel } from '../hooks/useComposerModel'
+import { useRoutedModelName } from '../hooks/useRoutedModelName'
 import { useSessionSettingsLock } from '../hooks/useSessionSettingsLock'
 
 export function ComposerModelPicker() {
@@ -34,14 +35,31 @@ export function ComposerModelPicker() {
   }
 
   return (
-    <ModelSelector
-      value={composerModel.model}
-      onChange={selectModel}
-      settings={settings}
-      providerModels={providerModels}
-      disabled={settingsLock.locked}
-      fallbackLabel={composerModel.isSessionModel ? composerModel.model : undefined}
-      title={settingsLock.reason ?? undefined}
-    />
+    <>
+      <ModelSelector
+        value={composerModel.model}
+        onChange={selectModel}
+        settings={settings}
+        providerModels={providerModels}
+        disabled={settingsLock.locked}
+        fallbackLabel={composerModel.isSessionModel ? composerModel.model : undefined}
+        title={settingsLock.reason ?? undefined}
+      />
+      <RoutedModelLabel />
+    </>
+  )
+}
+
+/** Under a virtual model, the physical model it sent the latest request to (`Auto → GPT-6 Luna`). */
+function RoutedModelLabel() {
+  const { selectedName, routedName } = useRoutedModelName()
+  if (!routedName) return null
+  return (
+    <span
+      className="max-w-40 truncate text-xs text-text-tertiary @max-xl/composer-toolbar:hidden"
+      title={`${selectedName} sent the latest request to ${routedName}`}
+    >
+      → {routedName}
+    </span>
   )
 }

@@ -8,6 +8,8 @@ import type { PiUserMessageEntrySource } from './user-message-events'
 export interface SessionListenerInput {
   readonly model: SupportedModelId
   readonly getContextWindow?: (provider: string, modelId: string) => number | undefined
+  /** Whether the Run's selection is a virtual model, whose router picks the answering model. */
+  readonly isVirtualSelection?: () => boolean
   readonly onEvent: (event: AgentTransportEvent) => void
   /** The Run's Session log; null where no user message can arrive, such as manual compaction. */
   readonly sessionEntries: PiUserMessageEntrySource | null

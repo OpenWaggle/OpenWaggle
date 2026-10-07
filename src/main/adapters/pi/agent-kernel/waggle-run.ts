@@ -16,6 +16,7 @@ import { notePiRunForUsageStatistics } from '../pi-usage-statistics'
 import { logger } from './constants'
 import { piEntryNodeIds } from './pi-entry-node-ids'
 import { registerPiLiveRun } from './pi-live-run-registry'
+import { piResponseUsageInput } from './pi-response-usage'
 import { createPiRunSessionRuntime, runSubscribedPiOperation } from './run-lifecycle'
 import { createSessionListener } from './session-listener'
 import { captureTurnCheckpoint } from './turn-capture'
@@ -242,12 +243,7 @@ export async function runPiWaggle(input: PiWaggleKernelRunInput) {
         sessionEntries: session.sessionManager,
         nodeIds: piEntryNodeIds(input.session),
         model: initialRuntimeModel,
-        getContextWindow: (provider, modelId) => {
-          const activeModel = session.model
-          return activeModel?.provider === provider && activeModel.id === modelId
-            ? activeModel.contextWindow
-            : undefined
-        },
+        ...piResponseUsageInput(session),
         onEvent: (event) =>
           input.waggle.onWaggleEvent(withTransportEventModel(event, currentMeta), currentMeta),
       },

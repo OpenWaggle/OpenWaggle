@@ -14,6 +14,7 @@ import {
 } from '../pi-session-lifecycle'
 import { writeRekeyedForkedSession } from './fork-entry-identity'
 import { type PiEntryNodeIds, piEntryNodeIds } from './pi-entry-node-ids'
+import { piResponseUsageInput } from './pi-response-usage'
 import type { PiRuntimeExtensionIsolationInput } from './runtime-extension-isolation'
 import { createSessionListener } from './session-listener'
 import { projectPiSessionSnapshot } from './session-projection'
@@ -57,12 +58,7 @@ export async function compactPiSession(
               model: input.model,
               sessionEntries: null,
               nodeIds: piEntryNodeIds(input.session),
-              getContextWindow: (provider, modelId) => {
-                const activeModel = session.model
-                return activeModel?.provider === provider && activeModel.id === modelId
-                  ? activeModel.contextWindow
-                  : undefined
-              },
+              ...piResponseUsageInput(session),
               onEvent: input.onEvent,
             },
             randomUUID(),

@@ -42,11 +42,12 @@ export function useContextUsageSnapshot({
       typeof api.onAgentEvent === 'function'
         ? api.onAgentEvent((payload) => {
             const event = payload.event
-            if (
-              cancelled ||
-              payload.sessionId !== activeSessionId ||
-              event.model !== selectedModel
-            ) {
+            // A virtual selection's usage arrives under the model its router chose, with that
+            // model's own window, and names the selection it was routed from.
+            const forSelectedModel =
+              event.model === selectedModel ||
+              (event.type === 'context_usage' && event.routedFrom === selectedModel)
+            if (cancelled || payload.sessionId !== activeSessionId || !forSelectedModel) {
               return
             }
 

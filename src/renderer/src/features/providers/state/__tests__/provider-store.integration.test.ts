@@ -107,6 +107,29 @@ describe('provider-store integration', () => {
     expect(useProviderStore.getState().providerModels).toHaveLength(1)
   })
 
+  it('keeps which models are virtual', async () => {
+    const [openAi] = openAiProviderModels()
+    if (!openAi) throw new Error('missing fixture')
+    const auto = {
+      id: SupportedModelId('openai/auto'),
+      modelId: 'auto',
+      name: 'Auto',
+      provider: 'openai',
+      available: true,
+      availableThinkingLevels: ['off' as const],
+      virtual: true,
+    }
+    apiMock.getProviderModels.mockResolvedValue([{ ...openAi, models: [...openAi.models, auto] }])
+
+    await useProviderStore.getState().loadProviderModels()
+
+    const models = useProviderStore.getState().providerModels[0]?.models ?? []
+    expect(models.map((model) => [model.id, model.virtual === true])).toEqual([
+      ['openai/gpt-4.1-mini', false],
+      ['openai/auto', true],
+    ])
+  })
+
   it('does not clear model preferences when Pi returns an empty provider catalog', async () => {
     const settings = {
       ...DEFAULT_SETTINGS,

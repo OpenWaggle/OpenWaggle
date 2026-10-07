@@ -24,6 +24,7 @@ import {
 } from './pi-provider-resources'
 import { getPiModelAvailableThinkingLevels } from './pi-provider-thinking'
 import { getPiRuntimeExtensionLoadErrors } from './pi-runtime-extension-load-errors'
+import { isPiVirtualModel } from './pi-virtual-models'
 import { ensurePiVisualizeSkill } from './pi-visualize-skill'
 
 export { getPiModelAvailableThinkingLevels } from './pi-provider-thinking'
@@ -81,6 +82,7 @@ function listPiProviderModelsFromRuntime(modelRuntime: ModelRuntime) {
     contextWindow: model.contextWindow,
     maxTokens: model.maxTokens,
     api: model.api,
+    virtual: isPiVirtualModel(model),
   }))
 }
 
@@ -146,7 +148,7 @@ function buildProviderNameMap(modelRuntime: ModelRuntime) {
   return new Map(modelRuntime.getProviders().map((provider) => [provider.id, provider.name]))
 }
 
-async function createPiProviderCatalogSnapshotFromRuntime(services: AgentSessionServices) {
+export async function createPiProviderCatalogSnapshotFromServices(services: AgentSessionServices) {
   const { modelRuntime } = services
   return {
     providers: listPiProvidersFromModels(listPiProviderModelsFromRuntime(modelRuntime)),
@@ -226,14 +228,14 @@ export async function createPiProviderCatalogSnapshot(
   const normalizedProjectPath = projectPath?.trim()
   if (!normalizedProjectPath) {
     const services = await createPiGlobalProviderCatalogServices()
-    return await createPiProviderCatalogSnapshotFromRuntime(services)
+    return await createPiProviderCatalogSnapshotFromServices(services)
   }
 
   const services = await createPiRuntimeServices(normalizedProjectPath, {
     enabledOpenWaggleExtensionPackagePaths: options.enabledOpenWaggleExtensionPackagePaths ?? [],
     enabledOpenWaggleExtensionResourceRoots: options.enabledOpenWaggleExtensionResourceRoots ?? [],
   })
-  return await createPiProviderCatalogSnapshotFromRuntime(services)
+  return await createPiProviderCatalogSnapshotFromServices(services)
 }
 
 export async function setPiProviderApiKey(providerId: string, apiKey: string) {

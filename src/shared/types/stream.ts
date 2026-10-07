@@ -179,6 +179,11 @@ export interface AgentTransportContextUsageEvent extends TransportEventBase {
   readonly type: 'context_usage'
   readonly tokens: number
   readonly contextWindow: number
+  /**
+   * The virtual model the Run selected, when its router sent this response to `model`. The usage
+   * and window are `model`'s; the selection only tells the context meter they belong to it.
+   */
+  readonly routedFrom?: string
 }
 
 export interface AgentTransportToolExecutionStartEvent extends TransportEventBase {

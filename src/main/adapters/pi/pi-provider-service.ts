@@ -37,6 +37,7 @@ function toModelCapabilities(model: {
   readonly input: readonly ('text' | 'image')[]
   readonly contextWindow: number
   readonly maxTokens: number
+  readonly virtual?: boolean
 }) {
   return {
     id: model.ref,
@@ -48,6 +49,7 @@ function toModelCapabilities(model: {
     input: [...model.input],
     contextWindow: model.contextWindow,
     maxTokens: model.maxTokens,
+    ...(model.virtual ? { virtual: true } : {}),
   }
 }
 

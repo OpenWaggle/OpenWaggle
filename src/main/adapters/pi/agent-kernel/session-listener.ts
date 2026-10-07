@@ -1,7 +1,6 @@
 import { matchBy } from '@diegogbrisa/ts-match'
-import { type AgentSessionEvent, calculateContextTokens } from '@earendil-works/pi-coding-agent'
+import type { AgentSessionEvent } from '@earendil-works/pi-coding-agent'
 import type { JsonValue } from '@shared/types/json'
-import { createModelRef } from '@shared/types/llm'
 import type { AgentTransportUserMessage } from '@shared/types/stream'
 import { classifyAgentError } from '../../../agent/error-classifier'
 import { userFacingErrorDetail } from '../../../utils/describe-error'
@@ -28,6 +27,7 @@ import type {
   ToolExecutionStartSessionEvent,
   ToolExecutionUpdateSessionEvent,
 } from './listener-types'
+import { responseContextUsageEvent } from './pi-response-usage'
 import { emitEvent } from './transport-emitter'
 import {
   incorporatedUserMessageDisplay,
@@ -143,8 +143,7 @@ function handleIncorporatedUserMessage(
 function handleMessageEnd(state: SessionListenerState, event: MessageEndSessionEvent) {
   if (handleIncorporatedUserMessage(state, event.message)) return
   if (event.message.role === 'toolResult') {
-    observePiToolResultForUsageStatistics(state.runId, event.message)
-    return
+    return observePiToolResultForUsageStatistics(state.runId, event.message)
   }
   if (!state.currentMessageId || event.message.role !== 'assistant') {
     return
@@ -158,23 +157,8 @@ function handleMessageEnd(state: SessionListenerState, event: MessageEndSessionE
     timestamp: Date.now(),
     model: state.input.model,
   })
-  const contextTokens = calculateContextTokens(event.message.usage)
-  const contextWindow = state.input.getContextWindow?.(event.message.provider, event.message.model)
-  if (
-    event.message.stopReason !== 'error' &&
-    event.message.stopReason !== 'aborted' &&
-    contextTokens > 0 &&
-    contextWindow &&
-    contextWindow > 0
-  ) {
-    emitEvent(state.input.onEvent, {
-      type: 'context_usage',
-      tokens: contextTokens,
-      contextWindow,
-      timestamp: Date.now(),
-      model: createModelRef(event.message.provider, event.message.model),
-    })
-  }
+  const contextUsage = responseContextUsageEvent(state.input, event.message)
+  if (contextUsage) emitEvent(state.input.onEvent, contextUsage)
   state.currentMessageId = null
 }
 

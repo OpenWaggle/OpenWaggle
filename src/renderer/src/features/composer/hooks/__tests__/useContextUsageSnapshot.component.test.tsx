@@ -90,6 +90,37 @@ describe('useContextUsageSnapshot', () => {
     expect(result.current.snapshot?.tokens).toBe(10_000)
   })
 
+  it("follows a virtual selection's usage against the window of the model it routed to", async () => {
+    const virtualModel = SupportedModelId('router/auto')
+    const { result } = renderHook(() =>
+      useContextUsageSnapshot({
+        activeSessionId: SESSION_ID,
+        selectedModel: virtualModel,
+        requestKey: 'session-1:router/auto:v1',
+      }),
+    )
+
+    await waitFor(() => expect(result.current.snapshot?.tokens).toBe(10_000))
+    const handler = ipcMocks.onAgentEvent.mock.calls[0]?.[0]
+    if (!handler) throw new Error('Expected context meter event subscription')
+
+    act(() => {
+      handler({
+        sessionId: SESSION_ID,
+        event: {
+          type: 'context_usage',
+          tokens: 50_000,
+          contextWindow: 200_000,
+          timestamp: 1,
+          model: SupportedModelId('openai/gpt-6-luna'),
+          routedFrom: virtualModel,
+        },
+      })
+    })
+
+    expect(result.current.snapshot).toEqual({ tokens: 50_000, contextWindow: 200_000, percent: 25 })
+  })
+
   it('marks usage unknown immediately after successful compaction', async () => {
     const { result } = renderHook(() =>
       useContextUsageSnapshot({
