@@ -154,7 +154,7 @@ openwaggle mcp login sentry
 openwaggle mcp import --from codex,cursor
 ```
 
-New servers go to `~/.openwaggle/mcp.json`, or to `.openwaggle/mcp.json` in the current project with `--local`.
+New servers go to `~/.openwaggle/mcp.json`, or to `.openwaggle/mcp.json` in the current project with `--local`. The project must already be open in OpenWaggle.
 
 ## OpenWaggle as an MCP server
 

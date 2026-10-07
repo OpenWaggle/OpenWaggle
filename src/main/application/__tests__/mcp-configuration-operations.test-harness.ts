@@ -11,8 +11,13 @@ import {
   McpServerRuntimeService,
   type McpServerScopeInput,
 } from '../../ports/mcp-server-runtime-service'
+import { WorkspaceProjectAuthorization } from '../../ports/workspace-project-authorization'
 
-type Services = McpConfigurationService | McpImportService | McpServerRuntimeService
+type Services =
+  | McpConfigurationService
+  | McpImportService
+  | McpServerRuntimeService
+  | WorkspaceProjectAuthorization
 
 /** A home directory, Pi agent directory, and project in a temporary folder, with real services. */
 export function createMcpOperationsHarness() {
@@ -84,6 +89,16 @@ export function createMcpOperationsHarness() {
         }),
       ),
       Layer.succeed(McpServerRuntimeService, runtime),
+      // Only the harness project is known to OpenWaggle.
+      Layer.succeed(
+        WorkspaceProjectAuthorization,
+        WorkspaceProjectAuthorization.of({
+          authorize: (projectPath) =>
+            projectPath === state.projectPath
+              ? Effect.succeed(projectPath)
+              : Effect.fail(new Error('Project path is not authorized for workspace access.')),
+        }),
+      ),
     )
   }
 

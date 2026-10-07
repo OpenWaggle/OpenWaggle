@@ -60,7 +60,7 @@ describe('MCP import and runtime operations', () => {
       run(inspectMcpServerOperation({ projectPath: null, name: 'docs' })),
     ).resolves.toMatchObject({ name: 'docs', state: 'connected' })
     await expect(
-      run(signInMcpServerOperation({ projectPath: '/project', name: 'docs' })),
+      run(signInMcpServerOperation({ projectPath: harness.state.projectPath, name: 'docs' })),
     ).resolves.toEqual({ signedIn: false, authorizationUrl: 'https://auth.example/start' })
     await run(signOutMcpServerOperation({ projectPath: null, name: 'docs' }))
     await expect(
@@ -69,8 +69,14 @@ describe('MCP import and runtime operations', () => {
 
     expect(harness.state.runtimeCalls).toEqual([
       { operation: 'inspect', input: { projectPath: null, name: 'docs' } },
-      { operation: 'sign-in', input: { projectPath: '/project', name: 'docs' } },
+      { operation: 'sign-in', input: { projectPath: harness.state.projectPath, name: 'docs' } },
       { operation: 'sign-out', input: { projectPath: null, name: 'docs' } },
     ])
+    await expect(
+      failureMessage(
+        signInMcpServerOperation({ projectPath: '/not-a-known-project', name: 'docs' }),
+      ),
+    ).resolves.toMatch(/Open this project in OpenWaggle/)
+    expect(harness.state.runtimeCalls).toHaveLength(3)
   })
 })

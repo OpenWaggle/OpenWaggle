@@ -16,6 +16,7 @@ import { createLogger } from '../logger'
 import { McpConfigurationError, McpConfigurationService } from '../ports/mcp-configuration-service'
 import { McpImportService } from '../ports/mcp-import-service'
 import { McpServerRuntimeService } from '../ports/mcp-server-runtime-service'
+import { WorkspaceProjectAuthorization } from '../ports/workspace-project-authorization'
 
 /**
  * Settings > MCP and `openwaggle mcp` operations over Pi's MCP files (ADR 0048). The Session Host
@@ -25,12 +26,38 @@ import { McpServerRuntimeService } from '../ports/mcp-server-runtime-service'
 
 const logger = createLogger('mcp-configuration-operation')
 
-function decode<A, I>(schema: Schema.Schema<A, I>, raw: unknown, action: string) {
+function decodePayload<A, I>(schema: Schema.Schema<A, I>, raw: unknown, action: string) {
   const decoded = safeDecodeUnknown(schema, raw)
   if (decoded.success) return Effect.succeed(decoded.data)
   const message = decoded.issues.join('; ')
   logger.warn(`Invalid MCP ${action} payload`, { error: message })
   return Effect.fail(new McpConfigurationError({ reason: 'validation', message }))
+}
+
+/**
+ * Decodes a request and accepts its project only when OpenWaggle knows that project. A project's
+ * MCP files can start commands, so neither the GUI nor the CLI may name an arbitrary directory.
+ */
+function decode<A extends { readonly projectPath: string | null }, I>(
+  schema: Schema.Schema<A, I>,
+  raw: unknown,
+  action: string,
+) {
+  return Effect.gen(function* () {
+    const input = yield* decodePayload(schema, raw, action)
+    if (input.projectPath === null) return input
+    const authorization = yield* WorkspaceProjectAuthorization
+    const projectPath = yield* authorization.authorize(input.projectPath).pipe(
+      Effect.mapError(
+        () =>
+          new McpConfigurationError({
+            reason: 'validation',
+            message: 'Open this project in OpenWaggle before changing its MCP servers.',
+          }),
+      ),
+    )
+    return { ...input, projectPath }
+  })
 }
 
 function viewFor(projectPath: string | null) {

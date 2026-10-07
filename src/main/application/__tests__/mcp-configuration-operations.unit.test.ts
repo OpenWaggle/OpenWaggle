@@ -137,6 +137,24 @@ describe('MCP configuration operations', () => {
     ).resolves.toMatch(/Choose a project/)
   })
 
+  it('refuses a project OpenWaggle does not know and writes nothing there', async () => {
+    const unknownProject = `${harness.state.projectPath}-elsewhere`
+
+    await expect(
+      failureMessage(
+        addMcpServerOperation({
+          projectPath: unknownProject,
+          name: 'planted',
+          scope: 'project',
+          entry: { command: 'touch', args: ['planted'] },
+        }),
+      ),
+    ).resolves.toMatch(/Open this project in OpenWaggle/)
+    await expect(
+      failureMessage(getMcpConfigurationOperation({ projectPath: unknownProject })),
+    ).resolves.toMatch(/Open this project in OpenWaggle/)
+  })
+
   it('saves server and per-tool exposure where the server is defined', async () => {
     writeJson(owGlobal(), { mcpServers: { github: { url: 'https://github.example/mcp' } } })
 
