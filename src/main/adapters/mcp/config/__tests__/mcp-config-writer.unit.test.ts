@@ -1,4 +1,12 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  chmodSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -33,7 +41,7 @@ function read(filePath: string) {
 }
 
 describe('MCP config writer', () => {
-  it('changes one server and keeps unrelated content and indentation', () => {
+  it('changes only the edited server and keeps the rest of the file as written', () => {
     const filePath = file(
       'mcp.json',
       '{\n    "mcpServers": {\n        "a": { "command": "a", "custom": 1 },\n        "b": { "command": "b" }\n    },\n    "other": true\n}\n',
@@ -42,7 +50,42 @@ describe('MCP config writer', () => {
     updateMcpServerSettings(filePath, 'a', { enabled: false, exposure: 'direct' })
 
     expect(read(filePath)).toBe(
-      '{\n    "mcpServers": {\n        "a": {\n            "command": "a",\n            "custom": 1,\n            "enabled": false,\n            "exposure": "direct"\n        },\n        "b": {\n            "command": "b"\n        }\n    },\n    "other": true\n}\n',
+      '{\n    "mcpServers": {\n        "a": {\n            "command": "a",\n            "custom": 1,\n            "enabled": false,\n            "exposure": "direct"\n        },\n        "b": { "command": "b" }\n    },\n    "other": true\n}\n',
+    )
+  })
+
+  it('keeps a compact file compact and its unknown keys, order, and file mode', () => {
+    const original =
+      '{"$schema":"https://example.com/mcp.schema.json","mcpServers":{"a":{"command":"a","x-team":{"owner":"infra"}},"b":{"url":"https://b.example/mcp"}},"z":[1,2]}\n'
+    const filePath = file('.mcp.json', original)
+    chmodSync(filePath, 0o644)
+
+    updateMcpServerSettings(filePath, 'b', { enabled: false })
+    addMcpServerEntry(filePath, 'c', { command: 'c' })
+    removeMcpServerEntry(filePath, 'a')
+
+    const text = read(filePath)
+    expect(text.trimEnd().split('\n')).toHaveLength(1)
+    expect(text.endsWith('}\n')).toBe(true)
+    expect(JSON.parse(text)).toEqual({
+      $schema: 'https://example.com/mcp.schema.json',
+      mcpServers: { b: { url: 'https://b.example/mcp', enabled: false }, c: { command: 'c' } },
+      z: [1, 2],
+    })
+    expect(Object.keys(JSON.parse(text))).toEqual(['$schema', 'mcpServers', 'z'])
+    expect(statSync(filePath).mode % 0o1000).toBe(0o644)
+  })
+
+  it('keeps Windows line endings and tab indentation', () => {
+    const filePath = file(
+      'mcp.json',
+      '{\r\n\t"mcpServers": {\r\n\t\t"a": {\r\n\t\t\t"command": "a"\r\n\t\t}\r\n\t}\r\n}\r\n',
+    )
+
+    updateMcpServerSettings(filePath, 'a', { exposure: 'direct' })
+
+    expect(read(filePath)).toBe(
+      '{\r\n\t"mcpServers": {\r\n\t\t"a": {\r\n\t\t\t"command": "a",\r\n\t\t\t"exposure": "direct"\r\n\t\t}\r\n\t}\r\n}\r\n',
     )
   })
 
