@@ -13,7 +13,7 @@ Most settings apply across the app. Sections with a project picker let you inspe
 
 | Section | Use it to |
 |---------|-----------|
-| General | Choose where links open, adjust automatic context compaction, check for updates, and turn off usage statistics. |
+| General | Choose where links open, adjust automatic context compaction, turn codemode and prompt cache warming on or off, check for updates, and turn off usage statistics. |
 | Browser | Manage browser profiles, agent browser access, cookie imports, and preview defaults. |
 | Project actions | Save project tasks and services, choose local or shared storage, and configure workspace setup and cleanup. |
 | Shortcuts | View and customize keyboard bindings. |
@@ -27,6 +27,13 @@ Most settings apply across the app. Sections with a project picker let you inspe
 | Worktrees | Choose the default checkout mode and manage Git worktrees. |
 | Archived items | Restore archived sessions or conversation branches, and permanently delete archived sessions. |
 | Connections | Connect provider accounts and choose which models appear beside the message box. |
+
+## Agent tools
+
+**Settings > General > Agent tools** holds two settings that OpenWaggle passes to Pi, the agent runtime. OpenWaggle keeps them in its own settings and does not change your Pi settings files, so the Pi command line keeps its own choices.
+
+- **Codemode** lets the agent write short scripts that call several tools in one step. It is on by default. See [Codemode](/docs/using-openwaggle/codemode).
+- **Keep prompt caches warm** decides whether Pi refreshes the provider's prompt cache during long tool calls, so the next request does not pay to rebuild it. **While working** (the default) refreshes only when Pi expects the refresh to save more than it costs. **Off** never refreshes. Refreshes count toward the session's usage. Pi's third choice, warming between runs, is not offered because OpenWaggle closes the runtime session when a run ends, so there would be nothing left to keep warm.
 
 ## Agents and permissions
 

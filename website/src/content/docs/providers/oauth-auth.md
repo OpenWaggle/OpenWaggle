@@ -18,6 +18,18 @@ OAuth is browser-based sign-in. You approve access on the provider's website wit
 
 If the browser login does not finish automatically and OpenWaggle shows **Paste OAuth code or callback URL**, paste the code or callback URL returned by the provider and click **Connect**. Treat that value as a secret, not something to include in a bug report or chat message.
 
+Some sign-ins ask in the provider's own words, such as **Paste the authorization code**, and secrets you type are hidden. When the flow has a sign-in link, **Copy sign-in link** copies it so you can open it in a browser on another computer, then paste back the code that browser shows.
+
+## Sign-in methods
+
+The providers and methods come from Pi, so new ones appear without an OpenWaggle update. With the Pi version bundled now:
+
+- **OpenAI** offers **Sign in with ChatGPT**, which uses a ChatGPT subscription with the OpenAI provider. The older **OpenAI Codex** provider is labelled legacy.
+- **Anthropic** offers browser sign-in and a copy-code method for when the browser runs on another machine.
+- **Radius** has its own sign-in.
+
+Pi renamed the Azure provider from `azure-openai-responses` to `azure`. OpenWaggle moves your saved Azure models, sessions and credential to the new name the first time it starts, and keeps the old credential entry for older Pi versions.
+
 The provider switch stays usable during login. Turn it off to cancel an unfinished attempt. If an error appears, follow its instructions and use **Try again**.
 
 ## Disconnecting
