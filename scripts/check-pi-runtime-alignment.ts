@@ -112,25 +112,37 @@ function directPinProblems(input: PiRuntimeAlignmentInput) {
   return problems
 }
 
-const QUICKJS_PACKAGE = 'quickjs-wasi'
-
 /**
- * OpenWaggle's main bundle runs Pi's codemode worker with the QuickJS JavaScript bundled from Pi's
- * own dependency, but reads the wasm from the root `quickjs-wasi` (see
- * `scripts/vite/pi-codemode-worker.ts`). Both halves must be the same QuickJS build.
+ * WASM packages OpenWaggle installs at the root for Pi's bundled main process (see
+ * `scripts/vite/pi-worker-bundles.ts`): QuickJS for codemode, whose JavaScript is bundled from
+ * Pi's own dependency while its wasm comes from the root, and Photon for image reads, which loads
+ * its wasm beside its own entry. Each must be the exact build Pi depends on.
  */
-function quickJsProblems(input: PiRuntimeAlignmentInput) {
-  const versions = new Set(
-    [...input.lockfile.matchAll(/^ {2}quickjs-wasi@(\d+\.\d+\.\d+):/gm)].map((match) => match[1]),
-  )
-  if (versions.size !== 1) {
-    return [`pnpm-lock.yaml must resolve exactly one ${QUICKJS_PACKAGE} version, found ${versions.size}.`]
+const PI_WASM_PACKAGES = [
+  { name: 'quickjs-wasi', owner: 'Pi codemode' },
+  { name: '@silvia-odwyer/photon-node', owner: 'Pi coding agent' },
+] as const
+
+function piWasmPackageProblems(input: PiRuntimeAlignmentInput) {
+  const problems: string[] = []
+  for (const { name, owner } of PI_WASM_PACKAGES) {
+    const versions = new Set(
+      [
+        ...input.lockfile.matchAll(
+          new RegExp(`^ {2}'?${escapeRegex(name)}@(\\d+\\.\\d+\\.\\d+)'?:`, 'gm'),
+        ),
+      ].map((match) => match[1]),
+    )
+    if (versions.size !== 1) {
+      problems.push(`pnpm-lock.yaml must resolve exactly one ${name} version, found ${versions.size}.`)
+      continue
+    }
+    const [version] = versions
+    if (input.rootDependencies[name] !== version) {
+      problems.push(`package.json must pin ${name} at ${owner}'s ${version}.`)
+    }
   }
-  const [version] = versions
-  if (input.rootDependencies[QUICKJS_PACKAGE] !== version) {
-    return [`package.json must pin ${QUICKJS_PACKAGE} at Pi codemode's ${version}.`]
-  }
-  return []
+  return problems
 }
 
 function changedPatchPaths(patch: string) {
@@ -194,7 +206,7 @@ export function collectPiRuntimeAlignmentProblems(input: PiRuntimeAlignmentInput
   }
 
   problems.push(...directPinProblems(input))
-  problems.push(...quickJsProblems(input))
+  problems.push(...piWasmPackageProblems(input))
 
   const ageEntries = [...input.workspace.matchAll(/^ {2}- ["']?(@earendil-works\/pi-[^"'\s]+@[^"'\s]+)["']?$/gm)].map(
     (match) => match[1],

@@ -55,9 +55,11 @@ const config = {
   asarUnpack: [
     '**/node_modules/sharp/**',
     '**/node_modules/@img/**',
-    // Pi codemode: the sandbox worker beside the main bundle and the QuickJS wasm it runs.
+    // Pi's workers beside the main bundle and the wasm they run (codemode QuickJS, image Photon).
     'out/main/codemode-worker.js',
+    'out/main/image-resize-worker.js',
     '**/node_modules/quickjs-wasi/**',
+    '**/node_modules/@silvia-odwyer/photon-node/**',
   ],
   files: [
     'out/main/**/*',
@@ -99,6 +101,11 @@ const config = {
     '!node_modules/@openwaggle/*/tsconfig*.json',
     // Exclude unused ONNX training WASM files (only inference is needed)
     '!node_modules/onnxruntime-web/dist/ort-training*',
+    // Pi reads its README, docs (codemode points the model at docs/codemode.md) and examples from
+    // its package directory; keep them although other packages' docs are excluded above.
+    'node_modules/@earendil-works/pi-coding-agent/README.md',
+    'node_modules/@earendil-works/pi-coding-agent/docs/**/*',
+    'node_modules/@earendil-works/pi-coding-agent/examples/**/*',
   ],
   extraResources: [
     // Ship the channel icon as the runtime icon resource so the Windows/Linux

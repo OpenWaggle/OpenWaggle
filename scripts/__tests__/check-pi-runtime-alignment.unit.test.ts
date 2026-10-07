@@ -42,6 +42,7 @@ patchedDependencies:
 `,
     lockfile: `${installedPackages.map((name) => `${packageRef(name)}@${version}`).join('\n')}
   quickjs-wasi@3.6.2:
+  '@silvia-odwyer/photon-node@0.3.4':
   '${packageRef('pi-ai')}@${version}': abc123
   '${packageRef('pi-coding-agent')}@${version}': def456
 `,
@@ -55,6 +56,7 @@ patchedDependencies:
       [packageRef('pi-coding-agent')]: 'catalog:pi-runtime',
       [packageRef('pi-mcp')]: 'catalog:pi-runtime',
       'quickjs-wasi': '3.6.2',
+      '@silvia-odwyer/photon-node': '0.3.4',
     },
     piWaggleDevDependencies: {
       [packageRef('pi-coding-agent')]: 'catalog:pi-runtime',
@@ -109,6 +111,14 @@ describe('Pi runtime alignment', () => {
         rootDependencies: { ...input.rootDependencies, 'quickjs-wasi': '3.6.1' },
       }),
       expected: "package.json must pin quickjs-wasi at Pi codemode's 3.6.2",
+    },
+    {
+      drift: 'Photon wasm version',
+      breakInput: (input: PiRuntimeAlignmentInput) => ({
+        ...input,
+        rootDependencies: { ...input.rootDependencies, '@silvia-odwyer/photon-node': '0.3.3' },
+      }),
+      expected: "package.json must pin @silvia-odwyer/photon-node at Pi coding agent's 0.3.4",
     },
     {
       drift: 'second QuickJS version',

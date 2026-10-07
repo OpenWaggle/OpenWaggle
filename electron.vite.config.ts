@@ -8,7 +8,7 @@ import { tanstackRouter } from '@tanstack/router-plugin/vite'
 import tailwindcss from '@tailwindcss/vite'
 import svgr from 'vite-plugin-svgr'
 import { isolatedTailwindSourcePlugin } from './scripts/vite/isolated-tailwind-source'
-import { piCodemodeWorkerPlugin } from './scripts/vite/pi-codemode-worker'
+import { piWorkerBundlesPlugin } from './scripts/vite/pi-worker-bundles'
 import { resolveBuildIdentity } from './scripts/build-identity'
 
 // Bake this build's Build identity (docs/adr/0032) into the bundles so the
@@ -169,7 +169,7 @@ export default defineConfig({
       ...BUILD_DEFINE,
       PI_BUNDLED_NODE: 'true',
     },
-    plugins: [unpdfCjsResolvePlugin(), rolldownExternalFixPlugin(), piCodemodeWorkerPlugin()],
+    plugins: [unpdfCjsResolvePlugin(), rolldownExternalFixPlugin(), piWorkerBundlesPlugin()],
     build: {
       minify: false,
       externalizeDeps: {

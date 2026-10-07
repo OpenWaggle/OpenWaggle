@@ -14,7 +14,7 @@ import { createRequire } from 'node:module'
 import path from 'node:path'
 import { promisify } from 'node:util'
 import { build } from 'electron-vite'
-import { PI_CODEMODE_WORKER_FILE_NAME } from './vite/pi-codemode-worker'
+import { PI_WORKER_BUNDLES } from './vite/pi-worker-bundles'
 
 const execFileAsync = promisify(execFile)
 
@@ -50,13 +50,15 @@ async function runSmoke(label: string, command: string, env: NodeJS.ProcessEnv) 
 
 async function main() {
   await buildSmokeBundle()
-  if (!existsSync(path.join(SMOKE_OUT_DIR, PI_CODEMODE_WORKER_FILE_NAME))) {
-    throw new Error(`The main build did not emit ${PI_CODEMODE_WORKER_FILE_NAME}.`)
+  for (const { fileName } of PI_WORKER_BUNDLES) {
+    if (!existsSync(path.join(SMOKE_OUT_DIR, fileName))) {
+      throw new Error(`The main build did not emit ${fileName}.`)
+    }
   }
   try {
     await runSmoke('node', process.execPath, { ...process.env, ELECTRON_RUN_AS_NODE: undefined })
     await runSmoke('electron-as-node', electronBinary(), { ...process.env, ELECTRON_RUN_AS_NODE: '1' })
-    console.log('Pi main bundle smoke passed: codemode worker, QuickJS wasm, and MCP extension load.')
+    console.log('Pi main bundle smoke passed: codemode worker, QuickJS wasm, Photon image read, and MCP extension load.')
   } finally {
     await rm(SMOKE_OUT_DIR, { recursive: true, force: true })
   }

@@ -10,6 +10,10 @@ import {
   shouldExcludeInteractiveTerminalEnvKey,
   stripAppImageRuntimeEnv,
 } from './environment-paths'
+import {
+  applyPiPackageDirectoryTo,
+  withoutInjectedPiPackageDirectory,
+} from './pi-package-directory-environment'
 
 const optionalUrlSchema = Schema.optional(
   Schema.String.pipe(
@@ -95,6 +99,10 @@ function userLoginShell() {
     return undefined
   }
 }
+
+/** Points bundled Pi at its installed package (see `pi-package-directory-environment.ts`). */
+export const applyPiPackageDirectory = (directory?: string) =>
+  applyPiPackageDirectoryTo(directory, process.env)
 
 /** Hydrate GUI-launch gaps once before terminal/runtime services start. */
 export function installDesktopShellEnvironment(): Promise<void> {
@@ -210,7 +218,7 @@ export function getInteractiveTerminalEnv(
     inherited[key] = value
   }
 
-  const terminalEnv = stripAppImageRuntimeEnv(inherited)
+  const terminalEnv = stripAppImageRuntimeEnv(withoutInjectedPiPackageDirectory(inherited))
   setEnvironmentValue(
     terminalEnv,
     'PATH',

@@ -6,9 +6,13 @@
  * the Pi SDK boundary rule confines static imports to `src/main/adapters/pi/`; the literal
  * specifier is still inlined into the one main chunk.
  */
+// Like src/main/index.ts: before any Pi module reads its package.json.
+import '../../src/main/apply-pi-package-directory'
+import { existsSync, readFileSync } from 'node:fs'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
+import { Worker } from 'node:worker_threads'
 
 const MCP_CONNECT_TIMEOUT_MS = 20_000
 const MCP_POLL_MS = 50
@@ -57,12 +61,70 @@ function resultText(result: { readonly content: readonly { readonly type: string
 const loadPi = () => import('@earendil-works/pi-coding-agent')
 type PiSdk = Awaited<ReturnType<typeof loadPi>>
 
-/** Adds 40 to 1 + 2 + 3 in QuickJS, then calls the MCP tool through codemode's nested tool calls. */
-const CODEMODE_SCRIPT = `
+/** A 2x2 opaque PNG: `read` returns it as an image block only when Photon (WASM) loads. */
+const SMOKE_PNG_BASE64 =
+  'iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR4nGP8z8DAwMDAxMDAwMDAAAANHQEDasKb6QAAAABJRU5ErkJggg=='
+
+/**
+ * Adds 40 to 1 + 2 + 3 in QuickJS, calls the MCP tool through codemode's nested tool calls, and
+ * shows an image `read` returned, which needs Pi's Photon image pipeline in the bundle.
+ */
+const codemodeScript = (imagePath: string) => `
 const sum = [1, 2, 3].reduce((total, value) => total + value, 40)
 const echoed = await tools.${SMOKE_TOOL_NAME}({ text: 'from-codemode' })
+image(await tools.read({ path: ${JSON.stringify(imagePath)} }))
 return { sum, echoed: echoed.content[0].text }
 `
+
+const IMAGE_RESIZE_WORKER_FILE_NAME = 'image-resize-worker.js'
+
+/**
+ * Pi falls back to resizing on the calling thread when its worker cannot start, so a read alone
+ * cannot tell whether the bundled worker works. Resize the smoke PNG through it directly.
+ */
+async function resizeThroughImageWorker() {
+  const bundleDirectory = path.dirname(process.argv[1] ?? '')
+  const worker = new Worker(path.join(bundleDirectory, IMAGE_RESIZE_WORKER_FILE_NAME))
+  try {
+    const response = await new Promise<unknown>((resolve, reject) => {
+      worker.once('message', resolve)
+      worker.once('error', reject)
+      worker.postMessage({
+        inputBytes: new Uint8Array(Buffer.from(SMOKE_PNG_BASE64, 'base64')),
+        mimeType: 'image/png',
+        options: { maxWidth: 1, maxHeight: 1 },
+      })
+    })
+    const text = JSON.stringify(response)
+    if (!text.includes('"width":1') || !text.includes('"originalWidth":2')) {
+      fail(`the image resize worker did not resize with Photon: ${text.slice(0, 300)}`)
+    }
+    return 'resized 2x2 to 1x1'
+  } finally {
+    await worker.terminate()
+  }
+}
+
+/**
+ * Pi resolves its README, docs (codemode's `codemode.md`), examples, themes, export templates,
+ * and its own `VERSION` from its package directory, found by walking up from `import.meta.url`.
+ * In the bundle that walk would find OpenWaggle's package.json instead.
+ */
+function checkPiPackageAssets(pi: PiSdk) {
+  const packageDirectory = pi.getPackageDir()
+  const manifest: unknown = JSON.parse(readFileSync(path.join(packageDirectory, 'package.json'), 'utf8'))
+  const name = typeof manifest === 'object' && manifest !== null && 'name' in manifest ? manifest.name : undefined
+  if (name !== '@earendil-works/pi-coding-agent') fail(`Pi's package directory is ${packageDirectory} (${String(name)})`)
+  for (const asset of [
+    path.join(pi.getDocsPath(), 'codemode.md'),
+    pi.getReadmePath(),
+    path.join(packageDirectory, 'dist', 'core', 'export-html'),
+    path.join(packageDirectory, 'dist', 'modes', 'interactive', 'theme'),
+  ]) {
+    if (!existsSync(asset)) fail(`Pi asset missing from its package directory: ${asset}`)
+  }
+  return `${pi.VERSION} at ${packageDirectory}`
+}
 
 async function waitForTool(names: () => readonly string[], name: string) {
   const deadline = Date.now() + MCP_CONNECT_TIMEOUT_MS
@@ -76,6 +138,9 @@ async function waitForTool(names: () => readonly string[], name: string) {
 async function runBundledSession(pi: PiSdk, workDirectory: string) {
   const serverPath = path.join(workDirectory, 'mcp-smoke-server.cjs')
   await writeFile(serverPath, MCP_SERVER_SOURCE, 'utf8')
+  const imagePath = path.join(workDirectory, 'smoke.png')
+  await writeFile(imagePath, Buffer.from(SMOKE_PNG_BASE64, 'base64'))
+  const CODEMODE_SCRIPT = codemodeScript(imagePath)
   const agentDir = path.join(workDirectory, 'agent')
   const settingsManager = pi.SettingsManager.inMemory()
   const resourceLoader = new pi.DefaultResourceLoader({
@@ -130,6 +195,10 @@ async function runBundledSession(pi: PiSdk, workDirectory: string) {
     }
     const mcp = resultText(await tool(SMOKE_TOOL_NAME).execute('smoke-mcp', { text: 'bundled' }))
     if (!mcp.includes('echo:bundled')) fail(`MCP tool returned ${mcp}`)
+    const read = await tool('read').execute('smoke-read', { path: imagePath })
+    if (!read.content.some((block) => block.type === 'image')) {
+      fail(`read returned no image block for a PNG: ${resultText(read)}`)
+    }
     // Nested tool calls are attributed to the assistant message that issued the codemode call.
     session.agent.state.messages = [
       ...session.agent.state.messages,
@@ -153,11 +222,20 @@ async function runBundledSession(pi: PiSdk, workDirectory: string) {
         timestamp: Date.now(),
       },
     ]
-    const codemode = resultText(await tool('codemode').execute('smoke-codemode', { code: CODEMODE_SCRIPT }))
-    if (!codemode.includes('Script completed') || !codemode.includes('46') || !codemode.includes('echo:from-codemode')) {
-      fail(`codemode script did not complete: ${codemode}`)
+    const codemodeResult = await tool('codemode').execute('smoke-codemode', { code: CODEMODE_SCRIPT })
+    const codemode = {
+      result: resultText(codemodeResult),
+      hasImage: codemodeResult.content.some((block) => block.type === 'image'),
     }
-    return { mcp, codemode }
+    if (
+      !codemode.result.includes('Script completed') ||
+      !codemode.result.includes('46') ||
+      !codemode.result.includes('echo:from-codemode') ||
+      !codemode.hasImage
+    ) {
+      fail(`codemode script did not complete with an image: ${codemode.result}`)
+    }
+    return { mcp, codemode: codemode.result }
   } finally {
     session.dispose()
   }
@@ -166,9 +244,12 @@ async function runBundledSession(pi: PiSdk, workDirectory: string) {
 async function main() {
   const workDirectory = await mkdtemp(path.join(tmpdir(), 'openwaggle-pi-bundle-smoke-'))
   try {
-    const { codemode, mcp } = await runBundledSession(await loadPi(), workDirectory)
+    const pi = await loadPi()
+    const packageAssets = checkPiPackageAssets(pi)
+    const { codemode, mcp } = await runBundledSession(pi, workDirectory)
+    const imageWorker = await resizeThroughImageWorker()
     process.stdout.write(
-      `${JSON.stringify({ ok: true, runtime: process.versions.electron ? 'electron' : 'node', codemode, mcp })}\n`,
+      `${JSON.stringify({ ok: true, runtime: process.versions.electron ? 'electron' : 'node', codemode, mcp, imageWorker, packageAssets })}\n`,
     )
   } finally {
     await rm(workDirectory, { recursive: true, force: true })

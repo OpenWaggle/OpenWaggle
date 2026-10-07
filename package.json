@@ -117,6 +117,7 @@
     "@openwaggle/pi-waggle": "workspace:*",
     "@openwaggle/waggle-core": "workspace:*",
     "@pierre/diffs": "1.4.2",
+    "@silvia-odwyer/photon-node": "0.3.4",
     "@tanstack/react-hotkeys": "0.10.0",
     "@tanstack/react-router": "1.170.36",
     "better-sqlite3": "13.0.3",
