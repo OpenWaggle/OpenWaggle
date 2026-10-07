@@ -187,6 +187,11 @@ export interface AgentTransportToolExecutionStartEvent extends TransportEventBas
   readonly toolName: string
   readonly args: JsonValue
   readonly parentMessageId?: string
+  /**
+   * Set when another tool made this call through Pi `ctx.executeTool()`: the id of the calling tool
+   * call. Nested calls have no transcript entry of their own; they belong under their parent.
+   */
+  readonly parentToolCallId?: string
 }
 
 export interface AgentTransportToolExecutionUpdateEvent extends TransportEventBase {
@@ -195,6 +200,11 @@ export interface AgentTransportToolExecutionUpdateEvent extends TransportEventBa
   readonly toolName: string
   readonly args: JsonValue
   readonly partialResult: JsonValue
+  /**
+   * Set when another tool made this call through Pi `ctx.executeTool()`: the id of the calling tool
+   * call. Nested calls have no transcript entry of their own; they belong under their parent.
+   */
+  readonly parentToolCallId?: string
 }
 
 export interface AgentTransportToolExecutionEndEvent extends TransportEventBase {
@@ -204,6 +214,11 @@ export interface AgentTransportToolExecutionEndEvent extends TransportEventBase 
   readonly args?: JsonValue
   readonly result: JsonValue
   readonly isError: boolean
+  /**
+   * Set when another tool made this call through Pi `ctx.executeTool()`: the id of the calling tool
+   * call. Nested calls have no transcript entry of their own; they belong under their parent.
+   */
+  readonly parentToolCallId?: string
 }
 
 export interface AgentTransportQueueUpdateEvent extends TransportEventBase {

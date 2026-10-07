@@ -1,8 +1,31 @@
 import { matchBy } from '@diegogbrisa/ts-match'
 import type { MessageMetadata, MessagePart } from '@shared/types/agent'
-import type { UIMessage, UIMessageMetadata } from '@shared/types/chat-ui'
+import type { ChatNestedToolCall, UIMessage, UIMessageMetadata } from '@shared/types/chat-ui'
 import type { SessionDetail } from '@shared/types/session'
+import type { NestedToolCallRecord, NestedToolCalls } from '@shared/types/tools'
 import { formatAttachmentPreview } from './chat-attachment-preview'
+
+const NESTED_CALL_STATE = {
+  ok: 'complete',
+  error: 'error',
+  unfinished: 'unfinished',
+} as const satisfies Record<NestedToolCallRecord['status'], ChatNestedToolCall['state']>
+
+function nestedCallToUI(record: NestedToolCallRecord): ChatNestedToolCall {
+  return {
+    id: record.id,
+    name: record.name,
+    ...(record.args !== undefined ? { arguments: JSON.stringify(record.args) } : {}),
+    state: NESTED_CALL_STATE[record.status],
+    ...(record.error !== undefined ? { error: record.error } : {}),
+  }
+}
+
+function nestedCallsToUI(nestedCalls: NestedToolCalls | undefined) {
+  return nestedCalls && nestedCalls.calls.length > 0
+    ? { nestedCalls: nestedCalls.calls.map(nestedCallToUI) }
+    : {}
+}
 
 /**
  * Convert a persisted agent message part into renderer UI parts.
@@ -26,6 +49,7 @@ export function messagePartToUIParts(part: MessagePart): UIMessage['parts'] {
         toolCallId: String(value.toolResult.id),
         content: value.toolResult.result,
         state: value.toolResult.isError ? 'error' : 'complete',
+        ...nestedCallsToUI(value.toolResult.nestedCalls),
       },
     ])
     .with('attachment', (value): UIMessage['parts'] => [

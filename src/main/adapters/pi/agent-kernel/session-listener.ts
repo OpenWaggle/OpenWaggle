@@ -35,6 +35,11 @@ import {
   type PiUserMessageEntrySource,
 } from './user-message-events'
 
+/** Nested calls (Pi `ctx.executeTool()`) name their calling tool call; model-issued calls do not. */
+function parentToolCall(event: { readonly parentToolCallId?: string }) {
+  return event.parentToolCallId ? { parentToolCallId: event.parentToolCallId } : {}
+}
+
 function emitAgentStart(state: SessionListenerState) {
   emitEvent(state.input.onEvent, {
     type: 'agent_start',
@@ -57,6 +62,7 @@ function handleToolExecutionStart(
     toolName: event.toolName,
     args: toolInput,
     parentMessageId: state.currentMessageId ?? undefined,
+    ...parentToolCall(event),
     timestamp: Date.now(),
     model: state.input.model,
   })
@@ -74,6 +80,7 @@ function handleToolExecutionUpdate(
     toolName: event.toolName,
     args: toolInput,
     partialResult: toJsonValue(event.partialResult),
+    ...parentToolCall(event),
     timestamp: Date.now(),
     model: state.input.model,
   })
@@ -87,6 +94,7 @@ function handleToolExecutionEnd(state: SessionListenerState, event: ToolExecutio
     args: state.toolCallInputs.get(event.toolCallId),
     result: toJsonValue(event.result),
     isError: event.isError,
+    ...parentToolCall(event),
     timestamp: Date.now(),
     model: state.input.model,
   })

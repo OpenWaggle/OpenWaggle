@@ -1,10 +1,12 @@
 import type { SessionId } from '@shared/types/brand'
-import type { UIMessage } from '@shared/types/chat-ui'
+import type { ChatNestedToolCall, UIMessage } from '@shared/types/chat-ui'
 import type { ExtensionContributionRegistryView } from '@shared/types/extensions'
+import { resolveNestedToolCalls } from '@/features/chat/lib/nested-tool-call-view'
 import { parseToolArgs } from '@/features/chat/lib/tool-args'
 import { ExtensionAgentLoopSurface } from '@/features/extensions'
 import { getMcpAppLaunch, McpAppHost } from '@/features/mcp'
 import { CommandRepairProposalCard, commandRepairProposalFrom } from '@/features/project-actions'
+import { WithNestedToolCalls } from './NestedToolCallList'
 import { ToolCallBlock } from './ToolCallBlock'
 
 const JSON_STRINGIFY_INDENT = 2
@@ -14,7 +16,13 @@ interface ToolCallRouterProps {
   part: Extract<UIMessage['parts'][number], { type: 'tool-call' }>
   toolResults: Map<
     string,
-    { content: unknown; state: string; sourceMessageId?: string; error?: string }
+    {
+      content: unknown
+      state: string
+      sourceMessageId?: string
+      error?: string
+      nestedCalls?: readonly ChatNestedToolCall[]
+    }
   >
   sessionId: SessionId | null
   isStreaming: boolean
@@ -62,14 +70,20 @@ export function ToolCallRouter({
       : { content: part.partialOutput, state: 'partial' })
 
   const toolCallBlock = (
-    <ToolCallBlock
-      name={part.name}
-      args={part.arguments}
-      state={part.state}
-      result={visibleResult}
+    <WithNestedToolCalls
+      parentName={part.name}
+      calls={resolveNestedToolCalls(part.nestedCalls, finalResult?.nestedCalls)}
       isStreaming={isStreaming}
-      onBranchFromMessage={onBranchFromMessage}
-    />
+    >
+      <ToolCallBlock
+        name={part.name}
+        args={part.arguments}
+        state={part.state}
+        result={visibleResult}
+        isStreaming={isStreaming}
+        onBranchFromMessage={onBranchFromMessage}
+      />
+    </WithNestedToolCalls>
   )
   const appLaunch = finalResult
     ? getMcpAppLaunch(finalResult.content, parseToolArgs(part.arguments))

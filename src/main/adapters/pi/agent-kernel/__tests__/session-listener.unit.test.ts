@@ -257,4 +257,58 @@ describe('createSessionListener Pi compatibility', () => {
       }),
     )
   })
+
+  /*
+   * Pi 1.0 runs the calls a tool makes through ctx.executeTool() as nested tool executions. They
+   * never get transcript entries, so the transport names the calling tool call for the renderer.
+   */
+  it('forwards the parent tool call of nested tool executions', () => {
+    const emitted: AgentTransportEvent[] = []
+    const listener = createSessionListener(
+      {
+        model: SupportedModelId('anthropic/claude-sonnet-4-6'),
+        sessionEntries: null,
+        onEvent: (event) => emitted.push(event),
+      },
+      'run-1',
+    )
+    const result = { content: [{ type: 'text' as const, text: 'ok' }], details: {} }
+
+    listener({ type: 'tool_execution_start', toolCallId: 'code-1', toolName: 'codemode', args: {} })
+    listener({
+      type: 'tool_execution_start',
+      toolCallId: 'code-1/1',
+      toolName: 'read',
+      args: { path: 'a.ts' },
+      parentToolCallId: 'code-1',
+    })
+    listener({
+      type: 'tool_execution_update',
+      toolCallId: 'code-1/1',
+      toolName: 'read',
+      args: { path: 'a.ts' },
+      partialResult: result,
+      parentToolCallId: 'code-1',
+    })
+    listener({
+      type: 'tool_execution_end',
+      toolCallId: 'code-1/1',
+      toolName: 'read',
+      result,
+      isError: false,
+      parentToolCallId: 'code-1',
+    })
+
+    expect(emitted[0]).not.toHaveProperty('parentToolCallId')
+    expect(emitted.slice(1)).toMatchObject([
+      { type: 'tool_execution_start', toolCallId: 'code-1/1', parentToolCallId: 'code-1' },
+      { type: 'tool_execution_update', toolCallId: 'code-1/1', parentToolCallId: 'code-1' },
+      {
+        type: 'tool_execution_end',
+        toolCallId: 'code-1/1',
+        parentToolCallId: 'code-1',
+        args: { path: 'a.ts' },
+      },
+    ])
+  })
 })

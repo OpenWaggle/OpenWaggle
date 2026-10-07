@@ -25,6 +25,21 @@ const toolCallRequestSchema = Schema.Struct({
   state: Schema.optional(Schema.Literal('input-complete')),
 })
 
+const nestedToolCallsSchema = Schema.Struct({
+  calls: Schema.Array(
+    Schema.Struct({
+      id: Schema.String,
+      name: Schema.String,
+      args: Schema.optional(sessionJsonObjectSchema),
+      argsBytes: Schema.optional(Schema.Number),
+      status: Schema.Literal('ok', 'error', 'unfinished'),
+      durationMs: Schema.optional(Schema.Number),
+      error: Schema.optional(Schema.String),
+    }),
+  ),
+  complete: Schema.Boolean,
+})
+
 const toolCallResultSchema = Schema.Struct({
   id: Schema.String,
   name: Schema.String,
@@ -33,6 +48,7 @@ const toolCallResultSchema = Schema.Struct({
   isError: Schema.Boolean,
   duration: Schema.Number,
   details: Schema.optional(sessionJsonValueSchema),
+  nestedCalls: Schema.optional(nestedToolCallsSchema),
 })
 
 const messagePartSchema = Schema.Union(
@@ -98,6 +114,7 @@ function transformPart(part: ParsedPart) {
         isError: value.toolResult.isError,
         duration: value.toolResult.duration,
         details: value.toolResult.details,
+        ...(value.toolResult.nestedCalls ? { nestedCalls: value.toolResult.nestedCalls } : {}),
       },
     }))
     .exhaustive()

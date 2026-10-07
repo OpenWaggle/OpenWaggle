@@ -1,0 +1,128 @@
+import { SessionId, ToolCallId } from '@shared/types/brand'
+import type { UIMessage } from '@shared/types/chat-ui'
+import type { AgentTransportEvent } from '@shared/types/stream'
+import { render, screen, within } from '@testing-library/react'
+import { describe, expect, it, vi } from 'vitest'
+import { messagePartToUIParts } from '@/features/chat/lib/chat-message-conversion'
+import { applyAgentTransportEvent } from '@/features/chat/lib/chat-stream-state'
+import { AssistantMessageBubble } from '../AssistantMessageBubble'
+
+vi.mock('@/features/session-summary', () => ({ SessionMessageImages: () => null }))
+
+const runtime = {
+  sessionId: SessionId('session-1'),
+  extensions: { registry: null, projectPaths: [] },
+}
+
+function renderAssistant(message: UIMessage, isStreaming: boolean) {
+  render(<AssistantMessageBubble message={message} runtime={runtime} run={{ isStreaming }} />)
+}
+
+function toolCards() {
+  return screen.getAllByRole('button', { name: /details$/ })
+}
+
+/*
+ * Pi 1.0 runs the calls a tool makes through ctx.executeTool() as nested tool executions with
+ * their own events but no transcript entry. They belong under the calling tool's card.
+ */
+describe('nested tool calls', () => {
+  it('renders live nested calls under their parent tool card and never as cards of their own', () => {
+    const events: AgentTransportEvent[] = [
+      { type: 'message_start', messageId: 'assistant-1', role: 'assistant', timestamp: 1 },
+      {
+        type: 'tool_execution_start',
+        toolCallId: 'code-1',
+        toolName: 'codemode',
+        args: { code: 'read()' },
+        parentMessageId: 'assistant-1',
+        timestamp: 2,
+      },
+      {
+        type: 'tool_execution_start',
+        toolCallId: 'code-1/1',
+        toolName: 'read',
+        args: { path: 'src/a.ts' },
+        parentToolCallId: 'code-1',
+        timestamp: 3,
+      },
+      {
+        type: 'tool_execution_end',
+        toolCallId: 'code-1/1',
+        toolName: 'read',
+        args: { path: 'src/a.ts' },
+        result: 'file a',
+        isError: false,
+        parentToolCallId: 'code-1',
+        timestamp: 4,
+      },
+      {
+        type: 'tool_execution_start',
+        toolCallId: 'code-1/2',
+        toolName: 'read',
+        args: { path: 'src/b.ts' },
+        parentToolCallId: 'code-1',
+        timestamp: 5,
+      },
+    ]
+    const messages = events.reduce<UIMessage[]>(applyAgentTransportEvent, [])
+
+    expect(messages).toHaveLength(1)
+    const [message] = messages
+    if (!message) throw new Error('expected the assistant message')
+    renderAssistant(message, true)
+
+    const nested = screen.getByRole('list', { name: 'Tool calls made by codemode' })
+    expect(within(nested).getByRole('button', { name: /^Read src\/a\.ts/ })).toBeInTheDocument()
+    expect(within(nested).getByRole('button', { name: /^Reading src\/b\.ts/ })).toBeInTheDocument()
+    const topLevelCards = toolCards().filter((card) => !nested.contains(card))
+    expect(topLevelCards).toHaveLength(1)
+  })
+
+  it('renders the nested calls Pi recorded on a persisted parent result after reload', () => {
+    const message: UIMessage = {
+      id: 'assistant-1',
+      role: 'assistant',
+      parts: [
+        {
+          type: 'tool-call',
+          id: 'code-1',
+          name: 'codemode',
+          arguments: '{}',
+          state: 'input-complete',
+        },
+        ...messagePartToUIParts({
+          type: 'tool-result',
+          toolResult: {
+            id: ToolCallId('code-1'),
+            name: 'codemode',
+            args: {},
+            result: 'done',
+            isError: false,
+            duration: 0,
+            nestedCalls: {
+              complete: true,
+              calls: [
+                { id: 'code-1/1', name: 'read', args: { path: 'src/a.ts' }, status: 'ok' },
+                {
+                  id: 'code-1/2',
+                  name: 'write',
+                  argsBytes: 90_000,
+                  status: 'error',
+                  error: 'denied',
+                },
+              ],
+            },
+          },
+        }),
+      ],
+    }
+
+    renderAssistant(message, false)
+
+    const nested = screen.getByRole('list', { name: 'Tool calls made by codemode' })
+    expect(within(nested).getAllByRole('listitem')).toHaveLength(2)
+    expect(within(nested).getByRole('button', { name: /^Read src\/a\.ts/ })).toBeInTheDocument()
+    expect(toolCards().filter((card) => !nested.contains(card))).toHaveLength(1)
+  })
+})

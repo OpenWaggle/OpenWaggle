@@ -2,6 +2,7 @@ import { match, P } from '@diegogbrisa/ts-match'
 import type { MessagePart } from '@shared/types/agent'
 import { ToolCallId } from '@shared/types/brand'
 import type { JsonObject, JsonValue } from '@shared/types/json'
+import type { NestedToolCallRecord, NestedToolCalls } from '@shared/types/tools'
 import { isRecord } from '@shared/utils/validation'
 import { toJsonObject, toJsonValue } from '../pi-message-mapper'
 import type { PiPromptInput } from '../pi-runtime-input'
@@ -150,12 +151,46 @@ function getToolResultArgs(details: unknown): JsonObject {
   return toJsonObject(details.args)
 }
 
+interface PiNestedToolCallRecord {
+  readonly id: string
+  readonly name: string
+  readonly arguments?: unknown
+  readonly argumentsBytes?: number
+  readonly status: NestedToolCallRecord['status']
+  readonly durationMs?: number
+  readonly error?: string
+}
+
+function nestedToolCallRecord(record: PiNestedToolCallRecord): NestedToolCallRecord {
+  return {
+    id: record.id,
+    name: record.name,
+    ...(record.arguments !== undefined ? { args: toJsonObject(record.arguments) } : {}),
+    ...(record.argumentsBytes !== undefined ? { argsBytes: record.argumentsBytes } : {}),
+    status: record.status,
+    ...(record.durationMs !== undefined ? { durationMs: record.durationMs } : {}),
+    ...(record.error !== undefined ? { error: record.error } : {}),
+  }
+}
+
+/** Pi records the calls a tool made through `ctx.executeTool()` on its result as `nestedCalls`. */
+function nestedToolCalls(nestedCalls: {
+  readonly calls: readonly PiNestedToolCallRecord[]
+  readonly complete: boolean
+}): NestedToolCalls {
+  return { calls: nestedCalls.calls.map(nestedToolCallRecord), complete: nestedCalls.complete }
+}
+
 export function piToolResultContentToPart(message: {
   readonly toolCallId: string
   readonly toolName: string
   readonly content: readonly unknown[]
   readonly isError: boolean
   readonly details?: unknown
+  readonly nestedCalls?: {
+    readonly calls: readonly PiNestedToolCallRecord[]
+    readonly complete: boolean
+  }
 }): MessagePart {
   const details = toJsonValue(message.details ?? null)
   return {
@@ -171,6 +206,7 @@ export function piToolResultContentToPart(message: {
       isError: message.isError,
       duration: getToolResultDuration(message.details),
       details,
+      ...(message.nestedCalls ? { nestedCalls: nestedToolCalls(message.nestedCalls) } : {}),
     },
   }
 }

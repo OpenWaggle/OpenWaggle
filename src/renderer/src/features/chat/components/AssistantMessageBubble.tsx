@@ -1,6 +1,6 @@
 import { matchBy } from '@diegogbrisa/ts-match'
 import type { SessionId } from '@shared/types/brand'
-import type { UIMessage } from '@shared/types/chat-ui'
+import type { ChatNestedToolCall, UIMessage } from '@shared/types/chat-ui'
 import type { ExtensionContributionRegistryView } from '@shared/types/extensions'
 import type { SupportedModelId } from '@shared/types/llm'
 import type { WaggleAgentColor } from '@shared/types/waggle'
@@ -118,6 +118,7 @@ type ToolResultEntry = {
   state: string
   sourceMessageId?: string
   error?: string
+  nestedCalls?: readonly ChatNestedToolCall[]
 }
 
 function collectMessageToolState(message: UIMessage) {
@@ -134,6 +135,7 @@ function collectMessageToolState(message: UIMessage) {
       state: part.state,
       sourceMessageId: part.sourceMessageId,
       error: part.error,
+      nestedCalls: part.nestedCalls,
     })
   }
   return { toolResults, messageToolCallIds }
