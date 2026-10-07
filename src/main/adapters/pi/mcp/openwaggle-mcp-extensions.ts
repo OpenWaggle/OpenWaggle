@@ -59,7 +59,11 @@ function serverIdentities(config: McpRuntimeConfig) {
 }
 
 /** The configured server a Pi MCP tool belongs to, found through its tool namespace. */
-function serverOfTool(pi: ExtensionAPI, config: McpRuntimeConfig, toolName: string) {
+function serverOfTool(
+  pi: ExtensionAPI,
+  config: Pick<McpRuntimeConfig, 'loaded'>,
+  toolName: string,
+) {
   const namespace =
     pi.getAllTools().find((tool) => tool.name === toolName)?.namespace?.name ??
     (MCP_TOOL_NAME.exec(toolName)?.[1] ? `mcp__${MCP_TOOL_NAME.exec(toolName)?.[1]}` : undefined)
@@ -149,21 +153,32 @@ function companionExtension(input: OpenWaggleMcpSessionInput, config: McpRuntime
     pi.on('tool_result', (event) =>
       event.toolName.startsWith('mcp__') ? withMcpApp(input.sessionId, config, event) : undefined,
     )
-    pi.on('tool_call', async (event, ctx) => {
-      if (!event.toolName.startsWith('mcp__')) return undefined
-      const server = serverOfTool(pi, config, event.toolName)
-      if (!server) return undefined
-      const approved = await approveMcpToolCall({
-        ctx,
-        serverName: server.name,
-        serverIdentity: server.identity,
-        toolName: event.toolName,
-        input: event.input,
-        fromScript: event.parentToolCallId !== undefined,
-      })
-      return approved ? undefined : { block: true, reason: 'The user declined this MCP tool call.' }
-    })
+    registerMcpToolApproval(pi, config)
   }
+}
+
+/**
+ * Asks before every MCP server tool runs, through Pi's `tool_call` hook, which also fires for the
+ * calls a codemode script makes (`parentToolCallId` set).
+ */
+export function registerMcpToolApproval(
+  pi: ExtensionAPI,
+  config: Pick<McpRuntimeConfig, 'loaded'>,
+) {
+  pi.on('tool_call', async (event, ctx) => {
+    if (!event.toolName.startsWith('mcp__')) return undefined
+    const server = serverOfTool(pi, config, event.toolName)
+    if (!server) return undefined
+    const approved = await approveMcpToolCall({
+      ctx,
+      serverName: server.name,
+      serverIdentity: server.identity,
+      toolName: event.toolName,
+      input: event.input,
+      fromScript: event.parentToolCallId !== undefined,
+    })
+    return approved ? undefined : { block: true, reason: 'The user declined this MCP tool call.' }
+  })
 }
 
 /**
