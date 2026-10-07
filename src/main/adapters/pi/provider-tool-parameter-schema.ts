@@ -253,8 +253,7 @@ function flattenRoot(
  * Turns any JSON Schema into tool parameters every provider accepts, keeping as much of its
  * meaning as an object root can carry. Callers that repaired a schema must still validate
  * arguments against the original. The result can also reject some arguments the original
- * accepts, so callers that let Pi validate calls against it relax it first
- * (`provider-tool-parameter-relaxation.ts`).
+ * accepts, so it suits tools Pi does not validate calls for, such as MCP sampling tools.
  */
 export function providerToolParameters(schema: unknown): ProviderToolParameters {
   if (isJsonSchemaObject(schema) && providerToolSchemaViolations(schema).length === 0) {

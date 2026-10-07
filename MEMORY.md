@@ -7,7 +7,6 @@ Durable OpenWaggle project memory. Keep this compact and technical. Do not add p
 - The working tree may contain another agent's active refactor. Treat dirty files as intended future shape unless there is clear evidence otherwise.
 - Legacy vendor-specific agent configuration has been removed; keep this repository centered on `AGENTS.md` and `.agents/`.
 - Legacy agent memory files were removed. Add durable OpenWaggle memory here or to focused skills.
-- MCP activation wording needs an app-side follow-up: `McpProjectControl.tsx` calls Global MCP a master switch, but `src/main/domain/mcp/scope-policy.ts` resolves explicit session > project > global overrides. User docs describe the implemented precedence; global off alone is not a universal stop for explicit overrides.
 - The historical Docker token benchmark is not a validated rerun workflow. `inside.sh` uses `os.environ` without importing `os` in its DSH probe; `proxy.py` forwards streamed chunks and then writes the collected response again, and binds its credential-injecting listener to `0.0.0.0`. Fix and test those paths before recommending credentialed reruns. The seven comparison rows have archived proxy usage; OpenWaggle's row came from a separate bundled-SDK probe, not a configured GUI session. Earlier reproduction and equal-routing claims below are superseded by this audit.
 - `docs/agents/` is reserved for the adapted `/setup-matt-pocock-skills` workflow. Do not manually scaffold it during unrelated work.
 
@@ -80,8 +79,16 @@ Load `.agents/skills/pi-integration/SKILL.md` for details.
 
 ## MCP Runtime Memory
 
-- ADR 0048 (October 2026) moves MCP onto Pi 1.0's built-in MCP extension with OpenWaggle-supplied `loadConfig`, `createTransport`, `credentials`, `openUrl`, and `updateConfig`, and removes the gateway, `mcp_run`, trust, grants, and the stdio sandbox. Until it is implemented, the notes below describe the current OpenWaggle MCP client. Two constraints found while deciding it: OpenWaggle creates and disposes a Pi `AgentSession` per Run (`withPiSession`), so Pi's MCP would reconnect every server each Run unless connections are kept below the transport; and the Host-authored identity block that `agent-run-context-extension.ts` returns as a full `systemPrompt` contained the `runId`, so the leading system prompt changed every Run and invalidated the provider prompt cache for the whole conversation. That is fixed: see the Pi 1.0 prompt-caching note under Pi Runtime Memory.
-
+- MCP runs on Pi 1.0's built-in MCP extension (ADR 0048); `docs/mcp-runtime.md` is the map. SDK sessions do not load Pi's built-ins, so `pi-agent-kernel-run.ts` adds `createOpenWaggleMcpExtensions()` (`src/main/adapters/pi/mcp/`) to every Run's `extensionFactories` (codemode and tool search are loaded by the codemode work beside them). Like other first-party factories, they are dropped in hidden automation unless `OPENWAGGLE_AUTOMATION_FIRST_PARTY_EXTENSIONS=1`.
+- Pi's plug-in points need symbols Pi 1.0.4 does not export from its root: `McpOAuthCredentialStore` (the `credentials` option is that class, nominal through its private members), `signInMcpServer`, `createMcpAuthProvider`, `validateMcpServerConfig`, `mcpNamespace`, `getMcpToolExposure`, `resolveConfigValueOrThrow`, `resolveHeadersOrThrow`. The pi-coding-agent patch adds exports only (own commit); re-add them on every Pi upgrade. Without a `credentials` store Pi reads and creates `~/.pi/agent/mcp-auth.json`.
+- OpenWaggle disposes the Pi `AgentSession` after every Run (`withPiSession`), so `createTransport` returns a lease on the Session's pooled connection (`adapters/mcp/pool/`): repeated `initialize` is answered from the cached handshake, `initialized` is forwarded once, request ids and progress tokens are renumbered upstream (every Pi client restarts at id 1), and closing a lease detaches instead of closing. Expired HTTP sessions and auth-required errors discard the upstream so Pi's own reconnect opens a fresh one. Pi only captures stderr when the transport `instanceof StdioTransport`, so the pool appends the stderr tail to start and handshake errors itself.
+- The leak this fixes: connections used to close only after settings/auth/vault changes, and a measured install held 9 copies of four `npx` servers (~700–900 MB per Session that ran a turn). Now a Session's connections close 5 minutes after its last Run (`beginRun`/`endRun` around `runPiAgentKernel`), on archive/delete through `runSessionRemovalHooks` in `withSessionDesktopRemoval` (covers Hive Worker auto-archive), at Host stop (`disposeAppRuntime`), and under an LRU cap of 8 warm Sessions (Sessions with a Run are never evicted). pi-mcp's `StdioTransport` spawns servers in their own process group and kills the group (`taskkill /T` on Windows), which stops `npx`/`uvx` wrappers with their server; `pi-mcp-transport-layer.integration.test.ts` proves it with a real wrapper process.
+- Configuration is five files folded in order (`~/.pi/agent/mcp.json`, `~/.openwaggle/mcp.json`, `.mcp.json`, `.pi/mcp.json`, `.openwaggle/mcp.json`) by `domain/mcp/config/mcp-config-merge.ts`, a port of Pi's `loadMcpConfig` that applies Pi's project-override rule to every file after the first. Pi's `loadConfig` is synchronous, so the config (vault references resolved) is loaded before the Pi session is created. Pi rejects `type: "sse"` and `ws:` URLs; OpenWaggle accepts them, gives Pi a plain URL entry, and keeps the transport kind in a side map for `createTransport`.
+- Sign-ins: `McpOAuthCredentialStore` over `mcp-oauth-state-backend.ts`, a synchronous `AuthStorageBackend` (Pi's contract is sync) that merges Pi's `mcp-auth.json` (read-only) under OpenWaggle's encrypted `~/.openwaggle/mcp/oauth-states.json`. Removing a Pi-only key writes a tombstone with the hash of Pi's value, so a later `pi mcp login` shows through. A refresh of a Pi-file token in OpenWaggle stores the rotated tokens in OpenWaggle only; a server that rotates refresh tokens then invalidates the copy Pi's CLI still holds.
+- Approval: the companion extension's `tool_call` handler raises an authorization for every `mcp__*` call, including codemode children (`parentToolCallId`), keyed `{ requesterId: mcpServerIdentity(name, command|url), resource: Pi tool name }`. Pi's resource tools are not gated (read-only).
+- Sampling and elicitation are answered in the pool (`handleServerRequest`) through the interactions of the Session's live Pi session (attached at `session_start`); between Runs they are refused. MCP Apps: Pi strips `_meta` from tools and results, so the pool's `observeResult` records `tools/list` `_meta.ui.resourceUri` per Session and server, the companion `tool_result` handler adds `details.mcpApp`, and `mcp:read-resource`/`mcp:call-app-tool` go over the Session's pooled connection (opened on demand with the current config). The App descriptor's `serverInstanceId` is the server name and `serverConfigHash` the server identity.
+- `pnpm test:mcp:conformance` drives pi-mcp's `McpClient` through a pool lease and OpenWaggle's hardened fetch. The script is `.mts` because pi-mcp and pi-coding-agent are ESM-only and tsx loads `.ts` scripts as CommonJS; it must not import modules that import `@earendil-works/pi-coding-agent`.
+- The hardened HTTP fetch (`mcp-server-fetch.ts`) pins DNS per request and bounds bodies and SSE events at pi-mcp's 16 MiB; the configured server may be plain HTTP or private (Pi parity), other hosts (OAuth endpoints) must be public HTTPS, and redirects may not change host. Pi's MCP tool registration only forces an object root (`toParameters`); OpenWaggle's provider schema repair no longer runs for MCP tools.
 - Never serialize MCP binary payloads into model-facing tool text. Base64 tokenizes at ~1.6 characters per token, so one Chrome DevTools screenshot (433,816 characters) added ~271k tokens and overflowed a 458,752-token window in a single tool step; Pi's chars/4 estimate predicted only ~108k, so the pre-sampling threshold could not catch it. MCP tool results forward images as native Pi image content (bounded per result, numbered markers in the text; Pi downgrades them for text-only models) and replace audio, blob, data-URI, and opaque base64 data with size markers (`src/shared/utils/mcp-binary-payload.ts`, also used for MCP App draft text). `details` keeps the complete result for attribution, MCP Apps, and the UI; Session Resource capture scans only that MCP copy so a screenshot is cataloged once.
 
 ## Electron Runtime Memory
@@ -353,7 +360,7 @@ Recording is a main/renderer protocol, not merely a `desktopCapturer` grant: suc
 - Compact composer interactions stay in-row unless the maintainer explicitly asks for a larger workflow.
 - Responsive composer toolbars reserve a non-shrinking primary-action group for voice, stop, and send. Secondary controls compact at the composer container boundary; they must never push the send action outside the composer.
 - Worktree birth is an app-owned launch lifecycle before Pi starts. Show the full creation card while any launch step runs, then persist a compact expandable `Worktree created` custom event in the transcript. Local launches show a live step card too but leave no creation trace; cancelled births leave none either.
-- Everything a first send waits on before `agent_start` is a labelled launch step (`WorktreeLaunchProgress.label`): pull the base from origin, create the worktree, run Setup (only when a Setup definition will run), pull the local branch (only when it has an upstream), connect MCP servers that expose direct tools (only while the turn actually waits for one; see MCP Runtime Memory). A measured local first send spent 4.7s in `git pull` and 10.4s connecting four MCP servers with nothing on screen. Steps are sequential by default; `parallel` steps (local pull and MCP) stay open until their own `completesStep`, because they now run concurrently. Report steps only on a Session's first run or when a later run really prepares its worktree: an existing recorded worktree reported "recovered" on every turn and flashed a launch card and a Connecting status.
+- Everything a first send waits on before `agent_start` is a labelled launch step (`WorktreeLaunchProgress.label`): pull the base from origin, create the worktree, run Setup (only when a Setup definition will run), pull the local branch (only when it has an upstream). A measured local first send spent 4.7s in `git pull` and 10.4s connecting four MCP servers with nothing on screen. Steps are sequential by default; `parallel` steps (local pull and MCP) stay open until their own `completesStep`, because they now run concurrently. Report steps only on a Session's first run or when a later run really prepares its worktree: an existing recorded worktree reported "recovered" on every turn and flashed a launch card and a Connecting status.
 - The composer owns environment and ref as separate controls before the first turn. First send freezes the launch plan and collapses that setup dock; worktree creation leaves its compact trace in the transcript. The plus menu routes to existing attachment, project-file, skill, and Waggle flows rather than duplicating their state.
 - User-facing filesystem paths are relative to the active Session working root or project root. Canonical absolute `WorkingPath` and `RepositoryPath` values stay internal for IPC, filesystem operations, and copy actions; first-party UI must never expose OpenWaggle's worktree storage prefix.
 - Sidebar session rows are two lines at 316px width: the title owns line one, line two carries a shrinkable lead (state, phase, provenance) and a fixed tail (shortcut, timestamp). The timestamp never hides on hover; row actions overlay line one instead, because hiding it re-flowed the row under the cursor and removed information at the moment of acting on it.
@@ -1307,38 +1314,12 @@ server in the user's config already served object roots. Every tool parameter ro
 `type: "object"` with no root `anyOf`/`oneOf`/`allOf`/`enum`/`not`/`const`/`$ref`.
 `provider-tool-schemas.unit.test.ts` pushes every OpenWaggle tool through Pi's real Bedrock and
 OpenAI-completions request builders (`onPayload` throws before the network) and checks that rule.
-Third-party MCP schemas are repaired at the Pi adapter (`providerToolParameters`), and the server's
-original schema still validates arguments before approval.
-Pi also validates every call against the provider-facing schema (`validateToolArguments`) before
-`execute`, then passes its cleaned output (optional `null`s dropped, `'5'` coerced to `5`) to
-`execute`. A flattened repair kept as constraints was stricter than the server schema:
-`patternProperties` in closed alternatives, hoisted `$ref`s into removed combinators (also from
-`$defs`/`additionalProperties`), `unevaluatedProperties`, and requirements hoisted past a `true`
-alternative all made Pi block valid calls before call-time validation ran. Even "loosening"
-repairs can be stricter: a dropped `if`/`then` hides annotations `unevaluatedProperties`
-relied on, a `$ref` can point into a dropped keyword, and a set root `type` reaches
-`{$ref:'#'}`. So whenever the server schema compiles, direct tools register a relaxed repair
-(`provider-tool-parameter-relaxation.ts`:
-object root, `required` only for fields every accepted argument carries, annotations, and each
-property as `{anyOf: [...definitions, {}]}`, with `{}` first when a definition holds a `$ref`,
-`$dynamicRef` or `$recursiveRef`, because Pi compiles union members standalone and a reference
-to `'#'` then recurses forever; local `$ref`s into a wrapped property are rebased to follow it).
-Flattening resolves local `$ref`s against the document root, which misreads references inside
-a nested `$id` resource and can hoist `required` fields the server does not demand, so when the
-server schema has any nested `$id` the relaxed schema keeps only the root's own `required`. A permissive
-schema also disables Pi's clean-up, so `execute` redoes it (`mcp-direct-tool-call-validation.ts`):
-forward the first candidate the exact server validator accepts, trying Pi's cleaned output
-against the server schema, then Pi's coercion through the unrelaxed flattened repair, then the
-raw arguments. Pi's verdict is confirmed exactly because Pi bundles its own TypeBox (1.3.27 vs
-the app's 1.3.32), and the copies disagree on edge cases such as the `iri` format and
-`minLength` on graphemes. Direct tools whose server schema does not compile keep the unrelaxed
-repair, because it is then the only check before approval. Sampling tools keep it too: Pi does
-not validate their calls, so relaxing would only cost guidance. Flattening is bounded in depth
-and total schemas, since `{anyOf: [{$ref:'#'}, ...]}` otherwise recurses or explodes. Such a
-schema still compiles but overflows the stack on every exact `Check`; the validator reports that
-as a readable violation, so the tool registers but every call is rejected before approval. When
-relaxation drops a root `additionalProperties: false`, the description says only the listed
-properties are accepted, unless `patternProperties` (also dropped) admit other names.
+MCP tools are now registered by Pi's MCP extension (ADR 0048), which only forces an object root,
+so the old OpenWaggle relaxation of third-party MCP schemas (and its call-time re-validation) is
+gone (`provider-tool-parameter-relaxation.ts` was deleted); `providerToolParameters` still
+repairs MCP sampling tools, which Pi does not validate. If a provider
+rejects an MCP tool's root union again, the fix belongs at a `before_provider_request` boundary,
+because the tool definitions are Pi's.
 
 For managed-worktree cleanup, a retained preparation snapshot belongs to a directory generation,
 not merely a project and worktree path. Pin the worktree directory's device, inode and birth time
