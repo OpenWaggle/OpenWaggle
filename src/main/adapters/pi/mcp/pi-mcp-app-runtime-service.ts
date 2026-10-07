@@ -12,8 +12,10 @@ import {
   McpAppRuntimeService,
   type McpAppServerInput,
 } from '../../../ports/mcp-app-runtime-service'
+import { readSessionMcpServerAllowlist } from '../../../store/session-details/session-mcp-server-allowlist'
 import { loadMcpRuntimeConfig } from '../../mcp/config/mcp-runtime-config'
 import { resolveMcpVaultSecret } from '../../mcp/encrypted-mcp-secret-vault-service'
+import { isSessionMcpEnabled } from '../../mcp/mcp-session-switch'
 import { mcpSessionConnectionPool } from '../../mcp/pool/mcp-connection-pool-instance'
 import { mcpConnectionFingerprint, mcpServerIdentity } from '../../mcp/pool/mcp-server-identity'
 import { getPiAgentDir } from '../pi-provider-catalog'
@@ -35,7 +37,21 @@ const METHOD_NOT_FOUND = -32601
  * A cold connection is made exactly like a Run's (the Session's working path for `cwd` and roots,
  * Pi's OAuth settings, the server identity), so the Run that comes next reuses it.
  */
+/** What a Run of the Session may use: its MCP switch and its Agent definition's server list. */
+async function assertSessionMayUse(input: McpAppServerInput) {
+  if (!isSessionMcpEnabled(input.sessionId)) {
+    throw new Error('MCP is turned off for this Session.')
+  }
+  const allowlist = await readSessionMcpServerAllowlist(input.sessionId)
+  if (allowlist && !allowlist.includes(input.serverName)) {
+    throw new Error(
+      `This Session's Agent definition does not use the MCP server "${input.serverName}".`,
+    )
+  }
+}
+
 async function appConnection(input: McpAppServerInput) {
+  await assertSessionMayUse(input)
   const warm = mcpSessionConnectionPool.connection(input.sessionId, input.serverName)
   await Promise.all([mcpShellEnvironmentReady(), migrateOpenWaggleMcpFilesOnce(input.projectPath)])
   const config = await loadMcpRuntimeConfig({
