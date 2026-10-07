@@ -22,7 +22,6 @@ import { FilesystemMcpImportServiceLive } from './adapters/mcp/filesystem-mcp-im
 import { mcpSessionConnectionPool } from './adapters/mcp/pool/mcp-connection-pool-instance'
 import { McpRegistryServiceLive } from './adapters/mcp/registry/mcp-registry-service'
 import { idleCacheWarming } from './adapters/pi/agent-kernel/pi-idle-cache-warming'
-import { forgetMcpAppTools } from './adapters/pi/mcp/mcp-app-registry'
 import { OpenWaggleMcpConfigurationServiceLive } from './adapters/pi/mcp/openwaggle-mcp-configuration'
 import { PiMcpAppRuntimeServiceLive } from './adapters/pi/mcp/pi-mcp-app-runtime-service'
 import { PiMcpServerRuntimeServiceLive } from './adapters/pi/mcp/pi-mcp-server-runtime-service'
@@ -62,6 +61,7 @@ import { WorkspaceProjectAuthorizationLive } from './adapters/workspace-project-
 import { ActiveProjectChangeServiceLive } from './application/active-project-change-service'
 import { onSessionRemoved } from './application/session-removal-hooks'
 import { SessionWaitServiceLive } from './application/session-wait-service'
+import { installMcpSessionRemoval } from './mcp-session-removal'
 import { OperationAdapterLive } from './operation-adapter-layer'
 import {
   ActionKernelServicesLive,
@@ -286,13 +286,13 @@ let sessionRemovalHooksInstalled = false
 export async function initializeAppRuntime(): Promise<void> {
   // Archiving or deleting a Session, including Hive cleanup of a Worker, closes its MCP servers
   // and ends its prompt cache warming.
+  installMcpSessionRemoval()
   if (!sessionRemovalHooksInstalled) {
     sessionRemovalHooksInstalled = true
+    // Hooks run before the Pi file is archived or deleted, so no warming session writes to it.
     onSessionRemoved((sessionId) => {
-      forgetMcpAppTools(sessionId)
-      // Hooks run before the Pi file is archived or deleted, so no warming session writes to it.
       idleCacheWarming.close(sessionId)
-      return mcpSessionConnectionPool.closeSession(sessionId)
+      return Promise.resolve()
     })
   }
   await getAppRuntime().runPromise(Effect.void)

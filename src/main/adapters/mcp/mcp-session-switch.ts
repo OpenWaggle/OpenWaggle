@@ -12,3 +12,8 @@ export function setSessionMcpEnabled(sessionId: string, enabled: boolean) {
   if (enabled) disabledSessions.delete(sessionId)
   else disabledSessions.add(sessionId)
 }
+
+/** A removed Session's switch is not kept. */
+export function forgetSessionMcpSwitch(sessionId: string) {
+  disabledSessions.delete(sessionId)
+}
