@@ -80,6 +80,7 @@ const messageMetadataSchema = Schema.Struct({
   visualizationSessionId: Schema.optional(Schema.String),
   waggle: Schema.optional(waggleMetadataSchema),
   waggleInvocation: Schema.optional(waggleInvocationMetadataSchema),
+  selectedModel: Schema.optional(Schema.String),
 })
 
 const messageNodeContentSchema = Schema.Struct({
@@ -130,6 +131,9 @@ function hydrateMessageMetadata(raw: string) {
     ...parsedMetadata.data,
     visualizationSessionId: parsedMetadata.data.visualizationSessionId
       ? SessionId(parsedMetadata.data.visualizationSessionId)
+      : undefined,
+    selectedModel: parsedMetadata.data.selectedModel
+      ? SupportedModelId(parsedMetadata.data.selectedModel)
       : undefined,
     waggle: parsedMetadata.data.waggle
       ? {

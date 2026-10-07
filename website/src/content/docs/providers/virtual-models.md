@@ -19,7 +19,7 @@ A virtual model listed under a real provider, such as `openai-codex/auto`, is av
 
 ## See which model answered
 
-After the virtual model has answered, the model picker shows where the latest request went, for example **Auto → GPT-6 Luna**. Hover it to read the full sentence. The label updates when each run ends and is still there after you reopen the session.
+After the virtual model has answered, the model picker shows where the latest request went, for example **Auto → GPT-6 Luna**. Hover it to read the full sentence. The label updates when each run ends and is still there after you reopen the session. Right after you switch to a virtual model it shows no destination until that model has answered.
 
 ## Context meter and cost
 

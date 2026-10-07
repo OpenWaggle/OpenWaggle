@@ -13,7 +13,7 @@ export function useRoutedModelName() {
   const providerModels = useProviderStore((state) => state.providerModels)
   const composerModel = useComposerModel()
   const selected = composerModel.runningModel ?? composerModel.model
-  const answeredBy = lastAnsweringModel(messages ?? [])
+  const answeredBy = lastAnsweringModel(messages ?? [], selected)
   const selectedName = providerModels
     .flatMap((group) => group.models)
     .find((model) => model.id === selected)?.name

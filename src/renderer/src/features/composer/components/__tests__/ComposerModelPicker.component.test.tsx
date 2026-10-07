@@ -257,6 +257,7 @@ describe('ComposerModelPicker with a virtual model', () => {
           role: 'assistant',
           parts: [],
           model: CURRENT_MODEL,
+          metadata: { selectedModel: AUTO },
         }),
       ],
     }
@@ -272,5 +273,29 @@ describe('ComposerModelPicker with a virtual model', () => {
       'title',
       'Auto sent the latest request to GPT 5',
     )
+  })
+
+  it('shows no route right after switching to the virtual model, until it answers', () => {
+    const sessionId = SessionId('session-just-switched')
+    const session = {
+      ...sessionDetail(sessionId, AUTO),
+      messages: [
+        fromPartial<SessionDetail['messages'][number]>({
+          role: 'assistant',
+          parts: [],
+          model: CURRENT_MODEL,
+          metadata: { selectedModel: CURRENT_MODEL },
+        }),
+      ],
+    }
+    useChatStore.setState({
+      activeSessionId: sessionId,
+      activeSession: session,
+      sessionById: new Map([[sessionId, session]]),
+    })
+    renderComposerModelControls()
+
+    expect(screen.getByRole('button', { name: 'Auto' })).toBeInTheDocument()
+    expect(screen.queryByText(/^→/u)).not.toBeInTheDocument()
   })
 })

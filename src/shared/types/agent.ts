@@ -148,6 +148,11 @@ export interface MessageMetadata {
   readonly waggleInvocation?: WaggleInvocationMetadata
   readonly branchSummary?: BranchSummaryMetadata
   readonly compactionSummary?: CompactionSummaryMetadata
+  /**
+   * The model the Session selected when this response was made. Under a virtual model it differs
+   * from `Message.model`, the physical model the router sent the request to.
+   */
+  readonly selectedModel?: SupportedModelId
 }
 
 export interface Message {

@@ -94,14 +94,42 @@ describe('routedModelName', () => {
 })
 
 describe('lastAnsweringModel', () => {
-  it('reads the model of the latest assistant message', () => {
+  const AUTO = SupportedModelId('router/auto')
+
+  it('reads the model of the latest response made under the selected model', () => {
     expect(
-      lastAnsweringModel([
-        { role: 'assistant', model: SupportedModelId('openai/gpt-6-sol') },
-        { role: 'user' },
-        { role: 'assistant', model: SupportedModelId('openai/gpt-6-luna') },
-        { role: 'user' },
-      ]),
+      lastAnsweringModel(
+        [
+          {
+            role: 'assistant',
+            model: SupportedModelId('openai/gpt-6-sol'),
+            metadata: { selectedModel: AUTO },
+          },
+          { role: 'user' },
+          {
+            role: 'assistant',
+            model: SupportedModelId('openai/gpt-6-luna'),
+            metadata: { selectedModel: AUTO },
+          },
+          { role: 'user' },
+        ],
+        AUTO,
+      ),
     ).toBe('openai/gpt-6-luna')
+  })
+
+  it('names nothing right after switching to a virtual model, before it has answered', () => {
+    expect(
+      lastAnsweringModel(
+        [
+          {
+            role: 'assistant',
+            model: SupportedModelId('openai/gpt-6-luna'),
+            metadata: { selectedModel: SupportedModelId('openai/gpt-6-luna') },
+          },
+        ],
+        AUTO,
+      ),
+    ).toBeUndefined()
   })
 })

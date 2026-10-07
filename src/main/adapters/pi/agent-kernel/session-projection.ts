@@ -7,6 +7,7 @@ import {
 import { parseJsonUnknown } from '@shared/schema'
 import type { ProjectedSessionNodeInput } from '../../../ports/session-repository'
 import { OPENWAGGLE_RUN_BOUNDARY_CUSTOM_TYPE } from '../run-attribution-extension'
+import { createEntryModelSelection } from './entry-model-selection'
 import { projectionForPiEntry } from './entry-projections'
 import { type PiEntryNodeIds, piEntryNodeIdsWithPrefix } from './pi-entry-node-ids'
 import { findUserInputProjection } from './user-input-projection'
@@ -102,6 +103,13 @@ function mergeMetadataJsonWithDurableText(rawMetadataJson: string, digest: strin
   return JSON.stringify({ ...metadata, durableTextSha256: digest })
 }
 
+/** The Session's model selection when a response was made, which a virtual model routed. */
+function mergeMetadataJsonWithSelectedModel(rawMetadataJson: string, selectedModel: string | null) {
+  if (!selectedModel) return rawMetadataJson
+  const parsed = parseJsonUnknown(rawMetadataJson)
+  return JSON.stringify({ ...(isRecord(parsed) ? parsed : {}), selectedModel })
+}
+
 function mergeMetadataJsonWithRun(rawMetadataJson: string, runId: string | null) {
   if (!runId) return rawMetadataJson
   const parsed = parseJsonUnknown(rawMetadataJson)
@@ -178,6 +186,7 @@ function projectPiEntry(input: {
   readonly pathDepth: number
   readonly runId: string | null
   readonly nodeIds: PiEntryNodeIds
+  readonly selectedModel: string | null
 }): ProjectedSessionNodeInput {
   const timestampMs = parsePiEntryTimestamp(input.entry.timestamp)
   const displayProjection = userDisplayProjection(input.entry, input.entryById)
@@ -197,11 +206,14 @@ function projectPiEntry(input: {
     timestampMs,
     contentJson: projection.contentJson,
     metadataJson: mergeMetadataJsonWithRun(
-      mergeMetadataJsonWithDurableText(
-        waggleMetadata
-          ? mergeMetadataJsonWithWaggle(projection.metadataJson, waggleMetadata)
-          : projection.metadataJson,
-        displayProjection?.durableTextSha256 ?? null,
+      mergeMetadataJsonWithSelectedModel(
+        mergeMetadataJsonWithDurableText(
+          waggleMetadata
+            ? mergeMetadataJsonWithWaggle(projection.metadataJson, waggleMetadata)
+            : projection.metadataJson,
+          displayProjection?.durableTextSha256 ?? null,
+        ),
+        isAssistantEntry(input.entry) ? input.selectedModel : null,
       ),
       input.runId,
     ),
@@ -249,6 +261,7 @@ export function projectPiSessionSnapshot(
   const depthById = new Map<string, number>()
   const runIdByEntryId = new Map<string, string | null>()
   const leafId = session.sessionManager.getLeafId()
+  const selectedModelOf = createEntryModelSelection(entryById)
 
   return {
     activeNodeId: leafId === null ? null : nodeIds.toNodeId(leafId),
@@ -260,6 +273,7 @@ export function projectPiSessionSnapshot(
         pathDepth: getPiEntryDepth({ entryId: entry.id, entryById, depthById }),
         runId: runIdForEntry({ entryId: entry.id, entryById, runIdByEntryId }),
         nodeIds,
+        selectedModel: selectedModelOf(entry.parentId),
       }),
     ),
   }

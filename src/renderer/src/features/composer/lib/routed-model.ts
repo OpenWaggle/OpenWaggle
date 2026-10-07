@@ -28,13 +28,23 @@ export function routedModelName({ selected, answeredBy, providerModels }: Routed
   return answering?.name ?? parseModelRef(answeredBy)?.modelId ?? answeredBy
 }
 
-/** The model of the latest assistant message, which names the physical model that answered. */
+/**
+ * The physical model of the latest response made while `selected` was the Session's selection.
+ * Responses from before a switch to a virtual model do not count, so the label stays empty until
+ * the virtual model has answered.
+ */
 export function lastAnsweringModel(
-  messages: readonly { readonly role: string; readonly model?: SupportedModelId }[],
+  messages: readonly {
+    readonly role: string
+    readonly model?: SupportedModelId
+    readonly metadata?: { readonly selectedModel?: SupportedModelId }
+  }[],
+  selected: SupportedModelId | undefined,
 ) {
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index]
-    if (message?.role === 'assistant' && message.model) return message.model
+    if (message?.role !== 'assistant' || !message.model) continue
+    return message.metadata?.selectedModel === selected ? message.model : undefined
   }
   return undefined
 }

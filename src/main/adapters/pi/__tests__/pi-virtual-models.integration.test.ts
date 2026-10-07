@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { piResponseUsageInput } from '../agent-kernel/pi-response-usage'
 import { summarizePiSessionUsage } from '../agent-kernel/pi-session-usage'
 import { createSessionListener } from '../agent-kernel/session-listener'
+import { projectPiSessionSnapshot } from '../agent-kernel/session-projection'
 import { createPiProviderCatalogSnapshotFromServices } from '../pi-provider-catalog'
 import {
   cleanupOpenWagglePiSessions,
@@ -110,7 +111,40 @@ describe('virtual models', () => {
       { model: null, cost: expect.closeTo(0.01), tokens: 20 },
     ])
   })
+
+  it('record which selection each response answered under, so a switch shows no stale route', async () => {
+    const { session, services, faux } = await createOpenWagglePiSession({
+      models: PHYSICAL_MODELS,
+      extensionFactories: [autoRouterExtension('sol')],
+    })
+    faux.setResponses([
+      fauxAssistantMessage('physical answer'),
+      fauxAssistantMessage('routed answer'),
+    ])
+    await session.prompt('First')
+    const auto = services.modelRuntime.getModel('router', 'auto')
+    if (!auto) throw new Error('The router is not registered')
+    await session.setModel(auto)
+    const beforeRouting = assistantSelections(session)
+    await session.prompt('Second')
+
+    expect(beforeRouting).toEqual([['test-provider/luna', 'test-provider/luna']])
+    expect(assistantSelections(session)).toEqual([
+      ['test-provider/luna', 'test-provider/luna'],
+      ['test-provider/sol', 'router/auto'],
+    ])
+  })
 })
+
+function assistantSelections(session: Parameters<typeof projectPiSessionSnapshot>[0]) {
+  return projectPiSessionSnapshot(session)
+    .nodes.filter((node) => node.kind === 'assistant_message')
+    .map((node) => {
+      const content: { readonly model?: string } = JSON.parse(node.contentJson)
+      const metadata: { readonly selectedModel?: string } = JSON.parse(node.metadataJson)
+      return [content.model, metadata.selectedModel]
+    })
+}
 
 function usage(input: number, total: number) {
   return {
