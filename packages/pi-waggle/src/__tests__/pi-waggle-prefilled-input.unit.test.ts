@@ -91,4 +91,34 @@ describe('promptPrefilledText', () => {
     expect(result).toBe('AdvocateX')
     for (const line of renderedLines) expect(visibleWidth(line)).toBeLessThanOrEqual(24)
   })
+
+  async function promptWithKeys(currentValue: string, keys: readonly string[]) {
+    const custom = vi.fn(async <T>(factory: CustomFactory<T>) => {
+      let result: T | undefined
+      const component = await factory(
+        fromPartial<TUI>({}),
+        fromPartial<Theme>({ fg: (_color: ThemeColor, text: string) => text }),
+        new KeybindingsManager(TUI_KEYBINDINGS),
+        (value) => {
+          result = value
+        },
+      )
+      for (const key of keys) component.handleInput?.(key)
+      component.handleInput?.('\r')
+      return result ?? fromAny<T, string | null>(null)
+    })
+    const ctx = fromPartial<ExtensionCommandContext>({ hasUI: true, ui: { custom } })
+    return promptPrefilledText({ ctx, title: 'Edit', currentValue })
+  }
+
+  it('keeps the existing value when the user undoes before typing', async () => {
+    // ctrl+- is Pi's undo key; the prefilled value is not an edit to undo.
+    await expect(promptWithKeys('Existing preset name', ['\u001f', 'X'])).resolves.toBe(
+      'Existing preset nameX',
+    )
+  })
+
+  it('keeps tabs in the existing value', async () => {
+    await expect(promptWithKeys('Advocate\tlabel', ['X'])).resolves.toBe('Advocate\tlabelX')
+  })
 })
