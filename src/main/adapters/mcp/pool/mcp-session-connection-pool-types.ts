@@ -31,6 +31,8 @@ export interface McpPooledServerSpec {
   readonly fingerprint: string
   /** The server identity (`mcpServerIdentity`), so Settings can find a warm connection's state. */
   readonly identity?: string
+  /** The project whose configuration defines the server; null for global-only Sessions. */
+  readonly projectPath?: string | null
   readonly open: () => McpUpstream
   readonly roots?: McpPooledConnectionOptions['roots']
 }
@@ -56,11 +58,14 @@ export interface McpSessionConnectionPoolOptions {
 export interface PooledServer {
   readonly fingerprint: string
   readonly identity: string | undefined
+  readonly projectPath: string | null
   readonly connection: McpPooledConnection
 }
 
 export interface SessionConnections {
   readonly servers: Map<string, PooledServer>
+  /** Servers closed because they were turned off or removed: no Run lease until the next Run. */
+  readonly closedServers: Set<string>
   activeRuns: number
   idleTimer: McpPoolTimer | undefined
 }
@@ -77,4 +82,12 @@ export interface McpPoolConnectionState {
   /** The handshake is done, so the server is connected. */
   readonly ready: boolean
   readonly lastError?: string
+}
+
+/** A warm connection, as the configuration-change check needs to know it. */
+export interface McpPoolServerConnection {
+  readonly sessionId: string
+  readonly name: string
+  readonly identity: string | undefined
+  readonly projectPath: string | null
 }

@@ -13,6 +13,8 @@ export type McpConnectionPool = Pick<
   | 'connectionFor'
   | 'connectionStates'
   | 'closeServerIdentity'
+  | 'closeServer'
+  | 'serverConnections'
   | 'closeSession'
   | 'beginRun'
   | 'noteActivity'

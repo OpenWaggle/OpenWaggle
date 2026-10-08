@@ -6,6 +6,7 @@ import {
   type McpPoolClock,
   type McpPoolConnectionState,
   type McpPooledServerSpec,
+  type McpPoolServerConnection,
   type McpPoolServerStatus,
   type McpPoolTimer,
   type McpSessionConnectionPoolOptions,
@@ -38,6 +39,9 @@ export class McpSessionConnectionPool {
 
   /** The transport Pi's client gets for one server of one Session. */
   lease(sessionId: string, spec: McpPooledServerSpec): McpWireTransport {
+    if (this.sessions.get(sessionId)?.closedServers.has(spec.name)) {
+      throw new Error(`The MCP server "${spec.name}" was turned off or removed.`)
+    }
     return this.connectionFor(sessionId, spec).attach()
   }
 
@@ -71,6 +75,7 @@ export class McpSessionConnectionPool {
     session.servers.set(spec.name, {
       fingerprint: spec.fingerprint,
       identity: spec.identity,
+      projectPath: spec.projectPath ?? null,
       connection,
     })
     if (session.activeRuns === 0) this.scheduleIdleClose(sessionId, session)
@@ -95,6 +100,8 @@ export class McpSessionConnectionPool {
   beginRun(sessionId: string) {
     const session = this.touch(sessionId)
     session.activeRuns += 1
+    // A new Run reads the configuration afresh, so a server turned on again may connect.
+    session.closedServers.clear()
     this.cancelIdleClose(session)
     let ended = false
     return () => {
@@ -129,6 +136,31 @@ export class McpSessionConnectionPool {
         .map((server) => server.connection),
     )
     await Promise.all(connections.map((connection) => connection.close()))
+  }
+
+  /**
+   * Closes one Session's connection to a server that was turned off or removed. A running Run
+   * keeps Pi's earlier configuration, so its leases of that server are refused until its next Run.
+   */
+  async closeServer(sessionId: string, serverName: string) {
+    const session = this.sessions.get(sessionId)
+    if (!session) return
+    session.closedServers.add(serverName)
+    await session.servers.get(serverName)?.connection.close()
+  }
+
+  /** Every warm connection, without touching recency. */
+  serverConnections(): McpPoolServerConnection[] {
+    return [...this.sessions].flatMap(([sessionId, session]) =>
+      [...session.servers]
+        .filter(([, server]) => !server.connection.isClosed)
+        .map(([name, server]) => ({
+          sessionId,
+          name,
+          identity: server.identity,
+          projectPath: server.projectPath,
+        })),
+    )
   }
 
   /** Closes everything, waiting a bounded time for servers to exit. */
@@ -178,6 +210,7 @@ export class McpSessionConnectionPool {
   private touch(sessionId: string) {
     const session = this.sessions.get(sessionId) ?? {
       servers: new Map<string, PooledServer>(),
+      closedServers: new Set<string>(),
       activeRuns: 0,
       idleTimer: undefined,
     }

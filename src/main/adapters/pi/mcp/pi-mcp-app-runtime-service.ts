@@ -85,12 +85,13 @@ async function appConnection(pool: McpConnectionPool, input: McpAppServerRequest
       `The MCP server "${input.serverName}" was changed since this App opened, so the App stays closed. Run its tool again to open it with the server's current setup.`,
     )
   }
-  // Read after the awaits: a Run may have opened or closed the connection meanwhile.
-  const warm = pool.connection(input.sessionId, input.serverName)
-  if (warm) return { connection: warm, entry }
+  // Before the warm connection: a server turned off is not used, however recently it was.
   if (entry.config.enabled === false) {
     throw new Error(`The MCP server "${input.serverName}" is turned off.`)
   }
+  // Read after the awaits: a Run may have opened or closed the connection meanwhile.
+  const warm = pool.connection(input.sessionId, input.serverName)
+  if (warm) return { connection: warm, entry }
   const transport = config.transports.get(entry.name) ?? ('url' in entry.config ? 'http' : 'stdio')
   const cwd = input.workingPath ?? input.projectPath ?? homedir()
   const url = mcpOAuthUrl(entry)
@@ -109,6 +110,7 @@ async function appConnection(pool: McpConnectionPool, input: McpAppServerRequest
     name: entry.name,
     fingerprint: mcpConnectionFingerprint({ config: entry.config, transport, cwd }),
     identity,
+    projectPath: input.projectPath,
     open: () => openPiMcpUpstream({ entry, transport, cwd, authProvider }),
     roots: () => [{ uri: pathToFileURL(cwd).href, name: path.basename(cwd) }],
   })

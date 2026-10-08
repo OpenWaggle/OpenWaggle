@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => {
     respond: (_method: string): unknown => ({}),
     open: vi.fn(),
     legacyIdentity: '',
+    enabled: true,
     createAuthProvider: vi.fn<(options: { readonly settings: () => unknown }) => void>(),
   }
 })
@@ -46,7 +47,10 @@ vi.mock('../../../../store/session-mcp-switch', () => ({
 vi.mock('../../pi-provider-catalog', () => ({ getPiAgentDir: () => '/home/user/.pi/agent' }))
 vi.mock('../../../mcp/config/mcp-runtime-config', () => ({
   loadMcpRuntimeConfig: async () => ({
-    loaded: { servers: [ENTRY], errors: [] },
+    loaded: {
+      servers: [{ ...ENTRY, config: { ...ENTRY.config, enabled: mocks.enabled } }],
+      errors: [],
+    },
     transports: new Map(),
   }),
 }))
@@ -98,6 +102,7 @@ beforeEach(() => {
   mocks.createAuthProvider.mockReset()
   mocks.respond = () => ({})
   mocks.legacyIdentity = IDENTITY
+  mocks.enabled = true
 })
 
 afterEach(async () => {
@@ -163,6 +168,17 @@ describe("MCP Apps over the Session's connection", () => {
     await expect(off).rejects.toThrow('MCP is turned off for this Session.')
     await expect(narrowed).rejects.toThrow('does not use the MCP server "figma"')
     expect(mocks.open).not.toHaveBeenCalled()
+  })
+
+  it('stops using a warm connection once its server is turned off', async () => {
+    mocks.respond = () => ({ contents: [{ uri: 'ui://app', text: '<p/>' }] })
+    await run((runtime) => runtime.readResource({ ...APP, uri: 'ui://app' }))
+
+    mocks.enabled = false
+    const reading = run((runtime) => runtime.readResource({ ...APP, uri: 'ui://app' }))
+
+    await expect(reading).rejects.toThrow('is turned off')
+    expect(mocks.upstreams[0]?.requests('resources/read')).toHaveLength(1)
   })
 
   it('opens an App from before the upgrade while its server still runs the same thing', async () => {

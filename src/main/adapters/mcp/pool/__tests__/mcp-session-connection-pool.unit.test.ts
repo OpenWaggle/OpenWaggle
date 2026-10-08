@@ -188,4 +188,26 @@ describe('MCP Session connection pool', () => {
     upstreams[0]?.crash()
     expect(pool.connectionStates('mcp-server:figma')).toEqual([])
   })
+
+  it('closes one server of a Session and refuses its Run leases until the next Run', async () => {
+    const upstreams: FakeUpstream[] = []
+    const pool = new McpSessionConnectionPool()
+    const docs = { ...server('docs', upstreams), identity: 'id-docs', projectPath: '/p' }
+    const endRun = pool.beginRun('s1')
+    await useServer(pool, 's1', docs)
+    await useServer(pool, 's1', server('lint', upstreams))
+
+    expect(pool.serverConnections()).toEqual([
+      { sessionId: 's1', name: 'docs', identity: 'id-docs', projectPath: '/p' },
+      { sessionId: 's1', name: 'lint', identity: undefined, projectPath: null },
+    ])
+    await pool.closeServer('s1', 'docs')
+
+    expect(upstreams[0]?.closed).toBe(true)
+    expect(upstreams[1]?.closed).toBe(false)
+    expect(() => pool.lease('s1', docs)).toThrow('turned off')
+    endRun()
+    pool.beginRun('s1')
+    expect(() => pool.lease('s1', docs)).not.toThrow()
+  })
 })
