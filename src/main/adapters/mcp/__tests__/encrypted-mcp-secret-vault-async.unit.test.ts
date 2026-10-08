@@ -74,4 +74,22 @@ describe('the MCP secret vault without the synchronous keychain API', () => {
     await expect(vault.resolve('mine')).resolves.toBe('old')
     await expect(vault.list()).resolves.toEqual([expect.objectContaining({ name: 'mine' })])
   })
+
+  it('tells whether a secret exists without reading the keychain', async () => {
+    const filePath = path.join(root, 'vault.json')
+    await createEncryptedMcpSecretVault(filePath, keychainOffMainThread).set('TOKEN', 'value')
+    const unreadable = {
+      ...keychainOffMainThread,
+      isAsyncEncryptionAvailable: async () => {
+        throw new Error('keychain read')
+      },
+      decryptStringAsync: async () => {
+        throw new Error('keychain read')
+      },
+    }
+    const vault = createEncryptedMcpSecretVault(filePath, unreadable)
+
+    await expect(vault.has('TOKEN')).resolves.toBe(true)
+    await expect(vault.has('OTHER')).resolves.toBe(false)
+  })
 })

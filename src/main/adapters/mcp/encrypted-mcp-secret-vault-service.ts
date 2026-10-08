@@ -207,6 +207,11 @@ export function createEncryptedMcpSecretVault(
     async list() {
       return summaries(await readVault(filePath))
     },
+    /** Whether the vault holds `name`, without reading the keychain. */
+    async has(name: string) {
+      // A first read may take over the shared vault's secrets, asynchronously; resolving none.
+      return (await readVault(filePath)).secrets[validateSecretName(name)] !== undefined
+    },
     async resolve(name: string) {
       await assertEncryptionAvailable(encryption)
       const normalized = validateSecretName(name)
@@ -281,6 +286,11 @@ function getLiveVault() {
 /** The names in this build's vault, after it took over its own secrets from the shared one. */
 export async function listMcpVaultSecretNames() {
   return (await getLiveVault().list()).map((secret) => secret.name)
+}
+
+/** Whether this build's vault holds `name`, without reading the keychain. */
+export function mcpVaultHasSecret(name: string) {
+  return getLiveVault().has(name)
 }
 
 /** Whether the vault every build shared before still holds `name`, whatever key sealed it. */

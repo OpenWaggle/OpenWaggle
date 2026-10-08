@@ -111,7 +111,9 @@ from the Dock, whose own environment lacks the shell profile's variables. It app
 `url`, `command`, `args`, and `cwd` are not interpolated, because Pi does not interpolate them.
 A value that cannot be resolved fails that server's check or connection only; inspection,
 `openwaggle mcp list`, and `doctor` report it per server, and the configuration view lists vault
-errors with the other config errors.
+errors with the other config errors. The view only checks that each referenced secret exists
+(`mcpVaultHasSecret`), without decrypting it, so a slow keychain does not slow Settings or the CLI;
+a secret this build cannot decrypt is reported when a Run or a check reads it.
 
 Imports from other tools convert only the variable syntax that tool really expands (Claude's CLI
 `${VAR}`, Cursor/VS Code/Windsurf `${env:VAR}`, OpenCode `{env:VAR}`, VS Code `${input:id}`) to
