@@ -119,7 +119,7 @@ export class DesktopServiceLeases {
   }
 
   /**
-   * ADR 0048: no process can prove an unclean desktop's children settled, so the user attests to
+   * ADR 0049: no process can prove an unclean desktop's children settled, so the user attests to
    * it. That attestation also covers mutations of earlier Hosts, which no live Host can release.
    * It runs inside the registration admission and swaps owners in one transaction.
    */

@@ -81,7 +81,7 @@ export type DesktopServiceRequest =
     }
   | { readonly operation: 'register'; readonly guiInstanceId: string }
   /**
-   * `register` after a user-attested recovery from an unclean previous desktop (ADR 0048): the
+   * `register` after a user-attested recovery from an unclean previous desktop (ADR 0049): the
    * user confirmed nothing the previous desktop started is still running. Answered like `register`.
    */
   | { readonly operation: 'recoverOwner'; readonly guiInstanceId: string }

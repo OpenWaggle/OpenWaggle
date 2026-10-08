@@ -1,4 +1,4 @@
-/** Result of a user-attested desktop tools recovery (ADR 0048). */
+/** Result of a user-attested desktop tools recovery (ADR 0049). */
 export type DesktopNativeRecoveryOutcome =
   | { readonly outcome: 'recovered' }
   | { readonly outcome: 'failed'; readonly message: string; readonly retryable: boolean }

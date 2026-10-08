@@ -19,7 +19,7 @@ interface DesktopNativeAdmissionNoticeProps {
 }
 
 /**
- * Persistent notice for quarantined desktop tools with the user-attested recovery (ADR 0048).
+ * Persistent notice for quarantined desktop tools with the user-attested recovery (ADR 0049).
  * It cannot be dismissed while quarantined: it is the only way to lift the quarantine.
  */
 export function DesktopNativeAdmissionNotice({ placement }: DesktopNativeAdmissionNoticeProps) {

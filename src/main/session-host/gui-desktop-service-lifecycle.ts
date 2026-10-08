@@ -94,7 +94,7 @@ export interface GuiDesktopBridgeInput {
 }
 
 /**
- * Register, or for a recovering bridge send the user's attestation in its place (ADR 0048). Any
+ * Register, or for a recovering bridge send the user's attestation in its place (ADR 0049). Any
  * failure before the Host accepts that attestation is terminal, so a retry never replays it.
  */
 export async function registerGuiDesktop(input: {

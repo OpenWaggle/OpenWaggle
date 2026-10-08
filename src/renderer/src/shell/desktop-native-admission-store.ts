@@ -23,7 +23,7 @@ interface DesktopNativeAdmissionState {
 }
 
 /**
- * GUI-lifetime quarantine state (ADR 0048). One store, not per-component state, so the notice
+ * GUI-lifetime quarantine state (ADR 0049). One store, not per-component state, so the notice
  * keeps an in-flight recovery and its failure while it moves between the workspace and Settings.
  */
 export const useDesktopNativeAdmissionStore = create<DesktopNativeAdmissionState>()((set, get) => ({

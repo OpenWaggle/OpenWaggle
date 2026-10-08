@@ -936,7 +936,7 @@ Native fences and exact GUI/Host closure receipts are durable. A released token 
 GUI native hold is acknowledged; lease expiry or PID absence never establishes process settlement.
 Unclean GUI ownership and orphan active Host mutation fences remain in doubt, not auto-released.
 The quarantine notice (a banner, not a toast: the archive failure it causes is a toast) offers
-**Recover desktop tools** (ADR 0048). `recoverOwner` replaces the bridge's first `register` and is
+**Recover desktop tools** (ADR 0049). `recoverOwner` replaces the bridge's first `register` and is
 answered like it; in one admission the Host releases active fences of dead Hosts, replaces the
 exact stale owner in one SQLite transaction (`replaceStale`), and registers. Any failure before
 acceptance ends that bridge, so the pump never replays the attestation. Quit cleanup awaits an
