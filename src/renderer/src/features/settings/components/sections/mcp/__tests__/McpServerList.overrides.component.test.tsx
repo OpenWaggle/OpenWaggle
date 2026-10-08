@@ -32,7 +32,13 @@ describe('Settings > MCP list rows', () => {
         mcpServer('plain'),
         mcpServer('exposed', { override: PROJECT_PI }),
         // A Pi server that never ran in OpenWaggle: the migration kept it off in OpenWaggle's file.
-        mcpServer('piserver', { enabled: false, override: OPENWAGGLE_GLOBAL }),
+        mcpServer('piserver', {
+          enabled: false,
+          offByOverride: true,
+          override: OPENWAGGLE_GLOBAL,
+        }),
+        // Pi's own file turned it off; OpenWaggle's file only changes its exposure.
+        mcpServer('pioff', { enabled: false, override: OPENWAGGLE_GLOBAL }),
       ]),
     )
     renderWithQueryClient(<McpServersPanel projectPath={PROJECT} />)
@@ -44,6 +50,8 @@ describe('Settings > MCP list rows', () => {
     expect(row('plain')).not.toHaveTextContent(/Overridden|Off in OpenWaggle/)
     expect(row('exposed')).toHaveTextContent(/Overridden in .*\.pi\/mcp\.json/)
     expect(row('piserver')).toHaveTextContent('Off in OpenWaggle')
+    expect(row('pioff')).not.toHaveTextContent('Off in OpenWaggle')
+    expect(row('pioff')).toHaveTextContent(/Overridden in .*\.openwaggle\/mcp\.json/)
     expect(within(row('piserver')).getByText('Off in OpenWaggle')).toHaveAttribute(
       'title',
       expect.stringContaining('The file that defines it still has it on'),

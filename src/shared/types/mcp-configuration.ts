@@ -46,6 +46,8 @@ export interface McpConfiguredServerView {
   readonly source: McpServerFileReference
   readonly scope: McpConfigFileScope
   readonly override?: McpServerFileReference
+  /** The override turned the server off; the file that defines it does not. */
+  readonly offByOverride?: true
   readonly enabled: boolean
   readonly exposure: McpServerExposure
   readonly toolExposure: Readonly<Record<string, McpServerExposure>>

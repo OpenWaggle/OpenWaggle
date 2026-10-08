@@ -66,6 +66,8 @@ export interface McpMergedServer {
   readonly scope: McpConfigScope
   /** The last file whose override-only entry changes the server; enabled/exposure writes go here. */
   readonly override?: McpConfigFileReference
+  /** An override-only entry turned the server off, which the defining file has on. */
+  readonly offByOverride?: true
 }
 
 export interface McpMergedConfig {
@@ -111,10 +113,15 @@ function applyOverride(
     state.errors.push(`${layer.path}: ${validated.error}`)
     return
   }
+  const baseOn = base.offByOverride === true || base.config.enabled !== false
+  const offByOverride =
+    'enabled' in value ? value.enabled === false && baseOn : base.offByOverride === true
+  const { offByOverride: _previous, ...rest } = base
   state.servers.set(name, {
-    ...base,
+    ...rest,
     config: validated.server.config,
     override: { fileId: layer.fileId, path: layer.path },
+    ...(offByOverride ? { offByOverride: true } : {}),
   })
 }
 

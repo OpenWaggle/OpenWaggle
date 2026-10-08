@@ -120,7 +120,38 @@ describe('MCP configuration file merge', () => {
         source: { fileId: 'pi-global', path: PI_GLOBAL },
         scope: 'global',
         override: { fileId: 'project-openwaggle', path: PROJECT_OW },
+        offByOverride: true,
       },
+    ])
+  })
+
+  it('records whether an override, not the defining file, turned a server off', () => {
+    const merged = mergeMcpConfigLayers(
+      fileSet({
+        piGlobal: {
+          mcpServers: {
+            // Pi's own file turned it off; the override only sets exposure.
+            piOff: { command: 'a', enabled: false },
+            keptOff: { command: 'b' },
+            // Off in both: the defining file has it off too.
+            bothOff: { command: 'c', enabled: false },
+          },
+        },
+        openwaggleGlobal: {
+          mcpServers: {
+            piOff: { exposure: 'direct' },
+            keptOff: { enabled: false },
+            bothOff: { enabled: false },
+          },
+        },
+        projectOpenwaggle: { mcpServers: { keptOff: { exposure: 'direct' } } },
+      }),
+    )
+
+    expect(merged.servers.map((server) => [server.name, server.offByOverride])).toEqual([
+      ['piOff', undefined],
+      ['keptOff', true],
+      ['bothOff', undefined],
     ])
   })
 

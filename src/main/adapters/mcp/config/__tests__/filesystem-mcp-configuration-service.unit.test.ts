@@ -67,6 +67,7 @@ describe('filesystem MCP configuration service', () => {
         source: { fileId: 'pi-global', path: piGlobal() },
         scope: 'global',
         override: { fileId: 'project-openwaggle', path: owProject() },
+        offByOverride: true,
         enabled: false,
         exposure: 'direct',
         toolExposure: {},

@@ -68,6 +68,7 @@ function serverView(server: McpMergedServer): McpConfiguredServerView {
     source: server.source,
     scope: server.scope,
     ...(server.override ? { override: server.override } : {}),
+    ...(server.offByOverride ? { offByOverride: true } : {}),
     enabled: config.enabled !== false,
     exposure: config.exposure ?? 'codemode',
     toolExposure: config.toolExposure ?? {},

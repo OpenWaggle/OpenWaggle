@@ -198,6 +198,7 @@ export function mcpOverrideNote(server: McpConfiguredServerView): McpOverrideNot
   if (!override) return undefined
   const offInOpenWaggle =
     !server.enabled &&
+    server.offByOverride === true &&
     isOpenWaggleMcpFile(override.fileId) &&
     !isOpenWaggleMcpFile(server.source.fileId)
   return { kind: offInOpenWaggle ? 'off-in-openwaggle' : 'overridden', path: override.path }
