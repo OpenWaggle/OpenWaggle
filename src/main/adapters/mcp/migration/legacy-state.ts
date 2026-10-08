@@ -49,7 +49,10 @@ export function legacyStateProjects(state: LegacyStateFile) {
   return [...Object.keys(state.projectStates), ...Object.keys(state.projectServerStates)]
 }
 
-/** The old code keyed projects by `path.resolve(projectPath)`. */
+/**
+ * The one spelling of a project path the migration uses everywhere: the old code keyed projects
+ * by `path.resolve(projectPath)`, so the state it left is found under that spelling.
+ */
 export function normalizeLegacyProjectPath(projectPath: string) {
   return path.resolve(projectPath.trim())
 }

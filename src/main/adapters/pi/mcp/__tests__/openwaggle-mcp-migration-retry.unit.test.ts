@@ -51,6 +51,17 @@ describe('the MCP file migration within one Host process', () => {
     expect(migrate).toHaveBeenCalledOnce()
   })
 
+  it('treats spellings of one project path as one project', async () => {
+    migrate.mockResolvedValue(OK)
+
+    await migrateOpenWaggleMcpFilesOnce('/projects/same/')
+    await migrateOpenWaggleMcpFilesOnce('/projects/./same')
+    await migrateOpenWaggleMcpFilesOnce('/projects/same')
+
+    expect(migrate).toHaveBeenCalledOnce()
+    expect(migrate.mock.calls[0]?.[0].projectPaths).toEqual(['/projects/same'])
+  })
+
   it('tries again after a failure, once a short wait has passed', async () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     migrate

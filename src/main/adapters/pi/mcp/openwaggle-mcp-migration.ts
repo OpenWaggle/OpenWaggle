@@ -2,6 +2,7 @@ import { homedir } from 'node:os'
 import { createLogger } from '../../../logger'
 import { McpVaultError } from '../../../ports/mcp-errors'
 import { resolveMcpVaultSecret } from '../../mcp/encrypted-mcp-secret-vault-service'
+import { normalizeLegacyProjectPath } from '../../mcp/migration/legacy-state'
 import { migrateOpenWaggleMcpFiles } from '../../mcp/migration/migrate-openwaggle-mcp-files'
 import { migrationRecordPath } from '../../mcp/migration/migration-record'
 import { withProcessFileLock } from '../../mcp/process-file-lock'
@@ -82,7 +83,11 @@ async function durableMcpProjectPaths(): Promise<readonly string[]> {
  * records what it did, so later processes skip it; a failure leaves the files as they were, and
  * the next call after `MCP_MIGRATION_RETRY_MS` tries again.
  */
-export function migrateOpenWaggleMcpFilesOnce(projectPath: string | null) {
+export function migrateOpenWaggleMcpFilesOnce(requestedProjectPath: string | null) {
+  // One canonical spelling, the one the migration records use, so `/a/` and `/a` are one project.
+  const projectPath = requestedProjectPath?.trim()
+    ? normalizeLegacyProjectPath(requestedProjectPath)
+    : null
   const key = projectPath ?? ''
   const previous = migrations.get(key)
   const retry =
