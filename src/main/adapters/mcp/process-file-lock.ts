@@ -12,6 +12,8 @@ const LOCK_RETRY_MAX_TIMEOUT_MS = 300
 
 interface ProcessFileLockOptions {
   readonly waitUntilAvailable?: boolean
+  /** With `waitUntilAvailable`, how long to wait before failing; unbounded when omitted. */
+  readonly maxWaitMs?: number
 }
 
 const waitQueues = new Map<string, Promise<void>>()
@@ -37,6 +39,7 @@ async function runWithProcessFileLock<T>(
   targetPath: string,
   operation: () => Promise<T>,
   waitUntilAvailable: boolean,
+  maxWaitMs: number | undefined,
 ) {
   await mkdir(path.dirname(targetPath), { recursive: true })
   const lockOptions = {
@@ -57,12 +60,17 @@ async function runWithProcessFileLock<T>(
       },
     })
   let attempt = 0
+  const deadline = maxWaitMs === undefined ? undefined : Date.now() + maxWaitMs
   const acquireUntilAvailable = async (): Promise<() => Promise<void>> => {
     while (true) {
       try {
         return await acquireOnce()
       } catch (error) {
         if (!isLockContention(error)) throw error
+        // A live holder keeps its lock fresh, so contention alone would wait forever.
+        if (deadline !== undefined && Date.now() >= deadline) {
+          throw new Error(`${targetPath} is still held by another process.`, { cause: error })
+        }
         const timeout = Math.min(
           LOCK_RETRY_MAX_TIMEOUT_MS,
           LOCK_RETRY_MIN_TIMEOUT_MS * LOCK_RETRY_FACTOR ** attempt,
@@ -95,6 +103,7 @@ export async function withProcessFileLock<T>(
   options: ProcessFileLockOptions = {},
 ) {
   const waitUntilAvailable = options.waitUntilAvailable ?? false
-  const run = () => runWithProcessFileLock(targetPath, operation, waitUntilAvailable)
+  const run = () =>
+    runWithProcessFileLock(targetPath, operation, waitUntilAvailable, options.maxWaitMs)
   return waitUntilAvailable ? withLocalWaitQueue(targetPath, run) : run()
 }

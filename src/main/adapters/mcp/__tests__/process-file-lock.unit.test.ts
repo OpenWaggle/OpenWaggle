@@ -49,4 +49,18 @@ describe('withProcessFileLock wait policy', () => {
 
     expect(lockMock).toHaveBeenCalledOnce()
   })
+
+  it('gives up with an error when a live holder keeps the lock past the wait limit', async () => {
+    lockMock.mockRejectedValue(Object.assign(new Error('busy'), { code: 'ELOCKED' }))
+    const operation = vi.fn(async () => 'never')
+
+    await expect(
+      withProcessFileLock(path.join(tmpdir(), 'openwaggle-lock-held'), operation, {
+        waitUntilAvailable: true,
+        maxWaitMs: 50,
+      }),
+    ).rejects.toThrow('still held by another process')
+
+    expect(operation).not.toHaveBeenCalled()
+  })
 })

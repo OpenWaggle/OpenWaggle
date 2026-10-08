@@ -1,10 +1,16 @@
 import { homedir } from 'node:os'
+import { createLogger } from '../../../logger'
 import { resolveMcpVaultSecret } from '../../mcp/encrypted-mcp-secret-vault-service'
 import { migrateOpenWaggleMcpFiles } from '../../mcp/migration/migrate-openwaggle-mcp-files'
 import { migrationRecordPath } from '../../mcp/migration/migration-record'
 import { withProcessFileLock } from '../../mcp/process-file-lock'
 import { getPiAgentDir } from '../pi-provider-catalog'
 import { writeOpenWaggleMcpOAuthState } from './openwaggle-mcp-credentials'
+
+const logger = createLogger('mcp-migration')
+
+/** How long a migration waits for another process's migration lock before it gives up. */
+export const MCP_MIGRATION_LOCK_WAIT_MS = 30_000
 
 /** After a failed migration, the next call tries again once this much time has passed. */
 export const MCP_MIGRATION_RETRY_MS = 5_000
@@ -78,8 +84,14 @@ async function runMigration(projectPath: string | null, attempt: MigrationAttemp
   const report = await withProcessFileLock(
     migrationRecordPath(homedir()),
     () => migrateOnce(projectPath),
-    { waitUntilAvailable: true },
-  ).catch(() => undefined)
+    // Host start must not hang on another process that keeps the lock; it tries again later.
+    { waitUntilAvailable: true, maxWaitMs: MCP_MIGRATION_LOCK_WAIT_MS },
+  ).catch((error: unknown) => {
+    logger.error('MCP migration could not take its lock', {
+      error: error instanceof Error ? error.message : String(error),
+    })
+    return undefined
+  })
   // What a failed start or file left unmigrated is tried again on a later call.
   if (!report || report.error || report.files.some((file) => file.status === 'failed')) {
     attempt.failedAt = Date.now()
