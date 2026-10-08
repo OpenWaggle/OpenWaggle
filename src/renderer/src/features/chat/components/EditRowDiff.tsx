@@ -1,6 +1,6 @@
 import { FileText } from 'lucide-react'
 import { lazy, Suspense } from 'react'
-import type { EditDiffData } from '@/features/chat/lib/tool-call-block'
+import type { EditDiffData } from '@/features/chat/lib/edit-tool-result'
 import { usePreferencesStore } from '@/features/settings/state'
 import { useOpenWorkspaceFile } from '@/features/workspace-files/hooks'
 import { useSyntaxTheme } from '@/shared/hooks/useSyntaxTheme'

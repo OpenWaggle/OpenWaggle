@@ -1,12 +1,14 @@
 import type { JsonObject } from '@shared/types/json'
 import { hasConcreteToolOutput } from '@shared/utils/tool-result-state'
 import { useEffect, useRef, useState } from 'react'
-import { parseToolArgs } from '@/features/chat/lib/tool-args'
 import {
-  buildTailPreview,
   type EditDiffData,
   getEditDiff,
   getEditExtraOutput,
+} from '@/features/chat/lib/edit-tool-result'
+import { parseToolArgs } from '@/features/chat/lib/tool-args'
+import {
+  buildTailPreview,
   getResultError,
   getStringArg,
   getToolResultText,
