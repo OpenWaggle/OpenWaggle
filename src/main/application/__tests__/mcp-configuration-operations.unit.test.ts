@@ -1,3 +1,5 @@
+import { existsSync } from 'node:fs'
+import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
   addMcpServerOperation,
@@ -232,5 +234,25 @@ describe('MCP configuration operations', () => {
         }),
       ),
     ).resolves.toMatch(/No catalog server/)
+  })
+
+  it("writes and reads a worktree's project servers in the project, where Runs read them", async () => {
+    writeJson(owProject(), { mcpServers: { existing: { command: 'npx', args: ['existing'] } } })
+
+    const listed = await run(
+      getMcpConfigurationOperation({ projectPath: harness.state.worktreePath }),
+    )
+    await run(
+      addMcpServerOperation({
+        projectPath: harness.state.worktreePath,
+        name: 'from-worktree',
+        scope: 'project',
+        entry: { command: 'uvx', args: ['worktree-mcp'] },
+      }),
+    )
+
+    expect(listed.servers.map((server) => server.name)).toEqual(['existing'])
+    expect(Object.keys(servers(owProject()))).toEqual(['existing', 'from-worktree'])
+    expect(existsSync(path.join(harness.state.worktreePath, '.openwaggle', 'mcp.json'))).toBe(false)
   })
 })

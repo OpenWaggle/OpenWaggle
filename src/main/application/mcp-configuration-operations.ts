@@ -37,6 +37,8 @@ function decodePayload<A, I>(schema: Schema.Schema<A, I>, raw: unknown, action: 
 /**
  * Decodes a request and accepts its project only when OpenWaggle knows that project. A project's
  * MCP files can start commands, so neither the GUI nor the CLI may name an arbitrary directory.
+ * A Session's managed worktree, such as the folder `openwaggle mcp -l` runs in there, stands for
+ * the Session's project: Runs read the project's MCP files, never the worktree's.
  */
 function decode<A extends { readonly projectPath: string | null }, I>(
   schema: Schema.Schema<A, I>,
@@ -48,6 +50,11 @@ function decode<A extends { readonly projectPath: string | null }, I>(
     if (input.projectPath === null) return input
     const authorization = yield* WorkspaceProjectAuthorization
     const projectPath = yield* authorization.authorize(input.projectPath).pipe(
+      Effect.flatMap((authorized) =>
+        authorization.projectOfWorkspace
+          ? authorization.projectOfWorkspace(authorized)
+          : Effect.succeed(authorized),
+      ),
       Effect.mapError(
         () =>
           new McpConfigurationError({

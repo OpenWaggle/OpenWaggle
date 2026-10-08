@@ -28,6 +28,30 @@ export function findSessionWorkspaceRoot(requestedPath: string, canonicalPath: s
   )
 }
 
+/**
+ * The durable project of the Session whose managed worktree is at `workingPath`, or null when no
+ * ready managed worktree is there.
+ */
+export function findManagedWorktreeProjectPath(workingPath: string) {
+  return runStoreEffect(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      const rows = yield* sql<{ readonly project_path: string }>`
+        SELECT sessions.project_path FROM workspace_resources
+        JOIN session_workspace_bindings
+          ON session_workspace_bindings.workspace_id = workspace_resources.id
+        JOIN sessions ON sessions.id = session_workspace_bindings.session_id
+        WHERE workspace_resources.working_path = ${workingPath}
+          AND workspace_resources.kind = ${'managed-worktree'}
+          AND workspace_resources.lifecycle_state = ${'ready'}
+          AND sessions.project_path IS NOT NULL AND sessions.project_path != ''
+        LIMIT 1
+      `
+      return rows[0]?.project_path ?? null
+    }),
+  )
+}
+
 /** Every Session's durable project root (not the worktree it may run in). */
 export function listSessionProjectRoots() {
   return runStoreEffect(

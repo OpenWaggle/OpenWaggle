@@ -33,6 +33,8 @@ export function createMcpOperationsHarness() {
     homeDir: '',
     piAgentDir: '',
     projectPath: '',
+    /** A managed worktree of the project, as a Session in worktree mode runs in. */
+    worktreePath: '',
     sourceFiles: new Map<string, string>(),
     runtimeCalls,
   }
@@ -71,7 +73,9 @@ export function createMcpOperationsHarness() {
     state.homeDir = path.join(state.root, 'home')
     state.piAgentDir = path.join(state.homeDir, '.pi', 'agent')
     state.projectPath = path.join(state.root, 'project')
+    state.worktreePath = path.join(state.root, 'worktrees', 'session-worktree')
     mkdirSync(state.projectPath, { recursive: true })
+    mkdirSync(state.worktreePath, { recursive: true })
     state.sourceFiles = new Map()
     state.runtimeCalls.length = 0
   })
@@ -100,14 +104,18 @@ export function createMcpOperationsHarness() {
         }),
       ),
       Layer.succeed(McpServerRuntimeService, runtime),
-      // Only the harness project is known to OpenWaggle.
+      // Only the harness project, and its Session's worktree, are known to OpenWaggle.
       Layer.succeed(
         WorkspaceProjectAuthorization,
         WorkspaceProjectAuthorization.of({
           authorize: (projectPath) =>
-            projectPath === state.projectPath
+            projectPath === state.projectPath || projectPath === state.worktreePath
               ? Effect.succeed(projectPath)
               : Effect.fail(new Error('Project path is not authorized for workspace access.')),
+          projectOfWorkspace: (workspacePath) =>
+            Effect.succeed(
+              workspacePath === state.worktreePath ? state.projectPath : workspacePath,
+            ),
         }),
       ),
     )

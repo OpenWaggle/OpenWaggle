@@ -61,5 +61,27 @@ export const WorkspaceProjectAuthorizationLive = Layer.succeed(
         if (root) return yield* validateAuthorizedProjectPath(projectPath, [root])
         return yield* authorizeLegacyRootAlias(projectPath, listSessionWorkspaceRootPage)
       }),
+    projectOfWorkspace: (authorizedPath) =>
+      Effect.gen(function* () {
+        const [{ getSettings }, { findManagedWorktreeProjectPath }] = yield* Effect.promise(() =>
+          Promise.all([
+            import('../store/settings'),
+            import('../store/session-details/workspace-root-authorization'),
+          ]),
+        )
+        // A folder the user opened as a project is that project, even if it is also a worktree.
+        const settings = getSettings()
+        const projects = [
+          settings.projectPath,
+          ...settings.recentProjects,
+          ...Object.keys(settings.projectDisplayNames),
+        ]
+        if (projects.includes(authorizedPath)) return authorizedPath
+        const project = yield* Effect.tryPromise({
+          try: () => findManagedWorktreeProjectPath(authorizedPath),
+          catch: (cause) => new Error('Unable to find the project of a workspace.', { cause }),
+        })
+        return project ?? authorizedPath
+      }),
   }),
 )

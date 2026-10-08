@@ -3,6 +3,7 @@ import { SqliteClient } from '@effect/sql-sqlite-node'
 import * as Effect from 'effect/Effect'
 import { describe, expect, it } from 'vitest'
 import {
+  findManagedWorktreeProjectPath,
   findSessionWorkspaceRoot,
   listSessionWorkspaceRootPage,
 } from '../session-details/workspace-root-authorization'
@@ -102,6 +103,36 @@ describe('indexed Session workspace root authorization', () => {
           yield* Effect.promise(() => findSessionWorkspaceRoot('/worktree', '/worktree')),
         ).toBeNull()
       }),
+    )
+  })
+
+  it("finds the durable project of a Session's managed worktree", async () => {
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        yield* sql`CREATE TABLE sessions (id TEXT PRIMARY KEY, project_path TEXT)`
+        yield* sql`CREATE TABLE workspace_resources (
+          id TEXT PRIMARY KEY, kind TEXT, working_path TEXT, lifecycle_state TEXT
+        )`
+        yield* sql`CREATE TABLE session_workspace_bindings (session_id TEXT, workspace_id TEXT)`
+        setStoreEffectRunner((effect) =>
+          Effect.runPromise(effect.pipe(Effect.provideService(SqlClient.SqlClient, sql))),
+        )
+        yield* sql`INSERT INTO sessions VALUES ('session', '/project')`
+        yield* sql`INSERT INTO workspace_resources VALUES
+          ('worktree', 'managed-worktree', '/worktrees/one', 'ready'),
+          ('local', 'local', '/project', 'ready'),
+          ('released', 'managed-worktree', '/worktrees/gone', 'releasing')`
+        yield* sql`INSERT INTO session_workspace_bindings VALUES
+          ('session', 'worktree'), ('session', 'local'), ('session', 'released')`
+
+        const find = (workingPath: string) =>
+          Effect.promise(() => findManagedWorktreeProjectPath(workingPath))
+        expect(yield* find('/worktrees/one')).toBe('/project')
+        expect(yield* find('/project')).toBeNull()
+        expect(yield* find('/worktrees/gone')).toBeNull()
+        expect(yield* find('/unknown')).toBeNull()
+      }).pipe(Effect.provide(SqliteClient.layer({ filename: ':memory:' }))),
     )
   })
 })
