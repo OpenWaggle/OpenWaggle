@@ -336,6 +336,31 @@ SEP-2106's composition and conditional checks as skipped at 2025-11-25.
 
 ## Lifecycle
 
+### When servers connect
+
+Nothing connects at Host start: migration, the turned-off-server check, and Settings (which reads
+known state, `mcp-server-status-registry`) open no connection. A server connects only when a
+Session uses MCP: a Run, an MCP App request, or **Check connection** in Settings.
+
+A Run connects **every enabled server of its Session** when its Pi session starts, whatever the
+exposure: Pi's MCP extension starts all connections on `session_start`, in the background. That
+is Pi's design, and OpenWaggle keeps it (ADR 0050, Pi portability). Pi needs each server's tool
+listing before the model can reach it, whatever the exposure:
+
+- `codemode`: `searchTools()` and the codemode tool's namespaces;
+- `deferred`: `tool_search`;
+- the `mcp_servers` section of the system prompt, with each server and its instructions;
+- the resource tools;
+- the MCP App metadata OpenWaggle reads from `tools/list`.
+
+"Lazy" in ADR 0050 means a connection never blocks a message. Only servers with `direct` tools
+are waited for before the first request, for at most `startupWaitMs` (1.5 s). A codemode script,
+`tool_search`, or a resource tool waits for the servers it needs when it runs. Connections are
+pooled per Session (below), so the next Run reuses them instead of starting the servers again.
+Hidden QA's process snapshots show exactly this: every enabled server of a Session that had run
+(`direct`, `codemode`, and project ones) running, and nothing for Sessions that had not. Making
+codemode or deferred servers connect only on first use would need a change to Pi's MCP extension.
+
 | Event | Effect |
 | --- | --- |
 | Run starts (`beginRun`) | Cancels the Session's idle timer; marks it most recently used. |
