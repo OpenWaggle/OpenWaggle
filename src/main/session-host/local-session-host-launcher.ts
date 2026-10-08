@@ -3,6 +3,7 @@ import path from 'node:path'
 import { app } from 'electron'
 import { launchHeadlessBackgroundProcess } from '../desktop-ui'
 import { env, getSessionHostChildEnv } from '../env'
+import { awaitWithSignal } from './await-with-signal'
 import { probeLocalSessionHost } from './local-session-client'
 import {
   type LocalSessionClientConnectionInput,
@@ -11,6 +12,7 @@ import {
 import { type LocalSessionHostPaths, refreshLocalSessionHostEndpoint } from './local-session-paths'
 import type { SessionHostOwnership } from './session-host-ownership'
 import { acquireSessionHostOwnership } from './session-host-ownership'
+import { makeSharedOperations } from './shared-operations'
 
 export const HOST_TAKEOVER_TIMEOUT_MS = 15 * 60_000
 const HOST_POLL_INTERVAL_MS = 50
@@ -169,31 +171,6 @@ const defaultDependencies: LocalSessionHostLauncherDependencies = {
   refreshPaths: refreshLocalSessionHostEndpoint,
 }
 
-function awaitWithSignal<T>(operation: Promise<T>, signal?: AbortSignal) {
-  if (!signal) return operation
-  signal.throwIfAborted()
-  return new Promise<T>((resolve, reject) => {
-    let settled = false
-    const abort = () => {
-      if (settled) return
-      settled = true
-      reject(signal.reason)
-    }
-    const finish = (settle: () => void) => {
-      if (settled) return
-      settled = true
-      signal.removeEventListener('abort', abort)
-      settle()
-    }
-    operation.then(
-      (value) => finish(() => resolve(value)),
-      (error: unknown) => finish(() => reject(error)),
-    )
-    signal.addEventListener('abort', abort, { once: true })
-    if (signal.aborted) abort()
-  })
-}
-
 async function waitForCondition(input: {
   readonly timeoutMs: number
   readonly condition: () => Promise<boolean>
@@ -297,6 +274,13 @@ async function waitForLocalSessionHostAuthority(
   throw new Error('Timed out waiting for Local Session Host authority.')
 }
 
+/**
+ * Every client that loses its Host looks for authority at once, and finds the ownership file free
+ * until the Host one of them launched boots; each would launch its own Host, and all but one would
+ * stop on ELOCKED. Clients in one process therefore share one launch per Host database.
+ */
+const sharedLaunches = makeSharedOperations<LocalSessionHostLauncherDependencies>()
+
 export async function ensureLocalSessionHost(
   input: LocalSessionClientConnectionInput & { readonly takeoverTimeoutMs?: number },
   dependencies: LocalSessionHostLauncherDependencies = defaultDependencies,
@@ -305,10 +289,11 @@ export async function ensureLocalSessionHost(
   const authority = await waitForLocalSessionHostAuthority(input, takeoverTimeoutMs, dependencies)
   if (authority.status === 'connected') return authority.negotiation
 
-  input.signal?.throwIfAborted()
-  await dependencies.launch()
-  input.signal?.throwIfAborted()
-  await waitForCompatibleHost(input, takeoverTimeoutMs, dependencies)
+  await sharedLaunches(dependencies, input.paths.databasePath, input.signal, async (signal) => {
+    await dependencies.launch()
+    signal.throwIfAborted()
+    await waitForCompatibleHost({ ...input, signal }, takeoverTimeoutMs, dependencies)
+  })
   const paths = await awaitWithSignal(dependencies.refreshPaths(input.paths), input.signal)
   return awaitWithSignal(dependencies.probe({ ...input, paths }), input.signal)
 }
