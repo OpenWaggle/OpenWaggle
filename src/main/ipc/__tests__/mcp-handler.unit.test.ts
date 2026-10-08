@@ -12,6 +12,10 @@ import {
   type McpSecretVaultServiceShape,
 } from '../../ports/mcp-secret-vault-service'
 import {
+  McpServerRuntimeService,
+  type McpServerRuntimeServiceShape,
+} from '../../ports/mcp-server-runtime-service'
+import {
   SessionProjectionRepository,
   type SessionProjectionRepositoryShape,
 } from '../../ports/session-projection-repository'
@@ -51,14 +55,28 @@ function makeTestLayer() {
           : null,
       ),
   })
+  const switchedOff = new Set<string>()
+  const setSessionMcpEnabled = vi.fn<McpServerRuntimeServiceShape['setSessionMcpEnabled']>(
+    (sessionId, enabled) =>
+      Effect.sync(() => {
+        if (enabled) switchedOff.delete(sessionId)
+        else switchedOff.add(sessionId)
+      }),
+  )
+  const serverRuntime = fromPartial<McpServerRuntimeServiceShape>({
+    getSessionMcpEnabled: (sessionId: string) => Effect.succeed(!switchedOff.has(sessionId)),
+    setSessionMcpEnabled,
+  })
   return {
     layer: Layer.mergeAll(
+      Layer.succeed(McpServerRuntimeService, serverRuntime),
       Layer.succeed(McpSecretVaultService, vault),
       Layer.succeed(McpAppRuntimeService, { readResource, listCatalog, callTool }),
       Layer.succeed(SessionProjectionRepository, sessions),
     ),
     setSecret,
     removeSecret,
+    setSessionMcpEnabled,
     readResource,
     listCatalog,
     callTool,
@@ -99,6 +117,30 @@ describe('MCP IPC handlers', () => {
 
     expect(test.setSecret).toHaveBeenCalledWith({ name: 'TOKEN', value: 'v' })
     expect(test.removeSecret).toHaveBeenCalledWith({ name: 'TOKEN' })
+  })
+
+  it("reads and switches a Session's MCP switch, which starts on", async () => {
+    const test = makeTestLayer()
+    const get = getRegisteredHandler('mcp:get-session-enabled', test.layer)
+    const set = getRegisteredHandler('mcp:set-session-enabled', test.layer)
+
+    await expect(get({}, { sessionId: 's1' })).resolves.toBe(true)
+    await expect(set({}, { sessionId: 's1', enabled: false })).resolves.toBe(false)
+    await expect(get({}, { sessionId: 's1' })).resolves.toBe(false)
+    await expect(set({}, { sessionId: 's1', enabled: true })).resolves.toBe(true)
+    expect(test.setSessionMcpEnabled).toHaveBeenCalledWith('s1', false)
+  })
+
+  it('rejects a malformed Session MCP switch before it reaches the Host', async () => {
+    const test = makeTestLayer()
+
+    await expect(
+      getRegisteredHandler('mcp:set-session-enabled', test.layer)({}, { sessionId: 's1' }),
+    ).rejects.toThrow()
+    await expect(
+      getRegisteredHandler('mcp:get-session-enabled', test.layer)({}, { sessionId: '' }),
+    ).rejects.toThrow()
+    expect(test.setSessionMcpEnabled).not.toHaveBeenCalled()
   })
 
   it('rejects a malformed secret write before it reaches the vault', async () => {

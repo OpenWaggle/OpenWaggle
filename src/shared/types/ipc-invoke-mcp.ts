@@ -23,8 +23,10 @@ import type {
   McpImportPreviewView,
   McpInstallCatalogServerRequest,
   McpServerNameRequest,
+  McpSessionRequest,
   McpSetServerEnabledRequest,
   McpSetServerExposureRequest,
+  McpSetSessionEnabledRequest,
   McpSignInResultView,
 } from './mcp-configuration-operations'
 import type {
@@ -62,6 +64,9 @@ export interface IpcMcpInvokeChannelMap {
   }
   'mcp:sign-in': { args: [input: McpServerNameRequest]; return: McpSignInResultView }
   'mcp:sign-out': { args: [input: McpServerNameRequest]; return: undefined }
+  /** Whether the Session's Runs use MCP servers; true unless the Session was switched off. */
+  'mcp:get-session-enabled': { args: [input: McpSessionRequest]; return: boolean }
+  'mcp:set-session-enabled': { args: [input: McpSetSessionEnabledRequest]; return: boolean }
   'mcp:preview-imports': { args: [input: McpImportPreviewRequest]; return: McpImportPreviewView }
   'mcp:apply-imports': { args: [input: McpImportApplyRequest]; return: McpImportApplyResultView }
   'mcp:search-registry': {

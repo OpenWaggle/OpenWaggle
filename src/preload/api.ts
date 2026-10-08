@@ -55,6 +55,8 @@ export const api: OpenWaggleApi = {
   getMcpServerStatuses: invoke('mcp:get-server-statuses'),
   signInMcpServer: invoke('mcp:sign-in'),
   signOutMcpServer: invoke('mcp:sign-out'),
+  getSessionMcpEnabled: invoke('mcp:get-session-enabled'),
+  setSessionMcpEnabled: invoke('mcp:set-session-enabled'),
   previewMcpImports: invoke('mcp:preview-imports'),
   applyMcpImports: invoke('mcp:apply-imports'),
   searchMcpRegistry: invoke('mcp:search-registry'),

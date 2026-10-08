@@ -8,8 +8,10 @@ import {
   type McpImportPreviewRequest,
   type McpInstallCatalogServerRequest,
   type McpServerNameRequest,
+  type McpSessionRequest,
   type McpSetServerEnabledRequest,
   type McpSetServerExposureRequest,
+  type McpSetSessionEnabledRequest,
 } from '@shared/types/mcp-configuration-operations'
 import { mcpConfigValueSchema } from './mcp'
 
@@ -95,3 +97,12 @@ export const mcpImportApplyRequestSchema: Schema.Schema<McpImportApplyRequest> =
   target: scope,
   conflictPolicy: Schema.Literal('skip', 'replace', 'rename'),
 })
+
+const sessionId = nonEmpty(MAX_NAME_LENGTH)
+
+export const mcpSessionRequestSchema: Schema.Schema<McpSessionRequest> = Schema.Struct({
+  sessionId,
+})
+
+export const mcpSetSessionEnabledRequestSchema: Schema.Schema<McpSetSessionEnabledRequest> =
+  Schema.Struct({ sessionId, enabled: Schema.Boolean })

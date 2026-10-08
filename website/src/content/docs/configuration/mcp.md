@@ -114,6 +114,8 @@ Select a server in **Settings > MCP** to see where it is defined, whether it is 
 
 A change to an existing server is saved to the file that defines it. Turning a global server on or off for one project is saved in that project, never in a global file. If the project already changes that server in one of its files, for example with an entry in `.pi/mcp.json`, that entry is updated. Otherwise the change goes to `.openwaggle/mcp.json`.
 
+To keep one Session away from every MCP server, open the composer's **+** menu and clear **Use MCP servers**. That Session's Runs start no MCP servers, and the ones it had open close. Every Session uses MCP servers until you do this, and the change touches no file.
+
 Removing a server also removes the entries in OpenWaggle's files that only changed it. Entries like that in Pi's files or in `.mcp.json` are left as they are and listed as errors, so you can remove them yourself.
 
 ### After upgrading from an older OpenWaggle
@@ -123,6 +125,7 @@ The first time a new version starts, OpenWaggle converts its older MCP files to 
 - If MCP was off in OpenWaggle, every server is turned off.
 - Otherwise, servers that connected before stay on, and the others are turned off.
 - This applies to every project OpenWaggle knew about when it upgraded. Projects added later, and people who never set up MCP in OpenWaggle, start with servers on as their files say.
+- A Session you had switched MCP off for stays off. Turn it back on from **Use MCP servers** in the composer's **+** menu.
 - A project that is your home folder shares its OpenWaggle file with every project, so servers you had switched on or off for that project only are not carried over. Switch them again in that project if you need to.
 
 Copies OpenWaggle made of your Pi servers are removed when they still match Pi's entry, so the server is defined once; a setting you changed in OpenWaggle, such as direct tools, stays as an entry that changes Pi's server. A copy you edited, or one that reads a secret from the encrypted store, is kept.

@@ -101,6 +101,15 @@ export interface McpImportPreviewView {
   readonly errors: readonly McpImportSourceErrorView[]
 }
 
+/** A Session whose MCP switch is read; every Session is on until switched off. */
+export interface McpSessionRequest {
+  readonly sessionId: string
+}
+
+export interface McpSetSessionEnabledRequest extends McpSessionRequest {
+  readonly enabled: boolean
+}
+
 export interface McpImportPreviewRequest extends McpConfigurationScopeRequest {
   readonly sources?: readonly McpImportSourceId[]
 }

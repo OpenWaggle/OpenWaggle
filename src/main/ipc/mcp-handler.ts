@@ -27,6 +27,10 @@ import {
   removeMcpSecretOperation,
   setMcpSecretOperation,
 } from '../application/mcp-secret-operations'
+import {
+  getSessionMcpEnabledOperation,
+  setSessionMcpEnabledOperation,
+} from '../application/mcp-session-switch-operations'
 import { hostHandle } from './typed-ipc'
 
 export function registerMcpHandlers(): void {
@@ -46,6 +50,12 @@ export function registerMcpHandlers(): void {
   )
   hostHandle('mcp:sign-in', (_event, raw: unknown) => signInMcpServerOperation(raw))
   hostHandle('mcp:sign-out', (_event, raw: unknown) => signOutMcpServerOperation(raw))
+  hostHandle('mcp:get-session-enabled', (_event, raw: unknown) =>
+    getSessionMcpEnabledOperation(raw),
+  )
+  hostHandle('mcp:set-session-enabled', (_event, raw: unknown) =>
+    setSessionMcpEnabledOperation(raw),
+  )
   hostHandle('mcp:preview-imports', (_event, raw: unknown) => previewMcpImportsOperation(raw))
   hostHandle('mcp:apply-imports', (_event, raw: unknown) => applyMcpImportsOperation(raw))
   hostHandle('mcp:search-registry', (_event, raw: unknown) => searchMcpRegistryOperation(raw))

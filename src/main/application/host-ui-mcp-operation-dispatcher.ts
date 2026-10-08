@@ -34,6 +34,10 @@ import {
   removeMcpSecretOperation,
   setMcpSecretOperation,
 } from './mcp-secret-operations'
+import {
+  getSessionMcpEnabledOperation,
+  setSessionMcpEnabledOperation,
+} from './mcp-session-switch-operations'
 
 function invalid(message: string) {
   return Effect.fail(new Error(message))
@@ -71,6 +75,8 @@ export function dispatchMcpHostUiOperation(
     .with('mcp:get-server-statuses', () => oneInput(args, getMcpServerStatusesOperation))
     .with('mcp:sign-in', () => oneInput(args, signInMcpServerOperation))
     .with('mcp:sign-out', () => oneInput(args, signOutMcpServerOperation))
+    .with('mcp:get-session-enabled', () => oneInput(args, getSessionMcpEnabledOperation))
+    .with('mcp:set-session-enabled', () => oneInput(args, setSessionMcpEnabledOperation))
     .with('mcp:preview-imports', () => oneInput(args, previewMcpImportsOperation))
     .with('mcp:apply-imports', () => oneInput(args, applyMcpImportsOperation))
     .with('mcp:search-registry', () => oneInput(args, searchMcpRegistryOperation))

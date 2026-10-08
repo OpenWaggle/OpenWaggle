@@ -9,6 +9,8 @@ export const PRELOAD_MCP_METHODS = [
   'getMcpServerStatuses',
   'signInMcpServer',
   'signOutMcpServer',
+  'getSessionMcpEnabled',
+  'setSessionMcpEnabled',
   'previewMcpImports',
   'applyMcpImports',
   'searchMcpRegistry',

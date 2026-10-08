@@ -86,6 +86,12 @@ describe('Local Session MCP authority protocol revision', () => {
     )
   })
 
+  it('ships the per-Session MCP switch with the revision-22 configuration channels', () => {
+    expect(HOST_UI_REVISION_22_REQUIRED_CHANNELS).toEqual(
+      expect.arrayContaining(['mcp:get-session-enabled', 'mcp:set-session-enabled']),
+    )
+  })
+
   it('advertises the MCP configuration capability at revision 22 only', () => {
     expect(LOCAL_SESSION_REVISION_21_CAPABILITIES).not.toContain('host-ui:mcp-configuration-v1')
     expect(LOCAL_SESSION_REVISION_22_CAPABILITIES).toContain('host-ui:mcp-configuration-v1')

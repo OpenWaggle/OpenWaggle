@@ -23,8 +23,10 @@ import type {
   McpImportPreviewView,
   McpInstallCatalogServerRequest,
   McpServerNameRequest,
+  McpSessionRequest,
   McpSetServerEnabledRequest,
   McpSetServerExposureRequest,
+  McpSetSessionEnabledRequest,
   McpSignInResultView,
 } from './mcp-configuration-operations'
 import type {
@@ -47,6 +49,8 @@ export interface OpenWaggleMcpApi {
   getMcpServerStatuses(input: McpConfigurationScopeRequest): Promise<readonly McpServerStatusView[]>
   signInMcpServer(input: McpServerNameRequest): Promise<McpSignInResultView>
   signOutMcpServer(input: McpServerNameRequest): Promise<void>
+  getSessionMcpEnabled(input: McpSessionRequest): Promise<boolean>
+  setSessionMcpEnabled(input: McpSetSessionEnabledRequest): Promise<boolean>
   previewMcpImports(input: McpImportPreviewRequest): Promise<McpImportPreviewView>
   applyMcpImports(input: McpImportApplyRequest): Promise<McpImportApplyResultView>
   searchMcpRegistry(input: McpRegistrySearchRequest): Promise<McpRegistrySearchResultView>

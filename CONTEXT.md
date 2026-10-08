@@ -50,6 +50,10 @@ _Avoid_: MCP gateway, MCP discovery handle
 The Pi-defined way a server's tools reach the model: `codemode`, `deferred`, `direct`, or `hidden`, set per server and overridable per tool.
 _Avoid_: MCP direct exposure as a separate opt-in, MCP capability handle
 
+**Session MCP switch**:
+Session state that turns MCP off for one Session: its Runs start no MCP servers and its open servers close. Every Session is on until switched off, including after the one-time migration carried an old off switch over; the composer's + menu shows it as "Use MCP servers" and turns it back on. It changes no MCP file.
+_Avoid_: global MCP switch, MCP off, per-Session MCP file
+
 **MCP compatibility module**:
 An isolated implementation of deprecated or vendor-specific protocol behavior that cannot weaken modern MCP defaults.
 _Avoid_: silent legacy fallback

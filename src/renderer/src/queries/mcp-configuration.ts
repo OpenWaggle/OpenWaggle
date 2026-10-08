@@ -14,6 +14,7 @@ export const mcpQueryKeys = {
   checks: (projectPath: string | null) => ['mcpServerCheck', projectPath] as const,
   imports: (projectPath: string | null) => ['mcpImportPreview', projectPath] as const,
   secrets: ['mcpSecrets'] as const,
+  sessionEnabled: (sessionId: string) => ['sessionMcpEnabled', sessionId] as const,
 }
 
 export function mcpConfigurationQueryOptions(
@@ -71,4 +72,14 @@ export function mcpSecretsQueryOptions(): OpenWaggleQueryOptions<
   typeof mcpQueryKeys.secrets
 > {
   return queryOptions({ queryKey: mcpQueryKeys.secrets, queryFn: () => api.listMcpSecrets() })
+}
+
+/** Whether a Session's Runs use MCP servers: on until the Session is switched off. */
+export function sessionMcpEnabledQueryOptions(
+  sessionId: string,
+): OpenWaggleQueryOptions<boolean, Error, boolean, ReturnType<typeof mcpQueryKeys.sessionEnabled>> {
+  return queryOptions({
+    queryKey: mcpQueryKeys.sessionEnabled(sessionId),
+    queryFn: () => api.getSessionMcpEnabled({ sessionId }),
+  })
 }
