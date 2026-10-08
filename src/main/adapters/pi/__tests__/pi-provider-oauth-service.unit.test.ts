@@ -48,6 +48,8 @@ function login(provider: string, loginHandlers: OAuthLoginHandlers) {
 describe('Pi provider sign-in', () => {
   it("keeps a copy-code login's link, instructions and prompt text for the sign-in UI", async () => {
     const answers: string[] = []
+    // The flow cancels the paste field once its browser callback finishes the sign-in.
+    const browserCallback = new AbortController()
     runtime.login = async (_provider, _type, interaction) => {
       interaction.notify({
         type: 'auth_url',
@@ -59,6 +61,7 @@ describe('Pi provider sign-in', () => {
           type: 'manual_code',
           message: 'Paste the authorization code',
           placeholder: 'code#state',
+          signal: browserCallback.signal,
         }),
       )
     }
@@ -70,10 +73,10 @@ describe('Pi provider sign-in', () => {
       'https://claude.ai/oauth/authorize?code=true',
       'Open the link in any browser, then paste the code it shows.',
     )
-    expect(loginHandlers.onManualCodeInput).toHaveBeenCalledWith({
-      message: 'Paste the authorization code',
-      placeholder: 'code#state',
-    })
+    expect(loginHandlers.onManualCodeInput).toHaveBeenCalledWith(
+      { message: 'Paste the authorization code', placeholder: 'code#state' },
+      browserCallback.signal,
+    )
     expect(answers).toEqual(['pasted-code'])
   })
 
@@ -86,14 +89,22 @@ describe('Pi provider sign-in', () => {
 
     await login('radius', loginHandlers)
 
-    expect(loginHandlers.onPrompt).toHaveBeenNthCalledWith(1, {
-      message: 'Radius workspace URL',
-      secret: false,
-      allowEmpty: true,
-    })
-    expect(loginHandlers.onPrompt).toHaveBeenNthCalledWith(2, {
-      message: 'Paste your token',
-      secret: true,
-    })
+    expect(loginHandlers.onPrompt).toHaveBeenNthCalledWith(
+      1,
+      {
+        message: 'Radius workspace URL',
+        secret: false,
+        allowEmpty: true,
+      },
+      undefined,
+    )
+    expect(loginHandlers.onPrompt).toHaveBeenNthCalledWith(
+      2,
+      {
+        message: 'Paste your token',
+        secret: true,
+      },
+      undefined,
+    )
   })
 })

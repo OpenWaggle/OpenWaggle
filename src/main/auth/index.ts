@@ -151,16 +151,16 @@ async function runOAuthFlow(
             emitStatus({ type: 'awaiting-selection', provider, selection })
             return createOAuthInputPromise(provider)
           },
-          onPrompt: async (prompt) => {
+          onPrompt: async (prompt, promptSignal) => {
             emitStatus(awaitingInput(prompt))
-            return createOAuthInputPromise(provider)
+            return createOAuthInputPromise(provider, { signal: promptSignal, emitStatus })
           },
           onProgress: () => {
             emitStatus({ type: 'in-progress', provider })
           },
-          onManualCodeInput: (prompt) => {
+          onManualCodeInput: (prompt, promptSignal) => {
             emitStatus(awaitingInput(prompt))
-            return createOAuthInputPromise(provider)
+            return createOAuthInputPromise(provider, { signal: promptSignal, emitStatus })
           },
           signal,
         })
@@ -195,7 +195,15 @@ async function runOAuthFlow(
   }
 }
 
-function createOAuthInputPromise(provider: OAuthProvider) {
+/**
+ * The answer the user types or pastes. `signal` aborts when the sign-in no longer needs it, such
+ * as when the browser callback finished it first: the field goes away and the sign-in shows as in
+ * progress again.
+ */
+function createOAuthInputPromise(
+  provider: OAuthProvider,
+  cancellation?: { readonly signal: AbortSignal | undefined; readonly emitStatus: StatusEmitter },
+) {
   const existingPending = pendingInputHandlers.get(provider)
   if (existingPending) {
     pendingInputHandlers.delete(provider)
@@ -205,7 +213,18 @@ function createOAuthInputPromise(provider: OAuthProvider) {
   }
 
   const inputPromise = new Promise<string>((resolve, reject) => {
-    pendingInputHandlers.set(provider, { resolve, reject })
+    const pending = { resolve, reject }
+    pendingInputHandlers.set(provider, pending)
+    cancellation?.signal?.addEventListener(
+      'abort',
+      () => {
+        if (pendingInputHandlers.get(provider) !== pending) return
+        pendingInputHandlers.delete(provider)
+        reject(new Error('The sign-in no longer needs this answer.'))
+        cancellation.emitStatus({ type: 'in-progress', provider })
+      },
+      { once: true },
+    )
   })
   void inputPromise.catch(() => {})
   return inputPromise

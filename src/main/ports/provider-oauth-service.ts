@@ -13,9 +13,13 @@ export interface OAuthLoginHandlers {
   readonly onAuthUrl: (url: string, instructions?: string) => void
   readonly onDeviceCode: (params: OAuthDeviceCode) => void
   readonly onSelect: (params: OAuthSelectPrompt) => Promise<string | undefined>
-  readonly onPrompt: (prompt: OAuthInputPrompt) => Promise<string>
+  /** `signal` aborts when the sign-in no longer needs the answer, such as a browser callback. */
+  readonly onPrompt: (prompt: OAuthInputPrompt, signal?: AbortSignal) => Promise<string>
   readonly onProgress: () => void
-  readonly onManualCodeInput: (prompt: Omit<OAuthInputPrompt, 'secret'>) => Promise<string>
+  readonly onManualCodeInput: (
+    prompt: Omit<OAuthInputPrompt, 'secret'>,
+    signal?: AbortSignal,
+  ) => Promise<string>
   readonly signal: AbortSignal
 }
 

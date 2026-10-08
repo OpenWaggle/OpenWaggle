@@ -50,19 +50,25 @@ function respondToOAuthPrompt(prompt: AuthPrompt, handlers: OAuthLoginHandlers) 
       return response
     })
     .with('manual_code', (prompt) =>
-      handlers.onManualCodeInput({
-        message: prompt.message,
-        ...(prompt.placeholder === undefined ? {} : { placeholder: prompt.placeholder }),
-      }),
+      handlers.onManualCodeInput(
+        {
+          message: prompt.message,
+          ...(prompt.placeholder === undefined ? {} : { placeholder: prompt.placeholder }),
+        },
+        prompt.signal,
+      ),
     )
     .with('text', 'secret', (prompt) =>
-      handlers.onPrompt({
-        message: prompt.message,
-        ...(prompt.placeholder === undefined ? {} : { placeholder: prompt.placeholder }),
-        secret: prompt.type === 'secret',
-        // A text prompt may be answered with nothing; a code or secret may not.
-        ...(prompt.type === 'text' ? { allowEmpty: true } : {}),
-      }),
+      handlers.onPrompt(
+        {
+          message: prompt.message,
+          ...(prompt.placeholder === undefined ? {} : { placeholder: prompt.placeholder }),
+          secret: prompt.type === 'secret',
+          // A text prompt may be answered with nothing; a code or secret may not.
+          ...(prompt.type === 'text' ? { allowEmpty: true } : {}),
+        },
+        prompt.signal,
+      ),
     )
     .exhaustive()
 }
