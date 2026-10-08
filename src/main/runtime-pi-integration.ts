@@ -3,6 +3,7 @@
  * no store and subscribes to nothing on its own, and the Host reaches warming only through the
  * PromptCacheWarming port.
  */
+import { forgetModelFallbackNotice } from './adapters/pi/agent-kernel/interaction-ui-context'
 import { idleCacheWarming } from './adapters/pi/agent-kernel/pi-idle-cache-warming'
 import {
   currentOpenWagglePiAppSettings,
@@ -26,6 +27,7 @@ export function installPiRuntimeIntegration() {
   // Removal hooks run before the Pi file is archived or deleted, so no warming session writes it.
   const removeHook = onSessionRemoved(async (sessionId) => {
     promptCacheWarming().closeSession(sessionId)
+    forgetModelFallbackNotice(sessionId)
   })
   const unsubscribe = onAuthoritativeSettingsChange((settings) => {
     setOpenWagglePiAppSettingsSource(settings)

@@ -41,6 +41,7 @@ vi.mock('../../pi-provider-catalog', () => ({
 
 const { createPiRunSessionRuntime } = await import('../run-lifecycle')
 const { idleCacheWarming } = await import('../pi-idle-cache-warming')
+const { forgetModelFallbackNotice } = await import('../interaction-ui-context')
 
 const SCRATCH = '/tmp/ow-scratch-501/37a8eec1/0123456789ab'
 
@@ -183,5 +184,34 @@ describe('Pi run session scratch environment', () => {
     expect(await run('router/auto')).toBe(1)
     expect(await run('router/auto')).toBe(0)
     expect(await run('router/other-removed')).toBe(1)
+  })
+
+  it('keeps the fallback warning through a Waggle Run and forgets it with the Session', async () => {
+    const message =
+      'Could not restore model router/auto (model no longer exists). Using provider/model.'
+    const sessionId = SessionId('session-waggle-and-removal')
+    const run = async (modelFallback: 'last-answering-model' | undefined) => {
+      const input = runtimeInput()
+      const onEvent = vi.fn()
+      await createPiRunSessionRuntime({
+        ...input,
+        session: fromPartial({ ...input.session, id: sessionId }),
+        onEvent,
+        ...(modelFallback ? { modelFallback } : {}),
+      })
+      return onEvent.mock.calls.filter(([event]) => event?.type === 'agent_interaction_request')
+        .length
+    }
+
+    mocks.runtime.modelFallbackMessage = message
+    expect(await run('last-answering-model')).toBe(1)
+    // A Waggle agent runs on its own pinned model and says nothing about the Session's selection.
+    delete mocks.runtime.modelFallbackMessage
+    expect(await run(undefined)).toBe(0)
+    mocks.runtime.modelFallbackMessage = message
+    expect(await run('last-answering-model')).toBe(0)
+
+    forgetModelFallbackNotice(sessionId)
+    expect(await run('last-answering-model')).toBe(1)
   })
 })

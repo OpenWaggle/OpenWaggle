@@ -90,7 +90,7 @@ function exposePiRunControl(
   session: AgentSession,
   openWaggleUi: PiInteractionUiContextInput,
 ) {
-  notifyModelFallback(openWaggleUi, input.modelReference, runtime.modelFallbackMessage)
+  notifyModelFallback(openWaggleUi, input, runtime.modelFallbackMessage)
   input.onControlAvailable?.(
     createPiRunControl(session, input.signal, {
       routeThroughInputHook: input.steeringInputHook === true,
