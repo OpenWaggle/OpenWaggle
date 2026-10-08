@@ -41,10 +41,8 @@ The “Audited gap” column records the pre-implementation baseline found durin
 | Workspace | `WorkspaceFileBrowser` | Read/filter/open only and keyed to the primary project path | Active-working-path explorer with safe create/rename/move/duplicate/trash/reveal actions, coalesced external-change updates, and coordinated active-file/document/cache identity |
 | Diffs | Main diff panel and Syntax theme sample | Pierre with a separate fixed theme setting | Pierre adapter using the canonical registry and resolved four-variant theme package |
 | Settings / MCP | `McpSourceEditor` | Synchronous highlighted-textarea overlay with JSON only | Compact Pierre-backed JSON editor sharing the focused-edit and syntax contracts without language services |
-| Settings / MCP | Event inbox payloads | Raw `JSON.stringify` `<pre>` | Structured payload adapter with JSON tree/source views |
 | Settings / MCP | Resource and prompt results | Flattened text; structured values stringify without shared highlighting | Media-type-aware structured payload or Markdown/source adapter; retain attribution and untrusted-content labels |
 | Settings / MCP | Server instructions | Plain draft text | Markdown adapter when the contract declares Markdown; otherwise Plain Text |
-| Settings / MCP | Remote Skill instructions and reviews | Raw Markdown in `<pre>` | Safe Markdown adapter with highlighted fences and preserved trust/digest messaging |
 | MCP Apps | Staged context and typed tool payloads | JSON embedded into plain draft strings | Structured payload adapter before attachment; MCP App-owned UI remains governed by its protocol boundary |
 | Skills | `SkillPreviewPane` | Safe Markdown without fenced-code highlighting | Same Markdown adapter used by chat and workspace previews |
 | Settings / themes | Syntax theme preview | Pierre-only sample | Reversible preview transaction showing focused source, Markdown, diff, and structured-payload samples with explicit real languages |
