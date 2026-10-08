@@ -66,6 +66,8 @@ export async function loadAgentDefinitionSemanticCatalog(
   let tools: readonly string[] | undefined
   let skills: readonly string[] | undefined
   let mcpServers: readonly string[] | undefined
+  // Servers Pi extensions register (`pi.registerMcpServer`), which Runs connect like configured ones.
+  let extensionMcpServers: readonly string[] = []
 
   try {
     const extensionSelectionServices =
@@ -76,9 +78,9 @@ export async function loadAgentDefinitionSemanticCatalog(
     )
     models = services.modelRuntime.getModels().map((model) => `${model.provider}/${model.id}`)
     skills = services.resourceLoader.getSkills().skills.map((skill) => skill.name)
-    const extensionTools = services.resourceLoader
-      .getExtensions()
-      .extensions.flatMap((extension) => [...extension.tools.keys()])
+    const extensions = services.resourceLoader.getExtensions()
+    const extensionTools = extensions.extensions.flatMap((extension) => [...extension.tools.keys()])
+    extensionMcpServers = extensions.runtime.mcpServers.list().map((server) => server.name)
     // Pi's codemode, tool search, and MCP resource tools load in every Session (ADR 0050).
     tools = [...BUILTIN_AND_NATIVE_TOOL_NAMES, ...MCP_REACH_TOOL_NAMES, ...extensionTools]
   } catch (error) {
@@ -97,7 +99,11 @@ export async function loadAgentDefinitionSemanticCatalog(
     if (configured.errors.length === 0) {
       // A definition from before ADR 0050 may name a server by its old instance ID.
       const legacyNames = await readLegacyMcpServerNames(input.userHome)
-      mcpServers = [...configured.names, ...legacyMcpServerAliases(configured.names, legacyNames)]
+      mcpServers = [
+        ...configured.names,
+        ...legacyMcpServerAliases(configured.names, legacyNames),
+        ...extensionMcpServers,
+      ]
     } else loadDiagnostics.push(...configured.errors)
   } catch (error) {
     loadDiagnostics.push(`MCP project resources failed to load: ${message(error)}`)

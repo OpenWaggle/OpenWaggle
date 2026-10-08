@@ -104,6 +104,7 @@ describe('loadAgentDefinitionSemanticCatalog', () => {
           getExtensions: () => ({
             extensions: [{ tools: new Map([['managed_tool', {}]]) }],
             errors: [],
+            runtime: { mcpServers: { list: () => [] } },
           }),
         },
       }),
@@ -151,7 +152,11 @@ describe('loadAgentDefinitionSemanticCatalog', () => {
         modelRuntime: { getModels: () => [] },
         resourceLoader: {
           getSkills: () => ({ skills: [] }),
-          getExtensions: () => ({ extensions: [], errors: [] }),
+          getExtensions: () => ({
+            extensions: [],
+            errors: [],
+            runtime: { mcpServers: { list: () => [] } },
+          }),
         },
       }),
     )
@@ -167,6 +172,38 @@ describe('loadAgentDefinitionSemanticCatalog', () => {
     })
 
     expect(catalog.mcpServers).toEqual(['github', 'gh-1'])
+    await rm(home, { recursive: true, force: true })
+  })
+
+  it('accepts MCP servers a Pi extension registers, as Runs do', async () => {
+    const home = await mkdtemp(path.join(tmpdir(), 'ow-catalog-home-'))
+    await writeFile(path.join(home, 'empty'), '')
+    catalogMocks.createPiRuntimeServices.mockResolvedValue(
+      fromPartial<AgentDefinitionPiProjectServices>({
+        modelRuntime: { getModels: () => [] },
+        resourceLoader: {
+          getSkills: () => ({ skills: [] }),
+          getExtensions: () => ({
+            extensions: [],
+            errors: [],
+            // pi.registerMcpServer('jira', …) in a project extension.
+            runtime: { mcpServers: { list: () => [{ name: 'jira' }] } },
+          }),
+        },
+      }),
+    )
+
+    const catalog = await loadAgentDefinitionSemanticCatalog({
+      projectPath: path.join(home, 'project'),
+      userHome: home,
+      piAgentDir: path.join(home, '.pi', 'agent'),
+      extensionSelectionServices: extensionSelectionServices(
+        managedExtension('/tmp/unused'),
+        enabledLifecycle('/tmp/unused'),
+      ),
+    })
+
+    expect(catalog.mcpServers).toContain('jira')
     await rm(home, { recursive: true, force: true })
   })
 })
