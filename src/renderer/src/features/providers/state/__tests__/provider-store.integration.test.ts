@@ -168,6 +168,37 @@ describe('provider-store integration', () => {
     },
   )
 
+  it("moves a selection the project's catalog does not list to an enabled model it can run", async () => {
+    const settings = {
+      ...DEFAULT_SETTINGS,
+      projectPath: '/repo/demo',
+      selectedModel: SupportedModelId('qa-faux/luna'),
+      enabledModels: [SupportedModelId('qa-faux/luna'), SupportedModelId('openai/gpt-4.1-mini')],
+    }
+    // This project's catalog has no QA Faux provider: it lives in another project's extensions.
+    apiMock.getProviderModels.mockResolvedValue(openAiProviderModels())
+
+    await useProviderStore.getState().loadProviderModels(settings)
+
+    expect(apiMock.getProviderModels).toHaveBeenCalledWith('/repo/demo')
+    expect(apiMock.updateSettings).toHaveBeenCalledWith({ selectedModel: 'openai/gpt-4.1-mini' })
+  })
+
+  it('repairs a stored selection whose model Pi dropped from a provider it still lists', async () => {
+    const settings = {
+      ...DEFAULT_SETTINGS,
+      projectPath: null,
+      // A Pi 0.x model id that Pi 1.0 no longer lists for OpenAI.
+      selectedModel: SupportedModelId('openai/gpt-4.1-mini-2025'),
+      enabledModels: [SupportedModelId('openai/gpt-4.1-mini')],
+    }
+    apiMock.getProviderModels.mockResolvedValue(openAiProviderModels())
+
+    await useProviderStore.getState().loadProviderModels(settings)
+
+    expect(apiMock.updateSettings).toHaveBeenCalledWith({ selectedModel: 'openai/gpt-4.1-mini' })
+  })
+
   it('moves a selection the catalog lists but cannot use to an enabled model it can', async () => {
     const [openAi] = openAiProviderModels()
     const [ollama] = ollamaProviderModels()

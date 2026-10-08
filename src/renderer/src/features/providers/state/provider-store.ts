@@ -1,5 +1,6 @@
 import { SupportedModelId } from '@shared/types/brand'
 import type { ProviderInfo } from '@shared/types/llm'
+import { parseModelRef } from '@shared/types/llm'
 import { DEFAULT_SETTINGS, type Provider, type Settings } from '@shared/types/settings'
 import { create } from 'zustand'
 import { api } from '@/shared/lib/ipc'
@@ -35,6 +36,37 @@ function buildAvailableModelSet(providerModels: readonly ProviderInfo[]) {
     }
   }
   return available
+}
+
+/** The first of `models` the catalog lists and can run. */
+export function firstRunnableModel(
+  providerModels: readonly ProviderInfo[],
+  models: readonly SupportedModelId[],
+) {
+  const available = buildAvailableModelSet(providerModels)
+  return models.find((model) => available.has(model))
+}
+
+/**
+ * Whether the stored selection may stay. Enabled models a catalog does not list stay enabled and
+ * are only not shown, since enabledModels holds every project's choices. The selection is
+ * project-scoped work, though:
+ * - one the catalog lists must be enabled and available;
+ * - a project's catalog lists everything that project can run, so one it lacks is unusable there;
+ * - without a project, one the catalog lacks may be another project's extension or virtual model,
+ *   unless the catalog lists its provider but not the model: Pi dropped that model (0.x ids).
+ */
+function selectionUsable(
+  providerModels: readonly ProviderInfo[],
+  settings: Pick<Settings, 'enabledModels' | 'selectedModel' | 'projectPath'>,
+) {
+  const selected = settings.selectedModel
+  if (!selected) return false
+  const listed = catalogModel(providerModels, selected)
+  if (listed) return listed.available && settings.enabledModels.includes(selected)
+  if (settings.projectPath) return false
+  const provider = parseModelRef(selected)?.provider
+  return !providerModels.some((group) => group.provider === provider)
 }
 
 /** The model of a Session's latest response, which a gone selection's Runs fall back to. */
@@ -188,22 +220,10 @@ export const useProviderStore = create<ProviderState>((set) => ({
       if (baseProviderModels.length === 0) {
         return null
       }
-      /*
-       * Enabled models this catalog does not list stay enabled and are only not shown: a project's
-       * extension providers and virtual models are listed only with that project's catalog, and
-       * enabledModels holds every project's choices. Only a selection the catalog lists but cannot
-       * use moves to an enabled model that it can.
-       */
-      const catalog = buildModelCatalogSet(baseProviderModels)
-      const available = buildAvailableModelSet(baseProviderModels)
-      const { enabledModels } = currentSettings
-      const selected = currentSettings.selectedModel
-      const selectionUsable =
-        selected &&
-        (!catalog.has(selected) || (enabledModels.includes(selected) && available.has(selected)))
-      if (selectionUsable) return null
+      const { enabledModels, selectedModel: selected } = currentSettings
+      if (selectionUsable(baseProviderModels, currentSettings)) return null
       const selectedModel =
-        enabledModels.find((modelRef) => available.has(modelRef)) ?? DEFAULT_SETTINGS.selectedModel
+        firstRunnableModel(baseProviderModels, enabledModels) ?? DEFAULT_SETTINGS.selectedModel
       if (selectedModel === selected) return null
       await api.updateSettings({ selectedModel })
       return { ...currentSettings, selectedModel }

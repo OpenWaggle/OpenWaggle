@@ -7,7 +7,7 @@ import {
   type ShortcutCommand,
   type ShortcutRules,
 } from '@shared/types/shortcuts'
-import { useProviderStore } from '@/features/providers/state'
+import { firstRunnableModel, useProviderStore } from '@/features/providers/state'
 import { setRuntimeAppearancePreferences } from '@/shared/lib/appearance-preferences-runtime'
 import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
@@ -86,9 +86,12 @@ async function setProjectPath(path: string | null, set: PreferencesSet, get: Pre
 async function setEnabledModels(models: string[], set: PreferencesSet, get: PreferencesGet) {
   const { settings } = get()
   const enabledModels = models.map(SupportedModelId)
+  // A new Session's model must be one this project can run, not merely the first enabled.
   const selectedModel = enabledModels.includes(settings.selectedModel)
     ? settings.selectedModel
-    : (enabledModels[0] ?? DEFAULT_SETTINGS.selectedModel)
+    : (firstRunnableModel(useProviderStore.getState().providerModels, enabledModels) ??
+      enabledModels[0] ??
+      DEFAULT_SETTINGS.selectedModel)
   await api.setEnabledModels(enabledModels)
   if (selectedModel !== settings.selectedModel) {
     await api.updateSettings({ selectedModel })
