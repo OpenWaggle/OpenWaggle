@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, statSync } from 'node:fs'
+import { closeSync, existsSync, openSync, readdirSync, readSync, statSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import path, { basename, dirname, join, resolve } from 'node:path'
 import { getAgentDir, parseSessionEntries, SessionManager } from '@earendil-works/pi-coding-agent'
@@ -29,14 +29,51 @@ function isInsideProject(candidate: string, projectPath: string) {
   return !path.isAbsolute(relative) && relative !== '..' && !relative.startsWith(`..${path.sep}`)
 }
 
+/** Enough of a Pi file for its header line. */
+const HEADER_READ_BYTES = 64 * 1024
+/** Header working directories by file; a Pi session's header never changes. */
+const headerCwdByFile = new Map<string, string | null>()
+
+function readHeaderCwd(file: string) {
+  let descriptor: number | undefined
+  try {
+    descriptor = openSync(file, 'r')
+    const buffer = Buffer.alloc(HEADER_READ_BYTES)
+    const bytesRead = readSync(descriptor, buffer, 0, HEADER_READ_BYTES, 0)
+    for (const line of buffer.subarray(0, bytesRead).toString('utf8').split('\n')) {
+      if (!line.trim()) continue
+      const header: unknown = JSON.parse(line)
+      if (typeof header !== 'object' || header === null || !('cwd' in header)) return null
+      return typeof header.cwd === 'string' ? header.cwd : null
+    }
+    return null
+  } catch {
+    // A missing or unreadable file has no folder to offer; the checkout is used.
+    return null
+  } finally {
+    if (descriptor !== undefined) closeSync(descriptor)
+  }
+}
+
+/** The working directory a Session's Pi file records in its header. */
+function piFileCwd(piSessionFile: string | undefined) {
+  if (!piSessionFile) return null
+  const cached = headerCwdByFile.get(piSessionFile)
+  if (cached !== undefined) return cached
+  const cwd = readHeaderCwd(piSessionFile)
+  if (cwd !== null) headerCwdByFile.set(piSessionFile, cwd)
+  return cwd
+}
+
 /**
- * Where a local-mode Session's agent works: the opened checkout, or, for a Pi session discovered
- * from the `pi` CLI, the folder inside it the CLI ran in, so it continues there as
- * `pi --resume` would (ADR 0050). A folder that is gone or outside the project falls back to the
- * checkout.
+ * Where a local-mode Session's agent works: the folder its Pi session runs in when that is inside
+ * the opened checkout, otherwise the checkout. For a Pi session discovered from the `pi` CLI that
+ * is the folder the CLI ran in, so it continues there as `pi --resume` would (ADR 0050); a fork
+ * or copy of it records the same folder in its own file's header. A folder that is gone or outside
+ * the project falls back to the checkout.
  */
 export function resolveLocalWorkingPath(session: SessionDetail, projectPath: string) {
-  const cwd = session.piSessionCwd
+  const cwd = session.piSessionCwd ?? piFileCwd(session.piSessionFile)
   if (!cwd || !isInsideProject(cwd, projectPath) || !existsSync(cwd)) return projectPath
   return path.resolve(cwd)
 }

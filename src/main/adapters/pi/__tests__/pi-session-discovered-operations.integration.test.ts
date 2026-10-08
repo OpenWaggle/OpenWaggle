@@ -109,8 +109,8 @@ const LONG_TURNS = 3
 const LONG_PROMPT_WORDS = 15_000
 
 /** A discovered session with two exchanges, opened once so it is projected. */
-async function discoveredSession(options: { readonly long?: boolean } = {}) {
-  const cli = createPiCliSession(fixture.project, 'First question')
+async function discoveredSession(options: { readonly long?: boolean; readonly cwd?: string } = {}) {
+  const cli = createPiCliSession(options.cwd ?? fixture.project, 'First question')
   continuePiCliSession(cli.file, 'Second question')
   for (let turn = 0; options.long && turn < LONG_TURNS; turn++) {
     continuePiCliSession(cli.file, `Long turn ${String(turn)} ${'word '.repeat(LONG_PROMPT_WORDS)}`)
@@ -247,6 +247,29 @@ describe('Operations on a discovered Pi session', () => {
       expect(messageTexts(fork.session)).toEqual(texts)
     },
   )
+
+  it.each([
+    ['fork', 'before'],
+    ['clone', 'at'],
+  ] as const)('runs a %s of a session from a subfolder in that subfolder', async (_, position) => {
+    const { SettingsService } = await import('../../../services/settings-service')
+    await run(
+      Effect.flatMap(SettingsService, (settings) =>
+        settings.update({ enabledModels: [MODEL], selectedModel: MODEL }),
+      ),
+    )
+    const cwd = path.join(fixture.project, 'packages', 'core')
+    const { sessionId } = await discoveredSession({ cwd })
+    const [, secondUser] = await userNodeIds(sessionId)
+    const { forkSession } = await import(
+      '../../../application/host-ui-session-lifecycle-operations'
+    )
+    const { resolveSessionWorkingPath } = await import('../agent-kernel/session-manager')
+
+    const fork = await run(forkSession([sessionId, MODEL, String(secondUser)], position))
+
+    expect(resolveSessionWorkingPath(fork.session)).toBe(cwd)
+  })
 
   it('compacts and keeps the summary pointing at a prefixed node', async () => {
     const { sessionId, prefix } = await discoveredSession({ long: true })
