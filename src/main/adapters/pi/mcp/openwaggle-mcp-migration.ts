@@ -92,7 +92,7 @@ export async function knownMcpProjectPaths(): Promise<readonly string[]> {
  * path. A managed worktree is not one; writing its `.openwaggle/mcp.json` would leave an
  * untracked file in the user's checkout.
  */
-async function durableMcpProjectPaths(): Promise<readonly string[]> {
+export async function durableMcpProjectPaths(): Promise<readonly string[]> {
   const { listSessionProjectRoots } = await import(
     '../../../store/session-details/workspace-root-authorization'
   )

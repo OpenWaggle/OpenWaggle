@@ -61,6 +61,8 @@ export interface McpConfigurationView {
   readonly servers: readonly McpConfiguredServerView[]
   /** Unreadable files and invalid entries, as Pi reports them. */
   readonly errors: readonly string[]
+  /** Entries that are ignored without breaking anything, such as an orphaned OpenWaggle override. */
+  readonly warnings?: readonly string[]
 }
 
 export type McpServerConnectionStateView =

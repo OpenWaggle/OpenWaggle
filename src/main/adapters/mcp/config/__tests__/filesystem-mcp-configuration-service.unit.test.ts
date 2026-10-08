@@ -166,6 +166,22 @@ describe('filesystem MCP configuration service', () => {
     expect(json(owProject())).toEqual({ mcpServers: {} })
   })
 
+  it("removes a global server's overrides from every project OpenWaggle knows", async () => {
+    const other = path.join(root, 'other')
+    const otherOverride = path.join(other, '.openwaggle', 'mcp.json')
+    write(owGlobal(), { mcpServers: { fs: { command: 'fs' } } })
+    write(otherOverride, { mcpServers: { fs: { enabled: false }, own: { command: 'own' } } })
+    const sweeping = createFilesystemMcpConfigurationService({
+      homeDir,
+      piAgentDir,
+      knownProjectPaths: async () => [other, projectPath],
+    })
+
+    await Effect.runPromise(sweeping.removeServer({ projectPath: null, name: 'fs' }))
+
+    expect(json(otherOverride)).toEqual({ mcpServers: { own: { command: 'own' } } })
+  })
+
   it('fails for a server that is not configured', async () => {
     const exit = await Effect.runPromiseExit(
       service().setServerExposure({ projectPath: null, name: 'ghost', exposure: 'direct' }),

@@ -175,6 +175,19 @@ describe('MCP configuration file merge', () => {
     ])
   })
 
+  it("only warns about an override in OpenWaggle's file of a server no file defines any more", () => {
+    const merged = mergeMcpConfigLayers(
+      fileSet({ projectOpenwaggle: { mcpServers: { removed: { enabled: false } } } }),
+    )
+
+    // OpenWaggle wrote it for a global server since removed; nothing else breaks.
+    expect(merged.errors).toEqual([])
+    expect(merged.warnings).toEqual([
+      `${PROJECT_OW}: server "removed" only changes a server no file defines any more; it is ignored`,
+    ])
+    expect(merged.servers).toEqual([])
+  })
+
   it('reports an override with nothing to override or with other keys', () => {
     const merged = mergeMcpConfigLayers(
       fileSet({

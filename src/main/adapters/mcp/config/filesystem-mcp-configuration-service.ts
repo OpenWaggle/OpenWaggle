@@ -47,6 +47,11 @@ export interface FilesystemMcpConfigurationOptions {
   readonly homeDir: string
   readonly piAgentDir: string
   readonly reader?: McpConfigFileReader
+  /**
+   * The projects whose `.openwaggle/mcp.json` may override a global server; removing one removes
+   * its override-only entries there too.
+   */
+  readonly knownProjectPaths?: () => Promise<readonly string[]>
 }
 
 function describe(error: unknown) {
@@ -131,6 +136,7 @@ function buildView(
     files,
     servers: merged.servers.map(serverView),
     errors: merged.errors,
+    ...(merged.warnings ? { warnings: merged.warnings } : {}),
   }
 }
 
@@ -197,16 +203,27 @@ function addServer(context: ServiceContext, input: McpAddServerInput) {
   return filePath
 }
 
-function removeServer(context: ServiceContext, input: McpRemoveServerInput) {
+function removeServer(
+  context: ServiceContext,
+  input: McpRemoveServerInput,
+  knownProjects: readonly string[],
+) {
   const server = findServer(context, input, input.name)
   removeMcpServerEntry(server.source.path, input.name)
-  return [server.source.path, ...removeOrphanedOverrides(context, input, input.name)]
+  const changed = [server.source.path, ...removeOrphanedOverrides(context, input, input.name)]
+  if (server.scope !== 'global') return changed
+  for (const projectPath of new Set(knownProjects)) {
+    if (projectPath === input.projectPath) continue
+    changed.push(...removeOrphanedOverrides(context, { projectPath }, input.name))
+  }
+  return [...new Set(changed)]
 }
 
 /**
- * Once no file defines the server, its override-only entries would be config errors. Those in
- * OpenWaggle's files are removed with it; those in Pi's and shared files are left as they are and
- * show up in the view's errors. While an earlier file still defines the server, they stay.
+ * Once no file defines the server, its override-only entries are orphans. Those in OpenWaggle's
+ * files are removed with it (in every known project for a global server; one left behind is only a
+ * warning); those in Pi's and shared files are left as they are and show up in the view's errors.
+ * While an earlier file still defines the server, they stay.
  */
 function removeOrphanedOverrides(
   context: ServiceContext,
@@ -265,7 +282,10 @@ export function createFilesystemMcpConfigurationService(
     setServerEnabled: (input) => write(() => setEnabled(context, input)),
     setServerExposure: (input) => write(() => setExposure(context, input)),
     addServer: (input) => write(() => addServer(context, input)),
-    removeServer: (input) => write(() => removeServer(context, input)),
+    removeServer: (input) =>
+      Effect.promise(async () => (await options.knownProjectPaths?.().catch(() => [])) ?? []).pipe(
+        Effect.flatMap((projects) => write(() => removeServer(context, input, projects))),
+      ),
     changed: notify,
     onChange: (listener) => {
       listeners.add(listener)

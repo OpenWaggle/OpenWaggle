@@ -15,7 +15,7 @@ import { resolveMcpVaultSecret } from '../../mcp/encrypted-mcp-secret-vault-serv
 import { createFilesystemMcpImportService } from '../../mcp/filesystem-mcp-import-service'
 import { migrateBeforeImports } from '../../mcp/migrating-mcp-import-service'
 import { getPiAgentDir } from '../pi-provider-catalog'
-import { migrateOpenWaggleMcpFilesOnce } from './openwaggle-mcp-migration'
+import { durableMcpProjectPaths, migrateOpenWaggleMcpFilesOnce } from './openwaggle-mcp-migration'
 
 let service: McpConfigurationServiceShape | undefined
 
@@ -26,7 +26,12 @@ let service: McpConfigurationServiceShape | undefined
 export function getOpenWaggleMcpConfigurationService() {
   service ??= withRuntimeConfigErrors(
     migrateBeforeEachCall(
-      createFilesystemMcpConfigurationService({ homeDir: homedir(), piAgentDir: getPiAgentDir() }),
+      createFilesystemMcpConfigurationService({
+        homeDir: homedir(),
+        piAgentDir: getPiAgentDir(),
+        // Not managed worktrees: their files are the user's checkout.
+        knownProjectPaths: durableMcpProjectPaths,
+      }),
       migrateOpenWaggleMcpFilesOnce,
     ),
     async (projectPath) =>

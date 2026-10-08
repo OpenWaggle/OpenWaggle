@@ -30,6 +30,18 @@ function ConfigErrors({ errors }: { readonly errors: readonly string[] }) {
   )
 }
 
+function ConfigWarnings({ warnings }: { readonly warnings: readonly string[] }) {
+  if (warnings.length === 0) return null
+  return (
+    <div className="space-y-1.5">
+      <p className="text-xs text-text-tertiary">Ignored, nothing else is affected:</p>
+      <PlainTextBlock reason="log" ariaLabel="Ignored MCP configuration">
+        {warnings.join('\n')}
+      </PlainTextBlock>
+    </div>
+  )
+}
+
 export function McpServersPanel({ projectPath }: { readonly projectPath: string | null }) {
   const queryClient = useQueryClient()
   const configuration = useMcpConfiguration(projectPath)
@@ -104,6 +116,7 @@ export function McpServersPanel({ projectPath }: { readonly projectPath: string 
         ) : null}
         <McpInlineError message={configuration.loadError} />
         <ConfigErrors errors={view?.errors ?? []} />
+        <ConfigWarnings warnings={view?.warnings ?? []} />
         {configuration.isLoading ? (
           <p className="text-xs text-text-tertiary">Loading servers…</p>
         ) : (

@@ -82,7 +82,9 @@ and a later file beats an earlier one.
   (including `env`, `headers`, `auth`), and records that file as the entry's `override`. Later
   overrides stack on earlier ones; `override` names the last one, which is where Pi writes
   enabled/exposure changes.
-- An override-only entry with nothing to override is reported as a config error and skipped.
+- An override-only entry with nothing to override is skipped. In OpenWaggle's own files (an
+  override OpenWaggle wrote for a server since removed) it is a warning (`warnings` in the merged
+  config and the view, shown in Settings as ignored); in any other file it is a config error.
 - Invalid entries are reported and skipped; other servers still load.
 - `autoEnableCodemode` (top level) follows the same order: the last file that sets it wins.
 
@@ -152,7 +154,7 @@ packages before every inline factory, so their `tool_call` hooks see a call befo
 | Enable/disable, exposure, tool exposure of an existing server | The entry's `override` if it has one, else its `source`. |
 | Enable/disable a global server for one project | The project's existing override of the server (for example in `.pi/mcp.json`) if it has one, else an override-only entry in `<project>/.openwaggle/mcp.json`. |
 | New server (Settings add, catalog install, Registry install, import) | `~/.openwaggle/mcp.json` or `<project>/.openwaggle/mcp.json` by scope, unless the user picks another file. |
-| Remove server | The entry in the file that defines it. When no other file still defines the server, its override-only entries in OpenWaggle's files are removed too; those in Pi's files and `.mcp.json` are left as they are and listed as errors. |
+| Remove server | The entry in the file that defines it. When no other file still defines the server, its override-only entries in OpenWaggle's files are removed too, for a global server in every project OpenWaggle knows (settings and Session project roots, not managed worktrees); those in Pi's files and `.mcp.json` are left as they are and listed as errors. |
 | Session-level MCP off | Session state in the Host database (`session_mcp_disabled`), kept across Host restarts and archiving (an unarchived Session still has MCP off), copied to a fork or clone, and dropped when the Session is deleted. Switching off closes the Session's connections at once and refuses its running Run's leases; switching on applies from the next Run, which loads the MCP extension again. No file. |
 
 The writer (`mcp-config-file-edit.ts`) applies text edits with `jsonc-parser` to only the keys a

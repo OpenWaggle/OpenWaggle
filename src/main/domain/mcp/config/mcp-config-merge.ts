@@ -73,12 +73,15 @@ export interface McpMergedServer {
 export interface McpMergedConfig {
   readonly servers: readonly McpMergedServer[]
   readonly errors: readonly string[]
+  /** What is ignored without breaking anything, such as an orphaned override OpenWaggle wrote. */
+  readonly warnings?: readonly string[]
   readonly autoEnableCodemode?: boolean
 }
 
 interface MergeState {
   readonly servers: Map<string, McpMergedServer>
   readonly errors: string[]
+  readonly warnings: string[]
   autoEnableCodemode?: boolean
 }
 
@@ -92,6 +95,13 @@ function applyOverride(
   const extra = Object.keys(value).filter(
     (key) => !MCP_OVERRIDE_KEYS.some((overrideKey) => overrideKey === key),
   )
+  if (!base && isOpenWaggleMcpConfigFile(layer.fileId)) {
+    // OpenWaggle wrote it for a server since removed from the file that defined it.
+    state.warnings.push(
+      `${layer.path}: server "${name}" only changes a server no file defines any more; it is ignored`,
+    )
+    return
+  }
   if (!base) {
     state.errors.push(
       `${layer.path}: server "${name}" needs "command" or "url", or a server in an earlier file to override`,
@@ -189,13 +199,14 @@ function readLayer(state: MergeState, layer: McpConfigLayer, isFirst: boolean) {
 
 /** Merge the file layers, given in precedence order from lowest to highest. */
 export function mergeMcpConfigLayers(layers: readonly McpConfigLayer[]): McpMergedConfig {
-  const state: MergeState = { servers: new Map(), errors: [] }
+  const state: MergeState = { servers: new Map(), errors: [], warnings: [] }
   layers.forEach((layer, index) => {
     readLayer(state, layer, index === 0)
   })
   return {
     servers: [...state.servers.values()],
     errors: state.errors,
+    ...(state.warnings.length > 0 ? { warnings: state.warnings } : {}),
     ...(state.autoEnableCodemode === undefined
       ? {}
       : { autoEnableCodemode: state.autoEnableCodemode }),

@@ -62,4 +62,17 @@ describe('Settings > MCP list rows', () => {
       await screen.findByText(/Off in OpenWaggle: the file that defines it still has it on/),
     ).toBeVisible()
   })
+
+  it('shows ignored entries as a note, not as configuration errors', async () => {
+    api.getMcpConfiguration.mockResolvedValue({
+      ...mcpView([mcpServer('plain')]),
+      warnings: ['/p/.openwaggle/mcp.json: server "gone" only changes a server no file defines'],
+    })
+    renderWithQueryClient(<McpServersPanel projectPath={PROJECT} />)
+
+    expect(await screen.findByLabelText('Ignored MCP configuration')).toHaveTextContent(
+      'server "gone" only changes a server no file defines',
+    )
+    expect(screen.queryByLabelText('Configuration errors')).not.toBeInTheDocument()
+  })
 })
