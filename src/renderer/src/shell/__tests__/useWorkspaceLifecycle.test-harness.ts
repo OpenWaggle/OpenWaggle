@@ -171,6 +171,7 @@ vi.mock('@/features/git/hooks', () => ({
 
 vi.mock('@/features/sessions/hooks', () => ({
   useProject: () => ({ projectPath: lifecycleMocks.projectPath }),
+  useSessionProjectPath: () => lifecycleMocks.projectPath,
   useSessions: () => ({
     loadSessions: lifecycleMocks.loadSessionTrees,
     refreshCatalogSessions: lifecycleMocks.refreshCatalogSessions,
@@ -181,7 +182,6 @@ vi.mock('@/features/sessions/hooks', () => ({
 }))
 
 vi.mock('@/features/project-actions', () => ({
-  useActionProjectPath: () => lifecycleMocks.projectPath,
   useProjectActions: () => ({ data: [] }),
   useRunProjectAction: () => vi.fn(),
 }))

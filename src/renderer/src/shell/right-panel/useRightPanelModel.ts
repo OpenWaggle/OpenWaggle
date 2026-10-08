@@ -3,8 +3,8 @@ import type { LucideIcon } from 'lucide-react'
 import { useChat } from '@/features/chat/hooks'
 import { useExtensionSidePanelContributions } from '@/features/extensions'
 import { useGit } from '@/features/git/hooks'
-import { useActionProjectPath, useHasActiveProjectActionRun } from '@/features/project-actions'
-import { useProject, useSessions } from '@/features/sessions/hooks'
+import { useHasActiveProjectActionRun } from '@/features/project-actions'
+import { useProject, useSessionProjectPath, useSessions } from '@/features/sessions/hooks'
 import { rightPanelSurfaceShortcut } from '@/features/settings'
 import { usePreferencesStore } from '@/features/settings/state'
 import { terminalOwnerContext } from '@/features/terminal'
@@ -70,10 +70,13 @@ function builtInDisabledReason(
   context: {
     readonly ownerKey: string
     readonly projectPath: string | null
+    /** The open Session's own project, which Project Actions follow (not the preference). */
+    readonly sessionProjectPath: string | null
     readonly sessionId: string | null
     readonly hasSessionTree: boolean
   },
 ) {
+  if (id === 'project-actions') return context.sessionProjectPath ? null : NEEDS_PROJECT
   if (id === 'all-panels') return context.ownerKey.length > 0 ? null : NEEDS_PROJECT
   if (id === 'session-tree') return context.hasSessionTree ? null : NEEDS_FIRST_MESSAGE
   if (id === 'resources') return context.sessionId ? null : NEEDS_FIRST_MESSAGE
@@ -102,7 +105,8 @@ export function useRightPanelModel(enabled = true): RightPanelModel {
   const hidden = useRightPanelRailStore((state) => state.hidden)
   const acknowledged = useRightPanelRailStore((state) => state.acknowledged)
   const extensionsInitialized = useRightPanelRailStore((state) => state.extensionsInitialized)
-  const running = useHasActiveProjectActionRun(useActionProjectPath(), sessionId)
+  const sessionProjectPath = useSessionProjectPath()
+  const running = useHasActiveProjectActionRun(sessionProjectPath, sessionId)
   const sidePanels = useExtensionSidePanelContributions({
     enabled,
     projectPath: workingPath,
@@ -118,6 +122,7 @@ export function useRightPanelModel(enabled = true): RightPanelModel {
   const context = {
     ownerKey: owner.ownerKey,
     projectPath: projectPath ?? null,
+    sessionProjectPath,
     sessionId,
     hasSessionTree: Boolean(activeSessionTree),
   }

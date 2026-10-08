@@ -12,11 +12,8 @@ import { removeShortcutRule, upsertShortcutRule } from '@shared/utils/shortcut-r
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { extensionSidePanelSurfaces } from '@/features/extensions'
-import {
-  useActionProjectPath,
-  useProjectActionMutations,
-  useProjectActions,
-} from '@/features/project-actions'
+import { useProjectActionMutations, useProjectActions } from '@/features/project-actions'
+import { useSessionProjectPath } from '@/features/sessions/hooks'
 import { usePreferencesStore } from '@/features/settings/state'
 import { extensionContributionsQueryOptions } from '@/queries/extensions'
 import { useUIStore } from '@/shell/ui-store'
@@ -28,7 +25,9 @@ import {
 import { ShortcutsSectionContent } from './ShortcutsSectionContent'
 
 export function ShortcutsSection() {
-  const projectPath = usePreferencesStore((state) => state.settings.projectPath)
+  // The open Session's project: its action shortcuts are the ones that fire in the workspace, and
+  // its extension panels are the ones they can conflict with. The preference can lag behind it.
+  const projectPath = useSessionProjectPath()
   const shortcutRules = usePreferencesStore((state) => state.settings.shortcutRules)
   const setShortcutRules = usePreferencesStore((state) => state.setShortcutRules)
   const extensionPanelBindings = usePreferencesStore(
@@ -39,11 +38,9 @@ export function ShortcutsSection() {
   )
   const panels = extensionSidePanelSurfaces(extensionContributions)
   const showToast = useUIStore((state) => state.showToast)
-  // The project whose action shortcuts fire in the workspace, not the lagging preference.
-  const actionProjectPath = useActionProjectPath()
-  const projectScope = actionProjectPath ? { projectPath: actionProjectPath } : null
-  const actionsQuery = useProjectActions(actionProjectPath, projectScope)
-  const mutations = useProjectActionMutations(actionProjectPath, projectScope)
+  const projectScope = projectPath ? { projectPath } : null
+  const actionsQuery = useProjectActions(projectPath, projectScope)
+  const mutations = useProjectActionMutations(projectPath, projectScope)
   const actions = actionsQuery.data ?? []
   const [query, setQuery] = useState('')
   const [adding, setAdding] = useState(false)
@@ -97,8 +94,7 @@ export function ShortcutsSection() {
     return persistBuiltInRules(upsertShortcutRule(shortcutRules, rule))
   }
 
-  const canAdd =
-    !builtInAtLimit || (actionProjectPath !== null && actions.length > 0 && !projectAtLimit)
+  const canAdd = !builtInAtLimit || (projectPath !== null && actions.length > 0 && !projectAtLimit)
 
   return (
     <ShortcutsSectionContent

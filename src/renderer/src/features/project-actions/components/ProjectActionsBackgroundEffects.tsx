@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
+import { useSessionProjectPath } from '@/features/sessions/hooks'
 import { syncActionOutputViewRuns } from '@/features/terminal'
 import { useActionPreview } from '../hooks/useActionPreview'
-import { useActionProjectPath } from '../hooks/useActionProjectPath'
 import { useActionRuns, useActionScope } from '../hooks/useNativeActions'
 
 /**
@@ -9,7 +9,7 @@ import { useActionRuns, useActionScope } from '../hooks/useNativeActions'
  * automatic previews of ready runs, and Action output terminal views following restarts.
  */
 export function ProjectActionsBackgroundEffects() {
-  const scope = useActionScope(useActionProjectPath())
+  const scope = useActionScope(useSessionProjectPath())
   const runs = useActionRuns(scope)
   useActionPreview(scope, runs.data ?? [])
   const sessionId = scope?.sessionId

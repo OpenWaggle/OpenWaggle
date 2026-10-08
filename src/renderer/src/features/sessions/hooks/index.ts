@@ -1,4 +1,5 @@
 export { useProject } from './useProject'
 export { useSessionNav } from './useSessionNav'
+export { useSessionProjectPath } from './useSessionProjectPath'
 export { useSessionStatusMonitor } from './useSessionStatusMonitor'
 export { useSessions } from './useSessions'

@@ -5,10 +5,10 @@ import { type KeyboardEvent, useEffect, useRef, useState } from 'react'
 import { extensionSidePanelSurfaces } from '@/features/extensions'
 import {
   createProjectActionCommandItems,
-  useActionProjectPath,
   useProjectActions,
   useRunProjectAction,
 } from '@/features/project-actions'
+import { useSessionProjectPath } from '@/features/sessions/hooks'
 import { useRunningTerminalCounts } from '@/features/terminal'
 import { extensionContributionsQueryOptions } from '@/queries/extensions'
 import type { RightPanelSurfaceId } from '@/shared/lib/right-panel-surfaces'
@@ -90,7 +90,7 @@ export function GlobalCommandPalette({
 }: GlobalCommandPaletteProps = {}) {
   const { actions, close, projectPath, sessionId, sessions, settings } = useGlobalCommandActions()
   const extensionActions = useGlobalExtensionActions({ projectPath, sessionId })
-  const actionProjectPath = useActionProjectPath()
+  const actionProjectPath = useSessionProjectPath()
   const projectActions = useProjectActions(actionProjectPath).data ?? []
   const runProjectAction = useRunProjectAction(actionProjectPath)
   const runningTerminalCounts = useRunningTerminalCounts()

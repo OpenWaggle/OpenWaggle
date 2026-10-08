@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useProject } from '@/features/sessions/hooks'
+import { useProject, useSessionProjectPath } from '@/features/sessions/hooks'
 import { useSessionStore } from '@/features/sessions/state'
 import { usePreferencesStore } from '@/features/settings/state'
 import { api } from '@/shared/lib/ipc'
@@ -8,7 +8,9 @@ const PROJECT_PAGE_SIZE = 100
 
 /** A Settings browser can inspect another project without changing the active Session. */
 export function useResourceProject() {
-  const { projectPath: activeProject, selectFolder } = useProject()
+  const { selectFolder } = useProject()
+  // Default to the open Session's project; the preference can still name the previous one.
+  const activeProject = useSessionProjectPath()
   const recentProjects = usePreferencesStore((state) => state.settings.recentProjects)
   const displayNames = usePreferencesStore((state) => state.settings.projectDisplayNames)
   const pushRecentProject = usePreferencesStore((state) => state.pushRecentProject)
