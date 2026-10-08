@@ -107,4 +107,26 @@ describe('Agent definition semantic validation', () => {
       ],
     })
   })
+
+  it('reports the MCP configuration error, not unknown tools, when MCP servers did not load', () => {
+    const mcpError = 'mcp.json: Unexpected token } in JSON at position 42'
+    const validation = validateAgentDefinitionSemantics(
+      {
+        schemaVersion: 1,
+        name: 'reviewer',
+        description: 'Reviews changes.',
+        tools: ['read', 'mcp__github__search_issues'],
+        instructions: 'Review changes.',
+      },
+      { tools: ['read'], loadDiagnostics: [mcpError] },
+    )
+
+    expect(validation.diagnostics).toEqual([
+      {
+        code: 'catalog-unavailable',
+        resource: 'mcp-server',
+        message: expect.stringContaining(mcpError),
+      },
+    ])
+  })
 })
