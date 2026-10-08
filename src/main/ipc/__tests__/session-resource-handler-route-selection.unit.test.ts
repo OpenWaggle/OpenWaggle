@@ -63,4 +63,29 @@ describe('session resource route-selection IPC', () => {
     expect(handlerMocks.listPage).not.toHaveBeenCalled()
     expect(handlerMocks.locateImage).not.toHaveBeenCalled()
   })
+
+  it("accepts a discovered Pi session's prefixed node ids, and nothing past the prefix", async () => {
+    const sessionId = SessionId('session-one')
+    handlerMocks.listPage.mockReturnValue({
+      resources: [],
+      total: 0,
+      nextCursor: null,
+      orderRevision: 'prefixed',
+    })
+    await invoke('sessions:resources:page', sessionId, {
+      view: 'all',
+      limit: 40,
+      selection: { branchId: 'main', pathNodeIds: ['session-one/a1b2c3d4'] },
+    })
+    expect(handlerMocks.listPage).toHaveBeenCalledTimes(1)
+
+    await expect(
+      invoke('sessions:resources:page', sessionId, {
+        view: 'all',
+        limit: 40,
+        selection: { branchId: 'main', pathNodeIds: ['session-one/../other/a1b2c3d4'] },
+      }),
+    ).rejects.toBeDefined()
+    expect(handlerMocks.listPage).toHaveBeenCalledTimes(1)
+  })
 })

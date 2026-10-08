@@ -1,4 +1,5 @@
 import { Schema } from '../schema'
+import { sessionInputIdSchema } from './session-input'
 
 const MAX_ID_LENGTH = 256
 const MAX_TITLE_LENGTH = 512
@@ -6,6 +7,8 @@ const MAX_URL_LENGTH = 4096
 const MAX_CATALOG_CURSOR_LENGTH = 8192
 const MAX_CATALOG_PAGE_SIZE = 100
 const MAX_TARGET_NODE_IDS = 512
+/** A prefixed node id is a Session id and an entry id. */
+const MAX_NODE_ID_PARTS = 2
 
 function isTrimmedNonEmpty(value: string) {
   return value.trim() === value && value.length > 0
@@ -47,12 +50,25 @@ export const sessionResourceCatalogViewSchema = Schema.Literal(
   'change-requests',
 )
 
-export const sessionResourceNodeIdsSchema = Schema.Array(sessionResourceIdSchema).pipe(
+/**
+ * A Session node or branch id: an opaque id, or one under a discovered Pi session's prefix,
+ * `<sessionId>/<entryId>` (ADR 0048). Each part is an opaque id, so `..` and empty parts stay out.
+ */
+function isSessionNodeOrBranchId(value: string) {
+  const parts = value.split('/')
+  return parts.length <= MAX_NODE_ID_PARTS && parts.every(isSafeOpaqueId)
+}
+
+export const sessionResourceNodeIdSchema = sessionInputIdSchema.pipe(
+  Schema.filter(isSessionNodeOrBranchId),
+)
+
+export const sessionResourceNodeIdsSchema = Schema.Array(sessionResourceNodeIdSchema).pipe(
   Schema.maxItems(MAX_TARGET_NODE_IDS),
 )
 
 export const sessionResourceRouteSelectionSchema = Schema.Struct({
-  branchId: Schema.NullOr(sessionResourceIdSchema),
+  branchId: Schema.NullOr(sessionResourceNodeIdSchema),
   pathNodeIds: sessionResourceNodeIdsSchema,
 })
 
