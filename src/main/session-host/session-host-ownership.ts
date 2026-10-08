@@ -16,6 +16,11 @@ export interface SessionHostOwnership {
   readonly release: () => Promise<void>
 }
 
+/** Whether `error` is acquireSessionHostOwnership finding the profile owned by another Host. */
+export function isSessionHostOwnershipHeld(error: unknown) {
+  return typeof error === 'object' && error !== null && 'code' in error && error.code === 'ELOCKED'
+}
+
 function tryAcquireOwnershipDatabase(ownershipPath: string) {
   const database = new DatabaseSync(ownershipPath)
   try {

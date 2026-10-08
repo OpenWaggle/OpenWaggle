@@ -19,7 +19,10 @@ import {
   sessionHostSourceExists,
   sessionHostTargetExists,
 } from './session-host/session-host-cutover'
-import { acquireSessionHostOwnership } from './session-host/session-host-ownership'
+import {
+  acquireSessionHostOwnership,
+  isSessionHostOwnershipHeld,
+} from './session-host/session-host-ownership'
 import {
   configureUsageStatisticsHostRecorder,
   flushUsageStatistics,
@@ -50,6 +53,20 @@ export function watchUnadoptableSessionHostEndpoint(input: {
   return () => clearInterval(timer)
 }
 
+/**
+ * Clients in separate processes (the app, a CLI, an MCP session tool) can each launch a Host when
+ * they find it stopped. The Host that owns the profile serves all of them; a Host that finds it
+ * owned has nothing to start, and its exit is no crash.
+ */
+async function acquireOwnershipUnlessHeld(databasePath: string) {
+  try {
+    return await acquireSessionHostOwnership(databasePath)
+  } catch (error) {
+    if (isSessionHostOwnershipHeld(error)) return null
+    throw error
+  }
+}
+
 export function startSessionHostCliIfRequested(argv: readonly string[]) {
   if (argv[0] !== 'session-host-internal') return false
   // A detached Host owns no windows and must never register in the macOS Dock.
@@ -68,7 +85,14 @@ export function startSessionHostCliIfRequested(argv: readonly string[]) {
       const preparedPaths = await prepareLocalSessionHostPaths(
         resolveLocalSessionHostPaths({ userDataRoot: app.getPath('userData') }),
       )
-      const ownership = await acquireSessionHostOwnership(preparedPaths.databasePath)
+      const ownership = await acquireOwnershipUnlessHeld(preparedPaths.databasePath)
+      if (!ownership) {
+        logger.info('Another Session Host owns this profile; exiting without starting')
+        await drainFileLogger()
+        await flushCliOutput()
+        app.exit(0)
+        return
+      }
       try {
         const paths = await rotateLocalSessionHostEndpoint(preparedPaths)
         const cutoverPaths = {

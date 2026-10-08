@@ -11,7 +11,7 @@ import {
 } from './local-session-client-connection'
 import { type LocalSessionHostPaths, refreshLocalSessionHostEndpoint } from './local-session-paths'
 import type { SessionHostOwnership } from './session-host-ownership'
-import { acquireSessionHostOwnership } from './session-host-ownership'
+import { acquireSessionHostOwnership, isSessionHostOwnershipHeld } from './session-host-ownership'
 import { makeSharedOperations } from './shared-operations'
 
 export const HOST_TAKEOVER_TIMEOUT_MS = 15 * 60_000
@@ -126,14 +126,7 @@ const defaultDependencies: LocalSessionHostLauncherDependencies = {
     try {
       return await acquireSessionHostOwnership(databasePath, { timeoutMs: 0 })
     } catch (error) {
-      if (
-        typeof error === 'object' &&
-        error !== null &&
-        'code' in error &&
-        error.code === 'ELOCKED'
-      ) {
-        return null
-      }
+      if (isSessionHostOwnershipHeld(error)) return null
       throw error
     }
   },
