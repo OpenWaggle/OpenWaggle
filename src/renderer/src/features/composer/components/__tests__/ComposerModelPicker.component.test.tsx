@@ -149,6 +149,22 @@ describe('ComposerModelPicker for an existing Session', () => {
     expect(usePreferencesStore.getState().settings.selectedModel).toBe(CURRENT_MODEL)
   })
 
+  it("names a continued Session's model by its catalog name though it is not enabled", () => {
+    usePreferencesStore.setState((state) => ({
+      settings: { ...state.settings, enabledModels: [CURRENT_MODEL] },
+    }))
+    const sessionId = SessionId('session-from-pi-cli')
+    const continued = sessionDetail(sessionId, NEXT_MODEL)
+    useChatStore.setState({
+      activeSessionId: sessionId,
+      activeSession: continued,
+      sessionById: new Map([[sessionId, continued]]),
+    })
+    renderComposerModelControls()
+
+    expect(screen.getByRole('button', { name: 'Claude Sonnet' })).toBeInTheDocument()
+  })
+
   it('locks the picker while a Run is active, since the Host refuses a model change then', () => {
     const sessionId = SessionId('session-mid-turn-model')
     openSession(sessionId, CURRENT_MODEL)

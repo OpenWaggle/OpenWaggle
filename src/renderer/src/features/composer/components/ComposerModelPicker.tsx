@@ -1,4 +1,4 @@
-import type { SupportedModelId } from '@shared/types/llm'
+import type { ProviderInfo, SupportedModelId } from '@shared/types/llm'
 import { useChatStore } from '@/features/chat/state'
 import { ModelSelector } from '@/features/providers/components'
 import { useProviderStore } from '@/features/providers/state'
@@ -6,6 +6,22 @@ import { usePreferencesStore } from '@/features/settings/state'
 import { useComposerModel } from '../hooks/useComposerModel'
 import { useRoutedModelName } from '../hooks/useRoutedModelName'
 import { useSessionSettingsLock } from '../hooks/useSessionSettingsLock'
+
+/**
+ * A Session's model the picker does not offer, such as a continued `pi` CLI Session's model the
+ * user never enabled: its catalog name, or its ref when the catalog lacks it.
+ */
+function catalogModelName(
+  providerModels: readonly ProviderInfo[],
+  model: SupportedModelId | undefined,
+) {
+  if (!model) return undefined
+  for (const group of providerModels) {
+    const found = group.models.find((candidate) => candidate.id === model)
+    if (found) return found.name
+  }
+  return model
+}
 
 export function ComposerModelPicker() {
   const settings = usePreferencesStore((s) => s.settings)
@@ -42,7 +58,11 @@ export function ComposerModelPicker() {
         settings={settings}
         providerModels={providerModels}
         disabled={settingsLock.locked}
-        fallbackLabel={composerModel.isSessionModel ? composerModel.model : undefined}
+        fallbackLabel={
+          composerModel.isSessionModel
+            ? catalogModelName(providerModels, composerModel.model)
+            : undefined
+        }
         title={settingsLock.reason ?? undefined}
       />
       <RoutedModelLabel />

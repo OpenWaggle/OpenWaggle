@@ -78,7 +78,10 @@ export const DEFAULT_SESSION_HOST_RUN_CEILING = 16
 export const DEFAULT_SESSION_HOST_IDLE_GRACE_PERIOD_MS = 300_000
 export const DEFAULT_COMPACTION_THRESHOLD_PERCENT = 80
 
-/** Pi's `cacheWarming` setting: keep provider prompt caches warm while a Run works, or never. */
+/**
+ * Pi's `cacheWarming` setting: keep provider prompt caches warm while a Run works (`streaming`),
+ * also between Runs (`idle`), or never (`off`).
+ */
 export const PI_CACHE_WARMING_MODES = ['off', 'streaming', 'idle'] as const
 export type PiCacheWarmingMode = (typeof PI_CACHE_WARMING_MODES)[number]
 
