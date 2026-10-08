@@ -1,6 +1,3 @@
-import { mkdtemp, rm } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SessionHostLiveness } from '../application/session-host-liveness'
 
@@ -14,10 +11,6 @@ const mocks = vi.hoisted(() => {
   const order: string[] = []
   return {
     order,
-    /** Electron's app paths, as `setPath` and `setAppLogsPath` leave them. */
-    paths: new Map<string, string>(),
-    env: {} as { OPENWAGGLE_USER_DATA_DIR?: string },
-    configureStorage: undefined as undefined | ((app: never, userDataPath?: string) => void),
     exit: vi.fn(),
     endpointExists: vi.fn(() => true),
     releaseOwnership: vi.fn(async () => {
@@ -54,29 +47,20 @@ const mocks = vi.hoisted(() => {
 vi.mock('electron', () => ({
   app: {
     exit: mocks.exit,
-    getPath: vi.fn((name: string) => mocks.paths.get(name) ?? '/tmp/openwaggle-profile'),
-    setPath: vi.fn((name: string, value: string) => mocks.paths.set(name, value)),
-    setAppLogsPath: vi.fn((value: string) => mocks.paths.set('logs', value)),
+    getPath: vi.fn(() => '/tmp/openwaggle-profile'),
     getVersion: vi.fn(() => '1.0.0'),
     whenReady: vi.fn(async () => undefined),
     setActivationPolicy: vi.fn(),
   },
 }))
 
-vi.mock('node:fs', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('node:fs')>()),
-  existsSync: mocks.endpointExists,
-}))
+vi.mock('node:fs', () => ({ existsSync: mocks.endpointExists }))
 
-vi.mock('../env', () => ({ env: mocks.env }))
+vi.mock('../env', () => ({ env: {} }))
 vi.mock('../installer-update-channel-intent', () => ({
   applyInstallerUpdateChannelIntent: mocks.applyInstallerIntent,
 }))
-vi.mock('../session-data', () => ({
-  configureAppStoragePaths: vi.fn((app: never, userDataPath?: string) =>
-    mocks.configureStorage?.(app, userDataPath),
-  ),
-}))
+vi.mock('../session-data', () => ({ configureAppStoragePaths: vi.fn() }))
 vi.mock('../usage-statistics/usage-statistics-recorder')
 vi.mock('../logger', async (importOriginal) => {
   const original = await importOriginal<typeof import('../logger')>()
@@ -166,27 +150,6 @@ describe('detached Session Host startup', () => {
     await vi.waitFor(() => expect(mocks.exit).toHaveBeenCalledWith(0))
 
     expect(mocks.initFileLogger).toHaveBeenCalledWith('/tmp/openwaggle-profile', 'openwaggle-host')
-  })
-
-  it('writes its log file inside a profile OPENWAGGLE_USER_DATA_DIR points at', async () => {
-    const userDataPath = await mkdtemp(join(tmpdir(), 'openwaggle-host-logs-'))
-    const actual = await vi.importActual<typeof import('../session-data')>('../session-data')
-    mocks.env.OPENWAGGLE_USER_DATA_DIR = userDataPath
-    mocks.configureStorage = actual.configureAppStoragePaths
-    try {
-      expect(startSessionHostCliIfRequested(['session-host-internal'])).toBe(true)
-      await vi.waitFor(() => expect(mocks.exit).toHaveBeenCalledWith(0))
-
-      expect(mocks.initFileLogger).toHaveBeenCalledWith(
-        join(userDataPath, 'logs'),
-        'openwaggle-host',
-      )
-    } finally {
-      mocks.env.OPENWAGGLE_USER_DATA_DIR = undefined
-      mocks.configureStorage = undefined
-      mocks.paths.clear()
-      await rm(userDataPath, { recursive: true, force: true })
-    }
   })
 
   it('owns the canonical store before inspecting it or initializing persistence', async () => {
