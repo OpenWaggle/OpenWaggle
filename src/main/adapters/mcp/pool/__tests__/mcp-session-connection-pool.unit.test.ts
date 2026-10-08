@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import {
-  MCP_IDLE_CLOSE_MS,
-  type McpPoolClock,
-  McpSessionConnectionPool,
-} from '../mcp-session-connection-pool'
+import { McpSessionConnectionPool } from '../mcp-session-connection-pool'
+import { MCP_IDLE_CLOSE_MS, type McpPoolClock } from '../mcp-session-connection-pool-types'
 import { collect, FakeUpstream, flush, initializeRequest } from './fake-upstream'
 
 class FakeClock implements McpPoolClock {

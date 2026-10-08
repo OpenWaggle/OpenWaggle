@@ -9,10 +9,8 @@ import {
 } from '@earendil-works/pi-coding-agent'
 import { McpClient } from '@earendil-works/pi-mcp'
 import { afterEach, describe, expect, it } from 'vitest'
-import {
-  McpSessionConnectionPool,
-  type McpSessionConnectionPoolOptions,
-} from '../../../mcp/pool/mcp-session-connection-pool'
+import { McpSessionConnectionPool } from '../../../mcp/pool/mcp-session-connection-pool'
+import type { McpSessionConnectionPoolOptions } from '../../../mcp/pool/mcp-session-connection-pool-types'
 import { openPiMcpUpstream } from '../pi-mcp-upstream'
 
 /**

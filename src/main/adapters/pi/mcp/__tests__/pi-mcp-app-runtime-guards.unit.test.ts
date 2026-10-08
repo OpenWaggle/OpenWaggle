@@ -50,8 +50,8 @@ vi.mock('../pi-mcp-upstream', () => ({
 }))
 
 import { mcpConnectionFingerprint, mcpServerIdentity } from '../../../mcp/pool/mcp-server-identity'
-import type { McpPoolClock } from '../../../mcp/pool/mcp-session-connection-pool'
 import { McpSessionConnectionPool } from '../../../mcp/pool/mcp-session-connection-pool'
+import type { McpPoolClock } from '../../../mcp/pool/mcp-session-connection-pool-types'
 import { createPiMcpAppRuntimeService } from '../pi-mcp-app-runtime-service'
 import { withShellResolvedClientSecrets } from '../pi-mcp-server-oauth'
 
