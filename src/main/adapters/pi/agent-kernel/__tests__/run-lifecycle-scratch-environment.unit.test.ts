@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { SessionId, SupportedModelId } from '@shared/types/brand'
 import { fromPartial } from '@total-typescript/shoehorn'
+import * as Effect from 'effect/Effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => {
@@ -42,6 +43,8 @@ vi.mock('../../pi-provider-catalog', () => ({
 const { createPiRunSessionRuntime } = await import('../run-lifecycle')
 const { idleCacheWarming } = await import('../pi-idle-cache-warming')
 const { forgetModelFallbackNotice } = await import('../interaction-ui-context')
+const { installPiRuntimeIntegration } = await import('../../../../runtime-pi-integration')
+const { runSessionRemovalHooks } = await import('../../../../application/session-removal-hooks')
 
 const SCRATCH = '/tmp/ow-scratch-501/37a8eec1/0123456789ab'
 
@@ -213,5 +216,35 @@ describe('Pi run session scratch environment', () => {
 
     forgetModelFallbackNotice(sessionId)
     expect(await run('last-answering-model')).toBe(1)
+  })
+
+  it('warns again after the Host removes the Session and it is restored', async () => {
+    mocks.runtime.modelFallbackMessage =
+      'Could not restore model router/auto (model no longer exists). Using provider/model.'
+    const sessionId = SessionId('session-removed-by-host')
+    const run = async () => {
+      const input = runtimeInput()
+      const onEvent = vi.fn()
+      await createPiRunSessionRuntime({
+        ...input,
+        session: fromPartial({ ...input.session, id: sessionId }),
+        onEvent,
+        modelFallback: 'last-answering-model',
+      })
+      return onEvent.mock.calls.filter(([event]) => event?.type === 'agent_interaction_request')
+        .length
+    }
+    const uninstall = installPiRuntimeIntegration()
+    try {
+      expect(await run()).toBe(1)
+      expect(await run()).toBe(0)
+
+      // Archiving or deleting the Session runs the removal hooks the Host installed.
+      await Effect.runPromise(runSessionRemovalHooks(sessionId))
+
+      expect(await run()).toBe(1)
+    } finally {
+      uninstall()
+    }
   })
 })
