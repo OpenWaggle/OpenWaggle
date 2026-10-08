@@ -22,6 +22,20 @@ function firstLine(text: string | undefined) {
   return text?.split('\n', 1)[0]?.trim() ?? ''
 }
 
+const PREVIOUS_KEYS = new Set(['ArrowUp', 'ArrowLeft'])
+const NEXT_KEYS = new Set(['ArrowDown', 'ArrowRight'])
+
+/** The choice a radio-group key moves to (WAI-ARIA radio group: arrows wrap, Home and End). */
+function exposureForKey(key: string, current: McpServerExposure) {
+  const index = MCP_EXPOSURE_ORDER.indexOf(current)
+  const last = MCP_EXPOSURE_ORDER.length - 1
+  if (key === 'Home') return MCP_EXPOSURE_ORDER[0]
+  if (key === 'End') return MCP_EXPOSURE_ORDER[last]
+  if (PREVIOUS_KEYS.has(key)) return MCP_EXPOSURE_ORDER[index <= 0 ? last : index - 1]
+  if (NEXT_KEYS.has(key)) return MCP_EXPOSURE_ORDER[index >= last ? 0 : index + 1]
+  return undefined
+}
+
 function ServerExposureChoice({
   server,
   disabled,
@@ -36,6 +50,16 @@ function ServerExposureChoice({
       role="radiogroup"
       aria-label="Server exposure"
       className="overflow-hidden rounded-lg border border-border bg-bg"
+      onKeyDown={(event) => {
+        const next = exposureForKey(event.key, server.exposure)
+        if (!next || disabled) return
+        event.preventDefault()
+        const radio = event.currentTarget.querySelector<HTMLElement>(
+          `[role="radio"][data-exposure="${next}"]`,
+        )
+        radio?.focus()
+        if (next !== server.exposure) onChange(next)
+      }}
     >
       {MCP_EXPOSURE_ORDER.map((exposure) => {
         const selected = server.exposure === exposure
@@ -44,6 +68,9 @@ function ServerExposureChoice({
             key={exposure}
             role="radio"
             aria-checked={selected}
+            data-exposure={exposure}
+            // One tab stop: the selected choice; arrow keys move between the others.
+            tabIndex={selected ? 0 : -1}
             variant="row"
             align="start"
             disabled={disabled}

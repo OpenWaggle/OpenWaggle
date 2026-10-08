@@ -223,6 +223,28 @@ describe('Settings > MCP servers', () => {
     expect(api.signInMcpServer).toHaveBeenCalledWith({ projectPath: PROJECT, name: 'sentry' })
   })
 
+  it('moves through the server exposure choices with the arrow keys, one tab stop', async () => {
+    api.setMcpServerExposure.mockResolvedValue(mcpView(SERVERS))
+    renderPanel()
+    await openServer('github')
+    const exposure = await screen.findByRole('radiogroup', { name: 'Server exposure' })
+    const radios = within(exposure).getAllByRole('radio')
+    const selected = within(exposure).getByRole('radio', { name: /Codemode/ })
+
+    // Only the selected choice is in the tab order.
+    expect(radios.filter((radio) => radio.tabIndex === 0)).toEqual([selected])
+    selected.focus()
+    fireEvent.keyDown(selected, { key: 'ArrowDown' })
+
+    const next = radios[radios.indexOf(selected) + 1]
+    expect(next).toHaveFocus()
+    await waitFor(() =>
+      expect(api.setMcpServerExposure).toHaveBeenCalledWith(
+        expect.objectContaining({ name: 'github', exposure: 'deferred' }),
+      ),
+    )
+  })
+
   it('removes a server after confirmation and returns to the list', async () => {
     api.removeMcpServer.mockResolvedValue(
       mcpView(SERVERS.filter((server) => server.name !== 'broken')),
