@@ -47,8 +47,18 @@ const PHASE_LABELS: Record<ScriptPhase, string> = {
   requested: 'Requested a script',
 }
 
-function callCountLabel(count: number) {
-  return count === 1 ? '1 tool call' : `${String(count)} tool calls`
+function countLabel(count: number, noun: string) {
+  return count === 1 ? `1 ${noun}` : `${String(count)} ${noun}s`
+}
+
+/** The script's tool calls, with its `models.*` calls counted apart. */
+function callCountLabel(calls: readonly CodemodeCallView[]) {
+  const modelCalls = calls.filter(isCodemodeModelCall).length
+  const toolCalls = calls.length - modelCalls
+  return [
+    ...(toolCalls > 0 ? [countLabel(toolCalls, 'tool call')] : []),
+    ...(modelCalls > 0 ? [countLabel(modelCalls, 'model call')] : []),
+  ].join(', ')
 }
 
 function PhaseIcon({ phase }: { readonly phase: ScriptPhase }) {
@@ -202,9 +212,7 @@ export function CodemodeToolCallBlock({
           {label}
         </span>
         {view.calls.length > 0 && (
-          <span className="shrink-0 text-xs text-text-muted">
-            {callCountLabel(view.calls.length)}
-          </span>
+          <span className="shrink-0 text-xs text-text-muted">{callCountLabel(view.calls)}</span>
         )}
         {view.modelCost !== undefined && (
           <span className="shrink-0 text-xs text-text-muted">{formatUsd(view.modelCost)}</span>

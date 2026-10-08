@@ -72,7 +72,8 @@ describe('CodemodeToolCallBlock', () => {
     )
 
     expect(screen.getByText('Ran a script')).toBeInTheDocument()
-    expect(screen.getByText('2 tool calls')).toBeInTheDocument()
+    // models.* calls are counted apart from the tool calls.
+    expect(screen.getByText('1 tool call, 1 model call')).toBeInTheDocument()
     expect(screen.getByRole('img', { name: 'Script output 1' })).toHaveAttribute(
       'src',
       `data:image/png;base64,${PNG_PIXEL}`,
