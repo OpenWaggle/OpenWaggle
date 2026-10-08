@@ -30,7 +30,7 @@ describe('Follow-up edit wire contract', () => {
       contract: 'session-control-v2',
       request: { contractVersion: 2, requestId: 'r', idempotencyKey: 'k', command },
     })
-    expect(supportedRevisionsForCommand(payload)).toEqual([21])
+    expect(supportedRevisionsForCommand(payload)).toEqual([22])
     expect(() => decodeLocalSessionCommandPayloadForRevision(payload, 20)).toThrow(/revision 21/)
     expect(decodeLocalSessionCommandPayloadForRevision(payload, 21)).toEqual(payload)
   })
@@ -48,7 +48,7 @@ describe('Follow-up edit wire contract', () => {
         },
       },
     })
-    expect(supportedRevisionsForCommand(payload)).toEqual([21])
+    expect(supportedRevisionsForCommand(payload)).toEqual([22])
     expect(() => decodeLocalSessionCommandPayloadForRevision(payload, 20)).toThrow(/revision 21/)
   })
 
@@ -57,7 +57,7 @@ describe('Follow-up edit wire contract', () => {
       negotiateLocalSessionProtocol(
         {
           protocol: 'openwaggle-local-session',
-          supportedRevisions: [21],
+          supportedRevisions: [22],
           clientKind: 'gui',
           clientVersion: 'current',
         },
@@ -77,6 +77,6 @@ describe('Follow-up edit wire contract', () => {
         },
         'host-current',
       ),
-    ).toMatchObject({ accepted: false, supportedRevisions: [21] })
+    ).toMatchObject({ accepted: false, supportedRevisions: [22] })
   })
 })

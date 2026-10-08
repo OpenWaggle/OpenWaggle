@@ -10,20 +10,36 @@ function jsonObjectOrEmpty(value: JsonValue | undefined): Readonly<JsonObject> {
   return isJsonObject(value) ? value : {}
 }
 
-export function appendTextPart(parts: readonly MessagePart[], delta: string): MessagePart[] {
-  const lastPart = parts[parts.length - 1]
-  if (lastPart?.type === 'text') {
-    return [...parts.slice(0, -1), { type: 'text', text: lastPart.text + delta }]
-  }
-  return [...parts, { type: 'text', text: delta }]
+/**
+ * The part a text or reasoning delta of content block `contentIndex` goes to, as the renderer's
+ * live view puts it (`chat-stream-state-helpers.ts`), or -1 for a new part: text continues the
+ * last part when that is text; reasoning continues its own block's part, wherever it is. The two
+ * must split an answer alike, or a reconnect cannot tell which of its parts a shown one is. Every
+ * buffer part names its block: a replica is restored only from a Host of its own revision.
+ */
+export function textDeltaTargetIndex(
+  parts: readonly MessagePart[],
+  type: 'text' | 'reasoning',
+  contentIndex: number,
+) {
+  const last = parts.at(-1)
+  if (type === 'text') return last?.type === 'text' ? parts.length - 1 : -1
+  return parts.findIndex((part) => part.type === 'reasoning' && part.contentIndex === contentIndex)
 }
 
-export function appendReasoningPart(parts: readonly MessagePart[], delta: string): MessagePart[] {
-  const lastPart = parts[parts.length - 1]
-  if (lastPart?.type === 'reasoning') {
-    return [...parts.slice(0, -1), { type: 'reasoning', text: lastPart.text + delta }]
-  }
-  return [...parts, { type: 'reasoning', text: delta }]
+/** The parts with a text or reasoning delta appended where `textDeltaTargetIndex` puts it. */
+export function appendTextDeltaPart(
+  parts: readonly MessagePart[],
+  type: 'text' | 'reasoning',
+  delta: string,
+  contentIndex: number,
+): MessagePart[] {
+  const index = textDeltaTargetIndex(parts, type, contentIndex)
+  const target = parts[index]
+  if (target?.type !== type) return [...parts, { type, text: delta, contentIndex }]
+  return parts.map((part, partIndex) =>
+    partIndex === index && part.type === type ? { ...part, text: part.text + delta } : part,
+  )
 }
 
 function findToolCallPartIndex(parts: readonly MessagePart[], toolCallId: string) {

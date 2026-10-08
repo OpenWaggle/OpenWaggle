@@ -1,6 +1,10 @@
 import { removePreparedWorktree } from '../application/prepared-worktree-removal'
 import type { ActionRunServiceShape } from '../ports/action-run-service'
 import { ActionRunService } from '../ports/action-run-service'
+import {
+  SessionTranscriptFiles,
+  type SessionTranscriptLocation,
+} from '../ports/session-transcript-files'
 import type { SessionWorkspaceResourceRepositoryShape } from '../ports/session-workspace-resource-repository'
 import { SessionWorkspaceResourceRepository } from '../ports/session-workspace-resource-repository'
 import type { WorkspacePreparationServiceShape } from '../ports/workspace-preparation-service'
@@ -97,6 +101,7 @@ export const SqliteSessionProjectionRepositoryLive = Effect.gen(function* () {
   const actions = yield* ActionRunService
   const preparation = yield* WorkspacePreparationService
   const workspaces = yield* SessionWorkspaceResourceRepository
+  const transcriptFiles = yield* SessionTranscriptFiles
   return yield* Effect.promise(async () => {
     const [store, turnCheckpoints, worktreePrune, checkpointRefs, pinnedSessions] =
       await Promise.all([
@@ -114,6 +119,8 @@ export const SqliteSessionProjectionRepositoryLive = Effect.gen(function* () {
       pruneSessionWorktree,
       deleteCheckpointRefs: deleteSessionTurnCheckpointRefs,
       restoreCheckpointRefs: restoreSessionTurnCheckpointRefs,
+      listTranscriptFiles: (location: SessionTranscriptLocation) =>
+        Effect.runPromise(transcriptFiles.listTranscriptFiles(location)),
     }
 
     async function archiveWorkspaceUnlessVisualizationRetained(

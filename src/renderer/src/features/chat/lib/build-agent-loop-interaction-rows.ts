@@ -2,11 +2,7 @@ import {
   notificationCreatesDurableRecord,
   notificationResolutionCreatesDurableRecord,
 } from '@shared/utils/agent-notification-durability'
-import type {
-  AgentInteractionEvent,
-  AgentInteractionTranscriptItem,
-  ChatRow,
-} from './types-chat-row'
+import type { AgentInteractionEvent, AgentInteractionTranscriptItem } from './types-chat-row'
 
 function shouldSkipRequest(
   event: Extract<AgentInteractionEvent, { type: 'agent_interaction_request' }>,
@@ -23,10 +19,10 @@ function shouldSkipResolution(
   return event.kind === 'notify' && !notificationResolutionCreatesDurableRecord()
 }
 
-export function appendInteractionEventRows(
-  rows: ChatRow[],
+/** One transcript item per durable interaction, its resolution joined to its request, in order. */
+export function buildInteractionTranscriptItems(
   interactionEvents: readonly AgentInteractionEvent[],
-) {
+): AgentInteractionTranscriptItem[] {
   const itemsByInteractionId = new Map<string, AgentInteractionTranscriptItem>()
   const orderedInteractionIds: string[] = []
 
@@ -57,10 +53,8 @@ export function appendInteractionEventRows(
     }
   }
 
-  for (const interactionId of orderedInteractionIds) {
+  return orderedInteractionIds.flatMap((interactionId) => {
     const item = itemsByInteractionId.get(interactionId)
-    if (item) {
-      rows.push({ type: 'agent-loop-interaction', item })
-    }
-  }
+    return item ? [item] : []
+  })
 }

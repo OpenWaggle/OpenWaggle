@@ -3,9 +3,9 @@ import { Schema, type SchemaType, safeDecodeUnknown } from '@shared/schema'
 import { waggleInvocationMetadataSchema, waggleMetadataSchema } from '@shared/schemas/waggle'
 import type { Message } from '@shared/types/agent'
 import { MessageId, SessionId, SupportedModelId, ToolCallId } from '@shared/types/brand'
+import { buildPiTranscriptPath } from '@shared/utils/session-entry-paths'
 import { isRecord } from '@shared/utils/validation'
 import { createLogger } from '../../logger'
-import { buildPiWorkingContextPath } from '../session-working-context'
 import { MESSAGE_ENTRY_TYPE, TOOL_RESULT_KIND } from './constants'
 import { describeError } from './errors'
 import {
@@ -237,15 +237,14 @@ export function hydrateSessionMessages(nodeRows: readonly SessionNodeRow[]) {
   return messages
 }
 
+/** The active branch the transcript shows, compacted history included (ADR 0048). */
 export function getActivePathRows(
   activeNodeId: string | null,
   nodeRows: readonly SessionNodeRow[],
 ) {
-  return buildPiWorkingContextPath(activeNodeId, nodeRows, {
+  return buildPiTranscriptPath(activeNodeId, nodeRows, {
     getId: (row) => row.id,
     getParentId: (row) => row.parent_id,
-    getKind: (row) => row.kind,
-    getContentJson: (row) => row.content_json,
   })
 }
 

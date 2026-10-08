@@ -87,14 +87,14 @@ describe('stream-bridge', () => {
       expect.objectContaining({
         sessionId: SESSION_ID,
         messageId: MESSAGE_ID,
-        parts: [{ type: 'text', text: 'Session one output' }],
+        parts: [{ type: 'text', text: 'Session one output', contentIndex: 0 }],
       }),
     )
     expect(getStreamBuffer(OTHER_SESSION_ID)).toEqual(
       expect.objectContaining({
         sessionId: OTHER_SESSION_ID,
         messageId: OTHER_MESSAGE_ID,
-        parts: [{ type: 'text', text: 'Session two output' }],
+        parts: [{ type: 'text', text: 'Session two output', contentIndex: 0 }],
       }),
     )
   })

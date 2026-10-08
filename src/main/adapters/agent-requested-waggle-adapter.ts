@@ -121,7 +121,7 @@ export function runRequestedWaggleWith(
       config: handoff.config,
       signal: input.controller.signal,
       onRunPrepared: (runtimeModel) => {
-        startStreamBuffer(input.sessionId, runtimeModel, 'waggle')
+        startStreamBuffer(input.sessionId, runtimeModel, 'waggle', runId)
         publishTransport(input.sessionId, {
           type: 'agent_start',
           timestamp: Date.now(),

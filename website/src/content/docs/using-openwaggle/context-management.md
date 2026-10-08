@@ -7,7 +7,7 @@ section: "Using OpenWaggle"
 
 A model's context window is the amount of information it can use in one request. Your messages, the agent's replies, file contents, tool results, and instructions all take space. Models measure that space in tokens, which are pieces of text rather than whole words.
 
-You usually do not need to manage this yourself. When a conversation gets long, OpenWaggle compacts its context so work can continue. Compaction replaces older context with a shorter representation while keeping recent work available. It does not delete the saved conversation.
+You usually do not need to manage this yourself. When a conversation gets long, OpenWaggle compacts its context so work can continue. Compaction replaces older context with a shorter representation while keeping recent work available. It does not delete the saved conversation, and the conversation view keeps all of it: messages from before a compaction stay above its **Context compacted** marker, while the model works from the compacted context.
 
 ## Context meter
 
@@ -29,7 +29,7 @@ Add instructions when particular details must survive:
 /compact preserve the schema decisions, migration constraints, and tests still to run
 ```
 
-This is a command, not a request for an ordinary reply. OpenWaggle shows compaction progress in the conversation. After it finishes, continue with your next task.
+This is a command, not a request for an ordinary reply. OpenWaggle shows compaction progress in the conversation. After it finishes, a **Context compacted** marker stays in the conversation where the compaction happened, and you can continue with your next task.
 
 A summary may omit details. Keep lasting project conventions in project instructions and restate any critical constraint if the agent appears to have lost it.
 
@@ -47,6 +47,8 @@ OpenWaggle uses the following mechanisms automatically. You do not need to selec
 
 - **Native** compaction uses a provider's compaction protocol when the model connection explicitly supports it. The resulting checkpoint can be reused only with a compatible connection.
 - **Portable** compaction asks the active model for a structured four-part handoff and keeps the recent conversation in full. Related tool calls and results stay together.
+
+You can still act on messages above a marker. Branching from one, or editing and resending it, continues from that point with that branch's own context, which does not include the later compaction. OpenWaggle compacts it again if it no longer fits. Forking or cloning copies the conversation up to that message into a new session. Search, exports, and session reads include the whole conversation.
 
 The saved conversation remains intact. If you switch to a model that cannot use a Native checkpoint, OpenWaggle rebuilds context from the original history using the new model. It does not call the previous provider. If the new model has a smaller window, the request leaves out the oldest complete exchanges after reserving room for instructions, tools, and output. Those exchanges remain in the saved history.
 

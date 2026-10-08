@@ -137,7 +137,8 @@ function assertSessionDeleteSatisfiesForeignKeys(sql: SqlClient.SqlClient, id: S
   })
 }
 
-export async function prepareSessionDeletion(id: SessionId): Promise<SessionDeletionRecord> {
+/** `transcriptFile` stands in for a Pi file the Session never recorded, for cleanup to find. */
+export async function prepareSessionDeletion(id: SessionId, transcriptFile?: string | null) {
   return runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
@@ -167,19 +168,20 @@ export async function prepareSessionDeletion(id: SessionId): Promise<SessionDele
           const session = sessions[EMPTY_INDEX]
           if (!session) throw new Error(`Session ${id} does not exist.`)
           const now = Date.now()
+          const piSessionFile = session.pi_session_file ?? transcriptFile ?? null
           yield* sql`
             INSERT INTO session_deletion_operations (
               session_id, phase, project_path, worktree_project_path, worktree_path,
               pi_session_file, created_at, updated_at
             ) VALUES (
               ${id}, ${'prepared'}, ${session.project_path}, ${session.worktree_project_path},
-              ${session.worktree_path}, ${session.pi_session_file}, ${now}, ${now}
+              ${session.worktree_path}, ${piSessionFile}, ${now}, ${now}
             )
           `
           return {
             phase: 'prepared',
             resumed: false,
-            piSessionFile: session.pi_session_file,
+            piSessionFile,
             stagedPiSessionFile: null,
             projectPath: session.project_path,
             worktreeProjectPath: session.worktree_project_path,

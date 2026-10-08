@@ -17,6 +17,7 @@ import { FilesystemSessionExportResourceResolverLive } from './adapters/filesyst
 import { FilesystemSessionResourceStoreLive } from './adapters/filesystem-session-resource-store'
 import { FilesystemWorkspaceFileLive } from './adapters/filesystem-workspace-file-service'
 import { LocalSessionCredentialVerifierLive } from './adapters/local-session-credential-verifier'
+import { PiSessionTranscriptRepairLive } from './adapters/pi/agent-kernel/snapshot-entry-id-repair'
 import { PiAgentKernelLive } from './adapters/pi/pi-agent-kernel-adapter'
 import { PiAgentSteeringServiceLive } from './adapters/pi/pi-agent-steering-adapter'
 import { registerPiBundledOAuthFlows } from './adapters/pi/pi-bundled-oauth'
@@ -41,7 +42,7 @@ import { SqliteExtensionLifecycleRepositoryLive } from './adapters/sqlite-extens
 import { SqliteExtensionProjectOverridesRepositoryLive } from './adapters/sqlite-extension-project-overrides-repository'
 import { SqliteExtensionStorageRepositoryLive } from './adapters/sqlite-extension-storage-repository'
 import { SqliteSessionOutputRetryRepositoryLive } from './adapters/sqlite-session-output-retry-repository'
-import { SqliteSessionRepositoryLive } from './adapters/sqlite-session-repository'
+import { SqliteSessionRepositoryLive as SqliteSessionRepositoryWithoutRepairLive } from './adapters/sqlite-session-repository'
 import { SqliteSessionResourceCleanupRepositoryLive } from './adapters/sqlite-session-resource-cleanup-repository'
 import { SqliteSessionResourceRepositoryLive } from './adapters/sqlite-session-resource-repository'
 import { FilesystemStandardsLive } from './adapters/standards-adapter'
@@ -66,6 +67,9 @@ import { AppLogger } from './services/logger-service'
 import { SettingsService } from './services/settings-service'
 import { setStoreEffectRunner } from './store/store-runtime'
 
+const SqliteSessionRepositoryLive = SqliteSessionRepositoryWithoutRepairLive.pipe(
+  Layer.provide(PiSessionTranscriptRepairLive),
+)
 const ExtensionLifecycleRepositoryLive = SqliteExtensionLifecycleRepositoryLive.pipe(
   Layer.provide(AppDatabaseLive),
 )

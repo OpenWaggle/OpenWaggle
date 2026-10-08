@@ -3,6 +3,7 @@ import * as Effect from 'effect/Effect'
 import { SessionProjectionRepositoryError } from '../errors'
 import { createLogger } from '../logger'
 import type { SessionProjectionRepositoryShape } from '../ports/session-projection-repository'
+import type { SessionTranscriptLocation } from '../ports/session-transcript-files'
 import type { pruneSessionWorktree } from '../services/git/session-worktree-prune'
 import type {
   abandonSessionDeletion,
@@ -19,7 +20,10 @@ import type {
   prepareSessionDeletion,
   prepareSessionPiFileCleanup,
 } from '../store/session-details'
-import { completeJournaledSessionFileDeletion } from '../store/session-details/file-deletion'
+import {
+  completeJournaledSessionFileDeletion,
+  removeSessionFiles,
+} from '../store/session-details/file-deletion'
 import type { SessionDeletionRecord } from '../store/session-details/session-deletion-journal'
 import type { CheckpointRefSnapshot } from './git/turn-checkpoint-refs'
 import type { removeGitWorktree } from './git/worktree'
@@ -59,6 +63,44 @@ interface DeletionDependencies {
     projectPath: string,
     refs: readonly CheckpointRefSnapshot[],
   ) => Promise<void>
+  readonly listTranscriptFiles: (location: SessionTranscriptLocation) => Promise<readonly string[]>
+}
+
+type DeletableSession = NonNullable<Awaited<ReturnType<SessionDeletionStore['getSessionDetail']>>>
+
+/**
+ * The transcript file the deletion journal records for a Session.
+ *
+ * A Session that never recorded a file can still have a transcript: its first run writes one
+ * that is recorded only once the run's snapshot is saved, and the runtime rediscovers it by the
+ * Session's transcript id. The journal outlives the Session row, so it records that file instead:
+ * its name carries the transcript id that Pi file cleanup needs to find every copy after the row
+ * is gone.
+ */
+async function journaledTranscriptFile(input: DeletionDependencies, session: DeletableSession) {
+  if (session.piSessionFile || !session.piSessionId) return session.piSessionFile ?? null
+  const files = await input.listTranscriptFiles({
+    transcriptId: session.piSessionId,
+    transcriptFile: null,
+    projectPath: session.projectPath,
+    worktreePath: session.worktreePath ?? null,
+  })
+  return files[0] ?? null
+}
+
+/**
+ * Removes every other file of the deleted Session's transcript. The runtime would reopen any of
+ * them as the Session's transcript, and listing them again from the journal makes the removal
+ * safe to repeat when recovery resumes an interrupted cleanup.
+ */
+async function removeTranscriptCopies(input: DeletionDependencies, cleanup: SessionDeletionRecord) {
+  if (!cleanup.piSessionFile) return
+  const copies = await input.listTranscriptFiles({
+    transcriptFile: cleanup.piSessionFile,
+    projectPath: cleanup.projectPath,
+    worktreePath: cleanup.worktreePath,
+  })
+  await removeSessionFiles(copies)
 }
 
 async function pruneWorktreeForSession(
@@ -122,7 +164,7 @@ async function deleteSessionDurably(
 ) {
   const session = await input.store.getSessionDetail(id)
   let deletion = session
-    ? await input.store.prepareSessionDeletion(id)
+    ? await input.store.prepareSessionDeletion(id, await journaledTranscriptFile(input, session))
     : await input.store.getSessionDeletion(id)
   if (!deletion) return
   if (deletion.phase === 'pi-file-cleanup-complete') {
@@ -172,6 +214,7 @@ async function deleteSessionDurably(
       ? deletion
       : await input.store.prepareSessionPiFileCleanup(id, deletion.piSessionFile)
   await completeJournaledSessionFileDeletion(cleanup.piSessionFile, cleanup.stagedPiSessionFile)
+  await removeTranscriptCopies(input, cleanup)
   await input.store.markSessionPiFileCleanupComplete(id)
   await input.store.abandonSessionDeletion(id)
 }

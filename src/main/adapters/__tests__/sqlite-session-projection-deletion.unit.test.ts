@@ -4,6 +4,7 @@ import * as Effect from 'effect/Effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { NoopActionRunServiceLayer } from '../../application/__tests__/action-run-service-test-layer'
 import { NoopWorkspacePreparationLayer } from '../../application/__tests__/workspace-preparation-test-layer'
+import { SessionTranscriptFiles } from '../../ports/session-transcript-files'
 import { SessionWorkspaceResourceRepository } from '../../ports/session-workspace-resource-repository'
 import type { SessionDeletionRecord } from '../../store/session-details/session-deletion-journal'
 import type { CheckpointRefSnapshot } from '../git/turn-checkpoint-refs'
@@ -113,6 +114,10 @@ vi.mock('../../services/git/session-worktree-prune', () => ({
 import { SessionProjectionRepository } from '../../ports/session-projection-repository'
 import { SqliteSessionProjectionRepositoryLive } from '../sqlite-session-projection-repository'
 
+const noTranscriptCopies = SessionTranscriptFiles.of({
+  listTranscriptFiles: () => Effect.succeed([]),
+})
+
 function deleteManagedSession() {
   return Effect.runPromise(
     Effect.gen(function* () {
@@ -123,6 +128,7 @@ function deleteManagedSession() {
       Effect.provide(NoopActionRunServiceLayer),
       Effect.provide(NoopWorkspacePreparationLayer),
       Effect.provideService(SessionWorkspaceResourceRepository, fromPartial({})),
+      Effect.provideService(SessionTranscriptFiles, noTranscriptCopies),
     ),
   )
 }
@@ -137,6 +143,7 @@ function recoverPendingDeletions() {
       Effect.provide(NoopActionRunServiceLayer),
       Effect.provide(NoopWorkspacePreparationLayer),
       Effect.provideService(SessionWorkspaceResourceRepository, fromPartial({})),
+      Effect.provideService(SessionTranscriptFiles, noTranscriptCopies),
     ),
   )
 }
