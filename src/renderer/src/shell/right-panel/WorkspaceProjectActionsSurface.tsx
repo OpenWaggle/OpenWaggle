@@ -1,5 +1,5 @@
 import { ProjectActionsSurface } from '@/features/project-actions'
-import { useProject } from '@/features/sessions/hooks'
+import { useSessionProjectPath } from '@/features/sessions/hooks'
 import type { TerminalOwnerContext } from '@/features/terminal'
 import { useWorkspacePanelStore } from '../workspace-panel-store'
 
@@ -9,11 +9,11 @@ export function WorkspaceProjectActionsSurface({
 }: {
   readonly owner: TerminalOwnerContext
 }) {
-  const { projectPath } = useProject()
+  const projectPath = useSessionProjectPath()
   return (
     <div className="min-h-0 flex-1 overflow-y-auto bg-bg">
       <ProjectActionsSurface
-        projectPath={projectPath ?? null}
+        projectPath={projectPath}
         onShowRunOutput={({ projectPath: runProjectPath, runId }) =>
           useWorkspacePanelStore.getState().showAction(owner.ownerKey, runProjectPath, runId)
         }
