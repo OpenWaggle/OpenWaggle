@@ -28,7 +28,7 @@ The providers and methods come from Pi, so new ones appear without an OpenWaggle
 - **Anthropic** offers browser sign-in and a copy-code method for when the browser runs on another machine.
 - **Radius** has its own sign-in.
 
-Pi renamed the Azure provider from `azure-openai-responses` to `azure`. OpenWaggle moves your saved Azure models, sessions and credential to the new name the first time it starts, and keeps the old credential entry for older Pi versions.
+Pi renamed the Azure provider from `azure-openai-responses` to `azure`. Each time OpenWaggle starts, it moves your saved Azure model choices and the model of each OpenWaggle session to the new name, and copies your Azure credential to it, keeping the old credential entry for older Pi versions. Pi's own session files still name the old provider in their history; OpenWaggle doesn't rewrite them. Model settings you added to Pi's `models.json` under the old name have to be renamed by hand.
 
 The provider switch stays usable during login. Turn it off to cancel an unfinished attempt. If an error appears, follow its instructions and use **Try again**.
 

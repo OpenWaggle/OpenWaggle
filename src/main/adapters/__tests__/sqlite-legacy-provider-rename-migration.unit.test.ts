@@ -124,16 +124,41 @@ describe('legacy provider rename migration', () => {
     })
   })
 
-  it('runs once, so a reference written later under the old id is left to Pi', async () => {
+  it('moves references again after a downgrade wrote the old id, at every Host start', async () => {
     const result = await run(
       Effect.gen(function* () {
-        yield* migrateLegacyProviderReferences
         yield* seedSetting('selectedModel', 'azure-openai-responses/gpt-5.4')
         yield* migrateLegacyProviderReferences
-        return yield* storedSettings()
+        // An older OpenWaggle, run in between, stores the old id again.
+        const sql = yield* SqlClient.SqlClient
+        yield* sql`
+          UPDATE settings_store SET value_json = ${JSON.stringify('azure-openai-responses/gpt-5.5')}
+          WHERE key = ${'selectedModel'}
+        `
+        yield* seedProfile('downgraded-session', { modelId: 'azure-openai-responses/gpt-5.4' })
+        yield* migrateLegacyProviderReferences
+        return { settings: yield* storedSettings(), profiles: yield* storedProfiles() }
       }),
     )
 
-    expect(result.selectedModel).toBe('azure-openai-responses/gpt-5.4')
+    expect(result.settings).toEqual({ selectedModel: 'azure/gpt-5.5' })
+    expect(result.profiles).toEqual({ 'downgraded-session': { modelId: 'azure/gpt-5.4' } })
+  })
+
+  it('writes nothing when no stored reference names an old provider id', async () => {
+    const result = await run(
+      Effect.gen(function* () {
+        yield* seedSetting('selectedModel', 'azure/gpt-5.4')
+        yield* seedProfile('azure-session', { modelId: 'azure/gpt-5.4' })
+        yield* migrateLegacyProviderReferences
+        const sql = yield* SqlClient.SqlClient
+        return yield* sql<{ readonly updated_at: number }>`
+          SELECT updated_at FROM settings_store
+          UNION ALL SELECT updated_at FROM session_execution_profiles
+        `
+      }),
+    )
+
+    expect(result.map((row) => row.updated_at)).toEqual([1, 1])
   })
 })
