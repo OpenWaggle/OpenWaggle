@@ -11,6 +11,12 @@ import type { DiscoveredExtensionPackage, ExtensionLifecycleState } from '../ext
 
 const catalogMocks = vi.hoisted(() => ({
   createPiRuntimeServices: vi.fn(),
+  migrateOpenWaggleMcpFilesOnce: vi.fn(async () => undefined),
+}))
+
+vi.mock('../adapters/pi/mcp/openwaggle-mcp-migration', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../adapters/pi/mcp/openwaggle-mcp-migration')>()),
+  migrateOpenWaggleMcpFilesOnce: catalogMocks.migrateOpenWaggleMcpFilesOnce,
 }))
 
 vi.mock('../adapters/pi/pi-provider-catalog', () => ({
@@ -204,6 +210,8 @@ describe('loadAgentDefinitionSemanticCatalog', () => {
     })
 
     expect(catalog.mcpServers).toContain('jira')
+    // Validation reads the MCP files as they are; it never migrates (writes) them.
+    expect(catalogMocks.migrateOpenWaggleMcpFilesOnce).not.toHaveBeenCalled()
     await rm(home, { recursive: true, force: true })
   })
 })

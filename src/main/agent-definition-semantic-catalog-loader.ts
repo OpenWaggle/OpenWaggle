@@ -4,7 +4,6 @@ import * as Effect from 'effect/Effect'
 import { listConfiguredMcpServerNames } from './adapters/mcp/config/mcp-server-names'
 import { readLegacyMcpServerNames } from './adapters/mcp/migration/legacy-server-names'
 import { loadAgentDefinitionPiProjectServices } from './adapters/pi/agent-definition-semantic-catalog-services'
-import { migrateOpenWaggleMcpFilesOnce } from './adapters/pi/mcp/openwaggle-mcp-migration'
 import type { OpenWagglePiExtensionSelectionServices } from './adapters/pi/openwaggle-pi-extension-selection'
 import type { AgentDefinitionSemanticCatalog } from './agents/agent-definition-semantic-validation'
 import { MCP_REACH_TOOL_NAMES } from './domain/agents/agent-tool-allowlist'
@@ -88,8 +87,8 @@ export async function loadAgentDefinitionSemanticCatalog(
   }
 
   try {
-    // The names must be the migrated ones, as Settings and Runs see them.
-    await migrateOpenWaggleMcpFilesOnce(input.projectPath)
+    // Validation is read-only: it reads the files as they are and never migrates them (the Host
+    // migrates them when it starts; old instance IDs resolve through the recorded aliases).
     const configured = await listConfiguredMcpServerNames({
       homeDir: input.userHome,
       piAgentDir: piAgentDirFor(input),
