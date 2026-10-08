@@ -359,7 +359,12 @@ listing before the model can reach it, whatever the exposure:
 
 "Lazy" in ADR 0050 means a connection never blocks a message. Only servers with `direct` tools
 are waited for before the first request, for at most `startupWaitMs` (1.5 s). A codemode script,
-`tool_search`, or a resource tool waits for the servers it needs when it runs. Connections are
+`tool_search`, or a resource tool waits for the servers it needs when it runs. Before that, a
+Run with a server turned on waits for the scope's sign-in migration and for the login-shell
+environment the Host reads once at start (`mcpShellEnvironmentReady`, at most 5 s per shell it
+tries): both are done after the first such Run in a Host process. A Run with no server turned on
+waits for neither; a server a Pi extension registers in such a Run starts with whatever
+environment the Host has read by then. Connections are
 pooled per Session (below), so the next Run reuses them instead of starting the servers again.
 Hidden QA's process snapshots show exactly this: every enabled server of a Session that had run
 (`direct`, `codemode`, and project ones) running, and nothing for Sessions that had not. Making

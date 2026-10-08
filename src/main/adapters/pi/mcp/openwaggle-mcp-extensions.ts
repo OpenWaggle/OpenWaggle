@@ -28,7 +28,10 @@ import { approveMcpToolCall } from './mcp-tool-approval'
 import { mcpServerEntryOfNamespace, mcpToolNamespace } from './mcp-tool-server'
 import { registerMcpUsageStatistics } from './mcp-usage-statistics'
 import { getOpenWaggleMcpCredentials, openWaggleMcpLogPath } from './openwaggle-mcp-credentials'
-import { migrateOpenWaggleMcpSignInsOnce } from './openwaggle-mcp-migration'
+import {
+  migrateOpenWaggleMcpFilesOnce,
+  migrateOpenWaggleMcpSignInsOnce,
+} from './openwaggle-mcp-migration'
 import { withShellResolvedClientSecrets } from './pi-mcp-server-oauth'
 import { openPiMcpUpstream } from './pi-mcp-upstream'
 
@@ -227,11 +230,7 @@ export async function createOpenWaggleMcpExtensions(
 ): Promise<readonly InlineExtension[]> {
   // MCP off means no MCP runtime, so servers Pi extensions register do not connect either.
   if (input.sessionMcpEnabled === false) return []
-  // Old sign-ins first, so a server is not reported signed out while the keychain is read.
-  await Promise.all([
-    migrateOpenWaggleMcpSignInsOnce(input.projectPath),
-    mcpShellEnvironmentReady(),
-  ])
+  await migrateOpenWaggleMcpFilesOnce(input.projectPath)
   const config = await loadMcpRuntimeConfig({
     roots: { homeDir: homedir(), piAgentDir: getPiAgentDir(), projectPath: input.projectPath },
     resolveSecret: resolveMcpVaultSecret,
@@ -240,6 +239,15 @@ export async function createOpenWaggleMcpExtensions(
       : { sessionMcpEnabled: input.sessionMcpEnabled }),
     ...(input.serverAllowlist ? { serverAllowlist: input.serverAllowlist } : {}),
   })
+  // A server that is on connects in the background: its old sign-in first, so it is not reported
+  // signed out while the keychain is read, and the login shell's environment for its command and
+  // values. With no server on, a Run waits for neither (ADR 0050).
+  if (config.loaded.servers.some((server) => server.config.enabled !== false)) {
+    await Promise.all([
+      migrateOpenWaggleMcpSignInsOnce(input.projectPath),
+      mcpShellEnvironmentReady(),
+    ])
+  }
   const extensionServers = createMcpExtensionServers()
   const mcp = createMcpExtension({
     loadConfig: () => withShellResolvedClientSecrets(config.loaded),
