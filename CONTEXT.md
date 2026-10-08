@@ -55,7 +55,7 @@ An isolated implementation of deprecated or vendor-specific protocol behavior th
 _Avoid_: silent legacy fallback
 
 **MCP catalog**:
-The curated first-party list of recommended servers offered for one-click install into the user's Pi MCP configuration.
+The curated first-party list of recommended servers offered for one-click install as an ordinary entry in OpenWaggle's MCP file for the chosen scope.
 _Avoid_: marketplace, plugin store, trust tier
 
 **MCP App host**:
@@ -1394,11 +1394,11 @@ _Avoid_: search (it narrows in place rather than producing results), sidebar vie
 
 ## Relationships
 
-- Installing a server from the **MCP catalog** writes an ordinary entry to the user's Pi MCP configuration; it then behaves like any other configured server.
+- Installing a server from the **MCP catalog** writes an ordinary entry to OpenWaggle's MCP file for the chosen scope (`~/.openwaggle/mcp.json` or `.openwaggle/mcp.json`); it then behaves like any other configured server.
 - Plaintext secret-like values in server definitions are permitted everywhere; a vault secret reference is an opt-in upgrade, never a prerequisite to connect.
 - Adding a project to OpenWaggle is the only trust decision for that project's Pi resources, including its MCP configuration; servers carry no separate trust or grant records.
 - MCP servers are read from `~/.pi/agent/mcp.json` then `~/.openwaggle/mcp.json` globally, and from `.mcp.json` then `.pi/mcp.json` then `.openwaggle/mcp.json` in a project; for the same server name a project entry beats a global one and a later file beats an earlier one, and an entry without `command` or `url` only overrides `enabled`, `exposure`, and `toolExposure`.
-- A change to an existing MCP server is saved to the file that defines it; a new server is saved to OpenWaggle's file for its scope (`~/.openwaggle/mcp.json` or `.openwaggle/mcp.json`) unless the user picks another, and a per-project switch on a global server is an override entry in `.openwaggle/mcp.json`.
+- A change to an existing MCP server is saved to the file that defines it; a new server is saved to OpenWaggle's file for its scope (`~/.openwaggle/mcp.json` or `.openwaggle/mcp.json`) unless the user picks another, and a per-project switch on a global server goes to the project's existing override entry for that server if it has one (for example in `.pi/mcp.json`), otherwise to a new override entry in `.openwaggle/mcp.json`.
 - Wherever OpenWaggle and Pi both offer a location or a default, OpenWaggle's comes first and Pi's second.
 - An MCP server connection belongs to exactly one Session and lasts across that Session's Runs; it is never shared with another Session, Worker, or fork, it connects lazily so only servers with `direct` exposure can delay a message, and it closes after 5 idle minutes, when its Session is archived or deleted, when the least recently used Session must give up its warm connections, or when the Session Host stops.
 - Pi sessions whose working directory is inside an OpenWaggle project appear in that project's sidebar without importing, load their transcript when first opened, and continue in the same Pi session file, so the `pi` CLI and OpenWaggle share one history.

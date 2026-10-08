@@ -45,7 +45,7 @@ Pi AgentSession (one per Run, disposed by withPiSession)
 | `src/main/adapters/mcp/import/` | adapter | Import from tools that are not read live (Codex, Claude Desktop, Cursor, VS Code, OpenCode, Zed). |
 | `src/main/adapters/mcp/registry/` | adapter | MCP Registry search and install: package launchers, OCI digest pinning, verified MCPB bundles. |
 | `src/main/adapters/pi/mcp/` | Pi adapter | The extension factories every Pi session loads, the companion extension, approval, interactions. |
-| `src/main/ports/mcp-*.ts` | ports | `McpConfigService`, `McpConnectionPool`, `McpSecretVaultService`, `McpRegistryService`. |
+| `src/main/ports/mcp-*.ts` | ports | `McpConfigurationService`, `McpServerRuntimeService`, `McpAppRuntimeService`, `McpImportService`, `McpRegistryService`, `McpSecretVaultService`. The connection pool is not a port: it lives in the pool adapter. |
 | `src/main/application/mcp-*.ts` | application | Settings and CLI operations over the ports. |
 | `src/renderer/src/features/settings/.../mcp/` | renderer | Settings > MCP, a thin view over the Host's data. |
 | `src/renderer/src/features/mcp/` | renderer | The MCP App host (`McpAppHost`) and its bridge. |
