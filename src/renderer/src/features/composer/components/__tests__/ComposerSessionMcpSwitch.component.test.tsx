@@ -37,6 +37,8 @@ describe("the composer's per-Session MCP switch", () => {
 
     const toggle = await screen.findByRole('menuitemcheckbox', { name: /Use MCP servers/ })
     await waitFor(() => expect(toggle).toHaveAttribute('aria-checked', 'false'))
+    // Turning MCP on applies from the next message, which starts the Session's servers.
+    expect(toggle).toHaveTextContent('Turning it on applies from your next message.')
     fireEvent.click(toggle)
 
     await waitFor(() =>
@@ -57,6 +59,8 @@ describe("the composer's per-Session MCP switch", () => {
 
     const toggle = await screen.findByRole('menuitemcheckbox', { name: /Use MCP servers/ })
     expect(toggle).toHaveAttribute('aria-checked', 'true')
+    // Turning it off stops the servers at once, a running reply's included.
+    await waitFor(() => expect(toggle).toHaveTextContent('Turning it off stops them at once.'))
     await waitFor(() => expect(toggle).toBeEnabled())
     fireEvent.click(toggle)
 

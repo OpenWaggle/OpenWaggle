@@ -114,7 +114,7 @@ Select a server in **Settings > MCP** to see where it is defined, whether it is 
 
 A change to an existing server is saved to the file that defines it. Turning a global server on or off for one project is saved in that project, never in a global file. If the project already changes that server in one of its files, for example with an entry in `.pi/mcp.json`, that entry is updated. Otherwise the change goes to `.openwaggle/mcp.json`.
 
-To keep one Session away from every MCP server, open the composer's **+** menu and clear **Use MCP servers**. That Session's Runs start no MCP servers, and the ones it had open close. Every Session uses MCP servers until you do this, and the change touches no file.
+To keep one Session away from every MCP server, open the composer's **+** menu and clear **Use MCP servers**. Its MCP servers stop at once, even during a reply, and its later replies start none. Turning it back on applies from your next message. Every Session uses MCP servers until you do this, and the change touches no file.
 
 Removing a server also removes the entries in OpenWaggle's files that only changed it. Entries like that in Pi's files or in `.mcp.json` are left as they are and listed as errors, so you can remove them yourself.
 

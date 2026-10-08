@@ -31,8 +31,8 @@ export function ComposerSessionMcpSwitch({ sessionId }: { readonly sessionId: st
           <span className="text-sm font-medium text-text-primary">Use MCP servers</span>
           <span className="text-xs font-normal text-text-tertiary">
             {mcp.enabled
-              ? 'Runs reach the MCP servers configured for this project'
-              : 'Off: this Session starts no MCP servers'}
+              ? "This Session uses the project's MCP servers. Turning it off stops them at once."
+              : 'Off for this Session. Turning it on applies from your next message.'}
           </span>
         </span>
       </Button>
