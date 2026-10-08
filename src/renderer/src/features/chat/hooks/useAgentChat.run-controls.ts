@@ -8,8 +8,7 @@ import {
   MessageDeliveredRunFailed,
   MessageNotDelivered,
 } from '@/features/chat/lib/message-delivery'
-import { isModelActionable } from '@/features/providers/state'
-import { usePreferencesStore } from '@/features/settings/state'
+import { modelActionError } from '@/features/providers/state'
 import { api } from '@/shared/lib/ipc'
 import { createOptimisticUserMessage } from '../lib/useAgentChat.utils'
 import { withForegroundSend } from '../state/foreground-send-store'
@@ -260,8 +259,9 @@ export function createAgentRunControls(params: AgentRunControlParams) {
     // Transcript retries and diff follow-ups bypass the composer gate; validate before the
     // optimistic turn is appended, so a refused send leaves no phantom message behind.
     const model = params.model
-    if (!isModelActionable(usePreferencesStore.getState().settings.enabledModels, model)) {
-      params.setError(new Error('Select a model before sending.'))
+    const unavailable = modelActionError(model)
+    if (unavailable || !model) {
+      params.setError(unavailable ?? new Error('Select a model before sending.'))
       return
     }
 

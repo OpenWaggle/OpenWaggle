@@ -124,10 +124,7 @@ export function useGlobalCommandActions() {
       showToast('Open a session first.', 'error')
       return
     }
-    if (
-      !sessionModel ||
-      !isSelectableModel(providerModels, settings, sessionModel, catalogHydrated)
-    ) {
+    if (!sessionModel || !isSelectableModel(providerModels, sessionModel, catalogHydrated)) {
       showToast('Select a model before compacting.', 'error')
       return
     }

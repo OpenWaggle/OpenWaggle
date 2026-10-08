@@ -7,7 +7,6 @@ import { useChatStore } from '@/features/chat/state'
 import { buildPendingSessionDraftContextKey } from '@/features/composer/lib'
 import { useComposerStore } from '@/features/composer/state'
 import { isSelectableModel, useProviderStore } from '@/features/providers/state'
-import { usePreferencesStore } from '@/features/settings/state'
 import { api } from '@/shared/lib/ipc'
 import { ipcErrorMessage } from '@/shared/lib/ipc-error-message'
 import { findUserMessageNode } from '../lib/branch-from-message'
@@ -229,10 +228,5 @@ export function useSessionCopyWorkflow(params: SessionCopyWorkflowParams) {
  */
 function isModelActionable(model: SupportedModelId | undefined): model is SupportedModelId {
   const { providerModels, catalogHydrated } = useProviderStore.getState()
-  return isSelectableModel(
-    providerModels,
-    usePreferencesStore.getState().settings,
-    model,
-    catalogHydrated,
-  )
+  return isSelectableModel(providerModels, model, catalogHydrated)
 }

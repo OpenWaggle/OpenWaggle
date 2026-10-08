@@ -11,7 +11,6 @@ import { buildComposerDraftContextKey } from '@/features/composer/lib'
 import { useComposerStore } from '@/features/composer/state'
 import { isSelectableModel, useProviderStore } from '@/features/providers/state'
 import { useSessionStore } from '@/features/sessions/state'
-import { usePreferencesStore } from '@/features/settings/state'
 import { api } from '@/shared/lib/ipc'
 
 interface SessionTreeNodeSelectionInput {
@@ -55,14 +54,7 @@ export function useSessionTreeNodeSelection(input: SessionTreeNodeSelectionInput
       return
     }
     const { providerModels, catalogHydrated } = useProviderStore.getState()
-    if (
-      !isSelectableModel(
-        providerModels,
-        usePreferencesStore.getState().settings,
-        input.selectedModel,
-        catalogHydrated,
-      )
-    ) {
+    if (!isSelectableModel(providerModels, input.selectedModel, catalogHydrated)) {
       input.showToast('Select a model before switching branches.')
       return
     }

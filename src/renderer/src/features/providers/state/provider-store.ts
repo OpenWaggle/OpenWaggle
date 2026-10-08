@@ -42,28 +42,52 @@ function buildAvailableModelSet(providerModels: readonly ProviderInfo[]) {
  * available in the Pi catalog. Before the catalog has hydrated, the model is left as-is rather
  * than gated during startup.
  */
+/**
+ * Whether a Session can run on `model`: Pi has it and can sign in to its provider. Enabled models
+ * only decide what the picker offers. A Session continued from the `pi` CLI keeps its own model,
+ * as `pi --resume` does, though the user never enabled it in OpenWaggle.
+ */
 export function isSelectableModel(
   providerModels: readonly ProviderInfo[],
-  settings: Pick<Settings, 'enabledModels'>,
   model: SupportedModelId | undefined,
   catalogHydrated: boolean,
 ): model is SupportedModelId {
   if (!model) return false
   if (!catalogHydrated) return true
-  if (providerModels.length === 0) return false
-  if (!settings.enabledModels.includes(model)) return false
-  return providerModels.some((group) =>
-    group.models.some((candidate) => candidate.id === model && candidate.available),
-  )
+  return catalogModel(providerModels, model)?.available === true
 }
 
-/** Catalog check against the live provider store; callers supply the current enabled models. */
-export function isModelActionable(
-  enabledModels: readonly SupportedModelId[],
-  model: SupportedModelId | undefined,
-): model is SupportedModelId {
+/** Why the live catalog cannot run `model`, as an error to show, or undefined when it can. */
+export function modelActionError(model: SupportedModelId | undefined) {
+  if (isModelActionable(model)) return undefined
+  return new Error(modelUnavailableMessage(useProviderStore.getState().providerModels, model))
+}
+
+/** Catalog check against the live provider store. */
+export function isModelActionable(model: SupportedModelId | undefined): model is SupportedModelId {
   const state = useProviderStore.getState()
-  return isSelectableModel(state.providerModels, { enabledModels }, model, state.catalogHydrated)
+  return isSelectableModel(state.providerModels, model, state.catalogHydrated)
+}
+
+function catalogModel(providerModels: readonly ProviderInfo[], model: SupportedModelId) {
+  for (const group of providerModels) {
+    const found = group.models.find((candidate) => candidate.id === model)
+    if (found) return { ...found, providerName: group.displayName }
+  }
+  return undefined
+}
+
+/** Why a Session cannot run on `model`, and what the user can do about it. */
+export function modelUnavailableMessage(
+  providerModels: readonly ProviderInfo[],
+  model: SupportedModelId | undefined,
+) {
+  if (!model) return 'Select a model before sending.'
+  const found = catalogModel(providerModels, model)
+  if (!found) {
+    return `${model} is not available in this project. Add its provider in Settings > Connections, or choose another model.`
+  }
+  return `${found.name} needs a sign-in to ${found.providerName}. Connect ${found.providerName} in Settings > Connections, or choose another model.`
 }
 
 function dedupeProviderModels(

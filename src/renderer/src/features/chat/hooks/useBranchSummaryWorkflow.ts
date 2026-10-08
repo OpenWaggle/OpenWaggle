@@ -12,7 +12,6 @@ import { buildComposerDraftContextKey } from '@/features/composer/lib'
 import { useComposerStore } from '@/features/composer/state'
 import { isModelActionable } from '@/features/providers/state'
 import { useSessionStore } from '@/features/sessions/state'
-import { usePreferencesStore } from '@/features/settings/state'
 import { api } from '@/shared/lib/ipc'
 import { setComposerTextValue } from '../lib/composer-text'
 import { type BranchSummaryPromptState, useBranchSummaryStore } from '../state/branch-summary-store'
@@ -172,7 +171,7 @@ async function navigateWithBranchSummary(
   prompt: BranchSummaryPromptState,
   customInstructions: string | undefined,
 ) {
-  if (!isModelActionable(usePreferencesStore.getState().settings.enabledModels, params.model)) {
+  if (!isModelActionable(params.model)) {
     return { cancelled: true }
   }
   const trimmedInstructions = customInstructions?.trim()

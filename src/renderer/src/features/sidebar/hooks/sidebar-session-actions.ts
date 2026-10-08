@@ -9,7 +9,6 @@ import { buildPendingSessionDraftContextKey } from '@/features/composer/lib'
 import { useComposerStore } from '@/features/composer/state'
 import { isModelActionable } from '@/features/providers/state'
 import { useSessionStore } from '@/features/sessions/state'
-import { usePreferencesStore } from '@/features/settings/state'
 import { refreshArchivedSessions } from '@/queries/archived-sessions'
 import { refreshAfterCommittedSessionMutation } from '@/queries/committed-session-refresh'
 import { api } from '@/shared/lib/ipc'
@@ -152,9 +151,7 @@ async function cloneSession(deps: SidebarSessionActionDeps, sessionId: SessionId
     deps.showToast('Open this session before cloning it.')
     return
   }
-  if (
-    !isModelActionable(usePreferencesStore.getState().settings.enabledModels, deps.selectedModel)
-  ) {
+  if (!isModelActionable(deps.selectedModel)) {
     deps.showToast('Select a model before cloning.')
     return
   }
