@@ -34,6 +34,7 @@ function secretName(serverName: string, fieldName: string) {
  * `${NAME}` would not make Pi expand it either.
  */
 export function literalString(value: string, location: string, context: ImportValueContext) {
+  if (warnVsCodeVariable(value, location, context)) return value
   const pattern = SOURCE_VARIABLES[context.source]
   const variable = pattern ? new RegExp(pattern.source).exec(value)?.[0] : undefined
   if (variable) {
@@ -42,6 +43,20 @@ export function literalString(value: string, location: string, context: ImportVa
     )
   }
   return value
+}
+
+/** VS Code's predefined variables (`${workspaceFolder}`, `${userHome}`, …): not `env:` or `input:`. */
+const VS_CODE_PREDEFINED_VARIABLE = /\$\{(?!env:|input:)[^}]+\}/
+
+/** Warns about a VS Code predefined variable, which nothing but VS Code fills in. */
+function warnVsCodeVariable(value: string, location: string, context: ImportValueContext) {
+  if (context.source !== 'vscode') return false
+  const variable = VS_CODE_PREDEFINED_VARIABLE.exec(value)?.[0]
+  if (!variable) return false
+  context.warnings.push(
+    `${location} uses VS Code's ${variable}, which only VS Code fills in; Pi takes it as written, so put the real value there.`,
+  )
+  return true
 }
 
 /** True for values Pi resolves when it connects (`${VAR}` or `!command`), not literal secrets. */
@@ -89,6 +104,7 @@ function variableName(match: RegExpMatchArray, location: string, context: Import
  * `$!`), so a value from another tool is never run as a command or read as a variable it was not.
  */
 export function piValueFrom(value: string, location: string, context: ImportValueContext) {
+  warnVsCodeVariable(value, location, context)
   const pattern = SOURCE_VARIABLES[context.source]
   if (!pattern) return { value: piLiteral(value), references: false }
   let result = ''

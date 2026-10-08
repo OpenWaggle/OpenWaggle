@@ -78,10 +78,14 @@ function reshape(source: ExternalMcpImportSource, value: Raw): Raw {
 
 function endpointFields(value: Raw, context: ImportValueContext): PiMcpEntry {
   const commandArray = stringArray(value.command)
-  const command = commandArray?.[0] ?? nonEmptyString(value.command)
+  const rawCommand = commandArray?.[0] ?? nonEmptyString(value.command)
+  // Pi takes these as written, like arguments: a variable in them is kept, with a warning.
+  const command = rawCommand && literalString(rawCommand, 'command', context)
   const args = portableArgs(commandArray?.slice(1) ?? stringArray(value.args) ?? [], context)
-  const cwd = nonEmptyString(value.cwd)
-  const url = nonEmptyString(value.url)
+  const rawCwd = nonEmptyString(value.cwd)
+  const cwd = rawCwd && literalString(rawCwd, 'cwd', context)
+  const rawUrl = nonEmptyString(value.url)
+  const url = rawUrl && literalString(rawUrl, 'url', context)
   return {
     ...(command ? { command } : {}),
     ...(args.length > 0 ? { args } : {}),
