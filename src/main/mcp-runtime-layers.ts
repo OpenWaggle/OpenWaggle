@@ -9,6 +9,7 @@ import {
 } from './adapters/pi/mcp/openwaggle-mcp-configuration'
 import { createPiMcpAppRuntimeService } from './adapters/pi/mcp/pi-mcp-app-runtime-service'
 import { createPiMcpServerRuntimeService } from './adapters/pi/mcp/pi-mcp-server-runtime-service'
+import { killPendingMcpProcessGroups } from './adapters/pi/mcp/pi-mcp-upstream'
 import { piAgentKernelLayer } from './adapters/pi/pi-agent-kernel-adapter'
 import { McpAppRuntimeService } from './ports/mcp-app-runtime-service'
 import { McpServerRuntimeService } from './ports/mcp-server-runtime-service'
@@ -41,7 +42,8 @@ export const McpServicesLive = Layer.mergeAll(
 /** The agent kernel, whose Runs lease from the same pool. */
 export const HostPiAgentKernelLive = piAgentKernelLayer(hostMcpConnectionPool)
 
-/** At Host stop: stdio MCP servers must not outlive the Host. */
-export function closeHostMcpConnections() {
-  return hostMcpConnectionPool.closeAll()
+/** At Host stop: stdio MCP servers must not outlive the Host, even those ignoring SIGTERM. */
+export async function closeHostMcpConnections() {
+  await hostMcpConnectionPool.closeAll()
+  killPendingMcpProcessGroups()
 }

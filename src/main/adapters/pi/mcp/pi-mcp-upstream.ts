@@ -73,7 +73,7 @@ function openStdio(entry: McpServerEntry, cwd: string): McpUpstream {
   return {
     transport,
     stderrTail: () => transport.stderr.trim().slice(-STDERR_TAIL_CHARS),
-    close: () => stopProcessGroup(pid ?? transport.pid),
+    close: () => stopMcpProcessGroup(pid ?? transport.pid),
   }
 }
 
@@ -86,18 +86,34 @@ const GROUP_KILL_GRACE_MS = 2_000
  * is stopped anyway. POSIX only: Windows has no process groups, and pi-mcp's `taskkill /T` covers
  * the tree while the launcher is alive.
  */
-async function stopProcessGroup(pid: number | undefined) {
+export async function stopMcpProcessGroup(pid: number | undefined) {
   if (pid === undefined || process.platform === 'win32') return
-  const signalGroup = (signal: NodeJS.Signals) => {
-    try {
-      process.kill(-pid, signal)
-      return true
-    } catch {
-      return false
-    }
+  if (!signalGroup(pid, 'SIGTERM')) return
+  pendingKills.add(pid)
+  setTimeout(() => {
+    if (pendingKills.delete(pid)) signalGroup(pid, 'SIGKILL')
+  }, GROUP_KILL_GRACE_MS).unref()
+}
+
+/** Groups sent SIGTERM whose SIGKILL is still due; the timer is unref'd, so exit would skip it. */
+const pendingKills = new Set<number>()
+
+function signalGroup(pid: number, signal: NodeJS.Signals) {
+  try {
+    process.kill(-pid, signal)
+    return true
+  } catch {
+    return false
   }
-  if (!signalGroup('SIGTERM')) return
-  setTimeout(() => signalGroup('SIGKILL'), GROUP_KILL_GRACE_MS).unref()
+}
+
+/**
+ * At Host exit, after closing the pool: kills now every group still in its SIGTERM grace, so a
+ * server that ignores SIGTERM does not outlive the Host.
+ */
+export function killPendingMcpProcessGroups() {
+  for (const pid of pendingKills) signalGroup(pid, 'SIGKILL')
+  pendingKills.clear()
 }
 
 function urlOf(entry: McpServerEntry) {
