@@ -19,7 +19,7 @@ import {
 } from './mcp-cli-management-context'
 import { doctorCommand } from './mcp-cli-management-doctor'
 import { importCommand } from './mcp-cli-management-import'
-import { listCommand } from './mcp-cli-management-list'
+import { listCommand, projectOptionOf } from './mcp-cli-management-list'
 import { registryCommand } from './mcp-cli-management-registry'
 
 export type { McpCliHost } from './mcp-cli-management-context'
@@ -36,10 +36,6 @@ function scopeOf(destination: McpWriteDestination): McpConfigFileScope {
 
 function defaultDestination(scope: McpConfigFileScope): McpWriteDestination {
   return scope === 'global' ? 'openwaggle-global' : 'project-openwaggle'
-}
-
-function listHint(projectPath: string | null) {
-  return projectPath ? 'openwaggle mcp list -l' : 'openwaggle mcp list'
 }
 
 function findServer(view: McpConfigurationView, name: string) {
@@ -74,10 +70,12 @@ async function addCommand({
   context.output.log(
     `${replaced ? 'Replaced' : 'Added'} ${scope} MCP server "${input.name}" in ${filePath}.`,
   )
+  // `-l` or `--project <path>`, as the command was given, so the hints act on the same project.
+  const project = projectOptionOf({ args, projectPath })
   const signIn = findServer(after, input.name)?.usesOAuth
-    ? `. If it requires sign-in: openwaggle mcp login ${input.name}${projectPath ? ' -l' : ''}`
+    ? `. If it requires sign-in: openwaggle mcp login ${input.name}${project}`
     : ''
-  context.output.log(`Check it with: ${listHint(projectPath)}${signIn}`)
+  context.output.log(`Check it with: openwaggle mcp list${project}${signIn}`)
   return MCP_MANAGEMENT_EXIT.SUCCESS
 }
 

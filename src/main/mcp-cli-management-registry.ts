@@ -11,6 +11,7 @@ import {
   type McpManagementCommandInput,
   type McpManagementExit,
 } from './mcp-cli-management-context'
+import { projectOptionOf } from './mcp-cli-management-list'
 
 /**
  * `openwaggle mcp registry search|get|add`: the MCP Registry through the Session Host. `add`
@@ -164,8 +165,10 @@ async function addCommand(input: McpManagementCommandInput, rest: readonly strin
       `It can also use the optional secret${one ? '' : 's'} ${optional.join(', ')}, which ${one ? 'was' : 'were'} left out so it starts without ${one ? 'it' : 'them'}. To use one, add it to the entry in ${result.filePath} with a vault secret.`,
     )
   }
-  const local = request.projectPath ? ' -l' : ''
-  context.output.log(`Check it with: openwaggle mcp list${local}`)
+  const project = request.projectPath
+    ? projectOptionOf({ args, projectPath: request.projectPath })
+    : ''
+  context.output.log(`Check it with: openwaggle mcp list${project}`)
   return MCP_MANAGEMENT_EXIT.SUCCESS
 }
 

@@ -73,6 +73,22 @@ describe('openwaggle mcp add', () => {
     expect(result.logs).toContain('openwaggle mcp login docs -l')
   })
 
+  it('keeps --project in the hints it prints', async () => {
+    const result = await run(
+      'add',
+      ['--project', 'repo', 'docs', '--url', 'https://docs.example/mcp'],
+      {
+        'mcp:get-configuration': () => view([]),
+        'mcp:add-server': () => view([server({ name: 'docs', usesOAuth: true })]),
+      },
+    )
+
+    expect(result.calls[1]?.input).toMatchObject({ projectPath: '/resolved/repo' })
+    expect(result.logs).toContain(
+      'Check it with: openwaggle mcp list --project /resolved/repo. If it requires sign-in: openwaggle mcp login docs --project /resolved/repo',
+    )
+  })
+
   it('writes to the file picked with --file', async () => {
     const result = await run('add', ['tools', '--file', 'pi-global', '--', 'npx', 'tools'], {
       'mcp:get-configuration': () => view([]),

@@ -127,6 +127,22 @@ describe('openwaggle mcp registry', () => {
     expect(result.logs).toContain('openwaggle mcp list -l')
   })
 
+  it('keeps --project in the hint it prints', async () => {
+    const result = await run(
+      'registry',
+      ['add', 'io.github.example/weather', '--project', 'repo'],
+      {
+        'mcp:install-registry-server': () => installed('weather'),
+      },
+    )
+
+    expect(result.calls[0]?.input).toMatchObject({
+      projectPath: '/resolved/repo',
+      scope: 'project',
+    })
+    expect(result.logs).toContain('Check it with: openwaggle mcp list --project /resolved/repo')
+  })
+
   it('keeps the old --scope flag', async () => {
     const result = await run(
       'registry',
