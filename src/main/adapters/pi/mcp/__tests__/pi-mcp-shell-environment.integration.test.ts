@@ -43,7 +43,7 @@ afterEach(async () => {
   resetMcpShellEnvironmentForTests()
 })
 
-describe("MCP ${NAME} values from the user's login shell", () => {
+describe(`MCP \${NAME} values from the user's login shell`, () => {
   it('resolves env values from it and gives the server process its variables', async () => {
     await loginShellWith({ OW_ONLY_IN_LOGIN_SHELL: 'from-zshrc' })
     const pool = new McpSessionConnectionPool()
@@ -53,7 +53,7 @@ describe("MCP ${NAME} values from the user's login shell", () => {
       config: {
         command: process.execPath,
         args: ['-e', SERVER],
-        env: { TOKEN: 'Bearer ${OW_ONLY_IN_LOGIN_SHELL}' },
+        env: { TOKEN: `Bearer \${OW_ONLY_IN_LOGIN_SHELL}` },
       },
       source: 'test',
     }
@@ -89,7 +89,7 @@ describe("MCP ${NAME} values from the user's login shell", () => {
         name: 'docs',
         config: {
           url: 'https://docs.example/mcp',
-          oauth: { clientId: 'c', clientSecret: '${OW_ONLY_IN_LOGIN_SHELL}' },
+          oauth: { clientId: 'c', clientSecret: `\${OW_ONLY_IN_LOGIN_SHELL}` },
         },
         source: 'test',
         scope: 'global',

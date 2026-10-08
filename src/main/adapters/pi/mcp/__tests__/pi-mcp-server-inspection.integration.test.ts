@@ -90,12 +90,12 @@ describe('MCP server inspection for Settings', () => {
 })
 
 describe('MCP server inspection when a value cannot be resolved', () => {
-  it('reports a missing ${NAME} or vault secret as that server failing, not the whole check', async () => {
+  it(`reports a missing \${NAME} or vault secret as that server failing, not the whole check`, async () => {
     configure({
       env: {
         command: process.execPath,
         args: ['-e', SERVER],
-        env: { KEY: '${OW_NOT_SET_ANYWHERE}' },
+        env: { KEY: `\${OW_NOT_SET_ANYWHERE}` },
       },
       vault: {
         url: 'https://v.example/mcp',

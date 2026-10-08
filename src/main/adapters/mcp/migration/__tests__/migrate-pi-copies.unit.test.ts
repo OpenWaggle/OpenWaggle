@@ -61,7 +61,7 @@ describe('migrating Pi copies in ~/.openwaggle/mcp.json', () => {
     const piEntry = {
       command: 'npx',
       args: ['-y', '@modelcontextprotocol/server-github'],
-      env: { GITHUB_PERSONAL_ACCESS_TOKEN: '${GITHUB_TOKEN}' },
+      env: { GITHUB_PERSONAL_ACCESS_TOKEN: `\${GITHUB_TOKEN}` },
     }
     const normalized = legacyNormalizeImportedServer('github', piEntry)
     expect(normalized).toMatchObject({

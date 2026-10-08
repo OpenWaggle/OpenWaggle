@@ -8,7 +8,7 @@ import { loadMcpRuntimeConfig } from '../../../mcp/config/mcp-runtime-config'
 const vault: Readonly<Record<string, string>> = {
   dollar: 'p@ss$word',
   bang: '!echo PWNED',
-  braces: '${HOME}',
+  braces: `\${HOME}`,
 }
 
 const roots: string[] = []
@@ -18,7 +18,7 @@ afterEach(() => {
 })
 
 describe('vault secrets in the configuration Pi receives', () => {
-  it('reads back exactly as stored through Pi’s resolver, never as ${VAR} or !command', async () => {
+  it(`reads back exactly as stored through Pi’s resolver, never as \${VAR} or !command`, async () => {
     const root = mkdtempSync(path.join(tmpdir(), 'ow-mcp-secrets-'))
     roots.push(root)
     const homeDir = path.join(root, 'home')
@@ -50,7 +50,7 @@ describe('vault secrets in the configuration Pi receives', () => {
     expect(values.map((value) => resolveConfigValueOrThrow(value, 'value'))).toEqual([
       'p@ss$word',
       '!echo PWNED',
-      '${HOME}',
+      `\${HOME}`,
       '!echo PWNED',
     ])
   })

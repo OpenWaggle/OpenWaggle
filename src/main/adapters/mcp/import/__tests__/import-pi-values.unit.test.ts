@@ -25,16 +25,16 @@ describe('imported env and header values, as Pi will read them', () => {
   })
 
   it.each([
-    ['claude-code', 'Bearer ${GITHUB_TOKEN}', 'Bearer ${GITHUB_TOKEN}'],
-    ['claude-code', '${REGION:-eu}-$x', '${REGION}-$$x'],
-    ['cursor', 'Bearer ${env:GITHUB_TOKEN}', 'Bearer ${GITHUB_TOKEN}'],
-    ['vscode', 'Bearer ${env:GITHUB_TOKEN}', 'Bearer ${GITHUB_TOKEN}'],
-    ['windsurf', 'Bearer ${env:GITHUB_TOKEN}', 'Bearer ${GITHUB_TOKEN}'],
-    ['opencode', 'Bearer {env:GITHUB_TOKEN}', 'Bearer ${GITHUB_TOKEN}'],
-    ['claude-desktop', 'Bearer ${GITHUB_TOKEN}', 'Bearer $${GITHUB_TOKEN}'],
-    ['cursor', 'Bearer ${GITHUB_TOKEN}', 'Bearer $${GITHUB_TOKEN}'],
+    ['claude-code', `Bearer \${GITHUB_TOKEN}`, `Bearer \${GITHUB_TOKEN}`],
+    ['claude-code', `\${REGION:-eu}-$x`, `\${REGION}-$$x`],
+    ['cursor', `Bearer \${env:GITHUB_TOKEN}`, `Bearer \${GITHUB_TOKEN}`],
+    ['vscode', `Bearer \${env:GITHUB_TOKEN}`, `Bearer \${GITHUB_TOKEN}`],
+    ['windsurf', `Bearer \${env:GITHUB_TOKEN}`, `Bearer \${GITHUB_TOKEN}`],
+    ['opencode', 'Bearer {env:GITHUB_TOKEN}', `Bearer \${GITHUB_TOKEN}`],
+    ['claude-desktop', `Bearer \${GITHUB_TOKEN}`, 'Bearer $${GITHUB_TOKEN}'],
+    ['cursor', `Bearer \${GITHUB_TOKEN}`, 'Bearer $${GITHUB_TOKEN}'],
   ] as const)(
-    'converts what %s interpolates (%s) to ${NAME} and escapes the rest',
+    `converts what %s interpolates (%s) to \${NAME} and escapes the rest`,
     (source, value, expected) => {
       expect(env(source, { AUTH: value })).toEqual({ AUTH: expected })
     },
