@@ -159,7 +159,7 @@ A server connects in the background when a session sends a message, and only ser
 
 Opening **Settings > MCP** starts no server. Each server shows what is already known: the state of a session that is connected to it, otherwise the result of the last check, otherwise **Not checked yet**. Choose **Check connection** on a server to connect to it, list its tools, and disconnect; `openwaggle mcp list` checks every enabled server the same way.
 
-A session's servers stop after 5 minutes without a new message, when the session is archived or deleted, and when OpenWaggle quits. When many sessions have servers running, the one used least recently stops first. Stopping a local server also stops any program it was started through, such as `npx` or `uvx`.
+A session's servers stop after 5 minutes without a new message, when the session is archived or deleted, and when OpenWaggle's background Host stops. When many sessions have servers running, the one used least recently stops first. Stopping a local server also stops any program it was started through, such as `npx` or `uvx`.
 
 ## Apps, sampling, and input requests
 
