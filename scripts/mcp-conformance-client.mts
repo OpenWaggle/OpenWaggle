@@ -8,7 +8,7 @@
  */
 import { McpClient, StreamableHttpTransport } from '@earendil-works/pi-mcp'
 import { McpSessionConnectionPool } from '../src/main/adapters/mcp/pool/mcp-session-connection-pool'
-import { withOpenWaggleClientCapabilities } from '../src/main/adapters/pi/mcp/mcp-session-context'
+import { openWaggleMcpConnectionHooks } from '../src/main/adapters/pi/mcp/mcp-session-context'
 import { createMcpServerFetch } from '../src/main/adapters/mcp/pool/mcp-server-fetch'
 import { MCP_MAX_MESSAGE_BYTES } from '../src/main/adapters/mcp/runtime/mcp-message-limit'
 
@@ -56,15 +56,45 @@ async function callFirstTool(client: McpClient) {
   await client.callTool(tool.name, { a: CONFORMANCE_ADDEND_A, b: CONFORMANCE_ADDEND_B })
 }
 
+const ECHO_TOOL = 'json_schema_echo'
+
+/**
+ * SEP-1613/SEP-2106: the focal tool's `inputSchema`, as Pi's client received it through the
+ * transport layer, is sent back verbatim to the echo tool, which compares it with the original.
+ * `$schema`, `$defs` (with `$anchor`), `additionalProperties`, and every nested keyword are kept.
+ * The transport's provider schema repair deliberately flattens root `allOf`/`anyOf` and drops root
+ * `if`/`then`/`else`, because Bedrock, Anthropic, and OpenAI refuse a tool whose parameters have
+ * them at the root; the server still validates arguments against its own schema. Those two
+ * SEP-2106 checks are therefore reported as skipped at 2025-11-25.
+ */
+async function echoFocalToolSchema(client: McpClient) {
+  const tools = await client.listTools()
+  const focal = tools.find((tool) => tool.name !== ECHO_TOOL)
+  if (!focal) throw new Error('The official conformance server did not advertise its schema tool.')
+  await client.callTool(ECHO_TOOL, { schema: focal.inputSchema })
+}
+
 async function runScenario() {
+  // The connection hooks a Run's pooled connection gets, so `tools/list` results pass through the
+  // same transport-layer adaptation (provider schema repair) as in a Session.
   const pool = new McpSessionConnectionPool({
-    hooks: () => ({ augmentInitializeParams: withOpenWaggleClientCapabilities }),
+    hooks: (sessionId, serverName) => {
+      const hooks = openWaggleMcpConnectionHooks(sessionId, serverName)
+      return {
+        augmentInitializeParams: hooks.augmentInitializeParams,
+        ...(hooks.adaptResult ? { adaptResult: hooks.adaptResult } : {}),
+      }
+    },
   })
   try {
     const client = await connect(pool, requireServerUrl())
     if (SCENARIO === 'initialize') return
     if (SCENARIO === 'tools_call') {
       await callFirstTool(client)
+      return
+    }
+    if (SCENARIO === 'json-schema-2020-12-preservation') {
+      await echoFocalToolSchema(client)
       return
     }
     throw new Error(`OpenWaggle has no conformance behavior for scenario ${SCENARIO}.`)

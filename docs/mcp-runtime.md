@@ -319,7 +319,19 @@ The descriptor's
 opened for a server that was since replaced is refused.
 
 `pnpm test:mcp:conformance` runs the official MCP conformance scenarios with pi-mcp's client
-through a pool lease and OpenWaggle's hardened fetch.
+through a pool lease, OpenWaggle's hardened fetch, and the connection hooks a Run's connection
+gets: `initialize`, `tools_call`, and `json-schema-2020-12-preservation` (SEP-1613, SEP-2106).
+
+Tool schemas reach Pi's client as the server sent them, except for one deliberate change: the
+transport rewrites a `tools/list` result whose tool `inputSchema` has a root keyword a provider
+refuses (`mcp-tool-schema-repair.ts`). Bedrock, Anthropic, and OpenAI need an object root without
+`allOf`/`anyOf`/`oneOf`, `$ref`, or `if`/`then`/`else`, so those root keywords are flattened or
+dropped; a schema without them is passed on unchanged, and `$schema`, `$defs`, `$anchor`,
+`additionalProperties`, and every nested keyword are kept. The server still validates the
+arguments against its own schema. Pi registers the listed schema as the model's tool parameters
+and offers no later point to repair it, so the repair stays in the transport. Settings and MCP
+Apps read the listing before it (`observeResult`). The conformance scenario therefore reports
+SEP-2106's composition and conditional checks as skipped at 2025-11-25.
 
 ## Lifecycle
 
