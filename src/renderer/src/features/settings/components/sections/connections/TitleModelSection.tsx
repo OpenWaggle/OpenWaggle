@@ -28,7 +28,10 @@ interface TitleModelOption {
   readonly label: string
 }
 
-/** Enabled models grouped by provider, labelled by display name; unknown refs keep their id. */
+/**
+ * The enabled models the catalog has, grouped by provider and labelled by display name, plus the
+ * current selection, which keeps its id when the catalog lacks it.
+ */
 function buildTitleModelGroups(
   enabledModels: readonly string[],
   providerModels: readonly ProviderInfo[],
@@ -44,7 +47,8 @@ function buildTitleModelGroups(
     }
   }
 
-  const refs = [...new Set(enabledModels.map((ref) => ref.trim()).filter(Boolean))]
+  // Enabled models this catalog lacks belong to another project's catalog.
+  const refs = [...new Set(enabledModels.map((ref) => ref.trim()).filter((ref) => lookup.has(ref)))]
   const isSpecific =
     selected !== SESSION_TITLE_MODEL_AUTOMATIC && selected !== SESSION_TITLE_MODEL_OFF
   // A selected model the user later disabled stays visible, so the control shows the real setting.
