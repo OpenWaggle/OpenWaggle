@@ -242,7 +242,7 @@ const AppLayer = Layer.mergeAll(
   SqliteSessionRepositoryLive,
   SqlitePiSessionDiscoveryRepositoryLive.pipe(Layer.provide(PiSessionTranscriptRepairLive)),
   PiSessionFilesLive,
-  SessionTitleServicesLive,
+  SessionTitleServicesLive.pipe(Layer.provide(ExtensionRuntimeSelectionLive)),
   FilesystemStandardsLive,
   PiAgentKernelWithExtensionSelectionLive,
   McpServicesLive,

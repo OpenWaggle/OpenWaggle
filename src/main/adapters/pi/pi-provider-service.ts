@@ -2,22 +2,13 @@ import type { ProviderApiKeyAuthSource, ProviderAuthSource } from '@shared/types
 import { Layer } from 'effect'
 import * as Effect from 'effect/Effect'
 import { ProviderLookupError } from '../../errors'
-import { loadWithRuntimeFailureIsolation } from '../../extensions/runtime-load-isolation'
-import { createLogger } from '../../logger'
 import { ExtensionLifecycleRepository } from '../../ports/extension-lifecycle-repository'
 import { ExtensionManagerService } from '../../ports/extension-manager-service'
 import { ExtensionProjectOverridesRepository } from '../../ports/extension-project-overrides-repository'
 import { type ProviderModelCapabilities, ProviderService } from '../../ports/provider-service'
-import {
-  getRuntimeEnabledPackagesPiResourceRoots,
-  listRuntimeEnabledPackages,
-  type OpenWagglePiExtensionSelectionServices,
-} from './openwaggle-pi-extension-selection'
-import { recordRuntimeLoadFailure } from './openwaggle-pi-runtime-failure-recording'
+import type { OpenWagglePiExtensionSelectionServices } from './openwaggle-pi-extension-selection'
+import { loadWithProjectExtensions } from './pi-project-runtime-load'
 import { createPiProviderCatalogSnapshot } from './pi-provider-catalog'
-import { rejectMatchingOpenWaggleExtensionLoadErrors } from './pi-runtime-extension-load-errors'
-
-const logger = createLogger('pi-provider-service')
 
 function toDisplayName(id: string) {
   return id
@@ -121,48 +112,12 @@ function createProjectProviderCatalogSnapshot(
   projectPath: string | null | undefined,
   extensionSelectionServices: OpenWagglePiExtensionSelectionServices,
 ) {
-  return Effect.gen(function* () {
-    const enabledOpenWaggleExtensionPackages = projectPath
-      ? yield* listRuntimeEnabledPackages(projectPath, extensionSelectionServices).pipe(
-          Effect.catchAll((error) =>
-            Effect.sync(() => {
-              logger.warn('Failed to resolve OpenWaggle extension runtime allowlist', {
-                projectPath,
-                error: error instanceof Error ? error.message : String(error),
-              })
-              return []
-            }),
-          ),
-        )
-      : []
-
-    return yield* Effect.promise(() =>
-      loadWithRuntimeFailureIsolation({
-        selections: enabledOpenWaggleExtensionPackages,
-        load: async (enabledOpenWaggleExtensionPackagePaths) => {
-          const snapshot = await createPiProviderCatalogSnapshot(projectPath, {
-            enabledOpenWaggleExtensionPackagePaths,
-            enabledOpenWaggleExtensionResourceRoots: getRuntimeEnabledPackagesPiResourceRoots(
-              enabledOpenWaggleExtensionPackages,
-              enabledOpenWaggleExtensionPackagePaths,
-            ),
-          })
-          return rejectMatchingOpenWaggleExtensionLoadErrors({
-            result: snapshot,
-            errors: snapshot.extensionLoadErrors,
-            enabledOpenWaggleExtensionPackagePaths,
-          })
-        },
-        recordFailure: (selection, error) =>
-          recordRuntimeLoadFailure({
-            selection,
-            error,
-            extensionSelectionServices,
-            logger,
-            operation: 'Pi provider catalog',
-          }),
-      }),
-    )
+  return loadWithProjectExtensions({
+    projectPath,
+    extensionSelectionServices,
+    operation: 'Pi provider catalog',
+    load: (options) => createPiProviderCatalogSnapshot(projectPath, options),
+    loadErrors: (snapshot) => snapshot.extensionLoadErrors,
   })
 }
 

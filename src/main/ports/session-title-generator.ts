@@ -4,6 +4,8 @@ import { Context, type Effect } from 'effect'
 import type { SessionTitleGenerationError } from '../errors'
 
 export interface SessionTitleGenerationRequest {
+  /** The Session's project, whose extensions may register the Session or Title model. */
+  readonly projectPath: string | null
   /** The Session's own model. Automatic picks a cheaper model from its provider; every choice falls back to it. */
   readonly sessionModel: SupportedModelId | null
   /** Automatic or one selected model reference; Off never reaches the generator. */

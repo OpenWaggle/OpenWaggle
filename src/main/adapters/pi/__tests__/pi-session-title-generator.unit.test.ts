@@ -1,7 +1,15 @@
-import type { Api, Model } from '@earendil-works/pi-ai'
+import type { Api, AssistantMessage, Model } from '@earendil-works/pi-ai'
+import type { ModelRuntime } from '@earendil-works/pi-coding-agent'
+import { SESSION_TITLE_MODEL_AUTOMATIC } from '@shared/session-title-model'
+import { SupportedModelId } from '@shared/types/brand'
 import { fromPartial } from '@total-typescript/shoehorn'
-import { describe, expect, it } from 'vitest'
-import { modelVendorLine, selectAutomaticTitleModel } from '../pi-session-title-generator'
+import * as Effect from 'effect/Effect'
+import { describe, expect, it, vi } from 'vitest'
+import {
+  createPiSessionTitleGenerator,
+  modelVendorLine,
+  selectAutomaticTitleModel,
+} from '../pi-session-title-generator'
 
 function model(
   id: string,
@@ -100,5 +108,53 @@ describe('modelVendorLine', () => {
     expect(modelVendorLine('meta-llama/llama-4-scout:free')).toBe('meta-llama/')
     expect(modelVendorLine('gpt-5.5')).toBe('')
     expect(modelVendorLine('claude-sonnet-4-6')).toBe('')
+  })
+})
+
+describe('the Title model of a Session on an extension model', () => {
+  const ROUTER = model('auto', 0, 0, { provider: 'router' })
+
+  function generatorWith(runtimeFor: (projectPath: string | null) => Promise<ModelRuntime>) {
+    return createPiSessionTitleGenerator({ modelRuntime: runtimeFor })
+  }
+
+  function fakeRuntime() {
+    return fromPartial<ModelRuntime>({
+      getModel: (provider: string, id: string) =>
+        provider === ROUTER.provider && id === ROUTER.id ? ROUTER : undefined,
+      getAvailable: async () => [ROUTER],
+      completeSimple: vi.fn(async () =>
+        fromPartial<AssistantMessage>({
+          stopReason: 'stop',
+          content: [{ type: 'text', text: '{"title":"Routed title"}' }],
+        }),
+      ),
+    })
+  }
+
+  it.each([
+    ['Automatic', SESSION_TITLE_MODEL_AUTOMATIC],
+    ['the extension model', SupportedModelId('router/auto')],
+  ] as const)('reaches it under %s through the project runtime', async (_label, titleModel) => {
+    const runtime = fakeRuntime()
+    const runtimeFor = vi.fn(async () => runtime)
+
+    const response = await Effect.runPromise(
+      generatorWith(runtimeFor).generate({
+        projectPath: '/repo',
+        sessionModel: SupportedModelId('router/auto'),
+        titleModel,
+        systemPrompt: 'Title it.',
+        prompt: 'Hello',
+      }),
+    )
+
+    expect(runtimeFor).toHaveBeenCalledWith('/repo')
+    expect(response.modelRef).toBe('router/auto')
+    expect(runtime.completeSimple).toHaveBeenCalledWith(
+      ROUTER,
+      expect.anything(),
+      expect.anything(),
+    )
   })
 })

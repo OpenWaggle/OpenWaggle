@@ -104,6 +104,7 @@ export function generateTitle(input: {
         )
       }
       return yield* generator.generate({
+        projectPath: input.state.projectPath,
         sessionModel: input.sessionModel ?? input.state.executionModel,
         titleModel,
         ...prompt,
