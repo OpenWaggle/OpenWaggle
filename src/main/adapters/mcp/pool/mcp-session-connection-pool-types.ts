@@ -75,6 +75,8 @@ export interface SessionConnections {
    * or retired connection is gone from `servers`, but the Run's Pi client would reopen it.
    */
   readonly leased: Map<string, Omit<McpPoolServerConnection, 'sessionId' | 'name'>>
+  /** Retiring connections a new one replaced in `servers`; they close with the Session. */
+  readonly replaced: Set<McpPooledConnection>
   activeRuns: number
   idleTimer: McpPoolTimer | undefined
 }

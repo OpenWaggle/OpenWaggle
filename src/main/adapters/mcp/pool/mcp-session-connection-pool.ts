@@ -80,8 +80,8 @@ export class McpSessionConnectionPool {
       return existing.connection
     }
     // A changed definition closes the old connection. A retiring one (already `isClosed`) is only
-    // replaced: it closes itself once the requests it already sent settle.
-    if (existing && !existing.connection.isClosed) void existing.connection.close()
+    // replaced: it closes itself once the requests it already sent settle, or with the Session.
+    if (existing) this.retireReplaced(session, existing.connection)
     const wasWarm = session.servers.size > 0
     const connection: McpPooledConnection = new McpPooledConnection({
       serverName: spec.name,
@@ -89,6 +89,7 @@ export class McpSessionConnectionPool {
       ...(spec.roots ? { roots: spec.roots } : {}),
       ...this.options.hooks?.(sessionId, spec.name, spec.identity),
       onClosed: () => {
+        session.replaced.delete(connection)
         if (session.servers.get(spec.name)?.connection === connection) {
           session.servers.delete(spec.name)
         }
@@ -104,6 +105,14 @@ export class McpSessionConnectionPool {
     if (session.activeRuns === 0) this.scheduleIdleClose(sessionId, session)
     if (!wasWarm) this.evictLeastRecentlyUsed(sessionId)
     return connection
+  }
+
+  private retireReplaced(session: SessionConnections, connection: McpPooledConnection) {
+    if (!connection.isClosed) {
+      void connection.close()
+      return
+    }
+    session.replaced.add(connection)
   }
 
   /**
@@ -153,8 +162,12 @@ export class McpSessionConnectionPool {
     const session = this.sessions.get(sessionId)
     if (!session) return
     this.cancelIdleClose(session)
-    const connections = [...session.servers.values()].map((server) => server.connection)
+    const connections = [
+      ...[...session.servers.values()].map((server) => server.connection),
+      ...session.replaced,
+    ]
     session.servers.clear()
+    session.replaced.clear()
     if (session.activeRuns === 0) this.sessions.delete(sessionId)
     await Promise.all(connections.map((connection) => connection.close()))
   }
@@ -252,6 +265,7 @@ export class McpSessionConnectionPool {
       servers: new Map<string, PooledServer>(),
       closedServers: new Set<string>(),
       leased: new Map(),
+      replaced: new Set(),
       activeRuns: 0,
       idleTimer: undefined,
     }
