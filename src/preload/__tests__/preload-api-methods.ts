@@ -237,11 +237,6 @@ export const PRELOAD_API_METHODS: readonly (keyof OpenWaggleApi)[] = [
   'getRemoteVcsStatus',
   'runStackedGitAction',
   'cancelStackedGitAction',
-  'preflightChangeRequest',
-  'listChangeRequests',
-  'checkoutChangeRequest',
-  'getChangeRequestPanel',
-  'mergeChangeRequest',
   ...PRELOAD_SOURCE_CONTROL_METHODS,
   // Attachments
   'prepareAttachments',
