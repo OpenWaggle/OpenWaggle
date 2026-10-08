@@ -200,7 +200,8 @@ interface ForkedPiSession {
 
 /**
  * The fork Pi branched from an in-memory copy of the source, as the file OpenWaggle writes: next
- * to the source, named and headed as Pi names and heads a fork it writes itself.
+ * to the source, named and headed as Pi names and heads a fork it writes itself. The path comes
+ * from the fork's header: the copy still names the source's file, which must not be written.
  */
 function forkedPiSession(
   session: { readonly sessionFile: string | undefined; readonly sessionManager: SessionManager },
@@ -209,14 +210,12 @@ function forkedPiSession(
 ): ForkedPiSession {
   const header = session.sessionManager.getHeader()
   if (!header) throw new Error('Pi did not create the forked session.')
-  const sessionFile =
-    session.sessionFile ??
-    (sourceFile
-      ? path.join(
-          path.dirname(sourceFile),
-          `${header.timestamp.replace(/[:.]/g, '-')}_${header.id}.jsonl`,
-        )
-      : undefined)
+  const sessionFile = sourceFile
+    ? path.join(
+        path.dirname(sourceFile),
+        `${header.timestamp.replace(/[:.]/g, '-')}_${header.id}.jsonl`,
+      )
+    : session.sessionFile
   if (!sessionFile) throw new Error('Pi did not create the forked session.')
   return {
     sessionFile,

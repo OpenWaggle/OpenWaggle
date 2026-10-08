@@ -1,7 +1,6 @@
 import { closeSync, existsSync, openSync, readdirSync, readSync, statSync } from 'node:fs'
-import { readFile } from 'node:fs/promises'
 import path, { basename, dirname, join, resolve } from 'node:path'
-import { getAgentDir, parseSessionEntries, SessionManager } from '@earendil-works/pi-coding-agent'
+import { getAgentDir, SessionManager } from '@earendil-works/pi-coding-agent'
 import type { SessionDetail } from '@shared/types/session'
 import { isRecord } from '@shared/utils/validation'
 import { resolvePiSessionDirectory } from '../pi-session-directory'
@@ -282,11 +281,13 @@ function openSessionManager(session: SessionDetail, file: string, projectPath: s
 }
 
 /**
- * A session manager for reading the Session's Pi file without writing it: an in-memory copy of
- * the file's entries. Opening the file for a Run migrates an older format in place and records
- * the thinking level, which would change a discovered session's file, and what `pi --resume`
- * continues with, just because OpenWaggle showed it (ADR 0050). A missing file has nothing to
- * protect, so it gets the same fresh manager as a Run, which writes nothing until a reply.
+ * A session manager for reading the Session's Pi file without writing it: a manager that does
+ * not persist, pointed at the file. Opening the file for a Run migrates an older format in place
+ * and records the thinking level, which would change a discovered session's file, and what
+ * `pi --resume` continues with, just because OpenWaggle showed it (ADR 0050). Pi writes nothing
+ * for a manager that does not persist, and extensions still see the file, as `getSessionFile()`
+ * and a fork's `previousSessionFile`. A missing file has nothing to protect, so it gets the same
+ * fresh manager as a Run, which writes nothing until a reply.
  */
 export async function createReadOnlySessionManagerForSession(
   session: SessionDetail,
@@ -294,8 +295,10 @@ export async function createReadOnlySessionManagerForSession(
 ) {
   const file = findExistingPiSessionFile(session, projectPath)
   if (!file) return createSessionManagerForSession(session, projectPath)
-  const entries = parseSessionEntries(await readFile(file, 'utf8'))
-  const sessionManager = SessionManager.inMemory(projectPath, undefined, entries)
+  // Pi reads the file when the manager is pointed at it; with persistence off it writes nothing,
+  // not even the migration of an older format.
+  const sessionManager = SessionManager.inMemory(projectPath)
+  sessionManager.setSessionFile(file)
   resumeSelectedPosition(sessionManager, session)
   return sessionManager
 }
