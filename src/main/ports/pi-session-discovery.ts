@@ -104,6 +104,9 @@ export class PiSessionFiles extends Context.Tag('@openwaggle/PiSessionFiles')<
   PiSessionFilesShape
 >() {}
 
+/** Every lifecycle create discovery sends has an idempotency key that starts with this. */
+export const PI_SESSION_DISCOVERY_IDEMPOTENCY_PREFIX = 'pi-session-discovery:'
+
 export interface PiSessionDiscoveryScope {
   readonly knownPiSessionIds: ReadonlySet<string>
   /** Session files OpenWaggle has a Session for, or is deleting. */
@@ -166,6 +169,14 @@ export interface PiSessionDiscoveryRepositoryShape {
   readonly getProjectionState: (
     sessionId: SessionId,
   ) => Effect.Effect<PiSessionProjectionState | null, SessionProjectionRepositoryError>
+  /**
+   * Sessions discovery created that never got a Pi file attached and are still empty, such as
+   * one a Host stopped with between creating it and attaching the file.
+   */
+  readonly listUnattachedDiscoveredSessions: () => Effect.Effect<
+    readonly SessionId[],
+    SessionProjectionRepositoryError
+  >
   /** Records that the projection still matches the file; false when a snapshot landed meanwhile. */
   readonly recordUnchanged: (input: {
     readonly sessionId: SessionId

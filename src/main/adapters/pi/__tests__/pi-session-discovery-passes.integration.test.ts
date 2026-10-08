@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type { DiscoveredSessionCreator } from '../../../application/pi-session-discovery'
 import type { AppServices } from '../../../runtime'
 import {
+  continuePiCliSession,
   createPiCliSession,
   lifecycleCreate,
   registerProjects,
@@ -180,5 +181,33 @@ describe('A Pi session discovery pass', () => {
     // The sidebar drops the "New session" the lifecycle announced.
     expect(created).toHaveLength(1)
     expect(changes.deleted).toEqual(created)
+  })
+
+  it('drops the empty Session a Host left behind when it stopped between create and attach', async () => {
+    await registerProjects([fixture.project])
+    const cli = createPiCliSession(fixture.project, 'Interrupted listing')
+    // The Host created the Session for this version of the file, then stopped before attaching it.
+    const create = await lifecycleCreate()
+    const { discoveredSessionCreateKey } = await import('../../../application/pi-session-discovery')
+    const stray = await run(
+      create({
+        projectPath: fixture.project,
+        title: 'Interrupted listing',
+        idempotencyKey: discoveredSessionCreateKey({ piSessionId: cli.id, size: 1, updatedAt: 1 }),
+      }),
+    )
+    continuePiCliSession(cli.file, 'Written while the Host was down')
+    const { removeUnattachedDiscoveredSessions } = await import(
+      '../../../application/pi-session-discovery'
+    )
+    const changes = await recordSessionListChanges()
+
+    // The next Host start, then its first pass.
+    await run(removeUnattachedDiscoveredSessions()).finally(changes.stop)
+    const listed = await discoverWith(create)
+
+    expect(changes.deleted).toEqual([String(stray?.sessionId)])
+    expect(listed).toHaveLength(1)
+    expect(await sessionCount()).toBe(1)
   })
 })

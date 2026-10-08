@@ -10,6 +10,7 @@ import { buildDeterministicTitle } from '../agent/title-generator'
 import { createLogger } from '../logger'
 import {
   type DiscoveredPiSession,
+  PI_SESSION_DISCOVERY_IDEMPOTENCY_PREFIX,
   PiSessionDiscoveryRepository,
   PiSessionFiles,
 } from '../ports/pi-session-discovery'
@@ -95,6 +96,28 @@ export type DiscoveredSessionCreator<R> = (
   input: DiscoveredSessionCreateInput,
 ) => Effect.Effect<{ readonly sessionId: SessionId; readonly replayed: boolean } | null, unknown, R>
 
+/** The lifecycle idempotency key for one version of a discovered file. */
+export function discoveredSessionCreateKey(
+  session: Pick<DiscoveredPiSession, 'piSessionId' | 'size' | 'updatedAt'>,
+) {
+  return `${PI_SESSION_DISCOVERY_IDEMPOTENCY_PREFIX}${session.piSessionId}:${session.size}:${session.updatedAt}`
+}
+
+/**
+ * Removes the Sessions an earlier Host created for discovered files and stopped before attaching,
+ * which are still empty. The file may have changed since, so a pass would not replay them: it
+ * creates a new Session for the new version, and the old one would stay as a stray
+ * "New session". Run when the Host starts, before its first pass.
+ */
+export function removeUnattachedDiscoveredSessions() {
+  return Effect.gen(function* () {
+    const repository = yield* PiSessionDiscoveryRepository
+    for (const sessionId of yield* repository.listUnattachedDiscoveredSessions()) {
+      yield* removeUnadoptedSession(sessionId)
+    }
+  })
+}
+
 /**
  * Creates the Session for a discovered file. A replay names the Session an earlier pass created
  * for this version of the file; if that Session was deleted since, as when the project was
@@ -105,7 +128,7 @@ function createSessionForFile<R>(
   create: DiscoveredSessionCreator<R>,
 ) {
   return Effect.gen(function* () {
-    const key = `pi-session-discovery:${session.piSessionId}:${session.size}:${session.updatedAt}`
+    const key = discoveredSessionCreateKey(session)
     const input = { projectPath: session.projectPath, title: discoveredTitle(session) }
     const created = yield* create({ ...input, idempotencyKey: key })
     if (!created?.replayed) return created?.sessionId ?? null
@@ -270,15 +293,20 @@ export function discoverPiSessions<R>(options: {
 }
 
 export function runPiSessionDiscoveryBackground<R>(createSession: DiscoveredSessionCreator<R>) {
+  const logFailure = (cause: Cause.Cause<unknown>) =>
+    Effect.sync(() => {
+      if (Cause.isInterruptedOnly(cause)) return
+      logger.warn('Pi session discovery failed', { cause: Cause.pretty(cause) })
+    })
   return Effect.forkScoped(
-    discoverPiSessions({ createSession }).pipe(
-      Effect.catchAllCause((cause) =>
-        Effect.sync(() => {
-          if (Cause.isInterruptedOnly(cause)) return
-          logger.warn('Pi session discovery failed', { cause: Cause.pretty(cause) })
-        }),
+    removeUnattachedDiscoveredSessions().pipe(
+      Effect.catchAllCause(logFailure),
+      Effect.zipRight(
+        discoverPiSessions({ createSession }).pipe(
+          Effect.catchAllCause(logFailure),
+          Effect.repeat(Schedule.spaced(DISCOVERY_INTERVAL_MS)),
+        ),
       ),
-      Effect.repeat(Schedule.spaced(DISCOVERY_INTERVAL_MS)),
     ),
   )
 }

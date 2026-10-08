@@ -2,7 +2,10 @@ import * as SqlClient from '@effect/sql/SqlClient'
 import { DEFAULT_SESSION_TITLE } from '@shared/session-title-source'
 import { SessionId } from '@shared/types/brand'
 import * as Effect from 'effect/Effect'
-import type { AdoptDiscoveredPiSessionInput } from '../../ports/pi-session-discovery'
+import {
+  type AdoptDiscoveredPiSessionInput,
+  PI_SESSION_DISCOVERY_IDEMPOTENCY_PREFIX,
+} from '../../ports/pi-session-discovery'
 import { readPiProjectionFreshnessWithSql } from '../pi-session-file-freshness'
 import { runStoreEffect } from '../store-runtime'
 import { isAgentLoopAuditNode } from './agent-loop-audit-node'
@@ -130,6 +133,24 @@ export async function adoptDiscoveredPiSession(
           return true
         }),
       )
+    }),
+  )
+}
+
+/** See `PiSessionDiscoveryRepositoryShape.listUnattachedDiscoveredSessions`. */
+export async function listUnattachedDiscoveredPiSessions(): Promise<readonly SessionId[]> {
+  return runStoreEffect(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      const rows = yield* sql<{ readonly session_id: string }>`
+        SELECT DISTINCT sessions.id AS session_id FROM session_operations
+        JOIN sessions ON sessions.id = json_extract(session_operations.outcome_json, '$.sessionId')
+        WHERE session_operations.operation = ${'create'}
+          AND session_operations.idempotency_key LIKE ${`${PI_SESSION_DISCOVERY_IDEMPOTENCY_PREFIX}%`}
+          AND NOT EXISTS (SELECT 1 FROM pi_session_adoptions WHERE session_id = sessions.id)
+          AND NOT EXISTS (SELECT 1 FROM session_nodes WHERE session_id = sessions.id)
+      `
+      return rows.map((row) => SessionId(row.session_id))
     }),
   )
 }
