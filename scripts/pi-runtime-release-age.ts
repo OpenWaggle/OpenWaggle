@@ -29,7 +29,8 @@ function piReleaseAgeEntries(workspace: string) {
   } catch (error) {
     return { exact: [], inexact: [], invalid: error instanceof Error ? error.message : String(error) }
   }
-  const list = typeof parsed === 'object' && parsed !== null ? Reflect.get(parsed, 'minimumReleaseAgeExclude') : undefined
+  const list: unknown =
+    typeof parsed === 'object' && parsed !== null ? Reflect.get(parsed, 'minimumReleaseAgeExclude') : undefined
   const items = Array.isArray(list) ? list.filter((item) => typeof item === 'string') : []
   const exact: string[] = []
   const inexact: string[] = []
