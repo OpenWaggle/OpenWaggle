@@ -6,6 +6,7 @@ import {
   buildTailPreview,
   type EditDiffData,
   getEditDiff,
+  getEditExtraOutput,
   getResultError,
   getStringArg,
   getToolResultText,
@@ -173,7 +174,12 @@ function ExpandedToolDetails({
 }) {
   if (view.diff) {
     return (
-      <EditRowDiff diff={view.diff} path={view.path} args={args} resultText={view.resultText} />
+      <EditRowDiff
+        diff={view.diff}
+        path={view.path}
+        args={args}
+        output={result ? getEditExtraOutput(result.content, view.path) : ''}
+      />
     )
   }
   return (

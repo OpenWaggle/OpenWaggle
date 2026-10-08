@@ -254,6 +254,35 @@ export function getEditDiff(content: unknown, name: string): EditDiffData | null
   }
 }
 
+const REGEXP_SPECIAL_CHARACTERS = /[.*+?^${}()|[\]\\]/gu
+
+/** Pi's own edit result line, which an edit row's diff already says. */
+function piEditResultLine(path: string | null) {
+  const target = path === null ? '.+?' : path.replace(REGEXP_SPECIAL_CHARACTERS, '\\$&')
+  return new RegExp(`^Successfully replaced \\d+ block\\(s\\) in ${target}\\.(?=\\s|$)`, 'u')
+}
+
+/**
+ * Text in an edit result that its diff does not already convey, such as diagnostics an
+ * extension added through Pi's `tool_result` hook: the text blocks without Pi's own
+ * leading line. Non-text blocks and structured payloads are not output a reader needs
+ * next to the diff, so this never falls back to serializing them.
+ */
+export function getEditExtraOutput(content: unknown, path: string | null): string {
+  const parsed = parseResultPayload(content)
+  const blocks = match(parsed)
+    .with(P.string, (text) => [text])
+    .with({ content: P.select('content', P.array(P._)) }, ({ content }) =>
+      content.filter(isTextContentBlock).map((block) => block.text),
+    )
+    .otherwise(() => [])
+  const [first = '', ...rest] = blocks
+  return [first.trim().replace(piEditResultLine(path), ''), ...rest]
+    .map((text) => text.trim())
+    .filter(Boolean)
+    .join('\n')
+}
+
 export function buildTailPreview(text: string) {
   const lines = text.trim().split(LINE_SPLIT_SEPARATOR)
   return lines.slice(-OUTPUT_PREVIEW_LINES).join('\n')

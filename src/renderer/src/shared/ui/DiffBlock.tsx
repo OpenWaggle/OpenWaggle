@@ -87,7 +87,8 @@ export function DiffBlock({
         language="diff"
         theme={theme}
         showLineNumbers={false}
-        ariaLabel="Large diff source"
+        // An embedding card labels the diff region itself.
+        {...(embedded ? {} : { ariaLabel: 'Large diff source' })}
         className={cn(embedded ? 'h-60' : 'max-h-128 min-h-48', className)}
       />
     )

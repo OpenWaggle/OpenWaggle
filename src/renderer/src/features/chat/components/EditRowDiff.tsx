@@ -24,18 +24,6 @@ const LazyDiffBlock = lazy(() =>
  */
 const EDIT_DIFF_BODY_CLASS = 'max-h-60'
 
-/** Pi's own edit result line, which the diff already says; anything else is shown. */
-const PI_EDIT_RESULT_LINE = /^Successfully replaced \d+ block\(s\) in .+\.$/u
-
-/**
- * Output the diff does not already convey, such as diagnostics an extension appended
- * to the edit result through Pi's `tool_result` hook.
- */
-function extraEditOutput(resultText: string) {
-  const text = resultText.trim()
-  return text && !PI_EDIT_RESULT_LINE.test(text) ? text : ''
-}
-
 function basename(path: string) {
   const normalized = path.replaceAll('\\', '/').replace(/\/+$/u, '')
   const slashIndex = normalized.lastIndexOf('/')
@@ -50,15 +38,14 @@ export function EditRowDiff({
   diff,
   path,
   args,
-  resultText,
+  output,
 }: {
   readonly diff: EditDiffData
   readonly path: string | null
   readonly args: string
-  /** The edit tool's text result. */
-  readonly resultText: string
+  /** Result text the diff does not already convey (`getEditExtraOutput`). */
+  readonly output: string
 }) {
-  const output = extraEditOutput(resultText)
   return (
     <div className="ml-5 mt-1 overflow-hidden rounded-md border border-border bg-bg-secondary/50">
       <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 border-b border-border px-3 py-1.5 text-xs text-text-tertiary">
@@ -70,7 +57,7 @@ export function EditRowDiff({
           <CopyButton label="Copy diff" value={diff.text} />
           {path && <CopyButton label="Copy path" value={path} />}
           <CopyButton label="Copy args" value={args} />
-          <CopyButton label="Copy output" value={resultText} />
+          <CopyButton label="Copy output" value={output} />
         </div>
       </div>
       <section aria-label={path ? `Diff of ${basename(path)}` : 'Edit diff'}>

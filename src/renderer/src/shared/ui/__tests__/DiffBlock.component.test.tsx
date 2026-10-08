@@ -27,10 +27,18 @@ vi.mock('@pierre/diffs/react', () => ({
 }))
 
 vi.mock('../SourceView', () => ({
-  SourceView: ({ className, source }: { readonly className?: string; readonly source: string }) => (
-    <section aria-label="Large diff source" className={className}>
+  SourceView: ({
+    className,
+    source,
+    ariaLabel,
+  }: {
+    readonly className?: string
+    readonly source: string
+    readonly ariaLabel?: string
+  }) => (
+    <div data-testid="source-view" data-aria-label={ariaLabel ?? ''} className={className}>
       {source.slice(0, 40)}
-    </section>
+    </div>
   ),
 }))
 
@@ -78,9 +86,12 @@ describe('DiffBlock', () => {
     const patch = `--- a.ts\n+++ a.ts\n@@ -1,2000 +1,2000 @@\n${'+line\n'.repeat(2000)}`
     render(<DiffBlock patch={patch} view="unified" wrap theme="dark-plus" embedded />)
 
-    expect(screen.getByRole('region', { name: 'Large diff source' })).toHaveClass('h-60')
-    expect(screen.getByRole('region', { name: 'Large diff source' }).textContent).toMatch(/^@@ /u)
-    expect(screen.getByRole('region', { name: 'Large diff source' })).not.toHaveClass('max-h-128')
+    const source = screen.getByTestId('source-view')
+    expect(source).toHaveClass('h-60')
+    expect(source).not.toHaveClass('max-h-128')
+    expect(source.textContent).toMatch(/^@@ /u)
+    // The embedding card labels the region, so the fallback adds no second landmark.
+    expect(source).toHaveAttribute('data-aria-label', '')
   })
 
   it('keeps the Pierre file header outside a card', () => {

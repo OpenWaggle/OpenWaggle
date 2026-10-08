@@ -3,6 +3,7 @@ import {
   buildFencedCodeMarkdown,
   buildTailPreview,
   getEditDiff,
+  getEditExtraOutput,
   getResultError,
   getStringArg,
   getToolResultText,
@@ -151,6 +152,42 @@ describe('tool call block view helpers', () => {
     expect(getEditDiff({ details: { patch: '@@ -1 +1 @@\n-a\n+b' } }, 'write')).toBeNull()
     expect(getEditDiff('Successfully replaced 1 block(s).', 'edit')).toBeNull()
     expect(getEditDiff({ details: { diff: '  ' } }, 'edit')).toBeNull()
+  })
+
+  describe('getEditExtraOutput', () => {
+    const PI_LINE = 'Successfully replaced 1 block(s) in src/a.(b).ts.'
+    const blocks = (...texts: string[]) => ({
+      content: texts.map((text) => ({ type: 'text', text })),
+      details: { patch: '@@ -1 +1 @@\n-a\n+b' },
+    })
+
+    it("has nothing beyond Pi's own line", () => {
+      expect(getEditExtraOutput(blocks(PI_LINE), 'src/a.(b).ts')).toBe('')
+      expect(getEditExtraOutput(PI_LINE, 'src/a.(b).ts')).toBe('')
+    })
+
+    it('keeps text an extension appended, in the same block or its own', () => {
+      expect(getEditExtraOutput(blocks(`${PI_LINE}\n\nLSP: 2 errors`), 'src/a.(b).ts')).toBe(
+        'LSP: 2 errors',
+      )
+      expect(
+        getEditExtraOutput(blocks(`${PI_LINE} LSP: 2 errors in src/a.ts.`), 'src/a.(b).ts'),
+      ).toBe('LSP: 2 errors in src/a.ts.')
+      expect(getEditExtraOutput(blocks(PI_LINE, 'lint: ok'), 'src/a.(b).ts')).toBe('lint: ok')
+    })
+
+    it("keeps text that replaced Pi's line", () => {
+      expect(getEditExtraOutput(blocks('Formatted and saved.'), 'src/a.(b).ts')).toBe(
+        'Formatted and saved.',
+      )
+    })
+
+    it('never serializes non-text content', () => {
+      const image = { content: [{ type: 'image', data: 'iVBOR' }], details: { patch: 'x' } }
+      expect(getEditExtraOutput(image, 'src/a.ts')).toBe('')
+      expect(getEditExtraOutput(blocks(''), 'src/a.ts')).toBe('')
+      expect(getEditExtraOutput({ kind: 'json', data: { details: {} } }, 'src/a.ts')).toBe('')
+    })
   })
 
   it('returns the last visible output lines for long command output', () => {

@@ -139,6 +139,8 @@ describe('ToolCallBlock edit diffs (ADR 0050)', () => {
     expect(diff).toHaveAttribute('data-embedded', 'true')
     expect(screen.queryByText('Arguments')).toBeNull()
     expect(screen.queryByText(/Successfully replaced/)).toBeNull()
+    expect(screen.queryByText('Output')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Copy output' })).toBeNull()
     expect(
       screen.getByRole('button', {
         name: 'Edited src/geo.ts, 1 addition, 1 deletion — collapse details',
@@ -158,8 +160,11 @@ describe('ToolCallBlock edit diffs (ADR 0050)', () => {
     await screen.findByTestId('patch-diff')
     expect(screen.getByText('Output')).toBeInTheDocument()
     expect(screen.getByText(/LSP diagnostics/)).toBeInTheDocument()
+    expect(screen.queryByText(/Successfully replaced/)).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Copy output' }))
-    expect(mockCopyToClipboard).toHaveBeenLastCalledWith(resultText)
+    expect(mockCopyToClipboard).toHaveBeenLastCalledWith(
+      'LSP diagnostics: src/geo.ts:11 error TS2304',
+    )
   })
 
   it('stays collapsed until the row is expanded', () => {
