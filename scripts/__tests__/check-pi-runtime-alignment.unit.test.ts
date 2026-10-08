@@ -111,7 +111,7 @@ describe('Pi runtime alignment', () => {
     ).toContainEqual(removeEntries)
   })
 
-  it.each(['2026-10-12T22:00', '2026-10-12 22:00:00Z', '2026-13-12', 'soon'])(
+  it.each(['2026-10-12T22:00', '2026-10-12 22:00:00Z', '2026-13-12', '2026-02-30', 'soon'])(
     'rejects the expiry %s',
     (expiry) => {
       const input = alignedInput()
