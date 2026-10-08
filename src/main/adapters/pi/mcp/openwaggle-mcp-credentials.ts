@@ -6,7 +6,7 @@ import {
   mcpBuildStateDirectory,
   sharedMcpStateDirectory,
 } from '../../mcp/credentials/mcp-build-state-paths'
-import { withMigratedOAuthState } from '../../mcp/credentials/mcp-migrated-oauth-state'
+import { writeMigratedOAuthState } from '../../mcp/credentials/mcp-migrated-oauth-state'
 import { createMcpOAuthStateBackend } from '../../mcp/credentials/mcp-oauth-state-backend'
 import { getPiAgentDir } from '../pi-provider-catalog'
 
@@ -42,13 +42,11 @@ export function getOpenWaggleMcpCredentials() {
 
 /**
  * Stores one server's state under Pi's key, for the migration of pre-ADR-0050 sign-ins. False,
- * writing nothing, when the key already has a sign-in (OpenWaggle's or Pi's CLI's).
+ * writing nothing, when the key already has a sign-in (OpenWaggle's or Pi's CLI's). Throws when
+ * it could only be kept in memory, so the migration tries again.
  */
 export function writeOpenWaggleMcpOAuthState(key: string, state: unknown) {
-  return getBackend().withLock((current) => {
-    const next = withMigratedOAuthState(current, key, state)
-    return next === undefined ? { result: false } : { result: true, next }
-  })
+  return writeMigratedOAuthState(getBackend(), key, state)
 }
 
 /** Where server log notifications are appended; OpenWaggle keeps its own file. */

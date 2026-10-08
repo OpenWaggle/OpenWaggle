@@ -21,6 +21,8 @@ export interface McpOAuthStorageBackend {
   withLockAsync<T>(
     fn: (current: string | undefined) => Promise<{ result: T; next?: string }>,
   ): Promise<T>
+  /** Whether a write reaches the encrypted file; without encryption it lasts until the Host stops. */
+  persistsWrites(): boolean
 }
 
 export interface McpOAuthEncryption {
@@ -168,5 +170,6 @@ export function createMcpOAuthStateBackend(
       queue = operation.catch(() => undefined)
       return operation
     },
+    persistsWrites: () => options.encryption.isEncryptionAvailable(),
   }
 }

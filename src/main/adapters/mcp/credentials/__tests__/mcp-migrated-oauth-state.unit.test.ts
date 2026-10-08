@@ -1,5 +1,9 @@
+import { existsSync, mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { withMigratedOAuthState } from '../mcp-migrated-oauth-state'
+import { withMigratedOAuthState, writeMigratedOAuthState } from '../mcp-migrated-oauth-state'
+import { createMcpOAuthStateBackend } from '../mcp-oauth-state-backend'
 
 const KEY = 'mcp__docs|https://docs.example.com/mcp'
 
@@ -24,5 +28,28 @@ describe('adding a migrated sign-in to the merged sign-in states', () => {
     expect(
       withMigratedOAuthState(current, KEY, { tokens: { access_token: 'old' } }),
     ).toBeUndefined()
+  })
+
+  it('fails, so it is tried again, when the sign-in could only be kept in memory', () => {
+    const root = mkdtempSync(path.join(tmpdir(), 'ow-mcp-migrated-oauth-'))
+    const storePath = path.join(root, 'oauth-states.json')
+    const backend = createMcpOAuthStateBackend({
+      piAuthPath: path.join(root, 'mcp-auth.json'),
+      storePath,
+      encryption: {
+        isEncryptionAvailable: () => false,
+        encryptString: (value) => Buffer.from(value),
+        decryptString: (value) => value.toString(),
+      },
+    })
+
+    try {
+      expect(() => writeMigratedOAuthState(backend, KEY, { tokens: {} })).toThrow(
+        'encryption is unavailable',
+      )
+      expect(existsSync(storePath)).toBe(false)
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
   })
 })
