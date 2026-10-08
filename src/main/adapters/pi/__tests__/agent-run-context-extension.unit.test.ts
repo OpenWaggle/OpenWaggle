@@ -8,6 +8,7 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   AGENT_DEFINITION_PROMPT_SECTION,
   createAgentRunContextExtension,
+  createAgentToolAllowlistGuard,
   RUN_IDENTITY_CUSTOM_TYPE,
   SESSION_IDENTITY_PROMPT_SECTION,
 } from '../agent-run-context-extension'
@@ -29,16 +30,17 @@ function installExtension(
   let handler: BeforeAgentStartHandler | undefined
   let toolCall: ToolCallHandler | undefined
   const setActiveTools = vi.fn()
-  createAgentRunContextExtension(input)(
-    fromPartial<ExtensionAPI>({
-      on: (event: string, candidate: BeforeAgentStartHandler & ToolCallHandler) => {
-        if (event === 'tool_call') toolCall = candidate
-        else handler = candidate
-      },
-      getActiveTools: () => [...activeTools],
-      setActiveTools,
-    }),
-  )
+  const pi = fromPartial<ExtensionAPI>({
+    on: (event: string, candidate: BeforeAgentStartHandler & ToolCallHandler) => {
+      if (event === 'tool_call') toolCall = candidate
+      else handler = candidate
+    },
+    getActiveTools: () => [...activeTools],
+    setActiveTools,
+  })
+  // A Run loads the guard first and the context extension later (classic-run.ts).
+  createAgentToolAllowlistGuard(input)?.(pi)
+  createAgentRunContextExtension(input)(pi)
   return {
     setActiveTools,
     callTool: (toolName: string, parentToolCallId?: string) =>

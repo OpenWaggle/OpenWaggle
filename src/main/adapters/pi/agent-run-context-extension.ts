@@ -27,6 +27,40 @@ export interface AgentRunContextExtensionInput {
   readonly mcpServerAllowlist?: readonly string[]
 }
 
+function allowlistOf(
+  input: Pick<AgentRunContextExtensionInput, 'toolAllowlist' | 'mcpServerAllowlist'>,
+) {
+  return input.toolAllowlist
+    ? agentToolAllowlist({
+        tools: input.toolAllowlist,
+        ...(input.mcpServerAllowlist ? { mcpServers: input.mcpServerAllowlist } : {}),
+      })
+    : null
+}
+
+/**
+ * Refuses every tool call the Agent definition's allowlist leaves out, codemode child calls
+ * included (they run outside the active tool set). It must load before every other extension:
+ * Pi stops at the first `tool_call` hook that blocks, so a refused call never reaches the MCP
+ * approval prompt. Undefined when the profile does not restrict tools.
+ */
+export function createAgentToolAllowlistGuard(
+  input: Pick<AgentRunContextExtensionInput, 'toolAllowlist' | 'mcpServerAllowlist'>,
+): ExtensionFactory | undefined {
+  const allows = allowlistOf(input)
+  if (!allows) return undefined
+  return (pi) => {
+    pi.on('tool_call', (event) =>
+      allows(event.toolName)
+        ? undefined
+        : {
+            block: true,
+            reason: `This Session's Agent definition does not allow the tool ${event.toolName}.`,
+          },
+    )
+  }
+}
+
 /** The allowlist fields of a Run's input that this extension enforces. */
 export function agentRunContextAllowlists(input: {
   readonly toolAllowlist?: readonly string[]
@@ -86,25 +120,9 @@ function latestRunIdentityContent(ctx: Pick<ExtensionContext, 'sessionManager'>)
 export function createAgentRunContextExtension(
   input: AgentRunContextExtensionInput,
 ): ExtensionFactory {
-  const allows = input.toolAllowlist
-    ? agentToolAllowlist({
-        tools: input.toolAllowlist,
-        ...(input.mcpServerAllowlist ? { mcpServers: input.mcpServerAllowlist } : {}),
-      })
-    : null
+  const allows = allowlistOf(input)
   const runIdentity = input.runIdentityContext?.trim()
   return (pi) => {
-    if (allows) {
-      // Codemode scripts call tools outside the active set, so every call is checked too.
-      pi.on('tool_call', (event) =>
-        allows(event.toolName)
-          ? undefined
-          : {
-              block: true,
-              reason: `This Session's Agent definition does not allow the tool ${event.toolName}.`,
-            },
-      )
-    }
     pi.on('before_agent_start', (event, ctx) => {
       if (allows) pi.setActiveTools(pi.getActiveTools().filter(allows))
 

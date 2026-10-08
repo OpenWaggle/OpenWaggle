@@ -6,6 +6,7 @@ import type {
 import {
   agentRunContextAllowlists,
   createAgentRunContextExtension,
+  createAgentToolAllowlistGuard,
 } from '../agent-run-context-extension'
 import { createDelegationSpecificationUpdateExtension } from '../delegation-specification-update-extension'
 import { createOrchestrationUpdateExtension } from '../orchestration-update-extension'
@@ -50,8 +51,11 @@ export function createWaggleRunExtensions(
     onDelivered: input.onDelegationSpecificationUpdatesDelivered ?? (() => {}),
   })
 
+  // First, so a call the Agent definition refuses never reaches another hook (approval).
+  const allowlistGuard = createAgentToolAllowlistGuard(agentRunContextAllowlists(input))
   return {
     factories: [
+      ...(allowlistGuard ? [allowlistGuard] : []),
       createRunAttributionExtension(input.runId),
       peerReports.factory,
       orchestrationUpdates.factory,

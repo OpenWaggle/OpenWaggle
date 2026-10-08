@@ -30,7 +30,7 @@ vi.mock('../../agent-kernel/openwaggle-authorize-channel', () => ({
 }))
 
 import { McpSessionConnectionPool } from '../../../mcp/pool/mcp-session-connection-pool'
-import { createAgentRunContextExtension } from '../../agent-run-context-extension'
+import { createAgentToolAllowlistGuard } from '../../agent-run-context-extension'
 import { registerMcpToolApproval } from '../openwaggle-mcp-extensions'
 import { openPiMcpUpstream } from '../pi-mcp-upstream'
 
@@ -91,6 +91,9 @@ async function runScript(options: { readonly toolAllowlist?: readonly string[] }
   modelRuntime.registerNativeProvider(faux.provider)
   await modelRuntime.setRuntimeApiKey(faux.provider.id, 'key')
   let toolNames: () => string[] = () => []
+  const guard = options.toolAllowlist
+    ? createAgentToolAllowlistGuard({ toolAllowlist: options.toolAllowlist })
+    : undefined
   const settingsManager = SettingsManager.inMemory({ retry: { enabled: false } })
   const resourceLoader = new DefaultResourceLoader({
     cwd: directory,
@@ -101,6 +104,8 @@ async function runScript(options: { readonly toolAllowlist?: readonly string[] }
     noThemes: true,
     noContextFiles: true,
     extensionFactories: [
+      // As in a Run: the Agent-definition guard loads before the MCP extensions.
+      ...(guard ? [guard] : []),
       createCodemodeExtension(),
       createMcpExtension({
         loadConfig: () => loaded,
@@ -122,14 +127,6 @@ async function runScript(options: { readonly toolAllowlist?: readonly string[] }
         toolNames = () => pi.getAllTools().map((tool) => tool.name)
         registerMcpToolApproval(pi, { loaded })
       },
-      ...(options.toolAllowlist
-        ? [
-            createAgentRunContextExtension({
-              sessionIdentityContext: '- Session ID: s1',
-              toolAllowlist: options.toolAllowlist,
-            }),
-          ]
-        : []),
     ],
   })
   await resourceLoader.reload()
@@ -182,6 +179,8 @@ describe('an MCP tool a codemode script calls', () => {
     const transcript = await runScript({ toolAllowlist: ['codemode'] })
 
     expect(transcript).toContain('does not allow the tool mcp__fixture__count')
+    // The definition refuses the call before anyone is asked to approve it.
+    expect(authorize).not.toHaveBeenCalled()
     expect(transcript).not.toContain('calls=1')
   }, 60_000)
 

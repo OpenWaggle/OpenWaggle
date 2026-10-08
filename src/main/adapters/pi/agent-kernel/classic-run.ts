@@ -3,6 +3,7 @@ import type { AgentKernelRunInput } from '../../../ports/agent-kernel-service'
 import {
   agentRunContextAllowlists,
   createAgentRunContextExtension,
+  createAgentToolAllowlistGuard,
 } from '../agent-run-context-extension'
 import { createDelegationSpecificationUpdateExtension } from '../delegation-specification-update-extension'
 import { createOrchestrationUpdateExtension } from '../orchestration-update-extension'
@@ -94,6 +95,8 @@ export async function runPiSession(
     onDelivered: input.onDelegationSpecificationUpdatesDelivered ?? (() => {}),
   })
   const extensionFactories = [
+    // First, so a call the Agent definition refuses never reaches another hook (approval).
+    createAgentToolAllowlistGuard(agentRunContextAllowlists(input)),
     createRunAttributionExtension(input.runId),
     peerReports.factory,
     orchestrationUpdates.factory,
