@@ -2,14 +2,16 @@ import { cn } from '@/shared/lib/cn'
 import { Button } from '@/shared/ui/Button'
 
 /**
- * A sticky section heading: label, count, and actions that appear on hover.
+ * A section heading: label, count, and actions that appear on hover.
  *
  * One component for Pinned and Projects because the prototype styles them identically, and
  * two implementations drifted immediately: the app's Projects heading was 30px at 12px medium
  * with no count, against the prototype's 26px at 11px semibold uppercase with one.
  *
- * Sticky matters at 40 sessions. Scrolling past a project used to leave no indication of which
- * section the rows below belonged to.
+ * Deliberately not sticky. When the heading pinned to the top of the scroll area, session rows
+ * slid behind it mid-scroll and a half-hidden row collided with the title, which read as a
+ * broken layout. The heading now scrolls away with its section, so a row can never render
+ * behind it.
  */
 export function SidebarSectionHead({
   label,
@@ -24,7 +26,7 @@ export function SidebarSectionHead({
   return (
     <div
       data-qa="sidebar-section-head"
-      className="group/head sticky top-0 z-2 flex h-6.5 items-center gap-1.5 bg-bg-secondary px-3.5 font-semibold text-xs text-text-tertiary uppercase tracking-wider"
+      className="group/head flex h-6.5 items-center gap-1.5 bg-bg-secondary px-3.5 font-semibold text-xs text-text-tertiary uppercase tracking-wider"
     >
       <span>{label}</span>
       <span className="font-medium text-text-muted tracking-normal">{count}</span>
