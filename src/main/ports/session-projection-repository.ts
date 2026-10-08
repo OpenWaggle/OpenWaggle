@@ -22,7 +22,7 @@ import type { SessionProjectionRepositoryError } from '../errors'
 
 /**
  * `removingProject` keeps a discovered Pi session's file without dismissing it, so it is listed
- * again if the folder is added back (ADR 0048).
+ * again if the folder is added back (ADR 0050).
  */
 export type SessionDeletionOptions = SessionDeleteOptions
 

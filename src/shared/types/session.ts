@@ -282,7 +282,7 @@ export interface SessionWorkspaceSelection {
 
 /** How the desktop user deletes a Session. */
 export interface SessionDeleteOptions {
-  /** As part of removing its project: a discovered Pi file stays listable (ADR 0048). */
+  /** As part of removing its project: a discovered Pi file stays listable (ADR 0050). */
   readonly removingProject?: boolean
 }
 

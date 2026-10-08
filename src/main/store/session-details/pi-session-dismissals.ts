@@ -22,7 +22,7 @@ export function dismissDiscoveredPiSession(sql: SqlClient.SqlClient, id: Session
 
 /**
  * The Pi file a Session's deletion journals for cleanup. A discovered Pi session's file is never
- * deleted (ADR 0048): deleting the Session on its own dismisses the file, so discovery does not
+ * deleted (ADR 0050): deleting the Session on its own dismisses the file, so discovery does not
  * list it again and the cleanup leaves it. Removing its project journals no file and writes no
  * dismissal, in the same transaction, so the file stays listable for when the folder is added
  * back, whichever step of the deletion a crash interrupts.
