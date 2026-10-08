@@ -183,3 +183,22 @@ export function hasProjectOverride(server: McpConfiguredServerView) {
 export function canSwitchForProject(server: McpConfiguredServerView, projectPath: string | null) {
   return projectPath !== null && server.scope === 'global' && !hasProjectOverride(server)
 }
+
+export type McpOverrideNote =
+  | { readonly kind: 'off-in-openwaggle'; readonly path: string }
+  | { readonly kind: 'overridden'; readonly path: string }
+
+/**
+ * What a list row says about a file that overrides the server. A server another tool's file (Pi's,
+ * `.mcp.json`) turns on but OpenWaggle's file keeps off is "Off in OpenWaggle": after the upgrade,
+ * that is a server the old OpenWaggle never connected, which the migration kept off.
+ */
+export function mcpOverrideNote(server: McpConfiguredServerView): McpOverrideNote | undefined {
+  const { override } = server
+  if (!override) return undefined
+  const offInOpenWaggle =
+    !server.enabled &&
+    isOpenWaggleMcpFile(override.fileId) &&
+    !isOpenWaggleMcpFile(server.source.fileId)
+  return { kind: offInOpenWaggle ? 'off-in-openwaggle' : 'overridden', path: override.path }
+}

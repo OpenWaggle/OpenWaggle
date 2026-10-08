@@ -123,7 +123,7 @@ Removing a server also removes the entries in OpenWaggle's files that only chang
 The first time a new version starts, OpenWaggle converts its older MCP files to the format above and keeps a copy of each file it changes, ending in `.pre-adr-0048.bak`. The copy of `~/.openwaggle/mcp.json` sits next to it. The copy of a project's `.openwaggle/mcp.json` goes to `~/.openwaggle/mcp/backups/`, in a folder named after the project, so it never ends up in your repository. Servers stay on or off as they were:
 
 - If MCP was off in OpenWaggle, every server is turned off.
-- Otherwise, servers that connected before stay on, and the others are turned off.
+- Otherwise, servers that connected before stay on, and the others are turned off. A server in Pi's file that never ran in OpenWaggle is listed as **Off in OpenWaggle**: Pi's file still has it on, and you can turn it on in OpenWaggle. A server another file changes says where, such as **Overridden in ~/.openwaggle/mcp.json**.
 - This applies to every project OpenWaggle knew about when it upgraded. Projects added later, and people who never set up MCP in OpenWaggle, start with servers on as their files say.
 - A Session you had switched MCP off for stays off. Turn it back on from **Use MCP servers** in the composer's **+** menu.
 - A project that is your home folder shares its OpenWaggle file with every project, so servers you had switched on or off for that project only are not carried over. Switch them again in that project if you need to.

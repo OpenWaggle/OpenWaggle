@@ -5,6 +5,7 @@ import { Button } from '@/shared/ui/Button'
 import { PlainTextBlock } from '@/shared/ui/PlainTextBlock'
 import { useMcpConfigurationActions } from '../../../hooks/useMcpConfiguration'
 import type { McpServerRow } from '../../../lib/mcp-server-model'
+import { mcpOverrideNote } from '../../../lib/mcp-server-model'
 import { McpExposureEditor } from './McpExposureEditor'
 import { McpFileLabel, McpInlineError, McpStatusPill } from './McpLabels'
 import { McpRemoveServer, McpServerSignIn, McpServerSwitches } from './McpServerActions'
@@ -116,6 +117,13 @@ export function McpServerDetail({
           </Fact>
         ) : null}
       </dl>
+      {mcpOverrideNote(server)?.kind === 'off-in-openwaggle' ? (
+        <p className="text-xs leading-5 text-text-tertiary">
+          Off in OpenWaggle: the file that defines it still has it on. OpenWaggle keeps it off
+          because it did not run in OpenWaggle before the upgrade, or because you turned it off
+          here. Turn it on to use it.
+        </p>
+      ) : null}
       <ServerProblem row={row} />
       <div className="space-y-3 rounded-lg border border-border bg-bg px-4 py-3">
         <McpServerSwitches projectPath={projectPath} server={server} />

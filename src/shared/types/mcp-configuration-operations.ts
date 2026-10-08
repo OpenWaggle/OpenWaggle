@@ -67,7 +67,7 @@ export const MCP_IMPORT_SOURCE_IDS = [
   'windsurf',
 ] as const
 
-/** Tools whose MCP servers can be imported (Pi's own files are read live, not imported). */
+/** Tools whose MCP servers can be imported (Pi's files are read live, not imported). */
 export type McpImportSourceId = (typeof MCP_IMPORT_SOURCE_IDS)[number]
 
 export type McpImportCandidateStatus = 'new' | 'imported' | 'source-changed' | 'name-taken'

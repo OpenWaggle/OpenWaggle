@@ -1,11 +1,44 @@
+import type { McpConfiguredServerView } from '@shared/types/mcp-configuration'
 import { ChevronRight } from 'lucide-react'
+import { tildifyPath } from '@/shared/lib/tildify-path'
 import { Button } from '@/shared/ui/Button'
 import {
   MCP_EXPOSURE_COPY,
   type McpServerRow,
+  mcpOverrideNote,
   mcpToolCountLabel,
 } from '../../../lib/mcp-server-model'
 import { McpFileLabel, McpStatusPill } from './McpLabels'
+
+/** Which file overrides the server, so the list shows why a Pi server is off or changed. */
+function McpOverrideMarker({ server }: { readonly server: McpConfiguredServerView }) {
+  const note = mcpOverrideNote(server)
+  if (!note) return null
+  const path = tildifyPath(note.path)
+  if (note.kind === 'off-in-openwaggle') {
+    return (
+      <>
+        {' '}
+        <span aria-hidden="true">·</span>{' '}
+        <span
+          className="font-medium text-text-secondary"
+          title={`Turned off in ${path}. The file that defines it still has it on; OpenWaggle keeps it off because it did not run in OpenWaggle before the upgrade, or because you turned it off here.`}
+        >
+          Off in OpenWaggle
+        </span>
+      </>
+    )
+  }
+  return (
+    <>
+      {' '}
+      <span aria-hidden="true">·</span>{' '}
+      <span className="min-w-0 truncate" title={note.path}>
+        Overridden in <span className="font-mono text-text-muted">{path}</span>
+      </span>
+    </>
+  )
+}
 
 function McpServerListRow({
   row,
@@ -42,8 +75,9 @@ function McpServerListRow({
               {MCP_EXPOSURE_COPY[server.exposure].label}
             </span>
           </span>{' '}
-          <span className="flex text-xs text-text-tertiary">
+          <span className="flex min-w-0 flex-wrap gap-x-1.5 text-xs text-text-tertiary">
             <McpFileLabel file={server.source} />
+            <McpOverrideMarker server={server} />
           </span>
         </span>
         <ChevronRight className="size-4 shrink-0 text-text-muted" />
