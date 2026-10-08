@@ -1,8 +1,8 @@
 /**
- * Pi reads `$NAME`, `${NAME}`, and a leading `!command` in MCP `env` and `headers` values (and
- * `${NAME}` in URLs). Values that are data, such as vault secrets or values from the MCP Registry,
- * a bundle manifest, or another tool's file, are written so Pi reads them back literally: `$$` is a
- * literal `$`, and `$!` a literal `!`.
+ * Pi reads `$NAME`, `${NAME}`, and a leading `!command` in MCP `env` and `headers` values and in
+ * `oauth.clientSecret`; it takes URLs, commands, and arguments as written. Values that are data,
+ * such as vault secrets or values from the MCP Registry, a bundle manifest, or another tool's
+ * file, are written so Pi reads them back literally: `$$` is a literal `$`, and `$!` a literal `!`.
  */
 export function piLiteral(value: string) {
   const escaped = value.replaceAll('$', () => '$$')
