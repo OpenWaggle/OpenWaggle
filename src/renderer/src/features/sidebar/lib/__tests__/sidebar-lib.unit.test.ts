@@ -1,4 +1,4 @@
-import { SessionBranchId, SessionId, SessionNodeId } from '@shared/types/brand'
+import { MessageId, SessionBranchId, SessionId, SessionNodeId } from '@shared/types/brand'
 import type { SessionBranch, SessionSummary, SessionTree } from '@shared/types/session'
 import { describe, expect, it } from 'vitest'
 import { buildSidebarBranchRows } from '../sidebar-branches'
@@ -136,7 +136,7 @@ describe('sidebar library helpers', () => {
         },
       }),
     ).toMatchObject([
-      { type: 'draft', sourceNodeId: SessionNodeId('draft-source') },
+      { type: 'draft', sourceNodeId: SessionNodeId('draft-source'), sourceLabel: null },
       { type: 'branch', branch: main, isActive: false },
       { type: 'branch', branch: feature, isActive: true },
     ])
@@ -150,5 +150,52 @@ describe('sidebar library helpers', () => {
         draftBranch: null,
       }),
     ).toEqual([])
+  })
+
+  it('labels a draft branch with the text of the message it starts from', () => {
+    const currentSession = session({
+      id: 'session-a',
+      title: 'Session',
+      projectPath: '/work/app',
+      createdAt: 1,
+      updatedAt: 2,
+    })
+    // A discovered Pi session's node ids carry its Session id (ADR 0048); the label must not.
+    const sourceNodeId = SessionNodeId('session-a/a1b2c3d4')
+    const tree = {
+      session: currentSession,
+      nodes: [
+        {
+          id: sourceNodeId,
+          sessionId: SessionId('session-a'),
+          parentId: null,
+          piEntryType: 'message',
+          kind: 'user_message',
+          role: 'user',
+          timestampMs: 1,
+          createdOrder: 0,
+          pathDepth: 0,
+          message: {
+            id: MessageId('session-a/a1b2c3d4'),
+            role: 'user',
+            parts: [{ type: 'text', text: '  Try the other approach\nwith more detail' }],
+            createdAt: 1,
+          },
+          contentJson: '{}',
+          metadataJson: '{}',
+        },
+      ],
+      branches: [],
+      branchStates: [],
+      uiState: null,
+    } satisfies SessionTree
+    const draftBranch = { sessionId: SessionId('session-a'), sourceNodeId }
+
+    expect(
+      buildSidebarBranchRows({ session: currentSession, activeSessionTree: tree, draftBranch }),
+    ).toEqual([{ type: 'draft', sourceNodeId, sourceLabel: 'Try the other approach' }])
+    expect(buildSidebarBranchRows({ session: currentSession, draftBranch })).toEqual([
+      { type: 'draft', sourceNodeId, sourceLabel: null },
+    ])
   })
 })

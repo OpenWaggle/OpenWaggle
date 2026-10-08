@@ -1,3 +1,4 @@
+import { getMessageText } from '@shared/types/agent'
 import type { SessionBranchId, SessionId, SessionNodeId } from '@shared/types/brand'
 import type { SessionBranch, SessionSummary, SessionTree } from '@shared/types/session'
 
@@ -10,6 +11,8 @@ export type SidebarBranchRow =
   | {
       readonly type: 'draft'
       readonly sourceNodeId: SessionNodeId
+      /** The first line of the message the draft starts from, when the sidebar has it. */
+      readonly sourceLabel: string | null
     }
   | {
       readonly type: 'branch'
@@ -30,6 +33,23 @@ function getSessionBranches(input: BuildSidebarBranchRowsInput) {
     return input.activeSessionTree.branches
   }
   return input.session.branches ?? []
+}
+
+/**
+ * The first line of the draft's source message. A node id is no label: a discovered Pi
+ * session's carries the Session id before the entry id (ADR 0048).
+ */
+function draftSourceLabel(input: BuildSidebarBranchRowsInput, sourceNodeId: SessionNodeId) {
+  const tree = input.activeSessionTree
+  if (tree?.session.id !== input.session.id) return null
+  const message = tree.nodes.find((node) => node.id === sourceNodeId)?.message
+  const firstLine = message
+    ? getMessageText(message)
+        .split('\n')
+        .map((line) => line.trim())
+        .find((line) => line.length > 0)
+    : undefined
+  return firstLine ?? null
 }
 
 function isDraftForSession(
@@ -54,7 +74,8 @@ export function buildSidebarBranchRows(
 
   const rows: SidebarBranchRow[] = []
   if (hasDraftBranch) {
-    rows.push({ type: 'draft', sourceNodeId: input.draftBranch.sourceNodeId })
+    const { sourceNodeId } = input.draftBranch
+    rows.push({ type: 'draft', sourceNodeId, sourceLabel: draftSourceLabel(input, sourceNodeId) })
   }
 
   for (const branch of visibleBranches) {
