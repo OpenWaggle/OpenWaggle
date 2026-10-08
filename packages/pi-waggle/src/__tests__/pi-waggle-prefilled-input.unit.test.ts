@@ -1,8 +1,10 @@
 import type { ExtensionCommandContext, Theme, ThemeColor } from '@earendil-works/pi-coding-agent'
 import {
   type Component,
+  getKeybindings,
   type Keybinding,
   KeybindingsManager,
+  setKeybindings,
   type TUI,
   TUI_KEYBINDINGS,
   visibleWidth,
@@ -34,6 +36,7 @@ describe('promptPrefilledText', () => {
         fromPartial<KeybindingsManager>({
           matches: (data: string, keybinding: Keybinding) =>
             keybinding === 'tui.select.confirm' && data === '\r',
+          getKeys: () => [],
         }),
         (value) => {
           result = value
@@ -92,13 +95,17 @@ describe('promptPrefilledText', () => {
     for (const line of renderedLines) expect(visibleWidth(line)).toBeLessThanOrEqual(24)
   })
 
-  async function promptWithKeys(currentValue: string, keys: readonly string[]) {
+  async function promptWithKeys(
+    currentValue: string,
+    keys: readonly string[],
+    keybindings = new KeybindingsManager(TUI_KEYBINDINGS),
+  ) {
     const custom = vi.fn(async <T>(factory: CustomFactory<T>) => {
       let result: T | undefined
       const component = await factory(
         fromPartial<TUI>({}),
         fromPartial<Theme>({ fg: (_color: ThemeColor, text: string) => text }),
-        new KeybindingsManager(TUI_KEYBINDINGS),
+        keybindings,
         (value) => {
           result = value
         },
@@ -120,5 +127,20 @@ describe('promptPrefilledText', () => {
 
   it('keeps tabs in the existing value', async () => {
     await expect(promptWithKeys('Advocate\tlabel', ['X'])).resolves.toBe('Advocate\tlabelX')
+  })
+
+  it('puts the cursor after the value when the user rebound the End key', async () => {
+    // A user who moved "line end" off End: Pi's input reads the same, global keybindings.
+    const rebound = new KeybindingsManager(TUI_KEYBINDINGS, {
+      'tui.editor.cursorLineEnd': ['alt+e'],
+      'tui.editor.cursorLineStart': ['end'],
+    })
+    const previous = getKeybindings()
+    setKeybindings(rebound)
+    try {
+      await expect(promptWithKeys('Advocate', ['X'], rebound)).resolves.toBe('AdvocateX')
+    } finally {
+      setKeybindings(previous)
+    }
   })
 })
