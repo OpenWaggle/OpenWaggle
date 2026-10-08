@@ -21,6 +21,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@tanstack/react-router', () => ({ useNavigate: () => mocks.navigate }))
 vi.mock('@/features/sessions/hooks', () => ({
   useProject: () => ({ projectPath: mocks.projectPath, selectFolder: mocks.selectFolder }),
+  useSessionProjectPath: () => mocks.projectPath,
 }))
 vi.mock('@/features/chat/hooks', () => ({
   useChat: () => ({ activeSession: { id: 'session', projectPath: '/repo' } }),

@@ -31,6 +31,10 @@ vi.mock('@/features/project-actions', async (importOriginal) => {
   }
 })
 
+import { SessionId } from '@shared/types/brand'
+import type { SessionDetail } from '@shared/types/session'
+import { fromPartial } from '@total-typescript/shoehorn'
+import { useChatStore } from '@/features/chat/state'
 import { usePreferencesStore } from '../../state/preferences-store'
 import { ShortcutsSection } from '../sections/ShortcutsSection'
 
@@ -88,6 +92,25 @@ describe('ShortcutsSection', () => {
     render(<ShortcutsSection />)
     expect(projectMocks.readScope).toHaveBeenCalledWith('/repo', { projectPath: '/repo' })
     expect(projectMocks.editScope).toHaveBeenCalledWith('/repo', { projectPath: '/repo' })
+  })
+
+  it("edits the open Session's project action shortcuts while the preference is stale", () => {
+    const initialChat = useChatStore.getState()
+    useChatStore.setState({
+      activeSessionId: SessionId('session-b'),
+      activeSession: fromPartial<SessionDetail>({
+        id: SessionId('session-b'),
+        projectPath: '/other',
+      }),
+    })
+    try {
+      render(<ShortcutsSection />)
+      expect(projectMocks.readScope).toHaveBeenCalledWith('/other', { projectPath: '/other' })
+      expect(projectMocks.editScope).toHaveBeenCalledWith('/other', { projectPath: '/other' })
+      expect(projectMocks.readScope).not.toHaveBeenCalledWith('/repo', expect.anything())
+    } finally {
+      useChatStore.setState(initialChat, true)
+    }
   })
 
   it('adds another conditional built-in rule instead of replacing the command', async () => {

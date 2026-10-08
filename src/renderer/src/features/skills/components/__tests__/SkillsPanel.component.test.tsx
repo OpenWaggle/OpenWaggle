@@ -37,6 +37,10 @@ vi.mock('@/features/sessions/hooks/useProject', () => ({
   }),
 }))
 
+vi.mock('@/features/sessions/hooks/useSessionProjectPath', () => ({
+  useSessionProjectPath: () => mockState.projectPath,
+}))
+
 vi.mock('@/features/sessions/state', () => ({
   useSessionStore: (selector: (value: { sessions: { projectPath: string }[] }) => unknown) =>
     selector({ sessions: [] }),

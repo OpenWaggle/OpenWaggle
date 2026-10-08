@@ -20,6 +20,10 @@ interface HotkeyBinding {
 
 interface WorkspaceLifecycleMocks {
   projectPath: string
+  /** The open Session's own project; the project preference above can lag behind it. */
+  sessionProjectPath: string
+  readonly projectActionsProject: Mock
+  readonly runProjectActionProject: Mock
   workingPath: string
   activeSessionId: string
   extensionRegistry: ExtensionContributionRegistryView | null
@@ -60,6 +64,9 @@ const lifecycleMocks: WorkspaceLifecycleMocks = vi.hoisted(() => {
   const singleHotkeys: { readonly hotkey: unknown; readonly callback: () => void }[] = []
   return {
     projectPath: '/repo',
+    sessionProjectPath: '/repo',
+    projectActionsProject: vi.fn(),
+    runProjectActionProject: vi.fn(),
     workingPath: '/repo/.worktrees/session-1',
     activeSessionId: 'session-1',
     extensionRegistry: null,
@@ -171,6 +178,7 @@ vi.mock('@/features/git/hooks', () => ({
 
 vi.mock('@/features/sessions/hooks', () => ({
   useProject: () => ({ projectPath: lifecycleMocks.projectPath }),
+  useSessionProjectPath: () => lifecycleMocks.sessionProjectPath,
   useSessions: () => ({
     loadSessions: lifecycleMocks.loadSessionTrees,
     refreshCatalogSessions: lifecycleMocks.refreshCatalogSessions,
@@ -181,8 +189,14 @@ vi.mock('@/features/sessions/hooks', () => ({
 }))
 
 vi.mock('@/features/project-actions', () => ({
-  useProjectActions: () => ({ data: [] }),
-  useRunProjectAction: () => vi.fn(),
+  useProjectActions: (projectPath: string | null) => {
+    lifecycleMocks.projectActionsProject(projectPath)
+    return { data: [] }
+  },
+  useRunProjectAction: (projectPath: string | null) => {
+    lifecycleMocks.runProjectActionProject(projectPath)
+    return vi.fn()
+  },
 }))
 
 vi.mock('@/shared/lib/ipc', () => ({
@@ -252,6 +266,9 @@ export function resetWorkspaceLifecycleMocks() {
   lifecycleMocks.titleUnsubscribe.mockClear()
   lifecycleMocks.hotkeys.length = 0
   lifecycleMocks.projectPath = '/repo'
+  lifecycleMocks.sessionProjectPath = '/repo'
+  lifecycleMocks.projectActionsProject.mockClear()
+  lifecycleMocks.runProjectActionProject.mockClear()
   lifecycleMocks.workingPath = '/repo/.worktrees/session-1'
   lifecycleMocks.activeSessionId = 'session-1'
   lifecycleMocks.extensionRegistry = null

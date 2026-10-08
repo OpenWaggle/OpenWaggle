@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useProject } from '@/features/sessions/hooks'
+import { useProject, useSessionProjectPath } from '@/features/sessions/hooks'
 import { useSessionStore } from '@/features/sessions/state'
 import { usePreferencesStore } from '@/features/settings/state'
 import { api } from '@/shared/lib/ipc'
@@ -8,7 +8,10 @@ const PROJECT_PAGE_SIZE = 100
 
 /** A Settings browser can inspect another project without changing the active Session. */
 export function useResourceProject() {
-  const { projectPath: activeProject, selectFolder } = useProject()
+  const { projectPath: preferredProject, selectFolder } = useProject()
+  // Default to the open Session's project: the preference can still name the previous one. It
+  // stays the next choice, before older recent projects, while that project is not known.
+  const sessionProject = useSessionProjectPath()
   const recentProjects = usePreferencesStore((state) => state.settings.recentProjects)
   const displayNames = usePreferencesStore((state) => state.settings.projectDisplayNames)
   const pushRecentProject = usePreferencesStore((state) => state.pushRecentProject)
@@ -17,9 +20,12 @@ export function useResourceProject() {
   const [folderError, setFolderError] = useState<string | null>(null)
   const projects = [
     ...new Set(
-      [activeProject, ...recentProjects, ...sessions.map((session) => session.projectPath)].filter(
-        (path): path is string => typeof path === 'string' && path.trim().length > 0,
-      ),
+      [
+        sessionProject,
+        preferredProject,
+        ...recentProjects,
+        ...sessions.map((session) => session.projectPath),
+      ].filter((path): path is string => typeof path === 'string' && path.trim().length > 0),
     ),
   ]
   const projectPath = selectedProject ?? projects[0] ?? null

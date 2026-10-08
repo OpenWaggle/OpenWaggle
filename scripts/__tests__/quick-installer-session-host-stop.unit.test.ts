@@ -61,7 +61,11 @@ ${command} "$@"`
   const child = execFileAsync('bash', ['-c', script, 'installer-host-stop-test', ...args], {
     env: { PATH: process.env.PATH ?? '', TMPDIR: directory },
   })
-  // The rest of a piped install script must never reach the CLI.
+  // The rest of a piped install script must never reach the CLI. The section can exit before it
+  // reads stdin, so the write may hit a closed pipe; that EPIPE is expected, not a failure.
+  child.child.stdin?.on('error', (error: NodeJS.ErrnoException) => {
+    if (error.code !== 'EPIPE') throw error
+  })
   child.child.stdin?.end('rest of the install script\n')
   const result = await child.catch((error: { stdout: string; code: number }) => error)
   return { stdout: result.stdout.trim(), exitCode: 'code' in result ? result.code : 0 }

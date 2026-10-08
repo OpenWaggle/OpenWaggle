@@ -24,6 +24,15 @@ describe('useWorkspaceLifecycle', () => {
     ;({ useWorkspaceLifecycle } = await loadUseWorkspaceLifecycle())
   })
 
+  it("binds project action shortcuts to the open Session's project, not the stale preference", () => {
+    lifecycleMocks.sessionProjectPath = '/other-project'
+    renderHook(() => useWorkspaceLifecycle())
+
+    expect(lifecycleMocks.projectActionsProject).toHaveBeenCalledWith('/other-project')
+    expect(lifecycleMocks.runProjectActionProject).toHaveBeenCalledWith('/other-project')
+    expect(lifecycleMocks.projectActionsProject).not.toHaveBeenCalledWith('/repo')
+  })
+
   it('loads app data, subscribes to title updates, refreshes project state, and registers hotkeys', async () => {
     const { unmount } = renderHook(() => useWorkspaceLifecycle())
 

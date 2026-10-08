@@ -26,6 +26,7 @@ vi.mock('@/shared/lib/ipc', () => ({
 
 vi.mock('@/features/sessions/hooks', () => ({
   useProject: () => ({ projectPath: state.settings.projectPath, selectFolder: state.selectFolder }),
+  useSessionProjectPath: () => state.settings.projectPath,
 }))
 
 vi.mock('@/features/sessions/state', () => ({

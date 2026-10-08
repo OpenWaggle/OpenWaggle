@@ -16,6 +16,8 @@ const mocks = vi.hoisted(() => {
     openBuiltInPanel: vi.fn(),
     openExtensionPanel: vi.fn(),
     listExtensionContributions: vi.fn(),
+    projectActionsProject: vi.fn(),
+    runProjectActionProject: vi.fn(),
     settings,
   }
 })
@@ -47,8 +49,20 @@ vi.mock('../../hooks/useGlobalExtensionActions', () => ({
 }))
 vi.mock('@/features/project-actions', () => ({
   createProjectActionCommandItems: () => [],
-  useProjectActions: () => ({ data: [] }),
-  useRunProjectAction: () => vi.fn(),
+  useProjectActions: (projectPath: string | null) => {
+    mocks.projectActionsProject(projectPath)
+    return { data: [] }
+  },
+  useRunProjectAction: (projectPath: string | null) => {
+    mocks.runProjectActionProject(projectPath)
+    return vi.fn()
+  },
+}))
+// The open Session's project differs from the palette's (preference-backed) project: the
+// preference write that follows a Session switch can lag or fail.
+vi.mock('@/features/sessions/hooks', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/features/sessions/hooks')>()),
+  useSessionProjectPath: () => '/session-project',
 }))
 vi.mock('@/features/terminal', () => ({ useRunningTerminalCounts: () => new Map() }))
 
@@ -152,6 +166,14 @@ describe('GlobalCommandPalette Panels section', () => {
     expect(screen.queryByText('Toggle diff panel')).not.toBeInTheDocument()
     expect(screen.queryByText('Open session tree')).not.toBeInTheDocument()
     expect(screen.queryByText('Writing')).not.toBeInTheDocument()
+  })
+
+  it("lists and runs project actions of the open Session's project, not the preference", async () => {
+    await renderPalette()
+
+    expect(mocks.projectActionsProject).toHaveBeenCalledWith('/session-project')
+    expect(mocks.runProjectActionProject).toHaveBeenCalledWith('/session-project')
+    expect(mocks.projectActionsProject).not.toHaveBeenCalledWith('/repo')
   })
 
   it('shows the chosen surface through the Right panel controller', async () => {

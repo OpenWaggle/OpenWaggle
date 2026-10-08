@@ -12,7 +12,12 @@ import {
   useSessionHiveInvalidation,
   useSessionResourceInvalidation,
 } from '@/features/session-summary'
-import { useProject, useSessionStatusMonitor, useSessions } from '@/features/sessions/hooks'
+import {
+  useProject,
+  useSessionProjectPath,
+  useSessionStatusMonitor,
+  useSessions,
+} from '@/features/sessions/hooks'
 import { useSyntaxThemeCatalogStore } from '@/features/settings'
 import { usePreferencesStore } from '@/features/settings/state'
 import { usePinnedSessionShortcuts, useSidebarSearchShortcut } from '@/features/sidebar/hooks'
@@ -207,8 +212,9 @@ export function useWorkspaceLifecycle(): void {
 
   const terminalCommands = useTerminalCommands()
   const terminalOwner = terminalOwnerContext(activeSession ?? null, projectPath ?? null)
-  const projectActions = useProjectActions(projectPath).data ?? []
-  const runProjectAction = useRunProjectAction(projectPath)
+  const actionProjectPath = useSessionProjectPath()
+  const projectActions = useProjectActions(actionProjectPath).data ?? []
+  const runProjectAction = useRunProjectAction(actionProjectPath)
   const extensionPanels = useAvailableExtensionPanelShortcuts(
     projectPath ?? null,
     activeSessionId ? String(activeSessionId) : null,
