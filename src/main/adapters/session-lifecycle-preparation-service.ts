@@ -25,7 +25,10 @@ import {
   resolveLifecycleExecutionContext,
   resolveLifecycleSessionCapabilities,
 } from './session-lifecycle-execution-profile'
-import { prepareLifecycleFork } from './session-lifecycle-fork-preparation'
+import {
+  prepareLifecycleFork,
+  recordPreparedSessionFile,
+} from './session-lifecycle-fork-preparation'
 import {
   prepareLifecycleWorkspacePlan,
   projectPathForLifecycleCommand,
@@ -68,18 +71,6 @@ function recordPreparationAttempt(
     ) VALUES (
       ${input.attemptId}, ${input.sessionId}, ${null}, ${input.createdAt}, ${input.createdAt}
     )
-  `
-}
-
-function recordPreparedSessionFile(
-  sql: SqlClient.SqlClient,
-  attemptId: string,
-  piSessionFile: string | undefined,
-) {
-  return sql`
-    UPDATE session_lifecycle_preparation_attempts
-    SET pi_session_file = ${piSessionFile ?? null}, updated_at = ${Date.now()}
-    WHERE attempt_id = ${attemptId}
   `
 }
 
@@ -239,6 +230,10 @@ export const SessionLifecyclePreparationServiceLive = Layer.effect(
                     kernel,
                     command,
                     modelId: parent?.profile.modelId ?? settings.selectedModel,
+                    attemptId,
+                    onForkFile: (file) => {
+                      piSessionFile = file
+                    },
                   })
                 : undefined
             const piSession = forked?.result ?? (yield* kernel.createSession({ projectPath }))

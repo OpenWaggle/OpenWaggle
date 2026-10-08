@@ -59,11 +59,28 @@ function sourceDetail(row: ForkSourceRow, command: ForkSessionCommand): SessionD
   }
 }
 
+/** Names the Pi file a preparation attempt made, so a failed or interrupted one is cleaned up. */
+export function recordPreparedSessionFile(
+  sql: SqlClient.SqlClient,
+  attemptId: string,
+  piSessionFile: string | undefined,
+) {
+  return sql`
+    UPDATE session_lifecycle_preparation_attempts
+    SET pi_session_file = ${piSessionFile ?? null}, updated_at = ${Date.now()}
+    WHERE attempt_id = ${attemptId}
+  `
+}
+
 export function prepareLifecycleFork(input: {
   readonly sql: SqlClient.SqlClient
   readonly kernel: AgentKernelServiceShape
   readonly command: ForkSessionCommand
   readonly modelId: string
+  /** The preparation attempt the fork's file is recorded under before it is written. */
+  readonly attemptId: string
+  /** Told the fork's file once it is recorded, so a failed preparation removes it. */
+  readonly onForkFile: (piSessionFile: string) => void
 }) {
   return Effect.gen(function* () {
     const writer = yield* Effect.sync(() =>
@@ -99,6 +116,14 @@ export function prepareLifecycleFork(input: {
         model: SupportedModelId(input.modelId),
         targetNodeId,
         position: input.command.position ?? 'at',
+        // OpenWaggle names the fork's file, so it is recorded before it is written: a stop between
+        // the two leaves an attempt that names it, which discovery never lists.
+        beforeWritingFork: (file) =>
+          recordPreparedSessionFile(input.sql, input.attemptId, file).pipe(
+            Effect.tap(() => Effect.sync(() => input.onForkFile(file))),
+            Effect.asVoid,
+            Effect.mapError((cause) => new Error(String(cause), { cause })),
+          ),
       })
       if (result.cancelled) {
         return yield* Effect.fail(

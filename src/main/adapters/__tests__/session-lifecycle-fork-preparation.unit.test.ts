@@ -5,7 +5,10 @@ import * as SqlClient from '@effect/sql/SqlClient'
 import { fromPartial } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import type { AgentKernelServiceShape } from '../../ports/agent-kernel-service'
+import type {
+  AgentKernelServiceShape,
+  ForkAgentKernelSessionInput,
+} from '../../ports/agent-kernel-service'
 import { prepareLifecycleFork } from '../session-lifecycle-fork-preparation'
 import { makeSessionLifecycleTestLayer } from './sqlite-session-lifecycle-test-support'
 
@@ -81,6 +84,8 @@ describe('prepareLifecycleFork', () => {
           kernel,
           command: { operation: 'fork', sourceSessionId: 'session-parent', targetNodeId: 'x' },
           modelId: 'provider/model',
+          attemptId: 'attempt-1',
+          onForkFile: () => undefined,
         })
       }).pipe(Effect.provide(layer)),
     )
@@ -89,5 +94,58 @@ describe('prepareLifecycleFork', () => {
     expect(JSON.parse(prepared.result.sessionSnapshot.nodes[0]?.metadataJson ?? '{}')).toEqual({
       visualizationSessionId: 'first-session',
     })
+  })
+
+  it("records the fork's file under its preparation attempt before Pi's fork is written", async () => {
+    const layer = makeSessionLifecycleTestLayer(path.join(temporaryRoot, 'record.sqlite'))
+    const forkFile = '/sessions/2026-01-01T00-00-00-000Z_fork.jsonl'
+    const told: string[] = []
+
+    const recordedAtWrite = await Effect.runPromise(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        yield* sql`
+          INSERT INTO session_lifecycle_preparation_attempts (
+            attempt_id, session_id, pi_session_file, created_at, updated_at
+          ) VALUES (${'attempt-1'}, ${'session-new'}, ${null}, ${1}, ${1})
+        `
+        const recorded = () =>
+          sql<{ readonly pi_session_file: string | null }>`
+            SELECT pi_session_file FROM session_lifecycle_preparation_attempts
+            WHERE attempt_id = ${'attempt-1'}
+          `.pipe(
+            Effect.map((rows) => rows[0]?.pi_session_file ?? null),
+            Effect.orDie,
+          )
+        let atWrite: string | null = null
+        const kernel = fromPartial<AgentKernelServiceShape>({
+          forkSession: (input: ForkAgentKernelSessionInput) =>
+            Effect.gen(function* () {
+              yield* input.beforeWritingFork?.(forkFile) ?? Effect.void
+              // Where the adapter writes the file.
+              atWrite = yield* recorded()
+              return {
+                cancelled: false,
+                piSessionId: 'pi-fork',
+                piSessionFile: forkFile,
+                sessionSnapshot: { activeNodeId: null, nodes: [] },
+                sourceNodeIdByNodeId: new Map(),
+              }
+            }),
+        })
+        yield* prepareLifecycleFork({
+          sql,
+          kernel,
+          command: { operation: 'fork', sourceSessionId: 'session-parent', targetNodeId: 'x' },
+          modelId: 'provider/model',
+          attemptId: 'attempt-1',
+          onForkFile: (file) => told.push(file),
+        })
+        return atWrite
+      }).pipe(Effect.provide(layer)),
+    )
+
+    expect(recordedAtWrite).toBe(forkFile)
+    expect(told).toEqual([forkFile])
   })
 })

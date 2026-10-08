@@ -6,6 +6,7 @@ import {
   SessionManager,
 } from '@earendil-works/pi-coding-agent'
 import type { ContextUsageSnapshot, SessionUsageSummary } from '@shared/types/context-usage'
+import * as Effect from 'effect/Effect'
 import {
   AgentKernelMissingEntryError,
   type AgentKernelSessionInput,
@@ -273,6 +274,7 @@ export async function forkPiSession(
     await disposeOpenWagglePiSession(runtime.session)
   }
 
+  if (input.beforeWritingFork) await Effect.runPromise(input.beforeWritingFork(forked.sessionFile))
   return {
     cancelled: false,
     ...(await projectForkedSession(forked, runtime.cwd, sourceNodeIds)),
