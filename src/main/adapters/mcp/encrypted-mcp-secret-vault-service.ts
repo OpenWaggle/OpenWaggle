@@ -12,6 +12,12 @@ import {
   mcpBuildStateDirectory,
   sharedMcpStateDirectory,
 } from './credentials/mcp-build-state-paths'
+import {
+  decrypt,
+  encrypt,
+  encryptionAvailable,
+  type McpVaultEncryption,
+} from './mcp-vault-encryption'
 import { withProcessFileLock } from './process-file-lock'
 
 interface VaultEntry {
@@ -98,9 +104,9 @@ async function readVaultFile(filePath: string): Promise<VaultFile | undefined> {
   }
 }
 
-function decryptsWith(encryption: McpVaultEncryption, entry: VaultEntry) {
+async function decryptsWith(encryption: McpVaultEncryption, entry: VaultEntry) {
   try {
-    encryption.decryptString(Buffer.from(entry.encryptedValue, 'base64'))
+    await decrypt(encryption, Buffer.from(entry.encryptedValue, 'base64'))
     return true
   } catch {
     return false
@@ -110,10 +116,10 @@ function decryptsWith(encryption: McpVaultEncryption, entry: VaultEntry) {
 /** The entries of the shared pre-build vault this build's key opens; the others are another build's. */
 async function ownLegacySecrets(legacyFilePath: string, encryption: McpVaultEncryption) {
   const legacy = await readVaultFile(legacyFilePath).catch(() => undefined)
-  if (!legacy || !encryption.isEncryptionAvailable()) return undefined
-  const secrets = Object.fromEntries(
-    Object.entries(legacy.secrets).filter(([, entry]) => decryptsWith(encryption, entry)),
-  )
+  if (!legacy || !(await encryptionAvailable(encryption))) return undefined
+  const entries = Object.entries(legacy.secrets)
+  const opens = await Promise.all(entries.map(([, entry]) => decryptsWith(encryption, entry)))
+  const secrets = Object.fromEntries(entries.filter((_, index) => opens[index]))
   return Object.keys(secrets).length > 0 ? { version: 1 as const, secrets } : undefined
 }
 
@@ -139,14 +145,8 @@ function summaries(vault: VaultFile): McpSecretSummary[] {
     .sort((left, right) => left.name.localeCompare(right.name))
 }
 
-interface McpVaultEncryption {
-  readonly isEncryptionAvailable: () => boolean
-  readonly encryptString: (value: string) => Buffer
-  readonly decryptString: (value: Buffer) => string
-}
-
-function assertEncryptionAvailable(encryption: McpVaultEncryption) {
-  if (!encryption.isEncryptionAvailable()) {
+async function assertEncryptionAvailable(encryption: McpVaultEncryption) {
+  if (!(await encryptionAvailable(encryption))) {
     throw new McpVaultError({
       reason: 'encryption-unavailable',
       message:
@@ -208,7 +208,7 @@ export function createEncryptedMcpSecretVault(
       return summaries(await readVault(filePath))
     },
     async resolve(name: string) {
-      assertEncryptionAvailable(encryption)
+      await assertEncryptionAvailable(encryption)
       const normalized = validateSecretName(name)
       const entry = (await readVault(filePath)).secrets[normalized]
       if (!entry)
@@ -218,7 +218,7 @@ export function createEncryptedMcpSecretVault(
           message: `MCP secret ${JSON.stringify(normalized)} was not found.`,
         })
       try {
-        return encryption.decryptString(Buffer.from(entry.encryptedValue, 'base64'))
+        return await decrypt(encryption, Buffer.from(entry.encryptedValue, 'base64'))
       } catch {
         throw new McpVaultError({
           reason: 'decryption-failed',
@@ -228,13 +228,15 @@ export function createEncryptedMcpSecretVault(
       }
     },
     async set(name: string, value: string) {
-      assertEncryptionAvailable(encryption)
+      await assertEncryptionAvailable(encryption)
       const normalized = validateSecretName(name)
       if (value.length === 0)
         throw new McpVaultError({
           reason: 'validation',
           message: 'MCP secret values cannot be empty.',
         })
+      // Sealed before the vault's lock is taken, so a slow keychain never holds the lock.
+      const encryptedValue = (await encrypt(encryption, value)).toString('base64')
       return mutate((vault) => {
         const timestamp = Date.now()
         const existing = vault.secrets[normalized]
@@ -243,7 +245,7 @@ export function createEncryptedMcpSecretVault(
           secrets: {
             ...vault.secrets,
             [normalized]: {
-              encryptedValue: encryption.encryptString(value).toString('base64'),
+              encryptedValue,
               createdAt: existing?.createdAt ?? timestamp,
               updatedAt: timestamp,
             },
