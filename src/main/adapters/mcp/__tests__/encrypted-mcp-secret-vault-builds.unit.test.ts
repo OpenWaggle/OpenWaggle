@@ -60,13 +60,16 @@ describe('the MCP secret vault per build', () => {
     await expect(vaultFor('dev', DEV).resolve('TOKEN')).resolves.toBe('dev-value')
   })
 
-  it('takes over the secrets of the shared vault this build can decrypt, once', async () => {
+  it('takes over the secrets of the shared vault this build can decrypt, on its first save', async () => {
     await writeLegacy({ TOKEN: 'release:old-value', OTHER: 'dev:dev-only' })
     const before = await readFile(legacyPath, 'utf8')
 
     const release = vaultFor('release', RELEASE)
     await expect(release.resolve('TOKEN')).resolves.toBe('old-value')
-    expect((await release.list()).map((secret) => secret.name)).toEqual(['TOKEN'])
+    // Until then the shared names are listed, read without decrypting.
+    expect((await release.list()).map((secret) => secret.name)).toEqual(['OTHER', 'TOKEN'])
+    await release.set('NEW', 'new-value')
+    expect((await release.list()).map((secret) => secret.name)).toEqual(['NEW', 'TOKEN'])
     await expect(vaultFor('dev', DEV).resolve('OTHER')).resolves.toBe('dev-only')
     // The shared vault is left for every build.
     expect(await readFile(legacyPath, 'utf8')).toBe(before)

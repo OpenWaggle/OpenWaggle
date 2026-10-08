@@ -1,9 +1,6 @@
-import { randomUUID } from 'node:crypto'
-import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { MCP_CONFIG } from '@shared/constants/mcp'
 import type { McpSecretSummary } from '@shared/types/mcp'
-import { isRecord } from '@shared/utils/validation'
 import { Effect, Layer } from 'effect'
 import { safeStorage } from 'electron'
 import { McpVaultError, toMcpVaultError } from '../../ports/mcp-errors'
@@ -18,25 +15,15 @@ import {
   encryptionAvailable,
   type McpVaultEncryption,
 } from './mcp-vault-encryption'
+import {
+  EMPTY_VAULT,
+  readVaultFile,
+  summaries,
+  type VaultEntry,
+  type VaultFile,
+  writeVault,
+} from './mcp-vault-file'
 import { withProcessFileLock } from './process-file-lock'
-
-interface VaultEntry {
-  readonly encryptedValue: string
-  readonly createdAt: number
-  readonly updatedAt: number
-}
-
-interface VaultFile {
-  readonly version: 1
-  readonly secrets: Readonly<Record<string, VaultEntry>>
-}
-
-const VAULT_DIRECTORY_MODE = 0o700
-const VAULT_FILE_MODE = 0o600
-
-function isEnoent(error: unknown) {
-  return error instanceof Error && 'code' in error && error.code === 'ENOENT'
-}
 
 function validateSecretName(name: string) {
   const normalized = name.trim()
@@ -50,60 +37,6 @@ function validateSecretName(name: string) {
   return normalized
 }
 
-function parseVaultEntry(name: string, value: unknown): VaultEntry {
-  if (!isRecord(value)) {
-    throw new McpVaultError({
-      reason: 'io',
-      message: `OpenWaggle MCP vault entry ${JSON.stringify(name)} is invalid.`,
-    })
-  }
-  const { encryptedValue, createdAt, updatedAt } = value
-  if (
-    typeof encryptedValue !== 'string' ||
-    typeof createdAt !== 'number' ||
-    typeof updatedAt !== 'number'
-  ) {
-    throw new McpVaultError({
-      reason: 'io',
-      message: `OpenWaggle MCP vault entry ${JSON.stringify(name)} is invalid.`,
-    })
-  }
-  return { encryptedValue, createdAt, updatedAt }
-}
-
-function parseVault(raw: string): VaultFile {
-  const parsed: unknown = JSON.parse(raw)
-  if (!isRecord(parsed) || parsed.version !== 1) {
-    throw new McpVaultError({
-      reason: 'io',
-      message: 'OpenWaggle MCP vault has an unsupported format.',
-    })
-  }
-  if (!isRecord(parsed.secrets)) {
-    throw new McpVaultError({
-      reason: 'io',
-      message: 'OpenWaggle MCP vault is missing its encrypted secret map.',
-    })
-  }
-  const secrets: Record<string, VaultEntry> = {}
-  for (const [name, value] of Object.entries(parsed.secrets)) {
-    secrets[name] = parseVaultEntry(name, value)
-  }
-  return { version: 1, secrets }
-}
-
-const EMPTY_VAULT: VaultFile = { version: 1, secrets: {} }
-
-/** The vault at `filePath`, or undefined when there is none yet. */
-async function readVaultFile(filePath: string): Promise<VaultFile | undefined> {
-  try {
-    return parseVault(await readFile(filePath, 'utf8'))
-  } catch (error) {
-    if (isEnoent(error)) return undefined
-    throw error
-  }
-}
-
 async function decryptsWith(encryption: McpVaultEncryption, entry: VaultEntry) {
   try {
     await decrypt(encryption, Buffer.from(entry.encryptedValue, 'base64'))
@@ -113,36 +46,24 @@ async function decryptsWith(encryption: McpVaultEncryption, entry: VaultEntry) {
   }
 }
 
-/** The entries of the shared pre-build vault this build's key opens; the others are another build's. */
-async function ownLegacySecrets(legacyFilePath: string, encryption: McpVaultEncryption) {
-  const legacy = await readVaultFile(legacyFilePath).catch(() => undefined)
-  if (!legacy || !(await encryptionAvailable(encryption))) return undefined
+/** The shared pre-build vault; one that cannot be parsed has nothing to take over. */
+async function readLegacyVault(legacyFilePath: string | undefined) {
+  if (!legacyFilePath) return undefined
+  return readVaultFile(legacyFilePath).catch((error: unknown) => {
+    if (error instanceof SyntaxError || error instanceof McpVaultError) return undefined
+    throw error
+  })
+}
+
+/**
+ * The entries of the shared pre-build vault this build's key opens; the others are another
+ * build's. Throws when encryption is unavailable, so the takeover is not recorded as done.
+ */
+async function ownLegacySecrets(legacy: VaultFile, encryption: McpVaultEncryption) {
+  await assertEncryptionAvailable(encryption)
   const entries = Object.entries(legacy.secrets)
   const opens = await Promise.all(entries.map(([, entry]) => decryptsWith(encryption, entry)))
-  const secrets = Object.fromEntries(entries.filter((_, index) => opens[index]))
-  return Object.keys(secrets).length > 0 ? { version: 1 as const, secrets } : undefined
-}
-
-async function writeVault(filePath: string, vault: VaultFile) {
-  await mkdir(path.dirname(filePath), { recursive: true, mode: VAULT_DIRECTORY_MODE })
-  const temporaryPath = `${filePath}.${randomUUID()}.tmp`
-  try {
-    await writeFile(
-      temporaryPath,
-      `${JSON.stringify(vault, null, MCP_CONFIG.JSON_INDENT_SPACES)}\n`,
-      { mode: VAULT_FILE_MODE },
-    )
-    await rename(temporaryPath, filePath)
-  } catch (error) {
-    await rm(temporaryPath, { force: true }).catch(() => undefined)
-    throw error
-  }
-}
-
-function summaries(vault: VaultFile): McpSecretSummary[] {
-  return Object.entries(vault.secrets)
-    .map(([name, entry]) => ({ name, createdAt: entry.createdAt, updatedAt: entry.updatedAt }))
-    .sort((left, right) => left.name.localeCompare(right.name))
+  return Object.fromEntries(entries.filter((_, index) => opens[index]))
 }
 
 async function assertEncryptionAvailable(encryption: McpVaultEncryption) {
@@ -157,8 +78,9 @@ async function assertEncryptionAvailable(encryption: McpVaultEncryption) {
 
 export interface EncryptedMcpSecretVaultOptions {
   /**
-   * The vault every build shared before it moved to user data. While this build has no vault,
-   * the secrets this build can decrypt are copied from it once; it is never changed.
+   * The vault every build shared before it moved to user data; it is never changed. While this
+   * build has no vault, reads use it (names without decrypting, a value decrypted when resolved),
+   * and the first save copies the secrets this build can decrypt.
    */
   readonly legacyFilePath?: string
 }
@@ -169,21 +91,29 @@ export function createEncryptedMcpSecretVault(
   options: EncryptedMcpSecretVaultOptions = {},
 ) {
   let writeQueue: Promise<void> = Promise.resolve()
-  let legacyChecked = false
 
-  /** This build's vault; the first time it has none, what it can take from the shared one. */
-  async function readVault(vaultFile: string, locked = false): Promise<VaultFile> {
-    const own = await readVaultFile(vaultFile)
+  /**
+   * This build's vault, or while it has none, the shared vault every build used before: its names
+   * are read without decrypting anything, and an entry is decrypted only when it is resolved. Reads
+   * keep no state, so a read never hides what a concurrent save or a later attempt takes over.
+   */
+  async function readVault() {
+    const own = await readVaultFile(filePath)
+    if (own) return { vault: own, shared: false }
+    const legacy = await readLegacyVault(options.legacyFilePath)
+    return { vault: legacy ?? EMPTY_VAULT, shared: legacy !== undefined }
+  }
+
+  /**
+   * The vault a save starts from, under the vault's lock. The first save takes over the shared
+   * vault's secrets this build's key opens; it fails, and records nothing, when it cannot decrypt.
+   */
+  async function vaultToChange() {
+    const own = await readVaultFile(filePath)
     if (own) return own
-    if (legacyChecked || !options.legacyFilePath) return EMPTY_VAULT
-    legacyChecked = true
-    const taken = await ownLegacySecrets(options.legacyFilePath, encryption)
-    if (!taken) return EMPTY_VAULT
-    const save = async () => {
-      if (!(await readVaultFile(vaultFile))) await writeVault(vaultFile, taken)
-    }
-    await (locked ? save() : withProcessFileLock(vaultFile, save))
-    return (await readVaultFile(vaultFile)) ?? taken
+    const legacy = await readLegacyVault(options.legacyFilePath)
+    if (!legacy) return EMPTY_VAULT
+    return { version: 1 as const, secrets: await ownLegacySecrets(legacy, encryption) }
   }
 
   async function mutate(
@@ -191,7 +121,7 @@ export function createEncryptedMcpSecretVault(
   ): Promise<McpSecretSummary[]> {
     const mutation = writeQueue.then(() =>
       withProcessFileLock(filePath, async () => {
-        const next = await update(await readVault(filePath, true))
+        const next = await update(await vaultToChange())
         await writeVault(filePath, next)
         return summaries(next)
       }),
@@ -204,27 +134,31 @@ export function createEncryptedMcpSecretVault(
   }
 
   return {
+    /** The secrets' names, without reading the keychain. */
     async list() {
-      return summaries(await readVault(filePath))
+      return summaries((await readVault()).vault)
     },
     /** Whether the vault holds `name`, without reading the keychain. */
     async has(name: string) {
-      // A first read may take over the shared vault's secrets, asynchronously; resolving none.
-      return (await readVault(filePath)).secrets[validateSecretName(name)] !== undefined
+      return (await readVault()).vault.secrets[validateSecretName(name)] !== undefined
     },
     async resolve(name: string) {
       await assertEncryptionAvailable(encryption)
       const normalized = validateSecretName(name)
-      const entry = (await readVault(filePath)).secrets[normalized]
-      if (!entry)
-        throw new McpVaultError({
+      const { vault, shared } = await readVault()
+      const entry = vault.secrets[normalized]
+      const notFound = () =>
+        new McpVaultError({
           reason: 'secret-not-found',
           secretName: normalized,
           message: `MCP secret ${JSON.stringify(normalized)} was not found.`,
         })
+      if (!entry) throw notFound()
       try {
         return await decrypt(encryption, Buffer.from(entry.encryptedValue, 'base64'))
       } catch {
+        // A shared entry this build's key does not open is another build's secret.
+        if (shared) throw notFound()
         throw new McpVaultError({
           reason: 'decryption-failed',
           secretName: normalized,
@@ -271,7 +205,7 @@ export function createEncryptedMcpSecretVault(
 
 let liveVault: ReturnType<typeof createEncryptedMcpSecretVault> | undefined
 
-/** This build's vault (ADR 0032), which took over its own secrets from the shared one. */
+/** This build's vault (ADR 0032), which reads the shared one until its first save takes it over. */
 function getLiveVault() {
   liveVault ??= createEncryptedMcpSecretVault(
     path.join(mcpBuildStateDirectory(), MCP_CONFIG.GLOBAL_VAULT_FILE_NAME),
@@ -283,7 +217,7 @@ function getLiveVault() {
   return liveVault
 }
 
-/** The names in this build's vault, after it took over its own secrets from the shared one. */
+/** The names in this build's vault (the shared one's until it has its own), read without decrypting. */
 export async function listMcpVaultSecretNames() {
   return (await getLiveVault().list()).map((secret) => secret.name)
 }

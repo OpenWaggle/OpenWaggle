@@ -221,8 +221,12 @@ Pi stores OAuth state (client registration, tokens, PKCE verifier) keyed by
   unavailable to that process, and a change is refused rather than written over them.
 - The store every build shared before, `~/.openwaggle/mcp/oauth-states.json`, is copied into a
   build's user data the first time that build has no store and can decrypt it. It is never
-  changed. The encrypted secret vault (`vault.json`) moved the same way: a build takes the
-  shared vault's secrets it can decrypt.
+  changed. The encrypted secret vault (`vault.json`) moved the same way. Until a build
+  has its own vault, it reads the shared one: names without decrypting (`list`, `has`), and a value
+  decrypted only when resolved (another build's entry is not found). Its first save copies the
+  shared secrets it can decrypt, under the vault's lock; a save that cannot decrypt fails and
+  records nothing. Reads keep no takeover state, so nothing is hidden by a concurrent or failed
+  attempt, and a dev build next to a release build reads no keychain to list or check secrets.
 - The migration of pre-ADR-0050 sign-ins is recorded per build in `migration.json` (keyed by the
   build's user data): only the build whose key sealed an old sign-in can move it. A build that
   finds the sign-in in the shared vault but cannot decrypt it records nothing, so the other build

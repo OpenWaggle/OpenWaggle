@@ -72,6 +72,7 @@ describe('the MCP secret vault without the synchronous keychain API', () => {
     )
 
     await expect(vault.resolve('mine')).resolves.toBe('old')
+    await vault.remove('unrelated')
     await expect(vault.list()).resolves.toEqual([expect.objectContaining({ name: 'mine' })])
   })
 
