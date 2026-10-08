@@ -1,6 +1,7 @@
 import { match, matchBy } from '@diegogbrisa/ts-match'
 import { TOOL_STATE_RANK } from '@shared/constants/tool-state'
 import type { UIMessagePart } from '@shared/types/chat-ui'
+import { mergeNestedToolCalls } from '@shared/utils/nested-tool-calls'
 
 /*
  * The parts of an answer both a reconnect's buffer and the shown transcript hold. The buffer has
@@ -65,21 +66,15 @@ function identityIndex(parts: readonly UIMessagePart[], part: UIMessagePart) {
 
 type ToolCallPart = Extract<UIMessagePart, { readonly type: 'tool-call' }>
 
-/** How many nested calls a record saw, kept or dropped past its cap. */
-function nestedCallsSeen(part: ToolCallPart) {
-  const record = part.nestedCalls
-  return record ? record.calls.length + (record.droppedCalls ?? 0) : 0
-}
-
 /**
- * Two copies of one tool call: the later state, with the nested-call record that saw more calls.
- * Each copy's record only grows, so the fuller one is newer, whichever side saw the calls a stall
- * kept from the other.
+ * Two copies of one tool call: the later state, with the nested-call records merged call by call.
+ * A stall can keep either copy from seeing a call start or finish, and a call's status changes
+ * without changing how many calls a record holds, so neither record is newer as a whole.
  */
 function mergeToolCalls(existing: ToolCallPart, incoming: ToolCallPart): ToolCallPart {
   const later = toolStateRank(incoming.state) >= toolStateRank(existing.state) ? incoming : existing
-  const fuller = nestedCallsSeen(existing) > nestedCallsSeen(incoming) ? existing : incoming
-  return fuller.nestedCalls ? { ...later, nestedCalls: fuller.nestedCalls } : later
+  const nestedCalls = mergeNestedToolCalls(existing.nestedCalls, incoming.nestedCalls)
+  return nestedCalls ? { ...later, nestedCalls } : later
 }
 
 /** Two copies of one part: a tool call in its later state, a thought with the longer text. */

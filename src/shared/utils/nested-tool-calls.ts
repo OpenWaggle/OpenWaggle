@@ -114,6 +114,44 @@ export function recordNestedToolExecution(
   )
 }
 
+function isFinished(call: NestedToolCallRecord) {
+  return call.status !== 'unfinished'
+}
+
+/** Incomplete with nothing visible to say why: Pi's record dropped calls it does not count. */
+function hidesDroppedCalls(record: NestedToolCalls) {
+  return (
+    !record.complete &&
+    (record.droppedCalls ?? 0) === 0 &&
+    record.calls.every((call) => isFinished(call) && call.argsBytes === undefined)
+  )
+}
+
+/**
+ * Two copies of one tool call's record, such as a reconnect's buffer and the shown transcript,
+ * merged call by call: each call once, in a finished state if either copy saw it finish (a status
+ * only moves from unfinished to ok or error), the larger count of dropped calls, and incomplete
+ * when either copy knows of calls neither holds.
+ */
+export function mergeNestedToolCalls(
+  first: NestedToolCalls | undefined,
+  second: NestedToolCalls | undefined,
+): NestedToolCalls | undefined {
+  if (!first || !second) return first ?? second
+  const byId = new Map<string, NestedToolCallRecord>()
+  for (const call of [...first.calls, ...second.calls]) {
+    const known = byId.get(call.id)
+    if (!known || (!isFinished(known) && isFinished(call))) byId.set(call.id, call)
+  }
+  const calls = [...byId.values()].slice(0, NESTED_TOOL_CALL_LIMITS.maxCalls)
+  const droppedCalls =
+    Math.max(first.droppedCalls ?? 0, second.droppedCalls ?? 0) + (byId.size - calls.length)
+  const merged = withCompleteness(calls, droppedCalls)
+  return hidesDroppedCalls(first) || hidesDroppedCalls(second)
+    ? { ...merged, complete: false }
+    : merged
+}
+
 /**
  * Whether the model-issued call `ownerId` owns a nested call made by `parentToolCallId`: the owner
  * itself, any call under it (Pi names nested calls `<callerId>/<n>`, so this holds for calls the

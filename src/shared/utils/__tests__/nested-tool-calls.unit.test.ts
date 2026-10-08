@@ -2,6 +2,7 @@ import type { JsonValue } from '@shared/types/json'
 import type { NestedToolCalls } from '@shared/types/tools'
 import { describe, expect, it } from 'vitest'
 import {
+  mergeNestedToolCalls,
   NESTED_TOOL_CALL_LIMITS,
   type NestedToolExecutionEvent,
   ownsNestedToolCall,
@@ -133,5 +134,49 @@ describe('ownsNestedToolCall', () => {
         'other/1',
       ),
     ).toBe(true)
+  })
+})
+
+describe('mergeNestedToolCalls', () => {
+  const ok = { id: 'c/1', name: 'read', args: {}, status: 'ok' } as const
+  const running = { id: 'c/1', name: 'read', args: {}, status: 'unfinished' } as const
+  const failed = { id: 'c/2', name: 'bash', args: {}, status: 'error', error: 'boom' } as const
+
+  it('keeps each call once, in its finished state, from whichever copy saw it finish', () => {
+    expect(
+      mergeNestedToolCalls(
+        { calls: [running], complete: false },
+        { calls: [ok, failed], complete: true },
+      ),
+    ).toEqual({ calls: [ok, failed], complete: true })
+    expect(
+      mergeNestedToolCalls(
+        { calls: [ok, failed], complete: true },
+        { calls: [running], complete: false },
+      ),
+    ).toEqual({ calls: [ok, failed], complete: true })
+  })
+
+  it('keeps the larger count of dropped calls, and is incomplete with any', () => {
+    expect(
+      mergeNestedToolCalls(
+        { calls: [ok], complete: false, droppedCalls: 2 },
+        { calls: [ok], complete: false, droppedCalls: 5 },
+      ),
+    ).toEqual({ calls: [ok], complete: false, droppedCalls: 5 })
+  })
+
+  it("stays incomplete when Pi's record dropped calls it did not count", () => {
+    // Every call finished with its arguments, yet Pi marked the record incomplete: it dropped some.
+    expect(
+      mergeNestedToolCalls({ calls: [ok], complete: false }, { calls: [ok], complete: true }),
+    ).toEqual({ calls: [ok], complete: false })
+  })
+
+  it('returns the other record when one side has none', () => {
+    const record = { calls: [ok], complete: true }
+
+    expect(mergeNestedToolCalls(undefined, record)).toBe(record)
+    expect(mergeNestedToolCalls(record, undefined)).toBe(record)
   })
 })

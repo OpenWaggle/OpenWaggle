@@ -178,4 +178,26 @@ describe('reconnect merge of the streaming answer parts', () => {
 
     expect(nestedCallCount(merged[0]?.parts)).toBe(6)
   })
+
+  it('takes a nested call the buffer saw finish over the shown copy that still runs it', () => {
+    const withCall = (status: 'ok' | 'unfinished'): UIMessagePart => ({
+      ...codemode(0),
+      nestedCalls: {
+        calls: [{ id: 'code-1/1', name: 'read', args: {}, status }],
+        complete: status === 'ok',
+      },
+    })
+
+    const merged = merge({
+      buffer: [withCall('ok')],
+      shown: [withCall('unfinished')],
+      baseline: [withCall('unfinished')],
+    })
+
+    const call = merged[0]?.parts.find((part) => part.type === 'tool-call')
+    expect(call?.type === 'tool-call' && call.nestedCalls).toEqual({
+      calls: [{ id: 'code-1/1', name: 'read', args: {}, status: 'ok' }],
+      complete: true,
+    })
+  })
 })
