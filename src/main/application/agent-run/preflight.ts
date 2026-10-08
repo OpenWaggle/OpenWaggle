@@ -2,11 +2,11 @@ import type { SessionDetail } from '@shared/types/session'
 import * as Effect from 'effect/Effect'
 import { makeErrorInfo } from '../../agent/error-classifier'
 import { agentDefinitionTogglesForProject } from '../../agents/agent-definition-toggle-settings'
-import { ProviderService } from '../../ports/provider-service'
 import { SettingsService } from '../../services/settings-service'
 import { listRuntimeEnabledOpenWaggleExtensionPackagePaths } from '../extension-runtime-service'
 import { loadSessionForRun } from '../pi-session-projection-refresh'
 import { assignSessionTitleFromUserText } from '../run-handler-utils'
+import { isSessionModelRunnable } from '../session-model-availability'
 import type { AgentRunInput, AgentRunResult } from './types'
 
 interface AgentRunPreflightSuccess {
@@ -29,9 +29,7 @@ export function loadAgentRunPreflight(input: AgentRunInput) {
     const session = yield* loadSessionForRun(input.sessionId)
     if (!session) return sessionNotFound()
 
-    const providerService = yield* ProviderService
-    const isKnown = yield* providerService.isKnownModel(input.model, session.projectPath)
-    if (!isKnown) return invalidModel(input.model)
+    if (!(yield* isSessionModelRunnable(input.model, session))) return invalidModel(input.model)
 
     const settingsService = yield* SettingsService
     const settings = yield* settingsService.get()

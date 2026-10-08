@@ -1,16 +1,8 @@
 import type { SessionDetail } from '@shared/types/session'
+import { lastAnsweringModelReference } from '../../../domain/session-model-fallback'
 
-/**
- * The real model that answered the Session last. A Session whose selected model no longer
- * resolves, such as a virtual model whose extension was removed, continues on it, as Pi does when
- * it resumes such a session.
- */
+/** The Pi runtime option that lets a Session whose model is gone run on its last answering one. */
 export function sessionFallbackModelReference(session: SessionDetail) {
-  for (let index = session.messages.length - 1; index >= 0; index -= 1) {
-    const message = session.messages[index]
-    if (message?.role === 'assistant' && message.model) {
-      return { fallbackModelReference: String(message.model) }
-    }
-  }
-  return {}
+  const fallbackModelReference = lastAnsweringModelReference(session)
+  return fallbackModelReference ? { fallbackModelReference } : {}
 }
