@@ -140,12 +140,18 @@ export async function withReadOnlyPiSession<T>(
   }
 }
 
+/**
+ * A reusable runtime over the Session's Pi file. `sessionManager` replaces the one that opens the
+ * file, such as an in-memory copy for a fork, which must not write to its source.
+ */
 export async function createPiSessionRuntime(
   input: AgentKernelSessionInput & PiRuntimeExtensionIsolationInput,
+  options: { readonly sessionManager?: SessionManager } = {},
 ) {
   await idleCacheWarming.release(input.session.id)
   const projectPath = resolveSessionWorkingPath(input.session)
-  const initialSessionManager = createSessionManagerForSession(input.session, projectPath)
+  const initialSessionManager =
+    options.sessionManager ?? createSessionManagerForSession(input.session, projectPath)
   const createRuntime: CreateAgentSessionRuntimeFactory = async (options) => {
     const runtimeOptions = {
       projectPath: options.cwd,

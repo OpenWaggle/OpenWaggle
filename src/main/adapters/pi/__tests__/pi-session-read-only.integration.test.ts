@@ -116,4 +116,47 @@ describe('Reading a discovered Pi session', () => {
     )
     expect(await probeEvents()).toContain('start')
   })
+
+  it.each([
+    ['a file in the current Pi format', 'current'],
+    ['a file in an older Pi format', 'version-2'],
+  ] as const)('forks %s into a new file without writing the source', async (_, format) => {
+    const { SettingsService } = await import('../../../services/settings-service')
+    await run(
+      Effect.flatMap(SettingsService, (settings) =>
+        settings.update({
+          enabledModels: [FAKE_PROVIDER_MODEL],
+          selectedModel: FAKE_PROVIDER_MODEL,
+        }),
+      ),
+    )
+    const { source, id } = await sourceSession(format)
+    const before = await fs.readFile(source, 'utf8')
+    const lastNode = (await sessionDetail(id))?.messages.at(-1)?.id
+    const { forkSession } = await import(
+      '../../../application/host-ui-session-lifecycle-operations'
+    )
+
+    const fork = await run(forkSession([id, FAKE_PROVIDER_MODEL, String(lastNode)], 'at'))
+
+    expect(await fs.readFile(source, 'utf8')).toBe(before)
+    const forkFile = fork.session.piSessionFile
+    if (!forkFile) throw new Error('The fork has no Pi file.')
+    expect(forkFile).not.toBe(source)
+    expect(path.dirname(forkFile)).toBe(path.dirname(source))
+    const [header] = (await fs.readFile(forkFile, 'utf8')).split('\n')
+    expect(JSON.parse(String(header))).toMatchObject({ type: 'session', parentSession: source })
+  })
 })
+
+/** A discovered session, projected, and its Pi file. */
+async function sourceSession(format: 'current' | 'version-2') {
+  if (format === 'current') {
+    const discovered = await discoveredSession(fixture)
+    return { source: discovered.cli.file, id: discovered.sessionId }
+  }
+  const old = await writeVersion2PiSession(fixture.root, fixture.project)
+  const id = await discoverOne()
+  await openSession(id)
+  return { source: old.file, id }
+}

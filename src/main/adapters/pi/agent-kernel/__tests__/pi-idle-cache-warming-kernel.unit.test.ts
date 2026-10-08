@@ -32,6 +32,11 @@ vi.mock('../session-manager', async (importOriginal) => ({
   createSessionManagerForSession: vi.fn(() => {
     throw new Error(OPENED)
   }),
+  // A fork reads an in-memory copy of the file instead of opening it.
+  createReadOnlySessionManagerForSession: vi.fn(async () => {
+    throw new Error(OPENED)
+  }),
+  resolveSessionWorkingPath: vi.fn(() => '/repo'),
 }))
 
 const SESSION_ID = SessionId('warming-session')

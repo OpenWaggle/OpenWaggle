@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import path from 'node:path'
 import {
   type AgentSession,
   type ContextUsage,
@@ -197,15 +198,32 @@ interface ForkedPiSession {
   readonly editorText?: string
 }
 
+/**
+ * The fork Pi branched from an in-memory copy of the source, as the file OpenWaggle writes: next
+ * to the source, named and headed as Pi names and heads a fork it writes itself.
+ */
 function forkedPiSession(
   session: { readonly sessionFile: string | undefined; readonly sessionManager: SessionManager },
+  sourceFile: string | undefined,
   selectedText: string | undefined,
 ): ForkedPiSession {
   const header = session.sessionManager.getHeader()
-  if (!session.sessionFile || !header) throw new Error('Pi did not create the forked session.')
+  if (!header) throw new Error('Pi did not create the forked session.')
+  const sessionFile =
+    session.sessionFile ??
+    (sourceFile
+      ? path.join(
+          path.dirname(sourceFile),
+          `${header.timestamp.replace(/[:.]/g, '-')}_${header.id}.jsonl`,
+        )
+      : undefined)
+  if (!sessionFile) throw new Error('Pi did not create the forked session.')
   return {
-    sessionFile: session.sessionFile,
-    lines: [header, ...session.sessionManager.getEntries()],
+    sessionFile,
+    lines: [
+      sourceFile ? { ...header, parentSession: sourceFile } : header,
+      ...session.sessionManager.getEntries(),
+    ],
     ...(selectedText ? { editorText: selectedText } : {}),
   }
 }
@@ -215,7 +233,16 @@ export async function forkPiSession(
 ) {
   const sourceNodeIds = piEntryNodeIds(input.session)
   const targetEntryId = sourceNodeIds.toEntryId(input.targetNodeId)
-  const runtime = await createPiSessionRuntime(input)
+  // The source is forked from an in-memory copy: opening it as a Pi session would record a
+  // thinking level in it and migrate an older format in place (ADR 0050). A warming session ends
+  // first, so the copy holds everything it wrote.
+  await idleCacheWarming.release(input.session.id)
+  const runtime = await createPiSessionRuntime(input, {
+    sessionManager: await createReadOnlySessionManagerForSession(
+      input.session,
+      resolveSessionWorkingPath(input.session),
+    ),
+  })
   let forked: ForkedPiSession | undefined
   try {
     const result = await withOpenWagglePiSessionLifecycleContext(runtime.session, () =>
@@ -225,11 +252,15 @@ export async function forkPiSession(
       return {
         cancelled: true,
         piSessionId: runtime.session.sessionId,
-        piSessionFile: runtime.session.sessionFile,
+        piSessionFile: runtime.session.sessionFile ?? input.session.piSessionFile,
         sessionSnapshot: projectPiSessionSnapshot(runtime.session, sourceNodeIds),
       }
     }
-    forked = forkedPiSession(runtime.session, result.selectedText)
+    forked = forkedPiSession(
+      runtime.session,
+      input.session.piSessionFile ?? undefined,
+      result.selectedText,
+    )
   } catch (error) {
     if (
       error instanceof Error &&
