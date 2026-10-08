@@ -126,25 +126,37 @@ function piWasmPackageProblems(input: PiRuntimeAlignmentInput) {
  */
 const RELEASE_AGE_EXPIRY_MARKER = 'pi-runtime-release-age-exclusions-expire'
 
+/** One matched-release package at one exact version, such as `@earendil-works/pi-ai@1.0.4`. */
+const EXACT_PI_RELEASE_AGE_ENTRY = /^@earendil-works\/(?:pi-[a-z0-9-]+|chord)@\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/
+
+/** The `@earendil-works/` items of the `minimumReleaseAgeExclude` list, unquoted. */
+function piReleaseAgeEntries(workspace: string) {
+  const block = workspace.match(/^minimumReleaseAgeExclude:\n((?:[ \t][^\n]*\n?|\n)*)/m)?.[1] ?? ''
+  return [...block.matchAll(/^ {2}- ["']?([^"'\s]+)["']?\s*$/gm)]
+    .map((match) => match[1] ?? '')
+    .filter((entry) => entry.startsWith('@earendil-works/'))
+}
+
 /**
  * Temporary exceptions cover exactly the matched-release packages the lockfile resolves (with
- * `chord`): one for a package nothing installs exempts nothing and only lingers.
+ * `chord`), each at one exact version: one for a package nothing installs exempts nothing and
+ * only lingers, and a wildcard or range would exempt every later Pi release from every check.
  */
 function releaseAgeExclusionProblems(input: PiRuntimeAlignmentInput, version: string) {
-  const ageEntries = new Set(
-    [
-      ...input.workspace.matchAll(
-        /^ {2}- ["']?(@earendil-works\/(?:pi-[^"'\s@]+|chord)@[^"'\s]+)["']?$/gm,
-      ),
-    ].map((match) => match[1]),
-  )
+  const entries = piReleaseAgeEntries(input.workspace)
+  const inexact = entries.filter((entry) => !EXACT_PI_RELEASE_AGE_ENTRY.test(entry))
+  const inexactProblems = inexact.length
+    ? [`minimumReleaseAgeExclude may name Pi packages only at one exact version: ${inexact.join(', ')}.`]
+    : []
+  const ageEntries = new Set(entries.filter((entry) => !inexact.includes(entry)))
   if (ageEntries.size === 0) {
     // The marker only dates entries; once they are gone it would claim exclusions that do not exist.
     return input.workspace.includes(`# ${RELEASE_AGE_EXPIRY_MARKER}`)
       ? [
+          ...inexactProblems,
           `The ${RELEASE_AGE_EXPIRY_MARKER} line has no Pi minimumReleaseAgeExclude entries left to date; remove it.`,
         ]
-      : []
+      : inexactProblems
   }
   const expected = new Set(
     PI_RELEASE_SET.filter((packageName) => versionsFor(input.lockfile, packageName).size > 0).map(
@@ -153,7 +165,7 @@ function releaseAgeExclusionProblems(input: PiRuntimeAlignmentInput, version: st
   )
   const missing = [...expected].filter((entry) => !ageEntries.has(entry))
   const unneeded = [...ageEntries].filter((entry) => !expected.has(entry))
-  const problems: string[] = []
+  const problems: string[] = [...inexactProblems]
   if (missing.length > 0 || unneeded.length > 0) {
     problems.push(
       `minimumReleaseAgeExclude must be empty or contain exactly the ${expected.size} matched Pi packages the lockfile resolves at ${version}: ${[
