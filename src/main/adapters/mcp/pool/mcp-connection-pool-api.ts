@@ -15,6 +15,7 @@ export type McpConnectionPool = Pick<
   | 'closeServerIdentity'
   | 'closeSession'
   | 'beginRun'
+  | 'noteActivity'
 >
 
 export type { McpUpstream } from './mcp-connection-support'

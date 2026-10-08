@@ -1,7 +1,7 @@
 import { homedir } from 'node:os'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { createMcpAuthProvider } from '@earendil-works/pi-coding-agent'
+import { createMcpAuthProvider, getMcpToolExposure } from '@earendil-works/pi-coding-agent'
 import { safeDecodeUnknown } from '@shared/schema'
 import { mcpConfigValueSchema } from '@shared/schemas/mcp'
 import type { McpJsonValue } from '@shared/types/mcp'
@@ -22,11 +22,15 @@ import {
   mcpServerIdentity,
 } from '../../mcp/pool/mcp-connection-pool-api'
 import { getPiAgentDir } from '../pi-provider-catalog'
-import { mcpAppTool } from './mcp-app-registry'
+import { mcpToolVisibleToApps, recordMcpToolVisibility } from './mcp-app-registry'
 import { hardenedMcpAuthProvider } from './mcp-hardened-auth-provider'
 import { getOpenWaggleMcpCredentials } from './openwaggle-mcp-credentials'
 import { migrateOpenWaggleMcpFilesOnce } from './openwaggle-mcp-migration'
-import { mcpOAuthSettings, mcpOAuthUrl } from './pi-mcp-server-oauth'
+import {
+  mcpOAuthSettings,
+  mcpOAuthUrl,
+  withShellResolvedClientSecrets,
+} from './pi-mcp-server-oauth'
 import { openPiMcpUpstream } from './pi-mcp-upstream'
 
 /** How long an App's request may take, like Pi's own MCP request timeout. */
@@ -55,20 +59,24 @@ async function assertSessionMayUse(input: McpAppServerInput) {
 
 async function appConnection(pool: McpConnectionPool, input: McpAppServerInput) {
   await assertSessionMayUse(input)
-  const warm = pool.connection(input.sessionId, input.serverName)
   await Promise.all([mcpShellEnvironmentReady(), migrateOpenWaggleMcpFilesOnce(input.projectPath)])
   const config = await loadMcpRuntimeConfig({
     roots: { homeDir: homedir(), piAgentDir: getPiAgentDir(), projectPath: input.projectPath },
     resolveSecret: resolveMcpVaultSecret,
   })
-  const entry = config.loaded.servers.find((server) => server.name === input.serverName)
+  // The entry exactly as a Run gives it to Pi, so both make the same connection.
+  const entry = withShellResolvedClientSecrets(config.loaded).servers.find(
+    (server) => server.name === input.serverName,
+  )
   const identity = entry ? mcpServerIdentity(entry.name, entry.config) : undefined
   if (!entry || identity !== input.serverIdentity) {
     throw new Error(
       `The MCP server "${input.serverName}" this App belongs to was changed or removed.`,
     )
   }
-  if (warm) return warm
+  // Read after the awaits: a Run may have opened or closed the connection meanwhile.
+  const warm = pool.connection(input.sessionId, input.serverName)
+  if (warm) return { connection: warm, entry }
   if (entry.config.enabled === false) {
     throw new Error(`The MCP server "${input.serverName}" is turned off.`)
   }
@@ -86,23 +94,28 @@ async function appConnection(pool: McpConnectionPool, input: McpAppServerInput) 
         })
       : undefined,
   )
-  return pool.connectionFor(input.sessionId, {
+  const connection = pool.connectionFor(input.sessionId, {
     name: entry.name,
     fingerprint: mcpConnectionFingerprint({ config: entry.config, transport, cwd }),
     identity,
     open: () => openPiMcpUpstream({ entry, transport, cwd, authProvider }),
     roots: () => [{ uri: pathToFileURL(cwd).href, name: path.basename(cwd) }],
   })
+  return { connection, entry }
 }
 
+type AppConnection = Awaited<ReturnType<typeof appConnection>>['connection']
+
 /** One request of an App over the Session's connection, bounded in time. */
-async function appRequest(
+async function requestOver(
   pool: McpConnectionPool,
+  connection: AppConnection,
   input: McpAppServerInput,
   method: string,
   params: unknown,
 ) {
-  const connection = await appConnection(pool, input)
+  // App use between Runs keeps the Session's connections from closing as idle.
+  pool.noteActivity(input.sessionId)
   const abort = new AbortController()
   const timer = setTimeout(() => abort.abort(), MCP_APP_REQUEST_TIMEOUT_MS)
   try {
@@ -116,7 +129,18 @@ async function appRequest(
     throw error
   } finally {
     clearTimeout(timer)
+    pool.noteActivity(input.sessionId)
   }
+}
+
+async function appRequest(
+  pool: McpConnectionPool,
+  input: McpAppServerInput,
+  method: string,
+  params: unknown,
+) {
+  const { connection } = await appConnection(pool, input)
+  return requestOver(pool, connection, input, method, params)
 }
 
 function json(value: unknown): McpJsonValue {
@@ -156,23 +180,43 @@ async function listCatalog(pool: McpConnectionPool, input: McpAppServerInput) {
   return { resources, prompts }
 }
 
+/**
+ * Whether an App may call a tool: the server must have advertised it in this Session, its
+ * exposure must not be `hidden`, and its MCP Apps visibility must include apps.
+ */
+async function assertAppMayCall(
+  pool: McpConnectionPool,
+  opened: Awaited<ReturnType<typeof appConnection>>,
+  input: McpAppServerInput & { readonly toolName: string },
+) {
+  if (getMcpToolExposure(opened.entry.config, input.toolName) === 'hidden') {
+    throw new Error(`The MCP tool "${input.toolName}" is hidden, so MCP Apps cannot call it.`)
+  }
+  let visible = mcpToolVisibleToApps(input.sessionId, input.serverName, input.toolName)
+  if (visible === undefined) {
+    const listed = await requestOver(pool, opened.connection, input, 'tools/list', {})
+    const tools = isRecord(listed) && Array.isArray(listed.tools) ? listed.tools : []
+    if (!tools.some((tool) => isRecord(tool) && tool.name === input.toolName)) {
+      throw new Error('The MCP App requested a tool that its server did not advertise.')
+    }
+    recordMcpToolVisibility(input.sessionId, input.serverName, listed)
+    visible = mcpToolVisibleToApps(input.sessionId, input.serverName, input.toolName)
+  }
+  if (visible === false) {
+    throw new Error(`The MCP tool "${input.toolName}" is not available to apps.`)
+  }
+}
+
 async function callTool(
   pool: McpConnectionPool,
-
   input: McpAppServerInput & {
     readonly toolName: string
     readonly arguments: Readonly<Record<string, McpJsonValue>>
   },
 ) {
-  // An App may call only tools its server advertised in this Session.
-  if (!mcpAppTool(input.sessionId, input.serverName, input.toolName)) {
-    const listed = await appRequest(pool, input, 'tools/list', {})
-    const tools = isRecord(listed) && Array.isArray(listed.tools) ? listed.tools : []
-    if (!tools.some((tool) => isRecord(tool) && tool.name === input.toolName)) {
-      throw new Error('The MCP App requested a tool that its server did not advertise.')
-    }
-  }
-  const result = await appRequest(pool, input, 'tools/call', {
+  const opened = await appConnection(pool, input)
+  await assertAppMayCall(pool, opened, input)
+  const result = await requestOver(pool, opened.connection, input, 'tools/call', {
     name: input.toolName,
     arguments: input.arguments,
   })

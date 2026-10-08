@@ -143,6 +143,19 @@ export class McpSessionConnectionPool {
     return connection
   }
 
+  /**
+   * Work for the Session outside a Run, such as an MCP App request: it counts as recent use, so
+   * the Session's connections are not closed as idle while an App still uses them.
+   */
+  noteActivity(sessionId: string) {
+    const session = this.sessions.get(sessionId)
+    if (!session) return
+    this.touch(sessionId)
+    if (session.activeRuns === 0 && session.servers.size > 0) {
+      this.scheduleIdleClose(sessionId, session)
+    }
+  }
+
   /** A Run of the Session started; returns the function that ends it. */
   beginRun(sessionId: string) {
     const session = this.touch(sessionId)
