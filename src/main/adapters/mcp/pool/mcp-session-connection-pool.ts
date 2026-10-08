@@ -25,6 +25,14 @@ import type { McpWireTransport } from './mcp-wire'
  */
 export class McpSessionConnectionPool {
   private readonly sessions = new Map<string, SessionConnections>()
+  /**
+   * Sessions whose connections were closed on purpose (MCP switched off, archived): a Run still
+   * running keeps Pi's transport factory, which must not reconnect. Cleared by the next Run.
+   */
+  private readonly closedSessions = new Set<string>()
+  /** After `closeAll`, only Sessions that began a Run since may lease again. */
+  private closedAll = false
+  private readonly reopenedSessions = new Set<string>()
   private readonly clock: McpPoolClock
   private readonly idleCloseMs: number
   private readonly maxWarmSessions: number
@@ -39,6 +47,12 @@ export class McpSessionConnectionPool {
 
   /** The transport Pi's client gets for one server of one Session. */
   lease(sessionId: string, spec: McpPooledServerSpec): McpWireTransport {
+    if (
+      this.closedSessions.has(sessionId) ||
+      (this.closedAll && !this.reopenedSessions.has(sessionId))
+    ) {
+      throw new Error("This Session's MCP connections were closed; its next Run reconnects.")
+    }
     if (this.sessions.get(sessionId)?.closedServers.has(spec.name)) {
       throw new Error(`The MCP server "${spec.name}" was turned off or removed.`)
     }
@@ -103,6 +117,8 @@ export class McpSessionConnectionPool {
     session.activeRuns += 1
     // A new Run reads the configuration afresh, so a server turned on again may connect.
     session.closedServers.clear()
+    this.closedSessions.delete(sessionId)
+    if (this.closedAll) this.reopenedSessions.add(sessionId)
     this.cancelIdleClose(session)
     let ended = false
     return () => {
@@ -115,8 +131,16 @@ export class McpSessionConnectionPool {
     }
   }
 
-  /** Closes every connection of the Session, for example because it was archived or deleted. */
+  /**
+   * Closes every connection of the Session, for example because it was archived or deleted or its
+   * MCP was switched off. Its running Run's leases are refused until its next Run.
+   */
   async closeSession(sessionId: string) {
+    this.closedSessions.add(sessionId)
+    await this.closeSessionConnections(sessionId)
+  }
+
+  private async closeSessionConnections(sessionId: string) {
     const session = this.sessions.get(sessionId)
     if (!session) return
     this.cancelIdleClose(session)
@@ -166,7 +190,11 @@ export class McpSessionConnectionPool {
 
   /** Closes everything, waiting a bounded time for servers to exit. */
   async closeAll() {
-    const closing = Promise.all([...this.sessions.keys()].map((id) => this.closeSession(id)))
+    this.closedAll = true
+    this.reopenedSessions.clear()
+    const closing = Promise.all(
+      [...this.sessions.keys()].map((id) => this.closeSessionConnections(id)),
+    )
     let timer: McpPoolTimer | undefined
     await Promise.race([
       closing,
@@ -225,7 +253,7 @@ export class McpSessionConnectionPool {
     this.cancelIdleClose(session)
     session.idleTimer = this.clock.setTimeout(() => {
       session.idleTimer = undefined
-      if (session.activeRuns === 0) void this.closeSession(sessionId)
+      if (session.activeRuns === 0) void this.closeSessionConnections(sessionId)
     }, this.idleCloseMs)
   }
 
@@ -241,7 +269,7 @@ export class McpSessionConnectionPool {
         (id) => id !== currentSessionId && this.sessions.get(id)?.activeRuns === 0,
       )
       if (!victim) return
-      void this.closeSession(victim)
+      void this.closeSessionConnections(victim)
       warm = warm.filter((id) => id !== victim)
     }
   }

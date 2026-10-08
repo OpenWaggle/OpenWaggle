@@ -240,4 +240,23 @@ describe('MCP Session connection pool', () => {
     expect(client.messages).toContainEqual({ jsonrpc: '2.0', id: 2, result: { content: [] } })
     expect(upstreams[0]?.closed).toBe(true)
   })
+
+  it("refuses a running Run's leases once its Session's connections were closed", async () => {
+    const upstreams: FakeUpstream[] = []
+    const pool = new McpSessionConnectionPool()
+    const docs = server('docs', upstreams)
+    const endRun = pool.beginRun('s1')
+    await useServer(pool, 's1', docs)
+
+    // Switched off mid-Run: Pi's client must not reconnect through the Run's transport factory.
+    await pool.closeSession('s1')
+    expect(() => pool.lease('s1', docs)).toThrow('closed')
+    endRun()
+    pool.beginRun('s1')
+    expect(() => pool.lease('s1', docs)).not.toThrow()
+
+    await pool.closeAll()
+    expect(() => pool.lease('s1', docs)).toThrow('closed')
+    expect(() => pool.lease('s2', docs)).toThrow('closed')
+  })
 })

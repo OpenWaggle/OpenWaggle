@@ -319,7 +319,8 @@ through a pool lease and OpenWaggle's hardened fetch.
 | A Session opens its first connection while 8 Sessions hold warm connections | Closes the least recently used Session that has no active Run. |
 | Signing in to or out of a server, or switching a Session's MCP off | Closes the connections to that server identity (name plus command or URL) in every Session, or the Session's connections. |
 | A saved MCP change (Settings, the CLI, Pi's `/mcp`) turns a server off or removes it | Closes each Session's connection to it where its own project no longer has it on (`mcp-turned-off-servers.ts`); that Session's Run leases of it are refused until its next Run. A project whose files cannot be read is left alone. MCP Apps check `enabled` before using a warm connection. |
-| Session Host stops | Closes everything and waits (bounded) for stdio servers to exit. |
+| Session Host stops | Closes everything and waits (bounded) for stdio servers to exit. Leases are refused afterwards, except for a Session that begins a new Run. |
+| Any of the explicit closes above (`closeSession`: archive, delete, MCP switched off) | The Session's running Run cannot reconnect: its leases are refused until its next `beginRun`. Idle and LRU closes do not refuse anything. |
 
 Stdio servers run through pi-mcp's `StdioTransport` in their own process group (POSIX) and are
 closed by closing stdin, then SIGTERM and SIGKILL to the whole group, or `taskkill /T /F` on
