@@ -15,6 +15,7 @@ export interface McpMigrationFs {
 
 /** MCP files can hold credentials: a file the migration creates is readable by the user only. */
 const NEW_FILE_MODE = 0o600
+const PRIVATE_DIRECTORY_MODE = 0o700
 const PERMISSION_BITS = 0o777
 
 function errorCode(error: unknown) {
@@ -52,7 +53,8 @@ export const nodeMcpMigrationFs: McpMigrationFs = {
     }
   },
   async createTextExclusive(filePath, content) {
-    await mkdir(path.dirname(filePath), { recursive: true })
+    // Backups of project files are kept in the user's OpenWaggle data, private like the files.
+    await mkdir(path.dirname(filePath), { recursive: true, mode: PRIVATE_DIRECTORY_MODE })
     try {
       await writeFile(filePath, content, { encoding: 'utf8', flag: 'wx', mode: NEW_FILE_MODE })
       return true

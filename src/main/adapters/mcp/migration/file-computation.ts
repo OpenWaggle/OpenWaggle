@@ -19,7 +19,12 @@ import {
 import { preserveLegacyEnablement } from './legacy-enablement'
 import { type LegacyStateFile, legacyServerMap } from './legacy-state'
 import type { McpMigrationFs } from './migration-fs'
-import { globalMcpPaths, migrationBackupPath, projectMcpPaths } from './migration-paths'
+import {
+  globalMcpPaths,
+  legacyMigrationBackupPath,
+  migrationBackupPath,
+  projectMcpPaths,
+} from './migration-paths'
 
 export interface FileComputation {
   /** The new file text, or undefined when the file stays as it is. */
@@ -62,7 +67,9 @@ export class McpFileSources {
 
   /** A file as the old code saw it: its migration backup if one exists, else its content. */
   async legacyConfig(filePath: string) {
-    const backup = await this.fs.readText(migrationBackupPath(filePath))
+    const backup =
+      (await this.fs.readText(migrationBackupPath(filePath, this.homeDir))) ??
+      (await this.fs.readText(legacyMigrationBackupPath(filePath)))
     if (backup !== undefined) return parseJsonDocument(filePath, backup).value
     return this.readConfig(filePath)
   }

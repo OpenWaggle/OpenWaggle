@@ -105,6 +105,7 @@ class McpFileMigrator {
     private readonly record: McpMigrationRecord,
     private readonly now: () => Date,
     private readonly logger: Logger,
+    private readonly homeDir: string,
   ) {}
 
   async run(job: FileJob): Promise<McpFileMigrationReport> {
@@ -118,7 +119,7 @@ class McpFileMigrator {
         await this.recordFile(job.path, 'unchanged', original)
         return { path: job.path, status: 'unchanged', changes: result.changes }
       }
-      const backupPath = migrationBackupPath(job.path)
+      const backupPath = migrationBackupPath(job.path, this.homeDir)
       if (original !== undefined) await this.fs.createTextExclusive(backupPath, original)
       await this.fs.writeTextAtomic(job.path, result.text)
       await this.recordFile(job.path, 'migrated', result.text)
@@ -210,7 +211,7 @@ export async function migrateOpenWaggleMcpFiles(
     return { files: [], oauth: [], droppedSessionStates: 0, error: describeError(error) }
   }
   const { record, state } = start
-  const migrator = new McpFileMigrator(fs, record, input.now, logger)
+  const migrator = new McpFileMigrator(fs, record, input.now, logger, input.homeDir)
   const piAgentDir = input.piAgentDir ?? defaultPiAgentDir(input.homeDir)
   const sources = new McpFileSources(fs, input.homeDir, piAgentDir)
   const paths = globalMcpPaths(input.homeDir, piAgentDir)

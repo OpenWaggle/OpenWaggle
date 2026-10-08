@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { migrateOpenWaggleMcpFiles } from '../migrate-openwaggle-mcp-files'
+import { migrationBackupPath } from '../migration-paths'
 import { allConnectedState, NOW, oldFingerprint } from './migration-fixtures'
 
 const roots: string[] = []
@@ -76,9 +77,14 @@ describe('migrateOpenWaggleMcpFiles on disk', () => {
       mcpServers: { tools: { exposure: 'direct' } },
     })
     expect(await readJson(projectFile)).toEqual({ mcpServers: { local: { command: 'local' } } })
-    expect(await readJson(`${projectFile}.pre-adr-0048.bak`)).toEqual({
+    // The project's backup is kept in the user's OpenWaggle data, never in the repository.
+    expect(await readdir(path.dirname(projectFile))).toEqual(['mcp.json'])
+    expect(await readJson(migrationBackupPath(projectFile, homeDir))).toEqual({
       mcpServers: { local: { command: 'local', required: true } },
     })
+    expect(path.relative(homeDir, migrationBackupPath(projectFile, homeDir))).toMatch(
+      /^\.openwaggle\/mcp\/backups\/[^/]+\/mcp\.json\.pre-adr-0048\.bak$/,
+    )
     expect((await readdir(path.join(homeDir, '.openwaggle'))).sort()).toEqual([
       'mcp',
       'mcp.json',
