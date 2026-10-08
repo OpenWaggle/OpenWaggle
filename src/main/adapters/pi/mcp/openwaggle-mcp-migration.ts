@@ -9,6 +9,10 @@ import { writeOpenWaggleMcpOAuthState } from './openwaggle-mcp-credentials'
 
 const logger = createLogger('mcp-migration')
 
+function describeError(error: unknown) {
+  return error instanceof Error ? error.message : String(error)
+}
+
 /** How long a migration waits for another process's migration lock before it gives up. */
 export const MCP_MIGRATION_LOCK_WAIT_MS = 30_000
 
@@ -87,8 +91,10 @@ async function runMigration(projectPath: string | null, attempt: MigrationAttemp
     // Host start must not hang on another process that keeps the lock; it tries again later.
     { waitUntilAvailable: true, maxWaitMs: MCP_MIGRATION_LOCK_WAIT_MS },
   ).catch((error: unknown) => {
-    logger.error('MCP migration could not take its lock', {
-      error: error instanceof Error ? error.message : String(error),
+    // Not cached: the attempt is marked failed below and a later call runs it again.
+    logger.error('MCP migration failed; it is tried again later', {
+      projectPath,
+      error: describeError(error),
     })
     return undefined
   })
@@ -107,7 +113,14 @@ function migrateOnce(projectPath: string | null) {
     knownProjectPaths: knownMcpProjectPaths,
     now: () => new Date(),
     oauth: {
-      readOld: (name) => resolveMcpVaultSecret(name).catch(() => undefined),
+      readOld: (name) =>
+        resolveMcpVaultSecret(name).catch((error: unknown) => {
+          logger.warn('Could not read an old MCP sign-in from the vault', {
+            name,
+            error: describeError(error),
+          })
+          return undefined
+        }),
       write: (stateKey, state) => writeOpenWaggleMcpOAuthState(stateKey, state),
     },
     sessionMcpSwitch: async (sessionId) => carryOverSessionMcpOff(sessionId),
@@ -130,6 +143,11 @@ async function carryOverSessionMcpOff(sessionId: string) {
  */
 export async function migrateOpenWaggleMcpFilesAtHostStart() {
   await migrateOpenWaggleMcpFilesOnce(null)
-  const projects = await knownMcpProjectPaths().catch((): readonly string[] => [])
+  const projects = await knownMcpProjectPaths().catch((error: unknown): readonly string[] => {
+    logger.error('MCP migration could not list the known projects at Host start', {
+      error: describeError(error),
+    })
+    return []
+  })
   for (const projectPath of new Set(projects)) await migrateOpenWaggleMcpFilesOnce(projectPath)
 }

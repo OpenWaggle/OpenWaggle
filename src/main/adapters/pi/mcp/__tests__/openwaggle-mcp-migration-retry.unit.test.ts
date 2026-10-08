@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 const migrate = vi.hoisted(() => vi.fn())
+const logged = vi.hoisted(() => ({ error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() }))
 
 // The shared setup gives this file a temporary HOME; the real entry point runs here.
 vi.unmock('../openwaggle-mcp-migration')
@@ -17,6 +18,7 @@ vi.mock('../../../../store/session-mcp-switch', () => {
     },
   }
 })
+vi.mock('../../../../logger', () => ({ createLogger: () => logged }))
 vi.mock('../../../mcp/encrypted-mcp-secret-vault-service', () => ({
   resolveMcpVaultSecret: async () => undefined,
 }))
@@ -61,6 +63,21 @@ describe('the MCP file migration within one Host process', () => {
     await migrateOpenWaggleMcpFilesOnce('/projects/flaky')
 
     expect(migrate).toHaveBeenCalledTimes(3)
+  })
+
+  it('logs a migration that throws, with its project, and tries it again later', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    migrate.mockRejectedValueOnce(new Error('disk full')).mockResolvedValue(OK)
+
+    await expect(migrateOpenWaggleMcpFilesOnce('/projects/throws')).resolves.toBeUndefined()
+    expect(logged.error).toHaveBeenCalledWith(
+      expect.stringContaining('MCP migration failed'),
+      expect.objectContaining({ projectPath: '/projects/throws', error: 'disk full' }),
+    )
+
+    vi.advanceTimersByTime(MCP_MIGRATION_RETRY_MS)
+    await migrateOpenWaggleMcpFilesOnce('/projects/throws')
+    expect(migrate).toHaveBeenCalledTimes(2)
   })
 
   it('carries an old MCP-off switch over, skipping Sessions deleted since then', async () => {
