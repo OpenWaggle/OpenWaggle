@@ -10,8 +10,6 @@ import type { ExternalMcpImportSource } from './import-types'
 
 const SENSITIVE_NAME_PATTERN =
   /(api[-_]?key|token|secret|password|credential|authorization|cookie|private[-_]?key)/i
-const VSCODE_INPUT_PATTERN = /\$\{input:([^}]+)\}/g
-const OPENCODE_ENV_PATTERN = /\{env:([A-Za-z_][A-Za-z0-9_]*)\}/g
 const REFERENCE_PATTERN = /\$\{[^}]+\}/
 
 export interface ImportValueContext {
@@ -30,16 +28,20 @@ function secretName(serverName: string, fieldName: string) {
   return `${serverName}_${fieldName}`.replace(/[^A-Za-z0-9_]+/g, '_').toUpperCase()
 }
 
-/** Rewrite VS Code `${input:id}` and OpenCode `{env:NAME}` placeholders to `${NAME}`. */
-export function portableString(value: string, location: string, context: ImportValueContext) {
-  const withInputs = value.replace(VSCODE_INPUT_PATTERN, (_match, id: string) => {
-    const name = environmentName(id)
+/**
+ * A value Pi takes as written (arguments, OAuth fields other than the client secret). A variable
+ * the source tool would have expanded there stays as it is, with a warning: rewriting it to
+ * `${NAME}` would not make Pi expand it either.
+ */
+export function literalString(value: string, location: string, context: ImportValueContext) {
+  const pattern = SOURCE_VARIABLES[context.source]
+  const variable = pattern ? new RegExp(pattern.source).exec(value)?.[0] : undefined
+  if (variable) {
     context.warnings.push(
-      `${location} asked for VS Code input ${id}; set environment variable ${name} instead.`,
+      `${location} uses ${variable}, which Pi does not expand there; it was kept as written.`,
     )
-    return `\${${name}}`
-  })
-  return withInputs.replace(OPENCODE_ENV_PATTERN, (_match, name: string) => `\${${name}}`)
+  }
+  return value
 }
 
 /** True for values Pi resolves when it connects (`${VAR}` or `!command`), not literal secrets. */
@@ -71,7 +73,7 @@ function variableName(match: RegExpMatchArray, location: string, context: Import
   if (context.source === 'vscode' && second !== undefined) {
     const variable = environmentName(second)
     context.warnings.push(
-      `${location} asked for VS Code input ${second}; set environment variable ${variable} instead.`,
+      `${location} asked for VS Code input ${second}; Pi reads environment variable ${variable} there instead, so set it in your shell.`,
     )
     return variable
   }
@@ -149,7 +151,7 @@ export function portableArgs(values: readonly string[], context: ImportValueCont
       continue
     }
     credentialFlag = undefined
-    const portable = portableString(value, 'args', context)
+    const portable = literalString(value, 'args', context)
     result.push(portable)
     if (portable.startsWith('-') && SENSITIVE_NAME_PATTERN.test(portable)) credentialFlag = portable
   }

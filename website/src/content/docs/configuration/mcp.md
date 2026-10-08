@@ -32,7 +32,7 @@ Installing adds an ordinary entry to OpenWaggle's file, so the server then works
 
 To bring servers over from another app, choose **Import**. OpenWaggle reads Codex, Claude's desktop and command-line apps, Cursor, VS Code, OpenCode, Zed, and Windsurf, shows what it found, and adds the servers you pick to OpenWaggle's file. Servers you configured for Pi do not need importing; OpenWaggle reads Pi's files directly.
 
-Imported values keep the meaning they had in the other app. Variables that app fills in, such as `${env:NAME}` in Cursor, VS Code, and Windsurf, `{env:NAME}` in OpenCode, or `${NAME}` in Claude's command-line app, become `${NAME}`. Any other `$` or leading `!` is kept as plain text, so an imported value never runs a command. Passwords and tokens written out in the other app are not copied: OpenWaggle names a secret for you to add instead.
+Imported values keep the meaning they had in the other app. Variables that app fills in, such as `${env:NAME}` in Cursor, VS Code, and Windsurf, `{env:NAME}` in OpenCode, or `${NAME}` in Claude's command-line app, become `${NAME}` in `env`, `headers`, and an OAuth client secret, the places Pi fills variables in. Elsewhere, such as in arguments, a value is kept as written and the import warns that Pi does not expand it there. Any other `$` or leading `!` is kept as plain text, so an imported value never runs a command. Passwords and tokens written out in the other app are not copied: OpenWaggle names a secret for you to add instead.
 
 ## Where servers are configured
 

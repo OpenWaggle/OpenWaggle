@@ -39,4 +39,27 @@ describe('imported env and header values, as Pi will read them', () => {
       expect(env(source, { AUTH: value })).toEqual({ AUTH: expected })
     },
   )
+
+  it.each([
+    ['cursor', '${env:WORKSPACE}'],
+    ['vscode', '${input:workspace}'],
+    ['opencode', '{env:WORKSPACE}'],
+    ['claude-code', '${WORKSPACE}'],
+  ] as const)(
+    'keeps a %s variable in args as written, since Pi does not expand args',
+    (source, value) => {
+      const normalized = normalizeImportedEntry(source, 'db', {
+        command: 'db-mcp',
+        args: ['--root', value],
+        oauth: { clientId: value },
+      })
+
+      expect(normalized?.entry.args).toEqual(['--root', value])
+      expect(normalized?.entry.oauth).toEqual({ clientId: value })
+      expect(normalized?.warnings).toEqual([
+        `args uses ${value}, which Pi does not expand there; it was kept as written.`,
+        `oauth.clientId uses ${value}, which Pi does not expand there; it was kept as written.`,
+      ])
+    },
+  )
 })

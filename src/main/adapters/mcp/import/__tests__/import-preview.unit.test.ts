@@ -161,7 +161,7 @@ describe('previewing MCP imports as Pi entries', () => {
         headers: { Authorization: `Bearer \${GH_TOKEN}` },
       },
       warnings: [
-        'headers.Authorization asked for VS Code input gh-token; set environment variable GH_TOKEN instead.',
+        'headers.Authorization asked for VS Code input gh-token; Pi reads environment variable GH_TOKEN there instead, so set it in your shell.',
       ],
     })
   })

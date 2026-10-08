@@ -8,10 +8,10 @@ import type { ExternalMcpImportSource, PiMcpEntry } from './import-types'
 import {
   credentialMap,
   type ImportValueContext,
+  literalString,
   nonEmptyString,
   piValueFrom,
   portableArgs,
-  portableString,
   stringArray,
 } from './import-values'
 
@@ -134,7 +134,7 @@ function oauthValue(key: string, entry: unknown, context: ImportValueContext) {
     // Pi resolves `${NAME}` and `!command` only in the client secret; the rest is taken as written.
     return key === 'clientSecret'
       ? piValueFrom(entry, `oauth.${key}`, context).value
-      : portableString(entry, `oauth.${key}`, context)
+      : literalString(entry, `oauth.${key}`, context)
   }
   if (key === 'scope' && typeof entry === 'string') return entry
   if (key === 'scope' && Array.isArray(entry)) return (stringArray(entry) ?? []).join(' ')
