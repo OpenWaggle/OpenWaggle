@@ -16,6 +16,7 @@ import type { RegistryResourceFetcher } from './registry-secure-download'
 import {
   arrayValue,
   declaredRegistryValues,
+  optionalRegistrySecrets,
   referencedSecrets,
   stringValue,
 } from './registry-values'
@@ -96,6 +97,7 @@ function remoteEntry(remote: RegistryRemote) {
       ...(headers ? { headers } : {}),
     },
     secrets: referencedSecrets(headers),
+    optionalSecrets: optionalRegistrySecrets(remote.headers),
   }
 }
 
@@ -134,6 +136,11 @@ async function packageEntry(server: RegistryServerRecord, options: RegistryEntry
       ...(launcher.env ? { env: { ...launcher.env } } : {}),
     },
     secrets: referencedSecrets(launcher.env),
+    optionalSecrets: optionalRegistrySecrets(
+      selected.entry.environmentVariables,
+      selected.entry.runtimeArguments,
+      selected.entry.packageArguments,
+    ),
   }
 }
 
@@ -159,6 +166,7 @@ export async function createRegistryEntry(
       ...(server.description ? { description: server.description } : {}),
     },
     secrets: built.secrets,
+    optionalSecrets: built.optionalSecrets,
   }
 }
 

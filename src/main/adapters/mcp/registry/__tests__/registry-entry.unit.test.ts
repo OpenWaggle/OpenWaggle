@@ -71,7 +71,7 @@ describe('Registry server to Pi entry', () => {
           stdioPackage('npm', '@example/weather', {
             version: '1.2.3',
             environmentVariables: [
-              { name: 'WEATHER_KEY', isSecret: true },
+              { name: 'WEATHER_KEY', isSecret: true, isRequired: true },
               { name: 'UNITS', default: 'metric' },
             ],
             packageArguments: [{ type: 'positional', value: '--stdio' }],
@@ -90,6 +90,7 @@ describe('Registry server to Pi entry', () => {
         description: 'Weather forecasts.',
       },
       secrets: ['WEATHER_KEY'],
+      optionalSecrets: [],
     })
   })
 
@@ -128,7 +129,7 @@ describe('Registry server to Pi entry', () => {
       server({
         packages: [
           stdioPackage('oci', 'ghcr.io/example/weather:v2', {
-            environmentVariables: [{ name: 'WEATHER_KEY', isSecret: true }],
+            environmentVariables: [{ name: 'WEATHER_KEY', isSecret: true, isRequired: true }],
           }),
         ],
       }),
@@ -220,7 +221,7 @@ describe('Registry server to Pi entry', () => {
           {
             type: 'streamable-http',
             url: 'https://weather.example/mcp',
-            headers: [{ name: 'X-Weather-Key', isSecret: true }],
+            headers: [{ name: 'X-Weather-Key', isSecret: true, isRequired: true }],
           },
         ],
         packages: [stdioPackage('npm', '@example/weather', { version: '1.2.3' })],
@@ -236,6 +237,7 @@ describe('Registry server to Pi entry', () => {
         description: 'Weather forecasts.',
       },
       secrets: ['X-WEATHER-KEY'],
+      optionalSecrets: [],
     })
   })
 

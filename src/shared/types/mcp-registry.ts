@@ -77,5 +77,10 @@ export interface McpRegistryInstallResultView {
   readonly secrets: readonly string[]
   /** Those of `secrets` the vault already holds, which the server uses as they are. */
   readonly existingSecrets: readonly string[]
+  /**
+   * Optional secrets the server can use, by variable, header, or flag name. They are left out of
+   * the entry, so the server starts without them; add one to the entry to use it.
+   */
+  readonly optionalSecrets: readonly string[]
   readonly view: McpConfigurationView
 }

@@ -29,6 +29,7 @@ Installing adds an ordinary entry to OpenWaggle's file, so the server then works
 - Packages are pinned to the exact version the Registry lists. Docker images are pinned to the image Docker downloaded.
 - MCP bundles (`.mcpb`) are downloaded, checked against the checksum the Registry publishes, and unpacked under `~/.openwaggle/mcp/registry-cache`. A bundle that fails the check installs nothing.
 - If the server needs an API key or token, the entry refers to a secret by name (see [Secrets](#secrets)). The name starts with the server's name, such as `WEATHER_AUTHORIZATION`, so two servers never share a token. OpenWaggle tells you which ones to add, and which already exist; the server does not start until they exist.
+- A secret the Registry marks optional is left out, so the server starts without it. OpenWaggle lists it after installing; to use it, add it to the entry with a secret. A required secret command-line argument the Registry gives no value for stops the install, because a command line cannot refer to a secret.
 
 To bring servers over from another app, choose **Import**. OpenWaggle reads Codex, Claude's desktop and command-line apps, Cursor, VS Code, OpenCode, Zed, and Windsurf, shows what it found, and adds the servers you pick to OpenWaggle's file. Servers you configured for Pi do not need importing; OpenWaggle reads Pi's files directly.
 

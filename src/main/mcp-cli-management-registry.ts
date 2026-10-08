@@ -147,6 +147,7 @@ async function addCommand(input: McpManagementCommandInput, rest: readonly strin
       filePath: result.filePath,
       secrets: result.secrets,
       existingSecrets: result.existingSecrets,
+      optionalSecrets: result.optionalSecrets,
     })
     return MCP_MANAGEMENT_EXIT.SUCCESS
   }
@@ -155,6 +156,13 @@ async function addCommand(input: McpManagementCommandInput, rest: readonly strin
   )
   for (const line of vaultSecretLines(result.secrets, result.existingSecrets)) {
     context.output.log(line)
+  }
+  const optional = result.optionalSecrets
+  if (optional.length > 0) {
+    const one = optional.length === 1
+    context.output.log(
+      `It can also use the optional secret${one ? '' : 's'} ${optional.join(', ')}, which ${one ? 'was' : 'were'} left out so it starts without ${one ? 'it' : 'them'}. To use one, add it to the entry in ${result.filePath} with a vault secret.`,
+    )
   }
   const local = request.projectPath ? ' -l' : ''
   context.output.log(`Check it with: openwaggle mcp list${local}`)

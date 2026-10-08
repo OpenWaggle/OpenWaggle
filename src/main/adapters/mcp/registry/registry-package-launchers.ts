@@ -8,6 +8,7 @@ import type { RegistryResourceFetcher } from './registry-secure-download'
 import {
   arrayValue,
   declaredRegistryValues,
+  isOptionalRegistrySecret,
   type RegistryEntryValue,
   stringValue,
 } from './registry-values'
@@ -28,20 +29,21 @@ export interface RegistryPackageLauncher {
 
 type PackageEntry = Readonly<Record<string, unknown>>
 
-/** A named argument that describes a value (`valueHint`, `format`) is not a bare flag. */
+/**
+ * Only a `boolean` named argument is a bare flag; any other format, including the default
+ * (`string`), takes a value. A secret always does.
+ */
 function takesValue(argument: Readonly<Record<string, unknown>>) {
-  return (
-    argument.valueHint !== undefined ||
-    (argument.format !== undefined && argument.format !== 'boolean')
-  )
+  return argument.format !== 'boolean' || argument.isSecret === true
 }
 
 /**
  * Registry arguments as command-line words (server.json `Argument`): a positional argument is its
- * value, and a named one the `--flag={value}` the schema describes. A required named argument
- * without a value is a bare flag; an optional argument without one is left out. A required or
- * secret variable without a value, or a required value that is missing, stops the install: the
- * command line cannot hold a vault secret, and the server would not start without it.
+ * value, and a named one the `--flag={value}` the schema describes. A required `boolean` named
+ * argument without a value is a bare flag; an optional argument without one is left out, as is an
+ * optional secret (see `optionalRegistrySecrets`). A required variable or value that is missing,
+ * or a required secret without a value, stops the install: the command line cannot hold a vault
+ * secret, and the server would not start without it.
  */
 function commandLineArguments(value: unknown) {
   return arrayValue(value).flatMap((argument: unknown): string[] => {
@@ -50,6 +52,7 @@ function commandLineArguments(value: unknown) {
     const name = stringValue(argument.name)
     const required = argument.isRequired === true
     const resolved = resolveRegistryInput(argument)
+    if (isOptionalRegistrySecret(argument, resolved)) return []
     if (resolved.kind === 'unfilled') {
       if (resolved.required || resolved.secret) throw missingRegistryValue(resolved.variable)
       return []

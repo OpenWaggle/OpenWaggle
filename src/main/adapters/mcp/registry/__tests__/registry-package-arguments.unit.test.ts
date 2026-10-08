@@ -19,7 +19,7 @@ const options = {
 const PACKAGE_ARGUMENTS = [
   { type: 'named', name: '--port', value: '8080' },
   { type: 'positional', value: 'serve' },
-  { type: 'named', name: '--read-only', isRequired: true },
+  { type: 'named', name: '--read-only', isRequired: true, format: 'boolean' },
   { type: 'named', name: '-m', value: 'fast mode' },
 ]
 const EXPECTED_ARGUMENTS = ['--port=8080', 'serve', '--read-only', '-m=fast mode']
@@ -108,11 +108,11 @@ describe('Registry package arguments', () => {
     ).rejects.toThrow('needs a value for --api-url')
   })
 
-  it('leaves out an optional flag without a value, and passes a required one bare', async () => {
+  it('leaves out an optional flag without a value, and passes a required boolean one bare', async () => {
     const result = await createRegistryEntry(
       withArguments([
         { type: 'named', name: '--verbose' },
-        { type: 'named', name: '--stdio', isRequired: true },
+        { type: 'named', name: '--stdio', isRequired: true, format: 'boolean' },
       ]),
       options,
     )
@@ -120,7 +120,47 @@ describe('Registry package arguments', () => {
     expect(result.entry).toMatchObject({ args: ['--yes', '@example/weather@1.2.3', '--stdio'] })
   })
 
-  it('refuses the install when a required or secret variable of an argument is unfilled', async () => {
+  it('takes a named argument without a format to need a value', async () => {
+    await expect(
+      createRegistryEntry(
+        withArguments([{ type: 'named', name: '--region', isRequired: true }]),
+        options,
+      ),
+    ).rejects.toThrow('needs a value for --region')
+  })
+
+  it('refuses a required secret argument without a value instead of passing a bare flag', async () => {
+    await expect(
+      createRegistryEntry(
+        withArguments([
+          { type: 'named', name: '--api-key', isRequired: true, isSecret: true, format: 'boolean' },
+        ]),
+        options,
+      ),
+    ).rejects.toThrow('needs a value for --api-key')
+  })
+
+  it('leaves out an optional secret argument and lists it as an optional secret', async () => {
+    const result = await createRegistryEntry(
+      withArguments([
+        { type: 'named', name: '--api-key', isSecret: true },
+        {
+          type: 'named',
+          name: '--token',
+          value: '{token}',
+          variables: { token: { isSecret: true } },
+        },
+        { type: 'named', name: '--port', value: '8080' },
+      ]),
+      options,
+    )
+
+    expect(result.entry).toMatchObject({ args: ['--yes', '@example/weather@1.2.3', '--port=8080'] })
+    expect(result.optionalSecrets).toEqual(['--api-key', '--token'])
+    expect(result.secrets).toEqual([])
+  })
+
+  it('refuses the install when a required variable of an argument is unfilled', async () => {
     await expect(
       createRegistryEntry(
         withArguments([
@@ -128,7 +168,7 @@ describe('Registry package arguments', () => {
             type: 'named',
             name: '--token',
             value: '{token}',
-            variables: { token: { isSecret: true } },
+            variables: { token: { isSecret: true, isRequired: true } },
           },
         ]),
         options,

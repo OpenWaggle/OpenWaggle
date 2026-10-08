@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { declaredRegistryValues } from '../registry-values'
+import { declaredRegistryValues, optionalRegistrySecrets } from '../registry-values'
 
 describe('Registry environment variables and headers', () => {
   it('fills {variables} from their values or defaults, and leaves other braces as written', () => {
@@ -40,10 +40,21 @@ describe('Registry environment variables and headers', () => {
           { name: 'LOG_LEVEL' },
           { name: 'WORKSPACE', value: '{dir}', variables: { dir: {} } },
           { name: 'TENANT', isRequired: true },
-          { name: 'API_KEY', isSecret: true },
+          { name: 'API_KEY', isSecret: true, isRequired: true },
         ],
         'env',
       ),
     ).toEqual({ TENANT: { secret: 'TENANT' }, API_KEY: { secret: 'API_KEY' } })
+  })
+
+  it('leaves out an optional secret, which the server starts without, and lists it', () => {
+    const declared = [
+      { name: 'API_KEY', isSecret: true },
+      { name: 'Authorization', value: 'Bearer {token}', variables: { token: { isSecret: true } } },
+      { name: 'LOG_LEVEL', value: 'info' },
+    ]
+
+    expect(declaredRegistryValues(declared, 'env')).toEqual({ LOG_LEVEL: 'info' })
+    expect(optionalRegistrySecrets(declared)).toEqual(['API_KEY', 'Authorization'])
   })
 })

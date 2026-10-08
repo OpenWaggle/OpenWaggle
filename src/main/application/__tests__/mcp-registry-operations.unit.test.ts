@@ -22,7 +22,7 @@ const WEATHER = {
     {
       type: 'streamable-http',
       url: 'https://weather.example/mcp',
-      headers: [{ name: 'Authorization', isSecret: true }],
+      headers: [{ name: 'Authorization', isSecret: true, isRequired: true }],
     },
   ],
   packages: [

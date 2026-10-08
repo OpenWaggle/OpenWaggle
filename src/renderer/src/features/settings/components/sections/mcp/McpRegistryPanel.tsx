@@ -12,6 +12,7 @@ import { McpRegistryResultRow } from './McpRegistryResultRow'
 
 function InstalledNotice({ result }: { readonly result: McpRegistryInstallResultView }) {
   const existing = result.existingSecrets
+  const optional = result.optionalSecrets
   const stored = new Set(existing)
   const secrets = result.secrets.filter((secret) => !stored.has(secret))
   return (
@@ -35,6 +36,14 @@ function InstalledNotice({ result }: { readonly result: McpRegistryInstallResult
           {existing.length === 1 ? 'exists' : 'exist'} under Secrets; replace{' '}
           {existing.length === 1 ? 'it' : 'them'} there if{' '}
           {existing.length === 1 ? 'it holds' : 'they hold'} another value.
+        </p>
+      ) : null}
+      {optional.length > 0 ? (
+        <p>
+          It can also use the optional secret{optional.length === 1 ? '' : 's'}{' '}
+          {optional.join(', ')}, which {optional.length === 1 ? 'was' : 'were'} left out so it
+          starts without {optional.length === 1 ? 'it' : 'them'}. To use one, add it to the entry
+          with a secret.
         </p>
       ) : null}
     </div>

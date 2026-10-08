@@ -18,6 +18,8 @@ export interface McpRegistryEntry {
   readonly entry: Readonly<Record<string, unknown>>
   /** Vault secrets the entry reads (`{ "secret": name }` values). */
   readonly secrets: readonly string[]
+  /** Optional secrets the server can use, left out of the entry (variable, header, or flag names). */
+  readonly optionalSecrets: readonly string[]
 }
 
 /**
