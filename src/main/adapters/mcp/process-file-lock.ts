@@ -1,3 +1,4 @@
+import { mkdirSync } from 'node:fs'
 import { mkdir } from 'node:fs/promises'
 import path from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
@@ -106,4 +107,43 @@ export async function withProcessFileLock<T>(
   const run = () =>
     runWithProcessFileLock(targetPath, operation, waitUntilAvailable, options.maxWaitMs)
   return waitUntilAvailable ? withLocalWaitQueue(targetPath, run) : run()
+}
+
+/** How long a synchronous transaction waits for another process's lock by default. */
+export const SYNC_LOCK_WAIT_MS = 2_000
+const SYNC_LOCK_POLL_MS = 10
+
+function sleepSync(ms: number) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT)), 0, 0, ms)
+}
+
+/**
+ * The same cross-process lock for a synchronous transaction, such as Pi's synchronous MCP sign-in
+ * store. Waits up to `maxWaitMs` for another process, then fails rather than block the Host.
+ */
+export function withProcessFileLockSync<T>(
+  targetPath: string,
+  operation: () => T,
+  maxWaitMs = SYNC_LOCK_WAIT_MS,
+): T {
+  mkdirSync(path.dirname(targetPath), { recursive: true })
+  const deadline = Date.now() + maxWaitMs
+  let release: () => void
+  while (true) {
+    try {
+      release = lockfile.lockSync(targetPath, { realpath: false, stale: LOCK_STALE_MS })
+      break
+    } catch (error) {
+      if (!isLockContention(error)) throw error
+      if (Date.now() >= deadline) {
+        throw new Error(`${targetPath} is locked by another process.`, { cause: error })
+      }
+      sleepSync(SYNC_LOCK_POLL_MS)
+    }
+  }
+  try {
+    return operation()
+  } finally {
+    release()
+  }
 }

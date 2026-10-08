@@ -213,6 +213,10 @@ Pi stores OAuth state (client registration, tokens, PKCE verifier) keyed by
   build's user data the first time that build has no store and can decrypt it. It is never
   changed. The encrypted secret vault (`vault.json`) moved the same way: a build takes the
   shared vault's secrets it can decrypt.
+- **Writes** take the store's cross-process lock (`withProcessFileLockSync`, bounded wait), read
+  the encrypted layer again, and apply only what the caller changed, so a sign-in the CLI or
+  another Host saved meanwhile is kept. The decoded layer is cached while the file's inode, size,
+  and mtime stay the same, so the token read on every MCP request does not decrypt each time.
 - **Writes** go to the encrypted layer only. Removing a key that exists only in Pi's file writes
   a tombstone holding the hash of Pi's value; the tombstone hides that value until Pi's file
   changes it (a sign-in in the `pi` CLI), so signing out in OpenWaggle never edits Pi's file and
