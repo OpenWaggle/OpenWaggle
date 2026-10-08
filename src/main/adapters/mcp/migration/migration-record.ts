@@ -66,6 +66,8 @@ const migrationRecordSchema = Schema.Struct({
     Schema.Record({ key: Schema.String, value: legacyServerIdentitySchema }),
     { default: () => ({}) },
   ),
+  /** Home-folder projects whose left-out on/off choices were already logged. */
+  homeFolderNotices: Schema.optionalWith(Schema.Array(Schema.String), { default: () => [] }),
 })
 
 export type McpMigrationFileRecord = typeof fileRecordSchema.Type
@@ -87,6 +89,7 @@ export class McpMigrationRecord {
     private legacy: readonly string[] | null | undefined,
     private readonly serverNames: Record<string, string> = {},
     private readonly serverIdentities: Record<string, McpLegacyServerIdentity> = {},
+    private readonly homeNotices: Set<string> = new Set(),
   ) {}
 
   static async load(fs: McpMigrationFs, homeDir: string) {
@@ -104,6 +107,7 @@ export class McpMigrationRecord {
       decoded.legacyProjects,
       { ...decoded.legacyServerNames },
       { ...decoded.legacyServerIdentities },
+      new Set(decoded.homeFolderNotices),
     )
   }
 
@@ -137,6 +141,15 @@ export class McpMigrationRecord {
   /** Kept in memory and saved with the next handled file, so a failed run decides again. */
   setLegacyProjects(projects: readonly string[] | null) {
     this.legacy = projects
+  }
+
+  isHomeFolderNoticed(projectPath: string) {
+    return this.homeNotices.has(projectPath)
+  }
+
+  async recordHomeFolderNotice(projectPath: string) {
+    this.homeNotices.add(projectPath)
+    await this.persist()
   }
 
   isFileMigrated(filePath: string) {
@@ -182,6 +195,7 @@ export class McpMigrationRecord {
       ...(Object.keys(this.serverIdentities).length === 0
         ? {}
         : { legacyServerIdentities: this.serverIdentities }),
+      ...(this.homeNotices.size === 0 ? {} : { homeFolderNotices: [...this.homeNotices] }),
     }
     return this.fs.writeTextAtomic(this.filePath, `${JSON.stringify(value, null, JSON_INDENT)}\n`)
   }

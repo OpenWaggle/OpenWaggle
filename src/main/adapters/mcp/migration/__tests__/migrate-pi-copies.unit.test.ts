@@ -216,18 +216,23 @@ describe('migrating Pi copies in ~/.openwaggle/mcp.json', () => {
       },
     })
     const logger = recordingLogger()
+    const migrate = () =>
+      migrateOpenWaggleMcpFiles({
+        homeDir: HOME,
+        projectPaths: [HOME],
+        knownProjectPaths: async () => [HOME, '/work/other'],
+        now: () => NOW,
+        fs,
+        logger,
+      })
 
-    await migrateOpenWaggleMcpFiles({
-      homeDir: HOME,
-      projectPaths: [HOME],
-      knownProjectPaths: async () => [HOME, '/work/other'],
-      now: () => NOW,
-      fs,
-      logger,
-    })
+    await migrate()
+    await migrate()
 
     // Turning `own` off in the global file would turn it off in /work/other too.
     expect(globalServers(fs)).toEqual({ own: { command: 'own-mcp' } })
+    // Said once, not on every start.
+    expect(logger.warn).toHaveBeenCalledOnce()
     expect(logger.warn).toHaveBeenCalledWith(
       expect.stringContaining('home folder'),
       expect.objectContaining({ servers: ['own'] }),

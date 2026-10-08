@@ -232,13 +232,17 @@ export async function migrateOpenWaggleMcpFiles(
     if (
       path.resolve(projectMcpPaths(projectPath).openwaggle) === path.resolve(paths.openwaggleGlobal)
     ) {
-      await reportHomeFolderProjectState({
-        sources,
-        state,
-        projectPath,
-        preserveEnablement: kept?.includes(projectPath) === true,
-        logger,
-      })
+      // Logged once, then recorded: the choices cannot move anywhere on a later start either.
+      if (!record.isHomeFolderNoticed(projectPath)) {
+        const reported = await reportHomeFolderProjectState({
+          sources,
+          state,
+          projectPath,
+          preserveEnablement: kept?.includes(projectPath) === true,
+          logger,
+        })
+        if (reported) await record.recordHomeFolderNotice(projectPath)
+      }
       continue
     }
     files.push(
