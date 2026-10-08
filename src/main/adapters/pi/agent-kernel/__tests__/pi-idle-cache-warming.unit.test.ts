@@ -2,12 +2,21 @@ import { appendFileSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import type { AgentSession } from '@earendil-works/pi-coding-agent'
-import { DEFAULT_SETTINGS } from '@shared/types/settings'
+import { DEFAULT_SETTINGS, type PiCacheWarmingMode } from '@shared/types/settings'
 import { fromPartial } from '@total-typescript/shoehorn'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { installPiRuntimeIntegration } from '../../../../runtime-pi-integration'
 import { publishSettingsStoreState } from '../../../../store/authoritative-settings'
 import { createIdleCacheWarming, idleCacheWarming } from '../pi-idle-cache-warming'
+
+/** Settings in which the user chose the cache warming mode in OpenWaggle. */
+function chosenCacheWarming(cacheWarming: PiCacheWarmingMode) {
+  return {
+    ...DEFAULT_SETTINGS,
+    cacheWarming,
+    piRuntimeSettingsChosen: { ...DEFAULT_SETTINGS.piRuntimeSettingsChosen, cacheWarming: true },
+  }
+}
 
 function warmingPiSession() {
   return fromPartial<AgentSession>({
@@ -23,7 +32,7 @@ let uninstallPiRuntimeIntegration: () => void = () => undefined
 beforeEach(() => {
   // The Host's composition root passes the authoritative settings to the warming sessions.
   uninstallPiRuntimeIntegration = installPiRuntimeIntegration()
-  publishSettingsStoreState(true, { ...DEFAULT_SETTINGS, cacheWarming: 'idle' }, false)
+  publishSettingsStoreState(true, chosenCacheWarming('idle'), false)
 })
 
 afterEach(async () => {
@@ -35,11 +44,11 @@ describe('turning prompt cache warming between runs off', () => {
   it.each(['off', 'streaming'] as const)(
     'ends the warming sessions already running when the setting becomes %s',
     async (mode) => {
-      publishSettingsStoreState(true, { ...DEFAULT_SETTINGS, cacheWarming: 'idle' }, false)
+      publishSettingsStoreState(true, chosenCacheWarming('idle'), false)
       const session = warmingPiSession()
       await idleCacheWarming.settle('session-a', session, { aborted: false })
 
-      publishSettingsStoreState(true, { ...DEFAULT_SETTINGS, cacheWarming: mode }, false)
+      publishSettingsStoreState(true, chosenCacheWarming(mode), false)
 
       expect(idleCacheWarming.borrow('session-a')).toBeUndefined()
       expect(session.dispose).toHaveBeenCalledOnce()
@@ -51,23 +60,23 @@ describe('turning prompt cache warming between runs off', () => {
     const session = warmingPiSession()
     await idleCacheWarming.settle('session-a', session, { aborted: false })
 
-    publishSettingsStoreState(true, { ...DEFAULT_SETTINGS, cacheWarming: 'off' }, false)
+    publishSettingsStoreState(true, chosenCacheWarming('off'), false)
 
     expect(idleCacheWarming.borrow('session-a')).toBe(session)
   })
 
   it('keeps them while the setting stays between runs', async () => {
-    publishSettingsStoreState(true, { ...DEFAULT_SETTINGS, cacheWarming: 'idle' }, false)
+    publishSettingsStoreState(true, chosenCacheWarming('idle'), false)
     const session = warmingPiSession()
     await idleCacheWarming.settle('session-a', session, { aborted: false })
 
-    publishSettingsStoreState(true, { ...DEFAULT_SETTINGS, cacheWarming: 'idle' }, false)
+    publishSettingsStoreState(true, chosenCacheWarming('idle'), false)
 
     expect(idleCacheWarming.borrow('session-a')).toBe(session)
   })
 
   it('does not start warming for a Run that ends after the setting left between runs', async () => {
-    publishSettingsStoreState(true, { ...DEFAULT_SETTINGS, cacheWarming: 'off' }, false)
+    publishSettingsStoreState(true, chosenCacheWarming('off'), false)
 
     await expect(
       idleCacheWarming.settle('session-a', warmingPiSession(), { aborted: false }),

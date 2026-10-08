@@ -61,15 +61,17 @@ export function resolveStoredPiRuntimeSettings(storedSettings: Readonly<Record<s
     piUser ??= piUserRuntimeSettings()
     return piUser
   }
+  const storedCodemode = storedValue(storedSettings, SETTINGS_KEY_CODEMODE_ENABLED)
+  const storedCacheWarming = storedValue(storedSettings, SETTINGS_KEY_CACHE_WARMING)
   return {
-    codemodeEnabled: resolveCodemodeEnabled(
-      storedValue(storedSettings, SETTINGS_KEY_CODEMODE_ENABLED),
-      () => fromPi().codemodeEnabled,
-    ),
-    cacheWarming: resolveCacheWarming(
-      storedValue(storedSettings, SETTINGS_KEY_CACHE_WARMING),
-      () => fromPi().cacheWarming,
-    ),
+    codemodeEnabled: resolveCodemodeEnabled(storedCodemode, () => fromPi().codemodeEnabled),
+    cacheWarming: resolveCacheWarming(storedCacheWarming, () => fromPi().cacheWarming),
+    piRuntimeSettingsChosen: {
+      codemodeEnabled: typeof storedCodemode === 'boolean',
+      cacheWarming:
+        typeof storedCacheWarming === 'string' &&
+        includes(PI_CACHE_WARMING_MODES, storedCacheWarming),
+    },
   }
 }
 
@@ -83,6 +85,12 @@ export function resolveNextPiRuntimeSettings(current: Settings, partial: Partial
       partial.cacheWarming === undefined
         ? current.cacheWarming
         : resolveCacheWarming(partial.cacheWarming, () => current.cacheWarming),
+    piRuntimeSettingsChosen: {
+      codemodeEnabled:
+        current.piRuntimeSettingsChosen.codemodeEnabled || partial.codemodeEnabled !== undefined,
+      cacheWarming:
+        current.piRuntimeSettingsChosen.cacheWarming || partial.cacheWarming !== undefined,
+    },
   }
 }
 

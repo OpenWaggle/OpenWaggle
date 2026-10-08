@@ -153,6 +153,14 @@ export interface Settings {
   readonly codemodeEnabled: boolean
   /** When Pi keeps provider prompt caches warm (Pi's `cacheWarming`). */
   readonly cacheWarming: PiCacheWarmingMode
+  /**
+   * Which of the settings above the user chose in OpenWaggle. The others follow the user's own Pi
+   * settings, read again for each Run, and fall back to OpenWaggle's defaults. Read-only.
+   */
+  readonly piRuntimeSettingsChosen: {
+    readonly codemodeEnabled: boolean
+    readonly cacheWarming: boolean
+  }
   /** Title model: Automatic, Off, or the model that generates Session titles. */
   readonly sessionTitleModel: SessionTitleModelSetting
   /** User overrides layered above the active Appearance package defaults. */
@@ -200,6 +208,7 @@ export const DEFAULT_SETTINGS: Settings = {
   compactionThresholdPercent: DEFAULT_COMPACTION_THRESHOLD_PERCENT,
   codemodeEnabled: true,
   cacheWarming: 'streaming',
+  piRuntimeSettingsChosen: { codemodeEnabled: false, cacheWarming: false },
   sessionTitleModel: DEFAULT_SESSION_TITLE_MODEL,
   appearancePreferences: DEFAULT_APPEARANCE_PREFERENCES,
 }

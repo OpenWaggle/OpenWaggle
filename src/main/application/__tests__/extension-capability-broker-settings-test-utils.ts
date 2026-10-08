@@ -126,6 +126,7 @@ function mergeAppearanceSettings(current: Settings, partial: Partial<Settings>) 
     ),
     codemodeEnabled: nextSetting(current.codemodeEnabled, partial.codemodeEnabled),
     cacheWarming: nextSetting(current.cacheWarming, partial.cacheWarming),
+    piRuntimeSettingsChosen: current.piRuntimeSettingsChosen,
   }
 }
 

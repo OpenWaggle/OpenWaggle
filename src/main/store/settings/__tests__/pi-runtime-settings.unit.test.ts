@@ -77,4 +77,19 @@ describe('Pi runtime settings', () => {
       restore()
     }
   })
+
+  it('record which of them the user chose in OpenWaggle', () => {
+    expect(buildSettingsSnapshot({}).settings.piRuntimeSettingsChosen).toEqual({
+      codemodeEnabled: false,
+      cacheWarming: false,
+    })
+    expect(
+      buildSettingsSnapshot({ [SETTINGS_KEY_CACHE_WARMING]: 'off' }).settings
+        .piRuntimeSettingsChosen,
+    ).toEqual({ codemodeEnabled: false, cacheWarming: true })
+    expect(
+      buildNextSettingsSnapshot(DEFAULT_SETTINGS, { codemodeEnabled: false })
+        .piRuntimeSettingsChosen,
+    ).toEqual({ codemodeEnabled: true, cacheWarming: false })
+  })
 })

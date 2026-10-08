@@ -14,16 +14,34 @@ export function setOpenWagglePiAppSettingsSource(settings: Settings | undefined)
   latest = settings
 }
 
-export function openWagglePiAppSettingsFrom(settings: Settings): OpenWagglePiAppSettings {
+/**
+ * OpenWaggle first, then Pi: a setting the user chose in OpenWaggle wins. Any other follows the
+ * user's own Pi settings as they are now, read again each time, so a change to them while the app
+ * runs applies to the next Run; OpenWaggle's default applies when Pi has no value.
+ */
+export function openWagglePiAppSettingsFrom(
+  settings: Settings,
+  readPiUser: () => Partial<OpenWagglePiAppSettings> = readPiUserAppSettingsFile,
+): OpenWagglePiAppSettings {
+  const chosen = settings.piRuntimeSettingsChosen
+  let piUser: Partial<OpenWagglePiAppSettings> | undefined
+  const fromPi = () => {
+    piUser ??= chosen.codemodeEnabled && chosen.cacheWarming ? {} : readPiUser()
+    return piUser
+  }
   return {
-    codemodeEnabled: settings.codemodeEnabled,
-    cacheWarming: settings.cacheWarming,
+    codemodeEnabled: chosen.codemodeEnabled
+      ? settings.codemodeEnabled
+      : (fromPi().codemodeEnabled ?? DEFAULT_SETTINGS.codemodeEnabled),
+    cacheWarming: chosen.cacheWarming
+      ? settings.cacheWarming
+      : (fromPi().cacheWarming ?? DEFAULT_SETTINGS.cacheWarming),
   }
 }
 
 /**
  * The OpenWaggle settings with a Pi equivalent, read when a Pi runtime is built so each Run uses
- * the current choice. Before Settings load, OpenWaggle's defaults apply.
+ * the current choice. Before Settings load, the user's Pi values or OpenWaggle's defaults apply.
  */
 export function currentOpenWagglePiAppSettings(): OpenWagglePiAppSettings {
   return openWagglePiAppSettingsFrom(latest ?? DEFAULT_SETTINGS)
