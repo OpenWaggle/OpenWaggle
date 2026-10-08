@@ -181,6 +181,7 @@ vi.mock('@/features/sessions/hooks', () => ({
 }))
 
 vi.mock('@/features/project-actions', () => ({
+  useActionProjectPath: () => lifecycleMocks.projectPath,
   useProjectActions: () => ({ data: [] }),
   useRunProjectAction: () => vi.fn(),
 }))

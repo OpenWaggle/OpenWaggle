@@ -47,6 +47,7 @@ vi.mock('../../hooks/useGlobalExtensionActions', () => ({
 }))
 vi.mock('@/features/project-actions', () => ({
   createProjectActionCommandItems: () => [],
+  useActionProjectPath: () => '/repo',
   useProjectActions: () => ({ data: [] }),
   useRunProjectAction: () => vi.fn(),
 }))

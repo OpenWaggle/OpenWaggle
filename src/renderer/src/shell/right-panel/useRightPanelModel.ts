@@ -3,7 +3,7 @@ import type { LucideIcon } from 'lucide-react'
 import { useChat } from '@/features/chat/hooks'
 import { useExtensionSidePanelContributions } from '@/features/extensions'
 import { useGit } from '@/features/git/hooks'
-import { useHasActiveProjectActionRun } from '@/features/project-actions'
+import { useActionProjectPath, useHasActiveProjectActionRun } from '@/features/project-actions'
 import { useProject, useSessions } from '@/features/sessions/hooks'
 import { rightPanelSurfaceShortcut } from '@/features/settings'
 import { usePreferencesStore } from '@/features/settings/state'
@@ -102,7 +102,7 @@ export function useRightPanelModel(enabled = true): RightPanelModel {
   const hidden = useRightPanelRailStore((state) => state.hidden)
   const acknowledged = useRightPanelRailStore((state) => state.acknowledged)
   const extensionsInitialized = useRightPanelRailStore((state) => state.extensionsInitialized)
-  const running = useHasActiveProjectActionRun(projectPath ?? null, sessionId)
+  const running = useHasActiveProjectActionRun(useActionProjectPath(), sessionId)
   const sidePanels = useExtensionSidePanelContributions({
     enabled,
     projectPath: workingPath,

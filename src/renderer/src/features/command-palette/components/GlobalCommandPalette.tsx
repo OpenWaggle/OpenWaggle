@@ -5,6 +5,7 @@ import { type KeyboardEvent, useEffect, useRef, useState } from 'react'
 import { extensionSidePanelSurfaces } from '@/features/extensions'
 import {
   createProjectActionCommandItems,
+  useActionProjectPath,
   useProjectActions,
   useRunProjectAction,
 } from '@/features/project-actions'
@@ -89,8 +90,9 @@ export function GlobalCommandPalette({
 }: GlobalCommandPaletteProps = {}) {
   const { actions, close, projectPath, sessionId, sessions, settings } = useGlobalCommandActions()
   const extensionActions = useGlobalExtensionActions({ projectPath, sessionId })
-  const projectActions = useProjectActions(projectPath).data ?? []
-  const runProjectAction = useRunProjectAction(projectPath)
+  const actionProjectPath = useActionProjectPath()
+  const projectActions = useProjectActions(actionProjectPath).data ?? []
+  const runProjectAction = useRunProjectAction(actionProjectPath)
   const runningTerminalCounts = useRunningTerminalCounts()
   const [query, setQuery] = useState('')
   const [highlightIndex, setHighlightIndex] = useState(0)

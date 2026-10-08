@@ -15,6 +15,7 @@ export {
 export { WorkspaceCleanupFailure } from './components/WorkspaceCleanupFailure'
 export { WorkspacePreparationStatus } from './components/WorkspacePreparationStatus'
 export { WorktreePreparationChoice } from './components/WorktreePreparationChoice'
+export { useActionProjectPath } from './hooks/useActionProjectPath'
 export { useHasActiveProjectActionRun } from './hooks/useHasActiveProjectActionRun'
 export { useActionRuns, useActionScope, useNativeActions } from './hooks/useNativeActions'
 export { useProjectActionShortcutCapture } from './hooks/useProjectActionShortcutCapture'

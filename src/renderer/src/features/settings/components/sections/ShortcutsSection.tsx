@@ -12,7 +12,11 @@ import { removeShortcutRule, upsertShortcutRule } from '@shared/utils/shortcut-r
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { extensionSidePanelSurfaces } from '@/features/extensions'
-import { useProjectActionMutations, useProjectActions } from '@/features/project-actions'
+import {
+  useActionProjectPath,
+  useProjectActionMutations,
+  useProjectActions,
+} from '@/features/project-actions'
 import { usePreferencesStore } from '@/features/settings/state'
 import { extensionContributionsQueryOptions } from '@/queries/extensions'
 import { useUIStore } from '@/shell/ui-store'
@@ -35,9 +39,11 @@ export function ShortcutsSection() {
   )
   const panels = extensionSidePanelSurfaces(extensionContributions)
   const showToast = useUIStore((state) => state.showToast)
-  const projectScope = projectPath ? { projectPath } : null
-  const actionsQuery = useProjectActions(projectPath, projectScope)
-  const mutations = useProjectActionMutations(projectPath, projectScope)
+  // The project whose action shortcuts fire in the workspace, not the lagging preference.
+  const actionProjectPath = useActionProjectPath()
+  const projectScope = actionProjectPath ? { projectPath: actionProjectPath } : null
+  const actionsQuery = useProjectActions(actionProjectPath, projectScope)
+  const mutations = useProjectActionMutations(actionProjectPath, projectScope)
   const actions = actionsQuery.data ?? []
   const [query, setQuery] = useState('')
   const [adding, setAdding] = useState(false)
@@ -91,7 +97,8 @@ export function ShortcutsSection() {
     return persistBuiltInRules(upsertShortcutRule(shortcutRules, rule))
   }
 
-  const canAdd = !builtInAtLimit || (projectPath !== null && actions.length > 0 && !projectAtLimit)
+  const canAdd =
+    !builtInAtLimit || (actionProjectPath !== null && actions.length > 0 && !projectAtLimit)
 
   return (
     <ShortcutsSectionContent

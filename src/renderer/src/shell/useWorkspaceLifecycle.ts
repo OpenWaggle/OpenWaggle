@@ -7,7 +7,11 @@ import { useChat } from '@/features/chat/hooks'
 import { focusPendingRequest } from '@/features/chat/lib'
 import { useDiffRouteNavigation } from '@/features/diff-panel/hooks'
 import { useGit, useGitRefresh } from '@/features/git/hooks'
-import { useProjectActions, useRunProjectAction } from '@/features/project-actions'
+import {
+  useActionProjectPath,
+  useProjectActions,
+  useRunProjectAction,
+} from '@/features/project-actions'
 import {
   useSessionHiveInvalidation,
   useSessionResourceInvalidation,
@@ -207,8 +211,9 @@ export function useWorkspaceLifecycle(): void {
 
   const terminalCommands = useTerminalCommands()
   const terminalOwner = terminalOwnerContext(activeSession ?? null, projectPath ?? null)
-  const projectActions = useProjectActions(projectPath).data ?? []
-  const runProjectAction = useRunProjectAction(projectPath)
+  const actionProjectPath = useActionProjectPath()
+  const projectActions = useProjectActions(actionProjectPath).data ?? []
+  const runProjectAction = useRunProjectAction(actionProjectPath)
   const extensionPanels = useAvailableExtensionPanelShortcuts(
     projectPath ?? null,
     activeSessionId ? String(activeSessionId) : null,
