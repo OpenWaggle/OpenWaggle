@@ -19,9 +19,16 @@ vi.mock('../../../../store/session-mcp-switch', () => {
   }
 })
 vi.mock('../../../../logger', () => ({ createLogger: () => logged }))
-vi.mock('../../../mcp/encrypted-mcp-secret-vault-service', () => ({
-  resolveMcpVaultSecret: async () => undefined,
-}))
+vi.mock('../../../mcp/encrypted-mcp-secret-vault-service', async () => {
+  const { McpVaultError } = await import('../../../../ports/mcp-errors')
+  return {
+    resolveMcpVaultSecret: async (name: string) => {
+      if (name === 'oauth.signed-in') return '{"version":1}'
+      const reason = name === 'oauth.locked' ? 'decryption-failed' : 'secret-not-found'
+      throw new McpVaultError({ reason, message: `vault: ${reason}` })
+    },
+  }
+})
 
 const { MCP_MIGRATION_RETRY_MS, migrateOpenWaggleMcpFilesOnce } = await import(
   '../openwaggle-mcp-migration'
@@ -78,6 +85,29 @@ describe('the MCP file migration within one Host process', () => {
     vi.advanceTimersByTime(MCP_MIGRATION_RETRY_MS)
     await migrateOpenWaggleMcpFilesOnce('/projects/throws')
     expect(migrate).toHaveBeenCalledTimes(2)
+  })
+
+  it('tries again after an OAuth sign-in failed to migrate', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    const failedSignIn = { server: 'docs', key: 'k', status: 'failed', reason: 'locked' }
+    migrate.mockResolvedValueOnce({ ...OK, oauth: [failedSignIn] }).mockResolvedValue(OK)
+
+    await migrateOpenWaggleMcpFilesOnce('/projects/oauth')
+    vi.advanceTimersByTime(MCP_MIGRATION_RETRY_MS)
+    await migrateOpenWaggleMcpFilesOnce('/projects/oauth')
+
+    expect(migrate).toHaveBeenCalledTimes(2)
+  })
+
+  it('reads an old sign-in, reports no sign-in as none, and a vault failure as a failure', async () => {
+    migrate.mockResolvedValue(OK)
+    await migrateOpenWaggleMcpFilesOnce('/projects/vault')
+    const readOld: (name: string) => Promise<string | undefined> =
+      migrate.mock.calls[0]?.[0].oauth.readOld
+
+    await expect(readOld('oauth.signed-in')).resolves.toBe('{"version":1}')
+    await expect(readOld('oauth.never')).resolves.toBeUndefined()
+    await expect(readOld('oauth.locked')).rejects.toThrow('decryption-failed')
   })
 
   it('carries an old MCP-off switch over, skipping Sessions deleted since then', async () => {

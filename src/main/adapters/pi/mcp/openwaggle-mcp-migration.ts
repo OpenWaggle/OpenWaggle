@@ -1,5 +1,6 @@
 import { homedir } from 'node:os'
 import { createLogger } from '../../../logger'
+import { McpVaultError } from '../../../ports/mcp-errors'
 import { resolveMcpVaultSecret } from '../../mcp/encrypted-mcp-secret-vault-service'
 import { migrateOpenWaggleMcpFiles } from '../../mcp/migration/migrate-openwaggle-mcp-files'
 import { migrationRecordPath } from '../../mcp/migration/migration-record'
@@ -99,7 +100,12 @@ async function runMigration(projectPath: string | null, attempt: MigrationAttemp
     return undefined
   })
   // What a failed start or file left unmigrated is tried again on a later call.
-  if (!report || report.error || report.files.some((file) => file.status === 'failed')) {
+  if (
+    !report ||
+    report.error ||
+    report.files.some((file) => file.status === 'failed') ||
+    report.oauth.some((signIn) => signIn.status === 'failed')
+  ) {
     attempt.failedAt = Date.now()
   }
   return report
@@ -113,18 +119,28 @@ function migrateOnce(projectPath: string | null) {
     knownProjectPaths: knownMcpProjectPaths,
     now: () => new Date(),
     oauth: {
-      readOld: (name) =>
-        resolveMcpVaultSecret(name).catch((error: unknown) => {
-          logger.warn('Could not read an old MCP sign-in from the vault', {
-            name,
-            error: describeError(error),
-          })
-          return undefined
-        }),
+      readOld: readOldSignIn,
       write: (stateKey, state) => writeOpenWaggleMcpOAuthState(stateKey, state),
     },
     sessionMcpSwitch: async (sessionId) => carryOverSessionMcpOff(sessionId),
   })
+}
+
+/**
+ * An old sign-in from the vault, or undefined when there is none. Any other vault failure (a
+ * keychain that refused, an unreadable vault) is the migration's failure, so it is tried again.
+ */
+async function readOldSignIn(name: string) {
+  try {
+    return await resolveMcpVaultSecret(name)
+  } catch (error) {
+    if (error instanceof McpVaultError && error.reason === 'secret-not-found') return undefined
+    logger.warn('Could not read an old MCP sign-in from the vault', {
+      name,
+      error: describeError(error),
+    })
+    throw error
+  }
 }
 
 /** An old MCP-off switch; a Session deleted since then has nothing to carry over. */
