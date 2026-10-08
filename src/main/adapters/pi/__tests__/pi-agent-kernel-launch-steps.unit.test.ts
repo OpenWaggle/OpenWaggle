@@ -4,6 +4,7 @@ import { fromPartial } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AgentKernelRunInput } from '../../../ports/agent-kernel-service'
+import { McpSessionConnectionPool } from '../../mcp/pool/mcp-session-connection-pool'
 import { runPiAgentKernel } from '../pi-agent-kernel-run'
 
 const runMocks = vi.hoisted(() => ({
@@ -96,6 +97,7 @@ describe('runPiAgentKernel launch steps', () => {
     await Effect.runPromise(
       runPiAgentKernel(input, {
         runtimeExtensionIsolation: {},
+        mcpPool: new McpSessionConnectionPool(),
         ...actionWorkspaceDependencies(),
         terminal: fromPartial({}),
         browserPreviewAutomation: fromPartial({}),
@@ -134,6 +136,7 @@ describe('runPiAgentKernel launch steps', () => {
     const running = Effect.runPromise(
       runPiAgentKernel(input, {
         runtimeExtensionIsolation: {},
+        mcpPool: new McpSessionConnectionPool(),
         ...actionWorkspaceDependencies(),
         terminal: fromPartial({}),
         browserPreviewAutomation: fromPartial({}),
@@ -195,6 +198,7 @@ describe('runPiAgentKernel launch steps', () => {
         }),
         {
           runtimeExtensionIsolation: {},
+          mcpPool: new McpSessionConnectionPool(),
           ...actionWorkspaceDependencies(),
           terminal: fromPartial({}),
           browserPreviewAutomation: fromPartial({}),

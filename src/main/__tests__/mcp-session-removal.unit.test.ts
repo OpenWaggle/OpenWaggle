@@ -6,9 +6,11 @@ import {
   flush,
   initializeRequest,
 } from '../adapters/mcp/pool/__tests__/fake-upstream'
-import { mcpSessionConnectionPool } from '../adapters/mcp/pool/mcp-connection-pool-instance'
+import { McpSessionConnectionPool } from '../adapters/mcp/pool/mcp-session-connection-pool'
 import { runSessionRemovalHooks } from '../application/session-removal-hooks'
 import { installMcpSessionRemoval } from '../mcp-session-removal'
+
+const mcpSessionConnectionPool = new McpSessionConnectionPool()
 
 afterEach(async () => {
   await mcpSessionConnectionPool.closeAll()
@@ -32,8 +34,8 @@ describe("removing a Session (archive, delete, a Worker's cleanup)", () => {
   // That the Session's MCP switch survives an archive is covered in
   // `session-mcp-switch.integration.test.ts`, against the Host database.
   it('closes its MCP connections', async () => {
-    installMcpSessionRemoval()
-    installMcpSessionRemoval()
+    installMcpSessionRemoval(mcpSessionConnectionPool)
+    installMcpSessionRemoval(mcpSessionConnectionPool)
     const removed = await warmConnection('removed')
     const kept = await warmConnection('kept')
 

@@ -44,7 +44,8 @@ Pi AgentSession (one per Run, disposed by withPiSession)
 | `src/main/adapters/mcp/migration/` | adapter | The one-time silent migration of OpenWaggle's pre-ADR-0048 files. |
 | `src/main/adapters/mcp/import/` | adapter | Import from tools that are not read live (Codex, Claude Desktop, Cursor, VS Code, OpenCode, Zed). |
 | `src/main/adapters/mcp/registry/` | adapter | MCP Registry search and install: package launchers, OCI digest pinning, verified MCPB bundles. |
-| `src/main/adapters/pi/mcp/` | Pi adapter | The extension factories every Pi session loads, the companion extension, approval, interactions. |
+| `src/main/adapters/pi/mcp/` | Pi adapter | The extension factories every Pi session loads, the companion extension, approval, interactions. They reach the pool only through `pool/mcp-connection-pool-api.ts` and receive it as an argument. |
+| `src/main/mcp-runtime-layers.ts` | composition | The Host's one pool (with OpenWaggle's connection hooks) and what is built over it: the agent kernel, the server and App runtime services, Host stop. Session removal gets it from `mcp-host-start.ts`. |
 | `src/main/ports/mcp-*.ts` | ports | `McpConfigurationService`, `McpServerRuntimeService`, `McpAppRuntimeService`, `McpImportService`, `McpRegistryService`, `McpSecretVaultService`. The connection pool is not a port: it lives in the pool adapter. |
 | `src/main/application/mcp-*.ts` | application | Settings and CLI operations over the ports. |
 | `src/renderer/src/features/settings/.../mcp/` | renderer | Settings > MCP, a thin view over the Host's data. |

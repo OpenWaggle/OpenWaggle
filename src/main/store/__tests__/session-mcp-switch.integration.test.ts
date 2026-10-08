@@ -4,6 +4,7 @@ import lifecyclePath from 'node:path'
 import { SessionId } from '@shared/types/brand'
 import * as Effect from 'effect/Effect'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { McpSessionConnectionPool } from '../../adapters/mcp/pool/mcp-session-connection-pool'
 import { runSessionRemovalHooks } from '../../application/session-removal-hooks'
 import { installMcpSessionRemoval } from '../../mcp-session-removal'
 import { createSession } from '../session-details'
@@ -84,7 +85,7 @@ describe('the per-Session MCP switch', () => {
     const deleted = await makeSession('pi-2')
     await setSessionMcpEnabled(archived, false)
     await setSessionMcpEnabled(deleted, false)
-    installMcpSessionRemoval()
+    installMcpSessionRemoval(new McpSessionConnectionPool())
 
     // Archiving runs the Session removal hooks (closing its MCP connections); unarchiving later
     // must find MCP still off.

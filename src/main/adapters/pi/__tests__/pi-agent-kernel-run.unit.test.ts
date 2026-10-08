@@ -8,6 +8,7 @@ import type {
   AgentKernelWaggleRunOptions,
 } from '../../../ports/agent-kernel-service'
 import type { InlineVisualizationServiceShape } from '../../../ports/inline-visualization-service'
+import { McpSessionConnectionPool } from '../../mcp/pool/mcp-session-connection-pool'
 import { runPiAgentKernel } from '../pi-agent-kernel-run'
 
 const runMocks = vi.hoisted(() => ({
@@ -116,6 +117,7 @@ describe('runPiAgentKernel', () => {
     await Effect.runPromise(
       runPiAgentKernel(input, {
         runtimeExtensionIsolation: {},
+        mcpPool: new McpSessionConnectionPool(),
         ...actionWorkspaceDependencies(),
         terminal: fromPartial({}),
         browserPreviewAutomation: fromPartial({}),
@@ -176,6 +178,7 @@ describe('runPiAgentKernel', () => {
     await Effect.runPromise(
       runPiAgentKernel(input, {
         runtimeExtensionIsolation: {},
+        mcpPool: new McpSessionConnectionPool(),
         ...actionWorkspaceDependencies(),
         terminal: fromPartial({}),
         browserPreviewAutomation: fromPartial({}),
@@ -211,6 +214,7 @@ describe('runPiAgentKernel', () => {
     }
     const dependencies: Parameters<typeof runPiAgentKernel>[1] = {
       runtimeExtensionIsolation: {},
+      mcpPool: new McpSessionConnectionPool(),
       ...actionWorkspaceDependencies(),
       terminal: fromPartial({}),
       browserPreviewAutomation: fromPartial({}),

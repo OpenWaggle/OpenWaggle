@@ -10,7 +10,7 @@ import type { InlineVisualizationServiceShape } from '../../ports/inline-visuali
 import type { TerminalServiceShape } from '../../ports/terminal-service'
 import type { WorkspacePreparationServiceShape } from '../../ports/workspace-preparation-service'
 import { isSessionMcpEnabled } from '../../store/session-mcp-switch'
-import { mcpSessionConnectionPool } from '../mcp/pool/mcp-connection-pool-instance'
+import type { McpConnectionPool } from '../mcp/pool/mcp-connection-pool-api'
 import { runPiSession } from './agent-kernel/classic-run'
 import type { PiRuntimeExtensionIsolationInput } from './agent-kernel/runtime-extension-isolation'
 import { refreshFirstRunBranch } from './agent-kernel/session-branch-freshness'
@@ -38,12 +38,16 @@ const logger = createLogger('pi-agent-kernel-run')
  * Pi's MCP extension for this Run. A configuration that cannot be prepared is logged and the Run
  * goes ahead without MCP, rather than failing the user's message.
  */
-function prepareMcpExtensions(input: AgentKernelRunInput, projectPath: string) {
+function prepareMcpExtensions(
+  input: AgentKernelRunInput,
+  projectPath: string,
+  pool: McpConnectionPool,
+) {
   return Effect.tryPromise(async () => {
     // The migration carries an old MCP-off Session switch over, so it runs before the switch is read.
     await migrateOpenWaggleMcpFilesOnce(projectPath)
     return createOpenWaggleMcpExtensions({
-      pool: mcpSessionConnectionPool,
+      pool,
       sessionId: input.session.id,
       projectPath,
       sessionMcpEnabled: await isSessionMcpEnabled(input.session.id),
@@ -123,11 +127,13 @@ export function runPiAgentKernel(
     readonly terminal: TerminalServiceShape
     readonly browserPreviewAutomation: BrowserPreviewAutomationServiceShape
     readonly enableBrowserPreviewAutomation: boolean
+    /** The Host's MCP connection pool, which keeps the Session's servers across Runs. */
+    readonly mcpPool: McpConnectionPool
   },
 ) {
   // A Session's MCP connections stay warm while it has a Run and close 5 minutes after its last.
   return Effect.acquireUseRelease(
-    Effect.sync(() => mcpSessionConnectionPool.beginRun(input.session.id)),
+    Effect.sync(() => dependencies.mcpPool.beginRun(input.session.id)),
     () => withRetainedScratchDirectory(input.session.id, runPiAgentKernelTurn(input, dependencies)),
     (endRun) => Effect.sync(endRun),
   )
@@ -148,7 +154,7 @@ function runPiAgentKernelTurn(
         refreshFirstRunBranch(input, executionPath, launchReporter.report),
         prepareVisualizationDirectory(dependencies.inlineVisualization, input.session.id),
         prepareScratchDirectory(input.session.id),
-        prepareMcpExtensions(input, projectPath),
+        prepareMcpExtensions(input, projectPath, dependencies.mcpPool),
       ],
       { concurrency: 'unbounded' },
     ).pipe(Effect.onError(() => Effect.sync(() => launchReporter.close())))

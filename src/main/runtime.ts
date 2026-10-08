@@ -18,13 +18,11 @@ import { FilesystemSessionResourceStoreLive } from './adapters/filesystem-sessio
 import { FilesystemWorkspaceFileLive } from './adapters/filesystem-workspace-file-service'
 import { LocalSessionCredentialVerifierLive } from './adapters/local-session-credential-verifier'
 import { EncryptedMcpSecretVaultServiceLive } from './adapters/mcp/encrypted-mcp-secret-vault-service'
-import { mcpSessionConnectionPool } from './adapters/mcp/pool/mcp-connection-pool-instance'
 import { McpRegistryServiceLive } from './adapters/mcp/registry/mcp-registry-service'
 import {
   OpenWaggleMcpConfigurationServiceLive,
   OpenWaggleMcpImportServiceLive,
 } from './adapters/pi/mcp/openwaggle-mcp-configuration'
-import { PiAgentKernelLive } from './adapters/pi/pi-agent-kernel-adapter'
 import { PiAgentSteeringServiceLive } from './adapters/pi/pi-agent-steering-adapter'
 import { registerPiBundledOAuthFlows } from './adapters/pi/pi-bundled-oauth'
 import { PiProviderAuthLive } from './adapters/pi/pi-provider-auth-service'
@@ -61,7 +59,11 @@ import { promptCacheWarming } from './application/prompt-cache-warming'
 import { onSessionRemoved } from './application/session-removal-hooks'
 import { SessionWaitServiceLive } from './application/session-wait-service'
 import { startMcpHostServices } from './mcp-host-start'
-import { PiMcpAppRuntimeServiceLive, PiMcpServerRuntimeServiceLive } from './mcp-runtime-layers'
+import {
+  closeHostMcpConnections,
+  HostPiAgentKernelLive,
+  PiMcpRuntimeServicesLive,
+} from './mcp-runtime-layers'
 import { OperationAdapterLive } from './operation-adapter-layer'
 import {
   ActionKernelServicesLive,
@@ -110,7 +112,7 @@ const ProviderServiceWithExtensionSelectionLive = ProviderServiceLive.pipe(
 const PiProviderProbeWithExtensionSelectionLive = PiProviderProbeLive.pipe(
   Layer.provide(ExtensionRuntimeSelectionLive),
 )
-const PiAgentKernelWithExtensionSelectionLive = PiAgentKernelLive.pipe(
+const PiAgentKernelWithExtensionSelectionLive = HostPiAgentKernelLive.pipe(
   Layer.provide(
     Layer.mergeAll(
       ExtensionRuntimeSelectionLive,
@@ -243,8 +245,7 @@ const AppLayer = Layer.mergeAll(
   OpenWaggleMcpConfigurationServiceLive,
   OpenWaggleMcpImportServiceLive,
   McpRegistryServiceLive,
-  PiMcpServerRuntimeServiceLive,
-  PiMcpAppRuntimeServiceLive,
+  PiMcpRuntimeServicesLive,
   PiProviderAuthLive,
   PiProviderProbeWithExtensionSelectionLive,
   PiProviderOAuthLive,
@@ -300,7 +301,7 @@ export async function initializeAppRuntime(): Promise<void> {
 export async function disposeAppRuntime(): Promise<void> {
   await stopSessionHostOwnedServices()
   // Stdio MCP servers must not outlive the Host.
-  await mcpSessionConnectionPool.closeAll()
+  await closeHostMcpConnections()
   await getAppRuntime().dispose()
 }
 
