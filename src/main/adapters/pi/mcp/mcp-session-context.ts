@@ -53,15 +53,16 @@ function jsonRequest(params: unknown): McpJsonValue {
   return decoded.data
 }
 
-function requireContext(sessionId: string, serverName: string) {
+function requireContext(sessionId: string, serverName: string, identity: string | undefined) {
   const context = contexts.get(sessionId)
-  const server = context?.servers.get(serverName)
-  if (!context || !server) {
+  // A server a Pi extension registered is not in the configuration; its lease names its identity.
+  const serverIdentity = context?.servers.get(serverName)?.identity ?? identity
+  if (!context || !serverIdentity) {
     throw new Error(
       `MCP server "${serverName}" asked for input while the session is idle; OpenWaggle answers only during a Run.`,
     )
   }
-  return { interactions: context.interactions, identity: server.identity }
+  return { interactions: context.interactions, identity: serverIdentity }
 }
 
 /** OpenWaggle's additions to one Session's server connection. */
@@ -83,9 +84,13 @@ export function openWaggleMcpConnectionHooks(
     handleServerRequest: ({ method, params, signal }) => {
       if (method === 'sampling/createMessage') {
         return Promise.resolve().then(() => {
-          const { interactions, identity } = requireContext(sessionId, serverName)
+          const { interactions, identity: serverInstanceId } = requireContext(
+            sessionId,
+            serverName,
+            identity,
+          )
           return interactions.sample({
-            serverInstanceId: identity,
+            serverInstanceId,
             serverLabel: serverName,
             request: jsonRequest(params),
             signal,
@@ -94,9 +99,13 @@ export function openWaggleMcpConnectionHooks(
       }
       if (method === 'elicitation/create') {
         return Promise.resolve().then(() => {
-          const { interactions, identity } = requireContext(sessionId, serverName)
+          const { interactions, identity: serverInstanceId } = requireContext(
+            sessionId,
+            serverName,
+            identity,
+          )
           return interactions.elicit({
-            serverInstanceId: identity,
+            serverInstanceId,
             serverLabel: serverName,
             request: jsonRequest(params),
             signal,

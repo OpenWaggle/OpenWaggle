@@ -5,6 +5,7 @@ import {
   createMcpExtension,
   type ExtensionAPI,
   type InlineExtension,
+  type McpTransportFactory,
 } from '@earendil-works/pi-coding-agent'
 import { isRecord } from '@shared/utils/validation'
 import { mcpShellEnvironmentReady } from '../../../mcp-shell-environment'
@@ -175,6 +176,39 @@ export function registerMcpToolApproval(
 }
 
 /**
+ * The transport of each server a Run connects: a lease on the Session's pooled connection. Servers
+ * an Agent definition does not list are refused here too, since servers Pi extensions register
+ * (`pi.registerMcpServer`) never pass through `loadConfig`.
+ */
+export function openWaggleMcpTransport(
+  input: Pick<OpenWaggleMcpSessionInput, 'sessionId' | 'pool' | 'serverAllowlist' | 'projectPath'>,
+  config: Pick<McpRuntimeConfig, 'transports'>,
+): McpTransportFactory {
+  return (entry, cwd, authProvider) => {
+    if (input.serverAllowlist && !input.serverAllowlist.includes(entry.name)) {
+      throw new Error(
+        `This Session's Agent definition does not use the MCP server "${entry.name}".`,
+      )
+    }
+    const transport =
+      config.transports.get(entry.name) ?? ('url' in entry.config ? 'http' : 'stdio')
+    return input.pool.lease(input.sessionId, {
+      name: entry.name,
+      fingerprint: mcpConnectionFingerprint({ config: entry.config, transport, cwd }),
+      identity: mcpServerIdentity(entry.name, entry.config),
+      open: () =>
+        openPiMcpUpstream({
+          entry,
+          transport,
+          cwd,
+          authProvider: hardenedMcpAuthProvider(entry, authProvider),
+        }),
+      roots: () => [{ uri: pathToFileURL(cwd).href, name: path.basename(cwd) }],
+    })
+  }
+}
+
+/**
  * Pi's built-in MCP extension with OpenWaggle's plug-in points, plus OpenWaggle's companion
  * extension (approval, sampling and elicitation context). Every Pi session OpenWaggle creates
  * for a Run loads these. Like codemode and tool search (`pi-built-in-extensions.ts`), MCP is the
@@ -183,6 +217,8 @@ export function registerMcpToolApproval(
 export async function createOpenWaggleMcpExtensions(
   input: OpenWaggleMcpSessionInput,
 ): Promise<readonly InlineExtension[]> {
+  // MCP off means no MCP runtime, so servers Pi extensions register do not connect either.
+  if (input.sessionMcpEnabled === false) return []
   await Promise.all([migrateOpenWaggleMcpFilesOnce(input.projectPath), mcpShellEnvironmentReady()])
   const config = await loadMcpRuntimeConfig({
     roots: { homeDir: homedir(), piAgentDir: getPiAgentDir(), projectPath: input.projectPath },
@@ -194,23 +230,7 @@ export async function createOpenWaggleMcpExtensions(
   })
   const mcp = createMcpExtension({
     loadConfig: () => withShellResolvedClientSecrets(config.loaded),
-    createTransport: (entry, cwd, authProvider) => {
-      const transport =
-        config.transports.get(entry.name) ?? ('url' in entry.config ? 'http' : 'stdio')
-      return input.pool.lease(input.sessionId, {
-        name: entry.name,
-        fingerprint: mcpConnectionFingerprint({ config: entry.config, transport, cwd }),
-        identity: mcpServerIdentity(entry.name, entry.config),
-        open: () =>
-          openPiMcpUpstream({
-            entry,
-            transport,
-            cwd,
-            authProvider: hardenedMcpAuthProvider(entry, authProvider),
-          }),
-        roots: () => [{ uri: pathToFileURL(cwd).href, name: path.basename(cwd) }],
-      })
-    },
+    createTransport: openWaggleMcpTransport(input, config),
     credentials: getOpenWaggleMcpCredentials(),
     logPath: openWaggleMcpLogPath(),
     openUrl: createRunSignInOpener(() => config.loaded.servers),

@@ -130,8 +130,12 @@ for the loader. File locations are de-duplicated by path, so a project at the ho
 - `errors`: file parse errors and invalid entries.
 - `autoEnableCodemode`.
 
-Session-level MCP off and an Agent definition's MCP allowlist are applied here: a Session with MCP
-off gets no servers, and an allowlist drops every server it does not name. Neither writes a file.
+Session-level MCP off and an Agent definition's MCP allowlist are applied here for the configured
+servers, and again for servers Pi extensions register (`pi.registerMcpServer`), which never pass
+through `loadConfig`: a Session with MCP off loads no MCP extension at all, and `createTransport`
+refuses a server the allowlist does not name. Neither writes a file. Sampling and elicitation from
+an extension's server are answered during a Run like any other server's, under the identity its
+lease names.
 
 ## Writes
 
