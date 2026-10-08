@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { SessionId } from '@shared/types/brand'
 import { SESSION_LIFECYCLE_CONTRACT_VERSION } from '@shared/types/session-lifecycle'
 import * as Effect from 'effect/Effect'
+import { PiSessionDiscoveryRepository } from '../ports/pi-session-discovery'
 import { dispatchLocalSessionCommand } from './local-session-command-dispatcher'
 import type { DiscoveredSessionCreateInput } from './pi-session-discovery'
 
@@ -17,6 +18,9 @@ import type { DiscoveredSessionCreateInput } from './pi-session-discovery'
  */
 export function createDiscoveredSessionWithLifecycle(input: DiscoveredSessionCreateInput) {
   return Effect.gen(function* () {
+    // Recorded first: the lifecycle admits a key under discovery's prefix only once it is, and a
+    // Host that stops before the file is attached leaves a record its next start cleans up after.
+    yield* (yield* PiSessionDiscoveryRepository).recordDiscoveryCreate(input.idempotencyKey)
     const result = yield* dispatchLocalSessionCommand({
       caller: { callerId: 'gui:local-user', workingDirectory: input.projectPath },
       payload: {

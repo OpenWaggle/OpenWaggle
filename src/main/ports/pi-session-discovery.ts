@@ -173,12 +173,24 @@ export interface PiSessionDiscoveryRepositoryShape {
   ) => Effect.Effect<PiSessionProjectionState | null, SessionProjectionRepositoryError>
   /**
    * Sessions discovery created that never got a Pi file attached and are still empty, such as
-   * one a Host stopped with between creating it and attaching the file.
+   * one a Host stopped with between creating it and attaching the file. Only creates discovery
+   * recorded count, not every key under its prefix.
    */
   readonly listUnattachedDiscoveredSessions: () => Effect.Effect<
     readonly SessionId[],
     SessionProjectionRepositoryError
   >
+  /**
+   * Records a lifecycle create discovery is about to send, so the Host start knows the Session
+   * as discovery's, and the lifecycle admits the key.
+   */
+  readonly recordDiscoveryCreate: (
+    idempotencyKey: string,
+  ) => Effect.Effect<void, SessionProjectionRepositoryError>
+  /** Forgets finished creates; all of them once the Host start cleaned up after them. */
+  readonly forgetDiscoveryCreates: (
+    idempotencyKeys?: readonly string[],
+  ) => Effect.Effect<void, SessionProjectionRepositoryError>
   /** Every discovered Session that has its Pi file attached, with the file. */
   readonly listAdoptedPiSessionFiles: () => Effect.Effect<
     readonly { readonly sessionId: SessionId; readonly piSessionFile: string }[],

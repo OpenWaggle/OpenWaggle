@@ -2,10 +2,7 @@ import * as SqlClient from '@effect/sql/SqlClient'
 import { DEFAULT_SESSION_TITLE } from '@shared/session-title-source'
 import { SessionId } from '@shared/types/brand'
 import * as Effect from 'effect/Effect'
-import {
-  type AdoptDiscoveredPiSessionInput,
-  PI_SESSION_DISCOVERY_IDEMPOTENCY_PREFIX,
-} from '../../ports/pi-session-discovery'
+import type { AdoptDiscoveredPiSessionInput } from '../../ports/pi-session-discovery'
 import { readPiProjectionFreshnessWithSql } from '../pi-session-file-freshness'
 import { runStoreEffect } from '../store-runtime'
 import { isAgentLoopAuditNode } from './agent-loop-audit-node'
@@ -145,8 +142,9 @@ export async function listUnattachedDiscoveredPiSessions(): Promise<readonly Ses
       const rows = yield* sql<{ readonly session_id: string }>`
         SELECT DISTINCT sessions.id AS session_id FROM session_operations
         JOIN sessions ON sessions.id = json_extract(session_operations.outcome_json, '$.sessionId')
+        JOIN pi_session_discovery_creates
+          ON pi_session_discovery_creates.idempotency_key = session_operations.idempotency_key
         WHERE session_operations.operation = ${'create'}
-          AND session_operations.idempotency_key LIKE ${`${PI_SESSION_DISCOVERY_IDEMPOTENCY_PREFIX}%`}
           AND NOT EXISTS (SELECT 1 FROM pi_session_adoptions WHERE session_id = sessions.id)
           AND NOT EXISTS (SELECT 1 FROM session_nodes WHERE session_id = sessions.id)
       `
@@ -169,6 +167,36 @@ export async function listAdoptedPiSessionFiles() {
         sessionId: SessionId(row.session_id),
         piSessionFile: row.pi_session_file,
       }))
+    }),
+  )
+}
+
+/** See `PiSessionDiscoveryRepositoryShape.recordDiscoveryCreate`. */
+export async function recordPiSessionDiscoveryCreate(idempotencyKey: string) {
+  await runStoreEffect(
+    Effect.flatMap(
+      SqlClient.SqlClient,
+      (sql) => sql`
+        INSERT INTO pi_session_discovery_creates (idempotency_key, created_at)
+        VALUES (${idempotencyKey}, ${Date.now()})
+        ON CONFLICT (idempotency_key) DO NOTHING
+      `,
+    ),
+  )
+}
+
+/** See `PiSessionDiscoveryRepositoryShape.forgetDiscoveryCreates`. */
+export async function forgetPiSessionDiscoveryCreates(idempotencyKeys?: readonly string[]) {
+  await runStoreEffect(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      if (!idempotencyKeys) {
+        yield* sql`DELETE FROM pi_session_discovery_creates`
+        return
+      }
+      for (const key of idempotencyKeys) {
+        yield* sql`DELETE FROM pi_session_discovery_creates WHERE idempotency_key = ${key}`
+      }
     }),
   )
 }

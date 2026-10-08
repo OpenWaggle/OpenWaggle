@@ -18,8 +18,11 @@ import { SessionProjectionRepository } from '../ports/session-projection-reposit
 import { SettingsService } from '../services/settings-service'
 import { publishSessionHostEvent } from '../session-host/session-host-events'
 import { removeSessionsWithDeletedPiFiles } from './pi-session-deleted-files'
+import {
+  removeUnadoptedSession,
+  removeUnattachedDiscoveredSessions,
+} from './pi-session-discovery-cleanup'
 import { isPiSessionDiscoveryPaused, unpausedProjects } from './pi-session-discovery-pauses'
-import { runSessionRemovalHooks } from './session-removal-hooks'
 
 /**
  * Pi session discovery (ADR 0050). Pi sessions the `pi` CLI created in an OpenWaggle project, or
@@ -63,24 +66,6 @@ function discoveredTitle(session: DiscoveredPiSession) {
   return DEFAULT_SESSION_TITLE
 }
 
-/**
- * A Session the lifecycle created for a file discovery then could not attach: another writer
- * claimed the file meanwhile (a fork or copy whose preparation recorded it after discovery read
- * its scope), the project's removal started, or attaching failed. While it is still unattached and
- * empty it was never shown with a transcript, so it is deleted rather than left as a stray
- * "New session".
- */
-function removeUnadoptedSession(sessionId: SessionId) {
-  return Effect.gen(function* () {
-    const state = yield* (yield* PiSessionDiscoveryRepository).getProjectionState(sessionId)
-    if (!state || state.piEntryNodeIdPrefix || state.projectedPiEntryCount > 0) return
-    // As any deletion does: its removal hooks first, then the sidebar drops the Session.
-    yield* runSessionRemovalHooks(sessionId)
-    yield* (yield* SessionProjectionRepository).delete(sessionId)
-    publishSessionHostEvent({ kind: 'session-list-changed', sessionId, change: 'deleted' })
-  })
-}
-
 /** What discovery asks of the Session Host's lifecycle to create a discovered Session. */
 export interface DiscoveredSessionCreateInput {
   readonly projectPath: string
@@ -105,21 +90,6 @@ export function discoveredSessionCreateKey(
 }
 
 /**
- * Removes the Sessions an earlier Host created for discovered files and stopped before attaching,
- * which are still empty. The file may have changed since, so a pass would not replay them: it
- * creates a new Session for the new version, and the old one would stay as a stray
- * "New session". Run when the Host starts, before its first pass.
- */
-export function removeUnattachedDiscoveredSessions() {
-  return Effect.gen(function* () {
-    const repository = yield* PiSessionDiscoveryRepository
-    for (const sessionId of yield* repository.listUnattachedDiscoveredSessions()) {
-      yield* removeUnadoptedSession(sessionId)
-    }
-  })
-}
-
-/**
  * Creates the Session for a discovered file. A replay names the Session an earlier pass created
  * for this version of the file; if that Session was deleted since, as when the project was
  * removed and added back, a new one is created instead.
@@ -127,16 +97,20 @@ export function removeUnattachedDiscoveredSessions() {
 function createSessionForFile<R>(
   session: DiscoveredPiSession,
   create: DiscoveredSessionCreator<R>,
+  keys: string[],
 ) {
   return Effect.gen(function* () {
     const key = discoveredSessionCreateKey(session)
     const input = { projectPath: session.projectPath, title: discoveredTitle(session) }
+    keys.push(key)
     const created = yield* create({ ...input, idempotencyKey: key })
     if (!created?.replayed) return created?.sessionId ?? null
     if (yield* (yield* SessionProjectionRepository).getOptional(created.sessionId)) {
       return created.sessionId
     }
-    const recreated = yield* create({ ...input, idempotencyKey: `${key}:${randomUUID()}` })
+    const fresh = `${key}:${randomUUID()}`
+    keys.push(fresh)
+    const recreated = yield* create({ ...input, idempotencyKey: fresh })
     return recreated?.sessionId ?? null
   })
 }
@@ -162,13 +136,21 @@ function createDiscoveredSession<R>(
   session: DiscoveredPiSession,
   create: DiscoveredSessionCreator<R>,
 ) {
+  const keys: string[] = []
   return Effect.gen(function* () {
-    const sessionId = yield* createSessionForFile(session, create)
+    const sessionId = yield* createSessionForFile(session, create, keys)
     if (!sessionId) return null
     return yield* attachFile(session, sessionId).pipe(
       Effect.onError(() => removeUnadoptedSession(sessionId).pipe(Effect.ignore)),
     )
-  })
+  }).pipe(
+    // The Session was attached or removed; the Host start no longer needs to know of it.
+    Effect.ensuring(
+      Effect.flatMap(PiSessionDiscoveryRepository, (repository) =>
+        repository.forgetDiscoveryCreates(keys),
+      ).pipe(Effect.ignore),
+    ),
+  )
 }
 
 /**
@@ -293,6 +275,8 @@ export function discoverPiSessions<R>(options: {
     return listed
   })
 }
+
+export { removeUnattachedDiscoveredSessions }
 
 export function runPiSessionDiscoveryBackground<R>(createSession: DiscoveredSessionCreator<R>) {
   const logFailure = (cause: Cause.Cause<unknown>) =>

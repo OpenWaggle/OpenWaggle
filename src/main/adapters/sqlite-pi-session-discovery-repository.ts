@@ -16,10 +16,12 @@ import {
 } from '../store/session-details/persist-external-pi-snapshot'
 import {
   adoptDiscoveredPiSession,
+  forgetPiSessionDiscoveryCreates,
   getPiSessionProjectionState,
   listAdoptedPiSessionFiles,
   listUnattachedDiscoveredPiSessions,
   readPiSessionDiscoveryScope,
+  recordPiSessionDiscoveryCreate,
 } from '../store/session-details/pi-session-discovery-store'
 
 function repositoryOperation<T>(operation: string, task: () => Promise<T>) {
@@ -45,6 +47,14 @@ function createPiSessionDiscoveryRepository(
       repositoryOperation('adoptDiscoveredPiSession', () => adoptDiscoveredPiSession(input)),
     listUnattachedDiscoveredSessions: () =>
       repositoryOperation('listUnattachedDiscoveredPiSessions', listUnattachedDiscoveredPiSessions),
+    recordDiscoveryCreate: (key) =>
+      repositoryOperation('recordPiSessionDiscoveryCreate', () =>
+        recordPiSessionDiscoveryCreate(key),
+      ),
+    forgetDiscoveryCreates: (keys) =>
+      repositoryOperation('forgetPiSessionDiscoveryCreates', () =>
+        forgetPiSessionDiscoveryCreates(keys),
+      ),
     listAdoptedPiSessionFiles: () =>
       repositoryOperation('listAdoptedPiSessionFiles', listAdoptedPiSessionFiles),
     getProjectionState: (sessionId) =>

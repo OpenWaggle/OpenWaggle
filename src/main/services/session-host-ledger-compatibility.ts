@@ -4,6 +4,7 @@ import {
 } from './database-session-resource-migrations'
 import {
   PI_SESSION_ADOPTION_MIGRATION_ID,
+  PI_SESSION_DISCOVERY_CREATE_MIGRATION_ID,
   PI_SESSION_FILE_STATE_MIGRATION_ID,
   SESSION_HOST_BASELINE_MIGRATION_ID,
   SESSION_HOST_BASELINE_MIGRATION_NAME,
@@ -90,6 +91,7 @@ const currentIdentities = [
   { id: PI_SESSION_ADOPTION_MIGRATION_ID, name: 'pi-session-adoption' },
   { id: PI_SESSION_FILE_STATE_MIGRATION_ID, name: 'pi-session-file-state' },
   { id: SESSION_MCP_SWITCH_MIGRATION_ID, name: 'session-mcp-switch' },
+  { id: PI_SESSION_DISCOVERY_CREATE_MIGRATION_ID, name: 'pi-session-discovery-creates' },
 ]
 
 export interface MigrationIdentity {

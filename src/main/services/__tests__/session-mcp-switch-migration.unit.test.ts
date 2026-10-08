@@ -1,6 +1,5 @@
 import { DatabaseSync } from 'node:sqlite'
 import { describe, expect, it } from 'vitest'
-import { SESSION_HOST_SUPPORTED_MAX_MIGRATION_ID } from '../session-host-schema-identity'
 import { SESSION_MCP_SWITCH_MIGRATION } from '../session-mcp-switch-migration'
 
 describe('Session MCP switch migration', () => {
@@ -23,9 +22,5 @@ describe('Session MCP switch migration', () => {
     } finally {
       database.close()
     }
-  })
-
-  it('is the newest migration this binary supports', () => {
-    expect(SESSION_HOST_SUPPORTED_MAX_MIGRATION_ID).toBe(SESSION_MCP_SWITCH_MIGRATION.id)
   })
 })

@@ -26,9 +26,10 @@ export const SESSION_TITLE_PROVENANCE_MIGRATION_ID = 63
 export const PI_SESSION_ADOPTION_MIGRATION_ID = 64
 export const PI_SESSION_FILE_STATE_MIGRATION_ID = 65
 export const SESSION_MCP_SWITCH_MIGRATION_ID = 66
+export const PI_SESSION_DISCOVERY_CREATE_MIGRATION_ID = 67
 export const SESSION_HOST_FRESH_REVISION = 'fresh-v16'
 export const SESSION_HOST_CUTOVER_REVISION = 'session-host-v2'
 
 // Older binaries must fail closed when a newer migration has touched the target.
 // Newer binaries may still open the baseline and apply their remaining migrations.
-export const SESSION_HOST_SUPPORTED_MAX_MIGRATION_ID = SESSION_MCP_SWITCH_MIGRATION_ID
+export const SESSION_HOST_SUPPORTED_MAX_MIGRATION_ID = PI_SESSION_DISCOVERY_CREATE_MIGRATION_ID
