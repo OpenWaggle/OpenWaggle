@@ -418,6 +418,13 @@ requests exactly as before (full access answers without emitting anything).
 
 ## Migration
 
+The migration has two parts. `migrateOpenWaggleMcpFilesOnce` migrates the files and old
+per-Session switches and never touches the keychain; Host start and every MCP file read wait for
+it. `migrateOpenWaggleMcpSignInsOnce` also migrates old encrypted sign-ins from the vault, which
+reads the keychain through `safeStorage`; the Host starts it once it serves clients
+(`startServicesAfterListening`), and a Run's MCP extensions, inspect, sign-in, sign-out and MCP
+App connections wait for it, so a slow or prompting keychain only delays those.
+
 `adapters/mcp/migration/` runs once per file, silently, with one `.pre-adr-0048.bak` backup, and
 records what it did in `~/.openwaggle/mcp/migration.json`. The global file's backup sits next to
 it; a project file's goes to `~/.openwaggle/mcp/backups/<project>-<hash of its path>/`, never
