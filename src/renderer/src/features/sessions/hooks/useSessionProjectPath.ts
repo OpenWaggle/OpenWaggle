@@ -29,11 +29,9 @@ export function resolveSessionProjectPath(sources: SessionProjectSources): strin
 /** The open Session's project; see resolveSessionProjectPath. */
 export function useSessionProjectPath(): string | null {
   const activeSessionId = useChatStore((state) => state.activeSessionId)
-  const activeSessionProjectPath = useChatStore((state) =>
-    state.activeSession !== null && state.activeSession.id === state.activeSessionId
-      ? state.activeSession.projectPath
-      : null,
-  )
+  // setActiveSession replaces activeSession with the selected Session's cached detail (or null)
+  // in the same update as activeSessionId, so it never names the previous Session.
+  const activeSessionProjectPath = useChatStore((state) => state.activeSession?.projectPath ?? null)
   const activeSummaryProjectPath = useSessionStore((state) => {
     if (activeSessionId === null) return null
     const isActive = (session: SessionSummary) => session.id === activeSessionId
