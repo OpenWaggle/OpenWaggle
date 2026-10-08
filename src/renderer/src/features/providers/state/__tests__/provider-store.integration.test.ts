@@ -146,6 +146,53 @@ describe('provider-store integration', () => {
     expect(useProviderStore.getState().isLoading).toBe(false)
   })
 
+  it.each([
+    ['a project extension provider', SupportedModelId('qa-faux/luna')],
+    ['a virtual model', SupportedModelId('qa-router/auto')],
+  ])(
+    'keeps %s enabled and selected when the catalog loads without its project',
+    async (_kind, projectModel) => {
+      // Enabled from the project's catalog; the catalog without a project does not list it.
+      const settings = {
+        ...DEFAULT_SETTINGS,
+        projectPath: null,
+        selectedModel: projectModel,
+        enabledModels: [SupportedModelId('openai/gpt-4.1-mini'), projectModel],
+      }
+      apiMock.getProviderModels.mockResolvedValue(openAiProviderModels())
+
+      const updatedSettings = await useProviderStore.getState().loadProviderModels(settings)
+
+      expect(updatedSettings).toBeNull()
+      expect(apiMock.updateSettings).not.toHaveBeenCalled()
+    },
+  )
+
+  it('moves a selection the catalog lists but cannot use to an enabled model it can', async () => {
+    const [openAi] = openAiProviderModels()
+    const [ollama] = ollamaProviderModels()
+    if (!openAi || !ollama) throw new Error('missing fixture')
+    const signedOut = {
+      ...openAi,
+      models: openAi.models.map((model) => ({ ...model, available: false })),
+    }
+    const settings = {
+      ...DEFAULT_SETTINGS,
+      selectedModel: SupportedModelId('openai/gpt-4.1-mini'),
+      enabledModels: [
+        SupportedModelId('openai/gpt-4.1-mini'),
+        SupportedModelId('ollama/llama3.2:latest'),
+      ],
+    }
+    apiMock.getProviderModels.mockResolvedValue([signedOut, ollama])
+
+    await useProviderStore.getState().loadProviderModels(settings)
+
+    expect(apiMock.updateSettings).toHaveBeenCalledWith({
+      selectedModel: 'ollama/llama3.2:latest',
+    })
+  })
+
   it('keeps Pi catalog models when loading provider groups', async () => {
     apiMock.getProviderModels.mockResolvedValue(ollamaProviderModels())
 

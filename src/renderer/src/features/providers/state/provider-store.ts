@@ -66,31 +66,6 @@ export function isModelActionable(
   return isSelectableModel(state.providerModels, { enabledModels }, model, state.catalogHydrated)
 }
 
-/**
- * Remove enabledModels entries that reference models no longer in the provider
- * catalog (stale version suffixes, removed models, or providerless IDs).
- */
-/** @internal Exported for testing */
-export function pruneStaleEnabledModels(
-  enabledModels: readonly string[],
-  catalog: ReadonlySet<string>,
-): SupportedModelId[] | null {
-  const pruned: SupportedModelId[] = []
-  let changed = false
-
-  for (const key of enabledModels) {
-    const normalized = key.trim()
-    if (!catalog.has(normalized)) {
-      changed = true
-      continue
-    }
-
-    pruned.push(SupportedModelId(normalized))
-  }
-
-  return changed ? pruned : null
-}
-
 function dedupeProviderModels(
   provider: Provider,
   models: readonly ProviderInfo['models'][number][],
@@ -168,24 +143,25 @@ export const useProviderStore = create<ProviderState>((set) => ({
       if (baseProviderModels.length === 0) {
         return null
       }
+      /*
+       * Enabled models this catalog does not list stay enabled and are only not shown: a project's
+       * extension providers and virtual models are listed only with that project's catalog, and
+       * enabledModels holds every project's choices. Only a selection the catalog lists but cannot
+       * use moves to an enabled model that it can.
+       */
       const catalog = buildModelCatalogSet(baseProviderModels)
       const available = buildAvailableModelSet(baseProviderModels)
-      const pruned = pruneStaleEnabledModels(currentSettings.enabledModels, catalog)
-      const enabledModels = pruned ?? currentSettings.enabledModels
+      const { enabledModels } = currentSettings
+      const selected = currentSettings.selectedModel
+      const selectionUsable =
+        selected &&
+        (!catalog.has(selected) || (enabledModels.includes(selected) && available.has(selected)))
+      if (selectionUsable) return null
       const selectedModel =
-        currentSettings.selectedModel &&
-        enabledModels.includes(currentSettings.selectedModel) &&
-        available.has(currentSettings.selectedModel)
-          ? currentSettings.selectedModel
-          : (enabledModels.find((modelRef) => available.has(modelRef)) ??
-            DEFAULT_SETTINGS.selectedModel)
-
-      if (pruned !== null || selectedModel !== currentSettings.selectedModel) {
-        const modelSettings = { enabledModels, selectedModel }
-        await api.updateSettings(modelSettings)
-        return { ...currentSettings, ...modelSettings }
-      }
-      return null
+        enabledModels.find((modelRef) => available.has(modelRef)) ?? DEFAULT_SETTINGS.selectedModel
+      if (selectedModel === selected) return null
+      await api.updateSettings({ selectedModel })
+      return { ...currentSettings, selectedModel }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       logger.error('Failed to load provider models', { message })

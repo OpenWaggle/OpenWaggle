@@ -182,14 +182,10 @@ describe('useExtensionsSectionController', () => {
     expect(apiMock.getProviderModels).toHaveBeenCalledWith(PROJECT_PATH)
     expect(apiMock.getSettings).not.toHaveBeenCalled()
     expect(useProviderStore.getState().providerModels).toEqual(EXTENSION_PROVIDER_MODELS)
-    expect(apiMock.updateSettings).toHaveBeenCalledWith({
-      enabledModels: [],
-      selectedModel: DEFAULT_SETTINGS.selectedModel,
-    })
-    expect(usePreferencesStore.getState().settings.enabledModels).toEqual([])
-    expect(usePreferencesStore.getState().settings.selectedModel).toBe(
-      DEFAULT_SETTINGS.selectedModel,
-    )
+    // A model this catalog does not list may belong to another project's catalog: kept.
+    expect(apiMock.updateSettings).not.toHaveBeenCalled()
+    expect(usePreferencesStore.getState().settings.enabledModels).toEqual([OLD_MODEL])
+    expect(usePreferencesStore.getState().settings.selectedModel).toBe(OLD_MODEL)
   })
 
   it('refreshes provider models after reloading an extension', async () => {
