@@ -157,8 +157,9 @@ packages before every inline factory, so their `tool_call` hooks see a call befo
 
 The writer (`mcp-config-file-edit.ts`) applies text edits with `jsonc-parser` to only the keys a
 change touches, because `.mcp.json` and `.pi/mcp.json` are often committed: unrelated keys,
-unknown fields, entry order, indentation, line endings, one-line files, and the file mode stay as
-they were. Pi's own writer re-serializes the whole file, so it is not used. `enabled: true` and
+unknown fields, entry order, indentation, line endings, files written on one line, and the file
+mode (group-writable included, whatever the umask) stay as they were. In a multi-line file, an
+entry written on one line is spread over lines in the file's indentation when a key is added. Pi's own writer re-serializes the whole file, so it is not used. `enabled: true` and
 `exposure: "codemode"` remove the key in full entries, as Pi does; overrides keep explicit
 values. Pi's `updateConfig` option calls the same writer, so `/mcp` changes made inside a Run
 land in the same place as Settings changes.

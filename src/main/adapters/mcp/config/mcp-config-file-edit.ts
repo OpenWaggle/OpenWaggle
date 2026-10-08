@@ -2,10 +2,12 @@
  * Text edits of an `mcp.json` that keep the file as its owner wrote it. `.mcp.json` and
  * `.pi/mcp.json` are often committed, so a change touches only the keys it changes: other content,
  * unknown fields, key order, indentation, line endings, compact one-line files, and the file mode
- * all stay as they were.
+ * all stay as they were. In a multi-line file, an entry written on one line is spread over lines
+ * when a key is added to it, in the file's indentation.
  */
 import { randomUUID } from 'node:crypto'
 import {
+  chmodSync,
   existsSync,
   mkdirSync,
   readFileSync,
@@ -89,6 +91,8 @@ function writeAtomically(linkOrFile: string, content: string) {
   const temporaryPath = `${filePath}.${randomUUID()}.tmp`
   try {
     writeFileSync(temporaryPath, content, { mode })
+    // The umask applies to `mode` above; a group-writable file must stay group-writable.
+    chmodSync(temporaryPath, mode)
     renameSync(temporaryPath, filePath)
   } catch (error) {
     rmSync(temporaryPath, { force: true })
