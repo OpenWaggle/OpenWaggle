@@ -58,8 +58,9 @@ export class McpSessionConnectionPool {
     if (existing && existing.fingerprint === spec.fingerprint && !existing.connection.isClosed) {
       return existing.connection
     }
-    // Closing removes the old connection from the Session at once.
-    if (existing) void existing.connection.close()
+    // A changed definition closes the old connection. A retiring one (already `isClosed`) is only
+    // replaced: it closes itself once the requests it already sent settle.
+    if (existing && !existing.connection.isClosed) void existing.connection.close()
     const wasWarm = session.servers.size > 0
     const connection: McpPooledConnection = new McpPooledConnection({
       serverName: spec.name,

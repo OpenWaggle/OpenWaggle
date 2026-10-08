@@ -210,4 +210,34 @@ describe('MCP Session connection pool', () => {
     pool.beginRun('s1')
     expect(() => pool.lease('s1', docs)).not.toThrow()
   })
+
+  it('lets a retiring connection finish its requests while a new lease opens a fresh one', async () => {
+    const upstreams: FakeUpstream[] = []
+    const pool = new McpSessionConnectionPool()
+    const spec = server('docs', upstreams)
+    const first = pool.lease('s1', spec)
+    const client = collect(first)
+    await first.start()
+    await first.send(initializeRequest(1))
+    await first.send({ jsonrpc: '2.0', method: 'notifications/initialized' })
+    await flush()
+    await first.send({ jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'slow' } })
+    const [slow] = upstreams[0]?.requests('tools/call') ?? []
+    const expired = new Error('session expired')
+    expired.name = 'McpSessionExpiredError'
+    if (upstreams[0]) upstreams[0].failSend = expired
+    await expect(first.send({ jsonrpc: '2.0', id: 3, method: 'tools/list' })).rejects.toThrow()
+    await flush()
+
+    // The next Run's lease gets a new connection; the retiring one is not cut short.
+    const second = pool.lease('s1', spec)
+    await second.start()
+    expect(upstreams).toHaveLength(2)
+    expect(upstreams[0]?.closed).toBe(false)
+    upstreams[0]?.push({ jsonrpc: '2.0', id: slow?.id ?? 0, result: { content: [] } })
+    await flush()
+
+    expect(client.messages).toContainEqual({ jsonrpc: '2.0', id: 2, result: { content: [] } })
+    expect(upstreams[0]?.closed).toBe(true)
+  })
 })
