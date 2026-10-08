@@ -63,7 +63,7 @@ describe('Pi runtime alignment', () => {
       drift: 'release-age exclusion',
       breakInput: (input: PiRuntimeAlignmentInput) => ({
         ...input,
-        workspace: input.workspace.replace(`  - @earendil-works/pi-tui@${version}\n`, ''),
+        workspace: input.workspace.replace(`  - "@earendil-works/pi-tui@${version}"\n`, ''),
       }),
       expected: 'minimumReleaseAgeExclude must be empty or contain exactly the 8 matched Pi packages',
     },
@@ -72,8 +72,8 @@ describe('Pi runtime alignment', () => {
       breakInput: (input: PiRuntimeAlignmentInput) => ({
         ...input,
         workspace: input.workspace.replace(
-          `  - @earendil-works/pi-tui@${version}\n`,
-          `  - @earendil-works/pi-tui@${version}\n  - @earendil-works/pi-client@${version}\n`,
+          `  - "@earendil-works/pi-tui@${version}"\n`,
+          `  - "@earendil-works/pi-tui@${version}"\n  - "@earendil-works/pi-client@${version}"\n`,
         ),
       }),
       expected: 'unneeded @earendil-works/pi-client@1.0.4',
@@ -82,7 +82,7 @@ describe('Pi runtime alignment', () => {
       drift: 'missing chord release-age exclusion',
       breakInput: (input: PiRuntimeAlignmentInput) => ({
         ...input,
-        workspace: input.workspace.replace(`  - @earendil-works/chord@${version}\n`, ''),
+        workspace: input.workspace.replace(`  - "@earendil-works/chord@${version}"\n`, ''),
       }),
       expected: 'missing @earendil-works/chord@1.0.4',
     },

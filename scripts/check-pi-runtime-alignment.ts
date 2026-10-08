@@ -2,6 +2,7 @@ import { readdir, readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { z } from 'zod'
 import { EXPECTED_PATCH_PATHS } from './pi-runtime-patch-paths'
+import { releaseAgeExclusionProblems } from './pi-runtime-release-age'
 const PI_CATALOG = 'pi-runtime'
 const PI_PACKAGES = [
   'pi-agent-core',
@@ -119,83 +120,6 @@ function piWasmPackageProblems(input: PiRuntimeAlignmentInput) {
   return problems
 }
 
-/**
- * Temporary Pi entries in `minimumReleaseAgeExclude` must name when the last-published package of
- * the excluded release passes pnpm's seven-day minimum release age, and the check fails from then
- * on, so the exceptions cannot linger after they stop being needed.
- */
-const RELEASE_AGE_EXPIRY_MARKER = 'pi-runtime-release-age-exclusions-expire'
-
-/** One matched-release package at one exact version, such as `@earendil-works/pi-ai@1.0.4`. */
-const EXACT_PI_RELEASE_AGE_ENTRY = /^@earendil-works\/(?:pi-[a-z0-9-]+|chord)@\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/
-
-/** The `@earendil-works/` items of the `minimumReleaseAgeExclude` list, unquoted. */
-function piReleaseAgeEntries(workspace: string) {
-  const block = workspace.match(/^minimumReleaseAgeExclude:\n((?:[ \t][^\n]*\n?|\n)*)/m)?.[1] ?? ''
-  return [...block.matchAll(/^ {2}- ["']?([^"'\s]+)["']?\s*$/gm)]
-    .map((match) => match[1] ?? '')
-    .filter((entry) => entry.startsWith('@earendil-works/'))
-}
-
-/**
- * Temporary exceptions cover exactly the matched-release packages the lockfile resolves (with
- * `chord`), each at one exact version: one for a package nothing installs exempts nothing and
- * only lingers, and a wildcard or range would exempt every later Pi release from every check.
- */
-function releaseAgeExclusionProblems(input: PiRuntimeAlignmentInput, version: string) {
-  const entries = piReleaseAgeEntries(input.workspace)
-  const inexact = entries.filter((entry) => !EXACT_PI_RELEASE_AGE_ENTRY.test(entry))
-  const inexactProblems = inexact.length
-    ? [`minimumReleaseAgeExclude may name Pi packages only at one exact version: ${inexact.join(', ')}.`]
-    : []
-  const ageEntries = new Set(entries.filter((entry) => !inexact.includes(entry)))
-  if (ageEntries.size === 0) {
-    // The marker only dates entries; once they are gone it would claim exclusions that do not exist.
-    return input.workspace.includes(`# ${RELEASE_AGE_EXPIRY_MARKER}`)
-      ? [
-          ...inexactProblems,
-          `The ${RELEASE_AGE_EXPIRY_MARKER} line has no Pi minimumReleaseAgeExclude entries left to date; remove it.`,
-        ]
-      : inexactProblems
-  }
-  const expected = new Set(
-    PI_RELEASE_SET.filter((packageName) => versionsFor(input.lockfile, packageName).size > 0).map(
-      (packageName) => `${packageRef(packageName)}@${version}`,
-    ),
-  )
-  const missing = [...expected].filter((entry) => !ageEntries.has(entry))
-  const unneeded = [...ageEntries].filter((entry) => !expected.has(entry))
-  const problems: string[] = [...inexactProblems]
-  if (missing.length > 0 || unneeded.length > 0) {
-    problems.push(
-      `minimumReleaseAgeExclude must be empty or contain exactly the ${expected.size} matched Pi packages the lockfile resolves at ${version}: ${[
-        ...missing.map((entry) => `missing ${entry}`),
-        ...unneeded.map((entry) => `unneeded ${entry}`),
-      ].join(', ')}.`,
-    )
-  }
-  return [...problems, ...releaseAgeExclusionExpiryProblems(input, version)]
-}
-
-function releaseAgeExclusionExpiryProblems(input: PiRuntimeAlignmentInput, version: string) {
-  const pattern = `^\\s*# ${RELEASE_AGE_EXPIRY_MARKER}: (\\d{4}-\\d{2}-\\d{2})(T\\d{2}:\\d{2}:\\d{2}Z)?$`
-  const [, date, time] = input.workspace.match(new RegExp(pattern, 'm')) ?? []
-  // A bare date is midnight UTC; a rolled-over date such as 2026-02-30 does not round-trip.
-  const expiry = date && `${date}${time ?? 'T00:00:00Z'}`
-  const expiryTime = expiry ? Date.parse(expiry) : Number.NaN
-  if (!expiry || Number.isNaN(expiryTime) || new Date(expiryTime).toISOString().replace('.000Z', 'Z') !== expiry) {
-    return [
-      `Temporary Pi minimumReleaseAgeExclude entries need a "# ${RELEASE_AGE_EXPIRY_MARKER}: YYYY-MM-DD" or "YYYY-MM-DDTHH:MM:SSZ" line naming when every ${version} package is seven days old.`,
-    ]
-  }
-  if (input.now.getTime() >= expiryTime) {
-    return [
-      `Remove the temporary Pi minimumReleaseAgeExclude entries and their ${RELEASE_AGE_EXPIRY_MARKER} line: Pi ${version} passed pnpm's seven-day minimum release age at ${expiry}.`,
-    ]
-  }
-  return []
-}
-
 function changedPatchPaths(patch: string) {
   const paths: string[] = []
   for (const match of patch.matchAll(/^diff --git a\/(\S+) b\/(\S+)$/gm)) {
@@ -259,7 +183,12 @@ export function collectPiRuntimeAlignmentProblems(input: PiRuntimeAlignmentInput
   problems.push(...directPinProblems(input))
   problems.push(...piWasmPackageProblems(input))
 
-  problems.push(...releaseAgeExclusionProblems(input, version))
+  const expectedAgeEntries = new Set(
+    PI_RELEASE_SET.filter((packageName) => versionsFor(input.lockfile, packageName).size > 0).map(
+      (packageName) => `${packageRef(packageName)}@${version}`,
+    ),
+  )
+  problems.push(...releaseAgeExclusionProblems(input, version, expectedAgeEntries))
 
   for (const packageName of PI_RELEASE_SET) {
     const versions = versionsFor(input.lockfile, packageName)

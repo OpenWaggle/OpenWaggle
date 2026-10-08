@@ -36,7 +36,7 @@ export function alignedInput(): PiRuntimeAlignmentInput {
 ${packages.map((name) => `    "${packageRef(name)}": ${version}`).join('\n')}
 minimumReleaseAgeExclude:
   # pi-runtime-release-age-exclusions-expire: 2026-10-12T22:00:00Z
-${installedPackages.map((name) => `  - ${packageRef(name)}@${version}`).join('\n')}
+${installedPackages.map((name) => `  - "${packageRef(name)}@${version}"`).join('\n')}
 patchedDependencies:
   '${packageRef('pi-ai')}@${version}': patches/@earendil-works__pi-ai@${version}.patch
   '${packageRef('pi-coding-agent')}@${version}': patches/@earendil-works__pi-coding-agent@${version}.patch

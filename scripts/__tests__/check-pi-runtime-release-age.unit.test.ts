@@ -9,7 +9,7 @@ import { alignedInput, installedPackages, version } from './pi-runtime-alignment
 describe('Pi release-age exclusions', () => {
   function withoutExclusionEntries(workspace: string) {
     return workspace.replace(
-      installedPackages.map((name) => `  - @earendil-works/${name}@${version}`).join('\n'),
+      installedPackages.map((name) => `  - "@earendil-works/${name}@${version}"`).join('\n'),
       '',
     )
   }
@@ -76,8 +76,8 @@ describe('Pi release-age exclusions', () => {
     '"@earendil-works/*"',
     '"@earendil-works/pi-*"',
     "'@earendil-works/pi-ai@^1.0.4'",
-    '@earendil-works/pi-ai',
-    '@earendil-works/pi-ai@1.0.x',
+    '"@earendil-works/pi-ai"',
+    '"@earendil-works/pi-ai@1.0.x"',
   ])('rejects the release-age exclusion %s, which is not one exact version', (entry) => {
     const input = alignedInput()
     const workspace = input.workspace.replace(
@@ -94,13 +94,62 @@ describe('Pi release-age exclusions', () => {
     const input = alignedInput()
     const workspace = input.workspace
       .replace(
-        installedPackages.map((name) => `  - @earendil-works/${name}@${version}`).join('\n'),
+        installedPackages.map((name) => `  - "@earendil-works/${name}@${version}"`).join('\n'),
         '  - "@earendil-works/*"',
       )
       .replace('  # pi-runtime-release-age-exclusions-expire: 2026-10-12T22:00:00Z\n', '')
 
     expect(collectPiRuntimeAlignmentProblems({ ...input, workspace })).toContainEqual(
       expect.stringContaining('exact version'),
+    )
+  })
+
+  it('reads an exclusion that carries a trailing YAML comment', () => {
+    const input = alignedInput()
+    const entry = `  - "@earendil-works/pi-ai@${version}"`
+    const workspace = input.workspace.replace(entry, `  - "@earendil-works/pi-ai@${version}" # Pi 1.0`)
+
+    expect(collectPiRuntimeAlignmentProblems({ ...input, workspace })).toEqual([])
+  })
+
+  it('reports a wildcard that carries a trailing YAML comment', () => {
+    const input = alignedInput()
+    const workspace = input.workspace.replace(
+      'minimumReleaseAgeExclude:\n',
+      'minimumReleaseAgeExclude:\n  - "@earendil-works/*" # every Pi package\n',
+    )
+
+    expect(collectPiRuntimeAlignmentProblems({ ...input, workspace })).toContainEqual(
+      expect.stringContaining('exact version: @earendil-works/*'),
+    )
+  })
+
+  it('reads a version union as one exclusion per version', () => {
+    const input = alignedInput()
+    const entry = `  - "@earendil-works/pi-ai@${version}"`
+    const workspace = input.workspace.replace(entry, `  - "@earendil-works/pi-ai@${version} || 1.0.5"`)
+
+    expect(collectPiRuntimeAlignmentProblems({ ...input, workspace })).toEqual([
+      expect.stringContaining('unneeded @earendil-works/pi-ai@1.0.5'),
+    ])
+  })
+
+  it('reports a version union with a part that is not one exact version', () => {
+    const input = alignedInput()
+    const entry = `  - "@earendil-works/pi-ai@${version}"`
+    const workspace = input.workspace.replace(entry, `  - "@earendil-works/pi-ai@${version} || ^1.0.5"`)
+
+    expect(collectPiRuntimeAlignmentProblems({ ...input, workspace })).toContainEqual(
+      expect.stringContaining('exact version: @earendil-works/pi-ai@1.0.4 || ^1.0.5'),
+    )
+  })
+
+  it('reports a workspace file that is not valid YAML instead of throwing', () => {
+    const input = alignedInput()
+    const workspace = `${input.workspace}minimumReleaseAgeExclude: [unclosed\n`
+
+    expect(collectPiRuntimeAlignmentProblems({ ...input, workspace })).toContainEqual(
+      expect.stringContaining('pnpm-workspace.yaml is not valid YAML'),
     )
   })
 
