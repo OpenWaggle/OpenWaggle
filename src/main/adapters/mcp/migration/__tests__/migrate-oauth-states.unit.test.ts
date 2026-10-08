@@ -214,4 +214,25 @@ describe('migrating old MCP OAuth sign-ins', () => {
     expect(releaseReport.oauth).toEqual([expect.objectContaining({ status: 'migrated' })])
     expect(release.written.size).toBe(1)
   })
+
+  it('keeps a sign-in made since, and records the old one as skipped', async () => {
+    const fs = remoteInstall()
+    const sink: McpOAuthMigrationSink = {
+      readOld: async () => oldOAuthState(),
+      // The store already has a sign-in under that key, from Settings or Pi's CLI.
+      write: () => false,
+    }
+
+    const report = await migrateOpenWaggleMcpFiles({
+      homeDir: HOME,
+      projectPaths: [],
+      now: () => NOW,
+      fs,
+      oauth: sink,
+    })
+
+    expect(report.oauth).toEqual([
+      expect.objectContaining({ status: 'skipped', reason: 'already signed in' }),
+    ])
+  })
 })

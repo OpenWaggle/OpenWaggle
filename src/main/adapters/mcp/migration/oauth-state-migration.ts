@@ -39,8 +39,11 @@ export interface McpOAuthMigrationSink {
    * when it is there but this build cannot decrypt it.
    */
   readOld(name: string): Promise<string | undefined | typeof SIGN_IN_OF_ANOTHER_BUILD>
-  /** Store a state in OpenWaggle's Pi OAuth store under Pi's key. */
-  write(key: string, state: MigratedMcpOAuthState): void | Promise<void>
+  /**
+   * Store a state in OpenWaggle's Pi OAuth store under Pi's key. False when the key already has a
+   * sign-in, which is kept.
+   */
+  write(key: string, state: MigratedMcpOAuthState): boolean | void | Promise<boolean | void>
 }
 
 export interface McpOAuthMigrationResult {
@@ -228,7 +231,11 @@ async function migrateOne(
       })
       return { server: candidate.name, key, status: 'skipped', reason: mapping.reason }
     }
-    await input.sink.write(key, mapping.state)
+    if ((await input.sink.write(key, mapping.state)) === false) {
+      const reason = 'already signed in'
+      await input.record.recordOAuth(recorded, { migratedAt, status: 'skipped', reason })
+      return { server: candidate.name, key, status: 'skipped', reason }
+    }
     await input.record.recordOAuth(recorded, { migratedAt, status: 'migrated' })
     return { server: candidate.name, key, status: 'migrated' }
   } catch (error) {
