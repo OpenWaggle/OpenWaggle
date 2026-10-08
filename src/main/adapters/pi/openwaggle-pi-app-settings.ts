@@ -2,8 +2,6 @@ import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { getAgentDir } from '@earendil-works/pi-coding-agent'
 import { DEFAULT_SETTINGS, type Settings } from '@shared/types/settings'
-import { onAuthoritativeSettingsChange } from '../../store/authoritative-settings'
-import { configurePiUserRuntimeSettingsReader } from '../../store/settings/pi-runtime-settings'
 import {
   type OpenWagglePiAppSettings,
   piUserAppSettings,
@@ -11,9 +9,10 @@ import {
 
 let latest: Settings | undefined
 
-onAuthoritativeSettingsChange((settings) => {
+/** The Host passes in the Settings it may act on, as they load and change. */
+export function setOpenWagglePiAppSettingsSource(settings: Settings | undefined) {
   latest = settings
-})
+}
 
 export function openWagglePiAppSettingsFrom(settings: Settings): OpenWagglePiAppSettings {
   return {
@@ -37,12 +36,4 @@ export function readPiUserAppSettingsFile(): Partial<OpenWagglePiAppSettings> {
   } catch {
     return {}
   }
-}
-
-/**
- * Lets Settings fall back to the user's own Pi values until the user chooses in OpenWaggle.
- * Returns the function that removes the fallback.
- */
-export function installPiUserAppSettingsFallback() {
-  return configurePiUserRuntimeSettingsReader(readPiUserAppSettingsFile)
 }

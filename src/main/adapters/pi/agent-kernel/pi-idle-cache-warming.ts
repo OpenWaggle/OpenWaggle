@@ -1,6 +1,7 @@
 import { statSync } from 'node:fs'
 import type { AgentSession } from '@earendil-works/pi-coding-agent'
-import { onAuthoritativeSettingsChange } from '../../../store/authoritative-settings'
+import type { PiCacheWarmingMode } from '@shared/types/settings'
+import type { PromptCacheWarming } from '../../../ports/prompt-cache-warming'
 import {
   disposeOpenWagglePiSession,
   emitOpenWagglePiSessionShutdown,
@@ -83,54 +84,151 @@ function isWarming(session: AgentSession) {
   return status !== undefined && status.state !== 'inactive'
 }
 
-export function createIdleCacheWarming(options: IdleCacheWarmingOptions = {}) {
-  const clock = options.clock ?? systemClock
-  const maxSessions = options.maxSessions ?? DEFAULT_MAX_SESSIONS
-  const maxIdleMs = options.maxIdleMs ?? DEFAULT_MAX_IDLE_MS
-  const pollMs = options.pollMs ?? DEFAULT_POLL_MS
-  const warmingBySessionId = new Map<string, WarmingSession>()
-  /** Archived or deleted Sessions, whose Runs may still be ending. */
-  const closedSessionIds = new Set<string>()
-  let stopPolling: (() => void) | undefined
-  /** False once the user's setting is no longer warming between runs. */
-  let enabled = true
+interface SettledRun {
+  readonly aborted: boolean
+}
 
-  function end(sessionId: string) {
-    const warming = warmingBySessionId.get(sessionId)
-    if (!warming) return
-    warmingBySessionId.delete(sessionId)
+/** The Session Host's warming sessions, by OpenWaggle Session id. */
+export class IdleCacheWarming implements PromptCacheWarming {
+  readonly #clock: IdleCacheWarmingClock
+  readonly #maxSessions: number
+  readonly #maxIdleMs: number
+  readonly #pollMs: number
+  readonly #warmingBySessionId = new Map<string, WarmingSession>()
+  /** Archived Sessions, whose Runs may still be ending; a deleted Session is forgotten. */
+  readonly #closedSessionIds = new Set<string>()
+  #stopPolling: (() => void) | undefined
+  /** False once the user's setting is no longer warming between runs. */
+  #enabled = true
+  /** True from Host stop until it starts again, so a settle still in flight keeps nothing. */
+  #stopped = false
+
+  constructor(options: IdleCacheWarmingOptions = {}) {
+    this.#clock = options.clock ?? systemClock
+    this.#maxSessions = options.maxSessions ?? DEFAULT_MAX_SESSIONS
+    this.#maxIdleMs = options.maxIdleMs ?? DEFAULT_MAX_IDLE_MS
+    this.#pollMs = options.pollMs ?? DEFAULT_POLL_MS
+  }
+
+  /** Ends a Run's Pi session, or keeps it warming the prompt cache while the Session is idle. */
+  async settle(
+    sessionId: string,
+    session: AgentSession,
+    run: SettledRun,
+  ): Promise<'warming' | 'disposed'> {
+    this.#end(sessionId)
+    if (!this.#mayWarm(sessionId, session, run)) {
+      await disposeOpenWagglePiSession(session)
+      return 'disposed'
+    }
+    await emitOpenWagglePiSessionShutdown(session)
+    // The Session may have been archived, or warming turned off or stopped, during the shutdown.
+    if (!this.#mayWarm(sessionId, session, run)) {
+      session.dispose()
+      return 'disposed'
+    }
+    this.#keep(sessionId, session)
+    logger.debug('Keeping the prompt cache warm between runs', { sessionId })
+    return 'warming'
+  }
+
+  /** Ends the Session's warming session. Call before opening the Session's Pi file. */
+  async release(sessionId: string) {
+    this.#end(sessionId)
+  }
+
+  /** The warming session, for reads that would otherwise open the Session's Pi file again. */
+  borrow(sessionId: string): AgentSession | undefined {
+    const warming = this.#warmingBySessionId.get(sessionId)
+    if (!warming) return undefined
+    // Its view of the file is stale once another writer continued the Session.
+    if (fileChangedElsewhere(warming)) {
+      this.#end(sessionId, warming)
+      return undefined
+    }
+    return warming.session
+  }
+
+  applyMode(mode: PiCacheWarmingMode) {
+    this.#enabled = mode === 'idle'
+    if (!this.#enabled) this.#endAll()
+  }
+
+  closeSession(sessionId: string) {
+    this.#closedSessionIds.add(sessionId)
+    this.#end(sessionId)
+  }
+
+  reopenSession(sessionId: string) {
+    this.#closedSessionIds.delete(sessionId)
+  }
+
+  forgetSession(sessionId: string) {
+    this.#end(sessionId)
+    this.#closedSessionIds.delete(sessionId)
+  }
+
+  start() {
+    this.#stopped = false
+  }
+
+  async stop() {
+    this.#stopped = true
+    this.#endAll()
+  }
+
+  /** Ends every warming session without fencing later Runs. */
+  async releaseAll() {
+    this.#endAll()
+  }
+
+  #mayWarm(sessionId: string, session: AgentSession, run: SettledRun) {
+    return (
+      this.#enabled &&
+      !this.#stopped &&
+      !run.aborted &&
+      !this.#closedSessionIds.has(sessionId) &&
+      isWarming(session)
+    )
+  }
+
+  /** Ends the Session's warming session, or only `expected` when it is still that one. */
+  #end(sessionId: string, expected?: WarmingSession) {
+    const warming = this.#warmingBySessionId.get(sessionId)
+    if (!warming || (expected && warming !== expected)) return
+    this.#warmingBySessionId.delete(sessionId)
     // The extensions were shut down when the Run ended; this cancels Pi's warming timer.
     warming.session.dispose()
-    if (warmingBySessionId.size === 0) {
-      stopPolling?.()
-      stopPolling = undefined
+    if (this.#warmingBySessionId.size === 0) {
+      this.#stopPolling?.()
+      this.#stopPolling = undefined
     }
   }
 
-  function endStoppedSessions() {
-    const now = clock.now()
-    for (const [sessionId, warming] of [...warmingBySessionId]) {
+  #endAll() {
+    for (const sessionId of [...this.#warmingBySessionId.keys()]) this.#end(sessionId)
+  }
+
+  #endStoppedSessions() {
+    const now = this.#clock.now()
+    for (const [sessionId, warming] of [...this.#warmingBySessionId]) {
       if (
         !isWarming(warming.session) ||
-        now - warming.settledAt >= maxIdleMs ||
+        now - warming.settledAt >= this.#maxIdleMs ||
         fileChangedElsewhere(warming)
       ) {
-        end(sessionId)
+        this.#end(sessionId, warming)
       }
     }
   }
 
-  function mayWarm(sessionId: string, session: AgentSession, run: { readonly aborted: boolean }) {
-    return enabled && !run.aborted && !closedSessionIds.has(sessionId) && isWarming(session)
-  }
-
   /** Pi records each refresh with `appendUsage`; it is refused once another writer appended. */
-  function guardRefreshWrites(sessionId: string, warming: WarmingSession) {
+  #guardRefreshWrites(sessionId: string, warming: WarmingSession) {
     const manager = warming.session.sessionManager
     const appendUsage = manager.appendUsage.bind(manager)
     manager.appendUsage = (...args) => {
       if (fileChangedElsewhere(warming)) {
-        end(sessionId)
+        this.#end(sessionId, warming)
         // Pi's warmer treats a failed refresh as best effort and records nothing.
         throw new Error('The Pi session file changed outside its warming session.')
       }
@@ -140,85 +238,28 @@ export function createIdleCacheWarming(options: IdleCacheWarmingOptions = {}) {
     }
   }
 
-  function keep(sessionId: string, session: AgentSession) {
+  #keep(sessionId: string, session: AgentSession) {
     const warming: WarmingSession = {
       session,
-      settledAt: clock.now(),
+      settledAt: this.#clock.now(),
       fileState: piFileState(session.sessionFile),
     }
-    guardRefreshWrites(sessionId, warming)
-    warmingBySessionId.set(sessionId, warming)
-    for (const oldest of warmingBySessionId.keys()) {
-      if (warmingBySessionId.size <= maxSessions) break
-      end(oldest)
+    this.#guardRefreshWrites(sessionId, warming)
+    this.#warmingBySessionId.set(sessionId, warming)
+    for (const oldest of this.#warmingBySessionId.keys()) {
+      if (this.#warmingBySessionId.size <= this.#maxSessions) break
+      this.#end(oldest)
     }
-    stopPolling ??= clock.every(pollMs, endStoppedSessions)
-  }
-
-  return {
-    /** Ends a Run's Pi session, or keeps it warming the prompt cache while the Session is idle. */
-    async settle(
-      sessionId: string,
-      session: AgentSession,
-      run: { readonly aborted: boolean },
-    ): Promise<'warming' | 'disposed'> {
-      end(sessionId)
-      if (!mayWarm(sessionId, session, run)) {
-        await disposeOpenWagglePiSession(session)
-        return 'disposed'
-      }
-      await emitOpenWagglePiSessionShutdown(session)
-      // The Session may have been archived, or warming turned off, during the shutdown.
-      if (!mayWarm(sessionId, session, run)) {
-        session.dispose()
-        return 'disposed'
-      }
-      keep(sessionId, session)
-      logger.debug('Keeping the prompt cache warm between runs', { sessionId })
-      return 'warming'
-    },
-    /** Ends the Session's warming session. Call before opening the Session's Pi file. */
-    async release(sessionId: string) {
-      end(sessionId)
-    },
-    /** The warming session, for reads that would otherwise open the Session's Pi file again. */
-    borrow(sessionId: string): AgentSession | undefined {
-      const warming = warmingBySessionId.get(sessionId)
-      if (!warming) return undefined
-      // Its view of the file is stale once another writer continued the Session.
-      if (fileChangedElsewhere(warming)) {
-        end(sessionId)
-        return undefined
-      }
-      return warming.session
-    },
-    setEnabled(next: boolean) {
-      enabled = next
-      if (!next) for (const sessionId of [...warmingBySessionId.keys()]) end(sessionId)
-    },
-    /** An archived or deleted Session warms nothing, including after a Run still ending. */
-    close(sessionId: string) {
-      closedSessionIds.add(sessionId)
-      end(sessionId)
-    },
-    reopen(sessionId: string) {
-      closedSessionIds.delete(sessionId)
-    },
-    async releaseAll() {
-      for (const sessionId of [...warmingBySessionId.keys()]) end(sessionId)
-    },
+    this.#stopPolling ??= this.#clock.every(this.#pollMs, () => this.#endStoppedSessions())
   }
 }
 
-/** The Session Host's warming sessions. */
-export const idleCacheWarming = createIdleCacheWarming()
+export function createIdleCacheWarming(options: IdleCacheWarmingOptions = {}) {
+  return new IdleCacheWarming(options)
+}
 
 /**
- * A Pi session reads `cacheWarming` once, when it is built, so a warming session keeps warming
- * after the user turns warming between runs off. The Host ends them all instead, and Runs that end
- * later do not start warming.
+ * The Session Host's warming sessions. The kernel settles and releases them; the Host wires the
+ * rest (settings, Session lifecycle, start and stop) through the PromptCacheWarming port.
  */
-onAuthoritativeSettingsChange((settings) => {
-  if (!settings) return
-  idleCacheWarming.setEnabled(settings.cacheWarming === 'idle')
-})
+export const idleCacheWarming = createIdleCacheWarming()

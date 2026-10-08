@@ -20,12 +20,10 @@ import { LocalSessionCredentialVerifierLive } from './adapters/local-session-cre
 import { EncryptedMcpSecretVaultServiceLive } from './adapters/mcp/encrypted-mcp-secret-vault-service'
 import { mcpSessionConnectionPool } from './adapters/mcp/pool/mcp-connection-pool-instance'
 import { McpRegistryServiceLive } from './adapters/mcp/registry/mcp-registry-service'
-import { idleCacheWarming } from './adapters/pi/agent-kernel/pi-idle-cache-warming'
 import {
   OpenWaggleMcpConfigurationServiceLive,
   OpenWaggleMcpImportServiceLive,
 } from './adapters/pi/mcp/openwaggle-mcp-configuration'
-import { installPiUserAppSettingsFallback } from './adapters/pi/openwaggle-pi-app-settings'
 import { PiAgentKernelLive } from './adapters/pi/pi-agent-kernel-adapter'
 import { PiAgentSteeringServiceLive } from './adapters/pi/pi-agent-steering-adapter'
 import { registerPiBundledOAuthFlows } from './adapters/pi/pi-bundled-oauth'
@@ -59,6 +57,7 @@ import { FilesystemStandardsLive } from './adapters/standards-adapter'
 import { UsageStatisticsServicesLive } from './adapters/usage-statistics-recorder-live'
 import { WorkspaceProjectAuthorizationLive } from './adapters/workspace-project-authorization'
 import { ActiveProjectChangeServiceLive } from './application/active-project-change-service'
+import { promptCacheWarming } from './application/prompt-cache-warming'
 import { onSessionRemoved } from './application/session-removal-hooks'
 import { SessionWaitServiceLive } from './application/session-wait-service'
 import { startMcpHostServices } from './mcp-host-start'
@@ -72,6 +71,7 @@ import {
 import { DesktopServicesLive } from './runtime-desktop-services'
 import { HiveWorkerCleanupServicesLive } from './runtime-hive-cleanup-services'
 import { startHostBackgroundServices } from './runtime-host-services'
+import { installPiRuntimeIntegration } from './runtime-pi-integration'
 import { SessionControlPersistenceLive } from './runtime-session-control-persistence'
 import { SessionTitleServicesLive } from './runtime-session-title-services'
 import { AppDatabaseLive } from './services/database-service'
@@ -279,8 +279,7 @@ function installStoreEffectRunner() {
   setStoreEffectRunner((effect) => getAppRuntime().runPromise(effect))
 }
 
-// Settings OpenWaggle shares with Pi fall back to the user's own Pi values until chosen here.
-installPiUserAppSettingsFallback()
+installPiRuntimeIntegration()
 
 let sessionRemovalHooksInstalled = false
 
@@ -291,7 +290,7 @@ export async function initializeAppRuntime(): Promise<void> {
     sessionRemovalHooksInstalled = true
     // Hooks run before the Pi file is archived or deleted, so no warming session writes to it.
     onSessionRemoved((sessionId) => {
-      idleCacheWarming.close(sessionId)
+      promptCacheWarming().closeSession(sessionId)
       return Promise.resolve()
     })
   }
@@ -307,6 +306,7 @@ export async function disposeAppRuntime(): Promise<void> {
 
 export async function startSessionHostOwnedServices(): Promise<void> {
   if (stopHostOwnedServices) return
+  promptCacheWarming().start()
   const started = Promise.withResolvers<void>()
   let didStart = false
   const fiber = getAppRuntime().runFork(
@@ -337,7 +337,7 @@ export async function startSessionHostOwnedServices(): Promise<void> {
 export async function stopSessionHostOwnedServices(): Promise<void> {
   const stop = stopHostOwnedServices
   if (stop) await stop()
-  await idleCacheWarming.releaseAll()
+  await promptCacheWarming().stop()
 }
 
 export async function resetAppRuntimeForTests(): Promise<void> {

@@ -1,6 +1,6 @@
 import { SessionId } from '@shared/types/brand'
 import type { SessionHostEventPayload } from '@shared/types/session-host-event'
-import { idleCacheWarming } from '../adapters/pi/agent-kernel/pi-idle-cache-warming'
+import { promptCacheWarming } from '../application/prompt-cache-warming'
 import type { SessionHostEventHub } from '../application/session-host-event-hub'
 import type { SessionHostLiveness } from '../application/session-host-liveness'
 import { createLogger } from '../logger'
@@ -53,11 +53,12 @@ function notifySemanticDiscoverySourceObservers() {
 function releaseClosedSessionResources(payload: SessionHostEventPayload) {
   if (payload.kind !== 'session-list-changed') return
   if (payload.change === 'unarchived') {
-    idleCacheWarming.reopen(payload.sessionId)
+    promptCacheWarming().reopenSession(payload.sessionId)
     keepSessionScratchDirectory(payload.sessionId)
     return
   }
   if (payload.change !== 'archived' && payload.change !== 'deleted') return
+  if (payload.change === 'deleted') promptCacheWarming().forgetSession(payload.sessionId)
   void removeSessionScratchDirectory(payload.sessionId).catch((error: unknown) => {
     logger.warn('Could not remove the session scratch directory', {
       sessionId: payload.sessionId,

@@ -7,11 +7,12 @@ import type { AgentAuthorizationMode } from '@shared/types/agent-authorization'
 import { SessionId } from '@shared/types/brand'
 import type { AgentTransportEvent } from '@shared/types/stream'
 import { vi } from 'vitest'
+import { configurePiUserRuntimeSettingsReader } from '../../../store/settings/pi-runtime-settings'
 import { buildSettingsSnapshot } from '../../../store/settings/snapshot'
 import type { PiInteractionUiContextInput } from '../agent-kernel/interaction-ui-context'
 import {
-  installPiUserAppSettingsFallback,
   openWagglePiAppSettingsFrom,
+  readPiUserAppSettingsFile,
 } from '../openwaggle-pi-app-settings'
 import type { OpenWagglePiAppSettings } from '../openwaggle-pi-settings-app-overlay'
 import { createPiRuntimeServices } from '../pi-provider-catalog'
@@ -43,7 +44,7 @@ function isolatePiAgentDirectory(globalSettings: object | undefined) {
 
 function resolvedAppSettings(stored: Readonly<Record<string, unknown>> | undefined) {
   if (!stored) return undefined
-  const removeFallback = installPiUserAppSettingsFallback()
+  const removeFallback = configurePiUserRuntimeSettingsReader(readPiUserAppSettingsFile)
   try {
     return openWagglePiAppSettingsFrom(buildSettingsSnapshot(stored).settings)
   } finally {
