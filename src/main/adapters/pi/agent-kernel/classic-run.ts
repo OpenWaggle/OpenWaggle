@@ -1,6 +1,9 @@
 import type { ExtensionFactory, InlineExtension } from '@earendil-works/pi-coding-agent'
 import type { AgentKernelRunInput } from '../../../ports/agent-kernel-service'
-import { createAgentRunContextExtension } from '../agent-run-context-extension'
+import {
+  agentRunContextAllowlists,
+  createAgentRunContextExtension,
+} from '../agent-run-context-extension'
 import { createDelegationSpecificationUpdateExtension } from '../delegation-specification-update-extension'
 import { createOrchestrationUpdateExtension } from '../orchestration-update-extension'
 import { createPeerAgentReportExtension } from '../peer-agent-report-extension'
@@ -103,7 +106,7 @@ export async function runPiSession(
             sessionIdentityContext: input.sessionIdentityContext,
             ...(input.runIdentityContext ? { runIdentityContext: input.runIdentityContext } : {}),
             ...(input.agentInstructions ? { agentInstructions: input.agentInstructions } : {}),
-            ...(input.toolAllowlist ? { toolAllowlist: input.toolAllowlist } : {}),
+            ...agentRunContextAllowlists(input),
           }),
         ]
       : []),

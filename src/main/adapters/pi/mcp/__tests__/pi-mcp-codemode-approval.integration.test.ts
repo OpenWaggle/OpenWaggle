@@ -30,6 +30,7 @@ vi.mock('../../agent-kernel/openwaggle-authorize-channel', () => ({
 }))
 
 import { McpSessionConnectionPool } from '../../../mcp/pool/mcp-session-connection-pool'
+import { createAgentRunContextExtension } from '../../agent-run-context-extension'
 import { registerMcpToolApproval } from '../openwaggle-mcp-extensions'
 import { openPiMcpUpstream } from '../pi-mcp-upstream'
 
@@ -68,7 +69,7 @@ async function waitUntil(predicate: () => boolean, timeoutMs = 10_000) {
   }
 }
 
-async function runScript() {
+async function runScript(options: { readonly toolAllowlist?: readonly string[] } = {}) {
   const directory = mkdtempSync(path.join(tmpdir(), 'ow-mcp-codemode-'))
   cleanups.push(() => rmSync(directory, { recursive: true, force: true }))
   const pool = new McpSessionConnectionPool()
@@ -121,6 +122,14 @@ async function runScript() {
         toolNames = () => pi.getAllTools().map((tool) => tool.name)
         registerMcpToolApproval(pi, { loaded })
       },
+      ...(options.toolAllowlist
+        ? [
+            createAgentRunContextExtension({
+              sessionIdentityContext: '- Session ID: s1',
+              toolAllowlist: options.toolAllowlist,
+            }),
+          ]
+        : []),
     ],
   })
   await resourceLoader.reload()
@@ -165,5 +174,22 @@ describe('an MCP tool a codemode script calls', () => {
     expect(authorize).toHaveBeenCalledOnce()
     expect(transcript).toContain('The user declined this MCP tool call.')
     expect(transcript).not.toContain('calls=1')
+  }, 60_000)
+
+  it("blocks the call when the Session's Agent definition does not allow the tool", async () => {
+    authorize.mockResolvedValue(true)
+
+    const transcript = await runScript({ toolAllowlist: ['codemode'] })
+
+    expect(transcript).toContain('does not allow the tool mcp__fixture__count')
+    expect(transcript).not.toContain('calls=1')
+  }, 60_000)
+
+  it("runs the call when the definition names the server's tools", async () => {
+    authorize.mockResolvedValue(true)
+
+    const transcript = await runScript({ toolAllowlist: ['mcp__fixture__*'] })
+
+    expect(transcript).toContain('calls=1')
   }, 60_000)
 })

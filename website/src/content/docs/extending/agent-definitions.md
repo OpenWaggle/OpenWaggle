@@ -86,6 +86,14 @@ The non-empty Markdown body is the agent instruction text. The complete frontmat
 | `workspace` | No | `share-parent`, `local`, or `new-worktree` default. |
 | `import` | Managed | Provenance written by an import adapter; do not hand-author it. |
 
+### MCP tools in `tools`
+
+MCP tools have the names Pi gives them, `mcp__<server>__<tool>`, where `-` in the server name becomes `_`. In `tools` you can list one tool, such as `mcp__github__get_issue`, or use `*` for any characters, such as `mcp__dev_radius__*` for every tool of `dev-radius`. The server must be configured in the project. Listing any MCP tool also allows `codemode`, `tool_search`, and the MCP resource tools, which is how the agent reaches MCP tools.
+
+Older definitions may list `mcp` or `mcp_run`, the names of OpenWaggle's former MCP tools. They still work, and mean every MCP tool of the servers in `mcpServers`, or of every server when `mcpServers` is omitted.
+
+The allowlist also applies to the tools a `codemode` script calls. A script cannot call a tool the definition does not list.
+
 Unknown fields, YAML aliases, merge keys, custom tags, duplicate keys, empty instructions, and oversized documents are rejected. Frontmatter is limited to JSON-compatible YAML and is never evaluated as code or interpolated from the environment.
 
 ## Browsing and disabling agents

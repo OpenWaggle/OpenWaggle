@@ -3,6 +3,7 @@ import type {
   ExtensionFactory,
   NormalizedBuildSystemPromptOptions,
 } from '@earendil-works/pi-coding-agent'
+import { agentToolAllowlist } from '../../domain/agents/agent-tool-allowlist'
 
 export interface AgentRunContextExtensionInput {
   /** User-authored instructions frozen into the Session execution profile at creation time. */
@@ -17,8 +18,24 @@ export interface AgentRunContextExtensionInput {
    * Delivered as a per-Run context message so the leading system prompt stays cacheable.
    */
   readonly runIdentityContext?: string
-  /** Exact Pi tool-name allowlist. Absence means the profile does not restrict tools. */
+  /**
+   * Pi tool-name allowlist, with `mcp__<namespace>__*` patterns and the legacy `mcp`/`mcp_run`
+   * entries (`agent-tool-allowlist.ts`). Absence means the profile does not restrict tools.
+   */
   readonly toolAllowlist?: readonly string[]
+  /** The definition's `mcpServers`, which a legacy `mcp` entry stands for. */
+  readonly mcpServerAllowlist?: readonly string[]
+}
+
+/** The allowlist fields of a Run's input that this extension enforces. */
+export function agentRunContextAllowlists(input: {
+  readonly toolAllowlist?: readonly string[]
+  readonly mcpServerAllowlist?: readonly string[]
+}): Pick<AgentRunContextExtensionInput, 'toolAllowlist' | 'mcpServerAllowlist'> {
+  return {
+    ...(input.toolAllowlist ? { toolAllowlist: input.toolAllowlist } : {}),
+    ...(input.mcpServerAllowlist ? { mcpServerAllowlist: input.mcpServerAllowlist } : {}),
+  }
 }
 
 /** Pi wraps each named section in a tag of the same name; Pi requires `[a-z][a-z0-9_-]*`. */
@@ -69,13 +86,27 @@ function latestRunIdentityContent(ctx: Pick<ExtensionContext, 'sessionManager'>)
 export function createAgentRunContextExtension(
   input: AgentRunContextExtensionInput,
 ): ExtensionFactory {
-  const allowedTools = input.toolAllowlist ? new Set(input.toolAllowlist) : null
+  const allows = input.toolAllowlist
+    ? agentToolAllowlist({
+        tools: input.toolAllowlist,
+        ...(input.mcpServerAllowlist ? { mcpServers: input.mcpServerAllowlist } : {}),
+      })
+    : null
   const runIdentity = input.runIdentityContext?.trim()
   return (pi) => {
+    if (allows) {
+      // Codemode scripts call tools outside the active set, so every call is checked too.
+      pi.on('tool_call', (event) =>
+        allows(event.toolName)
+          ? undefined
+          : {
+              block: true,
+              reason: `This Session's Agent definition does not allow the tool ${event.toolName}.`,
+            },
+      )
+    }
     pi.on('before_agent_start', (event, ctx) => {
-      if (allowedTools) {
-        pi.setActiveTools(pi.getActiveTools().filter((toolName) => allowedTools.has(toolName)))
-      }
+      if (allows) pi.setActiveTools(pi.getActiveTools().filter(allows))
 
       setSection(
         event.systemPromptOptions,

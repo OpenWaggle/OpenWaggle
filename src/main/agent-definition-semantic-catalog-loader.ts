@@ -6,6 +6,7 @@ import { loadAgentDefinitionPiProjectServices } from './adapters/pi/agent-defini
 import { migrateOpenWaggleMcpFilesOnce } from './adapters/pi/mcp/openwaggle-mcp-migration'
 import type { OpenWagglePiExtensionSelectionServices } from './adapters/pi/openwaggle-pi-extension-selection'
 import type { AgentDefinitionSemanticCatalog } from './agents/agent-definition-semantic-validation'
+import { MCP_REACH_TOOL_NAMES } from './domain/agents/agent-tool-allowlist'
 import { getEnvWithOverrides } from './env'
 import { ExtensionLifecycleRepository } from './ports/extension-lifecycle-repository'
 import { ExtensionManagerService } from './ports/extension-manager-service'
@@ -76,7 +77,8 @@ export async function loadAgentDefinitionSemanticCatalog(
     const extensionTools = services.resourceLoader
       .getExtensions()
       .extensions.flatMap((extension) => [...extension.tools.keys()])
-    tools = [...BUILTIN_AND_NATIVE_TOOL_NAMES, ...extensionTools]
+    // Pi's codemode, tool search, and MCP resource tools load in every Session (ADR 0048).
+    tools = [...BUILTIN_AND_NATIVE_TOOL_NAMES, ...MCP_REACH_TOOL_NAMES, ...extensionTools]
   } catch (error) {
     loadDiagnostics.push(`Pi project resources failed to load: ${message(error)}`)
   }

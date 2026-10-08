@@ -17,16 +17,23 @@ type BeforeAgentStartHandler = (
   ctx: ExtensionContext,
 ) => BeforeAgentStartEventResult | undefined | Promise<BeforeAgentStartEventResult | undefined>
 
+type ToolCallHandler = (event: {
+  readonly toolName: string
+  readonly parentToolCallId?: string
+}) => { readonly block: boolean; readonly reason?: string } | undefined
+
 function installExtension(
   input: Parameters<typeof createAgentRunContextExtension>[0],
   activeTools: readonly string[] = ['read', 'bash', 'sessions'],
 ) {
   let handler: BeforeAgentStartHandler | undefined
+  let toolCall: ToolCallHandler | undefined
   const setActiveTools = vi.fn()
   createAgentRunContextExtension(input)(
     fromPartial<ExtensionAPI>({
-      on: (_event: string, candidate: BeforeAgentStartHandler) => {
-        handler = candidate
+      on: (event: string, candidate: BeforeAgentStartHandler & ToolCallHandler) => {
+        if (event === 'tool_call') toolCall = candidate
+        else handler = candidate
       },
       getActiveTools: () => [...activeTools],
       setActiveTools,
@@ -34,6 +41,8 @@ function installExtension(
   )
   return {
     setActiveTools,
+    callTool: (toolName: string, parentToolCallId?: string) =>
+      toolCall?.({ toolName, ...(parentToolCallId ? { parentToolCallId } : {}) }),
     async start(visibleMessages: readonly unknown[] = []) {
       const sections: Record<string, string> = {}
       const result = await handler?.(
@@ -107,5 +116,49 @@ describe('Agent run context extension', () => {
 
     await extension.start()
     expect(extension.setActiveTools).not.toHaveBeenCalled()
+  })
+
+  it('lets an allowlist name MCP tools by Pi name or pattern, and keeps the tools that reach them', async () => {
+    const extension = installExtension(
+      {
+        sessionIdentityContext: '- Session ID: worker-1',
+        toolAllowlist: ['read', 'mcp__docs__*'],
+      },
+      ['read', 'bash', 'codemode', 'tool_search', 'mcp__docs__search', 'mcp__github__get_issue'],
+    )
+
+    await extension.start()
+
+    expect(extension.setActiveTools).toHaveBeenCalledWith([
+      'read',
+      'codemode',
+      'tool_search',
+      'mcp__docs__search',
+    ])
+  })
+
+  it('blocks a codemode child call to a tool the allowlist leaves out', () => {
+    const extension = installExtension({
+      sessionIdentityContext: '- Session ID: worker-1',
+      toolAllowlist: ['mcp__docs__*'],
+    })
+
+    expect(extension.callTool('mcp__docs__search', 'codemode-1')).toBeUndefined()
+    expect(extension.callTool('mcp__github__delete_repo', 'codemode-1')).toMatchObject({
+      block: true,
+    })
+    expect(extension.callTool('bash', 'codemode-1')).toMatchObject({ block: true })
+  })
+
+  it("keeps a legacy mcp entry working as the definition's MCP servers", () => {
+    const extension = installExtension({
+      sessionIdentityContext: '- Session ID: worker-1',
+      toolAllowlist: ['read', 'mcp'],
+      mcpServerAllowlist: ['dev-radius'],
+    })
+
+    expect(extension.callTool('mcp__dev_radius__lookup')).toBeUndefined()
+    expect(extension.callTool('codemode')).toBeUndefined()
+    expect(extension.callTool('mcp__github__get_issue')).toMatchObject({ block: true })
   })
 })
