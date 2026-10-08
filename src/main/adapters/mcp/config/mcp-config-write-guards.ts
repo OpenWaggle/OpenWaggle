@@ -1,5 +1,6 @@
 import type { McpWriteDestination } from '@shared/types/mcp-configuration'
 import {
+  isOpenWaggleMcpConfigFile,
   type McpMergedServer,
   mcpConfigFileScope,
 } from '../../../domain/mcp/config/mcp-config-merge'
@@ -35,6 +36,24 @@ export function assertNoProjectAuth(
 ) {
   if (mcpConfigFileScope(destination) !== 'project' || entry.auth === undefined) return
   refuse('auth is only allowed in a global mcp.json.')
+}
+
+/** Transports only OpenWaggle's files carry (`sse`, `websocket`): Pi's reader refuses them. */
+const OPENWAGGLE_ONLY_TYPES: Readonly<Record<string, string>> = {
+  sse: 'an sse',
+  websocket: 'a websocket',
+}
+
+/** An entry Pi cannot read goes only to OpenWaggle's files, never to Pi's or a shared one. */
+export function assertPiReadableDestination(
+  destination: McpWriteDestination,
+  entry: Readonly<Record<string, unknown>>,
+) {
+  const kind = typeof entry.type === 'string' ? OPENWAGGLE_ONLY_TYPES[entry.type] : undefined
+  if (!kind || isOpenWaggleMcpConfigFile(destination)) return
+  refuse(
+    `Pi cannot read ${kind} server, so it is saved only to OpenWaggle's files: choose ~/.openwaggle/mcp.json or the project's .openwaggle/mcp.json.`,
+  )
 }
 
 /**

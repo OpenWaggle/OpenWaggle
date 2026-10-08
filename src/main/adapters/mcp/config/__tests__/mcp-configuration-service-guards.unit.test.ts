@@ -96,6 +96,33 @@ describe('adding MCP servers', () => {
     expect(wrongScope).toContain('is a project file')
     expect(projectAuth).toContain('auth is only allowed in a global mcp.json')
   })
+
+  it("writes an SSE or WebSocket server only to OpenWaggle's files, which Pi does not read", async () => {
+    const sseInPi = await failure(
+      add({
+        name: 'old-sse',
+        entry: { type: 'sse', url: 'https://sse.example' },
+        destination: 'pi-global',
+      }),
+    )
+    const wsInShared = await failure(
+      add({
+        name: 'old-ws',
+        scope: 'project',
+        entry: { type: 'websocket', url: 'wss://ws.example' },
+        destination: 'project-mcp-json',
+      }),
+    )
+    await Effect.runPromise(
+      add({ name: 'ok-sse', entry: { type: 'sse', url: 'https://sse.example' } }),
+    )
+
+    expect(sseInPi).toContain('Pi cannot read an sse server')
+    expect(wsInShared).toContain('Pi cannot read a websocket server')
+    expect(JSON.parse(readFileSync(owGlobal(), 'utf8')).mcpServers['ok-sse']).toMatchObject({
+      type: 'sse',
+    })
+  })
 })
 
 describe('switching a server for one project', () => {

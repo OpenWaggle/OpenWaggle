@@ -33,6 +33,7 @@ import {
   assertDestinationInScope,
   assertNameFree,
   assertNoProjectAuth,
+  assertPiReadableDestination,
   assertProjectDestination,
 } from './mcp-config-write-guards'
 import {
@@ -181,6 +182,7 @@ function addServer(context: ServiceContext, input: McpAddServerInput) {
     input.destination ?? (input.scope === 'global' ? 'openwaggle-global' : 'project-openwaggle')
   assertDestinationInScope(destination, input.scope)
   assertNoProjectAuth(destination, input.entry)
+  assertPiReadableDestination(destination, input.entry)
   const merged = loadMcpMergedConfig(context.roots(input), context.reader)
   assertNameFree(merged.servers, input.name, { replace: input.replace === true })
   const validated = validateMcpServerEntry(input.name, input.entry, {
