@@ -68,6 +68,12 @@ function serverInput(input: {
       .getOptional(SessionId(sessionId))
       .pipe(Effect.mapError(() => new Error('The Session of this MCP App could not be read.')))
     if (!session) return yield* Effect.fail(new Error('The Session of this MCP App is gone.'))
+    // An archived Session keeps no MCP servers; an App in its transcript must not start one.
+    if (session.archived) {
+      return yield* Effect.fail(
+        new Error('The Session of this MCP App is archived. Unarchive it to use the App.'),
+      )
+    }
     return {
       projectPath: session.projectPath,
       workingPath: resolveSessionWorkingDir(session, session.projectPath) ?? null,

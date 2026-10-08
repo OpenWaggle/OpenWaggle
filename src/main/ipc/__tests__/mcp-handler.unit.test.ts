@@ -50,8 +50,14 @@ function makeTestLayer() {
   const sessions = fromPartial<SessionProjectionRepositoryShape>({
     getOptional: (id: string) =>
       Effect.succeed(
-        id === 's1'
-          ? fromPartial({ id, projectPath: '/p', environmentMode: 'worktree', worktreePath: '/wt' })
+        id === 's1' || id === 'archived'
+          ? fromPartial({
+              id,
+              projectPath: '/p',
+              environmentMode: 'worktree',
+              worktreePath: '/wt',
+              archived: id === 'archived',
+            })
           : null,
       ),
   })
@@ -197,6 +203,23 @@ describe('MCP IPC handlers', () => {
       prompts: [],
       attribution: { serverInstanceId: 'figma', serverLabel: 'figma' },
     })
+  })
+
+  it('refuses an MCP App request for an archived Session without opening its server', async () => {
+    const test = makeTestLayer()
+
+    await expect(
+      getRegisteredHandler('mcp:read-resource', test.layer)(
+        {},
+        {
+          sessionId: 'archived',
+          serverInstanceId: 'figma',
+          serverConfigHash: 'x',
+          uri: 'ui://app',
+        },
+      ),
+    ).rejects.toThrow('archived')
+    expect(test.readResource).not.toHaveBeenCalled()
   })
 
   it('refuses an MCP App request for a Session that does not exist', async () => {
