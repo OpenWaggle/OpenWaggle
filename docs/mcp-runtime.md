@@ -197,15 +197,22 @@ Pi stores OAuth state (client registration, tokens, PKCE verifier) keyed by
 `AuthStorageBackend`:
 
 - **Reads** merge two layers: Pi's `~/.pi/agent/mcp-auth.json` (read-only fallback) and
-  OpenWaggle's encrypted store (`~/.openwaggle/mcp/oauth-states.json`, OS encryption, synchronous
-  I/O because Pi's backend contract is synchronous). The encrypted layer wins per key. A store
-  that cannot be decrypted or parsed (another OS keychain, a copied home folder) is renamed to
-  `oauth-states.json.unreadable-<time>`, logged once, and the store starts empty.
+  OpenWaggle's encrypted store (`<userData>/mcp/oauth-states.json`, OS encryption, synchronous
+  I/O because Pi's backend contract is synchronous). The encrypted layer wins per key. The store
+  is per build (ADR 0032): dev and release builds encrypt with different keys, so a shared file
+  would be unreadable to one of them. A store that decrypts but cannot be parsed is renamed to
+  `oauth-states.json.unreadable-<time>`, logged once, and the store starts empty. A store that does
+  not decrypt (another build's key, a keychain that refused) is left untouched: its sign-ins are
+  unavailable to that process, and a change is refused rather than written over them.
+- The store every build shared before, `~/.openwaggle/mcp/oauth-states.json`, is copied into a
+  build's user data the first time that build has no store and can decrypt it. It is never
+  changed. The encrypted secret vault (`vault.json`) moved the same way: a build takes the
+  shared vault's secrets it can decrypt.
 - **Writes** go to the encrypted layer only. Removing a key that exists only in Pi's file writes
   a tombstone holding the hash of Pi's value; the tombstone hides that value until Pi's file
   changes it (a sign-in in the `pi` CLI), so signing out in OpenWaggle never edits Pi's file and
   a later Pi sign-in still shows through.
-- The refresh lock directory is `~/.openwaggle/mcp/locks`. A token from Pi's file that
+- The refresh lock directory is `<userData>/mcp/locks`. A token from Pi's file that
   OpenWaggle refreshes is stored in OpenWaggle's layer only, so a server that rotates refresh
   tokens invalidates the copy the `pi` CLI still holds; that CLI then signs in again.
 - The classes come from the pi-coding-agent patch, which only adds root exports

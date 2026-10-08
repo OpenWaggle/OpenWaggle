@@ -158,7 +158,7 @@ Other files have separate locations:
 | Provider credentials saved through Pi | `~/.pi/agent/auth.json` |
 | Global MCP servers | `~/.pi/agent/mcp.json` and `~/.openwaggle/mcp.json` |
 | Project MCP servers | `<project>/.mcp.json`, `<project>/.pi/mcp.json`, and `<project>/.openwaggle/mcp.json` |
-| MCP secrets and sign-ins (encrypted) | `~/.openwaggle/mcp/` |
+| MCP secrets and sign-ins (encrypted) | `mcp/` in OpenWaggle's application data folder, separate for each build |
 
 Credentials may also come from environment variables or custom provider configuration. Do not treat the session database as a complete backup of credentials or project files.
 

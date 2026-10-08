@@ -1,6 +1,5 @@
 import { randomUUID } from 'node:crypto'
 import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
-import { homedir } from 'node:os'
 import path from 'node:path'
 import { MCP_CONFIG } from '@shared/constants/mcp'
 import type { McpSecretSummary } from '@shared/types/mcp'
@@ -9,6 +8,10 @@ import { Effect, Layer } from 'effect'
 import { safeStorage } from 'electron'
 import { McpVaultError, toMcpVaultError } from '../../ports/mcp-errors'
 import { McpSecretVaultService } from '../../ports/mcp-secret-vault-service'
+import {
+  mcpBuildStateDirectory,
+  sharedMcpStateDirectory,
+} from './credentials/mcp-build-state-paths'
 import { withProcessFileLock } from './process-file-lock'
 
 interface VaultEntry {
@@ -83,13 +86,35 @@ function parseVault(raw: string): VaultFile {
   return { version: 1, secrets }
 }
 
-async function readVault(filePath: string): Promise<VaultFile> {
+const EMPTY_VAULT: VaultFile = { version: 1, secrets: {} }
+
+/** The vault at `filePath`, or undefined when there is none yet. */
+async function readVaultFile(filePath: string): Promise<VaultFile | undefined> {
   try {
     return parseVault(await readFile(filePath, 'utf8'))
   } catch (error) {
-    if (isEnoent(error)) return { version: 1, secrets: {} }
+    if (isEnoent(error)) return undefined
     throw error
   }
+}
+
+function decryptsWith(encryption: McpVaultEncryption, entry: VaultEntry) {
+  try {
+    encryption.decryptString(Buffer.from(entry.encryptedValue, 'base64'))
+    return true
+  } catch {
+    return false
+  }
+}
+
+/** The entries of the shared pre-build vault this build's key opens; the others are another build's. */
+async function ownLegacySecrets(legacyFilePath: string, encryption: McpVaultEncryption) {
+  const legacy = await readVaultFile(legacyFilePath).catch(() => undefined)
+  if (!legacy || !encryption.isEncryptionAvailable()) return undefined
+  const secrets = Object.fromEntries(
+    Object.entries(legacy.secrets).filter(([, entry]) => decryptsWith(encryption, entry)),
+  )
+  return Object.keys(secrets).length > 0 ? { version: 1 as const, secrets } : undefined
 }
 
 async function writeVault(filePath: string, vault: VaultFile) {
@@ -130,18 +155,43 @@ function assertEncryptionAvailable(encryption: McpVaultEncryption) {
   }
 }
 
+export interface EncryptedMcpSecretVaultOptions {
+  /**
+   * The vault every build shared before it moved to user data. While this build has no vault,
+   * the secrets this build can decrypt are copied from it once; it is never changed.
+   */
+  readonly legacyFilePath?: string
+}
+
 export function createEncryptedMcpSecretVault(
   filePath: string,
   encryption: McpVaultEncryption = safeStorage,
+  options: EncryptedMcpSecretVaultOptions = {},
 ) {
   let writeQueue: Promise<void> = Promise.resolve()
+  let legacyChecked = false
+
+  /** This build's vault; the first time it has none, what it can take from the shared one. */
+  async function readVault(vaultFile: string, locked = false): Promise<VaultFile> {
+    const own = await readVaultFile(vaultFile)
+    if (own) return own
+    if (legacyChecked || !options.legacyFilePath) return EMPTY_VAULT
+    legacyChecked = true
+    const taken = await ownLegacySecrets(options.legacyFilePath, encryption)
+    if (!taken) return EMPTY_VAULT
+    const save = async () => {
+      if (!(await readVaultFile(vaultFile))) await writeVault(vaultFile, taken)
+    }
+    await (locked ? save() : withProcessFileLock(vaultFile, save))
+    return (await readVaultFile(vaultFile)) ?? taken
+  }
 
   async function mutate(
     update: (vault: VaultFile) => VaultFile | Promise<VaultFile>,
   ): Promise<McpSecretSummary[]> {
     const mutation = writeQueue.then(() =>
       withProcessFileLock(filePath, async () => {
-        const next = await update(await readVault(filePath))
+        const next = await update(await readVault(filePath, true))
         await writeVault(filePath, next)
         return summaries(next)
       }),
@@ -212,15 +262,17 @@ export function createEncryptedMcpSecretVault(
   }
 }
 
-const vaultPath = path.join(
-  homedir(),
-  ...MCP_CONFIG.GLOBAL_STATE_DIR,
-  MCP_CONFIG.GLOBAL_VAULT_FILE_NAME,
-)
 let liveVault: ReturnType<typeof createEncryptedMcpSecretVault> | undefined
 
+/** This build's vault (ADR 0032), which took over its own secrets from the shared one. */
 function getLiveVault() {
-  liveVault ??= createEncryptedMcpSecretVault(vaultPath)
+  liveVault ??= createEncryptedMcpSecretVault(
+    path.join(mcpBuildStateDirectory(), MCP_CONFIG.GLOBAL_VAULT_FILE_NAME),
+    safeStorage,
+    {
+      legacyFilePath: path.join(sharedMcpStateDirectory(), MCP_CONFIG.GLOBAL_VAULT_FILE_NAME),
+    },
+  )
   return liveVault
 }
 

@@ -152,23 +152,15 @@ describe('MCP OAuth state backend', () => {
     expect(read(backend)).toEqual({ a: true, b: true })
   })
 
-  it('moves an undecryptable store aside, starts fresh, and says so once', () => {
+  it('moves a store it cannot parse aside, starts fresh, and says so once', () => {
     writePi({ 'mcp__docs|https://docs.example/mcp': { serverUrl: 'https://docs.example/mcp' } })
     mkdirSync(path.dirname(storePath), { recursive: true })
-    // Sealed by another key (a reinstalled OS keychain, a copied home folder).
-    writeFileSync(storePath, JSON.stringify({ version: 1, encrypted: 'bm90LXNlYWxlZA==' }))
+    writeFileSync(storePath, '{"version": 1, "encr')
     const warnings: string[] = []
     const backend = createMcpOAuthStateBackend({
       piAuthPath,
       storePath,
-      encryption: {
-        ...encryption,
-        decryptString: () => {
-          throw new Error(
-            'Error while decrypting the ciphertext provided to safeStorage.decryptString.',
-          )
-        },
-      },
+      encryption,
       onWarning: (message) => warnings.push(message),
     })
 

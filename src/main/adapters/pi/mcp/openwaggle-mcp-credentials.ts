@@ -1,20 +1,20 @@
-import { homedir } from 'node:os'
 import path from 'node:path'
 import { McpOAuthCredentialStore } from '@earendil-works/pi-coding-agent'
-import { MCP_CONFIG } from '@shared/constants/mcp'
 import { safeStorage } from 'electron'
 import { createLogger } from '../../../logger'
+import {
+  mcpBuildStateDirectory,
+  sharedMcpStateDirectory,
+} from '../../mcp/credentials/mcp-build-state-paths'
 import { createMcpOAuthStateBackend } from '../../mcp/credentials/mcp-oauth-state-backend'
 import { getPiAgentDir } from '../pi-provider-catalog'
 
 const logger = createLogger('mcp-credentials')
 
+const OAUTH_STORE_FILE_NAME = 'oauth-states.json'
+
 let credentials: McpOAuthCredentialStore | undefined
 let backend: ReturnType<typeof createMcpOAuthStateBackend> | undefined
-
-function stateDirectory() {
-  return path.join(homedir(), ...MCP_CONFIG.GLOBAL_STATE_DIR)
-}
 
 /**
  * The OAuth state store every Pi MCP extension in the Host shares: OpenWaggle's encrypted store
@@ -23,7 +23,8 @@ function stateDirectory() {
 function getBackend() {
   backend ??= createMcpOAuthStateBackend({
     piAuthPath: path.join(getPiAgentDir(), 'mcp-auth.json'),
-    storePath: path.join(stateDirectory(), 'oauth-states.json'),
+    storePath: path.join(mcpBuildStateDirectory(), OAUTH_STORE_FILE_NAME),
+    legacyStorePath: path.join(sharedMcpStateDirectory(), OAUTH_STORE_FILE_NAME),
     encryption: safeStorage,
     onWarning: (message, context) => logger.warn(message, context),
   })
@@ -31,7 +32,10 @@ function getBackend() {
 }
 
 export function getOpenWaggleMcpCredentials() {
-  credentials ??= new McpOAuthCredentialStore(getBackend(), path.join(stateDirectory(), 'locks'))
+  credentials ??= new McpOAuthCredentialStore(
+    getBackend(),
+    path.join(mcpBuildStateDirectory(), 'locks'),
+  )
   return credentials
 }
 
@@ -46,5 +50,5 @@ export function writeOpenWaggleMcpOAuthState(key: string, state: unknown) {
 
 /** Where server log notifications are appended; OpenWaggle keeps its own file. */
 export function openWaggleMcpLogPath() {
-  return path.join(stateDirectory(), 'mcp.log')
+  return path.join(sharedMcpStateDirectory(), 'mcp.log')
 }

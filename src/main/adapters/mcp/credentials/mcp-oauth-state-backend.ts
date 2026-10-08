@@ -31,8 +31,13 @@ export interface McpOAuthEncryption {
 export interface McpOAuthStateBackendOptions {
   /** Pi's `~/.pi/agent/mcp-auth.json`. */
   readonly piAuthPath: string
-  /** OpenWaggle's encrypted store. */
+  /** OpenWaggle's encrypted store, in this build's user data: each build has its own key. */
   readonly storePath: string
+  /**
+   * The store every build shared before it moved to user data. Copied over once when this build
+   * can decrypt it, and never changed: another build may still need its own copy.
+   */
+  readonly legacyStorePath?: string
   readonly encryption: McpOAuthEncryption
   readonly onWarning?: (message: string, context: Record<string, unknown>) => void
 }
@@ -88,12 +93,23 @@ function readPiStates(
   }
 }
 
+/** The store is sealed by a key this process cannot use now: another build's, or a refused keychain. */
+class StoreDecryptError extends Error {}
+
+function decryptStore(encrypted: string, encryption: McpOAuthEncryption) {
+  try {
+    return encryption.decryptString(Buffer.from(encrypted, 'base64'))
+  } catch (error) {
+    throw new StoreDecryptError('OpenWaggle MCP sign-ins cannot be decrypted.', { cause: error })
+  }
+}
+
 function decodeOwnLayer(text: string, encryption: McpOAuthEncryption): OwnLayer {
   const file: unknown = JSON.parse(text)
   if (!isRecord(file) || file.version !== STORE_VERSION || typeof file.encrypted !== 'string') {
     throw new Error('OpenWaggle MCP sign-in storage has an unsupported format.')
   }
-  const layer: unknown = JSON.parse(encryption.decryptString(Buffer.from(file.encrypted, 'base64')))
+  const layer: unknown = JSON.parse(decryptStore(file.encrypted, encryption))
   if (!isRecord(layer)) throw new Error('OpenWaggle MCP sign-in storage is invalid.')
   return {
     states: isRecord(layer.states) ? { ...layer.states } : {},
@@ -102,9 +118,9 @@ function decodeOwnLayer(text: string, encryption: McpOAuthEncryption): OwnLayer 
 }
 
 /**
- * A store that cannot be decrypted (another OS keychain, a copied home folder) or parsed would
- * make every sign-in read fail. It is moved aside, kept for recovery, and the store starts empty;
- * Pi's own sign-ins still show. Logged once: the next read finds no file.
+ * A store that decrypts but cannot be parsed would make every sign-in read fail. It is moved
+ * aside, kept for recovery, and the store starts empty; Pi's own sign-ins still show. Logged once:
+ * the next read finds no file. A store that does not decrypt is never moved: see `readOwnLayer`.
  */
 function setAsideUnreadableStore(
   storePath: string,
@@ -126,16 +142,50 @@ function setAsideUnreadableStore(
   return { states: {}, tombstones: {} }
 }
 
+/** Writes the store file atomically, readable by this user only. */
+function writeStoreText(storePath: string, text: string) {
+  mkdirSync(path.dirname(storePath), { recursive: true, mode: DIRECTORY_MODE })
+  const temporaryPath = `${storePath}.${randomUUID()}.tmp`
+  try {
+    writeFileSync(temporaryPath, text, { mode: FILE_MODE })
+    renameSync(temporaryPath, storePath)
+  } catch (error) {
+    rmSync(temporaryPath, { force: true })
+    throw error
+  }
+}
+
+/** The shared pre-build store, with its decoded layer, when this build can open it. */
+function readLegacyStore(
+  legacyStorePath: string,
+  encryption: McpOAuthEncryption,
+  warn: (message: string, context: Record<string, unknown>) => void,
+): { readonly text: string; readonly layer: OwnLayer } | undefined {
+  try {
+    const text = readFileSync(legacyStorePath, 'utf8')
+    return { text, layer: decodeOwnLayer(text, encryption) }
+  } catch (error) {
+    if (!isMissing(error)) {
+      warn('The shared MCP sign-in store is not this build’s; it was left in place', {
+        error: error instanceof Error ? error.message : String(error),
+      })
+    }
+    return undefined
+  }
+}
+
 export function createMcpOAuthStateBackend(
   options: McpOAuthStateBackendOptions,
 ): McpOAuthStorageBackend {
   let memoryLayer: OwnLayer | undefined
   let queue: Promise<unknown> = Promise.resolve()
+  let legacyChecked = false
 
   const warn = (message: string, context: Record<string, unknown>) =>
     options.onWarning?.(message, context)
 
-  function readOwnLayer(): OwnLayer {
+  /** This build's layer, or undefined while it cannot be decrypted (left untouched until then). */
+  function readOwnLayer(): OwnLayer | undefined {
     if (!options.encryption.isEncryptionAvailable()) {
       memoryLayer ??= { states: {}, tombstones: {} }
       return memoryLayer
@@ -144,12 +194,20 @@ export function createMcpOAuthStateBackend(
     try {
       text = readFileSync(options.storePath, 'utf8')
     } catch (error) {
-      if (isMissing(error)) return { states: {}, tombstones: {} }
-      throw error
+      if (!isMissing(error)) throw error
+      // Checked once per process: a store this build cannot open stays the other build's.
+      const legacy =
+        legacyChecked || !options.legacyStorePath
+          ? undefined
+          : readLegacyStore(options.legacyStorePath, options.encryption, warn)
+      legacyChecked = true
+      if (legacy) writeStoreText(options.storePath, legacy.text)
+      return legacy?.layer ?? { states: {}, tombstones: {} }
     }
     try {
       return decodeOwnLayer(text, options.encryption)
     } catch (error) {
+      if (error instanceof StoreDecryptError) return undefined
       return setAsideUnreadableStore(options.storePath, error, warn)
     }
   }
@@ -161,19 +219,10 @@ export function createMcpOAuthStateBackend(
       return
     }
     const encrypted = options.encryption.encryptString(JSON.stringify(layer)).toString('base64')
-    mkdirSync(path.dirname(options.storePath), { recursive: true, mode: DIRECTORY_MODE })
-    const temporaryPath = `${options.storePath}.${randomUUID()}.tmp`
-    try {
-      writeFileSync(
-        temporaryPath,
-        `${JSON.stringify({ version: STORE_VERSION, encrypted }, null, JSON_INDENT)}\n`,
-        { mode: FILE_MODE },
-      )
-      renameSync(temporaryPath, options.storePath)
-    } catch (error) {
-      rmSync(temporaryPath, { force: true })
-      throw error
-    }
+    writeStoreText(
+      options.storePath,
+      `${JSON.stringify({ version: STORE_VERSION, encrypted }, null, JSON_INDENT)}\n`,
+    )
   }
 
   /** Pi's states that are not hidden by a tombstone still matching them. */
@@ -183,7 +232,13 @@ export function createMcpOAuthStateBackend(
     )
   }
 
-  function applyNext(pi: States, layer: OwnLayer, merged: States, next: string) {
+  function applyNext(pi: States, layer: OwnLayer | undefined, merged: States, next: string) {
+    // Writing now would replace sign-ins this process cannot read.
+    if (!layer) {
+      throw new Error(
+        'OpenWaggle MCP sign-ins cannot be decrypted right now, so this change was not saved.',
+      )
+    }
     const parsed: unknown = JSON.parse(next)
     const nextStates: States = isRecord(parsed) ? parsed : {}
     const visible = visiblePiStates(pi, layer)
@@ -207,7 +262,8 @@ export function createMcpOAuthStateBackend(
   function snapshot() {
     const pi = readPiStates(options.piAuthPath, warn)
     const layer = readOwnLayer()
-    const merged = { ...visiblePiStates(pi, layer), ...layer.states }
+    const own = layer ?? { states: {}, tombstones: {} }
+    const merged = { ...visiblePiStates(pi, own), ...own.states }
     const current = Object.keys(merged).length > 0 ? JSON.stringify(merged) : undefined
     return { pi, layer, merged, current }
   }
