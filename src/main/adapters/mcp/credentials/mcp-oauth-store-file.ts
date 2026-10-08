@@ -123,22 +123,36 @@ function createStoreTextIfMissing(storePath: string, text: string) {
   }
 }
 
+type LegacyStoreRead =
+  | { readonly kind: 'taken'; readonly text: string; readonly layer: OwnLayer }
+  /** No shared store, or one this build cannot open (another build's): nothing to take. */
+  | { readonly kind: 'none' }
+  /** The file could not be read right now: try again on the next read. */
+  | { readonly kind: 'retry' }
+
 /** The shared pre-build store, with its decoded layer, when this build can open it. */
 function readLegacyStore(
   legacyStorePath: string,
   encryption: McpOAuthEncryption,
   warn: (message: string, context: Record<string, unknown>) => void,
-): { readonly text: string; readonly layer: OwnLayer } | undefined {
+): LegacyStoreRead {
+  let text: string
   try {
-    const text = readFileSync(legacyStorePath, 'utf8')
-    return { text, layer: decodeOwnLayer(text, encryption) }
+    text = readFileSync(legacyStorePath, 'utf8')
   } catch (error) {
-    if (!isMissing(error)) {
-      warn('The shared MCP sign-in store is not this build’s; it was left in place', {
-        error: error instanceof Error ? error.message : String(error),
-      })
-    }
-    return undefined
+    if (isMissing(error)) return { kind: 'none' }
+    warn('The shared MCP sign-in store could not be read; it is tried again', {
+      error: error instanceof Error ? error.message : String(error),
+    })
+    return { kind: 'retry' }
+  }
+  try {
+    return { kind: 'taken', text, layer: decodeOwnLayer(text, encryption) }
+  } catch (error) {
+    warn('The shared MCP sign-in store is not this build’s; it was left in place', {
+      error: error instanceof Error ? error.message : String(error),
+    })
+    return { kind: 'none' }
   }
 }
 
@@ -193,15 +207,20 @@ export class OwnLayerFile {
     this.cached = { version: fileVersion(this.options.storePath), layer: structuredClone(layer) }
   }
 
-  /** Checked once per process: a store this build cannot open stays the other build's. */
+  /**
+   * Done once per process when it finishes: a store this build cannot open stays the other
+   * build's, but one that could not be read is tried again on the next read.
+   */
   private takeLegacyStore(): OwnLayer | undefined {
     const { legacyStorePath } = this.options
     const legacy =
       this.legacyChecked || !legacyStorePath
-        ? undefined
+        ? { kind: 'none' as const }
         : readLegacyStore(legacyStorePath, this.options.encryption, this.warn)
+    // Undefined, like a store that cannot be decrypted: nothing is read, and no write is saved.
+    if (legacy.kind === 'retry') return undefined
     this.legacyChecked = true
-    if (!legacy) return { states: {}, tombstones: {} }
+    if (legacy.kind !== 'taken') return { states: {}, tombstones: {} }
     // Another process of this build may have saved a sign-in since this one found no store.
     if (!createStoreTextIfMissing(this.options.storePath, legacy.text)) return this.read()
     return legacy.layer

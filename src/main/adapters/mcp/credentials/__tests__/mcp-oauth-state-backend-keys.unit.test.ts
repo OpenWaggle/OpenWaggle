@@ -1,4 +1,12 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -103,5 +111,21 @@ describe('MCP sign-ins per build', () => {
     expect(readFileSync(legacyStorePath, 'utf8')).toBe(legacy)
     writeFileSync(legacyStorePath, sealedStore(RELEASE, {}))
     expect(read(backendFor('release', RELEASE))).toEqual(SIGN_IN)
+  })
+
+  it('tries the shared store again after a read that could not finish', () => {
+    mkdirSync(path.dirname(legacyStorePath), { recursive: true })
+    writeFileSync(legacyStorePath, sealedStore(RELEASE, SIGN_IN))
+    const backend = backendFor('release', RELEASE)
+    // Unreadable for now, for example while a backup tool holds it.
+    chmodSync(legacyStorePath, 0o000)
+
+    expect(read(backend)).toEqual({})
+    // A sign-in saved now would create this build's store and hide the old ones for good.
+    expect(() => signIn(backend)).toThrow('cannot be decrypted')
+    chmodSync(legacyStorePath, 0o600)
+
+    expect(read(backend)).toEqual(SIGN_IN)
+    expect(existsSync(storeIn('release'))).toBe(true)
   })
 })
