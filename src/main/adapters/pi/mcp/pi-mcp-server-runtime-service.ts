@@ -31,10 +31,7 @@ import { hardenedMcpAuthProvider } from './mcp-hardened-auth-provider'
 import { forgetKnownMcpServerState, recordMcpServerCheck } from './mcp-server-status-registry'
 import { showSignInPage } from './mcp-sign-in-page'
 import { getOpenWaggleMcpCredentials } from './openwaggle-mcp-credentials'
-import {
-  migrateOpenWaggleMcpFilesOnce,
-  migrateOpenWaggleMcpSignInsOnce,
-} from './openwaggle-mcp-migration'
+import { migrateOpenWaggleMcpSignInsOnce } from './openwaggle-mcp-migration'
 import { mcpOAuthSettings, mcpOAuthUrl, mcpSignedIn } from './pi-mcp-server-oauth'
 import { getMcpServerStatuses, type PiMcpServerRuntimeRoots } from './pi-mcp-server-status'
 import { openPiMcpUpstream } from './pi-mcp-upstream'
@@ -267,7 +264,9 @@ export function createPiMcpServerRuntimeService(
     inspectServer: (input) => attempt(() => inspectMcpServer(input)),
     getServerStatuses: (input) =>
       attempt(async () => {
-        await migrateOpenWaggleMcpFilesOnce(input.projectPath)
+        // The states include whether a server is signed in: an old sign-in is moved first, so a
+        // migrated server never shows as signed out on the first launch.
+        await migrateOpenWaggleMcpSignInsOnce(input.projectPath)
         return getMcpServerStatuses(input, defaultMcpServerRuntimeRoots(), pool)
       }),
     signIn: (input) => attempt(() => signIn(pool, input)),
