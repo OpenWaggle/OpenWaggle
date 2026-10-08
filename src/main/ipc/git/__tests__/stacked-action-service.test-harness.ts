@@ -1,4 +1,5 @@
 import { vi } from 'vitest'
+import { resolveRemoteRepositoryOffline } from '../../../services/source-control/__tests__/source-control-test-deps'
 import type { StackedActionDeps } from '../stacked-action-service'
 
 export function makeDeps(overrides: Partial<StackedActionDeps> = {}): StackedActionDeps {
@@ -25,6 +26,7 @@ export function makeDeps(overrides: Partial<StackedActionDeps> = {}): StackedAct
     resolveCurrentRef: vi.fn(async () => 'feature/current'),
     resolveDefaultBaseRef: vi.fn(async () => 'main'),
     resolvePrimaryRemoteUrl: vi.fn(async () => 'https://github.com/upstream/project.git'),
+    resolveRemoteRepository: resolveRemoteRepositoryOffline,
     preflightChangeRequest: vi.fn(
       async () =>
         ({

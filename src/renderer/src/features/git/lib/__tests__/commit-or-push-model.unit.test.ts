@@ -37,7 +37,12 @@ const vcsStatus: VcsStatus = {
   behindCount: 4,
   aheadOfDefaultCount: 1,
   sourceControlProvider: null,
+  sourceControlHost: null,
+  sourceControlAttention: null,
+  sourceControlRepositoryUrl: null,
   changeRequest: null,
+  changeRequestAttention: null,
+  changeRequestAccount: null,
 }
 
 describe('resolveCommitCommandActions', () => {

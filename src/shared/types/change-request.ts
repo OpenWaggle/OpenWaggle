@@ -1,3 +1,5 @@
+import type { SourceControlAttention } from './source-control'
+
 export type SourceControlProviderId = 'github' | 'gitlab'
 
 export interface SourceControlProviderInfo {
@@ -111,6 +113,8 @@ export interface SourceControlFailure {
   readonly ok: false
   readonly code: SourceControlErrorCode
   readonly message: string
+  /** What the user can do to fix it, when the failure has a known remedy. */
+  readonly attention?: SourceControlAttention
 }
 
 export interface SourceControlAuthSuccess {
@@ -173,6 +177,8 @@ export interface ChangeRequestPanelSnapshot {
   readonly currentRef: string | null
   readonly changeRequests: readonly VcsChangeRequest[]
   readonly selected: VcsChangeRequestDetails
+  /** Provider account that read the request, when the CLI reports one. */
+  readonly account: string | null
 }
 
 export interface ChangeRequestPanelSuccess {
@@ -194,6 +200,20 @@ export interface MergeChangeRequestSuccess {
 }
 
 export type MergeChangeRequestResult = MergeChangeRequestSuccess | SourceControlFailure
+
+/** What the window shows in the merge confirmation before the Host merges. */
+export interface ChangeRequestMergeCandidate {
+  readonly provider: SourceControlProviderId
+  /** Provider account the merge will run as, when known. */
+  readonly account: string | null
+  readonly title: string
+  readonly headRef: string
+  readonly baseRef: string
+}
+
+export type ChangeRequestMergeCandidateResult =
+  | { readonly ok: true; readonly candidate: ChangeRequestMergeCandidate }
+  | SourceControlFailure
 
 export interface ChangeRequestCheckoutSuccess {
   readonly ok: true

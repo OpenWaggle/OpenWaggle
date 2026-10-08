@@ -14,6 +14,9 @@ vi.mock('@/shared/lib/ipc', () => ({
 const LOCAL_STATUS: LocalVcsStatus = {
   isRepo: true,
   sourceControlProvider: { id: 'github', host: 'github.com' },
+  sourceControlHost: { host: 'github.com', provider: 'github', source: 'public-host' },
+  sourceControlAttention: null,
+  sourceControlRepositoryUrl: null,
   hasPrimaryRemote: true,
   defaultRef: 'main',
   isDefaultRef: true,
@@ -30,6 +33,8 @@ const REMOTE_STATUS: RemoteVcsStatus = {
   behindCount: 0,
   aheadOfDefaultCount: null,
   changeRequest: null,
+  changeRequestAttention: null,
+  changeRequestAccount: null,
 }
 
 describe('useCombinedVcsStatus', () => {

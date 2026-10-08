@@ -7,6 +7,10 @@ import { useAuthStore, useProviderStore } from '@/features/providers/state'
 import { usePreferencesStore } from '@/features/settings/state/preferences-store'
 import { ConnectionsSection } from '../sections/ConnectionsSection'
 
+vi.mock('../sections/connections/SourceControlSection', () => ({
+  SourceControlSection: () => <h3>Source control</h3>,
+}))
+
 const PROVIDER_MODELS: ProviderInfo[] = [
   {
     provider: 'openai-codex',
@@ -78,6 +82,12 @@ describe('ConnectionsSection', () => {
         },
       },
     })
+  })
+
+  it('includes the Source control group', () => {
+    render(<ConnectionsSection />)
+
+    expect(screen.getByRole('heading', { name: 'Source control' })).toBeInTheDocument()
   })
 
   it('renders auth method groups collapsed by default', () => {

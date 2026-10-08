@@ -25,6 +25,11 @@ vi.mock('../../../adapters/source-control', () => ({
     id ? { id, resolveChangeRequestForRef: resolveChangeRequestForRefMock } : undefined,
 }))
 
+vi.mock('../../../adapters/git/run-git', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../../adapters/git/run-git')>()),
+  runGit: runGitMock,
+}))
+
 vi.mock('../shared', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../shared')>()),
   runGit: runGitMock,
@@ -35,7 +40,7 @@ vi.mock('../../../services/git/mutation-lock', () => ({
 }))
 
 const { getLocalVcsStatus, resolvePrimaryRemoteUrl } = await import('../vcs-status-service')
-const { resolvePrimaryRemoteResult } = await import('../primary-remote')
+const { resolvePrimaryRemoteResult } = await import('../../../services/git/primary-remote')
 
 function gitResult(
   code: number,

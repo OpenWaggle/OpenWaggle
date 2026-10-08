@@ -32,6 +32,10 @@ import {
   isHostBackedSessionGuiChannel,
 } from './host-ui-session-operation-dispatcher'
 import { dispatchHostUiSkillsOperation } from './host-ui-skill-operation-dispatcher'
+import {
+  dispatchHostUiSourceControlOperation,
+  isHostUiSourceControlChannel,
+} from './host-ui-source-control-operation'
 import { createHostUiWorktree, removeHostUiWorktree } from './host-ui-worktree-operation'
 import { prepareInlineVisualizationSourceOwner } from './inline-visualization-source-owner'
 import {
@@ -114,6 +118,9 @@ function dispatchHostUiChannel(
   }
   if (isHostBackedSessionGuiChannel(channel))
     return dispatchHostBackedSessionGuiOperation(channel, args)
+  if (isHostUiSourceControlChannel(channel)) {
+    return dispatchHostUiSourceControlOperation(channel, args, negotiatedRevision)
+  }
   if (McpHostUi.isMcpHostUiChannel(channel))
     return McpHostUi.dispatchMcpHostUiOperation(channel, args, negotiatedRevision)
   if (isSettingsChannel(channel)) {

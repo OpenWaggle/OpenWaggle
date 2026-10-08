@@ -10,9 +10,11 @@ import type { ChatDiffSectionState } from '../model'
 interface ChatDiffPaneProps {
   readonly section: ChatDiffSectionState
   readonly onClose: () => void
+  /** Opens a change request in the Change request inspector. */
+  readonly onOpenChangeRequest?: (url: string) => void
 }
 
-export function ChatDiffPane({ section, onClose }: ChatDiffPaneProps) {
+export function ChatDiffPane({ section, onClose, onOpenChangeRequest }: ChatDiffPaneProps) {
   // A working path that differs from the opened project is a Session worktree. The two
   // are distinct brands, so compare the underlying strings (equal only in local mode).
   const worktreeLabel =
@@ -71,6 +73,7 @@ export function ChatDiffPane({ section, onClose }: ChatDiffPaneProps) {
           sessionId={section.sessionId}
           // The promise is returned, not dropped: the review is only cleared once the send worked.
           onSendMessage={(content) => section.onSendMessage(content)}
+          {...(onOpenChangeRequest ? { onOpenChangeRequest } : {})}
         />
       </PanelErrorBoundary>
     </div>

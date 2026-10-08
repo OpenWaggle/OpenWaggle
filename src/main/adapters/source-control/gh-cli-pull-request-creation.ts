@@ -7,7 +7,8 @@ import type {
   SourceControlRepositoryIdentity,
 } from '@shared/types/git'
 import { mapGhPullRequest } from './change-request-parse'
-import { type CliResult, runCli } from './cli-runner'
+import type { CliResult } from './cli-runner'
+import { jsonStringProperty, runGh, runGhWrite, safeJsonParse } from './gh-cli-run'
 import {
   githubRepositorySelector,
   matchesRepositoryUrl,
@@ -20,26 +21,24 @@ export const GITHUB_PR_SUMMARY_FIELDS =
 interface PullRequestCreationDependencies {
   readonly classifyFailure: (result: CliResult) => SourceControlFailure
   readonly viewPullRequest: (projectPath: string, ref: string) => Promise<ChangeRequestResult>
+  /** Runs repository-scoped gh commands as the account that can see the repository. */
+  readonly run?: (args: readonly string[], cwd: string) => Promise<CliResult>
+  /** Runs the create command once, never retried as another account. */
+  readonly runWrite?: (args: readonly string[], cwd: string) => Promise<CliResult>
 }
 
 function qualifiedHead(payload: OpenChangeRequestPayload) {
   return payload.headOwner ? `${payload.headOwner}:${payload.headRef}` : payload.headRef
 }
 
-function jsonStringProperty(raw: unknown, property: string): string | null {
-  const decoded = safeDecodeUnknown(jsonObjectSchema, raw)
-  if (!decoded.success) return null
-  const value = decoded.data[property]
-  return typeof value === 'string' ? value : null
-}
-
 async function isOrganizationOwner(
   projectPath: string,
   owner: string,
   repository: SourceControlRepositoryIdentity,
+  dependencies: PullRequestCreationDependencies,
 ) {
-  const result = await runCli(
-    'gh',
+  const result = await runGh(
+    dependencies,
     ['api', '--hostname', repository.host, `users/${encodeURIComponent(owner)}`],
     projectPath,
   )
@@ -54,9 +53,10 @@ interface RepositoryContext {
 async function repositoryContext(
   projectPath: string,
   repository: SourceControlRepositoryIdentity,
+  dependencies: PullRequestCreationDependencies,
 ): Promise<RepositoryContext | null> {
-  const result = await runCli(
-    'gh',
+  const result = await runGh(
+    dependencies,
     [
       'repo',
       'view',
@@ -93,6 +93,7 @@ async function createOrganizationForkPullRequest(
   payload: OpenChangeRequestPayload,
   repository: SourceControlRepositoryIdentity,
   context: RepositoryContext,
+  dependencies: PullRequestCreationDependencies,
 ): Promise<CliResult> {
   const baseRef = payload.baseRef ?? context.defaultBranch
   if (!baseRef) {
@@ -124,7 +125,7 @@ async function createOrganizationForkPullRequest(
     `body=${payload.body ?? ''}`,
   ]
   if (payload.draft) args.push('--field', 'draft=true')
-  return runCli('gh', args, projectPath)
+  return runGhWrite(dependencies, args, projectPath)
 }
 
 function pullRequestHeadOwner(raw: unknown): string | null {
@@ -136,15 +137,15 @@ function pullRequestHeadOwner(raw: unknown): string | null {
   return typeof login === 'string' ? login : null
 }
 
-async function findPullRequestByHead(
+export async function findPullRequestByHead(
   projectPath: string,
   payload: OpenChangeRequestPayload,
   repository: SourceControlRepositoryIdentity,
   dependencies: PullRequestCreationDependencies,
 ): Promise<ChangeRequestResult> {
   if (!payload.headOwner) return dependencies.viewPullRequest(projectPath, payload.headRef)
-  const result = await runCli(
-    'gh',
+  const result = await runGh(
+    dependencies,
     [
       'pr',
       'list',
@@ -242,15 +243,23 @@ export async function createGitHubPullRequest(
   dependencies: PullRequestCreationDependencies,
 ) {
   const context =
-    payload.headOwner === undefined ? null : await repositoryContext(projectPath, repository)
+    payload.headOwner === undefined
+      ? null
+      : await repositoryContext(projectPath, repository, dependencies)
   const organizationHead =
     payload.headOwner !== undefined &&
     context !== null &&
-    (await isOrganizationOwner(projectPath, payload.headOwner, repository))
+    (await isOrganizationOwner(projectPath, payload.headOwner, repository, dependencies))
   const result =
     organizationHead && context
-      ? await createOrganizationForkPullRequest(projectPath, payload, repository, context)
-      : await createStandardPullRequest(projectPath, payload, repository)
+      ? await createOrganizationForkPullRequest(
+          projectPath,
+          payload,
+          repository,
+          context,
+          dependencies,
+        )
+      : await createStandardPullRequest(projectPath, payload, repository, dependencies)
   // Resolve the exact head even after a non-zero exit so a retry cannot create a duplicate.
   return resolveCreatedPullRequest(projectPath, payload, result, repository, dependencies)
 }
@@ -259,6 +268,7 @@ function createStandardPullRequest(
   projectPath: string,
   payload: OpenChangeRequestPayload,
   repository: SourceControlRepositoryIdentity,
+  dependencies: PullRequestCreationDependencies,
 ) {
   const args = [
     'pr',
@@ -274,13 +284,5 @@ function createStandardPullRequest(
   ]
   if (payload.baseRef) args.push('--base', payload.baseRef)
   if (payload.draft) args.push('--draft')
-  return runCli('gh', args, projectPath)
-}
-
-function safeJsonParse(text: string): unknown {
-  try {
-    return JSON.parse(text)
-  } catch {
-    return null
-  }
+  return runGhWrite(dependencies, args, projectPath)
 }

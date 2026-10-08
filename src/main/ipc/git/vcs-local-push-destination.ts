@@ -1,5 +1,5 @@
+import type { PrimaryRemote } from '../../services/git/primary-remote'
 import { resolveLocalDefaultRef } from './default-ref'
-import type { PrimaryRemote } from './primary-remote'
 import { runGit } from './shared'
 import { readPushRef } from './upstream-ref'
 

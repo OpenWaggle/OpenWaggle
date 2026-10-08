@@ -1,7 +1,9 @@
 import { WorkingPath } from '@shared/types/brand'
 import type { VcsChangeRequestDetails } from '@shared/types/git'
+import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { usePreferencesStore } from '@/features/settings/state'
 import { useUIStore } from '@/shell/ui-store'
 import { renderWithQueryClient } from '@/test-utils/query-test-utils'
 import { ChangeRequestPanel } from '../ChangeRequestPanel'
@@ -10,6 +12,9 @@ const apiMocks = vi.hoisted(() => ({
   getPanel: vi.fn(),
   merge: vi.fn(),
   openExternal: vi.fn(),
+  refreshSourceControlStatus: vi.fn(),
+  runSessionTerminalCommand: vi.fn(),
+  watchSessionTerminalCommand: vi.fn(),
 }))
 
 vi.mock('@/shared/lib/ipc', () => ({
@@ -17,7 +22,14 @@ vi.mock('@/shared/lib/ipc', () => ({
     getChangeRequestPanel: apiMocks.getPanel,
     mergeChangeRequest: apiMocks.merge,
     openExternal: apiMocks.openExternal,
+    refreshSourceControlStatus: apiMocks.refreshSourceControlStatus,
   },
+}))
+
+vi.mock('@/features/terminal', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/features/terminal')>()),
+  runSessionTerminalCommand: apiMocks.runSessionTerminalCommand,
+  watchSessionTerminalCommand: apiMocks.watchSessionTerminalCommand,
 }))
 
 function details(overrides: Partial<VcsChangeRequestDetails> = {}): VcsChangeRequestDetails {
@@ -49,11 +61,16 @@ function details(overrides: Partial<VcsChangeRequestDetails> = {}): VcsChangeReq
 describe('ChangeRequestPanel', () => {
   beforeEach(() => {
     useUIStore.setState({ toastMessage: null, toastData: null })
+    usePreferencesStore.setState({
+      settings: { ...DEFAULT_SETTINGS, browserLinkTarget: 'system' },
+      isLoaded: true,
+    })
     apiMocks.getPanel.mockReset().mockResolvedValue({
       ok: true,
       snapshot: {
         provider: { id: 'github', host: 'github.com' },
         currentRef: 'feature/panel',
+        account: null,
         selected: details(),
         changeRequests: [
           details(),
@@ -66,6 +83,9 @@ describe('ChangeRequestPanel', () => {
       changeRequest: details({ state: 'merged' }),
     })
     apiMocks.openExternal.mockReset().mockResolvedValue(undefined)
+    apiMocks.refreshSourceControlStatus.mockReset().mockResolvedValue(undefined)
+    apiMocks.runSessionTerminalCommand.mockReset().mockReturnValue('terminal-1')
+    apiMocks.watchSessionTerminalCommand.mockReset().mockReturnValue(() => undefined)
   })
 
   it('does not query while the retained sidebar is closed', () => {
@@ -110,8 +130,10 @@ describe('ChangeRequestPanel', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'View branch diff' }))
     expect(onOpenDiff).toHaveBeenCalledOnce()
-    fireEvent.click(screen.getByRole('button', { name: 'Open in browser' }))
-    expect(apiMocks.openExternal).toHaveBeenCalledWith('https://github.com/o/r/pull/7')
+    fireEvent.click(screen.getByRole('button', { name: 'Open on GitHub' }))
+    await waitFor(() =>
+      expect(apiMocks.openExternal).toHaveBeenCalledWith('https://github.com/o/r/pull/7'),
+    )
 
     fireEvent.change(screen.getByLabelText('Merge method'), { target: { value: 'squash' } })
     fireEvent.click(screen.getByRole('button', { name: 'Merge' }))
@@ -230,7 +252,7 @@ describe('ChangeRequestPanel', () => {
       />,
     )
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Open in browser' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Open on GitHub' }))
 
     await waitFor(() =>
       expect(useUIStore.getState().toastData).toEqual({

@@ -1,9 +1,11 @@
 import type { GitBranchInfo, GitStatusSummary, VcsStatus } from '@shared/types/git'
 import type { SessionResource } from '@shared/types/session-resource'
 import { ChevronRight, FileOutput, FolderOpen, GitBranch, GitCommit, Images } from 'lucide-react'
+import { useFocusHandoff } from '@/shared/hooks/useFocusHandoff'
 import type { SessionResourceBrowserTarget } from '../model/session-resource-browser'
 import { isViewableSessionImage } from '../model/session-resource-viewability'
 import type { SessionSummaryGitAction } from '../model/session-summary-git-action'
+import type { ChangeRequestOpener } from './ChangeRequestLinkRow'
 import { ChangeRequestSummaryRow } from './SessionChangeRequestSections'
 import { SessionSourceAddMenu } from './SessionSourceAddMenu'
 import {
@@ -16,6 +18,7 @@ import {
   SessionSummaryRow,
   SessionSummarySection,
 } from './SessionSummaryPrimitives'
+import type { SourceControlSessionTerminal } from './use-source-control-attention-actions'
 
 const SUMMARY_RESOURCE_LIMIT = 3
 
@@ -35,14 +38,22 @@ interface EnvironmentSummarySectionInput {
   readonly onExpandedChange: (expanded: boolean) => void
   readonly onOpenDiff: () => void
   readonly onCreateChangeRequest: () => void
-  readonly onViewChangeRequest: (url: string) => void
+  readonly changeRequestOpener: ChangeRequestOpener
+  /** The Session terminal source-control sign-in runs in, when the Session has one. */
+  readonly sourceControlTerminal: SourceControlSessionTerminal | null
   readonly onToggleTerminal: () => void
   readonly onRefreshBranches: () => void
   readonly onRefreshVcsStatus: () => void
+  readonly onRecheckSourceControl: () => Promise<void>
   readonly onSelectBranch: (branch: string) => Promise<boolean>
   readonly onCreateBranch: (branch: string) => Promise<boolean>
   readonly quickAction: SessionSummaryGitAction
   readonly onQuickAction: () => void
+}
+
+/** The disclosure button that heads the Session Summary section around `element`. */
+function sectionTrigger(element: HTMLElement) {
+  return element.closest('section')?.querySelector<HTMLElement>('button[aria-expanded]') ?? null
 }
 
 export function EnvironmentSummarySection({
@@ -64,15 +75,22 @@ export function EnvironmentSummarySection({
     onExpandedChange,
     onOpenDiff,
     onCreateChangeRequest,
-    onViewChangeRequest,
+    changeRequestOpener,
+    sourceControlTerminal,
     onToggleTerminal,
     onRefreshBranches,
     onRefreshVcsStatus,
+    onRecheckSourceControl,
     onSelectBranch,
     onCreateBranch,
     quickAction,
     onQuickAction,
   } = input
+  // A source-control fix swaps the row's notice for another element, or for nothing.
+  const changeRequestFocus = useFocusHandoff<HTMLDivElement>({
+    target: 'button, a[href]',
+    fallback: sectionTrigger,
+  })
   const branchKnown = gitStatus !== null || vcsStatus?.isRepo === true
   const gitAvailable = branchKnown || localVcsState === 'loading' || localVcsState === 'error'
   return (
@@ -125,14 +143,18 @@ export function EnvironmentSummarySection({
           />
         </>
       ) : null}
-      <ChangeRequestSummaryRow
-        gitStatus={gitStatus}
-        vcsStatus={vcsStatus}
-        remoteVcsState={remoteVcsState}
-        onCreate={onCreateChangeRequest}
-        onView={onViewChangeRequest}
-        onRefresh={onRefreshVcsStatus}
-      />
+      <div ref={changeRequestFocus}>
+        <ChangeRequestSummaryRow
+          gitStatus={gitStatus}
+          vcsStatus={vcsStatus}
+          remoteVcsState={remoteVcsState}
+          opener={changeRequestOpener}
+          terminal={sourceControlTerminal}
+          onCreate={onCreateChangeRequest}
+          onRefresh={onRefreshVcsStatus}
+          onRecheckSourceControl={onRecheckSourceControl}
+        />
+      </div>
     </SessionSummarySection>
   )
 }

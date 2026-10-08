@@ -1,52 +1,71 @@
 import { decodeUnknownOrThrow, Schema } from '@shared/schema'
-import { SessionId } from '@shared/types/brand'
-import type { MergeChangeRequestPayload, MergeChangeRequestResult } from '@shared/types/git'
+import { sourceControlAttentionSchema } from '@shared/schemas/source-control'
+import { WorkingPath } from '@shared/types/brand'
+import type {
+  ChangeRequestMergeCandidate,
+  ChangeRequestMergeCandidateResult,
+  MergeChangeRequestPayload,
+} from '@shared/types/git'
 import * as Effect from 'effect/Effect'
+import { invokeConfiguredHostUi } from '../../application/gui-session-command-router'
 import { browserWindowFromWebContents, showMessageBox } from '../../desktop-ui'
-import { typedHandle } from '../typed-ipc'
 import {
-  isSourceControlFailure,
-  loadChangeRequestPanel,
-  NO_SOURCE_CONTROL_PROVIDER,
-  type ResolvedChangeRequestProvider,
-  requestedChangeRequestIdentity,
-  SESSION_CHANGE_REQUEST_MISMATCH,
-  sessionOwnedChangeRequestReferences,
-  validateMergeCandidate,
-  verifyMergedDetails,
-} from './change-request-lifecycle-service'
-import { resolveSourceControlProvider } from './change-request-provider'
-import { withGitMutationLock } from './mutation-lock'
-import { verifySessionWorkingPath } from './session-working-path'
-import { projectPathSchema } from './shared'
+  mergeConfirmedSessionChangeRequest,
+  sessionChangeRequestMergeCandidate,
+} from '../../services/source-control/session-change-request-merge'
+import { loadSessionChangeRequestPanel } from '../../services/source-control/session-change-requests'
+import {
+  decodeSessionMergeArguments,
+  decodeSessionRequestArguments,
+} from '../../services/source-control/session-request-arguments'
+import { hostHandle, RelayedHostResult, relayingHandle } from '../typed-ipc'
 
-const sessionIdSchema = Schema.String.pipe(Schema.minLength(1))
-const requestUrlSchema = Schema.String.pipe(Schema.minLength(1))
-const mergePayloadSchema = Schema.Struct({
-  url: requestUrlSchema,
-  expectedHeadCommit: Schema.String.pipe(Schema.minLength(1)),
-  method: Schema.Literal('merge', 'squash', 'rebase'),
-})
+const candidateResultSchema = Schema.Union(
+  Schema.Struct({
+    ok: Schema.Literal(true),
+    candidate: Schema.Struct({
+      provider: Schema.Literal('github', 'gitlab'),
+      account: Schema.NullOr(Schema.String),
+      title: Schema.String,
+      headRef: Schema.String,
+      baseRef: Schema.String,
+    }),
+  }),
+  Schema.Struct({
+    ok: Schema.Literal(false),
+    code: Schema.Literal(
+      'cli-missing',
+      'not-authenticated',
+      'no-change-request',
+      'cancelled',
+      'invalid-target',
+      'unknown',
+    ),
+    message: Schema.String,
+    attention: Schema.optional(sourceControlAttentionSchema),
+  }),
+)
 
-function providerLabel(provider: ResolvedChangeRequestProvider) {
-  return provider.info.id === 'github' ? 'pull request' : 'merge request'
+export function mergeConfirmationDetail(
+  candidate: ChangeRequestMergeCandidate,
+  payload: MergeChangeRequestPayload,
+) {
+  const account = candidate.account ? `\nAs: @${candidate.account}` : ''
+  return `${candidate.headRef} → ${candidate.baseRef}\n\nMethod: ${payload.method}\nHead: ${payload.expectedHeadCommit}${account}`
 }
 
 async function askMergeConfirmation(
   event: Electron.IpcMainInvokeEvent,
-  resolved: ResolvedChangeRequestProvider,
-  title: string,
-  headRef: string,
-  baseRef: string,
+  candidate: ChangeRequestMergeCandidate,
   payload: MergeChangeRequestPayload,
 ) {
-  const label = providerLabel(resolved)
+  const label = candidate.provider === 'github' ? 'pull request' : 'merge request'
   const ownerWindow = browserWindowFromWebContents(event.sender)
   const confirmation = await showMessageBox(ownerWindow, {
     type: 'warning',
     title: `Merge ${label}`,
-    message: `Merge "${title}"?`,
-    detail: `${headRef} → ${baseRef}\n\nMethod: ${payload.method}\nHead: ${payload.expectedHeadCommit}`,
+    message: `Merge "${candidate.title}"?`,
+    detail: mergeConfirmationDetail(candidate, payload),
     buttons: ['Cancel', `Merge ${label}`],
     defaultId: 0,
     cancelId: 0,
@@ -55,36 +74,7 @@ async function askMergeConfirmation(
   return confirmation.response === 1
 }
 
-function panelEffect(rawSessionId: unknown, rawPath: unknown, rawUrl: unknown) {
-  return Effect.gen(function* () {
-    const sessionId = SessionId(decodeUnknownOrThrow(sessionIdSchema, rawSessionId))
-    const workingPath = decodeUnknownOrThrow(projectPathSchema, rawPath)
-    const requestUrl = decodeUnknownOrThrow(requestUrlSchema, rawUrl)
-    if (!(yield* verifySessionWorkingPath(sessionId, workingPath))) {
-      return SESSION_CHANGE_REQUEST_MISMATCH
-    }
-    const resolved = yield* Effect.promise(() => resolveSourceControlProvider(workingPath))
-    if (!resolved) return NO_SOURCE_CONTROL_PROVIDER
-    const identity = requestedChangeRequestIdentity(resolved, requestUrl)
-    if (!identity) return SESSION_CHANGE_REQUEST_MISMATCH
-    const ownership = yield* sessionOwnedChangeRequestReferences(
-      sessionId,
-      workingPath,
-      resolved,
-      identity.url,
-    )
-    return yield* Effect.promise(() =>
-      loadChangeRequestPanel(
-        workingPath,
-        identity.url,
-        resolved,
-        ownership.branch,
-        ownership.references,
-      ),
-    )
-  })
-}
-
+/** The Session Host validates and merges; only the confirmation dialog belongs to the window. */
 function mergeEffect(
   event: Electron.IpcMainInvokeEvent,
   rawSessionId: unknown,
@@ -92,113 +82,48 @@ function mergeEffect(
   rawPayload: unknown,
 ) {
   return Effect.gen(function* () {
-    const sessionId = SessionId(decodeUnknownOrThrow(sessionIdSchema, rawSessionId))
-    const workingPath = decodeUnknownOrThrow(projectPathSchema, rawPath)
-    const payload = decodeUnknownOrThrow(
-      mergePayloadSchema,
+    const { sessionId, workingPath, payload } = decodeSessionMergeArguments(
+      rawSessionId,
+      rawPath,
       rawPayload,
-    ) satisfies MergeChangeRequestPayload
-    if (!(yield* verifySessionWorkingPath(sessionId, workingPath))) {
-      return SESSION_CHANGE_REQUEST_MISMATCH
-    }
-    const resolved = yield* Effect.promise(() => resolveSourceControlProvider(workingPath))
-    if (!resolved) return NO_SOURCE_CONTROL_PROVIDER
-    const identity = requestedChangeRequestIdentity(resolved, payload.url)
-    if (!identity) return SESSION_CHANGE_REQUEST_MISMATCH
-    const ownership = yield* sessionOwnedChangeRequestReferences(
-      sessionId,
-      workingPath,
-      resolved,
-      identity.url,
     )
-    if (!ownership.references.has(identity.reference)) return SESSION_CHANGE_REQUEST_MISMATCH
-    const before = yield* Effect.promise(() =>
-      resolved.provider.getChangeRequestDetails(workingPath, identity.reference),
-    )
-    const candidate = validateMergeCandidate(
-      resolved,
-      before,
-      identity.reference,
-      payload.expectedHeadCommit,
-      payload.method,
-    )
-    if (isSourceControlFailure(candidate)) return candidate
-    const confirmed = yield* Effect.promise(() =>
-      askMergeConfirmation(
-        event,
-        resolved,
-        candidate.title,
-        candidate.headRef,
-        candidate.baseRef,
+    const remoteCandidate = yield* Effect.promise(() =>
+      invokeConfiguredHostUi('git:change-request:merge-candidate', [
+        sessionId,
+        WorkingPath(workingPath),
         payload,
-      ),
+      ]),
+    )
+    const candidate: ChangeRequestMergeCandidateResult = remoteCandidate.handled
+      ? decodeUnknownOrThrow(candidateResultSchema, remoteCandidate.result)
+      : yield* sessionChangeRequestMergeCandidate(sessionId, workingPath, payload)
+    if (!candidate.ok) return candidate
+    const confirmed = yield* Effect.promise(() =>
+      askMergeConfirmation(event, candidate.candidate, payload),
     )
     if (!confirmed) return { ok: false, code: 'cancelled', message: 'Merge cancelled.' } as const
-
-    const mergeResult = yield* withGitMutationLock(
-      workingPath,
-      revalidateAndMerge(sessionId, workingPath, payload, resolved, identity.reference),
+    const remoteMerge = yield* Effect.promise(() =>
+      invokeConfiguredHostUi('git:change-request:merge-confirmed', [
+        sessionId,
+        WorkingPath(workingPath),
+        payload,
+      ]),
     )
-    return mergeResult satisfies MergeChangeRequestResult
-  })
-}
-
-function revalidateAndMerge(
-  sessionId: SessionId,
-  workingPath: string,
-  payload: MergeChangeRequestPayload,
-  resolved: ResolvedChangeRequestProvider,
-  expectedReference: string,
-) {
-  return Effect.gen(function* () {
-    if (!(yield* verifySessionWorkingPath(sessionId, workingPath))) {
-      return SESSION_CHANGE_REQUEST_MISMATCH
-    }
-    const currentProvider = yield* Effect.promise(() => resolveSourceControlProvider(workingPath))
-    if (!currentProvider || currentProvider.info.id !== resolved.info.id) {
-      return SESSION_CHANGE_REQUEST_MISMATCH
-    }
-    const currentIdentity = requestedChangeRequestIdentity(currentProvider, payload.url)
-    if (!currentIdentity || currentIdentity.reference !== expectedReference) {
-      return SESSION_CHANGE_REQUEST_MISMATCH
-    }
-    const ownership = yield* sessionOwnedChangeRequestReferences(
-      sessionId,
-      workingPath,
-      currentProvider,
-      currentIdentity.url,
-    )
-    if (!ownership.references.has(currentIdentity.reference)) {
-      return SESSION_CHANGE_REQUEST_MISMATCH
-    }
-    const refreshed = yield* Effect.promise(() =>
-      currentProvider.provider.getChangeRequestDetails(workingPath, currentIdentity.reference),
-    )
-    const candidate = validateMergeCandidate(
-      currentProvider,
-      refreshed,
-      currentIdentity.reference,
-      payload.expectedHeadCommit,
-      payload.method,
-    )
-    if (isSourceControlFailure(candidate)) return candidate
-    const result = yield* Effect.promise(() =>
-      currentProvider.provider.mergeChangeRequest(
-        workingPath,
-        currentIdentity.reference,
-        payload.method,
-        payload.expectedHeadCommit,
-      ),
-    )
-    return verifyMergedDetails(currentProvider, result, currentIdentity.reference)
+    if (remoteMerge.handled) return new RelayedHostResult(remoteMerge.result)
+    return yield* mergeConfirmedSessionChangeRequest(sessionId, workingPath, payload)
   })
 }
 
 export function registerGitChangeRequestLifecycleHandlers(): void {
-  typedHandle('git:change-request:panel', (_event, sessionId, path, url) =>
-    panelEffect(sessionId, path, url),
-  )
-  typedHandle('git:change-request:merge', (event, sessionId, path, payload) =>
+  hostHandle('git:change-request:panel', (_event, rawSessionId, rawPath, rawUrl) => {
+    const { sessionId, workingPath, requestUrl } = decodeSessionRequestArguments(
+      rawSessionId,
+      rawPath,
+      rawUrl,
+    )
+    return loadSessionChangeRequestPanel(sessionId, workingPath, requestUrl)
+  })
+  relayingHandle('git:change-request:merge', (event, sessionId, path, payload) =>
     mergeEffect(event, sessionId, path, payload),
   )
 }

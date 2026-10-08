@@ -132,6 +132,34 @@ function mergeSettings(current: Settings, partial: Partial<Settings>): Settings 
     ...mergeGeneralSettings(current, partial),
     ...mergeSessionHostSettings(current, partial),
     ...mergeAppearanceSettings(current, partial),
+    changeRequestOpenDestination:
+      partial.changeRequestOpenDestination === undefined
+        ? current.changeRequestOpenDestination
+        : partial.changeRequestOpenDestination,
+    changeRequestOpenDestinationByProject: nextSetting(
+      current.changeRequestOpenDestinationByProject,
+      partial.changeRequestOpenDestinationByProject,
+    ),
+    sourceControlHostProviders: nextSetting(
+      current.sourceControlHostProviders,
+      partial.sourceControlHostProviders,
+    ),
+    sourceControlDetectedHostProviders: nextSetting(
+      current.sourceControlDetectedHostProviders,
+      partial.sourceControlDetectedHostProviders,
+    ),
+    sourceControlRepositoryAccounts: nextSetting(
+      current.sourceControlRepositoryAccounts,
+      partial.sourceControlRepositoryAccounts,
+    ),
+    sourceControlChangeRequestRepositories: nextSetting(
+      current.sourceControlChangeRequestRepositories,
+      partial.sourceControlChangeRequestRepositories,
+    ),
+    sourceControlProjectDeclarations: nextSetting(
+      current.sourceControlProjectDeclarations,
+      partial.sourceControlProjectDeclarations,
+    ),
   }
 }
 

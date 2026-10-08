@@ -3,8 +3,10 @@
 
 import type { SessionId } from './brand'
 import type { SourceControlProviderInfo, VcsChangeRequest } from './change-request'
+import type { SourceControlAttention, SourceControlHostState } from './source-control'
 
 export * from './change-request'
+export * from './source-control'
 
 // --- VCS status: Local/Remote split (WS2, ADR 0012) ---
 
@@ -24,6 +26,12 @@ export interface VcsWorkingTree {
 export interface LocalVcsStatus {
   readonly isRepo: boolean
   readonly sourceControlProvider: SourceControlProviderInfo | null
+  /** The primary remote's Source control host and how its provider was decided. */
+  readonly sourceControlHost: SourceControlHostState | null
+  /** An offline fix the user must make before change requests work (provider or declaration). */
+  readonly sourceControlAttention: SourceControlAttention | null
+  /** Web address of the remote's repository, for "open on the provider" fallbacks. */
+  readonly sourceControlRepositoryUrl: string | null
   readonly hasPrimaryRemote: boolean
   /** Locally resolved default branch name, when the primary remote's HEAD provides one. */
   readonly defaultRef?: string | null
@@ -50,10 +58,25 @@ export interface RemoteVcsStatus {
   readonly behindCount: number
   readonly aheadOfDefaultCount: number | null
   readonly changeRequest: VcsChangeRequest | null
+  /** CLI or account fix needed before the current branch's change request can be found. */
+  readonly changeRequestAttention: SourceControlAttention | null
+  /** Provider account that found {@link changeRequest}. */
+  readonly changeRequestAccount: string | null
+  /**
+   * Present only when the remote's refs decided a provider the offline Local VCS status could
+   * not, so the combined status shows it before the next local refresh.
+   */
+  readonly sourceControlProvider?: SourceControlProviderInfo
+  readonly sourceControlHost?: SourceControlHostState
 }
 
-/** Combined view for the git-actions control (Local + Remote). */
-export type VcsStatus = LocalVcsStatus & RemoteVcsStatus
+/**
+ * Combined view for the git-actions control (Local + Remote). The remote's optional provider and
+ * host are merged explicitly by the caller and only fill a local value that is null, since the
+ * remote-refs probe is the weakest provider signal.
+ */
+export type VcsStatus = LocalVcsStatus &
+  Omit<RemoteVcsStatus, 'sourceControlProvider' | 'sourceControlHost'>
 
 export const VCS_STATUS_ERROR_CODES = ['not-a-repo', 'remote-unreachable', 'unknown'] as const
 export type VcsStatusErrorCode = (typeof VCS_STATUS_ERROR_CODES)[number]
@@ -154,6 +177,30 @@ export interface GitStackedActionBranchOutcome {
 export type GitOutputRecordingResult =
   | { readonly ok: true }
   | { readonly ok: false; readonly message: string; readonly retryPersisted: boolean }
+
+/** Where in a Session's tree a Git Output is anchored, captured when the Git action began. */
+export interface SessionGitOutputOccurrence {
+  readonly nodeId: string | null
+  readonly branchId: string | null
+  readonly createdAt: number
+}
+
+/** The Session Host's answer to whether a working path belongs to a Session. */
+export type SessionGitWorkingPathVerification =
+  | { readonly owned: false }
+  | { readonly owned: true; readonly occurrence: SessionGitOutputOccurrence }
+
+/** Git artifacts a Session-scoped action produced, recorded as Outputs by the Session Host. */
+export interface SessionGitOutputsPayload {
+  readonly occurrence: SessionGitOutputOccurrence
+  readonly commit?: { readonly commitHash: string; readonly summary: string }
+  readonly changeRequest?: { readonly title: string; readonly url: string }
+}
+
+export interface SessionGitOutputsRecording {
+  readonly commitOutput?: GitOutputRecordingResult
+  readonly changeRequestOutput?: GitOutputRecordingResult
+}
 
 export interface GitRunStackedActionSuccess {
   readonly ok: true
