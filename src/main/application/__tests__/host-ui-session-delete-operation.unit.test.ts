@@ -62,10 +62,14 @@ describe('Host UI Session deletion', () => {
     expect(deletedCommand()).toEqual({ operation: 'delete', sessionId: SESSION_ID })
   })
 
-  it('accepts a project removal flag', async () => {
-    await expect(
-      dispatch('sessions:delete', [SESSION_ID, { removingProject: true }]),
-    ).resolves.toBeUndefined()
+  it('passes a project removal to the deletion itself', async () => {
+    await dispatch('sessions:delete', [SESSION_ID, { removingProject: true }])
+
+    expect(deletedCommand()).toEqual({
+      operation: 'delete',
+      sessionId: SESSION_ID,
+      removingProject: true,
+    })
   })
 
   it.each([

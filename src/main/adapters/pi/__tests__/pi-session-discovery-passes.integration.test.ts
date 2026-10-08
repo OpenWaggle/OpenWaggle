@@ -107,7 +107,9 @@ describe('A Pi session discovery pass', () => {
     await run(
       deleteSessionForProjectRemoval(
         listed,
-        Effect.flatMap(SessionProjectionRepository, (repository) => repository.delete(listed)),
+        Effect.flatMap(SessionProjectionRepository, (repository) =>
+          repository.delete(listed, { removingProject: true }),
+        ),
       ),
     )
 

@@ -84,7 +84,7 @@ export type LocalSessionCommandPayload =
                 readonly lastVisitedAt?: number
               }
             }
-          | { readonly operation: 'delete'; readonly sessionId: string }
+          | ({ readonly operation: 'delete'; readonly sessionId: string } & SessionDeleteOptions)
           | {
               /** Keeps a Follow-up edit hold alive; not journaled (ADR 0044). */
               readonly operation: 'renew-follow-up-edit-hold'
@@ -298,7 +298,7 @@ import type {
   LocalSessionWaggleCommandResult,
 } from './local-session-waggle'
 import type { LocalUpdateCommandPayload, LocalUpdateCommandResult } from './local-update'
-import type { SessionNavigateTreeOptions } from './session'
+import type { SessionDeleteOptions, SessionNavigateTreeOptions } from './session'
 import type {
   SessionControlMutationRequest,
   SessionControlMutationResponse,

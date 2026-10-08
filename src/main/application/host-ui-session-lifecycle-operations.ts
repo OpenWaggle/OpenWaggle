@@ -259,7 +259,11 @@ export function deleteSession(args: readonly unknown[]) {
     yield* requireOptionalArgCount(args, 1, TWO_ARGUMENTS)
     const sessionId = yield* validateSessionId(args[0])
     const options = yield* validateDeleteOptions(args[1])
-    const deletion = mutateLocalUiSession({ operation: 'delete', sessionId })
+    const deletion = mutateLocalUiSession({
+      operation: 'delete',
+      sessionId,
+      ...(options.removingProject ? { removingProject: true } : {}),
+    })
     yield* options.removingProject ? deleteSessionForProjectRemoval(sessionId, deletion) : deletion
     yield* Effect.sync(() => {
       clearAgentPhase(sessionId)

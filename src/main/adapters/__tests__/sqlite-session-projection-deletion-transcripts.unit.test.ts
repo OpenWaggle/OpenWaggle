@@ -235,7 +235,7 @@ describe('Session deletion of transcript copies the runtime would rediscover', (
       projectPath: '/project',
       worktreePath: WORKTREE_PATH,
     })
-    expect(mocks.prepareSessionDeletion).toHaveBeenCalledWith(SESSION_ID, newest)
+    expect(mocks.prepareSessionDeletion).toHaveBeenCalledWith(SESSION_ID, newest, {})
   })
 
   it('journals the recorded transcript file without searching for another', async () => {
@@ -250,9 +250,15 @@ describe('Session deletion of transcript copies the runtime would rediscover', (
 
     await expect(deleteSession()).resolves.toBeUndefined()
 
-    expect(mocks.prepareSessionDeletion).toHaveBeenCalledWith(SESSION_ID, recorded)
+    expect(mocks.prepareSessionDeletion).toHaveBeenCalledWith(SESSION_ID, recorded, {})
     expect(mocks.listTranscriptFiles).not.toHaveBeenCalledWith(
       expect.objectContaining({ transcriptId: 'pi-session' }),
     )
+
+    // Removing the project tells the journal, which then keeps a discovered Pi file (ADR 0050).
+    await runRepository((repository) => repository.delete(SESSION_ID, { removingProject: true }))
+    expect(mocks.prepareSessionDeletion).toHaveBeenLastCalledWith(SESSION_ID, recorded, {
+      removingProject: true,
+    })
   })
 })

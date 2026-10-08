@@ -5,6 +5,7 @@ import type {
   HiveSessionCatalogPage,
   SessionCatalogPage,
   SessionCopyToNewResult,
+  SessionDeleteOptions,
   SessionDetail,
   SessionNavigateTreeOptions,
   SessionProjectPage,
@@ -51,7 +52,7 @@ export interface IpcSessionInvokeChannelMap {
    * from the `pi` CLI keeps its file and is listed again if the folder is added back (ADR 0050).
    */
   'sessions:delete': {
-    args: [id: SessionId, options?: { readonly removingProject?: boolean }]
+    args: [id: SessionId, options?: SessionDeleteOptions]
     return: undefined
   }
   /**

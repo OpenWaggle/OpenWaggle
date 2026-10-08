@@ -1,6 +1,7 @@
 import { isMatching, P } from '@diegogbrisa/ts-match'
 import * as SqlClient from '@effect/sql/SqlClient'
 import { SessionId } from '@shared/types/brand'
+import type { SessionDeleteOptions } from '@shared/types/session'
 import * as Effect from 'effect/Effect'
 import { runStoreEffect } from '../store-runtime'
 import { EMPTY_INDEX } from './constants'
@@ -86,7 +87,12 @@ export async function getSessionDeletion(id: SessionId): Promise<SessionDeletion
 }
 
 /** `transcriptFile` stands in for a Pi file the Session never recorded, for cleanup to find. */
-export async function prepareSessionDeletion(id: SessionId, transcriptFile?: string | null) {
+/** Journals a Session's deletion; see `journaledPiSessionFile` for a discovered Pi file. */
+export async function prepareSessionDeletion(
+  id: SessionId,
+  transcriptFile?: string | null,
+  options: SessionDeleteOptions = {},
+) {
   return runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
@@ -114,8 +120,12 @@ export async function prepareSessionDeletion(id: SessionId, transcriptFile?: str
           const session = sessions[EMPTY_INDEX]
           if (!session) throw new Error(`Session ${id} does not exist.`)
           const now = Date.now()
-          yield* PiSessionDismissals.dismissDiscoveredPiSession(sql, id, now)
-          const piSessionFile = session.pi_session_file ?? transcriptFile ?? null
+          const piSessionFile = yield* PiSessionDismissals.journaledPiSessionFile(sql, {
+            id,
+            piSessionFile: session.pi_session_file ?? transcriptFile ?? null,
+            removingProject: options.removingProject === true,
+            now,
+          })
           yield* sql`
             INSERT INTO session_deletion_operations (
               session_id, phase, project_path, worktree_project_path, worktree_path,

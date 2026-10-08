@@ -48,6 +48,7 @@ import type {
   PinnedSessionMove,
   SessionCatalogPage,
   SessionCopyToNewResult,
+  SessionDeleteOptions,
   SessionDetail,
   SessionNavigateTreeOptions,
   SessionThinkingLevelChange,
@@ -177,7 +178,7 @@ export interface OpenWaggleApi
     targetNodeId: SessionNodeId,
   ): Promise<SessionCopyToNewResult>
   /** `removingProject` keeps a discovered Pi session listable if its folder is added back. */
-  deleteSession(id: SessionId, options?: { readonly removingProject?: boolean }): Promise<void>
+  deleteSession(id: SessionId, options?: SessionDeleteOptions): Promise<void>
   /** Stops Pi session discovery for a project the user is removing, before its Sessions are read. */
   beginProjectRemoval(projectPath: string): Promise<void>
   archiveSession(id: SessionId): Promise<void>

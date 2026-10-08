@@ -20,6 +20,36 @@ export function dismissDiscoveredPiSession(sql: SqlClient.SqlClient, id: Session
   `
 }
 
+/**
+ * The Pi file a Session's deletion journals for cleanup. A discovered Pi session's file is never
+ * deleted (ADR 0048): deleting the Session on its own dismisses the file, so discovery does not
+ * list it again and the cleanup leaves it. Removing its project journals no file and writes no
+ * dismissal, in the same transaction, so the file stays listable for when the folder is added
+ * back, whichever step of the deletion a crash interrupts.
+ */
+export function journaledPiSessionFile(
+  sql: SqlClient.SqlClient,
+  input: {
+    readonly id: SessionId
+    readonly piSessionFile: string | null
+    readonly removingProject: boolean
+    readonly now: number
+  },
+) {
+  return Effect.gen(function* () {
+    if (!input.removingProject) {
+      yield* dismissDiscoveredPiSession(sql, input.id, input.now)
+      return input.piSessionFile
+    }
+    const adoptions = yield* sql<{ readonly adopted: number }>`
+      SELECT EXISTS (
+        SELECT 1 FROM pi_session_adoptions WHERE session_id = ${input.id}
+      ) AS adopted
+    `
+    return adoptions[EMPTY_INDEX]?.adopted === 1 ? null : input.piSessionFile
+  })
+}
+
 function isDismissedPiSessionFile(sql: SqlClient.SqlClient, piSessionFile: string) {
   return Effect.map(
     sql<{ readonly dismissed: number }>`

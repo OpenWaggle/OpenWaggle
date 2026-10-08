@@ -15,10 +15,10 @@ export function beginPiSessionProjectRemoval(projectPath: string) {
 
 /**
  * Deletes one Session as part of removing its project (ADR 0050). Unlike deleting a single
- * discovered Session, this does not dismiss its Pi file: the file stays for the `pi` CLI, and the
- * session is listed again if the folder is added back as a project. Discovery pauses for the
- * project until its removal finishes, so it neither lists the file again meanwhile nor adds
- * Sessions to a project the removal is checking.
+ * discovered Session, the deletion does not dismiss its Pi file: the file stays for the `pi` CLI,
+ * and the session is listed again if the folder is added back. Discovery pauses for the project
+ * until its removal finishes, so it neither lists the file again meanwhile nor adds Sessions to a
+ * project the removal is checking.
  */
 export function deleteSessionForProjectRemoval<E, R>(
   sessionId: SessionId,
@@ -31,7 +31,5 @@ export function deleteSessionForProjectRemoval<E, R>(
       : null
     if (state?.projectPath) pausePiSessionDiscovery(state.projectPath)
     yield* deletion
-    if (Option.isNone(repository) || !state?.piEntryNodeIdPrefix || !state.piSessionFile) return
-    yield* repository.value.undismiss(state.piSessionFile)
   })
 }
