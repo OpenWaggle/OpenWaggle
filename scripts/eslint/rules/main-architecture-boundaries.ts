@@ -2,7 +2,12 @@ import path from 'node:path'
 import type { Rule } from 'eslint'
 import { isTestFilename, normalizedFilename, property, sourceValueOf } from '../ast-helpers'
 
-const PI_SDK_PACKAGE = '@earendil-works/pi-coding-agent'
+/**
+ * Every Pi SDK package (`@earendil-works/pi-ai`, `pi-coding-agent`, `pi-mcp`, `pi-codemode`, ...),
+ * type-only imports included: the standards confine all of them to the Pi adapter and the
+ * dedicated `packages/pi-*` packages.
+ */
+const PI_SDK_PACKAGE_PATTERN = /^@earendil-works\/pi-[^/]+(?:\/|$)/
 const PROVIDER_REGISTRY_IDENTIFIER = 'providerRegistry'
 const MAIN_PROVIDERS_PREFIX = 'src/main/providers/'
 const MAIN_PI_ADAPTER_PREFIX = 'src/main/adapters/pi/'
@@ -85,7 +90,7 @@ function isDomainInfrastructureImport(importPath: string) {
 }
 
 function isPiSdkImport(importPath: string) {
-  return importPath === PI_SDK_PACKAGE || importPath.startsWith(`${PI_SDK_PACKAGE}/`)
+  return PI_SDK_PACKAGE_PATTERN.test(importPath)
 }
 
 function isDedicatedPiPackageFile(projectPath: string) {
