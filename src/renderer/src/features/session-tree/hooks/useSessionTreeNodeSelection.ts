@@ -3,13 +3,13 @@ import type { SessionNode, SessionTree, SessionWorkspace } from '@shared/types/s
 import { useNavigate } from '@tanstack/react-router'
 import {
   createBranchDraftSelectionFromNode,
+  isSessionModelActionable,
   maybeOpenBranchSummaryPrompt,
   setComposerTextValue,
 } from '@/features/chat/lib'
 import { useBranchSummaryStore } from '@/features/chat/state'
 import { buildComposerDraftContextKey } from '@/features/composer/lib'
 import { useComposerStore } from '@/features/composer/state'
-import { isSelectableModel, useProviderStore } from '@/features/providers/state'
 import { useSessionStore } from '@/features/sessions/state'
 import { api } from '@/shared/lib/ipc'
 
@@ -53,8 +53,7 @@ export function useSessionTreeNodeSelection(input: SessionTreeNodeSelectionInput
     if (!tree) {
       return
     }
-    const { providerModels, catalogHydrated } = useProviderStore.getState()
-    if (!isSelectableModel(providerModels, input.selectedModel, catalogHydrated)) {
+    if (!isSessionModelActionable(tree.session.id, input.selectedModel)) {
       input.showToast('Select a model before switching branches.')
       return
     }

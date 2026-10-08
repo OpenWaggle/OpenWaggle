@@ -6,7 +6,6 @@ import { useState } from 'react'
 import { useChatStore } from '@/features/chat/state'
 import { buildPendingSessionDraftContextKey } from '@/features/composer/lib'
 import { useComposerStore } from '@/features/composer/state'
-import { isSelectableModel, useProviderStore } from '@/features/providers/state'
 import { api } from '@/shared/lib/ipc'
 import { ipcErrorMessage } from '@/shared/lib/ipc-error-message'
 import { findUserMessageNode } from '../lib/branch-from-message'
@@ -15,6 +14,7 @@ import {
   currentConversationWorkspace,
   resolveCurrentConversationNode,
 } from '../lib/current-conversation-node'
+import { isSessionModelActionable } from '../lib/session-answered-by'
 import { getVisibleForkTargets, type SessionForkTarget } from '../lib/session-fork-targets'
 
 type Navigate = ReturnType<typeof useNavigate>
@@ -69,7 +69,7 @@ async function forkNodeToNewSessionAction(
   nodeId: SessionNodeId,
 ) {
   if (!params.activeSessionId) return
-  if (!isModelActionable(params.model)) {
+  if (!isSessionModelActionable(params.activeSessionId, params.model)) {
     params.showToast('Select a model before forking.')
     return
   }
@@ -97,7 +97,7 @@ async function cloneCurrentSessionToNewSessionAction(params: SessionCopyWorkflow
     return
   }
 
-  if (!isModelActionable(params.model)) {
+  if (!isSessionModelActionable(params.activeSessionId, params.model)) {
     params.showToast('Select a model before cloning.')
     return
   }
@@ -180,7 +180,7 @@ export function useSessionCopyWorkflow(params: SessionCopyWorkflowParams) {
     async forkMessageToNewSession(messageId: string) {
       const sessionId = params.activeSessionId
       if (!sessionId) return
-      if (!isModelActionable(params.model)) {
+      if (!isSessionModelActionable(sessionId, params.model)) {
         params.showToast('Select a model before forking.')
         return
       }
@@ -220,13 +220,4 @@ export function useSessionCopyWorkflow(params: SessionCopyWorkflowParams) {
       void forkNodeToNewSessionAction(params, target.entryId)
     },
   }
-}
-
-/**
- * The copy actions dispatch with the active session's resolved model; like the composer send
- * gate, they must refuse models the picker can no longer offer (disabled, pruned, unavailable).
- */
-function isModelActionable(model: SupportedModelId | undefined): model is SupportedModelId {
-  const { providerModels, catalogHydrated } = useProviderStore.getState()
-  return isSelectableModel(providerModels, model, catalogHydrated)
 }

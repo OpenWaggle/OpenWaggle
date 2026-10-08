@@ -7,9 +7,9 @@ import type {
   SessionWorkspaceSelection,
 } from '@shared/types/session'
 import type { useNavigate } from '@tanstack/react-router'
+import { isSessionModelActionable } from '@/features/chat/lib'
 import { useBranchSummaryStore, useChatStore } from '@/features/chat/state'
 import { useComposerStore } from '@/features/composer/state'
-import { isModelActionable } from '@/features/providers/state'
 import { api } from '@/shared/lib/ipc'
 import { errorMessage } from './sidebar-action-utils'
 
@@ -78,7 +78,7 @@ async function switchSessionBranch(
       cached?.executionModel ??
       (await api.getSessionDetail(targetSessionId))?.executionModel ??
       deps.defaultModel
-    if (!isModelActionable(targetModel)) {
+    if (!isSessionModelActionable(targetSessionId, targetModel)) {
       deps.showToast('Select a model before switching branches.')
       return
     }

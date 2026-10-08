@@ -16,3 +16,4 @@ export {
   isScrollContainerNearBottom,
   scrollElementToBottom,
 } from './scroll-to-bottom'
+export { isSessionModelActionable } from './session-answered-by'
