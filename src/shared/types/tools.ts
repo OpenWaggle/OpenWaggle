@@ -32,6 +32,11 @@ export interface NestedToolCalls {
   readonly calls: readonly NestedToolCallRecord[]
   /** False when Pi dropped calls, omitted arguments, or calls had not finished. */
   readonly complete: boolean
+  /**
+   * Calls left out past the maximum, counted by OpenWaggle's live record. Pi's own record does
+   * not count them: it is only marked incomplete.
+   */
+  readonly droppedCalls?: number
 }
 
 export interface ToolCallResult {

@@ -1,5 +1,6 @@
 import { SessionId, SupportedModelId } from '@shared/types/brand'
 import type { AgentTransportEvent } from '@shared/types/stream'
+import { NESTED_TOOL_CALL_LIMITS } from '@shared/utils/nested-tool-calls'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
   applyEventToStreamBuffer,
@@ -7,7 +8,6 @@ import {
   getStreamBuffer,
   startStreamBuffer,
 } from '../stream-buffer'
-import { MAX_LIVE_NESTED_TOOL_CALLS } from '../stream-buffer-nested-calls'
 
 const SESSION_ID = SessionId('session-stream-buffer-nested')
 const MODEL = SupportedModelId('anthropic/claude-sonnet-4-5')
@@ -129,10 +129,9 @@ describe('stream buffer nested tool calls', () => {
     ])
   })
 
-  it('keeps a bounded record and says when it dropped calls', () => {
-    startCodemode()
-    for (let index = 1; index <= MAX_LIVE_NESTED_TOOL_CALLS + 3; index += 1) {
-      const toolCallId = `code-1/${index}`
+  function finishNestedCalls(count: number) {
+    for (let index = 1; index <= count; index += 1) {
+      const toolCallId = `code-1/${String(index)}`
       nestedStart(toolCallId, 'code-1', index)
       apply({
         type: 'tool_execution_end',
@@ -144,10 +143,35 @@ describe('stream buffer nested tool calls', () => {
         timestamp: index,
       })
     }
+  }
 
+  function recordedNestedCalls() {
     const part = getStreamBuffer(SESSION_ID)?.parts[0]
-    const nestedCalls = part?.type === 'tool-call' ? part.toolCall.nestedCalls : undefined
-    expect(nestedCalls?.calls).toHaveLength(MAX_LIVE_NESTED_TOOL_CALLS)
+    return part?.type === 'tool-call' ? part.toolCall.nestedCalls : undefined
+  }
+
+  it('keeps as many calls as Pi does and reports a full list as complete', () => {
+    startCodemode()
+    finishNestedCalls(NESTED_TOOL_CALL_LIMITS.maxCalls)
+
+    const nestedCalls = recordedNestedCalls()
+    expect(nestedCalls?.calls).toHaveLength(NESTED_TOOL_CALL_LIMITS.maxCalls)
+    expect(nestedCalls?.complete).toBe(true)
+    expect(nestedCalls?.droppedCalls).toBeUndefined()
+  })
+
+  it('counts the calls it drops past the cap, including calls they make', () => {
+    startCodemode()
+    finishNestedCalls(NESTED_TOOL_CALL_LIMITS.maxCalls + 3)
+    // A call made by a dropped call still belongs to the codemode call.
+    nestedStart(
+      `code-1/${String(NESTED_TOOL_CALL_LIMITS.maxCalls + 1)}/1`,
+      `code-1/${String(NESTED_TOOL_CALL_LIMITS.maxCalls + 1)}`,
+    )
+
+    const nestedCalls = recordedNestedCalls()
+    expect(nestedCalls?.calls).toHaveLength(NESTED_TOOL_CALL_LIMITS.maxCalls)
+    expect(nestedCalls?.droppedCalls).toBe(4)
     expect(nestedCalls?.complete).toBe(false)
   })
 })
