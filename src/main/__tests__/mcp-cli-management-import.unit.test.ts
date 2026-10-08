@@ -51,9 +51,17 @@ describe('openwaggle mcp import', () => {
       'mcp:preview-imports': () => preview,
       'mcp:apply-imports': () => ({
         imported: [
-          { source: 'cursor', sourceName: 'linear', targetName: 'linear', fingerprint: 'fp' },
+          {
+            source: 'cursor',
+            sourceName: 'linear',
+            targetName: 'linear',
+            fingerprint: 'fp',
+            secrets: [],
+          },
         ],
         skipped: [],
+        secrets: [],
+        existingSecrets: [],
         view: view([]),
       }),
     })
@@ -77,5 +85,32 @@ describe('openwaggle mcp import', () => {
     expect(tool.errors).toContain('Unknown import source "pi"')
     expect(name.exitCode).toBe(1)
     expect(name.errors).toContain('No server named "nope"')
+  })
+
+  it('names the vault secrets the imported servers read, and those that already exist', async () => {
+    const result = await run('import', ['--apply'], {
+      'mcp:preview-imports': () => preview,
+      'mcp:apply-imports': () => ({
+        imported: [
+          {
+            source: 'cursor',
+            sourceName: 'github',
+            targetName: 'github-2',
+            fingerprint: 'fp',
+            secrets: ['GITHUB_2_AUTHORIZATION', 'GITHUB_2_TOKEN'],
+          },
+        ],
+        skipped: [],
+        secrets: ['GITHUB_2_AUTHORIZATION', 'GITHUB_2_TOKEN'],
+        existingSecrets: ['GITHUB_2_TOKEN'],
+        view: view([]),
+      }),
+    })
+
+    expect(result.logs.split('\n')).toEqual([
+      'Imported cursor server "github" as "github-2".',
+      'It reads the vault secret GITHUB_2_AUTHORIZATION. Add it in Settings > MCP > Secrets before using it.',
+      'It uses the vault secret GITHUB_2_TOKEN, which already exists; replace it in Settings > MCP > Secrets if it holds another value.',
+    ])
   })
 })

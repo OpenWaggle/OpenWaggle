@@ -217,11 +217,11 @@ describe('previewing MCP imports as Pi entries', () => {
       entry: {
         command: 'api-mcp',
         args: ['--api-key', '--verbose'],
-        env: { API_TOKEN: { secret: 'API_API_TOKEN' }, FROM_ENV: `\${API_SECRET}`, MODE: 'fast' },
+        env: { API_TOKEN: { secret: 'API_TOKEN' }, FROM_ENV: `\${API_SECRET}`, MODE: 'fast' },
       },
       warnings: [
         'A command-line credential after --api-key was not imported. Move it to the encrypted vault or an environment variable.',
-        'env.API_TOKEN contains a plaintext credential. Its value was not imported; save it as vault secret API_API_TOKEN.',
+        'env.API_TOKEN contains a plaintext credential. Its value was not imported; it becomes a vault secret named after the server and API_TOKEN, which you fill in after importing.',
       ],
     })
     expect(JSON.stringify(result)).not.toContain('sk-plaintext')

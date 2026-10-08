@@ -15,6 +15,7 @@ import * as Effect from 'effect/Effect'
 import { createLogger } from '../logger'
 import { McpConfigurationError, McpConfigurationService } from '../ports/mcp-configuration-service'
 import { McpImportService } from '../ports/mcp-import-service'
+import { McpSecretVaultService } from '../ports/mcp-secret-vault-service'
 import { McpServerRuntimeService } from '../ports/mcp-server-runtime-service'
 import { WorkspaceProjectAuthorization } from '../ports/workspace-project-authorization'
 
@@ -211,8 +212,17 @@ export function applyMcpImportsOperation(raw: unknown) {
         ),
       ),
     )
+    const secrets = [...new Set(result.imported.flatMap((item) => item.secrets))].sort()
+    // Listing the vault reads no secret; a vault that cannot be listed reports none as existing.
+    const stored = yield* (yield* McpSecretVaultService).list().pipe(Effect.orElseSucceed(() => []))
+    const storedNames = new Set(stored.map((secret) => secret.name))
     const view = yield* service.getView({ projectPath: input.projectPath })
-    return { ...result, view } satisfies McpImportApplyResultView
+    return {
+      ...result,
+      secrets,
+      existingSecrets: secrets.filter((secret) => storedNames.has(secret)),
+      view,
+    } satisfies McpImportApplyResultView
   })
 }
 

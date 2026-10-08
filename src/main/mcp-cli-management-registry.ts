@@ -118,6 +118,25 @@ function installRequest(input: McpManagementCommandInput, registryName: string) 
   } satisfies McpRegistryInstallRequest
 }
 
+/** What to tell the user about the vault secrets an installed or imported server reads. */
+export function vaultSecretLines(secrets: readonly string[], existingSecrets: readonly string[]) {
+  const stored = new Set(existingSecrets)
+  const missing = secrets.filter((secret) => !stored.has(secret))
+  const lines: string[] = []
+  if (missing.length > 0) {
+    lines.push(
+      `It reads the vault secret${missing.length === 1 ? '' : 's'} ${missing.join(', ')}. Add ${missing.length === 1 ? 'it' : 'them'} in Settings > MCP > Secrets before using it.`,
+    )
+  }
+  if (existingSecrets.length > 0) {
+    const one = existingSecrets.length === 1
+    lines.push(
+      `It uses the vault secret${one ? '' : 's'} ${existingSecrets.join(', ')}, which already exist${one ? 's' : ''}; replace ${one ? 'it' : 'them'} in Settings > MCP > Secrets if ${one ? 'it holds' : 'they hold'} another value.`,
+    )
+  }
+  return lines
+}
+
 async function addCommand(input: McpManagementCommandInput, rest: readonly string[]) {
   const { args, context } = input
   const request = installRequest(input, requireRegistryName(rest))
@@ -134,18 +153,8 @@ async function addCommand(input: McpManagementCommandInput, rest: readonly strin
   context.output.log(
     `Installed ${request.scope} MCP server "${result.name}" from the MCP Registry in ${result.filePath}.`,
   )
-  const stored = new Set(result.existingSecrets)
-  const missing = result.secrets.filter((secret) => !stored.has(secret))
-  if (missing.length > 0) {
-    context.output.log(
-      `It reads the vault secret${missing.length === 1 ? '' : 's'} ${missing.join(', ')}. Add ${missing.length === 1 ? 'it' : 'them'} in Settings > MCP > Secrets before using it.`,
-    )
-  }
-  const existing = result.existingSecrets
-  if (existing.length > 0) {
-    context.output.log(
-      `It uses the vault secret${existing.length === 1 ? '' : 's'} ${existing.join(', ')}, which already exist${existing.length === 1 ? 's' : ''}; replace ${existing.length === 1 ? 'it' : 'them'} in Settings > MCP > Secrets if ${existing.length === 1 ? 'it holds' : 'they hold'} another value.`,
-    )
+  for (const line of vaultSecretLines(result.secrets, result.existingSecrets)) {
+    context.output.log(line)
   }
   const local = request.projectPath ? ' -l' : ''
   context.output.log(`Check it with: openwaggle mcp list${local}`)

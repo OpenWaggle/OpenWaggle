@@ -33,7 +33,10 @@ export interface McpImportServiceShape {
   readonly apply: (
     input: McpImportApplyRequest,
     write: McpImportEntryWriter,
-  ) => Effect.Effect<Omit<McpImportApplyResultView, 'view'>, McpConfigurationError>
+  ) => Effect.Effect<
+    Omit<McpImportApplyResultView, 'view' | 'secrets' | 'existingSecrets'>,
+    McpConfigurationError
+  >
 }
 
 export class McpImportService extends Context.Tag('@openwaggle/McpImportService')<

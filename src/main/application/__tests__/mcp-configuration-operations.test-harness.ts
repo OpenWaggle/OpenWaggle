@@ -10,6 +10,7 @@ import {
   McpConfigurationService,
 } from '../../ports/mcp-configuration-service'
 import { McpImportService } from '../../ports/mcp-import-service'
+import { McpSecretVaultService } from '../../ports/mcp-secret-vault-service'
 import {
   McpServerRuntimeService,
   type McpServerScopeInput,
@@ -19,6 +20,7 @@ import { WorkspaceProjectAuthorization } from '../../ports/workspace-project-aut
 type Services =
   | McpConfigurationService
   | McpImportService
+  | McpSecretVaultService
   | McpServerRuntimeService
   | WorkspaceProjectAuthorization
 
@@ -35,6 +37,8 @@ export function createMcpOperationsHarness() {
     projectPath: '',
     /** A managed worktree of the project, as a Session in worktree mode runs in. */
     worktreePath: '',
+    /** Names of the secrets in the vault. */
+    vaultSecrets: new Array<string>(),
     sourceFiles: new Map<string, string>(),
     runtimeCalls,
   }
@@ -77,6 +81,7 @@ export function createMcpOperationsHarness() {
     mkdirSync(state.projectPath, { recursive: true })
     mkdirSync(state.worktreePath, { recursive: true })
     state.sourceFiles = new Map()
+    state.vaultSecrets = []
     state.runtimeCalls.length = 0
   })
 
@@ -104,6 +109,18 @@ export function createMcpOperationsHarness() {
         }),
       ),
       Layer.succeed(McpServerRuntimeService, runtime),
+      Layer.succeed(
+        McpSecretVaultService,
+        McpSecretVaultService.of({
+          list: () =>
+            Effect.succeed(
+              state.vaultSecrets.map((name) => ({ name, createdAt: 1, updatedAt: 1 })),
+            ),
+          resolve: () => Effect.die('not read'),
+          set: () => Effect.die('not written'),
+          remove: () => Effect.die('not written'),
+        }),
+      ),
       // Only the harness project, and its Session's worktree, are known to OpenWaggle.
       Layer.succeed(
         WorkspaceProjectAuthorization,

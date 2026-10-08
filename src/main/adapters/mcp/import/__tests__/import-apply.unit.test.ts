@@ -98,6 +98,7 @@ describe('applying MCP imports through the config writer', () => {
         sourceName: 'files',
         targetName: 'files',
         fingerprint: files?.fingerprint,
+        secrets: [],
       },
     ])
   })
@@ -186,5 +187,53 @@ describe('applying MCP imports through the config writer', () => {
 
     expect(unchanged.candidates[0]?.status).toBe('imported')
     expect(changed.candidates[0]?.status).toBe('source-changed')
+  })
+
+  it("names a renamed import's vault secrets after the name it is saved as", async () => {
+    const github = (url: string) => ({
+      url,
+      headers: { Authorization: 'Bearer ghp_plaintext' },
+    })
+    const windsurf = `${HOME}/.codeium/windsurf/mcp_config.json`
+    const texts: Record<string, string> = {
+      [CURSOR]: JSON.stringify({
+        mcpServers: { github: github('https://api.github.example/mcp') },
+      }),
+      [windsurf]: JSON.stringify({ mcpServers: { github: github('https://evil.example/mcp') } }),
+    }
+    const preview = await previewMcpImports({
+      homeDir: HOME,
+      platform: 'linux',
+      sources: ['cursor', 'windsurf'],
+      readText: (filePath) => Promise.resolve(texts[filePath]),
+    })
+    const writer = recordingWriter()
+
+    const result = await applyMcpImports({
+      preview,
+      fingerprints: preview.candidates.map((candidate) => candidate.fingerprint),
+      target: 'global',
+      // A server the user already has reads GITHUB_AUTHORIZATION.
+      targetServers: {
+        github: {
+          url: 'https://github.example',
+          headers: { Authorization: { secret: 'GITHUB_AUTHORIZATION' } },
+        },
+      },
+      conflictPolicy: 'rename',
+      now: () => NOW,
+      write: writer.write,
+    })
+
+    const writes = writer.calls.flatMap((call) => call.writes)
+    expect(writes.map((write) => [write.name, write.entry.headers])).toEqual([
+      ['github-2', { Authorization: { secret: 'GITHUB_2_AUTHORIZATION' } }],
+      ['github-3', { Authorization: { secret: 'GITHUB_3_AUTHORIZATION' } }],
+    ])
+    expect(result.imported.map((item) => [item.targetName, item.secrets])).toEqual([
+      ['github-2', ['GITHUB_2_AUTHORIZATION']],
+      ['github-3', ['GITHUB_3_AUTHORIZATION']],
+    ])
+    expect(JSON.stringify({ preview, writes })).not.toContain('ghp_plaintext')
   })
 })

@@ -51,6 +51,42 @@ describe('MCP import and runtime operations', () => {
     )
   })
 
+  it('names the vault secrets an import reads, and says which already exist', async () => {
+    harness.state.sourceFiles.set(
+      path.join(harness.state.homeDir, '.cursor', 'mcp.json'),
+      JSON.stringify({
+        mcpServers: {
+          github: {
+            url: 'https://api.github.example/mcp',
+            headers: { Authorization: 'Bearer ghp_plaintext', 'X-Api-Key': 'key-plaintext' },
+          },
+        },
+      }),
+    )
+    harness.state.vaultSecrets = ['GITHUB_AUTHORIZATION']
+    const preview = await run(previewMcpImportsOperation({ projectPath: null }))
+
+    const result = await run(
+      applyMcpImportsOperation({
+        projectPath: null,
+        fingerprints: preview.candidates.map((candidate) => candidate.fingerprint),
+        target: 'global',
+        conflictPolicy: 'skip',
+      }),
+    )
+
+    expect(result).toMatchObject({
+      secrets: ['GITHUB_AUTHORIZATION', 'GITHUB_X_API_KEY'],
+      existingSecrets: ['GITHUB_AUTHORIZATION'],
+    })
+    expect(servers(owGlobal()).github).toMatchObject({
+      headers: {
+        Authorization: { secret: 'GITHUB_AUTHORIZATION' },
+        'X-Api-Key': { secret: 'GITHUB_X_API_KEY' },
+      },
+    })
+  })
+
   it('rejects an import source the importer does not know', async () => {
     await expect(
       failureMessage(previewMcpImportsOperation({ projectPath: null, sources: ['pi'] })),

@@ -20,7 +20,8 @@ describe('imported env and header values, as Pi will read them', () => {
 
   it('withholds a credential that starts with ! instead of keeping it as a command', () => {
     expect(env('claude-desktop', { DB_PASSWORD: '!Sup3r$ecret' })).toEqual({
-      DB_PASSWORD: { secret: 'DB_DB_PASSWORD' },
+      // Named after the field; the import names it after the server it saves (DB_DB_PASSWORD).
+      DB_PASSWORD: { secret: 'DB_PASSWORD' },
     })
   })
 

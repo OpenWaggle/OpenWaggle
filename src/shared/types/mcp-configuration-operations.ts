@@ -127,7 +127,13 @@ export interface McpImportApplyResultView {
     readonly sourceName: string
     readonly targetName: string
     readonly fingerprint: string
+    /** The vault secrets the imported server reads, named after `targetName`. */
+    readonly secrets: readonly string[]
   }[]
   readonly skipped: readonly { readonly fingerprint: string; readonly reason: string }[]
+  /** Every vault secret the imported servers read. */
+  readonly secrets: readonly string[]
+  /** The ones already in the vault, which the imported servers now share. */
+  readonly existingSecrets: readonly string[]
   readonly view: McpConfigurationView
 }

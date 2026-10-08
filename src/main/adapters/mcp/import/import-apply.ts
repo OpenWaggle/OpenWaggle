@@ -3,6 +3,7 @@
  * entries to the caller's config writer, which owns the target file.
  */
 import { isRecord } from '@shared/utils/validation'
+import { withServerSecretNames } from '../../../domain/mcp/config/mcp-server-secret-names'
 import { sameServerName } from './import-identity'
 import type {
   ExternalMcpImportCandidate,
@@ -46,6 +47,8 @@ export interface ExternalMcpImportApplyResult {
     readonly sourceName: string
     readonly targetName: string
     readonly fingerprint: string
+    /** The vault secrets the saved server reads, named after `targetName`. */
+    readonly secrets: readonly string[]
   }[]
   readonly skipped: readonly { readonly fingerprint: string; readonly reason: string }[]
 }
@@ -131,10 +134,13 @@ export async function applyMcpImports(
       fingerprint,
       importedAt,
     }
+    // Vault references are named after the name the server is saved as, so a renamed import never
+    // reads the secret of the server it was renamed away from.
+    const scoped = withServerSecretNames({ ...candidate.entry, provenance }, placement.name)
     writes.push({
       name: placement.name,
       replace: placement.replace,
-      entry: { ...candidate.entry, provenance },
+      entry: scoped.entry,
     })
     if (!placement.replace) names.push(placement.name)
     imported.push({
@@ -142,6 +148,7 @@ export async function applyMcpImports(
       sourceName: candidate.name,
       targetName: placement.name,
       fingerprint,
+      secrets: scoped.secrets,
     })
   }
   if (writes.length > 0) await input.write(input.target, writes)

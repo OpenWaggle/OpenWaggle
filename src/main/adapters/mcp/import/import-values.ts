@@ -24,10 +24,6 @@ function environmentName(id: string) {
   return id.replace(/[^A-Za-z0-9_]+/g, '_').toUpperCase()
 }
 
-function secretName(serverName: string, fieldName: string) {
-  return `${serverName}_${fieldName}`.replace(/[^A-Za-z0-9_]+/g, '_').toUpperCase()
-}
-
 /**
  * A value Pi takes as written (arguments, OAuth fields other than the client secret). A variable
  * the source tool would have expanded there stays as it is, with a warning: rewriting it to
@@ -136,11 +132,12 @@ function credentialValue(
   }
   const pi = piValueFrom(value, location, context)
   if (pi.references || !SENSITIVE_NAME_PATTERN.test(fieldName)) return pi.value
-  const name = secretName(context.serverName, fieldName)
+  // Named after the field until the import places the server: the vault secret is then named
+  // `<SERVER>_<FIELD>` after the name it is saved as, which a rename can change.
   context.warnings.push(
-    `${location} contains a plaintext credential. Its value was not imported; save it as vault secret ${name}.`,
+    `${location} contains a plaintext credential. Its value was not imported; it becomes a vault secret named after the server and ${fieldName}, which you fill in after importing.`,
   )
-  return { secret: name }
+  return { secret: fieldName }
 }
 
 /** An `env` or `headers` map. */

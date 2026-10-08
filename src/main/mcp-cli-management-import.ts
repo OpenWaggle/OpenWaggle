@@ -10,6 +10,7 @@ import {
   type McpManagementCommandInput,
   type McpManagementExit,
 } from './mcp-cli-management-context'
+import { vaultSecretLines } from './mcp-cli-management-registry'
 
 /** `openwaggle mcp import`: previews other tools' servers, and with `--apply` imports them. */
 
@@ -74,7 +75,12 @@ export async function importCommand({
   if (json) {
     context.output.log(
       JSON.stringify(
-        { imported: result.imported, skipped: result.skipped },
+        {
+          imported: result.imported,
+          skipped: result.skipped,
+          secrets: result.secrets,
+          existingSecrets: result.existingSecrets,
+        },
         null,
         MCP_CONFIG.JSON_INDENT_SPACES,
       ),
@@ -86,6 +92,9 @@ export async function importCommand({
       )
     }
     for (const item of result.skipped) context.output.log(`Skipped: ${item.reason}`)
+    for (const line of vaultSecretLines(result.secrets, result.existingSecrets)) {
+      context.output.log(line)
+    }
   }
   return MCP_MANAGEMENT_EXIT.SUCCESS
 }
