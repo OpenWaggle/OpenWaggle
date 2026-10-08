@@ -10,7 +10,24 @@ const { runGitMock, resolveChangeRequestForRefMock, runWithGitNetworkLockMock } 
 
 vi.mock('../../../adapters/source-control', () => ({
   getSourceControlProvider: (id?: string) =>
-    id ? { id, resolveChangeRequestForRef: resolveChangeRequestForRefMock } : undefined,
+    id
+      ? {
+          id,
+          resolveChangeRequestForRef: resolveChangeRequestForRefMock,
+          account: () => null,
+          forkParent: async () => ({ ok: true, parent: null }),
+          findChangeRequestForForkHead: async () => ({
+            ok: false,
+            code: 'no-change-request',
+            message: 'No pull request found for ref.',
+          }),
+        }
+      : undefined,
+}))
+
+vi.mock('../../../adapters/git/run-git', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../../adapters/git/run-git')>()),
+  runGit: runGitMock,
 }))
 
 vi.mock('../shared', async (importOriginal) => ({

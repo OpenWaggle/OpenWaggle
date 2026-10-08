@@ -8,6 +8,10 @@ export {
   openActionOutputTerminalView,
   syncActionOutputViewRuns,
 } from './lib/open-action-output-terminal-view'
+export {
+  runSessionTerminalCommand,
+  watchSessionTerminalCommand,
+} from './lib/run-session-terminal-command'
 export { reconcileSetupActionTerminal } from './lib/setup-action-terminal'
 export { beginTerminalEventOwnerHandoff } from './lib/terminal-event-owner-alias'
 export {

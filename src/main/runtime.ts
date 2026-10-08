@@ -52,6 +52,7 @@ import { WorkspaceProjectAuthorizationLive } from './adapters/workspace-project-
 import { ActiveProjectChangeServiceLive } from './application/active-project-change-service'
 import { promptCacheWarming } from './application/prompt-cache-warming'
 import { SessionWaitServiceLive } from './application/session-wait-service'
+import { makeSourceControlSettingsAccess } from './application/source-control-settings-access'
 import { startMcpHostServices } from './mcp-host-start'
 import {
   closeHostMcpConnections,
@@ -77,6 +78,7 @@ import { SessionTitleServicesLive } from './runtime-session-title-services'
 import { AppDatabaseLive } from './services/database-service'
 import { AppLogger } from './services/logger-service'
 import { SettingsService } from './services/settings-service'
+import { configureSourceControlSettingsAccess } from './services/source-control/source-control-runtime'
 import { setStoreEffectRunner } from './store/store-runtime'
 
 const SqliteSessionRepositoryLive = SqliteSessionRepositoryWithoutRepairLive.pipe(
@@ -281,7 +283,12 @@ export async function initializeAppRuntime(): Promise<void> {
   // Settings shared with Pi, and prompt cache warming, before anything loads Settings or runs.
   installPiRuntimeIntegration()
   startMcpHostServices()
-  await getAppRuntime().runPromise(Effect.void)
+  await getAppRuntime().runPromise(
+    Effect.gen(function* () {
+      const settings = yield* SettingsService
+      configureSourceControlSettingsAccess(makeSourceControlSettingsAccess(settings))
+    }),
+  )
 }
 
 export async function disposeAppRuntime(): Promise<void> {

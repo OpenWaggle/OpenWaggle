@@ -8,7 +8,12 @@ import type {
 } from '@shared/types/git'
 import { queryOptions, useQuery } from '@tanstack/react-query'
 import { useRef, useState } from 'react'
+import { invalidateVcsStatus } from '@/features/git'
+import { queryKeys } from '@/queries/query-keys'
 import { api } from '@/shared/lib/ipc'
+import { createRendererLogger } from '@/shared/lib/logger'
+
+const logger = createRendererLogger('change-request-panel')
 
 interface ChangeRequestPanelControllerInput {
   readonly sessionId: string | null
@@ -20,7 +25,7 @@ interface ChangeRequestPanelControllerInput {
 function panelQueryOptions(input: ChangeRequestPanelControllerInput, bound: boolean) {
   return queryOptions({
     queryKey: [
-      'change-request-panel',
+      ...queryKeys.changeRequestPanels,
       input.sessionId,
       input.workingPath,
       input.requestUrl,
@@ -132,9 +137,31 @@ export function useChangeRequestPanelController(input: ChangeRequestPanelControl
     }
   }
 
+  /** Drops the Host's cached source-control answers, then reloads the inspector. */
+  async function recheckSourceControl() {
+    const workingPath = input.workingPath
+    if (!workingPath) {
+      await query.refetch()
+      return
+    }
+    await api.refreshSourceControlStatus(workingPath).catch((error: unknown) => {
+      logger.warn('Could not drop the source-control status cache', { error: String(error) })
+    })
+    // A fix made here also reaches the Session Summary and Diff panel showing this tree.
+    await Promise.all([query.refetch(), invalidateVcsStatus(workingPath)])
+  }
+
   return {
     bound,
     ...view,
+    recheckSourceControl,
+    /** Session web-link owner, so the provider page opens wherever the user's links open. */
+    ownerKey: input.sessionId ?? '',
+    requestUrl: input.requestUrl,
+    terminal:
+      input.sessionId && input.workingPath
+        ? { ownerKey: input.sessionId, cwd: String(input.workingPath) }
+        : null,
     merge: () => void merge(),
     mergeMessage,
     merging,

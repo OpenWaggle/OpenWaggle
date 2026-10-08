@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { promisify } from 'node:util'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { resolveRemoteRepositoryOffline } from '../../../services/source-control/__tests__/source-control-test-deps'
 import { pushCurrentBranch } from '../push-service'
 import { runStackedGitAction, type StackedActionDeps } from '../stacked-action-service'
 
@@ -81,6 +82,7 @@ describe('stacked change-request workflow integration', () => {
       // The real push stays local, while the provider boundary receives the repository identity
       // that production resolves from the configured host remote.
       resolvePrimaryRemoteUrl: async () => PROVIDER_REPOSITORY_URL,
+      resolveRemoteRepository: resolveRemoteRepositoryOffline,
       preflightChangeRequest: async () => ({
         ok: true,
         status: { authenticated: true, account: 'test', host: 'github.test' },

@@ -165,6 +165,9 @@ describe('commands a draining Session Host still accepts', () => {
       'skills:get-preview',
       'agent-definitions:list-display',
       'agent-definitions:get-preview',
+      'git:change-request:panel',
+      'git:change-request:merge-candidate',
+      'git:session:verify-working-path',
     ])
     const refused = new Set<HostBackedGuiChannel>([
       'agent:get-context-usage',

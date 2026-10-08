@@ -12,8 +12,8 @@ import {
 import * as Effect from 'effect/Effect'
 import type { IpcMainInvokeEvent, MessageBoxOptions } from 'electron'
 import { browserWindowFromWebContents, showMessageBox } from '../../desktop-ui'
+import { resolvePrimaryRemoteResult } from '../../services/git/primary-remote'
 import { resolveLocalDefaultRef } from './default-ref'
-import { resolvePrimaryRemoteResult } from './primary-remote'
 import type { GitPinnedPushTarget } from './push-service'
 import { type GitPushRefReadResult, readPushRef } from './upstream-ref'
 import {

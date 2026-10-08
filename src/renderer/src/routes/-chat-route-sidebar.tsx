@@ -69,6 +69,7 @@ function renderSidebarPanel(input: ChatRouteSidebarInput) {
     <LazyChatDiffPane
       section={sections.diff}
       onClose={() => handlers.handleDiffOpenChange(false)}
+      onOpenChangeRequest={(url) => handlers.handleChangeRequestOpenChange(true, url)}
     />
   )
 

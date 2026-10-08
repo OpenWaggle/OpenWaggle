@@ -18,6 +18,7 @@ import { useDisplayedDiff } from '../hooks/useDisplayedDiff'
 import { useReconcileTurnSelection } from '../hooks/useReconcileTurnSelection'
 import { useReviewKey } from '../hooks/useReviewKey'
 import { useSessionTurns } from '../hooks/useSessionTurns'
+import { openSessionChangeRequest } from '../lib/open-session-change-request'
 import { DiffBottomBar } from './DiffBottomBar'
 import { DiffPanelHeader } from './DiffPanelHeader'
 import { DiffReviewBody } from './DiffReviewBody'
@@ -37,6 +38,8 @@ interface DiffPanelProps {
    * turn end, every working-tree broadcast and every window focus, so that was routine.
    */
   refreshToken?: number
+  /** Opens a change request in the Change request inspector. */
+  onOpenChangeRequest?: (url: string) => void
 }
 
 /** Switching to Turns means the latest captured turn, which the tabs do not know about. */
@@ -92,11 +95,6 @@ export function requestStackedAction(input: {
   }
   if (input.commitPaths.paths.length === 0) input.showToast(NOTHING_TO_COMMIT_MESSAGE, 'error')
   else input.onNeedsMessage(input.action)
-}
-
-/** Open a change request in the user's browser, never in an Electron window. */
-function openChangeRequestUrl(url: string | undefined) {
-  if (url) window.open(url, '_blank', 'noopener')
 }
 
 interface DiffPanelDialogsInput {
@@ -194,6 +192,7 @@ export function DiffPanel({
   sessionId = null,
   onSendMessage,
   refreshToken = 0,
+  onOpenChangeRequest,
 }: DiffPanelProps) {
   const scopeByThreadKey = useDiffScopeStore((s) => s.byThreadKey)
   const selectGitScope = useDiffScopeStore((s) => s.selectGitScope)
@@ -288,7 +287,8 @@ export function DiffPanel({
               onCreateChangeRequest: workflow.openChangeRequest,
             }),
           onPull: () => workflow.stackedActions.run('pull'),
-          onOpenChangeRequest: () => openChangeRequestUrl(workflow.vcsStatus?.changeRequest?.url),
+          onOpenChangeRequest: () =>
+            openSessionChangeRequest(workflow.vcsStatus, session, onOpenChangeRequest),
           onPublish: () => workflow.stackedActions.run('push'),
         }}
       />

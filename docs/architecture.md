@@ -63,6 +63,7 @@ ADRs live in `docs/adr/`. They explain why major architectural decisions were ma
 - `docs/adr/0046-usage-statistics-are-on-by-default.md`
 - `docs/adr/0047-installing-an-update-releases-the-session-host.md`
 - `docs/adr/0048-compacted-history-stays-visible-in-the-transcript.md`
+- `docs/adr/0048-source-control-resolution-lives-in-the-session-host.md`
 - `docs/adr/0049-pi-entry-ids-are-full-uuids.md`
 - `docs/adr/0049-users-can-recover-desktop-tools-after-an-unclean-quit.md`
 - `docs/adr/0050-openwaggle-is-the-gui-for-the-pi-ecosystem.md`

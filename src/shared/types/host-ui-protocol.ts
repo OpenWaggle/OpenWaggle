@@ -4,9 +4,9 @@ export const HOST_UI_CONTRACT_VERSION = 1 as const
 /**
  * Settings > MCP and the `openwaggle mcp` management commands over Pi's MCP files (ADR 0050),
  * including MCP Registry search and install, MCP App resource and prompt listing, and the
- * per-Session MCP switch, ship with revision 23.
+ * per-Session MCP switch, ship with revision 24.
  */
-export const HOST_UI_REVISION_23_REQUIRED_CHANNELS = [
+export const HOST_UI_REVISION_24_REQUIRED_CHANNELS = [
   'mcp:get-configuration',
   'mcp:set-server-enabled',
   'mcp:set-server-exposure',
@@ -26,17 +26,30 @@ export const HOST_UI_REVISION_23_REQUIRED_CHANNELS = [
   'mcp:get-session-enabled',
   'mcp:set-session-enabled',
 ] as const satisfies readonly IpcInvokeChannel[]
-/** Pausing Pi session discovery for a project removal ships with revision 23 (ADR 0050). */
-export const HOST_UI_REVISION_23_SESSION_CHANNELS = [
+/** Pausing Pi session discovery for a project removal ships with revision 24 (ADR 0050). */
+export const HOST_UI_REVISION_24_SESSION_CHANNELS = [
   'sessions:begin-project-removal',
 ] as const satisfies readonly IpcInvokeChannel[]
 /**
- * Arguments existing channels gained in revision 23: `sessions:delete`'s second argument says the
+ * Arguments existing channels gained in revision 24: `sessions:delete`'s second argument says the
  * Session is deleted as part of removing its project, which keeps a discovered Pi file listable.
  */
-export const HOST_UI_REVISION_23_ARGUMENT_COUNTS = {
+export const HOST_UI_REVISION_24_ARGUMENT_COUNTS = {
   'sessions:delete': 2,
 } as const satisfies Partial<Record<IpcInvokeChannel, number>>
+/**
+ * Session-coupled source-control operations ship with revision 23 (ADR 0048): the window's
+ * database is isolated, so the Change request inspector, merges, Session working-path checks,
+ * and Git Output recording run in the Session Host.
+ */
+export const HOST_UI_REVISION_23_REQUIRED_CHANNELS = [
+  'git:change-request:panel',
+  'git:change-request:merge-candidate',
+  'git:change-request:merge-confirmed',
+  'git:session:verify-working-path',
+  'git:session:record-outputs',
+  'source-control:patch-settings',
+] as const satisfies readonly IpcInvokeChannel[]
 /** Session settings channels (thinking level as Session state) ship with revision 21. */
 export const HOST_UI_REVISION_21_REQUIRED_CHANNELS = [
   'sessions:set-thinking-level',
@@ -112,10 +125,10 @@ export const HOST_UI_REVISION_7_NEW_CHANNELS = [
 
 /**
  * MCP operations the Session Host owns after ADR 0050: the secret vault and the MCP App resource
- * read and tool call (revision 6), and the MCP configuration operations (revision 23).
+ * read and tool call (revision 6), and the MCP configuration operations (revision 24).
  */
 export const HOST_BACKED_MCP_GUI_CHANNELS = [
-  ...HOST_UI_REVISION_23_REQUIRED_CHANNELS,
+  ...HOST_UI_REVISION_24_REQUIRED_CHANNELS,
   'mcp:list-secrets',
   'mcp:set-secret',
   'mcp:remove-secret',
@@ -128,7 +141,8 @@ export const HOST_BACKED_MCP_GUI_CHANNELS = [
  * Adding a channel is a protocol change and must be reviewed alongside its Host dispatcher.
  */
 export const HOST_BACKED_GUI_CHANNELS = [
-  ...HOST_UI_REVISION_23_SESSION_CHANNELS,
+  ...HOST_UI_REVISION_24_SESSION_CHANNELS,
+  ...HOST_UI_REVISION_23_REQUIRED_CHANNELS,
   ...HOST_UI_REVISION_21_REQUIRED_CHANNELS,
   ...HOST_UI_REVISION_20_REQUIRED_CHANNELS,
   ...HOST_UI_REVISION_17_REQUIRED_CHANNELS,

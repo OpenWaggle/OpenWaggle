@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { PrimaryRemoteResolution } from '../primary-remote'
+import type { PrimaryRemoteResolution } from '../../../services/git/primary-remote'
 
 const { isGitRepositoryMock, resolvePrimaryRemoteResultMock, runGitMock } = vi.hoisted(() => ({
   isGitRepositoryMock: vi.fn(async () => true),
@@ -15,7 +15,7 @@ vi.mock('../shared', () => ({
   runGit: runGitMock,
 }))
 
-vi.mock('../primary-remote', () => ({
+vi.mock('../../../services/git/primary-remote', () => ({
   resolvePrimaryRemoteResult: resolvePrimaryRemoteResultMock,
 }))
 

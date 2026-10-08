@@ -5,6 +5,7 @@ import type {
   OpenChangeRequestPayload,
   SourceControlAuthResult,
 } from '@shared/types/git'
+import type { RemoteUrlRepository } from '../../services/source-control/working-tree-source-control'
 import type { GitPullResult, GitPushDestination, GitPushResult } from './push-service'
 
 /** Git capabilities injected into the stacked-action workflow. */
@@ -36,6 +37,10 @@ export interface StackedActionDeps {
   readonly resolveDefaultBaseRef: (projectPath: string) => Promise<string | null>
   /** Repository that will receive the change request. */
   readonly resolvePrimaryRemoteUrl: (projectPath: string) => Promise<string | null>
+  readonly resolveRemoteRepository: (
+    projectPath: string,
+    remoteUrl: string,
+  ) => Promise<RemoteUrlRepository | null>
   /** This read-only check must precede every mutating PR or MR phase. */
   readonly preflightChangeRequest: (projectPath: string) => Promise<SourceControlAuthResult>
   /** Destination that the main-process safety gate pinned for this exact invocation. */

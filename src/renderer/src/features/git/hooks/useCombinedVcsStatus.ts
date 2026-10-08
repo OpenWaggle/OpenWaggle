@@ -4,6 +4,7 @@ import type { LocalVcsStatus, RemoteVcsStatus, VcsStatus } from '@shared/types/g
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
+import { subscribeVcsStatusInvalidation } from '../lib/vcs-status-invalidation'
 
 const logger = createRendererLogger('git')
 // A status load fans out to several short-lived Git processes after the initial repository probe.
@@ -269,6 +270,11 @@ export function useCombinedVcsStatus(
   }, [workingPath])
 
   useEffect(() => {
+    if (workingPath === null) return
+    return subscribeVcsStatusInvalidation(workingPath, refresh)
+  }, [refresh, workingPath])
+
+  useEffect(() => {
     logger.debug('Loading VCS status', { refreshToken })
     void refresh()
     return () => {
@@ -276,7 +282,7 @@ export function useCombinedVcsStatus(
     }
   }, [refresh, refreshToken])
 
-  const status: VcsStatus | null = local ? { ...local, ...(remote ?? EMPTY_REMOTE) } : null
+  const status = local ? combineVcsStatus(local, remote) : null
 
   return { status, local, localState, remote, remoteState, refresh }
 }
@@ -287,4 +293,25 @@ const EMPTY_REMOTE: RemoteVcsStatus = {
   behindCount: 0,
   aheadOfDefaultCount: null,
   changeRequest: null,
+  changeRequestAttention: null,
+  changeRequestAccount: null,
+}
+
+/**
+ * Local status plus the remote half. Remote refs are the lowest-precedence way to decide a
+ * provider, so the remote probe's provider and host only fill in what the offline answer left
+ * null. A stale remote half kept through a failed revalidation never overrides a newer local
+ * decision such as the user's own choice.
+ */
+function combineVcsStatus(local: LocalVcsStatus, remote: RemoteVcsStatus | null): VcsStatus {
+  const { sourceControlProvider, sourceControlHost, ...remoteFields } = remote ?? EMPTY_REMOTE
+  return {
+    ...local,
+    ...remoteFields,
+    sourceControlProvider: local.sourceControlProvider ?? sourceControlProvider ?? null,
+    sourceControlHost:
+      local.sourceControlHost?.provider == null && sourceControlHost
+        ? sourceControlHost
+        : local.sourceControlHost,
+  }
 }

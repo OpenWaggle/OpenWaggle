@@ -3,13 +3,18 @@ import type {
   GitStackedActionBranchOutcome,
   OpenChangeRequestPayload,
 } from '@shared/types/git'
+import type { RemoteUrlRepository } from '../../services/source-control/working-tree-source-control'
 import type { GitPushDestination } from './push-service'
-import { parseRemoteRepositoryIdentity } from './vcs-status-parse'
 
 interface ChangeRequestRefDeps {
   readonly resolveCurrentRef: (projectPath: string) => Promise<string | null>
   readonly resolveDefaultBaseRef: (projectPath: string) => Promise<string | null>
   readonly resolvePrimaryRemoteUrl: (projectPath: string) => Promise<string | null>
+  /** The repository behind a remote URL, decided by the shared source-control resolver. */
+  readonly resolveRemoteRepository: (
+    projectPath: string,
+    remoteUrl: string,
+  ) => Promise<RemoteUrlRepository | null>
 }
 
 async function resolveHeadRef(
@@ -32,16 +37,25 @@ async function resolveBaseRef(
   return candidate?.trim() || undefined
 }
 
-function compatibleHeadIdentity(
+async function compatibleHeadIdentity(
+  deps: ChangeRequestRefDeps,
+  projectPath: string,
   baseUrl: string | null,
   destination: GitPushDestination,
-): Pick<OpenChangeRequestPayload, 'headOwner' | 'headRepository' | 'targetRepository'> | null {
+): Promise<Pick<
+  OpenChangeRequestPayload,
+  'headOwner' | 'headRepository' | 'targetRepository'
+> | null> {
   if (destination.multiplePushUrls || !destination.remoteUrl || !baseUrl) return null
-  const base = parseRemoteRepositoryIdentity(baseUrl)
-  if (!base) return null
-  const head = parseRemoteRepositoryIdentity(destination.remoteUrl)
-  if (!head || base.provider !== head.provider) return null
-  if (base.authority !== head.authority) return null
+  const [resolvedBase, resolvedHead] = await Promise.all([
+    deps.resolveRemoteRepository(projectPath, baseUrl),
+    deps.resolveRemoteRepository(projectPath, destination.remoteUrl),
+  ])
+  if (!resolvedBase || !resolvedHead) return null
+  const base = resolvedBase.repository
+  const head = resolvedHead.repository
+  if (base.provider !== head.provider || base.host !== head.host) return null
+  if (resolvedBase.authority !== resolvedHead.authority) return null
   const targetRepository = {
     provider: base.provider,
     host: base.host,
@@ -77,7 +91,7 @@ export async function buildOpenChangeRequestPayload(
     deps.resolvePrimaryRemoteUrl(projectPath),
   ])
   const headIdentity = pushDestination
-    ? compatibleHeadIdentity(primaryRemoteUrl, pushDestination)
+    ? await compatibleHeadIdentity(deps, projectPath, primaryRemoteUrl, pushDestination)
     : {}
   if (headIdentity === null) return null
   return {

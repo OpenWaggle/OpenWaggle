@@ -9,11 +9,12 @@ import type {
   SourceControlRepositoryIdentity,
   VcsChangeRequest,
 } from '@shared/types/git'
-import type { SourceControlProvider } from '../../ports/source-control-provider'
+import type { ForkParentLookup, SourceControlProvider } from '../../ports/source-control-provider'
 import { parseGlabAuthStatus } from './auth-parse'
 import { mapGlabMergeRequest, mapGlabMergeRequestDetails } from './change-request-parse'
 import { type CliResult, runCli } from './cli-runner'
-import { createGitlabMergeRequest } from './glab-cli-merge-request-creation'
+import { withGitlabMergeRequestDiffStats } from './gitlab-merge-request-diff-stats'
+import { createGitlabMergeRequest, findForkMergeRequest } from './glab-cli-merge-request-creation'
 import {
   gitlabRepositorySelector,
   repositoryBoundChangeRequestReference,
@@ -127,7 +128,11 @@ async function viewMergeRequestDetails(
     return { ok: false, code: 'no-change-request', message: 'No merge request found for ref.' }
   }
   const verified = verifiedMergeRequest(repository, changeRequest)
-  return verified ? { ok: true, changeRequest: verified } : invalidRepositoryFailure()
+  if (!verified) return invalidRepositoryFailure()
+  return {
+    ok: true,
+    changeRequest: await withGitlabMergeRequestDiffStats(repository, projectPath, verified),
+  }
 }
 
 async function mergeMergeRequest(
@@ -219,6 +224,55 @@ export function createGitlabProvider(
       if (result.code !== 0) return classifyFailure(result)
       return { ok: true, reference: boundReference }
     },
+    account: () => null,
+    forkParent: (projectPath) => viewForkParent(repository, projectPath),
+    findChangeRequestForForkHead: (projectPath, head) =>
+      findForkMergeRequest(
+        repository,
+        projectPath,
+        { headRef: head.ref, headRepository: head.repository, title: '' },
+        {
+          classifyFailure,
+          invalidRepositoryFailure,
+          viewMergeRequest: (path, ref) => viewMergeRequest(repository, path, ref),
+        },
+      ),
+  }
+}
+
+/** GitLab reports the project a fork came from as `forked_from_project`. */
+async function viewForkParent(
+  repository: SourceControlRepositoryIdentity,
+  projectPath: string,
+): Promise<ForkParentLookup> {
+  const result = await runCli(
+    'glab',
+    [
+      'api',
+      '--hostname',
+      repository.host,
+      `projects/${encodeURIComponent(`${repository.owner}/${repository.repository}`)}`,
+    ],
+    projectPath,
+  )
+  if (result.code !== 0) return { ok: false }
+  const parsed = safeJsonParse(result.stdout)
+  const project =
+    typeof parsed === 'object' && parsed !== null && 'forked_from_project' in parsed
+      ? parsed.forked_from_project
+      : null
+  const fullPath =
+    typeof project === 'object' && project !== null && 'path_with_namespace' in project
+      ? project.path_with_namespace
+      : null
+  if (typeof fullPath !== 'string') return { ok: true, parent: null }
+  const segments = fullPath.split('/').filter(Boolean)
+  const name = segments.at(-1)
+  const owner = segments.slice(0, -1).join('/')
+  return {
+    ok: true,
+    parent:
+      name && owner ? { provider: 'gitlab', host: repository.host, owner, repository: name } : null,
   }
 }
 

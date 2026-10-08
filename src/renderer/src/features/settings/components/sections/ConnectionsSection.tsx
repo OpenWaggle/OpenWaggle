@@ -7,6 +7,7 @@ import { Button } from '@/shared/ui/Button'
 import { AvailableModelsSection } from './connections/AvailableModelsSection'
 import { OAuthProviderRow } from './connections/OAuthProviderRow'
 import { ProviderRow } from './connections/ProviderRow'
+import { SourceControlSection } from './connections/SourceControlSection'
 import { TitleModelSection } from './connections/TitleModelSection'
 
 interface AuthProviderGroupProps {
@@ -82,7 +83,7 @@ export function ConnectionsSection() {
       <div className="space-y-1">
         <h2 className="text-xl font-semibold text-text-primary">Connections</h2>
         <p className="text-xs text-text-tertiary">
-          Manage the available provider authentication methods.
+          Manage provider authentication and source control hosts.
         </p>
       </div>
 
@@ -131,6 +132,8 @@ export function ConnectionsSection() {
           />
         ))}
       </AuthProviderGroup>
+
+      <SourceControlSection />
 
       <AvailableModelsSection />
 

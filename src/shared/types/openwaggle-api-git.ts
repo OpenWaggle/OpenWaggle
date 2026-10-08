@@ -29,6 +29,12 @@ import type {
 } from './git'
 import type { IpcEventPayload } from './ipc'
 import type { ChangeRequestAdoption } from './ipc-invoke-git'
+import type {
+  ChangeRequestOpenDestinationResolution,
+  SourceControlConfigureRequest,
+  SourceControlConfigureResult,
+  SourceControlHostsOverview,
+} from './source-control'
 
 export interface OpenWaggleGitApi {
   onGitWorkingTreeChanged(
@@ -90,4 +96,15 @@ export interface OpenWaggleGitApi {
     workingPath: WorkingPath,
     payload: MergeChangeRequestPayload,
   ): Promise<MergeChangeRequestResult>
+  /** Source control hosts OpenWaggle knows, with CLI install and Provider account state. */
+  getSourceControlHosts(): Promise<SourceControlHostsOverview>
+  /** The effective Change request open destination for a project (or user-wide for null). */
+  getChangeRequestOpenDestination(
+    projectPath: string | null,
+  ): Promise<ChangeRequestOpenDestinationResolution>
+  configureSourceControl(
+    request: SourceControlConfigureRequest,
+  ): Promise<SourceControlConfigureResult>
+  /** Forget cached VCS status for a working path, e.g. after a CLI sign-in finishes. */
+  refreshSourceControlStatus(workingPath: string): Promise<void>
 }

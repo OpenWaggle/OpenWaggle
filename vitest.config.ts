@@ -1,5 +1,6 @@
 import { resolve } from 'node:path'
 import { defineConfig } from 'vitest/config'
+import { ISOLATED_SOURCE_CONTROL_CLI_ENV } from './scripts/vitest-source-control-env'
 
 export default defineConfig({
   resolve: {
@@ -17,6 +18,7 @@ export default defineConfig({
       'scripts/test-support/isolate-user-home.ts',
       'src/main/test-support/isolate-user-mcp-files.ts',
     ],
+    env: ISOLATED_SOURCE_CONTROL_CLI_ENV,
     include: ['src/**/*.test.ts', 'src/**/*.test.tsx', 'packages/**/*.test.ts'],
     exclude: ['src/**/*.component.test.tsx'],
     coverage: {

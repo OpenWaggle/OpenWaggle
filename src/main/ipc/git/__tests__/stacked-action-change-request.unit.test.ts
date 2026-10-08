@@ -1,4 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
+import {
+  offlineResolutionDeps,
+  resolveRemoteRepositoryOffline,
+} from '../../../services/source-control/__tests__/source-control-test-deps'
+import { resolveRemoteUrlRepository } from '../../../services/source-control/working-tree-source-control'
 import type { GitPushDestination } from '../push-service'
 import { buildOpenChangeRequestPayload } from '../stacked-action-change-request'
 
@@ -7,6 +12,7 @@ function deps(primaryRemoteUrl: string) {
     resolveCurrentRef: vi.fn(async () => 'feature/current'),
     resolveDefaultBaseRef: vi.fn(async () => 'main'),
     resolvePrimaryRemoteUrl: vi.fn(async () => primaryRemoteUrl),
+    resolveRemoteRepository: resolveRemoteRepositoryOffline,
   }
 }
 
@@ -124,6 +130,56 @@ describe('change-request pushed-head compatibility', () => {
         owner: 'upstream',
         repository: 'project',
       },
+    })
+  })
+
+  it('creates on a host recognised from a gh sign-in, not from its name', async () => {
+    const resolveRemoteRepository = (projectPath: string, remoteUrl: string) =>
+      resolveRemoteUrlRepository(
+        projectPath,
+        remoteUrl,
+        offlineResolutionDeps({
+          readCliHosts: async () => ({
+            github: [{ host: 'code.acme.io', accounts: [{ login: 'jdoe', active: true }] }],
+            gitlab: [],
+          }),
+        }),
+        null,
+      )
+    const payload = await buildOpenChangeRequestPayload(
+      { ...deps('git@code.acme.io:upstream/project.git'), resolveRemoteRepository },
+      '/repo',
+      { action: 'create_pr' },
+      { status: 'unchanged', name: null },
+      destination('git@code.acme.io:contributor/project.git'),
+    )
+
+    expect(payload).toMatchObject({
+      headOwner: 'contributor',
+      targetRepository: { provider: 'github', host: 'code.acme.io', owner: 'upstream' },
+    })
+  })
+
+  it('creates through an SSH host alias against the real host', async () => {
+    const resolveRemoteRepository = (projectPath: string, remoteUrl: string) =>
+      resolveRemoteUrlRepository(
+        projectPath,
+        remoteUrl,
+        offlineResolutionDeps({
+          resolveSshHostName: async (alias) => (alias === 'github-work' ? 'github.com' : alias),
+        }),
+        null,
+      )
+    const payload = await buildOpenChangeRequestPayload(
+      { ...deps('git@github-work:upstream/project.git'), resolveRemoteRepository },
+      '/repo',
+      { action: 'create_pr' },
+      { status: 'unchanged', name: null },
+      destination('git@github-work:upstream/project.git'),
+    )
+
+    expect(payload).toMatchObject({
+      targetRepository: { provider: 'github', host: 'github.com', owner: 'upstream' },
     })
   })
 })

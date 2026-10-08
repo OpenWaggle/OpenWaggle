@@ -1,5 +1,6 @@
-export const LOCAL_SESSION_CURRENT_REVISION = 23 as const
-export const LOCAL_SESSION_MCP_CONFIGURATION_REVISION = 23 as const
+export const LOCAL_SESSION_CURRENT_REVISION = 24 as const
+export const LOCAL_SESSION_SOURCE_CONTROL_REVISION = 23 as const
+export const LOCAL_SESSION_MCP_CONFIGURATION_REVISION = 24 as const
 export const LOCAL_SESSION_FOLLOW_UP_EDIT_REVISION = 21 as const
 export const LOCAL_SESSION_SESSION_SETTINGS_REVISION = 21 as const
 export const LOCAL_SESSION_TITLE_REGENERATION_REVISION = 20 as const
@@ -38,7 +39,10 @@ export const LOCAL_SESSION_WAGGLE_REVISION = 3 as const
  * content block (`contentIndex`), which a revision-21 client decodes exactly and would reject
  * mid-stream, so older clients must upgrade; and `degraded.messageCutShort` says whether the caps
  * cut the streaming message, since the omitted bytes count over the Run.
- * Revision 23 adds the MCP Host UI channels behind Settings > MCP, the composer and the
+ * Revision 23 moves Session-coupled source-control work to the Host (ADR 0048): the Change request
+ * inspector, merge validation and the confirmed merge, Session working-path checks, and Git Output
+ * recording, because the desktop window's database is isolated and cannot see Sessions.
+ * Revision 24 adds the MCP Host UI channels behind Settings > MCP, the composer and the
  * `openwaggle mcp` management commands (ADR 0050): reading the merged configuration, enabling
  * and exposure changes, adding, removing, and installing servers (Registry search and install
  * included), inspecting a server, signing in and out, importing from other tools, the MCP App
@@ -162,7 +166,12 @@ export const LOCAL_SESSION_REVISION_22_CAPABILITIES = [
 
 export const LOCAL_SESSION_REVISION_23_CAPABILITIES = [
   ...LOCAL_SESSION_REVISION_22_CAPABILITIES,
+  'host-ui:source-control-v1',
+] as const
+
+export const LOCAL_SESSION_REVISION_24_CAPABILITIES = [
+  ...LOCAL_SESSION_REVISION_23_CAPABILITIES,
   'host-ui:mcp-configuration-v1',
 ] as const
 
-export const LOCAL_SESSION_CAPABILITIES = LOCAL_SESSION_REVISION_23_CAPABILITIES
+export const LOCAL_SESSION_CAPABILITIES = LOCAL_SESSION_REVISION_24_CAPABILITIES

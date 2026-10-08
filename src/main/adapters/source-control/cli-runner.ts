@@ -19,15 +19,21 @@ export interface CliResult {
  * Run a CLI tool (gh/glab) without throwing. Returns a normalized result;
  * a missing executable is reported via `missing: true` rather than throwing.
  */
+export interface CliRunOptions {
+  /** A complete child environment built by `env.ts` (for example one Provider account's token). */
+  readonly env?: Readonly<Record<string, string | undefined>>
+}
+
 export async function runCli(
   command: string,
   args: readonly string[],
   cwd: string,
+  options: CliRunOptions = {},
 ): Promise<CliResult> {
   try {
     const output = await execFileAsync(command, [...args], {
       cwd,
-      env: getSourceControlCliEnv(),
+      env: options.env ?? getSourceControlCliEnv(),
       timeout: SOURCE_CONTROL_CLI_TIMEOUT_MS,
     })
     return { stdout: output.stdout ?? '', stderr: output.stderr ?? '', code: 0, missing: false }

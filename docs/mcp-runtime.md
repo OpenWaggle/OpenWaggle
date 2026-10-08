@@ -169,7 +169,7 @@ land in the same place as Settings changes.
 Settings > MCP and `openwaggle mcp registry` search the MCP Registry
 (`registry.modelcontextprotocol.io`, `/v0.1/servers`) and install a server through the Host
 channels `mcp:search-registry`, `mcp:get-registry-server`, and `mcp:install-registry-server`
-(Host UI revision 22). `McpRegistryService.prepareEntry` turns one Registry server into an
+(Host UI revision 24). `McpRegistryService.prepareEntry` turns one Registry server into an
 ordinary Pi entry, and the application operation saves it with `McpConfigurationService.addServer`
 to OpenWaggle's file for the chosen scope. A name already configured in any file (with Pi's
 `-`/`_` equivalence) is refused rather than shadowed.

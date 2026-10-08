@@ -16,6 +16,8 @@ const REMOTE_RESULT = {
     behindCount: 0,
     aheadOfDefaultCount: 1,
     changeRequest: null,
+    changeRequestAttention: null,
+    changeRequestAccount: null,
   },
 } as const satisfies RemoteVcsStatusResult
 

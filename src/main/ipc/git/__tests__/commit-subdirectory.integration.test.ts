@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { promisify } from 'node:util'
 import { afterEach, describe, expect, it } from 'vitest'
-import { resolveRepositoryRoot } from '../working-tree-service'
+import { resolveRepositoryRoot } from '../../../services/git/repository-root'
 
 const execFileAsync = promisify(execFile)
 let repositoryPath: string | null = null

@@ -65,11 +65,10 @@ export const logLevel = env.OPENWAGGLE_LOG_LEVEL ?? 'info'
 const TEMPORARY_DIRECTORY_VARIABLES = ['TMPDIR', 'TMP', 'TEMP'] as const
 
 /**
- * An OpenWaggle process started from an agent's shell tool (the `openwaggle` CLI, or an agent
- * running `pnpm dev`) inherits that Session's scratch directory as TMPDIR, TMP, and TEMP.
- * Its own temp files, including a nested Host's caches, belong in the Host temp directory, which
- * the agent environment preserves in OPENWAGGLE_HOST_TMPDIR; archiving the Session would
- * otherwise delete them under the running process.
+ * An OpenWaggle process started from an agent's shell tool (the `openwaggle` CLI, or `pnpm dev`)
+ * inherits that Session's scratch directory as TMPDIR, TMP, and TEMP. Its own temp files belong in
+ * the Host temp directory the agent environment keeps in OPENWAGGLE_HOST_TMPDIR, or archiving the
+ * Session would delete them under the running process.
  */
 export function restoreHostTemporaryDirectory(
   environment: NodeJS.ProcessEnv = process.env,
@@ -116,11 +115,8 @@ export function installDesktopShellEnvironment(): Promise<void> {
   return desktopShellEnvironmentPromise
 }
 
-/**
- * Safe environment for child processes.
- * Only passes through essential variables — prevents leaking API keys,
- * secrets, or other sensitive values from the parent process.
- */
+/** Safe environment for child processes: essential variables only, so no API key or other
+ * secret of the parent process leaks. */
 export function getSafeChildEnv(): Record<string, string | undefined> {
   return {
     PATH: getNpmCompatiblePath(),
@@ -145,10 +141,9 @@ export function getWindowsSecurityChildEnv(): Record<string, string | undefined>
 }
 
 /**
- * Detached Session Hosts are the user's durable Pi runtime and therefore need
- * provider/custom-provider credentials plus shell agent state. Strip only
- * client-scoped OpenWaggle credentials and Electron execution switches that
- * must never become daemon authority.
+ * Detached Session Hosts are the user's durable Pi runtime and need provider credentials and shell
+ * agent state. Strip only client-scoped OpenWaggle credentials and Electron execution switches,
+ * which must never become daemon authority.
  */
 export function getSessionHostChildEnv(): Record<string, string | undefined> {
   const childEnvironment: NodeJS.ProcessEnv = {
@@ -272,10 +267,16 @@ export function getSourceControlCliEnv(): Record<string, string | undefined> {
   return env
 }
 
+/** Named environment values for modules that may not read `process.env` themselves. */
+export function readEnvironmentVariables<N extends string>(names: readonly N[]) {
+  const values: Partial<Record<N, string>> = {}
+  for (const name of names) if (process.env[name]) values[name] = process.env[name]
+  return values
+}
+
 /**
- * The current environment plus explicit overrides, for child git invocations that
- * need extra variables (e.g. `GIT_INDEX_FILE` for a scratch index) while still
- * inheriting PATH/HOME. `env.ts` is the only module allowed to read process.env.
+ * The current environment plus explicit overrides, for child git invocations that need extra
+ * variables (e.g. `GIT_INDEX_FILE`) while still inheriting PATH/HOME. Only `env.ts` reads it.
  */
 export function getEnvWithOverrides(
   overrides: Readonly<Record<string, string>>,

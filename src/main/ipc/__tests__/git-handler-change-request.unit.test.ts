@@ -54,6 +54,7 @@ describe('change request adoption', () => {
      */
     expect(result).toEqual({ ok: true, reference: 'refs/openwaggle/change-requests/163' })
     expect(commands).toEqual([
+      'rev-parse --path-format=absolute --git-common-dir',
       'remote get-url origin',
       'fetch origin +refs/pull/163/head:refs/openwaggle/change-requests/163',
     ])
@@ -96,7 +97,10 @@ describe('change request adoption', () => {
     const result = await handler?.({}, '/tmp/repo', 'feature/pr-branch', 'fetch')
 
     expect(result).toMatchObject({ ok: false, code: 'unknown' })
-    expect(commands).toEqual(['remote get-url origin'])
+    expect(commands).toEqual([
+      'rev-parse --path-format=absolute --git-common-dir',
+      'remote get-url origin',
+    ])
   })
 
   it.each([
@@ -115,7 +119,10 @@ describe('change request adoption', () => {
       code: 'unknown',
       message: 'The change request does not belong to this repository.',
     })
-    expect(commands).toEqual(['remote get-url origin'])
+    expect(commands).toEqual([
+      'rev-parse --path-format=absolute --git-common-dir',
+      'remote get-url origin',
+    ])
   })
 
   it('lists GitHub pull requests when the repository only has an upstream remote', async () => {

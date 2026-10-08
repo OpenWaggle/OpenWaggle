@@ -3,7 +3,7 @@ import type { SessionId } from '@shared/types/brand'
 import { resolveSessionWorkingDir } from '@shared/utils/worktree'
 import * as Effect from 'effect/Effect'
 import { SessionProjectionRepository } from '../../ports/session-projection-repository'
-import { resolveRepositoryRoot } from './working-tree-service'
+import { resolveRepositoryRoot } from './repository-root'
 
 /** Verify that a Git mutation targets the working tree owned by its originating Session. */
 export function verifySessionWorkingPath(sessionId: SessionId, requestedWorkingPath: string) {

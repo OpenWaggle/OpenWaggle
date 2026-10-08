@@ -37,6 +37,9 @@ const SESSION: SessionDetail = {
 const VCS_STATUS: VcsStatus = {
   isRepo: true,
   sourceControlProvider: { id: 'github', host: 'github.com' },
+  sourceControlHost: null,
+  sourceControlAttention: null,
+  sourceControlRepositoryUrl: null,
   hasPrimaryRemote: true,
   defaultRef: 'main',
   isDefaultRef: false,
@@ -50,6 +53,8 @@ const VCS_STATUS: VcsStatus = {
   behindCount: 0,
   aheadOfDefaultCount: 1,
   changeRequest: null,
+  changeRequestAttention: null,
+  changeRequestAccount: null,
 }
 
 function renderComposer() {

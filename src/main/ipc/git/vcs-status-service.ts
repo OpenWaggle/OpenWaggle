@@ -2,28 +2,22 @@ import type {
   LocalVcsStatus,
   LocalVcsStatusResult,
   RemoteVcsStatusResult,
-  VcsChangeRequest,
   VcsWorkingTree,
 } from '@shared/types/git'
 import { networkGitOptions } from '../../adapters/git/run-git'
-import { getSourceControlProvider } from '../../adapters/source-control'
 import { runWithGitNetworkLock } from '../../services/git/mutation-lock'
-import { resolveDefaultRef } from './default-ref'
 import {
   type PrimaryRemote,
   resolvePrimaryRemote,
   resolvePrimaryRemoteResult,
-} from './primary-remote'
+} from '../../services/git/primary-remote'
+import { resolveDefaultRef } from './default-ref'
 import { runGit } from './shared'
 import { GIT_PARSE_INT_RADIX, GIT_RAW_PATHS } from './status-constants'
 import { buildChangedFiles, parseNumstat, parsePorcelain } from './status-parse'
 import { resolveLocalPushStatus } from './vcs-local-push-destination'
-import {
-  detectSourceControlProvider,
-  parseAheadBehind,
-  parseRemoteRepositoryIdentity,
-  toWorkingTree,
-} from './vcs-status-parse'
+import { parseAheadBehind, toWorkingTree } from './vcs-status-parse'
+import { localSourceControlState, resolveOpenChangeRequest } from './vcs-status-source-control'
 
 /** The remote status is refreshed in the background, so a stalled remote must not pin it open. */
 const REMOTE_FETCH_TIMEOUT_MS = 60_000
@@ -77,7 +71,7 @@ async function resolveRefName(projectPath: string): Promise<string | null> {
   return result.ok ? result.value : null
 }
 
-export { resolvePrimaryRemote, resolvePrimaryRemoteUrl } from './primary-remote'
+export { resolvePrimaryRemote, resolvePrimaryRemoteUrl } from '../../services/git/primary-remote'
 
 async function resolveWorkingTree(projectPath: string): Promise<LocalReadResult<VcsWorkingTree>> {
   const [porcelainResult, worktreeNumstat, cachedNumstat] = await Promise.all([
@@ -151,10 +145,11 @@ async function buildLocalVcsStatus(
   )
   if (!push.ok) return { ok: false, code: 'unknown', message: push.message }
   const remoteUrl = primaryRemote?.url ?? null
+  const sourceControl = await localSourceControlState(projectPath, primaryRemote)
 
   const status: LocalVcsStatus = {
     isRepo: true,
-    sourceControlProvider: detectSourceControlProvider(remoteUrl),
+    ...sourceControl,
     hasPrimaryRemote: remoteUrl !== null,
     defaultRef: push.defaultRef,
     /*
@@ -221,7 +216,7 @@ export async function getRemoteVcsStatus(projectPath: string): Promise<RemoteVcs
     : { ahead: 0, behind: 0 }
 
   const refName = await resolveRefName(projectPath)
-  const [aheadOfDefaultCount, changeRequest] = await Promise.all([
+  const [aheadOfDefaultCount, openChangeRequest] = await Promise.all([
     resolveAheadOfDefault(projectPath, refName, primaryRemote?.name ?? 'origin'),
     resolveOpenChangeRequest(projectPath, refName, primaryRemote),
   ])
@@ -233,25 +228,7 @@ export async function getRemoteVcsStatus(projectPath: string): Promise<RemoteVcs
       aheadCount: aheadBehind.ahead,
       behindCount: aheadBehind.behind,
       aheadOfDefaultCount,
-      changeRequest,
+      ...openChangeRequest,
     },
   }
-}
-
-/**
- * Open change request for the current ref via the source-control provider (WS3).
- * Never fails the whole remote status: any provider/CLI/auth failure maps to null.
- */
-async function resolveOpenChangeRequest(
-  projectPath: string,
-  refName: string | null,
-  primaryRemote: PrimaryRemote | null,
-): Promise<VcsChangeRequest | null> {
-  if (!refName || !primaryRemote) return null
-  const repository = parseRemoteRepositoryIdentity(primaryRemote.url)
-  if (!repository) return null
-  const provider = getSourceControlProvider(repository.provider, repository)
-  if (!provider) return null
-  const result = await provider.resolveChangeRequestForRef(projectPath, refName)
-  return result.ok ? result.changeRequest : null
 }

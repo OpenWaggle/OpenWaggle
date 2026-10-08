@@ -24,7 +24,11 @@ export const showMessageBoxMock: TestMock = mocks.showMessageBoxMock
 export const typedHandleMock: TestMock = mocks.typedHandleMock
 
 vi.mock('../typed-ipc', () => ({
+  RelayedHostResult: class {
+    constructor(readonly value: unknown) {}
+  },
   hostHandle: typedHandleMock,
+  relayingHandle: typedHandleMock,
   typedHandle: typedHandleMock,
 }))
 

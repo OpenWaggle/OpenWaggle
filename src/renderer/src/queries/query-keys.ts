@@ -25,4 +25,11 @@ export const queryKeys = {
     ['workspaceContent', projectPath, query, limit] as const,
   workspaceFile: (projectPath: string | null, relativePath: string | null) =>
     ['workspaceFile', projectPath, relativePath] as const,
+  /** Prefix of every source-control query; a configuration change invalidates all of them. */
+  sourceControl: ['sourceControl'] as const,
+  sourceControlHosts: ['sourceControl', 'hosts'] as const,
+  changeRequestOpenDestination: (projectPath: string | null) =>
+    ['sourceControl', 'openDestination', projectPath] as const,
+  /** Prefix of every Change request inspector query. */
+  changeRequestPanels: ['change-request-panel'] as const,
 }

@@ -135,11 +135,30 @@ export function typedHandle<C extends IpcInvokeChannel>(
   channel: C,
   handler: EffectIpcHandler<C>,
 ): void {
+  relayingHandle(channel, handler)
+}
+
+/**
+ * A result the Session Host already produced through a channel's typed operation, which the
+ * window relays to the renderer unchanged, as `hostHandle` does for a whole channel.
+ */
+export class RelayedHostResult {
+  constructor(readonly value: unknown) {}
+}
+
+/** `typedHandle` for window-side orchestration that may relay part of its work to the Host. */
+export function relayingHandle<C extends IpcInvokeChannel>(
+  channel: C,
+  handler: (
+    event: IpcMainInvokeEvent,
+    ...args: IpcInvokeArgs<C>
+  ) => EffectType<MaybeVoid<IpcInvokeReturn<C>> | RelayedHostResult, unknown, AppServices>,
+): void {
   rawHandle(channel, async (event, ...args) => {
     const exit = await runAppEffectExit(handler(event, ...args))
 
     if (Exit.isSuccess(exit)) {
-      return exit.value
+      return exit.value instanceof RelayedHostResult ? exit.value.value : exit.value
     }
 
     const failure = Cause.failureOption(exit.cause)

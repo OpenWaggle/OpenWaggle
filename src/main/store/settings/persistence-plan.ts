@@ -38,6 +38,7 @@ import {
 import { appendPiRuntimeSettingsWrites } from './pi-runtime-settings'
 import { appendSessionTitleSettingsWrites } from './session-title-settings'
 import { appendChangedSetting, type SettingsPatchWrite } from './settings-patch-writes'
+import { appendSourceControlSettingsWrites } from './source-control-settings'
 import { appendUsageStatisticsSettingsWrites } from './usage-statistics-settings'
 
 export type { SettingsPatchWrite } from './settings-patch-writes'
@@ -271,6 +272,7 @@ export function collectSettingsPatchWrites(partial: Partial<Settings>, next: Set
   appendUsageStatisticsSettingsWrites(writes, partial, next)
   appendPiRuntimeSettingsWrites(writes, partial, next)
   appendSessionTitleSettingsWrites(writes, partial, next)
+  appendSourceControlSettingsWrites(writes, partial, next)
 
   return writes
 }

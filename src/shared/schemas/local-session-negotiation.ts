@@ -55,6 +55,7 @@ const [
   titleRegenerationCapability,
   followUpEditCapability,
   runSnapshotContentCapability,
+  sourceControlCapability,
   mcpConfigurationCapability,
 ] = LOCAL_SESSION_CAPABILITIES
 
@@ -92,6 +93,7 @@ const currentCapabilitySchema = Schema.Tuple(
   Schema.Literal(titleRegenerationCapability),
   Schema.Literal(followUpEditCapability),
   Schema.Literal(runSnapshotContentCapability),
+  Schema.Literal(sourceControlCapability),
   Schema.Literal(mcpConfigurationCapability),
 )
 

@@ -11,9 +11,10 @@ import {
   HOST_UI_REVISION_20_REQUIRED_CHANNELS,
   HOST_UI_REVISION_21_ARGUMENT_COUNTS,
   HOST_UI_REVISION_21_REQUIRED_CHANNELS,
-  HOST_UI_REVISION_23_ARGUMENT_COUNTS,
   HOST_UI_REVISION_23_REQUIRED_CHANNELS,
-  HOST_UI_REVISION_23_SESSION_CHANNELS,
+  HOST_UI_REVISION_24_ARGUMENT_COUNTS,
+  HOST_UI_REVISION_24_REQUIRED_CHANNELS,
+  HOST_UI_REVISION_24_SESSION_CHANNELS,
   type HostBackedGuiChannel,
   type HostUiV1Request,
 } from '@shared/types/host-ui-protocol'
@@ -31,6 +32,7 @@ import {
   LOCAL_SESSION_PROJECT_CATALOG_REVISION,
   LOCAL_SESSION_RESOURCE_HOST_UI_REVISION,
   LOCAL_SESSION_SESSION_SETTINGS_REVISION,
+  LOCAL_SESSION_SOURCE_CONTROL_REVISION,
   LOCAL_SESSION_STEERING_RECEIPT_REVISION,
   LOCAL_SESSION_TITLE_REGENERATION_REVISION,
   LOCAL_SESSION_TURN_DIFF_FILES_REVISION,
@@ -49,20 +51,23 @@ function usesArgumentAddedIn(
   return count !== undefined && request.args.length >= count
 }
 
-/** MCP configuration and Pi session discovery's project removal ship with revision 23. */
-function requiresRevision23(request: Pick<HostUiV1Request, 'channel' | 'args'>) {
+/** MCP configuration and Pi session discovery's project removal ship with revision 24. */
+function requiresRevision24(request: Pick<HostUiV1Request, 'channel' | 'args'>) {
   const { channel } = request
   return (
-    HOST_UI_REVISION_23_REQUIRED_CHANNELS.some((candidate) => candidate === channel) ||
-    HOST_UI_REVISION_23_SESSION_CHANNELS.some((candidate) => candidate === channel) ||
-    usesArgumentAddedIn(HOST_UI_REVISION_23_ARGUMENT_COUNTS, request)
+    HOST_UI_REVISION_24_REQUIRED_CHANNELS.some((candidate) => candidate === channel) ||
+    HOST_UI_REVISION_24_SESSION_CHANNELS.some((candidate) => candidate === channel) ||
+    usesArgumentAddedIn(HOST_UI_REVISION_24_ARGUMENT_COUNTS, request)
   )
 }
 
 /** The revision a Host UI request needs: its channel's, or later for an argument added since. */
 export function requiredHostUiRevision(request: Pick<HostUiV1Request, 'channel' | 'args'>) {
   const { channel } = request
-  if (requiresRevision23(request)) return LOCAL_SESSION_MCP_CONFIGURATION_REVISION
+  if (requiresRevision24(request)) return LOCAL_SESSION_MCP_CONFIGURATION_REVISION
+  if (HOST_UI_REVISION_23_REQUIRED_CHANNELS.some((candidate) => candidate === channel)) {
+    return LOCAL_SESSION_SOURCE_CONTROL_REVISION
+  }
   if (
     HOST_UI_REVISION_21_REQUIRED_CHANNELS.some((candidate) => candidate === channel) ||
     usesArgumentAddedIn(HOST_UI_REVISION_21_ARGUMENT_COUNTS, request)
