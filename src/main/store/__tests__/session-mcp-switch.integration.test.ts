@@ -101,6 +101,26 @@ describe('the per-Session MCP switch', () => {
     expect(await isSessionMcpEnabled(deleted)).toBe(true)
   })
 
+  it('is copied to a fork or clone of a Session switched off, and only then', async () => {
+    const off = await makeSession('pi-1')
+    const on = await makeSession('pi-2')
+    await setSessionMcpEnabled(off, false)
+
+    const forkOfOff = await createSession({
+      projectPath: '/repo/openwaggle',
+      piSessionId: 'pi-fork-1',
+      copyMcpSwitchFrom: off,
+    })
+    const forkOfOn = await createSession({
+      projectPath: '/repo/openwaggle',
+      piSessionId: 'pi-fork-2',
+      copyMcpSwitchFrom: on,
+    })
+
+    expect(await isSessionMcpEnabled(forkOfOff.id)).toBe(false)
+    expect(await isSessionMcpEnabled(forkOfOn.id)).toBe(true)
+  })
+
   it('refuses a switch for a Session the Host does not have', async () => {
     await expect(disableSessionMcp('gone')).rejects.toBeInstanceOf(UnknownMcpSessionError)
 

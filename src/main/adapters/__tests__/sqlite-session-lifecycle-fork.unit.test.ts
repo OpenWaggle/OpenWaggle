@@ -75,6 +75,25 @@ describe('SQLite Session lifecycle fork persistence', () => {
     })
   })
 
+  it("keeps the source Session's MCP off in the fork", async () => {
+    const layer = makeSessionLifecycleTestLayer(path.join(temporaryRoot, 'mcp-off-fork.sqlite'))
+    const disabled = await Effect.runPromise(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        yield* sql`
+          INSERT INTO session_mcp_disabled (session_id, disabled_at)
+          VALUES (${'session-parent'}, ${1})
+        `
+        yield* (yield* SessionLifecycleRepository).execute(forkLifecycleInput())
+        return yield* sql<{ readonly session_id: string }>`
+          SELECT session_id FROM session_mcp_disabled ORDER BY session_id
+        `
+      }).pipe(Effect.provide(layer)),
+    )
+
+    expect(disabled.map((row) => row.session_id)).toEqual(['session-fork', 'session-parent'])
+  })
+
   it('names an untitled copy after its source Session', async () => {
     const layer = makeSessionLifecycleTestLayer(path.join(temporaryRoot, 'untitled-fork.sqlite'))
     const input = forkLifecycleInput()

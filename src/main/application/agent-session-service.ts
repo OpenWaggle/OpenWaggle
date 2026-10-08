@@ -195,6 +195,8 @@ function copyAgentSessionToNewSession(input: AgentSessionCopyInput) {
         // A fork inherits both: this branch's environment mode, and main's authorization mode.
         ...(session.environmentMode ? { environmentMode: session.environmentMode } : {}),
         authorizationMode: session.authorizationMode,
+        // And the source Session's MCP switch: a copy of a Session with MCP off stays off.
+        copyMcpSwitchFrom: session.id,
       })
 
       yield* persistKernelSnapshot(SessionId(String(createdProjection.id)), {

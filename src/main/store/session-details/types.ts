@@ -99,6 +99,8 @@ export interface CreateSessionInput {
   readonly environmentMode?: SessionEnvironmentMode
   /** Authorization mode the session is born with (defaults to YOLO when omitted). */
   readonly authorizationMode?: AgentAuthorizationMode
+  /** The Session a fork or clone copies; it keeps that Session's MCP off when it was off. */
+  readonly copyMcpSwitchFrom?: SessionId
 }
 
 export interface DerivedSessionBranch {

@@ -10,6 +10,7 @@ import { PI_SESSION_ADOPTION_MIGRATION } from '../../services/pi-session-adoptio
 import { PI_SESSION_FILE_STATE_MIGRATION } from '../../services/pi-session-file-state-migration'
 import { SESSION_SEARCH_TARGET_SCHEMA_STATEMENTS } from '../../services/session-host-search-schema'
 import { SESSION_CONTROL_TARGET_SCHEMA_STATEMENTS } from '../../services/session-host-target-schema'
+import { SESSION_MCP_SWITCH_MIGRATION } from '../../services/session-mcp-switch-migration'
 import { SqliteSessionDelegationRepositoryLive } from '../sqlite-session-delegation-repository'
 import { SqliteSessionLifecycleRepositoryLive } from '../sqlite-session-lifecycle-repository'
 import { SqliteSessionReportRepositoryLive } from '../sqlite-session-report-repository'
@@ -52,6 +53,8 @@ export function makeSessionLifecycleTestLayer(filename: string) {
       for (const statement of [
         ...PI_SESSION_ADOPTION_MIGRATION.statements,
         ...PI_SESSION_FILE_STATE_MIGRATION.statements,
+        // A fork copies its source's MCP switch.
+        ...SESSION_MCP_SWITCH_MIGRATION.statements,
       ]) {
         yield* sql.unsafe(statement)
       }

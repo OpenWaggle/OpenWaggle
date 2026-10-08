@@ -44,6 +44,8 @@ export interface SessionProjectionRepositoryShape {
     readonly piSessionFile?: string
     readonly environmentMode?: SessionEnvironmentMode
     readonly authorizationMode?: AgentAuthorizationMode
+    /** The Session a fork or clone copies; it keeps that Session's MCP off when it was off. */
+    readonly copyMcpSwitchFrom?: SessionId
   }) => Effect.Effect<SessionDetail, SessionProjectionRepositoryError>
   readonly delete: (
     id: SessionId,

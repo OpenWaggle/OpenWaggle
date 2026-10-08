@@ -234,6 +234,8 @@ describe('agent session copy commands', () => {
       piSessionFile: '/tmp/pi-session-forked.jsonl',
       // Inherited from the source session, so the fork keeps its isolation.
       environmentMode: 'worktree',
+      // And its MCP switch: a fork of a Session with MCP off starts with MCP off.
+      copyMcpSwitchFrom: 'session-1',
     })
     expect(persistSnapshotMock).toHaveBeenCalledWith({
       sessionId: SessionId('pi-session-forked'),

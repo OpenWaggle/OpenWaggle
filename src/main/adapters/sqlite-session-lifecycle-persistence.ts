@@ -17,6 +17,7 @@ import {
   TREE_SIDEBAR_EXPANDED,
 } from '../store/session-details/constants'
 import { persistSessionSnapshotWithSql } from '../store/session-details/persist-snapshot'
+import { copySessionMcpSwitch } from '../store/session-details/session-creation'
 import type { LifecycleWorkspaceRow } from './sqlite-session-lifecycle-support'
 import { persistSessionReportReferences } from './sqlite-session-report-reference-catalog'
 
@@ -146,6 +147,10 @@ function persistSessionMetadata(
         ${input.executionSnapshot.authorizationCeiling}, ${input.now}, ${input.now}
       )
     `
+    // A fork of a Session with MCP switched off keeps it off, as a desktop fork or clone does.
+    if (command.operation === 'fork') {
+      yield* copySessionMcpSwitch(sql, command.sourceSessionId, input.session.sessionId, input.now)
+    }
     const selectedAgentDefinitionName = agentDefinitionName(input.executionSnapshot.profile)
     yield* persistSessionReportReferences(sql, {
       sessionId: input.session.sessionId,

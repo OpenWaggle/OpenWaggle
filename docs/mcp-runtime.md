@@ -153,7 +153,7 @@ packages before every inline factory, so their `tool_call` hooks see a call befo
 | Enable/disable a global server for one project | Override-only entry in `<project>/.openwaggle/mcp.json`. |
 | New server (Settings add, catalog install, Registry install, import) | `~/.openwaggle/mcp.json` or `<project>/.openwaggle/mcp.json` by scope, unless the user picks another file. |
 | Remove server | The defining file (and its OpenWaggle override, if any). |
-| Session-level MCP off | Session state in the Host database (`session_mcp_disabled`), kept across Host restarts and archiving (an unarchived Session still has MCP off), and dropped when the Session is deleted. No file. |
+| Session-level MCP off | Session state in the Host database (`session_mcp_disabled`), kept across Host restarts and archiving (an unarchived Session still has MCP off), copied to a fork or clone, and dropped when the Session is deleted. No file. |
 
 The writer (`mcp-config-file-edit.ts`) applies text edits with `jsonc-parser` to only the keys a
 change touches, because `.mcp.json` and `.pi/mcp.json` are often committed: unrelated keys,
