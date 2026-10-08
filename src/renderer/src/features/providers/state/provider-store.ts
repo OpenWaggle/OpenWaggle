@@ -8,24 +8,6 @@ import { createRendererLogger } from '@/shared/lib/logger'
 
 const logger = createRendererLogger('provider-store')
 
-/**
- * Build a set of canonical "provider/modelId" refs from the current Pi model catalog.
- * Used to validate enabledModels entries against what actually exists.
- */
-/** @internal Exported for testing */
-export function buildModelCatalogSet(providerModels: readonly ProviderInfo[]): Set<string> {
-  const catalog = new Set<string>()
-  for (const group of providerModels) {
-    for (const model of group.models) {
-      const trimmedId = model.id.trim()
-      if (trimmedId) {
-        catalog.add(trimmedId)
-      }
-    }
-  }
-  return catalog
-}
-
 function buildAvailableModelSet(providerModels: readonly ProviderInfo[]) {
   const available = new Set<string>()
   for (const group of providerModels) {

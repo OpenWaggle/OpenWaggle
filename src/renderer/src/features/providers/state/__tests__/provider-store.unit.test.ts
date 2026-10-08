@@ -6,12 +6,7 @@ vi.mock('@/shared/lib/ipc', () => ({
   api: {},
 }))
 
-import {
-  buildModelCatalogSet,
-  isSelectableModel,
-  latestAnsweringModel,
-  modelUnavailableMessage,
-} from '../provider-store'
+import { isSelectableModel, latestAnsweringModel, modelUnavailableMessage } from '../provider-store'
 
 const PROVIDER_MODELS: ProviderInfo[] = [
   {
@@ -71,37 +66,6 @@ const PROVIDER_MODELS: ProviderInfo[] = [
     ],
   },
 ]
-
-describe('buildModelCatalogSet', () => {
-  it('creates a set of canonical provider/modelId refs', () => {
-    const catalog = buildModelCatalogSet(PROVIDER_MODELS)
-
-    expect(catalog.has('anthropic/claude-sonnet-4-5')).toBe(true)
-    expect(catalog.has('anthropic/claude-opus-4-5')).toBe(true)
-    expect(catalog.has('openai/gpt-4.1-mini')).toBe(true)
-    expect(catalog.has('gemini/gemini-2.5-flash')).toBe(false)
-  })
-
-  it('trims model IDs', () => {
-    const models: ProviderInfo[] = [
-      {
-        ...PROVIDER_MODELS[0],
-        models: [
-          {
-            id: SupportedModelId('  anthropic/claude-sonnet-4-5  '),
-            modelId: 'claude-sonnet-4-5',
-            name: 'Claude Sonnet 4.5',
-            provider: 'anthropic',
-            available: true,
-            availableThinkingLevels: ['off', 'minimal', 'low', 'medium', 'high'],
-          },
-        ],
-      },
-    ]
-    const catalog = buildModelCatalogSet(models)
-    expect(catalog.has('anthropic/claude-sonnet-4-5')).toBe(true)
-  })
-})
 
 describe("a Session's model that is not enabled in OpenWaggle", () => {
   const SONNET = SupportedModelId('anthropic/claude-sonnet-4-5')
