@@ -1,0 +1,33 @@
+---
+status: accepted
+---
+
+# Users can recover desktop tools after an unclean quit
+
+[ADR 0030](0030-adopt-single-local-session-host.md) quarantines native desktop tools when the previous window exited without a closure receipt. A new window cannot prove that the old window's terminal descendants stopped, so it does not attach. That ADR says waiting or restarting cannot clear the quarantine, and nothing else could, so one unclean quit lasted forever. On 1.0.0-beta.10 a quit failed to drain because the Session Host was unreachable. Every launch after it showed the quarantine notice, terminals and browser previews stayed off, and archiving any Session failed with "An attached OpenWaggle desktop is required". Hive cleanup could not archive finished Workers either. The only way out was editing `desktop_native_owner` in SQLite by hand.
+
+## Decision
+
+The user can lift the quarantine. The notice has a **Recover desktop tools** action. Choosing it is the user's statement that nothing the previous window started is still running, including dev servers, watchers and background jobs launched from its terminals. A process cannot produce that evidence, and the user's statement is the only thing that lifts the quarantine. Nothing recovers on its own. Lease expiry, PID absence and restarts still prove nothing.
+
+- The notice is its own banner below the header, or at the bottom of the window in Settings, where it would otherwise cover the window controls. It is not a toast: the archive failure the quarantine causes is itself a toast, and it would have replaced the only way out. For the same reason the banner cannot be dismissed while quarantined, and its action sits on the left under the text, clear of toasts at the top right. One renderer store holds its state, so moving between the workspace and Settings keeps an in-flight recovery and its result.
+- The GUI sends a new `desktop-service-v1` request, `recoverOwner`, in place of the first `register` of a new bridge. The Host answers it exactly like `register`. In the same admission it replaces the exact stale owner with the new window in one SQLite transaction and registers it, so the owner is never left closed without a successor and no offline cleanup can slip in between.
+- The bridge sends the attestation at most once. Any failure before the Host accepts it, including a failed endpoint refresh, ends that bridge instead of starting its retry pump. Only after acceptance does the pump take over, with plain registrations. If attachment fails after acceptance, the GUI keeps that lifecycle. A later click succeeds once it has reattached. Quit cleanup stops it.
+- The Host refuses while a desktop lease is still fresh. A window that just died keeps its lease for up to 15 seconds, so the refusal says to try again in a few seconds. The real guarantee against displacing a live window is Electron's single-instance lock. Automation that disables the lock can run two windows on one profile, and there a window whose lease lapsed could be recovered over.
+- The attestation also covers mutations of earlier Hosts. An active fence whose Host instance is gone can never be released by a live Host, so a recovered window would hold it forever and every later quit would fail to drain. Recovery marks those fences released. The new window acknowledges them during attachment. Fences of the current Host stay active and are reconciled normally.
+- Quit waits for a recovery in flight, up to the drain deadline, and then stops the bridge it installed. A recovery started while quit is stopping the bridge is refused but stays retryable: if stopping fails and the window stays open, recovery works again. Once the bridge has stopped, native shutdown begins and recovery is no longer offered. A recovery that finishes during quit is not reported as success. Without this, a recovery that finished during quit left the new window as an active owner with no receipt, which is the original bug.
+- The renderer gets a typed outcome. A failure that cannot succeed from this window, such as a kept lifecycle that has stopped for good, drops the action. Other failures keep the attestation text and offer a retry. Success is confirmed in the banner's own live region rather than a toast, and focus moves to its Dismiss button when the Recover button had it.
+- The request needs no new Local Session protocol revision; the desktop-service contract has required revision 11 since it was added. A detached Host built before this change rejects the unknown operation. The failure message leads with the advice to quit OpenWaggle, run `openwaggle host stop --wait`, and reopen it, and the reason it carries is redacted and bounded, because such a Host answers with a long schema decode error. Installing an update already stops the Host (ADR 0047), so this only affects a Host that outlived its app.
+- If the Host accepts the recovery but its answer is lost, the window stays quarantined. Choosing Recover again finishes it, because the Host already records this window as the owner. Quitting instead leaves the next launch quarantined, and the user has to attest again.
+
+## Considered options
+
+- **Recover automatically when the old GUI process is gone.** The single-instance lock does prove the old window exited, so its WebContents are gone. Terminal descendants that ignore SIGHUP or detach with `setsid` can still outlive it. ADR 0030's reasoning holds, so a person has to decide.
+- **Journal PTY root identities and recover when none is alive.** This is more automatic but does not cover detached descendants either. It is also a much larger change to the terminal runtime. It stays open as future work.
+- **Gate `recoverOwner` behind a new protocol revision.** That would make every client hand over the Host for one rarely used request. The actionable failure message covers the narrow version-skew case.
+- **Deliver a late closure receipt.** A GUI that finished native disposal but could not reach the Host would save the receipt and send it on the next launch. It would not have helped here, because the failed quit never got past stopping the bridge, so terminals were never closed. It is not part of this change.
+
+## Consequences
+
+- ADR 0030's sentence that an unclean exit cannot be cleared by waiting or restarting still holds. A user action can now clear it.
+- If the user is wrong, an orphaned process from the old window, or a Git child of a dead Host, may keep running while the new window archives or deletes its Workspace. That is the risk ADR 0030 guarded against. The user now takes it on knowingly instead of losing desktop tools for good.

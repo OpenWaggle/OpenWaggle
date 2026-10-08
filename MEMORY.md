@@ -938,6 +938,16 @@ Host owns canonical mutations and uses the revision-11 authenticated desktop rev
 Native fences and exact GUI/Host closure receipts are durable. A released token remains until its
 GUI native hold is acknowledged; lease expiry or PID absence never establishes process settlement.
 Unclean GUI ownership and orphan active Host mutation fences remain in doubt, not auto-released.
+The quarantine notice (a banner, not a toast: the archive failure it causes is a toast) offers
+**Recover desktop tools** (ADR 0049). `recoverOwner` replaces the bridge's first `register` and is
+answered like it; in one admission the Host releases active fences of dead Hosts, replaces the
+exact stale owner in one SQLite transaction (`replaceStale`), and registers. Any failure before
+acceptance ends that bridge, so the pump never replays the attestation. Quit cleanup awaits an
+in-flight recovery (bounded by the drain deadline) before stopping the bridge. The renderer keeps
+the notice in one store so a Settings round trip keeps an in-flight recovery.
+Without this, one failed quit (Host unreachable during drain) left `desktop_native_owner` active
+forever: every launch was quarantined and every archive failed with "An attached OpenWaggle
+desktop is required".
 `execFile` Git children have no kill-on-Host-death guardian, so closing GUI resources alone cannot
 prove an old filesystem mutation settled. Browser screenshots become composer attachments only
 after Host preparation returns a durable capability, including immutable bytes/context/provenance.
