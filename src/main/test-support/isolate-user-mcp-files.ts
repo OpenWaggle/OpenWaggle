@@ -12,4 +12,5 @@ vi.mock('../adapters/pi/mcp/openwaggle-mcp-migration', () => ({
   migrateOpenWaggleMcpSignInsOnce: async () => undefined,
   migrateOpenWaggleMcpSignInsAfterHostStart: async () => undefined,
   migrateOpenWaggleMcpFilesAtHostStart: async () => undefined,
+  stopOpenWaggleMcpSignInMigration: async () => undefined,
 }))

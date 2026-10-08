@@ -2,6 +2,24 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 const migrate = vi.hoisted(() => vi.fn())
 const logged = vi.hoisted(() => ({ error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() }))
+// A keychain that stalls (or waits on a password prompt) while the old sign-ins are read.
+const keychain = vi.hoisted(() => {
+  const waiting: (() => void)[] = []
+  const sessionProjects: string[] = []
+  const state = {
+    stalled: false,
+    release: () => {
+      state.stalled = false
+      for (const resolve of waiting.splice(0)) resolve()
+    },
+  }
+  return {
+    state,
+    sessionProjects,
+    read: () =>
+      state.stalled ? new Promise<void>((resolve) => waiting.push(resolve)) : Promise.resolve(),
+  }
+})
 
 // The shared setup gives this file a temporary HOME; the real entry point runs here.
 vi.unmock('../openwaggle-mcp-migration')
@@ -22,7 +40,9 @@ vi.mock('../../../../logger', () => ({ createLogger: () => logged }))
 vi.mock('../../../mcp/encrypted-mcp-secret-vault-service', async () => {
   const { McpVaultError } = await import('../../../../ports/mcp-errors')
   return {
+    listMcpVaultSecretNames: async () => ['oauth.signed-in', 'oauth.locked', 'TOKEN'],
     resolveMcpVaultSecret: async (name: string) => {
+      await keychain.read()
       if (name === 'oauth.signed-in') return '{"version":1}'
       const reason = name === 'oauth.locked' ? 'decryption-failed' : 'secret-not-found'
       throw new McpVaultError({ reason, message: `vault: ${reason}` })
@@ -43,17 +63,21 @@ vi.mock('../../../../store/settings', () => ({
   }),
 }))
 vi.mock('../../../../store/session-details/workspace-root-authorization', () => ({
-  listSessionProjectRoots: async () => [],
+  listSessionProjectRoots: async () => keychain.sessionProjects,
 }))
 
 const {
   MCP_MIGRATION_RETRY_MS,
+  MCP_MIGRATION_STOP_WAIT_MS,
+  stopOpenWaggleMcpSignInMigration,
   migrateOpenWaggleMcpFilesAtHostStart,
   migrateOpenWaggleMcpFilesOnce,
   migrateOpenWaggleMcpSignInsAfterHostStart,
   migrateOpenWaggleMcpSignInsOnce,
 } = await import('../openwaggle-mcp-migration')
-const { SIGN_IN_OF_ANOTHER_BUILD } = await import('../../../mcp/migration/oauth-state-migration')
+const { SIGN_IN_NOT_READ_YET, SIGN_IN_OF_ANOTHER_BUILD } = await import(
+  '../../../mcp/migration/oauth-state-migration'
+)
 
 const OK = { files: [], oauth: [], droppedSessionStates: 0 }
 
@@ -173,10 +197,19 @@ describe('the MCP file migration within one Host process', () => {
   })
 
   it('reads an old sign-in, reports no sign-in as none, and a vault failure as a failure', async () => {
-    migrate.mockResolvedValue(OK)
+    const names = ['oauth.signed-in', 'oauth.never', 'oauth.locked', 'oauth.other-build']
+    migrate.mockImplementation(async (input) => {
+      for (const name of names) await input.oauth.readOld(name).catch(() => undefined)
+      return OK
+    })
     await migrateOpenWaggleMcpSignInsOnce('/projects/vault')
+    // The first pass only asks; the vault is read outside the lock, and the second pass moves them.
+    expect(migrate).toHaveBeenCalledTimes(2)
+    await expect(migrate.mock.calls[0]?.[0].oauth.readOld('oauth.signed-in')).resolves.toBe(
+      SIGN_IN_NOT_READ_YET,
+    )
     const readOld: (name: string) => Promise<string | undefined> =
-      migrate.mock.calls[0]?.[0].oauth.readOld
+      migrate.mock.calls[1]?.[0].oauth.readOld
 
     await expect(readOld('oauth.signed-in')).resolves.toBe('{"version":1}')
     await expect(readOld('oauth.never')).resolves.toBeUndefined()
@@ -193,5 +226,61 @@ describe('the MCP file migration within one Host process', () => {
 
     await expect(sink('deleted')).resolves.toBeUndefined()
     await expect(sink('broken')).rejects.toThrow('database is locked')
+  })
+
+  it('reads no keychain when no old sign-in is left to move', async () => {
+    migrate.mockResolvedValue(OK)
+    keychain.state.stalled = true
+
+    // Every sign-in is recorded, so the migration asks for none.
+    await migrateOpenWaggleMcpSignInsOnce('/projects/recorded')
+
+    expect(migrate).toHaveBeenCalledOnce()
+    keychain.state.release()
+  })
+
+  it("migrates a project's files while the sign-in migration waits for the keychain", async () => {
+    migrate.mockImplementation(async (input) => {
+      if (input.oauth) await input.oauth.readOld('oauth.signed-in')
+      return OK
+    })
+    keychain.state.stalled = true
+
+    const signIns = migrateOpenWaggleMcpSignInsOnce('/projects/stalled')
+    const files = migrateOpenWaggleMcpFilesOnce('/projects/new')
+
+    // Settings, the catalog and a Run's switch read wait for the files only.
+    await expect(
+      Promise.race([
+        files.then(() => 'migrated'),
+        new Promise((resolve) => setTimeout(() => resolve('waiting'), 300)),
+      ]),
+    ).resolves.toBe('migrated')
+    keychain.state.release()
+    await signIns
+  })
+
+  // Last: a stopped Host migrates no more sign-ins in this process.
+  it('stops the sign-in migration at Host stop, waiting a bounded time for it', async () => {
+    migrate.mockImplementation(async (input) => {
+      if (input.oauth) await input.oauth.readOld('oauth.signed-in')
+      return OK
+    })
+    keychain.state.stalled = true
+    keychain.sessionProjects.push('/projects/at-stop')
+    const afterStart = migrateOpenWaggleMcpSignInsAfterHostStart()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    vi.useFakeTimers()
+    const stopped = stopOpenWaggleMcpSignInMigration()
+    await vi.advanceTimersByTimeAsync(MCP_MIGRATION_STOP_WAIT_MS)
+    await expect(stopped).resolves.toBeUndefined()
+    vi.useRealTimers()
+
+    // The keychain answers after the stop: nothing is written once the Host has stopped. Only the
+    // first pass ran, which needs no keychain.
+    keychain.state.release()
+    await afterStart
+    expect(migrate).toHaveBeenCalledOnce()
   })
 })

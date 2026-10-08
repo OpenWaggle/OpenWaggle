@@ -71,6 +71,7 @@ import {
   type HostServiceOptions,
   startHostBackgroundServices,
   startHostServicesAfterListening,
+  stopHostServicesAfterListening,
 } from './runtime-host-services'
 import { installPiRuntimeIntegration } from './runtime-pi-integration'
 import { SessionControlPersistenceLive } from './runtime-session-control-persistence'
@@ -292,6 +293,7 @@ export async function initializeAppRuntime(): Promise<void> {
 }
 
 export async function disposeAppRuntime(): Promise<void> {
+  await stopHostServicesAfterListening()
   await stopSessionHostOwnedServices()
   // Stdio MCP servers must not outlive the Host.
   await closeHostMcpConnections()

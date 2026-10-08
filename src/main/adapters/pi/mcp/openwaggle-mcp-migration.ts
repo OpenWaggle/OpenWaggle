@@ -1,18 +1,17 @@
 import { homedir } from 'node:os'
 import { createLogger } from '../../../logger'
-import { McpVaultError } from '../../../ports/mcp-errors'
 import { mcpBuildStateDirectory } from '../../mcp/credentials/mcp-build-state-paths'
-import {
-  resolveMcpVaultSecret,
-  sharedMcpVaultHasSecret,
-} from '../../mcp/encrypted-mcp-secret-vault-service'
 import { normalizeLegacyProjectPath } from '../../mcp/migration/legacy-state'
-import { migrateOpenWaggleMcpFiles } from '../../mcp/migration/migrate-openwaggle-mcp-files'
+import {
+  type MigrateOpenWaggleMcpFilesInput,
+  migrateOpenWaggleMcpFiles,
+} from '../../mcp/migration/migrate-openwaggle-mcp-files'
 import { migrationRecordPath } from '../../mcp/migration/migration-record'
-import { SIGN_IN_OF_ANOTHER_BUILD } from '../../mcp/migration/oauth-state-migration'
+import { SIGN_IN_NOT_READ_YET } from '../../mcp/migration/oauth-state-migration'
 import { withProcessFileLock } from '../../mcp/process-file-lock'
 import { getPiAgentDir } from '../pi-provider-catalog'
 import { writeOpenWaggleMcpOAuthState } from './openwaggle-mcp-credentials'
+import { oldSignIn, readOldSignIns } from './openwaggle-mcp-old-sign-ins'
 
 const logger = createLogger('mcp-migration')
 
@@ -26,6 +25,9 @@ export const MCP_MIGRATION_LOCK_WAIT_MS = 30_000
 /** After a failed migration, the next call tries again once this much time has passed. */
 export const MCP_MIGRATION_RETRY_MS = 5_000
 
+/** How long Host stop waits for the sign-in migration it started after listening. */
+export const MCP_MIGRATION_STOP_WAIT_MS = 5_000
+
 interface MigrationAttempt {
   readonly done: Promise<unknown>
   /** When the attempt failed; undefined while it runs or once it succeeded. */
@@ -34,14 +36,22 @@ interface MigrationAttempt {
 
 /**
  * `files`: OpenWaggle's MCP files and old per-Session switches, which need no keychain. `sign-ins`:
- * also the old encrypted sign-ins, which read the vault through the operating system's keychain;
- * a slow or locked keychain must only hold up what uses MCP sign-ins.
+ * also the old encrypted sign-ins, which read the vault through the operating system's keychain
+ * (asynchronously, off the main thread); a slow or locked keychain must only hold up what uses MCP
+ * sign-ins.
  */
 type MigrationPart = 'files' | 'sign-ins'
 
 const migrations = new Map<string, MigrationAttempt>()
-/** Runs migrations one at a time: they share the migration record and the global file. */
+/**
+ * Runs migrations one at a time: they share the migration record and the global file. Only what
+ * writes the record and files is queued; old sign-ins are read from the vault before, so a slow
+ * keychain never holds up a files-only migration.
+ */
 let migrationQueue: Promise<unknown> = Promise.resolve()
+/** Set at Host stop: no sign-in migration writes anything afterwards. */
+let signInMigrationStopped = false
+let signInsAfterHostStart: Promise<void> | undefined
 
 /** Session workspace roots, paged as `WorkspaceProjectAuthorization` reads them. */
 async function sessionWorkspaceRoots() {
@@ -100,11 +110,59 @@ function migrateOnceInProcess(part: MigrationPart, requestedProjectPath: string 
     previous?.failedAt !== undefined && Date.now() - previous.failedAt >= MCP_MIGRATION_RETRY_MS
   if (previous && !retry) return previous.done
   const attempt: MigrationAttempt = {
-    done: migrationQueue.then(() => runMigration(part, projectPath, attempt)),
+    done:
+      part === 'files'
+        ? queued(() => runMigration(projectPath, attempt))
+        : migrateSignIns(projectPath, () => attempt),
   }
-  migrationQueue = attempt.done
   migrations.set(key, attempt)
   return attempt.done
+}
+
+function queued(run: () => Promise<unknown>) {
+  const done = migrationQueue.then(run)
+  migrationQueue = done.catch(() => undefined)
+  return done
+}
+
+type ReadOldSignIn = NonNullable<MigrateOpenWaggleMcpFilesInput['oauth']>['readOld']
+
+/**
+ * The files and sign-ins in two queued passes, with the vault read between them, outside the queue
+ * and the lock: the first pass migrates the files and asks for the old sign-ins it still needs
+ * (none once they are recorded, so no keychain is read), the second moves them.
+ */
+async function migrateSignIns(projectPath: string | null, attempt: () => MigrationAttempt) {
+  const wanted = new Set<string>()
+  const first = await queuedSignIns(projectPath, attempt, async (name) => {
+    wanted.add(name)
+    return SIGN_IN_NOT_READ_YET
+  })
+  if (wanted.size === 0 || signInMigrationStopped) return first
+  const oldSignIns = await readOldSignIns(wanted).catch((error: unknown) => {
+    logger.error('Could not read old MCP sign-ins from the vault; they are tried again later', {
+      projectPath,
+      error: describeError(error),
+    })
+    return undefined
+  })
+  if (signInMigrationStopped) return undefined
+  if (!oldSignIns) {
+    attempt().failedAt = Date.now()
+    return undefined
+  }
+  return queuedSignIns(projectPath, attempt, (name) => oldSignIn(oldSignIns, name))
+}
+
+function queuedSignIns(
+  projectPath: string | null,
+  attempt: () => MigrationAttempt,
+  readOld: ReadOldSignIn,
+) {
+  // Host stop may come while the migration waits in the queue.
+  return queued(async () =>
+    signInMigrationStopped ? undefined : runMigration(projectPath, attempt(), readOld),
+  )
 }
 
 /**
@@ -128,15 +186,15 @@ export function migrateOpenWaggleMcpSignInsOnce(requestedProjectPath: string | n
 }
 
 async function runMigration(
-  part: MigrationPart,
   projectPath: string | null,
   attempt: MigrationAttempt,
+  readOld?: ReadOldSignIn,
 ) {
   // Two Hosts (another channel, or one starting while an old one drains) must not migrate at
   // the same time: both would read the same record and write the same files.
   const report = await withProcessFileLock(
     migrationRecordPath(homedir()),
-    () => migrateOnce(part, projectPath),
+    () => migrateOnce(projectPath, readOld),
     // Host start must not hang on another process that keeps the lock; it tries again later.
     { waitUntilAvailable: true, maxWaitMs: MCP_MIGRATION_LOCK_WAIT_MS },
   ).catch((error: unknown) => {
@@ -159,18 +217,18 @@ async function runMigration(
   return report
 }
 
-function migrateOnce(part: MigrationPart, projectPath: string | null) {
+function migrateOnce(projectPath: string | null, readOld: ReadOldSignIn | undefined) {
   return migrateOpenWaggleMcpFiles({
     homeDir: homedir(),
     piAgentDir: getPiAgentDir(),
     projectPaths: projectPath ? [projectPath] : [],
     knownProjectPaths: knownMcpProjectPaths,
     now: () => new Date(),
-    ...(part === 'sign-ins'
+    ...(readOld
       ? {
           oauth: {
             buildKey: mcpBuildStateDirectory(),
-            readOld: readOldSignIn,
+            readOld,
             write: (stateKey: string, state: unknown) =>
               writeOpenWaggleMcpOAuthState(stateKey, state),
           },
@@ -178,27 +236,6 @@ function migrateOnce(part: MigrationPart, projectPath: string | null) {
       : {}),
     sessionMcpSwitch: async (sessionId) => carryOverSessionMcpOff(sessionId),
   })
-}
-
-/**
- * An old sign-in from the vault, undefined when no build stored one, or `SIGN_IN_OF_ANOTHER_BUILD`
- * when the vault every build shared has it under another build's key. Any other vault failure (a
- * keychain that refused, an unreadable vault) is the migration's failure, so it is tried again.
- */
-async function readOldSignIn(name: string) {
-  try {
-    return await resolveMcpVaultSecret(name)
-  } catch (error) {
-    if (error instanceof McpVaultError && error.reason === 'secret-not-found') {
-      // This build's vault took only what its key opens; the rest is another build's to move.
-      return (await sharedMcpVaultHasSecret(name)) ? SIGN_IN_OF_ANOTHER_BUILD : undefined
-    }
-    logger.warn('Could not read an old MCP sign-in from the vault', {
-      name,
-      error: describeError(error),
-    })
-    throw error
-  }
 }
 
 /** An old MCP-off switch; a Session deleted since then has nothing to carry over. */
@@ -234,12 +271,34 @@ export function migrateOpenWaggleMcpFilesAtHostStart() {
 
 /**
  * Once the Host serves clients: the old sign-ins of the same scopes. A slow keychain only delays
- * MCP connections and sign-ins, which wait for this; a failure is logged and retried on use.
+ * MCP connections and sign-ins, which wait for this; a failure is logged and retried on use. Moving
+ * an old sign-in into Pi's synchronous sign-in store still reads the keychain on the main thread.
  */
-export async function migrateOpenWaggleMcpSignInsAfterHostStart() {
-  await migrateKnownScopes(migrateOpenWaggleMcpSignInsOnce).catch((error: unknown) => {
+export function migrateOpenWaggleMcpSignInsAfterHostStart() {
+  signInsAfterHostStart = migrateKnownScopes((projectPath) =>
+    signInMigrationStopped ? Promise.resolve() : migrateOpenWaggleMcpSignInsOnce(projectPath),
+  ).catch((error: unknown) => {
     logger.error('MCP sign-in migration failed after Host start; it is tried again on use', {
       error: describeError(error),
     })
   })
+  return signInsAfterHostStart
+}
+
+/**
+ * At Host stop, before the stores close: no sign-in migration writes anything any more, and the
+ * one started after listening gets a bounded time to finish what it is writing. A sign-in it had
+ * not moved yet is moved on a later start.
+ */
+export async function stopOpenWaggleMcpSignInMigration() {
+  signInMigrationStopped = true
+  if (!signInsAfterHostStart) return
+  let timer: ReturnType<typeof setTimeout> | undefined
+  await Promise.race([
+    signInsAfterHostStart,
+    new Promise<void>((resolve) => {
+      timer = setTimeout(resolve, MCP_MIGRATION_STOP_WAIT_MS)
+    }),
+  ])
+  clearTimeout(timer)
 }

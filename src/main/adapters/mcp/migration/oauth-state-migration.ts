@@ -28,6 +28,9 @@ export interface MigratedMcpOAuthState {
 /** The old sign-in is in the vault every build shared, sealed by another build's key. */
 export const SIGN_IN_OF_ANOTHER_BUILD = Symbol('sign-in of another build')
 
+/** The old sign-in is not read yet: the vault is read outside the migration lock, then again. */
+export const SIGN_IN_NOT_READ_YET = Symbol('sign-in not read yet')
+
 export interface McpOAuthMigrationSink {
   /**
    * Which build migrates: the record keeps each build's outcomes apart, since each build has its own
@@ -36,9 +39,11 @@ export interface McpOAuthMigrationSink {
   readonly buildKey?: string
   /**
    * The old vault secret's plaintext; undefined when no build stored it; `SIGN_IN_OF_ANOTHER_BUILD`
-   * when it is there but this build cannot decrypt it.
+   * when it is there but this build cannot decrypt it; `SIGN_IN_NOT_READ_YET` to come back to it.
    */
-  readOld(name: string): Promise<string | undefined | typeof SIGN_IN_OF_ANOTHER_BUILD>
+  readOld(
+    name: string,
+  ): Promise<string | undefined | typeof SIGN_IN_OF_ANOTHER_BUILD | typeof SIGN_IN_NOT_READ_YET>
   /**
    * Store a state in OpenWaggle's Pi OAuth store under Pi's key. False when the key already has a
    * sign-in, which is kept.
@@ -207,6 +212,9 @@ async function migrateOne(
     const raw = await input.sink.readOld(`oauth.${candidate.instanceId}`)
     const migratedAt = input.now().toISOString()
     const recorded = recordKey(input.sink, key)
+    if (raw === SIGN_IN_NOT_READ_YET) {
+      return { server: candidate.name, key, status: 'skipped', reason: 'not read yet' }
+    }
     if (raw === SIGN_IN_OF_ANOTHER_BUILD) {
       // Not recorded: it is the other build's to move, and this one looks again on a later start.
       return {

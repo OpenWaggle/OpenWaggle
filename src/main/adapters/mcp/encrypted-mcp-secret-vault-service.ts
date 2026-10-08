@@ -278,6 +278,11 @@ function getLiveVault() {
   return liveVault
 }
 
+/** The names in this build's vault, after it took over its own secrets from the shared one. */
+export async function listMcpVaultSecretNames() {
+  return (await getLiveVault().list()).map((secret) => secret.name)
+}
+
 /** Whether the vault every build shared before still holds `name`, whatever key sealed it. */
 export async function sharedMcpVaultHasSecret(name: string) {
   const shared = await readVaultFile(

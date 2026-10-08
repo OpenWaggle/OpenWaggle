@@ -49,14 +49,19 @@ vi.mock('../adapters/pi/mcp/openwaggle-mcp-migration', () => ({
   migrateOpenWaggleMcpSignInsAfterHostStart: async () => {
     started.push('mcp sign-ins')
   },
+  stopOpenWaggleMcpSignInMigration: async () => {
+    started.push('mcp sign-ins stopped')
+  },
 }))
 vi.mock('../adapters/pi/pi-legacy-provider-credentials', () => ({
   migrateLegacyProviderCredentialsOnHostStart: recorded('provider credentials'),
 }))
 
-const { startHostBackgroundServices, startHostServicesAfterListening } = await import(
-  '../runtime-host-services'
-)
+const {
+  startHostBackgroundServices,
+  startHostServicesAfterListening,
+  stopHostServicesAfterListening,
+} = await import('../runtime-host-services')
 
 describe('Host background services', () => {
   it('starts the startup scratch sweep with the other Host services', async () => {
@@ -96,5 +101,13 @@ describe('Host background services', () => {
     await startHostServicesAfterListening()
 
     expect(started).toEqual(['mcp sign-ins'])
+  })
+
+  it('stops the MCP sign-in migration at Host stop', async () => {
+    started.length = 0
+
+    await stopHostServicesAfterListening()
+
+    expect(started).toEqual(['mcp sign-ins stopped'])
   })
 })

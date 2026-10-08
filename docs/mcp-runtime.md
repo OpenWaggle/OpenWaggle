@@ -433,7 +433,22 @@ it. `migrateOpenWaggleMcpSignInsOnce` also migrates old encrypted sign-ins from 
 reads the keychain through `safeStorage`; the Host starts it once it serves clients
 (`startServicesAfterListening`), and a Run's MCP extensions, inspect, sign-in, sign-out, MCP
 App connections and Settings' server states (which say whether a server is signed in) wait for
-it, so a slow or prompting keychain only delays those.
+it.
+
+The vault, the old sign-ins' source, uses `safeStorage`'s asynchronous API (Electron 43's
+`isAsyncEncryptionAvailable`, `encryptStringAsync`, `decryptStringAsync`), which reads the
+keychain off the main thread and opens values the synchronous `encryptString` sealed (same `v10`
+format; checked with `--use-mock-keychain`). The sign-in part runs in two queued passes, each
+under the migration lock: the first migrates the files and asks for the old sign-ins it still
+needs (`SIGN_IN_NOT_READ_YET`, not recorded), the vault is read outside the queue and lock, and
+the second pass moves them. Once every sign-in is recorded, the first pass asks for none and no
+keychain is read. So a slow or prompting keychain leaves the Host responsive, and a files-only
+migration (Settings, the catalog, a Run's switch and allowlist reads) never waits behind it.
+Two reads stay synchronous, because Pi's sign-in store contract is: moving an old sign-in into
+`oauth-states.json`, which happens only when there is one to move, and every OAuth server
+connection. While those wait for the keychain, the Host is unresponsive. Host stop
+(`stopHostServicesAfterListening`) stops the sign-in migration: nothing is written afterwards, and
+what it is writing gets `MCP_MIGRATION_STOP_WAIT_MS` (5 s) to finish.
 
 `adapters/mcp/migration/` runs once per file, silently, with one `.pre-adr-0048.bak` backup, and
 records what it did in `~/.openwaggle/mcp/migration.json`. The global file's backup sits next to

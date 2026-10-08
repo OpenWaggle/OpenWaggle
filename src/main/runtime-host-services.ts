@@ -2,6 +2,7 @@ import * as Effect from 'effect/Effect'
 import {
   migrateOpenWaggleMcpFilesAtHostStart,
   migrateOpenWaggleMcpSignInsAfterHostStart,
+  stopOpenWaggleMcpSignInMigration,
 } from './adapters/pi/mcp/openwaggle-mcp-migration'
 import { migrateLegacyProviderCredentialsOnHostStart } from './adapters/pi/pi-legacy-provider-credentials'
 import { runSessionScratchSweepBackground } from './adapters/session-scratch-sweep-background'
@@ -62,4 +63,12 @@ export function startHostBackgroundServices<R = never>(options: HostServiceOptio
  */
 export function startHostServicesAfterListening() {
   return migrateOpenWaggleMcpSignInsAfterHostStart()
+}
+
+/**
+ * At Host stop, before the stores close: the MCP sign-in migration writes nothing more, and what
+ * it is writing gets a bounded time to finish.
+ */
+export function stopHostServicesAfterListening() {
+  return stopOpenWaggleMcpSignInMigration()
 }
