@@ -1,5 +1,7 @@
 import type { McpRegistryPackageType } from '@shared/types/mcp-registry'
+import { isRecord } from '@shared/utils/validation'
 import { piLiteralMap } from '../../../domain/mcp/config/mcp-pi-literal'
+import { missingRegistryValue, resolveRegistryInput } from './registry-inputs'
 import { installVerifiedMcpb } from './registry-mcpb'
 import { type OciImageResolver, resolveOciImageWithDocker } from './registry-oci-resolver'
 import type { RegistryResourceFetcher } from './registry-secure-download'
@@ -26,56 +28,41 @@ export interface RegistryPackageLauncher {
 
 type PackageEntry = Readonly<Record<string, unknown>>
 
-const VARIABLE_PATTERN = /\{([^{}]+)\}/g
-
-function field(value: object, key: string): unknown {
-  return Reflect.get(value, key)
-}
-
-/**
- * An `Input`'s value (server.json `InputWithVariables`): its `value`, else its `default`, with each
- * `{name}` filled from `variables.name`'s value or default. Undefined when something is missing.
- */
-function inputValue(input: object): { readonly value?: string; readonly missing: boolean } {
-  const raw = stringValue(field(input, 'value')) ?? stringValue(field(input, 'default'))
-  if (raw === undefined) return { missing: false }
-  const variables = field(input, 'variables')
-  let missing = false
-  const filled = raw.replace(VARIABLE_PATTERN, (placeholder, name: string) => {
-    const variable =
-      typeof variables === 'object' && variables !== null ? field(variables, name) : undefined
-    const value =
-      typeof variable === 'object' && variable !== null
-        ? (stringValue(field(variable, 'value')) ?? stringValue(field(variable, 'default')))
-        : undefined
-    if (value === undefined) missing = true
-    return value ?? placeholder
-  })
-  return missing ? { missing: true } : { value: filled, missing: false }
+/** A named argument that describes a value (`valueHint`, `format`) is not a bare flag. */
+function takesValue(argument: Readonly<Record<string, unknown>>) {
+  return (
+    argument.valueHint !== undefined ||
+    (argument.format !== undefined && argument.format !== 'boolean')
+  )
 }
 
 /**
  * Registry arguments as command-line words (server.json `Argument`): a positional argument is its
- * value, and a named one is the `--flag={value}` the schema describes, or the bare flag when it
- * has no value. An optional argument without a value is left out; a required one stops the install,
- * since the server would not start without it.
+ * value, and a named one the `--flag={value}` the schema describes. A required named argument
+ * without a value is a bare flag; an optional argument without one is left out. A required or
+ * secret variable without a value, or a required value that is missing, stops the install: the
+ * command line cannot hold a vault secret, and the server would not start without it.
  */
 function commandLineArguments(value: unknown) {
-  return arrayValue(value).flatMap((argument: unknown) => {
-    if (typeof argument !== 'object' || argument === null) return []
-    const { value: resolved, missing } = inputValue(argument)
-    const named = field(argument, 'type') === 'named'
-    const name = stringValue(field(argument, 'name'))
-    if (resolved === undefined && field(argument, 'isRequired') === true) {
-      throw new Error(
-        `The Registry server needs a value for ${name ?? 'a positional argument'}, which it does not provide. Add the server by hand with that value.`,
-      )
+  return arrayValue(value).flatMap((argument: unknown): string[] => {
+    if (!isRecord(argument)) return []
+    const named = argument.type === 'named'
+    const name = stringValue(argument.name)
+    const required = argument.isRequired === true
+    const resolved = resolveRegistryInput(argument)
+    if (resolved.kind === 'unfilled') {
+      if (resolved.required || resolved.secret) throw missingRegistryValue(resolved.variable)
+      return []
     }
-    // A value whose {variables} could not all be filled is left out, not passed half-filled.
-    if (missing) return []
-    if (!named) return resolved ? [resolved] : []
-    if (!name) return []
-    return [resolved ? `${name}=${resolved}` : name]
+    if (resolved.kind === 'empty') {
+      if (!required) return []
+      if (!named || !name || takesValue(argument)) {
+        throw missingRegistryValue(name ?? 'a positional argument')
+      }
+      return [name]
+    }
+    if (!named) return [resolved.value]
+    return name ? [`${name}=${resolved.value}`] : []
   })
 }
 

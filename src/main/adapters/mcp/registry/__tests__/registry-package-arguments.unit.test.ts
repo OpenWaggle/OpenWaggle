@@ -19,7 +19,7 @@ const options = {
 const PACKAGE_ARGUMENTS = [
   { type: 'named', name: '--port', value: '8080' },
   { type: 'positional', value: 'serve' },
-  { type: 'named', name: '--read-only' },
+  { type: 'named', name: '--read-only', isRequired: true },
   { type: 'named', name: '-m', value: 'fast mode' },
 ]
 const EXPECTED_ARGUMENTS = ['--port=8080', 'serve', '--read-only', '-m=fast mode']
@@ -106,5 +106,41 @@ describe('Registry package arguments', () => {
         options,
       ),
     ).rejects.toThrow('needs a value for --api-url')
+  })
+
+  it('leaves out an optional flag without a value, and passes a required one bare', async () => {
+    const result = await createRegistryEntry(
+      withArguments([
+        { type: 'named', name: '--verbose' },
+        { type: 'named', name: '--stdio', isRequired: true },
+      ]),
+      options,
+    )
+
+    expect(result.entry).toMatchObject({ args: ['--yes', '@example/weather@1.2.3', '--stdio'] })
+  })
+
+  it('refuses the install when a required or secret variable of an argument is unfilled', async () => {
+    await expect(
+      createRegistryEntry(
+        withArguments([
+          {
+            type: 'named',
+            name: '--token',
+            value: '{token}',
+            variables: { token: { isSecret: true } },
+          },
+        ]),
+        options,
+      ),
+    ).rejects.toThrow('needs a value for token')
+    await expect(
+      createRegistryEntry(
+        withArguments([
+          { type: 'positional', value: '{root}', variables: { root: { isRequired: true } } },
+        ]),
+        options,
+      ),
+    ).rejects.toThrow('needs a value for root')
   })
 })
