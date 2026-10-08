@@ -52,8 +52,10 @@ function ServerExposureChoice({
       className="overflow-hidden rounded-lg border border-border bg-bg"
       onKeyDown={(event) => {
         const next = exposureForKey(event.key, server.exposure)
-        if (!next || disabled) return
+        if (!next) return
         event.preventDefault()
+        // While a choice saves, keys are ignored; the next one moves from the saved choice.
+        if (disabled) return
         const radio = event.currentTarget.querySelector<HTMLElement>(
           `[role="radio"][data-exposure="${next}"]`,
         )
@@ -73,13 +75,15 @@ function ServerExposureChoice({
             tabIndex={selected ? 0 : -1}
             variant="row"
             align="start"
-            disabled={disabled}
+            // Not `disabled` while saving: a disabled radio drops keyboard focus to the page.
+            aria-disabled={disabled}
             className={cn(
               'gap-3 border-b border-border px-4 py-2.5 last:border-b-0',
               selected && 'bg-bg-hover',
+              disabled && 'cursor-progress',
             )}
             onClick={() => {
-              if (!selected) onChange(exposure)
+              if (!selected && !disabled) onChange(exposure)
             }}
           >
             <Check

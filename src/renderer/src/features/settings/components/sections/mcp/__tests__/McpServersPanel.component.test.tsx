@@ -1,4 +1,4 @@
-import type { McpServerInspection } from '@shared/types/mcp-configuration'
+import type { McpServerExposure, McpServerInspection } from '@shared/types/mcp-configuration'
 import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { renderWithQueryClient } from '@/test-utils/query-test-utils'
@@ -242,6 +242,59 @@ describe('Settings > MCP servers', () => {
       expect(api.setMcpServerExposure).toHaveBeenCalledWith(
         expect.objectContaining({ name: 'github', exposure: 'deferred' }),
       ),
+    )
+  })
+
+  it('keeps focus in the exposure choices while each arrow key saves', async () => {
+    // The Host answers each save with the server at the exposure it was given, once released.
+    let release = () => {}
+    api.setMcpServerExposure.mockImplementation(
+      (input: { readonly exposure?: McpServerExposure }) =>
+        new Promise((resolve) => {
+          release = () =>
+            resolve(
+              mcpView(
+                SERVERS.map((server) =>
+                  server.name === 'github' && input.exposure
+                    ? { ...server, exposure: input.exposure }
+                    : server,
+                ),
+              ),
+            )
+        }),
+    )
+    renderPanel()
+    await openServer('github')
+    const exposure = await screen.findByRole('radiogroup', { name: 'Server exposure' })
+    within(exposure)
+      .getByRole('radio', { name: /Codemode/ })
+      .focus()
+
+    fireEvent.keyDown(document.activeElement ?? exposure, { key: 'ArrowDown' })
+    // Saving does not disable the choices: a disabled radio would drop focus to the page.
+    await waitFor(() => expect(api.setMcpServerExposure).toHaveBeenCalledTimes(1))
+    await waitFor(() =>
+      expect(within(exposure).getAllByRole('radio')[0]).toHaveAttribute('aria-disabled', 'true'),
+    )
+    for (const radio of within(exposure).getAllByRole('radio')) expect(radio).toBeEnabled()
+    release()
+    await waitFor(() =>
+      expect(within(exposure).getByRole('radio', { name: /Deferred/ })).toHaveAttribute(
+        'aria-checked',
+        'true',
+      ),
+    )
+    expect(within(exposure).getByRole('radio', { name: /Deferred/ })).toHaveFocus()
+    fireEvent.keyDown(document.activeElement ?? exposure, { key: 'ArrowDown' })
+
+    await waitFor(() =>
+      expect(api.setMcpServerExposure).toHaveBeenLastCalledWith(
+        expect.objectContaining({ name: 'github', exposure: 'direct' }),
+      ),
+    )
+    release()
+    await waitFor(() =>
+      expect(within(exposure).getByRole('radio', { name: /Direct/ })).toHaveFocus(),
     )
   })
 
