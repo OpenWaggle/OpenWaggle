@@ -111,9 +111,12 @@ from the Dock, whose own environment lacks the shell profile's variables. It app
 `url`, `command`, `args`, and `cwd` are not interpolated, because Pi does not interpolate them.
 A value that cannot be resolved fails that server's check or connection only; inspection,
 `openwaggle mcp list`, and `doctor` report it per server, and the configuration view lists vault
-errors with the other config errors. The view only checks that each referenced secret exists
-(`mcpVaultHasSecret`), without decrypting it, so a slow keychain does not slow Settings or the CLI;
-a secret this build cannot decrypt is reported when a Run or a check reads it.
+errors with the other config errors. The configuration view and Settings' server states
+(`getMcpServerStatuses`) only check that each referenced secret exists (`checkMcpVaultSecret`),
+without decrypting it; a server whose secret is missing shows as a failed check. A secret this
+build cannot decrypt is reported when a Run or a check reads it. Server states, inspect and
+sign-in still read whether a server is signed in (`mcpSignedIn`) from the synchronous sign-in
+store, which decrypts on the main thread when the file changed (cached by mtime).
 
 Imports from other tools convert only the variable syntax that tool really expands (Claude's CLI
 `${VAR}`, Cursor/VS Code/Windsurf `${env:VAR}`, OpenCode `{env:VAR}`, VS Code `${input:id}`) to
@@ -457,9 +460,11 @@ needs (`SIGN_IN_NOT_READ_YET`, not recorded), the vault is read outside the queu
 the second pass moves them. Once every sign-in is recorded, the first pass asks for none and no
 keychain is read. So a slow or prompting keychain leaves the Host responsive, and a files-only
 migration (Settings, the catalog, a Run's switch and allowlist reads) never waits behind it.
-Two reads stay synchronous, because Pi's sign-in store contract is: moving an old sign-in into
-`oauth-states.json`, which happens only when there is one to move, and every OAuth server
-connection. While those wait for the keychain, the Host is unresponsive. Host stop
+What reads the sign-in store stays synchronous, because Pi's sign-in store contract is: moving an
+old sign-in into `oauth-states.json`, which happens only when there is one to move, every OAuth
+server connection, and `mcpSignedIn` in Settings' server states, inspect and sign-in (decrypted
+again only when the file changed; cached by mtime). While those wait for the keychain, the Host
+is unresponsive. Host stop
 (`stopHostServicesAfterListening`) stops the sign-in migration: nothing is written afterwards, and
 what it is writing gets `MCP_MIGRATION_STOP_WAIT_MS` (5 s) to finish.
 

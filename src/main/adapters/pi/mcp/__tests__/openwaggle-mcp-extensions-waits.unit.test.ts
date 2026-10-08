@@ -6,12 +6,15 @@ interface ConfiguredServer {
   readonly config: Record<string, unknown>
 }
 
-const mocks = vi.hoisted(() => ({
-  servers: new Array<ConfiguredServer>(),
-  // A keychain or a login shell that never answers.
-  signIns: vi.fn(() => new Promise<void>(() => {})),
-  shell: vi.fn(() => new Promise<void>(() => {})),
-}))
+const mocks = vi.hoisted(() => {
+  const servers: ConfiguredServer[] = []
+  return {
+    servers,
+    // A keychain or a login shell that never answers.
+    signIns: vi.fn(() => new Promise<void>(() => {})),
+    shell: vi.fn(() => new Promise<void>(() => {})),
+  }
+})
 
 vi.mock('../openwaggle-mcp-migration', () => ({
   migrateOpenWaggleMcpFilesOnce: async () => undefined,

@@ -227,6 +227,23 @@ export function mcpVaultHasSecret(name: string) {
   return getLiveVault().has(name)
 }
 
+/** What stands for a vault secret a view only checks; its value is never shown or sent. */
+const PRESENT_SECRET = 'vault-secret'
+
+/**
+ * A secret resolver for views (Settings' configuration and server states, the CLI) that only
+ * report a missing secret: it checks the vault without decrypting, so a slow or prompting keychain
+ * does not slow them down. A Run and a check still decrypt.
+ */
+export async function checkMcpVaultSecret(name: string) {
+  if (await mcpVaultHasSecret(name)) return PRESENT_SECRET
+  throw new McpVaultError({
+    reason: 'secret-not-found',
+    secretName: name,
+    message: `MCP secret ${JSON.stringify(name)} was not found.`,
+  })
+}
+
 /** Whether the vault every build shared before still holds `name`, whatever key sealed it. */
 export async function sharedMcpVaultHasSecret(name: string) {
   const shared = await readVaultFile(

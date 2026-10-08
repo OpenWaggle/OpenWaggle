@@ -5,7 +5,10 @@ const mocks = vi.hoisted(() => {
   const resolvers: ((name: string) => Promise<string>)[] = []
   return {
     resolvers,
-    exists: vi.fn(async (name: string) => name === 'STORED'),
+    check: vi.fn(async (name: string) => {
+      if (name === 'STORED') return 'vault-secret'
+      throw new Error(`MCP secret "${name}" was not found.`)
+    }),
     resolve: vi.fn(async () => 'decrypted'),
   }
 })
@@ -20,7 +23,7 @@ vi.mock('../../../mcp/config/mcp-runtime-config', async (importOriginal) => ({
 vi.mock('../../../mcp/encrypted-mcp-secret-vault-service', async () => {
   const { McpVaultError } = await import('../../../../ports/mcp-errors')
   return {
-    mcpVaultHasSecret: mocks.exists,
+    checkMcpVaultSecret: mocks.check,
     resolveMcpVaultSecret: mocks.resolve,
     McpVaultError,
   }
@@ -34,6 +37,7 @@ describe("Settings' and the CLI's MCP view", () => {
     await Effect.runPromise(getOpenWaggleMcpConfigurationService().getView({ projectPath: null }))
     const resolveSecret = mocks.resolvers.at(-1)
 
+    expect(resolveSecret).toBe(mocks.check)
     await expect(resolveSecret?.('STORED')).resolves.toBeTypeOf('string')
     await expect(resolveSecret?.('MISSING')).rejects.toThrow('MCP secret "MISSING" was not found.')
     // A slow or prompting keychain does not slow Settings down.

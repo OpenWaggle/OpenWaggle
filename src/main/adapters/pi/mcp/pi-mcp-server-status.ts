@@ -6,7 +6,7 @@ import type {
 } from '@shared/types/mcp-configuration'
 import type { McpConfigurationScopeInput } from '../../../ports/mcp-configuration-service'
 import { loadMcpRuntimeConfig } from '../../mcp/config/mcp-runtime-config'
-import { resolveMcpVaultSecret } from '../../mcp/encrypted-mcp-secret-vault-service'
+import { checkMcpVaultSecret } from '../../mcp/encrypted-mcp-secret-vault-service'
 import { type McpConnectionPool, mcpServerIdentity } from '../../mcp/pool/mcp-connection-pool-api'
 import { knownMcpServerState, type McpKnownServerState } from './mcp-server-status-registry'
 import { mcpSignedIn } from './pi-mcp-server-oauth'
@@ -78,7 +78,9 @@ function serverStatus(entry: McpServerEntry, pool: McpConnectionPool): McpServer
 /**
  * Every configured server's state for Settings > MCP, read without connecting: a Session's warm
  * connection, otherwise the last check, otherwise not checked. It reads the files and the sign-in
- * store only; no server is started and no request is sent.
+ * store only (`mcpSignedIn`, the synchronous store, cached by mtime); vault secrets are checked to
+ * exist, not decrypted. A server whose secret is missing shows that, as a failed check. No server
+ * is started and no request is sent.
  */
 export async function getMcpServerStatuses(
   input: McpConfigurationScopeInput,
@@ -87,7 +89,23 @@ export async function getMcpServerStatuses(
 ): Promise<McpServerStatusView[]> {
   const config = await loadMcpRuntimeConfig({
     roots: { ...roots, projectPath: input.projectPath },
-    resolveSecret: resolveMcpVaultSecret,
+    resolveSecret: checkMcpVaultSecret,
   })
-  return config.loaded.servers.map((entry) => serverStatus(entry, pool))
+  const checkedAt = Date.now()
+  return [
+    ...config.loaded.servers.map((entry) => serverStatus(entry, pool)),
+    ...[...config.unavailable].map(([name, error]): McpServerStatusView => {
+      // A server that is off is not checked, whatever it lacks.
+      const off = config.merged.servers.some(
+        (server) => server.name === name && server.config.enabled === false,
+      )
+      if (off) return { name, source: 'not-checked' }
+      return {
+        name,
+        source: 'last-check',
+        checkedAt,
+        inspection: { name, state: 'failed', tools: [], error },
+      }
+    }),
+  ]
 }
