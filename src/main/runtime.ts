@@ -66,7 +66,11 @@ import {
 } from './runtime-action-services'
 import { DesktopServicesLive } from './runtime-desktop-services'
 import { HiveWorkerCleanupServicesLive } from './runtime-hive-cleanup-services'
-import { type HostServiceOptions, startHostBackgroundServices } from './runtime-host-services'
+import {
+  type HostServiceOptions,
+  startHostBackgroundServices,
+  startHostServicesAfterListening,
+} from './runtime-host-services'
 import { installPiRuntimeIntegration } from './runtime-pi-integration'
 import { SessionControlPersistenceLive } from './runtime-session-control-persistence'
 import { SessionTitleServicesLive } from './runtime-session-title-services'
@@ -286,6 +290,9 @@ export async function disposeAppRuntime(): Promise<void> {
   await closeHostMcpConnections()
   await getAppRuntime().dispose()
 }
+
+/** Once the Host serves clients; Host start does not wait for it. */
+export const startSessionHostServicesAfterListening = startHostServicesAfterListening
 
 export async function startSessionHostOwnedServices(options: HostServiceOptions<AppServices> = {}) {
   if (stopHostOwnedServices) return

@@ -88,6 +88,7 @@ vi.mock('../runtime', () => ({
   disposeAppRuntime: mocks.disposeRuntime,
   runAppEffect: () => undefined,
   startSessionHostOwnedServices: () => undefined,
+  startSessionHostServicesAfterListening: () => undefined,
   stopSessionHostOwnedServices: () => undefined,
 }))
 vi.mock('../store/settings', () => ({ initializeSettingsStore: mocks.initializeSettings }))

@@ -30,9 +30,24 @@ vi.mock('../../../mcp/encrypted-mcp-secret-vault-service', async () => {
   }
 })
 
-const { MCP_MIGRATION_RETRY_MS, migrateOpenWaggleMcpFilesOnce } = await import(
-  '../openwaggle-mcp-migration'
-)
+vi.mock('../../../../store/settings', () => ({
+  getSettings: () => ({
+    projectPath: '/projects/open',
+    recentProjects: [],
+    projectDisplayNames: {},
+  }),
+}))
+vi.mock('../../../../store/session-details/workspace-root-authorization', () => ({
+  listSessionProjectRoots: async () => [],
+}))
+
+const {
+  MCP_MIGRATION_RETRY_MS,
+  migrateOpenWaggleMcpFilesAtHostStart,
+  migrateOpenWaggleMcpFilesOnce,
+  migrateOpenWaggleMcpSignInsAfterHostStart,
+  migrateOpenWaggleMcpSignInsOnce,
+} = await import('../openwaggle-mcp-migration')
 
 const OK = { files: [], oauth: [], droppedSessionStates: 0 }
 
@@ -103,16 +118,57 @@ describe('the MCP file migration within one Host process', () => {
     const failedSignIn = { server: 'docs', key: 'k', status: 'failed', reason: 'locked' }
     migrate.mockResolvedValueOnce({ ...OK, oauth: [failedSignIn] }).mockResolvedValue(OK)
 
-    await migrateOpenWaggleMcpFilesOnce('/projects/oauth')
+    await migrateOpenWaggleMcpSignInsOnce('/projects/oauth')
     vi.advanceTimersByTime(MCP_MIGRATION_RETRY_MS)
-    await migrateOpenWaggleMcpFilesOnce('/projects/oauth')
+    await migrateOpenWaggleMcpSignInsOnce('/projects/oauth')
 
     expect(migrate).toHaveBeenCalledTimes(2)
   })
 
+  // A keychain that is slow or asks for a password must not hold up whatever reads MCP files.
+  it('migrates files without reading old sign-ins from the vault', async () => {
+    migrate.mockResolvedValue(OK)
+
+    await migrateOpenWaggleMcpFilesOnce('/projects/files-only')
+
+    expect(migrate.mock.calls[0]?.[0].oauth).toBeUndefined()
+  })
+
+  it('migrates old sign-ins separately, once, after the files', async () => {
+    migrate.mockResolvedValue(OK)
+
+    await migrateOpenWaggleMcpFilesOnce('/projects/both')
+    await migrateOpenWaggleMcpSignInsOnce('/projects/both')
+    await migrateOpenWaggleMcpSignInsOnce('/projects/both')
+
+    expect(migrate).toHaveBeenCalledTimes(2)
+    expect(migrate.mock.calls[1]?.[0].oauth).toBeDefined()
+  })
+
+  it('starts the Host without reading the vault, and migrates sign-ins once it is ready', async () => {
+    migrate.mockResolvedValue(OK)
+
+    await migrateOpenWaggleMcpFilesAtHostStart()
+    expect(migrate.mock.calls.map(([input]) => input.oauth)).toEqual([undefined, undefined])
+
+    migrate.mockClear()
+    await migrateOpenWaggleMcpSignInsAfterHostStart()
+    expect(migrate.mock.calls.map(([input]) => input.projectPaths)).toEqual([
+      [],
+      ['/projects/open'],
+    ])
+    expect(migrate.mock.calls.every(([input]) => input.oauth !== undefined)).toBe(true)
+  })
+
+  it('logs a sign-in migration after Host start that fails, without throwing', async () => {
+    migrate.mockRejectedValue(new Error('keychain unavailable'))
+
+    await expect(migrateOpenWaggleMcpSignInsAfterHostStart()).resolves.toBeUndefined()
+  })
+
   it('reads an old sign-in, reports no sign-in as none, and a vault failure as a failure', async () => {
     migrate.mockResolvedValue(OK)
-    await migrateOpenWaggleMcpFilesOnce('/projects/vault')
+    await migrateOpenWaggleMcpSignInsOnce('/projects/vault')
     const readOld: (name: string) => Promise<string | undefined> =
       migrate.mock.calls[0]?.[0].oauth.readOld
 

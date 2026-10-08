@@ -107,14 +107,13 @@ vi.mock('../session-host/session-host-ownership', () => ({
     }
   }),
 }))
-vi.mock('../session-host/session-host-bootstrap', () => ({
-  startAppSessionHost: mocks.startHost,
-}))
+vi.mock('../session-host/session-host-bootstrap', () => ({ startAppSessionHost: mocks.startHost }))
 vi.mock('../runtime', () => ({
   initializeAppRuntime: mocks.initializeRuntime,
   disposeAppRuntime: mocks.disposeRuntime,
   runAppEffect: vi.fn(),
   startSessionHostOwnedServices: vi.fn(),
+  startSessionHostServicesAfterListening: vi.fn(),
   stopSessionHostOwnedServices: vi.fn(),
 }))
 vi.mock('../store/settings', () => ({
@@ -175,6 +174,7 @@ describe('detached Session Host startup', () => {
         externalOwnership: expect.objectContaining({
           targetPath: '/tmp/openwaggle-profile/session-host.sqlite',
         }),
+        startServicesAfterListening: expect.any(Function),
       }),
     )
     expect(mocks.applyInstallerIntent).toHaveBeenCalledWith(

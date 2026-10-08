@@ -112,6 +112,7 @@ export function startSessionHostCliIfRequested(argv: readonly string[]) {
                 createDiscoveredSession: createDiscoveredSessionWithLifecycle,
               })
             },
+            startServicesAfterListening: runtime.startSessionHostServicesAfterListening,
             stopOwnedServices: runtime.stopSessionHostOwnedServices,
           })
           const orphanTimer = setTimeout(() => {

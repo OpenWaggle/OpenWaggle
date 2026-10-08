@@ -31,7 +31,10 @@ import { hardenedMcpAuthProvider } from './mcp-hardened-auth-provider'
 import { forgetKnownMcpServerState, recordMcpServerCheck } from './mcp-server-status-registry'
 import { showSignInPage } from './mcp-sign-in-page'
 import { getOpenWaggleMcpCredentials } from './openwaggle-mcp-credentials'
-import { migrateOpenWaggleMcpFilesOnce } from './openwaggle-mcp-migration'
+import {
+  migrateOpenWaggleMcpFilesOnce,
+  migrateOpenWaggleMcpSignInsOnce,
+} from './openwaggle-mcp-migration'
 import { mcpOAuthSettings, mcpOAuthUrl, mcpSignedIn } from './pi-mcp-server-oauth'
 import { getMcpServerStatuses, type PiMcpServerRuntimeRoots } from './pi-mcp-server-status'
 import { openPiMcpUpstream } from './pi-mcp-upstream'
@@ -46,7 +49,12 @@ function defaultMcpServerRuntimeRoots(): PiMcpServerRuntimeRoots {
 }
 
 async function findServer(input: McpServerScopeInput, roots: PiMcpServerRuntimeRoots) {
-  await Promise.all([mcpShellEnvironmentReady(), migrateOpenWaggleMcpFilesOnce(input.projectPath)])
+  // Inspecting and signing in use the server's sign-in: an old one is migrated first, and a new
+  // one is never written over by it.
+  await Promise.all([
+    mcpShellEnvironmentReady(),
+    migrateOpenWaggleMcpSignInsOnce(input.projectPath),
+  ])
   const config = await loadMcpRuntimeConfig({
     roots: { ...roots, projectPath: input.projectPath },
     resolveSecret: resolveMcpVaultSecret,

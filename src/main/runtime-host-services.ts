@@ -1,5 +1,8 @@
 import * as Effect from 'effect/Effect'
-import { migrateOpenWaggleMcpFilesAtHostStart } from './adapters/pi/mcp/openwaggle-mcp-migration'
+import {
+  migrateOpenWaggleMcpFilesAtHostStart,
+  migrateOpenWaggleMcpSignInsAfterHostStart,
+} from './adapters/pi/mcp/openwaggle-mcp-migration'
 import { migrateLegacyProviderCredentialsOnHostStart } from './adapters/pi/pi-legacy-provider-credentials'
 import { runSessionScratchSweepBackground } from './adapters/session-scratch-sweep-background'
 import { runSessionSemanticDiscoveryBackground } from './adapters/session-semantic-discovery-background'
@@ -34,7 +37,9 @@ export function startHostBackgroundServices<R = never>(options: HostServiceOptio
     // `azure-openai-responses` to `azure` without migrating them).
     yield* migrateLegacyProviderReferences
     yield* migrateLegacyProviderCredentialsOnHostStart
-    // Before Settings, the CLI, or a Run reads MCP configuration (ADR 0050 migration).
+    // Before Settings, the CLI, or a Run reads MCP configuration (ADR 0050 migration). Files only:
+    // old sign-ins read the keychain, which can stall for minutes, so they wait until the Host
+    // serves clients (`startHostServicesAfterListening`).
     yield* Effect.promise(() => migrateOpenWaggleMcpFilesAtHostStart())
     yield* installAppSessionToolGateway
     yield* runSessionExportRecoveryBackground
@@ -49,4 +54,12 @@ export function startHostBackgroundServices<R = never>(options: HostServiceOptio
     yield* installSessionTitleWorker
     yield* activateTrustedMainExtensionsForActiveProjectSafely()
   })
+}
+
+/**
+ * Host work that starts once the Host serves clients and that start never waits for: the MCP
+ * sign-in migration, which reads the keychain. MCP connections and sign-ins wait for it instead.
+ */
+export function startHostServicesAfterListening() {
+  return migrateOpenWaggleMcpSignInsAfterHostStart()
 }

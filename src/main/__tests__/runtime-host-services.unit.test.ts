@@ -46,12 +46,17 @@ vi.mock('../adapters/pi/mcp/openwaggle-mcp-migration', () => ({
   migrateOpenWaggleMcpFilesAtHostStart: async () => {
     started.push('mcp files')
   },
+  migrateOpenWaggleMcpSignInsAfterHostStart: async () => {
+    started.push('mcp sign-ins')
+  },
 }))
 vi.mock('../adapters/pi/pi-legacy-provider-credentials', () => ({
   migrateLegacyProviderCredentialsOnHostStart: recorded('provider credentials'),
 }))
 
-const { startHostBackgroundServices } = await import('../runtime-host-services')
+const { startHostBackgroundServices, startHostServicesAfterListening } = await import(
+  '../runtime-host-services'
+)
 
 describe('Host background services', () => {
   it('starts the startup scratch sweep with the other Host services', async () => {
@@ -81,5 +86,15 @@ describe('Host background services', () => {
     expect(started.indexOf('mcp files')).toBeLessThan(started.indexOf('tool gateway'))
     // Lists `pi` CLI sessions created in OpenWaggle projects (ADR 0050).
     expect(started).toContain('pi session discovery')
+    // Old MCP sign-ins read the keychain, which can stall for minutes: not part of Host start.
+    expect(started).not.toContain('mcp sign-ins')
+  })
+
+  it('migrates old MCP sign-ins once the Host serves clients', async () => {
+    started.length = 0
+
+    await startHostServicesAfterListening()
+
+    expect(started).toEqual(['mcp sign-ins'])
   })
 })

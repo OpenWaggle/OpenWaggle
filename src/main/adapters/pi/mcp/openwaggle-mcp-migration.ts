@@ -27,6 +27,13 @@ interface MigrationAttempt {
   failedAt?: number
 }
 
+/**
+ * `files`: OpenWaggle's MCP files and old per-Session switches, which need no keychain. `sign-ins`:
+ * also the old encrypted sign-ins, which read the vault through the operating system's keychain;
+ * a slow or locked keychain must only hold up what uses MCP sign-ins.
+ */
+type MigrationPart = 'files' | 'sign-ins'
+
 const migrations = new Map<string, MigrationAttempt>()
 /** Runs migrations one at a time: they share the migration record and the global file. */
 let migrationQueue: Promise<unknown> = Promise.resolve()
@@ -77,36 +84,54 @@ async function durableMcpProjectPaths(): Promise<readonly string[]> {
   return [...new Set([...(await settingsProjectPaths()), ...(await listSessionProjectRoots())])]
 }
 
-/**
- * Runs the one-time silent migration of OpenWaggle's pre-ADR-0050 MCP files (global and this
- * project) before the project's configuration is first loaded in this process. The migration
- * records what it did, so later processes skip it; a failure leaves the files as they were, and
- * the next call after `MCP_MIGRATION_RETRY_MS` tries again.
- */
-export function migrateOpenWaggleMcpFilesOnce(requestedProjectPath: string | null) {
+function migrateOnceInProcess(part: MigrationPart, requestedProjectPath: string | null) {
   // One canonical spelling, the one the migration records use, so `/a/` and `/a` are one project.
   const projectPath = requestedProjectPath?.trim()
     ? normalizeLegacyProjectPath(requestedProjectPath)
     : null
-  const key = projectPath ?? ''
+  const key = `${part}:${projectPath ?? ''}`
   const previous = migrations.get(key)
   const retry =
     previous?.failedAt !== undefined && Date.now() - previous.failedAt >= MCP_MIGRATION_RETRY_MS
   if (previous && !retry) return previous.done
   const attempt: MigrationAttempt = {
-    done: migrationQueue.then(() => runMigration(projectPath, attempt)),
+    done: migrationQueue.then(() => runMigration(part, projectPath, attempt)),
   }
   migrationQueue = attempt.done
   migrations.set(key, attempt)
   return attempt.done
 }
 
-async function runMigration(projectPath: string | null, attempt: MigrationAttempt) {
+/**
+ * Runs the one-time silent migration of OpenWaggle's pre-ADR-0050 MCP files (global and this
+ * project) before the project's configuration is first loaded in this process. It never reads
+ * the keychain; old sign-ins are {@link migrateOpenWaggleMcpSignInsOnce}'s. The migration records
+ * what it did, so later processes skip it; a failure leaves the files as they were, and the next
+ * call after `MCP_MIGRATION_RETRY_MS` tries again.
+ */
+export function migrateOpenWaggleMcpFilesOnce(requestedProjectPath: string | null) {
+  return migrateOnceInProcess('files', requestedProjectPath)
+}
+
+/**
+ * The files' migration, then the old encrypted sign-ins of the global and this project's servers,
+ * which reads the vault through the operating system's keychain. Whatever connects to MCP servers
+ * or signs in to one waits for it, so an old sign-in is never written over a new one.
+ */
+export function migrateOpenWaggleMcpSignInsOnce(requestedProjectPath: string | null) {
+  return migrateOnceInProcess('sign-ins', requestedProjectPath)
+}
+
+async function runMigration(
+  part: MigrationPart,
+  projectPath: string | null,
+  attempt: MigrationAttempt,
+) {
   // Two Hosts (another channel, or one starting while an old one drains) must not migrate at
   // the same time: both would read the same record and write the same files.
   const report = await withProcessFileLock(
     migrationRecordPath(homedir()),
-    () => migrateOnce(projectPath),
+    () => migrateOnce(part, projectPath),
     // Host start must not hang on another process that keeps the lock; it tries again later.
     { waitUntilAvailable: true, maxWaitMs: MCP_MIGRATION_LOCK_WAIT_MS },
   ).catch((error: unknown) => {
@@ -129,17 +154,22 @@ async function runMigration(projectPath: string | null, attempt: MigrationAttemp
   return report
 }
 
-function migrateOnce(projectPath: string | null) {
+function migrateOnce(part: MigrationPart, projectPath: string | null) {
   return migrateOpenWaggleMcpFiles({
     homeDir: homedir(),
     piAgentDir: getPiAgentDir(),
     projectPaths: projectPath ? [projectPath] : [],
     knownProjectPaths: knownMcpProjectPaths,
     now: () => new Date(),
-    oauth: {
-      readOld: readOldSignIn,
-      write: (stateKey, state) => writeOpenWaggleMcpOAuthState(stateKey, state),
-    },
+    ...(part === 'sign-ins'
+      ? {
+          oauth: {
+            readOld: readOldSignIn,
+            write: (stateKey: string, state: unknown) =>
+              writeOpenWaggleMcpOAuthState(stateKey, state),
+          },
+        }
+      : {}),
     sessionMcpSwitch: async (sessionId) => carryOverSessionMcpOff(sessionId),
   })
 }
@@ -171,17 +201,35 @@ async function carryOverSessionMcpOff(sessionId: string) {
   })
 }
 
-/**
- * At Host start, before anything reads MCP configuration: the global files and every project
- * OpenWaggle knows. Projects opened later are migrated on their first read.
- */
-export async function migrateOpenWaggleMcpFilesAtHostStart() {
-  await migrateOpenWaggleMcpFilesOnce(null)
+/** Migrates the global scope, then every project OpenWaggle knows. */
+async function migrateKnownScopes(migrate: (projectPath: string | null) => Promise<unknown>) {
+  await migrate(null)
   const projects = await durableMcpProjectPaths().catch((error: unknown): readonly string[] => {
     logger.error('MCP migration could not list the known projects at Host start', {
       error: describeError(error),
     })
     return []
   })
-  for (const projectPath of new Set(projects)) await migrateOpenWaggleMcpFilesOnce(projectPath)
+  for (const projectPath of new Set(projects)) await migrate(projectPath)
+}
+
+/**
+ * At Host start, before anything reads MCP configuration: the global files and every project
+ * OpenWaggle knows. Projects opened later are migrated on their first read. It does not read the
+ * keychain, so Host start never waits for one (a scratch HOME's took up to three minutes).
+ */
+export function migrateOpenWaggleMcpFilesAtHostStart() {
+  return migrateKnownScopes(migrateOpenWaggleMcpFilesOnce)
+}
+
+/**
+ * Once the Host serves clients: the old sign-ins of the same scopes. A slow keychain only delays
+ * MCP connections and sign-ins, which wait for this; a failure is logged and retried on use.
+ */
+export async function migrateOpenWaggleMcpSignInsAfterHostStart() {
+  await migrateKnownScopes(migrateOpenWaggleMcpSignInsOnce).catch((error: unknown) => {
+    logger.error('MCP sign-in migration failed after Host start; it is tried again on use', {
+      error: describeError(error),
+    })
+  })
 }

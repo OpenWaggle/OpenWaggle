@@ -31,7 +31,7 @@ import { resolveLegacyMcpServerAllowlist } from './legacy-mcp-server-allowlist'
 import { assertAppMayCall } from './mcp-app-tool-guards'
 import { hardenedMcpAuthProvider } from './mcp-hardened-auth-provider'
 import { getOpenWaggleMcpCredentials } from './openwaggle-mcp-credentials'
-import { migrateOpenWaggleMcpFilesOnce } from './openwaggle-mcp-migration'
+import { migrateOpenWaggleMcpSignInsOnce } from './openwaggle-mcp-migration'
 import {
   mcpOAuthSettings,
   mcpOAuthUrl,
@@ -67,7 +67,10 @@ async function assertSessionMayUse(input: McpAppServerInput) {
 
 async function appConnection(pool: McpConnectionPool, input: McpAppServerRequest) {
   await assertSessionMayUse(input)
-  await Promise.all([mcpShellEnvironmentReady(), migrateOpenWaggleMcpFilesOnce(input.projectPath)])
+  await Promise.all([
+    mcpShellEnvironmentReady(),
+    migrateOpenWaggleMcpSignInsOnce(input.projectPath),
+  ])
   const config = await loadMcpRuntimeConfig({
     roots: { homeDir: homedir(), piAgentDir: getPiAgentDir(), projectPath: input.projectPath },
     resolveSecret: resolveMcpVaultSecret,
