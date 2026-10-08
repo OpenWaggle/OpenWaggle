@@ -3,12 +3,15 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  /** Electron's app paths, as `setPath` and `setAppLogsPath` leave them. */
-  paths: new Map<string, string>(),
-  env: {} as { OPENWAGGLE_USER_DATA_DIR?: string },
-  initFileLogger: vi.fn(async () => undefined),
-}))
+const mocks = vi.hoisted(() => {
+  const env: { OPENWAGGLE_USER_DATA_DIR?: string } = {}
+  return {
+    /** Electron's app paths, as `setPath` and `setAppLogsPath` leave them. */
+    paths: new Map<string, string>(),
+    env,
+    initFileLogger: vi.fn(async () => undefined),
+  }
+})
 
 vi.mock('electron', () => ({
   app: {
